@@ -6,7 +6,7 @@
  *
  * Live sync is one closed boundary with two bounded entry paths driven by the
  * pure cursor module:
- *   1. Full sync - for missing / legacy / fixture cursors: capture a real
+ *   1. Full sync - for missing / fixture cursors: capture a real
  *      high-water mark from users.getProfile BEFORE listing, then bounded
  *      `users.messages.list` + per-id `users.messages.get` metadata. The
  *      validated profile historyId becomes the next cursor candidate only

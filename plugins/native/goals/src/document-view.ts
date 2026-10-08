@@ -15,7 +15,7 @@ export const GOALS_PRESENTATION_STATES: readonly GoalPresentationState[] = [
   "archived",
 ];
 
-export type GoalsInputBinding = Omit<GoalInputBindingRecord, "board_id">;
+export type GoalsInputBinding = Omit<GoalInputBindingRecord, "project_id">;
 
 export interface GoalsDocumentView {
   goal: GoalRecord;

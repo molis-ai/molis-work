@@ -46,7 +46,7 @@ function fixture(options: { human?: boolean } = {}) {
   const store = new LocalProjectDatabase(databasePath);
   const module = openModule(store);
   module.commands.initializeBoard({
-    board_id: BOARD,
+    project_id: BOARD,
     title: "事件事实",
     actor_id: "user-1",
     idempotency_key: "init-board",
@@ -64,7 +64,7 @@ function fixture(options: { human?: boolean } = {}) {
     events: module.events,
     planning: module.planning,
   }).createIntent({
-    board_id: BOARD,
+    project_id: BOARD,
     goal_id: GOAL,
     title: "互动故事片段",
     outcome: "玩家能体验一段会回应选择的故事",
@@ -143,7 +143,7 @@ test("registers fields, reports work, and reopens the same facts from SQLite", (
   const data = fixture();
   try {
     const configured = data.module.events.configure({
-      board_id: BOARD,
+      project_id: BOARD,
       goal_id: GOAL,
       actor_id: "runtime-1",
       actor_kind: "runtime",
@@ -158,7 +158,7 @@ test("registers fields, reports work, and reopens the same facts from SQLite", (
     assert.equal(configured.config.types[0]?.source.kind, "runtime");
 
     const reported = data.module.events.report({
-      board_id: BOARD,
+      project_id: BOARD,
       goal_id: GOAL,
       actor_id: "runtime-1",
       actor_kind: "runtime",
@@ -207,20 +207,20 @@ test("old and new type versions keep their own field definitions after a second 
   const data = fixture();
   try {
     data.module.events.configure({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       expected_version: 0, idempotency_key: "cfg-v1", types: [storyDelivery(1)],
     });
     const first = data.module.events.report({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "report-v1",
       events: [reportDelivery({ fields: { piece: "第一版交付", limits: "" } })],
     });
     data.module.events.configure({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       expected_version: 1, idempotency_key: "cfg-v2", types: [storyDelivery(2)],
     });
     const second = data.module.events.report({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "report-v2",
       events: [reportDelivery({
         type_version: 2,
@@ -255,7 +255,7 @@ test("latest related report updates only that requirement; human_decision stays 
   const data = fixture({ human: true });
   try {
     data.module.events.configure({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       expected_version: 0, idempotency_key: "cfg-v1", types: [storyDelivery(1)],
       requirement_bindings: [
         { type_id: "story-delivery", requirement_id: "playable-scene" },
@@ -263,7 +263,7 @@ test("latest related report updates only that requirement; human_decision stays 
       ],
     });
     const support = data.module.events.report({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "support-all",
       events: [reportDelivery({
         fields: { piece: "开场可玩", limits: "" },
@@ -275,7 +275,7 @@ test("latest related report updates only that requirement; human_decision stays 
       })],
     });
     const contradict = data.module.events.report({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "contradict-choice",
       events: [reportDelivery({
         title: "第二选择没有不同回应",
@@ -296,7 +296,7 @@ test("latest related report updates only that requirement; human_decision stays 
     assert.equal(byId["human-signoff"]?.current_report?.substitutes_human_decision, false);
 
     data.module.events.report({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "unknown-choice",
       events: [reportDelivery({
         title: "还无法判断分叉",
@@ -326,7 +326,7 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
   const data = fixture();
   try {
     data.module.commands.initializeBoard({
-      board_id: OTHER_BOARD, title: "另一个项目", actor_id: "user-1", idempotency_key: "init-other",
+      project_id: OTHER_BOARD, title: "另一个项目", actor_id: "user-1", idempotency_key: "init-other",
     });
     data.module.commands.createGoal(OTHER_BOARD, {
       goal_id: OTHER_GOAL, title: "其他 Goal", outcome: "隔离", why: "跨引用", business_logic: "不可借用。",
@@ -338,43 +338,43 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
       }],
     }, { actor_id: "user-1", idempotency_key: "create-other" });
     data.module.events.configure({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-v1",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-v1",
       types: [storyDelivery(1)],
     });
     data.module.events.configure({
-      board_id: OTHER_BOARD, goal_id: OTHER_GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-other",
+      project_id: OTHER_BOARD, goal_id: OTHER_GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-other",
       types: [{ ...storyDelivery(1), type_id: "other-delivery" }],
     });
 
     const before = data.module.events.listEvents(BOARD, GOAL).events.length;
     const beforeJournal = Number(data.store.db.prepare(
-      "SELECT COUNT(*) AS count FROM events WHERE board_id = ?",
+      "SELECT COUNT(*) AS count FROM events WHERE project_id = ?",
     ).get(BOARD)?.count);
 
     assert.throws(
       () => data.module.events.report({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "bad-field",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "bad-field",
         events: [reportDelivery({ fields: { piece: "有内容", unknown_field: "nope" } as Record<string, string> })],
       }),
       (error: unknown) => error instanceof GoalsCommandError && error.code === "event_report.unknown_field",
     );
     assert.throws(
       () => data.module.events.report({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "missing-required",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "missing-required",
         events: [reportDelivery({ fields: { piece: "   ", limits: "可选" } })],
       }),
       (error: unknown) => error instanceof GoalsCommandError && error.code === "event_report.missing_required_field",
     );
     assert.throws(
       () => data.module.events.report({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "wrong-version",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "wrong-version",
         events: [reportDelivery({ type_version: 9, fields: { piece: "有内容" } })],
       }),
       (error: unknown) => error instanceof GoalsCommandError && error.code === "event_type.version_not_found",
     );
     assert.throws(
       () => data.module.events.report({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "cross-req",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "cross-req",
         events: [reportDelivery({
           fields: { piece: "有内容" },
           judgments: [{ requirement_id: "other-criterion", verdict: "supports" }],
@@ -384,14 +384,14 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
     );
     assert.throws(
       () => data.module.events.report({
-        board_id: OTHER_BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "cross-board",
+        project_id: OTHER_BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "cross-board",
         events: [reportDelivery({ fields: { piece: "有内容" } })],
       }),
       (error: unknown) => error instanceof GoalsCommandError && error.code === "goal.not_found",
     );
     assert.throws(
       () => data.module.events.configure({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 1, idempotency_key: "bad-format",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 1, idempotency_key: "bad-format",
         types: [{
           ...storyDelivery(2),
           fields: [
@@ -404,7 +404,7 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
     );
     assert.throws(
       () => data.module.events.configure({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 1, idempotency_key: "script",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 1, idempotency_key: "script",
         types: [{
           type_id: "xss",
           version: 1,
@@ -417,7 +417,7 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
     );
     assert.throws(
       () => data.module.events.report({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "batch-partial",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "batch-partial",
         events: [
           reportDelivery({ title: "合法前项", fields: { piece: "前项可保存" } }),
           reportDelivery({ title: "后项缺必填", fields: { limits: "只有可选" } }),
@@ -427,16 +427,16 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
     );
 
     assert.equal(data.module.events.listEvents(BOARD, GOAL).events.length, before);
-    assert.equal(Number(data.store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE board_id = ?").get(BOARD)?.count), beforeJournal);
+    assert.equal(Number(data.store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE project_id = ?").get(BOARD)?.count), beforeJournal);
     assert.equal(data.module.events.readConfig(BOARD, GOAL).version, 1);
-    assert.equal(data.store.db.prepare("SELECT COUNT(*) AS count FROM goal_work_events WHERE board_id = ? AND kind = 'report'").get(BOARD)?.count, 0);
+    assert.equal(data.store.db.prepare("SELECT COUNT(*) AS count FROM goal_work_events WHERE project_id = ? AND kind = 'report'").get(BOARD)?.count, 0);
 
     data.module.lifecycle.setTrashed(BOARD, { goal_id: GOAL, trashed: true, reason: "先放回收站" }, {
       actor_id: "user-1", idempotency_key: "trash-goal",
     });
     assert.throws(
       () => data.module.events.report({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "trashed-write",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "trashed-write",
         events: [reportDelivery({ fields: { piece: "不该写入" } })],
       }),
       (error: unknown) => error instanceof GoalsCommandError && error.code === "goal.trashed",
@@ -450,40 +450,40 @@ test("retries replay without duplicates; reused keys conflict; stale config vers
   const data = fixture();
   try {
     const first = data.module.events.configure({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-v1",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-v1",
       types: [storyDelivery(1)],
     });
     const replayedConfig = data.module.events.configure({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-v1",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-v1",
       types: [storyDelivery(1)],
     });
     assert.equal(replayedConfig.replayed, true);
     assert.equal(replayedConfig.event_id, first.event_id);
     assert.equal(data.module.events.readConfig(BOARD, GOAL).version, 1);
-    assert.equal(data.store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE type = 'goal.event_config.updated' AND board_id = ?").get(BOARD)?.count, 1);
+    assert.equal(data.store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE type = 'goal.event_config.updated' AND project_id = ?").get(BOARD)?.count, 1);
 
     assert.throws(
       () => data.module.events.configure({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-v1",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-v1",
         types: [{ ...storyDelivery(1), purpose: "不同请求" }],
       }),
       (error: unknown) => error instanceof GoalsCommandError && error.code === "request.idempotency_key_reused",
     );
 
     const reported = data.module.events.report({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "report-1",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "report-1",
       events: [reportDelivery({ fields: { piece: "开场" } })],
     });
     const replayedReport = data.module.events.report({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "report-1",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "report-1",
       events: [reportDelivery({ fields: { piece: "开场" } })],
     });
     assert.equal(replayedReport.replayed, true);
     assert.equal(replayedReport.events[0]?.event_id, reported.events[0]?.event_id);
-    assert.equal(data.store.db.prepare("SELECT COUNT(*) AS count FROM goal_work_events WHERE kind = 'report' AND board_id = ?").get(BOARD)?.count, 1);
+    assert.equal(data.store.db.prepare("SELECT COUNT(*) AS count FROM goal_work_events WHERE kind = 'report' AND project_id = ?").get(BOARD)?.count, 1);
     assert.throws(
       () => data.module.events.report({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "report-1",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "report-1",
         events: [reportDelivery({ fields: { piece: "另一份内容" } })],
       }),
       (error: unknown) => error instanceof GoalsCommandError && error.code === "request.idempotency_key_reused",
@@ -496,13 +496,13 @@ test("retries replay without duplicates; reused keys conflict; stale config vers
       const firstEvents = openModule(firstHandle).events;
       const secondEvents = openModule(secondHandle).events;
       const advanced = firstEvents.configure({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 1, idempotency_key: "cfg-from-a",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 1, idempotency_key: "cfg-from-a",
         types: [storyDelivery(2)],
       });
       assert.equal(advanced.config.version, 2);
       assert.throws(
         () => secondEvents.configure({
-          board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 1, idempotency_key: "cfg-from-b",
+          project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 1, idempotency_key: "cfg-from-b",
           types: [{
             type_id: "story-observation",
             version: 1,
@@ -532,7 +532,7 @@ test("a project keeps its Goals and journal across reopening, and a fresh projec
   try {
     const originalGoal = data.module.query.getGoal(BOARD, GOAL);
     const originalJournal = data.store.db.prepare(
-      "SELECT event_id, type, seq FROM events WHERE board_id = ? ORDER BY seq",
+      "SELECT event_id, type, seq FROM events WHERE project_id = ? ORDER BY seq",
     ).all(BOARD);
     const originalGoalCount = Number(data.store.db.prepare("SELECT COUNT(*) AS count FROM goals").get()?.count);
     data.store.close();
@@ -543,17 +543,17 @@ test("a project keeps its Goals and journal across reopening, and a fresh projec
       const module = openModule(upgraded);
       assert.equal(module.query.getGoal(BOARD, GOAL)?.title, originalGoal?.title);
       assert.deepEqual(
-        upgraded.db.prepare("SELECT event_id, type, seq FROM events WHERE board_id = ? ORDER BY seq").all(BOARD),
+        upgraded.db.prepare("SELECT event_id, type, seq FROM events WHERE project_id = ? ORDER BY seq").all(BOARD),
         originalJournal,
       );
       assert.equal(Number(upgraded.db.prepare("SELECT COUNT(*) AS count FROM goals").get()?.count), originalGoalCount);
       const configured = module.events.configure({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "after-upgrade",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "after-upgrade",
         types: [storyDelivery(1)],
       });
       assert.equal(configured.config.version, 1);
       module.events.report({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "after-upgrade-report",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "after-upgrade-report",
         events: [reportDelivery({ fields: { piece: "升级后仍可上报" } })],
       });
     } finally {
@@ -566,7 +566,7 @@ test("a project keeps its Goals and journal across reopening, and a fresh projec
       assert.equal(module.events.readConfig(BOARD, GOAL).version, 1);
       assert.equal(module.events.listEvents(BOARD, GOAL).events.filter((item) => item.kind === "report").length, 1);
       assert.deepEqual(
-        upgradedAgain.db.prepare("SELECT type FROM events WHERE board_id = ? AND type IN ('goal.created', 'board.created') ORDER BY seq").all(BOARD),
+        upgradedAgain.db.prepare("SELECT type FROM events WHERE project_id = ? AND type IN ('goal.created', 'board.created') ORDER BY seq").all(BOARD),
         originalJournal.filter((row: { type: string }) => row.type === "goal.created" || row.type === "board.created").map((row: { type: string }) => ({ type: row.type })),
       );
     } finally {
@@ -580,14 +580,14 @@ test("a project keeps its Goals and journal across reopening, and a fresh projec
       assert.ok(fresh.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'goal_work_events'").get());
       const module = openModule(fresh);
       module.commands.initializeBoard({
-        board_id: BOARD, title: "新库", actor_id: "user-1", idempotency_key: "fresh-board",
+        project_id: BOARD, title: "新库", actor_id: "user-1", idempotency_key: "fresh-board",
       });
       module.commands.createGoal(BOARD, {
         goal_id: GOAL, title: "新库 Goal", outcome: "同样能力", why: "建库路径", business_logic: "新库直接可用。",
         acceptance_criteria: [],
       }, { actor_id: "user-1", idempotency_key: "fresh-goal" });
       const configured = module.events.configure({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "fresh-cfg",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "fresh-cfg",
         types: [storyDelivery(1)],
       });
       assert.equal(configured.config.types[0]?.type_id, "story-delivery");
@@ -605,13 +605,13 @@ test("bound requirements reject incompatible types in a batch; unbound and bound
   const data = fixture();
   try {
     data.module.events.configure({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       expected_version: 0, idempotency_key: "cfg-types",
       types: [storyDelivery(1), storyObservation()],
       requirement_bindings: [{ type_id: "story-delivery", requirement_id: "playable-scene" }],
     });
     data.module.events.setAgreement({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "cfg-types-req",
       expected_config_version: 1,
       expected_agreement_version: data.module.events.readWorkState(BOARD, GOAL).agreement.version,
@@ -621,13 +621,13 @@ test("bound requirements reject incompatible types in a batch; unbound and bound
         bound_type_id: "story-delivery",
       }],
     });
-    const beforeJournal = count(data.store, "SELECT COUNT(*) AS count FROM events WHERE board_id = ?", BOARD);
-    const beforeWork = count(data.store, "SELECT COUNT(*) AS count FROM goal_work_events WHERE board_id = ?", BOARD);
+    const beforeJournal = count(data.store, "SELECT COUNT(*) AS count FROM events WHERE project_id = ?", BOARD);
+    const beforeWork = count(data.store, "SELECT COUNT(*) AS count FROM goal_work_events WHERE project_id = ?", BOARD);
     const beforeJudgments = count(data.store, "SELECT COUNT(*) AS count FROM goal_work_event_judgments");
 
     assert.throws(
       () => data.module.events.report({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "batch-incompatible",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "batch-incompatible",
         events: [
           {
             type_id: "story-observation", type_version: 1, title: "先记下玩家卡住了",
@@ -645,7 +645,7 @@ test("bound requirements reject incompatible types in a batch; unbound and bound
     );
     assert.throws(
       () => data.module.events.report({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "criterion-incompatible",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "criterion-incompatible",
         events: [{
           type_id: "story-observation", type_version: 1, title: "观察不能绑定验收",
           fields: { behavior: "看起来能玩" },
@@ -655,13 +655,13 @@ test("bound requirements reject incompatible types in a batch; unbound and bound
       (error: unknown) => error instanceof GoalsCommandError && error.code === "event_report.incompatible_requirement",
     );
 
-    assert.equal(count(data.store, "SELECT COUNT(*) AS count FROM events WHERE board_id = ?", BOARD), beforeJournal);
-    assert.equal(count(data.store, "SELECT COUNT(*) AS count FROM goal_work_events WHERE board_id = ?", BOARD), beforeWork);
+    assert.equal(count(data.store, "SELECT COUNT(*) AS count FROM events WHERE project_id = ?", BOARD), beforeJournal);
+    assert.equal(count(data.store, "SELECT COUNT(*) AS count FROM goal_work_events WHERE project_id = ?", BOARD), beforeWork);
     assert.equal(count(data.store, "SELECT COUNT(*) AS count FROM goal_work_event_judgments"), beforeJudgments);
     assert.equal(data.module.events.readCurrentRequirements(BOARD, GOAL).find((item) => item.requirement_id === "ready")?.current_report, null);
 
     const compatible = data.module.events.report({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "bound-ok",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "bound-ok",
       events: [reportDelivery({
         fields: { piece: "开场可玩" },
         judgments: [
@@ -671,7 +671,7 @@ test("bound requirements reject incompatible types in a batch; unbound and bound
       })],
     });
     const unbound = data.module.events.report({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "unbound-ok",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "unbound-ok",
       events: [{
         type_id: "story-observation", type_version: 1, title: "选择分叉还不清楚",
         fields: { behavior: "两次选择看起来差不多" },
@@ -705,7 +705,7 @@ test("constructor and __proto__ field ids keep own text through save and reopen"
   const data = fixture();
   try {
     data.module.events.configure({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-own",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-own",
       types: [{
         type_id: "shape-note",
         version: 1,
@@ -720,7 +720,7 @@ test("constructor and __proto__ field ids keep own text through save and reopen"
     const missing = JSON.parse("{}") as Record<string, string>;
     assert.throws(
       () => data.module.events.report({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "missing-constructor",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "missing-constructor",
         events: [{ type_id: "shape-note", type_version: 1, title: "缺必填", fields: missing }],
       }),
       (error: unknown) => error instanceof GoalsCommandError && error.code === "event_report.missing_required_field",
@@ -728,7 +728,7 @@ test("constructor and __proto__ field ids keep own text through save and reopen"
     const onlyProto = JSON.parse("{\"__proto__\":\"只有可选\"}") as Record<string, string>;
     assert.throws(
       () => data.module.events.report({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "proto-without-constructor",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "proto-without-constructor",
         events: [{ type_id: "shape-note", type_version: 1, title: "仍缺构造", fields: onlyProto }],
       }),
       (error: unknown) => error instanceof GoalsCommandError && error.code === "event_report.missing_required_field",
@@ -736,7 +736,7 @@ test("constructor and __proto__ field ids keep own text through save and reopen"
 
     const payload = JSON.parse("{\"constructor\":\"工厂方法\",\"__proto__\":\"原文 <b>仍保留</b>\"}") as Record<string, string>;
     const reported = data.module.events.report({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "own-fields",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "own-fields",
       events: [{ type_id: "shape-note", type_version: 1, title: "记下结构", fields: payload }],
     });
     assert.equal(ownText(reported.events[0]!.payload, "constructor"), "工厂方法");
@@ -770,12 +770,12 @@ test("event pages keep server order without gaps or duplicates; bad cursor, limi
       acceptance_criteria: [],
     }, { actor_id: "user-1", idempotency_key: "create-sibling" });
     data.module.events.configure({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-pages",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-pages",
       types: [storyDelivery(1)],
     });
     for (const title of ["一", "二", "三", "四", "五"]) {
       data.module.events.report({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: `page-${title}`,
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: `page-${title}`,
         events: [reportDelivery({ title: `进展 ${title}`, fields: { piece: title } })],
       });
     }
@@ -862,11 +862,11 @@ test("bounded latest reports are the actual newest reports, not the first histor
   try {
     const app = eventApp(data.module);
     app.configure({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-latest",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-latest",
       types: [storyDelivery(1)],
     });
     data.module.events.report({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "reports-1-55",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "reports-1-55",
       events: Array.from({ length: 55 }, (_, index) => reportDelivery({
         title: `report ${index + 1}`,
         fields: { piece: `片段 ${index + 1}` },
@@ -904,7 +904,7 @@ test("Runtime supports on a human_decision criterion still leaves a user-confirm
   try {
     const app = eventApp(data.module);
     app.createIntent({
-      board_id: BOARD,
+      project_id: BOARD,
       goal_id: "accepted-human",
       title: "需要用户确认的交付",
       outcome: "用户亲自确认可以内部试用",
@@ -920,11 +920,11 @@ test("Runtime supports on a human_decision criterion still leaves a user-confirm
       source_kind: "web",
     });
     app.configure({
-      board_id: BOARD, goal_id: "accepted-human", actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-human",
+      project_id: BOARD, goal_id: "accepted-human", actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-human",
       types: [storyDelivery(1)],
     });
     app.report({
-      board_id: BOARD, goal_id: "accepted-human", actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "report-human",
+      project_id: BOARD, goal_id: "accepted-human", actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "report-human",
       events: [reportDelivery({
         fields: { piece: "可玩片段" },
         judgments: [{ requirement_id: "accepted-human-signoff", verdict: "supports" }],
@@ -949,16 +949,16 @@ test("type v2 can rename and drop fields while old events stay on v1", () => {
   const data = fixture();
   try {
     data.module.events.configure({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       expected_version: 0, idempotency_key: "cfg-rename-v1", types: [storyDelivery(1)],
     });
     const first = data.module.events.report({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "report-rename-v1",
       events: [reportDelivery({ fields: { piece: "第一版交付", limits: "当时缺口" } })],
     });
     data.module.events.configure({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       expected_version: 1, idempotency_key: "cfg-rename-v2",
       types: [{
         ...storyDelivery(1),
@@ -970,7 +970,7 @@ test("type v2 can rename and drop fields while old events stay on v1", () => {
       }],
     });
     const second = data.module.events.report({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "report-rename-v2",
       events: [{
         type_id: "story-delivery", type_version: 2, title: "按新版本记录",
@@ -988,7 +988,7 @@ test("type v2 can rename and drop fields while old events stay on v1", () => {
     assert.equal(newReport.payload.limits, undefined);
     assert.throws(
       () => data.module.events.configure({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
         expected_version: 2, idempotency_key: "cfg-rewrite-v2",
         types: [{ ...storyDelivery(1), version: 2, name: "偷偷改同一版" }],
       }),
@@ -1003,13 +1003,13 @@ test("extra requirement unknown control fields are rejected and human_decision_r
   const data = fixture();
   try {
     data.module.events.configure({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       expected_version: 0, idempotency_key: "cfg-human-extra", types: [storyDelivery(1)],
     });
     const before = data.module.events.listEvents(BOARD, GOAL).events.length;
     assert.throws(
       () => data.module.events.setAgreement({
-        board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
         idempotency_key: "unknown-field",
         expected_config_version: 1,
         expected_agreement_version: data.module.events.readWorkState(BOARD, GOAL).agreement.version,
@@ -1024,7 +1024,7 @@ test("extra requirement unknown control fields are rejected and human_decision_r
     );
     assert.equal(data.module.events.listEvents(BOARD, GOAL).events.length, before);
     data.module.events.setAgreement({
-      board_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "human-extra-ok",
       expected_config_version: 1,
       expected_agreement_version: data.module.events.readWorkState(BOARD, GOAL).agreement.version,

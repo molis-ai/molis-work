@@ -44,8 +44,6 @@ export type ReuseReceipt = z.infer<typeof reuseReceiptSchema>;
  * exact version, project and privacy at each read/write. No credential or grant is persisted here. */
 export interface WorkReuseHostPort {
   projectId: string;
-  /** Original Artifact storage board resolved by the Host; never rewrite Artifact.board_id. */
-  boardId: string;
   /** Rebind a trusted Studio/job actor to CURRENT authority, including after restart. */
   callerFor(actorId: string, signal?: AbortSignal): Promise<ActionCallContext>;
   listArtifacts(caller: ActionCallContext): Promise<readonly ArtifactReference[]>;

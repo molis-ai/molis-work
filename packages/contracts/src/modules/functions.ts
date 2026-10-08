@@ -212,7 +212,7 @@ export type JudgmentSubjectKind = string;
 export interface JudgmentSubject {
   readonly kind: JudgmentSubjectKind;
   readonly id: string;
-  readonly board_id?: string;
+  readonly project_id?: string;
 }
 
 export interface JudgmentRecord {
@@ -236,13 +236,6 @@ export interface JudgmentRecord {
     readonly offer_request_id?: string;
     readonly offer_revision?: string;
   };
-}
-
-export interface FunctionSceneBinding {
-  readonly scene_id: string;
-  readonly function_key: string;
-  readonly board_id: string | null;
-  readonly ref: string | null;
 }
 
 export interface TypeSafeEvaluateResult {
@@ -316,12 +309,6 @@ export function visibleFeedDispositionIds(
   return offered;
 }
 
-export function sceneBehaviorIds(sceneId: string): string[] {
-  if (sceneId === INBOX_NEXT_SCENE_ID) return [INBOX_COMPOSE_BEHAVIOR_ID, INBOX_VERIFY_BEHAVIOR_ID, ...defaultInboxNextBehaviorIds(true)];
-  if (sceneId === FEED_CAPTURE_SCENE_ID) return defaultFeedCaptureBehaviorIds(true);
-  return [];
-}
-
 export function isFunctionDestinationId(value: string): boolean {
   // Registration and live compatibility belong to the scene service. Drafts
   // retain valid identities even if their original provider is currently absent.
@@ -391,26 +378,6 @@ export function functionOutputKeys(record: {
   return keys;
 }
 
-export function resolvedSceneBehaviors(
-  record: {
-    readonly primitive: FunctionsPrimitive;
-    readonly criteria: FunctionCriteria;
-    readonly scene_map?: FunctionSceneMap | null;
-  },
-  pool: readonly string[],
-): string[] | null {
-  const keys = functionOutputKeys(record);
-  if (keys.length === 0) return null;
-  const map = record.scene_map ?? {};
-  const resolved: string[] = [];
-  for (const key of keys) {
-    const target = map[key] || (pool.includes(key) ? key : "");
-    if (!target || !pool.includes(target)) return null;
-    resolved.push(target);
-  }
-  return resolved;
-}
-
 export function mapJudgmentChoice(
   record: {
     readonly primitive: FunctionsPrimitive;
@@ -428,22 +395,3 @@ export function mapJudgmentChoice(
   return map[result.choice] ?? result.choice;
 }
 
-export function functionFitsScene(
-  record: {
-    readonly primitive: FunctionsPrimitive;
-    readonly criteria: FunctionCriteria;
-    readonly scene_id?: string | null;
-    readonly scene_map?: FunctionSceneMap | null;
-  },
-  sceneId: string,
-  pool: readonly string[] = sceneBehaviorIds(sceneId),
-): boolean {
-  // Home compatibility requires the current registered offer directory.
-  if (sceneId === HOME_DOCK_SCENE_ID) return false;
-  if (record.scene_id === AGENT_MCP_DESTINATION_ID) return sceneId === AGENT_MCP_DESTINATION_ID;
-  if (record.scene_id && record.scene_id !== sceneId) return false;
-  if (pool.length === 0) return true;
-  const resolved = resolvedSceneBehaviors(record, pool);
-  if (!resolved) return false;
-  return true;
-}

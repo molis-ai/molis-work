@@ -1,6 +1,5 @@
 import type { ProjectRecord, DeleteProjectInput, ProjectDeletionResult } from "../modules/projects.js";
 import type { AliasDesktopPanelSessionInput, DesktopPanelRecord } from "./app-host.js";
-import type { LegacySessionMigrationApi } from "../modules/private-work-context.js";
 import type {
   RuntimeWorkContext, RuntimeProjectSuggestionClue, MolisWorkRuntimeContextResolution,
   BindRuntimeWorkContextInput, UnbindRuntimeWorkContextInput, MolisWorkRuntimeContextUnbindResult,
@@ -15,7 +14,8 @@ export interface MolisWorkRuntimeContextHost {
   webBaseUrl?: string;
   molisWorkSessionId?: string | null;
   nativeRuntimeSessionId?: string | null;
-  legacyWorkContextId?: string | null;
+  /** The work entry the host declared (`MOLIS_WORK_WORK_CONTEXT_ID`: a desktop panel, an integration check); the Session is routed by it. */
+  hostWorkContextId?: string | null;
   goalId?: string | null;
   /**
    * Host-only non-authoritative hints for a fresh Session. They may rank
@@ -28,9 +28,8 @@ export interface MolisWorkRuntimeContextHost {
 }
 
 export interface MolisWorkRuntimeConnection {
-  projectId?: string;
+  projectId: string;
   databasePath: string;
-  boardId: string;
   webBaseUrl: string;
 }
 
@@ -51,7 +50,6 @@ export interface RuntimeProjectCatalogProvider {
 
 export interface RuntimePanelCatalogApi {
   aliasPanelSession(input: AliasDesktopPanelSessionInput): DesktopPanelRecord;
-  reconcileSessions(registry: LegacySessionMigrationApi): void;
 }
 
 export interface RuntimePanelCatalogProvider {

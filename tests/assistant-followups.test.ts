@@ -31,7 +31,7 @@ function reply(text = "好的。"): Response {
 test("a standing request is kept by Prologue's durable queue: it runs once per due time, a busy work skips, a missed time is reported and not replayed", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-followups-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "board", storage_key: "memory:project" };
   const requests: any[] = [];
   let hold: Promise<void> | null = null;
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => { if (hold) await hold; requests.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array))); return reply("今天完成了三件事。"); });

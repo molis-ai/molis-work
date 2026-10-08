@@ -204,7 +204,7 @@ function dataJson(view: MolisWorkWebView): string {
   );
   return JSON.stringify({
     snapshot: {
-      board: { board_id: view.snapshot.board.board_id },
+      board: { project_id: view.snapshot.board.project_id },
       cursor: view.snapshot.cursor,
     },
     project: view.project,
@@ -268,7 +268,7 @@ const { renderChildProgress, renderContractCoverage } = createWorkbenchGoalsCont
 });
 
 const { renderProjectPolicyDocument, renderPolicyEditor } = createWorkbenchGoalsPolicyRenderer({
-  translate: L, escapeHtml, formatDate, icon, currentLocale, defaultPolicy: DEFAULT_GOAL_POLICY,
+  translate: L, escapeHtml, formatDate, icon, defaultPolicy: DEFAULT_GOAL_POLICY,
 });
 
 function decisionGroupModel(group: DecisionGoalGroup, view: MolisWorkWebView): WorkbenchDecisionGroup {

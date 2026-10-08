@@ -78,7 +78,7 @@ test("packed SDK: 开着时请求带上思考档、这一轮记下它；关着�
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "test", ...(thinking ? { thinking } : {}) }),
     resolveCredential: () => "test-only" });
   try {
-    const owner = { board_id: "board", plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: "user" }, directory = { canonical_path: project, realpath_verified: true };
+    const owner = { project_id: "board", plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: "user" }, directory = { canonical_path: project, realpath_verified: true };
     const role = { role_id: "reader", version: 1, execution: "read-only" as const, prompts: [], host_tools: [] };
     const session = await adapter.createSession({ ...owner, directory, title: "thinking" });
     const done = async (ref: never) => { for (let i = 0; i < 200; i++) { const view = await adapter.read(ref); if (view.phase === "completed") return view; await new Promise(r => setTimeout(r, 25)); } throw new Error("run did not complete"); };
@@ -117,7 +117,7 @@ test("packed SDK: 回答被输出上限截断时接着写，几段连成一条�
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "test", thinking: "adaptive" as const }),
     resolveCredential: () => "test-only" });
   try {
-    const owner = { board_id: "board", plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: "user" }, directory = { canonical_path: project, realpath_verified: true };
+    const owner = { project_id: "board", plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: "user" }, directory = { canonical_path: project, realpath_verified: true };
     const role = { role_id: "planner", version: 1, execution: "read-only" as const, prompts: [], host_tools: [] };
     const session = await adapter.createSession({ ...owner, directory, title: "continue" });
     const handle = await adapter.start({ ...owner, directory, session, task: "写一份计划。", role_id: "planner", role });

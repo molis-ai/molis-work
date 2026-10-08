@@ -14,7 +14,7 @@ import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.j
 test("production MCP reads persisted scoped grants on every list/call, shares real Alchemist data and preserves revocation after restart", { timeout: 40_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "production-action-mcp-")), clients: Client[] = [];
   const host = new MolisWorkLocalHost({ homeDirectory: home });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "a.sqlite"), boardId: "a", projectId: "a" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "a.sqlite"), projectId: "a" });
   const diagnostics = new Map<Client, () => string>();
   const connect = async (project: string, actor: string) => {
     const client = new Client({ name: "untrusted-client-name", version: "1" }); clients.push(client);

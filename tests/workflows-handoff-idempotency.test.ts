@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_BOARD_ID, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { WORKFLOWS_ACTION_PERMISSIONS, createWorkflowContentPorts, handoffKey, openWorkflowsStore, workflowsActions as w, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
@@ -16,14 +16,14 @@ const PROJECT = "project-handoff";
 test("a handoff is delivered once: a lost race delivers nothing and a retry re-sends the saved result without asking the model again", { timeout: 120_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "workflows-handoff-"));
   const dbPath = join(home, "project.db");
-  seedDemoBoard(dbPath);
+  seedDemoBoard(dbPath, PROJECT);
   const db = new LocalProjectDatabase(dbPath);
   const feed = createLocalFeedApplication(db.db);
-  const source = createLocalFeedSourceService(db.db, DEMO_BOARD_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
+  const source = createLocalFeedSourceService(db.db, PROJECT).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
   for (const id of ["a", "b"]) feed.ingestItem({ source, externalId: id, title: `消息 ${id}`, summary: "摘要", body: `消息 ${id} 的正文`, occurredAt: new Date().toISOString(), attention: false });
   let prompts = 0;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: async () => { prompts++; await new Promise(resolve => setTimeout(resolve, 30)); return `整理稿 ${prompts}\n\n只交一次。`; } });
-  const reference = molisWorkHostProjectReference({ databasePath: dbPath, boardId: DEMO_BOARD_ID, projectId: PROJECT });
+  const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller = { actor_id: "test-user", project_id: PROJECT, audience: "user" as const, permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS] };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
   const pages = () => { const store = openPagesStore(home); try { return store.list(PROJECT).length; } finally { store.close(); } };
@@ -78,9 +78,9 @@ test("a handoff is delivered once: a lost race delivers nothing and a retry re-s
 
 for (const stage of ["preparation", "response"] as const) test(`workflow AI revocation during ${stage} prevents dispatch or commit and allows authorized recovery`, { timeout: 30_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "workflow-ai-authority-")), dbPath = join(home, "project.db");
-  seedDemoBoard(dbPath);
+  seedDemoBoard(dbPath, PROJECT);
   const db = new LocalProjectDatabase(dbPath);
-  const source = createLocalFeedSourceService(db.db, DEMO_BOARD_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
+  const source = createLocalFeedSourceService(db.db, PROJECT).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
   const item = createLocalFeedApplication(db.db).ingestItem({ source, externalId: "ai-authority", title: "原材料", summary: "摘要", body: "只能在仍有权限时生成与保存。", occurredAt: new Date().toISOString(), attention: false }).item;
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let allowed = true, dispatched = 0;
@@ -91,7 +91,7 @@ for (const stage of ["preparation", "response"] as const) test(`workflow AI revo
     if (stage === "response") { entered.resolve(); await release.promise; }
     return "整理稿\n\n已获授权的正文。";
   } });
-  const reference = molisWorkHostProjectReference({ databasePath: dbPath, boardId: DEMO_BOARD_ID, projectId: PROJECT });
+  const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller = { actor_id: "user", project_id: PROJECT, audience: "user" as const, permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS],
     validate_authority: () => { if (!allowed) throw new ActionError("actions.revoked", "原调用已撤权"); } };
   const actions = bindActionClient(host.actionClient(reference), () => caller);

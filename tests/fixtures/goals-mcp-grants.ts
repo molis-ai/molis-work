@@ -5,8 +5,8 @@ import { writeMcpActionGrant } from "../../apps/local-host/src/mcp-settings-stor
 
 /** Explicit authorization for isolated fixtures; production never infers grants from tool switches. */
 export async function grantGoalsMcp(host: MolisWorkLocalHost | null, home: string,
-  project: { project_id: string; board_id: string; database_path: string }, clientId = "runtime:codex") {
-  const reference = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  project: { project_id: string; database_path: string }, clientId = "runtime:codex") {
+  const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const owner = host ?? new MolisWorkLocalHost();
   try {
     const views = await owner.inspectActions({ actor_id: clientId, project_id: project.project_id, audience: "mcp", permissions: [] }, reference);

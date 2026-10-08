@@ -75,11 +75,10 @@ test("engineering planning drives configure/report; no template is not auto-adop
     };
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, runtimeHost);
-    const board_id = project.board_id;
+    const project_id = project.project_id;
 
     const methods = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.planning.read__v1", {
       method_ids: ["domain-software-development"],
@@ -283,13 +282,13 @@ test("configure idempotency uses the original request before resolving upgraded 
     const project = await catalog.createProject({ display_name: "幂等采用", actor_id: "user" });
     await grantGoalsMcp(null, homeDirectory, project);
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
+      databasePath: project.database_path, projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-idempotency", host_declares_stable: true },
     });
-    const board_id = project.board_id;
+    const project_id = project.project_id;
     await mcp.callTool("molis_work_v1_action_goals.planning.save__v1", {
       user_confirmed: true,
       method: eventMethod("project-idempotent", "留下观察", "第一版"),
@@ -349,7 +348,7 @@ test("configure idempotency uses the original request before resolving upgraded 
     );
     await mcp.close();
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
+      databasePath: project.database_path, projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
@@ -376,13 +375,13 @@ test("equivalent planning packs merge with provenance; conflicting packs fail at
     const project = await catalog.createProject({ display_name: "合并规划", actor_id: "user" });
     await grantGoalsMcp(null, homeDirectory, project);
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
+      databasePath: project.database_path, projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-merge", host_declares_stable: true },
     });
-    const board_id = project.board_id;
+    const project_id = project.project_id;
     const sharedFields = [
       { field_id: "note", name: "内容", purpose: "观察正文", format: "text" as const, required: true },
     ];

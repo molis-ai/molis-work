@@ -9,7 +9,7 @@ import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import {
-  DEMO_BOARD_ID,
+  DEMO_PROJECT_ID,
   LocalProjectDatabase,
   createPluginPlatform,
   seedDemoBoard,
@@ -43,8 +43,8 @@ function project(directory: string, capabilities?: Parameters<typeof createPlugi
   const file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
-  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID),
-    board_id: DEMO_BOARD_ID,
+  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID),
+    project_id: DEMO_PROJECT_ID,
     actor_id: "tester",
     db: store.db,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }),
@@ -103,7 +103,7 @@ test("Files reads browsing settings without a Workspace binding and rejects the 
     assert.equal((first!.body as any).workspace.workspace_id, "one");
     selected = { ...selected, workspace_id: "two", canonical_path: "/two" };
     assert.equal(((await read())!.body as any).workspace.workspace_id, "two");
-    assert.throws(() => platform.wiring.bind({ board_id: DEMO_BOARD_ID, actor_id: "tester", target_plugin_id: FILES_PLUGIN_ID,
+    assert.throws(() => platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: FILES_PLUGIN_ID,
       target_port: "workspace", source_plugin_id: "io.molis.work.workspace", source_port: "workspace", origin: "user" }));
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
@@ -126,7 +126,7 @@ test("Files 捕获的快照到得了 Text stats，数出来的是那一份", asy
     ]);
 
     platform.wiring.bind({
-      board_id: DEMO_BOARD_ID,
+      project_id: DEMO_PROJECT_ID,
       target_plugin_id: TEXT_STATS_PLUGIN_ID,
       target_port: "text",
       source_plugin_id: FILES_PLUGIN_ID,
@@ -160,7 +160,7 @@ test("Coding fixed output reaches Diff through the production default binding wi
       { definition: createFilesPlugin() }, { definition: createGitPlugin() },
       { definition: createTextStatsPlugin() }, { definition: createDiffPlugin() },
     ]);
-    bindWorkspaceCompanions(platform, DEMO_BOARD_ID, "tester");
+    bindWorkspaceCompanions(platform, DEMO_PROJECT_ID, "tester");
     assert.equal(platform.wiring.selectedGroup(DIFF_PLUGIN_ID), "snapshots", "publishing must not change the user's comparison group");
     // Coding records its change set as a process item (artifact-positioning A2), then selects it into the port.
     const saved = coding!.services!.processItems!.record({ artifact_id: "fixed-coding", version: 1, artifact_type_id: "coding.changeset.v1", schema_version: 1,

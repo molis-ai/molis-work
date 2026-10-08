@@ -20,19 +20,18 @@ function protectedHandler(binding: ActionHandlerBinding): ActionHandlerBinding {
     catch (error) { if (error instanceof ActionError) return { available: false, code: error.code, reason: error.message }; throw error; }
   }, handle(caller, input) { requireUser(caller); return binding.handle(caller, input); } };
 }
-const policyFields = { goal_mode: enumeration(["disabled", "preferred", "required"]), required_capabilities: array(identifier),
-  self_verification: boolean, cross_reviewers: count, adversarial_reviewers: count, human_approval: boolean,
-  max_lease_seconds: { type: "integer", minimum: 1 } };
+/** A Goal's rule is the user's acceptance at closure; quality checks belong to Coding (specs/coding-quality-assurance). */
+const policyFields = { human_approval: boolean };
 export const goalPolicySchema = object(policyFields);
 const policy = goalPolicySchema;
 export const goalPolicyBindingSchema = object({ policy_binding_id: text, goal_id: nullable(text), scope: enumeration(["project_default", "ancestor_minimum", "goal"]),
   policy: object(policyFields, []), state: enumeration(["active", "replaced", "withdrawn"]), created_by: text, reason: text, created_at: text });
 const endpoints = { from_goal_id: identifier, to_goal_id: identifier, type: { ...enumeration(goalRelationTypes),
   description: "part_of：子目标到父目标；depends_on：消费目标到前置目标。其他类型同样按 from → to 保存，不能颠倒。" } };
-export const goalRelationSchema = object({ relation_id: text, board_id: text, ...endpoints, state: enumeration(["proposed", "active", "inactive"]),
+export const goalRelationSchema = object({ relation_id: text, project_id: text, ...endpoints, state: enumeration(["proposed", "active", "inactive"]),
   reason: text, created_by: text, created_at: text, deactivated_at: nullable(text) });
 const relation = goalRelationSchema;
-type SavePolicyInput = Omit<Parameters<GoalsCommandApi["saveProjectPolicy"]>[0], "board_id" | "actor_id">;
+type SavePolicyInput = Omit<Parameters<GoalsCommandApi["saveProjectPolicy"]>[0], "project_id" | "actor_id">;
 export const goalsConfigurationActions = {
   relations: goalAction<{ goal_id?: string }, { relations: GoalRelationRecord[]; observed_event_cursor: number }>("goals.relations.list", "读取目标关系",
     "读取当前项目或指定目标的入向及出向关系，保留 proposed、active、inactive 状态和原方向；不会重新启用历史关系", "query",
@@ -59,21 +58,21 @@ export interface GoalsConfigurationActionPorts {
   query: Pick<GoalsQueryApi, "listRelations" | "listPolicyHistory" | "resolvePolicy">;
   eventCursor(): number;
 }
-export function createGoalsConfigurationActionHandlers(ports: GoalsConfigurationActionPorts, boardId: string): ActionHandlerBinding[] {
+export function createGoalsConfigurationActionHandlers(ports: GoalsConfigurationActionPorts, projectId: string): ActionHandlerBinding[] {
   return [
     { ...goalsConfigurationActions.relations, handle: (_caller, input) => ({
-      relations: ports.query.listRelations(boardId, (input as { goal_id?: string }).goal_id), observed_event_cursor: ports.eventCursor() }) },
+      relations: ports.query.listRelations(projectId, (input as { goal_id?: string }).goal_id), observed_event_cursor: ports.eventCursor() }) },
     protectedHandler({ ...goalsConfigurationActions.relationAdd, handle: (caller, input) => {
       const { idempotency_key, ...relation } = input as AddGoalRelationInput & { idempotency_key: string };
-      return ports.commands.addRelation(boardId, relation, { actor_id: caller.actor_id, idempotency_key });
+      return ports.commands.addRelation(projectId, relation, { actor_id: caller.actor_id, idempotency_key });
     } }),
     protectedHandler({ ...goalsConfigurationActions.relationDeactivate, handle: (caller, input) => {
       const { idempotency_key, ...relation } = input as { relation_id: string; reason: string; idempotency_key: string };
-      return ports.commands.deactivateRelation(boardId, relation, { actor_id: caller.actor_id, idempotency_key });
+      return ports.commands.deactivateRelation(projectId, relation, { actor_id: caller.actor_id, idempotency_key });
     } }),
-    { ...goalsConfigurationActions.policyHistory, handle: () => ({ bindings: ports.query.listPolicyHistory(boardId), observed_event_cursor: ports.eventCursor() }) },
-    { ...goalsConfigurationActions.policyResolve, handle: (_caller, input) => ({ policy: ports.query.resolvePolicy(boardId, (input as { goal_id: string }).goal_id), observed_event_cursor: ports.eventCursor() }) },
+    { ...goalsConfigurationActions.policyHistory, handle: () => ({ bindings: ports.query.listPolicyHistory(projectId), observed_event_cursor: ports.eventCursor() }) },
+    { ...goalsConfigurationActions.policyResolve, handle: (_caller, input) => ({ policy: ports.query.resolvePolicy(projectId, (input as { goal_id: string }).goal_id), observed_event_cursor: ports.eventCursor() }) },
     protectedHandler({ ...goalsConfigurationActions.policySave, handle: (caller, input) => ports.commands.saveProjectPolicy({ ...input as SavePolicyInput,
-      board_id: boardId, actor_id: caller.actor_id }) }),
+      project_id: projectId, actor_id: caller.actor_id }) }),
   ];
 }

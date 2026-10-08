@@ -15,7 +15,7 @@ import { OfficialIntegrationRegistry, type OfficialProviderFactory } from "./off
 import { withConnectorConnections } from "./connector-connection-store.js";
 
 export function createLocalFeedConnectorSync(
-  db: SqliteDatabase, boardId: string, providerFactory?: OfficialProviderFactory,
+  db: SqliteDatabase, projectId: string, providerFactory?: OfficialProviderFactory,
   feed: FeedApplication = createLocalFeedApplication(db),
   homeDirectory = resolveMolisWorkHome(),
 ): FeedConnectorSync {
@@ -48,10 +48,10 @@ export function createLocalFeedConnectorSync(
         },
       });
       return {
-        run: (operationId, mode, execution) => listener.run({ ...execution, project_id: boardId, source_id: source.source_id,
+        run: (operationId, mode, execution) => listener.run({ ...execution, project_id: projectId, source_id: source.source_id,
           connection_id: connectionId, operation_id: operationId, adapter: integration.signal_adapter,
           intent: { sync_mode: mode } }),
-        checkpoint: () => listener.checkpoint(boardId, source.source_id),
+        checkpoint: () => listener.checkpoint(projectId, source.source_id),
       };
     },
     reportCrash: (sourceId, code) => integrations.reportCrash(sourceId, code),
@@ -68,11 +68,11 @@ export function createLocalFeedConnectorSync(
       return { account_label, config: { ...source.config, ...configuration } };
     },
     transaction: (operation) => db.transaction(operation).immediate(),
-    appendEvent(boardId, sourceId, type, reason, payload) {
+    appendEvent(projectId, sourceId, type, reason, payload) {
       const value = `${sourceId}\u0000${type}\u0000${Date.now()}\u0000${Math.random()}`;
       const eventId = `event-connector-${createHash("sha256").update(value).digest("hex").slice(0, 32)}`;
-      journal.appendEvent({ eventId, boardId, actorId: "feed-connector-service", type,
+      journal.appendEvent({ eventId, projectId, actorId: "feed-connector-service", type,
         objectType: "feed_source", objectId: sourceId, reason, payload, at: new Date().toISOString() });
     },
-  }, boardId);
+  }, projectId);
 }

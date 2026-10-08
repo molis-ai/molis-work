@@ -16,7 +16,7 @@ import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
 
 export interface ArtifactHttpContext {
-  readonly boardId: string;
+  readonly projectId: string;
   readonly routePrefix: string;
   readonly projectTitle: string;
   readonly actions: BoundActionClient;

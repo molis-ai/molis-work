@@ -14,7 +14,7 @@ test("deliverables from anyone but the person are proposals the person confirms 
   const pinned: string[] = [];
   const actions = new ActionService();
   actions.registerProvider({ provider: { provider_id: "goals", title: "Goals", kind: "plugin", project_id: "project" },
-    definitions: [...Object.values(goalsDeliverableActions), ...Object.values(goalsArtifactInputActions)], handlers: createGoalsDeliverableActionHandlers({ boardId: "board", goalExists: id => id === "G1", ledger,
+    definitions: [...Object.values(goalsDeliverableActions), ...Object.values(goalsArtifactInputActions)], handlers: createGoalsDeliverableActionHandlers({ projectId: "board", goalExists: id => id === "G1", ledger,
       readArtifact: ref => versions.has(`${ref.artifact_id}@${ref.version}`) ? { title: versions.get(`${ref.artifact_id}@${ref.version}`)!, artifact_type_id: "doc", availability: "available", lifecycle_state: "active" } : null,
       pin: async (_caller, subject) => { pinned.push(subject.id); return { artifact_id: "plan", version: 2 }; },
       pinnableKinds: async () => ["pages_document"], boundObjects: () => [] }) });

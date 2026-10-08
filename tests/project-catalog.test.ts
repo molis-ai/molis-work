@@ -7,8 +7,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { catalogSchemaCompatibilityError, type MolisWorkProjectCatalog, MolisWorkProjectCatalogError, type RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 async function withTemporaryDirectory<T>(run: (directory: string) => Promise<T>): Promise<T> {
@@ -150,15 +149,15 @@ test("managed projects have immutable identities, duplicate names, and isolated 
       const second = await catalog.createProject({ display_name: "同名项目", actor_id: "user" });
       assert.notEqual(first.project_id, second.project_id);
       assert.notEqual(first.database_path, second.database_path);
-      assert.equal(first.board_id, first.project_id);
-      assert.equal(second.board_id, second.project_id);
+      assert.equal(first.project_id, first.project_id);
+      assert.equal(second.project_id, second.project_id);
       assert.equal(first.data_class, "user");
       assert.equal(catalog.listProjects().length, 2);
 
       const firstStore = new LocalProjectDatabase(first.database_path);
       try {
         new GoalProjectApplication(firstStore).goals.commands.createGoal(
-          first.board_id,
+          first.project_id,
           {
             goal_id: "only-first",
             title: "只在第一个项目",
@@ -183,7 +182,7 @@ test("managed projects have immutable identities, duplicate names, and isolated 
       }
       const secondStore = new LocalProjectDatabase(second.database_path);
       try {
-        assert.equal(secondStore.snapshot(second.board_id).goals.length, 0);
+        assert.equal(secondStore.snapshot(second.project_id).goals.length, 0);
       } finally {
         secondStore.close();
       }
@@ -212,7 +211,8 @@ test("demo data is classified, idempotently opened, reset, and removable without
       const created = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
       assert.equal(created.status, "created");
       assert.equal(created.project.data_class, "regenerable_demo");
-      assert.equal(created.project.board_id, DEMO_BOARD_ID);
+      assert.equal(created.project.project_id, DEMO_PROJECT_ID);
+      const demoId = created.project.project_id;
       assert.deepEqual(
         catalog.listProjectPlugins(created.project.project_id),
         ["artifacts", "coding", "feed", "goals", "inbox", "schedule", "sessions"],
@@ -223,7 +223,7 @@ test("demo data is classified, idempotently opened, reset, and removable without
 
       const demoStore = new LocalProjectDatabase(created.project.database_path);
       try {
-        const demoSnapshot = demoStore.snapshot(DEMO_BOARD_ID);
+        const demoSnapshot = demoStore.snapshot(demoId);
         assert.equal(demoSnapshot.board.title, "让第一次使用 Molis Work 的人顺利完成一次目标协作");
         assert.equal(
           demoSnapshot.goals.find((goal) => goal.goal_id === "V1")?.title,
@@ -234,9 +234,9 @@ test("demo data is classified, idempotently opened, reset, and removable without
           "让不同 AI 对话看到同一项目进度",
         );
         const demoApp = new GoalProjectApplication(demoStore);
-        assert.equal(demoApp.goalEvents.isEventStateOwner(DEMO_BOARD_ID, "CORE"), true);
+        assert.equal(demoApp.goalEvents.isEventStateOwner(demoId, "CORE"), true);
         assert.match(
-          JSON.stringify(demoApp.goalEvents.listEvents(DEMO_BOARD_ID, "INTERFACES", { limit: 20 })),
+          JSON.stringify(demoApp.goalEvents.listEvents(demoId, "INTERFACES", { limit: 20 })),
           /升级前应先看到安全说明/,
         );
         assert.ok(demoSnapshot.goals.find((goal) => goal.goal_id === "AUTO-CONNECT")?.trashed_at);
@@ -247,13 +247,13 @@ test("demo data is classified, idempotently opened, reset, and removable without
           && relation.from_goal_id === "WEB-SCAN-NEST"
           && relation.to_goal_id === "WEB-SCAN-ROW",
         ));
-        const v1 = demoApp.goalEvents.readState(DEMO_BOARD_ID, "V1");
-        const decide = demoApp.goalEvents.readState(DEMO_BOARD_ID, "DECIDE");
-        const risk = demoApp.goalEvents.readState(DEMO_BOARD_ID, "RISK");
-        const dropped = demoApp.goalEvents.readState(DEMO_BOARD_ID, "DROPPED");
-        const graph = demoApp.goalEvents.readState(DEMO_BOARD_ID, "GRAPH");
-        const core = demoApp.goalEvents.readState(DEMO_BOARD_ID, "CORE");
-        const desktop = demoApp.goalEvents.readState(DEMO_BOARD_ID, "DESKTOP");
+        const v1 = demoApp.goalEvents.readState(demoId, "V1");
+        const decide = demoApp.goalEvents.readState(demoId, "DECIDE");
+        const risk = demoApp.goalEvents.readState(demoId, "RISK");
+        const dropped = demoApp.goalEvents.readState(demoId, "DROPPED");
+        const graph = demoApp.goalEvents.readState(demoId, "GRAPH");
+        const core = demoApp.goalEvents.readState(demoId, "CORE");
+        const desktop = demoApp.goalEvents.readState(demoId, "DESKTOP");
         assert.equal(core.work_status, "completed");
         assert.equal(graph.work_status, "completed");
         assert.equal(dropped.work_status, "cancelled");
@@ -263,7 +263,7 @@ test("demo data is classified, idempotently opened, reset, and removable without
         assert.ok(risk.concerns.some((concern) => concern.status === "open" && concern.blocks_closure));
         assert.equal(demoSnapshot.goals.filter((goal) => goal.trashed_at).map((goal) => goal.goal_id).join(","), "AUTO-CONNECT");
         new GoalProjectApplication(demoStore).goals.commands.createGoal(
-          DEMO_BOARD_ID,
+          demoId,
           {
             goal_id: "temporary-demo-change",
             title: "临时演示改动",
@@ -283,10 +283,10 @@ test("demo data is classified, idempotently opened, reset, and removable without
       assert.equal(reset.status, "reset");
       const resetStore = new LocalProjectDatabase(reset.project.database_path);
       try {
-        const resetSnapshot = resetStore.snapshot(DEMO_BOARD_ID);
+        const resetSnapshot = resetStore.snapshot(demoId);
         assert.equal(resetSnapshot.goals.some((goal) => goal.goal_id === "temporary-demo-change"), false);
         assert.ok(resetSnapshot.goals.find((goal) => goal.goal_id === "AUTO-CONNECT")?.trashed_at);
-        assert.equal(new GoalProjectApplication(resetStore).goalEvents.isEventStateOwner(DEMO_BOARD_ID, "CORE"), true);
+        assert.equal(new GoalProjectApplication(resetStore).goalEvents.isEventStateOwner(demoId, "CORE"), true);
       } finally {
         resetStore.close();
       }
@@ -378,7 +378,7 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
         actor_id: "runtime",
         user_confirmed: true,
       });
-      assert.equal(secondRuntime.connection?.board_id, initial.connection?.board_id);
+      assert.equal(secondRuntime.connection?.project_id, initial.connection?.project_id);
       assert.equal(secondRuntime.connection?.database_path, initial.connection?.database_path);
       assert.deepEqual(
         catalog.listRuntimeContextBindings().map((binding) => [

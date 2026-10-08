@@ -10,7 +10,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
-import { DEMO_BOARD_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 
 const exec = promisify(execFile), hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -54,13 +54,13 @@ const fs = require('node:fs'), cp = require('node:child_process');
     const entered = Promise.withResolvers<void>(), watcher = setInterval(() => { if (existsSync(marker)) entered.resolve(); }, 10);
     process.env.PATH = `${bin}:${oldPath}`;
     const database = join(home, "project.sqlite"); seedDemoBoard(database);
-    const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_BOARD_ID, undefined, undefined, home);
+    const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, undefined, home);
     const host = new MolisWorkLocalHost({ homeDirectory: home }), controller = new AbortController();
     let allowed = true;
-    const context: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_BOARD_ID, permissions: ["feed:read", "feed:write"], validate_authority: () => {
+    const context: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: ["feed:read", "feed:write"], validate_authority: () => {
       if (!allowed) throw new ActionError("actions.revoked", "Revoked");
     } };
-    const reference = molisWorkHostProjectReference({ databasePath: database, boardId: DEMO_BOARD_ID, projectId: DEMO_BOARD_ID });
+    const reference = molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID });
     const abort = () => { controller.abort(); void writeFile(release, "").catch(() => undefined); };
     t.signal.addEventListener("abort", abort, { once: true });
     try {
@@ -72,18 +72,18 @@ const fs = require('node:fs'), cp = require('node:child_process');
       if (mode === "revoked") allowed = false;
       if (mode === "reconfigured") sources.update(source.source_id, { scope: "Reconfigured during fetch" });
       if (mode === "cancelled") controller.abort();
-      const before = sources.feed.snapshot(DEMO_BOARD_ID);
+      const before = sources.feed.snapshot(DEMO_PROJECT_ID);
       await writeFile(release, ""); await rejected;
-      assert.deepEqual(sources.feed.snapshot(DEMO_BOARD_ID), before, "no research material, cursor, run failure or source error may be written after refusal");
+      assert.deepEqual(sources.feed.snapshot(DEMO_PROJECT_ID), before, "no research material, cursor, run failure or source error may be written after refusal");
       allowed = true;
       const recovered = await client.invoke(context, feedSourceActions.sync, input);
       assert.equal(recovered.run.outcome, "completed");
-      const material = sources.feed.snapshot(DEMO_BOARD_ID).feed_items.filter(item => item.source_id === source.source_id);
+      const material = sources.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === source.source_id);
       assert.equal(material.length, 1);
       assert.match(material[0]!.body!, /One verifiable finding/);
       assert.equal(material[0]!.materials[0]!.provenance.manifest_sha256, hash(manifest));
       assert.equal((await client.invoke(context, feedSourceActions.sync, input)).replayed, true);
-      assert.deepEqual(sources.feed.snapshot(DEMO_BOARD_ID).feed_items.filter(item => item.source_id === source.source_id), material);
+      assert.deepEqual(sources.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === source.source_id), material);
     } finally {
       t.signal.removeEventListener("abort", abort);
       await writeFile(release, ""); await host.close(); store.close(); clearInterval(watcher);

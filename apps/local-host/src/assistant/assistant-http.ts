@@ -112,7 +112,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
 
 /** The person's published Characters in one project: listed with whether each can run, and frozen exactly for a round. */
 async function projectCharacters(ports: AssistantHttpPorts, project: LocalHostProjectReference) {
-  const { board, artifacts } = await ports.localHost.withProject(project, async runtime => ({ board: runtime.board_id, artifacts: runtime.coordinator.artifacts.query }));
+  const { board, artifacts } = await ports.localHost.withProject(project, async runtime => ({ board: runtime.project_id, artifacts: runtime.coordinator.artifacts.query }));
   return codingCharacterPorts(ports.homeDirectory, WEB_ACTOR, board, artifacts);
 }
 

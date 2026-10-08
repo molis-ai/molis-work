@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
-import { DEMO_BOARD_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
+import { DEMO_PROJECT_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
@@ -39,8 +39,8 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
     for(const plugin_id of ['feed','sessions']) catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:'surface-test'});
     catalog.close();
     const app=new GoalProjectApplication(b.store);
-    const id=app.goalEvents.createIntent({board_id:DEMO_BOARD_ID,title:'让项目的下一步清晰可见',outcome:'目标、记录与执行共享一个连续工作区',actor_id:'web-user',actor_kind:'user',idempotency_key:'surface-goal'}).goal.goal_id;
-    const before=app.goalEvents.readState(DEMO_BOARD_ID,id).goal_event_cursor;
+    const id=app.goalEvents.createIntent({project_id:DEMO_PROJECT_ID,title:'让项目的下一步清晰可见',outcome:'目标、记录与执行共享一个连续工作区',actor_id:'web-user',actor_kind:'user',idempotency_key:'surface-goal'}).goal.goal_id;
+    const before=app.goalEvents.readState(DEMO_PROJECT_ID,id).goal_event_cursor;
     const prefix=`${origin}/projects/${projectId}`;
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false},sessionId);
     await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]},sessionId);
@@ -156,6 +156,6 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
     await click('[data-session-add-form] > footer [data-dialog-close]');
     await navigate(()=>command('Page.navigate',{url:prefix+'/settings/general'},sessionId));await capture('settings');
     assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1'),true);
-    assert.equal(app.goalEvents.readState(DEMO_BOARD_ID,id).goal_event_cursor,before,'cancelled note is not written');
+    assert.equal(app.goalEvents.readState(DEMO_PROJECT_ID,id).goal_event_cursor,before,'cancelled note is not written');
   });
 }

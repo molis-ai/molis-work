@@ -59,7 +59,7 @@ test("workbench project gear links to the standalone settings path", () => {
   const html = renderMolisWorkWeb({
     snapshot: {
       board: {
-        board_id: "board-1",
+        project_id: "board-1",
         title: "工作台",
         active_goal_id: null,
         created_at: "2026-01-01T00:00:00.000Z",

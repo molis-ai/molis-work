@@ -12,7 +12,7 @@ import { L } from "./web-locale.js";
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
 /** The one catalog record a partition needs to be opened. */
-export interface PlacementProjectRecord { project_id: string; display_name: string; database_path: string; board_id: string }
+export interface PlacementProjectRecord { project_id: string; display_name: string; database_path: string }
 
 export interface PlacementHostPorts {
   homeDirectory: string;

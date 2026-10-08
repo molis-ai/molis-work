@@ -21,16 +21,16 @@ import { sqliteJson } from "./repository.js";
 export class GuidanceCommands {
   constructor(private readonly context: GoalsCommandContext) {}
 
-  read(boardId: string): ProjectGuidanceView {
-    this.context.requireBoard(boardId);
+  read(projectId: string): ProjectGuidanceView {
+    this.context.requireBoard(projectId);
     const repository = this.context.repository;
     const board = repository.db
-      .prepare("SELECT title FROM boards WHERE board_id = ?")
-      .get(boardId) as { title: unknown };
+      .prepare("SELECT title FROM boards WHERE project_id = ?")
+      .get(projectId) as { title: unknown };
     return projectGuidanceView({
       projectTitle: String(board.title ?? ""),
-      entries: repository.listProjectGuidanceEntries(boardId, true),
-      revisions: repository.listProjectGuidanceRevisions(boardId),
+      entries: repository.listProjectGuidanceEntries(projectId, true),
+      revisions: repository.listProjectGuidanceRevisions(projectId),
     });
   }
 
@@ -63,7 +63,7 @@ export class GuidanceCommands {
     }
     const contentHash = createHash("sha256").update(content).digest("hex");
     const normalized = {
-      board_id: input.board_id,
+      project_id: input.project_id,
       kind,
       content,
       source_refs: sourceRefs,
@@ -75,26 +75,26 @@ export class GuidanceCommands {
     const repository = this.context.repository;
     return repository.immediate(() => {
       const replay = this.context.replay<Omit<AddProjectGuidanceResult, "replayed">>(
-        input.board_id,
+        input.project_id,
         input.actor_id,
         "add_project_guidance",
         input.idempotency_key,
         hash,
       );
       if (replay) return { ...replay, replayed: true };
-      this.context.requireBoard(input.board_id);
+      this.context.requireBoard(input.project_id);
       const existing = repository
-        .listProjectGuidanceEntries(input.board_id, true)
+        .listProjectGuidanceEntries(input.project_id, true)
         .find((entry) => entry.kind === kind && entry.content_hash === contentHash);
       const now = this.context.now().toISOString();
       if (existing) {
         const outcome = {
           entry: existing,
           created: false,
-          observed_event_cursor: repository.eventCursor(input.board_id),
+          observed_event_cursor: repository.eventCursor(input.project_id),
         };
         this.context.remember(
-          input.board_id,
+          input.project_id,
           input.actor_id,
           "add_project_guidance",
           input.idempotency_key,
@@ -104,7 +104,7 @@ export class GuidanceCommands {
         );
         return { ...outcome, replayed: false };
       }
-      const entries = repository.listProjectGuidanceEntries(input.board_id, true);
+      const entries = repository.listProjectGuidanceEntries(input.project_id, true);
       const totalChars = entries
         .filter((entry) => entry.active)
         .reduce((sum, entry) => sum + entry.content.length, 0) + content.length;
@@ -118,12 +118,12 @@ export class GuidanceCommands {
       const position = entries.reduce((max, entry) => Math.max(max, entry.position), 0) + 1;
       repository.db.prepare(`
         INSERT INTO project_guidance_entries (
-          guidance_id, board_id, position, revision, active, kind, content, content_hash,
+          guidance_id, project_id, position, revision, active, kind, content, content_hash,
           source_refs_json, created_by, confirmation_summary, reason, created_at, updated_by, updated_at
         ) VALUES (?, ?, ?, 1, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         guidanceId,
-        input.board_id,
+        input.project_id,
         position,
         kind,
         content,
@@ -138,13 +138,13 @@ export class GuidanceCommands {
       );
       repository.db.prepare(`
         INSERT INTO project_guidance_revisions (
-          revision_id, guidance_id, board_id, revision, kind, content, content_hash,
+          revision_id, guidance_id, project_id, revision, kind, content, content_hash,
           source_refs_json, active, changed_by, change_kind, confirmation_summary, reason, created_at
         ) VALUES (?, ?, ?, 1, ?, ?, ?, ?, 1, ?, 'created', ?, ?, ?)
       `).run(
         randomUUID(),
         guidanceId,
-        input.board_id,
+        input.project_id,
         kind,
         content,
         contentHash,
@@ -154,11 +154,11 @@ export class GuidanceCommands {
         reason,
         now,
       );
-      repository.db.prepare("UPDATE boards SET updated_at = ? WHERE board_id = ?")
-        .run(now, input.board_id);
+      repository.db.prepare("UPDATE boards SET updated_at = ? WHERE project_id = ?")
+        .run(now, input.project_id);
       const cursor = repository.appendEvent({
         eventId: randomUUID(),
-        boardId: input.board_id,
+        projectId: input.project_id,
         actorId: input.actor_id,
         type: "project.guidance_added",
         objectType: "project_guidance",
@@ -168,11 +168,11 @@ export class GuidanceCommands {
         at: now,
       });
       const entry = repository
-        .listProjectGuidanceEntries(input.board_id, true)
+        .listProjectGuidanceEntries(input.project_id, true)
         .find((candidate) => candidate.guidance_id === guidanceId)!;
       const outcome = { entry, created: true, observed_event_cursor: cursor };
       this.context.remember(
-        input.board_id,
+        input.project_id,
         input.actor_id,
         "add_project_guidance",
         input.idempotency_key,
@@ -231,7 +231,7 @@ export class GuidanceCommands {
       }
     }
     const request = {
-      board_id: input.board_id,
+      project_id: input.project_id,
       guidance_id: input.guidance_id.trim(),
       action,
       kind: requestedKind,
@@ -245,15 +245,15 @@ export class GuidanceCommands {
     const repository = this.context.repository;
     return repository.immediate(() => {
       const replay = this.context.replay<Omit<UpdateProjectGuidanceResult, "replayed">>(
-        input.board_id,
+        input.project_id,
         input.actor_id,
         "update_project_guidance",
         input.idempotency_key,
         hash,
       );
       if (replay) return { ...replay, replayed: true };
-      this.context.requireBoard(input.board_id);
-      const entries = repository.listProjectGuidanceEntries(input.board_id, true);
+      this.context.requireBoard(input.project_id);
+      const entries = repository.listProjectGuidanceEntries(input.project_id, true);
       const current = entries.find((entry) => entry.guidance_id === request.guidance_id);
       if (!current) {
         throw this.context.error(
@@ -314,7 +314,7 @@ export class GuidanceCommands {
         UPDATE project_guidance_entries
         SET revision = ?, active = ?, kind = ?, content = ?, content_hash = ?,
             source_refs_json = ?, confirmation_summary = ?, reason = ?, updated_by = ?, updated_at = ?
-        WHERE guidance_id = ? AND board_id = ?
+        WHERE guidance_id = ? AND project_id = ?
       `).run(
         revision,
         active ? 1 : 0,
@@ -327,18 +327,18 @@ export class GuidanceCommands {
         input.actor_id,
         now,
         current.guidance_id,
-        input.board_id,
+        input.project_id,
       );
       const revisionId = randomUUID();
       repository.db.prepare(`
         INSERT INTO project_guidance_revisions (
-          revision_id, guidance_id, board_id, revision, kind, content, content_hash,
+          revision_id, guidance_id, project_id, revision, kind, content, content_hash,
           source_refs_json, active, changed_by, change_kind, confirmation_summary, reason, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         revisionId,
         current.guidance_id,
-        input.board_id,
+        input.project_id,
         revision,
         kind,
         content,
@@ -351,11 +351,11 @@ export class GuidanceCommands {
         reason,
         now,
       );
-      repository.db.prepare("UPDATE boards SET updated_at = ? WHERE board_id = ?")
-        .run(now, input.board_id);
+      repository.db.prepare("UPDATE boards SET updated_at = ? WHERE project_id = ?")
+        .run(now, input.project_id);
       const cursor = repository.appendEvent({
         eventId: randomUUID(),
-        boardId: input.board_id,
+        projectId: input.project_id,
         actorId: input.actor_id,
         type: `project.guidance_${
           action === "edit" ? "edited" : action === "deactivate" ? "deactivated" : "restored"
@@ -367,14 +367,14 @@ export class GuidanceCommands {
         at: now,
       });
       const entry = repository
-        .listProjectGuidanceEntries(input.board_id, true)
+        .listProjectGuidanceEntries(input.project_id, true)
         .find((candidate) => candidate.guidance_id === current.guidance_id)!;
       const revisionRecord = repository
-        .listProjectGuidanceRevisions(input.board_id)
+        .listProjectGuidanceRevisions(input.project_id)
         .find((candidate) => candidate.revision_id === revisionId)!;
       const outcome = { entry, revision: revisionRecord, observed_event_cursor: cursor };
       this.context.remember(
-        input.board_id,
+        input.project_id,
         input.actor_id,
         "update_project_guidance",
         input.idempotency_key,

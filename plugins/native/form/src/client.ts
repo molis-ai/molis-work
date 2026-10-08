@@ -849,11 +849,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       const when = submission.submitted_at ? new Date(submission.submitted_at).toLocaleString() : "";
       head.textContent = L("答卷") + " " + (index + 1) + (when ? " · " + when : "");
       card.append(head);
-      if (!submission.questions) {
-        const legacy = document.createElement("p"); legacy.className = "form-result-legacy"; legacy.textContent = L("历史答卷未保存题目快照；名称参考当前问卷，未知题目保留原题号。"); card.append(legacy);
-      }
-      const submittedQuestions = submission.questions || questions;
-      const labels = new Map(submittedQuestions.map(question => [question.id, question.title]));
+      const labels = new Map(submission.questions.map(question => [question.id, question.title]));
       Object.entries(submission.answers || {}).forEach(([questionId, answer]) => {
         const row = document.createElement("p");
         const label = document.createElement("span");

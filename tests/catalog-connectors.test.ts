@@ -16,8 +16,6 @@ test("every catalog connector has a valid Integration Manifest and identity URL"
     ids.add(spec.id);
     const parsed = parsePluginManifest(catalogIntegrationManifest(spec.id));
     assert.equal(parsed.kind, "integration");
-    // The account check is the system action connectors.account.read, not a per-manifest behavior list.
-    assert.equal(parsed.behaviors, undefined, spec.id);
     if (spec.id === "loom") assert.equal(spec.feed_available, false);
     else assert.ok(spec.token_label.length > 0, spec.id);
     assert.ok(spec.inbound.length > 0, spec.id);

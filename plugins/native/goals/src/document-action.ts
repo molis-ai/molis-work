@@ -17,7 +17,7 @@ export const goalDocumentAction = goalAction<{ goal_id: string }, GoalEventDocum
     relations: array(goalRelationSchema), planning_methods: array(planningMethodSchema),
     transfer: object({ available: boolean, kind: enumeration(["resume_cancelled", "reopen_event_completed", null]) }), types: array(eventType) }));
 
-export function createGoalDocumentActionHandler(boardId: string, ports: {
+export function createGoalDocumentActionHandler(projectId: string, ports: {
   goal(goalId: string): GoalRecord;
   events: GoalEventDocumentPorts;
   history: GoalHistoryQueryPorts;
@@ -27,8 +27,8 @@ export function createGoalDocumentActionHandler(boardId: string, ports: {
     const { goal_id } = input as { goal_id: string };
     const goal = ports.goal(goal_id);
     const snapshot = ports.history.snapshot();
-    return createGoalEventDocumentView({ boardId, goal, ports: ports.events, snapshot,
+    return createGoalEventDocumentView({ projectId, goal, ports: ports.events, snapshot,
       relations: snapshot.relations.filter(r => r.from_goal_id === goal_id || r.to_goal_id === goal_id),
-      events: ports.history.journalEvents(), planning_methods: ports.planning.effectiveMethods(boardId) });
+      events: ports.history.journalEvents(), planning_methods: ports.planning.effectiveMethods(projectId) });
   } };
 }

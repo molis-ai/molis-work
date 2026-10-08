@@ -19,7 +19,7 @@ const item = (id: string): GoalsContextItem => ({
   status: "execution_pending", display_status: "continue", relations: [], input_bindings: [],
 });
 const relation = (id: string, type: GoalRelationRecord["type"], from: string, to: string): GoalRelationRecord => ({
-  relation_id: id, board_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: 'Reason "<x>',
+  relation_id: id, project_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: 'Reason "<x>',
   created_by: "user", created_at: "2026-09-05", deactivated_at: null });
 const view = (goals: GoalsContextItem[], relations: GoalRelationRecord[] = []): GoalsContextView =>
   ({ goals, archived_goals: [], trashed_goals: [], snapshot: { relations } });

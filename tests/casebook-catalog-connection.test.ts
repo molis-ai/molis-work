@@ -60,7 +60,7 @@ test('a discovered real catalog project still needs a signed project consent bef
  const proof={secret:randomBytes(32).toString('hex'),audience:'development'},sign=createCasebookUserActionSigner(proof);
  const options={grants:[],catalogConnections:[{token,actor_ref:'member'}],verifyUserAction:createCasebookUserActionVerifier(proof)};
  const resolve=async(path:string):Promise<any>=>path==='/'?{kind:'catalog_index',projects:[{project_id:p.project_id,display_name:p.display_name}]}:
-  path===`/projects/${p.project_id}/`?{kind:'board',options:{databasePath:p.database_path,boardId:p.board_id,project:{project_id:p.project_id,display_name:p.display_name}}}:{kind:'project_not_found'};
+  path===`/projects/${p.project_id}/`?{kind:'board',options:{databasePath:p.database_path,projectId:p.project_id,project:{project_id:p.project_id,display_name:p.display_name}}}:{kind:'project_not_found'};
  const server=createServer((req,res)=>{void handleCasebookHttp(req,res,new URL(req.url!,'http://127.0.0.1'),options,host,resolve);});
  server.listen(0,'127.0.0.1');await once(server,'listening');
  t.after(async()=>{await new Promise<void>(r=>server.close(()=>r()));await host.close();rmSync(home,{recursive:true,force:true});});

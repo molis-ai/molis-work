@@ -25,7 +25,7 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
     const rendered_ui = options.ui.list().filter(value => value.plugin_id === definition.manifest.plugin_id)
       .flatMap(value => (value.surfaces ?? []).map(surface => ({ contribution_id: value.contribution_id,
         surface: surface.surface_id, html: options.ui.render({ contribution_id: value.contribution_id, surface: surface.surface_id, model: null }) })));
-    result = { health, poll, rendered_ui, artifacts: options.artifacts.query.listArtifacts(options.board_id)
+    result = { health, poll, rendered_ui, artifacts: options.artifacts.query.listArtifacts(options.project_id)
       .filter(value => value.producer_plugin_id === definition.manifest.plugin_id
         && value.producer_binding_signature === definition.manifest.publisher.signature && value.owner_actor_id === options.actor_id) };
   } finally {

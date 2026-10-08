@@ -37,7 +37,6 @@ export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, Plug
 export * from "./plugin-events.js";
 export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
-export * from "./plugin-behaviors.js";
 export * from "./actions.js";
 
 /** Opaque, personal installation data. The author owns serialization, not storage paths or SQL. */
@@ -232,13 +231,6 @@ export interface PluginManifest {
   methods?: import("./plugin-agent.js").AgentSkillDeclaration[];
   /** Exact old installation versions this release can upgrade from. */
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
-  /** Local actions the Host may offer on objects; not MCP and not events. */
-  /** @deprecated Callable behavior is declared as `actions` and discovered from the common directory; no built-in plugin declares this. */
-  behaviors?: import("./plugin-behaviors.js").PluginBehaviorDeclaration[];
-  /** Places where a user can bind a function. Binding values are not in the Manifest. */
-  function_scenes?: import("./plugin-behaviors.js").PluginFunctionSceneDeclaration[];
-  /** Object kinds this Plugin can project into a judgment input. */
-  judgment_subjects?: import("./plugin-behaviors.js").PluginJudgmentSubjectDeclaration[];
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */
@@ -326,8 +318,6 @@ export interface PluginAppContribution {
   views?: readonly UiContribution[];
   /** Handlers for the routes the Manifest declares. */
   routes?: readonly PluginRouteBinding[];
-  /** Handlers for Manifest `behaviors`. Native plugins composed at build time may omit these. */
-  behaviors?: readonly { behavior_id: string; handle(input: Record<string, unknown>): unknown | Promise<unknown> }[];
   commandAvailability?(commandId: string): UiCommandAvailability;
   executeCommand?(
     commandId: string,
@@ -355,7 +345,7 @@ export interface PluginStartContext {
   deployment: PluginDeployment;
   grants: readonly string[];
   /** Project scope this activation belongs to. Absent for project-less reference runs. */
-  board_id?: string;
+  project_id?: string;
   /** Trusted local owner for HTTP entrypoint binding; never read from business arguments. */
   readonly actor_id?: string;
   /** Input group the Host validated at activation. Undefined means no selection; never the first group. */

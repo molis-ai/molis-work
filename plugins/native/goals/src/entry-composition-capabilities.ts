@@ -3,7 +3,7 @@ import type { HostMethodCapability, LocalHostProjectClient, AsyncApplicationMeth
 
 /** Combined Host methods that must run without splitting owner calls for one response. */
 export interface GoalEntryCompositionApi {
-  readPlanningComposition(boardId: string): {
+  readPlanningComposition(projectId: string): {
     methods: ReturnType<GoalsApplicationApi["planning"]["effectiveMethods"]>;
     composition: ReturnType<GoalsApplicationApi["planning"]["projectComposition"]>;
   };

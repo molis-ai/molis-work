@@ -8,7 +8,7 @@ export function codingUsageSummary(usage: AgentRunUsage): string {
     ["cost_usd", "费用", usage.cost_usd],
   ] as const;
   const rows = fields.map(([key, label, value]) => {
-    // Legacy runtimes with a warning do not distinguish placeholders from known values.
+    // A runtime that reports no per-field provenance and gives a warning does not tell placeholders from known values.
     const coverage = usage.coverage?.[key] ?? (usage.unavailable_reason || value === undefined ? "unknown" : "reported");
     if (coverage === "unknown" || value === undefined || !Number.isFinite(value) || value < 0) return `${label}未知`;
     const qualifier = coverage === "partial-estimated" ? "（已知小计，含估算）" : coverage === "partial" ? "（已知小计）"

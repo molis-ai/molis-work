@@ -21,22 +21,22 @@ async function recordDelivery(actions: BoundActionClient, goal_id: string) {
 test("lifecycle actions preserve old receipts, active Goal, relations, history, rollback and restart", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-lifecycle-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Lifecycle", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const denied = new Set<string>();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>
     denied.has(action.capability_id) ? { available: false, code: "actions.plugin_disabled", reason: "Lifecycle disabled" } : { available: true } });
   const caller: ActionCallContext = { actor_id: "runtime:lifecycle", project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] };
   const client = host.actionClient(ref), typed = host.client(ref), bound = bindActionClient(client, () => caller);
-  const snapshot = () => host.withProject(ref, r => r.store.snapshot(project.board_id));
+  const snapshot = () => host.withProject(ref, r => r.store.snapshot(project.project_id));
   const active = { goal_id: "left", reason: "Continue this Goal", idempotency_key: "active-original" };
   const trash = { goal_id: "left", trashed: true, reason: "User confirmed trash", user_confirmed: true, idempotency_key: "trash-original" };
   try {
     for (const goal_id of ["left", "right", "done"]) await bound.invoke(goalsActions.create, { goal_id, title: goal_id, outcome: "Deliver the agreed work",
       requirements: goal_id === "done" ? [{ requirement_id: "delivered", statement: "The agreed result is available" }] : [], idempotency_key: `create-${goal_id}` });
-    const relation = await host.withProject(ref, r => r.coordinator.goals.commands.addRelation(project.board_id,
+    const relation = await host.withProject(ref, r => r.coordinator.goals.commands.addRelation(project.project_id,
       { from_goal_id: "left", to_goal_id: "right", type: "extends", reason: "Related work" }, { actor_id: caller.actor_id, idempotency_key: "relation" }));
     const note = await bound.invoke(goalsActions.note, { goal_id: "left", body: "Preserve this complete history", idempotency_key: "history" });
-    const oldActive = await host.withProject(ref, r => r.coordinator.setActiveGoal(project.board_id,
+    const oldActive = await host.withProject(ref, r => r.coordinator.setActiveGoal(project.project_id,
       { goal_id: active.goal_id, reason: active.reason }, { actor_id: caller.actor_id, idempotency_key: active.idempotency_key }));
     assert.deepEqual(await bound.invoke(goalsActions.active, active), { ...oldActive, replayed: true });
     const before = await snapshot();
@@ -44,7 +44,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     await assert.rejects(bound.invoke(goalsActions.trash, { ...trash, actor_id: "user" } as never), { code: "actions.input_invalid" });
     await assert.rejects(client.invoke({ ...caller, permissions: ["goals:read"] }, goalsActions.trash, trash), { code: "actions.forbidden" });
     await assert.rejects(client.invoke({ ...caller, project_id: "foreign" }, goalsActions.active, active), { code: "actions.scope_mismatch" });
-    await assert.rejects(typed.invoke(trashedGoalsCapability, { board_id: "foreign" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(typed.invoke(trashedGoalsCapability, { project_id: "foreign" }), { code: "actions.scope_mismatch" });
     await assert.rejects(bound.invoke(goalsActions.archive, { goal_id: "left", archived: true, reason: "Not complete", idempotency_key: "archive-unfinished" }));
     assert.deepEqual(await snapshot(), before);
 
@@ -56,12 +56,12 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     assert.equal(await host.withProject(ref, r => (r.store.db.prepare("SELECT COUNT(*) AS n FROM goal_trash_records WHERE goal_id = 'left'").get() as { n: number }).n), 0);
     await host.withProject(ref, r => r.store.db.exec("DROP TRIGGER reject_trash"));
     const { user_confirmed: _confirmed, idempotency_key, ...oldInput } = trash;
-    const oldTrash = await host.withProject(ref, r => r.coordinator.goals.lifecycle.setTrashed(project.board_id, oldInput, { actor_id: caller.actor_id, idempotency_key }));
+    const oldTrash = await host.withProject(ref, r => r.coordinator.goals.lifecycle.setTrashed(project.project_id, oldInput, { actor_id: caller.actor_id, idempotency_key }));
     assert.deepEqual(await bound.invoke(goalsActions.trash, trash), { ...oldTrash, replayed: true });
     assert.equal(oldTrash.active_goal_cleared, true);
     assert.deepEqual(oldTrash.deactivated_relation_ids, [relation.relation_id]);
     assert.equal((await snapshot()).board.active_goal_id, null);
-    const trashed = await typed.invoke(trashedGoalsCapability, { board_id: project.board_id });
+    const trashed = await typed.invoke(trashedGoalsCapability, { project_id: project.project_id });
     assert.deepEqual(trashed.goals, [oldTrash.goal]);
     const trashedDocument = await bound.invoke(goalsActions.document, { goal_id: "left" });
     assert.ok(trashedDocument.timeline.items.some(item => item.event_id === note.event_id));
@@ -76,7 +76,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     assert.deepEqual(rightRestored.restored_relation_ids, [relation.relation_id]);
     assert.equal((await snapshot()).relations.find(r => r.relation_id === relation.relation_id)?.state, "active");
     assert.equal(((await bound.invoke(goalsActions.event, { goal_id: "left", event_id: note.event_id }))?.payload as { body: string }).body, "Preserve this complete history");
-    await typed.invoke(setActiveGoalCapability, { board_id: project.board_id, goal: { goal_id: "done", reason: "Finish this Goal" }, write: { actor_id: caller.actor_id, idempotency_key: "active-done" } });
+    await typed.invoke(setActiveGoalCapability, { project_id: project.project_id, goal: { goal_id: "done", reason: "Finish this Goal" }, write: { actor_id: caller.actor_id, idempotency_key: "active-done" } });
     await recordDelivery(bound, "done");
     const state = await bound.invoke(goalsActions.state, { goal_id: "done" });
     const closed = await bound.invoke(goalsActions.close, { goal_id: "done", kind: "complete", result: "Delivered the agreed work", reason: "Delivered", expected_config_version: state.config.version,
@@ -91,16 +91,16 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     assert.equal(restored.goal.archived_at, null); assert.equal(restored.goal.fulfillment_state, "satisfied");
 
     denied.add(goalsActions.active.capability_id); denied.add(goalsActions.trash.capability_id); denied.add(goalsActions.trashed.capability_id);
-    await assert.rejects(typed.invoke(setActiveGoalCapability, { board_id: project.board_id, goal: active, write: { actor_id: caller.actor_id, idempotency_key: "denied" } }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(setActiveGoalCapability, { project_id: project.project_id, goal: active, write: { actor_id: caller.actor_id, idempotency_key: "denied" } }), { code: "actions.plugin_disabled" });
     await assert.rejects(bound.invoke(goalsActions.trash, { ...trash, idempotency_key: "denied" }), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(trashedGoalsCapability, { board_id: project.board_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(trashedGoalsCapability, { project_id: project.project_id }), { code: "actions.plugin_disabled" });
     const final = await snapshot();
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     try {
-      assert.deepEqual(await restarted.withProject(ref, r => r.store.snapshot(project.board_id)), final);
+      assert.deepEqual(await restarted.withProject(ref, r => r.store.snapshot(project.project_id)), final);
       assert.deepEqual(await restarted.actionClient(ref).invoke(caller, goalsActions.trash, trash), { ...oldTrash, replayed: true });
-      assert.deepEqual(await restarted.withProject(ref, r => r.store.snapshot(project.board_id)), final, "replaying a historical receipt must not trash a restored Goal again");
+      assert.deepEqual(await restarted.withProject(ref, r => r.store.snapshot(project.project_id)), final, "replaying a historical receipt must not trash a restored Goal again");
     } finally { await restarted.close(); }
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -108,7 +108,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
 test("Web lifecycle routes obey live policy and the user's confirmation", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-lifecycle-http-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Lifecycle HTTP", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const denied = new Set<string>();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>
     denied.has(action.capability_id) ? { available: false, code: "actions.plugin_disabled", reason: "Lifecycle disabled" } : { available: true } });

@@ -17,7 +17,7 @@ import {
 } from "@molis-ai/molis-work-integration-catalog";
 import { feedUiContribution, type FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
 import {
-  DEMO_BOARD_ID,
+  DEMO_PROJECT_ID,
   LocalProjectDatabase,
   createLocalFeedApplication,
   liveHostFunctionAuthoringCatalog,
@@ -98,11 +98,10 @@ function agentBehaviorIds(catalog: ReturnType<typeof liveHostFunctionAuthoringCa
   return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.behavior_ids ?? [];
 }
 
-test("GitHub Integration Manifest is schema 2; its account check is the connector action, not a legacy behavior", () => {
+test("GitHub Integration Manifest is schema 2; its account check is the connector action", () => {
   const parsed = parsePluginManifest(githubIntegrationManifest);
   assert.equal(parsed.schema_version, 2);
   assert.equal(parsed.host_api_version, 2);
-  assert.equal(parsed.behaviors, undefined);
   assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
 });
 
@@ -446,11 +445,11 @@ test("deleting a Feed GitHub source keeps its connection's credential", async ()
       const connection = withConnectorConnections(homeDirectory, connections => connections.createToken({ serviceId: "github", displayName: "GitHub", token: TOKEN }));
       const feed = createLocalFeedApplication(store.db);
       const at = new Date().toISOString();
-      const source = feed.upsertSource({ board_id: DEMO_BOARD_ID, source_id: "github-account", kind: "github", definition_id: "github", sync_kind: "github",
+      const source = feed.upsertSource({ project_id: DEMO_PROJECT_ID, source_id: "github-account", kind: "github", definition_id: "github", sync_kind: "github",
         name: "GitHub", description: "通知", status: "active", enabled: true, item_count: 0, origin: "molis_work",
         config: { connection_id: connection.connection_id }, schedule: { mode: "manual" }, cursor: {}, credential_ref: connection.credential_ref,
         account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: at, updated_at: at });
-      feed.retireSource(DEMO_BOARD_ID, source.source_id, "retain_history");
+      feed.retireSource(DEMO_PROJECT_ID, source.source_id, "retain_history");
       assert.equal(createFileSecretStore().get(connection.credential_ref!), TOKEN);
     } finally {
       store.close();

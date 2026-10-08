@@ -30,7 +30,7 @@ import { libraryFields, nonNegativeInteger, normalizedDigest, normalizedMetadata
 
 export interface ArtifactEventInput {
   eventId: string;
-  boardId: string;
+  projectId: string;
   actorId: string;
   type: string;
   objectType: VersionStoreKind;
@@ -86,28 +86,28 @@ export class ArtifactsService<
     this.kind = options.kind ?? "artifact";
   }
 
-  getArtifactVersion(boardId: string, reference: ArtifactReference): R | null {
-    return this.repository.getVersion(boardId, reference.artifact_id, reference.version);
+  getArtifactVersion(projectId: string, reference: ArtifactReference): R | null {
+    return this.repository.getVersion(projectId, reference.artifact_id, reference.version);
   }
 
-  listArtifactVersions(boardId: string, artifactId: string): R[] {
-    return this.repository.listVersions(boardId, artifactId);
+  listArtifactVersions(projectId: string, artifactId: string): R[] {
+    return this.repository.listVersions(projectId, artifactId);
   }
 
-  latestArtifactVersion(boardId: string, artifactId: string): R | null {
-    return this.repository.latestVersion(boardId, artifactId);
+  latestArtifactVersion(projectId: string, artifactId: string): R | null {
+    return this.repository.latestVersion(projectId, artifactId);
   }
 
-  listArtifacts(boardId: string, query?: ArtifactListQuery): R[] {
-    return this.repository.listArtifacts(boardId, query);
+  listArtifacts(projectId: string, query?: ArtifactListQuery): R[] {
+    return this.repository.listArtifacts(projectId, query);
   }
 
   consumptionCompatibility(
-    boardId: string,
+    projectId: string,
     reference: ArtifactReference,
     supportedTypes: ArtifactConsumerType[],
   ): ArtifactConsumptionCompatibility {
-    const artifact = this.requireVersion(boardId, reference);
+    const artifact = this.requireVersion(projectId, reference);
     if (artifact.lifecycle_state === "archived") {
       return { artifact: reference, consumable: false, reason: "artifact_archived" };
     }
@@ -128,7 +128,7 @@ export class ArtifactsService<
     const normalized = declaredOnly(this.normalizeRegistration(input), this.options.declared, this.kind, this.error);
     return this.repository.immediate(() => {
       const globalIdentity = this.repository.getIdentityById(normalized.artifact_id);
-      if (globalIdentity && globalIdentity.board_id !== normalized.board_id) {
+      if (globalIdentity && globalIdentity.project_id !== normalized.project_id) {
         throw this.error("artifact.board_mismatch", "成果 ID 已属于另一个 Project", {
           artifact_id: normalized.artifact_id,
         });
@@ -137,7 +137,7 @@ export class ArtifactsService<
       if (identity) this.assertIdentity(identity, normalized);
 
       const existing = this.repository.getVersion(
-        normalized.board_id,
+        normalized.project_id,
         normalized.artifact_id,
         normalized.version,
       );
@@ -150,12 +150,12 @@ export class ArtifactsService<
         }
         return {
           artifact: existing,
-          observed_event_cursor: this.repository.eventCursor(normalized.board_id),
+          observed_event_cursor: this.repository.eventCursor(normalized.project_id),
           replayed: true,
         };
       }
 
-      const latest = this.repository.latestVersion(normalized.board_id, normalized.artifact_id);
+      const latest = this.repository.latestVersion(normalized.project_id, normalized.artifact_id);
       if (latest && normalized.version <= latest.version) {
         throw this.error("artifact.version_not_increasing", "成果版本必须由 Plugin 严格递增", {
           artifact_id: normalized.artifact_id,
@@ -168,7 +168,7 @@ export class ArtifactsService<
           throw this.error("artifact.supersession_invalid", "supersedes_version 必须早于当前 version");
         }
         if (!this.repository.getVersion(
-          normalized.board_id,
+          normalized.project_id,
           normalized.artifact_id,
           normalized.supersedes_version,
         )) {
@@ -179,7 +179,7 @@ export class ArtifactsService<
       const at = this.now();
       if (!identity) {
         identity = {
-          board_id: normalized.board_id,
+          project_id: normalized.project_id,
           artifact_id: normalized.artifact_id,
           owner_actor_id: normalized.owner_actor_id,
           producer_plugin_id: normalized.producer_plugin_id,
@@ -192,7 +192,7 @@ export class ArtifactsService<
       this.repository.insertVersion(record);
       const observedEventCursor = this.options.appendEvent({
         eventId: `event:${this.kind}:${record.artifact_id}:${record.version}:registered`,
-        boardId: record.board_id,
+        projectId: record.project_id,
         actorId: record.created_by,
         type: latest ? `${this.kind}.version_registered` : `${this.kind}.published`,
         objectType: this.kind,
@@ -215,11 +215,11 @@ export class ArtifactsService<
   markUnavailable(input: MarkArtifactUnavailableInput): FixedVersionResult<R> {
     const reason = requiredText(input.reason, "reason", this.error);
     return this.repository.immediate(() => {
-      const artifact = this.requireOwnedVersion(input.board_id, input, input.actor_id);
+      const artifact = this.requireOwnedVersion(input.project_id, input, input.actor_id);
       if (artifact.availability === "unavailable") {
         return {
           artifact,
-          observed_event_cursor: this.repository.eventCursor(input.board_id),
+          observed_event_cursor: this.repository.eventCursor(input.project_id),
           replayed: true,
         };
       }
@@ -227,7 +227,7 @@ export class ArtifactsService<
       const at = this.now();
       const observedEventCursor = this.options.appendEvent({
         eventId: `event:${this.kind}:${input.artifact_id}:${input.version}:unavailable`,
-        boardId: input.board_id,
+        projectId: input.project_id,
         actorId: input.actor_id,
         type: `${this.kind}.unavailable`,
         objectType: this.kind,
@@ -237,7 +237,7 @@ export class ArtifactsService<
         at,
       });
       return {
-        artifact: this.requireVersion(input.board_id, input),
+        artifact: this.requireVersion(input.project_id, input),
         observed_event_cursor: observedEventCursor,
         replayed: false,
       };
@@ -246,11 +246,11 @@ export class ArtifactsService<
 
   archiveVersion(input: ArchiveArtifactVersionInput): FixedVersionResult<R> {
     return this.repository.immediate(() => {
-      const artifact = this.requireOwnedVersion(input.board_id, input, input.actor_id);
+      const artifact = this.requireOwnedVersion(input.project_id, input, input.actor_id);
       if (artifact.lifecycle_state === "archived") {
         return {
           artifact,
-          observed_event_cursor: this.repository.eventCursor(input.board_id),
+          observed_event_cursor: this.repository.eventCursor(input.project_id),
           replayed: true,
         };
       }
@@ -258,7 +258,7 @@ export class ArtifactsService<
       this.repository.archiveVersion(input.artifact_id, input.version, input.actor_id, at);
       const observedEventCursor = this.options.appendEvent({
         eventId: `event:${this.kind}:${input.artifact_id}:${input.version}:archived`,
-        boardId: input.board_id,
+        projectId: input.project_id,
         actorId: input.actor_id,
         type: `${this.kind}.archived`,
         objectType: this.kind,
@@ -268,7 +268,7 @@ export class ArtifactsService<
         at,
       });
       return {
-        artifact: this.requireVersion(input.board_id, input),
+        artifact: this.requireVersion(input.project_id, input),
         observed_event_cursor: observedEventCursor,
         replayed: false,
       };
@@ -276,7 +276,7 @@ export class ArtifactsService<
   }
 
   private normalizeRegistration(input: I): Omit<R, "created_at"> {
-    const boardId = requiredText(input.board_id, "board_id", this.error);
+    const projectId = requiredText(input.project_id, "project_id", this.error);
     const artifactId = requiredText(input.artifact_id, "artifact_id", this.error);
     const actorId = requiredText(input.actor_id, "actor_id", this.error);
     const artifactTypeId = requiredText(input.artifact_type_id, "artifact_type_id", this.error);
@@ -342,7 +342,7 @@ export class ArtifactsService<
     }
 
     const base: Omit<FixedVersionRecord, "created_at"> = {
-      board_id: boardId,
+      project_id: projectId,
       artifact_id: artifactId,
       version,
       artifact_type_id: artifactTypeId,
@@ -393,18 +393,18 @@ export class ArtifactsService<
     }
   }
 
-  private requireVersion(boardId: string, reference: ArtifactReference): R {
-    const artifact = this.repository.getVersion(boardId, reference.artifact_id, reference.version);
+  private requireVersion(projectId: string, reference: ArtifactReference): R {
+    const artifact = this.repository.getVersion(projectId, reference.artifact_id, reference.version);
     if (!artifact) throw this.error("artifact.not_found", "找不到成果版本");
     return artifact;
   }
 
   private requireOwnedVersion(
-    boardId: string,
+    projectId: string,
     reference: ArtifactReference,
     actorId: string,
   ): R {
-    const artifact = this.requireVersion(boardId, reference);
+    const artifact = this.requireVersion(projectId, reference);
     if (artifact.owner_actor_id !== actorId) {
       throw this.error("artifact.not_owner", "只有成果 owner 可以修改版本状态");
     }

@@ -11,8 +11,8 @@ import type { HostCompleteText } from "../apps/local-host/src/host-complete-text
 async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null) {
   const home = await mkdtemp(join(tmpdir(), "form-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "legacy-board", projectId: "a" });
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: ref.board_id, title: "Form", actor_id: "owner", idempotency_key: "init" }));
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
+  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "Form", actor_id: "owner", idempotency_key: "init" }));
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: FORM_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };
@@ -55,7 +55,7 @@ test("Form actions share original data, six question types and snapshot-backed s
   assert.equal((await invoke("generate", { id, prompt: "本地追加" })).form.questions.at(-1).title, "本地追加");
   const promoted = await invoke("promote", { id });
   await f.host.withProject(f.ref, runtime => {
-    const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id, promoted.artifact)!;
+    const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, promoted.artifact)!;
     assert.equal(artifact.owner_actor_id, "owner"); assert.equal((artifact.payload as any).questions.length, 2);
     assert.equal((artifact.payload as any).answers, undefined);
   });
@@ -101,8 +101,8 @@ test("Form fixed publication survives partial success, actor isolation, restart 
   const restored = await f.bound.invoke(actions.promote, { id: form.id });
   assert.equal(restored.form.title, "Later edit"); assert.equal(restored.recovered, true); assert.equal(restored.artifact.version, 1);
   await f.host.withProject(f.ref, runtime => {
-    assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id, restored.artifact)!.payload as any).title, "Original snapshot");
-    assert.equal(runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id, { ...restored.artifact, version: 2 }), null);
+    assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, restored.artifact)!.payload as any).title, "Original snapshot");
+    assert.equal(runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, { ...restored.artifact, version: 2 }), null);
   });
   assert.equal((await f.bound.invoke(actions.promote, { id: form.id })).artifact.version, 2);
 });

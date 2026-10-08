@@ -136,7 +136,7 @@ export class SessionHandoffService {
     if (!source.current_goal_id) {
       throw new MolisWorkSessionError("session.invalid_input", "请先为来源 Session 选择当前 Goal");
     }
-    if (source.current_goal_id !== contract.goal.goal_id || contract.goal.board_id !== contract.board.board_id) {
+    if (source.current_goal_id !== contract.goal.goal_id || contract.goal.project_id !== contract.board.project_id) {
       throw new MolisWorkSessionError("session.invalid_input", "来源 Session 的当前 Goal 已变化，请重新打开 Handoff");
     }
     return source;

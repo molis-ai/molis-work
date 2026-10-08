@@ -16,13 +16,13 @@ export interface ScheduledOperationInstallation {
   operations: readonly { id: string; description?: string }[];
 }
 export interface ScheduledOperation {
-  id: string; boardId: string; pluginId: string; installationId: string | null; installationGeneration: string | null;
+  id: string; projectId: string; pluginId: string; installationId: string | null; installationGeneration: string | null;
   pluginTitle: string; operationId: string; operationTitle: string; input: SandboxJson; inbox: boolean; link: string;
   jobId: string; jobOwner: string; repeat: "none" | "daily" | "weekly"; at: string;
   state: "enabled" | "paused" | "needs_confirmation" | "needs_review" | "completed"; detail: string | null;
 }
 export interface ScheduledOperationOccurrence {
-  boardId: string; operationId: string; dueAt: string;
+  projectId: string; operationId: string; dueAt: string;
   state: "pending" | "running" | "succeeded" | "failed" | "unknown" | "skipped";
   detail: string | null; startedAt: string | null; finishedAt: string | null;
   decisions?: Array<{ decision: "retry" | "skip"; at: string; previousDetail: string | null }>;
@@ -44,55 +44,55 @@ export interface ScheduledOperationExecutor {
 /** The scheduled operation tables, as one current schema; the host composes them into the project database baseline. */
 export const SCHEDULED_OPERATIONS_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS schedule_operations (
-    board_id TEXT NOT NULL, id TEXT NOT NULL, job_id TEXT NOT NULL UNIQUE, record_json TEXT NOT NULL,
-    PRIMARY KEY (board_id, id)
+    project_id TEXT NOT NULL, id TEXT NOT NULL, job_id TEXT NOT NULL UNIQUE, record_json TEXT NOT NULL,
+    PRIMARY KEY (project_id, id)
   );
   CREATE TABLE IF NOT EXISTS schedule_operation_occurrences (
-    board_id TEXT NOT NULL, operation_id TEXT NOT NULL, due_at TEXT NOT NULL, record_json TEXT NOT NULL,
-    PRIMARY KEY (board_id, operation_id, due_at)
+    project_id TEXT NOT NULL, operation_id TEXT NOT NULL, due_at TEXT NOT NULL, record_json TEXT NOT NULL,
+    PRIMARY KEY (project_id, operation_id, due_at)
   );
 `;
 const decode = <T>(row: unknown): T | null => row ? JSON.parse((row as { record_json: string }).record_json) as T : null;
-export function getScheduledOperation(db: ScheduleTaskDatabase, boardId: string, id: string): ScheduledOperation | null {
-  return decode(db.prepare("SELECT record_json FROM schedule_operations WHERE board_id = ? AND id = ?").get(boardId, id));
+export function getScheduledOperation(db: ScheduleTaskDatabase, projectId: string, id: string): ScheduledOperation | null {
+  return decode(db.prepare("SELECT record_json FROM schedule_operations WHERE project_id = ? AND id = ?").get(projectId, id));
 }
 export function scheduledOperationForJob(db: ScheduleTaskDatabase, jobId: string): ScheduledOperation | null {
   return decode(db.prepare("SELECT record_json FROM schedule_operations WHERE job_id = ?").get(jobId));
 }
-export function listScheduledOperations(db: ScheduleTaskDatabase, boardId?: string): ScheduledOperation[] {
-  return (boardId ? db.prepare("SELECT record_json FROM schedule_operations WHERE board_id = ?").all(boardId)
+export function listScheduledOperations(db: ScheduleTaskDatabase, projectId?: string): ScheduledOperation[] {
+  return (projectId ? db.prepare("SELECT record_json FROM schedule_operations WHERE project_id = ?").all(projectId)
     : db.prepare("SELECT record_json FROM schedule_operations").all()).map(row => decode<ScheduledOperation>(row)!);
 }
 export function saveScheduledOperation(db: ScheduleTaskDatabase, operation: ScheduledOperation): void {
-  db.prepare("INSERT INTO schedule_operations (board_id, id, job_id, record_json) VALUES (?, ?, ?, ?) ON CONFLICT(board_id, id) DO UPDATE SET record_json = excluded.record_json")
-    .run(operation.boardId, operation.id, operation.jobId, JSON.stringify(operation));
+  db.prepare("INSERT INTO schedule_operations (project_id, id, job_id, record_json) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, id) DO UPDATE SET record_json = excluded.record_json")
+    .run(operation.projectId, operation.id, operation.jobId, JSON.stringify(operation));
 }
-export function listScheduledOperationOccurrences(db: ScheduleTaskDatabase, boardId: string, operationId?: string): ScheduledOperationOccurrence[] {
-  return (operationId ? db.prepare("SELECT record_json FROM schedule_operation_occurrences WHERE board_id = ? AND operation_id = ? ORDER BY due_at").all(boardId, operationId)
-    : db.prepare("SELECT record_json FROM schedule_operation_occurrences WHERE board_id = ? ORDER BY due_at").all(boardId)).map(row => decode<ScheduledOperationOccurrence>(row)!);
+export function listScheduledOperationOccurrences(db: ScheduleTaskDatabase, projectId: string, operationId?: string): ScheduledOperationOccurrence[] {
+  return (operationId ? db.prepare("SELECT record_json FROM schedule_operation_occurrences WHERE project_id = ? AND operation_id = ? ORDER BY due_at").all(projectId, operationId)
+    : db.prepare("SELECT record_json FROM schedule_operation_occurrences WHERE project_id = ? ORDER BY due_at").all(projectId)).map(row => decode<ScheduledOperationOccurrence>(row)!);
 }
 export function saveScheduledOperationOccurrence(db: ScheduleTaskDatabase, occurrence: ScheduledOperationOccurrence): void {
-  db.prepare("INSERT INTO schedule_operation_occurrences (board_id, operation_id, due_at, record_json) VALUES (?, ?, ?, ?) ON CONFLICT(board_id, operation_id, due_at) DO UPDATE SET record_json = excluded.record_json")
-    .run(occurrence.boardId, occurrence.operationId, occurrence.dueAt, JSON.stringify(occurrence));
+  db.prepare("INSERT INTO schedule_operation_occurrences (project_id, operation_id, due_at, record_json) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, operation_id, due_at) DO UPDATE SET record_json = excluded.record_json")
+    .run(occurrence.projectId, occurrence.operationId, occurrence.dueAt, JSON.stringify(occurrence));
 }
-const occurrenceAt = (db: ScheduleTaskDatabase, run: Pick<ScheduledOperation, "boardId" | "id">, dueAt: string): ScheduledOperationOccurrence | null =>
-  decode(db.prepare("SELECT record_json FROM schedule_operation_occurrences WHERE board_id = ? AND operation_id = ? AND due_at = ?").get(run.boardId, run.id, dueAt));
+const occurrenceAt = (db: ScheduleTaskDatabase, run: Pick<ScheduledOperation, "projectId" | "id">, dueAt: string): ScheduledOperationOccurrence | null =>
+  decode(db.prepare("SELECT record_json FROM schedule_operation_occurrences WHERE project_id = ? AND operation_id = ? AND due_at = ?").get(run.projectId, run.id, dueAt));
 
 /** Called by Scheduler's synchronous prepare, inside the lease claim transaction. */
 export function prepareScheduledOperation(db: ScheduleTaskDatabase, input: ScheduleWakeupInput): void {
   const run = scheduledOperationForJob(db, input.job_id);
   if (!run || run.jobOwner !== input.plugin_id || run.state !== "enabled" || occurrenceAt(db, run, input.due_at)) return;
-  saveScheduledOperationOccurrence(db, { boardId: run.boardId, operationId: run.id, dueAt: input.due_at,
+  saveScheduledOperationOccurrence(db, { projectId: run.projectId, operationId: run.id, dueAt: input.due_at,
     state: "pending", detail: null, startedAt: null, finishedAt: null });
 }
 
 /** Creation/cancellation belongs to Schedule; only installation metadata comes from the Host. */
 export function createScheduledOperations(options: {
-  db: ScheduleTaskDatabase; boardId: string; projectId: string; schedule: ScheduledOperationScheduler;
+  db: ScheduleTaskDatabase; projectId: string; schedule: ScheduledOperationScheduler;
   describe(identity: ScheduledOperationIdentity): ScheduledOperationInstallation | null;
   link(pluginId: string): string; now?(): number;
 }) {
-  const { db, schedule, boardId } = options;
+  const { db, schedule, projectId } = options;
   db.exec(SCHEDULED_OPERATIONS_SCHEMA_SQL);
   const describe = (identity: ScheduledOperationIdentity) => {
     if (identity.projectId !== options.projectId || !identity.installationId || !identity.pluginId) throw new Error("定时操作缺少当前项目的插件安装身份");
@@ -103,8 +103,8 @@ export function createScheduledOperations(options: {
   const remove = (run: ScheduledOperation) => {
     try { schedule.cancel(run.jobId, run.jobOwner); }
     catch (error) { if (!(error instanceof ScheduleError) || error.code !== "schedule_job_not_found") throw error; }
-    db.prepare("DELETE FROM schedule_operation_occurrences WHERE board_id = ? AND operation_id = ?").run(boardId, run.id);
-    db.prepare("DELETE FROM schedule_operations WHERE board_id = ? AND id = ?").run(boardId, run.id);
+    db.prepare("DELETE FROM schedule_operation_occurrences WHERE project_id = ? AND operation_id = ?").run(projectId, run.id);
+    db.prepare("DELETE FROM schedule_operations WHERE project_id = ? AND id = ?").run(projectId, run.id);
   };
   return {
     add(identity: ScheduledOperationIdentity, input: ScheduledOperationInput): { scheduleId: string } {
@@ -116,14 +116,14 @@ export function createScheduledOperations(options: {
       return db.transaction(() => {
         const current = describe(identity), operation = current.operations.find(item => item.id === input.operation);
         if (!operation) throw new Error("只能定时运行这个插件自己的功能：没有 " + input.operation);
-        const count = listScheduledOperations(db, boardId).filter(run => run.pluginId === identity.pluginId && run.installationId === identity.installationId
+        const count = listScheduledOperations(db, projectId).filter(run => run.pluginId === identity.pluginId && run.installationId === identity.installationId
           && run.installationGeneration === current.generation && run.state !== "completed").length;
         if (count >= OPERATIONS_PER_INSTALLATION) throw new Error("这个插件的定时执行已经太多了，先取消一些");
         const id = randomUUID(), title = operation.description || operation.id, due = new Date(at).toISOString();
-        const job = schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_OPERATION_WAKEUP, object_ref: boardId + "|" + id,
+        const job = schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_OPERATION_WAKEUP, object_ref: projectId + "|" + id,
           title: (current.title + "：" + title).slice(0, 120), due_at: due,
           recurrence: repeat === "none" ? { kind: "once" } : { kind: "interval", interval_ms: repeat === "daily" ? DAY : 7 * DAY } });
-        saveScheduledOperation(db, { id, boardId, pluginId: identity.pluginId, installationId: identity.installationId, installationGeneration: current.generation,
+        saveScheduledOperation(db, { id, projectId, pluginId: identity.pluginId, installationId: identity.installationId, installationGeneration: current.generation,
           pluginTitle: current.title, operationId: operation.id, operationTitle: title, input: input.input === undefined ? {} : input.input, inbox: input.inbox === true,
           link: options.link(identity.pluginId), jobId: job.job_id, jobOwner: job.plugin_id, repeat, at: due, state: "enabled", detail: null });
         return { scheduleId: id };
@@ -131,14 +131,14 @@ export function createScheduledOperations(options: {
     },
     cancel(identity: ScheduledOperationIdentity, input: { scheduleId: string }): { cancelled: boolean } {
       return db.transaction(() => {
-        const current = describe(identity), run = getScheduledOperation(db, boardId, input.scheduleId);
+        const current = describe(identity), run = getScheduledOperation(db, projectId, input.scheduleId);
         if (!run || run.state === "completed" || run.pluginId !== identity.pluginId || run.installationId !== identity.installationId || run.installationGeneration !== current.generation) return { cancelled: false };
         remove(run); return { cancelled: true };
       }).immediate();
     },
     cancelInstallation(pluginId: string, installationId: string): number {
       return db.transaction(() => {
-        const runs = listScheduledOperations(db, boardId).filter(run => run.pluginId === pluginId && run.installationId === installationId);
+        const runs = listScheduledOperations(db, projectId).filter(run => run.pluginId === pluginId && run.installationId === installationId);
         runs.forEach(remove); return runs.length;
       }).immediate();
     },
@@ -148,9 +148,9 @@ export function createScheduledOperations(options: {
 /** Reconciliation reads the shared lease, never an old process's in-memory promise. Unknown work is never replayed. */
 export function reconcileScheduledOperations(db: ScheduleTaskDatabase, schedule: ScheduledOperationScheduler): void {
   for (const item of listScheduledOperations(db)) db.transaction(() => {
-    const run = getScheduledOperation(db, item.boardId, item.id), job = run && schedule.get(run.jobId);
+    const run = getScheduledOperation(db, item.projectId, item.id), job = run && schedule.get(run.jobId);
     if (!run || !job || schedule.isExecuting(job.job_id)) return;
-    const occurrences = listScheduledOperationOccurrences(db, run.boardId, run.id), interrupted = occurrences.filter(entry => entry.state === "running");
+    const occurrences = listScheduledOperationOccurrences(db, run.projectId, run.id), interrupted = occurrences.filter(entry => entry.state === "running");
     if (interrupted.length) {
       const detail = "上次调用已派出但结果未知，请先检查结果，再决定重试或跳过本次";
       interrupted.forEach(entry => saveScheduledOperationOccurrence(db, { ...entry, state: "unknown", detail }));
@@ -175,7 +175,7 @@ export function setScheduledOperationEnabled(db: ScheduleTaskDatabase, schedule:
     if (enabled && (run.state === "needs_confirmation" || run.state === "needs_review" || run.state === "completed")) {
       throw new ScheduleError("schedule_job_invalid", run.state === "completed" ? "这条一次性定时操作已经完成，请新建定时" : run.detail ?? "请先在定时操作详情确认恢复方式");
     }
-    if (enabled && run.state === "paused" && listScheduledOperationOccurrences(db, run.boardId, run.id).some(item => item.state === "running" || item.state === "unknown")) {
+    if (enabled && run.state === "paused" && listScheduledOperationOccurrences(db, run.projectId, run.id).some(item => item.state === "running" || item.state === "unknown")) {
       throw new ScheduleError("schedule_job_invalid", "上次定时操作的结果尚未确认，不能直接重跑");
     }
     saveScheduledOperation(db, { ...run, state: enabled ? "enabled" : run.state === "needs_confirmation" || run.state === "needs_review" || run.state === "completed" ? run.state : "paused" });
@@ -201,7 +201,7 @@ export async function runScheduledOperation(db: ScheduleTaskDatabase, input: Sch
   const original = JSON.stringify(run), now = ports.now ?? (() => new Date());
   const assertCurrent = () => {
     wakeup.beforeEffect();
-    if (JSON.stringify(getScheduledOperation(db, run.boardId, run.id)) !== original) throw new Error("定时操作已暂停、取消或改变");
+    if (JSON.stringify(getScheduledOperation(db, run.projectId, run.id)) !== original) throw new Error("定时操作已暂停、取消或改变");
   };
   if (!run.installationId || !run.installationGeneration || !ports.currentInstallation(run)) {
     const detail = "定时操作的原安装身份不可用，需要重新确认归属";
@@ -232,7 +232,7 @@ export async function runScheduledOperation(db: ScheduleTaskDatabase, input: Sch
     saveScheduledOperationOccurrence(db, { ...occurrence, startedAt: occurrenceAt(db, run, input.due_at)!.startedAt,
       state: outcome.state, detail: text, finishedAt: outcome.state === "unknown" ? null : now().toISOString() });
     if (outcome.state === "unknown") saveScheduledOperation(db, { ...run, state: "needs_review", detail: "本次调用的结果未知，请先检查结果再决定是否重试：" + text });
-    else if (run.repeat === "none" && !listScheduledOperationOccurrences(db, run.boardId, run.id).some(item => item.state === "pending")) {
+    else if (run.repeat === "none" && !listScheduledOperationOccurrences(db, run.projectId, run.id).some(item => item.state === "pending")) {
       saveScheduledOperation(db, { ...run, state: "completed", detail: text });
     }
   }).immediate();

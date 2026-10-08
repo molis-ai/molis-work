@@ -27,11 +27,11 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   parentCalls++;const character=JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@[0-9]+/)?.[0];assert.ok(character);
   return parentCalls===1?response("dispatch-subagent",{instruction:"CHILD_TASK read and update note.txt",tools:["read","search","context-remaining","write","edit","run-command"],workspace:"child",character,idempotencyKey:"child",background:false}):parentOutcome === "failed" ? new Response(JSON.stringify({type:"error",error:{type:"invalid_request_error",message:"fixture parent cannot finish its report"}}),{status:400,headers:{"content-type":"application/json"}}):response();
  });
- const localHost=new MolisWorkLocalHost(),reference=molisWorkHostProjectReference({databasePath:path.join(home,"board.db"),boardId:"board",projectId:"project"}),client=localHost.client(reference);
+ const localHost=new MolisWorkLocalHost(),reference=molisWorkHostProjectReference({databasePath:path.join(home,"board.db"),projectId: "board"}),client=localHost.client(reference);
  const make=()=>composeAgentHost({localHost,homeDirectory:home,workspaceFor:()=>grants[0]!,workspacesFor:()=>grants,cliRuntimes:[],prologue:{storageRoot:path.join(home,"sdk"),modelConfiguration:async()=>({protocol:"anthropic-compatible",endpoint:"https://1.1.1.1/v1/messages",model:"fixture",credential_ref:"fixture"}),resolveCredential:()=>"test-only"}});
  let composition=make();await composition.ready;
  try{
-  const adapter=composition.agentHost.adapter("prologue"),owner={board_id:"board",plugin_id:"io.molis.work.coding",install_id:"fixture",actor_id:"user"},directory={canonical_path:root,realpath_verified:true};
+  const adapter=composition.agentHost.adapter("prologue"),owner={project_id:"board",plugin_id:"io.molis.work.coding",install_id:"fixture",actor_id:"user"},directory={canonical_path:root,realpath_verified:true};
   const session=await adapter.createSession({...owner,directory,title:"integration"});
   const handle=await composition.agentHost.start("prologue",{...owner,session,directory,role_id:"writers",task:"delegate once",subagent_workspaces:[{workspace_id:"child",directory:{canonical_path:childRoot,realpath_verified:true}}]}, {manifest:codingAgentManifest,prompts:codingPrompts,authorizedDirectories:[root,childRoot]});
   const source={session_id:session.session_id,run_id:handle.ref.run_id,subagent_id:"unknown"};
@@ -45,7 +45,7 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   assert.equal((await adapter.read(handle.ref)).phase,parentOutcome);
   const children=await adapter.subagents!.list(handle.ref); assert.equal(children.length,1,JSON.stringify(await adapter.read(handle.ref))); source.subagent_id=children[0]!.subagent_id;
   const view=await client.invoke(integration.read,source);assert.equal(view.files[0]!.after_text,"child result\n");assert.equal(view.files[0]!.selectable,true);
-  const other=localHost.client(molisWorkHostProjectReference({databasePath:path.join(home,"other.db"),boardId:"other",projectId:"other"}));
+  const other=localHost.client(molisWorkHostProjectReference({databasePath:path.join(home,"other.db"),projectId: "other"}));
   await assert.rejects(other.invoke(integration.read,source),/不属于/);
   await assert.rejects(client.invoke(integration.read,{...source,subagent_id:"forged"}),/子任务/);
   const files=view.files.map(f=>({path:f.path,revision:f.revision!}));

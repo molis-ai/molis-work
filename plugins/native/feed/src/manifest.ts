@@ -37,10 +37,6 @@ export const feedManifest: PluginManifest = {
     preview: { capability_id: "feed.artifacts.preview", version: 1 } }], consumes: [] },
   requires: [],
   action_scenes: [feedCaptureScene],
-  judgment_subjects: [
-    { subject_kind: "feed_item", title: "Feed 消息" },
-    { subject_kind: "source", title: "来源" },
-  ],
   ui: {
     contributions: [FEED_UI_CONTRIBUTION_ID],
     views: [

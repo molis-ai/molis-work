@@ -17,8 +17,8 @@ const contexts=capability('read-goal-contexts','query');
 const receipts=capability('read-operation-receipts','query');
 export function registerCasebookCapabilities(host:LocalHost<MolisWorkProjectRuntime>):void {
   const journal=(runtime:MolisWorkProjectRuntime,input:unknown)=>{
-    const i=input as {board_id:string;project_ref:string};
-    runtime.interactionObserver ??=new InteractionObserver(runtime.store,runtime.coordinator,i.board_id,i.project_ref);
+    const i=input as {project_id:string;project_ref:string};
+    runtime.interactionObserver ??=new InteractionObserver(runtime.store,runtime.coordinator,i.project_id,i.project_ref);
     return runtime.interactionObserver.journal;
   };
   host.register(authorization,(r,i)=>{
@@ -52,7 +52,7 @@ export class MolisWorkCasebookIntegration {
   constructor(private options:{client:LocalHostProjectClient;
     verifyUserAction?:(request:AuthorizationRequest)=>boolean|Promise<boolean>}) {}
   private input(request?:unknown) {
-    return {board_id:this.options.client.project.board_id,project_ref:this.options.client.project.project_id,request};
+    return {project_id:this.options.client.project.project_id,project_ref:this.options.client.project.project_id,request};
   }
   async readInteractionAuthorization(input:{project_ref:string;purpose:typeof PURPOSE|typeof CONTEXT_PURPOSE|typeof RECEIPTS_PURPOSE}) {
     exact(input,['project_ref','purpose']);

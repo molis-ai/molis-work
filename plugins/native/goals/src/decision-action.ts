@@ -5,7 +5,7 @@ import { goalAction } from "./action-contract.js";
 import { identifier, count, boolean, object, array, scope, change, effect, decision } from "./event-action-schemas.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
 
-export type GoalDecisionActionInput = Omit<RecordGoalUserDecisionInput, "board_id" | "authority">;
+export type GoalDecisionActionInput = Omit<RecordGoalUserDecisionInput, "project_id" | "authority">;
 const definition = goalAction<GoalDecisionActionInput, GoalEventDecisionResult>("goals.decisions.record", "记录用户决定",
   "保存用户本人通过受保护入口作出的决定；模型只能请求或引用决定。作者及操作出处由 Host 注入，仍核对原请求和当前承诺", "command",
   object({ goal_id: identifier, idempotency_key: identifier, request_id: identifier, selected_option_id: identifier,
@@ -30,12 +30,12 @@ function authority(caller: ActionCallContext): GoalEventTrustedAuthority {
     conversation_ref: provenance.conversation_ref, message_ref: provenance.message_ref };
 }
 
-export function createGoalDecisionActionHandler(events: GoalEventApplication, boardId: string): ActionHandlerBinding {
+export function createGoalDecisionActionHandler(events: GoalEventApplication, projectId: string): ActionHandlerBinding {
   return { ...goalDecisionAction,
     availability(caller) {
       try { authority(caller); return { available: true }; }
       catch (error) { if (error instanceof ActionError) return { available: false, code: error.code, reason: error.message }; throw error; }
     },
-    handle: (caller, input) => events.recordTrustedDecision({ ...input as GoalDecisionActionInput, board_id: boardId, authority: authority(caller) }),
+    handle: (caller, input) => events.recordTrustedDecision({ ...input as GoalDecisionActionInput, project_id: projectId, authority: authority(caller) }),
   };
 }

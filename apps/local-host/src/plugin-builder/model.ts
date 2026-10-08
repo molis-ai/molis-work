@@ -12,15 +12,12 @@ export function createPluginModelGeneration(options: Pick<HostTextOptions, 'reso
 }): CapabilityImplementations['generate'] {
   return async (pluginId, input, signal, beforeDispatch, caller) => {
     signal.throwIfAborted();
-    let instruction: string;
-    if (input.prompt !== undefined) {
-      if (!PROMPT_ID.test(input.prompt)) throw new Error('模型要求的 id 只能是小写字母、数字和连字符');
-      const source = await options.declaredPrompts(pluginId, caller);
-      await beforeDispatch?.();
-      signal.throwIfAborted();
-      instruction = resolvePluginPrompt(options.homeDirectory, pluginId, input.prompt, source).body;
-    } else if (input.instructions) instruction = input.instructions;
-    else throw new Error('调用模型时要指明用哪一段已声明的要求（prompt）');
+    if (typeof input.prompt !== 'string') throw new Error('调用模型时要指明用哪一段已声明的要求（prompt）');
+    if (!PROMPT_ID.test(input.prompt)) throw new Error('模型要求的 id 只能是小写字母、数字和连字符');
+    const source = await options.declaredPrompts(pluginId, caller);
+    await beforeDispatch?.();
+    signal.throwIfAborted();
+    const instruction = resolvePluginPrompt(options.homeDirectory, pluginId, input.prompt, source).body;
     signal.throwIfAborted();
     const selection = options.selection();
     if (!selection) throw new ActionError('actions.connection_required', '插件要调用模型，但还没有配置可用的文字模型');

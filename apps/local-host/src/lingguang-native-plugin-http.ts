@@ -9,7 +9,7 @@ export type LingguangHttpTransport = Pick<ActionCallContext, "signal" | "on_prog
 /** Reading a file or a page can take minutes (transcription): with `?stream=1` it reports progress line by line. */
 const STREAMED = new Set(["/api/lingguang/material", "/api/lingguang/source"]);
 
-/** The caller binds the project (a scoped URL, or the catalog for a global legacy URL); this request's transport rides along. */
+/** The caller binds the project from the scoped URL; this request's transport rides along. */
 export async function handleLingguangNativePluginHttp(request: IncomingMessage, response: ServerResponse, incomingUrl: URL,
   ports: (input: LingguangPluginRouteRequest, transport: LingguangHttpTransport) => LingguangRoutePorts | Promise<LingguangRoutePorts>): Promise<boolean> {
   const url = withRewrittenPluginApi(incomingUrl);

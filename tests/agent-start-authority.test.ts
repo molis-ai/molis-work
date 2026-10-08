@@ -7,7 +7,7 @@ import { CliAgentAdapter } from "../horizontal/agent-host/src/adapters/cli-runti
 import { emptyCapabilityMatrix } from "../horizontal/agent-host/src/capabilities.js";
 import { agentHostCapabilities, type AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-const owner = { board_id: "board", plugin_id: "unknown.plugin", install_id: "install", actor_id: "actor" };
+const owner = { project_id: "project", plugin_id: "unknown.plugin", install_id: "install", actor_id: "actor" };
 const directory = { canonical_path: "/authorized", realpath_verified: true as const };
 const manifest = { roles: [{ role_id: "reader", version: 1, name: "Reader", execution: "read-only" as const, host_tools: [] }], prompts: [] };
 function deferred() { let resolve = () => {}; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
@@ -22,8 +22,8 @@ test("typed Agent validation and execution use the same snapshot when a Plugin h
   } as AgentRuntimeAdapter;
   host.register(adapter);
   registerAgentHostCapabilities({ register(definition, handler) { handlers.set(definition.capability_id, handler); return () => {}; } },
-    { agentHost: () => host, boardId: () => owner.board_id, authority: () => ({ manifest, authorizedDirectories: [directory.canonical_path] }) });
-  const invocation = { consumer: "plugin" as const, plugin: { ...owner, project_id: "project", assertActive() {}, declaration: { manifest: {} as never } },
+    { agentHost: () => host, projectId: () => owner.project_id, authority: () => ({ manifest, authorizedDirectories: [directory.canonical_path] }) });
+  const invocation = { consumer: "plugin" as const, plugin: { ...owner, assertActive() {}, declaration: { manifest: {} as never } },
     async beforeEffect() { if (++checks === 3) { session.session_id = "foreign-session"; run.session_id = "foreign-session"; run.run_id = "foreign-run"; } } };
   await handlers.get(agentHostCapabilities.controlRun.capability_id)!({}, [session, run, { kind: "cancel" }], invocation);
   assert.equal(checks, 3);
@@ -66,11 +66,11 @@ test("a returned typed start keeps only explicit dispatch authority and the orig
       } }; },
     } as AgentRuntimeAdapter);
     registerAgentHostCapabilities({ register(definition, handler) { handlers.set(definition.capability_id, handler); return () => {}; } },
-      { agentHost: () => host, boardId: () => owner.board_id, authority: () => ({ manifest, authorizedDirectories: [directory.canonical_path],
+      { agentHost: () => host, projectId: () => owner.project_id, authority: () => ({ manifest, authorizedDirectories: [directory.canonical_path],
         beforeStart() { assert.ok(invocationActive, "startup callback must not survive as a network callback"); },
         ...(explicit ? { beforeDispatch() { checks++; } } : {}),
       }) });
-    const invocation = { consumer: "plugin" as const, plugin: { ...owner, project_id: "project", declaration: { manifest: {} as never }, assertActive() { if (!active) throw new Error("activation revoked"); } },
+    const invocation = { consumer: "plugin" as const, plugin: { ...owner, declaration: { manifest: {} as never }, assertActive() { if (!active) throw new Error("activation revoked"); } },
       async beforeEffect() { assert.ok(invocationActive); } };
     await handlers.get(agentHostCapabilities.startRun.capability_id)!({}, ["fixture", { ...owner, directory, session, role_id: "reader", task: "Read" }], invocation);
     invocationActive = false;

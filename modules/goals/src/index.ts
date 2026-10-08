@@ -57,7 +57,7 @@ export const packageDescriptor = {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export interface GoalsModuleHooks {
-  validateRelationGraph?(boardId: string, input: AddGoalRelationInput): GoalRelationGraphIssue | null;
+  validateRelationGraph?(projectId: string, input: AddGoalRelationInput): GoalRelationGraphIssue | null;
 }
 
 export interface GoalsModuleOptions extends GoalsCommandContextOptions {
@@ -98,41 +98,41 @@ export class GoalsModule {
       initializeBoard: input => boards.initializeBoard(input),
       setActiveGoal: (...args) => boards.setActiveGoal(...args),
       applyConfirmedRelations: input => confirmedRelations.applyConfirmedRelations(input),
-      createGoal: (boardId: string, input: CreateGoalInput, write: GoalsActorWrite) =>
-        goals.createGoal(boardId, input, write),
-      addRelation: (boardId: string, input: AddGoalRelationInput, write: GoalsActorWrite) =>
-        goals.addRelation(boardId, input, write),
+      createGoal: (projectId: string, input: CreateGoalInput, write: GoalsActorWrite) =>
+        goals.createGoal(projectId, input, write),
+      addRelation: (projectId: string, input: AddGoalRelationInput, write: GoalsActorWrite) =>
+        goals.addRelation(projectId, input, write),
       deactivateRelation: (
-        boardId: string,
+        projectId: string,
         input: { relation_id: string; reason: string },
         write: GoalsActorWrite,
-      ) => goals.deactivateRelation(boardId, input, write),
+      ) => goals.deactivateRelation(projectId, input, write),
       validateGoalInput: (input: CreateGoalInput) => goals.validateGoalInput(input),
       addProjectGuidance: (input: AddProjectGuidanceInput) => guidance.add(input),
       updateProjectGuidance: (input: UpdateProjectGuidanceInput) => guidance.update(input),
     };
     this.lifecycle = lifecycle;
     this.query = {
-      listBoardIds: () => query.listBoardIds(),
+      listProjectIds: () => query.listProjectIds(),
       listActivePolicyBindings: (...args) => query.listActivePolicyBindings(...args),
-      listPolicyHistory: boardId => query.listPolicyHistory(boardId),
-      listWorkEventGoalLinks: boardId => query.listWorkEventGoalLinks(boardId),
-      listDependencies: (boardId, goalId) => query.listDependencies(boardId, goalId),
-      activeReplacement: (boardId, goalId) => query.activeReplacement(boardId, goalId),
-      getRelation: (boardId, relationId) => query.getRelation(boardId, relationId),
-      policyBindingState: (boardId, bindingId) => query.policyBindingState(boardId, bindingId),
+      listPolicyHistory: projectId => query.listPolicyHistory(projectId),
+      listWorkEventGoalLinks: projectId => query.listWorkEventGoalLinks(projectId),
+      listDependencies: (projectId, goalId) => query.listDependencies(projectId, goalId),
+      activeReplacement: (projectId, goalId) => query.activeReplacement(projectId, goalId),
+      getRelation: (projectId, relationId) => query.getRelation(projectId, relationId),
+      policyBindingState: (projectId, bindingId) => query.policyBindingState(projectId, bindingId),
       criterionGoalId: criterionId => query.criterionGoalId(criterionId),
-      getBoard: (boardId: string) => query.getBoard(boardId),
-      getGoal: (boardId: string, goalId: string) => query.getGoal(boardId, goalId),
+      getBoard: (projectId: string) => query.getBoard(projectId),
+      getGoal: (projectId: string, goalId: string) => query.getGoal(projectId, goalId),
       hasGoalIdentity: goalId => query.hasGoalIdentity(goalId),
-      listGoals: (boardId: string, queryOptions) => query.listGoals(boardId, queryOptions),
-      listRelations: (boardId: string, goalId?: string) => query.listRelations(boardId, goalId),
-      listTrashedGoals: (boardId: string) => query.listTrashedGoals(boardId),
-      snapshot: (boardId: string) => query.snapshot(boardId),
-      resolvePolicy: (boardId: string, goalId: string, strengthen?: Partial<GoalPolicy>) =>
-        query.resolvePolicy(boardId, goalId, strengthen),
-      readGoal: (boardId: string, goalId: string) => query.readGoal(boardId, goalId),
-      readProjectGuidance: (boardId: string) => query.readProjectGuidance(boardId),
+      listGoals: (projectId: string, queryOptions) => query.listGoals(projectId, queryOptions),
+      listRelations: (projectId: string, goalId?: string) => query.listRelations(projectId, goalId),
+      listTrashedGoals: (projectId: string) => query.listTrashedGoals(projectId),
+      snapshot: (projectId: string) => query.snapshot(projectId),
+      resolvePolicy: (projectId: string, goalId: string, strengthen?: Partial<GoalPolicy>) =>
+        query.resolvePolicy(projectId, goalId, strengthen),
+      readGoal: (projectId: string, goalId: string) => query.readGoal(projectId, goalId),
+      readProjectGuidance: (projectId: string) => query.readProjectGuidance(projectId),
     };
   }
 }

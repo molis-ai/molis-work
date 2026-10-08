@@ -29,7 +29,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const project = catalog.createProject({ display_name: "Home MCP", actor_id: "owner" });
     return project;
   });
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id, boardId: project.board_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const inputs: string[] = [];
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions: { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: {
     async evaluate(_key, record, input) {
@@ -46,10 +46,10 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
   const sdk = new Client({ name: "untrusted-display-name", version: "1" });
   try {
     const item = await host.withProject(reference, runtime => {
-      const source = createLocalFeedSourceService(runtime.store.db, project.board_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "mcp-home" }).source;
+      const source = createLocalFeedSourceService(runtime.store.db, project.project_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "mcp-home" }).source;
       return createLocalFeedApplication(runtime.store.db).ingestItem({ source, externalId: "home-mcp-material", title: "真实事项", summary: "待判断", body: "真实原文传入判断", occurredAt: new Date().toISOString(), attention: false }).item;
     });
-    const entry = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db).ensureInboxEntryForFeedItem(project.board_id, item.item_id, "manual").entry);
+    const entry = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db).ensureInboxEntryForFeedItem(project.project_id, item.item_id, "manual").entry);
     await withCatalog({ homeDirectory: home }, catalog => catalog.bindRuntimeContext({ context, project_id: project.project_id, actor_id: "owner", user_confirmed: true }));
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
@@ -90,7 +90,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
       await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, view, true));
     }
     const capture = await call<{ rule: FeedOutRuleRecord }>(feedRuleActions.create.capability_id, { name: "原始资料规则", match: { source_id: item.source_id, contains: "真实" } });
-    assert.equal(capture.rule.board_id, project.board_id);
+    assert.equal(capture.rule.project_id, project.project_id);
     const viaWeb = await (await fetch(`${prefix}/api/feed/out-rules`)).json() as { rules: FeedOutRuleRecord[] };
     assert.deepEqual(viaWeb.rules.find(rule => rule.rule_id === capture.rule.rule_id), capture.rule);
     const preview = await call<FeedRulePreview>(feedRuleActions.preview.capability_id, { source_id: item.source_id, contains: "真实原文" });
@@ -103,7 +103,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const ruleGrant = directory.find(view => view.capability_id === feedRuleActions.update.capability_id)!;
     await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, ruleGrant, false));
     assert.equal((await sdk.callTool({ name: hostActionToolName(feedRuleActions.update), arguments: { rule_id: capture.rule.rule_id, patch: { enabled: true } } })).isError, true);
-    assert.equal((await sdk.callTool({ name: hostActionToolName(feedRuleActions.create), arguments: { board_id: "foreign", name: "Wrong scope", match: { contains: "test" } } })).isError, true);
+    assert.equal((await sdk.callTool({ name: hostActionToolName(feedRuleActions.create), arguments: { project_id: "foreign", name: "Wrong scope", match: { contains: "test" } } })).isError, true);
     assert.equal((await sdk.callTool({ name: hostActionToolName(feedRuleActions.create), arguments: { name: "Wrong source", match: { source_id: "foreign-source" } } })).isError, true);
     await call(feedRuleActions.delete.capability_id, { rule_id: capture.rule.rule_id });
     assert.equal((await call<{ rules: FeedOutRuleRecord[] }>(feedRuleActions.list.capability_id, {})).rules.some(rule => rule.rule_id === capture.rule.rule_id), false);
@@ -180,13 +180,13 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const captureSourceId = item.source_id; assert.ok(captureSourceId);
     const captureItem = await host.withProject(reference, runtime => {
       const feed = createLocalFeedApplication(runtime.store.db);
-      return feed.ingestItem({ source: feed.getSource(project.board_id, captureSourceId), externalId: "mcp-capture-actual", title: "MCP 捕捉新消息",
+      return feed.ingestItem({ source: feed.getSource(project.project_id, captureSourceId), externalId: "mcp-capture-actual", title: "MCP 捕捉新消息",
         summary: "原文", body: "真正执行 Feed 场景", occurredAt: new Date().toISOString(), attention: false }).item;
     });
     const semantic = await call<{ rule: FeedOutRuleRecord }>(feedRuleActions.create.capability_id, { name: "MCP 自动入箱", match: { source_id: item.source_id },
       admission: "inbox", judgment: { capability_id: captureJudgment.capability_id, version: captureJudgment.version, provider_id: captureJudgment.provider.provider_id } });
     await call(feedRuleActions.evaluate.capability_id, { item_ids: [captureItem.item_id] });
-    const feedResult = withFunctionsService(home, service => service.latestJudgment("feed_item", captureItem.item_id, project.board_id, "feed.capture"))!;
+    const feedResult = withFunctionsService(home, service => service.latestJudgment("feed_item", captureItem.item_id, project.project_id, "feed.capture"))!;
     assert.equal(feedResult.outcome, "ok"); assert.deepEqual(feedResult.suggested_behavior_ids, ["inbox.admit"]);
     assert.equal(feedResult.scene_provenance?.binding_id, "feed.capture:" + semantic.rule.rule_id);
     const capturedWeb = await (await fetch(`${prefix}/api/feed`)).json() as { inbox_entries: { subject_id: string; reason: string }[] };
@@ -214,7 +214,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     await call(functionContextActions.configure.capability_id, initialConfig);
     assert.equal((await inboxTarget()).binding?.function.provider_id, "system.functions");
     assert.equal((await sdk.callTool({ name: hostActionToolName(functionContextActions.configure), arguments: initialConfig })).isError, true, "stale MCP configurations cannot overwrite the owner revision");
-    const inboxEntry = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db).listInboxEntries(project.board_id).find(entry => entry.subject_id === captureItem.item_id)!);
+    const inboxEntry = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db).listInboxEntries(project.project_id).find(entry => entry.subject_id === captureItem.item_id)!);
     const inboxJudgment = await call(inboxActions.evaluateJudgment.capability_id, { entry_ids: [inboxEntry.entry_id] });
     assert.deepEqual((await call(inboxActions.recommendations.capability_id, {})).judgments, inboxJudgment.judgments);
     const readInbox = async () => (await (await fetch(`${prefix}/api/feed`)).json() as { inbox_entries: { entry_id: string; next_judgment: JudgmentRecord | null }[] }).inbox_entries.find(entry => entry.entry_id === inboxEntry.entry_id)!;

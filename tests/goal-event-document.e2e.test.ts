@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("event document writes planning, report, concern, decision and closure through the production UI", { timeout: 120_000 }, async (t) => {
@@ -9,7 +9,7 @@ test("event document writes planning, report, concern, decision and closure thro
   const { store, origin, sessionId, command, evaluate, click, navigate } = browser;
   const app = new GoalProjectApplication(store);
   const created = app.goalEvents.createIntent({
-    board_id: DEMO_BOARD_ID,
+    project_id: DEMO_PROJECT_ID,
     title: "隔离演示：内部试用写回",
     outcome: "经正式页面写入后再读回",
     actor_id: "web-user",
@@ -54,7 +54,7 @@ test("event document writes planning, report, concern, decision and closure thro
     await waitDom("document.querySelector('[data-document-pane]')?.getAttribute('aria-busy') !== 'true'");
   }
   async function submitSuccess(selector: string) {
-    const before = app.goalEvents.readState(DEMO_BOARD_ID, goalId).goal_event_cursor;
+    const before = app.goalEvents.readState(DEMO_PROJECT_ID, goalId).goal_event_cursor;
     await click(selector);
     await waitDom(
       `document.querySelector("[data-goal-event-document]")?.dataset.goalView === ${JSON.stringify(goalId)} && Number(document.querySelector("[data-goal-event-document]")?.dataset.goalEventCursor) > ${before} && document.querySelector("[data-document-pane]")?.getAttribute("aria-busy") !== "true"`,
@@ -98,10 +98,10 @@ test("event document writes planning, report, concern, decision and closure thro
   })()`);
   await submitSuccess('[data-event-form="type"] button[type="submit"]');
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (app.goalEvents.readState(DEMO_BOARD_ID, goalId).config.types.some((type) => type.name === "进展记录")) break;
+    if (app.goalEvents.readState(DEMO_PROJECT_ID, goalId).config.types.some((type) => type.name === "进展记录")) break;
     await evaluate("new Promise((resolve) => setTimeout(resolve, 250))");
   }
-  const typeId = app.goalEvents.readState(DEMO_BOARD_ID, goalId).config.types.find((type) => type.name === "进展记录")?.type_id;
+  const typeId = app.goalEvents.readState(DEMO_PROJECT_ID, goalId).config.types.find((type) => type.name === "进展记录")?.type_id;
   assert.ok(typeId);
   await waitDom(`document.querySelector('[data-event-report="${typeId}"]')`);
   await openNamedForm("adopt");
@@ -109,27 +109,27 @@ test("event document writes planning, report, concern, decision and closure thro
   assert.ok(methodId, "adopt form must list current effective planning methods");
   await submitSuccess('[data-event-form="adopt"] button[type="submit"]');
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (app.goalEvents.readState(DEMO_BOARD_ID, goalId).config.adopted_planning.length) break;
+    if (app.goalEvents.readState(DEMO_PROJECT_ID, goalId).config.adopted_planning.length) break;
     await evaluate("new Promise((resolve) => setTimeout(resolve, 250))");
   }
-  assert.ok(app.goalEvents.readState(DEMO_BOARD_ID, goalId).config.adopted_planning.length);
+  assert.ok(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).config.adopted_planning.length);
   await openNamedForm("agreement");
   await evaluate(`document.querySelector('[data-event-form="agreement"] [name="outcome"]').value='经页面修改后的约定'`);
   await submitSuccess('[data-event-form="agreement"] button[type="submit"]');
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (/经页面修改后的约定/.test(app.goalEvents.readState(DEMO_BOARD_ID, goalId).agreement.outcome)) break;
+    if (/经页面修改后的约定/.test(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).agreement.outcome)) break;
     await evaluate("new Promise((resolve) => setTimeout(resolve, 250))");
   }
-  assert.match(app.goalEvents.readState(DEMO_BOARD_ID, goalId).agreement.outcome, /经页面修改后的约定/);
+  assert.match(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).agreement.outcome, /经页面修改后的约定/);
   await openPlanning();
   await click(`[data-goal-event-document]:not([hidden]) [data-event-form-open="type-edit"][data-type-id="${typeId}"]`);
   await waitDom(`document.querySelector('[data-event-form="type-edit"][data-type-id="${typeId}"]') && document.querySelector('[data-event-form="type-edit"][data-type-id="${typeId}"]').hidden === false`);
   await submitSuccess(`[data-event-form="type-edit"][data-type-id="${typeId}"] button[type="submit"]`);
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (app.goalEvents.readState(DEMO_BOARD_ID, goalId).config.types.find((type) => type.type_id === typeId)?.version === 2) break;
+    if (app.goalEvents.readState(DEMO_PROJECT_ID, goalId).config.types.find((type) => type.type_id === typeId)?.version === 2) break;
     await evaluate("new Promise((resolve) => setTimeout(resolve, 250))");
   }
-  assert.equal(app.goalEvents.readState(DEMO_BOARD_ID, goalId).config.types.find((type) => type.type_id === typeId)?.version, 2);
+  assert.equal(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).config.types.find((type) => type.type_id === typeId)?.version, 2);
   await openPlanning();
   await click(`[data-goal-event-document]:not([hidden]) [data-event-report="${typeId}"]`);
   await waitDom(`document.querySelector('[data-event-form=report][data-type-id="${typeId}"]') && document.querySelector('[data-event-form=report][data-type-id="${typeId}"]').hidden === false`);
@@ -142,22 +142,22 @@ test("event document writes planning, report, concern, decision and closure thro
   })()`);
   await submitSuccess(`[data-event-form="report"][data-type-id="${typeId}"] button[type="submit"]`);
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (app.goalEvents.readState(DEMO_BOARD_ID, goalId).latest_reports[0]?.title === "时间线已经接到真实写入") break;
+    if (app.goalEvents.readState(DEMO_PROJECT_ID, goalId).latest_reports[0]?.title === "时间线已经接到真实写入") break;
     await evaluate("new Promise((resolve) => setTimeout(resolve, 250))");
   }
-  assert.equal(app.goalEvents.readState(DEMO_BOARD_ID, goalId).latest_reports[0]?.title, "时间线已经接到真实写入");
+  assert.equal(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).latest_reports[0]?.title, "时间线已经接到真实写入");
   await openNamedForm("progress");
   await fillField('[data-event-form="progress"] [name="summary"]', "主流程已跑通，正在核对问题");
   await fillField('[data-event-form="progress"] [name="next_step"]', "验证异常恢复");
   await submitSuccess('[data-event-form="progress"] button[type="submit"]');
-  assert.equal(app.goalEvents.readState(DEMO_BOARD_ID, goalId).progress_summary?.summary, "主流程已跑通，正在核对问题");
-  assert.equal(app.goalEvents.readState(DEMO_BOARD_ID, goalId).progress_summary?.next_step, "验证异常恢复");
+  assert.equal(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).progress_summary?.summary, "主流程已跑通，正在核对问题");
+  assert.equal(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).progress_summary?.next_step, "验证异常恢复");
   assert.match(await evaluate("document.querySelector('[data-current-summary]').textContent"), /主流程已跑通/);
   await openNamedForm("note");
   await fillField('[data-event-form="note"] [name="note"]', "备注只留在时间线，下一次试用时核对");
   await submitSuccess('[data-event-form="note"] button[type="submit"]');
   await waitDom("document.querySelector('[data-event-timeline]').textContent.includes('备注只留在时间线')");
-  assert.equal(app.goalEvents.readState(DEMO_BOARD_ID, goalId).progress_summary?.summary, "主流程已跑通，正在核对问题");
+  assert.equal(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).progress_summary?.summary, "主流程已跑通，正在核对问题");
   await openNamedForm("concern");
   await evaluate(`(() => {
     const form = document.querySelector('[data-event-form="concern"]');
@@ -169,10 +169,10 @@ test("event document writes planning, report, concern, decision and closure thro
   })()`);
   await submitSuccess('[data-event-form="concern"] button[type="submit"]');
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (app.goalEvents.readState(DEMO_BOARD_ID, goalId).concerns.length >= 1) break;
+    if (app.goalEvents.readState(DEMO_PROJECT_ID, goalId).concerns.length >= 1) break;
     await evaluate("new Promise((resolve) => setTimeout(resolve, 250))");
   }
-  assert.ok(app.goalEvents.readState(DEMO_BOARD_ID, goalId).concerns.length >= 1);
+  assert.ok(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).concerns.length >= 1);
   await openNamedForm("decision");
   await evaluate(`(() => {
     const form = document.querySelector('[data-event-form="decision"]');
@@ -187,10 +187,10 @@ test("event document writes planning, report, concern, decision and closure thro
   })()`);
   await submitSuccess('[data-event-form="decision"] button[type="submit"]');
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (app.goalEvents.readState(DEMO_BOARD_ID, goalId).current_decisions.length >= 1) break;
+    if (app.goalEvents.readState(DEMO_PROJECT_ID, goalId).current_decisions.length >= 1) break;
     await evaluate("new Promise((resolve) => setTimeout(resolve, 250))");
   }
-  assert.ok(app.goalEvents.readState(DEMO_BOARD_ID, goalId).current_decisions.length >= 1);
+  assert.ok(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).current_decisions.length >= 1);
   const headerAfterWrites = await evaluate("document.querySelector('[data-current-summary]')?.textContent");
   await waitDom(`document.querySelectorAll('${visibleDoc} [data-timeline-item]').length > 1`);
   const older = await evaluate(`document.querySelectorAll('${visibleDoc} [data-timeline-item]').length`) as number;
@@ -208,9 +208,9 @@ test("event document writes planning, report, concern, decision and closure thro
     agreement: document.querySelector('[data-event-form="closure"] [name="expected_agreement_version"]').value,
   })`);
   await fillField('[data-event-form="closure"] [name="reason"]', "旧版本收尾");
-  const current = app.goalEvents.readState(DEMO_BOARD_ID, goalId);
+  const current = app.goalEvents.readState(DEMO_PROJECT_ID, goalId);
   app.goalEvents.setAgreement({
-    board_id: DEMO_BOARD_ID,
+    project_id: DEMO_PROJECT_ID,
     goal_id: goalId,
     actor_id: "web-user",
     actor_kind: "user",
@@ -227,7 +227,7 @@ test("event document writes planning, report, concern, decision and closure thro
   assert.match(await evaluate("document.querySelector('[data-event-conflict]').textContent || ''"), /当前预期结果|约定版本|配置版本|并发修改后的约定/);
   const retryKey = await evaluate("document.querySelector('[data-event-form=closure]').dataset.idempotencyKey || ''");
   assert.ok(retryKey);
-  const beforeReviewCursor = app.goalEvents.readState(DEMO_BOARD_ID, goalId).goal_event_cursor;
+  const beforeReviewCursor = app.goalEvents.readState(DEMO_PROJECT_ID, goalId).goal_event_cursor;
   await evaluate(`(() => {
     if (typeof window.__refreshTick !== "function") throw new Error("Missing real refresh callback");
     const real = window.fetch.bind(window);
@@ -255,8 +255,8 @@ test("event document writes planning, report, concern, decision and closure thro
   await waitDom(`document.querySelector('[data-event-form=closure] [name=expected_agreement_version]')?.value !== ${JSON.stringify(versions.agreement)}`);
   assert.equal(await evaluate("document.querySelector('[data-event-form=closure] [name=reason]').value"), "旧版本收尾");
   assert.equal(await evaluate("document.querySelector('[data-event-form=closure]').dataset.idempotencyKey || ''"), "");
-  assert.equal(app.goalEvents.readState(DEMO_BOARD_ID, goalId).goal_event_cursor, beforeReviewCursor);
-  const state = app.goalEvents.readState(DEMO_BOARD_ID, goalId);
+  assert.equal(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).goal_event_cursor, beforeReviewCursor);
+  const state = app.goalEvents.readState(DEMO_PROJECT_ID, goalId);
   assert.equal(state.latest_reports[0]?.title, "时间线已经接到真实写入");
   assert.equal(state.owner?.kind, "event_work");
   assert.ok(state.concerns.length >= 1);
@@ -274,7 +274,7 @@ test("a Goal without event work stays readable without writing an owner or offer
   const originalWhy = "历史资料不能在更换界面时消失";
   const originalLogic = "从目标说明直接读取原字段";
   const originalConstraint = "原约束：只修改已确认的文案";
-  app.goals.commands.createGoal(DEMO_BOARD_ID, {
+  app.goals.commands.createGoal(DEMO_PROJECT_ID, {
     goal_id: goalId,
     title: originalTitle,
     outcome: originalOutcome,
@@ -287,9 +287,9 @@ test("a Goal without event work stays readable without writing an owner or offer
     promised_outputs: ["原输出：可读的最终说明文档"],
     acceptance_criteria: [],
   }, { actor_id: "history-fixture", idempotency_key: "legacy-readonly-create", reason: "隔离验收无 owner 历史阅读" });
-  const before = store.snapshot(DEMO_BOARD_ID);
+  const before = store.snapshot(DEMO_PROJECT_ID);
   const beforeGoal = before.goals.find((item) => item.goal_id === goalId)!;
-  assert.equal(app.goalEvents.isEventStateOwner(DEMO_BOARD_ID, goalId), false);
+  assert.equal(app.goalEvents.isEventStateOwner(DEMO_PROJECT_ID, goalId), false);
   assert.equal(beforeGoal.outcome, originalOutcome);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId));
@@ -317,9 +317,9 @@ test("a Goal without event work stays readable without writing an owner or offer
   assert.match(body, /隔离验收无 owner 历史阅读/);
   await reloadPage();
   await waitFor(`document.querySelector('[data-goal-event-document]')?.dataset.goalView === ${JSON.stringify(goalId)}`);
-  const after = store.snapshot(DEMO_BOARD_ID);
+  const after = store.snapshot(DEMO_PROJECT_ID);
   const afterGoal = after.goals.find((item) => item.goal_id === goalId)!;
-  assert.equal(app.goalEvents.isEventStateOwner(DEMO_BOARD_ID, goalId), false);
+  assert.equal(app.goalEvents.isEventStateOwner(DEMO_PROJECT_ID, goalId), false);
   assert.equal(afterGoal.title, beforeGoal.title);
   assert.equal(afterGoal.outcome, beforeGoal.outcome);
   assert.deepEqual(afterGoal.constraints, beforeGoal.constraints);
@@ -331,13 +331,13 @@ test("timeline pagination retries in place and preserves dates, type markers and
   if (!browser) return;
   const { store, origin, sessionId, command, evaluate, waitFor, click, navigate } = browser;
   const app = new GoalProjectApplication(store);
-  const { goal } = app.goalEvents.createIntent({ board_id: DEMO_BOARD_ID, title: "验证跨日时间线", outcome: "更早的结果仍然可以阅读", actor_id: "web-user", actor_kind: "user", idempotency_key: "paged-goal" });
+  const { goal } = app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: "验证跨日时间线", outcome: "更早的结果仍然可以阅读", actor_id: "web-user", actor_kind: "user", idempotency_key: "paged-goal" });
   for (let index = 0; index < 42; index += 1) {
-    app.goalEvents.recordNote({ board_id: DEMO_BOARD_ID, goal_id: goal.goal_id, actor_id: "web-user", actor_kind: "user", idempotency_key: "paged-note-" + index, body: "最近的工作记录 " + index });
+    app.goalEvents.recordNote({ project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, actor_id: "web-user", actor_kind: "user", idempotency_key: "paged-note-" + index, body: "最近的工作记录 " + index });
   }
-  store.appendEvent({ eventId: "paged-historical-result", boardId: DEMO_BOARD_ID, actorId: "web-user", type: "goal.updated", objectType: "goal",
+  store.appendEvent({ eventId: "paged-historical-result", projectId: DEMO_PROJECT_ID, actorId: "web-user", type: "goal.updated", objectType: "goal",
     objectId: goal.goal_id, reason: "更早的说明修订", payload: {}, at: "2026-09-01T16:40:00.000Z" });
-  const before = store.snapshot(DEMO_BOARD_ID);
+  const before = store.snapshot(DEMO_PROJECT_ID);
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setTimezoneOverride", { timezoneId: "Asia/Shanghai" }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goal.goal_id) }, sessionId));
@@ -361,5 +361,5 @@ test("timeline pagination retries in place and preserves dates, type markers and
   assert.equal(await evaluate("document.querySelector('[data-event-sheet]').previousElementSibling.dataset.originalId"), "paged-historical-result");
   const ids = await evaluate<string[]>("[...document.querySelectorAll('[data-timeline-item]')].map(node=>node.dataset.timelineItem)");
   assert.equal(ids.length, new Set(ids).size);
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID), before, "reading and retrying history must not write facts");
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), before, "reading and retrying history must not write facts");
 });

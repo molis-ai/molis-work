@@ -117,7 +117,7 @@ export function syncClosedState(
   status: GoalEventWorkStatus,
   at: string,
 ): void {
-  records.setWorkStatus(goal.board_id, goal.goal_id, status, at);
+  records.setWorkStatus(goal.project_id, goal.goal_id, status, at);
   records.setFulfillment(goal.goal_id, fulfillmentForWorkStatus(status), at);
 }
 

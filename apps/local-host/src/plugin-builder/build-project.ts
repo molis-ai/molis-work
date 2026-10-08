@@ -61,10 +61,13 @@ Declared errors: throw Object.assign(new Error('说明'), { code: 'not_found' })
 The clock is real: use new Date() for today or this month, never a fixed date; tests pass dates in, never assert today's.
 
 Platform capabilities: only the ids in the operation's effects.capabilities, and only after installation approval.
-model.generate — const { text } = await sdk.capability.call('model.generate', { instructions, input }) as { text: string };
-the person's configured text model, one answer, no tools. In tests, examples, checks and acceptance a fixed stand-in
-answers: text = '［模型替身］' + the first 40 characters of input. Assert on that prefix or on what you save, never on a
-real answer. Ask for the format you need in instructions and parse tolerantly; keep the raw text if parsing fails.
+model.generate — declare what the model is asked in the operation file that calls it:
+export const prompts = [{ id: 'summary', title: '要点提炼', purpose: '把笔记提炼成三条要点', body: '只输出三条要点…' }];
+then const { text } = await sdk.capability.call('model.generate', { prompt: 'summary', input }) as { text: string };
+(the prompt id is a literal). The person's configured text model, one answer, no tools; the person can read and edit
+the prompt. In tests, examples, checks and acceptance a fixed stand-in answers: text = '［模型替身］' + the first 40
+characters of input. Assert on that prefix or on what you save, never on a real answer. Say the format you need in the
+prompt body and parse tolerantly; keep the raw text if parsing fails.
 
 Example operation (src/operations/1.ts):
 

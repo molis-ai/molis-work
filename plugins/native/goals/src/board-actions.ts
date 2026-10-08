@@ -20,15 +20,15 @@ function requireManagement(caller: ActionCallContext): void {
 export const goalsBoardActions = {
   initialize: management(goalAction<{ title: string; idempotency_key: string }, InitializeBoardOutput>("goals.board.initialize", "初始化目标资料库",
     "在当前可信管理上下文中初始化尚不存在的 Board；不创建项目目录绑定，不覆盖已有 Board，重试保留原请求键", "command",
-    object({ title: identifier, idempotency_key: identifier }), object({ board_id: text, replayed: boolean, observed_event_cursor: count }))),
+    object({ title: identifier, idempotency_key: identifier }), object({ project_id: text, replayed: boolean, observed_event_cursor: count }))),
 } as const;
-export function createGoalsBoardActionHandlers(boardId: string, ports: GoalsBoardPorts): ActionHandlerBinding[] {
+export function createGoalsBoardActionHandlers(projectId: string, ports: GoalsBoardPorts): ActionHandlerBinding[] {
   const protect = (binding: ActionHandlerBinding): ActionHandlerBinding => ({ ...binding,
     availability(caller) { try { requireManagement(caller); return { available: true }; }
       catch (error) { if (error instanceof ActionError) return { available: false, code: error.code, reason: error.message }; throw error; } },
     handle(caller, input) { requireManagement(caller); return binding.handle(caller, input); } });
   return [
     protect({ ...goalsBoardActions.initialize, handle: (caller, input) => ports.initializeBoard({
-      ...input as { title: string; idempotency_key: string }, board_id: boardId, actor_id: goalActor(caller).actor_id }) }),
+      ...input as { title: string; idempotency_key: string }, project_id: projectId, actor_id: goalActor(caller).actor_id }) }),
   ];
 }

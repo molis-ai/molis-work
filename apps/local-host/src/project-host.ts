@@ -69,8 +69,6 @@ export interface MolisWorkProjectRuntime {
   coordinator: GoalProjectApplication;
   /** Which project this runtime serves. Capabilities scope their answers to it. */
   project_id: string;
-  /** The board behind this project. Review queues and events are board scoped. */
-  board_id: string;
   interactionObserver?: InteractionObserver;
 }
 
@@ -104,14 +102,11 @@ export interface MolisWorkLocalHostOptions {
 
 export function molisWorkHostProjectReference(input: {
   databasePath: string;
-  boardId: string;
-  projectId?: string | null;
+  projectId: string;
 }): LocalHostProjectReference {
   const storageKey = path.resolve(input.databasePath);
-  const boardId = input.boardId.trim() || `database:${storageKey}`;
   return {
-    project_id: input.projectId?.trim() || boardId,
-    board_id: boardId,
+    project_id: input.projectId.trim() || `database:${storageKey}`,
     storage_key: storageKey,
   };
 }
@@ -156,8 +151,8 @@ export class MolisWorkLocalHost {
       sceneAvailability: options.sceneAvailability,
       observation: {
         before: (runtime, reference, capability, input, caller) => {
-          runtime.interactionObserver ??= new InteractionObserver(runtime.store, runtime.coordinator, reference.board_id, reference.project_id);
-          const observed = caller.audience === "mcp" ? goalActionObservation(capability, input, reference.board_id, caller) : null;
+          runtime.interactionObserver ??= new InteractionObserver(runtime.store, runtime.coordinator, reference.project_id, reference.project_id);
+          const observed = caller.audience === "mcp" ? goalActionObservation(capability, input, reference.project_id, caller) : null;
           if (observed) return runtime.interactionObserver.before(observed.capability, observed.input);
           return runtime.interactionObserver.before(capability, input);
         },
@@ -169,7 +164,7 @@ export class MolisWorkLocalHost {
           const recovering = this.existingOnly.has(reference.storage_key);
           if (recovering && !existsSync(reference.storage_key)) throw new ProjectRecoveryError("project_recovery_missing");
           const store = new LocalProjectDatabase(reference.storage_key, { existingOnly: recovering });
-          if (recovering && !store.goalsQuery.getBoard(reference.board_id)) {
+          if (recovering && !store.goalsQuery.getBoard(reference.project_id)) {
             store.close();
             throw new ProjectRecoveryError("project_recovery_board_missing");
           }
@@ -183,17 +178,16 @@ export class MolisWorkLocalHost {
             store,
             coordinator,
             project_id: reference.project_id,
-            board_id: reference.board_id,
           };
           try {
             const scenes = this.sceneClient(reference);
             const feed = createLocalFeedApplication(store.db, {
-              captureJudgment: createFeedCaptureTrigger({ scenes, boardId: reference.board_id,
+              captureJudgment: createFeedCaptureTrigger({ scenes, projectId: reference.project_id,
                 context: () => ({ actor_id: "workflow-events", project_id: reference.project_id, audience: "workflow",
                   permissions: ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"] }) }),
-              homeJudgment: createHomeJudgmentTrigger({ scenes, boardId: reference.board_id,
+              homeJudgment: createHomeJudgmentTrigger({ scenes, projectId: reference.project_id,
                 context: () => ({ actor_id: "workflow-events", project_id: reference.project_id, audience: "workflow", permissions: HOME_ACTION_PERMISSIONS.filter(permission => permission !== "home:write") }) }),
-              inboxJudgment: createInboxJudgmentTrigger({ scenes, boardId: reference.board_id,
+              inboxJudgment: createInboxJudgmentTrigger({ scenes, projectId: reference.project_id,
                 context: () => ({ actor_id: "workflow-events", project_id: reference.project_id, audience: "workflow",
                   permissions: ["inbox:read", "model:invoke", "functions:invoke"] }) }),
             });
@@ -215,9 +209,9 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) registry.registerProvider(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) registry.registerProvider(shelfProjectActionProvider(runtime, options.homeDirectory));
             if (options.homeDirectory) registry.registerProvider(workflowsActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
-            if (options.homeDirectory) registry.registerProvider(homeActionProvider(options.homeDirectory, reference.project_id, reference.board_id,
+            if (options.homeDirectory) registry.registerProvider(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes, functions: options.functions }, (judgment, caller) => {
-                new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, boardId: reference.board_id, actorId: caller.actor_id,
+                new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
               }));
@@ -228,9 +222,9 @@ export class MolisWorkLocalHost {
           }
         },
         close: async (runtime, reference) => {
-          await releaseAgentStudio(runtime.store, runtime.board_id);
-          await releaseInstalledPlugins(runtime.store, runtime.board_id);
-          await releaseProjectPlugins(runtime.store, runtime.board_id);
+          await releaseAgentStudio(runtime.store, runtime.project_id);
+          await releaseInstalledPlugins(runtime.store, runtime.project_id);
+          await releaseProjectPlugins(runtime.store, runtime.project_id);
           runtime.store.close();
           options.onRuntimeClose?.(reference);
         },
@@ -247,7 +241,7 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) this.systemFunctions = new SystemFunctionsActions(this.host.actionRegistry(), options.homeDirectory, options.functions ?? {}, caller => {
       const project = caller.project_id ? this.host.status().projects.find(row => row.project_id === caller.project_id) : undefined;
       if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "判断目录缺少当前项目运行环境");
-      return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), boardId: project?.board_id };
+      return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), projectId: project?.project_id };
     });
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(jellyActionProvider(options.homeDirectory, options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(todoActionProvider(options.homeDirectory, options.completeText));
@@ -283,12 +277,12 @@ export class MolisWorkLocalHost {
         openPersonalSpace: async () => {
           const space = this.catalogRunner ? await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects().find(project => isPersonalSpace(project))) : undefined;
           if (!space) return undefined;
-          const value = molisWorkHostProjectReference({ databasePath: space.database_path, boardId: space.board_id, projectId: space.project_id });
+          const value = molisWorkHostProjectReference({ databasePath: space.database_path, projectId: space.project_id });
           await this.withProject(value, () => undefined);
           return value;
         },
         onError: (error, where) => { if (process.env.MOLIS_WORK_SEARCH_DEBUG) console.warn(`[search] ${where}:`, error); } });
-      const reference = (project: PlacementProjectRecord) => molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+      const reference = (project: PlacementProjectRecord) => molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       this.placement = createPlacementHost({ homeDirectory: home, registry: this.host.actionRegistry(),
         projects: async () => this.catalogRunner ? this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects()) : null,
         ensurePersonalSpace: async () => {
@@ -385,7 +379,7 @@ export class MolisWorkLocalHost {
 
   private async prepareInstalledPlugins(reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {
     if (!this.options.homeDirectory) return;
-    const installed = await ensureInstalledPlugins({ store: runtime.store, boardId: runtime.board_id, homeDirectory: this.options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
+    const installed = await ensureInstalledPlugins({ store: runtime.store, projectId: runtime.project_id, homeDirectory: this.options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
       routePrefix: this.options.projectRoutePrefix?.(reference.project_id) ?? `/projects/${encodeURIComponent(reference.project_id)}`,
       capabilities: this.host.client(reference),
       actions: { registry: this.host.actionRegistry(reference), client: { ...this.host.actionClient(reference), ...this.host.syncActionClient(reference) }, project_id: reference.project_id,
@@ -396,13 +390,13 @@ export class MolisWorkLocalHost {
 
   private ensureProjectPluginActions(reference: LocalHostProjectReference): Promise<unknown> {
     return this.host.withRuntime(reference, runtime => ensureProjectPlugins({
-      store: runtime.store, boardId: runtime.board_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: this.options.homeDirectory,
-      goalTitle: id => runtime.coordinator.goalQueries.getGoal(runtime.board_id, id)?.title,
+      store: runtime.store, projectId: runtime.project_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: this.options.homeDirectory,
+      goalTitle: id => runtime.coordinator.goalQueries.getGoal(runtime.project_id, id)?.title,
       capabilities: this.host.client(reference),
       actions: { registry: this.host.actionRegistry(reference), client: { ...this.host.actionClient(reference), ...this.host.syncActionClient(reference) }, project_id: reference.project_id },
       characterWorkspaces: async () => this.options.workspacesFor ? await this.options.workspacesFor(reference.project_id)
         : this.options.workspaceFor ? [await this.options.workspaceFor(reference.project_id)].filter((value): value is ProjectWorkspaceRef => !!value) : [],
-      ...(this.agents ? { observeGitOperations: listener => observeGitOperations(this.agents!.service.agentHost.reviews, runtime.board_id, listener) } : {}),
+      ...(this.agents ? { observeGitOperations: listener => observeGitOperations(this.agents!.service.agentHost.reviews, runtime.project_id, listener) } : {}),
       // Headless callers reach Coding's actions through the Host's own Agent service; page adapters may still attach theirs.
       ...(this.agents && this.options.homeDirectory ? { execution: { ready: () => this.agents!.service.ready,
         models: async () => configuredModelChoices(this.options.homeDirectory!) } } : {}),

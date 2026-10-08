@@ -29,13 +29,13 @@ export interface FeedSyncExecution {
 }
 export interface FeedSourcePorts {
   /** Host-wide lease shared by every service instance for the same database/source. */
-  acquireSync?(boardId: string, sourceId: string): () => void;
+  acquireSync?(projectId: string, sourceId: string): () => void;
   syncRepository?(source: FeedSourceRecord, input: FeedSourceSyncInput): Promise<FeedSourceSyncResult>;
   feed: FeedApplication;
   providers: FeedSourceProviders;
   createRuntime(source: FeedSourceRecord): PublicFeedRuntime;
   transaction<T>(operation: () => T): T;
-  appendEvent(boardId: string, sourceId: string, type: string, reason: string, payload?: Record<string, unknown>): void;
+  appendEvent(projectId: string, sourceId: string, type: string, reason: string, payload?: Record<string, unknown>): void;
   resolveConnection?(serviceId: string, connectionId: string): {
     credentialRef: string | null;
     accountLabel: string | null;

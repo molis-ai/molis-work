@@ -14,7 +14,7 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { createActionMcpPorts, handleMcpMessage, actionMcpToolName } from "@molis-ai/molis-work-app-mcp";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 test("clean developer project uses packed public SDK from CLI scaffold through installation and a real private Artifact/UI result", async () => {
@@ -119,7 +119,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     const privateOwner = new SqlitePluginPrivateStorage(privateDb);
     const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store!.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store!.appendEvent(event) });
     const ui = new UiHost();
-    const actions = pluginActions(store, DEMO_BOARD_ID);
+    const actions = pluginActions(store, DEMO_PROJECT_ID);
     let registeredPublications = 0;
     const invoke = actions.client.invoke.bind(actions.client);
     actions.client.invoke = async (caller, reference, input) => {
@@ -127,16 +127,16 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
       if (reference.capability_id === publishResult.capability_id) registeredPublications++;
       return result;
     };
-    const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, board_id: DEMO_BOARD_ID, actor_id: "developer",
+    const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "developer",
       artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }), { actions });
     const installed = runtime.install({ definition, deployment: "local" });
     const installId = installed.install.install_id;
     await assert.rejects(runtime.start(installId), (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin_grant_denied");
-    assert.equal(artifacts.query.listArtifacts(DEMO_BOARD_ID).length, 0);
+    assert.equal(artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 0);
     assert.deepEqual(ui.list(), []);
     runtime.grant(installId, definition.manifest.permissions.map(permission => permission.permission));
     await runtime.start(installId);
-    const caller: ActionCallContext = { actor_id: "developer", project_id: DEMO_BOARD_ID, audience: "user",
+    const caller: ActionCallContext = { actor_id: "developer", project_id: DEMO_PROJECT_ID, audience: "user",
       permissions: definition.manifest.permissions.map(permission => permission.permission) };
     const actionDirectory = await actions.client.discover(caller);
     assert.ok([publicHealth, readResult, publishResult].every(definition => actionDirectory.some(row => row.capability_id === definition.capability_id && row.provider.provider_id === installId && row.availability.available)));
@@ -144,7 +144,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     await assert.rejects(actions.client.invoke({ ...caller, actor_id: "other-user" }, publishResult, {}), { code: "actions.owner_mismatch" });
     await assert.rejects(actions.client.invoke({ ...caller, permissions: [] }, publishResult, {}), { code: "actions.forbidden" });
     await assert.rejects(actions.client.invoke(caller, publishResult, { actor_id: "developer" }), { code: "actions.input_invalid" });
-    const mcp = createActionMcpPorts({ service: actions.client, context: () => ({ actor_id: "external-client", project_id: DEMO_BOARD_ID, audience: "mcp", permissions: [],
+    const mcp = createActionMcpPorts({ service: actions.client, context: () => ({ actor_id: "external-client", project_id: DEMO_PROJECT_ID, audience: "mcp", permissions: [],
       allowed_actions: [{ ...publicHealth, provider_id: installId }] }), serverInfo: { name: "generated-plugin", version: "1" } });
     const mcpList = await handleMcpMessage({ id: 1, method: "tools/list", params: {} }, mcp);
     assert.deepEqual((mcpList!.result as { tools: { name: string }[] }).tools.map(tool => tool.name), [actionMcpToolName(publicHealth)]);
@@ -159,7 +159,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.equal(first.ok, true);
     assert.equal(first.events.length, 1);
     const reference = { artifact_id: installId + ":sample-result", version: 1 };
-    assert.deepEqual(artifacts.query.getArtifactVersion(DEMO_BOARD_ID, reference)!.payload,
+    assert.deepEqual(artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, reference)!.payload,
       { title: "Local sample result", sequence: 1 });
     const render = () => ui.mount({ slot: { slot_id: "plugin.main", version: 1, accepts: ["html"] },
       contribution: { contribution_id: definition.manifest.ui.contributions[0]!, surface: "main", model: null } }).html;
@@ -173,16 +173,16 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     const recovered = runtime.contribution(installId)!; assert.ok(recovered.kind === "integration");
     assert.equal((await recovered.connector_driver.poll({ cursor: first.cursor_after })).ok, true);
     assert.match(render(), /Saved results: 2/);
-    assert.equal(artifacts.query.listArtifactVersions(DEMO_BOARD_ID, reference.artifact_id).length, 2);
+    assert.equal(artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, reference.artifact_id).length, 2);
     assert.deepEqual(await actions.client.invoke(caller, publishResult, {}), { artifact_id: reference.artifact_id, version: 3, payload: { title: "Local sample result", sequence: 3 } });
     assert.equal(registeredPublications, 3); assert.match(render(), /Saved results: 3/);
-    assert.equal(artifacts.query.listArtifactVersions(DEMO_BOARD_ID, reference.artifact_id).length, 3);
+    assert.equal(artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, reference.artifact_id).length, 3);
     await runtime.uninstall(installId);
     assert.equal((await actions.client.discover(caller)).some(row => row.provider.provider_id === installId), false);
     await assert.rejects(actions.client.invoke(caller, publicHealth, {}), { code: "actions.missing" });
     const stopped = await handleMcpMessage({ id: 4, method: "tools/list", params: {} }, mcp);
     assert.deepEqual((stopped!.result as { tools: unknown[] }).tools, []);
     assert.deepEqual(ui.list(), []);
-    assert.equal(artifacts.query.getArtifactVersion(DEMO_BOARD_ID, reference)!.scope, "personal");
+    assert.equal(artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, reference)!.scope, "personal");
   } finally { privateDb?.close(); store?.close(); rmSync(directory, { recursive: true, force: true }); }
 });

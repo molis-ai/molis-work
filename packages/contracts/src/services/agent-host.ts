@@ -383,7 +383,7 @@ export interface AgentStepOwner {
 }
 
 export interface AgentStepBoard {
-  board_id: string;
+  project_id: string;
   version: number;
   terminal: boolean;
   /** In execution order: dependencies first, the original plan order breaking ties. */
@@ -422,7 +422,7 @@ export type AgentStepAmendment =
  */
 export interface AgentFrozenCharacter extends CharacterContent {
   reference: ArtifactReference;
-  board_id: string;
+  project_id: string;
   content_digest: string;
   producer: ArtifactProducerIdentity;
   published_at: string;
@@ -478,7 +478,7 @@ interface AgentFrozenStartFields {
 export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace;
 
 interface AgentCreateSessionFields {
-  board_id: string;
+  project_id: string;
   plugin_id: string;
   install_id: string;
   actor_id: string;
@@ -650,7 +650,7 @@ interface AgentStartRequestFields {
   /** Only a reference is accepted from the caller; the Host resolves its immutable content. */
   character?: ArtifactReference | null;
   session: AgentSessionRef;
-  board_id: string;
+  project_id: string;
   plugin_id: string;
   install_id: string;
   actor_id: string;
@@ -746,7 +746,7 @@ export interface AgentRunUsage {
   compaction?: { recorded_calls: number; incomplete: boolean };
   tokens: AgentTokenCount;
   cost_usd?: number;
-  /** Per-field provenance; absent on legacy runtimes. Unknown numeric placeholders must not be displayed. */
+  /** Per-field provenance; absent when the runtime reports none. Unknown numeric placeholders must not be displayed. */
   coverage?: Record<"input" | "output" | "cached_input" | "cache_creation" | "cost_usd", AgentUsageCoverage>;
   /** Missing, interrupted or estimated scope; known subtotals remain readable with this warning. */
   unavailable_reason?: string;
@@ -759,8 +759,8 @@ export interface AgentRunUsage {
 
 export interface AgentCommandOutputRef {
   call_id: string;
-  /** Required for unambiguous product links; legacy callers may omit it. */
-  run_id?: string;
+  /** The run that produced it: a call id is only unique within its run. */
+  run_id: string;
 }
 
 export interface AgentCommandOutput {
@@ -844,7 +844,7 @@ export interface AgentSessionView {
   checkpoint_busy?: boolean;
   /** Persisted work exists but is not safe to continue automatically. */
   recovery?: { required: true; reason: string };
-  owner: Pick<AgentCreateSessionInput, "board_id" | "plugin_id" | "install_id" | "actor_id">;
+  owner: Pick<AgentCreateSessionInput, "project_id" | "plugin_id" | "install_id" | "actor_id">;
   session: AgentSessionRef;
   title: string;
   runs: AgentRunRef[];
@@ -943,7 +943,7 @@ export interface AgentReviewRequest {
   run: AgentRunRef | null;
   operation?: { operation_id: string; session_id: string; kind: "checkpoint-rewind"; workspace_id?: never }
     | { operation_id: string; workspace_id: string; kind: "git-index" | "git-worktree" | "git-integration" | "git-operation"; session_id?: never };
-  board_id: string;
+  project_id: string;
   plugin_id: string;
   kind: AgentReviewKind;
   document: AgentReviewDocument;
@@ -1011,7 +1011,7 @@ export interface AgentReviewRecoveryInput {
  * Host records a decision, and only a recorded approval releases an effect.
  */
 export interface AgentReviewQueueApi {
-  list(boardId: string, status?: AgentReviewStatus): AgentReviewRequest[];
+  list(projectId: string, status?: AgentReviewStatus): AgentReviewRequest[];
   get(reviewId: string): AgentReviewRequest | null;
   decide(input: AgentReviewDecisionInput): AgentReviewReceipt;
   receipt(reviewId: string): AgentReviewReceipt | null;
@@ -1041,7 +1041,7 @@ export interface AgentSkillCatalogEntry extends AgentSkillDeclaration {
   enabled: boolean;
 }
 
-export interface AgentSkillOwner { board_id: string; plugin_id: string }
+export interface AgentSkillOwner { project_id: string; plugin_id: string }
 export interface AgentSkillCandidate {
   candidate_id: string;
   name: string;
@@ -1444,10 +1444,8 @@ export interface AgentHostApi {
 /** What to draft: the purpose in a few words, how to write it, and the material it is drawn from. */
 export interface AgentDraftTextRequest {
   purpose: string;
-  /** Registered instruction owned by the trusted calling Plugin. Use this for new calls. */
-  prompt?: string;
-  /** Legacy inline instruction; cannot be combined with prompt. */
-  instructions?: string;
+  /** Registered instruction owned by the trusted calling Plugin. */
+  prompt: string;
   material: string;
   model_selection?: { provider_id: string; model_id: string };
 }
@@ -1663,7 +1661,7 @@ export const agentHostCapabilities = {
     version: 1,
     operation: "query",
   } as HostCapabilityDefinition<
-    [boardId: string, status?: AgentReviewStatus],
+    [projectId: string, status?: AgentReviewStatus],
     AgentReviewRequest[]
   >,
 } as const;

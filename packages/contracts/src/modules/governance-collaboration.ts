@@ -119,7 +119,7 @@ export interface GoalTreeProposalDecisionAuthority {
 
 export interface GoalTreeProposalDecisionRecord {
   decision_id: string;
-  board_id: string;
+  project_id: string;
   proposal_id: string;
   item_id: string;
   decision: GoalTreeProposalDecisionState;
@@ -152,7 +152,7 @@ export interface GoalTreeProposalItemExplanation {
 export interface GoalTreeProposalItemRecord {
   item_id: string;
   proposal_id: string;
-  board_id: string;
+  project_id: string;
   ordinal: number;
   kind: GoalTreeProposalItemKind;
   operation: GoalTreeProposalOperation;
@@ -176,7 +176,7 @@ export interface GoalTreeProposalItemRecord {
 
 export interface GoalTreeProposalRecord {
   proposal_id: string;
-  board_id: string;
+  project_id: string;
   root_goal_id: string | null;
   submitted_by: string;
   submitted_session_id: string | null;
@@ -268,7 +268,7 @@ export type GoalTreeProposalItemInput =
   | GoalTreeRelationDeactivateItemInput;
 
 export interface GoalTreeProposalSubmitInput {
-  board_id: string;
+  project_id: string;
   actor_id: string;
   root_goal_id?: string | null;
   summary: string;
@@ -281,7 +281,7 @@ export interface GoalTreeProposalSubmitInput {
 }
 
 export interface GoalTreeProposalCheckInput {
-  board_id: string;
+  project_id: string;
   proposal_id: string;
   actor_id: string;
   idempotency_key: string;
@@ -295,7 +295,7 @@ export interface GoalTreeProposalItemDecisionInput {
 }
 
 export interface GoalTreeProposalDecideInput {
-  board_id: string;
+  project_id: string;
   proposal_id: string;
   runtime_actor_id?: string | null;
   authority: GoalTreeProposalDecisionAuthority;
@@ -307,7 +307,7 @@ export interface GoalTreeProposalDecideInput {
 
 export interface GoalTreeItemOwner {
   proposal_id: string;
-  board_id: string;
+  project_id: string;
 }
 
 export type NewNativeGoalTreeProposal = Omit<
@@ -325,10 +325,10 @@ export interface GovernanceSnapshot {
 }
 
 export interface GovernanceQueryApi {
-  eventCursor(boardId: string): number;
-  snapshot(boardId: string): GovernanceSnapshot;
-  getGoalTreeProposal(boardId: string, proposalId: string): GoalTreeProposalRecord | null;
-  listGoalTreeProposals(boardId: string): GoalTreeProposalRecord[];
+  eventCursor(projectId: string): number;
+  snapshot(projectId: string): GovernanceSnapshot;
+  getGoalTreeProposal(projectId: string, proposalId: string): GoalTreeProposalRecord | null;
+  listGoalTreeProposals(projectId: string): GoalTreeProposalRecord[];
 }
 
 /**
@@ -336,19 +336,19 @@ export interface GovernanceQueryApi {
  */
 export interface GovernanceRecordsApi {
   executeGoalTreeDecision<TTransition>(input: {
-    board_id: string; actor_id: string; idempotency_key: string; request_hash: string;
+    project_id: string; actor_id: string; idempotency_key: string; request_hash: string;
   }, operation: () => { value: Omit<GoalTreeProposalDecisionResult<TTransition>, "replayed">; at: string }): GoalTreeProposalDecisionResult<TTransition>;
   recordGoalTreeDecision(input: {
-    board_id: string; proposal_id: string; authority: GoalTreeProposalDecisionAuthority; runtime_actor_id: string | null;
+    project_id: string; proposal_id: string; authority: GoalTreeProposalDecisionAuthority; runtime_actor_id: string | null;
     applied_item_ids: string[]; rejected_item_ids: string[]; revised_item_ids: string[]; conflict_item_ids: string[];
     revision_proposal_ids: string[]; semantic_review: GoalTreeSemanticReview | null; at: string;
   }): number;
   recordGoalTreeRevision(input: {
-    board_id: string; proposal_id: string; authority: GoalTreeProposalDecisionAuthority;
+    project_id: string; proposal_id: string; authority: GoalTreeProposalDecisionAuthority;
     supersedes_proposal_id: string; supersedes_item_ids: string[]; at: string;
   }): number;
   recordGoalTreeItemDecision(input: {
-    board_id: string;
+    project_id: string;
     proposal_id: string;
     item: GoalTreeProposalItemRecord;
     item_state: GoalTreeProposalItemRecord["state"];
@@ -361,21 +361,21 @@ export interface GovernanceRecordsApi {
     revision_proposal_id: string | null;
     at: string;
   }): GoalTreeProposalDecisionRecord;
-  refreshGoalTreeProposalState(boardId: string, proposalId: string, actorId: string, at: string, semanticReview: GoalTreeSemanticReview | null): void;
+  refreshGoalTreeProposalState(projectId: string, proposalId: string, actorId: string, at: string, semanticReview: GoalTreeSemanticReview | null): void;
   executeGoalTreeCheck(input: {
-    board_id: string; actor_id: string; idempotency_key: string; request_hash: string;
+    project_id: string; actor_id: string; idempotency_key: string; request_hash: string;
   }, operation: () => { value: GoalTreeProposalCheckResult; at: string }): GoalTreeProposalCheckResult;
   recordGoalTreeCheck(input: {
-    board_id: string; proposal_id: string; actor_id: string; conflict_item_ids: string[];
+    project_id: string; proposal_id: string; actor_id: string; conflict_item_ids: string[];
     planning_issue_codes: string[]; at: string;
   }): number;
   executeGoalTreeSubmission(input: {
-    board_id: string; actor_id: string; idempotency_key: string; request_hash: string;
+    project_id: string; actor_id: string; idempotency_key: string; request_hash: string;
   }, operation: () => { proposal: GoalTreeProposalRecord; observed_event_cursor: number }): {
     proposal: GoalTreeProposalRecord; observed_event_cursor: number; replayed: boolean;
   };
   recordGoalTreeSubmission(input: {
-    board_id: string; proposal_id: string; actor_id: string; root_goal_id: string | null;
+    project_id: string; proposal_id: string; actor_id: string; root_goal_id: string | null;
     base_event_cursor: number; version: number;
     supersedes_proposal_id: string | null; item_ids: string[]; at: string;
   }): number;
@@ -426,7 +426,7 @@ export interface GoalTreeProposalCheckResult {
 
 export interface GovernanceEventDecisionApi {
   record(input: RecordGoalUserDecisionInput & { authority: GoalEventTrustedAuthority }): GoalEventTrustedDecisionRecord;
-  read(boardId: string, decisionId: string): GoalEventTrustedDecisionRecord | null;
+  read(projectId: string, decisionId: string): GoalEventTrustedDecisionRecord | null;
 }
 
 export interface GovernanceApplicationApi {

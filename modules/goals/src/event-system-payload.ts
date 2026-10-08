@@ -201,7 +201,7 @@ function asSourceKind(value: unknown): "web" | "onboarding" | "feed" | "runtime"
   return "web";
 }
 
-/** Old events have no source; malformed legacy data must not create navigation. */
+/** A progress report's source is optional; one that does not hold up creates no navigation. */
 export function parseGoalProgressSource(raw: unknown): GoalProgressArtifactSource | undefined {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
   const source = raw as Partial<GoalProgressArtifactSource>;

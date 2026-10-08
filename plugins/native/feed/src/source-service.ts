@@ -9,12 +9,12 @@ import { PublicSourceSync } from "./source-sync.js";
 export class FeedSourceService {
   readonly feed: FeedApplication;
   private readonly publicSync: PublicSourceSync;
-  constructor(private readonly ports: FeedSourcePorts, readonly boardId: string, private readonly now: () => Date = () => new Date()) {
+  constructor(private readonly ports: FeedSourcePorts, readonly projectId: string, private readonly now: () => Date = () => new Date()) {
     this.feed = ports.feed;
-    this.publicSync = new PublicSourceSync(ports, boardId);
+    this.publicSync = new PublicSourceSync(ports, projectId);
   }
   async sync(sourceId: string, input: FeedSourceSyncInput): Promise<FeedSourceSyncResult> {
-    const release = this.ports.acquireSync?.(this.boardId, sourceId);
+    const release = this.ports.acquireSync?.(this.projectId, sourceId);
     try {
       const source = this.activeSource(sourceId);
       if (source.kind === "research_library") {
@@ -29,7 +29,7 @@ export class FeedSourceService {
     const normalized = normalizeRegistration(input, this.ports.providers);
     const syncKind = "public_source";
     const existing = this.feed.findSource(
-      this.boardId,
+      this.projectId,
       syncKind,
       normalized.definitionId,
       normalized.configFingerprint,
@@ -45,8 +45,8 @@ export class FeedSourceService {
     }
     const now = new Date().toISOString();
     const source = this.feed.upsertSource({
-      board_id: this.boardId,
-      source_id: stableId("feed-source", `${this.boardId}\u0000${normalized.kind}\u0000${normalized.configFingerprint}`),
+      project_id: this.projectId,
+      source_id: stableId("feed-source", `${this.projectId}\u0000${normalized.kind}\u0000${normalized.configFingerprint}`),
       kind: normalized.kind,
       definition_id: normalized.definitionId,
       sync_kind: syncKind,
@@ -67,15 +67,15 @@ export class FeedSourceService {
       imported_at: now,
       updated_at: now,
     });
-    this.ports.appendEvent(this.boardId, source.source_id, "feed_source.registered", "已注册 Feed 来源；尚未联网读取");
+    this.ports.appendEvent(this.projectId, source.source_id, "feed_source.registered", "已注册 Feed 来源；尚未联网读取");
     return { source, registered: true };
   }
 
   setEnabled(sourceId: string, enabled: boolean): FeedSourceRecord {
     this.activeSource(sourceId);
-    const source = this.feed.setSourceEnabled(this.boardId, sourceId, enabled);
+    const source = this.feed.setSourceEnabled(this.projectId, sourceId, enabled);
     this.ports.appendEvent(
-      this.boardId,
+      this.projectId,
       sourceId,
       enabled ? "feed_source.resumed" : "feed_source.paused",
       enabled ? "已恢复 Feed 来源" : "已暂停 Feed 来源",
@@ -123,7 +123,7 @@ export class FeedSourceService {
         throw new FeedDomainError("这个地址已在 RSS 目录，请直接添加目录来源", "feed_source_use_catalog");
       }
       const fingerprint = sha256(feedUrl);
-      const existing = this.feed.findSource(this.boardId, "public_source", this.ports.providers.customRss.definitionId, fingerprint);
+      const existing = this.feed.findSource(this.projectId, "public_source", this.ports.providers.customRss.definitionId, fingerprint);
       if (existing && existing.source_id !== source.source_id) {
         throw new FeedDomainError("这个自定义 RSS / Atom 已经存在", "feed_source_idempotency_conflict");
       }
@@ -164,8 +164,8 @@ export class FeedSourceService {
       ? this.ports.transaction(() => {
         // Listener checkpoints and Signal dedupe keys are keyed by source_id.
         // A new account needs a new source rather than just an empty cursor.
-        const nextId = stableId("feed-source", `${this.boardId}\u0000connector\u0000${source.kind}\u0000${input.connection_id}`);
-        const prior = this.feed.snapshot(this.boardId).sources.find((candidate) => candidate.source_id === nextId);
+        const nextId = stableId("feed-source", `${this.projectId}\u0000connector\u0000${source.kind}\u0000${input.connection_id}`);
+        const prior = this.feed.snapshot(this.projectId).sources.find((candidate) => candidate.source_id === nextId);
         if (prior && sourceDeletedAt(prior)) {
           throw new FeedDomainError("这条账号来源已移除，请先恢复或另建来源", "feed_source_invalid_configuration");
         }
@@ -189,13 +189,12 @@ export class FeedSourceService {
           updated_at: now,
         });
         if (!prior) {
-          for (const rule of this.feed.listOutRules(this.boardId)) {
+          for (const rule of this.feed.listOutRules(this.projectId)) {
             if (rule.match.source_id !== sourceId) continue;
-            this.feed.createOutRule(this.boardId, {
+            this.feed.createOutRule(this.projectId, {
               name: rule.name,
               match: { ...rule.match, source_id: nextId },
               enabled: rule.enabled,
-              function_key: rule.function_key,
               judgment: rule.judgment,
               admission: rule.admission,
             });
@@ -205,7 +204,7 @@ export class FeedSourceService {
         return next;
       })
       : save();
-    this.ports.appendEvent(this.boardId, updated.source_id, "feed_source.configuration_updated", changedAccount ? "来源已切换到另一账号连接" : "来源配置已更新");
+    this.ports.appendEvent(this.projectId, updated.source_id, "feed_source.configuration_updated", changedAccount ? "来源已切换到另一账号连接" : "来源配置已更新");
     return updated;
   }
 
@@ -236,7 +235,7 @@ export class FeedSourceService {
       schedule,
       updated_at: now.toISOString(),
     });
-    this.ports.appendEvent(this.boardId, sourceId, "feed_source.schedule_updated", "来源拉取计划已更新", {
+    this.ports.appendEvent(this.projectId, sourceId, "feed_source.schedule_updated", "来源拉取计划已更新", {
       mode: schedule.mode,
       ...(schedule.mode === "interval" ? {
         enabled: schedule.enabled,
@@ -249,7 +248,7 @@ export class FeedSourceService {
 
   dueSources(at: Date = this.now()): FeedSourceRecord[] {
     const timestamp = at.getTime();
-    return this.feed.snapshot(this.boardId).sources.filter((source) => {
+    return this.feed.snapshot(this.projectId).sources.filter((source) => {
       const schedule = source.schedule;
       if (!source.enabled || source.status === "paused" || source.status === "disconnected") return false;
       if (schedule.mode !== "interval" || !schedule.enabled || !schedule.next_pull_at) return false;
@@ -259,7 +258,7 @@ export class FeedSourceService {
   }
 
   advanceSchedule(sourceId: string, plannedAt: string, attemptedAt: Date = this.now()): FeedSourceRecord | null {
-    const source = this.feed.getSource(this.boardId, sourceId);
+    const source = this.feed.getSource(this.projectId, sourceId);
     if (sourceDeletedAt(source) || source.schedule.mode !== "interval") return null;
     if (source.schedule.next_pull_at !== plannedAt) return source;
     const intervalMs = source.schedule.interval_minutes * 60_000;
@@ -288,17 +287,17 @@ export class FeedSourceService {
       last_error_code: null,
       updated_at: now,
     });
-    this.ports.appendEvent(this.boardId, sourceId, "feed_source.disconnected", "来源已断开并停止拉取");
+    this.ports.appendEvent(this.projectId, sourceId, "feed_source.disconnected", "来源已断开并停止拉取");
     return disconnected;
   }
 
   delete(sourceId: string, historyDecision: SourceHistoryDecision): FeedSourceRecord {
     this.activeSource(sourceId);
-    return this.feed.retireSource(this.boardId, sourceId, historyDecision);
+    return this.feed.retireSource(this.projectId, sourceId, historyDecision);
   }
 
   private activeSource(sourceId: string): FeedSourceRecord {
-    const source = this.feed.getSource(this.boardId, sourceId);
+    const source = this.feed.getSource(this.projectId, sourceId);
     if (sourceDeletedAt(source)) throw new FeedDomainError("找不到这个来源", "feed_source_not_found");
     return source;
   }

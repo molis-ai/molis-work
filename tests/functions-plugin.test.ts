@@ -25,7 +25,6 @@ import {
   SYSTEM_HOME_DOCK_FUNCTION_KEY,
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
-  functionFitsScene,
   choiceCriteriaFollowContext,
   type TypeSafeEvaluateResult,
 } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -206,7 +205,6 @@ test("custom Choice options survive an Inbox destination and bind through a scen
       urgent: INBOX_DONE_BEHAVIOR_ID,
       later: INBOX_DISMISS_BEHAVIOR_ID,
     });
-    assert.equal(functionFitsScene(mapped, INBOX_NEXT_SCENE_ID), true);
     const noul = store.create({ primitive: "noul", name: "材料够不够" });
     assert.equal(noul.scene_id, null);
     const noulMapped = store.updateDraft(noul.id, {
@@ -397,7 +395,7 @@ test("Functions client clears leftover preview text when switching records and h
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /subject_kinds: dest\?\.subject_kinds/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /selected = record;\s*records = records\.some/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/inbox\/judgment|\/api\/home\/dock-judgment/);
-  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.board_id \? " · " \+ row\.board_id/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.project_id \? " · " \+ row\.project_id/);
 });
 
 test("system judgment editor and connection settings render without plugin contributions", () => {

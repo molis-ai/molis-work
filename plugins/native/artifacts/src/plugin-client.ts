@@ -21,10 +21,10 @@ export function createPluginArtifactClient(input: {
   actions: { registry: ActionRegistryPort; client: SyncActionClient; project_id: string };
   manifest: PluginManifest;
   context: PluginStartContext;
-  board_id: string;
+  project_id: string;
   actor_id: string;
 }): { client: PluginArtifactClient; process: PluginProcessItemClient; dispose(): void } {
-  const { api, process, context, board_id, actor_id } = input;
+  const { api, process, context, project_id, actor_id } = input;
   const manifest = structuredClone(input.manifest);
   if (manifest.plugin_id !== context.plugin_id || manifest.version !== context.version) {
     throw new PluginArtifactAccessError("plugin_artifact_denied", "Host 的 Plugin Manifest 与安装上下文不匹配");
@@ -43,11 +43,11 @@ export function createPluginArtifactClient(input: {
     (list ?? []).some(type => type.artifact_type_id === value.artifact_type_id && type.schema_version === value.schema_version);
   // One ID names one thing: a 成果 and a process item never share it, so a reference always reads back the same record.
   const unused = (other: ArtifactsApplicationApi | ProcessItemsApplicationApi, artifactId: string, what: string) => {
-    if (other.query.latestArtifactVersion(board_id, artifactId)) throw new PluginArtifactAccessError("plugin_artifact_incompatible", `这个 ID 已用于${what}`);
+    if (other.query.latestArtifactVersion(project_id, artifactId)) throw new PluginArtifactAccessError("plugin_artifact_incompatible", `这个 ID 已用于${what}`);
   };
   // Pick fields explicitly: runtime JavaScript must not override bound identity or share authority.
   const fixed = (value: PluginProcessItemInput) => ({
-    board_id, actor_id, artifact_id: value.artifact_id, version: value.version,
+    project_id, actor_id, artifact_id: value.artifact_id, version: value.version,
     artifact_type_id: value.artifact_type_id, schema_version: value.schema_version,
     content: value.content, metadata: value.metadata, supersedes_version: value.supersedes_version,
     producer: { plugin_id: manifest.plugin_id, plugin_version: manifest.version,
@@ -74,14 +74,14 @@ export function createPluginArtifactClient(input: {
     },
     read(reference) {
       requirePermission("artifact:read");
-      const pinned = api.query.getArtifactVersion(board_id, reference);
-      const artifact = pinned ?? process.query.getArtifactVersion(board_id, reference);
+      const pinned = api.query.getArtifactVersion(project_id, reference);
+      const artifact = pinned ?? process.query.getArtifactVersion(project_id, reference);
       if (!artifact) return null;
       if (artifact.scope === "personal" && artifact.owner_actor_id !== actor_id) {
         throw new PluginArtifactAccessError("plugin_artifact_denied", "不能读取其他用户的个人成果");
       }
-      const compatibility = pinned ? api.query.consumptionCompatibility(board_id, reference, manifest.artifacts.consumes)
-        : process.query.consumptionCompatibility(board_id, reference, manifest.process_items?.consumes ?? []);
+      const compatibility = pinned ? api.query.consumptionCompatibility(project_id, reference, manifest.artifacts.consumes)
+        : process.query.consumptionCompatibility(project_id, reference, manifest.process_items?.consumes ?? []);
       if (!compatibility.consumable) {
         throw new PluginArtifactAccessError("plugin_artifact_incompatible", compatibility.reason);
       }

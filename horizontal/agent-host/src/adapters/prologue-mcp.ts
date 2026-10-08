@@ -11,7 +11,7 @@ export const mcpConnectionId = (ref: AgentMcpSourceRef) => ref.configuration_ver
 interface Saved extends Omit<AgentMcpServerInput, "auth" | "expected_version">, AgentSkillOwner {
   id: string; credential_ref?: ExactRef<"credential">; auth_connection_id?: string; removed?: boolean;
 }
-const sameOwner = (a: AgentSkillOwner, b: AgentSkillOwner) => a.board_id === b.board_id && a.plugin_id === b.plugin_id;
+const sameOwner = (a: AgentSkillOwner, b: AgentSkillOwner) => a.project_id === b.project_id && a.plugin_id === b.plugin_id;
 function text(value: unknown, label: string, max = 4096) {
   if (typeof value !== "string" || !value.trim() || value.length > max || /[\x00\r\n]/.test(value)) throw new Error(`${label}格式无效`);
   return value.trim();

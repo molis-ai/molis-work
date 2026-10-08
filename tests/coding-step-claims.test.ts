@@ -26,7 +26,7 @@ const plan = { source: { artifact_id: "fixed-plan", version: 1 }, title: "三步
   { id: "step-3", title: "合起来跑全部测试", acceptance: "npm test 全过", depends_on: ["step-1", "step-2"] },
 ] };
 const material = { material_id: "plan", source_artifact_id: plan.source.artifact_id, source_version: 1, title: plan.title, text: JSON.stringify(plan) };
-const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" };
+const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" };
 
 async function bench(t: { mock: { method: Function } }, script: (side: "parent" | "child", body: any, turn: number) => Promise<Response> | Response) {
   // Plans with subtasks run under the parallel-writers role: each subtask in its own directory.

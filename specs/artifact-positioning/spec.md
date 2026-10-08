@@ -227,7 +227,7 @@
 - **类型由 owner 声明**：manifest 的 `artifacts.produces[]` 带 `title`（显示名）、`preview`（预览贡献）与可选的 `continue`（「从这一版继续」的动作）。成果库按声明显示，不再写死名称；没有预览的类型不允许声明为可见类型（门禁 A7）。
 - **交换数据**：`workspace-artifacts.ts` 里的文件快照、文件集合、变更集、Git 结果、Coding 变更集改名为「过程项」合同，由 Files、Diff、Git、Coding 各自存、各自读；它们之间经动作结果与端口传递，不再写成果库。
 - **引用关系**：`goal.output`、`goal.input`、助理工作结果、文档引用都指向成果引用 `{ artifact_id, version }`；成果库按这些关系显示「被谁引用」。
-- 身份字段随防腐第二步把 `board_id` 合并为 `project_id`。
+- 身份字段已随防腐第二步把 `board_id` 合并为 `project_id`。
 
 **A1 实施与草案的差异**
 

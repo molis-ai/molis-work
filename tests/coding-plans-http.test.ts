@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -17,7 +17,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
   const home = mkdtempSync(join(tmpdir(), "coding-plans-")), dbPath = join(home, "board.db");
   seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   const sessions = new CodingSessionStore(store.db);
-  for (const id of ["app", "other"]) { sessions.create({ board_id: DEMO_BOARD_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); sessions.setRuntimeSession(DEMO_BOARD_ID, id, `sdk-${id}`, new Date().toISOString()); }
+  for (const id of ["app", "other"]) { sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); sessions.setRuntimeSession(DEMO_PROJECT_ID, id, `sdk-${id}`, new Date().toISOString()); }
   const content = { title: "修复运费边界", steps: [{ title: "核对 shipping.mjs", acceptance: "10000 分免运费，9999 分收 500 分" }], blockers: "", change_reason: "" };
   const makeRun = (id: string, role = "planner", text = JSON.stringify(content)): AgentRunView => ({
     ref: { runtime_id: "prologue", session_id: "sdk-app", run_id: id }, phase: "completed", started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
@@ -28,7 +28,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
   const runs = [makeRun("proposal", "planner", "已核对文件，计划如下：\n" + JSON.stringify({ ...content, blockers: "无" })), makeRun("ambiguous", "planner", "```json\n" + JSON.stringify(content) + "\n```\n```json\n" + JSON.stringify(content) + "\n```"), makeRun("malformed", "planner", "我会改代码"), makeRun("ordinary", "reader")];
   runs.push(makeRun("ambiguous-prose", "planner", "说明\n" + JSON.stringify(content) + "\n" + JSON.stringify(content)), makeRun("trailing", "planner", "说明\n" + JSON.stringify(content) + "\n不是唯一正文"));
   const starts: AgentStartRequest[] = [];
-  const host = () => ({ store, homeDirectory: home, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
@@ -42,7 +42,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       if (definition.capability_id === agent.startRun.capability_id) {
         starts.push(structuredClone(input[1]));const run=makeRun(`execute-${starts.length}`,input[1].role_id,"已收到");
         run.frozen.execution_plan=structuredClone(input[1].execution_plan);
-        if(input[1].execution_plan)run.step_board={board_id:`board-${starts.length}`,version:3,terminal:true,nodes:input[1].execution_plan.steps.map((step:any)=>({id:step.id,state:"succeeded",reports:[{note:"原步骤证据",at_ms:10}]}))};
+        if(input[1].execution_plan)run.step_board={project_id:`board-${starts.length}`,version:3,terminal:true,nodes:input[1].execution_plan.steps.map((step:any)=>({id:step.id,state:"succeeded",reports:[{note:"原步骤证据",at_ms:10}]}))};
         run.frozen.text_materials=input[1].text_materials.map((material: any)=>({material_id:material.material_id,title:material.title,source_artifact_id:material.source_artifact_id,source_version:material.source_version}));runs.push(run);
         return {ref:run.ref,frozen:run.frozen} as Output;
       }
@@ -78,7 +78,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.match(starts[0].text_materials![0].text, /10000 分免运费/);assert.match(starts[0].text_materials![0].text, /不批准任何文件修改或命令/);
     assert.equal((await request()).body.draft, "未发送的独立要求");
     assert.equal((await start()).body.existing, true);assert.equal(starts.length, 1, "lost-response retry does not start a second Run");
-    await releaseCodingSurface(store, DEMO_BOARD_ID);store.close();store = new LocalProjectDatabase(dbPath);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request("/plan")).body.plan, fixed);assert.equal((await start()).body.existing, true);
     assert.equal((await request("/plan", "POST", { expected_revision: 1, content: { ...content, title: "新计划" } })).status, 400);
     const adjusted = { ...content, title: "新计划", change_reason: "增加边界检查", blockers: "尚缺折扣约定" };
@@ -111,7 +111,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.equal(changed.runs.at(-1).phase,"failed");
     assert.equal(changed.subagents.at(-1).children[0].verdict.status,"needs-work");
     assert.equal(changed.subagents.at(-1).children[0].state,"completed","user rework is distinct from original execution state");
-    await releaseCodingSurface(store, DEMO_BOARD_ID);store.close();store = new LocalProjectDatabase(dbPath);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
     const reopened=(await request()).body;
     assert.deepEqual(reopened.taskboard_plans,changed.taskboard_plans);assert.deepEqual(reopened.subagents,changed.subagents);
     const unreadable=makeRun("lost-plan","builder");unreadable.frozen.text_materials=[{material_id:"lost",title:"lost",source_artifact_id:"coding-plan:app:999",source_version:1},{material_id:"foreign",title:"foreign",source_artifact_id:"coding-plan:other:1",source_version:1}];runs.push(unreadable);
@@ -133,13 +133,13 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.equal(starts[0].text_materials![0].source_artifact_id, fixed.confirmed.artifact_id);
     assert.notEqual(starts[1].text_materials![0].source_artifact_id, fixed.confirmed.artifact_id);
     const firstRun=runs.find(run=>run.ref.run_id==="execute-1")!;
-    const stepPath="/runs/execute-1/steps/step-1",evaluation={action:"accepted",notes:"已独立核对",board_id:"board-1",board_version:3,expected_revision:0};
+    const stepPath="/runs/execute-1/steps/step-1",evaluation={action:"accepted",notes:"已独立核对",project_id:"board-1",board_version:3,expected_revision:0};
     assert.equal((await request(stepPath,"POST",evaluation,"other")).status,400,"another app session cannot accept this run");
     assert.equal((await request("/runs/proposal/steps/step-1","POST",evaluation)).status,400,"no graph cannot be accepted");
     assert.equal((await request("/runs/execute-1/steps/step-9","POST",evaluation)).status,400);
     firstRun.phase="running";assert.equal((await request(stepPath,"POST",evaluation)).status,400);firstRun.phase="completed";
     assert.equal((await request(stepPath,"POST",{...evaluation,board_version:2})).status,400);
-    assert.equal((await request(stepPath,"POST",{...evaluation,board_id:"foreign"})).status,400);
+    assert.equal((await request(stepPath,"POST",{...evaluation,project_id:"foreign"})).status,400);
     const originalBoard=structuredClone(firstRun.step_board);
     response=await request(stepPath,"POST",evaluation);assert.equal(response.status,200,JSON.stringify(response.body));assert.equal(response.body.verdict.revision,1);
     const acceptedReport = await request("/runs/execute-1/report");
@@ -151,7 +151,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     response=await request(stepPath,"POST",{...evaluation,action:"needs-work",notes:"还需核对负数输入",expected_revision:1});assert.equal(response.status,200,JSON.stringify(response.body));
     assert.deepEqual(firstRun.step_board,originalBoard,"human rework never rewrites SDK success or report history");
     const verdict=response.body.verdict;
-    await releaseCodingSurface(store,DEMO_BOARD_ID);store.close();store=new LocalProjectDatabase(dbPath);
+    await releaseCodingSurface(store,DEMO_PROJECT_ID);store.close();store=new LocalProjectDatabase(dbPath);
     const assessed=(await request()).body.taskboard_plans.find((entry:any)=>entry.run_id==="execute-1");
     assert.deepEqual(assessed.verdicts["step-1"],verdict);assert.equal(assessed.plan.revision,1);assert.equal((await request()).body.plan.revision,4);
     const reportPath = "/runs/execute-1/report";
@@ -191,7 +191,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     response = await request(stepPath, "POST", { ...evaluation, expected_revision: 2, notes: "后续复核已经通过" });
     assert.equal(response.status, 200, JSON.stringify(response.body));
     assert.deepEqual((await request(reportPath, "POST", {})).body, savedReport, "later evaluation cannot rewrite a saved report");
-    await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request(reportPath)).body, savedReport, "reopening keeps the exact saved assessment");
     firstRun.step_board!.nodes[0].state="blocked";firstRun.step_board!.version++;
     assert.equal((await request(stepPath,"POST",{...evaluation,expected_revision:2,board_version:4})).status,400,"blocked is not accepted as success");
@@ -205,13 +205,13 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.deepEqual(secondReport.steps.verdicts, {}, "other runs' assessments never leak");
     // Confirmed plans are Coding's process items (artifact-positioning A2).
     const plans = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
-    plans.commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: "web-user", ...starts[1].execution_plan!.source });
+    plans.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", ...starts[1].execution_plan!.source });
     const missingPlanReport = (await request("/runs/execute-2/report", "POST", {})).body;
     assert.match(missingPlanReport.report.steps.unavailable_reason, /固定计划暂不可读/);
     assert.equal(missingPlanReport.report.model_answer, "已收到");
     assert.equal(missingPlanReport.report.steps.board, undefined);
 
   } finally {
-    await new Promise<void>(resolve => server.close(() => resolve()));await releaseCodingSurface(store, DEMO_BOARD_ID);store.close();rmSync(home, { recursive: true, force: true });
+    await new Promise<void>(resolve => server.close(() => resolve()));await releaseCodingSurface(store, DEMO_PROJECT_ID);store.close();rmSync(home, { recursive: true, force: true });
   }
 });

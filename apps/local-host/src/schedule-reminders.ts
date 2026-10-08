@@ -7,8 +7,8 @@ import { createLocalFeedApplication } from "./feed-application.js";
 import { studioStorage } from "./plugin-builder/storage.js";
 
 /** Same-db adapters only: Schedule owns the reminder's product rules and storage. */
-export function hostScheduleReminders(options: { db: ScheduleSqliteDatabase; boardId: string; projectId: string; schedule: ScheduleService; routePrefix?: string; now?(): number }) {
-  const { installations, describe } = reminderInstallations(options.db, options.boardId);
+export function hostScheduleReminders(options: { db: ScheduleSqliteDatabase; projectId: string; schedule: ScheduleService; routePrefix?: string; now?(): number }) {
+  const { installations, describe } = reminderInstallations(options.db, options.projectId);
   return createScheduleReminders({ ...options, describe(identity) {
     const record = installations.get(identity.installationId);
     if (!record || record.plugin_id !== identity.pluginId || record.state !== "running") throw new Error("提醒的插件安装当前没有运行");
@@ -17,8 +17,8 @@ export function hostScheduleReminders(options: { db: ScheduleSqliteDatabase; boa
   } });
 }
 
-export function hostScheduleReminderManagement(options: { db: ScheduleSqliteDatabase; boardId: string; schedule: ScheduleService }) {
-  const { installations, describe } = reminderInstallations(options.db, options.boardId);
+export function hostScheduleReminderManagement(options: { db: ScheduleSqliteDatabase; projectId: string; schedule: ScheduleService }) {
+  const { installations, describe } = reminderInstallations(options.db, options.projectId);
   return createScheduleReminderManagement({ ...options, currentInstallation(pluginId) {
     const records = installations.list().filter(record => record.plugin_id === pluginId && record.state === "running");
     // Do not choose between distinct installations on the person's behalf.
@@ -26,13 +26,13 @@ export function hostScheduleReminderManagement(options: { db: ScheduleSqliteData
   } });
 }
 
-function reminderInstallations(db: ScheduleSqliteDatabase, boardId: string) {
+function reminderInstallations(db: ScheduleSqliteDatabase, projectId: string) {
   const installations = new SqlitePluginRuntimeRepository(db), releases = new SqlitePluginRuntimeReleaseArtifactRepository(db);
   return { installations, describe(record: PluginInstanceRecord) {
     const artifact = releases.get(record.plugin_id, record.publisher_signature, record.version, record.manifest_digest);
     // Older generated releases live in the authoring repository, not Runtime's native release artifacts.
     const generated = !artifact && record.publisher_signature.startsWith("agent-built:")
-      ? new AgentBuilderStore(studioStorage(db, boardId)).versions(record.publisher_signature.slice("agent-built:".length))
+      ? new AgentBuilderStore(studioStorage(db, projectId)).versions(record.publisher_signature.slice("agent-built:".length))
         .find(item => `${item.version}.0.0` === record.version) : undefined;
     return { installation_id: record.install_id, generation: record.installation_generation, version: record.version, publisher: record.publisher_id,
       title: artifact?.manifest.name ?? generated?.design.title ?? record.plugin_id };
@@ -49,8 +49,8 @@ export function deliverHostReminder(db: ScheduleSqliteDatabase, input: ScheduleW
     },
     deliver(reminder, dueAt) {
       const feed = createLocalFeedApplication(db as Parameters<typeof createLocalFeedApplication>[0]), stamp = new Date().toISOString();
-      const source = feed.snapshot(reminder.boardId).sources.find(item => item.source_id === "plugin-reminders") ?? feed.upsertSource({
-        board_id: reminder.boardId, source_id: "plugin-reminders", kind: "plugin", definition_id: null, sync_kind: "manual",
+      const source = feed.snapshot(reminder.projectId).sources.find(item => item.source_id === "plugin-reminders") ?? feed.upsertSource({
+        project_id: reminder.projectId, source_id: "plugin-reminders", kind: "plugin", definition_id: null, sync_kind: "manual",
         name: "插件提醒", description: "你安装的插件到点提醒你的事", status: "active", enabled: true, origin: "molis_work",
         config: {}, schedule: { mode: "manual" }, credential_ref: null, account_label: null, last_sync_at: null,
         last_outcome: null, last_error_code: null, imported_at: stamp, updated_at: stamp, item_count: 0, cursor: null,

@@ -1,31 +1,17 @@
-import { ActionError, type ActionClient, type ActionSceneClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionClient, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { publishedFunctionKey } from "@molis-ai/molis-work-module-functions";
 import { createFeedCaptureSceneHandler, feedCaptureScene, feedCaptureSubjectRevision, type FeedApplication, type FeedRuleJudgmentSelection } from "@molis-ai/molis-work-plugin-feed";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withFunctionsService, type FunctionsHostOptions } from "./functions-host.js";
 import { hydrateFeedItemContent } from "./feed-content.js";
 
-export function createLocalFeedScene(home: string, projectId: string, boardId: string, feed: FeedApplication,
+export function createLocalFeedScene(home: string, projectId: string, feed: FeedApplication,
   services: { actions: ActionClient; scenes: ActionSceneClient; functions?: FunctionsHostOptions }) {
   const read = <T>(operation: Parameters<typeof withFunctionsService<T>>[1]) => withFunctionsService(home, operation, services.functions);
-  const legacyReference = (key: string): ActionReference | null => read(service => {
-    const rule = service.list().find(rule => rule.function_key === key && rule.status === "published" && rule.version);
-    return rule ? { capability_id: `functions.published.${key}`, version: rule.version!, provider_id: "system.functions" } : null;
-  });
-  // Persist in the original project owner before deleting the old global binding. Reopening finishes interrupted cleanup.
-  for (const rule of feed.listOutRules(boardId)) {
-    if (rule.judgment === undefined) {
-      const previous = read(service => service.actionSceneBinding(feedCaptureScene.scene_id, boardId, rule.rule_id));
-      const reference = rule.function_key ? previous?.function.provider_id === "system.functions" && previous.function.capability_id === `functions.published.${rule.function_key}`
-        ? previous.function : legacyReference(rule.function_key) : null;
-      feed.saveOutRuleUpdate({ ...feed.prepareOutRuleUpdate(boardId, rule.rule_id, {}), judgment: reference }, rule.revision);
-    }
-    read(service => service.unbindScene(feedCaptureScene.scene_id, boardId, rule.rule_id));
-  }
   const selection: FeedRuleJudgmentSelection = {
-    legacyReference,
     recommendations: async caller => {
       const usages = (await services.scenes.usages(caller)).filter(use => use.scene_id === feedCaptureScene.scene_id && use.enabled && use.availability.available);
-      const records = read(service => service.latestSceneJudgments(boardId, feedCaptureScene.scene_id));
+      const records = read(service => service.latestSceneJudgments(projectId, feedCaptureScene.scene_id));
       const recommendations: { item_id: string; suggested_behavior_ids: string[] }[] = [];
       for (const record of records) {
         const provenance = record.scene_provenance;
@@ -34,7 +20,7 @@ export function createLocalFeedScene(home: string, projectId: string, boardId: s
           && use.function.capability_id === provenance.function.capability_id && use.function.version === provenance.function.version && use.function.provider_id === provenance.function.provider_id);
         if (!binding) continue;
         let item;
-        try { item = runWithMolisWorkHome(home, () => hydrateFeedItemContent(feed.getFeedItem(boardId, record.subject.id))); }
+        try { item = runWithMolisWorkHome(home, () => hydrateFeedItemContent(feed.getFeedItem(projectId, record.subject.id))); }
         catch (error) { if (error instanceof Error && "code" in error && error.code === "feed_item_not_found") continue; throw error; }
         if (feedCaptureSubjectRevision(item) !== provenance.subject_revision) continue;
         recommendations.push({ item_id: item.item_id, suggested_behavior_ids: [...record.suggested_behavior_ids] });
@@ -63,17 +49,16 @@ export function createLocalFeedScene(home: string, projectId: string, boardId: s
     },
   };
   const handler = createFeedCaptureSceneHandler({ projectId,
-    rules: () => feed.listOutRules(boardId),
-    resolve: itemId => runWithMolisWorkHome(home, () => hydrateFeedItemContent(feed.getFeedItem(boardId, itemId))),
+    rules: () => feed.listOutRules(projectId),
+    resolve: itemId => runWithMolisWorkHome(home, () => hydrateFeedItemContent(feed.getFeedItem(projectId, itemId))),
     save: (rule, binding, options) => {
-      const key = binding.function.provider_id === "system.functions" ? binding.function.capability_id.replace(/^functions\.published\./, "") : null;
-      const next = feed.prepareOutRuleUpdate(boardId, rule.rule_id, { judgment: binding.function, function_key: key, enabled: binding.enabled });
+      const next = feed.prepareOutRuleUpdate(projectId, rule.rule_id, { judgment: binding.function, enabled: binding.enabled });
       feed.saveOutRuleUpdate(next, options?.expected_revision ?? rule.revision);
     },
     record: async (item, rule, binding, result, caller) => {
       const judgment = read(service => service.recordSceneJudgment({
-        function_key: rule.function_key || binding.function.capability_id, function_version: binding.function.version,
-        subject: { kind: "feed_item", id: item.item_id, board_id: boardId }, scene_id: feedCaptureScene.scene_id,
+        function_key: publishedFunctionKey(binding.function) ?? binding.function.capability_id, function_version: binding.function.version,
+        subject: { kind: "feed_item", id: item.item_id, project_id: projectId }, scene_id: feedCaptureScene.scene_id,
         scene_provenance: { binding_id: binding.binding_id, binding_revision: binding.revision!, function: binding.function, subject_revision: feedCaptureSubjectRevision(item) },
         outcome: result.status, suggested_behavior_ids: result.suggested_behavior_ids, error_code: result.error_code ?? null,
       }));

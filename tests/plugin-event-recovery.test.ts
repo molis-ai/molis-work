@@ -23,7 +23,7 @@ async function fixture(t: TestContext, memory = false) {
   db.exec("CREATE TABLE effects (id INTEGER PRIMARY KEY, value TEXT)");
   const repository = memory ? new MemoryPluginEventsRepository() : new SqlitePluginEventsRepository(db);
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db)), supervisor = new PluginSupervisor(runtime);
-  const bus = new PluginEventBus({ boardId: EVENT_BOARD, lifecycle: supervisor, repository });
+  const bus = new PluginEventBus({ projectId: EVENT_BOARD, lifecycle: supervisor, repository });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let holding = true;
   const subscriber = eventCrashDefinition(EVENT_SUBSCRIBER, async context => {
@@ -37,7 +37,7 @@ async function fixture(t: TestContext, memory = false) {
     db.close(); rmSync(directory, { recursive: true, force: true });
   });
   await supervisor.start([{ definition: eventCrashDefinition(EVENT_SOURCE) }, { definition: subscriber }]);
-  const publish = (value: string) => bus.publish({ board_id: EVENT_BOARD, plugin_id: EVENT_SOURCE,
+  const publish = (value: string) => bus.publish({ project_id: EVENT_BOARD, plugin_id: EVENT_SOURCE,
     install_id: supervisor.installation(EVENT_SOURCE)!.install_id }, { event_type_id: EVENT_TYPE, type_version: 1, payload: { value } });
   publish("first"); await entered.promise; publish("second");
   bus.revoke(EVENT_BOARD, EVENT_SUBSCRIBER); await bus.drain();

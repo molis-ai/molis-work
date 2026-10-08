@@ -5,7 +5,7 @@ import { actionSceneCompatibilityReason } from "@molis-ai/molis-work-kernel";
 import { functionsCredentialConfigured, withFunctionsService, withFunctionsServiceAsync, type FunctionsHostOptions } from "./functions-host.js";
 import { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
 
-type FunctionContext = (caller: ActionCallContext) => { actions: ActionClient; scenes: ActionSceneClient; boardId?: string };
+type FunctionContext = (caller: ActionCallContext) => { actions: ActionClient; scenes: ActionSceneClient; projectId?: string };
 
 /** Ephemeral registrations reflect the existing function store; this is not a second function catalog. */
 export class SystemFunctionsActions {
@@ -61,10 +61,10 @@ export class SystemFunctionsActions {
       definitions: [...management.definitions, ...Object.values(functionContextActions)],
       handlers: [...management.handlers,
         { ...functionContextActions.history, handle: caller => {
-          const { boardId } = context(caller);
+          const { projectId } = context(caller);
           return { judgments: this.ports.read(service => service.listJudgments()).filter(row => caller.project_id
-            ? row.subject.board_id === caller.project_id || (boardId !== undefined && row.subject.board_id === boardId)
-            : !row.subject.board_id) };
+            ? row.subject.project_id === caller.project_id || (projectId !== undefined && row.subject.project_id === projectId)
+            : !row.subject.project_id) };
         } },
         { ...functionContextActions.targets, handle: async (caller, input) => {
           const record = this.ports.read(service => service.get((input as { id: string }).id));
@@ -104,13 +104,8 @@ export class SystemFunctionsActions {
         { ...functionContextActions.usages, handle: async (caller, input) => {
           const record = this.ports.read(service => service.get((input as { id: string }).id));
           if (record.status !== "published") return { usages: [] };
-          const { scenes, boardId } = context(caller);
-          const [actual, consumers] = await Promise.all([
-            scenes.usages(caller, { ...publishedFunctionAction(record), provider_id: "system.functions" }), scenes.discoverScenes(caller),
-          ]);
-          const legacy = this.ports.read(service => service.listSceneBindings(record.function_key));
-          return { usages: [...actual, ...legacy.filter(use => (use.board_id ?? null) === (boardId ?? null)
-            && !consumers.some(scene => scene.definition.scene_id === use.scene_id))] };
+          const { scenes } = context(caller);
+          return { usages: await scenes.usages(caller, { ...publishedFunctionAction(record), provider_id: "system.functions" }) };
         } },
       ],
     });

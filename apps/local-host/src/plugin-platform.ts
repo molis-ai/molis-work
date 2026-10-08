@@ -46,7 +46,7 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
 };
 
 export interface PluginPlatformOptions {
-  board_id: string;
+  project_id: string;
   actor_id: string;
   db: PluginPlatformDatabase;
   /** Domain journal from the same project connection; ordinary queries stay direct. */
@@ -90,7 +90,7 @@ export interface PluginPlatform {
 export function createPluginPlatform(options: PluginPlatformOptions): PluginPlatform {
   if (options.journal && options.journal.db !== options.db) throw new Error("插件 journal 必须使用当前项目连接");
   const executor = new PluginHostExecutor({
-    board_id: options.board_id,
+    project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,
     processItems: options.processItems,
@@ -107,20 +107,20 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY],
   });
   const wiring = new PluginInputGraph({
-    boardId: options.board_id,
+    projectId: options.project_id,
     lifecycle: supervisor,
     canReadCommitted: () => options.db.inTransaction !== true,
     repository: new SqlitePluginWiringRepository(options.db),
     // A port carries a process item it recorded, or a 成果 it pinned and selected.
     artifacts: {
-      read: (reference) => options.processItems.query.getArtifactVersion(options.board_id, reference)
-        ?? options.artifacts.query.getArtifactVersion(options.board_id, reference),
+      read: (reference) => options.processItems.query.getArtifactVersion(options.project_id, reference)
+        ?? options.artifacts.query.getArtifactVersion(options.project_id, reference),
       // Someone can give an input port a fixed version from the 成果库, never a process item.
-      library: (reference) => options.artifacts.query.getArtifactVersion(options.board_id, reference),
+      library: (reference) => options.artifacts.query.getArtifactVersion(options.project_id, reference),
     },
   });
   const events = new PluginEventBus({
-    boardId: options.board_id,
+    projectId: options.project_id,
     lifecycle: supervisor,
     repository: new SqlitePluginEventsRepository(options.db),
   });
@@ -128,7 +128,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     events,
     wiring,
     ...(options.capabilities === undefined ? {} : { capabilities: options.capabilities }),
-    scopeKey: options.scopeKey ?? options.board_id,
+    scopeKey: options.scopeKey ?? options.project_id,
   });
 
   const viewEpoch = randomUUID(), viewRevisions = new Map<string, number>();
@@ -138,11 +138,11 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   let stopArtifactRefresh: (() => void) | undefined;
   const detachActivation = supervisor.observeActivation(pluginId => {
     if (!stopArtifactRefresh && options.journal && supervisor.manifest(pluginId)?.ports?.inputs.length) {
-      stopArtifactRefresh = observePluginArtifacts(options.board_id, options.journal, wiring);
+      stopArtifactRefresh = observePluginArtifacts(options.project_id, options.journal, wiring);
     }
     wiring.revoke(pluginId);
     wiring.evaluate(pluginId);
-    void events.resume(options.board_id);
+    void events.resume(options.project_id);
   });
 
   return {
@@ -172,7 +172,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       const report = await supervisor.start(entries);
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();
-      await events.resume(options.board_id);
+      await events.resume(options.project_id);
       return report;
     },
   };

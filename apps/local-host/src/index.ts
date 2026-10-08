@@ -65,7 +65,7 @@ export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, Moli
 export { initializeCatalog, assertOwnedCatalog, assertCurrentCatalog, type CatalogDesktopSchema } from "./catalog-schema.js";
 
 export * from "./project-catalog.js";
-export { seedDemoBoard, DEMO_BOARD_ID } from "./demo-seed.js";
+export { seedDemoBoard, DEMO_PROJECT_ID } from "./demo-seed.js";
 export {
   seedDemoPluginSurfaces,
   seedDemoProjectExtras,
@@ -138,7 +138,7 @@ export { sendLocalWebJson, readLocalWebBody, authorizeLocalWebRequest, type Loca
 export { createLocalWebAssets } from "./web-assets.js";
 
 export * from "./web-session.js";
-export { reconcileLegacySessionCatalog } from "./session-migration.js";
+export { panelSessionInput, recordDesktopPanelSessions } from "./panel-sessions.js";
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
 export { readMcpToolPreference } from "./mcp-settings-store.js";

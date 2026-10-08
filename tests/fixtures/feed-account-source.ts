@@ -1,4 +1,4 @@
-import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { GMAIL_DEFAULT_SCOPE } from "@molis-ai/molis-work-integration-gmail/scope";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 
@@ -6,7 +6,7 @@ import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 export function accountSourceRecord(kind: "github" | "gmail", overrides: Partial<FeedSourceRecord> = {}): FeedSourceRecord {
   const at = "2026-08-30T09:00:00.000Z";
   return {
-    board_id: DEMO_BOARD_ID, source_id: `${kind}-account`, kind, definition_id: kind, sync_kind: kind,
+    project_id: DEMO_PROJECT_ID, source_id: `${kind}-account`, kind, definition_id: kind, sync_kind: kind,
     name: kind === "github" ? "GitHub" : "Gmail", description: "", status: "disconnected", enabled: true, item_count: 0,
     origin: "molis_work", config: kind === "gmail" ? { scope: GMAIL_DEFAULT_SCOPE } : {}, schedule: { mode: "manual" }, cursor: {},
     credential_ref: null, account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null,

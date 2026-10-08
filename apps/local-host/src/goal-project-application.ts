@@ -115,7 +115,7 @@ export class GoalProjectApplication {
     goalsModule = new GoalsModule(
       this.store.db as unknown as GoalsSqliteDatabase,
       {
-        validateRelationGraph: (boardId, input) => goalsModule.planning.validateRelationAddition(boardId, input),
+        validateRelationGraph: (projectId, input) => goalsModule.planning.validateRelationAddition(projectId, input),
       },
       {
         now: this.clock,
@@ -148,7 +148,7 @@ export class GoalProjectApplication {
       eventSink: (event) => {
         this.store.appendEvent({
           eventId: `event-${randomUUID()}`,
-          boardId: event.project_id,
+          projectId: event.project_id,
           actorId: LOCAL_PERSON_ACTOR_ID,
           objectType: "inbox_entry",
           objectId: event.entry_id,
@@ -161,8 +161,8 @@ export class GoalProjectApplication {
     });
     this.goalDecisionAttention = new GoalDecisionAttentionSync({
       attention,
-      listProposals: (boardId) => this.goalTree.listGoalTreeProposals({ board_id: boardId }).proposals,
-      goalExists: (boardId, goalId) => this.goalsModule.query.getGoal(boardId, goalId) !== null,
+      listProposals: (projectId) => this.goalTree.listGoalTreeProposals({ project_id: projectId }).proposals,
+      goalExists: (projectId, goalId) => this.goalsModule.query.getGoal(projectId, goalId) !== null,
     });
     this.goalTreeSubmission = new GoalTreeSubmissionApplication({
       goals: { query: this.goalsModule.query, commands: this.goals.commands, planning: this.goals.planning },
@@ -193,8 +193,8 @@ export class GoalProjectApplication {
     });
     this.goalQueries = new GoalReadApplication(goalsModule.query, {
       now: () => this.clock(),
-      goalTreeProposals: (boardId, rootGoalId) =>
-        this.goalTree.listGoalTreeProposals({ board_id: boardId, root_goal_id: rootGoalId }).proposals,
+      goalTreeProposals: (projectId, rootGoalId) =>
+        this.goalTree.listGoalTreeProposals({ project_id: projectId, root_goal_id: rootGoalId }).proposals,
     });
     this.goalTreeDecision = new GoalTreeDecisionApplication({
       goals: { ...this.goals, query: this.goalsModule.query }, governance: this.governance, query: this.goalTree,
@@ -213,37 +213,37 @@ export class GoalProjectApplication {
   }
 
   initializeBoard(input: {
-    board_id: string;
+    project_id: string;
     title: string;
     actor_id: string;
     idempotency_key: string;
-  }): { board_id: string; replayed: boolean; observed_event_cursor: number } {
+  }): { project_id: string; replayed: boolean; observed_event_cursor: number } {
     return this.goals.commands.initializeBoard(input);
   }
 
-  readProjectGuidance(boardId: string): ProjectGuidanceView {
-    return this.goalQueries.readProjectGuidance(boardId);
+  readProjectGuidance(projectId: string): ProjectGuidanceView {
+    return this.goalQueries.readProjectGuidance(projectId);
   }
 
   setActiveGoal(
-    boardId: string,
+    projectId: string,
     input: { goal_id: string; reason: string },
     write: ActorWrite,
   ): { active_goal_id: string; replayed: boolean; observed_event_cursor: number } {
-    return this.goals.commands.setActiveGoal(boardId, input, write);
+    return this.goals.commands.setActiveGoal(projectId, input, write);
   }
 
   /** A dedicated read path for a later trash UI/MCP; ordinary work lists exclude these Goals. */
-  listTrashedGoals(boardId: string): GoalRecord[] {
-    return this.goalQueries.listTrashedGoals(boardId);
+  listTrashedGoals(projectId: string): GoalRecord[] {
+    return this.goalQueries.listTrashedGoals(projectId);
   }
 
-  getResolvedGoalPolicy(input: { board_id: string; goal_id: string }) {
+  getResolvedGoalPolicy(input: { project_id: string; goal_id: string }) {
     return this.goalQueries.getResolvedGoalPolicy(input);
   }
 
-  readGoalContract(boardId: string, goalId: string) {
-    return this.goalQueries.readGoalContract(boardId, goalId);
+  readGoalContract(projectId: string, goalId: string) {
+    return this.goalQueries.readGoalContract(projectId, goalId);
   }
 }
 

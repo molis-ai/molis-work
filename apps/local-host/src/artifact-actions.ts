@@ -16,9 +16,9 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
     provider,
     definitions: artifactsManifest.actions!,
     handlers: createArtifactActionHandlers({
-      boardId: runtime.board_id, artifacts: runtime.coordinator.artifacts,
-      ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.board_id }).query,
-      goalTitle: goalId => runtime.coordinator.goalQueries.getGoal(runtime.board_id, goalId)?.title ?? null,
+      projectId: runtime.project_id, artifacts: runtime.coordinator.artifacts,
+      ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.project_id }).query,
+      goalTitle: goalId => runtime.coordinator.goalQueries.getGoal(runtime.project_id, goalId)?.title ?? null,
       typeTitle: typeId => artifactTypeDeclarations().get(typeId)?.title ?? null,
       // The owner's preview, with the caller's own authority; a version the caller may not read through it has no text here.
       previewText: async (artifact, caller) => {
@@ -30,16 +30,16 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
         } catch { return null; }
       },
       // Plugin input ports that take a version's type (artifact-positioning, 2026-10-04); only a project whose plugins run has them.
-      pluginInputs: async artifact => artifactPluginInputs(await runningProjectPlatform(runtime.store, runtime.board_id), artifact),
+      pluginInputs: async artifact => artifactPluginInputs(await runningProjectPlatform(runtime.store, runtime.project_id), artifact),
       bindPluginInput: async (artifact, input, caller) => {
-        const platform = await runningProjectPlatform(runtime.store, runtime.board_id);
+        const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
         await caller.beforeEffect();
-        return bindArtifactPluginInput(platform, artifact, input, caller.actor_id, runtime.board_id);
+        return bindArtifactPluginInput(platform, artifact, input, caller.actor_id, runtime.project_id);
       },
       importSources: () => runWithMolisWorkHome(home, documentImportConnectionStatus),
       importConnections: () => documentImportConnections(home),
       importDocument: (input, caller) => runWithMolisWorkHome(home, () => importLocalArtifactDocument({ ...input }, {
-        boardId: runtime.board_id, actorId: caller.actor_id, routePrefix: `/projects/${encodeURIComponent(runtime.project_id)}`,
+        projectId: runtime.project_id, actorId: caller.actor_id, routePrefix: `/projects/${encodeURIComponent(runtime.project_id)}`,
         artifacts: runtime.coordinator.artifacts, signal: caller.signal,
         beforeDispatch: () => caller.beforeEffect(),
         beforeSave: () => caller.beforeEffect(),

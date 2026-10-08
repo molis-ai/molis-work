@@ -7,7 +7,7 @@ import { bindActionClient, bindOwnerPluginAction, type ActionDefinition } from "
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 const definition = { capability_id: "unfamiliar.backend", version: 1, operation: "query" as const };
-const reference = (id: string) => ({ project_id: id, board_id: id, storage_key: `memory:${id}` });
+const reference = (id: string) => ({ project_id: id, storage_key: `memory:${id}` });
 
 test("plugin capability cancellation reaches its Host invocation and blocks a late write", async () => {
   const host = new LocalHost({ runtimeFactory: { open: () => ({ saved: 0 }), close: () => {} } });

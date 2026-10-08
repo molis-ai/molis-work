@@ -92,7 +92,7 @@ export function holdingRule(rules: readonly AssistantRule[], kind: AssistantNoti
 }
 
 const sessionRef = (work: StoredWork): AgentSessionRef => ({ session_id: work.session_id!, runtime_id: RUNTIME });
-const ownerOf = (work: StoredWork) => work.project_ref?.board_id ?? ASSISTANT_PERSONAL_OWNER;
+const ownerOf = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PERSONAL_OWNER;
 
 function stateOf(phase: AgentRunView["phase"] | null | undefined, recovery: boolean): AssistantWorkState {
   if (recovery) return "needs-check";
@@ -927,7 +927,6 @@ export class AssistantService {
 
   async read(workId: string): Promise<AssistantWorkView> {
     const work = await this.named(this.store.get(this.actorId, workId));
-    this.backfillSession(work);
     // One work, whoever ran each round: the Assistant's own session, and the Coding session it carries or handed to.
     const assistant = work.session_id ? await this.assistantPart(work) : null;
     const sessionId = work.executor.kind === "coding" ? work.executor.session_id : this.linkedCodingSession(work);
@@ -1008,13 +1007,6 @@ export class AssistantService {
     const reviews = runtimeSession ? this.reviewsFor(host, { ...work, session_id: runtimeSession }).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [];
     return { rounds, reviews, recovery: Boolean(read.recovery_required), ...(read.configuration?.intent ? { mode: read.configuration.intent } : {}),
       ...(read.recovery_required ? { problem: { message: read.error ?? "Coding 会话有需要核对的中断操作", action: "打开 Coding 核对" } } : {}) };
-  }
-
-  /** Works from before relations were kept: record the Coding session they carry, once. */
-  private backfillSession(work: StoredWork): void {
-    const sessionId = work.executor.kind === "coding" ? work.executor.session_id : null;
-    if (!sessionId || this.store.relations.forWork(identity(work)).some(row => row.relation === "session" && row.object.id === sessionId)) return;
-    try { this.store.relations.link(identity(work), "session", { kind: CODING_SESSION_KIND, id: sessionId, revision: null }, "Coding 会话承接这项工作"); } catch { /* shown without it */ }
   }
 
   /** The Coding session a work handed to, if any (its latest one). */
@@ -1187,7 +1179,7 @@ export class AssistantService {
     // A Coding work's confirmations are Coding's own, in the same queue its page decides from.
     const session = work.executor.kind === "coding" && work.executor.session_id
       ? (await (await this.coding(work)).read(work.executor.session_id, 1)).session.runtime_session_id ?? null : work.session_id;
-    if (!review || review.run?.session_id !== session || review.board_id !== ownerOf(work)) throw new AssistantError("assistant.scope", "这项确认不属于这项工作");
+    if (!review || review.run?.session_id !== session || review.project_id !== ownerOf(work)) throw new AssistantError("assistant.scope", "这项确认不属于这项工作");
     if (!["approve", "reject"].includes(input.decision)) throw new AssistantError("assistant.invalid", "请选择允许或拒绝");
     await host.reviews.respond({ review_id: review.review_id, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) });
     // The runtime tells the round only that policy blocked the change; the round must know the person declined it.
@@ -1988,7 +1980,7 @@ export class AssistantService {
     const adapter = host.adapter(RUNTIME);
     const authority = await this.ports.authority(work);
     if (!work.session_id) {
-      const session = await host.createSession(RUNTIME, { board_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,
+      const session = await host.createSession(RUNTIME, { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,
         actor_id: this.actorId, title: work.title, workspace: "business", role_id: ASSISTANT_ROLE_ID }, authority);
       work = this.store.update(this.actorId, work.work_id, null, { session_id: session.session_id });
     }
@@ -2020,7 +2012,7 @@ export class AssistantService {
     await this.memoryForRound(work, text, context);
     this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
     const handle = await host.start(RUNTIME, {
-      board_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
+      project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
       session: sessionRef(work), role_id: ASSISTANT_ROLE_ID, workspace: "business", task: text,
       action_gateway: true,
       text_materials: await this.roundMaterials(work, materials, context, offered),

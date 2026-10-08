@@ -72,7 +72,7 @@ export interface PrologueApprovalBridgeOptions {
 
 export interface MirrorPendingInput {
   pending: ProloguePending;
-  owner: { board_id: string; plugin_id: string };
+  owner: { project_id: string; plugin_id: string };
   run: AgentRunRef;
   kind: AgentReviewKind;
   document: AgentReviewDocument;
@@ -113,7 +113,7 @@ export class PrologueApprovalBridge {
       );
     }
     if (input.pending.kind !== "effect-approval" || input.pending.origin?.session !== input.run.session_id
-      || input.pending.origin?.run !== input.run.run_id || !input.owner.board_id || !input.owner.plugin_id) {
+      || input.pending.origin?.run !== input.run.run_id || !input.owner.project_id || !input.owner.plugin_id) {
       throw new PrologueApprovalError("agent.pending_unknown", "待批来源与执行归属不一致，不能替用户批准");
     }
     const reviewId = `prologue:${input.pending.ref.id}`;
@@ -124,7 +124,7 @@ export class PrologueApprovalBridge {
     const request = this.#queue.request({
       review_id: reviewId,
       run: { ...input.run },
-      board_id: input.owner.board_id,
+      project_id: input.owner.project_id,
       plugin_id: input.owner.plugin_id,
       kind: input.kind,
       document: input.document,

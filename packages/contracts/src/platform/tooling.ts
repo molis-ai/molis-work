@@ -7,7 +7,7 @@ import type { ConnectorHealth, ConnectorPollResult } from "../services/connector
 
 export interface PluginDevelopmentInput {
   directory: string;
-  board_id: string;
+  project_id: string;
   actor_id: string;
   grants: string[];
   allow_unsigned_development: true;

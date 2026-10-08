@@ -19,10 +19,10 @@ export interface PluginSecrets {
   resolve(pluginId: string, name: string): Promise<{ header: string; value: string } | null>;
 }
 
-export function pluginSecrets(home: string | undefined, boardId: string, storage: PluginPrivateStorage, store?: SecretStore): PluginSecrets {
+export function pluginSecrets(home: string | undefined, projectId: string, storage: PluginPrivateStorage, store?: SecretStore): PluginSecrets {
   let sealed = store;
   const secrets = () => { if (sealed) return sealed; if (!home) throw new Error('这个创作台没有可用的密钥存储'); return sealed = runWithMolisWorkHome(home, () => createFileSecretStore()); };
-  const reference = (pluginId: string, name: string) => 'plugin-builder-secret:' + boardId + ':' + pluginId + ':' + name;
+  const reference = (pluginId: string, name: string) => 'plugin-builder-secret:' + projectId + ':' + pluginId + ':' + name;
   const index = (pluginId: string): Record<string, string> => { const raw = storage.get(INDEX + pluginId); return raw ? JSON.parse(raw) as Record<string, string> : {}; };
   return {
     list: pluginId => Object.entries(index(pluginId)).map(([name, header]) => ({ name, header })),

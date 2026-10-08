@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Goals relation UI preserves incoming direction, historical reading and reload", { timeout: 60_000 }, async (t) => {
@@ -12,22 +12,22 @@ test("Goals relation UI preserves incoming direction, historical reading and rel
   const deactivationReason = "Result no longer needs this relation";
   store.db.prepare(`
     INSERT INTO goal_relations (
-      relation_id, board_id, from_goal_id, to_goal_id, type, state, reason, created_by, created_at, deactivated_at
+      relation_id, project_id, from_goal_id, to_goal_id, type, state, reason, created_by, created_at, deactivated_at
     ) VALUES (?, ?, ?, ?, 'extends', 'inactive', ?, 'history-fixture', ?, ?)
-  `).run(relationId, DEMO_BOARD_ID, "PLATFORM", "V1", creationReason, "2026-09-01T01:00:00.000Z", "2026-09-01T02:00:00.000Z");
+  `).run(relationId, DEMO_PROJECT_ID, "PLATFORM", "V1", creationReason, "2026-09-01T01:00:00.000Z", "2026-09-01T02:00:00.000Z");
   store.db.prepare(`
     INSERT INTO events (
-      event_id, board_id, actor_id, type, object_type, object_id, reason, payload_json, at
+      event_id, project_id, actor_id, type, object_type, object_id, reason, payload_json, at
     ) VALUES (?, ?, 'history-fixture', 'relation.deactivated', 'relation', ?, ?, ?, ?)
   `).run(
     "legacy-inactive-extends-v1-event",
-    DEMO_BOARD_ID,
+    DEMO_PROJECT_ID,
     relationId,
     deactivationReason,
     JSON.stringify({ from_goal_id: "PLATFORM", to_goal_id: "V1", type: "extends" }),
     "2026-09-01T02:00:00.000Z",
   );
-  const seeded = store.snapshot(DEMO_BOARD_ID);
+  const seeded = store.snapshot(DEMO_PROJECT_ID);
   const seededRelation = seeded.relations.find((relation) => relation.relation_id === relationId)!;
   assert.equal(seededRelation.from_goal_id, "PLATFORM");
   assert.equal(seededRelation.to_goal_id, "V1");
@@ -88,7 +88,7 @@ test("Goals relation UI preserves incoming direction, historical reading and rel
   await waitFor("document.querySelector(" + JSON.stringify(record) + ")");
   assert.match(await evaluate<string>("document.querySelector(" + JSON.stringify(record) + ")?.textContent || ''"), /Result no longer needs this relation/);
   assert.equal(await evaluate<string>("document.querySelector(" + JSON.stringify(record + " .relation-kind") + ")?.textContent || ''"), "由此扩展");
-  const after = store.snapshot(DEMO_BOARD_ID);
+  const after = store.snapshot(DEMO_PROJECT_ID);
   assert.deepEqual(after.relations.map((relation) => ({
     relation_id: relation.relation_id,
     from_goal_id: relation.from_goal_id,

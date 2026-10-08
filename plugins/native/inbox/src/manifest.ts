@@ -31,9 +31,6 @@ export const inboxManifest: PluginManifest = {
   action_scenes: [inboxNextScene],
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
-  judgment_subjects: [
-    { subject_kind: "inbox_entry", title: "Inbox 条目" },
-  ],
   ui: {
     contributions: [INBOX_UI_CONTRIBUTION_ID],
     views: [

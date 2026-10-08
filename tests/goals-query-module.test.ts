@@ -19,7 +19,7 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
   try {
     const coordinator = new GoalProjectApplication(store);
     coordinator.initializeBoard({
-      board_id: "board-query",
+      project_id: "board-query",
       title: "Goals Query",
       actor_id: "user-1",
       idempotency_key: "initialize",
@@ -55,23 +55,23 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
     }, { actor_id: "user-1", idempotency_key: "relate" });
     insertHistoricalPolicy(store.db, {
       policy_binding_id: "policy-project",
-      board_id: "board-query",
+      project_id: "board-query",
       scope: "project_default",
-      policy: { goal_mode: "preferred", required_capabilities: ["testing"] },
+      policy: { human_approval: false },
       reason: "项目规则",
       created_by: "user-1",
     });
     insertHistoricalPolicy(store.db, {
       policy_binding_id: "policy-child",
-      board_id: "board-query",
+      project_id: "board-query",
       goal_id: "goal-child",
       scope: "goal",
-      policy: { goal_mode: "required", required_capabilities: ["architecture"] },
+      policy: { human_approval: true },
       reason: "子 Goal 只能加强规则",
       created_by: "user-1",
     });
     goals.commands.addProjectGuidance({
-      board_id: "board-query",
+      project_id: "board-query",
       actor_id: "user-1",
       kind: "quality_bar",
       content: "查询迁移保持结果无损。",
@@ -107,8 +107,7 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
     const detail = goals.query.readGoal("board-query", "goal-child");
     assert.equal(detail.goal.title, "子 Goal");
     assert.deepEqual(detail.relations.map((relation) => relation.type), ["part_of"]);
-    assert.equal(detail.resolved_policy.goal_mode, "required");
-    assert.deepEqual(detail.resolved_policy.required_capabilities, ["architecture", "testing"]);
+    assert.equal(detail.resolved_policy.human_approval, true, "a child Goal can only add requirements");
     assert.deepEqual(detail.parent_contract_coverage, [{
       parent_goal_id: "goal-parent",
       parent_goal_title: "父 Goal",

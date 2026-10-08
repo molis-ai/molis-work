@@ -50,8 +50,8 @@ export interface ProjectsModuleOptions {
 
 /**
  * Public Projects Module entrypoint. Consumers use `query` and `commands`;
- * the local composition root uses `lifecycle` while file provisioning remains
- * in the legacy adapter during AP1.
+ * the local composition root uses `lifecycle`; file provisioning stays with
+ * the host's catalog adapter.
  */
 export class ProjectsModule implements ProjectsApplicationApi {
   readonly repository: ProjectsRepository;

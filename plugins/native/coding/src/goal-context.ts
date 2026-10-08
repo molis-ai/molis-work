@@ -26,8 +26,8 @@ function material(snapshot: GoalContextSnapshot, reference: ArtifactReference): 
 }
 export async function currentGoalContext(context: PluginStartContext, goalId: string) {
   const snapshot = await context.services!.capabilities!.invoke(goalContextCapabilities.read, { goal_id: goalId });
-  if (snapshot.goal.board_id !== context.board_id || snapshot.goal.goal_id !== goalId
-    || snapshot.state.goal_id !== goalId || snapshot.state.board_id !== context.board_id) throw new Error("目标上下文归属不一致");
+  if (snapshot.goal.project_id !== context.project_id || snapshot.goal.goal_id !== goalId
+    || snapshot.state.goal_id !== goalId || snapshot.state.project_id !== context.project_id) throw new Error("目标上下文归属不一致");
   if (snapshot.goal.trashed_at || snapshot.goal.archived_at) throw new Error("目标已归档或删除，请重新选择");
   const reference = identity(snapshot);
   return { snapshot, reference, material: material(snapshot, reference) };
@@ -44,7 +44,7 @@ function readGoalSnapshot(context: PluginStartContext, reference: ArtifactRefere
   if (!record || record.artifact_type_id !== CODING_GOAL_CONTEXT_TYPE || record.schema_version !== 1
     || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("固定目标版本不可读，请重新关联；历史执行不会被替换");
   const snapshot = record.payload as unknown as GoalContextSnapshot;
-  if (snapshot?.goal?.board_id !== context.board_id || identity(snapshot).artifact_id !== reference.artifact_id) throw new Error("固定目标版本与来源不一致");
+  if (snapshot?.goal?.project_id !== context.project_id || identity(snapshot).artifact_id !== reference.artifact_id) throw new Error("固定目标版本与来源不一致");
   return { snapshot, reference };
 }
 function readGoalContext(context: PluginStartContext, reference: ArtifactReference) {

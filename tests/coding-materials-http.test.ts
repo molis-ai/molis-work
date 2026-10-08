@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { LocalProjectDatabase, GoalProjectApplication, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, GoalProjectApplication, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -16,11 +16,11 @@ import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js
 test("Coding formal material routes preserve exact versions, resolve trusted bodies and reject unavailable sources before execution", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-materials-http-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
-  new GoalProjectApplication(store).initializeBoard({ board_id: "other-project", title: "Other", actor_id: "web-user", idempotency_key: "other-project-init" });
+  new GoalProjectApplication(store).initializeBoard({ project_id: "other-project", title: "Other", actor_id: "web-user", idempotency_key: "other-project-init" });
   // File snapshots and Git changes are process items (artifact-positioning A2).
   const artifacts = () => new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
-  const publish = (id: string, version: number, text: string, actor = "web-user", board = DEMO_BOARD_ID) => artifacts().commands.registerVersion({
-    board_id: board, actor_id: actor, artifact_id: id, version, artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1,
+  const publish = (id: string, version: number, text: string, actor = "web-user", board = DEMO_PROJECT_ID) => artifacts().commands.registerVersion({
+    project_id: board, actor_id: actor, artifact_id: id, version, artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1,
     producer: { plugin_id: "io.molis.work.files", plugin_version: "1.1.0", binding_signature: "official-files-binding" },
     content: { kind: "inline", payload: { workspace: { workspace_id: "work", name: "fixture" }, path: ["cart.mjs"], text } },
   });
@@ -29,9 +29,9 @@ test("Coding formal material routes preserve exact versions, resolve trusted bod
   publish("other-project", 1, "private board", "web-user", "other-project");
   const refs = [{ artifact_id: "before", version: 1 }];
   const sessions = new CodingSessionStore(store.db);
-  sessions.create({ board_id: DEMO_BOARD_ID, session_id: "app", title: "固定材料", runtime_id: "prologue", at: new Date().toISOString() });
+  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "固定材料", runtime_id: "prologue", at: new Date().toISOString() });
   const starts: AgentStartRequest[] = []; let created = 0;
-  const host = () => ({ store, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
@@ -65,16 +65,16 @@ test("Coding formal material routes preserve exact versions, resolve trusted bod
     assert.equal(created, 1); assert.equal(starts[0].text_materials?.[0]?.text, choices.body.materials[0].text);
     assert.equal(starts[0].text_materials?.[0]?.title, "fixture / cart.mjs");
     assert.equal(starts[0].text_materials?.[0]?.source_version, 1);
-    await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request()).body.materials, refs);
-    artifacts().commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: "web-user", ...refs[0] });
+    artifacts().commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", ...refs[0] });
     assert.equal((await start(refs)).status, 400); assert.equal(starts.length, 1);
     assert.ok((await request("/materials")).body.materials[0].error);
     assert.equal((await request("", "PATCH", { materials: [], draft: "不用材料也能继续" })).status, 200);
     assert.equal((await start([])).status, 200); assert.deepEqual(starts[1].text_materials, []);
     assert.equal((await request("", "PATCH", { materials: [...refs, ...refs] })).status, 400);
-    const registerGitMaterial = (id: string, version: number, type: string, payload: Record<string, unknown>, board = DEMO_BOARD_ID) => artifacts().commands.registerVersion({
-      board_id: board, actor_id: "web-user", artifact_id: id, version, artifact_type_id: type, schema_version: 1,
+    const registerGitMaterial = (id: string, version: number, type: string, payload: Record<string, unknown>, board = DEMO_PROJECT_ID) => artifacts().commands.registerVersion({
+      project_id: board, actor_id: "web-user", artifact_id: id, version, artifact_type_id: type, schema_version: 1,
       producer: { plugin_id: "io.molis.work.git", plugin_version: "1.3.0", binding_signature: "official-git-binding" }, content: { kind: "inline", payload },
     });
     const difference = { workspace: { workspace_id: "work", name: "fixture" }, path: ["cart.mjs"], before_exists: true, after_exists: true,
@@ -101,13 +101,13 @@ test("Coding formal material routes preserve exact versions, resolve trusted bod
     registerGitMaterial("large-diff", 1, DIFF_CHANGESET_TYPE, { ...difference, after: "长".repeat(20_001) });
     registerGitMaterial("other-result", 1, GIT_RESULT_TYPE, failure, "other-project");
     for (const artifact_id of ["large-diff", "other-result"]) assert.equal((await start([{ artifact_id, version: 1 }])).status, 400);
-    artifacts().commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: "web-user", ...gitRefs[1] });
+    artifacts().commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", ...gitRefs[1] });
     assert.equal((await start(gitRefs)).status, 400); assert.equal(starts.length, 3);
     assert.deepEqual(starts[2].text_materials, accepted, "archiving blocks future consumption without rewriting accepted run material");
-    await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request()).body.materials, gitRefs);
     const afterRestart = (await request("/materials")).body.materials;
     assert.equal(afterRestart[0].text, gitChoices[0].text); assert.ok(afterRestart[1].error);
 
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

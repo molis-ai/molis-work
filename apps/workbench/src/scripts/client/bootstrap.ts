@@ -133,7 +133,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       return "decision:" + decodeURIComponent(location.hash.slice(prefix.length));
     };
     const visibleGoals = (source = state) => trashView ? source.trashed_goals : archiveView ? source.archived_goals : source.goals;
-    const goalUiStorageKey = "molis-work-ui:" + (state.project?.project_id || state.snapshot.board.board_id);
+    const goalUiStorageKey = "molis-work-ui:" + (state.project?.project_id || state.snapshot.board.project_id);
     const currentGoalUiStorageKey = goalUiStorageKey + ":current";
     const storageKey = decisionView
       ? goalUiStorageKey + ":inbox"
@@ -142,7 +142,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
         : archiveView
           ? goalUiStorageKey + ":archive"
           : currentGoalUiStorageKey;
-    const goalMoveReceiptKey = "molis-work-goal-move-receipt:" + (state.project?.project_id || state.snapshot.board.board_id);
+    const goalMoveReceiptKey = "molis-work-goal-move-receipt:" + (state.project?.project_id || state.snapshot.board.project_id);
     const desktopNavigationStateVersion = 4;
     let immersiveNavigation = null;
     let frameContainer = null;

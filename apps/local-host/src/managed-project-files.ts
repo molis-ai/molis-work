@@ -36,7 +36,6 @@ async provisionCreatedProject<T>(
     const record = this.projects.lifecycle.prepareRecord({
       project_id: input.projectId,
       display_name: input.displayName,
-      board_id: "",
       projects_directory: this.projectsDirectory,
       data_class: "user",
     });
@@ -46,7 +45,7 @@ async provisionCreatedProject<T>(
       if (error.code === "ENOENT") return false;
       throw error;
     })) {
-      validateManagedBoard(record.database_path, record.board_id);
+      validateManagedBoard(record.database_path, record.project_id);
       return this.commit(() => commit(record));
     }
     let promoted = false;
@@ -65,7 +64,7 @@ async provisionCreatedProject<T>(
       } catch (error) {
         if (!input.projectId || !["EEXIST", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
         // A competing stable request owns the promoted directory. Adopt only its validated database.
-        validateManagedBoard(record.database_path, record.board_id);
+        validateManagedBoard(record.database_path, record.project_id);
         await fs.rm(stagingDirectory, { recursive: true, force: true });
       }
       return await this.commit(() => commit(record));

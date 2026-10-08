@@ -42,11 +42,11 @@ const GOAL_TREE_ACTIONS = new Map<string, HostCapabilityDescriptor>([
 ]);
 
 /** Translate wire-independent actions into the existing consented observation contract. */
-export function goalActionObservation(capability: HostCapabilityDescriptor, input: unknown, boardId: string,
+export function goalActionObservation(capability: HostCapabilityDescriptor, input: unknown, projectId: string,
  caller: Pick<ActionCallContext, 'actor_id' | 'audit_actor_id' | 'actor_kind' | 'audience'>) {
  const tree = GOAL_TREE_ACTIONS.get(capability.capability_id);
  if (tree && capability.version === 1) return { capability: tree,
-  input: [{ ...obj(input), board_id: boardId, ...(capability.capability_id === goalsActions.treeDecide.capability_id
+  input: [{ ...obj(input), project_id: projectId, ...(capability.capability_id === goalsActions.treeDecide.capability_id
    ? { authority: { actor_id: caller.actor_id, actor_kind: caller.actor_kind } }
    : { actor_id: caller.audit_actor_id ?? caller.actor_id }) }] };
  const suffix = GOAL_ACTION_EVENTS.get(capability.capability_id);
@@ -54,8 +54,8 @@ export function goalActionObservation(capability: HostCapabilityDescriptor, inpu
  const actorId = caller.audit_actor_id ?? caller.actor_id;
  const actorKind = caller.actor_kind === undefined ? (caller.audience === 'user' ? 'user' : 'runtime') : caller.actor_kind;
  return { capability: { capability_id: `io.molis.work.goals.events.${suffix}`, version: 1, operation: capability.operation },
-  // Legacy decide inputs held the author under authority; keep persisted request-key comparisons compatible.
-  input: { ...obj(input), board_id: boardId, ...(suffix === 'decide'
+  // A decision's author travels under authority, as the decide command takes it.
+  input: { ...obj(input), project_id: projectId, ...(suffix === 'decide'
    ? { authority: { actor_id: actorId, actor_kind: actorKind } }
    : { actor_id: actorId, actor_kind: actorKind }) } };
 }
@@ -87,7 +87,7 @@ export class InteractionObserver {
   try{
    if(!CAPABILITIES.has(cap.capability_id)||cap.version!==1)return null;
    const scope=this.journal.scope();if(!scope||scope.state!=='active')return null;
-   const fields=obj(input);if(fields.board_id!==this.journal.board)return null;
+   const fields=obj(input);if(fields.project_id!==this.journal.board)return null;
    const tag=(d:string,v:unknown)=>this.journal.tag(scope,d,v),ref=(v:unknown)=>typeof v==='string'?tag('reference',v):null;
    const refs=(v:unknown)=>Array.isArray(v)?v.filter((x):x is string=>typeof x==='string').slice(0,20).map(x=>tag('reference',x)):[];
    const goal=typeof fields.goal_id==='string'?fields.goal_id:null;

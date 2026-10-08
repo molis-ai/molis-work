@@ -6,9 +6,9 @@ export interface MolisWorkSnapshotPorts {
  governance: GovernanceQueryApi;
 }
 /** One read model from the owning Module queries, preserving their history and ordering. */
-export function readMolisWorkSnapshot(ports: MolisWorkSnapshotPorts, boardId: string): BoardSnapshot {
-    const goals = ports.goals.snapshot(boardId);
-    const governance = ports.governance.snapshot(boardId);
+export function readMolisWorkSnapshot(ports: MolisWorkSnapshotPorts, projectId: string): BoardSnapshot {
+    const goals = ports.goals.snapshot(projectId);
+    const governance = ports.governance.snapshot(projectId);
     return {
       board: goals.board,
       cursor: goals.observed_event_cursor,

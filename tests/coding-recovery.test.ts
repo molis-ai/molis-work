@@ -15,7 +15,7 @@ function review(id: string, expires: string | null): AgentReviewRequest {
   return {
     review_id: id,
     run: { run_id: "r1", session_id: "s1" },
-    board_id: "b", plugin_id: "io.molis.work.coding", kind: "text-edit",
+    project_id: "b", plugin_id: "io.molis.work.coding", kind: "text-edit",
     document: { kind: "text-edit", target_path: "a.ts", exists: true, before_text: null, after_text: "x" },
     requested_at: "2026-09-19T14:00:00Z",
     expires_at: expires,

@@ -31,9 +31,6 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     const el = make('button', undefined, 'mw-btn mw-btn--' + variant + ' mw-btn--' + size); el.type = 'button'; el.dataset.slot = 'button';
     if (icon) el.append(glyph(icon)); const words = make('span', label); words.dataset.slot = 'button-label'; el.append(words); return el;
   };
-  const LEGACY: Record<string, string> = { heading: 'frame', text: 'card', list: 'directory', cards: 'card', reader: 'accordion', chat: 'card', matrix: 'table', notice: 'alert' };
-  /** The catalog component a part is drawn with. */
-  const kindOf = (node: PluginComponentNode) => LEGACY[node.kind] ?? node.kind;
   /** The schema a binding's output path points at, from the contract in view. */
   const pluginSchemaOf = (operationId?: string, path?: string) => {
     let schema = view?.contract.operations.find(op => op.id === operationId)?.output;
@@ -135,7 +132,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     if (node.read || !node.submit) return undefined;
     const sources = Object.values(node.submit.input), hosts = new Set(sources.flatMap(source => source.source === 'selection' ? [source.componentId] : []));
     const [host] = hosts;
-    return hosts.size === 1 && sources.every(source => source.source !== 'form') && view?.nodes.some(other => other.id === host && other.pageId === node.pageId && !!other.read && collections.has(kindOf(other))) ? host : undefined;
+    return hosts.size === 1 && sources.every(source => source.source !== 'form') && view?.nodes.some(other => other.id === host && other.pageId === node.pageId && !!other.read && collections.has(other.kind)) ? host : undefined;
   };
   const rowLabel = (node: PluginComponentNode) => (node.props.submitLabel || node.props.title || node.purpose).replace(/选中的?/gu, '').trim() || '执行';
   const reading = (node: PluginComponentNode) => node.intent === 'reading' || node.kind === 'reader';
@@ -211,7 +208,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     const cell = (value: unknown) => { const raw = text(value); return /[",\n]/.test(raw) ? '"' + raw.replace(/"/g, '""') + '"' : raw; };
     const csv = '﻿' + [columns.map(column => cell(column.label)).join(','), ...rows.map(row => columns.map(column => cell(shown(column, at(row, column.field)))).join(','))].join('\n');
     const link = make('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    link.download = (view?.nodes.find(other => kindOf(other) === 'frame' || other.intent === 'heading')?.props.title || node.props.title || '记录') + '.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    link.download = (view?.nodes.find(other => other.kind === 'frame' || other.intent === 'heading')?.props.title || node.props.title || '记录') + '.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
   /** What a record shows, in order: its title and text first, then the configured columns (or its own fields when none are set). */
   function recordColumns(node: PluginComponentNode, first: unknown): Column[] {
@@ -250,7 +247,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     if (!node.props.textField && !node.props.titleField && !extra.length) {
       // No display fields configured: a readable field list, never a raw JSON dump.
       // In the calendar the day already heads the record; it is not repeated inside it.
-      const day = place === 'row' && kindOf(node) === 'calendar' ? dayField(node) : undefined;
+      const day = place === 'row' && node.kind === 'calendar' ? dayField(node) : undefined;
       const fields = row && typeof row === 'object' && !Array.isArray(row) ? Object.entries(row as Record<string, unknown>).filter(([key]) => key !== node.props.idField && key !== day).slice(0, 6) : [];
       if (fields.length) { fallback = make('dl', undefined, 'pc-fields'); for (const [key, value] of fields) fallback.append(make('dt', key), prose('dd', shown(undefined, value))); }
       else fallback = make('p', text(row));
@@ -261,7 +258,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     return { title, body, notes, meta: meta.childNodes.length ? meta : undefined, fallback, figure };
   }
   function output(part: Part, raw: unknown, binding: 'read' | 'submit') {
-    const node = part.node, kind = kindOf(node), value = at(raw, node[binding]?.outputPath), fragment = document.createDocumentFragment();
+    const node = part.node, kind = node.kind, value = at(raw, node[binding]?.outputPath), fragment = document.createDocumentFragment();
     const listing = binding === 'read' && Array.isArray(value);
     if (part.tools) { part.tools.hidden = !listing || !(value as unknown[]).length; part.tools.querySelector<HTMLElement>('.pc-count')!.dataset.count = listing ? String((value as unknown[]).length) : ''; }
     // A sentence the design wrote around the result ("今天已经喝了 {{count}} 杯") is filled from it and shown instead of figures.
@@ -543,7 +540,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     return { dialog, form, body, footer };
   }
   function createPart(node: PluginComponentNode): Part {
-    const kind = kindOf(node), element = make('section', undefined, 'pc-node pc-kind-' + kind); element.dataset.componentId = node.id; element.setAttribute('aria-label', node.props.title || node.purpose);
+    const kind = node.kind, element = make('section', undefined, 'pc-node pc-kind-' + kind); element.dataset.componentId = node.id; element.setAttribute('aria-label', node.props.title || node.purpose);
     const description = make('p', TEMPLATE.test(node.props.description ?? '') ? '' : node.props.description ?? '', 'pc-part-description');
     const title = make(node.intent === 'heading' ? 'h1' : 'h2', node.intent === 'heading' ? headingOf(node) : node.props.title ?? '', node.intent === 'heading' ? undefined : 'pc-part-title'); title.dataset.pcTitle = ''; title.hidden = !title.textContent;
     description.dataset.pcDescription = ''; description.hidden = !description.textContent;
@@ -747,13 +744,13 @@ export function createPluginComponentClient(options: PluginComponentClientOption
       for (const [id, part] of parts) if (!partIds.has(id)) { part.query++; clearTimeout(part.feedbackTimer); part.opener?.remove(); part.root.remove(); parts.delete(id); details.delete(id); }
       for (const part of parts.values()) {
         const hasReader = detailEnabled(part.node.id) || next.nodes.some(other => other.id !== part.node.id && other.props.textField && Object.values(other.read?.input ?? {}).some(source => source.source === 'selection' && source.componentId === part.node.id));
-        part.root.toggleAttribute('data-reading-preview', !!next.presentation && kindOf(part.node) === 'directory' && hasReader);
+        part.root.toggleAttribute('data-reading-preview', !!next.presentation && part.node.kind === 'directory' && hasReader);
         // A record action has no block of its own; what it reports, and the question it asks, go with the collection it acts on.
         const host = rowHost(part.node), home = host ? parts.get(host)?.root : part.root; part.root.hidden = !!host;
         if (home && part.feedback.parentElement !== home) home.append(part.feedback);
         if (home && part.confirm && part.confirm.parentElement !== home) home.append(part.confirm);
         // A page's "new" buttons sit in its header, on the right, when the page has one.
-        const head = part.opener && !host && [...parts.values()].find(other => other.node.pageId === part.node.pageId && kindOf(other.node) === 'frame')?.root.querySelector('.pc-app-actions');
+        const head = part.opener && !host && [...parts.values()].find(other => other.node.pageId === part.node.pageId && other.node.kind === 'frame')?.root.querySelector('.pc-app-actions');
         part.root.toggleAttribute('data-header-action', !!head);
         for (const button of [part.opener, part.form?.querySelector<HTMLButtonElement>('[type=submit]')]) if (button && !button.classList.contains('mw-btn--danger-outline')) {
           const primary = next.presentation ? next.presentation.parts[part.node.id]?.emphasis === 'primary' : true;

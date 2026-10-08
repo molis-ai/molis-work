@@ -8,7 +8,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
 
 // The immutable v35 dump predates the current demo project ID.
-const DEMO_BOARD_ID = "goalboard-v1-demo";
+const DEMO_PROJECT_ID = "goalboard-v1-demo";
 const TOKEN = "molis-work-history-contract-token-0123456789abcdef";
 
 function listen(server: Server): Promise<string> {
@@ -27,7 +27,7 @@ test("public document timeline is bounded and keeps the journal", async () => {
   const databasePath = fixture.path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  const server = createMolisWorkWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   try {
     const page = async (goalId: string, query: Record<string, string>) => {
@@ -38,7 +38,7 @@ test("public document timeline is bounded and keeps the journal", async () => {
     const coreBefore = await page("CORE", { limit: "1" });
     assert.ok(coreBefore.items.length <= 1, "limit must bound mixed history");
 
-    const snapshot = store.snapshot(DEMO_BOARD_ID);
+    const snapshot = store.snapshot(DEMO_PROJECT_ID);
     const coreHistory = await page("CORE", { limit: "100" });
     assert.ok(coreHistory.items.every((item) => item.source === "event_work" || item.source === "journal"));
 
@@ -60,17 +60,17 @@ test("public document timeline is bounded and keeps the journal", async () => {
     assert.doesNotMatch(fragment, /<em[^>]*>relation<\/em>/);
 
     app.goalEvents.resumeWork({
-      board_id: DEMO_BOARD_ID, goal_id: "CORE", actor_id: "review-user", actor_kind: "user",
+      project_id: DEMO_PROJECT_ID, goal_id: "CORE", actor_id: "review-user", actor_kind: "user",
       idempotency_key: "history-transfer", reason: "保留转交后的工作事实",
     });
     app.goalEvents.configure({
-      board_id: DEMO_BOARD_ID, goal_id: "CORE", actor_id: "review-user", actor_kind: "user",
+      project_id: DEMO_PROJECT_ID, goal_id: "CORE", actor_id: "review-user", actor_kind: "user",
       idempotency_key: "history-type", expected_version: 0,
       types: [{ type_id: "history-note", version: 1, name: "接续记录", purpose: "保留转交后的工作事实",
         fields: [{ field_id: "body", name: "内容", purpose: "原文", format: "longtext", required: true }] }],
     });
     app.goalEvents.report({
-      board_id: DEMO_BOARD_ID, goal_id: "CORE", actor_id: "review-runtime", actor_kind: "runtime",
+      project_id: DEMO_PROJECT_ID, goal_id: "CORE", actor_id: "review-runtime", actor_kind: "runtime",
       idempotency_key: "history-new-reports",
       events: Array.from({ length: 5 }, (_, index) => ({
         type_id: "history-note", type_version: 1, title: `转交后的工作记录 ${index + 1}`, fields: { body: `实际接续内容 ${index + 1}` },
@@ -104,25 +104,25 @@ test("public document timeline is bounded and keeps the journal", async () => {
     assert.doesNotMatch(refreshHtml, /正在读取当前事实|载入中/);
 
     const capGoal = app.goalEvents.createIntent({
-      board_id: DEMO_BOARD_ID, title: "有界历史不能截断", outcome: "全部工作记录可翻到",
+      project_id: DEMO_PROJECT_ID, title: "有界历史不能截断", outcome: "全部工作记录可翻到",
       actor_id: "review-runtime", actor_kind: "runtime", idempotency_key: "cap-intent",
     }).goal.goal_id;
     app.goalEvents.configure({
-      board_id: DEMO_BOARD_ID, goal_id: capGoal, actor_id: "review-runtime", actor_kind: "runtime",
+      project_id: DEMO_PROJECT_ID, goal_id: capGoal, actor_id: "review-runtime", actor_kind: "runtime",
       expected_version: 0, idempotency_key: "cap-config",
       types: [{ type_id: "cap-note", version: 1, name: "记录", purpose: "分页",
         fields: [{ field_id: "body", name: "内容", purpose: "原文", format: "text", required: true }] }],
     });
     for (let start = 0; start < 120; start += 40) {
       app.goalEvents.report({
-        board_id: DEMO_BOARD_ID, goal_id: capGoal, actor_id: "review-runtime", actor_kind: "runtime",
+        project_id: DEMO_PROJECT_ID, goal_id: capGoal, actor_id: "review-runtime", actor_kind: "runtime",
         idempotency_key: `cap-batch-${start}`,
         events: Array.from({ length: 40 }, (_, index) => ({
           type_id: "cap-note", type_version: 1, title: `历史 ${start + index}`, fields: { body: `原记录 ${start + index}` },
         })),
       });
     }
-    const oldest = app.goalEvents.listEvents(DEMO_BOARD_ID, capGoal, { limit: 100 }).events.find((event) => event.kind === "report");
+    const oldest = app.goalEvents.listEvents(DEMO_PROJECT_ID, capGoal, { limit: 100 }).events.find((event) => event.kind === "report");
     assert.ok(oldest);
     const ids = new Set<string>();
     let cursor: string | null = null;

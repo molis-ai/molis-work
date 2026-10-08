@@ -10,12 +10,12 @@ import { createHomeFlow } from "../../home-flow.js";
 export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const { getState, translate: L, openItem, openPlugin, openTarget, feedApi, messageApi } = host;
   (${HOME_SHORTCUTS_FACTORY_SCRIPT})({ root: document.querySelector('[data-work-surface="home"]'), translate: L,
-    projectKey: getState().project?.project_id || getState().snapshot.board.board_id });
+    projectKey: getState().project?.project_id || getState().snapshot.board.project_id });
   const home = document.querySelector('[data-work-surface="home"]');
   if (!home) return null;
   const homeFlow = (${createHomeFlow.toString()})();
   const locale = document.documentElement.lang || "zh-CN";
-  const projectKey = getState().project?.project_id || getState().snapshot.board.board_id;
+  const projectKey = getState().project?.project_id || getState().snapshot.board.project_id;
   let dayId = "";
   let dayPinned = false;
   let eventId = "";

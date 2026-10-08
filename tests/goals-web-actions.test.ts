@@ -13,7 +13,7 @@ import { PURPOSE, VERSION } from "../apps/local-host/src/casebook/contract.js";
 test("Web Goals use shared actions and record resolved results exactly once across async policy and replay", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-web-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Web Goals", actor_id: "user" }));
-  const reference = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const seen: string[] = [];
   const deniedQueries = new Set<string>();
   let gate: Promise<void> | undefined, enter: (() => void) | undefined, release: (() => void) | undefined;
@@ -32,7 +32,7 @@ test("Web Goals use shared actions and record resolved results exactly once acro
   await casebook.setInteractionAuthorization({ project_ref: project.project_id, purpose: PURPOSE, action: "join",
     actor_ref: "fixture-owner", user_action_ref: "isolated-fixture", user_confirmed: true, idempotency_key: "join" });
   const facts = () => host.withProject(reference, runtime => {
-    const journal = new InteractionJournal(runtime.store.db, project.board_id, project.project_id);
+    const journal = new InteractionJournal(runtime.store.db, project.project_id, project.project_id);
     const epoch = journal.authorization().authorization_epoch; assert.ok(epoch);
     return journal.read({ project_ref: project.project_id, schema_version: VERSION, authorization_epoch: epoch, after_cursor: 0, limit: 100 }).facts;
   });
@@ -73,7 +73,7 @@ test("Web Goals use shared actions and record resolved results exactly once acro
     let notes = (await facts()).filter(fact => fact.capability.endsWith(".note"));
     assert.equal(notes.length, 2); assert.equal(notes[1]!.saved?.event_refs.length, 1);
     assert.equal(notes[1]!.outcome, "returned"); assert.equal(notes[0]!.operation_id, notes[1]!.operation_id);
-    const stored = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.readEvent(project.board_id, input.goal_id, recorded.event_id));
+    const stored = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, recorded.event_id));
     assert.equal((stored.payload as { body: string }).body, noteInput.note);
     assert.equal(stored.actor_id, "web-user"); assert.equal(stored.actor_kind, "user");
     response = await request(notePath, noteInput);
@@ -171,7 +171,7 @@ test("Web Goals use shared actions and record resolved results exactly once acro
     assert.equal((await response.json() as { code: string }).code, "actions.plugin_disabled");
     notes = (await facts()).filter(fact => fact.capability.endsWith(".note"));
     assert.equal(notes.length, 6); assert.equal(notes[5]!.outcome, "threw"); assert.equal(notes[5]!.saved, null);
-    const events = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.listEvents(project.board_id, input.goal_id));
+    const events = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 1);
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "user_decision").length, 1);
   } finally {

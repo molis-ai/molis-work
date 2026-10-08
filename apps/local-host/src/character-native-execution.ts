@@ -48,13 +48,13 @@ export function writeCharacterBundle(home: string, character: CharacterContent):
   return { path, prompt: `请使用用户选择的 Character「${character.title}」。开始前必须读取 ${JSON.stringify(join(path, "CHARACTER.md"))}，并读取其中列出的规则、按任务需要使用所列 Skills 的固定文件和附件。不要以原配置目录的实时文件替换这个快照；原生权限、信任和授权机制照常生效。` };
 }
 
-export function characterNativeExecution(options: { home: string; actorId: string; boardId: string; workspaces(): Promise<readonly ProjectWorkspaceRef[]>; spawn(request: PtySpawnRequest): PtySpawnResult; executable(runtime: CharacterImportRuntimeId): string | null }): Pick<CharactersImportPorts, "execution" | "launch" | "runs"> {
+export function characterNativeExecution(options: { home: string; actorId: string; projectId: string; workspaces(): Promise<readonly ProjectWorkspaceRef[]>; spawn(request: PtySpawnRequest): PtySpawnResult; executable(runtime: CharacterImportRuntimeId): string | null }): Pick<CharactersImportPorts, "execution" | "launch" | "runs"> {
   const run = (session: WorkSessionRecord, registry: WorkSessionApi): CharacterNativeRun => ({
     session_id: session.session_id, panel_id: session.surface_id!, title: session.title ?? "Character", created_at: session.created_at,
     reference: session.metadata.character_reference as CharacterNativeRun["reference"], workspace_path: session.workspace_path!,
     output: registry.events(session.session_id).map(event => event.content ?? "").join("\n"),
   });
-  const owned = (session: WorkSessionRecord, characterId: string) => session.metadata.character_id === characterId && session.metadata.character_actor === options.actorId && session.metadata.character_board === options.boardId;
+  const owned = (session: WorkSessionRecord, characterId: string) => session.metadata.character_id === characterId && session.metadata.character_actor === options.actorId && session.metadata.character_board === options.projectId;
   return {
     execution: async content => ({ executable: content.import_snapshot ? options.executable(content.import_snapshot.runtime_id) : null,
       workspaces: (await options.workspaces()).map(({ workspace_id, canonical_path }) => ({ workspace_id, canonical_path })), notice: CHARACTER_NATIVE_NOTICE }),
@@ -91,7 +91,7 @@ export function characterNativeExecution(options: { home: string; actorId: strin
         const bundle = writeCharacterBundle(options.home, content);
         const session = registry.createSession({ runtime_id: content.import_snapshot.runtime_id, actor_id: options.actorId, user_confirmed: true,
           surface_id: panelId, workspace_id: workspace.workspace_id, workspace_path: cwd, title: content.title,
-          metadata: { character_id: content.character_id, character_actor: options.actorId, character_board: options.boardId,
+          metadata: { character_id: content.character_id, character_actor: options.actorId, character_board: options.projectId,
             character_reference: reference, character_bundle: bundle.path, character_task: input.task, native_config: "live-with-frozen-character" } });
         registry.appendEvent({ session_id: session.session_id, source: "molis_work", source_id: "character-start", kind: "user_message",
           content: input.task, metadata: { reference, character_bundle: bundle.path, configuration_notice: CHARACTER_NATIVE_NOTICE } });

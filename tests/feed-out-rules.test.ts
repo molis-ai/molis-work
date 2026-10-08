@@ -13,7 +13,7 @@ import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import {
   createLocalFeedApplication,
   createLocalFeedSourceService,
-  DEMO_BOARD_ID,
+  DEMO_PROJECT_ID,
   GoalProjectApplication,
   LocalProjectDatabase,
   listFeedSourceCatalog,
@@ -42,7 +42,7 @@ function harness(artifacts?: Parameters<typeof createLocalFeedApplication>[1]) {
   const store = new LocalProjectDatabase(path);
   const app = new GoalProjectApplication(store);
   const feed = createLocalFeedApplication(store.db, artifacts);
-  const source = createLocalFeedSourceService(store.db, DEMO_BOARD_ID).register({
+  const source = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).register({
     kind: "web_query",
     query: "launch coverage",
   }).source;
@@ -57,7 +57,7 @@ function close(data: ReturnType<typeof harness>): void {
 test("new Feed Item matching an out rule leaves an exact Artifact and no success Inbox row", () => {
   const data = harness();
   try {
-    const rule = data.feed.createOutRule(DEMO_BOARD_ID, {
+    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -72,7 +72,7 @@ test("new Feed Item matching an out rule leaves an exact Artifact and no success
     });
     assert.equal(ingested.created, true);
     const artifactId = feedCaptureArtifactId(ingested.item.item_id, rule.rule_id);
-    const artifact = data.app.artifacts.query.latestArtifactVersion(DEMO_BOARD_ID, artifactId);
+    const artifact = data.app.artifacts.query.latestArtifactVersion(DEMO_PROJECT_ID, artifactId);
     assert.ok(artifact);
     assert.equal(artifact.version, 1);
     assert.equal(artifact.artifact_type_id, FEED_CAPTURE_ARTIFACT_TYPE_ID);
@@ -80,10 +80,10 @@ test("new Feed Item matching an out rule leaves an exact Artifact and no success
     assert.equal(payload.title, "Product launch checklist");
     assert.deepEqual(payload.tags, ["launch"]);
     assert.equal(
-      data.feed.listInboxEntries(DEMO_BOARD_ID).filter((entry) => entry.reason === "artifact_out_failed").length,
+      data.feed.listInboxEntries(DEMO_PROJECT_ID).filter((entry) => entry.reason === "artifact_out_failed").length,
       0,
     );
-    assert.equal(data.feed.getFeedItem(DEMO_BOARD_ID, ingested.item.item_id).item_id, ingested.item.item_id);
+    assert.equal(data.feed.getFeedItem(DEMO_PROJECT_ID, ingested.item.item_id).item_id, ingested.item.item_id);
   } finally {
     close(data);
   }
@@ -92,16 +92,16 @@ test("new Feed Item matching an out rule leaves an exact Artifact and no success
 test("out-rule judgment records a suggestion without admitting the Feed Item", async () => {
   const fixture = feedCaptureFixture(() => ({ status: "ok", suggested_behavior_ids: [INBOX_ADMIT_BEHAVIOR_ID] }));
   const data = harness(fixture.options);
-  fixture.attach(data.feed, DEMO_BOARD_ID);
+  fixture.attach(data.feed, DEMO_PROJECT_ID);
   try {
-    const rule = data.feed.createOutRule(DEMO_BOARD_ID, {
+    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
       judgment: fixture.reference,
     });
-    assert.throws(() => data.feed.updateOutRule(DEMO_BOARD_ID, rule.rule_id, { name: " ", function_key: "replacement" }));
-    assert.throws(() => data.feed.updateOutRule(DEMO_BOARD_ID, "missing-rule", { function_key: "replacement" }));
-    assert.deepEqual(data.feed.listOutRules(DEMO_BOARD_ID)[0]?.judgment, fixture.reference);
+    assert.throws(() => data.feed.updateOutRule(DEMO_PROJECT_ID, rule.rule_id, { name: " " }));
+    assert.throws(() => data.feed.updateOutRule(DEMO_PROJECT_ID, "missing-rule", { name: "替换" }));
+    assert.deepEqual(data.feed.listOutRules(DEMO_PROJECT_ID)[0]?.judgment, fixture.reference);
     const ingested = data.feed.ingestItem({
       source: data.source,
       externalId: "launch-judge",
@@ -114,7 +114,7 @@ test("out-rule judgment records a suggestion without admitting the Feed Item", a
     await data.feed.flushPendingJudgments();
     assert.equal(fixture.history[0]?.scene_id, FEED_CAPTURE_SCENE_ID);
     assert.equal(
-      data.feed.listInboxEntries(DEMO_BOARD_ID).filter((entry) => entry.subject_id === ingested.item.item_id).length,
+      data.feed.listInboxEntries(DEMO_PROJECT_ID).filter((entry) => entry.subject_id === ingested.item.item_id).length,
       0,
     );
   } finally {
@@ -125,7 +125,7 @@ test("out-rule judgment records a suggestion without admitting the Feed Item", a
 test("re-ingesting the same envelope does not create a new Artifact lineage", () => {
   const data = harness();
   try {
-    const rule = data.feed.createOutRule(DEMO_BOARD_ID, {
+    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -150,7 +150,7 @@ test("re-ingesting the same envelope does not create a new Artifact lineage", ()
     });
     assert.equal(replay.created, false);
     assert.equal(replay.updated, true);
-    const versions = data.app.artifacts.query.listArtifactVersions(DEMO_BOARD_ID, artifactId);
+    const versions = data.app.artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, artifactId);
     assert.equal(versions.length, 1);
     assert.equal(versions[0]?.version, 1);
 
@@ -164,9 +164,9 @@ test("re-ingesting the same envelope does not create a new Artifact lineage", ()
       attention: false,
     });
     assert.equal(changed.updated, true);
-    const updated = data.app.artifacts.query.listArtifactVersions(DEMO_BOARD_ID, artifactId);
+    const updated = data.app.artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, artifactId);
     assert.equal(updated.length, 2);
-    assert.equal(data.app.artifacts.query.latestArtifactVersion(DEMO_BOARD_ID, artifactId)?.version, 2);
+    assert.equal(data.app.artifacts.query.latestArtifactVersion(DEMO_PROJECT_ID, artifactId)?.version, 2);
   } finally {
     close(data);
   }
@@ -184,7 +184,7 @@ test("creating a rule does not backfill historical Feed Items", () => {
       occurredAt: "2026-09-14T00:00:00.000Z",
       attention: false,
     });
-    data.feed.createOutRule(DEMO_BOARD_ID, {
+    data.feed.createOutRule(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -200,12 +200,12 @@ test("creating a rule does not backfill historical Feed Items", () => {
     assert.equal(replay.created, false);
     assert.equal(replay.updated, false);
     assert.equal(
-      data.app.artifacts.query.listArtifacts(DEMO_BOARD_ID, {
+      data.app.artifacts.query.listArtifacts(DEMO_PROJECT_ID, {
         artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID,
       }).length,
       0,
     );
-    assert.equal(data.feed.getFeedItem(DEMO_BOARD_ID, historical.item.item_id).title, "Product launch yesterday");
+    assert.equal(data.feed.getFeedItem(DEMO_PROJECT_ID, historical.item.item_id).title, "Product launch yesterday");
   } finally {
     close(data);
   }
@@ -223,7 +223,7 @@ test("registerVersion failure writes artifact_out_failed Attention and keeps the
     },
   });
   try {
-    data.feed.createOutRule(DEMO_BOARD_ID, {
+    data.feed.createOutRule(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -235,15 +235,15 @@ test("registerVersion failure writes artifact_out_failed Attention and keeps the
       occurredAt: "2026-09-15T00:00:00.000Z",
       attention: false,
     });
-    const failures = data.feed.listInboxEntries(DEMO_BOARD_ID).filter((entry) =>
+    const failures = data.feed.listInboxEntries(DEMO_PROJECT_ID).filter((entry) =>
       entry.subject_id === ingested.item.item_id && entry.reason === "artifact_out_failed"
     );
     assert.equal(failures.length, 1);
     assert.equal(failures[0]?.status, "open");
     assert.deepEqual(failures[0]?.detail.error_codes, ["artifact.unavailable"]);
-    assert.equal(data.feed.getFeedItem(DEMO_BOARD_ID, ingested.item.item_id).item_id, ingested.item.item_id);
+    assert.equal(data.feed.getFeedItem(DEMO_PROJECT_ID, ingested.item.item_id).item_id, ingested.item.item_id);
     assert.equal(
-      data.app.artifacts.query.listArtifacts(DEMO_BOARD_ID, {
+      data.app.artifacts.query.listArtifacts(DEMO_PROJECT_ID, {
         artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID,
       }).length,
       0,
@@ -256,7 +256,7 @@ test("registerVersion failure writes artifact_out_failed Attention and keeps the
 test("source_rule Attention can coexist with a successful out capture", () => {
   const data = harness();
   try {
-    const rule = data.feed.createOutRule(DEMO_BOARD_ID, {
+    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -268,13 +268,13 @@ test("source_rule Attention can coexist with a successful out capture", () => {
       occurredAt: "2026-09-15T00:00:00.000Z",
       attention: { reason: "source_rule", detail: { matched: "launch" } },
     });
-    const entries = data.feed.listInboxEntries(DEMO_BOARD_ID).filter((entry) =>
+    const entries = data.feed.listInboxEntries(DEMO_PROJECT_ID).filter((entry) =>
       entry.subject_id === ingested.item.item_id
     );
     assert.equal(entries.some((entry) => entry.reason === "source_rule"), true);
     assert.equal(entries.some((entry) => entry.reason === "artifact_out_failed"), false);
     assert.ok(data.app.artifacts.query.latestArtifactVersion(
-      DEMO_BOARD_ID,
+      DEMO_PROJECT_ID,
       feedCaptureArtifactId(ingested.item.item_id, rule.rule_id),
     ));
   } finally {
@@ -285,17 +285,16 @@ test("source_rule Attention can coexist with a successful out capture", () => {
 test("out-rule CRUD rejects an empty match and can disable a rule", () => {
   const data = harness();
   try {
-    assert.throws(() => data.feed.createOutRule(DEMO_BOARD_ID, { name: "缺少判断服务", match: { contains: "launch" }, function_key: "unavailable" }), /请通过动作服务/);
-    assert.equal(data.feed.listOutRules(DEMO_BOARD_ID).length, 0);
+    assert.equal(data.feed.listOutRules(DEMO_PROJECT_ID).length, 0);
     assert.throws(
-      () => data.feed.createOutRule(DEMO_BOARD_ID, { name: "空规则", match: {} }),
+      () => data.feed.createOutRule(DEMO_PROJECT_ID, { name: "空规则", match: {} }),
       (error: unknown) => error instanceof FeedDomainError && error.code === "feed_out_rule_invalid",
     );
-    const rule = data.feed.createOutRule(DEMO_BOARD_ID, {
+    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
-    data.feed.updateOutRule(DEMO_BOARD_ID, rule.rule_id, { enabled: false });
+    data.feed.updateOutRule(DEMO_PROJECT_ID, rule.rule_id, { enabled: false });
     data.feed.ingestItem({
       source: data.source,
       externalId: "launch-disabled",
@@ -305,13 +304,13 @@ test("out-rule CRUD rejects an empty match and can disable a rule", () => {
       attention: false,
     });
     assert.equal(
-      data.app.artifacts.query.listArtifacts(DEMO_BOARD_ID, {
+      data.app.artifacts.query.listArtifacts(DEMO_PROJECT_ID, {
         artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID,
       }).length,
       0,
     );
-    data.feed.deleteOutRule(DEMO_BOARD_ID, rule.rule_id);
-    assert.equal(data.feed.listOutRules(DEMO_BOARD_ID).length, 0);
+    data.feed.deleteOutRule(DEMO_PROJECT_ID, rule.rule_id);
+    assert.equal(data.feed.listOutRules(DEMO_PROJECT_ID).length, 0);
   } finally {
     close(data);
   }
@@ -319,7 +318,7 @@ test("out-rule CRUD rejects an empty match and can disable a rule", () => {
 
 test("Attention records an Inbox entry for a failed 成果 output", () => {
   const db = new Database(":memory:");
-  db.exec("CREATE TABLE boards (board_id TEXT PRIMARY KEY); INSERT INTO boards (board_id) VALUES ('board');");
+  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards (project_id) VALUES ('board');");
   const attention = new AttentionModule(db, { exists: () => true });
   const created = attention.commands.create({
     project_id: "board",
@@ -373,10 +372,11 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   assert.ok(directory.choices.some(choice => choice.reference.capability_id === "functions.published.system_admit_inbox"));
   assert.doesNotMatch(page, /data-feed-add-out-rule-function-key/);
 
+  const published = (key: string) => ({ capability_id: `functions.published.${key}`, version: 1, provider_id: "system.functions" });
   const unpublished = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: "坏判断", contains: "launch", function_key: "not_a_published_function" }),
+    body: JSON.stringify({ name: "坏判断", contains: "launch", judgment: published("not_a_published_function") }),
   });
   assert.equal(unpublished.status, 400);
   const emptyAfterUnpublished = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
@@ -385,7 +385,7 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   const mismatched = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: "首页判断", contains: "launch", function_key: "system_pick_home_dock" }),
+    body: JSON.stringify({ name: "首页判断", contains: "launch", judgment: published("system_pick_home_dock") }),
   });
   assert.equal(mismatched.status, 400);
   const emptyAfterMismatch = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
@@ -394,11 +394,11 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   const bound = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: "发布判断", contains: "launch", function_key: "system_admit_inbox" }),
+    body: JSON.stringify({ name: "发布判断", contains: "launch", judgment: published("system_admit_inbox") }),
   });
   assert.equal(bound.status, 201);
-  const boundBody = await bound.json() as { rule: { rule_id: string; function_key: string | null } };
-  assert.equal(boundBody.rule.function_key, "system_admit_inbox");
+  const boundBody = await bound.json() as { rule: { rule_id: string; judgment: unknown } };
+  assert.deepEqual(boundBody.rule.judgment, published("system_admit_inbox"));
   const deletedBound = await webFetch(`${origin}${prefix}/api/feed/out-rules/${encodeURIComponent(boundBody.rule.rule_id)}`, {
     method: "DELETE",
   });
@@ -459,7 +459,7 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
 test("Feed rule preview matches recent source messages without writes or backfill", async () => {
   const data = harness();
   try {
-    const another = createLocalFeedSourceService(data.store.db, DEMO_BOARD_ID).register({ kind: "web_query", query: "another source" }).source;
+    const another = createLocalFeedSourceService(data.store.db, DEMO_PROJECT_ID).register({ kind: "web_query", query: "another source" }).source;
     for (let index = 0; index < 7; index++) data.feed.ingestItem({
       source: data.source, externalId: `preview-${index}`, title: index === 6 ? "LAUNCH now" : `Message ${index}`,
       summary: index === 5 ? "launch in summary" : "summary",
@@ -470,21 +470,21 @@ test("Feed rule preview matches recent source messages without writes or backfil
     const unused = (): never => { throw new Error("preview called a mutating or unrelated port"); };
     const service = new ActionService();
     service.registerProvider({ provider: { provider_id: "io.molis.work.feed", title: "Feed", kind: "plugin", project_id: "preview-project" },
-      definitions: Object.values(feedRuleActions), handlers: createFeedRuleHandlers(data.feed, DEMO_BOARD_ID, item => item) });
+      definitions: Object.values(feedRuleActions), handlers: createFeedRuleHandlers(data.feed, DEMO_PROJECT_ID, item => item) });
     const routes = new FeedPluginRouteTable(createFeedRouteHandlers({
       actions: bindActionClient(service, () => ({ actor_id: "preview", project_id: "preview-project", audience: "user", permissions: ["feed:read"] })),
       routePrefix: "", inboxEntries: unused, connectors: unused,
       changed: unused, hydrateItem: unused, hydrateSnapshot: unused, sourceCatalog: () => [], renderWorkbench: unused, renderDetail: unused,
     }));
     const writesBefore = data.store.db.prepare("SELECT total_changes() AS n").get();
-    const before = data.feed.snapshot(DEMO_BOARD_ID);
+    const before = data.feed.snapshot(DEMO_PROJECT_ID);
     const request = { method: "POST" as const, pathname: "/api/feed/out-rules/preview", query: new URLSearchParams(), body: { source_id: data.source.source_id, contains: "launch" } };
     const response = await routes.handle(request);
     assert.equal(response?.status, 200);
     const samples = (response?.body as { samples: { title: string; matched: boolean; input: string }[] }).samples;
     assert.deepEqual(samples.map(item => [item.title, item.matched]), [["LAUNCH now", true], ["Message 5", true], ["Message 4", true], ["Message 3", true], ["Message 2", false]]);
     assert.equal(samples[0]?.input, "LAUNCH now\nsummary\nbody");
-    assert.deepEqual(data.feed.snapshot(DEMO_BOARD_ID), before);
+    assert.deepEqual(data.feed.snapshot(DEMO_PROJECT_ID), before);
     assert.deepEqual(data.store.db.prepare("SELECT total_changes() AS n").get(), writesBefore);
     await assert.rejects(() => routes.handle({ ...request, body: { source_id: "source-from-another-project", contains: "launch" } }), /请选择当前项目的来源/);
     await assert.rejects(() => routes.handle({ ...request, body: { source_id: data.source.source_id, contains: "x".repeat(201) } }), { code: "actions.input_invalid" });
@@ -494,23 +494,23 @@ test("Feed rule preview matches recent source messages without writes or backfil
 test("Feed rule validation cannot overwrite a rule edited while its selected capability was being checked", async () => {
   const data = harness();
   try {
-    const rule = data.feed.createOutRule(DEMO_BOARD_ID, { name: "原规则", match: { contains: "launch" } });
+    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, { name: "原规则", match: { contains: "launch" } });
     const service = new ActionService();
     let entered!: () => void, release!: () => void;
     const ready = new Promise<void>(resolve => { entered = resolve; });
-    service.registerProvider({ provider: { provider_id: "fixture.feed", title: "Feed", kind: "plugin", project_id: DEMO_BOARD_ID },
-      definitions: Object.values(feedRuleActions), handlers: createFeedRuleHandlers(data.feed, DEMO_BOARD_ID, item => item, {
-        legacyReference: () => null, catalog: async () => ({ choices: [], usages: [] }), recommendations: async () => ({ recommendations: [] }),
+    service.registerProvider({ provider: { provider_id: "fixture.feed", title: "Feed", kind: "plugin", project_id: DEMO_PROJECT_ID },
+      definitions: Object.values(feedRuleActions), handlers: createFeedRuleHandlers(data.feed, DEMO_PROJECT_ID, item => item, {
+        catalog: async () => ({ choices: [], usages: [] }), recommendations: async () => ({ recommendations: [] }),
         preview: async () => ({ status: "ok", suggested_behavior_ids: [] }),
         validate: async reference => { entered(); await new Promise<void>(resolve => { release = resolve; }); return reference; },
       }) });
-    const client = bindActionClient(service, () => ({ actor_id: "fixture", project_id: DEMO_BOARD_ID, audience: "user", permissions: ["feed:read", "feed:write"] }));
+    const client = bindActionClient(service, () => ({ actor_id: "fixture", project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["feed:read", "feed:write"] }));
     const pending = client.invoke(feedRuleActions.update, { rule_id: rule.rule_id, patch: {
       judgment: { capability_id: "fixture.judgment", version: 1, provider_id: "fixture" }, name: "旧页面修改" } });
     await ready;
-    data.feed.updateOutRule(DEMO_BOARD_ID, rule.rule_id, { name: "另一窗口的新修改" });
+    data.feed.updateOutRule(DEMO_PROJECT_ID, rule.rule_id, { name: "另一窗口的新修改" });
     release(); await assert.rejects(pending, { code: "feed_revision_conflict" });
-    const saved = data.feed.listOutRules(DEMO_BOARD_ID).find(value => value.rule_id === rule.rule_id)!;
+    const saved = data.feed.listOutRules(DEMO_PROJECT_ID).find(value => value.rule_id === rule.rule_id)!;
     assert.equal(saved.name, "另一窗口的新修改"); assert.equal(saved.judgment, null);
   } finally { close(data); }
 });

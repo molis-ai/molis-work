@@ -16,7 +16,7 @@ test("directory reads installation once, while invocation and later discovery us
   let catalogReads = 0, writes = 0, providerChecks = 0;
   const policy = projectActionAvailability(async (_options, run) => { catalogReads++; return run(catalog); }, home);
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => undefined }, actionAvailability: policy });
-  const reference = { project_id: project.project_id, board_id: project.board_id, storage_key: project.database_path };
+  const reference = { project_id: project.project_id, storage_key: project.database_path };
   const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: [] };
   const empty = { type: "object", properties: {}, additionalProperties: false };
   const query: ActionDefinition = { capability_id: "fixture.sessions.read", version: 1, operation: "query", action: {

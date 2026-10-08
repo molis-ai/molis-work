@@ -69,8 +69,8 @@ test("successful MCP writes update only their Session and survive a secondary Re
       }).session_id;
     } finally { registry.close(); }
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id,
-      projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
+      databasePath: project.database_path, projectId: project.project_id,
+      webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-current", host_declares_stable: true },

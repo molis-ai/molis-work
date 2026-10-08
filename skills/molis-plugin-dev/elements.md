@@ -79,13 +79,13 @@ Native：构建期装配，Host 注入 HTML primitives。
 - 兑现：运行实例提供 `bindings`、`bind`、`consume`；需要时提供 `prepare` 和 `failed`。绑定数据保留在原业务 owner。消费前核对业务对象；共同内核负责绑定修订、提供方实例和权限重查。
 - 发现：Host 场景客户端根据注册合同判断兼容性，并从真实绑定反查使用位置。新场景无需更新 Host ID 名单。完整系统管理 UI 与部分旧编辑器尚在迁移，不能把注册成功等同于所有产品入口完成。
 
-`behaviors` 已废弃，内置插件均已移除；`function_scenes` 和 `judgment_subjects` 只是兼容声明，不兑现实际场景消费。可调用能力用 `actions`，消费判断用 `action_scenes`；Home、Inbox、Feed 的判断都已走共同场景。详情见 [Host 接线](host.md#接到统一判断场景) 和 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#统一动作与消费场景)。
+Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-10 删除）。可调用能力用 `actions`，消费判断用 `action_scenes`；Home、Inbox、Feed 的判断都已走共同场景。详情见 [Host 接线](host.md#接到统一判断场景) 和 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#统一动作与消费场景)。
 
 ## MCP（对外贡献）
 
 方向：人/Agent → 本插件。插件对外的能力就是它声明的 `actions`：动作的 `audiences` 含 `mcp`，用户在「能力 → 对外接入」为某个客户端授权后，它就是 MCP 工具 `molis_work_v1_action_<动作>__v<版本>`。不另外登记 MCP 工具，没有按名称的开关。
 
-- 动作输入只放业务字段；`board_id`、数据库路径、Web 地址、操作者身份都由 Host 注入。
+- 动作输入只放业务字段；`project_id`、数据库路径、Web 地址、操作者身份都由 Host 注入。
 - 个人、不绑项目也能用的动作用 `scope: "home"`；个人插件但按项目分区（Pages / Forms / Dataset / PPT）用 `scope: "project"`，`project_id` 由 Host 注入。
 
 `agent.mcp` 是反方向：插件里的 Agent 能不能调**外面**的 MCP。

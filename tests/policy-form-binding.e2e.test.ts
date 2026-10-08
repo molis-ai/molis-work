@@ -31,7 +31,7 @@ test("a Goal's rules and the project's rules are each saved once, by their own s
   await evaluate("sessionStorage.removeItem('policy-posts')");
   await evaluate(`document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: ${JSON.stringify(prefix + "/settings/rules")} } }))`);
   await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-project-rules-form]')", 15_000);
-  await evaluate("document.querySelector('[data-project-rules-form] [name=goal_mode]').value = 'required'");
+  const accepted = await evaluate<boolean>("(() => { const box = document.querySelector('[data-project-rules-form] [name=human_approval]'); box.checked = !box.checked; return box.checked; })()");
   // With the service out of reach the page stays, so every request the one save sent is still on record.
   await command("Network.enable", {}, sessionId);
   await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/policy-bindings"] }, sessionId);
@@ -44,5 +44,5 @@ test("a Goal's rules and the project's rules are each saved once, by their own s
   await navigate(() => click("[data-project-rules-form] button[type=submit]"));
   const saved = JSON.parse(projectDefaults()) as { policy_json: string }[];
   assert.equal(saved.length, 1);
-  assert.equal(JSON.parse(saved[0]!.policy_json).goal_mode, "required");
+  assert.deepEqual(JSON.parse(saved[0]!.policy_json), { human_approval: accepted });
 });

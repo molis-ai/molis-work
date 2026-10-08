@@ -23,7 +23,7 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
   const store = new LocalProjectDatabase(join(home, 'project.sqlite'));
   const service = new ActionService(), actions = { registry: service, client: service, project_id: 'p' };
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
-  const platform = createPluginPlatform({ board_id: 'p', actor_id: 'owner', db: store.db, actions, ui: new UiHost(),
+  const platform = createPluginPlatform({ project_id: 'p', actor_id: 'owner', db: store.db, actions, ui: new UiHost(),
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
   const entered = gate(), releaseGate = gate(), finished = gate(), controller = new AbortController();

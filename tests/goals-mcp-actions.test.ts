@@ -18,7 +18,7 @@ import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 test("Goals MCP action tools use client grants and the shared Host, and record the Session as author with replayable receipts", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-mcp-aliases-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Legacy Goals", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let gate: Promise<void> | undefined, entered: (() => void) | undefined, release: (() => void) | undefined;
   const policies: string[] = [];
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: async (caller, view) => {
@@ -53,11 +53,11 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     // Records the same Session wrote earlier through the Host, not adapter output used as its own oracle.
     const input = { goal_id: "HISTORICAL-GOAL", title: "迁移前目标", outcome: "保留回执", idempotency_key: "historical-create" };
     const createdBefore = await host.client(ref).invoke(createGoalIntentCapability, {
-      ...input, board_id: project.board_id, actor_id: auditActor, actor_kind: "runtime", source_kind: "runtime",
+      ...input, project_id: project.project_id, actor_id: auditActor, actor_kind: "runtime", source_kind: "runtime",
     });
     const noteInput = { goal_id: input.goal_id, body: "迁移前便笺", idempotency_key: "historical-note" };
     const noteBefore = await host.client(ref).invoke(recordGoalNoteCapability, {
-      ...noteInput, board_id: project.board_id, actor_id: auditActor, actor_kind: "runtime",
+      ...noteInput, project_id: project.project_id, actor_id: auditActor, actor_kind: "runtime",
     });
     policies.length = 0;
     assert.equal((await facts()).length, 4);
@@ -76,7 +76,7 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     const tools = (await sdk.listTools()).tools;
     for (const alias of Object.values(aliases)) assert.ok(tools.some(tool => tool.name === alias));
     for (const alias of tools.filter(tool => Object.values(aliases).includes(tool.name))) {
-      for (const key of ["database_path", "board_id", "actor_id", "audit_actor_id", "runtime_session_id"])
+      for (const key of ["database_path", "project_id", "actor_id", "audit_actor_id", "runtime_session_id"])
         assert.equal(Object.hasOwn(alias.inputSchema.properties ?? {}, key), false);
     }
     async function call<T>(name: string, input: Record<string, unknown>): Promise<T> {
@@ -93,7 +93,7 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     const note = await call<typeof noteBefore>(aliases.note, newInput);
     assert.equal(note.replayed, false);
     assert.deepEqual(await call(aliases.note, newInput), { ...note, replayed: true });
-    const stored = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.board_id, input.goal_id, note.event_id));
+    const stored = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, note.event_id));
     assert.equal(stored.actor_id, auditActor); assert.equal(stored.actor_kind, "runtime");
     assert.equal((stored.payload as { body: string }).body, newInput.body);
     assert.ok(policies.includes(clientId), "policy receives the grant principal, never the historical author");
@@ -125,7 +125,7 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
       assert.equal(inspect.get(sessionId).current_goal_id, input.goal_id);
       assert.equal(inspect.events(sessionId).filter(event => event.source_id === `${aliases.note}:after-migration`).length, 1);
     } finally { inspect.close(); }
-    for (const field of ["actor_id", "audit_actor_id", "runtime_session_id", "database_path", "board_id"]) {
+    for (const field of ["actor_id", "audit_actor_id", "runtime_session_id", "database_path", "project_id"]) {
       assert.equal((await sdk.callTool({ name: aliases.note, arguments: { ...newInput, [field]: "forged" } })).isError, true);
     }
     const caller = { actor_id: clientId, project_id: project.project_id, audience: "mcp" as const, permissions: [] };
@@ -138,7 +138,7 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     release!(); assert.equal((await pending).isError, true); pending = undefined; gate = undefined;
     const afterRevoke = await names();
     assert.equal(afterRevoke.includes(aliases.note), false); assert.equal(afterRevoke.includes(hostActionToolName(goalsActions.note)), false);
-    const events = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.board_id, input.goal_id));
+    const events = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 2);
     const stateView = (await host.inspectActions(caller, ref)).find(view => view.capability_id === goalsActions.state.capability_id)!;
     await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, stateView, false));
@@ -150,10 +150,10 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     assert.ok(withoutState.includes(aliases.event), "revoking state does not revoke a separately granted event query");
     // In production these are separate processes on the same resident service; in one process they share its Host (one Runtime owner per Home).
     const other = new LocalMcpServer(withCatalog, "runtime", { projectId: project.project_id, databasePath: project.database_path,
-      boardId: project.board_id, webBaseUrl: origin }, { homeDirectory: home, runtimeContext: { ...context, runtime_id: "stranger" } }, host, origin);
+      webBaseUrl: origin }, { homeDirectory: home, runtimeContext: { ...context, runtime_id: "stranger" } }, host, origin);
     try { await assert.rejects(other.callTool(aliases.list, {}), { code: "mcp.tool_unknown" }, "a client without grants is not shown the action"); } finally { await other.close(); }
     const management = new LocalMcpServer(withCatalog, "management", { projectId: project.project_id, databasePath: project.database_path,
-      boardId: project.board_id, webBaseUrl: origin }, { homeDirectory: home, runtimeContext: context }, host, origin);
+      webBaseUrl: origin }, { homeDirectory: home, runtimeContext: context }, host, origin);
     try {
       assert.ok(JSON.parse(await management.callTool(aliases.list, {})).goals.some((goal: { goal_id: string }) => goal.goal_id === input.goal_id));
       await assert.rejects(management.callTool(aliases.create, { ...input, database_path: project.database_path, actor_id: "user" }), { code: "actions.input_invalid" });

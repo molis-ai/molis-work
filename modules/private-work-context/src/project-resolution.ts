@@ -128,7 +128,6 @@ export function boundResolution(
     project: { project_id: project.project_id, display_name: project.display_name },
     connection: {
       project_id: project.project_id,
-      board_id: project.board_id,
       database_path: project.database_path,
     },
     suggested_projects: [],

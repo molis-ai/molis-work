@@ -8,6 +8,7 @@ import type {
   FormRecord,
   FormStatus,
   FormSubmissionRecord,
+  FormSubmissionSource,
 } from "@molis-ai/molis-work-contracts/modules/form";
 import { FormError } from "./error.js";
 import { FORM_ANSWER_FORMAT } from "./fillpage.js";
@@ -34,10 +35,10 @@ interface SubmissionRow {
   form_id: string;
   answers_json: string;
   submitted_at: string;
-  form_version: number | null;
-  questions_json: string | null;
+  form_version: number;
+  questions_json: string;
   request_id: string | null;
-  source: string | null;
+  source: string;
 }
 
 const QUESTION_TYPES: readonly FormQuestionType[] = [
@@ -181,7 +182,8 @@ export class FormStore {
           const questions = normalizeQuestions(Array.isArray(parsed.questions) ? parsed.questions as FormQuestionInput[] : []);
           const answers = normalizeAnswers(questions, (parsed.answers && typeof parsed.answers === "object" ? parsed.answers : {}) as Record<string, string>);
           const at = typeof parsed.submitted_at === "string" && Number.isFinite(Date.parse(parsed.submitted_at)) ? new Date(parsed.submitted_at).toISOString() : new Date().toISOString();
-          const version = Number.isSafeInteger(parsed.form_version) ? Number(parsed.form_version) : null;
+          if (!Number.isSafeInteger(parsed.form_version) || Number(parsed.form_version) < 1) throw new FormError("form.invalid", "答卷缺少问卷版本");
+          const version = Number(parsed.form_version);
           this.db.prepare("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id, source) VALUES (?, ?, ?, ?, ?, ?, ?, 'file')")
             .run(crypto.randomUUID(), id, JSON.stringify(answers), at, version, JSON.stringify(questions), requestId);
           imported += 1;
@@ -256,7 +258,7 @@ export class FormStore {
         const existing = this.db.prepare("SELECT * FROM submissions WHERE form_id = ? AND request_id = ?").get(id, options.requestId) as SubmissionRow | undefined;
         if (existing) {
           const prior = submissionFromRow(existing);
-          const normalized = normalizeAnswers(prior.questions ?? form.questions, answers);
+          const normalized = normalizeAnswers(prior.questions, answers);
           if (options.expectedVersion !== undefined && prior.form_version !== options.expectedVersion
             || Object.keys(normalized).some(key => prior.answers[key] !== normalized[key]))
             throw new FormError("form.request_conflict", "这次提交已保存为其他内容，请重新填写后提交");
@@ -335,7 +337,7 @@ export class FormStore {
  * The form store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version. Columns keep the order existing stores have them in.
  */
-export const FORM_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const FORM_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
   CREATE TABLE forms (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -356,10 +358,10 @@ export const FORM_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
     form_id TEXT NOT NULL,
     answers_json TEXT NOT NULL,
     submitted_at TEXT NOT NULL,
-    form_version INTEGER,
-    questions_json TEXT,
+    form_version INTEGER NOT NULL,
+    questions_json TEXT NOT NULL,
     request_id TEXT,
-    source TEXT
+    source TEXT NOT NULL
   );
   CREATE UNIQUE INDEX submissions_request ON submissions (form_id, request_id) WHERE request_id IS NOT NULL;
   CREATE TABLE form_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
@@ -391,8 +393,7 @@ function fromRow(row: FormRow): FormRecord {
 
 function submissionFromRow(row: SubmissionRow): FormSubmissionRecord {
   return { id: row.id, form_id: row.form_id, answers: JSON.parse(row.answers_json), submitted_at: row.submitted_at,
-    form_version: row.form_version ?? null, questions: row.questions_json ? JSON.parse(row.questions_json) : null,
-    source: row.source === "fill" || row.source === "file" ? row.source : "preview" };
+    form_version: row.form_version, questions: JSON.parse(row.questions_json) as FormQuestion[], source: row.source as FormSubmissionSource };
 }
 
 function normalizeProjectId(value: string): string {

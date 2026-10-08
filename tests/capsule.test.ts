@@ -12,7 +12,7 @@ const PROJECT = { project_id: "project-capsule", display_name: "胶囊测试" };
 function goal(goalId: string, title: string, fulfillmentState: "unmet" | "satisfied" = "unmet"): GoalRecord {
   return {
     goal_id: goalId,
-    board_id: "board-capsule",
+    project_id: "board-capsule",
     title,
     outcome: `${title}有明确结果`,
     why: `为了验证${title}`,
@@ -122,15 +122,7 @@ function webGoal(
     input_bindings: [],
     policy_bindings: [],
     events: [],
-    resolved_policy: {
-      goal_mode: "disabled",
-      required_capabilities: [],
-      self_verification: false,
-      cross_reviewers: 0,
-      adversarial_reviewers: 0,
-      human_approval: false,
-      max_lease_seconds: 1800,
-    },
+    resolved_policy: { human_approval: false },
     ...options,
   };
 }
@@ -139,7 +131,7 @@ function view(goals: WebGoalView[], activeGoalId: string | null): MolisWorkWebVi
   return {
     snapshot: {
       board: {
-        board_id: "",
+        project_id: "",
         title: "胶囊测试",
         active_goal_id: activeGoalId,
         created_at: "2026-08-24T08:00:00.000Z",

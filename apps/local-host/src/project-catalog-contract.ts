@@ -1,4 +1,4 @@
-export const CATALOG_SCHEMA_VERSION = 20;
+export const CATALOG_SCHEMA_VERSION = 21;
 export const CATALOG_OWNER = "molis-work-project-catalog-v1";
 
 export function isOwnedCatalogOwner(owner: string | null | undefined): boolean {
@@ -20,7 +20,7 @@ export class MolisWorkProjectCatalogError extends Error {
       | "catalog.reader_too_old"
       | "catalog.invalid_name"
       | "catalog.project_not_found"
-      | "catalog.legacy_invalid"
+      | "catalog.database_invalid"
       | "catalog.project_storage_invalid"
       | "catalog.delete_confirmation_required"
       | "catalog.deletion_idempotency_conflict"

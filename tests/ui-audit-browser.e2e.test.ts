@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const SHOTS = "/tmp/molis-ui-audit-2026-09-22";
@@ -16,7 +16,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: browser.homeDirectory });
   catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "feed", actor_id: "ui-audit" });
   catalog.close();
-  const source = createLocalFeedSourceService(browser.store.db, DEMO_BOARD_ID).register({ kind: "web_query", query: "界面修复" }).source;
+  const source = createLocalFeedSourceService(browser.store.db, DEMO_PROJECT_ID).register({ kind: "web_query", query: "界面修复" }).source;
   const item = createLocalFeedApplication(browser.store.db).ingestItem({
     source,
     externalId: "ui-audit-title",

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_BOARD_ID, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { isPlatformMcpTool } from "@molis-ai/molis-work-app-mcp";
 import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
@@ -113,7 +113,7 @@ test("catalog rejects GoalBoard owner", async () => {
 });
 
 test("demo board id is the current product id", () => {
-  assert.equal(DEMO_BOARD_ID, "molis-work-v1-demo");
+  assert.equal(DEMO_PROJECT_ID, "molis-work-v1-demo");
 });
 
 test("legacy MCP tool names are not current tools", () => {

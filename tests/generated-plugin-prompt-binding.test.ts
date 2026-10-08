@@ -11,7 +11,7 @@ import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { resetSecretStoreCache } from '@molis-ai/molis-work-storage';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
-import { seedDemoBoard, DEMO_BOARD_ID } from '../apps/local-host/src/demo-seed.js';
+import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/src/installed-plugin-host.js';
 import { STABLE_PREVIEW, studioStorage } from '../apps/local-host/src/plugin-builder/storage.js';
 import { buildManifest } from '../apps/local-host/src/plugin-builder/build-project.js';
@@ -45,7 +45,7 @@ test('installed and authoring model calls bind their own release through the rea
   const unbind = bindPrologueInference(home, adapter.inference);
   const stores: LocalProjectDatabase[] = [];
   t.after(async () => {
-    for (const store of stores) { await releaseInstalledPlugins(store, DEMO_BOARD_ID); store.close(); }
+    for (const store of stores) { await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); }
     unbind(); await adapter.close(); catalog.close(); server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve())); resetSecretStoreCache();
     if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior;
@@ -55,7 +55,7 @@ test('installed and authoring model calls bind their own release through the rea
     const databasePath = join(home, id + '.sqlite'); seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath); stores.push(store);
     const service = new ActionService();
-    return { store, service, actions: { registry: service, client: service, project_id: id }, builder: new AgentBuilderStore(studioStorage(store.db, DEMO_BOARD_ID)) };
+    return { store, service, actions: { registry: service, client: service, project_id: id }, builder: new AgentBuilderStore(studioStorage(store.db, DEMO_PROJECT_ID)) };
   };
   const a = project('project-a'), b = project('project-b'), draft = a.builder.create('Prompt binding fixture');
   const pluginId = 'io.molis.work.generated.' + draft.id, directory = join(home, 'build');
@@ -73,8 +73,8 @@ test('installed and authoring model calls bind their own release through the rea
   const v2: AgentRelease = { ...v1, version: 2, prompts: [{ ...v1.prompts![0]!, body: 'RELEASE_TWO' }, { id: 'new-only', title: 'New', purpose: 'p', body: 'NEW_ONLY' }] };
   a.builder.update(draft.id, draft.revision, build => { build.directory = directory; build.design = v1.design; });
   a.builder.release(v1); b.builder.release(v1); b.builder.release(v2);
-  const one = await ensureInstalledPlugins({ store: a.store, boardId: DEMO_BOARD_ID, homeDirectory: home, actions: a.actions });
-  const two = await ensureInstalledPlugins({ store: b.store, boardId: DEMO_BOARD_ID, homeDirectory: home, actions: b.actions });
+  const one = await ensureInstalledPlugins({ store: a.store, projectId: DEMO_PROJECT_ID, homeDirectory: home, actions: a.actions });
+  const two = await ensureInstalledPlugins({ store: b.store, projectId: DEMO_PROJECT_ID, homeDirectory: home, actions: b.actions });
   await one.lifecycle('install', v1, { consent: true }); await two.lifecycle('install', v2, { consent: true });
   const invoke = (p: typeof a, version: number, prompt = 'summary') => p.service.invoke({ actor_id: 'person', audience: 'user', project_id: p.actions.project_id, permissions: [] },
     { capability_id: exposedActionId(v1, 'generate'), version, provider_id: 'plugin:' + pluginId }, prompt);
@@ -85,8 +85,8 @@ test('installed and authoring model calls bind their own release through the rea
   assert.equal(systems.length, calls, 'another installed version cannot authorize a prompt absent from this release');
   const registry = agentDefinitionsFor(home, builtinRegistrations), key = pluginId + '/summary';
   registry.save(key, 'PERSONAL_EDIT', null, 'person');
-  const preview = one.capabilityFor(v1.design, () => true);
-  const previewContext = { identity: { projectId: DEMO_BOARD_ID, pluginId, installationId: STABLE_PREVIEW + draft.id, namespace: 'preview' as const }, signal: new AbortController().signal };
+  const preview = one.capabilityFor(() => true);
+  const previewContext = { identity: { projectId: DEMO_PROJECT_ID, pluginId, installationId: STABLE_PREVIEW + draft.id, namespace: 'preview' as const }, signal: new AbortController().signal };
   assert.deepEqual(await preview.call(previewContext, 'model.generate', { prompt: 'summary', input: 'material' }), { text: 'GENERATED' });
   assert.match(systems.at(-1)!, /AUTHORING_DEFAULT/); assert.doesNotMatch(systems.at(-1)!, /RELEASE_ONE|RELEASE_TWO|PERSONAL_EDIT/);
   assert.equal(await invoke(a, 1), 'GENERATED'); assert.match(systems.at(-1)!, /PERSONAL_EDIT/);

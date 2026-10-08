@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { molisWorkHostProjectReference, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineHomeEventsAction, defineSubjectContextAction, subjectContext, defineSubjectOffersAction } from "../packages/plugin-sdk/src/index.js";
 import type { ActionDefinition, SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -12,7 +12,7 @@ test("an unknown plugin owns its Home event, context and real action; failure an
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
   const { localHost, store, projectId, command, sessionId, evaluate, waitFor, click, navigate, origin, reloadPage } = browser;
   assert.ok(localHost); assert.ok(projectId);
-  const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, boardId: DEMO_BOARD_ID, projectId });
+  const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   store.db.exec("CREATE TABLE fixture_home_notes (id TEXT PRIMARY KEY, content TEXT, done INTEGER, revision INTEGER)");
   store.db.prepare("INSERT INTO fixture_home_notes VALUES (?, ?, 0, 1)").run("own-note", "插件自己的原始记录");
   const read = () => store.db.prepare("SELECT content, done, revision FROM fixture_home_notes WHERE id = ?").get("own-note") as { content: string; done: number; revision: number };

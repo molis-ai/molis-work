@@ -16,7 +16,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { RawEventAdapter } from "@molis-ai/molis-work-contracts/services/listener-host";
 
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 function rawEvent(id: string, cursorAfter?: unknown): ConnectorRawEvent {
@@ -55,7 +55,7 @@ function createSource(store: LocalProjectDatabase): string {
   const now = "2026-09-02T08:00:00.000Z";
   const sourceId = "source-fd1-fixture";
   new SourcesModule(store.db).commands.save({
-    project_id: DEMO_BOARD_ID,
+    project_id: DEMO_PROJECT_ID,
     source_id: sourceId,
     kind: "fixture",
     definition_id: "fixture",
@@ -98,11 +98,11 @@ test("Listener refusal after accepting a Signal preserves that receipt but canno
     const listener = new ListenerHost(store.db, connectorWith(driver), signals.commands, {
       afterSignalAccepted: async () => { entered.resolve(); await release.promise; },
     });
-    const input = { project_id: DEMO_BOARD_ID, source_id: sourceId, connection_id: "fixture-connection", operation_id: "listener-authority-1", adapter: adapter(),
+    const input = { project_id: DEMO_PROJECT_ID, source_id: sourceId, connection_id: "fixture-connection", operation_id: "listener-authority-1", adapter: adapter(),
       beforeEffect: async () => { if (!allowed) throw new ActionError("actions.revoked", "Revoked"); } };
     const pending = listener.run(input), rejected = assert.rejects(pending, { code: "actions.revoked" });
     await entered.promise;
-    const state = () => ({ signals: signals.query.list(DEMO_BOARD_ID, sourceId), run: listener.getRunByOperationId(DEMO_BOARD_ID, input.operation_id),
+    const state = () => ({ signals: signals.query.list(DEMO_PROJECT_ID, sourceId), run: listener.getRunByOperationId(DEMO_PROJECT_ID, input.operation_id),
       deliveries: store.db.prepare("SELECT * FROM listener_deliveries WHERE source_id = ?").all(sourceId),
       checkpoint: store.db.prepare("SELECT cursor_json, state, attempt, retry_at, last_error_code, updated_at FROM listener_instances WHERE source_id = ?").get(sourceId) });
     const before = state(); assert.equal(before.signals.length, 1);
@@ -111,8 +111,8 @@ test("Listener refusal after accepting a Signal preserves that receipt but canno
     allowed = true;
     const restarted = new ListenerHost(store.db, connectorWith(driver), new SignalsModule(store.db).commands);
     assert.equal((await restarted.run(input)).outcome, "completed");
-    assert.equal(signals.query.list(DEMO_BOARD_ID, sourceId).length, 1);
-    assert.deepEqual(restarted.checkpoint(DEMO_BOARD_ID, sourceId).cursor, { page: 1 });
+    assert.equal(signals.query.list(DEMO_PROJECT_ID, sourceId).length, 1);
+    assert.deepEqual(restarted.checkpoint(DEMO_PROJECT_ID, sourceId).cursor, { page: 1 });
     assert.equal((await restarted.run(input)).replayed, true);
   } finally { release.resolve(); store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
@@ -125,7 +125,7 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
     const store = new LocalProjectDatabase(databasePath);
     try {
       const sourceId = createSource(store);
-      assert.equal(new SourcesModule(store.db).events.list(DEMO_BOARD_ID, sourceId).at(-1)?.type, "source.created");
+      assert.equal(new SourcesModule(store.db).events.list(DEMO_PROJECT_ID, sourceId).at(-1)?.type, "source.created");
       let polls = 0;
       const driver: ConnectorDriver = {
         driver_id: "fixture-driver",
@@ -149,7 +149,7 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
       );
       await assert.rejects(
         firstListener.run({
-          project_id: DEMO_BOARD_ID,
+          project_id: DEMO_PROJECT_ID,
           source_id: sourceId,
           connection_id: "fixture-connection",
           operation_id: "fd1-operation-recovery",
@@ -158,9 +158,9 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
         (error: unknown) => error instanceof ListenerHostError
           && error.code === "listener_delivery_failed",
       );
-      assert.deepEqual(firstListener.checkpoint(DEMO_BOARD_ID, sourceId).cursor, {});
-      assert.equal(firstSignals.query.list(DEMO_BOARD_ID, sourceId).length, 1);
-      assert.equal(firstListener.getRunByOperationId(DEMO_BOARD_ID, "fd1-operation-recovery")?.phase, "interrupted");
+      assert.deepEqual(firstListener.checkpoint(DEMO_PROJECT_ID, sourceId).cursor, {});
+      assert.equal(firstSignals.query.list(DEMO_PROJECT_ID, sourceId).length, 1);
+      assert.equal(firstListener.getRunByOperationId(DEMO_PROJECT_ID, "fd1-operation-recovery")?.phase, "interrupted");
 
       const restartedSignals = new SignalsModule(store.db);
       const restartedListener = new ListenerHost(
@@ -169,7 +169,7 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
         restartedSignals.commands,
       );
       const recovered = await restartedListener.run({
-        project_id: DEMO_BOARD_ID,
+        project_id: DEMO_PROJECT_ID,
         source_id: sourceId,
         connection_id: "fixture-connection",
         operation_id: "fd1-operation-recovery",
@@ -178,11 +178,11 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
       assert.equal(recovered.phase, "terminal");
       assert.equal(recovered.recovery_count, 1);
       assert.equal(recovered.created_count, 2);
-      assert.deepEqual(restartedListener.checkpoint(DEMO_BOARD_ID, sourceId).cursor, { page: 2 });
-      assert.equal(restartedSignals.query.list(DEMO_BOARD_ID, sourceId).length, 2);
+      assert.deepEqual(restartedListener.checkpoint(DEMO_PROJECT_ID, sourceId).cursor, { page: 2 });
+      assert.equal(restartedSignals.query.list(DEMO_PROJECT_ID, sourceId).length, 2);
 
       const replay = await restartedListener.run({
-        project_id: DEMO_BOARD_ID,
+        project_id: DEMO_PROJECT_ID,
         source_id: sourceId,
         connection_id: "fixture-connection",
         operation_id: "fd1-operation-recovery",
@@ -207,21 +207,21 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
         restartedSignals.commands,
       );
       await revisionListener.run({
-        project_id: DEMO_BOARD_ID,
+        project_id: DEMO_PROJECT_ID,
         source_id: sourceId,
         connection_id: "fixture-connection",
         operation_id: "fd1-operation-revision",
         adapter: adapter(),
       });
-      const revised = restartedSignals.query.list(DEMO_BOARD_ID, sourceId)
+      const revised = restartedSignals.query.list(DEMO_PROJECT_ID, sourceId)
         .find((signal) => signal.provider_dedupe_id === "two");
       assert.equal(revised?.revision, 2);
-      assert.equal(restartedSignals.query.list(DEMO_BOARD_ID, sourceId).length, 2);
+      assert.equal(restartedSignals.query.list(DEMO_PROJECT_ID, sourceId).length, 2);
       assert.deepEqual(
-        restartedSignals.events.list(DEMO_BOARD_ID, sourceId).map((event) => event.type),
+        restartedSignals.events.list(DEMO_PROJECT_ID, sourceId).map((event) => event.type),
         ["signal.accepted", "signal.accepted", "signal.changed"],
       );
-      assert.deepEqual(revisionListener.checkpoint(DEMO_BOARD_ID, sourceId).cursor, { page: 3 });
+      assert.deepEqual(revisionListener.checkpoint(DEMO_PROJECT_ID, sourceId).cursor, { page: 3 });
 
       const sourceColumns = (store.db.pragma("table_info(feed_sources)") as Array<{ name: string }>).map((column) => column.name);
       assert.equal(sourceColumns.includes("cursor_json"), false, "the Source table holds no cursor; Listener Host owns it");
@@ -260,7 +260,7 @@ test("Listener lease prevents two callers from consuming one Source concurrently
         new SignalsModule(store.db).commands,
       );
       const first = listener.run({
-        project_id: DEMO_BOARD_ID,
+        project_id: DEMO_PROJECT_ID,
         source_id: sourceId,
         connection_id: "fixture-connection",
         operation_id: "fd1-lease-first",
@@ -269,7 +269,7 @@ test("Listener lease prevents two callers from consuming one Source concurrently
       await started;
       await assert.rejects(
         listener.run({
-          project_id: DEMO_BOARD_ID,
+          project_id: DEMO_PROJECT_ID,
           source_id: sourceId,
           connection_id: "fixture-connection",
           operation_id: "fd1-lease-second",
@@ -321,7 +321,7 @@ test("repeated Adapter failure quarantines the Raw Event without polling past it
         toSignalDraft() { throw new Error("poison event"); },
       };
       const run = () => listener.run({
-        project_id: DEMO_BOARD_ID,
+        project_id: DEMO_PROJECT_ID,
         source_id: sourceId,
         connection_id: "fixture-connection",
         operation_id: "fd1-operation-quarantine",
@@ -332,8 +332,8 @@ test("repeated Adapter failure quarantines the Raw Event without polling past it
         && error.code === "listener_delivery_failed");
       await assert.rejects(run(), (error: unknown) => error instanceof ListenerHostError
         && error.code === "listener_delivery_quarantined");
-      assert.equal(listener.checkpoint(DEMO_BOARD_ID, sourceId).state, "quarantined");
-      assert.deepEqual(listener.checkpoint(DEMO_BOARD_ID, sourceId).cursor, {});
+      assert.equal(listener.checkpoint(DEMO_PROJECT_ID, sourceId).state, "quarantined");
+      assert.deepEqual(listener.checkpoint(DEMO_PROJECT_ID, sourceId).cursor, {});
       await assert.rejects(run(), (error: unknown) => error instanceof ListenerHostError
         && error.code === "listener_delivery_quarantined");
       assert.equal(polls, 1, "quarantined delivery must block further Provider polling");
@@ -360,15 +360,15 @@ for (const fail of [false, true]) test(`Listener revocation during a provider ${
         return { ok: true, mode: "live", events: [rawEvent("guarded", { page: 1 })], cursor_after: { page: 1 } };
       } };
     const listener = new ListenerHost(store.db, connectorWith(driver), signals.commands);
-    const input = { project_id: DEMO_BOARD_ID, source_id: source, connection_id: "fixture-connection", operation_id: "guarded-operation", adapter: adapter(),
+    const input = { project_id: DEMO_PROJECT_ID, source_id: source, connection_id: "fixture-connection", operation_id: "guarded-operation", adapter: adapter(),
       beforeEffect: async () => { if (!allowed) throw Object.assign(new Error("Revoked"), { code: "fixture.revoked" }); } };
     const pending = listener.run(input), rejected = assert.rejects(pending, { code: "fixture.revoked" });
     await entered.promise;
-    const before = listener.getRunByOperationId(DEMO_BOARD_ID, input.operation_id);
+    const before = listener.getRunByOperationId(DEMO_PROJECT_ID, input.operation_id);
     allowed = false; release.resolve(); await rejected;
-    assert.deepEqual(listener.getRunByOperationId(DEMO_BOARD_ID, input.operation_id), before);
+    assert.deepEqual(listener.getRunByOperationId(DEMO_PROJECT_ID, input.operation_id), before);
     assert.equal(store.db.prepare("SELECT count(*) AS n FROM listener_deliveries WHERE source_id = ?").get(source)!.n, 0);
-    assert.deepEqual(listener.checkpoint(DEMO_BOARD_ID, source).cursor, {});
+    assert.deepEqual(listener.checkpoint(DEMO_PROJECT_ID, source).cursor, {});
     allowed = true; pause = false;
     const recovery = await listener.run(input);
     assert.equal(recovery.outcome, "completed");

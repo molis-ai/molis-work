@@ -9,7 +9,7 @@ import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 
 export interface WebViewOptions {
-  databasePath: string; boardId: string; demo?: boolean; projectRoot?: string;
+  databasePath: string; projectId: string; demo?: boolean; projectRoot?: string;
   project?: WebProjectNavigation | null; projects?: WebProjectNavigation[]; routePrefix?: string;
   homeDirectory?: string;
 }
@@ -37,7 +37,7 @@ export async function optionalPluginQuery<I, O>(actions: BoundActionClient, defi
 export function buildMolisWorkWebView(_store: LocalProjectDatabase, collection: GoalsDocumentCollectionView, options: WebViewOptions, projection: PluginProjection = { feed: emptyFeed() }): MolisWorkWebView {
   return {
     snapshot: options.project
-      ? { ...collection.snapshot, board: { ...collection.snapshot.board, board_id: "" } }
+      ? { ...collection.snapshot, board: { ...collection.snapshot.board, project_id: "" } }
       : collection.snapshot,
     project: options.project ?? null, projects: options.projects ?? [],
     route_prefix: options.routePrefix ?? "", demo: Boolean(options.demo),
@@ -59,7 +59,7 @@ export async function cachedMolisWorkWebView(
   const collection = await actions.invoke(goalsActions.collection, {});
   const cursor = collection.snapshot.cursor;
   const optionsFingerprint = JSON.stringify({
-    board_id: options.boardId,
+    project_id: options.projectId,
     locale: currentLocale(),
     demo: Boolean(options.demo),
     project_root: options.projectRoot ?? "",

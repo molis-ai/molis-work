@@ -10,10 +10,10 @@ export interface InstalledOperationCaller {
 }
 const callers = new WeakMap<ScheduleSqliteDatabase, Map<string, { caller: InstalledOperationCaller; controller: AbortController }>>();
 
-export function hostScheduledOperationManagement(options: { db: ScheduleSqliteDatabase; boardId: string; schedule: ScheduleService; now?(): Date }) {
+export function hostScheduledOperationManagement(options: { db: ScheduleSqliteDatabase; projectId: string; schedule: ScheduleService; now?(): Date }) {
   const repository = new SqlitePluginRuntimeRepository(options.db);
   return createScheduledOperationManagement({ ...options, currentInstallation(pluginId) {
-    const entry = callers.get(options.db)?.get(options.boardId), target = entry?.caller.describe(pluginId);
+    const entry = callers.get(options.db)?.get(options.projectId), target = entry?.caller.describe(pluginId);
     if (!target || entry?.controller.signal.aborted) return null;
     const records = repository.list().filter(record => record.plugin_id === pluginId && record.state === 'running');
     const record = records.length === 1 ? records[0] : null;
@@ -23,11 +23,11 @@ export function hostScheduledOperationManagement(options: { db: ScheduleSqliteDa
 }
 
 /** Binding an executor performs no work. Only a fresh Scheduler claim can dispatch a persisted occurrence. */
-export function bindInstalledOperationCaller(db: ScheduleSqliteDatabase, boardId: string, caller: InstalledOperationCaller): () => void {
+export function bindInstalledOperationCaller(db: ScheduleSqliteDatabase, projectId: string, caller: InstalledOperationCaller): () => void {
   const boards = callers.get(db) ?? new Map(); callers.set(db, boards);
-  boards.get(boardId)?.controller.abort(new Error("Installed caller replaced"));
-  const entry = { caller, controller: new AbortController() }; boards.set(boardId, entry);
-  return () => { entry.controller.abort(new Error("Installed caller stopped")); if (boards.get(boardId) === entry) boards.delete(boardId); };
+  boards.get(projectId)?.controller.abort(new Error("Installed caller replaced"));
+  const entry = { caller, controller: new AbortController() }; boards.set(projectId, entry);
+  return () => { entry.controller.abort(new Error("Installed caller stopped")); if (boards.get(projectId) === entry) boards.delete(projectId); };
 }
 
 /** Runtime supplies identity, the installed owner supplies execution, and Inbox remains a same-db Host port. */
@@ -39,12 +39,12 @@ export function runHostScheduledOperation(db: ScheduleSqliteDatabase, input: Sch
       return !!record && record.plugin_id === run.pluginId && record.state !== "uninstalled" && record.installation_generation === run.installationGeneration;
     },
     executor(run) {
-      const entry = callers.get(db)?.get(run.boardId), target = entry?.caller.describe(run.pluginId);
+      const entry = callers.get(db)?.get(run.projectId), target = entry?.caller.describe(run.pluginId);
       if (!entry || !target) return null;
       const beforeEffect = () => {
         entry.controller.signal.throwIfAborted();
         const current = entry.caller.describe(run.pluginId);
-        if (callers.get(db)?.get(run.boardId) !== entry || !current || current.installationId !== run.installationId || current.generation !== run.installationGeneration
+        if (callers.get(db)?.get(run.projectId) !== entry || !current || current.installationId !== run.installationId || current.generation !== run.installationGeneration
           || current.version !== target.version) throw new Error("定时操作的安装执行入口已改变");
       };
       return { signal: entry.controller.signal, beforeEffect, invoke: async execution => {
@@ -55,8 +55,8 @@ export function runHostScheduledOperation(db: ScheduleSqliteDatabase, input: Sch
     },
     deliver(run, dueAt, outcome, text) {
       const feed = createLocalFeedApplication(db as Parameters<typeof createLocalFeedApplication>[0]), stamp = new Date().toISOString();
-      const source = feed.snapshot(run.boardId).sources.find(item => item.source_id === "plugin-runs") ?? feed.upsertSource({
-        board_id: run.boardId, source_id: "plugin-runs", kind: "plugin", definition_id: null, sync_kind: "manual",
+      const source = feed.snapshot(run.projectId).sources.find(item => item.source_id === "plugin-runs") ?? feed.upsertSource({
+        project_id: run.projectId, source_id: "plugin-runs", kind: "plugin", definition_id: null, sync_kind: "manual",
         name: "插件定时执行", description: "你安装的插件按时自动运行的结果", status: "active", enabled: true, origin: "molis_work",
         config: {}, schedule: { mode: "manual" }, credential_ref: null, account_label: null, last_sync_at: null,
         last_outcome: null, last_error_code: null, imported_at: stamp, updated_at: stamp, item_count: 0, cursor: null,

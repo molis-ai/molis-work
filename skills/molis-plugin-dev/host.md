@@ -54,7 +54,7 @@ Inbox 的显式判断与 Feed 入箱事件已这样接通，参考 `plugins/nati
 
 要让用户在系统判断编辑器里直接启用，场景声明 `configuration_permissions` 并提供 `targets(caller)`，返回原配置位置、名称、链接和 revision。系统绑定会携带准确场景提供方及 `expected_revision`，原 `bind` 必须在同一存储中原子核对；null 只代表业务已提供但尚未绑定的固定位置。发现过程不新建规则，停用保留原引用。仅启用所需的额外权限用 `activation_permissions` 声明，详见 SDK。
 
-迁移边界：Home、Inbox、Feed、工作流、角色与内置 Agent 及系统规则编辑器都经同一目录和共同场景；插件清单里的 `behaviors` 已全部移除。不要复制 `function_scenes` 名单或 `requires: functions.evaluate` 作为新接入方法。各消费者的现状与证据见迁移清单。
+迁移边界：Home、Inbox、Feed、工作流、角色与内置 Agent 及系统规则编辑器都经同一目录和共同场景；Manifest 不再有 `behaviors`、`function_scenes`、`judgment_subjects`；不要用 `requires: functions.evaluate` 作为接入方法。各消费者的现状与证据见迁移清单。
 
 ## 接到插件事件总线
 

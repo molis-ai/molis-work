@@ -248,7 +248,7 @@ test("Feed comes in place: its pages fill, its source directory joins the direct
   const b = await openPicker(t);
   if (!b) return;
   // A project's Feed has no sources until some are added; two public ones for its directory to list, page and filter away.
-  const sources = createLocalFeedSourceService(b.store.db, b.store.goalsQuery.listBoardIds()[0]!);
+  const sources = createLocalFeedSourceService(b.store.db, b.store.goalsQuery.listProjectIds()[0]!);
   sources.register({ kind: "web_query", query: "进场" });
   sources.register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "plugin-picker" });
   const { evaluate, press, settled, stayed, waitFor, click } = b;

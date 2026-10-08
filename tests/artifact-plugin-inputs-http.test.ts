@@ -22,14 +22,14 @@ test("a Coding report in the 成果库 can be given to Shelf's report input and 
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string"); const origin = `http://127.0.0.1:${address.port}`;
-  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, project.board_id); store.close(); rmSync(home, { recursive: true, force: true }); });
+  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, project.project_id); store.close(); rmSync(home, { recursive: true, force: true }); });
   const post = async (path: string, body: unknown, authorized = true) => {
     const response = await fetch(origin + prefix + path, { method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(),
       ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify(body) });
     return { status: response.status, body: await response.json().catch(() => null) as any };
   };
   const reference = { artifact_id: "coding-report:session:run", version: 1 };
-  app.artifacts.commands.registerVersion({ ...pinnedArtifact("固定的执行报告"), board_id: project.board_id, actor_id: "web-user", ...reference,
+  app.artifacts.commands.registerVersion({ ...pinnedArtifact("固定的执行报告"), project_id: project.project_id, actor_id: "web-user", ...reference,
     artifact_type_id: "coding.report.v1", schema_version: 1, producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.50.0", binding_signature: "official-coding-binding" },
     content: { kind: "inline", payload: { title: "固定的执行报告", run_id: "run", source: { session_id: "session" }, body_markdown: "## 报告" } } });
   // Opening a plugin's page starts the project's plugins, as the workbench would.

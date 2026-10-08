@@ -12,7 +12,8 @@ export interface McpContextPresentationPorts {
   connection: RuntimeProjectConnectionState;
   readGuidance(connection: ProjectConnection): Promise<ProjectGuidanceView>;
   readResumeFacts(connection: ProjectConnection, focusGoalIds: readonly string[]): Promise<McpResumeFacts>;
-  readSession(host: MolisWorkRuntimeContextHost, reconcileLegacy: boolean): Promise<RuntimeSessionReadResult>;
+  /** `boundProjectId`: the Runtime was just bound to this project; its binding's Session is written before the read. */
+  readSession(host: MolisWorkRuntimeContextHost, boundProjectId: string | null): Promise<RuntimeSessionReadResult>;
   createError: McpPresentationErrorFactory;
   contextSignal?(): AbortSignal;
 }
@@ -22,7 +23,7 @@ export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
   return async function presentResolution(
     resolution: MolisWorkRuntimeContextResolution,
     host: MolisWorkRuntimeContextHost,
-    reconcileLegacy: boolean = false,
+    bound: boolean = false,
   ): Promise<string> {
     const contextSignal = ports.contextSignal?.();
     const webBaseUrl = host.webBaseUrl ?? "http://127.0.0.1:4173";
@@ -34,8 +35,7 @@ export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
       ? { ...resolution.connection, web_base_url: webBaseUrl, project_url: projectUrl, goal_url_template: `${projectUrl}/goals/{goal_id}` }
       : null;
     ports.connection.accept(connection ? {
-      projectId: connection.project_id, databasePath: connection.database_path,
-      boardId: connection.board_id, webBaseUrl,
+      projectId: connection.project_id, databasePath: connection.database_path, webBaseUrl,
     } : null, host.runtimeContext);
     const accepted = ports.connection.connection;
     const checkContext = () => {
@@ -46,7 +46,7 @@ export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
     const guidance = connection ? await readOptional(() => ports.readGuidance(connection)) : { value: null };
     checkContext();
     const projectGuidance = guidance.value;
-    const { sessionRegistry, sessionGoalId } = await ports.readSession(host, reconcileLegacy);
+    const { sessionRegistry, sessionGoalId } = await ports.readSession(host, bound ? connection?.project_id ?? null : null);
     checkContext();
     const hostFocus = host.goalId?.trim() || null;
     const sessionFocus = sessionGoalId?.trim() || null;

@@ -4,15 +4,15 @@ import { FeedSourceScheduler, type FeedSourceSchedulerDispatch } from "@molis-ai
 import { createLocalFeedSourceService } from "./feed-source-service.js";
 
 export function createLocalFeedSourceScheduler(
-  db: SqliteDatabase, boardId: string,
+  db: SqliteDatabase, projectId: string,
   dispatch: FeedSourceSchedulerDispatch,
   now: () => Date = () => new Date(),
   homeDirectory?: string,
   feedOptions?: LocalFeedApplicationOptions,
 ): FeedSourceScheduler {
   return new FeedSourceScheduler(
-    boardId,
-    () => createLocalFeedSourceService(db, boardId, undefined, now, homeDirectory, feedOptions),
+    projectId,
+    () => createLocalFeedSourceService(db, projectId, undefined, now, homeDirectory, feedOptions),
     dispatch,
     now,
   );

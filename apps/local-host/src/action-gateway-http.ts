@@ -27,7 +27,7 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
     if (body.operation === "invoke" && body.instance_id !== instance) throw new ActionError("actions.host_replaced", "系统服务已重启，请重新发现能力");
     const projectId = body.project_id as string | null;
     const project = projectId ? await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId)) : null;
-    const reference = project ? molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path }) : undefined;
+    const reference = project ? molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) : undefined;
     const caller: ActionCallContext = { actor_id: body.client_id, project_id: projectId, audience: "mcp", permissions: [], signal: abort.signal,
       ...(body.runtime_session_id === undefined ? {} : { audit_actor_id: `${body.client_id}:${body.runtime_session_id}`, actor_kind: "runtime", runtime_session_id: body.runtime_session_id as string }) };
     const { context, service } = await authorizeMcpActions(host, caller, home, reference, () => {

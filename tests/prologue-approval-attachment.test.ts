@@ -94,7 +94,7 @@ const AUTHORITY = {
 
 function startRequest(roleId: string): AgentStartRequest {
   return {
-    board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user",
+    project_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user",
     session: { session_id: "session-1", runtime_id: "prologue" },
     task: "把重试次数改成 3",
     role_id: roleId,
@@ -142,7 +142,7 @@ test("挂上审批桥之后写入才算支持；命令不跟着变，因为回�
 
 test("没挂桥时改文件的角色被拒；挂上之后它才能起跑", async () => {
   const bare = adapterFor();
-  await bare.adapter.createSession({ board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
+  await bare.adapter.createSession({ project_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
   const withoutBridge = new AgentHost();
   withoutBridge.register(bare.adapter);
   await assert.rejects(
@@ -152,7 +152,7 @@ test("没挂桥时改文件的角色被拒；挂上之后它才能起跑", async
   );
 
   const wired = adapterFor(bridgeFor());
-  await wired.adapter.createSession({ board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
+  await wired.adapter.createSession({ project_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
   const host = new AgentHost();
   host.register(wired.adapter);
   const handle = await host.start("prologue", startRequest("writer"), AUTHORITY);
@@ -161,7 +161,7 @@ test("没挂桥时改文件的角色被拒；挂上之后它才能起跑", async
 
 test("要跑命令的角色，挂了桥也照样被拒——命令回执没有来源", async () => {
   const wired = adapterFor(bridgeFor());
-  await wired.adapter.createSession({ board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
+  await wired.adapter.createSession({ project_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
   const host = new AgentHost();
   host.register(wired.adapter);
   await assert.rejects(
@@ -178,7 +178,7 @@ test("Run 停下来等的副作用，会先出现在宿主审查队列里", asyn
     queue, pendings: ledger.port,
   });
   const { adapter, emit } = adapterFor(bridge);
-  await adapter.createSession({ board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
+  await adapter.createSession({ project_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
   const host = new AgentHost();
   host.register(adapter);
   // 经宿主起跑，角色才是冻结过的——adapter 自己不发明角色
@@ -225,7 +225,7 @@ test("command requires both review and receipts; capability overrides cannot wid
   assert.equal(bare.descriptor.capabilities.subagents, "unsupported");
   assert.equal(bare.descriptor.capabilities["command.receipts"], "supported");
   const adapter = make(bridgeFor());
-  const session = await adapter.createSession({ board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "执行检查" });
+  const session = await adapter.createSession({ project_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "执行检查" });
   const host = new AgentHost();host.register(adapter);
   const handle = await host.start("prologue", startRequest("builder"), AUTHORITY);
   double.emit({ type: "command-receipt", callId: "check", commandId: "command", effectRef: { kind: "effect", id: "e", revision: 1 }, receiptRef: { kind: "resource", id: "r", revision: 1 } });
@@ -246,7 +246,7 @@ test("a long command stops saying awaiting-review only after SDK accepts the dec
     const queue = new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00Z") });
     const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port });
     const { adapter, emit } = adapterFor(bridge);
-    await adapter.createSession({ board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "long command" });
+    await adapter.createSession({ project_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "long command" });
     const host = new AgentHost();host.register(adapter);
     const handle = await host.start("prologue", startRequest("writer"), AUTHORITY);
     emit({ type: "awaiting-approval", effectRef: ledger.pending.effectRef!, pendingRef: ledger.pending.ref, why: "waiting" });

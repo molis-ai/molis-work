@@ -47,7 +47,7 @@ test('packed SDK child dispatch uses Host review, frozen roles, actual reads and
   let adapter=await make();
   try{
     const host=new AgentHost({reviews:queue});host.register(adapter);
-    const owner={board_id:'b',plugin_id:'io.molis.work.coding',install_id:'i',actor_id:'user'},directory={canonical_path:root,realpath_verified:true};
+    const owner={project_id:'b',plugin_id:'io.molis.work.coding',install_id:'i',actor_id:'user'},directory={canonical_path:root,realpath_verified:true};
     const session=await adapter.createSession({...owner,directory,title:'Parent'});
     const handle=await host.start('prologue',{...owner,session,directory,role_id:'coordinator',task:'Delegate one read-only inspection.'},
       {manifest:codingAgentManifest,prompts:codingPrompts,authorizedDirectories:[root]});
@@ -96,7 +96,7 @@ for (const outcome of ['rejected','cancelled','failed','unknown-role'] as const)
   const queue=new AgentReviewQueue();const adapter=await createPrologueNodeAdapter({app:{appId:'io.molis.work.child-control-'+outcome,appVersion:'1.0.0'},storageRoot:join(root,'runtime'),reviewQueue:queue,
     modelConfiguration:async()=>({protocol:'anthropic-compatible',endpoint:'https://1.1.1.1/v1/messages',model:'fixture',credential_ref:'fixture'}),resolveCredential:()=> 'fixture'});
   try{
-    const host=new AgentHost({reviews:queue});host.register(adapter);const owner={board_id:'b',plugin_id:'io.molis.work.coding',install_id:'i',actor_id:'user'},directory={canonical_path:root,realpath_verified:true};
+    const host=new AgentHost({reviews:queue});host.register(adapter);const owner={project_id:'b',plugin_id:'io.molis.work.coding',install_id:'i',actor_id:'user'},directory={canonical_path:root,realpath_verified:true};
     const session=await adapter.createSession({...owner,directory,title:'Parent'});
     const handle=await host.start('prologue',{...owner,session,directory,role_id:'coordinator',task:'Inspect through a child.'},{manifest:codingAgentManifest,prompts:codingPrompts,authorizedDirectories:[root]});
     const deadline=Date.now()+15_000,decided=new Set<string>();let cancelled=false;

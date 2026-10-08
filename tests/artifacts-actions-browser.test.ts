@@ -45,7 +45,7 @@ test("actual Artifact import, fixed version, Goal embed and disabled reader surv
     const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(`${REVIEW_EVIDENCE}/action-service/artifacts/read-${width}.png`, Buffer.from(screenshot.data, "base64"));
   }
-  const board = store.goalsQuery.listBoardIds()[0]!, scope = { kind: "personal" as const, id: board };
+  const board = store.goalsQuery.listProjectIds()[0]!, scope = { kind: "personal" as const, id: board };
   const ledger = createContextLedger(store.db, { authorize: () => true });
   ledger.commands.put({ actor_id: "browser-owner", scope }, { key: "artifact-action-input", type: "goal.input", cause: "Explicit browser fixture",
     source: { module: "goals", id: "V1", version: null, scope }, target: { module: "artifacts", id: exact!.artifact_id, version: exact!.version, scope } });

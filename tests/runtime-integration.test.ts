@@ -238,7 +238,7 @@ test("Codex connection replaces the old static project DB integration instead of
       "",
       "[mcp_servers.molis-work.env]",
       'MOLIS_WORK_DATABASE = "/old/project.db"',
-      'MOLIS_WORK_BOARD_ID = "old-board"',
+      'MOLIS_WORK_PROJECT_ID = "old-board"',
       "",
     ].join("\n"));
     const integration = service(fixture);
@@ -248,7 +248,7 @@ test("Codex connection replaces the old static project DB integration instead of
     const result = await integration.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
     assert.equal(result.status, "connected");
     const after = await readFile(config, "utf8");
-    assert.doesNotMatch(after, /MOLIS_WORK_DATABASE|MOLIS_WORK_BOARD_ID|\/old\/source|\/old\/project/);
+    assert.doesNotMatch(after, /MOLIS_WORK_DATABASE|MOLIS_WORK_PROJECT_ID|\/old\/source|\/old\/project/);
     assert.match(after, /MOLIS_WORK_RUNTIME_ID = "codex"/);
     assert.match(after, /model = "gpt-test"/);
   });

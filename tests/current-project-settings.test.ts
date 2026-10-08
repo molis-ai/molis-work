@@ -16,7 +16,7 @@ const workspace = (id: string) => ({ workspace_id: id, canonical_path: "/test/" 
 test("Manifest gates individual settings; host scopes and projects records, rejects injected selectors", async () => {
   const home = await mkdtemp(join(tmpdir(), "project-settings-"));
   const host = new MolisWorkLocalHost({ workspacesFor: id => [{ ...workspace(id), project_ids: [id, "secret-project"], created_at: "private" }] });
-  const client = (projectId: string) => host.client(molisWorkHostProjectReference({ databasePath: join(home, projectId + ".db"), boardId: projectId, projectId }));
+  const client = (projectId: string) => host.client(molisWorkHostProjectReference({ databasePath: join(home, projectId + ".db"), projectId: projectId }));
   try {
     const a = client("a"), b = client("b");
     const none = createPluginCapabilityClient({ ...filesManifest, capabilities: { provides: [], consumes: [] } }, a);
@@ -57,7 +57,7 @@ test("browsing choice persists; membership remains authoritative across restart 
     assert.equal(preferences.read("a", [workspace("two")]), null);
     assert.equal(preferences.read("a", [{ ...workspace("one"), realpath_verified: false }]), null);
     assert.deepEqual(preferences.read("a", workspaces), workspace("one"));
-    assert.deepEqual(db.prepare("SELECT * FROM project_browsing_settings").all(), [{ board_id: "a", workspace_id: "one" }]);
+    assert.deepEqual(db.prepare("SELECT * FROM project_browsing_settings").all(), [{ project_id: "a", workspace_id: "one" }]);
   } finally { db.close(); }
 });
 

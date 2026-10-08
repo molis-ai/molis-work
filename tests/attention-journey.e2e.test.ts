@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Kanban routes wheel by pointer and axis without switching axes at column boundaries", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t); if (!b) return;
   const { command, sessionId, navigate, origin, click, evaluate, waitFor } = b;
   const app = new GoalProjectApplication(b.store);
-  for (let i = 0; i < 16; i++) app.goalEvents.createIntent({ board_id: DEMO_BOARD_ID, title: `待处理工作 ${i + 1}`, outcome: "验证列内滚动仍可阅读完整任务", actor_id: "scroll-test", actor_kind: "user", idempotency_key: `scroll-${i}` });
+  for (let i = 0; i < 16; i++) app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: `待处理工作 ${i + 1}`, outcome: "验证列内滚动仍可阅读完整任务", actor_id: "scroll-test", actor_kind: "user", idempotency_key: `scroll-${i}` });
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 720, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await click('[data-plugin-id="goals"]');
@@ -52,11 +52,11 @@ test("Frame picker adds a persistent reference in place; current tab, directory 
   const catalog = await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
   catalog.addProjectPlugin({project_id:projectId!,plugin_id:"feed",actor_id:"attention-test"}); catalog.close();
   const app = new GoalProjectApplication(b.store);
-  const goal = app.goalEvents.createIntent({board_id:DEMO_BOARD_ID,title:"整理设计反馈",outcome:"明确下一轮体验改动",actor_id:"attention-test",actor_kind:"user",idempotency_key:"attention-intent"}).goal;
-  const source = createLocalFeedSourceService(b.store.db, DEMO_BOARD_ID).register({kind:"web_query",query:"设计反馈"}).source;
+  const goal = app.goalEvents.createIntent({project_id:DEMO_PROJECT_ID,title:"整理设计反馈",outcome:"明确下一轮体验改动",actor_id:"attention-test",actor_kind:"user",idempotency_key:"attention-intent"}).goal;
+  const source = createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({kind:"web_query",query:"设计反馈"}).source;
   const feed = createLocalFeedApplication(b.store.db);
   const item = feed.ingestItem({source,externalId:"attention-reference",title:"核对键盘焦点",summary:"需要保留当前输入位置",body:"需要保留当前输入位置",occurredAt:new Date().toISOString(),attention:false}).item;
-  const before = b.store.snapshot(DEMO_BOARD_ID);
+  const before = b.store.snapshot(DEMO_PROJECT_ID);
   await command("Emulation.setDeviceMetricsOverride",{width:1280,height:800,deviceScaleFactor:1,mobile:false},sessionId);
   await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/`},sessionId));
   await click('[data-plugin-id="goals"]');
@@ -119,6 +119,6 @@ test("Frame picker adds a persistent reference in place; current tab, directory 
   await evaluate(`document.querySelector('[data-momentum-node][data-goal-id="${goal.goal_id}"] [data-graph-frame]').click()`);
   await waitFor("!document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-frame-goal-title]').textContent"),"整理设计反馈", "explicit Frame entry overrides the saved work view");
-  assert.deepEqual(b.store.snapshot(DEMO_BOARD_ID).goals,before.goals);
-  assert.deepEqual(b.store.snapshot(DEMO_BOARD_ID).runs,before.runs);
+  assert.deepEqual(b.store.snapshot(DEMO_PROJECT_ID).goals,before.goals);
+  assert.deepEqual(b.store.snapshot(DEMO_PROJECT_ID).runs,before.runs);
 });

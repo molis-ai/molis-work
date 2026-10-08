@@ -20,7 +20,7 @@ import { DEFAULT_GOAL_POLICY, BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/mo
 test("Goals public actions and typed consumers share records, idempotency, audit identity and live policy", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Goals", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let blocked = false, creates = 0;
   const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: (_caller, view) => {
     if (view.capability_id === goalsActions.create.capability_id) {
@@ -39,30 +39,30 @@ test("Goals public actions and typed consumers share records, idempotency, audit
     const created = await bound.invoke(goalsActions.create, input);
     assert.equal(created.goal.goal_id, input.goal_id);
     assert.equal(created.completion_effect, false);
-    const replay = await typed.invoke(createGoalIntentCapability, { ...input, board_id: project.board_id, actor_id: caller.actor_id, actor_kind: "runtime" });
+    const replay = await typed.invoke(createGoalIntentCapability, { ...input, project_id: project.project_id, actor_id: caller.actor_id, actor_kind: "runtime" });
     assert.equal(replay.replayed, true);
     assert.equal(replay.observed_event_cursor, created.observed_event_cursor);
     const note = { goal_id: input.goal_id, body: "这句话必须到指定目标", idempotency_key: "note-one" };
-    const recorded = await typed.invoke(recordGoalNoteCapability, { ...note, board_id: project.board_id, actor_id: caller.actor_id, actor_kind: "runtime" });
+    const recorded = await typed.invoke(recordGoalNoteCapability, { ...note, project_id: project.project_id, actor_id: caller.actor_id, actor_kind: "runtime" });
     assert.equal(recorded.recorded, true);
     assert.deepEqual(await actions.invoke(caller, goalsActions.note, note), { ...recorded, replayed: true });
     await assert.rejects(actions.invoke(caller, goalsActions.note, { ...note, body: "不同内容" }));
-    await assert.rejects(actions.invoke(caller, goalsActions.note, { ...note, board_id: "other-board" } as never), { code: "actions.input_invalid" });
-    await assert.rejects(typed.invoke(recordGoalNoteCapability, { ...note, board_id: "other-board", actor_id: "user" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(actions.invoke(caller, goalsActions.note, { ...note, project_id: "other-board" } as never), { code: "actions.input_invalid" });
+    await assert.rejects(typed.invoke(recordGoalNoteCapability, { ...note, project_id: "other-board", actor_id: "user" }), { code: "actions.scope_mismatch" });
     await assert.rejects(actions.invoke({ ...caller, project_id: "other-project" }, goalsActions.note, note), { code: "actions.scope_mismatch" });
-    const event = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.board_id, input.goal_id, recorded.event_id));
+    const event = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, recorded.event_id));
     assert.equal(event.actor_id, caller.actor_id);
     assert.equal(event.actor_kind, "runtime");
     assert.equal((event.payload as { body: string }).body, note.body);
-    const legacy = await typed.invoke(recordGoalNoteCapability, { ...note, body: "旧内部身份", idempotency_key: "legacy-note", board_id: project.board_id, actor_id: "legacy-owner" });
-    const oldEvent = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.board_id, input.goal_id, legacy.event_id));
+    const legacy = await typed.invoke(recordGoalNoteCapability, { ...note, body: "旧内部身份", idempotency_key: "legacy-note", project_id: project.project_id, actor_id: "legacy-owner" });
+    const oldEvent = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, legacy.event_id));
     assert.equal(oldEvent.actor_kind, null, "unclassified legacy identity must not be rewritten as a user decision");
     assert.equal(oldEvent.actor_id, "legacy-owner");
     await bound.invoke(goalsActions.create, { title: "第二个目标", goal_id: "SECOND-ACTION-GOAL", idempotency_key: "create-second" });
     const page = await bound.invoke(goalsActions.list, { limit: 1 });
     assert.equal(page.goals.length, 1);
     assert.ok(page.next_cursor, "two goals must produce a real pagination cursor");
-    assert.deepEqual(await typed.invoke(listGoalDirectoryCapability, { board_id: project.board_id, limit: 1 }), page);
+    assert.deepEqual(await typed.invoke(listGoalDirectoryCapability, { project_id: project.project_id, limit: 1 }), page);
     const all = await typed.invoke(goalContextCapabilities.list, {});
     assert.ok(all.goals.some(goal => goal.goal_id === input.goal_id && goal.work_status === "open"));
     const next = await bound.invoke(goalsActions.list, { limit: 1, after_cursor: page.next_cursor });
@@ -70,16 +70,16 @@ test("Goals public actions and typed consumers share records, idempotency, audit
     assert.ok(next.goals.every(goal => goal.goal_id !== page.goals[0]!.goal_id));
     blocked = true;
     const before = creates;
-    await assert.rejects(typed.invoke(createGoalIntentCapability, { ...input, goal_id: "DENIED", idempotency_key: "denied", board_id: project.board_id, actor_id: "user" }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(createGoalIntentCapability, { ...input, goal_id: "DENIED", idempotency_key: "denied", project_id: project.project_id, actor_id: "user" }), { code: "actions.plugin_disabled" });
     assert.ok(creates > before, "the old typed entry must reach the shared action policy");
-    await assert.rejects(host.withProject(ref, runtime => runtime.coordinator.goalQueries.getGoal(project.board_id, "DENIED")), { code: "goal.not_found" });
+    await assert.rejects(host.withProject(ref, runtime => runtime.coordinator.goalQueries.getGoal(project.project_id, "DENIED")), { code: "goal.not_found" });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("official MCP launcher discovers granted Goals actions and writes into the shared Host", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-actions-mcp-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "MCP Goals", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const caller: ActionCallContext = { actor_id: "runtime:goals-actions", project_id: project.project_id, audience: "mcp", permissions: [] };
   // A Runtime write through MCP is recorded under the Session the launcher declares.
@@ -118,14 +118,14 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     const created = await sdk.callTool({ name, arguments: input });
     assert.equal(created.isError, false, JSON.stringify(created));
     assert.equal((created.structuredContent as { goal: { goal_id: string } }).goal.goal_id, input.goal_id);
-    const state = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readState(project.board_id, input.goal_id));
+    const state = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readState(project.project_id, input.goal_id));
     assert.equal(state.intent.source_kind, "runtime", "a model-created goal must not default to Web provenance");
     const noteInput = { goal_id: input.goal_id, body: "来自标准 MCP 的原文", idempotency_key: "mcp-note" };
     const noteName = hostActionToolName(goalsActions.note);
     const note = await sdk.callTool({ name: noteName, arguments: noteInput });
     assert.equal(note.isError, false, JSON.stringify(note));
     const eventId = (note.structuredContent as { event_id: string }).event_id;
-    const event = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.board_id, input.goal_id, eventId));
+    const event = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, eventId));
     assert.equal(event.actor_id, sessionActor); assert.equal(event.actor_kind, "runtime");
     assert.equal((event.payload as { body: string }).body, noteInput.body);
     const replay = await sdk.callTool({ name: noteName, arguments: noteInput });
@@ -179,7 +179,7 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     assert.equal(trashList.isError, false, JSON.stringify(trashList));
     const parseText = (result: Awaited<ReturnType<typeof sdk.callTool>>) => JSON.parse((result.content as Array<{ type: string; text: string }>).find(item => item.type === "text")!.text);
     const snapshotName = hostActionToolName(goalsActions.snapshot);
-    const expectedSnapshot = await host.withProject(ref, r => r.store.snapshot(project.board_id));
+    const expectedSnapshot = await host.withProject(ref, r => r.store.snapshot(project.project_id));
     const fullSnapshot = await sdk.callTool({ name: snapshotName, arguments: {} });
     assert.equal(fullSnapshot.isError, false, JSON.stringify(fullSnapshot));
     assert.deepEqual(fullSnapshot.structuredContent, expectedSnapshot);
@@ -187,7 +187,7 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     const fullContract = await sdk.callTool({ name: hostActionToolName(goalsActions.contract), arguments: { goal_id: input.goal_id } });
     assert.equal(fullContract.isError, false, JSON.stringify(fullContract));
     assert.deepEqual(fullContract.structuredContent,
-      await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(project.board_id, input.goal_id)));
+      await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(project.project_id, input.goal_id)));
     const collectionName = hostActionToolName(goalsActions.collection);
     const collection = await sdk.callTool({ name: collectionName, arguments: {} });
     assert.equal(collection.isError, false, JSON.stringify(collection));
@@ -196,7 +196,7 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
       views.find(v => v.capability_id === goalsActions.collection.capability_id)!, false));
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === collectionName), false);
     assert.equal((await sdk.callTool({ name: collectionName, arguments: {} })).isError, true);
-    for (const args of [{ board_id: "foreign" }, { database_path: project.database_path }, { actor_id: "forged" }]) {
+    for (const args of [{ project_id: "foreign" }, { database_path: project.database_path }, { actor_id: "forged" }]) {
       assert.equal((await sdk.callTool({ name: snapshotName, arguments: args })).isError, true);
     }
     await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id,
@@ -274,7 +274,7 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     const requested = await invokeWork(goalsActions.requestDecision, { idempotency_key: "public-request", question: "是否允许发布？", purpose: "action",
       options: [{ option_id: "yes", label: "允许", impact: "可发布" }, { option_id: "no", label: "拒绝", impact: "继续核对" }], scope: { action: "publish" } });
     const approved = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.recordTrustedDecision({
-      board_id: project.board_id, goal_id: input.goal_id, idempotency_key: "real-user", authority: hostEventDecisionAuthority("web", project.board_id, "real-user", "real-user"),
+      project_id: project.project_id, goal_id: input.goal_id, idempotency_key: "real-user", authority: hostEventDecisionAuthority("web", project.project_id, "real-user", "real-user"),
       request_id: requested.decision_request.request_id, selected_option_id: "yes", conclusion: "允许发布", effects: [{ kind: "authorize_action", action: "publish" }], scope: { action: "publish" },
     }));
     const cited = await invokeWork(goalsActions.citeDecision, { idempotency_key: "public-cite", decision_id: approved.decision.decision_id, scope: { action: "publish" } });
@@ -328,13 +328,13 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, reportView, false));
     assert.equal((await sdk.callTool({ name: hostActionToolName(goalsActions.report), arguments: { goal_id: input.goal_id,
       idempotency_key: "denied-report", events: [{ type_id: "work", type_version: 1, title: "不能写入", fields: { body: "拒绝后不能保存" } }] } })).isError, true);
-    const afterWrites = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.board_id, input.goal_id, { limit: 100 }));
+    const afterWrites = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id, { limit: 100 }));
     assert.equal(afterWrites.events.filter(event => event.kind === "report").length, 1);
     const noteView = views.find(view => view.capability_id === goalsActions.note.capability_id)!;
     await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, noteView, false));
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === noteName), false);
     assert.equal((await sdk.callTool({ name: noteName, arguments: { ...noteInput, idempotency_key: "denied-note" } })).isError, true);
-    const events = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.board_id, input.goal_id));
+    const events = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 1);
     const personal = { ...BUILTIN_PLANNING_METHOD_PACKS.find(m => m.method_id === "domain-software-development")!, method_id: "mcp-personal-live", name: "Current personal method" };
     await withCatalog({ homeDirectory: home }, c => c.personalPlanningMethods.save(personal, new Date().toISOString()));
@@ -352,19 +352,19 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     await local.invoke(goalsActions.create, { title: "Relation target", goal_id: "RELATION-TARGET", idempotency_key: "relation-target" });
     const relationInput = { from_goal_id: input.goal_id, to_goal_id: "RELATION-TARGET", type: "extends" as const, reason: "Public read of user-owned structure", idempotency_key: "configuration-relation" };
     const relation = await local.invoke(goalsActions.relationAdd, relationInput);
-    const policyInput = { policy: { ...DEFAULT_GOAL_POLICY, cross_reviewers: 2 }, user_confirmed: true, idempotency_key: "configuration-policy" };
+    const policyInput = { policy: { human_approval: true }, user_confirmed: true, idempotency_key: "configuration-policy" };
     const policy = await local.invoke(goalsActions.policySave, policyInput);
     assert.equal((await invokePlanning(goalsActions.relations, { goal_id: input.goal_id })).relations.find(r => r.relation_id === relation.relation_id)?.to_goal_id, "RELATION-TARGET");
     assert.equal((await invokePlanning(goalsActions.policyHistory, {})).bindings.find(b => b.policy_binding_id === policy.policy_binding_id)?.created_by, user.actor_id);
-    assert.equal((await invokePlanning(goalsActions.policyResolve, { goal_id: input.goal_id })).policy.cross_reviewers, 2);
-    const beforeForged = await host.withProject(ref, r => r.store.snapshot(project.board_id));
+    assert.equal((await invokePlanning(goalsActions.policyResolve, { goal_id: input.goal_id })).policy.human_approval, true);
+    const beforeForged = await host.withProject(ref, r => r.store.snapshot(project.project_id));
     const tools = (await sdk.listTools()).tools;
     for (const [definition, payload] of [[goalsActions.relationAdd, relationInput], [goalsActions.relationDeactivate, { relation_id: relation.relation_id, reason: "Forge", idempotency_key: "forge" }], [goalsActions.policySave, policyInput]] as const) {
       const protectedName = hostActionToolName(definition);
       assert.equal(tools.some(tool => tool.name === protectedName), false);
       assert.equal((await sdk.callTool({ name: protectedName, arguments: { ...payload, user_action: user.user_action, actor_kind: "user", user_confirmed: true } })).isError, true);
     }
-    assert.deepEqual(await host.withProject(ref, r => r.store.snapshot(project.board_id)), beforeForged);
+    assert.deepEqual(await host.withProject(ref, r => r.store.snapshot(project.project_id)), beforeForged);
     for (const [definition, payload] of [[goalsActions.relations, { goal_id: input.goal_id }], [goalsActions.policyHistory, {}], [goalsActions.policyResolve, { goal_id: input.goal_id }]] as const) {
       await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, views.find(view => view.capability_id === definition.capability_id)!, false));
       const name = hostActionToolName(definition);

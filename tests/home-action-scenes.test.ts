@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, DEMO_BOARD_ID,
+import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, DEMO_PROJECT_ID,
   cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -20,7 +20,7 @@ import { homeActions, homeDockScene, homeDockBindingId, HOME_ACTION_PERMISSIONS,
 test("Home scene uses original bindings and history, accepts unknown judgments, and never projects stale recommendations", async () => {
   const home = await mkdtemp(join(tmpdir(), "home-action-scene-"));
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, boardId: DEMO_BOARD_ID, projectId: "canonical-home-project" });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, "inbox:write", ...GOALS_ACTION_PERMISSIONS] };
   let effect: (() => void) | undefined;
   let fail = false;
@@ -42,9 +42,9 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
   try {
     let runtime = await host.withProject(reference, runtime => runtime);
     let feed = createLocalFeedApplication(runtime.store.db);
-    const source = createLocalFeedSourceService(runtime.store.db, reference.board_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "home-scene" }).source;
+    const source = createLocalFeedSourceService(runtime.store.db, reference.project_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "home-scene" }).source;
     const item = feed.ingestItem({ source, externalId: "home-item", title: "核对材料", summary: "真实首页事件", body: "原始内容", occurredAt: new Date().toISOString(), attention: false }).item;
-    const entry = feed.ensureInboxEntryForFeedItem(reference.board_id, item.item_id, "manual").entry;
+    const entry = feed.ensureInboxEntryForFeedItem(reference.project_id, item.item_id, "manual").entry;
     let scenes = host.sceneClient(reference);
     let actions = bindActionClient(host.actionClient(reference), () => caller);
     const choices = (await actions.invoke(homeActions.choices, {})).choices;
@@ -67,9 +67,9 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     assert.equal(history().length, 1, "one consumer history per event, no duplicate Functions invocation record");
     assert.equal(result.judgments[0]!.scene_provenance!.binding_id, homeDockBindingId(reference.project_id));
     assert.deepEqual((await actions.invoke(homeActions.recommendations, {})).judgments.map(j => j.judgment_id).sort(), result.judgments.map(j => j.judgment_id).sort());
-    assert.equal(feed.getInboxEntry(reference.board_id, entry.entry_id).status, "open");
+    assert.equal(feed.getInboxEntry(reference.project_id, entry.entry_id).status, "open");
     const cache = new Map();
-    const viewOptions = { databasePath, boardId: reference.board_id, homeDirectory: home };
+    const viewOptions = { databasePath, projectId: reference.project_id, homeDirectory: home };
     const view = await cachedMolisWorkWebView(cache, runtime.store, viewOptions, actions);
     assert.equal("home_dock_suggested_behavior_ids" in view.feed.feed_items.find(row => row.item_id === item.item_id)!, false, "WebView no longer holds a second copy of Home recommendations");
     denied = "functions.published.system_pick_home_dock";
@@ -81,13 +81,13 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     assert.deepEqual((await actions.invoke(homeActions.recommendations, {})).judgments, [], "same-function rebind invalidates old recommendations");
     result = await actions.invoke(homeActions.evaluate, { subjects });
     assert.equal((await actions.invoke(homeActions.recommendations, {})).judgments.length, 1);
-    effect = () => feed.setDisposition(reference.board_id, item.item_id, "saved");
+    effect = () => feed.setDisposition(reference.project_id, item.item_id, "saved");
     const count = history().length;
     await assert.rejects(actions.invoke(homeActions.evaluate, { subjects: [subjects[0]!] }), { code: "actions.subject_changed" });
     assert.equal(history().length, count, "changed underlying material invalidates Inbox decision too");
     assert.deepEqual((await actions.invoke(homeActions.recommendations, {})).judgments, []);
     effect = undefined;
-    feed.setInboxEntryStatus(reference.board_id, entry.entry_id, "open", feed.getInboxEntry(reference.board_id, entry.entry_id).revision);
+    feed.setInboxEntryStatus(reference.project_id, entry.entry_id, "open", feed.getInboxEntry(reference.project_id, entry.entry_id).revision);
     fail = true;
     result = await actions.invoke(homeActions.evaluate, { subjects: [subjects[0]!] });
     assert.equal(result.judgments[0]!.outcome, "needs_review");
@@ -96,7 +96,7 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     fail = false;
     await actions.invoke(homeActions.evaluate, { subjects: [subjects[0]!] });
     const current = (await scenes.usages(caller)).find(value => value.scene_id === HOME_DOCK_SCENE_ID)!;
-    effect = () => withFunctionsService(home, service => service.saveActionSceneBinding(reference.board_id, current, "system_pick_home_dock"), options);
+    effect = () => withFunctionsService(home, service => service.saveActionSceneBinding(reference.project_id, current), options);
     await assert.rejects(actions.invoke(homeActions.evaluate, { subjects: [subjects[0]!] }), { code: "actions.binding_changed" });
     effect = undefined;
     await actions.invoke(homeActions.writeJudgment, { function_key: null });
@@ -119,7 +119,7 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     const binding: ActionSceneBinding = { ...current, enabled: true, function: { capability_id: unknown.capability_id, version: 1 } };
     await assert.rejects(scenes.bind({ ...caller, permissions: caller.permissions.filter(p => p !== "home:write") }, binding), { code: "actions.forbidden" });
     await scenes.bind(caller, binding);
-    assert.equal(withFunctionsService(home, service => service.actionSceneBinding(HOME_DOCK_SCENE_ID, reference.board_id))!.function.provider_id,
+    assert.equal(withFunctionsService(home, service => service.actionSceneBinding(HOME_DOCK_SCENE_ID, reference.project_id))!.function.provider_id,
       unknown.capability_id, "binding storage retains the provider selected by the common service");
     assert.ok((await actions.invoke(homeActions.readJudgment, {})).capabilities.some(action => action.capability_id === unknown.capability_id));
     const inboxOnly: ActionDefinition = { ...unknown, capability_id: `${unknown.capability_id}.inbox-only`, action: { ...unknown.action, subject_kinds: ["inbox_entry"] } };
@@ -130,7 +130,7 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     await assert.rejects(actions.invoke(homeActions.evaluate, { subjects: [{ kind: "feed_item", id: item.item_id }] }), { code: "actions.subject_incompatible" });
     await scenes.bind(caller, binding);
     stopInboxOnly();
-    const automatic = createLocalFeedApplication(runtime.store.db, { homeJudgment: createHomeJudgmentTrigger({ scenes, context: () => caller, boardId: reference.board_id }) });
+    const automatic = createLocalFeedApplication(runtime.store.db, { homeJudgment: createHomeJudgmentTrigger({ scenes, context: () => caller, projectId: reference.project_id }) });
     assert.throws(() => runtime.store.db.transaction(() => {
       automatic.ingestItem({ source, externalId: "rollback", title: "自动材料", summary: "自动材料", occurredAt: new Date().toISOString(), attention: { reason: "manual" } });
       throw new Error("roll back");
@@ -142,14 +142,14 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     assert.equal(unknownCalls, 1, "only the Inbox event has a concrete declared action; Feed is skipped before judging");
     assert.equal(history().filter(j => j.function_key === unknown.capability_id).length, 1);
     assert.equal((await actions.invoke(homeActions.recommendations, {})).judgments.length, 1);
-    const automaticEntry = automatic.listInboxEntries(reference.board_id).find(e => e.subject_id === auto.item.item_id)!;
-    unknownEffect = () => automatic.setInboxEntryStatus(reference.board_id, automaticEntry.entry_id, "done", automaticEntry.revision);
+    const automaticEntry = automatic.listInboxEntries(reference.project_id).find(e => e.subject_id === auto.item.item_id)!;
+    unknownEffect = () => automatic.setInboxEntryStatus(reference.project_id, automaticEntry.entry_id, "done", automaticEntry.revision);
     await assert.rejects(actions.invoke(homeActions.evaluate, { subjects: [{ kind: "inbox_entry", id: automaticEntry.entry_id }] }), { code: "actions.subject_changed" });
-    assert.equal(automatic.getInboxEntry(reference.board_id, automaticEntry.entry_id).status, "done");
+    assert.equal(automatic.getInboxEntry(reference.project_id, automaticEntry.entry_id).status, "done");
     const beforeStop = history().length;
     stop();
     assert.deepEqual((await actions.invoke(homeActions.recommendations, {})).judgments, []);
-    await automatic.evaluateItems(reference.board_id, [auto.item.item_id]);
+    await automatic.evaluateItems(reference.project_id, [auto.item.item_id]);
     assert.equal(history().length, beforeStop, "unloaded judgment is not invoked by automatic events");
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -160,12 +160,12 @@ test("judgment history keeps insertion order when multiple results share a times
     withFunctionsService(home, service => {
       const records: JudgmentRecord[] = [];
       for (let index = 0; index < 30; index++) records.push(service.recordSceneJudgment({ function_key: "fixture", function_version: 1,
-        subject: { kind: "feed_item", id: "same", board_id: "board" }, scene_id: HOME_DOCK_SCENE_ID,
+        subject: { kind: "feed_item", id: "same", project_id: "board" }, scene_id: HOME_DOCK_SCENE_ID,
         outcome: "ok", suggested_behavior_ids: [String(index)], error_code: null }));
       assert.equal(service.latestJudgment("feed_item", "same", "board", HOME_DOCK_SCENE_ID)!.judgment_id, records.at(-1)!.judgment_id);
       assert.deepEqual(service.listJudgments().map(record => record.judgment_id), records.reverse().map(record => record.judgment_id));
       assert.deepEqual(service.latestSceneJudgments("board", HOME_DOCK_SCENE_ID).map(record => record.judgment_id), [records[0]!.judgment_id]);
-      service.recordSceneJudgment({ function_key: "other", function_version: 1, subject: { kind: "feed_item", id: "same", board_id: "foreign" },
+      service.recordSceneJudgment({ function_key: "other", function_version: 1, subject: { kind: "feed_item", id: "same", project_id: "foreign" },
         scene_id: HOME_DOCK_SCENE_ID, outcome: "ok", suggested_behavior_ids: [], error_code: null });
       assert.deepEqual(service.latestSceneJudgments("board", HOME_DOCK_SCENE_ID).map(record => record.judgment_id), [records[0]!.judgment_id]);
       assert.deepEqual(service.latestSceneJudgments("board", "different-scene"), []);
@@ -176,7 +176,7 @@ test("judgment history keeps insertion order when multiple results share a times
 test("Home judgment resolves a formally installed plugin's own subjects and pins source authority and revisions", async () => {
   const home = await mkdtemp(join(tmpdir(), "home-unknown-judgment-"));
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, boardId: DEMO_BOARD_ID, projectId: "unknown-home-project" });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const options: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: {
     async evaluate(_key, record) { return { primitive: "noul", noul: 0.9, choice: null, score: null, legend: null,
       probabilities: {}, confidence: null, model: record.model }; },
@@ -258,10 +258,10 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
     assert.ok((await actions.invoke(homeActions.readJudgment, {})).capabilities.some(action => action.capability_id === judgment.capability_id));
     await assert.rejects(actions.invoke(homeActions.evaluate, { subjects: [subject, { kind: "feed_item", id: "any" }] }), { code: "actions.subject_incompatible" });
     assert.equal(calls, 0, "reject an incompatible batch before any model calls");
-    const before = project.store.snapshot(reference.board_id).cursor;
+    const before = project.store.snapshot(reference.project_id).cursor;
     let result = await actions.invoke(homeActions.evaluate, { subjects: [subject, { id: subject.id, kind: subject.kind }] });
     assert.equal(history().length, 1); assert.equal(result.judgments[0]!.subject.kind, subject.kind);
-    assert.ok(project.store.snapshot(reference.board_id).cursor > before, "judgment advances the original project journal without a Feed item");
+    assert.ok(project.store.snapshot(reference.project_id).cursor > before, "judgment advances the original project journal without a Feed item");
     assert.deepEqual((await recommendations()).judgments.map(record => record.judgment_id), [result.judgments[0]!.judgment_id]);
     const range = { from: new Date(Date.parse(now) - 1000).toISOString(), to: new Date(Date.parse(now) + 1000).toISOString(), now };
     assert.deepEqual((await actions.invoke(homeActions.events, range)).events.find(event => event.subject.id === subject.id)?.suggested_behavior_ids, [selectedKey]);
@@ -326,20 +326,17 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
   } finally { if (runtime && installId) await runtime.stop(installId); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("saved scene bindings retain provider identity and only known legacy Functions keys restore it", async () => {
-  const home = await mkdtemp(join(tmpdir(), "home-binding-provider-migration-"));
-  const old: ActionSceneBinding = { binding_id: "home.dock:project", scene_id: HOME_DOCK_SCENE_ID, scene_version: 1, project_id: "project",
-    function: { capability_id: "functions.published.system_pick_home_dock", version: 1 }, enabled: true, title: "旧首页规则" };
+test("saved scene bindings keep exactly the provider identity they were saved with", async () => {
+  const home = await mkdtemp(join(tmpdir(), "home-binding-provider-"));
+  const pinned: ActionSceneBinding = { binding_id: "home.dock:project", scene_id: HOME_DOCK_SCENE_ID, scene_version: 1, project_id: "project",
+    function: { capability_id: "unknown.judge", version: 3, provider_id: "original-plugin" }, enabled: true, title: "首页规则" };
   try {
-    const saved = withFunctionsService(home, service => service.saveActionSceneBinding("board", old, "system_pick_home_dock"));
-    const migrated = withFunctionsService(home, service => service.actionSceneBinding(HOME_DOCK_SCENE_ID, "board"))!;
-    assert.equal(migrated.function.provider_id, "system.functions"); assert.equal(migrated.revision, saved.revision);
-    assert.equal(migrated.title, old.title); assert.equal(migrated.enabled, true);
-    withFunctionsService(home, service => service.saveActionSceneBinding("board", { ...old, function: { capability_id: "unknown.judge", version: 3 } }));
+    const saved = withFunctionsService(home, service => service.saveActionSceneBinding("board", pinned));
+    const read = withFunctionsService(home, service => service.actionSceneBinding(HOME_DOCK_SCENE_ID, "board"))!;
+    assert.deepEqual(read.function, pinned.function); assert.equal(read.revision, saved.revision);
+    assert.equal(read.title, pinned.title); assert.equal(read.enabled, true);
+    withFunctionsService(home, service => service.saveActionSceneBinding("board", { ...pinned, function: { capability_id: "functions.published.system_pick_home_dock", version: 1 } }));
     assert.equal(withFunctionsService(home, service => service.actionSceneBinding(HOME_DOCK_SCENE_ID, "board"))!.function.provider_id, undefined,
-      "unknown legacy identities cannot be inferred from whatever provider is installed now");
-    const pinned = { ...old, function: { capability_id: "unknown.judge", version: 3, provider_id: "original-plugin" } };
-    withFunctionsService(home, service => service.saveActionSceneBinding("board", pinned));
-    assert.deepEqual(withFunctionsService(home, service => service.actionSceneBinding(HOME_DOCK_SCENE_ID, "board"))!.function, pinned.function);
+      "an identity is never inferred from the capability name or whatever provider is installed now");
   } finally { await rm(home, { recursive: true, force: true }); }
 });

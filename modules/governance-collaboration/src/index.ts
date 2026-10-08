@@ -89,11 +89,11 @@ export { assertGovernanceTransition, deriveGoalTreeProposalState } from "./state
 
 function governanceQueries(repository: GovernanceRepository): GovernanceQueryApi {
   return {
-      eventCursor: (boardId) => repository.eventCursor(boardId),
-      snapshot: (boardId) => repository.snapshot(boardId),
-      getGoalTreeProposal: (boardId, proposalId) =>
-        repository.getGoalTreeProposal(boardId, proposalId),
-      listGoalTreeProposals: (boardId) => repository.listGoalTreeProposals(boardId),
+      eventCursor: (projectId) => repository.eventCursor(projectId),
+      snapshot: (projectId) => repository.snapshot(projectId),
+      getGoalTreeProposal: (projectId, proposalId) =>
+        repository.getGoalTreeProposal(projectId, proposalId),
+      listGoalTreeProposals: (projectId) => repository.listGoalTreeProposals(projectId),
     };
 }
 

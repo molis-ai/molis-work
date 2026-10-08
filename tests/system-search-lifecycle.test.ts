@@ -33,7 +33,7 @@ test("a plugin disabled in the project leaves the results and comes back when en
   const home = await mkdtemp(join(tmpdir(), "system-search-lifecycle-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "生命周期", actor_id: "owner" }));
   await withCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "owner" }); });
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const open = () => new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: projectActionAvailability(withCatalog, home) });
   let host = open();
   try {
@@ -79,7 +79,7 @@ test("a plugin disabled in the project leaves the results and comes back when en
 test("an external MCP client searches through the same action with only what it was granted", { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "system-search-mcp-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "MCP 搜索", actor_id: "user" }));
-  const reference = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host });
   let sdk: Client | undefined;
@@ -135,7 +135,7 @@ test("an external MCP client searches through the same action with only what it 
 test("the Assistant finds content through search.query and reads the hit through the owner's reader, with its own switches honored", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "system-search-assistant-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "助理检索", actor_id: "owner" }));
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   try {
     const owner = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);

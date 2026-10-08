@@ -28,7 +28,7 @@ test("a model call whose connection drops before any response is sent again, and
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
   try {
     const host = new AgentHost({ reviews: queue }); host.register(adapter);
-    const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
+    const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "重试" });
     const started = await host.start("prologue", { ...owner, session, directory, role_id: "reader", task: "说一句话" } as never,
       { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [root] });

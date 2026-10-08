@@ -15,7 +15,7 @@ const item = (id: string, title = id, acceptedBy?: string): GoalsTreeItem => ({
   goal: { goal_id: id, title, priority: 1, created_at: "2026-09-05", fulfillment_state: "unmet", acceptance_criteria: [], ...(acceptedBy ? { accepted_by: acceptedBy } : {}) },
   status: "execution_pending", display_status: "continue", passed_criteria: [], relations: [] });
 const relation = (id: string, type: GoalRelationRecord["type"], from: string, to: string): GoalRelationRecord => ({
-  relation_id: id, board_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: 'Dependency "reason" <safe>',
+  relation_id: id, project_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: 'Dependency "reason" <safe>',
   created_by: "user", created_at: "2026-09-05", deactivated_at: null });
 const view = (goals: GoalsTreeItem[], relations: GoalRelationRecord[] = []): GoalsTreeView => ({ goals, archived_goals: [], trashed_goals: [], snapshot: { relations } });
 

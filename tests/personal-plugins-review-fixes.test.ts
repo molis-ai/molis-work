@@ -24,7 +24,7 @@ import {
   railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import {
-  DEMO_BOARD_ID,
+  DEMO_PROJECT_ID,
 } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication } from "../apps/local-host/src/goal-project-application.js";
 import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
@@ -251,12 +251,12 @@ test("catalog 路径 Promote 不发 Artifact；注入口之后 MCP 与 HTTP 同�
     try {
       const coordinator = new GoalProjectApplication(project);
       coordinator.initializeBoard({
-        board_id: DEMO_BOARD_ID,
+        project_id: DEMO_PROJECT_ID,
         title: "复查",
         actor_id: "web-user",
         idempotency_key: "review-fixes-board",
       });
-      const publishArtifact = registerPagesArtifactVersion(coordinator, DEMO_BOARD_ID, "project-alpha");
+      const publishArtifact = registerPagesArtifactVersion(coordinator, DEMO_PROJECT_ID, "project-alpha");
       const projectDispatcher = await listenDispatcher(home, { publishArtifact });
       try {
         const created = await fetch(`${projectDispatcher.origin}/api/plugins/pages?project_id=project-alpha`, {
@@ -274,7 +274,7 @@ test("catalog 路径 Promote 不发 Artifact；注入口之后 MCP 与 HTTP 同�
         const httpBody = await promoted.json() as { artifact: { artifact_id: string; version: number } };
         assert.equal(httpBody.artifact.artifact_id, `pages-${page.id}`);
         assert.equal(
-          coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, {
+          coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, {
             artifact_id: httpBody.artifact.artifact_id,
             version: 1,
           })?.artifact_id,
@@ -290,7 +290,7 @@ test("catalog 路径 Promote 不发 Artifact；注入口之后 MCP 与 HTTP 同�
         const promoted = await pagesTestPorts(pages, "project-alpha", { publishArtifact }).actions.invoke(pagesActions.promote, { id: created.document.id, goal_id: "CORE" });
         assert.equal(promoted.artifact.artifact_id, `pages-${created.document.id}`);
         assert.equal(promoted.document.artifact_id, promoted.artifact.artifact_id);
-        assert.ok(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, {
+        assert.ok(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, {
           artifact_id: promoted.artifact.artifact_id,
           version: 1,
         }));
@@ -472,8 +472,8 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
-      const { platform } = await ensureProjectPlugins({ store, boardId: DEMO_BOARD_ID,
-        actorId: "web-user", homeDirectory: home, goalTitle: () => undefined, actions: pluginActions(store, DEMO_BOARD_ID) });
+      const { platform } = await ensureProjectPlugins({ store, projectId: DEMO_PROJECT_ID,
+        actorId: "web-user", homeDirectory: home, goalTitle: () => undefined, actions: pluginActions(store, DEMO_PROJECT_ID) });
       assert.ok(platform, "Runtime 必须实际启动，不能仅将 app 插件从检查中排除");
       const shipped = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.personal === true || Boolean(entry.summary));
       const packed = new Set(BUILTIN_PLUGIN_WORKBENCH.map(pack => pack.project_plugin_id));
@@ -491,7 +491,7 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
       }
       for (const id of packed) assert.ok(shipped.some(entry => entry.project_plugin_id === id), `${id} 是孤立的静态装配`);
     } finally {
-      await releaseProjectPlugins(store, DEMO_BOARD_ID);
+      await releaseProjectPlugins(store, DEMO_PROJECT_ID);
       store.close();
     }
   });
@@ -503,7 +503,7 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async () => {
     const databasePath = project.database_path;
     const host = new MolisWorkLocalHost({ homeDirectory: home });
     const caller = { actor_id: "runtime:codex", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
-    const views = await host.inspectActions(caller, molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath }));
+    const views = await host.inspectActions(caller, molisWorkHostProjectReference({ projectId: project.project_id, databasePath }));
     const createName = hostActionToolName(pagesActions.create), promoteName = hostActionToolName(pagesActions.promote);
     for (const action of [pagesActions.create, pagesActions.promote]) {
       const view = views.find(view => view.capability_id === action.capability_id)!;
@@ -511,7 +511,6 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async () => {
     }
     const server = new MolisWorkServer("runtime", {
       databasePath,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, {
@@ -546,7 +545,7 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async () => {
       const verify = new LocalProjectDatabase(databasePath);
       try {
         const coordinator = new GoalProjectApplication(verify);
-        assert.ok(coordinator.artifacts.query.getArtifactVersion(project.board_id, {
+        assert.ok(coordinator.artifacts.query.getArtifactVersion(project.project_id, {
           artifact_id: body.artifact.artifact_id,
           version: 1,
         }));

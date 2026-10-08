@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentWait } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -16,14 +16,14 @@ test("a round told to wait for another session's work is parked on it, starts on
   const root = mkdtempSync(join(tmpdir(), "coding-queued-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = new CodingSessionStore(store.db), at = new Date().toISOString();
-  sessions.create({ board_id: DEMO_BOARD_ID, session_id: "a", title: "改标签格式", runtime_id: "prologue", at });
-  sessions.setRuntimeSession(DEMO_BOARD_ID, "a", "sdk-a", at); sessions.setState(DEMO_BOARD_ID, "a", "running", at);
-  sessions.create({ board_id: DEMO_BOARD_ID, session_id: "b", title: "标签加前缀", runtime_id: "prologue", at });
-  sessions.setRuntimeSession(DEMO_BOARD_ID, "b", "sdk-b", at);
+  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "a", title: "改标签格式", runtime_id: "prologue", at });
+  sessions.setRuntimeSession(DEMO_PROJECT_ID, "a", "sdk-a", at); sessions.setState(DEMO_PROJECT_ID, "a", "running", at);
+  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "b", title: "标签加前缀", runtime_id: "prologue", at });
+  sessions.setRuntimeSession(DEMO_PROJECT_ID, "b", "sdk-b", at);
   const work: any[] = [{ work_id: "wa", session_id: "sdk-a", run_id: "ra", title: "改标签格式", task: "改 src/label.ts 的格式", state: "running", directory: root, paths: ["src/label.ts"], updated_at_ms: 1 }];
   const waits: AgentWait[] = [], calls: Array<[string, unknown]> = [];
   const fire = (id: string, outcome: "done" | "not-done") => { const one = waits.find(item => item.wait_id === id)!; one.state = "fired"; one.fired = { kind: "board-node", target: "wa", outcome, text: outcome === "done" ? "succeeded" : "failed", at_ms: Date.now() }; };
-  const host = () => ({ store, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
@@ -96,7 +96,7 @@ test("a round told to wait for another session's work is parked on it, starts on
     assert.equal(queued.status, 200, JSON.stringify(queued.body));
     assert.deepEqual([queued.body.queued.work_id, queued.body.queued.wait_id], ["wb", "w-wb"]);
     assert.deepEqual((waits[0]!.data as any).app, { body: send, actor_id: "web-user" });
-    assert.equal(sessions.get(DEMO_BOARD_ID, "b").state, "queued");
+    assert.equal(sessions.get(DEMO_PROJECT_ID, "b").state, "queued");
     assert.equal(started().length, 0, "nothing ran while it waits");
     assert.equal((await call("/sessions/b/runs", send)).status, 400, "a second send is refused while one waits");
     assert.deepEqual((await call("/sessions/b")).body.session.queued.after_title, "「改标签格式」那一轮");
@@ -105,7 +105,7 @@ test("a round told to wait for another session's work is parked on it, starts on
     await until("B started", () => started().length === 1);
     assert.deepEqual([started()[0].queued_work_id, started()[0].task], ["wb", "给 src/label.ts 加前缀"]);
     await until("the wait is taken up", () => waits[0]!.state === "resumed");
-    await until("B's round ends", () => sessions.get(DEMO_BOARD_ID, "b").state === "done");
+    await until("B's round ends", () => sessions.get(DEMO_PROJECT_ID, "b").state === "done");
     // A second wait whose work does not finish: nothing starts; the person is told.
     const again = await call("/sessions/b/runs", { ...send, wait_for: "wa" });
     assert.equal(again.body.queued.work_id, "wb1");
@@ -120,6 +120,6 @@ test("a round told to wait for another session's work is parked on it, starts on
     assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
     assert.ok(calls.some(([id, args]) => id === agent.releaseProjectRound.capability_id && (args as any[])[1] === "wb1"));
     assert.equal(waits[1]!.state, "cancelled");
-    assert.equal(sessions.get(DEMO_BOARD_ID, "b").state, "done");
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+    assert.equal(sessions.get(DEMO_PROJECT_ID, "b").state, "done");
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

@@ -20,7 +20,7 @@ test("where a capability is used comes from each owner of saved references: work
   const project = await catalog.createProject({ display_name: "使用位置", actor_id: "web-user" });
   catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user",
     permissions: [...new Set(["artifact:read", "artifact:write", ...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS])] };
   const client = host.actionClient(ref), actions = bindActionClient(client, () => owner);

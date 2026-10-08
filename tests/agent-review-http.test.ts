@@ -14,7 +14,7 @@ function pending(reviewId: string): AgentReviewRequest {
   return {
     review_id: reviewId,
     run: { run_id: "run-1", session_id: "s-1" },
-    board_id: BOARD,
+    project_id: BOARD,
     plugin_id: "io.molis.work.coding",
     kind: "text-edit",
     document: {
@@ -32,7 +32,7 @@ async function fixture(observeGitIndex?: import("@molis-ai/molis-work-app-local-
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     void handleAgentReviewHttp(request, response, url, {
-      boardId: BOARD, agentHost, actorId: "user", observeGitIndex,
+      projectId: BOARD, agentHost, actorId: "user", observeGitIndex,
     }).then((handled) => {
       if (!handled) { response.writeHead(404); response.end(); }
     });
@@ -144,7 +144,7 @@ test("缺字段的请求被挡下", async () => {
 test("another project's review cannot be decided even with a known review id", async () => {
   const item = await fixture();
   try {
-    item.agentHost.reviews.request({ ...pending("foreign"), board_id: "board-b" });
+    item.agentHost.reviews.request({ ...pending("foreign"), project_id: "board-b" });
     let calls = 0;
     item.agentHost.reviews.registerDecisionHandler("foreign", async input => { calls++; return item.agentHost.reviews.decide(input); });
     const response = await fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ review_id: "foreign", decision: "approve" }) });
@@ -189,7 +189,7 @@ test("Host review refresh reads owner receipts and renders only the requested ru
 test("manual rewind reviews are scoped to the selected runtime session and current project", async () => {
   const item=await fixture();try {
     for(const [id,session,board] of [['mine','sdk-a',BOARD],['other-session','sdk-b',BOARD],['other-board','sdk-a','foreign']]) {
-      item.agentHost.reviews.request({...pending(id),board_id:board,run:null,operation:{operation_id:id,session_id:session,kind:'checkpoint-rewind'},kind:'rewind',document:{kind:'rewind',checkpoint_id:'cp',files:[{path:'a',change:'restore',before_text:'now',after_text:'old'}]}});
+      item.agentHost.reviews.request({...pending(id),project_id:board,run:null,operation:{operation_id:id,session_id:session,kind:'checkpoint-rewind'},kind:'rewind',document:{kind:'rewind',checkpoint_id:'cp',files:[{path:'a',change:'restore',before_text:'now',after_text:'old'}]}});
     }
     item.agentHost.reviews.request(pending('run-review'));
     const manual=await (await fetch(`${item.base}/api/agent/reviews?session_id=sdk-a`)).json();assert.deepEqual(manual.reviews.map((row:any)=>row.request.review_id),['mine']);
@@ -207,7 +207,7 @@ test('Git recovery enforces project ownership, explicit confirmation and Host-ow
   });
   try {
     const queue = item.agentHost.reviews;
-    queue.request(pending('mine')); queue.request({ ...pending('foreign'), board_id: 'other-project' });
+    queue.request(pending('mine')); queue.request({ ...pending('foreign'), project_id: 'other-project' });
     queue.registerRecoveryHandler('mine', {
       inspect: async observe => ({ review_id: 'mine', receipt: queue.receipt('mine')!, observation: await observe(), can_confirm_not_happened: false, message: '<script>unsafe</script>' }),
       resolve: async (input, observe) => {

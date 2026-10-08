@@ -34,7 +34,7 @@ async function fixture() {
   };
   await boot();
   const sdkSession = await runtime.sessions.create(), session = { runtime_id: 'prologue', session_id: sdkSession.ref.id };
-  indexes.set(session.session_id, { owner: { board_id: 'board', plugin_id: 'coding' }, attempts: [{ frozen: { directory: { canonical_path: project, realpath_verified: true } } }] });
+  indexes.set(session.session_id, { owner: { project_id: 'board', plugin_id: 'coding' }, attempts: [{ frozen: { directory: { canonical_path: project, realpath_verified: true } } }] });
   return { project, session, indexes, faults, get runtime() {return runtime;}, get queue() {return queue;}, get checkpoints() {return checkpoints;},
     async edit(path: string, text: string) {
       const root = await runtime.workspace.authorize({path: project});

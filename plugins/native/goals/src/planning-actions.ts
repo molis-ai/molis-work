@@ -5,7 +5,7 @@ import { goalAction, goalActor } from "./action-contract.js";
 import { identifier, count, boolean, object, array } from "./event-action-schemas.js";
 import { planningMethodInputSchema, planningMethodSchema, planningMethodSummarySchema, planningCompositionSchema, planningImpactSchema, planningGraphIssueSchema, planningSavedSchema } from "./planning-action-schemas.js";
 
-type SaveInput = Omit<SaveProjectPlanningMethodInput, "board_id" | "actor_id">;
+type SaveInput = Omit<SaveProjectPlanningMethodInput, "project_id" | "actor_id">;
 type Saved = ReturnType<GoalsPlanningApi["saveProjectMethod"]>;
 type ApplyInput = { method_id: string; user_confirmed: boolean };
 export interface GoalsPlanningActionPorts {
@@ -29,27 +29,27 @@ export const goalsPlanningActions = {
     object({}), object({ issues: array(planningGraphIssueSchema), observed_event_cursor: count })),
 } as const;
 
-export function createGoalsPlanningActionHandlers(ports: GoalsPlanningActionPorts, boardId: string): ActionHandlerBinding[] {
+export function createGoalsPlanningActionHandlers(ports: GoalsPlanningActionPorts, projectId: string): ActionHandlerBinding[] {
   const { planning } = ports;
   return [
     { ...goalsPlanningActions.planningCatalog, handle: () => ({
-      methods: planning.effectiveMethods(boardId).map(({ instructions: _instructions, ...summary }) => summary),
-      composition: planning.projectComposition(boardId) }) },
+      methods: planning.effectiveMethods(projectId).map(({ instructions: _instructions, ...summary }) => summary),
+      composition: planning.projectComposition(projectId) }) },
     { ...goalsPlanningActions.planningRead, handle: (_caller, input) => {
-      const methods = planning.effectiveMethods(boardId), wanted = (input as { method_ids?: string[] }).method_ids;
+      const methods = planning.effectiveMethods(projectId), wanted = (input as { method_ids?: string[] }).method_ids;
       const missing = (wanted ?? []).filter(id => !methods.some(method => method.method_id === id));
       if (missing.length) throw new ActionError("planning_method.not_found", `找不到规划方法：${missing.join("、")}`);
-      return { methods: wanted ? wanted.map(id => methods.find(method => method.method_id === id)!) : methods, composition: planning.projectComposition(boardId) };
+      return { methods: wanted ? wanted.map(id => methods.find(method => method.method_id === id)!) : methods, composition: planning.projectComposition(projectId) };
     } },
-    { ...goalsPlanningActions.planningSave, handle: (caller, input) => planning.saveProjectMethod({ ...input as SaveInput, board_id: boardId, actor_id: goalActor(caller).actor_id }) },
+    { ...goalsPlanningActions.planningSave, handle: (caller, input) => planning.saveProjectMethod({ ...input as SaveInput, project_id: projectId, actor_id: goalActor(caller).actor_id }) },
     { ...goalsPlanningActions.planningApply, handle: (caller, input) => {
       const { method_id, user_confirmed } = input as ApplyInput;
       const source = ports.baseMethods().find(method => method.method_id === method_id && method.scope !== "project");
       if (!source) throw new ActionError("planning_method.not_found", "找不到可选的规划方法");
       const { scope: _scope, created_at: _created, updated_at: _updated, overridden_scopes: _overrides, ...method } = source as ResolvedPlanningMethodPack;
-      return planning.saveProjectMethod({ board_id: boardId, actor_id: goalActor(caller).actor_id, user_confirmed, method: { ...method, enabled: true } });
+      return planning.saveProjectMethod({ project_id: projectId, actor_id: goalActor(caller).actor_id, user_confirmed, method: { ...method, enabled: true } });
     } },
-    { ...goalsPlanningActions.planningImpact, handle: (_caller, input) => planning.analyzeChange(boardId, (input as { changed_goal_ids: string[] }).changed_goal_ids) },
-    { ...goalsPlanningActions.planningGraph, handle: () => planning.validateBoardGraph(boardId) },
+    { ...goalsPlanningActions.planningImpact, handle: (_caller, input) => planning.analyzeChange(projectId, (input as { changed_goal_ids: string[] }).changed_goal_ids) },
+    { ...goalsPlanningActions.planningGraph, handle: () => planning.validateBoardGraph(projectId) },
   ];
 }

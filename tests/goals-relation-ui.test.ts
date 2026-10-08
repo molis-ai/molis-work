@@ -11,7 +11,7 @@ const renderer = createWorkbenchGoalsRelationRenderer({ translate: L, escapeHtml
 const item = (id: string, title = id): GoalsRelationItem => ({ goal: { goal_id: id, title, archived_at: null, priority: 1, created_at: "2026-09-05" },
   status: "execution_pending", display_status: "continue", relations: [], events: [] });
 const relation = (id: string, type: GoalRelationRecord["type"], from: string, to: string): GoalRelationRecord => ({
-  relation_id: id, board_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: 'Keep "direction" <safe>',
+  relation_id: id, project_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: 'Keep "direction" <safe>',
   created_by: "user", created_at: "2026-09-05", deactivated_at: null });
 
 test("relation contribution preserves all nine types, direction, target ordering, and separate Decision history", () => {

@@ -1,7 +1,4 @@
 import type {
-  AttentionEntryRecord,
-} from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import type {
   FeedUiEntry,
   FeedUiItem,
   FeedUiModel,
@@ -39,7 +36,7 @@ function buildFeedNativePluginModel(
   const sources = view.feed.sources.map((source) => sourceModel(source, view));
   if (view.demo) {
     const presentKinds = new Set(sources.map((source) => source.ui_kind));
-    sources.push(...demoSourceModels(view.snapshot.board.board_id).filter((source) => !presentKinds.has(source.ui_kind)));
+    sources.push(...demoSourceModels(view.snapshot.board.project_id).filter((source) => !presentKinds.has(source.ui_kind)));
   }
   return {
     route_prefix: view.route_prefix,
@@ -56,14 +53,13 @@ function buildFeedNativePluginModel(
       gmail: view.feed_connector_auth?.gmail ?? { bound: false },
     },
     out_rules: (view.feed.out_rules ?? []).map((rule) => ({
-      admission: rule.admission ?? "suggest",
+      admission: rule.admission,
       rule_id: rule.rule_id,
       name: rule.name,
       enabled: rule.enabled,
       contains: rule.match.contains ?? null,
       source_id: rule.match.source_id ?? null,
       source_kind: rule.match.source_kind ?? null,
-      function_key: rule.function_key ?? null,
       judgment: rule.judgment,
     })),
     primitives: feedUiPrimitives,
@@ -94,7 +90,7 @@ function renderFeedNativePluginPersistedDetail(
     route_prefix: routePrefix,
     entry_id: options.entryId ?? item.item_id,
     item: itemModel(item),
-    inbox_entry: options.inboxEntry ? attentionModel(options.inboxEntry) : null,
+    inbox_entry: options.inboxEntry ?? null,
     inbox_active: options.inboxActive ?? false,
     primitives: feedUiPrimitives,
   };
@@ -124,7 +120,7 @@ function feedEntries(view: MolisWorkWebView): FeedUiEntry[] {
 }
 
 function demoFeedEntries(view: MolisWorkWebView): FeedUiEntry[] {
-  const boardId = view.snapshot.board.board_id;
+  const projectId = view.snapshot.board.project_id;
   const createItem = (
     id: string,
     itemType: FeedItemType,
@@ -137,7 +133,7 @@ function demoFeedEntries(view: MolisWorkWebView): FeedUiEntry[] {
     updatedAt: string,
     tags: string[],
   ): FeedItemRecord => ({
-    board_id: boardId,
+    project_id: projectId,
     item_id: id,
     source_id: sourceId,
     item_type: itemType,
@@ -204,7 +200,7 @@ function demoFeedEntries(view: MolisWorkWebView): FeedUiEntry[] {
 
 function itemModel(item: FeedItemRecord): FeedUiItem {
   return {
-    project_id: item.board_id,
+    project_id: item.project_id,
     item_id: item.item_id,
     source_id: item.source_id,
     signal_id: null,
@@ -230,16 +226,9 @@ function itemModel(item: FeedItemRecord): FeedUiItem {
     source_updated_at: item.source_updated_at,
     imported_at: item.imported_at,
     updated_at: item.updated_at,
-    materials: item.materials.map((material) => ({
-      ...material,
-      project_id: material.board_id,
-    })),
+    materials: item.materials,
     suggested_behavior_ids: item.suggested_behavior_ids ?? [],
   };
-}
-
-function attentionModel(entry: InboxEntryRecord): AttentionEntryRecord {
-  return { ...entry, project_id: entry.board_id };
 }
 
 function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSource {
@@ -270,7 +259,7 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSo
     ? source.config.scope
     : uiKind === "github" ? L("通知、PR 与 Review 请求") : uiKind === "gmail" ? L("指定标签与未读邮件") : uiKind === "connector" ? L("账号入站更新") : L("公开 Feed 更新");
   return {
-    project_id: source.board_id,
+    project_id: source.project_id,
     source_id: source.source_id,
     kind: source.kind,
     definition_id: source.definition_id,

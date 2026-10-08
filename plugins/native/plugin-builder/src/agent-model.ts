@@ -20,7 +20,7 @@ export interface BrowserAcceptance {
   >;
 }
 export interface AgentDesign {
-  /** The capability catalog the design was made against (see the host); absent for designs from before it. */
+  /** The capability catalog version the design was made against (see the host). */
   catalog?: string;
   id: string;
   title: string;
@@ -92,6 +92,6 @@ export interface AgentRelease {
   buildId: string; pluginId: string; version: number; design: AgentDesign; nodes: PluginComponentNode[];
   manifest: BuildManifest; directory: string; bundlePath: string; packagePath: string;
   permissions: SandboxEffects; publishedAt: string;
-  /** Its declared prompts; absent in releases made before prompts were declared (they still send inline instructions). */
-  prompts?: PluginPrompt[];
+  /** Its declared prompts, registered with the Home when it is installed. */
+  prompts: PluginPrompt[];
 }

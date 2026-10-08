@@ -5,7 +5,7 @@ import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/plat
 import type { McpPresentationErrorFactory } from "./goal-presentation.js";
 
 // No identity fields: the management entry decides as the person on this machine (repository-anti-corruption §9.5 #6).
-const allowed = new Set(["database_path", "board_id",
+const allowed = new Set(["database_path", "project_id",
   ...Object.keys(goalsActions.decide.action.input_schema.properties as Record<string, unknown>)]);
 
 export function createMcpGoalEventHandlers(
@@ -34,12 +34,12 @@ export function createMcpGoalEventHandlers(
         );
       }
       const payload: RecordGoalUserDecisionInput = {
-        board_id: String(input.board_id),
+        project_id: String(input.project_id),
         goal_id: String(input.goal_id),
         idempotency_key: String(input.idempotency_key ?? ""),
         authority: hostEventDecisionAuthority(
           "management",
-          String(input.board_id),
+          String(input.project_id),
           LOCAL_PERSON_ACTOR_ID,
           String(input.idempotency_key ?? ""),
         ),

@@ -52,7 +52,7 @@ export interface ActionCallContext {
   readonly audit_actor_id?: string;
   /** Stable session supplied by the authenticated Host; never a business input. */
   readonly runtime_session_id?: string;
-  /** Trusted audit classification; null preserves legacy callers whose kind was not recorded. Never business input. */
+  /** Trusted audit classification; null when the trusted caller does not know it (not inferred). Never business input. */
   readonly actor_kind?: "user" | "runtime" | null;
   /** Authenticated user-operation provenance supplied only by a protected Host adapter.
    * These audit locators grant no authority on their own; never copy them from tool/business input. */

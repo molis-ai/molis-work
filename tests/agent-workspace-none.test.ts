@@ -7,7 +7,7 @@ import { inspectAgentDeclaration } from "@molis-ai/molis-work-contracts/platform
 import type { AgentStartRequest, AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { importedCharacterInstructions } from "../horizontal/agent-host/src/character-import.js";
 
-const owner = { board_id: "board", plugin_id: "unknown.inference", install_id: "installation", actor_id: "user" };
+const owner = { project_id: "board", plugin_id: "unknown.inference", install_id: "installation", actor_id: "user" };
 const directory = { canonical_path: "/authorized", realpath_verified: true };
 const authority: AgentStartAuthority = { authorizedDirectories: [directory.canonical_path], manifest: {
   roles: [{ role_id: "analyst", version: 1, name: "Analyst", execution: "read-only", workspace: "none", host_tools: [], prompts: ["analyst"] },
@@ -52,7 +52,7 @@ function deferred() { let resolve = () => {}; const promise = new Promise<void>(
 function characterAuthority() {
   let active = true;
   const character: AgentFrozenCharacter = { reference: { artifact_id: "character:original", version: 2 }, character_id: "original", title: "Analyst",
-    instructions: "Use only the supplied evidence.", host_tools: [], board_id: owner.board_id, content_digest: "original-content",
+    instructions: "Use only the supplied evidence.", host_tools: [], project_id: owner.project_id, content_digest: "original-content",
     source: { owner_actor_id: owner.actor_id, draft_revision: 3 }, published_at: "2026-09-26T00:00:00Z",
     producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "original-binding" } };
   const granted: AgentStartAuthority = { ...authority, manifest: { ...authority.manifest,
@@ -93,7 +93,7 @@ test("none Character remains guarded after startup and is rechecked after awaite
     () => { c.character.reference.artifact_id = "replacement"; },
     () => { c.character.reference.version = 3; },
     () => { c.character.content_digest = "changed"; },
-    () => { c.character.board_id = "another-board"; },
+    () => { c.character.project_id = "another-board"; },
     () => { c.character.source.owner_actor_id = "another-owner"; },
   ]) {
     change(); await assert.rejects(async () => dispatch(), /原 Character 版本已变化/);
@@ -111,7 +111,7 @@ test("no workspace is an immutable declared role and session contract, never a c
   for (const extra of [{ directory }, { action_tools: [{ capability_id: "a", version: 1, provider_id: "p" }] }, { mcp_sources: [{}] }, { skills: [{}] }, { subagent_workspaces: [{}] }]) {
     await assert.rejects(f.host.start("prologue", { ...request, ...extra } as never, authority), /不能选择/);
   }
-  for (const field of ["board_id", "plugin_id", "install_id", "actor_id"] as const) await assert.rejects(f.host.start("prologue", { ...request, [field]: "foreign" }, authority), /原会话/);
+  for (const field of ["project_id", "plugin_id", "install_id", "actor_id"] as const) await assert.rejects(f.host.start("prologue", { ...request, [field]: "foreign" }, authority), /原会话/);
   await assert.rejects(f.host.start("prologue", { ...request, workspace: "required", role_id: "reader", directory }, authority), /原会话/);
   const required = await f.host.createSession("prologue", { ...owner, directory, title: "Workspace" }, authority);
   await assert.rejects(f.host.start("prologue", { ...request, session: required }, authority), /原会话/);

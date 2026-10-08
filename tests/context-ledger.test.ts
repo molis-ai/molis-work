@@ -43,7 +43,7 @@ test("Ledger retains exact reference revisions, idempotent replay, removal and s
 function feedHarness() {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
-  db.exec("CREATE TABLE boards (board_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('project-a'); INSERT INTO boards VALUES ('project-b');");
+  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('project-a'); INSERT INTO boards VALUES ('project-b');");
   const ledger = createContextLedger(db, { authorize: (request) => request.scope.kind === "personal" });
   let feed: FeedModule;
   let fail = false;

@@ -16,7 +16,7 @@ export const goalDecompositionReviewSchema = object({ status: recordedReviewStat
 export const goalAcceptanceCriterionSchema = object({ criterion_id: text, goal_id: text, statement: text,
   decision_method: recordedDecisionMethod, pass_condition: text,
   target: nullable({ type: "object", additionalProperties: true }), required_evidence: strings });
-export const goalRecordSchema = object({ goal_id: text, board_id: text, title: text, outcome: text, why: text, business_logic: text,
+export const goalRecordSchema = object({ goal_id: text, project_id: text, title: text, outcome: text, why: text, business_logic: text,
   in_scope: strings, out_of_scope: strings, constraints: strings, required_inputs: strings, promised_outputs: strings,
   decomposition_review: nullable(goalDecompositionReviewSchema), definition_state: enumeration(["draft", "accepted"]),
   decomposition_state: enumeration(["abstract", "frontier_open", "closed_leaf", "closed_compound"]), validity_state: enumeration(["valid", "needs_revalidation", "invalidated"]),

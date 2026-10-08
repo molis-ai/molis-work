@@ -109,7 +109,6 @@ export type HostCapabilityOutput<Capability> = Capability extends HostCapability
 /** Opaque local storage locator. It is never a Project business identity. */
 export interface LocalHostProjectReference {
   project_id: string;
-  board_id: string;
   storage_key: string;
 }
 
@@ -129,7 +128,6 @@ export interface HostPluginCaller {
   readonly plugin_id: string;
   readonly install_id: string;
   readonly actor_id: string;
-  readonly board_id: string;
   readonly project_id: string;
   readonly declaration: Pick<import("./plugin.js").PluginDefinition, "manifest" | "agent_prompts" | "agent_skills">;
   /** Installation lifetime, also usable by the original Agent after this typed call ends. */

@@ -37,7 +37,7 @@ function reply(tool?: { name: string; input: unknown }, text = "Done."): Respons
 test("an Assistant round on the real Host finds the capability, searches unopened content and reads the hit through its owner", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "system-search-assistant-run-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "助理检索实操", actor_id: "owner" }));
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const owner = await localWebActionContext(local, reference, LOCAL_OWNER_PERMISSIONS);
   const form = (await local.actionClient(reference).invoke(owner, formActions.create, { title: "供应商准入问卷" }) as { form: { id: string; version: number } }).form;

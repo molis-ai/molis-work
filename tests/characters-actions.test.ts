@@ -14,7 +14,7 @@ test("Character management is redeemed by the project Runtime and bound to the p
   const project = await catalog.createProject({ display_name: "角色动作", actor_id: "web-user" });
   catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write"] };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => owner);
   try {

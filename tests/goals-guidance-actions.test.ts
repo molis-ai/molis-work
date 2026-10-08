@@ -13,7 +13,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 test("guidance actions and typed consumers preserve original receipts, revisions, prompt text, scope and policy", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-guidance-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Guidance", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let blocked = false;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>
     blocked && action.capability_id.startsWith("goals.guidance.")
@@ -28,9 +28,9 @@ test("guidance actions and typed consumers preserve original receipts, revisions
     await assert.rejects(bound.invoke(goalsActions.guidanceAdd, { ...input, actor_id: "user" } as never), { code: "actions.input_invalid" });
     await assert.rejects(actions.invoke({ ...caller, permissions: ["goals:read"] }, goalsActions.guidanceAdd, input), { code: "actions.forbidden" });
     await assert.rejects(actions.invoke({ ...caller, project_id: "foreign" }, goalsActions.guidanceAdd, input), { code: "actions.scope_mismatch" });
-    await assert.rejects(typed.invoke(readProjectGuidanceCapability, { board_id: "foreign" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(typed.invoke(readProjectGuidanceCapability, { project_id: "foreign" }), { code: "actions.scope_mismatch" });
     assert.deepEqual(await bound.invoke(goalsActions.guidanceRead, {}), before);
-    const legacy = await host.withProject(ref, runtime => runtime.coordinator.goals.commands.addProjectGuidance({ ...input, board_id: project.board_id, actor_id: caller.actor_id }));
+    const legacy = await host.withProject(ref, runtime => runtime.coordinator.goals.commands.addProjectGuidance({ ...input, project_id: project.project_id, actor_id: caller.actor_id }));
     assert.deepEqual(await bound.invoke(goalsActions.guidanceAdd, input), { ...legacy, replayed: true });
     const duplicate = await bound.invoke(goalsActions.guidanceAdd, { ...input, idempotency_key: "same-content" });
     assert.equal(duplicate.created, false);
@@ -38,10 +38,10 @@ test("guidance actions and typed consumers preserve original receipts, revisions
     await assert.rejects(bound.invoke(goalsActions.guidanceAdd, { ...input, content: "不同请求" }));
     const update = { guidance_id: legacy.entry.guidance_id, action: "edit" as const, kind: "constraint" as const, content: "导出前由用户明确确认。",
       source_refs: ["project://new-requirements"], reason: "准确说明导出边界", confirmation_summary: "用户确认修改", user_confirmed: true, idempotency_key: "edit" };
-    const edited = await typed.invoke(goalsEntryCapabilities.commands.updateProjectGuidance, [{ ...update, board_id: project.board_id, actor_id: caller.actor_id }]);
+    const edited = await typed.invoke(goalsEntryCapabilities.commands.updateProjectGuidance, [{ ...update, project_id: project.project_id, actor_id: caller.actor_id }]);
     assert.equal(edited.entry.revision, 2); assert.equal(edited.entry.updated_by, caller.actor_id);
     assert.deepEqual(await bound.invoke(goalsActions.guidanceUpdate, update), { ...edited, replayed: true });
-    const afterEdit = await typed.invoke(readProjectGuidanceCapability, { board_id: project.board_id });
+    const afterEdit = await typed.invoke(readProjectGuidanceCapability, { project_id: project.project_id });
     assert.equal(afterEdit.entries[0]?.content, update.content);
     assert.deepEqual(new Set(afterEdit.revisions.map(revision => revision.content)), new Set([input.content, update.content]));
     assert.match(afterEdit.runtime_prompt_prefix, /导出前由用户明确确认/);
@@ -55,12 +55,12 @@ test("guidance actions and typed consumers preserve original receipts, revisions
     const restored = await bound.invoke(goalsActions.guidanceRead, {});
     assert.equal(restored.entries[0]?.revision, 4); assert.equal(restored.revisions.length, 4);
     blocked = true;
-    await assert.rejects(typed.invoke(readProjectGuidanceCapability, { board_id: project.board_id }), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalsEntryCapabilities.commands.addProjectGuidance, [{ ...input, board_id: project.board_id, actor_id: caller.actor_id, idempotency_key: "denied" }]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalsEntryCapabilities.commands.updateProjectGuidance, [{ ...update, board_id: project.board_id, actor_id: caller.actor_id, idempotency_key: "denied" }]), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(readProjectGuidanceCapability, { project_id: project.project_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(goalsEntryCapabilities.commands.addProjectGuidance, [{ ...input, project_id: project.project_id, actor_id: caller.actor_id, idempotency_key: "denied" }]), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(goalsEntryCapabilities.commands.updateProjectGuidance, [{ ...update, project_id: project.project_id, actor_id: caller.actor_id, idempotency_key: "denied" }]), { code: "actions.plugin_disabled" });
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-    try { assert.deepEqual(await restarted.client(ref).invoke(readProjectGuidanceCapability, { board_id: project.board_id }), restored); }
+    try { assert.deepEqual(await restarted.client(ref).invoke(readProjectGuidanceCapability, { project_id: project.project_id }), restored); }
     finally { await restarted.close(); }
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -68,7 +68,7 @@ test("guidance actions and typed consumers preserve original receipts, revisions
 test("Web settings and Work prompt consume the same guidance and obey live read/write policy", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-guidance-http-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Guidance HTTP", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const denied = new Set<string>();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>
     denied.has(action.capability_id) ? { available: false, code: "actions.plugin_disabled", reason: "说明停用" } : { available: true } });
@@ -111,7 +111,7 @@ test("Web settings and Work prompt consume the same guidance and obey live read/
     assert.equal(savedWithoutRefresh.status, 200);
     const receipt = await savedWithoutRefresh.json() as { created: boolean; project_guidance: unknown; project_guidance_error: string };
     assert.equal(receipt.created, true); assert.equal(receipt.project_guidance, null); assert.match(receipt.project_guidance_error, /说明停用/);
-    assert.equal(await host.withProject(ref, runtime => runtime.coordinator.goalQueries.readProjectGuidance(project.board_id).entries[0]?.content), "保留恢复记录。");
+    assert.equal(await host.withProject(ref, runtime => runtime.coordinator.goalQueries.readProjectGuidance(project.project_id).entries[0]?.content), "保留恢复记录。");
     const deniedPrompt = await request(promptPath);
     assert.ok(deniedPrompt.status >= 400); assert.match(await deniedPrompt.text(), /说明停用/);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }

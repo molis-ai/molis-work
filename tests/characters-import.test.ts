@@ -168,9 +168,9 @@ test("large imported resources publish through the real Artifact store and survi
   const { default: Database } = await import("better-sqlite3");
   const { ArtifactsModule, createArtifactsSchema } = await import("@molis-ai/molis-work-module-artifacts");
   const filename = join(home, "artifacts.sqlite"), db = new Database(filename);
-  db.exec("CREATE TABLE boards (board_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, board_id TEXT);");
+  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT);");
   createArtifactsSchema(db);
-  const artifacts = new ArtifactsModule({ db, now: () => "2026-09-23T00:00:00Z", appendEvent: event => Number(db.prepare("INSERT INTO events (board_id) VALUES (?)").run(event.boardId).lastInsertRowid) });
+  const artifacts = new ArtifactsModule({ db, now: () => "2026-09-23T00:00:00Z", appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid) });
   const characterDb = openCharacters(join(home, "personal"), "actor");
   const binary = Buffer.alloc(7 * 1024 * 1024, 0xff).toString("base64");
   const snapshot: CharacterImportSnapshot = { runtime_id: "codex", config_root: "/fixture/codex", captured_at: "2026-09-23T00:00:00Z", rules: [],
@@ -179,7 +179,7 @@ test("large imported resources publish through the real Artifact store and survi
   try {
     const { draft } = characterDb.service.import(snapshot, all(snapshot));
     const result = characterDb.service.publish(draft.character_id, draft.revision, content => artifacts.commands.registerVersion({ ...pinnedArtifact(content.title, { kind: "character", id: content.character_id }),
-      board_id: "board", artifact_id: "large-character", version: 1, actor_id: "actor", artifact_type_id: "character.definition.v1", schema_version: 1,
+      project_id: "board", artifact_id: "large-character", version: 1, actor_id: "actor", artifact_type_id: "character.definition.v1", schema_version: 1,
       producer: { plugin_id: "io.molis.work.characters", plugin_version: "1", binding_signature: "official-characters-binding" },
       content: { kind: "inline", payload: JSON.parse(JSON.stringify(content)) },
     }));

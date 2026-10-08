@@ -52,7 +52,7 @@ test("a change that can be undone runs when asked without a confirmation, and th
   const notes = new DatabaseSync(":memory:");
   notes.exec("CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL)");
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "project", storage_key: "memory:project" };
   let next = 0;
   const unregister = local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [add, remove],
     handlers: [{ ...add, handle(_context, input) { const id = `note-${++next}`; notes.prepare("INSERT INTO notes VALUES (?, ?)").run(id, (input as { text: string }).text); return { note: { id } }; } },

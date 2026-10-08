@@ -21,7 +21,7 @@ test("an Agent run is given exactly the memories the Host recalled for it, froze
     async health() { return { ok: true, status: "ready", message: "就绪" }; },
     async createSession() { return { session_id: "session-1", runtime_id: "probe" }; },
     async readSession(session: unknown) {
-      return { session, owner: { board_id: "board-1", plugin_id: "io.molis.work.coding", install_id: "install-1", actor_id: "tester" }, title: "probe", runs: [], latest_run: null };
+      return { session, owner: { project_id: "board-1", plugin_id: "io.molis.work.coding", install_id: "install-1", actor_id: "tester" }, title: "probe", runs: [], latest_run: null };
     },
     async start(request: any) {
       captured.push(request.role.memory ?? null);
@@ -35,7 +35,7 @@ test("an Agent run is given exactly the memories the Host recalled for it, froze
   const asked: string[] = [];
   const authority = { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: ["/tmp/ws"],
     memory: async (task: string) => { asked.push(task); return task.includes("没有") ? null : pinned; } };
-  const start = (task: string) => host.start("probe", { session: { session_id: "session-1", runtime_id: "probe" }, board_id: "board-1", plugin_id: "io.molis.work.coding",
+  const start = (task: string) => host.start("probe", { session: { session_id: "session-1", runtime_id: "probe" }, project_id: "board-1", plugin_id: "io.molis.work.coding",
     install_id: "install-1", actor_id: "tester", task, role_id: "reader", directory: { canonical_path: "/tmp/ws", realpath_verified: true } } as never, authority as never);
   await start("看看这个仓库");
   await start("这次没有相关记忆");
@@ -43,7 +43,7 @@ test("an Agent run is given exactly the memories the Host recalled for it, froze
   assert.deepEqual(captured, [pinned, null]);
   // A failing recall never stops the run: it runs without memory.
   const failing = { ...authority, memory: async () => { throw new Error("记忆服务暂时不可用"); } };
-  await host.start("probe", { session: { session_id: "session-1", runtime_id: "probe" }, board_id: "board-1", plugin_id: "io.molis.work.coding",
+  await host.start("probe", { session: { session_id: "session-1", runtime_id: "probe" }, project_id: "board-1", plugin_id: "io.molis.work.coding",
     install_id: "install-1", actor_id: "tester", task: "再看看", role_id: "reader", directory: { canonical_path: "/tmp/ws", realpath_verified: true } } as never, failing as never);
   assert.equal(captured.at(-1), null);
 });

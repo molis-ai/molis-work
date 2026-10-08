@@ -13,7 +13,7 @@ const { buildCapsuleSnapshot } = createLocalHostCapsule(renderDesktopCapsuleShel
 test("reported work and an applied closure reach momentum activity, completion cadence and the capsule", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "goal-work-event-momentum-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Momentum", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:momentum", audit_actor_id: "runtime:momentum:session",
     actor_kind: "runtime", audience: "agent", project_id: project.project_id, permissions: ["goals:read", "goals:write"] }));
@@ -55,7 +55,7 @@ test("reported work and an applied closure reach momentum activity, completion c
     assert.equal(week.buckets.find(bucket => bucket.date === closedAt.slice(0, 10))?.completed, 1);
 
     const view = await host.withProject(ref, runtime => buildMolisWorkWebView(runtime.store, collection, { databasePath: project.database_path,
-      boardId: project.board_id, project: { project_id: project.project_id, display_name: "Momentum" }, routePrefix: `/projects/${project.project_id}` }));
+      projectId: project.project_id, project: { project_id: project.project_id, display_name: "Momentum" }, routePrefix: `/projects/${project.project_id}` }));
     const directory = (await actions.invoke(goalsActions.list, { limit: 100 })).goals;
     const completedTab = (at: Date) => buildCapsuleSnapshot(view, directory, at).tabs.find(tab => tab.kind === "completed")?.items ?? [];
     assert.deepEqual(completedTab(now).map(entry => [entry.goal_id, entry.status_since]), [["DONE-GOAL", closedAt]]);

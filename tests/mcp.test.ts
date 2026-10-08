@@ -71,7 +71,7 @@ describe("mcp server", () => {
     }
     assert.ok(!names.some((name) => !name.startsWith("molis_work_v1_")));
     assert.ok(listedTools.every((tool) => !("database_path" in (tool.inputSchema.properties ?? {}))));
-    assert.ok(listedTools.every((tool) => !("board_id" in (tool.inputSchema.properties ?? {})) || tool.name.startsWith("molis_work_v1_context_") || tool.name === "molis_work_v1_project_delete"));
+    assert.ok(listedTools.every((tool) => !("project_id" in (tool.inputSchema.properties ?? {})) || tool.name.startsWith("molis_work_v1_context_") || tool.name === "molis_work_v1_project_delete"));
   });
 
   it("returns structured reader-too-old diagnostics without exposing the catalog path", async () => {
@@ -121,14 +121,14 @@ describe("mcp server", () => {
   it("does not restore the removed static Runtime DB connection from environment", () => {
     const keys = [
       "MOLIS_WORK_DATABASE",
-      "MOLIS_WORK_BOARD_ID",
+      "MOLIS_WORK_PROJECT_ID",
       "MOLIS_WORK_WEB_URL",
       "MOLIS_WORK_RUNTIME_ID",
     ] as const;
     const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
     try {
       process.env.MOLIS_WORK_DATABASE = "/tmp/legacy-molis-work.db";
-      process.env.MOLIS_WORK_BOARD_ID = "legacy-board";
+      process.env.MOLIS_WORK_PROJECT_ID = "legacy-board";
       process.env.MOLIS_WORK_WEB_URL = "http://127.0.0.1:4173";
       delete process.env.MOLIS_WORK_RUNTIME_ID;
       const runtime = new MolisWorkServer("runtime");
@@ -150,7 +150,7 @@ describe("mcp server", () => {
       CODEX_THREAD_ID: "thread-native",
       MOLIS_WORK_PANEL_ID: "panel-surface",
       MOLIS_WORK_GOAL_ID: "goal-current",
-      MOLIS_WORK_WORK_CONTEXT_ID: "legacy-work-context",
+      MOLIS_WORK_WORK_CONTEXT_ID: "host-work-context",
       MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
       PWD: "/tmp/molis-work-session-identities",
     }, "/tmp/molis-work-session-identities");
@@ -159,8 +159,8 @@ describe("mcp server", () => {
     assert.equal(host.nativeRuntimeSessionId, "thread-native");
     assert.equal(host.panelId, "panel-surface");
     assert.equal(host.goalId, "goal-current");
-    assert.equal(host.legacyWorkContextId, "legacy-work-context");
-    assert.equal(host.runtimeContext.stable_work_context_id, "legacy-work-context");
+    assert.equal(host.hostWorkContextId, "host-work-context");
+    assert.equal(host.runtimeContext.stable_work_context_id, "host-work-context");
   });
 
   it("unknown method", async () => {
@@ -242,7 +242,7 @@ describe("mcp server", () => {
         user_confirmed: true,
       });
       assert.equal(bound.result.isError, false, bound.result.content[0]?.text);
-      assert.equal(readConnection()?.boardId, removable.board_id);
+      assert.equal(readConnection()?.projectId, removable.project_id);
 
       const deniedUnbind = await call(runtime, "molis_work_v1_context_unbind", {
         actor_id: "runtime-codex",
@@ -250,7 +250,7 @@ describe("mcp server", () => {
       });
       assert.equal(deniedUnbind.result.isError, true);
       assert.match(deniedUnbind.result.content[0]?.text ?? "", /明确要求解除绑定/);
-      assert.equal(readConnection()?.boardId, removable.board_id);
+      assert.equal(readConnection()?.projectId, removable.project_id);
 
       const unbound = await call(runtime, "molis_work_v1_context_unbind", {
         actor_id: "runtime-codex",
@@ -272,7 +272,7 @@ describe("mcp server", () => {
         user_confirmed: true,
       });
       assert.equal(rebound.result.isError, false, rebound.result.content[0]?.text);
-      assert.equal(readConnection()?.boardId, removable.board_id);
+      assert.equal(readConnection()?.projectId, removable.project_id);
 
       const deniedDelete = await call(runtime, "molis_work_v1_project_delete", {
         project_id: removable.project_id,

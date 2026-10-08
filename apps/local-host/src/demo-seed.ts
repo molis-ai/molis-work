@@ -3,7 +3,7 @@ import path from "node:path";
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { LocalProjectDatabase } from "./project-database.js";
 
-export const DEMO_BOARD_ID = "molis-work-v1-demo";
+export const DEMO_PROJECT_ID = "molis-work-v1-demo";
 
 const DEMO_ACTOR = "demo-user";
 const DELIVERY_TYPE = {
@@ -20,17 +20,17 @@ const DELIVERY_TYPE = {
 
 type DemoCoordinator = GoalProjectApplication;
 
-function versions(coordinator: DemoCoordinator, goalId: string) {
-  const state = coordinator.goalEvents.readState(DEMO_BOARD_ID, goalId);
+function versions(coordinator: DemoCoordinator, projectId: string, goalId: string) {
+  const state = coordinator.goalEvents.readState(projectId, goalId);
   return {
     expected_config_version: state.config.version,
     expected_agreement_version: state.agreement.version,
   };
 }
 
-function writeContext(goalId: string, key: string) {
+function writeContext(projectId: string, goalId: string, key: string) {
   return {
-    board_id: DEMO_BOARD_ID,
+    project_id: projectId,
     goal_id: goalId,
     actor_id: DEMO_ACTOR,
     actor_kind: "user" as const,
@@ -38,9 +38,9 @@ function writeContext(goalId: string, key: string) {
   };
 }
 
-function ensureConfigured(coordinator: DemoCoordinator, goalId: string, key: string) {
+function ensureConfigured(coordinator: DemoCoordinator, projectId: string, goalId: string, key: string) {
   coordinator.goalEvents.configure({
-    ...writeContext(goalId, `${key}-configure`),
+    ...writeContext(projectId, goalId, `${key}-configure`),
     expected_version: 0,
     types: [DELIVERY_TYPE],
   });
@@ -48,6 +48,7 @@ function ensureConfigured(coordinator: DemoCoordinator, goalId: string, key: str
 
 function reportProgress(
   coordinator: DemoCoordinator,
+  projectId: string,
   goalId: string,
   key: string,
   title: string,
@@ -56,7 +57,7 @@ function reportProgress(
   requirementId?: string,
 ) {
   coordinator.goalEvents.report({
-    ...writeContext(goalId, `${key}-report`),
+    ...writeContext(projectId, goalId, `${key}-report`),
     events: [{
       type_id: "lifecycle",
       type_version: 1,
@@ -72,25 +73,26 @@ function reportProgress(
   });
 }
 
-function closeComplete(coordinator: DemoCoordinator, goalId: string, key: string, result: string, reason: string) {
+function closeComplete(coordinator: DemoCoordinator, projectId: string, goalId: string, key: string, result: string, reason: string) {
   coordinator.goalEvents.submitClosure({
-    ...writeContext(goalId, `${key}-close`),
+    ...writeContext(projectId, goalId, `${key}-close`),
     kind: "complete",
     result,
     reason,
-    ...versions(coordinator, goalId),
+    ...versions(coordinator, projectId, goalId),
   });
 }
 
-export function seedDemoBoard(databasePath: string): void {
+/** Seeds the demo goals into a new project database under the project's own id. */
+export function seedDemoBoard(databasePath: string, projectId = DEMO_PROJECT_ID): void {
   fs.mkdirSync(path.dirname(databasePath), { recursive: true });
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   try {
-    const exists = store.goalsQuery.getBoard(DEMO_BOARD_ID);
+    const exists = store.goalsQuery.getBoard(projectId);
     if (exists) return;
     coordinator.initializeBoard({
-      board_id: DEMO_BOARD_ID,
+      project_id: projectId,
       title: "让第一次使用 Molis Work 的人顺利完成一次目标协作",
       actor_id: DEMO_ACTOR,
       idempotency_key: "demo-board",
@@ -458,7 +460,7 @@ export function seedDemoBoard(databasePath: string): void {
     };
     for (const goal of goals) {
       coordinator.goalEvents.createIntent({
-        board_id: DEMO_BOARD_ID,
+        project_id: projectId,
         goal_id: goal.goal_id,
         title: goal.title,
         outcome: goal.outcome,
@@ -481,7 +483,7 @@ export function seedDemoBoard(databasePath: string): void {
     }
 
     coordinator.goalEvents.recordNote({
-      board_id: DEMO_BOARD_ID,
+      project_id: projectId,
       goal_id: "RELEASE",
       actor_id: DEMO_ACTOR,
       actor_kind: "user",
@@ -490,7 +492,7 @@ export function seedDemoBoard(databasePath: string): void {
     });
 
     coordinator.goals.lifecycle.setTrashed(
-      DEMO_BOARD_ID,
+      projectId,
       {
         goal_id: "AUTO-CONNECT",
         trashed: true,
@@ -500,13 +502,13 @@ export function seedDemoBoard(databasePath: string): void {
     );
 
     coordinator.goalEvents.configure({
-      ...writeContext("CORE", "demo-core-configure"),
+      ...writeContext(projectId, "CORE", "demo-core-configure"),
       expected_version: 0,
       types: [DELIVERY_TYPE],
     });
     coordinator.goalEvents.setAgreement({
-      ...writeContext("CORE", "demo-core-agree"),
-      ...versions(coordinator, "CORE"),
+      ...writeContext(projectId, "CORE", "demo-core-agree"),
+      ...versions(coordinator, projectId, "CORE"),
       outcome: "用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成",
       new_requirements: [{
         requirement_id: "CORE-C1",
@@ -515,7 +517,7 @@ export function seedDemoBoard(databasePath: string): void {
       }],
     });
     coordinator.goalEvents.report({
-      ...writeContext("CORE", "demo-core-report"),
+      ...writeContext(projectId, "CORE", "demo-core-report"),
       events: [{
         type_id: "lifecycle",
         type_version: 1,
@@ -530,16 +532,16 @@ export function seedDemoBoard(databasePath: string): void {
       },
     });
     coordinator.goalEvents.recordNote({
-      board_id: DEMO_BOARD_ID,
+      project_id: projectId,
       goal_id: "CORE",
       actor_id: DEMO_ACTOR,
       actor_kind: "user",
       body: "演示项目用当前事件记录说明这项工作为什么可以算完成，不再领取角色或提交旧 Evidence。",
       idempotency_key: "demo-core-note",
     });
-    closeComplete(coordinator, "CORE", "demo-core", "可用的生命周期记录", "约定要求已有支持事实，演示收尾");
+    closeComplete(coordinator, projectId, "CORE", "demo-core", "可用的生命周期记录", "约定要求已有支持事实，演示收尾");
     coordinator.goalEvents.recordNote({
-      board_id: DEMO_BOARD_ID,
+      project_id: projectId,
       goal_id: "INTERFACES",
       actor_id: DEMO_ACTOR,
       actor_kind: "user",
@@ -547,9 +549,9 @@ export function seedDemoBoard(databasePath: string): void {
       idempotency_key: "demo-interfaces-note",
     });
 
-    ensureConfigured(coordinator, "V1", "demo-v1");
+    ensureConfigured(coordinator, projectId, "V1", "demo-v1");
     reportProgress(
-      coordinator,
+      coordinator, projectId,
       "V1",
       "demo-v1",
       "目标树已经能看出下一步",
@@ -558,9 +560,9 @@ export function seedDemoBoard(databasePath: string): void {
       "V1-C1",
     );
 
-    ensureConfigured(coordinator, "DESKTOP", "demo-desktop");
+    ensureConfigured(coordinator, projectId, "DESKTOP", "demo-desktop");
     reportProgress(
-      coordinator,
+      coordinator, projectId,
       "DESKTOP",
       "demo-desktop",
       "工作台主栏已经对齐",
@@ -569,9 +571,9 @@ export function seedDemoBoard(databasePath: string): void {
       "DESKTOP-C1",
     );
 
-    ensureConfigured(coordinator, "DECIDE", "demo-decide");
+    ensureConfigured(coordinator, projectId, "DECIDE", "demo-decide");
     coordinator.goalEvents.requestDecision({
-      ...writeContext("DECIDE", "demo-decide-ask"),
+      ...writeContext(projectId, "DECIDE", "demo-decide-ask"),
       question: "第一次打开项目时，默认落在 Goal 列表还是默认打开一条 Session？",
       options: [
         { option_id: "goals", label: "先看目标树", impact: "用户先理解现在做什么，再决定开哪条会话" },
@@ -581,9 +583,9 @@ export function seedDemoBoard(databasePath: string): void {
       scope: { requirement_ids: ["DECIDE-C1"] },
     });
 
-    ensureConfigured(coordinator, "RISK", "demo-risk");
+    ensureConfigured(coordinator, projectId, "RISK", "demo-risk");
     coordinator.goalEvents.applyConcern({
-      ...writeContext("RISK", "demo-risk-open"),
+      ...writeContext(projectId, "RISK", "demo-risk-open"),
       action: "open",
       title: "README 仍指向已撤掉的启动命令",
       statement: "按文档复制的命令会启动旧入口，用户会以为安装失败。",
@@ -591,9 +593,9 @@ export function seedDemoBoard(databasePath: string): void {
       blocks_closure: true,
     });
 
-    ensureConfigured(coordinator, "GRAPH", "demo-graph");
+    ensureConfigured(coordinator, projectId, "GRAPH", "demo-graph");
     reportProgress(
-      coordinator,
+      coordinator, projectId,
       "GRAPH",
       "demo-graph",
       "画布已能读出依赖方向",
@@ -601,24 +603,24 @@ export function seedDemoBoard(databasePath: string): void {
       "退出日常列表，需要时再打开归档",
       "GRAPH-C1",
     );
-    closeComplete(coordinator, "GRAPH", "demo-graph", "画布关系已经可扫", "演示收尾，把已完成关系图移出日常列表");
+    closeComplete(coordinator, projectId, "GRAPH", "demo-graph", "画布关系已经可扫", "演示收尾，把已完成关系图移出日常列表");
     coordinator.goals.lifecycle.setArchived(
-      DEMO_BOARD_ID,
+      projectId,
       { goal_id: "GRAPH", archived: true, reason: "画布关系已经可扫，退出日常工作列表" },
       { actor_id: DEMO_ACTOR, idempotency_key: "demo-archive-graph" },
     );
 
-    ensureConfigured(coordinator, "DROPPED", "demo-dropped");
+    ensureConfigured(coordinator, projectId, "DROPPED", "demo-dropped");
     coordinator.goalEvents.submitClosure({
-      ...writeContext("DROPPED", "demo-dropped-cancel"),
+      ...writeContext(projectId, "DROPPED", "demo-dropped-cancel"),
       kind: "cancel",
       reason: "旧会话读不到新接入，会让人误以为安装失败",
-      ...versions(coordinator, "DROPPED"),
+      ...versions(coordinator, projectId, "DROPPED"),
     });
 
     store.db
-      .prepare("UPDATE boards SET active_goal_id = ?, updated_at = ? WHERE board_id = ?")
-      .run("V1", new Date().toISOString(), DEMO_BOARD_ID);
+      .prepare("UPDATE boards SET active_goal_id = ?, updated_at = ? WHERE project_id = ?")
+      .run("V1", new Date().toISOString(), projectId);
   } finally {
     store.close();
   }

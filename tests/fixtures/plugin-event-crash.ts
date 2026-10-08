@@ -21,13 +21,13 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const db = new Database(process.argv[2]!);
   db.exec('CREATE TABLE effects (value TEXT)');
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db)), supervisor = new PluginSupervisor(runtime);
-  const bus = new PluginEventBus({ boardId: EVENT_BOARD, lifecycle: supervisor, repository: new SqlitePluginEventsRepository(db) });
+  const bus = new PluginEventBus({ projectId: EVENT_BOARD, lifecycle: supervisor, repository: new SqlitePluginEventsRepository(db) });
   await supervisor.start([{ definition: eventCrashDefinition(EVENT_SOURCE) }, { definition: eventCrashDefinition(EVENT_SUBSCRIBER, async context => {
     context.beforeEffect(); db.prepare('INSERT INTO effects VALUES (?)').run('committed');
     process.stdout.write('committed\n'); await new Promise(() => {});
   }) }]);
   await bus.resume(EVENT_BOARD);
-  bus.publish({ board_id: EVENT_BOARD, plugin_id: EVENT_SOURCE, install_id: supervisor.installation(EVENT_SOURCE)!.install_id }, { event_type_id: EVENT_TYPE, type_version: 1, payload: {} });
+  bus.publish({ project_id: EVENT_BOARD, plugin_id: EVENT_SOURCE, install_id: supervisor.installation(EVENT_SOURCE)!.install_id }, { event_type_id: EVENT_TYPE, type_version: 1, payload: {} });
   // Keep a real process alive until the parent kills it after the business commit.
   setInterval(() => {}, 1000);
   await bus.drain();

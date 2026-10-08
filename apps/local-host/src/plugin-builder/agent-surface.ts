@@ -10,7 +10,7 @@ import type { SandboxJson, SandboxIdentity } from '@molis-ai/molis-work-contract
 import { assertContract, createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { prologueModelConfiguration } from '@molis-ai/molis-work-service-agent-host';
 import { resolvePluginComponentCall, escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
-import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderPromptVersion, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderPromptVersion, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { openConfiguredModels } from '../configured-models.js';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
@@ -23,17 +23,16 @@ import { buildManifest, canonical, createBuildProject, readBuildFile } from './b
 import { runPluginChecks } from './build-checks.js';
 import { runBuilderBrowserAcceptance, inspectBuilderPresentation } from './browser.js';
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
-import type { AgentDesign } from '@molis-ai/molis-work-plugin-builder';
 import type { PluginPlatformOptions } from '../plugin-platform.js';
 import type { PluginSecrets } from './secrets.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
-import { capabilityLimits, latestCapability, slowOperations, standInCapabilities, type CapabilityImplementations, type Lane } from './capabilities.js';
+import { capabilityLimits, latestCapability, slowOperations, type CapabilityImplementations, type Lane } from './capabilities.js';
 import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, standIn, type CatalogCapability, type ProjectActions } from './catalog.js';
 
 export interface AgentStudioModel { provider_id: string; model_id: string; label: string }
 export interface AgentStudioOptions {
   store: LocalProjectDatabase;
-  boardId: string;
+  projectId: string;
   homeDirectory?: string;
   routePrefix?: string;
   models(): Promise<readonly AgentStudioModel[]>;
@@ -125,13 +124,13 @@ export function builderPrompts(home: string): NonNullable<AgentBuilderPorts['pro
 async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
   let boards = studios.get(options.store);
   if (!boards) { boards = new Map(); studios.set(options.store, boards); }
-  const existing = boards.get(options.boardId);
+  const existing = boards.get(options.projectId);
   if (existing) return existing;
   const created = (async () => {
     const home = options.homeDirectory;
     if (!home) throw new Error('插件创作工作台需要本机数据目录');
     const installed = await ensureInstalledPlugins({ ...options, homeDirectory: home });
-    const storage = installed.storage, root = join(home, 'plugin-builder', options.boardId);
+    const storage = installed.storage, root = join(home, 'plugin-builder', options.projectId);
     const studio = { storage, root, runners: new Map() } as unknown as Studio;
     const selected = (): { provider_id: string; model_id: string } | null => { const raw = storage.get(MODEL_KEY); return raw ? JSON.parse(raw) : null; };
     const models = <T>(operation: (store: NonNullable<ReturnType<typeof openConfiguredModels>>['store'] | undefined) => T): T => {
@@ -149,13 +148,11 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     const accepting = new Set<string>(), actions = installed.actions;
     studio.catalog = installed.catalog;
     const live = (identity: Readonly<SandboxIdentity>) => identity.installationId.startsWith(STABLE_PREVIEW) && !accepting.has(identity.installationId.slice(STABLE_PREVIEW.length));
-    const capabilityFor = (design?: AgentDesign | null) => installed.capabilityFor(design, live);
-    const standInsFor = (design?: AgentDesign | null): NonNullable<SandboxServices['capability']> => design?.catalog === CATALOG_VERSION
-      ? { async call(_context, id, input) { const entry = latestCapability(await studio.catalog(), id); if (!entry) throw new Error('平台目录里没有开放给插件的能力：' + id); return standIn(entry, input); } }
-      : standInCapabilities();
+    const capability = installed.capabilityFor(live);
+    const standIns: NonNullable<SandboxServices['capability']> = { async call(_context, id, input) { const entry = latestCapability(await studio.catalog(), id); if (!entry) throw new Error('平台目录里没有开放给插件的能力：' + id); return standIn(entry, input); } };
     studio.secrets = installed.secrets;
     const network = installed.network;
-    const previewFor = (design?: AgentDesign | null): SandboxServices => ({ ...previewServices(storage), capability: capabilityFor(design), network });
+    const previewFor = (): SandboxServices => ({ ...previewServices(storage), capability, network });
     // W7: pictures of proposals through the images plugin's own actions, as the person, when an image service is set up.
     const imageAction = async <T,>(capability: string, input: unknown): Promise<T> => {
       const caller = { actor_id: options.actorId ?? 'web-user', project_id: actions.project_id, audience: 'user' as const, permissions: ['images:connections:read', 'images:generate', 'images:read'] };
@@ -197,8 +194,8 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       if (current?.key === key) return current.runner;
       // A newer bundle replaces both lanes, so the trial never mixes versions.
       if (current) await stopRunner(build.id);
-      const runner = createSandboxRunner({ bundlePath: bundle, contract: build.design.contract, grants: effects(build), services: previewFor(build.design), limits: capabilityLimits(effects(build), capabilities),
-        identity: { projectId: options.boardId, installationId: STABLE_PREVIEW + build.id, pluginId: build.design.contract.pluginId, namespace: 'preview' } });
+      const runner = createSandboxRunner({ bundlePath: bundle, contract: build.design.contract, grants: effects(build), services: previewFor(), limits: capabilityLimits(effects(build), capabilities),
+        identity: { projectId: options.projectId, installationId: STABLE_PREVIEW + build.id, pluginId: build.design.contract.pluginId, namespace: 'preview' } });
       studio.runners.set(slot, { key, runner });
       runner.catch(() => { if (studio.runners.get(slot)?.runner === runner) studio.runners.delete(slot); });
       return runner;
@@ -222,14 +219,13 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       finally { trials.delete(key); await reset(); accepting.delete(trial.id); }
     };
     const ports: AgentBuilderPorts = {
-      projectId: options.boardId,
+      projectId: options.projectId,
       // What a design may use: the project's unified action directory, as offered to generated plugins.
       catalog: async () => (await studio.catalog()).filter(entry => entry.offered).map(entry => ({ id: entry.id, title: entry.title, source: entry.source.title + (entry.installed ? '' : '（这个项目还没启用；用到时会先问用户要不要启用）'), effect: entry.effect, execution: entry.execution,
         description: entry.description + (entry.execution.cost === 'metered' ? '（会产生费用：只放在由用户点击触发的 command 里）' : entry.execution.cost === 'unknown' ? '（提供方未声明费用）' : ''), input: entry.input, ...(entry.output ? { output: entry.output } : {}) })),
       catalogVersion: CATALOG_VERSION,
       // A design that uses a plugin this project has not enabled waits for the person; enabling it continues the build.
       async missingPlugins(design) {
-        if (design.catalog !== CATALOG_VERSION) return [];
         const used = new Set(design.contract.operations.flatMap(operation => operation.effects.capabilities ?? [])), missing = new Map<string, { pluginId: string; title: string; capabilities: string[] }>();
         for (const entry of await studio.catalog()) if (entry.offered && !entry.installed && used.has(entry.id) && entry.source.plugin_id) {
           const item = missing.get(entry.source.plugin_id) ?? { pluginId: entry.source.plugin_id, title: entry.source.title, capabilities: [] };
@@ -258,10 +254,8 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         await rm(directory, { recursive: true, force: true }); await rm(settledFor(directory), { recursive: true, force: true }); await mkdir(dirname(directory), { recursive: true, mode: 0o700 });
         // The code agent reads what each capability the design uses takes and returns, and how checks answer it.
         const used = new Set(design.contract.operations.flatMap(operation => operation.effects.capabilities ?? []));
-        const described = design.catalog === CATALOG_VERSION
-          ? (await studio.catalog()).filter(entry => entry.offered && used.has(entry.id)).map(entry => ({ id: entry.id, title: entry.title, description: entry.description, effect: entry.effect, input: entry.input, output: entry.output ?? null,
-            inChecks: entry.provider_id === PLATFORM_PROVIDER_ID ? '由固定替身代答（见说明）' : entry.effect === 'read' ? '由替身按输出结构给出示例值（列表里一条记录，文字字段是「示例」）' : '由替身代答，不会真的写入' }))
-          : [...used].map(id => studioCapabilityCatalog().find(entry => entry.id === id)).filter(Boolean);
+        const described = (await studio.catalog()).filter(entry => entry.offered && used.has(entry.id)).map(entry => ({ id: entry.id, title: entry.title, description: entry.description, effect: entry.effect, input: entry.input, output: entry.output ?? null,
+            inChecks: entry.provider_id === PLATFORM_PROVIDER_ID ? '由固定替身代答（见说明）' : entry.effect === 'read' ? '由替身按输出结构给出示例值（列表里一条记录，文字字段是「示例」）' : '由替身代答，不会真的写入' }));
         await createBuildProject(directory, design.contract, manifest, { capabilities: described as SandboxJson, resources: [] });
         // A revision keeps the implementation and tests of every operation whose contract did not change,
         // so only the parts that actually changed go back to the code agent.
@@ -282,8 +276,8 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         return directory;
       },
       check: (build, operationIds, signal) => runPluginChecks({ root: build.directory!, contract: build.design!.contract, manifest: buildManifest(build.design!.contract),
-        operationIds, services: previewFor(build.design), mockServices: { capability: standInsFor(build.design), network }, grants: effects(build), signal, settled: settledFor(build.directory!),
-        identity: { projectId: options.boardId, installationId: 'checks:' + build.id, pluginId: build.design!.contract.pluginId, namespace: 'preview' } }),
+        operationIds, services: previewFor(), mockServices: { capability: standIns, network }, grants: effects(build), signal, settled: settledFor(build.directory!),
+        identity: { projectId: options.projectId, installationId: 'checks:' + build.id, pluginId: build.design!.contract.pluginId, namespace: 'preview' } }),
       call: async (build, operationId, input) => {
         const capabilities = await studio.catalog();
         return (await runnerFor(build, slowOperations(build.design!.contract, capabilities).has(operationId) ? 'slow' : 'quick', capabilities)).call(operationId, input);
@@ -320,8 +314,8 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     await studio.workflow.initialize();
     return studio;
   })();
-  boards.set(options.boardId, created);
-  try { return await created; } catch (error) { boards.delete(options.boardId); throw error; }
+  boards.set(options.projectId, created);
+  try { return await created; } catch (error) { boards.delete(options.projectId); throw error; }
 }
 
 /** What the browser sees of a build: no host paths (build directory, bundles, release folders). */
@@ -445,10 +439,8 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       const state = await workflow.state(), catalog = await studio.catalog().catch(error => {
         catalogError = error instanceof Error ? error.message : String(error); console.error('[plugin-builder] capability catalog unavailable:', error); return [] as CatalogCapability[]; });
       sendLocalWebJson(response, 200, { ...state, builds: state.builds.map(publicBuild), releases: state.releases.map(publicRelease), model: raw ? JSON.parse(raw) : null, components: PLUGIN_COMPONENTS,
-        // The capability board: the unified directory as offered to plugins (and what is not, with why), plus the studio's
-        // own list that designs from before the catalog still use.
-        capabilities: [...catalog.map(({ id, version, title, consent, effect, source, offered, reason, description, installed }) => ({ id, version, title, consent, effect, source, offered, reason, description, installed })),
-          ...STUDIO_CAPABILITIES.filter(item => !catalog.some(entry => entry.id === item.id)).map(({ id, title, consent }) => ({ id, title, consent, legacy: true }))],
+        // The capability board: the unified directory as offered to plugins (and what is not, with why).
+        capabilities: catalog.map(({ id, version, title, consent, effect, source, offered, reason, description, installed }) => ({ id, version, title, consent, effect, source, offered, reason, description, installed })),
         ...(catalogError ? { catalogError } : {}) });
       return true;
     }
@@ -492,10 +484,10 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
   }
 }
 
-export async function releaseAgentStudio(store: LocalProjectDatabase, boardId: string) {
-  const boards = studios.get(store), pending = boards?.get(boardId);
+export async function releaseAgentStudio(store: LocalProjectDatabase, projectId: string) {
+  const boards = studios.get(store), pending = boards?.get(projectId);
   if (!pending) return;
-  boards!.delete(boardId);
+  boards!.delete(projectId);
   const studio = await pending.catch(() => null);
   if (!studio) return;
   await studio.workflow.close();

@@ -333,10 +333,10 @@ test("project and personal methods persist without a second Goal truth model", a
   const root = mkdtempSync(path.join(os.tmpdir(), "molis-work-planning-"));
   const store = new LocalProjectDatabase(path.join(root, "board.db"));
   const coordinator = new GoalProjectApplication(store, () => new Date("2026-08-22T03:00:00.000Z"));
-  coordinator.initializeBoard({ board_id: "board-1", title: "规划测试", actor_id: "user", idempotency_key: "init" });
+  coordinator.initializeBoard({ project_id: "board-1", title: "规划测试", actor_id: "user", idempotency_key: "init" });
   assert.throws(
     () => coordinator.goals.planning.saveProjectMethod({
-      board_id: "board-1",
+      project_id: "board-1",
       method: customMethod("domain-unconfirmed-research"),
       actor_id: "runtime",
       user_confirmed: false,
@@ -344,7 +344,7 @@ test("project and personal methods persist without a second Goal truth model", a
     /必须由用户确认/,
   );
   const saved = coordinator.goals.planning.saveProjectMethod({
-    board_id: "board-1",
+    project_id: "board-1",
     method: customMethod("domain-customer-research"),
     actor_id: "user",
     user_confirmed: true,
@@ -423,7 +423,7 @@ test("Goals public Planning API owns method versions, graph checks, and change i
   try {
     const clock = () => new Date("2026-08-22T05:00:00.000Z");
     new GoalProjectApplication(store, clock).initializeBoard({
-      board_id: "board-module-planning",
+      project_id: "board-module-planning",
       title: "Planning Module",
       actor_id: "user",
       idempotency_key: "init-module-planning",
@@ -438,13 +438,13 @@ test("Goals public Planning API owns method versions, graph checks, and change i
     }, { now: clock });
 
     const first = goals.planning.saveProjectMethod({
-      board_id: "board-module-planning",
+      project_id: "board-module-planning",
       method: customMethod("domain-module-planning"),
       actor_id: "user",
       user_confirmed: true,
     });
     const second = goals.planning.saveProjectMethod({
-      board_id: "board-module-planning",
+      project_id: "board-module-planning",
       method: { ...customMethod("domain-module-planning"), summary: "第二版研究方法。" },
       actor_id: "user",
       user_confirmed: true,

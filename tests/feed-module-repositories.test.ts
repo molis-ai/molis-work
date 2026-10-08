@@ -8,7 +8,7 @@ import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumptio
 import { FeedModule } from "@molis-ai/molis-work-module-feed";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 function feedModules(store: LocalProjectDatabase): {
@@ -36,7 +36,7 @@ test("Feed and Attention repositories preserve Signal revisions and state across
     try {
       const { attention, feed } = feedModules(firstStore);
       const first = feed.commands.ingest({
-        project_id: DEMO_BOARD_ID,
+        project_id: DEMO_PROJECT_ID,
         source_id: "source-module-test",
         source_kind: "github",
         source_label: "GitHub",
@@ -51,10 +51,10 @@ test("Feed and Attention repositories preserve Signal revisions and state across
       assert.equal(first.created, true);
       assert.equal(first.updated, false);
       assert.equal(first.item.signal_id, "signal-module-test");
-      assert.equal(attention.query.list(DEMO_BOARD_ID).length, 1);
+      assert.equal(attention.query.list(DEMO_PROJECT_ID).length, 1);
 
       const changed = feed.commands.ingest({
-        project_id: DEMO_BOARD_ID,
+        project_id: DEMO_PROJECT_ID,
         source_id: "source-module-test",
         source_kind: "github",
         source_label: "GitHub",
@@ -71,21 +71,21 @@ test("Feed and Attention repositories preserve Signal revisions and state across
       assert.equal(changed.item.signal_revision, 2);
       assert.equal(changed.item.title, "第二版通知");
       assert.equal(changed.item.revision, 2);
-      assert.equal(attention.query.list(DEMO_BOARD_ID).length, 1, "Signal replay reuses one Attention fact");
+      assert.equal(attention.query.list(DEMO_PROJECT_ID).length, 1, "Signal replay reuses one Attention fact");
 
       const saved = feed.commands.setDisposition(
-        DEMO_BOARD_ID,
+        DEMO_PROJECT_ID,
         itemId,
         "saved",
         changed.item.revision,
       );
       assert.equal(saved.disposition, "saved");
-      assert.equal(attention.query.list(DEMO_BOARD_ID)[0]?.status, "done");
+      assert.equal(attention.query.list(DEMO_PROJECT_ID)[0]?.status, "done");
       assert.deepEqual(
-        feed.events.list(DEMO_BOARD_ID, itemId).map((event) => event.type),
+        feed.events.list(DEMO_PROJECT_ID, itemId).map((event) => event.type),
         ["feed_item.created", "feed_item.updated", "feed_item.saved"],
       );
-      feed.commands.linkGoal(DEMO_BOARD_ID, itemId, "CORE", "promoted");
+      feed.commands.linkGoal(DEMO_PROJECT_ID, itemId, "CORE", "promoted");
     } finally {
       firstStore.close();
     }
@@ -93,13 +93,13 @@ test("Feed and Attention repositories preserve Signal revisions and state across
     const restartedStore = new LocalProjectDatabase(databasePath);
     try {
       const { attention, feed } = feedModules(restartedStore);
-      const restored = feed.query.get(DEMO_BOARD_ID, itemId);
+      const restored = feed.query.get(DEMO_PROJECT_ID, itemId);
       assert.equal(restored.signal_revision, 2);
       assert.equal(restored.title, "第二版通知");
       assert.equal(restored.disposition, "promoted");
       assert.equal(restored.linked_goal_id, "CORE");
-      assert.equal(feed.query.findByLinkedGoal(DEMO_BOARD_ID, "CORE")?.item_id, itemId);
-      assert.equal(attention.query.list(DEMO_BOARD_ID)[0]?.status, "done");
+      assert.equal(feed.query.findByLinkedGoal(DEMO_PROJECT_ID, "CORE")?.item_id, itemId);
+      assert.equal(attention.query.list(DEMO_PROJECT_ID)[0]?.status, "done");
     } finally {
       restartedStore.close();
     }

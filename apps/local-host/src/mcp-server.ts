@@ -10,7 +10,6 @@ import { createMcpRuntimeContextHandlers, createMcpContextPresenter, dispatchMcp
   type McpToolResult, type McpToolCallContext, type McpPresentationErrorFactory } from "@molis-ai/molis-work-app-mcp";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { MolisWorkProjectCatalogError } from "./project-catalog.js";
-import { reconcileLegacySessionCatalog } from "./session-migration.js";
 import { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
 import { prepareLocalProjectStorage } from "./project-storage.js";
 import { RuntimeSessionHost } from "./runtime-session.js";
@@ -47,7 +46,6 @@ export class LocalMcpServer {
     }
   }
   private readonly contextTools: ReturnType<typeof createMcpRuntimeContextHandlers>;
-  private readonly sessionFoundationReady: Promise<void>;
   private readonly runtimeSessions: RuntimeSessionHost;
   private readonly linkPanelSession: ReturnType<typeof createRuntimePanelSessionLinker>;
   private readonly localHost: MolisWorkLocalHost;
@@ -78,7 +76,7 @@ export class LocalMcpServer {
         contextSignal: () => this.transportLifetime.signal,
         readGuidance: async () => (await this.contextActions()).invoke(goalsActions.guidanceRead, {}),
         readResumeFacts: async (_connection, focusGoalIds) => readGoalResumeFacts(await this.contextActions(), focusGoalIds),
-        readSession: (host, reconcileLegacy) => this.runtimeSessions.read(host, reconcileLegacy),
+        readSession: (host, boundProjectId) => this.runtimeSessions.read(host, boundProjectId),
       }),
     });
     this.runtimeContextHost =
@@ -100,23 +98,10 @@ export class LocalMcpServer {
     this.linkPanelSession = createRuntimePanelSessionLinker({
       withCatalog: (homeDirectory, operation) => withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => operation({
         aliasPanelSession: (input) => catalog.desktopPanels.aliasSession(input),
-        reconcileSessions: (registry) => { reconcileLegacySessionCatalog(catalog, registry); },
       })),
       isMissingPanel: (error) => error instanceof MolisWorkProjectCatalogError && error.code === "catalog.panel_not_found",
     });
-    this.runtimeSessions = new RuntimeSessionHost(async (homeDirectory, registry) => {
-      await withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => {
-        reconcileLegacySessionCatalog(catalog, registry);
-      });
-    });
-    // An explicitly injected Board connection is already fully scoped. Tests
-    // and embedders that omit homeDirectory must not accidentally migrate the
-    // user's global catalog just because they also provide audit metadata.
-    this.sessionFoundationReady = this.runtimeContextHost?.homeDirectory
-      ? this.runtimeSessions.reconcile(this.runtimeContextHost.homeDirectory).catch((error: unknown) => {
-          this.runtimeSessions.recordFailure(error);
-        })
-      : Promise.resolve();
+    this.runtimeSessions = new RuntimeSessionHost();
   }
 
   private currentActions() {
@@ -196,7 +181,6 @@ export class LocalMcpServer {
     if (this.runtimeConnection || this.audience !== "runtime") return;
     const host = this.runtimeContextHost;
     if (!host?.homeDirectory) return;
-    await this.sessionFoundationReady;
     const resolution = await this.withCatalog({ homeDirectory: host.homeDirectory }, (catalog) =>
       catalog.resolveRuntimeContext(host.runtimeContext, host.projectSuggestionClues ?? []),
     );
@@ -204,7 +188,6 @@ export class LocalMcpServer {
     this.connectionState.accept({
       projectId: resolution.connection.project_id,
       databasePath: resolution.connection.database_path,
-      boardId: resolution.connection.board_id,
       webBaseUrl: host.webBaseUrl ?? "http://127.0.0.1:4173",
     }, host.runtimeContext);
   }
@@ -219,7 +202,6 @@ export class LocalMcpServer {
   }
 
   private async callToolResult(name: string, arguments_: Record<string, unknown>, callContext: McpToolCallContext): Promise<string | McpToolResult> {
-    await this.sessionFoundationReady;
     const catalog = await this.ensureCatalog();
     if (catalog.actionServiceError && !isRuntimeContextMcpTool(name)) throw catalog.actionServiceError;
     const connection = this.runtimeConnection;
@@ -284,15 +266,14 @@ export class LocalMcpServer {
     if (storage.status === "missing") {
       throw new MolisWorkV1Error("store.not_found", `Molis Work 数据库不存在: ${databasePath}`);
     }
-    const boardId = String(
+    const projectId = String(
       this.audience === "runtime"
-        ? runtimeConnection!.boardId
-        : arguments_.board_id ?? `database:${databasePath}`,
+        ? runtimeConnection!.projectId
+        : arguments_.project_id ?? `database:${databasePath}`,
     );
     const reference = molisWorkHostProjectReference({
       databasePath,
-      boardId,
-      projectId: this.audience === "runtime" ? runtimeConnection!.projectId : undefined,
+      projectId,
     });
     const client = this.localHost.client(reference);
     return dispatchMcpProjectTool(client, name, arguments_, {

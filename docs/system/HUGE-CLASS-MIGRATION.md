@@ -1,12 +1,14 @@
 # Huge Class 职责迁移图
 
-2026-09-08 全仓复审：原 Coordinator、Store、renderer、server 混合实现均已退出，不能仅用旧 Huge 清单为零证明成功。按事实 owner 与调用链检查当前大文件如下。
+当前巨大单元以 `pnpm health:check` 的基线 `tooling/gates/baseline.json` 为准（只许变小）；本文是 2026-09 的迁移历史，下表是 2026-09-08 全仓复审时的快照，行数不是当前数字；已不在仓库的单元在行内标【已删除】，行保留以免改写历史记录。
+
+2026-09-08 全仓复审：原 Coordinator、Store、renderer、server 混合实现均已退出，不能仅用旧 Huge 清单为零证明成功。按事实 owner 与调用链检查当时的大文件如下。
 
 | 当前较大单元 | 职责与判定 |
 | --- | --- |
-| Native Goals ClaimCommands（858 行） | 领取/续租/释放/撤销与原子启动的应用用例；调用 Execution/Goals/Governance 公开端口，不保存业务 SQL，不新增跨 Module Store。用例内聚，保留 |
-| Native Goals VerificationCommands（685 行） | Evidence/Review 输入授权、提交及跨 owner reconciliation；事实写入归 Module，保留 |
-| Native Goals WorkStateQueries（754 行）/action-projection（892 行） | 从正式事实派生工作状态和下一步动作，不写事实；与 action factory/index 分离，保留 |
+| Native Goals ClaimCommands（858 行） | 【已删除：2026-09-11 起不在仓库，`bca8aa85`】领取/续租/释放/撤销与原子启动的应用用例；调用 Execution/Goals/Governance 公开端口，不保存业务 SQL，不新增跨 Module Store。用例内聚，保留 |
+| Native Goals VerificationCommands（685 行） | 【已删除：2026-09-11 起不在仓库，`bca8aa85`】Evidence/Review 输入授权、提交及跨 owner reconciliation；事实写入归 Module，保留 |
+| Native Goals WorkStateQueries（754 行）/action-projection（892 行） | 【已删除：2026-09-11 起不在仓库，`bca8aa85`】从正式事实派生工作状态和下一步动作，不写事实；与 action factory/index 分离，保留 |
 | Host GoalProjectApplication（543 行） | 具名 Port 注入和应用装配，Query/Command 转发到 owner；无业务 SQL/状态机。不是原 Coordinator 规则换名，保留 |
 | Feed Module index（976 行）、Listener Host index（745 行） | 前者只管理 Feed 自有事实与事务入口，后者只管监听 lease/cursor/接收技术状态；Repository/接收/投递已分责，保留 |
 | Gmail Provider（961 行） | Provider 协议与标准化；OAuth、安装、scope、cursor、错误已分到同 Integration，保留 |

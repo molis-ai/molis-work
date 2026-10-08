@@ -62,7 +62,7 @@
 | BL-036 | 记忆：向量检索（槽位已留，先做中文关键词召回） | [memory-system §3](archive/memory-system/spec.md) | 明确后续做 | 非本期目标 | 无 | 低 | 未分配 |
 | BL-037 | 记忆：自动写入默认开，若实测误记多改为默认「先问我」；提炼成本单独记账 | [memory-system §15](archive/memory-system/spec.md) | 已知缺口 | 待实测数据 | 无 | 低 | 未分配 |
 | BL-038 | 动态交互待定：容器是否原生支持分组；渲染预算 1.5 秒与阈值 τ 用真实 Jev 延迟定；其他插件片段动作的第一批名单 | [contextual-interaction §14](archive/contextual-interaction/spec.md) | 待你决定 | 需真实数据 | 无 | 低 | 未分配 |
-| BL-039 | 动态交互：Goals、Inbox 没有对象声明；除 Pages 外的插件没有片段级动作 | [contextual-interaction §13](archive/contextual-interaction/spec.md)、[plugin-e2e-review §5.1](archive/plugin-e2e-review/spec.md) | 部分实现 | Feed、炼金术士方向与实验已补，其余未做 | 各插件 | 中 | 未分配 |
+| BL-039 | 动态交互：片段级动作只有 Pages、Goals、灵光、Todo 提供，其余插件多数只有对象声明 | [contextual-interaction §13](archive/contextual-interaction/spec.md)、[plugin-e2e-review §5.1](archive/plugin-e2e-review/spec.md) | 部分实现 | Feed、炼金术士方向与实验已补，其余未做 | 各插件 | 中 | 未分配 |
 | BL-089 | MiniMax M3.1 把数组参数写成 `{item: …}`（待办的 `sources`、提问工具的 `options` 都碰到过）：网关按合同拒绝，模型有时自己改对，有时连续失败到上限。可以按 schema 把 `{item: X}` 归一成数组，与已有的数字、是否归一同类 | [post-merge-review §5 场景 1](archive/post-merge-review/spec.md) | 已知缺口 | 本步不新增兼容处理 | 无 | 中 | 未分配 |
 | BL-090 | 开发者诊断把「输入不合能力合同」的失败记成 `EFFECT_NOT_AUTHORIZED`，看不出真实原因 | [post-merge-review §5 场景 1](archive/post-merge-review/spec.md)（`/api/assistant/diagnostics`） | 已知缺口 | 只影响开发者诊断页 | 无 | 低 | 未分配 |
 | BL-091 | 助理过程中的文字会露出内部标识（如 `todo.items.create`、`change-reversible`、分类 id `uncategorized`）；现有防护只检查最后的回复 | [post-merge-review §5 场景 1](archive/post-merge-review/spec.md) | 已知缺口 | 需定过程文字是否也要拦 | 无 | 低 | 未分配 |
@@ -137,8 +137,7 @@
 | 编号 | 事项 | 来源 | 类型 | 优先级 |
 | --- | --- | --- | --- | --- |
 | BL-080 | 19 个构建期装配的内置插件迁到 Plugin Runtime（冻结名单在 `tests/builtin-plugin-assembly-gate.test.ts`） | [代码健康报告 R-01](../docs/prompts/code-health-report-2026-09-30.md)、[plugin-platform-v2](plugin-platform-v2/spec.md) | 明确后续做 | 高 |
-| BL-081 | 旧动作入口：旧 Functions 场景与开关、六组 Native MCP 旧名、判断函数旧 MCP 名、旧函数键 HTTP 别名等「兼容入口薄转发」 | [action-architecture/migration.md](action-architecture/migration.md)、[review-2026-09-28](action-architecture/review-2026-09-28.md) | 明确后续做 | 高 |
-| BL-084 | ~~`AssistantSurfaceContext.starters` 读取兼容但已废弃~~ 已删（防腐 sweep A，#281） | [contextual-interaction 决策记录](archive/contextual-interaction/spec.md) | 已完成 | 低 |
+| BL-081 | 旧动作入口剩余项：核对 `/api/functions/by-key/*` 是否仍算兼容别名（Native MCP 旧名与判断函数旧 MCP 名已随 #269 删除，旧场景绑定随 #279 删除） | [action-architecture/migration.md](action-architecture/migration.md)、[review-2026-09-28](action-architecture/review-2026-09-28.md) | 明确后续做 | 高 |
 | BL-085 | 插件复查遗留：Promote 无 Artifact 口仍写 `goal_id`；Functions 并发锁只覆盖草稿与发布；HTTP 别名、目录面、Workbench 注册手写 | [personal-plugins-review-fixes](archive/personal-plugins-review-fixes/spec.md) | 已知缺口 | 中 |
 | BL-086 | 左侧插件栏（`plugin-rail-items`）在统一底栏改版后是否已成死代码 | [plugin-rail-selection-align](archive/plugin-rail-selection-align/spec.md) | 已知缺口 | 低 |
 | BL-087 | 端口默认连线按插件名写死（D-04 选 C 短期保留）；有第三方端口插件时改为 Manifest 声明 `default_source` | [repository-systematic-review §9 D-04](archive/repository-systematic-review/spec.md) | 明确后续做 | 中 |

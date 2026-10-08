@@ -2,7 +2,7 @@
 
 状态：已被新的架构 SSOT 取代，仅保留为讨论和来源记录
 日期：2026-09-01
-替代文档：[`docs/SSOT-MATRIX.md`](SSOT-MATRIX.md) 与 [`specs/molis-work-architecture-reorganization/spec.md`](../specs/molis-work-architecture-reorganization/spec.md)
+替代文档：[`docs/SSOT-MATRIX.md`](../SSOT-MATRIX.md) 与 [`specs/molis-work-architecture-reorganization/spec.md`](../../specs/molis-work-architecture-reorganization/spec.md)
 
 本文记录了 Molis Work、Relay、Loreport 重组讨论的早期输入，其中 `Space`、Server 业务边界、模块吸收关系等内容已经被后续决定修改。不要据此创建 package、实现功能或判断事实 owner；需要追溯早期思路时再阅读。
 

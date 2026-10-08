@@ -6,7 +6,7 @@
  */
 import type { PluginDefinition, PluginInstanceRecord, PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { AgentBuilderPorts, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import type { AgentBuilderPorts, AgentRelease } from './installed-plugin-host.js';
 import type { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
 import type { PluginSecrets } from './plugin-builder/secrets.js';

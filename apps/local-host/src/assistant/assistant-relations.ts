@@ -1,7 +1,7 @@
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextAccess, ContextEdge, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { ASSISTANT_RELATIONS, type AssistantRelation } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_RELATIONS, type AssistantRelation, type AssistantScope } from "@molis-ai/molis-work-contracts/services/assistant";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
@@ -29,6 +29,11 @@ function ledgerDatabase(db: DatabaseSync): ContextLedgerDatabase {
 
 /** A work, as the source of its relations. */
 export interface WorkIdentity { work_id: string; project_id: string | null }
+
+/** A work as the source of its relations: its project namespace, or none for personal work. */
+export function identity(work: { work_id: string; scope: AssistantScope }): WorkIdentity {
+  return { work_id: work.work_id, project_id: work.scope.kind === "project" ? work.scope.project_id : null };
+}
 
 /** An object a relation points to: a Plugin's object by its subject kind, in the work's project. */
 export interface RelatedObject { kind: string; id: string; revision: string | null }

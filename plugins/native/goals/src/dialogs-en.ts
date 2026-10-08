@@ -36,4 +36,6 @@ export const GOALS_DIALOGS_EN: Record<string, string> = {
   "Goal 应描述一项有限、可验收、最终能完成的改变。": "A Goal should describe one finite, acceptable change that can ultimately be completed.",
   "能力稳定后，用普通报告记录反复出现的结果；发现问题再开有限的改进 Goal，不必把原 Goal 一直留着。": "After the capability is stable, record recurring results with ordinary reports. If a problem appears, open a finite improvement Goal instead of leaving the original unfinished.",
   "它会怎样运转 ": "How it works ",
+  // plugins/native/goals/src/dialogs-ui.ts
+  "收尾前需要哪些 Goal 先完成？ ": "Which Goals must finish before this one can close? ",
 };

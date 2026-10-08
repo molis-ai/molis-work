@@ -16,6 +16,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { createTranslationMetric } from "./gates/translations.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
 const fail = (message) => { console.error(message); process.exit(2); };
@@ -322,7 +323,8 @@ const compatMarkers = {
   summary: (counts) => `${sumOf(counts)} compat markers`,
 };
 
-const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, compatMarkers];
+// 7. Translations (decision #16): missing English fails, conflicting translations are frozen, dead keys are reported. The rules live in scripts/gates/translations.mjs.
+const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, compatMarkers, createTranslationMetric({ isSource, requireShape, isRecord })];
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 

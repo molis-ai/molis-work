@@ -116,7 +116,7 @@ export const FORM_EN: Record<string, string> = {
   "导出": "Export",
   "填写页文件（发给别人填）": "Fill-in page file (to send to people)",
   "答卷表格（.csv）": "Responses table (.csv)",
-  "把题目存成不会再变的一版，放进这个位置的成果；不含答卷": "Save the questions as a version that won't change, in this location's Artifacts; responses not included",
+  "把题目存成不会再变的一版，放进这个位置的成果（Artifacts）；不含答卷": "Save the questions as a version that won't change, in this location's Artifacts; responses not included",
   "停止收集": "Stop collecting",
   "收集答卷不需要网络：在这台电脑上打开填写页让别人填；或导出填写页文件发给对方，对方填完得到答卷文件发回给你，在“结果”里导入。不会生成外网链接。": "Collecting responses doesn't need a network: open the fill-in page on this computer for others to fill in, or export the fill-in page file and send it; they send back a response file that you import under “Results”. No public link is created.",
   "导入答卷文件…": "Import response files…",
@@ -131,4 +131,6 @@ export const FORM_EN: Record<string, string> = {
   "工作流提交": "Submitted by a workflow",
   "插件提交": "Submitted by a plugin",
   "继续保存上次固定版本": "Finish saving the last fixed version",
+  // plugins/native/form/src/ui.ts
+  "加一题的类型": "Type of question to add",
 };

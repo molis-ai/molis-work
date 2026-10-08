@@ -63,4 +63,7 @@ export const GOALS_RELATION_EN: Record<string, string> = {
   "关系已解除": "Relationship removed",
   "与「{goal}」的关系已停止生效；原方向和解除原因仍保留在完整记录中。": "The relationship with “{goal}” is no longer active. Its original direction and removal reason remain in the full record.",
   "关系解除失败，请检查解除原因后重试": "Could not remove the relationship. Check the reason and try again.",
+  // plugins/native/goals/src/relation-ui.ts
+  "当前 Goal 收尾前需要它完成": "The current Goal needs it to finish before it can close",
+  "它收尾前需要当前 Goal 完成": "It needs the current Goal to finish before it can close",
 };

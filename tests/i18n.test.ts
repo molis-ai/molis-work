@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { EN, L, htmlLang, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "@molis-ai/molis-work-app-local-host";
 import { createGoalStateExplainer, type GoalPresentationState } from "@molis-ai/molis-work-plugin-goals";
+import { isProductSource, scanTree, summarise, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 const { explainWorkState } = createGoalStateExplainer(L);
 
 test("locale defaults to Chinese, then cookie, then Accept-Language", () => {
@@ -40,83 +41,27 @@ test("L translates chrome in an English request and keeps Chinese as source", ()
   assert.match(localeSetCookie("en"), /molis_work_locale=en/);
 });
 
-test("every static renderer label has an English translation", () => {
-  // Keep checking the labels after the page and Goals directory move to their owners.
-  const source = ["../apps/workbench/src/renderer.ts", "../apps/workbench/src/goals-page-renderer.ts",
-    "../apps/workbench/src/onboarding-renderer.ts",
-    "../apps/workbench/src/settings-navigation.ts", "../apps/workbench/src/settings-renderer.ts",
-    "../apps/workbench/src/project-settings-stage.ts",
-    "../apps/workbench/src/focus-sections.ts", "../apps/workbench/src/project-settings-pages.ts",
-    "../apps/workbench/src/immersive-shell.ts", "../apps/workbench/src/project-home.ts",
-    "../apps/workbench/src/settings-directory.ts",
-    "../apps/workbench/src/settings-connectors.ts",
-    "../apps/workbench/src/scripts/connectors-settings.ts",
-    "../apps/local-host/src/connector-directory.ts",
-    "../apps/workbench/src/settings-appearance.ts",
-    "../apps/workbench/src/feed-projection-ui.ts",
-    "../apps/workbench/src/inbox-projection-ui.ts",
-    "../apps/workbench/src/scripts/client/navigation-inbox.ts",
-    "../apps/workbench/src/scripts/client/plugin-workbench.ts",
-    "../apps/workbench/src/scripts/client/plugin-notifications.ts",
-    "../apps/workbench/src/scripts/client/immersive-navigation.ts",
-    "../apps/workbench/src/scripts/client/assistant-island.ts",
-    "../apps/workbench/src/scripts/client/global-search.ts",
-    "../apps/workbench/src/scripts/client/tab-workspace.ts",
-    "../apps/workbench/src/scripts/client/settings-directory.ts",
-    "../apps/workbench/src/scripts/client/project-home.ts",
-    "../apps/workbench/src/scripts/client/project-home-shortcuts.ts",
-    "../apps/workbench/src/scripts/client/events-secondary.ts",
-    "../plugins/native/goals/src/event-document-ui.ts",
-    "../plugins/native/goals/src/event-document-forms.ts",
-    "../plugins/native/goals/src/event-document-client.ts",
-    "../plugins/native/goals/src/event-history-body.ts",
-    "../plugins/native/goals/src/decision-common-ui.ts",
-    "../plugins/native/goals/src/tree-ui.ts", "../plugins/native/goals/src/kanban-ui.ts", "../plugins/native/goals/src/policy-ui.ts",
-    "../plugins/native/goals/src/project-policy-client.ts",
-    "../plugins/native/work/src/ui/render.ts",
-    "../plugins/native/work/src/ui/session-add-client.ts",
-    "../plugins/native/work/src/ui/associations-client.ts",
-    "../plugins/native/work/src/ui/handoff-client.ts",
-    "../plugins/native/work/src/ui/content-client.ts",
-    "../plugins/native/work/src/ui/browser.ts",
-    "../plugins/native/feed/src/ui.ts",
-    "../plugins/native/inbox/src/ui.ts",
-    "../plugins/native/inbox/src/projection.ts",
-    "../plugins/native/schedule/src/ui.ts",
-    "../plugins/native/schedule/src/client.ts",
-    "../plugins/native/shelf/src/ui.ts",
-    "../plugins/native/shelf/src/settings-ui.ts",
-    "../plugins/native/shelf/src/settings-client.ts",
-    "../plugins/native/shelf/src/client.ts",
-    "../plugins/native/artifacts/src/browser-ui.ts",
-    "../plugins/native/artifacts/src/reference-ui.ts"]
-    .map(path => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
-  const labels = [...source.matchAll(/\b(?:L|p\.text)\("((?:[^"\\]|\\.)*)"/g)]
-    .map((match) => JSON.parse(`"${match[1]}"`) as string);
-  const projection = readFileSync(new URL("../plugins/native/inbox/src/projection.ts", import.meta.url), "utf8");
-  const projectionLabels = [...projection.matchAll(/\btext\("((?:[^"\\]|\\.)*)"/g)]
-    .map((match) => JSON.parse(`"${match[1]}"`) as string);
-  const missing = [...new Set([...labels, ...projectionLabels].filter((label) => EN[label] == null))];
-  assert.deepEqual(missing, []);
+// The two lists of files this test used to read by hand (61 files, double-quoted calls only in one list and both quotes in the
+// other) are gone: scripts/gates/translations.mjs scans every translator call in product source, in server renderers,
+// plugin UI (`p.text`), wrappers and the browser scripts in template literals. CI runs the same scan through
+// `scripts/check-health-gates.mjs`; it also reads every one of the (file, label) pairs the lists covered (2,486 of them).
+const repoRoot = fileURLToPath(new URL("..", import.meta.url));
+const scan = scanTree(workingTreeSnapshot(repoRoot), isProductSource);
+
+test("every translator call in the product source has an English translation", () => {
+  const { detail, calls, callFiles } = summarise(scan);
+  assert.ok(calls > 7000 && callFiles > 150, `read ${calls} translator calls in ${callFiles} files`);
+  assert.deepEqual(detail.missing.map((item: { key: string; sites: Array<{ file: string; line: number }> }) => `${item.key} (${item.sites[0]!.file}:${item.sites[0]!.line})`), []);
 });
 
-// The way in (chooser, brief, opening, Welcome, new-project journey, update page): server renderers call L("…"), and the
-// client scripts (written as plain strings) call L('…', { key }) with {key} placeholders. Both forms are checked, so a
-// sentence added to either cannot ship without its English.
-test("every label on the way in has an English translation", () => {
-  const files = ["../apps/workbench/src/arrival/chooser.ts", "../apps/workbench/src/arrival/chooser-client.ts",
-    "../apps/workbench/src/arrival/project-brief.ts", "../apps/workbench/src/arrival/shell.ts",
-    "../apps/workbench/src/context-onboarding-renderer.ts", "../apps/workbench/src/onboarding-renderer.ts",
-    "../apps/workbench/src/scripts/context-onboarding.ts", "../apps/local-host/src/project-arrival-http.ts"];
-  const labels = new Set<string>();
-  for (const file of files) {
-    const source = readFileSync(new URL(file, import.meta.url), "utf8");
-    for (const match of source.matchAll(/\bL\("((?:[^"\\]|\\.)*)"/g)) labels.add(JSON.parse(`"${match[1]}"`) as string);
-    for (const match of source.matchAll(/\bL\('((?:[^'\\]|\\.)*)'/g)) labels.add(match[1]!.replace(/\\(['\\])/g, "$1"));
-  }
-  assert.ok(labels.size > 150, `read ${labels.size} labels from the way-in sources`);
-  // A name with no Chinese in it (Gmail, Google) is the same in both languages.
-  assert.deepEqual([...labels].filter(label => /\p{Script=Han}/u.test(label) && EN[label] == null), []);
+test("the scan reads exactly the English catalog the Host serves", () => {
+  // The scan finds the dictionaries by shape; the catalog is what the running Host really holds (en.ts spreads them in its
+  // own order, the last one wins). They have to agree on the keys, and the English served for a key has to be one the
+  // dictionaries give for it.
+  assert.deepEqual([...scan.byKey.keys()].filter(key => !(key in EN)), [], "keys the scan sees that the catalog lacks");
+  assert.deepEqual(Object.keys(EN).filter(key => !scan.byKey.has(key)), [], "keys the catalog serves that the scan does not see");
+  const unknown = [...scan.byKey].filter(([key, list]: [string, Array<{ value: string | null }>]) => !list.some(item => item.value === EN[key])).map(([key]) => key);
+  assert.deepEqual(unknown, [], "the served English is not any of the dictionaries' texts for the key");
 });
 
 test("every work state explains what it means, what to do, and how to continue in both languages", () => {

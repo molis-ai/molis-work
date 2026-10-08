@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { adopted, adoptedFrom, adoptedMaterial, KNOWLEDGE_SOURCE, viewDrafts, type StoredDraft } from "./drafts.js";
 import { contentHash, decodeFile, ignoredPath, linksFor, materialRole, metadata, safeRelativePath } from "./content.js";
 import { COGNIA_LIMITS, requireCognia, stringField, type Domain, type Draft, type ImportEntry, type ImportFile, type Material, type Preview, type Receipt, type Source } from "./types.js";
 interface Staged { path: string; data: string; base_hash: string | null; material: Material }
@@ -39,7 +40,7 @@ export class CogniaStore {
   }
   read(id: string, revision?: number): Material { const row = revision === undefined ? this.db.prepare("SELECT body FROM cognia_materials WHERE id=?").get(id) : this.db.prepare("SELECT body FROM cognia_versions WHERE material_id=? AND revision=?").get(id, revision); const value = parse<Material>(row); requireCognia(value, "资料或版本不存在", 404); return value; }
   detail(id: string, revision?: number): { material: Material; outgoing: ReturnType<typeof linksFor>; incoming: Material[]; references: Draft["references"] } {
-    const material = this.read(id, revision), all = this.materials(); const draft = this.allDrafts().find(d => d.saved_id === id);
+    const material = this.read(id, revision), all = this.materials(); const draft = this.allDrafts().find(d => adoptedFrom(d, id));
     return { material, outgoing: linksFor(material, all), incoming: all.filter(m => m.id !== id && linksFor(m, all).some(l => l.material_id === id)), references: draft?.references ?? [] };
   }
   download(id: string, revision?: number): { material: Material; bytes: Buffer } { const material = this.read(id, revision); const row = this.db.prepare("SELECT data FROM cognia_versions WHERE material_id=? AND revision=?").get(id, material.revision) as { data: string }; return { material, bytes: Buffer.from(row.data, "base64") }; }
@@ -84,7 +85,7 @@ export class CogniaStore {
         const material = { ...file.material, id: current?.id ?? file.material.id, revision: (current?.revision ?? 0) + 1 };
         this.put(material, file.data); receipt[current ? "updated" : "added"]++; receipt.material_ids.push(material.id);
       }
-      this.db.prepare("UPDATE cognia_previews SET receipt=? WHERE id=?").run(JSON.stringify(receipt), id); return receipt;
+      this.db.prepare("UPDATE cognia_previews SET body=?,receipt=? WHERE id=?").run(JSON.stringify({ ...preview, files: [] }), JSON.stringify(receipt), id); return receipt; // the receipt replays a repeated commit; the staged bytes have done their job
     });
   }
   private put(material: Material, data: string): void {
@@ -109,9 +110,9 @@ export class CogniaStore {
     const material: Material = { ...current, ...metadata(body, title), title, body, domain_id, revision: current.revision + 1, hash: contentHash(body), bytes: Buffer.byteLength(body), updated_at: new Date().toISOString() };
     return this.transaction(() => { this.put(material, Buffer.from(body).toString("base64")); return material; });
   }
-  deleteMaterial(id: string): void { const result = this.db.prepare("DELETE FROM cognia_materials WHERE id=?").run(id); requireCognia(Number(result.changes) === 1, "资料不存在", 404); }
-  private allDrafts(): Draft[] { return this.db.prepare("SELECT body FROM cognia_drafts ORDER BY rowid DESC").all().map(r => parse<Draft>(r)!); }
-  drafts(): Draft[] { return this.db.prepare("SELECT body FROM cognia_drafts WHERE archived=0 ORDER BY rowid DESC").all().map(r => parse<Draft>(r)!); }
+  deleteMaterial(id: string): void { const result = this.db.prepare("DELETE FROM cognia_materials WHERE id=?").run(id); requireCognia(Number(result.changes) === 1, "资料不存在", 404); } // a draft adopted as it keeps its link: the fixed versions keep their sources
+  private allDrafts(): StoredDraft[] { return this.db.prepare("SELECT body FROM cognia_drafts ORDER BY rowid DESC").all().map(r => parse<StoredDraft>(r)!); }
+  drafts(): Draft[] { return viewDrafts(this.db); }
   addDraft(draft: Draft): Draft { return this.transaction(() => {
     // Domain deletion during generation must not reintroduce a dangling classification.
     this.domain(draft.domain_id);
@@ -120,11 +121,10 @@ export class CogniaStore {
   archiveDraft(id: string): void { const result = this.db.prepare("UPDATE cognia_drafts SET archived=1 WHERE id=? AND archived=0").run(id); requireCognia(Number(result.changes) === 1, "草稿不存在", 404); }
   saveDraft(id: string): Material {
     return this.transaction(() => {
-      const draft = parse<Draft>(this.db.prepare("SELECT body FROM cognia_drafts WHERE id=? AND archived=0").get(id)); requireCognia(draft, "草稿不存在", 404); if (draft.saved_id) return this.read(draft.saved_id);
-      const materialId = randomUUID(), source: Source = { id: "knowledge", name: "知识库", kind: "markdown", locator: "knowledge", domain_id: null };
-      this.db.prepare("INSERT OR IGNORE INTO cognia_sources VALUES (?,?)").run(source.id, JSON.stringify(source));
-      const material: Material = { ...metadata(draft.body, draft.title), title: draft.title, id: materialId, source_id: source.id, path: materialId + ".md", domain_id: draft.domain_id, role: "wiki", revision: 1, hash: contentHash(draft.body), bytes: Buffer.byteLength(draft.body), body: draft.body, mime: "text/plain; charset=utf-8", updated_at: new Date().toISOString() };
-      this.put(material, Buffer.from(draft.body).toString("base64")); draft.saved_id = materialId; this.db.prepare("UPDATE cognia_drafts SET body=? WHERE id=?").run(JSON.stringify(draft), id); return material;
+      const draft = parse<StoredDraft>(this.db.prepare("SELECT body FROM cognia_drafts WHERE id=? AND archived=0").get(id)); requireCognia(draft, "草稿不存在", 404); if (draft.saved_id && this.db.prepare("SELECT 1 FROM cognia_materials WHERE id=?").get(draft.saved_id)) return this.read(draft.saved_id);
+      const material = adoptedMaterial(draft, randomUUID());
+      this.db.prepare("INSERT OR IGNORE INTO cognia_sources VALUES (?,?)").run(KNOWLEDGE_SOURCE.id, JSON.stringify(KNOWLEDGE_SOURCE));
+      this.put(material, Buffer.from(draft.body).toString("base64")); this.db.prepare("UPDATE cognia_drafts SET body=? WHERE id=?").run(JSON.stringify(adopted(draft, material.id)), id); return material;
     });
   }
   private transaction<T>(run: () => T): T { this.db.exec("BEGIN IMMEDIATE"); try { const result = run(); this.db.exec("COMMIT"); return result; } catch (error) { this.db.exec("ROLLBACK"); throw error; } }

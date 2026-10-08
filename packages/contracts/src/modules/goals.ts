@@ -15,12 +15,17 @@ export const goalContextCapabilities = {
   read: { capability_id: "goals.context.read.v1", version: 1, operation: "query" } as HostCapabilityDefinition<
     { goal_id: string }, GoalContextSnapshot>,
 };
+/**
+ * Who a Goal progress call acts for. Host-direct callers (the CLI, MCP and tests: trusted composition) name the actor; a
+ * plugin never does, because the Host takes it from the plugin's own call context and refuses one in the arguments.
+ */
+export interface GoalProgressActor { actor_id?: string; actor_kind?: "user" | "runtime" }
 /** Project-scoped access to the original Goal progress transaction and receipt. */
 export const goalProgressCapabilities = {
   record: { capability_id: "goals.progress.record.v1", version: 1, operation: "command" } as HostCapabilityDefinition<
-    Omit<RecordGoalProgressSummaryInput, "project_id">, GoalEventProgressResult>,
+    Omit<RecordGoalProgressSummaryInput, "project_id" | "actor_id" | "actor_kind"> & GoalProgressActor, GoalEventProgressResult>,
   receipt: { capability_id: "goals.progress.receipt.v1", version: 1, operation: "query" } as HostCapabilityDefinition<
-    { goal_id: string; actor_id: string; idempotency_key: string }, GoalEventProgressResult | null>,
+    { goal_id: string; idempotency_key: string } & Pick<GoalProgressActor, "actor_id">, GoalEventProgressResult | null>,
 };
 import type {
   GoalEventAdoptedPlanningRequest,

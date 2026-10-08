@@ -2,10 +2,10 @@
   "giantUnits": 163,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 261,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2692,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2656,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 2123,
-      "methods": 120
+      "lines": 2098,
+      "methods": 119
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 282,
@@ -27,8 +27,8 @@
       "methods": 15
     },
     "class apps/local-host/src/local-host.ts#LocalHost": {
-      "lines": 582,
-      "methods": 24
+      "lines": 570,
+      "methods": 23
     },
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 196,
     "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 188,
@@ -220,17 +220,17 @@
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
     "file plugins/native/coding/src/client.ts": 1656,
-    "file plugins/native/coding/src/routes.ts": 1564,
-    "function plugins/native/coding/src/routes.ts#codingRouteBindings": 1356,
+    "file plugins/native/coding/src/routes.ts": 1556,
+    "function plugins/native/coding/src/routes.ts#codingRouteBindings": 1348,
     "file plugins/native/coding/src/styles.ts": 851,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 263,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
-      "lines": 123,
+      "lines": 122,
       "methods": 28
     },
     "class plugins/native/feed/src/application.ts#FeedApplication": {
-      "lines": 519,
+      "lines": 503,
       "methods": 44
     },
     "file plugins/native/form/src/client.ts": 930,

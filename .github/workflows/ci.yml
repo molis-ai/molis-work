@@ -94,7 +94,7 @@ jobs:
       # The Linux probe's own rules (the linux-probe job below only reports): browser files are left out and the rest marked
       # darwin or live from their own source, every result is recorded as what it is, a process a test leaves behind is stopped,
       # and a run that is cancelled or killed still leaves a report of what it had. Runs fake test files in a scratch directory;
-      # about half a minute.
+      # under a minute.
       - name: Linux probe rules
         run: node scripts/run-tests.mjs tests/ci-linux-probe.test.ts
 
@@ -174,8 +174,9 @@ jobs:
         with:
           node-version: 24
 
+      # The version is the root package.json "packageManager", the pin the other jobs use.
       - name: Install pnpm
-        run: npm install --global pnpm@11.9.0
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

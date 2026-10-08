@@ -77,6 +77,9 @@ before(() => {
   put("tests/model-live.test.ts", spec(`test("calls a model", { skip: true }, () => {});`));
   put("tests/optin-env.test.ts", spec(`test("the opt-in is not handed on", () => {\n  assert.equal(process.env.${LIVE_ACCEPTANCE}, undefined);\n  assert.equal(process.env.MINIMAX_API_KEY, undefined);\n});`));
   put("tests/needs-key.test.ts", spec(`test("a model", { skip: "${KEY_REQUIRED}" }, () => {});`));
+  // A live file that fails with the opt-ins off (here: it asserts something its live run would have had): its failure is read as
+  // "the platform or the missing opt-in", so the summary keeps it with the marked failures and not with the unexplained ones.
+  put("tests/broken-live.test.ts", spec(`test("answers only with a real model", () => assert.equal("no model here", "a real answer"));`));
   // A live file that also has tests which are not live (the real tests/plugin-sandbox-network.test.ts is one): the live test
   // skips, the rest runs, so the file is a pass with a skip and not "skipped".
   put("tests/mixed-optin.test.ts", spec(`test("an ordinary test", () => assert.equal(1, 1));\ntest("the live one", { skip: process.env.${NETWORK_E2E} !== "1" }, () => {});`));
@@ -192,7 +195,7 @@ test("pass.txt holds exactly the files that passed, sorted, one per line", () =>
   const expected = [...files.values()].filter((item) => item.status === "pass").map((item) => item.file).sort();
   assert.deepEqual(passList, expected);
   for (const name of ["pass.test.ts", "partial.test.ts", "plain.test.mjs", "darwin-tool.test.ts", "clean-fixture.test.ts", "optin-env.test.ts"]) assert.ok(passList.includes(`tests/${name}`), name);
-  for (const name of ["flaky.test.ts", "allskip.test.ts", "fail.test.ts", "slow.test.ts", "shell.e2e.test.ts", "noload.test.ts"]) assert.ok(!passList.includes(`tests/${name}`), `${name} is not a pass`);
+  for (const name of ["flaky.test.ts", "allskip.test.ts", "fail.test.ts", "slow.test.ts", "shell.e2e.test.ts", "noload.test.ts", "broken-live.test.ts"]) assert.ok(!passList.includes(`tests/${name}`), `${name} is not a pass`);
 });
 
 test("the summary puts an unexplained failure apart from a failure on a darwin or live file, and is appended to the job summary", () => {
@@ -202,6 +205,10 @@ test("the summary puts an unexplained failure apart from a failure on a darwin o
   assert.match(unmarked, /tests\/noload\.test\.ts/);
   assert.ok(!unmarked.includes("darwin-fail"), "a failing darwin file is not an unexplained failure");
   assert.match(marked, /tests\/darwin-fail\.test\.ts/);
+  assert.equal(entry("broken-live.test.ts").status, "fail");
+  assert.deepEqual(entry("broken-live.test.ts").marks, ["live"]);
+  assert.ok(!unmarked.includes("broken-live"), "a failing live file is not an unexplained failure");
+  assert.match(marked, /tests\/broken-live\.test\.ts/);
   assert.ok(!marked.includes("`tests/fail.test.ts`"), "an unmarked failure is not explained away as the platform");
   assert.match(section("Timed out"), /tests\/slow\.test\.ts/);
   assert.match(section("Flaky"), /tests\/flaky\.test\.ts/);
@@ -301,7 +308,7 @@ test("--list shows the selection and marks and runs nothing", () => {
   assert.match(result.text, /^excluded {2}tests\/shell\.e2e\.test\.ts {2}\[browser\]$/m);
   assert.match(result.text, /^run {7}tests\/darwin-guard\.test\.ts {2}\[darwin\]$/m);
   assert.match(result.text, /^run {7}tests\/pass\.test\.ts$/m);
-  assert.match(result.text, /marks over all: browser 3, darwin 3, live 4/);
+  assert.match(result.text, /marks over all: browser 3, darwin 3, live 5/);
   assert.equal(existsSync(listOut), false, "--list wrote a report");
 });
 

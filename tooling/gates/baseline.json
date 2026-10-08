@@ -1,5 +1,5 @@
 {
-  "giantUnits": 165,
+  "giantUnits": 164,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 261,
     "file apps/local-host/src/assistant/assistant-service.ts": 2692,
@@ -38,7 +38,7 @@
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 367,
+      "lines": 361,
       "methods": 24
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 336,
@@ -55,7 +55,7 @@
     "file apps/workbench/src/functions/client.ts": 1299,
     "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 227,
     "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 191,
-    "file apps/workbench/src/i18n/en.ts": 3619,
+    "file apps/workbench/src/i18n/en.ts": 3380,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 381,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2813,
@@ -103,15 +103,11 @@
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 282,
     "class horizontal/search/src/index.ts#SearchService": {
-      "lines": 444,
-      "methods": 30
-    },
-    "class modules/artifacts/src/service.ts#ArtifactsService": {
-      "lines": 342,
-      "methods": 12
+      "lines": 436,
+      "methods": 28
     },
     "class modules/feed/src/index.ts#FeedModule": {
-      "lines": 510,
+      "lines": 501,
       "methods": 16
     },
     "file modules/functions/src/store.ts": 939,
@@ -210,7 +206,7 @@
       "methods": 26
     },
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 174,
-    "function packages/storage/src/adapters/search-storage.ts#createSearchOpaqueBlobStore": 164,
+    "function packages/storage/src/adapters/search-storage.ts#createSearchOpaqueBlobStore": 161,
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 153,
     "function packages/test-kit/src/boundaries.ts#evaluateImportBoundary": 152,
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 243,
@@ -235,7 +231,7 @@
       "methods": 28
     },
     "class plugins/native/feed/src/application.ts#FeedApplication": {
-      "lines": 542,
+      "lines": 519,
       "methods": 44
     },
     "file plugins/native/form/src/client.ts": 930,
@@ -277,7 +273,7 @@
       "methods": 28
     },
     "function plugins/native/work/src/actions.ts#createWorkActionHandlers": 169,
-    "function plugins/native/work/src/http/panels.ts#handleWorkPanelHttp": 164,
+    "function plugins/native/work/src/http/panels.ts#handleWorkPanelHttp": 163,
     "function plugins/native/work/src/terminal/client.ts#startWorkTerminalClient": 438,
     "function plugins/native/work/src/terminal/panels.ts#createTerminalPanels": 365,
     "function plugins/native/work/src/ui/render.ts#renderWorkSessionSurface": 350,

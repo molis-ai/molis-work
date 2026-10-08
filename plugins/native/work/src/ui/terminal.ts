@@ -81,7 +81,7 @@ function renderWorkTerminal(model: WorkTerminalUiModel): string {
               ${icon("tree")}
               <div><strong>${L("这个上层 Goal 不直接使用终端")}</strong><p>${compoundParentComplete
                 ? L("这项工作已经由子 Goal 完成，不需要再为上层 Goal 打开终端。要查看或继续具体工作，请进入对应的子 Goal。")
-                : L("它会在子 Goal 全部完成后自动完成。请选择具体的子 Goal，再从那里打开终端。")}</p></div>
+                : L("上层 Goal 不会因子 Goal 全部完成而自动完成，需要显式收尾。请选择具体的子 Goal，再从那里打开终端。")}</p></div>
             </div>
             <div class="tui-child-choices" data-tui-child-choices>${childChoices || `<p>${L("还没有可推进的子 Goal，请先检查 Goal 的拆分。")}</p>`}</div>
           </section>
@@ -105,7 +105,7 @@ function renderWorkTerminal(model: WorkTerminalUiModel): string {
         </div>
         <form class="tui-menu" id="tui-open-menu" data-tui-menu aria-hidden="true" inert>
           <strong>${L("在这个 Goal 上打开终端")}</strong>
-          <p>${L("标签只属于当前 Goal。打开不会自动发送或领取。")}</p>
+          <p>${L("标签只属于当前 Goal。打开不会自动发送任何内容。")}</p>
           <div class="tui-runtime-choices">
             ${runtimeChoices}
             <button type="button" data-tui-kind="generic">${L("自定义命令")}</button>

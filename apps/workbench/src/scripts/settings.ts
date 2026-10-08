@@ -155,7 +155,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
     let saving = false;
     let focusTimer;
     const labels = {
-      add: { title: L("新增项目说明"), description: L("保存后会立即成为所有 Goal 共享的长期上下文。"), submit: L("保存说明") },
+      add: { title: L("新增项目说明"), description: L("保存后会立即成为这个项目所有工作（助理、插件 Agent 与 Runtime）共享的长期上下文。"), submit: L("保存说明") },
       edit: { title: L("修改项目说明"), description: L("原版本会保留在下方的版本记录中。"), submit: L("保存新版本") },
       deactivate: { title: L("停用项目说明"), description: L("停用后 Runtime 不再收到这条说明，历史版本仍会保留。"), submit: L("确认停用") },
       restore: { title: L("恢复项目说明"), description: L("恢复后这条说明会重新进入 Runtime Prompt。"), submit: L("确认恢复") },
@@ -315,7 +315,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       if (mode === "edit") return L("项目说明的新版本已生效。");
       if (mode === "deactivate") return L("项目说明已停用，Runtime 将不再收到它。");
       if (mode === "restore") return L("项目说明已恢复，并重新进入 Runtime Prompt。");
-      return L("项目说明已新增，并会用于后续 Goal。");
+      return L("项目说明已新增，这个项目之后的工作都会用到。");
     }
     };
     globalThis.molisWorkBindProjectGuidance = bind;

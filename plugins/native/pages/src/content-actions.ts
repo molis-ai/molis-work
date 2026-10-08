@@ -26,7 +26,8 @@ export function createPagesContentHandlers(actions: ActionClient) {
       const body = { type: "doc", content: blocks ? blocks.map(block => block.toJSON())
         : markdown.split(/\n\n+/).map(text => ({ type: "paragraph", content: [{ type: "text", text }] })) };
       // One delivery is one document: a retried handoff returns the original page and keeps later edits.
-      const documents = [{ title: payload.title, body: body as never }];
+      // A long headline is cut to the 80 characters a title holds; refused, the same hand-over could never be delivered.
+      const documents = [{ title: payload.title.trim().slice(0, 80), body: body as never }];
       const request_hash = createHash("sha256").update(JSON.stringify(documents)).digest("hex");
       const imported = await bindActionClient(actions, () => caller).invoke(pagesActions.importDocuments, { request_id: workflowDeliveryKey(context), request_hash, documents });
       return ref(imported.documents[0]!);

@@ -131,7 +131,7 @@ export { attachMolisWorkPtySocket, type MolisWorkPtySocketHandlers } from "./pty
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
 export { rewriteNativePluginApiPath, withRewrittenPluginApi } from "./native-plugin-api.js";
 export { hostCompleteText, hostTextGeneration, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
-export { bindScheduledTaskRunner, scheduleServiceFor } from "./schedule-runtime.js";
+export { bindScheduledTaskRunner, bindScheduleDeliveryFeed, scheduleServiceFor } from "./schedule-runtime.js";
 export { createHostScheduledTaskRunner } from "./schedule-task-runner.js";
 
 export { sendLocalWebJson, readLocalWebBody, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";

@@ -281,10 +281,10 @@ function decisionGroupModel(group: DecisionGoalGroup, view: MolisWorkWebView): W
   };
 }
 
-function renderDecisionCenter(view: MolisWorkWebView, desktopInbox = false): string {
+function renderDecisionCenter(view: MolisWorkWebView): string {
   return decisionCenterRenderer.renderDecisionCenter({ groups: buildDecisionGroups(view).map(group => decisionGroupModel(group, view)),
     count: pendingDecisionCount(view), typeCounts: decisionTypeCounts(view), recentHtml: renderRecentDecisionResults(view),
-  }, desktopInbox);
+  });
 }
 
 function renderPersistedFeedItemDetail(

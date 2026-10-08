@@ -94,6 +94,20 @@ jobs:
       - name: Alchemist plugin tests
         run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test
 
+      # The studio's recorded designer answers through the host's design checks (docs/platform/STUDIO-SKILL-REPLAY.md): what the
+      # baseline says was accepted is still accepted, also against the merge-base's baseline, so rewriting the baseline file
+      # cannot hide a regression. Then the replay's own rules and the Cursor Skill links, each failing on a scratch copy that
+      # breaks it. The generation smoke needs a model and is run by hand on an isolated Home.
+      - name: Studio Skill replay
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          base="$(node scripts/ci-health-base.mjs)"
+          pnpm studio:replay --base "$base"
+          node scripts/run-tests.mjs tests/studio-replay.test.ts tests/cursor-skill-links.test.ts
+
   # No dependencies and no build: it reads git history only, so it starts at once and is cheap to keep on every change.
   secret-scan:
     name: Secret scan

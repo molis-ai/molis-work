@@ -1,0 +1,112 @@
+{
+  "format": "studio-replay-baseline/1",
+  "skill": {
+    "stages": {
+      "design": {
+        "version": 130576285,
+        "chars": 16144
+      },
+      "experience": {
+        "version": 158992762,
+        "chars": 3598
+      },
+      "ui": {
+        "version": 177002631,
+        "chars": 5155
+      },
+      "review": {
+        "version": 158992762,
+        "chars": 3598
+      },
+      "code": {
+        "version": 115312214,
+        "chars": 8928
+      }
+    },
+    "prompts": {
+      "experience": "experience/1.2.0",
+      "review": "ui-review/2.0.0",
+      "ui": "ui/1.4.0",
+      "designer": "designer/3.7.0",
+      "implement": "implement/3.0.0",
+      "repair": "repair/3.0.0",
+      "revise": "revise/3.0.0",
+      "acceptance": "acceptance/2.0.0"
+    }
+  },
+  "entries": {
+    "detail-books-filter-bar": {
+      "pass": true
+    },
+    "detail-broken-references": {
+      "pass": false,
+      "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 read 绑定了不存在的操作 x；（#）组件 x 的 submit 绑定了不存在的操作 x"
+    },
+    "detail-empty-store-example": {
+      "pass": false,
+      "reason": "操作 x 第 # 个示例：查询示例在空存储上运行，output/includes 不能期望已有记录；空列表写 output: []，需要已有"
+    },
+    "detail-expenses-filter-submit": {
+      "pass": true
+    },
+    "detail-metered-capability-in-query": {
+      "pass": false,
+      "reason": "操作 x：查询（query）不能调用收费能力：打开页面就会自动调用、产生费用；请放进 command，由按钮触发，回答存下来再由 query"
+    },
+    "detail-model-ask-then-add": {
+      "pass": true
+    },
+    "detail-notes-plain": {
+      "pass": true
+    },
+    "detail-notes-root-closed-early": {
+      "pass": true
+    },
+    "detail-notes-think-and-fence": {
+      "pass": true
+    },
+    "detail-notes-truncated": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近"
+    },
+    "detail-order-text-not-typed": {
+      "pass": false,
+      "reason": "浏览器用例需要具体操作与断言"
+    },
+    "minimax-notes-v1#1": {
+      "pass": true
+    },
+    "minimax-notes-v1#2": {
+      "pass": false,
+      "reason": "初次要给 #–# 个在页面结构或关键行为上有实质差异的方案（candidates）"
+    },
+    "minimax-notes-v1#3": {
+      "pass": false,
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近"
+    },
+    "prompt-example": {
+      "pass": true
+    },
+    "propose-one-candidate": {
+      "pass": false,
+      "reason": "初次要给 #–# 个在页面结构或关键行为上有实质差异的方案（candidates）"
+    },
+    "propose-questions-first-round": {
+      "pass": true
+    },
+    "propose-questions-second-round": {
+      "pass": false,
+      "reason": "已经澄清过一次，这次必须直接给出方案，把仍不确定的地方写成假设放进 summary"
+    },
+    "propose-two-candidates": {
+      "pass": true
+    },
+    "revise-notes-with-rework": {
+      "pass": true
+    },
+    "revise-rework-unknown-operation": {
+      "pass": false,
+      "reason": "rework 引用了不存在的操作：x"
+    }
+  }
+}

@@ -8,5 +8,6 @@ Molis Work 是本地优先的插件基座加多个插件。Platform 就是这个
 - [UI Platform](UI-PLATFORM.md)：Workbench、UI Host、Design System、Slot 与嵌入。
 - [Desktop App 与 Tauri](DESKTOP.md)：macOS 外壳、面板、Capsule、Native Adapter 与发布边界。
 - [Contracts and Operations](CONTRACTS-AND-OPERATIONS.md)：Contracts、Observability、Test Kit 与边界门禁。
+- [创作台 Skill 回放与冒烟](STUDIO-SKILL-REPLAY.md)：改创作台挂载的 Skill、提示词或设计校验后怎样验证（`pnpm studio:replay`）。
 
 Foundation package 的完整逐包 Contract 见架构 Spec 第 19 节；当前 package 清单与状态见 [`docs/SSOT-MATRIX.md`](../SSOT-MATRIX.md)。

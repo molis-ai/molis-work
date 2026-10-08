@@ -11,7 +11,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 | 分层与依赖规则 | `docs/system/ARCHITECTURE.md`、`docs/system/PACKAGE-BOUNDARIES.md` |
 | 改某个包 | 该包 README 的「开发要求」：负责与不负责、依赖、不变量、改完必跑的测试（写法见 `docs/system/DEVELOPMENT-REQUIREMENTS.md`，门禁在 `pnpm boundary:check`） |
 | 能力怎样注册、发现、调用、授权 | `specs/action-architecture/spec.md` §3「基本合同」 |
-| 写或改插件 | `skills/molis-plugin-dev/SKILL.md` |
+| 写或改插件 | `skills/molis-plugin-dev/SKILL.md`（改了创作台挂载的章节或提示词：`pnpm studio:replay`，见 `docs/platform/STUDIO-SKILL-REPLAY.md`） |
 | 调模型、跑 Agent、提示词、模型设置 | `skills/molis-prologue-ai/SKILL.md`（手册 `docs/platform/PROLOGUE-AI.md`） |
 | 界面 | `DESIGN.md`、`specs/craft-finish/spec.md`，规格板 `/__ui/catalog` |
 | 某项任务 | `specs/<task>/spec.md`，开头写状态句；完成后按 `specs/README.md` 归档 |

@@ -80,23 +80,9 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         const submit = form.querySelector("button[type=submit]");
         const error = dialog.querySelector("[data-project-delete-error]");
         const cancel = dialog.querySelector("[data-project-delete-cancel]");
-        const scope = dialog.querySelector("[data-project-delete-scope]");
-        const scopeList = scope && scope.querySelector("ul");
-        // What goes with the project is what the plugins of this Home say they keep for it, read as the dialog opens.
-        const loadScope = async () => {
-          if (!scope) return;
-          const line = (text) => { const item = document.createElement("li"); item.textContent = text; return item; };
-          try {
-            const response = await fetch("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete-scope");
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || "");
-            scopeList.replaceChildren(...result.owners.map((owner) => line(owner.label)));
-            scope.hidden = result.owners.length === 0;
-          } catch {
-            scopeList.replaceChildren(line(L("没能读出清单；插件里属于这个项目的数据同样会被删除。")));
-            scope.hidden = false;
-          }
-        };
+        const names = dialog.querySelector("[data-project-delete-scope] span");
+        const loadNames = () => fetch("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete-scope").then((response) => response.json())
+          .then((result) => { names.textContent = result.owners.map((owner) => owner.label).join("；"); }).catch(() => null);
         let busy = false;
         let cleanupPending = false;
         let deletionKey = null;
@@ -107,7 +93,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
             error.hidden = true;
           }
           dialog.showModal();
-          void loadScope();
+          loadNames();
         });
         cancel.addEventListener("click", () => { if (!busy) dialog.close(); });
         dialog.addEventListener("cancel", (event) => { if (busy) event.preventDefault(); });

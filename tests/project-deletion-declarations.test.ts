@@ -3,8 +3,19 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "@molis-ai/molis-work-app-workbench";
 import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
+
+/** The catalog is one array shared by the process: a test that adds entries to it takes them out again. */
+const catalog: BuiltinPluginEntry[] = BUILTIN_PLUGIN_CATALOG as BuiltinPluginEntry[];
+
+/** An entry for the test: a real entry's other parts (the deletion reads only `project_data`), under its own id. */
+function declaringEntry(id: string, data: ProjectDataDeclaration): BuiltinPluginEntry {
+  const template = catalog.find(entry => entry.project_plugin_id === "pages");
+  assert.ok(template);
+  return { ...template, project_plugin_id: id, project_data: data };
+}
 
 /** A Home directory that has no registry yet in this process: the registry is made from the catalog the first time it is asked for. */
 async function withFreshHome<T>(run: (home: string) => Promise<T>): Promise<T> {
@@ -25,19 +36,15 @@ test("a plugin's project data is what its catalog entry declares, and the confir
       "判断规则在这个项目里的场景绑定和判断记录", "灵光里的想法与对话", "图片生成记录和已生成的图片",
       "炼金术士的研究空间", "插件创作台的构建、发布包和已保存的密钥", "助理在这个项目里的工作", "这个项目及其角色的记忆",
     ]);
-    const declared = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.project_data);
+    const declared = catalog.filter(entry => entry.project_data);
     assert.deepEqual(declared.map(entry => entry.project_plugin_id).sort(), ["dataset", "form", "images", "lingguang", "pages", "ppt", "todo", "workflows"]);
     for (const entry of declared) assert.equal(owners.find(owner => owner.id === entry.project_plugin_id)?.label, entry.project_data!.label, entry.project_plugin_id);
   });
 });
 
 test("a plugin added to the catalog with a declaration is cleared by a project's deletion without the Host naming it", async () => {
-  const catalog = BUILTIN_PLUGIN_CATALOG as unknown as { push(...entries: unknown[]): number; pop(): unknown };
   const calls: Array<[string, string]> = [];
-  catalog.push({
-    project_plugin_id: "declared-in-test", manifest: { plugin_id: "io.molis.work.declared-in-test", artifacts: { produces: [], consumes: [] } },
-    project_data: { label: "声明里的数据", order: 0, purge: (home: string, projectId: string) => { calls.push([home, projectId]); } },
-  });
+  catalog.push(declaringEntry("declared-in-test", { label: "声明里的数据", order: 0, purge: (home, projectId) => { calls.push([home, projectId]); } }));
   try {
     await withFreshHome(async home => {
       const hooks = projectDeletedHooksFor(home);
@@ -51,11 +58,7 @@ test("a plugin added to the catalog with a declaration is cleared by a project's
 });
 
 test("declarations without an order run after every numbered one, in catalog order", async () => {
-  const catalog = BUILTIN_PLUGIN_CATALOG as unknown as { push(...entries: unknown[]): number; splice(start: number, count: number): unknown[]; length: number };
-  const entry = (id: string, order?: number) => ({
-    project_plugin_id: id, manifest: { plugin_id: `io.molis.work.${id}`, artifacts: { produces: [], consumes: [] } },
-    project_data: { label: id, ...(order === undefined ? {} : { order }), purge: () => undefined },
-  });
+  const entry = (id: string, order?: number) => declaringEntry(id, { label: id, ...(order === undefined ? {} : { order }), purge: () => undefined });
   catalog.push(entry("unordered-a"), entry("early", 5), entry("unordered-b"));
   try {
     await withFreshHome(async home => {

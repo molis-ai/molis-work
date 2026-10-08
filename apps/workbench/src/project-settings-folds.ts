@@ -95,10 +95,11 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
   function renderProjectDeleteDialog(project: ProjectSettingsFoldProject, desktopShell: boolean): string {
     if (project.data_class === "regenerable_demo") return "";
     const directoryHref = desktopShell ? withDesktopQuery("/") : "/";
+    // `data-project-delete-scope` is filled as the dialog opens with what the plugins of this Home say they keep for the project.
     return `<dialog class="runtime-plan-dialog project-delete-dialog" data-project-delete-dialog aria-labelledby="project-delete-dialog-title-${escapeHtml(project.project_id)}" aria-describedby="project-delete-description-${escapeHtml(project.project_id)}">
       <form class="runtime-plan-shell" data-project-delete="${escapeHtml(project.project_id)}" data-project-directory-href="${directoryHref}">
         <header><div><h2 id="project-delete-dialog-title-${escapeHtml(project.project_id)}">${L("删除项目")}</h2><p>${escapeHtml(project.display_name)}</p></div></header>
-        <div class="runtime-plan-body"><p id="project-delete-description-${escapeHtml(project.project_id)}">${L("永久删除这个项目在 Molis Work 中的目标、记录和关联。关联工作目录中的代码和文件会保留。")}</p><div class="project-delete-scope" data-project-delete-scope hidden><p>${L("各插件里属于这个项目的数据也会一起删除：")}</p><ul data-project-delete-scope-list></ul></div><label class="runtime-plan-confirm"><input type="checkbox" name="delete_confirmed"><span>${L("我确认删除这个项目，且理解此操作无法撤销。")}</span></label><p class="settings-form-error" data-project-delete-error role="alert" hidden></p></div>
+        <div class="runtime-plan-body"><p id="project-delete-description-${escapeHtml(project.project_id)}">${L("永久删除这个项目在 Molis Work 中的目标、记录和关联。关联工作目录中的代码和文件会保留。")}</p><p class="mw-field__hint" data-project-delete-scope>${L("各插件里属于这个项目的数据也会一起删除。")}<br><span></span></p><label class="runtime-plan-confirm"><input type="checkbox" name="delete_confirmed"><span>${L("我确认删除这个项目，且理解此操作无法撤销。")}</span></label><p class="settings-form-error" data-project-delete-error role="alert" hidden></p></div>
         <footer><button class="mw-btn mw-btn--secondary" type="button" data-project-delete-cancel autofocus>${L("取消")}</button><button class="mw-btn mw-btn--danger project-delete-button" type="submit" disabled>${L("确认删除项目")}</button></footer>
       </form>
     </dialog>`;

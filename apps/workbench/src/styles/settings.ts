@@ -263,12 +263,6 @@ export const SETTINGS_STYLES = `
   .project-delete-dialog .runtime-plan-shell { height: auto; max-height: calc(100dvh - 28px); }
   .project-delete-dialog .runtime-plan-body > p:first-child { margin: 0; }
   .project-delete-dialog .settings-form-error { margin-top: 12px; }
-  .project-delete-scope { margin-top: 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
-  .project-delete-scope p { margin: 0; }
-  /* One running line of names, not a column: thirteen owners must not push the confirmation off a narrow screen. */
-  .project-delete-scope ul { margin: 4px 0 0; padding: 0; list-style: none; max-height: 7.5em; overflow-y: auto; overflow-wrap: anywhere; }
-  .project-delete-scope li { display: inline; }
-  .project-delete-scope li:not(:last-child)::after { content: "；"; }
   .project-delete-dialog header p { overflow-wrap: anywhere; }
   .project-record-tools { margin: -8px 0 16px 48px; display: flex; gap: 8px; }
   .project-record-tools details { min-width: min(100%, 280px); }

@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 // `--base main` must fail with the rule's message. For the counts that may only fall (root strays, .impeccable files,
 // placeholder contract subpaths) the laundering move, rewriting the committed baseline in the same branch, must not help.
 const script = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import.meta.url));
+const apiScript = fileURLToPath(new URL("../scripts/gates/api-snapshot.mjs", import.meta.url));
 let repo = "";
 
 const gitAt = (dir: string, ...args: string[]) => execFileSync("git", ["-c", "commit.gpgsign=false", "-c", "user.name=gates", "-c", "user.email=gates@example.invalid", ...args],
@@ -24,6 +25,14 @@ const commit = (message: string) => { git("add", "-A"); git("commit", "-q", "--a
 const gate = (...args: string[]) => {
   const run = spawnSync(process.execPath, [script, "--root", repo, ...args], { encoding: "utf8" });
   return { code: run.status, out: `${run.stdout}${run.stderr}` };
+};
+
+// The fixture's contracts package is a public API too (scripts/gates/api-snapshot.mjs), and that rule runs in the same
+// `check-health-gates.mjs`: its snapshots are written with the real script, and a mutation that changes the contracts exports
+// refreshes them in the same commit, so the only rule that can fail is the one the case is about.
+const refreshApiSnapshots = () => {
+  const run = spawnSync(process.execPath, [apiScript, "--update", "--root", repo], { encoding: "utf8" });
+  assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
 };
 
 const lines = (...parts: string[]) => `${parts.join("\n")}\n`;
@@ -97,6 +106,7 @@ before(() => {
 
   for (const file of [".impeccable/review/set-a/1.png", ".impeccable/review/set-a/2.png", ".impeccable/review/set-b/1.png", ".impeccable/review/loose.png",
     ".impeccable/design.json", "docs/design/.impeccable/ref.png"]) put(file, file);
+  refreshApiSnapshots();
   git("add", "-A");
   const baseline = gate("--update");
   assert.equal(baseline.code, 0, baseline.out);
@@ -257,6 +267,7 @@ const violations: Scenario[] = [
   { kind: "ratchet", name: "a new descriptor-only, unused contracts subpath", mutate: () => {
     put("packages/contracts/package.json", contractsManifest(["platform/real", "platform/used", "platform/wired", "platform/idle", "platform/fresh"]));
     put("packages/contracts/src/platform/fresh.ts", descriptor("fresh"));
+    refreshApiSnapshots();
   }, expect: [/descriptor-only, unused contracts subpath in \.\/platform\/fresh 0 → 1/] },
 ];
 
@@ -302,6 +313,7 @@ test("changes that shrink things pass against the merge-base, and say what got s
     git("rm", "-q", "-r", "leftover.md", "outputs", ".impeccable/review/set-b/1.png");
     git("rm", "-q", "packages/contracts/src/platform/idle.ts");
     put("packages/contracts/package.json", contractsManifest(["platform/real", "platform/used", "platform/wired"]));
+    refreshApiSnapshots();
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
@@ -334,6 +346,7 @@ test("descriptor-only subpaths that something uses, or that carry types, are not
     put("packages/other/package.json", JSON.stringify({ "molis-work": { contract: "@molis-ai/molis-work-contracts/platform/named" } }));
     put("packages/contracts/src/platform/typed.ts", descriptor("typed") + "export interface Typed { id: string }\n");
     put("packages/contracts/src/platform/idle.ts", descriptor("idle") + "export const idleValue = 1;\n");
+    refreshApiSnapshots();
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);

@@ -9,6 +9,7 @@ import {
 import { FeedStoreError, assertSourceHistoryDecision, callAttention, callFeed } from "./application-errors.js";
 import { feedItemRecord, sourceRunRecord } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
+import { retireFeedSource } from "./source-history.js";
 import {
   feedOutRuleMatches,
   registerFeedCaptureVersion,
@@ -125,37 +126,7 @@ export class FeedApplication {
     historyDecision: SourceHistoryDecision,
   ): FeedSourceRecord {
     assertSourceHistoryDecision(historyDecision);
-    return this.ports.transaction(() => {
-      const now = new Date().toISOString();
-      if (historyDecision === "delete_local_history") {
-        this.ports.feed.commands.deleteBySource(projectId, sourceId);
-        this.ports.attention.commands.deleteSubject(projectId, "source_fault", sourceId);
-        this.ports.listener.deleteSourceState(projectId, sourceId);
-      } else {
-        // Only a successful sync resolves a fault, and a retired source can no longer sync. The entry stays as a
-        // closed reference, like the retained items' own entries, instead of asking for a fix that cannot happen.
-        for (const entry of this.ports.attention.query.findForSubject(projectId, "source_fault", sourceId)) {
-          if (entry.status === "open" || entry.status === "in_progress") {
-            this.ports.attention.commands.setStatus(projectId, entry.entry_id, "dismissed", entry.revision);
-          }
-        }
-      }
-      const retired = this.sourceRecord(
-        this.ports.sources.commands.retire(projectId, sourceId, historyDecision, now),
-      );
-      this.ports.appendEvent(
-        projectId,
-        "feed_source",
-        sourceId,
-        "feed_source.deleted",
-        historyDecision === "delete_local_history"
-          ? "来源及本地历史已删除"
-          : "来源已删除，本地历史保留",
-        { history_decision: historyDecision },
-        now,
-      );
-      return retired;
-    });
+    return retireFeedSource(this.ports, projectId, sourceId, historyDecision, (source) => this.sourceRecord(source));
   }
 
   createInboxEntry(input: {
@@ -167,6 +138,7 @@ export class FeedApplication {
     entryId?: string;
     at?: string;
   }): { entry: InboxEntryRecord; created: boolean } {
+    if (input.subjectType === "feed_item") this.assertNotIgnored(input.projectId, input.subjectId);
     const result = callAttention(() => this.ports.attention.commands.create({
       project_id: input.projectId,
       subject_type: input.subjectType as ModuleAttentionSubjectType,
@@ -186,10 +158,7 @@ export class FeedApplication {
     reason: Extract<InboxEntryReason, "manual" | "source_rule">,
     detail: Record<string, unknown> = {},
   ): { entry: InboxEntryRecord; created: boolean } {
-    // An ignored item comes back through restore, not by being admitted to the Inbox again.
-    if (this.isArchived(projectId, itemId)) {
-      throw new FeedStoreError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
-    }
+    this.assertNotIgnored(projectId, itemId);
     const result = callAttention(
       () => this.ports.attention.commands.ensureFeedItem(projectId, itemId, reason, detail),
     );
@@ -215,6 +184,11 @@ export class FeedApplication {
     status: InboxEntryStatus,
     expectedRevision?: number,
   ): InboxEntryRecord {
+    if (status === "open" || status === "in_progress") {
+      // Reopening is admission too: an ignored item's entries stay closed until the person restores the item.
+      const entry = this.getInboxEntry(projectId, entryId);
+      if (entry.subject_type === "feed_item") this.assertNotIgnored(projectId, entry.subject_id);
+    }
     return callAttention(
       () => this.ports.attention.commands.setStatus(
         projectId,
@@ -455,6 +429,13 @@ export class FeedApplication {
     return this.ports.feed.query.exists(projectId, itemId) && this.getFeedItem(projectId, itemId).disposition === "archived";
   }
 
+  /** An ignored item comes back through restore, never by being admitted, reopened or reported on in the Inbox. */
+  private assertNotIgnored(projectId: string, itemId: string): void {
+    if (this.isArchived(projectId, itemId)) {
+      throw new FeedStoreError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
+    }
+  }
+
   private requireOutRules() {
     if (!this.ports.outRules) {
       throw new FeedStoreError("feed_out_rule_not_found", "捕捉规则尚未初始化");
@@ -496,6 +477,8 @@ export class FeedApplication {
 
 
   private recordArtifactOutFailure(item: FeedItemRecord, ruleIds: string[], errorCodes: string[]): void {
+    // The person ignored this item; a capture that failed for it is not worth putting it back in front of them.
+    if (this.isArchived(item.project_id, item.item_id)) return;
     try {
       const { entry } = callAttention(() => this.ports.attention.commands.create({
         project_id: item.project_id,

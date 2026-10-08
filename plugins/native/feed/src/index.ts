@@ -43,6 +43,7 @@ export { renderFeedRichText, feedPlainText } from "./rich-content.js";
 
 export { FeedApplication } from "./application.js";
 export type { FeedApplicationPorts } from "./application-ports.js";
+export { receiptContentRefs, FEED_RECEIPT_CONTENT_REFS, type FeedSourceHistory, type FeedSourceHistoryHolding, type FeedSourceHistoryRelease } from "./source-history.js";
 export * from "./application-errors.js";
 
 export {

@@ -136,10 +136,10 @@ test("restoring an ignored Feed item closes an entry that is still pending for i
     const feed = createLocalFeedApplication(store.db);
     const item = await itemWithTwoActiveEntries(feed);
     const archived = feed.setDisposition(DEMO_PROJECT_ID, item.item_id, "archived", item.revision);
-    // An entry that predates this behaviour (or was reopened by hand) is not left pending by the restore.
-    for (const entry of feed.listInboxEntries(DEMO_PROJECT_ID).filter(row => row.subject_id === item.item_id)) {
-      feed.setInboxEntryStatus(DEMO_PROJECT_ID, entry.entry_id, "open", entry.revision);
-    }
+    // An entry that predates this behaviour is not left pending by the restore. The person can no longer reopen an
+    // ignored item's entry (see below), so the stale state is written the way an older version left it.
+    store.db.prepare("UPDATE inbox_entries SET status = 'open', completed_at = NULL, revision = revision + 1 WHERE project_id = ? AND subject_id = ?")
+      .run(DEMO_PROJECT_ID, item.item_id);
     assert.deepEqual(entriesOf(feed, item.item_id), ["manual:open", "source_rule:open"]);
     feed.restoreToFeed(DEMO_PROJECT_ID, item.item_id, archived.revision);
     assert.deepEqual(entriesOf(feed, item.item_id), ["manual:dismissed", "source_rule:dismissed"]);
@@ -170,6 +170,48 @@ test("an archived Feed item cannot be admitted to the Inbox by the person, a wor
     feed.ingestItem({ source, externalId: "x1", title: "Quarterly budget", summary: "s", occurredAt: new Date().toISOString(), attention: { reason: "source_rule" } });
     assert.deepEqual(entriesOf(feed, item.item_id), [], "no entry was created for the ignored item");
     assert.equal(feed.getFeedItem(DEMO_PROJECT_ID, item.item_id).disposition, "archived");
+  });
+});
+
+test("an ignored Feed item that a source sees again with a failing capture-out gets no Inbox entry", async () => {
+  await withProject("molis-work-feed-archived-capture-out-", async store => {
+    const failing = { registerVersion() { throw Object.assign(new Error("down"), { code: "artifact_store_down" }); }, latestVersion: () => null };
+    const feed = createLocalFeedApplication(store.db, { artifacts: failing as never });
+    const source = workflowSource(feed, "src-1");
+    const signal = (revision: number) => ({ signal_id: "sig-1", revision });
+    const first = feed.ingestItem({ source, externalId: "x1", signal: signal(1), title: "Quarterly budget", summary: "s", occurredAt: new Date().toISOString(), attention: false });
+    feed.setDisposition(DEMO_PROJECT_ID, first.item.item_id, "archived", first.item.revision);
+    feed.createOutRule(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "suggest" });
+    // A newer Signal revision updates the item and runs the capture rules over it; the capture-out fails.
+    const again = feed.ingestItem({ source, externalId: "x1", signal: signal(2), title: "Quarterly budget v2", summary: "s", occurredAt: new Date().toISOString(), attention: false });
+    assert.equal(again.updated, true);
+    assert.deepEqual(entriesOf(feed, first.item.item_id), [], "an ignored item is not put back in the Inbox to report a failed capture");
+    // Trying the rules by hand over the ignored item takes the same path.
+    await feed.evaluateItems(DEMO_PROJECT_ID, [first.item.item_id]);
+    assert.deepEqual(entriesOf(feed, first.item.item_id), []);
+    assert.equal(feed.getFeedItem(DEMO_PROJECT_ID, first.item.item_id).disposition, "archived");
+    // The same failure on an item the person still has is reported.
+    const kept = feed.ingestItem({ source, externalId: "x2", signal: { signal_id: "sig-2", revision: 1 }, title: "Budget notes", summary: "s", occurredAt: new Date().toISOString(), attention: false });
+    assert.deepEqual(entriesOf(feed, kept.item.item_id), ["artifact_out_failed:open"]);
+  });
+});
+
+test("the person cannot reopen an Inbox entry of an ignored Feed item, but can after restoring it", async () => {
+  await withProject("molis-work-feed-archived-reopen-", async store => {
+    const feed = createLocalFeedApplication(store.db);
+    const item = await itemWithTwoActiveEntries(feed);
+    const archived = feed.setDisposition(DEMO_PROJECT_ID, item.item_id, "archived", item.revision);
+    assert.deepEqual(entriesOf(feed, item.item_id), ["manual:dismissed", "source_rule:dismissed"]);
+    for (const entry of feed.listInboxEntries(DEMO_PROJECT_ID).filter(row => row.subject_id === item.item_id)) {
+      for (const status of ["open", "in_progress"] as const) {
+        assert.throws(() => feed.setInboxEntryStatus(DEMO_PROJECT_ID, entry.entry_id, status, entry.revision), /已忽略的 Feed Item/);
+      }
+    }
+    assert.deepEqual(entriesOf(feed, item.item_id), ["manual:dismissed", "source_rule:dismissed"], "nothing came back");
+    // Restoring is the way back; the person then adds it to the Inbox again on purpose.
+    feed.restoreToFeed(DEMO_PROJECT_ID, item.item_id, archived.revision);
+    feed.addToInbox(DEMO_PROJECT_ID, item.item_id);
+    assert.deepEqual(entriesOf(feed, item.item_id), ["manual:open", "source_rule:dismissed"]);
   });
 });
 

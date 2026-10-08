@@ -87,7 +87,7 @@ tests/uninstall.test.ts      User-data retention, strong confirmation, and recei
 PRODUCT.md                   Product definition
 DESIGN.md                    Shipped UI design system
 docs/SSOT-MATRIX.md          Canonical architecture, package status, and migration-owner index
-docs/system/                 Layers, dependencies, migration, and huge-class exit rules
+docs/system/                 Layers, dependencies, migration, and the giant-unit list
 docs/modules/                Fact ownership and API boundaries for Modules (pages do not yet match the 13 Modules one to one: characters has no page, and pages remain for 4 future owners and retired modules; SSOT-MATRIX is authoritative)
 docs/horizontal/             Technical boundaries for the services under `horizontal/` (Memory and Placement: see their package READMEs)
 docs/platform/               Plugin, Storage, Exchange, and UI platform mechanisms
@@ -101,7 +101,7 @@ specs/molis-work-architecture-reorganization/spec.md
 - Cross-owner calls use public entrypoints only; deep imports, cross-Module Store access, and App database writes are forbidden.
 - `contract-only` means a real boundary without a fake provider, store, UI entry, or success response.
 - Every migration slice updates its package README and the affected Module/Service document.
-- See the [Huge Class responsibility map](system/HUGE-CLASS-MIGRATION.md) for ownership and removal gates.
+- See [giant units: list and verdicts](system/HUGE-CLASS-MIGRATION.md) for the owner, verdict and plan of every file, class and function over the limits.
 
 ## Frontend and the control catalog
 

@@ -11,6 +11,8 @@
 //   --update                      rewrite baseline.json (with --base: only when nothing grew relative to the merge-base)
 //   --report [--top N] [--json]   print the per-file and per-unit numbers (with --base: next to the merge-base's)
 //   --root <dir>                  gate another repository root (tests/health-gates-merge-base.test.ts)
+// tooling/gates/giant-exceptions.json registers the giant units that have to be long (a translation table, a stylesheet,
+// static data, generated code), each with a reason: such a unit may exist (also when it is new) and may never grow.
 // Exit codes: 0 passed, 1 a gate failed, 2 the command or the environment is unusable (there is no silent fallback).
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
@@ -39,6 +41,7 @@ const update = flags.has("--update"), report = flags.has("--report");
 const root = options.root ? path.resolve(options.root) : path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const baselinePath = path.join(root, "tooling/gates/baseline.json");
 const limitsPath = path.join(root, "tooling/gates/limits.json");
+const exceptionsPath = path.join(root, "tooling/gates/giant-exceptions.json");
 
 const run = (gitArgs, extra = {}) => execFileSync("git", gitArgs, { cwd: root, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["pipe", "pipe", "pipe"], ...extra });
 const git = (gitArgs, extra) => {
@@ -56,6 +59,32 @@ const parseLimits = (text, where) => {
 };
 if (!existsSync(limitsPath)) fail(`${limitsPath} is missing`);
 const limits = parseLimits(readFileSync(limitsPath, "utf8"), limitsPath);
+
+// ---- the giant-unit exceptions (§4.5 "must be long, with a reason") -----------------------------------------------------
+// tooling/gates/giant-exceptions.json: { "exceptions": { "<unit key as in baseline.json>": { "kind", "reason" } } }. A unit
+// with an entry is a deliberate verdict, not debt: it may exist over the limit (it is the only way a unit that is new to the
+// merge-base can be giant) and, like every giant unit, it may never grow. The entries are checked against the head: each has
+// to be a current giant unit, with a kind from the closed list and a reason that says why splitting it would be wrong.
+// A missing file is an empty registry; a file that is not JSON is exit 2.
+const EXCEPTION_KINDS = ["translation-table", "stylesheet", "static-data", "generated-code"];
+const MIN_REASON_CHARACTERS = 20;
+const problemsOfException = (entry) => {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [`the entry must be an object with "kind" and "reason"`];
+  const problems = Object.keys(entry).filter((field) => field !== "kind" && field !== "reason").map((field) => `unknown field "${field}" (only "kind" and "reason")`);
+  if (!EXCEPTION_KINDS.includes(entry.kind)) problems.push(`"kind" must be one of ${EXCEPTION_KINDS.join(", ")}`);
+  if (typeof entry.reason !== "string" || entry.reason.replace(/\s+/g, "").length < MIN_REASON_CHARACTERS) problems.push(`"reason" needs at least ${MIN_REASON_CHARACTERS} characters that say why this unit has to be long`);
+  return problems;
+};
+const loadExceptions = () => {
+  if (!existsSync(exceptionsPath)) return {};
+  let parsed;
+  try { parsed = JSON.parse(readFileSync(exceptionsPath, "utf8")); } catch { fail(`${exceptionsPath} is not valid JSON`); }
+  if (!parsed || typeof parsed !== "object" || !parsed.exceptions || typeof parsed.exceptions !== "object" || Array.isArray(parsed.exceptions)) {
+    fail(`${exceptionsPath} needs an "exceptions" object keyed by giant unit`);
+  }
+  return parsed.exceptions;
+};
+const exceptions = loadExceptions();
 
 // ---- what is scanned ------------------------------------------------------------------------------------------------
 const AREAS = /^(apps|horizontal|modules|packages|plugins|server|tooling)\//;
@@ -169,8 +198,10 @@ const giantUnits = {
     const errors = [];
     for (const [unit, value] of Object.entries(head)) {
       const was = before[unit];
-      if (was === undefined) errors.push(`new giant unit: ${unit} (${describeUnit(value)}); split it or keep it under the limit`);
-      else if (typeof value === "number") {
+      // A registered exception lets a unit that is new exist; it never lets one that is already recorded grow.
+      if (was === undefined) {
+        if (problemsOfException(exceptions[unit]).length) errors.push(`new giant unit: ${unit} (${describeUnit(value)}); split it or keep it under the limit (a translation table, stylesheet or static data that has to be long is registered with a reason in tooling/gates/giant-exceptions.json)`);
+      } else if (typeof value === "number") {
         if (value > was) errors.push(`giant unit grew: ${unit} ${was} → ${value}`);
       } else {
         // Two rules, both must hold. Lines and methods are two limits: whichever is over its limit may not exceed what the
@@ -195,14 +226,16 @@ const giantUnits = {
       .sort((a, b) => sizeOf(b.value) - sizeOf(a.value) || a.unit.localeCompare(b.unit));
     const tally = {};
     for (const row of rows) tally[row.kind] = (tally[row.kind] ?? 0) + 1;
+    const registered = rows.filter((row) => exceptions[row.unit] !== undefined).length;
     const out = [`Giant units: ${rows.length} (${Object.entries(tally).sort().map(([name, count]) => `${count} ${name}`).join(", ")})`,
+      `  registered as exceptions (tooling/gates/giant-exceptions.json): ${registered}; the other ${rows.length - registered} are to be split or handed to the line that owns them (docs/system/HUGE-CLASS-MIGRATION.md)`,
       `  ${"kind".padEnd(13)}${"lines".padStart(6)}${"methods".padStart(9)}${ref ? "  base (l/m)".padEnd(14) : ""}  unit`];
     for (const row of rows.slice(0, top)) {
       const lines = typeof row.value === "number" ? row.value : row.value.lines;
       const methods = typeof row.value === "number" ? "" : row.value.methods;
       const was = ref?.[row.unit];
       const base = was === undefined ? "new" : typeof was === "number" ? was : `${was.lines}/${was.methods}`;
-      out.push(`  ${row.kind.padEnd(13)}${String(lines).padStart(6)}${String(methods).padStart(9)}${ref ? `  ${String(base)}`.padEnd(14) : ""}  ${row.unit.replace(/^(?:file|class|function) /, "")}`);
+      out.push(`  ${row.kind.padEnd(13)}${String(lines).padStart(6)}${String(methods).padStart(9)}${ref ? `  ${String(base)}`.padEnd(14) : ""}  ${row.unit.replace(/^(?:file|class|function) /, "")}${exceptions[row.unit] !== undefined ? `  [exception: ${exceptions[row.unit]?.kind}]` : ""}`);
     }
     if (top && rows.length > top) out.push(`  … ${rows.length - top} more (omit --top to see all)`);
     return out;
@@ -382,13 +415,18 @@ const limitErrors = () => {
   const before = parseLimits(git(["cat-file", "blob", `${mergeBase}:${limitsFile}`]), `${mergeBase.slice(0, 8)}:${limitsFile}`);
   return LIMIT_KEYS.filter((key) => limits[key] > before[key]).map((key) => `limit "${key}" loosened ${before[key]} → ${limits[key]} in tooling/gates/limits.json; limits only get tighter`);
 };
-const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems()];
+// Every registered exception has to describe a giant unit that exists now, with a kind and a reason. A split or a rename that
+// leaves the entry behind fails here, so the registry shrinks with the list; the admission of a new unit is in giantUnits.grew.
+const exceptionErrors = () => Object.entries(exceptions).flatMap(([unit, entry]) => (head.giant[unit] === undefined
+  ? [`giant exception for ${unit} is stale: it is not a giant unit any more (split, shrunk or renamed); delete the entry from tooling/gates/giant-exceptions.json, or key it by the new name after a rename`]
+  : problemsOfException(entry).map((problem) => `giant exception for ${unit}: ${problem}`)));
+const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors()];
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "tooling/gates/baseline.json";
 
 // ---- --report --------------------------------------------------------------------------------------------------------
 if (report) {
   if (flags.has("--json")) {
-    console.log(JSON.stringify({ limits, mergeBase: mergeBase || null, head, base: reference ?? null }, null, 2));
+    console.log(JSON.stringify({ limits, mergeBase: mergeBase || null, head, base: reference ?? null, giantExceptions: exceptions }, null, 2));
     process.exit(0);
   }
   const env = { top: options.top ? Number(options.top) : undefined };
@@ -427,4 +465,5 @@ let hint = "";
 // rewritten in the PR, and none of that matters here.
 if (lowered.length && mergeBase) hint = ` Lower than the merge-base: ${lowered.join(", ")}; \`--update --base origin/main\` lowers the local quick check in tooling/gates/baseline.json.`;
 else if (lowered.length) hint = ` Lower than the baseline: ${lowered.join(", ")}; lower it with --update --base origin/main.`;
-console.log(`Health gates passed against ${against} (${summaryOf(head)}).${hint}${notes.length ? ` Note: ${notes.join("; ")}.` : ""}`);
+const registered = Object.keys(head.giant).filter((unit) => exceptions[unit] !== undefined).length;
+console.log(`Health gates passed against ${against} (${summaryOf(head)}; ${registered} of the giant units registered as exceptions).${hint}${notes.length ? ` Note: ${notes.join("; ")}.` : ""}`);

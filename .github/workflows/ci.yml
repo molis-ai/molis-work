@@ -46,7 +46,7 @@ jobs:
       # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a).
       # The head and the merge-base are both measured here by the same script and compared, so rewriting
       # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the
-      # gate itself (script, limits.json, this step), which is reviewed. The committed baseline.json is not read.
+      # gate itself (script, limits.json, giant-exceptions.json, this step), which is reviewed. The committed baseline.json is not read.
       # The comparison commit: on a pull request, HEAD is the merge commit GitHub builds (refs/pull/N/merge), so it is the
       # merged result against the base branch as it was merged (HEAD^1); on a push to main it is the previous tip.
       # scripts/ci-health-base.mjs picks it and fetches it when the shallow checkout lacks it.

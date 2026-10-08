@@ -1,0 +1,37 @@
+{
+  "note": "Giant units that have to be long, each with a reason (specs/repository-anti-corruption §4.5; the list with every verdict is docs/system/HUGE-CLASS-MIGRATION.md). A registered unit may exist over the limit and, like every giant unit, may never grow. Keys are the unit keys of baseline.json; an entry for a unit that is no longer giant fails the gate and has to be deleted. kind: translation-table, stylesheet, static-data or generated-code. Changes here are reviewed like limits.json.",
+  "exceptions": {
+    "file apps/workbench/src/i18n/en.ts": {
+      "kind": "translation-table",
+      "reason": "英文词典：一个对象字面量加几块 Object.assign 的字符串对，没有逻辑；按行数机械拆只会把同一张表切开。W5-03 把插件自有词条移给主人并删无引用的键，这个文件随之变小。"
+    },
+    "file packages/design-system/src/primitives/catalog.ts": {
+      "kind": "static-data",
+      "reason": "组件规格板 /__ui/catalog 的样例标记，每个控件族一段，没有分支和 IO；拆成几个文件只是把同一块板子切开，改一个控件仍要改同一份样例。"
+    },
+    "file packages/design-system/src/styles/momentum.ts": {
+      "kind": "stylesheet",
+      "reason": "Goals 动量视图的样式表：一个模板字符串，纯 CSS，没有逻辑；样式表按行数拆不改善职责，只让同一个界面的规则散在几处。"
+    },
+    "file packages/design-system/src/styles/primitives.ts": {
+      "kind": "stylesheet",
+      "reason": "基础控件（mw-* 原语）的样式表：一个模板字符串，纯 CSS，没有逻辑；样式表按行数拆不改善职责，只让同一个控件的规则散在几处。"
+    },
+    "file plugins/native/coding/src/styles.ts": {
+      "kind": "stylesheet",
+      "reason": "Coding 工作台的样式表：一个模板字符串，纯 CSS，没有逻辑；样式表按行数拆不改善职责，只让同一个界面的规则散在几处。"
+    },
+    "file plugins/native/pages/src/styles.ts": {
+      "kind": "stylesheet",
+      "reason": "Pages 的样式表：一个模板字符串，纯 CSS（色调规则由 PAGES_TONES 生成），没有逻辑；样式表按行数拆不改善职责，只让同一个界面的规则散在几处。"
+    },
+    "file plugins/official-integrations/catalog/src/catalog.ts": {
+      "kind": "static-data",
+      "reason": "39 个连接器的声明表：CATALOG 数组约 830 行，每条独立，只描述该连接器的身份请求与条目映射；新增连接器就是新增一条，拆开不会减少改动点。"
+    },
+    "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": {
+      "kind": "static-data",
+      "reason": "组件规格板的样例标记：函数里没有分支和 IO，只是把各控件族的样例拼成一页；它的长度就是控件族的数量。"
+    }
+  }
+}

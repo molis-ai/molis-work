@@ -89,7 +89,7 @@ tests/uninstall.test.ts      用户数据保留、强确认与恢复收据回归
 PRODUCT.md                   产品定义
 DESIGN.md                    shipped UI 设计系统
 docs/SSOT-MATRIX.md          架构、包状态和迁移 owner 的权威索引
-docs/system/                 分层、依赖、迁移与 Huge Class 退出规则
+docs/system/                 分层、依赖、迁移与巨大单元清单
 docs/modules/                Module 的事实 owner 与 API 边界（页面尚未与 13 个 Module 一一对应：characters 暂无页面，另含 4 个未来 owner 和已退役模块的页面，以 SSOT-MATRIX 为准）
 docs/horizontal/             `horizontal/` 下各服务的技术边界（Memory、Placement 见各自包 README）
 docs/platform/               Plugin、Storage、Exchange 与 UI 平台机制
@@ -103,7 +103,7 @@ specs/molis-work-architecture-reorganization/spec.md
 - 新代码只能通过 public entrypoint 调用其他 owner；禁止 deep import、跨 Module Store 和 App 直写业务数据库。
 - `contract-only` 只表示边界存在，不得注册假 Provider、假 Store、UI 入口或伪成功 API。
 - 每个迁移切片同时更新目标 package README 和对应 Module/Service 文档。
-- Huge Class 的职责归属和删除门见 [Huge Class 职责迁移图](system/HUGE-CLASS-MIGRATION.md)。
+- 巨大单元（超过阈值的文件、类、函数）的 owner、判定与计划见 [巨大单元清单与判定](system/HUGE-CLASS-MIGRATION.md)。
 
 ## 对外 MCP
 

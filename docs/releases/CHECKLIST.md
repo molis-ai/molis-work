@@ -6,7 +6,7 @@
 
 - [ ] 对照上个 tag 以来的变化选次版本或补丁（[POLICY.md](POLICY.md) 第 2 节）。库版本有没有变，看第 3 节的表：`git diff <上个 tag> -- <表里的定义处文件>`。
 - [ ] 改版本号：根 `package.json`；`apps/desktop/src-tauri/` 的 `tauri.conf.json`、`Cargo.toml`、`Cargo.lock` 里的 `molis-work-desktop`；`apps/local-host/src/feed-source-runtime.ts` 的 `APP_VERSION`；`horizontal/runtime-host/src/adapters/codex-app-server.ts` 的 `clientInfo.version`（[POLICY.md](POLICY.md) 第 1 节）。
-- [ ] 内置插件的清单（`plugins/native/*/src/manifest.ts`，`git diff <上个 tag> -- 'plugins/native/*/src/manifest.ts'`）：版本没有被改到低于已有安装记录的版本，内容改了的清单版本也升了。Runtime 对这两种都既不跟也不报错，已装的旧代码会悄悄继续跑（[POLICY.md](POLICY.md) 第 7 节的情形一和情形二；处理办法等用户决定，决定前照现在的做法：清单一改就升它自己的版本，不降版本）。动过内置清单的发布，第 4.5 节的安装记录核对不能跳过。
+- [ ] 内置插件清单的版本与摘要（监督器的 7 个：Characters、Shelf、Coding、Files、Diff、Git、TextStats，名单以第 4.5 节的命令为准）。在构建好的仓库根目录跑第 4.5 节的命令，得到每个清单的 `plugin_id`、版本、摘要，和**上一次发布记下的同一张表**逐行比：摘要变了的插件，版本必须更高；版本被改低，或摘要变了而版本没变，都不能发布。Runtime 对这两种既不跟也不报错，已装的旧代码悄悄继续跑，今天 main 上这种情形已经出现过 23 次（[POLICY.md](POLICY.md) 第 7.3 节），没有机制拦，所以这一项是人工兜底。不要用 `git diff <上个 tag> -- 'plugins/native/*/src/manifest.ts'` 代替：清单里的 `actions`、`consumes` 来自插件别的文件和 contracts，改它们不碰 `manifest.ts`，摘要照样变。把这张表写进发布说明的「兼容与升级」，下一次发布拿它比，不用再构建旧 tag；上一次发布没有记表时，在另一个干净工作树里检出上个 tag、整体 `pnpm build`，跑同一条命令取表。**v0.2.0 里还没有这 7 个插件，所以 0.3.0 没有可比的表**：这一次按 POLICY 第 7.7 节办（在用户对第 7 节做决定之前，7 份清单的 `version` 各升一格，不降任何版本，也不重置），并且第 4.5 节对开发机 Home 的核对不能跳过。POLICY 第 7 节的决定落地后，这一项按所选的做法改；若落地了摘要锁门禁（第 7.5 节），这一项改成「门禁通过」。
 - [ ] [CHANGELOG.md](CHANGELOG.md)：`[Unreleased]` 改成 `[<版本>] - <日期>`，上面另起一个空的 `[Unreleased]`，页尾比较链接（若有）跟着改。
 - [ ] 写 `docs/releases/v<版本>.md`，包含「兼容与升级」（哪些库的版本变了、旧 Home 要做什么、Runtime 要不要重新接入）和「发布范围与验证」（真实的回归数字、已知失败、没验证的东西）。
 - [ ] `node scripts/verify-release-versions.mjs` 通过（打 tag 时再加 `--tag v<版本>`）。
@@ -72,7 +72,7 @@
 
 ### 4.2 升级前的快照（备份）
 
-- [ ] 动真实 Home 之前，先拍一份可恢复的快照，放在 Home 之外。用户 2026-10-08 的决定：做成一条离线快照命令，经常驻宿主暂停写入后对每个登记的库拍一致快照，附清单（路径、版本、校验值），恢复时版本不符就拒绝；「卸载并清除数据」覆盖所有登记的库；定时的在线备份不在这里，留给 C 端就绪方案（`docs/prompts/repository-anti-corruption.md` §4.19）。这条命令 `molis-work home snapshot --to <目录>` 排在路线图 W5-16，依赖 W4-11 的统一库登记表，**现在仓库里没有它**；有了以后，这一项改成跑命令，并把快照清单里的各库版本和第 3 节的表对一遍，清单附在发布 PR 里。
+- [ ] 动真实 Home 之前，先拍一份可恢复的快照，放在 Home 之外。用户 2026-10-08 的决定：做成一条离线快照命令，经常驻宿主暂停写入后对每个登记的库拍一致快照（带清单与版本核对），「卸载并清除数据」覆盖所有登记的库；定时的在线备份不在这里，留给 C 端就绪方案（`docs/prompts/repository-anti-corruption.md` §4.19）。路线图 W5-16 把它具体化为：清单记路径、版本、校验值，恢复时版本不符就拒绝。这条命令 `molis-work home snapshot --to <目录>` 依赖 W4-11 的统一库登记表，**现在仓库里没有它**；有了以后，这一项改成跑命令，并把快照清单里的各库版本和第 3 节的表对一遍，清单附在发布 PR 里。
 - [ ] 现在的做法是离线整份备份 Home（`docs/installation.md`「离线备份与恢复边界」）：先退出 App、停止常驻服务和其他写入进程，再把整个 Home 拷到 Home 之外（过去用 `~/molis-work-backups/<日期>-before-<事项>`；APFS 上可以用克隆，逻辑大小不变、实际占用少）。不要只拷单个 `.db`：目录库、会话库、加密正文和密钥必须是同一时点。外部工作区文件不在 Home 里，另行备份。
 - [ ] 服务已停的情况下，备份与原 Home 逐个比对一致（库和配置文件），记下路径、大小和比对方式，写进发布 PR。
 - [ ] Keychain 或环境变量里的密钥不随 Home 文件复制，另行确认还在（`docs/installation.md`）。
@@ -85,7 +85,7 @@
 
 - [ ] 把备份再拷一份作演练副本，维护流程先在副本上跑完。演练脚本只许打开副本里的路径：目录库存的是真实 Home 的绝对路径，照着它去开会打到真库——2026-10-07 的演练就误开过一个项目库，靠版本不符被拒绝才没改动文件（`specs/repository-anti-corruption/spec.md` §4.1）。
 - [ ] 副本上逐库核对：结构与当前基线逐项相同（表、列顺序、索引、外键、CHECK，`packages/storage/src/sqlite-baseline.ts` 的 `describeSqliteSchema`），版本等于第 3 节的数，`PRAGMA integrity_check` 为 `ok`，`PRAGMA foreign_key_check` 没有行，行数与搬之前一致。
-- [ ] 演练通过后，在真库上按同一份流程做：被换下的原库不删，也不留在 Home 里，搬到 `~/molis-work-backups/<日期>-replaced-by-<事项>/`（权限 700，用户 2026-10-08 的决定）；2026-10-07 维护三留在 Home 里的 `~/.molis-work/maintenance-3-replaced/` 在 4.5 的一次性清理里按同一规则搬走。密钥文件（如 `feed/secrets.json`）不读值：要改就只按键名改，原文件先原样备份（2026-10-07 的做法，`specs/repository-anti-corruption/spec.md` §1）。
+- [ ] 演练通过后，在真库上按同一份流程做：被换下的原库不删，也不留在 Home 里，搬到 `~/molis-work-backups` 下（用户 2026-10-08 的决定，「真实 Home 的残留物」一行），建议目录名 `<日期>-replaced-by-<事项>/`、权限 700（维护三留下的 `maintenance-3-replaced/` 就是 700）；2026-10-07 维护三留在 Home 里的 `~/.molis-work/maintenance-3-replaced/` 在 4.5 的一次性清理里按同一规则搬走。密钥文件（如 `feed/secrets.json`）不读值：要改就只按键名改，原文件先原样备份（2026-10-07 的做法，`specs/repository-anti-corruption/spec.md` §1）。
 - [ ] 维护流程和演练记录（日期、副本、每库行数与核对结果）写进发布说明的「兼容与升级」或对应 spec。流程里用到的一次性脚本要么入库，要么在记录里写清它的输入输出，不让「怎么做的」只留在会话里。
 
 ### 4.4 装新构建
@@ -98,7 +98,7 @@
 
 - [ ] 只读核对第 3 节每个库在真实 Home 里的版本、`integrity_check`、`foreign_key_check`；项目数与动之前一致；抽查一个项目的 Goal、成果版本和会话内容能读。
 - [ ] 核对 `config/mcp-tools.json` 的授权条数没有莫名变少（版本不符时它读成空，不报错）。
-- [ ] 内置插件的安装记录等于这个构建的清单，版本和摘要都要一致（[POLICY.md](POLICY.md) 第 7 节）。先在构建好的仓库根目录打出这个构建里每个内置插件清单的版本与摘要：
+- [ ] 内置插件的安装记录等于这个构建的清单，版本和摘要都要一致（[POLICY.md](POLICY.md) 第 7 节；第 1 节也用这条命令）。对开发机的真实 Home，这是第 7.6 节要用户批准的那一步：先得到批准，在新拷贝上查（只打开拷贝里的路径，见第 4.3 节第一项），不碰真库。先在构建好的仓库根目录打出这个构建里每个内置插件清单的版本与摘要：
 
   ```sh
   node --input-type=module -e '

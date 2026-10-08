@@ -205,11 +205,13 @@ test("a bundled Manifest below the installed version is not followed: the stored
   }
 });
 
-// docs/releases/POLICY.md section 7, the second shape. Once the Manifest versions equal the product version and the version only
-// changes in the release PR, every later change to a built-in Manifest has the same version as the install record and another
-// digest (`pluginManifestDigest` covers the whole Manifest). That is not "directly usable" either: the stored build of the
-// recorded digest keeps running, or, without it, the plugin does not start. When the rule changes (W5-15), replace these
-// tests with the new rule's; do not just delete them.
+// docs/releases/POLICY.md section 7.3, the second shape: the install record has the Manifest's version and another digest
+// (`pluginManifestDigest` covers the whole Manifest, including the action tables it imports). It already happens on main
+// whenever a built-in Manifest, or something it imports, changes without a version bump (23 times since 2026-09-26), and it
+// becomes the normal state of every such change once the Manifest versions equal the product version and the version only
+// changes in the release PR. That is not "directly usable": the stored build of the recorded digest keeps running, or,
+// without it, the plugin does not start. When the rule changes (W5-15), replace these tests with the new rule's; do not just
+// delete them.
 test("a bundled Manifest changed without a new version is not followed: the stored build keeps running, or the plugin does not start", async () => {
   for (const storedRelease of [true, false]) {
     const db = new Database(":memory:");

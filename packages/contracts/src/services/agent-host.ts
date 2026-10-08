@@ -561,7 +561,7 @@ export interface AgentDelegation {
 export interface AgentMemoryTools {
   /**
    * Kept through the platform's write gate (specs/archive/memory-system §6.2); it throws with the reason when nothing was kept
-   * (switched off, secret-shaped, held for the person, `said` not in the person's words here). `note` says it was already kept.
+   * (switched off, secret-shaped, held for the person). A `said` that is not a real stretch of the person's words here, or that the text does not follow from, is not recorded as theirs: it is left as the Assistant's suggestion and this throws. `note` says it was already kept.
    */
   remember?(input: { text: string; scope: "personal" | "project" | "character"; said: string; kind?: "preference" | "convention" | "fact" | "experience"; replaces?: string }): Promise<{ memory_id: string; scope: "personal" | "project" | "character"; applies: string; note?: string }>;
   list(): Promise<Array<{ memory_id: string; scope: "personal" | "project" | "character"; text: string; origin: string }>>;

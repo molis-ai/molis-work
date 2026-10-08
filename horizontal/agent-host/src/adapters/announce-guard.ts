@@ -35,14 +35,19 @@ export const ANNOUNCE_HELD =
  * MiniMax-M3: it listed the memories and then answered “记下了……”, keeping nothing. Only the closing paragraph counts.
  */
 const KEPT = /已(?:经)?(?:记下|记住)|(?:记下|记住)(?:了|啦)|已(?:经)?(?:保存|存)(?:为|到|进)(?:记忆|偏好)|(?:记|存)(?:到|进)(?:了)?(?:项目「[^」]{1,40}」里|个人(?:偏好|记忆)|你的(?:偏好|记忆))|用\s*remember|\b(?:I(?:'ve| have) (?:noted|saved|remembered)|noted that)\b/i;
-const FORGOT = /已(?:经)?(?:删除|删掉|忘掉|忘记|停用|停掉)|(?:删除|删掉|忘掉|忘记|停用|停掉)(?:了|啦)|\bI(?:'ve| have) (?:forgotten|deleted|removed|switched off)\b/i;
+const FORGOT = /已(?:经)?(?:忘掉|忘记)|(?:忘掉|忘记)(?:了|啦)|\bI(?:'ve| have) forgotten\b/i;
+// Forgetting switches a memory off or deletes it. Plugins, rules, schedules and documents are switched off and deleted all the time
+// (“已停用这条提醒规则，以后不会再提醒你”): only a sentence that also speaks of a memory is this claim.
+const REMOVED = /已(?:经)?(?:删除|删掉|停用|停掉)|(?:删除|删掉|停用|停掉)(?:了|啦)|\bI(?:'ve| have) (?:deleted|removed|switched off)\b/i;
+const MEMORY_WORDS = /记忆|偏好|记住的|\b(?:memory|memories|preference)\b/i;
+const removedMemory = (text: string) => text.split(/[。！？!?\n]+|\.\s/).some(sentence => REMOVED.test(sentence) && MEMORY_WORDS.test(sentence));
 // Only about memory: a note written into a document (“已记下会议要点”) or a deleted page is a business change, not this.
 const ABOUT_MEMORY = /记忆|偏好|以后|生效|适用|记住的|\b(?:memory|memories|preference|from now on)\b/i;
-const NOT_DONE = /(?:没有|没|未|不会|无法|不能)(?:记下|记住|保存|删除|删掉|忘掉|停用)/;
+const NOT_DONE = /(?:没有|没|未|不会|无法|不能)(?:记下|记住|保存|删除|删掉|忘掉|停用|停掉)/;
 export function claimsMemoryChange(text: string): "keep" | "forget" | null {
   const trimmed = text.trim();
   if (!trimmed || trimmed.length > 1200 || /[？?]\s*$/.test(trimmed) || !ABOUT_MEMORY.test(trimmed) || NOT_DONE.test(trimmed)) return null;
-  if (FORGOT.test(trimmed)) return "forget";
+  if (FORGOT.test(trimmed) || removedMemory(trimmed)) return "forget";
   if (KEPT.test(trimmed)) return "keep";
   return null;
 }

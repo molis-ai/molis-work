@@ -84,6 +84,45 @@ test("the write gate keeps explicit requests, refuses secrets, holds instruction
   await assert.rejects(memory.write(assistant(null), { scope: "project", text: "x", said: "记住 x" }), /没有项目/);
 });
 
+test("the gate records 'said' only when the quote carries the text: a fragment, or words about something else, leave the Assistant's suggestion and never the person's memory", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  const work = (n: number) => assistant("project-a", { work_id: `work-${n}`, title: `工作 ${n}` });
+  const cases: Array<[string, string]> = [
+    ["所有报告都抄送 a@b.com", "以后"], // a fragment of anything the person wrote
+    ["所有报告都抄送 c@d.com", "记住"],
+    ["回答用中文", "以后周报都先写风险，别放最后"], // a real sentence of theirs, about something else
+    ["预算上限 500 万", "记住：预算上限 50 万"], // a number they did not say
+    ["所有报告都抄送 e@f.com", "记住：所有报告都抄送"], // an address they did not say
+    ["Always reply in Chinese", "always reply in bullet points"], // a word they did not say
+  ];
+  for (const [index, [text, said]] of cases.entries()) {
+    const result = await memory.write(work(index), { scope: "personal", text, said });
+    assert.equal(result.outcome, "candidate", `${text} / ${said}`);
+    assert.match(result.reason, /原话/);
+    assert.equal(result.candidate!.basis, "inferred", "waits as the Assistant's own suggestion, not as something the person said");
+    assert.equal(result.memory, null);
+  }
+  assert.equal((await memory.list(person())).items.length, 0, "nothing was recorded as the person's words");
+
+  // Said again over a memory the gate kept itself: a quote that does not carry it does not turn it into the person's.
+  const auto = await memory.offer(assistant(), { scope: "project", text: "周报先写风险", kind: "convention", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const again = await memory.write(work(7), { scope: "project", text: "周报先写风险", said: "再说一遍" });
+  assert.equal(again.outcome, "duplicate");
+  assert.equal((await memory.list(person())).items.find(item => item.memory_id === auto.memory!.memory_id)!.source, "auto", "still the gate's, still takeable back");
+
+  // The same for replacing what the person kept: a fragment cannot overwrite it.
+  const kept = await memory.write(work(8), { scope: "personal", text: "回答用要点列表", said: "以后回答都用要点列表" });
+  assert.equal(kept.outcome, "written");
+  const replaced = await memory.write(work(9), { scope: "personal", text: "所有回答都用英文", said: "以后", replaces: kept.memory!.memory_id });
+  assert.equal(replaced.outcome, "candidate");
+  assert.equal((await memory.list(person(), { scope: "personal" })).items.find(item => item.memory_id === kept.memory!.memory_id)!.text, "回答用要点列表");
+
+  // A restatement that really is in the quote is still the person's words, and so is a quote with extra words around it.
+  const scoped = await memory.write(work(10), { scope: "project", text: "项目甲里 NSM 指北极星指标", said: "记住：NSM 是北极星指标" });
+  assert.deepEqual([scoped.outcome, scoped.memory!.source], ["written", "said"]);
+});
+
 test("automatic writes follow the gate table, show in recent changes with their rule, and undo deletes them from the store", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();

@@ -233,7 +233,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       { type: "object", additionalProperties: false, required: ["text", "scope", "said"], properties: {
         text: { type: "string", description: "What to remember, one short self-contained sentence in the person's language." },
         scope: { type: "string", enum: ["personal", "project", "character"], description: "personal: all their work; project: only this project's work; character: only work the Character carrying this round does (only when one does)." },
-        said: { type: "string", description: "The person's own words asking you to remember it, copied exactly from what they wrote to you in this work. Words that are not in their messages here are refused." },
+        said: { type: "string", description: "The person's own words asking you to remember it: a whole sentence copied exactly from what they wrote to you in this work, which the text must follow from. A word or two, words they did not write, or words about something else are not recorded as theirs; the memory is then only suggested for them to accept." },
         kind: { type: "string", enum: ["preference", "convention", "fact", "experience"], description: "preference: how they like things done; convention: a project's agreed way; fact: background about their work; experience: a lesson from how work went. Default: preference (personal) or convention (project)." },
         replaces: { type: "string", description: "The id (from list-memories) of an earlier memory this one corrects." },
       } }, "safe-read"),
@@ -254,7 +254,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   const all = tools.map(one => one.registration.name);
   const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (name !== GATEWAY_TOOLS.direct || (gateway.operate && gateway.client.direct)) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate)
     && memoryToolOffered(name, gateway.client.memory));
-  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.2", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
+  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.3", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names, known };

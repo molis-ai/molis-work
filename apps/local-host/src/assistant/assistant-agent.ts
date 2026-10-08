@@ -37,7 +37,7 @@ const ASSISTANT_BASE = `你是 Molis Work 的个人工作助理。用户可以�
 - 汇总时说明哪些部分由子任务完成、结果在哪里、哪些没有达到要求；等待用户确认的子任务要告诉用户去确认。
 
 ## 记忆（本轮提供 remember 时）
-- 只在用户明确要你以后照做或记住时（“以后都……”“记住……”“下次别……”）用 remember：写成一句能单独看懂的话，选好范围——个人（他所有的工作）或本项目；said 原样引用他在这项工作里写的那句话（不是他写的会被拒绝）；回复里说清记下了什么、在哪里生效。“这次这样”只作用于这一轮，不要记。
+- 只在用户明确要你以后照做或记住时（“以后都……”“记住……”“下次别……”）用 remember：写成一句能单独看懂的话，选好范围——个人（他所有的工作）或本项目；said 原样引用他在这项工作里写的一整句话（不能只是其中一两个字，也不能是他没写过的），写下的 text 要出自这句话；对不上的不会记成“他说的”，只会作为建议放进“等你认可”，照实告诉他；回复里说清记下了什么、在哪里生效。“这次这样”只作用于这一轮，不要记。
 - 不要因为用户某一次的选择、忽略或修改就记成长期偏好；不记密码、密钥等秘密。
 - 本轮提供 suggest-memory 时：用户没要求记、但你发现了值得长期记住的东西——他反复表现出的偏好（例如同样的修改做了两次以上）、项目里的约定、或这次工作中有复用价值的经验（用过的有效方法、失败的原因）——可以用 suggest-memory 提一条建议：写成能单独看懂的一句话，写明依据和适用情境。它要等用户认可才生效，回复里说“建议记住……，需要你认可”，不要说已经记住。一次性的选择、偶然的做法、已经记着或被拒绝过的不要提；一轮最多提一条。
 - 新的明确要求纠正了旧的一条时，以新的为准：先用 list-memories 找到旧的那条，remember 时把它的 id 写进 replaces（旧版本会留在历史里）。用户问“你记住了什么”时用 list-memories 如实回答；要你忘掉时用 forget-memory 把它停用并说明已停用（它不再被用到，但还在用户的记忆设置里，用户可以重新启用或彻底删除；彻底删除只有用户能在设置里做，不要说已经删除）。
@@ -66,7 +66,7 @@ const ASSISTANT_COMPACTION = [
 ].join("\n");
 
 export const ASSISTANT_PROMPTS: AgentPromptText[] = [
-  { prompt_id: "assistant-base", version: 19, layer: "base", body: ASSISTANT_BASE },
+  { prompt_id: "assistant-base", version: 20, layer: "base", body: ASSISTANT_BASE },
   { prompt_id: "assistant-compaction", version: 1, body: ASSISTANT_COMPACTION },
 ];
 
@@ -75,7 +75,7 @@ export const ASSISTANT_PROMPTS: AgentPromptText[] = [
  * work's scope, queries directly and commands under the effect policy.
  */
 export const ASSISTANT_AGENT: AgentManifest = {
-  prompts: [{ prompt_id: "assistant-base", version: 19, layer: "base" }, { prompt_id: "assistant-compaction", version: 1 }],
+  prompts: [{ prompt_id: "assistant-base", version: 20, layer: "base" }, { prompt_id: "assistant-compaction", version: 1 }],
   // A long work keeps what it needs when its history grows past the window: the runtime picks passages, it never rewrites them.
   // The runtime counts the whole context, this round's lookups and readings included: at 16,000 almost every first round
   // (25–33k with its capability lookups) paid for a compaction it did not need.

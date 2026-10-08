@@ -28,12 +28,35 @@ export function normalized(text: string): string {
 
 /**
  * Whether a quote is really in what the person said: found within one of their messages once spacing, punctuation and
- * case are set aside, and at least two characters of substance (one character, or only punctuation, proves nothing).
- * The gate and the Assistant's tools use this one rule for “the person's own words”.
+ * case are set aside, and a stretch that means something — a whole message, or at least six characters in three or
+ * more units (Chinese characters, words, numbers). A word or two out of a message is not “what they said”: it can be
+ * found in almost anything. The gate and the Assistant's tools use this one rule for “the person's own words”.
  */
 export function quotedFrom(quote: string, spoken: readonly string[]): boolean {
-  const needle = normalized(quote);
-  return [...needle].length >= 2 && spoken.some(text => normalized(text).includes(needle));
+  const needle = normalized(quote), length = [...needle].length;
+  if (length < 2) return false;
+  const substantial = length >= 6 && (quote.normalize("NFKC").toLowerCase().match(/[一-鿿]|[a-z0-9]+/g) ?? []).length >= 3;
+  return spoken.some(text => { const body = normalized(text); return body === needle || (substantial && body.includes(needle)); });
+}
+
+/** At least this share of a memory's wording has to be in the words it rests on. */
+const RESTATES = 0.5;
+
+/**
+ * Whether a memory's text follows from the words it is said to rest on, so that recording it as “the person said” is
+ * true: at least half of its wording (Chinese character pairs, words) is in the quote, and no number or word of three
+ * or more letters (a name, an address) appears that neither the quote nor `context` (the project's name, which a text
+ * may carry for scope) has. A paraphrase passes; a quote about something else, or a fragment, does not. Deterministic:
+ * what it cannot tell apart is the same words meaning the opposite (a dropped “不”), so the person's quote stays on the
+ * memory as its evidence for them to check.
+ */
+export function followsFrom(text: string, quote: string, context = ""): boolean {
+  const source = `${quote} ${context}`;
+  if ((text.toLowerCase().match(/[a-z]{3,}/g) ?? []).some(word => !source.toLowerCase().includes(word))) return false;
+  const numbers = (value: string) => value.match(/(?<![A-Za-z\d])\d+(?:[.,]\d+)*(?![A-Za-z\d])/g) ?? [];
+  const said = new Set(numbers(source));
+  if (numbers(text).some(number => !said.has(number))) return false;
+  return keywordScore(recallKeywords(text), quote) >= RESTATES;
 }
 
 const SECRET_SHAPES: readonly RegExp[] = [

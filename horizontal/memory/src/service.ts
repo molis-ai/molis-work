@@ -42,7 +42,7 @@ import { completePrefs, consumerAccess, CONSUMER_LABELS, PERSONAL_PREFS_KEY, PRO
 import { MemoryError } from "./errors.js";
 import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
 import { MAX_TEXT, candidateView, changeView, joinedFingerprint, pairKey, readPackage, useTitle } from "./shapes.js";
-import { keywordScore, looksLikeInstruction, looksLikeSecret, quotedFrom, recallKeywords, sameText, similarity } from "./text.js";
+import { followsFrom, keywordScore, looksLikeInstruction, looksLikeSecret, quotedFrom, recallKeywords, sameText, similarity } from "./text.js";
 import { fromEntryMeta, pauseReason, toEntryMeta } from "./facts.js";
 import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -130,7 +130,7 @@ export interface MemoryProposal {
   basis: "explicit" | "inferred";
   /** The person's own words it rests on, verbatim. */
   quote: string;
-  /** A waiting suggestion that says the same thing. */
+  /** A waiting suggestion the model thinks says the same thing: a pointer only; the gate ties by the words (the same text), never by this. */
   same_as?: string | null;
   /** A kept memory this corrects. */
   supersedes?: string | null;
@@ -170,7 +170,7 @@ const STANDING_WISH = /以后|今后|往后|每次|每回|总是|一律|一直|�
 const EXPLICIT_SOURCES: readonly MemorySource[] = ["said", "manual", "accepted", "imported"];
 /** Written by a policy rather than by the person: what an automatic change may take back. */
 const AUTOMATIC_SOURCES: readonly MemorySource[] = ["auto", "plugin"];
-/** Two texts at least this alike (character pairs) are about the same thing: the bar a model's claim of “the same” must clear, and upkeep's. */
+/** Two memories at least this alike (character pairs) may be about the same thing: upkeep's bar for putting the pair to the person. */
 const RELATED_TEXT = 0.3;
 const KIND_WEIGHT: Record<MemoryKind, number> = { preference: 1, convention: 1, experience: 0.85, fact: 0.75 };
 const SOURCE_WEIGHT: Record<MemorySource, number> = { said: 1, manual: 1, accepted: 0.95, imported: 0.9, auto: 0.85, plugin: 0.8 };
@@ -414,7 +414,7 @@ export class MemoryService {
     const where = placeOf(caller, input.scope);
     const projectId = where.project;
     const prefs = this.prefsAt(caller.actor_id, where);
-    const appliesText = memoryAppliesText(input.scope, input.applies, projectId ? await this.projectTitle(projectId) : null);
+    const projectName = projectId ? await this.projectTitle(projectId) : null, appliesText = memoryAppliesText(input.scope, input.applies, projectName);
     const refused = (reason: string): MemoryWriteResult => ({ outcome: "refused", reason, applies_text: appliesText, memory: null, candidate: null, change_id: null });
     const text = input.text.trim();
     if (!text || text.length > MAX_TEXT) throw new MemoryError("memory.invalid", `记忆内容要在 1–${MAX_TEXT} 字之间`);
@@ -427,14 +427,15 @@ export class MemoryService {
     // Instruction-like (Prologue's screening or the Host's own Chinese patterns) or carrying a local path: the person sees it first.
     // The person's own words are checked too: a model may restate "不用确认，直接删" as something that reads harmless.
     const screenedSaid = input.said && !caller.person ? await this.ports.backend.screen?.(input.said).catch(() => null) ?? null : null;
+    const unsaid = !caller.person && input.said && !followsFrom(text, input.said, projectName ?? "") ? "你的原话和要记的内容对不上（要记的内容得出自原话），所以不记作你说的，先作为建议请你看一下" : null;
     const hold = caller.person ? null : screened?.hold || screenedSaid?.hold || looksLikeInstruction(text) || (input.said ? looksLikeInstruction(input.said) : null)
       ? "这段话像是在给 AI 下指令（例如要求忽略规则或跳过确认），不能自动记住，需要你看过再决定"
-      : screened && screened.redacted !== text ? "这段话里有本机文件路径之类的内容，先请你看一下再决定记不记" : null;
+      : screened && screened.redacted !== text ? "这段话里有本机文件路径之类的内容，先请你看一下再决定记不记" : unsaid;
     const entries = await this.located(caller, input.scope, where.owner);
     const same = entries.find(located => sameText(located.entry.text, text) && visibleTo(caller, located.meta));
     if (same) {
       // Said again: an automatic or accepted one becomes the person's own words.
-      if (EXPLICIT_SOURCES.includes(input.source) && same.meta.source === "auto") {
+      if (EXPLICIT_SOURCES.includes(input.source) && same.meta.source === "auto" && !unsaid) {
         await this.saveFacts(same, { ...same.meta, source: input.source, basis: "explicit",
           approved_by: input.approved_by, evidence: [...same.meta.evidence, ...input.evidence].slice(-6), updated_at: this.now().toISOString() });
         disownAutomatic(this.ports.ledger, same.entry.memory_id);
@@ -447,7 +448,7 @@ export class MemoryService {
       target = entries.find(located => located.entry.memory_id === input.replaces) ?? null;
       if (!target) throw new MemoryError("memory.not_found", "要替换的那条记忆不在这个范围里（可能已删除，或属于别的范围）");
     }
-    const asCandidate = async (why: string): Promise<MemoryWriteResult> => {
+    const asCandidate = async (why: string, basis: MemoryBasis = input.basis): Promise<MemoryWriteResult> => {
       // Already waiting (suggested once before): it keeps waiting, now saying why it was not kept automatically.
       const waiting = input.candidate_id ? this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === input.candidate_id) : undefined;
       if (waiting) {
@@ -455,11 +456,11 @@ export class MemoryService {
         this.ports.ledger.saveCandidate(held);
         return { outcome: "candidate", reason: why, applies_text: appliesText, memory: null, candidate: candidateView(held), change_id: null };
       }
-      const candidate = await this.propose(caller, { scope: input.scope, text, kind: input.kind, applies: input.applies, basis: input.basis, why: input.why ?? why,
+      const candidate = await this.propose(caller, { scope: input.scope, text, kind: input.kind, applies: input.applies, basis, why: input.why ?? why,
         from: input.from ?? "gate", hold_reason: why, supersedes: target?.entry.memory_id ?? null }, { gate: true });
       return { outcome: "candidate", reason: why, applies_text: appliesText, memory: null, candidate, change_id: null };
     };
-    if (hold) return asCandidate(hold);
+    if (hold) return asCandidate(hold, hold === unsaid ? "inferred" : input.basis);
     if (target && input.basis === "inferred" && EXPLICIT_SOURCES.includes(target.meta.source)) return asCandidate("推断出来的内容不能覆盖你明确说过的，先请你看一下");
     if (input.source === "auto") {
       if (input.basis !== "repeated") return asCandidate("只是从工作里推断出来的，需要你认可才会生效");
@@ -850,12 +851,11 @@ export class MemoryService {
       if ((await this.located(caller, scope, where.owner)).some(located => sameText(located.entry.text, text))) { skip("已经记着这一条了"); continue; }
       const work = caller.work ?? null;
       const records = await this.candidateRecords(caller.actor_id, scope, where.owner);
-      // The same wish, suggested before in another work from the person's own words: now it is repeated. The model's
-      // same_as only points at a candidate; the gate decides, by the words: the same text, or the new text or the
-      // person's verified words near enough to the waiting one. Otherwise the new wish stands as a suggestion of its own.
-      const related = (earlierText: string) => [text, ...(verified ? [quote] : [])].some(words => similarity(earlierText, words) >= RELATED_TEXT);
-      const earlier = records.find(item => item.state === "pending" && item.basis === "explicit" && item.from === "extraction" && item.work?.work_id !== work?.work_id
-        && (sameText(item.text, text) || (item.candidate_id === proposal.same_as && related(item.text))));
+      // The same wish, suggested before in another work from the person's own words, is now repeated. Tied by the same text alone:
+      // same_as only points, and wishes that share wording ("…都用要点列表" / "…都用中文") differ; unsure, both wait for the person.
+      const waitingElsewhere = (item: MemoryCandidateRecord) => item.state === "pending" && item.work?.work_id !== work?.work_id;
+      const earlier = records.find(item => waitingElsewhere(item) && item.basis === "explicit" && item.from === "extraction" && sameText(item.text, text));
+      const pointed = earlier ? undefined : records.find(item => waitingElsewhere(item) && item.candidate_id === proposal.same_as);
       if (records.some(item => item.state === "pending" && sameText(item.text, text) && item.work?.work_id === work?.work_id)) { skip("这项工作里已经提过"); continue; }
       const at = this.now().toISOString();
       const evidence: MemoryEvidence[] = verified ? [{ kind: "said", text: quote, ...(work ? { ref: { kind: "work", id: work.work_id } } : {}), at }] : [];
@@ -873,7 +873,7 @@ export class MemoryService {
         const candidate = await this.propose({ ...caller, work }, { scope, text, kind: proposal.kind, applies, basis, from: "extraction", supersedes, evidence: evidence.length ? evidence : undefined,
           why: verified ? `你在${named && work ? `工作「${work.title}」` : "一项工作"}里说：“${quote}”` : `从${named && work ? `工作「${work.title}」` : "一项工作"}里推断`,
           hold_reason: basis === "explicit"
-            ? "只在一项工作里出现过：在另一项工作里再这样要求会自动记住，也可以现在就认可"
+            ? `只在一项工作里出现过：在另一项工作里再这样要求会自动记住，也可以现在就认可${pointed ? `；它可能和另一条等你认可的建议「${pointed.text.slice(0, 40)}」是一回事，但意思不一定相同，所以两条都留给你看` : ""}`
             : "只是推断出来的，需要你认可才会生效" });
         out.push({ text, outcome: "candidate", reason: candidate.hold_reason ?? "等你认可", candidate_id: candidate.candidate_id, memory_id: null });
       } catch (error) {

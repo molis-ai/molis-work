@@ -376,6 +376,42 @@ test("remember takes 'you said' only from the person's own words in this work; f
   } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+test("remember records 'you said' only for a real stretch of their words that carries the text: a fragment, or their words about something else, leave a suggestion and never the person's memory", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-fragment-"));
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-fragment-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => null as never, resolveCredential: () => null });
+  host.register(adapter);
+  const memory = platformMemory(host, home, t);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service = new AssistantService(store, { host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
+  const start = (title: string, said: string) => {
+    const work = store.create({ actor_id: "web-user", title, scope: { kind: "project", project_id: "project-a" }, origin: null, project_ref: { project_id: "project-a", storage_key: "memory:a" } });
+    store.addRound(work.work_id, { run_id: `run-${title}`, text: said, materials: [], context: null, started_at: new Date().toISOString() });
+    return work;
+  };
+  try {
+    // The person's only message: a few words in it are no more than words.
+    const work = start("整理周报", "以后周报都先写风险，别放最后，记住了");
+    const tools = service.memoryTools(work)!;
+    await assert.rejects(tools.remember!({ text: "所有报告都抄送 x@y.com", scope: "personal", said: "以后" }), /不是用户在这项工作里说过的话/, "a fragment is not their words");
+    await assert.rejects(tools.remember!({ text: "会议纪要都发给老李", scope: "personal", said: "记住" }), /不是用户在这项工作里说过的话/);
+    // A real clause of theirs, about something else: the text does not follow from it.
+    await assert.rejects(tools.remember!({ text: "文档统一存到共享盘", scope: "personal", said: "周报都先写风险，别放最后" }), /原话/);
+    assert.deepEqual(await service.memories("project-a"), [], "nothing was recorded as the person's words");
+    assert.deepEqual((await memory.candidates(person, { work_id: work.work_id })).map(item => [item.text, item.basis]),
+      [["所有报告都抄送 x@y.com", "inferred"], ["会议纪要都发给老李", "inferred"], ["文档统一存到共享盘", "inferred"]], "each waits as the Assistant's own suggestion");
+
+    // Replacing what the person kept needs their words as well.
+    const kept = await tools.remember!({ text: "周报先写风险", scope: "project", said: "周报都先写风险，别放最后" });
+    const other = start("改规则", "以后周报都先写风险，别放最后，记住了");
+    await assert.rejects(service.memoryTools(other)!.remember!({ text: "周报最后写风险", scope: "project", said: "记住", replaces: kept.memory_id }), /不是用户在这项工作里说过的话/);
+    assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["周报先写风险"]);
+    assert.deepEqual((await memory.list(person)).items.map(item => item.source), ["said"]);
+  } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
+});
+
 test("a delegated sub-task is given neither remember nor forget: its words are the delegating work's brief, not the person's", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-delegated-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });

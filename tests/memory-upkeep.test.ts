@@ -130,7 +130,7 @@ test("contradictions the model finds go to the person; until settled, recall tak
   const memory = await env.open();
   const table = (await memory.offer(assistant("work-1"), { scope: "project", text: "周报用表格", kind: "convention", basis: "repeated", why: "两次", from: "extraction" })).memory!;
   const bullets = (await memory.write(assistant(), { scope: "project", text: "周报用要点列表", said: "周报以后都用要点列表" })).memory!;
-  const doc = (await memory.write(assistant(), { scope: "project", text: "方案结构按「背景-目标-计划」", said: "记住这份方案的结构", rests_on: { kind: "page", id: "page-1" } })).memory!;
+  const doc = (await memory.write(assistant(), { scope: "project", text: "方案结构按「背景-目标-计划」", said: "记住这份方案的结构：背景-目标-计划", rests_on: { kind: "page", id: "page-1" } })).memory!;
   const report = await memory.upkeep(person(), { projects: ["project-a"],
     tidy: async entries => ({ duplicates: [], conflicts: entries.some(item => item.memory_id === table.memory_id) ? [{ a: table.memory_id, b: bullets.memory_id, why: "周报格式一个说表格一个说要点" }] : [] }),
     objectState: async ref => ref.id === "page-1" ? "missing" : "unknown" });

@@ -38,10 +38,17 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
   return {
     ...(mayPropose ? { propose: async request => { const made = await propose(request); const latest = (await memory.candidates(caller, { work_id: work.work_id })).at(-1); return { ...made, candidate_id: latest?.candidate_id ?? "" }; } } : {}),
     ...(work.delegated_by ? {} : { remember: async (request: Parameters<NonNullable<AgentMemoryTools["remember"]>>[0]) => {
-      // “You said” is the person's only when it is in what they wrote in this work, whatever the model claims.
-      if (!quotedFrom(request.said, input.spoken())) throw fail("assistant.invalid", "没有记住：said 不是用户在这项工作里说过的话。said 要原样引用用户在这里写的话；用户没有明确要求时，用 suggest-memory 提建议，等用户认可");
       if (request.scope === "project" && !projectId) throw fail("assistant.scope", "这是个人工作，没有项目；只能记为个人偏好");
       if (request.scope === "character" && !caller.character) throw fail("assistant.scope", "这一轮不是由某个角色承担的，不能记为角色记忆");
+      // “You said” is the person's only when it is a real stretch of what they wrote in this work, whatever the model claims;
+      // otherwise it is the Assistant's own suggestion, which waits for the person (the gate also checks the text follows from the quote).
+      if (!quotedFrom(request.said, input.spoken())) {
+        let note = "已作为建议放在工作面板，等用户认可；回复里说“建议记住……，需要你认可”，不要说已经记住";
+        try { await memory.propose(caller, { scope: request.scope, text: request.text, kind: request.kind ?? (request.scope === "project" ? "convention" : "preference"), basis: "inferred",
+          why: "助理想记住这一条，但这里没有用户的原话可作依据", from: "work", ...(request.replaces ? { supersedes: request.replaces } : {}) }); }
+        catch (error) { const reason = asAssistantError(error); note = `也没能留作建议：${reason instanceof Error ? reason.message : String(reason)}`; }
+        throw fail("assistant.invalid", `没有记住：said 不是用户在这项工作里说过的话（要原样引用用户在这里写的一整句，不能只是其中一两个字）。${note}`);
+      }
       let result;
       try { result = await memory.write(caller, { scope: request.scope, text: request.text, said: request.said, ...(request.kind ? { kind: request.kind } : {}), ...(request.replaces ? { replaces: request.replaces } : {}) }); }
       catch (error) { throw asAssistantError(error); }

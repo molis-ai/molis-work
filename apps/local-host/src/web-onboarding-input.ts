@@ -20,7 +20,7 @@ function hasMeaningfulOnboardingText(value: string): boolean {
 }
 
 export function webOnboardingInitializationInput(body: Record<string, unknown>, runtime: OnboardingRuntimePorts): WebOnboardingInitializationInput {
-  if (body.user_confirmed !== true) throw new Error("请先确认这次 Project 和根 Goal 写入");
+  if (body.user_confirmed !== true) throw new Error("请先确认创建这个项目，并在 Goals 里记下第一个目标");
   const projectName = typeof body.project_name === "string" ? body.project_name.trim() : "";
   const outcome = typeof body.outcome === "string" ? body.outcome.trim() : "";
   const intentFrame = body.intent_frame === undefined

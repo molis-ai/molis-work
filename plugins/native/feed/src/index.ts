@@ -43,6 +43,7 @@ export { renderFeedRichText, feedPlainText } from "./rich-content.js";
 
 export { FeedApplication } from "./application.js";
 export type { FeedApplicationPorts } from "./application-ports.js";
+export { receiptContentRefs, FEED_RECEIPT_CONTENT_REFS, type FeedSourceHistory, type FeedSourceHistoryHolding, type FeedSourceHistoryRelease } from "./source-history.js";
 export * from "./application-errors.js";
 
 export {
@@ -62,7 +63,7 @@ export { createFeedExactRouteResolver, type FeedExactSourceDefinitions } from ".
 
 export { FeedSourceService } from "./source-service.js";
 export type * from "./source-ports.js";
-export { createFeedSourceSyncGuard, type FeedSourceSyncAuthority } from "./source-sync-guard.js";
+export { createFeedSourceSyncGuard, type FeedSourceSyncAuthority, type FeedSourceSyncGuard } from "./source-sync-guard.js";
 
 export { FeedConnectorSync } from "./connector-sync.js";
 export type { ConnectorSyncMode, FeedConnectorSyncPorts, FeedConnectorListener } from "./connector-sync-ports.js";

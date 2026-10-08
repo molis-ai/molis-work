@@ -16,7 +16,7 @@ export interface McpResumeFacts {
   observed_event_cursor?: number;
 }
 
-/** Display existing project work without claiming it or deriving new lifecycle facts. */
+/** Where the Goals plugin's own work stands, for picking a session back up; not an overview of the whole project. It derives no new lifecycle facts. */
 export function buildMcpResumeView(
   facts: McpResumeFacts,
   explicitGoalId: string | null,
@@ -64,6 +64,5 @@ export function buildMcpResumeView(
         }
       : null,
     next_goals: nextGoals,
-    auto_claimed: false,
   };
 }

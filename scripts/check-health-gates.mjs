@@ -2,6 +2,11 @@
 // Repository health gates (specs/repository-anti-corruption §5a): numbers that may only go down, including the
 // anti-backflow count of compatibility markers per file (§4.1).
 //
+// It also fails, with no comparison against the merge-base, when the package table of specs/repository-anti-corruption
+// §5.1 disagrees with scripts/workspace-packages.mjs or with the layer and status the code gives a package (a package
+// added or deleted, a plugin moved to the Plugin Runtime supervisor, an import that changes what is reachable from the
+// product entry): scripts/gates/package-inventory.mjs --table prints the rows, --check reports the disagreement.
+//
 //   node scripts/check-health-gates.mjs                  measure the working tree and compare it with the committed
 //                                                        tooling/gates/baseline.json (the quick local check)
 //   node scripts/check-health-gates.mjs --base <ref>     measure the working tree AND the merge-base of HEAD and <ref>
@@ -11,12 +16,16 @@
 //   --update                      rewrite baseline.json (with --base: only when nothing grew relative to the merge-base)
 //   --report [--top N] [--json]   print the per-file and per-unit numbers (with --base: next to the merge-base's)
 //   --root <dir>                  gate another repository root (tests/health-gates-merge-base.test.ts)
+// tooling/gates/giant-exceptions.json records the verdict "this giant unit has to be long" (a translation table, a stylesheet,
+// static data, generated code), each with a reason. It admits nothing: a unit that is not a giant unit at the merge-base
+// fails as new whether or not it is registered, and a registered unit may never grow.
 // Exit codes: 0 passed, 1 a gate failed, 2 the command or the environment is unusable (there is no silent fallback).
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { docGateInputs, docGateMetrics, docGateProblems } from "./gates/doc-gates.mjs";
+import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
 const fail = (message) => { console.error(message); process.exit(2); };
@@ -40,6 +49,10 @@ const update = flags.has("--update"), report = flags.has("--report");
 const root = options.root ? path.resolve(options.root) : path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const baselinePath = path.join(root, "tooling/gates/baseline.json");
 const limitsPath = path.join(root, "tooling/gates/limits.json");
+// The package table of specs/repository-anti-corruption §5 is checked against the registry (the scratch repositories of
+// tests/health-gates-merge-base.test.ts have none, so the check does not apply to them).
+const packageRegistry = await loadRegistry(root);
+const exceptionsPath = path.join(root, "tooling/gates/giant-exceptions.json");
 
 const run = (gitArgs, extra = {}) => execFileSync("git", gitArgs, { cwd: root, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["pipe", "pipe", "pipe"], ...extra });
 const git = (gitArgs, extra) => {
@@ -57,6 +70,35 @@ const parseLimits = (text, where) => {
 };
 if (!existsSync(limitsPath)) fail(`${limitsPath} is missing`);
 const limits = parseLimits(readFileSync(limitsPath, "utf8"), limitsPath);
+
+// ---- the giant-unit exceptions (§4.5 "must be long, with a reason") -----------------------------------------------------
+// tooling/gates/giant-exceptions.json: { "exceptions": { "<unit key as in baseline.json>": { "kind", "reason" } } }. An entry
+// is a verdict on a unit that is already giant, not a licence: it never lets a unit exist that was not a giant unit at the
+// merge-base (a new giant unit fails whatever the registry says; the PR that adds the entry is the PR that would be
+// excused, and review requests are not enforced), and, like every giant unit, a registered one may never grow. The entries
+// are checked against the head: each has to be a current giant unit, with a kind from the closed list and a reason that
+// says why splitting it would be wrong. A missing file is an empty registry; a file that is not JSON is exit 2.
+const EXCEPTION_KINDS = ["translation-table", "stylesheet", "static-data", "generated-code"];
+const MIN_REASON_CHARACTERS = 20;
+const problemsOfException = (entry) => {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [`the entry must be an object with "kind" and "reason"`];
+  const problems = Object.keys(entry).filter((field) => field !== "kind" && field !== "reason").map((field) => `unknown field "${field}" (only "kind" and "reason")`);
+  if (!EXCEPTION_KINDS.includes(entry.kind)) problems.push(`"kind" must be one of ${EXCEPTION_KINDS.join(", ")}`);
+  if (typeof entry.reason !== "string" || entry.reason.replace(/\s+/g, "").length < MIN_REASON_CHARACTERS) problems.push(`"reason" needs at least ${MIN_REASON_CHARACTERS} characters that say why this unit has to be long`);
+  return problems;
+};
+const loadExceptions = () => {
+  if (!existsSync(exceptionsPath)) return {};
+  let parsed;
+  try { parsed = JSON.parse(readFileSync(exceptionsPath, "utf8")); } catch { fail(`${exceptionsPath} is not valid JSON`); }
+  if (!parsed || typeof parsed !== "object" || !parsed.exceptions || typeof parsed.exceptions !== "object" || Array.isArray(parsed.exceptions)) {
+    fail(`${exceptionsPath} needs an "exceptions" object keyed by giant unit`);
+  }
+  return parsed.exceptions;
+};
+const exceptions = loadExceptions();
+// An own entry only: a key such as "constructor" or "__proto__" must not resolve through the prototype.
+const registeredEntry = (unit) => (Object.hasOwn(exceptions, unit) ? exceptions[unit] : undefined);
 
 // ---- what is scanned ------------------------------------------------------------------------------------------------
 const AREAS = /^(apps|horizontal|modules|packages|plugins|server|tooling)\//;
@@ -170,8 +212,10 @@ const giantUnits = {
     const errors = [];
     for (const [unit, value] of Object.entries(head)) {
       const was = before[unit];
-      if (was === undefined) errors.push(`new giant unit: ${unit} (${describeUnit(value)}); split it or keep it under the limit`);
-      else if (typeof value === "number") {
+      // A unit the reference does not record as giant is new, registered or not: giant-exceptions.json admits nothing.
+      if (was === undefined) {
+        errors.push(`new giant unit: ${unit} (${describeUnit(value)}); split it or keep it under the limit. A tooling/gates/giant-exceptions.json entry does not admit it: the registry only records why a unit that is already giant at the merge-base has to stay long`);
+      } else if (typeof value === "number") {
         if (value > was) errors.push(`giant unit grew: ${unit} ${was} → ${value}`);
       } else {
         // Two rules, both must hold. Lines and methods are two limits: whichever is over its limit may not exceed what the
@@ -196,14 +240,16 @@ const giantUnits = {
       .sort((a, b) => sizeOf(b.value) - sizeOf(a.value) || a.unit.localeCompare(b.unit));
     const tally = {};
     for (const row of rows) tally[row.kind] = (tally[row.kind] ?? 0) + 1;
+    const registered = rows.filter((row) => registeredEntry(row.unit) !== undefined).length;
     const out = [`Giant units: ${rows.length} (${Object.entries(tally).sort().map(([name, count]) => `${count} ${name}`).join(", ")})`,
+      `  registered as exceptions (tooling/gates/giant-exceptions.json): ${registered}; the other ${rows.length - registered} are to be split or handed to the line that owns them (docs/system/HUGE-CLASS-MIGRATION.md)`,
       `  ${"kind".padEnd(13)}${"lines".padStart(6)}${"methods".padStart(9)}${ref ? "  base (l/m)".padEnd(14) : ""}  unit`];
     for (const row of rows.slice(0, top)) {
       const lines = typeof row.value === "number" ? row.value : row.value.lines;
       const methods = typeof row.value === "number" ? "" : row.value.methods;
       const was = ref?.[row.unit];
       const base = was === undefined ? "new" : typeof was === "number" ? was : `${was.lines}/${was.methods}`;
-      out.push(`  ${row.kind.padEnd(13)}${String(lines).padStart(6)}${String(methods).padStart(9)}${ref ? `  ${String(base)}`.padEnd(14) : ""}  ${row.unit.replace(/^(?:file|class|function) /, "")}`);
+      out.push(`  ${row.kind.padEnd(13)}${String(lines).padStart(6)}${String(methods).padStart(9)}${ref ? `  ${String(base)}`.padEnd(14) : ""}  ${row.unit.replace(/^(?:file|class|function) /, "")}${registeredEntry(row.unit) !== undefined ? `  [exception: ${registeredEntry(row.unit)?.kind}]` : ""}`);
     }
     if (top && rows.length > top) out.push(`  … ${rows.length - top} more (omit --top to see all)`);
     return out;
@@ -383,13 +429,19 @@ const limitErrors = () => {
   const before = parseLimits(git(["cat-file", "blob", `${mergeBase}:${limitsFile}`]), `${mergeBase.slice(0, 8)}:${limitsFile}`);
   return LIMIT_KEYS.filter((key) => limits[key] > before[key]).map((key) => `limit "${key}" loosened ${before[key]} → ${limits[key]} in tooling/gates/limits.json; limits only get tighter`);
 };
-const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...docGateProblems(workingTree())];
+// Every registered exception has to describe a giant unit that exists now, with a kind and a reason. A split or a rename that
+// leaves the entry behind fails here, so the registry shrinks with the list. (Whether a unit may exist at all is decided in
+// giantUnits.grew, and the registry has no say in it.)
+const exceptionErrors = () => Object.entries(exceptions).flatMap(([unit, entry]) => (!Object.hasOwn(head.giant, unit)
+  ? [`giant exception for ${unit} is stale: it is not a giant unit any more (split, shrunk or renamed); delete the entry from tooling/gates/giant-exceptions.json, or key it by the new name after a rename`]
+  : problemsOfException(entry).map((problem) => `giant exception for ${unit}: ${problem}`)));
+const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree())];
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "tooling/gates/baseline.json";
 
 // ---- --report --------------------------------------------------------------------------------------------------------
 if (report) {
   if (flags.has("--json")) {
-    console.log(JSON.stringify({ limits, mergeBase: mergeBase || null, head, base: reference ?? null }, null, 2));
+    console.log(JSON.stringify({ limits, mergeBase: mergeBase || null, head, base: reference ?? null, giantExceptions: exceptions }, null, 2));
     process.exit(0);
   }
   const env = { top: options.top ? Number(options.top) : undefined };
@@ -430,4 +482,5 @@ let hint = "";
 // rewritten in the PR, and none of that matters here.
 if (lowered.length && mergeBase) hint = ` Lower than the merge-base: ${lowered.join(", ")}; \`--update --base origin/main\` lowers the local quick check in tooling/gates/baseline.json.`;
 else if (lowered.length) hint = ` Lower than the baseline: ${lowered.join(", ")}; lower it with --update --base origin/main.`;
-console.log(`Health gates passed against ${against} (${summaryOf(head)}).${hint}${notes.length ? ` Note: ${notes.join("; ")}.` : ""}`);
+const registered = Object.keys(head.giant).filter((unit) => registeredEntry(unit) !== undefined).length;
+console.log(`Health gates passed against ${against} (${summaryOf(head)}; ${registered} of the giant units registered as exceptions).${hint}${notes.length ? ` Note: ${notes.join("; ")}.` : ""}`);

@@ -1,7 +1,4 @@
 {
-  "AGENTS.md": {
-    "tooling/gates/giant-exceptions.json": "AGENTS.md says in the same sentence that this exception file is planned and does not exist yet (W1-19 adds it); the exception goes stale, and this entry is then rejected, the day the file is added"
-  },
   "skills/molis-plugin-dev/elements.md": {
     "modules/<id>.ts": "a path inside the plugin's own project (its modules/ folder), not this repository's modules/",
     "functions.evaluate.v1": "a deliberate counter-example in the sentence about version-less ids: a `.v1` suffix is part of the id, not its version, so this is a different id that no plugin provides; it is not a claim that the code defines it"

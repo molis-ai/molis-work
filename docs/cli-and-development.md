@@ -89,7 +89,7 @@ tests/uninstall.test.ts      用户数据保留、强确认与恢复收据回归
 PRODUCT.md                   产品定义
 DESIGN.md                    shipped UI 设计系统
 docs/SSOT-MATRIX.md          架构、包状态和迁移 owner 的权威索引
-docs/system/                 分层、依赖、迁移与 Huge Class 退出规则
+docs/system/                 分层、依赖、迁移与巨大单元清单
 docs/modules/                Module 的事实 owner 与 API 边界（页面尚未与 13 个 Module 一一对应：characters 暂无页面，另含 4 个未来 owner 和已退役模块的页面，以 SSOT-MATRIX 为准）
 docs/horizontal/             `horizontal/` 下各服务的技术边界（Memory、Placement 见各自包 README）
 docs/platform/               Plugin、Storage、Exchange 与 UI 平台机制
@@ -103,7 +103,7 @@ specs/molis-work-architecture-reorganization/spec.md
 - 新代码只能通过 public entrypoint 调用其他 owner；禁止 deep import、跨 Module Store 和 App 直写业务数据库。
 - `contract-only` 只表示边界存在，不得注册假 Provider、假 Store、UI 入口或伪成功 API。
 - 每个迁移切片同时更新目标 package README 和对应 Module/Service 文档。
-- Huge Class 的职责归属和删除门见 [Huge Class 职责迁移图](system/HUGE-CLASS-MIGRATION.md)。
+- 巨大单元（超过阈值的文件、类、函数）的 owner、判定与计划见 [巨大单元清单与判定](system/HUGE-CLASS-MIGRATION.md)。
 
 ## 对外 MCP
 
@@ -183,7 +183,7 @@ pnpm --filter @molis-ai/molis-work-plugin-runtime typecheck
 pnpm --filter @molis-ai/molis-work-integration-github typecheck
 ```
 
-`workspace:check` 只核对 F2 包清单；`boundary:check` 扫描真实 import、依赖方向、Contract 入口、依赖环和 Huge Class 临时名单；`workspace:verify` 是本地与 CI 共用的完整 package 门禁。
+`workspace:check` 只核对 F2 包清单；`boundary:check` 扫描真实 import、依赖方向、Contract 入口、依赖环；`workspace:verify` 是本地与 CI 共用的完整 package 门禁。
 
 推送前扫描密钥：先 `git fetch origin main`，再跑 `pnpm secrets:check`。它逐个提交扫描本分支相对 `origin/main` 合并基点新增的行（`scripts/check-secrets.mjs`），找 OpenAI/Anthropic key（`sk-…`、`sk-ant-…`）、GitHub 令牌（`ghp_…`、`github_pat_…`）、Slack 令牌、AWS access key（`AKIA…`）、Google API key（`AIza…`）、私钥块、JWT，以及 `api_key`、`secret`、`password`、`token` 这类名字后面带引号、至少 12 位且字母数字混合的字面量（引用、`${…}`、占位符和网址不算）。名字也包括 `secretKey`、`private_key`、`aws_secret_access_key`、`clientKey` 这类以 secret、private、access、client、auth、signing、encryption 开头的 key（单独的 `key` 不算），名字和 `=` 之间可以带类型标注（`const apiKey: string = "…"`）。文件名里带引号、反斜杠、控制字符的文件（git 在 diff 头里会加引号转义）同样会被扫描，日志里的文件名也会把控制字符转义；读 diff 时关掉外部 diff 驱动、textconv 和 diff.noprefix，不受本机 git 配置影响。命中只打印文件、行号、规则和值的前 4 位，不打印整条。CI 里的 Secret scan 任务跑同一条命令（拉取完整历史；PR 取其基线分支，推送 main 取推送前的提交），并且是 `Verify` 的前置；规则本身的测试 `tests/secret-scan.test.ts` 在 CI 的 Package boundaries 任务里跑。
 

@@ -13,7 +13,6 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local
 const SERIAL_BY_DESIGN: Record<string, string> = {
   "experiments.run@1": "starts a background run and returns at once",
   "images.jobs.start@1": "persists a background image job and returns running",
-  "coding.runs.start@1": "starts an Agent run and returns its handle",
   "alchemist.explorations.start@1": "enqueues an exploration; the worker owns its lifetime",
   "alchemist.pulse.start@1": "enqueues a market pulse; the worker owns its lifetime",
   "alchemist.research.start@1": "enqueues a confirmed research plan; the worker owns its lifetime",

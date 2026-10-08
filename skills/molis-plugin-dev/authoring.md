@@ -1,6 +1,6 @@
 # SDK、CLI、存储、测试
 
-这一页给「作者 API 和怎么跑起来」。一等产品入口的 Host 文件清单在 [host.md](host.md)。命令细则在 `docs/platform/PLUGIN-DEVELOPMENT.md`。
+这一页给「作者 API 和怎么跑起来」。内置插件接到产品的清单在 [host.md](host.md)。命令细则在 `docs/platform/PLUGIN-DEVELOPMENT.md`。
 
 ## SDK
 
@@ -13,7 +13,7 @@ import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-wo
 `definePlugin` 校验 Manifest 后冻结定义。`start(context)` 必须返回 `PluginContribution`：
 
 - integration → `kind: "integration"` + `connector_driver` + `signal_adapter`
-- app → `kind: "app"` + 兑现 Manifest 声明的 views/routes/mcp/actions（每个声明的动作都要有处理器，否则启动失败）；有命令再兑现 `commandAvailability` / `executeCommand`；有订阅再兑现 `onEvent`；有输入口再兑现 `onUpstreamReady` / `onUpstreamUnavailable`
+- app → `kind: "app"` + 兑现 Manifest 声明的 views/routes/actions（每个声明的动作都要有处理器，否则启动失败）；有命令再兑现 `commandAvailability` / `executeCommand`；有订阅再兑现 `onEvent`；有输入口再兑现 `onUpstreamReady` / `onUpstreamUnavailable`
 
 `PluginStartContext`：`requireGrant(permission)`；`services` 仅在应用 Host 里有：
 
@@ -28,7 +28,7 @@ import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-wo
 | `actions` | 声明了 actions | 调用本插件已注册的公开动作；Host 绑定用户，停用后失效。HTTP 用 `bindPluginActionRoute` 薄转发，不另写业务实现 |
 | `capabilities` | 声明了 consumes | `invoke` 已 grant 的 Capability |
 
-动作处理器的 `ActionCallContext.actor_id` 是可信调用主体，MCP 授权按此客户端身份判断；可选 `actor_kind` 是审计分类。可信兼容适配器可提供 `audit_actor_id` 保留历史会话作者及幂等域，此字段不参与授权，不得从业务 JSON 覆盖。跨进程 Host 只根据固定客户端和可信会话元数据推导审计作者，不接受任意作者 ID。`actor_kind: null` 保留旧内部调用者未记录的分类，不授予用户决策权限。公共输入只声明业务数据，项目、权限及身份从调用上下文取得。Goals 的目录/创建/便笺可通过其 `goalsActions` 引用；模型入口创建默认记录 runtime 来源，旧内部适配器保留原来源与幂等键。
+动作处理器的 `ActionCallContext.actor_id` 是可信调用主体，MCP 授权按此客户端身份判断。`audit_actor_id` 由可信 Host 写入本次写入的作者：经 MCP 是 `<客户端>:<会话>`，助理是 `assistant:<work_id>`，生成插件是「插件「名称」」；声明 `authorship: "session"` 的动作从这里读作者。它不参与授权，不得从业务 JSON 覆盖。跨进程 Host 只根据固定客户端和可信会话元数据推导审计作者，不接受任意作者 ID。`actor_kind` 是可信审计分类，`null` 表示可信调用方不知道，不授予用户决策权限。公共输入只声明业务数据，项目、权限及身份从调用上下文取得。Goals 的目录/创建/便笺可通过其 `goalsActions` 引用。
 
 作者不碰 Store、SQL、数据库路径。缺权限、停用的旧上下文、未声明的类型/界面都会被 owner 拒绝。
 

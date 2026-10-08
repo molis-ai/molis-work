@@ -1,8 +1,10 @@
 # 接到本仓库产品
 
-Manifest 写完不等于底栏插件切换里有入口。一等插件还要改 Host。第三方只走 Plugin Runtime 的，看 [authoring.md](authoring.md)，不要抄这一页的短名 HTTP。
+Manifest 写完不等于底栏插件切换里有入口：内置插件还要加目录条目和 Plugin Runtime 监督器条目（见「内置插件：经 Plugin Runtime 装配」）；第三方插件看 [authoring.md](authoring.md)。不要抄冻结名单的短名 HTTP。
 
-## Native 一等入口
+## 内置插件：经 Plugin Runtime 装配
+
+新的内置插件（任何 kind）只走 Plugin Runtime：由监督器启动，得到安装记录、升级检查、崩溃恢复和每个安装独立的私人存储。不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往构建期名单加条目；冻结的旧名单只许减少（门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。
 
 典型目录：`plugins/native/<id>/src/{manifest,ui,client,styles,en,routes,index}.ts`。私人库对照 Pages / 灵光；不要新建第二张业务 Module 表。
 
@@ -11,17 +13,27 @@ Manifest 写完不等于底栏插件切换里有入口。一等插件还要改 H
 ### 必改（插件切换里能看见、点得动）
 
 1. **合同类型**（有私人记录时）：`packages/contracts/src/modules/<id>.ts`，并在 `packages/contracts/package.json` 加 `./modules/<id>` export。
-2. **插件包**：`package.json` 的 `molis-work` 块（path/kind/ssot），以及 `README.md`、`tsconfig.json`、`src/index.ts`（`workspace-packages.mjs` 缺一个就报错）。`index.ts` 必须再导出 Manifest、contribution、stylesheet、client factory、routes，Workbench / Host 从包根 import。
+2. **插件包**：`package.json` 的 `molis-work` 块（path/kind/ssot），以及 `README.md`、`tsconfig.json`、`src/index.ts`（`workspace-packages.mjs` 缺一个就报错）。`index.ts` 必须再导出 Manifest、`createXPlugin`、contribution、stylesheet、client factory，Workbench / Host 从包根 import。
 3. **`scripts/workspace-packages.mjs`**：加一条 `entry(...)`，并在 workbench、local-host 的 `extraWorkspaceDependencies` 里加上这个包名。然后 `node scripts/workspace-packages.mjs` 核对。
-4. **`apps/workbench/src/builtin-plugins.ts`**：内置 build 在 `BUILTIN_PLUGIN_CATALOG` 加一条，绑定 `project_plugin_id`、包导出的 `manifest`、可选 `personal`、`summary`（有 summary 才进内建市场）及 `agent` 正文。`plugin-catalog.ts` 只派生产品目录，不再维护第二份名单。
+4. **`apps/workbench/src/builtin-plugins.ts`**：内置 build 在 `BUILTIN_PLUGIN_CATALOG` 加一条，绑定 `project_plugin_id`、包导出的 `manifest`、可选 `personal`、`summary`（进内建市场还要有 `navigator` 或 `island` 视图）及 `agent` 正文。`plugin-catalog.ts` 只派生产品目录，不再维护第二份名单。
 5. **同一条目的 `workbench`**：声明 `order`（静态资源加载顺序）、`contributions`、`stylesheet`、`clientFactory`、可选 `settingsClient`、`searchRow`。`plugin-workbench.ts` 自动派生，无须另登记。Pages 族照 Pages；Feed/Inbox **没有**插件包里的 factory，客户端在 `apps/workbench/src/scripts/client/navigation-feed.ts` / `navigation-inbox.ts`。
    工作面还须在 `ui-composition.ts` 通过 UiHost mount，`renderer.ts` 注入 primitives，再由 `goals-page-renderer.ts` 渲染到主页面；只登记 pack 不会产生页面 DOM。对照图片插件 `renderImagesContribution`。
-6. **HTTP**：个人插件（Pages 族、Shelf、灵光）实现 `apps/local-host/src/<id>-native-plugin-http.ts`，再挂进 `personal-native-plugin-http.ts` 的 handler 列表。项目插件（Feed、Inbox、Schedule）挂进 `web-request.ts`。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
-7. **英文**：插件 `src/en.ts` 导出 `X_EN`，还要在 `apps/workbench/src/i18n/en.ts` `import` 并 `...X_EN`。只写插件文件，英文界面仍是中文 key。
-8. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。
-9. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（插件切换/常驻/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
+6. **监督器条目**：`apps/local-host/src/project-plugins.ts` 的 `startPlatform` 里，在 `entries` 加 `{ definition: createXPlugin(ports), bundled: true, releaseArtifact: nativePluginReleaseArtifact(包名, "createXPlugin", factory => factory(ports)) }`。`bundled: true` 让内置插件随宿主版本升级，不写 `upgrade_compatibility`。`start()` 要兑现 Manifest 的每一条（见下面「app 一等」）。
+7. **门禁名单**：`tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED` 加一行 `项目短名 → 包名`；短名要与第 4 步目录条目的 `project_plugin_id` 相同，包名要出现在 `project-plugins.ts` 里。
+8. **HTTP**：写 Manifest `routes`，由 Plugin Runtime 挂在 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作；不写 Host 文件，也不要往 `personal-native-plugin-http.ts`、`web-request.ts` 加分支。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。运行中插件的工作面目前仍由 `apps/local-host/src/coding-surface.ts` 按插件渲染（对照 Characters 的 `charactersWorkbenchPanel`，由 `web-goals-read.ts` 调用），新插件现在还要在那里接一份。
+9. **英文**：插件 `src/en.ts` 导出 `X_EN`，还要在 `apps/workbench/src/i18n/en.ts` `import` 并 `...X_EN`。只写插件文件，英文界面仍是中文 key。
+10. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。
+11. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（插件切换/常驻/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
 
-导航、设置位置、项目启用由 catalog 和 Manifest 推导。原生 UI 的 HTTP、客户端与 i18n 仍需接线；公共动作注册后可自动导出 MCP，历史兼容 adapter 不属于新插件的必改名单。
+导航、设置位置、项目启用由 catalog 和 Manifest 推导；客户端与 i18n 仍需接线。公共动作注册后自动进入 MCP 目录，没有另外的 MCP 适配。
+
+### 构建期 Native（冻结名单，只许减少）
+
+`BUILD_TIME_ASSEMBLED` 里的旧插件仍是手写接线：Host 里的 `registerProvider(...)`（`project-host.ts`）、`apps/local-host/src/<id>-native-plugin-http.ts` 和 `builtin-plugins.ts` 条目。只有改这些旧插件时才看这一段，新插件不照抄。
+
+- 个人插件（Pages 族、Shelf、灵光）：实现 `<id>-native-plugin-http.ts`，再挂进 `personal-native-plugin-http.ts` 的 handler 列表。
+- 项目插件（Feed、Inbox、Schedule）：挂进 `web-request.ts`。
+- `project_id` 同样由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 
 ### 按需
 
@@ -29,14 +41,14 @@ Manifest 写完不等于底栏插件切换里有入口。一等插件还要改 H
 | --- | --- |
 | 新的 MCP 能力 | 声明公共 `actions` 与处理器，`audiences` 含 `mcp`，经 Runtime 注册后由用户授权；不增加 Host 适配表 |
 | `actions` / 判断消费场景 | 下面「接到统一判断场景」 |
-| 插件事件总线 | 下面「接到插件事件总线」；Native 不要抄 |
+| 插件事件总线 | 下面「接到插件事件总线」；构建期 Native 不要抄 |
 | 新 Artifact 类型 | 合同 + Artifacts Module，不要只写在插件里 |
 | 设置页 | contribution + `settings` 槽 + `settingsClient` |
 | 图标名 | 必须是 `packages/design-system/src/icons.ts` 的 `MolisWorkIcon`（灵光用 `idea`）。写了不存在的名字，插件切换里那一行还在，图标是空的；不写 `icon` 才落到 `package`。不要往壳层塞 SVG |
 | `agent` | 在 `builtin-plugins.ts` 的同一条目绑定 `agent.prompts/skills` 包正文；`BUILTIN_PLUGIN_AGENTS` 自动派生。Manifest 声明不等于已经提供正文，缺失由现有回归拒绝 |
 | 重编辑器 IIFE | `apps/local-host/src/web-assets.ts` 挂 `/assets/…`，页面再引 script。只打 bundle、不挂路径，浏览器 404 |
 | 项目启用连带 | `PROJECT_PLUGIN_COMPANIONS`（今天只有 Feed→Inbox） |
-| 全局搜索 | Pages 族：`searchRow`。Feed/Inbox/Goals：`apps/workbench/src/scripts/client/global-search.ts` 写死，不会跟 searchRow 走 |
+| 全局搜索 | 内容一律经系统搜索：声明搜索来源（[search.md](search.md)），不改 `global-search.ts`。打开到具体对象：在工作台条目声明 `searchRow`；按标签打开（`molis-work:select-item`）的插件列在 `global-search.ts` 的 `SEARCH_ITEM_TAB_SURFACES` |
 | SSOT | `docs/SSOT-MATRIX.md` 加一行 owner |
 
 ## 接到统一判断场景
@@ -58,7 +70,7 @@ Inbox 的显式判断与 Feed 入箱事件已这样接通，参考 `plugins/nati
 
 ## 接到插件事件总线
 
-只给 **Runtime 托管的 app**。Host 接线在 `apps/local-host/src/coding-surface.ts` 的 `createPluginPlatform`。
+只给经 Plugin Runtime 启动的插件。总线在 `apps/local-host/src/plugin-platform.ts` 的 `createPluginPlatform`，由 `project-plugins.ts`（内置）与 `installed-plugin-host.ts`（已安装）启动。
 
 发布者：
 
@@ -72,7 +84,7 @@ Inbox 的显式判断与 Feed 入箱事件已这样接通，参考 `plugins/nati
 1. Manifest `events.subscribes`，`from_plugin_ids` 写死来源，不许通配。
 2. `start()` 返回 `onEvent`。
 
-Native（Feed/Inbox/Pages/…）今天没有这条总线。不要为了「完整」给它们加 `events:`。Integration 的进来走 Signal，不是这条总线。Functions「事件去向」也不是。
+构建期 Native（Feed/Inbox/Pages/…）没有这条总线。不要为了「完整」给它们加 `events:`。Integration 的进来走 Signal，不是这条总线。Functions「事件去向」也不是。
 
 Workbench 标签选中是另一种纯 UI 通知：Host 在当前插件根节点派发 `molis-work:select-item`，`detail.itemId` 为对象 ID，回到插件列表时为 `null`。Pages 等插件通过自己的公开 HTTP 读取对象并恢复编辑器；切换时要保存未落盘输入，忽略过期读取。这个 DOM 通知不承担跨插件业务写入，也不是 Plugin Runtime 事件合同。
 
@@ -86,7 +98,7 @@ Inbox 的 `GET/POST /api/inbox/pages` 由 Host 注入当前项目。POST 接收 
 
 已注册到当前项目 Runtime 的路由按 Manifest 和实际 contribution 自动分发，Web 外层和内部适配器均不再维护插件 ID 白名单。业务 HTTP 使用 `bindPluginActionRoute` 转调统一动作；生命周期仍由 supervisor 管理。新实例追加注册不应覆盖已有路由；停用后的请求不得重新启用实例。内置项目启用检查、控制令牌、origin 与一次性请求键继续生效。`/restart`、`/release-quarantine`、`/upgrade` 保留给 Host 生命周期，业务路由避开这些路径；不要在 Host 为新插件增加同名字段的结果加工。
 
-`kind: "app"` 必须真的经 Plugin Runtime `start()`。今天：Coding、Files、Git、Diff、Text stats。Host 接线在 `coding-surface.ts` 一类：`createXPlugin`、会话 store、渲目录。
+`kind: "app"` 必须真的经 Plugin Runtime `start()`。今天：Coding、Files、Git、Diff、Text stats、Characters（Shelf 是 `native`，同样由监督器启动）。启动在 `apps/local-host/src/project-plugins.ts` 的监督器条目；`coding-surface.ts` 按插件渲染运行中插件的工作面，并把 `/api/plugins/<plugin_id>/` 转给运行中的插件。
 
 `start(context)` 返回 `kind: "app"`，并且：
 
@@ -99,7 +111,7 @@ Inbox 的 `GET/POST /api/inbox/pages` 由 Host 注入当前项目。POST 接收 
 
 缺一条或多一条都是启动失败，只影响自己。`stop` 不消耗崩溃恢复额度。
 
-Text stats 是最小完整 app：一个必选输入口、一个 `stage` 视图、无存储、无事件。新端口消费者先抄它的声明形状，再抄 Diff 的 `input_groups`。产品里还没有连线页，抄它不会让输入口自己接上。端口何时投递见 [elements.md](elements.md)。
+Text stats 是最小完整 app：一个必选输入口、一个 `navigator` 入口加一个 `stage` 视图、无存储、无事件。新端口消费者先抄它的声明形状，再抄 Diff 的 `input_groups`。默认连线把它的输入口接到 Files 的 `before` 快照（`workspace-plugin-bindings.ts`）；照抄它的声明，新插件的输入口不会自己接上，要接就由人在成果库详情把某一版接给插件输入。端口何时投递见 [elements.md](elements.md)。
 
 Kernel `registerCapability` 是 Module/Host 的事（Goals、Agent Host），不是插件包自己登记一份。插件只 `requires` / `capabilities.consumes`，由 Host 注入 `services.capabilities.invoke`。
 
@@ -121,9 +133,9 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 | --- | --- |
 | Goal / 注意力 / Feed 消息 | 对应 Module，插件只调公开 API |
 | 可同步、可打开的结果 | Artifact |
-| 本机文档/问卷/表/函数/置物架/灵光 | `{home}/<id>/<id>.db`，按 `project_id` 分区；不要冒充 Module |
+| 本机文档/问卷/表/置物架/灵光 | `{home}/<id>/<id>.db`，按 `project_id` 分区；不要冒充 Module |
 | 凭据 | secret 引用 |
-| 给别的插件的瞬时协调 | 事件总线（仅 app，≤16 KiB） |
+| 给别的插件的瞬时协调 | 事件总线（仅经 Plugin Runtime 启动的插件，≤16 KiB） |
 
 卸载停代码和 binding；已形成的 Goal/Artifact/Signal 引用仍可显示。私人库默认不跟卸载清掉。
 

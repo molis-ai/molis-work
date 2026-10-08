@@ -1,13 +1,13 @@
 ---
 name: goal-advance
-description: Use Molis Work in the current Runtime conversation to connect a user-selected project, create or find Goals, record work, and follow current requirements, decisions, and completion. Use when the user explicitly asks to use, open, connect, plan, continue, or advance Molis Work.
+description: Use Molis Work, a local plugin workbench, in the current Runtime conversation: connect a user-selected project, create or find Goals and record work against their current requirements, decisions and completion, and call the other plugins' actions granted to this client. Use when the user explicitly asks to use, open, connect, plan, continue, or advance Molis Work or one of its plugins.
 ---
 
 # Molis Work Runtime
 
-Stay in the current conversation. Molis Work stores shared project and Goal facts; perform the user's actual work with the tools appropriate to that work, then record its meaningful results through Molis Work MCP.
+Stay in the current conversation. Molis Work is a local plugin workbench: each fact has one owner plugin (Goals owns Goals with their agreements, events and closure; Pages, Todo, Artifacts and the other plugins own their own records). This skill covers connecting a project and the Goals protocol. Perform the user's actual work with the tools appropriate to that work, then record its meaningful results through Molis Work MCP.
 
-Molis Work MCP has connection tools (molis_work_v1_context_*) and action tools. Every Goal operation is an action tool named `molis_work_v1_action_<action>__v<version>`, for example `molis_work_v1_action_goals.list__v1`; this skill names them by action (`goals.list`).
+Molis Work MCP has platform connection tools (molis_work_v1_context_* and molis_work_v1_project_delete) and one action tool per action this client has been granted, from any enabled plugin or system service, named `molis_work_v1_action_<action>__v<version>` (for example `molis_work_v1_action_goals.list__v1`). This skill names Goal actions by action (`goals.list`); call other plugins' actions by their own schemas.
 
 ## Connect and work
 
@@ -19,7 +19,7 @@ Molis Work MCP has connection tools (molis_work_v1_context_*) and action tools. 
 
 The Host injects project and operator identity for Goal actions. Omit project_id, database/Web paths, actor_id, actor_kind, audit_actor_id, runtime_actor_id, source_kind and authority fields; explicit goal_id still identifies the intended Goal. Connection and project-management tools have their own schemas. A selected Goal in the UI is context, not permission to start work or retarget a terminal. Never require a fixed phrase or verbatim repetition.
 
-Each action tool appears only after the user grants that exact action to this client in the current project. A project binding does not grant actions. If a required tool is absent or returns mcp.tool_disabled / mcp.action_revoked, explain the specific missing capability and direct the user to **Capabilities → External access** for this client/project. Do not grant permissions yourself, rebind the project as a workaround, or replace a pending write with another tool name. After authorization, refresh discovery and retry with the same action, Session context and idempotency key.
+Each action tool appears only after the user grants that exact action to this client: a project action in the current project, a Home-scoped action (such as `search.query`) once for the client. A few system actions that need no permission appear without a grant. A project binding does not grant actions. If a required tool is absent or returns mcp.tool_disabled / mcp.action_revoked, explain the specific missing capability and direct the user to **Capabilities → External access** for this client/project. Do not grant permissions yourself, rebind the project as a workaround, or replace a pending write with another tool name. After authorization, refresh discovery and retry with the same action, Session context and idempotency key.
 
 ## Read further when needed
 

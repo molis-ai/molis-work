@@ -98,7 +98,8 @@ jobs:
       # baseline says was accepted is still accepted, and every entry it records, accepted or refused, is still in the corpus with
       # the answer it had. Also against the baseline at the merge-base of HEAD and the commit scripts/ci-health-base.mjs prints
       # (the base branch as merged, on a pull request), so rewriting the baseline file, or rewriting or deleting corpus entries,
-      # cannot hide a regression. Then the replay's own rules and the Cursor Skill links, each failing on a scratch copy that
+      # cannot hide a regression; every baseline row carries the digest of its answer, and `live` is accepted for the prompt
+      # example alone. Then the replay's own rules and the Cursor Skill links, each failing on a scratch copy that
       # breaks it. The generation smoke needs a model and is run by hand on an isolated Home.
       - name: Studio Skill replay
         env:

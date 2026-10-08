@@ -94,13 +94,21 @@ export function replayEntry(entry: ReplayEntry, env: ReplayEnv = defaultEnv): Re
   }
 }
 
+/**
+ * The only entries read from the code itself on every run, so the only ones with no fixed text to take a digest of. A baseline
+ * row may say `live` for these ids and no others; for any other id a row without the digest of its answer would let that answer
+ * be rewritten under the same id without anyone noticing.
+ */
+export const PROMPT_EXAMPLE_ID = 'prompt-example';
+export const LIVE_ENTRY_IDS: ReadonlySet<string> = new Set([PROMPT_EXAMPLE_ID]);
+
 /** Entries that are always replayed: the worked example the designer prompt itself teaches, which must stay a valid design. */
 export function builtinEntries(): ReplayEntry[] {
   const text = BUILDER_PROMPTS.designer.text, marker = '【mode = "detail" 的完整回答示例】', start = text.indexOf(marker);
-  if (start < 0) return [{ id: 'prompt-example', mode: 'detail', origin: 'synthetic', source: 'BUILDER_PROMPTS.designer', attempt: 0, capabilities: [], resources: [], answer: '', live: true,
+  if (start < 0) return [{ id: PROMPT_EXAMPLE_ID, mode: 'detail', origin: 'synthetic', source: 'BUILDER_PROMPTS.designer', attempt: 0, capabilities: [], resources: [], answer: '', live: true,
     note: `the designer prompt ${BUILDER_PROMPTS.designer.version} no longer has the worked example marker ${marker}` }];
   const from = start + marker.length, example = text.slice(from, text.indexOf('\n\nmode = "propose"', from)).trim();
-  return [{ id: 'prompt-example', mode: 'detail', origin: 'synthetic', source: `BUILDER_PROMPTS.designer ${BUILDER_PROMPTS.designer.version}`, attempt: 0, capabilities: [], resources: [], answer: example, live: true,
+  return [{ id: PROMPT_EXAMPLE_ID, mode: 'detail', origin: 'synthetic', source: `BUILDER_PROMPTS.designer ${BUILDER_PROMPTS.designer.version}`, attempt: 0, capabilities: [], resources: [], answer: example, live: true,
     base: { id: 'quick', title: '随手记', description: '写一句就保存', rationale: '最短路径', journey: ['写', '看'] }, note: 'the worked example in the designer prompt; a prompt edit that breaks it fails here' }];
 }
 
@@ -146,7 +154,11 @@ export function parseBaseline(text: string, where: string): Baseline {
   const row = json as Partial<Baseline> | null;
   if (!row || row.format !== BASELINE_FORMAT || !row.entries || typeof row.entries !== 'object' || Object.values(row.entries).some(value => typeof value?.pass !== 'boolean'))
     throw new Error(`${where}: not a ${BASELINE_FORMAT} file`);
-  for (const [id, entry] of Object.entries(row.entries)) if (!(typeof entry.digest === 'string' && entry.digest) && entry.live !== true) throw new Error(`${where}: entry ${id} needs the digest of its answer (run --write-baseline)`);
+  for (const [id, entry] of Object.entries(row.entries)) {
+    if (entry.live !== undefined && !(entry.live === true && LIVE_ENTRY_IDS.has(id)))
+      throw new Error(`${where}: entry ${id} cannot be recorded as live: only ${[...LIVE_ENTRY_IDS].join(', ')} is read from the code itself, every other entry records the digest of its answer (run --write-baseline)`);
+    if (!(typeof entry.digest === 'string' && entry.digest) && entry.live !== true) throw new Error(`${where}: entry ${id} needs the digest of its answer (run --write-baseline)`);
+  }
   for (const [id, why] of Object.entries(row.retired ?? {})) if (typeof why !== 'string' || !why.trim()) throw new Error(`${where}: retired entry ${id} needs the reason it was retired`);
   return row as Baseline;
 }
@@ -177,6 +189,8 @@ export function compare(results: readonly ReplayResult[], baseline: Baseline, pr
     const where = here ? '' : ' (at the base)', accepted = rows.some(row => row.pass);
     if (!now) { out.removed.push(`${id}${where}: no longer in the corpus (it was ${accepted ? 'accepted' : 'refused'}); to retire it, list it under "retired" in the baseline with the reason`); continue; }
     if (rows.some(row => row.digest && row.digest !== now.digest)) out.changed.push(`${id}${where}: its answer, or what it was given, is not the one recorded; keep the old entry, add the new one under a new id and list the old id under "retired" with the reason`);
+    // A row that says "read from the code" cannot vouch for a fixed answer in the corpus: that is the same hole as a row with no digest.
+    else if (now.digest !== undefined && rows.some(row => row.live)) out.changed.push(`${id}${where}: the baseline records it as read from the code itself (live), but the corpus has a fixed answer under that id; give the corpus entry a new id`);
     if (accepted && !now.pass) out.regressions.push(`${id}${here?.pass ? '' : ' (it passed at the base)'}: passed, now refused at ${now.stage}: ${now.message}`);
   }
   for (const result of results) {

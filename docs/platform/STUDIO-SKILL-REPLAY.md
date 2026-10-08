@@ -60,7 +60,7 @@ pnpm studio:replay harvest --runs <Home>/plugin-builder/<项目>/runs --out <文
 
 ### 2.4 基线
 
-`tests/fixtures/studio-replay/baseline.json` 记每条语料现在的结果：接受，或拒绝及原因的种类，加上这条语料的摘要（`digest`，`scripts/studio-replay/corpus.mts` 的 `entryDigest`：阶段、答卷、给它的上下文、来源类别、必须保持的拒绝，不含「出处」「用途」这类关于它的话）。内置的提示词示例每次从提示词里取，没有固定文字，记 `live`。规则对接受的和被拒的条目一视同仁：
+`tests/fixtures/studio-replay/baseline.json` 记每条语料现在的结果：接受，或拒绝及原因的种类，加上这条语料的摘要（`digest`，`scripts/studio-replay/corpus.mts` 的 `entryDigest`：阶段、答卷、给它的上下文、来源类别、必须保持的拒绝，不含「出处」「用途」这类关于它的话）。内置的提示词示例（`prompt-example`）每次从提示词里取，没有固定文字，记 `live`；`live` 只许这一个编号用（`replay.mts` 的 `LIVE_ENTRY_IDS`），别的条目都必须带摘要，否则答卷可以在同一编号下被改写而无人察觉。规则对接受的和被拒的条目一视同仁：
 
 | 情况 | 结果 |
 | --- | --- |
@@ -72,6 +72,7 @@ pnpm studio:replay harvest --runs <Home>/plugin-builder/<项目>/runs --out <文
 | 基线里拒绝的条目，现在被接受 | 失败，用 `--write-baseline` 把改进记下 |
 | 仍被拒，但原因种类变了 | 只提示 |
 | 基线里的条目缺 `digest` | 不是基线（退出码 2） |
+| 基线里的条目标了 `live`，但编号不是 `prompt-example` | 不是基线（退出码 2）；就算这样的行混了进来，比较时语料里该编号有固定答卷也算「答卷变了」，失败 |
 | `--write-baseline` 遇到回归、缺失或答卷变了 | 拒绝写入，不能靠改基线放过 |
 | `--base <ref>` | 同时读 HEAD 与 `<ref>` 的合并基点（`git merge-base HEAD <ref>`）上的基线，不是 `<ref>` 当前的尖端：落后于 `<ref>` 的分支不会因为缺了 `<ref>` 后来加的条目而失败。合并基点上记的每条条目（接受的、被拒的）现在仍须在语料里、答卷未变，接受过的仍须接受，所以在分支上手改基线文件、改写或删掉语料条目都放不过 |
 

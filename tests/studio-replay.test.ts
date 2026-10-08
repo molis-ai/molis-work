@@ -10,7 +10,7 @@ import { assertContract } from "@molis-ai/molis-work-plugin-sandbox";
 import type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { BuilderAgentRecord, BuilderAgentRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { entryDigest, entryFromRunRecord, loadCorpus, type ReplayEntry } from "../scripts/studio-replay/corpus.mjs";
-import { builtinEntries, compare, parseBaseline, replayEntry, summarise } from "../scripts/studio-replay/replay.mjs";
+import { LIVE_ENTRY_IDS, builtinEntries, compare, parseBaseline, replayEntry, summarise } from "../scripts/studio-replay/replay.mjs";
 import { runSmoke } from "../scripts/studio-replay/smoke.mjs";
 import { standInAnswers } from "../scripts/studio-replay/stand-in.mjs";
 
@@ -146,7 +146,7 @@ const make = (name: string) => {
     const file = path.join(corpus, "corpus.json"), json = JSON.parse(readFileSync(file, "utf8")) as { entries: Array<Record<string, unknown>> };
     writeFileSync(file, JSON.stringify({ ...json, entries: change(json.entries) }, null, 2));
   };
-  const editBaseline = (change: (value: { entries: Record<string, { pass: boolean; reason?: string; digest?: string }>; retired?: Record<string, string> }) => void) => {
+  const editBaseline = (change: (value: { entries: Record<string, { pass: boolean; reason?: string; digest?: string; live?: boolean }>; retired?: Record<string, string> }) => void) => {
     const value = JSON.parse(readFileSync(baseline, "utf8")); change(value); writeFileSync(baseline, JSON.stringify(value, null, 2));
   };
   return { directory, corpus, baseline, run, edit, editBaseline };
@@ -317,6 +317,43 @@ test("a baseline row without the digest of its answer is not a baseline, and a d
   assert.equal(entryDigest({ ...entry, note: "another sentence", source: "somewhere else" }), entryDigest(entry), "words about the entry are not the entry");
   for (const changed of [{ answer: entry.answer + " " }, { origin: "recorded" as const }, { attempt: 1 }, { capabilities: [{ id: "x" }] }, { base: { ...entry.base!, title: "other" } }, { expectFailure: "x" }])
     assert.notEqual(entryDigest({ ...entry, ...changed }), entryDigest(entry), `${Object.keys(changed)[0]} is part of the entry`);
+});
+
+test("`live` is for the prompt example only: marking a corpus answer live is not a baseline, so its answer cannot be rewritten under the same id", () => {
+  // The move the review reproduced. Step 1: swap the digest of an answer for `live`; the answer is unchanged, so nothing looks wrong.
+  const { run, edit, editBaseline, git, commit } = repository("live-bypass");
+  git("checkout", "-q", "-b", "live-bypass");
+  editBaseline(value => { delete value.entries["detail-notes-plain"]!.digest; value.entries["detail-notes-plain"]!.live = true; });
+  for (const result of [run(), run("--base", "main")]) {
+    assert.equal(result.code, 2, "a live row for a corpus answer is not a baseline: " + result.out);
+    assert.match(result.out, /entry detail-notes-plain cannot be recorded as live: only prompt-example is read from the code itself/);
+  }
+  // Step 2, had step 1 been merged: rewrite the answer (a valid design, so it still passes). Still refused, locally and against the base.
+  commit("step 1: the digest of an answer swapped for live");
+  edit(entries => entries.map(entry => entry.id === "detail-notes-plain" ? { ...entry, answerJson: JSON.parse(JSON.stringify(entry.answerJson).replaceAll("notes.add", "notes.create")) } : entry));
+  for (const result of [run(), run("--base", "main"), run("--base", "HEAD")]) assert.equal(result.code, 2, result.out);
+  // The prompt example, the one answer with no fixed text, is still recorded as live and still holds.
+  const baseline = JSON.parse(readFileSync(path.join(scratch, "live-bypass", "baseline.json"), "utf8"));
+  assert.equal(baseline.entries["prompt-example"].live, true);
+  assert.deepEqual([...LIVE_ENTRY_IDS], builtinEntries().map(entry => entry.id), "the ids a baseline may record as live are exactly the ones the code reads itself");
+  assert.ok(builtinEntries().every(entry => entry.live), "and every one of them is read from the code");
+});
+
+test("a live baseline row cannot vouch for a fixed answer in the corpus either: the comparison counts it as changed", () => {
+  // Whatever path a live row for a fixed answer took into the baseline (here handed to `compare` directly), the replay's own digest refuses it.
+  const results = committed().map(entry => replayEntry(entry)), digest = results.find(result => result.id === "detail-notes-plain")!.digest!;
+  const recorded = parseBaseline(readFileSync(path.join(corpusDirectory, "baseline.json"), "utf8"), "baseline.json");
+  const row = { pass: true, live: true as const };
+  assert.deepEqual(compare(results, recorded).changed, []);
+  const laundered = { ...recorded, entries: { ...recorded.entries, "detail-notes-plain": row } };
+  const here = compare(results, laundered);
+  assert.equal(here.changed.length, 1, "the local check");
+  assert.match(here.changed[0]!, /detail-notes-plain: the baseline records it as read from the code itself \(live\), but the corpus has a fixed answer under that id/);
+  const atBase = compare(results, recorded, laundered);
+  assert.equal(atBase.changed.length, 1, "and the merge-base's record");
+  assert.match(atBase.changed[0]!, /detail-notes-plain: the baseline records it as read from the code itself/);
+  assert.equal(compare(results, recorded, { ...recorded, entries: { ...recorded.entries, "detail-notes-plain": { pass: true, digest } } }).changed.length, 0, "a row with the right digest is fine");
+  assert.deepEqual(compare(results, recorded).changed, [], "and the prompt example, live in the baseline and live in the replay, never trips this");
 });
 
 test("a Skill that no longer mounts fails the command; a Skill that changed is reported as outside what this replay can judge", () => {

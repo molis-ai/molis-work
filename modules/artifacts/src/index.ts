@@ -37,6 +37,11 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export interface ArtifactsModuleOptions extends ArtifactsServiceOptions {
   db: ArtifactsSqliteDatabase;
+  /**
+   * The person this Home belongs to. Every personal 成果 in it belongs to them, whoever produced it (the producer stays in
+   * `created_by`); without it a version belongs to the actor that registered it.
+   */
+  homeOwner?: string;
 }
 
 export class ArtifactsModule implements ArtifactsApplicationApi {
@@ -46,7 +51,7 @@ export class ArtifactsModule implements ArtifactsApplicationApi {
   readonly commands: ArtifactsCommandApi;
 
   constructor(options: ArtifactsModuleOptions) {
-    this.repository = new ArtifactsRepository(options.db);
+    this.repository = new ArtifactsRepository(options.db, undefined, options.homeOwner);
     this.service = new ArtifactsService(this.repository, options);
     this.query = this.service;
     this.commands = this.service;
@@ -64,7 +69,7 @@ export class ProcessItemsModule implements ProcessItemsApplicationApi {
   readonly query: ProcessItemsApplicationApi["query"];
   readonly commands: ProcessItemsApplicationApi["commands"];
 
-  constructor(options: Omit<ArtifactsModuleOptions, "kind">) {
+  constructor(options: Omit<ArtifactsModuleOptions, "kind" | "homeOwner">) {
     this.repository = new ArtifactsRepository<ProcessItemRecord>(options.db, PROCESS_ITEM_TABLES);
     this.service = new ArtifactsService<ProcessItemRecord, RecordProcessItemInput>(this.repository, { ...options, kind: "process_item" });
     this.query = this.service;

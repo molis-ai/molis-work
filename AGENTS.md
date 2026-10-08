@@ -1,12 +1,12 @@
 # 在这个仓库里工作
 
-Molis Work：本地优先的工作台，Goals 是权威真相源，插件经统一动作服务接入，AI 经同一 Home 的 Prologue Runtime。
+Molis Work：本地优先的插件基座加多插件工作平台。平台是一个 Home 的常驻宿主、统一动作服务与授权、Plugin Runtime、工作台外壳和同一个 Prologue AI 运行时；内容与事实归插件，每项事实只有一个主人（`docs/SSOT-MATRIX.md`）。Goals 是每个项目都带的内置插件，拥有 Goal 的事实。
 
 ## 先读哪里
 
 | 要做的 | 读 |
 | --- | --- |
-| 产品承诺 | `PRODUCT.md` |
+| 产品是什么、对用户的承诺 | `PRODUCT.md` |
 | 包清单、事实 owner、成熟度 | `docs/SSOT-MATRIX.md` |
 | 分层与依赖规则 | `docs/system/ARCHITECTURE.md`、`docs/system/PACKAGE-BOUNDARIES.md` |
 | 改某个包 | 该包 README 的「开发要求」：负责与不负责、依赖、不变量、改完必跑的测试（写法见 `docs/system/DEVELOPMENT-REQUIREMENTS.md`，门禁在 `pnpm boundary:check`） |

@@ -10,6 +10,7 @@ import { FeedStoreError, assertSourceHistoryDecision, callAttention, callFeed } 
 import { feedItemRecord, sourceRunRecord } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import { retireFeedSource } from "./source-history.js";
+import { JudgmentQueue } from "./judgment-queue.js";
 import {
   feedOutRuleMatches,
   registerFeedCaptureVersion,
@@ -18,11 +19,15 @@ import {
 
 /** Product operations over module facts; connection and lifecycle are supplied by the host. */
 export class FeedApplication {
-  private pendingFeedJudgments: FeedItemRecord[] = [];
-  private readonly pendingInboxJudgments = new Map<string, { project_id: string; entry_id: string }>();
+  private readonly judgments: JudgmentQueue;
 
   constructor(private readonly ports: FeedApplicationPorts) {
-    ports.subscribeInboxCreated(entry => this.pendingInboxJudgments.set(JSON.stringify([entry.project_id, entry.entry_id]), entry));
+    this.judgments = new JudgmentQueue(ports, {
+      feedItem: (projectId, itemId) => this.getFeedItem(projectId, itemId),
+      inboxEntry: (projectId, entryId) => this.getInboxEntry(projectId, entryId),
+      judgedRuleIds: item => this.listOutRules(item.project_id).filter(rule => rule.judgment && feedOutRuleMatches(rule, item)).map(rule => rule.rule_id),
+    });
+    ports.subscribeInboxCreated(entry => this.judgments.queueEntry(entry));
   }
 
   snapshot(projectId: string): FeedSnapshot {
@@ -278,20 +283,25 @@ export class FeedApplication {
       } catch (error) {
         this.recordArtifactOutFailure(item, [], [errorCode(error)]);
       }
-      if (this.ports.captureJudgment || this.ports.homeJudgment) this.pendingFeedJudgments.push(item);
+      this.judgments.queueItem(item);
     }
     return { item, created: result.created, updated: result.updated };
+  }
+
+  /**
+   * Ingest an item for a caller that then waits on the judgments it owes (a concurrent action, which runs beside the
+   * project's queue while the model answers). It judges the item it ingested and the Inbox entries that ingest created,
+   * with the caller's authority, and leaves whatever other producers queued meanwhile to them.
+   */
+  ingestItemJudged(input: Parameters<FeedApplication["ingestItem"]>[0], caller?: ActionCallContext): Promise<{ item: FeedItemRecord; created: boolean; updated: boolean }> {
+    return this.judgments.judgeOwn(() => this.ingestItem(input), caller);
   }
 
   async evaluateItems(projectId: string, itemIds: readonly string[], caller?: ActionCallContext): Promise<{ evaluated: number }> {
     if (!itemIds.length || itemIds.length > 20) throw new FeedStoreError("feed_invalid_transition", "请选择 1–20 条消息试跑规则");
     const items = [...new Set(itemIds)].map((id) => this.getFeedItem(projectId, id));
-    const alreadyPending = new Set(this.pendingInboxJudgments.keys());
-    for (const item of items) this.captureAfterIngest(item);
-    const ownedEntries = [...this.pendingInboxJudgments].filter(([key]) => !alreadyPending.has(key)).map(([, event]) => event.entry_id);
     // Concurrent evaluations own their input batch; they must not drain another call's queue.
-    await this.judgeFeedItems(items, caller);
-    await this.flushPendingInboxJudgments(caller, ownedEntries);
+    await this.judgments.judgeOwn(() => { for (const item of items) this.captureAfterIngest(item); }, caller, items);
     return { evaluated: items.length };
   }
 
@@ -304,37 +314,12 @@ export class FeedApplication {
       { judgment_id: judgment.judgment_id }, judgment.created_at);
   }
 
-  async flushPendingJudgments(caller?: ActionCallContext): Promise<void> {
-    const feedItems = this.pendingFeedJudgments.splice(0);
-    await this.judgeFeedItems(feedItems, caller);
-    await this.flushPendingInboxJudgments(caller);
+  flushPendingJudgments(caller?: ActionCallContext): Promise<void> {
+    return this.judgments.flush(caller);
   }
 
-  private async judgeFeedItems(feedItems: readonly FeedItemRecord[], caller?: ActionCallContext): Promise<void> {
-    for (const queued of feedItems) {
-      let item: FeedItemRecord;
-      try { item = this.getFeedItem(queued.project_id, queued.item_id); }
-      catch (error) { if (error instanceof FeedStoreError && error.code === "feed_item_not_found") continue; throw error; }
-      const ruleIds = this.listOutRules(item.project_id).filter(rule => rule.judgment && feedOutRuleMatches(rule, item)).map(rule => rule.rule_id);
-      await this.ports.captureJudgment?.({ project_id: item.project_id, item_id: item.item_id, rule_ids: ruleIds }, caller);
-      await this.ports.homeJudgment?.({ kind: "feed_item", id: item.item_id, project_id: item.project_id }, caller);
-    }
-  }
-
-  async flushPendingInboxJudgments(caller?: ActionCallContext, entryIds?: readonly string[]): Promise<void> {
-    // A composed user operation owns only its newly created entry; it cannot drain another producer's queued events with its identity.
-    const selected = entryIds ? new Set(entryIds) : null;
-    const inboxEvents = [...this.pendingInboxJudgments.values()].filter(event => !selected || selected.has(event.entry_id));
-    for (const event of inboxEvents) this.pendingInboxJudgments.delete(JSON.stringify([event.project_id, event.entry_id]));
-    for (const event of inboxEvents) {
-      // Module events can occur inside a transaction that is later rolled back.
-      let entry: InboxEntryRecord;
-      try { entry = this.getInboxEntry(event.project_id, event.entry_id); }
-      catch (error) { if (error instanceof FeedStoreError && error.code === "inbox_entry_not_found") continue; throw error; }
-      if (entry.status !== "open" && entry.status !== "in_progress") continue;
-      await this.ports.inboxJudgment?.(entry, caller);
-      await this.ports.homeJudgment?.({ kind: "inbox_entry", id: entry.entry_id, project_id: entry.project_id }, caller);
-    }
+  flushPendingInboxJudgments(caller?: ActionCallContext, entryIds?: readonly string[]): Promise<void> {
+    return this.judgments.flushEntries(caller, entryIds);
   }
 
   listOutRules(projectId: string): FeedOutRuleRecord[] {

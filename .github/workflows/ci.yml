@@ -45,7 +45,9 @@ jobs:
       # /assets/ (the three stylesheets, the workbench client scripts, the Pages editor, the plugin client packs, the fonts)
       # is frozen at its current size and may only fall. It is measured from the build the step above just made, so it must
       # come after it. tooling/gates/page-assets.json is compared with the merge-base's copy (the one the health gates
-      # use): a PR cannot raise a number or add an asset by editing that file, only by changing the gate, which is reviewed.
+      # use): a PR cannot raise a number, add an asset or delete the entry of an asset the host still sends by editing that
+      # file, only by changing the gate, which is reviewed. The routes are read from web-assets.ts, and every path either
+      # budget names is also asked of the built host, so a refactor that hides a route from the reading cannot unmeasure it.
       - name: Page asset budgets (against the merge-base)
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -57,7 +59,8 @@ jobs:
 
       # The budget rules are mutation-verified on a scratch repository and on a fake host build: a grown asset, a new asset,
       # a raised budget, a slack left unlowered and a missing build each fail, and so does the laundering move after
-      # `--update` or after the budget file was raised by hand. The last case runs the real gate on this build.
+      # `--update` or after the budget file was raised by hand, and a route rewritten out of the gate's reading together
+      # with its deleted entry. The last case runs the real gate on this build.
       - name: Page asset budget rules reject what they claim to
         run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts
 

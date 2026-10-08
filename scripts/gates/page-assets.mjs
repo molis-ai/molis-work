@@ -8,6 +8,14 @@
 // sends these uncompressed (it sets no content-encoding), so the raw length is what a page pulls. It needs the built
 // output of the workspace (`pnpm workspace:build`, which CI has already run when this step comes).
 //
+// The routes are read from the string literals in web-assets.ts ('…', "…" or `…`), and the plugin packs from the registered
+// workbench packs. A reading of source can be missed by a refactor, and the budget must not depend on it: so every path
+// the committed budget or the merge-base's budget names that the reading did not find is asked of the built host as well.
+// If the host still sends it, it is measured and the run fails as a discovery miss, so deleting a budget entry together with
+// the literal that named the route does not stop the asset from being measured, and a harmless rewrite of the routes does
+// not silently blind the gate. A route compared with something that is not a literal (an imported constant), or a
+// `/assets/` mention the gate cannot read as a whole literal, is exit 2: the gate cannot see what it would have to measure.
+//
 //   node scripts/gates/page-assets.mjs                  measure and compare with tooling/gates/page-assets.json
 //   node scripts/gates/page-assets.mjs --base <ref>     also compare that file with the merge-base's copy: a budget that
 //                                                       was raised, or added, relative to the merge-base fails. CI runs
@@ -94,11 +102,35 @@ const fakeResponse = () => {
 };
 const bodyBytes = (body) => (typeof body === "string" ? Buffer.from(body, "utf8") : Buffer.from(body));
 
-async function measureServed() {
+// The `/assets/...` routes web-assets.ts declares, read from its string literals. Comments are dropped first. What the gate
+// cannot read as a whole literal is refused rather than skipped, because a skipped route is a route nobody budgets.
+const withoutComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`\\])\/\/[^\n]*/g, "$1");
+const COMPARE = "(?:[!=]==|[!=]=)(?!=)";
+const NON_LITERAL_COMPARISONS = [new RegExp(`\\bpathname\\s*${COMPARE}\\s*(?!["'\`])\\S`), new RegExp(`(?<=[^\\s"'\`=!])\\s*${COMPARE}\\s*pathname\\b`)];
+function declaredRoutes(source) {
+  const code = withoutComments(source);
+  const comparison = NON_LITERAL_COMPARISONS.map((pattern) => code.match(pattern)).find(Boolean);
+  if (comparison) {
+    return fail(`${ROUTES_SOURCE} compares the request path with something that is not a string literal (\`${comparison[0].trim()}\`), `
+      + "so the gate cannot tell which asset that route sends and would not measure it; write the route as a string literal there, or teach scripts/gates/page-assets.mjs to read the new form");
+  }
+  const literals = [...code.matchAll(/(["'`])(\/assets\/[^"'`\s\\]+)\1/g)].map((match) => match[2]);
+  const readable = literals.filter((literal) => !literal.includes("${"));
+  const mentions = (code.match(/\/assets\//g) ?? []).length;
+  if (mentions !== readable.length) {
+    return fail(`${ROUTES_SOURCE} mentions "/assets/" ${mentions} times but only ${readable.length} of them are whole string literals the gate can read (a template with \${…}, a concatenation or a prefix is not one), `
+      + "so a route may escape the budget; write each route as one string literal, or teach scripts/gates/page-assets.mjs to read the new form");
+  }
+  return [...new Set(readable)].sort();
+}
+
+// probe: the paths the budgets name, whatever the reading found. `misses` are the probe paths the host does send although
+// the reading of web-assets.ts did not find them.
+async function measureServed(probe) {
   const sourcePath = path.join(root, ROUTES_SOURCE);
   if (!existsSync(sourcePath)) return fail(`${ROUTES_SOURCE} is missing; the gate reads the host's asset routes there`);
   const source = readFileSync(sourcePath, "utf8");
-  const paths = [...new Set([...source.matchAll(/"(\/assets\/[^"\s]+)"/g)].map((match) => match[1]))].sort();
+  const paths = declaredRoutes(source);
   if (!paths.length) return fail(`${ROUTES_SOURCE} names no "/assets/..." route any more; update scripts/gates/page-assets.mjs to the new place the host declares them`);
   if (!source.includes("molis-work-plugins")) return fail(`${ROUTES_SOURCE} no longer serves plugin packs under ${PLUGIN_PACK_PREFIX}; update scripts/gates/page-assets.mjs`);
 
@@ -119,35 +151,48 @@ async function measureServed() {
   const packPaths = packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => pack.clientFactory).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.js`);
   const measured = {};
   const gzip = {};
-  for (const asset of [...new Set([...paths, ...packPaths])]) {
+  const ask = (asset) => {
     const response = fakeResponse();
     const handled = served.serveWorkbenchAsset(fakeRequest(), response, asset);
-    if (!handled || response.sent.status !== 200 || response.sent.body === undefined) {
-      return fail(`the host does not serve ${asset} from this build (handled ${handled}, status ${response.sent.status}); is the workspace fully built? pnpm workspace:build`);
+    return { handled, status: response.sent.status, bytes: handled && response.sent.status === 200 && response.sent.body !== undefined ? bodyBytes(response.sent.body) : null };
+  };
+  const record = (asset, bytes) => { measured[asset] = bytes.length; gzip[asset] = gzipSync(bytes, { level: 9 }).length; };
+  const found = new Set([...paths, ...packPaths]);
+  for (const asset of found) {
+    const answer = ask(asset);
+    if (!answer.bytes) {
+      return fail(`the host does not serve ${asset} from this build (handled ${answer.handled}, status ${answer.status}); is the workspace fully built? pnpm workspace:build`);
     }
-    const bytes = bodyBytes(response.sent.body);
-    measured[asset] = bytes.length;
-    gzip[asset] = gzipSync(bytes, { level: 9 }).length;
+    record(asset, answer.bytes);
   }
-  return { measured, gzip };
+  const misses = [];
+  for (const asset of [...new Set(probe)].sort()) {
+    if (found.has(asset)) continue;
+    const answer = ask(asset);
+    if (!answer.bytes) continue; // the host sends nothing for it: it is gone, and its entry may go with it
+    record(asset, answer.bytes);
+    misses.push(asset);
+  }
+  return { measured, gzip, misses };
 }
 
-async function measure() {
-  if (!options.sizes) return measureServed();
+async function measure(probe) {
+  if (!options.sizes) return measureServed(probe);
   let sizes;
   try { sizes = JSON.parse(readFileSync(path.resolve(options.sizes), "utf8")); } catch { return fail(`--sizes ${options.sizes} is not a readable JSON file`); }
   parseBudget(JSON.stringify({ assets: sizes }), `--sizes ${options.sizes}`);
-  return { measured: sizes, gzip: {} };
+  return { measured: sizes, gzip: {}, misses: [] };
 }
 
 // ---- the rules -------------------------------------------------------------------------------------------------------
 // head: what the build measures against the committed budget. The budget must be exactly what the build measures, so a
 // shrink that did not lower its number is caught too (the next PR could otherwise grow back into the slack).
-const headErrors = (measured, budget) => {
+const headErrors = (measured, budget, base) => {
   const errors = [];
   for (const asset of [...new Set([...Object.keys(measured), ...Object.keys(budget)])].sort()) {
     const bytes = measured[asset], allowed = budget[asset];
-    if (allowed === undefined) errors.push(`${asset} (${bytes} bytes) has no budget in ${BUDGET_FILE}; budgets only fall, so a new asset is refused: serve less, or fold it into an existing asset`);
+    if (allowed === undefined && base?.[asset] !== undefined) errors.push(`${asset} (${bytes} bytes) is still sent by the host but its entry was deleted from ${BUDGET_FILE} (the merge-base budgets ${base[asset]} bytes); deleting an entry does not exempt an asset the host sends, restore it`);
+    else if (allowed === undefined) errors.push(`${asset} (${bytes} bytes) has no budget in ${BUDGET_FILE}; budgets only fall, so a new asset is refused: serve less, or fold it into an existing asset`);
     else if (bytes === undefined) errors.push(`${asset} has a budget but the host no longer serves it; remove the entry from ${BUDGET_FILE} (removing is always allowed)`);
     else if (bytes > allowed) errors.push(`${asset} grew: budget ${allowed} → built ${bytes} bytes (+${bytes - allowed}); make the page lighter, the budget cannot be raised`);
     else if (bytes < allowed) errors.push(`${asset} is ${allowed - bytes} bytes under its budget (${allowed} → built ${bytes}); lower the budget with \`node scripts/gates/page-assets.mjs --update --base origin/main\` so the slack cannot be used again`);
@@ -163,6 +208,11 @@ const baseErrors = (budget, base) => {
   }
   return errors;
 };
+// A path a budget names that the host sends although the reading of web-assets.ts did not find its route. It was measured
+// anyway (so a deleted entry or a grown file still shows up below); the run fails because the gate's idea of the host's
+// routes is out of date, and the next route spelled the same way would be missed with no budget to catch it.
+const missErrors = (found) => found.map((asset) => `${asset} (${measured[asset]} bytes) is sent by the host, but ${ROUTES_SOURCE} no longer declares it as a string literal, so the gate's route discovery missed it; `
+  + "removing its budget entry does not stop the host from sending it. Update the discovery in scripts/gates/page-assets.mjs to the new way the host declares its routes");
 // update: nothing may grow relative to the reference (the merge-base's budget, else the committed one); a missing
 // reference is the first freeze.
 const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([asset, bytes]) => {
@@ -191,7 +241,11 @@ const budgetNow = () => {
   return parseBudget(readFileSync(budgetPath, "utf8"), budgetPath);
 };
 
-const { measured, gzip } = await measure();
+// Everything either budget names is asked of the host, whether or not the reading of web-assets.ts found its route.
+const committedPaths = () => {
+  try { return Object.keys(JSON.parse(readFileSync(budgetPath, "utf8")).assets ?? {}).filter((asset) => asset.startsWith("/assets/")); } catch { return []; }
+};
+const { measured, gzip, misses } = await measure([...committedPaths(), ...Object.keys(baseBudget ?? {})]);
 const total = Object.values(measured).reduce((sum, bytes) => sum + bytes, 0);
 const kib = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
 
@@ -200,19 +254,24 @@ if (report) {
   const budget = existsSync(budgetPath) ? budgetNow() : {};
   const rows = Object.keys(measured).sort((a, b) => measured[b] - measured[a] || a.localeCompare(b));
   if (flags.has("--json")) {
-    console.log(JSON.stringify({ mergeBase: mergeBase || null, measured, gzip, budget, baseBudget }, null, 2));
+    console.log(JSON.stringify({ mergeBase: mergeBase || null, measured, gzip, budget, baseBudget, discoveryMisses: misses }, null, 2));
     process.exit(0);
   }
   console.log(`Page assets: ${rows.length} served paths, ${total} bytes (${kib(total)}) in total; against ${against}`);
   console.log(`  ${"bytes".padStart(9)}${"gzip".padStart(9)}${"budget".padStart(10)}${baseBudget ? "      base" : ""}  path`);
   for (const asset of rows) {
-    console.log(`  ${String(measured[asset]).padStart(9)}${(gzip[asset] ? String(gzip[asset]) : "-").padStart(9)}${String(budget[asset] ?? "none").padStart(10)}${baseBudget ? String(baseBudget[asset] ?? "none").padStart(10) : ""}  ${asset}`);
+    console.log(`  ${String(measured[asset]).padStart(9)}${(gzip[asset] ? String(gzip[asset]) : "-").padStart(9)}${String(budget[asset] ?? "none").padStart(10)}${baseBudget ? String(baseBudget[asset] ?? "none").padStart(10) : ""}  ${asset}${misses.includes(asset) ? "  (route not found in the host source)" : ""}`);
   }
+  if (misses.length) console.log(`${misses.length} discovery miss${misses.length === 1 ? "" : "es"}: the host sends ${misses.join(", ")} although ${ROUTES_SOURCE} does not declare ${misses.length === 1 ? "it" : "them"} as string literals`);
   process.exit(0);
 }
 
 // ---- --update --------------------------------------------------------------------------------------------------------
 if (update) {
+  if (misses.length) {
+    console.error(`Budget not written: the gate's route discovery is out of date:\n- ${missErrors(misses).join("\n- ")}`);
+    process.exit(1);
+  }
   const reference = baseBudget ?? (!mergeBase && existsSync(budgetPath) ? budgetNow() : null);
   if (reference) {
     const errors = growthErrors(measured, reference);
@@ -230,7 +289,7 @@ if (update) {
 
 // ---- the verdict -----------------------------------------------------------------------------------------------------
 const budget = budgetNow();
-const errors = [...headErrors(measured, budget), ...(baseBudget ? baseErrors(budget, baseBudget) : [])];
+const errors = [...missErrors(misses), ...headErrors(measured, budget, baseBudget), ...(baseBudget ? baseErrors(budget, baseBudget) : [])];
 if (errors.length) {
   console.error(`Page asset budgets failed against ${against}:\n- ${errors.join("\n- ")}`);
   process.exit(1);

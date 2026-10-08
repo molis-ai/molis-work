@@ -373,6 +373,150 @@ test("a dist whose entry points moved is exit 2 and names the entry point", () =
   assert.match(moved.out, /no longer exports BUILTIN_PLUGIN_WORKBENCH/);
 });
 
+// ---- discovery: the budget does not depend on the gate's reading of the host source --------------------------------------
+// The gate reads the host's routes from the string literals in apps/local-host/src/web-assets.ts. A refactor can move a
+// route out of what that reading sees while the host still sends the asset; the budget must hold anyway. These cases run on
+// a fake host build that is a git repository, with a base commit and a feature branch like a pull request.
+const HOST_SOURCE = "apps/local-host/src/web-assets.ts";
+const hostRepo = (name: string) => {
+  const root = freshHost(name, { routes: FAKE_ROUTES, packs: FAKE_PACKS });
+  gitAt(root, "init", "-q", "-b", "main");
+  assert.equal(run(root, "--update").code, 0);
+  gitAt(root, "add", "-A");
+  gitAt(root, "commit", "-q", "-m", "base");
+  gitAt(root, "checkout", "-q", "-b", "feature");
+  return root;
+};
+const commitAt = (root: string, message: string) => { gitAt(root, "add", "-A"); gitAt(root, "commit", "-q", "--allow-empty", "-m", message); };
+const respell = (root: string, from: string, to: string) => {
+  const before = read(HOST_SOURCE, root);
+  assert.ok(before.includes(from), `${from} is in the fixture host source`);
+  put(HOST_SOURCE, before.replace(from, to), root);
+};
+const dropBudgetEntry = (root: string, asset: string) => {
+  const budget = budgetOf(root);
+  delete budget[asset];
+  put(BUDGET, budgetText(budget), root);
+};
+// A spelling the gate's reading of the source cannot see and that raises none of its other alarms: no "/assets/" text at all.
+const WORKBENCH_CSS_ROUTE = '"/assets/molis-work-workbench.css"';
+const CONCATENATED_ROUTE = '"/ass" + "ets/molis-work-workbench.css"';
+
+test("an asset grown while its route is rewritten out of the gate's reading and its budget entry deleted is still caught", () => {
+  // The laundering move found in review: grow workbench.css, spell its route so that the reading of web-assets.ts misses it,
+  // delete its entry (removing an entry was always allowed), commit. Before the probe this passed both `--base <M>` and the
+  // CI merge base: the asset was no longer measured, so nothing compared it with anything.
+  const root = hostRepo("discovery-laundering");
+  put("workbench.css", "a".repeat(110), root);
+  respell(root, WORKBENCH_CSS_ROUTE, CONCATENATED_ROUTE);
+  dropBudgetEntry(root, "/assets/molis-work-workbench.css");
+  commitAt(root, "grow, hide the route, drop the entry");
+
+  const caught = run(root, "--base", "main");
+  assert.equal(caught.code, 1, caught.out);
+  assert.match(caught.out, /\/assets\/molis-work-workbench\.css \(110 bytes\) is sent by the host, but apps\/local-host\/src\/web-assets\.ts no longer declares it as a string literal/);
+  assert.match(caught.out, /removing its budget entry does not stop the host from sending it/);
+  assert.match(caught.out, /\/assets\/molis-work-workbench\.css \(110 bytes\) is still sent by the host but its entry was deleted from tooling\/gates\/page-assets\.json \(the merge-base budgets 100 bytes\)/, "the asset is measured, so it needs its entry back");
+
+  // `--update` writes nothing until the discovery is taught.
+  const before = read(BUDGET, root);
+  const refused = run(root, "--update", "--base", "main");
+  assert.equal(refused.code, 1, refused.out);
+  assert.match(refused.out, /Budget not written: the gate's route discovery is out of date/);
+  assert.equal(read(BUDGET, root), before);
+});
+
+test("the same rewrite with the entry kept fails as a discovery miss, not as a pass, even when nothing grew", () => {
+  const root = hostRepo("discovery-miss");
+  respell(root, WORKBENCH_CSS_ROUTE, CONCATENATED_ROUTE);
+  commitAt(root, "harmless refactor of the routes");
+
+  const caught = run(root, "--base", "main");
+  assert.equal(caught.code, 1, caught.out);
+  assert.match(caught.out, /\/assets\/molis-work-workbench\.css \(100 bytes\) is sent by the host, but apps\/local-host\/src\/web-assets\.ts no longer declares it as a string literal/);
+  assert.doesNotMatch(caught.out, /grew|has no budget|was deleted|under its budget/, "the number itself is fine, only the discovery is stale");
+  assert.equal(run(root).code, 1, "the paths of the committed budget are asked of the host as well, with no --base");
+
+  const report = run(root, "--report");
+  assert.equal(report.code, 0, report.out);
+  assert.match(report.out, /1 discovery miss: the host sends \/assets\/molis-work-workbench\.css/);
+  assert.match(report.out, /molis-work-workbench\.css {2}\(route not found in the host source\)/);
+  const json = JSON.parse(run(root, "--report", "--json").out) as { discoveryMisses: string[]; measured: Record<string, number> };
+  assert.deepEqual(json.discoveryMisses, ["/assets/molis-work-workbench.css"]);
+  assert.equal(json.measured["/assets/molis-work-workbench.css"], 100, "a miss is measured, not skipped");
+});
+
+test("an asset the host stopped sending is dropped with its entry, and cannot keep a stale one", () => {
+  const root = hostRepo("discovery-gone");
+  respell(root, 'if (pathname === "/assets/font.woff2") { /* */ }', "");
+  put("apps/local-host/dist/web-assets.js", read("apps/local-host/dist/web-assets.js", root).replace("const unserved = [];", 'const unserved = ["/assets/font.woff2"];'), root);
+  commitAt(root, "the host no longer sends the font");
+
+  const stale = run(root, "--base", "main");
+  assert.equal(stale.code, 1, stale.out);
+  assert.match(stale.out, /\/assets\/font\.woff2 has a budget but the host no longer serves it/);
+  assert.doesNotMatch(stale.out, /discovery/, "the built host sends nothing for it, so this is not a miss");
+
+  dropBudgetEntry(root, "/assets/font.woff2");
+  commitAt(root, "drop the entry too");
+  const dropped = run(root, "--base", "main");
+  assert.equal(dropped.code, 0, dropped.out);
+});
+
+test("routes written with single quotes or a template literal are read like double-quoted ones", () => {
+  const root = hostRepo("discovery-quotes");
+  respell(root, '"/assets/molis-work-arrival.css"', "'/assets/molis-work-arrival.css'");
+  respell(root, '"/assets/font.woff2"', "`/assets/font.woff2`");
+  commitAt(root, "respell the routes");
+  const respelled = run(root, "--base", "main");
+  assert.equal(respelled.code, 0, respelled.out);
+
+  // An asset spelled that way is found by the reading and needs its budget like any other (here the budget lacks the font).
+  dropBudgetEntry(root, "/assets/font.woff2");
+  commitAt(root, "no budget for the font");
+  const lacking = run(root);
+  assert.equal(lacking.code, 1, lacking.out);
+  assert.match(lacking.out, /\/assets\/font\.woff2 \(77 bytes\) has no budget/);
+  assert.doesNotMatch(lacking.out, /discovery/, "it was read from the source, not found by the probe");
+});
+
+test("a route the gate cannot read as one string literal is exit 2, never skipped", () => {
+  const root = hostRepo("discovery-unreadable");
+  const original = read(HOST_SOURCE, root);
+  for (const [name, text] of [
+    ["a template with an expression", "const packFile = (id) => `/assets/molis-work-plugins/${id}.js`;"],
+    ["a concatenation", 'const file = "/assets/" + name;'],
+    ["a prefix", 'const prefix = "/assets/molis-work-plugins/";\nconst bare = "/assets/";'],
+  ] as const) {
+    put(HOST_SOURCE, `${original}\n${text}\n`, root);
+    const unreadable = run(root);
+    assert.equal(unreadable.code, 2, `${name}: ${unreadable.out}`);
+    assert.match(unreadable.out, /mentions "\/assets\/" \d+ times but only \d+ of them are whole string literals/, name);
+  }
+  // Comments are not code.
+  put(HOST_SOURCE, `${original}\n// the old route was "/assets/ghost.css" and pathname === ghost\n/* /assets/ghost-\${x}.js too */\n`, root);
+  const commented = run(root);
+  assert.equal(commented.code, 0, commented.out);
+});
+
+test("a route compared with a constant instead of a literal is exit 2, in either order", () => {
+  const root = hostRepo("discovery-constant");
+  const original = read(HOST_SOURCE, root);
+  for (const [name, text] of [
+    ["the path on the left", 'import { FONT } from "./font.js";\nif (pathname === FONT) { /* */ }'],
+    ["the path on the right", 'import { FONT } from "./font.js";\nif (FONT === pathname) { /* */ }'],
+    ["not equal", "if (pathname !== FONT) { /* */ }"],
+  ] as const) {
+    put(HOST_SOURCE, `${original}\n${text}\n`, root);
+    const constant = run(root);
+    assert.equal(constant.code, 2, `${name}: ${constant.out}`);
+    assert.match(constant.out, /compares the request path with something that is not a string literal/, name);
+  }
+  // Comparisons with literals, in any quote style, are what the gate reads.
+  put(HOST_SOURCE, `${original}\nif (pathname !== 'x' && "y" === pathname && pathname == \`z\`) { /* */ }\n`, root);
+  assert.equal(run(root).code, 0);
+});
+
 // ---- this repository's own build -------------------------------------------------------------------------------------
 // The committed budget against the build in this working tree (the gate CI runs after `pnpm workspace:verify`). Needs the
 // workspace built, like the other tests that read build output: `pnpm workspace:build`.
@@ -381,8 +525,9 @@ test("this repository's build is within the committed page asset budget, which h
   const real = run(repoRoot);
   assert.equal(real.code, 0, real.out);
   assert.match(real.out, /Page asset budgets passed/);
-  const report = JSON.parse(run(repoRoot, "--report", "--json").out) as { measured: Record<string, number>; budget: Record<string, number> };
+  const report = JSON.parse(run(repoRoot, "--report", "--json").out) as { measured: Record<string, number>; budget: Record<string, number>; discoveryMisses: string[] };
   assert.deepEqual(Object.keys(report.measured).sort(), Object.keys(report.budget).sort());
+  assert.deepEqual(report.discoveryMisses, [], "every budgeted path is a route the gate reads from apps/local-host/src/web-assets.ts or a registered plugin pack");
   for (const asset of ["/assets/molis-work-workbench.css", "/assets/molis-work-workbench.js", "/assets/molis-work-arrival.css", "/assets/molis-work-settings.css", "/assets/molis-work-pages-editor.js"]) {
     assert.ok(report.measured[asset] > 0, `${asset} is measured`);
   }

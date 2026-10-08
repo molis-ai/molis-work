@@ -93,7 +93,7 @@ export function seedDemoBoard(databasePath: string, projectId = DEMO_PROJECT_ID)
     if (exists) return;
     coordinator.initializeBoard({
       project_id: projectId,
-      title: "让第一次使用 Molis Work 的人顺利完成一次目标协作",
+      title: "让第一次使用 Molis Work 的人在一个项目里用几个插件完成一件真实工作",
       actor_id: DEMO_ACTOR,
       idempotency_key: "demo-board",
     });
@@ -103,7 +103,7 @@ export function seedDemoBoard(databasePath: string, projectId = DEMO_PROJECT_ID)
         title: "让第一次使用的人顺利完成一轮目标协作",
         outcome: "用户能把一个模糊想法变成清楚的目标树，并知道下一步、阻塞和完成依据",
         why: "AI 对话结束后容易丢失目标、决定和进度，新用户尤其难判断该从哪里继续",
-        business_logic: "用户先在当前对话说明想做什么，Runtime 通过提问整理目标并请用户确认；确认后，当前或后续 Runtime 从可做项中选择工作，提交结果和证据，Molis Work 持续保存共同进度。",
+        business_logic: "用户先在当前对话说明想做什么，Runtime 保存可辨认的意图并上报工作事实；需要用户决定的由用户在 Web 确认，满足当前约定后显式收尾，Molis Work 持续保存共同进度。",
         definition_state: "accepted" as const,
         decomposition_state: "closed_compound" as const,
         priority: 100,
@@ -119,9 +119,9 @@ export function seedDemoBoard(databasePath: string, projectId = DEMO_PROJECT_ID)
       {
         goal_id: "PLATFORM",
         title: "让项目事实成为不同 Runtime 的共同底座",
-        outcome: "不同 AI、会话和工具读取同一份 Goal、关系、决定、进度与完成依据",
+        outcome: "不同 AI、会话和插件按各自所有者读到同一份项目事实",
         why: "长程任务最容易在切换对话和 Runtime 后失去共同上下文",
-        business_logic: "Molis Work 保存项目事实；Runtime 只负责读取可做项、执行工作并提交结果，不在各自会话里维护另一套项目记忆。",
+        business_logic: "Molis Work 保存项目事实，每类事实由各自的插件负责；Runtime 经统一动作目录读取、执行工作并上报结果，不在各自会话里维护另一套项目记忆。",
         definition_state: "accepted" as const,
         decomposition_state: "closed_compound" as const,
         priority: 96,

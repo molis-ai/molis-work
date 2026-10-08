@@ -120,7 +120,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
             path: `items[${index}].item_id`,
             received_value: item.item_id,
             conflicting_proposal_id: conflictingProposalId,
-            conflicting_board_id: existingItem.project_id,
+            conflicting_project_id: existingItem.project_id,
             next_action: "use_unique_item_id",
             recovery: "生成新的全局唯一 item_id；若这是对旧条目的修订，同时填写 supersedes_proposal_id 和 supersedes_item_id。失败调用不会创建 Proposal。",
           },
@@ -192,7 +192,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
   }
 
   private requireBoard(projectId: string): void {
-    if (!this.ports.goals.query.getBoard(projectId)) throw this.ports.errorFactory("board.not_found", `Board 不存在: ${projectId}`);
+    if (!this.ports.goals.query.getBoard(projectId)) throw this.ports.errorFactory("board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
   }
 
   private requireGoalOnBoard(projectId: string, goalId: string): GoalRecord {

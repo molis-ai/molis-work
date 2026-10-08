@@ -20,9 +20,10 @@
   - 修改带读取时的 `expected_revision`，别处改过时拒绝，不覆盖。
   - 每次修改记一条历史；用户本人改过的字段记入 `edited_fields`，之后的自动更新据此保护。
   - 撤销按历史进行，之后又被改过就拒绝；删除不可撤销，执行前确认。
-  - 从 Inbox、灵光“转为待办”由 Workbench 调新建接口组合：原条目只作为来源（`inbox`／`lingguang`）保留，不改它的状态；请求号 `inbox:<id>`、`lingguang:<id>` 让同一条再转时找到原来的待办。
+  - 从 Inbox、灵光“转为待办”由 Workbench 调新建接口组合：原条目只作为来源（`inbox`／`lingguang`）保留，不改它的状态；请求号 `inbox:<id>`、`lingguang:<id>` 让同一条再转时找到原来的待办（升级前转过的除外，见下）。
   - 重要标记只能由用户本人设置；“所有项目”只给用户本人的界面。
   - 新建带 `request_id` 时同一请求重试不重复创建；请求号按调用者与所在项目分别记（整理结果的请求号同理），别的调用者用了同一个号是另一次请求，不会拿到别人的待办。
+  - 已落库的旧请求号不迁移、不回退匹配：按调用者与项目分别记之前写入 `todo_requests` 和 `todo_batches.request_id` 的行存的是原始请求号，现在的键是 `[调用者, 项目, 请求号]`，旧行不再命中。后果：升级前已转过的 Inbox／灵光条目（`inbox:<id>`、`lingguang:<id>`）再转一次会新建一条待办，升级前发出的整理请求重试也不再去重；升级后新写入的请求照常去重。旧行只是不再命中，读取与整理都不会因它报错，`todo_requests` 的旧行随它所属待办的删除或撤销一并清掉；这是按“没有旧数据”处理的取舍，不另写回退匹配或改写旧行的逻辑。
   - 整理只产生待确认的候选，不直接新建或修改待办；依据必须能在原文里找到，原文没写的日期只作建议，用户手动改过的字段只作冲突提示——采用时按待办此刻的状态再判断，整理之后才改的字段同样不被覆盖。
   - 截止日期按原文说法与写下时间确定性换算，不采用模型的日期算术；有歧义时只给建议日期。
 - 改动后必跑：`node scripts/run-tests.mjs tests/todo-actions.test.ts tests/todo-organize.test.ts tests/todo-plugin.test.ts tests/todo.e2e.test.ts tests/context-onboarding-todo.test.ts tests/context-onboarding-todo.e2e.test.ts`

@@ -24,7 +24,7 @@ function fixture(t: { after(fn: () => void): void }, model: Model | null) {
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
   const as = (project_id: string | null, audience: ActionCallContext["audience"] = "user") =>
     bindActionClient(service, () => ({ actor_id: audience === "user" ? "web-user" : "assistant", project_id, audience, permissions: [...TODO_ACTION_PERMISSIONS] }));
-  return { service, me: as(null), agent: as(null, "agent"), inA: as("project-a"), agentA: as("project-a", "agent"), inB: as("project-b"), prompts };
+  return { service, store, me: as(null), agent: as(null, "agent"), inA: as("project-a"), agentA: as("project-a", "agent"), inB: as("project-b"), prompts };
 }
 
 /** What a model would answer for the example in spec 6.6, plus one invented passage that must not survive. */
@@ -129,8 +129,17 @@ test("an existing todo: the same thing merges sources, a hand-edited date stays 
   assert.equal(item.status, "done");
 });
 
-test("a field the person edits after the review was made stays theirs: the review shows it held back, and applying takes the material's value only when they choose", async t => {
-  for (const mode of ["untouched", "edited", "edited and taken", "set to the material's value"] as const) {
+test("a field the person edits after the review was made stays theirs: the review shows it held back, applying takes the material's value only when they choose, and the decided candidate records what was done", async t => {
+  const modes = ["untouched", "edited", "edited and taken", "set to the material's value", "merged only"] as const;
+  /** What each choice leaves in the decided candidate's record: its relation, the changes written, the fields kept as the person's, and the todo's due date. */
+  const recorded = {
+    "untouched": ["update", { due_date: "2026-10-02" }, [], "2026-10-02"],
+    "edited": ["conflict", {}, [{ field: "due_date", value: "2026-10-02" }], "2026-10-20"],
+    "edited and taken": ["update", { due_date: "2026-10-02" }, [], "2026-10-02"],
+    "set to the material's value": ["same", {}, [], "2026-10-02"],
+    "merged only": ["same", {}, [], "2026-10-05"],
+  } as const;
+  for (const mode of modes) {
     let answer = "";
     const f = fixture(t, () => answer);
     const existing = (await f.me.invoke(todoActions.create, { title: "发送新版方案", due_date: "2026-10-05" })).item;
@@ -138,7 +147,9 @@ test("a field the person edits after the review was made stays theirs: the revie
     const { batch } = await f.me.invoke(organize.extract, { materials: [MAIL] });
     const send = batch.candidates.find(candidate => candidate.title === "发送新版方案")!;
     assert.deepEqual([send.existing?.relation, send.existing?.changes, send.existing?.protected, send.selected], ["update", { due_date: "2026-10-02" }, [], true], mode);
-    if (mode !== "untouched") await f.me.invoke(todoActions.update, { id: existing.id, due_date: mode === "set to the material's value" ? "2026-10-02" : "2026-10-20" });
+    if (mode === "edited" || mode === "edited and taken" || mode === "set to the material's value") {
+      await f.me.invoke(todoActions.update, { id: existing.id, due_date: mode === "set to the material's value" ? "2026-10-02" : "2026-10-20" });
+    }
     const reread = (await f.me.invoke(organize.get, { id: batch.batch_id })).batch.candidates.find(candidate => candidate.candidate_id === send.candidate_id)!;
     if (mode === "edited" || mode === "edited and taken") {
       assert.deepEqual([reread.existing?.relation, reread.existing?.changes, reread.existing?.protected, reread.selected],
@@ -147,9 +158,17 @@ test("a field the person edits after the review was made stays theirs: the revie
       assert.deepEqual([reread.existing?.relation, reread.existing?.changes, reread.existing?.protected], ["same", {}, []], "nothing left to ask for");
     }
     // The client that still holds the review as first read sends the same choice either way.
-    await f.me.invoke(organize.apply, { id: batch.batch_id, decisions: [{ candidate_id: send.candidate_id, action: "update", ...(mode === "edited and taken" ? { accept_protected: ["due_date"] } : {}) }] });
+    const applied = await f.me.invoke(organize.apply, { id: batch.batch_id, decisions: [{ candidate_id: send.candidate_id,
+      action: mode === "merged only" ? "merge" : "update", ...(mode === "edited and taken" ? { accept_protected: ["due_date"] } : {}) }] });
     const item = (await f.me.invoke(todoActions.get, { id: existing.id })).item;
-    assert.equal(item.due_date, mode === "edited" ? "2026-10-20" : "2026-10-02", mode);
+    const [relation, changes, kept, due] = recorded[mode];
+    assert.equal(item.due_date, due, mode);
+    // The review of a decided candidate is the record of what was done, not of what the batch once asked for.
+    for (const decided of [applied.batch, (await f.me.invoke(organize.get, { id: batch.batch_id })).batch]) {
+      const done = decided.candidates.find(candidate => candidate.candidate_id === send.candidate_id)!;
+      assert.deepEqual([done.existing?.relation, done.existing?.changes, done.existing?.protected], [relation, changes, kept], `${mode}: the decided candidate records what was applied`);
+      assert.equal(done.decision?.item_id, existing.id, mode);
+    }
   }
 });
 
@@ -165,6 +184,22 @@ test("an extract request id belongs to the caller and project that chose it: ano
   assert.notEqual(assistant.batch.batch_id, mine.batch.batch_id);
   const retry = await f.inA.invoke(organize.extract, { materials: [MAIL], request_id: "r-shared" });
   assert.deepEqual([retry.replayed, retry.batch.batch_id], [true, mine.batch.batch_id], "the caller's own retry still replays");
+});
+
+test("a batch saved before request ids were kept per caller holds the raw id: it no longer matches (a retry organizes afresh) and the batch itself still lists, opens and applies", async t => {
+  const f = fixture(t, () => exampleAnswer());
+  const old = await f.me.invoke(organize.extract, { materials: [MAIL], request_id: "r-before" });
+  // How such a row looks in a Home that kept the caller's id as it came.
+  f.store.database().prepare("UPDATE todo_batches SET request_id = ? WHERE batch_id = ?").run("r-before", old.batch.batch_id);
+  assert.deepEqual((await f.me.invoke(organize.list, { status: "all" })).batches.map(batch => batch.batch_id), [old.batch.batch_id]);
+  assert.equal((await f.me.invoke(organize.get, { id: old.batch.batch_id })).batch.batch_id, old.batch.batch_id);
+  const again = await f.me.invoke(organize.extract, { materials: [MAIL], request_id: "r-before" });
+  assert.deepEqual([again.replayed, again.batch.batch_id === old.batch.batch_id], [false, false], "an old retry is a new request: it does not dedupe");
+  const retry = await f.me.invoke(organize.extract, { materials: [MAIL], request_id: "r-before" });
+  assert.deepEqual([retry.replayed, retry.batch.batch_id], [true, again.batch.batch_id], "and from then on it is kept under the caller's key");
+  const [send] = old.batch.candidates;
+  const applied = await f.me.invoke(organize.apply, { id: old.batch.batch_id, decisions: [{ candidate_id: send!.candidate_id, action: "add" }] });
+  assert.equal(applied.results[0]!.action, "added");
 });
 
 test("organizing needs a model, replays a request, and keeps a project's batches in that project", async t => {

@@ -185,6 +185,7 @@ export class TodoOrganizer {
         const sources = candidate.evidence.map(entry => this.sourceFor(body.materials[entry.material - 1]!, entry.excerpt, candidate, row.origin as TodoBatch["origin"]));
         const keys = [...new Set(candidate.evidence.map(entry => body.materials[entry.material - 1]!.source_key))];
         let itemId: string | null = null;
+        let record = candidate.existing;
         let outcome: NonNullable<TodoCandidate["decision"]>["action"];
         if (decision.action === "ignore") {
           outcome = "ignored";
@@ -207,12 +208,11 @@ export class TodoOrganizer {
           if (!candidate.existing) throw new TodoError("todo.invalid", `「${candidate.title}」没有对应的已有待办`);
           const target = this.store.get(candidate.existing.item_id, access);
           itemId = target.id;
-          // Protection is read from the todo as it is at this moment, not as it was when the batch was made.
-          const existing = currentExisting(candidate.existing, target);
-          const accepted = Object.fromEntries(existing.protected.filter(entry => decision.accept_protected?.includes(entry.field)).map(entry => [entry.field, entry.value]));
-          const changes = { ...existing.changes, ...accepted } as TodoFields;
+          // Protection is read from the todo as it is at this moment, not as it was when the batch was made; what is written
+          // and what the candidate keeps as its record come from the same reading.
+          record = settled(currentExisting(candidate.existing, target), decision.action, decision.accept_protected ?? []);
           if (decision.action === "update" || decision.action === "reopen") {
-            if (Object.keys(changes).length) this.store.update(target.id, changes, undefined, access, changeBatch);
+            if (Object.keys(record.changes).length) this.store.update(target.id, record.changes as TodoFields, undefined, access, changeBatch);
             if (decision.action === "reopen") this.store.setStatus(target.id, "open", undefined, access, changeBatch);
           }
           if (decision.action === "complete") this.store.setStatus(target.id, "done", undefined, access, changeBatch);
@@ -228,7 +228,7 @@ export class TodoOrganizer {
             .run(key, fingerprint(candidate.title), outcome === "ignored" ? "ignored" : "handled", itemId, decision.ignore_reason?.slice(0, 100) ?? "", at);
         }
         if (itemId) itemFor.set(candidate.candidate_id, itemId);
-        body.candidates[index] = { ...candidate, decision: { action: outcome, item_id: itemId, reason: decision.ignore_reason?.slice(0, 100) ?? "", at } };
+        body.candidates[index] = { ...candidate, existing: record, decision: { action: outcome, item_id: itemId, reason: decision.ignore_reason?.slice(0, 100) ?? "", at } };
         results.push({ candidate_id: candidate.candidate_id, action: outcome, item_id: itemId });
       }
       // A todo added from a candidate that waits for another one waits for that todo.
@@ -285,6 +285,21 @@ function currentExisting(existing: NonNullable<TodoCandidate["existing"]>, item:
 }
 
 type TodoChangeField = NonNullable<TodoCandidate["existing"]>["protected"][number]["field"];
+
+/**
+ * What a decided candidate keeps of its ask, for the review to read back: the changes actually written (a protected field
+ * the person took counts, and only update and reopen write any) and the fields left as theirs. Its relation follows what
+ * came of it, so a change that was held back or never written does not read as done.
+ */
+function settled(existing: NonNullable<TodoCandidate["existing"]>, action: TodoCandidateDecision["action"], taken: readonly string[]): NonNullable<TodoCandidate["existing"]> {
+  const writes = action === "update" || action === "reopen";
+  const accepted = writes ? existing.protected.filter(entry => taken.includes(entry.field)) : [];
+  const changes = writes ? { ...existing.changes, ...Object.fromEntries(accepted.map(entry => [entry.field, entry.value])) } : {};
+  const held = existing.protected.filter(entry => !accepted.includes(entry));
+  const asked = existing.relation === "update" || existing.relation === "conflict";
+  const relation = !asked ? existing.relation : Object.keys(changes).length ? "update" : held.length ? "conflict" : "same";
+  return { ...existing, relation, changes, protected: held };
+}
 
 function sourceKeyOf(source: Pick<TodoSource, "subject" | "excerpt">): string {
   return source.subject ? `s:${source.subject.kind}:${source.subject.id}` : `t:${hash(normalizeForMatch(source.excerpt))}`;

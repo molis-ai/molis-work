@@ -56,6 +56,11 @@ test("a run a judgment held back keeps its reason and verdict when it is read ag
     assert.match(held.stopped.reason, /skip/);
     assert.deepEqual(state.received, [], "held content reaches nothing");
 
+    // The reason and the rule's answer are recorded on the step that was held back, and only there.
+    assert.equal(held.steps[0].held.reason, held.stopped.reason);
+    assert.equal(held.steps[0].held.verdict.choice, "skip");
+    assert.equal(held.steps[1].held, undefined);
+
     // The page reads the run through these two actions after any reload or in another window.
     const reread = (await call(w.instance, { id: instance.instance_id })).instance;
     assert.equal(reread.status, "stopped");
@@ -92,13 +97,22 @@ test("every save moves the run's concurrency token, so a stale continue is refus
     const touched = store.saveInstance(raw, { ...raw });
     assert.notEqual(touched.updated_at, raw.updated_at);
     assert.ok(Date.parse(touched.updated_at) > Date.parse(raw.updated_at), "and never moves backwards");
+    // Stamped with an earlier time it still moves forward; stamped with a later time it keeps that time.
+    const stamped = store.saveInstance(touched, { ...touched, updated_at: "2000-01-01T00:00:00.000Z" });
+    assert.ok(Date.parse(stamped.updated_at) > Date.parse(touched.updated_at), "an earlier stamp does not take the token back");
+    const probe = (await call(w.start, { id: workflow.workflow_id, item_id: "probe-item" })).instance;
+    const future = store.saveInstance(probe, { ...probe, updated_at: "2026-10-07T11:00:00.000Z" });
+    assert.equal(future.updated_at, "2026-10-07T11:00:00.000Z", "a later stamp is kept as given");
+    assert.equal(store.instance(probe.instance_id, PROJECT).updated_at, future.updated_at, "and what was returned is what is stored");
 
     // The first handoff fixes its output, then the receiver fails.
     state.failReceive = true;
+    const beforeFailure = (await call(w.instance, { id: instance.instance_id })).instance.updated_at;
     await assert.rejects(call(w.continue, { id: instance.instance_id, title: "hand step 0", body: "edited by person" }), /temporarily unavailable/);
     const seen = (await call(w.instance, { id: instance.instance_id })).instance;
     assert.equal(seen.current, 0);
     assert.ok(seen.steps[0].pending, "the fixed handoff waits for a retry");
+    assert.notEqual(seen.updated_at, beforeFailure, "saving the fixed handoff is a write too, in the same millisecond as the read before it");
 
     // Later, the retry succeeds: the work arrives now, not at the time the handoff was fixed.
     mock.timers.tick(5000);
@@ -116,5 +130,28 @@ test("every save moves the run's concurrency token, so a stale continue is refus
     assert.equal(after.current, 1, "the stale call changed nothing");
     assert.equal(after.status, "active");
     assert.deepEqual(state.received.map(row => row.step), [1], "and delivered nothing");
+  } finally { mock.timers.reset(); await close(); }
+});
+
+test("a judgment hold and a person's stop each leave a later token than the one they read, even when the clock does not move", async () => {
+  const { call, close } = await setup();
+  mock.timers.enable({ apis: ["Date"], now: new Date("2026-10-07T10:00:00.000Z") });
+  try {
+    const manual = { kind: "manual", title_template: "", body_template: "", instructions: "" };
+    const judgmentLink = { kind: "judgment", title_template: "", body_template: "", instructions: "", judgment: RULE, pass: ["handle"] };
+    const stations = [{ plugin: "feed" }, { plugin: "pages" }];
+
+    const { workflow: judged } = await call(w.create, { title: "只交要处理的", chain: { stations, links: [judgmentLink] } });
+    const started = (await call(w.start, { id: judged.workflow_id, item_id: "held-item" })).instance;
+    const held = (await call(w.continue, { id: started.instance_id, updated_at: started.updated_at })).instance;
+    assert.equal(held.status, "stopped");
+    assert.ok(Date.parse(held.updated_at) > Date.parse(started.updated_at), "a hold moves the token");
+    assert.equal((await call(w.instance, { id: started.instance_id })).instance.updated_at, held.updated_at, "and the stored token is the one returned");
+
+    const { workflow: plain } = await call(w.create, { title: "手动", chain: { stations, links: [manual] } });
+    const second = (await call(w.start, { id: plain.workflow_id, item_id: "stopped-by-person" })).instance;
+    const ended = (await call(w.stop, { id: second.instance_id })).instance;
+    assert.equal(ended.status, "stopped");
+    assert.ok(Date.parse(ended.updated_at) > Date.parse(second.updated_at), "a person's stop moves the token");
   } finally { mock.timers.reset(); await close(); }
 });

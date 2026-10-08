@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：§4.1 收尾中（2026-10-05）：兼容逻辑按片删除到 #282，工作室目录前能力与 `board_id` 统一在途；真实 Home 维护三待栈合入后做；进度见 §4.1 末尾的「进度（10-04 夜至 10-05）」
+状态：§4.1「不留兼容逻辑」已完成（2026-10-07）：兼容逻辑删到 #289、`board_id` 统一（#287）、真实 Home 维护三已做并核对；§4.2 起的其余各节按 §9.2 推进
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -350,7 +350,12 @@
 | [#279](https://github.com/molis-ai/molis-work/pull/279) | 2a8fffcd | 场景绑定一套模型（Functions v2、项目库 v5、内置首页规则种子带 Inbox offer 键） |
 | [#280](https://github.com/molis-ai/molis-work/pull/280)、[#281](https://github.com/molis-ai/molis-work/pull/281)、[#282](https://github.com/molis-ai/molis-work/pull/282) | 合入（99f778cd） | 宿主声明的工作入口改名；没人调用的兼容面；Form v2 与工作室零件类型 |
 | [#283](https://github.com/molis-ai/molis-work/pull/283) | dd5d8c89 | 防回流门禁：源码兼容标记按文件计数只许减少（CI 里跑；当时 92 处、42 个文件） |
-| [#284](https://github.com/molis-ai/molis-work/pull/284) | 排队 | 生成插件只走统一目录（工作室目录之前的能力与内联模型要求删除） |
+| [#284](https://github.com/molis-ai/molis-work/pull/284) | 4d5776af | 生成插件只走统一目录（工作室目录之前的能力与内联模型要求删除） |
+| [#285](https://github.com/molis-ai/molis-work/pull/285) | 267a6f03 | 兼容标记清理 sweep D（92 → 53） |
+| [#286](https://github.com/molis-ai/molis-work/pull/286) | 6e62652d | 浏览器夹具固定 zh-CN（Chrome 154 起英文优先系统让中文断言全挂） |
+| [#287](https://github.com/molis-ai/molis-work/pull/287) | e1cd4906 | 一个项目身份：`board_id` 全仓改为 `project_id`（项目库 v6、Functions v3、目录库 v21）；batch Q 全量 3,678 个用例 3,670 过、7 跳过、1 败（已修） |
+| [#288](https://github.com/molis-ai/molis-work/pull/288) | d81b12cb | Feed 的记录就是模块记录（删 toLegacy* 投影，兼容标记 53 → 20） |
+| [#289](https://github.com/molis-ai/molis-work/pull/289) | 排队 | 最后几处名不副实的兼容标记（20 → 17，剩下的都是保留机制） |
 
 - 全量回归：batch K（C2 栈顶）3,685 个用例 3,674 过、4 败（均为 C2 预期变化或缺 #274，已修，重跑通过）；batch L（#277–#282 栈顶）3,680 个用例 3,659 过、13 败（11 个是本栈自己的用例仍用旧字段，已修；2 个是负载超时，单独重跑通过；受影响的 32 个用例在栈顶重跑全过）。
 - batch M（#284 加 `board_id` 只改存储列的试做）3,679 个用例 3,656 过、16 败：6 个是 #284 自己的用例仍发内联 instructions（已修，#284 单独验证 192/192）；其余都来自「只改存储列」造成的行与记录字段错位，于是改为一次改完（§1）。
@@ -358,7 +363,38 @@
 - `board_id` 一次改完（分支 `refactor/project-id-everywhere`）：codemod 7,910 处 / 709 个文件，再手合并两个 id 同时出现的地方（§1 10-06 各条）；项目库 v6（含索引改名）、Functions v3、目录库 v21、会话库不变。batch O 全量 3,660 用例 3,316 过、330 败：大头是共用夹具（浏览器夹具把新建项目的库按固定示例 id 播种、目录库 SQL 只剩一个参数）、历史夹具仍标 v5、测试里原来分开写的 board 与 project 值；夹具与示例 id 修好后余下按文件并行修。
 - 回归时发现与改名无关的环境变化：2026-10-05 装上的 Chrome 154 在英文优先的 macOS 上以英文请求页面，浏览器用例断言的中文界面全挂；干净的 main 上同样复现。浏览器夹具固定 `--lang=zh-CN`（[#286](https://github.com/molis-ai/molis-work/pull/286)）。
 - 真实 Home 维护三演练（2026-10-07，拷贝 rehearsal-1007，基线取自改名分支的构建）：真实 Home 现为项目库 v1、Functions/Form/记忆/助理 v1、会话库 v6、目录库 v20，所以一次补齐 v1→v6 的整条链（v3、v4 的整理脚本、目标严格读取、场景绑定、改名）；27 个库 1,132,505 行搬完，外键 0、完整性 ok；26 个库的结构与当前基线逐项相同、版本对；18 个项目都能用新构建打开且 board 即项目 id；平台自己存的 JSON 键 `board_id` 改名 20,051 处；会话库 16 个面板会话、38 个绑定会话改来源，96 个 Goal 端点补上项目。演练检查时一次误开了真实 Home 的一个项目库（目录库里存的是绝对路径），版本不符被拒、文件未变，检查脚本已限制只开拷贝。
-- 真实 Home 维护三（栈合入后一次做，先在拷贝上演练）：脚本与步骤见会话临时目录 `apply-real-home-maintenance3.mjs` 与 `real-home-maintenance-plan.md`，结果补在这里。
+- 真实 Home 维护三已做（2026-10-07 19:22–19:40，用户弹窗定「改名 PR 合入后立刻做」）：
+  1. 先停掉连着真实 Home 的旧 MCP（Claude Code、Codex、Grok 各会话的 goalboard-mcp，跑 9 月 23 日的安装版 0.2.0，会就地迁移数据库；用户弹窗定重装并停掉），按 pid 精确停止；
+  2. 整份备份：APFS 克隆 `~/molis-work-backups/2026-10-07-before-maint3`（8.9 GB），160 个库与配置文件逐个比对一致；
+  3. 用 main（e1cd4906）的干净构建重装 Home 安装版（installation.json 新摘要）；之后新起的 MCP 都是新代码，遇到旧版本的库只拒绝不写；
+  4. 应用维护三（基线由 `gen-maint-schemas.mjs` 从同一构建生成，与两次演练用的逐字相同）：27 个库 1,132,511 行，外键 0、完整性 ok；被换下的原库在 `~/.molis-work/maintenance-3-replaced/`（权限 700）；`feed/secrets.json` 只按键名删了 8 个旧 Gmail 固定槽位条目（OAuth 应用的 client_id/secret 现行代码仍读，保留；`connector:feishu:auth_mode` 不在用户批准范围内，保留）；
+  5. 工作室 5 个旧发布的零件类型改写（13 个界面文件里的 5 个），示例项目的工作室目录改名为项目 id；
+  6. 只读核对：26 个库的结构与当前基线逐项相同、版本对、完整性 ok；18 个项目的 board 都以自己的项目 id 为键；目录库 18 个项目都在。
+  7. Runtime 接入：三处客户端配置还是早先的 goalboard 条目（旧的 `GOALBOARD_*` 环境变量，新代码只认 `MOLIS_WORK_*`），新代码报「MCP 宿主没有提供 Runtime 标识」；用户弹窗定「备份后换成产品接入」：三份配置与三个 goal-advance 链接、三张 9 月 11 日的旧接入收据备份到 `~/molis-work-backups/2026-10-07-runtime-configs/`，删掉旧条目后用产品自己的 Runtime 接入（prepare→confirm）给 Claude Code、Codex、Grok Build 写入 `molis-work` 条目与技能；按配置启动的 MCP 能列出真实 Home 的项目。已开着的会话要重开才会用上。
+  8. 主检出：另一会话 10-07 8:59–9:27 留下的 26 个文件改动与两个新 spec（用户弹窗定「本会话处理」）先存成补丁并提交到本地分支 `wip/main-checkout-2026-10-07`（4cb5e28f），主检出 fast-forward 到 main（d81b12cb）后把它重新放回为未提交改动（按改名三方合并，`boardId` 改为 `projectId`），构建通过，它改过的 16 个测试文件 73/73 通过。
+- 演练（rehearsal-1007、rehearsal-1007b，拷贝只读取自真实 Home）：两次结果相同；演练检查时一次误开了真实 Home 的一个项目库（目录库存的是绝对路径），版本不符被拒、文件未变，检查脚本已限定只开拷贝。
+
+**各库的当前版本（2026-10-07，main d81b12cb）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。
+
+| 库 | 版本 | 记在 |
+| --- | --- | --- |
+| 项目库 `projects/<id>/molis-work.db` | 6 | `user_version`（`PROJECT_DATABASE_BASELINE`） |
+| 目录库 `projects/catalog.db` | 21 | `catalog_meta.schema_version` |
+| 会话库 `sessions/sessions.db` | 7 | `session_meta.schema_version` |
+| Functions | 3 | `user_version` |
+| Form、记忆、助理 | 2 | `user_version` |
+| 连接、Agent 定义、引导、放置、炼金术士工作室、server、Cognia、Dataset、Images、Jelly、灵光、Pages、PPT、Todo、Workflows | 1 | `user_version` |
+
+**保留下来、不算兼容的机制**（门禁里剩的 17 处标记都在这几类里）：
+
+| 机制 | 为什么不算兼容 | 标记 |
+| --- | --- | --- |
+| 插件升级声明（`upgrade_compatibility.compatible_from_versions`、同版本重装） | 插件版本之间的升级是现行产品功能，不是读旧数据 | 5 |
+| Casebook 对外的覆盖字段（`historical_backfill: false`、`legacy_withProject_calls`） | 外部 Casebook 插件按这些字段对接，是对外合同（10-04 决策） | 8 |
+| pdfjs 的 `legacy/build` 路径 | 第三方包给 Node 的构建名 | 2 |
+| 产品文案（Gmail 同步说明里的「回填」、规划方法的一条说明） | 给人看的话 | 2 |
+| 各库的版本号与基线 | 一份当前 schema 加版本，版本不符就拒绝；不做迁移 | — |
+| Goal 事件历史、成果的固定版本 | 现行产品功能（记录与版本），不是旧格式 | — |
 
 ## 5. 包级清单（§4.4）
 
@@ -623,7 +659,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | 节 | 结论 | 指向 |
 | --- | --- | --- |
 | §3 先量化现状 | 已量（10-02），本节 9.3 重量 | §2、§9.3 |
-| §4.1 清除兼容逻辑 | 待做；清单初稿与真实 Home 的步骤已有 | §4（真实 Home 步骤 10-03 重写） |
+| §4.1 清除兼容逻辑 | 已完成（10-07）：兼容逻辑删到只剩上表保留的机制；每个库一份当前 schema、版本不符拒绝；真实 Home 维护三已做并逐库核对；防回流门禁在 CI | §4.1 末尾 |
 | §4.2 调用链文档 | 待做 | — |
 | §4.3 分层与边界 | 待做；已知问题已登记 | §3 N-03、N-12 |
 | §4.4 包级清单 | 初稿 | §5 |

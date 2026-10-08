@@ -52,7 +52,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 - 依赖：不依赖任何工作区包，也不依赖 App、业务实现、数据库或网络客户端（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 2 节）；所有包都依赖它。
 - 不变量：
   - 不依赖任何其他工作区包；按显式子路径导出，不做根 barrel。
-  - 结果合同读取兼容、写入严格：回显已存历史的 schema 接受历史取值。
+  - 结果合同读写都只认现行取值：存量数据由维护改成现行形状，schema 里不留历史取值。
   - 动作的 `effect` 按 id 推断会误判时用 `withActionEffect` 显式声明（比如 `delete_preview` 只存确认凭证）。
   - 改合同同时更新生产方、消费方、Skill 与手册，不留只有一边认识的字段。
 - 改动后必跑：`node scripts/run-tests.mjs tests/action-schema-compiler.test.ts tests/action-plugin-audience.test.ts tests/plugin-manifest-v2.test.ts tests/action-read-compatibility.test.ts`

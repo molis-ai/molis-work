@@ -73,7 +73,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
   - 一个 Home 只有一个执行进程（`agent-runtime/.molis-runtime-owner.db` 锁）；其他入口经 `LocalActionGatewayClient` 转发，连接丢失不退回本地执行。
-  - 每个项目一条串行操作队列；等模型或外部服务的动作声明 `scheduling: "concurrent"`，例外写进 `tests/action-model-scheduling.test.ts` 的名单并说明理由。
+  - 每个项目一条串行操作队列；等模型或外部服务的动作声明 `scheduling: "concurrent"`，例外写进 `tests/action-model-scheduling.test.ts` 的名单并说明理由。并发动作不占队列：它调用的串行动作排队等自己的轮次，只有嵌套在占着队列的调用里的调用直接在队列上运行；场景运行取触发它的调用的位置（`tests/local-host-queue-scope.test.ts`）。
   - 被取消、撤权、停用的调用不再写任何记录，包括失败记账。
   - 安装插件的 Action/定时入口通过可信 route execution 向沙箱传递当前控制；异步能力、密钥/DNS 解析与存储 CAS 后续派出或提交前复查。生成式外层动作 concurrent，串行由沙箱队列承担；未知结果不自动重放。定时调用者按数据库/项目隔离。
   - 安装 operation 每次读取当前依赖的版本、可用性和 execution，决定通道及单次时限；等待后依赖变更拒绝晚提交。query 运行时也拒绝收费或写入能力。嵌套超时的未知结果沿 Sandbox、HTTP 和公开 Action 保留，不能被插件 catch 后变成成功。
@@ -84,12 +84,13 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
   - 只装配和做 IO（连接、事务、文件、HTTP、进程），不复制 Module 的业务规则；能力注册不启动 SDK、CLI 或请求模型。
   - 项目选择页的简介（`GET /api/projects/:id/brief`，`project-arrival-http.ts`）只经公开读口按所选项目逐个读：Goals 目录与状态、Home 事项、长期背景；读一个项目就要打开它，所以页面在选中停住约 160 毫秒后才来读、服务端同时最多读两个（`createReadLimiter`），不批量预取、不写任何记录，读不到的部分在简介里缺席而不是被猜；缓存按请求语言区分、只留几秒。「最近打开」与采用时保存的一句话描述（`config/project-arrival.json`，`project-arrival.ts`）只是展示记忆：项目自己的页面被打开时写入，选择页渲染时对照目录清理，写失败不挡路，不存任何项目事实。
   - 有 Artifact 输入的 PluginPlatform 观察同一项目连接的领域 journal，每秒核对已提交的 Artifact 游标；其他连接的提交也能触发既有输入图重算，不读取未提交的外层事务。启动读取当前固定事实，关闭先调用 `closeCoordination()` 停止观察、输入处理与事件，再停插件和关数据库。此路径刷新投影，不重放业务操作。
+  - 默认接线（`bindWorkspaceCompanions`，每次项目插件启动及放回某个输入口时都会跑）只给什么也没读的输入口装默认来源：已读着另一个插件输出或人给它的固定成果版本的口保持原样（装默认来源会连带清掉固定版本）。放回输入口只在它仍读着那一版时生效，过期页面的点击不撤销后来的选择。
   - 安装器准备 npm 与 Desktop 资产但不自动发布；vendored 依赖的传递依赖必须能从标准 ancestor 解析。
   - 系统搜索只在这里装配：`system.search` 注册一次；建索引用本机用户上下文，调用者按自己的项目或 Home 客户端访问；成功的命令与提供方注册/撤下都通知搜索，不另建能力名单或权限。
   - `material-web.ts` 负责显式网页捕获的 HTTP(S)、最多 5 次重定向、12 秒总时限和解压后 4 MiB 正文限制；每次派出复查权限，超限拒绝正文并取消流。Shelf 保留产品组织和链接失败提示，Artifacts 复用 Host HTML 解析，不跨模块导入 Shelf 解析器。
   - Artifacts 外部文档沿用连接器请求生命周期；每个供应商 API 请求前复查原 Action、取消与账号 revision，最终异步授权检查之后再核对连接。撤权、断开或取消不继续读取正文、不刷新凭据，也不保存迟到结果。
   - 助理（`src/assistant/`）只在一轮真的开始之后才把「只告诉一次」的事记为已告知：撤销、已结束的后台任务、停止后落定的修改；开轮失败（无模型、`storage_busy`、Character 版本）不留任何已告知标记，记忆召回按未使用结算，下一轮照样告知。一个后台任务只跟一次（同一工作、同一状态查询的同一 job 不重复登记，卡片接手既有的那条）；撤销先占用再调用所有者，并发的第二次请求得到同一结果，已撤销不被迟到的失败覆盖；归档要求这项工作和它的子任务都没有在进行的一轮，并停用它的定时；归档的子任务仍计入委托它的工作的用量、上限和停止；子任务的首轮开不了就不留孤儿工作。
-- 改动后必跑：`node scripts/run-tests.mjs tests/local-host.test.ts tests/local-host-actions.test.ts tests/action-before-effect.test.ts tests/action-model-scheduling.test.ts tests/action-read-compatibility.test.ts tests/installer-symlink-dependencies.test.ts tests/system-search-host.test.ts tests/project-arrival.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/local-host.test.ts tests/local-host-actions.test.ts tests/local-host-queue-scope.test.ts tests/web-mutation-key-settle.test.ts tests/action-before-effect.test.ts tests/action-model-scheduling.test.ts tests/action-read-compatibility.test.ts tests/installer-symlink-dependencies.test.ts tests/system-search-host.test.ts tests/project-arrival.test.ts`
 - 助理逻辑验证：`node scripts/run-tests.mjs tests/assistant-undo.test.ts tests/assistant-business-gateway.test.ts tests/assistant-followups.test.ts tests/assistant-delegation.test.ts tests/assistant-memory.test.ts`。
 - 安装插件执行链额外验证：`node scripts/run-tests.mjs tests/installed-plugin-host.test.ts tests/installed-plugin-execution.test.ts tests/installed-plugin-policy.test.ts tests/generated-action-costs.test.ts tests/agent-built-plugins-reminders.test.ts tests/agent-built-plugins-network.test.ts`。
 - 生成式提示词身份/版本验证：`node scripts/run-tests.mjs tests/generated-plugin-prompt-binding.test.ts tests/generated-plugin-prompts.test.ts tests/plugin-model-generation.test.ts tests/agent-definitions.test.ts tests/prompt-registration.test.ts`。

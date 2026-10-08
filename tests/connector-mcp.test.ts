@@ -490,3 +490,32 @@ test("an unsupported MCP contract stays unavailable beside healthy tools and rec
     assert.equal(remote.stats().callCount, 2);
   } finally { directory.close(); await localHost.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });
+
+test("a server that lists another tool while one tool is being called does not fail that call: only what changed is replaced", { timeout: 30_000 }, async () => {
+  const temp = home(); let extra = false;
+  const echo = { name: "echo", description: "Echo an explicit input", inputSchema: { type: "object" as const, properties: { message: { type: "string" } }, required: ["message"] } };
+  const remote = await fixture({ tools: () => extra ? [echo, { name: "search", description: "Another tool", inputSchema: { type: "object" as const } }] : [echo] });
+  const client = createConnectorMcpHost({ testServers: { figma: { endpoint: remote.endpoint, auth: "none" } } });
+  const localHost = new MolisWorkLocalHost({ homeDirectory: temp, completeText: null });
+  const directory = createConnectorMcpDirectory({ localHost, homeDirectory: temp, call: client.callMcpConnectionTool });
+  const caller: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: ["mcp:external"] };
+  const actions = localHost.homeActionClient();
+  try {
+    const started = await client.startMcpConnection(temp, { serviceId: "figma", displayName: "Growing server", origin: callbackOrigin });
+    directory.remember(started.connectionId, started.tools as ConnectorMcpTool[], started.resources);
+    const id = connectorMcpCapabilityId(started.connectionId, "echo"), ref = directory.reference(started.connectionId, id)!;
+    // The call lists the server's tools first, as it always does, and now finds one more.
+    extra = true;
+    assert.deepEqual(await actions.invoke(caller, ref, { message: "unchanged tool" }), { content: [{ type: "text", text: "unchanged tool" }] });
+    assert.equal(remote.stats().callCount, 1, "the call reached the server instead of failing before dispatch");
+    assert.deepEqual(directory.reference(started.connectionId, id), ref, "the unchanged tool keeps its registration and version");
+    assert.ok((await actions.discover(caller)).some(row => row.capability_id === connectorMcpCapabilityId(started.connectionId, "search")), "the new tool joined the directory");
+    // A tool the server stops offering leaves the directory; the others stay.
+    extra = false;
+    const inspected = await client.inspectMcpConnection(temp, started.connectionId);
+    directory.remember(started.connectionId, inspected.tools, inspected.resources);
+    assert.equal(directory.reference(started.connectionId, connectorMcpCapabilityId(started.connectionId, "search")), undefined);
+    assert.deepEqual(directory.reference(started.connectionId, id), ref);
+    assert.ok(!(await actions.discover(caller)).some(row => row.capability_id === connectorMcpCapabilityId(started.connectionId, "search")));
+  } finally { directory.close(); await localHost.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+});

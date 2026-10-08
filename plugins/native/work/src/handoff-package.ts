@@ -21,7 +21,7 @@ export function buildSessionHandoffPackage(input: {
     ? [
         "## 当前事件工作",
         "",
-        `- 协议：事件记录，不要领取角色或开始 Run`,
+        `- 协议：事件记录，把进展、决定和结果写回同一个 Goal`,
         `- 工作状态：${eventFacts.work_status}`,
         `- 当前约定：${eventFacts.outcome || "无"}`,
         `- 下一步：${nextStep}`,
@@ -87,9 +87,9 @@ export function buildSessionHandoffPackage(input: {
     "## 继续执行",
     "",
     resumeRequired
-      ? "这条 Goal 已经完成或取消。继续前必须显式继续：调用 goals.work.resume 并说明原因。不要当作普通未完成工作继续，也不要领取角色或开始 Run。"
+      ? "这条 Goal 已经完成或取消。继续前必须显式继续：调用 goals.work.resume 并说明原因。不要当作普通未完成工作继续。"
       : eventWork
-        ? "先读取当前 goal_state，再从当前约定、要求和待决定继续。已决定的内容不要再问。不要领取角色或开始 Run。重要事实写回同一个 Goal。"
+        ? "先读取当前 goal_state，再从当前约定、要求和待决定继续。已决定的内容不要再问。重要事实写回同一个 Goal。"
         : "先核对当前仓库与 Molis Work 状态，再按当前 Goal 事实继续。重要决定仍写回同一个 Goal；不要创建第二套 Goal 状态。",
   ];
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();

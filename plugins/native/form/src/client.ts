@@ -193,7 +193,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     document.addEventListener("keydown", onKey, true);
     document.body.append(stage);
   };
-  const SOURCE = { preview: "试填", fill: "本机填写页", file: "答卷文件" };
+  const SOURCE = { preview: "试填", fill: "本机填写页", file: "答卷文件", agent: "助理提交", mcp: "外部工具提交", workflow: "工作流提交", plugin: "插件提交" };
   /** Each question at a glance: counts for choices and ratings (with the average), recent answers for text. */
   const renderStats = (questions, submissions) => {
     statsEl.replaceChildren();

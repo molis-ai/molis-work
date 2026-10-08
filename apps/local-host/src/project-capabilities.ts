@@ -16,7 +16,7 @@ import { projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCa
   recordGoalNoteCapability } from "@molis-ai/molis-work-plugin-goals";
 import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { projectsCapabilities, projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
+import { goalContextCapabilities, goalProgressCapabilities, type GoalProgressActor } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { readWorkspaceFileCapability, readWorkspaceGitCapability, workspaceReadActions, type WorkspaceFileQuery, type WorkspaceGitQuery, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { readConflictFile, readGitSummary, readPullRequestSupport } from "./git-operations.js";
@@ -46,6 +46,20 @@ function requireLocalPerson(authority: { actor_id: string; actor_kind: string; a
   }
 }
 
+/**
+ * Who a Goal progress call acts as. A plugin acts as the actor its own call context carries (the person whose page it serves)
+ * and cannot name another; the arguments hold no identity for it. Host-direct callers (the CLI, MCP and tests) still name theirs.
+ */
+function progressActor(named: GoalProgressActor, invocation: HostCapabilityInvocation): { actor_id: string; actor_kind?: "user" | "runtime" } {
+  if (invocation.consumer !== "plugin") {
+    if (!named.actor_id) throw new ActionError("actions.unauthenticated", "缺少调用者身份");
+    return { actor_id: named.actor_id, actor_kind: named.actor_kind };
+  }
+  if (!invocation.plugin) throw new ActionError("actions.forbidden", "插件调用缺少调用上下文，不能记录目标进展");
+  if (named.actor_id !== undefined || named.actor_kind !== undefined) throw new ActionError("actions.input_invalid", "插件的调用者身份来自调用上下文，参数里不能带 actor_id 或 actor_kind");
+  return { actor_id: invocation.plugin.actor_id, actor_kind: "user" };
+}
+
 export function registerProjectCapabilities(
   host: LocalHost<MolisWorkProjectRuntime>,
   ports: ProjectCapabilityPorts = {},
@@ -70,11 +84,11 @@ export function registerProjectCapabilities(
   };
   host.register(goalProgressCapabilities.record, (runtime, input, invocation) => {
     const { actor_id, actor_kind, ...payload } = input;
-    return goalAction(runtime, goalsActions.progress, payload, { actor_id, actor_kind }, invocation);
+    return goalAction(runtime, goalsActions.progress, payload, progressActor({ actor_id, actor_kind }, invocation), invocation);
   });
   host.register(goalProgressCapabilities.receipt, (runtime, input, invocation) => {
     const { actor_id, ...payload } = input;
-    return goalAction(runtime, goalsActions.progressReceipt, payload, { actor_id }, invocation);
+    return goalAction(runtime, goalsActions.progressReceipt, payload, progressActor({ actor_id }, invocation), invocation);
   });
   host.register(goalContextCapabilities.list, (runtime, input, invocation) => goalAction(runtime, goalsActions.list,
     { limit: 100, ...(input.after_cursor ? { after_cursor: input.after_cursor } : {}) }, { actor_id: "local-host" }, invocation));

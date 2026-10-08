@@ -71,7 +71,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     assert.equal(result.resume, null); assert.ok(result.resume_error);
     await grant(goalsActions.list.capability_id, true);
     result = await resolve();
-    assert.equal(result.resume.focus.goal_id, "CONTEXT-SECRET"); assert.equal(result.resume.auto_claimed, false); assert.equal(result.resume_error, undefined);
+    assert.equal(result.resume.focus.goal_id, "CONTEXT-SECRET"); assert.equal(result.resume_error, undefined);
     assert.ok(seen.has(caller.actor_id + ":" + goalsActions.list.capability_id));
     await grant(goalsActions.guidanceRead.capability_id, false);
     result = await resolve();

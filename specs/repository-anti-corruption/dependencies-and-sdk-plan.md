@@ -1,6 +1,6 @@
 # 依赖清单与 Prologue SDK 收敛方案（W1-20，§4.17）
 
-状态：方案与清单（2026-10-08；数量量于 main 35d7f320，行号已按合并 origin/main f8ea20b9 之后的树复核；两者之间依赖声明与锁文件没有变化，只多了根 `package.json` 的 `secrets:check` 脚本与 CI 的 `secret-scan` 作业）；已落实的只有根 `packageManager` 与 CI 读它；推送、删除 vendored 文件、改依赖版本都没有做，等用户确认后按 §4.4 的顺序分片执行
+状态：方案与清单（2026-10-08；数量量于 main 35d7f320，行号已按合并 origin/main cad49419 之后的树复核；两者之间依赖声明与锁文件没有变化，只多了根 `package.json` 的 `secrets:check` 脚本与 CI 的 `secret-scan` 作业）；已落实的只有根 `packageManager` 与 CI 读它；推送、删除 vendored 文件、改依赖版本都没有做，等用户确认后按 §4.4 的顺序分片执行
 
 来源：路线 [roadmap-2026-10-07.md](roadmap-2026-10-07.md) §4.17 与 N-14、N-02；用户决定见 [spec.md](spec.md) §1 的「2026-10-08 Prologue SDK 收敛与私有包」一行（`spec.md:119`，已在 main）。本文每条结论后面写了证据：代码路径、命令或外部记录；没有核对的写「未验证」，从代码读出来但没有运行的写「推断」。
 
@@ -26,7 +26,7 @@
 | `.github/workflows/release-macos.yml:31-33` | 同上 | 同上 |
 | 本机 | pnpm 11.9.0，经 corepack（`~/.cache/node/corepack/v1/pnpm/11.9.0`） | 不变，现在字段与它相等 |
 
-- 验证：在新建工作树（origin/main 35d7f320）加字段后执行 `pnpm install --frozen-lockfile --offline`，退出码 0，输出「Lockfile is up to date」「Done in 3.8s using pnpm v11.9.0」，`git status` 只有 `package.json` 与两份工作流有改动，锁文件没变。合并 origin/main（f8ea20b9）后在本分支又跑了一次：退出码 0，「Lockfile is up to date」，锁文件仍没变。工作流里那条 shell 命令我在本机原样执行过，输出 `pnpm@11.9.0`；两份 YAML 用 PyYAML 解析通过。GitHub Actions 上的真实运行没有做（未验证）：`ci.yml` 的改动会由本分支 PR 自己的 CI 跑到；`release-macos.yml` 现在只能手动触发（`.github/workflows/release-macos.yml:5` 只有 `workflow_dispatch`），没有 PR 会运行它，它的改动只在本机验证过那条表达式。合并 origin/main 后新增的 `secret-scan` 作业（`ci.yml:99`）不装 pnpm，不受影响。
+- 验证：在新建工作树（origin/main 35d7f320）加字段后执行 `pnpm install --frozen-lockfile --offline`，退出码 0，输出「Lockfile is up to date」「Done in 3.8s using pnpm v11.9.0」，`git status` 只有 `package.json` 与两份工作流有改动，锁文件没变。合并 origin/main（f8ea20b9，随后 cad49419）后在本分支又跑了一次：退出码 0，「Lockfile is up to date」，锁文件仍没变。工作流里那条 shell 命令我在本机原样执行过，输出 `pnpm@11.9.0`；两份 YAML 用 PyYAML 解析通过。GitHub Actions 上的真实运行没有做（未验证）：`ci.yml` 的改动会由本分支 PR 自己的 CI 跑到；`release-macos.yml` 现在只能手动触发（`.github/workflows/release-macos.yml:5` 只有 `workflow_dispatch`），没有 PR 会运行它，它的改动只在本机验证过那条表达式。合并 origin/main 后新增的 `secret-scan` 作业（`ci.yml:99`）不装 pnpm，不受影响。
 - 字段不带 `+sha512` 哈希：CI 用 `npm install --global` 装，npm 能不能解析带 `+sha512` 的写法我没有试，所以不加。
 - 已知副作用：`apps/local-host/src/installer/npm-package.ts:84-93` 的 `publishMetadata` 只去掉 `scripts` 与 `devDependencies`，所以发布用的根 `package.json` 里也会带 `packageManager`。对安装方无影响（Corepack 只读当前目录往上的 `package.json`），要去掉就在那里再删一个字段并补断言；本片不动源码（不跑构建，改了也没法在本片里验证）。
 - 上游 Prologue 的根 `package.json` 已经同时写了 `"packageManager": "pnpm@11.9.0"` 与 `engines.node: "24.14.0"`，并有 `rust-toolchain.toml`（`git archive 9fc3b173` 的内容）；Molis 照这个做法即可。

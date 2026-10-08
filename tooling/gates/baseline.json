@@ -235,7 +235,7 @@
       "methods": 28
     },
     "class plugins/native/feed/src/application.ts#FeedApplication": {
-      "lines": 542,
+      "lines": 526,
       "methods": 44
     },
     "file plugins/native/form/src/client.ts": 930,

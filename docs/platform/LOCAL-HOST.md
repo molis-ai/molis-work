@@ -49,7 +49,8 @@ AP2 保证一个 Local Host 实例内，每个 Project storage key 只有一份 
 - 等模型或外部服务、且只按读取时的版本提交（或本地不写状态）的动作，声明 `scheduling: "concurrent"`，在队列旁运行；门禁 `tests/action-model-scheduling.test.ts` 要求声明了 `model:invoke` 的动作都这样做，例外逐条写理由。
 - 会挂起等待的能力（跟随一轮 Agent）声明 `operation: "wait"`。
 - 并发动作不占队列，它调用的串行动作像别的调用一样排队等轮到自己，不能趁队列被占时插到前面；只有嵌套在已占着队列的调用里的调用，直接在这条队列上运行（排在自己的父调用后面会死锁）。Home 级队列同理。场景运行（判断场景的 `runScene`）是触发它的那次调用的一步，取那次调用的位置：并发动作里等模型的判断不占队列。
-- 并发动作等完模型后，先 `beforeEffect()` 再写入，并只按读取时的版本提交；被取消、撤权、停用的调用不再写记录（Coding 开始一轮时的历史摘要是这样做的：`writeHistoryDigest`）。
+- 并发动作等完模型后，先 `beforeEffect()` 再写入，并只按读取时的版本提交；被取消、撤权、停用的调用不再写记录（Coding 开始一轮时等模型写历史摘要，模型写成或失败都先 `beforeEffect()` 再开始这一轮：`writeHistoryDigest`）。
+- 并发动作替调用者等判断时，只判断这次调用自己产生的东西，不替别的生产方排空共享的待判断队列，否则会拿这次调用者的身份判断别人的事项（Feed 收取工作流内容用 `FeedApplication.ingestItemJudged`，试跑规则用 `evaluateItems`，入箱用限定条目的 `flushPendingInboxJudgments`）。
 - 调用方不能自称并发：并发与否读的是注册时的描述符。
 - 一个 Home 只有一个执行进程持有 Agent 运行锁；其他进程（stdio MCP 等）经动作网关转发给常驻 Web 宿主。
 

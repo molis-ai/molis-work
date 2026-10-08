@@ -108,7 +108,7 @@ test("a round whose digest the model is still writing runs beside the project's 
   sessions.setRuntimeSession(DEMO_PROJECT_ID, "long", "sdk", new Date().toISOString());
   const earlier: AgentRunView[] = [run(1, "给习惯加归档"), run(2, "周报跳过已归档的习惯")];
   const starts: AgentStartRequest[] = [];
-  let gate = Promise.withResolvers<void>(), asked = Promise.withResolvers<void>();
+  let gate = Promise.withResolvers<void>(), asked = Promise.withResolvers<void>(), modelFails = false;
   // The project's own line, as the Host has it: the plugin's actions run through it like every other action.
   const localHost = new LocalHost<object>({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const reference = { project_id: DEMO_PROJECT_ID, storage_key: `memory:${DEMO_PROJECT_ID}` };
@@ -127,7 +127,7 @@ test("a round whose digest the model is still writing runs beside the project's 
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: earlier.map(item => item.ref) } as Output;
       if (definition.capability_id === agent.readRun.capability_id) return earlier.find(item => item.ref.run_id === (args as any[])[1].run_id) as Output;
-      if (definition.capability_id === agent.draftText.capability_id) { asked.resolve(); await gate.promise; return { text: "1. 目标与要求：给习惯加归档。", usage: { input: 5000, output: 400 } } as Output; }
+      if (definition.capability_id === agent.draftText.capability_id) { asked.resolve(); await gate.promise; if (modelFails) throw new Error("模型两分钟内没有写完，已停止"); return { text: "1. 目标与要求：给习惯加归档。", usage: { input: 5000, output: 400 } } as Output; }
       if (definition.capability_id === agent.startRun.capability_id) {
         const request = structuredClone((args as any[])[1]) as AgentStartRequest; starts.push(request);
         return { ref: { session_id: "sdk", run_id: `r${earlier.length + 1}` }, frozen: { history: request.history } } as Output;
@@ -168,5 +168,25 @@ test("a round whose digest the model is still writing runs beside the project's 
     cancel = new AbortController();
     const usageAfter = JSON.stringify((await (await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/long?window=20`)).json()).usage_total.digests);
     assert.equal(usageAfter, usageBefore, "the model's cost is not recorded for a call that was withdrawn");
+
+    // The model cannot write the digest and the call is withdrawn meanwhile: the Host's record-based digest does not carry a
+    // round for a call that no longer stands. Without the recheck the failed model call fell straight through to starting it.
+    gate = Promise.withResolvers<void>(); asked = Promise.withResolvers<void>(); cancel = new AbortController(); modelFails = true;
+    const failing = send("收尾");
+    await asked.promise;
+    cancel.abort();
+    gate.resolve();
+    const refusedAfterFailure = await failing;
+    assert.notEqual(refusedAfterFailure.status, 200, JSON.stringify(refusedAfterFailure.body));
+    assert.equal(starts.length, 1, "a withdrawn call starts no round when the model fails either");
+
+    // The same failure for a call that still stands is not an error: the record-based digest carries the round.
+    gate = Promise.withResolvers<void>(); asked = Promise.withResolvers<void>(); cancel = new AbortController();
+    const standing = send("收尾");
+    await asked.promise;
+    gate.resolve();
+    const carried = await standing;
+    assert.equal(carried.status, 200, JSON.stringify(carried.body));
+    assert.equal(carried.body.digest.source, "records"); assert.equal(starts.length, 2);
   } finally { gate.resolve(); await new Promise<void>(resolve => server.close(() => resolve())); await localHost.close(); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

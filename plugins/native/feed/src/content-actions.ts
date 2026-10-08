@@ -34,10 +34,11 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
         config: {}, schedule: { mode: "manual" }, credential_ref: null, account_label: null, last_sync_at: null,
         last_outcome: null, last_error_code: null, imported_at: now, updated_at: now, item_count: 0, cursor: null,
       });
-      const item = feed.ingestItem({ source, externalId: `${context.instance_id}:${context.step}`, title: payload.title,
+      // This action runs beside the project's queue while the model judges, so it judges what its own delivery queued and
+      // nothing another producer queued meanwhile: that is judged by its owner, under its owner's authority.
+      const { item } = await feed.ingestItemJudged({ source, externalId: `${context.instance_id}:${context.step}`, title: payload.title,
         summary: payload.body.replace(/\s+/g, " ").trim().slice(0, 240), body: payload.body, url: payload.url ?? null,
-        occurredAt: now, attention: false }).item;
-      await feed.flushPendingJudgments(retainActionAuthority(caller, { ...feedContentActions.receive, provider_id: FEED_PLUGIN_ID }));
+        occurredAt: now, attention: false }, retainActionAuthority(caller, { ...feedContentActions.receive, provider_id: FEED_PLUGIN_ID }));
       return { plugin: "feed", item_id: item.item_id, title: item.title };
     },
   }), bindSearchEntriesHandler(feedSearchEntriesAction, () => {

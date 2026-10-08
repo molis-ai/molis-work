@@ -28,7 +28,7 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 
 `research_library` 来源由 Host 注入 `syncRepository`，沿用 Sources 的 `public_source` 同步入口与计划。GitHub integration 验证固定提交上的发布包和哈希，Feed 每条研究发现保存正文、原始引用、阅读范围与包版本。来源规则默认 `admission: "suggest"`；明确选 `inbox` 时，Feed 将匹配内容或需复核的判断结果写入 Attention。`evaluateItems` 可对最近至多 20 条消息重新运行规则；Functions 本身不执行写入。
 
-入箱后的下一步判断走 `inboxJudgment` 注入端口，Host 将它接到统一 `inbox.next` 场景。`subscribeInboxCreated` 连接 Attention 的实际创建事件，覆盖直接携带 attention 的导入及来源故障；去重后在业务提交后的 `flushPendingJudgments` 中执行。已回滚或关闭的事项不触发判断。每个应用实例拥有自己的队列，来源、连接器、定时器和工作流须传入绑定可信调用上下文的 `feedOptions`；仅传 Home 路径不产生 Inbox 调用授权。首页建议通过 homeJudgment 接到共同 Home 场景。Feed 筛选通过 captureJudgment 接到本插件声明的 feed.capture 场景；手动处理和工作流向后续判断传递原调用者。捕捉结果由常驻实例入箱时，该实例立即消费新 Inbox 事件，避免把事件留在另一实例的队列。
+入箱后的下一步判断走 `inboxJudgment` 注入端口，Host 将它接到统一 `inbox.next` 场景。`subscribeInboxCreated` 连接 Attention 的实际创建事件，覆盖直接携带 attention 的导入及来源故障；去重后在业务提交后的 `flushPendingJudgments` 中执行。已回滚或关闭的事项不触发判断。每个应用实例拥有自己的队列，来源、连接器、定时器和工作流须传入绑定可信调用上下文的 `feedOptions`；仅传 Home 路径不产生 Inbox 调用授权。首页建议通过 homeJudgment 接到共同 Home 场景。Feed 筛选通过 captureJudgment 接到本插件声明的 feed.capture 场景；手动处理和工作流向后续判断传递原调用者；等判断的并发动作（工作流收取 `ingestItemJudged`、试跑 `evaluateItems`、入箱）只判断自己导入的消息和由此产生的 Inbox 事项，不排空其他生产方的队列。捕捉结果由常驻实例入箱时，该实例立即消费新 Inbox 事件，避免把事件留在另一实例的队列。
 
 捕捉规则的目录、创建、修改、删除和关键词预览由本插件的 `feed.rules.*` 能力提供，定义及处理器位于 [src/rule-actions.ts](src/rule-actions.ts)。Host 只提供原 FeedApplication、项目范围和原文读取；HTTP 将旧字段转换后调用同一能力，MCP 按具体动作与项目授权。读规则和预览需要 `feed:read`，修改配置另需 `feed:write`；输入不能指定其他项目。指定来源必须属于当前项目，已有失效来源引用在修改其他字段时仍保留。
 
@@ -72,7 +72,7 @@ node --import tsx --test --test-concurrency=1 tests/feed-native-plugin.test.ts t
   - Provider 失败、部分接收与重试不能混成同一个成功状态；指定来源必须属于当前项目。
   - 关键词预览读最近五条原消息，不调模型、不保存规则、不入箱。
   - 停用、改绑、内容变化或撤权后撤下建议，历史保留；外部内容是不可信输入。
-- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts tests/feed-inbox-pages-loop.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/feed-capture.e2e.test.ts`
 - 相关手册：[docs/modules/feed.md](../../../docs/modules/feed.md)、[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

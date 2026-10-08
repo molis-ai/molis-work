@@ -115,6 +115,8 @@ export const WORKFLOWS_EN: Record<string, string> = {
   "标题规则": "Title rule",
   "正文规则": "Body rule",
   "要整理成什么": "What to organise it into",
+  // The {…} words are the placeholders the workflow engine fills in; they stay as typed in both languages.
+  "{标题}": "{标题}",
   "例如：来源：{来源}\n链接：{链接}\n\n{正文}": "e.g. Source: {来源}\nLink: {链接}\n\n{正文}",
   "例如：整理成一页说明，分成背景、要点和待确认的问题，保留原文链接。": "e.g. A one-page brief with background, key points and open questions; keep the original link.",
   "还没写交接规则": "no handoff rule yet",

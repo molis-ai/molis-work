@@ -13,6 +13,7 @@ export const GOALS_RELATION_EN: Record<string, string> = {
   "说明为什么这条关系不再成立；历史记录会保留": "Say why this relation no longer holds. The history stays.",
   "暂无关系": "No relations yet",
   "上游": "Upstream",
+  "这个 Goal 的归属与完成依赖": "Where this Goal belongs and what its completion depends on",
   "这个 Goal 开始前需要什么": "What must exist before this Goal can start",
   "下游": "Downstream",
   "哪些 Goal 等待或包含它": "Which Goals wait on it or contain it",

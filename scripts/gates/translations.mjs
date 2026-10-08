@@ -19,14 +19,20 @@
 //             One definition per key, a key starts with its owner, zh and en use the same {placeholders}, a key is used only
 //             by its owner (shared words are `common.*`).
 //
-// What counts as a translator call (the first argument, or the one a wrapper forwards)
+// What counts as a translator call (the first argument, or every argument a wrapper forwards)
 //   L(…)  x.L(…)  p.text(…)  primitives.text(…)  translate(…)  x.translate(…)  this.t(…)
 //   a parameter or property typed `(text: string, values?: Record<string, string | number>) => string`
-//   a function of the same file that hands one of its parameters to a translator (`const t = v => p.escape(p.text(v))`)
-//   the same inside the browser scripts that live in template literals (they are parsed as JavaScript)
+//   a function of the same file that hands parameters to a translator (`const t = v => p.escape(p.text(v))`): all of them are
+//   keys at its callers, so `relationGroup("上游", "这个 Goal 的归属与完成依赖", …)` has two
+//   the same inside the browser scripts that live in template literals (they are parsed as JavaScript). A browser program is often
+//   several files (`client.ts` defines `tx` and `button` and joins the scripts of `client-views.ts` and `client-flows.ts`), so the
+//   wrappers of the scripts of one owner's files that import one another are shared among those files (linkPrograms), and a file
+//   next to such a script is read with them too. Files that are not connected that way keep their own names.
 // A key written as `a ? "x" : "y"`, `x || "y"`, a sum of literals, or `TABLE[key]` / `TABLE.name` / `NAME` of a constant
-// table in the same file is read as its literals; anything else is a dynamic call and is only counted. A wrapper defined in another file is not followed (its keys still count as mentioned, so they are
-// not reported dead).
+// table in the same file is read as its literals; anything else is a dynamic call and is only counted. Not followed: a wrapper
+// that a server-side file defines and another file imports (measured 2026-10-08: following them adds 9 calls and no missing
+// English, and 90 more dynamic calls). Their keys still count as mentioned, so they are
+// not reported dead.
 //
 //   node scripts/gates/translations.mjs [--root <dir>] [--missing] [--conflicts] [--dead] [--calls] [--owners] [--json]
 import { execFileSync } from "node:child_process";
@@ -160,19 +166,25 @@ const declaredTranslators = (source) => {
   visit(source);
   return names;
 };
-// Which argument of this callee is the key: 0 for the known entry points, the forwarded parameter's index for a wrapper, -1
-// when it is not a translator.
-const argumentIndex = (callee, wrappers, declared) => {
-  if (callee === null) return -1;
-  if (callee === "L" || callee.endsWith(".L") || callee === "p.text" || callee === "primitives.text") return 0;
-  if (callee === "translate" || callee.endsWith(".translate") || callee === "this.t") return 0;
+// Which arguments of this callee are keys: [0] for the known entry points, every parameter a wrapper hands to a translator for a
+// wrapper (`relationGroup(title, hint)` translates both), [] when it is not a translator.
+const NO_ARGUMENTS = Object.freeze([]);
+const FIRST_ARGUMENT = Object.freeze([0]);
+const argumentIndexes = (callee, wrappers, declared) => {
+  if (callee === null) return NO_ARGUMENTS;
+  if (callee === "L" || callee.endsWith(".L") || callee === "p.text" || callee === "primitives.text") return FIRST_ARGUMENT;
+  if (callee === "translate" || callee.endsWith(".translate") || callee === "this.t") return FIRST_ARGUMENT;
   const last = callee.slice(callee.lastIndexOf(".") + 1);
-  if (declared.has(last) && (callee === last || callee.startsWith("this."))) return 0;
-  return wrappers.get(callee.startsWith("this.") ? callee.slice(5) : callee) ?? -1;
+  if (declared.has(last) && (callee === last || callee.startsWith("this."))) return FIRST_ARGUMENT;
+  const indexes = wrappers.get(callee.startsWith("this.") ? callee.slice(5) : callee);
+  return indexes ? [...indexes].sort((a, b) => a - b) : NO_ARGUMENTS;
 };
-// Functions that hand one of their parameters to a translator are translators within their file, by name (their callers
-// carry the keys, so the forwarding call itself is not a dynamic call). A few rounds settle chains (`button` -> `t` -> `p.text`).
-const discoverWrappers = (tree, declared) => {
+// Functions that hand parameters to a translator are translators within their file, by name (their callers carry the keys, so
+// the forwarding call itself is not a dynamic call). Every forwarded parameter counts, not only the first: a function that
+// translates a title and a hint has two keys at every call. `seed` is what the other files of the same browser program have
+// already shown (linkPrograms). A few rounds settle chains (`button` -> `tx` -> `L`) and wrappers that gain a second parameter
+// once the callee they forward to is known.
+const discoverWrappers = (tree, declared, seed) => {
   const bindings = [];
   const functionLike = (node) => { const inner = unwrap(node); return inner && (ts.isArrowFunction(inner) || ts.isFunctionExpression(inner)) ? inner : null; };
   const visit = (node) => {
@@ -183,27 +195,27 @@ const discoverWrappers = (tree, declared) => {
     ts.forEachChild(node, visit);
   };
   visit(tree);
-  const wrappers = new Map(), forwards = new Set();
+  const wrappers = new Map([...(seed ?? [])].map(([name, indexes]) => [name, new Set(indexes)])), forwards = new Set();
   for (let round = 0; round < 4; round++) {
     let changed = false;
     for (const { name, fn } of bindings) {
-      if (wrappers.has(name) || name === "L" || !fn.body) continue;
+      if (name === "L" || !fn.body) continue;
       const parameters = fn.parameters.map((parameter) => (ts.isIdentifier(parameter.name) ? parameter.name.text : null));
-      let found = -1;
-      const calls = [];
+      const found = new Set(), handed = [];
       const inspect = (node) => {
         if (ts.isCallExpression(node)) {
-          const index = argumentIndex(calleeText(node.expression), wrappers, declared);
-          const argument = index >= 0 ? unwrap(node.arguments[index]) : undefined;
-          if (argument && ts.isIdentifier(argument) && parameters.includes(argument.text)) {
-            calls.push(node);
-            if (found < 0) found = parameters.indexOf(argument.text);
+          for (const index of argumentIndexes(calleeText(node.expression), wrappers, declared)) {
+            const argument = unwrap(node.arguments[index]);
+            if (argument && ts.isIdentifier(argument) && parameters.includes(argument.text)) { handed.push(argument); found.add(parameters.indexOf(argument.text)); }
           }
         }
         ts.forEachChild(node, inspect);
       };
       inspect(fn.body);
-      if (found >= 0) { wrappers.set(name, found); calls.forEach((call) => forwards.add(call)); changed = true; }
+      if (!found.size) continue;
+      handed.forEach((argument) => forwards.add(argument));
+      const known = wrappers.get(name) ?? new Set();
+      if ([...found].some((index) => !known.has(index))) { wrappers.set(name, new Set([...known, ...found])); changed = true; }
     }
     if (!changed) break;
   }
@@ -264,16 +276,35 @@ const dictionaryUses = (source) => {
   return usesBy;
 };
 
-/** Everything one file says about translations. */
-export function scanFile(file, text) {
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// Whether a template literal is worth parsing as a browser script: it calls L, or a wrapper that the other files of its program
+// define (`tx(`, or `globalThis.L(`): a call by one of those names.
+const scriptPattern = (shared) => new RegExp(`(?:^|[^\\w$])(?:L${shared?.size ? `|${[...shared.keys()].map(escapeRegExp).join("|")}` : ""})\\(`);
+
+/**
+ * Everything one file says about translations. `shared` is `name -> indexes` of the wrappers that the browser scripts of the
+ * other files of the same program define (linkPrograms), so a `section('标题')` in one file is followed to the `tx` another
+ * file defines.
+ */
+export function scanFile(file, text, shared) {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const declared = declaredTranslators(source);
-  const result = { file, entries: [], stable: [], dictionaries: [], usesBy: dictionaryUses(source), calls: [], dynamic: [], mentions: new Set() };
+  const result = {
+    file, entries: [], stable: [], dictionaries: [], usesBy: dictionaryUses(source), calls: [], dynamic: [], mentions: new Set(),
+    // for linkPrograms: the relative modules it imports, how many browser scripts it holds, and the wrappers those define
+    imports: source.statements.filter((node) => (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text.startsWith(".")).map((node) => node.moduleSpecifier.text),
+    scripts: 0, scriptWrappers: new Map(),
+  };
+  const looksLikeScript = scriptPattern(shared);
 
   // One syntax tree: the file itself, or a browser script found in one of its template literals (`first` is the line the
   // template starts on). Only the file itself holds dictionaries.
   const visitTree = (tree, first, embedded) => {
-    const { wrappers, forwards } = discoverWrappers(tree, declared);
+    const { wrappers, forwards } = discoverWrappers(tree, declared, embedded ? shared : undefined);
+    if (embedded) {
+      result.scripts++;
+      for (const [name, indexes] of wrappers) result.scriptWrappers.set(name, new Set([...(result.scriptWrappers.get(name) ?? []), ...indexes]));
+    }
     const tables = discoverTables(tree);
     const visit = (node) => {
       if (!embedded) {
@@ -296,12 +327,12 @@ export function scanFile(file, text) {
       }
       if (ts.isCallExpression(node)) {
         const callee = calleeText(node.expression);
-        const index = argumentIndex(callee, wrappers, declared);
-        if (index >= 0 && node.arguments[index]) {
+        for (const index of argumentIndexes(callee, wrappers, declared)) {
+          if (!node.arguments[index]) continue;
           const found = keysOf(node.arguments[index], tables);
           const line = lineAt(tree, node, first);
           for (const key of found.keys) result.calls.push({ file, line, key, callee, embedded });
-          if (found.dynamic && !forwards.has(node)) result.dynamic.push({ file, line, callee, prefix: found.prefix, embedded });
+          if (found.dynamic && !forwards.has(unwrap(node.arguments[index]))) result.dynamic.push({ file, line, callee, prefix: found.prefix, embedded });
         }
       }
       if (ts.isStringLiteralLike(node) && mentionable(node.text)) result.mentions.add(node.text);
@@ -313,7 +344,7 @@ export function scanFile(file, text) {
         const part = (literal) => (raw ? literal.rawText ?? "" : literal.text);
         const body = ts.isNoSubstitutionTemplateLiteral(node) ? part(node)
           : part(node.head) + node.templateSpans.map((span, index) => `__SUB${index}__${part(span.literal)}`).join("");
-        if (/(?:^|[^\w$])L\(/.test(body)) {
+        if (looksLikeScript.test(body)) {
           const script = ts.createSourceFile(`${file}#script`, body, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
           visitTree(script, lineAt(tree, node, first), true);
         }
@@ -330,14 +361,86 @@ export function scanFile(file, text) {
 const placeholdersOf = (text) => [...new Set([...text.matchAll(PLACEHOLDER)].map((match) => match[1]))].sort().join(",");
 const variantsOf = (list) => new Set(list.map((item) => item.value)).size;
 
+// `./x.js` in `a/b.ts` is `a/x.ts` (or `x.mts`, or `x/index.ts`); null when it is not a scanned file.
+const resolveModule = (from, specifier, known) => {
+  const joined = path.posix.normalize(path.posix.join(path.posix.dirname(from), specifier));
+  const stem = joined.replace(/\.m?js$/, "");
+  return [`${stem}.ts`, `${stem}.mts`, `${joined}.ts`, `${stem}/index.ts`].find((candidate) => known.has(candidate)) ?? null;
+};
+const mergeInto = (into, from) => {
+  let grew = false;
+  for (const [name, indexes] of from) {
+    const known = into.get(name) ?? new Set();
+    for (const index of indexes) if (!known.has(index)) { known.add(index); grew = true; }
+    into.set(name, known);
+  }
+  return grew;
+};
+
+/**
+ * A browser program is often several files: `client.ts` defines `tx` and `button`, and joins the script constants of
+ * `client-views.ts` and `client-flows.ts`, which call them without defining them. So the wrappers of the browser scripts of one
+ * owner's files that import one another are shared among those files (by name, with every forwarded parameter), and a file
+ * next to such a script (it imports one, or one imports it) is read with them too. A name that two scripts of one program
+ * define differently is a translator for the parameters either one forwards, which is the safe side for a check that looks
+ * for Chinese with no English. Returns the scans of the files that were read again with what the others define.
+ */
+export function linkPrograms(scans, read) {
+  const known = new Set(scans.keys());
+  const near = new Map();
+  const link = (a, b) => near.set(a, (near.get(a) ?? new Set()).add(b));
+  for (const [file, scan] of scans) {
+    for (const specifier of scan.imports) {
+      const target = resolveModule(file, specifier, known);
+      if (target && target !== file && ownerOf(target) === ownerOf(file)) { link(file, target); link(target, file); }
+    }
+  }
+  const scripted = new Set([...scans.values()].filter((scan) => scan.scripts > 0).map((scan) => scan.file));
+  const seen = new Set(), seeds = new Map(), again = new Map();
+  for (const start of scripted) {
+    if (seen.has(start)) continue;
+    const members = [], queue = [start];
+    for (seen.add(start); queue.length;) {
+      const file = queue.pop();
+      members.push(file);
+      for (const next of near.get(file) ?? []) if (scripted.has(next) && !seen.has(next)) { seen.add(next); queue.push(next); }
+    }
+    const pool = new Map();
+    for (const file of members) mergeInto(pool, scans.get(file).scriptWrappers);
+    if (!pool.size) continue;
+    // Several files: read each again with what the others define, until no file learns another wrapper (`section` in one
+    // file calls `tx` in another, and `field` in a third calls `section`).
+    for (let round = 0; members.length > 1 && round < 4; round++) {
+      let grew = false;
+      for (const file of members) {
+        const scan = scanFile(file, read(file), pool);
+        again.set(file, scan);
+        scans.set(file, scan);
+        grew = mergeInto(pool, scan.scriptWrappers) || grew;
+      }
+      if (!grew) break;
+    }
+    for (const file of members) for (const next of near.get(file) ?? []) if (!scripted.has(next)) mergeInto(seeds.get(next) ?? seeds.set(next, new Map()).get(next), pool);
+  }
+  for (const [file, shared] of seeds) {
+    const scan = scanFile(file, read(file), shared);
+    again.set(file, scan);
+    scans.set(file, scan);
+  }
+  return again;
+}
+
 /** Scan every readable file of a snapshot ({ files, read }) that `isSource` accepts. */
 export function scanTree(snapshot, isSource) {
-  const files = [];
+  const texts = new Map(), scans = new Map();
   for (const file of snapshot.files.filter(isSource)) {
     const text = snapshot.read(file);
-    if (text !== null) files.push(scanFile(file, text));
+    if (text === null) continue;
+    texts.set(file, text);
+    scans.set(file, scanFile(file, text));
   }
-  return analyse(files);
+  linkPrograms(scans, (file) => texts.get(file));
+  return analyse([...scans.values()]);
 }
 
 /**

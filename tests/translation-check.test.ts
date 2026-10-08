@@ -88,6 +88,24 @@ const addToRoot = (import_: string, use: string) => put("apps/workbench/src/i18n
 const addGamma = (entries: string) => { put("plugins/native/gamma/src/en.ts", gamma(entries)); addToRoot('import { GAMMA_EN } from "@scratch/gamma";', "  ...GAMMA_EN,"); };
 const messages = (owner: string, entries: string) => `export const ${owner.toUpperCase()}_MESSAGES = {\n${entries}\n};\n`;
 
+// A browser program in three files of the beta plugin: program.ts defines tx and button, and joins the scripts of the files it
+// imports (program-views.ts, and program-flows.ts when it has lines). Each file's lines are the body of its template.
+const program = (files: { views: string[]; flows?: string[] }) => {
+  const script = (name: string, constant: string, lines: string[]) => put(`plugins/native/beta/src/${name}.ts`, [`export const ${constant} = String.raw\``, ...lines, "`;", ""].join("\n"));
+  const flows = files.flows !== undefined;
+  put("plugins/native/beta/src/program.ts", [
+    'import { PROGRAM_VIEWS } from "./program-views.js";',
+    ...(flows ? ['import { PROGRAM_FLOWS } from "./program-flows.js";'] : []),
+    "export const PROGRAM_SCRIPT = String.raw`",
+    "  const tx = (value) => esc(L(value));",
+    "  const button = (label, action) => '<button data-action=\"' + action + '\">' + tx(label) + '</button>';",
+    `\` + PROGRAM_VIEWS${flows ? " + PROGRAM_FLOWS" : ""};`,
+    "",
+  ].join("\n"));
+  script("program-views", "PROGRAM_VIEWS", ["", ...files.views]);
+  if (files.flows) script("program-flows", "PROGRAM_FLOWS", ["", ...files.flows]);
+};
+
 type Scenario = { name: string; mutate: () => void; expect: RegExp[] };
 // Missing English is absolute: it fails at the head whatever the baseline says.
 const missing: Scenario[] = [
@@ -144,6 +162,39 @@ const missing: Scenario[] = [
     "`;",
     "",
   ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/cooked-client\.ts:2\)/] },
+  // A wrapper that translates two of its parameters has two keys at every call (`relationGroup(title, hint)`); a gate that reads
+  // only the first lets the second reach the English interface as Chinese.
+  { name: "the second label of a wrapper that translates two parameters", mutate: () => put("plugins/native/alpha/src/ui.ts", [
+    "export const ui = (p: { text(value: string): string }) => {",
+    "  const group = (title: string, hint: string) => `<h3>${p.text(title)}</h3><p>${p.text(hint)}</p>`;",
+    '  return group("打开", "新的");',
+    "};",
+    "",
+  ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/alpha\/src\/ui\.ts:3\)/] },
+  { name: "a parameter after an untranslated one (the first is a name, the second a label)", mutate: () => put("plugins/native/alpha/src/ui.ts", [
+    "export const ui = (p: { text(value: string): string }) => {",
+    "  const toggle = (name: string, label: string, description: string) => `<input name=\"${name}\"><b>${p.text(label)}</b><i>${p.text(description)}</i>`;",
+    '  return toggle("approval", "打开", "新的");',
+    "};",
+    "",
+  ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/alpha\/src\/ui\.ts:3\)/] },
+  { name: "the placeholder of a field wrapper in a browser script (the second parameter reaches the translator)", mutate: () => put("plugins/native/beta/src/client.ts", read("plugins/native/beta/src/client.ts").replace("document.title", "const field = (name, label, placeholder) => '<input name=\"' + name + '\" placeholder=\"' + t(placeholder) + '\">' + t(label);\n  document.body.innerHTML = field('a', '载入', '新的');\n  document.title")),
+    expect: [/no English for "新的" \(plugins\/native\/beta\/src\/client\.ts:\d+\)/] },
+  // One browser program in several files: `program.ts` defines `tx` and `button`, joins the script constants of the files it
+  // imports, and those files call the wrappers without defining them.
+  { name: "a wrapper defined in the file that joins the script (the other file calls it)", mutate: () => program({
+    views: ["  document.title = L('载入') + tx('新的') + button('也新的', 'go');"],
+  }), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/program-views\.ts:3\)/, /no English for "也新的" \(plugins\/native\/beta\/src\/program-views\.ts:3\)/] },
+  { name: "a wrapper another file defines, in a file that has no L() of its own", mutate: () => program({
+    views: ["  document.title = tx('新的');"],
+  }), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/program-views\.ts:3\)/] },
+  { name: "a wrapper of one imported file that calls a wrapper of the joining file (a chain over two files)", mutate: () => program({
+    views: ["  const section = (title, body) => '<h3>' + tx(title) + '</h3>' + body;", "  document.title = L('载入') + section('新的', '');"],
+  }), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/program-views\.ts:4\)/] },
+  { name: "a wrapper of a third file that is built on the second file's wrapper", mutate: () => program({
+    views: ["  const section = (title, body) => '<h3>' + tx(title) + '</h3>' + body;", "  document.title = L('载入');"],
+    flows: ["  document.body.title = L('载入') + card('新的');", "  const card = (title) => section(title, '');"],
+  }), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/program-flows\.ts:3\)/] },
   { name: "a key with placeholders that no dictionary has", mutate: () => put("apps/workbench/src/renderer.ts", `${read("apps/workbench/src/renderer.ts")}export const n = (L: (zh: string, vars?: Record<string, number>) => string) => L("共 {count} 项", { count: 3 });\n`),
     expect: [/no English for "共 \{count\} 项"/] },
 ];
@@ -162,6 +213,32 @@ const failsAndStaysFailing = (scenario: Scenario) => {
   });
 };
 for (const scenario of missing) failsAndStaysFailing(scenario);
+
+// The sharing stops where the program stops: a file that neither imports a script nor is imported by one keeps its own names (its
+// own `tx` is not the program's), and so does a file of another plugin, even when it imports the program.
+test("a wrapper is followed only into the files of its own browser program", () => {
+  branch("lonely", () => {
+    program({ views: ["  document.title = L('载入') + tx('载入');"] });
+    put("plugins/native/beta/src/lonely.ts", "export const LONELY = String.raw`\n  document.title = L('载入') + tx('孤独') + button('更孤独', 'go');\n`;\n");
+    put("plugins/native/alpha/src/outside.ts", 'import { PROGRAM_SCRIPT } from "../../beta/src/program.js";\nexport const OUTSIDE = String.raw`\n  document.title = L(\'打开\') + tx(\'外面\');\n` + PROGRAM_SCRIPT;\n');
+  });
+  const run = gate("--base", "main");
+  assert.equal(run.code, 0, run.out);
+  const calls = JSON.parse(gate("--report", "--json").out).head.translations;
+  assert.equal(calls.missingKeys, 0);
+});
+
+test("a program whose files all have English passes, and the wrapper calls in every file are counted", () => {
+  branch("program", () => program({
+    views: ["  const section = (title, body) => '<h3>' + tx(title) + '</h3>' + body;", "  document.title = L('载入') + section('设置', '');"],
+    flows: ["  document.body.title = L('载入') + button('保存', 'go');"],
+  }));
+  const run = gate("--base", "main");
+  assert.equal(run.code, 0, run.out);
+  const calls = scanFile("plugins/native/beta/src/program-views.ts", read("plugins/native/beta/src/program-views.ts"), new Map([["tx", new Set([0])]])).calls;
+  assert.deepEqual(calls.filter((call: { callee: string }) => call.callee === "section").map((call: { key: string }) => call.key), ["设置"]);
+  assert.deepEqual(scanFile("plugins/native/beta/src/program-views.ts", read("plugins/native/beta/src/program-views.ts")).calls.filter((call: { callee: string }) => call.callee === "section"), [], "alone, the file does not know tx");
+});
 
 // A dictionary only counts when the English catalog the Host serves (`EN`, built in apps/workbench/src/i18n/en.ts) reaches it:
 // writing `FOO_EN` and never adding it there leaves the English interface showing Chinese, which no test of the key set sees.
@@ -368,6 +445,22 @@ test("this repository: nothing is missing, and the scan covers every kind of cal
   assert.ok(count((call) => !roots.has(call.callee)) > 250, "calls of wrappers and of translators injected as typed parameters");
   assert.ok(count((call) => call.callee === "this.t") > 20 && count((call) => call.callee === "p.L") > 20, "this.t(…) and p.L(…)");
   assert.ok(count((call) => call.callee === "text") > 10, "an injected translator typed as a parameter (text: (value: string, values?: Record<string, string | number>) => string)");
+});
+
+test("this repository: wrappers are followed through every forwarded parameter and into the other files of a browser program", () => {
+  const keys = (file: string, callee: string) => real.scan.calls.filter((call: { file: string; callee: string }) => call.file === file && call.callee === callee).map((call: { key: string }) => call.key);
+  // two labels, one call: the title and the hint (relationGroup, renderPolicyToggle), and a placeholder after a label (field)
+  assert.ok(keys("plugins/native/goals/src/relation-ui.ts", "relationGroup").includes("上游") && keys("plugins/native/goals/src/relation-ui.ts", "relationGroup").includes("这个 Goal 的归属与完成依赖"));
+  assert.ok(keys("plugins/native/goals/src/policy-ui.ts", "renderPolicyToggle").includes("完成前必须由用户确认工作结果"));
+  assert.ok(keys("plugins/native/workflows/src/client.ts", "field").includes("标题规则") && keys("plugins/native/workflows/src/client.ts", "field").includes("{标题}"));
+  // Alchemist: tx and button are defined in client.ts, section in client-views.ts, and the three other script files call them
+  assert.ok(keys("plugins/native/alchemist/src/client-views.ts", "button").includes("归档方向"));
+  assert.ok(keys("plugins/native/alchemist/src/client-views.ts", "tx").includes("实际使用次数"));
+  assert.ok(keys("plugins/native/alchemist/src/client-flows.ts", "field").includes("探索描述"));
+  assert.ok(keys("plugins/native/alchemist/src/work-reuse/client.ts", "section").includes("适用条件"), "section is defined in client-views.ts and calls tx from client.ts");
+  // Jelly: btn, empty and openGeneric are defined in client.ts, and five script files call them
+  assert.ok(keys("plugins/native/jelly/src/client-calendar.ts", "btn").length >= 20);
+  assert.ok(keys("plugins/native/jelly/src/client-model.ts", "tx").includes("拆成任务时，原文会发送给所选模型。保存设置不会发送内容。"));
 });
 
 test("this repository: every dictionary is part of the English the Host serves, and the rule is really looking at it", () => {

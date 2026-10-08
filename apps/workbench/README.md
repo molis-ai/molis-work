@@ -62,7 +62,7 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
 | 无用键 | 词典里的键，源码里没有任何地方以字面量出现 | 只报告。动态拼出的键先改成常量或稳定键，再删（[路线图](../../specs/repository-anti-corruption/roadmap-2026-10-07.md) W5-03） |
 | 稳定键 | 见下 | 一出现就检查 |
 
-算翻译调用的有：`L(…)`、`x.L(…)`、`p.text(…)`、`translate(…)`、`this.t(…)`；类型写成 `(text: string, values?: Record<string, string | number>) => string` 的参数；同一文件里把参数转交给翻译调用的函数（如 `const t = v => p.escape(p.text(v))`）；模板字符串里的浏览器脚本（按 JavaScript 解析；`String.raw` 的模板按原文解析，不先转义，否则 `'\n'` 会变成换行、`/^https?:\/\//` 会变成注释，后面的调用都读不到；本身不完整的片段按容错解析读）。`L(a ? "x" : "y")` 和 `L(表[键])`（同一文件里的常量表）按字面量读。`L(变量)` 只计数；别的文件里定义的包装函数不跟。没有汉字的名字（Gmail）两种语言相同，不要英文。
+算翻译调用的有：`L(…)`、`x.L(…)`、`p.text(…)`、`translate(…)`、`this.t(…)`；类型写成 `(text: string, values?: Record<string, string | number>) => string` 的参数；同一文件里把参数转交给翻译调用的函数（如 `const t = v => p.escape(p.text(v))`；转交了几个参数就查几个，`relationGroup("上游", "这个 Goal 的归属与完成依赖", …)` 的两句都要有英文）；模板字符串里的浏览器脚本（按 JavaScript 解析；`String.raw` 的模板按原文解析，不先转义，否则 `'\n'` 会变成换行、`/^https?:\/\//` 会变成注释，后面的调用都读不到；本身不完整的片段按容错解析读）。`L(a ? "x" : "y")` 和 `L(表[键])`（同一文件里的常量表）按字面量读。一个浏览器程序常由几个文件拼成（Alchemist 的 `client.ts` 定义 `tx`、`button`，再拼上 `client-views.ts`（定义 `section`）、`client-flows.ts`（定义 `field`、`show`）、`work-reuse/client.ts` 的脚本，四个文件互相调用对方定义的包装函数），所以同一个插件里、靠相对 import 连起来的脚本文件共用彼此定义的包装函数，紧挨着它们的文件（import 它们或被它们 import）也带着这些包装函数读；没连起来的文件各用各的名字（`linkPrograms`；`tests/translation-check.test.ts` 的 `program` 用例）。`L(变量)` 只计数；服务端文件里定义、别的文件 import 的包装函数不跟（2026-10-08 试过：跟进去只多 9 处调用、没有缺英文，却多出 90 个动态调用）。没有汉字的名字（Gmail）两种语言相同，不要英文；汉字占位符（`{标题}`）如果运行时就按汉字替换，英文条目原样保留它。
 
 看数字和细节：`node scripts/check-health-gates.mjs --report`；`node scripts/gates/translations.mjs --missing | --conflicts | --dead | --calls | --owners`。规则的变异测试在 [`tests/translation-check.test.ts`](../../tests/translation-check.test.ts)；[`tests/i18n.test.ts`](../../tests/i18n.test.ts)（要先构建，CI 不跑）另查扫描读到的键与 Host 实际提供的 `EN` 完全一致。「词典没接上」一条靠名字追引用，不需要构建，所以 CI 里就能拦；它认的根是 `translations.mjs` 里的 `SERVED_ROOT`，`EN` 以后换地方组装时要一起改（`tests/translation-check.test.ts` 钉住了根还在）。缺英文时检查会指出该加到哪个词典（Workbench 渲染器与宿主文件加到 [`src/i18n/renderer-gap-en.ts`](src/i18n/renderer-gap-en.ts)）。
 
@@ -103,13 +103,13 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
 | --- | --- | --- |
 | 有翻译调用的文件 | 2 个：`ui.ts`（服务端 `p.text`，46 处）、`client.ts`（浏览器脚本里的 `L('…')`，60 处） | 服务端渲染和送到浏览器的目录两头都有，运行时两条路一次验完 |
 | 动态调用 | 0 | 没有要先改成常量的键 |
-| 自己词典里别的主人也用的键 | 11 / 89，多是「关闭」「正在保存…」这类通用词 | 这些旧条目要留到那些主人迁完；同列的 schedule 22、ppt 33、form 37、dataset 38、todo 64 |
+| 自己词典里别的主人也用的键 | 11 / 89，多是「关闭」「正在保存…」这类通用词 | 这些旧条目要留到那些主人迁完；同列的 schedule 23、ppt 33、form 37、dataset 39、todo 64 |
 | 借用别的主人词典里的键 | 3 | 迁的时候要给它们建自己的键 |
 | 冲突键 | 2：`图片`（Workbench 译 Image，这里译 Images）、`生成结果`（这里是 Generation result，Shelf 译 Results） | 刚好能演示冲突怎么消：每个意思一个键；同列的 schedule 8、ppt 14、dataset 17 |
 | 无用键 | 6，都是文案改过后留下的旧条目 | 迁的时候顺手删 |
 | 其他 | `src/*.ts` 共 1,441 行（main 上 1,430，本次补英文加了 11）；main 上次改界面是 2026-10-02；在途的 `fix/project-deletion-owners` 动 `store.ts`、`service.ts`、`index.ts` 和 README（删项目时清数据），不碰 `ui.ts`、`client.ts`、`en.ts`；有 `tests/images-plugin.test.ts`、`tests/images-plugin.e2e.test.ts` | 改动小、有现成回归 |
 
-没选的：Feed（一个文件 372 处调用，但 205 个键借自 Workbench 的词典）、Todo（328 处、64 个键别人也用）、Goals（39 个文件、1,064 处调用、444 个键借自别人的词典，另有 215 个无用键）、Workbench 自己（78 个文件，`common.*` 在这里定义，放最后）。样板之后按同一张表挑下一个：schedule、lingguang、ppt。
+没选的：Feed（一个文件 372 处调用，但 205 个键借自 Workbench 的词典）、Todo（328 处、64 个键别人也用）、Goals（39 个文件、1,069 处调用、444 个键借自别人的词典，另有 215 个无用键）、Workbench 自己（78 个文件，`common.*` 在这里定义，放最后）。样板之后按同一张表挑下一个：schedule、lingguang、ppt。
 
 ## 开发要求
 

@@ -78,6 +78,13 @@ test("this repository: the version sources agree and the database table is the c
   assert.equal(result.stdout.split("\n")[0], `Molis Work release version sources agree: ${version}`);
 });
 
+test("this repository: the table lists the JSON files whose version mismatch loses credentials or authorizations", () => {
+  const checklist = readFileSync(path.join(repository, "docs/releases/CHECKLIST.md"), "utf8");
+  const row = (location: string) => checklist.split("\n").find(line => line.startsWith("|") && line.includes(`\`${location}\``)) ?? "";
+  assert.match(row("feed/secrets.json"), /file-secret-store\.ts#FORMAT_VERSION` \| 拒绝读取/);
+  assert.match(row("config/mcp-tools.json"), /mcp-settings-store\.ts#MCP_TOOL_PREFERENCE_VERSION`.*\| 读成空/);
+});
+
 test("a consistent scratch tree passes, and the tag may be v<version>", () => {
   const plain = run();
   assert.equal(plain.code, 0, plain.out);
@@ -178,6 +185,31 @@ test("a SqliteBaseline the table does not list fails", () => {
   put("apps/alpha/src/dist/more.ts", "export const MORE_BASELINE: SqliteBaseline = { version: 1, schema: `` };\n");
   put("apps/alpha/src/node_modules/x/more.ts", "export const MORE_BASELINE: SqliteBaseline = { version: 1, schema: `` };\n");
   assert.equal(run().code, 0);
+});
+
+test("a baseline declared with satisfies or as, or handed over inline, cannot hide from the table", () => {
+  put("apps/alpha/src/more.ts", "export const MORE_BASELINE = { version: 1, schema: `` } satisfies SqliteBaseline;\n");
+  failsWith(run(), "apps/alpha/src/more.ts#MORE_BASELINE is a SqliteBaseline the 各库版本表 does not list");
+  put("apps/alpha/src/more.ts", "export const MORE_BASELINE = {\n  version: 1,\n  schema: ``,\n} as SqliteBaseline;\n");
+  failsWith(run(), "apps/alpha/src/more.ts#MORE_BASELINE is a SqliteBaseline the 各库版本表 does not list");
+  rmSyncFile("apps/alpha/src/more.ts");
+
+  put("apps/alpha/src/open.ts", "applySqliteBaseline(db, path, { version: 1, schema: `CREATE TABLE t (a TEXT, b TEXT);` });\n");
+  failsWith(run(), "apps/alpha/src/open.ts: applySqliteBaseline is called with an inline baseline");
+  put("apps/alpha/src/open.ts", "const handle = openBaselineHomeSqlite(home, 'x',\n  makeBaseline(1));\n");
+  failsWith(run(), "apps/alpha/src/open.ts: openBaselineHomeSqlite is called with an inline baseline");
+  put("apps/alpha/src/open.ts", "applySqliteBaseline(db, path, OTHER_BASELINE);\n");
+  failsWith(run(), "apps/alpha/src/open.ts: applySqliteBaseline is called with OTHER_BASELINE, which no package declares as a SqliteBaseline");
+  put("apps/alpha/src/open.ts", "applySqliteBaseline(db, path);\n");
+  failsWith(run(), "apps/alpha/src/open.ts: applySqliteBaseline is called without a baseline");
+
+  // Calls with a declared constant, and the definition of the function itself, are fine.
+  put("apps/alpha/src/open.ts", [
+    "export function applySqliteBaseline(db: Db, path: string, baseline: SqliteBaseline): void {}",
+    "applySqliteBaseline(db, `${home}/(a,b)`, ALPHA_BASELINE);",
+    "const handle = openBaselineHomeSqlite(home, 'alpha',\n  SERVER_BASELINE);",
+  ].join("\n"));
+  assert.equal(run().code, 0, run().out);
 });
 
 test("a database listed as having no version fails once it gets one", () => {

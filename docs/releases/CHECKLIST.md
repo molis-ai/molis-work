@@ -6,6 +6,7 @@
 
 - [ ] 对照上个 tag 以来的变化选次版本或补丁（[POLICY.md](POLICY.md) 第 2 节）。库版本有没有变，看第 3 节的表：`git diff <上个 tag> -- <表里的定义处文件>`。
 - [ ] 改版本号：根 `package.json`；`apps/desktop/src-tauri/` 的 `tauri.conf.json`、`Cargo.toml`、`Cargo.lock` 里的 `molis-work-desktop`；`apps/local-host/src/feed-source-runtime.ts` 的 `APP_VERSION`；`horizontal/runtime-host/src/adapters/codex-app-server.ts` 的 `clientInfo.version`（[POLICY.md](POLICY.md) 第 1 节）。
+- [ ] 内置插件的清单版本（`plugins/native/*/src/manifest.ts`）没有被改到低于已有安装记录的版本：Runtime 对更低的内置清单既不降级也不报错，已装的旧代码会悄悄继续跑（[POLICY.md](POLICY.md) 第 7 节，处理办法等用户决定，决定前不动这些版本）。动过这些版本的发布，第 4.5 节的安装记录核对不能跳过。
 - [ ] [CHANGELOG.md](CHANGELOG.md)：`[Unreleased]` 改成 `[<版本>] - <日期>`，上面另起一个空的 `[Unreleased]`，页尾比较链接（若有）跟着改。
 - [ ] 写 `docs/releases/v<版本>.md`，包含「兼容与升级」（哪些库的版本变了、旧 Home 要做什么、Runtime 要不要重新接入）和「发布范围与验证」（真实的回归数字、已知失败、没验证的东西）。
 - [ ] `node scripts/verify-release-versions.mjs` 通过（打 tag 时再加 `--tag v<版本>`）。
@@ -20,7 +21,9 @@
 
 ## 3. 各库版本表
 
-每个库只认一个当前版本，不符时的处理在最后一列。这张表由 `scripts/verify-release-versions.mjs` 对照代码核对：改了某个库的版本而没改这里、新增一个 `SqliteBaseline` 而没列进来、或「无」的库加上了版本标记，CI 都会失败。每个库的 owner、表、备份与卸载规则见 [docs/system/HOME-DATA.md](../system/HOME-DATA.md)。位置都相对 Home（默认 `~/.molis-work`，`MOLIS_WORK_HOME` 可改）。
+每个库只认一个当前版本，不符时的处理在最后一列。表里有两类东西：Home 里的 SQLite 库，和两个版本不符就让全部凭据或授权失效的 JSON 文件（`feed/secrets.json` 拒绝读取，`config/mcp-tools.json` 读成空）。其他带版本字段的小 JSON 文件（`shelf/catalog.json`、`browser/sites.json`、`jelly/preferences.json`、`config/` 下的各个文件，包括 `config/installation.json`）不在表里：它们的版本见 [docs/system/HOME-DATA.md](../system/HOME-DATA.md) 第 6 节的「种类 · 版本」列，版本不符时各自怎样没有逐个核对过，改其中任何一个的版本，就在发布说明的「兼容与升级」里写明。每个库的 owner、表、备份与卸载规则也在 HOME-DATA.md。位置都相对 Home（默认 `~/.molis-work`，`MOLIS_WORK_HOME` 可改）。
+
+`scripts/verify-release-versions.mjs` 对照代码核对这张表，下面几种情况 CI 会失败：某行的版本和定义处的代码不一致；定义处不存在；包的 `src/` 里有一个 `SqliteBaseline` 常量（带类型标注、`satisfies` 或 `as` 都算）没有列进表；`applySqliteBaseline`、`openBaselineHomeSqlite` 收到的不是一个已声明的常量（内联对象不行）；标「无」的库的定义处文件加上了版本标记。它找不到的是完全不经 `applySqliteBaseline` 的新库（比如又一个只靠 `CREATE TABLE IF NOT EXISTS` 的库）和表以外的 JSON 文件，这类只能靠 HOME-DATA.md 的清单和评审发现。
 
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
@@ -48,30 +51,33 @@
 | server（IM 实验线） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝 |
 | 角色 | `characters/characters.sqlite` | 1 | `user_version`（自己读写） | `modules/characters/src/open.ts#PRAGMA user_version` | 只拒绝更高的版本 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 2 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
+| 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 2 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出 |
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 2 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 读成空，所有 MCP 动作授权失效 |
 | 实验插件私有库 | `plugins/experiments/private.sqlite` | 无 | 没有版本，`CREATE TABLE IF NOT EXISTS` 建表 | `apps/local-host/src/experiments-native-plugin-http.ts` | 不检查 |
 | 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 无 | 没有版本，`CREATE TABLE IF NOT EXISTS` 建表 | `apps/local-host/src/alchemist-search.ts` | 不检查 |
 
 - 「拒绝」是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本，版本相同照常打开，其他一律报错，带路径、找到的版本和期望的版本，不就地升级。目录库与会话库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`、`modules/private-work-context/src/session-schema.ts`）。
-- 两个「无」的库没有版本，旧库和新库没有区别；它们要是加了版本，就在这里写上数字。
+- 两个「无」的库没有版本，旧库和新库没有区别；路线图 W2-05 在拷贝上演练、再给真实 Home 的这两个库标上版本 1（实验库一项是用户 2026-10-08 的决定），那时这两行改成数字和基线常量。「无」的行只核对定义处那一个文件里没有版本标记；它们的建表语句来自别处的常量（`PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL`、`LOCAL_OPAQUE_BLOB_SCHEMA_SQL`），脚本不看。
 - 每次发布把这张表和上个版本的对比写进发布说明的「兼容与升级」，标出变了的行。上个版本没有这张表时，用 `git show <上个 tag>:<定义处文件>` 逐行取旧值。
 
 ## 4. 真实 Home 的处理
 
-真实 Home 是用户每天在用的数据，任何一步都先问「改坏了能不能退回去」。产品里没有备份和升级命令：备份是离线整份拷贝（`docs/installation.md`「离线备份与恢复边界」），升级库结构靠发布者提供的一次性维护流程。
+真实 Home 是用户每天在用的数据，任何一步都先问「改坏了能不能退回去」。产品里没有备份和升级命令：备份是离线整份拷贝（`docs/installation.md`「离线备份与恢复边界」），升级库结构靠发布者提供的一次性维护流程。用户 2026-10-08 在 `specs/repository-anti-corruption/spec.md` §1 里定了两件事，落在下面：升级前的快照（「备份范围与卸载并清除数据」一行，第 4.2 节）；真实 Home 的维护与残留（「真实 Home 的残留物」一行，第 4.3 与 4.5 节）。
 
 ### 4.1 动手前
 
 - [ ] 没有人在写这个 Home。一个 Home 只有一个执行进程（`AGENTS.md`）：常驻服务 4173、开发用的 4207/4208 都停掉，`"$HOME/.molis-work/bin/molis-work" service status --home "$HOME/.molis-work" --json` 和 `ps` 确认没有连着这个 Home 的 Web、MCP 进程；Runtime 里已经开着的 MCP 进程跑的是旧代码，按 pid 精确停止，不要杀不认识的进程。
 - [ ] 确认这次要装的构建：tag 构建写版本号，其他构建写提交和 `content_digest`（[POLICY.md](POLICY.md) 第 3 节）。
+- [ ] 对真实 Home 的任何写入，包括维护、重装、替换 Runtime 配置，时间和范围都先得到用户同意（过去每次都是弹窗逐项问：维护的时间、要不要重装、配置怎么换）；发布者不自己决定。
 
-### 4.2 备份
+### 4.2 升级前的快照（备份）
 
-- [ ] 整份备份 Home，放在 Home 之外（过去用 `~/molis-work-backups/<日期>-before-<事项>`；APFS 上可以用克隆，逻辑大小不变、实际占用少）。不要只拷贝单个 `.db`：目录库、会话库、加密正文和密钥必须是同一时点（`docs/installation.md`）。
+- [ ] 动真实 Home 之前，先拍一份可恢复的快照，放在 Home 之外。用户 2026-10-08 的决定：做成一条离线快照命令，经常驻宿主暂停写入后对每个登记的库拍一致快照，附清单（路径、版本、校验值），恢复时版本不符就拒绝；「卸载并清除数据」覆盖所有登记的库；定时的在线备份不在这里，留给 C 端就绪方案（`docs/prompts/repository-anti-corruption.md` §4.19）。这条命令 `molis-work home snapshot --to <目录>` 排在路线图 W5-16，依赖 W4-11 的统一库登记表，**现在仓库里没有它**；有了以后，这一项改成跑命令，并把快照清单里的各库版本和第 3 节的表对一遍，清单附在发布 PR 里。
+- [ ] 现在的做法是离线整份备份 Home（`docs/installation.md`「离线备份与恢复边界」）：先退出 App、停止常驻服务和其他写入进程，再把整个 Home 拷到 Home 之外（过去用 `~/molis-work-backups/<日期>-before-<事项>`；APFS 上可以用克隆，逻辑大小不变、实际占用少）。不要只拷单个 `.db`：目录库、会话库、加密正文和密钥必须是同一时点。外部工作区文件不在 Home 里，另行备份。
 - [ ] 服务已停的情况下，备份与原 Home 逐个比对一致（库和配置文件），记下路径、大小和比对方式，写进发布 PR。
 - [ ] Keychain 或环境变量里的密钥不随 Home 文件复制，另行确认还在（`docs/installation.md`）。
-- [ ] 恢复只能恢复到原来的绝对路径：目录库保存了项目库的绝对路径（`modules/projects/src/project-service.ts:61`）。
-- [ ] 旧备份删不删由用户定，发布者不清理。
+- [ ] 恢复只能恢复到原来的绝对路径：目录库保存了项目库的绝对路径（`modules/projects/src/project-service.ts:61`）。路线图 W5-17 把目录库改成由 Home 和 `project_id` 推导路径（目录库 v22，用户 2026-10-08 的决定），那一版之后这一条和 `docs/installation.md` 里的同一句一起改。
+- [ ] 旧备份删不删由用户定，发布者不自行清理；2026-10-08 用户已经定了一次性清理的范围，见第 4.5 节「Home 里没有来路不明的东西」一项。
 
 ### 4.3 第 3 节有库的版本变了：先演练再动真库
 
@@ -79,7 +85,7 @@
 
 - [ ] 把备份再拷一份作演练副本，维护流程先在副本上跑完。演练脚本只许打开副本里的路径：目录库存的是真实 Home 的绝对路径，照着它去开会打到真库——2026-10-07 的演练就误开过一个项目库，靠版本不符被拒绝才没改动文件（`specs/repository-anti-corruption/spec.md` §4.1）。
 - [ ] 副本上逐库核对：结构与当前基线逐项相同（表、列顺序、索引、外键、CHECK，`packages/storage/src/sqlite-baseline.ts` 的 `describeSqliteSchema`），版本等于第 3 节的数，`PRAGMA integrity_check` 为 `ok`，`PRAGMA foreign_key_check` 没有行，行数与搬之前一致。
-- [ ] 演练通过后，在真库上按同一份流程做：被换下的原库留在 Home 里的 `maintenance-<n>-replaced/`（权限 700），不删。密钥文件（如 `feed/secrets.json`）不读值：要改就只按键名改，原文件先原样备份（2026-10-07 的做法，`specs/repository-anti-corruption/spec.md` §1）。
+- [ ] 演练通过后，在真库上按同一份流程做：被换下的原库不删，也不留在 Home 里，搬到 `~/molis-work-backups/<日期>-replaced-by-<事项>/`（权限 700，用户 2026-10-08 的决定）；2026-10-07 维护三留在 Home 里的 `~/.molis-work/maintenance-3-replaced/` 在 4.5 的一次性清理里按同一规则搬走。密钥文件（如 `feed/secrets.json`）不读值：要改就只按键名改，原文件先原样备份（2026-10-07 的做法，`specs/repository-anti-corruption/spec.md` §1）。
 - [ ] 维护流程和演练记录（日期、副本、每库行数与核对结果）写进发布说明的「兼容与升级」或对应 spec。流程里用到的一次性脚本要么入库，要么在记录里写清它的输入输出，不让「怎么做的」只留在会话里。
 
 ### 4.4 装新构建
@@ -92,10 +98,12 @@
 
 - [ ] 只读核对第 3 节每个库在真实 Home 里的版本、`integrity_check`、`foreign_key_check`；项目数与动之前一致；抽查一个项目的 Goal、成果版本和会话内容能读。
 - [ ] 核对 `config/mcp-tools.json` 的授权条数没有莫名变少（版本不符时它读成空，不报错）。
+- [ ] 内置插件的安装记录版本等于这个构建的清单版本。对每个项目库（只读，停写时在快照拷贝上做最稳妥）：`SELECT json_extract(record_json,'$.plugin_id'), json_extract(record_json,'$.version'), json_extract(record_json,'$.state') FROM plugin_runtime_installs;`，和 `plugins/native/<id>/src/manifest.ts` 的 `version` 对：`apps/local-host/src/project-plugins.ts` 交给监督器的 Characters、Shelf、Coding、Files、Diff、Git、TextStats 每个项目最多一条（项目撤下的插件除外）。记录版本比清单高，说明 Runtime 没有跟上，旧代码在悄悄运行，也没有任何报错（[POLICY.md](POLICY.md) 第 7 节）。
+- [ ] Home 里没有来路不明的东西。把 Home 的目录和 [HOME-DATA.md](../system/HOME-DATA.md) 对一遍，不在里面的文件夹、旧备份、没有表的空库、孤儿文件、旧的 `goalboard-*` 安装版，都算残留。残留先核对（谁写的、有没有引用、里面有没有数据），有用的搬到 `~/molis-work-backups`，确认没用的才删，不批量删。用户 2026-10-08 为开发机的真实 Home 定了一次性清理：保留 2026-10-07 维护前的整份备份和 `runtime-configs`，维护替换下来的旧文件搬到 `~/molis-work-backups`，其余旧备份、孤儿文件、空库、旧 `goalboard-*` 安装版核对后删；动手前先整份备份。同一个决定里还有目录库 v22 的路径派生（W5-17）和给实验库标版本 1（W2-05）；三件事都经用户批准，先在拷贝上演练再动真库。
 - [ ] 版本不符被拒绝是正常的保护：不要回滚库，也不要用 SQLite 命令绕过；用与它相符的构建打开，或从备份恢复。
 
 ## 5. 发布后
 
-- [ ] 合并后在合并提交上打 tag `v<版本>`；Release 资产和校验和来自同一提交（`docs/installation.md`「发布后的最终产物验收」第 1 条）。
+- [ ] 合并后在合并提交上打 tag `v<版本>`，再在这个 tag 上手动运行 Release macOS Desktop 工作流（`.github/workflows/release-macos.yml` 现在只有 `workflow_dispatch`，推 tag 不会触发它；选 tag 运行才会做 `--tag` 核对并发布 GitHub Release）。Release 资产和校验和来自同一提交（`docs/installation.md`「发布后的最终产物验收」第 1 条）。
 - [ ] 按同一节的第 2 至 5 条逐层验收常驻服务、Runtime 接入、新 Session 和真实项目的用户可见结果，之后才能把消费者可见的修复标成「已安装」。
 - [ ] 发布 PR 里补上备份路径、维护记录位置和上面各项的结果。

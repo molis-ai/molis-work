@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
 
-import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest, type PluginDefinition, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import {
   NativePluginExecutor,
@@ -159,6 +159,54 @@ test("a bundled Native plugin's older install moves up to the Host's version on 
   } finally {
     db.close();
   }
+});
+
+// docs/releases/POLICY.md section 7: the Manifest versions of the built-in plugins are to be reset to the product version (below
+// what existing Homes have installed). The Runtime only follows the Host upward, so a lower bundled Manifest is neither
+// followed nor refused: the stored release of the installed version keeps running, and without that release the plugin does
+// not start. This pins that behaviour so the reset is a decision and not an accident. When the rule changes (W5-15), replace
+// this test with the new rule's; do not just delete it.
+test("a bundled Manifest below the installed version is not followed: the stored release keeps running, or the plugin does not start", async () => {
+  for (const storedRelease of [true, false]) {
+    const db = new Database(":memory:");
+    try {
+      const started: string[] = [];
+      const installedDefinition = definition("1.44.0", started);
+      const firstRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
+      const first = new PluginSupervisor(firstRuntime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db) });
+      await first.start([{ definition: installedDefinition, bundled: true,
+        releaseArtifact: { capture: () => "native-1.44", restore: () => installedDefinition } }]);
+      const installId = first.state(PLUGIN_ID)?.install_id;
+      assert.ok(installId);
+      await firstRuntime.stop(installId);
+      if (!storedRelease) db.exec("DELETE FROM plugin_runtime_release_artifacts");
+
+      const lowerDefinition = definition("0.3.0", started);
+      const restartedRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
+      const restarted = new PluginSupervisor(restartedRuntime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db) });
+      const report = await restarted.start([{ definition: lowerDefinition, bundled: true,
+        releaseArtifact: { capture: () => "native-0.3", restore: source => source === "native-1.44" ? installedDefinition : lowerDefinition } }]);
+
+      assert.equal(restartedRuntime.get(installId).version, "1.44.0", "the install record is never lowered");
+      assert.deepEqual(restarted.upgradeCandidates(), [], "a lower target is not offered as an upgrade");
+      assert.ok(!started.includes("0.3.0"), "the lower Manifest's code never runs");
+      if (storedRelease) {
+        assert.deepEqual(report.running, [PLUGIN_ID], "no error: the old code keeps running");
+        assert.equal(restarted.manifest(PLUGIN_ID)?.version, "1.44.0");
+        assert.equal(started.at(-1), "1.44.0");
+      } else {
+        assert.deepEqual(report.running, []);
+        assert.equal(report.failed[0]?.code, "plugin_release_artifact_missing");
+      }
+    } finally {
+      db.close();
+    }
+  }
+});
+
+test("a Manifest cannot declare an upgrade source that is not older than itself, so a lower version cannot list the higher install", () => {
+  assert.throws(() => parsePluginManifest(definition("0.3.0", [], undefined, { compatible_from_versions: ["1.44.0"] }).manifest),
+    /升级来源版本必须早于当前 Manifest 版本/);
 });
 
 function restartedRepositoryCount(repository: SqlitePluginRuntimeReleaseArtifactRepository): number {

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Release version consistency (docs/releases/POLICY.md). One product version lives in the root package.json; everything
 // that carries it must agree, the workspace packages stay private 0.0.0, the current version has release notes and a
-// CHANGELOG section, and the per-database version table in docs/releases/CHECKLIST.md is the one the code has.
+// CHANGELOG section, and the per-database version table in docs/releases/CHECKLIST.md is the one the code has (every
+// SqliteBaseline constant is listed, and every baseline handed to applySqliteBaseline is such a constant).
 //
 //   node scripts/verify-release-versions.mjs [--root <dir>] [--tag <vX.Y.Z>]
 //
@@ -166,7 +167,8 @@ function sourceFiles(directory) {
   return files;
 }
 
-// Every `const NAME: SqliteBaseline = …` in package sources is a database the table has to list.
+// A baseline is a `const NAME: SqliteBaseline = …`, `const NAME = {…} satisfies SqliteBaseline` or `… as SqliteBaseline`.
+// Each one in package sources is a database the table has to list.
 function declaredBaselines(directories) {
   const found = [];
   for (const directory of directories) {
@@ -174,9 +176,49 @@ function declaredBaselines(directories) {
       const text = readFileSync(path.join(root, file), "utf8");
       if (!text.includes("SqliteBaseline")) continue;
       for (const match of text.matchAll(/\bconst\s+(\w+)\s*:\s*SqliteBaseline\s*=/g)) found.push(`${file}#${match[1]}`);
+      for (const match of text.matchAll(/\b(?:satisfies|as)\s+SqliteBaseline\b/g)) {
+        const owner = [...text.slice(0, match.index).matchAll(/\bconst\s+(\w+)\s*=/g)].pop()?.[1];
+        if (owner !== undefined) found.push(`${file}#${owner}`);
+      }
     }
   }
   return found;
+}
+
+// The arguments of the call whose "(" is at `open`, split at top-level commas; strings and template literals are skipped.
+function callArguments(text, open) {
+  const args = [];
+  let depth = 0, quote = null, start = open + 1;
+  for (let index = open; index < text.length; index++) {
+    const char = text[index];
+    if (quote !== null) { if (char === "\\") index++; else if (char === quote) quote = null; continue; }
+    if (char === '"' || char === "'" || char === "`") quote = char;
+    else if ("([{".includes(char)) depth++;
+    else if (")]}".includes(char)) {
+      depth--;
+      if (depth === 0) { args.push(text.slice(start, index).trim()); return args; }
+    } else if (char === "," && depth === 1) { args.push(text.slice(start, index).trim()); start = index + 1; }
+  }
+  return args;
+}
+
+// A baseline handed to `applySqliteBaseline(db, path, baseline)` or `openBaselineHomeSqlite(home, name, baseline)` has to be a
+// named, declared constant. An inline object or a name no package declares is a database the table cannot list. The file that
+// defines the two functions is exempt: it only passes its own parameter on.
+function checkBaselineCalls(directories, declaredNames) {
+  for (const directory of directories) {
+    for (const file of sourceFiles(directory)) {
+      if (file === "packages/storage/src/sqlite-baseline.ts") continue;
+      const text = readFileSync(path.join(root, file), "utf8");
+      for (const match of text.matchAll(/(?<!function\s)\b(applySqliteBaseline|openBaselineHomeSqlite)\s*\(/g)) {
+        const baseline = callArguments(text, match.index + match[0].length - 1)[2];
+        const unnamed = `declare the baseline as a named constant so the 各库版本表 can list it`;
+        if (baseline === undefined) problem(`${file}: ${match[1]} is called without a baseline`);
+        else if (!/^\w+$/.test(baseline)) problem(`${file}: ${match[1]} is called with an inline baseline; ${unnamed}`);
+        else if (!declaredNames.has(baseline)) problem(`${file}: ${match[1]} is called with ${baseline}, which no package declares as a SqliteBaseline; ${unnamed}`);
+      }
+    }
+  }
 }
 
 function checkDatabaseTable(directories) {
@@ -195,9 +237,11 @@ function checkDatabaseTable(directories) {
     if (actual === null) problem(`${where}: ${row.name ? `${row.file} has no ${row.name} with a version` : `${row.file} now carries a version marker; give the table a number`}`);
     else if (actual !== row.version) problem(`${where}: the table says ${row.version}, the code (${row.file}${row.name ? `#${row.name}` : ""}) says ${actual}`);
   }
-  for (const definition of declaredBaselines(directories)) {
+  const baselines = declaredBaselines(directories);
+  for (const definition of baselines) {
     if (!listed.has(definition)) problem(`${CHECKLIST}: ${definition} is a SqliteBaseline the 各库版本表 does not list`);
   }
+  checkBaselineCalls(directories, new Set(baselines.map(definition => definition.split("#")[1])));
   return rows.length;
 }
 

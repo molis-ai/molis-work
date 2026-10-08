@@ -21,7 +21,7 @@
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 292,
     "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 541,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 185,
-    "function apps/local-host/src/installed-plugin-host.ts#openInstalledPlugins": 205,
+    "function apps/local-host/src/installed-plugin-host.ts#openInstalledPlugins": 164,
     "class apps/local-host/src/installer/runtime-integration.ts#RuntimeIntegrationService": {
       "lines": 341,
       "methods": 15
@@ -30,15 +30,15 @@
       "lines": 582,
       "methods": 24
     },
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 196,
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 188,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 187,
     "function apps/local-host/src/project-capabilities.ts#registerProjectCapabilities": 270,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 293,
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 367,
+      "lines": 361,
       "methods": 24
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 336,
@@ -196,13 +196,13 @@
       "lines": 420,
       "methods": 23
     },
-    "file packages/plugin-runtime/src/index.ts": 886,
+    "file packages/plugin-runtime/src/index.ts": 863,
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
-      "lines": 664,
+      "lines": 662,
       "methods": 30
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
-      "lines": 592,
+      "lines": 589,
       "methods": 31
     },
     "class packages/plugin-runtime/src/wiring.ts#PluginInputGraph": {

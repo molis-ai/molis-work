@@ -8,12 +8,11 @@
  *
  * Method and what each part proves: docs/platform/STUDIO-SKILL-REPLAY.md.
  *
- * The committed corpus (tests/fixtures/studio-replay/corpus.json and builder-designer/minimax-notes-v1.json) is a SEED: hand-written
- * entries that each exercise one host rule, and 3 real first proposals. It holds no real full-design answer, so the studio's headline
- * number (the share of full designs accepted first time) is not measured by the default run, and the report says so. The real answers
- * (66 on 2026-09-27) exist only in the real Home's run records. The user decided on 2026-10-08 (specs/repository-anti-corruption/spec.md
- * §1) that they are exported read-only from a copy of that Home and committed after each entry is reviewed for personal data; that export
- * is not done. Nothing here reads the real Home on its own: `--corpus` and `harvest` read the run-record directory they are given.
+ * The committed corpus is tests/fixtures/studio-replay/corpus.json (a hand-written seed: entries that each exercise one host rule), recorded.json (380 real
+ * designer answers, 224 of them first answers) and builder-designer/minimax-notes-v1.json (3 real first proposals); the default run replays all three.
+ * recorded.json was exported on 2026-10-08 as the user decided (specs/repository-anti-corruption/spec.md §1): three projects of the Home, copied read-only,
+ * harvested with `harvest`, reviewed twice for personal data, locations redacted. Those answers are what measures the studio's headline number, the share
+ * of full designs accepted first time. Nothing here reads the real Home on its own: `--corpus` and `harvest` read the run-record directory they are given.
  *
  * Limits of the gate, in one place (the same list, with the reasons, is in the doc's §6):
  *  - `--base` compares with the baseline file as the merge-base has it. If the merge-base has no baseline at that path (the commit that
@@ -35,7 +34,7 @@ import { renderReport } from './studio-replay/report.mjs';
 import { mountedSkill, skillNotes } from './studio-replay/skill.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const DEFAULT_CORPUS = ['tests/fixtures/studio-replay/corpus.json', 'tests/fixtures/builder-designer/minimax-notes-v1.json'];
+const DEFAULT_CORPUS = ['tests/fixtures/studio-replay/corpus.json', 'tests/fixtures/studio-replay/recorded.json', 'tests/fixtures/builder-designer/minimax-notes-v1.json'];
 const DEFAULT_BASELINE = 'tests/fixtures/studio-replay/baseline.json';
 
 const USAGE = `usage:

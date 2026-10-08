@@ -22,13 +22,15 @@ export interface ReportInput {
 }
 
 const NO_DETAIL_NOTICE = ['(no recorded detail answers in this corpus: the studio\'s headline number, the share of full designs accepted first time, is not measured; see docs/platform/STUDIO-SKILL-REPLAY.md)'] as const;
-/** Printed whenever the committed corpus holds no real full-design answer: it is a seed, and the real one is waiting for the user. */
+/**
+ * Printed when the sources hold no real full-design answer but include the hand-written seed: the seed alone does not measure the headline number.
+ * The committed real answers (tests/fixtures/studio-replay/recorded.json) are replayed by default together with it; a run that leaves them out says so here.
+ */
 export const SEED_NOTICE = [
-  '(no recorded detail answers in this corpus. The committed corpus is a seed: hand-written entries that each exercise one host rule, and 3 real first proposals.',
-  ' The studio\'s headline number, the share of full designs accepted first time, is NOT measured here. The real full-design answers (66 on 2026-09-27) exist',
-  ' only in the real Home\'s run records. The user decided on 2026-10-08 (specs/repository-anti-corruption/spec.md §1) that they are exported read-only from a copy',
-  ' of that Home and committed after each is reviewed for personal data. That export is not done, and nothing in this repository reads the real Home.',
-  ' To measure answers you have: pnpm studio:replay --corpus <runs dir>; see docs/platform/STUDIO-SKILL-REPLAY.md)'] as const;
+  '(no recorded detail answers among these sources. tests/fixtures/studio-replay/corpus.json is the hand-written seed: entries that each exercise one host rule.',
+  ' The studio\'s headline number, the share of full designs accepted first time, is NOT measured by the seed alone. The real full-design answers (380 on 2026-10-08,',
+  ' exported read-only from a copy of three projects of the person\'s Home and reviewed for personal data, specs/repository-anti-corruption/spec.md §1) are committed',
+  ' in tests/fixtures/studio-replay/recorded.json and are replayed by the default run: pnpm studio:replay. See docs/platform/STUDIO-SKILL-REPLAY.md)'] as const;
 
 const percent = (passed: number, total: number) => total ? `${Math.round(100 * passed / total)}%` : '–';
 const section = (title: string, lines: readonly string[]) => lines.length ? ['', title, ...lines.map(line => '  ' + line)] : [];

@@ -62,6 +62,8 @@ export interface LoadedCorpus { entries: ReplayEntry[]; skipped: Skipped[]; merg
 
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const MODES: readonly string[] = ['propose', 'detail', 'revise'];
+const isDesignBase = (value: unknown): value is DesignBase => record(value) && ['id', 'title', 'description', 'rationale'].every(key => typeof value[key] === 'string')
+  && Array.isArray(value.journey) && value.journey.every(step => typeof step === 'string');
 
 /** Keys in a fixed order, so the same value always serialises to the same text. */
 const canonical = (value: unknown): string => Array.isArray(value) ? `[${value.map(canonical).join(',')}]`
@@ -84,10 +86,11 @@ function checkEntry(raw: unknown, where: string): ReplayEntry {
   const answer = raw.answerJson !== undefined ? JSON.stringify(raw.answerJson) : raw.answer;
   if (typeof answer !== 'string') throw new Error(`${where}: "answer" is the raw text of the designer's reply (or "answerJson" for one that is plain JSON)`);
   if (mode !== 'propose' && !record(raw.base)) throw new Error(`${where}: a ${mode} entry needs "base" (the proposal or design it refines)`);
+  if (raw.base !== undefined && !isDesignBase(raw.base)) throw new Error(`${where}: "base" has id, title, description and rationale as text and journey as a list of text`);
   const capabilities = Array.isArray(raw.capabilities) ? raw.capabilities : [];
   if (capabilities.some(item => !record(item) || typeof item.id !== 'string')) throw new Error(`${where}: "capabilities" is a list of { id, execution? }`);
   return { id: text('id'), mode: mode as ReplayMode, origin, source: text('source'), attempt: Number.isInteger(raw.attempt) ? raw.attempt as number : 0,
-    ...(record(raw.base) ? { base: raw.base as unknown as DesignBase } : {}), capabilities: capabilities as CorpusCapability[],
+    ...(isDesignBase(raw.base) ? { base: raw.base } : {}), capabilities: capabilities as CorpusCapability[],
     resources: Array.isArray(raw.resources) ? raw.resources.filter((item): item is string => typeof item === 'string') : [], answer,
     ...(typeof raw.clarificationAllowed === 'boolean' ? { clarificationAllowed: raw.clarificationAllowed } : {}), ...(raw.shownCatalogOnly === true ? { shownCatalogOnly: true } : {}),
     ...(typeof raw.promptVersion === 'string' ? { promptVersion: raw.promptVersion } : {}), ...(typeof raw.model === 'string' ? { model: raw.model } : {}),

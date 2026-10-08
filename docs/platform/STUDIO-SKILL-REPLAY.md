@@ -1,6 +1,6 @@
 # 创作台 Skill 回放与冒烟
 
-状态：2026-10-08，防腐 §4.14（W1-12）。命令 `pnpm studio:replay`，代码在 `scripts/studio-replay.mts` 与 `scripts/studio-replay/`，守护在 `tests/studio-replay.test.ts`。**提交的语料现在只是种子，不含任何真实的完整设计答卷；真实答卷怎样取，用户已在 2026-10-08 定了（见 2.2），但导出还没有做，所以「完整设计一次通过率」这个主数字目前没有被测量。**
+状态：2026-10-08，防腐 §4.14（W1-12）。命令 `pnpm studio:replay`，代码在 `scripts/studio-replay.mts` 与 `scripts/studio-replay/`，守护在 `tests/studio-replay.test.ts`。**提交的语料含 380 份真实设计答卷（2026-10-08 按用户的决定，从他 Home 的拷贝里只读导出、审过再提交，见 2.2），所以「完整设计一次通过率」这个主数字现在有数：2026-10-08 实测首轮完整设计 42/80（53%）；以命令输出为准。这个数是「设计者当时的答卷，过现在的宿主检查」，不是答卷当时被怎样处理，也不是 Skill 文字对模型的影响（见 2.2 与第 6 节）。**
 
 插件创作台在运行时把 `skills/molis-plugin-dev` 的章节挂给每个 Agent（`apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`），并用 `plugins/native/plugin-builder/src/agent-prompts.ts` 的提示词。改这些文字、或改宿主对设计答卷的整理与校验（`agent-authoring.ts` 的 `expandDesign`、`agent-validation.ts` 的 `validateAgentDesign`），就是在改生成插件的做法。本文规定这类改动怎样用同一种方式验证。
 
@@ -8,7 +8,7 @@
 
 | 做什么 | 命令 | 证明 | 不能证明 |
 | --- | --- | --- | --- |
-| 离线回放 | `pnpm studio:replay` | 语料里的设计答卷，宿主原来接受的仍接受、原来拒绝的仍因同一类原因拒绝（默认语料是种子：手写条目加 3 份真实首轮方案，见 2.2）；创作台各阶段的 Skill 都挂得上（不超过 20000 字） | Skill 或提示词的文字对模型下一次答卷的影响：答卷是固定的，Skill 改了，回放结果也不变；真实完整设计的一次通过率（语料里还没有这类答卷） |
+| 离线回放 | `pnpm studio:replay` | 语料里的设计答卷，宿主原来接受的仍接受、原来拒绝的仍因同一类原因拒绝（默认语料：手写种子、380 份真实答卷、3 份真实首轮方案，见 2.2）；创作台各阶段的 Skill 都挂得上（不超过 20000 字） | Skill 或提示词的文字对模型下一次答卷的影响：答卷是固定的，Skill 改了，回放结果也不变；答卷当时被宿主怎样处理（回放用现在的检查，动作清单只有设计者当时看到的那部分） |
 | 挂载摘要 | 同上，报告末尾 | 每个阶段挂载文字的版本号（内容摘要）和字数；与基线不同就列出变了哪一段 | 变化好不好 |
 | 生成冒烟 | `pnpm studio:replay smoke` | 在隔离 Home 里，用当前磁盘上的 Skill 与提示词让真实模型做设计，直到设计冻结；报告每个阶段是否一次被宿主接受、修了几轮 | 单次结果的统计意义：真实模型每次答得不同，要改前改后各跑几次看修复轮数 |
 
@@ -32,7 +32,7 @@ pnpm studio:replay --corpus <文件或目录> [--min-pass 0.8]   # 回放自己�
 - `propose`：解析 JSON → 问题或 2–3 个方案 → `normalizeProposal` → 标识唯一、动作在动作目录内；
 - `detail`、`revise`：解析 JSON → `expandDesign` → `validateAgentDesign` → 检查 `rework`。
 
-这是**照着宿主的检查另写了一份**（`replay.mts` 的 `proposeAnswer` 和 `designAnswer` 里的 rework 循环），不是调用同一个函数，因为这些检查还在 `AgentBuilderWorkflow` 的私有方法和闭包里。`tests/studio-replay.test.ts` 的「the replay accepts and refuses exactly what the studio workflow does」把默认语料里每条答卷，以及用例自己造的 Home 运行记录（`harvest` 那条用例里的三种答卷）也交给真实的 `AgentBuilderWorkflow`（脚本化的设计者），要求接受与否、拒绝时回给设计者的原话都和回放一致。宿主的这几步改了而回放没跟上，这条用例会红。**它管不到别人的 Home 里的答卷**：那种语料上两份检查若已分叉，没有用例会红（见第 6 节）。等 `AgentBuilderWorkflow` 的纯检查拆出来、回放直接调用同一个函数，再删这份拷贝和这条对照。
+这是**照着宿主的检查另写了一份**（`replay.mts` 的 `proposeAnswer` 和 `designAnswer` 里的 rework 循环），不是调用同一个函数，因为这些检查还在 `AgentBuilderWorkflow` 的私有方法和闭包里。`tests/studio-replay.test.ts` 的「the replay accepts and refuses exactly what the studio workflow does」把默认语料里每条答卷（含 380 份真实答卷），以及用例自己造的 Home 运行记录（`harvest` 那条用例里的三种答卷）也交给真实的 `AgentBuilderWorkflow`（脚本化的设计者），要求接受与否、拒绝时回给设计者的原话都和回放一致。宿主的这几步改了而回放没跟上，这条用例会红。**它管不到别人的 Home 里的答卷**：那种语料上两份检查若已分叉，没有用例会红（见第 6 节）。等 `AgentBuilderWorkflow` 的纯检查拆出来、回放直接调用同一个函数，再删这份拷贝和这条对照。
 
 报告的主数字是「一次接受率」：每个任务的第一份答卷（`attempt` 为 0）里，宿主不用退回就接受的比例，按来源（`recorded` 模型真实写的、`synthetic` 为检验某条规则手写的）和阶段分开。修复轮的答卷单独计。
 
@@ -47,24 +47,45 @@ pnpm studio:replay --corpus <文件或目录> [--min-pass 0.8]   # 回放自己�
 | 来源 | 内容 | 位置 |
 | --- | --- | --- |
 | 内置 | 设计者提示词里的完整示例（`BUILDER_PROMPTS.designer`），回放时从提示词里取，改坏它就红 | `replay.mts` 的 `builtinEntries` |
-| 手写 | 17 条，各针对一条宿主规则：包裹（`<think>`、围栏）、提前闭合、截断、引用错误、空存储示例、收费动作、筛选栏合并、`rework` 等；`expectFailure` 写明它该因什么被拒 | `tests/fixtures/studio-replay/corpus.json` |
-| 真实录制 | 3 份 MiniMax 对「随手记」的首轮方案（旧格式） | `tests/fixtures/builder-designer/minimax-notes-v1.json` |
+| 手写种子 | 17 条，各针对一条宿主规则：包裹（`<think>`、围栏）、提前闭合、截断、引用错误、空存储示例、收费动作、筛选栏合并、`rework` 等；`expectFailure` 写明它该因什么被拒 | `tests/fixtures/studio-replay/corpus.json` |
+| 真实答卷 | 380 份 MiniMax-M3 的设计者答卷，来自用户 Home 的三个项目（2026-10-08 导出，见下）：224 份首轮（提出方案 96、完整设计 80、修改设计 48）、156 份修复轮（44、96、16） | `tests/fixtures/studio-replay/recorded.json` |
+| 真实首轮方案 | 3 份 MiniMax 对「随手记」的首轮方案（旧格式） | `tests/fixtures/builder-designer/minimax-notes-v1.json` |
 | 自己的 Home | 创作台每次设计者运行都留一份记录：`<Home>/plugin-builder/<项目>/runs/<构建>/builder-runs/<id>.json`（`horizontal/agent-host/src/adapters/plugin-builder.ts`） | 见 2.3 |
 
-**现状要说清：提交的语料是种子，不是真实答卷的语料。** 它由内置的提示词示例、17 条手写条目和 3 份真实的首轮方案组成。能证明「完整设计一次通过率」的真实 `detail` 答卷（2026-09-27 的 66 份，基线 42/66；之后 studio-v3 回放到 227 份，84 份升到 103 份通过，见 `specs/archive/plugin-builder/work-items/studio-v3/spec.md`，现在的数量可能接近后一个数）只在用户真实 Home 的运行记录里，没有进仓库，所以：
+**现状（2026-10-08）：** 默认回放共 401 条：提示词里的示例 1、手写种子 17、真实答卷 380、真实首轮方案 3。真实答卷已经提交，主数字「完整设计一次通过率」因此有了测量值（基线里记着每条的结果，下面的数字以命令输出为准）：
 
-- 默认回放的报告里没有 `recorded detail` 一行，并明文写出「完整设计一次接受率没有被测量」，不用手写条目凑一个好看的比例；
-- 路线图里 W1-12 那行写的「离线回放 66 份设计答卷」**没有完成**，缺的就是这一步。
+| 首轮答卷（`attempt` 为 0，不含修复轮） | 宿主不退回就接受 |
+| --- | --- |
+| 完整设计（`detail`，80 份） | 42/80，53% |
+| 修改设计（`revise`，48 份） | 32/48，67%（另有 1 份被拒只是因为用了设计者没看到的动作） |
+| 提出方案（`propose`，真实 96 份加 3 份旧录制） | 71/99，72%（只算 96 份新导出的：70/96） |
+| 修复轮的答卷（156 份） | 99/156 接受 |
 
-**已决定，尚未执行**（用户 2026-10-08，`specs/repository-anti-corruption/spec.md` §1「创作台 Skill 回放用的真实设计答卷」）：从真实 Home 的拷贝里只读导出，逐条审过再提交。记录的做法是：真实 Home 先 APFS 克隆到会话临时目录，只读打开拷贝（目录库里的绝对路径映射到拷贝）；导出需求原文与设计答卷；逐条审有没有个人信息，有就去掉；不读密钥。另两个选项（只放本机不提交；在隔离 Home 里重新生成）没有选。
+380 份真实答卷里现在有 137 份被拒（首轮 80、修复轮 57）。按宿主的原话归类，不丢任何条目：
 
-这一步没有在本分支做：这个仓库里的命令、测试和 CI 都不读真实 Home，工具只读调用者给的目录。轮到做的人这样接：
+| 被拒的原因 | 首轮 | 修复轮 | 合计 |
+| --- | --- | --- | --- |
+| 界面合同或绑定无效（自动读取绑了命令、必需输入没绑定、字段路径无效、常量不是可接受的值等） | 18 | 14 | 32 |
+| 回答不是完整 JSON（被截断或没有收尾） | 17 | 11 | 28 |
+| 提出方案阶段的格式（方案数量、澄清规则、类型或字段名无法识别、页面没有组件、标识重复等） | 15 | 7 | 22 |
+| 示例与验收用例无效（示例缺字段、期望结果缺必填字段、验收步骤指向不存在的组件或字段、浏览器用例缺具体操作） | 10 | 10 | 20 |
+| 细化时操作没有任何组件使用，或组件绑定了不存在的操作 | 8 | 10 | 18 |
+| 细化时的其它问题（`output` 写法、枚举写法、`query` 写入、缺 `operations`、缺验收） | 8 | 3 | 11 |
+| 操作与平台能力同名 | 3 | 2 | 5 |
+| 用了设计者当时没看到的动作（目录缺口，见 2.1 末段） | 1 | 0 | 1 |
 
-1. 按上面的决定克隆并只读打开拷贝，对每个项目运行 `pnpm studio:replay harvest --runs <拷贝>/plugin-builder/<项目>/runs --out <暂存文件>`。`harvest` 只读那个目录，导出设计者的答卷和它们的上下文（细化的方案、设计者看到的动作清单），不抄指令、活动与用量。**它也不导出需求原文**：决定里列了要导出需求原文，而 `harvest` 故意不抄简报；要导出，就给 `harvest` 加一个明确的开关，原文只进暂存文件。这是导出那一步要做的小改动，本分支没有做。
-2. 逐条读暂存文件，去掉个人信息。条数可能不是 66 或 227：相同的任务与答卷合并；转换不了的记录会跳过并写明原因；2026-10-05 目录收窄之前的答卷现在可能被拒，那是真实信号，不是工具的错。
-3. 提交审过的条目，`pnpm studio:replay --write-baseline`，同时改掉本节「现状」、`report.mts` 的 `SEED_NOTICE` 和 `tests/studio-replay.test.ts` 的「the committed corpus is a seed」。
+读这些数字要注意四件事，它们决定了这个数字能说明什么：
 
-在那之前，手上有运行记录的人可以直接 `--corpus <运行记录目录>` 自己看通过率，不复制任何东西。
+- **是现在的宿主检查，不是当时的。** 每份答卷都用今天的 `expandDesign`、`validateAgentDesign` 重放。一份被拒的答卷当时可能被接受（那时的检查更松），也可能当时就被拒、设计者在修复轮改好了，所以「首轮被拒」不等于「用户当时看到了失败」。
+- **2026-10-05 目录收窄看不出来。** 答卷的动作清单是运行记录里设计者当时看到的那部分，不是现在的目录：用了后来被收窄掉的动作的答卷，回放照样接受。被拒的答卷里只有 1 份是因为动作不在清单里（`revise-68404b6d3115`，`feed.subject.read`）。语料条目没有时间；唯一能分批的是设计者提示词的版本：`designer/2.x` 的首轮答卷 43/61 接受（70%），`designer/3.x` 的 101/163（62%），所以没有看到更老的答卷拒得更多。
+- **范围不同，不要和旧数字直接比。** 这是三个项目里相同任务与答卷合并后的 224 份首轮答卷。早先记的 2026-09-27 的 66 份（42/66）和 studio-v3 回放的 227 份（103/227）取的范围、当时的宿主检查都不是这一份，数字不能直接比。
+- **它是设计者答卷过宿主检查的比例，不是 Skill 好不好。** 改 Skill 文字后要看修复轮数有没有变差，还是得跑冒烟（第 3 节）。
+
+**怎么来的**（用户 2026-10-08 的决定，`specs/repository-anti-corruption/spec.md` §1「创作台 Skill 回放用的真实设计答卷」）：真实 Home 先拷贝到会话临时目录，只读打开拷贝，对三个项目的 runs 目录运行 `pnpm studio:replay harvest --runs <拷贝>/plugin-builder/<项目>/runs`，得到一个语料文件（相同任务与答卷已合并）；两个独立的审查各读了一遍，查有没有个人信息。结果：地点名改成「本地」和中性坐标，其余没有发现个人信息，内容都是通用的示例数据；没有读密钥。导出的文件原样提交（`recorded.json`），逐条没有删。**没有导出需求原文**：决定里写了要导出，而 `harvest` 故意不抄简报，回放也用不到它（宿主对答卷的检查不读简报），所以语料里没有需求原文；以后若要，是给 `harvest` 加一个明确的开关，本分支没有做。这个仓库里的命令、测试和 CI 仍然不读真实 Home：工具只读调用者给的目录。
+
+要换一批真实答卷（用户后来又用了创作台），按同样的路径再来一遍：克隆并只读打开拷贝，`harvest` 到暂存文件，逐条读、去掉个人信息，把新条目加进 `recorded.json`（旧条目留着，答卷变了才用新编号并在基线 `retired` 里写原因），`pnpm studio:replay --write-baseline`，再改本节的数字。新一批里被拒的答卷是真实信号，不是工具的错，不要为了数字好看删条目。
+
+手上有自己的运行记录的人，也可以直接 `--corpus <运行记录目录>` 看自己的通过率，不复制任何东西。
 
 ### 2.3 把 Home 的运行记录变成语料
 
@@ -146,7 +167,7 @@ pnpm studio:replay smoke --briefs <文件> --minutes 12 --out <报告.json>
 | `scripts/studio-replay/skill.mts` | 各阶段挂载的 Skill 摘要 |
 | `scripts/studio-replay/report.mts` | 报告 |
 | `scripts/studio-replay/smoke.mts`、`smoke-command.mts`、`stand-in.mts` | 生成冒烟、隔离 Home 的守卫与接线、替身模型 |
-| `tests/fixtures/studio-replay/` | `corpus.json`、`baseline.json`、`smoke-briefs.json` |
+| `tests/fixtures/studio-replay/` | `corpus.json`（手写种子）、`recorded.json`（380 份真实答卷）、`baseline.json`、`smoke-briefs.json` |
 | `tests/studio-replay.test.ts` | 每条规则的反例（在临时目录里破坏一处，命令必须失败）、与真实工作流的对照、冒烟接线 |
 
 ## 6. 已知限制（说明了，没有关掉）
@@ -155,9 +176,9 @@ pnpm studio:replay smoke --briefs <文件> --minutes 12 --out <报告.json>
 
 | 限制 | 后果 | 何时能关 |
 | --- | --- | --- |
-| 提交的语料是种子，没有真实的完整设计答卷 | 主数字「完整设计一次通过率」没有被测量；默认回放只证明宿主的检查没有退步，且覆盖面是手写条目能想到的规则 | 按 2.2 里已定的做法导出、审过、提交、记基线 |
+| 真实答卷是一次导出的快照（2026-10-08，三个项目，380 份），条目没有时间，也不含需求原文 | 主数字只代表这一批：用户之后的使用、别的项目、别的模型都不在里面；按提示词版本分批是唯一的粗略分法 | 要换一批，按 2.2 末段再导出一次、审过、加进 `recorded.json` |
 | 回放照抄了宿主的检查（`proposeAnswer`、rework 循环），不是调用同一个函数 | 对用例没覆盖到的语料（别人的 Home），两份检查分叉时没有任何东西变红 | 把 `AgentBuilderWorkflow` 的纯检查拆出 plugin-builder 公开导出后改成直接调用，再删这份拷贝和对照用例 |
-| 运行记录里没有整个动作目录（2.1 末段） | 对 `shownCatalogOnly` 的条目：宿主接受的答卷可能被回放拒绝（已单列标明），宿主拒绝的答卷也可能被回放接受（看不见） | 运行记录保存宿主检查时用的目录编号与执行声明之后 |
+| 运行记录里没有整个动作目录（2.1 末段） | 对 `shownCatalogOnly` 的条目（380 份真实答卷全是）：宿主接受的答卷可能被回放拒绝（已单列标明），宿主拒绝的答卷也可能被回放接受（看不见）；2026-10-05 的目录收窄就看不见：用了后来被收窄掉的动作的答卷，回放照样接受 | 运行记录保存宿主检查时用的目录编号与执行声明之后 |
 | 基线文件改名并同时改 `DEFAULT_BASELINE` | CI 只剩本地比较（报告里有 `WARNING:` 一行） | 不关：改门禁脚本与 CI 步骤要过评审 |
 | 回放的语料只有 `propose`、`detail`、`revise` 三个阶段的答卷，没有 `experience`、`compose` 和代码阶段的 | 这三个阶段的宿主检查不在回放里；生成冒烟走到设计冻结（含 `experience`），也不看 `compose` 和代码阶段 | 另开任务 |
 

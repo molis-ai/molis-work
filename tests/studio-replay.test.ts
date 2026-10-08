@@ -19,6 +19,7 @@ import { standInAnswers } from "../scripts/studio-replay/stand-in.mjs";
 // model on an isolated Home. Each rule here is mutation-verified on scratch copies: break one thing, the command fails.
 const root = fileURLToPath(new URL("..", import.meta.url));
 const corpusDirectory = path.join(root, "tests/fixtures/studio-replay"), proposalsFixture = path.join(root, "tests/fixtures/builder-designer/minimax-notes-v1.json");
+const recordedFixture = path.join(corpusDirectory, "recorded.json");
 const scratch = mkdtempSync(path.join(tmpdir(), "molis-studio-replay-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 
@@ -26,7 +27,9 @@ const cli = (args: string[], env: Record<string, string | undefined> = {}) => {
   const run = spawnSync(process.execPath, ["--import", "tsx", path.join(root, "scripts/studio-replay.mts"), ...args], { cwd: root, encoding: "utf8", env: { ...process.env, MOLIS_WORK_SECRET_BACKEND: "file", ...env } });
   return { code: run.status, out: `${run.stdout}${run.stderr}` };
 };
-const committed = () => { const loaded = loadCorpus([path.join(corpusDirectory, "corpus.json"), proposalsFixture]); return [...builtinEntries(), ...loaded.entries]; };
+/** The hand-written seed alone: the prompt example, corpus.json and the 3 first proposals of builder-designer. The rest of the committed corpus is recorded.json. */
+const seedEntries = () => [...builtinEntries(), ...loadCorpus([path.join(corpusDirectory, "corpus.json"), proposalsFixture]).entries];
+const committed = () => { const loaded = loadCorpus([path.join(corpusDirectory, "corpus.json"), recordedFixture, proposalsFixture]); return [...builtinEntries(), ...loaded.entries]; };
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The committed corpus and baseline
@@ -42,21 +45,38 @@ test("the committed corpus replays exactly as its baseline records, and every sy
     else if (entry.origin === "synthetic") assert.equal(result.pass, true, `${entry.id}: ${result.message}`);
   }
   assert.ok(entries.filter(entry => entry.origin === "recorded").length >= 3, "the real MiniMax answers of tests/fixtures/builder-designer are part of the corpus");
-  const loaded = loadCorpus([path.join(corpusDirectory, "corpus.json"), proposalsFixture]);
+  const loaded = loadCorpus([path.join(corpusDirectory, "corpus.json"), recordedFixture, proposalsFixture]);
   assert.deepEqual(loaded.merged, [], "a committed corpus repeats no entry: merging identical records is for a Home's run history, not for the files we keep");
   assert.deepEqual(loaded.skipped, []);
 });
 
-test("the committed corpus is a seed: it holds no real full-design answer, and the default report says so and says what is pending", () => {
-  // This is the fact the doc and the report state plainly. If a real detail answer is ever committed, this test is the place that changes, together with the doc's §2.2.
-  assert.equal(committed().filter(entry => entry.origin === "recorded" && entry.mode !== "propose").length, 0, "no real detail or revise answer is committed");
-  assert.equal(committed().filter(entry => entry.origin === "recorded").length, 3, "the real answers are the 3 first proposals of builder-designer/minimax-notes-v1.json");
+test("the committed corpus holds the real design answers exported from the person's Home, and the default report measures the full-design rate from them", () => {
+  // The fact the doc (§2.2) and the report state plainly. The export was decided on 2026-10-08 (specs/repository-anti-corruption/spec.md §1): three projects of the Home,
+  // copied read-only, harvested, reviewed twice for personal data, locations redacted. If the set changes, this test and the doc's §2.2 change together.
+  const file = JSON.parse(readFileSync(recordedFixture, "utf8")) as { format: string; entries: ReplayEntry[] };
+  assert.equal(file.format, "studio-replay-corpus/1");
+  assert.equal(file.entries.length, 380, "380 real designer answers");
+  assert.ok(file.entries.every(entry => entry.origin === "recorded" && entry.shownCatalogOnly === true && !entry.expectFailure && !entry.live), "all of them were written by a model and rebuilt from a run record");
+  const count = (mode: string, attempt: (value: number) => boolean) => file.entries.filter(entry => entry.mode === mode && attempt(entry.attempt)).length;
+  assert.deepEqual([count("propose", value => value === 0), count("detail", value => value === 0), count("revise", value => value === 0)], [96, 80, 48], "first answers per stage");
+  assert.deepEqual([count("propose", value => value > 0), count("detail", value => value > 0), count("revise", value => value > 0)], [44, 96, 16], "answers to repair requests per stage");
+  assert.equal(new Set(file.entries.map(entry => entry.id)).size, 380);
+  const text = readFileSync(recordedFixture, "utf8");
+  for (const [pattern, what] of [[/[\w.+-]+@[\w-]+\.[a-z]{2,}/iu, "an email address"], [/\/Users\/|~\/\.molis-work|\.molis-work\//u, "a path on the person's machine"], [/\b1[3-9]\d{9}\b/u, "a mobile number"]] as const)
+    assert.doesNotMatch(text, pattern, `the reviewed answers hold no ${what}`);
+  const all = committed(), recorded = all.filter(entry => entry.origin === "recorded");
+  assert.equal(recorded.length, 383, "the 380 real answers and the 3 first proposals of builder-designer/minimax-notes-v1.json");
+  assert.equal(recorded.filter(entry => entry.mode === "detail" && entry.attempt === 0).length, 80, "80 real full designs are first answers");
   const result = cli([]);
   assert.equal(result.code, 0, result.out);
-  assert.match(result.out, /no recorded detail answers in this corpus\. The committed corpus is a seed/);
-  assert.match(result.out, /share of full designs accepted first time, is NOT measured here/);
-  assert.match(result.out, /The user decided on 2026-10-08 \(specs\/repository-anti-corruption\/spec\.md §1\) that they are exported read-only from a copy\s+of that Home and committed after each is reviewed for personal data\. That export is not done/);
-  assert.doesNotMatch(cli(["--corpus", path.join(corpusDirectory, "smoke-briefs.json")]).out, /committed corpus is a seed/, "a corpus of one's own is not called the seed");
+  assert.match(result.out, /recorded detail\s+\d+\/80\s/, "the headline number is measured");
+  assert.doesNotMatch(result.out, /is NOT measured|no recorded detail answers/, "and the report does not say it is not");
+  assert.match(result.out, /380 of these answers were rebuilt from run records/);
+  const seedOnly = cli(["--corpus", path.join(corpusDirectory, "corpus.json")]).out;
+  assert.match(seedOnly, /corpus\.json is the hand-written seed/, "the hand-written file on its own is called the seed, and says where the real answers are");
+  assert.match(seedOnly, /tests\/fixtures\/studio-replay\/recorded\.json/);
+  assert.match(seedOnly, /share of full designs accepted first time, is NOT measured/);
+  assert.doesNotMatch(cli(["--corpus", path.join(corpusDirectory, "smoke-briefs.json")]).out, /hand-written seed/, "a corpus of one's own is not called the seed");
 });
 
 test("the prompt example is replayed from the prompt itself, so a prompt edit that breaks it fails here", () => {
@@ -67,10 +87,14 @@ test("the prompt example is replayed from the prompt itself, so a prompt edit th
 });
 
 test("a refusal is grouped by its kind, not by the names and numbers in it", () => {
-  const summary = summarise(committed().map(entry => replayEntry(entry)));
+  const summary = summarise(seedEntries().map(entry => replayEntry(entry)));
   const parse = summary.reasons.find(reason => reason.stage === "parse")!;
   assert.deepEqual(parse.ids.sort(), ["detail-notes-truncated", "minimax-notes-v1#3"], "two cut-off answers, cut at different characters, are one kind of refusal");
   assert.equal(summary.total, summary.groups.reduce((sum, group) => sum + group.total, 0) + summary.repairRounds.total);
+  // The real answers cut off in many more places, and are still one kind of refusal.
+  const cutOff = summarise(committed().map(entry => replayEntry(entry))).reasons.filter(reason => reason.stage === "parse" && reason.kind.includes("第 # 个字符附近"));
+  assert.equal(cutOff.length, 1, "every cut-off answer of the whole committed corpus is one group");
+  assert.ok(cutOff[0]!.count > 2);
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -100,7 +124,7 @@ async function throughWorkflow(entry: ReplayEntry): Promise<{ accepted: boolean;
   const record = (request: BuilderAgentRequest, output: string): BuilderAgentRecord => ({ id: crypto.randomUUID(), role: request.role, promptVersion: request.promptVersion, contractRevision: request.contractRevision,
     instruction: request.instruction, input: request.task, output, configuredModel: "m", reportedModels: [], phase: "completed", startedAt: new Date().toISOString(), activity: [], usage: [] });
   const catalog: CatalogEntry[] = entry.capabilities.map(item => ({ id: item.id, description: "", ...(item.execution ? { execution: item.execution } : {}) }) as CatalogEntry);
-  const ports = {
+  const ports: AgentBuilderPorts = {
     projectId: "p", catalog: async () => catalog, models: async () => [], validateContract: (contract: unknown) => assertContract(contract),
     agent: async () => ({ async close() {}, async records() { return []; }, async run(request: BuilderAgentRequest) {
       if (request.role !== "designer") throw new Error("design only");
@@ -111,7 +135,7 @@ async function throughWorkflow(entry: ReplayEntry): Promise<{ accepted: boolean;
     } }),
     prepareBuild: async () => scratch, check: async () => { throw new Error("design only"); }, call: async () => [], resetPreview: async () => {},
     browserAcceptance: async () => { throw new Error("design only"); }, publish: async () => { throw new Error("design only"); }, installations: async () => [], lifecycle: async () => {},
-  } as unknown as AgentBuilderPorts;
+  };
   const workflow = new AgentBuilderWorkflow(memoryStorage(), ports);
   try {
     const created = workflow.create("brief");
@@ -519,7 +543,7 @@ test("a refusal for an action the run record does not show is tagged and bounded
   const floor = cli(["--corpus", home, "--min-pass", "0.9"]);
   assert.equal(floor.code, 1, floor.out);
   assert.match(floor.out, /50% is below --min-pass 0\.9 \(1 of the refusals name an action the run record does not show and count as refused here\)/, "a floor counts the tagged refusal as a refusal");
-  assert.doesNotMatch(cli([]).out, /rebuilt from run records/, "nothing of the committed corpus was rebuilt from a run record");
+  assert.doesNotMatch(cli(["--corpus", path.join(corpusDirectory, "corpus.json"), proposalsFixture]).out, /rebuilt from run records/, "nothing of the hand-written seed was rebuilt from a run record (recorded.json is: the test above)");
 });
 
 test("the refusals the report tags as an action the run record does not show are the host's own words, at both stages that say them", async () => {

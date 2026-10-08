@@ -138,6 +138,14 @@ test("the gate records 'said' only when every part of the text is in the quote: 
     ["周报都别写风险", riskFirst], // their words, the other way round
     ["Use emojis", "Don't use emojis please"], // a negation dropped
     ["Don't put risks first", "Put risks first; don't put them last"], // a negation moved
+    ["删文件前不用问我", "删文件前要问我，改名前不用问我"], // the same words plainly in one clause and under a ban in the next: the ban put on the other
+    ["删除旧文件前不用确认", "删除旧文件前要确认，不用确认格式"],
+    ["客户名单发给外部顾问", "客户名单别发给外部顾问，周报发给外部顾问"],
+    ["合同发给客户", "合同先别发给客户，周报发给客户"],
+    ["Delete files without asking", "Ask before deleting files, rename files without asking"],
+    ["人数上限五十万", "预算上限五十万，人数上限三人"], // a number put on another subject
+    ["周报发给客户", "周报发给老板。客户名单不要外传"], // the subject of one sentence with the end of another
+    ["Send weekly reports to Alice", "Send weekly reports to Bob, daily reports to Alice"],
   ];
   for (const [index, [text, said]] of refused.entries()) {
     const result = await memory.write(work(index), { scope: "personal", text, said });
@@ -154,6 +162,8 @@ test("the gate records 'said' only when every part of the text is in the quote: 
     ["Prefers dark mode", "Remember that I prefer dark mode"],
     ["The user prefers concise answers", "From now on keep your answers concise"],
     ["Weekly reports list risks first", "From now on, put the risks first in weekly reports"],
+    ["周报先写风险", "周报别放最后，先写风险"], // a topic carried to the sentence after it
+    ["改名前不用问我", "删文件前要问我，改名前不用问我"], // one of two sentences, as they said it
   ];
   for (const [index, [text, said]] of restated.entries()) {
     const result = await memory.write(work(20 + index), { scope: "personal", text, said });
@@ -169,6 +179,50 @@ test("the gate records 'said' only when every part of the text is in the quote: 
   assert.equal((await memory.list(person(), { scope: "personal" })).items.find(item => item.memory_id === kept.memory_id)!.text, "回答用要点列表，每条一句");
   const corrected = await memory.write(work(32), { scope: "personal", text: "回答用编号列表", said: "以后改用编号列表", replaces: kept.memory_id });
   assert.deepEqual([corrected.outcome, corrected.memory!.source, corrected.memory!.text], ["replaced", "said", "回答用编号列表"]);
+});
+
+test("a correction borrows the words of the memory it replaces only when that memory is the person's own: an automatic memory is never made theirs by a quote that does not carry the text, and a quote must bring something of its own", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  const work = (n: number) => assistant("project-a", { work_id: `work-${n}`, title: `工作 ${n}` });
+  const auto = (text: string) => memory.offer(assistant(), { scope: "project", text, kind: "convention", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const sources = async () => (await memory.list(person())).items.map(item => `${item.text} · ${item.source}`).sort();
+  const undoable = (id: string | null) => memory.changes(person(), { scope: "project" }).find(item => item.change_id === id)!.undoable;
+
+  // Said again over a memory the gate kept itself, naming it as the one it replaces: a quote that carries none of the text changes nothing.
+  const first = await auto("周报先写风险");
+  const again = await memory.write(work(1), { scope: "project", text: "周报先写风险", said: "再说一遍", replaces: first.memory!.memory_id });
+  assert.equal(again.outcome, "duplicate");
+  assert.deepEqual(await sources(), ["周报先写风险 · auto"], "still the gate's");
+  assert.equal(undoable(first.change_id), true, "and still takeable back");
+
+  // A correction of one: the memory's own words are the gate's, not the person's to lend. A short reply, or a name in one, does not make the text theirs.
+  const second = await auto("周报都抄送老王"), third = await auto("日报都抄送老李");
+  for (const [n, replaced, text, said] of [[2, second, "周报抄送老王", "好的"], [3, third, "日报抄送老李", "好的老李"]] as const) {
+    const result = await memory.write(work(n), { scope: "project", text, said, replaces: replaced.memory!.memory_id });
+    assert.equal(result.outcome, "candidate", said);
+    assert.equal(result.candidate!.basis, "inferred");
+  }
+  assert.deepEqual(await sources(), ["周报先写风险 · auto", "周报都抄送老王 · auto", "日报都抄送老李 · auto"].sort());
+  assert.deepEqual([undoable(second.change_id), undoable(third.change_id)], [true, true]);
+
+  // The person's own memory does lend its words: the slot they changed comes from their quote, the rest from the memory.
+  const mine = (await memory.write(work(4), { scope: "project", text: "代码评审先看测试，提交信息用中文", said: "记住：代码评审先看测试，提交信息用中文" })).memory!;
+  const fixed = await memory.write(work(5), { scope: "project", text: "代码评审先看测试，提交信息用英文", said: "提交信息改用英文", replaces: mine.memory_id });
+  assert.deepEqual([fixed.outcome, fixed.memory!.source, fixed.memory!.text], ["replaced", "said", "代码评审先看测试，提交信息用英文"]);
+  // ...but a quote with nothing in it that the text uses brings nothing of its own, and the text is not theirs.
+  const trimmed = await memory.write(work(6), { scope: "project", text: "代码评审先看测试", said: "好的", replaces: mine.memory_id });
+  assert.equal(trimmed.outcome, "candidate");
+  assert.equal((await memory.list(person(), { scope: "project" })).items.find(item => item.memory_id === mine.memory_id)!.text, "代码评审先看测试，提交信息用英文");
+
+  // Said again over an automatic memory that equals the text, with the person's memory named as the one it replaces: the words lent by that memory
+  // are not a way to make the automatic one the person's. The quote alone has to carry the text, and "附上行动项" does not carry "会议纪要用中文，附上行动项".
+  const kept = (await memory.write(work(7), { scope: "project", text: "会议纪要用中文", said: "记住：会议纪要用中文" })).memory!;
+  const long = await auto("会议纪要用中文，附上行动项");
+  const upgraded = await memory.write(work(8), { scope: "project", text: "会议纪要用中文，附上行动项", said: "附上行动项", replaces: kept.memory_id });
+  assert.equal(upgraded.outcome, "duplicate");
+  assert.equal((await memory.list(person(), { scope: "project" })).items.find(item => item.memory_id === long.memory!.memory_id)!.source, "auto");
+  assert.equal(undoable(long.change_id), true);
 });
 
 test("automatic writes follow the gate table, show in recent changes with their rule, and undo deletes them from the store", { timeout: 60_000 }, async t => {

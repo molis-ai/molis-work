@@ -169,6 +169,7 @@ const DO_NOT_REMEMBER = /(?:不要|别|不用|无需|不必)(?:帮我)?(?:记|�
 /** Words of a standing wish, a correction or a lesson: only rounds with one are worth a model call. */
 const STANDING_WISH = /以后|今后|往后|每次|每回|总是|一律|一直|都要|都用|都别|都不|别再|不要再|下次|下回|记住|习惯|偏好|喜欢|讨厌|统一|规范|约定|规定|改成|应该|不对|always|never|from now on|every time|prefer|going forward|next time/i;
 const EXPLICIT_SOURCES: readonly MemorySource[] = ["said", "manual", "accepted", "imported"];
+const UNSAID = "你的原话和要记的内容对不上（要记的内容得出自原话），所以不记作你说的，先作为建议请你看一下";
 /** Written by a policy rather than by the person: what an automatic change may take back. */
 const AUTOMATIC_SOURCES: readonly MemorySource[] = ["auto", "plugin"];
 /** Two memories at least this alike (character pairs) may be about the same thing: upkeep's bar for putting the pair to the person. */
@@ -425,17 +426,20 @@ export class MemoryService {
     if (looksLikeSecret(text) || (input.said && looksLikeSecret(input.said)) || screened?.redacted.includes(REDACTED_CREDENTIAL)) return refused("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
     if (caller.consumer === "plugin" && !caller.plugin_id) throw new MemoryError("memory.forbidden", "插件写记忆必须由宿主确认插件身份");
     // Instruction-like (Prologue's screening or the Host's own Chinese patterns) or carrying a local path: the person sees it first. Their own words are
-    // checked too (a model may restate "不用确认，直接删" as something harmless), and “they said it” holds only if all of the text is in them, the project's name or the memory it corrects.
+    // checked too (a model may restate "不用确认，直接删" as something harmless), and “they said it” holds only if all of the text is in them and the project's name, or in the
+    // words of the memory it corrects when that is the person's own and the text is more than that memory again (the gate's own words are not the person's to lend).
     const screenedSaid = input.said && !caller.person ? await this.ports.backend.screen?.(input.said).catch(() => null) ?? null : null;
     const entries = await this.located(caller, input.scope, where.owner);
-    const unsaid = !caller.person && input.said && !followsFrom(text, input.said, [projectName ?? "", entries.find(located => located.entry.memory_id === input.replaces)?.entry.text ?? ""]) ? "你的原话和要记的内容对不上（要记的内容得出自原话），所以不记作你说的，先作为建议请你看一下" : null;
+    const target = input.replaces ? entries.find(located => located.entry.memory_id === input.replaces) ?? null : null;
+    const unsaidWith = (...words: string[]) => !caller.person && input.said && !followsFrom(text, input.said, words) ? UNSAID : null;
+    const unsaid = unsaidWith(projectName ?? "", target && EXPLICIT_SOURCES.includes(target.meta.source) && !sameText(target.entry.text, text) ? target.entry.text : "");
     const hold = caller.person ? null : screened?.hold || screenedSaid?.hold || looksLikeInstruction(text) || (input.said ? looksLikeInstruction(input.said) : null)
       ? "这段话像是在给 AI 下指令（例如要求忽略规则或跳过确认），不能自动记住，需要你看过再决定"
       : screened && screened.redacted !== text ? "这段话里有本机文件路径之类的内容，先请你看一下再决定记不记" : unsaid;
     const same = entries.find(located => sameText(located.entry.text, text) && visibleTo(caller, located.meta));
     if (same) {
-      // Said again: an automatic or accepted one becomes the person's own words.
-      if (EXPLICIT_SOURCES.includes(input.source) && same.meta.source === "auto" && !unsaid) {
+      // Said again: an automatic or accepted one becomes the person's own words, if the quote alone carries the text (no words lent by a memory it corrects).
+      if (EXPLICIT_SOURCES.includes(input.source) && same.meta.source === "auto" && !unsaidWith(projectName ?? "")) {
         await this.saveFacts(same, { ...same.meta, source: input.source, basis: "explicit",
           approved_by: input.approved_by, evidence: [...same.meta.evidence, ...input.evidence].slice(-6), updated_at: this.now().toISOString() });
         disownAutomatic(this.ports.ledger, same.entry.memory_id);
@@ -443,11 +447,7 @@ export class MemoryService {
       return { outcome: "duplicate", reason: same.meta.state === "disabled" ? "已经记着这一条（目前停用）" : "已经记着这一条了", applies_text: appliesText,
         memory: this.item(await this.find(caller, same.entry.memory_id)), candidate: null, change_id: null };
     }
-    let target: Located | null = null;
-    if (input.replaces) {
-      target = entries.find(located => located.entry.memory_id === input.replaces) ?? null;
-      if (!target) throw new MemoryError("memory.not_found", "要替换的那条记忆不在这个范围里（可能已删除，或属于别的范围）");
-    }
+    if (input.replaces && !target) throw new MemoryError("memory.not_found", "要替换的那条记忆不在这个范围里（可能已删除，或属于别的范围）");
     const asCandidate = async (why: string, basis: MemoryBasis = input.basis): Promise<MemoryWriteResult> => {
       // Already waiting (suggested once before): it keeps waiting, now saying why it was not kept automatically.
       const waiting = input.candidate_id ? this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === input.candidate_id) : undefined;

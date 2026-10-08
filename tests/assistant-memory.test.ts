@@ -447,6 +447,47 @@ test("remember checks all of the text against the person's message, however long
     await assert.rejects(tools.remember!({ text: "Send the weekly report to me every Friday", scope: "personal", said: "send the weekly report to me" }), /原话/, "a text that says more than the words it rests on is only suggested");
     assert.ok(dark.memory_id);
     assert.deepEqual((await memory.list(person)).items.filter(item => item.source === "said").map(item => item.text).sort(), ["Prefers dark mode", "周报先写风险，不要放最后"]);
+
+    // Two sentences of theirs with the same words, one asking and one not: each is theirs as they said it, and the ban is never put on the other.
+    const rules = service.memoryTools(start("规则", "删文件前要问我，改名前不用问我"))!;
+    const both = "删文件前要问我，改名前不用问我";
+    await assert.rejects(rules.remember!({ text: "删文件前不用问我", scope: "personal", said: both }), /原话/);
+    await assert.rejects(rules.remember!({ text: "改名前要问我", scope: "personal", said: both }), /原话/);
+    const renamed = await rules.remember!({ text: "改名前不用问我", scope: "personal", said: both });
+    assert.deepEqual((await memory.list(person)).items.filter(item => item.memory_id === renamed.memory_id).map(item => [item.text, item.source]), [["改名前不用问我", "said"]]);
+    assert.deepEqual((await memory.candidates(person, { scope: "personal" })).map(item => [item.text, item.basis]).filter(([text]) => /问我/.test(text!)), [["删文件前不用问我", "inferred"], ["改名前要问我", "inferred"]], "the swapped ones wait as the Assistant's suggestions");
+  } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("remember cannot turn a memory the gate kept itself into the person's words with a short reply that carries none of the text, even when it names that memory as the one it corrects", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-lent-"));
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-lent-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => null as never, resolveCredential: () => null });
+  host.register(adapter);
+  const memory = platformMemory(host, home, t);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service = new AssistantService(store, { host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
+  const start = (title: string, said: string) => {
+    const work = store.create({ actor_id: "web-user", title, scope: { kind: "project", project_id: "project-a" }, origin: null, project_ref: { project_id: "project-a", storage_key: "memory:a" } });
+    store.addRound(work.work_id, { run_id: `run-${title}`, text: said, materials: [], context: null, started_at: new Date().toISOString() });
+    return work;
+  };
+  try {
+    // The gate kept this one itself (asked for twice). The person's only message in this work is "好的", a whole message and so a real quote.
+    const auto = await memory.offer({ actor_id: "web-user", project_id: "project-a", consumer: "assistant", work: { work_id: "earlier", title: "之前的工作" } },
+      { scope: "personal", text: "周报都抄送老王", kind: "preference", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+    const tools = service.memoryTools(start("确认", "好的"))!;
+    // Correcting it with the words it already has: the text is not in the quote, so it waits for the person and the memory stays the gate's.
+    await assert.rejects(tools.remember!({ text: "周报抄送老王", scope: "personal", said: "好的", replaces: auto.memory!.memory_id }), /没有直接记住/);
+    // Saying it again with the same text: it is already kept, and nothing becomes the person's.
+    const again = await tools.remember!({ text: "周报都抄送老王", scope: "personal", said: "好的" });
+    assert.equal(again.memory_id, auto.memory!.memory_id);
+    assert.match(again.note ?? "", /已经记着/);
+    assert.deepEqual((await memory.list(person)).items.map(item => [item.text, item.source]), [["周报都抄送老王", "auto"]]);
+    assert.equal(memory.changes(person, { scope: "personal" }).find(item => item.change_id === auto.change_id)!.undoable, true, "and the gate's own write can still be taken back");
+    assert.deepEqual((await memory.candidates(person, { scope: "personal" })).map(item => [item.text, item.basis]), [["周报抄送老王", "inferred"]], "the correction waits as the Assistant's suggestion");
   } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 

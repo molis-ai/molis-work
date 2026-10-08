@@ -447,7 +447,7 @@ export const memoryActions = {
       counts: { type: "object", properties: { personal: { type: "integer" }, project: { type: "integer" }, auto_this_week: { type: "integer" }, pending: { type: "integer" } }, required: ["personal", "project", "auto_this_week", "pending"], additionalProperties: false } },
       required: ["items", "counts"], additionalProperties: false } } } as ActionDefinition<MemoryListRequest, MemoryListResponse>,
   write: { capability_id: "memory.write", version: 1, operation: "command", action: { ...writes, audiences: ["user", "agent", "plugin"] as ("user" | "agent" | "plugin")[], permissions: [MEMORY_WRITE_PERMISSION],
-    title: "记住一件事", description: "按用户的明确要求记住一条偏好、约定、背景或经验（个人或当前项目）。经写入门：形似秘密的不写，像指令的文字只作为待认可的建议；与已有的冲突时新的明确要求替换旧的。Agent 调用时必须在 said 里附上用户原话（一整句，text 里的字词、数字、地址、否定都要出自这句话，可以删去一些、换个顺序）；原话对不上要记的内容时，不记成“用户说的”，只作为待认可的建议。插件写的只进它自己的命名空间：只有它自己能读，用户在设置里看得到、撤得回。",
+    title: "记住一件事", description: "按用户的明确要求记住一条偏好、约定、背景或经验（个人或当前项目）。经写入门：形似秘密的不写，像指令的文字只作为待认可的建议；与已有的冲突时新的明确要求替换旧的。Agent 调用时必须在 said 里附上用户原话（一整句，text 里的字词、数字、地址、否定都要出自这句话，并且各自留在原话里它那一句里，可以删去一些句子或词，不要把不同句子里的词拼成新的一句）；原话对不上要记的内容时，不记成“用户说的”，只作为待认可的建议。插件写的只进它自己的命名空间：只有它自己能读，用户在设置里看得到、撤得回。",
     input_schema: { type: "object", properties: { scope: scopeSchema, text: memoryText, kind: kindSchema, applies: appliesSchema, said: { type: "string", maxLength: 400 },
       expires_at: nullableText, replaces: memoryId, rests_on: { type: "object", properties: { kind: { type: "string", minLength: 1, maxLength: 200 }, id: { type: "string", minLength: 1, maxLength: 200 } },
         required: ["kind", "id"], additionalProperties: false } }, required: ["scope", "text"], additionalProperties: false },

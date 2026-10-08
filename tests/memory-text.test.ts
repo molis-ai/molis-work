@@ -102,6 +102,175 @@ test("a restatement of their words still follows: particles, the framing of a me
   assert.equal(followsFrom("项目甲里 NSM 指北极星指标", "记住：NSM 是北极星指标", "项目甲"), true);
 });
 
+test("a negation is read where it stands: words the quote uses plainly in one clause and under a ban in another are not free to move from one to the other", () => {
+  check([
+    // “问我” is asked for before deleting and waived before renaming; each text keeps one of the two and puts it on the other.
+    ["删文件前不用问我", "删文件前要问我，改名前不用问我"],
+    ["改名前要问我", "删文件前要问我，改名前不用问我"],
+    ["删除旧文件前不用确认", "删除旧文件前要确认，不用确认格式"],
+    ["转账前不用确认", "转账前一定要确认，查余额不用确认"],
+    ["付款前不需要问我", "付款前需要问我，查账不需要问我"],
+    // The ban on one thing, carried over to the thing it was not said about.
+    ["客户名单发给外部顾问", "客户名单别发给外部顾问，周报发给外部顾问"],
+    ["合同发给客户", "合同先别发给客户，周报发给客户"],
+    ["Delete files without asking", "Ask before deleting files, rename files without asking"],
+    ["Pay invoices without asking", "Pay nothing without asking. Check invoices without asking"],
+  ], false);
+  // Each clause of theirs, kept as it was said, is still theirs.
+  check([
+    ["删文件前要问我", "删文件前要问我，改名前不用问我"],
+    ["改名前不用问我", "删文件前要问我，改名前不用问我"],
+    ["删文件前要问我，改名前不用问我", "删文件前要问我，改名前不用问我"],
+    ["客户名单别发给外部顾问", "客户名单别发给外部顾问，周报发给外部顾问"],
+    ["周报发给外部顾问", "客户名单别发给外部顾问，周报发给外部顾问"],
+    ["Rename files without asking", "Ask before deleting files, rename files without asking"],
+    ["Check invoices without asking", "Pay nothing without asking. Check invoices without asking"],
+  ], true);
+});
+
+test("their clauses are not recombined into one they never said: a number, a recipient or a subject taken from one clause and put on another", () => {
+  check([
+    ["人数上限五十万", "预算上限五十万，人数上限三人"],
+    ["人数上限五十万", "预算上限五十万人数上限三人"],
+    ["人数上限 50 人", "预算上限 50 万 人数上限 3 人"],
+    // A number is not run into the first word of the next sentence: the "人" of "人数" is not the unit of "五十万".
+    ["预算上限五十万人", "预算上限五十万，人数上限三人"],
+    ["预算上限五十万人数上限三人", "预算上限五十万，人数上限三人"],
+    ["Team cap is 50", "Budget cap is 50, team cap is 3"],
+    ["Send weekly reports to Alice", "Send weekly reports to Bob, daily reports to Alice"],
+    ["周报发给客户", "周报发给老板。客户名单不要外传"],
+    ["周报发给客户", "周报发给老板 客户名单不要外传"],
+    ["客户名单发给老板", "客户名单别外传，先发给老李，周报发给老板"],
+    ["会议纪要发给 boss@example.com", "会议纪要发给我，boss@example.com 不要抄送"],
+  ], false);
+  // A clause may still be said again as it was, or have its topic carried from the clause before it.
+  check([
+    ["人数上限三人", "预算上限五十万，人数上限三人"],
+    ["预算上限五十万", "预算上限五十万，人数上限三人"],
+    ["预算上限五十万，人数上限三人", "预算上限五十万，人数上限三人"],
+    ["周报先写风险", "周报别放最后，先写风险"],
+    ["周报简洁", "周报不要太长，要简洁"],
+    ["Send daily reports to Alice", "Send weekly reports to Bob, daily reports to Alice"],
+    ["周报先写风险，并且每条一句", "周报先写风险。每条一句"],
+  ], true);
+});
+
+test("words lent to a correction are lent, not a way round: the quote must carry some of the text, and nothing lent hides a join between two of their clauses or two of the lent memory's", () => {
+  check([
+    // Only the lent memory's words; the quote has nothing in it that the text uses.
+    ["周报抄送老王", "好的", ["周报都抄送老王"]],
+    ["回答用要点列表", "好的", ["回答用要点列表，每条一句"]],
+    // A lent word placed between two stretches of one clause does not make the stretches neighbours.
+    ["客户名单发给外部顾问", "客户名单别外传。外部顾问会参加评审", ["周报发给老板"]],
+    ["客户名单发给老板", "好，老板", ["客户名单不要外传，周报发给老板"]],
+  ], false);
+  check([
+    // The slot they changed, with the rest of the corrected memory.
+    ["回答用编号列表，每条一句", "以后改用编号列表", ["回答用要点列表，每条一句"]],
+    ["项目甲里回答用编号列表", "以后改用编号列表", ["项目甲", "回答用要点列表，每条一句"]],
+  ], true);
+});
+
+test("no punctuation is needed to tell two statements apart: a word that joins or turns against, a ban with a word of its own, traditional characters, the sign of a number", () => {
+  check([
+    // “但、不过、however、but” end a statement and a negation with it; “和、并且、and” end the statement but not the negation.
+    ["删文件前不用问我", "删文件前要问我但改名前不用问我"],
+    ["删除旧文件前不用确认", "删除旧文件前要确认不过格式不用确认"],
+    ["Delete files without asking", "Ask before deleting files but rename files without asking"],
+    ["Delete files without asking", "Ask before deleting files, however rename files without asking"],
+    ["周报发给老李", "周报发给老板和日报发给老李"],
+    ["Send weekly reports to Alice", "Send weekly reports to Bob and daily reports to Alice"],
+    ["用图片", "不要用表格和图片"],
+    ["Use emojis", "Don't use tables and emojis"],
+    // A ban said with a verb of its own, or in traditional characters.
+    ["发给外部顾问", "拒绝发给外部顾问"],
+    ["问我", "很少问我"],
+    ["Send reports", "Stop sending reports"],
+    ["Use emojis", "Avoiding emojis please"],
+    ["Pay without asking", "Pay nothing without asking"],
+    ["Ask me", "Rarely ask me"],
+    ["有確認", "沒有確認"],
+    ["發給外部顧問", "別發給外部顧問"],
+    // An exception, a replacement and "not this but that" are bans on what they name.
+    ["Use tables", "Use bullet points instead of tables"],
+    ["Use tables", "Use bullet points rather than tables"],
+    ["Cc the boss on weekly reports", "Cc the boss on everything except weekly reports"],
+    ["Cc the boss on weekly reports", "Cc the boss on everything unless it is a weekly report"],
+    ["用表格", "用图片代替表格"],
+    ["用表格", "用图片而不是表格"],
+    ["周报都抄送老板", "除了周报都抄送老板"],
+    ["周报抄送老板", "所有文件都抄送老板，除非是周报"],
+    ["用表格", "不是用表格而是用图片"],
+    ["不用图片", "不是用表格而是用图片"],
+    // What a stretch leaves out before it is not a number: the amount that the rule was for.
+    ["转账不用确认", "转账小于100元时不用确认"],
+    ["不用确认", "转账小于100元时不用确认"],
+    ["Send reports without asking", "Send reports under 5 pages without asking"],
+    ["代码评审先看测试", "每周五的代码评审先看测试"],
+    // A sign is part of its number.
+    ["预算上限 $500", "预算上限 ¥500"],
+    ["预算上限 500", "预算上限 500%"],
+    ["Keep it under 5%", "Keep it under 5"],
+    ["错误率 ≤ 5", "错误率 ≥ 5"],
+    ["预算上限٦٠", "预算上限٥٠"],
+  ], false);
+  check([
+    ["不要用表格", "不要用表格但可以用图片"],
+    ["可以用图片", "不要用表格但可以用图片"],
+    ["不要用图片", "不要用表格和图片"],
+    ["周报发给老板", "周报发给老板和日报发给老李"],
+    ["Don't use emojis", "Don't use tables and emojis"],
+    ["Avoid emojis", "Stop using emojis"],
+    ["Don't send reports", "Refuse to send reports"],
+    ["别发给外部顾问", "拒绝发给外部顾问"],
+    ["沒有確認", "沒有確認"],
+    ["预算上限 $500", "记住预算上限 $500"],
+    ["Keep it under 5%", "Please keep it under 5%"],
+    ["预算上限 ￥500", "预算上限 ¥500"],
+    ["用图片", "用图片代替表格"],
+    ["用图片", "不是用表格而是用图片"],
+    ["不用表格", "不是用表格而是用图片"],
+    ["Use bullet points", "Use bullet points instead of tables"],
+    ["Ask before deleting files", "Ask before deleting files unless they are drafts"],
+    ["所有文件都抄送老板", "所有文件都抄送老板，除非是周报"],
+    ["转账小于100元时不用确认", "记住转账小于100元时不用确认"],
+    ["Send reports under 5 pages without asking", "Send reports under 5 pages without asking"],
+    ["表格列名用英文", "表格里的列名统一用英文"],
+    ["发布前必须先跑全量回归", "记住发布前一定要先跑全量回归"],
+    ["日报写完抄送老李", "日报写完以后抄送一下老李"],
+    // A bullet the person typed is not a negation.
+    ["周报先写风险", "◆ 周报先写风险"],
+    ["Use tables", "◇ Use tables"],
+  ], true);
+});
+
+test("everyday restatements keep passing: the filler of a request left out, a word of position or time dropped, a sentence of two kept as it was said", () => {
+  check([
+    ["回复用中文", "以后回复我都用中文"],
+    ["写代码用 TypeScript，不要用 JavaScript", "写代码以后用 TypeScript，不要再用 JavaScript 了"],
+    ["每周五下午发周报", "每周五下午记得发周报"],
+    ["回答先给结论再展开", "回答的时候先给结论，然后再展开细节"],
+    ["代码评审先看测试", "做代码评审的时候先看测试"],
+    ["文档用二级标题", "文档里面用二级标题，不要用一级"],
+    ["删除文件前先问我", "删除文件之前一定要先问我"],
+    ["表格列名用英文", "表格里的列名统一用英文"],
+    ["回复里不要用表情", "以后回复里别用表情符号"],
+    ["日报写完抄送老李", "日报写完以后抄送一下老李"],
+    ["提交代码时附上测试结果", "提交代码的时候要附上测试结果"],
+    ["Reply in Chinese", "Please always reply to me in Chinese"],
+    ["Use tabs for indentation", "From now on, use tabs for indentation"],
+    ["Cite sources", "Always cite your sources when you answer"],
+    ["Check security issues first when reviewing code", "When reviewing code, check for security issues first"],
+    ["Ask before deleting files", "Always ask me before deleting any files"],
+    ["Don't use emojis", "Please don't use any emojis"],
+    ["Avoid semicolons in JavaScript", "Never use semicolons in JavaScript"],
+    ["Summaries under 200 words", "Keep summaries under 200 words"],
+    ["Weekly reports go to alice@example.com", "Weekly reports should go to alice@example.com"],
+  ], true);
+  // The same words with a middle part left out of a sentence that has an address in it are only suggested: an edit does not fall among the words before a number or an address.
+  check([["会议纪要发给 boss@example.com", "会议纪要整理好以后发给 boss@example.com"]], false);
+});
+
 test("English restates the same way: inflection, function words and the framing of a memory do not count, a word the person did not use does", () => {
   check([
     ["Prefers dark mode", "Remember that I prefer dark mode"],

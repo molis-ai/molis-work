@@ -10,7 +10,7 @@
 
 POST /casebook/v1/projects 返回项目目录；POST /casebook/v1/{project_ref}/ 后分别接 authorization、set-authorization、facts、goal-contexts、operation-receipts、diagnostics。只允许带服务 Bearer 的非浏览器请求，不接受 Origin。
 
-项目由 Molis Work 自己的 Host 打开。Casebook 不接收数据库路径。恢复只允许现有且版本完整的项目，不新建、不代为迁移；缺少结构需由 Molis Work 正式打开并完成其自身升级。
+项目由 Molis Work 自己的 Host 打开。Casebook 不接收数据库路径。恢复只允许现有且版本完整的项目，不新建、不代为迁移；版本不符的项目库由 Molis Work 拒绝打开（只认当前 schema 版本，不就地升级）。
 
 ## 能看见什么
 

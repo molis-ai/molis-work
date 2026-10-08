@@ -9,16 +9,16 @@
 ## 2. 身份与安装
 
 - 官方可安装生态由官方发布并审核；第三方源码由用户自行构建和安装。
-- 本地 Plugin 默认个人安装、个人数据、不同步；用户在 Plugin 内明确选择 Team Project 后，才通过 Goal/Artifact 共享。
-- Team Plugin 由 Team 决定在 Server 上安装和授权；它不能远程安装用户本地 Plugin 或取得个人权限。
+- 本地 Plugin 默认个人安装、个人数据、不同步。Team 共享是后续方向（Team/Server 目前没有正式实现，见 [SSOT](../SSOT-MATRIX.md)），届时也须用户在 Plugin 内明确选择 Team Project。
+- Team Plugin 将由 Team 决定在 Server 上安装和授权；它不能远程安装用户本地 Plugin 或取得个人权限。
 - Plugin 身份由发布者签名绑定。签名变化视为新 Plugin，旧 grant、Store 和 Provider Binding 不继承。
 
 ## 3. 能力与内容交换
 
 - Module 和 Horizontal Service 对外暴露强类型 Capability。
-- Plugin Manifest 声明需要的 Capability、grant、produces/consumes 的 Artifact Type 与 UI Contribution。
+- Plugin Manifest 声明需要的 Capability、grant、produces/consumes 的成果与过程项类型与 UI Contribution。
 - Plugin 不声明对另一个 Plugin implementation 的依赖。
-- 可保存、同步、重放的内容只通过 Goal/Artifact；即时查询/操作直接调用官方 Capability。
+- 人要留存、引用的固定版本走成果（`artifacts.produces`），交给别的插件的数据走过程项（`process_items.produces`）；插件自己的事实留在私有存储，别人经它的动作读取；即时查询/操作直接调用动作目录。
 - Artifact consumer 由 `artifact_type_id + schema_version` 匹配，不限制生产者 Plugin。
 
 **v2 把「依赖」这件事说清楚了**（[需求书](../../specs/plugin-platform-v2/spec.md)）。依赖只表达契约，
@@ -66,19 +66,19 @@ Manifest 内部的一致性由解析器保证，而不是留到运行时才炸�
 
 ## 5. Native 与 Integration Plugin
 
-Native Plugin 是一级产品入口，组合 Module API 和 UI；它不吸收 Module implementation。Goals、Artifacts 是官方保护的一等 Plugin。本机偏好用 `settings-page` 挂到 `workbench.settings`，由全局设置目录列出；Feed/Inbox 里的来源和账号仍是插件内容功能，不进全局设置。Functions 事件去向只收录该对象画面上已接线的下一步处置，录取标准与判例见 [Plugin 开发 · 事件去向的动作名单](PLUGIN-DEVELOPMENT.md#事件去向的动作名单)。完整写插件（含 Host 装配、CLI、接入）： [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md)。
+Native Plugin 是一级产品入口，组合 Module API 和 UI；它不吸收 Module implementation。所有内置插件都由 molis 发布、带官方签名；Goals 是每个项目都带、工作台里不能移除的插件，其余插件按项目添加或移除。本机偏好用 `settings-page` 挂到 `workbench.settings`，由全局设置目录列出；Feed/Inbox 里的来源和账号仍是插件内容功能，不进全局设置。Functions 事件去向只收录该对象画面上已接线的下一步处置，录取标准与判例见 [Plugin 开发 · 事件去向的动作名单](PLUGIN-DEVELOPMENT.md#事件去向的动作名单)。完整写插件（含 Host 装配、CLI、接入）： [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md)。
 
 Integration Plugin 把 Provider 的 Manifest、Local/Server entry、设置 UI、Connector/Listener/Signal/Action Adapter 放在一起。Host 只看 Contract 和 Receipt，不包含 GitHub/Gmail 等 provider 条件分支。
 
 ## 6. 安全边界
 
-Plugin 只能在 Manifest 上限和用户实际 grant 的交集内调用；Secret 通过引用交给安全 Adapter；UI 与本地 entrypoint 通过 Host 提供的隔离通道通信。卸载停止代码和 binding，但历史 Goal/Artifact/Signal 引用仍可安全显示。
+Plugin 只能在 Manifest 上限和用户实际 grant 的交集内调用；Secret 通过引用交给安全 Adapter；UI 与本地 entrypoint 通过 Host 提供的隔离通道通信。卸载停止代码和 binding，但已保存的 Goal、成果与 Signal 引用仍可安全显示。
 
 ## 7. 当前实现边界
 
-v2 已在 Coding 及 Files、Diff、Git、Text Stats 的正式宿主装配中运行，
+v2 已在 Coding、Files、Diff、Git、Text Stats、Shelf、Characters 的正式宿主装配中运行（名单见 `tests/builtin-plugin-assembly-gate.test.ts`），
 复用 `createPluginPlatform` 的生命周期、Artifact、连线、事件及能力合同；真实 SQLite 重启路径有工程验证。
-其他仍标为 `native` 的插件继续由构建期组合装配，不能据 Coding 的接通宣称所有内置插件已迁移。
+其他仍标为 `native` 的插件继续由构建期组合装配，该名单冻结、只许减少；新的内置插件只走 Plugin Runtime，不能据 Coding 的接通宣称所有内置插件已迁移。
 每个插件的具体产品完成度以自身需求书和正式运行证据为准。
 
 Runtime 以稳定 `install_id` 关联安装记录和私有数据。启动只恢复已安装版本，不会因 Host 提供了较新 Manifest 就改写版本或授权。Manifest 可用 `upgrade_compatibility.compatible_from_versions` 声明新实现可直接兼容的精确来源版本，或用 `migratable_from_versions` 声明仅可经用户手动升级的数据来源；可迁移升级要求插件提供只能读 `storage:private.get` 的 `validateUpgrade` 预检。Host 不做数据迁移；预检通过后目标实现必须直接使用原数据。项目插件市场展示当前项目的候选版本与新旧版本，用户触发升级后 Runtime 校验来源声明、权限保留和数据预检，再切换版本。更高版本升级仍需提高版本号；同版本 Manifest 变更仅在声明兼容当前精确版本时允许继续运行，安装记录指纹保持不变，也不会产生市场候选。
@@ -93,7 +93,7 @@ Runtime 管理的首方 Native 插件会把其工厂实现打成单文件模块�
 - 同一 `plugin_id + version + signature` 的 Manifest 内容不能静默变化；代码变化必须由 Plugin 自己递增 version。
 - Runtime 不理解 GitHub/Gmail payload，也不拥有 Source、Signal、Feed 或 Attention 数据。
 - Plugin crash 会撤销当前 contribution，可在上限内恢复；uninstall 撤销代码 contribution，但不删除已经形成的 Signal。
-- 项目 Runtime SQLite 保留 Runtime 管理的首方 Native 发行物，支持 Host 重启后恢复当前安装实现；其他仍由构建期组合装配的 Native 插件不因此获得版本恢复。已有安装若从未保存过精确发行物，Host 只能在当前候选明确兼容该安装版本时安全接续并归档当前实现；不兼容且没有历史发行物时会保留安装记录并报告不可恢复，不会执行候选代码。Plugin 仍是可信 Host 进程内代码，不提供任意 JavaScript 的独立进程或沙箱隔离；Server entrypoint 仍是后续实现。
+- 项目 Runtime SQLite 保留 Runtime 管理的首方 Native 发行物，支持 Host 重启后恢复当前安装实现；其他仍由构建期组合装配的 Native 插件不因此获得版本恢复。已有安装若从未保存过精确发行物，Host 只能在当前候选明确兼容该安装版本时安全接续并归档当前实现；不兼容且没有历史发行物时会保留安装记录并报告不可恢复，不会执行候选代码。Native 插件仍是可信 Host 进程内代码，Runtime 不提供 JavaScript 沙箱；插件创作工作台生成的插件由 Host 放进独立的 macOS 沙箱进程运行（`packages/plugin-sandbox`）。Server entrypoint 仍是后续实现。
 
 当前项目目录通过按项声明的 [项目设置能力](PROJECT-SETTINGS.md) 读取；Workspace 已退出产品导航和运行图。设置槽、项目说明和私有存储保持各自边界。
 

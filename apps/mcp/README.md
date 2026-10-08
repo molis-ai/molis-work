@@ -15,7 +15,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | [src/protocol.ts](src/protocol.ts) | handleMcpMessage：协议处理 |
-| [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录（连接 / Goals / 事件）。插件工具不在这里写死 |
+| [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录：7 个连接工具与受信管理入口的 initialize、event_decide、goal_tree_decide。插件与 Goals 能力都是动作工具，不在这里写死 |
 | [src/tool-dispatch.ts](src/tool-dispatch.ts) | 项目工具分发 |
 | [src/launcher-validation.ts](src/launcher-validation.ts) | 启动器验证 |
 

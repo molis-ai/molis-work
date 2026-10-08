@@ -695,6 +695,20 @@
   "hostEntryExportStar": {
     "apps/local-host/src/index.ts#export-star": 11
   },
+  "layerExceptionsTotal": 10,
+  "layerExceptions": {
+    "app-import#. -> apps/desktop": 1,
+    "app-import#. -> apps/local-host": 1,
+    "app-import#. -> apps/mcp": 1,
+    "app-import#apps/desktop -> apps/local-host": 1,
+    "app-import#apps/local-host -> apps/cli": 1,
+    "app-import#apps/local-host -> apps/mcp": 1,
+    "app-import#apps/local-host -> apps/workbench": 1,
+    "app-import#apps/server -> apps/desktop": 1,
+    "app-import#apps/server -> apps/local-host": 1,
+    "plugin-module-import#plugins/native/shelf -> modules/shelf": 1,
+    "lists#declared": 1
+  },
   "moduleRepositoryExportsTotal": 21,
   "moduleRepositoryExports": {
     "modules/artifacts#member:ArtifactsModule.repository": 1,
@@ -719,15 +733,23 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 211,
+  "typedCapabilitiesTotal": 295,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 10,
     "apps/local-host/src/casebook/integration.ts#type-refs": 1,
     "apps/local-host/src/casebook/integration.ts#without-action": 1,
+    "apps/local-host/src/casebook/integration.ts#register-calls": 5,
+    "apps/local-host/src/casebook/observer.ts#without-action": 1,
     "apps/local-host/src/local-host.ts#type-refs": 6,
+    "apps/local-host/src/local-host.ts#without-action": 1,
+    "apps/local-host/src/local-host.ts#register-calls": 1,
+    "apps/local-host/src/project-capabilities.ts#register-calls": 49,
     "apps/local-host/src/project-host.ts#type-refs": 1,
+    "apps/local-host/src/project-host.ts#register-calls": 1,
     "horizontal/agent-host/src/capability-registration.ts#type-refs": 2,
+    "horizontal/agent-host/src/capability-registration.ts#register-calls": 1,
     "horizontal/scheduler/src/index.ts#type-refs": 1,
+    "horizontal/scheduler/src/index.ts#register-calls": 4,
     "packages/contracts/src/modules/goals.ts#type-refs": 4,
     "packages/contracts/src/modules/goals.ts#without-action": 4,
     "packages/contracts/src/modules/workspace-artifacts.ts#type-refs": 12,
@@ -741,14 +763,21 @@
     "packages/contracts/src/services/agent-host.ts#without-action": 42,
     "packages/contracts/src/services/scheduler.ts#type-refs": 4,
     "packages/contracts/src/services/scheduler.ts#without-action": 4,
+    "packages/kernel/src/action-service.ts#register-calls": 1,
     "packages/kernel/src/index.ts#type-refs": 5,
     "packages/plugin-runtime/src/services.ts#type-refs": 2,
     "plugins/native/goals/src/board-entry-capabilities.ts#type-refs": 5,
     "plugins/native/goals/src/board-entry-capabilities.ts#without-action": 5,
+    "plugins/native/goals/src/entry-composition-capabilities.ts#type-refs": 1,
+    "plugins/native/goals/src/entry-composition-capabilities.ts#without-action": 1,
     "plugins/native/goals/src/goal-entry-contract.ts#type-refs": 3,
     "plugins/native/goals/src/goal-entry-contract.ts#without-action": 3,
     "plugins/native/goals/src/goal-event-entry-capabilities.ts#type-refs": 18,
-    "plugins/native/goals/src/goal-event-entry-capabilities.ts#without-action": 18
+    "plugins/native/goals/src/goal-event-entry-capabilities.ts#without-action": 18,
+    "plugins/native/goals/src/goals-entry-capabilities.ts#type-refs": 5,
+    "plugins/native/goals/src/goals-entry-capabilities.ts#without-action": 5,
+    "plugins/native/goals/src/proposal-capabilities.ts#type-refs": 4,
+    "plugins/native/goals/src/proposal-capabilities.ts#without-action": 4
   },
   "hostPluginFilesTotal": 34,
   "hostPluginFiles": {

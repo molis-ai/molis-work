@@ -216,7 +216,7 @@
 
 ## 3. 体检报告附录 A 复核
 
-状态：2026-10-08 逐项重新量过，§4.9 闭环完成（W1-01）。数字与行号量于 main `ba223d95`：首轮量于 `33067cbe`，#314–#322 合入后整张表又对着 `ba223d95` 复核了一遍，变了的都已改。附录 A 的每一项（含皮肤、Goals UI、Server 与 C 组）、体检报告 §5 的 6 步、§7.5 的 5 条、第一步交接清单（[post-merge-review §12](../archive/post-merge-review/spec.md#12-交给第二步的清单)）的每一项，都有结论、证据和归属。
+状态：2026-10-08 逐项重新量过，§4.9 闭环完成（W1-01）。数字与行号量于 main `ba223d95`：首轮量于 `33067cbe`，#314–#322 合入后整张表又对着 `ba223d95` 复核了一遍，变了的都已改；之后的 #323（`1cdb31dd`）只改文档与 spec，数字不受影响。附录 A 的每一项（含皮肤、Goals UI、Server 与 C 组）、体检报告 §5 的 6 步、§7.5 的 5 条、第一步交接清单（[post-merge-review §12](../archive/post-merge-review/spec.md#12-交给第二步的清单)）的每一项，都有结论、证据和归属。
 
 **读法**：
 
@@ -265,7 +265,7 @@
 | N-16 | 仍然成立 [已确认] | `scripts/run-tests.mjs:16` 用 `--test-concurrency=1`；757 个 `tests/*.test.ts`（其中 128 个 e2e）加 5 个 `.test.mjs`；全量 76–78 分钟（§4.1、§9 各批记录）[引用] | W5-12（每文件一个 Home 与密钥库，非浏览器文件并发）、W2-17（受影响用例挑选） |
 | N-17 | 仍然成立 [已确认] | `tooling/gates/` 现在有 `baseline.json`、`giant-exceptions.json`（#320）、`limits.json`、`secret-allowlist.txt`，没有 `api/`；WIP 分支 `chore/health-gates-lint-api` 只在本地 | W1-04（API 快照）、W2-15（动作合同快照，取代 `specs/archive/post-merge-review/capability-snapshot.mts`） |
 | N-18 | 部分 [已确认] | W1-17 已做（#315）：`docs/system/GLOSSARY.md` 一概念一名一定义，含术语到翻译稳定键的对应、界面用词待批清单（第 4 节，等用户批准）、代码改名清单（第 5 节，分内部改名与合同改名，尚未执行），AGENTS.md「先读哪里」指向它。改名前各词出现在多少个源码文件里：Action 939、Capability 421、Method 382、Role 257、Character 154、Judgment 118、Behavior 113、Skill 73、Scene 53 [引用]；Project 与 Board 已统一（#287，`boards` 表名按决定保留） | 决定 #27（文档一个定义、内部名跟着改、界面用词另列清单经用户批准）：W1-17 已做；代码改名 W5-14 |
-| N-19 | 部分 [已确认] | 版本与发布策略已写（W1-22，#321）：`docs/releases/POLICY.md`（一个产品版本、下一版 0.3.0）、`CHANGELOG.md`（第一节 `[Unreleased]`）、`CHECKLIST.md`（含各库版本表与真实 Home 的处理）；核对脚本移到 `scripts/verify-release-versions.mjs`，CI 里跑（「Release versions agree」）。余：根包仍是 0.2.0，71 个工作区包 0.0.0，`examples/plugin-sample` 2.0.0；内置插件清单版本仍各自独立（1.0.0 到 1.50.0，`POLICY.md` 第 1 节）；v0.2.0 之后 1,868 个提交（不含合并提交 1,213 个，`git rev-list --count v0.2.0..origin/main`）都在 `[Unreleased]` 里，还没发布 0.3.0；根目录仍入库 `molis-work-introduction.html`、`outputs/`（3 个文件，含商业计划）、`.zcode/plans/`（1 个文件），`.gitignore:8` 还留着旧名 `.goalboard/`；`docs/product-intro/` 才是对外介绍的正式位置 | 决定 #23（一个产品版本，下一版 0.3.0）、决定 #22（介绍页移到 `docs/product-intro/archive`，`outputs/` 与 `.zcode/` 移出并加进 `.gitignore`）：W1-22 已做；W1-23、W5-15；BL-117 |
+| N-19 | 部分 [已确认] | 版本与发布策略已写（W1-22，#321）：`docs/releases/POLICY.md`（一个产品版本、下一版 0.3.0）、`CHANGELOG.md`（第一节 `[Unreleased]`）、`CHECKLIST.md`（含各库版本表与真实 Home 的处理）；核对脚本移到 `scripts/verify-release-versions.mjs`，CI 里跑（「Release versions agree」）。余：根包仍是 0.2.0，71 个工作区包 0.0.0，`examples/plugin-sample` 2.0.0；内置插件清单版本仍各自独立（1.0.0 到 1.50.0，`POLICY.md` 第 1 节），Runtime 对内置插件一律跟当前构建的做法用户 10-08 已选定（A，`POLICY.md` 第 7 节，#323），还没实现；v0.2.0 之后 1,868 个提交（不含合并提交 1,213 个，`git rev-list --count v0.2.0..origin/main`）都在 `[Unreleased]` 里，还没发布 0.3.0；根目录仍入库 `molis-work-introduction.html`、`outputs/`（3 个文件，含商业计划）、`.zcode/plans/`（1 个文件），`.gitignore:8` 还留着旧名 `.goalboard/`；`docs/product-intro/` 才是对外介绍的正式位置 | 决定 #23（一个产品版本，下一版 0.3.0）、决定 #22（介绍页移到 `docs/product-intro/archive`，`outputs/` 与 `.zcode/` 移出并加进 `.gitignore`）：W1-22 已做；W1-23、W5-15；BL-117 |
 | N-20 | 仍然成立 [已确认] | Rust 18、Swift 3、shell 7、Python 1 个文件；CI 里没有 rustfmt、clippy、Swift 构建检查或 shellcheck | W1-09 |
 | C 组 | 仍然成立，方案已出 [已确认] | `packages/observability` 在 SSOT 里仍是 `absent`（`docs/SSOT-MATRIX.md:73`）；没有自动更新、崩溃上报、在线备份；macOS 安装包未公证（README）；生成插件沙箱依赖 `sandbox-exec`（`packages/plugin-sandbox`）；CLI 没有第三方插件安装路径；核心 AI 依赖私有 vendored 包。方案已写：[c-end-readiness.md](c-end-readiness.md)（W1-21，#316，三个里程碑、各项成本与依赖、5 个探针）、`docs/system/THIRD-PARTY-PLUGINS.md`（#317）、[dependencies-and-sdk-plan.md](dependencies-and-sdk-plan.md)（#318） | 决定 #11（第三方插件：本地装、首次确认、沙箱里跑，只写计划）、#20、#25：W1-21（方案，已做）、W1-20（方案，已做）；执行见各方案 |
 | 新（合并现场） | 部分 [已确认] | 真实 Home 上同时跑两个 Web 的情形这次没有：4207、4208、4173 都没有在监听（4173 自 10-03 停着，§7）；规则仍是 AGENTS.md 的「一个 Home 只有一个执行进程」。装新版仍待用户（§7） | 用户（§7）；W5-16 之前开发用隔离 Home |
@@ -817,7 +817,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 ### 9.2 对照任务要求的补查
 
-2026-10-08 刷新：#290（本 spec 的进度合入）、#293–#298 已在 main，本节按 `ba223d95`（并含 #314–#322）重对一遍；10-03 的初版结论保留在 git 历史里。
+2026-10-08 刷新：#290（本 spec 的进度合入）、#293–#298 已在 main，本节按 `ba223d95`（并含 #314–#323）重对一遍；10-03 的初版结论保留在 git 历史里。
 
 **第一步任务书（main 上的新版）**：新版比归档时的旧版多两条要求——
 
@@ -842,7 +842,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | §4.9 体检报告逐项闭环 | 已闭环（10-08）：附录 A 39 行、报告 §5 的 6 步、§7.5 的 5 条、交接清单 25 项，各有结论、证据、归属 | §3 |
 | §4.10 新合同全链路 | 部分：搜索来源与对象读取器、侧栏文件来源、成果库的预览固定比较继续、工作流内容站、插件通知（只对 Runtime 插件）、撤销声明在使用端的授权，都已走通并有用例（roadmap §4.10）；Manifest `methods` 对 Runtime 与已安装插件不生效，按决定 #18 改为和内置一样注册（W4-02）；无使用者的接口按决定 #19 处理（W2-03）；注册时交叉校验 W3-05；八类新合同按基本合同逐条复核已做（`specs/action-architecture/spec.md` §3 末尾，#319），缺口 G1–G9 各有去向 | roadmap §4.10 |
 | §4.11 数据与可靠性 | 部分：`docs/system/HOME-DATA.md`（#295）是库的 owner 表（第 11 项交付物）；两个无版本库（W2-05）、4 处跨 owner SQL（W2-06）、统一登记（W4-11）、快照命令（W5-16）待做 | §3 R-09 |
-| §4.12 卫生与文档 | 部分：vendored 已收到 1 份（#170），`MIGRATION.md` 已退场（#251），文档对齐经 #295–#298 做掉大半；版本与发布策略已写（W1-22，#321：`docs/releases/POLICY.md`、`CHANGELOG.md`、`CHECKLIST.md`，`scripts/verify-release-versions.mjs` 进 CI），发布 0.3.0 与内置插件清单版本重置在 W5-15；余下见 W1-02（文档收尾）、W1-23（根目录、`.impeccable`、工作树）、W2-01（占位 subpath） | §3 |
+| §4.12 卫生与文档 | 部分：vendored 已收到 1 份（#170），`MIGRATION.md` 已退场（#251），文档对齐经 #295–#298 做掉大半；版本与发布策略已写（W1-22，#321：`docs/releases/POLICY.md`、`CHANGELOG.md`、`CHECKLIST.md`，`scripts/verify-release-versions.mjs` 进 CI），发布 0.3.0、内置插件清单版本改成 0.3.0 与 Runtime 跟随当前构建在 W5-15（细则和清单跟随的做法用户 10-08 已确认，#323）；余下见 W1-02（文档收尾）、W1-23（根目录、`.impeccable`、工作树）、W2-01（占位 subpath） | §3 |
 | §4.13 门禁 | 部分：已接健康门禁（对照合并基点；含巨大单元例外校验 #320、包清单表校验 #322）、整页门禁、成果类型与声明门禁、密钥扫描、版本核对（#321）；API 快照、页面资源预算、结构门禁、文档引用门禁、静态检查待做（W1-04～W1-09） | §5a |
 | §4.14 手册与 Skill | 部分：读取兼容规则（#290）与 `host.md` 重写（#298）已做；创作台回放工具 W1-12；`host.md` 与 AGENTS.md 的说法对不上（BL-119，W6-03）；基本合同复核发现 Skill 没写撤销、后台任务、到期提醒、片段推荐（缺口 G7，和 W1-12 的回放工具一起补） | `skills/molis-plugin-dev/` |
 | §4.15 术语表 | 部分（W1-17 已做，#315）：`docs/system/GLOSSARY.md` 已写（一概念一名一定义；术语到翻译稳定键的对应；界面用词待批清单；代码改名清单分内部改名与合同改名；Characters 按「设置的一节」写，讨论按在用功能写）；代码改名（W5-14）、旧术语门禁、两套能力机制的收敛未做 | `docs/system/GLOSSARY.md`、§1 |

@@ -137,3 +137,18 @@ test("a draft whose adopted material was deleted is no longer saved, and can be 
   inspect(home, db => db.prepare("UPDATE cognia_drafts SET body=? WHERE id=?").run(JSON.stringify({ ...store.drafts()[0], saved_id: "gone" }), "d1"), false);
   assert.equal(store.saveDraft(draft.id).body, "整理正文"); assert.notEqual(store.drafts()[0]!.saved_id, "gone");
 }));
+
+test("a deleted knowledge material's fixed versions keep their sources, also when the draft is adopted again", fixture(store => {
+  const source = store.createMaterial({ title: "来源", body: "来源正文" });
+  const reference = { label: "S1", material_id: source.id, revision: 1, title: "来源", path: source.path, body: "来源正文" };
+  const draft = store.addDraft({ id: "d1", title: "知识", body: "结论 [S1]", domain_id: null, references: [reference], mode: "synthesize", saved_id: null, created_at: new Date().toISOString() });
+  const first = store.saveDraft(draft.id);
+  assert.deepEqual(store.detail(first.id, 1).references, [reference]);
+  store.deleteMaterial(first.id);
+  assert.deepEqual(store.detail(first.id, 1).references, [reference], "deleting the material does not take the sources of its fixed version");
+  assert.equal(store.drafts()[0]!.saved_id, null, "the draft still reads as unsaved");
+  const second = store.saveDraft(draft.id); store.deleteMaterial(second.id); const third = store.saveDraft(draft.id);
+  for (const id of [first.id, second.id, third.id]) assert.deepEqual(store.detail(id, 1).references, [reference], "every material the draft became keeps its sources");
+  assert.deepEqual(Object.keys(store.drafts()[0]!).sort(), [...Object.keys(draft)].sort(), "the draft shows only its own fields");
+  assert.deepEqual(store.drafts()[0]!.references, [reference]);
+}));

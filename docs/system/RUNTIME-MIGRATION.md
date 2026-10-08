@@ -1,6 +1,6 @@
 # 内置插件迁到 Plugin Runtime：计划
 
-状态：计划，2026-10-08 按 origin/main `f8ea20b9` 核实（代码与 `35d7f320` 相同，之间只有文档、CI 与密钥扫描脚本的变化）。还没有合入的迁移样板：第一个样板 Form 是路线图 W4-04，依赖 W3-06 的平台服务，两者都未开始。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进宿主（第 5.4 节）。
+状态：计划，2026-10-08 按 origin/main `33067cbe` 核实（行号与计数都在这个提交上重量过）。还没有合入的迁移样板：第一个样板 Form 是路线图 W4-04，依赖 W3-06 的平台服务，两者都未开始。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进宿主（第 5.4 节）。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「装配统一」；路线图 W1-15、W3-06、W4-01、W4-02、W4-04、W5-01、W5-02、W6-01、W6-02（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）；扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md)，第三方插件见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。
 
@@ -35,7 +35,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 - `RUNTIME_ASSEMBLED`（7）：characters、shelf、coding、files、git、diff、text-stats，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 6。
 - `BUILD_TIME_ASSEMBLED`（19）：alchemist、artifacts、cognia、dataset、experiments、feed、form、goals、images、inbox、jelly、lingguang、pages、plugin-builder、ppt、schedule、sessions、workflows、todo。
 
-宿主里手写的接线（`apps/local-host/src` 下）：18 个 `*-native-plugin-http.ts`（共 960 行）；17 个以插件命名的 `*-actions.ts`（共 619 行：artifact、cognia、dataset、experiments、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 26 处 `registerProvider`，其中按插件逐个登记的 17 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 13、`builtin-plugins.ts` 11。
+宿主里手写的接线（`apps/local-host/src` 下）：18 个 `*-native-plugin-http.ts`（共 960 行）；17 个以插件命名的 `*-actions.ts`（共 619 行：artifact、cognia、dataset、experiments、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 26 处 `registerProvider`，其中按插件逐个登记的 17 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
 
 ### 2.2 19 个构建期插件的分类与放置
 
@@ -61,12 +61,12 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 | Alchemist | 是 | Home 级 | `{home}/alchemist/alchemist.db`，每项目另有 `alchemist/projects/<id>/studio.sqlite` | 有：每个项目一个工作室库（`alchemist-service-host.ts`），决定里的「工作室与密钥」 | 没有 `*-actions.ts`（`AlchemistHostService`）、51 |
 | Inbox | 否 | 每个项目一个 | 项目库，表由 Attention 模块建（`ATTENTION_SCHEMA_SQL`） | 不需要：项目库随项目目录一起移走 | 70、92 |
 | Schedule | 否 | 每个项目一个 | 项目库，表由插件包自建（`SCHEDULE_*_SCHEMA_SQL`） | 不需要 | 26、92；另有 `scheduleReminderActionProvider` |
-| Feed | 否 | 每个项目一个 | 项目库，表由 Feed、Sources、Signals 模块和插件的 `FEED_OUT_RULES_SCHEMA_SQL` 建 | 项目库部分不需要；Home 里的 Feed 安全目录（`resolveFeedSecurityDirectory`，`packages/storage/src/adapters/local-security-paths.ts`）放密钥文件，有没有按项目分区的内容由 Feed 自己的计划核 | 没有 `feed-actions.ts`；`feed-native-plugin-http.ts` 113；在 `content-action-providers.ts` 的 `nativeContentProviders` 里登记；Feed 被 26 个宿主文件 import，单独成案 |
+| Feed | 否 | 每个项目一个 | 项目库，表由 Feed、Sources、Signals 模块和插件的 `FEED_OUT_RULES_SCHEMA_SQL` 建 | 项目库部分不需要；Home 里的 Feed 安全目录（`resolveFeedSecurityDirectory`，`packages/storage/src/adapters/local-security-paths.ts`）放密钥文件，有没有按项目分区的内容由 Feed 自己的计划核 | 没有 `feed-actions.ts`；`feed-native-plugin-http.ts` 113；在 `content-action-providers.ts` 的 `nativeContentProviders` 里登记；Feed 被 29 个宿主文件 import（`git grep -l "@molis-ai/molis-work-plugin-feed" -- apps/local-host/src`），单独成案 |
 
 **放置规则（落实 2026-10-07「个人插件装在一个 Home 级实例，按项目启用照旧」）。** 本计划按「提供方今天怎么登记」放：
 
-- **Home 级实例**：提供方今天在 Home 级登记一次的（`apps/local-host/src/project-host.ts` 第 237–250 行用 `this.host.actionRegistry()`，不带项目；其中第 249 行 Shelf 个人库的提供方属混合插件，另算）：Todo、Jelly、Cognia、Experiments、Images、Alchemist，共 6 个。
-- **每个项目一个实例**：提供方今天按项目登记的（同文件第 195–212 行，`this.host.actionRegistry(reference)`）：Form、Dataset、PPT、Pages、灵光、Workflows、Inbox、Schedule、Feed，共 9 个。监督器条目放在 `project-plugins.ts` 的 `startPlatform`，和 Shelf、Coding 一族一样。
+- **Home 级实例**：提供方今天在 Home 级登记一次的（`apps/local-host/src/project-host.ts` 第 231–245 行用 `this.host.actionRegistry()`，不带项目；其中第 243 行 Shelf 个人库的提供方属混合插件，另算）：Todo、Jelly、Cognia、Experiments、Images、Alchemist，共 6 个。
+- **每个项目一个实例**：提供方今天按项目登记的（同文件第 189–206 行，`this.host.actionRegistry(reference)`）：Form、Dataset、PPT、Pages、灵光、Workflows、Inbox、Schedule、Feed，共 9 个。监督器条目放在 `project-plugins.ts` 的 `startPlatform`，和 Shelf、Coding 一族一样。
 - **与决定原文的差别，要用户确认（第 10 节第 3 项）。** 目录里 Form、Dataset、PPT、Pages、灵光、Workflows 也标了 `personal: true`，字面读决定会把它们也放进 Home 级实例。这里没有那样读，原因有二：一是路线图决定 10 的选项把 Form 描述为 project-scoped，推荐理由写明 Form 不必等 Home 级服务（`roadmap-2026-10-07.md` 决定 10），用户选了这一项；二是目录的 `personal` 标志在代码里只表示「每个项目都可用，不进项目启用列表」（`apps/local-host/src/project-action-availability.ts` 对 `personal` 返回不检查项目启用，`web-request.ts` 的 `enablePlugin` 拒绝 `personal` 条目，`skills/molis-plugin-dev/elements.md` 第 48 行同义），并不等于「Home 级登记」。如果用户的意思是字面读法，这 6 个也上 Home 级实例，结果只有两处变：Form 样板（W4-04）要等 W3-06 的 Home 级实例（它本来就依赖 W3-06 这一片，所以顺序不变），以及这 6 个的监督器条目从 `project-plugins.ts` 的 `startPlatform` 挪到 Home 级实例的装配处。
 
 **混合插件**（在 `RUNTIME_ASSEMBLED` 里，宿主却仍留着手写文件，门禁看不出来）：Shelf 仍有 `shelf-native-plugin-http.ts`、`personal-native-plugin-http.ts`、`shelf-actions.ts`、`shelf-ai.ts`，并在 `project-host.ts` 里登记两个提供方（项目一份、Home 一份）。它的收拢在 W5-01 的最后一组。Characters 原来也是混合插件（宿主里有 `characters-host.ts` 等文件），现在走另一条路：并进宿主（第 5.4 节）。
@@ -77,7 +77,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 | 插件 | 为什么现在不能是 Runtime 插件（代码事实） | 例外期间仍要守的 |
 | --- | --- | --- |
-| Goals | 每个项目都带、工作台里不能移除（`PRODUCT.md`）；Goal 的表在项目库基线里（`GOALS_SCHEMA_SQL` 等）；是被点名最多的插件，包外有 70 个文件引用它；`apps/cli`、`apps/mcp` 直接依赖它的包（`scripts/workspace-packages.mjs` 里两处 `extraWorkspaceDependencies`）；工作台里它的界面由 `apps/workbench/src/goals-page-renderer.ts` 和一组 Goals 渲染器接口挂载（W5-06 要换成通用挂载器） | 不新增 `<插件>-native-plugin-http.ts`（`NATIVE_PLUGIN_HTTP_FILES` 的冻结继续有效）；动作仍在统一目录里；不得因为是例外就从插件包里 import 别的插件实现 |
+| Goals | 每个项目都带、工作台里不能移除（`PRODUCT.md`）；Goal 的表在项目库基线里（`GOALS_SCHEMA_SQL` 等）；是被点名最多的插件，包外有 70 个源码或配置文件引用它（与 EXTENSION-POINTS.md 第 1 节同一条命令，换成 `@molis-ai/molis-work-plugin-goals|plugins/native/goals/|GOALS_(PROJECT_)?PLUGIN_ID`）；`apps/cli`、`apps/mcp` 直接依赖它的包（`scripts/workspace-packages.mjs` 里两处 `extraWorkspaceDependencies`）；工作台里它的界面由 `apps/workbench/src/goals-page-renderer.ts` 和一组 Goals 渲染器接口挂载（W5-06 要换成通用挂载器） | 不新增 `<插件>-native-plugin-http.ts`（`NATIVE_PLUGIN_HTTP_FILES` 的冻结继续有效）；动作仍在统一目录里；不得因为是例外就从插件包里 import 别的插件实现 |
 | Artifacts | `project-plugins.ts` 和 `installed-plugin-host.ts` 先构造 `ArtifactsModule`、`ProcessItemsModule`，再交给 `createPluginPlatform`，Runtime 给所有插件的 `services.artifacts`、`services.processItems` 就建在它上面；它自己再当 Runtime 插件，就要靠自己提供的服务启动自己（推断）。`artifact-native-plugin-http.ts` 206 行 | 同上；成果库规则不变（`artifacts.produces` 声明，宿主拒绝未声明的写入） |
 | Sessions | 宿主持有会话注册表（`project-host.ts` 的 `this.sessions`），传给 `workActionProvider` 和 `projectWorkspaceActionProvider` | 同上 |
 | 插件创作台 | 它创建并管理其他插件的安装：`installed-plugin-host.ts` 依赖 `AgentBuilderStore`；宿主侧 `apps/local-host/src/plugin-builder/` 有 16 个文件 2,181 行 | 同上；生成插件仍走统一目录与沙箱 |
@@ -161,7 +161,7 @@ Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用
 1. 文档创作族：Dataset、PPT、Pages。与 Form 同形，样板之后最稳。
 2. 个人族：Jelly、Cognia、灵光、Images、Experiments。其中 Jelly、Cognia、Images、Experiments 依赖 Home 级实例；灵光按 2.2 的放置规则是每个项目一个。Images 有长驻的 `ImagesHostService`，Experiments 的库在 `plugins/experiments/` 下，各有一处额外适配。
 3. 流程族：Schedule、Workflows、Inbox。Schedule 的提醒和定时操作与宿主调度器相连，Workflows 要通过动作目录调其他插件，Inbox 与 Feed 有判断场景绑定；碰到 4.2 的项目库表问题。
-4. Feed：被 26 个宿主文件 import，来源、信号、连接器、Inbox 都和它相连，单独写计划再迁。
+4. Feed：被 29 个宿主文件 import，来源、信号、连接器、Inbox 都和它相连，单独写计划再迁。
 5. 混合插件收拢：Shelf（删 `shelf-native-plugin-http.ts`、`personal-native-plugin-http.ts`、两处 `registerProvider`）。
 6. Alchemist：最后迁，它有自己的宿主服务和每项目工作室库。
 

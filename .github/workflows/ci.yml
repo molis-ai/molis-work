@@ -61,7 +61,8 @@ jobs:
       # The budget rules are mutation-verified on a scratch repository and on a fake host build: a grown asset, a new asset,
       # a raised budget, a slack left unlowered and a missing build each fail, and so does the laundering move after
       # `--update` or after the budget file was raised by hand, and a route rewritten out of the gate's reading together
-      # with its deleted entry. The last case runs the real gate on this build.
+      # with its deleted entry; a route spelled as a regular expression (other than the plugin pack pattern) or with escaped
+      # slashes is refused outright. The last case runs the real gate on this build.
       - name: Page asset budget rules reject what they claim to
         run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts
 

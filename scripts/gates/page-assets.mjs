@@ -13,8 +13,24 @@
 // the committed budget or the merge-base's budget names that the reading did not find is asked of the built host as well.
 // If the host still sends it, it is measured and the run fails as a discovery miss, so deleting a budget entry together with
 // the literal that named the route does not stop the asset from being measured, and a harmless rewrite of the routes does
-// not silently blind the gate. A route compared with something that is not a literal (an imported constant), or a
-// `/assets/` mention the gate cannot read as a whole literal, is exit 2: the gate cannot see what it would have to measure.
+// not silently blind the gate. A route compared with something that is not a literal (an imported constant), a
+// `/assets/` mention the gate cannot read as a whole literal, or a route spelled as a regular expression other than the
+// plugin pack pattern, is exit 2: the gate cannot see what it would have to measure.
+//
+// Not covered, said here so nobody reads the gate as stronger than it is (the same list is in AGENTS.md and the spec):
+//  - Only apps/local-host/src/web-assets.ts is read. A route added in another host file is not seen, however it is spelled;
+//    today only `serveWorkbenchAsset` there answers /assets/ (web-request.ts hands the request to it).
+//  - A route spelled so that no `/assets/` or `\/assets` text is left (two string halves concatenated, `\x2f`/`\u002f`
+//    escapes, a path built at run time) and that is in no budget. A path that is in a budget is still asked of the host.
+//  - The comparison check looks for the identifier `pathname`, the name web-assets.ts gives the request path. A route compared
+//    through a renamed parameter with a constant imported from another file is not seen; a constant declared in
+//    web-assets.ts itself is, because its literal is read.
+//  - Bytes moved out of a measured asset into inline <style>/<script> in the page HTML are not measured (first-screen HTML
+//    is not measured at all), and plugin client code that leaves /assets/molis-work-plugins/ for another place (Plugin
+//    Runtime) leaves the budget with its entry, which removing is always allowed.
+//  - The terminal client (dist/web/pty-client.js) is built by the root `pnpm build:pty-client`, which CI does not run.
+//  - Sizes are measured on one platform at a time; they do not depend on locale, time or paths, but nothing here proves
+//    that the CI machine builds the same bytes as a laptop: the first CI run on a PR that changes assets is the check.
 //
 //   node scripts/gates/page-assets.mjs                  measure and compare with tooling/gates/page-assets.json
 //   node scripts/gates/page-assets.mjs --base <ref>     also compare that file with the merge-base's copy: a budget that
@@ -105,6 +121,12 @@ const bodyBytes = (body) => (typeof body === "string" ? Buffer.from(body, "utf8"
 // The `/assets/...` routes web-assets.ts declares, read from its string literals. Comments are dropped first. What the gate
 // cannot read as a whole literal is refused rather than skipped, because a skipped route is a route nobody budgets.
 const withoutComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`\\])\/\/[^\n]*/g, "$1");
+// The one route the host spells as a regular expression: the plugin client packs, whose ids come from the registered
+// workbench packs, not from this text. Any other `/assets/` spelled in a regex literal (`\/assets\/…`, `[/]assets`) is a
+// route the string-literal reading cannot see: the escaped slashes are not a whole "/assets/" and do not raise the
+// mention count below. (`"\/assets\/x"` in a plain string has the same escapes and is refused the same way.)
+const PACK_ROUTE_PATTERN = String.raw`/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.js$/`;
+const ESCAPED_ASSETS = /.{0,16}(?:\\\/|\[\/\])assets.{0,56}|.{0,16}assets(?:\\\/|\[\/\]).{0,56}/;
 const COMPARE = "(?:[!=]==|[!=]=)(?!=)";
 const NON_LITERAL_COMPARISONS = [new RegExp(`\\bpathname\\s*${COMPARE}\\s*(?!["'\`])\\S`), new RegExp(`(?<=[^\\s"'\`=!])\\s*${COMPARE}\\s*pathname\\b`)];
 function declaredRoutes(source) {
@@ -113,6 +135,11 @@ function declaredRoutes(source) {
   if (comparison) {
     return fail(`${ROUTES_SOURCE} compares the request path with something that is not a string literal (\`${comparison[0].trim()}\`), `
       + "so the gate cannot tell which asset that route sends and would not measure it; write the route as a string literal there, or teach scripts/gates/page-assets.mjs to read the new form");
+  }
+  const escaped = code.split(PACK_ROUTE_PATTERN).join(" ").match(ESCAPED_ASSETS);
+  if (escaped) {
+    return fail(`${ROUTES_SOURCE} spells an "/assets/" route with escaped slashes (\`${escaped[0].trim()}\`), which is a regular expression or an escaped string, and the only one the gate knows is the plugin pack pattern ${PACK_ROUTE_PATTERN}; `
+      + "so the route it serves would not be measured; write it as a string literal, or teach scripts/gates/page-assets.mjs to read the new form");
   }
   const literals = [...code.matchAll(/(["'`])(\/assets\/[^"'`\s\\]+)\1/g)].map((match) => match[2]);
   const readable = literals.filter((literal) => !literal.includes("${"));

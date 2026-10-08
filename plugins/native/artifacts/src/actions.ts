@@ -135,8 +135,8 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
       const artifact = requireArtifactAnalysisRecord(ports.artifacts.query.getArtifactVersion(ports.projectId, reference),
         { project_id: ports.projectId, actor_id: caller.actor_id, reference });
       const scope = { kind: "personal" as const, id: ports.projectId };
-      // Legacy edges omit the namespace or retain project_id; newer edges can name the canonical project.
-      const currentProject = (project: string | null | undefined) => project == null || project === ports.projectId || project === caller.project_id;
+      // Edges in this project's ledger name this project or no project (Goals' input bindings name none).
+      const currentProject = (project: string | null | undefined) => project == null || project === ports.projectId;
       const edges = ports.ledger.list({ actor_id: caller.actor_id, scope });
       const goalIds = edges.filter(edge => (edge.type === "goal.input" || edge.type === "goal.output")
         && edge.target.module === "artifacts" && edge.target.id === reference.artifact_id && edge.target.version === reference.version

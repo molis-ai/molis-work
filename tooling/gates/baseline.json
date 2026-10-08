@@ -170,7 +170,7 @@
   "testInternalImports": 957,
   "vendoredPrologueSdk": 1,
   "schemaPatches": 0,
-  "compatMarkerTotal": 20,
+  "compatMarkerTotal": 17,
   "compatMarkers": {
     "apps/local-host/src/casebook/contract.ts": 1,
     "apps/local-host/src/casebook/journal.ts": 2,
@@ -181,9 +181,7 @@
     "apps/local-host/src/pdf-document-parser.ts": 1,
     "apps/local-host/src/plugin-builder/installed.ts": 3,
     "apps/workbench/src/i18n/en.ts": 1,
-    "apps/workbench/src/scripts/client/global-search.ts": 2,
     "packages/plugin-runtime/src/index.ts": 2,
-    "plugins/native/artifacts/src/actions.ts": 1,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
   "note": "Only decreases. Regenerate with `node scripts/check-health-gates.mjs --update` in the PR that lowers a number."

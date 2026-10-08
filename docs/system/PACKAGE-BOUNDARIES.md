@@ -32,6 +32,8 @@ platform packages
   → lower-level platform packages only
 ```
 
+`server/`（身份、设备、接续回执与群聊领域）按 Module 规则检查，不算平台包：它有自己的业务事实（2026-10-08 决定第 4 项）。分类以 `scripts/workspace-packages.mjs` 的 `kind` 为准。
+
 ## 2. 强制禁止
 
 - Module implementation 或 Store 导入另一个 Module implementation 或 Store。

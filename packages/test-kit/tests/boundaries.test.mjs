@@ -569,8 +569,10 @@ test("rejects a Module importing a Horizontal Service, an App or a Plugin", () =
 
 test("rejects a Plugin importing an App, a Horizontal Service or a Module, except the listed Shelf import", () => {
   const { app, modulePackage, nativePlugin, integration, horizontal, sdk, kernel } = layerPackages();
+  // `server` (identity, devices, continuity and the chat domain) is a business package, so it counts as a Module here.
+  const serverModule = boundaryPackage("@molis-ai/molis-work-server", "server", "module");
   for (const importerBase of [nativePlugin, integration]) {
-    for (const target of [app, modulePackage, horizontal]) {
+    for (const target of [app, modulePackage, horizontal, serverModule]) {
       assert.ok(
         violationCodes({
           importer: boundaryPackage(importerBase.name, importerBase.path, importerBase.kind, [target.name]),

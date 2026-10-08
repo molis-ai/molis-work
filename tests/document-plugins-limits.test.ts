@@ -6,14 +6,18 @@ import { join } from "node:path";
 import { bindActionClient, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, formResultsCsv, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { datasetActions, createDatasetActionHandlers, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
-import { lingguangActions, createLingguangActionHandlers, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
-import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
+import { lingguangActions, lingguangContentActions, createLingguangActionHandlers, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { pagesActions, pagesContentActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { pptActions, PPT_ACTION_PERMISSIONS, createPptActionHandlers, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { createWorkflowContentPorts } from "@molis-ai/molis-work-plugin-workflows";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { inboxContentActions } from "@molis-ai/molis-work-plugin-inbox";
+import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 
-const permissions = [...new Set([...NATIVE_CONTENT_PERMISSIONS, ...PAGES_ACTION_PERMISSIONS, ...FORM_ACTION_PERMISSIONS, ...PPT_ACTION_PERMISSIONS])];
+// The Host grants the content hand-offs these permissions (Feed, Pages, 灵光 and Inbox content actions).
+const contentPermissions = [...feedManifest.actions!, ...Object.values(pagesContentActions), ...Object.values(lingguangContentActions), ...Object.values(inboxContentActions)]
+  .flatMap(definition => definition.action.permissions);
+const permissions = [...new Set([...contentPermissions, ...PAGES_ACTION_PERMISSIONS, ...FORM_ACTION_PERMISSIONS, ...PPT_ACTION_PERMISSIONS])];
 async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "document-plugins-limits-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });

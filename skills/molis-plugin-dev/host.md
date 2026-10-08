@@ -14,7 +14,7 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要加�
 
 1. **合同类型**（有私人记录时）：`packages/contracts/src/modules/<id>.ts`，并在 `packages/contracts/package.json` 加 `./modules/<id>` export。
 2. **插件包**：`package.json` 的 `molis-work` 块（path/kind/ssot），以及 `README.md`、`tsconfig.json`、`src/index.ts`（`workspace-packages.mjs` 缺一个就报错）。`index.ts` 必须再导出 Manifest、`createXPlugin`、contribution、stylesheet、client factory，Workbench / Host 从包根 import。
-3. **`scripts/workspace-packages.mjs`**：加一条 `entry(...)`，并在 workbench、local-host 的 `extraWorkspaceDependencies` 里加上这个包名。然后 `node scripts/workspace-packages.mjs` 核对。
+3. **`scripts/workspace-packages.mjs`**：加一条 `entry(...)`，并在 workbench、local-host 的 `extraWorkspaceDependencies` 里加上这个包名。再在 `docs/SSOT-MATRIX.md` 对应的表里加这个包的一行，运行 `node scripts/package-owners.mjs --write` 生成「归属」列和 `.github/CODEOWNERS`。然后 `node scripts/workspace-packages.mjs` 核对（它也检查归属列与 CODEOWNERS）。
 4. **`apps/workbench/src/builtin-plugins.ts`**：内置 build 在 `BUILTIN_PLUGIN_CATALOG` 加一条，绑定 `project_plugin_id`、包导出的 `manifest`、可选 `personal`、`summary`（进内建市场还要有 `navigator` 或 `island` 视图）及 `agent` 正文。`plugin-catalog.ts` 只派生产品目录，不再维护第二份名单。
 5. **同一条目的 `workbench`**：声明 `order`（静态资源加载顺序）、`contributions`、`stylesheet`、`clientFactory`、可选 `settingsClient`、`searchRow`。`plugin-workbench.ts` 自动派生，无须另登记。Pages 族照 Pages；Feed/Inbox **没有**插件包里的 factory，客户端在 `apps/workbench/src/scripts/client/navigation-feed.ts` / `navigation-inbox.ts`。
    工作面还须在 `ui-composition.ts` 通过 UiHost mount，`renderer.ts` 注入 primitives，再由 `goals-page-renderer.ts` 渲染到主页面；只登记 pack 不会产生页面 DOM。对照图片插件 `renderImagesContribution`。

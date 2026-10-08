@@ -62,7 +62,7 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 **两种情形的共同背景。**
 
-- 有安装记录的只有 `apps/local-host/src/project-plugins.ts:181-224` 交给监督器的 7 个内置插件：Characters、Shelf、Coding、Files、Diff、Git、TextStats（Characters 按用户 2026-10-08 的决定会并进宿主，第 4 波）。记录按项目存在 `projects/<project_id>/molis-work.db` 的 `plugin_runtime_installs` 表里（`packages/plugin-runtime/src/repository.ts:14`），每个版本与摘要的发行物存档在同库的 `plugin_runtime_release_artifacts`（`packages/plugin-runtime/src/release-artifacts.ts:30`，主键含 `manifest_digest`）。别的内置插件走旧的装配，没有这种记录。
+- 有安装记录的只有 `apps/local-host/src/project-plugins.ts:182-225` 交给监督器的 7 个内置插件：Characters、Shelf、Coding、Files、Diff、Git、TextStats（Characters 按用户 2026-10-08 的决定会并进宿主，第 4 波）。记录按项目存在 `projects/<project_id>/molis-work.db` 的 `plugin_runtime_installs` 表里（`packages/plugin-runtime/src/repository.ts:14`），每个版本与摘要的发行物存档在同库的 `plugin_runtime_release_artifacts`（`packages/plugin-runtime/src/release-artifacts.ts:30`，主键含 `manifest_digest`）。别的内置插件走旧的装配，没有这种记录。
 - 清单的摘要覆盖整份 Manifest，不只是版本（`packages/plugin-runtime/src/identity.ts:5`）：动作、权限、成果类型、界面贡献，改任何一处摘要都变。
 - 私有数据按 `install_id` 存（`packages/plugin-runtime/src/private-storage.ts:51`），所以任何做法都必须保留原来的安装记录，不能卸载再重装，否则私有数据成了孤儿。
 - 用户 2026-10-04 的决定写的是内置插件「启动时把安装记录升到宿主的版本……不再恢复旧发行物」（`specs/repository-anti-corruption/spec.md` §1 该日期的一行）。#237 只做了版本更高这一种：监督器对「更高」才直接放行（`supervisor.ts:491-492`），其余情形仍恢复旧发行物。所以下面把 Runtime 也改成不恢复旧发行物的做法（A、E），算把那条决定补全到它没覆盖的情形，还是新增行为，由用户定。
@@ -85,7 +85,7 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 - 降到 0.3.0：开发机现有 Home 里，这 7 个插件悄悄停在重置之前的旧代码上（存档在时），或者启动失败（存档不在时）。
 - 重置之后：全新的 Home 第一次启动时没有记录，没有问题；但它之后每换到一个清单有改动的同版本构建，都会碰到情形二。「全新的 Home 没有问题」只在第一个改了内置清单的 PR 之前成立。
-- 重置后新写入的成果记的 `producer_plugin_version`（例如 `apps/local-host/src/shelf-actions.ts:67`）是较低的数字，已存的记录保持原值（`modules/artifacts/src/repository.ts:64`）。
+- 重置后新写入的成果记的 `producer_plugin_version`（例如 `apps/local-host/src/shelf-actions.ts:67`）是较低的数字，已存的记录保持原值（`modules/artifacts/src/repository.ts:65`）。
 
 **选项（没有选，等用户决定）。** 先看每个做法对两种情形各管不管：
 

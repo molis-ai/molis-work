@@ -29,7 +29,7 @@
 
 - **App 与组合根**（`apps/*`）：只装配与做 IO，不写业务规则；不直接写业务数据库。一个 Home 只有一个执行进程，其他入口转发给它。
 - **平台包**（`packages/*`、`server`）：只依赖合同与更低层平台包；不拥有 Goal、Artifact、Feed、Session 等业务事实。
-- **Module**（`modules/*`）：自己的事实只由自己写；跨 Module 只走公开合同，不导入另一个 Module 的实现或 Store；读取已存历史的结果合同接受历史取值。
+- **Module**（`modules/*`）：自己的事实只由自己写；跨 Module 只走公开合同，不导入另一个 Module 的实现或 Store；结果合同只认现行取值，存量数据由维护改成现行形状。
 - **横向服务**（`horizontal/*`）：提供机制（运行时、连接、监听、叫醒），不决定业务状态。模型调用只经 `horizontal/agent-host`。
 - **插件**（`plugins/*`）：按 [插件开发 Skill](../../skills/molis-plugin-dev/SKILL.md) 写；能力注册一次进共同动作目录；等模型或外部服务的动作声明 `scheduling: "concurrent"`；被取消或撤权的调用不写任何记录。调模型或跑 Agent 时按 [Prologue AI Skill](../../skills/molis-prologue-ai/SKILL.md)。
 - **工具**（`tooling/*`）：只依赖合同与 plugin-runtime；不启动插件、不自动发布。

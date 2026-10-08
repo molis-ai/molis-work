@@ -15,6 +15,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 | 调模型、跑 Agent、提示词、模型设置 | `skills/molis-prologue-ai/SKILL.md`（手册 `docs/platform/PROLOGUE-AI.md`） |
 | 界面 | `DESIGN.md`、`specs/craft-finish/spec.md`，规格板 `/__ui/catalog` |
 | 某项任务 | `specs/<task>/spec.md`，开头写状态句；完成后按 `specs/README.md` 归档 |
+| 发版、改版本号、动真实 Home 的库 | `docs/releases/POLICY.md`、`docs/releases/CHECKLIST.md`；版本核对 `node scripts/verify-release-versions.mjs`（CI 里跑） |
 
 ## 硬约束
 

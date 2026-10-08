@@ -62,12 +62,12 @@ test("desktop capability permits the custom title bar to drag its window", () =>
 
 test("release version sources agree before packaging", () => {
   const output = execFileSync(process.execPath, [
-    new URL("../apps/desktop/tooling/verify-release-versions.mjs", import.meta.url).pathname,
+    new URL("../scripts/verify-release-versions.mjs", import.meta.url).pathname,
   ], { encoding: "utf8" });
   const packageVersion = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
   ).version as string;
-  assert.equal(output.trim(), `Molis Work release version sources agree: ${packageVersion}`);
+  assert.equal(output.split("\n")[0], `Molis Work release version sources agree: ${packageVersion}`);
 });
 
 test("native Desktop identity self-heals before layout and survives full-page navigation", () => {

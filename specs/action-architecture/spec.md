@@ -329,7 +329,7 @@ Agent 根据任务上下文选用可用工具；对已纳入动作体系的操�
 
 ### 基本合同复核：情境、对象、撤销、后台任务、到期提醒、效果与作者（2026-10-08）
 
-状态：复核结论，逐条对照 main（31c357df）的代码；缺口各自指向路线里的切片，不在这里改代码。
+状态：复核结论，逐条对照 main（4d59cd4d）的代码；缺口各自指向路线里的切片，不在这里改代码。
 
 2026-09-30 之后，情境驱动的动态交互、助理、插件生成几条线陆续往 `packages/contracts/src/platform` 与 `packages/kernel` 里加了八类合同，没有按上面的基本合同单独复核（体检 N-04）。本节补上：先把基本合同拆成八条可核对的条款，再逐类合同逐条核对，最后列缺口。每个合同的全链路（定义、注册、发现、调用、授权、执行、返回，加停用、卸载、升级、撤权）另见 [PLUGIN-PLATFORM 的合同台账](../../docs/platform/PLUGIN-PLATFORM.md)；各入口的统一调用路径见[调用链](../../docs/system/CALL-CHAINS.md)。
 
@@ -367,7 +367,7 @@ Agent 根据任务上下文选用可用工具；对已纳入动作体系的操�
 - **撤销声明**：`ActionMetadata.undo`，注册时要求是命令、不是不可撤回、路径格式正确。生产方是 Pages（两处）、Todo（单项与批量、整理）、灵光的 `lingguang.create`；消费方只有助理：`directEligible`（`apps/local-host/src/assistant/assistant-authority.ts`）要求撤销命令此刻在同一提供方可用、人没设成每次确认，`AssistantService.undo` 以人的身份执行。撤销目标是否存在、是否同一提供方，注册时不查（G2）；记忆自己的撤销是 `memory.changes.undo` 这条独立的动作，不是 `undo` 声明。用例 `tests/assistant-undo.test.ts`；插件开发 Skill 没写（G7）。
 - **后台任务回报**：`ActionMetadata.background_job`，唯一生产方是炼金术士（`plugins/native/alchemist/src/studio/shared/contracts/actions.ts`），消费方是助理的 `watchJob`、`checkJob`，按 15 秒起翻倍、最长 5 分钟的间隔读状态查询，6 小时未结束记为 `unknown`。状态查询是否存在不在注册时查（G2）；跟踪途中提供方停用或撤权时，读状态抛错就当这次没读到，继续按间隔重试，6 小时后记为 `unknown`，没有用例（C7 部分）。用例 `tests/assistant-business-gateway.test.ts`。
 - **到期提醒**：`packages/contracts/src/platform/due-reminders.ts`，注册时要求 Home 范围、只读查询、输入输出规范 schema 相同（C2、C3 满足）。唯一生产方是 Todo 的 `todo.reminders.window`，消费方是 `AssistantService.sweepReminders`，每分钟问一次、每个提醒只告知一次。`defineDueRemindersAction` 没导出到插件 SDK（G1）；`docs/platform/PLUGIN-DEVELOPMENT.md` 举例「日程的提前提醒」，读起来像有第二个生产方，但代码里没有（G5）。用例 `tests/assistant-reminders.test.ts` 不涉及停用或撤权。
-- **效果**：`ActionMetadata.effect` 与 `actionEffect`：声明优先，没声明就按能力 id 里是否含 delete、trash、purge、remove 等词推断（`IRREVERSIBLE_ID`）。推断决定一个动作是否对生成插件开放（`actionReachesAudience`），也是情境推荐、能力网关（读与写分开的工具）、助理免确认资格的依据，所以只减少暴露、不扩大权限（C4）。名字推断对 `delete_preview` 这类会误判，要用 `withActionEffect` 显式声明，但它没从插件 SDK 导出（G1）。
+- **效果**：`ActionMetadata.effect` 与 `actionEffect`：声明优先，没声明就按能力 id 里是否含 delete、trash、purge、remove 等词推断（`IRREVERSIBLE_ID`）。推断决定一个动作是否对生成插件开放（`actionReachesAudience`：声明了 `plugin` 受众，或对 `agent` 开放且没有 `plugin: false`，撤不回的除外），也是情境推荐、能力网关（读与写分开的工具）、助理免确认资格的依据，所以只减少暴露、不扩大权限（C4）。名字推断对 `delete_preview` 这类会误判，要用 `withActionEffect` 显式声明，但它没从插件 SDK 导出（G1）。
 - **作者**：`authorship: "session"` 由 Goals 的命令声明（`plugins/native/goals/src/action-contract.ts`），含义是 Runtime 只能在稳定 Session 里调用，Session 成为所写记录的作者。检查只在 MCP 入口做（`apps/local-host/src/mcp-server.ts` 在动作带该声明时要求稳定会话，否则 `mcp.runtime_identity_missing`）；内核和其他入口不看这个字段，助理用 `audit_actor_id: assistant:<work_id>` 自带作者。这个会话 id 来自 MCP 调用的 `_meta`，只做审计作者，不是身份或权限，而 C4 现在的措辞是「`_meta` 不提供身份」，需要写明这一点（G8）。同一条合同在不同入口得到不同的拒绝，C8 判为缺（G9）。用例只在 `tests/mcp-goal-events.test.ts` 里覆盖了 MCP 一侧。
 
 **缺口与去向**

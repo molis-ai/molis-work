@@ -103,7 +103,7 @@ Runtime 管理的首方 Native 插件会把其工厂实现打成单文件模块�
 
 ## 9. 合同台账
 
-2026-09-30 之后，动作目录之外又长出一批「插件对平台、平台对插件」的小合同：搜索来源、侧栏文件与浏览器站点声明、放置、撤销、到期提醒、后台任务、情境片段推荐、方法、记忆、插件通知等。台账回答每一项是不是真的接通了：谁定义、谁生产、谁消费、谁守着、写没写进开发手册和 Skill、停用卸载升级撤权后会怎样。它是[防腐整理任务书 §4.10](../prompts/repository-anti-corruption.md)（本轮新合同的全链路）的证据，进度记在 [spec](../../specs/repository-anti-corruption/spec.md)，对照 main（31c357df）读码核对（2026-10-08）；用户在 2026-10-07、10-08 对其中几项做了决定（下称「决定 n」，见 spec §10 的决定表），已定而还没改的写在状态列，标「目标」；逐条款的复核见 [action-architecture §3 的复核小节](../../specs/action-architecture/spec.md)。
+2026-09-30 之后，动作目录之外又长出一批「插件对平台、平台对插件」的小合同：搜索来源、侧栏文件与浏览器站点声明、放置、撤销、到期提醒、后台任务、情境片段推荐、方法、记忆、插件通知等。台账回答每一项是不是真的接通了：谁定义、谁生产、谁消费、谁守着、写没写进开发手册和 Skill、停用卸载升级撤权后会怎样。它是[防腐整理任务书 §4.10](../prompts/repository-anti-corruption.md)（本轮新合同的全链路）的证据，进度记在 [spec](../../specs/repository-anti-corruption/spec.md)，对照 main（4d59cd4d）读码核对（2026-10-08）；用户在 2026-10-07、10-08 对其中几项做了决定（下称「决定 n」，见 spec §10 的决定表），已定而还没改的写在状态列，标「目标」；逐条款的复核见 [action-architecture §3 的复核小节](../../specs/action-architecture/spec.md)。
 
 ### 共同的路径
 
@@ -120,7 +120,7 @@ Runtime 管理的首方 Native 插件会把其工厂实现打成单文件模块�
 
 ### 台账
 
-状态词：**生效**＝有真实的生产方和消费方、有守住它的用例；**部分**＝缺其中一项；**未启用**＝合同和校验在，产品里没有生产方，或（对某个受众）没有使用方；这个词只描述产品里有没有人用，不说明代码里是否可达。
+状态词：**生效**＝有真实的生产方和消费方、有守住它的用例；**部分**＝缺其中一项；**未启用**＝合同和校验在，产品里没有生产方，或（对某个受众）没有使用方；这个词只描述产品里有没有人用，不说明代码里是否可达（记忆的 `plugin` 受众是已定要在目录里关上的一项，见「记忆」一行）。
 
 | 合同 | 定义 | 生产方 | 消费方 | 守住它的用例 | 手册与 Skill | 停用、卸载、升级、撤权 | 状态与缺口 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -140,7 +140,7 @@ Runtime 管理的首方 Native 插件会把其工厂实现打成单文件模块�
 | 情境片段推荐 `defineFragmentOffersAction` | `packages/contracts/src/platform/action-fragments.ts` | Goals、灵光、Pages、Todo，另有搜索 | `packages/kernel/src/contextual.ts`、`apps/local-host/src/contextual/` | `tests/contextual-fragment-offers.test.ts`、`tests/contextual-interaction.test.ts`、`tests/contextual-dock-parity.test.ts` | 无；SDK 没导出 | 用例不涉及生命周期 | 部分：缺手册、Skill、SDK 出口和生命周期用例 |
 | 页面操作卡 | 路由 `/api/assistant/cards`（`apps/local-host/src/assistant/assistant-http.ts`）、`AssistantService.offerFromPage` | 工作台的情境条 `apps/workbench/src/scripts/client/context-actions.ts` | 助理：按当前目录核对后放成一张卡，点击才执行 | `tests/assistant-business-gateway.test.ts`、`tests/contextual-interaction.e2e.test.ts` | 无 | 同一条消息只放一次；卡的动作在点击时重新核对 | 生效；客户端还留着路由缺失（404、405）时退回页面消息的分支，按代码这条路由总是挂着，那个分支应是死代码（W2-03 删） |
 | Manifest `methods` | `packages/contracts/src/platform/plugin.ts`；校验 `inspectMethodDeclarations`（只许业务工具） | 2 个构建期内置插件：Pages（会议纪要整理，`plugins/native/pages/src/methods.ts`）、Todo（整理待办与推进待办，`plugins/native/todo/src/roles.ts`） | 助理：`AssistantService.methods` 按提供方是否可用过滤，调用走读方法 | `tests/assistant-methods.test.ts`（Pages）、`tests/todo-plugin.test.ts`（Todo 的两个方法登记） | 只有手册 | 只为构建期内置插件登记（`apps/local-host/src/agent-definitions/builtin-agents.ts` 遍历 `BUILTIN_PLUGIN_CATALOG`）；Runtime 插件和已安装插件的 `methods` 能过校验却不登记，等于不生效 | 部分；已定（决定 18）和内置插件一样登记，启动时登记、停用、卸载、升级时收回（W4-02） |
-| 记忆 `memory.*` | `packages/contracts/src/services/memory.ts` | 平台自己（`horizontal/memory`） | 助理、Agent 轮次、设置页、情境判断（受众 `user`、`agent`） | `tests/memory-service.test.ts`、`tests/memory-actions.test.ts`、`tests/assistant-memory.test.ts`、`tests/memory-scopes.test.ts` | 无；Skill 没写插件怎么用 | 使用方开关随调用重读 | 生效；`plugin` 与 `mcp` 受众产品里没有使用方。已定（决定 19）：MCP 受众保留并补一条经 MCP 授权的用例，`plugin` 受众标「未启用」。当前缺口：这个标记只是状态词，没有把路关上，`memory.recall`、`memory.list`、`memory.write` 三个动作今天在目录层都对 `plugin` 受众可达（创作台的能力看板会列给生成插件），实际调用时生成插件不带插件身份（`memory.write` 被拒绝，另两个套不上用户对单个插件的设置），是否从插件受众拿掉还没问用户；详见 [Memory](../horizontal/memory.md) 与 [CALL-CHAINS §8](../system/CALL-CHAINS.md) |
+| 记忆 `memory.*` | `packages/contracts/src/services/memory.ts` | 平台自己（`horizontal/memory`） | 助理、Agent 轮次、设置页、情境判断（受众 `user`、`agent`） | `tests/memory-service.test.ts`、`tests/memory-actions.test.ts`、`tests/assistant-memory.test.ts`、`tests/memory-scopes.test.ts` | 无；Skill 没写插件怎么用 | 使用方开关随调用重读 | 生效；`plugin` 与 `mcp` 受众产品里没有使用方。已定（决定 19）：MCP 受众保留并补一条经 MCP 授权的用例，`plugin` 受众标「未启用」。代码还没跟上：`memory.recall`、`memory.list`、`memory.write` 三个动作今天在目录层都对 `plugin` 受众可达（`memory.list` 是因为对 `agent` 开放，规则见 `actionReachesAudience`），创作台的「能力板」会列给生成插件，实际调用时生成插件不带插件身份（`memory.write` 被拒绝，另两个套不上用户对单个插件的设置）。让目录与「未启用」一致是后续项（W2-03），登记在 [CALL-CHAINS §10.2](../system/CALL-CHAINS.md)；详见 [Memory](../horizontal/memory.md) 与 [CALL-CHAINS §8](../system/CALL-CHAINS.md) |
 | 插件通知（结果未知的事件投递） | `packages/contracts/src/platform/plugin-events.ts`；`packages/plugin-runtime/src/events.ts` | Runtime 插件的 `events.publishes` | 底栏铃铛、插件市场的核对界面 | `tests/plugin-events.test.ts`、`tests/plugin-event-recovery.test.ts`、`tests/plugin-notification-bell.test.ts` | `skills/molis-plugin-dev/elements.md` | 撤销启用丢弃旧世代的事件、撤销后的投递不确认成功（`tests/plugin-events.test.ts`） | 生效 |
 | 效果 `effect` | `packages/contracts/src/platform/actions.ts`（`actionEffect`） | 所有动作（未写时按能力 id 推断） | 内核的受众可见性、能力网关、情境推荐、助理免确认资格 | `tests/action-plugin-audience.test.ts`、`tests/assistant-undo.test.ts` | `skills/molis-plugin-dev/capabilities.md` | 不适用 | 生效；`withActionEffect` 没导出到 SDK（复核 G1） |
 | 作者 `authorship` | 同上 | Goals 的命令 | 只有 MCP 入口检查 | `tests/mcp-goal-events.test.ts` | `skills/molis-plugin-dev/capabilities.md` | 不适用 | 部分：其他入口不检查（复核 G9） |

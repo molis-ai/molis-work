@@ -10,7 +10,7 @@
 - [SDK](../../packages/plugin-sdk/README.md#动作与判断消费场景)：插件贡献定义和实际处理器；声明不会自动产生授权。
 - [MCP 适配](../../apps/mcp/src/action-tools.ts)：从共同目录生成工具，传输层绑定可信身份，业务参数不携带授权。
 
-生产 MCP 的新动作入口读取原 `config/mcp-tools.json` 中的 `action_grants`。授权固定客户端、项目或 Home、能力版本和提供方，并保留接受的权限集合。新版本、替换提供方或权限变化需要重新授权；目录和执行读取当前配置，排队后的实际分发也重新检查。旧工具开关保持兼容，尚未迁移的旧工具仍沿用原权限流程，不能把新授权机制视为所有旧入口已经收敛。
+生产 MCP 的新动作入口读取原 `config/mcp-tools.json` 中的 `action_grants`。授权固定客户端、项目或 Home、能力版本和提供方，并保留接受的权限集合。新版本、替换提供方或权限变化需要重新授权；目录和执行读取当前配置，排队后的实际分发也重新检查。MCP 只有连接工具、受信管理入口与已授权的动作工具；没有按工具名称的旧开关（#269）。
 
 本机管理接口 `GET/POST /api/settings/mcp/actions` 由 Web 的原有同源和控制令牌规则保护；权限从当前注册定义取得，不能由请求自填。接口可检查目录、保存或撤销准确授权；提供方消失后仍保留并允许撤销原记录。只读检查不授予执行权限，也不放进插件 ActionClient。
 
@@ -18,4 +18,4 @@
 
 持续任务继续复用 Images、Alchemist 等业务 owner 的原记录。平台不另造任务表来复制其状态，也不将每次轻量调用升级为 Goal。[历史模块合同](../../packages/contracts/src/modules/actions.ts) 的声明不等于已有实现；不要据此再创建第二套动作执行服务。
 
-当前为迁移中，未达到整体内部完整。授权界面、旧 MCP/平台工具统一授权、MCP Client 接入、全部存量插件、通用工作流及调用记录仍有未完成项。唯一范围和验证记录见 [架构规格](../../specs/action-architecture/spec.md) 与 [迁移清单](../../specs/action-architecture/migration.md)。
+当前为迁移中，未达到整体内部完整。授权界面、MCP Client 接入、全部存量插件、通用工作流及调用记录仍有未完成项。唯一范围和验证记录见 [架构规格](../../specs/action-architecture/spec.md) 与 [迁移清单](../../specs/action-architecture/migration.md)。

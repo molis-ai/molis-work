@@ -67,6 +67,15 @@ jobs:
       - name: Health gates reject what they claim to
         run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts
 
+      # One product version (docs/releases/POLICY.md): the root package, the Tauri shell and the two version strings in
+      # code agree, workspace packages stay private 0.0.0, the current version has release notes and a CHANGELOG
+      # section, and the per-database version table in docs/releases/CHECKLIST.md is the one the code has. The test
+      # mutation-verifies each rule on a scratch tree.
+      - name: Release versions agree
+        run: |
+          node scripts/verify-release-versions.mjs
+          node scripts/run-tests.mjs tests/verify-release-versions.test.ts
+
       - name: Verify Goal boundaries, storage baselines and release assets
         run: |
           node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs

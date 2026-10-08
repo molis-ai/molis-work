@@ -19,6 +19,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 | 多个会话、工作树同时开发 | `docs/system/PARALLEL-DEVELOPMENT.md`：枢纽文件、构建与浏览器用例排时段、集成分支跑全量、基线比对、共享 Agent 锁、清理、PR 体量 |
 | 改合同（导出、动作 schema、Manifest、MCP 工具名、库结构） | `docs/system/CONTRACT-CHANGES.md`：现在不留兼容期；读取兼容的流程，从第一个装到开发机之外的版本开始 |
 | 某个包归谁、请谁评审 | `docs/SSOT-MATRIX.md` 各表的「归属」列与 `.github/CODEOWNERS`，由 `scripts/package-owners.mjs` 的规则生成 |
+| 发版、改版本号、动真实 Home 的库 | `docs/releases/POLICY.md`、`docs/releases/CHECKLIST.md`；版本核对 `node scripts/verify-release-versions.mjs`（CI 里跑） |
 
 ## 硬约束
 

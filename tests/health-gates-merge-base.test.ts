@@ -10,9 +10,10 @@ import { fileURLToPath } from "node:url";
 // that grows a number cannot hide it by rewriting tooling/gates/baseline.json. Each rule is mutation-verified here on a
 // small scratch repository: one violation added on a branch makes `--base main` fail, and running `--update` on that
 // branch (the laundering move) neither makes it pass nor is accepted when it is given the merge-base.
-// specs/repository-anti-corruption §4.5 (W1-19): tooling/gates/giant-exceptions.json registers the giant units that have to
-// be long, each with a reason. A registered unit may exist (also when it is new to the merge-base) and may never grow, and an
-// entry has to describe a giant unit that exists now; the same scratch repository checks both halves.
+// specs/repository-anti-corruption §4.5 (W1-19): tooling/gates/giant-exceptions.json records which giant units have to be
+// long, each with a reason. It admits nothing: a unit that was not a giant unit at the merge-base is new whatever the
+// registry says (the PR that adds a unit would add its entry too, and review requests are not enforced), a registered unit
+// may never grow, and an entry has to describe a giant unit that exists now. The same scratch repository checks all three.
 const script = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import.meta.url));
 const ciScript = fileURLToPath(new URL("../scripts/ci-health-base.mjs", import.meta.url));
 let repo = "";
@@ -40,6 +41,8 @@ const fn = (name: string, pad: number) => `export function ${name}() {\n${filler
 const exceptionEntry = { kind: "translation-table", reason: "the English dictionary: string pairs only, no logic to split" };
 const exceptionsFile = (entries: Record<string, unknown>) => JSON.stringify({ note: "fixture", exceptions: entries }, null, 2) + "\n";
 const EXCEPTIONS = "tooling/gates/giant-exceptions.json";
+// The registry of the base (table.ts) plus whatever else a branch registers, each with a complete entry.
+const registry = (...units: string[]) => exceptionsFile({ "file packages/alpha/src/table.ts": exceptionEntry, ...Object.fromEntries(units.map(unit => [unit, exceptionEntry])) });
 
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-health-gates-"));
@@ -52,6 +55,7 @@ before(() => {
   put("packages/alpha/src/longclass.ts", klass("LongClass", 1, 10)); // giant by lines only
   put("packages/alpha/src/methods.ts", klass("Methods", 4, 0)); // giant by methods only
   put("packages/alpha/src/bigfn.ts", fn("bigFunction", 9)); // a giant function
+  put("packages/alpha/src/smallclass.ts", klass("Small", 3, 0)); // a class on the limit, not giant: a fourth method makes it so
   put("packages/alpha/src/marked.ts", "// legacy path\nexport const marked = 1;\n");
   put("tests/old.test.ts", 'import { alpha } from "../packages/alpha/src/index";\nexport const used = alpha;\n');
   // Not imports: a comment and a string that merely contain an internal path.
@@ -116,10 +120,28 @@ const violations: Scenario[] = [
     put("packages/alpha/src/long.ts", filler(23));
     put(EXCEPTIONS, exceptionsFile({ "file packages/alpha/src/table.ts": exceptionEntry, "file packages/alpha/src/long.ts": exceptionEntry }));
   }, expect: [/giant unit grew: file packages\/alpha\/src\/long\.ts 23 → 24/] },
-  { name: "a new giant file whose exception has no reason is still new", mutate: () => {
+  // The registry admits nothing: a unit that was not giant at the merge-base is new, whatever the entry says. Each unit kind
+  // takes its own path through the gate, and a file or a class that existed under the limit is still new as a giant unit.
+  { name: "a new giant file registered with a complete exception", mutate: () => {
     put("packages/alpha/src/newtable.ts", filler(30));
-    put(EXCEPTIONS, exceptionsFile({ "file packages/alpha/src/table.ts": exceptionEntry, "file packages/alpha/src/newtable.ts": { kind: "translation-table", reason: "" } }));
-  }, expect: [/new giant unit: file packages\/alpha\/src\/newtable\.ts/, /giant exception for file packages\/alpha\/src\/newtable\.ts: "reason" needs at least 20 characters/], kind: "absolute" },
+    put(EXCEPTIONS, registry("file packages/alpha/src/newtable.ts"));
+  }, expect: [/new giant unit: file packages\/alpha\/src\/newtable\.ts \(31\)/, /does not admit it/] },
+  { name: "a new giant class registered with a complete exception", mutate: () => {
+    put("packages/alpha/src/newclass.ts", klass("Fresh", 1, 10));
+    put(EXCEPTIONS, registry("class packages/alpha/src/newclass.ts#Fresh"));
+  }, expect: [/new giant unit: class packages\/alpha\/src\/newclass\.ts#Fresh \(\d+ lines, 1 methods\)/, /does not admit it/] },
+  { name: "a new giant function registered with a complete exception", mutate: () => {
+    put("packages/alpha/src/newfn.ts", fn("newFunction", 9));
+    put(EXCEPTIONS, registry("function packages/alpha/src/newfn.ts#newFunction"));
+  }, expect: [/new giant unit: function packages\/alpha\/src\/newfn\.ts#newFunction \(12\)/, /does not admit it/] },
+  { name: "a file under the limit grows past it and is registered", mutate: () => {
+    put("packages/alpha/src/index.ts", filler(30));
+    put(EXCEPTIONS, registry("file packages/alpha/src/index.ts"));
+  }, expect: [/new giant unit: file packages\/alpha\/src\/index\.ts \(31\)/, /does not admit it/] },
+  { name: "a class on the method limit gets another method and is registered", mutate: () => {
+    put("packages/alpha/src/smallclass.ts", klass("Small", 4, 0));
+    put(EXCEPTIONS, registry("class packages/alpha/src/smallclass.ts#Small"));
+  }, expect: [/new giant unit: class packages\/alpha\/src\/smallclass\.ts#Small \(\d+ lines, 4 methods\)/, /does not admit it/] },
   { name: "an exception with a one-word reason", mutate: () => put(EXCEPTIONS, exceptionsFile({ "file packages/alpha/src/table.ts": { kind: "translation-table", reason: "long" } })),
     expect: [/giant exception for file packages\/alpha\/src\/table\.ts: "reason" needs at least 20 characters/], kind: "absolute" },
   { name: "an exception with a kind outside the list", mutate: () => put(EXCEPTIONS, exceptionsFile({ "file packages/alpha/src/table.ts": { kind: "too-complicated-to-split", reason: exceptionEntry.reason } })),
@@ -128,6 +150,8 @@ const violations: Scenario[] = [
     expect: [/giant exception for file packages\/alpha\/src\/table\.ts: unknown field "until"/], kind: "absolute" },
   { name: "an exception that is not an object", mutate: () => put(EXCEPTIONS, exceptionsFile({ "file packages/alpha/src/table.ts": "see the spec" })),
     expect: [/giant exception for file packages\/alpha\/src\/table\.ts: the entry must be an object/], kind: "absolute" },
+  { name: "an exception keyed like an Object.prototype property", mutate: () => put(EXCEPTIONS, registry("constructor")),
+    expect: [/giant exception for constructor is stale/], kind: "absolute" },
   { name: "an exception for a unit that is not giant", mutate: () => put(EXCEPTIONS, exceptionsFile({ "file packages/alpha/src/table.ts": exceptionEntry, "file packages/alpha/src/index.ts": exceptionEntry })),
     expect: [/giant exception for file packages\/alpha\/src\/index\.ts is stale/], kind: "absolute" },
   { name: "a registered unit is split and its entry stays behind", mutate: () => put("packages/alpha/src/table.ts", "export const table = 1;\n"),
@@ -179,30 +203,39 @@ test("changes that shrink or only move things pass against the merge-base", () =
   assert.equal(gate("--update", "--base", "main").code, 0);
 });
 
-test("a registered exception lets a new giant unit exist, and from then on it may not grow", () => {
+test("a registered exception never admits a unit that was not giant at the merge-base, and splitting it is the way out", () => {
+  // The registry is read from the head, so the PR that adds a new giant unit would add its entry in the same breath.
   branch("admit", () => {
-    put("packages/alpha/src/newtable.ts", filler(30)); // 31 lines, over the 20-line limit, and new to the merge-base
-    put(EXCEPTIONS, exceptionsFile({ "file packages/alpha/src/table.ts": exceptionEntry, "file packages/alpha/src/newtable.ts": exceptionEntry }));
+    put("packages/alpha/src/newtable.ts", filler(30)); // 31 lines, over the 20-line limit, and not giant at the merge-base
+    put(EXCEPTIONS, registry("file packages/alpha/src/newtable.ts"));
   });
-  const admitted = gate("--base", "main");
-  assert.equal(admitted.code, 0, admitted.out);
-  assert.match(admitted.out, /2 of the giant units registered as exceptions/);
-  assert.equal(gate("--update", "--base", "main").code, 0, "the baseline takes in a unit that is registered");
-  assert.equal(gate().code, 0);
-  commit("admitted");
-  // Merged, the unit is recorded like every other giant unit: it may shrink, and it may not grow.
-  git("checkout", "-q", "-B", "grow");
-  put("packages/alpha/src/newtable.ts", filler(31));
-  commit("grow");
-  const grown = gate("--base", "admit");
-  assert.equal(grown.code, 1, grown.out);
-  assert.match(grown.out, /giant unit grew: file packages\/alpha\/src\/newtable\.ts 31 → 32/);
-  git("checkout", "-q", "-B", "shrink", "admit");
-  put("packages/alpha/src/newtable.ts", filler(26));
-  commit("shrink");
-  const shrunk = gate("--base", "admit");
+  const refused = gate("--base", "main");
+  assert.equal(refused.code, 1, refused.out);
+  assert.match(refused.out, /new giant unit: file packages\/alpha\/src\/newtable\.ts \(31\)/);
+  assert.doesNotMatch(refused.out, /giant exception for/, "the entry is well formed and names a giant unit; the unit is what the gate refuses");
+  const noUpdate = gate("--update", "--base", "main");
+  assert.equal(noUpdate.code, 1, noUpdate.out);
+  assert.match(noUpdate.out, /Baseline not written/);
+  // The two ways out: split the unit under the limit and take the entry with it (an entry left behind is stale)…
+  put("packages/alpha/src/newtable.ts", filler(10));
+  commit("split");
+  const stale = gate("--base", "main");
+  assert.equal(stale.code, 1, stale.out);
+  assert.match(stale.out, /giant exception for file packages\/alpha\/src\/newtable\.ts is stale/);
+  assert.doesNotMatch(stale.out, /new giant unit/);
+  put(EXCEPTIONS, registry());
+  commit("entry removed");
+  const split = gate("--base", "main");
+  assert.equal(split.code, 0, split.out);
+  assert.match(split.out, /1 of the giant units registered as exceptions/);
+  // …and a unit that is giant at the merge-base, registered or not, keeps existing as long as it does not grow.
+  git("checkout", "-q", "-B", "recorded", "main");
+  put("packages/alpha/src/long.ts", filler(21));
+  put(EXCEPTIONS, registry("file packages/alpha/src/long.ts"));
+  commit("register a recorded unit and shrink it");
+  const shrunk = gate("--base", "main");
   assert.equal(shrunk.code, 0, shrunk.out);
-  assert.match(shrunk.out, /Lower than the merge-base: giant/);
+  assert.match(shrunk.out, /2 of the giant units registered as exceptions/);
 });
 
 test("moving a registered file passes when its entry moves with it", () => {

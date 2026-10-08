@@ -25,13 +25,15 @@ import { SearchService } from "@molis-ai/molis-work-service-search";
 import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, todoActions, todoManifest } from "@molis-ai/molis-work-plugin-todo";
 
 /** `refuse`: the object is still listed, but its reader will not hand it over now (a locked document, a version kept only as a file reference). */
-type Note = { id: string; title: string; body: string; version: number; secret?: boolean; refuse?: { code: string; text: string } };
+type Note = { id: string; title: string; body: string; version: number; secret?: boolean; refuse?: { code: string; text: string } | Error };
 interface Source {
   notes: Map<string, Note>;
   lists: number;
   reads: number;
   fail: boolean;
   availability: ActionAvailability;
+  /** What the reader throws for an object it no longer has; a plugin's own error need not carry an action code. */
+  absent?: () => Error;
 }
 
 const kinds = [{ kind: "note", title: "笔记", surface: "notes" }];
@@ -61,8 +63,8 @@ function register(service: ActionService, state: Source, provider: { provider_id
       { ...reader, handle: (_caller, input) => {
         state.reads += 1;
         const note = state.notes.get((input as { subject_id: string }).subject_id);
-        if (!note) throw new ActionError("actions.subject_unavailable", "笔记已删除");
-        if (note.refuse) throw new ActionError(note.refuse.code, note.refuse.text);
+        if (!note) throw state.absent?.() ?? new ActionError("actions.subject_unavailable", "笔记已删除");
+        if (note.refuse) throw note.refuse instanceof Error ? note.refuse : new ActionError(note.refuse.code, note.refuse.text);
         return subjectContext({ subject: { kind: "note", id: note.id }, revision: String(note.version), title: note.title, content: note.body, goal_ids: [], session_id: null });
       } },
     ],
@@ -289,6 +291,31 @@ test("the wording of a reader's refusal never decides that an object was deleted
     assert.equal(opened.state, "unavailable", `${hit.subject.id}: the reader says no, the listing still has it`);
   }
   assert.deepEqual(ids(await ask(f, owner("a"), "周报")), ["busy", "odd"]);
+});
+
+test("whatever error the reader throws, only the owner's listing decides between deleted and unavailable", async t => {
+  const f = await fixture(t);
+  // A plugin's own "not found" is a plain Error with no code at all (the Experiments reader), and a listed object can fail with any other error.
+  const notes = source([
+    { id: "plain", title: "实验 普通", body: "正文", version: 1 },
+    { id: "coded", title: "实验 带码", body: "正文", version: 1 },
+    { id: "kept", title: "实验 还在", body: "", version: 1, secret: true, refuse: new Error("读取器忙") },
+  ]);
+  register(f.actions, notes, { provider_id: "notes-a", project_id: "a" });
+  const found = await ask(f, owner("a"), "实验");
+  assert.deepEqual(ids(found), ["coded", "kept", "plain"]);
+  const hitOf = (id: string) => found.hits.find(hit => hit.subject.id === id)!.hit_id;
+  const open = (id: string) => f.search.open({ client: f.actions, caller: owner("a") }, { hit_id: hitOf(id) });
+  notes.absent = () => new Error("实验不存在");
+  assert.equal((await open("kept")).state, "unavailable", "a plain Error on an object the owner still lists is not a deletion");
+  // The owner stopped listing "plain": its reader throws a plain Error, and the listing confirms the deletion.
+  notes.notes.delete("plain");
+  assert.equal((await open("plain")).state, "missing", "a plain Error from the reader still ends with the owner's listing, which no longer has it");
+  // The same with an error code nobody here knows.
+  notes.absent = () => Object.assign(new Error("没有这个实验"), { code: "experiments.gone" });
+  notes.notes.delete("coded");
+  assert.equal((await open("coded")).state, "missing");
+  assert.deepEqual(ids(await ask(f, owner("a"), "实验")), ["kept"], "both deletions left the index; the listed one stayed");
 });
 
 test("an on-demand source has no listing to confirm a deletion, so a refusing reader means unavailable", async t => {

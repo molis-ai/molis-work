@@ -2,9 +2,9 @@
   "giantUnits": 164,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 261,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2656,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2628,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 2098,
+      "lines": 2069,
       "methods": 119
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -92,10 +92,10 @@
       "lines": 373,
       "methods": 18
     },
-    "file horizontal/memory/src/service.ts": 1338,
+    "file horizontal/memory/src/service.ts": 1276,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 1101,
-      "methods": 56
+      "lines": 1092,
+      "methods": 51
     },
     "class horizontal/placement/src/index.ts#PlacementService": {
       "lines": 419,

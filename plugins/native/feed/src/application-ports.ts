@@ -4,6 +4,7 @@ import type { FeedApi } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ListenerCheckpoint, ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
 import type { FeedArtifactProducer, FeedOutRuleStore } from "./out-rules.js";
+import type { FeedSourceHistory } from "./source-history.js";
 
 export interface FeedApplicationPorts {
   readonly sources: SourcesApi;
@@ -11,6 +12,8 @@ export interface FeedApplicationPorts {
   readonly feed: FeedApi;
   readonly outRules?: FeedOutRuleStore;
   readonly artifacts?: FeedArtifactProducer;
+  /** Evidence bodies and search records outside the project database; without it a deleted source leaves them in place. */
+  readonly history?: FeedSourceHistory;
   readonly captureJudgment?: (item: { project_id: string; item_id: string; rule_ids: string[] }, caller?: ActionCallContext) => Promise<void>;
   subscribeInboxCreated(listener: (entry: { project_id: string; entry_id: string }) => void): void;
   readonly homeJudgment?: (subject: { kind: "feed_item" | "inbox_entry"; id: string; project_id: string }, caller?: ActionCallContext) => Promise<void>;

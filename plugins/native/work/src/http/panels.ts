@@ -36,7 +36,7 @@ export interface WorkPanelHttpContext {
   launchSpec(input: { runtime_kind: string; command?: string; args?: string[]; resume_session_id?: string | null }): {
     runtime_kind: string; command: string; args: string[]; title: string;
   };
-  advancePrompt(input: { goal_id: string; title: string; source_context?: string; project_guidance_prefix?: string; onboarding?: boolean; event_work?: boolean; current_facts?: string }): string;
+  advancePrompt(input: { goal_id: string; title: string; source_context?: string; project_guidance_prefix?: string; onboarding?: boolean; current_facts?: string }): string;
   kill(panelId: string): void;
   classifyError(error: unknown): number | null;
 }
@@ -82,7 +82,6 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
             source_context: sourceContext,
             project_guidance_prefix: await context.projectGuidance(),
             onboarding: url.searchParams.get("onboarding") === "1",
-            event_work: contract.event_work === true,
             current_facts: contract.event_facts,
           }),
         });

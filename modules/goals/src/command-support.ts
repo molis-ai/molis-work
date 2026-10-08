@@ -29,7 +29,7 @@ export class GoalsCommandContext {
 
   requireBoard(projectId: string): void {
     if (!this.repository.boardExists(projectId)) {
-      throw this.error("board.not_found", `Board 不存在: ${projectId}`);
+      throw this.error("board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
     }
   }
 

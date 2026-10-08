@@ -6,11 +6,7 @@ import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
-import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
-import { ASSISTANT_STORE_NAME, AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { purgeAssistantProject } from "../apps/local-host/src/assistant/assistant-project-purge.js";
+import { ASSISTANT_STORE_NAME, AssistantService, AssistantStore, LocalHost, assistantAuthority, purgeAssistantProject } from "@molis-ai/molis-work-app-local-host";
 
 const ACTOR = "local-person";
 

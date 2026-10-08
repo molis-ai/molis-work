@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, purgeProjectMemories, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
-import { prologueMemoryBackend } from "../apps/local-host/src/memory/memory-host.js";
+import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 
 /** A real Prologue runtime (its Memory is the store) and the Host ledger, in a scratch Home. */
 async function memoryHome(t: { after(fn: () => Promise<void> | void): void }) {

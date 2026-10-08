@@ -7,7 +7,7 @@
 - [ ] 对照上个 tag 以来的变化选次版本或补丁（[POLICY.md](POLICY.md) 第 2 节）。库版本有没有变，看第 3 节的表：`git diff <上个 tag> -- <表里的定义处文件>`。
 - [ ] 这个版本会装到开发机之外吗？用户 2026-10-08 的决定 #15：「不留兼容」到第一个装到开发机之外的版本为止，1.0 或更早出现的第一个外部用户，哪个先发生，它就是那个版本（`specs/repository-anti-corruption/spec.md` §1）。会的话，发布 PR 把版本号、日期和提交写进 [docs/system/CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md) 顶部的「起点日期」，并把它的第 3 节标为已结束；从那以后合同变更走那份文件第 4 节的读取兼容流程，库的版本变更要带升级路径，不再是拒绝加一次性维护（[POLICY.md](POLICY.md) 第 2、5 节和本清单第 4.3 节写的做法只到这一版为止）。那份文件第 5 节列的前置（公开 API 快照、动作合同快照、插件回放工具等）要在发这个版本之前就位；库的升级机制现在也没有，方案见 `specs/repository-anti-corruption/c-end-readiness.md` §3.2。不会的话，在这一项写明「不是外部版本」，仍按「不留兼容」办。
 - [ ] 改版本号：根 `package.json`；`apps/desktop/src-tauri/` 的 `tauri.conf.json`、`Cargo.toml`、`Cargo.lock` 里的 `molis-work-desktop`；`apps/local-host/src/feed-source-runtime.ts` 的 `APP_VERSION`；`horizontal/runtime-host/src/adapters/codex-app-server.ts` 的 `clientInfo.version`（[POLICY.md](POLICY.md) 第 1 节）。
-- [ ] 内置插件清单的版本与摘要（监督器的 7 个：Characters、Shelf、Coding、Files、Diff、Git、TextStats，名单以第 4.5 节的命令为准）。在构建好的仓库根目录跑第 4.5 节的命令，得到每个清单的 `plugin_id`、版本、摘要，和**上一次发布记下的同一张表**逐行比：摘要变了的插件，版本必须更高；版本被改低，或摘要变了而版本没变，都不能发布。Runtime 对这两种都不跟：已装的旧代码悄悄继续跑，或者启动失败（旧发行物的存档不在时，`plugin_release_artifact_missing`）。其中摘要变了而版本没变的，main 上到 `8118e617` 已经出现过至少 24 次（[POLICY.md](POLICY.md) 第 7.3 节），没有机制拦，所以这一项是人工兜底。不要用 `git diff <上个 tag> -- 'plugins/native/*/src/manifest.ts'` 代替：清单里的 `actions`、`consumes` 来自插件别的文件和 contracts，改它们不碰 `manifest.ts`，摘要照样变。把这张表写进发布说明的「兼容与升级」，下一次发布拿它比，不用再构建旧 tag；上一次发布没有记表时，在另一个干净工作树里检出上个 tag、整体 `pnpm build`，跑同一条命令取表。**v0.2.0 里还没有这 7 个插件，所以 0.3.0 没有可比的表**：这一次按 POLICY 第 7.7 节办（在用户对第 7 节做决定之前，7 份清单的 `version` 各升一格，不降任何版本，也不重置；这一格是建议，待用户在 POLICY 第 7.6 节第 4 项确认），并且第 4.5 节对开发机 Home 的核对不能跳过。POLICY 第 7 节的决定落地后，这一项按所选的做法改；若落地了摘要锁门禁（第 7.5 节），这一项改成「门禁通过」。
+- [ ] 内置插件清单的版本与摘要（监督器的 7 个：Characters、Shelf、Coding、Files、Diff、Git、TextStats，名单以第 4.5 节的命令为准）。在构建好的仓库根目录跑第 4.5 节的命令，得到每个清单的 `plugin_id`、版本、摘要，和**上一次发布记下的同一张表**逐行比：摘要变了的插件，版本必须更高；版本被改低，或摘要变了而版本没变，都不能发布。Runtime 对这两种都不跟：已装的旧代码悄悄继续跑，或者启动失败（旧发行物的存档不在时，`plugin_release_artifact_missing`）。其中摘要变了而版本没变的，main 上到 `8118e617` 已经出现过至少 24 次（[POLICY.md](POLICY.md) 第 7.3 节），没有机制拦，所以这一项是人工兜底。不要用 `git diff <上个 tag> -- 'plugins/native/*/src/manifest.ts'` 代替：清单里的 `actions`、`consumes` 来自插件别的文件和 contracts，改它们不碰 `manifest.ts`，摘要照样变。把这张表写进发布说明的「兼容与升级」，下一次发布拿它比，不用再构建旧 tag；上一次发布没有记表时，在另一个干净工作树里检出上个 tag、整体 `pnpm build`，跑同一条命令取表。**v0.2.0 里还没有这 7 个插件，所以 0.3.0 没有可比的表**：用户 2026-10-08 选了 POLICY 第 7.5 节的做法 A（第 7.6 节），0.3.0 的发布 PR 要等 A 合入，再把 7 份清单的 `version` 改成 0.3.0，并让脚本的「内置清单等于产品版本」通过；A 落地后 Runtime 对内置插件一律跟当前构建，这一项改成「确认 A 在这个构建里、脚本通过」，第 4.5 节对开发机 Home 的核对不能跳过。
 - [ ] [CHANGELOG.md](CHANGELOG.md)：`[Unreleased]` 改成 `[<版本>] - <日期>`，上面另起一个空的 `[Unreleased]`，页尾比较链接（若有）跟着改。
 - [ ] 写 `docs/releases/v<版本>.md`，包含「兼容与升级」（哪些库的版本变了、旧 Home 要做什么、Runtime 要不要重新接入）和「发布范围与验证」（真实的回归数字、已知失败、没验证的东西）。
 - [ ] `node scripts/verify-release-versions.mjs` 通过（打 tag 时再加 `--tag v<版本>`）。
@@ -99,7 +99,7 @@
 
 - [ ] 只读核对第 3 节每个库在真实 Home 里的版本、`integrity_check`、`foreign_key_check`；项目数与动之前一致；抽查一个项目的 Goal、成果版本和会话内容能读。
 - [ ] 核对 `config/mcp-tools.json` 的授权条数没有莫名变少（版本不符时它读成空，不报错）。
-- [ ] 内置插件的安装记录等于这个构建的清单，版本和摘要都要一致（[POLICY.md](POLICY.md) 第 7 节；第 1 节也用这条命令）。对开发机的真实 Home，这是第 7.6 节要用户批准的那一步：先得到批准，在新拷贝上查（只打开拷贝里的路径，见第 4.3 节第一项），不碰真库。先在构建好的仓库根目录打出这个构建里每个内置插件清单的版本与摘要：
+- [ ] 内置插件的安装记录等于这个构建的清单，版本和摘要都要一致（[POLICY.md](POLICY.md) 第 7 节；第 1 节也用这条命令）。对开发机的真实 Home，在 A 落地后的第一次启动之后查，确认记录已经跟上：在新拷贝上查（只打开拷贝里的路径，见第 4.3 节第一项），不碰真库；查拷贝也是真实 Home 的数据操作，照例先问用户。先在构建好的仓库根目录打出这个构建里每个内置插件清单的版本与摘要：
 
   ```sh
   node --input-type=module -e '

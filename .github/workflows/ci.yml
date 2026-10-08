@@ -65,6 +65,10 @@ jobs:
       - name: Health gates reject what they claim to
         run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts
 
+      # The tracked-.impeccable-files rule (scripts/gates/impeccable-files.mjs), mutation-verified the same way.
+      - name: Health gate for tracked .impeccable files rejects growth
+        run: node scripts/run-tests.mjs tests/health-gates-impeccable.test.ts
+
       - name: Verify Goal boundaries, storage baselines and release assets
         run: |
           node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs

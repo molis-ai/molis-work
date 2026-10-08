@@ -1,6 +1,6 @@
 # 仓库卫生：哪些材料留在树里
 
-这里写不属于任何包、却会在仓库里越积越多的材料：评审截图与设计记录、根目录的杂项、vendored 的 Prologue 包。每一类说清楚留什么、不留什么。依据是仓库防腐整理的决定（2026-10-08，`specs/repository-anti-corruption/spec.md` §1 的「评审截图与根目录材料」与「Prologue SDK 收敛与私有包」）。
+这里写不属于任何包、却会在仓库里越积越多的材料：评审截图与设计记录、根目录的杂项、vendored 的 Prologue 包。每一类说清楚留什么、不留什么、谁来拦。依据是仓库防腐整理的决定（2026-10-08，`specs/repository-anti-corruption/spec.md` §1 的「评审截图与根目录材料」与「Prologue SDK 收敛与私有包」）。
 
 删除一律只从当前的树里拿掉，Git 历史不改写：旧提交里仍然看得到，下面各节写明了去哪里取。
 
@@ -26,7 +26,9 @@ git grep -n -F ".impeccable/review/<组>" -- . ':!specs/archive' ':!docs/archive
 git grep -n -i "sidecar" -- '*DESIGN.md'
 ```
 
-**新截图默认不入库。** 测试截图写进已被忽略的 `.impeccable/qa/review/`（AGENTS.md「构建与测试」）。不要往树里加新的评审组或新图：要让一组截图入库，先让现行的 spec 或文档点名它，并在同一次改动里说明理由；`MOLIS_WORK_REVIEW_EVIDENCE=1` 只用来覆盖已入库的同名图，不增加文件。
+**新截图默认不入库。** 测试截图写进已被忽略的 `.impeccable/qa/review/`（AGENTS.md「构建与测试」）。`MOLIS_WORK_REVIEW_EVIDENCE=1` 只用来覆盖已入库的同名图，不增加文件。
+
+**门禁**：`pnpm health:check` 的 `impeccable`（`scripts/gates/impeccable-files.mjs`，接在 `scripts/check-health-gates.mjs` 的 `METRICS` 里）数全部 `.impeccable/` 下入库的文件，含嵌套的，按评审组计数：组是 `.impeccable/` 往下第二层的目录（`.impeccable/review/<组>`、`.impeccable/mocks/<组>`），直接放在 `review/`、`surfaces/` 里的文件算那一层，组里更深的文件算组里。每个组只许减少，没有记录的组从 0 开始。所以：覆盖同名图、组内改名、删文件都通过；新增一张图、新增一个评审组、把文件从一组挪到另一组都不通过，在别处删文件也抵不掉（总数是减了，挪进去的那组变多了）。真有一组该入库，要改门禁本身，那要过评审。CI 用 `--base` 与合并基点比较，改 `tooling/gates/baseline.json` 绕不过去；`tests/health-gates-impeccable.test.ts` 在小仓库里验证每条规则（多一个文件就失败、`--update` 不能洗掉、被忽略的 QA 目录和名字相近的目录不算、删文件通过）。门禁只管数量，「是不是被点名」靠上面的方法，评审时查。
 
 **2026-10-08 的清理**：1,104 个文件（根目录 1,085 个、嵌套 19 个，约 112 MiB）清到 318 个（约 21 MiB）：
 

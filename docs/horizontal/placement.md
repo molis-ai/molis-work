@@ -13,7 +13,7 @@
 
 **技术状态：** `{home}/placement/placement.db`（版本 1，建库代码在 `apps/local-host/src/placement-actions.ts` 的 `PLACEMENT_BASELINE`）：Context Ledger Module 的表（`modules/context-ledger`，关联以 `ObjectRef` 记录）加一张 `placement_titles` 缓存，只存最近见过的标题，用于对象被删或读不到时仍能说出它叫什么。
 
-**不拥有：** 对象的正文、存在与否和业务规则（所有者）；Goal 事实（Goals）；权限的授予和可信身份（动作服务与各入口的授权）。改变位置与访问范围的动作只对本机用户开放，助理和工作流只能读描述。
+**不拥有：** 对象的正文、存在与否和业务规则（所有者）；Goal 事实（Goals）；权限的授予和可信身份（动作服务与各入口的授权）。改变位置与访问范围的动作只对本机用户（`user` 受众）开放；读取描述的动作（`placement.describe`、`placement.spaces`、`placement.related`、`placement.locate`、`placement.goals`）对 `user` 和 `agent`（助理、Agent）开放，创作台生成的插件经「对 Agent 开放的读取同样对插件开放」这条规则（`actionReachesAudience`，在 `packages/contracts/src/platform/actions.ts`）也看得到，工作流不在其内。
 
 **当前来源与 Goal：** `horizontal/placement`（`PlacementService`），Host 装配 `apps/local-host/src/placement-actions.ts`，页面传输 `apps/local-host/src/placement-http.ts`，浏览器端 `apps/workbench/src/scripts/client/placement.ts`。需求与语义见 `specs/archive/work-placement/spec.md`；写放置协议见 [`skills/molis-plugin-dev/placement.md`](../../skills/molis-plugin-dev/placement.md)；搜索结果与放置怎样配合，见 [CALL-CHAINS §7](../system/CALL-CHAINS.md)。
 

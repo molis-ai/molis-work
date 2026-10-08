@@ -1,6 +1,6 @@
 # 调用链
 
-状态：现行。对照 main（35d7f320）逐环节读码写成（2026-10-08）；链 4、5、8 此前没有逐环节记录，这次首次读码核对。
+状态：现行。对照 main（91e7b382）逐环节读码写成（2026-10-08）；链 4、5、8 此前没有逐环节记录，这次首次读码核对。凡写「已定」的，出处是 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md#10-42419-普查与路线2026-10-07) 里用户的决定（§1 的 10-07、10-08 各行与 §10 的 27 项决定表，下称「决定 n」）；已定而代码里还没做的，都标「目标」，并写明今天是什么样。
 
 这份文档回答一个问题：一件事从入口走到落库，中间经过谁、带着什么身份、怎样被拒绝、留下什么痕迹。八条链路来自 `docs/prompts/repository-anti-corruption.md` §4.2，每条链一张环节表：
 
@@ -15,7 +15,9 @@
 2. **能力只有一条执行路径。** 页面、MCP、助理、Agent、工作流、插件 SDK 都经 `ActionClient.invoke`，到 `ActionService`（`packages/kernel/src/action-service.ts`）→ `CapabilityRegistry` → 处理器。入口只在「谁在调、看得到哪些、怎样呈现结果」上不同。例外集中登记在 §10。
 3. **等待模型或外部服务的动作声明 `scheduling: "concurrent"`，写入前调 `beforeEffect()`。** 它复查注册实例、可用性、授权、权限和取消；调用结束后再调就抛 `actions.expired`。
 4. **调用记录只写「谁调了什么、怎样结束」，不写输入和结果。** 只记命令（`operation === "command"`），在 `apps/local-host/src/action-call-log.ts`；不经 `ActionService` 的 typed 能力不写。
-5. **目前没有贯穿全链的调用标识。** `ActionCallContext` 没有 call id，一次性键 `x-molis-work-idempotency-key` 只在 HTTP 入口防重放、不往下传。界面上的报错追不到具体环节，这是 W3-01 要补的。
+5. **目前没有贯穿全链的调用标识。** `ActionCallContext` 没有 call id；一次性键 `x-molis-work-idempotency-key` 只在 HTTP 入口防重放、不往下传；调用记录里的行也没有编号。界面上的报错因此追不到具体环节。
+   - **目标（决定 5）**：Host 给每次调用一个编号，贯穿各入口与调用记录（W3-01）；界面报错的详情里显示它的短形式，叫「诊断编号」，可以一键复制；「设置 › 诊断」按诊断编号列出最近的调用。
+   - **今天**：「设置 › 诊断」（`apps/workbench/src/settings-renderer.ts` 的诊断页）只有本体安装状态、提示词与角色登记、助理与执行服务的账目、启动入口和常驻服务，不列调用。最近的命令调用在「能力」页的「调用记录」（`apps/workbench/src/capabilities.ts`，数据来自 `ActionCallLog`），每行没有编号，查询不记。
 
 ### 入口对照
 
@@ -25,7 +27,8 @@
 | 外部 Runtime（MCP） | `runtime:<runtime_id>`（无 Runtime 标识时 `local-mcp`），`mcp`；会话作审计作者 | 每个客户端、每个项目、每个动作的显式授权（`{home}/config/mcp-tools.json`） | 同上，经常驻 Host | 文本 `错误: …` 加 `{"code":…}`，`isError: true` |
 | 助理 | `web-user`，`agent`；`audit_actor_id` 为 `assistant:<work_id>` | 本工作范围内对 `agent` 开放、且人没关掉的动作 | 同上 | 工具结果里的文字；对界面是 `AssistantError`（`assistant.*`） |
 | Agent（Coding、定时任务、Character） | 同一 `agent` 受众 | Manifest 角色的精确 `action_tools` 或能力网关 | 同上 | 工具结果 |
-| Runtime / 生成插件 | `user`，权限为该安装的 grant，且只能调用自己 Manifest 声明的动作 | 安装时用户确认的 grant | 同上 | 抛给插件代码 |
+| Runtime 内置插件（Coding、Files 等） | `web-user`（`LOCAL_PERSON_ACTOR_ID`），`user`（`apps/local-host/src/plugin-executor.ts` 的 `actionCaller`） | 安装时用户确认的 grant；`allowed_actions` 只含本插件 Manifest 声明的动作 | 同上 | 抛给插件代码 |
+| 创作台生成的插件（沙箱进程） | `plugin:<插件 id>`，`actor_kind` 为 `runtime`，受众 `plugin`（`apps/local-host/src/plugin-builder/catalog.ts` 的 `catalogCapabilities`） | 每次调用只带被调那一项能力自己的权限，先由沙箱 broker 对照该安装的 grant；能调用的是目录里对 `plugin` 受众开放的能力：声明了 `plugin` 受众，或对 `agent` 开放且没有 `plugin: false`，撤不回的除外（`actionReachesAudience`），不限于自己声明的动作 | 同上 | 抛给沙箱里的插件代码；不确定的结局报 `unknown` |
 | 工作流 | 沿用触发运行的调用者，Workflows 插件把受众改成 `workflow` | 调用者原有的权限 | 同上 | 步骤状态 |
 | 后台定时器 | 到期拉取：`web-user`，`user`，权限为本机用户的权限集（`LOCAL_OWNER_PERMISSIONS`）；项目打开时装配的判断触发：`workflow-events`，`workflow` | 前者是权限集，后者是各触发器写死的权限串 | 到期拉取是 concurrent | 只记在来源状态与事件里 |
 | CLI（`molis-work v1`） | 不经动作服务，直接调 typed 能力 | 进程内的 `LocalHost` | 进程内 | 命令行 `错误: …` |
@@ -39,7 +42,7 @@
 | 1 | 页面发请求 | `apps/workbench/src/scripts/control.ts`（`molisWorkControlHeaders`）；各插件客户端自带 `fetch` 包装 | 用户操作 → JSON 请求；头带 `x-molis-work-control-token`（取自页面 meta）和每次新生成的 `x-molis-work-idempotency-key` | 页面只带控制令牌，不带身份 | 读 `body.error` 显示；没有共用的请求客户端，也不显示调用标识 | 无 |
 | 2 | 本机入口与防重放 | `apps/local-host/src/web-server.ts` → `authorizeLocalWebRequest`（`apps/local-host/src/web-http.ts`） | 请求 → 放行或拒绝 | Host 必须是回环地址；写 API 还要求 Origin 与 Host 一致、令牌常量时间比对相等、一次性键 8 到 200 位 | 403「本地控制请求校验失败」；400 缺键；409 `request.in_flight`；409「这次操作已经提交」 | 进程内键表（上限 4096 条），成功后记 complete；Goal 事件命令路径允许同键重放 |
 | 3 | 项目解析 | `apps/local-host/src/web-routing.ts`（`resolveWebRequest`）、`apps/local-host/src/web-request.ts` | 路径 → 项目引用（`project_id` 加库路径） | 项目目录库（catalog） | 404「找不到这个 Molis Work 项目」；库文件不存在 404 | 无 |
-| 4 | 路由分发 | `apps/local-host/src/web-request.ts` 依次尝试各个 handle…Http 处理函数；旧路径插件走 `apps/local-host/src/<插件>-native-plugin-http.ts`，Runtime 插件走 `apps/local-host/src/coding-surface.ts` 的 `handleCodingPluginHttp` 和 `PluginRouteRouter` | URL → 命中的路由表 | 项目由 Host 按路径绑定，query 和 body 不能覆盖 | 没命中就落到下一个处理器；Runtime 插件在本项目未启用时 404 `plugin_not_enabled` | 无 |
+| 4 | 路由分发 | `apps/local-host/src/web-request.ts` 依次尝试各个 handle…Http 处理函数；旧路径插件走 `apps/local-host/src/` 下各自的 native-plugin-http 文件（例如 `apps/local-host/src/workflows-native-plugin-http.ts`），Runtime 插件走 `apps/local-host/src/coding-surface.ts` 的 `handleCodingPluginHttp` 和 `PluginRouteRouter` | URL → 命中的路由表 | 项目由 Host 按路径绑定，query 和 body 不能覆盖 | 没命中就落到下一个处理器；Runtime 插件在本项目未启用时 404 `plugin_not_enabled` | 无 |
 | 5 | 插件路由表 | 插件包，例如 `plugins/native/todo/src/routes.ts`、`plugins/native/todo/src/route-handlers.ts` | HTTP 参数 → 动作输入；动作结果 → HTTP 响应 | 无新增身份，只持有 `BoundActionClient`；请求断开时 `AbortController` 取消 | 由插件的 `todoRouteErrorResponse` 一类函数映射状态 | 无 |
 | 6 | 绑定调用者 | `apps/local-host/src/local-web-actions.ts`（`bindLocalWebActions`、`localWebActionContext`） | → `ActionCallContext` | 权限 = 页面内置权限集 + 本项目运行中且 grant 覆盖的 Runtime 插件权限；带 `allowed_actions`，对 Runtime 插件的授权在派发时用 `validate_authority` 重读 | `actions.forbidden`（授权已失效） | 无 |
 | 7 | 项目运行环境与排队 | `apps/local-host/src/project-host.ts`（`MolisWorkLocalHost.actionClient`：每次发现或调用先 `prepareProjectPlugins`，保证本项目的 Runtime 插件和已安装的生成插件已启动）→ `apps/local-host/src/local-host.ts`（`LocalHost.actionClient`，内部 `enqueue`） | → 打开项目运行环境，排进队列执行 | 调用者的 `project_id` 必须等于所选项目；先做宿主层可用性检查：项目是否启用该插件（`apps/local-host/src/project-action-availability.ts`）、`required_actions` 依赖、`required_scene` 的绑定 | `actions.scope_mismatch`；`actions.host_closed`；`actions.plugin_disabled` | 同一项目的命令串行排队；声明 `concurrent` 的动作和 `wait` 在队列旁执行；占住队列超过 20 秒，日志点名该能力（不含输入） |
@@ -52,8 +55,8 @@
 
 **现状与缺口**
 
-- 没有调用标识（W3-01）；14 份各自的错误映射对同一个错误码给出不同状态，例如 `actions.plugin_disabled` 在 `plugins/native/feed/src/route-error.ts` 里是 403，在 Todo 与 Pages 里是 400（W3-02）；浏览器端没有共用请求客户端（W3-10）。
-- 步骤 4 是手写的前缀链；改成注册表是 W5-07。新的内置插件只走 Plugin Runtime，不再新增 `<插件>-native-plugin-http.ts`。
+- 没有调用标识，诊断编号的目标见 §1 第 5 条（W3-01）；14 份各自的错误映射对同一个错误码给出不同状态，例如 `actions.plugin_disabled` 在 `plugins/native/feed/src/route-error.ts` 里是 403，在 Todo 与 Pages 里是 400（W3-02）；浏览器端没有共用请求客户端（W3-10）。
+- 步骤 4 是手写的前缀链；改成注册表是 W5-07。新的内置插件只走 Plugin Runtime，不再新增这类文件。
 - 不经 `ActionService` 的 typed 能力（`LocalHost.register` 的非动作分支）不校验 schema、不写调用记录；边界见 §10。
 - [系统架构 §4](ARCHITECTURE.md) 写的「owner 提交后经 Durable Outbox 发布事件」是目标，不是现状（[BL-070](../../specs/BACKLOG.md)）：现在各 owner 在自己的事务里写自己的事件日志，没有统一的发布通道，消费方靠读 owner 的动作或轮询。
 
@@ -76,8 +79,8 @@
 
 **现状与缺口**
 
-- 步骤 7 的删项目与网页的删项目是两份实现：网页（`apps/local-host/src/web-project-settings.ts`）有终端存活时 409 的保护并释放运行环境，MCP 版没有（W2-07）。
-- 步骤 7 的 5 个写入工具读 `actor_id` 参数，违反「可信身份不从输入读」；已定从可信会话取并删参数（W2-07）。
+- 步骤 7 的删项目与网页的删项目是两份实现：网页（`apps/local-host/src/web-project-settings.ts`）有终端存活时 409 的保护并释放运行环境，MCP 版没有。已定（决定 7）：宿主设置里的写入仍只走本机管理 HTTP，其中只有删除项目要统一，Web 与 MCP 共用一份 Host 删除服务（W2-07）。删除时别的主人存在 Home 里的该项目数据，已定由各主人一起清、可重试（spec §1，2026-10-07 的行）；现在 `ManagedProjectDeletion`（`apps/local-host/src/managed-project-deletion.ts`）的清理端口 `ProjectDeletionCleanupPorts` 只有会话绑定和面板两项，还没有按主人登记的钩子。
+- 步骤 7 的 5 个写入工具读 `actor_id` 参数，违反「可信身份不从输入读」；已定（决定 6）从可信会话取并删参数（W2-07）。
 - 步骤 8 的管理入口走 typed 桥而非动作；已定「对外的只走动作」（N-12，W3-07）。
 - `authorship: "session"` 只在步骤 6 的 MCP 入口检查，助理和 Agent 不经这条检查（见 [action-architecture §3 复核](../../specs/action-architecture/spec.md)）。
 
@@ -103,6 +106,7 @@
 - Coding 的 Agent 轮次、`agent.run.start.v1` 等能力和 Character 冻结在 [Prologue AI 手册](../platform/PROLOGUE-AI.md#agent-轮次以-coding-为例) 里有逐步说明，结构与上表第 3 到 7 步相同，只是动作工具来自角色的精确 `action_tools`。
 - 助理的 `remember` 目前接受模型自己填的 `said`，「忘掉」是直接删除；已定改为核对宿主保存的本人原话、忘掉可撤销（#28）。
 - 助理和 Agent 的运行记录在 Prologue 与助理库里，没有调用标识把它们和调用记录里的行连起来（W3-01）。
+- 助理的实现 `AssistantService`（`apps/local-host/src/assistant/assistant-service.ts`）是一个巨大单元；已定（决定 3）先就地按包形边界拆、再搬成独立包，第一刀是提醒与跟进的协作者（W4-05）。
 - 实验里本地 `grok` 与 `laya` 的调用不经这条链，见 §10。
 
 ## 5. 链 4：插件生命周期
@@ -112,7 +116,7 @@
 | 种类 | 谁装配 | 项目里「添加或移除」怎样生效 |
 | --- | --- | --- |
 | 构建期内置插件（Goals、Pages、Todo、Feed 等，名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts`） | 项目运行环境打开时由 Host 注册动作提供方（`apps/local-host/src/project-host.ts`） | 只改项目目录库里的成员关系；动作仍在注册表里，但每次调用的宿主层可用性检查返回 `actions.plugin_disabled` |
-| Runtime 内置插件（Coding、Files、Diff、Git、Text Stats、Shelf、Characters） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动 | 成员关系同上；Runtime 管自己的状态机 |
+| Runtime 内置插件（Coding、Files、Diff、Git、Text Stats、Shelf、Characters；Characters 已定改成宿主的一节设置，见下方缺口） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动 | 成员关系同上；Runtime 管自己的状态机 |
 | 创作台生成的插件 | `apps/local-host/src/installed-plugin-host.ts`（`lifecycle`），在隔离沙箱进程里运行；已安装的在同一时机恢复 | 创作台的安装、启用、停用、卸载、升级、回滚 |
 
 下表是 Runtime 管理的插件（后两种）的链路；第一种只有第 1、7 行里「成员关系」的那一半。
@@ -138,7 +142,9 @@
 - 卸载时保留了私有数据、重装的新版本又不能从旧版本升级，现在直接拒绝；已定「重装时让人选：丢弃旧数据或取消」（#3、#60）。
 - 构建期内置插件的停用靠宿主层可用性检查，而不是注销动作，所以目录里它们仍在，只是标为不可用。成员关系是项目目录库里的事实（`project.plugin_added`、`project.plugin_removed` 事件），不是 Runtime 的状态。
 - 没有一个可移除的探针插件把 undo、到期提醒、`background_job`、情境片段、`methods`、放置走完「安装 → 发现 → 调用 → 停用 → 撤权 → 卸载 → 升级」；这些合同的生产方都是构建期插件（W4-01，台账见 [PLUGIN-PLATFORM §9](../platform/PLUGIN-PLATFORM.md)）。
-- Manifest 的 `methods` 通过校验，但 Runtime 和已安装插件的宿主都不登记它，等于不生效（W4-02）。
+- Manifest 的 `methods` 通过校验，但只有构建期内置插件会被登记：`builtinRegistrations`（`apps/local-host/src/agent-definitions/builtin-agents.ts`）遍历 `BUILTIN_PLUGIN_CATALOG`，现有的声明方是 Pages 与 Todo；Runtime 插件和已安装插件的宿主都不登记它，声明了也不生效。已定（决定 18）：和内置插件一样注册，启动时登记，停用、卸载、升级时收回（W4-02）。
+- 已定（决定 9）：个人插件装在一个 Home 级的 Runtime 实例里，按项目启用照旧，数据文件留在 `{home}/<id>/<id>.db`、由平台库服务打开；Goals、Artifacts、Sessions 和插件创作台列为批准的构建期例外，其余构建期插件逐族迁到 Runtime（W5-01）。这是目标：上表第 3 行的安装记录今天仍按项目存在各项目库里。
+- 已定（决定 26）：Characters 不再是 Runtime 插件，代码并进宿主或一个 Module，界面仍是「设置」里的一节；它的安装记录与 `project-plugins.ts` 里的监督器条目一起删（第 4 波的一片）。今天它仍是上表第二种。
 
 ## 6. 链 5：后台——调度与监听 → Feed → Inbox → 提醒与通知
 
@@ -170,7 +176,7 @@
 
 **现状与缺口**
 
-- **定时拉取只对本进程里被打开过的项目生效**（步骤 2）：服务重启后，没人打开的项目不会自己开始拉取。统一的周期任务登记是 W4-09。
+- **定时拉取只对本进程里被打开过的项目生效**（步骤 2）：服务重启后，没人打开的项目不会自己开始拉取。同一个 30 秒定时器里的 `schedule.tick()` 驱动 Schedule 的提醒唤醒和 Agent 定时任务，它们的运行器（`bindScheduledTaskRunner`）也只在项目被网页请求打开时绑定（`apps/local-host/src/web-request.ts`），所以同样受这个限制。统一的周期任务登记是 W4-09。
 - Feed 的 `FeedSourceScheduler` 和 Schedule 的 `horizontal/scheduler` 是两套并行的定时机制（`docs/SSOT-MATRIX.md` §6 已写明）。
 - 待判断队列只在进程内存里（`pendingFeedJudgments`、`pendingInboxJudgments`），按这两个名字的全部引用核对，代码里没有从库重建它的路径；进程在拉取和判断之间退出，条目已落库，判断不会补做。
 - 定时拉取失败后每 30 秒重拉、归档只关一条 Inbox 等问题已列入 Feed/Inbox 一组，修复中（#50、#51、#53、#54、#57、#58）；本表按 main 的现状写，修复合入后以代码为准。
@@ -184,16 +190,17 @@
 | 1 | 来源声明 | 插件用 `defineSearchEntriesAction` 声明可搜的对象种类（输入输出类型 `SEARCH_ENTRIES_INPUT_TYPE`、`SEARCH_ENTRIES_OUTPUT_TYPE`），用 `defineSubjectContextAction` 声明对象读取器 | Manifest → 动作目录里的两类动作 | 注册时校验输入输出合同（`searchSourceDeclarationProblems`） | `actions.definition_invalid` | 无 |
 | 2 | 建索引 | `horizontal/search/src/index.ts`（`SearchService.catchUp`、`runSync`）；Host 装配 `apps/local-host/src/search-actions.ts` | 来源的集合版本、条目版本 → 增量读取变化的正文 → `{home}/search/search.db` | 用 Host 给的本机用户上下文建索引，结果不随提问者变化 | 一次同步失败不删已有条目；删除只在完整列出之后；项目没打开则稍后再更新 | 触发：成功的命令（`SearchHost.changed`）、提供方注册或撤下（`providerChanged`）、超过新鲜期、`search.rebuild` |
 | 3 | 查询 | 系统动作 `search.query`（提供方 `system.search`）← `apps/local-host/src/search-http.ts` | 查询词、范围 → 命中（对象引用、摘要、高亮、状态） | 用调用者自己的权限发现来源，只返回调用者当前可用的来源；有读取器的种类还要求调用者能用该读取器 | `actions.input_invalid`；`empty_scope`；索引未好返回 `indexing` 或 `partial` | 无 |
-| 4 | 打开 | 系统动作 `search.open` | `hit_id` → `ok`、`missing` 或 `unavailable` | 按调用者重新发现来源，用保留的调用授权调原插件的对象读取器 | `unavailable`（来源已停用、升级或无权限）；`missing`（所有者报不存在，同时把它移出索引） | 无 |
+| 4 | 打开 | 系统动作 `search.open` | `hit_id` → `ok`、`missing` 或 `unavailable` | 按调用者重新发现来源，用保留的调用授权调原插件的对象读取器 | `unavailable`（来源已停用、升级或无权限）；`missing`（读取器报不存在，或报 `actions.subject_unavailable`，同时把它移出索引，后一种见缺口） | 无 |
 | 5 | @ 引用 | 输入框 `@` → `search.query` → 命中带 `reference` 随 Send 发出；`AssistantService.readReferences` | 命中 → 重新核对并读正文，作为材料 | 以人的上下文调 `search.open` 和读取器 | 引用对象已不存在或读不到：Send 被拒绝并说明原因；若已被移走，说明移到了哪里 | 材料里写明版本；没有读取器就只给搜索摘要并说明不是全文 |
-| 6 | 放置 | 系统动作 `placement.link`、`placement.move`、`placement.copy` 等（`apps/local-host/src/placement-actions.ts`）← `apps/local-host/src/placement-http.ts`；服务 `horizontal/placement/src/index.ts` | 对象 + 目的地 → 位置描述、关联、移动、复制、转成 | 改变位置与访问范围的动作只对本机用户开放；读取描述对助理和工作流开放；对象存在性向所有者读 | `placement.project_missing`；所有者报 `not_found` 才是「原对象已删除」，其余是「暂时读不到」 | 关系写在 Home 的 `{home}/placement/placement.db`（Context Ledger 加标题缓存）；用于项目、来自、复制自 |
+| 6 | 放置 | 系统动作 `placement.link`、`placement.move`、`placement.copy` 等（`apps/local-host/src/placement-actions.ts`）← `apps/local-host/src/placement-http.ts`；服务 `horizontal/placement/src/index.ts` | 对象 + 目的地 → 位置描述、关联、移动、复制、转成 | 改变位置与访问范围的动作只对本机用户（`user`）开放；读取描述的动作（`placement.describe`、`placement.spaces`、`placement.related`、`placement.locate`、`placement.goals`）对 `user` 和 `agent` 开放，创作台生成的插件经「对 Agent 开放的读取同样对插件开放」这条规则（`actionReachesAudience`）也看得到，工作流不在其内；对象存在性向所有者读 | `placement.project_missing`；所有者报 `not_found` 才是「原对象已删除」，其余是「暂时读不到」 | 关系写在 Home 的 `{home}/placement/placement.db`（Context Ledger 加标题缓存）；用于项目、来自、复制自 |
 | 7 | 跨插件移动与复制 | 服务调插件声明的放置协议动作（`PLACEMENT_MOVE_INPUT_TYPE` 等） | 对象 → 新分区里的同一对象 | 受调用者权限约束；移入某项目时指向它的「用于项目」关系自动去掉 | 对象所在的插件没有声明移动或复制协议时，该操作不可用 | 位置索引更新，旧引用经它找到新位置 |
 
 **守住它的用例**：`tests/system-search.test.ts`、`tests/system-search-host.test.ts`、`tests/system-search-lifecycle.test.ts`、`tests/system-search-assistant.test.ts`、`tests/work-placement.test.ts`、`tests/work-placement-restart.test.ts`。
 
 **现状与缺口**
 
-- 搜索来源 21 个插件在用，对象读取器 21 个插件加宿主自己在用；`defineSearchQueryAction`（按需查询的来源）在产品里没有生产方，只有 `tests/system-search.test.ts` 的夹具，搜索服务却为它留着分支（W2-03 按决定删除或标「未启用」）。
+- 搜索来源 21 个插件在用，对象读取器 21 个插件加宿主自己在用。`defineSearchQueryAction`（按需查询的来源）在产品里没有生产方，只有 `tests/system-search.test.ts` 的夹具。已定（决定 19）删除，要一起去掉的有：合同定义（`packages/contracts/src/platform/search-sources.ts`）、插件 SDK 的出口（`packages/plugin-sdk/src/index.ts`）、搜索服务里为它留的分支（`horizontal/search/src/index.ts` 的 `querySources`，以及它在 `open` 和查询里的用法）、夹具用例，和 `skills/molis-plugin-dev/search.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`packages/plugin-sdk/README.md` 里的说明（W2-03）。
+- `search.open` 把读取器抛出的 `actions.subject_unavailable`（对象此刻读不到，不一定是已删除）也当成「已删除」：返回 `missing`、文案是「这条内容已被删除或归档」，并把这条移出索引（`horizontal/search/src/index.ts` 的 `meansMissing`）。这是逻辑复查 #22；修复列在 spec §11 的「搜索打开时把读不到的对象当已删并移出索引」一组，修复合入后以代码为准。
 - 放置协议的生产方（Dataset、Form、灵光、Pages、PPT、Todo 等）都是构建期插件，没有 Runtime 插件的停用、卸载、升级用例（W4-01）。
 
 ## 8. 链 7：记忆
@@ -202,7 +209,7 @@
 
 | # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 入口 | 系统动作 `memory.write`、`memory.recall`、`memory.change` 等（提供方 `system.memory`）；设置页走 `/api/memory/*`（`handleMemoryHttp`） | 请求 → `MemoryService` | 使用方（助理、Agent、界面、插件、MCP）从可信上下文的受众得出，不从输入读；`memory.write` 只对 `user`、`agent`、`plugin` 开放，MCP 不能写 | `memory.forbidden`；`memory.invalid`；`memory.not_found`；`memory.off`（运行时没有记忆能力） | 无 |
+| 1 | 入口 | 系统动作 `memory.write`、`memory.recall`、`memory.change` 等（提供方 `system.memory`）；设置页走 `/api/memory/*`（`handleMemoryHttp`） | 请求 → `MemoryService` | 使用方（助理、Agent、界面、插件、MCP）从可信上下文的受众得出，不从输入读；`memory.recall` 对 `user`、`agent`、`workflow`、`plugin`、`mcp` 开放；`memory.write` 只对 `user`、`agent`、`plugin` 开放，MCP 不能写 | `memory.forbidden`；`memory.invalid`；`memory.not_found`；`memory.off`（运行时没有记忆能力） | 无 |
 | 2 | 写入门 | `MemoryService.write` / `offer`（`horizontal/memory/src/service.ts`） | 文字 + 范围 + 种类 → 写入、替换、重复、候选或拒绝 | 开关、秘密形状、像指令的文字、范围、重复与冲突；Agent 必须带 `said`；插件只能写进自己的命名空间且要有人允许 | 结果是 `outcome`，不是异常：`refused`、`candidate` 带原因 | 每次写入记一条「最近变动」，规则版本写进来源 |
 | 3 | 存储 | `prologueMemoryBackend`（memory-host.ts）→ Agent Host 的 Prologue 适配器 | → 记忆条目 | 运行时没起来则先启动 | `memory.off` | 旁表（开关、候选、变动、使用记录、配对）在 `{home}/memory/memory.db`（`openMemoryLedger`） |
 | 4 | 召回 | `MemoryService.recall`；助理轮次用 `memoryForRound`，其他 Agent 轮次用 `memoryForAgentRun`，情境判断用 `memory.recall` | 查询 + 情境 → 带出处和类别的条目 | 按使用方的开关取范围与类别；停用、暂停、过期、不适用的不返回；外部 AI 客户端默认读不到个人记忆 | 全部范围被关掉时返回 `state: "off"` 和原因 | 每次召回生成回执，用上的和因预算或上限没带上的都记使用记录 |
@@ -214,7 +221,7 @@
 **现状与缺口**
 
 - 记忆服务里的写入门和候选规则是跨插件的产品策略，不是业务事实；按 N-03 的决定归「平台产品服务」，代码位置不动。
-- `memory.*` 的插件受众在产品里没有任何插件在用；MCP 受众只对被授权的外部客户端有意义，仓库内没有消费它的流程。两者的用例只有 `tests/memory-scopes.test.ts` 与 `tests/memory-service.test.ts`；插件开发 Skill 没写插件怎么用记忆。
+- `memory.recall`、`memory.write` 的插件受众和 `memory.recall` 的 MCP 受众，在产品里都没有消费者：没有任何内置插件调用它们，仓库里也没有流程消费 MCP 受众（它只对被授权的外部客户端有意义）。已定（决定 19）：MCP 受众保留，并补一条经 `mcp-tools.json` 授权键的用例（今天只有服务层的 `tests/memory-service.test.ts`、`tests/memory-scopes.test.ts`，没有走 MCP 授权的）；插件受众标「未启用」。「未启用」指产品里没有消费者，不是不可达：创作台的能力看板（`apps/local-host/src/plugin-builder/catalog.ts` 的 `capabilityCatalog`）按 `plugin` 受众列目录，这两个动作都在里面，生成插件的作者可以选用。插件开发 Skill 没写插件怎么用记忆。
 - 已定未做：自动写入的建议不再由模型的 `same_as` 决定保留别人的建议、撤销自动记忆不删本人明说的内容、`memory.recall` 补写入前复查（#24、#27、#32）。
 
 ## 9. 链 8：CLI、安装与升级
@@ -242,21 +249,41 @@
 - 步骤 8 的 CLI 是第二个进程内宿主，不转发给常驻服务；与「一个 Home 只有一个执行进程」的约束并存，登记在 §10。
 - 插件本身的升级是链 4 的第 10 行。随 Host 带来的 Runtime 内置插件（监督器条目标 `bundled`）在 Host 启动时把安装记录升到 Host 带来的版本，保留新 Manifest 仍声明的 grant 并补上必需的；其余的升级要在插件市场确认（`PluginSupervisor.upgradeCandidates`）。
 - `installMolisWorkHome` 不清理旧版本的发行目录；新版本只是另起 `{home}/releases/<版本>` 并改写启动器。
+- 已定（决定 20）：新增离线快照命令（先让常驻宿主暂停，再拍带清单和版本核对的一致快照），「卸载并清除数据」覆盖库登记表里登记的所有库。这是目标：今天 `molis-work` 的子命令里没有快照命令（`apps/cli/src/dispatch.ts`），步骤 10 的清除按目录与项目数确认。
+- 已定（决定 11，只写计划）：第三方插件用 `molis-work plugin install <bundle>` 在本地安装，首次安装确认并记住发布者密钥，在独立进程的沙箱里运行。今天 `molis-work plugin` 只有 `validate`、`create`、`pack`、`identity`、`sign`、`verify`、`dev`（`tooling/plugin-cli/src/cli.ts`），没有 `install`。
 
 ## 10. 例外登记
 
-下列路径不符合「能力只有一条路径」，各自写明理由和删除条件。新增例外要先改这张表并经评审。
+下列路径不符合「能力只有一条路径」或「每项事实一个主人」，分两张表：10.1 是长期登记的例外，各自写明理由和删除条件；10.2 是已定要修的偏离，不是例外，写明修在哪一片。新增例外要先改这张表并经评审。
+
+### 10.1 长期登记的例外
+
+决定 7 的范围是宿主设置里的写入：它们保持为只在本机用的管理 HTTP（都在 `authorizeLocalWebRequest` 之后，即回环、控制令牌和一次性键），不进动作目录，助理、Agent 和 MCP 的工具调不到它们；只有删除项目要与 MCP 的删除统一，连接器路由以后搬进各自的官方接入插件（`plugins/official-integrations/`）。下面前八行就是这些写入，每条路由都列出，各有删除条件。
 
 | 例外 | 在哪里 | 为什么存在 | 删除条件 |
 | --- | --- | --- | --- |
-| 宿主设置 HTTP：项目创建、改名、删除，项目里的插件添加与移除，演示数据，模型供应商，对外接入授权，Runtime 接入，常驻服务 | `apps/local-host/src/web-project-settings.ts`、`apps/local-host/src/web-catalog.ts`、`apps/local-host/src/web-model-settings.ts`、`apps/local-host/src/web-mcp-action-settings.ts`、`apps/local-host/src/web-runtime-settings.ts`（普查口径是 16 个 host 的 web/http 文件直接打开项目目录库，见 [路线](../../specs/repository-anti-corruption/roadmap-2026-10-07.md) §4.2） | 这些写的是 Home 级的项目目录与宿主设置（owner 是 `modules/projects` 和宿主），不是插件内容；入口是本机页面 | 路线建议保留为宿主管理 HTTP 并在此登记，只把删项目统一成一份实现（W2-07）；这一项还没有弹窗决定（路线待决第 7 项），定了再改这一格 |
-| 连接器按 provider 的 OAuth 与设备授权路由 | `apps/local-host/src/web-connectors-settings.ts`（Gmail、GitHub、Notion、飞书各一组路由） | 授权回调要落在固定的本机地址，凭据落在 Home 的连接库 | 路线建议随官方集成迁成插件的设置面时一并搬走（W5-11），同属待决第 7 项 |
+| 项目目录：创建 `POST /api/settings/projects`、改名 `POST /api/settings/projects/<id>/rename`、示例数据 `POST /api/settings/demo`、项目里添加与移除插件 `POST`、`DELETE /api/settings/projects/<id>/plugins` | `apps/local-host/src/web-project-settings.ts` | 写的是 Home 级项目目录（owner 是 `modules/projects`），不是插件内容；入口是本机设置页。MCP 的「新建并绑定」是另一条实现（`apps/mcp/src/runtime-context-tools.ts`） | 助理、MCP 或 CLI 需要同一项操作时，把它做成动作，HTTP 改为调用该动作；在此之前保持 |
+| 项目目录：删除项目 `POST /api/settings/projects/<id>/delete` | `apps/local-host/src/web-project-settings.ts`，MCP 的删项目工具在 `apps/mcp/src/runtime-context-tools.ts` | 现在是两份实现：网页有终端存活时 409 的保护并释放运行环境，MCP 没有。决定 7 要把这一项统一。删除时别的主人存在 Home 里的数据要一起清，那是 spec §11「删除项目留下别的主人的数据」一组的修复 | W2-07：Web 与 MCP 共用一份 Host 删除服务；之后这个 HTTP 只是它的入口，随上一行的条件处理 |
+| 首次引导与个人空间：`POST /api/onboarding/personal`、`/dismiss`、`/initialize` | `apps/local-host/src/web-onboarding.ts` | 写的是 Home 的引导状态，并建项目；`/initialize` 还调用 Goals 的 typed 桥（见 10.2） | 与项目目录一行相同；其中对 Goals 的调用随 W3-07 改走动作 |
+| 模型供应商：保存与删除 `POST`、`DELETE /api/settings/models/<provider>`，连通性试验 `POST /api/settings/models/<provider>/test` | `apps/local-host/src/web-model-settings.ts` | 供应商配置属于宿主（`apps/local-host/src/model-provider-store.ts` 的 `ModelProviderStore`，在项目目录库里），密钥存成连接库里的 `model-api` 连接；试验经 `horizontal/agent-host` 的 Prologue 适配器，不写设置 | 模型设置成为插件的设置面，或助理需要代用户改模型时；密钥只给引用的规则不变 |
+| 对外接入授权：`POST /api/settings/mcp/actions` | `apps/local-host/src/web-mcp-action-settings.ts`，写 `{home}/config/mcp-tools.json` | 这是 MCP 客户端授权的来源，必须是本人在本机页面上的决定；客户端不能给自己授权 | 不能成为 MCP、Agent 可调用的动作；只有授权改成「只对 `user` 受众开放、目录里对其他受众不可见」的系统动作时才改 |
+| Runtime 接入与常驻服务：`POST /api/settings/runtimes/<id>/plan`、`/confirm`，`POST /api/settings/web-service/plan`、`/confirm` | `apps/local-host/src/web-runtime-settings.ts`，服务在 `apps/local-host/src/installer/runtime-integration.ts`、`apps/local-host/src/installer/web-service.ts` | 改的是应用之外的文件（MCP 配置、Skill 链接、LaunchAgent），按「先预览、再确认」配对；网页和 CLI 是同一服务的两个入口 | 预览与确认配对成为动作合同，并且这些改动允许助理发起时 |
+| 连接器：provider 专属的 OAuth 与设备授权（Gmail、GitHub、Notion、飞书各一组） | `apps/local-host/src/web-connectors-settings.ts` | 授权回调要落在固定的本机地址，凭据落在 Home 的连接库 | 已定（决定 7）以后搬进各自的官方接入插件（`plugins/official-integrations/` 下的 gmail、github 等，W5-11）；搬完后这一行删除。回调路径变了，要同步各 provider 的客户端登记 |
+| 连接器：按认证方式的通用路由和连接库管理（`/api/settings/connectors/connections`、`.../authorizations/<id>`、`.../methods/…`） | `apps/local-host/src/web-connector-connections.ts`、`apps/local-host/src/web-connector-methods.ts`、`apps/local-host/src/web-connector-api-methods.ts` | 连接库是宿主的（`apps/local-host/src/connector-connection-store.ts`），不属于某个 provider | 没有 provider 专属路由以后，连接库管理成为动作或设置面时再议；此前保持 |
 | 实验里的本地 `grok` 命令行和 `laya` 检查点 | `apps/local-host/src/experiments-executor.ts`、`apps/local-host/src/experiments-grok.ts`、`apps/local-host/src/experiments-process.ts` | 实验要对比本地模型和外部 Agent 运行时，这两类在 Prologue 收敛口径里暂缓；绕过 `horizontal/agent-host`；实验里的 Jev 判断走 Prologue，不在例外内 | Prologue 能经 Agent Host 承载本地模型与外部 CLI Agent 运行时，或实验被移出主线 |
-| typed 能力注册表 | `packages/kernel/src/index.ts`（`CapabilityRegistry`）；`apps/local-host/src/local-host.ts` 的 `LocalHost.register` 非动作分支 | 已定（N-12）只留作 Runtime 插件的宿主内服务通道：`agent.*`（`packages/contracts/src/services/agent-host.ts`）、`scheduler.wakeup.v1`（`packages/contracts/src/services/scheduler.ts`）、`schedule.*` 等，以 W3-07 重写 PACKAGE-BOUNDARIES §6 时的清单为准；门禁不许再加 | 对外能力不再有 typed 注册：Goals 的 typed 桥、两个工作区读 id（`projects.workspace.file.read.v1`、`projects.workspace.git.read.v1`）在 W2-08、W2-09 删除；管理入口改走动作（W3-07） |
-| Goals 的 typed 桥 | `plugins/native/goals/src/board-entry-capabilities.ts`、`plugins/native/goals/src/goal-event-entry-capabilities.ts`、`plugins/native/goals/src/proposal-capabilities.ts`；调用方 CLI、管理 MCP、`apps/local-host/src/web-onboarding.ts` | CLI 和管理 MCP 仍从这里进；其余入口在产品里没有调用方 | 已定（N-12）：无生产调用方的先删（W2-08），其余随管理入口改走动作（W3-07） |
-| MCP 连接工具读 `actor_id` 参数 | `apps/mcp/src/runtime-context-tools.ts` | 连接发生在项目解析之前，当时没有可信项目身份 | 已定从可信会话取并删参数（W2-07） |
+| typed 能力注册表 | `packages/kernel/src/index.ts`（`CapabilityRegistry`）；`apps/local-host/src/local-host.ts` 的 `LocalHost.register` 非动作分支 | 已定（N-12，决定 1）只留作 Runtime 插件的宿主内服务通道：`agent.*`（`packages/contracts/src/services/agent-host.ts`）、`scheduler.wakeup.v1`（`packages/contracts/src/services/scheduler.ts`）、`schedule.*` 等，以 W3-07 重写 PACKAGE-BOUNDARIES §6 时的清单为准；门禁不许再加 | 对外能力不再有 typed 注册：见 10.2 的 Goals typed 桥、两个工作区读 id 和 Casebook；管理入口改走动作（W3-07） |
 | CLI 进程内宿主 | `apps/local-host/src/cli-project.ts` | 命令行在没有常驻服务的机器上也要能建项目、读快照 | W3-07 把管理入口改走 Goals 动作；CLI 是否继续在进程内执行，要按「一个 Home 只有一个执行进程」重新评审 |
-| Casebook HTTP | `apps/local-host/src/casebook/`，路径 `/casebook/v1/` | 外部 Casebook 插件按这些 id 与路径对接，在控制令牌门之前有自己的回环检查 | 已定改为同 id 的插件受众动作，与外部仓库同步发布（W3-08） |
-| 两个读工作区的重复身份 | `apps/local-host/src/project-capabilities.ts` | 同一处理器同时注册 typed 与动作两个 id | 保留动作 id（W2-09） |
 
-**登记之外**：页面渲染、静态资产、终端和浏览器 WebSocket、IM 服务和面板会话等传输层路由（`apps/local-host/src/web-server.ts`）不是「能力」，不进这张表，但它们也不能绕开链 1 的步骤 2。
+### 10.2 已定要修的偏离
+
+这些不是长期例外，是已经决定要改、还没改完的偏离；改完就从这张表里删掉。
+
+| 偏离 | 在哪里 | 现状 | 怎么修 |
+| --- | --- | --- | --- |
+| 宿主直接读 IM 服务的表（越界读表，不是实验） | `apps/local-host/src/im-server.ts` 在 `POST /projects/<id>/api/im/connect` 里用 SQL 直接读 IM 服务库（`{home}/server/server.sqlite`）的 `mw_projects.owner_id` 和 `mw_members.display_name`；这两张表的 owner 是 `server/` 包（`@molis-ai/molis-work-server`）。`apps/server/src/main.ts` 的独立启动器同样直接读 | 右栏「讨论」页签和 IM 代码是在用、还会迭代的产品功能（决定 4）；错的只是三处账目：库没有登记进 Home 数据与备份表，宿主越过包直接读它的表，包被归成基础包而不是业务包 | 决定 4：宿主不再直接读它的表，改经 `server/` 包的公开入口取项目所有者和成员（W2-06，同时加跨主人 SQL 门禁）；`{home}/server/server.sqlite` 登记进 Home 数据与备份表、归类改成业务、SSOT 行同步（W2-12）；`apps/server` 独立启动器的去留随功能迭代另定 |
+| Goals 的 typed 桥 | `plugins/native/goals/src/board-entry-capabilities.ts`、`plugins/native/goals/src/goal-event-entry-capabilities.ts`、`plugins/native/goals/src/proposal-capabilities.ts`；调用方 CLI、管理 MCP、`apps/local-host/src/web-onboarding.ts` | CLI 和管理 MCP 仍从这里进；其余入口在产品里没有调用方 | N-12（决定 1）：无生产调用方的先删（W2-08），其余随管理入口改走动作（W3-07） |
+| MCP 连接工具读 `actor_id` 参数 | `apps/mcp/src/runtime-context-tools.ts` | 连接发生在项目解析之前，当时没有可信项目身份 | 决定 6：从可信会话取并删参数（W2-07） |
+| Casebook 的 5 个 typed 能力与 HTTP | `apps/local-host/src/casebook/integration.ts`（`registerCasebookCapabilities` 登记 `io.molis.work.casebook.interaction-authorization`、`set-interaction-authorization`、`read-interaction-facts`、`read-goal-contexts`、`read-operation-receipts`），`apps/local-host/src/casebook/http.ts`（路径 `/casebook/v1/`） | 外部 Casebook 插件按这些 id 与路径对接，在控制令牌门之前有自己的回环检查（`apps/local-host/src/web-server.ts`） | N-12 与决定 8：改成同 id 的 `plugin` 受众动作，与外部 Casebook 插件一起发版（W3-08） |
+| 两个读工作区的重复身份 | 定义 `packages/contracts/src/modules/workspace-artifacts.ts`，登记 `apps/local-host/src/project-capabilities.ts` | 同一处理器同时注册 typed（`projects.workspace.file.read.v1`、`projects.workspace.git.read.v1`）与动作两个 id | N-12：保留动作 id，删 typed id（W2-09） |
+
+**登记之外**：页面渲染、静态资产、终端和浏览器 WebSocket、面板会话等传输层路由（`apps/local-host/src/web-server.ts`）不是「能力」，不进这两张表，但它们也不能绕开链 1 的步骤 2。IM 服务的路由（`/im`、`/projects/<id>/api/im/connect`）同样是「讨论」页签自己的传输层；它越界读表的问题在 10.2。

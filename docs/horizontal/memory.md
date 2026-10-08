@@ -6,7 +6,7 @@
 
 **提供：**
 
-- 系统动作 `memory.*`（提供方 `system.memory`，Host 装配在 `apps/local-host/src/memory/memory-host.ts`）：`memory.recall`、`memory.list`、`memory.write`、`memory.change`、`memory.history`、`memory.candidates.list`、`memory.candidates.accept`、`memory.candidates.discard`、`memory.changes.list`、`memory.changes.undo`、`memory.prefs.read`、`memory.prefs.write`、`memory.signals.report`、`memory.pairs.list`、`memory.pairs.resolve`、`memory.upkeep.run`、`memory.scope.preview`、`memory.scope.clear`、`memory.export`、`memory.import`。使用方（助理、Agent、界面、插件、MCP）由可信调用上下文的受众得出，不从输入读；`memory.write` 只对界面、Agent 和插件开放，MCP 只能召回。
+- 系统动作 `memory.*`（提供方 `system.memory`，Host 装配在 `apps/local-host/src/memory/memory-host.ts`）：`memory.recall`、`memory.list`、`memory.write`、`memory.change`、`memory.history`、`memory.candidates.list`、`memory.candidates.accept`、`memory.candidates.discard`、`memory.changes.list`、`memory.changes.undo`、`memory.prefs.read`、`memory.prefs.write`、`memory.signals.report`、`memory.pairs.list`、`memory.pairs.resolve`、`memory.upkeep.run`、`memory.scope.preview`、`memory.scope.clear`、`memory.export`、`memory.import`。使用方（助理、Agent、界面、插件、MCP）由可信调用上下文的受众得出，不从输入读；`memory.recall` 对界面、Agent、工作流、插件和 MCP 开放，`memory.write` 只对界面、Agent 和插件开放，MCP 只能召回。其中插件受众和 MCP 受众今天在产品里都没有消费者：已定（决定 19）MCP 受众保留并补一条经 MCP 授权的用例，插件受众标「未启用」（指没有消费者，不是不可达；创作台的能力看板仍会把这两个动作列给生成插件）。
 - 开关与使用方权限：个人范围和每个项目各有一组开关（允许记住、自动记住低风险内容、从工作里提建议、从界面操作里学习），角色记忆沿用所在项目的开关；每个使用方（助理、Agent、界面、插件、MCP）单独开关，插件还可以逐个设置能读哪些类别；MCP 默认读不到个人记忆。
 - 确定性写入门：开关、秘密形状、像指令的文字、范围、重复与冲突，以及自动写入的决定表。模型只提议不批准，规则版本记进来源与最近变动。
 - 召回编排：按使用方的权限取范围与类别，过滤停用、暂停、过期和不适用的条目，打分、按条数与字数预算取用。

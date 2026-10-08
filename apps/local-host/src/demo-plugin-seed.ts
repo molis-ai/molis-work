@@ -85,7 +85,7 @@ export function seedDemoPluginSurfaces(databasePath: string, projectId = DEMO_PR
       kind: "github_notification",
       title: "PR #418 请确认完成依据是否写进事件记录",
       summary: "Review 要求核对：工作何时开始、提交了什么、为什么可以算完成。",
-      body: "请对照 CORE 的约定：从开始到证据和复核要形成完整记录。这条通知需要人决定是否并入当前 Goal。",
+      body: "请对照 CORE 的约定：从约定、报告到收尾要形成完整记录。这条通知需要人决定是否并入当前 Goal。",
       author: "octocat",
       url: "https://github.com/example/molis-work/pull/418",
       occurredAt: AT.github,
@@ -254,7 +254,7 @@ const DEMO_SESSIONS = [
     title: "接通完成依据",
     content: [
       "$ molis-work goal show CORE",
-      "工作从开始到证据和复核形成完整记录。",
+      "工作从约定、报告到收尾形成完整记录。",
       "下一步：明确收尾，把可用的生命周期记录交给当前用户确认。",
     ].join("\n"),
   },

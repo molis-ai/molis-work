@@ -1,5 +1,10 @@
 /** Copy added by the page-interaction-flow work (navigation, covers, settings consolidation, Characters). */
 export const FLOW_EN: Record<string, string> = {
+  "各插件里属于这个项目的数据也会一起删除。": "Data that plugins keep for this project is deleted with it.",
+  "炼金术士的研究空间": "The Alchemist studio",
+  "插件创作台的构建、发布包和已保存的密钥": "Plugin Studio builds, release packages and saved secrets",
+  "这个项目及其角色的记忆": "Memories of this project and of its characters",
+  "助理在这个项目里的工作": "Assistant works in this project",
   "打开插件": "Open a plugin",
   "找不到这个页面：{path}": "This page does not exist: {path}",
   "项目内引用": "Project reference",

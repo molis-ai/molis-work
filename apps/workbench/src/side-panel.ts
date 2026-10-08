@@ -98,7 +98,6 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   document.querySelector('[data-workspace]').append(panel);
   const frame=panel.querySelector('[data-dock-frame="im"]'),projectId=document.body.dataset.projectId;
   const tabs=()=>[...panel.querySelectorAll('[data-side-tab]')];
-  const bodyOf=(id)=>panel.querySelector('[data-side-body="'+CSS.escape(id)+'"]');
   const divider=document.createElement('div');divider.className='side-panel-divider';divider.tabIndex=0;
   divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label','调整侧栏宽度');divider.setAttribute('aria-controls',panel.id);
   panel.after(divider);

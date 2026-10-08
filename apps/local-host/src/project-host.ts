@@ -61,6 +61,7 @@ import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
 import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } from "./placement-actions.js";
 import { isPersonalSpace } from "./personal-space.js";
+import { registerProjectRuntimeOwner } from "./project-deleted-runtime.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 
@@ -486,5 +487,7 @@ async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () 
 }
 
 export function createMolisWorkLocalHost(options: MolisWorkLocalHostOptions = {}): MolisWorkLocalHost {
-  return new MolisWorkLocalHost(options);
+  const host = new MolisWorkLocalHost(options);
+  if (options.homeDirectory) registerProjectRuntimeOwner(host, path.resolve(options.homeDirectory));
+  return host;
 }

@@ -1,5 +1,5 @@
 {
-  "giantUnits": 164,
+  "giantUnits": 163,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 261,
     "file apps/local-host/src/assistant/assistant-service.ts": 2656,
@@ -44,8 +44,7 @@
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 336,
     "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 175,
-    "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 189,
-    "function apps/local-host/src/web-project-settings.ts#handle": 182,
+    "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 158,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 441,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 327,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 241,

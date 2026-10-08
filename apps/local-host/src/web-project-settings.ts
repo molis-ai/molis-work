@@ -6,6 +6,7 @@ import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./we
 import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
 import { L } from "./web-locale.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { createProjectDeletionHttp } from "./web-project-deletion.js";
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
 
@@ -15,6 +16,7 @@ export interface ProjectDeletionWebPorts {
 }
 
 export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner) {
+  const handleProjectDeletion = createProjectDeletionHttp(withMolisWorkProjectCatalog);
   async function settingsProjects(homeDirectory: string | undefined): Promise<WebSettingsProject[]> {
     return withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjects().map(settingsProject));
   }
@@ -144,39 +146,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
       }
       return true;
     }
-    const projectDeleteMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/delete$/);
-    if (request.method === "POST" && projectDeleteMatch) {
-      const body = await readBody(request);
-      const deletionKey = typeof body.idempotency_key === "string" ? body.idempotency_key.trim() : "";
-      if (body.delete_confirmed !== true || deletionKey.length < 8 || deletionKey.length > 200) {
-        sendJson(response, 400, { error: L("请明确确认删除项目，并提供有效的删除请求键。") });
-        return true;
-      }
-      try {
-        await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
-          const projectId = decodeURIComponent(projectDeleteMatch[1]);
-          // An already deleted project can still replay its persisted cleanup receipt.
-          const project = catalog.listProjects().find((item) => item.project_id === projectId);
-          if (project) {
-            if (catalog.listDesktopPanels(projectId).some((panel) => deletionPorts.isPanelAlive(panel.panel_id))) {
-              sendJson(response, 409, { error: L("请先关闭这个项目中正在运行的终端，再删除项目。") });
-              return;
-            }
-            await deletionPorts.releaseProject(project.database_path);
-          }
-          const result = await catalog.deleteProject({
-            project_id: projectId,
-            actor_id: LOCAL_PERSON_ACTOR_ID,
-            delete_confirmed: true,
-            idempotency_key: deletionKey,
-          });
-          sendJson(response, 200, result);
-        });
-      } catch (error) {
-        sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
-      }
-      return true;
-    }
+    if (await handleProjectDeletion(request, response, url, homeDirectory, deletionPorts)) return true;
     const projectRenameMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/rename$/);
     if (request.method === "POST" && projectRenameMatch) {
       const body = await readBody(request);

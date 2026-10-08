@@ -136,8 +136,11 @@ export interface CreateProjectInput {
 export interface ProjectDeletionStep {
   /** The owner that registered the step, e.g. `pages` or `memory`. */
   owner_id: string;
-  /** `skipped`: the owner is not registered in the process that finished the receipt, so there was nothing to run. */
-  state: "pending" | "complete" | "skipped";
+  /**
+   * `pending` until the owner ran: a step whose owner is not registered in the process that finishes the receipt stays
+   * pending, with the error it last had, for a process that has the owner.
+   */
+  state: "pending" | "complete";
   error: string | null;
   updated_at: string;
 }

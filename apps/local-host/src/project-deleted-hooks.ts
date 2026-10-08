@@ -1,5 +1,8 @@
 import path from "node:path";
 import { homeProjectOwners } from "./project-deleted-owners.js";
+import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
+
+export { ProjectDeletedDeferred };
 
 /**
  * One owner's part of deleting a project. Plugins and services keep data of a project in the Home, outside the
@@ -19,6 +22,12 @@ export interface ProjectDeletedOwner {
   /** False once the service that registered this owner has been closed; such an owner is dropped, not run. */
   alive?(): boolean;
   /**
+   * Throws `ProjectDeletedDeferred` when this owner cannot clear data in this process right now, and changes nothing.
+   * Clearing a project id that exists again (the demo's rebuild) asks every owner first, so it refuses before it has
+   * cleared a part.
+   */
+  check?(): void | Promise<void>;
+  /**
    * Clears this owner's data of the project. Idempotent: running it again after it succeeded changes nothing, because a
    * failed receipt is retried and the fixed-id demo project is cleared before it is made again. Throws when something is
    * left; the step then stays pending in the receipt.
@@ -30,10 +39,19 @@ export interface ProjectDeletedOwner {
 export interface ProjectDeletedPort {
   /** The owners that clear data of a deleted project, in the order they run. */
   owners(): ReadonlyArray<{ id: string; label: string | null }>;
-  /** Runs one owner. False when no such owner is registered in this process (the step is then skipped, not failed). */
+  /**
+   * Runs one owner. False when no such owner is registered in this process: the step stays pending, with the error it
+   * last had, for a process that has the owner.
+   */
   clear(ownerId: string, projectId: string): Promise<boolean>;
-  /** Runs every owner for a project id that is not in the catalog; collects every failure. */
-  clearAll(projectId: string): Promise<void>;
+  /** Throws `ProjectDeletedDeferred` naming the owners that cannot clear in this process right now; clears nothing. */
+  ready(): Promise<void>;
+  /**
+   * Runs every owner for a project id that is not in the catalog; collects every failure. Each owner is checked first
+   * (`ready`), so a call that cannot clear a part refuses before clearing any. With `skipDeferred`, an owner that cannot
+   * clear here is left out instead: for a project id whose earlier deletion already ran that owner.
+   */
+  clearAll(projectId: string, options?: { skipDeferred?: boolean }): Promise<void>;
 }
 
 /**
@@ -74,11 +92,29 @@ export class ProjectDeletedHooks implements ProjectDeletedPort {
     return true;
   }
 
-  async clearAll(projectId: string): Promise<void> {
+  async ready(): Promise<void> {
+    const waiting: string[] = [];
+    for (const owner of this.owners()) {
+      try { await owner.check?.(); }
+      catch (error) {
+        if (!(error instanceof ProjectDeletedDeferred)) throw error;
+        waiting.push(`${owner.id}：${error.message}`);
+      }
+    }
+    if (waiting.length) throw new ProjectDeletedDeferred(waiting.join("；"));
+  }
+
+  async clearAll(projectId: string, options: { skipDeferred?: boolean } = {}): Promise<void> {
+    if (!options.skipDeferred) await this.ready();
     const failures: Error[] = [];
     for (const owner of this.owners()) {
-      try { await owner.clear(projectId); }
-      catch (error) { failures.push(new Error(`${owner.id}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })); }
+      try {
+        await owner.check?.();
+        await owner.clear(projectId);
+      } catch (error) {
+        if (options.skipDeferred && error instanceof ProjectDeletedDeferred) continue;
+        failures.push(new Error(`${owner.id}: ${error instanceof Error ? error.message : String(error)}`, { cause: error }));
+      }
     }
     if (failures.length) throw new AggregateError(failures, failures.map(error => error.message).join("；"));
   }

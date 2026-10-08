@@ -10,7 +10,7 @@ export function createDeletionStepsSchema(db: ProjectsSqliteDatabase): void {
       deletion_id TEXT NOT NULL,
       owner_id TEXT NOT NULL,
       position INTEGER NOT NULL,
-      state TEXT NOT NULL CHECK (state IN ('pending', 'complete', 'skipped')),
+      state TEXT NOT NULL CHECK (state IN ('pending', 'complete')),
       error TEXT,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (deletion_id, owner_id)

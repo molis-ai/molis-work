@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, createMolisWorkLocalHost, projectDeletedHooksFor, type ProjectDeletedOwner } from "@molis-ai/molis-work-app-local-host";
@@ -76,17 +77,52 @@ test("a failed owner step stays pending in the receipt and a replay of the same 
   });
 });
 
-test("an owner that is no longer registered where a receipt is finished is skipped, not retried forever", async () => {
+test("an owner that is not registered where a receipt is finished keeps its step pending, with its last error, until a process that has it runs it", async () => {
   await withHome(async ({ home, catalog, gone }) => {
-    const gone_ = recorder("test-vanishing");
-    gone_.state.broken = true;
-    const dispose = projectDeletedHooksFor(home).register(gone_.owner);
+    const away = recorder("test-away");
+    away.state.broken = true;
+    const dispose = projectDeletedHooksFor(home).register(away.owner);
     const first = await catalog.deleteProject(deletion(gone));
     assert.equal(first.deletion.cleanup_state, "pending");
     dispose();
-    const replay = await catalog.deleteProject(deletion(gone));
-    assert.equal(replay.deletion.cleanup_state, "complete");
-    assert.equal(replay.deletion.owner_steps.find(step => step.owner_id === "test-vanishing")?.state, "skipped");
+
+    // Another process finishes the receipt without that owner: it neither skips the step nor erases why it is pending.
+    const elsewhere = await catalog.deleteProject(deletion(gone));
+    assert.equal(elsewhere.deletion.cleanup_state, "pending", "the receipt is not complete while an owner's step is");
+    assert.match(elsewhere.deletion.cleanup_error ?? "", /test-away/);
+    assert.deepEqual(elsewhere.deletion.owner_steps.filter(step => step.state !== "complete").map(step => [step.owner_id, step.state, step.error]), [["test-away", "pending", "暂时清不掉"]]);
+
+    // A process that has the owner runs it, and only then the receipt is complete.
+    away.state.broken = false;
+    const disposeAgain = projectDeletedHooksFor(home).register(away.owner);
+    try {
+      const finished = await catalog.deleteProject(deletion(gone));
+      assert.equal(finished.deletion.cleanup_state, "complete");
+      assert.equal(finished.deletion.cleanup_error, null);
+      assert.deepEqual(finished.deletion.owner_steps.filter(step => step.owner_id === "test-away").map(step => [step.state, step.error]), [["complete", null]]);
+      assert.deepEqual(away.calls, [gone, gone]);
+    } finally { disposeAgain(); }
+  });
+});
+
+test("a Host finishes the pending deletions of every project from the catalog once the owners that were missing are there", async () => {
+  await withHome(async ({ home, catalog, gone, kept }) => {
+    const away = recorder("test-sweep");
+    away.state.broken = true;
+    const dispose = projectDeletedHooksFor(home).register(away.owner);
+    await catalog.deleteProject(deletion(gone));
+    await catalog.deleteProject(deletion(kept));
+    dispose();
+    assert.equal(await catalog.projectDeletion.finishAll(), 2, "neither receipt can finish where the owner is missing");
+    assert.ok(catalog.listProjectDeletions().every(item => item.cleanup_state === "pending"));
+
+    away.state.broken = false;
+    const disposeAgain = projectDeletedHooksFor(home).register(away.owner);
+    try {
+      assert.equal(await catalog.projectDeletion.finishAll(), 0);
+      assert.ok(catalog.listProjectDeletions().every(item => item.cleanup_state === "complete" && item.cleanup_error === null));
+      assert.deepEqual(away.calls.slice(-2).sort(), [gone, kept].sort());
+    } finally { disposeAgain(); }
   });
 });
 
@@ -106,14 +142,14 @@ test("an owner registered again takes the place of the earlier one, and disposin
   });
 });
 
-test("the fixed-id demo is cleared by every owner when it is made again or rebuilt, and refuses to start over a clean-up that failed", async () => {
+test("the fixed-id demo is cleared by every owner when it is made again after a deletion, rebuilt or removed, and refuses to start over a clean-up that failed", async () => {
   await withHome(async ({ home, catalog }) => {
     const input = { actor_id: "test-user", user_confirmed: true };
     const owner = recorder("test-demo");
     const dispose = projectDeletedHooksFor(home).register(owner.owner);
     try {
       await catalog.ensureDemoProject(input);
-      assert.deepEqual(owner.calls, [DEMO_PROJECT_ID], "a demo made for the first time is cleared of anything an older one left");
+      assert.deepEqual(owner.calls, [], "a demo made for the first time has no earlier one: nothing is cleared, and no owner has to be reachable");
       owner.calls.length = 0;
       await catalog.ensureDemoProject(input);
       assert.deepEqual(owner.calls, [], "opening the demo that exists clears nothing");
@@ -126,7 +162,7 @@ test("the fixed-id demo is cleared by every owner when it is made again or rebui
       assert.deepEqual(owner.calls, [DEMO_PROJECT_ID], "removing it runs the owners through the receipt");
       owner.calls.length = 0;
       await catalog.ensureDemoProject(input);
-      assert.deepEqual(owner.calls, [DEMO_PROJECT_ID]);
+      assert.deepEqual(owner.calls, [DEMO_PROJECT_ID], "an earlier demo was deleted, so every owner clears again before the new one starts");
 
       owner.state.broken = true;
       const removed = await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-2" });
@@ -136,6 +172,24 @@ test("the fixed-id demo is cleared by every owner when it is made again or rebui
       owner.state.broken = false;
       await catalog.ensureDemoProject(input);
       assert.equal(catalog.listProjectDeletions().find(item => item.deletion_id === removed.deletion.deletion_id)?.cleanup_state, "complete", "making the demo again finished the receipt");
+    } finally { dispose(); }
+  });
+});
+
+test("a fixed-id demo whose earlier deletion has no owner steps (a receipt from before them) is cleared by every owner before it is made again", async () => {
+  await withHome(async ({ home, catalog }) => {
+    const input = { actor_id: "test-user", user_confirmed: true };
+    const owner = recorder("test-legacy");
+    const dispose = projectDeletedHooksFor(home).register(owner.owner);
+    try {
+      await catalog.ensureDemoProject(input);
+      await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-legacy" });
+      const db = new DatabaseSync(join(home, "projects", "catalog.db"));
+      try { db.exec("PRAGMA busy_timeout = 5000; DELETE FROM project_deletion_steps"); } finally { db.close(); }
+      assert.deepEqual(catalog.listProjectDeletions()[0]?.owner_steps, []);
+      owner.calls.length = 0;
+      await catalog.ensureDemoProject(input);
+      assert.deepEqual(owner.calls, [DEMO_PROJECT_ID], "what that older deletion left is cleared before the demo is made again");
     } finally { dispose(); }
   });
 });

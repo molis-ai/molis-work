@@ -154,7 +154,7 @@ export class MolisWorkProjectCatalog {
   readonly projectsDirectory: string;
   readonly databasePath: string;
   private readonly projectFiles: ManagedProjectFiles;
-  private readonly projectDeletion: ManagedProjectDeletion;
+  readonly projectDeletion: ManagedProjectDeletion;
   private readonly demoProjects: DemoProjectLifecycle;
   private readonly projects: ProjectsModule;
   private readonly workContexts: RuntimeContextBindingRepository;

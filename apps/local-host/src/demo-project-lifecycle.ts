@@ -28,7 +28,7 @@ export class DemoProjectLifecycle {
     private readonly deletion: ManagedProjectDeletion,
     private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">,
     private readonly commit: CatalogCommit,
-    private readonly owners: Pick<ProjectDeletedPort, "clearAll">,
+    private readonly owners: Pick<ProjectDeletedPort, "clearAll" | "ready">,
   ) {}
 
   async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> {
@@ -39,9 +39,14 @@ export class DemoProjectLifecycle {
       await this.finishDemoProject(existing.project_id, existing.database_path, actorId);
       return { status: "existing", project: existing };
     }
-    // The demo has a fixed id: whatever the owners of project data kept under it from an earlier demo is cleared first.
+    // The demo has a fixed id, so an earlier demo may have left data under it. A deletion that is still pending is finished
+    // first (or the demo is not made). Once an earlier demo has been deleted, every owner clears again before the new one
+    // starts; an owner that cannot clear here (memory and search in a process without their services) is left out only
+    // when every earlier receipt has owner steps, which say it already ran. A demo that never existed has nothing to
+    // clear, and no owner has to be reachable to make it.
     await this.deletion.settleProject(this.demo.projectId);
-    await this.owners.clearAll(this.demo.projectId);
+    const earlier = this.projects.query.listProjectDeletions().filter(receipt => receipt.project_id === this.demo.projectId);
+    if (earlier.length) await this.owners.clearAll(this.demo.projectId, { skipDeferred: earlier.every(receipt => receipt.owner_steps.length > 0) });
     const record = this.projects.lifecycle.prepareRecord({
       project_id: this.demo.projectId,
       display_name: input.display_name ?? "Molis Work 示例项目",
@@ -74,6 +79,9 @@ export class DemoProjectLifecycle {
     const actorId = this.validation.requiredActorId(input.actor_id);
     const project = this.projects.query.listProjects().find((candidate) => candidate.data_class === "regenerable_demo");
     if (!project) throw new MolisWorkProjectCatalogError("catalog.demo_not_found", "没有可重建的 Molis Work 示例项目");
+    // Refuse before anything is changed when an owner cannot clear its part in this process (the Agent runtime is another
+    // process's, or this process has no memory or search service for a Home that has them).
+    await this.owners.ready();
     const projectDirectory = managedProjectDirectory(this.projectsDirectory, project);
     const stagingDirectory = path.join(this.projectsDirectory, `.resetting-${project.project_id}-${randomUUID()}`);
     const backupDirectory = path.join(this.projectsDirectory, `.reset-backup-${project.project_id}-${randomUUID()}`);

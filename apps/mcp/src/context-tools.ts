@@ -95,7 +95,7 @@ export const CONTEXT_TOOLS: McpToolDefinition[] = [
   {
     name: "molis_work_v1_project_delete",
     description:
-      "在当前对话获得独立删除确认后，删除一个 Molis Work 托管项目、其绑定和数据库，以及各插件为它保存的数据（文稿、问卷与回答、待办、记忆、助理工作等）；有有效 Claim 或未结束 Run 时拒绝删除。",
+      "在当前对话获得独立删除确认后，删除一个 Molis Work 托管项目、其绑定和数据库，以及各插件为它保存的数据（文稿、问卷与回答、待办、记忆、助理工作等）；有有效 Claim 或未结束 Run 时拒绝删除。收据逐项记录各数据所有者的清理：某一步（例如记忆，当 Agent 执行服务正由另一个进程使用时）未完成会保持 pending，由有该服务的进程（如运行中的 Molis Work）接着做。",
     inputSchema: {
       type: "object",
       properties: {

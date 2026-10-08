@@ -7,11 +7,48 @@ import { purgeTodoProject } from "@molis-ai/molis-work-plugin-todo";
 import { purgeLingguangProject } from "@molis-ai/molis-work-plugin-lingguang";
 import { purgeImagesProject } from "@molis-ai/molis-work-plugin-images";
 import { purgeFunctionsProject } from "@molis-ai/molis-work-module-functions";
+import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
+import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
+import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
+import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
+import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import { pluginBuilderProjectOwner } from "./plugin-builder/project-data.js";
 import { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
+
+/** The two owners whose data sits in a running service: what each says in the deletion receipt and, if it has one, in the dialog. */
+export const MEMORY_OWNER = { id: "memory", label: "这个项目及其角色的记忆" } as const;
+export const SEARCH_OWNER = { id: "search", label: null } as const;
+
+/**
+ * Memory is kept in the Agent runtime, which one process of the Home owns. A process that has no memory service cannot
+ * clear it: where the Home has an Agent runtime the step is deferred, to stay pending in the receipt until a Host that
+ * has the service runs it. Where it has none there is no store, and only the ledger can hold notes about the project.
+ */
+function memoryOwnerWithoutService(home: string): ProjectDeletedOwner {
+  const check = () => {
+    if (existsSync(agentRuntimeDirectory(home))) throw new ProjectDeletedDeferred("记忆放在 Agent 执行服务里，这个入口没有它；由正在运行的 Molis Work 清理，它会接着做");
+  };
+  return {
+    ...MEMORY_OWNER, check,
+    async clear(projectId) {
+      check();
+      if (!existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE))) return;
+      const ledger = openMemoryLedger({ homeDirectory: home });
+      try { await purgeProjectMemories({ backend: null, ledger }, projectId); } finally { ledger.close(); }
+    },
+  };
+}
+
+/** The search index is kept up by the Host that runs the search service; a process without it leaves the project's entries to that Host. */
+function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
+  const check = () => {
+    if (existsSync(homeSqlitePath(home, TEXT_SEARCH_STORE))) throw new ProjectDeletedDeferred("搜索索引由正在运行的 Molis Work 维护；它会接着清掉这个项目的条目");
+  };
+  return { ...SEARCH_OWNER, check, clear: check };
+}
 
 /**
  * The owners whose data of a project is plain files in the Home: the personal libraries partitioned by `project_id`.
@@ -35,5 +72,8 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     pluginBuilderProjectOwner(home),
     // Without a running Assistant nothing is queued or running for these works, so their rows are all there is to clear.
     { id: "assistant", label: "助理在这个项目里的工作", clear: async projectId => { await purgeAssistantProject(home, projectId); } },
+    // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
+    memoryOwnerWithoutService(home),
+    searchOwnerWithoutService(home),
   ];
 }

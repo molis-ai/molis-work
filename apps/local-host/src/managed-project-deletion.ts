@@ -96,12 +96,17 @@ async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjec
 async finishProjectDeletionCleanup(record: StoredProjectDeletion): Promise<MolisWorkProjectDeletionRecord> {
     if (record.cleanup_state === "complete") return this.projects.lifecycle.deletionRecord(record);
     const problems: string[] = [];
-    // Each owner clears what it keeps for the project, once the catalog no longer has it; a step that fails stays pending.
+    // Each owner clears what it keeps for the project, once the catalog no longer has it. A step that fails, that its owner
+    // defers (the service is another process's), or whose owner this process does not have, stays pending with the error
+    // it last had: a later process that has the owner runs it.
     for (const step of this.projects.lifecycle.deletionSteps(record.deletion_id)) {
       if (step.state !== "pending") continue;
       try {
-        const ran = await this.owners.clear(step.owner_id, record.project_id);
-        await this.commit(() => this.projects.lifecycle.updateDeletionStep(record.deletion_id, step.owner_id, { state: ran ? "complete" : "skipped", error: null }));
+        if (!await this.owners.clear(step.owner_id, record.project_id)) {
+          problems.push(`${step.owner_id}：${step.error ?? "这一步要由有这项数据的 Molis Work 入口完成"}`);
+          continue;
+        }
+        await this.commit(() => this.projects.lifecycle.updateDeletionStep(record.deletion_id, step.owner_id, { state: "complete", error: null }));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         problems.push(`${step.owner_id}：${message}`);
@@ -127,9 +132,22 @@ async finishProjectDeletionCleanup(record: StoredProjectDeletion): Promise<Molis
     for (const pending of this.projects.lifecycle.pendingDeletions(projectId)) {
       const settled = await this.finishProjectDeletionCleanup(pending);
       if (settled.cleanup_state !== "complete") {
-        throw new MolisWorkProjectCatalogError("catalog.project_storage_invalid", `这个项目上一次删除的清理还没有完成，先重试清理：${settled.cleanup_error ?? ""}`);
+        throw new MolisWorkProjectCatalogError("catalog.project_storage_invalid", `这个项目上一次删除的清理还没有完成，先重试清理，或打开 Molis Work 让它接着做：${settled.cleanup_error ?? ""}`);
       }
     }
+  }
+
+  /**
+   * Finishes every deletion whose clean-up is still pending, for any project: what a Host does when it starts, since the
+   * deletions that other processes (the CLI, MCP, a Host that has since closed) left pending wait for an owner only a
+   * Host has. Returns how many are still pending.
+   */
+  async finishAll(): Promise<number> {
+    let pending = 0;
+    for (const record of this.projects.lifecycle.pendingDeletions()) {
+      if ((await this.finishProjectDeletionCleanup(record)).cleanup_state !== "complete") pending += 1;
+    }
+    return pending;
   }
 }
 

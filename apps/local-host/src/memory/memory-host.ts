@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
@@ -17,7 +18,9 @@ import {
   type MemoryWriteRequest,
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { MemoryError, MemoryService, purgeProjectMemories, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { projectDeletedHooksFor } from "../project-deleted-hooks.js";
+import { ProjectDeletedDeferred, projectDeletedHooksFor } from "../project-deleted-hooks.js";
+import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
+import { MEMORY_OWNER } from "../project-deleted-owners.js";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
@@ -178,9 +181,24 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   };
   void ports.started?.().then(attachQueue).catch(() => undefined);
   // Deleting a project clears its memories and its Characters' from the runtime, and the ledger forgets their history.
+  // The runtime has one owner process in the Home: while another process owns it this step is deferred (it stays pending
+  // in the deletion's receipt, and the process that owns the runtime runs it), never failed. A Home whose runtime never
+  // started (no directory yet) has no store to clear, so none is started for it: only the ledger forgets the project.
   let closed = false;
-  projectDeletedHooksFor(ports.homeDirectory).register({ id: "memory", label: "这个项目及其角色的记忆", alive: () => !closed,
-    clear: async projectId => { await ports.ready(); await purgeProjectMemories({ backend, ledger }, projectId); } });
+  const runtimeExists = () => existsSync(agentRuntimeDirectory(ports.homeDirectory));
+  const whileRuntimeIsOurs = async <T>(work: () => Promise<T>): Promise<T> => {
+    try { return await work(); }
+    catch (error) {
+      if ((error as { code?: unknown }).code === "agent.storage_busy") throw new ProjectDeletedDeferred("记忆放在 Agent 执行服务里，而它正由另一个 Molis Work 进程使用；那个进程会接着清理，或关闭它后重试");
+      throw error;
+    }
+  };
+  projectDeletedHooksFor(ports.homeDirectory).register({ ...MEMORY_OWNER, alive: () => !closed,
+    check: () => runtimeExists() ? whileRuntimeIsOurs(() => ports.ready()) : undefined,
+    clear: async projectId => {
+      if (!runtimeExists()) { await purgeProjectMemories({ backend: null, ledger }, projectId); return; }
+      await whileRuntimeIsOurs(async () => { await ports.ready(); await purgeProjectMemories({ backend, ledger }, projectId); });
+    } });
   const host: MemoryHost = {
     service,
     caller,

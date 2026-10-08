@@ -22,6 +22,7 @@ import {
   type SearchStorageFoundationHandle,
 } from "@adeptify/search-evidence-layer/host/node";
 import { type SearchRuntime } from "@adeptify/search-evidence-layer";
+import { createHash } from "node:crypto";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 
 import { createFileSecretStore, type SecretStore } from "@molis-ai/molis-work-storage";
@@ -44,6 +45,28 @@ const MOLIS_WORK_TRUSTED_CALLER_CONTEXT = Object.freeze({
   kind: "molis-work-composition-root" as const,
   appId: APP_ID,
 });
+
+/**
+ * SEL (0.4.1) has no call that forgets one operation, but its records sit in the operation store this host provides.
+ * Under `search-evidence-layer/<app>/<key namespace>/data/operation/v1` a pull is one sealed record, at
+ * `intent-run/<scope>/<sha256 of the operation id>`; it names the content refs of the pull's materials.
+ * tests/feed-local-history-delete.test.ts runs real pulls and checks that deleting a source leaves no operation
+ * record behind, so an SDK that lays its keys out differently fails there instead of leaving records unnoticed.
+ */
+const OPERATION_NAMESPACE = `search-evidence-layer/${APP_ID}/${KEY_NAMESPACE}/data/operation/v1`;
+
+/** Deletes the search records of the given pulls and returns how many went. Nothing is read or unsealed. */
+export function forgetIntelligenceOperations(db: SqliteDatabase, operationIds: readonly string[]): number {
+  if (operationIds.length === 0) return 0;
+  const digests = new Set(operationIds.map((id) => createHash("sha256").update(id, "utf8").digest("hex")));
+  return createSearchOpaqueBlobStore(db).collect({
+    namespace: OPERATION_NAMESPACE,
+    discard(key) {
+      const run = /^intent-run\/[0-9a-f]{64}\/([0-9a-f]{64})$/u.exec(key);
+      return run !== null && digests.has(run[1]!);
+    },
+  });
+}
 
 export type IntelligenceCollectRequest = Parameters<IntelligenceIntentClientV1["executeExact"]>[0];
 export type IntelligenceCollectResult = Readonly<Pick<SearchIntentExactResultV1, "operationId" | "intentFingerprint" | "outcome" | "requirementMet" | "materials" | "receipts" | "warnings" | "budget">>;

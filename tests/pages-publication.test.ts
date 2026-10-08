@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { pagesActions, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
@@ -63,8 +63,6 @@ test("old interrupted publication without a snapshot recovers the original owned
     title: original.title, body: original.body, goal_id: "old-goal", version: 1 }));
   const edited = (await f.bound.invoke(pagesActions.update, { id: original.id, body: body("New unpublished work"), goal_id: "new-goal" })).document;
   assert.equal(edited.publication_pending, undefined);
-  await assert.rejects(f.client.invoke({ ...f.caller, actor_id: "another-actor" }, pagesActions.promote, { id: original.id }), { code: "pages.publication_owner" });
-  assert.equal((await f.bound.invoke(pagesActions.get, { id: original.id })).document.publication_pending, undefined, "a denied actor cannot replace the owner's pending intent");
   const result = await f.bound.invoke(pagesActions.promote, { id: original.id, expected_version: edited.version });
   assert.equal(result.recovered, true); assert.equal(result.artifact.version, 1); assert.equal(result.document.goal_id, "new-goal");
   assert.deepEqual(result.document.body, body("New unpublished work"));
@@ -72,6 +70,21 @@ test("old interrupted publication without a snapshot recovers the original owned
     const versions = runtime.coordinator.artifacts.query.listArtifactVersions("p", result.artifact.artifact_id);
     assert.equal(versions.length, 1); assert.equal(versions[0]!.created_by, "owner");
     assert.deepEqual((versions[0]!.payload as any).body, body("Already published"));
+  });
+});
+
+test("an interrupted publication without a snapshot is finished by whichever actor pins next: the version is the person's, its producer stays recorded", async t => {
+  const f = await fixture(t);
+  const original = (await f.bound.invoke(pagesActions.create, { title: "Before migration", body: body("Already published"), goal_id: "old-goal" })).document;
+  await f.host.withProject(f.ref, runtime => registerPagesArtifactVersion(runtime.coordinator, "p", "p", "owner")({ project_id: "p", page_id: original.id,
+    title: original.title, body: original.body, goal_id: "old-goal", version: 1 }));
+  const result = await f.client.invoke({ ...f.caller, actor_id: "another-actor" }, pagesActions.promote, { id: original.id });
+  assert.equal(result.recovered, true); assert.equal(result.artifact.version, 1);
+  await f.host.withProject(f.ref, runtime => {
+    const versions = runtime.coordinator.artifacts.query.listArtifactVersions("p", result.artifact.artifact_id);
+    assert.equal(versions.length, 1, "finishing it writes no second version");
+    assert.equal(versions[0]!.created_by, "owner", "who produced it stays recorded");
+    assert.equal(versions[0]!.owner_actor_id, LOCAL_PERSON_ACTOR_ID, "a pinned document belongs to the person, not to the actor that pinned it");
   });
 });
 

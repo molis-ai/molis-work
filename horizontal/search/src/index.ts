@@ -93,7 +93,18 @@ const sameReference = (a: ActionReference, b: ActionReference) => a.capability_i
 const isReader = (view: ActionView) => view.action.input_type === SUBJECT_REFERENCE_TYPE && view.action.output_type === SUBJECT_CONTEXT_TYPE;
 const entryKey = (kind: string, id: string) => `${kind}\u0000${id}`;
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, 300);
-const errorCode = (error: unknown) => error && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code) : "";
+
+/** The owner's complete listing of one entries source, searched for one object; null when the owner no longer lists it. */
+async function findEntry(client: ActionClient, caller: ActionCallContext, source: SourceView, kind: string, id: string): Promise<SearchEntry | null> {
+  let cursor: string | null = null;
+  do {
+    const page = await client.invoke(caller, source.reference, { cursor, limit: SEARCH_ENTRIES_PAGE_LIMIT }) as SearchEntriesPage;
+    const found = page.entries.find(entry => entry.subject.kind === kind && entry.subject.id === id);
+    if (found) return found;
+    cursor = page.next_cursor;
+  } while (cursor);
+  return null;
+}
 
 /** hit_id carries only public identity: scope, provider, source version, kind and object id. */
 export function encodeSearchHitId(input: { project_id: string | null; provider_id: string; capability_id: string; version: number; kind: string; id: string }): string {
@@ -225,24 +236,31 @@ export class SearchService {
     const nested = retainActionAuthority(access.caller, origin);
     const reader = views.find(view => isReader(view) && view.availability.available && view.provider.provider_id === hit.provider_id && view.action.subject_kinds.includes(hit.kind));
     const indexed = this.options.index.document(source.key, hit.kind, hit.id);
+    // Set when the reader failed. Whatever the error was (its code, a plugin's plain Error, its wording), that alone does not say the
+    // object is gone: a locked document or a version kept only as a file is refused too while the owner still lists it.
+    let refusal: string | null = null;
     if (reader) {
       try {
         const context = await access.client.invoke(nested, referenceOf(reader), { subject_id: hit.id }) as ActionSubjectContext & { open?: { surface: string; id: string } };
         if (context.subject.kind !== hit.kind || context.subject.id !== hit.id) return { state: "unavailable", hit_id, reason: "对象读取结果与搜索结果不一致" };
         return { state: "ok", hit_id, subject: context.subject, open: context.open ?? indexed?.open ?? this.defaultOpen(source, hit.kind, hit.id), title: context.title, revision: context.revision };
       } catch (error) {
-        if (!this.meansMissing(error)) return { state: "unavailable", hit_id, reason: errorText(error) };
-        this.options.index.remove(source.key, [{ kind: hit.kind, object_id: hit.id }]);
-        return { state: "missing", hit_id, reason: "这条内容已被删除或归档" };
+        refusal = errorText(error);
       }
     }
-    if (isSearchQuerySource(source.view.action)) return { state: "unavailable", hit_id, reason: "来源没有提供对象读取，无法核对这条结果" };
-    // No reader for this kind: confirm by listing the source with the caller's own authority.
-    const entry = await this.findEntry(access.client, nested, source, hit.kind, hit.id);
+    if (isSearchQuerySource(source.view.action)) return { state: "unavailable", hit_id, reason: refusal ?? "来源没有提供对象读取，无法核对这条结果" };
+    // Gone is decided by the owner's own complete listing (the caller's authority), the same rule indexing follows.
+    let entry: SearchEntry | null;
+    try { entry = await findEntry(access.client, nested, source, hit.kind, hit.id); }
+    catch (error) {
+      if (refusal === null) throw error;
+      return { state: "unavailable", hit_id, reason: refusal };
+    }
     if (!entry) {
       this.options.index.remove(source.key, [{ kind: hit.kind, object_id: hit.id }]);
-      return { state: "missing", hit_id, reason: "这条内容已被删除" };
+      return { state: "missing", hit_id, reason: refusal === null ? "这条内容已被删除" : "这条内容已被删除或归档" };
     }
+    if (refusal !== null) return { state: "unavailable", hit_id, reason: refusal };
     return { state: "ok", hit_id, subject: entry.subject, open: entry.open ?? this.defaultOpen(source, hit.kind, hit.id), title: entry.title, revision: entry.revision };
   }
 
@@ -333,10 +351,6 @@ export class SearchService {
   private defaultOpen(source: SourceView, kind: string, id: string) {
     const surface = source.kinds.get(kind)?.surface;
     return surface ? { surface, id } : null;
-  }
-
-  private meansMissing(error: unknown): boolean {
-    return ["actions.subject_unavailable", "actions.not_found", "not_found"].includes(errorCode(error)) || /not_found|不存在|已删除|已归档/u.test(errorCode(error) + errorText(error));
   }
 
   /** A plugin turned off in this project keeps nothing in the index; turned back on, it is indexed again. */
@@ -537,17 +551,6 @@ export class SearchService {
       if (record.error) return { ...base, state: "stale" as const, reason: record.error };
       return { ...base, state: "ready" as const, reason: null };
     });
-  }
-
-  private async findEntry(client: ActionClient, caller: ActionCallContext, source: SourceView, kind: string, id: string): Promise<SearchEntry | null> {
-    let cursor: string | null = null;
-    do {
-      const page = await client.invoke(caller, source.reference, { cursor, limit: SEARCH_ENTRIES_PAGE_LIMIT }) as SearchEntriesPage;
-      const found = page.entries.find(entry => entry.subject.kind === kind && entry.subject.id === id);
-      if (found) return found;
-      cursor = page.next_cursor;
-    } while (cursor);
-    return null;
   }
 
   /** Owners that search their own data at query time; nothing they return is written to the index. */

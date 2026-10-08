@@ -13,7 +13,7 @@ import { createScheduledOperationManagement, createScheduledOperations, getSched
 import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
 import { seedDemoBoard } from '../apps/local-host/src/demo-seed.js';
-import { scheduleServiceFor } from '../apps/local-host/src/schedule-runtime.js';
+import { bindScheduleDeliveryFeed, scheduleServiceFor } from '../apps/local-host/src/schedule-runtime.js';
 import { bindInstalledOperationCaller, hostScheduledOperationManagement } from '../apps/local-host/src/schedule-operations.js';
 import { createLocalFeedApplication } from '../apps/local-host/src/feed-application.js';
 
@@ -59,6 +59,26 @@ test('unavailable execution remains durable; binding cannot dispatch, a fresh ti
   assert.deepEqual(h.operations.cancel({ ...identity, pluginId: 'other' }, { scheduleId }), { cancelled: false });
   assert.deepEqual(h.operations.cancel(identity, { scheduleId }), { cancelled: true });
   h.clock.now = new Date(Date.parse(at) + DAY); await h.schedule.tick(); assert.equal(calls, 1);
+});
+
+test('a scheduled result delivered to the Inbox starts the same judgments as any other arrival, after the delivery commits', async t => {
+  const h = await harness(t), seen: string[] = [];
+  bindScheduleDeliveryFeed(h.store.db, {
+    inboxJudgment: async entry => { seen.push('inbox:' + entry.entry_id); throw new Error('provider down'); },
+    captureJudgment: async event => { seen.push('capture:' + event.item_id); },
+    homeJudgment: async subject => { seen.push('home:' + subject.kind); },
+  });
+  const { scheduleId } = h.operations.add(identity, { at, operation: 'summarize', inbox: true });
+  const stop = bindInstalledOperationCaller(h.store.db, identity.projectId, { describe: () => descriptor(), async call() {
+    assert.deepEqual(seen, [], 'nothing is judged before the result is delivered'); return { state: 'succeeded', value: { text: '今天的汇总' } };
+  } }); t.after(stop);
+  await h.schedule.tick();
+  const [item] = h.inbox(); assert.ok(item);
+  const entry = createLocalFeedApplication(h.store.db).listInboxEntries(identity.projectId).find(row => row.subject_id === item.item_id);
+  assert.ok(entry, 'the result waits in the Inbox');
+  assert.ok(seen.includes('inbox:' + entry.entry_id), 'its Inbox entry got the next-step judgment');
+  assert.ok(seen.includes('capture:' + item.item_id) && seen.includes('home:feed_item'), 'its Feed item went through capture rules and the Home dock');
+  assert.equal(h.occurrences(scheduleId)[0]?.state, 'succeeded', 'a failing judgment never un-delivers the result');
 });
 
 test('an explicit failure is failed, and an unknown outcome stops future cadence without an automatic replay', async t => {

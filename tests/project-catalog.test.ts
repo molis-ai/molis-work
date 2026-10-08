@@ -224,7 +224,7 @@ test("demo data is classified, idempotently opened, reset, and removable without
       const demoStore = new LocalProjectDatabase(created.project.database_path);
       try {
         const demoSnapshot = demoStore.snapshot(demoId);
-        assert.equal(demoSnapshot.board.title, "让第一次使用 Molis Work 的人顺利完成一次目标协作");
+        assert.equal(demoSnapshot.board.title, "让第一次使用 Molis Work 的人在一个项目里用几个插件完成一件真实工作");
         assert.equal(
           demoSnapshot.goals.find((goal) => goal.goal_id === "V1")?.title,
           "让第一次使用的人顺利完成一轮目标协作",

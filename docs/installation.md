@@ -65,7 +65,7 @@ pnpm install:local
 
 ### 发布后的最终产物验收
 
-发布者只有逐层完成下面的核对，才能把消费者可见修复标成“已安装”：
+发布前的完整检查清单（版本规则、各库版本表、真实 Home 的备份与维护）见 [releases/CHECKLIST.md](releases/CHECKLIST.md)。发布者只有逐层完成下面的核对，才能把消费者可见修复标成“已安装”：
 
 1. Git tag、Release 资产和校验和来自同一提交；App 内嵌 Runtime 与 `~/.molis-work` 安装清单版本一致。
 2. 常驻服务按 `status` 返回的动作恢复为 `running`，并确认 LaunchAgent、监听端口和 `/health` 属于同一实例。

@@ -85,7 +85,7 @@ export interface LingguangActionPorts {
   /** Reading files and public pages, where this machine can. */
   readFile?(input: MaterialUpload, caller: ActionExecutionContext): Promise<LingguangHostMaterial>;
   readSource?(input: MaterialSource, caller: ActionExecutionContext): Promise<LingguangHostMaterial>;
-  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
+  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
   modelAvailability(): ActionAvailability;
 }
 
@@ -123,7 +123,7 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置文字模型，再继续对话");
       const prompt = conversationPrompt(snapshot, input.body);
       caller.signal?.throwIfAborted();
-      const reply = (await ports.completeText(prompt, { signal: caller.signal })).trim();
+      const reply = (await ports.completeText(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
       caller.signal?.throwIfAborted();
       if (!reply) throw new ActionError("lingguang.empty_reply", "模型没有返回正文，输入已保留，可重试");
       await caller.beforeEffect();

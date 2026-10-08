@@ -17,6 +17,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { createImpeccableMetric } from "./gates/impeccable-files.mjs";
+import { vendoredProvenanceProblems } from "./gates/vendored-provenance.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
 const fail = (message) => { console.error(message); process.exit(2); };
@@ -383,7 +384,7 @@ const limitErrors = () => {
   const before = parseLimits(git(["cat-file", "blob", `${mergeBase}:${limitsFile}`]), `${mergeBase.slice(0, 8)}:${limitsFile}`);
   return LIMIT_KEYS.filter((key) => limits[key] > before[key]).map((key) => `limit "${key}" loosened ${before[key]} → ${limits[key]} in tooling/gates/limits.json; limits only get tighter`);
 };
-const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems()];
+const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...vendoredProvenanceProblems(root)];
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "tooling/gates/baseline.json";
 
 // ---- --report --------------------------------------------------------------------------------------------------------

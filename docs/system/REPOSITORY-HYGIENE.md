@@ -57,6 +57,8 @@ git ls-tree -r --name-only e4bdeb12 -- .impeccable
 
 ## vendored Prologue 包
 
-`vendor/prologue-sdk/` 只放当前使用的包和重建它要用的那一份补丁（AGENTS.md「硬约束」）。历史补丁不留正文：它们的大小、SHA-256 和来源记在 `vendor/prologue-sdk/README.md` 的「已删除的历史补丁」，补丁本身在提交 `e4bdeb12`。tgz 的份数由 `pnpm health:check` 的 `vendoredPrologueSdk` 限制（`tooling/gates/limits.json`）。
+`vendor/prologue-sdk/` 只放当前使用的包（AGENTS.md「硬约束」）。每个 vendored 的 tgz 旁边有 `<tgz>.sha256` 和 `<tgz>.provenance.json`（字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm）；当前 Prologue 包由上游提交 `9fc3b173` 的 `packages/sdk` 无补丁重建，步骤在该目录 README。历史补丁不留正文：25 份补丁的大小、SHA-256、git blob、基线、来源和它们产出的包记在 `vendor/prologue-sdk/patch-history.json`，补丁本身都在提交 `e4bdeb12`（此后到删除它们的合并之前的提交里也有），按 git blob 取回。
+
+两道门禁：tgz 的份数由 `pnpm health:check` 的 `vendoredPrologueSdk` 限制（`tooling/gates/limits.json`，只许减少）；记录是否与文件相符由 `scripts/gates/vendored-provenance.mjs` 在同一条命令里核对（不靠基线）：tgz 缺 `.sha256` 或 `.provenance.json`、记录与 tgz 的字节数、SHA-256、integrity 不符、`source.commit` 不是完整提交或 `source.dirty` 不为 `false`、包换掉后记录还留着、`patch-history.json` 的格式不对或已记为删除的补丁又回到目录里，都会失败。每条规则在 `tests/vendor-provenance.test.ts` 里逐条破坏验证（CI 跑）。
 
 三个 vendored 包的 tgz（`prologue-sdk`、`intelligence-client`、`search-evidence-layer`）按决定将来改从私有 registry 或 release 附件取，不再放进公开仓库；registry 就绪前它们仍留在 `vendor/`。

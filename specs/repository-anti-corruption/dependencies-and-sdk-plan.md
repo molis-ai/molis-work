@@ -1,6 +1,6 @@
 # 依赖清单与 Prologue SDK 收敛方案（W1-20，§4.17）
 
-状态：方案与清单（2026-10-08；数量量于 main 35d7f320，行号已按合并 origin/main cad49419 之后的树复核；两者之间依赖声明与锁文件没有变化，只多了根 `package.json` 的 `secrets:check` 脚本与 CI 的 `secret-scan` 作业）；已落实的只有根 `packageManager` 与 CI 读它；推送、删除 vendored 文件、改依赖版本都没有做，等用户确认后按 §4.4 的顺序分片执行
+状态：方案与清单（2026-10-08；数量量于 main 35d7f320，行号已按合并 origin/main cad49419 之后的树复核；两者之间依赖声明与锁文件没有变化，只多了根 `package.json` 的 `secrets:check` 脚本与 CI 的 `secret-scan` 作业）；已落实的有根 `packageManager` 与 CI 读它（W1-20），以及 §4.4 第 1 步（W1-23，分支 `chore/repo-hygiene`：`vendor/prologue-sdk/` 的 `.sha256`、`.provenance.json`、`patch-history.json`，25 份历史补丁已删，README 与 BL-024 已改）；推送无从做起（§4.1：早已合入上游）；删除 tgz 与 `side-panel-memory.patch`、改依赖版本都没有做，等用户确认后按 §4.4 的顺序分片执行
 
 来源：路线 [roadmap-2026-10-07.md](roadmap-2026-10-07.md) §4.17 与 N-14、N-02；用户决定见 [spec.md](spec.md) §1 的「2026-10-08 Prologue SDK 收敛与私有包」一行（`spec.md:119`，已在 main）。本文每条结论后面写了证据：代码路径、命令或外部记录；没有核对的写「未验证」，从代码读出来但没有运行的写「推断」。
 
@@ -9,9 +9,9 @@
 1. **pnpm 已固定**：根 `package.json` 加了 `"packageManager": "pnpm@11.9.0"`，CI 与发布工作流改成从这个字段取版本，不再各写一个数字；`pnpm install --frozen-lockfile --offline` 在新建的工作树里 3.8 秒通过，`pnpm-lock.yaml` 没有变化（§2）。Node 只是方案，没有改（§2.2）。
 2. **第三方依赖**：没有真正没用的依赖；重复集中在 11 个多版本传递包和几处声明漂移；`pnpm audit` 有 2 高、11 中、1 低，**全部有已发布的修复版本**，其中一条高危落在代码真用的路径上（§3）。
 3. **Prologue 的 SDK 比 README 写的好收敛得多**，有三件事和 10-08 弹窗时的前提不一样（§4.1）：
-   - 源分支 `feat/molis-side-panel-surfaces-on-memory` **早已推到 Prologue 远端并合入**（PR #3，2026-09-30），远端现在只有 `main`，没有特性分支可推；`vendor/prologue-sdk/README.md` 里「暂未推到 prologue 远端」与 `specs/BACKLOG.md` 的 BL-024 都是过期的；
+   - 源分支 `feat/molis-side-panel-surfaces-on-memory` **早已推到 Prologue 远端并合入**（PR #3，2026-09-30），远端现在只有 `main`，没有特性分支可推；`vendor/prologue-sdk/README.md` 里「暂未推到 prologue 远端」与 `specs/BACKLOG.md` 的 BL-024 都是过期的（W1-23 已改正 README、关闭 BL-024）；
    - 现行 vendored 包**不需要任何补丁**：用上游提交 `9fc3b173` 的 `packages/sdk` 直接构建，打出的 tgz 与仓库里的逐字节相同（SHA-256 `942de9c5…846c`）；
-   - 因此 25 个历史补丁，连同现行的 `side-panel-memory.patch`，重建都用不着（§4.5 给出 25 个的清单，每个带 sha256、基线、来源和产出的包；本片只列清单，不删）。
+   - 因此 25 个历史补丁，连同现行的 `side-panel-memory.patch`，重建都用不着（§4.5 给出 25 个的清单，每个带 sha256、基线、来源和产出的包；W1-20 只列清单，W1-23 把清单落成 `patch-history.json` 并删掉了这 25 份，`side-panel-memory.patch` 留到用户确认）。
 4. **私有包移出公开仓库**：推荐「私有仓库的 release 附件 + 仓库内只留清单与校验和」，保持 `file:` 依赖和锁文件不变，不改包名；CI 用 GitHub App 的短期令牌读取（§5）。GitHub Packages 不能托管 `@prologue/*`、`@adeptify/*`，原因见 §5.2。
 5. **这个决定管不到的三件事要另问**（§7）：Git 历史里已有的 tgz 与补丁（公开、不改历史就还在）、发布出去的 DMG 与 npm 包里编译后的私有包、Prologue 没有 LICENSE。
 
@@ -153,7 +153,7 @@ cd packages/sdk && pnpm pack --out <绝对路径>/prologue-sdk-0.0.0-rc.1-side-p
 | --- | --- | --- |
 | 推源分支 | 已经推过并合入，没有东西可推 | **不推送。** 想要一个有名字的定位点，可以在 Prologue 给 `9fc3b173` 打一个 tag（需要用户同意，可选）；提交号本身已经在 `main` 历史里，足够定位 |
 | 收敛到上游基线 | 现行包就是上游的一个提交 | 第一步只补来源记录；是否前进到更新的上游头是另一个有风险的动作，见 §4.4 的第 5 步 |
-| 删 25 个历史补丁，记 sha256 与来源 | README 引用的 25 个 Prologue 提交号全部在上游 main 里（§4.1）；每个补丁的基线、来源和产出的包见 §4.5 | 清单与 sha256 见 §4.5；**本片不删**。决定写的是 25 个；现行的 `side-panel-memory.patch`（225,092 字节，sha256 `1f64a15c…7c55`）按 §4.1 的复现也已不需要，建议同时删，要用户确认 |
+| 删 25 个历史补丁，记 sha256 与来源 | README 引用的 25 个 Prologue 提交号全部在上游 main 里（§4.1）；每个补丁的基线、来源和产出的包见 §4.5 | 清单与 sha256 见 §4.5；**W1-20 不删**，W1-23 删（见 §4.4 第 1 步）。决定写的是 25 个；现行的 `side-panel-memory.patch`（225,092 字节，sha256 `1f64a15c…7c55`）按 §4.1 的复现也已不需要，建议同时删，要用户确认 |
 | 私有包出仓库 | — | §5 |
 
 ### 4.3 一个合成流程、一个负责人
@@ -177,15 +177,15 @@ cd packages/sdk && pnpm pack --out <绝对路径>/prologue-sdk-0.0.0-rc.1-side-p
 | 步 | 做什么 | 要谁同意 / 依赖 | 风险 |
 | --- | --- | --- | --- |
 | 0 | 本片：固定 pnpm、写本方案（已完成） | — | — |
-| 1 | `vendor/prologue-sdk/` 加 `provenance.json`（照 `vendor/intelligence-client/*.provenance.json` 的格式：包名、版本、上游仓库与完整提交 `9fc3b17386419625a36359b74fb4789c17a3adc8`、文件名、字节数、sha256、integrity、构建用的 Node 与 pnpm、日期）和 `.sha256`；**再把 §4.5 的三张表（每个补丁的 SHA-256、基线、来源、产出的包）落成 `vendor/prologue-sdk/patch-history.json`**，这是 10-08 决定里「记 sha256 与来源」的落点；之后 README 才可以改成「上游提交 + 构建命令」一段并删掉「暂未推到」和各历史小节（README 文件本身要留着：`skills/molis-prologue-ai/SKILL.md:33`、`specs/BACKLOG.md:50`、`specs/coding-plugin/spec.md:1444` 等多处引用它）；`specs/BACKLOG.md` 的 BL-024 关闭 | 不需要；属于 W1-23「vendored provenance and patch cleanup」 | 低，只加文件、改文字 |
+| 1 | **已由 W1-23 做完（分支 `chore/repo-hygiene`）**：`vendor/prologue-sdk/` 加了 `prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz.provenance.json` 与 `.sha256`（文件名和格式照 `vendor/intelligence-client/` 的同类文件：包名、版本、上游仓库与完整提交 `9fc3b17386419625a36359b74fb4789c17a3adc8`、文件名、字节数、sha256、integrity、构建用的 Node 与 pnpm、日期；另记 2026-10-08 在 macOS arm64、Node 24.14.0、pnpm 11.9.0 上从该提交无补丁重建出逐字节相同的包）；§4.5 的三张表落成 `vendor/prologue-sdk/patch-history.json`（每个补丁的字节数、SHA-256、git blob、基线、来源、产出的包的字节数、SHA-256、git blob，另加 9 个没有补丁的历史包；数字由脚本与补丁实际字节、Git 历史里的 tgz 核对过，7 份有提交的补丁重新 `git apply` 后与提交的树逐文件相同，18 份能干净应用在所写的基线上，记到的 19 个 Prologue 提交都是上游 main 头 `4f7110fe` 的祖先）；25 份补丁与记录在同一个提交里删掉；README 缩成「上游提交 + 重建步骤 + 记录说明」，删了「暂未推到」和各历史小节（README 文件本身留着：`skills/molis-prologue-ai/SKILL.md:33`、`specs/BACKLOG.md`、`specs/coding-plugin/spec.md` 等多处引用它）；`specs/BACKLOG.md` 的 BL-024 关闭。新增 `scripts/gates/vendored-provenance.mjs`（接进 `pnpm health:check`）核对三个 vendored 包的 tgz 与各自的 `.sha256`、`.provenance.json` 相符、包换掉后记录不留、`patch-history.json` 格式、已记为删除的补丁不回到目录里，`tests/vendor-provenance.test.ts` 逐条破坏验证。`side-panel-memory.patch` 仍在，记在 provenance 的 `alsoBuildableFrom`，等用户确认删（§7 第 3 项） | 不需要；属于 W1-23「vendored provenance and patch cleanup」 | 低，只加文件、改文字 |
 | 2 | 做取包机制，文件仍在仓库里：`vendor/packages.json`、`scripts/fetch-vendored.mjs`、`.gitignore`、发布资产代码与测试的调整、CI 步骤（§5.3–§5.5）；取包脚本在文件已存在且校验通过时什么也不下载 | 不需要 | 低；CI 步骤此时是空操作 |
 | 3 | 用户操作：建私有存放处、上传三个附件、建 GitHub App、配凭据（§5.4）；在一个删除了 tgz 的分支上跑 CI 证明能取到 | 用户 | 中；CI 凭据配置错会让所有 PR 红 |
-| 4 | 删 tgz 与补丁，换门禁（`tooling/gates/limits.json` 的 `vendoredPrologueSdk` 改成「已跟踪的 `vendor/**/*.tgz`、`vendor/prologue-sdk/*.patch` 为 0」，`scripts/check-health-gates.mjs:65` 的判断、`:274-285` 的度量和 `tests/health-gates-merge-base.test.ts:51,97` 的夹具同改），改 `AGENTS.md:29` 的硬约束、`README.md:138` 的上手步骤、`docs/platform/PROLOGUE-AI.md:14`、`skills/molis-prologue-ai/SKILL.md:33` | 用户确认「删除 vendored 文件」；前提：第 1 步的 `patch-history.json` 已在 main，且其中的补丁 SHA-256 与 §4.5 一致 | 中；`skills/` 在全量回归期间不能改（AGENTS.md） |
+| 4 | 删 tgz 与剩下的 `side-panel-memory.patch`（25 份历史补丁已在第 1 步删掉），换门禁（`tooling/gates/limits.json` 的 `vendoredPrologueSdk` 改成「已跟踪的 `vendor/**/*.tgz`、`vendor/prologue-sdk/*.patch` 为 0」，`scripts/check-health-gates.mjs:65` 的判断、`:274-285` 的度量和 `tests/health-gates-merge-base.test.ts:51,97` 的夹具同改），改 `AGENTS.md:29` 的硬约束、`README.md:138` 的上手步骤、`docs/platform/PROLOGUE-AI.md:14`、`skills/molis-prologue-ai/SKILL.md:33` | 用户确认「删除 vendored 文件」；前提：第 1 步的 `patch-history.json` 已在 main（其中的补丁 SHA-256 与 §4.5 一致，已核对）；删 tgz 时同改 `.sha256`、`.provenance.json`，门禁 `scripts/gates/vendored-provenance.mjs` 在 tgz 不在时要么随之调整，要么由 `vendor/packages.json` 接替 | 中；`skills/` 在全量回归期间不能改（AGENTS.md） |
 | 5 | 是否前进到更新的上游头：另起一片，先在分支上换包跑 agent-host 全部用例，再用真实模型（MiniMax）走侧栏浏览器与 Coding 各一遍；上游变化很大（见 §4.1 最后一行），没有版本号可约束 | 用户；Prologue 负责人 | 高；要单独评估，不属于本方案的必做项 |
 
-### 4.5 25 个历史补丁：基线、来源与产出的包（计划删除，本片不删）
+### 4.5 25 个历史补丁：基线、来源与产出的包（W1-23 已删，记录在 `patch-history.json`）
 
-位置 `vendor/prologue-sdk/`，合计 2,566,805 字节；删除后仍可从 Git 历史取回（本片实测：64 个提交动过 `vendor/`，origin/main 可达的 `vendor/` 下 169 个 blob、62.6 MiB）。10-08 的决定要求「记 sha256 与来源」，下面三张表就是这份记录：每个补丁自带 SHA-256、基线、来源和产出的包，不指向 README 的行号，因为 README 在 §4.4 第 1 步会缩成一段。第 1 步把这三张表落成 `vendor/prologue-sdk/patch-history.json`，之后才删补丁。
+位置 `vendor/prologue-sdk/`，合计 2,566,805 字节；删除后仍可从 Git 历史取回（本片实测：64 个提交动过 `vendor/`，origin/main 可达的 `vendor/` 下 169 个 blob、62.6 MiB）。10-08 的决定要求「记 sha256 与来源」，下面三张表就是这份记录：每个补丁自带 SHA-256、基线、来源和产出的包，不指向 README 的行号，因为 README 在 §4.4 第 1 步会缩成一段。第 1 步（W1-23）把这三张表落成 `vendor/prologue-sdk/patch-history.json`，并在同一个提交里删了补丁：记录由补丁的实际字节生成，补丁本身都留在 Git 历史里，按记录里的 `gitBlob` 取回。
 
 信息取自 README 里对应的小节（按「产出的包」名找），再逐项核对过：
 
@@ -329,7 +329,7 @@ cd packages/sdk && pnpm pack --out <绝对路径>/prologue-sdk-0.0.0-rc.1-side-p
 
 ## 6. 这份方案没有动的东西
 
-没有推送，没有删除任何 vendored 文件，没有改依赖版本，没有改源码与测试；`pnpm-lock.yaml` 没变。改动只有：根 `package.json` 加一个字段、两份工作流的「Install pnpm」一步、`spec.md` 里一行指针、本文。
+这是 W1-20 一片的范围：没有推送，没有删除任何 vendored 文件，没有改依赖版本，没有改源码与测试；`pnpm-lock.yaml` 没变。改动只有：根 `package.json` 加一个字段、两份工作流的「Install pnpm」一步、`spec.md` 里一行指针、本文。
 
 ## 7. 需要用户决定或操作的事项
 

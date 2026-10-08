@@ -539,7 +539,7 @@ Cognia 本机模型合同：HTTPS 和显式授权的回环 HTTP 均走同一 Pro
 
 Cognia 固定版本选择补齐：列表和详情发起整理时传入所见资料 ID/revision，包括从草稿打开的历史引用；后台按该版本读取。新动作接受 material_refs（ID 与 revision）或旧 material_ids（执行时读取当前版本），两者互斥。旧 HTTP 仍兼容 material_ids；新界面提交明确版本，避免看到 v1 却将 v2 交给模型。已知模型不可用时禁用整理/问答入口并显示实际原因；后台继续独立校验。
 
-本机模型依赖修复（本项已验证）：以消费基线 Prologue a7e785b8 的隔离工作树统一 Model 登记与 Session 启动；实际请求继续由原 Host 的 model/loopback 授权、DNS、重定向与凭据检查控制。Node 与 Rust Host 精确识别回环，127 前缀公网域名不能借此获得 HTTP 许可。当前依赖为 loopback-model.tgz，依赖与锁文件同步；model-loopback.patch 保存未提交的完整源码修改，README 记录基线、构建及验证（二者当时在提交 e4bdeb12 的 vendor/prologue-sdk/；2026-10-08 起树里只留补丁的大小、SHA-256 与来源，见该目录 README）。实际 Molis 动作、桌面/窄屏生成→审阅→保存→刷新和停用后仍可保存资料已通过；没有注入 completion 替代此 HTTP 路径。原源码 checkout 未修改，未发布 npm 或替换正式安装版。
+本机模型依赖修复（本项已验证）：以消费基线 Prologue a7e785b8 的隔离工作树统一 Model 登记与 Session 启动；实际请求继续由原 Host 的 model/loopback 授权、DNS、重定向与凭据检查控制。Node 与 Rust Host 精确识别回环，127 前缀公网域名不能借此获得 HTTP 许可。当前依赖为 loopback-model.tgz，依赖与锁文件同步；model-loopback.patch 保存未提交的完整源码修改，README 记录基线、构建及验证（二者当时在提交 e4bdeb12 的 vendor/prologue-sdk/；2026-10-08 起树里只留补丁的大小、SHA-256、git blob 与来源，见 vendor/prologue-sdk/patch-history.json）。实际 Molis 动作、桌面/窄屏生成→审阅→保存→刷新和停用后仍可保存资料已通过；没有注入 completion 替代此 HTTP 路径。原源码 checkout 未修改，未发布 npm 或替换正式安装版。
 
 ### Dataset 全量接线
 

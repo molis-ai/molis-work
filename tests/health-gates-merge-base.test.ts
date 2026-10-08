@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,6 +22,17 @@ const git = (...args: string[]) => gitAt(repo, ...args);
 const inRepo = <T,>(dir: string, body: () => T): T => { const saved = repo; repo = dir; try { return body(); } finally { repo = saved; } };
 const put = (file: string, text: string) => { mkdirSync(path.dirname(path.join(repo, file)), { recursive: true }); writeFileSync(path.join(repo, file), text); };
 const read = (file: string) => readFileSync(path.join(repo, file), "utf8");
+// A vendored archive with the records scripts/gates/vendored-provenance.mjs wants beside it (tests/vendor-provenance.test.ts
+// covers that rule), so what the cases below break is the package count and nothing else.
+const vendored = (file: string, content: string) => {
+  const sha256 = createHash("sha256").update(content).digest("hex");
+  put(file, content);
+  put(`${file}.sha256`, `${sha256}  ${path.basename(file)}\n`);
+  put(`${file}.provenance.json`, JSON.stringify({
+    source: { commit: "a".repeat(40), dirty: false },
+    artifact: { file: path.basename(file), bytes: Buffer.byteLength(content), sha256, integrity: `sha512-${createHash("sha512").update(content).digest("base64")}` },
+  }));
+};
 const commit = (message: string) => { git("add", "-A"); git("commit", "-q", "--allow-empty", "-m", message); };
 const gateAt = (dir: string, ...args: string[]) => {
   const run = spawnSync(process.execPath, [script, "--root", dir, ...args], { encoding: "utf8" });
@@ -48,7 +60,7 @@ before(() => {
   // Not imports: a comment and a string that merely contain an internal path.
   put("tests/clean.test.ts", '// import { alpha } from "../packages/alpha/src/index";\nexport const text = \'import x from "../packages/alpha/src/index"\';\n');
   put("specs/demo/spec.md", "# Demo\n\n状态：进行中\n");
-  put("vendor/prologue-sdk/a.tgz", "a");
+  vendored("vendor/prologue-sdk/a.tgz", "a");
   git("add", "-A");
   assert.equal(gate("--update").code, 0);
   commit("base");
@@ -94,7 +106,7 @@ const violations: Scenario[] = [
     put("tests/old.test.ts", "export const used = 1;\n");
     put("tests/clean.test.ts", read("tests/clean.test.ts") + 'import { alpha } from "../packages/alpha/src/index";\nexport const used = alpha;\n');
   }, expect: [/tests reach into package internals in tests\/clean\.test\.ts 0 → 1/] },
-  { name: "a third vendored SDK package", mutate: () => { put("vendor/prologue-sdk/b.tgz", "b"); put("vendor/prologue-sdk/c.tgz", "c"); }, expect: [/vendor\/prologue-sdk holds 3 packages/], kind: "absolute" },
+  { name: "a third vendored SDK package", mutate: () => { vendored("vendor/prologue-sdk/b.tgz", "b"); vendored("vendor/prologue-sdk/c.tgz", "c"); }, expect: [/vendor\/prologue-sdk holds 3 packages/], kind: "absolute" },
   { name: "an in-place schema patch", mutate: () => put("packages/alpha/src/patch.ts", 'export const sql = "ALTER TABLE t ADD COLUMN c TEXT";\n'), expect: [/in-place schema patches 0 → 1/] },
   { name: "another compatibility marker in a file", mutate: () => put("packages/alpha/src/marked.ts", read("packages/alpha/src/marked.ts") + "// legacy again\n"), expect: [/compatibility markers in packages\/alpha\/src\/marked\.ts 1 → 2/] },
   { name: "a new file with a compatibility marker", mutate: () => put("packages/alpha/src/shim.ts", "// @deprecated\nexport const shim = 1;\n"), expect: [/compatibility markers in packages\/alpha\/src\/shim\.ts 0 → 1/] },

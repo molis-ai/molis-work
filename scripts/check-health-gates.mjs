@@ -7,6 +7,10 @@
 // added or deleted, a plugin moved to the Plugin Runtime supervisor, an import that changes what is reachable from the
 // product entry): scripts/gates/package-inventory.mjs --table prints the rows, --check reports the disagreement.
 //
+// The translation check (scripts/gates/translations.mjs, apps/workbench/README.md section 界面文字) is one more metric: conflicting
+// translations are a number that may only go down; a translator call with no English and a `*_EN` dictionary the served catalog
+// never reaches fail outright, with no comparison.
+//
 //   node scripts/check-health-gates.mjs                  measure the working tree and compare it with the committed
 //                                                        tooling/gates/baseline.json (the quick local check)
 //   node scripts/check-health-gates.mjs --base <ref>     measure the working tree AND the merge-base of HEAD and <ref>

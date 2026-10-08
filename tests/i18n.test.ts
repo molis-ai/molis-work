@@ -44,7 +44,8 @@ test("L translates chrome in an English request and keeps Chinese as source", ()
 // The two lists of files this test used to read by hand (61 files, double-quoted calls only in one list and both quotes in the
 // other) are gone: scripts/gates/translations.mjs scans every translator call in product source, in server renderers,
 // plugin UI (`p.text`), wrappers and the browser scripts in template literals. CI runs the same scan through
-// `scripts/check-health-gates.mjs`; it also reads every one of the (file, label) pairs the lists covered (2,486 of them).
+// `scripts/check-health-gates.mjs`; it also reads every one of the (file, label) pairs the lists covered (about 2,430 distinct
+// ones, all but 8 of them with Chinese in them).
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const scan = scanTree(workingTreeSnapshot(repoRoot), isProductSource);
 

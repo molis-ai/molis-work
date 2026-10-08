@@ -33,6 +33,13 @@
 // that a server-side file defines and another file imports (measured 2026-10-08: following them adds 9 calls and no missing
 // English, and 90 more dynamic calls). Their keys still count as mentioned, so they are
 // not reported dead.
+// Limit (known, not closed): wrappers are matched by name, not by scope. In a browser program the names the other files define
+// are shared, and they win over a function of the same name that a file defines itself: apps/workbench/src/settings-memory.ts has
+// `button(text, variant, label)` that never translates, and reads as the shared `button(action, label)` of home-talk.ts, so its
+// 13 calls `button("mw-btn--secondary")` are recorded as translator calls (the file scanned alone has none). A key without Chinese
+// is ignored by every rule, so today that changes nothing. What it could do: a Chinese literal passed to such a helper at an index
+// the shared one translates would be asked for an English text although the helper never shows it. Closing it takes name
+// resolution by scope (which binding a call sees), a parser's job; if it happens, rename the local helper.
 //
 //   node scripts/gates/translations.mjs [--root <dir>] [--missing] [--conflicts] [--dead] [--calls] [--owners] [--json]
 import { execFileSync } from "node:child_process";

@@ -171,6 +171,16 @@ const missing: Scenario[] = [
     "};",
     "",
   ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/alpha\/src\/ui\.ts:3\)/] },
+  // `group` is read before `describe`, the function its second parameter goes to: that parameter becomes a key only on a later
+  // round, once `describe` is known to translate. A single pass loses it.
+  { name: "a second parameter that reaches the translator through a function defined after the wrapper", mutate: () => put("plugins/native/alpha/src/ui.ts", [
+    "export const ui = (p: { text(value: string): string }) => {",
+    "  const group = (title: string, hint: string) => p.text(title) + describe(hint);",
+    "  const describe = (value: string) => p.text(value);",
+    '  return group("打开", "新的");',
+    "};",
+    "",
+  ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/alpha\/src\/ui\.ts:4\)/] },
   { name: "a parameter after an untranslated one (the first is a name, the second a label)", mutate: () => put("plugins/native/alpha/src/ui.ts", [
     "export const ui = (p: { text(value: string): string }) => {",
     "  const toggle = (name: string, label: string, description: string) => `<input name=\"${name}\"><b>${p.text(label)}</b><i>${p.text(description)}</i>`;",

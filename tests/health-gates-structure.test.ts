@@ -86,6 +86,20 @@ before(() => {
     "}",
     "",
   ].join("\n"));
+  // The Agent Host shape: a registrar interface, a local helper that takes the definition first and registers it, and the
+  // registrations made through the helper (they are not `.register(…)` calls of the file's own).
+  put("horizontal/agent-host/src/capability-registration.ts", [
+    "import type { HostCapabilityDefinition } from '../../../packages/contracts/src/platform/app-host.js';",
+    "export interface AgentRegistrar { register(definition: HostCapabilityDefinition, handler: () => void): () => void }",
+    "export const agentCapabilities = {",
+    "  list: { capability_id: 'agent.list.v1', version: 1, operation: 'query' } as HostCapabilityDefinition<void, void>,",
+    "};",
+    "export function registerAgentCapabilities(registrar: AgentRegistrar) {",
+    "  const register = (definition: HostCapabilityDefinition, handler: () => void) => registrar.register(definition, handler);",
+    "  register(agentCapabilities.list, () => undefined);",
+    "}",
+    "",
+  ].join("\n"));
   // The Goals shape: an alias that wraps the definition, imported under another name in one file.
   put("plugins/native/one/src/entry-capabilities.ts", [
     'import type { HostMethodCapability as MethodCapability } from "../../../../packages/contracts/src/platform/app-host.js";',
@@ -158,6 +172,25 @@ const violations: Scenario[] = [
     expect: [/modules\/alpha#member:AlphaOther\.repository 0 → 1/, /modules\/alpha#member:AlphaLiteral\.repository 0 → 1/, /modules\/alpha#member:AlphaThird\.repository 0 → 1/] },
   { name: "a new Module that exports its Store", mutate: () => put("modules/beta/src/index.ts", "export class BetaStore {}\nexport function openBetaStore() { return new BetaStore(); }\n"),
     expect: [/modules\/beta#export:BetaStore 0 → 1/, /modules\/beta#export:openBetaStore 0 → 1/] },
+  // Namespace re-exports make everything in the target public under the namespace's name (found by a reviewer, verified on a scratch clone).
+  { name: "a Repository reaches the entry as `export * as ns`", launder: true, mutate: () => put("modules/alpha/src/index.ts", read("modules/alpha/src/index.ts") + 'export * as alphaStorage from "./repository.js";\n'),
+    expect: [/modules\/alpha#export:alphaStorage\.AlphaRepository 0 → 1/] },
+  { name: "a Repository reaches the entry as a re-exported namespace import", mutate: () => put("modules/alpha/src/index.ts", read("modules/alpha/src/index.ts") + 'import * as alphaRepositoryFile from "./repository.js";\nexport { alphaRepositoryFile };\n'),
+    expect: [/modules\/alpha#export:alphaRepositoryFile\.AlphaRepository 0 → 1/] },
+  { name: "a re-exported namespace import under another name", mutate: () => put("modules/alpha/src/index.ts", read("modules/alpha/src/index.ts") + 'import * as everything from "./repository.js";\nexport { everything as data };\n'),
+    expect: [/modules\/alpha#export:data\.AlphaRepository 0 → 1/] },
+  { name: "a Repository reaches the entry through a namespace inside a namespace", mutate: () => {
+    put("modules/alpha/src/barrel.ts", 'export * as deep from "./repository.js";\n');
+    put("modules/alpha/src/index.ts", read("modules/alpha/src/index.ts") + 'export * as outer from "./barrel.js";\n');
+  }, expect: [/modules\/alpha#export:outer\.deep\.AlphaRepository 0 → 1/] },
+  { name: "a Repository reaches the entry through export * of a file that holds a namespace", mutate: () => {
+    put("modules/alpha/src/barrel.ts", 'import * as files from "./repository.js";\nexport { files };\n');
+    put("modules/alpha/src/index.ts", read("modules/alpha/src/index.ts") + 'export * from "./barrel.js";\n');
+  }, expect: [/modules\/alpha#export:files\.AlphaRepository 0 → 1/] },
+  { name: "a namespace re-export in the server package", mutate: () => {
+    put("server/src/index.ts", read("server/src/index.ts") + 'export * as serverFiles from "./store.js";\n');
+    put("server/src/store.ts", "export class ServerStore {}\n");
+  }, expect: [/server#export:serverFiles\.ServerStore 0 → 1/] },
 
   // ---- typed capabilities ------------------------------------------------------------------------------------------------
   { name: "a new typed capability descriptor", launder: true, mutate: () => put("packages/contracts/src/platform/app-host.ts", read("packages/contracts/src/platform/app-host.ts") + 'export const another = { capability_id: "c.d.v1", version: 1, operation: "command" } as HostCapabilityDefinition<void, void>;\n'),
@@ -167,7 +200,7 @@ const violations: Scenario[] = [
   { name: "a typed capability written as a typed constant and as a factory", mutate: () => put("plugins/native/one/src/capabilities.ts", 'import type { HostCapabilityDefinition } from "../../../../packages/contracts/src/platform/app-host.js";\nexport const typed: HostCapabilityDefinition<void, void> = { capability_id: "e.f.v1", version: 1, operation: "query" };\nexport const make = (id: string): HostCapabilityDefinition<void, void> => ({ capability_id: id, version: 1, operation: "query" });\n'),
     expect: [/typed Host capability type-refs in plugins\/native\/one\/src\/capabilities\.ts 0 → 2/, /typed Host capability without-action in plugins\/native\/one\/src\/capabilities\.ts 0 → 2/] },
   { name: "a new registerCapability call", mutate: () => put("apps/local-host/src/local-host.ts", read("apps/local-host/src/local-host.ts") + "export const again = (host: LocalHost, definition: HostCapabilityDefinition) => host.registerCapability(definition);\n"),
-    expect: [/typed Host capability register-calls in apps\/local-host\/src\/local-host\.ts 1 → 2/] },
+    expect: [/typed Host capability register-calls in apps\/local-host\/src\/local-host\.ts 2 → 3/] },
   { name: "a new file that accepts a typed capability", mutate: () => put("horizontal/extra/src/index.ts", 'import type { HostCapabilityDefinition } from "../../../packages/contracts/src/platform/app-host.js";\nexport const use = (definition: HostCapabilityDefinition) => definition;\n'),
     expect: [/typed Host capability type-refs in horizontal\/extra\/src\/index\.ts 0 → 1/] },
 
@@ -201,6 +234,84 @@ const violations: Scenario[] = [
     put("plugins/native/two/src/use-registrar.ts", 'import type { Registrar } from "./registrar.js";\nexport const wire = (registrar: Registrar, definition: never) => registrar.register(definition, () => undefined);\n');
   }, expect: [/typed Host capability register-calls in plugins\/native\/two\/src\/use-registrar\.ts 0 → 1/] },
 
+  // Found by a reviewer of the second version of this rule, each verified by hand on a scratch clone before it was closed.
+  { name: "a descriptor spread from a registered one, given a new id, registered through the local typed helper", launder: true, mutate: () => {
+    const file = "horizontal/agent-host/src/capability-registration.ts";
+    put(file, read(file).replace("  register(agentCapabilities.list, () => undefined);\n", "  register(agentCapabilities.list, () => undefined);\n  register({ ...agentCapabilities.list, capability_id: 'agent.shadow.v1' }, () => undefined);\n"));
+  }, expect: [/typed Host capability register-calls in horizontal\/agent-host\/src\/capability-registration\.ts 2 → 3/, /typed Host capability without-action in horizontal\/agent-host\/src\/capability-registration\.ts 1 → 2/] },
+  { name: "the same helper call on the line of an existing registration (the file does not grow)", mutate: () => {
+    const file = "horizontal/agent-host/src/capability-registration.ts";
+    put(file, read(file).replace("  register(agentCapabilities.list, () => undefined);\n", "  register(agentCapabilities.list, () => undefined); register(agentCapabilities.list, () => undefined);\n"));
+  }, expect: [/typed Host capability register-calls in horizontal\/agent-host\/src\/capability-registration\.ts 2 → 3/] },
+  { name: "an inline spread descriptor registered on a receiver whose type is a typeof of something unknown", mutate: () => put("horizontal/agent-host/src/shadow-registration.ts", [
+    "import { agentCapabilities } from './capability-registration.js';",
+    "declare const shadowRegistrar: { register(definition: unknown, handler: () => void): void };",
+    "export const wire = (registrar: typeof shadowRegistrar) => registrar.register({ ...agentCapabilities.list, capability_id: 'agent.shadow.v1' }, () => undefined);",
+    "",
+  ].join("\n")),
+    expect: [/typed Host capability register-calls in horizontal\/agent-host\/src\/shadow-registration\.ts 0 → 1/, /typed Host capability without-action in horizontal\/agent-host\/src\/shadow-registration\.ts 0 → 1/] },
+  { name: "an inline descriptor with an operation registered on a receiver of unknown type", mutate: () => put("plugins/native/two/src/inline-register.ts", "export const wire = (unknown: { register(value: unknown, handler: () => void): void }) => unknown.register({ capability_id: 'io.example.two.inline', version: 1, operation: 'query' }, () => undefined);\n"),
+    expect: [/typed Host capability register-calls in plugins\/native\/two\/src\/inline-register\.ts 0 → 1/, /typed Host capability without-action in plugins\/native\/two\/src\/inline-register\.ts 0 → 1/] },
+  { name: "a minted id on a spread base, typed by nothing", mutate: () => put("plugins/native/two/src/minted.ts", "import { base } from './base.js';\nexport const minted = { ...base, capability_id: 'io.example.two.minted' };\n"),
+    expect: [/typed Host capability without-action in plugins\/native\/two\/src\/minted\.ts 0 → 1/] },
+  { name: "a local helper that hands its first parameter on to a registration, whatever its type", mutate: () => put("apps/local-host/src/wiring-helper.ts", [
+    "import type { LocalHost } from './local-host.js';",
+    "export const wire = (host: LocalHost, definition: never) => {",
+    "  const reg = (candidate: any, handler: () => void) => host.register(candidate, handler);",
+    "  reg(definition, () => 1);",
+    "  reg(definition, () => 2);",
+    "};",
+    "",
+  ].join("\n")),
+    expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-helper\.ts 0 → 3/] },
+  { name: "a helper that hands on to a helper that registers (two hops)", mutate: () => put("apps/local-host/src/wiring-hops.ts", [
+    "import type { LocalHost } from './local-host.js';",
+    "export const wire = (host: LocalHost, definition: never) => {",
+    "  const inner = (candidate: any) => host.register(candidate, () => 1);",
+    "  const outer = (value: any) => inner(value);",
+    "  outer(definition);",
+    "};",
+    "",
+  ].join("\n")),
+    expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-hops\.ts 0 → 3/] },
+  { name: "an exported function in another file that takes the definition first, called under an import rename", mutate: () => {
+    put("plugins/native/two/src/typed-helper.ts", 'import type { HostCapabilityDefinition } from "../../../../packages/contracts/src/platform/app-host.js";\nexport const addTyped = (definition: HostCapabilityDefinition, handler: () => void) => [definition, handler];\n');
+    put("plugins/native/two/src/uses-typed-helper.ts", 'import { addTyped as add } from "./typed-helper.js";\nexport const wire = (definition: never) => add(definition, () => 1);\n');
+  }, expect: [/typed Host capability register-calls in plugins\/native\/two\/src\/uses-typed-helper\.ts 0 → 1/] },
+  { name: "a registration through a function that returns a LocalHost (a call-chain receiver)", mutate: () => put("apps/local-host/src/wiring-chain.ts", [
+    "import type { LocalHost } from './local-host.js';",
+    "declare function currentHost(): LocalHost;",
+    "export const wire = (definition: never) => currentHost().register(definition, () => 1);",
+    "",
+  ].join("\n")),
+    expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-chain\.ts 0 → 1/] },
+  { name: "a registration through an exported function (another file) that returns a LocalHost", mutate: () => {
+    put("apps/local-host/src/current-host.ts", "import type { LocalHost } from './local-host.js';\nexport function currentHost(): LocalHost { throw new Error('fixture'); }\n");
+    put("apps/local-host/src/wiring-chain-import.ts", "import { currentHost as host } from './current-host.js';\nexport const wire = (definition: never) => { const local = host(); local.register(definition, () => 1); return host().register(definition, () => 2); };\n");
+  }, expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-chain-import\.ts 0 → 2/] },
+  { name: "a method of a class that hands its first parameter on to a registration, called as this.method", mutate: () => put("apps/local-host/src/wiring-method.ts", [
+    "import type { LocalHost } from './local-host.js';",
+    "export class Wiring {",
+    "  constructor(private readonly host: LocalHost) {}",
+    "  private add(candidate: any) { return this.host.register(candidate, () => 1); }",
+    "  wire(definition: never) { this.add(definition); this.add(definition); }",
+    "}",
+    "",
+  ].join("\n")),
+    expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-method\.ts 0 → 3/] },
+  { name: "an exported typed function re-exported under another name through a barrel", mutate: () => {
+    put("plugins/native/two/src/typed-helper.ts", 'import type { HostCapabilityDefinition } from "../../../../packages/contracts/src/platform/app-host.js";\nexport const addTyped = (definition: HostCapabilityDefinition, handler: () => void) => [definition, handler];\n');
+    put("plugins/native/two/src/barrel.ts", 'export { addTyped as add } from "./typed-helper.js";\n');
+    put("plugins/native/two/src/uses-barrel.ts", 'import { add } from "./barrel.js";\nexport const wire = (definition: never) => add(definition, () => 1);\n');
+  }, expect: [/typed Host capability register-calls in plugins\/native\/two\/src\/uses-barrel\.ts 0 → 1/] },
+  { name: "a registration through a typeof of a LocalHost held in the file", mutate: () => put("apps/local-host/src/wiring-typeof.ts", [
+    "import { LocalHost } from './local-host.js';",
+    "declare const real: LocalHost;",
+    "export const wire = (copy: typeof real, definition: never) => copy.register(definition, () => 1);",
+    "",
+  ].join("\n")),
+    expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-typeof\.ts 0 → 1/] },
+
   // ---- Module repositories: the packages that the workspace list calls modules -------------------------------------------
   { name: "the server package exports a Store (it is a Module by classification)", mutate: () => put("server/src/index.ts", read("server/src/index.ts") + "export class ServerShadowStore {}\n"),
     expect: [/Module entry exposes a Repository: server#export:ServerShadowStore 0 → 1/] },
@@ -215,6 +326,17 @@ const violations: Scenario[] = [
   { name: "an allowlist edge moved to the other list is a new edge there", mutate: () => put("packages/test-kit/src/boundaries.ts", read("packages/test-kit/src/boundaries.ts").replace('  "plugins/native/one -> modules/alpha",\n', '').replace('  "apps/desktop -> apps/local-host",\n', '  "apps/desktop -> apps/local-host",\n  "plugins/native/one -> modules/alpha",\n')),
     expect: [/new layer exception app-import plugins\/native\/one -> modules\/alpha/] },
   { name: "the allowlists renamed so that the gate cannot read them", mutate: () => put("packages/test-kit/src/boundaries.ts", read("packages/test-kit/src/boundaries.ts").replace(/APP_IMPORT_ALLOWLIST/g, "APP_EDGES")),
+    expect: [/the layer exception lists can no longer be read from packages\/test-kit\/src\/boundaries\.ts/] },
+  // An element that is not a string literal hides its edges from the count (found by a reviewer: the metric passed, and the same
+  // change could edit the pinned test next to the new import).
+  { name: "an allowlist that spreads another array", launder: true, mutate: () => put("packages/test-kit/src/boundaries.ts", read("packages/test-kit/src/boundaries.ts")
+    .replace("export const APP_IMPORT_ALLOWLIST: readonly string[] = [\n", 'const LAUNCHER_EXTRAS = ["apps/cli -> apps/mcp"];\nexport const APP_IMPORT_ALLOWLIST: readonly string[] = [\n  ...LAUNCHER_EXTRAS,\n')),
+    expect: [/the layer exception lists can no longer be read from packages\/test-kit\/src\/boundaries\.ts/] },
+  { name: "an allowlist element that is an identifier", mutate: () => put("packages/test-kit/src/boundaries.ts", read("packages/test-kit/src/boundaries.ts")
+    .replace('  "plugins/native/one -> modules/alpha",\n', '  "plugins/native/one -> modules/alpha",\n  EXTRA_EDGE,\n') + 'const EXTRA_EDGE = "plugins/native/two -> modules/beta";\n'),
+    expect: [/the layer exception lists can no longer be read from packages\/test-kit\/src\/boundaries\.ts/] },
+  { name: "an allowlist element that is a call or a template with a substitution", mutate: () => put("packages/test-kit/src/boundaries.ts", read("packages/test-kit/src/boundaries.ts")
+    .replace('  ". -> apps/desktop",\n', '  ". -> apps/desktop",\n  edge("apps/cli", "apps/mcp"),\n  `apps/cli -> ${"apps/mcp"}`,\n') + 'declare function edge(from: string, to: string): string;\n'),
     expect: [/the layer exception lists can no longer be read from packages\/test-kit\/src\/boundaries\.ts/] },
 
   // ---- assembly -----------------------------------------------------------------------------------------------------------
@@ -294,6 +416,19 @@ test("things the structure gates do not count", () => {
       "",
     ].join("\n"));
     put("server/src/index.ts", read("server/src/index.ts") + "export class Cache { private readonly repository = 1; }\n"); // not a Store, a private member
+    // Call sites that are not registrations: a Schedule job names a capability_id (no operation, no spread), a reference copies an id
+    // from another record, a helper whose first parameter is not handed to a registration, a namespace of things that are not Stores.
+    put("plugins/native/two/src/not-registrations.ts", [
+      "export const wire = (schedule: { register(input: unknown): void }, base: { capability_id: string; version: number }) => {",
+      "  schedule.register({ plugin_id: 'two', capability_id: 'io.example.two.wakeup', object_ref: 'o' });",
+      "  const copy = { ...base, capability_id: base.capability_id };",
+      "  const label = (value: any) => String(value);",
+      "  return [copy, label(base)];",
+      "};",
+      "",
+    ].join("\n"));
+    put("modules/alpha/src/index.ts", read("modules/alpha/src/index.ts") + 'import * as alphaApiFile from "./api.js";\nexport { alphaApiFile };\nexport * as alphaApiNamespace from "./api.js";\n'); // a namespace of non-Stores
+    put("packages/test-kit/src/boundaries.ts", read("packages/test-kit/src/boundaries.ts") + 'export const SOME_OTHER_LIST = [...APP_IMPORT_ALLOWLIST];\n'); // another list may spread them; only the two named lists must be literal
     put("apps/other/src/index.ts", read("apps/other/src/index.ts") + "export class MoreStore {}\n"); // an App is not a Module
     put("plugins/native/one/src/own.ts", 'export const self = "@fx/plugin-one";\n'); // a plugin may name itself
     put("apps/local-host/src/prefix.ts", 'export const other = "@fx/plugin-onefold";\n'); // a longer package name that starts with "…plugin-one"
@@ -373,6 +508,10 @@ test("on this repository the typed capability rule finds the alias and the regis
   for (const registrar of ["LocalHost", "CapabilityRegistry"]) assert.ok(index.registrarTypes.has(registrar), `${registrar} registers typed capabilities`);
   const counts = index.countsOf("apps/local-host/src/project-capabilities.ts");
   assert.ok(counts["register-calls"] > 0, "the Host's own registrations through `host.register(…)` are counted");
+  // The Agent Host registers about 40 typed capabilities through a local helper whose first parameter is the definition.
+  const agent = index.countsOf("horizontal/agent-host/src/capability-registration.ts");
+  assert.ok(agent["register-calls"] >= 30, `the local \`register\` helper of the Agent Host is followed (${agent["register-calls"]} register-calls)`);
+  assert.ok(agent["without-action"] >= 0 && agent["type-refs"] > 0);
 });
 
 test("the report flags hybrid plugins (Characters with its decision) and prints the new numbers", () => {
@@ -386,11 +525,13 @@ test("the report flags hybrid plugins (Characters with its decision) and prints 
   assert.deepEqual(base.head.registerProviderSites, { "apps/local-host/src/project-host.ts#register-provider": 2 });
   assert.deepEqual(base.head.hybridPlugins, {});
   assert.equal(base.head.typedCapabilities["packages/contracts/src/platform/app-host.ts#without-action"], 1);
-  assert.equal(base.head.typedCapabilities["apps/local-host/src/local-host.ts#register-calls"], 1);
+  assert.equal(base.head.typedCapabilities["apps/local-host/src/local-host.ts#register-calls"], 2, "the call of registerCapability and the method that hands its definition on to register");
   assert.deepEqual(base.head.layerExceptions, { "lists#declared": 1, "app-import#. -> apps/desktop": 1, "app-import#apps/desktop -> apps/local-host": 1, "plugin-module-import#plugins/native/one -> modules/alpha": 1 });
   assert.equal(base.head.typedCapabilities["plugins/native/one/src/entry-capabilities.ts#type-refs"], 1, "the alias, imported under another name, is a typed reference");
   assert.equal(base.head.typedCapabilities["plugins/native/one/src/entry-capabilities.ts#without-action"], 1);
   assert.equal(base.head.typedCapabilities["apps/local-host/src/casebook/integration.ts#register-calls"], 2, "registrations on a LocalHost parameter are counted");
+  assert.equal(base.head.typedCapabilities["horizontal/agent-host/src/capability-registration.ts#register-calls"], 2, "the registrar call inside the helper and the call of the helper");
+  assert.equal(base.head.typedCapabilities["horizontal/agent-host/src/capability-registration.ts#without-action"], 1);
   assert.deepEqual(base.head.contractsPurity, { "packages/contracts/src/platform/lifetime.ts#effects": 1, "packages/contracts/src/platform/validator.ts#long-fn:inspectThing": 22 });
   assert.deepEqual(base.head.moduleRepositoryExports, { "modules/alpha#export:AlphaRepository": 1, "modules/alpha#member:AlphaService.repository": 1 }, "a private parameter property is not public");
 

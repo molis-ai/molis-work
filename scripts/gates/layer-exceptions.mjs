@@ -9,8 +9,11 @@
 //   app-import#<importer> -> <target>
 //   plugin-module-import#<importer> -> <target>
 // A merge-base that does not have the two lists yet (the change that introduces them) has nothing to compare with; the
-// record `lists#declared` says the lists exist, and once the merge-base has it, a head that can no longer be read (the lists
-// renamed or moved) fails too, so the lists cannot be emptied out of the gate's sight. It is not counted as an exception.
+// record `lists#declared` says the lists exist and can be read, and once the merge-base has it, a head that can no longer be
+// read fails too, so the lists cannot be emptied out of the gate's sight. Readable means: each list is a variable named as
+// below, initialised with an array literal whose every element is a string literal. Renaming or moving a list, or adding an
+// element that is not a string literal (`...EXTRA_EDGES`, an identifier, a call, a template with a substitution), makes it
+// unreadable and fails. `lists#declared` is not counted as an exception.
 import ts from "typescript";
 import { hasPath, recordMetric } from "./record-metric.mjs";
 
@@ -30,9 +33,11 @@ export function listedLayerExceptions(text) {
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && LISTS[node.name.text] && node.initializer) {
       let list = node.initializer;
       while (ts.isAsExpression(list) || ts.isSatisfiesExpression(list) || ts.isParenthesizedExpression(list)) list = list.expression;
-      if (ts.isArrayLiteralExpression(list)) {
+      // Readable means an array literal of string literals only: a spread of another array, an identifier, a call or a template
+      // with a substitution hides edges from this count (the pinned test could then be edited together with the new import).
+      if (ts.isArrayLiteralExpression(list) && list.elements.every((element) => ts.isStringLiteralLike(element))) {
         found.add(node.name.text);
-        for (const element of list.elements) if (ts.isStringLiteralLike(element)) record[`${LISTS[node.name.text]}#${element.text}`] = 1;
+        for (const element of list.elements) record[`${LISTS[node.name.text]}#${element.text}`] = 1;
       }
     }
     ts.forEachChild(node, visit);
@@ -57,7 +62,7 @@ export const layerExceptions = (helpers) => {
     ...metric,
     grew(head, ref, env) {
       if (!(DECLARED in ref)) return [];
-      if (!(DECLARED in head)) return [`the layer exception lists can no longer be read from ${BOUNDARIES_SOURCE}; keep them as array literals named ${Object.keys(LISTS).join(" and ")}, or change scripts/gates/layer-exceptions.mjs in the same review`];
+      if (!(DECLARED in head)) return [`the layer exception lists can no longer be read from ${BOUNDARIES_SOURCE}; keep them as array literals of string literals named ${Object.keys(LISTS).join(" and ")} (no spread, identifier or call among the elements), or change scripts/gates/layer-exceptions.mjs in the same review`];
       return metric.grew(head, ref, env);
     },
   };

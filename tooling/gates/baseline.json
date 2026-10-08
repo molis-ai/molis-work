@@ -733,7 +733,7 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 295,
+  "typedCapabilitiesTotal": 338,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 10,
     "apps/local-host/src/casebook/integration.ts#type-refs": 1,
@@ -747,7 +747,7 @@
     "apps/local-host/src/project-host.ts#type-refs": 1,
     "apps/local-host/src/project-host.ts#register-calls": 1,
     "horizontal/agent-host/src/capability-registration.ts#type-refs": 2,
-    "horizontal/agent-host/src/capability-registration.ts#register-calls": 1,
+    "horizontal/agent-host/src/capability-registration.ts#register-calls": 42,
     "horizontal/scheduler/src/index.ts#type-refs": 1,
     "horizontal/scheduler/src/index.ts#register-calls": 4,
     "packages/contracts/src/modules/goals.ts#type-refs": 4,
@@ -765,6 +765,7 @@
     "packages/contracts/src/services/scheduler.ts#without-action": 4,
     "packages/kernel/src/action-service.ts#register-calls": 1,
     "packages/kernel/src/index.ts#type-refs": 5,
+    "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2,
     "plugins/native/goals/src/board-entry-capabilities.ts#type-refs": 5,
     "plugins/native/goals/src/board-entry-capabilities.ts#without-action": 5,

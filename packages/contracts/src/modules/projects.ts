@@ -132,7 +132,18 @@ export interface CreateProjectInput {
   actor_id: string;
 }
 
-export interface ProjectDeletionRecord {
+/** One owner's part of a deletion: it clears the data it keeps in the Home for the deleted project. */
+export interface ProjectDeletionStep {
+  /** The owner that registered the step, e.g. `pages` or `memory`. */
+  owner_id: string;
+  /** `skipped`: the owner is not registered in the process that finished the receipt, so there was nothing to run. */
+  state: "pending" | "complete" | "skipped";
+  error: string | null;
+  updated_at: string;
+}
+
+/** The facts of a deletion receipt that the catalog itself keeps. */
+export interface ProjectDeletionReceipt {
   deletion_id: string;
   project_id: string;
   display_name: string;
@@ -142,6 +153,11 @@ export interface ProjectDeletionRecord {
   cleanup_error: string | null;
   deleted_at: string;
   cleaned_at: string | null;
+}
+
+export interface ProjectDeletionRecord extends ProjectDeletionReceipt {
+  /** What each owner of project data in the Home did after the catalog committed; `cleanup_state` is complete only when every one is. */
+  owner_steps: ProjectDeletionStep[];
 }
 
 export interface DeleteProjectInput {

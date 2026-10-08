@@ -1,5 +1,7 @@
 /** Copy added by the page-interaction-flow work (navigation, covers, settings consolidation, Characters). */
 export const FLOW_EN: Record<string, string> = {
+  "各插件里属于这个项目的数据也会一起删除：": "Data that plugins keep for this project is deleted with it:",
+  "没能读出清单；插件里属于这个项目的数据同样会被删除。": "The list could not be read; data that plugins keep for this project is deleted all the same.",
   "打开插件": "Open a plugin",
   "找不到这个页面：{path}": "This page does not exist: {path}",
   "项目内引用": "Project reference",

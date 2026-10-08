@@ -8,15 +8,20 @@ import { randomUUID } from "node:crypto";
 import type { StoredProjectDeletion } from "@molis-ai/molis-work-module-projects";
 import type { DeleteProjectInput as DeleteMolisWorkProjectInput, ProjectDeletionResult as MolisWorkProjectDeletionResult, ProjectDeletionRecord as MolisWorkProjectDeletionRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import { managedProjectDirectory } from "./project-file-paths.js";
+import type { ProjectDeletedPort } from "./project-deleted-hooks.js";
 export interface ProjectDeletionCleanupPorts {
   removeBindings(projectId: string, actorId: string, at: string): number;
   removePanels(projectId: string): void;
 }
-/** Stage a managed directory, commit owner cleanup/receipt, then retry physical cleanup from that receipt. */
+/**
+ * Stage a managed directory, commit the catalog's own cleanup and the receipt (one pending step for each owner of
+ * project data in the Home), then run those steps and the physical cleanup, and retry whatever is left from that receipt.
+ */
 export class ManagedProjectDeletion {
   constructor(private readonly projects: Pick<ProjectsModule, "query" | "lifecycle">,
     private readonly projectsDirectory: string, private readonly cleanup: ProjectDeletionCleanupPorts,
-    private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">, private readonly commit: CatalogCommit) {}
+    private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">, private readonly commit: CatalogCommit,
+    private readonly owners: ProjectDeletedPort) {}
 async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
     const projectId = this.validation.requiredProjectId(input.project_id);
     const actorId = this.validation.requiredActorId(input.actor_id);
@@ -75,6 +80,7 @@ async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjec
           cleaned_at: null,
         };
         this.projects.lifecycle.insertDeletion(record);
+        this.projects.lifecycle.insertDeletionSteps(record.deletion_id, this.owners.owners().map(owner => owner.id));
         return record;
       }));
       catalogCommitted = true;
@@ -89,22 +95,41 @@ async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjec
 
 async finishProjectDeletionCleanup(record: StoredProjectDeletion): Promise<MolisWorkProjectDeletionRecord> {
     if (record.cleanup_state === "complete") return this.projects.lifecycle.deletionRecord(record);
+    const problems: string[] = [];
+    // Each owner clears what it keeps for the project, once the catalog no longer has it; a step that fails stays pending.
+    for (const step of this.projects.lifecycle.deletionSteps(record.deletion_id)) {
+      if (step.state !== "pending") continue;
+      try {
+        const ran = await this.owners.clear(step.owner_id, record.project_id);
+        await this.commit(() => this.projects.lifecycle.updateDeletionStep(record.deletion_id, step.owner_id, { state: ran ? "complete" : "skipped", error: null }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        problems.push(`${step.owner_id}：${message}`);
+        await this.commit(() => this.projects.lifecycle.updateDeletionStep(record.deletion_id, step.owner_id, { state: "pending", error: message }));
+      }
+    }
     try {
       await fs.rm(record.staged_directory, { recursive: true, force: true });
-      const cleanedAt = new Date().toISOString();
-      record = await this.commit(() => this.projects.lifecycle.updateDeletionCleanup(record.deletion_id, {
-        state: "complete",
-        error: null,
-        cleaned_at: cleanedAt,
-      }));
     } catch (error) {
-      record = await this.commit(() => this.projects.lifecycle.updateDeletionCleanup(record.deletion_id, {
-        state: "pending",
-        error: error instanceof Error ? error.message : String(error),
-        cleaned_at: null,
-      }));
+      problems.push(error instanceof Error ? error.message : String(error));
     }
+    record = await this.commit(() => this.projects.lifecycle.updateDeletionCleanup(record.deletion_id, problems.length
+      ? { state: "pending", error: problems.join("；"), cleaned_at: null }
+      : { state: "complete", error: null, cleaned_at: new Date().toISOString() }));
     return this.projects.lifecycle.deletionRecord(record);
+  }
+
+  /**
+   * Finishes the clean-up of earlier deletions of this project id that is still pending, so a project made again under
+   * the same id (the fixed-id demo) never starts on what the old one left. Refuses while something is still left.
+   */
+  async settleProject(projectId: string): Promise<void> {
+    for (const pending of this.projects.lifecycle.pendingDeletions(projectId)) {
+      const settled = await this.finishProjectDeletionCleanup(pending);
+      if (settled.cleanup_state !== "complete") {
+        throw new MolisWorkProjectCatalogError("catalog.project_storage_invalid", `这个项目上一次删除的清理还没有完成，先重试清理：${settled.cleanup_error ?? ""}`);
+      }
+    }
   }
 }
 

@@ -10,6 +10,7 @@ import type { ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from
 import { managedProjectDirectory } from "./project-file-paths.js";
 import { validateManagedBoard } from "./managed-project-database.js";
 import type { ManagedProjectDeletion } from "./managed-project-deletion.js";
+import type { ProjectDeletedPort } from "./project-deleted-hooks.js";
 import {
   enableDemoProjectPlugins,
   seedDemoPluginSurfaces,
@@ -27,6 +28,7 @@ export class DemoProjectLifecycle {
     private readonly deletion: ManagedProjectDeletion,
     private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">,
     private readonly commit: CatalogCommit,
+    private readonly owners: Pick<ProjectDeletedPort, "clearAll">,
   ) {}
 
   async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> {
@@ -37,6 +39,9 @@ export class DemoProjectLifecycle {
       await this.finishDemoProject(existing.project_id, existing.database_path, actorId);
       return { status: "existing", project: existing };
     }
+    // The demo has a fixed id: whatever the owners of project data kept under it from an earlier demo is cleared first.
+    await this.deletion.settleProject(this.demo.projectId);
+    await this.owners.clearAll(this.demo.projectId);
     const record = this.projects.lifecycle.prepareRecord({
       project_id: this.demo.projectId,
       display_name: input.display_name ?? "Molis Work 示例项目",
@@ -85,6 +90,8 @@ export class DemoProjectLifecycle {
       previousMoved = true;
       await fs.rename(stagingDirectory, projectDirectory);
       resetPromoted = true;
+      // A rebuilt demo starts without what the owners kept for the old one.
+      await this.owners.clearAll(project.project_id);
       await this.seedDemoExtras(project.project_id, project.database_path, actorId);
       updated = await this.commit(() => {
         enableDemoProjectPlugins(this.projects, project.project_id, actorId);

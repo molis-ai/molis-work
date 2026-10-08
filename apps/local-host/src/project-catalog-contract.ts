@@ -1,4 +1,4 @@
-export const CATALOG_SCHEMA_VERSION = 21;
+export const CATALOG_SCHEMA_VERSION = 22;
 export const CATALOG_OWNER = "molis-work-project-catalog-v1";
 
 export function isOwnedCatalogOwner(owner: string | null | undefined): boolean {

@@ -100,6 +100,13 @@ export interface WorkflowVerdict {
 
 export type WorkflowStepStatus = "pending" | "current" | "done";
 
+/** Why a judgment held this step's content back. The step keeps it, so the run reads the same after a reload. */
+export interface WorkflowHold {
+  readonly at: string;
+  readonly reason: string;
+  readonly verdict?: WorkflowVerdict;
+}
+
 export interface WorkflowStep {
   readonly station_id: string;
   readonly plugin: string;
@@ -108,6 +115,8 @@ export interface WorkflowStep {
   readonly arrived_at: string | null;
   /** Filled once this step has been handed to the next one. */
   readonly handoff: WorkflowHandoff | null;
+  /** A judgment held this step's content back and the run stopped here; the run's `stopped` is read from it. */
+  readonly held?: WorkflowHold;
   /** Saved before delivery: a retry after a crash or a lost race re-sends exactly this, instead of asking the model again. */
   /** attempted_at: an action step was called and its result never confirmed; attempt_error: what that call said when it failed after starting. */
   readonly pending?: WorkflowHandoff & { readonly key: string; readonly attempted_at?: string; readonly attempt_error?: string };
@@ -120,6 +129,33 @@ export interface WorkflowStep {
 
 export function handoffKey(instance: Pick<WorkflowInstance, "instance_id">, from: number): string {
   return `${instance.instance_id}:${from}`;
+}
+
+/**
+ * The concurrency token (`updated_at`) a write leaves behind: `at` when it is later than the token the change was
+ * computed from, otherwise one millisecond after it. A save inside the same millisecond as the last one, or one stamped
+ * with an earlier time, would leave the token as it was and let a call that read the old state through.
+ */
+export function nextUpdatedAt(previous: string, at: string = new Date().toISOString()): string {
+  const before = Date.parse(previous);
+  if (!Number.isFinite(before) || Date.parse(at) > before) return at;
+  return new Date(before + 1).toISOString();
+}
+
+/** The reason a run stopped when a judgment held its content back: the held step has it, whoever reads the run. */
+export function stoppedOf(status: WorkflowInstanceStatus, steps: readonly WorkflowStep[]): WorkflowInstance["stopped"] {
+  if (status !== "stopped") return undefined;
+  const from = steps.findIndex(step => step.held);
+  const held = steps[from]?.held;
+  return held ? { at: held.at, from, reason: held.reason, ...(held.verdict ? { verdict: held.verdict } : {}) } : undefined;
+}
+
+/** A judgment held step `from`'s content back: the run stops at that step and keeps why. */
+export function holdInstance(instance: WorkflowInstance, from: number, held: WorkflowHold): WorkflowInstance {
+  if (instance.status !== "active") throw new WorkflowError("workflows.invalid", "这一次已经结束");
+  if (from !== instance.current) throw new WorkflowError("workflows.conflict", "这一步已经交过了，请刷新后再看");
+  const steps = instance.steps.map((step, index) => index === from ? { ...step, held } : step);
+  return { ...instance, status: "stopped", steps, stopped: stoppedOf("stopped", steps), updated_at: held.at };
 }
 
 export type WorkflowInstanceStatus = "active" | "done" | "stopped";
@@ -135,7 +171,7 @@ export interface WorkflowInstance {
   /** The chain as it was when this instance started; later edits to the workflow do not rewrite history. */
   readonly chain: WorkflowChain;
   readonly steps: readonly WorkflowStep[];
-  /** Why a run stopped before its last station, when a judgment held the content back. */
+  /** Why a run stopped before its last station, when a judgment held the content back. Read from the held step, never stored apart from it. */
   readonly stopped?: { readonly at: string; readonly from: number; readonly reason: string; readonly verdict?: WorkflowVerdict };
   readonly created_at: string;
   readonly updated_at: string;
@@ -384,7 +420,7 @@ export function withPendingLinks(instance: WorkflowInstance, workflow: WorkflowC
   return changed ? { ...instance, chain: { stations: instance.chain.stations, links } } : instance;
 }
 
-/** Record one handoff and move the work to the next station. */
+/** Record one handoff and move the work to the next station. `at` is when the work arrives there; the handoff keeps its own time. */
 export function advanceInstance(
   instance: WorkflowInstance,
   from: number,

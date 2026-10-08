@@ -73,7 +73,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
   - 一个 Home 只有一个执行进程（`agent-runtime/.molis-runtime-owner.db` 锁）；其他入口经 `LocalActionGatewayClient` 转发，连接丢失不退回本地执行。
-  - 每个项目一条串行操作队列；等模型或外部服务的动作声明 `scheduling: "concurrent"`，例外写进 `tests/action-model-scheduling.test.ts` 的名单并说明理由。
+  - 每个项目一条串行操作队列；等模型或外部服务的动作声明 `scheduling: "concurrent"`，例外写进 `tests/action-model-scheduling.test.ts` 的名单并说明理由。并发动作不占队列：它调用的串行动作排队等自己的轮次，只有嵌套在占着队列的调用里的调用直接在队列上运行；场景运行取触发它的调用的位置（`tests/local-host-queue-scope.test.ts`）。
   - 被取消、撤权、停用的调用不再写任何记录，包括失败记账。
   - 安装插件的 Action/定时入口通过可信 route execution 向沙箱传递当前控制；异步能力、密钥/DNS 解析与存储 CAS 后续派出或提交前复查。生成式外层动作 concurrent，串行由沙箱队列承担；未知结果不自动重放。定时调用者按数据库/项目隔离。
   - 安装 operation 每次读取当前依赖的版本、可用性和 execution，决定通道及单次时限；等待后依赖变更拒绝晚提交。query 运行时也拒绝收费或写入能力。嵌套超时的未知结果沿 Sandbox、HTTP 和公开 Action 保留，不能被插件 catch 后变成成功。
@@ -89,7 +89,9 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
   - 系统搜索只在这里装配：`system.search` 注册一次；建索引用本机用户上下文，调用者按自己的项目或 Home 客户端访问；成功的命令与提供方注册/撤下都通知搜索，不另建能力名单或权限。
   - `material-web.ts` 负责显式网页捕获的 HTTP(S)、最多 5 次重定向、12 秒总时限和解压后 4 MiB 正文限制；每次派出复查权限，超限拒绝正文并取消流。Shelf 保留产品组织和链接失败提示，Artifacts 复用 Host HTML 解析，不跨模块导入 Shelf 解析器。
   - Artifacts 外部文档沿用连接器请求生命周期；每个供应商 API 请求前复查原 Action、取消与账号 revision，最终异步授权检查之后再核对连接。撤权、断开或取消不继续读取正文、不刷新凭据，也不保存迟到结果。
-- 改动后必跑：`node scripts/run-tests.mjs tests/local-host.test.ts tests/local-host-actions.test.ts tests/action-before-effect.test.ts tests/action-model-scheduling.test.ts tests/action-read-compatibility.test.ts tests/installer-symlink-dependencies.test.ts tests/system-search-host.test.ts tests/project-arrival.test.ts`
+  - 助理（`src/assistant/`）只在一轮真的开始之后才把「只告诉一次」的事记为已告知：撤销、已结束的后台任务、停止后落定的修改；开轮失败（无模型、`storage_busy`、Character 版本）不留任何已告知标记，记忆召回按未使用结算，下一轮照样告知。一个后台任务只跟一次（同一工作、同一状态查询的同一 job 不重复登记，卡片接手既有的那条）；撤销先占用再调用所有者，并发的第二次请求得到同一结果，已撤销不被迟到的失败覆盖；归档要求这项工作和它的子任务都没有在进行的一轮，并停用它的定时；归档的子任务仍计入委托它的工作的用量、上限和停止；子任务的首轮开不了就不留孤儿工作。
+- 改动后必跑：`node scripts/run-tests.mjs tests/local-host.test.ts tests/local-host-actions.test.ts tests/local-host-queue-scope.test.ts tests/web-mutation-key-settle.test.ts tests/action-before-effect.test.ts tests/action-model-scheduling.test.ts tests/action-read-compatibility.test.ts tests/installer-symlink-dependencies.test.ts tests/system-search-host.test.ts tests/project-arrival.test.ts`
+- 助理逻辑验证：`node scripts/run-tests.mjs tests/assistant-undo.test.ts tests/assistant-business-gateway.test.ts tests/assistant-followups.test.ts tests/assistant-delegation.test.ts tests/assistant-memory.test.ts`。
 - 安装插件执行链额外验证：`node scripts/run-tests.mjs tests/installed-plugin-host.test.ts tests/installed-plugin-execution.test.ts tests/installed-plugin-policy.test.ts tests/generated-action-costs.test.ts tests/agent-built-plugins-reminders.test.ts tests/agent-built-plugins-network.test.ts`。
 - 生成式提示词身份/版本验证：`node scripts/run-tests.mjs tests/generated-plugin-prompt-binding.test.ts tests/generated-plugin-prompts.test.ts tests/plugin-model-generation.test.ts tests/agent-definitions.test.ts tests/prompt-registration.test.ts`。
 - 网页材料与导入验证：`node scripts/run-tests.mjs tests/material-web.test.ts tests/material-extraction.test.ts tests/artifact-document-import.test.ts tests/shelf-actions.test.ts`。

@@ -58,7 +58,9 @@ export interface WorkflowContentActions {
 /** A station that only starts a run (the 成果库: its versions are read, never written by a workflow). */
 export type WorkflowSourceContentActions = Omit<WorkflowContentActions, "receive">;
 interface WorkflowStationSpec { id: string; title: string; icon: string; create?: boolean; subject_kind: string;
-  read_permissions: readonly string[]; write_permissions: readonly string[] }
+  read_permissions: readonly string[]; write_permissions: readonly string[];
+  /** `concurrent` for a station whose receive waits for a model (the next-step judgment) after saving: it then runs beside the project's queue. */
+  receive_scheduling?: "concurrent" }
 
 /**
  * A plugin declares the protocol once; all consumers use these very definitions. `subject_kind` names the kind of object
@@ -75,6 +77,7 @@ export function defineWorkflowContentActions(station: WorkflowStationSpec & { re
     action: { title: `${station.title} · ${{ list: "可交接内容", read: "读取内容", receive: "接收内容", create: "新建空白内容" }[role]}`,
       description: `按工作流内容合同${{ list: "列出全部可选内容", read: "读取现有内容", receive: "写入交接内容", create: "创建空白内容" }[role]}`,
       kind: role === "read" || role === "list" ? "query" : "operation", scope: "project",
+      ...(role === "receive" && station.receive_scheduling ? { scheduling: station.receive_scheduling } : {}),
       audiences: ["user", "agent", "workflow", "mcp"], subject_kinds: [station.subject_kind],
       permissions: role === "read" || role === "list" ? station.read_permissions : station.write_permissions,
       input_schema: WORKFLOW_CONTENT_SCHEMAS[role].input, output_schema: WORKFLOW_CONTENT_SCHEMAS[role].output,

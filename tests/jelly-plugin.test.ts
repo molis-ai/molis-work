@@ -33,6 +33,19 @@ test('Jelly plans are previews, not writes, and schedule around real calendar oc
   store.execute({type:'plan.apply',plan:generated.plan},store.read().revision);assert.equal(store.read().items.length,2);
   const sourceHash=jellySourceHash(before,'note',note.id);assert.equal(generated.plan.source_hash,sourceHash);
 });
+test('Jelly text-source plans apply even when the pasted text has surrounding whitespace',async t=>{
+  const store=fixture(t);
+  for(const text of ['写发布说明\n核对文档','写发布说明\n核对文档\n','  写发布说明\n核对文档\n\n']){
+    const state=store.read(),before=state.revision;
+    const manual=await runJellyAi(state,{kind:'decompose',source_type:'text',text,manual:true},{});
+    assert.equal(manual.plan.source_text,text.trim());assert.equal(manual.plan.source_hash,jellySourceHash(state,'text',null,manual.plan.source_text));
+    store.execute({type:'plan.apply',plan:manual.plan},before);
+    assert.ok(store.read().applied_plan_ids.includes(manual.plan.id),JSON.stringify(text));
+    const modeled=await runJellyAi(store.read(),{kind:'decompose',source_type:'text',text},{completeJson:async()=>({actions:[{title:'核对文档',notes:'',minutes:30}]})});
+    store.execute({type:'plan.apply',plan:modeled.plan},store.read().revision);assert.ok(store.read().applied_plan_ids.includes(modeled.plan.id),JSON.stringify(text));
+  }
+  assert.equal(store.read().applied_plan_ids.length,6);
+});
 test('Jelly AI failures retain source; no fabricated model output',async t=>{
   const store=fixture(t);store.execute({type:'note.create',title:'原笔记',markdown:'关于未来产品的一段真实原文'});const before=store.read(),id=before.notes[0]!.id;
   await assert.rejects(()=>runJellyAi(before,{kind:'decompose',source_type:'note',source_id:id},{}),/尚未配置/);

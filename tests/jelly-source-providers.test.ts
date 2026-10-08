@@ -6,7 +6,7 @@ import { classifyJellySource, jellySourceEmbeddedJSON, jellyXiaohongshuNoteID, p
 import { fetchJellyPublicBytes, isJellyPublicAddress, readJellyPublicBody, resolveJellyPublicAddresses, validateJellyPublicURL, type JellyPublicResponse } from "../apps/local-host/src/jelly-source-reader.js";
 import { JellyMaterialError, type JellyMaterialExtraction } from "../apps/local-host/src/jelly-native-material.js";
 const page = (url: string, body: string, type = "text/html"): JellyPublicResponse => ({ data: Buffer.from(body), type, final_url: url, status: 200 });
-const material = (text: string): JellyMaterialExtraction => ({ text, file_name: "source.mp4", source_sha256: "a".repeat(64), extractor: "test-extractor", pages: [{ number: 1, text, method: "test", confidence: null }], coverage: { status: "sufficient", processed_pages: 1, total_pages: 1, issues: [] } });
+const material = (text: string): JellyMaterialExtraction => ({ text, file_name: "source.mp4", extractor: "test-extractor", pages: [{ number: 1, text, method: "test", confidence: null }], coverage: { status: "sufficient", processed_pages: 1, total_pages: 1, issues: [] } });
 const noteHTML = (id: string, note: Record<string, unknown>) => `<script>window.__INITIAL_STATE__=${JSON.stringify({ note: { noteDetailMap: { [id]: { note } } } })};</script>`;
 
 test("public source classifier uses exact domains and note paths without executing embedded JS", () => {

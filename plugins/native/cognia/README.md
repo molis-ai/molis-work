@@ -40,6 +40,7 @@ No cloud sync, background watching, bidirectional sync, proprietary database mig
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不改原文件；删除源文件不删除已导入的材料，取消预览不添加材料。
+  - 提交后的预览只留回执（重复提交返回它），不再留整批文件；删除资料会让采纳过它的草稿回到未采纳，可再次采纳；已固定版本仍按草稿显示来源引用（草稿记着它采纳过的资料）。
   - 综合输出必须带有效的固定来源引用；取消、模型失败或引用无效时不保存草稿；草稿只有「存入知识库」后才进入知识。
   - 下载用附件方式，从不执行 HTML 或 SVG；发现能力不发起请求、不解密凭据。
   - HTTP、MCP 动作工具与导入都经绑定的动作服务，原 Store 是唯一数据 owner。

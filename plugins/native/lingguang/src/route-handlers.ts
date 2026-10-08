@@ -36,7 +36,7 @@ export function lingguangRouteErrorResponse(error: unknown): LingguangPluginRout
   // A file or page reader says its own status and details (how large a model download would be).
   const own = error instanceof Error && "status" in error && typeof (error as { status: unknown }).status === "number" ? (error as { status: number }).status : undefined;
   const details = error instanceof Error && "details" in error ? (error as { details: unknown }).details : undefined;
-  const status = own ?? (code === "lingguang.not_found" ? 404 : code === "lingguang.conflict" ? 409
+  const status = own ?? (code === "lingguang.not_found" ? 404 : ["lingguang.conflict", "lingguang.request_conflict"].includes(code) ? 409
     : ["actions.forbidden", "actions.scope_mismatch"].includes(code) ? 403 : 400);
   return { status, body: { error: message, ...(code ? { code } : {}), ...(details !== undefined ? { details } : {}) } };
 }

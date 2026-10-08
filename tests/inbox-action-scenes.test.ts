@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
-import { inboxActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxActions, inboxContentActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
+import { feedContentActions, feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
 import type { ActionCallContext, ActionDefinition, ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -150,4 +151,48 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.binding_invalid" });
     await assert.rejects(scenes.runScene(caller, inboxNextScene, binding.binding_id, { entry_id: entry.entry_id }), { code: "actions.scene_incompatible" });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("admission actions wait for the Inbox next-step judgment beside the project's queue, not on it", async () => {
+  const home = await mkdtemp(join(tmpdir(), "inbox-admission-queue-"));
+  const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "feed:read", "feed:write", "inbox:write"] };
+  let gate = Promise.withResolvers<void>(), asked = Promise.withResolvers<void>();
+  const options: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" },
+    provider: { async evaluate(_key, record) {
+      asked.resolve(); await gate.promise;
+      return { primitive: "choice", choice: "inbox.done", probabilities: { "inbox.done": 1 }, confidence: null, model: record.model, noul: null, score: null, legend: null };
+    } } };
+  const host = new MolisWorkLocalHost({ homeDirectory: home, functions: options });
+  const actions = host.actionClient(reference);
+  const settle = (milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds));
+  // The same unrelated serial command of the project, sent while the model is still thinking.
+  const unrelatedRead = async (itemId: string) => Promise.race([actions.invoke(caller, feedItemActions.read, { item_id: itemId }).then(() => "answered"), settle(1_000).then(() => "stuck behind the judgment")]);
+  try {
+    for (const action of [feedItemActions.inbox, feedContentActions.receive, inboxContentActions.receive]) {
+      assert.equal(action.action.scheduling, "concurrent", `${action.capability_id} waits for a model, so it runs beside the project's queue`);
+    }
+    const rule = withFunctionsService(home, service => service.list().find(rule => rule.function_key === "system_pick_inbox_next")!, options);
+    await actions.invoke(caller, inboxActions.writeJudgment, { function_key: rule.function_key });
+    const { first, second, other } = await host.withProject(reference, runtime => {
+      const feed = createLocalFeedApplication(runtime.store.db);
+      const source = createLocalFeedSourceService(runtime.store.db, runtime.project_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "inbox-queue-test" }).source;
+      const add = (id: string) => feed.ingestItem({ source, externalId: id, title: `消息 ${id}`, summary: id, body: `正文 ${id}`, occurredAt: new Date().toISOString(), attention: false }).item;
+      return { first: add("a"), second: add("b"), other: add("c") };
+    });
+
+    // feed.items.inbox: the admission is saved, then the judgment is awaited.
+    const admission = actions.invoke(caller, feedItemActions.inbox, { item_id: first.item_id, expected_revision: first.revision });
+    await asked.promise;
+    assert.equal(await unrelatedRead(other.item_id), "answered");
+    gate.resolve(); await admission;
+
+    // inbox.content.receive: a workflow handoff into the Inbox waits for the same judgment.
+    gate = Promise.withResolvers<void>(); asked = Promise.withResolvers<void>();
+    const handoff = actions.invoke(caller, inboxContentActions.receive, { payload: { title: "工作流交来的内容", body: "正文" }, context: { instance_id: "queue-test", step: 1 } });
+    await asked.promise;
+    assert.equal(await unrelatedRead(second.item_id), "answered");
+    gate.resolve(); await handoff;
+  } finally { gate.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

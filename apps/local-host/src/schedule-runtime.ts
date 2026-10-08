@@ -25,6 +25,7 @@ import {
 } from "@molis-ai/molis-work-plugin-schedule";
 import { deliverHostReminder } from "./schedule-reminders.js";
 import { runHostScheduledOperation } from "./schedule-operations.js";
+import { createLocalFeedApplication, type LocalFeedApplicationOptions } from "./feed-application.js";
 
 const wakeupIndex = new PluginWakeupIndex();
 const tickContext = new AsyncLocalStorage<{
@@ -32,6 +33,7 @@ const tickContext = new AsyncLocalStorage<{
   runner: ScheduledTaskRunner;
 }>();
 const runners = new WeakMap<object, ScheduledTaskRunner>();
+const deliveryFeeds = new WeakMap<object, LocalFeedApplicationOptions>();
 let wakeupBound = false;
 
 const missingRunner: ScheduledTaskRunner = {
@@ -51,17 +53,42 @@ function ensureHostWakeups(): void {
   wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_REMINDER_WAKEUP, async (input, control) => {
     const ctx = tickContext.getStore();
     if (!ctx) throw new Error("提醒没有项目现场");
-    return deliverHostReminder(ctx.db, input, control);
+    const feed = deliveryFeed(ctx.db);
+    const reply = deliverHostReminder(ctx.db, input, control, feed);
+    await judgeDelivered(feed, control);
+    return reply;
   });
   wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, async (input, control) => {
     const ctx = tickContext.getStore();
     if (!ctx) throw new Error("定时操作没有项目现场");
-    return runHostScheduledOperation(ctx.db, input, control);
+    const feed = deliveryFeed(ctx.db);
+    const reply = await runHostScheduledOperation(ctx.db, input, control, feed);
+    await judgeDelivered(feed, control);
+    return reply;
   }, { prepare(input) {
     const ctx = tickContext.getStore();
     if (!ctx) throw new Error("定时操作没有项目现场");
     prepareScheduledOperation(ctx.db, input);
   } });
+}
+
+/** Reminders and scheduled results enter Feed through a wakeup, so the project binds the judgments such an entry starts. */
+export function bindScheduleDeliveryFeed(db: ScheduleSqliteDatabase, options: LocalFeedApplicationOptions): void {
+  deliveryFeeds.set(db, options);
+}
+
+function deliveryFeed(db: ScheduleSqliteDatabase) {
+  return createLocalFeedApplication(db as Parameters<typeof createLocalFeedApplication>[0], deliveryFeeds.get(db));
+}
+
+/**
+ * The delivery has committed (a rolled-back or refused one threw before this point), so the Inbox next step and
+ * capture rules its item started run now. They follow the delivery: a model failure never un-delivers a reminder,
+ * and a wakeup that lost its lease starts nothing new.
+ */
+async function judgeDelivered(feed: ReturnType<typeof deliveryFeed>, control: ScheduleWakeupControl): Promise<void> {
+  if (control.signal.aborted) return;
+  try { await feed.flushPendingJudgments(); } catch { /* The judgment is recorded or can be asked for again from the Inbox entry. */ }
 }
 
 /**

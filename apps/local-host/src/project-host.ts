@@ -1,8 +1,9 @@
 import { observeGitOperations } from "./git-operation-notifications.js";
 import { informationActionProvider } from "./information-actions.js";
 import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
-import { createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
-import { homeActionProvider, createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
+import { homeActionProvider } from "./home-actions.js";
+import { workflowEventsFeedOptions } from "./workflow-feed-options.js";
+import { bindScheduleDeliveryFeed } from "./schedule-runtime.js";
 import { SessionRuntimeService } from "./session-runtime-resources.js";
 import { workActionProvider } from "./work-actions.js";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
@@ -35,7 +36,6 @@ import { connectorAccountActionProvider } from "./connector-account-actions.js";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { nativeContentProviders } from "./content-action-providers.js";
 import { createLocalFeedApplication } from "./feed-application.js";
-import { createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { SystemFunctionsActions } from "./functions-actions.js";
 import type { FunctionsHostOptions } from "./functions-host.js";
 import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
@@ -181,16 +181,10 @@ export class MolisWorkLocalHost {
           };
           try {
             const scenes = this.sceneClient(reference);
-            const feed = createLocalFeedApplication(store.db, {
-              captureJudgment: createFeedCaptureTrigger({ scenes, projectId: reference.project_id,
-                context: () => ({ actor_id: "workflow-events", project_id: reference.project_id, audience: "workflow",
-                  permissions: ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"] }) }),
-              homeJudgment: createHomeJudgmentTrigger({ scenes, projectId: reference.project_id,
-                context: () => ({ actor_id: "workflow-events", project_id: reference.project_id, audience: "workflow", permissions: HOME_ACTION_PERMISSIONS.filter(permission => permission !== "home:write") }) }),
-              inboxJudgment: createInboxJudgmentTrigger({ scenes, projectId: reference.project_id,
-                context: () => ({ actor_id: "workflow-events", project_id: reference.project_id, audience: "workflow",
-                  permissions: ["inbox:read", "model:invoke", "functions:invoke"] }) }),
-            });
+            const eventFeed = workflowEventsFeedOptions(scenes, reference.project_id);
+            const feed = createLocalFeedApplication(store.db, eventFeed);
+            // Reminders and scheduled results are delivered into Feed by the Scheduler's wakeup, with the same judgments.
+            bindScheduleDeliveryFeed(store.db, eventFeed);
             const registry = this.host.actionRegistry(reference);
             registry.registerProvider(goalsActionProvider(runtime, personalMethods, this.actionClient(reference)));
             registry.registerProvider(workActionProvider(reference.project_id, this.sessions, this.actionClient(reference)));

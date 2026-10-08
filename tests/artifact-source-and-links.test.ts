@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const controlToken = "artifact-source-links-control-token-0123456789";
@@ -80,4 +81,34 @@ test("a pinned document shows when the original changed or was deleted, and whic
   assert.match(missing, /原对象已经删除，这里仍保留第 1 版/);
   assert.doesNotMatch(missing, /在 Pages 打开原对象/);
   assert.match(missing, /第一稿/);
+});
+
+test("a pinned document that moved to another place says so, instead of saying it was deleted", async t => {
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-moved-"));
+  const databasePath = join(directory, "fixture.db");
+  seedDemoBoard(databasePath);
+  const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const origin = `http://127.0.0.1:${address.port}`;
+  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await rm(directory, { recursive: true, force: true }); });
+  await (await fetch(origin + "/health")).text();
+  const post = async (path: string, body: unknown) => {
+    const response = await fetch(origin + path, { method: "POST", headers: { "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(body) });
+    assert.ok(response.ok, `${path}: ${response.status} ${await response.clone().text()}`);
+    return await response.json() as Record<string, any>;
+  };
+  const detail = async (artifactId: string, version: number) => await (await fetch(`${origin}/artifacts/${encodeURIComponent(artifactId)}/versions/${version}`,
+    { headers: { "x-molis-work-fragment": "artifact-workbench" } })).text();
+
+  const created = (await post("/api/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
+  const pinned = (await post("/api/pages/" + created.id + "/promote", { expected_version: created.version })).artifact as { artifact_id: string; version: number };
+  const store = openPagesStore(directory);
+  try { store.relocate(created.id, DEMO_PROJECT_ID, "personal"); } finally { store.close(); }
+  const moved = await detail(pinned.artifact_id, pinned.version);
+  assert.match(moved, /原对象已移到别处，这里仍保留第 1 版/);
+  assert.doesNotMatch(moved, /原对象已经删除/, "a move is not a deletion");
+  assert.doesNotMatch(moved, /在 Pages 打开原对象/, "it is not in this project to open");
+  assert.match(moved, /第一稿/);
 });

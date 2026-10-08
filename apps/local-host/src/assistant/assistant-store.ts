@@ -180,9 +180,10 @@ export class AssistantStore {
     return work.executor ? work : { ...work, executor: { kind: "assistant" } };
   }
 
-  list(actorId: string, options: { archived?: boolean; limit?: number } = {}): StoredWork[] {
-    return this.db.prepare("SELECT body FROM assistant_works WHERE actor_id=? AND archived=? ORDER BY updated_at DESC LIMIT ?")
-      .all(actorId, options.archived ? 1 : 0, options.limit ?? 50).map(row => JSON.parse(String(row.body)) as StoredWork)
+  list(actorId: string, options: { archived?: boolean | "any"; limit?: number } = {}): StoredWork[] {
+    const [low, high] = options.archived === "any" ? [0, 1] : options.archived ? [1, 1] : [0, 0];
+    return this.db.prepare("SELECT body FROM assistant_works WHERE actor_id=? AND archived BETWEEN ? AND ? ORDER BY updated_at DESC LIMIT ?")
+      .all(actorId, low, high, options.limit ?? 50).map(row => JSON.parse(String(row.body)) as StoredWork)
       .map(work => work.executor ? work : { ...work, executor: { kind: "assistant" as const } });
   }
 
@@ -252,15 +253,13 @@ export class AssistantStore {
 
   /** Actions the person switched off for the Assistant, by exact capability, version and provider. */
   disabledActions(actorId: string): Set<string> {
-    const row = this.db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key='disabled_actions'").get(actorId);
-    return new Set(row ? JSON.parse(String(row.value)) as string[] : []);
+    return new Set(JSON.parse(this.setting(actorId, "disabled_actions") ?? "[]") as string[]);
   }
 
   setActionEnabled(actorId: string, key: string, enabled: boolean): Set<string> {
     const current = this.disabledActions(actorId);
     if (enabled) current.delete(key); else current.add(key);
-    this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, 'disabled_actions', 1, ?)
-      ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, JSON.stringify([...current].sort()));
+    this.setSetting(actorId, "disabled_actions", JSON.stringify([...current].sort()));
     return current;
   }
 
@@ -318,10 +317,6 @@ export class AssistantStore {
       .run(change.change_id, actorId, change.work_id, JSON.stringify(change));
   }
 
-  markUnsettledTold(actorId: string, changeIds: readonly string[]): void {
-    for (const id of changeIds) this.db.prepare("UPDATE assistant_unsettled SET told=1 WHERE actor_id=? AND change_id=?").run(actorId, id);
-  }
-
   removeFollowUp(actorId: string, followupId: string): boolean {
     return Number(this.db.prepare("DELETE FROM assistant_followups WHERE actor_id=? AND followup_id=?").run(actorId, followupId).changes) > 0;
   }
@@ -362,14 +357,12 @@ export class AssistantStore {
   }
 
   saveUndo(actorId: string, undo: StoredUndo): void {
-    this.db.prepare("INSERT INTO assistant_undos(undo_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(undo_id) DO UPDATE SET body=excluded.body")
-      .run(undo.undo_id, actorId, undo.work_id, JSON.stringify(undo));
+    this.db.prepare("INSERT INTO assistant_undos(undo_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(undo_id) DO UPDATE SET body=excluded.body").run(undo.undo_id, actorId, undo.work_id, JSON.stringify(undo));
   }
 
   /** Capabilities (action keys) the person wants confirmed each time even though they could be undone. */
   confirmAlways(actorId: string): Set<string> {
-    const saved = this.setting(actorId, "confirm_always");
-    return new Set(saved ? JSON.parse(saved) as string[] : []);
+    return new Set(JSON.parse(this.setting(actorId, "confirm_always") ?? "[]") as string[]);
   }
 
   setConfirmAlways(actorId: string, key: string, on: boolean): void {
@@ -378,8 +371,17 @@ export class AssistantStore {
     this.setSetting(actorId, "confirm_always", JSON.stringify([...keys]));
   }
 
-  markJobsTold(actorId: string, keys: readonly string[]): void {
-    for (const key of keys) this.db.prepare("UPDATE assistant_jobs SET told=1 WHERE actor_id=? AND key=?").run(actorId, key);
+  /** What a round that has started was told: those undone changes, ended jobs and settled changes are not told again. */
+  markTold(actorId: string, told: { undos?: readonly string[]; jobs?: readonly string[]; unsettled?: readonly string[] }): void {
+    for (const id of told.undos ?? []) this.db.prepare("UPDATE assistant_undos SET body=json_set(body,'$.told',json('true')) WHERE actor_id=? AND undo_id=? AND json_extract(body,'$.state')='undone'").run(actorId, id);
+    for (const key of told.jobs ?? []) this.db.prepare("UPDATE assistant_jobs SET told=1 WHERE actor_id=? AND key=?").run(actorId, key);
+    for (const id of told.unsettled ?? []) this.db.prepare("UPDATE assistant_unsettled SET told=1 WHERE actor_id=? AND change_id=?").run(actorId, id);
+  }
+
+  /** A work whose first round could not start is dropped with what was kept for it; one that has a round is never dropped. */
+  discard(actorId: string, workId: string): void {
+    if (this.rounds(workId).length) return;
+    for (const table of ["works", "observed", "notices", "followups", "undos", "jobs", "unsettled"]) this.db.prepare(`DELETE FROM assistant_${table} WHERE actor_id=? AND work_id=?`).run(actorId, workId);
   }
 
   /** One finished round's reported usage, kept once. */
@@ -414,18 +416,16 @@ export class AssistantStore {
   }
 
   rules(actorId: string): AssistantRule[] {
-    const row = this.db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key='attention_rules'").get(actorId);
-    return row ? JSON.parse(String(row.value)) as AssistantRule[] : [];
+    return JSON.parse(this.setting(actorId, "attention_rules") ?? "[]") as AssistantRule[];
   }
 
   setRules(actorId: string, rules: readonly AssistantRule[]): void {
-    this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, 'attention_rules', 1, ?)
-      ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, JSON.stringify(rules));
+    this.setSetting(actorId, "attention_rules", JSON.stringify(rules));
   }
 
-  /** The works a work delegated, oldest first. */
-  delegatedBy(actorId: string, workId: string): StoredWork[] {
-    return this.list(actorId, { limit: 500 }).filter(work => work.delegated_by?.work_id === workId).sort((a, b) => a.created_at.localeCompare(b.created_at));
+  /** The works a work delegated, oldest first; those put away only when asked for ("any"): they still count toward its budget, limit and stop. */
+  delegatedBy(actorId: string, workId: string, archived: boolean | "any" = false): StoredWork[] {
+    return this.list(actorId, { archived, limit: 500 }).filter(work => work.delegated_by?.work_id === workId).sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
   releaseRequest(actorId: string, requestId: string): void {

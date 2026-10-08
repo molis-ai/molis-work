@@ -1,3 +1,5 @@
+import { AttentionError } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { SourceHistoryDecision } from "./projection.js";
 export class FeedStoreError extends Error {
   constructor(
@@ -13,6 +15,33 @@ export class FeedStoreError extends Error {
   ) {
     super(message);
     this.name = "FeedStoreError";
+  }
+}
+
+/** A Feed module refusal reaches callers as the application's own store error, with the same code. */
+export function callFeed<T>(operation: () => T): T {
+  try {
+    return operation();
+  } catch (error) {
+    if (error instanceof FeedError) throw new FeedStoreError(error.code, error.message);
+    throw error;
+  }
+}
+
+/** An Attention module refusal reaches callers as the application's own store error. */
+export function callAttention<T>(operation: () => T): T {
+  try {
+    return operation();
+  } catch (error) {
+    if (error instanceof AttentionError) {
+      const code = error.code === "attention_entry_not_found"
+        ? "inbox_entry_not_found"
+        : error.code === "attention_revision_conflict"
+          ? "feed_revision_conflict"
+          : "feed_invalid_transition";
+      throw new FeedStoreError(code, error.message);
+    }
+    throw error;
   }
 }
 

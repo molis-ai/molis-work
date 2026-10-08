@@ -58,7 +58,6 @@ export interface BuiltinPluginEntry {
   /** Bodies of the Manifest's `methods` (offered to other Agents for business work); the package ships them. */
   readonly methods?: readonly AgentSkillDefinition[];
   readonly workbench?: BuiltinPluginWorkbench;
-  /** Historical MCP spellings only; new public functions use Manifest.actions. No Host I/O or credentials. */
 }
 
 /** Shared build composition for catalog and UI resources. */

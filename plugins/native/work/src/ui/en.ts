@@ -23,7 +23,7 @@ export const WORK_EN: Record<string, string> = {
   "点右上角「添加终端」，在这个 Goal 上打开常用 Runtime 或自定义命令。": "Use Add terminal in the top-right to open a common Runtime or a custom command on this Goal.",
   "请选择要打开的 TUI": "Choose a TUI to open",
   "在这个 Goal 上打开终端": "Open a terminal on this Goal",
-  "标签只属于当前 Goal。打开不会自动发送或领取。": "This tab belongs only to the current Goal. Opening it does not send a prompt or claim the work.",
+  "标签只属于当前 Goal。打开不会自动发送任何内容。": "This tab belongs only to the current Goal. Opening it does not send anything.",
   "参数": "Arguments",
   "工作目录": "Working directory",
   "继续会话 ID": "Resume session ID",

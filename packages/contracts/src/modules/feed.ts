@@ -73,6 +73,8 @@ export interface IngestFeedItemInput {
   source_label: string;
   external_id: string;
   signal?: { signal_id: string; revision: number };
+  /** A source without Signals declares that this existing item's content changed, so it updates with its material. */
+  refresh?: boolean;
   title: string;
   summary: string;
   body?: string | null;

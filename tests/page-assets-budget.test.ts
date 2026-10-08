@@ -517,7 +517,7 @@ test("a route compared with a constant instead of a literal is exit 2, in either
   assert.equal(run(root).code, 0);
 });
 
-test("a route spelled as a regular expression or with escaped slashes is exit 2; the plugin pack pattern is the only one the gate knows", () => {
+test("a route spelled as a regular expression or with escaped slashes is exit 2 wherever the word assets sits; the plugin pack pattern is the only one the gate knows", () => {
   // Found in review: the escaped `\/assets\/` of a regex literal is not a whole "/assets/", so it raised neither the mention
   // count nor the comparison check, and a route spelled that way (say a per-plugin stylesheet family) was never measured.
   const root = hostRepo("discovery-regex");
@@ -528,6 +528,9 @@ test("a route spelled as a regular expression or with escaped slashes is exit 2;
     ["a stylesheet family as a regex literal", String.raw`const sheet = pathname.match(/^\/assets\/molis-work-plugin-styles\/([a-z0-9-]+)\.css$/);`],
     ["a regex with one escaped slash", String.raw`const sheet = /^\/assets\/styles.css$/;`],
     ["a regex with the slashes in character classes", String.raw`const sheet = /^[/]assets[/]styles\.css$/;`],
+    ["a regex with the slashes escaped inside character classes", String.raw`const sheet = pathname.match(/^[\/]assets[\/]molis-work-plugin-styles[\/]([a-z0-9-]+)\.css$/);`],
+    ["a regex with the word in a group", String.raw`const sheet = pathname.match(/^\/(assets)\/molis-work-plugin-styles\/([a-z0-9-]+)\.css$/);`],
+    ["a regex with the word in a group and no escaped slash next to it", String.raw`const sheet = pathname.match(/^[/](assets)[/]styles\.css$/);`],
     ["the pack pattern widened to another extension", String.raw`const packs = /^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.(js|css)$/;`],
     ["the pack pattern pointed at another folder", String.raw`const packs = /^\/assets\/molis-work-styles\/([a-z0-9-]+)\.js$/;`],
     ["a plain string with escaped slashes", String.raw`const font = "\/assets\/inter.woff2";`],
@@ -537,13 +540,13 @@ test("a route spelled as a regular expression or with escaped slashes is exit 2;
     put(HOST_SOURCE, `${original}\n${text}\n`, root);
     const hidden = run(root);
     assert.equal(hidden.code, 2, `${name}: ${hidden.out}`);
-    assert.match(hidden.out, /spells an "\/assets\/" route with escaped slashes|mentions "\/assets\/" \d+ times but only \d+ of them are whole string literals/, name);
+    assert.match(hidden.out, /has the word "assets" outside a whole "\/assets\/…" string literal|mentions "\/assets\/" \d+ times but only \d+ of them are whole string literals/, name);
   }
-  // The escaped-slash message names the text it found and the one pattern it accepts.
+  // The message names the text it found and the one pattern it accepts.
   put(HOST_SOURCE, `${original}\n${String.raw`const sheet = pathname.match(/^\/assets\/molis-work-plugin-styles\/([a-z0-9-]+)\.css$/);`}\n`, root);
   const named = run(root);
   assert.match(named.out, /plugin-styles/);
-  assert.match(named.out, /the only one the gate knows is the plugin pack pattern/);
+  assert.match(named.out, /the only regular expression the gate knows is the plugin pack pattern/);
   // The known pattern, however often it is written, and a regex in a comment are not alarms.
   put(HOST_SOURCE, `${original}\n${known}\n// the old family was /^\\/assets\\/molis-work-old\\/x\\.css$/\n/* and \\/assets\\/ghost */\n`, root);
   const fine = run(root);

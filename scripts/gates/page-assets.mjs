@@ -14,14 +14,16 @@
 // If the host still sends it, it is measured and the run fails as a discovery miss, so deleting a budget entry together with
 // the literal that named the route does not stop the asset from being measured, and a harmless rewrite of the routes does
 // not silently blind the gate. A route compared with something that is not a literal (an imported constant), a
-// `/assets/` mention the gate cannot read as a whole literal, or a route spelled as a regular expression other than the
-// plugin pack pattern, is exit 2: the gate cannot see what it would have to measure.
+// `/assets/` mention the gate cannot read as a whole literal, or the word `assets` anywhere else in the file than inside a
+// whole `/assets/…` string literal or the plugin pack pattern (a route spelled as a regular expression or with escaped
+// slashes: `\/assets\/`, `[\/]assets`, `[/]assets`, `(assets)`), is exit 2: the gate cannot see what it would have to measure.
 //
-// Not covered, said here so nobody reads the gate as stronger than it is (the same list is in AGENTS.md and the spec):
+// Not covered, said here so nobody reads the gate as stronger than it is (spec §5a has the same list; AGENTS.md points here):
 //  - Only apps/local-host/src/web-assets.ts is read. A route added in another host file is not seen, however it is spelled;
-//    today only `serveWorkbenchAsset` there answers /assets/ (web-request.ts hands the request to it).
-//  - A route spelled so that no `/assets/` or `\/assets` text is left (two string halves concatenated, `\x2f`/`\u002f`
-//    escapes, a path built at run time) and that is in no budget. A path that is in a budget is still asked of the host.
+//    today only `serveWorkbenchAsset` there answers /assets/ (web-server.ts hands the request to it).
+//  - A route spelled so that the word `assets` is not left in the text: two string halves concatenated, `\x2f`/`\u002f`
+//    escapes, a path built at run time, or a regular expression that breaks the word itself (`asset[s]`, `a(?:ss)ets`),
+//    and that is in no budget. A path that is in a budget is still asked of the host.
 //  - The comparison check looks for the identifier `pathname`, the name web-assets.ts gives the request path. A route compared
 //    through a renamed parameter with a constant imported from another file is not seen; a constant declared in
 //    web-assets.ts itself is, because its literal is read.
@@ -124,9 +126,12 @@ const withoutComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, " ").replace
 // The one route the host spells as a regular expression: the plugin client packs, whose ids come from the registered
 // workbench packs, not from this text. Any other `/assets/` spelled in a regex literal (`\/assets\/…`, `[/]assets`) is a
 // route the string-literal reading cannot see: the escaped slashes are not a whole "/assets/" and do not raise the
-// mention count below. (`"\/assets\/x"` in a plain string has the same escapes and is refused the same way.)
+// mention count below. (`"\/assets\/x"` in a plain string has the same escapes and is refused the same way.) So once the
+// readable route literals and this pattern are taken out of the code, no word `assets` may be left, whatever sits around it
+// (`[\/]assets`, `/(assets)/`, `assets\/`).
 const PACK_ROUTE_PATTERN = String.raw`/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.js$/`;
-const ESCAPED_ASSETS = /.{0,16}(?:\\\/|\[\/\])assets.{0,56}|.{0,16}assets(?:\\\/|\[\/\]).{0,56}/;
+const ROUTE_LITERAL = /(["'`])(\/assets\/[^"'`\s\\]+)\1/g;
+const STRAY_ASSETS = /.{0,16}\bassets\b.{0,56}/i;
 const COMPARE = "(?:[!=]==|[!=]=)(?!=)";
 const NON_LITERAL_COMPARISONS = [new RegExp(`\\bpathname\\s*${COMPARE}\\s*(?!["'\`])\\S`), new RegExp(`(?<=[^\\s"'\`=!])\\s*${COMPARE}\\s*pathname\\b`)];
 function declaredRoutes(source) {
@@ -136,17 +141,18 @@ function declaredRoutes(source) {
     return fail(`${ROUTES_SOURCE} compares the request path with something that is not a string literal (\`${comparison[0].trim()}\`), `
       + "so the gate cannot tell which asset that route sends and would not measure it; write the route as a string literal there, or teach scripts/gates/page-assets.mjs to read the new form");
   }
-  const escaped = code.split(PACK_ROUTE_PATTERN).join(" ").match(ESCAPED_ASSETS);
-  if (escaped) {
-    return fail(`${ROUTES_SOURCE} spells an "/assets/" route with escaped slashes (\`${escaped[0].trim()}\`), which is a regular expression or an escaped string, and the only one the gate knows is the plugin pack pattern ${PACK_ROUTE_PATTERN}; `
-      + "so the route it serves would not be measured; write it as a string literal, or teach scripts/gates/page-assets.mjs to read the new form");
-  }
-  const literals = [...code.matchAll(/(["'`])(\/assets\/[^"'`\s\\]+)\1/g)].map((match) => match[2]);
+  const literals = [...code.matchAll(ROUTE_LITERAL)].map((match) => match[2]);
   const readable = literals.filter((literal) => !literal.includes("${"));
   const mentions = (code.match(/\/assets\//g) ?? []).length;
   if (mentions !== readable.length) {
     return fail(`${ROUTES_SOURCE} mentions "/assets/" ${mentions} times but only ${readable.length} of them are whole string literals the gate can read (a template with \${…}, a concatenation or a prefix is not one), `
       + "so a route may escape the budget; write each route as one string literal, or teach scripts/gates/page-assets.mjs to read the new form");
+  }
+  const unread = code.split(PACK_ROUTE_PATTERN).join(" ").replace(ROUTE_LITERAL, (whole, quote, literal) => (literal.includes("${") ? whole : " "));
+  const stray = unread.match(STRAY_ASSETS);
+  if (stray) {
+    return fail(`${ROUTES_SOURCE} has the word "assets" outside a whole "/assets/…" string literal (\`${stray[0].trim()}\`): a route spelled as a regular expression or with escaped slashes, or some other use of the word; the only regular expression the gate knows is the plugin pack pattern ${PACK_ROUTE_PATTERN}; `
+      + "a route spelled that way would not be measured; write it as a string literal, or teach scripts/gates/page-assets.mjs to read the new form");
   }
   return [...new Set(readable)].sort();
 }

@@ -23,7 +23,7 @@
 
 ## 接入与边界
 
-Session 不是 Execution Run；私人的恢复包不会自动发布为 Artifact 或 Team 内容。历史未知 Project/Goal revision 保持未知。环境变量解析和 Runtime 进程启动由 Host 完成。
+私人的恢复包不会自动发布为 Artifact 或 Team 内容。历史未知 Project/Goal revision 保持未知。环境变量解析和 Runtime 进程启动由 Host 完成。
 
 由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。
 

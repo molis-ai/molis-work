@@ -18,13 +18,13 @@
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 
-动作服务迁移：插件自己的 `actions.ts` 声明并实现 18 项公开业务能力（文档、文件夹、模板、文件导入、已解析材料保存、生成及历史、写作、提取、发布）。Manifest 注册这些能力和四项内容交接合同；Host 组合原 Store、模型和 Artifact owner，HTTP 不再自行打开文档库。工作流内容处理器调用同一业务动作并保留调用者身份与权限。旧八个 MCP 名称从动作合同派生并薄转发；旧 list 组合模板查询，旧 translate_new 组合候选生成和新建文档，保留原响应语义。
+动作服务迁移：插件自己的 `actions.ts` 声明并实现 20 项公开业务能力（文档、文件夹、模板、文件导入、已解析材料保存、生成及历史、写作、提取、发布），加上 12 项标准能力（主体读取、片段、系统搜索、文件条目与内容、成果库的预览/固定/比较/继续/被引用、放置的移动与复制），共 32 项。Manifest 注册这些能力和四项内容交接合同；Host 组合原 Store、模型和 Artifact owner，HTTP 不再自行打开文档库。工作流内容处理器调用同一业务动作并保留调用者身份与权限。MCP 只经授权的动作工具。
 
 内部与 MCP 的项目来自可信调用上下文；HTTP 的项目由 Host 绑定，query/body 中声明不同项目会拒绝。`pages.update` 接受 `expected_version`，编辑器自动使用服务器版本，冲突保留草稿并阻止离开。提取任务/知识页和删除文件夹各自在原 SQLite 库事务内完成。原表、文档 ID、导入请求和历史均保留。
 
-Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读写文稿；项目上下文采纳通过 `pages.documents.import` 保存来源与摘要。`request_id` 与 `request_hash` 表示调用方已确认的稳定意图，保留旧值以支持历史重试，不用它们证明权限或来源。旧 board 分区仅在原项目目录证明唯一归属时，事务迁移到 canonical project_id；保留文档和请求 ID、快照、编辑与引用，冲突或仍在生成则保留原数据并明确拒绝。
+Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读写文稿；项目上下文采纳通过 `pages.documents.import` 保存来源与摘要。`request_id` 与 `request_hash` 表示调用方已确认的稳定意图，保留旧值以支持历史重试，不用它们证明权限或来源。文档按 canonical project_id 分区；库只认当前 schema 基线（`PAGES_STORE_BASELINE`）。
 
-`pages.promote` 在原 `pages` 行保存未完成发布快照后才调用 Artifact owner；失败后继续原快照和版本。已存成 Artifact、尚未回写文稿关联时，重试读取并核对原 Artifact，恢复关联而不重复发布。旧版中断记录没有快照时也从原 Artifact 恢复。完成关联与清除快照在同一文稿事务提交，保留后续正文和 Goal 编辑；其他发起者不能冒充原 owner 恢复。
+`pages.promote` 在原 `pages` 行保存未完成发布快照后才调用 Artifact owner；失败后继续原快照和版本。已存成 Artifact、尚未回写文稿关联时，重试读取并核对原 Artifact，恢复关联而不重复发布。旧版中断记录没有快照时，只在成果库里恰有一个文稿没记过、又没写明来源修订号的版本时，才从原 Artifact 恢复。文稿移走又移回时记录重新从 0 数固定版本，而项目成果库仍留着之前的各版：下一次固定接着成果库里已有的最高版号（`nextPinnedVersion`），不把旧版当作中断记录交回。完成关联与清除快照在同一文稿事务提交，保留后续正文和 Goal 编辑；固定下来的版本归本机的人，不论谁（人、工作流、Agent、MCP 客户端）固定的，生产者记在 `created_by`，下一次固定不会因为上一版是别人固定的而被拒绝；未完成的发布意图仍只由发起它的行为者恢复，其他行为者不能代为完成。
 
 列表和编辑器从 `publication_pending` 显示“继续保存上次成果”，恢复成功明确说明当前编辑仍保留。客户端传 `expected_version`，过期请求不会再创建一版；旧客户端不传版本时继续保留每次明确调用新增版本的语义。返回 `recovered` 表示恢复上次成果。此迁移只新增可空列，不搬移原数据；降级前应完成未结束的发布，旧版代码无法识别新快照，不能安全地继续这些请求。
 
@@ -43,5 +43,5 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
   - Host 注入 prepareImport；ZIP/DOCX/编码解析归 Host worker，Pages 的 preparePagesImport 只接受公共 MaterialDocumentBatch 并转换为编辑器正文。解析等待不占项目串行队列，返回后复查授权/取消。
   - 导入预览不写入；批量写入一个事务，同一请求重试不覆盖编辑、不重复创建。
   - 编辑器单独打成浏览器脚本，不进工作台 factory 字符串。
-- 改动后必跑：`node scripts/run-tests.mjs tests/pages-actions.test.ts tests/pages-cross-module.test.ts tests/pages-generation-lease.test.ts tests/pages-conversion.test.ts tests/action-before-effect.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/pages-actions.test.ts tests/pages-cross-module.test.ts tests/pages-generation-lease.test.ts tests/pages-conversion.test.ts tests/action-before-effect.test.ts tests/pages-publication.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

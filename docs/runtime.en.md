@@ -1,6 +1,6 @@
 # Runtime Protocol: Agreements, Facts, and Closure
 
-Molis Work keeps goals, actual work, and current outcomes together. A Runtime works within its existing authority; the user can see what happened, what remains, and which changes need a decision. Ordinary work requires no Claim, Run, complete plan, or default template.
+This is the protocol an AI Runtime uses with the Goals plugin: Goals keeps goals, actual work, and current outcomes together (other plugins expose their actions over MCP the same way; see [MCP Integration](mcp.en.md)). A Runtime works within its existing authority; the user can see what happened, what remains, and which changes need a decision. Ordinary work requires no complete plan or default template.
 
 ## The current work model
 
@@ -78,6 +78,6 @@ For `mcp.context_refresh_required`, resolve context read-only, then retry the un
 
 Changing Goals never automatically rebinds a terminal or sends it a message. Host Sessions, terminal processes, and panels retain their separate duties.
 
-Database upgrades and V3 import connect current work to event state while preserving original sources, relations, and real history. Historical Claim, Run, Evidence, and Review records remain readable by their original identity. Existing approvals are preserved rather than fabricated. History does not provide a second executable workflow: old Claim, Run, and Contract/Candidate/Rewire write tools are retired.
+Project databases accept only the current schema version and are never upgraded in place; V3 import is gone. The pre-event Claim, Run, Evidence and Review history was deleted (#268); events are the only work protocol.
 
 For executable examples and recovery details, see the [Runtime Skill](../skills/goal-advance/SKILL.md).

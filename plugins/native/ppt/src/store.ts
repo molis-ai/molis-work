@@ -151,7 +151,7 @@ export class PptStore {
     });
   }
 
-  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: PptPublicationSnapshot): PptPublicationIntent {
+  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: PptPublicationSnapshot, version?: number): PptPublicationIntent {
     return this.transaction(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
       const pending = this.publicationIntent(id);
@@ -160,7 +160,7 @@ export class PptStore {
         return pending;
       }
       const intent: PptPublicationIntent = { content: existing ?? { title: current.title, description: current.description, color_primary: current.color_primary, color_background: current.color_background, color_text: current.color_text, slides: current.slides },
-        version: current.artifact_version + 1, source_version: current.version, actor_id: actorId };
+        version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
       this.db.prepare("UPDATE presentations SET publication_pending_json = ? WHERE id = ?").run(JSON.stringify(intent), id);
       return intent;
     });

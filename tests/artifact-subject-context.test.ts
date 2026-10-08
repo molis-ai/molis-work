@@ -25,7 +25,8 @@ function fixture(t: test.TestContext) {
   createContextLedgerSchema(db);
   const artifacts = new ArtifactsModule({ db, now: () => "2026-09-26T00:00:00.000Z",
     appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid) });
-  const ledger = createContextLedger(db, { authorize: access => access.actor_id === caller.actor_id && access.scope.kind === "personal" && access.scope.id === projectId });
+  // As the Host authorizes it: by the project's personal scope, not by who is asking.
+  const ledger = createContextLedger(db, { authorize: access => access.scope.kind === "personal" && access.scope.id === projectId });
   const publish = (override: Partial<RegisterArtifactVersionInput> = {}) => artifacts.commands.registerVersion({
     project_id: projectId, actor_id: caller.actor_id, ...reference, artifact_type_id: "io.example.unknown-result", schema_version: 7,
     producer: { plugin_id: "io.example.original", plugin_version: "1.0.0", binding_signature: "original-binding" },
@@ -83,11 +84,13 @@ test("resolveActionSubject discovers the original provider and reads an exact in
   assert.deepEqual(f.artifacts.query.listArtifacts(projectId), before, "context reads must not register or rewrite artifacts");
 });
 
-test("Artifact analysis rejects a foreign personal owner, project mismatch, withdrawn versions and file references", async t => {
+test("Artifact analysis rejects a project mismatch, withdrawn versions and file references, and reads a personal version for any actor of the Home", async t => {
   const f = fixture(t), first = f.publish();
-  await assert.rejects(resolveActionSubject(f.actions, { ...caller, actor_id: "other-user" }, subject()), { code: "artifacts.forbidden" });
-  assert.throws(() => requireArtifactAnalysisRecord(first, { project_id: "foreign-board", actor_id: caller.actor_id, reference }), { code: "actions.subject_unavailable" });
-  assert.throws(() => requireArtifactAnalysisRecord({ ...first, version: 2 }, { project_id: projectId, actor_id: caller.actor_id, reference }), { code: "actions.subject_unavailable" });
+  // A personal 成果 belongs to the Home's person whoever produced it: another actor of the Home (a workflow, an MCP client)
+  // is held to the Action gate's permissions, not to being the actor that registered the version.
+  assert.equal((await resolveActionSubject(f.actions, { ...caller, actor_id: "other-user" }, subject())).context.title, "第一版原文");
+  assert.throws(() => requireArtifactAnalysisRecord(first, { project_id: "foreign-board", reference }), { code: "actions.subject_unavailable" });
+  assert.throws(() => requireArtifactAnalysisRecord({ ...first, version: 2 }, { project_id: projectId, reference }), { code: "actions.subject_unavailable" });
   const foreign = f.publish({ project_id: "foreign-board", artifact_id: "foreign-result" });
   await assert.rejects(resolveActionSubject(f.actions, caller, subject(foreign)), { code: "actions.subject_unavailable" });
   const archived = f.publish({ artifact_id: "archived" });

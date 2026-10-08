@@ -1,6 +1,6 @@
 # Platform
 
-Platform 提供所有 Module、Service、Plugin 和 App 共用的机制，但不拥有 Goal、Artifact、Feed、Action、Session 等业务事实。
+Molis Work 是本地优先的插件基座加多个插件。Platform 就是这个基座：一个 Home 的宿主、统一动作目录与授权、Plugin Runtime、工作台外壳和共享的 Prologue AI 运行时。它提供所有 Module、Service、Plugin 和 App 共用的机制，但不拥有 Goal、Artifact、Feed、Action、Session 等业务事实——内容和事实属于各插件，每项事实只有一个 owner（见 [SSOT](../SSOT-MATRIX.md)）。
 
 - [Plugin Platform](PLUGIN-PLATFORM.md)：Kernel、Plugin Runtime、SDK、签名、授权和 Provider Binding。
 - [Plugin 开发](PLUGIN-DEVELOPMENT.md)：完整写插件见官方 Skill [`skills/molis-plugin-dev/`](../../skills/molis-plugin-dev/SKILL.md)（含 Host 装配、CLI、接入）；本手册管本地源码运行、MCP 贡献、动作录取、打包签名。改平台合同时两处一起更新。

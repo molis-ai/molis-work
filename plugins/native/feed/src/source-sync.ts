@@ -6,6 +6,7 @@ import type { FeedSourcePorts, FeedSourceSyncResult, FeedSourceSyncInput, Public
 import { createFeedSourceSyncGuard } from "./source-sync-guard.js";
 import { buildExactRequest } from "./source-request.js";
 import { normalizeIdempotencyKey, stableId } from "./source-input.js";
+import { receiptContentRefs, withReceiptContentRefs } from "./source-history.js";
 import { safeErrorCode, interruptedMessage, rssFailureAction, sourceDedupeScope, cursorForMaterials, safeRssReceipt, terminalErrorCode } from "./source-sync-result.js";
 export class PublicSourceSync {
   private readonly feed: FeedApplication;
@@ -52,7 +53,7 @@ export class PublicSourceSync {
       outcome: null,
       empty: false,
       error_code: null,
-      receipt: { intent_fingerprint: planFingerprint },
+      receipt: withReceiptContentRefs({ intent_fingerprint: planFingerprint }, receiptContentRefs(prior?.receipt)),
       created_count: 0,
       deduped_count: 0,
       recovery_count: prior ? prior.recovery_count + 1 : 0,
@@ -87,6 +88,8 @@ export class PublicSourceSync {
         ...running,
         phase: "interrupted",
         error_code: errorCode,
+        // Bodies a pull wrote before it failed stay with its search record; the run names them so a deletion can find them.
+        receipt: withReceiptContentRefs(running.receipt, runtime.writtenContentRefs?.() ?? []),
         updated_at: updatedAt,
       };
       this.ports.transaction(() => {
@@ -193,7 +196,7 @@ export class PublicSourceSync {
         outcome: result.outcome,
         empty: result.materials.length === 0,
         error_code: errorCode,
-        receipt: {
+        receipt: withReceiptContentRefs({
           schema: "molis-work-feed-collection-receipt-v1",
           intent_fingerprint: result.intentFingerprint,
           requirement_met: result.requirementMet,
@@ -201,7 +204,12 @@ export class PublicSourceSync {
           budget: structuredClone(result.budget),
           warnings: [...result.warnings],
           ...(rssReceipt ? { rss_http: safeRssReceipt(rssReceipt) } : {}),
-        },
+        }, [
+          // The search record of this pull holds every material's body, whether or not an Item was kept for it.
+          ...receiptContentRefs(running.receipt),
+          ...result.materials.map((material) => material.contentRef),
+          ...(runtime.writtenContentRefs?.() ?? []),
+        ]),
         created_count: created,
         deduped_count: deduped,
         completed_at: completedAt,

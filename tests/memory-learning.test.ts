@@ -132,3 +132,23 @@ test("a personal wish learned in a project's works never names those works: not 
   const [change] = service.changes(person, { scope: "personal" });
   assert.doesNotMatch(change!.reason ?? "", /差旅费用|内容预算/);
 });
+
+test("the model's same_as alone never turns another work's waiting suggestion into an automatic memory; a restatement the gate can tie to it still does", { timeout: 60_000 }, async t => {
+  const { service } = await memoryHome(t);
+  await service.learnFromWork(inWork("work-1", "周报 9/23"), { said: ["以后周报都把风险放最前面，别放最后"], proposals: [{ ...riskFirst, quote: "以后周报都把风险放最前面" }] });
+  const [waiting] = await service.candidates(person, { scope: "project" });
+
+  // Another work, an unrelated wish the model calls "the same": nothing ties the two, so it is its own suggestion and the old one keeps waiting.
+  const unrelated = await service.learnFromWork(inWork("work-2", "翻译"), { said: ["以后回答都用中文"],
+    proposals: [{ text: "回答用中文", kind: "preference", scope: "project", basis: "explicit", quote: "回答都用中文", same_as: waiting!.candidate_id }] });
+  assert.deepEqual(unrelated.map(item => [item.outcome, item.text]), [["candidate", "回答用中文"]], "the new wish is not dropped and not written");
+  assert.equal((await service.list(person)).items.length, 0, "the model's claim wrote nothing");
+  assert.deepEqual((await service.candidates(person, { scope: "project" })).map(item => [item.text, item.work!.work_id]).sort(), [[riskFirst.text, "work-1"], ["回答用中文", "work-2"]]);
+
+  // The person really said the first wish again, in other words: the gate ties it to the waiting suggestion by its text, so it is repeated.
+  const restated = await service.learnFromWork(inWork("work-3", "周报 9/30"), { said: ["周报还是把风险放在最前面"],
+    proposals: [{ ...riskFirst, text: "周报把风险放在最前面", quote: "周报还是把风险放在最前面", same_as: waiting!.candidate_id }] });
+  assert.deepEqual(restated.map(item => [item.outcome, item.text]), [["written", riskFirst.text]]);
+  assert.deepEqual((await service.list(person)).items.map(item => [item.text, item.source]), [[riskFirst.text, "auto"]]);
+  assert.deepEqual((await service.candidates(person, { scope: "project" })).map(item => item.text), ["回答用中文"], "the unrelated suggestion is still waiting for the person");
+});

@@ -40,6 +40,10 @@ test("a reply that claims a memory was kept or forgotten is recognised; saying i
   assert.equal(claimsMemoryChange("记下了：**Q4 plan 项目的周会固定在周三下午两点**。这条只在本项目里生效。"), "keep");
   assert.equal(claimsMemoryChange("已记住你的偏好：回答用要点列表。"), "keep");
   assert.equal(claimsMemoryChange("- 已删除，现在没有保留的记忆"), "forget");
+  // Forgetting switches a memory off: saying so is the same kind of claim.
+  assert.equal(claimsMemoryChange("已停用那条记忆，以后不会再用到；想彻底删除可以去设置里删。"), "forget");
+  assert.equal(claimsMemoryChange("没有停用那条记忆：找不到它。"), null);
+  assert.equal(claimsMemoryChange("已停用该插件。"), null);
   assert.equal(claimsMemoryChange("没有记下：这是个人工作，不能记为项目记忆。"), null);
   assert.equal(claimsMemoryChange("要我把这条记下来吗？"), null);
   assert.equal(claimsMemoryChange("会议安排如下：周三下午两点。"), null);

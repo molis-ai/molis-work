@@ -1377,10 +1377,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       /* Memory the work kept (asked for, or kept on its own): the memory service owns it; this is where it can be taken back. */
       // The memory service names more kinds than these; one this panel does not know reads as plainly kept.
       const KEPT = { kept: "", auto_kept: "自动记住", replaced: "替换了旧的一条", auto_replaced: "自动替换了旧的一条", merged: "和旧的一条合并", edited: "改过",
-        auto_disabled: "自动停用" };
+        auto_disabled: "自动停用", disabled: "助理按你的要求停用" };
       // What undoing did depends on the kind: a memory kept on its own is deleted (its words go with it), a replacement
       // goes back to the earlier version, a memory switched off is on again. The last two keep the words they undid.
-      const UNDONE = { auto_replaced: "已撤销（回到了原来那条）", auto_disabled: "已撤销（已重新启用）" };
+      const UNDONE = { auto_replaced: "已撤销（回到了原来那条）", auto_disabled: "已撤销（已重新启用）", disabled: "已撤销（已重新启用）" };
       const remembered = kept.map((change) => {
         const undone = change.state === "undone";
         const actions = [];

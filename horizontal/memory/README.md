@@ -46,8 +46,12 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 单次行为、仅靠推断的内容、背景事实、像指令的文字、形似秘密的文字都不会被自动写入；推断不能覆盖用户明确说过的。
   - 停用、暂停、过期、不适用的记忆不会被召回；某使用方的开关关掉后它拿不到记忆。
   - 删除后存储、旁表（历史、使用记录）、最近变动的正文、重启之后都不再带出该条。
+  - 模型说“和之前那条一样”（`same_as`）只是指路：要由写入门按文字确认（同文，或新文字、用户原话与那条足够相近），否则新的话单独成一条建议，不替它自动记住别的。
+  - 用户自己说过、认可过、替换或改过的记忆，不会被撤销之前的某次自动写入而删掉或覆盖：之后这些自动记录不再可撤销，撤销时也再核对一次这条还是不是自动的。
+  - 助理只能把记忆停用（记作助理的变动，本人可撤销）；改正文和彻底删除只有本人，在设置里做。
+  - 召回的使用回执（最近用于）是这次调用的副作用：调用被取消或撤权后不写（`recall` 在写回执前走调用自己的 `beforeEffect`）。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
-- 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

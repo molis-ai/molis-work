@@ -17,6 +17,7 @@ import { directEligible } from "./assistant-authority.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, type DueReminderCollection, type HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AssistantStoreError, type AssistantStore, type StoredCard, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
+import { assistantMemoryTools } from "./assistant-memory-tools.js";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { randomUUID } from "node:crypto";
@@ -557,6 +558,8 @@ export class AssistantService {
   private readonly images = new Map<string, { revision: number; media_type: string }>();
   /** The recall receipt of the round a work is starting, until the round is recorded. */
   private readonly recalled = new Map<string, string>();
+  /** What the person said in the round a work is starting, until the round is recorded: the round's own tools may already be asked to rest on it. */
+  private readonly starting = new Map<string, string>();
   /** The memories chosen for the round a work is starting (null: none), until it starts. */
   private readonly chosenMemory = new Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>();
   constructor(private readonly store: AssistantStore, private readonly ports: AssistantServicePorts, private readonly actorId: string,
@@ -2006,6 +2009,7 @@ export class AssistantService {
       throw new AssistantError("assistant.budget", `${spent.budget_of ? `委托这项子任务的工作「${spent.budget_of.title}」连同它的子任务` : "这项工作"}已用 ${spent.tokens.toLocaleString("en-US")} tokens，达到给它设的上限 ${spent.budget_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。要继续，先调高${spent.budget_of ? "那项工作" : "这项工作"}的上限`, undefined, "调高这项工作的上限");
     }
     const left = spent.budget_tokens === null ? undefined : spent.budget_tokens - spent.tokens;
+    this.starting.set(work.work_id, text);
     const offered = await this.actionTools(authority);
     // The memories this round is given, chosen now so the round's materials can say how many did not fit.
     this.chosenMemory.delete(work.work_id);
@@ -2029,6 +2033,7 @@ export class AssistantService {
       ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });
     this.recalled.delete(work.work_id);
     this.chosenMemory.delete(work.work_id);
+    this.starting.delete(work.work_id);
     return this.result(work, "started", handle.ref.run_id);
   }
 
@@ -2417,46 +2422,13 @@ export class AssistantService {
     catch (error) { throw memoryAsAssistantError(error); }
   }
 
-  /**
-   * The round's memory tools, or none when forming memories is off everywhere this work could keep something (the
-   * stop check reads a round without them as “memory is off”). Every call goes through the platform's write gate.
-   */
+  /** The round's memory tools (see assistant-memory-tools.ts), or none when forming memories is off. */
   memoryTools(work: StoredWork): AgentMemoryTools | undefined {
     const memory = this.ports.memory?.();
     if (!memory) return undefined;
     const projectId = work.project_ref?.project_id ?? null;
-    const personal = memory.prefsFor(this.actorId, "personal", null), project = projectId ? memory.prefsFor(this.actorId, "project", projectId) : null;
-    if (!personal.form && !project?.form) return undefined;
-    const caller = this.memoryCaller(work, projectId);
-    // Suggesting is its own switch per scope: a project's work suggests for that project only where the person allows it.
-    const mayPropose = (personal.form && personal.learn_from_work) || (!!project?.form && project.learn_from_work);
-    const propose: AgentMemoryTools["propose"] = async input => {
-      try {
-        await memory.propose(caller, { scope: input.scope, text: input.text, kind: input.scope === "project" ? "convention" : "preference", applies: input.applies.trim() ? { task: input.applies.trim().slice(0, 200) } : {},
-          basis: "inferred", why: input.why, from: "work" });
-      } catch (error) { throw memoryAsAssistantError(error); }
-      return { candidate_id: "", note: "已作为建议放在工作面板，等用户认可；在他认可前不会生效。回复里说“建议记住……，需要你认可”，不要说已经记住。" };
-    };
-    return {
-      ...(mayPropose ? { propose: async input => { const made = await propose(input); const latest = (await memory.candidates(caller, { work_id: work.work_id })).at(-1); return { ...made, candidate_id: latest?.candidate_id ?? "" }; } } : {}),
-      remember: async input => {
-        if (input.scope === "project" && !projectId) throw new AssistantError("assistant.scope", "这是个人工作，没有项目；只能记为个人偏好");
-        if (input.scope === "character" && !caller.character) throw new AssistantError("assistant.scope", "这一轮不是由某个角色承担的，不能记为角色记忆");
-        let result;
-        try { result = await memory.write(caller, { scope: input.scope, text: input.text, said: input.said, ...(input.kind ? { kind: input.kind } : {}), ...(input.replaces ? { replaces: input.replaces } : {}) }); }
-        catch (error) { throw memoryAsAssistantError(error); }
-        // Only what really went into memory counts as kept; the reply must say what happened instead.
-        if (result.outcome === "refused") throw new AssistantError("assistant.invalid", `没有记住：${result.reason}`);
-        if (result.outcome === "candidate") throw new AssistantError("assistant.invalid", `没有直接记住：${result.reason}。已作为建议放在工作面板，等用户认可`);
-        return { memory_id: result.memory!.memory_id, scope: input.scope, applies: result.applies_text, ...(result.outcome === "duplicate" ? { note: result.reason } : {}) };
-      },
-      list: async () => (await memory.list(caller, { scope: "all" })).items.map(item => ({ memory_id: item.memory_id, scope: item.scope,
-        text: item.state === "active" ? item.text : `（已停用）${item.text}`, origin: item.origin })),
-      forget: async memoryId => {
-        try { await memory.change(caller, { memory_id: memoryId, action: "remove" }); return { forgotten: true }; }
-        catch (error) { if (error instanceof MemoryError && error.code === "memory.not_found") return { forgotten: false }; throw memoryAsAssistantError(error); }
-      },
-    };
+    return assistantMemoryTools({ memory, actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId), fail: (code, message) => new AssistantError(code, message),
+      spoken: () => [...this.store.rounds(work.work_id).map(round => round.text), ...(this.starting.has(work.work_id) ? [this.starting.get(work.work_id)!] : [])], asAssistantError: memoryAsAssistantError });
   }
 
   /**

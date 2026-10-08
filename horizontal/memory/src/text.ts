@@ -26,6 +26,16 @@ export function normalized(text: string): string {
   return text.normalize("NFKC").toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
 }
 
+/**
+ * Whether a quote is really in what the person said: found within one of their messages once spacing, punctuation and
+ * case are set aside, and at least two characters of substance (one character, or only punctuation, proves nothing).
+ * The gate and the Assistant's tools use this one rule for “the person's own words”.
+ */
+export function quotedFrom(quote: string, spoken: readonly string[]): boolean {
+  const needle = normalized(quote);
+  return [...needle].length >= 2 && spoken.some(text => normalized(text).includes(needle));
+}
+
 const SECRET_SHAPES: readonly RegExp[] = [
   /\b(?:sk|pk|rk)-[A-Za-z0-9_-]{16,}/,
   /\bgh[pousr]_[A-Za-z0-9]{20,}/,

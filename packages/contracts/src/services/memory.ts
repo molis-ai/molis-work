@@ -151,7 +151,8 @@ export interface MemoryChange {
   project_id: string | null;
   /** The memory's text at the change; empty once the memory is deleted. */
   text: string;
-  by: "person" | "policy" | "maintenance";
+  /** Who made it: the person, the write gate's policy, upkeep, or the Assistant on the person's request (it only ever switches a memory off). */
+  by: "person" | "policy" | "maintenance" | "assistant";
   /** The gate rule behind an automatic change, e.g. "自动记住 · 规则 v1". */
   rule: string | null;
   /** Why, in words: 依据：你两次这样要求. */
@@ -398,7 +399,7 @@ const candidateSchema = { type: "object", properties: {
   required: ["candidate_id", "scope", "project_id", "kind", "text", "applies", "basis", "why", "from", "work", "hold_reason", "supersedes", "state", "created_at", "memory_id"],
   additionalProperties: false };
 const changeSchema = { type: "object", properties: {
-  change_id: text, kind: text, memory_id: nullableText, scope: scopeSchema, project_id: nullableText, text, by: { enum: ["person", "policy", "maintenance"] },
+  change_id: text, kind: text, memory_id: nullableText, scope: scopeSchema, project_id: nullableText, text, by: { enum: ["person", "policy", "maintenance", "assistant"] },
   rule: nullableText, reason: nullableText, work: workRef, at: text, undoable: { type: "boolean" }, state: { enum: ["active", "undone"] } },
   required: ["change_id", "kind", "memory_id", "scope", "project_id", "text", "by", "rule", "reason", "work", "at", "undoable", "state"], additionalProperties: false };
 const prefsSchema = { type: "object", properties: {
@@ -481,7 +482,7 @@ export const memoryActions = {
     input_schema: { type: "object", properties: { scope: { enum: ["personal", "project", "all"] }, work_id: { type: "string", maxLength: 200 }, limit: { type: "integer", minimum: 1, maximum: 200 } }, additionalProperties: false },
     output_schema: { type: "object", properties: { changes: { type: "array", items: changeSchema } }, required: ["changes"], additionalProperties: false } } } as ActionDefinition<{ scope?: MemoryScope | "all"; work_id?: string; limit?: number }, { changes: MemoryChange[] }>,
   undo: { capability_id: "memory.changes.undo", version: 1, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_WRITE_PERMISSION],
-    title: "撤销一次记忆变动", description: "自动记住的删除；自动替换的回到旧版本；自动停用的重新启用。",
+    title: "撤销一次记忆变动", description: "自动记住的删除；自动替换的回到旧版本；自动停用的、助理按要求停用的重新启用。之后用户自己说过、认可过或改过的记忆，不能再按自动记住撤销。",
     input_schema: { type: "object", properties: { change_id: memoryId }, required: ["change_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { change: changeSchema }, required: ["change"], additionalProperties: false } } } as ActionDefinition<{ change_id: string }, { change: MemoryChange }>,
   prefs: { capability_id: "memory.prefs.read", version: 1, operation: "query", action: { ...reads, audiences: person, permissions: [MEMORY_CONFIGURE_PERMISSION],
@@ -608,6 +609,8 @@ export interface MemoryLedgerPort {
   saveCandidate(record: MemoryCandidateRecord): void;
   dropCandidate(candidateId: string): void;
   changes(actorId: string, limit: number): MemoryChangeRecord[];
+  /** Every change recorded for one memory, newest first. */
+  changesOf(memoryId: string): MemoryChangeRecord[];
   change(changeId: string): MemoryChangeRecord | null;
   saveChange(record: MemoryChangeRecord): void;
   prefs(actorId: string, key: string): Partial<MemoryPrefs> | null;

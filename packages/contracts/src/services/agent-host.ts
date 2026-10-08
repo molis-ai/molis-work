@@ -556,17 +556,17 @@ export interface AgentDelegation {
 }
 
 /**
- * A round's own memory tools: remember what the person explicitly asked to keep, list and forget. Absent when forming
- * memories is switched off everywhere the work could keep something. Never used to infer preferences from behaviour.
+ * A round's own memory tools (absent when forming memories is off everywhere the work could keep something). `remember` and `forget` rest on the person's own words and wishes, so a delegated work, whose only words are the delegating work's brief, gets neither.
  */
 export interface AgentMemoryTools {
   /**
    * Kept through the platform's write gate (specs/archive/memory-system §6.2); it throws with the reason when nothing was kept
-   * (switched off, secret-shaped, held for the person). `note` says it was already kept.
+   * (switched off, secret-shaped, held for the person, `said` not in the person's words here). `note` says it was already kept.
    */
-  remember(input: { text: string; scope: "personal" | "project" | "character"; said: string; kind?: "preference" | "convention" | "fact" | "experience"; replaces?: string }): Promise<{ memory_id: string; scope: "personal" | "project" | "character"; applies: string; note?: string }>;
+  remember?(input: { text: string; scope: "personal" | "project" | "character"; said: string; kind?: "preference" | "convention" | "fact" | "experience"; replaces?: string }): Promise<{ memory_id: string; scope: "personal" | "project" | "character"; applies: string; note?: string }>;
   list(): Promise<Array<{ memory_id: string; scope: "personal" | "project" | "character"; text: string; origin: string }>>;
-  forget(memoryId: string): Promise<{ forgotten: boolean }>;
+  /** Switches one off (not a delete: the person can switch it on again or delete it in settings), as the Assistant's change. */
+  forget?(memoryId: string): Promise<{ forgotten: boolean; note?: string }>;
   /** Suggest keeping something the person did not ask for: a candidate only, until they accept it. Absent: this round may not suggest. */
   propose?(input: { text: string; scope: "personal" | "project"; why: string; applies: string }): Promise<{ candidate_id: string; note: string }>;
 }

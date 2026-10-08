@@ -58,3 +58,27 @@ test("memory is one system.memory provider in the shared directory: the person m
   const signal = await asPerson.invoke(memoryActions.signal, { event_id: "evt-00000001", signal: "accepted", subject: { capability_id: "pages.polish", label: "润色" } });
   assert.equal(signal.state, "counted");
 });
+
+test("memory.recall cancelled while it waits for the store settles nothing: no receipts, nothing shown as 最近用于", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-memory-recall-cancel-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
+  const service = memoryHostFor(host)!.service;
+  const client = host.homeActionClient();
+  const asAgent = bindActionClient(client, () => agent);
+  await asAgent.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表", said: "以后回答都用要点列表" });
+  const recallRef = { capability_id: memoryActions.recall.capability_id, version: 1, provider_id: MEMORY_PROVIDER_ID };
+
+  // The call is stopped while it is reading the store: the read finishes, the call's own effect check refuses, and no receipt is written.
+  const controller = new AbortController();
+  const backend = (service as unknown as { ports: { backend: { list: (...args: unknown[]) => Promise<unknown> } } }).ports.backend;
+  const list = backend.list.bind(backend);
+  backend.list = async (...args) => { controller.abort(); return list(...args); };
+  try { await assert.rejects(client.invoke({ ...agent, signal: controller.signal }, recallRef, { query: "总结一下" })); }
+  finally { backend.list = list; }
+  assert.deepEqual(service.uses({}), [], "a stopped recall leaves no 最近用于");
+
+  // Not stopped: the receipt is written as before.
+  const recalled = await asAgent.invoke(memoryActions.recall, { query: "总结一下" });
+  assert.deepEqual(service.uses({ receipt_id: recalled.receipt_id }).map(use => use.state), ["used"]);
+});

@@ -270,3 +270,92 @@ test("a reworded second suggestion of what the gate already holds in the same wo
   assert.match(other.hold_reason ?? "", /像是在给 AI 下指令/);
   assert.equal((await memory.candidates(person(), { scope: "project" })).length, 2);
 });
+
+test("undoing an automatic write cannot delete what the person has since said, accepted, replaced or edited themselves", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  const auto = (text: string) => memory.offer(assistant(), { scope: "project", text, kind: "convention", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const change = (id: string | null) => memory.changes(person(), { scope: "project" }).find(item => item.change_id === id)!;
+  const sources = async () => (await memory.list(person())).items.map(item => [item.text, item.source]);
+
+  // Said again after the automatic write: it is the person's memory now, and the automatic write's undo is gone.
+  const first = await auto("周报先写风险");
+  assert.equal(change(first.change_id).undoable, true);
+  const said = await memory.write(assistant("project-a", { work_id: "work-2", title: "别的" }), { scope: "project", text: "周报先写风险", said: "记住：周报先写风险" });
+  assert.equal(said.outcome, "duplicate");
+  assert.equal(said.memory!.source, "said");
+  assert.equal(change(first.change_id).undoable, false, "recent changes no longer offer to take back what the person said themselves");
+  await assert.rejects(memory.undo(person(), first.change_id!), /不能撤销/);
+  assert.deepEqual(await sources(), [["周报先写风险", "said"]], "the explicit memory is still there");
+
+  // A record that still says it can be undone (made before this was closed) is refused at undo too: the entry is no longer the gate's.
+  const record = env.ledger().change(first.change_id!)!;
+  env.ledger().saveChange({ ...record, undoable: true, undo: { action: "remove" } });
+  await assert.rejects(memory.undo(person(), first.change_id!), /你自己的记忆/);
+  assert.equal(change(first.change_id).undoable, false, "and it stops offering itself");
+  assert.deepEqual(await sources(), [["周报先写风险", "said"]]);
+
+  // Edited by the person.
+  const second = await auto("发布前先跑回归");
+  await memory.change(person(), { memory_id: second.memory!.memory_id, action: "update", text: "发布前先跑全量回归" });
+  assert.equal(change(second.change_id).undoable, false);
+  await assert.rejects(memory.undo(person(), second.change_id!), /不能撤销/);
+  assert.ok((await sources()).some(([text]) => text === "发布前先跑全量回归"));
+
+  // Replaced by something the person said.
+  const third = await auto("评审前先自测");
+  const replaced = await memory.write(assistant(), { scope: "project", text: "评审前先自测并贴截图", said: "以后评审前先自测并贴截图", replaces: third.memory!.memory_id });
+  assert.equal(replaced.outcome, "replaced");
+  assert.equal(change(third.change_id).undoable, false);
+  assert.ok((await sources()).some(([text, source]) => text === "评审前先自测并贴截图" && source === "said"));
+
+  // A suggestion the person accepts that corrects it.
+  const fourth = await auto("周会放在周三");
+  const suggestion = await memory.propose(assistant(), { scope: "project", text: "周会放在周四", kind: "convention", basis: "inferred", why: "改期了", from: "work", supersedes: fourth.memory!.memory_id });
+  await memory.accept(person(), suggestion.candidate_id);
+  assert.equal(change(fourth.change_id).undoable, false);
+  assert.ok((await sources()).some(([text, source]) => text === "周会放在周四" && source === "accepted"));
+
+  // What stays the gate's own can still be taken back, and undoing one automatic replacement is not blocked by closing another memory's.
+  const fifth = await auto("文档用二级标题");
+  await memory.undo(person(), fifth.change_id!);
+  assert.ok(!(await sources()).some(([text]) => text === "文档用二级标题"));
+});
+
+test("a recall cancelled before it settles records no receipts: the receipts are written only after the call's own effect check", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  await memory.write(person(), { scope: "personal", text: "回答用要点列表" });
+  const cancelled = new Error("cancelled while waiting");
+  await assert.rejects(memory.recall(assistant(), { query: "总结一下" }, { beforeEffect: async () => { throw cancelled; } }), error => error === cancelled);
+  assert.deepEqual(memory.uses({}), [], "a cancelled or revoked recall leaves no 最近用于");
+  const recalled = await memory.recall(assistant(), { query: "总结一下" }, { beforeEffect: async () => undefined });
+  assert.equal(recalled.items.length, 1);
+  assert.deepEqual(memory.uses({ receipt_id: recalled.receipt_id }).map(use => use.state), ["used"]);
+});
+
+test("the Assistant can only switch a memory off, recorded as its own and takeable back; editing and deleting for good stay the person's", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  const kept = (await memory.write(person(), { scope: "personal", text: "周报先写风险" })).memory!;
+  await assert.rejects(memory.change(assistant(), { memory_id: kept.memory_id, action: "remove" }), /只有本人/);
+  await assert.rejects(memory.change(assistant(), { memory_id: kept.memory_id, action: "update", text: "别的" }), /只有本人/);
+  assert.equal((await memory.list(person())).items.length, 1, "nothing was deleted or edited");
+
+  const off = await memory.change(assistant(), { memory_id: kept.memory_id, action: "disable" });
+  assert.equal(off.change.kind, "disabled");
+  assert.equal(off.change.by, "assistant", "the Assistant's change is not recorded as the person's");
+  assert.equal(off.change.undoable, true);
+  assert.deepEqual(off.change.work, { work_id: "work-1", title: "季度复盘" });
+  assert.equal(off.memory!.state, "disabled");
+  assert.equal((await memory.recall(assistant(), { query: "写周报" })).items.length, 0, "switched off: no longer used");
+  assert.equal((await memory.list(person())).items.length, 1, "but still the person's to switch on again or delete");
+
+  const undone = await memory.undo(person(), off.change.change_id);
+  assert.equal(undone.change.state, "undone");
+  assert.equal((await memory.recall(assistant(), { query: "写周报" })).items.length, 1);
+
+  // The person's own switch-off is unchanged: theirs, with nothing to take back.
+  const own = await memory.change(person(), { memory_id: kept.memory_id, action: "disable" });
+  assert.deepEqual([own.change.by, own.change.undoable], ["person", false]);
+});

@@ -20,9 +20,14 @@ const describe = (view: ActionView, direct = false) => {
     use: effect === "read" ? GATEWAY_TOOLS.read : direct ? GATEWAY_TOOLS.direct : GATEWAY_TOOLS.change, description: view.action.description.slice(0, 600), input_schema: view.action.input_schema };
 };
 
-/** The person's memory tools; each refuses when the round was not given memory. */
+/** A memory tool is offered where the round was given memory, and remember, forget and suggest-memory only where it was given that one. */
+const memoryToolOffered = (name: string, memory: AgentActionClient["memory"]): boolean => !(Object.values(MEMORY_TOOLS) as string[]).includes(name)
+  || (!!memory && (name !== MEMORY_TOOLS.remember || !!memory.remember) && (name !== MEMORY_TOOLS.forget || !!memory.forget) && (name !== MEMORY_TOOLS.propose || !!memory.propose));
+
+/** The person's memory tools; each refuses when the round was not given memory, or not that tool. */
 function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>) => ToolRunner): Record<string, ToolRunner> {
   const available = () => { if (!given) throw new ActionError("actions.forbidden", "Forming memories is switched off here; tell the person you did not keep it."); return given; };
+  const without = (tool: string): never => { throw new ActionError("actions.forbidden", `This work has no ${tool} tool (a work handed to you by another work cannot keep or forget memories); tell the person or the work that handed it to you that nothing was kept or forgotten.`); };
   const text = (value: unknown, field: string, max: number) => { if (typeof value !== "string" || !value.trim() || value.length > max) throw new ActionError("actions.reference_invalid", `"${field}" must be 1–${max} characters.`); return value.trim(); };
   return {
     [MEMORY_TOOLS.remember]: guarded(async args => {
@@ -30,11 +35,12 @@ function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: (arg
       if (!scope) throw new ActionError("actions.reference_invalid", "\"scope\" must be personal, project or character.");
       const kind = args.kind === undefined ? undefined : ["preference", "convention", "fact", "experience"].includes(String(args.kind)) ? args.kind as "preference" | "convention" | "fact" | "experience" : null;
       if (kind === null) throw new ActionError("actions.reference_invalid", "\"kind\" must be preference, convention, fact or experience.");
-      return JSON.stringify(await available().remember({ text: text(args.text, "text", 400), scope, said: text(args.said, "said", 400),
+      const remember = available().remember ?? without(MEMORY_TOOLS.remember);
+      return JSON.stringify(await remember({ text: text(args.text, "text", 400), scope, said: text(args.said, "said", 400),
         ...(kind ? { kind } : {}), ...(args.replaces !== undefined ? { replaces: text(args.replaces, "replaces", 200) } : {}) }));
     }),
     [MEMORY_TOOLS.list]: guarded(async () => JSON.stringify({ memories: await available().list() })),
-    [MEMORY_TOOLS.forget]: guarded(async args => JSON.stringify(await available().forget(text(args.memory_id, "memory_id", 200)))),
+    [MEMORY_TOOLS.forget]: guarded(async args => { const forget = available().forget ?? without(MEMORY_TOOLS.forget); return JSON.stringify(await forget(text(args.memory_id, "memory_id", 200))); }),
     [MEMORY_TOOLS.propose]: guarded(async args => {
       const scope = args.scope === "project" ? "project" : args.scope === "personal" ? "personal" : null;
       if (!scope) throw new ActionError("actions.reference_invalid", "\"scope\" must be personal or project.");
@@ -227,13 +233,13 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       { type: "object", additionalProperties: false, required: ["text", "scope", "said"], properties: {
         text: { type: "string", description: "What to remember, one short self-contained sentence in the person's language." },
         scope: { type: "string", enum: ["personal", "project", "character"], description: "personal: all their work; project: only this project's work; character: only work the Character carrying this round does (only when one does)." },
-        said: { type: "string", description: "The person's own words asking you to remember it." },
+        said: { type: "string", description: "The person's own words asking you to remember it, copied exactly from what they wrote to you in this work. Words that are not in their messages here are refused." },
         kind: { type: "string", enum: ["preference", "convention", "fact", "experience"], description: "preference: how they like things done; convention: a project's agreed way; fact: background about their work; experience: a lesson from how work went. Default: preference (personal) or convention (project)." },
         replaces: { type: "string", description: "The id (from list-memories) of an earlier memory this one corrects." },
       } }, "safe-read"),
     tool(MEMORY_TOOLS.list, "List what you keep for the person here (personal and this project's), with ids and where each came from. Use it when they ask what you remember, or before forgetting something.",
       { type: "object", additionalProperties: false, properties: {} }, "safe-read"),
-    tool(MEMORY_TOOLS.forget, "Delete one remembered item for good when the person asks you to forget it or it is no longer true (find its id with list-memories). A newer explicit request replaces an older one: forget the old one.",
+    tool(MEMORY_TOOLS.forget, "Switch off one remembered item when the person asks you to forget it or it is no longer true (find its id with list-memories). It is no longer used anywhere, but it is not deleted: it stays in their memory settings, where they can switch it back on or delete it for good. Say it was switched off, not deleted. A newer explicit request corrects an older one with remember and replaces, not with this.",
       { type: "object", additionalProperties: false, required: ["memory_id"], properties: { memory_id: { type: "string" } } }, "safe-read"),
     tool(MEMORY_TOOLS.propose, "Suggest keeping something the person did NOT ask you to remember: a preference they showed more than once, a project convention, or a lesson from how this work went (a method that worked, why something failed). It only becomes a suggestion the person accepts or declines; until then nothing is kept. Never for a one-off choice, something they skipped once, or secrets. Say in your reply that you suggested it and it needs their approval.",
       { type: "object", additionalProperties: false, required: ["text", "scope", "why", "applies"], properties: {
@@ -247,8 +253,8 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   // what a round may call is its own list of names (and a tool outside it refuses in its executor anyway).
   const all = tools.map(one => one.registration.name);
   const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (name !== GATEWAY_TOOLS.direct || (gateway.operate && gateway.client.direct)) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate)
-    && (!(Object.values(MEMORY_TOOLS) as string[]).includes(name) || gateway.client.memory) && (name !== MEMORY_TOOLS.propose || gateway.client.memory?.propose));
-  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.1", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
+    && memoryToolOffered(name, gateway.client.memory));
+  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.2", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names, known };

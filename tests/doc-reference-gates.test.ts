@@ -74,7 +74,10 @@ before(() => {
     // Only the owner is fixed (the real repo has `pages.${name}`, `todo.${name}`, `shelf.${recipe}.${optionId}`): such a template
     // would accept every misspelling and every removed id of its owner, so the gate ignores it.
     "export const named = (name: string) => `alpha.${name}`;",
-    "export const deeper = (recipe: string, option: string) => `alpha.${recipe}.${option}`;"));
+    "export const deeper = (recipe: string, option: string) => `alpha.${recipe}.${option}`;",
+    // A fixed segment after the owner: kept, and matched by shape only (the real repo has `feed.sources.${suffix}` and `${kind}.published`).
+    "export const source = (suffix: string) => `alpha.sources.${suffix}`;",
+    "export const published = (kind: string) => `${kind}.published`;"));
 
   put("specs/README.md", lines("# 规格书怎么放", "", "## 在做的", "", "- [alpha](alpha/spec.md)：in progress", "",
     "## 现行规范", "", "- [beta](beta/spec.md)：a norm", "", "## 还没做的事", "", "都在 [BACKLOG.md](BACKLOG.md)。"));
@@ -370,6 +373,18 @@ test("an id declared in a manifest or package.json of a plugin counts as defined
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
+});
+
+test("a template that is kept matches by shape only: every id of its shape passes, which scripts/gates/README.md lists as a limit", () => {
+  branch("template-shape", () => append("skills/dev/SKILL.md", "\nShape only: `alpha.sources.typo`, `alpha.published`, `alpha.content.nothing`.\n"));
+  const run = gate("--base", "main");
+  assert.equal(run.code, 0, run.out);
+  const readme = readFileSync(fileURLToPath(new URL("../scripts/gates/README.md", import.meta.url)), "utf8");
+  assert.match(readme, /模板匹配只认形状/, "if this case starts failing, the gate got stricter: update the limit in README 门禁读不到的 and the header of doc-citations.mjs");
+  branch("template-shape-two-part", () => append("skills/dev/SKILL.md", "\nStill caught: `alpha.sources`.\n"));
+  const caught = gate("--base", "main");
+  assert.equal(caught.code, 1, caught.out);
+  assert.match(caught.out, /`alpha\.sources` is not an id the code defines/);
 });
 
 test("a spec in the index may carry an anchor, and a heading link may use the heading as GitHub spells it", () => {

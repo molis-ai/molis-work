@@ -20,9 +20,14 @@
 //                          define("reminders.recover") and the catalog prefixes it with schedule.);
 //               template   the id matches a template literal that builds ids (`${station.id}.content.${role}`). A template
 //                          counts only when it has a fixed segment after the first: `pages.${name}` or `shelf.${recipe}.${id}`
-//                          would accept every misspelling and every removed id of their owner, so they are ignored. What
-//                          `${station.id}.content.${role}` still accepts, any `<owner>.content.<role>`, is a blind spot
-//                          (scripts/gates/README.md, 门禁读不到的).
+//                          would accept every misspelling and every removed id of their owner, so they are ignored. A template
+//                          that is kept is matched by shape only, and accepts every id of that shape: `feed.sources.${suffix}`
+//                          accepts any `feed.sources.<x>` (the `feed.sources.sync` and `.tick` that CALL-CHAINS.md cites are
+//                          checked by shape, nothing more), `${station.id}.content.${role}` any `<owner>.content.<role>`, and
+//                          `${x}.published`, `${x}.version` and `${prefix}${id}.resources.read` those suffixes for any owner.
+//                          A typo in the last segment of such an id, or the removal of the action, is not caught: a blind
+//                          spot that only a parser of the placeholders' values would close (scripts/gates/README.md,
+//                          门禁读不到的).
 // Not read (scripts/gates/README.md, 门禁读不到的): MCP tool names other than molis_work_v1_action_<id>__v<N> (the context
 // tools, molis_work_v1_context_resolve and its siblings), ids whose owner is not a directory name (schedules.add), paths and
 // ids that are not inside an inline code span, and `.cursor/rules/*.mdc` globs.
@@ -105,7 +110,8 @@ function idUniverse(snapshot) {
       if (segments.length < 2 || !segments.every((segment) => /^[a-z0-9_\u0000-]*$/i.test(segment))) continue;
       // Needs a fixed segment after the owner: with none, `${a}.${b}` would accept every id there is, and `pages.${name}` (or
       // `shelf.${recipe}.${optionId}`) every misspelling and every removed id of that owner. A template is therefore only read
-      // when something between the placeholders pins the id down (`${station.id}.content.${role}`).
+      // when it has fixed text after the first segment (`${station.id}.content.${role}`). That narrows what it accepts to ids of
+      // its shape, it does not pin one id down: `feed.sources.${suffix}` still accepts every `feed.sources.<x>` (see the header).
       if (!segments.slice(1).some((segment) => segment && !segment.includes("\u0000"))) continue;
       templates.push(new RegExp(`^${segments.map((segment) => segment.split("\u0000").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[a-z0-9_-]+")).join("\\.")}$`));
     }

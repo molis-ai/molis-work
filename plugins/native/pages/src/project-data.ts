@@ -1,3 +1,4 @@
+import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { clearInExistingHomeSqlite } from "@molis-ai/molis-work-storage";
 import { PAGES_STORE_BASELINE } from "./store.js";
 
@@ -15,3 +16,6 @@ export function purgePagesProject(homeDirectory: string, projectId: string): voi
     db.prepare("DELETE FROM page_imports WHERE project_id = ?").run(projectId);
   });
 }
+
+/** What this package keeps in the Home for a project and how the project's deletion clears it; the Host reads it from the catalog. */
+export const pagesProjectData: ProjectDataDeclaration = { label: "Pages 文稿与文件夹", order: 10, purge: purgePagesProject };

@@ -1,3 +1,4 @@
+import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { clearInExistingHomeSqlite } from "@molis-ai/molis-work-storage";
 import { DATASET_STORE_BASELINE } from "./store.js";
 
@@ -12,3 +13,6 @@ export function purgeDatasetProject(homeDirectory: string, projectId: string): v
     db.prepare("DELETE FROM dataset_receipts WHERE project_id = ?").run(projectId);
   });
 }
+
+/** What this package keeps in the Home for a project and how the project's deletion clears it; the Host reads it from the catalog. */
+export const datasetProjectData: ProjectDataDeclaration = { label: "Dataset 数据表", order: 30, purge: purgeDatasetProject };

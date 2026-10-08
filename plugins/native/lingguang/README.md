@@ -30,6 +30,6 @@
   - 保留原表与稳定 ID；旧 `stub` 历史标为本地记录。
   - 同一 `request_id` 只代表一次保存：重试同样的内容返回第一次保存的那条（人把它移到别的项目后也一样），换了内容拒绝（`lingguang.request_conflict`），不静默丢掉新内容。请求表结构不变：请求键是 id 加输入指纹。
   - 读取文件或链接只提取文字，不保存上传内容；留存的只有人记下的灵光。
-  - 项目被删除时由宿主调用 `purgeLingguangProject`（`src/project-data.ts`）清掉灵光、对话与消息，连同请求回执；只读库文件，库不存在时不创建，重复运行没有副作用。
+  - 项目被删除时宿主按目录条目上的 `project_data`（`lingguangProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeLingguangProject`）调用清掉灵光、对话与消息，连同请求回执；只读库文件，库不存在时不创建，重复运行没有副作用。
 - 改动后必跑：`node scripts/run-tests.mjs tests/lingguang-actions.test.ts tests/lingguang-plugin.test.ts tests/lingguang-mcp.test.ts tests/project-deletion-owners.test.ts`
 - 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

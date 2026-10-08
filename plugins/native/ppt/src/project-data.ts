@@ -1,3 +1,4 @@
+import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { clearInExistingHomeSqlite } from "@molis-ai/molis-work-storage";
 import { PPT_STORE_BASELINE } from "./store.js";
 
@@ -11,3 +12,6 @@ export function purgePptProject(homeDirectory: string, projectId: string): void 
     db.prepare("DELETE FROM presentation_copies WHERE project_id = ?").run(projectId);
   });
 }
+
+/** What this package keeps in the Home for a project and how the project's deletion clears it; the Host reads it from the catalog. */
+export const pptProjectData: ProjectDataDeclaration = { label: "PPT 演示稿", order: 40, purge: purgePptProject };

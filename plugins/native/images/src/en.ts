@@ -1,4 +1,6 @@
 export const IMAGES_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "图片生成记录和已生成的图片": "Image jobs and the pictures they made",
   "服务已保存，请先完成账号连接。": "Service saved. Connect an account to start generating.",
   "保留当前连接": "Keep the current connection",
   "连接不可用": "Connection unavailable",

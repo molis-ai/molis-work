@@ -1,3 +1,4 @@
+import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { clearInExistingHomeSqlite } from "@molis-ai/molis-work-storage";
 import { LINGGUANG_STORE_BASELINE } from "./store.js";
 
@@ -13,3 +14,6 @@ export function purgeLingguangProject(homeDirectory: string, projectId: string):
     db.prepare("DELETE FROM sparks WHERE project_id = ?").run(projectId);
   });
 }
+
+/** What this package keeps in the Home for a project and how the project's deletion clears it; the Host reads it from the catalog. */
+export const lingguangProjectData: ProjectDataDeclaration = { label: "灵光里的想法与对话", order: 80, purge: purgeLingguangProject };

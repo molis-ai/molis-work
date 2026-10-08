@@ -1,3 +1,4 @@
+import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { clearInExistingHomeSqlite } from "@molis-ai/molis-work-storage";
 import { WORKFLOWS_STORE_BASELINE } from "./store.js";
 
@@ -11,3 +12,6 @@ export function purgeWorkflowsProject(homeDirectory: string, projectId: string):
     db.prepare("DELETE FROM workflows WHERE project_id = ?").run(projectId);
   });
 }
+
+/** What this package keeps in the Home for a project and how the project's deletion clears it; the Host reads it from the catalog. */
+export const workflowsProjectData: ProjectDataDeclaration = { label: "工作流程及其运行记录", order: 50, purge: purgeWorkflowsProject };

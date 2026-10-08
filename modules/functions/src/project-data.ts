@@ -1,3 +1,4 @@
+import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { clearInExistingHomeSqlite } from "@molis-ai/molis-work-storage";
 import { FUNCTIONS_STORE_BASELINE } from "./store.js";
 
@@ -12,3 +13,6 @@ export function purgeFunctionsProject(homeDirectory: string, projectId: string):
     db.prepare("DELETE FROM function_judgments WHERE project_id = ?").run(projectId);
   });
 }
+
+/** What this module keeps in the Home for a project and how the project's deletion clears it. Not a plugin, so the Host lists it by hand. */
+export const functionsProjectData: ProjectDataDeclaration = { label: "判断规则在这个项目里的场景绑定和判断记录", order: 70, purge: purgeFunctionsProject };

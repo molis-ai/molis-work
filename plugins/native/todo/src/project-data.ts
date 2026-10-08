@@ -1,3 +1,4 @@
+import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { clearInExistingHomeSqlite } from "@molis-ai/molis-work-storage";
 import { TODO_STORE_BASELINE } from "./store.js";
 
@@ -16,3 +17,6 @@ export function purgeTodoProject(homeDirectory: string, projectId: string): void
     db.prepare("DELETE FROM todo_items WHERE project_id = ?").run(projectId);
   });
 }
+
+/** What this package keeps in the Home for a project and how the project's deletion clears it; the Host reads it from the catalog. */
+export const todoProjectData: ProjectDataDeclaration = { label: "放在这个项目里的待办", order: 60, purge: purgeTodoProject };

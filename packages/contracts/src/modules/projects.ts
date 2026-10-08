@@ -132,6 +132,26 @@ export interface CreateProjectInput {
   actor_id: string;
 }
 
+/**
+ * What an owner (a plugin, a module) keeps in the Home for a project outside the project's own directory (its stores are
+ * partitioned by `project_id`), and how to clear it when the project is deleted. The owner exports one; a built-in plugin
+ * attaches it to its catalog entry (`project_data`), and the Host builds the deletion's owners from the declarations it
+ * already collects, so it never names a plugin or lists its tables. The owner's id in the deletion receipt is the
+ * plugin's `project_plugin_id`.
+ */
+export interface ProjectDataDeclaration {
+  /** What the confirmation dialog tells the person goes with the project (Chinese source text, translated when shown). */
+  readonly label: string;
+  /** Where this owner's step runs among the others, ascending; omitted, it runs after every numbered one, in catalog order. */
+  readonly order?: number;
+  /**
+   * Clears the owner's data of the project from the Home. It works on the owner's own files, so any process on the Home
+   * can run it without the owner's service running; it is idempotent (a failed receipt is retried, and a library that
+   * does not exist yet is not created). Throws when something is left, and the step then stays pending in the receipt.
+   */
+  purge(homeDirectory: string, projectId: string): void | Promise<void>;
+}
+
 /** One owner's part of a deletion: it clears the data it keeps in the Home for the deleted project. */
 export interface ProjectDeletionStep {
   /** The owner that registered the step, e.g. `pages` or `memory`. */

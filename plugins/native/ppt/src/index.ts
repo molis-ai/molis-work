@@ -24,7 +24,7 @@ export { pptContentActions, pptMarkdown, slidesFromMarkdown, createPptContentHan
 export type { PptLineHeadPort, PptPublishArtifactPort, PptReadArtifactPort, PptPublicationSnapshot } from "./promote.js";
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, pptManifest } from "./manifest.js";
 export { openPptStore, PptStore, PPT_STORE_BASELINE } from "./store.js";
-export { purgePptProject } from "./project-data.js";
+export { purgePptProject, pptProjectData } from "./project-data.js";
 export { PptError } from "./error.js";
 
 export { pptActions, PPT_ACTION_PERMISSIONS, createPptActionHandlers } from "./actions.js";

@@ -1,3 +1,4 @@
+import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { clearInExistingHomeSqlite } from "@molis-ai/molis-work-storage";
 import { FORM_STORE_BASELINE } from "./store.js";
 
@@ -12,3 +13,6 @@ export function purgeFormProject(homeDirectory: string, projectId: string): void
     db.prepare("DELETE FROM form_copies WHERE project_id = ?").run(projectId);
   });
 }
+
+/** What this package keeps in the Home for a project and how the project's deletion clears it; the Host reads it from the catalog. */
+export const formProjectData: ProjectDataDeclaration = { label: "Forms 问卷及收到的全部回答", order: 20, purge: purgeFormProject };

@@ -46,12 +46,12 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const ITEM_TABS = ${JSON.stringify([...SEARCH_ITEM_TAB_SURFACES])};
   const RECORD_ROWS = ${JSON.stringify([...pluginSearchRows().map(([plugin]) => plugin), "feed", "characters"])};
   const takeSearchHits = ${takeSearchHits.toString()};
-  // The palette lives on project (board) pages; a legacy single-board page has a project context without a catalog id.
+  // The palette lives on project pages; a page served from one database without a catalog (the fixture server) is a project page without a catalog id.
   const hasProject = Boolean(projectId) || document.body.hasAttribute("data-board-view");
   // In the personal space everything is personal: “this project” would be the same thing twice.
   const scopes = hasProject && projectId !== ${JSON.stringify(PERSONAL_SPACE_PROJECT_ID)} ? ["all", "project", "personal"] : ["personal"];
   // A hit from another partition can only be the person's own space (search answers nothing else across projects).
-  // A legacy single-board page has no project id of its own: its hits are its own board's, opened in place.
+  // A page without a catalog id has no other partitions: its hits are its own, opened in place.
   const away = (hit) => Boolean(hit.project_id) && Boolean(projectId) && hit.project_id !== projectId;
   let scope = (() => { try { const saved = sessionStorage.getItem("molis-work:search-scope"); return scopes.includes(saved) ? saved : scopes[0]; } catch { return scopes[0]; } })();
   let hits = [];

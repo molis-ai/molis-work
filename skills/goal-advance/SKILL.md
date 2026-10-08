@@ -5,7 +5,7 @@ description: Use Molis Work, a local plugin workbench, in the current Runtime co
 
 # Molis Work Runtime
 
-Stay in the current conversation. Molis Work is a local plugin workbench: each fact has one owner plugin (Goals owns Goals with their agreements, events and closure; Pages, Todo, Artifacts and the other plugins own their own records). This skill covers connecting a project and the Goals protocol. Perform the user's actual work with the tools appropriate to that work, then record its meaningful results through Molis Work MCP.
+Stay in the current conversation. Molis Work is a local plugin workbench: each fact has one owner, a plugin or a system module (Goals owns Goals with their agreements, events and closure; Pages and Todo own their own records; Artifacts belong to a system module, with the Artifacts plugin as its entry). This skill covers connecting a project and the Goals protocol. Perform the user's actual work with the tools appropriate to that work, then record its meaningful results through Molis Work MCP.
 
 Molis Work MCP has platform connection tools (molis_work_v1_context_* and molis_work_v1_project_delete) and one action tool per action this client has been granted, from any enabled plugin or system service, named `molis_work_v1_action_<action>__v<version>` (for example `molis_work_v1_action_goals.list__v1`). This skill names Goal actions by action (`goals.list`); call other plugins' actions by their own schemas.
 

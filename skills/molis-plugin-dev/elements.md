@@ -147,7 +147,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 - `commandAvailability(commandId)` → `{ available, reason? }`
 - `executeCommand(commandId, input)` → 打开的视图
 
-只写 Manifest、不写这两个函数，菜单点不动。Native 一等入口今天几乎不用这条，对照 Coding / Files / Git。
+只写 Manifest、不写这两个函数，菜单点不动。今天只有 Coding、Files、Git、Diff 声明了命令，对照它们。
 
 ## agent 块
 

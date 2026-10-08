@@ -28,7 +28,7 @@ import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-wo
 | `actions` | 声明了 actions | 调用本插件已注册的公开动作；Host 绑定用户，停用后失效。HTTP 用 `bindPluginActionRoute` 薄转发，不另写业务实现 |
 | `capabilities` | 声明了 consumes | `invoke` 已 grant 的 Capability |
 
-动作处理器的 `ActionCallContext.actor_id` 是可信调用主体，MCP 授权按此客户端身份判断。`audit_actor_id` 由可信 Host 写入本次写入的作者：经 MCP 是 `<客户端>:<会话>`，助理是 `assistant:<work_id>`，生成插件是「插件「名称」」；声明 `authorship: "session"` 的动作从这里读作者。它不参与授权，不得从业务 JSON 覆盖。跨进程 Host 只根据固定客户端和可信会话元数据推导审计作者，不接受任意作者 ID。`actor_kind` 是可信审计分类，`null` 表示可信调用方不知道，不授予用户决策权限。公共输入只声明业务数据，项目、权限及身份从调用上下文取得。Goals 的目录/创建/便笺可通过其 `goalsActions` 引用。
+动作处理器的 `ActionCallContext.actor_id` 是可信调用主体，MCP 授权按此客户端身份判断。`audit_actor_id` 由可信 Host 写入本次写入的作者：经 MCP 是 `<客户端>:<会话>`，助理是 `assistant:<work_id>`，生成插件是「插件「名称」」；声明 `authorship: "session"` 的动作从这里读作者。它不参与授权，不得从业务 JSON 覆盖。跨进程 Host 只根据固定客户端和可信会话元数据推导审计作者，不接受任意作者 ID。`actor_kind` 是可信审计分类，`null` 表示可信调用方不知道，不授予用户决策权限。公共输入只声明业务数据，项目、权限及身份从调用上下文取得。Goals 的目录/创建/便笺可通过其 `goalsActions` 引用；创建 Goal 的来源由调用主体决定：`audience` 不是 `user` 的调用一律记为 runtime，指定别的渠道会被拒绝；本人不指定时记为 web。
 
 作者不碰 Store、SQL、数据库路径。缺权限、停用的旧上下文、未声明的类型/界面都会被 owner 拒绝。
 

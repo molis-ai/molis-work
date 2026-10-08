@@ -73,7 +73,7 @@
 
 ## Coding：Runtime 托管的 app
 
-`kind: "app"`。有 Artifact 输出口；6 个可选输入口（Shelf 材料、Files 快照与选区、Git 变更与结果），默认连线见 `workspace-plugin-bindings.ts`；还有事件、`agent` 角色和 commands（写清 `input_kinds`）。`start()` 必须兑现 views。Goal 上下文走 Goals Capability（`goals.context.list.v1`、`goals.context.read.v1`、`goals.progress.record.v1`）。不要把它的 agent 块抄到普通内容插件。对外调用只走动作的 `audiences` 与授权，不另声明。搜索来源 `coding.search.entries` 经路由兑现（`/search/entries`）；Runtime 里的内置插件加动作要升版本，随宿主升级，不写 `upgrade_compatibility`（Characters 用 `bindOwnerPluginAction`，同理）。
+`kind: "app"`。有 Artifact 输出口；6 个可选输入口（Shelf 材料、Files 快照与选区、Git 变更与结果），默认连线见 `workspace-plugin-bindings.ts`；还有事件、`agent` 角色和 commands（写清 `input_kinds`）。`start()` 必须兑现 views。Goal 上下文与进展走 Goals Capability（`goals.context.list.v1`、`goals.context.read.v1`、`goals.progress.record.v1`、`goals.progress.receipt.v1`）。不要把它的 agent 块抄到普通内容插件。对外调用只走动作的 `audiences` 与授权，不另声明。搜索来源 `coding.search.entries` 经路由兑现（`/search/entries`）；Runtime 里的内置插件加动作要升版本，随宿主升级，不写 `upgrade_compatibility`（Characters 用 `bindOwnerPluginAction`，同理）。
 
 ## GitHub / Gmail 等接入
 

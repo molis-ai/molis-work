@@ -237,10 +237,12 @@ export class FeedModule implements FeedApi {
       const attention = input.attention === false ? null : input.attention ?? null;
       if (existingRow) {
         const existing = mapFeedItem(existingRow, []);
-        const shouldUpdate = input.signal != null
+        // A newer Signal revision updates the item. A source without Signals (a package republished under the same
+        // id) says so with `refresh`, and the item then changes together with the material it carries.
+        const shouldUpdate = input.refresh === true || (input.signal != null
           && (existing.signal_id !== input.signal.signal_id
             || existing.signal_revision == null
-            || input.signal.revision > existing.signal_revision);
+            || input.signal.revision > existing.signal_revision));
         if (shouldUpdate) {
           const at = this.now().toISOString();
           this.db.prepare(`
@@ -250,8 +252,8 @@ export class FeedModule implements FeedApi {
               revision = revision + 1, source_updated_at = ?, updated_at = ?
             WHERE project_id = ? AND item_id = ?
           `).run(
-            input.signal!.signal_id,
-            input.signal!.revision,
+            input.signal?.signal_id ?? existing.signal_id,
+            input.signal?.revision ?? existing.signal_revision,
             input.kind ?? "update",
             normalizeTitle(input.title),
             normalizeSummary(input.summary),
@@ -272,8 +274,8 @@ export class FeedModule implements FeedApi {
             existing.item_id,
             "feed_item.updated",
             "feed_item.updated",
-            "Signal 新版本已更新 Feed Item",
-            { signal_id: input.signal!.signal_id, signal_revision: input.signal!.revision },
+            input.signal ? "Signal 新版本已更新 Feed Item" : "来源内容新版本已更新 Feed Item",
+            input.signal ? { signal_id: input.signal.signal_id, signal_revision: input.signal.revision } : { refreshed: true },
             at,
           );
         }
@@ -286,7 +288,8 @@ export class FeedModule implements FeedApi {
             updated_at: this.now().toISOString(),
           });
         }
-        if (attention) {
+        // A source seeing an ignored item again does not bring it back to the Inbox; the person restores it.
+        if (attention && existing.disposition !== "archived") {
           this.attention.commands.ensureFeedItem(
             input.project_id,
             existing.item_id,
@@ -428,12 +431,13 @@ export class FeedModule implements FeedApi {
         if (disposition === "inbox") this.openManualAttention(projectId, itemId);
         return this.get(projectId, itemId);
       }
+      // An ignored item is brought back by restore, never by admitting it to the Inbox or by another disposition.
+      if (current.disposition === "archived") {
+        throw new FeedError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
+      }
       if (disposition === "inbox") {
         this.openManualAttention(projectId, itemId);
         return this.get(projectId, itemId);
-      }
-      if (current.disposition === "archived") {
-        throw new FeedError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
       }
       const at = this.now().toISOString();
       this.db.prepare(`
@@ -441,15 +445,11 @@ export class FeedModule implements FeedApi {
         SET disposition = ?, revision = revision + 1, updated_at = ?
         WHERE project_id = ? AND item_id = ?
       `).run(disposition, at, projectId, itemId);
-      const inbox = this.attention.query.findActiveForSubject(projectId, "feed_item", itemId);
-      if (inbox) {
-        const nextStatus: AttentionStatus = disposition === "processing"
-          ? "in_progress"
-          : disposition === "archived"
-            ? "dismissed"
-            : "done";
-        this.attention.commands.setStatus(projectId, inbox.entry_id, nextStatus, inbox.revision);
-      }
+      settleActiveAttention(this.attention, projectId, itemId, disposition === "processing"
+        ? "in_progress"
+        : disposition === "archived"
+          ? "dismissed"
+          : "done");
       this.appendEvent(
         projectId,
         itemId,
@@ -476,8 +476,7 @@ export class FeedModule implements FeedApi {
         SET disposition = 'inbox', revision = revision + 1, updated_at = ?
         WHERE project_id = ? AND item_id = ?
       `).run(at, projectId, itemId);
-      const inbox = this.attention.query.findActiveForSubject(projectId, "feed_item", itemId);
-      if (inbox) this.attention.commands.setStatus(projectId, inbox.entry_id, "dismissed", inbox.revision);
+      settleActiveAttention(this.attention, projectId, itemId, "dismissed");
       this.appendEvent(
         projectId,
         itemId,
@@ -532,15 +531,7 @@ export class FeedModule implements FeedApi {
         SET disposition = ?, revision = revision + 1, updated_at = ?
         WHERE project_id = ? AND item_id = ?
       `).run(disposition, at, projectId, itemId);
-      const inbox = this.attention.query.findActiveForSubject(projectId, "feed_item", itemId);
-      if (inbox) {
-        this.attention.commands.setStatus(
-          projectId,
-          inbox.entry_id,
-          disposition === "processing" ? "in_progress" : "done",
-          inbox.revision,
-        );
-      }
+      settleActiveAttention(this.attention, projectId, itemId, disposition === "processing" ? "in_progress" : "done");
       this.appendEvent(
         projectId,
         itemId,
@@ -639,6 +630,18 @@ export class FeedModule implements FeedApi {
 
   private now(): Date {
     return this.options.now?.() ?? new Date();
+  }
+}
+
+/**
+ * An item can be in the Inbox for more than one reason at once (the person added it, a capture rule admitted it,
+ * a capture-out failure). What happens to the item happens to all of those entries, in the item's transaction.
+ */
+function settleActiveAttention(attention: AttentionApi, projectId: string, itemId: string, status: AttentionStatus): void {
+  for (const entry of attention.query.findForSubject(projectId, "feed_item", itemId)) {
+    if (entry.status === "open" || entry.status === "in_progress") {
+      attention.commands.setStatus(projectId, entry.entry_id, status, entry.revision);
+    }
   }
 }
 

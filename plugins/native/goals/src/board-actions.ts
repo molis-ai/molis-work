@@ -19,7 +19,7 @@ function requireManagement(caller: ActionCallContext): void {
 }
 export const goalsBoardActions = {
   initialize: management(goalAction<{ title: string; idempotency_key: string }, InitializeBoardOutput>("goals.board.initialize", "初始化目标资料库",
-    "在当前可信管理上下文中初始化尚不存在的 Board；不创建项目目录绑定，不覆盖已有 Board，重试保留原请求键", "command",
+    "在当前可信管理上下文中为本项目初始化尚不存在的目标资料库；不创建项目目录绑定，不覆盖已有资料库，重试保留原请求键", "command",
     object({ title: identifier, idempotency_key: identifier }), object({ project_id: text, replayed: boolean, observed_event_cursor: count }))),
 } as const;
 export function createGoalsBoardActionHandlers(projectId: string, ports: GoalsBoardPorts): ActionHandlerBinding[] {

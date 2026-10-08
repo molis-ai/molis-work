@@ -4,7 +4,7 @@ import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contract
 import { slidesFromMarkdown } from "./content-actions.js";
 import { PPT_DRAFT_OUTLINE } from "./prompts.js";
 import { PPT_ARTIFACT_TYPE_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
-import { promotePpt, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
+import { promotePpt, type PptLineHeadPort, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
 import type { PptStore } from "./store.js";
 import { createPptSearchHandlers, pptSearchActions } from "./search.js";
 import { pptArtifactPreview, pptArtifactPreviewHandler } from "./artifact-preview.js";
@@ -50,10 +50,10 @@ export const pptActions = {
     "按已保存的版本生成 .pptx（每页标题、要点、讲者备注与配色），PowerPoint、Keynote、WPS 可直接打开和放映；不含图片与图表", "query", object(identity, ["id"]),
     object({ filename: text, mime_type: { const: PPTX_MIME_TYPE }, content_base64: text, slide_count: { type: "integer", minimum: 1 } })),
   outline: define<OutlineInput, { presentation: PptRecord; slide_count: number }>("outline", "按文字生成大纲",
-    "把一段要点或 Markdown 变成幻灯片：`#` 是演示稿标题，`##` 分页，列表成为要点，`>` 成为讲者备注；没有标题时每 6 条要点一页。也可以给 page_id 用一篇 Pages 文档的正文（以调用者自己的权限读取）。追加到现有页之后，或替换现有页；本地处理，不调用模型", "command",
+    "把一段要点或 Markdown 变成幻灯片：`#` 是演示稿标题，`##` 分页，列表成为要点，`>` 成为讲者备注；没有标题时每 6 条要点一页。也可以给 page_id 用一篇 Pages 文档的正文（以调用者自己的权限读取）。追加到现有页之后（演示稿最多 40 页，已满时需要替换现有页），或替换现有页；本地处理，不调用模型", "command",
     outlineInput, object({ presentation: record, slide_count: { type: "integer", minimum: 1 } })),
   outlineAi: define<OutlineInput, { presentation: PptRecord; slide_count: number }>("outline_ai", "AI 整理成大纲",
-    "让当前文字模型把一段文字或一篇 Pages 文档整理成幻灯片大纲，再按标题分页；模型失败、返回空或演示稿已变化时不写入", "command",
+    "让当前文字模型把一段文字或一篇 Pages 文档整理成幻灯片大纲，再按标题分页；演示稿已满 40 页又不替换时，不调用模型；模型失败、返回空或演示稿已变化时不写入", "command",
     outlineInput, object({ presentation: record, slide_count: { type: "integer", minimum: 1 } }), [...write, "model:invoke"], { cost: "metered" }),
   outlinePages: define<Record<string, never>, { documents: Array<{ id: string; title: string; updated_at: string | null }> }>("outline_pages", "可做成大纲的文档",
     "列出当前项目里可以拿来生成大纲的 Pages 文档（以调用者自己的权限读取）；Pages 未启用或无权读取时返回空列表与原因", "query", object({}),
@@ -69,24 +69,32 @@ export interface PptActionPorts {
   withStore<T>(run: (store: PptStore) => T): T;
   /** Whether the current text model can be asked; absent means no model in this environment. */
   modelAvailability?(): ActionAvailability;
-  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
+  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
   /** Pages documents through Pages' public content actions, with the caller's own authority; absent when Pages is not reachable. */
   listPages?(caller: ActionCallContext): Promise<Array<{ id: string; title: string; updated_at: string | null }>>;
   readPage?(pageId: string, caller: ActionCallContext): Promise<{ title: string; body: string }>;
   publishArtifact?: (input: Parameters<PptPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<PptPublishArtifactPort>;
   readArtifact?: (input: Parameters<PptReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<PptReadArtifactPort>;
+  lineHead?: PptLineHeadPort;
+}
+/** A deck is at most this many pages. */
+const SLIDE_LIMIT = 40;
+const isBlank = (deck: PptRecord) => deck.slides.length === 1 && !deck.slides[0]!.bullets.length && !deck.slides[0]!.notes;
+/** An outline joins a deck after its pages, so a full deck has no room for it: said before anything is written or asked of the model. */
+function assertRoomForOutline(deck: PptRecord, replace: boolean | undefined): void {
+  if (!replace && !isBlank(deck) && deck.slides.length >= SLIDE_LIMIT) throw new ActionError("ppt.invalid", `这份演示稿已有 ${SLIDE_LIMIT} 页，放不下更多；可以改为替换现有页`);
 }
 /** Slides parsed from an outline join the deck after its pages, or replace them; a deck that is still one blank page is simply filled. */
 function applyOutline(store: PptStore, input: { id: string; expected_version?: number; replace?: boolean }, projectId: string, markdown: string): { presentation: PptRecord; slide_count: number } {
   const current = store.get(input.id, projectId);
   if (input.expected_version !== undefined && current.version !== input.expected_version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后生成");
+  assertRoomForOutline(current, input.replace);
   const parsed = slidesFromMarkdown(markdown, current.title);
-  const blank = current.slides.length === 1 && !current.slides[0]!.bullets.length && !current.slides[0]!.notes;
-  const kept = input.replace || blank ? [] : current.slides.map(slide => ({ id: slide.id, title: slide.title, bullets: slide.bullets, notes: slide.notes }));
-  const slides = [...kept, ...parsed.slides].slice(0, 40);
+  const kept = input.replace || isBlank(current) ? [] : current.slides.map(slide => ({ id: slide.id, title: slide.title, bullets: slide.bullets, notes: slide.notes }));
+  const slides = [...kept, ...parsed.slides].slice(0, SLIDE_LIMIT);
   const untitled = current.title === "未命名演示稿" && parsed.title && parsed.title !== current.title;
   const presentation = store.update(input.id, { slides, ...(untitled ? { title: parsed.title } : {}), expected_version: current.version }, projectId);
-  return { presentation, slide_count: Math.min(parsed.slides.length, 40 - kept.length) };
+  return { presentation, slide_count: Math.min(parsed.slides.length, SLIDE_LIMIT - kept.length) };
 }
 
 export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBinding[] {
@@ -103,7 +111,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
   const modelAvailability = (): ActionAvailability => ports.modelAvailability ? ports.modelAvailability() : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promotePpt(store, id, project(caller), value => ports.publishArtifact!(value, caller),
-    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined }));
+    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead }));
   const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "ppt.unavailable", reason: "当前环境不能发出成果" };
   return [
     pptArtifactPreviewHandler,
@@ -133,7 +141,9 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
       return { surface: PPT_PROJECT_PLUGIN_ID, id: created.id, title: created.title };
     })),
     bindArtifactCompare(pptActions.artifactCompare, PPT_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
-      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "color_primary", "color_background", "color_text", "slides"])),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "color_primary", "color_background", "color_text", "slides"]),
+      // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.
+      id => ports.withStore(store => objectOrMissing(() => store.get(id)) !== null)),
     bind(pptActions.pptx, (input, caller) => ports.withStore(store => {
       const presentation = store.get(input.id, project(caller));
       if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后导出");
@@ -151,10 +161,11 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
     bind(pptActions.outlineAi, async (input, caller) => {
       const current = ports.withStore(store => store.get(input.id, project(caller)));
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后生成");
+      assertRoomForOutline(current, input.replace);
       const source = await outlineSource(input, caller);
       caller.signal?.throwIfAborted();
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
-      const markdown = (await ports.completeText(instructed(PPT_DRAFT_OUTLINE, JSON.stringify({ text: source })), { signal: caller.signal })).trim();
+      const markdown = (await ports.completeText(instructed(PPT_DRAFT_OUTLINE, JSON.stringify({ text: source })), { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
       caller.signal?.throwIfAborted();
       if (!markdown) throw new ActionError("ppt.invalid", "模型没有返回大纲，请调整文字后重试");
       await caller.beforeEffect();

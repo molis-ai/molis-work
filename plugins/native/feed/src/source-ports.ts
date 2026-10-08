@@ -8,6 +8,8 @@ export type IntelligenceCollectResult = Readonly<Pick<SearchIntentExactResultV1,
 export interface PublicFeedRuntime {
   intelligenceCollect: { executeExact(request: IntelligenceCollectRequest, options?: { signal?: AbortSignal }): Promise<IntelligenceCollectResult> };
   content: { has(contentRef: string): boolean };
+  /** The evidence bodies this runtime has written so far, including those of a pull that never reached a result. */
+  writtenContentRefs?(): readonly string[];
   publicFeedReceipt?(): RssFetchReceipt | null;
   shutdown(): Promise<void>;
 }

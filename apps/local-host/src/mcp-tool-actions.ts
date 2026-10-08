@@ -68,3 +68,27 @@ export function createMcpVersionBook(file: string | undefined) {
     },
   };
 }
+
+/**
+ * The registrations a directory holds for one server, each made from a signature (everything the registration says: its
+ * definition and the label it is shown under). Refreshing what the server offers registers only what changed: a call in
+ * flight on an unchanged tool keeps the registration it started on, so another tool's change, or a refresh that found
+ * nothing new, never withdraws it. A changed or vanished tool is replaced or withdrawn, as before.
+ */
+export function createRegistrationSet() {
+  const entries = new Map<string, { signature: string; dispose: () => void }>();
+  return {
+    /** Keeps the entry while its signature is the same; otherwise withdraws it and registers it again. */
+    ensure(key: string, signature: string, register: () => () => void): void {
+      const current = entries.get(key);
+      if (current?.signature === signature) return;
+      current?.dispose(); entries.delete(key);
+      entries.set(key, { signature, dispose: register() });
+    },
+    /** Withdraws every entry whose key is not listed. */
+    retain(keys: ReadonlySet<string>): void {
+      for (const [key, entry] of entries) if (!keys.has(key)) { entry.dispose(); entries.delete(key); }
+    },
+    clear(): void { for (const entry of entries.values()) entry.dispose(); entries.clear(); },
+  };
+}

@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
@@ -135,4 +136,52 @@ test("a connected external MCP tool is one directory action: local user, workflo
     await adapter.close?.();
     await rm(home, { recursive: true, force: true });
   }
+});
+
+test("listing the servers again while an external tool is being called replaces only what changed, so the call is not withdrawn", async () => {
+  const host = new LocalHost<object>({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const place = { project_id: "p1", storage_key: "memory:p1" };
+  const tool = (name: string, description = name) => ({ server: "srv", server_label: "Srv", configuration_version: 1, tool: name, version: `shape-${name}`, description, input_schema: { type: "object", properties: { m: { type: "string" } } } });
+  let tools = [tool("echo")], dispatched = 0, resync: (() => Promise<void>) | undefined;
+  const library = { list: async () => [{ id: "srv" }], tools: async () => tools, live: () => true,
+    call: async (_owner: unknown, _tool: unknown, _args: unknown, options: { beforeDispatch?: () => Promise<void> }) => {
+      // Between the handler's start and its dispatch (validation, workspace authority, clock) the settings page lists the servers.
+      await resync?.();
+      await options.beforeDispatch?.();
+      dispatched++;
+      return { text: "ok", truncated: false };
+    } };
+  const home = await mkdtemp(join(tmpdir(), "external-mcp-resync-"));
+  const directory = createExternalMcpDirectory({ localHost: host as never, homeDirectory: home });
+  const runtime = { project_id: "p1", store: { path: "memory:p1" } } as MolisWorkProjectRuntime;
+  const owner = { project_id: "p1", plugin_id: "coding" };
+  const sync = () => directory.sync(runtime, "coding", "prologue", library as never, owner);
+  const client = host.actionClient(place);
+  const user: ActionCallContext = { actor_id: "web-user", project_id: "p1", audience: "user", permissions: [EXTERNAL_MCP_PERMISSION] };
+  const find = async (name: string) => (await client.discover(user)).find(row => row.capability_id.endsWith(`.${name}`));
+  try {
+    await sync();
+    const echo = (await find("echo"))!;
+    const ref = { capability_id: echo.capability_id, version: echo.version, provider_id: echo.provider.provider_id };
+    // The same servers, listed again, and one more tool: the call to the unchanged tool goes through.
+    resync = async () => { tools = [tool("echo"), tool("search")]; await sync(); };
+    assert.deepEqual(await client.invoke(user, ref, { m: "x" }), { text: "ok", truncated: false });
+    assert.equal(dispatched, 1);
+    assert.ok(await find("search"), "the new tool joined the directory");
+    const same = (await find("echo"))!;
+    assert.equal(same.version, echo.version, "the unchanged tool keeps its version");
+    // A tool whose description the server changed is replaced; its in-flight call is withdrawn before dispatch, the other is not.
+    resync = async () => { tools = [tool("echo", "Echo, reworded"), tool("search")]; await sync(); };
+    await assert.rejects(client.invoke(user, ref, { m: "x" }), { code: "actions.provider_changed" });
+    assert.equal(dispatched, 1, "the withdrawn call dispatched nothing");
+    resync = undefined;
+    assert.match((await find("echo"))!.action.description, /Echo, reworded/);
+    const search = (await find("search"))!;
+    assert.deepEqual(await client.invoke(user, { capability_id: search.capability_id, version: search.version, provider_id: search.provider.provider_id }, { m: "y" }), { text: "ok", truncated: false });
+    // A tool the server stops offering leaves the directory.
+    tools = [tool("search")];
+    await sync();
+    assert.equal(await find("echo"), undefined);
+    assert.ok(await find("search"));
+  } finally { directory.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

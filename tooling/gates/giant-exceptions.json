@@ -1,10 +1,6 @@
 {
-  "note": "Giant units that have to be long, each with a reason (specs/repository-anti-corruption §4.5; the list with every verdict is docs/system/HUGE-CLASS-MIGRATION.md). An entry records why a unit that is already giant at the merge-base has to stay long; it admits nothing: a unit that was not giant at the merge-base fails as new whether or not it is registered, and a registered unit may never grow. Keys are the unit keys of baseline.json; an entry for a unit that is no longer giant fails the gate and has to be deleted. kind: translation-table, stylesheet, static-data or generated-code. Changes here are changes to the gate.",
+  "note": "Giant units that have to be long, each with a reason (specs/repository-anti-corruption §4.5; the list with every verdict is docs/system/HUGE-CLASS-MIGRATION.md). An entry records why a unit that is already giant at the merge-base has to stay long; it admits nothing: a unit that was not giant at the merge-base fails as new whether or not it is registered, and a registered unit may never grow. Keys are the unit keys of baseline.json; an entry for a unit that is no longer giant fails the gate and has to be deleted. kind: translation-table, stylesheet, static-data or generated-code. Edits here are reviewed like edits to the gate, and like them cannot raise a number.",
   "exceptions": {
-    "file apps/workbench/src/i18n/en.ts": {
-      "kind": "translation-table",
-      "reason": "英文词典：一个对象字面量加几块 Object.assign 的字符串对，没有逻辑；按行数机械拆只会把同一张表切开。W5-03 把插件自有词条移给主人并删无引用的键，这个文件随之变小。"
-    },
     "file packages/design-system/src/styles/momentum.ts": {
       "kind": "stylesheet",
       "reason": "Goals 动量视图的样式表：一个模板字符串，纯 CSS，没有逻辑；样式表按行数拆不改善职责，只让同一个界面的规则散在几处。"
@@ -19,7 +15,7 @@
     },
     "file plugins/official-integrations/catalog/src/catalog.ts": {
       "kind": "static-data",
-      "reason": "39 个连接器的声明表：CATALOG 数组本身 834 行，每条独立，只描述该连接器的身份请求与条目映射；数组之外约 180 行是条目用的构造、解析与连接器专属请求头助手。新增连接器就是新增一条，拆开不会减少改动点。"
+      "reason": "39 个连接器的声明表：CATALOG 数组本身 834 行，每条独立，只描述该连接器的身份请求与条目映射；数组之外约 180 行是条目用的构造、解析与连接器专属请求头助手。条目之间没有逻辑联系，按行数拆不会让任何一条更好改。但这个单元和所有巨大单元一样不许变大，新增连接器要先把已有条目挪进各自的文件、腾出行数，再加新的。"
     }
   }
 }

@@ -173,9 +173,16 @@ const giantUnits = {
       else if (typeof value === "number") {
         if (value > was) errors.push(`giant unit grew: ${unit} ${was} → ${value}`);
       } else {
-        // Lines and methods are two limits: whichever is over its limit may not exceed what the reference recorded.
-        if (value.lines > limits.classLines && value.lines > was.lines) errors.push(`giant class grew: ${unit} lines ${was.lines} → ${value.lines}`);
-        if (value.methods > limits.classMethods && value.methods > was.methods) errors.push(`giant class grew: ${unit} methods ${was.methods} → ${value.methods}`);
+        // Two rules, both must hold. Lines and methods are two limits: whichever is over its limit may not exceed what the
+        // reference recorded. And the old freeze stays: the larger of the two (the old single number) may not grow either,
+        // so a class that is giant only by methods cannot gain lines while it is still under the line limit.
+        const found = [];
+        if (value.lines > limits.classLines && value.lines > was.lines) found.push(`giant class grew: ${unit} lines ${was.lines} → ${value.lines}`);
+        if (value.methods > limits.classMethods && value.methods > was.methods) found.push(`giant class grew: ${unit} methods ${was.methods} → ${value.methods}`);
+        if (!found.length && sizeOf(value) > sizeOf(was)) {
+          found.push(`giant class grew: ${unit} ${sizeOf(was)} → ${sizeOf(value)} (lines ${was.lines} → ${value.lines}, methods ${was.methods} → ${value.methods}); a giant class may not get bigger in either dimension`);
+        }
+        errors.push(...found);
       }
     }
     return errors;
@@ -309,7 +316,7 @@ const compatMarkers = {
   },
   toBaseline: (counts) => ({ compatMarkerTotal: sumOf(counts), compatMarkers: counts }),
   fromBaseline: (json) => perFile.fromBaseline(json, "compatMarkers"),
-  grew: perFile.grew("compatibility markers", "delete the old path instead of keeping it (a kept mechanism is recorded in specs/repository-anti-corruption)"),
+  grew: perFile.grew("compatibility markers", "delete the old path instead of keeping it (CI has no way to accept more, and neither does --update)"),
   lowered: perFile.lowered,
   lines: (head, ref, env) => perFile.lines("Compatibility markers", head, ref, env),
   summary: (counts) => `${sumOf(counts)} compat markers`,
@@ -336,7 +343,8 @@ const specProblems = () => {
 // ---- the reference to compare with -----------------------------------------------------------------------------------
 const committedBaseline = () => {
   if (!existsSync(baselinePath)) fail(`${baselinePath} is missing; create it with --update`);
-  const json = JSON.parse(readFileSync(baselinePath, "utf8"));
+  let json;
+  try { json = JSON.parse(readFileSync(baselinePath, "utf8")); } catch { fail(`${baselinePath} is not valid JSON; regenerate it with \`node scripts/check-health-gates.mjs --update\``); }
   return Object.fromEntries(METRICS.map((metric) => [metric.id, metric.fromBaseline(json)]));
 };
 
@@ -364,9 +372,14 @@ const growth = () => METRICS.flatMap((metric) => metric.grew(head[metric.id], re
 // The limits may be tightened but never loosened or removed: compared with the merge-base's tooling/gates/limits.json.
 const limitErrors = () => {
   if (!mergeBase) return [];
-  const was = gitMaybe(["show", `${mergeBase}:tooling/gates/limits.json`]);
-  if (!was) { notes.push("the merge-base has no tooling/gates/limits.json, so the limits were not compared"); return []; }
-  const before = parseLimits(was, `${mergeBase.slice(0, 8)}:tooling/gates/limits.json`);
+  const limitsFile = "tooling/gates/limits.json";
+  // `git()` exits 2 when git itself fails, so only a clean answer that the file is not in the merge-base's tree (the first
+  // run, before limits.json existed) skips the comparison; an unreadable tree or blob is an error, never a pass.
+  if (!git(["ls-tree", "--name-only", mergeBase, "--", limitsFile]).trim()) {
+    notes.push(`the merge-base has no ${limitsFile}, so the limits were not compared`);
+    return [];
+  }
+  const before = parseLimits(git(["cat-file", "blob", `${mergeBase}:${limitsFile}`]), `${mergeBase.slice(0, 8)}:${limitsFile}`);
   return LIMIT_KEYS.filter((key) => limits[key] > before[key]).map((key) => `limit "${key}" loosened ${before[key]} → ${limits[key]} in tooling/gates/limits.json; limits only get tighter`);
 };
 const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems()];
@@ -410,10 +423,8 @@ if (errors.length) {
 }
 const lowered = METRICS.filter((metric) => metric.lowered(head[metric.id], reference[metric.id])).map((metric) => metric.id);
 let hint = "";
-if (lowered.length && mergeBase) {
-  // The committed file is only the local quick check, so say when it has fallen behind the numbers.
-  let stale = false;
-  try { const committed = committedBaseline(); stale = METRICS.some((metric) => metric.lowered(head[metric.id], committed[metric.id])); } catch { /* unreadable: nothing to add */ }
-  hint = ` Lower than the merge-base: ${lowered.join(", ")}.${stale ? " tooling/gates/baseline.json is above the measured numbers; lower it with --update --base." : ""}`;
-} else if (lowered.length) hint = ` Lower than the baseline: ${lowered.join(", ")}; lower it with --update --base origin/main.`;
+// --base never reads the committed tooling/gates/baseline.json (not even to say it is stale): it may be missing, old or
+// rewritten in the PR, and none of that matters here.
+if (lowered.length && mergeBase) hint = ` Lower than the merge-base: ${lowered.join(", ")}; \`--update --base origin/main\` lowers the local quick check in tooling/gates/baseline.json.`;
+else if (lowered.length) hint = ` Lower than the baseline: ${lowered.join(", ")}; lower it with --update --base origin/main.`;
 console.log(`Health gates passed against ${against} (${summaryOf(head)}).${hint}${notes.length ? ` Note: ${notes.join("; ")}.` : ""}`);

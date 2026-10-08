@@ -692,7 +692,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | §4.12 卫生与文档 | 部分：vendored 已收到一份；`MIGRATION.md` 未归档；工作树清理按用户决定做了一部分 | §7 |
 | §4.13 门禁 | 第一批已接（健康门禁、整页门禁、成果类型与声明门禁）；静态检查、API 快照、页面资源预算待做 | §5a |
 | §4.14 手册与 Skill | 部分：插件开发 Skill 写明了成果类型的 title、preview、pin、compare、continue | `skills/molis-plugin-dev/elements.md` |
-| §4.15 术语表 | 待做 | — |
+| §4.15 术语表 | 部分：`docs/system/GLOSSARY.md` 已写（一概念一名一定义；界面用词待批清单；代码改名清单分内部改名与合同改名）；代码改名、旧术语门禁、两套能力机制的收敛未做 | `docs/system/GLOSSARY.md`、§1 |
 | §4.16 静态检查 | 待做：仓库没有 lint/format 脚本 | `package.json` |
 | §4.17 依赖与 SDK | 待做 | — |
 | §4.18 安全不变量 | 初稿 | §6 |

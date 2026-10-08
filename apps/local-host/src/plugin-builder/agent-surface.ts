@@ -24,7 +24,6 @@ import { runPluginChecks } from './build-checks.js';
 import { runBuilderBrowserAcceptance, inspectBuilderPresentation } from './browser.js';
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
 import type { PluginPlatformOptions } from '../plugin-platform.js';
-import type { PluginSecrets } from './secrets.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
 import { capabilityLimits, latestCapability, slowOperations, type CapabilityImplementations, type Lane } from './capabilities.js';
 import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, standIn, type CatalogCapability, type ProjectActions } from './catalog.js';
@@ -60,8 +59,6 @@ interface Studio {
   origin?: string;
   runners: Map<string, { key: string; runner: Promise<SandboxRunner> }>;
   catalog(): Promise<CatalogCapability[]>;
-  /** Secrets people saved for plugins' network requests. */
-  secrets?: PluginSecrets;
   /** A proposal's picture from the images plugin (W7). */
   mockupImage?(jobId: string, imageId: string): Promise<{ base64: string; mime_type: string }>;
 }
@@ -150,7 +147,6 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     const live = (identity: Readonly<SandboxIdentity>) => identity.installationId.startsWith(STABLE_PREVIEW) && !accepting.has(identity.installationId.slice(STABLE_PREVIEW.length));
     const capability = installed.capabilityFor(live);
     const standIns: NonNullable<SandboxServices['capability']> = { async call(_context, id, input) { const entry = latestCapability(await studio.catalog(), id); if (!entry) throw new Error('平台目录里没有开放给插件的能力：' + id); return standIn(entry, input); } };
-    studio.secrets = installed.secrets;
     const network = installed.network;
     const previewFor = (): SandboxServices => ({ ...previewServices(storage), capability, network });
     // W7: pictures of proposals through the images plugin's own actions, as the person, when an image service is set up.
@@ -421,16 +417,6 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       const image = await studio.mockupImage!(picture.jobId, picture.imageId).catch(() => null);
       if (!image) { sendLocalWebJson(response, 404, { error: '效果图读取失败' }); return true; }
       response.writeHead(200, { 'content-type': image.mime_type, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' }); response.end(Buffer.from(image.base64, 'base64')); return true;
-    }
-    // Secrets for a plugin's network requests: saved by the person, listed without their values.
-    if (route === '/secrets' && (method === 'GET' || method === 'POST')) {
-      try {
-        const body = method === 'POST' ? await readLocalWebBody(request) : {}, pluginId = String(method === 'POST' ? body.pluginId ?? '' : url.searchParams.get('pluginId') ?? '');
-        if (!/^io\.molis\.work\.generated\.[a-f0-9-]{36}$/.test(pluginId)) throw new Error('只能为这里生成的插件保存密钥');
-        if (method === 'POST') studio.secrets!.save(pluginId, { name: String(body.name ?? ''), header: String(body.header ?? ''), value: String(body.value ?? '') });
-        sendLocalWebJson(response, 200, { secrets: studio.secrets!.list(pluginId) });
-      } catch (error) { sendLocalWebJson(response, 400, { error: message(error) }); }
-      return true;
     }
     if (route === '/state' && method === 'GET') {
       const raw = studio.storage.get(MODEL_KEY);

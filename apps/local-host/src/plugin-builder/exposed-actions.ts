@@ -74,7 +74,7 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
         // A command that ran has committed, whoever's authority ended meanwhile; a plain failure would invite a retry that repeats it
         // (the kernel reports an invalid output after an effect the same way). A query has no effect: withholding its result is the point.
         if (operation.kind === 'command' && (result.status === 200 || body?.outcome === 'unknown')) {
-          throw new ActionError('actions.outcome_unknown', result.status === 200 ? '操作已执行，但调用方的授权在执行期间已结束，没有返回结果；请检查结果，不要重复操作'
+          throw new ActionError('actions.outcome_unknown', result.status === 200 ? '操作已执行，但调用在返回结果前已失效（授权撤销、被取消、插件停用或版本变更），没有返回结果；请检查结果，不要重复操作'
             : String(body?.error ?? '本次结果未知，请先检查结果再决定是否重试'));
         }
         throw error;

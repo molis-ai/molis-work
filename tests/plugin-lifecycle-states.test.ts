@@ -11,9 +11,9 @@ import {
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 
 /**
- * Lifecycle states are facts of Plugin Runtime: a switched-off install is not started by an upgrade, an uninstalled
- * one can be installed again at the version the person picks, a failed upgrade leaves the old code with its own event
- * contract, and a bundled upgrade can be started again by the next boot.
+ * Lifecycle states are facts of Plugin Runtime: a switched-off install can switch versions and stays switched off (also
+ * across a Host restart), an uninstalled one can be installed again at the version the person picks, a failed upgrade
+ * leaves the old code with its own event contract, and a bundled upgrade can be started again by the next boot.
  */
 const ID = "io.molis.work.lifecycle-probe";
 
@@ -116,32 +116,112 @@ test("a running install that fails its upgrade is restored to running; a disable
   await runtime.stop(id);
 });
 
-test("Supervisor does not upgrade or roll back a plugin the Host switched off", async () => {
+test("upgrading or rolling back a disabled install still works after a restart, and it stays disabled", async () => {
+  const starts: string[] = [];
+  const repository = new MemoryPluginRuntimeRepository();
+  const v1 = probe("1.0.0", { starts, sandbox: true }), v2 = probe("2.0.0", { starts, sandbox: true, compatible: ["1.0.0"] });
+  const before = new PluginRuntime(repository);
+  const id = before.install({ definition: v1, deployment: "local", grants: [] }).install.install_id;
+  await before.start(id);
+  await before.stop(id);
+  starts.length = 0;
+
+  const restarted = new PluginRuntime(repository);
+  assert.equal((await restarted.upgrade({ install_id: id, definition: v2 })).install.state, "disabled");
+  assert.equal(restarted.get(id).version, "2.0.0");
+  assert.equal((await restarted.rollback({ install_id: id, definition: v1 })).install.state, "disabled");
+  assert.equal(restarted.get(id).version, "1.0.0");
+  assert.deepEqual(starts, [], "no code ran");
+  assert.equal(await code(restarted.upgrade({ install_id: id, definition: probe("3.0.0", { starts, sandbox: true, compatible: ["1.0.0"], failValidation: true }) })),
+    "plugin_upgrade_validation_failed");
+  assert.equal(restarted.get(id).state, "disabled", "a failed switch leaves it off too");
+});
+
+test("Supervisor switches the version of a plugin the Host switched off, keeps it off, and enable starts the new version", async () => {
   const starts: string[] = [];
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
   const supervisor = new PluginSupervisor(runtime);
-  const v1 = probe("1.0.0", { starts }), v2 = probe("2.0.0", { starts, compatible: ["1.0.0"] });
-  await supervisor.start([{ definition: v1 }]);
+  const v1 = probe("1.0.0", { starts, sandbox: true }), v2 = probe("2.0.0", { starts, sandbox: true, compatible: ["1.0.0"] });
+  await supervisor.start([{ definition: v1, grants: [] }]);
   const id = supervisor.state(ID)!.install_id!;
   supervisor.revoke(ID);
   await runtime.stop(id);
   starts.length = 0;
 
-  const refused = await supervisor.upgrade(ID, v2);
-  assert.equal(refused.status, "failed");
-  assert.equal(refused.code, "plugin_revoked");
-  assert.match(refused.message ?? "", /启用/);
+  const switched = await supervisor.upgrade(ID, v2);
+  assert.equal(switched.code, "plugin_revoked", "the plugin is still switched off");
+  assert.equal(runtime.get(id).version, "2.0.0", "but the installation moved");
   assert.equal(runtime.get(id).state, "disabled");
-  assert.equal(runtime.get(id).version, "1.0.0", "the installation did not move");
-  assert.equal((await supervisor.rollback(ID, v1)).code, "plugin_revoked");
-  assert.deepEqual(starts, []);
-  assert.equal(supervisor.state(ID)?.code, "plugin_revoked", "still revoked, not running");
+  assert.equal(supervisor.manifest(ID)?.version, "2.0.0");
+  assert.equal(supervisor.state(ID)?.code, "plugin_revoked");
+  assert.equal(supervisor.state(ID)?.install_id, id);
   assert.equal(supervisor.contribution(ID), null);
+  assert.deepEqual(starts, []);
 
   assert.equal((await supervisor.enable(ID)).status, "running");
-  assert.deepEqual(starts, ["1.0.0"]);
-  assert.equal((await supervisor.upgrade(ID, v2)).status, "running", "an enabled plugin upgrades as before");
+  assert.deepEqual(starts, ["2.0.0"], "enabling starts the version it was switched to");
+  supervisor.revoke(ID);
+  await runtime.stop(id);
+  starts.length = 0;
+  const refused = await supervisor.upgrade(ID, probe("3.0.0", { starts, sandbox: true, compatible: ["2.0.0"], failValidation: true }));
+  assert.equal(refused.code, "plugin_upgrade_validation_failed");
+  assert.equal(supervisor.state(ID)?.code, "plugin_revoked", "a failed switch leaves the plugin switched off, not failed");
   assert.equal(runtime.get(id).version, "2.0.0");
+  assert.equal(runtime.get(id).state, "disabled");
+  assert.equal((await supervisor.rollback(ID, v1)).code, "plugin_revoked", "rolling a switched-off plugin back is not refused either");
+  assert.equal(runtime.get(id).version, "1.0.0");
+  assert.equal(supervisor.manifest(ID)?.version, "1.0.0");
+  assert.equal(runtime.get(id).state, "disabled");
+  assert.deepEqual(starts, []);
+  assert.equal((await supervisor.enable(ID)).status, "running");
+  assert.deepEqual(starts, ["1.0.0"]);
+  assert.equal((await supervisor.upgrade(ID, probe("4.0.0", { starts, sandbox: true, compatible: ["1.0.0"] }))).status, "running", "an enabled plugin upgrades as before");
+  await runtime.stop(id);
+});
+
+test("Supervisor switches the version of a disabled install it has never been told about (after a restart)", async () => {
+  const starts: string[] = [];
+  const repository = new MemoryPluginRuntimeRepository();
+  const v1 = probe("1.0.0", { starts, sandbox: true }), v2 = probe("2.0.0", { starts, sandbox: true, compatible: ["1.0.0"] });
+  const first = new PluginRuntime(repository);
+  const id = first.install({ definition: v1, deployment: "local", grants: [] }).install.install_id;
+  await first.start(id);
+  await first.stop(id);
+  starts.length = 0;
+
+  const runtime = new PluginRuntime(repository), supervisor = new PluginSupervisor(runtime);
+  assert.equal(supervisor.manifest(ID), undefined, "nothing was registered for it");
+  const switched = await supervisor.upgrade(ID, v2);
+  assert.equal(switched.code, "plugin_revoked");
+  assert.equal(switched.install_id, id);
+  assert.equal(runtime.get(id).version, "2.0.0");
+  assert.equal(runtime.get(id).state, "disabled");
+  assert.equal(supervisor.manifest(ID)?.version, "2.0.0", "it is registered now, so enable can find it");
+  assert.equal(supervisor.contribution(ID), null);
+  assert.deepEqual(starts, []);
+  assert.equal((await supervisor.rollback(ID, v1)).code, "plugin_revoked");
+  assert.equal(runtime.get(id).version, "1.0.0");
+  assert.equal((await supervisor.enable(ID)).status, "running");
+  assert.deepEqual(starts, ["1.0.0"]);
+  await runtime.stop(id);
+});
+
+test("Supervisor says it does not know an install it never started, and does not remember the question", async () => {
+  const repository = new MemoryPluginRuntimeRepository();
+  const v1 = probe("1.0.0", { sandbox: true }), v2 = probe("2.0.0", { sandbox: true, compatible: ["1.0.0"] });
+  const first = new PluginRuntime(repository);
+  const id = first.install({ definition: v1, deployment: "local", grants: [] }).install.install_id;
+  await first.start(id);
+  await first.stop(id, { preserve_enabled: true });
+  assert.equal(first.get(id).state, "installed");
+
+  const runtime = new PluginRuntime(repository), supervisor = new PluginSupervisor(runtime);
+  const refused = await supervisor.upgrade(ID, v2);
+  assert.equal(refused.code, "plugin_unknown");
+  assert.equal(supervisor.state(ID), null, "a question about a plugin nobody registered leaves no state behind");
+  assert.equal(supervisor.manifest(ID), undefined);
+  assert.equal(runtime.get(id).version, "1.0.0");
+  assert.equal((await supervisor.start([{ definition: v1, grants: [] }])).running.length, 1, "starting it afterwards is not blocked");
   await runtime.stop(id);
 });
 
@@ -167,23 +247,31 @@ test("after an uninstall a confirmed install at another version is a fresh insta
   await runtime.stop(first.install_id);
 });
 
-test("a reinstall at another version reuses kept data only when that version declares it can read it", async () => {
+test("a reinstall at another version reuses kept data only when that version declares it can read it, else the person must agree to drop it", async () => {
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
   const v1 = probe("1.0.0"), v2 = probe("2.0.0"), v3 = probe("3.0.0", { migratable: ["1.0.0"] });
   const id = runtime.install({ definition: v1, deployment: "local" }).install.install_id;
 
   await runtime.uninstall(id, { retain_private_data: true });
-  assert.equal(await code(() => runtime.install({ definition: v2, deployment: "local" })), "plugin_upgrade_required",
+  assert.equal(await code(() => runtime.install({ definition: v2, deployment: "local" })), "plugin_kept_data_incompatible",
     "kept data from 1.0.0 is not handed to code that never promised to read it");
-  assert.equal(await code(() => runtime.install({ definition: v3, deployment: "local" })), "plugin_upgrade_required",
+  assert.equal(await code(() => runtime.install({ definition: v3, deployment: "local" })), "plugin_kept_data_incompatible",
     "reading it needs a migration check an install cannot run");
+  assert.equal(await code(() => runtime.install({ definition: v2, deployment: "local", discard_kept_data: false })), "plugin_kept_data_incompatible");
   assert.equal(runtime.get(id).state, "uninstalled", "a refused install changes nothing");
   assert.equal(runtime.get(id).version, "1.0.0");
   assert.equal(runtime.install({ definition: v1, deployment: "local" }).install.version, "1.0.0", "the uninstalled version itself is always possible");
 
+  await runtime.uninstall(id, { retain_private_data: true });
+  const earlier = runtime.get(id).installation_generation;
+  const agreed = runtime.install({ definition: v2, deployment: "local", discard_kept_data: true }).install;
+  assert.equal(agreed.version, "2.0.0", "with the person's explicit word the other version installs fresh (the Host drops the data)");
+  assert.equal(agreed.state, "installed");
+  assert.notEqual(agreed.installation_generation, earlier, "it is a new installation");
+
   await runtime.uninstall(id, { retain_private_data: false });
-  const fresh = runtime.install({ definition: v2, deployment: "local" }).install;
-  assert.equal(fresh.version, "2.0.0", "with the data deleted there is nothing to protect");
+  const fresh = runtime.install({ definition: v3, deployment: "local" }).install;
+  assert.equal(fresh.version, "3.0.0", "with the data deleted there is nothing to protect");
   assert.equal(fresh.state, "installed");
 });
 
@@ -199,6 +287,9 @@ test("a reinstall of a generated plugin may use an older release; a Host that sh
   const hostId = host.install({ definition: h1, deployment: "local" }).install.install_id;
   await host.uninstall(hostId, { retain_private_data: true });
   assert.equal(host.install({ definition: h2, deployment: "local", bundled: true }).install.version, "2.0.0");
+  await host.uninstall(hostId, { retain_private_data: true });
+  assert.equal(await code(() => host.install({ definition: h1, deployment: "local", bundled: true })), "plugin_kept_data_incompatible",
+    "the Host only moves its plugins up: an older bundled version does not get newer kept data");
 });
 
 test("a reinstall at the same version with a different manifest is still refused", async () => {

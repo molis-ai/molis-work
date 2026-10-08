@@ -5,14 +5,16 @@ import { comparePluginVersions } from "@molis-ai/molis-work-contracts/platform/p
  * Why a confirmed install at another version may not reuse the private data an uninstall kept, or undefined when it
  * may (and for every other install). An uninstalled row is no installation to protect, so the other version installs
  * fresh when the same declarations that allow an upgrade allow it: the target says it reads the uninstalled version's
- * data, the Host ships it, or it is generated code (which rolls back without rolling its data back). A migration needs
- * an async check an install cannot run, so it is refused with the way forward instead of silently skipped.
+ * data, the Host ships it as a newer version, or it is generated code (which rolls back without rolling its data back).
+ * A migration needs an async check an install cannot run. Otherwise the person has to say the kept data is dropped
+ * (`discard`); without that the install is refused with both ways forward.
  */
-export function keptDataRefusal(previous: PluginInstanceRecord | null, manifest: PluginManifest, bundled: boolean): string | undefined {
-  if (!previous || previous.state !== "uninstalled" || previous.version === manifest.version || !previous.retain_private_data || bundled) return undefined;
+export function keptDataRefusal(previous: PluginInstanceRecord | null, manifest: PluginManifest, bundled: boolean, discard: boolean): string | undefined {
+  if (!previous || previous.state !== "uninstalled" || previous.version === manifest.version || !previous.retain_private_data || discard) return undefined;
+  if (bundled && comparePluginVersions(manifest.version, previous.version) > 0) return undefined;
   if ((manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(previous.version)) return undefined;
   if (previous.execution === "sandbox" && comparePluginVersions(manifest.version, previous.version) < 0) return undefined;
-  return `卸载时保留了 ${previous.version} 的数据，这个版本没有声明能直接读取它：请先重新安装 ${previous.version}，再升级到 ${manifest.version}`;
+  return `卸载时保留了 ${previous.version} 的数据，${manifest.version} 没有声明能读取它：可以放弃这些数据后全新安装，或者先重新安装 ${previous.version}，再升级到 ${manifest.version}`;
 }
 
 /**

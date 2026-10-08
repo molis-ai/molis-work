@@ -59,8 +59,8 @@ node --import tsx --test --test-concurrency=1 tests/plugin-runtime-integration.t
   - 稳定 install_id 用于私有数据；installation_generation 区分每次确认安装，重启、启停和升级不变，卸载重装生成新值。持久任务绑定二者。安装记录必有 installation_generation 与 execution（`host` 或 `sandbox`），缺的记录不是当前 schema。
   - `stop()` 默认记录 disabled；Host 正常关闭可传 `preserve_enabled: true`，停止进程与撤销上下文后保留 installed 状态。该选项不能重新启用已经 disabled 的安装，失败仍记录 crashed。是否启动由 Host 的当前启用策略决定。
   - 不保留数据的卸载后 Host 还要调用 `deleteInstallationData`，但不能删除已交换出去的 Artifacts。
-  - 升级与回滚不会启动已 disabled 的安装：版本切换后仍是 disabled，失败也只在升级前在运行的安装上恢复旧实现；Supervisor 对已撤销或 disabled 的插件拒绝升级/回滚并提示先启用。启用只由显式 start 完成。
-  - 卸载后的确认安装是新的安装（新 installation_generation，沿用 install_id），可以是别的已发布版本。卸载时保留了私有数据的，目标版本要声明 `compatible_from_versions` 包含被卸载的版本（Host 随带的 bundled 版本、生成插件回到更低版本不受此限），否则拒绝并指明先装回原版本再升级；未保留数据则不受限制。同版本 Manifest 指纹不同仍拒绝。
+  - 已 disabled 的安装可以升级与回滚：只换版本，安装仍是 disabled，不运行任何代码，失败也不会启动旧实现（其余失败的升级恢复升级前的旧实现）。Host 重启后 Supervisor 不登记 disabled 的安装；带目标定义的 `upgrade`/`rollback` 会为它登记并保持撤销启用状态，之后 `enable` 启动的是切换后的版本。对没登记过、又不是 disabled 的插件，升级回答 `plugin_unknown` 且不留状态。启用只由显式 start/enable 完成。
+  - 卸载后的确认安装是新的安装（新 installation_generation，沿用 install_id），可以是别的已发布版本。卸载时保留了私有数据的，目标版本要声明 `compatible_from_versions` 包含被卸载的版本（Host 随带的更新版本、生成插件回到更低版本不受此限），否则以 `plugin_kept_data_incompatible` 拒绝；调用者明确带 `discard_kept_data: true`（人确认放弃旧数据）才全新安装，Runtime 只放行这次安装，保留的私有数据由 Host 删除。未保留数据则不受限制。同版本 Manifest 指纹不同仍拒绝。
   - Supervisor 的默认 grant 在已有安装满足全部必需权限时重放已有 grant，随带升级后变成可选的权限不会让下次启动被当成静默改 grant；升级失败后无论旧实现是否在运行，事件合同都回到旧版本的。
   - 卸载仅对当前进程的活实例执行 stop；冷安装无需加载代码。成功卸载释放已加载实现，后续确认重装可重新登记同版本实现，运行中仍拒绝重复注册。
   - 条件写入是单 key CAS（`expected: null` 表示仅在不存在时创建），不是多 key 事务。

@@ -124,7 +124,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const headers=m=>m==='GET'?{}:(globalThis.molisWorkControlHeaders?.()||{'content-type':'application/json'});
  async function api(path,method='GET',body,signal){
   const r=await lifetime.fetch(host.api(path),{method,signal,cache:'no-store',headers:headers(method),...(body===undefined?{}:{body:JSON.stringify(body)})});
-  const v=await r.json().catch(()=>({}));lifetime.assertCurrent(signal);if(!r.ok)throw Object.assign(new Error(v.error||'操作失败，内容已保留'),{status:r.status});return v;
+  const v=await r.json().catch(()=>({}));lifetime.assertCurrent(signal);if(!r.ok)throw Object.assign(new Error(v.error||'操作失败，内容已保留'),{status:r.status,code:v.code});return v;
  }
  let pending=0;globalThis.__molisPluginPending=0;
  const pluginCall=id=>async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{return (await api('/builds/'+id+'/call','POST',{componentId,binding,payload,...(host.acceptance?{acceptance:host.acceptance}:{})})).value}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
@@ -202,7 +202,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const covered=(next,approved)=>Object.entries(next||{}).every(([k,v])=>v.every(x=>(approved?.[k]||[]).includes(x)));
  function installHtml(b){const latest=versions[0],inst=installed(b);if(!latest)return '';
   if(!inst)return '<div class="as-install"><p class="as-small">v'+latest.version+' 已发布，安装后会出现在这个项目里，数据和试用分开保存。</p><div class="as-actions"><button type="button" class="as-button as-primary" data-as-install="'+latest.version+'">'+icon('download')+'安装到这个项目</button></div></div>';
-  const upgrade=latest.version>inst.version?'<button type="button" class="as-button" data-as-upgrade="'+latest.version+'">'+icon('refresh')+'升级到 v'+latest.version+'</button>':'';
+  const upgrade=latest.version>inst.version?'<button type="button" class="as-button" data-as-upgrade="'+latest.version+'">'+icon('refresh')+'升级到 v'+latest.version+(inst.state==='disabled'?'（仍保持停用）':'')+'</button>':'';
   return '<div class="as-install"><p class="as-small"><span class="as-chip ok">已安装 v'+inst.version+'</span>'+(inst.state==='running'?'':' <span class="as-chip bad">'+esc(inst.state)+'</span>')+'</p>'+(inst.error?'<p class="as-small" role="alert">'+esc(inst.error)+'</p>':'')+'<div class="as-actions"><a class="as-button as-primary" href="'+esc(host.plugin(inst.pluginId))+'" data-as-open-plugin="'+esc(b.id)+'">打开插件</a>'+upgrade+(inst.state==='disabled'?'<button type="button" class="as-button" data-as-install-enable>启用</button>':'')+'<button type="button" class="as-button" data-as-uninstall>'+icon('trash')+'卸载</button></div></div>';}
  // What an installation grants, grouped the way the person weighs it: its own data, what it reads (granted with the
  // installation), and what it changes outside itself (each listed).
@@ -433,9 +433,15 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
   if(el.dataset.asTab){tab=el.dataset.asTab;target=null;if(tab!=='build'){playToken++;playing=false;queue.forEach(id=>revealed.add(id));queue=[];landing=null;picking=null;wires.forEach(w=>wiredCaps.add(w.cap));wires=[];wiring=null;}schedule();return;}
   if(el.hasAttribute('data-as-untarget')){target=null;schedule();return;}
   if(el.dataset.asInstall){const v=versions.find(x=>x.version===Number(el.dataset.asInstall));consent('安装「'+(current.design?.title||'')+'」到这个项目',v?.permissions,'安装').then(ok=>{if(ok)run(async()=>{
-    // Secrets go to the host's sealed store first; the plugin will only ever name them.
-    for(const s of ok.secrets||[])await api('/secrets','POST',{pluginId:v.pluginId,...s});
-    await act('install',{version:v.version,grants:{consent:true}});await refreshState();});});return;}
+    // The secrets travel with the install: the host's sealed store keeps them only if the plugin is installed, and the plugin will only ever name them.
+    const install=extra=>act('install',{version:v.version,grants:{consent:true,secrets:ok.secrets||[],...extra}});
+    try{await install();}catch(e){
+     if(e.code!=='plugin_kept_data_incompatible')throw e;
+     // An uninstall kept this plugin's data, and this version cannot read it: install fresh only if the person lets it go.
+     const choice=await ask('安装「'+(current.design?.title||'')+'」','之前卸载时留下了这个插件的数据，但这个版本读不了它。要安装，只能放弃那些旧数据、全新开始；放弃后无法找回。',[['discard','放弃旧数据，全新安装',true],['cancel','取消']]);
+     if(choice!=='discard')return;
+     await install({discardKeptData:true});}
+    await refreshState();});});return;}
   if(el.dataset.asUpgrade){const v=versions.find(x=>x.version===Number(el.dataset.asUpgrade)),inst=installed(current);const go=()=>run(async()=>{await act('upgrade',{version:v.version,grants:{consent:true}});await refreshState();});
    if(covered(v?.permissions,inst?.effects))go();else consent('升级到 v'+v.version+' 需要新的权限',v?.permissions,'确认并升级').then(ok=>{if(ok)go();});return;}
   if(el.hasAttribute('data-as-install-enable')){const inst=installed(current);if(inst)run(async()=>{await act('enable',{version:inst.version});await refreshState();});return;}

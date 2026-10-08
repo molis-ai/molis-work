@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import type { ActionDefinition, ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
-import { PluginRuntime, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
+import { PluginRuntime, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
 import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
@@ -24,7 +24,7 @@ import { builtinRegistrations } from '../apps/local-host/src/agent-definitions/b
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
 const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: DEMO_PROJECT_ID };
 
-async function publishedFixture(home: string, name: string, lookup = false) {
+async function publishedFixture(home: string, name: string, lookup = false, secretRefs: string[] = []) {
   const databasePath = join(home, name + '.sqlite'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage);
   const draft = builder.create('An unfinished draft must not resume when an installed plugin runs');
@@ -42,7 +42,8 @@ async function publishedFixture(home: string, name: string, lookup = false) {
   const release: AgentRelease = { buildId, pluginId, version: 1, directory: home, bundlePath, packagePath: home,
     prompts: [{ id: 'summary', title: 'Summary', purpose: 'Summarize notes', body: 'Shipped instruction' }],
     design: { id: 'one', catalog: 'actions/1', title: 'Installed fixture', description: 'Fixture', rationale: 'Fixture', journey: [], contract, parts: [], acceptance: [] },
-    nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read', 'write'], capabilities: ['schedules.add', ...(lookup ? ['fixture.lookup'] : [])] }, publishedAt: new Date().toISOString() };
+    nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read', 'write'], capabilities: ['schedules.add', ...(lookup ? ['fixture.lookup'] : [])],
+      ...(secretRefs.length ? { networkDomains: ['api.example.test'], secretRefs } : {}) }, publishedAt: new Date().toISOString() };
   builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db));
   const { install } = runtime.install({ definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants: ['storage:private'] });
@@ -215,30 +216,134 @@ async function hostWithProject(home: string, fixture: Awaited<ReturnType<typeof 
   return { control, generated, get host() { return host; }, reopen() { host = new MolisWorkLocalHost({ homeDirectory: home }); return host; } };
 }
 
-test('a disabled installation is not upgraded, rolled back or started again by a new version, before or after a restart', mac, async () => {
+test('a disabled installation switches versions and stays disabled, before and after a restart, and enable starts the version it is on', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-disabled-upgrade-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const stateOnDisk = () => { const closed = new LocalProjectDatabase(fixture.databasePath); try { const record = new SqlitePluginRuntimeRepository(closed.db).get(fixture.install.install_id); return record && { state: record.state, version: record.version }; } finally { closed.close(); } };
+  const rows = (installed: Awaited<ReturnType<typeof rig.control>>) => installed.installations().map(({ state, version }) => ({ state, version }));
+  const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
   try {
     const installed = await rig.control();
     await installed.lifecycle('disable', fixture.release);
-    const next = { ...fixture.release, version: 2 }; installed.releases.release(next);
-    await assert.rejects(installed.lifecycle('upgrade', next), /先启用/);
-    await assert.rejects(installed.lifecycle('rollback', fixture.release), /先启用/);
-    assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'disabled', version: 1 }]);
+    const v2 = { ...fixture.release, version: 2 }; installed.releases.release(v2);
+    await installed.lifecycle('upgrade', v2);
+    assert.deepEqual(rows(installed), [{ state: 'disabled', version: 2 }], 'the version moved and the plugin is still off');
+    await installed.lifecycle('rollback', fixture.release);
+    assert.deepEqual(rows(installed), [{ state: 'disabled', version: 1 }]);
+    await installed.lifecycle('upgrade', v2);
     assert.equal(await rig.generated(), 0, 'nothing of it is offered while it is off');
     const router = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + fixture.release.pluginId + '/call', actor_id: 'owner', body: { operation: 'read', input: null } });
-    assert.equal(router?.status, 404);
+    assert.equal(router?.status, 404, 'and it runs nothing');
     await rig.host.close();
-    assert.deepEqual(stateOnDisk(), { state: 'disabled', version: '1.0.0' }, 'the record on disk is still off at the old version');
+    assert.deepEqual(stateOnDisk(), { state: 'disabled', version: '2.0.0' }, 'the record on disk moved and is still off');
 
     rig.reopen();
     const restored = await rig.control();
-    assert.deepEqual(restored.installations().map(({ state, version }) => ({ state, version })), [{ state: 'disabled', version: 1 }]);
+    assert.deepEqual(rows(restored), [{ state: 'disabled', version: 2 }]);
     assert.equal(await rig.generated(), 0, 'a restart does not bring it back');
-    await restored.lifecycle('enable', fixture.release);
+    const v3 = { ...fixture.release, version: 3 }; restored.releases.release(v3);
+    await restored.lifecycle('upgrade', v3);
+    assert.deepEqual(rows(restored), [{ state: 'disabled', version: 3 }], 'after a restart the Supervisor knows nothing of it, and the switch still works');
+    await restored.lifecycle('rollback', v2);
+    assert.deepEqual(rows(restored), [{ state: 'disabled', version: 2 }]);
+    await restored.lifecycle('upgrade', v3);
+    assert.equal(await rig.generated(), 0);
+    await rig.host.close();
+    assert.deepEqual(stateOnDisk(), { state: 'disabled', version: '3.0.0' });
+
+    rig.reopen();
+    const again = await rig.control();
+    assert.deepEqual(rows(again), [{ state: 'disabled', version: 3 }]);
+    await again.lifecycle('enable', fixture.release);
+    assert.deepEqual(rows(again), [{ state: 'running', version: 3 }], 'enable starts the version the installation is on, whatever release the caller names');
     assert.equal(await rig.generated(), 3);
-    await restored.lifecycle('upgrade', next);
-    assert.deepEqual(restored.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }], 'an enabled installation upgrades as before');
+    assert.equal(await rig.host.actionClient(fixture.ref).invoke(caller, action(v3, 'read'), null), 'empty');
+    await again.lifecycle('rollback', v2);
+    assert.deepEqual(rows(again), [{ state: 'running', version: 2 }], 'an enabled installation switches as before');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test('a version of a disabled installation that needs more permission asks for them, and its approval moves with it', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-disabled-consent-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control();
+    await installed.lifecycle('disable', fixture.release);
+    const wider = { ...fixture.release, version: 2, permissions: { ...fixture.release.permissions, networkDomains: ['api.example.test'] } }; installed.releases.release(wider);
+    await assert.rejects(installed.lifecycle('upgrade', wider), /新的权限/);
+    assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'disabled', version: 1 }]);
+    await installed.lifecycle('upgrade', wider, { consent: true });
+    assert.deepEqual(installed.installations().map(({ state, version, effects }) => ({ state, version, domains: effects.networkDomains })), [{ state: 'disabled', version: 2, domains: ['api.example.test'] }]);
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test('a quarantined installation is refused a version switch with a reason, before anything is asked of the Supervisor', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-quarantined-')), fixture = await publishedFixture(home, 'project');
+  const database = new LocalProjectDatabase(fixture.databasePath);
+  new SqlitePluginRuntimeRepository(database.db).save({ ...fixture.install, state: 'quarantined' }); database.close();
+  const rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), next = { ...fixture.release, version: 2 }; installed.releases.release(next);
+    await assert.rejects(installed.lifecycle('upgrade', next), /隔离/);
+    await assert.rejects(installed.lifecycle('rollback', fixture.release), /隔离/);
+    assert.equal(installed.platform.supervisor.state(fixture.release.pluginId), null, 'no question about it was remembered');
+    await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    await installed.lifecycle('install', next, { consent: true });
+    assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }], 'uninstalling and installing again is the way out');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test('an install that cannot start leaves nothing behind: no secrets, no approval, no crashed record, and it can be tried again', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-failed-install-')), fixture = await publishedFixture(home, 'project', false, ['weather']), rig = await hostWithProject(home, fixture);
+  const secret = { name: 'weather', header: 'X-Api-Key', value: 'k-123' }, approvalKey = 'plugin-builder:agent-studio:approved:' + fixture.release.pluginId;
+  const working = await readFile(fixture.release.bundlePath, 'utf8');
+  try {
+    const installed = await rig.control(), pluginId = fixture.release.pluginId;
+    await installed.lifecycle('uninstall', fixture.release, { keepData: false });
+    await writeFile(fixture.release.bundlePath, "throw new Error('broken bundle');");
+    await assert.rejects(installed.lifecycle('install', fixture.release, { consent: true, secrets: [secret] }), /安装没有完成/);
+    assert.deepEqual(installed.secrets.list(pluginId), [], 'the secret from the consent dialog was not kept');
+    assert.equal(await installed.secrets.resolve(pluginId, 'weather'), null);
+    assert.equal(installed.storage.get(approvalKey), null, 'no approval for an installation that does not exist');
+    assert.deepEqual(installed.records(), [], 'no crashed record blocks the next install');
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id).state, 'uninstalled');
+    await assert.rejects(installed.lifecycle('enable', fixture.release), /还没有安装/);
+
+    await assert.rejects(installed.lifecycle('install', fixture.release, { consent: true, secrets: [{ ...secret, name: 'other' }] }), /没有声明/);
+    assert.deepEqual(installed.records(), [], 'a secret the release never named is refused before anything is installed');
+
+    await writeFile(fixture.release.bundlePath, working);
+    await installed.lifecycle('install', fixture.release, { consent: true, secrets: [secret] });
+    assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 1 }]);
+    assert.deepEqual(installed.secrets.list(pluginId), [{ name: 'weather', header: 'X-Api-Key' }], 'a finished install keeps what the person typed');
+    assert.deepEqual(await installed.secrets.resolve(pluginId, 'weather'), { header: 'X-Api-Key', value: 'k-123' });
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test('a reinstall that cannot read the data an uninstall kept is refused until the person agrees to drop it, and a failed one gives the data back', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-discard-kept-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
+  const working = await readFile(fixture.release.bundlePath, 'utf8');
+  const only = (installed: Awaited<ReturnType<typeof rig.control>>, release: AgentRelease) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ builds: [], releases: [release] }));
+  const kept = () => rig.host.withProject(fixture.ref, runtime => new SqlitePluginPrivateStorage(runtime.store.db).snapshotInstallationData(fixture.install.install_id).length);
+  try {
+    const installed = await rig.control(), client = rig.host.actionClient(fixture.ref);
+    await client.invoke(caller, action(fixture.release, 'save'), { value: 'old data' });
+    await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    const v3 = { ...fixture.release, version: 3 }; only(installed, v3);   // the earlier releases are gone, so v3 does not say it reads their data
+    assert.ok(await kept() > 0);
+    await assert.rejects(installed.lifecycle('install', v3, { consent: true }), (error: { code?: string; message: string }) => error.code === 'plugin_kept_data_incompatible' && /放弃/.test(error.message));
+    await assert.rejects(installed.lifecycle('install', v3, { consent: true, discardKeptData: false }), (error: { code?: string }) => error.code === 'plugin_kept_data_incompatible');
+    assert.deepEqual(installed.records(), [], 'a refused install changes nothing');
+    assert.ok(await kept() > 0, 'and the data is still there');
+
+    await writeFile(fixture.release.bundlePath, "throw new Error('broken bundle');");
+    await assert.rejects(installed.lifecycle('install', v3, { consent: true, discardKeptData: true }), /安装没有完成/);
+    assert.deepEqual(installed.records(), []);
+    assert.ok(await kept() > 0, 'an install that fails after the person agreed does not cost them the data');
+
+    await writeFile(fixture.release.bundlePath, working);
+    await installed.lifecycle('install', v3, { consent: true, discardKeptData: true });
+    assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 3 }]);
+    assert.equal(await client.invoke(caller, action(v3, 'read'), null), 'empty', 'the new version starts fresh');
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
 

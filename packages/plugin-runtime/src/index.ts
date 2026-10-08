@@ -3,6 +3,7 @@ import { comparePluginVersions, parsePluginManifest } from "@molis-ai/molis-work
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { assertContributionMatchesManifest, PluginContributionError } from "./contribution.js";
+import { PluginRuntimeError } from "./errors.js";
 import { pluginManifestDigest } from "./identity.js";
 import { keptDataRefusal } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
@@ -21,6 +22,7 @@ export type {
   PluginRuntimeReleaseArtifactDatabase,
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
+export { PluginRuntimeError } from "./errors.js";
 export { pluginManifestDigest } from "./identity.js";
 export { loadDevelopmentPlugin } from "./development-loader.js";
 export { assertContributionMatchesManifest, PluginContributionError, viewContributionId } from "./contribution.js";
@@ -90,30 +92,6 @@ export const packageDescriptor = {
   capabilities: ["plugin.lifecycle.v1", "plugin.grants.v1", "plugin.recovery.v1"],
 } as const;
 
-export class PluginRuntimeError extends Error {
-  constructor(
-    readonly code:
-      | "plugin_manifest_invalid"
-      | "plugin_definition_missing"
-      | "plugin_definition_conflict"
-      | "plugin_entrypoint_missing"
-      | "plugin_grant_denied"
-      | "plugin_state_invalid"
-      | "plugin_executor_failed"
-      | "plugin_contribution_kind_invalid"
-      | "plugin_contribution_unredeemed"
-      | "plugin_quarantined"
-      | "plugin_upgrade_required"
-      | "plugin_upgrade_validation_missing"
-      | "plugin_upgrade_validation_failed"
-      | "plugin_upgrade_rollback_failed",
-    message: string,
-  ) {
-    super(message);
-    this.name = "PluginRuntimeError";
-  }
-}
-
 export class MemoryPluginRuntimeRepository implements PluginRuntimeRepository {
   private readonly records = new Map<string, PluginInstanceRecord>();
 
@@ -178,6 +156,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     retain_private_data?: boolean;
     /** Ships with the Host: an older install moves up to this version, whatever versions the Manifest names. */
     bundled?: boolean;
+    /** The person agreed to drop the private data an uninstall kept, which this version cannot read; the Host deletes it. */
+    discard_kept_data?: boolean;
   }): PluginLifecycleReceipt {
     const manifest = input.definition.manifest;
     validateManifest(manifest);
@@ -208,13 +188,10 @@ export class PluginRuntime implements PluginRuntimeApi {
         this.definitions.set(definitionKey(current), input.definition);
         return this.receipt("install", current, true);
       }
-      throw new PluginRuntimeError(
-        "plugin_definition_conflict",
-        "同一 Plugin ID、Version 和签名不能对应不同 Manifest；请递增版本",
-      );
+      throw new PluginRuntimeError("plugin_definition_conflict", "同一 Plugin ID、Version 和签名不能对应不同 Manifest；请递增版本");
     }
-    const refusal = keptDataRefusal(current, manifest, input.bundled === true);
-    if (refusal) throw new PluginRuntimeError("plugin_upgrade_required", refusal);
+    const refusal = keptDataRefusal(current, manifest, input.bundled === true, input.discard_kept_data === true);
+    if (refusal) throw new PluginRuntimeError("plugin_kept_data_incompatible", refusal);
     this.register(input.definition);
     if (current && current.version !== manifest.version && current.state !== "uninstalled") {
       // A plugin that ships with the Host follows the Host's version (2026-10-04): its install record moves up with it,

@@ -32,7 +32,8 @@
 | Runtime（AI Runtime） | 能运行 Agent 或与用户对话的 AI 环境 | Runtime、执行工具 | 与 Plugin Runtime、项目运行对象混写（见 2.3） |
 | Agent role | 插件或系统声明的 Agent 工作方式，起跑时被冻结 | 角色（「系统与插件带来的角色」） | 角色、role、Character（指它时） |
 | Character | 个人拥有、可发布成固定版本的 AI 做事方式；是宿主设置里的一节，不是插件 | 角色（「我的角色」） | 角色（泛称）、Characters 插件 |
-| 项目（Project） | 唯一的工作边界与身份，`project_id` | 项目 | Board、目标资料库 |
+| 项目（Project） | 唯一的工作边界与身份，`project_id` | 项目 | Board（指项目时） |
+| 目标资料库（Goals 根记录） | Goals 在每个项目库里的根记录，一个项目一条，不是项目本身 | 目标资料库（报错与动作「初始化目标资料库」） | Board（指它时） |
 | 讨论（项目讨论） | 右栏里一个项目的群聊与 Thread，在用并继续迭代的产品功能 | 讨论、项目讨论、群聊与 Thread | IM 实验、实验线（它不是实验，也不是 `experiments` 插件） |
 | 插件的名字 | `project_plugin_id`、`manifest.plugin_id`、`manifest.name`、界面显示名、目录与包名，五样各有用处 | 显示名中英文混用 | 见第 3 节 |
 | 翻译键 | 界面文字在词典里的稳定标识，标识概念和位置，不含措辞；措辞是词典的值 | 无（用户看不见） | 中文原文当键（现状，将被取代，见 2.7） |
@@ -141,10 +142,16 @@
 - 定义：唯一的工作边界。`project_id` 是它唯一的身份：目录条目、项目数据库和库里 Goals 的根记录都用它（`docs/system/ARCHITECTURE.md` §2、`docs/modules/projects.md`）。每个项目一个 SQLite 库；部分个人插件的 Home 级库按 `project_id` 区分本项目与个人。「个人空间」是保留身份的项目分区，不列为项目，不能改名或删除。
 - 项目插件和个人插件的分法见 `PRODUCT.md`「Platform and Plugins」。
 
+**目标资料库（Goals 根记录）**
+
+- 定义：Goals 在每个项目数据库里的根记录，一个项目一条：记录项目标题和当前聚焦的 Goal，Goals 的其他记录挂在它下面（表 `boards`，`project_id` 是主键，`modules/goals/src/schema.ts:159`；记录类型 `GoalsBoardRecord`，`packages/contracts/src/modules/goals.ts:380`）。它不是项目：项目身份是 `project_id`，这条记录用同一个 `project_id` 作键。
+- 动作 `goals.board.initialize`（标题「初始化目标资料库」，`plugins/native/goals/src/board-actions.ts:21`）创建它；没有它时 Goals 的读写报「这个项目还没有初始化目标资料库」（`modules/goals/src/command-support.ts:32`，2026-10-08 起的界面文案）。托管的项目数据库必须恰好有一条（`apps/local-host/src/managed-project-database.ts:43`）。
+- 文档写「目标资料库」（与界面同名）；代码里仍叫 Board，改名见 R-A1。
+
 **Board**
 
 - 不再是项目的名字。2026-10 起 `board_id` 已改为 `project_id`（`docs/system/ARCHITECTURE.md` §2），文档里不再用 Board 指项目。
-- 代码里还剩的 Board 标识符指的都是项目：多数是 Goals 的根记录（`GoalsBoardRecord`，表 `boards`，`modules/goals/src/schema.ts`），Casebook 日志的 `board` 列存的是 `project_id`（`apps/local-host/src/casebook/observer.ts`）。表名 `boards` 按 2026-10-06 的决定保留（它是 Goals 的根记录，不是第二个身份）；其余标识符的改名见第 5 节。
+- 代码里还剩的 Board 标识符指的是项目或目标资料库：多数是目标资料库（`GoalsBoardRecord`，表 `boards`），Casebook 日志的 `board` 列存的是 `project_id`（`apps/local-host/src/casebook/observer.ts`）。表名 `boards` 按 2026-10-06 的决定保留（它是 Goals 的根记录，不是第二个身份）；其余标识符的改名见第 5 节。
 - 正当的别的用法，不属于改名范围：Goals 的**看板**视图（与列表、依赖画布并列，同一份 Goal 与关系的派生视图）；Agent 的**任务板、步骤板**（Prologue SDK 的概念，`horizontal/agent-host/src/adapters/prologue-taskboard.ts`、`plugins/native/coding/src/taskboard.ts`）；设计系统的**组件板**（`/__ui/catalog`，`DESIGN.md`）。
 
 ### 2.5 其他易混的词
@@ -170,7 +177,7 @@
   2. 键用英文小写加点分层，形如 `<主人>.<位置>.<元素>`：主人是 `project_plugin_id`（第 3 节）或宿主区域（如 `settings`、`shell`）。键里指本表概念的那一段，用下表「键里的词」；旧称不进新键。示例（不是现存的键）：`judgment_rule.editor.step.scene`。
   3. 下表的词与第 5 节 R-A 的新标识符同源，代码改名完成后键里的词与标识符一致。
   4. 同一个键在合并后的全部词典里只能有一个值（现在中文键下的冲突，如上面「判断规则」的三个英文，换成稳定键后由 CI 的冲突检查拦）；同一概念被写成两个不同的键、各带不同措辞（如 U1 的「动作库」和「能力库」），CI 看不出，靠评审对照本表。
-  5. 现在词典里含旧术语的无用条目（R-A8 的 12 条）不带进稳定键，转换时作为无用键处理，不单独改名。
+  5. 现在词典里含旧术语的无用条目（R-A8 的 11 条）不带进稳定键，转换时作为无用键处理，不单独改名。
 
 | 术语 | 键里的词 |
 | --- | --- |
@@ -284,10 +291,10 @@
 - 建议：用户可见处统一写「用途」，把报错和能力库页里的「消费场景」改掉；文档与代码仍写消费场景。
 - 备选：统一成「消费场景」；保持现状。
 
-**U5　Board 出现在报错和动作说明里**
+**U5　Board 还出现在 4 处报错里**
 
-- 现状：「Board 不存在」「Board 已存在」「Board ID 和名称不能为空」（`modules/goals/src/board-commands.ts`、`command-support.ts`、`query.ts`，`plugins/native/goals/src/goal-tree-*.ts`）、「Goal Tree 提案的 base_event_cursor 必须是当前 Board 已观察到的事件游标」（`plugins/native/goals/src/goal-tree-submission.ts`）、「项目数据库必须恰好包含一个 Board」（`apps/local-host/src/managed-project-database.ts`）、动作「初始化目标资料库」及其说明里的 Board（`plugins/native/goals/src/board-actions.ts`）。这些是动作和命令的报错与说明，用户会在各入口看到。
-- 建议：统一写「项目」（「项目不存在」「项目已存在」等），「目标资料库」改成「项目的 Goals」。错误码 `board.not_found` 等属合同，随第 5 节 R-B3 决定，不在这一条。
+- 现状：「Board 已存在」「Board ID 和名称不能为空」（`modules/goals/src/board-commands.ts`）、「Goal Tree 提案的 base_event_cursor 必须是当前 Board 已观察到的事件游标」（`plugins/native/goals/src/goal-tree-submission.ts`）、「项目数据库必须恰好包含一个 Board」（`apps/local-host/src/managed-project-database.ts`）。这些是动作和命令的报错，用户会在各入口看到。同日的文案改动（#299）已把「Board 不存在」和动作「初始化目标资料库」的说明改成「目标资料库」，所以这 4 处与它不一致。
+- 建议：余下的统一写「目标资料库」或「项目」，与 #299 一致：「目标资料库已存在」「项目 ID 和名称不能为空」「……必须是当前目标资料库已观察到的事件游标」「项目数据库必须恰好包含一个目标资料库」。错误码 `board.not_found` 等属合同，随第 5 节 R-B3 决定，不在这一条。
 - 备选：保持现状。
 
 **U6　「角色」同时指 Character 和 Agent role，外部 AI 工具有几个叫法**
@@ -311,14 +318,14 @@
 
 | # | 旧标识符 | 建议新名 | 规模 | 说明 |
 | --- | --- | --- | --- | --- |
-| R-A1 | `GoalsBoardRecord`、`getBoard`、`requireBoard`、`checkGoalBoard`、`validateManagedBoard`、`readManagedBoard`、`initializeBoard`（含 `InitializeBoardInput`、`InitializeBoardOutput`、`initializeBoardCapability`）、`BoardSnapshot*`（含 `boardSnapshotSchema`、`snapshotBoardCapability`）、`MolisWorkCommands`（在 `board-commands.ts`）、`GOAL_BOARDS_SCHEMA_SQL` | 去掉 Board，指项目根记录时写 `GoalsProject*`（如 `GoalsProjectRecord`、`getGoalsProject`、`requireGoalsProject`、`initializeGoalsProject`）；`MolisWorkCommands` 改 `GoalsProjectCommands` | 源码：`GoalsBoardRecord` 4 个文件、`getBoard` 10、`requireBoard` 10、`checkGoalBoard` 1（36 处）、`validateManagedBoard`/`readManagedBoard` 4、`initializeBoard` 系 14、`BoardSnapshot` 13；测试：`initializeBoard` 系 55 | 表名 `boards` 保留（2026-10-06 决定）。`initializeBoard` 在测试里是建项目的公用写法，改名要连测试一起 |
+| R-A1 | `GoalsBoardRecord`、`getBoard`、`requireBoard`、`checkGoalBoard`、`validateManagedBoard`、`readManagedBoard`、`initializeBoard`（含 `InitializeBoardInput`、`InitializeBoardOutput`、`initializeBoardCapability`）、`BoardSnapshot*`（含 `boardSnapshotSchema`、`snapshotBoardCapability`）、`MolisWorkCommands`（在 `board-commands.ts`）、`GOAL_BOARDS_SCHEMA_SQL` | 去掉 Board：目标资料库（Goals 根记录）写 `GoalsLibrary*`（如 `GoalsLibraryRecord`、`getGoalsLibrary`、`requireGoalsLibrary`、`initializeGoalsLibrary`）；`BoardSnapshot*` 去掉 Board 前缀，具体名落地时定（`GoalsQuerySnapshot` 已存在，避开）；`MolisWorkCommands` 改 `GoalsLibraryCommands` | 源码：`GoalsBoardRecord` 4 个文件、`getBoard` 10、`requireBoard` 10、`checkGoalBoard` 1（36 处）、`validateManagedBoard`/`readManagedBoard` 4、`initializeBoard` 系 14、`BoardSnapshot` 13；测试：`initializeBoard` 系 55 | 表名 `boards` 保留（2026-10-06 决定）。`initializeBoard` 在测试里是初始化项目的目标资料库的公用写法，改名要连测试一起 |
 | R-A2 | 文件 `modules/goals/src/board-commands.ts`、`plugins/native/goals/src/board-actions.ts`、`board-entry-capabilities.ts`、`board-snapshot-query.ts`；`tests/goals-board-actions.test.ts` | 去掉 `board-` 前缀 | 5 个文件 | 引用这些路径的 README 和 `docs/` 同步 |
 | R-A3 | 判断规则的 TypeScript 类型：`FunctionRecord`、`FunctionDraftPatch`、`FunctionSummary`、`FunctionDescribe`、`FunctionSample`、`FunctionCriteria`、`FunctionInvokeResult`、`FunctionsPrimitive`、`FunctionStatus`、`FunctionAuthoring*` | `JudgmentRule*` | 源码 12 个文件、测试 6 个 | 只改类型名；`function_key`、表和动作 id 见 R-B2 |
 | R-A4 | 包 `@molis-ai/molis-work-module-functions`、目录 `modules/functions`、`apps/workbench/src/functions/`、`apps/local-host/src/functions-*.ts` | `judgment-rules` | 源码 15 个文件、测试 20 个文件导入这个包名 | Home 里的 `functions` 库名属合同，见 R-B2 |
 | R-A5 | `FunctionAuthoringBehavior`、`behavior-catalog.ts`、`liveHostFunctionAuthoringCatalog`、常量 `*_BEHAVIOR_ID`（如 `HOME_TALK_BEHAVIOR_ID`） | `…Option`、`recommendation-catalog.ts`、`*_OPTION_ID` | 源码 5 个文件（`FunctionAuthoringBehavior`、`behavior-catalog`）；`behavior_id(s)`、`*_BEHAVIOR_ID` 共 32 个文件 | 常量的值（`inbox.admit` 等）不变；编辑器目录是宿主与编辑器之间的形状，未持久化，可一起改 |
 | R-A6 | `AgentMethodView`、`AgentMethodRegistration`、`METHOD_TOOLS`、`inspectMethodDeclarations`、`method_owner`、`codingMethods`/`pagesMethods`/`todoMethods` 及其所在文件（`plugins/native/coding/src/methods.ts`、`plugins/native/pages/src/methods.ts`、`plugins/native/todo/src/roles.ts`） | `AgentSkill*`、`SKILL_TOOLS`、`inspectSkillDeclarations`、`skill_owner`、`*Skills`、`skills.ts` | 前五项源码 7 个文件，`codingMethods`/`pagesMethods`/`todoMethods` 11 个文件 | 只含类型、函数和文件名。Manifest 的 `methods` 键、`assistant.methods.*`、字段 `method_id` 和助理物料种类值 `"method"` 都是合同或已存数据，见 R-B5 |
 | R-A7 | 目录 `plugins/native/work`、包 `@molis-ai/molis-work-plugin-work` | 目录改叫 `sessions`，包改 `@molis-ai/molis-work-plugin-sessions` | 源码 21 个文件、测试 16 个文件导入（不含 `package.json`） | 同步 `scripts/workspace-packages.mjs`、SSOT、各 README |
-| R-A8 | 翻译表里找不到字面使用处、又含旧术语的键 | 删除 | 12 条：`apps/workbench/src/i18n/en.ts` 5 条（含「Functions 行为总表」「Functions 出站动作」「判断函数 key」「Board 级事项」）、`i18n/information-loop-en.ts` 3 条、`apps/workbench/src/functions/en.ts` 1 条、`plugins/native/feed/src/en.ts` 2 条、`plugins/native/goals/src/document-en.ts` 1 条（「Board 当前聚焦」） | 只按字面搜过。翻译换成稳定键（2.7，W5-03）后这些条目不带进新词典，所以不单独做；W1-08 的翻译检查落地后以它报告的无用键为准 |
+| R-A8 | 翻译表里找不到字面使用处、又含旧术语的键 | 删除 | 11 条：`apps/workbench/src/i18n/en.ts` 5 条（含「Functions 行为总表」「Functions 出站动作」「判断函数 key」「Board 级事项」）、`i18n/information-loop-en.ts` 3 条、`apps/workbench/src/functions/en.ts` 1 条、`plugins/native/feed/src/en.ts` 2 条 | 只按字面搜过。翻译换成稳定键（2.7，W5-03）后这些条目不带进新词典，所以不单独做；W1-08 的翻译检查落地后以它报告的无用键为准 |
 | R-A9 | 6 个插件共 19 个 UI 描述的 `plugin_id: "io.molis.work.native.<x>"`（Goals 12、Feed、Inbox、Schedule、成果 2、会话 2，位置见 3.3 表后第 2 条） | 与各自 Manifest 的 `plugin_id` 相同：`io.molis.work.<x>`，会话是 `io.molis.work.sessions` | 源码 19 个文件；测试：`tests/builtin-plugin-composition.test.ts:47-48` 断言了 Goals 提案与会话终端的旧值 | 描述没找到持久化的位置（见 3.3）。改后可以让构建期装配也过 Plugin Runtime 同样的一致性检查。该测试的注释写着「旧公开身份保持稳定」，改前先确认它钉的是 `plugin_id` 还是只是 `contribution_id`，再按预期变化改断言 |
 | R-A10 | 工作台右栏的 dock 窗口 id `im`：`dock-window-im`、`data-dock-window="im"`、`data-dock-toggle="im"`、`navigation-presentation.ts:60` 里的 `id==='im'` | `side`（讨论页签的内嵌框 `data-dock-frame="im"` 可改 `discussion`） | 源码 3 个文件（`apps/workbench/src/side-panel.ts`、`apps/workbench/src/immersive-shell.ts`、`apps/workbench/src/scripts/client/navigation-presentation.ts`），测试 2 个（`tests/desktop-tui.test.ts`、`tests/lingguang-plugin.test.ts`） | 这个 id 指整个右栏，不是讨论页签（2.6）。落地前先确认它没有写进本地存储的键 |
 | R-A11 | 注释与局部变量里把项目叫 board/Board 的，以及把 Agent role 叫 Characters 的 | 项目；Agent role | 无法按名计数，改 R-A1 时顺带 | 例：`modules/functions/src/store.ts` 的局部变量 `board`；`plugins/native/goals/src/document-collection.ts` 与 `goal-tree-materialization-order.ts` 里未用的 `_boardId` 参数；`packages/contracts/src/modules/goals.ts` 的注释；`plugins/native/characters/src/client.ts` 的注释把系统与插件的角色叫 Characters |
@@ -331,7 +338,7 @@
 | --- | --- | --- | --- | --- |
 | R-B1 | 字段 `capability_id`（动作与宿主能力的身份字段） | 保留原名，记「`capability_id` 就是动作的 id」 | 源码 202 个文件、1,169 处 | 写在工作流步骤、MCP 授权、判断规则、场景绑定、Character 的动作范围里；改名收益很小，数据和外部授权都要动 |
 | R-B2 | 判断规则：动作 id `functions.list`、`functions.describe`、`functions.invoke`、`functions.published.<function_key>`；权限串 `functions:invoke`、`functions:manage`；`FUNCTIONS_PLUGIN_ID`（`io.molis.work.functions`）；字段 `function_key`；库表 `function_judgments` 等；Home 里的 `functions` 库名（`openBaselineHomeSqlite(home, "functions", …)`） | 改成 `judgments.*` / `judgment_rule`，或保留 | `functions.*` 动作 id 源码 9 个文件，权限串 10，`function_key` 28 | 动作 id 派生 MCP 工具名，改名会使已有客户端授权失效；权限串写在安装授权里；库名要走维护 |
-| R-B3 | Board 系：事件类型与错误码 `board.created`、`board.active_goal_changed`、`board.not_found`、`board.exists`；错误详情字段 `conflicting_board_id`；能力 id `io.molis.work.local-host.board.initialize`、`io.molis.work.local-host.board.snapshot`；动作 id `goals.board.initialize`；Casebook 日志的 `board` 名（`apps/local-host/src/casebook/` 下 9 个文件；`journal.ts` 里 5 张表有 `board` 列） | `project.*` / `goals.project.initialize`，列改 `project` | 事件与错误码 7 个源码文件，Casebook 9 个文件 | 事件与动作 id 对外可见；Casebook 的列在项目库里，要走维护；`board.not_found` 还列在 Casebook 的原因码表里（`apps/local-host/src/casebook/reason-codes.ts`），那是外部 Casebook 插件对接的合同，改动先看 `docs/Casebook交互事实接口-接入与边界.md` |
+| R-B3 | Board 系：事件类型与错误码 `board.created`、`board.active_goal_changed`、`board.not_found`、`board.exists`；能力 id `io.molis.work.local-host.board.initialize`、`io.molis.work.local-host.board.snapshot`；动作 id `goals.board.initialize`；Casebook 日志的 `board` 名（`apps/local-host/src/casebook/` 下 9 个文件；`journal.ts` 里 5 张表有 `board` 列） | 动作 `goals.library.initialize`，事件与错误码 `goals_library.*`（如 `goals_library.not_found`）；Casebook 的 `board` 列存的是 `project_id`，改 `project` | 事件与错误码 7 个源码文件，Casebook 9 个文件 | 事件与动作 id 对外可见；Casebook 的列在项目库里，要走维护；`board.not_found` 还列在 Casebook 的原因码表里（`apps/local-host/src/casebook/reason-codes.ts`），那是外部 Casebook 插件对接的合同，改动先看 `docs/Casebook交互事实接口-接入与边界.md` |
 | R-B4 | 推荐选项：结果类型 `molis.behavior-recommendation.v1`、字段 `suggested_behavior_ids`、判断规则草稿里的 `scene_map`（值是场景内的符号）、库列 `suggested_json` 里的内容 | `molis.recommendation.v1`、`suggested_option_ids` | 结果类型 6 个源码文件，`suggested_behavior_ids` 30，`scene_map` 9 | 已存的判断记录与草稿里有旧值；结果合同写入严格，读取不兜底，所以要先改存量 |
 | R-B5 | Skill：Manifest 的 `methods` 键；动作 id `assistant.methods.*`（现有 `assistant.methods.read`）；助理里 Skill 的 id 字段 `method_id`（`assistant.methods.read` 的输入和输出字段，`apps/local-host/src/assistant/assistant-rule-actions.ts:61-65,86-87`；物料里的 `method.method_id`）；助理物料种类值 `"method"`（`packages/contracts/src/services/assistant.ts:199`），它存在轮次记录的 `materials` 里（`apps/local-host/src/assistant/assistant-store.ts:107`） | `skills` / `assistant.skills.*` / `skill_id` / `"skill"` | `assistant.methods` 2 个源码文件；`method_id` 在助理一侧 5 个源码文件（`apps/local-host/src/assistant/assistant-rule-actions.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`apps/workbench/src/scripts/client/assistant-island.ts`、`apps/workbench/src/settings-agent-diagnostics.ts`、`packages/contracts/src/services/assistant.ts`） | Manifest 是插件 SDK 的公开合同（`packages/contracts/src/platform/plugin.ts`）；动作 id 派生 MCP 工具名；`method_id` 是动作的输入输出字段；物料种类值存在已存的轮次里，改名要走维护。Goals 的 `method_id` 指规划方法，不在此列（R-C）。**排序**：W4-02 让 Manifest 的 `methods` 对 Runtime 和已安装插件生效（2026-10-08 用户决定，`specs/repository-anti-corruption/spec.md` §1「Runtime 与安装插件声明的 methods」），改键名与它碰同一个 Manifest 合同，应和 W4-02 一起问、或排在它之后，让合同只变一次 |
 | R-B6 | Agent 动作工具名 `find-capabilities`、`read-capability`、`change-capability` | `find-actions`、`read-action`、`change-action`（`suggest-action`、`change-reversible` 已一致） | 源码 6 个文件 46 处，测试 10 个文件 | 助理提示词引用这些名字（`apps/local-host/src/assistant/assistant-agent.ts`），提示词可由用户改写（`user_revision`），改名要升提示词版本并核对用户改写的版本 |

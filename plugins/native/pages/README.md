@@ -24,7 +24,7 @@
 
 Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读写文稿；项目上下文采纳通过 `pages.documents.import` 保存来源与摘要。`request_id` 与 `request_hash` 表示调用方已确认的稳定意图，保留旧值以支持历史重试，不用它们证明权限或来源。旧 board 分区仅在原项目目录证明唯一归属时，事务迁移到 canonical project_id；保留文档和请求 ID、快照、编辑与引用，冲突或仍在生成则保留原数据并明确拒绝。
 
-`pages.promote` 在原 `pages` 行保存未完成发布快照后才调用 Artifact owner；失败后继续原快照和版本。已存成 Artifact、尚未回写文稿关联时，重试读取并核对原 Artifact，恢复关联而不重复发布。旧版中断记录没有快照时也从原 Artifact 恢复。完成关联与清除快照在同一文稿事务提交，保留后续正文和 Goal 编辑；其他发起者不能冒充原 owner 恢复。
+`pages.promote` 在原 `pages` 行保存未完成发布快照后才调用 Artifact owner；失败后继续原快照和版本。已存成 Artifact、尚未回写文稿关联时，重试读取并核对原 Artifact，恢复关联而不重复发布。旧版中断记录没有快照时，只在成果库里恰有一个文稿没记过、又没写明来源修订号的版本时，才从原 Artifact 恢复。文稿移走又移回时记录重新从 0 数固定版本，而项目成果库仍留着之前的各版：下一次固定接着成果库里已有的最高版号（`nextPinnedVersion`），不把旧版当作中断记录交回。完成关联与清除快照在同一文稿事务提交，保留后续正文和 Goal 编辑；其他发起者不能冒充原 owner 恢复。
 
 列表和编辑器从 `publication_pending` 显示“继续保存上次成果”，恢复成功明确说明当前编辑仍保留。客户端传 `expected_version`，过期请求不会再创建一版；旧客户端不传版本时继续保留每次明确调用新增版本的语义。返回 `recovered` 表示恢复上次成果。此迁移只新增可空列，不搬移原数据；降级前应完成未结束的发布，旧版代码无法识别新快照，不能安全地继续这些请求。
 
@@ -43,5 +43,5 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
   - Host 注入 prepareImport；ZIP/DOCX/编码解析归 Host worker，Pages 的 preparePagesImport 只接受公共 MaterialDocumentBatch 并转换为编辑器正文。解析等待不占项目串行队列，返回后复查授权/取消。
   - 导入预览不写入；批量写入一个事务，同一请求重试不覆盖编辑、不重复创建。
   - 编辑器单独打成浏览器脚本，不进工作台 factory 字符串。
-- 改动后必跑：`node scripts/run-tests.mjs tests/pages-actions.test.ts tests/pages-cross-module.test.ts tests/pages-generation-lease.test.ts tests/pages-conversion.test.ts tests/action-before-effect.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/pages-actions.test.ts tests/pages-cross-module.test.ts tests/pages-generation-lease.test.ts tests/pages-conversion.test.ts tests/action-before-effect.test.ts tests/pages-publication.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

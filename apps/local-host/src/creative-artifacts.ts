@@ -11,16 +11,39 @@ import {
   PPT_ARTIFACT_TYPE_ID,
   PPT_SUBJECT_KIND,
 } from "@molis-ai/molis-work-contracts/modules/ppt";
-import { DatasetError, datasetManifest, type DatasetPublishArtifactPort, type DatasetReadArtifactPort, type DatasetPublicationSnapshot } from "@molis-ai/molis-work-plugin-dataset";
-import { FormError, formManifest, type FormPublishArtifactPort, type FormReadArtifactPort, type FormPublicationSnapshot } from "@molis-ai/molis-work-plugin-form";
-import { PptError, pptManifest, type PptPublishArtifactPort, type PptReadArtifactPort, type PptPublicationSnapshot } from "@molis-ai/molis-work-plugin-ppt";
+import { DatasetError, datasetManifest, type DatasetLineHeadPort, type DatasetPublishArtifactPort, type DatasetReadArtifactPort, type DatasetPublicationSnapshot } from "@molis-ai/molis-work-plugin-dataset";
+import { FormError, formManifest, type FormLineHeadPort, type FormPublishArtifactPort, type FormReadArtifactPort, type FormPublicationSnapshot } from "@molis-ai/molis-work-plugin-form";
+import { PptError, pptManifest, type PptLineHeadPort, type PptPublishArtifactPort, type PptReadArtifactPort, type PptPublicationSnapshot } from "@molis-ai/molis-work-plugin-ppt";
 import type { GoalProjectApplication } from "./goal-project-application.js";
+import { artifactLineHead } from "./artifact-line-head.js";
 
 function producerOf(manifest: { plugin_id: string; version: string; publisher: { signature: string } }) {
   return {
     plugin_id: manifest.plugin_id,
     plugin_version: manifest.version,
     binding_signature: manifest.publisher.signature,
+  };
+}
+
+/** What the project's 成果库 holds of this record's line, for numbering its next pin. */
+export function formArtifactLineHead(coordinator: GoalProjectApplication, projectId: string, expectedProjectId: string): FormLineHeadPort {
+  return input => {
+    if (input.project_id !== expectedProjectId) throw new FormError("form.invalid", "问卷项目与当前项目不一致");
+    return artifactLineHead(coordinator, projectId, "form-" + input.record_id);
+  };
+}
+
+export function datasetArtifactLineHead(coordinator: GoalProjectApplication, projectId: string, expectedProjectId: string): DatasetLineHeadPort {
+  return input => {
+    if (input.project_id !== expectedProjectId) throw new DatasetError("dataset.invalid", "数据表项目与当前项目不一致");
+    return artifactLineHead(coordinator, projectId, "dataset-" + input.record_id);
+  };
+}
+
+export function pptArtifactLineHead(coordinator: GoalProjectApplication, projectId: string, expectedProjectId: string): PptLineHeadPort {
+  return input => {
+    if (input.project_id !== expectedProjectId) throw new PptError("ppt.invalid", "演示稿项目与当前项目不一致");
+    return artifactLineHead(coordinator, projectId, "ppt-" + input.record_id);
   };
 }
 

@@ -10,7 +10,7 @@
 
 编辑和命令支持 `expected_version`；工作台串行保存并提交已读取版本。冲突保留本地输入，阻止继续发布或切表，用户可复制内容后明确重新读取。旧调用不传版本时沿用执行时当前版本。CSV 支持带逗号、转义引号、多行文本的字段；编辑多行单元格不会丢掉换行。
 
-发布先保存固定快照，再交给原 Artifact owner。中断后显示“恢复发布”，恢复原内容及版本，保留此后本地编辑；完成后可另存新版。未恢复的发布不能删除，表和本机快照的删除在同一事务完成。
+发布先保存固定快照，再交给原 Artifact owner。中断后显示“恢复发布”，恢复原内容及版本，保留此后本地编辑；完成后可另存新版；数据表移走又移回后，下一次固定接着项目成果库里已有的最高版号，不把旧版当作中断记录交回。未恢复的发布不能删除，表和本机快照的删除在同一事务完成。
 
 开发合同见 [Plugin 开发](../../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。对应验证为 `tests/dataset-actions.test.ts`、`tests/dataset-mcp.test.ts` 和 `tests/dataset-actions.e2e.test.ts`。这项迁移不代表全系统工作流、客户端授权或其他插件已完成迁移。
 
@@ -28,5 +28,5 @@
   - 数据按 Host 注入的 canonical `project_id` 分区。
   - 冲突保留本地输入，并阻止发布或切表。
   - 发布中断后可恢复原内容与版本并保留之后的编辑；未恢复的发布不能删除，表与快照在同一事务删除。
-- 改动后必跑：`node scripts/run-tests.mjs tests/dataset-actions.test.ts tests/dataset-mcp.test.ts tests/creative-artifact-promote.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/dataset-actions.test.ts tests/dataset-mcp.test.ts tests/creative-artifact-promote.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

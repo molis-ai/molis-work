@@ -102,7 +102,7 @@ node --import tsx --test --test-concurrency=1 tests/artifact-document-import.tes
   - 在线文档内容变化时新增版本，旧版本与精确引用保留；空正文、超限、权限错误和截断结果不产生成功的 Artifact。
   - HTML 端口可以异步，Host 在可终止 worker 中解析；原 HTML 和 2 MiB 文档限制由插件保留。两个导入 Action 显式 concurrent，Host 保留原 ActionExecutionContext.beforeEffect 作为 beforeSave；取消、撤权或提供方撤下不新增版本，不手工重做部分授权检查。
   - 同步 publish/read 接口只给 `plugin` 受众，不能当用户或 MCP 工具冒充生产者；只有声明 sync 的处理器可以同步调用。
-- 改动后必跑：`node scripts/run-tests.mjs tests/artifacts-actions.test.ts tests/artifact-browser.test.ts tests/artifact-document-import.test.ts tests/plugin-artifact-client.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/artifacts-actions.test.ts tests/artifact-browser.test.ts tests/artifact-document-import.test.ts tests/plugin-artifact-client.test.ts tests/artifact-links.test.ts tests/artifact-source-and-links.test.ts`
 - 相关手册：[docs/modules/artifacts.md](../../../docs/modules/artifacts.md)、[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

@@ -2,8 +2,9 @@ import {
   PAGES_ARTIFACT_SCHEMA_VERSION,
   PAGES_ARTIFACT_TYPE_ID,
 } from "@molis-ai/molis-work-contracts/modules/pages";
-import { PagesError, pagesManifest, parsePagesBody, PAGES_SUBJECT_KIND, type PagesPublishArtifactPort, type PagesReadArtifactPort } from "@molis-ai/molis-work-plugin-pages";
+import { PagesError, pagesManifest, parsePagesBody, PAGES_SUBJECT_KIND, type PagesLineHeadPort, type PagesPublishArtifactPort, type PagesReadArtifactPort } from "@molis-ai/molis-work-plugin-pages";
 import type { GoalProjectApplication } from "./goal-project-application.js";
+import { artifactLineHead } from "./artifact-line-head.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Recovery reads the immutable original owner record; it never impersonates its author. */
@@ -21,6 +22,14 @@ export function readPagesArtifactVersion(coordinator: GoalProjectApplication, pr
       throw new PagesError("pages.publication_conflict", "成果的文稿内容不完整，原记录已保留");
     }
     return { title: payload.title, body: parsePagesBody(payload.body), goal_id: payload.goal_id };
+  };
+}
+
+/** What the project's 成果库 holds of this document's line, for numbering its next pin. */
+export function pagesArtifactLineHead(coordinator: GoalProjectApplication, projectId: string, expectedProjectId: string): PagesLineHeadPort {
+  return input => {
+    if (input.project_id !== expectedProjectId) throw new PagesError("pages.invalid", "文档项目与当前项目不一致");
+    return artifactLineHead(coordinator, projectId, "pages-" + input.page_id);
   };
 }
 

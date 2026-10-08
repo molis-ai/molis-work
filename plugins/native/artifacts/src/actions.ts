@@ -68,7 +68,7 @@ export const artifactsActions = {
     object({ embeds: array(object({ relationship: { enum: ["input", "output"] }, view: browser })) })),
   links: define<{ reference: ArtifactReference }, ArtifactReferences>("links", "这一版被谁引用", "列出把这一版作为输入、交付物或提议交付物的目标，以及其他引用的数量；不修改数据",
     "query", object({ reference }), object({ goals: { type: "array", items: object({ goal_id: { type: "string" }, title: { type: "string" },
-      role: { enum: ["input", "deliverable", "proposed"] } }) }, other: { type: "integer", minimum: 0 } })),
+      role: { enum: ["input", "deliverable", "proposed", "proposed_input"] } }) }, other: { type: "integer", minimum: 0 } })),
   pluginInputs: define<{ reference: ArtifactReference }, { inputs: ArtifactPluginInput[] }>("plugin_inputs", "可以接这一版的插件输入",
     "列出已启用插件里能接收这一版类型的输入端口，以及它们现在读的是什么；不修改数据", "query", object({ reference }), pluginInputsOutput),
   // Changing what another plugin reads is the person's own choice (artifact-positioning, 2026-10-04).
@@ -105,12 +105,12 @@ export interface ArtifactActionPorts {
   /** Give the port this version, or with `restore` its former source; returns the ports as they are afterwards. */
   bindPluginInput?(artifact: ArtifactVersionRecord, input: { plugin_id: string; port: string; restore: boolean }, caller: ActionExecutionContext): Promise<ArtifactPluginInput[]>;
 }
-/** Who refers to one version (A4b, 「被谁引用」): Goals that take it as input, hand it in, or have it proposed; other links counted. */
+/** Who refers to one version (A4b, 「被谁引用」): Goals that take it as input, hand it in, or have it proposed as either; other links counted. */
 export interface ArtifactReferences {
-  goals: Array<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" }>;
+  goals: Array<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" | "proposed_input" }>;
   other: number;
 }
-const GOAL_ROLES: Record<string, ArtifactReferences["goals"][number]["role"]> = { "goal.input": "input", "goal.output": "deliverable", "goal.output.proposal": "proposed" };
+const GOAL_ROLES: Record<string, ArtifactReferences["goals"][number]["role"]> = { "goal.input": "input", "goal.input.proposal": "proposed_input", "goal.output": "deliverable", "goal.output.proposal": "proposed" };
 /** A version people can still hand on: in the 成果库, readable and not archived. */
 function requireUsable(ports: ArtifactActionPorts, reference: ArtifactReference): ArtifactVersionRecord {
   const artifact = ports.artifacts.query.getArtifactVersion(ports.projectId, reference);

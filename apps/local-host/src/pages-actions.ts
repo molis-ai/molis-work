@@ -4,7 +4,7 @@ import { pagesManifest, createPagesActionHandlers, createPagesContentHandlers, o
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { hostCompleteText, type HostCompleteText } from "./host-complete-text.js";
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
-import { registerPagesArtifactVersion, readPagesArtifactVersion } from "./pages-artifact.js";
+import { registerPagesArtifactVersion, readPagesArtifactVersion, pagesArtifactLineHead } from "./pages-artifact.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 
 export function pagesActionProvider(home: string, runtime: MolisWorkProjectRuntime, actions: ActionClient, completion?: HostCompleteText | null): ActionProviderRegistration {
@@ -25,6 +25,7 @@ export function pagesActionProvider(home: string, runtime: MolisWorkProjectRunti
       prepareImport: (files, caller) => preparePagesFileImport(files, { signal: caller.signal }),
       publishArtifact: (input, caller) => registerPagesArtifactVersion(runtime.coordinator, runtime.project_id, runtime.project_id, caller.actor_id)(input),
       readArtifact: (input, caller) => readPagesArtifactVersion(runtime.coordinator, runtime.project_id, runtime.project_id, caller.actor_id)(input),
+      lineHead: input => pagesArtifactLineHead(runtime.coordinator, runtime.project_id, runtime.project_id)(input),
       modelAvailability: () => {
         try { return model() ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先配置文字模型，再使用写作助手" }; }
         catch { return { available: false, code: "actions.connection_required", reason: "文字模型配置无效，请检查服务连接" }; }

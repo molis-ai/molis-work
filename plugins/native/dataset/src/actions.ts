@@ -2,7 +2,7 @@ import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contract
 import { DATASET_NAME_COLUMN } from "./prompts.js";
 import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DATASET_ARTIFACT_TYPE_ID, DATASET_PROJECT_PLUGIN_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
-import { promoteDataset, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
+import { promoteDataset, type DatasetLineHeadPort, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStore } from "./store.js";
 import { createDatasetSearchHandlers, datasetSearchActions } from "./search.js";
 import { datasetArtifactPreview, datasetArtifactPreviewHandler } from "./artifact-preview.js";
@@ -62,12 +62,13 @@ export interface DatasetActionPorts {
   completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
   publishArtifact?: (input: Parameters<DatasetPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<DatasetPublishArtifactPort>;
   readArtifact?: (input: Parameters<DatasetReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<DatasetReadArtifactPort>;
+  lineHead?: DatasetLineHeadPort;
 }
 export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promoteDataset(store, id, project(caller), value => ports.publishArtifact!(value, caller),
-    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined }));
+    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead }));
   const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "dataset.unavailable", reason: "当前环境不能发出成果" };
   return [
     datasetArtifactPreviewHandler,
@@ -110,7 +111,9 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
       return { surface: DATASET_PROJECT_PLUGIN_ID, id: created.id, title: created.title };
     })),
     bindArtifactCompare(datasetActions.artifactCompare, DATASET_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
-      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "columns", "rows"])),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "columns", "rows"]),
+      // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.
+      id => ports.withStore(store => objectOrMissing(() => store.get(id)) !== null)),
     ...createDatasetSearchHandlers(ports.withStore),
     bindObjectMoveHandler(datasetActions.move, input => ports.withStore(store => {
       const dataset = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);

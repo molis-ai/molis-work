@@ -208,7 +208,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       const nextApproval = covered(release.permissions, approved) ? approved : release.permissions;
       const next = definition(release, nextApproval);
       const state = action === 'upgrade' ? await platform.upgrade(release.pluginId, next) : await platform.rollback(release.pluginId, next);
-      if (state?.status !== 'running') throw new Error((action === 'upgrade' ? '升级' : '回滚') + '没有完成：' + (state?.message ?? '插件未能启动') + '，原版本继续可用');
+      if (state?.status !== 'running') throw new Error(state?.code === 'plugin_revoked' ? state.message! : (action === 'upgrade' ? '升级' : '回滚') + '没有完成：' + (state?.message ?? '插件未能启动') + '，原版本继续可用');
       storage.set(APPROVED_KEY + release.pluginId, JSON.stringify(nextApproval)); await expose(release); registerPrompts(release, 'enabled'); recoveryErrors.delete(release.pluginId); return;
     }
     if (action === 'disable') { withdraw(release.pluginId); platform.supervisor.revoke(release.pluginId); await platform.runtime.stop(record.install_id); registerPrompts(releaseFor(release.pluginId) ?? release, 'disabled'); return; }
@@ -255,7 +255,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
         if (record.state === 'disabled' || record.state === 'quarantined') continue;
         const report = await platform.start([{ definition: definition(release, approved), grants: record.grants }]);
         if (report.running.includes(record.plugin_id)) await expose(release);
-        else throw new Error(report.failed[0]?.message ?? report.blocked[0]?.message ?? '安装插件未能恢复');
+        else throw new Error(platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
       } catch (error) { recoveryErrors.set(record.plugin_id, error instanceof Error ? error.message : String(error)); }
     }
     stopScheduledRuns = bindInstalledOperationCaller(store.db, projectId, { describe: scheduledInstallation, async call(run, control) {

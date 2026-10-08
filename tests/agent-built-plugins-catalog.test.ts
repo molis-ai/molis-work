@@ -159,6 +159,53 @@ test('an installed plugin\'s functions are actions of the directory: people, the
   assert.deepEqual(ids('agent'), [], 'uninstalled: nothing left in the directory');
 });
 
+test('a command that already committed is reported as done-but-unconfirmed when the caller\'s authority ends during the call, never as a plain failure to retry', async () => {
+  const { exposeInstalledPlugin, exposedActionId } = await import('../apps/local-host/src/plugin-builder/exposed-actions.js');
+  const service = new ActionService(), actions = { registry: service, client: service, project_id: 'p' };
+  const contract = { version: 1, pluginId: 'io.molis.work.generated.notes', revision: 'r', entities: [], pages: [], acceptance: [], operations: [
+    { id: 'notes.add', kind: 'command', description: '记一条', input: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false }, output: { type: 'object' }, errors: [], effects: { storage: ['read', 'write'] }, examples: [] },
+    { id: 'notes.list', kind: 'query', description: '列出', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array' }, errors: [], effects: { storage: ['read'] }, examples: [] },
+  ] };
+  const release = { buildId: '0a1b2c3d-46ed', pluginId: contract.pluginId, version: 1, design: { title: '记事', contract, parts: [], acceptance: [] } } as never;
+  const rows: string[] = []; let revoked = false;
+  // The operation commits (a row is written) and the caller's grant is withdrawn before the answer comes back.
+  const exposed = exposeInstalledPlugin(actions, release, async (_pluginId, operation, input) => {
+    if (operation === 'notes.add') rows.push(JSON.stringify(input));
+    revoked = true;
+    return { status: 200, body: { value: operation === 'notes.add' ? { ok: true } : [] } };
+  });
+  const caller = { actor_id: 'runtime:client', project_id: 'p', audience: 'mcp' as const, permissions: [],
+    validate_authority: async () => { if (revoked) throw Object.assign(new Error('此客户端的能力授权已撤销'), { code: 'mcp.action_revoked' }); } };
+  const call = (operation: string, input: unknown) => service.invoke(caller, { capability_id: exposedActionId(release, operation), version: 1, provider_id: 'plugin:' + contract.pluginId }, input);
+  try {
+    await assert.rejects(call('notes.add', { text: 'hello' }), (error: { code?: string; message: string }) => error.code === 'actions.outcome_unknown' && /不要重复/.test(error.message),
+      'the caller is told the operation ran, so it does not repeat it');
+    assert.deepEqual(rows, ['{"text":"hello"}']);
+    revoked = false;
+    await assert.rejects(call('notes.list', {}), (error: { code?: string }) => error.code === 'mcp.action_revoked', 'a query has no effect to protect: withholding its result is the point');
+  } finally { exposed.dispose(); }
+});
+
+test('a capability that needs another action is not offered to generated plugins, which can only call it alone', async () => {
+  const { actions } = project();
+  const meta = (title: string, extra: object = {}) => ({ title, description: title, kind: 'query' as const, scope: 'project' as const, audiences: ['user', 'agent'] as Array<'user' | 'agent'>,
+    permissions: [], subject_kinds: [], input_schema: { type: 'object' }, ...extra });
+  const directory: ActionDefinition = { capability_id: 'fixture.directory', version: 1, operation: 'query', action: meta('directory') };
+  const talk: ActionDefinition = { capability_id: 'fixture.talk', version: 1, operation: 'query',
+    action: meta('talk', { required_actions: [{ capability_id: 'fixture.directory', version: 1, provider_id: 'fixture' }] }) };
+  actions.registry.registerProvider({ provider: { provider_id: 'fixture', title: 'Fixture', kind: 'system', project_id: 'p' }, definitions: [directory, talk],
+    handlers: [{ capability_id: 'fixture.directory', version: 1, handle: () => ({}) }, { capability_id: 'fixture.talk', version: 1, handle: () => ({ said: 'hi' }) }] });
+  const catalog = await capabilityCatalog(actions, 'web-user');
+  assert.equal(catalog.find(entry => entry.id === 'fixture.directory')!.offered, true);
+  const dependent = catalog.find(entry => entry.id === 'fixture.talk')!;
+  assert.equal(dependent.offered, false, 'what would be refused when the plugin calls it is not offered');
+  assert.match(dependent.reason!, /依赖/);
+  const service = catalogCapabilities({ actions, catalog: async () => catalog, live: () => true });
+  const context = { identity: { projectId: 'p', installationId: 'i', pluginId: 'io.molis.work.generated.x', namespace: 'installed' as const }, signal: new AbortController().signal } as never;
+  assert.deepEqual(await service.call(context, 'fixture.directory', {}), {});
+  await assert.rejects(service.call(context, 'fixture.talk', {}), /没有开放给插件的能力/, 'the refusal says so up front');
+});
+
 test('the designer\'s catalog stays within budget: what is in use and the most relevant keep full schemas, the rest their field names', async () => {
   const { withinBudget } = await import('../plugins/native/plugin-builder/src/agent-catalog.js');
   const huge = (id: string) => ({ id, title: id, description: id, input: { type: 'object', properties: Object.fromEntries(Array.from({ length: 200 }, (_, index) => ['field' + index, { type: 'string', description: 'x'.repeat(40) }])) }, output: { type: 'object' } });

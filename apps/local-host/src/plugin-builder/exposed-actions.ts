@@ -69,7 +69,16 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
     handle: async (context, input) => {
       await context.beforeEffect();
       const result = await call(release.pluginId, operation.id, input as SandboxJson, context), body = result.body as { value?: unknown; error?: unknown; outcome?: string } | undefined;
-      await context.beforeEffect();
+      try { await context.beforeEffect(); }
+      catch (error) {
+        // A command that ran has committed, whoever's authority ended meanwhile; a plain failure would invite a retry that repeats it
+        // (the kernel reports an invalid output after an effect the same way). A query has no effect: withholding its result is the point.
+        if (operation.kind === 'command' && (result.status === 200 || body?.outcome === 'unknown')) {
+          throw new ActionError('actions.outcome_unknown', result.status === 200 ? '操作已执行，但调用方的授权在执行期间已结束，没有返回结果；请检查结果，不要重复操作'
+            : String(body?.error ?? '本次结果未知，请先检查结果再决定是否重试'));
+        }
+        throw error;
+      }
       if (result.status !== 200 && body?.outcome === 'unknown') throw new ActionError('actions.outcome_unknown', String(body.error ?? '本次结果未知，请先检查结果再决定是否重试'));
       if (result.status !== 200) throw new Error(String(body?.error ?? '插件「' + title + '」没有完成这项功能'));
       return body?.value ?? null;

@@ -4,6 +4,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { assertContributionMatchesManifest, PluginContributionError } from "./contribution.js";
 import { pluginManifestDigest } from "./identity.js";
+import { keptDataRefusal } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
 
 export { SqlitePluginPrivateStorage, PluginPrivateStorageError, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL } from "./private-storage.js";
@@ -212,6 +213,8 @@ export class PluginRuntime implements PluginRuntimeApi {
         "同一 Plugin ID、Version 和签名不能对应不同 Manifest；请递增版本",
       );
     }
+    const refusal = keptDataRefusal(current, manifest, input.bundled === true);
+    if (refusal) throw new PluginRuntimeError("plugin_upgrade_required", refusal);
     this.register(input.definition);
     if (current && current.version !== manifest.version && current.state !== "uninstalled") {
       // A plugin that ships with the Host follows the Host's version (2026-10-04): its install record moves up with it,
@@ -257,9 +260,6 @@ export class PluginRuntime implements PluginRuntimeApi {
         "plugin_state_invalid",
         "已有安装不能通过重复 install 静默改变部署环境或 grant",
       );
-    }
-    if (current && current.manifest_digest !== digest) {
-      throw new PluginRuntimeError("plugin_upgrade_required", "已有安装需要在插件市场明确升级");
     }
     const now = this.now();
     const record: PluginInstanceRecord = {
@@ -379,14 +379,14 @@ export class PluginRuntime implements PluginRuntimeApi {
           deployment,
           selected_entrypoint: entrypoint.entrypoint,
           grants: targetGrants,
-          state: "installed",
+          state: current.state === "disabled" ? "disabled" : "installed", // a new version does not undo the person's disable
           recovery_count: 0,
           last_error_code: null,
           updated_at: this.now(),
           uninstalled_at: null,
         };
         this.repository.save(upgraded);
-        const receipt = await this.startOnce(input.install_id);
+        const receipt = current.state === "disabled" ? this.receipt("start", upgraded, false) : await this.startOnce(input.install_id);
         return { ...receipt, operation: rollbackCode ? "rollback" : "upgrade", replayed: false };
       } catch (error) {
         const failed = this.repository.get(input.install_id);
@@ -402,9 +402,9 @@ export class PluginRuntime implements PluginRuntimeApi {
           updated_at: this.now(),
         };
         this.repository.save(rollback);
-        if (oldDefinition && !dataRollbackError) {
-          // Restore the pre-upgrade implementation after a failed candidate
-          // start. Its stable install id keeps access to the same private data.
+        if (oldDefinition && !dataRollbackError && current.state !== "disabled") {
+          // Restore the pre-upgrade implementation after a failed candidate start (a switched-off install stays off).
+          // Its stable install id keeps access to the same private data.
           try { await this.startOnce(input.install_id); } catch { /* the original upgrade error remains authoritative */ }
         }
         if (failed?.version === target.version && oldDefinition !== input.definition) {

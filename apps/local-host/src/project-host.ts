@@ -221,13 +221,7 @@ export class MolisWorkLocalHost {
             throw error;
           }
         },
-        close: async (runtime, reference) => {
-          await releaseAgentStudio(runtime.store, runtime.project_id);
-          await releaseInstalledPlugins(runtime.store, runtime.project_id);
-          await releaseProjectPlugins(runtime.store, runtime.project_id);
-          runtime.store.close();
-          options.onRuntimeClose?.(reference);
-        },
+        close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference)),
       },
     });
     if (this.personalPlanningHome) this.personalPlanning = new PersonalPlanningActions(this.personalPlanningHome, this.host.actionRegistry(),
@@ -480,6 +474,21 @@ export class MolisWorkLocalHost {
   status(): LocalHostStatus {
     return this.host.status();
   }
+}
+
+/**
+ * Releases a project's owners (authoring and preview, installed plugins, the project's other plugins) and closes its
+ * database. Every step runs even when an earlier one fails: the Host forgets the project afterwards, so a skipped step
+ * would leave its instances and the SQLite handle alive for good. The failures are reported once everything ran.
+ */
+async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () => void): Promise<void> {
+  const failures: unknown[] = [];
+  const attempt = async (step: () => unknown) => { try { await step(); } catch (error) { failures.push(error); } };
+  for (const release of [releaseAgentStudio, releaseInstalledPlugins, releaseProjectPlugins]) await attempt(() => release(runtime.store, runtime.project_id));
+  await attempt(() => runtime.store.close());
+  await attempt(closed);
+  if (failures.length === 1) throw failures[0];
+  if (failures.length) throw new AggregateError(failures, "项目关闭时有多处没有完成");
 }
 
 export function createMolisWorkLocalHost(options: MolisWorkLocalHostOptions = {}): MolisWorkLocalHost {

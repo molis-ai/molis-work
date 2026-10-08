@@ -42,7 +42,9 @@ test('cost refresh revokes only the changed operation; repeated inspection and d
   const entered = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>(); let calls = 0;
   const exposed = exposeInstalledPlugin(actions, value, async () => { if (++calls === 2) entered.resolve(); await finish.promise; return { status: 200, body: { value: 'ok' } }; });
   t.after(() => { finish.resolve(); exposed.dispose(); });
-  const changed = assert.rejects(service.invoke(caller, reference(value), null), { code: 'actions.provider_changed' });
+  // The stand-in returns 200 before the registration is replaced, so the command has committed: it is told apart from a
+  // plain failure (provider_changed) so that nobody repeats it. Only the operation whose registration changed is affected.
+  const changed = assert.rejects(service.invoke(caller, reference(value), null), { code: 'actions.outcome_unknown' });
   const kept = service.invoke(caller, reference(value, 'local'), null);
   await entered.promise;
   assert.equal(exposed.refresh(new Map([['run', 'none'], ['local', 'none']])), false);

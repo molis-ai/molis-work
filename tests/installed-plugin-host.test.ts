@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,7 +13,7 @@ import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js
 import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from '../apps/local-host/src/project-host.js';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/src/installed-plugin-host.js';
-import { sandboxedPluginDefinition } from '../apps/local-host/src/plugin-builder/installed.js';
+import { installedSignature, sandboxedPluginDefinition } from '../apps/local-host/src/plugin-builder/installed.js';
 import { exposedActionId } from '../apps/local-host/src/plugin-builder/exposed-actions.js';
 import { studioStorage } from '../apps/local-host/src/plugin-builder/storage.js';
 import { buildManifest } from '../apps/local-host/src/plugin-builder/build-project.js';
@@ -205,4 +205,117 @@ test('missing publication or approval is reported without borrowing another Home
     assert.match(missing.recoveryErrors.get(second.release.pluginId) ?? '', /发布记录/);
     assert.equal((await missing.actions.client.discover(context)).some(view => view.capability_id.startsWith('generated.')), false);
   } finally { for (const store of stores) { await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); } await rm(home, { recursive: true, force: true }); }
+});
+
+async function hostWithProject(home: string, fixture: Awaited<ReturnType<typeof publishedFixture>>) {
+  let host = new MolisWorkLocalHost({ homeDirectory: home });
+  const control = () => host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+    actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }));
+  const generated = async () => (await host.actionClient(fixture.ref).discover(caller)).filter(view => view.capability_id.startsWith('generated.')).length;
+  return { control, generated, get host() { return host; }, reopen() { host = new MolisWorkLocalHost({ homeDirectory: home }); return host; } };
+}
+
+test('a disabled installation is not upgraded, rolled back or started again by a new version, before or after a restart', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-disabled-upgrade-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  const stateOnDisk = () => { const closed = new LocalProjectDatabase(fixture.databasePath); try { const record = new SqlitePluginRuntimeRepository(closed.db).get(fixture.install.install_id); return record && { state: record.state, version: record.version }; } finally { closed.close(); } };
+  try {
+    const installed = await rig.control();
+    await installed.lifecycle('disable', fixture.release);
+    const next = { ...fixture.release, version: 2 }; installed.releases.release(next);
+    await assert.rejects(installed.lifecycle('upgrade', next), /先启用/);
+    await assert.rejects(installed.lifecycle('rollback', fixture.release), /先启用/);
+    assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'disabled', version: 1 }]);
+    assert.equal(await rig.generated(), 0, 'nothing of it is offered while it is off');
+    const router = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + fixture.release.pluginId + '/call', actor_id: 'owner', body: { operation: 'read', input: null } });
+    assert.equal(router?.status, 404);
+    await rig.host.close();
+    assert.deepEqual(stateOnDisk(), { state: 'disabled', version: '1.0.0' }, 'the record on disk is still off at the old version');
+
+    rig.reopen();
+    const restored = await rig.control();
+    assert.deepEqual(restored.installations().map(({ state, version }) => ({ state, version })), [{ state: 'disabled', version: 1 }]);
+    assert.equal(await rig.generated(), 0, 'a restart does not bring it back');
+    await restored.lifecycle('enable', fixture.release);
+    assert.equal(await rig.generated(), 3);
+    await restored.lifecycle('upgrade', next);
+    assert.deepEqual(restored.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }], 'an enabled installation upgrades as before');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test('after an uninstall the newer published version can be installed again, with the kept data or without it', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-reinstall-newer-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
+  try {
+    const installed = await rig.control(), client = rig.host.actionClient(fixture.ref);
+    await client.invoke(caller, action(fixture.release, 'save'), { value: 'kept across versions' });
+    await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    assert.deepEqual(installed.installations(), []);
+
+    const v2 = { ...fixture.release, version: 2 }; installed.releases.release(v2);
+    await installed.lifecycle('install', v2, { consent: true });
+    assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }]);
+    assert.equal(await client.invoke(caller, action(v2, 'read'), null), 'kept across versions', 'the data the uninstall kept is there for the new version');
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id).installation_generation !== fixture.install.installation_generation, true, 'it is a new installation');
+
+    await installed.lifecycle('uninstall', v2, { keepData: false });
+    const v3 = { ...fixture.release, version: 3 }; installed.releases.release(v3);
+    await installed.lifecycle('install', v3, { consent: true });
+    assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 3 }]);
+    assert.equal(await client.invoke(caller, action(v3, 'read'), null), 'empty', 'deleted data stays deleted');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test('a failing installed plugin is recorded with its own reason at startup, not another plugin\'s', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-restore-error-')), databasePath = join(home, 'project.sqlite'); seedDemoBoard(databasePath);
+  let store = new LocalProjectDatabase(databasePath);
+  try {
+    const storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db));
+    const installIdOf = (buildId: string) => 'plugin-install-' + createHash('sha256').update('io.molis.work.generated.' + buildId + '\u0000' + installedSignature(buildId)).digest('hex').slice(0, 32);
+    // The plugin restored first also sorts first by plugin id, so the Supervisor's sorted failure list starts with it.
+    let first = '', second = '';
+    for (let n = 1; !first; n++) {
+      const a = '00000000-0000-4000-8000-' + String(n).padStart(12, '0'), b = '00000000-0000-4000-8000-' + String(n + 500).padStart(12, '0');
+      if (installIdOf(a) < installIdOf(b)) { first = a; second = b; }
+    }
+    const make = async (buildId: string, bundle: string, grants: string[]) => {
+      const pluginId = 'io.molis.work.generated.' + buildId;
+      const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [
+        { id: 'read', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: { storage: ['read'] }, errors: [], examples: [{ input: null, output: 'empty' }] }] };
+      const bundlePath = join(home, buildId + '.mjs'); await writeFile(bundlePath, bundle);
+      const release: AgentRelease = { buildId, pluginId, version: 1, directory: home, bundlePath, packagePath: home, prompts: [],
+        design: { id: 'one', catalog: 'actions/1', title: 'Fixture ' + buildId.slice(-3), description: 'F', rationale: 'F', journey: [], contract, parts: [], acceptance: [] },
+        nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() };
+      builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
+      runtime.install({ definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants });
+      return pluginId;
+    };
+    const lacksGrant = await make(first, "export const operations={read:async()=>'empty'};", []);
+    const brokenBundle = await make(second, "throw new Error('broken bundle');", ['storage:private']);
+    store.close(); store = new LocalProjectDatabase(databasePath);
+    const installed = await ensureInstalledPlugins({ store, projectId: DEMO_PROJECT_ID, homeDirectory: home });
+    const reasonOf = (pluginId: string) => installed.platform.supervisor.state(pluginId)?.message;
+    assert.match(reasonOf(lacksGrant) ?? '', /grant/);
+    assert.match(reasonOf(brokenBundle) ?? '', /entrypoint/);
+    assert.equal(installed.recoveryErrors.get(lacksGrant), reasonOf(lacksGrant));
+    assert.equal(installed.recoveryErrors.get(brokenBundle), reasonOf(brokenBundle), 'each plugin shows what went wrong with it');
+  } finally { await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test('closing a project releases every owner and closes its database even when one release fails, and still reports the failure', { ...mac, timeout: 90_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-close-failure-')), fixture = await publishedFixture(home, 'project');
+  let closedReferences = 0;
+  const host = new MolisWorkLocalHost({ homeDirectory: home, onRuntimeClose: () => { closedReferences++; } });
+  try {
+    const { store, installed } = await host.withProject(fixture.ref, async runtime => ({ store: runtime.store, installed: await ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+      actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }) }));
+    assert.equal(installed.installations()[0]?.state, 'running');
+    // The process really stops, then the stop reports a failure: the installed plugins are the first release to fail.
+    const stop = installed.platform.runtime.stop.bind(installed.platform.runtime);
+    installed.platform.runtime.stop = async (...args: Parameters<typeof stop>) => { await stop(...args); throw new Error('stop failed'); };
+
+    await assert.rejects(host.closeProject(fixture.ref), /安装插件停止失败/);
+    assert.throws(() => store.db.prepare('SELECT 1').get(), 'the release steps after the failing one ran, so the project database is closed');
+    assert.equal(closedReferences, 1, 'the close was announced');
+    assert.deepEqual(host.status().projects, [], 'the Host no longer lists the project');
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

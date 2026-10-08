@@ -615,7 +615,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   abandonInstall(installed: PluginInstanceRecord, earlier: PluginInstanceRecord): Promise<PluginLifecycleReceipt> {
     return this.runLocked(installed.install_id, async () => {
       const refusal = abandonRefusal(this.requireInstall(installed.install_id), installed, earlier);
-      if (refusal) throw new PluginRuntimeError("plugin_state_invalid", refusal);
+      if (refusal) throw refusal;
       return this.uninstallOnce(installed.install_id, {}, earlier);
     });
   }

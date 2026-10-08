@@ -36,11 +36,14 @@ export function defaultGrants(manifest: PluginManifest, installs: readonly Plugi
  * already was). `installed` is the record that install returned, `earlier` the uninstalled record it replaced. The row goes
  * back to `earlier` whole (version, Manifest digest, installation generation, kept data), so the next install is asked
  * the same question about the kept data. Only the installation `installed` names is undone: a row another install has
- * replaced since is not touched.
+ * replaced since is not touched, and the refusal says so (`plugin_install_replaced`) so the caller leaves everything
+ * that belongs to the newer install alone.
  */
-export function abandonRefusal(current: PluginInstanceRecord, installed: PluginInstanceRecord, earlier: PluginInstanceRecord): string | undefined {
-  if (earlier.install_id !== installed.install_id || earlier.state !== "uninstalled") return "只能退回到同一安装、已卸载的记录";
-  if (current.installation_generation !== installed.installation_generation && current.installation_generation !== earlier.installation_generation) return "这次安装已经被另一次安装替换，不能退回";
+export function abandonRefusal(current: PluginInstanceRecord, installed: PluginInstanceRecord, earlier: PluginInstanceRecord): PluginRuntimeError | undefined {
+  if (earlier.install_id !== installed.install_id || earlier.state !== "uninstalled") return new PluginRuntimeError("plugin_state_invalid", "只能退回到同一安装、已卸载的记录");
+  if (current.installation_generation !== installed.installation_generation && current.installation_generation !== earlier.installation_generation) {
+    return new PluginRuntimeError("plugin_install_replaced", "这次安装已经被另一次安装替换，不能退回");
+  }
   return undefined;
 }
 

@@ -55,15 +55,28 @@ function secretsOf(value: unknown, release: AgentRelease): Secret[] {
 
 export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPorts['lifecycle'] {
   const { platform } = c;
-  /** `earlier`: the uninstalled record an install that did not finish replaced; the record goes back to it instead of being marked uninstalled anew. */
-  const uninstall = async (release: AgentRelease, record: PluginInstanceRecord, keepData: boolean, earlier?: PluginInstanceRecord) => {
+  /**
+   * `earlier`: the uninstalled record an install that did not finish replaced; the record goes back to it instead of being
+   * marked uninstalled anew. That is done first: when Plugin Runtime says another install has replaced this one, the
+   * prompts, secrets, scheduled work and data under this plugin belong to the newer install and none of it is touched
+   * (false). A failed take-back still cleans up what the Host holds, then reports itself.
+   */
+  const uninstall = async (release: AgentRelease, record: PluginInstanceRecord, keepData: boolean, earlier?: PluginInstanceRecord): Promise<boolean> => {
+    let undone: unknown;
+    if (earlier) {
+      try { await platform.runtime.abandonInstall(record, earlier); } catch (failure) {
+        if ((failure as { code?: unknown } | null)?.code === 'plugin_install_replaced') return false;
+        undone = failure;
+      }
+    }
     c.withdraw(release.pluginId); platform.supervisor.revoke(release.pluginId);
     c.cancelScheduled(release.pluginId, record.install_id); c.secrets.remove(release.pluginId);
-    if (earlier) await platform.runtime.abandonInstall(record, earlier);
-    else await platform.runtime.uninstall(record.install_id, { retain_private_data: keepData });
+    if (!earlier) await platform.runtime.uninstall(record.install_id, { retain_private_data: keepData });
+    else if (undone) throw undone;
     c.forget(release.pluginId, record.install_id);
     if (!keepData) c.privateStorage.deleteInstallationData(record.install_id);
     c.storage.delete(APPROVED_KEY + release.pluginId); c.recoveryErrors.delete(release.pluginId);
+    return true;
   };
   /**
    * A confirmed install is a fresh installation, even if the Supervisor still remembers the revocation of an earlier
@@ -71,7 +84,8 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
    * drops it. An install that does not finish is taken back: the uninstalled record it replaced returns exactly as it
    * was (version, digest, installation generation, kept-data flag) and so does the data that record kept, so the next
    * install is asked the same question and nothing blocks a retry or an enable. What the cleanup itself cannot undo is
-   * reported with the error that started it.
+   * reported with the error that started it. An install that another one has replaced meanwhile has nothing of its own
+   * left to undo: the cleanup stops at once and the newer install keeps its data, secrets, approval and running code.
    */
   const install = async (release: AgentRelease, grants: Grants) => {
     const pluginId = release.pluginId, secrets = secretsOf(grants.secrets, release);
@@ -90,8 +104,9 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       await c.expose(release); c.registerPrompts(release, 'enabled'); c.recoveryErrors.delete(pluginId);
     } catch (error) {
       const unfinished: unknown[] = [];
-      try { await uninstall(release, install, kept, earlier); } catch (failure) { unfinished.push(failure); }
-      try { if (before) c.privateStorage.restoreInstallationData(install.install_id, before); } catch (failure) { unfinished.push(failure); }
+      let ours = true;
+      try { ours = await uninstall(release, install, kept, earlier); } catch (failure) { unfinished.push(failure); }
+      try { if (before && ours) c.privateStorage.restoreInstallationData(install.install_id, before); } catch (failure) { unfinished.push(failure); }
       if (!unfinished.length) throw error;
       const said = (value: unknown) => value instanceof Error ? value.message : String(value);
       throw new AggregateError([error, ...unfinished], said(error) + '（撤销这次安装时也没有做完：' + unfinished.map(said).join('；') + '）', { cause: error });

@@ -7,6 +7,7 @@ export class PluginRuntimeError extends Error {
       | "plugin_entrypoint_missing"
       | "plugin_grant_denied"
       | "plugin_state_invalid"
+      | "plugin_install_replaced"
       | "plugin_executor_failed"
       | "plugin_contribution_kind_invalid"
       | "plugin_contribution_unredeemed"

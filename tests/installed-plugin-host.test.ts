@@ -408,6 +408,45 @@ test('when taking back a failed install fails too, the person is told about both
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+test('an install that fails after another install replaced it leaves that install alone: its data, secrets, approval, actions and running code', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-failed-replaced-')), fixture = await publishedFixture(home, 'project', false, ['weather']), rig = await hostWithProject(home, fixture);
+  const action = (operation: string) => ({ capability_id: exposedActionId(fixture.release, operation), version: 1, provider_id: 'plugin:' + fixture.release.pluginId });
+  const secret = { name: 'weather', header: 'X-Api-Key', value: 'k-123' }, approvalKey = 'plugin-builder:agent-studio:approved:' + fixture.release.pluginId;
+  try {
+    const installed = await rig.control(), client = rig.host.actionClient(fixture.ref), pluginId = fixture.release.pluginId, installId = fixture.install.install_id;
+    await client.invoke(caller, action('save'), { value: 'old data' });
+    await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    const earlier = installed.platform.runtime.get(installId);
+
+    // The first install waits in start; while it waits the person uninstalls it and installs again, and that install finishes.
+    const start = installed.platform.start, entered = Promise.withResolvers<void>(), gate = Promise.withResolvers<void>();
+    let attempts = 0;
+    installed.platform.start = async (...args: Parameters<typeof start>) => {
+      if (attempts++) return start.apply(installed.platform, args);
+      entered.resolve(); await gate.promise; throw new Error('start failed');
+    };
+    const failing = installed.lifecycle('install', fixture.release, { consent: true }); failing.catch(() => {});
+    await entered.promise;
+    await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    await installed.lifecycle('install', fixture.release, { consent: true, secrets: [secret] });
+    await client.invoke(caller, action('save'), { value: 'newer data' });
+    const replacing = installed.platform.runtime.get(installId);
+    assert.equal(replacing.state, 'running');
+    assert.notEqual(replacing.installation_generation, earlier.installation_generation, 'the second install is a new installation');
+
+    gate.resolve();
+    await assert.rejects(failing, (error: Error) => error.message === 'start failed' && !(error instanceof AggregateError), 'the first install fails with its own reason: it had nothing of its own left to undo');
+    assert.deepEqual(installed.platform.runtime.get(installId), replacing, 'the row is still the second install\'s');
+    assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 1 }]);
+    assert.equal(await client.invoke(caller, action('read'), null), 'newer data', 'the first install did not put the old data back over it');
+    assert.deepEqual(installed.secrets.list(pluginId), [{ name: 'weather', header: 'X-Api-Key' }], 'nor remove its secrets');
+    assert.deepEqual(await installed.secrets.resolve(pluginId, 'weather'), { header: 'X-Api-Key', value: 'k-123' });
+    assert.notEqual(installed.storage.get(approvalKey), null, 'nor its approval');
+    assert.equal(installed.platform.supervisor.state(pluginId)?.status, 'running', 'nor revoke it');
+    assert.equal(await client.invoke(caller, action('save'), { value: 'still writable' }), 'still writable');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
 test('after an uninstall the newer published version can be installed again, with the kept data or without it', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-reinstall-newer-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });

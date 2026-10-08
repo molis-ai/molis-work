@@ -296,7 +296,8 @@ test("an install that did not finish goes back to the uninstalled record it repl
   assert.equal((await runtime.abandonInstall(fresh, earlier)).replayed, true, "taking it back twice changes nothing");
 
   const another = runtime.install({ definition: v1, deployment: "local", grants: [] }).install;
-  assert.equal(await code(() => runtime.abandonInstall(fresh, earlier)), "plugin_state_invalid", "an install that started over since is not undone by the old attempt");
+  assert.equal(await code(() => runtime.abandonInstall(fresh, earlier)), "plugin_install_replaced",
+    "an install that started over since is not undone by the old attempt, and the refusal says why, apart from a wrong record being named");
   assert.deepEqual(runtime.get(id), another);
 });
 

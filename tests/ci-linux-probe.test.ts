@@ -64,7 +64,9 @@ before(() => {
   // Browser: by name, by text, by a fixture it imports.
   put("tests/shell.e2e.test.ts", spec(`test("needs nothing special in its text", () => {});`));
   put("tests/browser-text.test.ts", spec(`const chrome = "/usr/bin/${CHROME}";\ntest("uses it", () => assert.ok(chrome));`));
-  put("tests/browser-fixture.test.ts", spec(`import { launch } from "./fixtures/launcher";\ntest("uses a launcher", () => assert.ok(launch));`));
+  // The fixture is imported the way almost every import in tests/ is written (a .js name for the .ts file); the fixture's own
+  // import of its helper is the bare spelling, so both are followed.
+  put("tests/browser-fixture.test.ts", spec(`import { launch } from "./fixtures/launcher.js";\ntest("uses a launcher", () => assert.ok(launch));`));
   put("tests/fixtures/launcher.ts", `import { helper } from "./deeper";\nexport const launch = helper;\n`);
   put("tests/fixtures/deeper.ts", `export const helper = ["--${DEBUG_PORT}=0"];\n`);
   put("tests/clean-fixture.test.ts", spec(`import { value } from "./fixtures/clean";\ntest("fixture without a browser", () => assert.equal(value, 1));`));
@@ -308,7 +310,7 @@ test("--list shows the selection and marks and runs nothing", () => {
   assert.match(result.text, /^excluded {2}tests\/shell\.e2e\.test\.ts {2}\[browser\]$/m);
   assert.match(result.text, /^run {7}tests\/darwin-guard\.test\.ts {2}\[darwin\]$/m);
   assert.match(result.text, /^run {7}tests\/pass\.test\.ts$/m);
-  assert.match(result.text, /marks over all: browser 3, darwin 3, live 5/);
+  assert.match(result.text, /marks among the files to run: darwin 3, live 5/);
   assert.equal(existsSync(listOut), false, "--list wrote a report");
 });
 
@@ -402,6 +404,12 @@ test("on this repository: no browser file is run, known darwin and live files ar
   assert.deepEqual(marks("tests/ci-linux-probe.test.ts"), [], "the probe's own test is run by the probe");
   assert.ok(marks("tests/plugin-sandbox.test.ts")?.includes(DARWIN), "the macOS sandbox test is a darwin file");
   assert.ok(marks("tests/prologue-node-live.test.ts")?.includes("live"), "the live Prologue test is a live file");
+  // Fixtures are imported with a .js name for the .ts file (295 of the 297 imports of tests/fixtures when this was written). The files
+  // below reach Chrome only through such an import, and so does every other file that calls the fixture which launches it.
+  assert.ok(marks("tests/goal-relation-http.test.ts")?.includes("browser"), "a file that reaches Chrome through a fixture imported as ./fixtures/x.js is a browser file");
+  const launching = readdirSync(path.join(repo, "tests")).filter((name) => /\.test\.(ts|mjs)$/.test(name) && /\bopenGoalBrowser\s*\(/.test(readFileSync(path.join(repo, "tests", name), "utf8")));
+  assert.ok(launching.length > 0, "some test files call openGoalBrowser");
+  assert.deepEqual(launching.filter((name) => !marks(`tests/${name}`)?.includes("browser")), [], "every file that opens the goal browser is a browser file");
 });
 
 // Decision #14: the probe informs and does not block, and its own rules are checked by the blocking job. Until the decision is

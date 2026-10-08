@@ -36,6 +36,14 @@ export const LIVE_ENVIRONMENT = /^(MOLIS_WORK_LIVE_|MOLIS_SANDBOX_NETWORK_E2E$|M
 const IMPORT = /(?:\bfrom|\bimport)\s*\(?\s*["'](\.{1,2}\/[^"']+)["']/g;
 const EXTENSIONS = ["", ".ts", ".mts", ".mjs", ".js", "/index.ts", "/index.mjs"];
 
+// The files a specifier can name. The tests import their fixtures the way the TypeScript sources do, with the .js (or .mjs)
+// the built file would have, while the file on disk is the .ts (or .mts) one: ./fixtures/launcher.js is tests/fixtures/launcher.ts.
+// Almost every fixture import in tests/ is written this way, so a rule that read only the literal name would miss them.
+const candidates = (base) => [
+  ...EXTENSIONS.map((extension) => base + extension),
+  ...(/\.m?js$/.test(base) ? [base.replace(/\.(m?)js$/, ".$1ts")] : []),
+];
+
 // The file and the files under tests/ it imports (fixtures, helpers), followed through their own imports.
 export function readClosure(root, file) {
   const testsRoot = path.join(root, "tests") + path.sep;
@@ -50,7 +58,7 @@ export function readClosure(root, file) {
     for (const [, specifier] of text.matchAll(IMPORT)) {
       const base = path.resolve(path.dirname(absolute), specifier);
       if (!base.startsWith(testsRoot)) continue;
-      const found = EXTENSIONS.map((extension) => base + extension).find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
+      const found = candidates(base).find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
       if (found) visit(found);
     }
   };

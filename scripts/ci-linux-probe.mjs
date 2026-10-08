@@ -59,8 +59,10 @@ if (!selection.length) die(`no test file under ${path.join(root, "tests")}${opti
 const toRun = selection.filter((entry) => entry.run);
 if (!toRun.length) die("every selected test file needs a browser; nothing to run");
 
-const count = (predicate) => selection.filter(predicate).length;
-const overview = `${selection.length} test files: ${toRun.length} to run, ${selection.length - toRun.length} excluded (browser); marks over all: ${MARKS.map((mark) => `${mark} ${count((entry) => entry.marks.includes(mark))}`).join(", ")}`;
+// The darwin and live marks are counted over the files that run: a browser file is left out whatever else it says (the browser
+// files' fixtures say "darwin" in a platform check, and counting those would make the macOS-only part of the suite look like most of it).
+const count = (mark) => toRun.filter((entry) => entry.marks.includes(mark)).length;
+const overview = `${selection.length} test files: ${toRun.length} to run, ${selection.length - toRun.length} excluded (browser); marks among the files to run: ${MARKS.filter((mark) => mark !== "browser").map((mark) => `${mark} ${count(mark)}`).join(", ")}`;
 
 if (options.list) {
   for (const entry of selection) console.log(`${entry.run ? "run     " : "excluded"}  ${entry.file}${entry.marks.length ? `  [${entry.marks.join(", ")}]` : ""}`);

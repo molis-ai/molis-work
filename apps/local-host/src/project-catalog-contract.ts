@@ -93,4 +93,9 @@ export interface ManageMolisWorkDemoProjectInput {
 export interface MolisWorkDemoProjectResult {
   status: "created" | "existing" | "reset";
   project: MolisWorkProjectRecord;
+  /**
+   * A rebuild only: the owners of project data whose service is another process's for good, so this process left the old
+   * demo's data with them (a CLI has no Agent runtime or search index; the running Molis Work clears them when it rebuilds).
+   */
+  owners_left?: string[];
 }

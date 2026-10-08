@@ -20,7 +20,7 @@ import {
 import { MemoryError, MemoryService, purgeProjectMemories, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { ProjectDeletedDeferred, projectDeletedHooksFor } from "../project-deleted-hooks.js";
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
-import { MEMORY_OWNER } from "../project-deleted-owners.js";
+import { MEMORY_OWNER, memoryOwnerWithoutService } from "../project-deleted-owners.js";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
@@ -64,8 +64,17 @@ export interface MemoryHostPorts {
   ready(): Promise<void>;
   /** Settles once the runtime started because something needed it (never starts it). */
   started?(): Promise<void>;
+  /**
+   * Whether this process runs the Home's Agent runtime: the Web server and the embedded MCP take the Agent service as their
+   * own (they pass the catalog owner), a Host that only forwards actions to the resident Host (the stdio MCP's) does not.
+   * Only an executor, or a Host whose runtime has already started, starts the runtime to clear a deleted project's memory;
+   * elsewhere that step waits for the executor.
+   */
+  executes(): boolean;
   /** Project ids in this Home, for upkeep over every project's memories. */
   projects?(): Promise<string[]>;
+  /** Whether the project is still in this Home's catalog; null when this process has no catalog to ask. */
+  projectExists?(projectId: string): Promise<boolean | null>;
   projectTitle?(projectId: string): Promise<string | null>;
 }
 
@@ -161,8 +170,13 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     await schedule.enqueue({ key, session_id: await upkeepSession(), kind: UPKEEP_KIND, payload: {}, due_at: when.toISOString(), max_attempts: 2 });
   };
   const runLearning = async (request: MemoryLearningRequest) => {
+    // A round queued before its project was deleted, or still being learned from, writes nothing for it afterwards.
+    const stillWanted = async () => {
+      const project = request.caller.project_id;
+      return !project || await ports.projectExists?.(project).catch(() => null) !== false;
+    };
     try {
-      const outcome = await learnFromWork(service, ports.homeDirectory, request);
+      const outcome = await learnFromWork(service, ports.homeDirectory, request, undefined, stillWanted);
       if (process.env.MOLIS_WORK_MEMORY_DEBUG) console.warn("[memory] learn", JSON.stringify(outcome));
     } catch (error) {
       // Nothing was written (the gate commits only whole proposals); the queue may try once more.
@@ -179,13 +193,20 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     queueAttached = true;
     void scheduleUpkeep(new Date()).catch(error => console.warn("[memory] 没有排上整理", error));
   };
-  void ports.started?.().then(attachQueue).catch(() => undefined);
+  // The runtime has started in this process: it holds the Home's runtime whatever transport it serves.
+  let runtimeHere = false;
+  void ports.started?.().then(() => { runtimeHere = true; attachQueue(); }).catch(() => undefined);
   // Deleting a project clears its memories and its Characters' from the runtime, and the ledger forgets their history.
-  // The runtime has one owner process in the Home: while another process owns it this step is deferred (it stays pending
-  // in the deletion's receipt, and the process that owns the runtime runs it), never failed. A Home whose runtime never
-  // started (no directory yet) has no store to clear, so none is started for it: only the ledger forgets the project.
+  // The runtime has one owner process in the Home, the executor: only a Host that runs it (`ports.executes`, or one whose
+  // runtime has started) starts it for this, and while another process owns it the step is deferred (it stays pending in
+  // the deletion's receipt, and the process that owns the runtime runs it), never failed. A Host that only forwards to
+  // the executor behaves as a process with no memory service at all: it never takes the runtime, which would lock the
+  // resident Host's AI out of it. A Home whose runtime never started (no directory yet) has no store to clear, so none
+  // is started for it: only the ledger forgets the project.
   let closed = false;
+  const executes = () => ports.executes() || runtimeHere;
   const runtimeExists = () => existsSync(agentRuntimeDirectory(ports.homeDirectory));
+  const elsewhere = memoryOwnerWithoutService(ports.homeDirectory);
   const whileRuntimeIsOurs = async <T>(work: () => Promise<T>): Promise<T> => {
     try { return await work(); }
     catch (error) {
@@ -194,8 +215,9 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     }
   };
   projectDeletedHooksFor(ports.homeDirectory).register({ ...MEMORY_OWNER, alive: () => !closed,
-    check: () => runtimeExists() ? whileRuntimeIsOurs(() => ports.ready()) : undefined,
+    check: () => executes() ? (runtimeExists() ? whileRuntimeIsOurs(() => ports.ready()) : undefined) : elsewhere.check?.(),
     clear: async projectId => {
+      if (!executes()) return elsewhere.clear(projectId);
       if (!runtimeExists()) { await purgeProjectMemories({ backend: null, ledger }, projectId); return; }
       await whileRuntimeIsOurs(async () => { await ports.ready(); await purgeProjectMemories({ backend, ledger }, projectId); });
     } });

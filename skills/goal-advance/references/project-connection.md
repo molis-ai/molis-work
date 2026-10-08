@@ -41,7 +41,7 @@ Continue from an available new or forked Session with a compatible reader; ask f
 - context_reject_suggestion records an explicitly rejected candidate when the Host has stable Session identity. With no stable identity, do not claim the rejection was persisted.
 - context_unbind disconnects this Session while preserving the project. With binding_scope=workspace and project_id, it removes that one workspace association.
 - project_delete permanently removes the named managed project, its database and bindings, and the data plugins keep for it (documents, forms and their answers, todos, memories, Assistant works and the like). Use delete_confirmed=true only with explicit authority for that deletion. The personal space cannot be deleted; report a refusal or the returned deletion receipt literally.
-- A pending cleanup receipt is unfinished (for example the project's memories while another process uses the Agent runtime, which that process or a running Molis Work finishes). Retry only the same operation and key.
+- A pending cleanup receipt is unfinished (for example the project's memories: this entry does not run the Agent runtime, so a running Molis Work finishes that step). Retry only the same operation and key; while Molis Work is not running, the step stays pending.
 
 Use the user's existing authorization for the precise effect. Choosing another project, rejecting a suggestion, disconnecting and deleting are not interchangeable. Show user-facing project names; keep internal IDs and paths out of ordinary explanations.
 

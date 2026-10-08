@@ -24,7 +24,7 @@ export interface ProjectDeletedOwner {
   /**
    * Throws `ProjectDeletedDeferred` when this owner cannot clear data in this process right now, and changes nothing.
    * Clearing a project id that exists again (the demo's rebuild) asks every owner first, so it refuses before it has
-   * cleared a part.
+   * cleared a part. The error says whether the service is another process's for good (`elsewhere`) or only busy.
    */
   check?(): void | Promise<void>;
   /**
@@ -44,14 +44,20 @@ export interface ProjectDeletedPort {
    * last had, for a process that has the owner.
    */
   clear(ownerId: string, projectId: string): Promise<boolean>;
-  /** Throws `ProjectDeletedDeferred` naming the owners that cannot clear in this process right now; clears nothing. */
-  ready(): Promise<void>;
   /**
-   * Runs every owner for a project id that is not in the catalog; collects every failure. Each owner is checked first
-   * (`ready`), so a call that cannot clear a part refuses before clearing any. With `skipDeferred`, an owner that cannot
-   * clear here is left out instead: for a project id whose earlier deletion already ran that owner.
+   * Throws `ProjectDeletedDeferred` naming the owners that cannot clear in this process right now; clears nothing. With
+   * `leaveElsewhere`, an owner whose service is another process's for good is not named: only owners that merely have to
+   * wait (the service is in use right now, so a retry here can succeed) refuse.
    */
-  clearAll(projectId: string, options?: { skipDeferred?: boolean }): Promise<void>;
+  ready(options?: { leaveElsewhere?: boolean }): Promise<void>;
+  /**
+   * Runs every owner for a project id that is not in the catalog, or that stays in it under the same id (the demo's
+   * rebuild); collects every failure. Each owner is checked first (`ready`), so a call that cannot clear a part refuses
+   * before clearing any. With `skipDeferred`, an owner that cannot clear here is left out instead: for a project id
+   * whose earlier deletion already ran that owner. With `leaveElsewhere`, only an owner whose service is another
+   * process's for good is left out. Returns the owners left out; the caller says so.
+   */
+  clearAll(projectId: string, options?: { skipDeferred?: boolean; leaveElsewhere?: boolean }): Promise<string[]>;
 }
 
 /**
@@ -92,31 +98,35 @@ export class ProjectDeletedHooks implements ProjectDeletedPort {
     return true;
   }
 
-  async ready(): Promise<void> {
+  async ready(options: { leaveElsewhere?: boolean } = {}): Promise<void> {
     const waiting: string[] = [];
+    let elsewhere = true;
     for (const owner of this.owners()) {
       try { await owner.check?.(); }
       catch (error) {
         if (!(error instanceof ProjectDeletedDeferred)) throw error;
+        if (options.leaveElsewhere && error.elsewhere) continue;
         waiting.push(`${owner.id}：${error.message}`);
+        elsewhere = elsewhere && error.elsewhere;
       }
     }
-    if (waiting.length) throw new ProjectDeletedDeferred(waiting.join("；"));
+    if (waiting.length) throw new ProjectDeletedDeferred(waiting.join("；"), elsewhere);
   }
 
-  async clearAll(projectId: string, options: { skipDeferred?: boolean } = {}): Promise<void> {
-    if (!options.skipDeferred) await this.ready();
-    const failures: Error[] = [];
+  async clearAll(projectId: string, options: { skipDeferred?: boolean; leaveElsewhere?: boolean } = {}): Promise<string[]> {
+    if (!options.skipDeferred) await this.ready({ leaveElsewhere: options.leaveElsewhere });
+    const failures: Error[] = [], left: string[] = [];
     for (const owner of this.owners()) {
       try {
         await owner.check?.();
         await owner.clear(projectId);
       } catch (error) {
-        if (options.skipDeferred && error instanceof ProjectDeletedDeferred) continue;
+        if (error instanceof ProjectDeletedDeferred && (options.skipDeferred || (options.leaveElsewhere && error.elsewhere))) { left.push(owner.id); continue; }
         failures.push(new Error(`${owner.id}: ${error instanceof Error ? error.message : String(error)}`, { cause: error }));
       }
     }
     if (failures.length) throw new AggregateError(failures, failures.map(error => error.message).join("；"));
+    return left;
   }
 }
 

@@ -30,7 +30,7 @@ MOLIS_WORK_MCP_AUDIENCE="runtime" \
 - 用户在当前对话明确要求新建一个命名项目后，Skill 调用 `molis_work_v1_context_create_and_bind` 并传入 `user_confirmed=true`、项目名称和幂等键。它只在 `~/.molis-work` 创建项目 DB 并绑定；失败不会留下孤儿项目。
 - 用户要求查看项目时，Skill 调用 `molis_work_v1_context_list_projects`；它不暴露数据库路径，也不改变当前连接。
 - 用户明确要求仅解绑当前工作入口时，Skill 调用 `molis_work_v1_context_unbind` 并传入 `user_confirmed=true`。它不删除项目、DB 或其他 Runtime 的绑定。
-- 删除项目及其 DB 是另一项单独确认：用户明确点名项目并确认删除后，Skill 调用 `molis_work_v1_project_delete` 并传入 `delete_confirmed=true` 和幂等键。成功后返回删除收据（含各插件数据所有者的清理步骤，未完成的步骤用同一个幂等键重试），Runtime 不能继续使用旧连接。各插件为这个项目保存的数据（文稿、问卷与回答、待办、记忆、助理工作等）一并删除；记忆放在 Agent 执行服务里，它正由另一个进程使用时这一步留在收据里（pending），由那个进程或运行中的 Molis Work 接着清理，收据完成之前不能把它当作已经删净。
+- 删除项目及其 DB 是另一项单独确认：用户明确点名项目并确认删除后，Skill 调用 `molis_work_v1_project_delete` 并传入 `delete_confirmed=true` 和幂等键。成功后返回删除收据（含各插件数据所有者的清理步骤，未完成的步骤用同一个幂等键重试），Runtime 不能继续使用旧连接。各插件为这个项目保存的数据（文稿、问卷与回答、待办、记忆、助理工作等）一并删除；记忆放在运行中的 Molis Work 的 Agent 执行服务里，MCP 这个入口不运行它，所以 Home 里有 Agent 运行环境时这一步留在收据里（pending），由运行中的 Molis Work 接着清理（它启动时和运行中每分钟做一次），收据完成之前不能把它当作已经删净；Molis Work 没有运行时，用同一个幂等键重试也只会得到同样的 pending。
 
 Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的前置条件。浏览页面不会绑定 Runtime；项目设置管理 Session 关联与 workspace membership，不保存目录默认项目。项目创建、Runtime 配置、解除关联与删除仍各有自己的授权。
 

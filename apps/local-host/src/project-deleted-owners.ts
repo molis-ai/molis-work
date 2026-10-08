@@ -23,13 +23,15 @@ export const MEMORY_OWNER = { id: "memory", label: "这个项目及其角色的�
 export const SEARCH_OWNER = { id: "search", label: null } as const;
 
 /**
- * Memory is kept in the Agent runtime, which one process of the Home owns. A process that has no memory service cannot
- * clear it: where the Home has an Agent runtime the step is deferred, to stay pending in the receipt until a Host that
- * has the service runs it. Where it has none there is no store, and only the ledger can hold notes about the project.
+ * Memory is kept in the Agent runtime, which one process of the Home owns: the executor, the resident Web Host. A
+ * process that does not run it (the CLI, the uninstaller, a Host that only forwards to the resident Host) cannot clear
+ * it and must not start one to try: where the Home has an Agent runtime the step is deferred, to stay pending in the
+ * receipt until the executor runs it. Where it has none there is no store, and only the ledger can hold notes about the
+ * project.
  */
-function memoryOwnerWithoutService(home: string): ProjectDeletedOwner {
+export function memoryOwnerWithoutService(home: string): ProjectDeletedOwner {
   const check = () => {
-    if (existsSync(agentRuntimeDirectory(home))) throw new ProjectDeletedDeferred("记忆放在 Agent 执行服务里，这个入口没有它；由正在运行的 Molis Work 清理，它会接着做");
+    if (existsSync(agentRuntimeDirectory(home))) throw new ProjectDeletedDeferred("记忆放在 Agent 执行服务里，这个入口不运行它；由运行中的 Molis Work 清理，它会接着做", true);
   };
   return {
     ...MEMORY_OWNER, check,
@@ -45,7 +47,7 @@ function memoryOwnerWithoutService(home: string): ProjectDeletedOwner {
 /** The search index is kept up by the Host that runs the search service; a process without it leaves the project's entries to that Host. */
 function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
   const check = () => {
-    if (existsSync(homeSqlitePath(home, TEXT_SEARCH_STORE))) throw new ProjectDeletedDeferred("搜索索引由正在运行的 Molis Work 维护；它会接着清掉这个项目的条目");
+    if (existsSync(homeSqlitePath(home, TEXT_SEARCH_STORE))) throw new ProjectDeletedDeferred("搜索索引由运行中的 Molis Work 维护；它会接着清掉这个项目的条目", true);
   };
   return { ...SEARCH_OWNER, check, clear: check };
 }

@@ -126,6 +126,32 @@ test("a Host finishes the pending deletions of every project from the catalog on
   });
 });
 
+test("callers that finish the same receipt at the same time share one run: an owner step never runs twice at once", async () => {
+  await withHome(async ({ home, catalog, gone }) => {
+    const slow = recorder("test-slow");
+    slow.state.broken = true;
+    const dispose = projectDeletedHooksFor(home).register(slow.owner);
+    try {
+      assert.equal((await catalog.deleteProject(deletion(gone))).deletion.cleanup_state, "pending");
+      slow.state.broken = false;
+      const clear = slow.owner.clear;
+      let running = 0, overlapped = false;
+      slow.owner.clear = async projectId => {
+        running += 1; overlapped ||= running > 1;
+        try { await new Promise(resolve => setTimeout(resolve, 150)); await clear.call(slow.owner, projectId); } finally { running -= 1; }
+      };
+
+      // The Web server's sweep and a person's retry arrive together.
+      const [stillPending, replay] = await Promise.all([catalog.projectDeletion.finishAll(), catalog.deleteProject(deletion(gone))]);
+
+      assert.equal(overlapped, false, "the owner was never asked twice at once");
+      assert.deepEqual(slow.calls, [gone, gone], "the first failed run, then one shared retry");
+      assert.equal(stillPending, 0);
+      assert.equal(replay.deletion.cleanup_state, "complete");
+    } finally { dispose(); }
+  });
+});
+
 test("an owner registered again takes the place of the earlier one, and disposing it brings the earlier one back", async () => {
   await withHome(async ({ home, catalog, gone }) => {
     const files = recorder("test-twin"), live = recorder("test-twin");

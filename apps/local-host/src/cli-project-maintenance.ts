@@ -71,9 +71,12 @@ export async function runLocalDemoCli(args: string[], withMolisWorkProjectCatalo
     if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
     else {
       console.log(action === "remove" ? "可重建 demo 已删除；用户项目未修改" : `demo ${action === "create" ? "已创建或打开" : "已重置"}`);
-      // Memory and the search index belong to a running Molis Work: what this command could not clear waits for it.
+      // Memory and the search index belong to a running Molis Work: what this command could not clear waits for it (a
+      // removal keeps it in the receipt for the Host to finish) or stays as it was (a rebuild has no receipt).
       const waiting = result && "deletion" in result ? result.deletion.owner_steps.filter(step => step.state !== "complete").map(step => step.owner_id) : [];
       if (waiting.length) console.log(`还有数据要由运行中的 Molis Work 清理（${waiting.join("、")}）；Molis Work 运行时会接着做，做完之前不能再创建 demo。`);
+      const left = result && "owners_left" in result ? result.owners_left ?? [] : [];
+      if (left.length) console.log(`demo 在 ${left.join("、")} 里的数据由运行中的 Molis Work 保管，这个命令没有清；要连它们一起清，在 Molis Work 里打开这个项目的设置，点「重建 demo」。`);
     }
     return result == null ? 1 : 0;
   });

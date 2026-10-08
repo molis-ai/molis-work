@@ -18,11 +18,13 @@ export interface ProjectDeletionCleanupPorts {
  * project data in the Home), then run those steps and the physical cleanup, and retry whatever is left from that receipt.
  */
 export class ManagedProjectDeletion {
+  private readonly finishing = new Map<string, Promise<MolisWorkProjectDeletionRecord>>();
   constructor(private readonly projects: Pick<ProjectsModule, "query" | "lifecycle">,
     private readonly projectsDirectory: string, private readonly cleanup: ProjectDeletionCleanupPorts,
     private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">, private readonly commit: CatalogCommit,
     private readonly owners: ProjectDeletedPort) {}
-async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
+
+  async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
     const projectId = this.validation.requiredProjectId(input.project_id);
     const actorId = this.validation.requiredActorId(input.actor_id);
     if (input.delete_confirmed !== true) {
@@ -93,7 +95,19 @@ async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjec
     }
   }
 
-async finishProjectDeletionCleanup(record: StoredProjectDeletion): Promise<MolisWorkProjectDeletionRecord> {
+  /**
+   * Runs what is still pending of one receipt. Callers in this process that ask for the same receipt while it runs (the
+   * Web server's sweep, a person's retry, the demo's re-creation) share that one run: an owner step never runs twice at once.
+   */
+  finishProjectDeletionCleanup(record: StoredProjectDeletion): Promise<MolisWorkProjectDeletionRecord> {
+    const running = this.finishing.get(record.deletion_id);
+    if (running) return running;
+    const run = this.runCleanup(record).finally(() => { this.finishing.delete(record.deletion_id); });
+    this.finishing.set(record.deletion_id, run);
+    return run;
+  }
+
+  private async runCleanup(record: StoredProjectDeletion): Promise<MolisWorkProjectDeletionRecord> {
     if (record.cleanup_state === "complete") return this.projects.lifecycle.deletionRecord(record);
     const problems: string[] = [];
     // Each owner clears what it keeps for the project, once the catalog no longer has it. A step that fails, that its owner

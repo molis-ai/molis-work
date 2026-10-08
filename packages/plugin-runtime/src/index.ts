@@ -611,12 +611,12 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.runLocked(installId, () => this.uninstallOnce(installId, options));
   }
 
-  /** Take back an install that did not finish (`installed`): its row goes back to the uninstalled record it replaced (`earlier`), whole, and its code stops; see `abandonRefusal`. */
-  abandonInstall(installed: PluginInstanceRecord, earlier: PluginInstanceRecord): Promise<PluginLifecycleReceipt> {
+  /** Take back an install that did not finish (`installed`): the row goes back to the uninstalled record it replaced (`earlier`), whole, or is marked uninstalled with nothing kept when there was none; its code stops. See `abandonRefusal`. */
+  abandonInstall(installed: PluginInstanceRecord, earlier?: PluginInstanceRecord): Promise<PluginLifecycleReceipt> {
     return this.runLocked(installed.install_id, async () => {
       const refusal = abandonRefusal(this.requireInstall(installed.install_id), installed, earlier);
       if (refusal) throw refusal;
-      return this.uninstallOnce(installed.install_id, {}, earlier);
+      return this.uninstallOnce(installed.install_id, { retain_private_data: false }, earlier);
     });
   }
 

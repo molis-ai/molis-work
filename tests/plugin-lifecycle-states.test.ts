@@ -301,6 +301,47 @@ test("an install that did not finish goes back to the uninstalled record it repl
   assert.deepEqual(runtime.get(id), another);
 });
 
+test("a first-ever install that did not finish is taken back only while it is still the row's install", async () => {
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const v1 = probe("1.0.0", { sandbox: true });
+  const first = runtime.install({ definition: v1, deployment: "local", grants: [] }).install;
+  await runtime.start(first.install_id);
+  const receipt = await runtime.abandonInstall(first);
+  assert.equal(receipt.replayed, false);
+  assert.equal(runtime.get(first.install_id).state, "uninstalled");
+  assert.equal(runtime.get(first.install_id).installation_generation, first.installation_generation);
+  assert.equal(runtime.get(first.install_id).retain_private_data, false, "an install that never finished has nothing to keep");
+  assert.equal(runtime.contribution(first.install_id), null, "the running code was stopped");
+
+  // The person uninstalled it, or uninstalled it and installed again: the attempt is no longer the one the row holds.
+  const second = runtime.install({ definition: v1, deployment: "local", grants: [] }).install;
+  await runtime.start(second.install_id);
+  assert.equal(await code(() => runtime.abandonInstall(first)), "plugin_install_replaced", "a newer install is not undone by the old attempt");
+  assert.deepEqual(runtime.get(second.install_id).state, "running");
+  assert.equal(runtime.get(second.install_id).installation_generation, second.installation_generation);
+  await runtime.uninstall(second.install_id, { retain_private_data: true });
+  const uninstalled = runtime.get(second.install_id);
+  assert.equal(await code(() => runtime.abandonInstall(second)), "plugin_install_replaced", "an attempt the person uninstalled is theirs to have uninstalled: its choice about the data stands");
+  assert.deepEqual(runtime.get(second.install_id), uninstalled);
+});
+
+test("an install over kept data that the person uninstalled meanwhile is not taken back over their choice", async () => {
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const v1 = probe("1.0.0", { sandbox: true }), v3 = probe("3.0.0", { sandbox: true });
+  const id = runtime.install({ definition: v1, deployment: "local", grants: [] }).install.install_id;
+  await runtime.start(id);
+  await runtime.uninstall(id, { retain_private_data: true });
+  const earlier = runtime.get(id);
+
+  const fresh = runtime.install({ definition: v3, deployment: "local", grants: [], discard_kept_data: true }).install;
+  await runtime.start(id);
+  await runtime.uninstall(id, { retain_private_data: false });   // the person drops the data while the install is starting
+  const chosen = runtime.get(id);
+  assert.ok(chosen.state === "uninstalled" && !chosen.retain_private_data && chosen.installation_generation === fresh.installation_generation);
+  assert.equal(await code(() => runtime.abandonInstall(fresh, earlier)), "plugin_install_replaced");
+  assert.deepEqual(runtime.get(id), chosen, "the record keeps what the person chose; it does not go back to the one that kept the data");
+});
+
 test("a reinstall of a generated plugin may use an older release; a Host that ships a version always installs it", async () => {
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
   const v1 = probe("1.0.0", { sandbox: true }), v2 = probe("2.0.0", { sandbox: true, compatible: ["1.0.0"] });

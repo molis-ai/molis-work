@@ -24,7 +24,8 @@ import { builtinRegistrations } from '../apps/local-host/src/agent-definitions/b
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
 const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: DEMO_PROJECT_ID };
 
-async function publishedFixture(home: string, name: string, lookup = false, secretRefs: string[] = []) {
+/** `neverInstalled`: the Runtime has no row for the plugin yet, as for a plugin that is published but has never been installed. */
+async function publishedFixture(home: string, name: string, lookup = false, secretRefs: string[] = [], neverInstalled = false) {
   const databasePath = join(home, name + '.sqlite'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage);
   const draft = builder.create('An unfinished draft must not resume when an installed plugin runs');
@@ -47,6 +48,7 @@ async function publishedFixture(home: string, name: string, lookup = false, secr
   builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db));
   const { install } = runtime.install({ definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants: ['storage:private'] });
+  if (neverInstalled) store.db.prepare('DELETE FROM plugin_runtime_installs WHERE install_id = ?').run(install.install_id);
   store.close();
   return { databasePath, release, install, draft: waiting, ref: molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID }) };
 }
@@ -444,6 +446,74 @@ test('an install that fails after another install replaced it leaves that instal
     assert.notEqual(installed.storage.get(approvalKey), null, 'nor its approval');
     assert.equal(installed.platform.supervisor.state(pluginId)?.status, 'running', 'nor revoke it');
     assert.equal(await client.invoke(caller, action('save'), { value: 'still writable' }), 'still writable');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test('a first-ever install that fails after the person uninstalled it and installed again leaves that install alone: its data, secrets, approval, actions and running code', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-first-failed-replaced-')), fixture = await publishedFixture(home, 'project', false, ['weather'], true), rig = await hostWithProject(home, fixture);
+  const action = (operation: string) => ({ capability_id: exposedActionId(fixture.release, operation), version: 1, provider_id: 'plugin:' + fixture.release.pluginId });
+  const secret = { name: 'weather', header: 'X-Api-Key', value: 'k-123' }, approvalKey = 'plugin-builder:agent-studio:approved:' + fixture.release.pluginId;
+  try {
+    const installed = await rig.control(), client = rig.host.actionClient(fixture.ref), pluginId = fixture.release.pluginId, installId = fixture.install.install_id;
+    assert.equal(installed.platform.runtime.list().find(item => item.install_id === installId), undefined, 'nothing was ever installed: the first install has no uninstalled record to go back to');
+
+    // The first install waits in start; while it waits the person uninstalls it and installs again, and that install finishes.
+    const start = installed.platform.start, entered = Promise.withResolvers<void>(), gate = Promise.withResolvers<void>();
+    let attempts = 0;
+    installed.platform.start = async (...args: Parameters<typeof start>) => {
+      if (attempts++) return start.apply(installed.platform, args);
+      entered.resolve(); await gate.promise; throw new Error('start failed');
+    };
+    const failing = installed.lifecycle('install', fixture.release, { consent: true }); failing.catch(() => {});
+    await entered.promise;
+    const first = installed.platform.runtime.get(installId);
+    await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    await installed.lifecycle('install', fixture.release, { consent: true, secrets: [secret] });
+    await client.invoke(caller, action('save'), { value: 'newer data' });
+    const replacing = installed.platform.runtime.get(installId);
+    assert.equal(replacing.state, 'running');
+    assert.notEqual(replacing.installation_generation, first.installation_generation, 'the second install is a new installation');
+
+    gate.resolve();
+    await assert.rejects(failing, (error: Error) => error.message === 'start failed' && !(error instanceof AggregateError), 'the first install fails with its own reason: it had nothing of its own left to undo');
+    assert.deepEqual(installed.platform.runtime.get(installId), replacing, 'the row is still the second install\'s');
+    assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 1 }]);
+    assert.equal(await client.invoke(caller, action('read'), null), 'newer data', 'the first install did not delete the data');
+    assert.deepEqual(installed.secrets.list(pluginId), [{ name: 'weather', header: 'X-Api-Key' }], 'nor remove its secrets');
+    assert.deepEqual(await installed.secrets.resolve(pluginId, 'weather'), { header: 'X-Api-Key', value: 'k-123' });
+    assert.notEqual(installed.storage.get(approvalKey), null, 'nor its approval');
+    assert.equal(installed.platform.supervisor.state(pluginId)?.status, 'running', 'nor revoke it');
+    assert.equal(await client.invoke(caller, action('save'), { value: 'still writable' }), 'still writable');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test('an install that fails over kept data does not undo the person\'s choice to discard that data while it was starting', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-failed-discarded-')), fixture = await publishedFixture(home, 'project', false, ['weather']), rig = await hostWithProject(home, fixture);
+  const action = (operation: string) => ({ capability_id: exposedActionId(fixture.release, operation), version: 1, provider_id: 'plugin:' + fixture.release.pluginId });
+  const rows = () => rig.host.withProject(fixture.ref, runtime => new SqlitePluginPrivateStorage(runtime.store.db).snapshotInstallationData(fixture.install.install_id));
+  try {
+    const installed = await rig.control(), client = rig.host.actionClient(fixture.ref), installId = fixture.install.install_id;
+    await client.invoke(caller, action('save'), { value: 'old data' });
+    await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    assert.ok((await rows()).length > 0);
+
+    // The install waits in start; while it waits the person uninstalls it and does not keep the data; then the install fails.
+    const start = installed.platform.start, entered = Promise.withResolvers<void>(), gate = Promise.withResolvers<void>();
+    installed.platform.start = async () => { entered.resolve(); await gate.promise; throw new Error('start failed'); };
+    const failing = installed.lifecycle('install', fixture.release, { consent: true }); failing.catch(() => {});
+    await entered.promise;
+    await installed.lifecycle('uninstall', fixture.release, { keepData: false });
+    const discarded = installed.platform.runtime.get(installId);
+    assert.ok(discarded.state === 'uninstalled' && !discarded.retain_private_data);
+    assert.deepEqual(await rows(), [], 'the person discarded the data');
+
+    gate.resolve();
+    await assert.rejects(failing, (error: Error) => error.message === 'start failed' && !(error instanceof AggregateError));
+    installed.platform.start = start;
+    assert.deepEqual(installed.platform.runtime.get(installId), discarded, 'the record is the one the person left, not the one before the attempt');
+    assert.deepEqual(await rows(), [], 'and the data they discarded did not come back');
+    await installed.lifecycle('install', fixture.release, { consent: true });
+    assert.equal(await client.invoke(caller, action('read'), null), 'empty', 'a later install starts fresh');
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
 

@@ -32,17 +32,21 @@ export function defaultGrants(manifest: PluginManifest, installs: readonly Plugi
 }
 
 /**
- * Why an install that did not finish cannot be taken back (`abandonInstall`), or undefined when it can (and when it
- * already was). `installed` is the record that install returned, `earlier` the uninstalled record it replaced. The row goes
- * back to `earlier` whole (version, Manifest digest, installation generation, kept data), so the next install is asked
- * the same question about the kept data. Only the installation `installed` names is undone: a row another install has
- * replaced since is not touched, and the refusal says so (`plugin_install_replaced`) so the caller leaves everything
- * that belongs to the newer install alone.
+ * Why an install that did not finish cannot be taken back (`abandonInstall`), or undefined when it can. `installed` is
+ * the record that install returned, `earlier` the uninstalled record it replaced (none for a first-ever install, which
+ * has nothing to go back to and is marked uninstalled with nothing kept). Only the installation `installed` names, while
+ * the row still holds it, is undone. A row another install has replaced is not touched, and neither is one that is
+ * uninstalled at the attempt's own installation generation: the install did not do that, so someone else did, and
+ * their choice about the kept data stands. Both refuse with `plugin_install_replaced`, so the caller leaves everything
+ * that belongs to the newer install or to that choice alone. A row back at `earlier` already is what this asks for.
  */
-export function abandonRefusal(current: PluginInstanceRecord, installed: PluginInstanceRecord, earlier: PluginInstanceRecord): PluginRuntimeError | undefined {
-  if (earlier.install_id !== installed.install_id || earlier.state !== "uninstalled") return new PluginRuntimeError("plugin_state_invalid", "只能退回到同一安装、已卸载的记录");
-  if (current.installation_generation !== installed.installation_generation && current.installation_generation !== earlier.installation_generation) {
-    return new PluginRuntimeError("plugin_install_replaced", "这次安装已经被另一次安装替换，不能退回");
+export function abandonRefusal(current: PluginInstanceRecord, installed: PluginInstanceRecord, earlier?: PluginInstanceRecord): PluginRuntimeError | undefined {
+  if (earlier && (earlier.install_id !== installed.install_id || earlier.state !== "uninstalled")) {
+    return new PluginRuntimeError("plugin_state_invalid", "只能退回到同一安装、已卸载的记录");
+  }
+  if (earlier && current.installation_generation === earlier.installation_generation) return undefined;
+  if (current.installation_generation !== installed.installation_generation || current.state === "uninstalled") {
+    return new PluginRuntimeError("plugin_install_replaced", "这次安装已经被另一次安装替换，或已被卸载，不能退回");
   }
   return undefined;
 }

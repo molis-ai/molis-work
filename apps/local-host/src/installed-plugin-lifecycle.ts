@@ -56,22 +56,23 @@ function secretsOf(value: unknown, release: AgentRelease): Secret[] {
 export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPorts['lifecycle'] {
   const { platform } = c;
   /**
-   * `earlier`: the uninstalled record an install that did not finish replaced; the record goes back to it instead of being
-   * marked uninstalled anew. That is done first: when Plugin Runtime says another install has replaced this one, the
-   * prompts, secrets, scheduled work and data under this plugin belong to the newer install and none of it is touched
-   * (false). A failed take-back still cleans up what the Host holds, then reports itself.
+   * `attempt`: this is the cleanup of an install that did not finish, not the person's uninstall; `earlier` is the
+   * uninstalled record that install replaced, if there was one (a first-ever install has none). Plugin Runtime is asked
+   * first. When it says the row is no longer that install's (another install has replaced it, or the person uninstalled
+   * it meanwhile), the prompts, secrets, scheduled work and data under this plugin belong to that install or to that
+   * choice and none of it is touched (false). A failed take-back still cleans up what the Host holds, then reports itself.
    */
-  const uninstall = async (release: AgentRelease, record: PluginInstanceRecord, keepData: boolean, earlier?: PluginInstanceRecord): Promise<boolean> => {
+  const uninstall = async (release: AgentRelease, record: PluginInstanceRecord, keepData: boolean, attempt?: { earlier?: PluginInstanceRecord }): Promise<boolean> => {
     let undone: unknown;
-    if (earlier) {
-      try { await platform.runtime.abandonInstall(record, earlier); } catch (failure) {
+    if (attempt) {
+      try { await platform.runtime.abandonInstall(record, attempt.earlier); } catch (failure) {
         if ((failure as { code?: unknown } | null)?.code === 'plugin_install_replaced') return false;
         undone = failure;
       }
     }
     c.withdraw(release.pluginId); platform.supervisor.revoke(release.pluginId);
     c.cancelScheduled(release.pluginId, record.install_id); c.secrets.remove(release.pluginId);
-    if (!earlier) await platform.runtime.uninstall(record.install_id, { retain_private_data: keepData });
+    if (!attempt) await platform.runtime.uninstall(record.install_id, { retain_private_data: keepData });
     else if (undone) throw undone;
     c.forget(release.pluginId, record.install_id);
     if (!keepData) c.privateStorage.deleteInstallationData(record.install_id);
@@ -84,8 +85,9 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
    * drops it. An install that does not finish is taken back: the uninstalled record it replaced returns exactly as it
    * was (version, digest, installation generation, kept-data flag) and so does the data that record kept, so the next
    * install is asked the same question and nothing blocks a retry or an enable. What the cleanup itself cannot undo is
-   * reported with the error that started it. An install that another one has replaced meanwhile has nothing of its own
-   * left to undo: the cleanup stops at once and the newer install keeps its data, secrets, approval and running code.
+   * reported with the error that started it. An install that another one has replaced meanwhile, or that the person
+   * uninstalled meanwhile, has nothing of its own left to undo: the cleanup stops at once and the newer install keeps its
+   * data, secrets, approval and running code, and the person's choice about the data stands.
    */
   const install = async (release: AgentRelease, grants: Grants) => {
     const pluginId = release.pluginId, secrets = secretsOf(grants.secrets, release);
@@ -105,7 +107,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     } catch (error) {
       const unfinished: unknown[] = [];
       let ours = true;
-      try { ours = await uninstall(release, install, kept, earlier); } catch (failure) { unfinished.push(failure); }
+      try { ours = await uninstall(release, install, kept, { earlier }); } catch (failure) { unfinished.push(failure); }
       try { if (before && ours) c.privateStorage.restoreInstallationData(install.install_id, before); } catch (failure) { unfinished.push(failure); }
       if (!unfinished.length) throw error;
       const said = (value: unknown) => value instanceof Error ? value.message : String(value);

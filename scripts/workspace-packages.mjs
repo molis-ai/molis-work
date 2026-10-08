@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { checkDevRequirements } from "./package-dev-requirements.mjs";
+import { checkPackageOwners, packageOwner } from "./package-owners.mjs";
 
 const entry = (
   packagePath,
@@ -22,6 +23,8 @@ const entry = (
   summary,
   notResponsibleFor,
   legacySources,
+  // Role and review accounts, from the rules in package-owners.mjs; they render the SSOT 归属 column and .github/CODEOWNERS.
+  owner: packageOwner(packagePath, kind),
   maturity: status.maturity ?? "contract-only",
   capabilities: status.capabilities ?? [],
   extraWorkspaceDependencies: status.extraWorkspaceDependencies ?? [],
@@ -218,6 +221,8 @@ export function checkWorkspacePackages(repositoryRoot) {
       errors.push(...checkDevRequirements(repositoryRoot, item, readme, manifest));
     }
   }
+
+  errors.push(...checkPackageOwners(repositoryRoot, WORKSPACE_PACKAGES));
 
   const packageJsonFiles = [
     ...filesUnder(path.join(repositoryRoot, "server"), "package.json"),

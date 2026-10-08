@@ -1,5 +1,5 @@
 {
-  "giantUnits": 164,
+  "giantUnits": 163,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 261,
     "file apps/local-host/src/assistant/assistant-service.ts": 2692,

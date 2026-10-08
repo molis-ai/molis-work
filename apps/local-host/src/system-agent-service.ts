@@ -64,8 +64,8 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     const unbind = bindPrologueInference(storageHome, service.inference);
     const unbindBuilder = bindPrologueBuilder(storageHome, service.createBuilderAgent);
     // Memory lives in this runtime: the platform memory is registered with it (specs/archive/memory-system §5.2).
-    // A transport that passes the catalog owner (the Web server, the embedded MCP) has taken this service as its own and runs the
-    // Home's runtime; the binding every Host with a Home gets in its constructor, and a stdio MCP that forwards, has not.
+    // The Web server and the embedded MCP pass the catalog owner: they have taken this service as their own and run the Home's
+    // runtime. The lazy binding every Host with a Home gets in its constructor, all a forwarding stdio MCP has, does not.
     const memory = registerMemoryHost({ localHost, homeDirectory: storageHome, agentHost: service.agentHost, ready: () => service.ready, started: () => service.started,
       executes: () => owner.withCatalog !== undefined,
       projects: async () => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().map(project => project.project_id)) : [],

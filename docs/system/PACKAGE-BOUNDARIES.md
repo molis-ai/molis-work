@@ -24,8 +24,8 @@ horizontal
 
 plugins
   → plugin SDK
-  → declared Service / UI contracts and the action directory
-  → never an App, Horizontal Service or Module implementation (one listed exception, §2)
+  → declared Module / Service / UI contracts and the action directory
+  → never an App, Horizontal Service or Module implementation package (one listed exception, §2)
 
 platform packages
   → contracts/platform/*
@@ -102,8 +102,8 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 typecheck/build
 
 门禁由两层组成：
 
-- `packages/test-kit` 提供纯规则：输入“谁在 import 谁”，返回具体违规；不读取数据库，也不复制业务判断。例外名单 `APP_IMPORT_ALLOWLIST`、`PLUGIN_MODULE_IMPORT_ALLOWLIST`（`packages/test-kit/src/boundaries.ts`）按包路径记边，只许减少，`packages/test-kit/tests/boundaries.test.mjs` 把它们逐项钉死。
-- `scripts/check-package-boundaries.mjs` 读取 workspace manifest 与源码 import，把实际仓库信息交给纯规则，并检查依赖环和 Contract/README 清单。
+- `packages/test-kit` 提供纯规则：输入“谁在 import 谁”，返回具体违规；不读取数据库，也不复制业务判断。例外名单 `APP_IMPORT_ALLOWLIST`、`PLUGIN_MODULE_IMPORT_ALLOWLIST`（`packages/test-kit/src/boundaries.ts`）按包路径记边，只许减少，`packages/test-kit/tests/boundaries.test.mjs` 把它们逐项钉死；`unusedLayerExceptions` 找出名单里没有被用到的边。
+- `scripts/check-package-boundaries.mjs` 读取 workspace manifest 与源码 import，把实际仓库信息交给纯规则，并检查依赖环和 Contract/README 清单。它记下每个 import 和 manifest 依赖实际有的边，名单里列了而仓库里没有任何 import 或依赖用到的边会报 `layer-exception-unused`：一条已经不存在的边不会留在名单里等着悄悄回来。
 
 结构数字另由 `pnpm health:check` 对照 merge-base 只许减少（模块在 `scripts/gates/`，测试 `tests/health-gates-structure.test.ts`，规则与取数口径见各模块文件头）：
 
@@ -111,13 +111,14 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 typecheck/build
 | --- | --- | --- |
 | `contractsPurity` | `packages/contracts/src` 里的定时器与 `AbortController`/`fetch`/`process`、`Date.now()`、`Math.random()`，Node 内置模块导入，模块级可变状态，字面 HTTP 状态码，20 行以上的函数（逐个记行数） | 合同包只放类型、Schema 与无副作用的小函数（N-11）；现有的运行时代码是基线，搬到所有者那里（W3-03）后数字下降 |
 | `hostEntryExports` | `apps/local-host/src/index.ts` 的 `export *` 个数 | 宿主入口过宽，每个新 helper 都变成公开面（N-11） |
-| `moduleRepositoryExports` | 各 Module 入口导出的 `…Repository`/`…Store` 名字，和导出的类、接口上公开的 `repository` 成员 | Repository 仅内部可见（§3）；去掉导出是下一步，这一步先不让它变多 |
-| `typedCapabilities` | `HostCapabilityDefinition` 的引用、没有 `action` 的描述符字面量、`registerCapability` 调用，按文件 | 2026-10-07 N-12 决定：对外的能力只走动作服务，typed 注册表只留作宿主内服务通道，不再新增条目 |
+| `moduleRepositoryExports` | 各 Module 入口（`src/index.ts`）导出的 `…Repository`/`…Store` 名字，和导出的类、接口上公开的 `repository` 成员。Module 指 `scripts/workspace-packages.mjs` 里 `kind` 为 `module` 的包（`modules/*` 和 `server`），另加任何 `modules/<名>` 目录；对照 merge-base 时两边都读这份清单 | Repository 仅内部可见（§3）；去掉导出是下一步，这一步先不让它变多 |
+| `typedCapabilities` | 按文件三项：①对 `HostCapabilityDefinition` 和包装它的类型别名的引用（别名由扫描仓库发现，今天是 `HostMethodCapability`，含 `import { 别名 as 本地名 }`；只读取定义类型的 `HostCapabilityInput` 一类不算）；②没有 `action` 的描述符字面量（转成上述类型的，或同时带 `capability_id`、`version`、`operation` 的任何字面量，不管有没有转型）；③typed 注册调用：`registerCapability(…)`，以及对“注册型”接收者的 `.register(…)`——接收者在本文件里声明为注册型类型（`LocalHost`、`CapabilityRegistry`、Agent 与 Schedule 的 registrar 等：凡有一个 `register`/`registerCapability` 方法且第一个参数是 typed 定义的类或接口，也由扫描发现），或用 `new` 造出。看不到的只有：别的文件里的工厂造出的描述符，经一个在本文件里没有写出类型名的接收者注册；那靠评审 | 2026-10-07 N-12 决定：对外的能力只走动作服务，typed 注册表只留作宿主内服务通道，不再新增条目。三项里任何一项变多都会失败，所以新的 typed 描述符（用类型名或别名）、新的注册点、新的使用者都放不过 |
+| `layerExceptions` | `APP_IMPORT_ALLOWLIST`、`PLUGIN_MODULE_IMPORT_ALLOWLIST` 里的条目，一条边一条记录 | 名单和钉死它的测试可以在同一个 PR 里一起改；这里对照 merge-base，新增条目放不过，只能删。名单被改名或挪走、读不出来时也失败（合入前的 merge-base 还没有这两个名单，那一次不比） |
 | `hostPluginFiles`、`registerProviderSites` | 宿主里以内置插件命名的 `<插件>-actions.ts`、`<插件>-native-plugin-http.ts`；`apps/local-host/src` 里每个文件的 `registerProvider(` 调用 | 构建期装配路径冻结（AGENTS.md）；名单测试 `tests/builtin-plugin-assembly-gate.test.ts` 之外，这里对照 merge-base，改名单放不过 |
 | `hybridPlugins` | 已由 Plugin Runtime 启动、宿主却还有同名文件或手工 `registerProvider(<插件>…Provider(…))` 的插件（现在：shelf、characters、coding、git），报告里标出 | 混合装配既不是 Runtime 形状也不是冻结的构建期形状，名单看不出来。Characters 按 2026-10-08 决定第 26 项将并进宿主或某个 Module，不再长期作为 Runtime 插件 |
 | `pluginOutsideMentions` | 每个内置插件的包名在它自己的包之外出现在多少个源码或配置文件里（import、`package.json` 依赖、工作区清单） | 加一个插件除了它自己的包还要改几处；目标是 0（W4-01）。新插件最多可以被 7 个文件点名，等于现有最小的完整插件（text-stats） |
 
-typed 条目的新增、Repository 导出的新增、宿主入口的变宽、合同包里新副作用的出现，都不是加数字能放过的事：改动门禁本身要过评审。
+typed 条目的新增、Repository 导出的新增、宿主入口的变宽、合同包里新副作用的出现、层间例外的新增，都不是加数字能放过的事：改动门禁本身要过评审。
 
 旧根 `src/` 与 0.1.x 的根 SDK 都已退出产品实现，根包 `@molis-ai/molis-work` 只发布命令行入口，不导出代码。`pnpm boundary:check` 拒绝任何根目录 `src/`（不再有兼容白名单）；各包的大文件由 `pnpm health:check` 的巨大单元门禁只许变小。
 

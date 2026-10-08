@@ -4,16 +4,18 @@
 import { assemblyMetrics, assemblyWantsText } from "./assembly.mjs";
 import { contractsPurity } from "./contracts-purity.mjs";
 import { hostEntryExports } from "./host-entry-exports.mjs";
+import { layerExceptions, layerExceptionsWantsText } from "./layer-exceptions.mjs";
 import { moduleRepositoryExports } from "./module-repository-exports.mjs";
 import { typedCapabilities } from "./typed-capabilities.mjs";
 
 /** Files the structure gates read besides source files and test files (the entry reads them from the merge-base too). */
-export const structureWantsText = (file) => assemblyWantsText(file);
+export const structureWantsText = (file) => assemblyWantsText(file) || layerExceptionsWantsText(file);
 
 /** `helpers`: { isSource, perFile, rekey, rekeyUnit, sumOf }, shared by the entry. */
 export const structureMetrics = (helpers) => [
   contractsPurity(helpers),
   hostEntryExports(helpers),
+  layerExceptions(helpers),
   moduleRepositoryExports(helpers),
   typedCapabilities(helpers),
   ...assemblyMetrics(helpers),

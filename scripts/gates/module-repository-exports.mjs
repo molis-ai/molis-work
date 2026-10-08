@@ -1,19 +1,44 @@
 // Modules export their Repositories and Stores (specs/repository-anti-corruption N-11, W1-05).
 //
-// A Module's package entry (modules/<name>/src/index.ts, the only subpath its package.json exports) is its public surface.
+// A Module's package entry (<package>/src/index.ts, the only subpath its package.json exports) is its public surface. A Module
+// is a package that scripts/workspace-packages.mjs classifies as kind "module" (modules/* and server, which has its own chat
+// and identity facts), plus any modules/<name> directory, so a Module that is not yet listed there is still covered.
 // docs/system/PACKAGE-BOUNDARIES.md §3 says a Repository is visible to the Module's own implementation, not exported from
 // the entry. Today several entries export the Repository or Store class (GoalsRepository, ShelfStore, openFunctionsStore, …)
 // and several service objects carry a public `repository` member. This counts both, per Module, following `export *` and
 // re-exports to the declaration:
-//   modules/<name>#export:<Name>              an exported name ending in Repository or Store
-//   modules/<name>#member:<Name>.repository   a public `repository` member of an exported class, interface or type literal
+//   <package>#export:<Name>              an exported name ending in Repository or Store
+//   <package>#member:<Name>.repository   a public `repository` member of an exported class, interface or type literal
 // Each may only fall and a new one starts at 0. Un-exporting them is the next slice; this stops the count from growing.
 import path from "node:path";
 import ts from "typescript";
 import { recordMetric } from "./record-metric.mjs";
 
-const MODULE_ENTRY = /^modules\/([^/]+)\/src\/index\.ts$/;
+const MODULE_DIRECTORY_ENTRY = /^modules\/[^/]+\/src\/index\.ts$/;
+const WORKSPACE_PACKAGES = "scripts/workspace-packages.mjs";
 const REPOSITORY_NAME = /(?:Repository|Store)$/;
+
+/**
+ * The entry files of the Modules in a snapshot: every modules/<name>/src/index.ts, and the entry of each package that
+ * scripts/workspace-packages.mjs lists as `entry(path, name, "module", …)` (read as text, so the merge-base side is measured
+ * from the same list). Exported for the gate's test.
+ */
+export function moduleEntries(snapshot) {
+  const known = new Set(snapshot.files);
+  const entries = new Set(snapshot.files.filter((file) => MODULE_DIRECTORY_ENTRY.test(file)));
+  const text = snapshot.read(WORKSPACE_PACKAGES);
+  if (text) {
+    const visit = (node) => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "entry") {
+        const [packagePath, , kind] = node.arguments;
+        if (packagePath && kind && ts.isStringLiteralLike(packagePath) && ts.isStringLiteralLike(kind) && kind.text === "module" && known.has(`${packagePath.text}/src/index.ts`)) entries.add(`${packagePath.text}/src/index.ts`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(ts.createSourceFile(WORKSPACE_PACKAGES, text, ts.ScriptTarget.Latest, true));
+  }
+  return [...entries].sort();
+}
 
 /**
  * The names a source file exports, each with the file and local name that declares it: through `export *`, `export {…} from`,
@@ -103,8 +128,8 @@ export const moduleRepositoryExports = (helpers) => recordMetric(helpers, {
   measure(snapshot) {
     const record = {};
     const resolver = createExportResolver(snapshot);
-    for (const entry of snapshot.files.filter((file) => MODULE_ENTRY.test(file))) {
-      const module = `modules/${MODULE_ENTRY.exec(entry)[1]}`;
+    for (const entry of moduleEntries(snapshot)) {
+      const module = entry.slice(0, -"/src/index.ts".length);
       for (const [name, origin] of resolver.exportsOf(entry)) {
         // Also by the declared name: `export { AlphaRepository as AlphaData }` is still the Repository.
         if (REPOSITORY_NAME.test(name) || REPOSITORY_NAME.test(origin.local)) record[`${module}#export:${name}`] = 1;

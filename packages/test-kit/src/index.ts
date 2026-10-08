@@ -4,6 +4,7 @@ export {
   evaluateImportBoundary,
   extractImportSpecifiers,
   findDependencyCycles,
+  unusedLayerExceptions,
 } from "./boundaries.js";
 export type {
   BoundaryPackage,

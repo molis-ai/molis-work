@@ -7,6 +7,7 @@ import {
   evaluateImportBoundary,
   extractImportSpecifiers,
   findDependencyCycles,
+  unusedLayerExceptions,
 } from "@molis-ai/molis-work-test-kit";
 
 function boundaryPackage(name, packagePath, kind, dependencies = [], exportedSubpaths = ["."]) {
@@ -654,4 +655,18 @@ test("the layer exceptions are exactly the edges that exist today", () => {
     "apps/server -> apps/desktop",
     "apps/server -> apps/local-host",
   ]);
+});
+
+test("a listed layer exception that no import or dependency uses is reported, so the lists cannot keep dead edges", () => {
+  const listed = [...APP_IMPORT_ALLOWLIST, ...PLUGIN_MODULE_IMPORT_ALLOWLIST];
+  assert.deepEqual(unusedLayerExceptions(listed), []);
+  // Edges the repository has beyond the lists are judged by the layer rules, not here.
+  assert.deepEqual(unusedLayerExceptions([...listed, "apps/cli -> apps/mcp", "plugins/native/goals -> modules/goals"]), []);
+  // Each entry is needed on its own: an edge the repository stopped using is named, and nothing else.
+  for (const entry of listed) {
+    assert.deepEqual(unusedLayerExceptions(listed.filter((edge) => edge !== entry)), [entry], entry);
+  }
+  assert.deepEqual(unusedLayerExceptions([]), listed);
+  // Any iterable of observed edges works (the checker passes sets).
+  assert.ok(!unusedLayerExceptions(new Set(["apps/server -> apps/desktop"])).includes("apps/server -> apps/desktop"));
 });

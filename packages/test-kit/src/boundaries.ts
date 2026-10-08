@@ -96,6 +96,17 @@ export const PLUGIN_MODULE_IMPORT_ALLOWLIST: readonly string[] = [
   "plugins/native/shelf -> modules/shelf",
 ];
 
+/**
+ * The listed layer exceptions that nothing uses: entries of APP_IMPORT_ALLOWLIST or PLUGIN_MODULE_IMPORT_ALLOWLIST for which
+ * the repository has neither an import nor a declared dependency. `observedEdges` are "<importer path> -> <target path>" strings
+ * from every scanned import and manifest dependency (scripts/check-package-boundaries.mjs). An edge the repository no longer
+ * has must leave the list, or it stays allowed and can come back without a decision.
+ */
+export function unusedLayerExceptions(observedEdges: Iterable<string>): readonly string[] {
+  const observed = new Set(observedEdges);
+  return [...APP_IMPORT_ALLOWLIST, ...PLUGIN_MODULE_IMPORT_ALLOWLIST].filter((edge) => !observed.has(edge));
+}
+
 function importsListedPackage(specifier: string, packageNames: ReadonlySet<string>): boolean {
   return [...packageNames].some(
     (packageName) => specifier === packageName || specifier.startsWith(`${packageName}/`),

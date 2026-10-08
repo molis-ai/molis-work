@@ -39,7 +39,29 @@ before(() => {
   }
   put("package.json", JSON.stringify({ name: "fx", dependencies: { "@fx/plugin-one": "1", "@fx/plugin-two": "1" } }, null, 2) + "\n");
   put("apps/local-host/package.json", JSON.stringify({ name: "@fx/host", dependencies: { "@fx/plugin-one": "1", "@fx/plugin-two": "1" } }, null, 2) + "\n");
-  put("scripts/workspace-packages.mjs", 'export const names = ["@fx/plugin-one"];\n');
+  put("scripts/workspace-packages.mjs", [
+    "const entry = (path, name, kind) => ({ path, name, kind });",
+    "export const WORKSPACE_PACKAGES = [",
+    '  entry("server", "@fx/server", "module"),', // the chat and identity package is a Module by classification, not by directory
+    '  entry("modules/alpha", "@fx/alpha", "module"),',
+    '  entry("plugins/native/one", "@fx/plugin-one", "native-plugin"),',
+    '  entry("apps/other", "@fx/other", "app"),',
+    "];",
+    "",
+  ].join("\n"));
+  put("server/src/index.ts", "export const serverValue = 1;\n");
+  put("apps/other/src/index.ts", "export class OtherStore {}\n"); // an App is not a Module: its Store is not counted
+  // The listed layer exceptions (packages/test-kit/src/boundaries.ts): two App edges and one Plugin → Module edge.
+  put("packages/test-kit/src/boundaries.ts", [
+    "export const APP_IMPORT_ALLOWLIST: readonly string[] = [",
+    '  ". -> apps/desktop",',
+    '  "apps/desktop -> apps/local-host",',
+    "];",
+    "export const PLUGIN_MODULE_IMPORT_ALLOWLIST: readonly string[] = [",
+    '  "plugins/native/one -> modules/alpha",',
+    "];",
+    "",
+  ].join("\n"));
   // Host: three `export *`, a named re-export (not counted), the supervisor, the hand-registered providers, plugin-named files.
   put("apps/local-host/src/index.ts", 'export * from "./helpers.js";\nexport * from "./more.js";\nexport * from "./extra.js";\nexport { named } from "./named.js";\n');
   for (const file of ["helpers", "more", "extra", "named"]) put(`apps/local-host/src/${file}.ts`, `export const ${file === "named" ? "named" : `${file}Value`} = 1;\n`);
@@ -48,7 +70,28 @@ before(() => {
   put("apps/local-host/src/one-actions.ts", "export const oneActionProvider = () => ({});\n");
   put("apps/local-host/src/one-native-plugin-http.ts", "export const handleOne = () => 1;\n");
   put("apps/local-host/src/search-actions.ts", "export const searchProvider = () => ({});\n"); // not a plugin's name
-  put("apps/local-host/src/local-host.ts", "import type { HostCapabilityDefinition } from '../../../packages/contracts/src/platform/app-host.js';\nexport class LocalHost {\n  register(definition: HostCapabilityDefinition) { return definition; }\n  registerCapability(definition: HostCapabilityDefinition) { return this.register(definition); }\n}\nexport const make = (host: LocalHost, definition: HostCapabilityDefinition) => host.registerCapability(definition);\n");
+  put("apps/local-host/src/local-host.ts", "import type { HostCapabilityDefinition } from '../../../packages/contracts/src/platform/app-host.js';\nexport class LocalHost {\n  register(definition: HostCapabilityDefinition, handler: (runtime: unknown, input: unknown) => unknown) { return [definition, handler]; }\n  registerCapability(definition: HostCapabilityDefinition) { return this.register(definition, () => 1); }\n}\nexport const make = (host: LocalHost, definition: HostCapabilityDefinition) => host.registerCapability(definition);\n");
+  // The Casebook shape: a factory that mints descriptors, and registrations through a `LocalHost` parameter.
+  put("apps/local-host/src/casebook/integration.ts", [
+    "import type { HostCapabilityDefinition } from '../../../../packages/contracts/src/platform/app-host.js';",
+    "import type { LocalHost } from '../local-host.js';",
+    "const capability = (name: string, operation: 'query' | 'command'): HostCapabilityDefinition<unknown, unknown> => ({",
+    "  capability_id: `io.example.casebook.${name}`, version: 1, operation,",
+    "});",
+    "const read = capability('read', 'query');",
+    "const write = capability('write', 'command');",
+    "export function registerCasebookCapabilities(host: LocalHost): void {",
+    "  host.register(read, (_runtime, input) => input);",
+    "  host.register(write, (_runtime, input) => input);",
+    "}",
+    "",
+  ].join("\n"));
+  // The Goals shape: an alias that wraps the definition, imported under another name in one file.
+  put("plugins/native/one/src/entry-capabilities.ts", [
+    'import type { HostMethodCapability as MethodCapability } from "../../../../packages/contracts/src/platform/app-host.js";',
+    "export const entry = { capability_id: \"io.example.one.entry\", version: 1, operation: \"query\" } as MethodCapability<() => void>;",
+    "",
+  ].join("\n"));
   // Modules: alpha exports a Repository class (baseline) and has a private `repository` member (not public).
   put("modules/alpha/src/index.ts", 'export { AlphaRepository } from "./repository.js";\nexport * from "./api.js";\nexport interface AlphaService { readonly repository: AlphaRepository; }\nimport type { AlphaRepository } from "./repository.js";\n');
   put("modules/alpha/src/repository.ts", "export class AlphaRepository {}\n");
@@ -57,7 +100,7 @@ before(() => {
   put("packages/contracts/src/platform/pure.ts", "export interface Thing { id: string }\nexport const parseThing = (value: unknown): Thing => ({ id: String(value) });\n");
   put("packages/contracts/src/platform/lifetime.ts", "export const wait = () => setTimeout(() => undefined, 1);\n");
   put("packages/contracts/src/platform/validator.ts", helper("inspectThing", 22));
-  put("packages/contracts/src/platform/app-host.ts", "export interface HostCapabilityDefinition<Input = unknown, Output = unknown> { capability_id: string; version: number; operation: \"query\" | \"command\"; action?: object; __types__?: { input: Input; output: Output } }\nexport const legacy = { capability_id: \"a.b.v1\", version: 1, operation: \"query\" } as HostCapabilityDefinition<void, void>;\n");
+  put("packages/contracts/src/platform/app-host.ts", "export interface HostCapabilityDefinition<Input = unknown, Output = unknown> { capability_id: string; version: number; operation: \"query\" | \"command\"; action?: object; __types__?: { input: Input; output: Output } }\nexport const legacy = { capability_id: \"a.b.v1\", version: 1, operation: \"query\" } as HostCapabilityDefinition<void, void>;\nexport type HostMethodCapability<Method> = Method extends (...args: infer Args) => infer Result ? HostCapabilityDefinition<Args, Result> : never;\nexport type HostCapabilityInput<Capability> = Capability extends HostCapabilityDefinition<infer Input, unknown> ? Input : never;\n");
   git("add", "-A");
   assert.equal(gate("--update").code, 0);
   commit("base");
@@ -118,15 +161,61 @@ const violations: Scenario[] = [
 
   // ---- typed capabilities ------------------------------------------------------------------------------------------------
   { name: "a new typed capability descriptor", launder: true, mutate: () => put("packages/contracts/src/platform/app-host.ts", read("packages/contracts/src/platform/app-host.ts") + 'export const another = { capability_id: "c.d.v1", version: 1, operation: "command" } as HostCapabilityDefinition<void, void>;\n'),
-    expect: [/typed Host capability type-refs in packages\/contracts\/src\/platform\/app-host\.ts 1 → 2/, /typed Host capability without-action in packages\/contracts\/src\/platform\/app-host\.ts 1 → 2/] },
+    expect: [/typed Host capability type-refs in packages\/contracts\/src\/platform\/app-host\.ts 3 → 4/, /typed Host capability without-action in packages\/contracts\/src\/platform\/app-host\.ts 1 → 2/] },
   { name: "a typed capability that carries an action is still a new typed entry", mutate: () => put("packages/contracts/src/platform/app-host.ts", read("packages/contracts/src/platform/app-host.ts") + 'export const withAction = { capability_id: "c.d.v1", version: 1, operation: "command", action: {} } as HostCapabilityDefinition<void, void>;\n'),
-    expect: [/typed Host capability type-refs in packages\/contracts\/src\/platform\/app-host\.ts 1 → 2/] },
+    expect: [/typed Host capability type-refs in packages\/contracts\/src\/platform\/app-host\.ts 3 → 4/] },
   { name: "a typed capability written as a typed constant and as a factory", mutate: () => put("plugins/native/one/src/capabilities.ts", 'import type { HostCapabilityDefinition } from "../../../../packages/contracts/src/platform/app-host.js";\nexport const typed: HostCapabilityDefinition<void, void> = { capability_id: "e.f.v1", version: 1, operation: "query" };\nexport const make = (id: string): HostCapabilityDefinition<void, void> => ({ capability_id: id, version: 1, operation: "query" });\n'),
     expect: [/typed Host capability type-refs in plugins\/native\/one\/src\/capabilities\.ts 0 → 2/, /typed Host capability without-action in plugins\/native\/one\/src\/capabilities\.ts 0 → 2/] },
   { name: "a new registerCapability call", mutate: () => put("apps/local-host/src/local-host.ts", read("apps/local-host/src/local-host.ts") + "export const again = (host: LocalHost, definition: HostCapabilityDefinition) => host.registerCapability(definition);\n"),
     expect: [/typed Host capability register-calls in apps\/local-host\/src\/local-host\.ts 1 → 2/] },
   { name: "a new file that accepts a typed capability", mutate: () => put("horizontal/extra/src/index.ts", 'import type { HostCapabilityDefinition } from "../../../packages/contracts/src/platform/app-host.js";\nexport const use = (definition: HostCapabilityDefinition) => definition;\n'),
     expect: [/typed Host capability type-refs in horizontal\/extra\/src\/index\.ts 0 → 1/] },
+
+  // The bypasses of the first version of this rule, each verified by hand on a scratch clone before it was closed.
+  { name: "a typed descriptor cast to the HostMethodCapability alias, under its import rename", launder: true, mutate: () => put("plugins/native/one/src/entry-capabilities.ts", read("plugins/native/one/src/entry-capabilities.ts") + 'export const shadow = { capability_id: "io.example.one.shadow", version: 1, operation: "command" } as MethodCapability<() => void>;\n'),
+    expect: [/typed Host capability type-refs in plugins\/native\/one\/src\/entry-capabilities\.ts 1 → 2/, /typed Host capability without-action in plugins\/native\/one\/src\/entry-capabilities\.ts 1 → 2/] },
+  { name: "a typed descriptor cast to the HostMethodCapability alias in a new file", mutate: () => put("plugins/native/two/src/shadow.ts", 'import type { HostMethodCapability } from "../../../../packages/contracts/src/platform/app-host.js";\nexport const shadow = { capability_id: "io.example.two.shadow", version: 1, operation: "command" } as HostMethodCapability<() => void>;\n'),
+    expect: [/typed Host capability type-refs in plugins\/native\/two\/src\/shadow\.ts 0 → 1/, /typed Host capability without-action in plugins\/native\/two\/src\/shadow\.ts 0 → 1/] },
+  { name: "a new alias for the definition is followed to the files that use it", mutate: () => {
+    put("packages/contracts/src/platform/app-host.ts", read("packages/contracts/src/platform/app-host.ts") + "export type Shadowed<Input> = Readonly<HostCapabilityDefinition<Input, void>>;\n");
+    put("plugins/native/two/src/aliased.ts", 'import type { Shadowed } from "../../../../packages/contracts/src/platform/app-host.js";\nexport const aliased = { capability_id: "io.example.two.aliased", version: 1, operation: "query" } as Shadowed<void>;\n');
+  }, expect: [/typed Host capability type-refs in packages\/contracts\/src\/platform\/app-host\.ts 3 → 4/, /typed Host capability type-refs in plugins\/native\/two\/src\/aliased\.ts 0 → 1/, /typed Host capability without-action in plugins\/native\/two\/src\/aliased\.ts 0 → 1/] },
+  { name: "the definition re-exported under another name and cast to in another file", mutate: () => {
+    put("packages/contracts/src/platform/barrel.ts", 'export type { HostCapabilityDefinition as TypedDefinition } from "./app-host.js";\n');
+    put("plugins/native/two/src/barrel-user.ts", 'import type { TypedDefinition } from "../../../../packages/contracts/src/platform/barrel.js";\nexport const viaBarrel = { capability_id: "io.example.two.barrel", version: 1, operation: "query" } as TypedDefinition<void, void>;\n');
+  }, expect: [/typed Host capability type-refs in plugins\/native\/two\/src\/barrel-user\.ts 0 → 1/, /typed Host capability without-action in plugins\/native\/two\/src\/barrel-user\.ts 0 → 1/] },
+  { name: "a descriptor literal that is not cast to anything", mutate: () => put("plugins/native/two/src/plain.ts", 'export const plain = { capability_id: "io.example.two.plain", version: 1, operation: "query" };\n'),
+    expect: [/typed Host capability without-action in plugins\/native\/two\/src\/plain\.ts 0 → 1/] },
+  { name: "a descriptor minted by the Casebook factory and registered through a LocalHost parameter", launder: true, mutate: () => {
+    const file = "apps/local-host/src/casebook/integration.ts";
+    put(file, read(file).replace("  host.register(write, (_runtime, input) => input);\n", "  host.register(write, (_runtime, input) => input);\n  const shadow = capability('shadow', 'query');\n  host.register(shadow, (_runtime, input) => input);\n"));
+  }, expect: [/typed Host capability register-calls in apps\/local-host\/src\/casebook\/integration\.ts 2 → 3/] },
+  { name: "a registration through a LocalHost property of a class", mutate: () => put("apps/local-host/src/wiring-class.ts", 'import type { LocalHost } from "./local-host.js";\nexport class Wiring {\n  constructor(private readonly host: LocalHost) {}\n  wire(definition: never) { return this.host.register(definition, () => 1); }\n}\n'),
+    expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-class\.ts 0 → 1/] },
+  { name: "a registration through a LocalHost held in an options interface", mutate: () => put("apps/local-host/src/wiring-options.ts", 'import type { LocalHost } from "./local-host.js";\ninterface Options { localHost: LocalHost }\nexport const wire = (options: Options, definition: never) => options.localHost.register(definition, () => 1);\n'),
+    expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-options\.ts 0 → 1/] },
+  { name: "a registration through a registrar type that a plugin file declares itself", mutate: () => put("plugins/native/two/src/registrar.ts", 'import type { HostCapabilityDefinition } from "../../../../packages/contracts/src/platform/app-host.js";\nexport interface Registrar { register(definition: HostCapabilityDefinition, handler: () => void): () => void }\nexport const wire = (registrar: Registrar, definition: never) => registrar.register(definition, () => undefined);\n'),
+    expect: [/typed Host capability type-refs in plugins\/native\/two\/src\/registrar\.ts 0 → 1/, /typed Host capability register-calls in plugins\/native\/two\/src\/registrar\.ts 0 → 1/] },
+  { name: "a registration through a registrar declared in another file", mutate: () => {
+    put("plugins/native/two/src/registrar.ts", 'import type { HostCapabilityDefinition } from "../../../../packages/contracts/src/platform/app-host.js";\nexport interface Registrar { register(definition: HostCapabilityDefinition, handler: () => void): () => void }\n');
+    put("plugins/native/two/src/use-registrar.ts", 'import type { Registrar } from "./registrar.js";\nexport const wire = (registrar: Registrar, definition: never) => registrar.register(definition, () => undefined);\n');
+  }, expect: [/typed Host capability register-calls in plugins\/native\/two\/src\/use-registrar\.ts 0 → 1/] },
+
+  // ---- Module repositories: the packages that the workspace list calls modules -------------------------------------------
+  { name: "the server package exports a Store (it is a Module by classification)", mutate: () => put("server/src/index.ts", read("server/src/index.ts") + "export class ServerShadowStore {}\n"),
+    expect: [/Module entry exposes a Repository: server#export:ServerShadowStore 0 → 1/] },
+  { name: "the server package exports a service with a public repository member", mutate: () => put("server/src/index.ts", read("server/src/index.ts") + "export interface ServerService { readonly repository: object }\n"),
+    expect: [/server#member:ServerService\.repository 0 → 1/] },
+
+  // ---- layer exceptions (packages/test-kit/src/boundaries.ts) ------------------------------------------------------------
+  { name: "a new App → App edge in the allowlist", launder: true, mutate: () => put("packages/test-kit/src/boundaries.ts", read("packages/test-kit/src/boundaries.ts").replace('  "apps/desktop -> apps/local-host",\n', '  "apps/desktop -> apps/local-host",\n  "apps/cli -> apps/mcp",\n')),
+    expect: [/new layer exception app-import apps\/cli -> apps\/mcp/] },
+  { name: "a new Plugin → Module edge in the allowlist", mutate: () => put("packages/test-kit/src/boundaries.ts", read("packages/test-kit/src/boundaries.ts").replace('  "plugins/native/one -> modules/alpha",\n', '  "plugins/native/one -> modules/alpha",\n  "plugins/native/two -> modules/beta",\n')),
+    expect: [/new layer exception plugin-module-import plugins\/native\/two -> modules\/beta/] },
+  { name: "an allowlist edge moved to the other list is a new edge there", mutate: () => put("packages/test-kit/src/boundaries.ts", read("packages/test-kit/src/boundaries.ts").replace('  "plugins/native/one -> modules/alpha",\n', '').replace('  "apps/desktop -> apps/local-host",\n', '  "apps/desktop -> apps/local-host",\n  "plugins/native/one -> modules/alpha",\n')),
+    expect: [/new layer exception app-import plugins\/native\/one -> modules\/alpha/] },
+  { name: "the allowlists renamed so that the gate cannot read them", mutate: () => put("packages/test-kit/src/boundaries.ts", read("packages/test-kit/src/boundaries.ts").replace(/APP_IMPORT_ALLOWLIST/g, "APP_EDGES")),
+    expect: [/the layer exception lists can no longer be read from packages\/test-kit\/src\/boundaries\.ts/] },
 
   // ---- assembly -----------------------------------------------------------------------------------------------------------
   { name: "a new <plugin>-actions.ts file in the Host", launder: true, mutate: () => put("apps/local-host/src/two-actions.ts", "export const twoActionProvider = () => ({});\n"),
@@ -195,6 +284,17 @@ test("things the structure gates do not count", () => {
     put("apps/local-host/src/search-actions.ts", read("apps/local-host/src/search-actions.ts") + "export const more = 1;\n"); // not named for a plugin
     put("apps/local-host/src/twofold-helper.ts", "export const helper = 1;\n"); // starts with "two" but is not "two-…"
     put("modules/alpha/src/api.ts", read("modules/alpha/src/api.ts") + "export class Safe { private repository = 1; protected store = 2; }\n"); // private member
+    // The typed-capability rule does not count: an extractor that only reads a definition's type, an action reference or an
+    // action definition (they carry no `operation`, or carry `action`), and `.register(…)` on receivers that register nothing typed.
+    put("packages/contracts/src/platform/extract.ts", 'import type { HostCapabilityInput } from "./app-host.js";\nexport type Wanted = HostCapabilityInput<number>;\n');
+    put("plugins/native/two/src/neutral.ts", [
+      "const reference = { capability_id: 'io.example.x', version: 1, provider_id: 'two' };",
+      "const action = { capability_id: 'io.example.y', version: 1, operation: 'query', action: { permissions: [] } };",
+      "export const wire = (host: { register(value: unknown): void }, ui: { register(value: unknown): void }) => { host.register(reference); ui.register(action); };",
+      "",
+    ].join("\n"));
+    put("server/src/index.ts", read("server/src/index.ts") + "export class Cache { private readonly repository = 1; }\n"); // not a Store, a private member
+    put("apps/other/src/index.ts", read("apps/other/src/index.ts") + "export class MoreStore {}\n"); // an App is not a Module
     put("plugins/native/one/src/own.ts", 'export const self = "@fx/plugin-one";\n'); // a plugin may name itself
     put("apps/local-host/src/prefix.ts", 'export const other = "@fx/plugin-onefold";\n'); // a longer package name that starts with "…plugin-one"
     put("apps/local-host/src/project-host.ts", read("apps/local-host/src/project-host.ts") + "export const registerProviderHint = 'registerProvider(x)';\n"); // text, not a call
@@ -212,6 +312,7 @@ test("changes that shrink or only move things pass against the merge-base", () =
     put("packages/contracts/src/platform/validator.ts", helper("inspectThing", 21));
     put("modules/alpha/src/index.ts", 'export * from "./api.js";\n');
     put("scripts/workspace-packages.mjs", "export const names = [];\n");
+    put("packages/test-kit/src/boundaries.ts", read("packages/test-kit/src/boundaries.ts").replace('  ". -> apps/desktop",\n', "")); // a listed edge is paid back
     git("mv", "packages/contracts/src/platform/app-host.ts", "packages/contracts/src/platform/host.ts"); // a moved file keeps its typed-capability record
   });
   const run = gate("--base", "main");
@@ -220,6 +321,7 @@ test("changes that shrink or only move things pass against the merge-base", () =
   assert.match(run.out, /hostEntryExports/);
   assert.match(run.out, /moduleRepositoryExports/);
   assert.match(run.out, /pluginOutsideMentions/);
+  assert.match(run.out, /layerExceptions/);
   assert.equal(gate("--update", "--base", "main").code, 0, "lowering the baseline with the merge-base given is accepted");
 });
 
@@ -231,6 +333,46 @@ test("a new plugin that stays within the allowance passes", () => {
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
+});
+
+test("the change that introduces the layer lists passes against a merge-base that does not have them yet", () => {
+  git("checkout", "-q", "-f", "main");
+  git("clean", "-fdq");
+  git("checkout", "-q", "-B", "predates");
+  git("rm", "-q", "packages/test-kit/src/boundaries.ts");
+  commit("before the lists");
+  git("checkout", "-q", "-B", "introduces");
+  git("checkout", "main", "--", "packages/test-kit/src/boundaries.ts");
+  commit("introduce the lists");
+  const run = gate("--base", "predates");
+  assert.equal(run.code, 0, run.out);
+  // From then on the lists are compared: the next change cannot widen them.
+  put("packages/test-kit/src/boundaries.ts", read("packages/test-kit/src/boundaries.ts").replace('  "apps/desktop -> apps/local-host",\n', '  "apps/desktop -> apps/local-host",\n  "apps/cli -> apps/mcp",\n'));
+  commit("widen");
+  const widened = gate("--base", "introduces~1");
+  assert.equal(widened.code, 1, widened.out);
+  assert.match(widened.out, /new layer exception app-import apps\/cli -> apps\/mcp/);
+  git("checkout", "-q", "-f", "main");
+  git("clean", "-fdq");
+});
+
+// The fixture proves the rules; this proves they read this repository: the alias and the registrars are found by scanning, so
+// they have to be found where they are today (a rename of LocalHost or HostMethodCapability is then a visible change to the gate).
+test("on this repository the typed capability rule finds the alias and the registrars it is meant to follow", async () => {
+  const { createTypedCapabilityIndex } = await import("../scripts/gates/typed-capabilities.mjs");
+  const root = fileURLToPath(new URL("..", import.meta.url));
+  const files = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 30 }).split("\0")
+    .filter((file) => /^(apps|horizontal|modules|packages|plugins|server|tooling)\//.test(file) && /\.(ts|mts)$/.test(file) && !file.endsWith(".d.ts") && !/(^|\/)(tests?|dist|node_modules|fixtures)\//.test(file));
+  const index = createTypedCapabilityIndex({ files, read: (file: string) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } } }, files);
+  assert.ok(index.typeNames.has("HostCapabilityDefinition"));
+  if (/export type HostMethodCapability\b/.test(readFileSync(path.join(root, "packages/contracts/src/platform/app-host.ts"), "utf8"))) {
+    assert.ok(index.typeNames.has("HostMethodCapability"), "the alias that wraps the definition is followed");
+  }
+  assert.ok(!index.typeNames.has("HostCapabilityInput"), "a type that only reads a definition is not an alias");
+  assert.ok(!index.typeNames.has("ActionDefinition"), "an interface that extends the definition is the action path, not an alias");
+  for (const registrar of ["LocalHost", "CapabilityRegistry"]) assert.ok(index.registrarTypes.has(registrar), `${registrar} registers typed capabilities`);
+  const counts = index.countsOf("apps/local-host/src/project-capabilities.ts");
+  assert.ok(counts["register-calls"] > 0, "the Host's own registrations through `host.register(…)` are counted");
 });
 
 test("the report flags hybrid plugins (Characters with its decision) and prints the new numbers", () => {
@@ -245,6 +387,10 @@ test("the report flags hybrid plugins (Characters with its decision) and prints 
   assert.deepEqual(base.head.hybridPlugins, {});
   assert.equal(base.head.typedCapabilities["packages/contracts/src/platform/app-host.ts#without-action"], 1);
   assert.equal(base.head.typedCapabilities["apps/local-host/src/local-host.ts#register-calls"], 1);
+  assert.deepEqual(base.head.layerExceptions, { "lists#declared": 1, "app-import#. -> apps/desktop": 1, "app-import#apps/desktop -> apps/local-host": 1, "plugin-module-import#plugins/native/one -> modules/alpha": 1 });
+  assert.equal(base.head.typedCapabilities["plugins/native/one/src/entry-capabilities.ts#type-refs"], 1, "the alias, imported under another name, is a typed reference");
+  assert.equal(base.head.typedCapabilities["plugins/native/one/src/entry-capabilities.ts#without-action"], 1);
+  assert.equal(base.head.typedCapabilities["apps/local-host/src/casebook/integration.ts#register-calls"], 2, "registrations on a LocalHost parameter are counted");
   assert.deepEqual(base.head.contractsPurity, { "packages/contracts/src/platform/lifetime.ts#effects": 1, "packages/contracts/src/platform/validator.ts#long-fn:inspectThing": 22 });
   assert.deepEqual(base.head.moduleRepositoryExports, { "modules/alpha#export:AlphaRepository": 1, "modules/alpha#member:AlphaService.repository": 1 }, "a private parameter property is not public");
 

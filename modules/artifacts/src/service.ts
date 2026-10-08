@@ -16,17 +16,12 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 import {
-  artifactContentDigest,
-  artifactContentSize,
-  canonicalArtifactJson,
-  normalizeArtifactPayload,
-} from "./content.js";
-import {
   defaultArtifactsErrorFactory,
   type ArtifactsErrorFactory,
 } from "./errors.js";
 import { ArtifactsRepository } from "./repository.js";
-import { libraryFields, nonNegativeInteger, normalizedDigest, normalizedMetadata, positiveInteger, requiredText } from "./validation.js";
+import { normalizeRegistration } from "./registration.js";
+import { requiredText } from "./validation.js";
 
 export interface ArtifactEventInput {
   eventId: string;
@@ -125,7 +120,7 @@ export class ArtifactsService<
   }
 
   registerVersion(input: I): FixedVersionResult<R> {
-    const normalized = declaredOnly(this.normalizeRegistration(input), this.options.declared, this.kind, this.error);
+    const normalized = declaredOnly(normalizeRegistration<R, I>(input, { error: this.error, library: this.repository.tables.library, readOwner: (owner, scope) => this.repository.readOwner(owner, scope) }), this.options.declared, this.kind, this.error);
     return this.repository.immediate(() => {
       const globalIdentity = this.repository.getIdentityById(normalized.artifact_id);
       if (globalIdentity && globalIdentity.project_id !== normalized.project_id) {
@@ -275,111 +270,17 @@ export class ArtifactsService<
     });
   }
 
-  private normalizeRegistration(input: I): Omit<R, "created_at"> {
-    const projectId = requiredText(input.project_id, "project_id", this.error);
-    const artifactId = requiredText(input.artifact_id, "artifact_id", this.error);
-    const actorId = requiredText(input.actor_id, "actor_id", this.error);
-    const artifactTypeId = requiredText(input.artifact_type_id, "artifact_type_id", this.error);
-    const version = positiveInteger(input.version, "version", this.error);
-    const schemaVersion = positiveInteger(input.schema_version, "schema_version", this.error);
-    const pluginId = requiredText(input.producer?.plugin_id, "producer.plugin_id", this.error);
-    const pluginVersion = requiredText(input.producer?.plugin_version, "producer.plugin_version", this.error);
-    const bindingSignature = requiredText(
-      input.producer?.binding_signature,
-      "producer.binding_signature",
-      this.error,
-    );
-    const scope = input.scope ?? "personal";
-    if (scope !== "personal" && scope !== "team_project") {
-      throw this.error("artifact.scope_invalid", "成果 scope 无效");
-    }
-    if (scope === "team_project" && input.team_share_authorized !== true) {
-      throw this.error(
-        "artifact.team_share_not_authorized",
-        "共享到 Team Project 需要用户或 Team 的明确授权",
-      );
-    }
-
-    let payload: FixedVersionRecord["payload"] = null;
-    let contentRef: string | null = null;
-    let digest: string;
-    let sizeBytes: number;
-    let availability: FixedVersionRecord["availability"] = "available";
-    let unavailableReason: string | null = null;
-    if (input.content.kind === "inline") {
-      try {
-        payload = normalizeArtifactPayload(input.content.payload);
-      } catch (error) {
-        throw this.error("artifact.payload_invalid", "成果 inline payload 不是可往返的 JSON", {
-          cause: error instanceof Error ? error.message : String(error),
-        });
-      }
-      const serialized = canonicalArtifactJson(payload);
-      digest = artifactContentDigest(serialized);
-      sizeBytes = artifactContentSize(serialized);
-    } else if (input.content.kind === "reference") {
-      contentRef = requiredText(input.content.content_ref, "content.content_ref", this.error);
-      digest = normalizedDigest(input.content.digest, "content.digest", this.error);
-      sizeBytes = nonNegativeInteger(input.content.size_bytes, "content.size_bytes", this.error);
-      if (input.content.observed_digest) {
-        const observed = normalizedDigest(input.content.observed_digest, "content.observed_digest", this.error);
-        if (observed !== digest) {
-          throw this.error("artifact.hash_mismatch", "Storage 返回的内容摘要与 成果 Envelope 不一致");
-        }
-      }
-      if (input.content.available === false) {
-        availability = "unavailable";
-        unavailableReason = "Content reference 在注册时不可读取";
-      }
-    } else {
-      throw this.error("artifact.content_invalid", "成果 content kind 无效");
-    }
-    if (input.expected_digest) {
-      const expected = normalizedDigest(input.expected_digest, "expected_digest", this.error);
-      if (expected !== digest) {
-        throw this.error("artifact.hash_mismatch", "成果内容摘要与 expected_digest 不一致");
-      }
-    }
-
-    const base: Omit<FixedVersionRecord, "created_at"> = {
-      project_id: projectId,
-      artifact_id: artifactId,
-      version,
-      artifact_type_id: artifactTypeId,
-      schema_version: schemaVersion,
-      producer_plugin_id: pluginId,
-      producer_plugin_version: pluginVersion,
-      producer_binding_signature: bindingSignature,
-      owner_actor_id: actorId,
-      content_kind: input.content.kind,
-      payload,
-      content_ref: contentRef,
-      content_digest: digest,
-      size_bytes: sizeBytes,
-      metadata: normalizedMetadata(input.metadata, this.error),
-      scope,
-      availability,
-      unavailable_reason: unavailableReason,
-      lifecycle_state: "active",
-      supersedes_version: input.supersedes_version == null
-        ? null
-        : positiveInteger(input.supersedes_version, "supersedes_version", this.error),
-      created_by: actorId,
-      archived_at: null,
-      archived_by: null,
-    };
-    // The 成果库 also keeps what people see: where the version came from, its title and its real media type (A1).
-    return (this.repository.tables.library ? { ...base, ...libraryFields(input, this.error) } : base) as Omit<R, "created_at">;
-  }
-
   private assertIdentity(
     identity: ArtifactIdentityRecord,
     input: Omit<FixedVersionRecord, "created_at">,
   ): void {
-    if (identity.owner_actor_id !== input.created_by) {
+    // An identity written before a Home named its owner still names its producer: it is read as the Home's owner.
+    const owner = this.repository.readOwner(identity.owner_actor_id, input.scope);
+    if (owner !== input.owner_actor_id) {
       throw this.error("artifact.not_owner", "只有成果 owner 可以注册新 version", {
-        owner_actor_id: identity.owner_actor_id,
+        owner_actor_id: owner,
         actor_id: input.created_by,
+        requested_owner_actor_id: input.owner_actor_id,
       });
     }
     if (
@@ -399,14 +300,19 @@ export class ArtifactsService<
     return artifact;
   }
 
+  /**
+   * A version's state is changed by its owner, or by whoever produced it (a producer retracts its own output when its
+   * source is gone). With the person as owner of every personal 成果 in a Home, this keeps the producer able to do what it
+   * could before and lets the person do it too.
+   */
   private requireOwnedVersion(
     projectId: string,
     reference: ArtifactReference,
     actorId: string,
   ): R {
     const artifact = this.requireVersion(projectId, reference);
-    if (artifact.owner_actor_id !== actorId) {
-      throw this.error("artifact.not_owner", "只有成果 owner 可以修改版本状态");
+    if (artifact.owner_actor_id !== actorId && artifact.created_by !== actorId) {
+      throw this.error("artifact.not_owner", "只有成果的 owner 或生产它的行为者可以修改版本状态");
     }
     return artifact;
   }

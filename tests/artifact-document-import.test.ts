@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import {
   DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
@@ -144,7 +145,7 @@ test("HTML import extracts readable content, preserves its source and never exec
 for (const stop of ["cancel", "revoke"] as const) test(`HTML import ${stop} after real parsing leaves no Artifact and a fresh call recovers`, async t => {
   const { coordinator } = await fixture(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
   const input = { source: "file", filename: "page.html", content: "<head><title>Page</title></head><p>Original body</p>" };
-  const ports = { projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", routePrefix: "/projects/current", artifacts: coordinator.artifacts };
+  const ports = { projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "/projects/current", artifacts: coordinator.artifacts };
   const previous = coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const pending = importLocalArtifactDocument(input, { ...ports, signal: controller.signal, beforeSave: async () => {
     entered.resolve(); await release.promise;
@@ -227,7 +228,7 @@ test("external document snapshots preserve exact old versions and isolate the sa
   };
   const observed: Array<{ source: string; url: string }> = [];
   const ports: ArtifactDocumentImportPorts = {
-    projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", routePrefix: "/projects/current", artifacts: coordinator.artifacts,
+    projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "/projects/current", artifacts: coordinator.artifacts,
     readExternal: async input => { observed.push(input); return { ...document, warnings: [...document.warnings] }; },
     readHtml: () => { throw new Error("external imports must not read HTML files"); },
     now: () => "2026-09-22T00:00:00.000Z",

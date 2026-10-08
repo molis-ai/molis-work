@@ -38,7 +38,7 @@
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 367,
+      "lines": 361,
       "methods": 24
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 336,
@@ -111,7 +111,7 @@
       "methods": 12
     },
     "class modules/feed/src/index.ts#FeedModule": {
-      "lines": 510,
+      "lines": 501,
       "methods": 16
     },
     "file modules/functions/src/store.ts": 939,
@@ -210,7 +210,7 @@
       "methods": 26
     },
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 174,
-    "function packages/storage/src/adapters/search-storage.ts#createSearchOpaqueBlobStore": 164,
+    "function packages/storage/src/adapters/search-storage.ts#createSearchOpaqueBlobStore": 161,
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 153,
     "function packages/test-kit/src/boundaries.ts#evaluateImportBoundary": 152,
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 243,
@@ -235,7 +235,7 @@
       "methods": 28
     },
     "class plugins/native/feed/src/application.ts#FeedApplication": {
-      "lines": 542,
+      "lines": 519,
       "methods": 44
     },
     "file plugins/native/form/src/client.ts": 930,

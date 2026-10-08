@@ -92,7 +92,9 @@ export function syncResearchLibrarySource(
         const externalId = `${repository}:${researchSource}:${entry.id}`;
         // An unrelated repository commit does not change an immutable research package.
         if (existing.get(externalId)?.materials.some(material => material.provenance.manifest_sha256 === entry.provenance.manifest_sha256)) { deduped++; continue; }
-        const ingested = feed.ingestItem({ source: current, externalId,
+        // Reaching here for a known package means its manifest changed (a package republished under the same id):
+        // the item moves to the new version together with its material, so the two never mix versions.
+        const ingested = feed.ingestItem({ source: current, externalId, refresh: true,
           title: entry.title, summary: entry.summary, body: entry.body, url: entry.url,
           occurredAt: entry.published_at, tags: entry.tags, attention: false,
           material: { material_id: `research-${hash(`${repository}:${entry.id}`).slice(0, 32)}`,

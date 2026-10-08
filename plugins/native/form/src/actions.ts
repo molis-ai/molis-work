@@ -1,7 +1,7 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { FORM_DRAFT_QUESTION } from "./prompts.js";
 import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
-import { FORM_ARTIFACT_TYPE_ID, FORM_PROJECT_PLUGIN_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import { FORM_ARTIFACT_TYPE_ID, FORM_PROJECT_PLUGIN_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord, type FormSubmissionSource } from "@molis-ai/molis-work-contracts/modules/form";
 import { promoteForm, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
 import type { FormStore } from "./store.js";
 import { createFormSearchHandlers, formSearchActions } from "./search.js";
@@ -19,7 +19,7 @@ const recordFields = { id, project_id: id, title: text, description: text, statu
 const record = object({ ...recordFields, publication_pending: object({ version, source_version: version }) }, Object.keys(recordFields));
 const answers = { type: "object", additionalProperties: { ...text, maxLength: 4000 } };
 const submission = object({ id, form_id: id, answers, submitted_at: text, form_version: { type: "integer", minimum: 1 }, questions: array(question),
-  source: { enum: ["preview", "fill", "file"] } }, ["id", "form_id", "answers", "submitted_at", "form_version", "questions", "source"]);
+  source: { enum: ["preview", "fill", "file", "agent", "mcp", "workflow", "plugin"] } }, ["id", "form_id", "answers", "submitted_at", "form_version", "questions", "source"]);
 const changed = object({ form: record }), identity = { id, expected_version: version };
 const read = ["form:read"], write = ["form:read", "form:write"];
 type Identity = { id: string; expected_version?: number };
@@ -44,7 +44,7 @@ export const formActions = {
   delete: define<Identity, { ok: true }>("delete", "删除问卷", "原子删除问卷和答卷；未完成的成果发布需先恢复", "command", object(identity, ["id"]), object({ ok: { const: true } })),
   generate: define<Identity & { prompt: string }, { form: FormRecord }>("questions.add", "按题目加题", "本地追加一题填空，以输入作为题目，不调用模型", "command", object({ ...identity, prompt: { ...text, maxLength: 200 } }, ["id", "prompt"]), changed),
   generateAi: define<Identity & { prompt: string }, { form: FormRecord }>("questions.ai", "AI 拟题并追加", "按明确提示拟一道填空题；调用当前文字模型，失败或问卷变化时不写入", "command", object({ ...identity, prompt: { ...id, maxLength: 2000 } }, ["id", "prompt"]), changed, [...write, "model:invoke"], { cost: "metered" }),
-  submit: define<Identity & { answers: Record<string, string>; request_id?: string; source?: "preview" | "fill" }, { submission: FormSubmissionRecord }>("submit", "提交答卷", "按预览版本及题号提交文字答案；多选以换行分隔选项文字。request_id 用于同一次提交恢复", "command", object({ ...identity, answers, request_id: { ...id, maxLength: 200 }, source: { enum: ["preview", "fill"] } }, ["id", "answers"]), object({ submission }), ["form:read", "form:submit"]),
+  submit: define<Identity & { answers: Record<string, string>; request_id?: string; source?: "preview" | "fill" }, { submission: FormSubmissionRecord }>("submit", "提交答卷", "按预览版本及题号提交文字答案；多选以换行分隔选项文字。request_id 用于同一次提交恢复。来源按调用方记录：只有本机界面的填写页和试填可以用 source 自称 fill 或 preview，助理、MCP、流程和插件的答卷一律记为各自的来源，source 对它们无效", "command", object({ ...identity, answers, request_id: { ...id, maxLength: 200 }, source: { enum: ["preview", "fill"] } }, ["id", "answers"]), object({ submission }), ["form:read", "form:submit"]),
   results: define<{ id: string }, { analysis: { form_id: string; submission_count: number }; submissions: FormSubmissionRecord[] }>("results", "读取答卷", "读取答卷及计数，新增答卷保留提交时题目；旧答卷快照为 null，不重建未知历史", "query", object({ id }), object({ analysis: object({ form_id: id, submission_count: { type: "integer", minimum: 0 } }), submissions: array(submission) })),
   promote: define<Identity, { form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "问卷存为成果", "发布固定问卷内容或恢复原发布；不包含答卷，后续编辑保留", "command", object(identity, ["id"]), object({ form: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
   close: define<Identity, { form: FormRecord }>("close", "停止收集答卷", "停止收集：本机填写页不再接受提交，已有答卷保留；之后可以重新开始收集", "command", object(identity, ["id"]), changed),
@@ -65,9 +65,16 @@ export const FORM_ACTION_PERMISSIONS = [...new Set(Object.values(formActions).fl
 export interface FormActionPorts {
   withStore<T>(run: (store: FormStore) => T): T;
   modelAvailability(): ActionAvailability;
-  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
+  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
   publishArtifact?: (input: Parameters<FormPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<FormPublishArtifactPort>;
   readArtifact?: (input: Parameters<FormReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<FormReadArtifactPort>;
+}
+/**
+ * Where an answer came from is the call's, not the caller's word: the fill page and the trial fill are a person at the
+ * Host's own page (user audience) and may say which; every other audience is recorded as itself, whatever `source` it sent.
+ */
+function submissionSource(caller: ActionCallContext, claimed: "preview" | "fill" = "preview"): Exclude<FormSubmissionSource, "file"> {
+  return caller.audience === "user" ? claimed : caller.audience;
 }
 export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
@@ -93,13 +100,13 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw new ActionError("form.conflict", "问卷已改变，请重新读取后生成");
       caller.signal?.throwIfAborted();
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
-      const title = (await ports.completeText(instructed(FORM_DRAFT_QUESTION, JSON.stringify({ request: input.prompt })), { signal: caller.signal })).trim();
+      const title = (await ports.completeText(instructed(FORM_DRAFT_QUESTION, JSON.stringify({ request: input.prompt })), { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
       caller.signal?.throwIfAborted();
       if (!title || title.length > 200 || /[\r\n]/.test(title)) throw new ActionError("form.invalid", "模型没有返回有效题目，请调整提示后重试");
       await caller.beforeEffect();
       return ports.withStore(store => ({ form: store.generateQuestions(input.id, title, project(caller), current.version) }));
     }, () => ports.modelAvailability()),
-    bind(formActions.submit, (input, caller) => ports.withStore(store => ({ submission: store.submit(input.id, input.answers, project(caller), { expectedVersion: input.expected_version, requestId: input.request_id, source: input.source }) }))),
+    bind(formActions.submit, (input, caller) => ports.withStore(store => ({ submission: store.submit(input.id, input.answers, project(caller), { expectedVersion: input.expected_version, requestId: input.request_id, source: submissionSource(caller, input.source) }) }))),
     bind(formActions.close, (input, caller) => ports.withStore(store => ({ form: store.closeCollection(input.id, project(caller), input.expected_version) }))),
     bind(formActions.importAnswers, (input, caller) => ports.withStore(store => store.importAnswers(input.id, input.files, project(caller)))),
     bind(formActions.csv, (input, caller) => ports.withStore(store => {

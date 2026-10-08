@@ -43,7 +43,7 @@
 
 以上动作使用 `artifacts:read`；导入另需 `artifacts:write`，外部抓取另需 `connectors:document:read`，项目文件读取另需 `workspace:read`。Host 注入项目、actor 与工作区，业务参数不能覆盖身份、producer、scope 或根目录。外部读取完成后再次检查授权、插件状态与取消状态，再写入。生产 MCP 客户端须在系统「对外接入」中按项目和具体能力授权。
 
-`PluginArtifactClient.publish/read` 保留同步作者接口，通过同一 Kernel 执行。Host 在每个安装实例启动前自动注册 `sdk.artifacts.<install_id>.read/publish`，停止或启动失败时释放；仅供 `plugin` audience，不能作为用户/MCP 工具冒充其他生产者。输入输出共用成果记录合同，身份由 Host 绑定，继续检查 `artifact:read/write`、Manifest type/schema、个人 owner 和实时运行授权。旧客户端在崩溃恢复后仍失效。
+`PluginArtifactClient.publish/read` 保留同步作者接口，通过同一 Kernel 执行。Host 在每个安装实例启动前自动注册 `sdk.artifacts.<install_id>.read/publish`，停止或启动失败时释放；仅供 `plugin` audience，不能作为用户/MCP 工具冒充其他生产者。输入输出共用成果记录合同，身份由 Host 绑定，继续检查 `artifact:read/write`、Manifest type/schema 和实时运行授权；个人成果归这个 Home 的人，读它不再比对行为者；过程项仍归记下它的安装实例的行为者，其他行为者的安装读它报 `plugin_artifact_denied`。旧客户端在崩溃恢复后仍失效。
 
 同步是角色发布事务的要求：检查草稿修订与保存成果之间不能插入异步等待。只有明确声明同步执行的处理器可被同步调用；异步授权或 Host 策略会拒绝此次调用，不会跳过检查。Host 装配必须显式提供当前项目共享的动作注册和调用端口。SDK 作者及 Inputs/Outputs、Characters、Shelf、Coding 消费者不需要改成 Promise。公共网页权限仍与插件 SDK 权限分别校验；显式来源账号选择及其余服务迁移继续。
 
@@ -103,7 +103,7 @@ node --import tsx --test --test-concurrency=1 tests/artifact-document-import.tes
   - 在线文档内容变化时新增版本，旧版本与精确引用保留；空正文、超限、权限错误和截断结果不产生成功的 Artifact。
   - HTML 端口可以异步，Host 在可终止 worker 中解析；原 HTML 和 2 MiB 文档限制由插件保留。两个导入 Action 显式 concurrent，Host 保留原 ActionExecutionContext.beforeEffect 作为 beforeSave；取消、撤权或提供方撤下不新增版本，不手工重做部分授权检查。
   - 同步 publish/read 接口只给 `plugin` 受众，不能当用户或 MCP 工具冒充生产者；只有声明 sync 的处理器可以同步调用。
-- 改动后必跑：`node scripts/run-tests.mjs tests/artifacts-actions.test.ts tests/artifact-browser.test.ts tests/artifact-document-import.test.ts tests/plugin-artifact-client.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/artifacts-actions.test.ts tests/artifact-browser.test.ts tests/artifact-document-import.test.ts tests/plugin-artifact-client.test.ts tests/artifact-links.test.ts tests/artifact-source-and-links.test.ts tests/personal-artifact-owner.test.ts tests/artifact-subject-context.test.ts`
 - 相关手册：[docs/modules/artifacts.md](../../../docs/modules/artifacts.md)、[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

@@ -33,7 +33,10 @@ export class ArtifactImportError extends Error {
 
 export interface ArtifactDocumentImportPorts {
   projectId: string;
+  /** Who imports (a person, a workflow, an Agent, an MCP client): the producer, kept as the version's `created_by`. */
   actorId: string;
+  /** Who the snapshot belongs to: the Home's person, whoever imported it. The same source then has one line of snapshots. */
+  ownerActorId: string;
   routePrefix: string;
   artifacts: ArtifactsApplicationApi;
   readExternal(input: { source: ExternalDocumentSource; url: string; connection_id?: string }): Promise<ImportedArtifactDocument>;
@@ -44,7 +47,7 @@ export interface ArtifactDocumentImportPorts {
   beforeSave?: () => void | Promise<void>;
 }
 
-/** An explicit import creates a personal snapshot; no scheduler or source write-back. */
+/** An explicit import creates a personal snapshot of the person; no scheduler or source write-back. */
 export async function importArtifactDocument(input: Record<string, unknown>, ports: ArtifactDocumentImportPorts) {
   const source = input.source;
   let document: ImportedArtifactDocument;
@@ -74,7 +77,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
       url: ports.routePrefix + artifactVersionPath(latest), warnings: document.warnings };
   }
   const result = ports.artifacts.commands.registerVersion({
-    project_id: ports.projectId, actor_id: ports.actorId, artifact_id: artifactId,
+    project_id: ports.projectId, actor_id: ports.actorId, owner_actor_id: ports.ownerActorId, artifact_id: artifactId,
     version: (latest?.version ?? 0) + 1,
     artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1,
     producer: { plugin_id: artifactsManifest.plugin_id, plugin_version: artifactsManifest.version,

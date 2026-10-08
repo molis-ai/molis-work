@@ -81,7 +81,7 @@ v2 已在 Coding、Files、Diff、Git、Text Stats、Shelf、Characters 的正�
 其他仍标为 `native` 的插件继续由构建期组合装配，该名单冻结、只许减少；新的内置插件只走 Plugin Runtime，不能据 Coding 的接通宣称所有内置插件已迁移。
 每个插件的具体产品完成度以自身需求书和正式运行证据为准。
 
-Runtime 以稳定 `install_id` 关联安装记录和私有数据。启动只恢复已安装版本，不会因 Host 提供了较新 Manifest 就改写版本或授权。Manifest 可用 `upgrade_compatibility.compatible_from_versions` 声明新实现可直接兼容的精确来源版本，或用 `migratable_from_versions` 声明仅可经用户手动升级的数据来源；可迁移升级要求插件提供只能读 `storage:private.get` 的 `validateUpgrade` 预检。Host 不做数据迁移；预检通过后目标实现必须直接使用原数据。项目插件市场展示当前项目的候选版本与新旧版本，用户触发升级后 Runtime 校验来源声明、权限保留和数据预检，再切换版本。更高版本升级仍需提高版本号；同版本 Manifest 变更仅在声明兼容当前精确版本时允许继续运行，安装记录指纹保持不变，也不会产生市场候选。
+Runtime 以稳定 `install_id` 关联安装记录和私有数据。启动只恢复已安装版本，不会因 Host 提供了较新 Manifest 就改写版本或授权。Manifest 可用 `upgrade_compatibility.compatible_from_versions` 声明新实现可直接兼容的精确来源版本，或用 `migratable_from_versions` 声明仅可经用户手动升级的数据来源；可迁移升级要求插件提供只能读 `storage:private.get` 的 `validateUpgrade` 预检。Host 不做数据迁移；预检通过后目标实现必须直接使用原数据。项目插件市场展示当前项目的候选版本与新旧版本，用户触发升级后 Runtime 校验来源声明、权限保留和数据预检，再切换版本。更高版本升级仍需提高版本号；同版本 Manifest 变更仅在声明兼容当前精确版本时允许继续运行，安装记录指纹保持不变，也不会产生市场候选。内置插件是例外（随 Host 发布，监督器条目标 `bundled`）：启动时安装记录改成 Host 这个构建的清单，版本更高、更低或同版本摘要不同都一样，保留 `install_id` 与私有数据，不恢复旧发行物，也不进市场候选（[发布策略](../releases/POLICY.md)第 7 节）。
 
 Runtime 管理的首方 Native 插件会把其工厂实现打成单文件模块，保存在该项目现有 SQLite 的 `plugin_runtime_release_artifacts` 表中，以插件 ID、发布者签名、版本和 Manifest 指纹绑定。Host 重启后若当前候选不兼容已安装版本，就从该表恢复精确旧版，或恢复明确声明兼容该安装版本的已留存实现；兼容候选可以直接运行，但安装记录不变。首次安装、首次运行兼容实现和用户手动升级前都会保存对应发行物。项目关闭、Host 启动和发布新版本都不会升级安装记录；用户手动升级才调用 Runtime 的预检、切换和回滚路径。发行物不进入插件私有数据，也不另建目录。Plugin Builder 本体也保留 Native 实现；Builder 创建的每个不可变插件发布仍随 Builder 私有数据保存，Host 重启时按 Runtime 安装记录恢复对应发布；发布新版只登记候选，库页手动升级才调用相同的 Runtime 路径。作者约定见 [插件版本升级](PLUGIN-DEVELOPMENT.md#插件版本升级)。
 

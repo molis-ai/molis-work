@@ -9,7 +9,7 @@ import { comparePluginVersions } from "@molis-ai/molis-work-contracts/platform/p
 
 import { buildEventContract, type PluginEventContract } from "./event-contract.js";
 import { pluginManifestDigest } from "./identity.js";
-import { defaultGrants } from "./install-rules.js";
+import { defaultGrants, directlyUsable } from "./install-rules.js";
 import type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
 import {
   createPluginRuntimeReleaseArtifact,
@@ -37,7 +37,11 @@ export interface PluginSupervisorEntry {
   deployment?: PluginDeployment;
   /** Defaults to every required permission the Manifest declares. */
   grants?: string[];
-  /** Ships with the Host: an older install upgrades to this version on start instead of restoring its own release. */
+  /**
+   * Ships with the Host: on start the install record is moved onto this build whatever it holds (a higher or a lower version,
+   * or the same version with another Manifest digest), and no stored release is restored for it. Every other entry keeps the
+   * rules that need a person's confirmation or a declared upgrade source (docs/releases/POLICY.md section 7).
+   */
   bundled?: boolean;
   /** Trusted Host adapter for retaining and restoring this Native factory. */
   releaseArtifact?: {
@@ -331,6 +335,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     const records = this.#runtime.list();
     const candidates: PluginUpgradeCandidate[] = [];
     for (const [pluginId, entry] of this.#entries) {
+      if (entry.bundled) continue; // it follows the Host's build at start: the market has nothing to confirm for it
       const target = entry.definition.manifest;
       const current = records.find(record => record.plugin_id === pluginId
         && record.publisher_signature === target.publisher.signature
@@ -485,12 +490,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       && record.state !== "uninstalled");
     if (!installed || !candidate.releaseArtifact) return candidate;
 
-    const directlyUsable = installed.version === manifest.version
-      ? installed.manifest_digest === pluginManifestDigest(manifest)
-        || (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(installed.version)
-      : comparePluginVersions(manifest.version, installed.version) > 0
-        && (candidate.bundled || (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(installed.version));
-    if (directlyUsable) {
+    if (directlyUsable(manifest, candidate.bundled === true, installed)) {
       await this.#persistReleaseArtifact(candidate);
       return candidate;
     }

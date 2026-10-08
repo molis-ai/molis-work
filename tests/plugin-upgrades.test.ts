@@ -8,6 +8,7 @@ import {
   PluginRuntime,
   PluginSupervisor,
   SqlitePluginRuntimeRepository,
+  pluginManifestDigest,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import { CODING_PLUGIN_ID, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
@@ -169,3 +170,57 @@ test("a bundled plugin's older install moves up when the project starts, so the 
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+// docs/releases/POLICY.md section 7 (decision A, 2026-10-08): the Host's build wins in every direction. The records below are what a
+// development Home can hold after the built-in Manifest versions were reset or a Manifest changed under the same version, and no
+// stored release exists for them, so before this rule the plugin did not start (`plugin_release_artifact_missing`).
+for (const shape of ["above the build's version", "at the build's version with another Manifest"] as const) {
+  test(`a bundled plugin's install ${shape} is moved to the build when the project starts: same install, no market update, no stored release needed`, async () => {
+    const directory = mkdtempSync(join(tmpdir(), "plugin-bundled-follow-"));
+    const databasePath = join(directory, "project.db");
+    seedDemoBoard(databasePath);
+    const store = new LocalProjectDatabase(databasePath);
+    try {
+      const currentDefinition = createCodingPlugin();
+      const earlierDefinition: PluginDefinition = {
+        ...currentDefinition,
+        manifest: shape === "above the build's version"
+          ? { ...currentDefinition.manifest, version: "99.0.0", upgrade_compatibility: undefined }
+          : { ...currentDefinition.manifest, name: "An earlier build of the same version", upgrade_compatibility: undefined },
+      };
+      assert.notEqual(pluginManifestDigest(earlierDefinition.manifest), pluginManifestDigest(currentDefinition.manifest));
+      const earlier = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db)).install({
+        definition: earlierDefinition,
+        deployment: "local",
+        grants: currentDefinition.manifest.permissions.filter(item => item.required).map(item => item.permission),
+      }).install;
+      const ports = {
+        store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "follow-test",
+        goalTitle: () => undefined, escapeHtml: String, translate: String, workspaces: [],
+      };
+      const response = {
+        statusCode: 0, body: "",
+        writeHead(status: number) { this.statusCode = status; return this; },
+        end(body: string) { this.body = body; },
+      } as unknown as ServerResponse & { statusCode: number; body: string };
+      const handled = await handleCodingPluginHttp({ method: "GET" } as IncomingMessage, response,
+        new URL("http://localhost/api/plugins/runtime/updates"), ports);
+      assert.equal(handled, true);
+      assert.equal(response.statusCode, 200);
+      const updates = JSON.parse(response.body).updates as Array<{ plugin_id: string }>;
+      assert.equal(updates.find(item => item.plugin_id === CODING_PLUGIN_ID), undefined, "the market has nothing to confirm for a bundled plugin");
+
+      const installs = new SqlitePluginRuntimeRepository(store.db).list().filter(item => item.plugin_id === CODING_PLUGIN_ID);
+      assert.deepEqual(installs.map(item => item.install_id), [earlier.install_id], "the same install, so its private data stays attached");
+      const record = installs[0]!;
+      assert.equal(record.state, "running", "the plugin starts on the Host's build");
+      assert.equal(record.version, currentDefinition.manifest.version);
+      assert.equal(record.manifest_digest, pluginManifestDigest(currentDefinition.manifest), "the record equals the build, which docs/releases/CHECKLIST.md 4.5 checks");
+      assert.equal(record.installation_generation, earlier.installation_generation, "still the same installation");
+    } finally {
+      await releaseCodingSurface(store, DEMO_PROJECT_ID);
+      store.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}

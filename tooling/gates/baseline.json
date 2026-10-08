@@ -198,7 +198,7 @@
       "methods": 30
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
-      "lines": 589,
+      "lines": 585,
       "methods": 31
     },
     "class packages/plugin-runtime/src/wiring.ts#PluginInputGraph": {

@@ -251,7 +251,7 @@
 
 - 升级只覆盖程序本体；数据库不随升级迁移，版本不符就拒绝。在有真实用户之前，开发用的 Home 由一次性脚本升级或重建（`specs/repository-anti-corruption/spec.md` §4.1）。
 - 步骤 8 的 CLI 是第二个进程内宿主，不转发给常驻服务；与「一个 Home 只有一个执行进程」的约束并存，登记在 §10。
-- 插件本身的升级是链 4 的第 10 行。随 Host 带来的 Runtime 内置插件（监督器条目标 `bundled`）在 Host 启动时把安装记录升到 Host 带来的版本，保留新 Manifest 仍声明的 grant 并补上必需的；其余的升级要在插件市场确认（`PluginSupervisor.upgradeCandidates`）。
+- 插件本身的升级是链 4 的第 10 行。随 Host 带来的 Runtime 内置插件（监督器条目标 `bundled`）在 Host 启动时把安装记录改成 Host 带来的构建的清单（版本更高、更低或同版本改了内容都一样，不恢复旧发行物），保留新 Manifest 仍声明的 grant 并补上必需的；其余的升级要在插件市场确认（`PluginSupervisor.upgradeCandidates`，它不列内置插件）。
 - `installMolisWorkHome` 不清理旧版本的发行目录；新版本只是另起 `{home}/releases/<版本>` 并改写启动器。
 - 已定（决定 20）：新增离线快照命令（先让常驻宿主暂停，再拍带清单和版本核对的一致快照），「卸载并清除数据」覆盖库登记表里登记的所有库。这是目标：今天 `molis-work` 的子命令里没有快照命令（`apps/cli/src/dispatch.ts`），步骤 10 的清除按目录与项目数确认。
 - 已定（决定 11，只写计划）：第三方插件用 `molis-work plugin install <bundle>` 在本地安装，首次安装确认并记住发布者密钥，在独立进程的沙箱里运行。今天 `molis-work plugin` 只有 `validate`、`create`、`pack`、`identity`、`sign`、`verify`、`dev`（`tooling/plugin-cli/src/cli.ts`），没有 `install`。

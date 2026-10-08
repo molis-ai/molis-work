@@ -10,6 +10,7 @@ import type { ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from
 import { managedProjectDirectory } from "./project-file-paths.js";
 import { validateManagedBoard } from "./managed-project-database.js";
 import type { ManagedProjectDeletion } from "./managed-project-deletion.js";
+import type { ProjectDeletedPort } from "./project-deleted-hooks.js";
 import {
   enableDemoProjectPlugins,
   seedDemoPluginSurfaces,
@@ -27,6 +28,7 @@ export class DemoProjectLifecycle {
     private readonly deletion: ManagedProjectDeletion,
     private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">,
     private readonly commit: CatalogCommit,
+    private readonly owners: Pick<ProjectDeletedPort, "clearAll" | "ready">,
   ) {}
 
   async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> {
@@ -37,6 +39,14 @@ export class DemoProjectLifecycle {
       await this.finishDemoProject(existing.project_id, existing.database_path, actorId);
       return { status: "existing", project: existing };
     }
+    // The demo has a fixed id, so an earlier demo may have left data under it. A deletion that is still pending is finished
+    // first (or the demo is not made). Once an earlier demo has been deleted, every owner clears again before the new one
+    // starts; an owner that cannot clear here (memory and search in a process without their services) is left out only
+    // when every earlier receipt has owner steps, which say it already ran. A demo that never existed has nothing to
+    // clear, and no owner has to be reachable to make it.
+    await this.deletion.settleProject(this.demo.projectId);
+    const earlier = this.projects.query.listProjectDeletions().filter(receipt => receipt.project_id === this.demo.projectId);
+    if (earlier.length) await this.owners.clearAll(this.demo.projectId, { skipDeferred: earlier.every(receipt => receipt.owner_steps.length > 0) });
     const record = this.projects.lifecycle.prepareRecord({
       project_id: this.demo.projectId,
       display_name: input.display_name ?? "Molis Work 示例项目",
@@ -69,12 +79,17 @@ export class DemoProjectLifecycle {
     const actorId = this.validation.requiredActorId(input.actor_id);
     const project = this.projects.query.listProjects().find((candidate) => candidate.data_class === "regenerable_demo");
     if (!project) throw new MolisWorkProjectCatalogError("catalog.demo_not_found", "没有可重建的 Molis Work 示例项目");
+    // Refuse before anything is changed when an owner only has to wait (another process is using the Agent runtime right now:
+    // a retry can clear it). An owner whose service is another process's for good (the CLI has no Agent runtime or search
+    // index of its own) is left to the running Molis Work, and reported: a rebuild never waits for it.
+    await this.owners.ready({ leaveElsewhere: true });
     const projectDirectory = managedProjectDirectory(this.projectsDirectory, project);
     const stagingDirectory = path.join(this.projectsDirectory, `.resetting-${project.project_id}-${randomUUID()}`);
     const backupDirectory = path.join(this.projectsDirectory, `.reset-backup-${project.project_id}-${randomUUID()}`);
     let previousMoved = false;
     let resetPromoted = false;
     let updated: MolisWorkDemoProjectResult["project"];
+    let left: string[] = [];
     try {
       await fs.mkdir(stagingDirectory, { recursive: false });
       const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
@@ -85,6 +100,8 @@ export class DemoProjectLifecycle {
       previousMoved = true;
       await fs.rename(stagingDirectory, projectDirectory);
       resetPromoted = true;
+      // A rebuilt demo starts without what the owners kept for the old one, except what only a running Molis Work can clear.
+      left = await this.owners.clearAll(project.project_id, { leaveElsewhere: true });
       await this.seedDemoExtras(project.project_id, project.database_path, actorId);
       updated = await this.commit(() => {
         enableDemoProjectPlugins(this.projects, project.project_id, actorId);
@@ -102,7 +119,7 @@ export class DemoProjectLifecycle {
     }
     // Cleanup is after success: its failure must never roll back by deleting the official database.
     await fs.rm(backupDirectory, { recursive: true, force: true });
-    return { status: "reset", project: updated };
+    return { status: "reset", project: updated, ...(left.length ? { owners_left: left } : {}) };
   }
 
   async removeDemoProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {

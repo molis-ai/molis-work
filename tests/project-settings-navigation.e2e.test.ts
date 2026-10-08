@@ -71,6 +71,9 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   assert.equal(await evaluate("document.querySelector('[data-project-delete-dialog]').open"), true);
   assert.equal(await evaluate("document.querySelector('[data-project-delete-dialog] button[type=submit]').disabled"), true);
   assert.match(await evaluate<string>("document.querySelector('[data-project-delete-dialog]').textContent"), /项目的新名称/);
+  // The dialog lists the plugin data that goes with the project, as the Home's plugins name it.
+  await waitFor("!document.querySelector('[data-project-delete-scope]').hidden && document.querySelector('[data-project-delete-scope]').textContent.includes('Pages 文稿与文件夹')");
+  assert.match(await evaluate<string>("document.querySelector('[data-project-delete-scope]').textContent"), /Forms 问卷及收到的全部回答/);
   await click('[data-project-delete-cancel]');
   assert.equal((await fetch(origin + prefix + "/settings/general")).status, 200);
   await click('[data-project-delete-open]');

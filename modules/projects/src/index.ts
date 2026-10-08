@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ProjectDeletionRecord, ProjectDeletionStep, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import type {
   ProjectsApplicationApi,
@@ -20,6 +20,7 @@ import {
   type StoredProjectDeletion,
 } from "./repository.js";
 import { normalizeProjectWorkspace, ProjectWorkspaceService } from "./workspace.js";
+import { ProjectDeletionSteps } from "./deletion-steps.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-projects",
@@ -57,6 +58,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
   readonly repository: ProjectsRepository;
   readonly records: ProjectService;
   readonly workspaces: ProjectWorkspaceService;
+  readonly deletionSteps: ProjectDeletionSteps;
 
   readonly query: ProjectsQueryApi;
   readonly commands: ProjectsCommandApi;
@@ -77,11 +79,18 @@ export class ProjectsModule implements ProjectsApplicationApi {
     removeWorkspaceMembershipsForProject(projectId: string): number;
     findDeletion(actorId: string, idempotencyKey: string): StoredProjectDeletion | null;
     insertDeletion(record: StoredProjectDeletion): void;
+    /** The owners of project data that must clear it after this deletion, one pending step each; in the receipt's transaction. */
+    insertDeletionSteps(deletionId: string, ownerIds: readonly string[]): void;
+    updateDeletionStep(deletionId: string, ownerId: string, input: { state: ProjectDeletionStep["state"]; error: string | null }): void;
+    deletionSteps(deletionId: string): ProjectDeletionStep[];
+    getDeletion(deletionId: string): StoredProjectDeletion;
+    /** Receipts whose clean-up is not finished, oldest first; a project id narrows them to that project's. */
+    pendingDeletions(projectId?: string): StoredProjectDeletion[];
     updateDeletionCleanup(
       deletionId: string,
       input: { state: "complete" | "pending"; error: string | null; cleaned_at: string | null },
     ): StoredProjectDeletion;
-    deletionRecord(record: StoredProjectDeletion): ReturnType<ProjectService["deletionRecord"]>;
+    deletionRecord(record: StoredProjectDeletion): ProjectDeletionRecord;
     normalizeWorkspace: typeof normalizeProjectWorkspace;
     upsertWorkspaceMembership: ProjectWorkspaceService["upsertMembership"];
     unlinkWorkspaceMembership: ProjectWorkspaceService["unlink"];
@@ -94,6 +103,8 @@ export class ProjectsModule implements ProjectsApplicationApi {
     this.repository = new ProjectsRepository(options.db);
     this.records = new ProjectService(this.repository, options.errorFactory, now, id, options.plugins);
     this.workspaces = new ProjectWorkspaceService(this.repository, options.errorFactory, now, id);
+    this.deletionSteps = new ProjectDeletionSteps(options.db, now);
+    const withSteps = (receipt: StoredProjectDeletion): ProjectDeletionRecord => ({ ...this.records.deletionRecord(receipt), owner_steps: this.deletionSteps.list(receipt.deletion_id) });
     this.query = {
       listProjectPlugins: (projectId) => this.records.listPlugins(projectId),
       listHiddenPlugins: (projectId) => this.records.listHidden(projectId),
@@ -104,7 +115,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
       listWorkspaceDirectory: (projectId) => this.workspaces.listDirectory(projectId),
       preferredWorkspacePath: (projectId) => this.workspaces.preferredPath(projectId),
       workspaceProjectSelections: (workspaceId) => this.repository.workspaceProjectSelections(workspaceId),
-      listProjectDeletions: () => this.records.listDeletions(),
+      listProjectDeletions: () => this.records.listDeletions().map(receipt => ({ ...receipt, owner_steps: this.deletionSteps.list(receipt.deletion_id) })),
     };
     this.commands = {
       addProjectPlugin: (input) => this.records.addPlugin(input),
@@ -129,8 +140,15 @@ export class ProjectsModule implements ProjectsApplicationApi {
         this.repository.removeWorkspaceMembershipsForProject(projectId),
       findDeletion: (actorId, idempotencyKey) => this.records.findDeletion(actorId, idempotencyKey),
       insertDeletion: (record) => this.records.insertDeletion(record),
+      insertDeletionSteps: (deletionId, ownerIds) => this.deletionSteps.begin(deletionId, ownerIds),
+      updateDeletionStep: (deletionId, ownerId, input) => this.deletionSteps.settle(deletionId, ownerId, input),
+      deletionSteps: (deletionId) => this.deletionSteps.list(deletionId),
+      getDeletion: (deletionId) => this.records.getDeletion(deletionId),
+      pendingDeletions: (projectId) => this.records.listDeletions()
+        .filter(receipt => receipt.cleanup_state === "pending" && (projectId === undefined || receipt.project_id === projectId))
+        .map(receipt => this.records.getDeletion(receipt.deletion_id)),
       updateDeletionCleanup: (deletionId, input) => this.records.updateDeletionCleanup(deletionId, input),
-      deletionRecord: (record) => this.records.deletionRecord(record),
+      deletionRecord: withSteps,
       normalizeWorkspace: normalizeProjectWorkspace,
       upsertWorkspaceMembership: (workspace, projectId, actorId) =>
         this.workspaces.upsertMembership(workspace, projectId, actorId),

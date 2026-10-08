@@ -58,7 +58,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       return loadGoalDocument(goalId);
     };
 
-    const { selectGoal, handleGoalSelectClick, handleGoalPopState, handleGoalHashChange } =
+    const { selectGoal, handleGoalPopState, handleGoalHashChange } =
       (${GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT})({
         decisionView, trashView, archiveView, documentPane,
         getSelected: () => selected, getActiveGoalId: () => state.active_goal_id,

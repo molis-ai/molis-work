@@ -18,6 +18,8 @@ import { registerAssistantRuleActions } from "./assistant-rule-actions.js";
 import { agentDefinitionsFor } from "../agent-definitions/agent-definitions.js";
 import { memoryHostFor } from "../memory/memory-host.js";
 import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
+import { projectDeletedHooksFor } from "../project-deleted-hooks.js";
+import { purgeAssistantProject } from "./assistant-project-purge.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = LOCAL_PERSON_ACTOR_ID;
@@ -104,6 +106,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   }, WEB_ACTOR);
   const entry = { home: ports.homeDirectory, service, store };
   services.set(ports.localHost, entry);
+  // Deleting a project also stops the round its works still run and cancels their timed follow-ups, which only this service can do.
+  projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: "助理在这个项目里的工作", alive: () => ports.localHost.lifecycle() === "running",
+    clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.removeFollowUp(id); } }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
   try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service); }
   catch (error) { console.warn("[assistant] 提醒规则动作没能登记到动作目录", error); }

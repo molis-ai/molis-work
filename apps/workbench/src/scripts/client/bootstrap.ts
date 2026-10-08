@@ -52,7 +52,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     findFeedNodes();
     const mobileTreeTab = document.querySelector('[data-mobile-target="tree"]');
     const mobileDocumentTab = document.querySelector('[data-mobile-target="document"]');
-    const mobileDirectoryTab = document.querySelector("[data-mobile-directory-root]");
     const defaultMobileTreeLabel = mobileTreeTab?.textContent || L("目标");
     const defaultMobileDocumentLabel = mobileDocumentTab?.textContent || L("聚焦");
     const dialog = document.querySelector("[data-create-dialog]");
@@ -192,7 +191,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     };
     let resizeStartX = 0;
     let resizeStartWidth = 0;
-    let quickRecordRequest = null;
     let feedWorkbenchRequest = null;
     let feedDetailRequest = null;
     let searchBusyUntil = 0;

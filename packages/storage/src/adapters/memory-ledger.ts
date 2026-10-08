@@ -4,6 +4,7 @@ import type {
   MemoryLedgerPort,
   MemoryPrefs,
   MemoryRevision,
+  MemoryScope,
   MemoryUseRecord,
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
@@ -83,6 +84,24 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
           .run(JSON.stringify({ ...candidate, text: "", why: "", memory_id: null }), String(row.candidate_id));
       }
     }),
+    forgetScopes: input => ledger.transaction(() => {
+      const gone = new Set(input.scopes.map(item => JSON.stringify([item.scope, item.owner])));
+      // Changes, candidate notes and pairs carry their scope and owner in the record, not in a column.
+      const drop = (table: string, key: string) => {
+        for (const row of db.prepare(`SELECT ${key}, body FROM ${table}`).all()) {
+          const record = JSON.parse(String(row.body)) as { scope?: string; owner?: string };
+          if (gone.has(JSON.stringify([record.scope, record.owner]))) db.prepare(`DELETE FROM ${table} WHERE ${key}=?`).run(String(row[key]));
+        }
+      };
+      drop("memory_changes", "change_id");
+      drop("memory_candidates", "candidate_id");
+      drop("memory_pairs", "pair_id");
+      for (const item of input.scopes) db.prepare("DELETE FROM memory_owners WHERE scope=? AND owner=?").run(item.scope, item.owner);
+      db.prepare("DELETE FROM memory_owners WHERE project_id=?").run(input.project_id);
+      for (const key of input.prefs_keys) db.prepare("DELETE FROM memory_prefs WHERE key=?").run(key);
+      for (const key of input.marker_keys) db.prepare("DELETE FROM memory_markers WHERE key=?").run(key);
+      for (const prefix of input.signal_prefixes) db.prepare("DELETE FROM memory_signal_events WHERE substr(key, 1, ?)=?").run(prefix.length, prefix);
+    }),
     revisions: memoryId => db.prepare("SELECT body FROM memory_revisions WHERE memory_id=? ORDER BY version").all(memoryId)
       .map(row => JSON.parse(String(row.body)) as MemoryRevision),
     addRevision: (memoryId, revision) => {
@@ -133,6 +152,14 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
     noteOwner: input => {
       db.prepare("INSERT INTO memory_owners(scope,owner,project_id,title,subject) VALUES (?,?,?,?,?) ON CONFLICT(scope,owner) DO UPDATE SET project_id=excluded.project_id, title=excluded.title, subject=COALESCE(excluded.subject, memory_owners.subject)")
         .run(input.scope, input.owner, input.project_id, input.title, input.subject ?? null);
+    },
+    candidateOwners: projectId => {
+      const found = new Map<string, { scope: MemoryScope; owner: string }>();
+      for (const row of db.prepare("SELECT body FROM memory_candidates").all()) {
+        const note = JSON.parse(String(row.body)) as MemoryCandidateRecord;
+        if (note.project_id === projectId) found.set(JSON.stringify([note.scope, note.owner]), { scope: note.scope, owner: note.owner });
+      }
+      return [...found.values()];
     },
     pairs: actorId => db.prepare("SELECT body FROM memory_pairs WHERE actor_id=? ORDER BY rowid").all(actorId).map(row => JSON.parse(String(row.body)) as ReturnType<MemoryLedgerPort["pairs"]>[number]),
     savePair: (actorId, pair) => {

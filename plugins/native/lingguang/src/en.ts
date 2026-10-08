@@ -1,4 +1,6 @@
 export const LINGGUANG_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "灵光里的想法与对话": "灵光 ideas and conversations",
   "已转出": "Converted",
   "已转成文档": "Now a document",
   "已转为待办": "Now a todo",

@@ -62,7 +62,7 @@ jobs:
       # Each gate rule is mutation-verified on a scratch repository: one violation added on a branch fails, and so does
       # the same branch after `--update` rewrote the baseline.
       - name: Health gates reject what they claim to
-        run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts
+        run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts tests/package-inventory-gate.test.ts
 
       - name: Verify Goal boundaries, storage baselines and release assets
         run: |

@@ -2,6 +2,11 @@
 // Repository health gates (specs/repository-anti-corruption §5a): numbers that may only go down, including the
 // anti-backflow count of compatibility markers per file (§4.1).
 //
+// It also fails, with no comparison against the merge-base, when the package table of specs/repository-anti-corruption
+// §5.1 disagrees with scripts/workspace-packages.mjs or with the layer and status the code gives a package (a package
+// added or deleted, a plugin moved to the Plugin Runtime supervisor, an import that changes what is reachable from the
+// product entry): scripts/gates/package-inventory.mjs --table prints the rows, --check reports the disagreement.
+//
 //   node scripts/check-health-gates.mjs                  measure the working tree and compare it with the committed
 //                                                        tooling/gates/baseline.json (the quick local check)
 //   node scripts/check-health-gates.mjs --base <ref>     measure the working tree AND the merge-base of HEAD and <ref>
@@ -16,6 +21,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
 const fail = (message) => { console.error(message); process.exit(2); };
@@ -39,6 +45,9 @@ const update = flags.has("--update"), report = flags.has("--report");
 const root = options.root ? path.resolve(options.root) : path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const baselinePath = path.join(root, "tooling/gates/baseline.json");
 const limitsPath = path.join(root, "tooling/gates/limits.json");
+// The package table of specs/repository-anti-corruption §5 is checked against the registry (the scratch repositories of
+// tests/health-gates-merge-base.test.ts have none, so the check does not apply to them).
+const packageRegistry = await loadRegistry(root);
 
 const run = (gitArgs, extra = {}) => execFileSync("git", gitArgs, { cwd: root, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["pipe", "pipe", "pipe"], ...extra });
 const git = (gitArgs, extra) => {
@@ -382,7 +391,7 @@ const limitErrors = () => {
   const before = parseLimits(git(["cat-file", "blob", `${mergeBase}:${limitsFile}`]), `${mergeBase.slice(0, 8)}:${limitsFile}`);
   return LIMIT_KEYS.filter((key) => limits[key] > before[key]).map((key) => `limit "${key}" loosened ${before[key]} → ${limits[key]} in tooling/gates/limits.json; limits only get tighter`);
 };
-const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems()];
+const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : [])];
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "tooling/gates/baseline.json";
 
 // ---- --report --------------------------------------------------------------------------------------------------------

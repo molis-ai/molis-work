@@ -55,10 +55,12 @@ function secretsOf(value: unknown, release: AgentRelease): Secret[] {
 
 export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPorts['lifecycle'] {
   const { platform } = c;
-  const uninstall = async (release: AgentRelease, record: PluginInstanceRecord, keepData: boolean) => {
+  /** `earlier`: the uninstalled record an install that did not finish replaced; the record goes back to it instead of being marked uninstalled anew. */
+  const uninstall = async (release: AgentRelease, record: PluginInstanceRecord, keepData: boolean, earlier?: PluginInstanceRecord) => {
     c.withdraw(release.pluginId); platform.supervisor.revoke(release.pluginId);
     c.cancelScheduled(release.pluginId, record.install_id); c.secrets.remove(release.pluginId);
-    await platform.runtime.uninstall(record.install_id, { retain_private_data: keepData });
+    if (earlier) await platform.runtime.abandonInstall(record, earlier);
+    else await platform.runtime.uninstall(record.install_id, { retain_private_data: keepData });
     c.forget(release.pluginId, record.install_id);
     if (!keepData) c.privateStorage.deleteInstallationData(record.install_id);
     c.storage.delete(APPROVED_KEY + release.pluginId); c.recoveryErrors.delete(release.pluginId);
@@ -66,17 +68,20 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
   /**
    * A confirmed install is a fresh installation, even if the Supervisor still remembers the revocation of an earlier
    * one. The data an uninstall kept follows the rules of Plugin Runtime; only the person's word (`discardKeptData`)
-   * drops it. An install that does not finish is uninstalled again, so it blocks neither a retry nor an enable.
+   * drops it. An install that does not finish is taken back: the uninstalled record it replaced returns exactly as it
+   * was (version, digest, installation generation, kept-data flag) and so does the data that record kept, so the next
+   * install is asked the same question and nothing blocks a retry or an enable. What the cleanup itself cannot undo is
+   * reported with the error that started it.
    */
   const install = async (release: AgentRelease, grants: Grants) => {
     const pluginId = release.pluginId, secrets = secretsOf(grants.secrets, release);
     const entry = { definition: c.definition(release, release.permissions), grants: ['storage:private'] };
-    const earlier = platform.runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === entry.definition.manifest.publisher.signature);
-    const kept = earlier?.state === 'uninstalled' && earlier.retain_private_data === true;
+    const found = platform.runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === entry.definition.manifest.publisher.signature);
+    const earlier = found?.state === 'uninstalled' ? found : undefined, kept = earlier?.retain_private_data === true;
+    const before = earlier && kept ? c.privateStorage.snapshotInstallationData(earlier.install_id) : undefined;
     const { install } = platform.runtime.install({ ...entry, deployment: 'local', ...(grants.discardKeptData === true ? { discard_kept_data: true } : {}) });
-    let dropped: ReturnType<SqlitePluginPrivateStorage['snapshotInstallationData']> | undefined;
     try {
-      if (kept && grants.discardKeptData === true) { dropped = c.privateStorage.snapshotInstallationData(install.install_id); c.privateStorage.deleteInstallationData(install.install_id); }
+      if (before && grants.discardKeptData === true) c.privateStorage.deleteInstallationData(install.install_id);
       for (const secret of secrets) c.secrets.save(pluginId, secret);
       c.storage.set(APPROVED_KEY + pluginId, JSON.stringify(release.permissions));
       await platform.start([entry]);
@@ -84,10 +89,12 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       if (state?.status !== 'running') throw new Error('安装没有完成：' + (state?.message ?? '插件未能启动'));
       await c.expose(release); c.registerPrompts(release, 'enabled'); c.recoveryErrors.delete(pluginId);
     } catch (error) {
-      // What the cleanup itself cannot do is not worth more than the error that started it.
-      try { await uninstall(release, c.recordFor(pluginId) ?? install, kept); } catch { /* reported below */ }
-      try { if (dropped) c.privateStorage.restoreInstallationData(install.install_id, dropped); } catch { /* reported below */ }
-      throw error;
+      const unfinished: unknown[] = [];
+      try { await uninstall(release, install, kept, earlier); } catch (failure) { unfinished.push(failure); }
+      try { if (before) c.privateStorage.restoreInstallationData(install.install_id, before); } catch (failure) { unfinished.push(failure); }
+      if (!unfinished.length) throw error;
+      const said = (value: unknown) => value instanceof Error ? value.message : String(value);
+      throw new AggregateError([error, ...unfinished], said(error) + '（撤销这次安装时也没有做完：' + unfinished.map(said).join('；') + '）', { cause: error });
     }
   };
   return async (action, release, input) => {

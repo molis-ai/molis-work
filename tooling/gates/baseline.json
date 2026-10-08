@@ -196,9 +196,9 @@
       "lines": 420,
       "methods": 23
     },
-    "file packages/plugin-runtime/src/index.ts": 863,
+    "file packages/plugin-runtime/src/index.ts": 852,
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
-      "lines": 662,
+      "lines": 660,
       "methods": 30
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {

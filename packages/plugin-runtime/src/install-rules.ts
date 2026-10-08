@@ -1,5 +1,6 @@
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { comparePluginVersions } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PluginRuntimeError } from "./errors.js";
 
 /**
  * Why a confirmed install at another version may not reuse the private data an uninstall kept, or undefined when it
@@ -28,4 +29,43 @@ export function defaultGrants(manifest: PluginManifest, installs: readonly Plugi
   const held = installs.find(record => record.plugin_id === manifest.plugin_id
     && record.publisher_signature === manifest.publisher.signature && record.state !== "uninstalled")?.grants;
   return held && required.every(permission => held.includes(permission)) && held.every(permission => declared.has(permission)) ? [...held] : required;
+}
+
+/**
+ * Why an install that did not finish cannot be taken back (`abandonInstall`), or undefined when it can (and when it
+ * already was). `installed` is the record that install returned, `earlier` the uninstalled record it replaced. The row goes
+ * back to `earlier` whole (version, Manifest digest, installation generation, kept data), so the next install is asked
+ * the same question about the kept data. Only the installation `installed` names is undone: a row another install has
+ * replaced since is not touched.
+ */
+export function abandonRefusal(current: PluginInstanceRecord, installed: PluginInstanceRecord, earlier: PluginInstanceRecord): string | undefined {
+  if (earlier.install_id !== installed.install_id || earlier.state !== "uninstalled") return "只能退回到同一安装、已卸载的记录";
+  if (current.installation_generation !== installed.installation_generation && current.installation_generation !== earlier.installation_generation) return "这次安装已经被另一次安装替换，不能退回";
+  return undefined;
+}
+
+export function assertMutable(record: PluginInstanceRecord): void {
+  if (record.state === "uninstalled" || record.state === "quarantined") {
+    throw new PluginRuntimeError("plugin_state_invalid", `Plugin 当前状态 ${record.state} 不允许修改`);
+  }
+}
+
+export function normalizeGrants(manifest: PluginManifest, requested: string[]): string[] {
+  const ceiling = new Set(manifest.permissions.map((permission) => permission.permission));
+  const grants = [...new Set(requested.map((permission) => permission.trim()).filter(Boolean))].sort();
+  if (grants.some((permission) => !ceiling.has(permission))) {
+    throw new PluginRuntimeError("plugin_grant_denied", "实际 grant 不能超过 Manifest 声明上限");
+  }
+  return grants;
+}
+
+/**
+ * A plugin that ships with the Host follows the Host's version (2026-10-04): its install record moves up with it,
+ * keeping the grants the new Manifest still declares and adding the ones it requires, as a fresh install would.
+ */
+export function bundledUpgrade(current: PluginInstanceRecord, manifest: PluginManifest, digest: string, entrypoint: string, at: string): PluginInstanceRecord {
+  const declared = new Set(manifest.permissions.map(permission => permission.permission));
+  const required = manifest.permissions.filter(permission => permission.required).map(permission => permission.permission);
+  return { ...current, version: manifest.version, publisher_id: manifest.publisher.publisher_id, manifest_digest: digest, selected_entrypoint: entrypoint,
+    grants: normalizeGrants(manifest, [...current.grants.filter(permission => declared.has(permission)), ...required]), updated_at: at };
 }

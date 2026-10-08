@@ -347,6 +347,67 @@ test('a reinstall that cannot read the data an uninstall kept is refused until t
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+test('an install that fails over kept data puts the uninstalled record back exactly as it was, so the next install is still asked', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-failed-over-kept-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
+  const working = await readFile(fixture.release.bundlePath, 'utf8'), broken = "throw new Error('broken bundle');";
+  const only = (installed: Awaited<ReturnType<typeof rig.control>>, ...releases: AgentRelease[]) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ builds: [], releases }));
+  const rows = () => rig.host.withProject(fixture.ref, runtime => new SqlitePluginPrivateStorage(runtime.store.db).snapshotInstallationData(fixture.install.install_id));
+  const row = (installed: Awaited<ReturnType<typeof rig.control>>) => installed.platform.runtime.get(fixture.install.install_id);
+  try {
+    const installed = await rig.control(), client = rig.host.actionClient(fixture.ref);
+    await client.invoke(caller, action(fixture.release, 'save'), { value: 'old data' });
+    await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    const before = row(installed), data = await rows();
+    assert.ok(before.state === 'uninstalled' && before.retain_private_data && data.length > 0);
+
+    // The person agreed to drop the old data and the install then failed: the record is the one the question was asked about.
+    const v3 = { ...fixture.release, version: 3 }; only(installed, v3);
+    await writeFile(fixture.release.bundlePath, broken);
+    await assert.rejects(installed.lifecycle('install', v3, { consent: true, discardKeptData: true }), /安装没有完成/);
+    assert.deepEqual(row(installed), before, 'same version, digest, installation generation and kept-data flag');
+    assert.deepEqual(await rows(), data, 'and the same data');
+    assert.deepEqual(installed.records(), []);
+    await assert.rejects(installed.lifecycle('install', v3, { consent: true }), (error: { code?: string }) => error.code === 'plugin_kept_data_incompatible', 'a plain retry is asked again, not let through');
+
+    // The same for an install that is allowed over the data: it fails, and the record and the data stay what the uninstall left.
+    const v2 = { ...fixture.release, version: 2 }; only(installed, fixture.release, v2);   // v2 names v1 as an earlier release, so it declares it can read v1's data
+    const start = installed.platform.start;
+    installed.platform.start = async () => {
+      await rig.host.withProject(fixture.ref, runtime => runtime.store.db.prepare('INSERT INTO plugin_private_values (install_id, item_key, item_value) VALUES (?, ?, ?)').run(fixture.install.install_id, 'stray', 'written by the attempt'));
+      throw new Error('start failed');
+    };
+    await assert.rejects(installed.lifecycle('install', v2, { consent: true }), /start failed/);
+    installed.platform.start = start;
+    assert.deepEqual(row(installed), before);
+    assert.deepEqual(await rows(), data, 'what the failed attempt wrote is not added to the kept data');
+    await writeFile(fixture.release.bundlePath, broken);
+    await assert.rejects(installed.lifecycle('install', v2, { consent: true }), /安装没有完成/);
+    assert.deepEqual(row(installed), before);
+
+    await writeFile(fixture.release.bundlePath, working);
+    await installed.lifecycle('install', v2, { consent: true });
+    assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }]);
+    assert.equal(await client.invoke(caller, action(v2, 'read'), null), 'old data', 'the data the person kept is still there for the version that can read it');
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test('when taking back a failed install fails too, the person is told about both', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-failed-cleanup-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  try {
+    const installed = await rig.control(), runtime = installed.platform.runtime, abandon = runtime.abandonInstall.bind(runtime), start = installed.platform.start;
+    await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    installed.platform.start = async () => { throw new Error('start failed'); };
+    runtime.abandonInstall = async () => { throw new Error('stop failed'); };
+    await assert.rejects(installed.lifecycle('install', fixture.release, { consent: true }), (error: Error & { errors?: Error[] }) =>
+      /start failed/.test(error.message) && /stop failed/.test(error.message) && error.errors?.length === 2 && (error.cause as Error).message === 'start failed');
+    runtime.abandonInstall = abandon; installed.platform.start = start;
+    await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    await installed.lifecycle('install', fixture.release, { consent: true });
+    assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 1 }]);
+  } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
 test('after an uninstall the newer published version can be installed again, with the kept data or without it', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-reinstall-newer-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });

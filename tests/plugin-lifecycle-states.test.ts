@@ -275,6 +275,31 @@ test("a reinstall at another version reuses kept data only when that version dec
   assert.equal(fresh.state, "installed");
 });
 
+test("an install that did not finish goes back to the uninstalled record it replaced, and only that install can be taken back", async () => {
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const v1 = probe("1.0.0", { sandbox: true }), v3 = probe("3.0.0", { sandbox: true });
+  const id = runtime.install({ definition: v1, deployment: "local", grants: [] }).install.install_id;
+  await runtime.start(id);
+  await runtime.uninstall(id, { retain_private_data: true });
+  const earlier = runtime.get(id);
+
+  const fresh = runtime.install({ definition: v3, deployment: "local", grants: [], discard_kept_data: true }).install;
+  await runtime.start(id);
+  assert.equal(runtime.get(id).state, "running");
+  assert.equal(await code(() => runtime.abandonInstall(fresh, { ...earlier, state: "installed" })), "plugin_state_invalid", "only an uninstalled record can be gone back to");
+  const receipt = await runtime.abandonInstall(fresh, earlier);
+  assert.deepEqual(runtime.get(id), earlier, "version, Manifest digest, installation generation and kept data are the earlier ones, whole");
+  assert.equal(receipt.replayed, false);
+  assert.equal(runtime.contribution(id), null, "the running code was stopped");
+  assert.equal(await code(() => runtime.install({ definition: v3, deployment: "local", grants: [] })), "plugin_kept_data_incompatible",
+    "so a plain install of the version that failed is asked about the kept data again");
+  assert.equal((await runtime.abandonInstall(fresh, earlier)).replayed, true, "taking it back twice changes nothing");
+
+  const another = runtime.install({ definition: v1, deployment: "local", grants: [] }).install;
+  assert.equal(await code(() => runtime.abandonInstall(fresh, earlier)), "plugin_state_invalid", "an install that started over since is not undone by the old attempt");
+  assert.deepEqual(runtime.get(id), another);
+});
+
 test("a reinstall of a generated plugin may use an older release; a Host that ships a version always installs it", async () => {
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
   const v1 = probe("1.0.0", { sandbox: true }), v2 = probe("2.0.0", { sandbox: true, compatible: ["1.0.0"] });

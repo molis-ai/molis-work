@@ -27,7 +27,7 @@ init | snapshot | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 
-复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份；`active-goal` 目前仍从参数 `actor_id` 取作者，不是宿主注入的身份（已知差距）。
+复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份；`goal-tree-propose`、`goal-tree-check` 与 `active-goal` 目前仍从参数 `actor_id` 取作者（`goal-tree-propose` 还从参数取 `submitted_session_id`），不是宿主注入的身份（已知差距）。
 
 ## 项目结构
 
@@ -37,7 +37,7 @@ goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 apps/                        6 个产品入口与 composition root 边界
 packages/                    10 个 Foundation package（另有根目录 server/）；contracts 暴露 63 个公开 subpath
 modules/                     13 个业务事实 owner
-horizontal/                  8 个横向运行服务
+horizontal/                  8 个包：5 个横向运行服务，3 个平台产品服务（记忆、放置、搜索）
 plugins/                     26 个 Native Plugin 与 6 个官方 Integration Plugin
 packages/plugin-runtime/     FD3 本地 Plugin 生命周期参考实现
 packages/plugin-sdk/         FD3 Manifest 与 Integration Plugin 定义 API
@@ -90,8 +90,8 @@ PRODUCT.md                   产品定义
 DESIGN.md                    shipped UI 设计系统
 docs/SSOT-MATRIX.md          架构、包状态和迁移 owner 的权威索引
 docs/system/                 分层、依赖、迁移与 Huge Class 退出规则
-docs/modules/                13 个 Module（另有 4 个未来 owner）的事实 owner 与 API 边界
-docs/horizontal/             横向运行服务的技术边界（Memory、Placement 见各自包 README）
+docs/modules/                Module 的事实 owner 与 API 边界（页面尚未与 13 个 Module 一一对应：characters 暂无页面，另含 4 个未来 owner 和已退役模块的页面，以 SSOT-MATRIX 为准）
+docs/horizontal/             `horizontal/` 下各服务的技术边界（Memory、Placement 见各自包 README）
 docs/platform/               Plugin、Storage、Exchange 与 UI 平台机制
 specs/molis-work-architecture-reorganization/spec.md
                              本次重组的完整已确认 Contract

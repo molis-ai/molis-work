@@ -10,7 +10,7 @@ Goals 插件对付长程任务常见的失败：新 Session 看不到上一轮�
 
 Molis Work 把这份记录放在本地。Codex、Claude Code、OpenCode 或其他已接入的 Harness，读写的是同一份 Goal。重大变化由你确认。不用追问模型，也能看到事情推进到哪里。
 
-它不捆绑模型：模型和密钥在设置里配置，Coding、助理、Schedule、插件创作工作台等插件经同一 Home 的 Prologue Runtime 调用；外部 Harness 照常经 MCP 读写，Molis Work 不替你分派工作。
+它不捆绑模型：模型和密钥在设置里配置，助理和 Coding、Schedule、插件创作工作台等插件经同一 Home 的 Prologue Runtime 调用；外部 Harness 照常经 MCP 读写，Molis Work 不替你分派工作。
 
 更完整的推导见公众号文章（链接待发布）：*[placeholder — 公众号文章待发布]*。草稿：[从对话态事实到账本态事实](https://github.com/adeptify/article/blob/main/AI%E9%95%BF%E7%A8%8B%E4%BB%BB%E5%8A%A1-%E4%BB%8E%E5%AF%B9%E8%AF%9D%E6%80%81%E4%BA%8B%E5%AE%9E%E5%88%B0%E8%B4%A6%E6%9C%AC%E6%80%81%E4%BA%8B%E5%AE%9E.md)。
 

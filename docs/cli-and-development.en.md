@@ -27,7 +27,7 @@ init | snapshot | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 
-Complex inputs can be passed with `--json` or `--file payload.json`. Old create-goal, Claim/Run, Evidence/Review, and Contract/Candidate/Rewire commands are retired and return an unknown-operation error. Everyday notes, reports, agreements, closure, and resume use MCP or Web; CLI does not provide duplicate event-write commands. CLI is a user/management and local debugging entry, not a fallback for Runtime service failures. `init` and `goal-tree-decide` write as the person on this machine and their arguments carry no identity; `active-goal` still takes its author from the `actor_id` argument rather than a Host-injected identity (a known gap).
+Complex inputs can be passed with `--json` or `--file payload.json`. Old create-goal, Claim/Run, Evidence/Review, and Contract/Candidate/Rewire commands are retired and return an unknown-operation error. Everyday notes, reports, agreements, closure, and resume use MCP or Web; CLI does not provide duplicate event-write commands. CLI is a user/management and local debugging entry, not a fallback for Runtime service failures. `init` and `goal-tree-decide` write as the person on this machine and their arguments carry no identity; `goal-tree-propose`, `goal-tree-check`, and `active-goal` still take their author from the `actor_id` argument (`goal-tree-propose` also takes `submitted_session_id` from the arguments) rather than a Host-injected identity (a known gap).
 
 ## Project structure
 
@@ -37,7 +37,7 @@ Complex inputs can be passed with `--json` or `--file payload.json`. Old create-
 apps/                        Six product-entry and composition-root boundaries
 packages/                    Ten foundation packages (plus the root server/); contracts exposes 63 public subpaths
 modules/                     Thirteen business-fact owners
-horizontal/                  Eight horizontal runtime services
+horizontal/                  Eight packages: five horizontal runtime services and three platform product services (Memory, Placement, Search)
 plugins/                     26 native plugins and six official integration plugins
 packages/plugin-runtime/     FD3 local Plugin lifecycle reference implementation
 packages/plugin-sdk/         FD3 Manifest and Integration Plugin definition API
@@ -88,8 +88,8 @@ PRODUCT.md                   Product definition
 DESIGN.md                    Shipped UI design system
 docs/SSOT-MATRIX.md          Canonical architecture, package status, and migration-owner index
 docs/system/                 Layers, dependencies, migration, and huge-class exit rules
-docs/modules/                Fact ownership and API boundaries for the 13 Modules (plus 4 future owners)
-docs/horizontal/             Technical boundaries for the horizontal services (Memory and Placement: see their package READMEs)
+docs/modules/                Fact ownership and API boundaries for Modules (pages do not yet match the 13 Modules one to one: characters has no page, and pages remain for 4 future owners and retired modules; SSOT-MATRIX is authoritative)
+docs/horizontal/             Technical boundaries for the services under `horizontal/` (Memory and Placement: see their package READMEs)
 docs/platform/               Plugin, Storage, Exchange, and UI platform mechanisms
 specs/molis-work-architecture-reorganization/spec.md
                              Accepted full contract for this reorganization

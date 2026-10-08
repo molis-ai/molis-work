@@ -4,13 +4,13 @@
 
 Molis Work is a local-first work platform: a plugin base with many plugins, where you and the AI Runtimes you use work on the same goals, sessions, feeds, code, documents and calendar, each kept by the plugin that owns it.
 
-The platform is one resident host per Home, a shared action catalog with grants, the plugin runtime, the workbench shell, and one AI runtime. Every project has Goals and can add Sessions, Inbox, Feed, Schedule, Artifacts and the Coding family as needed; personal plugins such as Jelly (calendar and notes), Todo, Pages, 灵光 and Cognia work in every project. Each plugin registers its capabilities once in the action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted.
+The platform is one resident host per Home, a shared action catalog with grants, the plugin runtime, the workbench shell, and one AI runtime. Every project has Goals and can add Sessions, Inbox, Feed, Schedule, Results and the Coding family as needed; personal plugins such as Jelly (calendar and notes), Todo, Pages, Lingguang and Cognia work in every project. Each plugin registers its capabilities once in the action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted.
 
 The Goals plugin is for a boring way long-running work fails: a new Session cannot see the last one, the original outcome drifts as local decisions pile up, and “done” is a sentence with nothing to check. What is missing is not a smarter model. It is one project record every Runtime can read: the accepted Goal, how it was split, what is blocked, and what counts as done.
 
 Molis Work keeps that record locally. Codex, Claude Code, OpenCode, or another connected Harness updates the same Goal. You confirm material changes. You can see how far the work has got without asking the model to recap.
 
-It does not ship a model: you configure models and keys in Settings, and plugins such as Coding, the Assistant, Schedule and the plugin studio run through the Home's one Prologue Runtime. External Harnesses still read and write through MCP; Molis Work does not dispatch work for you.
+It does not ship a model: you configure models and keys in Settings, and the Assistant and plugins such as Coding, Schedule and the plugin studio run through the Home's one Prologue Runtime. External Harnesses still read and write through MCP; Molis Work does not dispatch work for you.
 
 The longer derivation (WeChat article, link forthcoming): *[placeholder — 公众号文章待发布]*. Draft: [From conversational facts to ledger facts](https://github.com/adeptify/article/blob/main/AI%E9%95%BF%E7%A8%8B%E4%BB%BB%E5%8A%A1-%E4%BB%8E%E5%AF%B9%E8%AF%9D%E6%80%81%E4%BA%8B%E5%AE%9E%E5%88%B0%E8%B4%A6%E6%9C%AC%E6%80%81%E4%BA%8B%E5%AE%9E.md).
 
@@ -79,7 +79,7 @@ Plain use, and the problem each one is for.
 
 ### One base, plugins as you need them
 
-Every project has Goals; add Sessions, Inbox, Feed, Schedule, Artifacts and the Coding family in place from the plugin switcher, while personal plugins such as Jelly, Todo, Pages, 灵光, Cognia and Shelf work in every project. Each plugin's capabilities are registered once in the shared action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted. The sections below are the Goals plugin.
+Every project has Goals; add Sessions, Inbox, Feed, Schedule, Results and the Coding family in place from the plugin switcher, while personal plugins such as Jelly, Todo, Pages, Lingguang, Cognia and Shelf work in every project. Each plugin's capabilities are registered once in the shared action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted. The sections below are the Goals plugin.
 
 ### See the Goal, what is done, and what to do next
 

@@ -16,7 +16,7 @@ Desktop / Workbench / CLI / MCP（stdio MCP 经动作网关转发）
    Modules  Horizontal  Native / Integration Plugins（含各自私有库）
       ↓         ↓            ↓
    Storage   Adapters     Storage
-（Exchange 与 Lightweight Server 尚未实现）
+（Exchange 尚未实现；Lightweight Server 只有实验实现，没有产品入口）
 ```
 
 ## 2. 产品概念

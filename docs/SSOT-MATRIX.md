@@ -18,7 +18,8 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | 允许和禁止的代码依赖 | [`docs/system/PACKAGE-BOUNDARIES.md`](system/PACKAGE-BOUNDARIES.md) |
 | 概念与命名：一个概念一个名字、一个定义，旧称、界面用词与代码改名清单 | [`docs/system/GLOSSARY.md`](system/GLOSSARY.md) |
 | 兼容逻辑清单与删除进度 | [`specs/repository-anti-corruption`](../specs/repository-anti-corruption/spec.md) §4（迁移期记录已归档到 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md)） |
-| 巨大单元只许变小 | `pnpm health:check`（基线 `tooling/gates/baseline.json`）；[`docs/system/HUGE-CLASS-MIGRATION.md`](system/HUGE-CLASS-MIGRATION.md) 只是 2026-09 的迁移历史 |
+| 每个包的规模、运行状态（在用 / Runtime / 构建期 / 非产品，不是下面第 2 节的状态词）和计划审查深度 | [`specs/repository-anti-corruption`](../specs/repository-anti-corruption/spec.md) §5.1 的包清单表；`scripts/gates/package-inventory.mjs` 按登记表和代码检查，随 `pnpm health:check` 跑 |
+| 巨大单元只许变小 | `pnpm health:check`（基线 `tooling/gates/baseline.json`，必须长的登记在 `tooling/gates/giant-exceptions.json`）；全部单元的 owner、判定与计划见 [`docs/system/HUGE-CLASS-MIGRATION.md`](system/HUGE-CLASS-MIGRATION.md)，2026-09 的迁移历史在 [`docs/archive/huge-class-migration-2026-09.md`](archive/huge-class-migration-2026-09.md) |
 | 评审截图、根目录杂项、vendored 补丁的去留 | [`docs/system/REPOSITORY-HYGIENE.md`](system/REPOSITORY-HYGIENE.md)；`pnpm health:check` 按评审组限制入库的 `.impeccable/` 文件，只许减少 |
 | 13 个业务事实 Module（另有 4 个尚未建包的未来 owner；插件自有的库见 §7） | [`docs/modules/`](modules/README.md) |
 | 8 个 `horizontal/` 包：5 个横向运行服务，3 个平台产品服务（记忆、放置、搜索） | [`docs/horizontal/`](horizontal/README.md)（Memory、Placement 的边界见各自包 README） |

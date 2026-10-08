@@ -63,6 +63,8 @@ Desktop / Workbench / CLI / MCP（stdio MCP 经动作网关转发）
 
 正常调用不需要绕统一消息总线。同步事件、重试、离线恢复和跨进程通信才使用 Durable Outbox / transport；进程内 Query/Command 走类型化 API。
 
+八条主链路（界面、MCP、助理与 Agent、插件生命周期、后台、搜索与放置、记忆、CLI 与安装升级）逐环节的 owner、输入输出、权限、错误与事件见[调用链](CALL-CHAINS.md)；登记在案的例外在其 §10。
+
 ## 5. Goal 与成果
 
 Goals 与成果（Artifacts）是两个内置插件，各自拥有自己的事实；它们不是其他插件内容的主干。

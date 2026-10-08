@@ -72,10 +72,12 @@ const branch = (name: string, mutate: () => void) => {
   commit(name);
 };
 
-type Scenario = { name: string; mutate: () => void; expect: RegExp[] };
+// `launder`: also run the move this gate exists for (rewrite the baseline in the branch). One scenario per rule family does it;
+// the mechanism itself is shared and covered in tests/health-gates-merge-base.test.ts, so the others only check that they are caught.
+type Scenario = { name: string; mutate: () => void; expect: RegExp[]; launder?: boolean };
 const violations: Scenario[] = [
   // ---- contracts purity -------------------------------------------------------------------------------------------------
-  { name: "a timer in a pure contracts file", mutate: () => put("packages/contracts/src/platform/pure.ts", read("packages/contracts/src/platform/pure.ts") + "export const later = () => setTimeout(() => undefined, 5);\n"),
+  { name: "a timer in a pure contracts file", launder: true, mutate: () => put("packages/contracts/src/platform/pure.ts", read("packages/contracts/src/platform/pure.ts") + "export const later = () => setTimeout(() => undefined, 5);\n"),
     expect: [/contracts purity effects 0 → 1 in packages\/contracts\/src\/platform\/pure\.ts#effects/] },
   { name: "a second timer in the file that already has one", mutate: () => put("packages/contracts/src/platform/lifetime.ts", read("packages/contracts/src/platform/lifetime.ts") + "export const tick = () => setInterval(() => undefined, 5);\n"),
     expect: [/contracts purity effects 1 → 2 in packages\/contracts\/src\/platform\/lifetime\.ts#effects/] },
@@ -97,13 +99,13 @@ const violations: Scenario[] = [
     expect: [/new contracts function of 22 lines .* in packages\/contracts\/src\/platform\/forms\.ts#long-fn:long/, /forms\.ts#long-fn:Walker\.walk/] },
 
   // ---- Host entry --------------------------------------------------------------------------------------------------------
-  { name: "another export * in the Host entry", mutate: () => put("apps/local-host/src/index.ts", read("apps/local-host/src/index.ts") + 'export * from "./another.js";\n'),
+  { name: "another export * in the Host entry", launder: true, mutate: () => put("apps/local-host/src/index.ts", read("apps/local-host/src/index.ts") + 'export * from "./another.js";\n'),
     expect: [/Host entry `export \*` in apps\/local-host\/src\/index\.ts#export-star 3 → 4/] },
   { name: "an export * as namespace in the Host entry", mutate: () => put("apps/local-host/src/index.ts", read("apps/local-host/src/index.ts") + 'export * as everything from "./more.js";\n'),
     expect: [/Host entry `export \*` in apps\/local-host\/src\/index\.ts#export-star 3 → 4/] },
 
   // ---- Module repositories -----------------------------------------------------------------------------------------------
-  { name: "a Module entry exports another Store", mutate: () => put("modules/alpha/src/index.ts", read("modules/alpha/src/index.ts") + 'export { BetaStore } from "./beta.js";\n'),
+  { name: "a Module entry exports another Store", launder: true, mutate: () => put("modules/alpha/src/index.ts", read("modules/alpha/src/index.ts") + 'export { BetaStore } from "./beta.js";\n'),
     expect: [/Module entry exposes a Repository: modules\/alpha#export:BetaStore 0 → 1/] },
   { name: "a Repository reaches the entry through export * of an inner file", mutate: () => { put("modules/alpha/src/index.ts", read("modules/alpha/src/index.ts") + 'export * from "./inner.js";\n'); put("modules/alpha/src/inner.ts", "export class GammaRepository {}\n"); },
     expect: [/modules\/alpha#export:GammaRepository 0 → 1/] },
@@ -115,7 +117,7 @@ const violations: Scenario[] = [
     expect: [/modules\/beta#export:BetaStore 0 → 1/, /modules\/beta#export:openBetaStore 0 → 1/] },
 
   // ---- typed capabilities ------------------------------------------------------------------------------------------------
-  { name: "a new typed capability descriptor", mutate: () => put("packages/contracts/src/platform/app-host.ts", read("packages/contracts/src/platform/app-host.ts") + 'export const another = { capability_id: "c.d.v1", version: 1, operation: "command" } as HostCapabilityDefinition<void, void>;\n'),
+  { name: "a new typed capability descriptor", launder: true, mutate: () => put("packages/contracts/src/platform/app-host.ts", read("packages/contracts/src/platform/app-host.ts") + 'export const another = { capability_id: "c.d.v1", version: 1, operation: "command" } as HostCapabilityDefinition<void, void>;\n'),
     expect: [/typed Host capability type-refs in packages\/contracts\/src\/platform\/app-host\.ts 1 → 2/, /typed Host capability without-action in packages\/contracts\/src\/platform\/app-host\.ts 1 → 2/] },
   { name: "a typed capability that carries an action is still a new typed entry", mutate: () => put("packages/contracts/src/platform/app-host.ts", read("packages/contracts/src/platform/app-host.ts") + 'export const withAction = { capability_id: "c.d.v1", version: 1, operation: "command", action: {} } as HostCapabilityDefinition<void, void>;\n'),
     expect: [/typed Host capability type-refs in packages\/contracts\/src\/platform\/app-host\.ts 1 → 2/] },
@@ -127,7 +129,7 @@ const violations: Scenario[] = [
     expect: [/typed Host capability type-refs in horizontal\/extra\/src\/index\.ts 0 → 1/] },
 
   // ---- assembly -----------------------------------------------------------------------------------------------------------
-  { name: "a new <plugin>-actions.ts file in the Host", mutate: () => put("apps/local-host/src/two-actions.ts", "export const twoActionProvider = () => ({});\n"),
+  { name: "a new <plugin>-actions.ts file in the Host", launder: true, mutate: () => put("apps/local-host/src/two-actions.ts", "export const twoActionProvider = () => ({});\n"),
     expect: [/new Host file named for a plugin: apps\/local-host\/src\/two-actions\.ts/] },
   { name: "a new <plugin>-native-plugin-http.ts file in the Host", mutate: () => put("apps/local-host/src/two-native-plugin-http.ts", "export const handleTwo = () => 1;\n"),
     expect: [/new Host file named for a plugin: apps\/local-host\/src\/two-native-plugin-http\.ts/] },
@@ -135,13 +137,13 @@ const violations: Scenario[] = [
     expect: [/new Host file named for a plugin: apps\/local-host\/src\/artifact-actions\.ts/] },
   { name: "another registerProvider line in project-host.ts", mutate: () => put("apps/local-host/src/project-host.ts", read("apps/local-host/src/project-host.ts").replace("  registry.registerProvider(searchProvider());\n", "  registry.registerProvider(searchProvider());\n  registry.registerProvider(searchProvider());\n")),
     expect: [/registerProvider calls in apps\/local-host\/src\/project-host\.ts 2 → 3/] },
-  { name: "registerProvider in a new Host file", mutate: () => put("apps/local-host/src/wiring.ts", "export const wire = (registry: { registerProvider(p: unknown): void }) => registry.registerProvider({});\n"),
+  { name: "registerProvider in a new Host file", launder: true, mutate: () => put("apps/local-host/src/wiring.ts", "export const wire = (registry: { registerProvider(p: unknown): void }) => registry.registerProvider({});\n"),
     expect: [/registerProvider calls in apps\/local-host\/src\/wiring\.ts 0 → 1/] },
   { name: "a Runtime plugin gets a Host file named for it", mutate: () => put("apps/local-host/src/two-surface.ts", "export const surface = 1;\n"),
     expect: [/hybrid plugin two host-files 0 → 1/] },
   { name: "a Runtime plugin gets a provider registered by hand", mutate: () => put("apps/local-host/src/project-host.ts", read("apps/local-host/src/project-host.ts") + "export const more = (registry: { registerProvider(p: unknown): void }) => registry.registerProvider(twoActionProvider());\ndeclare function twoActionProvider(): unknown;\n"),
     expect: [/hybrid plugin two host-providers 0 → 1/, /registerProvider calls in apps\/local-host\/src\/project-host\.ts 2 → 3/] },
-  { name: "a plugin is named in one more file outside its package", mutate: () => put("apps/local-host/src/uses-one.ts", 'import { one } from "@fx/plugin-one";\nexport const x = one;\n'),
+  { name: "a plugin is named in one more file outside its package", launder: true, mutate: () => put("apps/local-host/src/uses-one.ts", 'import { one } from "@fx/plugin-one";\nexport const x = one;\n'),
     expect: [/plugin one is named in 4 files outside its package \(was 3\)/] },
   { name: "a plugin package name is added to a script", mutate: () => put("scripts/other.mjs", 'export const n = "@fx/plugin-two";\n'),
     expect: [/plugin two is named in 4 files outside its package \(was 3\)/] },
@@ -153,11 +155,12 @@ const violations: Scenario[] = [
 ];
 
 for (const scenario of violations) {
-  test(`${scenario.name} fails against the merge-base, and --update does not hide it`, () => {
+  test(`${scenario.name} fails against the merge-base${scenario.launder ? ", and --update does not hide it" : ""}`, () => {
     branch("violation", scenario.mutate);
     const caught = gate("--base", "main");
     assert.equal(caught.code, 1, caught.out);
     for (const pattern of scenario.expect) assert.match(caught.out, pattern);
+    if (!scenario.launder) return;
 
     // The laundering move: lift the committed baseline to the head's numbers in the same branch.
     const refused = gate("--update", "--base", "main");

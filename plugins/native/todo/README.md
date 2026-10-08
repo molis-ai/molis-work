@@ -25,5 +25,6 @@
   - 新建带 `request_id` 时同一请求重试不重复创建。
   - 整理只产生待确认的候选，不直接新建或修改待办；依据必须能在原文里找到，原文没写的日期只作建议，用户手动改过的字段只作冲突提示。
   - 截止日期按原文说法与写下时间确定性换算，不采用模型的日期算术；有歧义时只给建议日期。
-- 改动后必跑：`node scripts/run-tests.mjs tests/todo-actions.test.ts tests/todo-organize.test.ts tests/todo-plugin.test.ts tests/todo.e2e.test.ts tests/context-onboarding-todo.test.ts tests/context-onboarding-todo.e2e.test.ts`
+  - 项目被删除时由宿主调用 `purgeTodoProject`（`src/project-data.ts`）清掉放在这个项目里的待办及其历史、请求回执、整理器的记忆与审阅批次；个人待办不带项目，保留；只读库文件，库不存在时不创建，重复运行没有副作用。
+- 改动后必跑：`node scripts/run-tests.mjs tests/todo-actions.test.ts tests/todo-organize.test.ts tests/todo-plugin.test.ts tests/todo.e2e.test.ts tests/context-onboarding-todo.test.ts tests/context-onboarding-todo.e2e.test.ts tests/project-deletion-owners.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[continuity.md](../../../skills/molis-plugin-dev/continuity.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

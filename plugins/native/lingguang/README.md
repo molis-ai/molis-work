@@ -28,5 +28,6 @@
   - 失败或取消不保存半轮消息；生成期间材料变化时拒绝过期结果。
   - 对话回复声明 `scheduling: "concurrent"`，等模型时不占项目的串行队列。
   - 保留原表与稳定 ID；旧 `stub` 历史标为本地记录。
-- 改动后必跑：`node scripts/run-tests.mjs tests/lingguang-actions.test.ts tests/lingguang-plugin.test.ts tests/lingguang-mcp.test.ts`
+  - 项目被删除时由宿主调用 `purgeLingguangProject`（`src/project-data.ts`）清掉灵光、对话与消息，连同请求回执；只读库文件，库不存在时不创建，重复运行没有副作用。
+- 改动后必跑：`node scripts/run-tests.mjs tests/lingguang-actions.test.ts tests/lingguang-plugin.test.ts tests/lingguang-mcp.test.ts tests/project-deletion-owners.test.ts`
 - 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

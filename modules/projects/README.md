@@ -54,7 +54,8 @@ node --import tsx --test --test-concurrency=1 tests/projects-module.test.ts
   - 身份只有 `project_id`：目录条目、项目数据库与库里 Goals 的根记录同值。
   - 目录关联只由本模块管理，不建第二份目录库；按项读取当前项目，不返回其他项目的关联。
   - 卸载检查只提供目录事实，不删除用户文件。
-- 改动后必跑：`node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-plugin-registry.test.ts tests/current-project-settings.test.ts tests/project-settings-deletion.test.ts`
+  - 删除回执（`project_deletions`）带每个数据所有者的一步（`project_deletion_steps`：pending、complete、skipped），与目录自己的清理在同一个事务里写入；回执只有目录暂存已删且每一步都不是 pending 时才是 complete。所有者清什么不归本模块。
+- 改动后必跑：`node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-plugin-registry.test.ts tests/current-project-settings.test.ts tests/project-settings-deletion.test.ts tests/project-deletion-hooks.test.ts`
 - 相关手册：[docs/modules/projects.md](../../docs/modules/projects.md)、[docs/platform/PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

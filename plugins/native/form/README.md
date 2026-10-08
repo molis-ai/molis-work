@@ -28,5 +28,6 @@
   - 缺模型时禁用 AI，保留本地操作。
   - 编辑带读取版本，冲突保留输入；重新读取前确认丢弃。
   - 新答卷保留提交时的题目快照；同次提交用稳定的 `request_id`，重试不重复保存。
-- 改动后必跑：`node scripts/run-tests.mjs tests/form-actions.test.ts tests/form-mcp.test.ts tests/creative-tools-plugins.test.ts`
+  - 项目被删除时由宿主调用 `purgeFormProject`（`src/project-data.ts`）清掉问卷与收到的全部回答，连同复制回执；只读库文件，库不存在时不创建，重复运行没有副作用。
+- 改动后必跑：`node scripts/run-tests.mjs tests/form-actions.test.ts tests/form-mcp.test.ts tests/creative-tools-plugins.test.ts tests/project-deletion-owners.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

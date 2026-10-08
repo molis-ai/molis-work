@@ -25,5 +25,6 @@ JSON 导出由动作服务读取已保存的演示稿，返回文件名、MIME �
 - 不变量：
   - 冲突保留当前输入，并阻止发布、导出和离开。
   - 发布保存固定快照；中断后恢复原版本并保留后来的编辑。
-- 改动后必跑：`node scripts/run-tests.mjs tests/ppt-actions.test.ts tests/ppt-mcp.test.ts tests/creative-artifact-promote.test.ts`
+  - 项目被删除时由宿主调用 `purgePptProject`（`src/project-data.ts`）清掉演示稿，连同复制回执；只读库文件，库不存在时不创建，重复运行没有副作用。
+- 改动后必跑：`node scripts/run-tests.mjs tests/ppt-actions.test.ts tests/ppt-mcp.test.ts tests/creative-artifact-promote.test.ts tests/project-deletion-owners.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

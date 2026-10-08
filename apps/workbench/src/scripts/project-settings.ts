@@ -82,7 +82,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         const cancel = dialog.querySelector("[data-project-delete-cancel]");
         const scope = dialog.querySelector("[data-project-delete-scope]");
         const scopeList = scope && scope.querySelector("ul");
-        // What goes with the project is what the plugins of this Home say they keep for it, read when the dialog opens.
+        // What goes with the project is what the plugins of this Home say they keep for it, read as the dialog opens.
         const loadScope = async () => {
           if (!scope) return;
           const line = (text) => { const item = document.createElement("li"); item.textContent = text; return item; };
@@ -100,14 +100,14 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         let busy = false;
         let cleanupPending = false;
         let deletionKey = null;
-        root.querySelector("[data-project-delete-open]")?.addEventListener("click", async () => {
+        root.querySelector("[data-project-delete-open]")?.addEventListener("click", () => {
           if (!deletionKey) {
             confirmation.checked = false;
             submit.disabled = true;
             error.hidden = true;
           }
-          await loadScope();
           dialog.showModal();
+          void loadScope();
         });
         cancel.addEventListener("click", () => { if (!busy) dialog.close(); });
         dialog.addEventListener("cancel", (event) => { if (busy) event.preventDefault(); });

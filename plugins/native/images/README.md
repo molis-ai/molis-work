@@ -31,7 +31,8 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
   - 失败、超时或重启不自动再次调用；「停止等待」只停本机请求，不保证厂商停止计费。
   - 所选账号失效时保留选择并显示原因，不自动换账号；生成期间授权改变不保存过期结果。
   - 同一 Home 只有一个执行进程；另一个进程报 `images.runtime_unavailable` 并说明原因。
-- 改动后必跑：`node scripts/run-tests.mjs tests/images-actions.test.ts tests/images-service.test.ts tests/images-providers.test.ts tests/images-concurrency.test.ts tests/images-mcp.test.ts`
+  - 项目被删除时 `purgeImagesProject`（无运行中的服务）或运行中服务的 `deleteProject`（先中止还在生成的任务）清掉这个项目的任务记录和 `images/assets` 里的图片文件。
+- 改动后必跑：`node scripts/run-tests.mjs tests/images-actions.test.ts tests/images-service.test.ts tests/images-providers.test.ts tests/images-concurrency.test.ts tests/images-mcp.test.ts tests/project-deletion-owners.test.ts`
 - 相关手册：[docs/platform/PROLOGUE-AI.md](../../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 客户端资源由 Host 注入的 UI 生命周期管理：隐藏停止进度轮询，再次显示刷新；卸载取消本机请求并释放监听、定时器和观察器。服务端任务保持原有取消与恢复语义。

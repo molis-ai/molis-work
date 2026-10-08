@@ -297,7 +297,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function briefPreview(name, summary, nextHtml, kicker) {
     // The same sentence the chooser will show once the project exists: the first paragraph that says something (a heading is a title), as plain words.
     const first = String(summary || '').split(/\n\s*\n/).map(p => p.split('\n').filter(line => !/^\s*#{1,6}\s/.test(line)).join(' ').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/\s*\[S\d+\]/g,'').replace(/\x60([^\x60]+)\x60/g,'$1').replace(/\s+/g,' ').trim()).find(Boolean) || '';
-    return '<div class="ob-preview" aria-label="' + esc(L('新项目的样子')) + '"><article class="mw-brief" data-slot="brief"><p class="mw-brief__kicker">' + status(L('未设目标'),'quiet','status-todo') + '<span>' + esc(kicker) + '</span></p><h1 class="mw-brief__title ob-project-name">' + esc(name) + '</h1>'
+    return '<div class="ob-preview" aria-label="' + esc(L('新项目的样子')) + '"><article class="mw-brief" data-slot="brief"><p class="mw-brief__kicker"><span>' + esc(kicker) + '</span></p><h1 class="mw-brief__title ob-project-name">' + esc(name) + '</h1>'
       + (first ? '<p class="mw-brief__desc">' + esc(first.length > 240 ? first.slice(0, 239) + '…' : first) + '</p>' : '<p class="mw-brief__desc is-missing">' + glyph('info') + '<span>' + L('还没有项目描述。进入项目后，在项目设置里补一句它要做什么。') + '</span></p>')
       + '<section class="mw-brief__focus is-empty"><div><h2>' + L('还没有目标') + '</h2><p>' + L('进入项目后写下第一个目标，也可以先让助理起草。') + '</p></div></section>'
       + '<div class="mw-brief__cols"><section class="mw-brief__sec"><h2>' + L(nextHtml.title) + '</h2>' + nextHtml.body + '</section></div></article></div>';
@@ -324,7 +324,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       bar:{start:exitButton() + stepsBar('开始'), center:barStatus({spin:saving, glyph:'folder', title:L(saving?'正在保存项目与资料':'项目内容已经确认'), caption:L('请稍候')}), end:primary(saving?'正在保存…':'继续保存项目','adopt',{disabled:busy||saving})}};
   }
   function blankForm() {
-    const preview = briefPreview(blankName.trim() || L('新项目'), '', {title:'接下来', body:'<p class="mw-brief__quiet">' + L('目标定下来之后，要推进的事会出现在这里。') + '</p>'}, L('刚刚') + ' · ' + L(materialsOnly ? '带入已读取的资料' : '空白项目'));
+    const preview = briefPreview(blankName.trim() || L('新项目'), '', {title:'接下来', body:'<p class="mw-brief__quiet">' + L('各插件有要推进或等你确认的事时，会出现在这里。') + '</p>'}, L('刚刚') + ' · ' + L(materialsOnly ? '带入已读取的资料' : '空白项目'));
     const left = question(L('给新项目一个名字'), L(materialsOnly?'已导入的资料会带入项目，摘要可以稍后整理。':'先建一个空间，资料和下一步可以慢慢补充。'))
       + '<form id="cx-blank-form" class="ob-name"><label class="ob-label" for="cx-blank-name">' + L('项目名称') + '</label><input class="mw-input ob-name__input" id="cx-blank-name" maxlength="120" required autocomplete="off" data-plain-field placeholder="' + esc(L('例如：秋季内容计划')) + '" value="' + esc(blankName) + '"><p class="cx-error ob-error" role="alert">' + esc(error) + '</p></form>'
       + (materialsOnly ? '' : '<p class="ob-quiet">' + L('还没想好是什么项目？') + ' ' + btn({variant:'link', size:'sm', label:L('先在个人空间开始'), attrs:{'data-action':'personal', disabled:busy}}) + '</p>');

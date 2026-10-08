@@ -36,6 +36,7 @@ import {
 import { FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
 import { ArtifactsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { createFeedHistoryRelease } from "./feed-history-release.js";
 export interface LocalFeedApplicationOptions {
   artifacts?: FeedArtifactProducer;
   captureJudgment?: FeedApplicationPorts["captureJudgment"];
@@ -116,6 +117,7 @@ export function createLocalFeedApplication(
       registerVersion: (input) => artifactsModule.commands.registerVersion(input),
       latestVersion: (projectId, artifactId) => artifactsModule.query.latestArtifactVersion(projectId, artifactId),
     },
+    history: createFeedHistoryRelease(db),
     captureJudgment: options.captureJudgment,
     inboxJudgment: options.inboxJudgment,
     homeJudgment: options.homeJudgment,

@@ -53,7 +53,7 @@ export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
     const facts = connection ? await readOptional(() => ports.readResumeFacts(connection, uniqueFocusGoalIds(hostFocus, sessionFocus))) : { value: null };
     checkContext();
     const resume = connection ? facts.value ? buildMcpResumeView(facts.value, hostFocus, sessionFocus) : null
-      : { focus: null, next_goals: [], auto_claimed: false };
+      : { focus: null, next_goals: [] };
     return JSON.stringify({
       ...resolution, connection, session_registry: sessionRegistry, project_guidance: projectGuidance,
       runtime_prompt_prefix: projectGuidance?.runtime_prompt_prefix ?? null, resume,

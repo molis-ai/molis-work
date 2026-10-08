@@ -43,7 +43,6 @@ export const ARTIFACT_EN: Record<string, string> = {
   "原对象已移到别处，这里仍保留第 {version} 版。": "The original was moved elsewhere; version {version} is kept here.",
   "这是导入时保存的版本；原文后续修改不会自动同步。": "This is the version saved at import; later edits to the original are not synced.",
   "关联结果": "Linked results",
-  "明确关联的成果版本；查看不会改变 Goal 或 Evidence。": "Explicitly linked Artifact versions. Viewing them does not change Goals or Evidence.",
   "关联的版本不可用或不存在。引用仍然保留，不会替换成最新版本。": "The linked version is unavailable or missing. Its reference is retained; the latest version will not be substituted.",
   "没有兼容插件。可打开这个版本查看信息或导出本地副本。": "No compatible plugin. Open this version to inspect its information or export a local copy.",
   "插件发布的结果与版本": "Results and versions published by plugins",

@@ -41,6 +41,10 @@ interface SubmissionRow {
   source: string;
 }
 
+/** What a form holds; a hand-over from another plugin is shaped to fit before it is received. */
+export const FORM_TITLE_LIMIT = 80;
+export const FORM_QUESTION_LIMIT = 40;
+
 const QUESTION_TYPES: readonly FormQuestionType[] = [
   "text", "singleChoice", "multiChoice", "dropdown", "rating", "date",
 ];
@@ -250,7 +254,7 @@ export class FormStore {
   }
 
   submit(id: string, answers: Readonly<Record<string, string>>, projectId?: string,
-    options: { expectedVersion?: number; requestId?: string; source?: "preview" | "fill" } = {}): FormSubmissionRecord {
+    options: { expectedVersion?: number; requestId?: string; source?: Exclude<FormSubmissionSource, "file"> } = {}): FormSubmissionRecord {
     return this.transaction(() => {
       const form = this.get(id, projectId);
       if (options.source === "fill" && form.status !== "published") throw new FormError("form.closed", form.status === "closed" ? "这份问卷已停止收集答卷" : "这份问卷还没有开始收集答卷");
@@ -405,7 +409,7 @@ function normalizeProjectId(value: string): string {
 
 function normalizeTitle(value: string): string {
   const title = value.trim() || "未命名问卷";
-  if (title.length > 80) throw new FormError("form.invalid", "标题须为 1 到 80 个字");
+  if (title.length > FORM_TITLE_LIMIT) throw new FormError("form.invalid", `标题须为 1 到 ${FORM_TITLE_LIMIT} 个字`);
   return title;
 }
 
@@ -420,7 +424,7 @@ function usesOptions(type: FormQuestionType): boolean {
 
 function normalizeQuestions(value: readonly FormQuestionInput[]): FormQuestion[] {
   if (!Array.isArray(value)) throw new FormError("form.invalid", "题目须是列表");
-  if (value.length > 40) throw new FormError("form.invalid", "最多 40 题");
+  if (value.length > FORM_QUESTION_LIMIT) throw new FormError("form.invalid", `最多 ${FORM_QUESTION_LIMIT} 题`);
   const normalized = value.map((question: FormQuestionInput, index) => {
     const type = question.type && QUESTION_TYPES.includes(question.type) ? question.type : "text";
     const title = String(question.title ?? "").trim() || `问题 ${index + 1}`;

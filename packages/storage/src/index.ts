@@ -25,10 +25,10 @@ export {
   openHomeSqliteDatabase,
   type PersonalHomeSqliteStore,
 } from "./home-sqlite.js";
-export { clearInExistingHomeSqlite } from "./home-sqlite-purge.js";
 export {
   SqliteSchemaVersionError,
   applySqliteBaseline,
+  clearInExistingHomeSqlite,
   describeSqliteSchema,
   openBaselineHomeSqlite,
   type SqliteBaseline,

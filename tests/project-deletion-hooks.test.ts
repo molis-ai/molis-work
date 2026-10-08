@@ -261,7 +261,7 @@ test("the delete dialog lists what goes with the project, and the web deletion r
     body: JSON.stringify({ delete_confirmed: true, idempotency_key: "delete-project-with-owners" }),
   });
   assert.equal(deleted.status, 200);
-  const result = await deleted.json() as { deletion: { cleanup_state: string; owner_steps: Array<{ owner_id: string; state: string }> } };
+  const result = await deleted.json() as { deletion: { cleanup_state: string; owner_steps: Array<{ owner_id: string; state: string; updated_at: string }> } };
   assert.equal(result.deletion.cleanup_state, "complete");
   assert.deepEqual(result.deletion.owner_steps.filter(step => step.owner_id === "test-web"), [{ owner_id: "test-web", state: "complete", error: null, updated_at: result.deletion.owner_steps.find(step => step.owner_id === "test-web")!.updated_at }]);
   assert.deepEqual(owner.calls, [project.project_id]);

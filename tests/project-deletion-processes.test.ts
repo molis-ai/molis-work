@@ -141,6 +141,21 @@ test("an executor whose Agent runtime another process holds defers the memory st
   assert.deepEqual(finished.deletion.owner_steps.filter(item => item.owner_id === "memory").map(item => [item.state, item.error]), [["complete", null]]);
 });
 
+test("a Host whose runtime has already started clears the memory step itself, whatever transport it serves", { timeout: 180_000 }, async t => {
+  const { home, catalog } = await scratchHome(t);
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  t.after(() => host.close());
+  // No transport adopted the service (no catalog owner), but something needed the runtime, so this process holds it.
+  const service = ensureSystemAgentService(host, home);
+  await service.ready;
+  const gone = (await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" })).project_id;
+
+  const result = await catalog.deleteProject(deletion(gone));
+
+  assert.equal(result.deletion.cleanup_state, "complete", "waiting for another process could never help: this one holds the runtime");
+  assert.deepEqual(result.deletion.owner_steps.filter(step => step.owner_id === "memory").map(step => [step.state, step.error]), [["complete", null]]);
+});
+
 test("a Host in a Home that never ran an Agent clears the project's notes in the ledger without starting a runtime", { timeout: 60_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
   const host = new MolisWorkLocalHost({ homeDirectory: home });

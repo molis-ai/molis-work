@@ -17,7 +17,18 @@ let repo = "";
 const git = (...args: string[]) => execFileSync("git", ["-c", "commit.gpgsign=false", "-c", "user.name=gates", "-c", "user.email=gates@example.invalid", ...args], { cwd: repo, encoding: "utf8", stdio: "pipe" });
 const put = (file: string, text: string) => { mkdirSync(path.dirname(path.join(repo, file)), { recursive: true }); writeFileSync(path.join(repo, file), text); };
 const read = (file: string) => readFileSync(path.join(repo, file), "utf8");
-const commit = (message: string) => { git("add", "-A"); git("commit", "-q", "--allow-empty", "-m", message); };
+// The package inventory (scripts/gates/package-inventory.mjs) is an absolute rule that applies to every repository with a package
+// registry, and the fixture has one. It is kept the way a developer keeps it: regenerated with `--table` from the staged tree on
+// every commit, so a scenario that adds a package or moves a plugin still fails only for the rule it is written for. A registry
+// the generator cannot read (the "tidy" scenario empties it) leaves the document alone: the inventory gate skips such a tree.
+const inventoryScript = fileURLToPath(new URL("../scripts/gates/package-inventory.mjs", import.meta.url));
+const INVENTORY = "specs/repository-anti-corruption/spec.md";
+const refreshInventory = () => {
+  git("add", "-A");
+  const table = spawnSync(process.execPath, [inventoryScript, "--table", "--root", repo], { encoding: "utf8" });
+  if (table.status === 0) put(INVENTORY, `# Fixture\n\n状态：scratch repository.\n\n${table.stdout}`);
+};
+const commit = (message: string) => { refreshInventory(); git("add", "-A"); git("commit", "-q", "--allow-empty", "-m", message); };
 const gate = (...args: string[]) => {
   const run = spawnSync(process.execPath, [script, "--root", repo, ...args], { encoding: "utf8" });
   return { code: run.status, out: `${run.stdout}${run.stderr}` };
@@ -32,6 +43,7 @@ const manifest = (name: string) => JSON.stringify({ name }, null, 2) + "\n";
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-structure-gates-"));
   git("init", "-q", "-b", "main");
+  git("commit", "-q", "--allow-empty", "-m", "init"); // `--table` reads the log
   put("tooling/gates/limits.json", JSON.stringify({ file: 2000, classLines: 2000, classMethods: 200, functionLines: 2000, vendoredPrologueSdk: 2 }, null, 2) + "\n");
   for (const name of ["one", "two", "artifacts"]) {
     put(`plugins/native/${name}/package.json`, manifest(`@fx/plugin-${name}`));

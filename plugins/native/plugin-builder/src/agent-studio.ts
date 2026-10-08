@@ -117,7 +117,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const selector=host.mode==='preview'?'[data-studio-preview]':host.mode==='installed'?'[data-installed-plugin]':'[data-agent-studio]';
  const root=host.root?(host.root.matches?.(selector)?host.root:host.root.querySelector(selector)):document.querySelector(selector);
  if(!root)return;
- const page=host.page||{address:()=>new URL(location.href),replace:next=>history.replaceState(null,'',next)};const lifetime=host.mountPluginClient(root);if(!lifetime)return;
+ const page=host.page;const lifetime=host.mountPluginClient(root);if(!lifetime)return;
 
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const icon=n=>'<svg aria-hidden="true"><use href="#icon-'+n+'"/></svg>';
@@ -145,7 +145,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  }
  const $=s=>root.querySelector(s);
  const feed=$('[data-as-feed]'),input=$('[data-as-input]'),canvas=$('[data-as-canvas]'),scroll=$('[data-as-scroll]'),pluginRoot=$('[data-as-plugin]'),empty=$('[data-as-empty]');
- let state={builds:[],releases:[],models:[],model:null,components:[],selectionAvailable:false},current=null,versions=[],preview=null,tab='build',target=null,source=null,frame=0,busy=false,notice='',openSteps=null,rendered='',seenWired=new Set(),firstPaint=true;
+ let state={builds:[],models:[],model:null,components:[],selectionAvailable:false},current=null,versions=[],preview=null,tab='build',target=null,source=null,frame=0,busy=false,notice='',openSteps=null,rendered='',seenWired=new Set(),firstPaint=true;
  // The UI Agent's placements, paced so each one can be seen: a part waits in the queue, is taken from the spec board and set in place.
  let revealed=new Set(),queue=[],landing=null,picking=null,playing=false,playToken=0;
  // Capabilities being connected: shown ticked on the capability board only once the code agent has carried them in.
@@ -419,16 +419,16 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
  async function run(work){if(busy||!lifetime.alive)return;busy=true;notice='';schedule();try{await work();}catch(e){notice=e.message;}finally{busy=false;schedule();}}
  async function act(action,extra={}){const v=await api('/builds/'+current.id+'/action','POST',{action,revision:current.revision,...extra});if(v.build)current=v.build;if(v.release){versions=(await api('/builds/'+current.id)).versions;notice='';}if(v.deleted){await refreshState();await open(null);}}
  lifetime.listen(root,'click',e=>{const el=e.target.closest('button,a');if(!el||!root.contains(el))return;
-  // Framed in the workbench, the plugin opens in place as a workbench stage rather than in a new window.
-  if(el.dataset.asOpenPlugin&&(host.openPlugin||parent!==window)){e.preventDefault();if(host.openPlugin)host.openPlugin('app-'+el.dataset.asOpenPlugin);else parent.postMessage({type:'molis-studio-open-plugin',surface:'app-'+el.dataset.asOpenPlugin},location.origin);return;}
-  if(el.matches('[data-as-model-setup]')){if(host.openSettings){e.preventDefault();host.openSettings('/settings/models');}else if(parent!==window){e.preventDefault();parent.postMessage({type:'molis-work:open-settings',href:'/settings/models'},location.origin);}return;}
+  // The plugin opens in place as a workbench stage rather than in a new window.
+  if(el.dataset.asOpenPlugin){e.preventDefault();host.openPlugin('app-'+el.dataset.asOpenPlugin);return;}
+  if(el.matches('[data-as-model-setup]')){e.preventDefault();host.openSettings('/settings/models');return;}
   if(el.dataset.asExample){input.value=el.dataset.asExample;input.focus();return;}
   if(el.dataset.asOpen){run(()=>open(el.dataset.asOpen));return;}
   if(el.hasAttribute('data-as-catalog')){const which=el.dataset.asCatalog||'components';catalogOpen=catalogOpen===which?'':which;tip.hidden=true;renderBoard();return;}
   if(el.dataset.asCandidate){preview=el.dataset.asCandidate;rendered='';schedule();return;}
   if(el.dataset.asChoose){run(()=>act('choose',{candidateId:el.dataset.asChoose}));return;}
   if(el.dataset.asPart){run(()=>act('part',{kind:el.dataset.asPart}));return;}
-  if(el.dataset.asAction){const a=el.dataset.asAction;if(a==='publish')run(()=>act('publish'));else run(()=>act(a));return;}
+  if(el.dataset.asAction){run(()=>act(el.dataset.asAction));return;}
   if(el.hasAttribute('data-as-compare')){comparePrevious=!comparePrevious;schedule();return;}
   if(el.dataset.asTab){tab=el.dataset.asTab;target=null;if(tab!=='build'){playToken++;playing=false;queue.forEach(id=>revealed.add(id));queue=[];landing=null;picking=null;wires.forEach(w=>wiredCaps.add(w.cap));wires=[];wiring=null;}schedule();return;}
   if(el.hasAttribute('data-as-untarget')){target=null;schedule();return;}
@@ -445,7 +445,7 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
   if(el.dataset.asUpgrade){const v=versions.find(x=>x.version===Number(el.dataset.asUpgrade)),inst=installed(current);const go=()=>run(async()=>{await act('upgrade',{version:v.version,grants:{consent:true}});await refreshState();});
    if(covered(v?.permissions,inst?.effects))go();else consent('升级到 v'+v.version+' 需要新的权限',v?.permissions,'确认并升级').then(ok=>{if(ok)go();});return;}
   if(el.hasAttribute('data-as-install-enable')){const inst=installed(current);if(inst)run(async()=>{await act('enable',{version:inst.version});await refreshState();});return;}
-  if(el.hasAttribute('data-as-uninstall')){const inst=installed(current);if(!inst)return;ask('卸载「'+(current.design?.title||'')+'」','卸载后它会从这个项目里移除。它保存的数据可以留着，以后重新安装还能看到。',[['keep','卸载，保留数据',true],['drop','卸载并删除数据'],['cancel','取消']]).then(choice=>{if(choice==='keep'||choice==='drop')run(async()=>{await act('uninstall',{version:inst.version,grants:{keepData:choice==='keep'}});await refreshState();if(host.pluginRemoved)host.pluginRemoved('app-'+current.id);else if(parent!==window)parent.postMessage({type:'molis-studio-plugin-removed',surface:'app-'+current.id},location.origin);});});return;}
+  if(el.hasAttribute('data-as-uninstall')){const inst=installed(current);if(!inst)return;ask('卸载「'+(current.design?.title||'')+'」','卸载后它会从这个项目里移除。它保存的数据可以留着，以后重新安装还能看到。',[['keep','卸载，保留数据',true],['drop','卸载并删除数据'],['cancel','取消']]).then(choice=>{if(choice==='keep'||choice==='drop')run(async()=>{await act('uninstall',{version:inst.version,grants:{keepData:choice==='keep'}});await refreshState();host.pluginRemoved('app-'+current.id);});});return;}
   if(el.hasAttribute('data-as-remove')){ask('删除「'+(current.design?.title||current.title)+'」这个草稿？','构建目录和试用数据会一起删除，已发布并安装的插件不受影响。',[['remove','删除',true],['cancel','取消']]).then(choice=>{if(choice==='remove')run(()=>act('remove'));});return;}
   if(el.hasAttribute('data-as-new')){run(()=>open(null));input.focus();}
  });
@@ -494,7 +494,7 @@ export const AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const page={address:()=>{const here=new URL(location.origin+'/');try{const id=sessionStorage.getItem(KEY);if(id)here.searchParams.set('build',id);}catch{}return here;},
   replace:next=>{try{const id=next.searchParams.get('build');if(id)sessionStorage.setItem(KEY,id);else sessionStorage.removeItem(KEY);}catch{}}};
  (` + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + `)({mountPluginClient:host.mountPluginClient,root:host.root||document.querySelector('[data-work-surface="plugin-builder"]'),mode:'studio',
-  api:p=>host.route('/api/plugin-builder/studio')+p,preview:id=>host.route('/plugin-builder/studio/preview/')+id,plugin:id=>host.route('/plugins/')+id,
+  api:p=>host.route('/api/plugin-builder/studio')+p,plugin:id=>host.route('/plugins/')+id,
   components:` + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + `,page,openPlugin,pluginRemoved,
   openSettings:href=>document.dispatchEvent(new CustomEvent('molis-work:open-settings-path',{detail:{href}}))});
 }`;

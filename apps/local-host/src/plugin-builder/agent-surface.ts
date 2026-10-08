@@ -404,7 +404,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     const served = request.headers.host;
     if (served && /^(127\.0\.0\.1|localhost|\[::1\]):\d{1,5}$/.test(served)) studio.origin = 'http://' + served;
     else if (url.port) studio.origin = url.origin;
-    const factories = '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')(),api:p=>' + literal(prefix + '/api/plugin-builder/studio') + '+p,preview:id=>' + literal(prefix + '/plugin-builder/studio/preview/') + '+id,plugin:id=>' + literal(prefix + '/plugins/') + '+id,components:' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT;
+    const factories = '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')(),api:p=>' + literal(prefix + '/api/plugin-builder/studio') + '+p,plugin:id=>' + literal(prefix + '/plugins/') + '+id,components:' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT;
     if (preview && method === 'GET') {
       const build = workflow.store.require(preview[1]!);
       html(response, page(build.title, '<main class="as-preview-page" data-studio-preview="' + escapeHtml(build.id) + '"></main>', factories + ',mode:"preview",acceptance:' + literal(url.searchParams.get('acceptance')) + ',build:' + literal(build.id) + '});', controlToken));

@@ -209,6 +209,20 @@ test('studio: a request becomes a working, published plugin that the person can 
     await page.command('Page.reload');
     await page.wait(`document.querySelector('[data-as-uninstall]')`);
 
+    // A switched-off install takes the next version without being switched on, and is switched on when the person says so.
+    const lifecycle = (action: string, version: number) => page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)},{build}=await(await fetch('/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:${JSON.stringify(action)},revision:build.revision,version:${version},grants:{consent:true}})});if(!r.ok)throw Error(await r.text())})()`);
+    await lifecycle('disable', 1);
+    await page.command('Page.reload');
+    await page.wait(`document.querySelector('[data-as-upgrade]')`);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-upgrade]').innerText`), /仍保持停用/, 'the upgrade button says the plugin stays off');
+    await page.click('[data-as-upgrade]');
+    await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v2')||document.querySelector('[role=alert]')`);
+    assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText ?? ''`), '', 'upgrading a disabled install reports no problem');
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-feed]').innerText`), /已安装 v2[\s\S]*disabled/, 'and it is still disabled');
+    await page.click('[data-as-install-enable]');
+    await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v2')&&!document.querySelector('[data-as-install-enable]')`);
+    await lifecycle('rollback', 1);
+
     // Uninstall keeps the data when asked to; the plugin page then no longer serves it.
     await page.click('[data-as-uninstall]');
     await page.wait(`document.querySelector('.as-dialog button[value=keep]')`);
@@ -217,6 +231,31 @@ test('studio: a request becomes a working, published plugin that the person can 
     assert.deepEqual(await installedPluginStages(options), [], 'an uninstalled plugin leaves the workbench');
     const gone = await fetch(origin + pluginHref);
     assert.notEqual(gone.status, 200, 'an uninstalled plugin page is not served');
+
+    // The uninstall kept v1's data and only v2 is left to install: it does not say it can read that data, so the person is asked.
+    const shelf = JSON.parse(installedOwner.storage.get('plugin-builder:agent-built:v1')!) as { releases: Array<{ version: number }> };
+    installedOwner.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ ...shelf, releases: shelf.releases.filter(release => release.version === 2) }));
+    await page.command('Page.reload');
+    await page.wait(`document.querySelector('[data-as-install]')`);
+    await page.click('[data-as-install]');
+    await page.wait(`document.querySelector('.as-dialog button[value=ok]')`);
+    await page.click('.as-dialog button[value=ok]');
+    await page.wait(`document.querySelector('.as-dialog button[value=discard]')`);
+    assert.match(await page.evaluate<string>(`document.querySelector('.as-dialog').innerText`), /读不了/, 'the dialog says the old data cannot be used');
+    await page.click('.as-dialog button[value=cancel]');
+    await page.wait(`!document.querySelector('.as-dialog')`);
+    assert.deepEqual(await installedPluginStages(options), [], 'cancelling installs nothing');
+    await page.click('[data-as-install]');
+    await page.wait(`document.querySelector('.as-dialog button[value=ok]')`);
+    await page.click('.as-dialog button[value=ok]');
+    await page.wait(`document.querySelector('.as-dialog button[value=discard]')`);
+    await page.click('.as-dialog button[value=discard]');
+    await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v2')||document.querySelector('[role=alert]')`);
+    assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText ?? ''`), '', 'dropping the old data lets the install through');
+    await page.click('[data-as-uninstall]');
+    await page.wait(`document.querySelector('.as-dialog button[value=drop]')`);
+    await page.click('.as-dialog button[value=drop]');
+    await page.wait(`document.querySelector('[data-as-install]')`);
 
     // Narrow screens keep the whole journey without horizontal page scrolling.
     await page.viewport(390, 844, true);

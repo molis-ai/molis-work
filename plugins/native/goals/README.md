@@ -1,6 +1,6 @@
 # 目标用例与原生界面
 
-Goals 是每个项目都带的内置插件，拥有 Goal 事实。它把 Goal 的当前约定、要求、工作记录和可信决定组合成可操作的工作流，提供目标目录、时间线、树结构和历史正文界面；其他插件经它公开的动作读取，不碰它的存储。
+Goals 是每个项目都带的内置插件，是 Goal 的产品 owner；Goal 事实本身由 `modules/goals` 保存（见 [SSOT-MATRIX](../../../docs/SSOT-MATRIX.md)），本插件在它之上组合。它把 Goal 的当前约定、要求、工作记录和可信决定组合成可操作的工作流，提供目标目录、时间线、树结构和历史正文界面；其他插件经它公开的动作读取，不碰它的存储。
 
 包名：`@molis-ai/molis-work-plugin-goals`。工作区内部包，通过仓库构建和 Host 装配使用。
 
@@ -79,7 +79,7 @@ Coding 的进展回执查询也转入统一动作，保留原保存回执和重�
 ## 开发要求
 
 - 负责：Goals 的导航、界面、命令与组合（每个项目都带的内置插件）。
-- 不负责：Goal 事实与 Store、其他插件的实现。
+- 不负责：Goal 事实与 Store（归 `modules/goals`，本插件只组合并公开它们）、其他插件的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-goals`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-module-goals`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：

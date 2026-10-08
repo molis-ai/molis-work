@@ -14,7 +14,7 @@
 | 情形 | 业务数据（各 owner 的库） | 派生数据（系统搜索索引） |
 | --- | --- | --- |
 | Home 隔离 | 每个库跟随打开它的 Home（`openHomeSqliteDatabase(home, name)`、项目库路径由目录记录）；不同 Home 不共享库、密钥或索引 | `{home}/search/search.db` 只属于这个 Home |
-| 结构版本 | 每个库只有一份现行结构加版本号（`PRAGMA user_version`）：新库一次建好，版本不符拒绝打开、不就地升级（项目库基线 `PROJECT_DATABASE_BASELINE`） | schema 版本不符时清空重建，不做迁移 |
+| 结构版本 | 每个库只有一份现行结构加版本号：新库一次建好，版本不符拒绝打开、不就地升级。基线库（项目库 `PROJECT_DATABASE_BASELINE`、Pages 等，经 `applySqliteBaseline`）版本在 `PRAGMA user_version`；项目目录库 `projects/catalog.db` 在 `LocalCatalogMetadata`（`CATALOG_SCHEMA_VERSION`）；Session Registry 在 `session_meta.schema_version` | schema 版本不符时清空重建，不做迁移 |
 | 备份与恢复 | Home 整体离线拷贝，恢复到同一绝对路径（目录记录保存库路径）；加密正文需要原密钥（`tests/home-backup-recovery.test.ts`） | 可随备份一起恢复，也可缺失：下次查询按各来源版本追平或重建 |
 | 插件在项目里停用 | 数据保留，动作不可用（`actions.plugin_disabled`） | 该来源的索引内容删除；重新启用后从 owner 数据重建 |
 | Runtime 插件卸载 | 安装记录置为已卸载；未要求保留时，Host 删除其私有存储（`retain_private_data` 可保留） | 来源从目录消失后删除其索引内容 |

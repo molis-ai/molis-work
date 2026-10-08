@@ -1,6 +1,6 @@
 # Modules
 
-Molis Work 的内容由各插件保存，每项事实只有一个 owner（见 [SSOT](../SSOT-MATRIX.md)）。Module 是正式业务事实的唯一 owner。每个 Module 自己保存状态、执行业务规则，并通过 Query、Command、Event 的公开 Contract 与外界协作；它不能直接导入另一个 Module 的实现或 Store。
+Molis Work 是本地优先的插件基座加多个插件，每项事实只有一个 owner（见 [SSOT](../SSOT-MATRIX.md)）。Module 是正式业务事实（Goal、治理、成果库等）的 owner；插件在 Module 之上组合界面与动作，Pages、Cognia 等插件自有的私人库由插件自己保管（SSOT 第 7 节）。每个 Module 自己保存状态、执行业务规则，并通过 Query、Command、Event 的公开 Contract 与外界协作；它不能直接导入另一个 Module 的实现或 Store。
 
 ## 模块地图
 

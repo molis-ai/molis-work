@@ -40,7 +40,7 @@ node apps/server/dist/main.js authorize --state /absolute/server-state --member 
 
 ## 接续与冲突
 
-桌面本机仍是事实来源：Goal 事实由 Goals 插件保存，页面只是投影。页面逐字段投影显式选中的目标，不返回完整合约、私人历史或 Home。手机仅可记录进展、下一步和下一位接手人，不会提交用户决定、启动 Agent 或自动完成 Goal。
+桌面本机仍是事实来源：Goal 事实由 Goals 保存（`modules/goals` 持有，Goals 插件提供动作），页面只是投影。页面逐字段投影显式选中的目标，不返回完整合约、私人历史或 Home。手机仅可记录进展、下一步和下一位接手人，不会提交用户决定、启动 Agent 或自动完成 Goal。
 
 命令先保存原输入和稳定 command id，再调用原 Goal 进展动作。收到成功才显示已保存。结果未知时先查询原 actor 的进展回执；没有回执时才按原键、原内容、原 cursor 重试。Goal 原业务事务负责最终幂等。版本冲突保留草稿，用户查看最新状态后用新命令提交。该保证只适用于这项有业务回执的动作，不适用于任意 Action。
 

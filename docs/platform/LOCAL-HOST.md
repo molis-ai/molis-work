@@ -25,7 +25,7 @@ Local Host 是本地产品的“总装配间”。以前 Web、CLI、MCP 各自�
 
 尚未迁到独立 Module 的旧调用暂时通过 `MolisWorkLocalHost.withProject` 兼容 composition 端口访问同一 Runtime。它只解决迁移期资源所有权，不是新公共业务 API；EX、WK、AP3、DV1 等 Goal 会逐步用正式 Capability 替换这些调用。
 
-DV1 已将完整 Goal Contract、项目说明和 active-goal 三项入口接到官方 Goals Plugin 的具名 Capability，由 Host 注册并调用原 owner。树决定只在受保护的管理入口（CLI `goal-tree-decide` 与 MCP `molis_work_v1_goal_tree_decide`）执行，决定者固定为本机用户、来源为 management（`managementTreeAuthority`），参数里不能带身份或出处，模型 args 不会变成 Session 身份；Runtime 工具不能写入树决定。CLI/MCP 已无 `withProject` caller；Workbench 等剩余消费者另由各自迁移任务负责。
+DV1 已将完整 Goal Contract、项目说明和 active-goal 三项入口接到官方 Goals Plugin 的具名 Capability，由 Host 注册并调用原 owner。树决定只在受保护的入口执行：Workbench 的审批表单（`POST /api/goal-tree-proposals/:id/decision`，Web 请求通过来源与控制令牌检查后，由 Host 注入 web 出处，`bindGoalsWebActions`），以及管理入口（CLI `goal-tree-decide` 与 MCP `molis_work_v1_goal_tree_decide`，来源为 management，`managementTreeAuthority`）。两条路径的决定者都固定为本机用户，请求参数里不能带身份或出处，模型 args 不会变成 Session 身份；Runtime 工具不能写入树决定。CLI/MCP 已无 `withProject` caller；Workbench 等剩余消费者另由各自迁移任务负责。
 
 ## Single writer 的范围
 

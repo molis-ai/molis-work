@@ -39,26 +39,6 @@ export function quotedFrom(quote: string, spoken: readonly string[]): boolean {
   return spoken.some(text => { const body = normalized(text); return body === needle || (substantial && body.includes(needle)); });
 }
 
-/** At least this share of a memory's wording has to be in the words it rests on. */
-const RESTATES = 0.5;
-
-/**
- * Whether a memory's text follows from the words it is said to rest on, so that recording it as “the person said” is
- * true: at least half of its wording (Chinese character pairs, words) is in the quote, and no number or word of three
- * or more letters (a name, an address) appears that neither the quote nor `context` (the project's name, which a text
- * may carry for scope) has. A paraphrase passes; a quote about something else, or a fragment, does not. Deterministic:
- * what it cannot tell apart is the same words meaning the opposite (a dropped “不”), so the person's quote stays on the
- * memory as its evidence for them to check.
- */
-export function followsFrom(text: string, quote: string, context = ""): boolean {
-  const source = `${quote} ${context}`;
-  if ((text.toLowerCase().match(/[a-z]{3,}/g) ?? []).some(word => !source.toLowerCase().includes(word))) return false;
-  const numbers = (value: string) => value.match(/(?<![A-Za-z\d])\d+(?:[.,]\d+)*(?![A-Za-z\d])/g) ?? [];
-  const said = new Set(numbers(source));
-  if (numbers(text).some(number => !said.has(number))) return false;
-  return keywordScore(recallKeywords(text), quote) >= RESTATES;
-}
-
 const SECRET_SHAPES: readonly RegExp[] = [
   /\b(?:sk|pk|rk)-[A-Za-z0-9_-]{16,}/,
   /\bgh[pousr]_[A-Za-z0-9]{20,}/,

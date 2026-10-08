@@ -16,7 +16,8 @@
 | --- | --- |
 | [src/service.ts](src/service.ts) | `MemoryService`：列出、召回、写入门、修改与移动、候选、最近变动与撤销、界面信号、整理与维护 |
 | [src/prefs.ts](src/prefs.ts) | 开关的默认值、补全与使用方权限 |
-| [src/text.ts](src/text.ts) | 召回关键词、同文判断、秘密形状与像指令的文字（确定性规则） |
+| [src/text.ts](src/text.ts) | 召回关键词、同文判断、原话是否真在本人说的话里、秘密形状与像指令的文字（确定性规则） |
+| [src/follows.ts](src/follows.ts) | `followsFrom`：写进去的内容是否整个出自本人的原话（“亲口说的”的核对，中英文） |
 
 合同在 `@molis-ai/molis-work-contracts/services/memory`（`memory.*` 动作、旁表端口）。旁表由 `@molis-ai/molis-work-storage` 的 `openMemoryLedger` 实现；Host 装配（Prologue 后端、动作注册、`/api/memory/*`）在 [apps/local-host/src/memory/memory-host.ts](../../apps/local-host/src/memory/memory-host.ts)。
 
@@ -37,7 +38,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 
 ## 开发要求
 
-- 负责：开关与使用方权限、写入门（开关、秘密、像指令的文字、范围、重复与冲突、自动写入的决定表）、召回的过滤与排序与预算、使用回执、候选的规则（同文只提一次、每项工作最多 3 条、14 天过期）、最近变动与撤销、版本历史、界面信号计数与门槛、第一版数据迁移。
+- 负责：开关与使用方权限、写入门（开关、秘密、像指令的文字、范围、重复与冲突、记作“亲口说的”的核对、自动写入的决定表）、召回的过滤与排序与预算、使用回执、候选的规则（同文只提一次、每项工作最多 3 条、14 天过期）、最近变动与撤销、版本历史、界面信号计数与门槛、第一版数据迁移。
 - 不负责：记忆正文的存储、版本号、墓碑与作用域隔离（Prologue Memory）；模型调用与提炼（Agent Host）；交互规则（助理规则引擎）；项目说明（Goals）；设置页面（Workbench）。
 - 公开入口：`@molis-ai/molis-work-service-memory`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/memory`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
@@ -47,12 +48,12 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 停用、暂停、过期、不适用的记忆不会被召回；某使用方的开关关掉后它拿不到记忆。
   - 删除后存储、旁表（历史、使用记录）、最近变动的正文、重启之后都不再带出该条。
   - 模型说“和之前那条一样”（`same_as`）只是指路：写入门只按文字认同文（同样的话才算重复），否则新的话单独成一条建议，两条都留给本人，不替它自动记住别的，也不丢掉新的。措辞相近不等于意思相同，所以不用相似度去认。
-  - 记作“用户亲口说的”（来源 `said`）要对得上：原话要是本人在这项工作里写过的一整句（助理工具核对宿主存的原话；一两个字不算），写进去的内容要出自这句原话（写入门按文字核对：内容的措辞至少一半在原话里，数字和英文词不能是原话里没有的）；对不上就不记成“他说的”，只作为助理的建议等本人认可，已有的自动记忆也不会因此变成“他说的”。
+  - 记作“用户亲口说的”（来源 `said`）要对得上：原话要是本人在这项工作里写过的一整句（助理工具核对宿主存的原话；一两个字不算），写进去的内容要整个出自这句原话。写入门按文字逐项核对，不分长短（`src/follows.ts`）：内容里的每个字、词、数字（阿拉伯数字和中文数字）、地址都要在原话里，虚词、“用户/偏好/以后”这类记忆的口吻、英文虚词和词形变化不算；中文的“别、不要、不能、禁止、避免”算同一种否定，英文的 not、don't、never、no、avoid、without 也是；否定不能多出、丢掉或挪到别的话上；相邻字词（中文字对、英文相邻词）原话里没有的至多一处，碰到中文数字的字对不行；项目名和被纠正的那条记忆里的词可以用；英文里只是把东西放在某处的动词（put、list、write、show…）互换不算。对不上就不记成“他说的”，只作为助理的建议等本人认可，已有的自动记忆也不会因此变成“他说的”。机械核对分不出同样的字词拼出的另一层意思，所以原话会留在这条记忆上让本人自己看。只有助理的工具有宿主存的本人原话可对；经 `memory.write` 动作调用的其他 Agent，宿主没有它和本人的对话，写入门只核对内容出自它交来的原话，不核对那是不是本人写过的。
   - 用户自己说过、认可过、替换或改过的记忆，不会被撤销之前的某次自动写入而删掉或覆盖：之后这些自动记录不再可撤销，撤销时也再核对一次这条还是不是自动的。
   - 助理只能把记忆停用（记作助理的变动，本人可撤销）；改正文和彻底删除只有本人，在设置里做。
   - 召回的使用回执（最近用于）是这次调用的副作用：调用被取消或撤权后不写（`recall` 在写回执前走调用自己的 `beforeEffect`）。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
-- 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

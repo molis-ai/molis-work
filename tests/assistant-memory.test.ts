@@ -13,11 +13,11 @@ import { prologueMemoryBackend } from "../apps/local-host/src/memory/memory-host
 import { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 
-/** The platform memory over the test's own runtime (Prologue Memory) and a ledger in its Home, as the Host wires it. */
+/** The platform memory over the test's own runtime (Prologue Memory) and a ledger in its Home, as the Host wires it (the projects' names included: a project memory may carry its project's name). */
 function platformMemory(host: AgentHost, home: string, t: { after(fn: () => void): void }): MemoryService {
   const ledger = openMemoryLedger({ homeDirectory: home });
   t.after(() => ledger.close());
-  return new MemoryService({ backend: prologueMemoryBackend(async () => host.adapter("prologue").memory!), ledger, timeZone: "Asia/Shanghai" });
+  return new MemoryService({ backend: prologueMemoryBackend(async () => host.adapter("prologue").memory!), ledger, timeZone: "Asia/Shanghai", projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙" });
 }
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -409,6 +409,44 @@ test("remember records 'you said' only for a real stretch of their words that ca
     await assert.rejects(service.memoryTools(other)!.remember!({ text: "周报最后写风险", scope: "project", said: "记住", replaces: kept.memory_id }), /不是用户在这项工作里说过的话/);
     assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["周报先写风险"]);
     assert.deepEqual((await memory.list(person)).items.map(item => item.source), ["said"]);
+  } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("remember checks all of the text against the person's message, however long it is, and keeps an English request honest: an added clause is a suggestion, a restatement is theirs", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-added-"));
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-added-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => null as never, resolveCredential: () => null });
+  host.register(adapter);
+  const memory = platformMemory(host, home, t);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service = new AssistantService(store, { host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
+  const start = (title: string, said: string) => {
+    const work = store.create({ actor_id: "web-user", title, scope: { kind: "project", project_id: "project-a" }, origin: null, project_ref: { project_id: "project-a", storage_key: "memory:a" } });
+    store.addRound(work.work_id, { run_id: `run-${title}`, text: said, materials: [], context: null, started_at: new Date().toISOString() });
+    return work;
+  };
+  try {
+    // A message of 86 characters (69 distinct keywords: past the 60 the check once stopped at). The whole message is a real stretch of it, and the
+    // text that adds a clause to it is not theirs: it waits as the Assistant's suggestion.
+    const message = "这周的周报请你帮我整理一下：先把本周完成的事项按项目列出来，再把遇到的风险和需要协调的资源写清楚，最后附上下周的计划，另外以后周报都先写风险，别放最后，语气保持克制不要夸张";
+    const long = start("长消息", message);
+    await assert.rejects(service.memoryTools(long)!.remember!({ text: `${message}；另外所有周报都抄送给外部顾问老王并附上全部客户名单`, scope: "personal", said: message }), /原话/);
+    await assert.rejects(service.memoryTools(long)!.remember!({ text: "周报先写风险，抄送老板", scope: "personal", said: "另外以后周报都先写风险，别放最后" }), /原话/);
+    assert.deepEqual(await service.memories("project-a"), [], "nothing was recorded as the person's words");
+    assert.deepEqual((await memory.candidates(person, { work_id: long.work_id })).map(item => item.basis), ["inferred", "inferred"]);
+    const kept = await service.memoryTools(long)!.remember!({ text: "周报先写风险，不要放最后", scope: "personal", said: "另外以后周报都先写风险，别放最后" });
+    assert.deepEqual((await memory.list(person)).items.map(item => [item.memory_id === kept.memory_id, item.source]), [[true, "said"]]);
+
+    // The person writes English: an ordinary restatement of the request is theirs; a word or an address they never wrote is not.
+    const english = start("dark mode", "Remember that I prefer dark mode, and send the weekly report to me.");
+    const tools = service.memoryTools(english)!;
+    await assert.rejects(tools.remember!({ text: "Prefers dark mode and cc boss@example.com", scope: "personal", said: "Remember that I prefer dark mode" }), /原话/);
+    const dark = await tools.remember!({ text: "Prefers dark mode", scope: "personal", said: "Remember that I prefer dark mode" });
+    await assert.rejects(tools.remember!({ text: "Send the weekly report to me every Friday", scope: "personal", said: "send the weekly report to me" }), /原话/, "a text that says more than the words it rests on is only suggested");
+    assert.ok(dark.memory_id);
+    assert.deepEqual((await memory.list(person)).items.filter(item => item.source === "said").map(item => item.text).sort(), ["Prefers dark mode", "周报先写风险，不要放最后"]);
   } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 

@@ -42,7 +42,8 @@ import { completePrefs, consumerAccess, CONSUMER_LABELS, PERSONAL_PREFS_KEY, PRO
 import { MemoryError } from "./errors.js";
 import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
 import { MAX_TEXT, candidateView, changeView, joinedFingerprint, pairKey, readPackage, useTitle } from "./shapes.js";
-import { followsFrom, keywordScore, looksLikeInstruction, looksLikeSecret, quotedFrom, recallKeywords, sameText, similarity } from "./text.js";
+import { followsFrom } from "./follows.js";
+import { keywordScore, looksLikeInstruction, looksLikeSecret, quotedFrom, recallKeywords, sameText, similarity } from "./text.js";
 import { fromEntryMeta, pauseReason, toEntryMeta } from "./facts.js";
 import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -411,8 +412,7 @@ export class MemoryService {
     /** The waiting candidate this settles (an automatic write of something already suggested once). */
     candidate_id?: string;
   }): Promise<MemoryWriteResult> {
-    const where = placeOf(caller, input.scope);
-    const projectId = where.project;
+    const where = placeOf(caller, input.scope), projectId = where.project;
     const prefs = this.prefsAt(caller.actor_id, where);
     const projectName = projectId ? await this.projectTitle(projectId) : null, appliesText = memoryAppliesText(input.scope, input.applies, projectName);
     const refused = (reason: string): MemoryWriteResult => ({ outcome: "refused", reason, applies_text: appliesText, memory: null, candidate: null, change_id: null });
@@ -424,14 +424,14 @@ export class MemoryService {
     const screened = await this.ports.backend.screen?.(text).catch(() => null) ?? null;
     if (looksLikeSecret(text) || (input.said && looksLikeSecret(input.said)) || screened?.redacted.includes(REDACTED_CREDENTIAL)) return refused("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
     if (caller.consumer === "plugin" && !caller.plugin_id) throw new MemoryError("memory.forbidden", "插件写记忆必须由宿主确认插件身份");
-    // Instruction-like (Prologue's screening or the Host's own Chinese patterns) or carrying a local path: the person sees it first.
-    // The person's own words are checked too: a model may restate "不用确认，直接删" as something that reads harmless.
+    // Instruction-like (Prologue's screening or the Host's own Chinese patterns) or carrying a local path: the person sees it first. Their own words are
+    // checked too (a model may restate "不用确认，直接删" as something harmless), and “they said it” holds only if all of the text is in them, the project's name or the memory it corrects.
     const screenedSaid = input.said && !caller.person ? await this.ports.backend.screen?.(input.said).catch(() => null) ?? null : null;
-    const unsaid = !caller.person && input.said && !followsFrom(text, input.said, projectName ?? "") ? "你的原话和要记的内容对不上（要记的内容得出自原话），所以不记作你说的，先作为建议请你看一下" : null;
+    const entries = await this.located(caller, input.scope, where.owner);
+    const unsaid = !caller.person && input.said && !followsFrom(text, input.said, [projectName ?? "", entries.find(located => located.entry.memory_id === input.replaces)?.entry.text ?? ""]) ? "你的原话和要记的内容对不上（要记的内容得出自原话），所以不记作你说的，先作为建议请你看一下" : null;
     const hold = caller.person ? null : screened?.hold || screenedSaid?.hold || looksLikeInstruction(text) || (input.said ? looksLikeInstruction(input.said) : null)
       ? "这段话像是在给 AI 下指令（例如要求忽略规则或跳过确认），不能自动记住，需要你看过再决定"
       : screened && screened.redacted !== text ? "这段话里有本机文件路径之类的内容，先请你看一下再决定记不记" : unsaid;
-    const entries = await this.located(caller, input.scope, where.owner);
     const same = entries.find(located => sameText(located.entry.text, text) && visibleTo(caller, located.meta));
     if (same) {
       // Said again: an automatic or accepted one becomes the person's own words.

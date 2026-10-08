@@ -1,6 +1,6 @@
 # 术语表
 
-状态：现行（2026-10-08，按 main `f8ea20b9` 的代码核对，并按同日全部 27 项用户决定修订）。第 4 节的界面用词等用户批准；第 5 节的代码改名尚未执行。
+状态：现行（2026-10-08，按 main `33067cbe` 的代码核对，并按同日全部 27 项用户决定修订）。第 4 节的界面用词等用户批准；第 5 节的代码改名尚未执行。
 
 这份表回答「同一个东西在仓库里该叫什么」。依据是用户 2026-10-08 的决定（`specs/repository-anti-corruption/spec.md` §1「术语表收敛范围」）：文档里一个概念一个名字、一个定义；代码内部标识符随之改名；用户看得见的用词变化先列清单、经用户批准再发。任务来源是 `docs/prompts/repository-anti-corruption.md` §4.15。
 
@@ -50,7 +50,7 @@
 - 提供方（`ActionProvider`）是 `system`、`plugin` 或 `mcp`（接入的外部 MCP 服务）。「提供方」只指这个；模型厂商叫「供应商」。
 - 代码：`ActionDefinition`、`ActionMetadata`、`ActionReference`（`packages/contracts/src/platform/actions.ts`）；插件在 Manifest 的 `actions` 里声明。
 - MCP 工具是动作在 MCP 客户端上的呈现，工具名由动作身份派生，通常是 `molis_work_v1_action_<capability_id>__v<version>`（`apps/mcp/src/action-tools.ts`、`apps/local-host/src/mcp-action-grants.ts`）。它不是另一种对象。
-- 取舍：文档和代码写「动作」。以 `Action` 开头的类型名出现在 282 个源码文件里，spec 与架构文档也这么写；「能力」在代码里是注册表条目那一层（capability，见下），界面则把动作叫「能力」（第 4 节 U1）。
+- 取舍：文档和代码写「动作」。以 `Action` 开头的类型名出现在 283 个源码文件里，spec 与架构文档也这么写；「能力」在代码里是注册表条目那一层（capability，见下），界面则把动作叫「能力」（第 4 节 U1）。
 - 不是：页面上的按钮。按钮是在某个对象上推荐出来的动作（见推荐选项）。
 
 **动作目录**
@@ -312,7 +312,7 @@
 
 ## 5. 代码改名后续清单
 
-按类别分。规模是 2026-10-08 在 main `f8ea20b9` 上用 `git grep` 数的，只用来估大小，落地前要重数：「源码」指已追踪的 `.ts`、`.mts`、`.mjs` 文件，不含任何 `tests/` 目录、`*.test.*`、`.impeccable/` 和 `vendor/`；「测试」指 `tests/` 目录和 `*.test.*`；名字按单词边界数（`@molis-ai/molis-work-plugin-work` 要避开 `-workflows`）。新名字是建议，落地时可调整；落地归路线表里的 W5-14（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）。
+按类别分。规模是 2026-10-08 在 main `33067cbe` 上用 `git grep` 数的，只用来估大小，落地前要重数：「源码」指已追踪的 `.ts`、`.mts`、`.mjs` 文件，不含任何 `tests/` 目录、`*.test.*`、`.impeccable/` 和 `vendor/`；「测试」指 `tests/` 目录和 `*.test.*`；名字按单词边界数（`@molis-ai/molis-work-plugin-work` 要避开 `-workflows`）。新名字是建议，落地时可调整；落地归路线表里的 W5-14（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）。
 
 ### R-A　只改标识符（不动持久化数据，不动合同 id；编译和现有测试可以校验）
 

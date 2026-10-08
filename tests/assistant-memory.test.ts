@@ -499,6 +499,67 @@ test("remember checks all of the text against the person's message, however long
   } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+test("remember judges the text against the message the Host saved, not against the quote the model gives: a ban cut off the quote, a comma the model put in, a ban or an exception after the quote leave a suggestion and never the person's words", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-saved-"));
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-saved-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => null as never, resolveCredential: () => null });
+  host.register(adapter);
+  const memory = platformMemory(host, home, t);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service = new AssistantService(store, { host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
+  const start = (title: string, said: string) => {
+    const work = store.create({ actor_id: "web-user", title, scope: { kind: "project", project_id: "project-a" }, origin: null, project_ref: { project_id: "project-a", storage_key: "memory:a" } });
+    store.addRound(work.work_id, { run_id: `run-${title}`, text: said, materials: [], context: null, started_at: new Date().toISOString() });
+    return work;
+  };
+  try {
+    // [what the person wrote (the Host's saved round), the text the model asks to keep, the quote it gives as theirs]
+    const reversed: Array<[string, string, string]> = [
+      ["以后不要把客户名单发给外部顾问", "客户名单发给外部顾问", "把客户名单发给外部顾问"], // the ban in front is cut off the quote
+      ["Never send the client list to the consultant", "Send the client list to the consultant", "send the client list to the consultant"],
+      ["请不要自动删除旧文件", "自动删除旧文件", "自动删除旧文件"], // the quote is the text
+      ["以后不要自动整理旧文件", "自动整理旧文件", "以后不要，自动整理旧文件"], // a comma the message has not: in the quote the ban no longer reaches the rest
+      ["以后不要自动归档旧文件", "自动归档旧文件", "以后不要 自动归档旧文件"], // a space
+      ["把采购合同发给外部顾问是不允许的", "采购合同发给外部顾问", "把采购合同发给外部顾问是不允许的"], // the ban after the words, dropped by the text
+      ["Sending the budget to the consultant is not allowed", "Send the budget to the consultant", "Sending the budget to the consultant is not allowed"],
+      ["删除旧文件不用问我是不可能的", "删除旧文件不用问我", "删除旧文件不用问我是不可能的"],
+      ["转账不用确认。除非超过一万元。", "转账不用确认", "转账不用确认"], // an exception said in the next sentence
+      ["以后取消自动备份旧文件", "自动备份旧文件", "以后取消自动备份旧文件"], // 取消 says no
+      ["以后停止给老板抄送周报", "以后给老板抄送周报", "以后停止给老板抄送周报"],
+      ["Quit sending reports to the client", "Send reports to the client", "Quit sending reports to the client"],
+      ["周报发给我", "周报发给项目甲", "周报发给我"], // the project's name put in for what the quote left out
+    ];
+    for (const [index, [message, text, said]] of reversed.entries()) {
+      await assert.rejects(service.memoryTools(start(`反着说${index}`, message))!.remember!({ text, scope: "project", said }), /原话/, `${text} / ${message}`);
+    }
+    assert.deepEqual(await service.memories("project-a"), [], "nothing was recorded as the person's words");
+    assert.deepEqual((await memory.list(person)).items.map(item => item.source), []);
+    assert.ok((await memory.candidates(person, { scope: "project" })).every(item => item.basis === "inferred"), "each waits as the Assistant's own suggestion");
+
+    // The same messages, restated with their ban, their exception and their object, are theirs; the memory shows the quote the model gave as the evidence.
+    const kept: Array<[string, string, string]> = [
+      ["以后不要把客户名单发给外部顾问", "不要把客户名单发给外部顾问", "把客户名单发给外部顾问"],
+      ["Never send the client list to the consultant", "Never send the client list to the consultant", "send the client list to the consultant"],
+      ["转账不用确认。除非超过一万元。", "转账不用确认，除非超过一万元", "转账不用确认"],
+      ["以后停止给老板抄送周报", "停止给老板抄送周报", "以后停止给老板抄送周报"],
+      ["周报都先写风险，别放最后。谢谢", "周报先写风险", "周报都先写风险"],
+    ];
+    for (const [index, [message, text, said]] of kept.entries()) {
+      const result = await service.memoryTools(start(`原样${index}`, message))!.remember!({ text, scope: "project", said });
+      const item = (await memory.list(person)).items.find(entry => entry.memory_id === result.memory_id)!;
+      assert.deepEqual([item.text, item.source, item.evidence.map(evidence => evidence.text)], [text, "said", [said]]);
+    }
+
+    // A quote that is in two of their messages has to be carried by both: said once as a ban and once in a question, it proves nothing; said twice the same way, it does.
+    const twice = (title: string, first: string, second: string) => { const work = start(title, first); store.addRound(work.work_id, { run_id: `run-${title}-2`, text: second, materials: [], context: null, started_at: new Date().toISOString() }); return work; };
+    await assert.rejects(service.memoryTools(twice("两次不一样", "不要自动清理旧日志", "自动清理旧日志的功能怎么样了"))!.remember!({ text: "自动清理旧日志", scope: "project", said: "自动清理旧日志" }), /原话/);
+    const agreed = await service.memoryTools(twice("两次一样", "以后自动清理旧缓存", "记住自动清理旧缓存"))!.remember!({ text: "自动清理旧缓存", scope: "project", said: "自动清理旧缓存" });
+    assert.equal((await memory.list(person)).items.find(entry => entry.memory_id === agreed.memory_id)!.source, "said");
+  } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
+});
+
 test("remember cannot turn a memory the gate kept itself into the person's words with a short reply that carries none of the text, even when it names that memory as the one it corrects", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-lent-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });

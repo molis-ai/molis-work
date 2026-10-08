@@ -500,3 +500,53 @@ test("the Assistant can only switch a memory off, recorded as its own and takeab
   const own = await memory.change(person(), { memory_id: kept.memory_id, action: "disable" });
   assert.deepEqual([own.change.by, own.change.undoable], ["person", false]);
 });
+
+test("the gate judges the text against the person's saved message when the Host gives it, and the model's quote is only the evidence: a ban cut off the quote, a ban after it or an exception after it leave the Assistant's suggestion", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  const work = (n: number) => assistant("project-a", { work_id: `work-${n}`, title: `工作 ${n}` });
+  // [what the person wrote, the text, the quote the model gives]: the quote is cut out of the message, or has a comma or a space the message has not.
+  const cases: Array<[string, string, string]> = [
+    ["以后不要把客户名单发给外部顾问", "客户名单发给外部顾问", "把客户名单发给外部顾问"],
+    ["Never send the client list to the consultant", "Send the client list to the consultant", "send the client list to the consultant"],
+    ["请不要自动删除旧文件", "自动删除旧文件", "自动删除旧文件"],
+    ["以后不要自动整理旧文件", "自动整理旧文件", "以后不要，自动整理旧文件"],
+    ["以后不要自动归档旧文件", "自动归档旧文件", "以后不要 自动归档旧文件"],
+    ["把采购合同发给外部顾问是不允许的。", "采购合同发给外部顾问", "把采购合同发给外部顾问"],
+    ["Sending the budget to the consultant is not allowed.", "Send the budget to the consultant", "Sending the budget to the consultant"],
+    ["转账不用确认。除非超过一万元。", "转账不用确认", "转账不用确认"],
+    ["Delete files without asking. Unless they are contracts.", "Delete files without asking", "Delete files without asking"],
+    ["周报发给我", "周报发给项目甲", "周报发给我"],
+  ];
+  for (const [index, [message, text, said]] of cases.entries()) {
+    const result = await memory.write(work(index), { scope: "project", text, said }, { originals: [message] });
+    assert.equal(result.outcome, "candidate", `${text} / ${message}`);
+    assert.match(result.reason, /原话/);
+    assert.equal(result.candidate!.basis, "inferred", "waits as the Assistant's own suggestion, never as something the person said");
+    assert.equal(result.memory, null);
+  }
+  assert.equal((await memory.list(person())).items.length, 0, "nothing was recorded as the person's words");
+
+  // The same messages, restated without taking the ban, the exception or the object away, are theirs; the evidence is the quote the model gave.
+  const kept: Array<[string, string, string]> = [
+    ["以后不要把客户名单发给外部顾问", "不要把客户名单发给外部顾问", "把客户名单发给外部顾问"],
+    ["Never send the client list to the consultant", "Never send the client list to the consultant", "send the client list to the consultant"],
+    ["转账不用确认。除非超过一万元。", "转账不用确认，除非超过一万元", "转账不用确认"],
+    ["周报都先写风险，别放最后。", "周报先写风险", "周报都先写风险"],
+    ["周报先写风险", "项目甲里周报先写风险", "周报先写风险"],
+  ];
+  for (const [index, [message, text, said]] of kept.entries()) {
+    const result = await memory.write(work(20 + index), { scope: "project", text, said }, { originals: [message] });
+    assert.deepEqual([result.outcome, result.memory?.source, result.memory?.basis], ["written", "said", "explicit"], text);
+    assert.equal(result.memory!.evidence[0]!.text, said);
+  }
+
+  // The quote may be in more than one message of theirs, and then each of them has to carry the text: where they disagree, the quote proves nothing.
+  // An Agent that is not the Assistant has no saved message: its quote is all the gate has.
+  const agreeing = await memory.write(work(30), { scope: "personal", text: "自动备份文件", said: "自动备份文件" }, { originals: ["记住自动备份文件", "以后自动备份文件"] });
+  assert.deepEqual([agreeing.outcome, agreeing.memory?.source], ["written", "said"]);
+  const disagreeing = await memory.write(work(31), { scope: "personal", text: "自动导出文件", said: "自动导出文件" }, { originals: ["不要自动导出文件", "以后自动导出文件"] });
+  assert.equal(disagreeing.outcome, "candidate");
+  const agent = await memory.write({ ...work(32), consumer: "agent" }, { scope: "personal", text: "自动合并分支", said: "自动合并分支" });
+  assert.deepEqual([agent.outcome, agent.memory?.source], ["written", "said"]);
+});

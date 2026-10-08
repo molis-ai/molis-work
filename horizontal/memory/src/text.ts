@@ -26,19 +26,6 @@ export function normalized(text: string): string {
   return text.normalize("NFKC").toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
 }
 
-/**
- * Whether a quote is really in what the person said: found within one of their messages once spacing, punctuation and
- * case are set aside, and a stretch that means something — a whole message, or at least six characters in three or
- * more units (Chinese characters, words, numbers). A word or two out of a message is not “what they said”: it can be
- * found in almost anything. The gate and the Assistant's tools use this one rule for “the person's own words”.
- */
-export function quotedFrom(quote: string, spoken: readonly string[]): boolean {
-  const needle = normalized(quote), length = [...needle].length;
-  if (length < 2) return false;
-  const substantial = length >= 6 && (quote.normalize("NFKC").toLowerCase().match(/[一-鿿]|[a-z0-9]+/g) ?? []).length >= 3;
-  return spoken.some(text => { const body = normalized(text); return body === needle || (substantial && body.includes(needle)); });
-}
-
 const SECRET_SHAPES: readonly RegExp[] = [
   /\b(?:sk|pk|rk)-[A-Za-z0-9_-]{16,}/,
   /\bgh[pousr]_[A-Za-z0-9]{20,}/,

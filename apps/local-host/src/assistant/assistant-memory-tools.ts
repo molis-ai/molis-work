@@ -1,5 +1,5 @@
 import type { AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { MemoryError, quotedFrom, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
+import { MemoryError, spokenAround, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
 import type { StoredWork } from "./assistant-store.js";
 
 export interface AssistantMemoryToolsInput {
@@ -40,9 +40,11 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
     ...(work.delegated_by ? {} : { remember: async (request: Parameters<NonNullable<AgentMemoryTools["remember"]>>[0]) => {
       if (request.scope === "project" && !projectId) throw fail("assistant.scope", "这是个人工作，没有项目；只能记为个人偏好");
       if (request.scope === "character" && !caller.character) throw fail("assistant.scope", "这一轮不是由某个角色承担的，不能记为角色记忆");
-      // “You said” is the person's only when it is a real stretch of what they wrote in this work, whatever the model claims;
-      // otherwise it is the Assistant's own suggestion, which waits for the person (the gate also checks the text follows from the quote).
-      if (!quotedFrom(request.said, input.spoken())) {
+      // “You said” is the person's only when the quote is a real stretch of what they wrote in this work, whatever the model claims; the gate then judges the
+      // text against the sentences of their saved message the quote lies in (a “don't” cut off the quote still counts), never against the quote itself.
+      // Otherwise it is the Assistant's own suggestion, which waits for the person.
+      const originals = spokenAround(request.said, input.spoken());
+      if (!originals.length) {
         let note = "已作为建议放在工作面板，等用户认可；回复里说“建议记住……，需要你认可”，不要说已经记住";
         try { await memory.propose(caller, { scope: request.scope, text: request.text, kind: request.kind ?? (request.scope === "project" ? "convention" : "preference"), basis: "inferred",
           why: "助理想记住这一条，但这里没有用户的原话可作依据", from: "work", ...(request.replaces ? { supersedes: request.replaces } : {}) }); }
@@ -50,7 +52,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
         throw fail("assistant.invalid", `没有记住：said 不是用户在这项工作里说过的话（要原样引用用户在这里写的一整句，不能只是其中一两个字）。${note}`);
       }
       let result;
-      try { result = await memory.write(caller, { scope: request.scope, text: request.text, said: request.said, ...(request.kind ? { kind: request.kind } : {}), ...(request.replaces ? { replaces: request.replaces } : {}) }); }
+      try { result = await memory.write(caller, { scope: request.scope, text: request.text, said: request.said, ...(request.kind ? { kind: request.kind } : {}), ...(request.replaces ? { replaces: request.replaces } : {}) }, { originals }); }
       catch (error) { throw asAssistantError(error); }
       // Only what really went into memory counts as kept; the reply must say what happened instead.
       if (result.outcome === "refused") throw fail("assistant.invalid", `没有记住：${result.reason}`);

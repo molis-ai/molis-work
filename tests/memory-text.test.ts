@@ -6,10 +6,10 @@ import { followsFrom } from "@molis-ai/molis-work-service-memory";
 const LONG = "这周的周报请你帮我整理一下：先把本周完成的事项按项目列出来，再把遇到的风险和需要协调的资源写清楚，最后附上下周的计划，另外以后周报都先写风险，别放最后，语气保持克制不要夸张";
 const RISK_FIRST = "以后周报都先写风险，别放最后";
 
-/** [text, the words it rests on, other words it may reuse: the project's name, the memory it corrects] */
-type Case = [text: string, quote: string, around?: string[]];
+/** [text, the words it rests on, the memory a correction replaces (its words are lent), the project's name (lent as a label)] */
+type Case = [text: string, quote: string, corrected?: string[], project?: string];
 function check(cases: readonly Case[], expected: boolean) {
-  for (const [text, quote, around] of cases) assert.equal(followsFrom(text, quote, around), expected, `${JSON.stringify(text)} from ${JSON.stringify(quote.length > 40 ? `${quote.slice(0, 40)}…` : quote)}`);
+  for (const [text, quote, corrected, project] of cases) assert.equal(followsFrom(text, quote, corrected, project), expected, `${JSON.stringify(text)} from ${JSON.stringify(quote.length > 40 ? `${quote.slice(0, 40)}…` : quote)}${project ? ` in ${JSON.stringify(project)}` : ""}`);
 }
 
 test("a text that adds something the person did not say does not follow from their words: an appended clause in a short quote or a long one, a name, an address, a number", () => {
@@ -92,14 +92,14 @@ test("a restatement of their words still follows: particles, the framing of a me
     // A text that joins their words in one place they did not: 是 said as 指.
     ["NSM 指北极星指标", "记住 NSM 是北极星指标"],
     // The project's name for scope, and the words of the memory a correction replaces.
-    ["项目甲里 NSM 指北极星指标", "记住：NSM 是北极星指标", ["项目甲"]],
-    ["Q4 plan 的周报先写风险", "记住 Q4 plan 周报先写风险", ["Q4 plan"]],
+    ["项目甲里 NSM 指北极星指标", "记住：NSM 是北极星指标", [], "项目甲"],
+    ["Q4 plan 的周报先写风险", "记住 Q4 plan 周报先写风险", [], "Q4 plan"],
     ["回答用编号列表", "以后改用编号列表", ["回答用要点列表，每条一句"]],
   ], true);
   // The corrected memory lends its words, not new ones.
   check([["回答用编号列表，抄送老板", "以后改用编号列表", ["回答用要点列表，每条一句"]]], false);
-  // One string does for a single name.
-  assert.equal(followsFrom("项目甲里 NSM 指北极星指标", "记住：NSM 是北极星指标", "项目甲"), true);
+  // One string does for a single corrected memory.
+  assert.equal(followsFrom("回答用编号列表", "以后改用编号列表", "回答用要点列表，每条一句"), true);
 });
 
 test("a negation is read where it stands: words the quote uses plainly in one clause and under a ban in another are not free to move from one to the other", () => {
@@ -167,7 +167,7 @@ test("words lent to a correction are lent, not a way round: the quote must carry
   check([
     // The slot they changed, with the rest of the corrected memory.
     ["回答用编号列表，每条一句", "以后改用编号列表", ["回答用要点列表，每条一句"]],
-    ["项目甲里回答用编号列表", "以后改用编号列表", ["项目甲", "回答用要点列表，每条一句"]],
+    ["项目甲里回答用编号列表", "以后改用编号列表", ["回答用要点列表，每条一句"], "项目甲"],
   ], true);
 });
 
@@ -226,13 +226,13 @@ test("no punctuation is needed to tell two statements apart: a word that joins o
     ["沒有確認", "沒有確認"],
     ["预算上限 $500", "记住预算上限 $500"],
     ["Keep it under 5%", "Please keep it under 5%"],
+    ["用图片代替表格", "用图片代替表格"],
+    ["Use bullet points instead of tables", "Use bullet points instead of tables"],
+    ["Ask before deleting files unless they are drafts", "Ask before deleting files unless they are drafts"],
+    ["所有文件都抄送老板，除非是周报", "所有文件都抄送老板，除非是周报"],
     ["预算上限 ￥500", "预算上限 ¥500"],
-    ["用图片", "用图片代替表格"],
     ["用图片", "不是用表格而是用图片"],
     ["不用表格", "不是用表格而是用图片"],
-    ["Use bullet points", "Use bullet points instead of tables"],
-    ["Ask before deleting files", "Ask before deleting files unless they are drafts"],
-    ["所有文件都抄送老板", "所有文件都抄送老板，除非是周报"],
     ["转账小于100元时不用确认", "记住转账小于100元时不用确认"],
     ["Send reports under 5 pages without asking", "Send reports under 5 pages without asking"],
     ["表格列名用英文", "表格里的列名统一用英文"],
@@ -292,4 +292,175 @@ test("English restates the same way: inflection, function words and the framing 
     ["Sign emails as Alice", "Sign my emails as Bob"],
     ["Emails should be signed Bob", "Sign my emails as Bob"],
   ], false);
+});
+
+test("what a stretch leaves out after it is judged like what it leaves out in front: a ban said after the words it is about, a number after them, or an exception to them is not dropped", () => {
+  check([
+    // The ban comes after the words it is about, in the same sentence.
+    ["客户名单发给外部顾问", "把客户名单发给外部顾问是不允许的"],
+    ["客户名单发给外部顾问", "客户名单发给外部顾问绝对不行"],
+    ["客户名单发给外部顾问", "客户名单发给外部顾问这件事千万不要做"],
+    ["直接推送到主分支", "直接推送到主分支是绝对不行的"],
+    ["删除旧文件不用问我", "删除旧文件不用问我是不可能的"],
+    ["Send the client list to the consultant", "Sending the client list to the consultant is not allowed"],
+    ["Email the budget to Bob", "Emailing the budget to Bob is forbidden"],
+    ["Push to main without review", "Pushing to main without review is never acceptable"],
+    ["Delete old files without asking", "Deleting old files without asking is not OK"],
+    // The ban in a clause of its own that judges the statement before it, or in the sentence after; and the statement carried on without it.
+    ["客户名单发给外部顾问", "客户名单发给外部顾问，这是不允许的"],
+    ["客户名单发给外部顾问", "客户名单发给外部顾问。不行。"],
+    ["Send the client list to the consultant", "Send the client list to the consultant. That is not allowed."],
+    ["客户名单发给外部顾问，周报先写风险", "客户名单发给外部顾问是不允许的，周报先写风险"],
+    ["客户名单发给外部顾问，周报先写风险", "客户名单发给外部顾问，这是不允许的。周报先写风险"],
+    ["Send the client list to the consultant", "Send the client list to the consultant. It is not allowed."],
+    ["客户名单发给外部顾问", "客户名单发给外部顾问，千万不要做"],
+    ["客户名单发给外部顾问", "客户名单发给外部顾问，绝对不可以"],
+    ["Send the client list to the consultant", "Send the client list to the consultant is out of the question"],
+    // A topic may be carried to the next statement with the rest of its own statement left behind, but not a number of it.
+    ["每周发周报，抄送老板", "每周发周报两次，抄送老板"],
+    ["预算，人数三人", "预算上限五十万，人数三人"],
+    // A number after them is theirs as well: how many times, how many pages.
+    ["每周发周报", "每周发周报两次"],
+    ["Send the report", "Send the report 3 times"],
+    // An exception that limits what was allowed: after it in the same sentence or the next one, before it, said after the thing it excludes, or as a replacement.
+    ["转账不用确认", "转账不用确认，除非超过一万元"],
+    ["转账不用确认", "转账不用确认。除非超过一万元。"],
+    ["所有文件都抄送老板", "所有文件都抄送老板，除非是周报"],
+    ["所有文件都抄送老板", "除非是周报，所有文件都抄送老板"],
+    ["删除文件前不用问我", "删除文件前不用问我，合同除外"],
+    ["Delete files without asking", "Delete files without asking unless they are contracts"],
+    ["Delete files without asking", "Delete files without asking. Unless they are contracts."],
+    ["Ask before deleting files", "Ask before deleting files unless they are drafts"],
+    ["Use bullet points", "Use bullet points instead of tables"],
+    ["用图片", "用图片代替表格"],
+  ], false);
+  check([
+    // Said whole, with the ban or the exception, they are theirs.
+    ["客户名单发给外部顾问是不允许的", "把客户名单发给外部顾问是不允许的"],
+    ["转账不用确认，除非超过一万元", "转账不用确认，除非超过一万元"],
+    ["转账不用确认，除非超过一万元", "转账不用确认。除非超过一万元。"],
+    ["删除文件前不用问我，合同除外", "删除文件前不用问我，合同除外"],
+    ["Delete files without asking unless they are contracts", "Delete files without asking unless they are contracts"],
+    ["客户名单发给外部顾问，这是不允许的", "客户名单发给外部顾问，这是不允许的"],
+    ["周报简洁", "周报不要太长，要简洁"],
+    ["回复用文字", "回复里别用表情符号，用文字"],
+    ["不行，周报先写风险", "不行。周报先写风险"],
+    // A clause of its own that limits nothing, or a word that is neither a ban nor a number, may still be left out.
+    ["转账不用确认", "转账不用确认，查余额也一样"],
+    ["回答控制在三百字", "回答控制在三百字以内"],
+    ["Reply in Chinese", "Reply in Chinese please, every time"],
+  ], true);
+});
+
+test("a ban has the same words in both languages: leaving out the verb that says no turns the request round in Chinese as in English", () => {
+  // [Chinese, English]: every one of them is a way to say “don't”, whichever language the person writes in.
+  const bans: Array<[string, string]> = [
+    ["停止", "stop"], ["停掉", "quit"], ["停用", "disable"], ["取消", "cancel"], ["关闭", "turn off"], ["关掉", "switch off"], ["禁用", "ban"], ["跳过", "skip"],
+    ["省略", "omit"], ["排除", "exclude"], ["终止", "cease"], ["中止", "halt"], ["拒绝", "refuse"], ["避免", "avoid"], ["暂停", "suspend"], ["屏蔽", "block"],
+  ];
+  for (const [han, english] of bans) {
+    check([
+      ["自动删除旧文件", `以后${han}自动删除旧文件`],
+      ["Delete old files automatically", `Please ${english} deleting old files automatically`],
+    ], false);
+    check([
+      [`${han}自动删除旧文件`, `以后${han}自动删除旧文件`],
+      [`${english} deleting old files automatically`, `Please ${english} deleting old files automatically`],
+    ], true);
+  }
+  // The ban is one ban whichever verb says it, and the ban of another language's word is not another thing.
+  check([
+    ["不要自动删除旧文件", "以后停止自动删除旧文件"],
+    ["别自动删除旧文件", "以后取消自动删除旧文件"],
+    ["Don't send reports to the client", "Quit sending reports to the client"],
+    ["Avoid emojis", "Cancel emojis"],
+  ], true);
+  // Fewer of something is not something: 少 and less / fewer are bans on it, a bare "less than" or "at least" is a comparison.
+  check([
+    ["回复用表情", "回复少用表情"],
+    ["回复用表情", "回复减少使用表情"],
+    ["Use emojis", "Use fewer emojis"],
+    ["Use emojis in replies", "Use less emojis in replies"],
+    ["Use emojis", "Minimize emojis"],
+    ["Use emojis", "Reduce emojis"],
+    ["以后给老板抄送周报", "以后停止给老板抄送周报"],
+    ["Send reports to the client", "Quit sending reports to the client"],
+    ["Send reports to the client", "Cease sending reports to the client"],
+  ], false);
+  check([
+    ["回复少用表情", "以后回复少用表情"],
+    ["Use fewer emojis", "From now on use fewer emojis"],
+    ["至少写三条要点", "记住至少写三条要点"],
+    ["回答不少于三条", "回答不少于三条"],
+    ["Summaries less than 200 words", "Keep summaries less than 200 words"],
+    ["Unless they are drafts, ask first", "Unless they are drafts, ask first"],
+  ], true);
+});
+
+test("a project's name is lent as a label for the memory's scope, whole and between whole statements: it never stands in for words the person's statement leaves out", () => {
+  check([
+    // The name in place of what the person said last, or first, in the statement the text takes from.
+    ["周报发给王总", "周报发给我", [], "王总季度汇报"],
+    ["周报发给外部顾问", "周报发给老板", [], "外部顾问合作"],
+    ["周报发给项目甲", "周报发给我", [], "项目甲"],
+    ["Send weekly reports to Alice", "Send weekly reports to Bob", [], "Alice onboarding"],
+    ["Send weekly reports to Bob", "Send weekly reports to me", [], "Bob"],
+    ["王总先写风险", "周报先写风险", [], "王总季度汇报"],
+    ["Alice onboarding puts risks first", "Weekly reports put risks first", [], "Alice onboarding"],
+    // The pronoun that begins or ends a statement says who does it or to whom: a name does not take its place.
+    ["Send weekly reports, Molis", "Send weekly reports to me", [], "Molis"],
+    ["Send weekly reports. Molis project", "Send weekly reports to me", [], "Molis"],
+    ["Molis: put risks first", "I put risks first", [], "Molis"],
+    ["Alice onboarding: put risks first", "I put risks first", [], "Alice onboarding"],
+    // Only a part of the name, or a name set into a statement of theirs (a label begins a statement of the text: nothing makes “to Molis” a label).
+    ["Send weekly reports to Alice", "Send weekly reports", [], "Alice onboarding"],
+    ["Send weekly reports to Molis", "Send weekly reports", [], "Molis"],
+    ["周报先写风险 Molis", "以后周报都先写风险", [], "Molis"],
+    ["周报先写风险（Molis 项目）", "以后周报都先写风险", [], "Molis"],
+    ["周报发给王总", "周报发给", [], "王总季度汇报"],
+    ["周报在 Molis 项目里先写风险", "以后周报都先写风险", [], "Molis"],
+    // A name that is not the project's.
+    ["Molis 项目的周报先写风险", "以后周报都先写风险", [], "Atlas"],
+  ], false);
+  check([
+    // A label in front of a whole statement of theirs, or after one: the project, with or without the word for it.
+    ["Molis 项目的周报先写风险", "以后周报都先写风险", [], "Molis"],
+    ["Molis project: weekly reports go first", "From now on, weekly reports go first", [], "Molis"],
+    ["项目 Molis：周报先写风险", "以后周报都先写风险", [], "Molis"],
+    ["周报先写风险。Molis 项目", "以后周报都先写风险", [], "Molis"],
+    ["Weekly reports list risks first. Molis project", "Weekly reports list risks first", [], "Molis"],
+    ["Molis: prefers dark mode", "Remember that I prefer dark mode", [], "Molis"],
+    ["Send weekly reports. Molis project", "Send weekly reports", [], "Molis"],
+    ["项目甲里 NSM 指北极星指标", "记住：NSM 是北极星指标", [], "项目甲"],
+    ["项目甲里回答用编号列表", "以后改用编号列表", ["回答用要点列表，每条一句"], "项目甲"],
+    // Their own words when they name the project themselves.
+    ["Q4 plan 的周报先写风险", "记住 Q4 plan 周报先写风险", [], "Q4 plan"],
+    ["Send weekly reports to Alice", "Send weekly reports to Alice", [], "Alice onboarding"],
+  ], true);
+});
+
+test("a ban turns the request round wherever it is said and whichever way: in front of the words, after them, in a clause or a sentence of its own, as an exception", () => {
+  const prefixes = {
+    zh: ["不要", "别", "不能", "不许", "禁止", "严禁", "避免", "拒绝", "杜绝", "停止", "取消", "关闭", "跳过", "省略", "排除", "不再", "别再", "无需", "不必", "请勿", "切勿", "千万别", "绝对不要", "少", "不得", "不可", "反对"],
+    en: ["Don't", "Never", "Avoid", "Refuse to", "Stop", "Quit", "Cease", "Cancel", "Disable", "Skip", "Omit", "Exclude", "No longer", "Fewer", "Less", "Minimize", "Reduce", "Hold off on", "Turn off", "Under no circumstances"],
+  };
+  const after = {
+    zh: ["是不允许的", "不行", "不可以", "绝对不行", "是禁止的", "不被允许", "不合适", "免谈", "是违规的", "万万不可", "，这是不允许的", "，千万不要做", "，这样不行", "。不行。"],
+    en: [" is not allowed", " is forbidden", " is prohibited", " is never OK", " is illegal", " is unacceptable", " is off limits", " cannot be done", " is out of the question", ". That is not OK.", ". It is not allowed."],
+  };
+  const except = {
+    zh: ["，除非有特殊情况", "，除非超过一万元", "，合同除外", "，但不包括合同", "（合同除外）", "。除非是合同。", "，除了合同"],
+    en: [", unless they are contracts", " except for contracts", ", apart from contracts", ", with the exception of contracts", " (not including contracts)", ". Unless it is urgent.", ", other than drafts"],
+  };
+  const bases = { zh: ["自动删除旧文件", "把客户名单发给外部顾问", "转账前不用确认"], en: ["Delete old files automatically", "Send the client list to the consultant", "Pay invoices without asking"] };
+  for (const language of ["zh", "en"] as const) {
+    for (const base of bases[language]) {
+      const lower = base.charAt(0).toLowerCase() + base.slice(1);
+      check([...prefixes[language].map((ban): Case => [base, language === "zh" ? `${ban}${base}` : `${ban} ${lower}`]),
+        ...[...after[language], ...except[language]].map((tail): Case => [base, `${base}${tail}`])], false);
+      // Said with it, whole, they are theirs.
+      check([...prefixes[language].map((ban): Case => { const said = language === "zh" ? `${ban}${base}` : `${ban} ${lower}`; return [said, said]; }),
+        ...[...after[language], ...except[language]].map((tail): Case => [`${base}${tail}`, `${base}${tail}`])], true);
+    }
+  }
 });

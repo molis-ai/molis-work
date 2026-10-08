@@ -5,7 +5,7 @@
 `packages/contracts` 是唯一公共协议承载包，通过 `modules/*`、`services/*`、`platform/*` subpath 暴露类型和 Schema。一个分发包不代表一个万能协议；每个 owner 保留独立 API/event/schema version。
 
 - 禁止根 barrel 聚合全部类型。
-- 合同读写只认现行取值；存量数据由维护改成现行形状，不保留旧版本解析（新增兼容须先写进 `specs/repository-anti-corruption` 并经用户确认）。
+- 合同读写只认现行取值；存量数据由维护改成现行形状，不保留旧版本解析（新增兼容须先写进 `specs/repository-anti-corruption` 并经用户确认）。以后读取兼容的流程与起点见 [合同变更流程](../system/CONTRACT-CHANGES.md)。
 - Contract 不依赖业务实现、数据库、网络、App 或 Plugin。
 
 ## Observability

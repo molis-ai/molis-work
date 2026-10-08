@@ -3,6 +3,7 @@ import { SqlitePluginRuntimeRepository, SqlitePluginRuntimeReleaseArtifactReposi
 import { createScheduleReminders, createScheduleReminderManagement, deliverScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ScheduleService, ScheduleSqliteDatabase, ScheduleWakeupControl, ScheduleWakeupInput } from "@molis-ai/molis-work-service-scheduler";
+import type { FeedApplication } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { studioStorage } from "./plugin-builder/storage.js";
 
@@ -39,7 +40,10 @@ function reminderInstallations(db: ScheduleSqliteDatabase, projectId: string) {
   } };
 }
 
-export function deliverHostReminder(db: ScheduleSqliteDatabase, input: ScheduleWakeupInput, control: ScheduleWakeupControl): { detail: string } {
+export function deliverHostReminder(
+  db: ScheduleSqliteDatabase, input: ScheduleWakeupInput, control: ScheduleWakeupControl,
+  feed: FeedApplication = createLocalFeedApplication(db as Parameters<typeof createLocalFeedApplication>[0]),
+): { detail: string } {
   const installations = new SqlitePluginRuntimeRepository(db);
   return deliverScheduleReminder(db, input, control, {
     currentInstallation(reminder) {
@@ -48,7 +52,7 @@ export function deliverHostReminder(db: ScheduleSqliteDatabase, input: ScheduleW
       return !!record && record.plugin_id === reminder.pluginId && record.state !== "uninstalled" && record.installation_generation === reminder.installationGeneration;
     },
     deliver(reminder, dueAt) {
-      const feed = createLocalFeedApplication(db as Parameters<typeof createLocalFeedApplication>[0]), stamp = new Date().toISOString();
+      const stamp = new Date().toISOString();
       const source = feed.snapshot(reminder.projectId).sources.find(item => item.source_id === "plugin-reminders") ?? feed.upsertSource({
         project_id: reminder.projectId, source_id: "plugin-reminders", kind: "plugin", definition_id: null, sync_kind: "manual",
         name: "插件提醒", description: "你安装的插件到点提醒你的事", status: "active", enabled: true, origin: "molis_work",

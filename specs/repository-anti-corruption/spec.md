@@ -129,7 +129,7 @@
 | 2026-10-08 | 右栏「讨论」页签与 IM 代码（#4，弹窗；两次说明后用户答「后面还要迭代的」） | 保留可见但冻结（推荐）；藏到实验开关后；从 main 删掉 | 保留并继续迭代，不冻结 | 这是在用、还会迭代的产品功能，不是待删的实验。只修三处账目：`server/server.sqlite` 登记进 Home 数据与备份表；宿主不再直接读它的表（`apps/local-host/src/im-server.ts`）；包的归类改成业务（不是基础包）。`apps/server` 独立启动器的去留随功能迭代另定 |
 | 2026-10-08 | 系统助理怎么拆、放哪（#3，弹窗） | 先就地拆、再搬成独立包（推荐）；拆和搬一起做；只登记例外 | 先就地拆、再搬成独立包 | — |
 | 2026-10-08 | 备份范围与「卸载并清除数据」（#20，弹窗） | 离线快照命令、清除覆盖所有登记的库（推荐）；只写计划；连定时在线备份一起做 | 离线快照命令、清除覆盖所有登记的库 | 统一库登记表；经常驻宿主暂停后拍一致快照（带清单与版本核对）；定时在线备份留给 C 端计划 |
-| 2026-10-08 | 真实 Home 的残留物（#21，弹窗） | 核对后清理、路径改推导（推荐）；只搬走备份和孤儿文件；不动 | 核对后清理、路径改推导 | 保留 10-07 维护前整份备份与 runtime-configs；维护替换下来的旧文件搬到 `~/molis-work-backups`；其余旧备份、孤儿文件、空库、旧 goalboard-* 安装版核对后删；目录库 v22 用 Home+项目 id 推导路径；实验库在拷贝上演练后标 v1；动手前先整份备份 |
+| 2026-10-08 | 真实 Home 的残留物（#21，弹窗） | 核对后清理、路径改推导（推荐）；只搬走备份和孤儿文件；不动 | 核对后清理、路径改推导 | 保留 10-07 维护前整份备份与 runtime-configs；维护替换下来的旧文件搬到 `~/molis-work-backups`；其余旧备份、孤儿文件、空库、旧 goalboard-* 安装版核对后删；目录库用 Home+项目 id 推导路径（问的时候写作 v22；v22 之后被删除收据的所有者步骤占用，所以是 v23，W5-17）；实验库在拷贝上演练后标 v1；动手前先整份备份 |
 | 2026-10-08 | 工作树、分支与仓库设置（#24，弹窗） | 我清本地、用户清远端并开自动删除（推荐）；只清本地；都不动 | 我清本地、用户清远端并开自动删除 | 本会话删已合并且干净的工作树与本地分支，wip 与整合分支逐个对比后再删；147 个已合并远端分支与「合并后自动删除分支」由用户做；救援分支与 Codex d62d 不动 |
 | 2026-10-08 | 问卷已停止收集或还是草稿时的非本人提交（逻辑复查 #46 附带，弹窗） | 一律拒绝、只留本人预览试填（推荐）；照旧接收；草稿拒绝、已停止的接收 | 一律拒绝、只留本人预览试填 | Agent、MCP、工作流、插件来源的提交在非「收集中」时拒绝 |
 | 2026-10-08 | Runtime 与安装插件声明的 methods（#18，弹窗） | 和内置插件一样注册（推荐）；非内置不许声明；维持现状写进文档 | 和内置插件一样注册 | 启动时注册，停用、卸载、升级时收回 |
@@ -137,6 +137,12 @@
 | 2026-10-08 | 第三方插件的安装与信任（#11，弹窗，只写计划） | 本地装、首次确认、沙箱里跑（推荐）；只认官方签名；这一步不做 | 本地装、首次确认、沙箱里跑 | `molis-work plugin install <bundle>`；首次安装确认并记住发布者密钥；独立进程沙箱运行 |
 | 2026-10-08 | Characters 的代码身份（#26，弹窗） | 继续是插件、声明只在设置里（推荐）；并进宿主变成设置的一节；只改文档 | 并进宿主，变成设置的一节 | 用户没选推荐。Characters 不再是 Runtime 插件：代码并进宿主或一个 Module，界面仍是设置里的一节；安装记录与 Runtime 条目一起删（第 4 波切片） |
 | 2026-10-08 | Casebook 的 5 个 typed 能力（#8） | — | 已由 10-07 N-12 决定覆盖 | 改成同 id 的插件受众动作，与外部 Casebook 插件一起发版 |
+| 2026-10-08 | 内置插件清单改了版本没变、或降到 0.3.0 时 Runtime 不跟（发布策略 §7，弹窗） | 一律跟当前构建（推荐）；只补同版本内容变了、降版本靠维护；不降到 0.3.0 各自升版本；用预发布号 | 一律跟当前构建 | Runtime 对内置插件（bundled、同发布者）不论版本高低、同版本摘要变了都把安装记录改成当前清单，保留 install_id 与私有数据；门禁 G 不做；0.3.0 发布 PR 在它合入后把 7 份清单改成 0.3.0，`verify-release-versions` 加「内置清单等于产品版本」。改的是 `packages/plugin-runtime`，与 #313 同文件，#313 合入后再开 |
+| 2026-10-08 | 发版细则（发布策略 §2、§3，弹窗） | 确认（推荐）；版本号随时可改 | 确认 | 0.x 改任一库结构或对外名称升次版本、只修问题升补丁；产品版本只在发布 PR 里改 |
+| 2026-10-08 | 官方集成的版本（发布策略 §1，弹窗） | 各自独立（推荐）；也跟产品版本 | 各自独立 | 它们没有持久的安装记录，不会停在旧代码上 |
+| 2026-10-08 | 创作台 Skill 回放用的真实设计答卷（W1-12，弹窗） | 从拷贝里只读导出、审过再提交（推荐）；只放本机不提交；隔离 Home 重新生成 | 从拷贝里只读导出、审过再提交 | 真实 Home 先 APFS 克隆到会话临时目录，只读打开拷贝（目录库里的绝对路径映射到拷贝）；导出需求原文与设计答卷；逐条审有没有个人信息，有就去掉；不读密钥 |
+| 2026-10-08 | 真实 Home 维护四的时机（目录库 v21 → v22，弹窗） | 合入后立刻做（推荐）；合入后先不做、等下次目录库改版一起；先维护再合入 | 合入后立刻做 | 与维护三同一做法：合入后一次窗口里停进程、整份备份、拷贝上演练、应用、重装安装版、主检出快进并构建；做完前主检出与安装版不更新；做完要重开各 Runtime 会话 |
+| 2026-10-08 | 以前删项目留在别的主人库里的孤儿数据（弹窗） | 顺带清掉（推荐）；不清 | 顺带清掉 | 维护四里先在拷贝上列出各库、各多少条给用户看，再在真库上删；整份备份里保留 |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -392,6 +398,7 @@
 | [#287](https://github.com/molis-ai/molis-work/pull/287) | e1cd4906 | 一个项目身份：`board_id` 全仓改为 `project_id`（项目库 v6、Functions v3、目录库 v21）；batch Q 全量 3,678 个用例 3,670 过、7 跳过、1 败（已修） |
 | [#288](https://github.com/molis-ai/molis-work/pull/288) | d81b12cb | Feed 的记录就是模块记录（删 toLegacy* 投影，兼容标记 53 → 20） |
 | [#289](https://github.com/molis-ai/molis-work/pull/289) | 排队 | 最后几处名不副实的兼容标记（20 → 17，剩下的都是保留机制） |
+| 分支 `fix/project-deletion-owners`（PR 待开） | 未合入 | 删除项目时各数据所有者一起清、可重试（§1 10-07）：删除收据里每个所有者一步（目录库新表 `project_deletion_steps`，目录库 v21 → v22）；各插件的项目数据由插件包自己声明（目录条目的 `project_data`：标签与清除函数），宿主遍历目录登记、不点名插件，所以新插件声明了就被清（结构门禁的「插件被包外点名」不增）；真实 Home 要先做维护四（下面），做之前这份代码打不开它 |
 
 - 全量回归：batch K（C2 栈顶）3,685 个用例 3,674 过、4 败（均为 C2 预期变化或缺 #274，已修，重跑通过）；batch L（#277–#282 栈顶）3,680 个用例 3,659 过、13 败（11 个是本栈自己的用例仍用旧字段，已修；2 个是负载超时，单独重跑通过；受影响的 32 个用例在栈顶重跑全过）。
 - batch M（#284 加 `board_id` 只改存储列的试做）3,679 个用例 3,656 过、16 败：6 个是 #284 自己的用例仍发内联 instructions（已修，#284 单独验证 192/192）；其余都来自「只改存储列」造成的行与记录字段错位，于是改为一次改完（§1）。
@@ -409,13 +416,20 @@
   7. Runtime 接入：三处客户端配置还是早先的 goalboard 条目（旧的 `GOALBOARD_*` 环境变量，新代码只认 `MOLIS_WORK_*`），新代码报「MCP 宿主没有提供 Runtime 标识」；用户弹窗定「备份后换成产品接入」：三份配置与三个 goal-advance 链接、三张 9 月 11 日的旧接入收据备份到 `~/molis-work-backups/2026-10-07-runtime-configs/`，删掉旧条目后用产品自己的 Runtime 接入（prepare→confirm）给 Claude Code、Codex、Grok Build 写入 `molis-work` 条目与技能；按配置启动的 MCP 能列出真实 Home 的项目。已开着的会话要重开才会用上。
   8. 主检出：另一会话 10-07 8:59–9:27 留下的 26 个文件改动与两个新 spec（用户弹窗定「本会话处理」）先存成补丁并提交到本地分支 `wip/main-checkout-2026-10-07`（4cb5e28f），主检出 fast-forward 到 main（d81b12cb）后把它重新放回为未提交改动（按改名三方合并，`boardId` 改为 `projectId`），构建通过，它改过的 16 个测试文件 73/73 通过。
 - 演练（rehearsal-1007、rehearsal-1007b，拷贝只读取自真实 Home）：两次结果相同；演练检查时一次误开了真实 Home 的一个项目库（目录库存的是绝对路径），版本不符被拒、文件未变，检查脚本已限定只开拷贝。
+- 真实 Home 维护四（目录库 v21 → v22）——**用户 2026-10-08 批准：合入后立刻做，顺带清掉以前删项目留下的孤儿数据**（§1）；做完之前主检出与安装版不更新。分支 `fix/project-deletion-owners` 给目录库加了一张表 `project_deletion_steps`（删除收据里每个数据所有者一步，`modules/projects/src/deletion-steps.ts:7`），`CATALOG_SCHEMA_VERSION` 因此从 21 升到 22（`apps/local-host/src/project-catalog-contract.ts:1`）。别的库的结构与版本都没变（项目库 v6、会话库 v7、Functions v3……）。真实 Home 的目录库是 v21（维护三之后），所以这个分支合入后它与代码对不上，两个方向都要处理：
+  - **跑新代码的进程拒绝 v21**，什么都不写：`catalog.unsupported_schema`「项目目录数据库的版本是 21，这个版本只认 22，不就地升级」（`apps/local-host/src/catalog-schema.ts:32-42`）。主检出快进到新 main 并构建之后，4207 和主检出的命令行就打不开真实 Home；Home 安装版换成新 main 的构建后，新起的 MCP 也一样；都要等做完维护四；
+  - **做完以后跑旧代码的进程拒绝 v22**：维护三用 e1cd4906 重装的 Home 安装版只认 21，遇到 v22 报 `catalog.reader_too_old`（`apps/local-host/src/project-catalog-contract.ts:51-68`），要用新 main 的干净构建重装；已开着的会话里的 MCP 同样报它，要重开会话（`docs/installation.md:76` 同一段说明）。
+  - **做什么**：对 `projects/catalog.db` 跑 `tests/fixtures/catalog-maintenance-v22.sql`，一个事务：新建 `project_deletion_steps`，把 `catalog_meta.schema_version` 由 21 改为 22。库不是项目目录库、版本不是 21、表已存在，整个脚本回滚，什么都不改（用 `node:sqlite` 的 `exec` 或 `sqlite3 -bail` 跑，遇到第一个错就停；不加 `-bail` 的 sqlite3 出错后会接着往下跑并提交：在版本 20 的库上它建出了表、版本没动，试过）。
+  - **旧回执**：新表是空的。此前删除项目留下的回执没有步骤（「早于所有者步骤的回执」），宿主不替它们补跑：它们的 `owner_steps` 为空、`cleanup_state` 不变（还没收尾的旧回执，宿主启动时只收尾暂存目录，没有步骤可跑）；固定 id 的示例项目再创建前，由各所有者先清一遍（`apps/local-host/src/demo-project-lifecycle.ts:47-49`，用例 `tests/project-deletion-hooks.test.ts` 的 “a fixed-id demo whose earlier deletion has no owner steps”）。旧删除留在各所有者库里的数据不在这次维护范围；要清，另起一项。
+  - **演练**（2026-10-08，临时目录，没有打开真实 Home）：① `tests/catalog-maintenance-v22.test.ts`（5 个用例）：v21 目录库被拒且不被改动；脚本跑完与新建 Home 的 v22 目录库逐项相同（表、列、索引、外键、CHECK、`catalog_meta`）、项目与回执不变、`integrity_check` ok、外键 0；维护后的目录库能打开，旧回执步骤为空（没收尾的那张由宿主收尾）、示例项目能重建、新删除记步骤；版本不是 21、owner 不对、表已被占用都整个回滚；只认 21 的构建对 v22 报 `reader_too_old`。该文件和 SQL 在维护四做完后删除（目录库再变时它会先失败）。② 另用 origin/main（4d59cd4d）的干净构建写出 v21 目录库（一个保留的项目、一个删除的项目、建了又删的示例项目），取 SQLite 备份 API 的拷贝跑同一份脚本：`integrity_check` ok、外键 0、只多 `project_deletion_steps` 一张表、其余表结构不变、与新 Home 的 v22 目录库逐项相同、项目 1 个、回执 2 个都在；新构建能打开并列出两张回执（步骤 0，状态仍完成）；再跑一遍被拒（`catalog_meta.schema_version is 21`）；原构建（只认 21）报 `catalog.reader_too_old: schema=22，当前 reader 支持 1..21`。
+  - **步骤**（按维护三的做法，对着 [发布前检查清单](../../docs/releases/CHECKLIST.md) 第 4 节逐项过）：1. 用户批准并定时机（弹窗）；2. 停掉连着真实 Home 的进程（4207、4208、4173、各会话的 MCP），按 pid 精确停；3. 动手前只读核对目录库确是 v21，整份备份（APFS 克隆 `~/molis-work-backups/<日期>-before-maint4`，逐个比对）；4. 在 `catalog.db` 的拷贝（SQLite 备份 API，不用 cp）上先演一遍，只开拷贝里的目录库文件，不用产品代码去打开项目——目录库存的是项目库的绝对路径，维护三演练时误开过真实项目库；5. 对真实 Home 的 `projects/catalog.db` 跑脚本（就地改，不换文件，所以没有被换下的原库要搬走；要退回就用第 3 步的整份备份）；6. 用新 main 的干净构建重装 Home 安装版（装过桌面端 App 的话，它也是只认 21 的构建，要用就一并重装），主检出快进并构建（§1 10-07「维护后真实 Home 用哪份代码」）；7. 只读核对：版本 22、`project_deletion_steps` 在且为空、项目数与回执数同维护前、新构建能列出项目。
 
-**各库的当前版本（2026-10-07，main d81b12cb）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。
+**各库的当前版本（2026-10-08，main 1cdb31dd 加分支 `fix/project-deletion-owners`；与 `docs/releases/CHECKLIST.md` 的各库版本表一致，那张表由 `node scripts/verify-release-versions.mjs` 对着代码核对）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。表里是代码要求的版本；真实 Home 的目录库仍是 21，做完维护四才到 22，在那之前这份代码打不开它。
 
 | 库 | 版本 | 记在 |
 | --- | --- | --- |
 | 项目库 `projects/<id>/molis-work.db` | 6 | `user_version`（`PROJECT_DATABASE_BASELINE`） |
-| 目录库 `projects/catalog.db` | 21 | `catalog_meta.schema_version` |
+| 目录库 `projects/catalog.db` | 22 | `catalog_meta.schema_version`（`CATALOG_SCHEMA_VERSION`，`apps/local-host/src/project-catalog-contract.ts:1`） |
 | 会话库 `sessions/sessions.db` | 7 | `session_meta.schema_version` |
 | Functions | 3 | `user_version` |
 | Form、记忆、助理 | 2 | `user_version` |
@@ -434,85 +448,115 @@
 
 ## 5. 包级清单（§4.4）
 
-开工后逐包填写：公共入口、负责与不负责、主要文件及各自的变化原因、放错位置的类和方法、重复实现、建议的移动。73 个包的 README 都有「开发要求」一节。
+分三个 PR 交（W1-18）：第一个就是这一版，71 个 workspace 包的事实表，每行带状态和计划审查深度；第二个逐包深审「深」11 个和「中」43 个；第三个审「浅」17 个，并把未深入或无法验证的范围写进 §8。审完的包，把「主要文件及各自的变化原因、放错位置的类和方法、重复实现、建议的移动」写在 §5.2 之后，审查列由「待审」改为「已审」。每个包的 README 都有「开发要求」一节（公开入口、负责与不负责、依赖、不变量、必跑测试），71/71 过 `pnpm boundary:check`。
 
-开工时的事实（main 16879b22，脚本统计）：「源文件」「行数」只算 `src/` 下的 `.ts/.mts`；「公开入口」是 `package.json` 的 `exports` 条数；「依赖内部包」「被依赖」只算仓内 workspace 包之间的运行时依赖。
+### 5.1 事实表
 
-| 包 | 源文件 | 行数 | 最大文件 | 公开入口 | 依赖内部包 | 被依赖 |
-| --- | --- | --- | --- | --- | --- | --- |
-| `apps/cli` | 5 | 186 | `command-dispatch.ts` 66 | 1 | 2 | 1 |
-| `apps/desktop` | 11 | 1,209 | `capsule-shell.ts` 556 | 1 | 6 | 1 |
-| `apps/local-host` | 367 | 43,086 | `assistant/assistant-service.ts` 2,700 | 1 | 66 | 2 |
-| `apps/mcp` | 20 | 1,448 | `runtime-context-tools.ts` 162 | 1 | 2 | 1 |
-| `apps/server` | 5 | 185 | `assets.ts` 75 | 1 | 7 | 0 |
-| `apps/workbench` | 171 | 41,054 | `i18n/en.ts` 3,636 | 2 | 32 | 1 |
-| `horizontal/agent-host` | 35 | 9,391 | `adapters/prologue-node.ts` 1,764 | 1 | 1 | 1 |
-| `horizontal/connector-host` | 3 | 591 | `connection-store.ts` 345 | 1 | 1 | 1 |
-| `horizontal/listener-host` | 1 | 757 | `index.ts` 757 | 1 | 1 | 1 |
-| `horizontal/memory` | 5 | 1,641 | `service.ts` 1,419 | 1 | 1 | 1 |
-| `horizontal/placement` | 1 | 480 | `index.ts` 480 | 1 | 1 | 1 |
-| `horizontal/runtime-host` | 5 | 980 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 |
-| `horizontal/scheduler` | 1 | 573 | `index.ts` 573 | 1 | 2 | 1 |
-| `horizontal/search` | 1 | 572 | `index.ts` 572 | 1 | 1 | 1 |
-| `modules/artifacts` | 6 | 880 | `service.ts` 448 | 1 | 1 | 1 |
-| `modules/attention-resumption` | 1 | 512 | `index.ts` 512 | 1 | 1 | 1 |
-| `modules/characters` | 4 | 203 | `service.ts` 128 | 1 | 1 | 1 |
-| `modules/context-ledger` | 4 | 288 | `service.ts` 102 | 1 | 1 | 1 |
-| `modules/evidence-verification` | 6 | 827 | `locator.ts` 360 | 1 | 1 | 2 |
-| `modules/execution` | 4 | 545 | `repository.ts` 273 | 1 | 1 | 2 |
-| `modules/feed` | 3 | 1,004 | `index.ts` 922 | 1 | 2 | 1 |
-| `modules/functions` | 9 | 1,896 | `store.ts` 1,030 | 1 | 2 | 1 |
-| `modules/goals` | 49 | 11,193 | `event-facts.ts` 631 | 1 | 1 | 2 |
-| `modules/governance-collaboration` | 16 | 1,908 | `goal-tree-records.ts` 220 | 1 | 1 | 1 |
-| `modules/private-work-context` | 21 | 3,440 | `session-schema.ts` 401 | 1 | 1 | 1 |
-| `modules/projects` | 6 | 1,246 | `repository.ts` 571 | 1 | 1 | 1 |
-| `modules/shelf` | 11 | 2,652 | `store.ts` 1,176 | 1 | 2 | 2 |
-| `modules/signals` | 1 | 380 | `index.ts` 380 | 1 | 1 | 1 |
-| `modules/sources` | 1 | 483 | `index.ts` 483 | 1 | 1 | 1 |
-| `packages/contracts` | 93 | 17,158 | `services/agent-host.ts` 1,736 | 66 | 0 | 72 |
-| `packages/design-system` | 44 | 17,123 | `styles/craft-finish.ts` 2,245 | 1 | 1 | 22 |
-| `packages/im-ui` | 11 | 1,401 | `browser/controller.ts` 966 | 1 | 2 | 3 |
-| `packages/kernel` | 5 | 1,146 | `action-service.ts` 489 | 1 | 1 | 4 |
-| `packages/plugin-runtime` | 19 | 4,672 | `index.ts` 912 | 1 | 1 | 3 |
-| `packages/plugin-sandbox` | 8 | 726 | `runner.ts` 214 | 1 | 2 | 1 |
-| `packages/plugin-sdk` | 2 | 203 | `index.ts` 186 | 1 | 1 | 8 |
-| `packages/storage` | 12 | 2,115 | `adapters/file-secret-store.ts` 719 | 1 | 1 | 17 |
-| `packages/test-kit` | 2 | 483 | `boundaries.ts` 456 | 1 | 1 | 0 |
-| `packages/ui-host` | 4 | 441 | `client-lifecycle.ts` 152 | 1 | 1 | 2 |
-| `plugins/native/alchemist` | 101 | 10,240 | `studio/server/db/pulse-repository.ts` 567 | 1 | 4 | 2 |
-| `plugins/native/artifacts` | 14 | 1,298 | `browser-ui.ts` 195 | 1 | 2 | 2 |
-| `plugins/native/characters` | 12 | 954 | `client.ts` 217 | 1 | 2 | 2 |
-| `plugins/native/coding` | 57 | 10,840 | `client.ts` 1,656 | 1 | 2 | 2 |
-| `plugins/native/cognia` | 16 | 702 | `store.ts` 145 | 1 | 3 | 2 |
-| `plugins/native/dataset` | 16 | 2,018 | `client.ts` 694 | 1 | 3 | 2 |
-| `plugins/native/diff` | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 |
-| `plugins/native/experiments` | 10 | 740 | `styles.ts` 164 | 1 | 1 | 2 |
-| `plugins/native/feed` | 45 | 5,896 | `ui.ts` 702 | 1 | 2 | 3 |
-| `plugins/native/files` | 16 | 1,176 | `actions.ts` 149 | 1 | 1 | 2 |
-| `plugins/native/form` | 17 | 2,509 | `client.ts` 934 | 1 | 3 | 2 |
-| `plugins/native/git` | 15 | 1,712 | `client.ts` 255 | 1 | 1 | 2 |
-| `plugins/native/goals` | 157 | 16,247 | `event-document-client.ts` 733 | 1 | 4 | 4 |
-| `plugins/native/images` | 14 | 1,506 | `client.ts` 454 | 1 | 4 | 2 |
-| `plugins/native/inbox` | 13 | 1,019 | `ui.ts` 189 | 1 | 1 | 2 |
-| `plugins/native/jelly` | 28 | 2,390 | `content.ts` 202 | 1 | 3 | 2 |
-| `plugins/native/lingguang` | 14 | 1,785 | `client.ts` 645 | 1 | 3 | 2 |
-| `plugins/native/pages` | 45 | 14,861 | `editor-browser.ts` 4,043 | 3 | 3 | 2 |
-| `plugins/native/plugin-builder` | 35 | 4,906 | `agent-authoring.ts` 800 | 1 | 2 | 2 |
-| `plugins/native/ppt` | 18 | 2,242 | `client.ts` 806 | 1 | 3 | 2 |
-| `plugins/native/schedule` | 24 | 2,517 | `client.ts` 379 | 1 | 1 | 2 |
-| `plugins/native/shelf` | 21 | 5,025 | `client.ts` 1,708 | 2 | 3 | 2 |
-| `plugins/native/text-stats` | 6 | 372 | `core.ts` 105 | 1 | 1 | 2 |
-| `plugins/native/todo` | 22 | 4,202 | `client.ts` 1,245 | 1 | 3 | 2 |
-| `plugins/native/work` | 44 | 6,666 | `terminal/client.ts` 478 | 3 | 2 | 2 |
-| `plugins/native/workflows` | 14 | 3,623 | `client.ts` 1,398 | 1 | 3 | 2 |
-| `plugins/official-integrations/catalog` | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 |
-| `plugins/official-integrations/github` | 5 | 939 | `provider.ts` 586 | 1 | 2 | 1 |
-| `plugins/official-integrations/gmail` | 12 | 3,009 | `provider.ts` 961 | 3 | 2 | 2 |
-| `plugins/official-integrations/rss` | 6 | 1,246 | `catalog.ts` 540 | 2 | 2 | 2 |
-| `plugins/official-integrations/web-query` | 1 | 55 | `index.ts` 55 | 1 | 2 | 0 |
-| `plugins/official-integrations/youtube` | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 |
-| `server` | 18 | 1,064 | `continuity/service.ts` 162 | 1 | 2 | 2 |
-| `tooling/plugin-cli` | 8 | 329 | `sample-source.ts` 90 | 1 | 2 | 0 |
+量于 main `a510aead`，包清单取自 `scripts/workspace-packages.mjs`。用 `node scripts/gates/package-inventory.mjs --table` 从代码重新生成，用 `--check` 对照代码检查；后者也在 `node scripts/check-health-gates.mjs`（CI 里的健康门禁）里跑，是不对照 merge-base 的绝对规则：增删 workspace 包、插件迁到 Plugin Runtime 监督器、或改变 import 的可达性后不补表，CI 变红。门禁守行集合（不多不少、各一行）、层、状态和各列的取值；数字列不守，否则每个加一个文件的 PR 都要改表，要新数字就重新生成。
+
+列的口径：
+
+- 层：登记里的 `kind`（基础是 `foundation`，官方接入是 `integration-plugin`）。`server` 与 `packages/im-ui` 现在登记为基础包，但它们是在用、还会迭代的产品功能（右栏「讨论」页签，`apps/workbench/src/side-panel.ts:42`、`:115` 嵌入 `/im`），归类改成业务是 2026-10-08「右栏『讨论』页签与 IM 代码」一行已定的待办（PR #312）。
+- 源文件、行数：`<包>/src/` 下的 `.ts`、`.mts`，不含 `.d.ts`、测试、`dist`、`fixtures`；行数是按换行切开的段数，与巨大单元门禁（`scripts/check-health-gates.mjs`）同一口径。最大文件的路径相对 `src/`。
+- 公开入口：`package.json` 的 `exports` 条数。依赖内部包：`package.json` 的 `dependencies` 里 workspace 包的个数。被依赖：反方向的个数。
+- 状态、计划深度、审查：见 §5.2。
+
+| 包 | 层 | 源文件 | 行数 | 最大文件 | 公开入口 | 依赖内部包 | 被依赖 | 状态 | 计划深度 | 审查 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `apps/cli` | 应用 | 5 | 177 | `command-dispatch.ts` 54 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
+| `apps/desktop` | 应用 | 11 | 1,203 | `capsule-shell.ts` 555 | 1 | 6 | 1 | 在用 | 中 | 待审 |
+| `apps/local-host` | 应用 | 369 | 41,807 | `assistant/assistant-service.ts` 2,656 | 1 | 64 | 2 | 在用 | 深 | 待审 |
+| `apps/mcp` | 应用 | 17 | 1,062 | `runtime-context-tools.ts` 161 | 1 | 2 | 1 | 在用 | 中 | 待审 |
+| `apps/server` | 应用 | 5 | 186 | `assets.ts` 76 | 1 | 7 | 0 | 非产品 | 浅 | 待审 |
+| `apps/workbench` | 应用 | 171 | 40,687 | `i18n/en.ts` 3,380 | 1 | 32 | 1 | 在用 | 深 | 待审 |
+| `horizontal/agent-host` | 横向 | 35 | 9,410 | `adapters/prologue-node.ts` 1,764 | 1 | 1 | 1 | 在用 | 深 | 待审 |
+| `horizontal/connector-host` | 横向 | 3 | 567 | `connection-store.ts` 317 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
+| `horizontal/listener-host` | 横向 | 1 | 739 | `index.ts` 739 | 1 | 1 | 1 | 在用 | 中 | 待审 |
+| `horizontal/memory` | 横向 | 5 | 1,560 | `service.ts` 1,338 | 1 | 1 | 1 | 在用 | 中 | 待审 |
+| `horizontal/placement` | 横向 | 1 | 480 | `index.ts` 480 | 1 | 1 | 1 | 在用 | 中 | 待审 |
+| `horizontal/runtime-host` | 横向 | 5 | 980 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 待审 |
+| `horizontal/scheduler` | 横向 | 1 | 567 | `index.ts` 567 | 1 | 2 | 1 | 在用 | 中 | 待审 |
+| `horizontal/search` | 横向 | 1 | 575 | `index.ts` 575 | 1 | 1 | 1 | 在用 | 中 | 待审 |
+| `modules/artifacts` | 模块 | 7 | 1,080 | `service.ts` 344 | 1 | 1 | 1 | 在用 | 中 | 待审 |
+| `modules/attention-resumption` | 模块 | 1 | 429 | `index.ts` 429 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
+| `modules/characters` | 模块 | 4 | 203 | `service.ts` 128 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
+| `modules/context-ledger` | 模块 | 4 | 292 | `service.ts` 102 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
+| `modules/feed` | 模块 | 2 | 776 | `index.ts` 733 | 1 | 2 | 1 | 在用 | 中 | 待审 |
+| `modules/functions` | 模块 | 9 | 1,777 | `store.ts` 939 | 1 | 2 | 1 | 在用 | 中 | 待审 |
+| `modules/goals` | 模块 | 42 | 9,440 | `event-facts.ts` 631 | 1 | 1 | 2 | 在用 | 深 | 待审 |
+| `modules/governance-collaboration` | 模块 | 12 | 1,116 | `goal-tree-records.ts` 220 | 1 | 1 | 1 | 在用 | 中 | 待审 |
+| `modules/private-work-context` | 模块 | 21 | 3,054 | `session-records.ts` 367 | 1 | 1 | 1 | 在用 | 中 | 待审 |
+| `modules/projects` | 模块 | 6 | 1,123 | `repository.ts` 467 | 1 | 1 | 1 | 在用 | 中 | 待审 |
+| `modules/shelf` | 模块 | 11 | 2,652 | `store.ts` 1,176 | 1 | 2 | 2 | 在用 | 中 | 待审 |
+| `modules/signals` | 模块 | 1 | 379 | `index.ts` 379 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
+| `modules/sources` | 模块 | 1 | 395 | `index.ts` 395 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
+| `packages/contracts` | 基础 | 91 | 16,544 | `services/agent-host.ts` 1,734 | 64 | 0 | 70 | 在用 | 深 | 待审 |
+| `packages/design-system` | 基础 | 45 | 17,218 | `styles/craft-finish.ts` 2,313 | 1 | 1 | 22 | 在用 | 深 | 待审 |
+| `packages/im-ui` | 基础 | 11 | 1,401 | `browser/controller.ts` 966 | 1 | 2 | 3 | 在用 | 中 | 待审 |
+| `packages/kernel` | 基础 | 5 | 1,146 | `action-service.ts` 489 | 1 | 1 | 4 | 在用 | 深 | 待审 |
+| `packages/plugin-runtime` | 基础 | 21 | 4,784 | `index.ts` 886 | 1 | 1 | 3 | 在用 | 深 | 待审 |
+| `packages/plugin-sandbox` | 基础 | 8 | 726 | `runner.ts` 214 | 1 | 2 | 1 | 在用 | 中 | 待审 |
+| `packages/plugin-sdk` | 基础 | 2 | 199 | `index.ts` 182 | 1 | 1 | 8 | 在用 | 中 | 待审 |
+| `packages/storage` | 基础 | 13 | 2,120 | `adapters/file-secret-store.ts` 588 | 1 | 1 | 17 | 在用 | 中 | 待审 |
+| `packages/test-kit` | 基础 | 2 | 483 | `boundaries.ts` 456 | 1 | 1 | 0 | 非产品 | 中 | 待审 |
+| `packages/ui-host` | 基础 | 4 | 441 | `client-lifecycle.ts` 152 | 1 | 1 | 2 | 在用 | 浅 | 待审 |
+| `plugins/native/alchemist` | 内置插件 | 97 | 10,327 | `studio/server/db/pulse-repository.ts` 567 | 1 | 4 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/artifacts` | 内置插件 | 19 | 1,628 | `browser-ui.ts` 242 | 1 | 2 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/characters` | 内置插件 | 13 | 978 | `client.ts` 217 | 1 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/coding` | 内置插件 | 58 | 10,718 | `client.ts` 1,656 | 1 | 2 | 2 | Runtime | 深 | 待审 |
+| `plugins/native/cognia` | 内置插件 | 16 | 723 | `store.ts` 151 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/dataset` | 内置插件 | 16 | 2,042 | `client.ts` 694 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 待审 |
+| `plugins/native/experiments` | 内置插件 | 10 | 740 | `styles.ts` 164 | 1 | 1 | 2 | 构建期 | 浅 | 待审 |
+| `plugins/native/feed` | 内置插件 | 46 | 5,644 | `ui.ts` 698 | 1 | 2 | 3 | 构建期 | 中 | 待审 |
+| `plugins/native/files` | 内置插件 | 16 | 1,177 | `manifest.ts` 150 | 1 | 1 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/form` | 内置插件 | 17 | 2,545 | `client.ts` 930 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/git` | 内置插件 | 15 | 1,708 | `client.ts` 255 | 1 | 1 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/goals` | 内置插件 | 151 | 14,215 | `event-document-client.ts` 782 | 1 | 2 | 4 | 构建期 | 深 | 待审 |
+| `plugins/native/images` | 内置插件 | 13 | 1,443 | `client.ts` 456 | 1 | 4 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/inbox` | 内置插件 | 13 | 1,016 | `ui.ts` 189 | 1 | 1 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/jelly` | 内置插件 | 27 | 2,355 | `content.ts` 202 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/lingguang` | 内置插件 | 14 | 1,819 | `client.ts` 645 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/pages` | 内置插件 | 44 | 14,848 | `editor-browser.ts` 4,043 | 3 | 3 | 2 | 构建期 | 深 | 待审 |
+| `plugins/native/plugin-builder` | 内置插件 | 17 | 2,855 | `agent-authoring.ts` 800 | 1 | 2 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/ppt` | 内置插件 | 18 | 2,276 | `client.ts` 806 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/schedule` | 内置插件 | 24 | 2,484 | `client.ts` 379 | 1 | 1 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/shelf` | 内置插件 | 21 | 5,037 | `client.ts` 1,708 | 2 | 3 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/text-stats` | 内置插件 | 6 | 372 | `core.ts` 105 | 1 | 1 | 2 | Runtime | 浅 | 待审 |
+| `plugins/native/todo` | 内置插件 | 22 | 4,271 | `client.ts` 1,245 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/work` | 内置插件 | 44 | 6,650 | `terminal/client.ts` 478 | 3 | 2 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/workflows` | 内置插件 | 15 | 3,708 | `client.ts` 1,387 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
+| `plugins/official-integrations/catalog` | 官方接入 | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 | 在用 | 中 | 待审 |
+| `plugins/official-integrations/github` | 官方接入 | 5 | 934 | `provider.ts` 586 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
+| `plugins/official-integrations/gmail` | 官方接入 | 12 | 2,673 | `provider.ts` 957 | 3 | 2 | 2 | 在用 | 中 | 待审 |
+| `plugins/official-integrations/rss` | 官方接入 | 6 | 1,246 | `catalog.ts` 540 | 2 | 2 | 2 | 在用 | 中 | 待审 |
+| `plugins/official-integrations/web-query` | 官方接入 | 1 | 55 | `index.ts` 55 | 1 | 2 | 0 | 非产品 | 浅 | 待审 |
+| `plugins/official-integrations/youtube` | 官方接入 | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
+| `server` | 基础 | 18 | 1,062 | `continuity/service.ts` 161 | 1 | 2 | 2 | 在用 | 中 | 待审 |
+| `tooling/plugin-cli` | 工具 | 8 | 332 | `sample-source.ts` 93 | 1 | 2 | 0 | 在用 | 浅 | 待审 |
+
+### 5.2 状态、计划深度与审查
+
+**状态**：在用 42、Runtime 7、构建期 19、非产品 3。由代码判定，门禁每次重算：
+
+| 状态 | 含义 | 代码里怎么判 |
+| --- | --- | --- |
+| 在用 | 从产品入口走得到 | 产品入口是根包的三个启动器：根 `tsconfig.json` 把 `apps/desktop/launchers/**` 编成 `package.json` 的 `bin`（`molis-work`、`molis-work-mcp`、`molis-work-web`），目录在 `apps/desktop` 下，所以从 `apps/desktop` 出发，沿包内 `.ts`/`.mts`（不含测试）里的 import 走，类型导入也算；写在模板字符串里的 import 不算 |
+| Runtime | 内置插件由 Plugin Runtime 监督器启动 | 走得到，且 `apps/local-host/src/project-plugins.ts` 里有它的包名（`tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED` 用同一证据） |
+| 构建期 | 内置插件手工装配进宿主与工作台 | 走得到，但监督器里没有它；就是同一测试冻结的 `BUILD_TIME_ASSEMBLED`（只许减少，迁到 Runtime 时把这里的状态一起改） |
+| 非产品 | 产品入口走不到 | 见下 |
+
+非产品的三个包，每个都用 `git grep` 再核对过：
+
+- `apps/server`：没有任何包、脚本或测试按包名导入它。它有自己的 `start` 脚本（`apps/server/package.json`，`node dist/main.js`），`server/README.md:15` 教人手工启动；不随根包发布。
+- `packages/test-kit`：只被 `scripts/check-package-boundaries.mjs`、它自己的测试和 `tests/import-boundary-template.test.ts` 导入，根包把它放在 `devDependencies`。
+- `plugins/official-integrations/web-query`：除它自己的文件和登记表外，没有任何文件按包名引用它（代码、脚本、测试都没有），根包的 `dependencies` 里也没有它。Feed 的 `web_query` 来源由 `plugins/native/feed/src/source-request.ts` 自己处理；`specs/action-architecture/migration.md:98` 仍写它由 Feed 来源服务驱动，与代码不符，W1-02 对齐文档时一并改。
+
+另有三处声明了依赖、包内却没有任何文件按包名导入：`apps/workbench` 对 `packages/im-ui`（「讨论」页签用的是 `/im` 的 iframe）、`plugins/native/goals` 对 `modules/goals`、`packages/test-kit` 对 `packages/contracts`（只把包名当字符串）。这版不判断，留给逐包审查。
+
+**计划深度**按风险定（任务书 §0：深入程度按风险决定）。四个量各给分：源文件行数 ≥ 9,000 记 2 分、≥ 3,000 记 1 分；2026-09-08（Cutover）以来碰过这个包的非合并提交数 ≥ 100 记 2 分、≥ 40 记 1 分；被依赖数 ≥ 17 记 2 分、≥ 4 记 1 分；`tooling/gates/baseline.json` 里记在它名下的巨大单元数 ≥ 10 记 2 分、≥ 4 记 1 分。总分 ≥ 4 为「深」。另有两个包放在授权脊梁上，也列「深」：`packages/kernel`（`ActionService`：可信身份、`beforeEffect`、撤销后不再写，见 `AGENTS.md` 硬约束）和 `packages/plugin-runtime`（安装、grant、签名）；每个能力调用和每次插件安装都经过它们，体量小，出错的代价最大。其余有 ≥ 1,000 行源码、或有巨大单元、或被 ≥ 3 个包依赖的为「中」，再其余为「浅」。结果：深 11（`apps/local-host`、`apps/workbench`、`horizontal/agent-host`、`modules/goals`、`packages/contracts`、`packages/design-system`、`packages/kernel`、`packages/plugin-runtime`、`plugins/native/coding`、`plugins/native/goals`、`plugins/native/pages`）、中 43、浅 17。深度是计划，不是门禁：以后某个包越过阈值不会让门禁变红，审它的时候再按当时的数重定。
+
+**审查**：「待审」是还没做 §4.4 的结构审查，「已审」是做完并在 §5.2 之后写了逐包记录。现在 71 个包都是待审。
 
 ### 5.x 本轮补记的清单项（2026-10-03）
 
@@ -580,6 +624,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 ## 7. 需要用户操作的事项
 
+- ~~真实 Home 维护四的时机~~：已定（§1 2026-10-08）：合入后立刻做，并在同一窗口里清掉以前删项目留下的孤儿数据（先在拷贝上列出各库、各多少条给用户看，再在真库上删；整份备份里保留）。
 - **常驻服务 4173 要装新版**：10-03 已停（`launchctl bootout gui/<uid>/com.adeptify.goalboard.web`，plist 未改）。它是安装版 0.2.0，读写已删除的旧成果表，不能再用；装新版或改指向新构建后，用 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.adeptify.goalboard.web.plist` 启动。
 - **旧成果表的备份**：`~/.molis-work-backups/2026-10-03-drop-old-artifact-tables/`（18 个项目库，148 MB，逐个 `integrity_check` 通过、行数与删除前一致）。确认不再需要后由用户删除。
 - ~~**anti-rot**~~：已于 10-03 删除（工作树、本地与远端分支，见 §1），不再需要用户操作。

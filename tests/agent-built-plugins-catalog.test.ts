@@ -159,6 +159,26 @@ test('an installed plugin\'s functions are actions of the directory: people, the
   assert.deepEqual(ids('agent'), [], 'uninstalled: nothing left in the directory');
 });
 
+test('a capability that needs another action is not offered to generated plugins, which can only call it alone', async () => {
+  const { actions } = project();
+  const meta = (title: string, extra: object = {}) => ({ title, description: title, kind: 'query' as const, scope: 'project' as const, audiences: ['user', 'agent'] as Array<'user' | 'agent'>,
+    permissions: [], subject_kinds: [], input_schema: { type: 'object' }, ...extra });
+  const directory: ActionDefinition = { capability_id: 'fixture.directory', version: 1, operation: 'query', action: meta('directory') };
+  const talk: ActionDefinition = { capability_id: 'fixture.talk', version: 1, operation: 'query',
+    action: meta('talk', { required_actions: [{ capability_id: 'fixture.directory', version: 1, provider_id: 'fixture' }] }) };
+  actions.registry.registerProvider({ provider: { provider_id: 'fixture', title: 'Fixture', kind: 'system', project_id: 'p' }, definitions: [directory, talk],
+    handlers: [{ capability_id: 'fixture.directory', version: 1, handle: () => ({}) }, { capability_id: 'fixture.talk', version: 1, handle: () => ({ said: 'hi' }) }] });
+  const catalog = await capabilityCatalog(actions, 'web-user');
+  assert.equal(catalog.find(entry => entry.id === 'fixture.directory')!.offered, true);
+  const dependent = catalog.find(entry => entry.id === 'fixture.talk')!;
+  assert.equal(dependent.offered, false, 'what would be refused when the plugin calls it is not offered');
+  assert.match(dependent.reason!, /依赖/);
+  const service = catalogCapabilities({ actions, catalog: async () => catalog, live: () => true });
+  const context = { identity: { projectId: 'p', installationId: 'i', pluginId: 'io.molis.work.generated.x', namespace: 'installed' as const }, signal: new AbortController().signal } as never;
+  assert.deepEqual(await service.call(context, 'fixture.directory', {}), {});
+  await assert.rejects(service.call(context, 'fixture.talk', {}), /没有开放给插件的能力/, 'the refusal says so up front');
+});
+
 test('the designer\'s catalog stays within budget: what is in use and the most relevant keep full schemas, the rest their field names', async () => {
   const { withinBudget } = await import('../plugins/native/plugin-builder/src/agent-catalog.js');
   const huge = (id: string) => ({ id, title: id, description: id, input: { type: 'object', properties: Object.fromEntries(Array.from({ length: 200 }, (_, index) => ['field' + index, { type: 'string', description: 'x'.repeat(40) }])) }, output: { type: 'object' } });

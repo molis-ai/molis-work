@@ -61,11 +61,11 @@ When status returns `needs_repair`, run `service install` directly instead of tr
 
 Updating Molis Work Core never silently rewrites Runtime configuration or Skill links. Whenever a Release changes MCP behavior or `skills/goal-advance`, open Molis Work's Settings → AI & execution tools page as a separate acceptance step. A Molis Work-managed Runtime that still targets an older Release is shown as `needs_repair`; preview the exact changes and let the user confirm the repair. A Runtime-dependent fix may be called installed only after this page returns to `connected` and the Skill link targets the current Release from the install manifest. Matching Core, App, and Web service versions do not replace this step, and unknown same-name configuration or Skills remain conflicts that must not be overwritten.
 
-After updating MCP or the Skill, also open a new Runtime Session, because an already-running Session does not reload tools. To make the built-in demo use the new example content, run `molis-work demo reset --confirm` separately; it clears changes inside the demo but never touches user projects.
+After updating MCP or the Skill, also open a new Runtime Session, because an already-running Session does not reload tools. To make the built-in demo use the new example content, run `molis-work demo reset --confirm` separately; it clears changes inside the demo but never touches user projects. The command line does not run the Agent service or the search service, so what the demo keeps in memory and in the search index belongs to the running Molis Work: this command cannot clear it and says so in its output. To clear that too, open the demo project's settings in Molis Work and click "Rebuild demo".
 
 ### Final-artifact acceptance after a Release
 
-A release operator may mark a consumer-visible fix installed only after checking every applicable layer:
+The full pre-release checklist (version rules, the per-database version table, real-Home backup and maintenance) is [releases/CHECKLIST.md](releases/CHECKLIST.md); it is written in Chinese. A release operator may mark a consumer-visible fix installed only after checking every applicable layer:
 
 1. The Git tag, Release assets, and checksums come from the same commit; the App-embedded Runtime and the `~/.molis-work` install manifest report the same version.
 2. The persistent service follows the action returned by `status`, reaches `running`, and has one consistent LaunchAgent, listener, and `/health` identity.

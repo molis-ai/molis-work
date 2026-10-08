@@ -38,7 +38,8 @@ AI 固定指令统一定义于 `src/prompts.ts`，由共同目录登记 `ALCHEMI
   - 执行中的任务持续续租；任务状态与事件同事务保存。
   - 可信调用者身份保留到对象、任务与 Prologue 会话；对话发送与复用适用性判断声明 `scheduling: "concurrent"`，等模型不占项目串行队列。
   - 包内还有 vitest 用例：`pnpm --filter @molis-ai/molis-work-plugin-alchemist test`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host.test.ts tests/alchemist-host-lifecycle.test.ts tests/alchemist-runtime.test.ts tests/alchemist-mcp.test.ts`
+  - 项目被删除时宿主关闭并移出该项目的工作室（含 worker 与搜索库），再删除 `alchemist/projects/<项目>` 目录，同 id 的项目重建后从空开始。
+- 改动后必跑：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host.test.ts tests/alchemist-host-lifecycle.test.ts tests/alchemist-runtime.test.ts tests/alchemist-mcp.test.ts tests/project-deletion-studios.test.ts`
 - 相关手册：[specs/archive/alchemist-plugin/spec.md](../../../specs/archive/alchemist-plugin/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 LocalWorker 经 Plugin SDK 共用执行生命周期：本地关闭、取消和失租都禁止迟到的业务提交、检查点和终态写入，并停止续租。关闭后的未决外部调用保留原检查点，恢复仍由 Alchemist 判断，不自动重复模型请求。

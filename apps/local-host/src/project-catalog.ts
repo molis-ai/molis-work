@@ -5,6 +5,7 @@ import { ManagedProjectFiles } from "./managed-project-files.js";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID, PERSONAL_SPACE_TITLE } from "./personal-space.js";
 import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
+import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
 import { exists } from "./project-file-paths.js";
 import { type CreateMolisWorkProjectInput } from "./project-catalog-contract.js";
@@ -153,7 +154,7 @@ export class MolisWorkProjectCatalog {
   readonly projectsDirectory: string;
   readonly databasePath: string;
   private readonly projectFiles: ManagedProjectFiles;
-  private readonly projectDeletion: ManagedProjectDeletion;
+  readonly projectDeletion: ManagedProjectDeletion;
   private readonly demoProjects: DemoProjectLifecycle;
   private readonly projects: ProjectsModule;
   private readonly workContexts: RuntimeContextBindingRepository;
@@ -201,7 +202,7 @@ export class MolisWorkProjectCatalog {
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.workContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.desktopPanels.deleteForProject(projectId),
-    }, contextBindingValidation, this.commit);
+    }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory));
     this.demoProjects = new DemoProjectLifecycle(
       this.projects,
       this.homeDirectory,
@@ -209,7 +210,7 @@ export class MolisWorkProjectCatalog {
       { projectId: DEMO_PROJECT_ID, seed: seedDemoBoard },
       this.projectDeletion,
       contextBindingValidation,
-      this.commit,
+      this.commit, projectDeletedHooksFor(homeDirectory),
     );
     this.desktopPanels = platform.createPanels(db, {
       errorFactory: (code, message) => new MolisWorkProjectCatalogError(code, message),

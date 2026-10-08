@@ -489,7 +489,8 @@ test("event-work handoff package uses current facts and does not force Proposal 
     const content = prepared.handoff.content ?? "";
     const current = handoffCurrentSection(content);
     assert.match(content, /当前事件工作/);
-    assert.match(content, /不要领取角色或开始 Run/);
+    assert.match(content, /协议：事件记录，把进展、决定和结果写回同一个 Goal/);
+    assert.doesNotMatch(content, /领取|开始 Run/);
     assert.match(content, /按当前差距继续|当前约定/);
     assert.match(current, /## 当前要求/);
     assert.doesNotMatch(current, /## 验收标准/);

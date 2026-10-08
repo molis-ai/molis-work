@@ -34,7 +34,7 @@ function factsFor(entries: Array<[string, McpResumeFacts["goals"][number]["work_
   };
 }
 
-test("MCP resume preserves host/session focus and no automatic claim", () => {
+test("MCP resume preserves host/session focus and leaves the input facts unchanged", () => {
   const facts = factsFor([
     ["active", "open", true], ["session", "open", true], ["host", "open", true],
   ]);
@@ -42,11 +42,9 @@ test("MCP resume preserves host/session focus and no automatic claim", () => {
   const hostFocus = buildMcpResumeView(facts, "host", "session");
   assert.equal(hostFocus.focus?.goal_id, "host");
   assert.equal(hostFocus.focus?.source, "host_focus");
-  assert.equal(hostFocus.auto_claimed, false);
   const sessionFocus = buildMcpResumeView(facts, "missing-host-goal", "session");
   assert.equal(sessionFocus.focus?.goal_id, "session");
   assert.equal(sessionFocus.focus?.source, "session_focus");
-  assert.equal(sessionFocus.auto_claimed, false);
   assert.deepEqual(facts, before, "display construction must not change input facts");
 });
 
@@ -61,9 +59,8 @@ test("MCP resume keeps recovery ordering and excludes completed suggestions", ()
   assert.equal(view.focus?.goal_id, "attention");
   assert.equal(view.focus?.source, "project_recovery_order");
   assert.equal(view.next_goals.some((goal) => goal.goal_id === "done"), false);
-  assert.equal(view.auto_claimed, false);
   assert.deepEqual(buildMcpResumeView({ goals: [] }, null, null), {
-    focus: null, next_goals: [], auto_claimed: false,
+    focus: null, next_goals: [],
   });
 });
 

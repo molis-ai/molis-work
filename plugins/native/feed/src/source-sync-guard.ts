@@ -9,14 +9,31 @@ export interface FeedSourceSyncAuthority {
   beforeEffect?(): void | Promise<void>;
 }
 
-/** Source state stays with Feed; caller authority stays with the original dispatcher. */
-export function createFeedSourceSyncGuard(feed: FeedApplication, source: FeedSourceRecord, authority: FeedSourceSyncAuthority) {
+export interface FeedSourceSyncGuard {
+  (): Promise<void>;
+  /** True once this guard has refused: the attempt lost its authority or its source changed, and stays refused. */
+  readonly refused: boolean;
+}
+
+/**
+ * Source state stays with Feed; caller authority stays with the original dispatcher.
+ *
+ * `afterOwnFailure` is for the bookkeeping that follows a failed pull. The sync records its interrupted run on the
+ * source itself (status, error code, cursor, updated_at) after its last check, so those fields are not the person's
+ * edit; what the person can change (name, description, enabled, schedule, configuration) still refuses.
+ */
+export function createFeedSourceSyncGuard(
+  feed: FeedApplication, source: FeedSourceRecord, authority: FeedSourceSyncAuthority,
+  options: { afterOwnFailure?: boolean } = {},
+): FeedSourceSyncGuard {
   const configuration = (row: FeedSourceRecord) => JSON.stringify([row.kind, row.sync_kind, row.definition_id, row.config, row.credential_ref]);
   const original = configuration(source);
-  const revision = (row: FeedSourceRecord) => JSON.stringify([row.updated_at, row.name, row.description, row.enabled, row.status, row.schedule]);
+  const revision = (row: FeedSourceRecord) => JSON.stringify(options.afterOwnFailure
+    ? [row.name, row.description, row.enabled, row.schedule]
+    : [row.updated_at, row.name, row.description, row.enabled, row.status, row.schedule]);
   const originalRevision = revision(source);
   let refused = false, refusal: unknown;
-  return async () => {
+  const guard = async () => {
     // Error bookkeeping must not turn a refused attempt back into an authorized write.
     if (refused) throw refusal;
     try {
@@ -32,4 +49,5 @@ export function createFeedSourceSyncGuard(feed: FeedApplication, source: FeedSou
       if (revision(current) !== originalRevision) throw new FeedDomainError("拉取期间来源已变化，请按当前设置重试", "feed_source_changed");
     } catch (error) { refused = true; refusal = error; throw error; }
   };
+  return Object.defineProperty(guard, "refused", { get: () => refused }) as FeedSourceSyncGuard;
 }

@@ -5,7 +5,7 @@ import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/module
 import { createInboxHomeEventsHandler } from "./home-events.js";
 
 export const inboxContentActions = defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subject_kind: "inbox_entry",
-  read_permissions: ["inbox:read", "feed:read"], write_permissions: ["inbox:write", "feed:write"] });
+  read_permissions: ["inbox:read", "feed:read"], write_permissions: ["inbox:write", "feed:write"], receive_scheduling: "concurrent" });
 
 export const inboxSubjectAction = defineSubjectContextAction("inbox.subject.read", "inbox_entry", "Inbox 事项", ["inbox:read"]);
 /** System search: open entries by title, reason and source. The related material's body stays with its owner (Feed keeps it encrypted). */

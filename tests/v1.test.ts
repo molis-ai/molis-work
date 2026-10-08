@@ -93,7 +93,7 @@ test("public CLI exposes install, service, demo, uninstall, and Molis Work V1; t
     assert.doesNotMatch(logs.join("\n"), /import-v3/);
     assert.doesNotMatch(logs.join("\n"), /profiles|strategy|coverage|handoff|replay/);
     assert.equal(await runPublicCli(["profiles"]), 1);
-    assert.match(errors.join("\n"), /提供 install、service、demo、uninstall 和 v1/);
+    assert.match(errors.join("\n"), /提供 install、service <operation>、demo <operation>、uninstall、plugin <operation> 和 v1/);
   } finally {
     console.log = originalLog;
     console.error = originalError;

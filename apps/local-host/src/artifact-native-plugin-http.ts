@@ -53,9 +53,11 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
     catch { compared = null; }
   }
   const notice = artifact.origin.kind === "imported" ? "这是导入时保存的版本；原文后续修改不会自动同步。"
-    : compared === "changed" ? "原文已改，这里仍是第 {version} 版。" : compared === "missing" ? "原对象已经删除，这里仍保留第 {version} 版。" : undefined;
+    : compared === "changed" ? "原文已改，这里仍是第 {version} 版。" : compared === "moved" ? "原对象已移到别处，这里仍保留第 {version} 版。"
+      : compared === "missing" ? "原对象已经删除，这里仍保留第 {version} 版。" : undefined;
+  // A moved object is not in this project to open; only an object that is here gets the way back.
   return { body_html: renderFilePreviewHtml(content, primitives), ...(notice ? { notice } : {}),
-    source_href: pinned && compared !== "missing" ? `${context.routePrefix}/?openPlugin=${encodeURIComponent(declaration.surface)}&openItem=${encodeURIComponent(pinned.id)}&openTitle=${encodeURIComponent(artifact.title)}` : "",
+    source_href: pinned && compared !== "missing" && compared !== "moved" ? `${context.routePrefix}/?openPlugin=${encodeURIComponent(declaration.surface)}&openItem=${encodeURIComponent(pinned.id)}&openTitle=${encodeURIComponent(artifact.title)}` : "",
     source_label: pinned ? `在${/^[\x20-\x7e]+$/u.test(declaration.plugin_title) ? ` ${declaration.plugin_title} ` : declaration.plugin_title}打开原对象` : "",
     plugin_id: declaration.surface, item_id: pinned?.id ?? "" };
 }

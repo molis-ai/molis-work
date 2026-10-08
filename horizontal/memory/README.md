@@ -18,7 +18,7 @@
 | [src/prefs.ts](src/prefs.ts) | 开关的默认值、补全与使用方权限 |
 | [src/text.ts](src/text.ts) | 召回关键词、同文判断、秘密形状与像指令的文字（确定性规则） |
 
-合同在 `@molis-ai/molis-work-contracts/services/memory`（`memory.*` 动作、旁表端口）。旁表由 `@molis-ai/molis-work-storage` 的 `openMemoryLedger` 实现；Host 装配（Prologue 后端、动作注册、`/api/memory/*`、旧表迁移）在 [apps/local-host/src/memory/memory-host.ts](../../apps/local-host/src/memory/memory-host.ts)。
+合同在 `@molis-ai/molis-work-contracts/services/memory`（`memory.*` 动作、旁表端口）。旁表由 `@molis-ai/molis-work-storage` 的 `openMemoryLedger` 实现；Host 装配（Prologue 后端、动作注册、`/api/memory/*`）在 [apps/local-host/src/memory/memory-host.ts](../../apps/local-host/src/memory/memory-host.ts)。
 
 ## 接入与边界
 

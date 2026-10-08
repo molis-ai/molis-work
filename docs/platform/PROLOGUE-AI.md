@@ -46,7 +46,7 @@
 
 Coding 的 `agent.draft-text.v1` 经 `agent-host-composition.ts` → `model-draft.ts` → `hostTextGeneration` → 当前 composition 的 inference。正文和写法由 Coding 提供，无工具、不建每次起草的 workspace 或 Runtime；用量仅在 input/output 都为 reported 时提供，否则为 null。调用的 signal 与 beforeEffect 经 Host Capability 合同传入，调用方可以取消自身操作而不能改变身份。
 
-Coding 的提交说明与接续摘要定义在 `plugins/native/coding/src/prompts.ts`，共同目录登记 `CODING_INSTRUCTIONS`。请求传 `{ purpose, prompt: CODING_COMMIT_DRAFT.prompt_id, material, model_selection }`；Host 从原 invocation 的插件身份确定 owner，再读取用户修改后的有效正文，材料仍单独传递。输入不能冒充 owner；未知引用或缺失身份拒绝派出。旧 `instructions` 字符串仅兼容旧调用，不能与 `prompt` 并用。Prompt 使用记录在初次授权复查之后写入，原授权等待与模型执行共用两分钟生命周期；取消或撤权后的迟到检查不登记使用、不启动模型。
+Coding 的提交说明与接续摘要定义在 `plugins/native/coding/src/prompts.ts`，共同目录登记 `CODING_INSTRUCTIONS`。请求传 `{ purpose, prompt: CODING_COMMIT_DRAFT.prompt_id, material, model_selection }`；Host 从原 invocation 的插件身份确定 owner，再读取用户修改后的有效正文，材料仍单独传递。输入不能冒充 owner；未知引用或缺失身份拒绝派出。请求必须带已登记的 `prompt`，不再接受 `instructions` 字符串。Prompt 使用记录在初次授权复查之后写入，原授权等待与模型执行共用两分钟生命周期；取消或撤权后的迟到检查不登记使用、不启动模型。
 
 Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native/cognia/src/ai.ts` 拥有。`cognia-prologue.ts` 只固定目录中的模型并注入 `hostCompleteText`，使用 Home 已绑定的同一 Runtime；不再建立 cognia/runtime/runs。发现只读元数据，执行才解析凭据。
 
@@ -71,7 +71,7 @@ SDK 的 schema 支持明确的类型、nullable/anyOf、必填、enum、对象�
 ```text
 Coding 页面 → plugins/native/coding/src/routes.ts
   → agent.run.start.v1 → AgentHost.start（horizontal/agent-host/src/index.ts）
-      冻结角色（Manifest + BUILTIN_PLUGIN_AGENTS 的提示词正文）→ 核对目录授权 → 核对原会话归属（board/plugin/install/actor）
+      冻结角色（Manifest + BUILTIN_PLUGIN_AGENTS 的提示词正文）→ 核对目录授权 → 核对原会话归属（project/plugin/install/actor）
       → 解析 Character 固定版本 → 组装宿主工具与动作工具（精确引用）
   → Prologue 适配器（adapters/prologue-node.ts）运行工具循环
       写文件/跑命令/调用写入动作 → AgentReviewQueue（reviews.ts）等人批准

@@ -186,13 +186,15 @@ export function createWorkbenchProjectBriefRenderer(primitives: ProjectBriefPrim
     const time = createBriefTime(primitives, model.now);
     const name = model.personal ? L("个人空间") : model.name;
     const goals = model.goals;
+    // The badge speaks only for the Goals plugin's own count; a project with no Goals (or none read) claims no state, since its
+    // work may well be in other plugins.
     const state = model.personal
       ? { label: L("只有你能看到"), tone: "quiet" as const, glyph: "user" as MolisWorkIcon }
-      : !goals || !goals.total ? { label: L("未设目标"), tone: "quiet" as const, glyph: "status-todo" as MolisWorkIcon }
-      : goals.done === goals.total ? { label: L("已完成"), tone: "done" as const, glyph: "status-done" as MolisWorkIcon }
-      : { label: L("进行中"), tone: "progress" as const, glyph: "status-progress" as MolisWorkIcon };
+      : !goals || !goals.total ? null
+      : goals.done === goals.total ? { label: L("目标已完成"), tone: "done" as const, glyph: "status-done" as MolisWorkIcon }
+      : { label: L("目标进行中"), tone: "progress" as const, glyph: "status-progress" as MolisWorkIcon };
     const opened = model.opened_at ? `<span>${L("最近打开")} <time datetime="${escapeHtml(model.opened_at)}" data-relative>${escapeHtml(time.ago(model.opened_at))}</time></span>` : "";
-    const kicker = `${renderBriefStatus(state)}${opened}${model.demo ? `<span>${L("演示数据，可随时重建")}</span>` : ""}`;
+    const kicker = `${state ? renderBriefStatus(state) : ""}${opened}${model.demo ? `<span>${L("演示数据，可随时重建")}</span>` : ""}`;
 
     const description = model.personal ? L(PERSONAL_NOTE) : model.description ?? undefined;
     const missing = model.personal || model.description ? undefined : L("还没有项目描述。进入项目后，在项目设置里补一句它要做什么。");
@@ -222,7 +224,7 @@ export function createWorkbenchProjectBriefRenderer(primitives: ProjectBriefPrim
           ...(item.attention ? { status: L("等你确认"), statusTone: "attention" as const, statusIcon: "status-needs-you" as MolisWorkIcon } : {}),
           attrs: { "data-act": "enter-item" },
         })).join("")}</div>`
-      : `<p class="mw-brief__quiet">${model.issues.includes("events") ? L("暂时读不到事项，进入项目可以看到。") : goals?.total ? L("没有待推进的事。") : L("目标定下来之后，要推进的事会出现在这里。")}</p>`;
+      : `<p class="mw-brief__quiet">${model.issues.includes("events") ? L("暂时读不到事项，进入项目可以看到。") : goals?.total ? L("没有待推进的事。") : L("各插件有要推进或等你确认的事时，会出现在这里。")}</p>`;
     const recentBody = model.recent.length
       ? renderBriefRecent(model.recent.map(item => ({ when: time.when(item.at), text: item.title })))
       : `<p class="mw-brief__quiet">${model.issues.includes("events") ? L("暂时读不到动静。") : L("还没有动静。")}</p>`;

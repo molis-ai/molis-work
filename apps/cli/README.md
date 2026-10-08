@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-根 apps/desktop/launchers/cli/main.ts 提供启动环境，Local Host 注入项目与安装操作，dispatchCli 分发命令；项目命令通过 Host Client 调用 Goal、执行和提案接口。JSON/file 输入解析与错误呈现留在 CLI，状态改变由实际 owner 完成。
+根 apps/desktop/launchers/cli/main.ts 提供启动环境，Local Host 注入项目与安装操作，dispatchCli 分发命令；项目命令通过 Host Client 调用 Goals 的初始化、快照、当前目标与目标树提案接口。JSON/file 输入解析与错误呈现留在 CLI，状态改变由实际 owner 完成。
 
 ## 从哪里读代码
 
@@ -22,7 +22,7 @@
 
 ## 接入与边界
 
-这个包不是数据库入口。新增命令应复用 Host capability，避免在命令处理器直接打开 Store。旧提案命令仍有兼容调用方。
+这个包不是数据库入口。新增命令应复用 Host capability，避免在命令处理器直接打开 Store。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。其他运行依赖见 [package.json](package.json)。
 

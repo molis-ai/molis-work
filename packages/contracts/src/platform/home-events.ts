@@ -31,7 +31,7 @@ export const HOME_EVENT_SCHEMA = { type: "object", properties: { event_id: id, s
 export const HOME_EVENT_SOURCE_SCHEMA = { type: "object", properties: { surface: token, title: id, icon: token }, required: ["surface", "title", "icon"], additionalProperties: false };
 export const HOME_EVENT_COLLECTION_SCHEMA = { type: "object", properties: { source: HOME_EVENT_SOURCE_SCHEMA, events: { type: "array", items: HOME_EVENT_SCHEMA } }, required: ["source", "events"], additionalProperties: false };
 export function defineHomeEventsAction(capabilityId: string, kinds: string[], title: string, permissions: string[]): ActionDefinition<HomeEventWindow, HomeEventCollection> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { title, description: "从原数据提供当前窗口的首页事项及打开目标；不会执行目标动作。", kind: "query", scope: "project", scheduling: "concurrent",
+  return { capability_id: capabilityId, version: 1, operation: "query", action: { title, description: "从原数据提供当前窗口的首页事项及每项的打开位置；不会执行事项上的动作。", kind: "query", scope: "project", scheduling: "concurrent",
     audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: kinds,
     input_type: HOME_EVENTS_INPUT_TYPE, output_type: HOME_EVENTS_OUTPUT_TYPE, input_schema: HOME_EVENT_WINDOW_SCHEMA, output_schema: HOME_EVENT_COLLECTION_SCHEMA } };
 }

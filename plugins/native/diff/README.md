@@ -4,19 +4,19 @@ One comparison surface for three interchangeable kinds of input: two snapshots
 captured in Files, a change set a Coding Run prepared, and a change already in
 the Git working tree.
 
-The change-set Artifact type is owned here, by the consumer, rather than by any
-producer. Producers conform to what a comparison needs, which is what keeps one
+The change-set process-item type (`diff.changeset.v1`) is defined around this
+consumer rather than by any producer. Producers conform to what a comparison needs, which is what keeps one
 surface able to render all of them instead of growing a branch per upstream.
 
-Legacy Run change sets carry hunks, so their comparisons remain marked
-`partial`. Coding's fixed text-review records preserve both original sides and
+Coding change sets that carry only hunks, without both original sides, remain
+marked `partial`. Coding's fixed text-review records preserve both original sides and
 use the same bounded text comparison as file snapshots. Repeated edits to one
 path are addressed by their original change index. These are saved proposals
 with execution receipts, not a claim about the current working tree; command
 and external effects are outside this text-review coverage.
 
 The production default binding delivers Coding's selected `changeset` output
-to Diff without changing the user's selected input group. An exact Artifact
+to Diff without changing the user's selected input group. An exact change-set
 reference can also be opened independently of the live input group. Coding's
 embedded reader adds feedback anchors only after saving a fixed version; no
 feedback action authorizes or applies an edit.

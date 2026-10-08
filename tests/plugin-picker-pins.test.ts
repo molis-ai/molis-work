@@ -95,7 +95,7 @@ test("one button, two states: a plus while the plugin is not in the project, a t
   const have = tileOf(html, "pages"), lack = tileOf(html, "schedule"), core = tileOf(html, "goals");
   assert.match(have.toggle, /data-state="added"/); assert.match(have.toggle, /mw-btn--secondary/); assert.doesNotMatch(have.toggle, / disabled/);
   assert.match(lack.toggle, /data-state="available"/); assert.match(lack.toggle, /mw-btn--primary/);
-  assert.match(core.toggle, / disabled/); assert.match(core.toggle, /Goals 是项目的核心，不能移除/);
+  assert.match(core.toggle, / disabled/); assert.match(core.toggle, /Goals 随项目一起创建，不能从项目移除/);
   // Both glyphs are in the button either way, so a change of state is the tile's class only: the stylesheet shows the one that fits.
   for (const tile of [have, lack, core]) assert.match(tile.all, /<button[^>]*data-plugin-toggle[\s\S]*?<svg class="plugin-toggle-add"[^>]*><use href="#icon-plus"><\/use><\/svg><svg class="plugin-toggle-remove"[^>]*><use href="#icon-trash"><\/use><\/svg>/);
 });

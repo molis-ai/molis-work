@@ -1,4 +1,4 @@
 interface:
   display_name: "Molis Work Runtime"
-  short_description: "连接项目、记录实际工作，按当前约定验收、收尾并继续目标"
-  default_prompt: "Use $goal-advance to connect this conversation to my Molis Work project, record the work, and advance the Goal using its current requirements and decisions."
+  short_description: "连接 Molis Work 项目，推进其中的 Goal，并调用已授权给本客户端的插件动作"
+  default_prompt: "Use $goal-advance to connect this conversation to my Molis Work project and use its plugins for this work, advancing Goals by their current requirements and decisions."

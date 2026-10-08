@@ -1,6 +1,6 @@
 # Current Molis Work protocol
 
-Read before the first write. The connected Host supplies project and Runtime identity; ordinary tools require the intended Goal ID, not project paths or self-declared actors. Use the current event workflow for both new and migrated Goals. Historical records remain readable; they are not a second execution protocol.
+Read before the first write. The connected Host supplies project and Runtime identity; ordinary tools require the intended Goal ID, not project paths or self-declared actors. Every Goal uses the event workflow; there is no other execution protocol, and a Goal's history is its events and the Goals journal.
 
 ## Facts, commitments and completion
 

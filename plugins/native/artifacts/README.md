@@ -40,7 +40,7 @@
 
 以上动作使用 `artifacts:read`；导入另需 `artifacts:write`，外部抓取另需 `connectors:document:read`，项目文件读取另需 `workspace:read`。Host 注入项目、actor 与工作区，业务参数不能覆盖身份、producer、scope 或根目录。外部读取完成后再次检查授权、插件状态与取消状态，再写入。生产 MCP 客户端须在系统「对外接入」中按项目和具体能力授权。
 
-`PluginArtifactClient.publish/read` 保留同步作者接口，通过同一 Kernel 执行。Host 在每个安装实例启动前自动注册 `sdk.artifacts.<install_id>.read/publish`，停止或启动失败时释放；仅供 `plugin` audience，不能作为用户/MCP 工具冒充其他生产者。输入输出共用成果记录合同，身份由 Host 绑定，继续检查 `artifact:read/write`、Manifest type/schema 和实时运行授权；个人成果归这个 Home 的人，读它不再比对行为者。旧客户端在崩溃恢复后仍失效。
+`PluginArtifactClient.publish/read` 保留同步作者接口，通过同一 Kernel 执行。Host 在每个安装实例启动前自动注册 `sdk.artifacts.<install_id>.read/publish`，停止或启动失败时释放；仅供 `plugin` audience，不能作为用户/MCP 工具冒充其他生产者。输入输出共用成果记录合同，身份由 Host 绑定，继续检查 `artifact:read/write`、Manifest type/schema 和实时运行授权；个人成果归这个 Home 的人，读它不再比对行为者；过程项仍归记下它的安装实例的行为者，其他行为者的安装读它报 `plugin_artifact_denied`。旧客户端在崩溃恢复后仍失效。
 
 同步是角色发布事务的要求：检查草稿修订与保存成果之间不能插入异步等待。只有明确声明同步执行的处理器可被同步调用；异步授权或 Host 策略会拒绝此次调用，不会跳过检查。Host 装配必须显式提供当前项目共享的动作注册和调用端口。SDK 作者及 Inputs/Outputs、Characters、Shelf、Coding 消费者不需要改成 Promise。公共网页权限仍与插件 SDK 权限分别校验；显式来源账号选择及其余服务迁移继续。
 

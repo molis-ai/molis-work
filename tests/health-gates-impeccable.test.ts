@@ -64,6 +64,8 @@ test("a path counts in the set two levels below .impeccable, the folder below it
     ["docs/design/demo/.impeccable/design.json", "docs/design/demo/.impeccable"],
     ["apps/alpha/.impeccable/surfaces/capabilities.md", "apps/alpha/.impeccable/surfaces"],
     ["specs/archive/x/.impeccable/review/revision-2/a.png", "specs/archive/x/.impeccable/review/revision-2"],
+    [".impeccable", null],
+    ["docs/design/demo/.impeccable", null],
     ["docs/impeccable/readme.md", null],
     ["docs/notes.impeccable.md", null],
     [".impeccable-notes/readme.md", null],
@@ -120,6 +122,19 @@ for (const scenario of violations) {
     assert.match(still.out, scenario.expect);
   });
 }
+
+test("the quick check without --base fails on a group that grew past the committed baseline, and names the group", () => {
+  branch("quick-check", () => put(".impeccable/review/set-a/three.png", "x"));
+  const quick = gate();
+  assert.equal(quick.code, 1, quick.out);
+  assert.match(quick.out, /tracked files under \.impeccable in \.impeccable\/review\/set-a 2 → 3/);
+  assert.match(quick.out, /docs\/system\/REPOSITORY-HYGIENE\.md/);
+  // A group the committed baseline has no record of starts at 0.
+  branch("quick-check-new-group", () => put(".impeccable/review/set-c/a.png", "a"));
+  const fresh = gate();
+  assert.equal(fresh.code, 1, fresh.out);
+  assert.match(fresh.out, /in \.impeccable\/review\/set-c 0 → 1/);
+});
 
 test("names that merely look like .impeccable do not count", () => {
   branch("lookalikes", () => {
@@ -182,6 +197,29 @@ test("the report prints the count and the groups the files are in", () => {
   const json = JSON.parse(gate("--report", "--json", "--base", "main").out);
   assert.equal(json.head.impeccable[".impeccable/review/set-a"], 2);
   assert.equal(json.base.impeccable[".impeccable/review/set-a"], 2);
+});
+
+test("the report orders groups by size and equal sizes alphabetically, and --top N cuts the list and counts what is left", () => {
+  branch("report-order", () => { put(".impeccable/review/Zed/a.png", "a"); put(".impeccable/review/alpha/a.png", "a"); });
+  // The rows of the .impeccable section only: the heading, then the indented lines under it.
+  const section = (text: string) => {
+    const lines = text.split("\n");
+    const start = lines.findIndex((line) => line.startsWith("Tracked .impeccable files"));
+    assert.ok(start >= 0, text);
+    const rest = lines.slice(start + 1);
+    const end = rest.findIndex((line) => !line.startsWith("  "));
+    return rest.slice(0, end === -1 ? undefined : end);
+  };
+  const groups = (text: string) => section(text).flatMap((line) => { const row = /^\s+(\d+)\s+(\S+)$/.exec(line); return row ? [[Number(row[1]), row[2]] as const] : []; });
+  const all = groups(gate("--report").out);
+  assert.deepEqual(all.map(([count]) => count), [2, 1, 1, 1, 1, 1, 1]);
+  assert.equal(all[0][1], ".impeccable/review/set-a");
+  const names = all.map(([, group]) => group);
+  assert.ok(names.indexOf(".impeccable/review/alpha") < names.indexOf(".impeccable/review/Zed"), `alphabetical, not byte order: ${names.join(", ")}`);
+  const cut = section(gate("--report", "--top", "2").out);
+  assert.equal(cut.filter((line) => /^\s+\d+\s+\S+$/.test(line)).length, 2);
+  assert.ok(cut.some((line) => /… 5 more \(omit --top to see all\)/.test(line)), cut.join("\n"));
+  for (const top of ["7", "50"]) assert.ok(!section(gate("--report", "--top", top).out).some((line) => /more \(omit/.test(line)), `--top ${top} shows every group, so nothing is left`);
 });
 
 test("a baseline.json without the per-group record is an old shape for the quick check and ignored by --base", () => {

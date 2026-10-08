@@ -18,6 +18,17 @@
 //      per patch the bytes, SHA-256, git blob, base, commit, source kind and the package it made, per tgz-less package the
 //      same, every commit it names listed in `upstream.commitsChecked`; and none of the recorded patches is back in the folder.
 //
+// What it does not read (docs/system/REPOSITORY-HYGIENE.md says the same): the numbers in `patch-history.json`. Rule 5 checks
+// their shape, not that they are true: it does not fetch a `gitBlob` from Git to recompute the bytes and SHA-256, and it does
+// not ask the upstream whether a commit exists. The numbers were checked once, when the record was written (2026-10-08); to
+// check them again, use the commands in vendor/prologue-sdk/README.md. Likewise `source.commit` in a provenance file is
+// checked for shape only. `retrieval.commitWithAllPatches` is a commit that is known to hold every recorded patch, not the
+// last one that does; whether it is reachable is not checked either.
+//
+// Every check above is a `problems.push` in this file, and tests/vendor-provenance.test.ts has a case for each of them. That
+// was verified on a scratch copy by removing each `problems.push` and swapping each `&&`, `||`, `===`, `!==` for its opposite,
+// one change at a time: all 92 changes turn a case red. Repeat it after changing this file.
+//
 // Pure functions of a directory tree (Node built-ins only), so the gate runs before any dependency is installed.
 
 import { createHash } from "node:crypto";
@@ -121,7 +132,7 @@ function patchHistoryProblems(root) {
   const at = (suffix) => `${PATCH_HISTORY}: ${suffix}`;
   if (!isObject(history)) return [at("must be an object")];
   if (history.schema !== PATCH_HISTORY_SCHEMA) problems.push(at(`schema must be ${PATCH_HISTORY_SCHEMA}`));
-  if (!isObject(history.retrieval) || !HEX40.test(history.retrieval.lastCommitWithAllPatches ?? "")) problems.push(at("retrieval.lastCommitWithAllPatches must be a full 40-character commit"));
+  if (!isObject(history.retrieval) || !HEX40.test(history.retrieval.commitWithAllPatches ?? "")) problems.push(at("retrieval.commitWithAllPatches must be a full 40-character commit"));
   const upstream = isObject(history.upstream) ? history.upstream : {};
   if (!HEX40.test(upstream.mainHead ?? "")) problems.push(at("upstream.mainHead must be a full 40-character commit"));
   const checked = Array.isArray(upstream.commitsChecked) ? upstream.commitsChecked : [];

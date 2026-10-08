@@ -53,7 +53,7 @@ const archive = (file: string, content: string, extra: Record<string, unknown> =
 };
 const history = () => ({
   schema: "prologue-sdk-patch-history-v1",
-  retrieval: { lastCommitWithAllPatches: COMMIT_C },
+  retrieval: { commitWithAllPatches: COMMIT_C },
   upstream: { mainHead: COMMIT_C, commitsChecked: [COMMIT_A, COMMIT_B, COMMIT_C] },
   patches: [
     { file: "one.patch", bytes: 10, diffEntries: 1, sha256: sha256("one"), gitBlob: BLOB, base: COMMIT_A, commit: COMMIT_B, sourceKind: "upstream-commit", source: "branch one", summary: "does one", package: { file: "one.tgz", bytes: 5, sha256: sha256("one.tgz"), gitBlob: BLOB } },
@@ -129,6 +129,49 @@ describe("the gate on a scratch repository", () => {
     { name: "a tgz-less package without a commit", mutate: () => edit(HISTORY, (json) => { delete json.packagesWithoutPatch[0].commit; }), expect: [/packagesWithoutPatch\[0\]\.commit must be a full 40-character commit/] },
     { name: "an empty upstream check", mutate: () => edit(HISTORY, (json) => { json.upstream.commitsChecked = []; }), expect: [/upstream\.commitsChecked must list full 40-character commits/] },
     { name: "a deleted patch that comes back", mutate: () => put("vendor/prologue-sdk/two.patch", "back"), expect: [/two\.patch is recorded as deleted but is back in vendor\/prologue-sdk\//] },
+
+    // The rest pins every remaining check of the gate to a case of its own. The file is checked by changing
+    // scripts/gates/vendored-provenance.mjs one place at a time on a scratch copy (each `problems.push` removed, each `&&`, `||`,
+    // `===`, `!==` swapped for its opposite): every one of those changes has to turn a case red. Do the same after changing the
+    // gate; a case that passes is not evidence that the check it was written for still runs.
+    { name: "provenance without an artifact object", mutate: () => edit(`${CURRENT}.provenance.json`, (json) => { delete json.artifact; }), expect: [/current\.tgz\.provenance\.json: no "artifact" object/] },
+    { name: "provenance without a source object", mutate: () => edit(`${CURRENT}.provenance.json`, (json) => { delete json.source; }), expect: [/current\.tgz\.provenance\.json: no "source" object/] },
+    { name: "provenance that is a list instead of an object", mutate: () => put(`${CURRENT}.provenance.json`, "[]"), expect: [/no "artifact" object/, /no "source" object/] },
+    { name: "an alternative patch recorded as null", mutate: () => edit(`${CURRENT}.provenance.json`, (json) => { json.alsoBuildableFrom.patch = null; }), expect: [/alsoBuildableFrom\.patch names null, which is not in the folder/] },
+    { name: "an alternative patch whose file is not a name", mutate: () => edit(`${CURRENT}.provenance.json`, (json) => { json.alsoBuildableFrom.patch.file = 5; }), expect: [/alsoBuildableFrom\.patch names 5, which is not in the folder/] },
+    { name: "an alternative patch recorded with another byte count only", mutate: () => edit(`${CURRENT}.provenance.json`, (json) => { json.alsoBuildableFrom.patch.bytes += 1; }), expect: [/alsoBuildableFrom\.patch current\.patch has other bytes or SHA-256/] },
+    { name: "an alternative patch recorded with another SHA-256 only", mutate: () => edit(`${CURRENT}.provenance.json`, (json) => { json.alsoBuildableFrom.patch.sha256 = sha256("x"); }), expect: [/alsoBuildableFrom\.patch current\.patch has other bytes or SHA-256/] },
+    { name: "an alternative patch recorded as a bare string", mutate: () => edit(`${CURRENT}.provenance.json`, (json) => { json.alsoBuildableFrom.patch = "current.patch"; }), expect: [/alsoBuildableFrom\.patch names "current\.patch", which is not in the folder/] },
+    { name: "a patch history that is a list instead of an object", mutate: () => put(HISTORY, "[]"), expect: [/patch-history\.json: must be an object/] },
+    { name: "a patch history without the commit that holds the patches", mutate: () => edit(HISTORY, (json) => { delete json.retrieval; }), expect: [/retrieval\.commitWithAllPatches must be a full 40-character commit/] },
+    { name: "a patch history with a short retrieval commit", mutate: () => edit(HISTORY, (json) => { json.retrieval.commitWithAllPatches = "e4bdeb12"; }), expect: [/retrieval\.commitWithAllPatches must be a full 40-character commit/] },
+    { name: "a patch history without the upstream head", mutate: () => edit(HISTORY, (json) => { delete json.upstream.mainHead; }), expect: [/upstream\.mainHead must be a full 40-character commit/] },
+    { name: "a patch history with a short upstream head", mutate: () => edit(HISTORY, (json) => { json.upstream.mainHead = "4f7110fe"; }), expect: [/upstream\.mainHead must be a full 40-character commit/] },
+    { name: "an upstream check that lists a short commit", mutate: () => edit(HISTORY, (json) => { json.upstream.commitsChecked.push("9fc3b173"); }), expect: [/upstream\.commitsChecked must list full 40-character commits/] },
+    { name: "an upstream check that is not a list", mutate: () => edit(HISTORY, (json) => { json.upstream.commitsChecked = COMMIT_A; }), expect: [/upstream\.commitsChecked must list full 40-character commits/] },
+    { name: "a patch history without a patch list", mutate: () => edit(HISTORY, (json) => { json.patches = []; }), expect: [/patches must be a non-empty list/] },
+    { name: "a patch history whose patches are not a list", mutate: () => edit(HISTORY, (json) => { json.patches = {}; }), expect: [/patches must be a non-empty list/] },
+    { name: "a recorded patch that is not an object", mutate: () => edit(HISTORY, (json) => { json.patches[0] = "one.patch"; }), expect: [/patches\[0\] must be an object/] },
+    { name: "a recorded patch whose name is not a .patch name", mutate: () => edit(HISTORY, (json) => { json.patches[0].file = "one.txt"; }), expect: [/patches\[0\]\.file must be a \.patch name/] },
+    { name: "a recorded patch whose name climbs out of the folder", mutate: () => edit(HISTORY, (json) => { json.patches[1].file = "../two.patch"; }), expect: [/patches\[1\]\.file must be a \.patch name/] },
+    { name: "a recorded patch without bytes", mutate: () => edit(HISTORY, (json) => { json.patches[0].bytes = 0; }), expect: [/patches\[0\]\.bytes must be a positive integer/] },
+    { name: "a recorded patch with a fractional byte count", mutate: () => edit(HISTORY, (json) => { json.patches[1].bytes = 20.5; }), expect: [/patches\[1\]\.bytes must be a positive integer/] },
+    { name: "a recorded patch without diff entries", mutate: () => edit(HISTORY, (json) => { delete json.patches[1].diffEntries; }), expect: [/patches\[1\]\.diffEntries must be a positive integer/] },
+    { name: "a recorded patch with a base the upstream check does not list", mutate: () => edit(HISTORY, (json) => { json.patches[1].base = "e".repeat(40); }), expect: [/patches\[1\]\.base names e{40}, which upstream\.commitsChecked does not list/] },
+    { name: "a recorded upstream-commit patch with a short commit", mutate: () => edit(HISTORY, (json) => { json.patches[0].commit = "9fc3b173"; }), expect: [/patches\[0\]\.commit must be a full 40-character commit or null/] },
+    { name: "a recorded patch without a summary", mutate: () => edit(HISTORY, (json) => { json.patches[1].summary = ""; }), expect: [/patches\[1\]\.summary must say what the patch did/] },
+    { name: "a recorded patch without the package it made", mutate: () => edit(HISTORY, (json) => { json.patches[0].package = null; }), expect: [/patches\[0\]\.package must be an object/] },
+    { name: "a package record whose file is not a .tgz", mutate: () => edit(HISTORY, (json) => { json.patches[0].package.file = "one.zip"; }), expect: [/patches\[0\]\.package\.file must be a \.tgz name/] },
+    { name: "a package record without a file", mutate: () => edit(HISTORY, (json) => { delete json.patches[1].package.file; }), expect: [/patches\[1\]\.package\.file must be a \.tgz name/] },
+    { name: "a package record without a SHA-256", mutate: () => edit(HISTORY, (json) => { json.patches[0].package.sha256 = "abc"; }), expect: [/patches\[0\]\.package\.sha256 must be 64 hex characters/] },
+    { name: "a package record without a git blob", mutate: () => edit(HISTORY, (json) => { delete json.patches[1].package.gitBlob; }), expect: [/patches\[1\]\.package\.gitBlob must be 40 hex characters/] },
+    { name: "a tgz-less package list that is not a list", mutate: () => edit(HISTORY, (json) => { json.packagesWithoutPatch = {}; }), expect: [/packagesWithoutPatch must be a list/] },
+    { name: "a tgz-less package that is not an object", mutate: () => edit(HISTORY, (json) => { json.packagesWithoutPatch[0] = "three.tgz"; }), expect: [/packagesWithoutPatch\[0\] must be an object/] },
+    { name: "a tgz-less package without a file", mutate: () => edit(HISTORY, (json) => { json.packagesWithoutPatch[0].file = "three"; }), expect: [/packagesWithoutPatch\[0\]\.file must be a \.tgz name/] },
+    { name: "a tgz-less package without a SHA-256", mutate: () => edit(HISTORY, (json) => { json.packagesWithoutPatch[0].sha256 = "abc"; }), expect: [/packagesWithoutPatch\[0\]\.sha256 must be 64 hex characters/] },
+    { name: "a tgz-less package without a git blob", mutate: () => edit(HISTORY, (json) => { json.packagesWithoutPatch[0].gitBlob = "d".repeat(39); }), expect: [/packagesWithoutPatch\[0\]\.gitBlob must be 40 hex characters/] },
+    { name: "a tgz-less package with a commit the upstream check does not list", mutate: () => edit(HISTORY, (json) => { json.packagesWithoutPatch[0].commit = "e".repeat(40); }), expect: [/packagesWithoutPatch\[0\]\.commit names e{40}, which upstream\.commitsChecked does not list/] },
+    { name: "a tgz-less package without a description", mutate: () => edit(HISTORY, (json) => { json.packagesWithoutPatch[0].description = " "; }), expect: [/packagesWithoutPatch\[0\]\.description must say where the package came from/] },
   ];
   for (const { name, mutate, expect } of cases) {
     test(`fails on ${name}`, () => {
@@ -195,6 +238,10 @@ describe("the records of this repository", () => {
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
     assert.equal(record.upstream.commitsChecked.length, 19);
+    // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
+    // on main up to the deletion holds them too), so the key must not say so.
+    assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);
+    assert.match(record.retrieval.commitWithAllPatches, /^[0-9a-f]{40}$/);
     for (const patch of record.patches) assert.ok(!existsSync(path.join(repoRoot, folder, patch.file)), patch.file);
   });
 

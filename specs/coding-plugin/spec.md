@@ -1342,7 +1342,7 @@
 - 信封记下答复的是哪一封（`inReplyTo`，必须存在）、发信方是否在等答复（`awaitReply`）和发出时间。
 - 投递箱可以存下、重启后读回、订阅变化、按收发方列出。
 - `session-send` 工具新增 `inReplyTo` 和 `wait`。带 `wait` 时，回执让模型说清在等什么，然后结束这一轮。
-- 新测试 `delivery-durable.test.ts` 通过，原有 65 项投递测试通过。SDK 这一期**没有**重跑全量。重新打包，SHA-256 `905e3d04…`（见 vendor/prologue-sdk/README.md）。
+- 新测试 `delivery-durable.test.ts` 通过，原有 65 项投递测试通过。SDK 这一期**没有**重跑全量。重新打包，SHA-256 `905e3d04…`（当时记在 vendor/prologue-sdk/README.md 里，后来被更新的包取代，README 不再逐包记录；`git show fcb0f599:vendor/prologue-sdk/README.md` 里有全文）。
 
 **宿主**
 

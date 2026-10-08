@@ -28,7 +28,7 @@ git grep -n -i "sidecar" -- '*DESIGN.md'
 
 **新截图默认不入库。** 测试截图写进已被忽略的 `.impeccable/qa/review/`（AGENTS.md「构建与测试」）。`MOLIS_WORK_REVIEW_EVIDENCE=1` 只用来覆盖已入库的同名图，不增加文件。
 
-**门禁**：`pnpm health:check` 的 `impeccable`（`scripts/gates/impeccable-files.mjs`，接在 `scripts/check-health-gates.mjs` 的 `METRICS` 里）数全部 `.impeccable/` 下入库的文件，含嵌套的，按评审组计数：组是 `.impeccable/` 往下第二层的目录（`.impeccable/review/<组>`、`.impeccable/mocks/<组>`），直接放在 `review/`、`surfaces/` 里的文件算那一层，组里更深的文件算组里。每个组只许减少，没有记录的组从 0 开始。所以：覆盖同名图、组内改名、删文件都通过；新增一张图、新增一个评审组、把文件从一组挪到另一组都不通过，在别处删文件也抵不掉（总数是减了，挪进去的那组变多了）。真有一组该入库，要改门禁本身，那要过评审。CI 用 `--base` 与合并基点比较，改 `tooling/gates/baseline.json` 绕不过去；`tests/health-gates-impeccable.test.ts` 在小仓库里验证每条规则（多一个文件就失败、`--update` 不能洗掉、被忽略的 QA 目录和名字相近的目录不算、删文件通过）。门禁只管数量，「是不是被点名」靠上面的方法，评审时查。
+**门禁**：`pnpm health:check` 的 `impeccable`（`scripts/gates/impeccable-files.mjs`，接在 `scripts/check-health-gates.mjs` 的 `METRICS` 里）数全部 `.impeccable/` 下入库的文件，含嵌套的，按评审组计数：组是 `.impeccable/` 往下第二层的目录（`.impeccable/review/<组>`、`.impeccable/mocks/<组>`），直接放在 `review/`、`surfaces/` 里的文件算那一层，组里更深的文件算组里。每个组只许减少，没有记录的组从 0 开始。所以：覆盖同名图、组内改名、删文件都通过；新增一张图、新增一个评审组、把文件从一组挪到另一组都不通过，在别处删文件也抵不掉（总数是减了，挪进去的那组变多了）。真有一组该入库，要改门禁本身，那要过评审。CI 用 `--base` 与合并基点比较，改 `tooling/gates/baseline.json` 绕不过去；`tests/health-gates-impeccable.test.ts` 在小仓库里验证每条规则（多一个文件就失败、`--update` 不能洗掉、不带 `--base` 的快查对已提交的基线同样拦、被忽略的 QA 目录和名字相近的目录不算、名为 `.impeccable` 的文件不算目录、删文件通过、`--report` 的排序与 `--top`），并用与 `vendored-provenance` 同样的办法检查过：把脚本里的 `&&`、`||` 逐个换成反的，每一处都有用例变红。门禁只管数量，「是不是被点名」靠上面的方法，评审时查。
 
 **2026-10-08 的清理**：1,104 个文件（根目录 1,085 个、嵌套 19 个，约 112 MiB）清到 318 个（约 21 MiB）：
 
@@ -53,12 +53,23 @@ git ls-tree -r --name-only e4bdeb12 -- .impeccable
 | `outputs/`（定位材料与商业计划） | 不入库 | `.gitignore` 的 `/outputs/`；商业材料放在仓库之外 |
 | `.zcode/`（个人工具的会话计划） | 不入库 | `.gitignore` 的 `/.zcode/`；个人工具状态不进仓库 |
 
+这两项从树里拿掉的只是入库的那几个文件（`outputs/molis-work-positioning-2026-09-25/` 下三份定位与计划材料、`.zcode/plans/` 下一份会话计划）。Git 历史不改写，它们仍在 `e4bdeb12` 里，但这是公开仓库的历史，不是商业材料该待的地方。**合并后在主检出拉取时，git 会把工作副本里这几个已入库的文件一并删掉**：要留底的，先复制到仓库之外。取回与列出：
+
+```bash
+git ls-tree -r --name-only e4bdeb12 -- outputs .zcode
+git show e4bdeb12:outputs/molis-work-positioning-2026-09-25/bp.zh-CN.md > bp.zh-CN.md
+```
+
 `.gitignore` 里旧名 `.goalboard/` 与 `.requirements/` 两行也去掉了：现在没有任何代码、文档或脚本会在仓库里建这两个目录（代码里没有 `.goalboard` 的引用；Home 目录里的 `~/.goalboard` 链接是真实 Home 的事，见 `docs/system/HOME-DATA.md`）。
 
 ## vendored Prologue 包
 
 `vendor/prologue-sdk/` 只放当前使用的包（AGENTS.md「硬约束」）。每个 vendored 的 tgz 旁边有 `<tgz>.sha256` 和 `<tgz>.provenance.json`（字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm）；当前 Prologue 包由上游提交 `9fc3b173` 的 `packages/sdk` 无补丁重建，步骤在该目录 README。历史补丁不留正文：25 份补丁的大小、SHA-256、git blob、基线、来源和它们产出的包记在 `vendor/prologue-sdk/patch-history.json`，补丁本身都在提交 `e4bdeb12`（此后到删除它们的合并之前的提交里也有），按 git blob 取回。
 
-两道门禁：tgz 的份数由 `pnpm health:check` 的 `vendoredPrologueSdk` 限制（`tooling/gates/limits.json`，只许减少）；记录是否与文件相符由 `scripts/gates/vendored-provenance.mjs` 在同一条命令里核对（不靠基线）：tgz 缺 `.sha256` 或 `.provenance.json`、记录与 tgz 的字节数、SHA-256、integrity 不符、`source.commit` 不是完整提交或 `source.dirty` 不为 `false`、包换掉后记录还留着、`patch-history.json` 的格式不对或已记为删除的补丁又回到目录里，都会失败。每条规则在 `tests/vendor-provenance.test.ts` 里逐条破坏验证（CI 跑）。
+两道门禁：tgz 的份数由 `pnpm health:check` 的 `vendoredPrologueSdk` 限制（`tooling/gates/limits.json`，只许减少）；记录是否与文件相符由 `scripts/gates/vendored-provenance.mjs` 在同一条命令里核对（不靠基线）：tgz 缺 `.sha256` 或 `.provenance.json`、记录与 tgz 的字节数、SHA-256、integrity 不符、`source.commit` 不是完整提交或 `source.dirty` 不为 `false`、包换掉后记录还留着、`alsoBuildableFrom` 点名的补丁不在目录里或字节数、SHA-256 不符、`patch-history.json` 的格式不对或已记为删除的补丁又回到目录里，都会失败。
+
+- **在途分支的包也一样**：要先把 Prologue 的改动提交成完整提交，再从那个提交打包；从未提交的工作树打出来的包过不了 `source.dirty`（它没法按记录重建）。这是这道门禁新加的要求，以前没有。
+- **测试**：`tests/vendor-provenance.test.ts`（CI 跑）里门禁脚本的每一条检查都有自己的用例：用例在小仓库的分支上造出那一种违例，`--base main` 比较就失败（另有一个用例确认 `--update` 洗不掉它，不带 `--base` 的快查也失败）。检查方法：在脚本的副本里一次只改一处，每个 `problems.push` 去掉，每个 `&&`、`||`、`===`、`!==` 换成反的，再跑这个测试文件，每一处改动都要让某个用例变红。2026-10-08 这样改了 92 处，没有一处存活（早先的版本有 27 处存活，补了用例）。改门禁脚本时照这个办法再查一遍，不要只看新增的用例过了。
+- **门禁读不到的**：`patch-history.json` 只核对格式（字段在不在、是不是 40 位提交或 64 位 SHA-256、列表里有没有重复、引用的提交是不是都列在 `upstream.commitsChecked` 里），不去 Git 里取 `gitBlob` 重算字节数和 SHA-256，也不去上游核对提交。这些数字是 2026-10-08 写入时核对过的，之后要核对，用 `vendor/prologue-sdk/README.md`「已删除的历史补丁」里的取回命令（`git cat-file blob <gitBlob>` 再 `shasum -a 256`）。`provenance.json` 里的 `source.commit` 同样只核对形状，不核对它真是上游的提交。
 
 三个 vendored 包的 tgz（`prologue-sdk`、`intelligence-client`、`search-evidence-layer`）按决定将来改从私有 registry 或 release 附件取，不再放进公开仓库；registry 就绪前它们仍留在 `vendor/`。

@@ -147,6 +147,33 @@ test("undoing a create removes it; request_id replays instead of creating twice;
   await assert.rejects(f.me.invoke(actions.revert, { change_id: other.change_id }), { code: "todo.not_found" });
 });
 
+test("a request id belongs to the caller and project that chose it: another caller's identical id is another request, never a replay of someone else's todo", async t => {
+  const f = fixture(t);
+  const inA = await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project", request_id: "todo-req-1" });
+  // Another project cannot see A's todo: reusing the id used to fail with not_found, and now creates its own.
+  const inB = await f.inB.invoke(actions.create, { title: "B 项目的事", placement: "project", request_id: "todo-req-1" });
+  assert.equal(inB.replayed, false);
+  assert.notEqual(inB.item.id, inA.item.id);
+  assert.equal(inB.item.title, "B 项目的事");
+  // Another caller reusing the person's id for a visible personal todo used to get that todo back as a replay.
+  const mine = await f.me.invoke(actions.create, { title: "我的个人事", placement: "personal", request_id: "todo-req-2" });
+  const assistant = await f.agentHome.invoke(actions.create, { title: "助理另记的事", request_id: "todo-req-2" });
+  assert.equal(assistant.replayed, false);
+  assert.equal(assistant.item.title, "助理另记的事");
+  assert.notEqual(assistant.item.id, mine.item.id);
+  // The same caller in a project and at Home are different places too.
+  const home = await f.me.invoke(actions.create, { title: "个人空间里的另一件", request_id: "todo-req-1" });
+  assert.deepEqual([home.replayed, home.item.title], [false, "个人空间里的另一件"]);
+  // Each caller's own retry still finds its own todo.
+  const retried = [
+    [await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project", request_id: "todo-req-1" }), inA],
+    [await f.inB.invoke(actions.create, { title: "B 项目的事", placement: "project", request_id: "todo-req-1" }), inB],
+    [await f.me.invoke(actions.create, { title: "我的个人事", placement: "personal", request_id: "todo-req-2" }), mine],
+    [await f.agentHome.invoke(actions.create, { title: "助理另记的事", request_id: "todo-req-2" }), assistant],
+  ] as const;
+  for (const [retry, first] of retried) assert.deepEqual([retry.replayed, retry.item.id], [true, first.item.id], first.item.title);
+});
+
 test("links: todo relations read from both ends; unreachable todos cannot be linked; unlinking undoes", async t => {
   const f = fixture(t);
   const send = (await f.me.invoke(actions.create, { title: "发送新版方案", due_date: "2026-10-02" })).item;

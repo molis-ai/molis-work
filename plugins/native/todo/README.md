@@ -22,8 +22,8 @@
   - 撤销按历史进行，之后又被改过就拒绝；删除不可撤销，执行前确认。
   - 从 Inbox、灵光“转为待办”由 Workbench 调新建接口组合：原条目只作为来源（`inbox`／`lingguang`）保留，不改它的状态；请求号 `inbox:<id>`、`lingguang:<id>` 让同一条再转时找到原来的待办。
   - 重要标记只能由用户本人设置；“所有项目”只给用户本人的界面。
-  - 新建带 `request_id` 时同一请求重试不重复创建。
-  - 整理只产生待确认的候选，不直接新建或修改待办；依据必须能在原文里找到，原文没写的日期只作建议，用户手动改过的字段只作冲突提示。
+  - 新建带 `request_id` 时同一请求重试不重复创建；请求号按调用者与所在项目分别记（整理结果的请求号同理），别的调用者用了同一个号是另一次请求，不会拿到别人的待办。
+  - 整理只产生待确认的候选，不直接新建或修改待办；依据必须能在原文里找到，原文没写的日期只作建议，用户手动改过的字段只作冲突提示——采用时按待办此刻的状态再判断，整理之后才改的字段同样不被覆盖。
   - 截止日期按原文说法与写下时间确定性换算，不采用模型的日期算术；有歧义时只给建议日期。
 - 改动后必跑：`node scripts/run-tests.mjs tests/todo-actions.test.ts tests/todo-organize.test.ts tests/todo-plugin.test.ts tests/todo.e2e.test.ts tests/context-onboarding-todo.test.ts tests/context-onboarding-todo.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[continuity.md](../../../skills/molis-plugin-dev/continuity.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

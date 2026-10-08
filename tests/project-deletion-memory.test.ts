@@ -63,3 +63,22 @@ test("deleting a project clears its memories and its Characters' from the store 
   // Again: nothing left, nothing fails.
   assert.deepEqual(await purgeProjectMemories({ backend, ledger }, "project-gone"), { removed: 0 });
 });
+
+test("deleting a project also purges the suggestions waiting in its Characters' scopes, found from the notes on the candidates", { timeout: 90_000 }, async t => {
+  const { service, backend, ledger } = await memoryHome(t);
+  // Nothing of this Character was written, so the ledger noted no owner for it: all it has in the project is a suggestion.
+  const held = await service.offer(work("project-gone", writer), { scope: "character", text: "回复先给结论", kind: "preference", basis: "inferred", why: "这次看起来喜欢先给结论", from: "extraction" });
+  const other = await service.offer(work("project-kept", writer), { scope: "character", text: "回复要带出处", kind: "preference", basis: "inferred", why: "这次看起来喜欢带出处", from: "extraction" });
+  assert.equal(held.outcome, "candidate");
+  assert.equal(other.outcome, "candidate");
+  assert.deepEqual(ledger.owners("project-gone"), [], "no owner was noted, so the purge cannot find this scope from the owners");
+  const notes = () => ledger.candidates("web-user").filter(note => note.scope === "character");
+  const goneNote = notes().find(note => note.project_id === "project-gone")!, keptNote = notes().find(note => note.project_id === "project-kept")!;
+  assert.equal((await backend.candidates.list("character", goneNote.owner)).length, 1, "the suggestion is waiting in Prologue's box");
+
+  await purgeProjectMemories({ backend, ledger }, "project-gone");
+
+  assert.equal((await backend.candidates.list("character", goneNote.owner)).length, 0, "the suggestion's text is gone from Prologue's box");
+  assert.deepEqual(notes().map(note => note.project_id), ["project-kept"], "and from the ledger");
+  assert.equal((await backend.candidates.list("character", keptNote.owner)).length, 1, "another project's Character keeps its waiting suggestion");
+});

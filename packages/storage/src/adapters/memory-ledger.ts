@@ -4,6 +4,7 @@ import type {
   MemoryLedgerPort,
   MemoryPrefs,
   MemoryRevision,
+  MemoryScope,
   MemoryUseRecord,
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
@@ -149,6 +150,14 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
     noteOwner: input => {
       db.prepare("INSERT INTO memory_owners(scope,owner,project_id,title,subject) VALUES (?,?,?,?,?) ON CONFLICT(scope,owner) DO UPDATE SET project_id=excluded.project_id, title=excluded.title, subject=COALESCE(excluded.subject, memory_owners.subject)")
         .run(input.scope, input.owner, input.project_id, input.title, input.subject ?? null);
+    },
+    candidateOwners: projectId => {
+      const found = new Map<string, { scope: MemoryScope; owner: string }>();
+      for (const row of db.prepare("SELECT body FROM memory_candidates").all()) {
+        const note = JSON.parse(String(row.body)) as MemoryCandidateRecord;
+        if (note.project_id === projectId) found.set(JSON.stringify([note.scope, note.owner]), { scope: note.scope, owner: note.owner });
+      }
+      return [...found.values()];
     },
     pairs: actorId => db.prepare("SELECT body FROM memory_pairs WHERE actor_id=? ORDER BY rowid").all(actorId).map(row => JSON.parse(String(row.body)) as ReturnType<MemoryLedgerPort["pairs"]>[number]),
     savePair: (actorId, pair) => {

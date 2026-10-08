@@ -628,6 +628,11 @@ export interface MemoryLedgerPort {
   /** Owners that stand for something (a Character in a project): its id, as the owner is only a short storage key. */
   owners(projectId: string): Array<{ scope: MemoryScope; owner: string; title: string; subject: string | null }>;
   noteOwner(input: { scope: MemoryScope; owner: string; project_id: string | null; title: string; subject?: string | null }): void;
+  /**
+   * Scopes that hold a note about a waiting candidate in a project, found from the notes themselves: a Character's
+   * suggestion made before its owner was noted still has its scope here.
+   */
+  candidateOwners(projectId: string): Array<{ scope: MemoryScope; owner: string }>;
   /** Pairs waiting for the person, and the pair keys ever raised (a pair kept both is not raised again). */
   pairs(actorId: string): Array<MemoryPair & { owner: string; state: "pending" | "resolved" }>;
   savePair(actorId: string, pair: MemoryPair & { owner: string; state: "pending" | "resolved" }): void;

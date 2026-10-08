@@ -70,7 +70,7 @@ Home 里有 29 种 SQLite 文件：权威库 25 种（Home 级 22 种，按项�
 | --- | --- | --- | --- |
 | `images/images.db` | `plugins/native/images/src/store.ts:50`、`:57`，基线 `:17` | 1 · 回滚 | `connections`、`jobs` |
 | `pages/pages.db` | `plugins/native/pages/src/store.ts:463`，基线 `:433` | 1 · 回滚 | `pages`、`folders`、`page_generations`、`page_changes`、`page_imports` |
-| `form/form.db` | `plugins/native/form/src/store.ts:371`，基线 `:340` | 2 · 回滚 | `forms`、`submissions`、`form_copies` |
+| `form/form.db` | `plugins/native/form/src/store.ts:375`，基线 `:344` | 2 · 回滚 | `forms`、`submissions`、`form_copies` |
 | `dataset/dataset.db` | `plugins/native/dataset/src/store.ts:310`，基线 `:283` | 1 · 回滚 | `datasets`、`dataset_versions`、`dataset_receipts` |
 | `ppt/ppt.db` | `plugins/native/ppt/src/store.ts:239`，基线 `:218` | 1 · 回滚 | `presentations`、`presentation_copies` |
 | `lingguang/lingguang.db` | `plugins/native/lingguang/src/store.ts:282`，基线 `:246` | 1 · 回滚 | `sparks`、`conversations`、`spark_requests`、`messages` |

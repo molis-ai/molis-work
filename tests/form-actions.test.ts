@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { formActions as actions, FORM_ACTION_PERMISSIONS, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
@@ -135,4 +135,75 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
   const forms = (await f.bound.invoke(actions.list, {})).forms;
   assert.equal(forms.length, mode === "delete" ? 0 : 1);
   if (forms.length) assert.equal(forms[0]!.questions.length, 1);
+});
+
+test("a form that is not collecting takes no answer from an agent, MCP, a workflow or a plugin; only the person's own trial fill goes in", async t => {
+  const f = await fixture(t);
+  const as = (audience: ActionAudience) => bindActionClient(f.client, () => ({ ...f.caller, audience }));
+  const outside = ["agent", "mcp", "workflow", "plugin"] as const;
+  let { form } = await f.bound.invoke(actions.create, { title: "收集中才收" });
+  const id = form.id;
+  form = (await f.bound.invoke(actions.update, { id, questions: [{ id: "q", type: "text", title: "Q?" }], expected_version: form.version })).form;
+  const stored = async () => (await f.bound.invoke(actions.results, { id })).submissions.map(submission => `${submission.source}:${submission.answers.q}`).sort();
+  // Refused whatever source the input claims: the call's audience decides, the refusal says why and what to do, and nothing is written.
+  const refuse = async (reason: RegExp, remedy: RegExp) => {
+    for (const audience of outside) for (const claimed of [undefined, "preview", "fill"] as const) {
+      const label = `${audience} claiming ${claimed ?? "nothing"}`;
+      await assert.rejects(as(audience).invoke(actions.submit, { id, answers: { q: label }, ...(claimed ? { source: claimed } : {}) }), error => {
+        assert.equal((error as { code?: string }).code, "form.closed", label);
+        assert.match((error as Error).message, reason, label);
+        assert.match((error as Error).message, remedy, label);
+        return true;
+      }, label);
+    }
+  };
+
+  // A draft is not collecting yet.
+  await refuse(/还没有开始收集答卷/u, /请本人先在问卷里开始收集/u);
+  // The person's own trial fill, at the workbench, still goes in: it is how an author tries the form out.
+  assert.equal((await f.bound.invoke(actions.submit, { id, answers: { q: "试填" } })).submission.source, "preview");
+  assert.equal((await f.bound.invoke(actions.submit, { id, answers: { q: "再试填" }, source: "preview" })).submission.source, "preview");
+  // The fill page is for collecting; the person's own page cannot use it on a form that is not.
+  await assert.rejects(f.bound.invoke(actions.submit, { id, answers: { q: "填写页" }, source: "fill" }), { code: "form.closed", message: /还没有开始收集答卷/u });
+  assert.deepEqual(await stored(), ["preview:再试填", "preview:试填"]);
+
+  // Collecting: every source is taken, and recorded as the call's own.
+  form = (await f.bound.invoke(actions.publish, { id, expected_version: form.version })).form;
+  for (const audience of outside) assert.equal((await as(audience).invoke(actions.submit, { id, answers: { q: `收集中 ${audience}` } })).submission.source, audience);
+  assert.equal((await f.bound.invoke(actions.submit, { id, answers: { q: "收集中 填写页" }, source: "fill" })).submission.source, "fill");
+
+  // Collection stopped: the same refusal, with the way back; the answers already in stay.
+  form = (await f.bound.invoke(actions.close, { id, expected_version: form.version })).form;
+  await refuse(/已停止收集答卷/u, /请本人在问卷里重新开始收集/u);
+  assert.equal((await f.bound.invoke(actions.submit, { id, answers: { q: "停止后试填" }, source: "preview" })).submission.source, "preview");
+  await assert.rejects(f.bound.invoke(actions.submit, { id, answers: { q: "填写页" }, source: "fill" }), { code: "form.closed", message: /已停止收集答卷/u });
+
+  // Starting again opens the form to every source again.
+  await f.bound.invoke(actions.publish, { id, expected_version: form.version });
+  for (const audience of outside) assert.equal((await as(audience).invoke(actions.submit, { id, answers: { q: `重新收集 ${audience}` } })).submission.source, audience);
+
+  assert.deepEqual(await stored(), [
+    "agent:收集中 agent", "agent:重新收集 agent", "fill:收集中 填写页", "mcp:收集中 mcp", "mcp:重新收集 mcp",
+    "plugin:收集中 plugin", "plugin:重新收集 plugin", "preview:停止后试填", "preview:再试填", "preview:试填",
+    "workflow:收集中 workflow", "workflow:重新收集 workflow",
+  ].sort());
+});
+
+test("the store itself refuses every source but the trial fill while a form is not collecting", async t => {
+  const home = await mkdtemp(join(tmpdir(), "form-collecting-")), store = openFormStore(home);
+  t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
+  const draft = store.create({ project_id: "p", title: "F" });
+  const form = store.update(draft.id, { questions: [{ id: "q", title: "Q?" }], expected_version: draft.version }, "p");
+  const sources = ["fill", "agent", "mcp", "workflow", "plugin"] as const;
+  const refused = (what: string) => { for (const source of sources) assert.throws(() => store.submit(form.id, { q: "x" }, "p", { source }), { name: "FormError", code: "form.closed" }, `${source} on a ${what} form`); };
+
+  refused("draft");
+  assert.equal(store.submit(form.id, { q: "a" }, "p", { source: "preview" }).source, "preview");
+  assert.equal(store.submit(form.id, { q: "b" }, "p").source, "preview", "a call that names no source is the trial fill");
+  store.publish(form.id, "p");
+  for (const source of ["preview", ...sources] as const) assert.equal(store.submit(form.id, { q: source }, "p", { source }).source, source);
+  store.closeCollection(form.id, "p");
+  refused("stopped");
+  assert.equal(store.submit(form.id, { q: "c" }, "p", { source: "preview" }).source, "preview");
+  assert.equal(store.listSubmissions(form.id, "p").length, 2 + 6 + 1, "a refused call leaves no answer behind");
 });

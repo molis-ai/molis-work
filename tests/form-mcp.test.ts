@@ -36,6 +36,10 @@ test("Form standard MCP preserves submissions and publications across processes 
     for (const [client,name,args] of [[other,"get",{id}],[reader,"submit",{id,answers:{}}],[writer,"create",{project_id:"b"}]] as const) {
       assert.equal((await client.callTool({name:`form.${name}__v1`,arguments:args})).isError,true);
     }
+    // An external tool's answer is taken only while the form is collecting: a draft refuses it and saves nothing.
+    assert.equal((await writer.callTool({name:"form.submit__v1",arguments:{id,answers:{[form.questions[0].id]:"草稿阶段"},request_id:"draft-submission"}})).isError,true);
+    assert.equal((await call(reader,"results",{id})).analysis.submission_count,0);
+    form = (await call(writer,"publish",{id,expected_version:form.version})).form;
     const input = {id,answers:{[form.questions[0].id]:"保留原答案"},expected_version:form.version,request_id:"stable-submission"};
     const secondWriter = await connect("a");
     const [firstSubmit, retriedSubmit] = await Promise.all([call(writer,"submit",input), call(secondWriter,"submit",input)]);
@@ -73,6 +77,10 @@ test("Form standard MCP preserves submissions and publications across processes 
     } finally {project.close();}
     const store = openFormStore(home);
     try {assert.deepEqual(store.get(id,"a"),recovered.form);assert.deepEqual(store.listSubmissions(id,"a"),[submission]);} finally {store.close();}
-    await call(restarted,"delete",{id,expected_version:recovered.form.version}); assert.deepEqual((await call(reader,"list")).forms,[]);
+    // Collection stopped: an external tool's answer is refused again, and the one already in stays.
+    const stopped = (await call(restarted,"close",{id,expected_version:recovered.form.version})).form;
+    assert.equal((await restarted.callTool({name:"form.submit__v1",arguments:{id,answers:{[stopped.questions[0].id]:"停止后"},request_id:"stopped-submission"}})).isError,true);
+    assert.equal((await call(reader,"results",{id})).analysis.submission_count,1);
+    await call(restarted,"delete",{id,expected_version:stopped.version}); assert.deepEqual((await call(reader,"list")).forms,[]);
   } finally {await Promise.all(clients.map(c=>c.close()));await rm(home,{recursive:true,force:true});}
 });

@@ -257,7 +257,8 @@ export class FormStore {
     options: { expectedVersion?: number; requestId?: string; source?: Exclude<FormSubmissionSource, "file"> } = {}): FormSubmissionRecord {
     return this.transaction(() => {
       const form = this.get(id, projectId);
-      if (options.source === "fill" && form.status !== "published") throw new FormError("form.closed", form.status === "closed" ? "这份问卷已停止收集答卷" : "这份问卷还没有开始收集答卷");
+      const source = options.source ?? "preview";
+      assertTakesAnswers(form, source);
       if (options.requestId) {
         const existing = this.db.prepare("SELECT * FROM submissions WHERE form_id = ? AND request_id = ?").get(id, options.requestId) as SubmissionRow | undefined;
         if (existing) {
@@ -271,7 +272,6 @@ export class FormStore {
       }
       this.assertVersion(form, options.expectedVersion);
       const normalized = normalizeAnswers(form.questions, answers);
-      const source = options.source ?? "preview";
       const submission: FormSubmissionRecord = { id: crypto.randomUUID(), form_id: id, answers: normalized,
         submitted_at: new Date().toISOString(), form_version: form.version, questions: form.questions, source };
       this.db.prepare("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
@@ -398,6 +398,21 @@ function fromRow(row: FormRow): FormRecord {
 function submissionFromRow(row: SubmissionRow): FormSubmissionRecord {
   return { id: row.id, form_id: row.form_id, answers: JSON.parse(row.answers_json), submitted_at: row.submitted_at,
     form_version: row.form_version, questions: JSON.parse(row.questions_json) as FormQuestion[], source: row.source as FormSubmissionSource };
+}
+
+/**
+ * A form takes answers while it is collecting (`published`). A draft, and a form whose collection stopped, take only the
+ * person's own trial fill (`preview`): the fill page is for collecting, and what an agent, an external tool, a workflow
+ * or a plugin sends is refused until the person starts collecting. Checked in the submit transaction, so a form that is
+ * stopped between the check and the write cannot take the answer.
+ */
+function assertTakesAnswers(form: FormRecord, source: Exclude<FormSubmissionSource, "file">): void {
+  if (form.status === "published" || source === "preview") return;
+  const stopped = form.status === "closed", reason = stopped ? "这份问卷已停止收集答卷" : "这份问卷还没有开始收集答卷";
+  if (source === "fill") throw new FormError("form.closed", reason);
+  throw new FormError("form.closed", reason + (stopped
+    ? "，助理、外部工具、工作流和插件不能再提交；需要继续收集时，请本人在问卷里重新开始收集"
+    : "，助理、外部工具、工作流和插件暂时不能提交；请本人先在问卷里开始收集"));
 }
 
 function normalizeProjectId(value: string): string {

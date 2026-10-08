@@ -5,6 +5,7 @@ import { codingShelfMaterial } from "./coding-shelf-material.js";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { CODING_PLUGIN_ID, CODING_REPORT_TYPE, CODING_PLAN_TYPE, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
@@ -103,7 +104,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
   const record: ProjectPluginState = { platform: null, running: false };
   try {
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
-    const artifacts = new ArtifactsModule({ db: ports.store.db, appendEvent: event => ports.store.appendEvent(event) });
+    const artifacts = new ArtifactsModule({ db: ports.store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, appendEvent: event => ports.store.appendEvent(event) });
     const processItems = new ProcessItemsModule({ db: ports.store.db, appendEvent: event => ports.store.appendEvent(event) });
     const platform = createPluginPlatform({
       project_id: ports.projectId,

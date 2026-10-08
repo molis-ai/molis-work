@@ -4,7 +4,7 @@ import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contract
 import { slidesFromMarkdown } from "./content-actions.js";
 import { PPT_DRAFT_OUTLINE } from "./prompts.js";
 import { PPT_ARTIFACT_TYPE_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
-import { promotePpt, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
+import { promotePpt, type PptLineHeadPort, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
 import type { PptStore } from "./store.js";
 import { createPptSearchHandlers, pptSearchActions } from "./search.js";
 import { pptArtifactPreview, pptArtifactPreviewHandler } from "./artifact-preview.js";
@@ -75,6 +75,7 @@ export interface PptActionPorts {
   readPage?(pageId: string, caller: ActionCallContext): Promise<{ title: string; body: string }>;
   publishArtifact?: (input: Parameters<PptPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<PptPublishArtifactPort>;
   readArtifact?: (input: Parameters<PptReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<PptReadArtifactPort>;
+  lineHead?: PptLineHeadPort;
 }
 /** A deck is at most this many pages. */
 const SLIDE_LIMIT = 40;
@@ -110,7 +111,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
   const modelAvailability = (): ActionAvailability => ports.modelAvailability ? ports.modelAvailability() : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promotePpt(store, id, project(caller), value => ports.publishArtifact!(value, caller),
-    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined }));
+    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead }));
   const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "ppt.unavailable", reason: "当前环境不能发出成果" };
   return [
     pptArtifactPreviewHandler,
@@ -140,7 +141,9 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
       return { surface: PPT_PROJECT_PLUGIN_ID, id: created.id, title: created.title };
     })),
     bindArtifactCompare(pptActions.artifactCompare, PPT_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
-      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "color_primary", "color_background", "color_text", "slides"])),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "color_primary", "color_background", "color_text", "slides"]),
+      // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.
+      id => ports.withStore(store => objectOrMissing(() => store.get(id)) !== null)),
     bind(pptActions.pptx, (input, caller) => ports.withStore(store => {
       const presentation = store.get(input.id, project(caller));
       if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后导出");

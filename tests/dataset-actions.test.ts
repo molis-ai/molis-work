@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { datasetActions as actions, DATASET_ACTION_PERMISSIONS, openDatasetStore, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
@@ -52,7 +52,8 @@ test("Dataset registers all business actions; snapshots, CSV and Artifact share 
   assert.equal(promoted.artifact.artifact_id, "dataset-" + dataset.id); assert.equal(promoted.dataset.artifact_version, 1);
   await f.host.withProject(f.ref, runtime => {
     const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, promoted.artifact)!;
-    assert.equal(artifact.owner_actor_id, "owner"); assert.deepEqual((artifact.payload as any).rows, imported.rows);
+    // A pinned dataset belongs to the Home's person; the actor who pinned it is its producer.
+    assert.equal(artifact.owner_actor_id, LOCAL_PERSON_ACTOR_ID); assert.equal(artifact.created_by, "owner"); assert.deepEqual((artifact.payload as any).rows, imported.rows);
   });
   const store = openDatasetStore(f.home); let foreign: string;
   try { foreign = store.create({ project_id: "b", title: "Private" }).id; assert.equal(store.get(dataset.id).artifact_version, 1); } finally { store.close(); }

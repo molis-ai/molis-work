@@ -150,7 +150,13 @@ export type ProcessItemRecord = FixedVersionRecord;
 /** The fields every version is written with, in either store. */
 export interface RecordFixedVersionInput extends ArtifactReference {
   project_id: string;
+  /** Who produced this version (a person, a workflow, an Agent, an MCP client): provenance, kept as `created_by`. */
   actor_id: string;
+  /**
+   * Who the version belongs to; defaults to the producer. In a Home that names its owner (`homeOwner` of the module), every
+   * personal 成果 belongs to that person whoever produced it, so a pin or an import passes the person here.
+   */
+  owner_actor_id?: string;
   artifact_type_id: string;
   schema_version: number;
   producer: ArtifactProducerIdentity;

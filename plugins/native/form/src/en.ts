@@ -126,5 +126,9 @@ export const FORM_EN: Record<string, string> = {
   "正在这台电脑上收集": "Collecting on this computer",
   "本机填写页": "Fill-in page on this computer",
   "答卷文件": "Response files",
+  "助理提交": "Submitted by an assistant",
+  "外部工具提交": "Submitted by an external tool",
+  "工作流提交": "Submitted by a workflow",
+  "插件提交": "Submitted by a plugin",
   "继续保存上次固定版本": "Finish saving the last fixed version",
 };

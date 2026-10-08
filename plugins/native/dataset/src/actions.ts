@@ -59,7 +59,7 @@ export const DATASET_ACTION_PERMISSIONS = [...new Set(Object.values(datasetActio
 export interface DatasetActionPorts {
   withStore<T>(run: (store: DatasetStore) => T): T;
   modelAvailability(): ActionAvailability;
-  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
+  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
   publishArtifact?: (input: Parameters<DatasetPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<DatasetPublishArtifactPort>;
   readArtifact?: (input: Parameters<DatasetReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<DatasetReadArtifactPort>;
 }
@@ -88,7 +88,7 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw new ActionError("dataset.conflict", "数据表已改变，请重新读取后生成");
       caller.signal?.throwIfAborted();
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
-      const name = (await ports.completeText(instructed(DATASET_NAME_COLUMN, JSON.stringify({ request: input.prompt })), { signal: caller.signal })).trim();
+      const name = (await ports.completeText(instructed(DATASET_NAME_COLUMN, JSON.stringify({ request: input.prompt })), { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
       caller.signal?.throwIfAborted();
       if (!name || name.length > 80 || /[\r\n]/.test(name)) throw new ActionError("dataset.invalid", "模型没有返回有效列名，请调整提示后重试");
       await caller.beforeEffect();

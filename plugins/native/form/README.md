@@ -28,5 +28,7 @@
   - 缺模型时禁用 AI，保留本地操作。
   - 编辑带读取版本，冲突保留输入；重新读取前确认丢弃。
   - 新答卷保留提交时的题目快照；同次提交用稳定的 `request_id`，重试不重复保存。
+  - 答卷来源由调用方的 audience 决定：只有本机界面（user）的填写页和试填可以用输入里的 `source` 自称 `fill` 或 `preview`；助理、MCP、流程、插件的答卷记为各自的来源，输入的 `source` 对它们无效。
+  - 流程交来的标题和题目列表按问卷的上限（标题 80 字、40 题）截取后再收，不因超限而整次拒收。
 - 改动后必跑：`node scripts/run-tests.mjs tests/form-actions.test.ts tests/form-mcp.test.ts tests/creative-tools-plugins.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

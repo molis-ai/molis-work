@@ -1,5 +1,5 @@
 {
-  "note": "What may sit at the repository root: the first path segment of every tracked file. scripts/gates/root-entries.mjs counts the tracked files of every other root entry (a stray) and lets that number only fall against the merge-base, so a new name here is a decision made in the open: add it with a reason, in the PR that needs it. An entry that is no longer at the root must be deleted from this list.",
+  "note": "What may sit at the repository root: the first path segment of every tracked file. scripts/gates/root-entries.mjs counts the tracked files of every other root entry (a stray) and lets that number only fall against the merge-base, so a new name here is a decision made in the open: add it with a reason, in the PR that needs it. The same names say which root folders are documentation: the link and citation gates (scripts/gates/doc-links.mjs, doc-citations.mjs) read exactly the folders named here and skip a stray. An entry that is no longer at the root must be deleted from this list.",
   "allowed": {
     ".cursor": "Cursor rule and skill links that point AI tools at skills/ (kept in step with skills/ by tests/install.test.ts)",
     ".github": "CI workflows and the pull request template",

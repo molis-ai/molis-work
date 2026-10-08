@@ -45,13 +45,15 @@ before(() => {
   put("tooling/gates/root-allowlist.json", allowlist(baseAllowed));
   put("package.json", JSON.stringify({ name: "fixture", scripts: { build: "tsc", "health:check": "node scripts/check-health-gates.mjs" } }) + "\n");
   put(".gitignore", "dist/\n.impeccable/qa/\n");
-  put("leftover.txt", "a stray that is already there\n");
+  put("leftover.md", "# Leftover\n\nA stray that is already there; a stray file is no documentation either: [gone](missing.md).\n");
+  for (const name of ["a", "b", "c"]) put(`outputs/${name}.md`, `# ${name}\n\nA stray folder is not documentation: [gone](missing.md).\n`);
   put("vendor/prologue-sdk/a.tgz", "a");
 
   put("README.md", "# Fixture\n\nStart with [the guide](docs/guide.md#setup-steps).\n");
   put("AGENTS.md", lines("# Agents", "",
     "Read `docs/guide.md`, then `skills/dev/SKILL.md`. Run `pnpm health:check`. The old test is `tests/old.test.ts`.",
-    "Archive per `specs/README.md`. Actions live in `plugins/native/<name>/src/actions.ts`."));
+    "Archive per `specs/README.md`. Actions live in `plugins/native/<name>/src/actions.ts`.",
+    "A stray folder starts no cited path: `outputs/gone.txt`."));
   put("tests/old.test.ts", "export const old = 1;\n");
   put("docs/guide.md", lines("# Guide", "", "## Setup steps", "",
     "[next](next.md) [anchor](#setup-steps) [up](../README.md#fixture) [dir](../packages/) [encoded](./%E6%96%87.md) [outside](https://example.com/x) [mail](mailto:a@b.c)",
@@ -102,8 +104,23 @@ const branch = (name: string, mutate: () => void) => {
   commit(name);
 };
 
+// Literals that look like ids but sit in files that are not product source. Each one is a mutation of `isSourceForIds`
+// (scripts/gates/doc-citations.mjs): lose one of its exclusions and that id counts as defined.
+const notIdSources: Array<[file: string, id: string]> = [
+  ["plugins/native/alpha/tests/ids.ts", "alpha.only_in_package_tests"],
+  ["plugins/native/alpha/test/ids.ts", "alpha.only_in_test_folder"],
+  ["plugins/native/alpha/fixtures/ids.json", "alpha.only_in_fixtures"],
+  ["plugins/native/alpha/dist/ids.js", "alpha.only_in_dist"],
+  ["plugins/native/alpha/node_modules/dep/ids.js", "alpha.only_in_node_modules"],
+  ["plugins/native/alpha/src/ids.test.ts", "alpha.only_in_a_test_file"],
+  ["plugins/native/alpha/src/ids.d.ts", "alpha.only_in_a_declaration"],
+  ["tooling/gates/excused.json", "alpha.only_in_gate_data"],
+  ["docs/ids.ts", "alpha.only_in_docs"],
+];
+
 // absolute: a rule with no baseline; ratchet: a count that may only fall, where rewriting the committed baseline must not help.
-type Scenario = { name: string; mutate: () => void; expect: RegExp[]; kind: "absolute" | "ratchet" };
+// `localCheck`: a ratchet whose rewritten baseline still leaves the quick local check red, and why.
+type Scenario = { name: string; mutate: () => void; expect: RegExp[]; kind: "absolute" | "ratchet"; localCheck?: RegExp[] };
 const violations: Scenario[] = [
   // ---- broken relative links ----
   { kind: "absolute", name: "a link to a file that does not exist", mutate: () => append("docs/guide.md", "\n[gone](missing.md)\n"),
@@ -148,6 +165,15 @@ const violations: Scenario[] = [
     put("tests/ids.test.ts", 'export const only = "alpha.only_in_a_test";\n');
     append("skills/dev/SKILL.md", "\nCall `alpha.only_in_a_test`.\n");
   }, expect: [/`alpha\.only_in_a_test` is not an id the code defines/] },
+  { kind: "absolute", name: "ids that are only in a package's own tests, fixtures, build output, a test or declaration file, gate data or docs do not count", mutate: () => {
+    for (const [file, id] of notIdSources) { put(file, `export const id = "${id}";\n`); git("add", "-f", file); }
+    append("skills/dev/SKILL.md", `\nNot defined: ${notIdSources.map(([, id]) => `\`${id}\``).join(", ")}.\n`);
+  }, expect: notIdSources.map(([, id]) => new RegExp(`\`${id.replace(".", "\\.")}\` is not an id the code defines`)) },
+  { kind: "absolute", name: "a folder added to the allow-list has its links checked and its paths read, like the folders the gate was written with", mutate: () => {
+    put("tooling/gates/root-allowlist.json", allowlist({ ...baseAllowed, extras: "a root folder named in the open" }));
+    put("extras/README.md", "# Extras\n\n[gone](missing.md)\n");
+    append("skills/dev/SKILL.md", "\nSee `extras/gone.md`.\n");
+  }, expect: [/broken link: extras\/README\.md:\d+: link missing\.md points at extras\/missing\.md/, /bad citation: skills\/dev\/SKILL\.md:\d+: `extras\/gone\.md` points at extras\/gone\.md/] },
   { kind: "absolute", name: "an exception without a reason", mutate: () => {
     append("AGENTS.md", "\nSee `docs/planned.md`.\n");
     put("tooling/gates/doc-citation-exceptions.json", JSON.stringify({ "AGENTS.md": { "docs/planned.md": "  " } }));
@@ -180,8 +206,8 @@ const violations: Scenario[] = [
     expect: [/BL-002 is on two rows \(first at line \d+\); ids are not reused/] },
 
   // ---- the root allow-list file ----
-  { kind: "absolute", name: "an allow-list entry without a reason", mutate: () => put("tooling/gates/root-allowlist.json", allowlist({ ...baseAllowed, "leftover.txt": "" })),
-    expect: [/root allow-list: tooling\/gates\/root-allowlist\.json: "leftover\.txt" needs a reason/] },
+  { kind: "absolute", name: "an allow-list entry without a reason", mutate: () => put("tooling/gates/root-allowlist.json", allowlist({ ...baseAllowed, "leftover.md": "" })),
+    expect: [/root allow-list: tooling\/gates\/root-allowlist\.json: "leftover\.md" needs a reason/] },
   { kind: "absolute", name: "an allow-list entry for something that is not at the root any more", mutate: () => put("tooling/gates/root-allowlist.json", allowlist({ ...baseAllowed, Gone: "old" })),
     expect: [/"Gone" is not at the repository root any more; delete the entry/] },
   { kind: "absolute", name: "an allow-list that is not valid JSON", mutate: () => put("tooling/gates/root-allowlist.json", "<<<<<<< ours\n"),
@@ -190,12 +216,13 @@ const violations: Scenario[] = [
   // ---- root strays (ratchet) ----
   { kind: "ratchet", name: "a new file at the repository root", mutate: () => put("notes.txt", "scratch\n"),
     expect: [/tracked files at the repository root outside the allow-list in notes\.txt 0 → 1/] },
-  { kind: "ratchet", name: "a new folder at the repository root", mutate: () => { put("outputs/a.md", "a"); put("outputs/b.md", "b"); },
-    expect: [/in outputs 0 → 2/] },
-  { kind: "ratchet", name: "more files in a stray folder that is already there", mutate: () => { put("leftover.txt", "x"); put("misc/a.md", "a"); put("misc/b.md", "b"); },
-    expect: [/in misc 0 → 2/] },
+  { kind: "ratchet", name: "a new folder at the repository root", mutate: () => { put("scratch/a.md", "a"); put("scratch/b.md", "b"); },
+    expect: [/in scratch 0 → 2/] },
+  { kind: "ratchet", name: "more files in a stray folder that is already there", mutate: () => put("outputs/d.md", "d"),
+    expect: [/in outputs 3 → 4/] },
+  // With no list nothing is a stray, so the document gates read every folder, the stray outputs/ among them.
   { kind: "ratchet", name: "the allow-list deleted to get around the rule", mutate: () => git("rm", "-q", "tooling/gates/root-allowlist.json"),
-    expect: [/in \(tooling\/gates\/root-allowlist\.json is missing\) 0 → 1/] },
+    expect: [/in \(tooling\/gates\/root-allowlist\.json is missing\) 0 → 1/], localCheck: [/broken link: outputs\/a\.md:\d+: link missing\.md points at outputs\/missing\.md/] },
 
   // ---- .impeccable (ratchet) ----
   { kind: "ratchet", name: "a new screenshot in an existing review set", mutate: () => put(".impeccable/review/set-a/3.png", "3"),
@@ -234,7 +261,13 @@ for (const scenario of violations) {
     // The laundering move: lift the committed baseline to the head's numbers in the same branch.
     assert.equal(gate("--update").code, 0);
     commit("update baseline");
-    if (scenario.kind === "ratchet") assert.equal(gate().code, 0, "the local check against the committed baseline is satisfied by the rewrite");
+    if (scenario.kind === "ratchet") {
+      const local = gate();
+      if (scenario.localCheck) {
+        assert.equal(local.code, 1, local.out);
+        for (const pattern of scenario.localCheck) assert.match(local.out, pattern);
+      } else assert.equal(local.code, 0, "the local check against the committed baseline is satisfied by the rewrite");
+    }
     const still = gate("--base", "main");
     assert.equal(still.code, 1, still.out);
     for (const pattern of scenario.expect) assert.match(still.out, pattern);
@@ -245,13 +278,13 @@ test("the clean base passes: archive/ links, fenced and inline code, globs, plac
   git("checkout", "-q", "-f", "main");
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
-  assert.match(run.out, /1 root strays, 6 \.impeccable files, 1 placeholder contract subpaths/);
+  assert.match(run.out, /2 root strays, 6 \.impeccable files, 1 placeholder contract subpaths/);
   assert.equal(gate().code, 0, "and so does the quick check against the committed baseline");
 });
 
 test("changes that shrink things pass against the merge-base, and say what got smaller", () => {
   branch("tidy", () => {
-    git("rm", "-q", "leftover.txt", ".impeccable/review/set-b/1.png");
+    git("rm", "-q", "-r", "leftover.md", "outputs", ".impeccable/review/set-b/1.png");
     git("rm", "-q", "packages/contracts/src/platform/idle.ts");
     put("packages/contracts/package.json", contractsManifest(["platform/real", "platform/used", "platform/wired"]));
   });
@@ -304,6 +337,29 @@ test("an exception with a reason lets a deliberate citation through, until the c
   assert.match(stale.out, /the exception for `docs\/planned\.md` in AGENTS\.md is not needed any more/);
 });
 
+test("an exception for an id works although gate data is quoted in tooling/gates/, and goes stale with its citation", () => {
+  branch("excepted-id", () => {
+    append("AGENTS.md", "\nA counter-example id: `alpha.counter.v1`.\n");
+    put("tooling/gates/doc-citation-exceptions.json", JSON.stringify({ "AGENTS.md": { "alpha.counter.v1": "a deliberate counter-example, not an id" } }));
+  });
+  const run = gate("--base", "main");
+  assert.equal(run.code, 0, run.out);
+  put("AGENTS.md", read("AGENTS.md").replace("\nA counter-example id: `alpha.counter.v1`.\n", "\n"));
+  commit("the citation goes away");
+  const stale = gate("--base", "main");
+  assert.equal(stale.code, 1, stale.out);
+  assert.match(stale.out, /the exception for `alpha\.counter\.v1` in AGENTS\.md is not needed any more/);
+});
+
+test("an id declared in a manifest or package.json of a plugin counts as defined", () => {
+  branch("manifest-id", () => {
+    put("plugins/native/alpha/package.json", JSON.stringify({ name: "alpha", capabilities: ["alpha.declared_in_manifest"] }));
+    append("skills/dev/SKILL.md", "\nCall `alpha.declared_in_manifest`.\n");
+  });
+  const run = gate("--base", "main");
+  assert.equal(run.code, 0, run.out);
+});
+
 test("a spec in the index may carry an anchor, and a heading link may use the heading as GitHub spells it", () => {
   branch("anchors", () => {
     put("specs/README.md", read("specs/README.md").replace("(alpha/spec.md)", "(alpha/spec.md#alpha)"));
@@ -317,7 +373,7 @@ test("a spec in the index may carry an anchor, and a heading link may use the he
 test("--report lists the document problems and the new counts", () => {
   branch("report", () => append("docs/guide.md", "\n[gone](missing.md)\n"));
   const text = gate("--report").out;
-  assert.match(text, /Root entries outside the allow-list \(tracked files\): 1 in 1 files/);
+  assert.match(text, /Root entries outside the allow-list \(tracked files\): 4 in 2 files/);
   assert.match(text, /Files under \.impeccable \(per group\): 6 in 5 files/);
   assert.match(text, /Placeholder subpaths in @molis-ai\/molis-work-contracts: 1 in 1 files/);
   assert.match(text, /Document references: 1 problems\n- broken link: docs\/guide\.md:\d+: link missing\.md/);
@@ -343,6 +399,22 @@ test("the run that introduces the allow-list has nothing to compare it with, and
     const run = gate("--base", "main");
     assert.equal(run.code, 0, run.out);
     assert.match(run.out, /2 root strays/);
+  });
+});
+
+test("with no allow-list nothing is a stray: every root folder is read as documentation and can start a cited path", () => {
+  scratch("nolist", () => {
+    put("tooling/gates/limits.json", smallLimits);
+    put("README.md", "# x\n");
+    commit("base");
+    git("checkout", "-q", "-b", "later");
+    put("stuff/b.md", "# b\n\n[gone](missing.md)\n");
+    put("AGENTS.md", "# Agents\n\nSee `stuff/gone.txt`.\n");
+    commit("later");
+    const run = gate("--base", "main");
+    assert.equal(run.code, 1, run.out);
+    assert.match(run.out, /broken link: stuff\/b\.md:\d+: link missing\.md points at stuff\/missing\.md/);
+    assert.match(run.out, /bad citation: AGENTS\.md:\d+: `stuff\/gone\.txt` points at stuff\/gone\.txt/);
   });
 });
 

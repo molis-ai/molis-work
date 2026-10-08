@@ -4,7 +4,8 @@
 // model, follows these literally, so a path or an id that no longer exists is a wrong instruction, not a stale link.
 //
 // A citation is an inline code span (`like this`; fenced blocks are examples and are not read). Three kinds are verified:
-//   path      a repo-rooted path: its first segment is a top-level folder of this repository (apps/, docs/, packages/, …).
+//   path      a repo-rooted path: its first segment is a root entry the root allow-list names (apps/, docs/, packages/, …;
+//             allowlist.mjs: allowedRoots, so a folder added to tooling/gates/root-allowlist.json is read, a stray one is not).
 //             `<name>`, `{name}`, `*` and `{a,b}` stand for "something here"; at least one tracked file must match. A path under
 //             a folder .gitignore keeps out of the repository (dist/, .impeccable/qa/) is accepted, since it exists on a
 //             machine that built or ran the thing.
@@ -14,22 +15,23 @@
 //             (plugins/native/<x>, modules/<x>, horizontal/<x>) are read; `ui.views` or `services.events` are manifest
 //             fields and SDK members, not ids. The id must be one the code can produce, in one of three ways:
 //               exact      the whole id is a string literal in source (apps, plugins, packages, modules, horizontal, server,
-//                          tooling, examples; not tests or build output);
+//                          tooling, examples; not tests, fixtures, build output or tooling/gates/'s own data);
 //               owner      the id minus its owner prefix is a literal under that owner's directory (a plugin writes
 //                          define("reminders.recover") and the catalog prefixes it with schedule.);
 //               template   the id matches a template literal that builds ids (`${station.id}.content.${role}`).
 // An exception goes in tooling/gates/doc-citation-exceptions.json as { "<file>": { "<token>": "<why it is not a problem>" } }
 // with a reason; an exception that is no longer needed is an error itself, so the file cannot rot. No baseline: starts at 0.
 import { fileIndex, readMarkdown } from "./markdown.mjs";
+import { allowedRoots } from "./allowlist.mjs";
 
 export const CITATION_EXCEPTIONS = "tooling/gates/doc-citation-exceptions.json";
-const ROOTS = ["apps", "docs", "examples", "horizontal", "modules", "packages", "plugins", "scripts", "server", "skills", "specs", "tests", "tooling", "vendor", ".github", ".cursor"];
-const ROOTED = new RegExp(`^(?:${ROOTS.map((root) => root.replace(".", "\\.")).join("|")})/`);
 const ID = /^[a-z][a-z0-9_-]*(?:\.[a-zA-Z0-9_-]+){1,7}$/;
 const PNPM_BUILTINS = new Set(["add", "audit", "bin", "config", "dedupe", "deploy", "dlx", "exec", "fetch", "install", "i", "link", "list", "ls", "outdated", "pack", "patch", "prune", "publish", "rebuild", "remove", "rm", "run", "store", "test", "t", "update", "up", "why"]);
 const SOURCE_AREA = /^(?:apps|plugins|packages|modules|horizontal|server|tooling|examples)\//;
+// tooling/gates/ holds the gates' own data (baselines, allow-lists, the citation exceptions): a quoted id there is a record that
+// something was excused, so it must not make that id look defined.
 const isSourceForIds = (file) => SOURCE_AREA.test(file) && /\.(?:ts|mts|mjs|js|tsx|json)$/.test(file) && !file.endsWith(".d.ts")
-  && !/(?:^|\/)(?:tests?|dist|node_modules|fixtures)\//.test(file) && !/\.test\.[a-z]+$/.test(file);
+  && !file.startsWith("tooling/gates/") && !/(?:^|\/)(?:tests?|dist|node_modules|fixtures)\//.test(file) && !/\.test\.[a-z]+$/.test(file);
 const FILE_EXTENSION = /\.(?:ts|mts|mjs|js|tsx|json|md|mdc|yaml|yml|html|css|sh|toml|rs|swift|py|txt|tgz|patch|sqlite|db|png|jpg|svg)$/;
 
 /** The documents whose citations are verified. */
@@ -62,9 +64,11 @@ const ignoredFolders = (gitignore) => (gitignore ?? "").split("\n").map((line) =
   .map((line) => line.replace(/^\//, "").replace(/\/$/, ""));
 const underIgnored = (p, folders) => folders.some((folder) => (folder.includes("/") ? p === folder || p.startsWith(`${folder}/`) : p.split("/").includes(folder)));
 
-function pathCitation(token) {
+const rootedPattern = (names) => names.length === 0 ? /(?!)/ : new RegExp(`^(?:${names.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})/`);
+
+function pathCitation(token, rooted) {
   let value = token.replace(/^\.\//, "").replace(/:\d+(?:[-,]\d+)*$/, "").replace(/#[^/]*$/, "").replace(/\(\)$/, "").replace(/[,;.)]+$/, "");
-  if (!ROOTED.test(value) || /[\s…]|\.\.\./.test(value) || /[$%]/.test(value)) return null;
+  if (!rooted.test(value) || /[\s…]|\.\.\./.test(value) || /[$%]/.test(value)) return null;
   return value;
 }
 
@@ -116,6 +120,7 @@ export function brokenCitations(snapshot) {
   const index = fileIndex(snapshot.files);
   const folders = ignoredFolders(snapshot.read(".gitignore"));
   const owners = ownerDirectories(snapshot.files);
+  const rooted = rootedPattern(allowedRoots(snapshot).names);
   let universe = null;
   let scripts = null;
   const problems = [];
@@ -139,7 +144,7 @@ export function brokenCitations(snapshot) {
         continue;
       }
       for (const word of span.split(/\s+/)) {
-        const value = pathCitation(word);
+        const value = pathCitation(word, rooted);
         if (value !== null && !pathExists(value, index, folders)) report(file, line, word, `points at ${value}, which is not in the repository`);
       }
       const id = mcp ? mcp[1] : span;

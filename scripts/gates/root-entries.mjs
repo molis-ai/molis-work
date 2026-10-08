@@ -5,17 +5,9 @@
 // entry outside the allow-list is a stray. Strays are counted per entry (a folder counts its tracked files) and may only
 // fall, compared with the merge-base like every health number, so nothing new can land at the root and what is there
 // leaves. Putting a new name at the root on purpose means adding it to the allow-list with a reason, in the open.
-export const ROOT_ALLOWLIST = "tooling/gates/root-allowlist.json";
+import { ROOT_ALLOWLIST, readAllowlist } from "./allowlist.mjs";
 
-const readAllowlist = (snapshot) => {
-  const text = snapshot.read(ROOT_ALLOWLIST);
-  if (text === null) return { allowed: null, error: `${ROOT_ALLOWLIST} is missing` };
-  try {
-    const parsed = JSON.parse(text);
-    if (!parsed || typeof parsed.allowed !== "object" || Array.isArray(parsed.allowed)) return { allowed: null, error: `${ROOT_ALLOWLIST} needs an "allowed" object of { "<root entry>": "<reason>" }` };
-    return { allowed: parsed.allowed };
-  } catch { return { allowed: null, error: `${ROOT_ALLOWLIST} is not valid JSON` }; }
-};
+export { ROOT_ALLOWLIST };
 
 /** Every root entry of the snapshot with the number of tracked files in it. */
 export function rootEntries(files) {

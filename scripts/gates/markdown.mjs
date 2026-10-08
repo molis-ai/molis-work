@@ -4,18 +4,22 @@
 // files of the working tree (or of a commit) and a reader. Existence always means "tracked in the snapshot", never "on
 // disk", so an ignored build output or a local scratch file cannot make a link look fine here and broken in CI.
 import path from "node:path";
+import { allowedRoots } from "./allowlist.mjs";
 
-// The trees that hold the product's documents. A top-level folder outside this list (outputs/, .zcode/) is not documentation
-// of this repository: the root allow-list gate (root-entries.mjs) owns what happens to it.
-const DOC_ROOTS = new Set(["apps", "docs", "examples", "horizontal", "modules", "packages", "plugins", "scripts", "server", "skills", "specs", "tests", "tooling", "vendor", ".github", ".cursor"]);
-
-/** Files that are live documentation: Markdown in those trees (and the root's own) outside every archive, vendored build and generated evidence folder. */
-export const isLiveDoc = (file) => {
-  if (!/\.md$/.test(file)) return false;
-  const parts = file.split("/");
-  if (parts.length > 1 && !DOC_ROOTS.has(parts[0])) return false;
-  return !parts.some((part) => part === "archive" || part === "node_modules" || part === ".impeccable" || part === "dist");
-};
+/**
+ * Files that are live documentation: Markdown at a root entry the allow-list names (tooling/gates/root-allowlist.json, read
+ * through allowlist.mjs) outside every archive, vendored build and generated evidence folder. A root entry the allow-list
+ * does not name (outputs/, .zcode/) is not documentation of this repository: the root-entries gate owns what happens to it.
+ */
+export function liveDocs(snapshot) {
+  const roots = allowedRoots(snapshot);
+  return snapshot.files.filter((file) => {
+    if (!/\.md$/.test(file)) return false;
+    const parts = file.split("/");
+    if (!roots.has(parts[0])) return false;
+    return !parts.some((part) => part === "archive" || part === "node_modules" || part === ".impeccable" || part === "dist");
+  });
+}
 
 /**
  * The text split into prose and inline code. Fenced blocks are dropped from all three (their lines are blanked, so line

@@ -1,11 +1,12 @@
 // Gate: no broken relative link in a live Markdown file (specs/repository-anti-corruption §4.12/§4.13).
 //
-// Live = every tracked .md outside archive/, node_modules/, .impeccable/ and dist/ (markdown.mjs: isLiveDoc). A link is
-// broken when its target file or directory is not tracked, or when it points at a heading anchor the target does not have.
+// Live = every tracked .md at a root entry the root allow-list names, outside archive/, node_modules/, .impeccable/ and dist/
+// (markdown.mjs: liveDocs). A link is broken when its target file or directory is not tracked, or when it points at a
+// heading anchor the target does not have.
 // External links (http:, mailto:, …) and anchors into non-Markdown files (a source line such as #L10) are not checked.
 // This gate has no baseline: it starts at zero and stays there.
 import path from "node:path";
-import { decode, fileIndex, headingAnchors, isLiveDoc, markdownLinks, readMarkdown } from "./markdown.mjs";
+import { decode, fileIndex, headingAnchors, liveDocs, markdownLinks, readMarkdown } from "./markdown.mjs";
 
 const EXTERNAL = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
 
@@ -17,7 +18,7 @@ export function brokenLinks(snapshot) {
     return anchorCache.get(file);
   };
   const problems = [];
-  for (const file of snapshot.files.filter(isLiveDoc)) {
+  for (const file of liveDocs(snapshot)) {
     const text = snapshot.read(file);
     if (text === null) continue;
     for (const { target, line } of markdownLinks(readMarkdown(text).prose)) {

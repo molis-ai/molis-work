@@ -532,7 +532,7 @@
 - 突变验证四项都失败。
 - 实例：基线若从 98984bf7 起算，#171 会被拦下。它让 `events-primary.ts`、`navigation-feed.ts`、`craft-finish.ts` 三个超长文件又变长，并新增 2 处测试内部引用。
 - 静态检查规则集与公开 API 快照放下一批：要加 ESLint 依赖或生成 `.d.ts` 清单。
-- 文档与仓库形状门禁（W1-06，`scripts/gates/`，说明见 [scripts/gates/README.md](../../scripts/gates/README.md)）：接进 `pnpm health:check`，突变用例在 `tests/doc-reference-gates.test.ts`（CI 单独一步）。开工时门禁量到 7 处断链，已改：`plugins/native/plugin-builder/DESIGN.md` 5 处指向 S1b 已删的文件、`specs/molis-work-architecture-reorganization/f2-validation.md` 2 处指向已删的 `docs/system/MIGRATION.md`，都改成不带链接的说明；Skill `elements.md` 里引用的 `functions.evaluate.v1` 在代码里没有，改成真实的 `functions.query.v1`。根目录的 `outputs/` 不是文档目录、不查链接（W1-23 移走）；`contracts` 的 6 个占位子路径由 W2-01 删，删完这条规则就是「一个也没有」。
+- 文档与仓库形状门禁（W1-06，`scripts/gates/`，说明见 [scripts/gates/README.md](../../scripts/gates/README.md)）：接进 `pnpm health:check`，突变用例在 `tests/doc-reference-gates.test.ts`（CI 单独一步）。开工时门禁量到 7 处断链，已改：`plugins/native/plugin-builder/DESIGN.md` 5 处指向 S1b 已删的文件、`specs/molis-work-architecture-reorganization/f2-validation.md` 2 处指向已删的 `docs/system/MIGRATION.md`，都改成不带链接的说明；Skill `elements.md` 里的 `functions.evaluate.v1` 是故意写的反例（`.v1` 后缀是 id 的一部分、不是版本，所以是另一个 id；代码里没有它），文字不改，写进 `tooling/gates/doc-citation-exceptions.json` 并带理由。哪些顶层文件夹算文档、哪些路径写法算引用，都从 `tooling/gates/root-allowlist.json` 取（`scripts/gates/allowlist.mjs` 的 `allowedRoots`），不另存名单；名单之外的根目录条目（`outputs/`、`.zcode/`）不查链接、不读引用（W1-23 移走）；`contracts` 的 6 个占位子路径由 W2-01 删，删完这条规则就是「一个也没有」。
 
 CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.yml`）；以上门禁都以非浏览器用例或脚本形式加到 `architecture-boundaries` 作业里，时间预算 3 分钟以内。
 

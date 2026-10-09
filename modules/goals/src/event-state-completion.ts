@@ -1,5 +1,4 @@
 import type {
-  GoalEventAppliedDecisionView,
   GoalEventDecisionRequestView,
   GoalEventRequirementStatus,
   GoalEventUnmetReason,
@@ -8,12 +7,13 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/goals";
 import {
   currentActionDecision,
+  decisionCommitsToCurrentAgreement,
   decisionHasEffect,
   pendingBlocksCompletion,
   requirementCurrentlySatisfied,
 } from "./event-state-authorization.js";
 import { agreementView } from "./event-state-repository.js";
-import type { GoalEventStateRepository } from "./event-state-repository.js";
+import type { AppliedDecisionWithRound, GoalEventStateRepository } from "./event-state-repository.js";
 
 export interface GoalEventCompletionContext {
   open_dependencies: Array<{ goal_id: string; title: string }>;
@@ -28,7 +28,8 @@ export function completionUnmetReasons(input: {
   agreement: ReturnType<typeof agreementView>;
   blockingConcerns: Array<{ concern_id: string; title: string }>;
   pendingDecisions: GoalEventDecisionRequestView[];
-  appliedDecisions: GoalEventAppliedDecisionView[];
+  /** Every trusted decision of the Goal; `in_current_round` marks the ones recorded since it was last reopened or resumed. */
+  appliedDecisions: AppliedDecisionWithRound[];
   context: GoalEventCompletionContext;
 }): GoalEventUnmetReason[] {
   const reasons: GoalEventUnmetReason[] = [];
@@ -74,7 +75,10 @@ export function completionUnmetReasons(input: {
       goal_id: dependency.goal_id,
     });
   }
-  if (input.context.human_approval_required && !hasCurrentHumanApproval(input.requirements, input.appliedDecisions)) {
+  if (
+    input.context.human_approval_required
+    && !hasCurrentHumanApproval(input.requirements, input.agreement.outcome, input.appliedDecisions)
+  ) {
     reasons.push({
       code: "event_closure.human_approval_required",
       message: "当前 Goal 已有明确的人工验收约定，完成前需要可信用户结论",
@@ -121,13 +125,35 @@ export function syncClosedState(
   records.setFulfillment(goal.goal_id, fulfillmentForWorkStatus(status), at);
 }
 
+/**
+ * Whether the person has given the nod the project's approval rule asks for. A nod is a trusted conclusion of the person, and it is
+ * good for the agreement they were shown and the round of work they were told about, no longer: a decision counts only if it was
+ * recorded since the Goal was last reopened or resumed and its commitment is the agreement as it stands, word for word. Any change
+ * to the agreement, or a new round, asks for it again. It comes in two kinds, judged the same way: an accepted conclusion on a
+ * requirement that still stands, through the decision that wrote it, and the latest decision about completing, when it authorizes it.
+ */
 function hasCurrentHumanApproval(
   requirements: GoalEventRequirementStatus[],
-  decisions: GoalEventAppliedDecisionView[],
+  outcome: string,
+  decisions: AppliedDecisionWithRound[],
 ): boolean {
-  if (requirements.some((item) => item.user_conclusion?.verdict === "accepted" && requirementCurrentlySatisfied(item))) {
+  const inRound = decisions.filter((item) => item.in_current_round);
+  const forThisAgreement = new Set(
+    inRound.filter((item) => decisionCommitsToCurrentAgreement(item, requirements, outcome)).map((item) => item.decision_id),
+  );
+  // An accepted conclusion counts through the decision that wrote it, whichever decision that is, for as long as it stands.
+  if (requirements.some((item) =>
+    item.user_conclusion?.verdict === "accepted"
+    && forThisAgreement.has(item.user_conclusion.decision_id)
+    && requirementCurrentlySatisfied(item))) {
     return true;
   }
-  const current = currentActionDecision(decisions, "complete");
-  return Boolean(current && decisionHasEffect(current, "authorize_action", "complete"));
+  // The latest decision about completing counts when it authorizes it. What it does decides that, not the action its scope names:
+  // a decision that names complete but only accepts a requirement is an acceptance and counts only as one.
+  const latest = currentActionDecision(inRound, "complete");
+  return Boolean(
+    latest
+    && decisionHasEffect(latest, "authorize_action", "complete")
+    && forThisAgreement.has(latest.decision_id),
+  );
 }

@@ -82,6 +82,7 @@ export class GoalProjectApplication {
       now: () => this.clock().toISOString(),
       errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
       appendEvent: (input) => this.store.appendEvent(input),
+      eventCursor: (projectId) => this.store.eventCursor(projectId),
       declared: builtinTypeDeclared,
     });
     this.artifacts = {
@@ -93,6 +94,7 @@ export class GoalProjectApplication {
       now: () => this.clock().toISOString(),
       errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
       appendEvent: (input) => this.store.appendEvent(input),
+      eventCursor: (projectId) => this.store.eventCursor(projectId),
       declared: builtinTypeDeclared,
     });
     this.processItems = { query: processItemsModule.query, commands: processItemsModule.commands };

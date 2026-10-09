@@ -68,15 +68,21 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
       proposal_id: proposed.proposal.proposal_id,
     }))) as GoalTreeProposalListResult;
     assert.equal(listed.proposals[0]!.proposal_id, proposed.proposal.proposal_id);
-    const checkInput = { project_id: projectId, proposal_id: proposed.proposal.proposal_id,
-      actor_id: "runtime:chain:session", idempotency_key: "check-proposal" };
+    const checkInput = { project_id: projectId, proposal_id: proposed.proposal.proposal_id, idempotency_key: "check-proposal" };
+    await assert.rejects(
+      () => runV1Cli(["goal-tree-check", "--db", databasePath, "--json", JSON.stringify({ ...checkInput, actor_id: "runtime:chain:session" })], { localHost: host }),
+      (error: unknown) => (error as { code?: string }).code === "actions.input_invalid",
+    );
     const checked = await cli<ReturnType<GoalTreeApplicationApi["checkGoalTreeProposal"]>>("goal-tree-check", checkInput);
     assert.deepEqual(checked.conflict_item_ids, []);
     const checkedSnapshot = await snapshot();
-    assert.deepEqual(JSON.parse(await runtime.callTool("molis_work_v1_action_goals.tree.check__v1", {
-      proposal_id: proposed.proposal.proposal_id, idempotency_key: "check-proposal",
-    })), checked);
-    assert.deepEqual(await snapshot(), checkedSnapshot, "a repeated check preserves the stored item checks and history");
+    assert.deepEqual(await cli("goal-tree-check", checkInput), checked);
+    assert.deepEqual(await snapshot(), checkedSnapshot, "a repeated management check preserves the stored item checks and history");
+    const runtimeChecked = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.tree.check__v1", {
+      proposal_id: proposed.proposal.proposal_id, idempotency_key: "check-proposal-runtime",
+    })) as { conflict_item_ids: string[] };
+    assert.deepEqual(runtimeChecked.conflict_item_ids, checked.conflict_item_ids);
+    assert.equal((await snapshot()).goals.some((goal) => goal.goal_id === "child"), false);
     const beforeDenied = await snapshot();
     await assert.rejects(
       () => runtime.callTool("molis_work_v1_goal_tree_decide", {

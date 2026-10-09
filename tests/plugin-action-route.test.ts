@@ -15,7 +15,7 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
   const home = mkdtempSync(join(tmpdir(), "plugin-action-route-")), file = join(home, "board.sqlite");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
-  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const action: ActionDefinition<{ value: number }, { doubled: number }> = {
     capability_id: "unknown.double", version: 1, operation: "query", action: {

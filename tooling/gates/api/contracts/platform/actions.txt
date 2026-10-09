@@ -2220,159 +2220,6 @@ export declare const SEARCH_OPEN_TARGET_SCHEMA: {
     additionalProperties: boolean;
 };
 
-export declare const SEARCH_QUERY_HIT_SCHEMA: {
-    type: string;
-    properties: {
-        subject: {
-            type: string;
-            properties: {
-                kind: {
-                    type: string;
-                    minLength: number;
-                };
-                id: {
-                    type: string;
-                    minLength: number;
-                };
-            };
-            required: string[];
-            additionalProperties: boolean;
-        };
-        revision: {
-            maxLength: number;
-            type: string;
-            minLength: number;
-        };
-        title: {
-            type: string;
-            maxLength: number;
-        };
-        snippet: {
-            type: string;
-            maxLength: number;
-        };
-        updated_at: {
-            type: string[];
-        };
-        open: {
-            anyOf: ({
-                type: string;
-                properties: {
-                    surface: {
-                        type: string;
-                        minLength: number;
-                        maxLength: number;
-                        pattern: string;
-                    };
-                    id: {
-                        type: string;
-                        minLength: number;
-                    };
-                };
-                required: string[];
-                additionalProperties: boolean;
-            } | {
-                type: string;
-            })[];
-        };
-    };
-    required: string[];
-    additionalProperties: boolean;
-};
-
-export declare const SEARCH_QUERY_INPUT_SCHEMA: {
-    type: string;
-    properties: {
-        query: {
-            type: string;
-            minLength: number;
-            maxLength: number;
-        };
-        limit: {
-            type: string;
-            minimum: number;
-            maximum: number;
-        };
-    };
-    required: string[];
-    additionalProperties: boolean;
-};
-
-export declare const SEARCH_QUERY_INPUT_TYPE = "molis.search.query.request.v1";
-
-export declare const SEARCH_QUERY_OUTPUT_SCHEMA: {
-    type: string;
-    properties: {
-        hits: {
-            type: string;
-            maxItems: number;
-            items: {
-                type: string;
-                properties: {
-                    subject: {
-                        type: string;
-                        properties: {
-                            kind: {
-                                type: string;
-                                minLength: number;
-                            };
-                            id: {
-                                type: string;
-                                minLength: number;
-                            };
-                        };
-                        required: string[];
-                        additionalProperties: boolean;
-                    };
-                    revision: {
-                        maxLength: number;
-                        type: string;
-                        minLength: number;
-                    };
-                    title: {
-                        type: string;
-                        maxLength: number;
-                    };
-                    snippet: {
-                        type: string;
-                        maxLength: number;
-                    };
-                    updated_at: {
-                        type: string[];
-                    };
-                    open: {
-                        anyOf: ({
-                            type: string;
-                            properties: {
-                                surface: {
-                                    type: string;
-                                    minLength: number;
-                                    maxLength: number;
-                                    pattern: string;
-                                };
-                                id: {
-                                    type: string;
-                                    minLength: number;
-                                };
-                            };
-                            required: string[];
-                            additionalProperties: boolean;
-                        } | {
-                            type: string;
-                        })[];
-                    };
-                };
-                required: string[];
-                additionalProperties: boolean;
-            };
-        };
-    };
-    required: string[];
-    additionalProperties: boolean;
-};
-
-export declare const SEARCH_QUERY_OUTPUT_TYPE = "molis.search.query.hits.v1";
-
 export declare const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[];
 
 export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
@@ -2724,24 +2571,6 @@ export interface SearchOpenTarget {
     id: string;
 }
 
-export interface SearchQueryHit {
-    subject: ActionSubject;
-    revision: string;
-    title: string;
-    snippet: string;
-    updated_at: string | null;
-    open: SearchOpenTarget | null;
-}
-
-export interface SearchQueryInput {
-    query: string;
-    limit: number;
-}
-
-export interface SearchQueryResult {
-    hits: SearchQueryHit[];
-}
-
 export interface SearchSourceDeclaration {
     readonly kinds: readonly SearchSourceKind[];
 }
@@ -2967,8 +2796,6 @@ export declare function defineObjectMoveAction(capabilityId: string, kinds: read
 
 export declare function defineSearchEntriesAction(capabilityId: string, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<SearchEntriesInput, SearchEntriesPage>;
 
-export declare function defineSearchQueryAction(capabilityId: string, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<SearchQueryInput, SearchQueryResult>;
-
 export declare function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<{
     subject_id: string;
 }, ActionSubjectContext>;
@@ -3048,11 +2875,6 @@ export declare function isObjectMover(action: {
 }): boolean;
 
 export declare function isSearchEntriesSource(action: {
-    input_type?: string;
-    output_type?: string;
-}): boolean;
-
-export declare function isSearchQuerySource(action: {
     input_type?: string;
     output_type?: string;
 }): boolean;

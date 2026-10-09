@@ -53,6 +53,15 @@ test("apps/mcp ships only platform tools; a Runtime gets the connection tools", 
   assert.deepEqual(RUNTIME_MCP_TOOLS.map(tool => tool.name).filter(name => !name.startsWith("molis_work_v1_context_")), ["molis_work_v1_project_delete"]);
 });
 
+test("the management decision tool names no actor: the host decides as the person on this machine", () => {
+  const decide = MCP_TOOLS.find(tool => tool.name === "molis_work_v1_event_decide")!;
+  const schema = decide.inputSchema as { properties: Record<string, unknown>; required: string[] };
+  // The handler refuses an actor_id, so a schema that lists or requires one can never be satisfied.
+  assert.equal(Object.hasOwn(schema.properties, "actor_id"), false);
+  assert.equal(schema.required.includes("actor_id"), false);
+  for (const field of schema.required) assert.ok(Object.hasOwn(schema.properties, field), `${field} is described by the schema`);
+});
+
 test("assembleMcpCatalog lists exactly the granted actions that are available now", () => {
   const actions = [...functionViews, ...creativeViews];
   const none = assembleMcpCatalog({ audience: "runtime", actions, actionToolName: hostActionToolName });

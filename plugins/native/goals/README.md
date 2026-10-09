@@ -56,6 +56,8 @@ Coding 的进展回执查询也转入统一动作，保留原保存回执和重�
 
 用户决定的 Web 和管理 typed 入口也使用共同动作。Web 的直接事件端口及同步观察包装已删除。管理 MCP `event_decide` 保留受保护渠道的薄适配，从同一动作派生业务 schema；它不能作为普通 MCP 授权能力导出。typed 决定入口声明 `host_only`，插件即使声明 consumes 也不能使用它提交自填 authority。
 
+管理入口（CLI 与 typed Host 客户端）的写入由宿主固定记本机这个人（`LOCAL_PERSON_ACTOR_ID`，`user`，出处 management），参数里带 `actor_id` 或 `actor_kind` 就返回 `actions.input_invalid`，不写入；先核对项目，项目不对仍是 `actions.scope_mismatch`。范围：创建意图、配置、报告、约定、收尾、继续、便笺、设当前目标、结构提案检查，以及同一扇门上的进展、问题、请求决定、引用决定（`goals.progress.record.v1` 在插件调用时仍取调用上下文的身份）。同一条幂等键只在这个人身上重放；动作目录那条路的身份仍来自调用上下文，Runtime 的写入记 Runtime。这些 typed 写入入口（事件写入十一项、`setActiveGoalCapability`、`goalTreeCapabilities.checkGoalTreeProposal`）都声明 `host_only`：插件即使在 Manifest 的 `capabilities.consumes` 里列出，也会被拒绝（`actions.host_only`），不会被记成本机这个人；插件要写进展，走 `goals.progress.record.v1`，身份取自调用上下文。它们的输入类型都不含 `actor_id`、`actor_kind`：结构提案检查用 `GoalTreeCheckEntryInput`（`createGoalProposalClients().goalTree` 是 `GoalTreeEntryApi`），领域输入 `GoalTreeProposalCheckInput` 仍带 `actor_id`，由动作处理函数从调用上下文补上。管理 MCP `event_decide` 的公开 schema 不含 `actor_id`。项目规则「完成前必须你点头」（`human_approval`）进入完成检查：没有仍然有效的可信用户结论、也没有授权 `complete` 的当前决定时，收尾回执的原因是 `event_closure.human_approval_required`。授权 `complete` 的决定和某条要求上的接受结论（含协议里 `requirement_acceptance` 请求的答复）都只对做出它时的约定和那一轮工作有效：约定整份承诺里任何一处变了，或 Goal 被继续、重新打开之后，要重新授权或接受。
+
 文档页完整集合和所选正文已共用动作；Host 仅组合已授权资料，正文另读当前规划方法，个人方法更新不会被页面缓存遮蔽。初始化管理入口也已转入动作；与其他插件的剩余消费和系统生命周期仍待全量审计。MCP 连接恢复摘要已使用当前客户端的精确动作授权与常驻服务；typed 恢复和 MCP 共用原目录/焦点组合，缺权限或服务不可用时返回缺失内容原因，连接状态保持真实。同步事务和历史合并内部继续使用原业务 owner。
 
 请求或引用决定不等于作出用户决定。普通动作不接受 actor/authority 等身份授权字段；项目规划保存/采用的 user_confirmed 只保留原业务确认前提，不产生用户决定权；用户验收、放宽约定和接受风险仍执行原领域校验。标准公共动作拒绝未授权调用，管理模式也不能自填用户作者。
@@ -87,5 +89,6 @@ Coding 的进展回执查询也转入统一动作，保留原保存回执和重�
   - CLI、管理 MCP 与 typed 入口薄转发同一动作；有幂等合同的写入沿用原事务与幂等键。
   - 回收站操作要用户明确确认；`goals.trash.set` 可恢复，因此声明为写而不是不可撤销，并且不进生成插件。
   - MCP 只经动作工具（逐客户端授权、常驻 Host）调用 Goals，不能指定数据库或自填作者、创建渠道。
-- 改动后必跑：`node scripts/run-tests.mjs tests/goals-actions.test.ts tests/goals-command-actions.test.ts tests/goals-board-actions.test.ts tests/goal-event-create-flow.test.ts tests/goals-tree-actions.test.ts tests/goal-progress-plugin-identity.test.ts`
+  - 记本机这个人的 typed 管理写入入口（事件写入、设当前目标、结构提案检查）声明 `host_only`，输入类型不含 `actor_id`、`actor_kind`；新增这类入口时同样声明，`tests/goal-management-identity.test.ts` 读取包的导出，漏掉标记的会失败。
+- 改动后必跑：`node scripts/run-tests.mjs tests/goals-actions.test.ts tests/goals-command-actions.test.ts tests/goals-board-actions.test.ts tests/goal-event-create-flow.test.ts tests/goals-tree-actions.test.ts tests/goal-progress-plugin-identity.test.ts tests/goal-management-identity.test.ts`
 - 相关手册：[docs/modules/goals.md](../../../docs/modules/goals.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[PRODUCT.md](../../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

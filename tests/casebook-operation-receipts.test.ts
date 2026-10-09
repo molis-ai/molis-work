@@ -19,11 +19,11 @@ import {LOCAL_PERSON_ACTOR_ID} from '@molis-ai/molis-work-contracts/platform/act
 const purpose='casebook.operation-receipts.v1' as any;
 test('101 unmet requirements preserve the closure result with explicitly truncated reasons',async t=>{
  const f=await fixture(t);await f.auth('join');await f.create('many');
- await f.client.invoke(configureGoalEventsCapability,{project_id:'board',goal_id:'many',actor_id:'u',idempotency_key:'configure-many',expected_version:0,types:[{type_id:'note',version:1,name:'记录',purpose:'记事实',semantic_family:'progress',fields:[{field_id:'body',name:'正文',purpose:'记录',format:'longtext',required:true}]}]});
+ await f.client.invoke(configureGoalEventsCapability,{project_id:'board',goal_id:'many',idempotency_key:'configure-many',expected_version:0,types:[{type_id:'note',version:1,name:'记录',purpose:'记事实',semantic_family:'progress',fields:[{field_id:'body',name:'正文',purpose:'记录',format:'longtext',required:true}]}]});
  let state=await f.client.invoke(readGoalEventStateCapability,{project_id:'board',goal_id:'many'});
- await f.client.invoke(setGoalEventAgreementCapability,{project_id:'board',goal_id:'many',actor_id:'u',idempotency_key:'agree-many',outcome:'完成全部要求',expected_config_version:state.config.version,expected_agreement_version:state.agreement.version,new_requirements:Array.from({length:101},(_,i)=>({requirement_id:`need-${i}`,statement:`真实未满足要求 ${i}`,bound_type_id:'note'}))});
+ await f.client.invoke(setGoalEventAgreementCapability,{project_id:'board',goal_id:'many',idempotency_key:'agree-many',outcome:'完成全部要求',expected_config_version:state.config.version,expected_agreement_version:state.agreement.version,new_requirements:Array.from({length:101},(_,i)=>({requirement_id:`need-${i}`,statement:`真实未满足要求 ${i}`,bound_type_id:'note'}))});
  state=await f.client.invoke(readGoalEventStateCapability,{project_id:'board',goal_id:'many'});
- const result=await f.client.invoke(submitGoalEventClosureCapability,{project_id:'board',goal_id:'many',actor_id:'u',idempotency_key:'close-many',kind:'complete',reason:'尝试关闭',result:'结果尚不足以证明全部要求',expected_config_version:state.config.version,expected_agreement_version:state.agreement.version});
+ const result=await f.client.invoke(submitGoalEventClosureCapability,{project_id:'board',goal_id:'many',idempotency_key:'close-many',kind:'complete',reason:'尝试关闭',result:'结果尚不足以证明全部要求',expected_config_version:state.config.version,expected_agreement_version:state.agreement.version});
  assert.equal(result.recorded,true);assert.equal(result.completion_applied,false);assert.equal(result.unmet_reasons.length,101,JSON.stringify([...new Set(result.unmet_reasons.map(r=>r.code))]));
  const batch=await f.read(),closure=batch.receipts.filter((r:any)=>r.capability.endsWith('.close'));
  assert.equal(closure.length,2);assert.equal(closure[1].phase,'result');assert.equal(closure[1].saved.recorded,true);assert.equal(closure[1].saved.completion_applied,false);
@@ -40,7 +40,7 @@ async function fixture(t:test.TestContext){
  const request=(action:string,key=action,p=purpose)=>{const intent={project_ref:'board',purpose:p,action,actor_ref:'u',user_confirmed:true,idempotency_key:key} as any;return{...intent,user_action_ref:sign(intent)};};
  const auth=(action:string,key=action,p=purpose)=>api.setInteractionAuthorization(request(action,key,p));
  const read=async()=>{const a=await api.readInteractionAuthorization({project_ref:'board',purpose}) as any;return (api as any).readOperationReceipts({project_ref:'board',schema_version:'1.0.0',authorization_epoch:a.authorization_epoch,after_cursor:0,limit:100});};
- const create=(id:string)=>client.invoke(createGoalIntentCapability,{project_id:'board',goal_id:id,title:'机密文本',actor_id:'u',idempotency_key:id});
+ const create=(id:string)=>client.invoke(createGoalIntentCapability,{project_id:'board',goal_id:id,title:'机密文本',idempotency_key:id});
  t.after(async()=>{await host.close();rmSync(dir,{recursive:true,force:true});});return{host,ref,client,api,auth,read,create,request,verify};
 }
 test('new receipts require independent consent and share only explicit operation identity with v2',async t=>{
@@ -82,8 +82,8 @@ test('network diagnostics never open unresolved project; signed scoped HTTP read
 test('actual API refusal, decision scope/options, proposal attempt and replay produce bounded receipts',async t=>{
  const f=await fixture(t);await f.auth('join');await f.create('g');
  const state=await f.client.invoke(readGoalEventStateCapability,{project_id:'board',goal_id:'g'});
- await f.client.invoke(submitGoalEventClosureCapability,{project_id:'board',goal_id:'g',actor_id:'u',idempotency_key:'close',kind:'complete',reason:'机密',expected_config_version:state.config.version,expected_agreement_version:state.agreement.version});
- const decision=await f.client.invoke(requestGoalDecisionCapability,{project_id:'board',goal_id:'g',actor_id:'u',idempotency_key:'decision',question:'机密问题',options:[{option_id:'yes',label:'秘密选项',impact:'执行'},{option_id:'no',label:'拒绝',impact:'不执行'}],purpose:'action',scope:{action:'deploy'}});
+ await f.client.invoke(submitGoalEventClosureCapability,{project_id:'board',goal_id:'g',idempotency_key:'close',kind:'complete',reason:'机密',expected_config_version:state.config.version,expected_agreement_version:state.agreement.version});
+ const decision=await f.client.invoke(requestGoalDecisionCapability,{project_id:'board',goal_id:'g',idempotency_key:'decision',question:'机密问题',options:[{option_id:'yes',label:'秘密选项',impact:'执行'},{option_id:'no',label:'拒绝',impact:'不执行'}],purpose:'action',scope:{action:'deploy'}});
  await assert.rejects(f.client.invoke(goalTreeCapabilities.submitGoalTreeProposal,[{project_id:'board',actor_id:'u',idempotency_key:'bad-proposal',summary:'机密',items:[]}])) ;
  await f.create('g');const batch=await f.read();
  const close=batch.receipts.find((r:any)=>r.capability.endsWith('.close')&&r.phase==='result');assert.equal(close.saved.recorded,true);assert.equal(close.saved.completion_applied,false);assert.ok(close.guidance.reasons.length);

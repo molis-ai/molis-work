@@ -37,13 +37,11 @@
 //                       the renames); this rule neither sees nor guards them. Tests are out of scope: they name old names to assert that
 //                       they are refused. Within a TypeScript source the count reads the plain text, so a comment or a string
 //                       counts like code. Not seen, so a return would not be caught (a known limit, not a decision): the kebab
-//                       spelling `board-id` (the CLI flag before #287) and every file that is not one of the sources above,
-//                       such as examples/draft-goal.json and examples/leaf-goal.json, which still carry `"board_id"` and are
-//                       shipped through the root package.json `files`. Closing it needs a rule per file type, not a regex.
+//                       spelling `board-id` (the CLI flag before #287) and every file that is not one of the sources above
+//                       (JSON examples, shell and Rust files). Closing it needs a rule per file type, not a regex.
 //                       What the baseline keeps today (tooling/gates/baseline.json, oldNames): the key-derivation
 //                       salt `goalboard-feed-secretstore-v1` in packages/storage/src/adapters/file-secret-store.ts (its code
-//                       comment: changing the string would invalidate existing ciphertext), the local function
-//                       `checkGoalBoard` in apps/local-host/src/project-capabilities.ts, and two unused `_boardId` names in
+//                       comment: changing the string would invalidate existing ciphertext), and two unused `_boardId` names in
 //                       plugins/native/goals/src (a destructuring rename in document-collection.ts, a parameter in
 //                       goal-tree-materialization-order.ts). Each stays in the baseline like any other count; it can only fall.
 import ts from "typescript";

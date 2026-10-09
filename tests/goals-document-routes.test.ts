@@ -45,7 +45,8 @@ test("Workbench request dispatch rejects invalid requests before reading views o
   const request = (method: string, path: string) => renderWorkbenchGoalsPageRequest(method, path,
     () => { reads++; return view; },
     async (input, selection) => { assert.equal(input, view); renders++; return JSON.stringify(selection); });
-  for (const [method, path] of [["POST", "/goals/current"], ["GET", "/unrelated"]]) {
+  // "/decisions" was a Goal-era page of its own (the Inbox opened as a page); it is not a route any more.
+  for (const [method, path] of [["POST", "/goals/current"], ["GET", "/unrelated"], ["GET", "/decisions"]]) {
     assert.equal(await request(method, path), null);
   }
   assert.deepEqual(await request("GET", "/goals/%"), { status: 404, error: "Goal 页面不存在" });
@@ -54,18 +55,17 @@ test("Workbench request dispatch rejects invalid requests before reading views o
   assert.deepEqual(await request("GET", "/goals/missing"), { status: 404, error: "找不到这个 Goal: missing" });
   assert.equal(reads, 1);
   assert.equal(renders, 0, "Missing Goals never load asynchronous page resources");
-  for (const [path, goalId, archiveView, trashView, decisionView] of [
-    ["/goals/current", "current", false, false, false],
-    ["/goals/archived", "archived", true, false, false],
-    ["/goals/trash", "trash", false, true, false],
-    ["/archive/goals/trash", "trash", false, true, false],
-    ["/archive", undefined, true, false, false],
-    ["/trash", undefined, false, true, false],
-    ["/decisions", undefined, false, false, true],
+  for (const [path, goalId, archiveView, trashView] of [
+    ["/goals/current", "current", false, false],
+    ["/goals/archived", "archived", true, false],
+    ["/goals/trash", "trash", false, true],
+    ["/archive/goals/trash", "trash", false, true],
+    ["/archive", undefined, true, false],
+    ["/trash", undefined, false, true],
   ] as const) {
     const result = await request("GET", path);
     assert.ok(result && "html" in result);
-    assert.deepEqual(JSON.parse(result.html), { ...(goalId ? { goalId } : {}), archiveView, trashView, decisionView });
+    assert.deepEqual(JSON.parse(result.html), { ...(goalId ? { goalId } : {}), archiveView, trashView });
   }
   assert.deepEqual(await request("GET", "/trash/goals/current"), { status: 404, error: "找不到这个 Goal: current" });
   let ownerLoads = 0;
@@ -160,7 +160,7 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
   });
   assert.equal(archive.status, 200, await archive.text());
   const beforeReads = await (await fetch(origin + "/api/board")).json();
-  for (const path of ["/goals/CORE", "/archive/goals/CORE", "/archive", "/trash", "/decisions"]) {
+  for (const path of ["/goals/CORE", "/archive/goals/CORE", "/archive", "/trash"]) {
     const response = await fetch(origin + path);
     assert.equal(response.status, 200, path);
     assert.equal(response.headers.get("cache-control"), "no-store");
@@ -171,8 +171,8 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
       assert.match(html, /data-goal-view="CORE"/);
       assert.doesNotMatch(html, /data-draft-form/);
     }
-    if (path === "/decisions") assert.match(html, /data-board-view="decisions"/);
   }
+  assert.equal((await fetch(origin + "/decisions")).status, 404, "the Goal-era /decisions page is gone");
   const wrongCollection = await fetch(origin + "/trash/goals/CORE");
   assert.equal(wrongCollection.status, 404);
   assert.deepEqual(await wrongCollection.json(), { error: "找不到这个 Goal: CORE" });

@@ -38,7 +38,7 @@ export async function dispatchCliProjectCommand(
         await client.invoke(setActiveGoalCapability, {
           project_id: String(input.project_id),
           goal: { goal_id: String(input.goal_id), reason: String(input.reason) },
-          write: { actor_id: String(input.actor_id), idempotency_key: String(input.idempotency_key) },
+          write: { idempotency_key: String(input.idempotency_key) },
         }),
       );
       break;

@@ -6,7 +6,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ArtifactsModule, createArtifactsSchema } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactsActions, artifactsManifest, artifactBrowserUiContribution, createArtifactActionHandlers } from "@molis-ai/molis-work-plugin-artifacts";
-import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 // 「被谁引用」 (specs/artifact-positioning A4b): the Goals that use a version, by how. An Agent's proposal to use a version
 // as a Goal's input is a Goal edge like any other; it is listed with its Goal, not counted as an anonymous other link.
@@ -19,7 +19,7 @@ test("a Goal's proposed input, deliverable and confirmed ones are each listed wi
   db.exec(`CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('${projectId}'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);`);
   createArtifactsSchema(db);
   createContextLedgerSchema(db);
-  const artifacts = new ArtifactsModule({ db, appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid) });
+  const artifacts = new ArtifactsModule({ db, appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid), eventCursor: eventCursorOf(db) });
   const ledger = createContextLedger(db, { authorize: () => true });
   const at = { actor_id: "web-user", scope: { kind: "personal" as const, id: projectId } };
   const register = (artifactId: string) => artifacts.commands.registerVersion({ project_id: projectId, actor_id: "web-user", artifact_id: artifactId, version: 1,

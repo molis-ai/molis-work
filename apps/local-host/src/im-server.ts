@@ -53,13 +53,12 @@ export function createLocalImServer(homeDirectory: string, projectFor?: (id: str
           const project = await projectFor(decodeURIComponent(connect[1]!));
           if (!project) throw new Error('找不到此项目');
           let session = current.identity.session(request);
-          const stored = current.storage.db.prepare('SELECT owner_id FROM mw_projects WHERE id=?').get(project.id) as {owner_id: string} | undefined;
+          const stored = current.continuity.projectOwner(project.id);
           // Possession of the host control token authorizes this local operator.
           // The persisted project owner is the authority; no browser-supplied ID/name is accepted.
           if (!session?.member_id && stored) {
-            const owner = current.storage.db.prepare('SELECT display_name FROM mw_members WHERE id=?').get(stored.owner_id) as {display_name: string};
-            const {code} = current.identity.code('bootstrap', stored.owner_id);
-            session = current.identity.connect({code, display_name: owner.display_name, device_label: '本机工作台'}, request, response, false);
+            const {code} = current.identity.code('bootstrap', stored.id);
+            session = current.identity.connect({code, display_name: stored.display_name, device_label: '本机工作台'}, request, response, false);
           }
           if (session?.member_id) {
             const member = current.identity.requireMember(session);

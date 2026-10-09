@@ -10,6 +10,7 @@ import Database from "better-sqlite3";
 import { MolisWorkServer, runtimeContextHostFromEnvironment } from "../apps/desktop/launchers/mcp/server.js";
 
 import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -140,6 +141,39 @@ describe("mcp server", () => {
         if (value == null) delete process.env[key];
         else process.env[key] = value;
       }
+    }
+  });
+
+  it("a management call that names no database fails instead of using a path under the working directory", async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-no-default-"));
+    const previousCwd = process.cwd();
+    const previousDatabase = process.env.MOLIS_WORK_DATABASE;
+    delete process.env.MOLIS_WORK_DATABASE;
+    process.chdir(directory);
+    const management = new MolisWorkServer("management");
+    try {
+      // `initialize` is the call that would have created the default path.
+      for (const named of [{}, { database_path: "" }, { database_path: "  " }, { database_path: 5 }]) {
+        await assert.rejects(
+          () => management.callTool("molis_work_v1_initialize", { project_id: "no-default", title: "无默认库", idempotency_key: "k", ...named }),
+          (error: unknown) => error instanceof MolisWorkV1Error && error.code === "store.path_required",
+          JSON.stringify(named),
+        );
+      }
+      assert.deepEqual(fs.readdirSync(directory), [], "nothing is created relative to the working directory");
+      // The environment variable is an explicit path, so it is honoured: the call now reaches the missing file.
+      const named = path.join(directory, "named", "project.db");
+      process.env.MOLIS_WORK_DATABASE = named;
+      await assert.rejects(
+        () => management.callTool("molis_work_v1_goal_tree_decide", { project_id: "no-default" }),
+        (error: unknown) => error instanceof MolisWorkV1Error && error.code === "store.not_found" && error.message.includes(named),
+      );
+      assert.deepEqual(fs.readdirSync(directory), []);
+    } finally {
+      process.chdir(previousCwd);
+      if (previousDatabase === undefined) delete process.env.MOLIS_WORK_DATABASE; else process.env.MOLIS_WORK_DATABASE = previousDatabase;
+      await management.close();
+      fs.rmSync(directory, { recursive: true, force: true });
     }
   });
 

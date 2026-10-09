@@ -18,6 +18,7 @@
 - **内置插件一律跟宿主的构建**（#237 起，2026-10-08 补全）：随宿主发布的内置插件（监督器条目标 `bundled`）启动时，安装记录和宿主这个构建的清单只要有一点不同，Runtime 就把记录改成当前构建的清单，保留 `install_id` 与私有数据，也不再恢复旧发行物。不同包括版本更高（#237 起）、版本更低、版本相同而清单内容（摘要）变了；后两种以前 Runtime 不跟，已装的旧代码继续悄悄跑，旧发行物的存档不在时插件启动失败。授权按向上跟的规则收敛：新清单仍声明的保留，必需的补上（同版本改清单时新增的必需权限像新装一样自动授予），不再声明的去掉。为旧版本写的「可从旧版本升级」名单已删除；第三方与生成的插件不变，规则一字没改。0.3.0 的发布 PR 再把内置清单版本改成产品版本，见 [POLICY.md](POLICY.md) 第 7 节。
 
 - **目录库 v22：删除项目的所有者步骤**（`fix/project-deletion-owners`，PR 待开）。目录库多一张表 `project_deletion_steps`，版本由 21 升到 22。新构建拒绝 v21 的目录库（`catalog.unsupported_schema`），做完维护后只认 21 的旧构建又拒绝 v22（`catalog.reader_too_old`）。所以 v21 的 Home 要先做一次一次性维护：`tests/fixtures/catalog-maintenance-v22.sql`，一个事务，版本或表不符就整体回滚；流程与演练记录见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护四。
+- **命令行和管理 MCP 不再有默认数据库路径**（`fix/orphan-resources`，PR 待开）：以前不给路径就用按当前目录算的 `.molis-work/molis-work.db`，在 `$HOME` 下运行会在真实 Home 旁边悄悄建出一个多余的库。现在命令行的 `--db` 必须给（缺、空，或后面直接跟另一个参数，都在建任何文件之前报错），管理 MCP 的 `initialize`、`event_decide`、`goal_tree_decide` 必须给 `database_path` 或设置 `MOLIS_WORK_DATABASE`（否则 `store.path_required`）。依赖旧默认路径的脚本要显式写上路径；Web 服务找不到库时的提示也改为 `molis-work v1 init --db <路径>`。
 
 ### 新增
 

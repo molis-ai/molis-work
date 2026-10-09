@@ -132,7 +132,9 @@ export type PageStateOwnerId = keyof typeof PAGE_STATE_OWNERS;
 /**
  * - `announcement`: the owner reports a change of its own state, or hands something it decided to the others; the owner
  *   dispatches it and other modules listen.
- * - `request`: another module asks the owner to change its state; the owner listens and others dispatch.
+ * - `request`: another module asks the owner to change its state; the owner listens and others dispatch. A surface that
+ *   reports its own situation to the owner of the shared state about it (`molis:surface-focus`, `molis:assistant-surface-changed`)
+ *   is a request too: the surface sends and the owner takes it into its state.
  */
 export type DomEventKind = "announcement" | "request";
 
@@ -228,7 +230,7 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:open-settings-section", kind: "request", owner: "settings-directory", on: "document",
     detail: "{ section }",
-    summary: "Open a global settings section by id (a plugin whose page lives in settings, the memory section).",
+    summary: "Open a global settings section by id; the tab workspace sends it when a plugin whose page lives in settings is opened. The settings link the Assistant shows on a memory change sends it too, but on window and as cancelable, so the settings listener on document never hears it and the link always loads the settings page (a known gap, docs/platform/UI-PLATFORM.md).",
   },
   {
     name: "molis-work:place-changed", kind: "announcement", owner: "tab-workspace", on: "document",
@@ -381,9 +383,9 @@ export const DOM_EVENTS = [
     summary: "Close the panel if it shows that tab (or any tab), otherwise open it. Nothing in the tree dispatches it yet.",
   },
   {
-    name: "molis:surface-focus", kind: "announcement", owner: "context-actions", on: "element", bubbles: true,
+    name: "molis:surface-focus", kind: "request", owner: "context-actions", on: "element", bubbles: true,
     detail: "SurfaceFocus | null (services/contextual); SURFACE_FOCUS_EVENT",
-    summary: "A surface's focus changed (what the person has in hand), or became nothing. Raised from the surface's own root.",
+    summary: "A surface tells the context row what the person has in hand on it, or that it is nothing now. Raised from the surface's own root and bubbling to the row's listener on document; the row raises it itself, from the person's text selection, for a surface that only declares its object in data-assistant-context.",
   },
   {
     name: "workbench-feed-task", kind: "request", owner: "tab-workspace", on: "document",

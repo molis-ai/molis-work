@@ -352,6 +352,68 @@ test("the report names the receivers that cannot meet, and does not fail on them
   assert.doesNotMatch(bubbling.findings.join("\n"), /alpha\/src\/client\.ts:2/);
 });
 
+test("the report names an announcement sent from outside its owner, and does not fail on it", () => {
+  const report = domEventReport(changed({ [NEW_FILE]: script([
+    'document.dispatchEvent(new CustomEvent("molis-work:plugin-events-waiting", { detail: { pending: 1 } }));',
+    'document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail: {} }));',
+  ].join("\n")) }));
+  const text = report.findings.join("\n");
+  assert.match(text, /alpha\/src\/client\.ts:2 dispatches the announcement "molis-work:plugin-events-waiting", which "plugin-notifications" owns/);
+  assert.doesNotMatch(text, /alpha\/src\/client\.ts:3/, "others send a request to its owner; that is what a request is");
+  assert.doesNotMatch(domEventReport(tree).findings.join("\n"), /plugin-notifications\.ts:\d+ dispatches the announcement/, "the owner sends its own announcement");
+  assert.deepEqual(domEventProblems(changed({ [NEW_FILE]: script('document.dispatchEvent(new CustomEvent("molis-work:plugin-events-waiting", { detail: { pending: 1 } }));') })), []);
+  // An entry whose owner is not listed is the registry check's to report; the report still runs and names nothing of it.
+  const orphan = withRegistry('name: "molis-work:plugin-events-waiting", kind: "announcement", owner: "plugin-notifications"', 'name: "molis-work:plugin-events-waiting", kind: "announcement", owner: "nobody"');
+  const orphaned = domEventReport({ files: [...orphan.files, NEW_FILE], read: (file) => (file === NEW_FILE ? script('document.dispatchEvent(new CustomEvent("molis-work:plugin-events-waiting"));') : orphan.read(file)) });
+  assert.equal("error" in orphaned, false);
+  assert.doesNotMatch(orphaned.findings.join("\n"), /plugin-events-waiting/);
+});
+
+// What the report finds on the real tree is a dead path or a broken rule, and a finding nobody wrote down is how the next
+// reader takes the rule for the state: each one is named in the known gaps of docs/platform/UI-PLATFORM.md ("现状与例外"),
+// by the event and, when a file is at fault, by the file.
+const GAPS_DOCUMENT = "docs/platform/UI-PLATFORM.md";
+const knownGaps = (text: string) => {
+  const start = text.indexOf("#### 现状与例外");
+  assert.ok(start >= 0, `${GAPS_DOCUMENT} has no 现状与例外 section`);
+  const rest = text.slice(start + 1);
+  const end = rest.search(/\n## /);
+  return end < 0 ? rest : rest.slice(0, end);
+};
+const unrecorded = (findings: string[], section: string) => findings.filter((finding) => {
+  const event = /"([^"]+)"/.exec(finding)?.[1];
+  const file = /^([^\s:]+):\d+ /.exec(finding)?.[1];
+  return !event || !section.includes(`\`${event}\``) || (file !== undefined && !section.includes(file));
+});
+
+test("every finding of the report on the real tree is written down in the known gaps of the page-events document", () => {
+  const section = knownGaps(readFileSync(path.join(root, GAPS_DOCUMENT), "utf8"));
+  assert.deepEqual(unrecorded(domEventReport(tree).findings, section), []);
+});
+
+test("a finding that the known gaps do not name is caught, by its event and by its file", () => {
+  const section = knownGaps(readFileSync(path.join(root, GAPS_DOCUMENT), "utf8"));
+  // A new dead path: an announcement sent from a file that is not its owner's, and a listener on the wrong target.
+  const added = domEventReport(changed({ [NEW_FILE]: script([
+    'document.dispatchEvent(new CustomEvent("molis-work:plugin-events-waiting", { detail: { pending: 1 } }));',
+    'window.addEventListener("molis-work:plugins-changed", () => {});',
+  ].join("\n")) })).findings;
+  const missing = unrecorded(added, section);
+  assert.equal(missing.length, 2, missing.join("\n"));
+  assert.ok(missing.every((finding) => finding.startsWith(NEW_FILE)), missing.join("\n"));
+  // A gap whose event is recorded but whose file is not: one more file that sends goal-document-loaded.
+  const second = domEventReport(changed({ [NEW_FILE]: script('document.dispatchEvent(new CustomEvent("molis-work:goal-document-loaded", { detail: { goalId: "g" } }));') })).findings;
+  assert.deepEqual(unrecorded(second, section).map((finding) => finding.split(" ")[0]), [`${NEW_FILE}:2`]);
+  // A gap that the document stops naming.
+  const forgotten = section.replace(/- `molis:side-toggle`[^\n]*\n/, "");
+  assert.notEqual(forgotten, section);
+  assert.deepEqual(unrecorded(domEventReport(tree).findings, forgotten).map((finding) => /"([^"]+)"/.exec(finding)?.[1]), ["molis:side-toggle"]);
+  // Only that section counts: the same words further down the document do not record the gap.
+  const document = readFileSync(path.join(root, GAPS_DOCUMENT), "utf8");
+  const elsewhere = document.replace(/- `molis:side-toggle`[^\n]*\n/, "") + "\n## 5. elsewhere\n\n`molis:side-toggle` is mentioned here.\n";
+  assert.deepEqual(unrecorded(domEventReport(tree).findings, knownGaps(elsewhere)).map((finding) => /"([^"]+)"/.exec(finding)?.[1]), ["molis:side-toggle"]);
+});
+
 // ---- the entry: `pnpm health:check` runs the gate -------------------------------------------------------------------
 let scratch = "";
 const gitAt = (...args: string[]) => execFileSync("git", ["-c", "commit.gpgsign=false", "-c", "user.name=gates", "-c", "user.email=gates@example.invalid", ...args], { cwd: scratch, encoding: "utf8", stdio: "pipe" });

@@ -26,8 +26,11 @@
 // a helper the regular expressions below do not know, an event class reached through a subclass or an alias
 // (`class X extends CustomEvent`, `const E = CustomEvent`), events from the browser itself, `postMessage` types and storage
 // keys (other channels, no registry yet), and test files (a test may dispatch its own events to a page it controls).
-// `--report` prints who dispatches and who listens, per event, computed from the source, and the receivers that cannot
-// meet (a `window` listener for an event dispatched on `document`); those are findings, not failures.
+// `--report` prints who dispatches and who listens, per event, computed from the source, and what does not meet: receivers
+// that cannot (a `window` listener for an event dispatched on `document`), an event nothing sends or nothing hears, and an
+// announcement dispatched from a file that is not its owner's (the gate only asks that the owner is among the senders);
+// those are findings, not failures. tests/dom-events-contract.test.ts requires that each finding on the real tree is
+// written down in the known gaps of docs/platform/UI-PLATFORM.md, so the report cannot find a dead path nobody records.
 //
 //   node scripts/gates/dom-events.mjs [--root <dir>]             check the working tree (what `pnpm health:check` runs)
 //   node scripts/gates/dom-events.mjs --report [--json] [--root <dir>]
@@ -282,9 +285,10 @@ export function domEventProblems(snapshot) {
 // ---- the report -------------------------------------------------------------------------------------------------------
 /**
  * Per event: the registry entry, who dispatches, who listens, and findings that are not failures: no listener in the tree, no
- * dispatcher in the tree, and receivers that cannot meet (a `window` listener for a non-bubbling event dispatched on
+ * dispatcher in the tree, receivers that cannot meet (a `window` listener for a non-bubbling event dispatched on
  * `document`, a `document` listener for one dispatched on `window`, a dispatch on `window` or `document` that is not where
- * the entry says the event goes).
+ * the entry says the event goes), and an announcement dispatched from a file that is not one of its owner's (a request is
+ * dispatched by others; an announcement is the owner's to send).
  */
 export function domEventReport(snapshot) {
   const text = snapshot.read(DOM_EVENTS_CONTRACT);
@@ -298,9 +302,13 @@ export function domEventReport(snapshot) {
     events.push({ ...event, dispatches: sent.map(({ file, line, receiver }) => ({ file, line, receiver })), listeners: heard.map(({ file, line, receiver }) => ({ file, line, receiver })) });
     if (!sent.length) findings.push(`"${event.name}" is listened to but nothing in the tree dispatches it`);
     if (!heard.length) findings.push(`"${event.name}" is dispatched but nothing in the tree listens to it`);
+    const owner = registry.owners[event.owner];
     for (const site of sent) {
       if ((site.receiver === "window" || site.receiver === "document") && site.receiver !== event.on) {
         findings.push(`${site.file}:${site.line} dispatches "${event.name}" on ${site.receiver}; the entry says ${event.on}, so listeners attached there do not hear it`);
+      }
+      if (event.kind === "announcement" && Array.isArray(owner?.files) && !owner.files.includes(site.file)) {
+        findings.push(`${site.file}:${site.line} dispatches the announcement "${event.name}", which "${event.owner}" owns; an announcement is sent by its owner and the others listen (what others send to the owner is a request)`);
       }
     }
     for (const site of heard) {

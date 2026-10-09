@@ -94,7 +94,7 @@ export declare const DOM_EVENTS: readonly [{
     readonly owner: "settings-directory";
     readonly on: "document";
     readonly detail: "{ section }";
-    readonly summary: "Open a global settings section by id (a plugin whose page lives in settings, the memory section).";
+    readonly summary: "Open a global settings section by id; the tab workspace sends it when a plugin whose page lives in settings is opened. The settings link the Assistant shows on a memory change sends it too, but on window and as cancelable, so the settings listener on document never hears it and the link always loads the settings page (a known gap, docs/platform/UI-PLATFORM.md).";
 }, {
     readonly name: "molis-work:place-changed";
     readonly kind: "announcement";
@@ -309,12 +309,12 @@ export declare const DOM_EVENTS: readonly [{
     readonly summary: "Close the panel if it shows that tab (or any tab), otherwise open it. Nothing in the tree dispatches it yet.";
 }, {
     readonly name: "molis:surface-focus";
-    readonly kind: "announcement";
+    readonly kind: "request";
     readonly owner: "context-actions";
     readonly on: "element";
     readonly bubbles: true;
     readonly detail: "SurfaceFocus | null (services/contextual); SURFACE_FOCUS_EVENT";
-    readonly summary: "A surface's focus changed (what the person has in hand), or became nothing. Raised from the surface's own root.";
+    readonly summary: "A surface tells the context row what the person has in hand on it, or that it is nothing now. Raised from the surface's own root and bubbling to the row's listener on document; the row raises it itself, from the person's text selection, for a surface that only declares its object in data-assistant-context.";
 }, {
     readonly name: "workbench-feed-task";
     readonly kind: "request";

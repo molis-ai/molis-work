@@ -7,12 +7,6 @@ import type { GoalEventApplication } from "./goal-event-application.js";
 /** Management writes take no caller identity. The host records the person on this machine. */
 type WithoutActor<T> = Omit<T, "actor_id" | "actor_kind">;
 
-/**
- * Every write below is a management entry, so each is `host_only`: the person on this machine is recorded as the writer, and a
- * plugin that lists one under capabilities.consumes is refused (`actions.host_only`) instead of being recorded as that person. A
- * plugin writes through a registered action, which takes its identity from the call context.
- */
-
 export interface GoalEventEntryApi {
   createIntent: GoalEventApplication["createIntent"];
   listGoals: GoalEventApplication["listGoals"];
@@ -34,6 +28,10 @@ export interface GoalEventEntryApi {
   recordNote: GoalEventApplication["recordNote"];
 }
 
+// Every write below is a management entry, so each is `host_only`: the person on this machine is recorded as the writer, and a
+// plugin that lists one under capabilities.consumes is refused (`actions.host_only`) instead of being recorded as that person. A
+// plugin writes through a registered action, which takes its identity from the call context. tests/goal-management-identity.test.ts
+// fails when a typed event write is exported without the flag.
 export const createGoalIntentCapability = {
   capability_id: "io.molis.work.goals.events.create-intent",
   version: 1,

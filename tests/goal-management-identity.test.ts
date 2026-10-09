@@ -7,10 +7,11 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import * as goalsPlugin from "@molis-ai/molis-work-plugin-goals";
 import { createGoalIntentCapability, configureGoalEventsCapability, reportGoalEventsCapability, recordGoalProgressCapability,
   applyGoalConcernCapability, requestGoalDecisionCapability, citeGoalDecisionCapability, setGoalEventAgreementCapability,
   submitGoalEventClosureCapability, resumeGoalEventWorkCapability, recordGoalNoteCapability, setActiveGoalCapability,
-  readGoalEventStateCapability, goalTreeCapabilities } from "@molis-ai/molis-work-plugin-goals";
+  recordGoalUserDecisionCapability, readGoalEventStateCapability, goalTreeCapabilities } from "@molis-ai/molis-work-plugin-goals";
 import { goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostCapabilityDefinition, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -34,6 +35,13 @@ const managementDoors = (goal_id: string, cursor: number) => [
   door("resume", resumeGoalEventWorkCapability, { goal_id, reason: "继续" }),
   door("note", recordGoalNoteCapability, { goal_id, body: "便笺" }),
 ];
+
+/** Every typed event write the Goals plugin exports, by export name: the commands under the event entry's id prefix. */
+const typedEventWrites = () => Object.entries(goalsPlugin).filter((entry): entry is [string, HostCapabilityDefinition<unknown, unknown>] => {
+  const value = entry[1] as { capability_id?: unknown; operation?: unknown } | null;
+  return typeof value === "object" && value !== null && value.operation === "command"
+    && typeof value.capability_id === "string" && value.capability_id.startsWith("io.molis.work.goals.events.");
+});
 
 /**
  * The CLI and the typed Host client are the management door. It has no caller identity of its own, so it records the person on
@@ -123,6 +131,14 @@ test("a plugin that lists a management entry under consumes is refused and is ne
       { name: "check structure proposal", capability: goalTreeCapabilities.checkGoalTreeProposal as HostCapabilityDefinition<unknown, unknown>,
         input: [{ project_id, proposal_id: "p", idempotency_key: "plugin-check" }] as unknown },
     ];
+    // The table is every typed event write the Goals plugin exports (the event decision aside: it takes the protected authority and
+    // was already host_only), and each of them carries the flag. A write added later without the flag fails here.
+    const exported = typedEventWrites().map(([, capability]) => capability);
+    assert.deepEqual(exported.map(capability => capability.capability_id).sort(),
+      [...managementDoors(goal_id, before).map(({ capability }) => capability.capability_id), recordGoalUserDecisionCapability.capability_id].sort(),
+      "add the new typed event write to managementDoors, and mark it host_only");
+    assert.deepEqual(exported.filter(capability => capability.host_only !== true).map(capability => capability.capability_id), [],
+      "a typed event write that a plugin can reach is recorded as the person on this machine");
     const manifest = { ...filesManifest, plugin_id: "io.molis.work.test.goal-writer",
       capabilities: { provides: [], consumes: entries.map(entry => entry.capability.capability_id) } };
     const sdk = createPluginCapabilityClient(manifest, typed);
@@ -176,12 +192,9 @@ type Free<Input> = [Extract<KeysOf<Input>, Identity>] extends [never] ? true : f
  * one. `GoalTreeProposalCheckInput` is the domain input and still names the actor, so the typed check has an input type of its own.
  */
 test("the typed management entries are typed without an identity, so a caller that follows the types is not refused", { timeout: 180_000 }, () => {
-  const writes = managementDoors("g", 0).map(({ capability }) => Object.entries(
-    { createGoalIntentCapability, configureGoalEventsCapability, reportGoalEventsCapability, recordGoalProgressCapability,
-      applyGoalConcernCapability, requestGoalDecisionCapability, citeGoalDecisionCapability, setGoalEventAgreementCapability,
-      submitGoalEventClosureCapability, resumeGoalEventWorkCapability, recordGoalNoteCapability })
-    .find(([, candidate]) => candidate === capability)![0]);
-  assert.equal(writes.length, 11);
+  // Every typed event write by export name. The event decision names its person inside the protected authority on purpose.
+  const writes = typedEventWrites().map(([name]) => name).filter(name => name !== "recordGoalUserDecisionCapability");
+  assert.ok(writes.length >= 11, `found ${writes.length} typed event writes; the eleven management writes at least should be enumerated`);
   const source = `
 import type { HostCapabilityInput, LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ${writes.join(", ")}, setActiveGoalCapability, goalTreeCapabilities, createGoalProposalClients } from "@molis-ai/molis-work-plugin-goals";

@@ -200,7 +200,7 @@
 
 **现状与缺口**
 
-- 搜索来源 21 个插件在用，对象读取器 21 个插件加宿主自己在用。按需查询的来源（`defineSearchQueryAction`）在产品里没有生产方，已按决定 19 删除（W2-03）：合同定义、插件 SDK 的出口、搜索服务里为它留的分支、夹具用例和三处说明都已去掉；Manifest 里按旧协议声明的来源现在被 `searchSourceDeclarationProblems` 拒绝，用例是 `tests/system-search.test.ts` 的「the retired on-demand source protocol…」。
+- 搜索来源 21 个插件在用，对象读取器 21 个插件加宿主自己在用。按需查询的来源（`defineSearchQueryAction`）在产品里没有生产方，已按决定 19 删除（W2-03）：合同定义、插件 SDK 的出口、搜索服务里为它留的分支、夹具用例和三处说明都已去掉；Manifest 里按旧协议声明的来源现在被 `searchSourceDeclarationProblems` 拒绝，用例是 `tests/system-search.test.ts` 的「a declaration of the retired on-demand source protocol is refused…」（夹具是旧辅助函数原样的输出，旧代码接受、现在拒绝），另一条用例证明形状像旧来源的普通动作不会被搜索调用。
 - 逻辑复查 #22（读取器报「读不到」被当作已删除、条目被移出索引）已由 PR #305 合入 main，表中第 4 步按合入后的代码写；打开时按读取器的错误码和措辞猜「已删除」的旧判断已不在代码里。
 - 放置协议的生产方（Dataset、Form、灵光、Pages、PPT、Todo 等）都是构建期插件，没有 Runtime 插件的停用、卸载、升级用例（W4-01）。
 
@@ -224,7 +224,7 @@
 - 记忆服务里的写入门和候选规则是跨插件的产品策略，不是业务事实；按 N-03 的决定归「平台产品服务」，代码位置不动。
 - **记忆的 `plugin` 受众与 MCP 受众（决定 19，2026-10-08，W2-03 已落地）。**
   - **MCP 受众保留。** 外部 AI 客户端只能召回：目录对 MCP 只提供 `memory.recall`，读列表、写入和管理都不对它开放。客户端要先有本人在 `config/mcp-tools.json` 里给它的授权（逐客户端；`memory.recall` 是 Home 范围，所以是 Home 级授权）才看得到、调得了这个工具；撤销后工具立即消失。它读什么由本人的开关决定：项目记忆默认可读，个人记忆默认不可读，要本人对「外部 AI 客户端」单独打开。用例 `tests/memory-mcp.test.ts` 用真实 Host 与 MCP 服务器走完这条路（授权前不可见也调不了、授权后只召回、开关、伪造的 `consumer`/`actor_id`/`project_id` 参数被拒、撤销）。
-  - **`plugin` 受众未启用，目录里关上了。** 没有内置插件调用 `memory.*`，创作台生成插件的调用上下文（`catalogCapabilities`）不带宿主确认的插件身份（`host_plugin`；产品代码里只有 `LocalHost.invoke` 在带 `plugin_caller` 的类型化调用上设置它），所以 `apps/local-host/src/memory/memory-host.ts` 的 `caller()` 取到 `plugin_id: null`：`memory.write` 会被 `MemoryService.write` 拒绝，`memory.recall`、`memory.list` 套不上用户对单个插件的设置（`prefs.plugins[<插件 id>]`）。因此 `memory.recall`、`memory.list`、`memory.write` 都加了 `plugin: false`（三个都对 `agent` 开放，只去掉 `plugin` 声明还会被 `actionReachesAudience` 带进来），`memory.recall`、`memory.write` 另从 `audiences` 去掉 `plugin`。后果：目录和元数据检查对插件都看不到它们，调用得 `actions.forbidden`；创作台的「能力板」不再把它们提供给生成插件，而是和别的「Agent 能用、插件不能用」的动作一样列在「不开放给插件」里，写明「提供方没有开放给插件」。用例 `tests/memory-scopes.test.ts`（真实 Host 的目录与调用）、`tests/agent-built-plugins-catalog.test.ts`（能力板）。
+  - **`plugin` 受众未启用，目录里关上了。** 没有内置插件调用 `memory.*`，创作台生成插件的调用上下文（`catalogCapabilities`）不带宿主确认的插件身份（`host_plugin`；产品代码里只有 `LocalHost.invoke` 在带 `plugin_caller` 的类型化调用上设置它），所以 `apps/local-host/src/memory/memory-host.ts` 的 `caller()` 取到 `plugin_id: null`：`memory.write` 会被 `MemoryService.write` 拒绝，`memory.recall`、`memory.list` 套不上用户对单个插件的设置（`prefs.plugins[<插件 id>]`）。因此 `memory.recall`、`memory.list`、`memory.write` 都加了 `plugin: false`（三个都对 `agent` 开放，只去掉 `plugin` 声明还会被 `actionReachesAudience` 带进来），`memory.recall`、`memory.write` 另从 `audiences` 去掉 `plugin`。后果：目录和元数据检查对插件都看不到它们，调用得 `actions.forbidden`；创作台的「能力板」不再把它们提供给生成插件，而是和别的「Agent 能用、插件不能用」的动作一样列在「不开放给插件」里，写明「提供方没有开放给插件」（实现取舍：保持能力板对这类动作的统一规则，不为这三项另写名单；要在板上整个隐藏它们是产品取舍，待用户定，见 roadmap W2-03）。用例 `tests/memory-scopes.test.ts`（真实 Host 的目录与调用）、`tests/agent-built-plugins-catalog.test.ts`（能力板）。
   - **重新打开的条件：** 有插件要用记忆，并且调用上下文带宿主确认的插件身份。到那时 `plugin` 回到 `memory.recall`、`memory.write` 的 `audiences`，三个动作去掉 `plugin: false`，同时给用例补上经目录的插件路径。`MemoryService` 里按插件命名空间和类别的规则（`tests/memory-scopes.test.ts` 的服务层用例）一直保留着。
   - 插件开发 Skill 不写插件怎么用记忆：插件今天用不了，重新打开时再写。
 - 已定未做：自动写入的建议不再由模型的 `same_as` 决定保留别人的建议、撤销自动记忆不删本人明说的内容、`memory.recall` 补写入前复查（#24、#27、#32）。

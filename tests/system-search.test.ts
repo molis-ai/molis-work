@@ -399,23 +399,40 @@ test("pages through results with a cursor bound to the query", async t => {
 });
 
 // Decision 19 (specs/repository-anti-corruption): searching an owner's data at query time had no producer in the product and was removed
-// with `defineSearchQueryAction`. What it declared is no longer a search source, and the search never calls it.
-test("the retired on-demand source protocol is refused as a source declaration and never called by the search", async t => {
+// with `defineSearchQueryAction`. What it declared is no longer a search source. The fixture below is what that helper produced on main
+// (canonical schemas, wording and audiences included), so these tests fail against the code that still honored it.
+const subjectSchema = { type: "object", properties: { kind: { type: "string", minLength: 1 }, id: { type: "string", minLength: 1 } }, required: ["kind", "id"], additionalProperties: false };
+const retiredToken = { type: "string", minLength: 1, maxLength: 64, pattern: "^[a-zA-Z0-9_-]+$" };
+const retiredOpen = { anyOf: [{ type: "null" }, { type: "object", properties: { surface: retiredToken, id: { type: "string", minLength: 1 } }, required: ["surface", "id"], additionalProperties: false }] };
+const retiredHit = { type: "object", properties: { subject: subjectSchema, revision: { type: "string", minLength: 1, maxLength: 200 }, title: { type: "string", maxLength: 1000 }, snippet: { type: "string", maxLength: 1000 },
+  updated_at: { type: ["string", "null"] }, open: retiredOpen }, required: ["subject", "revision", "title", "snippet", "updated_at", "open"], additionalProperties: false };
+const retiredQuery = { capability_id: "memos.search.query", version: 1, operation: "query" as const, action: {
+  title: "备忘按需", description: "在备忘按需的原数据中按需搜索；结果不写入系统索引。", kind: "query" as const, scope: "home" as const, scheduling: "concurrent" as const,
+  audiences: ["user", "agent", "workflow", "mcp", "plugin"] as ActionAudience[], permissions: ["memos:read"], subject_kinds: ["memo"], search_source: { kinds: personalKinds },
+  input_type: "molis.search.query.request.v1", output_type: "molis.search.query.hits.v1",
+  input_schema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 200 }, limit: { type: "integer", minimum: 1, maximum: 50 } }, required: ["query", "limit"], additionalProperties: false },
+  output_schema: { type: "object", properties: { hits: { type: "array", maxItems: 50, items: retiredHit } }, required: ["hits"], additionalProperties: false } } };
+
+test("a declaration of the retired on-demand source protocol is refused, and cannot be registered", async t => {
   const f = await fixture(t);
-  const retired = { capability_id: "memos.search.query", version: 1, operation: "query" as const, action: {
-    title: "备忘按需", description: "在备忘的原数据中按需搜索；结果不写入系统索引。", kind: "query" as const, scope: "home" as const, scheduling: "concurrent" as const,
-    audiences: ["user", "agent", "workflow", "mcp", "plugin"] as ActionAudience[], permissions: ["memos:read"], subject_kinds: ["memo"], search_source: { kinds: personalKinds },
-    input_type: "molis.search.query.request.v1", output_type: "molis.search.query.hits.v1",
-    input_schema: { type: "object", properties: { query: { type: "string" }, limit: { type: "integer" } }, required: ["query", "limit"], additionalProperties: false },
-    output_schema: { type: "object", properties: { hits: { type: "array" } }, required: ["hits"], additionalProperties: false } } };
-  assert.match(inspectActionDeclarations([retired], undefined).join(), /搜索来源协议/, "a declaration of the old protocol no longer passes as a source");
-  // Without the source declaration it is an ordinary query action: it registers, and the search does not treat it as a source.
-  const { search_source: _dropped, ...ordinary } = retired.action;
+  assert.match(inspectActionDeclarations([retiredQuery], undefined).join(), /搜索来源协议/, "the old declaration no longer passes as a source");
+  assert.throws(() => f.actions.registerProvider({ provider: { provider_id: "memos", plugin_id: "memos", title: "备忘插件", kind: "plugin" }, definitions: [retiredQuery],
+    handlers: [{ capability_id: retiredQuery.capability_id, version: 1, handle: () => ({ hits: [] }) }] }), /搜索来源协议/);
+});
+
+test("an action shaped like the retired query source is an ordinary action: the search lists the owner's entries and never calls it", async t => {
+  const f = await fixture(t);
+  const { search_source: _dropped, ...ordinary } = retiredQuery.action;
   let asked = 0;
-  f.actions.registerProvider({ provider: { provider_id: "memos", plugin_id: "memos", title: "备忘插件", kind: "plugin" }, definitions: [{ ...retired, action: ordinary }],
-    handlers: [{ capability_id: retired.capability_id, version: 1, handle: () => { asked += 1; return { hits: [{ subject: { kind: "memo", id: "live" }, revision: "1", title: "按需", snippet: "只在查询时出现的正文", updated_at: null, open: null }] }; } }] });
-  const response = await ask(f, owner(null), "查询时");
-  assert.deepEqual([response.status, ids(response), asked], ["empty_scope", [], 0], "nothing is searched at query time any more");
+  f.actions.registerProvider({ provider: { provider_id: "memos", plugin_id: "memos", title: "备忘插件", kind: "plugin" }, definitions: [personalEntries, { ...retiredQuery, action: ordinary }],
+    handlers: [
+      bindSearchEntriesHandler(personalEntries, () => [{ subject: { kind: "memo", id: "listed" }, revision: "1", title: "备忘", summary: "列出的备忘正文", updated_at: null, content: "summary" as const, open: null }]),
+      { capability_id: retiredQuery.capability_id, version: 1, handle: () => { asked += 1; return { hits: [{ subject: { kind: "memo", id: "live" }, revision: "1", title: "按需", snippet: "只在查询时出现的正文", updated_at: null, open: null }] }; } },
+    ] });
+  const response = await ask(f, owner(null), "备忘正文");
+  assert.deepEqual([ids(response), asked], [["listed"], 0], "only what the owner lists is searched");
+  assert.deepEqual(ids(await ask(f, owner(null), "查询时")), [], "nothing is searched in the owner's data at query time");
+  assert.equal(asked, 0);
 });
 
 test("the Host's search actions are well-formed directory entries", () => {

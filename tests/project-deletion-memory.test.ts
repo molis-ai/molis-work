@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, purgeProjectMemories, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import type { MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 
@@ -27,13 +28,15 @@ const work = (project: string, character: { id: string; title: string } | null =
   work: { work_id: `work-${project}-${character?.id ?? "none"}`, title: "写周报" }, character });
 const person = (project: string | null): MemoryCaller => ({ actor_id: "web-user", project_id: project, consumer: "ui", person: true });
 const texts = (items: ReadonlyArray<{ text: string }>) => items.map(item => item.text).sort();
+/** A memory the person asked for in their own words: the Host hands the gate their message (here, the text itself), which is the only way a write is recorded as theirs. */
+const keep = (service: MemoryService, caller: MemoryCaller, request: MemoryWriteRequest) => service.write(caller, request, { originals: request.said ? [request.said] : [] });
 
 test("deleting a project clears its memories and its Characters' from the store and the ledger, and leaves the rest", { timeout: 90_000 }, async t => {
   const { service, backend, ledger } = await memoryHome(t);
-  await service.write(work("project-gone"), { scope: "personal", text: "周报用要点列表", said: "以后周报用要点列表" });
-  const projectMemory = await service.write(work("project-gone"), { scope: "project", text: "周报先写风险", said: "记住周报先写风险" });
-  const characterMemory = await service.write(work("project-gone", writer), { scope: "character", text: "语气克制，不用感叹号", said: "你以后语气克制点，别用感叹号" });
-  await service.write(work("project-kept"), { scope: "project", text: "留下的项目约定：每周五发布", said: "记住每周五发布" });
+  await keep(service, work("project-gone"), { scope: "personal", text: "周报用要点列表", said: "周报用要点列表" });
+  const projectMemory = await keep(service, work("project-gone"), { scope: "project", text: "周报先写风险", said: "周报先写风险" });
+  const characterMemory = await keep(service, work("project-gone", writer), { scope: "character", text: "语气克制，不用感叹号", said: "语气克制，不用感叹号" });
+  await keep(service, work("project-kept"), { scope: "project", text: "留下的项目约定：每周五发布", said: "留下的项目约定：每周五发布" });
   assert.equal(projectMemory.outcome, "written");
   assert.equal(characterMemory.outcome, "written");
   // An earlier text, a held suggestion, a switch of the project's, and a change in the history.

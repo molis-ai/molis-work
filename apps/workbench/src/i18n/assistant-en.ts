@@ -480,6 +480,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "和旧的一条合并": "merged with an older one",
   "改过": "edited",
   "自动停用": "switched off on its own",
+  "助理按你的要求停用": "switched off by the Assistant, as you asked",
   "当前内容的动作": "Actions for what you are looking at",
   "这项内容": "This item",
   "你的回答": "your answer",

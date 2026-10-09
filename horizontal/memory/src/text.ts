@@ -17,13 +17,53 @@ export function keywordScore(keywords: readonly string[], text: string): number 
   return keywords.filter(word => haystack.includes(word)).length / keywords.length;
 }
 
-/** Two memories say the same thing when they are equal apart from spacing, punctuation and case. */
+/**
+ * Two suggestions are the same suggestion when they are equal apart from spacing, punctuation and case. This is bookkeeping among suggestions (one is made once),
+ * not a claim about what is kept: punctuation and symbols can turn a request round (“不，要” / “不要”, “>” / “<”), so whether a memory already says something is `sameWords`.
+ */
 export function sameText(left: string, right: string): boolean {
   return normalized(left) === normalized(right);
 }
 
 export function normalized(text: string): string {
   return text.normalize("NFKC").toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
+}
+
+/** The full-width signs ￠ ￡ ￢ ￣ ￤ ￥ ￦ (U+FFE0–FFE6) and the half-width signs they stand for, in order. */
+const SIGNS = "¢£¬¯¦¥₩";
+/** Marks written another way: the Chinese full stop and enumeration comma, and the curly and corner quotation marks. */
+const MARKS: Readonly<Record<string, string>> = { "。": ".", "、": ",", "“": '"', "”": '"', "「": '"', "」": '"', "『": '"', "』": '"', "‘": "'", "’": "'" };
+/** An upper-case letter as its lower-case form; a character that merely lower-cases to a letter (the Kelvin sign) is left as it is. */
+const lowered = (letter: string) => { const lower = letter.toLowerCase(); return lower.toUpperCase() === letter ? lower : letter; };
+
+/**
+ * A text with the differences that do not change what it says taken out; two texts are the same words only when this makes them equal. These are all of them:
+ *  - letter case (an upper-case letter and its lower-case form);
+ *  - the width of the full-width forms of the ASCII characters (U+FF01–FF5E: ！？，：；（）, letters, digits) and of the full-width signs ￠ ￡ ￢ ￣ ￤ ￥ ￦;
+ *  - the kind of quotation mark (“ ” 「 」 『 』 ‘ ’), and 。 and 、 written as . and ,;
+ *  - white space (Unicode White_Space: a run of it, a line break and the no-break and ideographic spaces included, is one space) and a space next to a Chinese character;
+ *  - one sentence mark (. ! 。 ！) at the very end.
+ * It is no Unicode normalization: a superscript, a circled digit, a Roman numeral, a fraction, a ligature, a unit sign, a Kangxi radical, a doubled mark (‼), a half-width kana
+ * and a byte-order mark or other invisible character stay what they are, so 10⁵ is not 105 and a zero-width space is not a space. A comma is not a full stop (“不，要发给他” is
+ * not “不要发给他”), a question mark is not a full stop, a word is a word, and the order is the order.
+ */
+export function fold(raw: string): string {
+  return raw
+    .replace(/[\uff01-\uff5e]/g, char => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+    .replace(/[\uffe0-\uffe6]/g, char => SIGNS[char.charCodeAt(0) - 0xffe0]!)
+    .replace(/\p{Lu}/gu, lowered)
+    .replace(/[。、“”「」『』‘’]/g, mark => MARKS[mark]!)
+    .replace(/\p{White_Space}+/gu, " ")
+    .replace(/(?<=\p{Script=Han}) | (?=\p{Script=Han})/gu, "")
+    .replace(/^ | $/g, "")
+    .replace(/(?<![.!])[.!]$/, "")
+    .replace(/ $/, "");
+}
+
+/** Whether two texts are the same words (see `fold`). Two texts that are nothing but a mark are not "the same". */
+export function sameWords(left: string, right: string): boolean {
+  const folded = fold(left);
+  return folded !== "" && folded === fold(right);
 }
 
 const SECRET_SHAPES: readonly RegExp[] = [

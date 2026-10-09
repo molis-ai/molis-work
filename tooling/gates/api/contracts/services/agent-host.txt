@@ -609,7 +609,7 @@ export interface AgentMemoryRecallFact {
 }
 
 export interface AgentMemoryTools {
-    remember(input: {
+    remember?(input: {
         text: string;
         scope: "personal" | "project" | "character";
         said: string;
@@ -627,8 +627,9 @@ export interface AgentMemoryTools {
         text: string;
         origin: string;
     }>>;
-    forget(memoryId: string): Promise<{
+    forget?(memoryId: string): Promise<{
         forgotten: boolean;
+        note?: string;
     }>;
     propose?(input: {
         text: string;

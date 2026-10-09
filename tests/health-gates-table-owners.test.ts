@@ -35,12 +35,16 @@ const branch = (name: string, mutate: () => void) => {
 };
 const lines = (...parts: string[]) => `${parts.join("\n")}\n`;
 const manifest = (name: string) => JSON.stringify({ name }, null, 2) + "\n";
-const allowance = (shared: Record<string, unknown>) => JSON.stringify({ note: "fixture", shared }, null, 2) + "\n";
 const REASON = "Several packages append to this log inside their own transaction, so a journal API could not join them.";
 const EVENTS_ENTRY = { owner: "packages/storage", users: ["modules/alpha"], reason: REASON };
+const SAME_REASON = "Two tables in two databases that share a name; neither package reads the other's.";
+const WORKSPACES_ENTRY = { packages: ["modules/beta", "plugins/native/gamma"], reason: SAME_REASON };
+const allowance = (shared: Record<string, unknown>, sameName: Record<string, unknown> = { workspaces: WORKSPACES_ENTRY }) =>
+  JSON.stringify({ note: "fixture", shared, same_name: sameName }, null, 2) + "\n";
 
 // The fixture: storage creates the shared journal; alpha owns alpha_items and reads the journal (it is the one listed user);
-// beta and gamma each create `workspaces` (two databases, one name); the host owns its own table and touches nothing else.
+// beta and gamma each create `workspaces` (two databases, one name, listed under same_name); the host owns its own table and
+// touches nothing else.
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-table-owner-gates-"));
   git("init", "-q", "-b", "main");
@@ -154,10 +158,18 @@ expectPass("a package's own files and nested folders may use its tables, and a c
   put("modules/alpha/src/more/again.ts", 'export const again = (db: { prepare(s: string): { all(): unknown[] } }) => db.prepare("SELECT id FROM alpha_items JOIN alpha_items b ON b.id = alpha_items.id").all();\n');
   put("modules/beta/src/own.ts", 'export const own = (db: { prepare(s: string): { all(): unknown[] } }) => db.prepare("SELECT id FROM workspaces").all();\n');
 });
-expectPass("a table another package creates, once the user creates it too, is its own", () => {
+expectFailure("creating a table another package creates does not make the host its co-owner", () => {
   put("apps/local-host/src/own-alpha.ts", lines(
     "export const COPY_SQL = `CREATE TABLE IF NOT EXISTS alpha_items (id TEXT PRIMARY KEY)`;",
     'export const q = "SELECT id FROM alpha_items";'));
+}, [/table "alpha_items" is created by apps\/local-host and modules\/alpha: one table, one creating package\. .*list the table under "same_name" in tooling\/gates\/table-owners\.json/]);
+expectFailure("a duplicate CREATE of a shared journal table is a second creator too", () => {
+  put("modules/beta/src/own-events.ts", 'export const COPY_SQL = `CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY, project_id TEXT)`;\nexport const q = "SELECT seq FROM events";\n');
+}, [/table "events" is created by modules\/beta and packages\/storage: one table, one creating package/]);
+expectPass("a second creator listed under same_name with its reason is a decision made in the open", () => {
+  put("apps/local-host/src/own-alpha.ts", "export const COPY_SQL = `CREATE TABLE IF NOT EXISTS alpha_items (id TEXT PRIMARY KEY)`;\nexport const q = \"SELECT id FROM alpha_items\";\n");
+  put("tooling/gates/table-owners.json", allowance({ events: EVENTS_ENTRY }, {
+    workspaces: WORKSPACES_ENTRY, alpha_items: { packages: ["apps/local-host", "modules/alpha"], reason: SAME_REASON } }));
 });
 expectPass("a change that removes the access passes", () => {
   put("modules/alpha/src/repository.ts", read("modules/alpha/src/repository.ts").replace(/  cursor\(\).*\n/, ""));
@@ -191,15 +203,47 @@ expectFailure("an entry with a field the gate does not know", () => put("tooling
 expectFailure("an allowance file that is not JSON", () => put("tooling/gates/table-owners.json", "<<<<<<< ours\n"), [/table-owners\.json is not valid JSON/]);
 expectFailure("an allowance file without a shared object", () => put("tooling/gates/table-owners.json", "{}\n"), [/table-owners\.json needs a "shared" object keyed by table name/]);
 
+// ---- the same-name tables -----------------------------------------------------------------------------------------------
+const sameName = (workspaces: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+  put("tooling/gates/table-owners.json", allowance({ events: EVENTS_ENTRY }, { workspaces, ...extra }));
+expectFailure("a name two packages create that nobody listed", () => put("tooling/gates/table-owners.json", allowance({ events: EVENTS_ENTRY }, {})),
+  [/table "workspaces" is created by modules\/beta and plugins\/native\/gamma: one table, one creating package\. .*"same_name" in tooling\/gates\/table-owners\.json/]);
+expectFailure("an allowance file with no same_name section lists nothing", () => put("tooling/gates/table-owners.json", JSON.stringify({ shared: { events: EVENTS_ENTRY } })),
+  [/table "workspaces" is created by modules\/beta and plugins\/native\/gamma/]);
+expectFailure("a third package that creates a listed name", () => {
+  put("modules/alpha/src/workspaces.ts", "export const SQL = `CREATE TABLE IF NOT EXISTS workspaces (id TEXT)`;\n");
+}, [/table-owners\.json: workspaces: modules\/alpha also creates this table and is not in "packages"; list it with the reason, or drop its CREATE/]);
+expectFailure("a listed package that does not create the table", () => sameName({ ...WORKSPACES_ENTRY, packages: ["modules/beta", "plugins/native/gamma", "modules/alpha"] }),
+  [/table-owners\.json: workspaces: modules\/alpha does not create this table; remove it from "packages"/]);
+expectFailure("an entry that only one package creates now", () => {
+  put("plugins/native/gamma/src/store.ts", read("plugins/native/gamma/src/store.ts").replace("CREATE TABLE IF NOT EXISTS workspaces (id TEXT PRIMARY KEY, title TEXT); ", "").replace('FROM workspaces', 'FROM gamma_notes'));
+}, [/table-owners\.json: workspaces: only modules\/beta creates this table now; delete the entry from "same_name"/]);
+expectFailure("a same_name entry for a table nobody creates", () => sameName(WORKSPACES_ENTRY, { ghosts: { packages: ["modules/alpha", "modules/beta"], reason: SAME_REASON } }),
+  [/table-owners\.json: ghosts: no package creates a table of this name; delete the entry from "same_name"/]);
+expectFailure("a table listed as both shared and same-name", () => put("tooling/gates/table-owners.json", allowance(
+  { events: EVENTS_ENTRY, workspaces: { owner: "modules/beta", users: ["apps/local-host"], reason: REASON } }, { workspaces: WORKSPACES_ENTRY })),
+[/table-owners\.json: workspaces: listed under both "shared" and "same_name"/]);
+expectFailure("a same_name entry with a reason that says nothing", () => sameName({ ...WORKSPACES_ENTRY, reason: " other db " }),
+  [/table-owners\.json: workspaces: "reason" needs at least 20 characters that say why these packages each create a table of this name/]);
+expectFailure("a same_name entry with one package, or the same package twice", () => sameName({ ...WORKSPACES_ENTRY, packages: ["modules/beta", "modules/beta"] }),
+  [/table-owners\.json: workspaces: "packages" must list the package directories \(at least two, each once\)/]);
+expectFailure("a same_name entry with a field the gate does not know", () => sameName({ ...WORKSPACES_ENTRY, until: "2027" }),
+  [/table-owners\.json: workspaces: unknown field "until"/]);
+expectFailure("a same_name section that is not an object", () => put("tooling/gates/table-owners.json", JSON.stringify({ shared: { events: EVENTS_ENTRY }, same_name: [] })),
+  [/table-owners\.json needs a "same_name" object keyed by table name/]);
+expectFailure("a section the gate does not know", () => put("tooling/gates/table-owners.json", JSON.stringify({ shared: { events: EVENTS_ENTRY }, same_name: { workspaces: WORKSPACES_ENTRY }, samename: {} })),
+  [/table-owners\.json: unknown section "samename"/]);
+
 // ---- definitions on in-memory snapshots -------------------------------------------------------------------------------------
 const isSource = (file: string) => /^(apps|horizontal|modules|packages|plugins|server|tooling)\//.test(file) && /\.(ts|mts)$/.test(file) && !file.endsWith(".d.ts")
   && !/(^|\/)(tests?|dist|node_modules|fixtures)\//.test(file) && !/\.test\.(ts|mts)$/.test(file);
 const snapshot = (files: Record<string, string>) => ({ files: Object.keys(files), read: (file: string) => files[file] ?? null });
-const world = (extra: Record<string, string>) => snapshot({
+const worldFiles = (extra: Record<string, string>): Record<string, string> => ({
   "modules/a/package.json": "{}", "modules/b/package.json": "{}", "apps/h/package.json": "{}",
   "modules/a/src/s.ts": "export const SQL = `CREATE TABLE IF NOT EXISTS a_items (id TEXT)`;",
   ...extra,
 });
+const world = (extra: Record<string, string>) => snapshot(worldFiles(extra));
 
 test("definition: the packages that create a table are its owners, and a virtual table is a table", () => {
   const { owners } = scanTables(world({ "modules/b/src/s.ts": "export const SQL = `CREATE VIRTUAL TABLE b_search USING fts5(body); CREATE TABLE a_items (x)`;" }), isSource);
@@ -222,9 +266,21 @@ test("definition: a file with no package.json above it belongs to the repository
   const other = snapshot({ ...files, "tooling/pkg/package.json": "{}", "tooling/pkg/y.ts": "export const q = 'SELECT * FROM t';" });
   assert.match(tableOwnerProblems(other, { isSource }).join("\n"), /tooling\/pkg\/y\.ts:1 reads table "t", which \. creates/);
 });
-test("the real repository's allowance names exactly the two journal tables that storage creates", () => {
+test("definition: a second creator is reported unless the table is listed under same_name with exactly the creators", () => {
+  const files = { "modules/b/src/s.ts": "export const SQL = `CREATE TABLE IF NOT EXISTS a_items (x)`;" };
+  const allow = (sameNameEntries: Record<string, unknown>) => ({ "tooling/gates/table-owners.json": JSON.stringify({ shared: {}, same_name: sameNameEntries }) });
+  const listed = { a_items: { packages: ["modules/a", "modules/b"], reason: "Two tables in two databases with one name." } };
+  assert.match(tableOwnerProblems(world(files), { isSource }).join("\n"), /table "a_items" is created by modules\/a and modules\/b/);
+  assert.deepEqual(tableOwnerProblems(snapshot({ ...worldFiles(files), ...allow(listed) }), { isSource }), []);
+  assert.match(tableOwnerProblems(snapshot({ ...worldFiles(files), ...allow({ a_items: { ...listed.a_items, packages: ["modules/a", "apps/h"] } }) }), { isSource }).join("\n"),
+    /a_items: apps\/h does not create this table[^]*a_items: modules\/b also creates this table and is not in "packages"/);
+});
+test("the real repository's allowance names exactly the two journal tables that storage creates, and the two names that are two databases", () => {
   const root = fileURLToPath(new URL("..", import.meta.url));
-  const file = JSON.parse(readFileSync(path.join(root, "tooling/gates/table-owners.json"), "utf8")) as { shared: Record<string, { owner: string; users: string[]; reason: string }> };
+  const file = JSON.parse(readFileSync(path.join(root, "tooling/gates/table-owners.json"), "utf8")) as {
+    shared: Record<string, { owner: string; users: string[]; reason: string }>; same_name: Record<string, { packages: string[]; reason: string }> };
   assert.deepEqual(Object.keys(file.shared).sort(), ["events", "idempotency_records"]);
   for (const entry of Object.values(file.shared)) assert.equal(entry.owner, "packages/storage");
+  assert.deepEqual(Object.fromEntries(Object.entries(file.same_name).map(([table, entry]) => [table, [...entry.packages].sort()])),
+    { jobs: ["plugins/native/alchemist", "plugins/native/images"], workspaces: ["modules/projects", "plugins/native/alchemist"] });
 });

@@ -17,7 +17,7 @@ import type {
   ArtifactJsonValue,
   RegisterArtifactVersionInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 function createHarness() {
   const db = new Database(":memory:");
@@ -67,6 +67,7 @@ function createHarness() {
       JSON.stringify(event.payload),
       event.at,
     ).lastInsertRowid),
+    eventCursor: eventCursorOf(db),
   });
   return { db, module };
 }

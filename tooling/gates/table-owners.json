@@ -1,15 +1,25 @@
 {
-  "note": "A table is read and written only by the package that creates it (scripts/gates/table-owners.mjs). These are the tables several packages write on purpose. Every user is checked against the code in both directions: a package that uses the table and is not listed fails, and a listed package that no longer uses it fails.",
+  "note": "A table is read and written only by the package that creates it (scripts/gates/table-owners.mjs). \"shared\" lists the tables several packages use on purpose; \"same_name\" lists the tables two packages each create, in different databases. Both are checked against the code in both directions: a package that uses a shared table and is not listed fails, a listed package that no longer uses it fails, a table that more than one package creates and is not under same_name fails, and a same_name entry that is not exactly the creating packages fails.",
   "shared": {
     "events": {
       "owner": "packages/storage",
-      "users": ["modules/artifacts", "modules/goals", "modules/governance-collaboration"],
-      "reason": "The project journal: one append-only log per project database, one cursor sequence for all of it. Storage creates the table and the cursor; Goals, Artifacts and Governance each append their own event types and read the cursor inside their own transaction, so the event and the fact it records commit together or not at all. A journal API in storage could not join those transactions."
+      "users": ["modules/goals", "modules/governance-collaboration"],
+      "reason": "The project journal: one append-only log per project database, one cursor sequence for all of it. Storage creates the table and owns its journal API (LocalSqliteJournal: eventCursor, appendEvent, getIdempotency, putIdempotency, all on the project database's one connection, so a module's own transaction already covers a call to it). Goals and Governance still carry their own copy of those few statements. The reason is dependency direction, not transactions: they depend only on the contracts package and cannot import storage. Artifacts takes the journal as injected functions (appendEvent, eventCursor) and has left this list; Goals and Governance move to the same injected journal port as a follow-up, and then this entry is deleted."
     },
     "idempotency_records": {
       "owner": "packages/storage",
       "users": ["modules/goals", "modules/governance-collaboration"],
-      "reason": "The replay record of write actions: (project, actor, operation, key) with the request hash and the stored outcome. Goals and Governance read it and write it inside the same transaction as the change the record guards, so a replay returns the first outcome and a retry never repeats the change. The row is keyed by the operation name its writer chooses; no package reads another's operations."
+      "reason": "The replay record of write actions: (project, actor, operation, key) with the request hash and the stored outcome. Storage creates the table and has the journal functions for it (getIdempotency, putIdempotency). Goals and Governance keep their own copy of the read and the insert, run inside the same transaction as the change the record guards, because they depend only on the contracts package and cannot import storage; they move to the injected journal port as a follow-up, and then this entry is deleted. The row is keyed by the operation name its writer chooses; no package reads another's operations."
+    }
+  },
+  "same_name": {
+    "workspaces": {
+      "packages": ["modules/projects", "plugins/native/alchemist"],
+      "reason": "Two different tables in two different databases: the project catalog's workspaces (modules/projects, the catalog database) and the Alchemist's workspaces (plugins/native/alchemist, one studio.sqlite per project). Neither package reads the other's; specs/repository-anti-corruption spec.md section 9.5 item 9 keeps the names."
+    },
+    "jobs": {
+      "packages": ["plugins/native/alchemist", "plugins/native/images"],
+      "reason": "Two different tables in two different databases: the Alchemist's jobs (plugins/native/alchemist, one studio.sqlite per project) and Images' jobs (plugins/native/images, images.db). Neither package reads the other's; specs/repository-anti-corruption spec.md section 9.5 item 9 keeps the names."
     }
   }
 }

@@ -5,13 +5,18 @@
 // (SELECT … FROM, JOIN, INSERT INTO, REPLACE INTO, UPDATE, DELETE FROM, ALTER TABLE, DROP TABLE) fails, with no baseline: the
 // rule starts at zero. The fix is the owner's own API, never a number in a baseline. Two packages that each create a table of
 // the same name (`workspaces` in projects and alchemist, `jobs` in alchemist and images: different databases, spec §9.5 item 9)
-// are both owners of it.
+// are both owners of it, but only when tooling/gates/table-owners.json says so: a second package that adds its own
+// `CREATE TABLE <a table another package creates>` is not a way to become its co-owner.
 //
-// The one allowance is tooling/gates/table-owners.json, for tables that several owners write on purpose. It names the table,
-// the package that creates it, every other package that may use it, and why. The file is checked against the code in both
-// directions, so it cannot go stale: a listed package that no longer touches the table, an owner that is not the creator, a
-// table nobody creates, and a reason that does not say anything all fail. A package that uses a shared table and is not
-// listed fails like any other.
+// The allowance is tooling/gates/table-owners.json, with two sections, each checked against the code in both directions so
+// it cannot go stale:
+//   shared     tables that several packages write on purpose: the table, the package that creates it, every other package
+//              that may use it, and why. A listed package that no longer touches the table, an owner that is not the creator,
+//              a table nobody creates, and a reason that does not say anything all fail. A package that uses a shared table
+//              and is not listed fails like any other.
+//   same_name  tables that two packages each create, in different databases (`workspaces`, `jobs`): the table, the packages
+//              that create it, and why they are not one table. A table that more than one package creates and is not listed
+//              fails; so does an entry whose packages are not exactly the creators, or that only one package creates now.
 //
 // What it reads: the string and template-literal text of the TypeScript sources the entry calls sources (apps, horizontal,
 // modules, packages, plugins, server, tooling; not tests, fixtures or build output), found in the syntax tree, so a comment
@@ -103,34 +108,56 @@ export function scanTables(snapshot, isSource) {
 
 const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-/** The shared-table allowance, parsed: { shared: Map<table, { owner, users, reason }>, problems }. */
-function readAllowance(snapshot) {
-  const text = snapshot.read(TABLE_OWNERS_FILE);
-  const shared = new Map(), problems = [];
-  if (text === null) return { shared, problems };
-  let parsed;
-  try { parsed = JSON.parse(text); } catch { return { shared, problems: [`${TABLE_OWNERS_FILE} is not valid JSON`] }; }
-  if (!isRecord(parsed) || !isRecord(parsed.shared)) return { shared, problems: [`${TABLE_OWNERS_FILE} needs a "shared" object keyed by table name`] };
-  for (const [name, entry] of Object.entries(parsed.shared)) {
-    const table = name.toLowerCase();
+const reasonProblem = (entry, why) => (typeof entry.reason !== "string" || entry.reason.replace(/\s+/g, "").length < MIN_REASON_CHARACTERS
+  ? `"reason" needs at least ${MIN_REASON_CHARACTERS} characters that say why ${why}` : null);
+const packageList = (value, minimum) => Array.isArray(value) && value.length >= minimum && value.every((item) => typeof item === "string" && item);
+
+/** One section of the allowance: { entries: Map<table, entry>, problems }. `check(entry, bad)` pushes what is wrong with one entry. */
+function readSection(parsed, section, fields, check) {
+  const entries = new Map(), problems = [];
+  const body = parsed[section];
+  if (body === undefined && section !== "shared") return { entries, problems };
+  if (!isRecord(body)) return { entries, problems: [`${TABLE_OWNERS_FILE} needs a "${section}" object keyed by table name`] };
+  for (const [name, entry] of Object.entries(body)) {
     const bad = [];
-    if (!isRecord(entry)) bad.push(`the entry must be an object with "owner", "users" and "reason"`);
+    if (!isRecord(entry)) bad.push(`the entry must be an object with ${fields.map((field) => `"${field}"`).join(", ")}`);
     else {
-      for (const field of Object.keys(entry)) if (!["owner", "users", "reason"].includes(field)) bad.push(`unknown field "${field}"`);
-      if (typeof entry.owner !== "string" || !entry.owner) bad.push(`"owner" must name the package directory that creates the table`);
-      if (!Array.isArray(entry.users) || !entry.users.length || !entry.users.every((user) => typeof user === "string" && user)) bad.push(`"users" must list the other package directories that use the table`);
-      if (typeof entry.reason !== "string" || entry.reason.replace(/\s+/g, "").length < MIN_REASON_CHARACTERS) bad.push(`"reason" needs at least ${MIN_REASON_CHARACTERS} characters that say why several packages share this table`);
+      for (const field of Object.keys(entry)) if (!fields.includes(field)) bad.push(`unknown field "${field}"`);
+      check(entry, bad);
     }
     if (bad.length) problems.push(...bad.map((problem) => `${TABLE_OWNERS_FILE}: ${name}: ${problem}`));
-    else shared.set(table, entry);
+    else entries.set(name.toLowerCase(), entry);
   }
-  return { shared, problems };
+  return { entries, problems };
+}
+
+/** The allowance, parsed: { shared: Map<table, { owner, users, reason }>, sameName: Map<table, { packages, reason }>, problems }. */
+function readAllowance(snapshot) {
+  const text = snapshot.read(TABLE_OWNERS_FILE);
+  const none = { shared: new Map(), sameName: new Map() };
+  if (text === null) return { ...none, problems: [] };
+  let parsed;
+  try { parsed = JSON.parse(text); } catch { return { ...none, problems: [`${TABLE_OWNERS_FILE} is not valid JSON`] }; }
+  if (!isRecord(parsed) || !isRecord(parsed.shared)) return { ...none, problems: [`${TABLE_OWNERS_FILE} needs a "shared" object keyed by table name`] };
+  const problems = Object.keys(parsed).filter((key) => !["note", "shared", "same_name"].includes(key)).map((key) => `${TABLE_OWNERS_FILE}: unknown section "${key}"`);
+  const shared = readSection(parsed, "shared", ["owner", "users", "reason"], (entry, bad) => {
+    if (typeof entry.owner !== "string" || !entry.owner) bad.push(`"owner" must name the package directory that creates the table`);
+    if (!packageList(entry.users, 1)) bad.push(`"users" must list the other package directories that use the table`);
+    const reason = reasonProblem(entry, "several packages share this table");
+    if (reason) bad.push(reason);
+  });
+  const sameName = readSection(parsed, "same_name", ["packages", "reason"], (entry, bad) => {
+    if (!packageList(entry.packages, 2) || new Set(entry.packages).size !== entry.packages.length) bad.push(`"packages" must list the package directories (at least two, each once) that each create a table of this name`);
+    const reason = reasonProblem(entry, "these packages each create a table of this name and it is not one table");
+    if (reason) bad.push(reason);
+  });
+  return { shared: shared.entries, sameName: sameName.entries, problems: [...problems, ...shared.problems, ...sameName.problems] };
 }
 
 /** Problems in the working tree; every one is a failure and there is no baseline. `isSource` is the entry's own source test. */
 export function tableOwnerProblems(snapshot, { isSource }) {
   const { owners, accesses } = scanTables(snapshot, isSource);
-  const { shared, problems } = readAllowance(snapshot);
+  const { shared, sameName, problems } = readAllowance(snapshot);
   const touching = new Map();
   const unlisted = new Map();
   for (const access of accesses) {
@@ -158,6 +185,23 @@ export function tableOwnerProblems(snapshot, { isSource }) {
       if (creators.has(user)) problems.push(`${TABLE_OWNERS_FILE}: ${table}: ${user} creates the table and is not a "user" of it; remove it from "users"`);
       else if (!touching.get(table)?.has(user)) problems.push(`${TABLE_OWNERS_FILE}: ${table}: ${user} no longer reads or writes this table; remove it from "users" (a shared table is a list that only shrinks)`);
     }
+  }
+  for (const [table, creators] of [...owners].sort((a, b) => a[0].localeCompare(b[0]))) {
+    if (creators.size < 2) continue;
+    const names = [...creators].sort().join(" and "), entry = sameName.get(table);
+    if (!entry) {
+      problems.push(`table "${table}" is created by ${names}: one table, one creating package. If they are different databases that happen to share a name, `
+        + `list the table under "same_name" in ${TABLE_OWNERS_FILE} with the reason; otherwise keep one CREATE and let the other package use its API.`);
+      continue;
+    }
+    for (const listed of entry.packages) if (!creators.has(listed)) problems.push(`${TABLE_OWNERS_FILE}: ${table}: ${listed} does not create this table; remove it from "packages"`);
+    for (const creator of [...creators].sort()) if (!entry.packages.includes(creator)) problems.push(`${TABLE_OWNERS_FILE}: ${table}: ${creator} also creates this table and is not in "packages"; list it with the reason, or drop its CREATE`);
+  }
+  for (const [table] of [...sameName].sort((a, b) => a[0].localeCompare(b[0]))) {
+    const creators = owners.get(table);
+    if (!creators) problems.push(`${TABLE_OWNERS_FILE}: ${table}: no package creates a table of this name; delete the entry from "same_name"`);
+    else if (creators.size < 2) problems.push(`${TABLE_OWNERS_FILE}: ${table}: only ${[...creators][0]} creates this table now; delete the entry from "same_name" (a same-name list only shrinks)`);
+    if (shared.has(table)) problems.push(`${TABLE_OWNERS_FILE}: ${table}: listed under both "shared" and "same_name"; a shared table has one creating package, a same-name table several`);
   }
   return problems;
 }

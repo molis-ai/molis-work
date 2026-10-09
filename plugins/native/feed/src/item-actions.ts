@@ -38,7 +38,7 @@ export const feedItemActions = {
     closed({ item_id: id, disposition: { enum: ["saved", "archived"] }, expected_revision: revision }, ["item_id", "disposition", "expected_revision"]), itemResult, ["feed:read", "feed:write"]),
   restore: define<{ item_id: string; expected_revision: number }, FeedItemResult>("restore", "恢复到 Feed", "把已忽略或已处理的消息放回 Feed",
     closed({ item_id: id, expected_revision: revision }, ["item_id", "expected_revision"]), itemResult, ["feed:read", "feed:write"]),
-  promote: define<{ item_id: string; expected_revision: number; start_processing?: boolean }, FeedPromoteResult>("promote", "升格为 Goal", "为这条消息新建 Goal 并把它作为已确认输入；已关联且仍有效的 Goal 会直接复用",
+  promote: define<{ item_id: string; expected_revision: number; start_processing?: boolean }, FeedPromoteResult>("promote", "升格为 Goal", "为这条消息新建 Goal 并把它作为已确认输入；已关联且仍有效的 Goal 会直接复用。以调用者自己的权限调用 Goals 的 goals.directory.read、goals.create、goals.inputs.confirm，持精确动作授权的客户端要同时授权这三个动作",
     closed({ item_id: id, expected_revision: revision, start_processing: { type: "boolean" } }, ["item_id", "expected_revision"]),
     { type: "object", properties: { item, goal_id: { type: "string" }, created: { type: "boolean" }, runtime_autofill: { type: "boolean" } }, required: ["item", "goal_id", "created", "runtime_autofill"] },
     ["feed:read", "feed:write", "goals:read", "goals:write"], undefined, GOALS_ACTIONS_FOR_PROMOTION),

@@ -923,7 +923,7 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 261,
+  "typedCapabilitiesTotal": 253,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 10,
     "apps/local-host/src/casebook/integration.ts#type-refs": 1,
@@ -933,7 +933,7 @@
     "apps/local-host/src/local-host.ts#type-refs": 6,
     "apps/local-host/src/local-host.ts#without-action": 1,
     "apps/local-host/src/local-host.ts#register-calls": 1,
-    "apps/local-host/src/project-capabilities.ts#register-calls": 24,
+    "apps/local-host/src/project-capabilities.ts#register-calls": 22,
     "apps/local-host/src/project-host.ts#type-refs": 1,
     "apps/local-host/src/project-host.ts#register-calls": 1,
     "horizontal/agent-host/src/capability-registration.ts#type-refs": 2,

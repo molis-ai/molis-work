@@ -1,4 +1,6 @@
 export const FORM_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "Forms 问卷及收到的全部回答": "Forms and every answer they received",
   "固定版本": "Fixed version",
   "固定版本未存完": "Fixed version not finished",
   "列表暂时读不到": "The list could not be read",

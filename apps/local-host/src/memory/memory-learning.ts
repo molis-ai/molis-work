@@ -33,11 +33,18 @@ const PROPOSALS_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+/**
+ * `stillWanted` says whether the work's project still exists: a round queued, or a model still thinking, when the project
+ * is deleted must not write what the deletion cleared. It is asked before the model is and again before anything is
+ * written.
+ */
 export async function learnFromWork(service: MemoryService, homeDirectory: string, request: MemoryLearningRequest,
-  generate: HostTextGeneration | undefined = hostTextGeneration({ homeDirectory })): Promise<{ ran: boolean; reason: string; learned: MemoryLearned[] }> {
+  generate: HostTextGeneration | undefined = hostTextGeneration({ homeDirectory }),
+  stillWanted: () => Promise<boolean> = async () => true): Promise<{ ran: boolean; reason: string; learned: MemoryLearned[] }> {
   const said = request.said.map(text => text.trim()).filter(Boolean).slice(-6).map(text => text.slice(0, 1500));
   if (!service.worthLearning(request.caller, said)) return { ran: false, reason: "这一轮没有值得学习的表态，或没有允许从工作里学习", learned: [] };
   if (!generate) return { ran: false, reason: "没有可用的文字模型", learned: [] };
+  if (!await stillWanted()) return { ran: false, reason: "这项工作所在的项目已经删除", learned: [] };
   const context = await service.learningContext(request.caller);
   const data = JSON.stringify({
     有项目: Boolean(request.caller.project_id),
@@ -51,5 +58,6 @@ export async function learnFromWork(service: MemoryService, homeDirectory: strin
   });
   const proposals = (result.structured as { candidates?: MemoryProposal[] } | undefined)?.candidates;
   if (!Array.isArray(proposals)) return { ran: true, reason: "模型没有给出合格式的提议，什么都没有记", learned: [] };
+  if (!await stillWanted()) return { ran: true, reason: "项目在提炼时被删除了，什么都没有记", learned: [] };
   return { ran: true, reason: "已提炼", learned: await service.learnFromWork(request.caller, { said, proposals }) };
 }

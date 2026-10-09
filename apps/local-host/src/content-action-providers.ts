@@ -61,8 +61,8 @@ export function nativeContentProviders(runtime: MolisWorkProjectRuntime, feed: F
     ...createFeedItemHandlers(feed, runtime.project_id, {
       inboxActive: itemId => feed.listInboxEntries(runtime.project_id).some(entry => entry.subject_type === "feed_item" && entry.subject_id === itemId
         && (entry.status === "open" || entry.status === "in_progress")),
-      promote: input => createLocalFeedGoalPromotion(runtime.store.db, runtime.coordinator.goalEvents.createIntent.bind(runtime.coordinator.goalEvents),
-        runtime.coordinator.goalInputs, feed)(input),
+      // Without the action service there is no Goal service to ask: the promotion stays unavailable ("actions.connection_required").
+      promote: client ? (input, caller) => createLocalFeedGoalPromotion(runtime.store.db, client, feed)(input, caller) : undefined,
     }),
     ...(scenes ? createFeedSourceHandlers(runtime.project_id, {
       feed: () => feed,

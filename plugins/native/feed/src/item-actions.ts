@@ -1,5 +1,5 @@
 import { FEED_PLUGIN_ID } from "./identity.js";
-import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
+import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedApplication } from "./application.js";
 import { FeedStoreError } from "./application-errors.js";
@@ -11,9 +11,13 @@ const revision = { type: "integer", minimum: 1 };
 const item = { type: "object", properties: { item_id: { type: "string" }, revision: { type: "integer" }, disposition: { type: "string" } }, required: ["item_id", "revision"] };
 const itemResult: ActionSchema = { type: "object", properties: { item }, required: ["item"] };
 const closed = (properties: Record<string, unknown>, required: string[]): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
-function define<Input, Output>(suffix: string, title: string, description: string, input: ActionSchema, output: ActionSchema, permissions: string[], scheduling?: "concurrent"): ActionDefinition<Input, Output> {
+/** Promotion writes through these Goals actions, so it is unavailable wherever they are: a project without Goals cannot promote. */
+const GOALS_ACTIONS_FOR_PROMOTION: ActionReference[] = ["goals.directory.read", "goals.create", "goals.inputs.confirm"]
+  .map(capability_id => ({ capability_id, version: 1, provider_id: "io.molis.work.goals" }));
+function define<Input, Output>(suffix: string, title: string, description: string, input: ActionSchema, output: ActionSchema, permissions: string[], scheduling?: "concurrent", requiredActions?: ActionReference[]): ActionDefinition<Input, Output> {
   return { capability_id: `feed.items.${suffix}`, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project", ...(scheduling ? { scheduling } : {}),
-    audiences: ["user", "agent", "workflow", "mcp"], permissions, subject_kinds: ["feed_item"], input_schema: input, output_schema: output } };
+    audiences: ["user", "agent", "workflow", "mcp"], permissions, ...(requiredActions ? { required_actions: requiredActions } : {}),
+    subject_kinds: ["feed_item"], input_schema: input, output_schema: output } };
 }
 
 export interface FeedItemResult { item: FeedItemRecord }
@@ -37,13 +41,14 @@ export const feedItemActions = {
   promote: define<{ item_id: string; expected_revision: number; start_processing?: boolean }, FeedPromoteResult>("promote", "升格为 Goal", "为这条消息新建 Goal 并把它作为已确认输入；已关联且仍有效的 Goal 会直接复用",
     closed({ item_id: id, expected_revision: revision, start_processing: { type: "boolean" } }, ["item_id", "expected_revision"]),
     { type: "object", properties: { item, goal_id: { type: "string" }, created: { type: "boolean" }, runtime_autofill: { type: "boolean" } }, required: ["item", "goal_id", "created", "runtime_autofill"] },
-    ["feed:read", "feed:write", "goals:write"]),
+    ["feed:read", "feed:write", "goals:read", "goals:write"], undefined, GOALS_ACTIONS_FOR_PROMOTION),
 } as const;
 export const FEED_ITEM_ACTIONS: readonly ActionDefinition[] = Object.values(feedItemActions);
 
 export interface FeedItemActionPorts {
   inboxActive(itemId: string): boolean;
-  promote?(input: FeedGoalPromotionInput): ReturnType<typeof promoteFeedItemToGoal>;
+  /** Wired by the Host with the Goals actions; absent where the project has no Goal service. */
+  promote?(input: FeedGoalPromotionInput, caller: ActionExecutionContext): ReturnType<typeof promoteFeedItemToGoal>;
 }
 
 /** Store refusals keep their own code so every caller sees the same reason; the Workbench route maps them back to its statuses. */
@@ -52,7 +57,7 @@ function asActionError(error: unknown): unknown {
 }
 
 export function createFeedItemHandlers(feed: FeedApplication, board: string, ports: FeedItemActionPorts): ActionHandlerBinding[] {
-  const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionCallContext) => Output | Promise<Output>, enabled = true): ActionHandlerBinding => ({
+  const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Output | Promise<Output>, enabled = true): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
     availability: () => enabled ? { available: true } : { available: false, code: "actions.connection_required", reason: "此项目尚未接通 Goal 服务" },
     handle: async (caller, input) => { try { return await handle(input as Input, caller); } catch (error) { throw asActionError(error); } },
@@ -83,9 +88,9 @@ export function createFeedItemHandlers(feed: FeedApplication, board: string, por
     }),
     bind(feedItemActions.disposition, input => ({ item: feed.setDisposition(board, input.item_id, input.disposition, input.expected_revision) })),
     bind(feedItemActions.restore, input => ({ item: feed.restoreToFeed(board, input.item_id, input.expected_revision) })),
-    bind(feedItemActions.promote, (input, caller) => {
-      const { item, goal_id, created, runtime_autofill } = ports.promote!({ projectId: board, routePrefix: "", itemId: input.item_id,
-        startProcessing: input.start_processing === true, expectedRevision: input.expected_revision, actorId: caller.actor_id });
+    bind(feedItemActions.promote, async (input, caller) => {
+      const { item, goal_id, created, runtime_autofill } = await ports.promote!({ projectId: board, routePrefix: "", itemId: input.item_id,
+        startProcessing: input.start_processing === true, expectedRevision: input.expected_revision }, caller);
       return { item, goal_id, created, runtime_autofill };
     }, !!ports.promote),
   ];

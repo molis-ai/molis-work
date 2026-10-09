@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSync 和 FeedSourceScheduler 处理来源同步用例。用户将条目推进为 Goal 时，promoteFeedItemToGoal 协调正式命令与来源关联，Host 提供文件、凭据和网络适配。
+FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSync 和 FeedSourceScheduler 处理来源同步用例。用户将条目推进为 Goal 时，promoteFeedItemToGoal 经 Host 提供的端口调用 Goals 的动作（`goals.create`、`goals.inputs.confirm`，以调用者自己的身份），再记下 Feed 自己的关联；Feed 不写 Goals 的数据，项目里没有 Goals 时升格不可用。Host 提供文件、凭据和网络适配。
 
 ## 从哪里读代码
 

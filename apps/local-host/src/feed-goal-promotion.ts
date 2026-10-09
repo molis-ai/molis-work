@@ -1,17 +1,39 @@
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
-import { createGoalReadServices } from "@molis-ai/molis-work-module-goals";
-import type { GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import { promoteFeedItemToGoal, type FeedGoalPromotionInput, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
-import type { GoalEventApplication } from "@molis-ai/molis-work-plugin-goals";
+import { bindActionClient, retainActionAuthority, type ActionClient, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { FEED_PLUGIN_ID, feedItemActions, promoteFeedItemToGoal, type FeedApplication, type FeedGoalPromotionGoals, type FeedGoalPromotionInput } from "@molis-ai/molis-work-plugin-feed";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { hydrateFeedItemContent } from "./feed-content.js";
 
-export function createLocalFeedGoalPromotion(db: SqliteDatabase,
-  createIntent: GoalEventApplication["createIntent"],
-  goalInputs: Pick<GoalInputBindingsApi, "register">,
+/**
+ * Feed's promotion asks Goals through Goals' own actions, called as the promoting caller: the Goal and its input belong to that
+ * caller's identity, and a project without Goals refuses the calls like any other. The creation channel is a fact about who asked
+ * (`goals.create` lets only the person name one), so the item names `feed` only when the person promoted it; a Runtime's
+ * promotion is recorded as the Runtime's.
+ */
+export function feedGoalsThroughActions(actions: ActionClient, caller: ActionExecutionContext): FeedGoalPromotionGoals {
+  const nested = bindActionClient(actions, () => retainActionAuthority(caller, { ...feedItemActions.promote, provider_id: FEED_PLUGIN_ID }));
+  return {
+    active: async goalId => {
+      const item = await nested.invoke(goalsActions.directoryItem, { goal_id: goalId });
+      return item ? { goal_id: item.goal_id } : null;
+    },
+    create: async input => {
+      const { goal } = await nested.invoke(goalsActions.create, { ...input, ...(caller.audience === "user" ? { source_kind: "feed" as const } : {}) });
+      return { goal_id: goal.goal_id };
+    },
+    confirmInput: async ({ goal_id, item_id, name, snapshot_digest, reason }) => {
+      await nested.invoke(goalsActions.inputsConfirm, { goal_id, source: { kind: "feed_item", id: item_id }, name, snapshot_digest, reason });
+    },
+  };
+}
+
+export function createLocalFeedGoalPromotion(db: SqliteDatabase, actions: ActionClient,
   feed: FeedApplication = createLocalFeedApplication(db),
 ) {
-  const ports = { feed, createIntent, goalInputs, goalQuery: createGoalReadServices(db).query,
-    hydrateItem: hydrateFeedItemContent, transaction: <T>(operation: () => T): T => db.transaction(operation).immediate() };
-  return (input: FeedGoalPromotionInput) => promoteFeedItemToGoal(ports, input);
+  return (input: FeedGoalPromotionInput, caller: ActionExecutionContext) => promoteFeedItemToGoal({
+    feed, goals: feedGoalsThroughActions(actions, caller), hydrateItem: hydrateFeedItemContent,
+    transaction: <T>(operation: () => T): T => db.transaction(operation).immediate(),
+    beforeEffect: () => caller.beforeEffect(),
+  }, input);
 }

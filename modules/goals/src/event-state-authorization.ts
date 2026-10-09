@@ -179,9 +179,12 @@ export function snapshotCommitment(
   outcome: string,
   scope: GoalEventScope,
 ): GoalEventDecisionCommitment {
-  const scoped = scope.requirement_ids.length
-    ? requirements.filter((item) => scope.requirement_ids.includes(item.requirement_id))
-    : [];
+  // Completing answers for the whole agreement, so a decision about it commits to every requirement the agreement has now.
+  const scoped = scopeAppliesToComplete(scope)
+    ? requirements
+    : scope.requirement_ids.length
+      ? requirements.filter((item) => scope.requirement_ids.includes(item.requirement_id))
+      : [];
   return {
     outcome,
     requirements: scoped.map(requirementCommitment),
@@ -256,6 +259,21 @@ export function commitmentsMatch(left: GoalEventDecisionCommitment, right: GoalE
   return true;
 }
 
+/**
+ * Whether the decision was given for the agreement as it stands: the same outcome and the same requirements, each with the same
+ * text, user-acceptance flag and bound event types.
+ */
+export function decisionCommitsToCurrentAgreement(
+  decision: GoalEventAppliedDecisionView,
+  requirements: GoalEventRequirementStatus[],
+  outcome: string,
+): boolean {
+  return commitmentsMatch(
+    decision.commitment,
+    currentCommitment(requirements, outcome, requirements.map((item) => item.requirement_id)),
+  );
+}
+
 export function scopedRequirementCommitmentsMatch(
   decision: GoalEventAppliedDecisionView,
   requirements: GoalEventRequirementStatus[],
@@ -263,7 +281,10 @@ export function scopedRequirementCommitmentsMatch(
   const ids = decision.scope.requirement_ids;
   if (!ids.length) return true;
   const current = currentCommitment(requirements, "", ids).requirements;
-  const recorded = decision.commitment.requirements;
+  // A decision about completing commits to the whole agreement, but reusing it is judged on the requirements its scope names.
+  const recorded = scopeAppliesToComplete(decision.scope)
+    ? decision.commitment.requirements.filter((item) => ids.includes(item.requirement_id))
+    : decision.commitment.requirements;
   if (!recorded.length) {
     return ids.every((id) => requirements.some((item) => item.requirement_id === id));
   }

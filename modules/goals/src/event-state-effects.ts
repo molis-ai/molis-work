@@ -32,7 +32,7 @@ import {
 import { GoalEventStateAgreement } from "./event-state-agreement.js";
 import { requiredText } from "./event-facts-validation.js";
 import type { GoalEventStateRepository } from "./event-state-repository.js";
-import { agreementView, emptyScope, scopeIsSubset } from "./event-state-repository.js";
+import { agreementView, emptyScope, listDecisionsByRound, scopeIsSubset } from "./event-state-repository.js";
 import type { GoalEventStateCore, GoalEventStateHost } from "./event-state-host.js";
 import type { GoalsCommandContext } from "./command-support.js";
 import type { GoalEventFactsRepository } from "./event-facts-repository.js";
@@ -546,7 +546,7 @@ export class GoalEventStateEffects {
       ),
       blockingConcerns: this.records.openBlockingConcerns(goal.project_id, goal.goal_id),
       pendingDecisions: this.records.listDecisionRequests(goal.project_id, goal.goal_id).filter((item) => item.status === "pending"),
-      appliedDecisions: this.records.listAppliedDecisions(goal.project_id, goal.goal_id),
+      appliedDecisions: listDecisionsByRound(this.context.repository.db, goal.project_id, goal.goal_id),
       context: this.host.readCompletionContext(goal.project_id, goal.goal_id),
     });
   }

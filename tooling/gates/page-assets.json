@@ -8,7 +8,7 @@
     "/assets/molis-work-plugins/alchemist.js": 51901,
     "/assets/molis-work-plugins/characters.js": 34579,
     "/assets/molis-work-plugins/coding.js": 497915,
-    "/assets/molis-work-plugins/cognia.js": 25496,
+    "/assets/molis-work-plugins/cognia.js": 25342,
     "/assets/molis-work-plugins/dataset.js": 34395,
     "/assets/molis-work-plugins/diff.js": 497913,
     "/assets/molis-work-plugins/experiments.js": 34287,
@@ -28,7 +28,7 @@
     "/assets/molis-work-plugins/workflows.js": 103388,
     "/assets/molis-work-settings.css": 1341060,
     "/assets/molis-work-workbench.css": 1946506,
-    "/assets/molis-work-workbench.js": 1414626,
+    "/assets/molis-work-workbench.js": 1414579,
     "/assets/noto-sans-sc-400.woff2": 1141536
   }
 }

@@ -133,6 +133,54 @@ test("a personal wish learned in a project's works never names those works: not 
   assert.doesNotMatch(change!.reason ?? "", /差旅费用|内容预算/);
 });
 
+test("the model's same_as is only a pointer: the gate ties by the words, so a different wish is never auto-kept for it, and a restatement it cannot be sure of waits beside the old one", { timeout: 60_000 }, async t => {
+  const { service } = await memoryHome(t);
+  await service.learnFromWork(inWork("work-1", "周报 9/23"), { said: ["以后周报都把风险放最前面，别放最后"], proposals: [{ ...riskFirst, quote: "以后周报都把风险放最前面" }] });
+  const [waiting] = await service.candidates(person, { scope: "project" });
+
+  // Another work, an unrelated wish the model calls "the same": nothing ties the two, so it is its own suggestion and the old one keeps waiting.
+  const unrelated = await service.learnFromWork(inWork("work-2", "翻译"), { said: ["以后回答都用中文"],
+    proposals: [{ text: "回答用中文", kind: "preference", scope: "project", basis: "explicit", quote: "回答都用中文", same_as: waiting!.candidate_id }] });
+  assert.deepEqual(unrelated.map(item => [item.outcome, item.text]), [["candidate", "回答用中文"]], "the new wish is not dropped and not written");
+  assert.equal((await service.list(person)).items.length, 0, "the model's claim wrote nothing");
+  assert.deepEqual((await service.candidates(person, { scope: "project" })).map(item => [item.text, item.work!.work_id]).sort(), [[riskFirst.text, "work-1"], ["回答用中文", "work-2"]]);
+
+  // The person may have said the first wish again in other words, but the gate cannot be sure it is the same wish: both wait for the person, nothing is kept.
+  const restated = await service.learnFromWork(inWork("work-3", "周报 9/30"), { said: ["周报还是把风险放在最前面"],
+    proposals: [{ ...riskFirst, text: "周报把风险放在最前面", quote: "周报还是把风险放在最前面", same_as: waiting!.candidate_id }] });
+  assert.deepEqual(restated.map(item => [item.outcome, item.text]), [["candidate", "周报把风险放在最前面"]]);
+  assert.equal((await service.list(person)).items.length, 0);
+  assert.deepEqual((await service.candidates(person, { scope: "project" })).map(item => item.work!.work_id).sort(), ["work-1", "work-2", "work-3"]);
+});
+
+test("wishes that share wording are different wishes: the model's same_as never makes the gate keep the old one and drop the new one", { timeout: 60_000 }, async t => {
+  const { service } = await memoryHome(t);
+  const standing = { kind: "preference" as const, scope: "personal" as const, basis: "explicit" as const };
+  const waitingTexts = async () => (await service.candidates(person, { scope: "personal" })).map(item => item.text).sort();
+  for (const [first, second] of [
+    [{ text: "回答都用要点列表", said: "以后回答都用要点列表" }, { text: "回答都用中文", said: "以后回答都用中文" }],
+    [{ text: "Always reply in bullet points", said: "Always reply in bullet points" }, { text: "Always reply in Chinese", said: "Always reply in Chinese" }],
+  ] as const) {
+    await service.learnFromWork(inWork(`${first.text}-1`, "整理"), { said: [first.said], proposals: [{ ...standing, text: first.text, quote: first.said }] });
+    const [old] = (await service.candidates(person, { scope: "personal" })).filter(item => item.text === first.text);
+    const later = await service.learnFromWork(inWork(`${second.text}-2`, "翻译"), { said: [second.said], proposals: [{ ...standing, text: second.text, quote: second.said, same_as: old!.candidate_id }] });
+    assert.deepEqual(later.map(item => [item.outcome, item.text]), [["candidate", second.text]], "the new wish is its own suggestion, not dropped");
+    assert.equal((await service.list(person, { scope: "personal" })).items.length, 0, "and nothing was kept for the old one");
+    assert.deepEqual((await waitingTexts()).filter(text => text === first.text || text === second.text), [first.text, second.text].sort(), "both wait for the person");
+  }
+});
+
+test("a wish drawn out of work that is the same words as a memory already kept is skipped; one that differs by a symbol or a comma says something else, so it waits for the person", { timeout: 60_000 }, async t => {
+  const { service } = await memoryHome(t);
+  await service.write(person, { scope: "project", text: "金额>1000要先问我" });
+  const said = ["以后金额<1000要先问我"];
+  const same = await service.learnFromWork(inWork("work-1", "报销"), { said, proposals: [{ ...riskFirst, text: "金额>1000要先问我。", quote: "金额<1000要先问我" }] });
+  assert.deepEqual(same.map(item => [item.outcome, item.reason]), [["skipped", "已经记着这一条了"]]);
+  const flipped = await service.learnFromWork(inWork("work-2", "报销"), { said, proposals: [{ ...riskFirst, text: "金额<1000要先问我", quote: "金额<1000要先问我" }] });
+  assert.deepEqual(flipped.map(item => item.outcome), ["candidate"]);
+  assert.deepEqual((await service.candidates(person, { scope: "project" })).map(item => item.text), ["金额<1000要先问我"]);
+});
+
 test("what the person said in a deleted project's work is not learned: the project is asked about before the model is and again before anything is written", { timeout: 60_000 }, async t => {
   const { home, service } = await memoryHome(t);
   let asked = 0;

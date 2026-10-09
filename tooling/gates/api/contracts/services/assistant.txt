@@ -522,6 +522,7 @@ export interface AssistantSendInput {
     text: string;
     context?: AssistantContextSnapshot;
     materials?: AssistantMaterial[];
+    written_by?: "page";
     request_id: string;
 }
 

@@ -1,7 +1,7 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { GATEWAY_TOOLS, gatewayProblem, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
 import { createPrologueSurfaces, surfaceRules, SURFACE_GUIDANCE, type PrologueSurfacePorts, type PrologueSurfaces } from "./prologue-surfaces.js";
-import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, MEMORY_CLAIM_HELD, MEMORY_OFF_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, claimsSavedChange, internalIdsHeld, mentionsInternalIds, writesToolCallAsText } from "./announce-guard.js";
+import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, claimsSavedChange, internalIdsHeld, memoryHeld, mentionsInternalIds, writesToolCallAsText } from "./announce-guard.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { createPrologueInference } from "./prologue-inference.js";
@@ -244,7 +244,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const heldLabels = new Map<string, Array<{ target: string; summary: string }>>();
   // Rounds that may change things: an ending that only announces the next step is held once per run.
   /** Per session, what the round now running really kept and forgot (only for sessions given memory tools). */
-  const memoryRounds = new Map<string, { keep: number; forget: number; off: boolean; spoken: string }>();
+  const memoryRounds = new Map<string, { keep: number; forget: number; off: boolean; spoken: string; /** Given memory, but not the tool that keeps (or forgets): a work handed down by another work. */ without: { keep: boolean; forget: boolean } }>();
   /** The exact Prologue references of the memories the Host chose for a run (set with the memory capability below). */
   let memoryRefs: (pinned: readonly import("@molis-ai/molis-work-contracts/services/agent-host").AgentPinnedMemory[]) => Promise<import("@prologue/sdk").ExactRef<"memory">[]> = async () => [];
   // Suggestions this round really made, for the same check: a reply may not say a button is ready when none was.
@@ -1137,7 +1137,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       // A business round the person gave no memory (switched off) keeps nothing, so any claim of keeping is held too.
       const memory = input.action_gateway?.client.memory;
       // What the round has said so far: a claim made before the call that then failed counts as much as one at the end.
-      const memoryDone = { keep: 0, forget: 0, off: !memory, spoken: "" };
+      const memoryDone = { keep: 0, forget: 0, off: !memory, spoken: "", without: { keep: !!memory && !memory.remember, forget: !!memory && !memory.forget } };
       if (input.action_gateway) memoryRounds.set(input.session_id, memoryDone); else memoryRounds.delete(input.session_id);
       const offer = input.action_gateway?.client.offer;
       const offersDone = { offered: 0 };
@@ -1148,9 +1148,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const gatewayForRun = input.action_gateway && client ? { ...input.action_gateway, client: { ...client,
         invoke: async (reference: ExactActionReference, value: unknown, signal?: AbortSignal) => { const result = await client.invoke(reference, value, signal); changesDone!.invoked.push(reference); return result; },
         ...(memory ? { memory: {
-          remember: async (value: Parameters<typeof memory.remember>[0]) => { const kept = await memory.remember(value); memoryDone.keep += 1; return kept; },
+          ...(memory.remember ? { remember: async (value: Parameters<NonNullable<typeof memory.remember>>[0]) => { const kept = await memory.remember!(value); memoryDone.keep += 1; return kept; } } : {}),
           list: () => memory.list(),
-          forget: async (id: string) => { const result = await memory.forget(id); if (result.forgotten) memoryDone.forget += 1; return result; },
+          ...(memory.forget ? { forget: async (id: string) => { const result = await memory.forget!(id); if (result.forgotten) memoryDone.forget += 1; return result; } } : {}),
           ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
         } } : {}),
         ...(offer ? { offer: async (proposal: Parameters<typeof offer>[0]) => { const made = await offer(proposal); offersDone.offered += 1; return made; } } : {}),
@@ -1189,7 +1189,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           // A claim of keeping or forgetting that no call made this round is held, whatever the round's execution.
           const tracked = memoryRounds.get(sessionId);
           const claim = tracked && !held.has("memory") ? claimsMemoryChange(tracked.spoken.trim() ? tracked.spoken.slice(-1200) : text) : null;
-          if (claim && memoryRounds.get(sessionId)![claim] === 0) return hold("memory", memoryRounds.get(sessionId)!.off ? MEMORY_OFF_HELD : MEMORY_CLAIM_HELD[claim]);
+          if (claim && memoryRounds.get(sessionId)![claim] === 0) return hold("memory", memoryHeld(memoryRounds.get(sessionId)!, claim));
           if (business && !held.has("written") && writesToolCallAsText(text)) return hold("written", WRITTEN_CALL_HELD);
           if (!held.has("button") && offerRounds.get(sessionId)?.offered === 0 && claimsButton(text)) return hold("button", BUTTON_CLAIM_HELD);
           // Tool names, capability ids this round found, UUIDs and error codes are ours, not the person's words.

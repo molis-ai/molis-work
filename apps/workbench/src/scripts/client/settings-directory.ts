@@ -376,11 +376,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     url.search = new URLSearchParams([...new FormData(form, event.submitter)].map(([key, value]) => [key, String(value)])).toString();
     if (openProjectSettingsFromUrl(url.href) || openGlobalSettingsFromUrl(url.href)) event.preventDefault();
   });
-  window.addEventListener("message", (event) => {
-    if (event.origin !== location.origin) return;
-    const href = event.data?.type === "molis-work:open-settings" ? event.data.href : "";
-    if (typeof href === "string" && href) openGlobalSettingsFromUrl(href);
-  });
   // A section whose row went with its plugin (Coding's): its cached page is dropped, and a list that was showing it goes back to its first.
   const leave = (section) => {
     for (const [panel, first] of [[globalSettings, "appearance"], [projectSettings, "general"]]) {

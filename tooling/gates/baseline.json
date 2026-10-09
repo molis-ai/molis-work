@@ -2,9 +2,9 @@
   "giantUnits": 162,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 261,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2656,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2628,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 2098,
+      "lines": 2069,
       "methods": 119
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -91,10 +91,10 @@
       "lines": 373,
       "methods": 18
     },
-    "file horizontal/memory/src/service.ts": 1338,
+    "file horizontal/memory/src/service.ts": 1274,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 1101,
-      "methods": 56
+      "lines": 1091,
+      "methods": 51
     },
     "class horizontal/placement/src/index.ts#PlacementService": {
       "lines": 419,
@@ -197,7 +197,7 @@
       "methods": 30
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
-      "lines": 589,
+      "lines": 585,
       "methods": 31
     },
     "class packages/plugin-runtime/src/wiring.ts#PluginInputGraph": {
@@ -718,7 +718,7 @@
     "plugins/native/todo/src/client.ts": 1,
     "plugins/native/workflows/src/client.ts": 2
   },
-  "unknownCastsTotal": 200,
+  "unknownCastsTotal": 199,
   "unknownCasts": {
     "apps/cli/src/goal-tree-commands.ts": 4,
     "apps/local-host/cloudflare/worker.ts": 1,
@@ -828,7 +828,6 @@
     "tests/personal-artifact-owner.test.ts": 6,
     "tests/plugin-composition.test.ts": 1,
     "tests/plugin-private-storage.test.ts": 3,
-    "tests/plugin-upgrades.test.ts": 1,
     "tests/project-catalog-preservation.test.ts": 1,
     "tests/project-policy-save.test.ts": 1,
     "tests/runtime-host.test.ts": 1,

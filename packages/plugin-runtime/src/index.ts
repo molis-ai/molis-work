@@ -5,7 +5,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assertContributionMatchesManifest, PluginContributionError } from "./contribution.js";
 import { PluginRuntimeError } from "./errors.js";
 import { pluginManifestDigest } from "./identity.js";
-import { abandonRefusal, assertMutable, bundledUpgrade, keptDataRefusal, normalizeGrants } from "./install-rules.js";
+import { abandonRefusal, assertMutable, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
 
 export { SqlitePluginPrivateStorage, PluginPrivateStorageError, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL } from "./private-storage.js";
@@ -154,7 +154,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     deployment: PluginDeployment;
     grants?: string[];
     retain_private_data?: boolean;
-    /** Ships with the Host: an older install moves up to this version, whatever versions the Manifest names. */
+    /** Ships with the Host: an existing install is moved onto this build whatever its version (`recordToFollow`). */
     bundled?: boolean;
     /** The person agreed to drop the private data an uninstall kept, which this version cannot read; the Host deletes it. */
     discard_kept_data?: boolean;
@@ -170,7 +170,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     if (input.definition.execution === "sandbox" && input.grants === undefined) throw new PluginRuntimeError("plugin_grant_denied", "生成插件安装需要明确授权清单");
     if (current && current.execution !== (input.definition.execution ?? "host")) throw new PluginRuntimeError("plugin_definition_conflict", "不能改变已安装插件的执行信任边界");
     const digest = pluginManifestDigest(manifest);
-    if (current && current.version === manifest.version && current.manifest_digest !== digest) {
+    const follow = recordToFollow(current, manifest, digest, input.bundled === true);
+    if (!follow && current && current.version === manifest.version && current.manifest_digest !== digest) {
       const compatibleSameVersion = current.state !== "uninstalled"
         && (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version);
       if (compatibleSameVersion) {
@@ -193,13 +194,12 @@ export class PluginRuntime implements PluginRuntimeApi {
     const refusal = keptDataRefusal(current, manifest, input.bundled === true, input.discard_kept_data === true);
     if (refusal) throw new PluginRuntimeError("plugin_kept_data_incompatible", refusal);
     this.register(input.definition);
+    if (follow) {
+      const moved = followBundledBuild(follow, input.deployment, manifest, digest, entrypoint.entrypoint, this.now());
+      this.repository.save(moved);
+      return this.receipt("install", moved, false);
+    }
     if (current && current.version !== manifest.version && current.state !== "uninstalled") {
-      if (input.bundled && comparePluginVersions(manifest.version, current.version) > 0) {
-        if (current.deployment !== input.deployment) throw new PluginRuntimeError("plugin_state_invalid", "已有安装不能通过启动改变部署环境");
-        const upgraded = bundledUpgrade(current, manifest, digest, entrypoint.entrypoint, this.now());
-        this.repository.save(upgraded);
-        return this.receipt("install", upgraded, false);
-      }
       if (!(manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version)) {
         throw new PluginRuntimeError("plugin_upgrade_required", "有新版本可用；请在插件市场确认升级后再启用");
       }

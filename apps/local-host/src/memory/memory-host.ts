@@ -110,7 +110,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   };
   const input = <T>(value: unknown) => (value ?? {}) as T;
   const bindings: ActionHandlerBinding[] = [
-    { ...memoryActions.recall, handle: (context, value) => service.recall(caller(context), input<MemoryRecallRequest>(value)) },
+    { ...memoryActions.recall, handle: (context, value) => service.recall(caller(context), input<MemoryRecallRequest>(value), { beforeEffect: () => context.beforeEffect() }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
     { ...memoryActions.list, handle: (context, value) => service.list(caller(context), input<MemoryListRequest>(value)) },
     { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return service.write(caller(context), input<MemoryWriteRequest>(value)); } },
     { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return service.change(caller(context), input<MemoryChangeRequest>(value)); } },

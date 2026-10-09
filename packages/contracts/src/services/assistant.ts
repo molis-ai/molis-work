@@ -474,6 +474,12 @@ export interface AssistantSendInput {
   text: string;
   context?: AssistantContextSnapshot;
   materials?: AssistantMaterial[];
+  /**
+   * The page sets this on words it wrote itself rather than the person: a canned note, or a request a plugin's page sends for them without showing it first.
+   * The Host then does not count the round as something the person said (memory's 「你说过」, what learning draws on). Over HTTP only "page" is accepted: the
+   * rounds the Host writes (a timed one) and the Assistant writes (a sub-task's brief) are marked by Host code, never claimed from outside.
+   */
+  written_by?: "page";
   /** One per press of Send. A repeat returns the first outcome and starts nothing. */
   request_id: string;
 }

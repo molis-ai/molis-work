@@ -244,7 +244,6 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         applySelection: (goalId) => applySelection(goalId, false),
         loadGoalDocument: (goalId) => loadGoalDocument(goalId),
         getDocumentGoalId: () => documentPane.querySelector("[data-goal-view]")?.dataset.goalView,
-        locateGraphNode: (id) => locateGraphNode(id),
         selectFeedItem: (...args) => selectFeedItem(...args),
         selectInboxEntry: (...args) => selectInboxEntry(...args),
         getProjectId: () => state.project?.project_id || state.snapshot.board.project_id,
@@ -252,7 +251,6 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         showCanvas: () => frameContainer?.showCanvas(),
         restoreBoard: () => frameContainer?.restoreBoard(),
         releaseFrame: () => frameContainer?.releaseFrame(),
-        isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
       });
     } catch (error) {
       console.warn("Molis Work tab workspace failed to start", error);

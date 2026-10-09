@@ -272,8 +272,15 @@ export class ComputerDesk {
 
   // ── the driver ───────────────────────────────────────────────────────────
 
-  /** The desktop driver the Agent Host attaches for one round (specs/computer-use; contract `HostSurfaceDriver`). */
+  private driverInstance: HostSurfaceDriver | null = null;
+
+  /** The desktop driver the Agent Host attaches for one round (specs/computer-use; contract `HostSurfaceDriver`). One
+   * desk, one stable driver object: the adapter recognises the same surface across a session's rounds. */
   driver(): HostSurfaceDriver {
+    return this.driverInstance ??= this.buildDriver();
+  }
+
+  private buildDriver(): HostSurfaceDriver {
     return {
       kind: "desktop",
       project_id: null,

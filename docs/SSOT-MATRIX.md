@@ -63,7 +63,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 
 | 目标 package | 唯一职责 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
 | --- | --- | --- | --- | --- | --- |
-| `packages/contracts` | Module、Service、Platform 的可发布类型与 Schema | Module/Service/Platform 公开类型和 Schema；无业务或 IO 实现 | `contract-only` | F2/F3；63 个 public subpath（外加根入口；2026-10-07 按 package.json exports 核对，含无依赖的 platform/execution-lifetime）与兼容门禁 | 共享核心：@yijunw0212 |
+| `packages/contracts` | Module、Service、Platform 的可发布类型与 Schema | Module/Service/Platform 公开类型和 Schema；无业务或 IO 实现 | `contract-only` | F2/F3；64 个 public subpath（外加根入口；2026-10-09 按 package.json exports 核对，含无依赖的 platform/execution-lifetime 与页面事件登记 platform/dom-events）与兼容门禁 | 共享核心：@yijunw0212 |
 | `packages/kernel` | Capability 注册、选择、权限与生命周期骨架 | versioned Capability registry 与统一动作服务核心 `ActionService`（定义/兑现校验、输入输出 schema、可用性、`beforeEffect` 副作用前复查、场景绑定与判断消费）；授权事实由 Local Host 持久保存 | `partial` | F2、F3、AP2；`specs/action-architecture/spec.md` | 共享核心：@yijunw0212 |
 | `packages/plugin-runtime` | Plugin 安装、签名身份、grant、隔离和生命周期 | 本地 Runtime、持久开发状态、可撤销授权和签名校验；不是 OS sandbox | `partial` | F2、FD3、DV3；分发收口见 DV4 | 平台包：@yijunw0212 |
 | `packages/plugin-sdk` | 外部 Plugin 作者使用的稳定 API 与测试入口 | Manifest/definition/polling、公开 Artifact/UI/private client 类型与动作合同再导出；fixture 由 Local Host 实现 | `partial` | F2、FD3、DV3 | 平台包：@yijunw0212 |

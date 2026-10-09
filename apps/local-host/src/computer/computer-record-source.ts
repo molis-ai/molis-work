@@ -1,6 +1,6 @@
 import { ActionError, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, fileContentOf,
-  type ActionHandlerBinding, type ActionRegistryPort, type FileEntry, type FileContentInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ComputerRecord, ComputerRecords } from "./computer-records.js";
+  type ActionDefinition, type ActionHandlerBinding, type FileEntry, type FileContentInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ComputerRecords, type ComputerRecord } from "./computer-records.js";
 
 /**
  * The per-round computer operation record as a file in the 文件 tab (specs/computer-use §5): the goal, the steps in
@@ -50,8 +50,14 @@ function renderMarkdown(record: ComputerRecord): string {
   return lines.filter(line => line !== "").join("\n");
 }
 
-export function registerComputerRecordSource(registry: ActionRegistryPort, records: () => ComputerRecords): () => void {
-  const entries = (): FileEntry[] => records().list().map(record => ({
+/**
+ * The record file-source's definitions and handlers, to be folded into an existing system provider's registration (the
+ * Assistant's): the Host does not hand-register a new provider for it. `records` is read by home directory, so the file
+ * source and the desk can hold their own instances of the same on-disk records.
+ */
+export function computerRecordFileSource(homeDirectory: string): { definitions: ActionDefinition[]; handlers: ActionHandlerBinding[] } {
+  const records = new ComputerRecords(homeDirectory);
+  const entries = (): FileEntry[] => records.list().map(record => ({
     subject: { kind: COMPUTER_RECORD_KIND, id: record.id },
     revision: record.ended_at ?? record.started_at,
     title: titleOf(record),
@@ -65,11 +71,10 @@ export function registerComputerRecordSource(registry: ActionRegistryPort, recor
     bindFileEntriesHandler(computerRecordActions.entries, entries),
     { capability_id: computerRecordActions.content.capability_id, version: 1, handle: async (_caller, input) => {
       const subject = (input as FileContentInput).subject;
-      const record = records().get(subject.id);
+      const record = records.get(subject.id);
       if (!record) throw new ActionError("files.not_found", "这份电脑操作记录不在了");
       return fileContentOf({ subject, revision: record.ended_at ?? record.started_at, title: titleOf(record), media_type: "text/markdown", text: renderMarkdown(record) });
     } },
   ];
-  return registry.registerProvider({ provider: { provider_id: COMPUTER_PROVIDER_ID, title: "电脑", kind: "system" },
-    definitions: Object.values(computerRecordActions), handlers });
+  return { definitions: Object.values(computerRecordActions), handlers };
 }

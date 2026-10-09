@@ -1,6 +1,6 @@
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-server", packagePath: "server",
-  kind: "foundation", maturity: "partial",
+  kind: "module", maturity: "partial",
   contract: "@molis-ai/molis-work-contracts/platform/app-host",
   migrationGoals: ["goal-reorg-f2"], ssot: "docs/SSOT-MATRIX.md",
 } as const;

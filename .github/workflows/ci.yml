@@ -69,8 +69,15 @@ jobs:
         run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts
 
       # Numbers that may only go down: giant units (class lines and methods apart), tests reaching into package
+      # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers, empty catch
+      # blocks, `as unknown as` casts and old names (all per file), and a status line on every spec in specs/
+      # (specs/repository-anti-corruption §5a). And a list that never changes silently: the public API of the contracts
+      # package and the plugin SDK against the snapshots in tooling/gates/api (refreshed on purpose with `pnpm api:update`).
       # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers (per source
-      # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a).
+      # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a). The structure numbers
+      # (scripts/gates/, docs/system/PACKAGE-BOUNDARIES.md §6) fall too: contracts purity, the Host entry's `export *`, Module
+      # Repository/Store exports, typed HostCapabilityDefinition sites, plugin-named Host files, registerProvider lines,
+      # hybrid plugins, and the files that name a built-in plugin outside its package.
       # The head and the merge-base are both measured here by the same script and compared, so rewriting
       # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the
       # gate itself (script, limits.json, this step), which is reviewed. tooling/gates/giant-exceptions.json is no way around
@@ -89,9 +96,10 @@ jobs:
           node scripts/check-health-gates.mjs --base "$base"
 
       # Each gate rule is mutation-verified on a scratch repository: one violation added on a branch fails, and so does
-      # the same branch after `--update` rewrote the baseline.
+      # the same branch after `--update` rewrote the baseline. The glob takes every tests/health-gates-*.test.ts, so a
+      # new gate's test needs no edit here.
       - name: Health gates reject what they claim to
-        run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts tests/package-inventory-gate.test.ts
+        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts tests/package-inventory-gate.test.ts
 
       # One product version (docs/releases/POLICY.md): the root package, the Tauri shell and the two version strings in
       # code agree, workspace packages stay private 0.0.0, the current version has release notes and a CHANGELOG
@@ -101,6 +109,12 @@ jobs:
         run: |
           node scripts/verify-release-versions.mjs
           node scripts/run-tests.mjs tests/verify-release-versions.test.ts
+
+      # The document and repository-shape rules run inside the health gates above (links, cited paths and ids, spec index,
+      # BACKLOG rows, root allow-list, .impeccable files, placeholder contract subpaths); scripts/gates/README.md lists them.
+      # Each one is broken once on a scratch repository here, and the gate must go red.
+      - name: Document gates reject what they claim to
+        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts
 
       - name: Verify Goal boundaries, storage baselines and release assets
         run: |

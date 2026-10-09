@@ -2,10 +2,10 @@ import { CODING_WORKBENCH_SETUP_SCRIPT } from "./scripts/client/coding-setup.js"
 import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution } from "@molis-ai/molis-work-plugin-cognia";
 import { builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
 import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
-import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-images";
+import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT, imagesProjectData } from "@molis-ai/molis-work-plugin-images";
 import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution } from "@molis-ai/molis-work-plugin-jelly";
 import { experimentsManifest, EXPERIMENTS_CLIENT_FACTORY_SCRIPT, EXPERIMENTS_STYLES, experimentsUiContribution } from "@molis-ai/molis-work-plugin-experiments";
-import { type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
+import { type ProjectDataDeclaration, type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
 import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
@@ -20,14 +20,14 @@ import { INBOX_PROJECT_PLUGIN_ID, inboxManifest, inboxUiContribution } from "@mo
 import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_STYLES, scheduleUiContribution } from "@molis-ai/molis-work-plugin-schedule";
 import { SHELF_INSTRUCTIONS, SHELF_PROJECT_PLUGIN_ID, shelfManifest, SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT, SHELF_STYLES, shelfSettingsUiContribution, shelfUiContribution } from "@molis-ai/molis-work-plugin-shelf";
 import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest, charactersSettingsUiContribution, CHARACTERS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-characters";
-import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution } from "@molis-ai/molis-work-plugin-pages";
-import { FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution } from "@molis-ai/molis-work-plugin-form";
-import { DATASET_INSTRUCTIONS, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution } from "@molis-ai/molis-work-plugin-dataset";
-import { PPT_INSTRUCTIONS, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution } from "@molis-ai/molis-work-plugin-ppt";
-import { LINGGUANG_INSTRUCTIONS, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution } from "@molis-ai/molis-work-plugin-lingguang";
-import { TODO_INSTRUCTIONS, TODO_PROJECT_PLUGIN_ID, todoManifest, todoMethods, todoPrompts, TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution } from "@molis-ai/molis-work-plugin-todo";
+import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, pagesProjectData } from "@molis-ai/molis-work-plugin-pages";
+import { FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, formProjectData } from "@molis-ai/molis-work-plugin-form";
+import { DATASET_INSTRUCTIONS, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution, datasetProjectData } from "@molis-ai/molis-work-plugin-dataset";
+import { PPT_INSTRUCTIONS, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution, pptProjectData } from "@molis-ai/molis-work-plugin-ppt";
+import { LINGGUANG_INSTRUCTIONS, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution, lingguangProjectData } from "@molis-ai/molis-work-plugin-lingguang";
+import { TODO_INSTRUCTIONS, TODO_PROJECT_PLUGIN_ID, todoManifest, todoMethods, todoPrompts, TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution, todoProjectData } from "@molis-ai/molis-work-plugin-todo";
 import { ALCHEMIST_PROJECT_PLUGIN_ID, ALCHEMIST_INSTRUCTIONS, alchemistManifest, ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, alchemistUiContribution } from "@molis-ai/molis-work-plugin-alchemist";
-import { WORKFLOWS_INSTRUCTIONS, WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution } from "@molis-ai/molis-work-plugin-workflows";
+import { WORKFLOWS_INSTRUCTIONS, WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution, workflowsProjectData } from "@molis-ai/molis-work-plugin-workflows";
 import { WORK_PROJECT_PLUGIN_ID, workManifest, workTerminalUiContribution, workUiContribution } from "@molis-ai/molis-work-plugin-work";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 
@@ -58,6 +58,12 @@ export interface BuiltinPluginEntry {
   /** Bodies of the Manifest's `methods` (offered to other Agents for business work); the package ships them. */
   readonly methods?: readonly AgentSkillDefinition[];
   readonly workbench?: BuiltinPluginWorkbench;
+  /**
+   * What this plugin keeps in the Home for a project, and how to clear it. The Host runs it when a project is deleted
+   * (the owner's id in the receipt is `project_plugin_id`) and lists its label in the confirmation; absent when the
+   * plugin keeps nothing outside the project's own directory.
+   */
+  readonly project_data?: ProjectDataDeclaration;
 }
 
 /** Shared build composition for catalog and UI resources. */
@@ -92,6 +98,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: IMAGES_PROJECT_PLUGIN_ID,
     manifest: imagesManifest,
+    project_data: imagesProjectData,
     personal: true,
     summary: "连接生图服务，按描述生成图片。",
     workbench: {
@@ -210,6 +217,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID,
     manifest: lingguangManifest,
+    project_data: lingguangProjectData,
     instructions: LINGGUANG_INSTRUCTIONS,
     personal: true,
     summary: "先记下想法，再决定留下或丢掉。",
@@ -224,6 +232,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: TODO_PROJECT_PLUGIN_ID,
     manifest: todoManifest,
+    project_data: todoProjectData,
     instructions: TODO_INSTRUCTIONS,
     personal: true,
     summary: "记下要做的事，分清今天、在等谁。",
@@ -252,6 +261,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: PAGES_PROJECT_PLUGIN_ID,
     manifest: pagesManifest,
+    project_data: pagesProjectData,
     instructions: PAGES_INSTRUCTIONS,
     methods: pagesMethods,
     personal: true,
@@ -268,6 +278,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: FORM_PROJECT_PLUGIN_ID,
     manifest: formManifest,
+    project_data: formProjectData,
     instructions: FORM_INSTRUCTIONS,
     personal: true,
     summary: "建问卷，收答卷，看逐题汇总。",
@@ -282,6 +293,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: DATASET_PROJECT_PLUGIN_ID,
     manifest: datasetManifest,
+    project_data: datasetProjectData,
     instructions: DATASET_INSTRUCTIONS,
     personal: true,
     summary: "做表格，导入 CSV，可回到旧版。",
@@ -296,6 +308,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: PPT_PROJECT_PLUGIN_ID,
     manifest: pptManifest,
+    project_data: pptProjectData,
     instructions: PPT_INSTRUCTIONS,
     personal: true,
     summary: "写大纲，放映或导出 PowerPoint。",
@@ -324,6 +337,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: WORKFLOWS_PROJECT_PLUGIN_ID,
     manifest: workflowsManifest,
+    project_data: workflowsProjectData,
     instructions: WORKFLOWS_INSTRUCTIONS,
     personal: true,
     summary: "把插件串成流程，一步步做完。",

@@ -43,7 +43,7 @@ F3 将在这份确定的包清单上增加持续运行的 import boundary 与 Co
 - F2 没有修改或搬运 `src/v1/coordinator.ts`、`src/v1/store.ts`、`src/web/render.ts`、`src/web/server.ts` 等 Huge Class。
 - `git diff -- src/web/pty-client.ts tests/desktop-tui.test.ts` 也为空；完整回归中发现的旧 Feed 源码字符串断言与 F2 diff 无关。
 - `workspace:check` 拒绝非 `contract-only` 状态、伪造 `registerProvider` / `createStore` 的入口以及额外 implementation 依赖。
-- 旧实现来源与未来迁移 Goal 保留在每个 package README 和 [`docs/system/MIGRATION.md`](../../docs/system/MIGRATION.md)；没有形成第二个事实来源。
+- 旧实现来源与未来迁移 Goal 保留在每个 package README 和 `docs/system/MIGRATION.md`（该文件已在 #251 删除，要看原文从 Git 历史取）；没有形成第二个事实来源。
 
 ## f2-result
 
@@ -67,6 +67,6 @@ F3 将在这份确定的包清单上增加持续运行的 import boundary 与 Co
 ## 文档与后续边界
 
 - [`docs/SSOT-MATRIX.md`](../../docs/SSOT-MATRIX.md) 已把 48 个新 package 如实标为 `contract-only`。
-- [`docs/system/MIGRATION.md`](../../docs/system/MIGRATION.md) 已记录根兼容 package、旧实现来源和后续迁移门。
+- `docs/system/MIGRATION.md` 已记录根兼容 package、旧实现来源和后续迁移门（该文件已在 #251 删除，要看原文从 Git 历史取）。
 - [`docs/cli-and-development.md`](../../docs/cli-and-development.md) 与英文版已补 workspace、全量和单 package 验证命令。
 - 下一项 F3 负责自动依赖门禁；后续垂直 Goal 才迁移真实业务职责并拆除 Huge Class 的对应部分。

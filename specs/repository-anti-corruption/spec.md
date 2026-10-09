@@ -9,7 +9,7 @@
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。
-- **范围**：全仓 73 个 workspace 包（`apps` 6、`horizontal`、`modules`、`packages`、`plugins/native` 26、`plugins/official-integrations`、`server`、`tooling/plugin-cli`）。每个包都至少做一次结构审查，交出 §5 的包级清单。
+- **范围**：全仓 71 个 workspace 包（2026-10-08，`scripts/workspace-packages.mjs` 的 `WORKSPACE_PACKAGES`：`apps` 6、`horizontal` 8、`modules` 13、`packages` 10、`plugins/native` 26、`plugins/official-integrations` 6、`server` 1、`tooling/plugin-cli` 1）。开工时是 73 个，`modules/execution` 与 `modules/evidence-verification` 随 #268 删除。每个包都至少做一次结构审查，交出 §5 的包级清单。
 - **在途的其他线**（开工前要重新核对）：`feature/side-shelf`、`feat/plugin-picker-pins`、`docs/archive-project-arrival-flow`、`feature/fix-project-management-freeze`（另一工作树）、Codex 工作树 `~/.codex/worktrees/d62d`。
 
 ## 1. 决策记录与待决事项
@@ -129,7 +129,7 @@
 | 2026-10-08 | 右栏「讨论」页签与 IM 代码（#4，弹窗；两次说明后用户答「后面还要迭代的」） | 保留可见但冻结（推荐）；藏到实验开关后；从 main 删掉 | 保留并继续迭代，不冻结 | 这是在用、还会迭代的产品功能，不是待删的实验。只修三处账目：`server/server.sqlite` 登记进 Home 数据与备份表；宿主不再直接读它的表（`apps/local-host/src/im-server.ts`）；包的归类改成业务（不是基础包）。`apps/server` 独立启动器的去留随功能迭代另定 |
 | 2026-10-08 | 系统助理怎么拆、放哪（#3，弹窗） | 先就地拆、再搬成独立包（推荐）；拆和搬一起做；只登记例外 | 先就地拆、再搬成独立包 | — |
 | 2026-10-08 | 备份范围与「卸载并清除数据」（#20，弹窗） | 离线快照命令、清除覆盖所有登记的库（推荐）；只写计划；连定时在线备份一起做 | 离线快照命令、清除覆盖所有登记的库 | 统一库登记表；经常驻宿主暂停后拍一致快照（带清单与版本核对）；定时在线备份留给 C 端计划 |
-| 2026-10-08 | 真实 Home 的残留物（#21，弹窗） | 核对后清理、路径改推导（推荐）；只搬走备份和孤儿文件；不动 | 核对后清理、路径改推导 | 保留 10-07 维护前整份备份与 runtime-configs；维护替换下来的旧文件搬到 `~/molis-work-backups`；其余旧备份、孤儿文件、空库、旧 goalboard-* 安装版核对后删；目录库 v22 用 Home+项目 id 推导路径；实验库在拷贝上演练后标 v1；动手前先整份备份 |
+| 2026-10-08 | 真实 Home 的残留物（#21，弹窗） | 核对后清理、路径改推导（推荐）；只搬走备份和孤儿文件；不动 | 核对后清理、路径改推导 | 保留 10-07 维护前整份备份与 runtime-configs；维护替换下来的旧文件搬到 `~/molis-work-backups`；其余旧备份、孤儿文件、空库、旧 goalboard-* 安装版核对后删；目录库用 Home+项目 id 推导路径（问的时候写作 v22；v22 之后被删除收据的所有者步骤占用，所以是 v23，W5-17）；实验库在拷贝上演练后标 v1；动手前先整份备份 |
 | 2026-10-08 | 工作树、分支与仓库设置（#24，弹窗） | 我清本地、用户清远端并开自动删除（推荐）；只清本地；都不动 | 我清本地、用户清远端并开自动删除 | 本会话删已合并且干净的工作树与本地分支，wip 与整合分支逐个对比后再删；147 个已合并远端分支与「合并后自动删除分支」由用户做；救援分支与 Codex d62d 不动 |
 | 2026-10-08 | 问卷已停止收集或还是草稿时的非本人提交（逻辑复查 #46 附带，弹窗） | 一律拒绝、只留本人预览试填（推荐）；照旧接收；草稿拒绝、已停止的接收 | 一律拒绝、只留本人预览试填 | Agent、MCP、工作流、插件来源的提交在非「收集中」时拒绝 |
 | 2026-10-08 | Runtime 与安装插件声明的 methods（#18，弹窗） | 和内置插件一样注册（推荐）；非内置不许声明；维持现状写进文档 | 和内置插件一样注册 | 启动时注册，停用、卸载、升级时收回 |
@@ -141,6 +141,12 @@
 | 2026-10-08 | 发版细则（发布策略 §2、§3，弹窗） | 确认（推荐）；版本号随时可改 | 确认 | 0.x 改任一库结构或对外名称升次版本、只修问题升补丁；产品版本只在发布 PR 里改 |
 | 2026-10-08 | 官方集成的版本（发布策略 §1，弹窗） | 各自独立（推荐）；也跟产品版本 | 各自独立 | 它们没有持久的安装记录，不会停在旧代码上 |
 | 2026-10-08 | 创作台 Skill 回放用的真实设计答卷（W1-12，弹窗） | 从拷贝里只读导出、审过再提交（推荐）；只放本机不提交；隔离 Home 重新生成 | 从拷贝里只读导出、审过再提交 | 真实 Home 先 APFS 克隆到会话临时目录，只读打开拷贝（目录库里的绝对路径映射到拷贝）；导出需求原文与设计答卷；逐条审有没有个人信息，有就去掉；不读密钥 |
+| 2026-10-08 | 真实 Home 维护四的时机（目录库 v21 → v22，弹窗） | 合入后立刻做（推荐）；合入后先不做、等下次目录库改版一起；先维护再合入 | 合入后立刻做 | 与维护三同一做法：合入后一次窗口里停进程、整份备份、拷贝上演练、应用、重装安装版、主检出快进并构建；做完前主检出与安装版不更新；做完要重开各 Runtime 会话 |
+| 2026-10-08 | 以前删项目留在别的主人库里的孤儿数据（弹窗） | 顺带清掉（推荐）；不清 | 顺带清掉 | 维护四里先在拷贝上列出各库、各多少条给用户看，再在真库上删；整份备份里保留 |
+| 2026-10-08 | 「你说过」对应原话的哪一段（记忆修复第 7 轮，弹窗） | 必须是一整条消息（推荐）；一句或连续几句也算 | 必须是一整条消息 | 按句子仍会把「前一句被后一句推翻」记反（评审约 10 例）。记忆的文字等于本人一整条消息（只忽略大小写、全半角、引号样式、空白和句末一个句号）才记「你说过」，其余走建议、经本人认可后显示「你认可的」；宿主或页面代写的轮次（定时跟进、子任务、页面转交、浏览器交回、重做提示）不算本人原话 |
+| 2026-10-08 | 维护四找到的孤儿数据（弹窗，拷贝上演练后） | 删掉（推荐）；留着 | 删掉 | 唯一一份：9 月 27 日删掉的 project-0478192a 在判断规则库 `function_judgments` 里的 64 条；正式维护先在真库上只读重列，不一致就停下再问 |
+| 2026-10-08 | 没有主人会清的残留（弹窗） | 一起清掉（推荐）；只清文件；都留着 | 一起清掉 | 5 条从没建成项目的开项目引导、10 个项目目录里 9 月 11 日的旧 `goalboard.db-wal/-shm`、Home 根目录两个空的 4 KB 库文件；逐个核对没有进程在用、不是现行库的一部分后删，整份备份里保留 |
+| 2026-10-08 | 助理旧轮次补「不是本人打的字」标记（弹窗） | 补上（推荐）；不补 | 补上 | 维护四里一次性脚本只改助理库轮次内容的标记（定时跟进→宿主写的；页面转交、浏览器交回、重做提示→页面写的），先在拷贝上演练；不加兼容读取 |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -216,32 +222,132 @@
 
 ## 3. 体检报告附录 A 复核
 
-| 编号 | 当时 | 开工时 | 初判 |
-| --- | --- | --- | --- |
-| R-01 | 7 个经 Runtime，19 个构建期组合 | 冻结名单 19 个（含 todo）；`project-host.ts` 26 处 `registerProvider` | 仍然成立 |
-| R-02 | legacyMcp、LEGACY_* 没有退役条件 | `mcp-native-plugins.ts` 的 `legacyMcp`；`LEGACY_FUNCTIONS_MCP`、`LEGACY_GOALS_MCP` 仍在 catalog、server、event-identity 中使用。仓外消费者：Claude Code 里配置的 goalboard MCP（`molis_work_v1_*`） | 仍然成立；按授权直接删除，同步 Skill 与接入说明 |
-| R-03 | 349 文件，3.7 万行 | 367 文件，42,714 行；18 个 `*-native-plugin-http.ts`，34 个 `*-actions.ts` | 仍然成立，还在增长 |
-| R-04 | 旧助理 | `personal-assistant-` 只出现在审查 spec 的叙述里 | 已修复 |
-| R-05 | README 三份 | `README.md`、`README.zh.md` | 已修复；内容待核 |
-| R-07 | 工作台 27 个脚本约 1 万行；插件 18 个 client 约 1 万行；空 catch 126 处 | 工作台 32 个、14,032 行；插件 `client*` 26 个、13,086 行；空 catch 145 处 | 仍然成立，还在增长 |
-| R-08 | 105 个 Error 类；escapeHtml 11 份；readBody 5 份 | Error 子类 116 个；escapeHtml 定义 28 处，另有 esc 类 14 处；readBody 6 处 | 仍然成立，还在增长 |
-| R-09 | 每个 Home 至少 13 个 SQLite | QA Home 实数 30 个 Molis 自有库（不含侧栏浏览器 profile 的 5 个 Chrome 库） | 仍然成立 |
-| R-10 | 184 份 spec | specs 根目录 12 个目录，其中 4 份是其他会话在做的 | 第一步已修；缺门禁 |
-| R-11 | 6 个占位 subpath，总数 63 | 总数 66。只有占位描述、仓内没有使用者的 6 个：`modules/actions`、`modules/automation`、`modules/identity-team-access`、`modules/sync-replication`、`platform/exchange`、`platform/observability`。`platform/kernel`、`platform/testing` 各 1 个使用者，待查；`platform/plugin-builder` 有真实类型但没有 subpath 使用者，待查 | 仍然成立 |
-| R-12 | `as unknown as` 138 处 | 236 处 | 仍然成立，还在增长 |
-| R-14 | `.impeccable/` 约 1,000 个文件 | 1,067 个 | 仍然成立 |
-| N-02 | 4 份 tgz | 4 份 | 仍然成立；删除要问用户 |
-| N-07 | 二十多个工作树 | 27 个；本会话已清掉自己的 13 个 | 他人的待用户确认 |
-| N-12 | 两套能力机制 | `HostCapabilityDefinition` 18 个源码文件；`registerCapability` 10 处；动作服务 `registerProvider` 45 处。`LocalHost.register()`（`apps/local-host/src/local-host.ts:121`）分两路：定义带 `action` 的交给 `ActionService.registerProvider`，与插件能力同一条路；不带的进 `CapabilityRegistry`，经 `LocalHost.invoke()` 调用，自带 `host_only` 可用性、提供方令牌与 `beforeEffect` 校验，是第二条路径 | 仍然成立。收敛方案：不带 `action` 的宿主能力也登记为动作（`host_only` 改成动作的可用性策略），删掉 `CapabilityRegistry` 直调分支，`LocalHost.invoke()` 改走动作服务 |
-| N-13 | 没有格式化与静态检查 | 没有 lint/format 配置与脚本 | 仍然成立 |
-| N-15 | 兼容逻辑大量存在 | 见 §4 | 仍然成立 |
-| N-16 | 测试串行 | `scripts/run-tests.mjs` 仍用 `--test-concurrency=1` | 仍然成立 |
-| N-19 | 版本策略缺失 | 73 个子包都是 0.0.0 | 仍然成立 |
-| N-20 | 非 TS 不在检查里 | Rust 18、Swift 3、shell 7、Python 1 | 仍然成立 |
-| N-03 | 平台记忆、放置落在横向服务 | 按 `docs/system/ARCHITECTURE.md` §3：Horizontal Service「保存 cursor、lease、retry 等技术状态，但不决定业务结果」。`horizontal/memory` 负责写入门与自动写入决策，`horizontal/placement` 记录对象与工作的业务关系，都属于 Module 的职责；`horizontal/search` 是索引技术服务，留在横向。架构文档 §2 还写着 `board_id` 的兼容说明，要随 §4.1 一起改 | 仍然成立；开工后给迁移方案 |
-| 新 | 真实 Home 上同时跑着两个 Web | `~/.molis-work` 上有主检出的 4207（开发）与常驻服务 4173（安装版 0.2.0，LaunchAgent），两个版本差很多。`AGENTS.md` 的硬约束是「一个 Home 只有一个执行进程」；Agent 运行锁在两者之间仲裁（storage_busy 时轮流用） | 第二步升级真实 Home 时一并处理：同一 Home 只留一个常驻服务，其他入口转发给它；开发用隔离 Home |
+状态：2026-10-08 逐项重新量过，§4.9 闭环完成（W1-01）。数字与行号量于 main `ba223d95`：首轮量于 `33067cbe`，#314–#322 合入后整张表又对着 `ba223d95` 复核了一遍，变了的都已改；之后的 #323（`1cdb31dd`）只改文档与 spec，数字不受影响。附录 A 的每一项（含皮肤、Goals UI、Server 与 C 组）、体检报告 §5 的 6 步、§7.5 的 5 条、第一步交接清单（[post-merge-review §12](../archive/post-merge-review/spec.md#12-交给第二步的清单)）的每一项，都有结论、证据和归属。
 
-其余条目（皮肤、Goals UI、Server、N-01、N-04～N-06、N-08～N-11、N-14、N-17、N-18、C 组）开工后逐项复核。
+**读法**：
+
+- 结论分四档：**已修复**（附证据）、**部分**（做了什么、还缺什么）、**仍然成立**（附方案与顺序）、**不再成立**（附依据）。
+- 标签：[已确认] 是这次在 `ba223d95` 上跑命令量到的；[引用] 是引用 [roadmap](roadmap-2026-10-07.md) 或本 spec 里带日期的记录、这次没有重跑；[未验证] 没有量。
+- 归属写 roadmap 路线表的切片编号（`W<波>-<序>`，表在 [roadmap-2026-10-07.md](roadmap-2026-10-07.md) 开头）；「决定 #n」是 §10 的 27 项用户决定；`BL-nnn` 是 [BACKLOG](../BACKLOG.md) 的条目。路线表里没有对应切片的，写「补记」并指定到最近的一片，这些也列在本节末尾。
+- 数字口径：`git grep` 只扫 `apps`、`packages`、`plugins`、`horizontal`、`modules` 五个目录（另有说明的除外）；源码行数同 §5.1（按换行切开的段数）；空 catch、`as unknown as`、Error 子类、`escapeHtml` 与 `readBody` 的定义用 TypeScript AST 数。量度脚本是一次性的、没有入库，其中几项由 W1-04、W1-09 的门禁固化。
+- 与 roadmap 不一致处，以这里为准：#293（健康门禁）、#294（密钥扫描）、#295–#298（文档对齐）和 #314–#322（并行开发与合同变更流程、术语表、C 端方案、扩展点、依赖与 SDK 方案、调用链、巨大单元清单、版本与发布策略、包清单）在 roadmap 写完之后合入，已改变若干行的现状。
+
+### 3.1 附录 A 逐项闭环
+
+| 编号 | 结论 | 证据（`ba223d95`） | 归属 |
+| --- | --- | --- | --- |
+| R-01 | 仍然成立 [已确认] | `tests/builtin-plugin-assembly-gate.test.ts` 冻结 19 个构建期插件（`BUILD_TIME_ASSEMBLED`，含 todo）、7 个经 Runtime（`RUNTIME_ASSEMBLED`）；`apps/local-host/src/*-native-plugin-http.ts` 18 个；`project-host.ts` 26 处 `registerProvider`；`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG`（`:64` 到 `:382`）26 个目录条目（19 个构建期加 7 个经 Runtime）、33 条 import。新插件只走 Runtime 的规则已写进 AGENTS.md:31 与 `skills/molis-plugin-dev/host.md`（#298）；今天新增一个内置插件要改哪些地方逐项列在 `docs/system/EXTENSION-POINTS.md` 3.1，迁移计划在 `docs/system/RUNTIME-MIGRATION.md`（#317） | §4.6：W1-05（装配门禁加严）、W4-04（Form 样板）、W5-01、W5-02、W6-01；host.md 与 AGENTS.md 的说法对不上（BL-119）归 W6-03。决定 #9：Goals、Artifacts、Sessions、插件创作台是批准的构建期例外，其余 15 个逐族迁移；决定 #10：Form 先、Todo 第二 |
+| R-02 | 已修复 [已确认] | #269（`aab032d0`）删除 `apps/local-host/src/mcp-native-plugins.ts`、`apps/mcp/src/goal-action-aliases.ts`，并改了 `skills/goal-advance`；`legacyMcp`、`LEGACY_FUNCTIONS_MCP`、`LEGACY_GOALS_MCP` 在五个目录里 0 处。现存的 `molis_work_v1_*` 是现行工具命名空间，不是别名。同一条线的剩余入口见 §3.4 的 BL-081 | — |
+| R-03 | 仍然成立 [已确认] | `apps/local-host/src` 369 个 `.ts` 文件、41,807 行（10-03 为 369 个、42,787 行；两次口径不同，只作量级对照）；36 个 `*-actions.ts`；18 个 `*-native-plugin-http.ts`；6 个按插件写的 AI 适配文件（`alchemist-prologue`、`cognia-prologue`、`experiments-grok`、`jelly-model`、`shelf-ai`、`typesafe-prologue`） | §4.3/§4.6：W3-06（插件的平台服务）、W5-01、W5-11（宿主瘦身；决定 #7：宿主设置的写入留作管理接口并登记例外） |
+| R-04 | 已修复 [已确认] | 代码与测试里 `personal-assistant` 0 处；只剩 `scripts/personal-assistant-public-sources.mts`（引用的是已归档的 `specs/archive/bp-delivery-parallel` 路径，没有人引用它） | 脚本由 W2-02 删（W1-23 也列了它，先到先做） |
+| R-05 | 已修复，余小项 [已确认] | 只剩 `README.md` 与 `README.zh.md`；两份 :190 已写成现行事实（项目库只有一份现行结构、版本不符拒绝，旧 Claim/Run/Evidence/Review 历史、V3 导入与旧库升级已删）；`PRODUCT.md` 已没有 Claim/Run 门禁段；`docs/SSOT-MATRIX.md:104` 记明 `modules/execution`、`modules/evidence-verification` 已删（#268），:76 已有 `packages/plugin-sandbox` 行（均为 #295–#298）。余：两份 README :196 的链接标题仍写「迁移归属」；SSOT 没有系统助理的行。`SSOT-MATRIX.md:65` 的「63 个 public subpath（外加根入口）」与 `packages/contracts/package.json` 的 64 项 `exports`（含根）一致，不用改 | W1-02 收尾 |
+| R-06 | 部分 [已确认/引用] | 第一步关闭了当时的失败；`tests/todo-plugin.test.ts`、`tests/pages-plugin.test.ts` 在隔离 Home 里 132/132 通过 [引用 roadmap §4.9，10-08]，所以「这两个早已红」的旧说法已过时。最近一次记录的全量是 batch Q（#287）：3,678 个用例，3,670 通过、7 跳过、1 失败（已修，见 §4.1 表）。仍缺：固定位置记录 main 的最新全量数字（`specs/README.md` 没有，`docs/system/PARALLEL-DEVELOPMENT.md`（#314）也没有定义）；CI（`.github/workflows/ci.yml`）不跑产品用例；没有偶发失败的隔离名单 | W1-11（Linux 探针）、W2-16（产品子集与 `tests/quarantine.json`）、W6-05（最终回归记在固定位置）。决定 #14：先不挡合并，约两周后并入 Verify |
+| R-07 | 仍然成立 [已确认] | 工作台客户端脚本 33 个、14,424 行（`apps/workbench/src/scripts/client/`）；插件 `plugins/native/*/src/client*.ts` 25 个、12,827 行（再加子目录里的 `work/src/terminal/client.ts`、`alchemist/src/work-reuse/client.ts` 是 27 个、13,330 行）；133 个 `*_SCRIPT` 模板字符串常量散在 125 个文件里，覆盖 22 个原生插件；esbuild 只用在 Pages 的构建（`plugins/native/pages/package.json`）、根 `package.json` 的 `build:pty-client`、`scripts/build-casebook-client.mjs`、`scripts/preview-contextual-interaction.mts`、`apps/local-host/src/native-plugin-release-artifact.ts` 与创作台的 `build-checks.ts`。空 catch：AST 只在已解析的代码里看到 4 个，另有 121 个只带注释的 catch，其余在模板字符串脚本里 [引用 roadmap：约 137 个在模板字符串里] | §4.8：W4-04（Form 样板：打包加类型检查）、W5-04（逐插件推广）、W1-09（lint 规则）、W5-13（吞掉的错误） |
+| R-08 | 仍然成立 [已确认] | Error 子类约 110 个（AST）；两套基类 `ActionError`（`packages/contracts/src/platform/actions.ts:464`）与 `MolisWorkV1Error`（`.../platform/errors.ts:2`）；`escapeHtml` 11 处函数定义，其中 10 份是各文件自带的（`apps/workbench/src` 的 `renderer.ts`、`document-shell.ts` 与 Feed/Inbox/Schedule 三个 `*-projection-ui.ts`，`apps/desktop/src/capsule-shell.ts`，Pages 编辑器，Work 的 3 处），1 份是 `packages/design-system/src/primitives/html.ts` 的公共版；`readBody` 5 份，全在 `*-native-plugin-http.ts`（experiments、feed、images、inbox、schedule） | §4.2/§4.8：W3-02（一套错误模型）、W3-10（浏览器请求助手）、W5-13 |
+| R-09 | 部分 [已确认] | 每个库一份基线建库、带版本、版本不符拒绝（`packages/storage/src/sqlite-baseline.ts:31`，§4.1）；`docs/system/HOME-DATA.md`（#295）列了 Home 里 29 种 SQLite 文件的 owner、版本、备份类别与卸载覆盖，并记了真实 Home 的孤儿。仍缺：产品里的备份命令、在线备份或统一快照、检查「每个库都登记并有版本」的门禁；另有 2 个库没有版本（`plugins/experiments/private.sqlite`、`alchemist/projects/<id>/search.sqlite`）。现有的只有离线备份说明（`docs/installation.md`「离线备份与恢复边界」）与 `tests/home-backup-recovery.test.ts` | 决定 #20（离线快照命令，清除覆盖所有登记的库，定时在线备份留给 C 端计划）、决定 #21：W2-05（给两个库加版本）、W4-11（统一登记）、W5-16（快照命令）；BL-115 |
+| R-10 | 已修复 [已确认] | `specs/` 根目录 12 个 spec 目录（外加 `archive/`），都有「状态：」句，由 `scripts/check-health-gates.mjs` 的 spec 状态句检查强制（#179，CI 里跑）；`specs/README.md` 已列 `coding-quality-assurance`、`risk-plugin`。余：索引与分类没有门禁 | W1-06 |
+| R-11 | 6 个占位仍然成立；原 §3 行的三个待查已有结论：`platform/kernel`、`platform/testing` 保留，`platform/plugin-builder` 不是占位；`contract-only` 这个标记不等于占位 [已确认] | `packages/contracts/package.json` 的 `exports` 共 64 项（根入口加 63 个 subpath），没有门禁。下面的导入者数是仓内用 `import … from`、`import()`、`require()` 引用该 subpath 的文件数（不含 `packages/contracts` 自身、`docs`、`specs`），只作字符串出现的另说。① **6 个占位，0 个使用者**：`./modules/actions`、`./modules/automation`、`./modules/identity-team-access`、`./modules/sync-replication`、`./platform/exchange`、`./platform/observability`。每个 10 行，只有一个 `maturity: "contract-only"` 的描述符，没有任何字符串引用，也没有包把它们声明为合同入口，对应的包不存在。② **`./platform/kernel` 与 `./platform/testing` 保留，不并入这 6 个**：`packages/contracts/src/platform/kernel.ts`（9 行，`maturity: "partial"`）和 `testing.ts`（10 行，`contract-only`）同样只有描述符，没有任何代码从这两个 subpath 导入类型或值。引用它们的只有字符串，而且是对应的包存在、并把它们当作自己声明的合同入口：`packages/kernel/package.json:36`、`packages/test-kit/package.json:35`、`packages/kernel/src/index.ts:18`、`packages/test-kit/src/index.ts:20`、两个包的 README、`scripts/workspace-packages.mjs:43`、`:49`（`workspace:check` 在 `:172` 逐包比对 `molis-work.contract` 与这里的字符串），另有 `packages/test-kit/tests/boundaries.test.mjs:418` 把 kernel 的这一项当作边界检查的样例。kernel 真正用的合同在 `platform/actions`、`platform/app-host`、`platform/execution-lifetime`（`packages/kernel/src/index.ts:4-6`）。要不要把这两个包的声明入口改指真实 subpath、再删这两个描述符，是另一件事（要改两个包的元数据、README、`scripts/workspace-packages.mjs` 与一个测试），§10 的 27 项决定没有涉及，也不在 W2-01 的范围里：这两个描述符保留。③ **`./platform/plugin-builder` 不是占位，关闭**：`packages/contracts/src/platform/plugin-builder.ts`（12 行）是真实类型（`BuildManifest`、`BuildDependency`、`BuildDependencyLock`、`BuildGateId`、`BuildGate`、`BuildCheckResult`），有 3 个导入者：`apps/local-host/src/plugin-builder/build-types.ts:4-5`、`plugins/native/plugin-builder/src/agent-model.ts:3`、`plugins/native/plugin-builder/src/agent-workflow.ts:6`。原行写的「没有 subpath 使用者」已不成立。④ **`maturity: "contract-only"` 共 12 项，占位只是其中 6 项**：另 6 项是根入口（不是 subpath）和五个在用的合同入口，各被一个现存的包声明为自己的 `molis-work.contract`（`scripts/workspace-packages.mjs:42`、`:46`、`:49`、`:65`、`:107`）：`./platform/package`（30 行，`packages/contracts` 声明，代码导入者 0）、`./platform/storage`（20 行，除描述符外还有 `StoredModuleEvent` 接口，`packages/storage` 声明，导入者 0）、`./platform/testing`（即上面的 ②，`packages/test-kit` 声明，导入者 0）、`./platform/tooling`（34 行，`tooling/plugin-cli` 声明，导入者 4：`apps/local-host/src/local-plugin-development.ts`、`plugin-development.ts`、`project-capabilities.ts` 与 `tooling/plugin-cli/src/cli.ts`）、`./services/agent-host`（1,733 行，`horizontal/agent-host` 声明，导入者 128）。把 `package.json`、`scripts/workspace-packages.mjs` 里的字符串引用也算上，`platform/package`、`storage`、`tooling`、`services/agent-host` 分别是 1、3、7、130 个文件。另有 `./platform/plugin-wiring`（378 行，`maturity: "partial"`）没有包外的导入者，但被 `platform/plugin.ts` 与 `plugin-manifest.ts` 在包内引用，也不是占位 | ①：W2-01（删除，并打开 W1-06 的对应规则）。②：W2-01 不动 kernel、testing。④：W1-06 的规则要按「只有描述符、没有导入者、也没有现存包把它声明为 `molis-work.contract`」来写，不能按 `maturity` 字段读成「所有 contract-only 的 subpath」，也不能只看「没有导入者」，否则会误伤 `platform/package`、`storage`、`testing`、`tooling`、`services/agent-host` 和 `plugin-wiring`（见 §3.5 补记）。③：— |
+| R-12 | 部分 [已确认] | AST 数：`as unknown as` 源码 112 处、测试 88 处，共 200（10-03 为 236，体检报告时 138）；main 上没有计数门禁；`chore/health-gates-lint-api`（`474ee1ab`，仅在本地）加了计数，与 #293 改的是同一个文件，要变基 | W1-04（变基并统一口径）、W1-09（lint 规则取代计数） |
+| R-13 | 部分 [已确认] | 主检出在 `d81b12cb`（落后 origin/main 197 个提交），带着另一会话留下的 32 项未提交改动；救援分支 `wip/main-checkout-rescue-2026-10-01`、`wip/main-checkout-2026-10-07` 还在；这次 4207、4208、4173 都没有在监听 | 用户 10-07 的决定（改动放回为未提交）与决定 #24：W1-23（清单与本地清理）；主检出由用户处理 |
+| R-14 | 仍然成立 [已确认] | `git ls-files .impeccable` 1,085 个文件、约 111 MiB（`git ls-tree -r -l HEAD -- .impeccable` 求和 111.3 MiB）；`.gitignore` 只忽略 `.impeccable/qa/`、`config.local.json`、`questions/` | 决定 #22（只留现行 spec、文档或测试引用的评审组与设计参考，其余从树里删、不改历史，门禁只许减少）：W1-23、W1-06（数量门禁） |
+| 皮肤 | 仍然成立 [已确认] | `packages/design-system/src/visual-foundation.ts` 按顺序拼接 14 个样式模块，含 `momentum` 1,170 行、`quiet-paper` 382、`calm-desktop` 1,391、`personal-shell` 373、`personal-workbench-v2` 393、`-v3` 1,421；`styles/` 共 17 个文件、11,885 行（报告时 11,338）；`craft-finish.ts` 2,312 行 | 决定 #17（自动比对像素、超阈值给用户看；页面体积先冻结）：W1-07（体积门禁）、W4-12（视觉比对）、W5-05（逐个删除） |
+| Goals UI | 部分，已不完全成立 [已确认] | `apps/workbench/src/goals-*.ts` 16 个、573 行：15 个是 5–59 行的挂载转接层，已不含 Goals 业务界面；`goals-page-renderer.ts`（335 行）是工作台外壳的页面渲染器，名字起错了，留在工作台改名 | §4.3/§4.6：W5-06（通用贡献挂载器取代 15 个转接层，并改名） |
+| Server | 已不按原样成立 [已确认] | `server/` 与 `packages/im-ui` 支撑侧栏「项目讨论」页签（`apps/workbench/src/side-panel.ts:42` 的 `data-dock-frame="im"`；`apps/local-host/src/im-server.ts:3-4` 引入二者）；`apps/server`（5 个文件）这个独立启动器仍没有产品入口，只有 `tests/cross-device-*.test.ts` 在用；SSOT 标「实验性」（`docs/SSOT-MATRIX.md:57`）；`server/server.sqlite` 已登记进 `docs/system/HOME-DATA.md` | 决定 #4（保留并继续迭代，不冻结；只修账目：备份表、宿主不再直接读它的表、包归类）：W2-12 |
+| N-01 | 已修复 [已确认] | 标题栏只剩底栏铃铛 `data-assistant-attention`（#140，`597d15d2`）；`data-plugin-notifications`、「通知，暂不可用」「通知功能即将开放」在源码里 0 处，只在两处断言里作为「不应出现」被检查（`tests/plugin-notification-bell.test.ts:17`、`tests/plugin-event-recovery.e2e.test.ts:22`） | — |
+| N-02 | 已修复 [已确认] | `vendor/prologue-sdk/` 只剩 1 份 tgz（`prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`，#170 删旧包）；`tooling/gates/limits.json` 的 `vendoredPrologueSdk` 上限 2，由 `pnpm health:check` 守，CI 里跑 | 来源与补丁见 N-14 |
+| N-03 | 已按决定收口为文档分类，代码不搬 [已确认] | 决定 #2：架构里加一类「平台产品服务」。已写进 `docs/system/ARCHITECTURE.md`「平台产品服务」小节与 `docs/SSOT-MATRIX.md` §6（#296）；代码未动：`horizontal/memory/src/service.ts` 1,337 行（写入门、自动写入、插件写入审批）、`horizontal/placement/src/index.ts` 479 行。记忆与放置两页已补（`docs/horizontal/memory.md`、`placement.md`，#319）。余：边界规则入门禁 | W1-05（边界规则）、W4-08（按决定改为文档与边界规则，不搬代码） |
+| N-04 | 部分 [已确认] | 复核已做（#319，W1-14）：`specs/action-architecture/spec.md` 在 §3 末尾（`:330` 起）新增「基本合同复核」，把基本合同拆成八条可核对的条款（C1–C8），对情境片段推荐、对象、情境判断与布局、撤销、后台任务回报、到期提醒、效果、作者八类合同逐条核对，列出缺口 G1–G9；原来 §3「架构中的职责」（`:174–329`）对这些条款逐词 0 处的情况由这一节补上。余：`packages/kernel/src/contextual.ts`（340 行，候选排序与判断选择）与 `subject-offer-choices.ts`（59 行）仍把产品策略放在内核；复核（G4）的结论是按 N-03 代码不搬，改内核 README 与边界规则，所以 W3-04 原先写的「搬出内核」要重估 | §4.2/§4.10，缺口去向见该节：G1、G5 W2-03；G2、G6 W3-05；G7 与 W1-12 一起补；G9 W3-01（合同有变，先问用户）；W3-04 按 G4 重估；G3、G8 没有对应切片，见 §3.5 补记；BL-120 已按此改写 |
+| N-05 | 部分 [已确认] | 用户可见的部分已修（#141，只在设置里）；代码身份仍是 Runtime 插件加一条 `personal: true` 的目录条目（`apps/workbench/src/builtin-plugins.ts:243`；`RUNTIME_ASSEMBLED` 里有 characters）；`docs/SSOT-MATRIX.md:99`、`:131` 还写「产品接入中」 | 决定 #26：并进宿主，界面仍是设置里的一节，安装记录与 Runtime 条目一起删。路线表没有单独切片，W5-01 里 Characters 一项按此改写（见本节末的补记） |
+| N-06 | 仍然成立，略有改善 [已确认] | `.github/workflows/ci.yml` 现在跑：`pnpm workspace:verify`、健康门禁对照合并基点（#293）及其自测（连同包清单门禁用例，#322）、版本核对 `verify-release-versions` 及其用例（#321）、Goal 边界/存储/发布用例、`tsc` 启动器、`pnpm test:contracts`、整页门禁、成果类型与声明门禁、密钥扫描规则用例与 Secret scan 作业（#294）、炼金术士用例；pnpm 的版本读根 `package.json` 的 `packageManager`（#318）；不跑产品用例；PR 模板写的是全量在本机跑 | W1-11（非阻塞探针）、W2-16（产品子集与隔离名单）；决定 #14 |
+| N-07 | 部分 [已确认] | `git worktree list` 写作时 62 条（含并行工作流刚建的）；远端 184 个分支里 179 个已合入 origin/main；仓库设置 `delete_branch_on_merge` 仍为 false | 决定 #24：本会话清已合并且干净的本地工作树与分支，wip 与整合分支逐个对比后再删；已合并的远端分支与「合并后自动删除分支」由用户做；救援分支与 Codex d62d 不动。W1-23 |
+| N-08 | 部分 [已确认] | 健康门禁量出 164 个巨大单元，逐单元只许减少；#293 起类的行数与方法数分开记，阈值在 `tooling/gates/limits.json`（文件 800 行、类 300 行或 25 个方法、函数 150 行），与合并基点比对；`LEGACY_HUGE_FILE_LINE_LIMIT` 已不存在。W1-19 已做（#320）：`docs/system/HUGE-CLASS-MIGRATION.md` 重写为现行清单（164 个单元分布在 38 个包的 130 个文件里，每个单元有判定：拆、归线或例外，没有「待排期」），2026-09 的迁移记录移入 `docs/archive/huge-class-migration-2026-09.md`；`tooling/gates/giant-exceptions.json` 登记 4 个必然很长的单元，门禁校验条目对应现存的巨大单元，登记不放行新增、登记过的也不许变大。拆分还没做 | 拆分：W4-05、W4-06、W4-07、W5-09、W5-10 |
+| N-09 | 部分 [已确认] | W1-13 已做（#314）：`docs/system/PARALLEL-DEVELOPMENT.md`（枢纽文件、排时段、集成分支跑全量、基线比对、Agent 锁、清理、PR 体量）、`docs/system/CONTRACT-CHANGES.md`、`.github/CODEOWNERS`（默认 `* @yijunw0212`，另有 6 个包目录加 @jingxusandra-gif，门禁、`tooling/gates/` 与工作流只请求 @yijunw0212）和 SSOT 各表的「归属」列，后两者由 `scripts/package-owners.mjs` 的规则生成、`pnpm boundary:check` 校验；AGENTS.md「先读哪里」新增了术语表、并行开发、合同变更、归属与发版几行，「协作」现有 4 条（`:49–52`）。余：CODEOWNERS 只请求评审、不改分支保护（决定 #13），且只路由包根目录，Coding、Jelly、Shelf 在宿主与外壳里的代码未路由；挑相关用例的脚本、CI 产品子集、测试并发隔离、固定记录最新全量数字的位置都还没有（§9.2 的 §4.7 一行） | 决定 #13（SSOT 每行写角色与账号，CODEOWNERS 只自动请求评审、不改分支保护）：W1-13 已做；余项 W2-17、W1-11/W2-16、W5-12、W6-05 |
+| N-10 | 部分 [已确认] | #293 起按测试文件用 AST 数 `import`、`export … from`、`import()`、`require()`（含 `server/src`），只许按文件减少、新测试文件从 0 开始：当前 994 处、352 个文件（`tooling/gates/baseline.json`；原正则口径 957） | W2-10（71 个文件改走公开入口）、W2-11（test-kit 助手，约 90 处）、W5-08。决定 #12：不加 testing 子路径 |
+| N-11 | 仍然成立 [已确认] | `packages/contracts/src` 91 个文件、16,544 行；`apps/local-host/src/index.ts` 219 行、138 条 `export`、11 个 `export *`；`modules/goals/src/index.ts:204` 把 `GoalsRepository` 作为公共出口 | W1-05（纯度基线与导出计数）、W3-03（运行时逻辑迁出 contracts）、W5-08、W5-09 |
+| N-12 | 仍然成立，方案已定 [已确认] | `HostCapabilityDefinition` 出现在 18 个文件，`registerCapability(` 10 处，动作服务 `registerProvider(` 45 处；`LocalHost` 仍持有 `CapabilityRegistry`（`apps/local-host/src/local-host.ts:96`）和 `register()` 直调这条路。决定 #1：对外的只走动作，Goals 无生产调用方的 typed 桥删除，工作区读只留一个 id，typed 注册表只留作 Runtime 插件的宿主内服务通道（`agent.*`、`schedule.*`）、门禁不许再加；决定 #8：Casebook 改成同 id 的插件受众动作；这些偏离已登记在 `docs/system/CALL-CHAINS.md` §10（#319） | W1-05（计数）、W2-08、W2-09、W3-07、W3-08 |
+| N-13 | 仍然成立 [已确认] | 没有 eslint、biome、prettier 配置，根 `package.json` 的 31 个脚本里没有 lint 或 format | W1-09 |
+| N-14 | 部分 [已确认/引用] | `vendor/prologue-sdk/` 有 26 个 `.patch` 加 1 个 tgz；`vendor/prologue-sdk/README.md:16` 仍写着来源分支的提交「暂未推到 prologue 远端」，但 W1-20 的方案（#318，[dependencies-and-sdk-plan.md](dependencies-and-sdk-plan.md) §1、§4.1）查到来源分支早已推到 Prologue 远端并合入（PR #3，2026-09-30），现行 vendored 包不需要补丁：用上游提交 `9fc3b173` 直接构建，打出的 tgz 与仓库里的逐字节相同 [引用方案，这次没有重跑]，所以「别人无法重建」的前提不成立，README 与 BL-024 都过期；25 个历史补丁可删，还没有删；另两个 vendored 包（`intelligence-client`、`search-evidence-layer`）有 sha256 与 provenance，Prologue 没有 | 决定 #25（推上游分支、删 25 个历史补丁并记 sha256 与来源、tgz 改从私有 registry 或 release 附件取）：方案已出（W1-20）；推送、删除、改取用都等用户确认后分片做（W1-23）；BL-024 已按方案改写 |
+| N-15 | 代码已修复，文档与示例有残留 [已确认] | `schemaPatches` 0；兼容标记 17 处（按文件计数，只许减少，#283）；`tooling/migrations/`、`compatibility-allowlist.json`、`apps/local-host/sdk/`、`tsconfig.sdk.json` 已不存在；`modules/execution`、`modules/evidence-verification` 已删（#268）；AGENTS.md:29 与两个 Skill 的读取兼容规则（#290；以后的读取兼容从第一个装到开发机之外的版本起算，流程见 `docs/system/CONTRACT-CHANGES.md`，#314）、`CONTRACTS-AND-OPERATIONS.md`、`ARCHITECTURE.md`、README（#295–#298）已改。余：① `specs/action-architecture/spec.md:248` 仍写「旧环境/文本密钥入口可作为兼容来源」（文本密钥 `model:text:api_key` 已不读，开发用的 `MOLIS_WORK_TEXT_*` 环境变量还在 `apps/local-host/src/host-complete-text.ts:100`）；② `specs/action-architecture/migration.md`（1,625 行）仍写「兼容入口」「旧名字仍可用」（:14、:261、:653–663）；③ 内部名 `checkGoalBoard` 在 `project-capabilities.ts` 里 36 处；④ `board_id` 在运行代码里 0 处，但随根包发布的 `examples/draft-goal.json`、`examples/leaf-goal.json`（`package.json:29-30`）仍写 `"board_id"` | ①② W1-02；③④ W2-02；BL-121 |
+| N-16 | 仍然成立 [已确认] | `scripts/run-tests.mjs:16` 用 `--test-concurrency=1`；757 个 `tests/*.test.ts`（其中 128 个 e2e）加 5 个 `.test.mjs`；全量 76–78 分钟（§4.1、§9 各批记录）[引用] | W5-12（每文件一个 Home 与密钥库，非浏览器文件并发）、W2-17（受影响用例挑选） |
+| N-17 | 仍然成立 [已确认] | `tooling/gates/` 现在有 `baseline.json`、`giant-exceptions.json`（#320）、`limits.json`、`secret-allowlist.txt`，没有 `api/`；WIP 分支 `chore/health-gates-lint-api` 只在本地 | W1-04（API 快照）、W2-15（动作合同快照，取代 `specs/archive/post-merge-review/capability-snapshot.mts`） |
+| N-18 | 部分 [已确认] | W1-17 已做（#315）：`docs/system/GLOSSARY.md` 一概念一名一定义，含术语到翻译稳定键的对应、界面用词待批清单（第 4 节，等用户批准）、代码改名清单（第 5 节，分内部改名与合同改名，尚未执行），AGENTS.md「先读哪里」指向它。改名前各词出现在多少个源码文件里：Action 939、Capability 421、Method 382、Role 257、Character 154、Judgment 118、Behavior 113、Skill 73、Scene 53 [引用]；Project 与 Board 已统一（#287，`boards` 表名按决定保留） | 决定 #27（文档一个定义、内部名跟着改、界面用词另列清单经用户批准）：W1-17 已做；代码改名 W5-14 |
+| N-19 | 部分 [已确认] | 版本与发布策略已写（W1-22，#321）：`docs/releases/POLICY.md`（一个产品版本、下一版 0.3.0）、`CHANGELOG.md`（第一节 `[Unreleased]`）、`CHECKLIST.md`（含各库版本表与真实 Home 的处理）；核对脚本移到 `scripts/verify-release-versions.mjs`，CI 里跑（「Release versions agree」）。余：根包仍是 0.2.0，71 个工作区包 0.0.0，`examples/plugin-sample` 2.0.0；内置插件清单版本仍各自独立（1.0.0 到 1.50.0，`POLICY.md` 第 1 节），Runtime 对内置插件一律跟当前构建的做法用户 10-08 已选定（A，`POLICY.md` 第 7 节，#323），还没实现；v0.2.0 之后 1,868 个提交（不含合并提交 1,213 个，`git rev-list --count v0.2.0..origin/main`）都在 `[Unreleased]` 里，还没发布 0.3.0；根目录仍入库 `molis-work-introduction.html`、`outputs/`（3 个文件，含商业计划）、`.zcode/plans/`（1 个文件），`.gitignore:8` 还留着旧名 `.goalboard/`；`docs/product-intro/` 才是对外介绍的正式位置 | 决定 #23（一个产品版本，下一版 0.3.0）、决定 #22（介绍页移到 `docs/product-intro/archive`，`outputs/` 与 `.zcode/` 移出并加进 `.gitignore`）：W1-22 已做；W1-23、W5-15；BL-117 |
+| N-20 | 仍然成立 [已确认] | Rust 18、Swift 3、shell 7、Python 1 个文件；CI 里没有 rustfmt、clippy、Swift 构建检查或 shellcheck | W1-09 |
+| C 组 | 仍然成立，方案已出 [已确认] | `packages/observability` 在 SSOT 里仍是 `absent`（`docs/SSOT-MATRIX.md:73`）；没有自动更新、崩溃上报、在线备份；macOS 安装包未公证（README）；生成插件沙箱依赖 `sandbox-exec`（`packages/plugin-sandbox`）；CLI 没有第三方插件安装路径；核心 AI 依赖私有 vendored 包。方案已写：[c-end-readiness.md](c-end-readiness.md)（W1-21，#316，三个里程碑、各项成本与依赖、5 个探针）、`docs/system/THIRD-PARTY-PLUGINS.md`（#317）、[dependencies-and-sdk-plan.md](dependencies-and-sdk-plan.md)（#318） | 决定 #11（第三方插件：本地装、首次确认、沙箱里跑，只写计划）、#20、#25：W1-21（方案，已做）、W1-20（方案，已做）；执行见各方案 |
+| 新（合并现场） | 部分 [已确认] | 真实 Home 上同时跑两个 Web 的情形这次没有：4207、4208、4173 都没有在监听（4173 自 10-03 停着，§7）；规则仍是 AGENTS.md 的「一个 Home 只有一个执行进程」。装新版仍待用户（§7） | 用户（§7）；W5-16 之前开发用隔离 Home |
+
+### 3.2 体检报告 §5 的防腐顺序
+
+| 步 | 结论 | 证据 | 归属 |
+| --- | --- | --- | --- |
+| 1 收掉 main 上 4 个已知失败，最近一次全量写进固定位置 | 部分 [已确认] | 失败已关（R-06）；还没有固定位置记录日期与数字，`specs/README.md`、CI 与 `PARALLEL-DEVELOPMENT.md`（#314）都没有 | W6-05（定位置并记录；W1-13 已合入，没有覆盖这一项） |
+| 2 删旧助理、合并 README、修 SSOT 的 `apps/server` 行、摘 6 个占位 subpath、删旧皮肤 | 部分 [已确认] | 做了：旧助理（R-04）、README 两份、SSOT 的 `apps/server` 行（#103，`SSOT-MATRIX.md:51`）；没做：6 个占位 subpath（R-11）、旧皮肤（皮肤行）。验收信号里 `git grep personal-assistant-` 只剩 1 个脚本，`boundary:check` 通过（CI 里跑），旧皮肤删除后的截图对比未做 | W2-01、W5-05 |
+| 3 官方插件只有一种装配方式 | 部分 [已确认] | 只做了 `legacyMcp` 一项（#269）；19 个构建期插件、`project-host.ts` 26 处逐插件 `registerProvider`、`builtin-plugins.ts` 不由 Manifest 推导（R-01） | W4-04、W5-01、W5-02、W6-01 |
+| 4 浏览器代码一条构建管线 | 未做 [已确认] | R-07：133 个模板字符串常量，客户端脚本 58 个、27,251 行 | W4-04、W5-04 |
+| 5 统一错误基类与错误码前缀，删重复 helper | 未做 [已确认] | R-08：Error 子类约 110 个（目标 < 30），`escapeHtml` 11 份，没有错误码表 | W3-02 |
+| 6 规格归档与 SSOT 例行化 | 已执行 [已确认] | `specs/` 根目录 12 个 spec 目录（目标 < 40），状态句门禁在 CI；SSOT 经 #295–#298 与代码对齐，余项见 R-05、N-15 | W1-02、W1-06 |
+
+### 3.3 体检报告 §7.5 对在途工作的建议
+
+| 条 | 结论 | 证据 | 归属 |
+| --- | --- | --- | --- |
+| 1 合入顺序 | 部分 [已确认] | 报告建议先合 #102、后合 #98，合入前做三件事。实际两个都已合入，顺序相反：#98 在 2026-09-30T16:47:44Z，#102 在 16:56:09Z（`gh pr view`）。三件事是合入之后才做的：#98 的合并提交 `2e8f60de` 上 `vendor/prologue-sdk/` 还有 4 个 tgz，10-02 的 #170 才收成 1 个（N-02）；`scripts/personal-assistant-public-sources.mts` 当时就在、现在还在（R-04）；Todo 登记为待迁移见 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED` 注释。侧栏、助理面板、页面动线各线的合入见 post-merge-review §13 [引用] | — |
+| 2 文件归属表落地 | 被取代，已做 [已确认] | 被 10-02 的 CODEOWNERS 决定与决定 #13 取代；`.github/CODEOWNERS` 与 SSOT 各表的「归属」列已由 W1-13 建好（#314），见 N-09 | — |
+| 3 动 Characters 先立项 | 部分 [已确认] | 用户可见形态已定（#141）；代码身份已定（决定 #26：并进宿主）；未执行（N-05） | W5-01 的 Characters 一项 |
+| 4 清理检出 | 部分 [已确认] | 主检出 10-07 快进过，现又落后 origin/main；工作树、远端分支、d62d 还在（R-13、N-07） | 决定 #24；W1-23 |
+| 5 统一基线 | 未做 [已确认] | 没有固定位置记录每次合入后的全量数字。#314 的 `docs/system/PARALLEL-DEVELOPMENT.md` 写了集成分支上跑全量（第 7 节）和基线工作树比对（第 8 节），没有定义记录最新数字的位置 | W6-05（定位置并记录；W1-13 已合入，没有覆盖这一项） |
+
+### 3.4 第一步交接清单（post-merge-review §12）
+
+**12.1 兼容逻辑**
+
+| 项 | 结论 | 证据 | 归属 |
+| --- | --- | --- | --- |
+| 助理第一版记忆迁移、旧表、旧记忆路由（PMR-05） | 已修复 [已确认] | #257（`caf65e1e`）；`migrateLegacy` 在五个目录里 0 处 | — |
+| 旧动作入口（BL-081） | 部分，已重新清点 [已确认] | 已删：MCP 旧名与别名（#269）、旧场景绑定（#279）；`function_scenes` 0 处。余 3 项，BACKLOG 的 BL-081 已按此改写：① `/api/plugins/<id>/…` 经 `apps/local-host/src/native-plugin-api.ts` 改写到手写的 `/api/<短名>/…`；② `/api/functions/by-key/*`（`apps/local-host/src/functions-http/routes.ts:41-42`）按现状是 `functions.describe`、`functions.invoke` 动作的 HTTP 入口（用函数键代替 id，由 `apps/local-host/src/functions-http/route-handlers.ts:18` 转给动作），没有已删的旧名可对照。W1-14 的调用链文档（#319）没有裁定它：§10 的两张表里没有这两条路由，它们和 Functions 路由表（`FUNCTIONS_HTTP_ROUTES`）里其他路由同类（路由 → 动作），不绕开动作路径，所以不是 §10 的例外；3 个用例在用（`tests/functions-plugin.test.ts:729`、`tests/system-functions-actions.test.ts:132`、`tests/secret-store-keychain-retry.test.ts:188`）；是否算兼容别名、留不留，仍没人裁定，要产品判断；③ `migration.md` 与 spec §3 :248 仍把已删的入口写成「保留的兼容入口」 | ① W6-01；② W6-01（HTTP 别名收口时一起问用户；W1-14 已合入，没有裁定它）；③ W1-02 |
+| 文字补全读旧凭据 `model:text:api_key`（BL-082） | 已修复 [已确认] | #239、#246；该键只在 3 个测试文件、4 处出现（`tests/secret-store-format.test.ts:25`、`:27`，`tests/host-configured-text.test.ts:237`，`tests/secret-store-keychain-retry.test.ts:136`），都是拒绝读取与旧存储格式的断言；BACKLOG 行已删 | 文档残留见 N-15 ① |
+| V3 一次性导入（BL-083） | 已修复 [已确认] | #244；`importV3` 0 处 | — |
+| `AssistantSurfaceContext.starters`（BL-084） | 已修复 [已确认] | #281（`baa88220`）；`packages/contracts/src/services/assistant.ts:62` 的 `AssistantSurfaceContext` 已无 `starters`；BACKLOG 行已在 #297 删除 | — |
+| 客户端 Goal 时代的旧路径（PMR-08） | 部分 [已确认] | `onboarding-runtime=1` 0 处。以下文件名不带目录的，都在 `apps/workbench/src/scripts/client/` 下。还在：`/decisions` 视图（`apps/workbench/src/goals-document-routes.ts:30`、`apps/workbench/src/decision-center.ts`、`refresh-decisions.ts:143`）、`#decision-goal-` 跳转（`bootstrap.ts:131`、`initialization.ts:202`、`documents-state.ts:79-88`）、Tauri 测试地址（`apps/desktop/adapters/tauri/src/main.rs:1046-1049`）、决定回执（`initialization.ts:298-304` 读取 sessionStorage 键 `molis-work-decision-receipt` 并调 `showDecisionReceipt`；`refresh-decisions.ts:262-318` 的 `decisionReceiptContext`、`showDecisionReceipt`、写入该键的 `refreshBoardWithDecisionReceipt`，渲染 `[data-decision-receipt]`）。`?feed-start=1` 不是 0 处（roadmap 记错）：`events-secondary.ts:225` 生成、`initialization.ts:279` 读取、`tests/desktop-tui.test.ts:1118` 守着，是有入口的行为，删前要产品判断。决定回执同样有入口：`plugins/native/goals/src/proposal-client.ts:43` 在提交前取上下文（`decisionReceiptContext`），`:75` 在采纳或退回成功后调用 `refreshBoardWithDecisionReceipt`（`:3` 只是从宿主参数里解构这两个函数），`tests/goals-proposal.e2e.test.ts:66、:74、:85` 断言它；所以它不是死代码，是否保留要先过产品判断（见 BL-121 ③） | W2-02（五项都在这一片关闭，决定回执与 `?feed-start=1` 并入；roadmap 的 W2-02 行没有列这两项，见 §3.5 补记）；BL-121 |
+| 场景 9：真实 Home 在当前 main 上能否打开 | 已做 [引用] | 10-04，§9.4 第 12 条 | — |
+
+**12.2 结构与分层**
+
+| 项 | 结论 | 证据 | 归属 |
+| --- | --- | --- | --- |
+| 19 个构建期装配的内置插件（BL-080，含 BL-088） | 仍然成立 [已确认] | 见 R-01 | W4-04、W5-01、W5-02、W6-01；BL-088 随 W5-01 |
+| 首屏渲染全部插件的隐藏界面（PMR-07） | 未验证 [未验证] | #150 加了部分按需加载（`lifetime.whenVisible` 用在 `coding-companions.ts`、`plugin-event-recovery.ts`）；当时的 293 KB HTML、6041 个节点没有重量 | W1-07（页面资源预算门禁给出数字）、W5-05 |
+| 空闲轮询 | 部分 [已确认] | 工作台与插件里工作台前端、插件和炼金术士工作进程里共 10 个轮询（助理工作列表、通知 20 秒、后台任务 10 秒、插件通知 30 秒、context-actions、项目首页、Todo 提醒 60 秒、PPT、Coding 的 MCP 设置、炼金术士工作进程；五个目录里的 `setInterval(` 共 20 处，其余是桌面壳、宿主服务计时器和沙箱看门狗）；Board 游标轮询受可见性控制（`refresh-decisions.ts:117`）；没有合并成按可见面订阅 | W4-09、W4-10；BL-116 |
+| 渲染后改写 HTML 里的链接（`prefixLocalLinks`） | 仍然成立 [已确认] | 定义在 `apps/workbench/src/renderer.ts:407`，`renderer.ts:299/309/313` 与 `goals-page-renderer.ts:138/330` 在渲染后改写 HTML 串 | 补记：并入 W5-06 |
+| Home 级插件的数据分项目时的搜索来源模式 | 仍然成立 [已确认] | `skills/molis-plugin-dev/search.md`（63 行）没有写这种模式 | 补记：并入 W6-03（Skill 与手册统一更新） |
+| 147 个被三条以上线改过的热点文件 | 仍然成立 [引用] | roadmap §4.7：`apps/workbench/src/i18n/en.ts` 23 次、`web-request.ts` 21 次、`web-catalog.ts` 14 次、`project-host.ts` 12 次等；`tooling/gates/baseline.json` 自身也成了冲突热点 | W1-13 已做（枢纽文件与排时段，`PARALLEL-DEVELOPMENT.md` 第 2、5 节；归属见 `.github/CODEOWNERS`，#314）；W5-02（声明式登记）、W6-04（重量） |
+| 翻译键重复与覆盖（PMR-04、PMR-14） | 仍然成立，且变大 [已确认] | `apps/workbench/src/i18n/*.ts` 5,516 个键里 192 个重复、100 个英文不同（AST 数，口径与 10-03 不同；后写的覆盖先写的）；`assistant-island.ts:2116` 仍是 `L("正在看") + "："`；没有重复键门禁；`tests/i18n.test.ts` 只查 61 个手写文件、不在 CI | 决定 #16（换成稳定键，先做一个插件样板）：W1-08、W5-03；全角冒号（`assistant-island.ts:2116`）W2-02；BL-118 |
+| vendored SDK 积了 3 份未用 tgz（PMR-06） | 已修复 [已确认] | #170；现 1 份（N-02） | — |
+| 死脚本（PMR-09） | 仍然成立 [已确认] | `scripts/personal-assistant-public-sources.mts` 还在（R-04） | W2-02（W1-23） |
+| 左侧插件栏标记是否已成死代码（BL-086） | 核对结论：不是死代码 [已确认] | `.plugin-rail-items` 由 `apps/workbench/src/immersive-shell.ts:194` 渲染，插件切换器弹层（`packages/design-system/src/styles/craft-finish.ts`）、导航脚本（`navigation-presentation.ts`、`immersive-navigation.ts`）和助理（`assistant-island.ts` 7 处）都在读它；它是插件切换器的列表容器，不是旧左栏的残留 | W2-02（先让助理改从目录取插件名，再决定容器是否改名）；BL-086 已按此改写 |
+| 能力快照脚本改成仓库内的 API 快照门禁 | 未做 [已确认] | `specs/archive/post-merge-review/capability-snapshot.mts` 还在 | W2-15 |
+| 插件有两套 id（PMR-31） | 未做 [已确认] | 助理「起点」查名字靠 `.plugin-rail-items` 里的 `surfaceName()`（`assistant-island.ts:1056`），#162 只修了显示 | W2-02 |
+| 助理面板取插件名靠左栏标记（PMR-31、BL-086） | 未做 [已确认] | 同上；`assistant-island.ts:190、:1058、:1819、:1916` 读 `.plugin-rail-items` | W2-02 |
+| 单次模型请求沿用 Prologue 默认 60 秒（PMR-33） | 部分 [已确认] | 已经不是 SDK 的 60 秒默认：`horizontal/agent-host/src/adapters/prologue-node.ts:128` 的 `MODEL_CALL_TIMEOUT_MS`（180 秒）是轮次没有时间预算时的默认，预算里的 `max_duration_ms` 优先（`:1431`）；创作台另按角色设了 `horizontal/agent-host/src/adapters/plugin-builder.ts:27` 的 `MODEL_CALL_LIMIT_MS`（designer 600 秒、coder 300 秒）；文字补全默认 120 秒（`apps/local-host/src/host-complete-text.ts:121`）。仍缺：没有按场景统一设定，`docs/platform/PROLOGUE-AI.md` §8 只写了文字 120 秒和预算里的 `max_duration_ms`，没写 180 秒默认和创作台的按角色限制 | 补记：并入 W3-06（模型走 agent-host 的插件服务，按场景设时限并写进 Prologue AI 手册） |
+
+**12.3 测试与回归基础设施**
+
+| 项 | 结论 | 证据 | 归属 |
+| --- | --- | --- | --- |
+| 浏览器用例的固定时限对负载敏感 | 仍然成立 [已确认] | `tests/fixtures/goal-browser.ts:167` 的 `waitFor(expression, timeoutMs = 4000)`；130 个测试文件定义或调用 `waitFor` | W2-16（时限改为等真实条件，稳定的部分进 CI 子集） |
+| 测试依赖 `fs.watch` 收到其他进程的文件事件 | 不再成立 [已确认] | 全仓 `fs.watch`、`watchFile` 0 处；#143 修的那一处改成轮询（`tests/feed-research-authority.test.ts:52` 的注释） | — |
+| 全量回归两小时以上，并行会话互相干扰 | 部分 [已确认] | 全量 76–78 分钟 [引用]；`scripts/run-tests.mjs` 仍串行；#250 让全量也跑 `.mjs` 用例 | W2-17（受影响用例挑选）、W5-12（隔离与并发） |
+| 页面在浏览器窗格隐藏时不启动（`lifetime.whenVisible`），自动化验收会误判 | 未做 [已确认] | 验收脚本没有先确认 `document.visibilityState`（`tests/` 里 0 处） | 补记：并入 W1-12（回放工具先确认可见性） |
+
+### 3.5 小结与补记
+
+- 附录 A 共 39 行（R-01～R-14 十四行，皮肤、Goals UI、Server 三行，N-01～N-20 二十行，C 组一行，另有一行「新（合并现场）」）：已修复 6（R-02、R-04、R-05、R-10、N-01、N-02），已按决定收口或不再按原样成立 2（N-03、Server），部分 16（R-06、R-09、R-12、R-13、Goals UI、N-04、N-05、N-07、N-08、N-09、N-10、N-14、N-15、N-18、N-19，加上「新（合并现场）」），仍然成立 15（R-01、R-03、R-07、R-08、R-11、R-14、皮肤、N-06、N-11、N-12、N-13、N-16、N-17、N-20、C 组）。
+- 报告 §5 六步：已执行 1、部分 3、未做 2；§7.5 五条：被取代且已做 1（第 2 条）、部分 3（第 1、3、4 条）、未做 1（第 5 条）；交接清单 25 项：已修复或已做 6、部分 5、仍然成立或未做 11、不再成立 2（`fs.watch`、BL-086 的死代码假设）、未验证 1（PMR-07）。
+- 首轮（`33067cbe`）之后，#314–#322 改变了结论的行：N-04、N-09、N-14、N-18、N-19（仍然成立 → 部分）、C 组（方案已出）、§3.3 第 1、2、5 条、§3.2 第 1 步的归属；只改了数字、行号或引用的行：R-01、R-03、R-05、R-06、R-07、R-11～R-14、Server、N-03、N-05～N-08、N-11、N-12、N-15～N-17，以及 §3.4 的 BL-081、BL-082、PMR-33、空闲轮询、热点、翻译键各行。
+- roadmap 记错或已过时、这里更正的：`feed-start=1` 不是 0 处；`.plugin-rail-items` 不是死代码；BL-084 的行已在 #297 删除；SSOT、README、`ARCHITECTURE.md`、`CONTRACTS-AND-OPERATIONS.md`、`host.md` 的多处断言已由 #295–#298 修好（见 R-05、N-15、BL-119）；`docs/system/HOME-DATA.md` 已存在（W1-16 的内容）；健康门禁对照合并基点、类行数与方法数分开记、`--report`、按文件 AST 数测试内部引用已由 #293 合入；密钥扫描已由 #294 合入；并行开发规则、合同变更流程、CODEOWNERS（W1-13）、术语表（W1-17）、调用链（W1-14）、扩展点（W1-15）、巨大单元清单（W1-19）、版本与发布策略（W1-22）、包清单表（W1-18 的第一个 PR）都已在 main，对应行已改。
+- 路线表里没有对应切片、本节指定了归属的：`prefixLocalLinks` → W5-06；Home 级插件的搜索来源模式 → W6-03；PMR-33 请求时限 → W3-06；`whenVisible` 验收检查 → W1-12；Characters 并入宿主（决定 #26 写作「第 4 波切片」，路线表把 Characters 放在第 5 波 W5-01）→ W5-01；固定记录 main 最新全量数字的位置 → W6-05（W1-13 已合入，没有覆盖这一项）；W1-14 的基本合同复核留下的三项：G3（对象上下文接受两种历史输出形状，复核建议列为兼容清单的新项，确认没有生产方后删除）→ W2-03，G8（「基本合同」对 `_meta` 的措辞要补上「只给审计作者」）→ W1-02，G4（情境排序与布局留在内核，改内核 README 与边界规则，W3-04 原先写的搬出内核按 N-03 要重估）→ W3-04。这几项是本节的提议，请协调会话确认。
+- W2-02 的范围：路线表 W2-02 行（roadmap 第 35 行）只列了 PMR-09 脚本、PMR-14 冒号、BL-086、PMR-08 的 `/decisions` 视图、`#decision-goal-` 跳转和 Tauri 测试地址、`checkGoalBoard` 改名。另外三项也归 W2-02，不另开一片：① PMR-08 的决定回执；② PMR-08 的 `?feed-start=1`（roadmap 记成 0 处，见 PMR-08 行和 BL-121 ②）；③ 随根包发布的 `examples/draft-goal.json`、`examples/leaf-goal.json` 里的 `"board_id"`（N-15 ④、BL-121 ①）。① 和 ② 删之前要先过产品判断（BL-121 ②③），不是直接当死代码删。
+- W1-06 的规则（W2-01 行打开同一条规则）：路线表写的是「contracts has no contract-only subpath」。按 `maturity: "contract-only"` 读，它除了 6 个占位，还会命中根入口和 5 个在用的合同入口（`platform/package`、`platform/storage`、`platform/testing`、`platform/tooling`、`services/agent-host`），每个都被一个现存的包声明为自己的 `molis-work.contract`（R-11 ④）。规则写成「只有描述符、没有导入者、也没有现存包把它声明为 `molis-work.contract`」，命中的恰好是 R-11 的 6 个占位 → W1-06（写规则）、W2-01（删 6 个）；`platform/kernel`、`platform/testing` 的描述符保留（R-11 ②）。
 
 ## 4. 兼容逻辑清单（§4.1，初稿）
 
@@ -396,6 +502,7 @@
 | [#287](https://github.com/molis-ai/molis-work/pull/287) | e1cd4906 | 一个项目身份：`board_id` 全仓改为 `project_id`（项目库 v6、Functions v3、目录库 v21）；batch Q 全量 3,678 个用例 3,670 过、7 跳过、1 败（已修） |
 | [#288](https://github.com/molis-ai/molis-work/pull/288) | d81b12cb | Feed 的记录就是模块记录（删 toLegacy* 投影，兼容标记 53 → 20） |
 | [#289](https://github.com/molis-ai/molis-work/pull/289) | 排队 | 最后几处名不副实的兼容标记（20 → 17，剩下的都是保留机制） |
+| 分支 `fix/project-deletion-owners`（PR 待开） | 未合入 | 删除项目时各数据所有者一起清、可重试（§1 10-07）：删除收据里每个所有者一步（目录库新表 `project_deletion_steps`，目录库 v21 → v22）；各插件的项目数据由插件包自己声明（目录条目的 `project_data`：标签与清除函数），宿主遍历目录登记、不点名插件，所以新插件声明了就被清（结构门禁的「插件被包外点名」不增）；真实 Home 要先做维护四（下面），做之前这份代码打不开它 |
 
 - 全量回归：batch K（C2 栈顶）3,685 个用例 3,674 过、4 败（均为 C2 预期变化或缺 #274，已修，重跑通过）；batch L（#277–#282 栈顶）3,680 个用例 3,659 过、13 败（11 个是本栈自己的用例仍用旧字段，已修；2 个是负载超时，单独重跑通过；受影响的 32 个用例在栈顶重跑全过）。
 - batch M（#284 加 `board_id` 只改存储列的试做）3,679 个用例 3,656 过、16 败：6 个是 #284 自己的用例仍发内联 instructions（已修，#284 单独验证 192/192）；其余都来自「只改存储列」造成的行与记录字段错位，于是改为一次改完（§1）。
@@ -413,13 +520,20 @@
   7. Runtime 接入：三处客户端配置还是早先的 goalboard 条目（旧的 `GOALBOARD_*` 环境变量，新代码只认 `MOLIS_WORK_*`），新代码报「MCP 宿主没有提供 Runtime 标识」；用户弹窗定「备份后换成产品接入」：三份配置与三个 goal-advance 链接、三张 9 月 11 日的旧接入收据备份到 `~/molis-work-backups/2026-10-07-runtime-configs/`，删掉旧条目后用产品自己的 Runtime 接入（prepare→confirm）给 Claude Code、Codex、Grok Build 写入 `molis-work` 条目与技能；按配置启动的 MCP 能列出真实 Home 的项目。已开着的会话要重开才会用上。
   8. 主检出：另一会话 10-07 8:59–9:27 留下的 26 个文件改动与两个新 spec（用户弹窗定「本会话处理」）先存成补丁并提交到本地分支 `wip/main-checkout-2026-10-07`（4cb5e28f），主检出 fast-forward 到 main（d81b12cb）后把它重新放回为未提交改动（按改名三方合并，`boardId` 改为 `projectId`），构建通过，它改过的 16 个测试文件 73/73 通过。
 - 演练（rehearsal-1007、rehearsal-1007b，拷贝只读取自真实 Home）：两次结果相同；演练检查时一次误开了真实 Home 的一个项目库（目录库存的是绝对路径），版本不符被拒、文件未变，检查脚本已限定只开拷贝。
+- 真实 Home 维护四（目录库 v21 → v22）——**用户 2026-10-08 批准：合入后立刻做，顺带清掉以前删项目留下的孤儿数据**（§1）；做完之前主检出与安装版不更新。分支 `fix/project-deletion-owners` 给目录库加了一张表 `project_deletion_steps`（删除收据里每个数据所有者一步，`modules/projects/src/deletion-steps.ts:7`），`CATALOG_SCHEMA_VERSION` 因此从 21 升到 22（`apps/local-host/src/project-catalog-contract.ts:1`）。别的库的结构与版本都没变（项目库 v6、会话库 v7、Functions v3……）。真实 Home 的目录库是 v21（维护三之后），所以这个分支合入后它与代码对不上，两个方向都要处理：
+  - **跑新代码的进程拒绝 v21**，什么都不写：`catalog.unsupported_schema`「项目目录数据库的版本是 21，这个版本只认 22，不就地升级」（`apps/local-host/src/catalog-schema.ts:32-42`）。主检出快进到新 main 并构建之后，4207 和主检出的命令行就打不开真实 Home；Home 安装版换成新 main 的构建后，新起的 MCP 也一样；都要等做完维护四；
+  - **做完以后跑旧代码的进程拒绝 v22**：维护三用 e1cd4906 重装的 Home 安装版只认 21，遇到 v22 报 `catalog.reader_too_old`（`apps/local-host/src/project-catalog-contract.ts:51-68`），要用新 main 的干净构建重装；已开着的会话里的 MCP 同样报它，要重开会话（`docs/installation.md:76` 同一段说明）。
+  - **做什么**：对 `projects/catalog.db` 跑 `tests/fixtures/catalog-maintenance-v22.sql`，一个事务：新建 `project_deletion_steps`，把 `catalog_meta.schema_version` 由 21 改为 22。库不是项目目录库、版本不是 21、表已存在，整个脚本回滚，什么都不改（用 `node:sqlite` 的 `exec` 或 `sqlite3 -bail` 跑，遇到第一个错就停；不加 `-bail` 的 sqlite3 出错后会接着往下跑并提交：在版本 20 的库上它建出了表、版本没动，试过）。
+  - **旧回执**：新表是空的。此前删除项目留下的回执没有步骤（「早于所有者步骤的回执」），宿主不替它们补跑：它们的 `owner_steps` 为空、`cleanup_state` 不变（还没收尾的旧回执，宿主启动时只收尾暂存目录，没有步骤可跑）；固定 id 的示例项目再创建前，由各所有者先清一遍（`apps/local-host/src/demo-project-lifecycle.ts:47-49`，用例 `tests/project-deletion-hooks.test.ts` 的 “a fixed-id demo whose earlier deletion has no owner steps”）。旧删除留在各所有者库里的数据不在这次维护范围；要清，另起一项。
+  - **演练**（2026-10-08，临时目录，没有打开真实 Home）：① `tests/catalog-maintenance-v22.test.ts`（5 个用例）：v21 目录库被拒且不被改动；脚本跑完与新建 Home 的 v22 目录库逐项相同（表、列、索引、外键、CHECK、`catalog_meta`）、项目与回执不变、`integrity_check` ok、外键 0；维护后的目录库能打开，旧回执步骤为空（没收尾的那张由宿主收尾）、示例项目能重建、新删除记步骤；版本不是 21、owner 不对、表已被占用都整个回滚；只认 21 的构建对 v22 报 `reader_too_old`。该文件和 SQL 在维护四做完后删除（目录库再变时它会先失败）。② 另用 origin/main（4d59cd4d）的干净构建写出 v21 目录库（一个保留的项目、一个删除的项目、建了又删的示例项目），取 SQLite 备份 API 的拷贝跑同一份脚本：`integrity_check` ok、外键 0、只多 `project_deletion_steps` 一张表、其余表结构不变、与新 Home 的 v22 目录库逐项相同、项目 1 个、回执 2 个都在；新构建能打开并列出两张回执（步骤 0，状态仍完成）；再跑一遍被拒（`catalog_meta.schema_version is 21`）；原构建（只认 21）报 `catalog.reader_too_old: schema=22，当前 reader 支持 1..21`。
+  - **步骤**（按维护三的做法，对着 [发布前检查清单](../../docs/releases/CHECKLIST.md) 第 4 节逐项过）：1. 用户批准并定时机（弹窗）；2. 停掉连着真实 Home 的进程（4207、4208、4173、各会话的 MCP），按 pid 精确停；3. 动手前只读核对目录库确是 v21，整份备份（APFS 克隆 `~/molis-work-backups/<日期>-before-maint4`，逐个比对）；4. 在 `catalog.db` 的拷贝（SQLite 备份 API，不用 cp）上先演一遍，只开拷贝里的目录库文件，不用产品代码去打开项目——目录库存的是项目库的绝对路径，维护三演练时误开过真实项目库；5. 对真实 Home 的 `projects/catalog.db` 跑脚本（就地改，不换文件，所以没有被换下的原库要搬走；要退回就用第 3 步的整份备份）；6. 用新 main 的干净构建重装 Home 安装版（装过桌面端 App 的话，它也是只认 21 的构建，要用就一并重装），主检出快进并构建（§1 10-07「维护后真实 Home 用哪份代码」）；7. 只读核对：版本 22、`project_deletion_steps` 在且为空、项目数与回执数同维护前、新构建能列出项目。
 
-**各库的当前版本（2026-10-07，main d81b12cb）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。
+**各库的当前版本（2026-10-08，main 1cdb31dd 加分支 `fix/project-deletion-owners`；与 `docs/releases/CHECKLIST.md` 的各库版本表一致，那张表由 `node scripts/verify-release-versions.mjs` 对着代码核对）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。表里是代码要求的版本；真实 Home 的目录库仍是 21，做完维护四才到 22，在那之前这份代码打不开它。
 
 | 库 | 版本 | 记在 |
 | --- | --- | --- |
 | 项目库 `projects/<id>/molis-work.db` | 6 | `user_version`（`PROJECT_DATABASE_BASELINE`） |
-| 目录库 `projects/catalog.db` | 21 | `catalog_meta.schema_version` |
+| 目录库 `projects/catalog.db` | 22 | `catalog_meta.schema_version`（`CATALOG_SCHEMA_VERSION`，`apps/local-host/src/project-catalog-contract.ts:1`） |
 | 会话库 `sessions/sessions.db` | 7 | `session_meta.schema_version` |
 | Functions | 3 | `user_version` |
 | Form、记忆、助理 | 2 | `user_version` |
@@ -446,7 +560,7 @@
 
 列的口径：
 
-- 层：登记里的 `kind`（基础是 `foundation`，官方接入是 `integration-plugin`）。`server` 与 `packages/im-ui` 现在登记为基础包，但它们是在用、还会迭代的产品功能（右栏「讨论」页签，`apps/workbench/src/side-panel.ts:42`、`:115` 嵌入 `/im`），归类改成业务是 2026-10-08「右栏『讨论』页签与 IM 代码」一行已定的待办（PR #312）。
+- 层：登记里的 `kind`（基础是 `foundation`，官方接入是 `integration-plugin`）。`server` 与 `packages/im-ui` 是在用、还会迭代的产品功能（右栏「讨论」页签，`apps/workbench/src/side-panel.ts:42`、`:115` 嵌入 `/im`）。2026-10-08「右栏『讨论』页签与 IM 代码」一行把归类改成业务列为待办（PR #312）：`server` 已改登记为 `module`（本表标「模块」，结构门禁按 Module 规则查它）；`packages/im-ui` 是界面包、不拥有事实，仍登记为 `foundation`，要不要也改，等用户另定。
 - 源文件、行数：`<包>/src/` 下的 `.ts`、`.mts`，不含 `.d.ts`、测试、`dist`、`fixtures`；行数是按换行切开的段数，与巨大单元门禁（`scripts/check-health-gates.mjs`）同一口径。最大文件的路径相对 `src/`。
 - 公开入口：`package.json` 的 `exports` 条数。依赖内部包：`package.json` 的 `dependencies` 里 workspace 包的个数。被依赖：反方向的个数。
 - 状态、计划深度、审查：见 §5.2。
@@ -522,7 +636,7 @@
 | `plugins/official-integrations/rss` | 官方接入 | 6 | 1,246 | `catalog.ts` 540 | 2 | 2 | 2 | 在用 | 中 | 待审 |
 | `plugins/official-integrations/web-query` | 官方接入 | 1 | 55 | `index.ts` 55 | 1 | 2 | 0 | 非产品 | 浅 | 待审 |
 | `plugins/official-integrations/youtube` | 官方接入 | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
-| `server` | 基础 | 18 | 1,062 | `continuity/service.ts` 161 | 1 | 2 | 2 | 在用 | 中 | 待审 |
+| `server` | 模块 | 18 | 1,062 | `continuity/service.ts` 161 | 1 | 2 | 2 | 在用 | 中 | 待审 |
 | `tooling/plugin-cli` | 工具 | 8 | 332 | `sample-source.ts` 93 | 1 | 2 | 0 | 在用 | 浅 | 待审 |
 
 ### 5.2 状态、计划深度与审查
@@ -563,7 +677,7 @@
 | 门禁 | 机制 | 基线 | 突变验证 |
 | --- | --- | --- | --- |
 | 静态检查最小规则集 | ESLint（或 Biome）只开几条：无未用变量与导入、无空 catch（显式注释的除外）、无 `as unknown as`（现有处数进基线） | `tooling/gates/lint-baseline.json` | 新增一处空 catch |
-| 公开 API 快照 | 插件 SDK、contracts 各 subpath 的导出清单生成文件入库；导出一变就要显式更新快照，PR 里说明兼容影响 | `tooling/gates/api/*.txt` | 新增一个导出不更新快照 |
+| 公开 API 快照 | 插件 SDK、contracts 各 subpath 的导出（名字加签名，去注释）由编译器的声明输出生成、文件入库；源码和快照有任何不同就失败，要改用 `pnpm api:update` 有意刷新，PR 里说明兼容影响（`scripts/gates/api-snapshot.mjs`） | `tooling/gates/api/<包>/<subpath>.txt` | 新增一个导出不更新快照（`tests/health-gates-api-snapshot.test.ts`） |
 | 巨大单元只减不增 | 按 §4.5 阈值（文件 800 行、类 300 行或 25 个方法、函数 150 行）统计，超出的列名单 | `tooling/gates/giant-units.json`（开工时 37 个文件、43 个类、99 个函数） | 新增一个 160 行函数 |
 | 装配名单只减不增 | 已有 `tests/builtin-plugin-assembly-gate.test.ts`，接进 CI | 冻结名单 | 加回一个 `*-native-plugin-http.ts` |
 | 分层与依赖方向 | 已有 `pnpm boundary:check`，按 `PACKAGE-BOUNDARIES.md` 补上「向上依赖」与「插件互引」的统计 | 现有规则 | 插件 import 另一插件 |
@@ -574,6 +688,8 @@
 | 页面资源预算（§4.8，用户决定 #17） | 宿主 `apps/local-host/src/web-assets.ts` 里写成字符串字面量的每个 `/assets/` 路径（三份样式表、`molis-work-workbench.js` 与 `molis-work-capabilities.js` 两份脚本、Pages 编辑器、各插件客户端包、字体）向构建产物要内容，量发出去的字节数；预算文件（当前的与 merge-base 的）里读不到路由、宿主却还在发的路径照样量并按发现遗漏失败，所以删条目躲不掉；读不成整条字面量的写法（模板、拼接、前缀）、拿请求路径和非字面量比较、文件里除整条 `/assets/…` 字面量和插件包那一条已知正则以外还出现单词 `assets`（正则或带转义斜杠的写法：`\/assets\/`、`[\/]assets`、`(assets)`），退出 2；CI 在 `workspace:verify` 之后跑，预算文件与 merge-base 里的那份比，调大数字、加条目、删仍在发的条目都放不过；数字必须等于实测 | `tooling/gates/page-assets.json`（先冻结，只许变小；旧皮肤删完后再定真实上限） | 工作台样式表多一个字节；新增一个 `/assets/` 路由（含写成正则的，但把 `assets` 一词本身拆开的除外，见没覆盖的几项）；手改预算调大；把路由改成读不到的写法并删掉预算条目 |
 | 独立整页（artifact-positioning S7） | 除例外清单外没有路由返回完整 HTML；插件内容里不出现自带外壳；站内链接不跳出工作台 | [artifact-positioning §4](../artifact-positioning/spec.md) | 加一个返回整页的路由 |
 | 成果库声明（artifact-positioning A7） | manifest 声明与实际写入一致；可见类型必须有预览；交换数据不进用户可见列表 | 同上 | 写一个未声明的类型 |
+| 文档引用（W1-06） | 活文档（`archive/` 之外的 `.md`）没有断链（含标题锚点）；`skills/`、`AGENTS.md`、`docs/system/CALL-CHAINS.md` 引用的路径、`pnpm` 脚本与动作 id 存在；`specs/README.md` 索引与根目录分类一致；`specs/BACKLOG.md` 没有完成行 | 从 0 开始，没有基线；有意的例外在 `tooling/gates/doc-citation-exceptions.json`（带理由，不再需要就要删） | 加一处断链、引用一个不存在的 id、少列一份 spec、留一行已完成 |
+| 仓库形状（W1-06） | 根目录只放 `tooling/gates/root-allowlist.json` 里的名字；`.impeccable/` 入库文件按组只许减少；`contracts` 不许有只导出描述符且没人用的占位子路径 | 对照 merge-base 只许减少（开工时：根目录 3 个越界条目、1,104 个 `.impeccable` 文件、6 个占位子路径） | 根目录加一个文件、往评审组加一张图、加一个占位子路径 |
 
 **进度**：
 
@@ -581,7 +697,8 @@
 - 开工基线（main 2b138559）：巨大单元 182（文件 37、类 48、函数 97），测试内部引用 1016，vendored SDK 1，就地补表 115。
 - 突变验证四项都失败。
 - 实例：基线若从 98984bf7 起算，#171 会被拦下。它让 `events-primary.ts`、`navigation-feed.ts`、`craft-finish.ts` 三个超长文件又变长，并新增 2 处测试内部引用。
-- 静态检查规则集与公开 API 快照放下一批：要加 ESLint 依赖或生成 `.d.ts` 清单。
+- 公开 API 快照（W1-04，2026-10-08，分支 `chore/gates-api-snapshot`）：contracts 的 64 个 subpath 加插件 SDK 共 65 个文件，口径和刷新命令见 `tooling/gates/README.md`；每条声明各占一段（函数的每个重载、同名的类型与常量都在），导出提到、却没有任何 subpath 导出的声明（如 `GoalWorkEventBase`）列在辅助声明里；`pnpm health:check` 比较源码与快照，`--base` 时在日志里列出相对 merge-base 的 API 变化。同一片接上了空 catch（TypeScript 代码与浏览器脚本的模板字符串各记一项）、`as unknown as`（含测试）、旧名（`goalboard`、`board_id`，只数源码）三类按文件计数（浏览器脚本一项也只数源码），口径写在 `scripts/gates/source-counts.mjs` 开头。静态检查工具（W1-09）仍待做，它接进来后替换 TypeScript 代码这部分的计数。每条新规则的突变验证是 `tests/health-gates-source-counts.test.ts`、`tests/health-gates-api-snapshot.test.ts`。
+- 文档与仓库形状门禁（W1-06，`scripts/gates/`，说明见 [scripts/gates/README.md](../../scripts/gates/README.md)）：接进 `pnpm health:check`，突变用例在 `tests/doc-reference-gates.test.ts`（CI 单独一步）。开工时门禁量到 7 处断链，已改：`plugins/native/plugin-builder/DESIGN.md` 5 处指向 S1b 已删的文件、`specs/molis-work-architecture-reorganization/f2-validation.md` 2 处指向已删的 `docs/system/MIGRATION.md`，都改成不带链接的说明；Skill `elements.md` 里的 `functions.evaluate.v1` 是故意写的反例（`.v1` 后缀是 id 的一部分、不是版本，所以是另一个 id；代码里没有它），文字不改，写进 `tooling/gates/doc-citation-exceptions.json` 并带理由。哪些顶层文件夹算文档、哪些路径写法算引用，都从 `tooling/gates/root-allowlist.json` 取（`scripts/gates/allowlist.mjs` 的 `allowedRoots`），不另存名单；名单之外的根目录条目（`outputs/`、`.zcode/`）不查链接、不读引用（W1-23 移走）；`contracts` 的 6 个占位子路径由 W2-01 删，删完这条规则就是「一个也没有」。
 - 页面资源预算（W1-07）已做：`scripts/gates/page-assets.mjs`、`pnpm page-assets:check`，CI 在 `workspace:verify` 之后一步，规则用例 `tests/page-assets-budget.test.ts`（临时仓库 + 假宿主构建 + 本仓库真构建）。冻结时（`f876a503` 上的构建）量到 29 个文件、11,481,575 字节：工作台样式表 1,946,506、设置样式表 1,341,060、开场样式表 1,022,266、工作台脚本 1,414,769、Pages 编辑器 1,051,178、21 个插件客户端包（coding、files、git、diff、text-stats 各约 498 KB，合计 3,442,954）、两个字体。这是冻结值，不是目标，现行数字以 `tooling/gates/page-assets.json` 为准：旧皮肤删完后再定真实上限（`VISUAL_FOUNDATION_STYLES` 现在把五套旧皮肤拼进每个页面）。宿主不压缩这些响应，所以量的是原始字节。评审发现的洞已补：改写路由让读源码读不到、再删预算条目，原先 `--base` 全过；现在预算里的每个路径都向构建产物要一遍（`tests/page-assets-budget.test.ts` 的「discovery」几例，在假宿主构建上走完整的基线分支流程；同一手法在本仓库构建的临时副本上，修前 `--base` 通过、修后失败），读不成整条字面量的写法（模板、拼接、前缀），以及拿请求路径和非字面量比较，都退出 2。评审补的：`\/assets\/` 不是整条 `/assets/`，原先既不计入提及次数也躲过比较检查，新增一个按这种写法的路由会通过；先补成「认 `\/assets`、`assets\/`、`[/]assets` 相邻的写法」，复审用 `[\/]assets[\/]`、`(assets)` 绕过了，所以改成按单词认：把整条 `/assets/…` 字面量和插件包那一条已知正则（`/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.js$/`，id 来自已登记的工作台包）从代码里拿掉以后，文件里不许再剩单词 `assets`（注释不算），剩下的一律退出 2，不管它是正则、带转义斜杠的字符串还是别的用法。现在 `web-assets.ts` 里恰好 9 处这个词，1 处插件包正则、8 处字面量；以后在这个文件里为别的用途写 `assets`（比如导入 `./assets.js`）也会停下来，改写或教会脚本都行。
 
 页面资源预算没覆盖的几项（脚本头部写着同一份清单）：
@@ -627,6 +744,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 ## 7. 需要用户操作的事项
 
+- ~~真实 Home 维护四的时机~~：已定（§1 2026-10-08）：合入后立刻做，并在同一窗口里清掉以前删项目留下的孤儿数据（先在拷贝上列出各库、各多少条给用户看，再在真库上删；整份备份里保留）。
 - **常驻服务 4173 要装新版**：10-03 已停（`launchctl bootout gui/<uid>/com.adeptify.goalboard.web`，plist 未改）。它是安装版 0.2.0，读写已删除的旧成果表，不能再用；装新版或改指向新构建后，用 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.adeptify.goalboard.web.plist` 启动。
 - **旧成果表的备份**：`~/.molis-work-backups/2026-10-03-drop-old-artifact-tables/`（18 个项目库，148 MB，逐个 `integrity_check` 通过、行数与删除前一致）。确认不再需要后由用户删除。
 - ~~**anti-rot**~~：已于 10-03 删除（工作树、本地与远端分支，见 §1），不再需要用户操作。
@@ -730,10 +848,12 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 ### 9.2 对照任务要求的补查
 
+2026-10-08 刷新：#290（本 spec 的进度合入）、#293–#298 已在 main，本节按 `ba223d95`（并含 #314–#323）重对一遍；10-03 的初版结论保留在 git 历史里。
+
 **第一步任务书（main 上的新版）**：新版比归档时的旧版多两条要求——
 
 1. 「本步的修复不新增任何兼容或迁移逻辑」：已覆盖。第一步的修复 PR（#137–#185）里只有 #176 动了带 legacy 字样的文件，且是删除（`legacy-actions.ts` −33 行、`alchemist-legacy.ts` −14 行）。成果库改造的 A1、A2 新表写进现有的建库语句，没有新增迁移步骤。
-2. 场景 9 改为「拷贝一份我（以及同事）正在用的 Home，用当前 main 打开，看能不能正常用」：**未做**，涉及真实 Home 的拷贝，要用户同意（见 §1 待决）。10-03 已经删了真实 Home 的旧成果表、停了 4173，用当前 main 打开时成果库从空开始。
+2. 场景 9 改为「拷贝一份我（以及同事）正在用的 Home，用当前 main 打开，看能不能正常用」：**已做**（10-04，main 818d0aff，见 §9.4 第 12 条）。10-03 删了真实 Home 的旧成果表、停了 4173；拷贝在会话临时目录里用当前 main 打开，成果库从空开始，符合预期。
 
 其余各节的完成标准见第一步归档 spec §13.1，复核结论同上表。
 
@@ -741,30 +861,30 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 | 节 | 结论 | 指向 |
 | --- | --- | --- |
-| §3 先量化现状 | 已量（10-02），本节 9.3 重量 | §2、§9.3 |
-| §4.1 清除兼容逻辑 | 已完成（10-07）：兼容逻辑删到只剩上表保留的机制；每个库一份当前 schema、版本不符拒绝；真实 Home 维护三已做并逐库核对；防回流门禁在 CI | §4.1 末尾 |
-| §4.2 调用链文档 | 待做 | — |
-| §4.3 分层与边界 | 待做；已知问题已登记 | §3 N-03、N-12 |
-| §4.4 包级清单 | 初稿 | §5 |
-| §4.5 巨大单元 | 门禁已接（只减不增，181 个）；拆分待做 | `tooling/gates/baseline.json` |
-| §4.6 扩展点与插件平台 | 待做；装配名单冻结 19 个、未减少 | `tests/builtin-plugin-assembly-gate.test.ts` |
-| §4.7 多人并行 | 部分（W1-13 已做）：`docs/system/PARALLEL-DEVELOPMENT.md`（枢纽文件、排时段、集成分支、基线比对、Agent 锁、清理、PR 体量）、`docs/system/CONTRACT-CHANGES.md`（现在不留兼容期；读取兼容从第一个装到开发机之外的版本开始，日期未到）、`.github/CODEOWNERS` 与 SSOT 各表「归属」列（由 `scripts/package-owners.mjs` 生成，`pnpm boundary:check` 校验）、PR 模板新栏目、`AGENTS.md` 指针。待做：公开 API 快照 W1-04、动作合同快照 W2-15、挑相关用例脚本 W2-17、CI 产品子集 W1-11/W2-16、插件回放工具 W4-01、测试并发隔离 W5-12、Prologue SDK 合成负责人（W1-20 提名）；CODEOWNERS 现在只路由包根目录，Coding、Jelly、Shelf 在宿主与外壳里的代码未路由 | §1、`docs/system/PARALLEL-DEVELOPMENT.md` |
-| §4.8 改需求的便利 | 待做 | — |
-| §4.9 体检报告逐项闭环 | 进行中 | §3、§9.3 |
-| §4.10 新合同全链路 | 部分：成果库的预览、固定、比较、继续协议都有门禁与用例；其余合同待做 | artifact-positioning A4–A7 |
-| §4.11 数据与可靠性 | 待做；真实 Home 旧成果表已删 | §1 |
-| §4.12 卫生与文档 | 部分：vendored 已收到一份；`MIGRATION.md` 未归档；工作树清理按用户决定做了一部分 | §7 |
-| §4.13 门禁 | 第一批已接（健康门禁、整页门禁、成果类型与声明门禁），页面资源预算已接（冻结值，`scripts/gates/page-assets.mjs`）；静态检查、API 快照待做 | §5a |
-| §4.14 手册与 Skill | 部分：插件开发 Skill 写明了成果类型的 title、preview、pin、compare、continue | `skills/molis-plugin-dev/elements.md` |
-| §4.15 术语表 | 部分：`docs/system/GLOSSARY.md` 已写（一概念一名一定义；术语到翻译稳定键的对应；界面用词待批清单；代码改名清单分内部改名与合同改名；Characters 按「设置的一节」写，讨论按在用功能写）；代码改名、旧术语门禁、两套能力机制的收敛未做 | `docs/system/GLOSSARY.md`、§1 |
-| §4.16 静态检查 | 待做：仓库没有 lint/format 脚本 | `package.json` |
-| §4.17 依赖与 SDK | 待做 | — |
-| §4.18 安全不变量 | 初稿 | §6 |
-| §4.19 C 端就绪方案 | 待做 | — |
+| §3 先量化现状 | 已量（10-02、10-03），本节 9.3 重量；收尾用同一批脚本再量（W6-04） | §2、§9.3 |
+| §4.1 清除兼容逻辑 | 已完成（10-07）：兼容逻辑删到只剩下面保留的机制；每个库一份当前 schema、版本不符拒绝；真实 Home 维护三已做并逐库核对；防回流门禁在 CI（#283） | §4.1 末尾 |
+| §4.2 调用链文档 | 部分（W1-14 已做，#319）：[`docs/system/CALL-CHAINS.md`](../../docs/system/CALL-CHAINS.md) 八条链，每个环节写归谁、输入输出、身份与权限、失败时、事件与记录，§10 登记长期例外与已定要修的偏离；`specs/action-architecture/spec.md` §3 末尾的「基本合同复核」逐类核对了八类新合同（缺口 G1–G9，见 §3 N-04）。余：调用 id 贯通 W3-01；`/api/functions/by-key/*` 没有被调用链文档裁定（BL-081 ②）；§10 末尾列的一批只走 HTTP 的写入还没有逐条盘点 | roadmap §4.2、`docs/system/CALL-CHAINS.md` |
+| §4.3 分层与边界 | 部分：N-03 已按决定 #2 记为「平台产品服务」（#296），记忆与放置两页已补（`docs/horizontal/memory.md`、`placement.md`，#319），代码不搬；N-12 方案已定（决定 #1），删桥与单一 id 待做（W2-08、W2-09、W3-07）；N-04 的基本合同复核已做（缺口 G1–G9）；边界规则 W1-05（还没有合入 main） | §3 N-03、N-04、N-12 |
+| §4.4 包级清单 | 部分（W1-18 的第一个 PR 已做，#322）：事实表是 71 个包，带层、状态（在用 42、Runtime 7、构建期 19、非产品 3）与计划深度（深 11、中 43、浅 17），`scripts/gates/package-inventory.mjs` 在健康门禁里守表；逐包深审（深 11、中 43）与浅审（17）待做，审查列现在 71 个都是「待审」 | §5.1、§5.2 |
+| §4.5 巨大单元 | 部分（W1-19 已做，#320）：门禁对照合并基点，只减不增（164 个单元）；`docs/system/HUGE-CLASS-MIGRATION.md` 重写为每个单元一个判定（拆、归线、例外）和计划，2026-09 的迁移记录移入 `docs/archive/huge-class-migration-2026-09.md`；`tooling/gates/giant-exceptions.json` 登记 4 个必然很长的单元，由门禁校验、不放行新增。拆分待做：W4-05～W4-07、W5-09、W5-10 | `tooling/gates/baseline.json`、`docs/system/HUGE-CLASS-MIGRATION.md`、§3 N-08 |
+| §4.6 扩展点与插件平台 | 部分（W1-15 已做，#317）：[`docs/system/EXTENSION-POINTS.md`](../../docs/system/EXTENSION-POINTS.md)（15 个方向各写怎么加、现在要改的位置、目标，另有六个下一步功能的推演）、`RUNTIME-MIGRATION.md`（迁移计划与批准的构建期例外）、`THIRD-PARTY-PLUGINS.md`（安装方案，只是计划）；`LOCAL-HOST.md`、`PLUGIN-DEVELOPMENT.md` 的装配说法已改。余：`skills/molis-plugin-dev/host.md` 的必改步骤与 AGENTS.md 的说法未改（EXTENSION-POINTS §6，BL-119，W6-03）；装配名单冻结 19 个、未减少；迁移从 W4-04（Form）起 | `docs/system/EXTENSION-POINTS.md`、`tests/builtin-plugin-assembly-gate.test.ts`、§3 R-01 |
+| §4.7 多人并行 | 部分（W1-13 已做，#314；健康门禁对照合并基点 #293、密钥扫描进 CI #294 更早合入）：`docs/system/PARALLEL-DEVELOPMENT.md`（枢纽文件、排时段、集成分支、基线比对、Agent 锁、清理、PR 体量）、`docs/system/CONTRACT-CHANGES.md`（现在不留兼容期；读取兼容从第一个装到开发机之外的版本开始，日期未到）、`.github/CODEOWNERS` 与 SSOT 各表「归属」列（由 `scripts/package-owners.mjs` 生成，`pnpm boundary:check` 校验）、PR 模板新栏目、`AGENTS.md` 指针。待做：公开 API 快照 W1-04、动作合同快照 W2-15、挑相关用例脚本 W2-17、CI 产品子集 W1-11/W2-16、插件回放工具 W4-01、测试并发隔离 W5-12、Prologue SDK 合成负责人（W1-20 提名）、固定记录 main 最新全量数字的位置（`PARALLEL-DEVELOPMENT.md` 没有定义，归 W6-05）；CODEOWNERS 现在只路由包根目录，Coding、Jelly、Shelf 在宿主与外壳里的代码未路由 | §1、`docs/system/PARALLEL-DEVELOPMENT.md` |
+| §4.8 改需求的便利 | 待做：页面资源预算 W1-07，翻译检查 W1-08（决定 #16），浏览器代码打包 W4-04、W5-04 | §3 R-07 |
+| §4.9 体检报告逐项闭环 | 已闭环（10-08）：附录 A 39 行、报告 §5 的 6 步、§7.5 的 5 条、交接清单 25 项，各有结论、证据、归属 | §3 |
+| §4.10 新合同全链路 | 部分：搜索来源与对象读取器、侧栏文件来源、成果库的预览固定比较继续、工作流内容站、插件通知（只对 Runtime 插件）、撤销声明在使用端的授权，都已走通并有用例（roadmap §4.10）；Manifest `methods` 对 Runtime 与已安装插件不生效，按决定 #18 改为和内置一样注册（W4-02）；无使用者的接口按决定 #19 处理（W2-03）；注册时交叉校验 W3-05；八类新合同按基本合同逐条复核已做（`specs/action-architecture/spec.md` §3 末尾，#319），缺口 G1–G9 各有去向 | roadmap §4.10 |
+| §4.11 数据与可靠性 | 部分：`docs/system/HOME-DATA.md`（#295）是库的 owner 表（第 11 项交付物）；两个无版本库（W2-05）、4 处跨 owner SQL（W2-06）、统一登记（W4-11）、快照命令（W5-16）待做 | §3 R-09 |
+| §4.12 卫生与文档 | 部分：vendored 已收到 1 份（#170），`MIGRATION.md` 已退场（#251），文档对齐经 #295–#298 做掉大半；版本与发布策略已写（W1-22，#321：`docs/releases/POLICY.md`、`CHANGELOG.md`、`CHECKLIST.md`，`scripts/verify-release-versions.mjs` 进 CI），发布 0.3.0、内置插件清单版本改成 0.3.0 与 Runtime 跟随当前构建在 W5-15（细则和清单跟随的做法用户 10-08 已确认，#323）；余下见 W1-02（文档收尾）、W1-23（根目录、`.impeccable`、工作树）、W2-01（占位 subpath） | §3 |
+| §4.13 门禁 | 部分：已接健康门禁（对照合并基点；含巨大单元例外校验 #320、包清单表校验 #322）、整页门禁、成果类型与声明门禁、密钥扫描、版本核对（#321）；API 快照、页面资源预算、结构门禁、文档引用门禁、静态检查待做（W1-04～W1-09） | §5a |
+| §4.14 手册与 Skill | 部分：读取兼容规则（#290）与 `host.md` 重写（#298）已做；创作台回放工具 W1-12；`host.md` 与 AGENTS.md 的说法对不上（BL-119，W6-03）；基本合同复核发现 Skill 没写撤销、后台任务、到期提醒、片段推荐（缺口 G7，和 W1-12 的回放工具一起补） | `skills/molis-plugin-dev/` |
+| §4.15 术语表 | 部分（W1-17 已做，#315）：`docs/system/GLOSSARY.md` 已写（一概念一名一定义；术语到翻译稳定键的对应；界面用词待批清单；代码改名清单分内部改名与合同改名；Characters 按「设置的一节」写，讨论按在用功能写）；代码改名（W5-14）、旧术语门禁、两套能力机制的收敛未做 | `docs/system/GLOSSARY.md`、§1 |
+| §4.16 静态检查 | 待做：仓库没有 lint/format 脚本（W1-09） | `package.json` |
+| §4.17 依赖与 SDK | 部分（W1-20 已做，#318）：[依赖清单与 Prologue SDK 收敛方案](dependencies-and-sdk-plan.md)；根 `package.json` 已固定 `packageManager`（pnpm 11.9.0），CI 与发布工作流读它。方案查到 Prologue 来源分支早已合入上游（PR #3）、现行 vendored 包不需要补丁、25 个历史补丁可删；推送、删 vendored 文件、改依赖版本都还没做，等用户确认后按方案分片执行（W1-23） | §3 N-14、`dependencies-and-sdk-plan.md` |
+| §4.18 安全不变量 | 初稿（§6）；密钥扫描已接 CI（#294）；逐条拒绝用例 W2-19 | §6 |
+| §4.19 C 端就绪方案 | 部分（W1-21 已做，#316）：[`c-end-readiness.md`](c-end-readiness.md) 三个里程碑（M1 能装到第二台 mac、M2 保持更新不丢数据、M3 不止 macOS）、各项成本与依赖、5 个探针；还要用户定的 7 项在它的 §8，用户决定后各写成 §1 表的一行 | §3 C 组 |
 
-**仓库系统整理要求（15 节）**：§1、§2 已覆盖（第一步 spec §1、§7）；§9 前端动线：壳子 S1–S7 与成果库走查覆盖了「插件不出整页、直达打开工作台、对话框与侧栏在工作台里」，其余页面的质感审查待做；§12 测试与预期对齐：第一步回归基线与本轮的 #206、#214（用例装配与下载竞态）覆盖了已发现的，系统性审查待做；§13 Prologue AI 手册与 Skill 已有（`docs/platform/PROLOGUE-AI.md`、`skills/molis-prologue-ai/SKILL.md`），与当前代码的一致性待第二步 §4.14 复核；§3–§8、§10、§11、§14、§15 归第二步，见上表。
+**仓库系统整理要求（15 节）**：§1、§2 已覆盖（第一步 spec §1、§7）；§9 前端动线：壳子 S1–S7 与成果库走查覆盖了「插件不出整页、直达打开工作台、对话框与侧栏在工作台里」，其余页面的质感审查待做（W2-18）；§12 测试与预期对齐：第一步回归基线与本轮的 #206、#214（用例装配与下载竞态）覆盖了已发现的，系统性审查待做；§13 Prologue AI 手册与 Skill 已有（`docs/platform/PROLOGUE-AI.md`、`skills/molis-prologue-ai/SKILL.md`），与当前代码的一致性待第二步 §4.14 复核；§3–§8、§10、§11、§14、§15 归第二步，见上表。
 
-**体检报告**：附录 A 的数字见 9.3；§5 的防腐顺序与第二步 §5 相同，第一步「门禁先行」已开始（第一批），其余未开始；§7.5 对在途线的建议：在途线都已合入或删除（见第一步 §13），不再适用。
+**体检报告**：附录 A、§5 的 6 步、§7.5 的 5 条与第一步交接清单的逐项结论见 §3.1–§3.4；附录 A 的数字 10-03 的版本见 9.3，10-08 的见 §3.1 各行证据。§5 的防腐顺序与第二步 §5 相同，第 1 步「门禁先行」已做大半（#179、#283、#293、#294），其余见 §3.2；§7.5 对在途线的建议：第 1 条没有按建议的顺序执行（#98 先于 #102 合入），第 2 条已被 CODEOWNERS 取代并做掉（#314），第 3～5 条仍要做，见 §3.3。
 
 ### 9.3 重新量（main aef917dc，与 10-02 开工时对比）
 
@@ -921,7 +1041,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
   - 演练：真实目录库的拷贝只差模型供应商表的列序和项目表上的一条约束；按列名搬进版本 20 的新库，655 行全部搬过，只丢恒空的那一列；新代码打开，18 个项目都在。
 - **第五批**（`integration/batch-10-04e` = 项目库基线分支（含 #253、#254、#255、Schedule）+ 记忆 + 目录库）：整体构建、`typecheck:all`、边界、健康门禁通过（就地补表 72 → 5）；相关用例全过（项目库 227 个里 8 个失败已修：其中 2 条只测迁移 36 导入规则的用例删掉，运行时的同类规则另有用例；目录与记忆 120 个里 1 个已修）。全量在跑。
   - [#257](https://github.com/molis-ai/molis-work/pull/257)：记忆第一版导入；[#258](https://github.com/molis-ai/molis-work/pull/258)：Schedule 旧导入。
-- 门禁第二批（§5a）：空 catch、`as unknown as`、旧产品名的计数，以及 contracts 与插件 SDK 的公开 API 快照，加进 `pnpm health:check`（分支 `chore/health-gates-lint-api`）。公开 API 会随前面的合同改动变化，等本批合入后再生成基线开 PR。
+- 门禁第二批（§5a）：空 catch、`as unknown as`、旧产品名的计数，以及 contracts 与插件 SDK 的公开 API 快照。最初的 WIP 分支 `chore/health-gates-lint-api` 只数名字、用正则数空 catch（137/141 处落在浏览器脚本的模板字符串里）；已由 W1-04 的 `chore/gates-api-snapshot` 取代：基于合并基点比对的门禁，快照含签名，空 catch 与双重断言按语法树数，口径见 `tooling/gates/README.md`。旧分支不再使用。
 - 「其他旧账号导入」已查（10-04）：**不全是兼容，不能直接删**。
   - `importLegacyAccounts`（`apps/local-host/src/web-connector-connections.ts`）每次列出连接时都会做几种「认领」：旧图片密钥、TypeSafe 的 `FUNCTIONS_CREDENTIAL_REF`、各连接器的 `connector:<id>:…`、模型目录的 `model-provider:<id>`，以及各项目来源里的凭据引用。认领后它们出现在设置的「连接」里。
   - 其中至少三种仍由现行流程写入：模型设置按 `model-provider:<id>` 存密钥（`model-provider-store.ts:96`）；Functions / Jev 仍直接读 `FUNCTIONS_CREDENTIAL_REF`（`functions-host.ts`、`experiments-executor.ts`）；Feed 的 GitHub、Gmail 来源注册仍写连接器凭据引用（`plugins/native/feed/src/connector-service.ts`、`connector-source-registration.ts`）。

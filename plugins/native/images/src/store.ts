@@ -1,4 +1,4 @@
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, clearInExistingHomeSqlite, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
@@ -174,12 +174,47 @@ export class ImagesStore {
     }
   }
 
+  /** The project is deleted: its jobs go. Returns the names of the image files they held; deleting those is the caller's. */
+  deleteProject(projectId: string): string[] {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const files = deleteProjectJobs(this.db, projectId);
+      this.db.exec("COMMIT");
+      return files;
+    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+  }
+
   finish(projectId: string, id: string, status: Exclude<ImageJobStatus, "running">, images: GeneratedImage[], error: string): boolean {
     const result = this.db.prepare(`UPDATE jobs SET status = ?, images_json = ?, error = ?, finished_at = ?
       WHERE project_id = ? AND id = ? AND status = 'running'`)
       .run(status, JSON.stringify(images), error, new Date().toISOString(), projectId, id);
     return Number(result.changes) === 1;
   }
+}
+
+/** Removes a project's jobs inside the caller's transaction; returns the names of the image files they held. */
+function deleteProjectJobs(db: DatabaseSync, projectId: string): string[] {
+  const files = (db.prepare("SELECT images_json FROM jobs WHERE project_id = ?").all(projectId) as Row[])
+    .flatMap(row => (JSON.parse(String(row.images_json)) as GeneratedImage[]).map(image => image.filename));
+  db.prepare("DELETE FROM jobs WHERE project_id = ?").run(projectId);
+  return files;
+}
+
+/** Image files are named by a generated id; anything else in a stored record is not ours to delete. */
+const ASSET_FILE = /^[a-f0-9-]+\.(png|jpg|webp)$/u;
+
+/**
+ * Clears a deleted project's jobs and pictures straight from the Home's files, for a process that runs no Images
+ * service. A library that does not exist yet has nothing to clear and is not created. A job still running in another
+ * process loses its record; its result is dropped when it finishes.
+ */
+export function purgeImagesProject(homeDirectory: string, projectId: string): void {
+  const files = clearInExistingHomeSqlite(homeDirectory, "images", IMAGES_STORE_BASELINE, db => deleteProjectJobs(db, projectId));
+  if (files) removeAssetFiles(join(homeDirectory, "images", "assets"), files);
+}
+
+export function removeAssetFiles(directory: string, filenames: readonly string[]): void {
+  for (const name of filenames) if (ASSET_FILE.test(name)) rmSync(join(directory, name), { force: true });
 }
 
 function jobFromRow(row: Row): ImageJob {

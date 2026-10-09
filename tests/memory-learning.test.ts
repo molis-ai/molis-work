@@ -132,3 +132,34 @@ test("a personal wish learned in a project's works never names those works: not 
   const [change] = service.changes(person, { scope: "personal" });
   assert.doesNotMatch(change!.reason ?? "", /差旅费用|内容预算/);
 });
+
+test("what the person said in a deleted project's work is not learned: the project is asked about before the model is and again before anything is written", { timeout: 60_000 }, async t => {
+  const { home, service } = await memoryHome(t);
+  let asked = 0;
+  const reply = (structured: unknown, during?: () => void) => async () => {
+    asked += 1; during?.();
+    return { value: "{}", structured, run_ref: { kind: "run", id: "r", revision: 1 } as never, state: "completed" as const, configuredModel: "m", reportedModels: [], usage: [] };
+  };
+  const proposals = { candidates: [{ ...riskFirst, quote: "以后周报都把风险放最前面", same_as: null, supersedes: null }] };
+  const request = { caller: inWork("work-1", "周报 9/23"), said: ["以后周报都把风险放最前面"] };
+  const kept = async () => (await service.candidates(person, { scope: "all" })).length + (await service.list(person)).items.length;
+
+  // The project was deleted before the queued round started: no model call, nothing written.
+  const early = await learnFromWork(service, home, request, reply(proposals), async () => false);
+  assert.equal(early.ran, false);
+  assert.deepEqual(early.learned, []);
+  assert.equal(asked, 0);
+
+  // It is deleted while the model is thinking (up to two minutes): what comes back is dropped, so the deletion's purge is not undone.
+  let exists = true;
+  const late = await learnFromWork(service, home, request, reply(proposals, () => { exists = false; }), async () => exists);
+  assert.equal(asked, 1);
+  assert.equal(late.ran, true);
+  assert.deepEqual(late.learned, []);
+  assert.equal(await kept(), 0, "no suggestion and no memory for the deleted project");
+
+  // A project that is still there, or one this process cannot ask about, learns as before.
+  const there = await learnFromWork(service, home, request, reply(proposals), async () => true);
+  assert.deepEqual(there.learned.map(item => item.outcome), ["candidate"]);
+  assert.equal(await kept(), 1);
+});

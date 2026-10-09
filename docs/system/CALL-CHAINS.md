@@ -79,7 +79,7 @@
 
 **现状与缺口**
 
-- 步骤 7 的删项目与网页的删项目是两份实现：网页（`apps/local-host/src/web-project-settings.ts`）有终端存活时 409 的保护并释放运行环境，MCP 版没有。已定（决定 7）：宿主设置里的写入仍只走本机管理 HTTP，其中只有删除项目要统一，Web 与 MCP 共用一份 Host 删除服务（W2-07）。删除时别的主人存在 Home 里的该项目数据，已定由各主人一起清、可重试（spec §1，2026-10-07 的行）；现在 `ManagedProjectDeletion`（`apps/local-host/src/managed-project-deletion.ts`）的清理端口 `ProjectDeletionCleanupPorts` 只有会话绑定和面板两项，还没有按主人登记的钩子。
+- 步骤 7 的删项目与网页的删项目是两份实现：网页（`apps/local-host/src/web-project-deletion.ts`，由 `web-project-settings.ts` 挂上）有终端存活时 409 的保护并释放运行环境，MCP 版没有。已定（决定 7）：宿主设置里的写入仍只走本机管理 HTTP，其中只有删除项目要统一，Web 与 MCP 共用一份 Host 删除服务（W2-07）。删除时别的主人存在 Home 里的该项目数据，已定由各主人一起清、可重试（spec §1，2026-10-07 的行），已做：`ManagedProjectDeletion`（`apps/local-host/src/managed-project-deletion.ts`）的清理端口 `ProjectDeletionCleanupPorts` 仍只有会话绑定和面板两项，那是目录自己的事实；别的主人经 `ProjectDeletedHooks`（`apps/local-host/src/project-deleted-hooks.ts`）登记自己要清什么，目录提交后逐个运行，每个主人在删除收据里一步（目录库表 `project_deletion_steps`）；某一步失败，或这个进程没有那项服务（命令行与卸载程序没有记忆和搜索服务；只转发的 stdio MCP 不运行 Agent 运行环境，记忆放在那里），回执保持 pending，用同一个删除请求重试，运行中的 Web 服务也会接着做完。两个入口走的是同一份，这一部分不用再统一。
 - 步骤 7 的 5 个写入工具读 `actor_id` 参数，违反「可信身份不从输入读」；已定（决定 6）从可信会话取并删参数（W2-07）。
 - 步骤 8 的管理入口走 typed 桥而非动作；已定「对外的只走动作」（N-12，W3-07）。
 - `authorship: "session"` 只在步骤 6 的 MCP 入口检查，助理和 Agent 不经这条检查（见 [action-architecture §3 复核](../../specs/action-architecture/spec.md)）。
@@ -267,7 +267,7 @@
 | 例外 | 在哪里 | 为什么存在 | 删除条件 |
 | --- | --- | --- | --- |
 | 项目目录：创建 `POST /api/settings/projects`、改名 `POST /api/settings/projects/<id>/rename`、示例数据 `POST /api/settings/demo`、项目里添加与移除插件 `POST`、`DELETE /api/settings/projects/<id>/plugins` | `apps/local-host/src/web-project-settings.ts` | 写的是 Home 级项目目录（owner 是 `modules/projects`），不是插件内容；入口是本机设置页。MCP 的「新建并绑定」是另一条实现（`apps/mcp/src/runtime-context-tools.ts`） | 助理、MCP 或 CLI 需要同一项操作时，把它做成动作，HTTP 改为调用该动作；在此之前保持 |
-| 项目目录：删除项目 `POST /api/settings/projects/<id>/delete` | `apps/local-host/src/web-project-settings.ts`，MCP 的删项目工具在 `apps/mcp/src/runtime-context-tools.ts` | 现在是两份实现：网页有终端存活时 409 的保护并释放运行环境，MCP 没有。决定 7 要把这一项统一。删除时别的主人存在 Home 里的数据要一起清，那是 spec §11「删除项目留下别的主人的数据」一组的修复 | W2-07：Web 与 MCP 共用一份 Host 删除服务；之后这个 HTTP 只是它的入口，随上一行的条件处理 |
+| 项目目录：删除项目 `POST /api/settings/projects/<id>/delete` | `apps/local-host/src/web-project-deletion.ts`（由 `apps/local-host/src/web-project-settings.ts` 挂上），MCP 的删项目工具在 `apps/mcp/src/runtime-context-tools.ts` | 现在是两份实现：网页有终端存活时 409 的保护并释放运行环境，MCP 没有。决定 7 要把这一项统一。删除时别的主人存在 Home 里的数据已由各主人一起清（`ProjectDeletedHooks`，每个主人在删除收据里一步），两个入口共用这一份，那是 spec §11「删除项目留下别的主人的数据」一组的修复 | W2-07：Web 与 MCP 共用一份 Host 删除服务；之后这个 HTTP 只是它的入口，随上一行的条件处理 |
 | 首次引导与个人空间：`POST /api/onboarding/personal`、`/dismiss`、`/initialize` | `apps/local-host/src/web-onboarding.ts` | 写的是 Home 的引导状态，并建项目；`/initialize` 还调用 Goals 的 typed 桥（见 10.2） | 与项目目录一行相同；其中对 Goals 的调用随 W3-07 改走动作 |
 | 模型供应商：保存与删除 `POST`、`DELETE /api/settings/models/<provider>`，连通性试验 `POST /api/settings/models/<provider>/test` | `apps/local-host/src/web-model-settings.ts` | 供应商配置属于宿主（`apps/local-host/src/model-provider-store.ts` 的 `ModelProviderStore`，在项目目录库里），密钥存成连接库里的 `model-api` 连接；试验经 `horizontal/agent-host` 的 Prologue 适配器，不写设置 | 模型设置成为插件的设置面，或助理需要代用户改模型时；密钥只给引用的规则不变 |
 | 对外接入授权：`POST /api/settings/mcp/actions` | `apps/local-host/src/web-mcp-action-settings.ts`，写 `{home}/config/mcp-tools.json` | 这是 MCP 客户端授权的来源，必须是本人在本机页面上的决定；客户端不能给自己授权 | 不能成为 MCP、Agent 可调用的动作；只有授权改成「只对 `user` 受众开放、目录里对其他受众不可见」的系统动作时才改 |

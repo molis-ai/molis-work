@@ -40,7 +40,7 @@ import { createImpeccableMetric } from "./gates/impeccable-files.mjs";
 import { vendoredProvenanceProblems } from "./gates/vendored-provenance.mjs";
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
-import { createLintMetrics, lintWantsText } from "./gates/lint.mjs";
+import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
 const fail = (message) => { console.error(message); process.exit(2); };
@@ -411,7 +411,7 @@ METRICS.push(createTranslationMetric({ isSource, requireShape, isRecord }));
 METRICS.push(createImpeccableMetric({ perFile }));
 // 8. Static checks (W1-09): Biome with a minimal rule set, counted per file; the rules live in scripts/gates/lint.mjs.
 // The repository this script belongs to must have the configuration; another --root (the scratch repositories of the gate tests) may lack one.
-METRICS.push(...createLintMetrics({ root, required: root === path.resolve(path.dirname(new URL(import.meta.url).pathname), ".."), fail, perFile, rekey, rekeyFile, sumOf, requireShape }));
+METRICS.push(...createLintMetrics({ root, required: isOwnRepository(root, import.meta.url), fail, perFile, rekey, rekeyFile, sumOf, requireShape }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 

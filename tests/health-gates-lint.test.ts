@@ -1,19 +1,22 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import os, { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { LINT_RULES, createLintMetrics, lintTexts, looserThan, policyOf, policyProblems } from "../scripts/gates/lint.mjs";
+import { LINT_RULES, LINT_ROOTS, createLintMetrics, isOwnRepository, lintTexts, looserThan, policyOf, policyProblems } from "../scripts/gates/lint.mjs";
 
 // specs/repository-anti-corruption §4.16 (W1-09): the static checks. A minimal Biome rule set (empty catch, `as unknown as`,
 // floating promises, explicit `any`, console, debugger) is counted per file like the other health gates: it may only fall,
 // a new file starts at 0, and the head is compared with the merge-base so that rewriting tooling/gates/baseline.json hides
 // nothing. The definitions are in scripts/gates/lint.mjs and tooling/gates/lint/*.grit. Here
 //   1. every count is checked on small snippets (what it counts, and what it leaves out),
-//   2. the shape of biome.jsonc is compared with the merge-base's (the rule set only gets stricter), and
+//   2. the shape of biome.jsonc is compared with the merge-base's (the rule set only gets stricter: rules, the directories a rule
+//      is off for, the exclusions, the lists of files that are checked, the plugins), and a setting the gate does not read (rule
+//      options, a per-language switch) is refused, because both sides are measured with the head's configuration and a looser
+//      one makes the numbers fall on both sides, and
 //   3. each rule is mutation-verified on a scratch repository, in the style of tests/health-gates-merge-base.test.ts: one
 //      violation added on a branch makes `--base main` fail, and `--update` (the laundering move) neither hides it nor is
 //      accepted when it is given the merge-base.
@@ -97,10 +100,11 @@ test("definitions: what each count includes and leaves out", () => {
 });
 
 // ---- 2. the shape of biome.jsonc ----------------------------------------------------------------------------------------
-type Config = { linter: { enabled: boolean; rules: Record<string, unknown> }; files: { includes: string[] }; plugins: string[]; overrides: Array<Record<string, unknown>> };
+type Config = { linter: { enabled: boolean; includes?: string[]; rules: Record<string, unknown>; [setting: string]: unknown }; files: { includes: string[]; [setting: string]: unknown }; plugins: Array<string | { path: string }>; overrides: Array<Record<string, unknown>>; [setting: string]: unknown };
+const coverGlobs = LINT_ROOTS.map((lintRoot: string) => `${lintRoot}/**/*.{ts,mts,mjs}`);
 const baseConfig = (): Config => ({
   linter: { enabled: true, rules: { preset: "none", nursery: { noFloatingPromises: "error" }, suspicious: { noExplicitAny: "error", noConsole: "error", noDebugger: "error" } } },
-  files: { includes: ["packages/**/*.ts", "!**/dist"] },
+  files: { includes: [...coverGlobs, "!**/dist"] },
   plugins: ["./tooling/gates/lint/no-empty-catch.grit", "./tooling/gates/lint/no-double-cast.grit"],
   overrides: [{ includes: ["scripts/**"], linter: { rules: { suspicious: { noConsole: "off" } } } }],
 });
@@ -113,14 +117,22 @@ test("policy: the real biome.jsonc is a clean, stricter-only description of itse
   assert.deepEqual(policyProblems(real), []);
   assert.deepEqual(looserThan(real, real), []);
   assert.deepEqual(Object.keys(real.rules).sort(), ["nursery/noFloatingPromises", "suspicious/noConsole", "suspicious/noDebugger", "suspicious/noExplicitAny"]);
+  assert.deepEqual(real.covers, [...coverGlobs].sort(), "files.includes names the directories the gate copies into the check, and nothing else");
+  assert.deepEqual(real.unsupported, [], "the gate reads every setting in biome.jsonc");
 });
 
 test("policy: nothing changed, or only tightened, is not looser", () => {
   assert.deepEqual(looser(() => {}), []);
   assert.deepEqual(looser((config) => { group(config, "suspicious").noDoubleEquals = "error"; }), [], "a new rule");
   assert.deepEqual(looser((config) => { config.overrides = []; }), [], "an exception removed");
-  assert.deepEqual(looser((config) => { config.files.includes = ["packages/**/*.ts"]; }), [], "an exclusion removed");
+  assert.deepEqual(looser((config) => { config.files.includes = [...coverGlobs]; }), [], "an exclusion removed");
   assert.deepEqual(looser((config) => { config.plugins.push("./tooling/gates/lint/more.grit"); }), [], "a plugin added");
+  assert.deepEqual(looser((config) => { config.files.includes.push("docs/**/*.mjs"); }), [], "a directory added to the files that are checked");
+  // A list of the files that are checked may grow, and losing the whole list is no limit at all.
+  const limited = (config: Config) => { config.linter.includes = ["packages/**", "tests/**"]; };
+  assert.deepEqual(looserThan(policy(), policy(limited)), [], "the linter's own limit removed");
+  assert.deepEqual(looserThan(policy((config) => { config.linter.includes = ["packages/**", "tests/**", "apps/**"]; }), policy(limited)), [], "a pattern added to the linter's limit");
+  assert.deepEqual(looserThan(policy((config) => { config.files.includes = ["!**/dist"]; }), policy()), [], "no list of the files that are checked is no limit");
 });
 
 const loosenings: Array<[string, (config: Config) => void, RegExp]> = [
@@ -132,8 +144,21 @@ const loosenings: Array<[string, (config: Config) => void, RegExp]> = [
   ["an exclusion added", (config) => { config.files.includes.push("!tests/**"); }, /!tests\/\*\* excludes files from the check/],
   ["a plugin dropped", (config) => { config.plugins.pop(); }, /the plugin .*no-double-cast\.grit is gone/],
   ["the linter switched off", (config) => { config.linter.enabled = false; }, /the linter is switched off/],
+  // The check's reach, not its rules: the findings it no longer makes fall to 0 on both sides of the comparison.
+  ["a code directory taken out of files.includes", (config) => { config.files.includes = config.files.includes.filter((glob) => glob !== "apps/**/*.{ts,mts,mjs}"); }, /apps\/\*\*\/\*\.\{ts,mts,mjs\} is gone from files\.includes/],
+  ["a code directory narrowed in files.includes", (config) => { config.files.includes = config.files.includes.map((glob) => (glob === "tests/**/*.{ts,mts,mjs}" ? "tests/**/*.ts" : glob)); }, /tests\/\*\*\/\*\.\{ts,mts,mjs\} is gone from files\.includes/],
+  ["a limit added to linter.includes", (config) => { config.linter.includes = ["packages/**"]; }, /linter\.includes now limits the check to packages\/\*\*/],
+  ["a limit added to files.includes where there was none", (config) => { config.files.includes = ["packages/**/*.ts", "!**/dist"]; }, /apps\/\*\*\/\*\.\{ts,mts,mjs\} is gone from files\.includes/],
 ];
 for (const [name, change, expected] of loosenings) test(`policy: ${name} is looser`, () => assert.match(looser(change).join("\n"), expected));
+
+test("policy: a pattern dropped from a list that already limited the check is looser, a pattern added is not", () => {
+  const limited = (...globs: string[]) => policy((config) => { config.linter.includes = globs; });
+  assert.match(looserThan(limited("packages/**"), limited("packages/**", "tests/**")).join("\n"), /tests\/\*\* is gone from linter\.includes/);
+  assert.deepEqual(looserThan(limited("packages/**", "tests/**"), limited("packages/**")), []);
+  // Replacing a pattern by a wider-looking one still loses the old pattern: keep it and add the new one, or change the gate.
+  assert.match(looserThan(limited("**"), limited("packages/**")).join("\n"), /packages\/\*\* is gone from linter\.includes/);
+});
 
 test("policy: an override's directories are scopes of their own", () => {
   const withOverride = (includes: string[]) => (config: Config) => { config.overrides = [{ includes, linter: { rules: { suspicious: { noConsole: "off" } } } }]; };
@@ -162,6 +187,30 @@ test("policy: problems in the configuration itself", () => {
   assert.match(problems((config) => { config.plugins.push("./elsewhere/rule.grit"); }), /names the plugin \.\/elsewhere\/rule\.grit/);
   assert.match(problems((config) => { config.linter.enabled = false; }), /linter is switched off/);
   assert.deepEqual(policyProblems(policy()), []);
+  // The check's reach has to name the directories the gate copies into the check.
+  assert.match(problems((config) => { config.files.includes = config.files.includes.filter((glob) => glob !== "tests/**/*.{ts,mts,mjs}"); }), /does not list tests\/\*\*\/\*\.\{ts,mts,mjs\}, so the files under tests\/ are not checked/);
+});
+
+// A setting the gate does not read is refused: it can switch a check off with no trace in the numbers. Each of these was
+// checked against Biome: the numbers fell to 0 (or nearly) on both sides of the comparison while every other test passed.
+const refused: Array<[string, (config: Config) => void, RegExp]> = [
+  ["a rule option that lets console calls through", (config) => { group(config, "suspicious").noConsole = { level: "error", options: { allow: ["log", "warn", "error", "info", "debug"] } }; }, /biome\.jsonc sets linter\.rules\.suspicious\.noConsole\.options,/],
+  ["an option of a rule in an override", (config) => { config.overrides = [{ includes: ["packages/**"], linter: { rules: { suspicious: { noConsole: { level: "error", options: { allow: ["log"] } } } } } }]; }, /sets overrides\.0\.linter\.rules\.suspicious\.noConsole\.options,/],
+  ["a rule without a level", (config) => { group(config, "suspicious").noConsole = { options: {} }; }, /sets linter\.rules\.suspicious\.noConsole,/],
+  ["a rule as a list", (config) => { group(config, "suspicious").noConsole = ["off"]; }, /sets linter\.rules\.suspicious\.noConsole,/],
+  ["the language switch of the JavaScript linter", (config) => { config.javascript = { linter: { enabled: false } }; }, /sets javascript,/],
+  ["the language switch in an override", (config) => { config.overrides = [{ includes: ["packages/**"], javascript: { linter: { enabled: false } } }]; }, /sets overrides\.0\.javascript,/],
+  ["a rule domain", (config) => { config.linter.domains = { project: "none" }; }, /sets linter\.domains,/],
+  ["an extended configuration", (config) => { config.extends = ["./other.json"]; }, /sets extends,/],
+  ["a folder the scanner skips", (config) => { config.files.experimentalScannerIgnores = ["packages"]; }, /sets files\.experimentalScannerIgnores,/],
+  ["a rule preset inside an override", (config) => { config.overrides = [{ includes: ["packages/**"], linter: { rules: { preset: "none" } } }]; }, /sets overrides\.0\.linter\.rules\.preset,/],
+  ["a plugin with options", (config) => { config.plugins.push({ path: "./tooling/gates/lint/no-double-cast.grit" }); }, /sets plugins,/],
+  ["the version control switched on", (config) => { config.vcs = { enabled: true, useIgnoreFile: true }; }, /sets vcs\.enabled,|sets vcs\.useIgnoreFile,/],
+];
+test("policy: a setting the gate does not read is refused, not ignored", () => {
+  for (const [name, change, expected] of refused) assert.match(policyProblems(policy(change)).join("\n"), expected, name);
+  // What the real configuration uses is read, and the ones that only describe the tool are fine.
+  assert.deepEqual(policyProblems(policy((config) => { config.root = true; config.$schema = "./node_modules/@biomejs/biome/configuration_schema.json"; config.formatter = { enabled: false }; config.assist = { enabled: false }; config.vcs = { enabled: false }; config.files.maxSize = 4000000; })), []);
 });
 
 test("policy: the repository the script belongs to must have a configuration, any other root may lack one", () => {
@@ -174,6 +223,79 @@ test("policy: the repository the script belongs to must have a configuration, an
     assert.match(policyMetric(true).absolute(null).join("\n"), /biome\.jsonc is missing/);
     assert.deepEqual(policyMetric(false).absolute(null), []);
   } finally { rmSync(bare, { recursive: true, force: true }); }
+});
+
+test("policy: isOwnRepository compares the real location of the root with the one the script is in", () => {
+  const entry = new URL("../scripts/check-health-gates.mjs", import.meta.url).href;
+  const elsewhere = mkdtempSync(path.join(tmpdir(), "molis-health-lint-elsewhere-"));
+  const link = path.join(elsewhere, "linked-checkout");
+  try {
+    symlinkSync(repoRoot, link, "dir");
+    assert.equal(isOwnRepository(repoRoot, entry), true);
+    assert.equal(isOwnRepository(path.join(repoRoot, "scripts", ".."), entry), true, "a path that is spelled differently");
+    assert.equal(isOwnRepository(link, entry), true, "a root given through a symbolic link is still the repository");
+    assert.equal(isOwnRepository(elsewhere, entry), false, "another root, such as a scratch repository of another gate test");
+    assert.equal(isOwnRepository(path.join(elsewhere, "gone"), entry), false, "a root that does not exist");
+  } finally { rmSync(elsewhere, { recursive: true, force: true }); }
+});
+
+// The predicate above is what the entry uses, but only running the entry shows that it does use it: with `required: false`
+// written into scripts/check-health-gates.mjs every other case in this file still passes, and a repository whose biome.jsonc
+// was deleted would be reported as clean.
+test("the entry run from a copy of the repository layout fails when biome.jsonc is missing and passes when it is there", () => {
+  const own = mkdtempSync(path.join(tmpdir(), "molis-health-lint-own-"));
+  try {
+    gitAt(own, "init", "-q", "-b", "main");
+    cpSync(path.join(repoRoot, "scripts"), path.join(own, "scripts"), { recursive: true });
+    // Two files switch on checks that need the specs of this repository (the package table, the links of a document): the
+    // layout is the script's own, not the documents', so they stay out of the copy.
+    rmSync(path.join(own, "scripts/workspace-packages.mjs")); rmSync(path.join(own, "scripts/gates/README.md"));
+    symlinkSync(path.join(repoRoot, "node_modules"), path.join(own, "node_modules"), "dir");
+    writeFileSync(path.join(own, ".gitignore"), "node_modules\n");
+    mkdirSync(path.join(own, "tooling/gates"), { recursive: true });
+    writeFileSync(path.join(own, "tooling/gates/limits.json"), JSON.stringify({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }, null, 2) + "\n");
+    mkdirSync(path.join(own, "packages/a/src"), { recursive: true });
+    writeFileSync(path.join(own, "packages/a/src/index.ts"), "export const a = 1;\n");
+    gitAt(own, "add", "-A"); gitAt(own, "commit", "-q", "-m", "the layout without a Biome configuration");
+    const entry = path.join(own, "scripts/check-health-gates.mjs");
+    const run = (...args: string[]) => { const done = spawnSync(process.execPath, [entry, ...args], { cwd: own, encoding: "utf8" }); return { code: done.status, out: `${done.stdout}${done.stderr}` }; };
+    assert.equal(run("--update").code, 0, "writing a baseline does not judge");
+    const missing = run();
+    assert.equal(missing.code, 1, missing.out);
+    assert.match(missing.out, /biome\.jsonc is missing/);
+    // The same repository named by --root, through a path that is not its real location (macOS's /var is /private/var).
+    const link = path.join(os.tmpdir(), `molis-health-lint-link-${process.pid}`);
+    symlinkSync(own, link, "dir");
+    try {
+      const linked = spawnSync(process.execPath, [entry, "--root", link], { cwd: own, encoding: "utf8" });
+      assert.equal(linked.status, 1, `${linked.stdout}${linked.stderr}`);
+      assert.match(`${linked.stdout}${linked.stderr}`, /biome\.jsonc is missing/);
+    } finally { rmSync(link, { force: true }); }
+    for (const file of ["biome.jsonc", "tooling/gates/lint/no-empty-catch.grit", "tooling/gates/lint/no-double-cast.grit"]) {
+      mkdirSync(path.dirname(path.join(own, file)), { recursive: true });
+      copyFileSync(path.join(repoRoot, file), path.join(own, file));
+    }
+    gitAt(own, "add", "-A"); gitAt(own, "commit", "-q", "-m", "with the configuration");
+    assert.equal(run("--update").code, 0);
+    const present = run();
+    assert.equal(present.code, 0, present.out);
+  } finally { rmSync(own, { recursive: true, force: true }); }
+});
+
+// files.maxSize is read by the gate but not compared: a size under which a real file is skipped does not pass as clean, because
+// Biome reports the skipped file and the gate stops on a report that no count covers.
+test("a file that Biome skips for its size stops the gate instead of passing as clean", () => {
+  const small = mkdtempSync(path.join(tmpdir(), "molis-health-lint-size-"));
+  try {
+    for (const file of ["tooling/gates/lint/no-empty-catch.grit", "tooling/gates/lint/no-double-cast.grit"]) {
+      mkdirSync(path.dirname(path.join(small, file)), { recursive: true });
+      copyFileSync(path.join(repoRoot, file), path.join(small, file));
+    }
+    const real = readFileSync(path.join(repoRoot, "biome.jsonc"), "utf8");
+    assert.match(real, /"maxSize": 4000000/);
+    writeFileSync(path.join(small, "biome.jsonc"), real.replace('"maxSize": 4000000', '"maxSize": 10'));
+    assert.throws(() => lintTexts(small, new Map([[`${SRC}/big.ts`, "export const long = 'a line that is longer than ten bytes';\n"]])), /which no count in scripts\/gates\/lint\.mjs covers/);
+  } finally { rmSync(small, { recursive: true, force: true }); }
 });
 
 // ---- 3. mutations on a scratch repository -----------------------------------------------------------------------------
@@ -254,6 +376,16 @@ const violations: Scenario[] = [
   { name: "files excluded in biome.jsonc", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('"!**/node_modules"', '"!tests/**", "!**/node_modules"')), expect: [/looser than the merge-base's: !tests\/\*\* excludes files from the check/] },
   { name: "a plugin dropped from biome.jsonc", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('    "./tooling/gates/lint/no-double-cast.grit"\n', '').replace('"./tooling/gates/lint/no-empty-catch.grit",', '"./tooling/gates/lint/no-empty-catch.grit"')),
     expect: [/looser than the merge-base's: the plugin \.\/tooling\/gates\/lint\/no-double-cast\.grit is gone/] },
+  // The reach of the check and the settings the gate does not read (review of afe59e22): each of these took a count to (nearly)
+  // 0 on both sides of the comparison, so the numbers alone said "improved".
+  { name: "a code directory taken out of files.includes", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('"apps/**/*.{ts,mts,mjs}", ', '')),
+    expect: [/biome\.jsonc is looser than the merge-base's: apps\/\*\*\/\*\.\{ts,mts,mjs\} is gone from files\.includes/] },
+  { name: "a limit added to linter.includes", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('"linter": {\n    "enabled": true,', '"linter": {\n    "enabled": true,\n    "includes": ["packages/**"],')),
+    expect: [/biome\.jsonc is looser than the merge-base's: linter\.includes now limits the check to packages\/\*\*/] },
+  { name: "console calls let through by a rule option", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('"noConsole": "error",', '"noConsole": { "level": "error", "options": { "allow": ["log", "warn", "error", "info", "debug"] } },')),
+    expect: [/biome\.jsonc sets linter\.rules\.suspicious\.noConsole\.options, which the gate does not read/], absolute: true },
+  { name: "the JavaScript linter switched off for the language", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('"root": true,', '"root": true,\n  "javascript": { "linter": { "enabled": false } },')),
+    expect: [/biome\.jsonc sets javascript, which the gate does not read/], absolute: true },
   { name: "a nested Biome configuration", mutate: () => put("packages/alpha/biome.json", '{ "extends": "//", "linter": { "rules": { "suspicious": { "noExplicitAny": "off" } } } }\n'),
     expect: [/packages\/alpha\/biome\.json is a nested Biome configuration/], absolute: true },
   { name: "a rule that no count covers", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('"noDebugger": "error"', '"noDebugger": "error", "noDoubleEquals": "error"')), expect: [/turns on suspicious\/noDoubleEquals, which no count/], absolute: true },

@@ -24,14 +24,19 @@
 //   debuggerStatements  suspicious/noDebugger.
 //   lintParseErrors     a file Biome cannot parse: no rule runs on it, so it is counted instead of skipped silently.
 //   lintSuppressions    `biome-ignore` comments, which silence a rule: counted so that they are no way around the others.
-// PLUS lintPolicy: the shape of biome.jsonc. It is compared with the merge-base's and may only get stricter (no rule removed
-// or switched off for a directory, no new exclusion, no plugin dropped), and nested Biome configurations are refused: the
-// gate reads the root one only.
+// PLUS lintPolicy: the shape of biome.jsonc. It is compared with the merge-base's and may only get stricter: no rule removed or
+// switched off for a directory, no new exclusion, no narrower list of the files that are checked (files.includes, linter.includes),
+// no plugin dropped. Both sides of the comparison are measured with the head's configuration, so a looser configuration makes the
+// numbers fall on both sides and the numbers cannot catch it; that is why the configuration is compared on its own. The gate reads
+// only the part of biome.jsonc it understands (policyOf): a setting outside it (rule options such as noConsole's `allow`, a
+// per-language `javascript.linter.enabled`, domains, extends) is refused, because each of them can switch a check off with no
+// trace in the numbers. Nested Biome configurations are refused too: the gate reads the root one only.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
 export const CONFIG_FILE = "biome.jsonc";
@@ -92,16 +97,77 @@ const parseConfig = (text, where) => {
   return config;
 };
 const configPluginsOf = (config) => (Array.isArray(config.plugins) ? config.plugins.filter((entry) => typeof entry === "string") : []);
-const levelOf = (value) => (typeof value === "string" ? value : value && typeof value === "object" ? (value.level ?? "error") : "off");
+const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+const areStrings = (value) => Array.isArray(value) && value.every((entry) => typeof entry === "string");
+/** A rule's level: "error", "off", … for a string, or for `{ "level": … }`; "invalid" for anything else. */
+const levelOf = (value) => (typeof value === "string" ? value : isRecord(value) && typeof value.level === "string" ? value.level : "invalid");
 
 /** Every ("group/rule", level) a `rules` object sets. A group given as a bare level is returned as ("group/*", level). */
 const ruleLevels = (rules) => {
   const out = [];
-  for (const [group, entries] of Object.entries(rules && typeof rules === "object" ? rules : {})) {
+  for (const [group, entries] of Object.entries(isRecord(rules) ? rules : {})) {
     if (group === "preset" || group === "recommended") continue;
     if (typeof entries === "string") out.push([`${group}/*`, entries]);
-    else for (const [rule, value] of Object.entries(entries ?? {})) out.push([`${group}/${rule}`, levelOf(value)]);
+    else for (const [rule, value] of Object.entries(isRecord(entries) ? entries : {})) out.push([`${group}/${rule}`, levelOf(value)]);
   }
+  return out;
+};
+
+/**
+ * The settings of biome.jsonc that the gate does not read, as paths ("javascript", "linter.rules.suspicious.noConsole.options",
+ * "overrides.0.javascript"). The gate understands files.includes and files.maxSize, plugins, linter.enabled/includes/rules and,
+ * per override, includes and linter.enabled/rules; a rule is a level, or `{ "level": … }` and nothing else. Anything outside that
+ * is listed here and refused by policyProblems instead of being ignored, because the numbers cannot show what it does: Biome
+ * printed nothing at all with `javascript.linter.enabled: false`, and `noConsole` with `options.allow` counted nothing. In an
+ * override the rule preset is refused as well (whether it resets the rules for those files is Biome's to define).
+ */
+const unsupportedOf = (config) => {
+  const out = [];
+  const at = (where, key) => (where ? `${where}.${key}` : key);
+  const record = (value, allowed, where) => {
+    if (!isRecord(value)) { out.push(where); return false; }
+    for (const key of Object.keys(value)) if (!allowed.includes(key)) out.push(at(where, key));
+    return true;
+  };
+  const typed = (value, ok, where) => { if (value !== undefined && !ok(value)) out.push(where); };
+  const ruleSet = (rules, where, topLevel) => {
+    if (!isRecord(rules)) return void out.push(where);
+    for (const [group, entries] of Object.entries(rules)) {
+      const here = at(where, group);
+      if (group === "preset") { if (!topLevel || typeof entries !== "string") out.push(here); continue; }
+      if (group === "recommended") { if (!topLevel || typeof entries !== "boolean") out.push(here); continue; }
+      if (typeof entries === "string") continue;
+      if (!isRecord(entries)) { out.push(here); continue; }
+      for (const [rule, value] of Object.entries(entries)) {
+        if (typeof value === "string") continue;
+        if (!isRecord(value) || typeof value.level !== "string") { out.push(at(here, rule)); continue; }
+        for (const key of Object.keys(value)) if (key !== "level") out.push(at(at(here, rule), key));
+      }
+    }
+  };
+  if (!record(config, ["$schema", "root", "vcs", "formatter", "assist", "files", "plugins", "linter", "overrides"], "")) return out;
+  typed(config.root, (value) => typeof value === "boolean", "root");
+  for (const key of ["vcs", "formatter", "assist"]) if (config[key] !== undefined && record(config[key], ["enabled"], key)) typed(config[key].enabled, (value) => value === false, `${key}.enabled`);
+  if (config.files !== undefined && record(config.files, ["includes", "maxSize"], "files")) {
+    typed(config.files.includes, areStrings, "files.includes");
+    typed(config.files.maxSize, (value) => typeof value === "number", "files.maxSize");
+  }
+  typed(config.plugins, areStrings, "plugins");
+  if (config.linter !== undefined && record(config.linter, ["enabled", "includes", "rules"], "linter")) {
+    typed(config.linter.enabled, (value) => typeof value === "boolean", "linter.enabled");
+    typed(config.linter.includes, areStrings, "linter.includes");
+    if (config.linter.rules !== undefined) ruleSet(config.linter.rules, "linter.rules", true);
+  }
+  if (config.overrides !== undefined && !Array.isArray(config.overrides)) out.push("overrides");
+  (Array.isArray(config.overrides) ? config.overrides : []).forEach((override, index) => {
+    const here = `overrides.${index}`;
+    if (!record(override, ["includes", "linter"], here)) return;
+    typed(override.includes, areStrings, `${here}.includes`);
+    if (override.linter !== undefined && record(override.linter, ["enabled", "rules"], `${here}.linter`)) {
+      typed(override.linter.enabled, (value) => typeof value === "boolean", `${here}.linter.enabled`);
+      if (override.linter.rules !== undefined) ruleSet(override.linter.rules, `${here}.linter.rules`, false);
+    }
+  });
   return out;
 };
 
@@ -109,48 +175,63 @@ const ruleLevels = (rules) => {
  * The part of biome.jsonc that decides what is checked, in a form that two versions can be compared in. A scope is "*" (the
  * whole tree) or one glob of an override's `includes`, so adding a directory to an override is a new scope and removing one
  * is a lost scope, however the lists are grouped:
- *   rules   { "group/rule": [the scopes where it is an error] }
- *   off     "group/rule@scope=level" for every scope where a rule is set to anything but error
- *   ignored the `!` entries of files.includes and linter.includes, and of an override's includes
- *   plugins the plugin files
- *   preset  the rule preset ("none": only the rules listed here run)
+ *   rules        { "group/rule": [the scopes where it is an error] }
+ *   off          "group/rule@scope=level" for every scope where a rule is set to anything but error
+ *   ignored      the `!` entries of files.includes and linter.includes, and of an override's includes
+ *   covers       the positive entries of files.includes: the files the check is limited to
+ *   linterCovers the positive entries of linter.includes (the linter's own limit; none means all of `covers`)
+ *   plugins      the plugin files
+ *   preset       the rule preset ("none": only the rules listed here run)
+ *   unsupported  the settings the gate does not read (unsupportedOf)
  */
 export const policyOf = (text) => {
   if (text === null || text === undefined) return null;
   const config = parseConfig(text, CONFIG_FILE);
-  const rulesBlock = config.linter?.rules ?? {};
+  const rulesBlock = isRecord(config.linter?.rules) ? config.linter.rules : {};
   const preset = rulesBlock.preset ?? (rulesBlock.recommended === false ? "none" : "recommended");
-  const policy = { linterEnabled: config.linter?.enabled !== false, preset, rules: {}, off: [], ignored: [], plugins: configPluginsOf(config) };
+  const globs = (list) => (Array.isArray(list) ? list.map(String) : []);
+  const policy = {
+    linterEnabled: config.linter?.enabled !== false, preset, rules: {}, off: [], ignored: [],
+    covers: globs(config.files?.includes).filter((glob) => !glob.startsWith("!")),
+    linterCovers: globs(config.linter?.includes).filter((glob) => !glob.startsWith("!")),
+    plugins: configPluginsOf(config), unsupported: unsupportedOf(config),
+  };
   const place = (rule, level, scopes) => {
     for (const scope of scopes) {
       if (level === "error") (policy.rules[rule] ??= []).push(scope);
       else policy.off.push(`${rule}@${scope}=${level}`);
     }
   };
-  const exclusions = (list, prefix = "") => { for (const entry of Array.isArray(list) ? list : []) if (String(entry).startsWith("!")) policy.ignored.push(`${prefix}${entry}`); };
+  const exclusions = (list, prefix = "") => { for (const entry of globs(list)) if (entry.startsWith("!")) policy.ignored.push(`${prefix}${entry}`); };
   for (const [rule, level] of ruleLevels(config.linter?.rules)) place(rule, level, ["*"]);
   exclusions(config.files?.includes);
   exclusions(config.linter?.includes);
   for (const override of Array.isArray(config.overrides) ? config.overrides : []) {
-    const globs = Array.isArray(override.includes) ? override.includes.map(String) : [];
-    const scopes = globs.filter((glob) => !glob.startsWith("!"));
+    if (!isRecord(override)) continue;
+    const list = globs(override.includes);
+    const scopes = list.filter((glob) => !glob.startsWith("!"));
     if (!scopes.length) scopes.push("*");
-    exclusions(globs, "override:");
-    exclusions(override.linter?.includes, "override:");
+    exclusions(list, "override:");
     if (override.linter?.enabled === false) place("linter", "off", scopes);
     for (const [rule, level] of ruleLevels(override.linter?.rules)) place(rule, level, scopes);
   }
   for (const key of Object.keys(policy.rules)) policy.rules[key].sort();
   policy.rules = Object.fromEntries(Object.entries(policy.rules).sort(([a], [b]) => a.localeCompare(b)));
-  policy.off.sort(); policy.ignored.sort(); policy.plugins.sort();
+  for (const key of ["off", "ignored", "covers", "linterCovers", "plugins", "unsupported"]) policy[key].sort();
   return policy;
 };
+
+/** The glob that biome.jsonc lists in files.includes for one of the roots the gate copies into the check. */
+const coverGlob = (lintRoot) => `${lintRoot}/**/*.{ts,mts,mjs}`;
 
 /** Problems with the configuration itself, whatever the merge-base says. */
 export const policyProblems = (policy) => {
   if (!policy) return [];
   const problems = [];
   if (!policy.linterEnabled) problems.push("the linter is switched off in biome.jsonc");
+  for (const setting of policy.unsupported ?? []) {
+    problems.push(`biome.jsonc sets ${setting}, which the gate does not read: a rule option, a per-language switch, a domain or an extension can turn a check off with no trace in the numbers (both sides are measured with this configuration). Use a level per rule, files.includes and overrides[].includes, or teach policyOf in scripts/gates/lint.mjs about it first`);
+  }
   const known = new Set(LINT_RULES.filter((rule) => rule.biome).map((rule) => rule.biome));
   for (const rule of Object.keys(policy.rules)) {
     if (!known.has(rule)) problems.push(`biome.jsonc turns on ${rule}, which no count in scripts/gates/lint.mjs covers; add it to LINT_RULES (and its definition to tooling/gates/README.md) or take it out`);
@@ -163,10 +244,17 @@ export const policyProblems = (policy) => {
   for (const plugin of policy.plugins) {
     if (!/^\.\/tooling\/gates\/lint\/[^/]+\.grit$/.test(plugin)) problems.push(`biome.jsonc names the plugin ${plugin}; the gate runs the GritQL plugins in tooling/gates/lint/ only`);
   }
+  // The gate copies the LINT_ROOTS into the check; files.includes has to name exactly those, or `pnpm lint` and the gate disagree.
+  for (const lintRoot of LINT_ROOTS) {
+    if (!(policy.covers ?? []).includes(coverGlob(lintRoot))) problems.push(`biome.jsonc's files.includes does not list ${coverGlob(lintRoot)}, so the files under ${lintRoot}/ are not checked (scripts/gates/lint.mjs LINT_ROOTS and files.includes name the same directories)`);
+  }
   return problems;
 };
 
-/** What got looser from `ref` (the merge-base's policy) to `head`. A rule set only gets stricter. */
+/**
+ * What got looser from `ref` (the merge-base's policy) to `head`. A rule set only gets stricter. A list of the files that are
+ * checked (files.includes, linter.includes) gets looser when it gains a limit it did not have or loses a pattern; it may grow.
+ */
 export const looserThan = (head, ref) => {
   if (!head || !ref) return [];
   const out = [];
@@ -178,8 +266,25 @@ export const looserThan = (head, ref) => {
   }
   for (const entry of head.off) if (!ref.off.includes(entry)) out.push(`${entry.slice(0, entry.lastIndexOf("="))} is switched off`);
   for (const entry of head.ignored) if (!ref.ignored.includes(entry)) out.push(`${entry} excludes files from the check`);
+  for (const [field, name] of [["covers", "files.includes"], ["linterCovers", "linter.includes"]]) {
+    const before = ref[field], now = head[field];
+    if (!Array.isArray(before) || !Array.isArray(now)) continue;
+    if (!before.length) { if (now.length) out.push(`${name} now limits the check to ${now.join(", ")}`); continue; }
+    if (!now.length) continue; // no list at all is no limit
+    for (const glob of before) if (!now.includes(glob)) out.push(`${glob} is gone from ${name}, so the check reaches fewer files`);
+  }
   for (const plugin of ref.plugins) if (!head.plugins.includes(plugin)) out.push(`the plugin ${plugin} is gone`);
   return out;
+};
+
+/**
+ * Whether `root` is the repository this script belongs to (the script is `<repo>/scripts/check-health-gates.mjs`): that one must
+ * have a biome.jsonc. Another --root, such as the scratch repositories of the other gate tests, may lack one. Paths are compared
+ * by their real location, so a root given through a symlink (macOS's /var/folders, a linked checkout) is still the repository.
+ */
+export const isOwnRepository = (root, scriptUrl) => {
+  const own = path.resolve(path.dirname(fileURLToPath(scriptUrl)), "..");
+  try { return realpathSync(root) === realpathSync(own); } catch { return path.resolve(root) === own; }
 };
 
 // ---- running Biome ------------------------------------------------------------------------------------------------------

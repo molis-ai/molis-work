@@ -1538,10 +1538,24 @@
       "!**/dist",
       "!**/node_modules"
     ],
+    "covers": [
+      "apps/**/*.{ts,mts,mjs}",
+      "examples/**/*.{ts,mts,mjs}",
+      "horizontal/**/*.{ts,mts,mjs}",
+      "modules/**/*.{ts,mts,mjs}",
+      "packages/**/*.{ts,mts,mjs}",
+      "plugins/**/*.{ts,mts,mjs}",
+      "scripts/**/*.{ts,mts,mjs}",
+      "server/**/*.{ts,mts,mjs}",
+      "tests/**/*.{ts,mts,mjs}",
+      "tooling/**/*.{ts,mts,mjs}"
+    ],
+    "linterCovers": [],
     "plugins": [
       "./tooling/gates/lint/no-double-cast.grit",
       "./tooling/gates/lint/no-empty-catch.grit"
     ],
+    "unsupported": [],
     "nested": []
   },
   "note": "Only decreases. Lower it with `node scripts/check-health-gates.mjs --update --base origin/main` in the PR that lowers a number. CI compares with the merge-base, not with this file."

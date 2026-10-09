@@ -2,6 +2,10 @@
   // Static checks (specs/repository-anti-corruption W1-09): the minimal rule set. tooling/gates/README.md ("Static checks")
   // says what each rule is for and how the frozen per-file baseline works; the gate is scripts/gates/lint.mjs, run by
   // `pnpm health:check`. Biome only lints here: no formatter and no import sorting, so nothing is ever reformatted wholesale.
+  // The gate reads only the settings that this file uses (scripts/gates/lint.mjs, policyOf): a rule option, a per-language
+  // switch, domains or extends is refused instead of ignored, because each of them can turn a check off with no trace in the
+  // numbers. A level per rule, files.includes, linter.includes, plugins and the includes of an override are compared with
+  // the merge-base's, and may only get stricter.
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "root": true,
   "vcs": { "enabled": false },
@@ -10,7 +14,8 @@
   "files": {
     // Code only: the packages, the cross-package tests, the repository scripts and the examples, TypeScript and ES modules.
     // Prototypes under docs/ and the archive under specs/ are not code that ships. scripts/gates/lint.mjs keeps the same
-    // list (LINT_ROOTS); the gate copies only tracked files of these kinds into a scratch tree before it runs Biome.
+    // list (LINT_ROOTS) and refuses a files.includes that lacks one of them; the gate copies only tracked files of these
+    // kinds into a scratch tree before it runs Biome.
     "includes": [
       "apps/**/*.{ts,mts,mjs}", "horizontal/**/*.{ts,mts,mjs}", "modules/**/*.{ts,mts,mjs}", "packages/**/*.{ts,mts,mjs}",
       "plugins/**/*.{ts,mts,mjs}", "server/**/*.{ts,mts,mjs}", "tooling/**/*.{ts,mts,mjs}", "tests/**/*.{ts,mts,mjs}",

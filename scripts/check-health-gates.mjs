@@ -30,6 +30,7 @@ import ts from "typescript";
 import { SOURCE_COUNT_RULES } from "./gates/source-counts.mjs";
 import { checkApiSnapshots } from "./gates/api-snapshot.mjs";
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
+import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
 const fail = (message) => { console.error(message); process.exit(2); };
@@ -110,7 +111,11 @@ const isSource = (file) => AREAS.test(file) && /\.(ts|mts)$/.test(file) && !file
   && !/(^|\/)(tests?|dist|node_modules|fixtures)\//.test(file) && !/\.test\.(ts|mts)$/.test(file);
 const isTestFile = (file) => /^tests\/.*\.(ts|mts|mjs)$/.test(file);
 const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
-const needsText = (file) => isSource(file) || isTestFile(file);
+// The structure gates (scripts/gates/) also scan a `fixtures/` directory that is not under a `tests/` one: production code
+// cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
+const FIXTURES_DIR = /(^|\/)fixtures\//;
+const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
+const needsText = (file) => isStructureSource(file) || isTestFile(file) || structureWantsText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -387,6 +392,8 @@ const sourceCounts = SOURCE_COUNT_RULES.map((rule) => ({
 }));
 
 const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, compatMarkers, ...sourceCounts];
+// The structure gates (W1-05) live in scripts/gates/: each module says what to count, this file compares.
+METRICS.push(...structureMetrics({ isSource: isStructureSource, perFile, rekey, rekeyUnit, sumOf }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 

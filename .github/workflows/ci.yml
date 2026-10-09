@@ -47,6 +47,11 @@ jobs:
       # blocks, `as unknown as` casts and old names (all per file), and a status line on every spec in specs/
       # (specs/repository-anti-corruption §5a). And a list that never changes silently: the public API of the contracts
       # package and the plugin SDK against the snapshots in tooling/gates/api (refreshed on purpose with `pnpm api:update`).
+      # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers (per source
+      # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a). The structure numbers
+      # (scripts/gates/, docs/system/PACKAGE-BOUNDARIES.md §6) fall too: contracts purity, the Host entry's `export *`, Module
+      # Repository/Store exports, typed HostCapabilityDefinition sites, plugin-named Host files, registerProvider lines,
+      # hybrid plugins, and the files that name a built-in plugin outside its package.
       # The head and the merge-base are both measured here by the same script and compared, so rewriting
       # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the
       # gate itself (script, limits.json, this step), which is reviewed. tooling/gates/giant-exceptions.json is no way around

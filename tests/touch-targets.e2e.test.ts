@@ -147,9 +147,15 @@ for (const scheme of ["light", "dark"] as const) {
       await open(width, height, mobile, "", "true");
       // The island paints the chip once its list of works has come back.
       if (expected.includes("work chip")) await waitFor("document.querySelector('[data-assistant-target-wrap]')?.getClientRects().length > 0", 10_000);
-      if (chips.length) { await evaluate(showChips(chips)); await settle(); }
-      const bar = (await evaluate<Control[]>(SHELL_CONTROLS)).filter(control => control.area === "bar");
-      const kinds = new Set(bar.map(control => control.kind));
+      // The island repaints its chips when its first answers come back and would hide what was shown; show them again until they stay.
+      let bar: Control[] = [];
+      let kinds = new Set<string>();
+      for (let attempt = 0; attempt < 5; attempt++) {
+        if (chips.length) { await evaluate(showChips(chips)); await settle(); }
+        bar = (await evaluate<Control[]>(SHELL_CONTROLS)).filter(control => control.area === "bar");
+        kinds = new Set(bar.map(control => control.kind));
+        if (expected.every(kind => kinds.has(kind))) break;
+      }
       assert.deepEqual(expected.filter(kind => !kinds.has(kind)), [], `${name}: every chip of the state is there to measure`);
       assert.deepEqual(bar.filter(control => short(control) < floor).map(control => `${control.kind} 「${control.label}」 ${control.w}×${control.h}`), [], `${name}: no control of the bar is under ${floor}px`);
       assert.deepEqual(bar.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name}: every control is a known one`);

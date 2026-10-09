@@ -206,8 +206,7 @@ test("the phone shell declares 44px targets, the desktop bar keeps its sizes, an
   assert.match(css, /@media \(max-width: 760px\), \(pointer: coarse\) \{\s*body\.immersive-workbench \.tab-view-chip-close \{ width: 44px; height: 44px; \}/, "and so is its close mark");
   assert.match(css, /\.assistant-target-clear \{[^}]*width: 28px; height: 28px;/, "the mark that starts a new work is 28px on a desktop bar, the bar's floor");
   assert.match(css, /\.assistant-target-main, \.assistant-target-clear, \.assistant-executor, \.assistant-materials-button, \.assistant-attention\) \{ height: 44px; \}/, "the Assistant line's chips are 44px tall on a phone");
-  assert.match(css, /\.bar-composer :is\(\.assistant-executor, \.assistant-materials-button, \.assistant-attention\) \{ min-width: 44px; \}/, "and 44px wide while the line has room");
-  assert.match(css, /\.assistant-target-clear \{ width: 44px; \}/, "the work chip's mark is 44px wide on a phone");
+  assert.match(css, /\.bar-composer :is\(\.assistant-executor, \.assistant-materials-button, \.assistant-attention, \.assistant-target-clear\) \{ min-width: 44px; \}/, "and 44px wide while the line has room, the work chip's mark always");
   assert.match(css, /\.bar-composer \.assistant-target\[data-mode="work"\] \{ min-width: 88px; \}/, "and the work chip keeps room for both its buttons");
   const design = readFileSync(join(process.cwd(), "DESIGN.md"), "utf8");
   assert.match(design, /\*\*Exception: the desktop window's chrome\.\*\*/, "DESIGN.md writes the exception for the title bar's strip and the bottom bar");

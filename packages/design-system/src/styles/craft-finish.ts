@@ -34,7 +34,7 @@ const STAGE_OPEN = `${STAGE_SHELL}[data-expanded="true"]`;
 const SESSIONS_LIST = "body.immersive-workbench .session-stage-shell:not([data-expanded=\"true\"])";
 
 /** Dialogs that open in the middle of the viewport. Edge sheets travel in from their edge instead. */
-const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog, dialog.pb-publish-dialog, dialog.pb-record-editor):not(.mw-sheet)";
+const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog):not(.mw-sheet)";
 
 /** Popovers and menus that drop from the control that opened them. */
 const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu, .tab-menu, .assistant-composer)";
@@ -1363,10 +1363,9 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
     /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
     ${SHELL} .bar-composer .assistant-target[data-mode="work"] { min-width: 88px; }
-    /* Its chips are 44px targets too, like the input, attach and send: the work's chip with its mark, materials, attention, who does it. */
+    /* The line's chips are 44px targets too. */
     ${ASSIST} :is(.assistant-target, .assistant-target-main, .assistant-target-clear, .assistant-executor, .assistant-materials-button, .assistant-attention) { height: 44px; }
-    ${SHELL} .bar-composer :is(.assistant-executor, .assistant-materials-button, .assistant-attention) { min-width: 44px; }
-    ${ASSIST} .assistant-target-clear { width: 44px; }
+    ${SHELL} .bar-composer :is(.assistant-executor, .assistant-materials-button, .assistant-attention, .assistant-target-clear) { min-width: 44px; }
     ${SHELL} .bar-start .plugin-picker { max-width: none; padding-right: 0; }
     ${SHELL} .bar-start .plugin-picker-trigger { padding: 0 8px; }
     /* On a phone the Dock beside it already shows where you are: the switcher is the door to all plugins. */
@@ -1643,7 +1642,7 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .plugin-stage-list .mw-empty__actions { gap: 8px; }
 
   /* ─── Lists and rows ───────────────────────────────────────────────────── */
-  ${WORKBENCH} :is(.tree-entry, .feed-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow, .inbox-stage-row, .session-stage-row) {
+  ${WORKBENCH} :is(.tree-entry, .feed-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow, .session-stage-row) {
     transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint);
   }
   ${WORKBENCH} .plugin-stage-list :is(.mw-dir-row, .tree-node):active:not(:disabled) { background: var(--nav-press); }
@@ -1659,7 +1658,7 @@ const CRAFT_BASE_STYLES = `
   @keyframes craft-landed { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
 
   /* Progress bars fill instead of appearing full. */
-  ${WORKBENCH} :is(.goal-progress-bar, .tree-progress, .mw-progress) > :is(i, span, .mw-progress__bar) { transition: transform 420ms var(--ease-quint); }
+  ${WORKBENCH} :is(.tree-progress, .mw-progress) > :is(i, span) { transition: transform 420ms var(--ease-quint); }
 
   /* ─── Goal canvas ──────────────────────────────────────────────────────── */
   /* The canvas is plain paper: nodes and their links are the only marks on it. */
@@ -1709,7 +1708,7 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .goal-node-toolbar .goal-node-back { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
   ${WORKBENCH} .goal-details-aside { background: var(--paper); box-shadow: inset 1px 0 0 var(--line); }
   ${WORKBENCH} .goal-details-toggle svg { transition: transform var(--dur-move) var(--ease-quint); }
-  ${WORKBENCH} .tui-empty, ${WORKBENCH} .goal-tui-empty { border-radius: var(--r-card); }
+  ${WORKBENCH} .tui-empty { border-radius: var(--r-card); }
 
   /* ─── Arrival ──────────────────────────────────────────────────────────── */
   /* A surface rises a few pixels as it appears. Surfaces restart this whenever they are shown. */
@@ -1858,13 +1857,10 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(-n+12) { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
   ${[...Array(12).keys()].map((index) => `${WORKBENCH} .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(${index + 1}) { animation-delay: ${index * 24}ms; }`).join("\n  ")}
 
-  /* ─── Settings documents ───────────────────────────────────────────────── */
-  ${PAGES} :is(.settings-card, .settings-group, .project-settings-card) { border-radius: var(--r-card); }
-
   /* ─── Drag and drop ────────────────────────────────────────────────────── */
   ${PAGES} [draggable="true"] { -webkit-user-drag: element; }
   ${PAGES} [data-craft-drag-source] { opacity: .45; transition: opacity 130ms var(--ease-quint); }
-  body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas], .tab-strip, [data-drop-target], .shelf-drop, .workflow-gap) {
+  body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas], .tab-strip, [data-drop-target], .shelf-drop) {
     transition: box-shadow var(--dur-move) var(--ease-quint), background-color var(--dur-move) var(--ease-quint);
   }
   body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas]) { background-color: color-mix(in srgb, var(--focus) 4%, var(--paper)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 18%, transparent); }

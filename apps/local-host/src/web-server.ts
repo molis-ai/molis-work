@@ -29,6 +29,13 @@ import { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
 import { handleBrowserHttp } from "./browser/browser-http.js";
 import { BrowserSiteDecisions, registerBrowserSurfaces } from "./browser/browser-surfaces.js";
 import { createBrowserSurfaceDriver } from "./browser/surface-driver.js";
+import { ComputerSettings } from "./computer/computer-settings.js";
+import { ComputerRecords } from "./computer/computer-records.js";
+import { ComputerDesk } from "./computer/computer-desk.js";
+import { HelperConnection } from "./computer/helper-connection.js";
+import { computerSurfaceProvider, registerComputerSurfaces, resolveComputerHelperApp } from "./computer/computer-surfaces.js";
+import { handleComputerHttp } from "./computer/computer-http.js";
+import { attachMolisWorkComputerSocket } from "./computer/computer-socket.js";
 import { locateBrowser } from "./browser/locate.js";
 import { createWebCatalogAccess } from "./web-catalog-access.js";
 import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
@@ -118,6 +125,16 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     // found by the project its round works on; sites the person allowed or blocked are kept beside the browser profile.
     const sites = new BrowserSiteDecisions(storageHome);
     const drivers = new Map<string, HostSurfaceDriver>();
+    // The person's Mac as the Assistant's desktop (specs/computer-use): one desk per Home, offered to a round only while
+    // the person has the computer turned on. The helper starts on first use; a process without one offers no desktop.
+    const computerSettings = new ComputerSettings(storageHome);
+    const computerRecords = new ComputerRecords(storageHome);
+    const helperConnection = new HelperConnection({ appPath: resolveComputerHelperApp() });
+    const computerDesk = new ComputerDesk({ helper: helperConnection, settings: computerSettings, records: computerRecords });
+    const unregisterComputer = registerComputerSurfaces(localHost, computerSurfaceProvider(computerDesk, () => computerSettings.enabled));
+    // Screenshots in records hold screen content: cleared after the retention period, swept hourly.
+    const computerSweep = setInterval(() => { try { computerRecords.sweep(); } catch { /* a failed sweep retries next hour */ } }, 60 * 60 * 1000);
+    computerSweep.unref();
     const unregisterSurfaces = registerBrowserSurfaces(localHost, {
       siteDecisions: () => sites.list(),
       driverFor: async projectId => {
@@ -172,6 +189,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             return;
           }
           if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
+          if (await handleComputerHttp(request, response, url, { settings: computerSettings, helper: helperConnection, desk: computerDesk, records: computerRecords })) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
           if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog) || await handleProjectDeletionGatewayHttp(request, response, url, storageHome, webProjectDeletion(withCatalog, { isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }))) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
@@ -209,6 +227,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       if (ownsLocalHost) { try { await localHost.close(); } finally { await catalogAccess?.close(); } }
     });
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
+    attachMolisWorkComputerSocket(server, controlToken, () => computerDesk);
     pty.host = attachMolisWorkPtySocket(server, controlToken, {
       onData(panelId, sessionId, data) {
         void sessionResources
@@ -265,6 +284,10 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       im.close();
       void browsers?.close();
       unregisterSurfaces();
+      unregisterComputer();
+      clearInterval(computerSweep);
+      computerDesk.close();
+      void helperConnection.close();
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
     });

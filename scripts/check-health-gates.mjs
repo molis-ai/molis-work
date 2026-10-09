@@ -39,6 +39,7 @@ import { createImpeccableMetric } from "./gates/impeccable-files.mjs";
 import { vendoredProvenanceProblems } from "./gates/vendored-provenance.mjs";
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
+import { specCoverageLine } from "./gates/spec-coverage.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
 const fail = (message) => { console.error(message); process.exit(2); };
@@ -493,6 +494,7 @@ if (report) {
   console.log(`Public API snapshots: ${api.errors.length ? "out of date (see the gate's output)" : api.summary || api.notes.join("; ")}`);
   const docProblems = docGateProblems(workingTree());
   console.log(`\nDocument references: ${docProblems.length ? `${docProblems.length} problems\n- ${docProblems.join("\n- ")}` : "none broken"}`);
+  console.log(`\n${specCoverageLine(workingTree())}`); // report only, never a gate here (scripts/check-spec-coverage.mjs)
   process.exit(0);
 }
 

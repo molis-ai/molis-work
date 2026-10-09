@@ -39,6 +39,23 @@
 - MCP 工具名只认 `molis_work_v1_action_<id>__v<N>` 这一种：`molis_work_v1_context_resolve` 这类上下文工具（例如 `skills/goal-advance/references/service-start.md` 里）不读，写错也不会被发现。
 - BACKLOG 完成行只认单元格被划线、或单元格以 已完成、已实现、已做完、已关闭、完成、done 开头：写成「已修复（#300）」「已合入 main」的行不会失败（「待你验收」一节的行本来就是做完了等试用，写「已合入 main」是正常的，按这类字样判会误报，所以不加进规则）。做完就删行是纪律，不是这条规则能全部兜住的。
 
+## 报告模式：spec 验收编号（还不是门禁）
+
+`node scripts/check-spec-coverage.mjs`（读取在 `spec-coverage.mjs`）：在做的 spec 的验收标准有没有编号，编号有没有测试引用。写法、`[人工]`、`~~` 作废和 `验收编号：不适用（理由）` 都在 [specs/README.md](../../specs/README.md) 的「验收编号」。默认是**报告模式**：打印结果，退出码永远是 0（`--strict` 才在有问题时退出 1，`--root`、`--json` 见脚本开头）；CI 里这一步带 `continue-on-error`，所以它现在不会让任何构建变红。`pnpm health:check --report` 里有它的一行摘要。
+
+它会报的问题（`--strict` 会失败的就是这些）：
+
+| 问题 | 含义 |
+| --- | --- |
+| `unnumbered` | spec 有标题含「验收」的一节，却一个编号都没有，也没有写 `验收编号：不适用（理由）` |
+| `criterion-without-id` | 同一个标题下已有带编号的条目，另有列表项或表格行没有编号 |
+| `uncovered` | 编号没有被任何测试文件引用，也没有标 `[人工]` 或作废 |
+| `stale-reference` | 测试引用了 spec 里没有的编号（前缀是某份 spec 的），或已作废的编号 |
+| `duplicate-id`、`prefix-shared`、`prefix-mixed`、`reserved-prefix` | 编号定义了两次；一个前缀被两份 spec 用；一份 spec 用了两个前缀；用了 `BL`、`PMR` |
+| `exempt-without-reason`、`exempt-but-numbered` | `验收编号：不适用` 没写理由；写了不适用却又定义了编号 |
+
+读不到的：只读 `specs/<目录>/spec.md`（`archive/` 与 spec 目录里的其他文件不读）；编号写在 spec 里别的节或正文里不算定义；测试里提到编号就算引用，不看提到的位置是不是真的在证明那一条；只认 `git ls-files` 里的文件，新文件要先 `git add`。验证：`node scripts/run-tests.mjs tests/health-gates-spec-coverage.test.ts`（每种问题在临时仓库里被故意造一次，报告模式仍退出 0、`--strict` 退出 1）。
+
 ## 怎么加一条规则
 
 1. 没有基线的检查：写 `scripts/gates/<名>.mjs`，导出 `(snapshot) => string[]`；`snapshot` 是 `{ files, read(file) }`（入库文件与读取函数）；在 `doc-gates.mjs` 的 `docGateProblems` 里加一行。

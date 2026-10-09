@@ -89,6 +89,8 @@ export { createLocalFeedSourceService, listFeedSourceCatalog } from "./feed-sour
 export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
 
 export { withConnectorConnections } from "./connector-connection-store.js";
+export { alchemistPulseGithubToken } from "./alchemist-pulse-token.js";
+export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 export * from "./github-oauth.js";
 
 export * from "./gmail-oauth.js";

@@ -120,6 +120,14 @@
 
 **护栏缺口**（已核对）：CI 没有任何依赖审计步骤；`.github/` 下没有 `dependabot.yml`；GitHub 侧 `dependabot_security_updates` 是 `disabled`；`vulnerability-alerts` 接口回 204（开关是开的）但 Dependabot 告警在任何状态下都是 0 条，依赖图 SBOM 接口回 404，而 `pnpm audit` 报 14 条——所以 GitHub 的告警在这个仓库里不是可用的信号（原因我推断是依赖图没有开，未验证）。建议：先加一个只告警不挡合并的 CI 步骤 `pnpm audit --audit-level high`（现在会红，要等上面的第 1、4 步做完才能挡）；再加 `dependabot.yml` 管 `github-actions` 与 npm 两个生态（npm 生态要先解决 §5.4 的 Dependabot 密钥问题，否则 §5.3 的取包上线后每个 Dependabot PR 都会在取包一步红）；这两项要改仓库设置与 CI，归用户决定。
 
+### 3.5 W2-18 之后新增的第三方依赖（2026-10-09）
+
+W2-18 待决 11（用户定：固定版本并收窄环境）把飞书/Lark MCP 连接器原来用 `npx -y @larksuiteoapi/lark-mcp` 临时下载的包，改成 `apps/local-host` 的精确依赖 `@larksuiteoapi/lark-mcp@0.5.1`，由 `pnpm-lock.yaml` 管（它此前不在清单里，因为清单只查声明过的包，运行时 `npx` 拉的包没有声明）。Host 用自己的 Node 运行包里的 `dist/cli.js`（`apps/local-host/src/lark-mcp-launch.ts`），子进程只拿到 App ID、App Secret、令牌、已设置的代理与证书变量，加 MCP SDK 默认的 `HOME`、`PATH` 这类基本变量。
+
+- 锁文件只增不改：+62 个包（`axios`、`proxy-agent` 一串、`protobufjs`、`keytar`、`open`、`@larksuiteoapi/node-sdk` 等），原有包的版本没有变；`pnpm audit` 的依赖数从 336 到 398。
+- `pnpm-workspace.yaml` 的 `allowBuilds` 里 `keytar: false`、`protobufjs: false`：pnpm 11 对没有表态的构建脚本直接报错。`keytar` 是原生模块，`lark-mcp` 的 `mcp` 模式只在它自己的「保存登录」路径上才加载它（Molis Work 用环境变量传令牌，不走这条），不构建时子进程启动会在标准错误里打一行 `Failed to initialize encryption` 的警告，功能不受影响（`tests/lark-mcp-launch.test.ts` 真的启动了这个包并列出了工具）；`protobufjs` 的 postinstall 只打印一条命令行提示。
+- **审计新增 1 条高危**：`basic-ftp <=6.2.0`（GHSA-c475-qrg2-pj4r，Client.list() 的解析器二次方耗时），进入路径 `lark-mcp → proxy-agent → pac-proxy-agent → get-uri → basic-ftp@5.3.1`。`get-uri` 声明 `^5.3.1`，修复版本 ≥6.2.1 是另一个主版本，所以没有加 `overrides`。可达性：只有代理配置成指向 FTP 上的 PAC 文件时才会走到 FTP 客户端，连接器不设置这种代理，我判断走不到（推断，没有运行验证）。要不要用 `overrides` 强升到 6.x 由用户定。
+
 ## 4. Prologue SDK 收敛方案
 
 ### 4.1 复核后的现状

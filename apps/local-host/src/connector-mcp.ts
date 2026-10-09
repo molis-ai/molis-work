@@ -11,6 +11,7 @@ import { auth, UnauthorizedError, type OAuthClientProvider, type OAuthDiscoveryS
 import { StreamableHTTPClientTransport, StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { larkMcpLaunch } from "./lark-mcp-launch.js";
 import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
@@ -211,10 +212,8 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
       const info = session.oauth.clientInformation() as OAuthClientInformationMixed | undefined;
       if (!info?.client_id || !info.client_secret) throw new McpConnectionError("configuration", "飞书 / Lark MCP 需要 App ID 与 App Secret");
       const token = session.secrets.get("access");
-      const environment = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined));
-      const transport = new StdioClientTransport({ command: "npx", args: ["-y", "@larksuiteoapi/lark-mcp", "mcp"], stderr: "pipe",
-        env: { ...environment, APP_ID: info.client_id, APP_SECRET: info.client_secret, LARK_DOMAIN: new URL(config.endpoint).origin,
-          LARK_TOKEN_MODE: token ? "user_access_token" : "tenant_access_token", ...(token ? { USER_ACCESS_TOKEN: token } : {}) } });
+      const launch = larkMcpLaunch({ appId: info.client_id, appSecret: info.client_secret, domain: new URL(config.endpoint).origin, userAccessToken: token });
+      const transport = new StdioClientTransport({ command: launch.command, args: launch.args, env: launch.env, cwd: launch.cwd, stderr: "pipe" });
       const client = new Client({ name: "molis-work", version: "0.2.0" }, { capabilities: {} });
       const abort = () => { void client.close().catch(() => {}); };
       signal?.addEventListener("abort", abort, { once: true });

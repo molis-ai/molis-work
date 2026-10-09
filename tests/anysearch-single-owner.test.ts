@@ -12,8 +12,7 @@ import { join } from "node:path";
 import {
   createEvidenceContentStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SecretStore,
 } from "@molis-ai/molis-work-storage";
-import { createFeedSourceRuntime } from "../apps/local-host/src/feed-source-runtime.js";
-import type { IntelligenceCollectRequest } from "../apps/local-host/src/search-intelligence-client.js";
+import { createFeedSourceRuntime, type IntelligenceCollectRequest } from "@molis-ai/molis-work-app-local-host";
 
 // One owner for "how Molis Work reaches AnySearch" (W2-18 decision 15): Feed's web search and Alchemist's research
 // both go through apps/local-host/src/anysearch-transport.ts, so a fake-IP proxy setup that works for one works for both.
@@ -47,6 +46,12 @@ function webQuery(): IntelligenceCollectRequest {
   };
 }
 
+type FakeRequest = EventEmitter & { end(body: Uint8Array): void; destroy(): void };
+/** The scripted request has the two members the transport uses; this narrows it to the type `https.request` returns. */
+function isClientRequest(value: FakeRequest): value is FakeRequest & http.ClientRequest {
+  return typeof value.end === "function" && typeof value.destroy === "function";
+}
+
 /** Script only DNS and the TLS socket; the real Host transport, AnySearch protocol and SEL execution run. */
 function scriptNetwork(t: test.TestContext, input: { system: string; publicDns?: string; proxy: boolean }) {
   const seen = { connections: 0, calls: [] as string[], publicDnsQueries: 0, systemLookups: 0 };
@@ -67,7 +72,7 @@ function scriptNetwork(t: test.TestContext, input: { system: string; publicDns?:
   t.mock.method(https, "request", (options: https.RequestOptions) => {
     assert.equal(options.hostname, "api.anysearch.com");
     seen.connections++;
-    const request = new EventEmitter() as EventEmitter & { end(body: Uint8Array): void; destroy(): void };
+    const request: FakeRequest = Object.assign(new EventEmitter(), { end(_body: Uint8Array) { /* replaced below */ }, destroy() { /* replaced below */ } });
     request.destroy = () => { queueMicrotask(() => request.emit("close")); };
     request.end = body => {
       const rpc = JSON.parse(Buffer.from(body).toString("utf8"));
@@ -86,7 +91,8 @@ function scriptNetwork(t: test.TestContext, input: { system: string; publicDns?:
       const socket = Object.assign(new EventEmitter(), { remoteAddress: input.publicDns ?? input.system, authorized: true });
       request.emit("socket", socket); socket.emit("secureConnect");
     });
-    return request as unknown as http.ClientRequest;
+    if (!isClientRequest(request)) throw new Error("the scripted request must stand in for a ClientRequest");
+    return request;
   });
   syncBuiltinESMExports();
   t.after(() => {

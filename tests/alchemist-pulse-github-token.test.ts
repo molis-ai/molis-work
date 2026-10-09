@@ -5,9 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
-import { alchemistPulseGithubToken } from "../apps/local-host/src/alchemist-pulse-token.js";
+import { MolisWorkLocalHost, alchemistPulseGithubToken, molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
 
 // W2-18 decision 7: the market pulse's GitHub source uses the Settings GitHub connection's secret reference and searches

@@ -20,6 +20,11 @@ allowBuilds:
   better-sqlite3: true
   esbuild: true
   node-pty: true
+  # Dependencies of @larksuiteoapi/lark-mcp (the Feishu/Lark MCP connector's child process). Its `mcp` mode takes the
+  # token from the environment and loads keytar only on its own stored-login path, which Molis Work never uses;
+  # protobufjs's postinstall only prints a CLI hint. Neither build runs.
+  keytar: false
+  protobufjs: false
 
 # These exact versions are reviewed local file: archives, not registry releases.
 # pnpm cannot check registry publication age for these private vendored packages.

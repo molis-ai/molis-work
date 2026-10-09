@@ -18,7 +18,7 @@
 
 结论词三个：**通**（我核到的路径都对）、**部分**（主路径对，有已列出的缺口）、**缺**（用户会卡住）。
 
-**一行的「结论」怎么从五格滚上来**（§1 总表最后一栏）：五格都是「通」才记「通」；有任何一格是「部分」或「缺」，记「部分」；只有「闭环」这一格是「缺」（主任务做不下去）才记「缺」。别的维度的「缺」只记为该格的缺口，行结论仍是「部分」，因为「缺」的定义是用户会卡住，而不是某个维度有缺口。「部分」有两种来源，都不记「通」：已确认的缺口（带 E-、K- 编号），和没有核到的路径（§4 里标 [未验证]：Goals 的空项目、Cognia 与图片到 Pages 的衔接），因为「通」要求这个维度的路径都核过。结论栏括号里是非「通」的格数，方便看出是一处小缺口还是多处。
+**一行的「结论」怎么从五格滚上来**（§1 总表最后一栏）：五格都是「通」才记「通」；有任何一格是「部分」或「缺」，记「部分」；只有「闭环」这一格是「缺」（主任务做不下去）才记「缺」。别的维度的「缺」只记为该格的缺口，行结论仍是「部分」，因为「缺」的定义是用户会卡住，而不是某个维度有缺口。「部分」有两种来源，都不记「通」：已确认的缺口（带 E-、K- 编号），和这一格里点名没有核到的路径（§4 里标 [未验证] 或写「没有逐项核」的：Goals 的空项目、Cognia 与图片到 Pages 的衔接），因为「通」要求这个维度列出的路径都核过。**不降格**的是 §8「没有核的」里整份文档共有的边界：需要真实模型凭据、真实厂商或真实仓库的路径，以及 Form 与 Dataset 的真实填写与导入。这些路径在 §4 里有读码、动作目录探针和测试文件作依据，只是没有用真实数据端到端操作过，所以「通」在这里的意思是「读码、探针、测试和已走的界面都没发现问题」，不等于「用真实数据端到端用过」。结论栏括号里是非「通」的格数，方便看出是一处小缺口还是多处。
 
 **证据**五种，写在每格或每节的末尾：
 
@@ -112,6 +112,7 @@
 | K-2 | 低 | **Schedule 创建时不查模型与工作区**：Prologue 与已绑定的工作区在到点才查，缺了就「叫醒失败」 | R：`apps/local-host/src/schedule-task-runner.ts:33`、`:38`；U：截图 17（创建成功、已启用、下次 09:00） | 见 [AI 入口清单](ai-entry-inventory.md) §7 第 5 项，先问。**W2-18 待决 3**（[spec.md](spec.md) §1） |
 | K-3 | 低 | **插件创作台在 Dock 里显示内部 id `plugin-builder`**，插件列表里却是「插件创作工作台」 | U：打开创作台后底栏左下角写 `plugin-builder`（截图 29），插件列表里是「插件创作工作台」（截图 03）。已登记：BL-114 | 按 BL-114 |
 | K-4 | 低 | **Schedule 与定时只在服务进程活着时运行**；Todo 提醒在关闭期间也不送达 | R；已登记：BL-030 | 按 BL-030 |
+| K-5 | 低 | **BL-055 里有一句已过期的话**：「生成插件自定义代码的运行边界（当前进程内执行器不是任意代码沙箱）」。生成插件现在声明 `execution: 'sandbox'`，自定义代码在 macOS Seatbelt 子进程里执行 | R：`apps/local-host/src/plugin-builder/installed.ts:64`、`:72`；`packages/plugin-sandbox/README.md`；T：`tests/plugin-sandbox.test.ts`、`plugin-sandbox-network.test.ts`、`installed-plugin-execution.test.ts` 本片跑过，28 个里 27 通过、1 跳过。出处是已归档的创作台 spec（`specs/archive/plugin-builder/spec.md:200`），写于执行器还在进程内的时候。已登记：BL-055 | 把 BL-055 的括号改成「生成插件的代码已在沙箱里运行，仅 macOS，其他平台关闭」，保留另两项（真实 Jev 选择的质量与延迟、跨项目共享草稿）；文字修正，不需要决定 |
 
 ## 3. 横向比较
 
@@ -363,8 +364,8 @@
 ### 4.26 插件创作台（`plugins/native/plugin-builder`）
 
 - **定位**：构建期装配、个人级；Manifest 没有动作，界面走私有路由；设计与代码 Agent 在 agent-host（AI 清单 AG-4）。
-- **闭环（通）**：说想法 → 主线设计师给方案、UI Agent 从规格板取组件、代码 Agent 写功能 → 试用 → 安装成生成插件（生成插件的执行见 `packages/plugin-sandbox` 与 `tests/installed-plugin-execution.test.ts`，我没有逐项核这一环）。
-- **占位（通）**：BL-055 写着「当前进程内执行器不是任意代码沙箱」，现在有 `plugin-sandbox` 包，这条登记可能已经过期，我没有逐项核 [未验证]。
+- **闭环（通）**：说想法 → 主线设计师给方案、UI Agent 从规格板取组件、代码 Agent 写功能 → 试用 → 安装成生成插件。**安装后的执行已核**（评审指出这一环原先没核，已补做）：`apps/local-host/src/plugin-builder/installed.ts:64` 声明 `execution: 'sandbox'`，每个操作经 `createSandboxRunner`（`:72`）交给 macOS Seatbelt 子进程；Plugin Runtime 对这类安装要求明确的授权清单（`packages/plugin-runtime/src/index.ts:170`）。本片跑了 `tests/installed-plugin-execution.test.ts`、`plugin-sandbox.test.ts`、`plugin-sandbox-network.test.ts`：28 个用例 27 通过、0 失败、1 跳过（跳过的是真实连 `registry.npmjs.org` 的那个）；`installed-plugin-host.test.ts` 18 个用例，三次运行里被取消的分别是 5、1、1 个，都是 30 秒的用例时限（机器负载 14 至 22；第三次只跑被取消的那一个用例），前两次其余用例全部通过；把最慢的那个用例（文件里的第一个，约 35 秒）的时限临时放宽到 150 秒它通过（试验后已还原），所以是时限偏紧，不是产品失败。有真实模型的设计与写码环节没有走（§8）。
+- **占位（通）**：BL-055 写着「当前进程内执行器不是任意代码沙箱」，这句话对生成插件**已经过期**（K-5）：安装后的生成插件声明 `execution: 'sandbox'`，代码在 `sandbox-exec` 的 Seatbelt 子进程里跑，没有继承的环境变量、不能读写宿主文件、不能起子进程、不能联网（`tests/plugin-sandbox.test.ts` 与 `plugin-sandbox-network.test.ts` 里两个真实 Seatbelt 用例通过）。`packages/plugin-runtime/README.md` 里「受信任的进程内执行，不是 OS sandbox」说的是受信任的普通包，不是生成插件。沙箱只在 macOS 上能跑，其他平台关闭（`packages/plugin-sandbox/README.md`）。创作台源码（`plugins/native/plugin-builder/src`、`apps/local-host/src/plugin-builder`）里没有 TODO、FIXME、`stub` 或「即将」「暂未」一类的占位字样，`git grep` 的命中都是运行时的错误提示和对生成项目里占位词的检查 [已确认，读码]。
 - **生命周期（通）**：生成插件的安装、停用、升级、卸载按 Runtime 生命周期（`tests/plugin-lifecycle-states.test.ts`、`installed-plugin-host.test.ts`，本片跑过第一个、通过）；项目删除由宿主登记的 `plugin-builder` owner 清。
 - **空与无模型（通）**：顶栏有「模型」选择与「打开模型设置」，输入框下写「请选择构建使用的模型 · Jev 未配置（优先使用 UI Agent 的设计）」（截图 29）。
 - **组合（缺）**：没有任何目录动作，所以助理、MCP、工作流看不到创作台，创作台草稿也不可搜（BL-040）；Dock 里的名字是内部 id（K-3）。
@@ -443,6 +444,7 @@
 - **跑了两批用例**，都在 `MOLIS_WORK_SECRET_BACKEND=file`、隔离临时 Home 下：
   - 非浏览器 23 个文件：`action-model-scheduling`、`prompt-registration`、`host-inference-completion`、`pages-cross-module`、`feed-inbox-lifecycle`、`feed-inbox-pages-loop`、`plugin-lifecycle-states`、`project-deletion-owners`、`project-deletion-declarations`、`schedule-task-runner`、`inbox-prepared-pages`、`shelf-ai-host`、`experiments-http`、`todo-actions`、`workflows-action-steps`、`workflows-judgment-link`、`companion-actions`、`action-directory-installation`、`cognia-prologue`、`alchemist-host`、`jelly-model`、`lingguang-actions`、`pages-actions`：**155 通过、0 失败、0 跳过**。
   - 浏览器 5 个文件：`attention-journey.e2e`、`artifact-walkthrough.e2e`、`lingguang-one-place.e2e`、`contextual-interaction.e2e`、`cross-plugin-recovery.e2e`：**12 个用例全部通过、0 失败**（耗时 206 秒，机器负载很高）：成果库 1440 与 390 两个宽度、Kanban 滚轮、框架选择器、情境动作 1440 与 390 加两个边界例（拒绝的结果不写入、改过的范围拒绝）、P2 搜索调色板、Characters 升级后打开且不丢草稿、Shelf 离开前保存最后一次输入、Schedule 草稿稳定且只打开一次、灵光读入文件变成灵光再变成 Jelly 笔记并在 Jelly 里打开。
+- **评审后补跑**（插件创作台的执行边界，对应 §4.26 的闭环与占位两格）：`tests/installed-plugin-execution.test.ts`、`plugin-sandbox.test.ts`、`plugin-sandbox-network.test.ts` 共 28 个用例，27 通过、0 失败、1 跳过；`tests/installed-plugin-host.test.ts` 18 个用例，30 秒时限下三次运行被取消 5、1、1 个（第三次只跑被取消的那一个；前两次其余全部通过），最慢的第一个用例放宽时限到 150 秒后通过（约 35 秒；试验只改了本地的一行并已还原）。这组取消是用例时限在负载 14 至 22 的机器上偏紧，不是产品失败，也与本片的文档改动无关（代码与 main `11878059` 相同）；该时限是否放宽归测试维护，不在本片。
 - **探针**（P）跑了七种：模型动作清单、无模型的可用性、移除插件的可用性变化、Runtime 插件的嵌入关系、项目删除后的孤儿数据、平台接点、工具描述质量；方法在 §9，结果数字都写在上面各处。本片没有改任何代码，也没有碰真实 Home。
 - **界面走查**（U）见 [frontend-flow-walk.md](frontend-flow-walk.md)：隔离的临时 Home、无头 Chrome、1440 宽，26 个插件页面逐个打开（全部加载成功、没有脚本错误、没有横向溢出），关键路径手动操作，窄屏 390 宽看 8 个页面。
 - **任务书 §6 里只做了一部分或没做的检查**（对照表见 §0.1，路线里没有片承接，已列进 [spec.md](spec.md) §10「第 2 波产出」的遗留）：（a）对整个动作目录（537 个）逐个找生产调用方，找「不可达或失效」的入口；（b）处理器的实际返回与它的输出合同逐个比对；（c）模型与连接之外的配置变化（项目绑定、工作目录）对每个插件的影响；（d）逐插件的失败、取消、并发、恢复审查（§0.1 第 8 条列出的 13 个插件）；（e）测试断言是否对应预期行为（`repository-systematic-review.md` §12）；（f）逐个插件找重复实现的技术能力（§0.1 第 6 条）。

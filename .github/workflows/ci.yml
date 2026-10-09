@@ -131,6 +131,19 @@ jobs:
       - name: Page event gate rejects what it claims to
         run: node scripts/run-tests.mjs tests/dom-events-contract.test.ts
 
+      # Spec acceptance ids (specs/README.md 「验收编号」, specs/repository-anti-corruption §4.8, W2-14): which criteria of the
+      # specs in progress carry an id, and which of those ids a test cites. Report only: the script exits 0 whatever it finds,
+      # and `continue-on-error` keeps this step from turning the build red even if the script were to crash (a crash on this
+      # repository's own content is still caught by the blocking `tests/health-gates-*.test.ts` step above, which runs
+      # the case "on this repository the report prints and exits 0"). Once the specs in
+      # progress are numbered and the report lists no problem, add `--strict` and drop `continue-on-error`. Each problem
+      # kind and each rule for reading the files (what is a test file, where an exemption counts, what is a citation, what an
+      # archived spec keeps) has a case in tests/health-gates-spec-coverage.test.ts that fails without it; the
+      # `tests/health-gates-*.test.ts` glob above already runs that file.
+      - name: Spec acceptance ids (report only)
+        continue-on-error: true
+        run: node scripts/check-spec-coverage.mjs
+
       # The tracked-.impeccable-files rule (scripts/gates/impeccable-files.mjs), mutation-verified the same way.
       - name: Health gate for tracked .impeccable files rejects growth
         run: node scripts/run-tests.mjs tests/health-gates-impeccable.test.ts

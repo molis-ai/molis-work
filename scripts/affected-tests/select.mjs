@@ -1,0 +1,251 @@
+// Which tests a change touches, and whether it is big enough that the related tests are not the end of it. It takes the change
+// set, the test index and the workspace packages, reads the READMEs and the changed files, runs nothing, and returns data
+// (scripts/affected-tests.mjs prints it).
+//
+// The rule it encodes (user, 2026-10-03; docs/system/PARALLEL-DEVELOPMENT.md section 6):
+//   a package's source        its README's "改动后必跑", plus the tests that read or call it (`git grep -l <name> tests`)
+//   a file with `L()` text    plus tests/i18n.test.ts
+//   a route                   plus every test that reads that route
+//   the UI                    plus the browser tests (the README's "界面改动加跑"), run in a serial slot
+//   shared core, storage or migration, three or more packages, deleting a block of old code
+//                             the full suite is recommended (`node scripts/run-tests.mjs`, about 77 minutes)
+// "Reads or calls it" is read from the tests, tier by tier, narrowest first; each selected test carries the reasons.
+import { devRequirementsSection } from "../package-dev-requirements.mjs";
+import {
+  CHINESE_LITERAL, COMMON_SYMBOLS, DICTIONARY_FILE, FULL_REGRESSION, GENERIC_STEMS, I18N_TEST, LIMITS, PRODUCT_SOURCE,
+  ROUTE_FILE, TRANSLATOR_CALL, UI,
+} from "./rules.mjs";
+import { packageOf, readText } from "./repository.mjs";
+import { TEST_FILE } from "./index.mjs";
+
+const TEST_PATH = /tests\/[^\s`，、；）)（(]+\.test\.(?:ts|mjs)/g;
+/** The labelled lines of a 开发要求 section that are not lists of tests. */
+const PLAIN_LABELS = ["负责", "不负责", "公开入口", "依赖", "不变量", "相关手册"];
+/** A test that reads the changed file itself, as opposed to the package around it. */
+const DIRECT = new Set(["reads-file", "named-for-file", "uses-name", "route"]);
+const SOURCE_FILE = /\.(?:ts|mts|tsx|js|mjs|cjs)$/;
+const isDocument = (file) => /\.md$/.test(file) || /^(?:docs|specs)\//.test(file);
+const isTestSide = (file) => file.startsWith("tests/");
+const PRODUCT_AREA = /^(?:apps|horizontal|modules|packages|plugins|server|tooling)\//;
+const isComment = (line) => /^\s*(?:\/\/|\/?\*)/.test(line);
+/** The changed lines that are code: a route or a Chinese sentence in a comment is not shown to anyone. */
+const codeLines = (change) => [...change.added, ...change.removed].filter((line) => !isComment(line));
+export const sample = (items, count = 4) => (items.length > count ? `${items.slice(0, count).join(", ")} and ${items.length - count} more` : items.join(", "));
+
+/** The names a source file exports (declarations and `export { … }` lists); what a test would import from it. */
+export function exportedNames(text) {
+  const names = new Set();
+  for (const match of text.matchAll(/^[ \t]*export\s+(?:declare\s+)?(?:default\s+)?(?:async\s+)?(?:function\*?|class|abstract\s+class|const|let|var|enum|interface|type|namespace)\s+([A-Za-z_$][\w$]*)/gm)) names.add(match[1]);
+  for (const match of text.matchAll(/\bexport\s*(?:type\s*)?\{([^}]*)\}/g)) {
+    for (const item of match[1].split(",")) {
+      const name = item.trim().replace(/^type\s+/, "").split(/\s+as\s+/).pop();
+      if (name && /^[A-Za-z_$][\w$]*$/.test(name)) names.add(name);
+    }
+  }
+  return names;
+}
+
+/** `/api/projects/${id}/brief` and `/api/projects/:id/brief` both become ["/api/projects/", "/brief"]: the fixed pieces of a route. */
+export function routeChunks(route) {
+  const chunks = route.split(/[?#]/)[0].split(/\$\{[^}]*\}|:[A-Za-z_]\w*|\([^)]*\)|\[[^\]]*\]|\\.|[*+?|^$]/).map((chunk) => chunk.trim()).filter((chunk) => chunk.replace(/\//g, "").length >= 2);
+  return chunks.some((chunk) => chunk.length >= 6) ? chunks : [];
+}
+
+/** Routes named in the changed lines: any "/api/…" or "/__…", and in files that serve routes any literal "/x/y". */
+export function routesIn(change) {
+  const found = new Map();
+  if (!PRODUCT_AREA.test(change.path)) return [];
+  const routeFile = ROUTE_FILE.test(change.path);
+  for (const line of codeLines(change)) {
+    const text = line.replace(/\\\//g, "/");
+    const candidates = [...text.matchAll(/\/(?:api|__[a-z]+)(?:\/[^\s"'`),;]*)?/g)].map((match) => match[0]);
+    if (routeFile) candidates.push(...[...text.matchAll(/["'`](\/[a-z][\w-]*(?:\/[^"'`\s]*)?)["'`]/g)].map((match) => match[1]));
+    for (const candidate of candidates) {
+      const chunks = routeChunks(candidate);
+      if (chunks.length) found.set(chunks.join("\u0000"), { route: candidate, chunks });
+    }
+  }
+  return [...found.values()];
+}
+
+/** The tests a package README lists: the unconditional "改动后必跑", the unconditional "界面改动加跑", and the scoped extras. */
+export function readmeTests(root, item) {
+  const result = { mustRun: [], ui: [], extras: [] };
+  const section = item?.readme ? devRequirementsSection(readText(root, item.readme)) : undefined;
+  if (!section) return result;
+  for (const line of section.split("\n")) {
+    const label = /^- ([^：\n]+)：/.exec(line)?.[1];
+    if (!label || PLAIN_LABELS.includes(label)) continue;
+    // "改到分栏窗格再加跑 tests/x": what follows 再加跑 is for that area only.
+    const [first, ...conditional] = line.split(/再加跑|再跑/);
+    const unconditional = first.match(TEST_PATH) ?? [];
+    if (label === "改动后必跑") result.mustRun.push(...unconditional);
+    else if (label.startsWith("界面改动加跑")) result.ui.push(...unconditional);
+    else if (unconditional.length) result.extras.push({ label, tests: unconditional });
+    for (const part of conditional) {
+      const tests = part.match(TEST_PATH) ?? [];
+      if (tests.length) result.extras.push({ label: `${label}（条件）`, tests });
+    }
+  }
+  return result;
+}
+
+const isUi = (change, item) => !isDocument(change.path) && !isTestSide(change.path)
+  && ((item && UI.packages.includes(item.dir)) || UI.files.test(change.path) || (PRODUCT_AREA.test(change.path) && codeLines(change).some((line) => UI.lines.test(line))));
+const showsText = (change) => PRODUCT_SOURCE.test(change.path)
+  && (DICTIONARY_FILE.test(change.path) || codeLines(change).some((line) => TRANSLATOR_CALL.test(line) || CHINESE_LITERAL.test(line)));
+const touchesStorage = (change, item) => (item && FULL_REGRESSION.storagePackages.includes(item.dir))
+  || (PRODUCT_SOURCE.test(change.path) && (codeLines(change).some((line) => FULL_REGRESSION.storageLines.test(line)) || FULL_REGRESSION.storageFiles.test(change.path)));
+
+/**
+ * @param {object} input
+ * @param {string} input.root
+ * @param {Array} input.changes       readChanges / namedChanges
+ * @param {Array} input.packages      discoverPackages
+ * @param {object} input.index        buildTestIndex
+ * @param {object} [input.options]    wide, packageLimit, symbolLimit, readmeExtras, full
+ */
+export function selectAffected({ root, changes, packages, index, options = {} }) {
+  const packageLimit = options.packageLimit ?? LIMITS.packageTests, symbolLimit = options.symbolLimit ?? LIMITS.symbolTests;
+  const selected = new Map();        // test file -> { file, kind, marks, reasons }
+  const direct = new Map();          // changed code file -> test files that read it itself (not only the package around it)
+  const notes = [];
+  const note = (text) => { if (!notes.includes(text)) notes.push(text); };
+
+  const add = (file, code, detail, source) => {
+    const test = index.byFile.get(file);
+    if (!test) return false;
+    if (!selected.has(file)) selected.set(file, { file, kind: test.kind, marks: test.marks, reasons: [] });
+    const { reasons } = selected.get(file);
+    if (!reasons.some((reason) => reason.code === code && reason.detail === detail)) reasons.push({ code, detail });
+    if (source && DIRECT.has(code) && direct.has(source)) direct.get(source).add(file);
+    return true;
+  };
+
+  const codeChanges = changes.filter((change) => !isDocument(change.path) && !isTestSide(change.path));
+  for (const change of codeChanges) direct.set(change.path, new Set());
+  const nameStem = (file) => file.split("/").pop().replace(/\.(?:test|e2e)\b.*$|\.[^.]+$/, "");
+
+  // Tests named for a thing: `tests/todo-actions.test.ts` for `todo` and `actions`, `tests/todo.e2e.test.ts` for `todo`.
+  const testsNamed = (stem) => index.tests.filter((test) => {
+    const base = nameStem(test.file);
+    return base === stem || base.startsWith(`${stem}-`) || base.startsWith(`${stem}.`);
+  });
+
+  // ---- tier 1: the test itself, and what reads the changed file ------------------------------------------------------------
+  // A test whose own file names the path reads it. A test that gets it from a helper reads it only as far as the helper is
+  // about it: when dozens of tests share a fixture that happens to import the file, they start the whole host, not this file.
+  const throughHelpers = (readers, label) => {
+    const shared = [...readers].filter(([, match]) => match.via);
+    const helpers = [...new Set(shared.map(([, match]) => match.via))];
+    const keep = options.wide || shared.length <= symbolLimit;
+    if (!keep) note(`${label}: ${shared.length} tests reach it only through shared helpers (${sample(helpers, 3)}); not selected, --wide selects them`);
+    return keep;
+  };
+  for (const change of changes) {
+    if (TEST_FILE.test(change.path) && change.status !== "D") add(change.path, "changed", "the test file itself", change.path);
+    for (const target of [change.path, change.from].filter(Boolean)) {
+      const readers = index.referencing(target);
+      const helperKept = isTestSide(change.path) || throughHelpers(readers, target);
+      for (const [test, match] of readers) {
+        if (test === change.path || (match.via && !helperKept)) continue;
+        const code = isTestSide(change.path) ? "uses-changed-helper" : match.ref === target ? "reads-file" : "reads-folder";
+        add(test, code, match.ref === target ? target : `${target} (the test names the folder ${match.ref})`, change.path);
+      }
+    }
+  }
+
+  // ---- per package: README, files, names ------------------------------------------------------------------------------------
+  const changedPackages = new Map();   // package -> its code changes
+  for (const change of codeChanges) {
+    const item = packageOf(packages, change.path) ?? (change.from ? packageOf(packages, change.from) : null);
+    if (item) changedPackages.set(item, [...(changedPackages.get(item) ?? []), change]);
+  }
+
+  for (const [item, own] of changedPackages) {
+    const readme = readmeTests(root, item);
+    const ui = own.some((change) => isUi(change, item));
+    for (const file of readme.mustRun) for (const change of own) add(file, "readme", `${item.dir} 改动后必跑`, change.path);
+    if (ui) for (const file of readme.ui) for (const change of own) add(file, "readme-ui", `${item.dir} 界面改动加跑`, change.path);
+    for (const extra of readme.extras) {
+      if (options.readmeExtras) for (const file of extra.tests) for (const change of own) add(file, "readme-extra", `${item.dir} ${extra.label}`, change.path);
+      else note(`${item.dir} README ${extra.label}: ${sample(extra.tests, 6)} (not selected; run them when your change is in that area, or pass --readme-extras)`);
+    }
+
+    // The package as a whole: tests that import it or are named for it, unless it is imported so widely that this says nothing.
+    const whole = new Set([...index.importing(item.name), ...testsNamed(item.dir.split("/").pop()).map((test) => test.file)]);
+    if (options.wide || whole.size <= packageLimit) {
+      for (const file of whole) for (const change of own) add(file, "package", item.dir, change.path);
+    } else {
+      note(`${item.dir}: ${whole.size} tests import it or are named for it, so only the ones that read the changed files or names are selected (--wide selects all ${whole.size})`);
+      if (ui) for (const test of testsNamed(item.dir.split("/").pop())) if (test.kind === "browser") for (const change of own) add(test.file, "package-ui", `${item.dir} browser test of the same name`, change.path);
+    }
+  }
+
+  const touchingCache = new Map();
+  const packageTests = (item) => {
+    if (!touchingCache.has(item)) touchingCache.set(item, new Set([...index.importing(item.name), ...index.underFolder(item.dir)]));
+    return touchingCache.get(item);
+  };
+
+  // ---- tier 2: tests named for the file, tests that mention what it exports ---------------------------------------------------
+  const tooCommon = new Map();
+  for (const change of codeChanges) {
+    const item = packageOf(packages, change.path);
+    const stem = nameStem(change.path);
+    const stems = [...(GENERIC_STEMS.has(stem) ? [] : [stem]), ...(item ? [`${item.dir.split("/").pop()}-${stem}`] : [])].filter((value) => value.length >= LIMITS.symbolLength);
+    for (const value of stems) {
+      const named = testsNamed(value);
+      if (named.length <= symbolLimit) for (const test of named) add(test.file, "named-for-file", value, change.path);
+    }
+
+    // The names the file exports, among the tests that touch its package at all: `readText` in a test of another package is another readText.
+    if (!SOURCE_FILE.test(change.path) || !item) continue;
+    const touching = packageTests(item);
+    const text = `${change.status === "D" ? "" : readText(root, change.path)}\n${change.removed.join("\n")}`;
+    for (const name of exportedNames(text)) {
+      if (name.length < LIMITS.symbolLength || COMMON_SYMBOLS.has(name.toLowerCase())) continue;
+      const found = [...index.mentioning(name)].filter(([test]) => touching.has(test));
+      const own = found.filter(([, via]) => !via).length, shared = found.length - own;
+      if (own > symbolLimit) { tooCommon.set(change.path, [...(tooCommon.get(change.path) ?? []), `${name} (${own})`]); continue; }
+      for (const [test, via] of found) if (!via || options.wide || shared <= symbolLimit) add(test, "uses-name", name, change.path);
+    }
+  }
+
+  // ---- rules about what the change does ---------------------------------------------------------------------------------------
+  for (const change of codeChanges) {
+    if (showsText(change)) add(I18N_TEST, "text", `${change.path} has text people read`, change.path);
+    for (const { route, chunks } of routesIn(change)) for (const test of index.containingAll(chunks)) add(test, "route", route, change.path);
+  }
+
+  // ---- things the diff cannot say are covered ---------------------------------------------------------------------------------
+  const uncovered = [...direct].filter(([file, tests]) => SOURCE_FILE.test(file) && tests.size === 0 && changes.find((change) => change.path === file)?.status !== "D").map(([file]) => file);
+  for (const [file, names] of tooCommon) if (direct.get(file)?.size === 0) note(`${file}: the names it exports are mentioned by too many tests to tell readers apart (${sample(names, 3)})`);
+
+  // ---- when the related tests are not enough ----------------------------------------------------------------------------------
+  const full = [];
+  const group = (rule, label, files) => { if (files.length) full.push({ rule, detail: `${label}: ${sample(files)}` }); };
+  group("shared-core", "shared core (contracts, kernel, modules)", codeChanges.filter((change) => {
+    const item = packageOf(packages, change.path);
+    return item && (FULL_REGRESSION.corePackages.includes(item.dir) || FULL_REGRESSION.corePackagePrefixes.some((prefix) => item.dir.startsWith(prefix)));
+  }).map((change) => change.path));
+  group("assembly", "assembly of the host or the workbench shell", codeChanges.filter((change) => FULL_REGRESSION.assemblyFiles.includes(change.path)).map((change) => change.path));
+  const storage = codeChanges.filter((change) => touchesStorage(change, packageOf(packages, change.path))).map((change) => change.path);
+  group("storage", "storage or migration", storage);
+  if (changedPackages.size >= FULL_REGRESSION.packageSpan) full.push({ rule: "spans-packages", detail: `${changedPackages.size} packages changed (${FULL_REGRESSION.packageSpan} or more): ${sample([...changedPackages.keys()].map((item) => item.dir))}` });
+  const deleted = codeChanges.filter((change) => change.status === "D" && SOURCE_FILE.test(change.path) && packageOf(packages, change.path));
+  if (deleted.length >= FULL_REGRESSION.deletedSourceFiles) full.push({ rule: "deletes-code", detail: `${deleted.length} source files deleted (${FULL_REGRESSION.deletedSourceFiles} or more): ${sample(deleted.map((change) => change.path))}` });
+  if (options.full) full.push({ rule: "requested", detail: "asked for with --full (end of a phase, or related tests failed unexpectedly after a merge)" });
+
+  const uiFiles = codeChanges.filter((change) => isUi(change, packageOf(packages, change.path))).map((change) => change.path);
+  const order = (left, right) => left.file.localeCompare(right.file);
+  return {
+    tests: [...selected.values()].sort(order),
+    full,
+    ui: uiFiles,
+    storage,
+    uncovered,
+    notes,
+    packages: [...changedPackages.keys()].map((item) => item.dir),
+  };
+}

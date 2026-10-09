@@ -107,7 +107,49 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 
 不变的底线：每个 PR 的 CI 必须通过；跑测试前先整体构建；构建与浏览器用例串行；不跳过、不放宽、不删除断言；失败先分清产品回归、预期变化、测试缺陷、环境与时序，并用干净的基线工作树比对（下面第 8 节）。
 
-按改动挑用例的脚本还没有（路线图 W2-17 要把这张表做成 `scripts/affected-tests.mjs`）；现在靠表和各包 README。
+### 6.1 用脚本挑：`scripts/affected-tests.mjs`
+
+上面这张表由脚本执行（路线图 W2-17）。它只读：读 git 的改动、`tests/` 下的用例和各包 README，给出要跑的用例、是否建议全量、陪着跑的检查；只有 `--run` 才动手，而且从不启动全量。
+
+```sh
+node scripts/affected-tests.mjs                 # 自 origin/main 合并基点以来的全部改动：已提交、暂存、未暂存、未跟踪
+node scripts/affected-tests.mjs <文件>…         # 只看点名的文件，当作整个文件都改了（没有行信息，按整个文件判断）
+node scripts/affected-tests.mjs --explain       # 每个用例为什么被选
+node scripts/run-tests.mjs $(node scripts/affected-tests.mjs --list --unit-only)   # 只取非浏览器用例
+node scripts/affected-tests.mjs --run [--include-browser]
+```
+
+`pnpm test:affected` 等于 `node scripts/affected-tests.mjs`。基点是本地的 `origin/main`（没有就退到 `main`，`--base <ref>` 另指），所以先 `git fetch -q origin main`。输出四块：改动的文件；「FULL REGRESSION RECOMMENDED」及原因（有才出现）；相关用例，分非浏览器与浏览器（浏览器 = Linux 探针标记里的 browser，要本机 Chrome，排时段，见第 5 节）；陪着跑的检查（`pnpm build`、`pnpm boundary:check`、健康门禁、页面资源、版本一致性、密钥扫描，按改动内容出现）。`--json` 给机器读，`--list` 只列文件名。
+
+选法，对应上表每一行；每个被选的用例都带原因，`--explain` 看得到：
+
+| 规则 | 脚本怎么做 |
+| --- | --- |
+| 包的「改动后必跑」 | 读改动所在包 README `## 开发要求` 里 `- 改动后必跑：` 一行的 `tests/….test.ts`。只有非文档文件的改动才触发，README 自己的改动不触发 |
+| 读它、调它的用例 | 静态读 `tests/*.test.*` 和它们 import 的 `tests/` 下的 fixture（与探针读标记是同一个闭包），不运行。依次：① 用例自己 import 这个文件，或在字符串里写出它的路径（认 `.js` 与 `.ts`、`dist` 与 `src`、包的子路径 import、`join(root, "plugins", "x")` 这种拼法，也认写到上层目录）；② 用例触及这个包（import 包名，或路径进了包目录）并提到这个文件导出的名字，已删除的导出也算（用例会因此加载失败）；③ 用例文件名对得上：`tests/<文件名>` 开头，`actions`、`store` 这类通用名改用 `<包目录名>-<文件名>`；④ 包整体：import 该包或以包目录名开头的用例 |
+| 带 `L()` 文案加 `tests/i18n.test.ts` | 产品源码里改动的行（注释不算）调用翻译函数（`L`、`x.L`、`p.text`、`primitives.text`、`translate`、`this.t`），或含中文字符串，或改的是词典文件 |
+| 改路由加所有读这条路由的用例 | 改动行里的 `/api/…`、`/__…`；路由文件（`*-http.ts`、`routes.ts`、`web-*.ts` 等）里任何 `"/x/y"` 字面量。在参数处（`${}`、`:id`）拆开，读这条路由的用例要含全部固定片段（`/api/projects/` 和 `/brief`），查询串不算 |
+| 界面加浏览器用例 | 改动在界面包（workbench、design-system、ui-host、im-ui），或文件名像客户端、样式、视图、渲染器，或是 css、html、svg，或改动行是页面脚本与样式模板。加 README「界面改动加跑」一行里 `再加跑` 之前的用例，并加该包同名的浏览器用例。输出提示页面资源门禁和三宽度、明暗截图（PR 模板） |
+| 全量 | 见下 |
+
+收窄，避免一次选出几百个：
+
+- 一个包被超过 40 个用例 import 或同名时不整包选，只选读到改动文件与名字的用例，Notes 里写明；`--wide` 选全部。
+- 一个文件只被借 fixture 间接读到（用例自己没写它），共用这个 fixture 的用例超过 25 个时不选：那些用例是起整个宿主，不是读这个文件；Notes 写出 fixture 名。`--wide` 选全部。
+- 一个名字被超过 25 个用例直接提到，说明不了谁读它，不用。
+- README 里除「改动后必跑」「界面改动加跑」之外带测试路径的分项（「助理逻辑验证」等）和 `再加跑` 之后的条件部分，只列在 Notes，`--readme-extras` 才选。
+- 没有任何用例直接读到的改动文件单独列出（`No test reads these directly`），别当成已覆盖。
+
+建议全量的条件，写在 `scripts/affected-tests/rules.mjs`，`tests/affected-tests.test.ts` 逐条验证：改了 contracts、kernel 或任一 `modules/*`；改了 local-host 或 workbench 的装配、外壳文件（名单是 rules.mjs 的 `assemblyFiles`，取自第 2 节的枢纽，不含 `index.ts` 出口）；改了 `packages/storage`、名字带 migration 或 baseline 的文件，或改动行里有 `CREATE`、`ALTER`、`DROP` 表或索引、`user_version`、`applySqliteBaseline`；动了三个或更多包的非文档文件；删了三个或更多源文件；`--full`（阶段收尾，或合入后相关用例意外失败：这两条看 diff 看不出来，要人说）。脚本只建议，不替你跑全量。
+
+`--run` 守第 5 节的规矩：改动的包源码比它的 `dist` 新（没构建）就拒绝，`--allow-stale` 放行；`pgrep` 看到别的构建、测试运行或 tsc 就拒绝，`--ignore-busy` 放行。先跑非浏览器用例；给了 `--include-browser` 且前一批通过，才跑浏览器用例。两批各是一次 `scripts/run-tests.mjs`。
+
+局限，知道它会漏、会多的地方：
+
+- 它读文本，不读运行。字符串拼出来的路径、动态 import、环境变量传的路径看不到；用例对包名的 import 只看到包名，看不到包里哪个文件被用到，大包只能靠上面的收窄规则。
+- 不追反向依赖：改了 A 包，只依赖 A 的 B 包的用例不会被选。波及面大的改动走全量条件，不靠它挑。
+- 阈值（40、25、3 个包、3 个文件）是首批取值，不是量出来的最优。用一两周后按漏选、多选的实例调；调的地方只有 `rules.mjs` 的 `LIMITS` 和 `FULL_REGRESSION`。
+- 它不替代 CI：CI 每个 PR 都跑的合同与门禁用例（`pnpm test:contracts` 等）不一定在选出的用例里。
 
 ## 7. 集成分支上跑全量
 
@@ -169,7 +211,7 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 
 - 合成包负责人和流程：方向已定，人选与方案等路线图 W1-20（见上一节）。
 - 读取兼容的合同流程：起点已定为第一个装到开发机之外的版本（用户 2026-10-08），日期到时写进 [合同变更流程](CONTRACT-CHANGES.md)；在那之前不留兼容期。
-- 挑相关用例的脚本：路线图 W2-17。
+- 挑相关用例的脚本已有（第 6.1 节）；阈值是首批取值，要用一两周后按漏选、多选的实例调整，反向依赖不追。
 - 测试并发隔离（每个测试文件一个 Home 和密钥库，非浏览器用例并发）：路线图 W5-12。在那之前全量约 76–78 分钟。
 - CI 里的产品用例子集、浏览器冒烟、隔离名单：非浏览器用例的 Linux 探针作业已有（路线图 W1-11，不挡合并，见第 3 节）；`tests/ci-product-subset.txt`、3–5 个浏览器冒烟、隔离名单（`tests/quarantine.json`）和并入 `Verify` 在路线图 W2-16，约两周的探针结果出来后做。
 - 远端已合入分支的清理与「合并后自动删除分支」：用户来做（见第 10 节），还没做。

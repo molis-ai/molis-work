@@ -42,8 +42,42 @@ jobs:
       - name: Verify package contracts and boundaries
         run: pnpm workspace:verify
 
+      # Page resource budget (specs/repository-anti-corruption §4.8/§4.13, decision #17): every asset the host sends under
+      # /assets/ (the three stylesheets, the workbench client scripts, the Pages editor, the plugin client packs, the fonts)
+      # is frozen at its current size and may only fall. It is measured from the build the step above just made, so it must
+      # come after it. tooling/gates/page-assets.json is compared with the merge-base's copy (the one the health gates
+      # use): a PR cannot raise a number, add an asset or delete the entry of an asset the host still sends by editing that
+      # file, only by changing the gate, which is reviewed. The routes are read from web-assets.ts, and every path either
+      # budget names is also asked of the built host, so a refactor that hides a route from the reading cannot unmeasure it.
+      - name: Page asset budgets (against the merge-base)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          base="$(node scripts/ci-health-base.mjs)"
+          node scripts/gates/page-assets.mjs --base "$base"
+
+      # The budget rules are mutation-verified on a scratch repository and on a fake host build: a grown asset, a new asset,
+      # a raised budget, a slack left unlowered and a missing build each fail, and so does the laundering move after
+      # `--update` or after the budget file was raised by hand, and a route rewritten out of the gate's reading together
+      # with its deleted entry; a route spelled as a regular expression (other than the plugin pack pattern) or with escaped
+      # slashes is refused outright wherever the word `assets` sits in it (`[\/]assets`, `(assets)`), except that a regex
+      # which splits the word itself (`asset[s]`) is not seen: the header of the script and spec §5a list that limit.
+      # The last case runs the real gate on this build.
+      - name: Page asset budget rules reject what they claim to
+        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts
+
       # Numbers that may only go down: giant units (class lines and methods apart), tests reaching into package
+      # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers, empty catch
+      # blocks, `as unknown as` casts and old names (all per file), and a status line on every spec in specs/
+      # (specs/repository-anti-corruption §5a). And a list that never changes silently: the public API of the contracts
+      # package and the plugin SDK against the snapshots in tooling/gates/api (refreshed on purpose with `pnpm api:update`).
       # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers (per source
+      # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a). The structure numbers
+      # (scripts/gates/, docs/system/PACKAGE-BOUNDARIES.md §6) fall too: contracts purity, the Host entry's `export *`, Module
+      # Repository/Store exports, typed HostCapabilityDefinition sites, plugin-named Host files, registerProvider lines,
+      # hybrid plugins, and the files that name a built-in plugin outside its package.
       # file), conflicting translations (per Chinese key), and a status line on every spec in specs/
       # (specs/repository-anti-corruption §5a). A translator call with no English fails outright, and so does a `*_EN` dictionary
       # that the catalog built in apps/workbench/src/i18n/en.ts never reaches (scripts/gates/translations.mjs).
@@ -65,6 +99,10 @@ jobs:
           node scripts/check-health-gates.mjs --base "$base"
 
       # Each gate rule is mutation-verified on a scratch repository: one violation added on a branch fails, and so does
+      # the same branch after `--update` rewrote the baseline. The glob takes every tests/health-gates-*.test.ts, so a
+      # new gate's test needs no edit here.
+      - name: Health gates reject what they claim to
+        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts tests/package-inventory-gate.test.ts
       # the same branch after `--update` rewrote the baseline. The translation check (missing English fails, conflicts are
       # frozen, stable keys are checked) is one of the gates above; its rules are verified the same way.
       - name: Health gates reject what they claim to
@@ -78,6 +116,12 @@ jobs:
         run: |
           node scripts/verify-release-versions.mjs
           node scripts/run-tests.mjs tests/verify-release-versions.test.ts
+
+      # The document and repository-shape rules run inside the health gates above (links, cited paths and ids, spec index,
+      # BACKLOG rows, root allow-list, .impeccable files, placeholder contract subpaths); scripts/gates/README.md lists them.
+      # Each one is broken once on a scratch repository here, and the gate must go red.
+      - name: Document gates reject what they claim to
+        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts
 
       - name: Verify Goal boundaries, storage baselines and release assets
         run: |

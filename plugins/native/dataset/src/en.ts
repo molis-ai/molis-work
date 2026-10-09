@@ -1,4 +1,6 @@
 export const DATASET_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "Dataset 数据表": "Dataset tables",
   "粘贴 CSV": "Paste CSV",
   "固定版本": "Fixed version",
   "固定版本未存完": "Fixed version not finished",

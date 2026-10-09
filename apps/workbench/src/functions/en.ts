@@ -1,4 +1,6 @@
 export const FUNCTIONS_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "判断规则在这个项目里的场景绑定和判断记录": "Function bindings and judgments made in this project",
   "仅列出插件已声明的工具和页面动作。": "Only declared plugin tools and page actions are listed.",
   "重新加载": "Reload",
   "新事项来时，建议整理成稿、先核查或处理状态": "Suggest drafting, verification or status changes for new items",

@@ -1,4 +1,6 @@
 export const PAGES_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "Pages 文稿与文件夹": "Pages documents and folders",
   "固定版本": "Fixed version",
   "固定版本未存完": "Fixed version not finished",
   "助理": "Assistant",

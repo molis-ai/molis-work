@@ -6,7 +6,7 @@ import test from "node:test";
 import { openCharacters, CharacterError } from "@molis-ai/molis-work-module-characters";
 import { CHARACTER_IMPORT_LIMITS, parseCharacterImportSnapshot, parseCharacterContent, type CharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 import { createCharacterDiscovery } from "../apps/local-host/src/character-import-discovery.js";
-import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 const put = (path: string, body: string | Buffer) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, body); };
 function fixture(t: { after(callback: () => void): void }) {
   const home = mkdtempSync(join(tmpdir(), "molis-character-import-")); t.after(() => rmSync(home, { recursive: true, force: true }));
@@ -170,7 +170,7 @@ test("large imported resources publish through the real Artifact store and survi
   const filename = join(home, "artifacts.sqlite"), db = new Database(filename);
   db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT);");
   createArtifactsSchema(db);
-  const artifacts = new ArtifactsModule({ db, now: () => "2026-09-23T00:00:00Z", appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid) });
+  const artifacts = new ArtifactsModule({ db, now: () => "2026-09-23T00:00:00Z", appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid), eventCursor: eventCursorOf(db) });
   const characterDb = openCharacters(join(home, "personal"), "actor");
   const binary = Buffer.alloc(7 * 1024 * 1024, 0xff).toString("base64");
   const snapshot: CharacterImportSnapshot = { runtime_id: "codex", config_root: "/fixture/codex", captured_at: "2026-09-23T00:00:00Z", rules: [],
@@ -187,7 +187,7 @@ test("large imported resources publish through the real Artifact store and survi
   } finally { characterDb.close(); db.close(); }
   const reopened = new Database(filename);
   try {
-    const records = new ArtifactsModule({ db: reopened, appendEvent: () => { throw new Error("read only"); } });
+    const records = new ArtifactsModule({ db: reopened, appendEvent: () => { throw new Error("read only"); }, eventCursor: eventCursorOf(reopened) });
     const stored = records.query.getArtifactVersion("board", { artifact_id: "large-character", version: 1 });
     assert.ok(stored);
     const content = parseCharacterContent(stored.payload);

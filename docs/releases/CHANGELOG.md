@@ -20,6 +20,7 @@
 - **目录库 v22：删除项目的所有者步骤**（`fix/project-deletion-owners`，PR 待开）。目录库多一张表 `project_deletion_steps`，版本由 21 升到 22。新构建拒绝 v21 的目录库（`catalog.unsupported_schema`），做完维护后只认 21 的旧构建又拒绝 v22（`catalog.reader_too_old`）。所以 v21 的 Home 要先做一次一次性维护：`tests/fixtures/catalog-maintenance-v22.sql`，一个事务，版本或表不符就整体回滚；流程与演练记录见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护四。
 - **命令行和管理 MCP 不再有默认数据库路径**（`fix/orphan-resources`，PR 待开）：以前不给路径就用按当前目录算的 `.molis-work/molis-work.db`，在 `$HOME` 下运行会在真实 Home 旁边悄悄建出一个多余的库。现在命令行的 `--db` 必须给（缺、空，或后面直接跟另一个参数，都在建任何文件之前报错），管理 MCP 的 `initialize`、`event_decide`、`goal_tree_decide` 必须给 `database_path` 或设置 `MOLIS_WORK_DATABASE`（否则 `store.path_required`）。依赖旧默认路径的脚本要显式写上路径；Web 服务找不到库时的提示也改为 `molis-work v1 init --db <路径>`。
 - **实验插件私有库和炼金术士搜索库有了版本 1**（`refactor/version-unversioned-stores`，PR 待开）。这两个库原来没有版本（`CREATE TABLE IF NOT EXISTS`），现在和别的库一样经 `applySqliteBaseline`：新建的带版本 1，有表没有版本的旧文件新构建拒绝打开（`storage.schema_version_mismatch`，只影响 Experiments 或该项目的炼金术士搜索，不影响宿主启动）。已有 `plugins/experiments/private.sqlite` 的 Home 要先做一次一次性维护再用新构建：`tests/fixtures/store-maintenance-experiments-private-v1.sql`（炼金术士搜索库对应 `store-maintenance-alchemist-search-v1.sql`）；它们只写 `PRAGMA user_version = 1`，不动表和行；窗口里的步骤由同目录的 `store-maintenance-run.sh`（先演练、再备份后盖章）和 `store-maintenance-verify-open.mjs` 承担，流程见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护五。只认旧代码的构建不看这个版本，所以先维护、后升级最稳：唯一的窗口是新构建在维护之前打不开实验库。
+- **工作区读取只剩一个 id，Files、Git、Coding 多了必需权限 `workspace:read`**（W2-09，PR 待开）。typed 能力 `projects.workspace.file.read.v1`、`projects.workspace.git.read.v1` 已删，每个读只剩动作 `projects.workspace.files.read`、`projects.workspace.git.inspect`；Files、Git、Coding 在清单里声明并持有 `workspace:read`，经 `capabilities.consumes` 和 `services.actions` 调它们，Files 与 Git 里依赖读取的 10 个动作（`files.directory`、`files.open`、`files.capture`、`files.side.entries`、`files.side.content`、`git.state`、`git.select-diff`、`git.summary`、`git.pr-support`、`git.conflict`）多了 `required_actions` 和权限 `workspace:read`。已经装过这三个插件的 Home 不用动手：启动时清单跟当前构建，必需权限自动获得。**外部 MCP 客户端不用重新授权，也不受影响**：这 10 个动作绑定的是本机用户的个人浏览状态（`bindOwnerPluginAction`），调用者的 `actor_id` 不是本机用户时一律是 `actions.owner_mismatch`，改动前后 MCP 客户端都调不了它们（`tests/files-git-actions.test.ts`）；客户端读工作区只用上面那两个读动作，受众、权限（`workspace:read`，逐项精确授权）都没变。插件创作台的能力板不再把这 10 个动作列给生成插件（有 `required_actions` 的动作按「依赖其他能力」暂不开放），没有能用的功能被拿走：生成插件以 `plugin:<id>` 的身份调用，这些动作本来就拒绝它（`actions.owner_mismatch`）。读文件动作的入参 `kind` 多了 `bytes`（整份文件，图片与 PDF 预览），它对所有调用方的目录都可见，但宿主只放行宿主运行的、把这个动作写进 `consumes` 的插件，其他调用方（包括生成插件）收到 `actions.forbidden`。
 
 ### 新增
 
@@ -44,6 +45,7 @@
 
 ### 移除
 
+- 类型化宿主能力 `projects.workspace.file.read.v1`、`projects.workspace.git.read.v1` 和合同里的 `readWorkspaceFileCapability`、`readWorkspaceGitCapability`（W2-09）：每个工作区读取只留动作 `projects.workspace.files.read`、`projects.workspace.git.inspect`。
 - 0.1.x 根 SDK（#262）；数据库迁移链与 V3 导入；其他已确认不再需要的兼容路径，源码里的兼容标记按文件计数、只许减少（#283、#285、#289）。
 
 ### 开发流程

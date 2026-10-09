@@ -1,9 +1,6 @@
 import { existsSync } from "node:fs";
-import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
-
-/** Coding session states that mean a round is under way or waiting on the person. */
-const ACTIVE_STATES = ["running", "paused", "waiting-answer", "waiting-approval", "reconcile-required", "queued"] as const;
 
 export interface CodingBackgroundTask {
   project_id: string;
@@ -24,36 +21,35 @@ export interface CodingBackgroundTask {
   before_restart: boolean;
 }
 
+/**
+ * How one project database is asked for its Coding sessions. Coding owns that table and its reader, `listCodingBackgroundSessions`;
+ * the caller that wires the route passes it in, so this file names no plugin and reads no table.
+ */
+export type CodingSessionReader = (db: SqliteDatabase) => ReadonlyArray<Omit<CodingBackgroundTask, "project_id" | "project_name" | "before_restart"> & { active: boolean }>;
+
 const SERVICE_STARTED_AT = new Date(Date.now() - process.uptime() * 1000).toISOString();
 
 /**
  * Coding sessions that are running or waiting on the person, across every project, newest first. A session whose round
  * has ended is listed too while the person holds one of its open plan steps: that step waits on them.
  *
- * Read from each project's recorded session states, which Coding keeps current while a round runs; nothing here
- * opens a project or asks a runtime. A project that never used Coding, or whose store cannot be read, lists nothing
- * rather than a guess.
+ * Read from each project's recorded session states, which Coding keeps current while a round runs and reads back itself;
+ * nothing here opens a project or asks a runtime. A project that never used Coding, or whose store cannot be read, lists
+ * nothing rather than a guess.
  */
-export function codingBackgroundTasks(projects: readonly WebProjectNavigation[], startedAt = SERVICE_STARTED_AT): CodingBackgroundTask[] {
+export function codingBackgroundTasks(projects: readonly WebProjectNavigation[], readSessions: CodingSessionReader, startedAt = SERVICE_STARTED_AT): CodingBackgroundTask[] {
   const tasks: CodingBackgroundTask[] = [];
   for (const project of projects) {
     if (!project.database_path || !existsSync(project.database_path)) continue;
     let store: LocalSqliteStorage | undefined;
     try {
       store = new LocalSqliteStorage(project.database_path, { readonly: true });
-      const rows = store.db.prepare(`SELECT session_id, title, state, updated_at, steps_json, background_json FROM coding_sessions
-        WHERE archived = 0 AND (state IN (${ACTIVE_STATES.map(() => "?").join(", ")}) OR steps_json IS NOT NULL OR background_json IS NOT NULL) ORDER BY updated_at DESC`).all(...ACTIVE_STATES) as Array<{
-        session_id: string; title: string; state: string; updated_at: string; steps_json: string | null; background_json: string | null }>;
-      for (const row of rows) {
-        let steps: CodingBackgroundTask["steps"], commands: CodingBackgroundTask["commands"];
-        try { steps = row.steps_json ? JSON.parse(row.steps_json) : undefined; } catch { steps = undefined; }
-        try { commands = row.background_json ? JSON.parse(row.background_json) : undefined; } catch { commands = undefined; }
-        const active = (ACTIVE_STATES as readonly string[]).includes(row.state);
-        if (!active && !steps?.mine && !commands?.length) continue;
-        tasks.push({ project_id: project.project_id, project_name: project.display_name, session_id: row.session_id,
-          title: row.title, state: row.state, updated_at: row.updated_at, ...(steps ? { steps } : {}), ...(commands?.length ? { commands } : {}),
+      for (const session of readSessions(store.db)) {
+        tasks.push({ project_id: project.project_id, project_name: project.display_name, session_id: session.session_id,
+          title: session.title, state: session.state, updated_at: session.updated_at, ...(session.steps ? { steps: session.steps } : {}),
+          ...(session.commands ? { commands: session.commands } : {}),
           // A queued round has not started, so a restart did not cut it off.
-          before_restart: active && !["reconcile-required", "queued"].includes(row.state) && row.updated_at < startedAt });
+          before_restart: session.active && !["reconcile-required", "queued"].includes(session.state) && session.updated_at < startedAt });
       }
     } catch {
       // No Coding table yet, or a store this service cannot read: nothing is listed for that project.

@@ -34,7 +34,7 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
     } finally { await host.close(); }
 
     const source = new LocalProjectDatabase(project.database_path);
-    const artifacts = new ArtifactsModule({ db: source.db, appendEvent: event => source.appendEvent(event) });
+    const artifacts = new ArtifactsModule({ db: source.db, appendEvent: event => source.appendEvent(event), eventCursor: projectId => source.eventCursor(projectId) });
     try {
       for (const version of [1, 2]) artifacts.commands.registerVersion({ ...pinnedArtifact(`第${version}版报告`, { kind: "item", id: "report" }, String(version)),
         project_id: project.project_id, artifact_id: "report", version, actor_id: "user",
@@ -71,7 +71,7 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
     } finally { await restoredHost.close(); }
     const restored = new LocalProjectDatabase(project.database_path);
     try {
-      const reader = new ArtifactsModule({ db: restored.db, appendEvent: event => restored.appendEvent(event) });
+      const reader = new ArtifactsModule({ db: restored.db, appendEvent: event => restored.appendEvent(event), eventCursor: projectId => restored.eventCursor(projectId) });
       assert.deepEqual(reader.query.listArtifactVersions(project.project_id, "report").map(item => item.version).sort(), [1, 2]);
       for (const version of [1, 2]) assert.deepEqual(
         reader.query.getArtifactVersion(project.project_id, { artifact_id: "report", version })?.payload,

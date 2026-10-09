@@ -20,7 +20,7 @@ test("Coding saves exact Character versions, blocks unavailable selection before
   seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   const personal = openCharacters(home, "web-user"), draft = personal.service.create();
   personal.service.update(draft.character_id, 1, { title: "原角色", instructions: "旧的固定要求", host_tools: null });
-  const artifacts = () => new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const artifacts = () => new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const publish = (version: number) => personal.service.publish(draft.character_id, version + 1, content => artifacts().commands.registerVersion({ ...pinnedArtifact(content.title, { kind: "character", id: content.character_id }),
     project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: `character:${DEMO_PROJECT_ID}:${draft.character_id}`, version,
     artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1,

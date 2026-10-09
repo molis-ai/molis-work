@@ -204,7 +204,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.match(secondReport.body_markdown, /用户尚未评价/);
     assert.deepEqual(secondReport.steps.verdicts, {}, "other runs' assessments never leak");
     // Confirmed plans are Coding's process items (artifact-positioning A2).
-    const plans = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+    const plans = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
     plans.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", ...starts[1].execution_plan!.source });
     const missingPlanReport = (await request("/runs/execute-2/report", "POST", {})).body;
     assert.match(missingPlanReport.report.steps.unavailable_reason, /固定计划暂不可读/);

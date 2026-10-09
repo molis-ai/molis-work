@@ -618,9 +618,7 @@ export function seedDemoBoard(databasePath: string, projectId = DEMO_PROJECT_ID)
       ...versions(coordinator, projectId, "DROPPED"),
     });
 
-    store.db
-      .prepare("UPDATE boards SET active_goal_id = ?, updated_at = ? WHERE project_id = ?")
-      .run("V1", new Date().toISOString(), projectId);
+    coordinator.setActiveGoal(projectId, { goal_id: "V1", reason: "演示项目从第一个目标开始" }, { actor_id: DEMO_ACTOR, idempotency_key: "demo-active-goal" });
   } finally {
     store.close();
   }

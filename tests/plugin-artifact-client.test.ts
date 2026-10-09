@@ -18,8 +18,8 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
   const databasePath = join(directory, "board.db");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
-  const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
-  const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
+  const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const runtime = new PluginRuntime();
   try {
     const base = createGithubIntegrationPlugin({ provider: {
@@ -115,8 +115,8 @@ test("an installation reads a process item only for the actor it was recorded fo
   const databasePath = join(directory, "board.db");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
-  const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
-  const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
+  const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const runtime = new PluginRuntime();
   try {
     const base = createGithubIntegrationPlugin({ provider: {

@@ -245,6 +245,46 @@ export class CodingSessionStore {
   }
 }
 
+/** Session states in which a round is under way or waits on the person. */
+export const CODING_ACTIVE_STATES = ["running", "paused", "waiting-answer", "waiting-approval", "reconcile-required", "queued"] as const satisfies readonly CodingSessionState[];
+
+/** A session the person may have to come back to, as the list of background work shows it. */
+export interface CodingBackgroundSession {
+  session_id: string;
+  title: string;
+  state: CodingSessionState;
+  updated_at: string;
+  /** A round is under way or waiting (the state is one of CODING_ACTIVE_STATES). */
+  active: boolean;
+  steps?: CodingStepHolders;
+  commands?: CodingRunningCommand[];
+}
+
+/**
+ * The sessions of one project database that are active, or whose round has ended while the person holds one of the open plan
+ * steps (or a background command is left running), newest first. Reads the recorded states Coding keeps current while a round
+ * runs: nothing here opens a runtime. It writes nothing and creates no table, so a read-only connection works; a database that
+ * never held Coding has no such table and the read throws, which the caller treats as "nothing to list".
+ */
+export function listCodingBackgroundSessions(db: Pick<CodingSqliteDatabase, "prepare">): CodingBackgroundSession[] {
+  const rows = db.prepare(`SELECT session_id, title, state, updated_at, steps_json, background_json FROM coding_sessions
+    WHERE archived = 0 AND (state IN (${CODING_ACTIVE_STATES.map(() => "?").join(", ")}) OR steps_json IS NOT NULL OR background_json IS NOT NULL) ORDER BY updated_at DESC`).all(...CODING_ACTIVE_STATES) as Row[];
+  const sessions: CodingBackgroundSession[] = [];
+  for (const row of rows) {
+    // A column that does not parse reads as absent: the list shows less rather than a guess.
+    const parse = <T>(value: unknown): T | undefined => {
+      try { return typeof value === "string" ? JSON.parse(value) as T : undefined; } catch { return undefined; }
+    };
+    const steps = parse<CodingStepHolders>(row.steps_json), commands = parse<CodingRunningCommand[]>(row.background_json);
+    const state = String(row.state) as CodingSessionState;
+    const active = (CODING_ACTIVE_STATES as readonly string[]).includes(state);
+    if (!active && !steps?.mine && !commands?.length) continue;
+    sessions.push({ session_id: String(row.session_id), title: String(row.title), state, updated_at: String(row.updated_at), active,
+      ...(steps ? { steps } : {}), ...(commands?.length ? { commands } : {}) });
+  }
+  return sessions;
+}
+
 /**
  * Turn stored rows into what the directory renders.
  *

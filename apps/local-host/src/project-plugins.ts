@@ -104,8 +104,8 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
   const record: ProjectPluginState = { platform: null, running: false };
   try {
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
-    const artifacts = new ArtifactsModule({ db: ports.store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, appendEvent: event => ports.store.appendEvent(event) });
-    const processItems = new ProcessItemsModule({ db: ports.store.db, appendEvent: event => ports.store.appendEvent(event) });
+    const artifacts = new ArtifactsModule({ db: ports.store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, appendEvent: event => ports.store.appendEvent(event), eventCursor: projectId => ports.store.eventCursor(projectId) });
+    const processItems = new ProcessItemsModule({ db: ports.store.db, appendEvent: event => ports.store.appendEvent(event), eventCursor: projectId => ports.store.eventCursor(projectId) });
     const platform = createPluginPlatform({
       project_id: ports.projectId,
       actor_id: ports.actorId,

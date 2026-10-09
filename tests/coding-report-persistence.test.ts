@@ -15,7 +15,7 @@ test("formal report routes freeze real Artifact versions, distinguish missing/fa
   const dir = mkdtempSync(join(tmpdir(), "coding-report-"));
   const dbPath = join(dir, "board.db"); seedDemoBoard(dbPath);
   let store = new LocalProjectDatabase(dbPath);
-  let api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  let api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   let sessionStore = new CodingSessionStore(store.db);
   for (const id of ["app", "other"]) {
     sessionStore.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: '<img src=x onerror="bad()">', runtime_id: "prologue", at: "2026-09-21T00:00:00Z" });
@@ -102,7 +102,7 @@ test("formal report routes freeze real Artifact versions, distinguish missing/fa
     assert.deepEqual((await request("app", "failed", "POST")).body, saved);
     await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close();
     store = new LocalProjectDatabase(dbPath);
-    api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+    api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
     runtimeAvailable = false;
     assert.deepEqual((await request("app", "failed")).body, saved, "reopen fixed Artifact even without runtime");
     assert.equal((await request("other", "failed")).status, 400);

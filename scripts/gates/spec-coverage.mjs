@@ -4,8 +4,8 @@
 // returns what it found, and the command decides whether that fails anything (report mode never does; --strict does).
 //
 // What is read
-//   Specs      specs/<directory>/spec.md of every spec at the root of specs/ (archive/ is not read). In a section whose
-//              heading says 验收 or Acceptance, a line that starts with an id defines it: the id may follow a list marker
+//   Specs      specs/<directory>/spec.md of every spec at the root of specs/. In a section whose heading says 验收 or
+//              Acceptance, a line that starts with an id defines it: the id may follow a list marker
 //              ("- ", "1. ") or the opening bar of a table row, and emphasis marks around it ("**DOCK-03**") are ignored.
 //              An id is 2–8 capital letters, a hyphen and 2 or 3 digits. Prefix and number are the whole identity: the
 //              prefix names the spec (one prefix per spec, one spec per prefix), the number is never renumbered or reused.
@@ -14,6 +14,10 @@
 //              A spec with an acceptance section and no id at all is "unnumbered" unless a line near the top says
 //              "验收编号：不适用（理由）". In a block of an acceptance section (the lines between two headings) that has an id,
 //              every other top-level list item or table row without one is a criterion that was added without an id.
+//   Archive    specs/archive/<directory>/spec.md is read for definitions only. Moving a spec into the archive does not give
+//              its ids back: an archived prefix stays taken (a later spec cannot use it, so the old tests that cite it never
+//              count as coverage for new criteria), an archived id stays defined (the tests that cite it are not stale), and
+//              nothing else is asked of an archived spec (no coverage, no ids required, no exemption).
 //   Tests      every tracked file that is a test (*.test.* anywhere, or a code file under a tests/ directory, fixtures
 //              excepted): a mention of a defined id anywhere in the file (a test name, a comment) covers it. Mentions are
 //              looked for by the prefixes the specs define, so SHA-256 or UTF-16 in a test is never taken for an id.
@@ -34,7 +38,7 @@ const TABLE_RULE = /^ ?\|?[ \t]*:?-{2,}:?[ \t]*(?:\|[ \t]*:?-{2,}:?[ \t]*)*\|?[ 
 const MANUAL = /\[人工\]/;
 const EXEMPT = /^验收编号：[ \t]*不适用(?:[（(]([^）)\n]*)[）)])?/m;
 
-const isTestFile = (file) => {
+export const isTestFile = (file) => {
   if (/(^|\/)(node_modules|dist|\.impeccable)\//.test(file) || file.startsWith("vendor/")) return false;
   if (/\.test\.(ts|mts|tsx|mjs|cjs|js)$/.test(file)) return true;
   return /(^|\/)tests?\//.test(file) && /\.(ts|mts|tsx|mjs|cjs|js)$/.test(file) && !/(^|\/)fixtures\//.test(file);
@@ -82,12 +86,14 @@ export function parseSpec(text) {
   return { headings, definitions, unnumbered, exempt: exempt ? { reason: (exempt[1] ?? "").trim() } : null };
 }
 
-/** The tracked specs in progress: specs/<directory>/spec.md. One level deep, so specs/archive/<name>/spec.md is never read. */
-const activeSpecs = (snapshot) => snapshot.files
-  .map((file) => file.match(/^specs\/([^/]+)\/spec\.md$/))
+/** The tracked specs: specs/<directory>/spec.md in progress, specs/archive/<directory>/spec.md once archived (one level each). */
+const specDirectories = (snapshot, pattern) => snapshot.files
+  .map((file) => file.match(pattern))
   .filter(Boolean)
   .map((match) => match[1])
   .sort();
+const activeSpecs = (snapshot) => specDirectories(snapshot, /^specs\/([^/]+)\/spec\.md$/);
+const archivedSpecs = (snapshot) => specDirectories(snapshot, /^specs\/archive\/([^/]+)\/spec\.md$/);
 
 /** Which files mention which of the ids that start with one of `prefixes`: Map(id → sorted file list), and how many files were read. */
 function testMentions(snapshot, prefixes) {
@@ -110,14 +116,24 @@ function testMentions(snapshot, prefixes) {
 
 /**
  * What the specs promise and what the tests cite.
- * Returns { specs, problems, testFilesRead }; a problem is { kind, where, message } and is what `--strict` would fail on.
+ * Returns { specs, archived, problems, testFilesRead }; a problem is { kind, where, message } and is what `--strict` would fail on.
+ * `specs` are the specs in progress (all rules apply); `archived` are the archived specs that define ids (definitions only).
  */
 export function specCoverage(snapshot) {
   const problems = [];
   const problem = (kind, where, message) => problems.push({ kind, where, message });
   const specs = [];
-  const defined = new Map(); // id → [{ spec, line, retired }]
-  const prefixOwners = new Map(); // prefix → Set(spec)
+  const archived = [];
+  const defined = new Map(); // id → [{ label, file, line, retired, archived }]
+  const prefixOwners = new Map(); // prefix → Map(label → archived?)
+  const claim = (label, file, isArchived, definitions) => {
+    for (const definition of definitions) {
+      if (!prefixOwners.has(definition.prefix)) prefixOwners.set(definition.prefix, new Map());
+      prefixOwners.get(definition.prefix).set(label, isArchived);
+      if (!defined.has(definition.id)) defined.set(definition.id, []);
+      defined.get(definition.id).push({ label, file, line: definition.line, retired: definition.retired, archived: isArchived });
+    }
+  };
 
   for (const directory of activeSpecs(snapshot)) {
     const file = `specs/${directory}/spec.md`;
@@ -128,16 +144,11 @@ export function specCoverage(snapshot) {
     specs.push(entry);
     const prefixes = new Set(parsed.definitions.map((definition) => definition.prefix));
     entry.prefix = [...prefixes].sort().join(", ") || null;
+    claim(directory, file, false, parsed.definitions);
     for (const prefix of prefixes) {
-      if (!prefixOwners.has(prefix)) prefixOwners.set(prefix, new Set());
-      prefixOwners.get(prefix).add(directory);
       if (RESERVED_PREFIXES.has(prefix)) problem("reserved-prefix", file, `${prefix} is the prefix of another id family (BACKLOG, post-merge review); give this spec's acceptance ids a prefix of their own`);
     }
     if (prefixes.size > 1) problem("prefix-mixed", file, `uses ${prefixes.size} prefixes (${entry.prefix}); a spec's acceptance ids share one prefix, so an id says which spec it belongs to`);
-    for (const definition of parsed.definitions) {
-      if (!defined.has(definition.id)) defined.set(definition.id, []);
-      defined.get(definition.id).push({ spec: directory, line: definition.line, retired: definition.retired });
-    }
     for (const loose of parsed.unnumbered) problem("criterion-without-id", `${file}:${loose.line}`, `a criterion beside numbered ones carries no id: ${loose.text.slice(0, 80)}`);
     if (parsed.headings.length && !parsed.definitions.length) {
       if (!parsed.exempt) problem("unnumbered", file, `has an acceptance section (${parsed.headings.map((heading) => `line ${heading.line} "${heading.title}"`).join(", ")}) and no acceptance id; number the criteria, or say 验收编号：不适用（理由） near the top`);
@@ -146,11 +157,25 @@ export function specCoverage(snapshot) {
     if (parsed.exempt && parsed.definitions.length) problem("exempt-but-numbered", file, "says 验收编号：不适用 and also defines acceptance ids; drop one of the two");
   }
 
+  // An archived spec keeps what it defined: its prefix stays taken and its ids stay defined. Nothing else is asked of it.
+  for (const directory of archivedSpecs(snapshot)) {
+    const file = `specs/archive/${directory}/spec.md`;
+    const text = snapshot.read(file);
+    if (text === null) continue;
+    const { definitions } = parseSpec(text);
+    if (!definitions.length) continue;
+    claim(`archive/${directory}`, file, true, definitions);
+    archived.push({ directory, file, definitions, prefix: [...new Set(definitions.map((definition) => definition.prefix))].sort().join(", "), tests: [] });
+  }
+
   for (const [prefix, owners] of prefixOwners) {
-    if (owners.size > 1) problem("prefix-shared", prefix, `the prefix ${prefix} is used by ${[...owners].sort().join(" and ")}; one prefix names one spec`);
+    // Two archived specs that share a prefix cannot be fixed any more (the archive is frozen), so only a spec in progress is held to it.
+    if (owners.size < 2 || ![...owners.values()].includes(false)) continue;
+    problem("prefix-shared", prefix, `the prefix ${prefix} is used by ${[...owners.keys()].sort().join(" and ")}; one prefix names one spec${[...owners.values()].includes(true) ? ", and an archived spec keeps its prefix" : ""}`);
   }
   for (const [id, places] of defined) {
-    if (places.length > 1) problem("duplicate-id", id, `defined ${places.length} times (${places.map((place) => `specs/${place.spec}/spec.md:${place.line}`).join(", ")}); an id is never reused`);
+    if (places.length < 2 || places.every((place) => place.archived)) continue;
+    problem("duplicate-id", id, `defined ${places.length} times (${places.map((place) => `${place.file}:${place.line}`).join(", ")}); an id is never reused`);
   }
 
   const { mentions, filesRead } = testMentions(snapshot, new Set(prefixOwners.keys()));
@@ -163,13 +188,17 @@ export function specCoverage(snapshot) {
       }
     }
   }
+  for (const entry of archived) {
+    entry.tests = [...new Set(entry.definitions.flatMap((definition) => mentions.get(definition.id) ?? []))].sort();
+  }
   for (const [id, files] of mentions) {
     const places = defined.get(id);
-    if (!places) problem("stale-reference", files[0], `cites ${id}, which no spec defines${files.length > 1 ? ` (also ${files.length - 1} other test file${files.length > 2 ? "s" : ""})` : ""}`);
-    else if (places.every((place) => place.retired)) problem("stale-reference", files[0], `cites ${id}, which specs/${places[0].spec}/spec.md retired${files.length > 1 ? ` (also ${files.length - 1} other test file${files.length > 2 ? "s" : ""})` : ""}`);
+    const also = files.length > 1 ? ` (also ${files.length - 1} other test file${files.length > 2 ? "s" : ""})` : "";
+    if (!places) problem("stale-reference", files[0], `cites ${id}, which no spec defines${also}`);
+    else if (places.every((place) => place.retired)) problem("stale-reference", files[0], `cites ${id}, which ${places[0].file} retired${also}`);
   }
 
-  return { specs, problems, testFilesRead: filesRead };
+  return { specs, archived, problems, testFilesRead: filesRead };
 }
 
 /** Numbers per spec for the report: criteria that count (not retired), covered by a test, manual only, with no proof. */
@@ -190,7 +219,7 @@ export function renderReport(result, { strict = false } = {}) {
   lines.push(strict
     ? "Spec acceptance ids (strict: any problem below fails)"
     : "Spec acceptance ids (report only: this run exits 0 whatever it finds; --strict is the gate)");
-  lines.push(`${result.specs.length} specs in progress: ${numbered.length} numbered, ${withSection.length} with an acceptance section and no ids, ${without.length} with no acceptance section; ${result.testFilesRead} test files read for citations.`);
+  lines.push(`${result.specs.length} specs in progress: ${numbered.length} numbered, ${withSection.length} with an acceptance section and no ids, ${without.length} with no acceptance section; ${result.testFilesRead} test files read for citations.${result.archived.length ? ` Archived specs that keep ids taken: ${result.archived.length}.` : ""}`);
   if (numbered.length) {
     lines.push("", "Numbered specs");
     for (const entry of numbered) {
@@ -198,6 +227,13 @@ export function renderReport(result, { strict = false } = {}) {
       const parts = [`${counts.criteria} criteria`, `${counts.covered} cited by a test`, `${counts.manual} manual only`, `${counts.open.length} with no proof${counts.open.length ? ` (${counts.open.join(", ")})` : ""}`];
       if (counts.retired) parts.push(`${counts.retired} retired`);
       lines.push(`- ${entry.file} [${entry.prefix}]: ${parts.join("; ")}`);
+    }
+  }
+  if (result.archived.length) {
+    lines.push("", "Archived specs that keep ids taken (read for definitions only: a prefix stays reserved, a cited id is not stale)");
+    for (const entry of result.archived) {
+      const retired = entry.definitions.filter((definition) => definition.retired).length;
+      lines.push(`- ${entry.file} [${entry.prefix}]: ${entry.definitions.length} ids${retired ? ` (${retired} retired)` : ""}; cited by ${entry.tests.length} test file${entry.tests.length === 1 ? "" : "s"}`);
     }
   }
   if (withSection.length) {
@@ -218,5 +254,5 @@ export function specCoverageLine(snapshot) {
   const numbered = result.specs.filter((entry) => entry.definitions.length);
   const unnumbered = result.specs.filter((entry) => entry.headings.length && !entry.definitions.length && !entry.exempt).length;
   const totals = numbered.map(specCounts).reduce((sum, counts) => ({ criteria: sum.criteria + counts.criteria, covered: sum.covered + counts.covered }), { criteria: 0, covered: 0 });
-  return `Spec acceptance ids (report only, \`node scripts/check-spec-coverage.mjs\` lists them): ${numbered.length} of ${result.specs.length} specs numbered (${totals.covered} of ${totals.criteria} criteria cited by a test), ${unnumbered} with an acceptance section and no ids, ${result.problems.length} problems.`;
+  return `Spec acceptance ids (report only, \`node scripts/check-spec-coverage.mjs\` lists them): ${numbered.length} of ${result.specs.length} specs numbered (${totals.covered} of ${totals.criteria} criteria cited by a test), ${unnumbered} with an acceptance section and no ids, ${result.problems.length} problems.${result.archived.length ? ` Archived specs that keep ids taken: ${result.archived.length}.` : ""}`;
 }

@@ -16,6 +16,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { renderReport, specCoverage } from "./gates/spec-coverage.mjs";
 
 const USAGE = "usage: check-spec-coverage.mjs [--strict] [--json] [--root <dir>]";
@@ -33,7 +34,7 @@ for (let index = 0; index < args.length; index++) {
   } else fail(`unknown argument ${args[index]}\n${USAGE}`);
 }
 const strict = flags.has("--strict");
-const root = rootOption ? path.resolve(rootOption) : path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const root = rootOption ? path.resolve(rootOption) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 let files;
 try {

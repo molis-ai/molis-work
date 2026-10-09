@@ -1,17 +1,20 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { parseSpec } from "../scripts/gates/spec-coverage.mjs";
+import { isTestFile, parseSpec } from "../scripts/gates/spec-coverage.mjs";
 
 // specs/repository-anti-corruption §4.8 (W2-14): the acceptance-id report, scripts/check-spec-coverage.mjs (the convention is in
 // specs/README.md under 验收编号, the cases in scripts/gates/README.md). It is report-only for now, so every rule is
 // mutation-verified twice: the clean scratch repository has no problem and passes `--strict`; one violation is added and the
-// report names it, the plain run still exits 0 (it must not fail CI yet) and `--strict` exits 1. The forms that look like a
-// violation and are not (fences, other sections, archive, fixtures, SHA-256) are checked to raise nothing.
+// report names it, the plain run still exits 0 (it must not fail CI yet) and `--strict` exits 1. That covers each problem kind
+// and each rule for reading the files: what counts as a test file (code outside tests, vendor/, node_modules/, dist/,
+// .impeccable/, fixtures/, Markdown), where an exemption is read (the first 12 lines, from the start of a line), what counts as
+// a citation (not glued to a longer token) and what an archived spec keeps. The forms that look like a violation and are not
+// (fences, other sections, fixtures, SHA-256, an archived spec's own gaps) are checked to raise nothing.
 const script = fileURLToPath(new URL("../scripts/check-spec-coverage.mjs", import.meta.url));
 const healthScript = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import.meta.url));
 const made: string[] = [];
@@ -29,7 +32,7 @@ function scratch(files: Files): string {
     mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
     writeFileSync(path.join(dir, file), text);
   }
-  execFileSync("git", ["add", "-A"], { cwd: dir });
+  execFileSync("git", ["add", "-A", "-f"], { cwd: dir }); // -f: a global ignore file (node_modules) must not hide a file this repository is built from
   return dir;
 }
 const check = (dir: string, ...args: string[]) => {
@@ -39,6 +42,15 @@ const check = (dir: string, ...args: string[]) => {
 
 const spec = (title: string, ...body: string[]) => lines(`# ${title}`, "", "状态：执行中（2026-10-09）。", "", ...body);
 const criteria = (title: string, ...items: string[]) => spec(title, "## 验收标准", "", ...items, "", "## 验证命令", "", "- `pnpm test`");
+
+/** A spec whose acceptance section has no id; `text` is written alone on `line` (1-based), after blank filler. */
+const exemptionAt = (line: number, text: string) => {
+  const head = ["# Beta", "", "状态：执行中（2026-10-09）。"];
+  while (head.length < line - 1) head.push("");
+  return lines(...head, text, "", "## 验收", "", "- one", "- two");
+};
+/** An archived spec: two live ids, one retired. Nothing is asked of its coverage. */
+const ARCHIVED_OLD = criteria("Old", "1. **QXOLD-01** a [人工]", "2. **QXOLD-02** b [人工]", "3. ~~QXOLD-04~~ 已取消：gone");
 
 /** Alpha: two cited by tests (one in a test name, one in a comment), one manual, one retired. */
 const BASE: Files = {
@@ -75,6 +87,8 @@ const mutations: { name: string; kind: string; where: RegExp; change: (files: Fi
     change: (files) => { files["tests/alpha.test.ts"] = 'test("QXALPHA-01 does the first thing", () => {});\n'; files["docs/notes.md"] = "QXALPHA-02\n"; } },
   { name: "a criterion added without an id beside numbered ones", kind: "criterion-without-id", where: /specs\/alpha\/spec\.md:\d+: a criterion beside numbered ones carries no id: 5\. forgot the id/,
     change: (files) => { files["specs/alpha/spec.md"] = files["specs/alpha/spec.md"].replace("\n\n## 验证命令", "\n5. forgot the id\n\n## 验证命令"); } },
+  { name: "a bullet without an id beside numbered bullets", kind: "criterion-without-id", where: /a criterion beside numbered ones carries no id: - forgot the id/,
+    change: (files) => { files["specs/alpha/spec.md"] = criteria("Alpha", "- **QXALPHA-01** a", "- **QXALPHA-02** b", "- forgot the id"); } },
   { name: "a table row without an id beside numbered rows", kind: "criterion-without-id", where: /a criterion beside numbered ones carries no id: \| forgot/,
     change: (files) => { files["specs/alpha/spec.md"] = criteria("Alpha", "| 编号 | 标准 |", "| --- | --- |", "| **QXALPHA-01** | a |", "| **QXALPHA-02** | b |", "| forgot | c |"); } },
   { name: "an acceptance section with no id at all", kind: "unnumbered", where: /specs\/beta\/spec\.md: has an acceptance section/,
@@ -93,10 +107,56 @@ const mutations: { name: string; kind: string; where: RegExp; change: (files: Fi
     change: (files) => { files["specs/alpha/spec.md"] = files["specs/alpha/spec.md"].replace("4. ~~QXALPHA-04~~", "4. **QXBETA-01** other [人工]\n5. ~~QXALPHA-04~~"); } },
   { name: "a prefix another id family owns", kind: "reserved-prefix", where: /specs\/beta\/spec\.md: BL is the prefix of another id family/,
     change: (files) => { files["specs/beta/spec.md"] = criteria("Beta", "1. **BL-01** a [人工]"); } },
+  { name: "a prefix the post-merge review owns", kind: "reserved-prefix", where: /specs\/beta\/spec\.md: PMR is the prefix of another id family/,
+    change: (files) => { files["specs/beta/spec.md"] = criteria("Beta", "1. **PMR-01** a [人工]"); } },
+  { name: "a test citing an id no spec defines from two files", kind: "stale-reference", where: /tests\/alpha\.test\.ts: cites QXALPHA-09, which no spec defines \(also 1 other test file\)/,
+    change: (files) => { files["tests/alpha.test.ts"] += "// QXALPHA-09\n"; files["tests/more.test.ts"] = "// QXALPHA-09\n"; } },
+  { name: "a test citing an id no spec defines from three files", kind: "stale-reference", where: /tests\/alpha\.test\.ts: cites QXALPHA-09, which no spec defines \(also 2 other test files\)/,
+    change: (files) => { files["tests/alpha.test.ts"] += "// QXALPHA-09\n"; files["tests/more.test.ts"] = "// QXALPHA-09\n"; files["tests/most.test.ts"] = "// QXALPHA-09\n"; } },
   { name: "a test citing an id no spec defines", kind: "stale-reference", where: /tests\/alpha\.test\.ts: cites QXALPHA-09, which no spec defines/,
     change: (files) => { files["tests/alpha.test.ts"] += 'test("QXALPHA-09 proves something nobody asked for", () => {});\n'; } },
   { name: "a test citing a retired id", kind: "stale-reference", where: /tests\/alpha\.test\.ts: cites QXALPHA-04, which specs\/alpha\/spec\.md retired/,
     change: (files) => { files["tests/alpha.test.ts"] += 'test("QXALPHA-04 proves the dropped thing", () => {});\n'; } },
+  // ---- an archived spec keeps what it defined -------------------------------------------------------------------------------
+  { name: "a spec in progress taking the prefix of an archived spec", kind: "prefix-shared", where: /QXOLD: the prefix QXOLD is used by archive\/old and fresh; one prefix names one spec, and an archived spec keeps its prefix/,
+    change: (files) => { files["specs/archive/old/spec.md"] = ARCHIVED_OLD; files["specs/fresh/spec.md"] = criteria("Fresh", "1. **QXOLD-07** a [人工]"); } },
+  { name: "a spec in progress defining an id an archived spec defined", kind: "duplicate-id", where: /QXOLD-01: defined 2 times \(specs\/fresh\/spec\.md:\d+, specs\/archive\/old\/spec\.md:\d+\)/,
+    change: (files) => { files["specs/archive/old/spec.md"] = ARCHIVED_OLD; files["specs/fresh/spec.md"] = criteria("Fresh", "1. **QXOLD-01** again [人工]"); } },
+  { name: "a test citing an id an archived spec retired", kind: "stale-reference", where: /tests\/old\.test\.ts: cites QXOLD-04, which specs\/archive\/old\/spec\.md retired/,
+    change: (files) => { files["specs/archive/old/spec.md"] = ARCHIVED_OLD; files["tests/old.test.ts"] = 'test("QXOLD-04 proves the dropped thing", () => {});\n'; } },
+  { name: "a test citing an id nobody defined under an archived prefix", kind: "stale-reference", where: /tests\/old\.test\.ts: cites QXOLD-09, which no spec defines/,
+    change: (files) => { files["specs/archive/old/spec.md"] = ARCHIVED_OLD; files["tests/old.test.ts"] = 'test("QXOLD-09 is nobody\'s", () => {});\n'; } },
+  // ---- what counts as a test file: an id cited from anywhere else is not covered ---------------------------------------------
+  ...[
+    ["a code file outside the tests", "apps/web/src/feature.ts"],
+    ["a script outside the tests", "scripts/tool.mjs"],
+    ["a directory whose name only ends in test", "src/contest/judge.ts"],
+    ["a file under tests/ that is not code", "tests/notes.md"],
+    ["a data file under tests/", "tests/data.json"],
+    ["a test file under vendor/", "vendor/lib/thing.test.ts"],
+    ["a test file under node_modules/", "node_modules/pkg/thing.test.js"],
+    ["a test file under a dist/ folder", "packages/p/dist/thing.test.js"],
+    ["a test file under .impeccable/", ".impeccable/qa/thing.test.ts"],
+    ["a helper under a nested fixtures/ folder", "plugins/p/tests/fixtures/helper.ts"],
+  ].map(([name, file]) => ({
+    name: `an id cited only from ${name} (${file})`, kind: "uncovered", where: /QXALPHA-02 is cited by no test/,
+    change: (files: Files) => { files["tests/alpha.test.ts"] = 'test("QXALPHA-01 does the first thing", () => {});\n'; files[file] = "// QXALPHA-02\n"; },
+  })),
+  // ---- an exemption is read from the first 12 lines, from the start of a line ------------------------------------------------
+  { name: "an exemption written on line 13", kind: "unnumbered", where: /specs\/beta\/spec\.md: has an acceptance section/,
+    change: (files) => { files["specs/beta/spec.md"] = exemptionAt(13, "验收编号：不适用（程序性）"); } },
+  { name: "an exemption written far down the file", kind: "unnumbered", where: /specs\/beta\/spec\.md: has an acceptance section/,
+    change: (files) => { files["specs/beta/spec.md"] = exemptionAt(60, "验收编号：不适用（程序性）"); } },
+  { name: "an exemption mentioned in the middle of a line", kind: "unnumbered", where: /specs\/beta\/spec\.md: has an acceptance section/,
+    change: (files) => { files["specs/beta/spec.md"] = exemptionAt(5, "本 spec 没写 验收编号：不适用（程序性），所以还要编号"); } },
+  { name: "an exemption quoted in backticks", kind: "unnumbered", where: /specs\/beta\/spec\.md: has an acceptance section/,
+    change: (files) => { files["specs/beta/spec.md"] = exemptionAt(5, "- 写成 `验收编号：不适用（程序性）` 才算豁免"); } },
+  // ---- a citation is the id on its own, not part of a longer token -----------------------------------------------------------
+  { name: "an id glued to a longer token in a test (XQXALPHA-02, QXALPHA-02a, QXALPHA-0212, ranges)", kind: "uncovered", where: /QXALPHA-02 is cited by no test/,
+    change: (files) => {
+      files["tests/alpha.test.ts"] = 'test("QXALPHA-01 does the first thing", () => {});\n';
+      files["tests/glued.test.ts"] = lines("// XQXALPHA-02  9QXALPHA-02  _QXALPHA-02  -QXALPHA-02  AQXALPHA-02", "// QXALPHA-02a  QXALPHA-02Z  QXALPHA-02-b  QXALPHA-0212", "// QXALPHA-01..02 is a range: only the first id of it is cited");
+    } },
 ];
 for (const mutation of mutations) {
   test(`${mutation.name}: the report names it (${mutation.kind}), still exits 0, and --strict exits 1`, () => {
@@ -141,7 +201,7 @@ test("legal forms raise no problem: tables, bullets, emphasis, fences, other sec
     "plugins/p/src/uls.test.ts": lines('test("QXULS-01 first", () => {});'),
     "packages/q/tests/uls.test.mjs": lines("// QXULS-02"),
     // Tokens that look like ids but belong to no spec are not stale references.
-    "tests/other.test.ts": lines('test("SHA-256 and UTF-16 and W2-14 and BL-088 are not acceptance ids", () => {});'),
+    "tests/other.test.ts": lines('test("SHA-256 and UTF-16 and W2-14 and BL-088 are not acceptance ids", () => {});', "// QXTBL-1234 and QXTBL-0412 have four digits, QXTBL-7 has one: none of them is an id"),
   };
   const dir = scratch(files);
   const strict = check(dir, "--strict");
@@ -154,18 +214,102 @@ test("legal forms raise no problem: tables, bullets, emphasis, fences, other sec
   assert.doesNotMatch(strict.out, /QXFEN-09|archive|old/);
 });
 
+test("what is read as a citation, as written: every form of a test file counts, and the id may stand beside any punctuation", () => {
+  const extensions = ["ts", "mts", "tsx", "mjs", "cjs", "js"];
+  const files: Files = {
+    ...BASE,
+    // One id per way of being a test file, one per way of standing in a line.
+    "specs/ext/spec.md": criteria("Ext", ...extensions.map((ext, index) => `${index + 1}. **QXEXT-0${index + 1}** ${ext} [人工]`), "7. **QXEXT-07** helper under tests/", "8. **QXEXT-08** nested tests/ directory", "9. **QXEXT-09** e2e name"),
+    "specs/sep/spec.md": criteria("Sep", ...["a", "b", "c", "d", "e", "f", "g", "h", "i"].map((letter, index) => `${index + 1}. **QXSEP-0${index + 1}** ${letter}`)),
+    "tests/e2e/x.e2e.test.ts": "// QXEXT-09\n",
+    "tests/helper.ts": "// QXEXT-07\n",
+    "packages/q/tests/deep/helper.mjs": "// QXEXT-08\n",
+    "tests/sep.test.ts": lines("// (QXSEP-01) [QXSEP-02] `QXSEP-03` \"QXSEP-04: 'QXSEP-05' /QXSEP-06. ,QXSEP-07, {QXSEP-08}", "QXSEP-09"),
+  };
+  extensions.forEach((ext, index) => { files[`src/unit${index}.test.${ext}`] = `// QXEXT-0${index + 1}\n`; });
+  const strict = check(scratch(files), "--strict");
+  assert.equal(strict.code, 0, strict.out);
+  assert.match(strict.out, /specs\/ext\/spec\.md \[QXEXT\]: 9 criteria; 9 cited by a test/);
+  assert.match(strict.out, /specs\/sep\/spec\.md \[QXSEP\]: 9 criteria; 9 cited by a test/);
+});
+
+test("isTestFile: *.test.* anywhere and code under tests/ count; Markdown, data, vendor/, node_modules/, dist/, .impeccable/ and fixtures/ do not", () => {
+  for (const file of ["tests/a.test.ts", "a.test.mts", "plugins/p/src/a.test.tsx", "x/y/a.test.js", "tests/a.mjs", "tests/a.mts", "tests/a.tsx", "tests/a.js", "test/a.cjs", "packages/q/tests/deep/a.ts", "tests/e2e/a.e2e.test.ts"]) assert.equal(isTestFile(file), true, file);
+  for (const file of ["apps/web/src/a.ts", "scripts/a.mjs", "src/contest/a.ts", "src/latest/a.ts", "tests/a.md", "tests/a.json", "src/a.test.ts.snap", "src/a.test.js.map", "docs/a.test.md", "tests/fixtures/a.ts", "vendor/x/a.test.ts", "vendor/tests/a.ts", "node_modules/x/a.test.js", "packages/p/dist/a.test.js", ".impeccable/qa/a.test.ts", "a.ts"]) assert.equal(isTestFile(file), false, file);
+});
+
+test("an exemption counts on line 12 and not a line later, and only when it starts the line", () => {
+  const exempt = (text: string) => parseSpec(text).exempt;
+  assert.deepEqual(exempt(exemptionAt(12, "验收编号：不适用（程序性）")), { reason: "程序性" });
+  assert.deepEqual(exempt(exemptionAt(4, "验收编号：不适用(ASCII brackets)")), { reason: "ASCII brackets" });
+  assert.deepEqual(exempt(exemptionAt(4, "验收编号： 不适用（a space after the colon）")), { reason: "a space after the colon" });
+  assert.equal(exempt(exemptionAt(13, "验收编号：不适用（程序性）")), null);
+  assert.equal(exempt(exemptionAt(5, "见 验收编号：不适用（程序性）")), null);
+  assert.equal(exempt(exemptionAt(5, " - 验收编号：不适用（程序性）")), null);
+  const clean = check(scratch(base((files) => { files["specs/beta/spec.md"] = exemptionAt(12, "验收编号：不适用（程序性）"); })), "--strict");
+  assert.equal(clean.code, 0, clean.out);
+  assert.match(clean.out, /exempt \(程序性\)/);
+});
+
+test("an archived spec keeps its ids defined and its prefix taken, and nothing else is asked of it", () => {
+  const dir = scratch({
+    ...BASE,
+    // Everything an archived spec could be blamed for, none of it fixable any more: an uncited id, two prefixes, a criterion
+    // without an id, a prefix another archived spec also uses, and an unnumbered one next to it.
+    "specs/archive/old/spec.md": criteria("Old", "1. **QXOLD-01** a", "2. **QXOLD-02** b", "3. ~~QXOLD-04~~ 已取消：gone", "4. **QXOTHER-01** another prefix", "5. forgot the id"),
+    "specs/archive/older/spec.md": criteria("Older", "1. **QXOLD-01** the very id of an archived spec", "2. **QXOLD-30** shares the prefix of an archived spec"),
+    "specs/archive/plain/spec.md": spec("Plain", "## 验收", "", "1. unnumbered and archived"),
+    // The old tests still cite its ids: they are defined, so they are not stale.
+    "tests/old.test.ts": lines('test("QXOLD-01 and QXOTHER-01 still pass", () => {});', "// QXOLD-30"),
+  });
+  const strict = check(dir, "--strict");
+  assert.equal(strict.code, 0, strict.out);
+  assert.match(strict.out, /Problems: none/);
+  assert.match(strict.out, /Archived specs that keep ids taken: 2\./);
+  assert.match(strict.out, /specs\/archive\/old\/spec\.md \[QXOLD, QXOTHER\]: 4 ids \(1 retired\); cited by 1 test file\n/);
+  assert.match(strict.out, /specs\/archive\/older\/spec\.md \[QXOLD\]: 2 ids; cited by 1 test file\n/);
+  assert.doesNotMatch(strict.out, /archive\/plain/);
+  const parsed = JSON.parse(check(dir, "--json").out);
+  assert.deepEqual(parsed.archived.map((entry: { directory: string }) => entry.directory), ["old", "older"]);
+  assert.equal(parsed.specs.length, 1);
+});
+
+test("an id that one spec retired and another still defines is a duplicate, and a test citing it is not called stale", () => {
+  const dir = scratch(base((files) => {
+    files["specs/archive/old/spec.md"] = ARCHIVED_OLD; // retired QXOLD-04
+    files["specs/fresh/spec.md"] = criteria("Fresh", "1. **QXOLD-04** taken again [人工]");
+    files["tests/old.test.ts"] = 'test("QXOLD-04 proves it", () => {});\n';
+  }));
+  const run = check(dir);
+  assert.match(run.out, /- duplicate-id: QXOLD-04: defined 2 times/);
+  assert.doesNotMatch(run.out, /stale-reference/);
+});
+
+test("a spec moved into the archive stays in the report as one that keeps its ids taken, and its tests stay unstale", () => {
+  const before = scratch(BASE);
+  assert.match(check(before).out, /1 numbered/);
+  const files = { ...BASE, "specs/archive/alpha/spec.md": BASE["specs/alpha/spec.md"] };
+  delete (files as Files)["specs/alpha/spec.md"];
+  const after = check(scratch(files), "--strict");
+  assert.equal(after.code, 0, after.out);
+  assert.match(after.out, /0 numbered/);
+  assert.match(after.out, /specs\/archive\/alpha\/spec\.md \[QXALPHA\]: 4 ids \(1 retired\); cited by 1 test file/);
+  assert.match(after.out, /Problems: none/);
+});
+
 // ---- the reading of one spec -----------------------------------------------------------------------------------------------
 test("what counts as an id, as written", () => {
   const defined = (line: string) => parseSpec(`# T\n\n## 验收\n\n${line}\n`).definitions.map((definition: { id: string }) => definition.id);
-  for (const line of ["1. **QXABC-01** x", "12) QXABC-01 x", "- QXABC-01：x", "* `QXABC-01` x", "| QXABC-01 | x |", "|**QXABC-01**|x|", "**QXABC-01** x", "QXABC-123 x", "1. __QXABC-01__ x"]) {
+  for (const line of ["1. **QXABC-01** x", "12) QXABC-01 x", "- QXABC-01：x", "* `QXABC-01` x", "| QXABC-01 | x |", "|**QXABC-01**|x|", "**QXABC-01** x", "QXABC-123 x", "1. __QXABC-01__ x", "+ QXABC-01 x", " 1. QXABC-01 x (one space of indent)"]) {
     assert.deepEqual(defined(line), [line.match(/QXABC-\d+/)![0]], line);
   }
   // Too short, too long, lowercase, one letter, a suffix, glued to a longer token, in the middle of the line, or nested.
-  for (const line of ["1. QXABC-1 x", "1. QXABC-1234 x", "1. abc-01 x", "1. A-01 x", "1. ABCDEFGHI-01 x", "1. QXABC-01a x", "1. QXABC-01-2 x", "1. see QXABC-01", "    - QXABC-01 nested", "text QXABC-01"]) {
+  for (const line of ["1. QXABC-1 x", "1. QXABC-1234 x", "1. abc-01 x", "1. A-01 x", "1. ABCDEFGHI-01 x", "1. QXABC-01a x", "1. QXABC-01-2 x", "1. see QXABC-01", "  - QXABC-01 nested by two spaces", "    - QXABC-01 nested", "text QXABC-01"]) {
     assert.deepEqual(defined(line), [], line);
   }
   assert.equal(parseSpec("## 验收\n\n1. ~~QXABC-01~~ x\n2. **~~QXABC-02~~** y\n3. QXABC-03 [人工]\n").definitions.map((d: { retired: boolean; manual: boolean }) => `${d.retired}${d.manual}`).join(","), "truefalse,truefalse,falsetrue");
   // The section ends at the next heading of the same or a higher level and takes in the deeper ones.
+  assert.deepEqual(parseSpec("####### 验收\n\n1. QXABC-01 x\n").definitions, [], "seven hashes is not a heading");
   const text = lines("## 验收", "", "1. QXABC-01 a", "### 细则", "", "2. QXABC-02 b", "## 命令", "", "3. QXABC-03 not a criterion", "# 上层");
   assert.deepEqual(parseSpec(text).definitions.map((d: { id: string }) => d.id), ["QXABC-01", "QXABC-02"]);
 });
@@ -185,6 +329,35 @@ test("--json prints the same findings; unusable invocations exit 2", () => {
   const outside = check(notARepository);
   assert.equal(outside.code, 2, outside.out);
   assert.match(outside.out, /cannot list the tracked files/);
+});
+
+test("run from a checkout whose path has a space and a non-ASCII letter, the command reports instead of exiting 2", () => {
+  const parent = mkdtempSync(path.join(tmpdir(), "molis-spec-coverage-"));
+  made.push(parent);
+  const checkout = path.join(parent, "sp ace é");
+  mkdirSync(path.join(checkout, "scripts", "gates"), { recursive: true });
+  for (const file of ["check-spec-coverage.mjs", "gates/spec-coverage.mjs", "gates/markdown.mjs", "gates/allowlist.mjs"]) {
+    copyFileSync(fileURLToPath(new URL(`../scripts/${file}`, import.meta.url)), path.join(checkout, "scripts", file));
+  }
+  for (const [file, text] of Object.entries(BASE)) {
+    mkdirSync(path.dirname(path.join(checkout, file)), { recursive: true });
+    writeFileSync(path.join(checkout, file), text);
+  }
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: checkout });
+  execFileSync("git", ["add", "-A"], { cwd: checkout });
+  // No --root: the repository is found from where the script itself lives.
+  const run = spawnSync(process.execPath, [path.join(checkout, "scripts", "check-spec-coverage.mjs"), "--strict"], { cwd: parent, encoding: "utf8" });
+  assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
+  assert.match(run.stdout, /1 numbered/);
+});
+
+test("a tracked test file that is gone from the disk is not read and does not count", () => {
+  const dir = scratch(BASE);
+  rmSync(path.join(dir, "tests/alpha.test.ts"));
+  const run = check(dir);
+  assert.equal(run.code, 0, run.out);
+  assert.match(run.out, /0 test files read/);
+  assert.match(run.out, /- uncovered: .*QXALPHA-01 is cited by no test/);
 });
 
 test("a repository with no specs at all reports zero and passes", () => {

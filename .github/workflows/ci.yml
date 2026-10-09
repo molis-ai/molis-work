@@ -126,9 +126,10 @@ jobs:
       # Spec acceptance ids (specs/README.md 「验收编号」, specs/repository-anti-corruption §4.8, W2-14): which criteria of the
       # specs in progress carry an id, and which of those ids a test cites. Report only: the script exits 0 whatever it finds,
       # and `continue-on-error` keeps even a crash of the script itself from turning the build red. Once the specs in
-      # progress are numbered and the report lists no problem, add `--strict` and drop `continue-on-error`. The rules
-      # themselves are mutation-verified by tests/health-gates-spec-coverage.test.ts, which the `tests/health-gates-*.test.ts`
-      # glob above already runs.
+      # progress are numbered and the report lists no problem, add `--strict` and drop `continue-on-error`. Each problem
+      # kind and each rule for reading the files (what is a test file, where an exemption counts, what is a citation, what an
+      # archived spec keeps) has a case in tests/health-gates-spec-coverage.test.ts that fails without it; the
+      # `tests/health-gates-*.test.ts` glob above already runs that file.
       - name: Spec acceptance ids (report only)
         continue-on-error: true
         run: node scripts/check-spec-coverage.mjs

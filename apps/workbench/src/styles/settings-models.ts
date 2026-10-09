@@ -25,6 +25,7 @@ export const MODEL_SETTINGS_STYLES = `
 [data-model-status] { min-height:20px; }
 .model-row { margin:12px 0; }
 .model-row-id { flex:1; min-width:0; }
+.model-row-flag { display:inline-flex; align-items:center; gap:4px; color:var(--muted); font-size:12px; white-space:nowrap; cursor:pointer; }
 .model-list { margin:32px 0; }
 .model-provider-name { flex:1; overflow:hidden; text-overflow:ellipsis; }
 .model-settings-document svg { width:16px; height:16px; flex-shrink:0; }

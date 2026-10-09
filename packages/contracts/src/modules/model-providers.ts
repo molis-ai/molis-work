@@ -26,6 +26,11 @@ export interface ModelRecord {
   /** Context window, used for the badge. Absent means unknown — never guessed. */
   context_tokens?: number;
   vision?: boolean;
+  /**
+   * The person marked that this model takes a reasoning effort (low, medium, high) in its request. Absent: not marked,
+   * and no effort is offered or sent — accepting the field is the provider's matter, not something a format implies.
+   */
+  reasoning_effort?: boolean;
   enabled: boolean;
 }
 

@@ -69,7 +69,7 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
               thinking: root.querySelector('[data-model-thinking]')?.value || 'off',
               models: [...root.querySelectorAll('[data-model-rows] [data-model-row]')].map((row) => ({
                 ...JSON.parse(row.dataset.modelRecord || '{}'), model_id: row.querySelector('[data-model-id]').value.trim(),
-                enabled: row.querySelector('[data-model-enabled]').checked,
+                enabled: row.querySelector('[data-model-enabled]').checked, reasoning_effort: Boolean(row.querySelector('[data-model-effort]')?.checked),
               })),
               connection_id: root.querySelector('[data-model-connection]')?.value || '',
               ...(apiKey ? { api_key: apiKey } : {}),

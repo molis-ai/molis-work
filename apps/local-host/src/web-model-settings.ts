@@ -41,11 +41,13 @@ export async function handleModelSettingsHttp(
           || !("enabled" in entry) || typeof entry.enabled !== "boolean") throw new Error("模型配置格式无效");
         if (("display_name" in entry && typeof entry.display_name !== "string")
           || ("context_tokens" in entry && typeof entry.context_tokens !== "number")
-          || ("vision" in entry && typeof entry.vision !== "boolean")) throw new Error("模型元数据格式无效");
+          || ("vision" in entry && typeof entry.vision !== "boolean")
+          || ("reasoning_effort" in entry && typeof entry.reasoning_effort !== "boolean")) throw new Error("模型元数据格式无效");
         return { model_id: entry.model_id.trim(), enabled: entry.enabled,
           ...("display_name" in entry ? { display_name: entry.display_name as string } : {}),
           ...("context_tokens" in entry ? { context_tokens: entry.context_tokens as number } : {}),
           ...("vision" in entry ? { vision: entry.vision as boolean } : {}),
+          ...("reasoning_effort" in entry && entry.reasoning_effort === true ? { reasoning_effort: true } : {}),
         };
       });
       const result = await withCatalog({ homeDirectory }, (catalog) => {

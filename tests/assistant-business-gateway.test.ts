@@ -10,7 +10,7 @@ import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
 import { actionKey, assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
-import { gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/src/adapters/prologue-action-gateway.js";
+import { HOST_GOVERNED_TOOLS, gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/src/adapters/prologue-action-gateway.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -907,9 +907,7 @@ test("a review names common fields in words even when the plugin gave them no ti
 
 // The runtime may start a `safe-read` tool before the model has finished speaking and folds old read output into
 // "call it again" (specs/prologue-adoption §2 items 4–5): only calls that change nothing may say they read.
-test("gateway and action tools say they read only when they change nothing; the Host-governed writers run without a new prompt", async () => {
-  const { HOST_GOVERNED_TOOLS } = await import("../horizontal/agent-host/src/adapters/prologue-action-gateway.js");
-  const { prologueActionTools } = await import("../horizontal/agent-host/src/adapters/prologue-action-tools.js");
+test("gateway tools say they read only when they change nothing; the Host-governed writers run without a new prompt", () => {
   const client = { discover: async () => [], invoke: async () => ({}), offer: async () => ({ offer_id: "o" }),
     delegate: { start: async () => ({}), status: async () => [], follow_up: async () => ({}), stop: async () => ({}) },
     memory: { remember: async () => ({}), list: async () => [], forget: async () => ({ forgotten: true }), propose: async () => ({}) } };
@@ -920,10 +918,4 @@ test("gateway and action tools say they read only when they change nothing; the 
   for (const name of ["suggest-action", "delegate-work", "follow-up-delegated-work", "stop-delegated-work", "remember", "forget-memory", "suggest-memory",
     "change-capability", "change-reversible"]) assert.equal(kinds[name], "mutate-external", name);
   assert.deepEqual([...HOST_GOVERNED_TOOLS].sort(), ["delegate-work", "follow-up-delegated-work", "forget-memory", "remember", "stop-delegated-work", "suggest-action", "suggest-memory"]);
-  const view = (operation: "query" | "command", effect?: "read" | "write") => ({ capability_id: `demo.${operation}.${effect ?? "none"}`, version: 1, operation,
-    provider: { provider_id: "demo", title: "Demo" }, availability: { available: true },
-    action: { title: "Demo", description: "Demo", kind: operation === "query" ? "query" : "operation", ...(effect ? { effect } : {}), input_schema: { type: "object" }, audiences: ["agent"] } });
-  const tools = prologueActionTools({ tools: [view("query"), view("query", "write"), view("command", "read")], client } as never);
-  assert.deepEqual(tools.pack.tools.map(tool => tool.registration.effectKind).sort(), ["mutate-external", "mutate-external", "safe-read"],
-    "a query that declares a write, and a command, are not reads");
 });

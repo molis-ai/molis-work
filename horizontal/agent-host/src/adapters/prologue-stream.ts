@@ -108,6 +108,9 @@ export interface PrologueStreamState {
   turn_changes: AgentTurnChanges[];
   /** While the Run sleeps on its own: when it wakes. */
   sleeping_until?: string;
+  /** The model the person switched this Run to (since its last `model-switched`), and one asked for but not yet in effect. */
+  model_now?: string;
+  model_requested?: string;
 }
 
 export function emptyPrologueStreamState(): PrologueStreamState {
@@ -376,6 +379,8 @@ function applyModelSwitched(state: PrologueStreamState, event: PrologueEvent, at
   const switched = event as Extract<PrologueEvent, { type: "model-switched" }>;
   if (typeof switched.to?.model !== "string") return false;
   closeStreaming(state);
+  state.model_now = switched.to.model;
+  delete state.model_requested;
   const sequence = state.next_sequence++;
   state.activity.push({ call_id: `model-switch-${sequence}`, name: "model-switch", target: `${switched.from?.model ?? ""} → ${switched.to.model}`,
     state: "completed", summary: `从这一次模型调用起改用 ${switched.to.model}；之前的结果与授权不变`, at, sequence });
@@ -657,13 +662,15 @@ export function applyPrologueEvent(
  * step list, the files each turn wrote, a wait it sleeps in. A fact that no longer holds is not carried forward.
  */
 export function withRunFacts(state: PrologueStreamState, ended: boolean, view: AgentRunView): AgentRunView {
-  const { memory_recalled: _memory, todo: _todo, turn_changes: _changes, sleeping_until: _asleep, ...rest } = view;
+  const { memory_recalled: _memory, todo: _todo, turn_changes: _changes, sleeping_until: _asleep, model_switch: _switch, ...rest } = view;
+  const requested = ended ? undefined : state.model_requested;
   return {
     ...rest,
     ...(state.memory_recalled ? { memory_recalled: structuredClone(state.memory_recalled) } : {}),
     ...(state.todo?.length ? { todo: state.todo.map(item => ({ ...item })) } : {}),
     ...(state.turn_changes.length ? { turn_changes: structuredClone(state.turn_changes) } : {}),
     ...(state.sleeping_until !== undefined && !ended ? { sleeping_until: state.sleeping_until } : {}),
+    ...(state.model_now || requested ? { model_switch: { ...(state.model_now ? { now: state.model_now } : {}), ...(requested ? { requested } : {}) } } : {}),
   };
 }
 

@@ -1,4 +1,5 @@
 import { CODING_TIMELINE_STYLES } from "./timeline-styles.js";
+import { CODING_COMPOSER_MODEL_STYLES } from "./composer-model-client.js";
 /** Layout only; controls, colors, and focus behavior use the shared system. */
 export const CODING_STYLES = `
 .coding-material { min-width:0; padding:12px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
@@ -846,4 +847,4 @@ dialog[data-coding-integration-dialog] .mw-form__body { grid-template-columns:mi
 .coding-merge-pick > .mw-btn { min-height:28px; padding:0 12px; font-size:12px; }
 @media (max-width:760px) { .coding-merge-pick > span { flex-basis:100%; } }
 .coding-child-error-code { display:block; margin-top:4px; font:11px/1.5 var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); color:var(--muted); overflow-wrap:anywhere; }
-` + CODING_TIMELINE_STYLES;
+` + CODING_TIMELINE_STYLES + CODING_COMPOSER_MODEL_STYLES;

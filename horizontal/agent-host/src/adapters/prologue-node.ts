@@ -1197,7 +1197,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         });
         throw error;
       }
-      const params = runModelParams(input.model, input.provenance.frozen.budget);
+      const params = runModelParams(input.model, input.provenance.frozen.budget, input.provenance.frozen.reasoning_effort);
       const dispatchGuard = async () => {
         await input.beforeDispatch?.();
         if (!none && !business) {
@@ -1378,6 +1378,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
             })().catch(error => { stopping = undefined; throw error; });
           },
           pause: () => control.pause(), resume: () => control.resume(),
+          // The new model's key is exchanged first; the runtime refuses a target or frozen settings it cannot carry.
+          switchModel: async target => control.switchModel({ protocol: target.protocol, endpoint: target.endpoint, model: target.model, credentialRef: await credentials.prologueRefFor(target.credential_ref) }),
           steer: input => control.steer(input), subscribe: listener => control.subscribe(listener),
         },
       };

@@ -181,6 +181,10 @@ export interface AgentMcpToolRef {
 /** Explicit access to the documents of a configured MCP service, without its external tools. */
 export type AgentMcpSourceRef = Pick<AgentMcpToolRef, "server" | "configuration_version" | "server_label">;
 
+/** How much the model may think for a round: quick, balanced or deep (the provider's own low / medium / high). */
+export type AgentReasoningEffort = "low" | "medium" | "high";
+export const AGENT_REASONING_EFFORTS: readonly AgentReasoningEffort[] = ["low", "medium", "high"];
+
 export interface AgentRunBudget {
   max_turns?: number;
   max_output_tokens?: number;
@@ -459,6 +463,8 @@ interface AgentFrozenStartFields {
   history?: "digest";
   /** Present when the model was asked to think before answering (the provider's setting when the Run started). */
   thinking?: "adaptive";
+  /** The reasoning effort every model call of this Run was sent with; absent when none was chosen. */
+  reasoning_effort?: AgentReasoningEffort;
   /**
    * Exactly the prompts this Run was frozen with, layer included.
    *
@@ -662,6 +668,8 @@ interface AgentStartRequestFields {
   role_id: string;
   /** A configured provider/model selected for this run, resolved by the Host. */
   model_selection?: { provider_id: string; model_id: string };
+  /** Refused unless the selected model is marked as taking a reasoning effort. */
+  reasoning_effort?: AgentReasoningEffort;
   /**
    * Filled in by the Host before the adapter is called. Absent only on a direct
    * adapter call, which an adapter must refuse rather than guess around.
@@ -689,6 +697,11 @@ export type AgentRunControl =
   | { kind: "cancel" }
   /** Append an instruction to the running task. Never a new Run. */
   | { kind: "steer"; text: string }
+  /**
+   * Send this Run's later model calls to another configured model, from its next model call. History, tools,
+   * permissions and budget stay as they are; refused when the model cannot carry what the Run was started with.
+   */
+  | { kind: "switch-model"; provider_id: string; model_id: string }
   /**
    * Answer one question the Run is stopped on.
    *
@@ -846,6 +859,11 @@ export interface AgentRunView {
    * cancel act at once, an added instruction waits for it to wake. The wait counts against its time budget.
    */
   sleeping_until?: string;
+  /**
+   * The person switched this Run's model: `now` is where its calls go since (`frozen.model_id` stays the start), and
+   * `requested` one asked for that takes effect at the next model call. Context tidying keeps the start model.
+   */
+  model_switch?: { now?: string; requested?: string };
   started_at: string;
   ended_at: string | null;
 }

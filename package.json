@@ -26,8 +26,6 @@
     "vendor",
     "skills",
     "examples/seed-demo.mts",
-    "examples/draft-goal.json",
-    "examples/leaf-goal.json",
     "README.md",
     "README.zh.md",
     "PRODUCT.md",

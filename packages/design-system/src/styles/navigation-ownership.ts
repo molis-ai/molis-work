@@ -291,22 +291,5 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     }
   }
 
-  @media (max-width: 900px) {
-    body[data-desktop-shell="true"] .feed-decision-work .decision-guidance {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    body[data-desktop-shell="true"] .feed-decision-work .decision-guidance > section {
-      border-right: 0;
-      border-bottom: 1px solid var(--line);
-    }
-    body[data-desktop-shell="true"] .feed-decision-work .decision-guidance > section:last-child { border-bottom: 0; }
-    body[data-desktop-shell="true"] .feed-decision-work .decision-scenario dl > div,
-    body[data-desktop-shell="true"] .feed-decision-work .decision-reason {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 4px;
-    }
-    body[data-desktop-shell="true"] .feed-decision-work .decision-receipt { grid-template-columns: minmax(0, 1fr); }
-  }
-
 `;
 

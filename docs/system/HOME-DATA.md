@@ -169,7 +169,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | --- | --- | --- | --- | --- |
 | `search/search.db` | `packages/storage/src/adapters/text-search-index.ts:128-146` | SQLite 自带版本 · WAL · `search_meta` 的 `schema` = "2"（`:22`）。缺失、损坏或版本不符时清空重建，这是唯一不拒绝的库 | 可重建 | purge（`search` 在 `PERSONAL_HOME_SQLITE_STORES`） |
 | `agent-runtime/.molis-runtime-owner.db` | `horizontal/agent-host/src/adapters/prologue-storage-owner.ts:8`：宿主持有 `BEGIN EXCLUSIVE` 来证明自己是 `agent-runtime/` 的唯一执行者 | 锁库，0 字节 | 临时 | 否 |
-| `images/runners/<uuid>.db` | `plugins/native/images/src/store.ts:48`：每个 Images 进程一个锁文件，用来判断“运行中”的任务属于已死进程 | 锁库 | 临时 | purge（`images` 目录） |
+| `images/runners/<uuid>.db`，旁边 `-journal` | `plugins/native/images/src/store.ts:53`：每个 Images 进程一个锁文件，用来判断“运行中”的任务属于已死进程。进程正常关闭时两个文件都没了（关闭锁连接时 SQLite 回滚并删掉 journal，`releaseLocks` 再删 `.db`）；被杀掉的留下它们，下一次启动时 `reclaimRunnerFiles`（`:88`）把所有能加上独占锁的遗留文件连同 `-journal` 清掉（别的进程持有的、30 秒内新建的、名字不是 `<uuid>.db` 的不动） | 锁库 | 临时 | purge（`images` 目录） |
 | `feed/secrets.lock.sqlite` | `packages/storage/src/adapters/file-secret-store.ts:86`：跨进程互斥用，从不存密钥 | 锁库 | 临时 | 否 |
 
 ## 6. 非 SQLite 状态
@@ -255,7 +255,6 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | 用户授权的工作区目录 | 项目绑定的外部目录，不归 Molis Work 备份 | `docs/installation.md` 离线备份一节 |
 | 插件开发状态目录（调用时给定的 `state_directory`） | 标记文件 `.molis-work-plugin-development.json` 加 `development.db` | `apps/local-host/src/local-plugin-development.ts:10-20` |
 | 用户其他 Agent 的目录：`~/.claude`、`~/.codex`、`~/.cursor`、`~/.grok`、`~/.config` | 角色导入只读扫描，不写 | `apps/local-host/src/character-import-discovery.ts:86-100` |
-| 当前目录下的 `.molis-work/molis-work.db` | CLI 与管理 MCP 没给数据库路径时的默认值，相对当前目录，不是 Home | `apps/cli/src/protocol.ts:3`、`apps/local-host/src/mcp-server.ts:261` |
 
 ## 9. 卸载覆盖
 
@@ -280,12 +279,12 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 
 | 条目 | 看到的 | 为什么说没有 owner |
 | --- | --- | --- |
-| `catalog.db`、`molis-work.db`（Home 根目录） | 各 0 字节，2026-09-17 | 目录库在 `projects/catalog.db`（`apps/local-host/src/project-catalog.ts:246`），项目库在 `projects/<id>/`。[推断] `molis-work.db` 来自相对当前目录的默认库路径 `.molis-work/molis-work.db`，在 `$HOME` 下运行时正好落在这里（`apps/cli/src/protocol.ts:3`）；根目录的 `catalog.db` 来源没有查清 |
+| `catalog.db`、`molis-work.db`（Home 根目录） | 各 0 字节，2026-09-17 | 目录库在 `projects/catalog.db`（`apps/local-host/src/project-catalog.ts:246`），项目库在 `projects/<id>/`。[推断] `molis-work.db` 来自相对当前目录的默认库路径 `.molis-work/molis-work.db`，在 `$HOME` 下运行时正好落在这里。这个默认值已删（W2-04）：CLI 的 `--db` 与管理 MCP 的 `database_path`（或环境变量 `MOLIS_WORK_DATABASE`）必须明确给出，没给就报错，不再按当前目录猜；这两个 0 字节文件本身仍在真实 Home 里，要等真实 Home 的清理（决定 #21）。根目录的 `catalog.db` 来源没有查清 |
 | `maintenance-3-replaced/` | 约 1.9 GB，2026-10-07；`home/`、`projects/`、`alchemist/`、`maintenance3-report.json`；`home/` 下有 `assistant`、`connectors`、`form`、`memory`、`config`、`sessions`、`feed`、`functions` 的副本 | 2026-10-07 真实 Home 维护留下的被换下的库，不是产品功能。它在 Home 里面，所以任何整份拷贝都会带上它，包括其中 `feed` 的副本 |
 | `agent-drafts/` | 空目录，2026-09-25 | 写它的代码在 `8074b30c`（2026-09-28）删除 |
 | `alchemist/alchemist.db` | 约 40 KB，2026-09-22 | 旧的 Alchemist 演示库，没有代码打开。`plugins/native/alchemist/README.md:17` 写着它被保留、可从“历史入口”只读导出，代码里没有这个入口 |
 | `images/.runner-lock.db` | 一个文件 | 旧版 Images 的锁文件；`b98cf812` 加入，`703bf122`（2026-10-05）删除 |
-| `images/runners/` 里的文件 | 92 个 `.db` 加 92 个 `-journal`，合计约 46 KB，2026-09-25 到 09-27 | 目录有 owner（`plugins/native/images/src/store.ts:48`），但文件没人回收：`releaseLocks` 只删 `.db`（`:72`），`recoverInterrupted` 只回收“有 running 任务的 owner”的文件（`:77-98`） |
+| `images/runners/` 里的文件 | 92 个 `.db` 加 92 个 `-journal`，合计约 46 KB，2026-09-25 到 09-27 | 目录有 owner（`plugins/native/images/src/store.ts:53`），当时文件没人回收：`releaseLocks` 只删 `.db`，`recoverInterrupted` 只回收“有 running 任务的 owner”的文件。W2-04 已改：`recoverInterrupted` 现在连 `-journal` 一起删（实际遗留的是空 `.db`，SQLite 自己在加锁探测时就丢掉它的 journal；`.db` 里有数据而 journal 头是零的那种，只有这一步删得掉），启动时再扫一遍整个目录（`reclaimRunnerFiles`，`:88`）。这些遗留文件会在真实 Home 的 Images 服务装上新构建后的第一次启动时被清掉，不需要手工处理 |
 | `cognia/runtime/runs/<uuid>/` | 9 个，各有 `records/`、`leases/`、`storage.key`，2026-09-24 | 以前每次 Cognia 运行一个 Prologue 存储根；代码在 `8074b30c` 删除。每个里有一个 `storage.key`，是没有 owner 的密钥材料 |
 | `bin/goalboard`、`goalboard-mcp`、`goalboard-web` | 各约 1 KB，2026-09-13 | 改名前的启动脚本。`CURRENT_LAUNCHER_NAMES`（`installer/home-contract.ts:26`）只有 `molis-work*`，卸载不会删它们。**但 `goalboard-mcp` 还有人在用**：它读 `config/installation.json`，启动当前 release 的 `dist/mcp/server.js`；核对时（2026-10-07 21:35）有 4 个 `node ~/.goalboard/bin/goalboard-mcp` 进程在跑，启动于 19:21 至 19:28，[推断] 是配置改指之前启动的 Runtime 会话。Claude Code、Codex、Grok 三个配置的 MCP 条目现在都指向 `~/.molis-work/bin/molis-work-mcp`（`grep -o` 核对；opencode、pi 的配置文件不存在），Codex 配置里只剩一条 `.goalboard/releases/goalboard-0.1.0/dist/mcp` 的目录信任条目。所以这三个脚本和第 8 节的 `~/.goalboard` 符号链接，要等没有配置指向、没有进程在跑之后才算残留；在那之前清理会让还在用旧条目的客户端起不来 |
 | `releases/goalboard-0.1.0` 至 `goalboard-0.2.0` | 11 个目录，约 1.7 GB，2026-08-24 到 09-12 | 改名前安装的版本。当前安装器只认 `molis-work-home-install-v1`（`installer/home-contract.ts:3`、`installer/uninstall-files.ts:41-48`），`INSTALLER_ID` 在 `9824f6e6`（2026-09-15）改名时换了值，所以 [推断，`release.json` 没打开] 卸载会把它们报成冲突并停止 |
@@ -303,7 +302,6 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 - 4 处跨 owner 直接 SQL，共享日志表没有写入约束（W2-06）。
 - 没有备份命令和快照；第 7 节的同一时点组没有工具保证（W5-16）。
 - 目录库存项目库的绝对路径（W5-17）。
-- Images 的 runner 锁文件无人回收，CLI 与管理 MCP 的默认库路径相对当前目录（W2-04）。
 - `purge` 漏 12 个一级条目，旧 `goalboard-*` 的 release 与启动脚本卸载不认，而 `bin/goalboard-mcp` 还有进程在用（W4-11 的清除范围决策）。
 - purge 的用例清单是写死的：`tests/uninstall.test.ts` 只盖 16 个库里的 10 个，其余 6 个只在 `tests/personal-plugins-review-fixes.test.ts` 的遍历用例里盖到；`sessions/`、`shelf/`、`logs/`、`backups/`、`runtime-integrations/` 的清除没有用例。W4-11 的统一登记落地后，用例应读登记，而不是各写一份名单。
 - 结构由宿主文件定义的库（assistant、placement、agent-definitions、context-onboarding、connectors、项目库的几段）按“库归 owner 包”看是错放，处理在 W3-06 与 W5-01。

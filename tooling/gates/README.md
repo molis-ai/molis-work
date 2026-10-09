@@ -57,15 +57,17 @@ W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 
 | `explicitAny` | `suspicious/noExplicitAny` | 显式写出的 `any`（含 `as any`、`Array<any>`）；要用 `unknown` 再收窄 | 无 |
 | `consoleCalls` | `suspicious/noConsole` | `console.*` 调用（遗留的调试输出）。宿主里需要日志的地方以后走结构化日志（路线图 W5-13） | `scripts/**`、`apps/cli/**`、`apps/desktop/launchers/**`、`tooling/plugin-cli/**`、`server/tooling/**`：这些程序的工作就是往终端打印 |
 | `debuggerStatements` | `suspicious/noDebugger` | `debugger` 语句 | 无 |
-| `lintParseErrors` | Biome 的解析错误 | Biome 读不了的文件（每个文件记 1）：读不了就没有任何规则在它上面跑，所以记数而不是悄悄跳过。现在有 `server/tooling/continuity-demo.mts`：`const` 里 `projectId` 声明了两次，是 `board_id` 改名时留下的坏演示脚本 | 无 |
+| `lintParseErrors` | Biome 的解析错误 | 有语法错误的文件（每个文件记 1，不管报了几处）。Biome 遇到语法错误会恢复并继续检查读得懂的部分，别的规则照样在这个文件上跑（`continuity-demo.mts` 就同时有一处解析错误和一处空 `catch` 记录）；但恢复可能跳过一段：没有结束的模板字符串会把后面整个文件吞成一个词，之后的内容什么规则都看不到。所以记数，不让它当作干净的文件通过。现在有 `server/tooling/continuity-demo.mts`：`const` 里 `projectId` 声明了两次，是 `board_id` 改名时留下的坏演示脚本 | 无 |
 | `lintSuppressions` | `biome-ignore` 注释 | 压制规则的注释本身。每条规则都有不用压制的写法，所以压制也不许增加 | 无 |
 | `lintPolicy` | `biome.jsonc` 的形状 | 与 merge-base 的比较：见下面「规则集只许变严」 | |
 
 **扫描范围**：被 Git 跟踪的 `.ts`、`.mts`、`.mjs`，在 `apps`、`horizontal`、`modules`、`packages`、`plugins`、`server`、`tooling`、`tests`、`scripts`、`examples` 之下（不含 `.d.ts`、`dist`、`node_modules`）；`docs/` 里的原型和 `specs/archive/` 不是交付的代码，不查。门禁把这些文件和 `biome.jsonc`、插件文件拷进一个临时目录再跑 Biome，所以结果只取决于被跟踪的文件和锁定的 Biome 版本，在哪台机器、CI 里、merge-base 上都一样，不依赖 `node_modules` 或构建产物。
 
-**规则集只许变严**（`lintPolicy`）：头和 merge-base 都用头的 `biome.jsonc` 去量，所以规则一松，两边的数字一起“降”（有时到 0），数字本身看不出来，像是改善。因此配置要单独比：门禁把 `biome.jsonc` 读成一份摘要（哪条规则在哪里是 error、哪些目录把它关了、排除了哪些文件、检查范围的正向列表、有哪些插件），与 merge-base 的摘要比。去掉一条规则、改成 `warn`、给某个目录新关一条规则、新加排除、把全局规则改成只对某个包生效、从 `files.includes` 里去掉一个目录的写法、给 `linter.includes` 加上限制或去掉里面的一项（检查到的文件变少）、删掉插件，都失败。换成更宽的写法也算“去掉了旧的”：保留旧的再加新的，或者改门禁。`files.includes` 还要正好列出门禁拷进检查的那几个目录（`LINT_ROOTS`），不然 `pnpm lint` 和门禁看到的文件不一样。
+**规则集只许变严**（`lintPolicy`）：头和 merge-base 都用头的 `biome.jsonc` 去量，所以规则一松，两边的数字一起“降”（有时到 0），数字本身看不出来，像是改善。因此配置要单独比：门禁把 `biome.jsonc` 读成一份摘要（哪条规则在哪里是 error、哪些目录把它关了、排除了哪些文件、检查范围的正向列表、有哪些插件），与 merge-base 的摘要比。去掉一条规则、改成 `warn`、给某个目录新关一条规则、在 `overrides` 里用 `linter.enabled: false` 给某个目录整个关掉检查（那一个设置就让该目录所有规则的数字归零，两边一起）、新加排除、把全局规则改成只对某个包生效、从 `files.includes` 里去掉一个目录的写法、给 `linter.includes` 加上限制或去掉里面的一项（检查到的文件变少）、删掉插件，都失败。换成更宽的写法也算“去掉了旧的”：保留旧的再加新的，或者改门禁。`files.includes` 还要正好列出门禁拷进检查的那几个目录（`LINT_ROOTS`），不然 `pnpm lint` 和门禁看到的文件不一样。
 
 **门禁只认它读得懂的设置**：规则只写级别（`"error"`、`"off"` 或 `{ "level": … }`）。规则选项（`noConsole` 的 `options.allow` 列上所有方法就一个 `console` 也不数）、按语言的开关（`javascript.linter.enabled: false` 让 Biome 一条诊断也不出）、`domains`、`extends`、override 里的规则预设、插件的对象写法，以及其他没列出的设置，一律拒绝，不是忽略；要用其中一项，先改 `scripts/gates/lint.mjs` 的 `policyOf` 让门禁读懂并比较它。嵌套的 `biome.json[c]` 同样拒绝（门禁只读根配置）。`biome.jsonc` 里开了一条没有对应计数的规则也失败：先在 `LINT_RULES` 里加计数。插件文件（`tooling/gates/lint/*.grit`）的内容是计数的口径本身，和 `scripts/gates/*.mjs` 一样：改它就是改门禁，要过评审，`tests/health-gates-lint.test.ts` 的定义用例钉住它的行为。
+
+**工作树**：其他会话的工作树都在 `.claude/worktrees/` 下，每份带一个 `"root": true` 的 `biome.jsonc`。`vcs` 是关的，Biome 不读 `.gitignore`，在主检出里会走进去、发现第二份根配置，报 `Found a nested root configuration` 然后一个文件都不检查（`pnpm lint` 和编辑器扩展都这样）。所以 `files.includes` 里有 `"!!.claude"`（强制忽略，扫描器根本不进这个目录）。写成不带 `**/` 的锚定写法是有意的：`"!!**/.claude"` 也能解决主检出的问题，却会匹配到本身就在 `.claude/worktrees/` 下的检出路径里的 `.claude`，在工作树里跑 `pnpm lint` 就变成检查 0 个文件（Biome 2.5.14 实测）。`tests/health-gates-lint.test.ts` 在两处都真跑一遍 Biome。这个条目是 `biome.jsonc` 入库时带来的，所以不算「新排除」；以后再加排除仍然失败。
 
 **按包开一条新规则**：不要一次开全仓。先在 `LINT_RULES` 里加计数，再在 `biome.jsonc` 的 `overrides` 里只对一个包把它设成 `error`（`"includes": ["packages/storage/**"]`），该包现有的违规按文件冻结进基线（`--update --base origin/main`），之后每个包清理完或确认没有违规就加进来；全部包都开了之后把规则挪到 `linter.rules` 的顶层并删掉 override。反过来，要对某个目录关一条规则，是 `overrides` 里的一项，写明理由，并且是改门禁本身，要过评审。
 

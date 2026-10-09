@@ -22,7 +22,10 @@
 //   explicitAny         suspicious/noExplicitAny.
 //   consoleCalls        suspicious/noConsole, off for the command-line programs and scripts that print (biome.jsonc overrides).
 //   debuggerStatements  suspicious/noDebugger.
-//   lintParseErrors     a file Biome cannot parse: no rule runs on it, so it is counted instead of skipped silently.
+//   lintParseErrors     a file Biome reports a syntax error in. Biome recovers and keeps linting what it can still read, so
+//                       the other rules do run on the file; but recovery can leave parts of it unchecked (an unterminated
+//                       template literal makes the rest of the file one token, and nothing after it is seen), so the file is
+//                       counted, once, instead of passing as clean.
 //   lintSuppressions    `biome-ignore` comments, which silence a rule: counted so that they are no way around the others.
 // PLUS lintPolicy: the shape of biome.jsonc. It is compared with the merge-base's and may only get stricter: no rule removed or
 // switched off for a directory, no new exclusion, no narrower list of the files that are checked (files.includes, linter.includes),
@@ -67,8 +70,8 @@ export const LINT_RULES = [
     hint: `delete it, or log through the host's logger ${HINT_RULE}` },
   { id: "debuggerStatements", biome: "suspicious/noDebugger", title: "debugger statements", summary: "debugger statements", what: "debugger statements",
     hint: "delete it" },
-  { id: "lintParseErrors", category: "parse", title: "Files Biome cannot parse (no rule runs on them)", summary: "unparsable files", what: "syntax errors Biome reports",
-    hint: "fix the syntax; a file that does not parse is checked by no rule" },
+  { id: "lintParseErrors", category: "parse", title: "Files with syntax errors (parts of them may go unchecked)", summary: "files with syntax errors", what: "syntax errors Biome reports",
+    hint: "fix the syntax; Biome recovers from a syntax error, but what it skips over is checked by no rule" },
   { id: "lintSuppressions", title: "Lint suppression comments (biome-ignore)", summary: "lint suppressions", what: "lint suppression comments",
     hint: "fix what the rule found instead of silencing it" },
 ];
@@ -288,7 +291,7 @@ export const isOwnRepository = (root, scriptUrl) => {
 };
 
 // ---- running Biome ------------------------------------------------------------------------------------------------------
-const biomeEntry = () => path.join(path.dirname(createRequire(import.meta.url).resolve("@biomejs/biome/package.json")), "bin/biome");
+export const biomeEntry = () => path.join(path.dirname(createRequire(import.meta.url).resolve("@biomejs/biome/package.json")), "bin/biome");
 
 /**
  * Lints `texts` (a Map of repository-relative path to text) in a scratch tree with the configuration of the repository at

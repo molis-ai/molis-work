@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { LINT_RULES, LINT_ROOTS, createLintMetrics, isOwnRepository, lintTexts, looserThan, policyOf, policyProblems } from "../scripts/gates/lint.mjs";
+import { LINT_RULES, LINT_ROOTS, biomeEntry, createLintMetrics, isOwnRepository, lintTexts, looserThan, policyOf, policyProblems } from "../scripts/gates/lint.mjs";
 
 // specs/repository-anti-corruption §4.16 (W1-09): the static checks. A minimal Biome rule set (empty catch, `as unknown as`,
 // floating promises, explicit `any`, console, debugger) is counted per file like the other health gates: it may only fall,
@@ -144,6 +144,10 @@ const loosenings: Array<[string, (config: Config) => void, RegExp]> = [
   ["an exclusion added", (config) => { config.files.includes.push("!tests/**"); }, /!tests\/\*\* excludes files from the check/],
   ["a plugin dropped", (config) => { config.plugins.pop(); }, /the plugin .*no-double-cast\.grit is gone/],
   ["the linter switched off", (config) => { config.linter.enabled = false; }, /the linter is switched off/],
+  // An override that turns the whole linter off for a directory silences every rule there at once; the findings fall to 0 on both sides.
+  ["the linter switched off for a directory", (config) => { config.overrides.push({ includes: ["packages/storage/**"], linter: { enabled: false } }); }, /linter@packages\/storage\/\*\* is switched off/],
+  ["the linter switched off by an override that names no directory", (config) => { config.overrides.push({ linter: { enabled: false } }); }, /linter@\* is switched off/],
+  ["the linter switched off for a directory next to a rule that stays", (config) => { config.overrides.push({ includes: ["packages/storage/**"], linter: { enabled: false, rules: { suspicious: { noConsole: "error" } } } }); }, /linter@packages\/storage\/\*\* is switched off/],
   // The check's reach, not its rules: the findings it no longer makes fall to 0 on both sides of the comparison.
   ["a code directory taken out of files.includes", (config) => { config.files.includes = config.files.includes.filter((glob) => glob !== "apps/**/*.{ts,mts,mjs}"); }, /apps\/\*\*\/\*\.\{ts,mts,mjs\} is gone from files\.includes/],
   ["a code directory narrowed in files.includes", (config) => { config.files.includes = config.files.includes.map((glob) => (glob === "tests/**/*.{ts,mts,mjs}" ? "tests/**/*.ts" : glob)); }, /tests\/\*\*\/\*\.\{ts,mts,mjs\} is gone from files\.includes/],
@@ -177,6 +181,10 @@ test("policy: an override's directories are scopes of their own", () => {
   assert.deepEqual(looserThan(policy(only(["packages/a/**", "packages/b/**"])), policy(only(["packages/a/**"]))), []);
   assert.match(looserThan(policy(only(["packages/a/**"])), policy(only(["packages/a/**", "packages/b/**"]))).join("\n"), /noDebugger is no longer an error for packages\/b\/\*\*/);
   assert.match(looserThan(policy((config) => { config.overrides = [{ includes: ["scripts/**", "!scripts/keep/**"], linter: { rules: { suspicious: { noConsole: "off" } } } }]; }), policy()).join("\n"), /override:!scripts\/keep\/\*\* excludes files/);
+  // An override that lists only exclusions applies to everything else: its scope is the whole tree, not the exclusion itself.
+  const onlyExcluding = policy((config) => { config.overrides = [{ includes: ["!scripts/keep/**"], linter: { rules: { suspicious: { noConsole: "off" } } } }]; });
+  assert.ok(onlyExcluding.off.includes("suspicious/noConsole@*=off"), JSON.stringify(onlyExcluding.off));
+  assert.ok(onlyExcluding.off.every((entry: string) => !entry.includes("@!")), "an excluded glob is never a scope");
 });
 
 test("policy: problems in the configuration itself", () => {
@@ -298,6 +306,74 @@ test("a file that Biome skips for its size stops the gate instead of passing as 
   } finally { rmSync(small, { recursive: true, force: true }); }
 });
 
+// The premise of the policy's `linter@<directory>` entry: one override with `linter.enabled: false` silences every rule for a
+// directory, and the count of each rule there falls to 0, which is what "improved" looks like to the numbers.
+test("an override that switches the linter off for a directory silences every rule there, so the policy has to compare it", () => {
+  const scratch = mkdtempSync(path.join(tmpdir(), "molis-health-lint-off-"));
+  try {
+    for (const file of ["tooling/gates/lint/no-empty-catch.grit", "tooling/gates/lint/no-double-cast.grit"]) {
+      mkdirSync(path.dirname(path.join(scratch, file)), { recursive: true });
+      copyFileSync(path.join(repoRoot, file), path.join(scratch, file));
+    }
+    const real = readFileSync(path.join(repoRoot, "biome.jsonc"), "utf8");
+    assert.match(real, /"overrides": \[/);
+    writeFileSync(path.join(scratch, "biome.jsonc"), real.replace('"overrides": [', '"overrides": [\n    { "includes": ["packages/alpha/**"], "linter": { "enabled": false } },'));
+    const texts = new Map([[`${SRC}/x.ts`, "export const f = (v: any) => { try { v(); } catch {} return v as unknown as string; };\n"]]);
+    const total = (counts: Record<string, Record<string, number>>) => LINT_RULES.reduce((sum: number, rule: { id: string }) => sum + (counts[rule.id][`${SRC}/x.ts`] ?? 0), 0);
+    assert.equal(total(lintTexts(repoRoot, texts).counts), 3, "the real configuration finds the empty catch, the double cast and the any");
+    assert.equal(total(lintTexts(scratch, texts).counts), 0, "the same file under an override that switches the linter off finds nothing");
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});
+
+// `pnpm lint` and the editor extension run Biome in place, not in the gate's scratch tree. Every working tree of a session is
+// checked out below .claude/worktrees/ and has its own biome.jsonc with `"root": true`; with `vcs` off Biome does not read
+// .gitignore, so in the main checkout it walks into those, finds a second root configuration and stops before it lints a file.
+// files.includes therefore force-ignores `.claude`. A pattern that starts with `**/` would do that too, but it also matches the
+// `.claude` in the path of a checkout that lives below .claude/worktrees/ itself: `pnpm lint` there would check 0 files.
+test("biome.jsonc: Biome lints in the main checkout although a worktree below .claude/worktrees has its own copy, and inside that worktree", () => {
+  const real = readFileSync(path.join(repoRoot, "biome.jsonc"), "utf8");
+  assert.ok(policyOf(real).ignored.includes("!!.claude"), "files.includes force-ignores .claude");
+  const biomeIn = (config: string) => {
+    const main = mkdtempSync(path.join(tmpdir(), "molis-health-lint-nested-"));
+    try {
+      const tree = (dir: string) => {
+        for (const file of ["tooling/gates/lint/no-empty-catch.grit", "tooling/gates/lint/no-double-cast.grit"]) {
+          mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+          copyFileSync(path.join(repoRoot, file), path.join(dir, file));
+        }
+        writeFileSync(path.join(dir, "biome.jsonc"), config);
+        mkdirSync(path.join(dir, "packages/a/src"), { recursive: true });
+        writeFileSync(path.join(dir, "packages/a/src/a.ts"), "export const f = (value: any) => value;\n");
+      };
+      tree(main);
+      const worktree = path.join(main, ".claude/worktrees/x");
+      mkdirSync(worktree, { recursive: true });
+      tree(worktree);
+      const lint = (cwd: string) => {
+        const done = spawnSync(process.execPath, [biomeEntry(), "lint", "--max-diagnostics=none", "--colors=off"], { cwd, encoding: "utf8" });
+        return `${done.stdout}${done.stderr}`;
+      };
+      return { inMain: lint(main), inWorktree: lint(worktree) };
+    } finally { rmSync(main, { recursive: true, force: true }); }
+  };
+
+  const here = biomeIn(real);
+  assert.doesNotMatch(here.inMain, /nested root configuration/, here.inMain);
+  assert.match(here.inMain, /packages\/a\/src\/a\.ts:1:\d+ lint\/suspicious\/noExplicitAny/, "the main checkout is linted");
+  assert.doesNotMatch(here.inMain, /\.claude/, "the worktree's files are not linted from the main checkout");
+  assert.match(here.inWorktree, /packages\/a\/src\/a\.ts:1:\d+ lint\/suspicious\/noExplicitAny/, "a checkout below .claude/worktrees lints its own files");
+  assert.match(here.inWorktree, /Checked [1-9]\d* files?\b/);
+
+  // The two controls show that the tree really reproduces the failures the entry is for (their edits must have changed the entry,
+  // not only the comment that quotes it).
+  assert.notDeepEqual(policyOf(real.replaceAll(', "!!.claude"', "")).ignored, policyOf(real).ignored);
+  assert.ok(policyOf(real.replaceAll('"!!.claude"', '"!!**/.claude"')).ignored.includes("!!**/.claude"));
+  const without = biomeIn(real.replaceAll(', "!!.claude"', ""));
+  assert.match(without.inMain, /nested root configuration/, "without the entry the main checkout stops on the worktree's biome.jsonc");
+  const anywhere = biomeIn(real.replaceAll('"!!.claude"', '"!!**/.claude"'));
+  assert.match(anywhere.inWorktree, /Checked 0 files/, "a pattern that starts with **/ makes a checkout below .claude/worktrees check nothing");
+});
+
 // ---- 3. mutations on a scratch repository -----------------------------------------------------------------------------
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-health-lint-"));
@@ -373,6 +449,8 @@ const violations: Scenario[] = [
   { name: "a rule removed from biome.jsonc", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('"noConsole": "error",\n        "noDebugger": "error"', '"noConsole": "error"')), expect: [/biome\.jsonc is looser than the merge-base's: suspicious\/noDebugger is no longer an error everywhere/] },
   { name: "a rule switched off for a package", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('"overrides": [', '"overrides": [\n    { "includes": ["packages/alpha/**"], "linter": { "rules": { "suspicious": { "noExplicitAny": "off" } } } },')),
     expect: [/looser than the merge-base's: suspicious\/noExplicitAny@packages\/alpha\/\*\* is switched off/] },
+  { name: "the whole linter switched off for a package", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('"overrides": [', '"overrides": [\n    { "includes": ["packages/alpha/**"], "linter": { "enabled": false } },')),
+    expect: [/looser than the merge-base's: linter@packages\/alpha\/\*\* is switched off/] },
   { name: "files excluded in biome.jsonc", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('"!**/node_modules"', '"!tests/**", "!**/node_modules"')), expect: [/looser than the merge-base's: !tests\/\*\* excludes files from the check/] },
   { name: "a plugin dropped from biome.jsonc", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('    "./tooling/gates/lint/no-double-cast.grit"\n', '').replace('"./tooling/gates/lint/no-empty-catch.grit",', '"./tooling/gates/lint/no-empty-catch.grit"')),
     expect: [/looser than the merge-base's: the plugin \.\/tooling\/gates\/lint\/no-double-cast\.grit is gone/] },

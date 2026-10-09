@@ -16,11 +16,19 @@
     // Prototypes under docs/ and the archive under specs/ are not code that ships. scripts/gates/lint.mjs keeps the same
     // list (LINT_ROOTS) and refuses a files.includes that lacks one of them; the gate copies only tracked files of these
     // kinds into a scratch tree before it runs Biome.
+    //
+    // "!!.claude" (a force-ignore: Biome does not even scan the folder) is for the working trees of other sessions, which are
+    // checked out below .claude/worktrees/. Each one carries its own copy of this file with "root": true; with vcs off Biome
+    // does not read .gitignore, so it walks into them, finds a second root configuration and stops with "Found a nested root
+    // configuration" before it lints anything, in `pnpm lint` and in the editor extension alike. The pattern is anchored (no
+    // leading **/) on purpose: with **/ it also matches the .claude in the path of a checkout that itself lives below
+    // .claude/worktrees/, and `pnpm lint` there would check 0 files (Biome 2.5.14). tests/health-gates-lint.test.ts runs Biome in
+    // both places.
     "includes": [
       "apps/**/*.{ts,mts,mjs}", "horizontal/**/*.{ts,mts,mjs}", "modules/**/*.{ts,mts,mjs}", "packages/**/*.{ts,mts,mjs}",
       "plugins/**/*.{ts,mts,mjs}", "server/**/*.{ts,mts,mjs}", "tooling/**/*.{ts,mts,mjs}", "tests/**/*.{ts,mts,mjs}",
       "scripts/**/*.{ts,mts,mjs}", "examples/**/*.{ts,mts,mjs}",
-      "!**/*.d.ts", "!**/node_modules", "!**/dist"
+      "!**/*.d.ts", "!**/node_modules", "!**/dist", "!!.claude"
     ],
     "maxSize": 4000000
   },

@@ -19,7 +19,8 @@
 //              count as coverage for new criteria), an archived id stays defined (the tests that cite it are not stale), and
 //              nothing else is asked of an archived spec (no coverage, no ids required, no exemption).
 //   Tests      every tracked file that is a test (*.test.* anywhere, or a code file under a tests/ directory; nothing under
-//              a fixtures/, vendor/, node_modules/, dist/ or .impeccable/ folder is, whatever it is called): a mention of
+//              a fixtures/, vendor/, node_modules/, dist/ or .impeccable/ folder is, at the root or nested at any depth,
+//              whatever it is called): a mention of
 //              a defined id anywhere in the file (a test name, a comment) covers it. Mentions are looked for by the
 //              prefixes the specs define, so SHA-256 or UTF-16 in a test is never taken for an id.
 //
@@ -40,8 +41,9 @@ const MANUAL = /\[人工\]/;
 const EXEMPT = /^验收编号：[ \t]*不适用(?:[（(]([^）)\n]*)[）)])?/m;
 
 export const isTestFile = (file) => {
-  // Not tests whatever their name: dependencies, build output, review screenshots, and fixtures/ (input a test reads, not a proof).
-  if (/(^|\/)(node_modules|dist|\.impeccable|fixtures)\//.test(file) || file.startsWith("vendor/")) return false;
+  // Not tests whatever their name, at the root or nested at any depth: vendored code, dependencies, build output, review
+  // screenshots, and fixtures/ (input a test reads, not a proof).
+  if (/(^|\/)(vendor|node_modules|dist|\.impeccable|fixtures)\//.test(file)) return false;
   if (/\.test\.(ts|mts|tsx|mjs|cjs|js)$/.test(file)) return true;
   return /(^|\/)tests?\//.test(file) && /\.(ts|mts|tsx|mjs|cjs|js)$/.test(file);
 };
@@ -212,16 +214,31 @@ export function specCounts(entry) {
   return { criteria: live.length, covered: covered.length, manual: manual.length, open: open.map((criterion) => criterion.id), retired: entry.criteria.length - live.length };
 }
 
+/**
+ * How the specs in progress divide up, for both reports (the full one and the health:check line count the same way):
+ * numbered (at least one id), unnumbered (an acceptance section, no id, no exemption), exempt (an acceptance section, no id,
+ * 验收编号：不适用), and the rest, which have no acceptance section at all. The four add up to all specs in progress.
+ */
+function specTally(result) {
+  const numbered = result.specs.filter((entry) => entry.definitions.length);
+  const noIds = result.specs.filter((entry) => !entry.definitions.length);
+  return {
+    numbered,
+    unnumbered: noIds.filter((entry) => entry.headings.length && !entry.exempt),
+    exempt: noIds.filter((entry) => entry.headings.length && entry.exempt),
+    without: noIds.filter((entry) => !entry.headings.length),
+  };
+}
+
 /** The full report as lines of text. */
 export function renderReport(result, { strict = false } = {}) {
   const lines = [];
-  const numbered = result.specs.filter((entry) => entry.definitions.length);
-  const withSection = result.specs.filter((entry) => entry.headings.length && !entry.definitions.length);
-  const without = result.specs.filter((entry) => !entry.headings.length && !entry.definitions.length);
+  const { numbered, unnumbered, exempt, without } = specTally(result);
+  const withSection = result.specs.filter((entry) => entry.headings.length && !entry.definitions.length); // unnumbered and exempt, in order
   lines.push(strict
     ? "Spec acceptance ids (strict: any problem below fails)"
     : "Spec acceptance ids (report only: this run exits 0 whatever it finds; --strict is the gate)");
-  lines.push(`${result.specs.length} specs in progress: ${numbered.length} numbered, ${withSection.length} with an acceptance section and no ids, ${without.length} with no acceptance section; ${result.testFilesRead} test files read for citations.${result.archived.length ? ` Archived specs that keep ids taken: ${result.archived.length}.` : ""}`);
+  lines.push(`${result.specs.length} specs in progress: ${numbered.length} numbered, ${unnumbered.length} with an acceptance section and no ids, ${exempt.length} exempt from ids, ${without.length} with no acceptance section; ${result.testFilesRead} test files read for citations.${result.archived.length ? ` Archived specs that keep ids taken: ${result.archived.length}.` : ""}`);
   if (numbered.length) {
     lines.push("", "Numbered specs");
     for (const entry of numbered) {
@@ -253,8 +270,7 @@ export function renderReport(result, { strict = false } = {}) {
 /** One line for `check-health-gates.mjs --report`. */
 export function specCoverageLine(snapshot) {
   const result = specCoverage(snapshot);
-  const numbered = result.specs.filter((entry) => entry.definitions.length);
-  const unnumbered = result.specs.filter((entry) => entry.headings.length && !entry.definitions.length && !entry.exempt).length;
+  const { numbered, unnumbered, exempt } = specTally(result);
   const totals = numbered.map(specCounts).reduce((sum, counts) => ({ criteria: sum.criteria + counts.criteria, covered: sum.covered + counts.covered }), { criteria: 0, covered: 0 });
-  return `Spec acceptance ids (report only, \`node scripts/check-spec-coverage.mjs\` lists them): ${numbered.length} of ${result.specs.length} specs numbered (${totals.covered} of ${totals.criteria} criteria cited by a test), ${unnumbered} with an acceptance section and no ids, ${result.problems.length} problems.${result.archived.length ? ` Archived specs that keep ids taken: ${result.archived.length}.` : ""}`;
+  return `Spec acceptance ids (report only, \`node scripts/check-spec-coverage.mjs\` lists them): ${numbered.length} of ${result.specs.length} specs numbered (${totals.covered} of ${totals.criteria} criteria cited by a test), ${unnumbered.length} with an acceptance section and no ids, ${exempt.length} exempt from ids, ${result.problems.length} problems.${result.archived.length ? ` Archived specs that keep ids taken: ${result.archived.length}.` : ""}`;
 }

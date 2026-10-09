@@ -11,8 +11,8 @@ import { isTestFile, parseSpec } from "../scripts/gates/spec-coverage.mjs";
 // specs/README.md under 验收编号, the cases in scripts/gates/README.md). It is report-only for now, so every rule is
 // mutation-verified twice: the clean scratch repository has no problem and passes `--strict`; one violation is added and the
 // report names it, the plain run still exits 0 (it must not fail CI yet) and `--strict` exits 1. That covers each problem kind
-// and each rule for reading the files: what counts as a test file (code outside tests, vendor/, node_modules/, dist/,
-// .impeccable/, fixtures/, Markdown), where an exemption is read (the first 12 lines, from the start of a line), what counts as
+// and each rule for reading the files: what counts as a test file (code outside tests, a vendor/, node_modules/, dist/,
+// .impeccable/ or fixtures/ folder at any depth, Markdown), where an exemption is read (the first 12 lines, from the start of a line), what counts as
 // a citation (not glued to a longer token) and what an archived spec keeps. The forms that look like a violation and are not
 // (fences, other sections, fixtures, SHA-256, an archived spec's own gaps) are checked to raise nothing.
 const script = fileURLToPath(new URL("../scripts/check-spec-coverage.mjs", import.meta.url));
@@ -131,6 +131,9 @@ const mutations: { name: string; kind: string; where: RegExp; change: (files: Fi
     name: `a criterion with ${name} still needs a test`, kind: "uncovered", where: /specs\/alpha\/spec\.md:\d+: QXALPHA-03 is cited by no test/,
     change: (files: Files) => { files["specs/alpha/spec.md"] = files["specs/alpha/spec.md"].replace("3. **QXALPHA-03** a person looks at it [人工]", line); },
   })),
+  // ---- only a struck id is retired: a struck word later in the line leaves the criterion live ---------------------------------
+  { name: "a criterion that strikes a word later in its text (the id itself is not struck)", kind: "uncovered", where: /specs\/alpha\/spec\.md:\d+: QXALPHA-03 is cited by no test/,
+    change: (files) => { files["specs/alpha/spec.md"] = files["specs/alpha/spec.md"].replace("3. **QXALPHA-03** a person looks at it [人工]", "3. **QXALPHA-03** needs the ~~old~~ new proof"); } },
   // ---- an archived spec keeps what it defined -------------------------------------------------------------------------------
   { name: "a spec in progress taking the prefix of an archived spec", kind: "prefix-shared", where: /QXOLD: the prefix QXOLD is used by archive\/old and fresh; one prefix names one spec, and an archived spec keeps its prefix/,
     change: (files) => { files["specs/archive/old/spec.md"] = ARCHIVED_OLD; files["specs/fresh/spec.md"] = criteria("Fresh", "1. **QXOLD-07** a [人工]"); } },
@@ -148,6 +151,8 @@ const mutations: { name: string; kind: string; where: RegExp; change: (files: Fi
     ["a file under tests/ that is not code", "tests/notes.md"],
     ["a data file under tests/", "tests/data.json"],
     ["a test file under vendor/", "vendor/lib/thing.test.ts"],
+    ["a test file under a nested vendor/ folder", "plugins/p/vendor/thing.test.ts"],
+    ["a helper under tests/ inside a nested vendor/ folder", "packages/a/vendor/tests/helper.ts"],
     ["a test file under node_modules/", "node_modules/pkg/thing.test.js"],
     ["a test file under a dist/ folder", "packages/p/dist/thing.test.js"],
     ["a test file under .impeccable/", ".impeccable/qa/thing.test.ts"],
@@ -212,7 +217,7 @@ test("legal forms raise no problem: tables, bullets, emphasis, fences, other sec
     "specs/uls/spec.md": criteria("Uls", "- QXULS-01：first", "- `QXULS-02` second"),
     "specs/exempt/spec.md": spec("Exempt", "验收编号：不适用（程序性 spec，验收在 §3 逐项闭环）", "", "## 验收", "", "- 见 §3"),
     "specs/plain/spec.md": spec("Plain", "## 背景", "", "1. 没有验收一节，不用编号"),
-    // The archive is not read; a spec in it may be unnumbered.
+    // An archived spec is read for definitions only: with no ids it defines nothing, and nothing else is asked of it.
     "specs/archive/old/spec.md": spec("Old", "## 验收", "", "1. unnumbered and archived"),
     "tests/tbl.test.ts": lines('test("QXTBL-01 and QXTBL-03 are proven here", () => {});', "// QXTBL-02 is a person's"),
     "plugins/p/src/uls.test.ts": lines('test("QXULS-01 first", () => {});'),
@@ -250,9 +255,9 @@ test("what is read as a citation, as written: every form of a test file counts, 
   assert.match(strict.out, /specs\/sep\/spec\.md \[QXSEP\]: 10 criteria; 10 cited by a test/);
 });
 
-test("isTestFile: *.test.* anywhere and code under tests/ count; Markdown, data, and anything under vendor/, node_modules/, dist/, .impeccable/ or fixtures/ (a *.test.* file there too) do not", () => {
-  for (const file of ["tests/a.test.ts", "a.test.mts", "plugins/p/src/a.test.tsx", "x/y/a.test.js", "tests/a.mjs", "tests/a.mts", "tests/a.tsx", "tests/a.js", "test/a.cjs", "packages/q/tests/deep/a.ts", "tests/e2e/a.e2e.test.ts", "tests/my-fixtures/a.ts", "src/fixtures.test.ts", "src/fixtures-extra/a.test.ts"]) assert.equal(isTestFile(file), true, file);
-  for (const file of ["apps/web/src/a.ts", "scripts/a.mjs", "src/contest/a.ts", "src/latest/a.ts", "tests/a.md", "tests/a.json", "src/a.test.ts.snap", "src/a.test.js.map", "docs/a.test.md", "tests/fixtures/a.ts", "tests/fixtures/a.test.ts", "plugins/p/src/fixtures/a.test.mjs", "fixtures/a.test.js", "vendor/x/a.test.ts", "vendor/tests/a.ts", "node_modules/x/a.test.js", "packages/p/dist/a.test.js", ".impeccable/qa/a.test.ts", "a.ts"]) assert.equal(isTestFile(file), false, file);
+test("isTestFile: *.test.* anywhere and code under tests/ count; Markdown, data, and anything under a vendor/ (at the root or nested), node_modules/, dist/, .impeccable/ or fixtures/ (a *.test.* file there too) do not", () => {
+  for (const file of ["tests/a.test.ts", "a.test.mts", "plugins/p/src/a.test.tsx", "x/y/a.test.js", "tests/a.mjs", "tests/a.mts", "tests/a.tsx", "tests/a.js", "test/a.cjs", "packages/q/tests/deep/a.ts", "tests/e2e/a.e2e.test.ts", "tests/my-fixtures/a.ts", "src/fixtures.test.ts", "src/fixtures-extra/a.test.ts", "src/vendor.test.ts", "src/vendored/a.test.ts", "src/my-vendor/a.test.ts"]) assert.equal(isTestFile(file), true, file);
+  for (const file of ["apps/web/src/a.ts", "scripts/a.mjs", "src/contest/a.ts", "src/latest/a.ts", "tests/a.md", "tests/a.json", "src/a.test.ts.snap", "src/a.test.js.map", "docs/a.test.md", "tests/fixtures/a.ts", "tests/fixtures/a.test.ts", "plugins/p/src/fixtures/a.test.mjs", "fixtures/a.test.js", "vendor/x/a.test.ts", "vendor/tests/a.ts", "plugins/p/vendor/x.test.ts", "packages/a/vendor/tests/h.ts", "node_modules/x/a.test.js", "packages/p/dist/a.test.js", ".impeccable/qa/a.test.ts", "a.ts"]) assert.equal(isTestFile(file), false, file);
 });
 
 test("an exemption counts on line 12 and not a line later, and only when it starts the line", () => {
@@ -384,14 +389,22 @@ test("a repository with no specs at all reports zero and passes", () => {
   assert.match(run.out, /0 specs in progress/);
 });
 
-test("pnpm health:check --report carries a one-line summary and never fails on it", () => {
+test("pnpm health:check --report carries a one-line summary and never fails on it; an exempt spec is counted apart from the unnumbered ones, in both reports", () => {
   const files: Files = {
-    ...base((changed) => { changed["specs/beta/spec.md"] = BETA_UNNUMBERED; }),
+    ...base((changed) => {
+      changed["specs/beta/spec.md"] = BETA_UNNUMBERED;
+      changed["specs/exempt/spec.md"] = spec("Exempt", "验收编号：不适用（程序性）", "", "## 验收", "", "- 见 §3");
+    }),
     "tooling/gates/limits.json": `${JSON.stringify({ file: 200, classLines: 100, classMethods: 30, functionLines: 80, vendoredPrologueSdk: 2 })}\n`,
   };
-  const run = spawnSync(process.execPath, [healthScript, "--report", "--root", scratch(files)], { encoding: "utf8" });
+  const dir = scratch(files);
+  const run = spawnSync(process.execPath, [healthScript, "--report", "--root", dir], { encoding: "utf8" });
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
-  assert.match(run.stdout, /Spec acceptance ids \(report only, `node scripts\/check-spec-coverage\.mjs` lists them\): 1 of 2 specs numbered \(2 of 3 criteria cited by a test\), 1 with an acceptance section and no ids, 1 problems\./);
+  assert.match(run.stdout, /Spec acceptance ids \(report only, `node scripts\/check-spec-coverage\.mjs` lists them\): 1 of 3 specs numbered \(2 of 3 criteria cited by a test\), 1 with an acceptance section and no ids, 1 exempt from ids, 1 problems\./);
+  // The full report counts the same specs the same way, and still lists the exempt one under "no ids yet" with its reason.
+  const full = check(dir);
+  assert.match(full.out, /3 specs in progress: 1 numbered, 1 with an acceptance section and no ids, 1 exempt from ids, 0 with no acceptance section;/);
+  assert.match(full.out, /specs\/exempt\/spec\.md: exempt \(程序性\)/);
 });
 
 test("on this repository the report prints and exits 0", () => {

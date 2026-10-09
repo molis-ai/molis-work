@@ -8,7 +8,7 @@
 //                                                   CI runs this form (continue-on-error), so it cannot fail a build yet.
 //   node scripts/check-spec-coverage.mjs --strict   the gate it becomes once the specs in progress are numbered: exit 1
 //                                                   when the report lists a problem. Nothing runs it yet.
-//   --json                                          print { specs, problems, testFilesRead } instead of text
+//   --json                                          print { specs, archived, problems, testFilesRead } instead of text
 //   --root <dir>                                    read another repository root (tests/health-gates-spec-coverage.test.ts)
 //
 // It reads the files git tracks (a new file counts once it is added), the same snapshot the health gates use.

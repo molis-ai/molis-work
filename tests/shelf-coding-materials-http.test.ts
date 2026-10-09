@@ -34,7 +34,7 @@ test("Shelf project material confirms current full bytes, preserves original ver
   new CodingSessionStore(store.db).create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "Shelf 固定材料", runtime_id: "prologue", at: new Date().toISOString() });
   // A second connection only reads and archives Artifacts; one Host Runtime owns the project plugins, as in the web server.
   // Shelf hands project materials to Coding as process items (artifact-positioning A2).
-  const artifacts = () => new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const artifacts = () => new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const starts: AgentStartRequest[] = [];
   const demo = molisWorkHostProjectReference({ databasePath: dbPath, projectId: DEMO_PROJECT_ID });
   const host = async () => ({ store: await localHost.withProject(demo, runtime => runtime.store), homeDirectory: home, projectId: DEMO_PROJECT_ID,

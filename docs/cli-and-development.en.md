@@ -27,7 +27,7 @@ init | snapshot | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 
-Complex inputs can be passed with `--json` or `--file payload.json`. Old create-goal, Claim/Run, Evidence/Review, and Contract/Candidate/Rewire commands are retired and return an unknown-operation error. Everyday notes, reports, agreements, closure, and resume use MCP or Web; CLI does not provide duplicate event-write commands. CLI is a user/management and local debugging entry, not a fallback for Runtime service failures. `init` and `goal-tree-decide` write as the person on this machine and their arguments carry no identity; `goal-tree-propose`, `goal-tree-check`, and `active-goal` still take their author from the `actor_id` argument (`goal-tree-propose` also takes `submitted_session_id` from the arguments) rather than a Host-injected identity (a known gap).
+Every command needs `--db PATH` to name the project database. There is no default path: without it (no value, a blank one, or another `--` flag straight after `--db`) the command fails rather than guess a database from the working directory (`init` included; it creates the database at `PATH`). A relative `PATH` is the one you name; it is resolved against the working directory. Complex inputs can be passed with `--json` or `--file payload.json`. Old create-goal, Claim/Run, Evidence/Review, and Contract/Candidate/Rewire commands are retired and return an unknown-operation error. Everyday notes, reports, agreements, closure, and resume use MCP or Web; CLI does not provide duplicate event-write commands. CLI is a user/management and local debugging entry, not a fallback for Runtime service failures. `init`, `goal-tree-check`, `active-goal` and `goal-tree-decide` write as the person on this machine and their arguments carry no identity: `goal-tree-check` refuses an `actor_id` or `actor_kind` in its arguments (`actions.input_invalid`), and `active-goal` no longer reads `actor_id` from the JSON, so an old script that still writes the field is not taken for someone else; `goal-tree-propose` still takes its author from the `actor_id` argument and `submitted_session_id` from the arguments rather than a Host-injected identity (a known gap).
 
 ## Project structure
 
@@ -35,7 +35,7 @@ Complex inputs can be passed with `--json` or `--file payload.json`. Old create-
 
 ```text
 apps/                        Six product-entry and composition-root boundaries
-packages/                    Ten foundation packages (plus the root server/); contracts exposes 64 public subpaths
+packages/                    Ten foundation packages (plus the root server/); contracts exposes 59 public subpaths
 modules/                     Thirteen business-fact owners
 horizontal/                  Eight packages: five horizontal runtime services and three platform product services (Memory, Placement, Search)
 plugins/                     26 native plugins and six official integration plugins

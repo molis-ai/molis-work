@@ -331,7 +331,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "本次发送带上的材料": "Materials for this message",
   "添加文件": "Add files",
   "可以这样开始": "Ways to start",
-  "正在看": "Viewing",
+  "正在看：{title}": "Viewing: {title}",
   "未保存的修改": "Unsaved edits",
   "选中的内容": "Selection",
   "没有材料。可以在页面上选中内容，或添加文件。": "No materials. Select something on the page, or add files.",

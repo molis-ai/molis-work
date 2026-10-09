@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import http from 'node:http';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,readdir,rm,stat} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {randomUUID} from 'node:crypto';
+import {PERSONAL_HOME_SQLITE_STORES} from '@molis-ai/molis-work-storage';
 import {openServerDatabase} from '../server/src/database.js';
 import {createLocalImServer} from '../apps/local-host/src/im-server.js';
 import {authorizeLocalWebRequest} from '../apps/local-host/src/web-http.js';
@@ -62,5 +63,25 @@ test('local project connection requires operator token and catalog identity with
     assert.equal((await connect(sameName,'actual-project',token)).status,403,'display name does not authorize recovery');
     assert.equal((await fetch(origin+'/im/api/projects/actual-project/room',{method:'POST',headers:{cookie:sameName,origin,'Content-Type':'application/json'},body:'{}'})).status,403);
 
+  }finally{im.stop();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));im.close();await rm(home,{recursive:true,force:true});}
+});
+
+// Home data registration (docs/system/HOME-DATA.md, 3.4): the discussion tab's database is user content, so whatever the
+// local mount writes into a Home must sit under a directory that `uninstall --purge-user-data` covers.
+test('the local discussion mount writes only server/server.sqlite into a Home, and that directory is purge-covered',async()=>{
+  const home=await mkdtemp(join(tmpdir(),'molis-im-registration-'));
+  const im=createLocalImServer(home);
+  let origin='';
+  const server=http.createServer(async(req,res)=>{
+    if(!await im.handle(req,res,new URL(req.url!,origin),origin)){res.writeHead(404);res.end();}
+  });
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
+  try{
+    assert.equal((await fetch(origin+'/im/api/session')).status,200);
+    assert.equal((await stat(join(home,'server','server.sqlite'))).isFile(),true);
+    const created=await readdir(home);
+    assert.deepEqual(created,['server']);
+    for(const directory of created)assert.ok((PERSONAL_HOME_SQLITE_STORES as readonly string[]).includes(directory),`${directory}/ is written by the discussion mount but not listed for uninstall --purge-user-data`);
   }finally{im.stop();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));im.close();await rm(home,{recursive:true,force:true});}
 });

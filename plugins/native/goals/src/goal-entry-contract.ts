@@ -1,4 +1,4 @@
-import type { GoalFactsView, ProjectGuidanceView, GoalsActorWrite, GoalsBoardRecord, PlanningMethodPack, ProjectGuidanceEntryRecord, GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalFactsView, ProjectGuidanceView, GoalsBoardRecord, PlanningMethodPack, ProjectGuidanceEntryRecord, GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 
@@ -30,12 +30,14 @@ export const readProjectGuidanceCapability = {
   operation: "query",
 } as HostCapabilityDefinition<{ project_id: string }, ProjectGuidanceView>;
 
+/** A management entry (the CLI, the typed client): the host records the person on this machine, so a plugin is refused (`host_only`). */
 export const setActiveGoalCapability = {
   capability_id: "io.molis.work.local-host.goals.set-active",
   version: 1,
   operation: "command",
+  host_only: true,
 } as HostCapabilityDefinition<{
   project_id: string;
   goal: { goal_id: string; reason: string };
-  write: GoalsActorWrite;
+  write: { idempotency_key: string };
 }, { active_goal_id: string; replayed: boolean; observed_event_cursor: number }>;

@@ -68,7 +68,7 @@
 | 13 | `horizontal/listener-host` | 1 | 1 | 5 |  |
 | 14 | `modules/feed` | 1 | 1 | 5 |  |
 | 15 | `packages/storage` | 2 | 2 | 4 |  |
-| 16 | `horizontal/search` | 1 | 1 | 4 | 决定 #19 删按需搜索来源后再拆更省 |
+| 16 | `horizontal/search` | 1 | 1 | 4 | 按需搜索来源已删（W2-03），可直接拆 |
 | 17 | `plugins/native/todo` | 1 | 1 | 4 |  |
 | 18 | `modules/goals` | 7 | 10 | 3 |  |
 | 19 | `modules/functions` | 1 | 2 | 3 |  |
@@ -134,7 +134,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | W5-09 | `contracts` 的 `services/agent-host.ts` 按领域拆，纯搬移，由 API 快照守着 | 1 | `agent-host.ts` 合同 |
 | W5-10 | 其余巨大单元拆分（范围见上） | 123 | 123 个，含助理协作者、Pages 编辑器与命令 |
 | W5-11 | 宿主瘦身：连接器提供方设置与 OAuth 移进官方连接器插件，或按决定 #7 作为宿主管理接口留下 | 1 | `web-connectors-settings.ts` |
-| W2-08、W2-09、W3-07 | 删 Goals 无生产调用方的类型化桥；工作区读取只留一个 id；管理入口改走动作并删剩余桥 | 1 | `project-capabilities.ts` |
+| W2-08、W3-07 | 删 Goals 无生产调用方的类型化桥；管理入口改走动作并删剩余桥（工作区读取只留一个 id 已由 W2-09 做完，函数仍 270 行：删了两处登记，补了整份文件只给宿主运行的插件的判断） | 1 | `project-capabilities.ts` |
 | W2-06 | 删四处跨主人 SQL（含 `demo-seed.ts` 一处） | — | 只删几行，不改判定 |
 
 已定的决定对判定的影响（决定的编号是 `specs/repository-anti-corruption/spec.md` §10 用户决定表里的序号，N-03 是 10-07 的“记忆、放置与情境启发式的层次”）：
@@ -145,7 +145,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 - 决定 N-03（记忆、放置、搜索、情境启发式归“平台产品服务”，代码不搬）：路线 W4-08 末尾的“再拆 MemoryService”不再执行，`MemoryService`、`PlacementService`、`SearchService` 改在包内由 W5-10 拆。
 - 决定 #7（宿主设置写入只走 HTTP，登记为管理接口的例外）：那份例外写在 CALL-CHAINS 的例外表里，和本文的巨大单元例外是两回事；它说连接器路由以后搬进各自的官方接入插件，所以 `web-connectors-settings.ts` 判“归线 · W5-11”，搬的时候要在同一个 PR 里拆到阈值以下。
 - 决定 #16（界面翻译全部换成稳定键，词典按主人分）：`en.ts` 不是例外，判“归线 · §4.7 · W5-03”。词典按主人分已经定了，这张表不再是“必须一整块”的东西；W5-03 把插件自有词条移给主人、删无引用的键，它随之变小。
-- 决定 #19（删按需搜索来源）：`SearchService.onDemand` 一支随之去掉，W5-10 在它之后拆 `SearchService` 更省。
+- 决定 #19（删按需搜索来源）：`SearchService.onDemand` 一支已随之去掉（W2-03），W5-10 直接拆删后的 `SearchService`。
 - 10-07 的插件平台范围决定把 Goals、Artifacts、Sessions 与插件创作台列为构建期例外，它们不迁 Runtime，也就不会因 W5-01 缩小；它们的巨大单元都判“拆 · W5-10”。
 
 ## 3. 清单
@@ -171,7 +171,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `installer/runtime-integration.ts` | `RuntimeIntegrationService` 类 341 行 / 15 方法 | 拆 · W5-10 | `confirm` 一个方法 136 行：先验证已应用的计划，再分连接分支与移除分支，失败时还原配置文件与技能快照并写“已回滚”的尝试记录。四步（验证、连接、移除、回滚）各成函数；回执与备份的读写（`readReceipt`、`writeReceipt`、`writeAttempt`、`receiptPath`、`backupPath`）移到回执存取类，服务类只编排。 | 0 |
 | `local-host.ts` | `LocalHost` 类 570 行 / 23 方法 | 拆 · W5-10 | `LocalHost` 的大头是 `sceneClient`（95）、项目内操作队列 `enqueue`（54）、可用性判定 `resolveActionAvailability`（44）、`register`（38）。场景客户端、操作队列、可用性判定各成协作者；家目录的那条操作线已经是独立的 `HomeLine`（`home-line.ts`），项目内的 `enqueue` 是同一套机制，照它拆。W3-01（调用编号进调用上下文）和 W3-07（`host_only` 变成可用性策略）预计会碰这里的调用上下文与可用性判定；类已冻结，它们的新增部分先写在新文件里。 | 5 |
 | `plugin-builder/agent-surface.ts` | `ensureStudio` 函数 196 行<br>`created callback 1` 函数 188 行 | 拆 · W5-10 | `ensureStudio` 里的 `created` 异步回调 188 行，是创作台的整套装配：模型选择与凭据（`selected`、`models`、`access`）、沙箱运行器与预览（`runnerFor`、`previewFor`、`inTrial`）、交给工作流的端口对象（约 90 行）。三块各成 `create…` 函数。`created` 内嵌在 `ensureStudio` 里（同一段计两次）。 | 8 |
-| `project-capabilities.ts` | `registerProjectCapabilities` 函数 270 行 | 归线 · §4.3 · W2-08、W2-09、W3-07 | 里面登记 Goals 的类型化桥和工作区读取的两个 id，这三片要删；删完重量，仍超限就在 W3-07 的同一个 PR 里按能力族拆。 | 5 |
+| `project-capabilities.ts` | `registerProjectCapabilities` 函数 270 行 | 归线 · §4.3 · W2-08、W3-07 | 里面登记 Goals 的类型化桥，这两片要删（工作区读取的两个 typed id 已由 W2-09 删掉）；删完重量，仍超限就在 W3-07 的同一个 PR 里按能力族拆。 | 5 |
 | `project-catalog.ts` | `MolisWorkProjectCatalog` 类 293 行 / 41 方法 | 拆 · W5-10 | 41 个方法里约三十个是三行的转发（项目与插件、运行上下文绑定、桌面面板、工作区成员、示例项目），`constructor` 72 行是装配。按资源分子门面，调用方拿自己要的那个，转发层随之去掉。 | 6 |
 | `project-host.ts` | `MolisWorkLocalHost` 类 361 行 / 24 方法 | 归线 · §4.6 · W4-04、W5-01、W5-02 | 项目 composition owner。`constructor` 153 行，文件里 26 处 `registerProvider`，插件族迁到 Runtime 时各删各的（W4-04 先删 Form 的），W5-02 再把名单改成由声明生成。这几片之后类仍超限，W6-04 重量时在门禁里会看到，同一片补拆。 | 14 |
 | `web-catalog.ts` | `handleLocalCatalogWebRequest` 函数 336 行 | 拆 · W5-10 | 目录级 HTTP（项目选择、搜索、待办、角色、跨项目会话等）：`handleLocalCatalogWebRequest` 46 条语句，主要是 `if` 路由分支，最大的两个 77 和 60 行。按路由族拆成 `{match, handle}` 条目，形态与 W5-07 的注册表一致。 | 15 |
@@ -230,7 +230,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `memory` | `src/service.ts` | 文件 1,338 行<br>`MemoryService` 类 1,101 行 / 56 方法 | 拆 · W5-10 | 决定 N-03：代码不搬，只在包内拆。`MemoryService` 56 个方法分组：偏好、召回与使用（`recall` 57）、写入与候选（`commit` 107、`change` 71、`propose`、`accept`）、从工作中学习（`learnFromWork`）、维护（`upkeep` 91、`pairs`）、范围操作（`previewScope`、`clearScope`、`exportScope`、`importScope`）。每组一个协作者；声明与类型另放，文件回到 800 行以下。路线 W4-08 末尾写“再拆 MemoryService”，但 N-03 决定把 W4-08 改成文档与边界规则，所以拆分改归这一片。 | 3 |
 | `placement` | `src/index.ts` | `PlacementService` 类 419 行 / 28 方法 | 拆 · W5-10 | 决定 N-03：代码不搬。`PlacementService` 28 个方法分四组：位置读取（`locate`、`describe` 69、`readIn` 27、`location`）、关系（`link`、`unlink`、`related`）、目标绑定（`goals`、`bindGoal`、`goalBindings`）、移动复制转换（`move`、`moveHome`、`copy`、`convert` 40）。 | 3 |
 | `scheduler` | `src/index.ts` | `createScheduleService` 函数 282 行 | 拆 · W5-10 | `createScheduleService` 里 `fire` 86 行、`register` 38、`claim` 23、`setEnabled` 20、`toRecord` 20、`tick` 19、`renewExecutions` 16：触发（`fire`、`claim`、`tick`、`renewExecutions`）与登记管理（`register`、`setEnabled`、`toRecord`）分成两个文件。 | 2 |
-| `search` | `src/index.ts` | `SearchService` 类 436 行 / 28 方法 | 拆 · W5-10 | `SearchService` 28 个方法分三组：查询（`query`、`open` 46、`entrySources`、`scoped`、`matchesFilter`）、同步（`runSync` 67、`reconcile`、`needsSync`、`catchUp`、`scheduleRefresh`、`refreshKnown`）、登记与状态（`markRegistration`、`markChanged`、`announce`、`status`、`statuses`、`purgeDisabled`）。决定 #19 删按需搜索来源，`onDemand` 与 `querySources` 随之去掉，先做那一步再拆更省。 | 4 |
+| `search` | `src/index.ts` | `SearchService` 类 407 行 / 26 方法 | 拆 · W5-10 | `SearchService` 26 个方法分三组：查询（`query`、`open` 44、`entrySources`、`scoped`、`matchesFilter`）、同步（`runSync` 67、`reconcile`、`needsSync`、`catchUp`、`scheduleRefresh`、`refreshKnown`）、登记与状态（`markRegistration`、`markChanged`、`announce`、`status`、`statuses`、`purgeDisabled`）。决定 #19 的按需搜索来源已删（W2-03），`onDemand` 与 `querySources` 已去掉，所以上面的行数和方法数是删后的；可以直接拆。 | 4 |
 
 ### 业务事实 Module `modules/*`
 

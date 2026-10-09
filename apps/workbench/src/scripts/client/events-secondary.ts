@@ -60,7 +60,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         return;
       }
       const feedEntry = target.closest("[data-feed-entry-id]");
-      if (feedEntry && !target.closest("[data-feed-action], [data-prototype-feed-action]")) {
+      if (feedEntry && !target.closest("[data-feed-action]")) {
         const stageDirectory = Boolean(document.querySelector("[data-feed-stage-directory]"));
         selectFeedItem(feedEntry.dataset.feedEntryId, !stageDirectory, true, false);
         if (!stageDirectory && !frameContainer?.isFrameTabActive()) {

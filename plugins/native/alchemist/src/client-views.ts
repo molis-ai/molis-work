@@ -6,9 +6,6 @@ export const ALCHEMIST_VIEWS = String.raw`
   const bullets=values=>'<ul>'+values.map(value=>'<li>'+esc(value)+'</li>').join('')+'</ul>';
   const section=(title,value,block)=>'<section '+(block?'data-alc-block="'+esc(block)+'"':'')+'><h3>'+tx(title)+'</h3>'+(Array.isArray(value)?bullets(value):paragraphs(value))+'</section>';
   const empty=text=>'<div class="alc-empty">'+tx(text)+'</div>';
-  // A run that stopped for want of a model says so once, with the way to settings: never its status, its waiting label or its internal code.
-  const noModelCode=code=>code==='RUNTIME_NOT_CONFIGURED'||code==='RUNTIME_MODEL_UNAVAILABLE';
-  const failureNote=(code,text,hint)=>!code?'':noModelCode(code)?(runtime.configured?'<p class="alc-warning">'+tx(text)+'</p>':'<div class="alc-warning">'+tx(hint)+' '+modelSettingsLink()+'</div>'):'<p class="alc-warning">'+tx(text)+' '+esc(code)+'</p>';
   const row=(kind,id,title,preview,state,version)=>'<button type="button" class="feed-stage-entry directory-list-row alc-row'+(current?.kind===kind&&current.id===id?' is-selected':'')+'" data-alchemist-id="'+esc(id)+'" data-alc-open="'+kind+'" data-version="'+(version||1)+'" aria-current="'+Boolean(current?.kind===kind&&current.id===id)+'"><span class="alc-row-copy"><strong>'+esc(title)+'</strong><small>'+esc(preview||'')+'</small></span>'+status(state)+'</button>';
   function group(label,items){return items.length?'<details class="goal-collection-fold" data-alc-group="'+esc(label)+'" open><summary><span class="goal-collection-caret"><svg aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span><strong>'+tx(label)+'</strong><span>'+items.length+'</span></summary>'+items.join('')+'</details>':'';}
   function renderList(){
@@ -24,10 +21,10 @@ export const ALCHEMIST_VIEWS = String.raw`
     el.querySelectorAll('details[data-alc-group]').forEach(d=>{if(folded.has(d.dataset.alcGroup))d.open=false;});$('[data-alchemist=directory]').scrollTop=scroll;
   }
   function renderDirection(d){
-    const runs=data.explorations.filter(e=>e.directionId===d.id),run=runs[0];context={kind:'direction',directionId:d.id,label:d.title};target=null;
-    setTitle(d.title); content.innerHTML=paragraphs(d.description)+(run&&!noModelCode(run.errorCode)?'<div class="alc-progress">'+status(run.status)+'<span>'+esc(run.runtimeLabel)+'</span></div>':'')+failureNote(run?.errorCode,'这次炼化未完成，方向已保存。检查模型后可重新炼化。','还没有可用模型。连接模型后再炼化，已写的方向不会丢失。')+(run?.understanding?section('对方向的理解',run.understanding.summary)+section('待验证',run.understanding.unknowns):'')+
+    const runs=data.explorations.filter(e=>e.directionId===d.id),run=runs[0],ok=!/RUNTIME_(NOT_CONFIGURED|MODEL_UNAVAILABLE)/.test(run?.errorCode);context={kind:'direction',directionId:d.id,label:d.title};target=null;
+    setTitle(d.title); content.innerHTML=paragraphs(d.description)+(run&&ok?'<div class="alc-progress">'+status(run.status)+'<span>'+esc(run.runtimeLabel)+'</span></div>':'')+(run?.errorCode&&ok?'<p class="alc-warning">'+tx('这次炼化未完成，方向已保存。检查模型后可重新炼化。')+' '+esc(run.errorCode)+'</p>':'')+(run?.understanding?section('对方向的理解',run.understanding.summary)+section('待验证',run.understanding.unknowns):'')+
       runs.map((r,index)=>'<section><h3>'+tx(index?'此前的候选':'候选想法')+' · '+r.cards.length+'</h3><div class="alc-candidates">'+r.cards.map(c=>'<article class="alc-candidate"><h3>'+esc(c.title)+'</h3>'+status(c.status)+paragraphs(c.highlight)+section('给谁',c.targetUser)+section('机制',c.mechanism)+'<div class="alc-actions">'+button(c.status==='kept'?'查看已保留想法':'查看详情','card',false,'data-id="'+esc(c.id)+'"')+'</div></article>').join('')+'</div></section>').join('');
-    if(!runtime.configured&&!noModelCode(run?.errorCode))content.insertAdjacentHTML('afterbegin','<div class="alc-warning">'+tx('还没有可用模型。连接模型后再炼化，已写的方向不会丢失。')+' '+modelSettingsLink()+'</div>');
+    if(!runtime.configured)content.insertAdjacentHTML('afterbegin','<div class="alc-warning">'+tx('还没有可用模型。连接模型后再炼化，已写的方向不会丢失。')+' '+modelSettingsLink()+'</div>');
     footer.innerHTML=d.status==='archived'?button('恢复方向','restore-direction'):button(run?'重新炼化':'开始炼化','explore',true,active(run?.status)?'disabled':'')+button('编辑方向','edit-direction')+button('归档方向','archive-direction')+button('讨论这个方向','chat');
   }
   function renderBrief(m){
@@ -40,12 +37,12 @@ export const ALCHEMIST_VIEWS = String.raw`
   const evidence=(e,label)=>'<blockquote class="alc-evidence"><a href="'+safeUrl(e.url)+'" target="_blank" rel="noopener noreferrer">'+esc(e.title)+'</a><small> · '+tx(label)+'</small>'+paragraphs(e.excerpt)+'</blockquote>';
   function renderResearch(workspace){
     research=workspace;const key=current.panel==='market'?'market_space':'build_cost',lens=workspace.lenses[key],report=lens.report;context.panel=current.panel;target=report?{kind:'lens_report',objectId:report.id,revision:report.revision}:null;
-    const labels={planning:'规划',collecting:'收集',cross_checking:'交叉验证',synthesizing:'综合结论'};
+    const labels={planning:'规划',collecting:'收集',cross_checking:'交叉验证',synthesizing:'综合结论'},cited=(ids,label)=>ids.map(id=>lens.evidence?.find(e=>e.id===id)).filter(Boolean).map(e=>evidence(e,label)).join('');
     content.innerHTML=ideaTabs(current.panel)+'<div class="alc-progress">'+Object.entries(labels).map(([id,label])=>'<span aria-current="'+(lens.run?.stage===id?'step':'false')+'">'+tx(label)+'</span>').join('')+status(lens.status)+'</div>'+
-      failureNote(lens.run?.errorCode,'研究未完成。已取得的材料保留，可重新确认计划再试。','还没有可用模型。连接模型后再研究，已取得的材料会保留。')+
+      (lens.run?.errorCode?'<p class="alc-warning">'+tx('研究未完成。已取得的材料保留，可重新确认计划再试。')+' '+esc(lens.run.errorCode)+'</p>':'')+
       (report&&lens.status!=='completed'&&lens.status!=='partial'?'<p class="alc-muted">'+tx('下方保留上一份报告，本次研究尚未生成新结论。')+'</p>':'')+
       (lens.status==='partial'?'<p class="alc-warning">'+tx('预算范围内只完成了部分研究。补充研究后才能正式决策。')+'</p>':'')+
-      (report?section('研究摘要',report.summary,'summary')+report.judgments.map(c=>'<section class="alc-claim" data-alc-block="'+esc(c.id)+'"><h3>'+tx(c.label)+status(c.status)+'</h3>'+paragraphs(c.conclusion)+paragraphs(c.rationale)+c.supportingEvidenceIds.map(id=>lens.evidence?.find(e=>e.id===id)).filter(Boolean).map(e=>evidence(e,'支持来源')).join('')+c.counterEvidenceIds.map(id=>lens.evidence?.find(e=>e.id===id)).filter(Boolean).map(e=>evidence(e,'反向来源')).join('')+section('仍然未知',c.unknowns)+section('什么会改变判断',c.changeConditions)+'</section>').join(''):empty(active(lens.status)?'正在研究，可以离开此页，稍后回来查看。':'先确认研究范围、模型和调用预算，再开始。'));
+      (report?section('研究摘要',report.summary,'summary')+report.judgments.map(c=>'<section class="alc-claim" data-alc-block="'+esc(c.id)+'"><h3>'+tx(c.label)+status(c.status)+'</h3>'+paragraphs(c.conclusion)+paragraphs(c.rationale)+cited(c.supportingEvidenceIds,'支持来源')+cited(c.counterEvidenceIds,'反向来源')+section('仍然未知',c.unknowns)+section('什么会改变判断',c.changeConditions)+'</section>').join(''):empty(active(lens.status)?'正在研究，可以离开此页，稍后回来查看。':'先确认研究范围、模型和调用预算，再开始。'));
     if(lens.evidence?.length)content.insertAdjacentHTML('beforeend','<details><summary>'+tx('全部来源')+' · '+lens.evidence.length+'</summary>'+lens.evidence.map(e=>evidence(e,'已采集')).join('')+'</details>');
     footer.innerHTML=active(lens.status)?button('停止研究','cancel',false,'data-job="'+esc(lens.run?.jobId)+'"'):button(report?'重新研究':'开始研究','plan',true);
     if(lens.status==='planned'&&lens.plan)footer.innerHTML+=button('继续已确认计划','resume-plan');
@@ -59,7 +56,7 @@ export const ALCHEMIST_VIEWS = String.raw`
     else{content.innerHTML+=value.gate.ready?'<p class="alc-muted">'+tx('两份研究属于当前版本。根据证据和未知，选择下一步。')+'</p>':'<p class="alc-warning">'+esc(value.gate.message)+'</p>';footer.innerHTML=['build','hold','drop'].map((v,index)=>button(states[v],'decide',index===0,'data-outcome="'+v+'" '+(!value.gate.ready?'disabled':''))).join('');}
   }
   function renderPulse(bundle){
-    pulseBundle=bundle;const r=bundle.report;setTitle(r.title);context={kind:'pulse',label:r.title,pulseReportId:r.id};target={kind:'pulse_report',objectId:r.id,revision:r.revision};
+    const r=bundle.report;setTitle(r.title);context={kind:'pulse',label:r.title,pulseReportId:r.id};target={kind:'pulse_report',objectId:r.id,revision:r.revision};
     content.innerHTML='<p class="alc-muted">'+new Date(r.createdAt).toLocaleString()+' · '+esc(r.runtimeLabel)+'</p>'+status(r.status)+section('本期观察',r.summary,'summary')+(r.coverageGaps.length?section('来源缺口',r.coverageGaps):'')+r.findings.map(f=>section(f.title,f.fact,f.id)+section('需求推断',f.demandInference)+section('反向信号',f.counterSignals)).join('')+'<h3>'+tx('可以探索的机会')+'</h3>'+bundle.opportunities.map(o=>'<section class="alc-claim"><h3>'+esc(o.title)+'</h3>'+paragraphs(o.highlight)+paragraphs(o.rationale)+section('需求推断',o.demandInference)+section('反向信号',o.counterSignals)+section('未知',o.unknowns)+'<div class="alc-actions">'+(o.convertedDirectionId?button('打开方向','converted',false,'data-id="'+esc(o.convertedDirectionId)+'"'):button('转为方向','convert',true,'data-id="'+esc(o.id)+'"')+(o.status==='new'?button('留待以后','save-opportunity',false,'data-id="'+esc(o.id)+'"'):'<span>'+tx('已保存')+'</span>'))+'</div></section>').join('')+'<details><summary>'+tx('原始信号')+' · '+bundle.signals.length+'</summary>'+bundle.signals.map(s=>evidence({title:s.title,url:s.url,excerpt:s.summary},s.sourceId)).join('')+'</details>';
     footer.innerHTML=button('采集市场信号','pulse-start',true)+button('来源设置','sources');
   }

@@ -1,0 +1,15 @@
+{
+  "note": "A table is read and written only by the package that creates it (scripts/gates/table-owners.mjs). These are the tables several packages write on purpose. Every user is checked against the code in both directions: a package that uses the table and is not listed fails, and a listed package that no longer uses it fails.",
+  "shared": {
+    "events": {
+      "owner": "packages/storage",
+      "users": ["modules/artifacts", "modules/goals", "modules/governance-collaboration"],
+      "reason": "The project journal: one append-only log per project database, one cursor sequence for all of it. Storage creates the table and the cursor; Goals, Artifacts and Governance each append their own event types and read the cursor inside their own transaction, so the event and the fact it records commit together or not at all. A journal API in storage could not join those transactions."
+    },
+    "idempotency_records": {
+      "owner": "packages/storage",
+      "users": ["modules/goals", "modules/governance-collaboration"],
+      "reason": "The replay record of write actions: (project, actor, operation, key) with the request hash and the stored outcome. Goals and Governance read it and write it inside the same transaction as the change the record guards, so a replay returns the first outcome and a retry never repeats the change. The row is keyed by the operation name its writer chooses; no package reads another's operations."
+    }
+  }
+}

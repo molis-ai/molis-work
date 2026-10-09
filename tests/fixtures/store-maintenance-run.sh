@@ -68,12 +68,14 @@ else
 fi
 
 # The path part of a SQLite `file:` URI: everything but unreserved characters and "/" is percent-encoded, so that a "%", "?" or
-# "#" in a path (Alchemist writes a project id such as "a.b" as the directory "a%2Eb") is the character it is on disk.
+# "#" in a path (Alchemist writes a project id such as "a.b" as the directory "a%2Eb") is the character it is on disk, and every
+# byte of a non-ASCII name becomes its own %XX. The byte is masked to 0-255: macOS /bin/bash 3.2 reads the byte after `'` as a signed
+# char, so a byte of 0x80 or more (the UTF-8 of 家, say) would print as %FFFFFFFFFFFFFFE5 and the store could not be opened.
 uri_path() {
   local s=$1 out="" c i
   for ((i = 0; i < ${#s}; i++)); do
     c=${s:i:1}
-    case "$c" in [a-zA-Z0-9._~/-]) out+=$c ;; *) out+=$(printf '%%%02X' "'$c") ;; esac
+    case "$c" in [a-zA-Z0-9._~/-]) out+=$c ;; *) out+=$(printf '%%%02X' "$(( $(printf '%d' "'$c") & 255 ))") ;; esac
   done
   printf '%s' "$out"
 }

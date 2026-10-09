@@ -129,8 +129,11 @@ const hasTool = (tool: string) => spawnSync("sh", ["-c", `command -v ${tool}`]).
 const runnerSkip = hasTool("sqlite3") && hasTool("lsof") && hasTool("bash") ? false : "needs the sqlite3 shell, lsof and bash";
 const runnerPath = fileURLToPath(new URL("./fixtures/store-maintenance-run.sh", import.meta.url));
 const verifyPath = fileURLToPath(new URL("./fixtures/store-maintenance-verify-open.mjs", import.meta.url));
+// The runner is documented as `bash tests/fixtures/store-maintenance-run.sh`, which on a Mac is /bin/bash 3.2 (it reads a byte of a
+// non-ASCII name as a signed char); the cases run it with that bash when the machine has one, not with whichever bash is first in PATH.
+const bash = existsSync("/bin/bash") ? "/bin/bash" : "bash";
 const runner = (home: string, args: string[] = [], env: Record<string, string> = {}) =>
-  spawnSync("bash", [runnerPath, home, ...args], { encoding: "utf8", env: { ...process.env, ...env } });
+  spawnSync(bash, [runnerPath, home, ...args], { encoding: "utf8", env: { ...process.env, ...env } });
 const verifier = (home: string) => spawnSync(process.execPath, [verifyPath, home], { encoding: "utf8" });
 
 /** Every file under the directory with its bytes' digest: what a read-only run must leave as it found it. */
@@ -149,8 +152,10 @@ function tree(directory: string): Record<string, string> {
 // Alchemist writes the project id "project-a.b" as the directory "project-a%2Eb" (alchemistProjectDirectory): a path that is
 // not a plain path when it goes into a URI.
 const SEARCH_DIRECTORIES = ["project-a%2Eb", "project-plain"];
+// The Home lies under a directory with non-ASCII characters and a space in its name ("/Users/<a user named in Chinese>/..."), whose
+// bytes of 0x80 and above the runner has to put into the `file:` URIs it opens the stores with.
 function homeAsThePreviousBuildLeftIt(t: TestContext): { home: string; stores: string[] } {
-  const home = scratch(t), experiments = join(home, "plugins", "experiments");
+  const home = join(scratch(t), "odd", "家 home"), experiments = join(home, "plugins", "experiments");
   mkdirSync(experiments, { recursive: true });
   store(join(experiments, "private.sqlite"), EXPERIMENTS_BEFORE + EXPERIMENTS_ROWS);
   const stores = [join(experiments, "private.sqlite")];
@@ -163,7 +168,7 @@ function homeAsThePreviousBuildLeftIt(t: TestContext): { home: string; stores: s
   return { home, stores };
 }
 
-test("the rehearsal stamps copies of every store, including a project directory with a % in its name, and leaves the Home as it was", { skip: runnerSkip }, t => {
+test("the rehearsal stamps copies of every store, including a project directory with a % in its name and a Home under a non-ASCII name, and leaves the Home as it was", { skip: runnerSkip }, t => {
   const { home, stores } = homeAsThePreviousBuildLeftIt(t);
   const [before, contents] = [tree(home), stores.map(everything)];
   const outcome = runner(home, [], { KEEP: "1", TMPDIR: scratch(t) });
@@ -191,7 +196,7 @@ test("the rehearsal stamps copies of every store, including a project directory 
   assert.match(refused.stdout, /alchemist search project-a\.b -> REFUSED storage\.schema_version_mismatch/);
 });
 
-test("apply backs the Home up first, stamps every store and stays quiet when there is nothing left to do", { skip: runnerSkip }, t => {
+test("apply backs the Home up first, stamps every store (in a Home under a non-ASCII name) and stays quiet when there is nothing left to do", { skip: runnerSkip }, t => {
   const { home, stores } = homeAsThePreviousBuildLeftIt(t);
   const [before, contents] = [tree(home), stores.map(everything)];
   const backup = join(scratch(t), "backup");

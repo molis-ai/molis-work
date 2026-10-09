@@ -91,6 +91,9 @@ function snapshotCaller(caller: ActionCallContext): ActionCallContext {
   };
 }
 
+/** The provider of the Host's own actions: a capability registered with an `action` and no provider of its own (the workspace reads, for one). */
+export const HOST_PROVIDER_ID = "platform";
+
 export class LocalHost<Runtime> {
   readonly instanceId: string;
   readonly capabilities = new CapabilityRegistry<ActionCallContext>();
@@ -129,7 +132,7 @@ export class LocalHost<Runtime> {
         ...(this.pluginCapabilityCallers.has(caller) ? { consumer: "plugin" as const } : {}), beforeEffect: async () => {
         caller.signal?.throwIfAborted();
         if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
-        await caller.validate_authority?.({ ...definition, provider_id: definition.action_provider?.provider_id ?? "platform" });
+        await caller.validate_authority?.({ ...definition, provider_id: definition.action_provider?.provider_id ?? HOST_PROVIDER_ID });
         const available = this.capabilities.availability(caller, definition);
         if (!available.available) throw new ActionError(available.code, available.reason);
         await this.checkActionAvailability(caller, definition);
@@ -139,7 +142,7 @@ export class LocalHost<Runtime> {
       } });
     };
     if (definition.action) return this.actionService.registerProvider({
-      provider: definition.action_provider ?? { provider_id: "platform", title: "Molis Work", kind: "system" },
+      provider: definition.action_provider ?? { provider_id: HOST_PROVIDER_ID, title: "Molis Work", kind: "system" },
       definitions: [definition as ActionDefinition<Input, Output>],
       handlers: [{ ...definition, handle: (caller, input) => {
         // ActionService supplies a per-invocation execution context. Runtime identity remains
@@ -377,7 +380,7 @@ export class LocalHost<Runtime> {
         if (this.state !== "running" || this.closingKeys.has(project.storage_key)) return { available: false, code: "actions.host_closed", reason: "能力所在运行环境已关闭" };
         const definition = this.capabilities.descriptor(capability, project.project_id);
         if (!definition) return { available: false, code: "actions.dependency_missing", reason: `所需宿主能力未注册：${capability.capability_id}@${capability.version}` };
-        if (capability.provider_id && capability.provider_id !== (definition.action_provider?.provider_id ?? "platform")) return { available: false, code: "actions.provider_changed", reason: "所需能力的提供方已变化" };
+        if (capability.provider_id && capability.provider_id !== (definition.action_provider?.provider_id ?? HOST_PROVIDER_ID)) return { available: false, code: "actions.provider_changed", reason: "所需能力的提供方已变化" };
         const caller: ActionCallContext = { actor_id: "local-host", project_id: project.project_id, audience: "user", permissions: [] };
         if (options?.consumer === "plugin") this.pluginCapabilityCallers.add(caller);
         return this.capabilities.availability(caller, definition);

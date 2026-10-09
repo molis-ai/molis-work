@@ -61,7 +61,7 @@ pnpm install:local
 
 本体升级不会静默改写 Runtime 配置或 Skill 链接。只要这次 Release 改过 MCP 或 `skills/goal-advance`，还必须打开 Molis Work 的“设置 → AI 与执行工具”：已由 Molis Work 管理但仍指向旧 Release 的 Runtime 会显示“需要修复”，先预览，再由用户确认修复。只有该页回到“已接入”、Skill 链接指向安装清单中的当前 Release，才可以对依赖 Runtime 协议的修复报告“已安装”。Core、App 和 Web service 版本一致不能代替这一步；未知同名配置或 Skill 仍保持冲突，不得覆盖。
 
-更新 MCP 或 Skill 后还要新开 Runtime Session，因为已经运行的 Session 不会重新加载工具。若要让内置 demo 使用新版示范内容，再单独执行 `molis-work demo reset --confirm`；它会清除 demo 内的改动，但不会影响用户项目。
+更新 MCP 或 Skill 后还要新开 Runtime Session，因为已经运行的 Session 不会重新加载工具。若要让内置 demo 使用新版示范内容，再单独执行 `molis-work demo reset --confirm`；它会清除 demo 内的改动，但不会影响用户项目。命令行不运行 Agent 执行服务和搜索服务，demo 在记忆与搜索索引里的数据由运行中的 Molis Work 保管，这条命令清不了它们，会在输出里说出来；要连它们一起清，在 Molis Work 里打开示例项目的设置，点「重建 demo」。
 
 ### 发布后的最终产物验收
 

@@ -3,7 +3,6 @@
 //! leaves the history alone. Concealed and transient types are never recorded.
 
 use crate::shelf_http;
-use tauri::AppHandle;
 use objc2_app_kit::NSPasteboard;
 use objc2_foundation::{ns_string, NSArray, NSString};
 use std::path::PathBuf;
@@ -11,6 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
+use tauri::AppHandle;
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 /// macOS may hand a background app the change count but no content. Once that
@@ -33,12 +33,16 @@ pub fn install(app: AppHandle) {
         let mut seen = on_main(&app, current_change_count).unwrap_or(-1);
         loop {
             thread::sleep(POLL);
-            let Some(change) = on_main(&app, current_change_count) else { continue };
+            let Some(change) = on_main(&app, current_change_count) else {
+                continue;
+            };
             if change == seen {
                 continue;
             }
             seen = change;
-            let Some(Some(cargo)) = on_main(&app, read_pasteboard) else { continue };
+            let Some(Some(cargo)) = on_main(&app, read_pasteboard) else {
+                continue;
+            };
             take(cargo);
         }
     });
@@ -65,7 +69,11 @@ fn take(cargo: Cargo) {
         return;
     }
     let empty = cargo.files.is_empty()
-        && cargo.text.as_deref().map(str::trim).is_none_or(str::is_empty);
+        && cargo
+            .text
+            .as_deref()
+            .map(str::trim)
+            .is_none_or(str::is_empty);
     READABLE.store(!empty, Ordering::Relaxed);
     if empty {
         return;
@@ -80,7 +88,12 @@ fn take(cargo: Cargo) {
         }
         return;
     }
-    let Some(text) = cargo.text.as_deref().map(str::trim).filter(|value| !value.is_empty()) else {
+    let Some(text) = cargo
+        .text
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
         return;
     };
     if let Err(error) = shelf_http::record_clip(text, &cargo.types) {
@@ -98,7 +111,9 @@ fn is_concealed(types: &[String]) -> bool {
 }
 
 fn current_change_count() -> isize {
-    let Some(board) = general_board() else { return -1 };
+    let Some(board) = general_board() else {
+        return -1;
+    };
     unsafe { board.changeCount() }
 }
 
@@ -183,7 +198,10 @@ mod tests {
     #[test]
     fn password_managers_are_never_recorded() {
         assert!(is_concealed(&["org.nspasteboard.ConcealedType".into()]));
-        assert!(is_concealed(&["public.utf8-plain-text".into(), "org.nspasteboard.TransientType".into()]));
+        assert!(is_concealed(&[
+            "public.utf8-plain-text".into(),
+            "org.nspasteboard.TransientType".into()
+        ]));
         assert!(!is_concealed(&["public.utf8-plain-text".into()]));
     }
 

@@ -4,9 +4,9 @@
 //! `EdgeDropController`.
 
 use crate::drop_wheel::{
-    self, arc_angles, mid_radius, slice_index, tile_thickness, window_frame,
-    window_size, DropWheelSession, MouseUpOutcome, Point, WheelAction, WheelFrame, WheelSlice,
-    BOUNCE_DURATION, BOUNCE_SCALE, CONCEAL_DURATION, ICON_LIFT, LABEL_DROP, LABEL_MAX_WIDTH, PETAL_PAD,
+    self, arc_angles, mid_radius, slice_index, tile_thickness, window_frame, window_size,
+    DropWheelSession, MouseUpOutcome, Point, WheelAction, WheelFrame, WheelSlice, BOUNCE_DURATION,
+    BOUNCE_SCALE, CONCEAL_DURATION, ICON_LIFT, LABEL_DROP, LABEL_MAX_WIDTH, PETAL_PAD,
     REVEAL_DELAY, REVEAL_FADE, SHADOW_OFFSET_Y, SHADOW_OPACITY, SHADOW_OPACITY_DISABLED,
     SHADOW_OPACITY_HOT, SHADOW_RADIUS, SHADOW_RADIUS_HOT, SLICE_COUNT,
 };
@@ -18,16 +18,16 @@ use objc2::{define_class, msg_send, AnyThread, ClassType, DefinedClass, MainThre
 use objc2_app_kit::{
     NSAnimatablePropertyContainer, NSAnimationContext, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSAppearanceNameDarkAqua, NSAppearanceNameVibrantDark,
-    NSAppearanceNameVibrantLight, NSAttributedStringNSExtendedStringDrawing,
-    NSAttributedStringNSStringDrawing, NSAttributedStringAppKitDocumentFormats, NSBezierPath, NSColor, NSCompositingOperation,
-    NSDragOperation, NSDraggingInfo, NSEvent, NSEventMask, NSEventType, NSFont,
-    NSFontAttributeName, NSFontWeightMedium, NSFontWeightRegular, NSForegroundColorAttributeName,
-    NSImage, NSImageSymbolConfiguration, NSLineBreakMode,
-    NSMutableParagraphStyle, NSPanel,
-    NSParagraphStyleAttributeName, NSPasteboard, NSScreen, NSStringDrawingOptions, NSTextAlignment,
-    NSView, NSViewLayerContentsRedrawPolicy, NSVisualEffectBlendingMode, NSVisualEffectMaterial,
-    NSVisualEffectState, NSVisualEffectView, NSWindow, NSWindowAnimationBehavior,
-    NSWindowCollectionBehavior, NSWindowSharingType, NSWindowStyleMask, NSWorkspace,
+    NSAppearanceNameVibrantLight, NSAttributedStringAppKitDocumentFormats,
+    NSAttributedStringNSExtendedStringDrawing, NSAttributedStringNSStringDrawing, NSBezierPath,
+    NSColor, NSCompositingOperation, NSDragOperation, NSDraggingInfo, NSEvent, NSEventMask,
+    NSEventType, NSFont, NSFontAttributeName, NSFontWeightMedium, NSFontWeightRegular,
+    NSForegroundColorAttributeName, NSImage, NSImageSymbolConfiguration, NSLineBreakMode,
+    NSMutableParagraphStyle, NSPanel, NSParagraphStyleAttributeName, NSPasteboard, NSScreen,
+    NSStringDrawingOptions, NSTextAlignment, NSView, NSViewLayerContentsRedrawPolicy,
+    NSVisualEffectBlendingMode, NSVisualEffectMaterial, NSVisualEffectState, NSVisualEffectView,
+    NSWindow, NSWindowAnimationBehavior, NSWindowCollectionBehavior, NSWindowSharingType,
+    NSWindowStyleMask, NSWorkspace,
 };
 use objc2_core_graphics::{CGLineCap, CGLineJoin, CGPath};
 use objc2_foundation::{
@@ -498,8 +498,12 @@ impl DropWheelView {
 
 pub fn set_shelf_surface(active: bool, language: Option<&str>, theme: Option<&str>) {
     SHELF_SURFACE.store(active, Ordering::SeqCst);
-    if let Some(language) = language { ENGLISH.store(language.starts_with("en"), Ordering::SeqCst); }
-    if let Some(theme) = theme { THEME.store(if theme == "dark" { 2 } else { 1 }, Ordering::SeqCst); }
+    if let Some(language) = language {
+        ENGLISH.store(language.starts_with("en"), Ordering::SeqCst);
+    }
+    if let Some(theme) = theme {
+        THEME.store(if theme == "dark" { 2 } else { 1 }, Ordering::SeqCst);
+    }
 }
 
 pub fn is_shelf_surface() -> bool {
@@ -765,17 +769,17 @@ fn spawn_admit(action: WheelAction, cargo: Cargo) {
     // A row dragged off the shelf is already staged: act on it, never copy it twice.
     let staged = crate::shelf_drag_macos::dragging_item_ids();
     if !staged.is_empty() {
-        thread::spawn(move || {
-            match action {
-                WheelAction::Shelf => {}
-                WheelAction::Send => send_to_terminal(&staged),
-                _ => {
-                    let Some(recipe) = action.recipe_id() else { return };
-                    if let Err(error) = shelf_http::run_recipe(recipe, &staged) {
-                        quiet_notice(&error);
-                    }
-                    refresh_shelf(&[]);
+        thread::spawn(move || match action {
+            WheelAction::Shelf => {}
+            WheelAction::Send => send_to_terminal(&staged),
+            _ => {
+                let Some(recipe) = action.recipe_id() else {
+                    return;
+                };
+                if let Err(error) = shelf_http::run_recipe(recipe, &staged) {
+                    quiet_notice(&error);
                 }
+                refresh_shelf(&[]);
             }
         });
         return;
@@ -783,17 +787,23 @@ fn spawn_admit(action: WheelAction, cargo: Cargo) {
     thread::spawn(move || {
         // 发给终端 hands the link over as a link; every other petal captures pages.
         let admitted = admit_cargo(&cargo, action != WheelAction::Send);
-        if admitted.is_empty() { return; }
+        if admitted.is_empty() {
+            return;
+        }
         refresh_shelf(&admitted);
         match action {
             WheelAction::Shelf => {}
             WheelAction::Send => {
                 if cargo.files.is_empty() && cargo.image.is_none() {
                     send_terminal_text(&admitted, cargo.url.as_deref().or(cargo.text.as_deref()));
-                } else { send_to_terminal(&admitted); }
-            },
+                } else {
+                    send_to_terminal(&admitted);
+                }
+            }
             _ => {
-                let Some(recipe) = action.recipe_id() else { return };
+                let Some(recipe) = action.recipe_id() else {
+                    return;
+                };
                 if let Err(error) = shelf_http::run_recipe(recipe, &admitted) {
                     // The materials stay on the shelf; the panel says why next time it opens.
                     quiet_notice(&error);
@@ -806,17 +816,23 @@ fn spawn_admit(action: WheelAction, cargo: Cargo) {
 
 fn refresh_shelf(ids: &[String]) {
     let Some(host) = host() else { return };
-    let Some(window) = host.app.get_webview_window("main") else { return };
+    let Some(window) = host.app.get_webview_window("main") else {
+        return;
+    };
     let ids = serde_json::to_string(ids).unwrap_or_else(|_| "[]".into());
     let _ = window.eval(&format!(r#"window.dispatchEvent(new CustomEvent("molis-shelf-refresh", {{ detail: {{ item_ids: {ids} }} }}));"#));
 }
 
 /// Hand the copies to the terminal session without opening the panel.
-fn send_to_terminal(items: &[String]) { send_terminal_text(items, None); }
+fn send_to_terminal(items: &[String]) {
+    send_terminal_text(items, None);
+}
 
 fn send_terminal_text(items: &[String], text: Option<&str>) {
     let Some(host) = host() else { return };
-    let Some(window) = host.app.get_webview_window("main") else { return };
+    let Some(window) = host.app.get_webview_window("main") else {
+        return;
+    };
     let encoded = serde_json::to_string(items).unwrap_or_else(|_| "[]".into());
     let text = serde_json::to_string(&text).unwrap_or_else(|_| "null".into());
     let script = format!(
@@ -830,7 +846,9 @@ fn send_terminal_text(items: &[String], text: Option<&str>) {
 /// A wheel notice never opens or closes the panel; it only leaves the reason.
 fn quiet_notice(message: &str) {
     let Some(host) = host() else { return };
-    let Some(window) = host.app.get_webview_window("main") else { return };
+    let Some(window) = host.app.get_webview_window("main") else {
+        return;
+    };
     let encoded = serde_json::to_string(message).unwrap_or_else(|_| "\"\"".into());
     let script = format!(
         r#"(() => {{
@@ -860,8 +878,13 @@ fn admit_cargo(cargo: &Cargo, capture_pages: bool) -> Vec<String> {
         return admitted;
     }
     // Browser drags can include a page title as text beside the actual URL.
-    let content = cargo.url.as_deref().filter(|url| url.starts_with("https://") || url.starts_with("http://"))
-        .or(cargo.text.as_deref()).map(str::trim).filter(|value| !value.is_empty());
+    let content = cargo
+        .url
+        .as_deref()
+        .filter(|url| url.starts_with("https://") || url.starts_with("http://"))
+        .or(cargo.text.as_deref())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
     if let Some(content) = content {
         match shelf_http::admit_text_capturing(content, capture_pages) {
             Ok(id) => admitted.push(id),
@@ -961,7 +984,11 @@ fn fade_panel(panel: &NSPanel, alpha: f64, duration: f64, on_done: Option<fn()>)
         NSAnimatablePropertyContainer::animator(&*panel).setAlphaValue(alpha);
     });
     if let Some(done) = on_done {
-        let completion = RcBlock::new(move || { if FADE_GEN.load(Ordering::SeqCst) == generation { done(); } });
+        let completion = RcBlock::new(move || {
+            if FADE_GEN.load(Ordering::SeqCst) == generation {
+                done();
+            }
+        });
         NSAnimationContext::runAnimationGroup_completionHandler(&changes, Some(&completion));
     } else {
         NSAnimationContext::runAnimationGroup(&changes);
@@ -1116,12 +1143,16 @@ thread_local! {
 }
 
 fn read_cargo() -> Cargo {
-    let Some(board) = drag_board() else { return Cargo::default(); };
+    let Some(board) = drag_board() else {
+        return Cargo::default();
+    };
     let change = board.changeCount();
     CARGO_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
         if let Some((last, cargo)) = &*cache {
-            if *last == change { return cargo.clone(); }
+            if *last == change {
+                return cargo.clone();
+            }
         }
         let cargo = read_board_cargo(&board);
         *cache = Some((change, cargo.clone()));
@@ -1151,7 +1182,9 @@ fn read_board_cargo(board: &NSPasteboard) -> Cargo {
                 if let Some(raw) = entry.stringForType(ns_string!("public.file-url")) {
                     if let Some(url) = NSURL::URLWithString(&raw) {
                         if url.isFileURL() {
-                            if let Some(path) = url.path() { files.push(PathBuf::from(path.to_string())); }
+                            if let Some(path) = url.path() {
+                                files.push(PathBuf::from(path.to_string()));
+                            }
                         }
                     }
                 }
@@ -1163,20 +1196,47 @@ fn read_board_cargo(board: &NSPasteboard) -> Cargo {
         .or_else(|| board.stringForType(ns_string!("NSStringPboardType")))
         .map(|value| value.to_string())
         .filter(|value| !value.trim().is_empty())
-        .or_else(|| board.dataForType(ns_string!("public.rtf")).and_then(|data| unsafe {
-            NSAttributedString::initWithRTF_documentAttributes(NSAttributedString::alloc(), &data, None)
-                .map(|text| text.string().to_string()).filter(|text| !text.trim().is_empty())
-        }));
+        .or_else(|| {
+            board
+                .dataForType(ns_string!("public.rtf"))
+                .and_then(|data| unsafe {
+                    NSAttributedString::initWithRTF_documentAttributes(
+                        NSAttributedString::alloc(),
+                        &data,
+                        None,
+                    )
+                    .map(|text| text.string().to_string())
+                    .filter(|text| !text.trim().is_empty())
+                })
+        });
     let url = board
         .stringForType(ns_string!("public.url"))
         .map(|value| value.to_string())
         .filter(|value| !value.trim().is_empty());
     let image = if files.is_empty() {
-        [("public.png", "png"), ("public.tiff", "tiff"), ("public.jpeg", "jpg"), ("public.heic", "heic")]
-            .into_iter().find_map(|(kind, extension)| board.dataForType(&NSString::from_str(kind))
-                .filter(|data| data.length() > 0).map(|data| (std::sync::Arc::new(data.to_vec()), extension)))
-    } else { None };
-    Cargo { files, text, url, types, image }
+        [
+            ("public.png", "png"),
+            ("public.tiff", "tiff"),
+            ("public.jpeg", "jpg"),
+            ("public.heic", "heic"),
+        ]
+        .into_iter()
+        .find_map(|(kind, extension)| {
+            board
+                .dataForType(&NSString::from_str(kind))
+                .filter(|data| data.length() > 0)
+                .map(|data| (std::sync::Arc::new(data.to_vec()), extension))
+        })
+    } else {
+        None
+    };
+    Cargo {
+        files,
+        text,
+        url,
+        types,
+        image,
+    }
 }
 
 fn drop_point(view: &DropWheelView, sender: &ProtocolObject<dyn NSDraggingInfo>) -> Point {
@@ -1226,7 +1286,11 @@ fn drag_operation(
 }
 
 fn is_dark() -> bool {
-    match THEME.load(Ordering::SeqCst) { 1 => return false, 2 => return true, _ => {} }
+    match THEME.load(Ordering::SeqCst) {
+        1 => return false,
+        2 => return true,
+        _ => {}
+    }
     let Some(mtm) = MainThreadMarker::new() else {
         return false;
     };
@@ -1339,17 +1403,20 @@ fn draw_chrome(view: &DropWheelChromeView) {
         box_bounds.origin.x + box_bounds.size.width / 2.0,
         box_bounds.origin.y + box_bounds.size.height / 2.0,
     );
-    draw_symbol(
-        action,
-        NSPoint::new(center.x, center.y + ICON_LIFT),
-        &glyph,
-    );
+    draw_symbol(action, NSPoint::new(center.x, center.y + ICON_LIFT), &glyph);
     draw_label(
-        if ENGLISH.load(Ordering::SeqCst) { match action {
-            WheelAction::Shelf => "Add files", WheelAction::Send => "To terminal",
-            WheelAction::Summarize => "Summarize", WheelAction::Extract => "Extract data",
-            WheelAction::Translate => "Translate", WheelAction::ToMarkdown => "To MD",
-        }} else { slices[index].title },
+        if ENGLISH.load(Ordering::SeqCst) {
+            match action {
+                WheelAction::Shelf => "Add files",
+                WheelAction::Send => "To terminal",
+                WheelAction::Summarize => "Summarize",
+                WheelAction::Extract => "Extract data",
+                WheelAction::Translate => "Translate",
+                WheelAction::ToMarkdown => "To MD",
+            }
+        } else {
+            slices[index].title
+        },
         NSPoint::new(center.x, center.y - LABEL_DROP),
         &ink,
         LABEL_MAX_WIDTH,
@@ -1462,22 +1529,38 @@ mod tests {
         autoreleasepool(|_| {
             let board = TestPasteboard::new();
             let paths = ["/tmp/first file.txt", "/tmp/中文目录/材料 #2.md"];
-            let entries: Vec<_> = paths.iter().map(|path| {
-                let item = NSPasteboardItem::new();
-                let url = NSURL::fileURLWithPath(&NSString::from_str(path));
-                assert!(item.setString_forType(&url.absoluteString().unwrap(), ns_string!("public.file-url")));
-                item
-            }).collect();
+            let entries: Vec<_> = paths
+                .iter()
+                .map(|path| {
+                    let item = NSPasteboardItem::new();
+                    let url = NSURL::fileURLWithPath(&NSString::from_str(path));
+                    assert!(item.setString_forType(
+                        &url.absoluteString().unwrap(),
+                        ns_string!("public.file-url")
+                    ));
+                    item
+                })
+                .collect();
             board.write(&entries);
             // AppKit synthesizes the legacy list from modern URLs. An explicit
             // empty legacy value makes this exercise the per-item fallback.
             let empty = NSArray::<NSString>::from_slice(&[]);
             assert!(unsafe {
-                board.0.setPropertyList_forType(&empty, ns_string!("NSFilenamesPboardType"))
+                board
+                    .0
+                    .setPropertyList_forType(&empty, ns_string!("NSFilenamesPboardType"))
             });
-            let legacy = board.0.propertyListForType(ns_string!("NSFilenamesPboardType"))
-                .unwrap().downcast::<NSArray>().expect("legacy file list");
-            assert_eq!(legacy.len(), 0, "modern URLs must exercise the fallback path");
+            let legacy = board
+                .0
+                .propertyListForType(ns_string!("NSFilenamesPboardType"))
+                .unwrap()
+                .downcast::<NSArray>()
+                .expect("legacy file list");
+            assert_eq!(
+                legacy.len(),
+                0,
+                "modern URLs must exercise the fallback path"
+            );
 
             let cargo = read_board_cargo(&board.0);
             assert_eq!(cargo.files, paths.map(PathBuf::from));
@@ -1536,7 +1619,8 @@ mod tests {
             let item = NSPasteboardItem::new();
             let url = "https://example.com/docs?topic=shelf#files";
             assert!(item.setString_forType(&NSString::from_str(url), ns_string!("public.url")));
-            assert!(item.setString_forType(ns_string!("文档标题"), ns_string!("public.utf8-plain-text")));
+            assert!(item
+                .setString_forType(ns_string!("文档标题"), ns_string!("public.utf8-plain-text")));
             board.write(&[item]);
 
             let cargo = read_board_cargo(&board.0);

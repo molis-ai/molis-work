@@ -3,9 +3,9 @@
 use crate::drop_wheel_macos;
 use crate::shelf_hotkeys::{
     self, capture_decision, capture_failure, capture_hotkey_message, classify_front, decide_front,
-    document_title, html_to_markdown, paths_from_text, website_markdown, BrowserKind, CaptureDecision,
-    FrontFileFailure, FrontFileKind, HotKeyAvailability, HotKeyChord, ToggleAction, FINDER_BUNDLE,
-    HOTKEY_CAPTURE, HOTKEY_FILES, HOTKEY_TOGGLE, SELF_BUNDLE,
+    document_title, html_to_markdown, paths_from_text, website_markdown, BrowserKind,
+    CaptureDecision, FrontFileFailure, FrontFileKind, HotKeyAvailability, HotKeyChord,
+    ToggleAction, FINDER_BUNDLE, HOTKEY_CAPTURE, HOTKEY_FILES, HOTKEY_TOGGLE, SELF_BUNDLE,
 };
 use crate::shelf_http;
 use objc2::msg_send;
@@ -89,7 +89,11 @@ extern "C" {
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
     fn CGEventSourceCreate(state_id: u32) -> *mut c_void;
-    fn CGEventCreateKeyboardEvent(source: *mut c_void, virtual_key: u16, key_down: bool) -> *mut c_void;
+    fn CGEventCreateKeyboardEvent(
+        source: *mut c_void,
+        virtual_key: u16,
+        key_down: bool,
+    ) -> *mut c_void;
     fn CGEventSetFlags(event: *mut c_void, flags: u64);
     fn CGEventPostToPid(pid: i32, event: *mut c_void);
 }
@@ -128,16 +132,8 @@ pub fn install(app: &AppHandle) -> Result<(), String> {
         event_class: EVENT_CLASS_KEYBOARD,
         event_kind: EVENT_HOT_KEY_PRESSED,
     };
-    let status = unsafe {
-        InstallEventHandler(
-            target,
-            hotkey_handler,
-            1,
-            &spec,
-            user,
-            &mut host.handler,
-        )
-    };
+    let status =
+        unsafe { InstallEventHandler(target, hotkey_handler, 1, &spec, user, &mut host.handler) };
     if status != 0 {
         return Err(format!("InstallEventHandler 失败：{status}"));
     }
@@ -239,7 +235,10 @@ unsafe extern "C" fn hotkey_handler(
     if event.is_null() || user_data.is_null() {
         return 0;
     }
-    let mut hot_key = EventHotKeyID { signature: 0, id: 0 };
+    let mut hot_key = EventHotKeyID {
+        signature: 0,
+        id: 0,
+    };
     let _ = GetEventParameter(
         event,
         EVENT_PARAM_DIRECT_OBJECT,
@@ -271,7 +270,9 @@ fn dispatch(id: u32) {
 
 fn on_toggle() {
     let Some(host) = host() else { return };
-    let Some(window) = host.app.get_webview_window("main") else { return };
+    let Some(window) = host.app.get_webview_window("main") else {
+        return;
+    };
     let visible = window.is_visible().unwrap_or(false);
     let focused = window.is_focused().unwrap_or(false);
     let shelf = drop_wheel_macos::is_shelf_surface();
@@ -396,7 +397,15 @@ fn admit_page(url: &str, title: &str) -> Result<(), String> {
 
 fn fetch_html(url: &str) -> Option<String> {
     let output = Command::new("/usr/bin/curl")
-        .args(["-fsSL", "--max-time", "20", "-A", "MolisWork/Shelf", "--", url])
+        .args([
+            "-fsSL",
+            "--max-time",
+            "20",
+            "-A",
+            "MolisWork/Shelf",
+            "--",
+            url,
+        ])
         .output()
         .ok()?;
     if !output.status.success() {
@@ -475,9 +484,7 @@ fn run_osascript(script: &str) -> Result<String, bool> {
         .arg(script)
         .output()
         .map_err(|_| false)?;
-    let stdout = String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if output.status.success() {
         return Ok(stdout);
     }
@@ -607,7 +614,9 @@ fn show_shelf_refresh() {
 
 fn notice(message: &str) {
     let Some(host) = host() else { return };
-    let Some(window) = host.app.get_webview_window("main") else { return };
+    let Some(window) = host.app.get_webview_window("main") else {
+        return;
+    };
     show_shelf(&window);
     let encoded = serde_json::to_string(message).unwrap_or_else(|_| "\"\"".into());
     let script = format!(

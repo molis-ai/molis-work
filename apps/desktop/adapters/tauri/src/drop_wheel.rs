@@ -433,9 +433,15 @@ mod tests {
         );
         // No agent: only 加入材料 stays live. No job entry: the four recipes go dead.
         let none = slices(false, false);
-        assert_eq!(none.map(|petal| petal.enabled), [true, false, false, false, false, false]);
+        assert_eq!(
+            none.map(|petal| petal.enabled),
+            [true, false, false, false, false, false]
+        );
         let chat_only = slices(true, false);
-        assert_eq!(chat_only.map(|petal| petal.enabled), [true, true, false, false, false, false]);
+        assert_eq!(
+            chat_only.map(|petal| petal.enabled),
+            [true, true, false, false, false, false]
+        );
     }
 
     #[test]
@@ -575,10 +581,7 @@ mod tests {
         session.on_drag(center, start, true, 1, 0, false, 1120.0);
         assert_eq!(
             session.on_drag(center, later, true, 1, 0, false, 1120.0),
-            WheelFrame::Visible {
-                center,
-                hot: None
-            }
+            WheelFrame::Visible { center, hot: None }
         );
         let far = Point::new(center.x, center.y + OUTER_RADIUS + LEAVE_SLOP + 8.0);
         assert_eq!(
@@ -625,10 +628,7 @@ mod tests {
         session.on_drag(center, start, true, 1, 0, false, 1120.0);
         assert_eq!(
             session.on_drag(center, later, true, 1, 0, false, 1120.0),
-            WheelFrame::Visible {
-                center,
-                hot: None
-            }
+            WheelFrame::Visible { center, hot: None }
         );
         assert_eq!(session.on_up(center, false), MouseUpOutcome::Hide);
     }
@@ -651,10 +651,7 @@ mod tests {
         assert!(session.has_origin());
         assert_eq!(
             session.on_drag(center, later, true, 6, 5, false, 1120.0),
-            WheelFrame::Visible {
-                center,
-                hot: None
-            }
+            WheelFrame::Visible { center, hot: None }
         );
     }
 
@@ -689,8 +686,6 @@ mod tests {
         assert_eq!(PETAL_GAP, 8.0);
         assert_eq!(WINDOW_PADDING, 44.0);
     }
-
-
 
     #[test]
     fn agent_and_recipe_open_the_other_five_petals() {

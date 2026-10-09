@@ -1,4 +1,6 @@
 mod capsule_window;
+#[cfg(target_os = "macos")]
+mod clipboard_watch_macos;
 mod context_directories;
 #[cfg(target_os = "macos")]
 mod context_directories_macos;
@@ -6,14 +8,12 @@ mod context_directories_macos;
 mod context_directory_files;
 mod drop_wheel;
 #[cfg(target_os = "macos")]
-mod clipboard_watch_macos;
-#[cfg(target_os = "macos")]
 mod drop_wheel_macos;
-#[cfg(target_os = "macos")]
-mod shelf_drag_macos;
 mod external_links;
 mod pty;
 mod runtime_env;
+#[cfg(target_os = "macos")]
+mod shelf_drag_macos;
 mod shelf_hotkeys;
 #[cfg(target_os = "macos")]
 mod shelf_hotkeys_macos;
@@ -601,7 +601,9 @@ fn shelf_find_files_blocking(query: String) -> Vec<ShelfFoundFile> {
     let output = std::process::Command::new("/usr/bin/mdfind")
         .args(["-onlyin", &home, "-name", needle])
         .output();
-    let Ok(output) = output else { return Vec::new() };
+    let Ok(output) = output else {
+        return Vec::new();
+    };
     String::from_utf8_lossy(&output.stdout)
         .lines()
         .filter(|line| !line.is_empty())
@@ -628,7 +630,9 @@ async fn shelf_admit_paths(paths: Vec<String>) -> Result<usize, String> {
 fn shelf_admit_paths_blocking(paths: Vec<String>) -> Result<usize, String> {
     // A second invocation must not interleave this command's original ordered batch.
     static ADMISSIONS: Mutex<()> = Mutex::new(());
-    let _admission = ADMISSIONS.lock().map_err(|_| "文件导入状态需要核对".to_string())?;
+    let _admission = ADMISSIONS
+        .lock()
+        .map_err(|_| "文件导入状态需要核对".to_string())?;
     let mut added = 0;
     for path in paths {
         let candidate = std::path::Path::new(&path);
@@ -691,9 +695,14 @@ fn shelf_setup_status() -> ShelfSetupStatus {
 #[tauri::command]
 fn shelf_copy_files(paths: Vec<String>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
-    { shelf_drag_macos::copy_files(&paths) }
+    {
+        shelf_drag_macos::copy_files(&paths)
+    }
     #[cfg(not(target_os = "macos"))]
-    { let _ = paths; Err("这个平台还不支持复制文件".into()) }
+    {
+        let _ = paths;
+        Err("这个平台还不支持复制文件".into())
+    }
 }
 
 /// Drag a shelf file out to Finder, the Desktop, an upload field or a composer.

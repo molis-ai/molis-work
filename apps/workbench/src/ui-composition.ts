@@ -75,7 +75,6 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 import { createArtifactWorkbenchRenderer } from "./artifact-ui.js";
 import { createGoalsContextWorkbenchRenderer } from "./goals-context-ui.js";
-import { createGoalsDecisionResultsWorkbenchRenderer } from "./goals-decision-results-ui.js";
 import { createGoalsDialogsWorkbenchRenderer } from "./goals-dialogs-ui.js";
 import { createGoalsDocumentWorkbenchRenderer } from "./goals-document-ui.js";
 import { createGoalsFactorsWorkbenchRenderer } from "./goals-factors-ui.js";
@@ -172,7 +171,6 @@ export function createWorkbenchUiHost(packs: readonly BuiltinPluginWorkbenchPack
 
 const workbenchUiHost = createWorkbenchUiHost();
 
-export const createWorkbenchGoalsDecisionResultsRenderer = createGoalsDecisionResultsWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
 
 export const createWorkbenchGoalsProposalRenderer = createGoalsProposalWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
 

@@ -178,14 +178,26 @@ export function snapshotCommitment(
   requirements: GoalEventRequirementStatus[],
   outcome: string,
   scope: GoalEventScope,
+  effects: GoalEventDecisionEffect[],
 ): GoalEventDecisionCommitment {
-  const scoped = scope.requirement_ids.length
-    ? requirements.filter((item) => scope.requirement_ids.includes(item.requirement_id))
-    : [];
+  const scoped = commitsToWholeAgreement(scope, effects)
+    ? requirements
+    : scope.requirement_ids.length
+      ? requirements.filter((item) => scope.requirement_ids.includes(item.requirement_id))
+      : [];
   return {
     outcome,
     requirements: scoped.map(requirementCommitment),
   };
+}
+
+/**
+ * Completing, and accepting requirements, are the person's nod for the agreement as a whole: the project's approval rule counts
+ * either one for the agreement it was given for, so a decision of either kind commits to every requirement the agreement has now,
+ * not only to the ones its scope names.
+ */
+function commitsToWholeAgreement(scope: GoalEventScope, effects: GoalEventDecisionEffect[]): boolean {
+  return scopeAppliesToComplete(scope) || effects.some((effect) => effect.kind === "accept_requirements");
 }
 
 export function snapshotAgreementChangeCommitment(
@@ -256,6 +268,21 @@ export function commitmentsMatch(left: GoalEventDecisionCommitment, right: GoalE
   return true;
 }
 
+/**
+ * Whether the decision was given for the agreement as it stands: the same outcome and the same requirements, each with the same
+ * text, user-acceptance flag and bound event types.
+ */
+export function decisionCommitsToCurrentAgreement(
+  decision: GoalEventAppliedDecisionView,
+  requirements: GoalEventRequirementStatus[],
+  outcome: string,
+): boolean {
+  return commitmentsMatch(
+    decision.commitment,
+    currentCommitment(requirements, outcome, requirements.map((item) => item.requirement_id)),
+  );
+}
+
 export function scopedRequirementCommitmentsMatch(
   decision: GoalEventAppliedDecisionView,
   requirements: GoalEventRequirementStatus[],
@@ -263,7 +290,10 @@ export function scopedRequirementCommitmentsMatch(
   const ids = decision.scope.requirement_ids;
   if (!ids.length) return true;
   const current = currentCommitment(requirements, "", ids).requirements;
-  const recorded = decision.commitment.requirements;
+  // A decision that commits to the whole agreement is reused on the requirements its scope names, not on the rest of it.
+  const recorded = commitsToWholeAgreement(decision.scope, decision.effects)
+    ? decision.commitment.requirements.filter((item) => ids.includes(item.requirement_id))
+    : decision.commitment.requirements;
   if (!recorded.length) {
     return ids.every((id) => requirements.some((item) => item.requirement_id === id));
   }

@@ -21,7 +21,7 @@ test("MCP Goal directory cannot be split by a queued competing Goal write, and a
   };
   const mcp = new MolisWorkServer("runtime", { databasePath, projectId, webBaseUrl: "http://127.0.0.1:4173" }, runtimeHost, host);
   const makeIntent = (goalId: string) => ({
-    project_id: projectId, actor_id: "user", actor_kind: "user" as const, idempotency_key: `create-${goalId}`,
+    project_id: projectId, idempotency_key: `create-${goalId}`,
     goal_id: goalId, title: goalId, outcome: "一致的入口结果",
   });
   let competingWrite: Promise<unknown> | undefined;

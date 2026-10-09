@@ -2479,3 +2479,127 @@ test("under the project human-approval rule an authorization given for the curre
     close(data);
   }
 });
+
+// One decision can carry more than the authorization: the decision form lets the person tick a requirement, 接受这些要求 and
+// 授权该动作 together. It then also writes an accepted conclusion on the requirement, and that conclusion must not be a way around
+// what the authorization is limited to, the agreement it was given for and the round it was given in.
+const ACCEPT_AND_AUTHORIZE = ["spelled-out effects", "accepts_requirements with the action scope"] as const;
+
+/** The one decision that accepts the named requirements and authorizes completing, asked for in either of the two ways that store it. */
+function authorizeAndAccept(app: GoalProjectApplication, goalId: string, key: string, requirementIds: string[], how: typeof ACCEPT_AND_AUTHORIZE[number]) {
+  const decided = app.goalEvents.recordTrustedDecision({
+    project_id: BOARD, goal_id: goalId, idempotency_key: key,
+    authority: hostEventDecisionAuthority("web", BOARD, "web-user", key),
+    conclusion: "这些要求通过，可以完成",
+    ...(how === ACCEPT_AND_AUTHORIZE[0]
+      ? { effects: [{ kind: "accept_requirements" as const }, { kind: "authorize_action" as const, action: "complete" }] }
+      : { accepts_requirements: true }),
+    scope: { action: "complete", requirement_ids: requirementIds },
+  });
+  assert.deepEqual(decided.decision.effects, [{ kind: "accept_requirements" }, { kind: "authorize_action", action: "complete" }], how);
+  return decided;
+}
+
+const requirementState = (app: GoalProjectApplication, goalId: string, requirementId: string) =>
+  app.goalEvents.readState(BOARD, goalId).requirements.find((item) => item.requirement_id === requirementId);
+
+test("under the project human-approval rule an authorization to complete that also accepts a requirement belongs to its round as well: once the Goal is resumed the person approves again", () => {
+  for (const how of ACCEPT_AND_AUTHORIZE) {
+    const data = fixture();
+    try {
+      requireProjectApproval(data.app, "policy-mixed-round");
+      const goalId = supportedGoal(data.app, "mixed-round", "mixed-round-req");
+      const approval = authorizeAndAccept(data.app, goalId, "allow-mixed-round", ["mixed-round-req"], how);
+      assert.equal(tryComplete(data.app, goalId, "close-mixed-round-1", RUNTIME).completion_applied, true, `${how}: the round it was given in`);
+
+      // Resumed, the requirement is still accepted, since nobody withdrew that, and the work supports it again. What the person
+      // approved was the completion of the round that is over, so the conclusion on the requirement does not release this one.
+      resumeGoal(data.app, goalId, "resume-mixed-round");
+      reportSupport(data.app, goalId, "rep-mixed-round-2", "mixed-round-req");
+      const requirement = requirementState(data.app, goalId, "mixed-round-req");
+      assert.equal(requirement?.user_conclusion?.decision_id, approval.decision.decision_id, `${how}: the conclusion on the requirement stands`);
+      assert.equal(requirement?.user_conclusion?.verdict, "accepted", how);
+      assert.equal(requirement?.currently_satisfied, true, how);
+      assertHeldForApproval(data.app, goalId, "close-mixed-round-before", `${how}: resumed, earlier approval that also accepted the requirement`);
+
+      // A new approval releases it, and it is spent with that round too. One that only authorizes releases it as well.
+      authorizeAndAccept(data.app, goalId, "allow-mixed-round-again", ["mixed-round-req"], how);
+      assert.equal(tryComplete(data.app, goalId, "close-mixed-round-2", RUNTIME).completion_applied, true, `${how}: approved again`);
+      resumeGoal(data.app, goalId, "resume-mixed-round-2");
+      reportSupport(data.app, goalId, "rep-mixed-round-3", "mixed-round-req");
+      assertHeldForApproval(data.app, goalId, "close-mixed-round-3-before", `${how}: resumed again, earlier approvals`);
+      authorizeComplete(data.app, goalId, "allow-mixed-round-plain");
+      assert.equal(tryComplete(data.app, goalId, "close-mixed-round-3", RUNTIME).completion_applied, true, `${how}: approved again with a plain authorization`);
+    } finally {
+      close(data);
+    }
+  }
+});
+
+test("under the project human-approval rule an authorization to complete that also accepts a requirement is for the agreement it was given for as well: a requirement added afterwards needs a new one", () => {
+  for (const how of ACCEPT_AND_AUTHORIZE) {
+    const data = fixture();
+    try {
+      requireProjectApproval(data.app, "policy-mixed-added");
+      const goalId = supportedGoal(data.app, "mixed-added", "mixed-added-req");
+      authorizeAndAccept(data.app, goalId, "allow-mixed-added", ["mixed-added-req"], how);
+
+      // The runtime adds a requirement without citing anything, which is allowed, and the work supports it. The person never saw
+      // it, and the addition leaves the conclusion they gave on the first requirement as it was.
+      changeAgreement(data.app, goalId, "add-mixed-added", RUNTIME, { new_requirements: [{ requirement_id: "mixed-added-new", statement: "新加的要求" }] });
+      reportSupport(data.app, goalId, "rep-mixed-added-new", "mixed-added-new");
+      assert.equal(requirementState(data.app, goalId, "mixed-added-req")?.user_conclusion?.verdict, "accepted", how);
+      assert.equal(requirementState(data.app, goalId, "mixed-added-req")?.currently_satisfied, true, how);
+      assertHeldForApproval(data.app, goalId, "close-mixed-added-before", `${how}: requirement added, earlier approval that also accepted a requirement`);
+
+      // An approval for the agreement as it stands now releases it.
+      authorizeAndAccept(data.app, goalId, "allow-mixed-added-again", ["mixed-added-req", "mixed-added-new"], how);
+      assert.equal(tryComplete(data.app, goalId, "close-mixed-added", RUNTIME).completion_applied, true, `${how}: approved for the current agreement`);
+    } finally {
+      close(data);
+    }
+  }
+});
+
+test("under the project human-approval rule an authorization to complete that also accepts a requirement ends with a change to the rest of the agreement, which leaves the conclusion on that requirement alone", () => {
+  for (const how of ACCEPT_AND_AUTHORIZE) {
+    const data = fixture();
+    try {
+      requireProjectApproval(data.app, "policy-mixed-other");
+      const goalId = supportedGoal(data.app, "mixed-other", "mixed-other-first");
+      changeAgreement(data.app, goalId, "add-mixed-other", RUNTIME, { new_requirements: [{ requirement_id: "mixed-other-second", statement: "第二条要求" }] });
+      reportSupport(data.app, goalId, "rep-mixed-other-second", "mixed-other-second");
+      // Each change below is to the other requirement or to what the agreement binds, so the conclusion on the first requirement
+      // stands through all of them. What each one ends is the authorization.
+      const standing = (what: string) => {
+        assert.equal(requirementState(data.app, goalId, "mixed-other-first")?.user_conclusion?.verdict, "accepted", `${how}: ${what}`);
+        assert.equal(requirementState(data.app, goalId, "mixed-other-first")?.currently_satisfied, true, `${how}: ${what}`);
+      };
+
+      authorizeAndAccept(data.app, goalId, "allow-mixed-other-1", ["mixed-other-first"], how);
+      changeAgreement(data.app, goalId, "revise-mixed-other", PERSON, { revise_requirements: [{ requirement_id: "mixed-other-second", statement: "改写后的第二条要求" }] });
+      reportSupport(data.app, goalId, "rep-mixed-other-second-again", "mixed-other-second");
+      standing("the other requirement revised");
+      assertHeldForApproval(data.app, goalId, "close-mixed-other-revised", `${how}: the other requirement revised, earlier approval`);
+
+      authorizeAndAccept(data.app, goalId, "allow-mixed-other-2", ["mixed-other-first"], how);
+      changeAgreement(data.app, goalId, "retire-mixed-other", PERSON, { retire_requirement_ids: ["mixed-other-second"] });
+      standing("the other requirement retired");
+      assertHeldForApproval(data.app, goalId, "close-mixed-other-retired", `${how}: the other requirement retired, earlier approval`);
+
+      authorizeAndAccept(data.app, goalId, "allow-mixed-other-3", ["mixed-other-first"], how);
+      data.app.goalEvents.configure({
+        project_id: BOARD, goal_id: goalId, ...RUNTIME, idempotency_key: "bind-mixed-other",
+        expected_version: data.app.goalEvents.readState(BOARD, goalId).config.version,
+        requirement_bindings: [{ type_id: "delivery", requirement_id: "mixed-other-first" }],
+      });
+      standing("an event type bound");
+      assertHeldForApproval(data.app, goalId, "close-mixed-other-bound", `${how}: an event type bound, earlier approval`);
+
+      authorizeAndAccept(data.app, goalId, "allow-mixed-other-4", ["mixed-other-first"], how);
+      assert.equal(tryComplete(data.app, goalId, "close-mixed-other", RUNTIME).completion_applied, true, `${how}: approved for the current agreement`);
+    } finally {
+      close(data);
+    }
+  }
+});

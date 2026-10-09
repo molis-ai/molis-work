@@ -170,13 +170,13 @@ test("a plugin that lists a management entry under consumes is refused and is ne
 });
 
 /**
- * The management door records its closes as the person on this machine, a user. Under the project rule 「完成前必须你点头」 that is
- * still not the approval (specs/goal-closure-identity): neither is the Web's complete button or a runtime's close. What releases the
- * rule is a trusted user conclusion, and the door can record one as the person too.
+ * A project on a fresh Home, with the callers the approval rule is tried through: the management door (`typed`), the person's Web
+ * action client and a runtime's. `supported` makes a Goal whose one requirement the work already supports, so the project's approval
+ * rule is the only thing left to satisfy.
  */
-test("under the project approval rule a close from the management door, the Web or a runtime is not the approval", async () => {
-  const home = await mkdtemp(join(tmpdir(), "goal-management-approval-"));
-  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Approval", actor_id: "user" }));
+async function approvalProject(name: string) {
+  const home = await mkdtemp(join(tmpdir(), `goal-management-${name}-`));
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: name, actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const typed = host.client(ref), project_id = project.project_id;
@@ -185,7 +185,6 @@ test("under the project approval rule a close from the management door, the Web 
   const web = bindActionClient(host.actionClient(ref), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id,
     permissions: ["goals:read", "goals:write", "goals:decide"], user_action: { source: "web", conversation_ref: "web:approval", message_ref: "web:click" } }));
   const requirement = (goal_id: string) => `${goal_id}-requirement`;
-  /** A Goal whose one requirement the work already supports, so the project's approval rule is the only thing left to satisfy. */
   const supported = async (goal_id: string) => {
     await runtime.invoke(goalsActions.create, { goal_id, title: "需要点头", outcome: "结果可以检查", idempotency_key: `create-${goal_id}`,
       requirements: [{ requirement_id: requirement(goal_id), statement: "结果可以检查" }] });
@@ -202,6 +201,17 @@ test("under the project approval rule a close from the management door, the Web 
     return { goal_id, kind: "complete" as const, result: "结果可以检查", reason: "试着完成", idempotency_key,
       expected_config_version: state.config.version, expected_agreement_version: state.agreement.version };
   };
+  return { host, ref, typed, project_id, runtime, web, requirement, supported, closeInput,
+    done: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
+}
+
+/**
+ * The management door records its closes as the person on this machine, a user. Under the project rule 「完成前必须你点头」 that is
+ * still not the approval (specs/goal-closure-identity): neither is the Web's complete button or a runtime's close. What releases the
+ * rule is a trusted user conclusion, and the door can record one as the person too.
+ */
+test("under the project approval rule a close from the management door, the Web or a runtime is not the approval", async () => {
+  const { host, ref, typed, project_id, runtime, web, requirement, supported, closeInput, done } = await approvalProject("approval");
   const closers = {
     runtime: async (goal_id: string, key: string) => runtime.invoke(goalsActions.close, await closeInput(goal_id, key)),
     web: async (goal_id: string, key: string) => web.invoke(goalsActions.close, await closeInput(goal_id, key)),
@@ -237,7 +247,52 @@ test("under the project approval rule a close from the management door, the Web 
     await web.invoke(goalsActions.decide, { goal_id: "ACCEPTED", idempotency_key: "accept", conclusion: "接受这条要求",
       accepts_requirements: true, scope: { requirement_ids: [requirement("ACCEPTED")] } });
     assert.equal((await closers.runtime("ACCEPTED", "close-after")).completion_applied, true);
-  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { await done(); }
+});
+
+/**
+ * One decision can accept a requirement and authorize completing, which is what the decision form records when the person ticks both
+ * (specs/goal-closure-identity). It is an authorization, so it is limited like one, to the agreement it was given for and the round it
+ * was given in, though the accepted conclusion it leaves on the requirement outlives both.
+ */
+test("under the project approval rule a decision from the Web that accepts a requirement and authorizes complete ends with the round and with the agreement", async () => {
+  const { runtime, web, requirement, supported, closeInput, done } = await approvalProject("accepting");
+  const APPROVAL_REQUIRED = "event_closure.human_approval_required";
+  const approve = (goal_id: string, idempotency_key: string, requirement_ids: string[]) => web.invoke(goalsActions.decide, { goal_id, idempotency_key,
+    conclusion: "这些要求通过，可以完成", accepts_requirements: true, scope: { action: "complete", requirement_ids } });
+  const closeNow = async (goal_id: string, key: string) => runtime.invoke(goalsActions.close, await closeInput(goal_id, key));
+  const reportAgain = (goal_id: string, requirement_id: string, idempotency_key: string) => runtime.invoke(goalsActions.report, { goal_id, idempotency_key,
+    events: [{ type_id: "work", type_version: 1, title: "交付", fields: { body: "又交付了" }, judgments: [{ requirement_id, verdict: "supports" }] }] });
+  const held = async (goal_id: string, key: string, what: string) => {
+    const closure = await closeNow(goal_id, key);
+    assert.equal(closure.completion_applied, false, what);
+    assert.deepEqual(closure.unmet_reasons.map(reason => reason.code), [APPROVAL_REQUIRED], what);
+  };
+  try {
+    await web.invoke(goalsActions.policySave, { policy: { human_approval: true }, user_confirmed: true, idempotency_key: "policy" });
+
+    // The round: completed, resumed and supported again, with the requirement still accepted. The person approves again.
+    await supported("ROUND");
+    const approval = await approve("ROUND", "approve-round", [requirement("ROUND")]);
+    assert.deepEqual(approval.decision.effects, [{ kind: "accept_requirements" }, { kind: "authorize_action", action: "complete" }]);
+    assert.equal((await closeNow("ROUND", "close-round-1")).completion_applied, true);
+    await runtime.invoke(goalsActions.resume, { goal_id: "ROUND", idempotency_key: "resume-round", reason: "还要再做一轮" });
+    await reportAgain("ROUND", requirement("ROUND"), "report-round-2");
+    await held("ROUND", "close-round-2", "resumed, earlier approval that also accepted the requirement");
+    await approve("ROUND", "approve-round-again", [requirement("ROUND")]);
+    assert.equal((await closeNow("ROUND", "close-round-3")).completion_applied, true);
+
+    // The agreement: the runtime adds a requirement without citing anything and the work supports it. The person approves again.
+    await supported("AGREEMENT");
+    await approve("AGREEMENT", "approve-agreement", [requirement("AGREEMENT")]);
+    const state = await runtime.invoke(goalsActions.state, { goal_id: "AGREEMENT" });
+    await runtime.invoke(goalsActions.agree, { goal_id: "AGREEMENT", idempotency_key: "add-agreement", expected_config_version: state.config.version,
+      expected_agreement_version: state.agreement.version, new_requirements: [{ requirement_id: "AGREEMENT-new", statement: "新加的要求", bound_type_id: "work" }] });
+    await reportAgain("AGREEMENT", "AGREEMENT-new", "report-agreement-new");
+    await held("AGREEMENT", "close-agreement-1", "requirement added, earlier approval that also accepted a requirement");
+    await approve("AGREEMENT", "approve-agreement-again", [requirement("AGREEMENT"), "AGREEMENT-new"]);
+    assert.equal((await closeNow("AGREEMENT", "close-agreement-2")).completion_applied, true);
+  } finally { await done(); }
 });
 
 /** Type errors a small caller gets from the built declarations. The test runner strips types, so the types are checked here. */

@@ -130,7 +130,15 @@ function hasCurrentHumanApproval(
   outcome: string,
   decisions: AppliedDecisionWithRound[],
 ): boolean {
-  if (requirements.some((item) => item.user_conclusion?.verdict === "accepted" && requirementCurrentlySatisfied(item))) {
+  // An accepted conclusion on a requirement counts while it stands, except one written by a decision that also authorizes completing:
+  // that decision is an authorization, judged below for its agreement and its round, and its conclusion must not outlive either.
+  const authorizations = new Set(
+    decisions.filter((item) => decisionHasEffect(item, "authorize_action", "complete")).map((item) => item.decision_id),
+  );
+  if (requirements.some((item) =>
+    item.user_conclusion?.verdict === "accepted"
+    && !authorizations.has(item.user_conclusion.decision_id)
+    && requirementCurrentlySatisfied(item))) {
     return true;
   }
   // An authorization to complete counts for the agreement it was given for and for the round it was given in: a changed

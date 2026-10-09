@@ -58,7 +58,7 @@ node --import tsx --test --test-concurrency=1 tests/goals-command-module.test.ts
   - `events` 是当前工作状态与完成效果的唯一写入者。
   - 实质承诺变化须引用对具体变化的有效授权，不能靠改类型绑定或自填操作者绕过；版本缺失或过期在副作用前拒绝。
   - 完成只经显式收尾：普通支持不自动完成，无关笔记不重开已完成的 Goal。
-  - 项目规则「完成前必须你点头」进入完成检查：打开时，完成前要有仍然有效的可信用户结论（某条要求上已接受且仍然成立的结论，或授权 `complete` 的当前决定）；点「完成」的人是用户，本身不算，管理入口把收尾记成本机这个人也不算。授权 `complete` 的决定只对做出它时的约定和那一轮工作有效：它记下整份约定的承诺，收尾时要和现在的约定逐字相同才放行（结果说明、每条要求的原文、是否需要用户验收、绑定的事件类型，有一处变了就不放行）；Goal 被继续或被重新打开之后，更早的授权也不再放行，都要重新授权。被别的原因挡住的收尾不会用掉授权。`tests/goal-events-state.test.ts` 守着这条，管理入口那一面在 `tests/goal-management-identity.test.ts`。
+  - 项目规则「完成前必须你点头」进入完成检查：打开时，完成前要有仍然有效的可信用户结论（某条要求上已接受且仍然成立的结论，或授权 `complete` 的当前决定）；点「完成」的人是用户，本身不算，管理入口把收尾记成本机这个人也不算。授权 `complete` 的决定只对做出它时的约定和那一轮工作有效：它记下整份约定的承诺，收尾时要和现在的约定逐字相同才放行（结果说明、每条要求的原文、是否需要用户验收、绑定的事件类型，有一处变了就不放行）；Goal 被继续或被重新打开之后，更早的授权也不再放行，都要重新授权。同一份决定里一并接受了要求的也是授权：它在要求上留下的接受结论不单独放行，只随这份授权算；只接受要求、没有授权 `complete` 的结论不受此限，它在继续或约定变化之后是否还算数待用户决定（`specs/goal-closure-identity`）。被别的原因挡住的收尾不会用掉授权。`tests/goal-events-state.test.ts` 守着这条，管理入口那一面在 `tests/goal-management-identity.test.ts`。
   - 关系图合法性、授权与事务在正式入口检查，页面和 MCP 只呈现结果。
   - 结果合同只认现行取值；存量数据由维护改成现行形状，读取不兜底历史取值。
 - 改动后必跑：`node scripts/run-tests.mjs tests/goals-command-module.test.ts tests/goal-events.test.ts tests/goal-events-state.test.ts tests/goals-query-facts.test.ts tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs`

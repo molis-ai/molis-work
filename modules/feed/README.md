@@ -51,6 +51,7 @@ node --import tsx --test --test-concurrency=1 tests/feed-module-repositories.tes
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - `FeedModule` 是 `feed_items`、`feed_materials`、处置与 Feed 事件的唯一写入者。
+  - 别的包要读 `feed_materials` 里的正文引用，调导出的 `listFeedMaterialContentRefs`，不写 SQL（`scripts/gates/table-owners.mjs`）。
   - 不直接创建 Goal，升格经 Goals 的公开入口。
   - `linked_goal_id` 等兼容输出由 Ledger 推导，不恢复旧字段双写。
   - 外部标题、正文与链接是不可信输入，不成为指令。

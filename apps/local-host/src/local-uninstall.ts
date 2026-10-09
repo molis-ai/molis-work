@@ -1,11 +1,12 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { LocalCatalogMetadata, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { MolisWorkUninstallService } from "./installer/uninstall.js";
 import type { MolisWorkUninstallServiceOptions, UninstallProjectAccess } from "./installer/uninstall-contract.js";
-import { inspectProjectCatalogForUninstall } from "@molis-ai/molis-work-module-projects";
+import { listCatalogProjectsForUninstall } from "@molis-ai/molis-work-module-projects";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { resolveConfiguredHome } from "./product-home.js";
+import { isOwnedCatalogOwner } from "./project-catalog-contract.js";
 
 /** Read-only Catalog inspection and the existing Demo lifecycle for local uninstall. */
 export function createLocalUninstallService(options: Omit<MolisWorkUninstallServiceOptions, "projects">, withMolisWorkProjectCatalog: LocalWebCatalogRunner): MolisWorkUninstallService {
@@ -17,8 +18,9 @@ export function createLocalUninstallService(options: Omit<MolisWorkUninstallServ
       let storage: LocalSqliteStorage | null = null;
       try {
         storage = new LocalSqliteStorage(databasePath, { readonly: true });
-        const inspection = inspectProjectCatalogForUninstall(storage.db);
-        return { projects: inspection.projects, conflict: inspection.owned ? null : `项目 catalog 不属于 Molis Work：${databasePath}` };
+        // The catalog's metadata table is storage's; only a catalog that names this product as its owner has its project list read.
+        if (!isOwnedCatalogOwner(new LocalCatalogMetadata(storage.db).owner())) return { projects: [], conflict: `项目 catalog 不属于 Molis Work：${databasePath}` };
+        return { projects: listCatalogProjectsForUninstall(storage.db), conflict: null };
       } catch (error) {
         return { projects: [], conflict: `无法安全读取项目 catalog：${error instanceof Error ? error.message : String(error)}` };
       } finally { storage?.close(); }

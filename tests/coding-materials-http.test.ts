@@ -18,7 +18,7 @@ test("Coding formal material routes preserve exact versions, resolve trusted bod
   seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   new GoalProjectApplication(store).initializeBoard({ project_id: "other-project", title: "Other", actor_id: "web-user", idempotency_key: "other-project-init" });
   // File snapshots and Git changes are process items (artifact-positioning A2).
-  const artifacts = () => new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const artifacts = () => new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const publish = (id: string, version: number, text: string, actor = "web-user", board = DEMO_PROJECT_ID) => artifacts().commands.registerVersion({
     project_id: board, actor_id: actor, artifact_id: id, version, artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1,
     producer: { plugin_id: "io.molis.work.files", plugin_version: "1.1.0", binding_signature: "official-files-binding" },

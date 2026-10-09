@@ -162,7 +162,7 @@ export interface DomEventDeclaration {
 }
 
 /**
- * Every page event, in name order: 46 names at the time of listing, 45 of them created with `new CustomEvent` (89 dispatch
+ * Every page event, in name order: 47 names at the time of listing, 46 of them created with `new CustomEvent` (90 dispatch
  * sites) and one, `molis:side-toggle`, only listened to so far. Who dispatches and who listens is not written down here:
  * `node scripts/gates/dom-events.mjs --report` computes both from the source, so it cannot go stale.
  */
@@ -221,6 +221,11 @@ export const DOM_EVENTS = [
     name: "molis-work:goal-panel-presence", kind: "announcement", owner: "goals-event-document", on: "element", bubbles: true,
     detail: "none",
     summary: "A Goal event panel is present in the document; the shell re-reads whether to offer the panel layout.",
+  },
+  {
+    name: "molis-work:model-ready", kind: "announcement", owner: "settings-directory", on: "document",
+    detail: "none",
+    summary: "The model settings page saved the first provider that can run. Sent on the document and into every pane frame; each page that showed \"no model\" (the Assistant's failed card, Cognia, Dataset, Form, PPT, Workflows, Alchemist, Jelly's model dialog) reads it again.",
   },
   {
     name: "molis-work:open-settings-path", kind: "request", owner: "settings-directory", on: "document",

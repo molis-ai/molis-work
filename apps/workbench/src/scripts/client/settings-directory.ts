@@ -53,9 +53,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     });
   let sentFromPage = false;
   const modelReady = () => {
-    const announce = (doc, view) => doc.dispatchEvent(new view.CustomEvent("molis-work:model-ready"));
-    announce(document, window);
-    document.querySelectorAll("iframe[data-pane-tab]").forEach((frame) => { if (frame.contentDocument) announce(frame.contentDocument, frame.contentWindow); });
+    const frames = [...document.querySelectorAll("iframe[data-pane-tab]")].map((frame) => frame.contentDocument);
+    [document, ...frames].forEach((doc) => doc?.dispatchEvent(new CustomEvent("molis-work:model-ready")));
     if (!sentFromPage) return;
     sentFromPage = false;
     if (host.closeCover?.()) host.showToast?.(L("模型已连接，可以继续了。"));

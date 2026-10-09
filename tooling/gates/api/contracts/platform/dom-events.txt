@@ -82,6 +82,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "none";
     readonly summary: "A Goal event panel is present in the document; the shell re-reads whether to offer the panel layout.";
 }, {
+    readonly name: "molis-work:model-ready";
+    readonly kind: "announcement";
+    readonly owner: "settings-directory";
+    readonly on: "document";
+    readonly detail: "none";
+    readonly summary: "The model settings page saved the first provider that can run. Sent on the document and into every pane frame; each page that showed \"no model\" (the Assistant's failed card, Cognia, Dataset, Form, PPT, Workflows, Alchemist, Jelly's model dialog) reads it again.";
+}, {
     readonly name: "molis-work:open-settings-path";
     readonly kind: "request";
     readonly owner: "settings-directory";

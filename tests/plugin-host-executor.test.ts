@@ -28,7 +28,7 @@ test("an unknown Runtime plugin cannot turn a Host-only adapter into user author
   const port = host.client({ project_id: DEMO_PROJECT_ID, storage_key: file });
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, port.project.project_id),
     project_id: DEMO_PROJECT_ID, actor_id: "user", capabilities: port,
-    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), ui: new UiHost(),
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   }));
   const base = createGithubIntegrationPlugin({ provider: {
@@ -65,7 +65,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
   const store = new LocalProjectDatabase(file);
   const privateDb = new Database(join(directory, "plugin-private.db"));
   const privateOwner = new SqlitePluginPrivateStorage(privateDb);
-  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const ui = new UiHost();
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: "author",
     artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }));
@@ -147,7 +147,7 @@ test("compatible Host execution and crash recovery use the implementation versio
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
   const privateOwner = new SqlitePluginPrivateStorage(store.db);
-  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const ui = new UiHost();
   const { MemoryPluginRuntimeRepository } = await import("@molis-ai/molis-work-plugin-runtime");
   const repository = new MemoryPluginRuntimeRepository();

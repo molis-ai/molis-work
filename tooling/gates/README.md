@@ -10,6 +10,7 @@
 | `limits.json` | 巨大单元与 vendored SDK 的阈值，只许收紧 | 人，过评审 |
 | `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK 的公开 API 快照 | `pnpm api:update`（见下） |
 | `secret-allowlist.txt` | 密钥扫描的已知测试值 | 人，过评审 |
+| `table-owners.json` | `shared`：几个包有意共用的表（今天是 `events`、`idempotency_records`）的 owner、用到它的包、理由；`same_name`：两个包各建一张的同名表（今天是 `workspaces`、`jobs`，不同库）的包与理由；其余的表只许 owner 包读写（`scripts/gates/table-owners.mjs`，说明在 `scripts/gates/README.md`） | 人，过评审；门禁两头核对，登记的包不再用就要删 |
 
 ## 按文件计数、只许减少的项
 

@@ -163,6 +163,15 @@ export function listListenerRuns(
   `).all(projectId) as Row[]).map(mapRun);
 }
 
+/**
+ * The connector receipts the run ledger holds, of every project in the database, parsed. A receipt that does not parse throws:
+ * a caller that asks which evidence is still referenced must not count a receipt it could not read as holding nothing.
+ */
+export function listListenerRunReceipts(db: Pick<ListenerSqliteDatabase, "prepare">): unknown[] {
+  return (db.prepare("SELECT receipt_json FROM feed_source_runs WHERE receipt_json IS NOT NULL").all() as Row[])
+    .map((row) => JSON.parse(text(row.receipt_json)) as unknown);
+}
+
 export function saveListenerRun(
   db: ListenerSqliteDatabase,
   run: ListenerRunRecord,

@@ -40,6 +40,7 @@
     "build:migrated-packages": "pnpm workspace:build",
     "boundary:check": "pnpm --filter @molis-ai/molis-work-test-kit build && node scripts/check-package-boundaries.mjs",
     "health:check": "node scripts/check-health-gates.mjs",
+    "api:update": "node scripts/gates/api-snapshot.mjs --update",
     "secrets:check": "node scripts/check-secrets.mjs",
     "boundary:test": "pnpm --filter @molis-ai/molis-work-test-kit test && node --test tests/workbench-registration-boundaries.test.mjs tests/package-owners.test.mjs",
     "build:all": "pnpm build && pnpm boundary:check && pnpm workspace:build",

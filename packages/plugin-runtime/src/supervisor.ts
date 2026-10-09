@@ -9,6 +9,7 @@ import { comparePluginVersions } from "@molis-ai/molis-work-contracts/platform/p
 
 import { buildEventContract, type PluginEventContract } from "./event-contract.js";
 import { pluginManifestDigest } from "./identity.js";
+import { defaultGrants } from "./install-rules.js";
 import type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
 import {
   createPluginRuntimeReleaseArtifact,
@@ -359,22 +360,29 @@ export class PluginSupervisor implements PluginHostLifecycle {
   }
 
   async #changeVersion(pluginId: string, definition: PluginDefinition | undefined, rollbackCode: boolean, grants?: string[]): Promise<PluginSupervisorState> {
-    const priorEntry = this.#entries.get(pluginId);
-    if (!priorEntry) return this.#fail(pluginId, null, "plugin_unknown", "没有登记过这个插件");
-    const entry = definition ? { ...priorEntry, definition } : priorEntry;
+    const prior = this.#entries.get(pluginId), entry = definition ? { ...prior, definition } : prior;
+    // A switched-off install is not registered after a Host restart: the target stands in for its entry, and an
+    // answer about a plugin nobody registered is not remembered.
+    const refuse = (installId: string | null, code: string, message: string): PluginSupervisorState => prior
+      ? this.#fail(pluginId, installId, code, message) : { plugin_id: pluginId, status: "failed", install_id: installId, code, message };
+    if (!entry) return refuse(null, "plugin_unknown", "没有登记过这个插件");
     if (entry.definition.manifest.plugin_id !== pluginId) {
-      return this.#fail(pluginId, null, "plugin_definition_conflict", "升级目标的 Plugin ID 不匹配");
+      return refuse(null, "plugin_definition_conflict", "升级目标的 Plugin ID 不匹配");
     }
     let candidateContract: PluginEventContract;
     try {
       candidateContract = buildEventContract(entry.definition);
     } catch (error) {
-      return this.#fail(pluginId, this.#states.get(pluginId)?.install_id ?? null, safeCode(error), safeMessage(error));
+      return refuse(this.#states.get(pluginId)?.install_id ?? null, safeCode(error), safeMessage(error));
     }
     const current = this.#runtime.list().find(record => record.plugin_id === pluginId
       && record.publisher_signature === entry.definition.manifest.publisher.signature
       && record.state !== "uninstalled");
-    if (!current) return this.#fail(pluginId, null, "plugin_definition_missing", "找不到当前安装版本");
+    if (!current) return refuse(null, "plugin_definition_missing", "找不到当前安装版本");
+    // Switching a plugin off and on is the person's call: a new version moves the installation and never starts it.
+    const off = current.state === "disabled";
+    if (!prior && !off) return refuse(null, "plugin_unknown", "没有登记过这个插件");
+    if (this.#revoked.has(pluginId) && !off) return { plugin_id: pluginId, status: "failed", install_id: current.install_id, code: "plugin_revoked", message: "插件的停用还没有完成，请稍后再试" };
     const activeContract = this.#contracts.get(pluginId);
     // Keep the candidate registered after a failed attempt so the same update
     // can be retried. The active contract is switched for startup validation,
@@ -390,26 +398,18 @@ export class PluginSupervisor implements PluginHostLifecycle {
         ...(grants ? { grants } : {}),
       });
       this.#activeEntries.set(pluginId, { ...entry, grants: receipt.install.grants });
+      if (off) { this.revoke(pluginId); return this.#revokedState(pluginId, receipt.install.install_id); }
       return this.#running(pluginId, receipt.install.install_id);
     } catch (error) {
-      const failure = {
-        plugin_id: pluginId,
-        status: "failed" as const,
-        install_id: current.install_id,
-        code: safeCode(error),
-        message: safeMessage(error),
-      };
-      const recovered = this.#runtime.get(current.install_id);
-      const active = this.#states.get(pluginId);
-      if (!this.#revoked.has(pluginId)
-        && recovered.state === "running"
-        && active?.status === "running"
-        && active.install_id === current.install_id) {
-        if (activeContract) this.#contracts.set(pluginId, activeContract);
-        else this.#contracts.delete(pluginId);
-        // Return the failed upgrade operation to its caller without marking the
-        // restored old implementation unhealthy. Host routes and views continue
-        // to use it, and the unchanged candidate remains available for retry.
+      const failure = { plugin_id: pluginId, status: "failed" as const, install_id: current.install_id, code: safeCode(error), message: safeMessage(error) };
+      const recovered = this.#runtime.get(current.install_id), active = this.#states.get(pluginId);
+      // The failed attempt did not move the installation, so the old implementation, running or not, keeps its own
+      // event declarations; only the candidate entry stays registered for a retry.
+      if (recovered.version === current.version) { if (activeContract) this.#contracts.set(pluginId, activeContract); else this.#contracts.delete(pluginId); }
+      if (off) { if (!prior) this.#entries.delete(pluginId); return failure; } // still switched off, as the person left it
+      if (!this.#revoked.has(pluginId) && recovered.state === "running" && active?.status === "running" && active.install_id === current.install_id) {
+        // Return the failed upgrade operation to its caller without marking the restored old implementation unhealthy.
+        // Host routes and views continue to use it, and the unchanged candidate remains available for retry.
         return failure;
       }
       return this.#fail(pluginId, current.install_id, failure.code, failure.message);
@@ -556,9 +556,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       if (installId === null) {
         if (entry.definition.execution === "sandbox" && entry.grants === undefined) throw new Error("生成插件必须先确认安装权限，不能自动授予全部必需权限");
         await this.#persistReleaseArtifact(entry);
-        const grants = entry.grants ?? manifest.permissions
-          .filter((permission) => permission.required)
-          .map((permission) => permission.permission);
+        const grants = entry.grants ?? defaultGrants(manifest, this.#runtime.list());
         const installed = this.#runtime.install({
           definition: entry.definition,
           deployment: entry.deployment ?? "local",

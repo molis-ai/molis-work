@@ -1,12 +1,14 @@
 import type {
   ProjectPluginId,
-  ProjectDeletionRecord,
+  ProjectDeletionReceipt,
   ProjectRecord,
   ProjectSelection,
   ProjectWorkspaceDirectoryRecord,
   ProjectWorkspaceMembership,
   ProjectWorkspaceRef,
 } from "@molis-ai/molis-work-contracts/modules/projects";
+
+import { createDeletionStepsSchema } from "./deletion-steps.js";
 
 type Row = Record<string, unknown>;
 
@@ -23,7 +25,7 @@ export interface ProjectsSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export interface StoredProjectDeletion extends ProjectDeletionRecord {
+export interface StoredProjectDeletion extends ProjectDeletionReceipt {
   idempotency_key: string;
   request_fingerprint: string;
   staged_directory: string;
@@ -276,7 +278,7 @@ export class ProjectsRepository {
     return row ? mapStoredProjectDeletion(row) : null;
   }
 
-  listProjectDeletions(): ProjectDeletionRecord[] {
+  listProjectDeletions(): ProjectDeletionReceipt[] {
     return (this.db.prepare(
       "SELECT * FROM project_deletions ORDER BY deleted_at DESC, deletion_id DESC",
     ).all() as Row[]).map((row) => deletionRecord(mapStoredProjectDeletion(row)));
@@ -318,6 +320,7 @@ export class ProjectsRepository {
 }
 
 export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
+  createDeletionStepsSchema(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS projects (
       project_id TEXT PRIMARY KEY,
@@ -446,7 +449,7 @@ function mapStoredProjectDeletion(row: Row): StoredProjectDeletion {
   };
 }
 
-function deletionRecord(record: StoredProjectDeletion): ProjectDeletionRecord {
+function deletionRecord(record: StoredProjectDeletion): ProjectDeletionReceipt {
   return {
     deletion_id: record.deletion_id,
     project_id: record.project_id,

@@ -170,7 +170,7 @@
 - 代码：页签与内嵌框在 `apps/workbench/src/side-panel.ts:38,42`；服务端包 `server/`（`@molis-ai/molis-work-server`，Home 下的库 `server/server.sqlite`，表名前缀 `mw_`，`server/src/database.ts`）里的群聊域；界面包 `packages/im-ui`（`@molis-ai/molis-work-im-ui`）；合同子路径 `@molis-ai/molis-work-contracts/services/im`；宿主挂载在 `apps/local-host/src/im-server.ts`。`apps/server` 是同一服务的独立启动器，没有产品入口，去留随功能迭代另定。
 - 写法：文档写「讨论」或「项目讨论」，代码缩写是 IM。不再写「IM 实验」「实验线」。它不是 `experiments` 插件（界面叫「实验」），也不在内置插件清单里。
 - 重名：`im` 在工作台代码里同时是整个右栏的 dock 窗口 id（`apps/workbench/src/side-panel.ts:35` 的 `dock-window-im`、`apps/workbench/src/immersive-shell.ts` 的 `data-dock-toggle="im"`），不只指讨论页签，见 R-A10。
-- 同一决定里的三处账目修正不属于命名，列在这里避免误会：`server/server.sqlite` 登记进 Home 数据与备份表；宿主不再直接读它的表（`apps/local-host/src/im-server.ts` 里读 `mw_projects`、`mw_members`）；`server` 与 `packages/im-ui` 的包类别由基础包改成业务（`scripts/workspace-packages.mjs:33-34` 现在标 `foundation`）。
+- 同一决定里的三处账目修正不属于命名，列在这里避免误会：`server/server.sqlite` 登记进 Home 数据与备份表；宿主不再直接读它的表（`apps/local-host/src/im-server.ts` 里读 `mw_projects`、`mw_members`）；`server` 的包类别已由基础包改成业务包（`scripts/workspace-packages.mjs:36` 标 `module`，按 Module 规则检查）；`packages/im-ui` 是界面包、不拥有事实，仍标 `foundation`（同文件第 37 行），是否改类另待决定。
 
 ### 2.7 术语与翻译键
 
@@ -431,4 +431,4 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 
 ## 7. 防止旧术语回流
 
-路线里目前没有对应的门禁（§4.15 的缺项：「没有防止旧术语回流的门禁」）。建议在 W5-14 的改名完成后加一道只许减少的计数门禁：数第 1 节「旧称」一栏在 `docs/`、`skills/` 和源码标识符里的出现次数，做法同 `pnpm health:check` 对兼容标记的计数（对照合并基点，PR 里改基线放不过）。在这之前，靠第 0 节的规则和评审。
+路线里只有一道窄的门禁：W1-04 的旧名计数（`pnpm health:check` 的 `oldNames`，口径在 `scripts/gates/source-counts.mjs` 开头和 `tooling/gates/README.md`）按文件数 TypeScript 源码里的 `goalboard` 和 `board_id` 两种写法，只许减少；它不数本文「旧称」一栏里的词和第 5 节的其余改名（`GOAL_BOARDS_SCHEMA_SQL` 等「Board 当项目」的名字，见 R-A1），不数 `docs/`、`skills/` 里的词，也不数连字符写法 `board-id`。完整的回流门禁仍缺（§4.15：「没有防止旧术语回流的门禁」）。建议在 W5-14 的改名完成后扩一道只许减少的计数门禁：数第 1 节「旧称」一栏在 `docs/`、`skills/` 和源码标识符里的出现次数，做法同 `pnpm health:check` 对兼容标记的计数（对照合并基点，PR 里改基线放不过）。在这之前，靠第 0 节的规则和评审。

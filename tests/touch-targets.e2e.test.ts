@@ -6,7 +6,9 @@ import { layoutFindings } from "./fixtures/layout-audit.js";
 // DESIGN.md → Focus and accessibility: every target is 44px on a phone, except that the desktop window's chrome (the
 // title bar's tab strip and the bottom bar) keeps a written, scoped exception. This measures both sides of it on the real
 // shell: at 390px (a phone) every control of the strip and of the bar is 44px on its short side, and the bar and the strip
-// still lay out cleanly with them; at 1280px the chrome keeps the sizes the exception names and does not sink below its floor.
+// still lay out cleanly with them; at 1280px the chrome keeps the sizes the exception names and does not sink below its floor,
+// also in a short window (34px Dock buttons); on a touch window of 768 and 1024px the strip is 44px and the bar is the desktop
+// bar above its floor, the known gap DESIGN.md names (BL-123), which this keeps true until the gap is closed.
 
 type Control = { kind: string; area: "strip" | "bar"; label: string; w: number; h: number };
 
@@ -106,6 +108,28 @@ for (const scheme of ["light", "dark"] as const) {
       assert.deepEqual(controls.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name} · 1280: every control is a known one`);
       const input = controls.find(control => control.kind === "assistant input");
       assert.ok(input && input.h <= 32, "the desktop Assistant line stays the 28px line the exception describes, not a phone's 44px");
+    }
+
+    // A short window (a phone held sideways falls here too): DESIGN.md writes the Dock, resident and switcher buttons as 34px
+    // there, and the floors still hold.
+    const shortWindow = await open(1280, 500, false, "", "true");
+    assert.deepEqual(shortWindow.filter(control => short(control) < floors[control.area]).map(control => `${control.kind} ${control.w}×${control.h}`), [],
+      "a short window · 1280×500: nothing in the strip is under 20px or in the bar under 28px");
+    assert.deepEqual(shortWindow.filter(control => ["dock", "resident", "plugin switcher"].includes(control.kind) && control.area === "bar").map(control => control.h).filter(h => h !== 34), [],
+      "a short window · 1280×500: the Dock, resident and switcher buttons are the 34px DESIGN.md writes");
+
+    // A touch window wider than 600px (a tablet) is the known gap, and DESIGN.md says so: the strip is already 44px, the bar is
+    // still the desktop bar above its floor. When the bar is fixed this goes red on purpose: change DESIGN.md and BL-123 with it.
+    await command("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 }, sessionId);
+    for (const [width, height] of [[768, 1024], [1024, 768]] as const) {
+      const controls = await open(width, height, false, "settings", "!!document.querySelector('.tab-view-chip-close')");
+      assert.equal(await evaluate(`matchMedia('(pointer: coarse)').matches`), true, `the emulation makes ${width} a coarse-pointer window`);
+      assert.deepEqual(controls.filter(control => control.area === "strip" && short(control) < 44).map(control => `${control.kind} 「${control.label}」 ${control.w}×${control.h}`), [],
+        `a touch window · ${width}: every control of the strip is a 44px target`);
+      assert.deepEqual(controls.filter(control => control.area === "bar" && short(control) < floors.bar).map(control => `${control.kind} ${control.w}×${control.h}`), [],
+        `a touch window · ${width}: the bar stays above the 28px floor`);
+      const bar = controls.filter(control => control.area === "bar");
+      assert.ok(bar.some(control => short(control) < 44), `a touch window · ${width}: the bar is still the desktop bar, the known gap DESIGN.md names (BL-123)`);
     }
   });
 }

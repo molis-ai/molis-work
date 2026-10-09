@@ -128,6 +128,7 @@
 | BL-072 | 构建期装配的 Native 插件不在版本化升级与恢复内 | [plugin-upgrades](archive/plugin-upgrades/spec.md) | 已知缺口 | 随插件装配统一解决 | BL-080 | 中 | 第二步 |
 | BL-108 | Runtime 的 MCP 启动器找不到自己 Home 的服务时：①写进 Codex 等配置的环境只有 Home、受众、Runtime，没有 Web 地址，启动器一律去 127.0.0.1:4173，常驻服务不在 4173（如开发用的 4207）就连不上；②4173 上若是另一个 Home 的服务（例如开发时用临时 Home，而 4173 是真实 Home 的常驻服务），发现能力被拒（403），启动器在 tools/list 时抛错退出，Runtime 只看到 MCP 起不来 | [post-merge-review §6.1](archive/post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02) | 已知缺口 | ①要改 Runtime 配置合同（加地址，或让启动器从 Home 读服务地址），属合同变化；②被拒时回 JSON-RPC 错误、说明「4173 上不是这个 Home 的服务」，而不是退出进程 | 无 | 中 | 未分配 |
 | BL-110 | 管理项目导航卡死：桌面 Coding 页点「管理项目」后停在原项目。网页与 desktop=1 路径都没复现，原生 WebView 路径没有现场 | [project-management-freeze](archive/project-management-freeze/spec.md) | 已知缺口 | 现场没有复现，要用户再遇到时记下项目与操作 | 无 | 低 | 未分配 |
+| BL-123 | 触控窗口里的底栏：指针为 coarse、窗口宽于 600px（平板、横过来的手机）时，标签条已是 44px，底栏仍按桌面画：Dock、常驻、切换器按钮高 38px（矮窗口 34px），助理输入 28px、附件 30×28px、发送 34px、项目钮 40px（模拟触控实测 768、1024 宽，`tests/touch-targets.e2e.test.ts` 守着）。W2-18 决定 10 只管手机宽度（底栏与标签条在 ≤600px / ≤760px 已是 44px）和桌面标题栏与底栏的有范围例外；这一块 DESIGN.md「Focus and accessibility」写成已知缺口，不在例外内，不得援引 | [DESIGN.md](../DESIGN.md)、[repository-anti-corruption §1](repository-anti-corruption/spec.md) | 已知缺口 | 底栏在这个宽度的高度与排版要产品判断。选项：①`(pointer: coarse)` 下 `--dock-btn` 与输入、附件、发送、项目钮都提到 44px，底栏高度 76px 够放，窄的触控窗口里 Dock 更早折叠成 +N；②只把输入、附件、发送放到 44px，Dock 保持 38px，写进例外；③把例外扩到触控窗口，维持现状。矮窗口（高度 ≤560px，底栏只有 52px）里 44px 的按钮几乎占满底栏，要一并定 | 无 | 中 | 未分配 |
 
 ## 8. 交给第二步（防腐整理）
 

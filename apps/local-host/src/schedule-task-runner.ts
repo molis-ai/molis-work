@@ -11,7 +11,6 @@ import {
 } from "@molis-ai/molis-work-plugin-schedule";
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
-const POLL_MS = 400;
 
 export function createHostScheduledTaskRunner(options: {
   agentHost: AgentHost;
@@ -77,25 +76,30 @@ export function createHostScheduledTaskRunner(options: {
       const onAbort = () => { void cancel(); };
       control?.signal.addEventListener("abort", onAbort, { once: true });
       try {
-        while (Date.now() < deadline) {
-          control?.beforeEffect();
-          const view = await adapter.read(handle.ref);
-          control?.beforeEffect();
-          if (view.phase === "awaiting-input" || view.phase === "awaiting-review") {
-            throw new Error("到点执行不能停下来等人确认");
-          }
-          if (isTerminalAgentPhase(view.phase)) {
-            ended = true;
-            if (view.phase !== "completed") {
-              throw new Error(view.stop_reason || `这一轮以 ${view.phase} 结束`);
-            }
-            const last = [...view.turns].reverse().find((turn) => turn.kind === "assistant");
-            if (!last?.text.trim()) throw new Error("Agent 没有写出正文");
-            return parseScheduledAgentReply(last.text);
-          }
-          await delay(POLL_MS, control?.signal);
+        // The run's own view changes wake this; nothing is read on a timer (specs/prologue-adoption §4.5, item 12).
+        const view = await new Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRunView>((resolve, reject) => {
+          let settled = false, stop = () => {};
+          const finish = (outcome: () => void) => { if (settled) return; settled = true; clearTimeout(timer); control?.signal.removeEventListener("abort", aborted); queueMicrotask(stop); outcome(); };
+          const timer = setTimeout(() => finish(() => reject(new Error("到点执行超时"))), Math.max(0, deadline - Date.now()));
+          const aborted = () => finish(() => reject(control!.signal.reason ?? new Error("到点执行已取消")));
+          control?.signal.addEventListener("abort", aborted, { once: true });
+          stop = adapter.observe(handle.ref, current => {
+            if (settled) return;
+            try {
+              control?.beforeEffect();
+              if (current.phase === "awaiting-input" || current.phase === "awaiting-review") throw new Error("到点执行不能停下来等人确认");
+              if (isTerminalAgentPhase(current.phase)) finish(() => resolve(current));
+            } catch (error) { finish(() => reject(error)); }
+          });
+          if (settled) stop();
+        });
+        ended = true;
+        if (view.phase !== "completed") {
+          throw new Error(view.stop_reason || `这一轮以 ${view.phase} 结束`);
         }
-        throw new Error("到点执行超时");
+        const last = [...view.turns].reverse().find((turn) => turn.kind === "assistant");
+        if (!last?.text.trim()) throw new Error("Agent 没有写出正文");
+        return parseScheduledAgentReply(last.text);
       } finally {
         control?.signal.removeEventListener("abort", onAbort);
         if (!ended) await cancel();
@@ -103,13 +107,4 @@ export function createHostScheduledTaskRunner(options: {
       }
     },
   };
-}
-
-function delay(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const done = () => { clearTimeout(timer); signal?.removeEventListener("abort", done); resolve(); };
-    const timer = setTimeout(done, ms);
-    signal?.addEventListener("abort", done, { once: true });
-    if (signal?.aborted) done();
-  });
 }

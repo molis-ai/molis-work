@@ -1,4 +1,5 @@
 import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
+import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 
 /**
  * The resident Assistant in the bottom bar: one assistant, many works.
@@ -188,7 +189,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     void refresh().then(schedule).catch(() => {});
   });
   const codingHere = () => Boolean(project && document.querySelector('.plugin-rail-items [data-plugin-id="coding"]'));
-  let pollTimer = 0, draftTimer = 0, draftWrite = Promise.resolve();
+  let draftTimer = 0, draftWrite = Promise.resolve();
   // A Send whose outcome is unknown (the connection dropped) is retried with the same id, so the Host starts nothing twice.
   let unsettled = null;
 
@@ -1891,13 +1892,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (id === currentId) showProblem({ message: error.message });
     }
   };
+  const follower = (${ASSISTANT_FOLLOW_FACTORY_SCRIPT})({ route: host.route, headers: host.headers, isLive, current: () => currentId, show: (next) => { view = next; render(); } });
   const schedule = () => {
-    clearTimeout(pollTimer);
-    if (!currentId) return;
-    const state = view && view.work.work_id === currentId ? view.work.state : null;
-    // A hidden page still follows a live work, slowly, so it is current when the person looks again.
-    const delay = !isLive(state) ? 0 : document.hidden ? 8000 : state === "running" ? 1200 : 4000;
-    if (delay) pollTimer = setTimeout(async () => { await refresh(); schedule(); }, delay);
+    const state = currentId && view && view.work.work_id === currentId ? view.work.state : null;
+    if (isLive(state)) follower.follow(currentId); else follower.stop();
   };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { refresh().then(schedule); loadWorks(); } });
   // Another window may have changed this work (a Coding mode, a new round): coming back to this one reads it again.
@@ -2808,5 +2806,5 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   return { isOpen: () => Boolean(panel && !panel.hidden),
     /** Where a new work goes, as the page changes what it is about: a project, or null for the person's own space. */
     setProject: (next) => { project = next && next.id ? next : null; if (!currentWork()) newScope = project ? "project" : "personal"; paintTarget(); paintSummary(); },
-    dispose: () => { clearTimeout(pollTimer); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
+    dispose: () => { follower.stop(); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
 }`;

@@ -1,7 +1,9 @@
 import { isDeepStrictEqual } from "node:util";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentDelegatedWork, AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentDelegatedWork, AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { describeReview } from "./assistant-review-words.js";
+import { waitForAssistantWork } from "./assistant-wait.js";
 import { actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
@@ -265,33 +267,6 @@ export function cardView(card: StoredCard): AssistantCard {
     capability_title: card.capability_title, capability_id: card.reference.capability_id, effect: card.effect, fields, missing: card.missing, status: card.status,
     ...(card.outcome ? { outcome: card.outcome } : {}), ...(card.from ? { from: { ...card.from } } : {}), ...(card.source_object ? { source_object: { ...card.source_object } } : {}),
     created_at: card.created_at, updated_at: card.updated_at };
-}
-
-/** The changed middle of a text, as - and + lines: what an approval of this edit actually lets happen. */
-function changedLines(before: string | null, after: string): string {
-  const a = (before ?? "").split("\n"), b = after.split("\n");
-  let head = 0;
-  while (head < a.length && head < b.length && a[head] === b[head]) head++;
-  let tail = 0;
-  while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) tail++;
-  const removed = a.slice(head, a.length - tail).map(line => `- ${line}`), added = b.slice(head, b.length - tail).map(line => `+ ${line}`);
-  const lines = [...(head ? [`@@ 第 ${head + 1} 行起`] : []), ...removed, ...added];
-  const text = lines.join("\n");
-  return text.length > 6000 ? `${text.slice(0, 6000)}\n…（其余改动见 Coding 页面）` : text || "（内容没有变化）";
-}
-
-/** A held effect in the person's words, by what it is: a business change, a file edit, a command, an MCP call, a rewind. */
-function describeReview(document: AgentReviewRequest["document"]): { summary: string; fields: Array<{ label: string; value: string }> } {
-  switch (document.kind) {
-    case "tool-operation": return { summary: document.summary, fields: document.fields.map(field => ({ label: field.label, value: field.value })) };
-    case "text-edit": return { summary: `${document.exists ? "修改文件" : "新建文件"} ${document.target_path}`,
-      fields: [{ label: "改动", value: changedLines(document.before_text, document.after_text) }, ...(document.concurrent?.length ? [{ label: "注意", value: `另有会话正在改这个文件：${document.concurrent.join("、")}` }] : [])] };
-    case "command": return { summary: document.background ? "在后台运行命令" : "运行命令",
-      fields: [{ label: "命令", value: [document.command, ...document.args].join(" ") }, { label: "目录", value: document.cwd || "." }, ...(document.escalate ? [{ label: "注意", value: "需要更高权限" }] : [])] };
-    case "mcp": return { summary: `MCP · ${document.server} · ${document.tool}`, fields: [{ label: "参数", value: document.arguments_json }] };
-    case "rewind": return { summary: "回退到检查点", fields: document.files.map(file => ({ label: { restore: "恢复", delete: "删除", create: "新建" }[file.change], value: file.path })) };
-    default: return { summary: "需要你确认的操作", fields: [{ label: "内容", value: JSON.stringify(document, null, 2).slice(0, 4000) }] };
-  }
 }
 
 /** Titles of the capabilities a scope offered at its latest round start, to name them in the activity. */
@@ -846,6 +821,13 @@ export class AssistantService {
     return title ? { ...work, scope_title: title } : work;
   }
 
+  /** A work's view when it differs from `since`, or as it is once the wait runs out: the page follows a live work this way. */
+  waitForChange(workId: string, since: string | null, timeoutMs: number, signal?: AbortSignal) {
+    return waitForAssistantWork({ store: this.store, actorId: this.actorId, host: () => this.ports.host(), read: () => this.read(workId),
+      codingRun: async work => { const session = work.executor.kind === "coding" ? work.executor.session_id : this.linkedCodingSession(work);
+        return session ? (await (await this.coding(work)).read(session, 1).catch(() => null))?.runs.at(-1)?.ref : undefined; } }, workId, since, timeoutMs, signal);
+  }
+
   async read(workId: string): Promise<AssistantWorkView> {
     const work = await this.named(this.store.get(this.actorId, workId));
     // One work, whoever ran each round: the Assistant's own session, and the Coding session it carries or handed to.
@@ -1383,7 +1365,7 @@ export class AssistantService {
       try {
         const context = await actions.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: relation.object.id }) as ActionSubjectContext;
         if (belongsElsewhere(work, context)) {
-          const moved = await this.whereNow(work, actions, relation.object);
+          const moved = await whereNow(work, actions, relation.object);
           return { ...base, title: moved?.title ?? context.title ?? nameOf(relation.object), current_revision: null, state: "moved" as const, ...(moved ? { moved_to: moved.to } : {}) };
         }
         const changed = relation.object.revision !== null && context.revision !== relation.object.revision;
@@ -1394,32 +1376,13 @@ export class AssistantService {
         const code = (error as { code?: string }).code ?? "";
         if (/not_found|missing|deleted/.test(code)) {
           // Not here any more may mean moved: the placement service says where, and the work names it without reading it.
-          const moved = await this.whereNow(work, actions, relation.object);
+          const moved = await whereNow(work, actions, relation.object);
           if (moved) return { ...base, title: moved.title, current_revision: null, state: "moved" as const, moved_to: moved.to };
           return { ...base, title: nameOf(relation.object), current_revision: null, state: "missing" as const };
         }
         return { ...base, title: nameOf(relation.object), current_revision: null, state: "unavailable" as const };
       }
     }));
-  }
-
-  /**
-   * Where an object this work knew has gone, when the person moved it (the placement service follows moves). Content
-   * in another project or the personal space is not read from this work's scope: only its name and new place are told.
-   */
-  private async whereNow(work: StoredWork, actions: PersonActions | null, subject: { kind: string; id: string }): Promise<{ title: string; to: NonNullable<AssistantWorkObject["moved_to"]> } | null> {
-    if (!actions) return null;
-    const describe = (await actions.discover().catch(() => [] as ActionView[])).find(view => view.capability_id === "placement.describe" && view.availability.available);
-    if (!describe) return null;
-    try {
-      const found = await withinTime(actions.invoke({ capability_id: describe.capability_id, version: describe.version, provider_id: describe.provider.provider_id },
-        { object: { kind: subject.kind, id: subject.id, project_id: work.project_ref?.project_id ?? null } })) as
-        { state: string; title: string; location: { title: string; kind: "personal" | "project"; project_id: string | null } | null };
-      if (found.state !== "ok" || !found.location) return null;
-      const here = work.project_ref?.project_id ?? null;
-      if (found.location.kind === "project" ? found.location.project_id === here : here === null) return null;
-      return { title: found.title, to: { title: found.location.title, kind: found.location.kind } };
-    } catch { return null; }
   }
 
   /** One object as its owner has it now: its context, "missing" when the owner says it is gone, null when unreadable. */
@@ -1494,7 +1457,7 @@ export class AssistantService {
     const found = await read(object.kind, object.id);
     const context = found && belongsElsewhere(work, found) ? null : found;
     if (!context) {
-      const moved = await this.whereNow(work, actions, object);
+      const moved = await whereNow(work, actions, object);
       return moved ? `「${moved.title}」已被移到${moved.to.kind === "personal" ? "个人空间" : "项目"}「${moved.to.title}」。这项工作的范围读不到它现在的正文；需要时请用户到那里打开，或把它放回这个项目。` : null;
     }
     const goals = (await Promise.all(context.goal_ids.slice(0, 5).map(async id => (await read("goal", id))?.title ?? id)));
@@ -1528,7 +1491,7 @@ export class AssistantService {
         .catch((error: unknown) => ({ state: "unavailable" as const, reason: error instanceof Error ? error.message : String(error) })) as
         { state: "ok"; subject: { kind: string; id: string }; title: string; revision: string } | { state: "missing" | "unavailable"; reason: string };
       if (opened.state !== "ok") {
-        const moved = opened.state === "missing" ? await this.whereNow(work, actions, material.object) : null;
+        const moved = opened.state === "missing" ? await whereNow(work, actions, material.object) : null;
         if (moved) throw new AssistantError("assistant.invalid", `引用的「${material.title}」已被移到${moved.to.kind === "personal" ? "个人空间" : "项目"}「${moved.to.title}」，这项工作读不到它；去掉引用，或在那里继续`);
         throw new AssistantError("assistant.invalid", `引用的「${material.title}」${opened.state === "missing" ? "已不存在" : "现在读不到"}（${opened.reason}）；去掉它或重新选择后再发`);
       }
@@ -1660,7 +1623,7 @@ export class AssistantService {
     if (!work.session_id) return { blockers: [], rounds: [] };
     const adapter = (await this.ports.host()).adapter(RUNTIME);
     if (!adapter.recovery) throw new AssistantError("assistant.unsupported", "当前运行时不能核对中断的执行");
-    return this.recoveryView(await adapter.recovery.inspect(sessionRef(work)));
+    return recoveryView(await adapter.recovery.inspect(sessionRef(work)));
   }
 
   /** The person has checked the outcome: close the interrupted round so the work can go on. Never re-runs it. */
@@ -1671,11 +1634,6 @@ export class AssistantService {
     if (!adapter.recovery) throw new AssistantError("assistant.unsupported", "当前运行时不能核对中断的执行");
     await adapter.recovery.close(sessionRef(work), String(input.run_id), Number(input.version));
     return this.read(workId);
-  }
-
-  private recoveryView(report: AgentRecoveryReport): AssistantRecovery {
-    return { blockers: [...report.blockers], rounds: report.runs.filter(run => !run.subagent).map(run => ({ run_id: run.run_id, version: run.version, can_close: run.can_close,
-      blockers: [...run.blockers], operations: run.operations.map(operation => ({ summary: operation.summary, outcome: operation.outcome })) })) };
   }
 
   /**
@@ -2219,13 +2177,13 @@ export class AssistantService {
     const since = this.startOfToday();
     await this.settleUsage(this.store.roundsSince(this.actorId, since));
     const saved = this.store.setting(this.actorId, "daily_tokens");
-    return { today: this.store.usageSince(this.actorId, since), daily_tokens: saved ? Number(saved) || null : null };
+    return { today: this.store.usage.since(this.actorId, since), daily_tokens: saved ? Number(saved) || null : null };
   }
 
   /** Finished rounds' reported usage, kept once per round; running rounds are counted when they end. */
   private async settleUsage(rounds: Array<{ work_id: string; round: StoredRound }>): Promise<void> {
     const own = rounds.filter(item => item.round.executor !== "coding");
-    const kept = this.store.recordedRuns(own.map(item => item.round.run_id));
+    const kept = this.store.usage.recorded(own.map(item => item.round.run_id));
     const open = own.filter(item => !kept.has(item.round.run_id));
     if (!open.length) return;
     const host = await this.ports.host().catch(() => null);
@@ -2237,7 +2195,7 @@ export class AssistantService {
       if (!work.session_id) continue;
       const view = await adapter.read({ session_id: work.session_id, run_id: round.run_id }).catch(() => null);
       if (!view || !isTerminalAgentPhase(view.phase) || !view.usage) continue;
-      this.store.recordUsage(this.actorId, { work_id, run_id: round.run_id, ended_at: view.ended_at ?? this.now().toISOString(),
+      this.store.usage.record(this.actorId, { work_id, run_id: round.run_id, ended_at: view.ended_at ?? this.now().toISOString(),
         input: view.usage.tokens.input ?? 0, output: view.usage.tokens.output ?? 0, cached: view.usage.tokens.cached_input ?? 0 });
     }
   }
@@ -2251,7 +2209,7 @@ export class AssistantService {
     if (work.delegated_by) { try { owner = this.store.get(this.actorId, work.delegated_by.work_id); } catch { owner = work; } }
     const ids = [owner.work_id, ...this.store.delegatedBy(this.actorId, owner.work_id, "any").map(child => child.work_id)];
     await this.settleUsage(ids.flatMap(id => this.store.rounds(id).map(round => ({ work_id: id, round }))));
-    const used = this.store.usageOf(this.actorId, ids);
+    const used = this.store.usage.of(this.actorId, ids);
     return { tokens: used.input + used.output, rounds: used.rounds, budget_tokens: owner.budget_tokens ?? null,
       ...(owner.work_id !== work.work_id ? { budget_of: { work_id: owner.work_id, title: owner.title } } : {}) };
   }
@@ -2609,6 +2567,30 @@ export class AssistantService {
     if (code === "agent.storage_busy") return new AssistantError("assistant.runtime_busy", "Agent 执行服务正由另一个进程使用，稍后再试", undefined, "关闭另一个正在运行的 Molis 服务后重试");
     return new AssistantError(code || "assistant.failed", message || "这次没有完成");
   }
+}
+
+/**
+ * Where an object this work knew has gone, when the person moved it (the placement service follows moves). Content
+ * in another project or the personal space is not read from this work's scope: only its name and new place are told.
+ */
+async function whereNow(work: StoredWork, actions: PersonActions | null, subject: { kind: string; id: string }): Promise<{ title: string; to: NonNullable<AssistantWorkObject["moved_to"]> } | null> {
+  if (!actions) return null;
+  const describe = (await actions.discover().catch(() => [] as ActionView[])).find(view => view.capability_id === "placement.describe" && view.availability.available);
+  if (!describe) return null;
+  try {
+    const found = await withinTime(actions.invoke({ capability_id: describe.capability_id, version: describe.version, provider_id: describe.provider.provider_id },
+      { object: { kind: subject.kind, id: subject.id, project_id: work.project_ref?.project_id ?? null } })) as
+      { state: string; title: string; location: { title: string; kind: "personal" | "project"; project_id: string | null } | null };
+    if (found.state !== "ok" || !found.location) return null;
+    const here = work.project_ref?.project_id ?? null;
+    if (found.location.kind === "project" ? found.location.project_id === here : here === null) return null;
+    return { title: found.title, to: { title: found.location.title, kind: found.location.kind } };
+  } catch { return null; }
+}
+
+function recoveryView(report: AgentRecoveryReport): AssistantRecovery {
+  return { blockers: [...report.blockers], rounds: report.runs.filter(run => !run.subagent).map(run => ({ run_id: run.run_id, version: run.version, can_close: run.can_close,
+    blockers: [...run.blockers], operations: run.operations.map(operation => ({ summary: operation.summary, outcome: operation.outcome })) })) };
 }
 
 /** A platform memory candidate as the Assistant's work view has always shown it. */

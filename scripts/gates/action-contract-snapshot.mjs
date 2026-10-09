@@ -12,7 +12,7 @@
 //
 // The check also runs in `pnpm test:contracts` (tests/action-contract-snapshot.test.ts). It needs the packages built.
 //
-// THREE FILES
+// FOUR FILES
 //   actions.tsv       the actions the built-in Manifests declare (`actions`), read from the workbench's BUILTIN_PLUGIN_CATALOG, the
 //                     list the Manifest contract test walks. Pure: no Host is started.
 //   scenes.tsv        the consumer scenes they declare (`action_scenes`).
@@ -21,6 +21,10 @@
 //                     read from the live action directory of a Host on a throwaway Home (action-contract-host.mjs). A row here is
 //                     a contract with no Manifest to carry it; when its plugin declares it, the row moves to actions.tsv. The
 //                     step-1 capability snapshot (specs/archive/post-merge-review §7.2) listed all three kinds together.
+//   host-scenes.tsv   the consumer scenes the Host registers that NO Manifest declares (the home dock, `home.dock@1` of
+//                     `system.home`), read from the Host's scene directory with the permissions of everyone who may see a scene.
+//                     A judgment binding pins a scene by `scene_id@version` and the provider id, as an action reference does, so a
+//                     scene is a contract with the same rules. A row here moves to scenes.tsv when its plugin declares it.
 //   The check also requires the two layers to agree: every Manifest action is registered by the Host, and where its plugin
 //   registers it, with the declaration the Manifest holds and under one provider id (recorded as registered_provider). Every
 //   Manifest scene is likewise registered by its plugin.
@@ -55,6 +59,7 @@ export const ACTION_SNAPSHOT_DIRECTORY = "tooling/gates/actions";
 export const ACTIONS_FILE = `${ACTION_SNAPSHOT_DIRECTORY}/actions.tsv`;
 export const SCENES_FILE = `${ACTION_SNAPSHOT_DIRECTORY}/scenes.tsv`;
 export const HOST_ACTIONS_FILE = `${ACTION_SNAPSHOT_DIRECTORY}/host-actions.tsv`;
+export const HOST_SCENES_FILE = `${ACTION_SNAPSHOT_DIRECTORY}/host-scenes.tsv`;
 export const ACTION_REFRESH_COMMAND = "node scripts/gates/action-contract-snapshot.mjs --update";
 
 export const ACTION_COLUMNS = ["capability_id", "version", "provider", "operation", "kind", "scope", "effect", "scheduling", "audiences", "permissions",
@@ -63,6 +68,8 @@ export const ACTION_COLUMNS = ["capability_id", "version", "provider", "operatio
 export const MANIFEST_ACTION_COLUMNS = [...ACTION_COLUMNS.slice(0, 3), "registered_provider", ...ACTION_COLUMNS.slice(3)];
 export const SCENE_COLUMNS = ["scene_id", "version", "provider", "registered_provider", "scope", "permissions", "configuration_permissions", "subjects", "input_type", "result_type",
   "input", "result", "event", "traits"];
+/** The rows of host-scenes.tsv are the Host's own: the provider column is the id the Host registers the scene under. */
+export const HOST_SCENE_COLUMNS = SCENE_COLUMNS.filter((column) => column !== "registered_provider");
 /** The columns that are the shape of the call; the others say how it behaves and who may make it. */
 const REGISTERED = "registered_provider";
 const SHAPE_COLUMNS = new Set(["subjects", "input_type", "output_type", "result_type", "input", "output", "result", "event", "traits"]);
@@ -182,6 +189,8 @@ const sceneCells = (scene, provider) => {
 
 const actionKey = (cells) => `${cells.capability_id}@${cells.version}`;
 const sceneKey = (cells) => `${cells.scene_id}@${cells.version}`;
+/** A scene registration is a provider's too: the same scene could be registered by a plugin and by the Host's own provider. */
+const hostSceneKey = (cells) => `${cells.scene_id}@${cells.version} via ${cells.provider}`;
 /** A registration is a provider's: the same capability can be registered by a plugin and by the Host's own provider. */
 const hostKey = (cells) => `${cells.capability_id}@${cells.version} via ${cells.provider}`;
 const rowOrder = (idColumn) => (a, b) => byText(a.cells[idColumn], b.cells[idColumn]) || Number(a.cells.version) - Number(b.cells.version) || byText(a.cells.provider, b.cells.provider);
@@ -277,18 +286,29 @@ export const buildHostRows = (views, declared, effectOf) => {
 };
 
 /**
- * The provider id the Host registers each Manifest scene under. `views` are what the Host's scene directory lists (`ActionSceneView`:
- * `definition: { scene_id, version }`, `provider: { provider_id, plugin_id? }`) over every audience and both scopes; `declared`
- * are the scene rows of buildRows. A scene is the Manifest's when its provider's `plugin_id` is the Manifest that declares it.
- * Returns `{ registered, problems }` like buildHostRows.
+ * What the Host's scene directory holds. `views` are what it lists (`ActionSceneView`: `definition`, `provider: { provider_id,
+ * plugin_id? }`) over every audience and both scopes, so one registration appears several times; `declared` are the scene rows of
+ * buildRows. A scene is the Manifest's when its provider's `plugin_id` is the Manifest that declares it; any other registration is a
+ * Host row, the way buildHostRows treats an action: it needs a provider id, and every listing of it holds one declaration.
+ * Returns `{ rows, registered, problems }`: `rows` are the Host's own scenes (key `scene_id@version via provider`), `registered` maps
+ * each Manifest scene to the provider id the Host registers it under, and `problems` also names a Manifest scene that no view
+ * registers or that is registered under two provider ids.
  */
 export const buildHostScenes = (views, declared) => {
-  const problems = [], found = new Map(), byKey = new Map(declared.map((row) => [row.key, row]));
+  const problems = [], found = new Map(), rows = new Map(), byKey = new Map(declared.map((row) => [row.key, row]));
   for (const view of views) {
     const key = `${view.definition?.scene_id}@${view.definition?.version}`, own = byKey.get(key), provider = providerIdOf(view);
-    if (!own || view.provider?.plugin_id !== own.cells.provider) continue;
-    if (!provider) { problems.push(`${key}: a registration of the scene names no provider id`); continue; }
-    found.set(key, new Set([...(found.get(key) ?? []), provider]));
+    try {
+      if (own && provider && view.provider?.plugin_id === own.cells.provider) { found.set(key, new Set([...(found.get(key) ?? []), provider])); continue; }
+      if (!provider) { problems.push(`scene ${key}: a registration of it names no provider id`); continue; }
+      const cells = sceneCells(view.definition, provider);
+      const rowKey = hostSceneKey(cells), before = rows.get(rowKey);
+      if (before && !sameCells(before.cells, cells, HOST_SCENE_COLUMNS)) problems.push(`scene ${rowKey}: registered with two different declarations (${HOST_SCENE_COLUMNS.filter((column) => cells[column] !== before.cells[column]).join(", ")} differ between audiences or scopes)`);
+      else if (!before) rows.set(rowKey, { key: rowKey, cells });
+    } catch (error) {
+      if (!(error instanceof NotPlainData)) throw error;
+      problems.push(`${provider}: ${error.message}`);
+    }
   }
   const registered = new Map();
   for (const row of declared) {
@@ -297,7 +317,7 @@ export const buildHostScenes = (views, declared) => {
     else if (ids.length > 1) problems.push(`scene ${row.key}: the Host registers it under ${ids.length} provider ids (${ids.join(", ")}); a persisted reference names exactly one, so a registration is under one`);
     else registered.set(row.key, ids[0]);
   }
-  return { registered, problems };
+  return { rows: [...rows.values()].sort(rowOrder("scene_id")), registered, problems };
 };
 
 // ---- the files -------------------------------------------------------------------------------------------------------
@@ -329,20 +349,29 @@ const HEADERS = {
     "# Manifest. provider is the id the Host registers them under. Same columns and reading as actions.tsv. When a plugin declares one of them in",
     "# its Manifest, the row moves to actions.tsv; a row with no Manifest is a contract nothing in the plugin's package carries.",
   ],
+  hostScenes: [
+    "# Consumer scenes the Host registers that no built-in Manifest declares, one row per scene_id@version and provider.",
+    "# Generated by `node scripts/gates/action-contract-snapshot.mjs --update` (pnpm actions:update); do not edit by hand.",
+    "# provider is the id the Host registers the scene under, which judgment bindings pin (a binding names scene_id@version and this provider).",
+    "# Same columns and reading as scenes.tsv without registered_provider. When a plugin declares one of them in its Manifest, the row moves",
+    "# to scenes.tsv.",
+  ],
 };
 
 const render = (kind, columns, rows) => `${[...HEADERS[kind], columns.join("\t"), ...rows.map((row) => columns.map((column) => row.cells[column]).join("\t"))].join("\n")}\n`;
 
-/** The three files: where, what columns, how a row is named, and the rows and noun for the messages. */
+/** The four files: where, what columns, how a row is named, and the rows and noun for the messages. */
 const FILES = [
   { kind: "actions", file: ACTIONS_FILE, columns: MANIFEST_ACTION_COLUMNS, keyOf: actionKey, noun: "action", registered: true, rows: (built) => built.actions },
   { kind: "scenes", file: SCENES_FILE, columns: SCENE_COLUMNS, keyOf: sceneKey, noun: "scene", registered: true, rows: (built) => built.scenes },
   { kind: "host", file: HOST_ACTIONS_FILE, columns: ACTION_COLUMNS, keyOf: hostKey, noun: "host-registered action", rows: (built) => built.host },
+  { kind: "hostScenes", file: HOST_SCENES_FILE, columns: HOST_SCENE_COLUMNS, keyOf: hostSceneKey, noun: "host-registered scene", rows: (built) => built.hostScenes },
 ];
 
 export const renderActionSnapshot = (rows) => render("actions", MANIFEST_ACTION_COLUMNS, rows);
 export const renderSceneSnapshot = (rows) => render("scenes", SCENE_COLUMNS, rows);
 export const renderHostActionSnapshot = (rows) => render("host", ACTION_COLUMNS, rows);
+export const renderHostSceneSnapshot = (rows) => render("hostScenes", HOST_SCENE_COLUMNS, rows);
 
 /**
  * The rows of a snapshot file. Returns `{ rows, problems }`; a file that cannot be read as the table it should be gives
@@ -428,10 +457,12 @@ export const describeDiff = (difference, noun = "action") => {
 export const buildAll = ({ manifests, effectOf, hostViews, hostScenes = [] }) => {
   const built = buildRows(manifests, effectOf);
   built.host = null;
+  built.hostScenes = null;
   if (hostViews && !built.problems.length) {
     const host = buildHostRows(hostViews, built.actions, effectOf);
     const scenes = buildHostScenes(hostScenes, built.scenes);
     built.host = host.rows;
+    built.hostScenes = scenes.rows;
     built.problems.push(...host.problems, ...scenes.problems);
     for (const row of built.actions) row.cells[REGISTERED] = host.registered.get(row.key) ?? NONE;
     for (const row of built.scenes) row.cells[REGISTERED] = scenes.registered.get(row.key) ?? NONE;
@@ -448,7 +479,7 @@ const carryRegistration = (rows, committedText, entry) => {
   return rows.map((row) => ({ key: row.key, cells: { ...row.cells, [REGISTERED]: known.get(row.key) ?? NONE } }));
 };
 
-const activeFiles = (built) => FILES.filter((entry) => entry.kind !== "host" || built.host !== null);
+const activeFiles = (built) => FILES.filter((entry) => !["host", "hostScenes"].includes(entry.kind) || built.host !== null);
 
 /**
  * Checks the committed snapshot under `root` against the product. Returns `{ problems, summary }`; `problems` is empty when
@@ -471,7 +502,7 @@ export const checkActionSnapshots = ({ root, manifests, effectOf, hostViews, hos
       + `  If the change is intended, refresh it on purpose with \`pnpm actions:update\` (${ACTION_REFRESH_COMMAND}), commit ${ACTION_SNAPSHOT_DIRECTORY}, and say in the PR what it means for callers (workflow steps and bindings that pin the capability, MCP tool names, Skills).`);
   }
   const declaring = new Set(manifests.filter((manifest) => manifest.actions?.length || manifest.action_scenes?.length).map((manifest) => manifest.plugin_id));
-  return { problems, summary: `${plural(built.actions.length, "action")} and ${plural(built.scenes.length, "scene")} in ${plural(declaring.size, "Manifest")}${built.host ? `, ${built.host.length} more registered by the Host` : ""}` };
+  return { problems, summary: `${plural(built.actions.length, "action")} and ${plural(built.scenes.length, "scene")} in ${plural(declaring.size, "Manifest")}${built.host ? `, ${plural(built.host.length, "action")} and ${plural(built.hostScenes.length, "scene")} more registered by the Host` : ""}` };
 };
 
 /** Rewrites the snapshot under `root` from the product. Returns `{ problems, changes }`, `changes` being the words for the PR. */

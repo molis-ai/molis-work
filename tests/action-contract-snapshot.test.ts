@@ -6,13 +6,13 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
-  ACTIONS_FILE, HOST_ACTIONS_FILE, SCENES_FILE, buildAll, canonicalJson, checkActionSnapshots, schemaHash, updateActionSnapshots,
+  ACTIONS_FILE, HOST_ACTIONS_FILE, HOST_SCENES_FILE, SCENES_FILE, buildAll, canonicalJson, checkActionSnapshots, schemaHash, updateActionSnapshots,
 } from "../scripts/gates/action-contract-snapshot.mjs";
 import { assertThrowawayHome, collectHost, loadProduct, withIsolatedHome } from "../scripts/gates/action-contract-host.mjs";
 
 // specs/repository-anti-corruption §4.7 (W2-15): the callable contract of every built-in Manifest is written down in
 // tooling/gates/actions (capability@version, provider, the provider id the Host registers it under, who may call it, a hash of each
-// schema), together with what the Host registers that no Manifest declares. The Manifest layer needs no Host and is mutation-verified on copies of the real Manifests;
+// schema), together with the actions and the consumer scenes the Host registers that no Manifest declares. The Manifest layer needs no Host and is mutation-verified on copies of the real Manifests;
 // the Host layer is mutation-verified on copies of the directory a real Host listed. Nothing here writes to the repository:
 // the committed files are only read, and the tests that need to change one work on a copy in a temporary directory.
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -66,6 +66,7 @@ test("every action and scene a built-in Manifest declares has a row, and every r
   assert.equal(committed(ACTIONS_FILE), declaredActions.length);
   assert.equal(committed(SCENES_FILE), declaredScenes.length);
   assert.equal(committed(HOST_ACTIONS_FILE), built.host.length);
+  assert.equal(committed(HOST_SCENES_FILE), built.hostScenes.length);
 });
 
 test("the Host layer lists the providers no Manifest carries, and no Manifest provider hides in it", () => {
@@ -298,6 +299,96 @@ test("a capability a Manifest declares and a Home-level provider also registers 
   for (const row of both) assert.notEqual(row.cells.provider, built.actions.find((declared: any) => declared.key === `${row.cells.capability_id}@${row.cells.version}`).cells.provider);
 });
 
+// ---- the consumer scenes the Host registers without a Manifest --------------------------------------------------------
+// The home dock (`home.dock@1`, provider `system.home`) is registered by the Host's home provider, not by a plugin Manifest. A judgment
+// binding pins a scene by scene_id@version and its provider id, so it is a contract like an action. It asks for home:read, which no
+// Manifest scene asks for, so a scene caller built from the Manifest scenes' permissions alone never listed it.
+const hostSceneRows = () => buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes }).hostScenes as any[];
+const homeDock = (scenes: any[]) => find(scenes, (scene) => scene.definition.scene_id === "home.dock", "the home dock scene");
+
+test("the scene the Host's own home provider registers is a row of host-scenes.tsv, with the declaration in the code", async () => {
+  const rows = hostSceneRows();
+  assert.deepEqual(rows.map((row) => row.key), ["home.dock@1 via system.home"], "the Host registers one scene that no Manifest declares");
+  // The row is the code's declaration, read from the built module the Host runs (not from the Host's directory).
+  const { homeDockScene } = await import(new URL("../apps/local-host/dist/home-actions.js", import.meta.url).href);
+  const [row] = rows;
+  assert.equal(row.cells.scene_id, homeDockScene.scene_id);
+  assert.equal(row.cells.version, String(homeDockScene.version));
+  assert.equal(row.cells.permissions, [...homeDockScene.permissions].sort().join(","));
+  assert.equal(row.cells.configuration_permissions, [...homeDockScene.configuration_permissions].sort().join(","));
+  assert.ok(homeDockScene.permissions.includes("home:read"), "the permission that kept the scene out of the first snapshot");
+  const manifestScenePermissions = new Set(product.manifests.flatMap((manifest) => (manifest.action_scenes ?? []).flatMap((scene: any) => [...scene.permissions, ...(scene.configuration_permissions ?? [])])));
+  assert.ok(!manifestScenePermissions.has("home:read"), "no Manifest scene asks for home:read: the Manifest scenes' permissions do not reach this scene");
+  assert.ok(product.hostScenes.some((scene: any) => scene.definition.scene_id === "home.dock" && scene.provider.provider_id === "system.home"), "the Host's scene directory lists it");
+});
+
+test("a Host scene that changes shape under its version, moves, is added or lost is named under host-scenes.tsv", () => {
+  const named = (scenes: any[]) => productProblems(copyOfViews(), product.manifests, scenes);
+  const everywhere = (scenes: any[], change: (scene: any) => void) => { for (const scene of scenes.filter((candidate) => candidate.definition.scene_id === "home.dock")) change(scene); return scenes; };
+
+  const shaped = named(everywhere(copyOfScenes(), (scene) => { scene.definition.input_schema = { ...scene.definition.input_schema, properties: { ...scene.definition.input_schema.properties, added_by_mutation: { type: "string" } } }; }));
+  assert.match(shaped, /tooling\/gates\/actions\/host-scenes\.tsv: [\s\S]*host-registered scene[s]? changed shape under the SAME version[^\n]*\n\s+home\.dock@1 via system\.home: input\b/);
+  const result = named(everywhere(copyOfScenes(), (scene) => { scene.definition.result_schema = { ...scene.definition.result_schema, type: "array" }; }));
+  assert.match(result, /home\.dock@1 via system\.home: result\b/);
+  const event = named(everywhere(copyOfScenes(), (scene) => { scene.definition.event_schema = { type: "object", properties: {} }; }));
+  assert.match(event, /home\.dock@1 via system\.home: event\b/);
+  const traits = named(everywhere(copyOfScenes(), (scene) => { scene.definition.recommendation_source = "other-source"; }));
+  assert.match(traits, /home\.dock@1 via system\.home: traits\b/);
+  const subjects = named(everywhere(copyOfScenes(), (scene) => { scene.definition.subject_kinds = ["mutation"]; }));
+  assert.match(subjects, /home\.dock@1 via system\.home: subjects\b/);
+
+  const asked = named(everywhere(copyOfScenes(), (scene) => { scene.definition.permissions = [...scene.definition.permissions, "mutation:extra"]; }));
+  assert.match(asked, /host-registered scene[s]? changed who may call it or how[^\n]*\n\s+home\.dock@1 via system\.home: permissions home:read,model:invoke -> home:read,model:invoke,mutation:extra/);
+  assert.doesNotMatch(asked, /SAME version/, "a permission is not a change of shape");
+  const scoped = named(everywhere(copyOfScenes(), (scene) => { scene.definition.scope = "home"; }));
+  assert.match(scoped, /home\.dock@1 via system\.home: scope project -> home/);
+
+  const bumped = named(everywhere(copyOfScenes(), (scene) => { scene.definition.version = 2; }));
+  assert.match(bumped, /host-registered scene[s]? moved to a new version[^\n]*\n\s+home\.dock: v1 -> v2/);
+  assert.doesNotMatch(bumped, /SAME version/);
+
+  // The provider is part of the row's identity: the old pair is removed and the new one added, both named.
+  const renamed = named(copyOfScenes().map((scene: any) => (scene.definition.scene_id === "home.dock" ? { ...scene, provider: { ...scene.provider, provider_id: "system.home-two" } } : scene)));
+  assert.match(renamed, /host-registered scene[s]? added:[^]*home\.dock@1 via system\.home-two/);
+  assert.match(renamed, /host-registered scene[s]? removed[^]*home\.dock@1 via system\.home\b/);
+
+  assert.match(named(copyOfScenes().filter((scene: any) => scene.definition.scene_id !== "home.dock")), /host-registered scene[s]? removed[^]*home\.dock@1 via system\.home/, "a lost scene breaks the bindings that pin it");
+  const added = copyOfScenes();
+  added.push(everywhere([structuredClone(homeDock(added))], (scene) => { scene.definition.scene_id = "mutation.brand.new"; scene.provider = { provider_id: "system.mutation" }; })[0]);
+  assert.match(named(added), /host-registered scene[s]? added:[^]*mutation\.brand\.new@1 via system\.mutation/);
+  assert.equal(named(copyOfScenes()), "", "the unmutated directory passes");
+
+  const prose = copyOfScenes();
+  everywhere(prose, (scene) => { scene.definition.title += " (reworded)"; scene.definition.description += " More."; scene.definition.trigger += " (reworded)"; scene.definition.permissions = [...scene.definition.permissions].reverse();
+    scene.definition.input_schema = { ...scene.definition.input_schema, description: "A new sentence." }; });
+  assert.equal(named(prose), "", "prose, the order of permissions and annotations are not a change");
+});
+
+test("a Host scene is refused when it has no provider id, two declarations, or a declaration that is not plain data", () => {
+  const named = (scenes: any[]) => productProblems(copyOfViews(), product.manifests, scenes);
+  const nameless = copyOfScenes();
+  homeDock(nameless).provider = { plugin_id: "io.molis.work.home" };
+  assert.match(named(nameless), /scene home\.dock@1: a registration of it names no provider id/);
+
+  const split = copyOfScenes();
+  split.push({ ...structuredClone(homeDock(split)), definition: { ...structuredClone(homeDock(split)).definition, permissions: ["home:read", "model:invoke", "mutation:other"] } });
+  assert.match(named(split), /scene home\.dock@1 via system\.home: registered with two different declarations \(permissions differ/);
+
+  const loose = copyOfScenes();
+  homeDock(loose).definition.input_schema = { ...homeDock(loose).definition.input_schema, pattern: () => true };
+  assert.match(named(loose), /system\.home: .*home\.dock@1 input_schema.*not plain JSON data/);
+  const bare = copyOfScenes();
+  homeDock(bare).definition.result_schema = undefined;
+  assert.doesNotThrow(() => named(bare), "a scene without a result schema is named, not a crash");
+  assert.match(named(bare), /home\.dock@1 result_schema/);
+
+  // A Manifest scene registered by the Host's own provider as well is a Host row of its own and does not hide the plugin's.
+  const both = copyOfScenes();
+  both.push({ ...structuredClone(both.find((scene: any) => scene.definition.scene_id === "feed.capture")), provider: { provider_id: "system.feed-copy" } });
+  assert.match(named(both), /host-registered scene[s]? added:[^]*feed\.capture@1 via system\.feed-copy/);
+  assert.doesNotMatch(named(both), /(?:^|\n)tooling\/gates\/actions\/scenes\.tsv:/, "the plugin's own registration is unchanged");
+});
+
 // ---- the provider id the Host registers an action under ---------------------------------------------------------------
 // A persisted reference holds the registered provider id (workflow steps: provider_id; allowed_actions; Feed and Inbox scene
 // references), and the kernel throws actions.provider_changed when it differs. So the id is part of the contract of every action.
@@ -349,26 +440,27 @@ test("an action registered under two provider ids, or under none, or a scene lik
 });
 
 test("a consumer scene is registered under a provider id too, and a change of it is named under scenes.tsv", () => {
+  const feedScene = () => copyOfScenes().find((scene: any) => scene.definition.scene_id === "feed.capture");
   const renamed = copyOfScenes().map((scene: any) => (scene.definition.scene_id === "feed.capture" ? { ...scene, provider: { ...scene.provider, provider_id: "io.molis.work.feed-two" } } : scene));
   const problems = productProblems(copyOfViews(), product.manifests, renamed);
   assert.match(problems, /tooling\/gates\/actions\/scenes\.tsv: [\s\S]*scene registered under another provider id/);
   assert.match(problems, /feed\.capture@1: io\.molis\.work\.feed -> io\.molis\.work\.feed-two\n/);
   assert.doesNotMatch(problems, /inbox\.next/, "only the scene that moved is named");
   assert.match(productProblems(copyOfViews(), product.manifests, copyOfScenes().filter((scene: any) => scene.definition.scene_id !== "inbox.next")), /scene inbox\.next@1: io\.molis\.work\.inbox declares it but the Host registers it under no provider at all/);
-  assert.match(productProblems(copyOfViews(), product.manifests, [...copyOfScenes(), { ...copyOfScenes()[0], provider: { ...copyOfScenes()[0].provider, provider_id: "io.molis.work.feed-two" } }]), /scene feed\.capture@1: the Host registers it under 2 provider ids/);
+  assert.match(productProblems(copyOfViews(), product.manifests, [...copyOfScenes(), { ...feedScene(), provider: { ...feedScene().provider, provider_id: "io.molis.work.feed-two" } }]), /scene feed\.capture@1: the Host registers it under 2 provider ids/);
   assert.match(productProblems(copyOfViews(), product.manifests, []), /scene feed\.capture@1: .* no provider at all/, "a Host that lists no scene is not a pass");
 });
 
 test("a provider id edited by hand in the committed file is refused, and the writer needs the Host's directory", () => {
   const edit = (change: (text: string) => string, hostViews = product.hostViews) => {
-    const dir = scratchRoot(ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE);
+    const dir = scratchRoot(ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE, HOST_SCENES_FILE);
     writeFileSync(path.join(dir, ACTIONS_FILE), change(readFileSync(path.join(dir, ACTIONS_FILE), "utf8")));
     return checkActionSnapshots({ root: dir, manifests: product.manifests, effectOf: product.effectOf, hostViews, hostScenes: product.hostScenes }).problems.join("\n");
   };
-  const copy = scratchRoot(ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE);
+  const copy = scratchRoot(ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE, HOST_SCENES_FILE);
   assert.deepEqual(checkActionSnapshots({ root: copy, manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes }).problems, [], "the copy of the committed files passes");
   assert.match(edit((text) => text.replace(/\t(io\.molis\.work\.todo)\t(io\.molis\.work\.todo)\t/, "\t$1\ttodo\t")), /todo\.[a-z_.]+@1: todo -> io\.molis\.work\.todo\n/);
-  const dir = scratchRoot(ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE);
+  const dir = scratchRoot(ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE, HOST_SCENES_FILE);
   const written = updateActionSnapshots({ root: dir, manifests: product.manifests, effectOf: product.effectOf });
   assert.match(written.problems.join("\n"), /written from the Host's directory/);
   assert.equal(readFileSync(path.join(dir, ACTIONS_FILE), "utf8"), readFileSync(path.join(root, ACTIONS_FILE), "utf8"), "nothing is written without the Host's directory");
@@ -446,7 +538,7 @@ test("pnpm actions:update writes the committed files, and the check reads them b
   const run = (...args: string[]) => spawnSync(process.execPath, [script, "--root", dir, ...args], { encoding: "utf8", env: { ...process.env, NODE_ENV: "test" } });
   const written = run("--update");
   assert.equal(written.status, 0, `${written.stdout}${written.stderr}`);
-  for (const file of [ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE]) {
+  for (const file of [ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE, HOST_SCENES_FILE]) {
     assert.equal(readFileSync(path.join(dir, file), "utf8"), readFileSync(path.join(root, file), "utf8"), `${file}: the command writes what is committed`);
   }
   assert.match(written.stdout, /snapshot rewritten/);

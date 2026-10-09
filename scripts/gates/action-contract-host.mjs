@@ -47,7 +47,8 @@ export const assertThrowawayHome = (home) => {
 /**
  * What a Host registers when every project-scoped built-in plugin is enabled in a project, as the directories list it to each
  * audience in the project and at Home level. Returns `{ hostViews, hostScenes }`: `hostViews` are plain `ActionView` fields (one
- * registration appears several times), `hostScenes` the ids and provider of each consumer scene. Only inside `withIsolatedHome`.
+ * registration appears several times), `hostScenes` the definition and provider of each consumer scene (`ActionSceneView` fields,
+ * likewise once per audience and scope). Only inside `withIsolatedHome`.
  */
 export const collectHost = async (home) => {
   assertThrowawayHome(home);
@@ -55,8 +56,12 @@ export const collectHost = async (home) => {
   const { openMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
   const { PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_CATALOG } = await import("@molis-ai/molis-work-app-workbench");
   const { projectActionAvailability } = await import(new URL("../../apps/local-host/dist/project-action-availability.js", import.meta.url).href);
-  // A scene is listed to a caller who holds its permissions, so the scene caller holds every permission a built-in scene asks for.
-  const scenePermissions = [...new Set(BUILTIN_PLUGIN_CATALOG.flatMap((entry) => (entry.manifest.action_scenes ?? []).flatMap((scene) => [...scene.permissions, ...(scene.configuration_permissions ?? [])])))].sort();
+  // A scene is listed only to a caller who holds the permissions it asks for (`sceneVisible` in the kernel), so the scene caller holds
+  // every permission the product names: what the person at this computer holds, what any action the Host lists asks for, and what a
+  // Manifest scene asks for. A scene is not found by what the Manifests happen to declare: the Host registers scenes of its own
+  // (the home dock's asks for home:read), and one that is filtered out here would change without the snapshot noticing.
+  const { LOCAL_OWNER_PERMISSIONS } = await import(new URL("../../apps/local-host/dist/local-owner-permissions.js", import.meta.url).href);
+  const manifestScenePermissions = BUILTIN_PLUGIN_CATALOG.flatMap((entry) => (entry.manifest.action_scenes ?? []).flatMap((scene) => [...scene.permissions, ...(scene.configuration_permissions ?? [])]));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   let host;
   try {
@@ -67,17 +72,19 @@ export const collectHost = async (home) => {
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const providerOf = (provider) => ({ provider_id: provider.provider_id, ...(provider.plugin_id ? { plugin_id: provider.plugin_id } : {}) });
     const read = async () => {
-      const hostViews = [], hostScenes = [];
+      const hostViews = [], hostScenes = [], callers = [];
       for (const audience of AUDIENCES) {
         for (const [scope, projectId] of [[reference, project.project_id], [undefined, null]]) {
           const caller = { actor_id: "owner", project_id: projectId, audience, permissions: [] };
+          callers.push({ caller, scope });
           for (const view of await host.inspectActions(caller, scope)) {
             hostViews.push({ capability_id: view.capability_id, version: view.version, operation: view.operation, action: view.action, provider: providerOf(view.provider) });
           }
-          for (const scene of await host.sceneClient(scope).discoverScenes({ ...caller, permissions: scenePermissions })) {
-            hostScenes.push({ definition: { scene_id: scene.definition.scene_id, version: scene.definition.version }, provider: providerOf(scene.provider) });
-          }
         }
+      }
+      const permissions = [...new Set([...LOCAL_OWNER_PERMISSIONS, ...hostViews.flatMap((view) => view.action.permissions), ...manifestScenePermissions])].sort();
+      for (const { caller, scope } of callers) {
+        for (const scene of await host.sceneClient(scope).discoverScenes({ ...caller, permissions })) hostScenes.push({ definition: scene.definition, provider: providerOf(scene.provider) });
       }
       return { hostViews, hostScenes };
     };

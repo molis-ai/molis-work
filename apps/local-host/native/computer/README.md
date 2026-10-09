@@ -29,8 +29,10 @@
 
 ## 构建与签名
 
+随 local-host 的构建在 macOS 上自动构建（`native/computer/build.mjs`，源码没变就不重签），产物在忽略的 `bin/` 里，随 local-host 包的 `files` 发出，local-host 按包的位置找到它（同 `native/materials`）。单独构建：
+
 ```bash
-apps/desktop/adapters/computer-helper/build.sh [输出目录]
+pnpm --filter @molis-ai/molis-work-app-local-host run computer:build
 ```
 
 macOS 按签名记授权。`MOLIS_HELPER_SIGNING_IDENTITY` 指定证书；不给时用本机的「Tauri Local Development」证书（有就用），否则 ad-hoc 并警告：ad-hoc 每次构建都变，授权会丢。发布签名与公证待定（BL-021，spec D08）。

@@ -782,7 +782,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | PMR-06 | 交第二步 | **已不成立**：#170 删了 3 份未用的包，vendored 只剩 `side-panel-memory.tgz`；状态改为「已修（#170）」 | `ls vendor/prologue-sdk/*.tgz` |
 | PMR-07 | 核实中 | **状态不准**：归档 spec §12.2 已量过（首屏 293 KB HTML、6,041 个节点），处理在第二步「浏览器脚本打包、按需渲染」；状态改为「已量，交第二步」，本轮重量见 9.3 | 9.3 首屏体量 |
 | PMR-08 | 交第二步 | 状态准确：`#decision-goal-` 2 处、`feed-start=1` 1 处仍在 | `git grep` |
-| PMR-09 | 交第二步 | 状态准确：`scripts/personal-assistant-public-sources.mts` 仍在 | `ls` |
+| PMR-09 | 交第二步 | 状态准确（10-03）：`scripts/personal-assistant-public-sources.mts` 仍在；2026-10-08 W1-23 已删 | `ls` |
 | PMR-10 | 已修 #139 | 未复发 | `project-page-links`（全量通过） |
 | PMR-11 | 已关闭 | 不适用 | — |
 | PMR-12 | 核实中 | **状态不准**：助理会话 9-30 已修（c48a8608，在 main）：左栏看不到时对话顶部一行给出状态与暂停、继续、停止；抽屉开着时点对话区先收起抽屉。当时用替身在 800、1440 核对，**没有自动守护用例**（9.4 #9） | `git merge-base --is-ancestor c48a8608 main`；`assistant-dock.ts` 的 `data-assistant-strip` |

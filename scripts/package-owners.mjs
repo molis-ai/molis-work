@@ -53,7 +53,7 @@ const ALSO_REVIEWED_BY_CODING_REVIEWER = new Set([
   "plugins/native/diff",
 ]);
 
-/** The gate script, its rule modules, its CI helper, the gate numbers and the CI workflow: LEAD only, whatever pattern is added above them. */
+/** The gate script and its rule modules, its CI helper, the gate numbers and the CI workflow: LEAD only, whatever pattern is added above them. */
 export const GATE_PATHS = [
   "scripts/check-health-gates.mjs",
   "scripts/gates/",

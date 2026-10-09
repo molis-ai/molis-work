@@ -4,13 +4,12 @@
 //   problems   rules with no baseline: they start at zero and any hit fails (links, citations, spec index, BACKLOG rows,
 //              the root allow-list file itself)
 //   metrics    counts that may only fall, in the entry's METRICS shape and compared with the merge-base like the rest
-//              (root strays, .impeccable files, placeholder contract subpaths)
+//              (root strays, placeholder contract subpaths; the .impeccable count is its own metric, scripts/gates/impeccable-files.mjs)
 import { brokenCitations } from "./doc-citations.mjs";
 import { brokenLinks } from "./doc-links.mjs";
 import { backlogProblems } from "./backlog-rows.mjs";
 import { contractPlaceholderInputs, contractPlaceholders } from "./contract-placeholders.mjs";
 import { countMetric } from "./count-metric.mjs";
-import { impeccableFiles } from "./impeccable-files.mjs";
 import { ROOT_ALLOWLIST, rootAllowlistProblems, rootStrays } from "./root-entries.mjs";
 import { specIndexProblems } from "./spec-index.mjs";
 
@@ -28,7 +27,7 @@ export function docGateProblems(snapshot) {
 }
 
 /** The count metrics, built with the entry's own helpers. */
-export const docGateMetrics = (kit) => [rootStrays, impeccableFiles, contractPlaceholders].map((rule) => countMetric(kit, rule));
+export const docGateMetrics = (kit) => [rootStrays, contractPlaceholders].map((rule) => countMetric(kit, rule));
 
 /** Files the merge-base snapshot must be able to read for the metrics above (it reads TypeScript sources and tests by default). */
 export const docGateInputs = (file) => file === ROOT_ALLOWLIST || contractPlaceholderInputs(file);

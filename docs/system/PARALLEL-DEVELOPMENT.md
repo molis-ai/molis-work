@@ -161,8 +161,8 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 ## 11. Prologue SDK 合成包
 
 - 只有 `horizontal/agent-host` 依赖 `@prologue/sdk`（`AGENTS.md` 硬约束）。包放在 `vendor/prologue-sdk/`，目录里只留当前使用的一份，最多再加一份在途分支的；换新包时删掉旧包，旧包从 Git 历史取。健康门禁数这个目录里的 `.tgz` 包数，上限是 `tooling/gates/limits.json` 的 `vendoredPrologueSdk`（现在是 2：当前一份加一份在途）。
-- 两条线要不同的 SDK 改动时，合成一个包共用，不各带一份：先落地的线在 Prologue 仓库里把几条分支合成一个分支，打一个包；后一条线在这个包的基础上重建，不另加包。`vendor/prologue-sdk/README.md` 当前一节的写法就是模板：源码分支与提交、重建步骤（检出哪个基准、应用哪个补丁、构建、`pnpm pack`）、SHA-256、验证结果。
-- 方向已定（spec §1，2026-10-08「Prologue SDK 收敛与私有包」）：把来源分支 `feat/molis-side-panel-surfaces-on-memory` 推到 Prologue 远端的特性分支，按一个合成流程、一个负责人收敛到上游基线；删掉重建用不着的历史补丁，记下 sha256 与来源；`prologue-sdk`、`adeptify intelligence-client`、`search-evidence-layer` 的 tgz 改从私有 registry 或 release 附件取，不再放进公开仓库。这些都还没做，方案由路线图 W1-20 出；做完之前上面的做法照旧。推送 Prologue 远端、删除 vendored 文件按用户当次的授权办。
+- 两条线要不同的 SDK 改动时，合成一个包共用，不各带一份：先落地的线在 Prologue 仓库里把几条分支合成一个分支，打一个包；后一条线在这个包的基础上重建，不另加包。当前包的来源记在 `vendor/prologue-sdk/<包>.provenance.json` 和 `.sha256`，`vendor/prologue-sdk/README.md` 当前一节写重建步骤（检出哪个上游提交、构建、`pnpm pack`）与验证结果；这几份的写法就是模板，`pnpm health:check` 核对它们和 tgz 相符。
+- 方向已定（spec §1，2026-10-08「Prologue SDK 收敛与私有包」）：来源分支 `feat/molis-side-panel-surfaces-on-memory` 收敛到上游基线，按一个合成流程、一个负责人；删掉重建用不着的历史补丁，记下 sha256 与来源；`prologue-sdk`、`adeptify intelligence-client`、`search-evidence-layer` 的 tgz 改从私有 registry 或 release 附件取，不再放进公开仓库。方案是 [dependencies-and-sdk-plan.md](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md)：来源分支早已作为 Prologue PR #3 合入上游 main，没有要推的东西；25 份历史补丁已删，记录在 `vendor/prologue-sdk/patch-history.json`（W1-23）；tgz 移出公开仓库（方案 §5）还没做，做完之前上面的做法照旧，删除 vendored 的 tgz 按用户当次的授权办。
 - 合成负责人：还没有指定人。上面的决定要求设一个，W1-20 出方案时提名。在那之前，谁要换包谁做，并把 README 写全；`/vendor/` 在 `.github/CODEOWNERS` 里走默认规则，只请求 @yijunw0212。指定之后，把负责人写在这一节。
 
 ## 12. 还没做、还开着

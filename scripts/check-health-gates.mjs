@@ -35,6 +35,8 @@ import { SOURCE_COUNT_RULES } from "./gates/source-counts.mjs";
 import { checkApiSnapshots } from "./gates/api-snapshot.mjs";
 import { docGateInputs, docGateMetrics, docGateProblems } from "./gates/doc-gates.mjs";
 import { createTranslationMetric } from "./gates/translations.mjs";
+import { createImpeccableMetric } from "./gates/impeccable-files.mjs";
+import { vendoredProvenanceProblems } from "./gates/vendored-provenance.mjs";
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 
@@ -404,6 +406,7 @@ METRICS.push(...structureMetrics({ isSource: isStructureSource, perFile, rekey, 
 METRICS.push(...docGateMetrics({ perFile }));
 // 7. Translations (decision #16): missing English fails, conflicting translations are frozen, dead keys are reported. The rules live in scripts/gates/translations.mjs.
 METRICS.push(createTranslationMetric({ isSource, requireShape, isRecord }));
+METRICS.push(createImpeccableMetric({ perFile }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 
@@ -469,7 +472,7 @@ const limitErrors = () => {
 const exceptionErrors = () => Object.entries(exceptions).flatMap(([unit, entry]) => (!Object.hasOwn(head.giant, unit)
   ? [`giant exception for ${unit} is stale: it is not a giant unit any more (split, shrunk or renamed); delete the entry from tooling/gates/giant-exceptions.json, or key it by the new name after a rename`]
   : problemsOfException(entry).map((problem) => `giant exception for ${unit}: ${problem}`)));
-const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree())];
+const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree()), ...vendoredProvenanceProblems(root)];
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
 const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });

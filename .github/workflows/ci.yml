@@ -123,6 +123,15 @@ jobs:
       - name: Document gates reject what they claim to
         run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts
 
+      # The tracked-.impeccable-files rule (scripts/gates/impeccable-files.mjs), mutation-verified the same way.
+      - name: Health gate for tracked .impeccable files rejects growth
+        run: node scripts/run-tests.mjs tests/health-gates-impeccable.test.ts
+
+      # The vendored-package records rule (scripts/gates/vendored-provenance.mjs): a tgz without matching .sha256 and
+      # .provenance.json, or a patch-history.json that does not hold, fails; mutation-verified the same way.
+      - name: Health gate for vendored package records rejects mismatches
+        run: node scripts/run-tests.mjs tests/vendor-provenance.test.ts
+
       - name: Verify Goal boundaries, storage baselines and release assets
         run: |
           node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs

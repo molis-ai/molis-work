@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -35,6 +36,20 @@ const refreshApiSnapshots = () => {
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
 };
 
+// A vendored archive with the records the vendored-provenance rule wants beside it (scripts/gates/vendored-provenance.mjs):
+// `<file>.sha256` and `<file>.provenance.json`, written the way tests/vendor-provenance.test.ts and the real ones are.
+const vendoredArchive = (file: string, content: string) => {
+  const name = path.basename(file);
+  const sha256 = createHash("sha256").update(content).digest("hex");
+  put(file, content);
+  put(`${file}.sha256`, `${sha256}  ${name}\n`);
+  put(`${file}.provenance.json`, `${JSON.stringify({
+    schema: "fixture-provenance-v1",
+    source: { commit: "a".repeat(40), dirty: false },
+    artifact: { file: name, bytes: Buffer.byteLength(content), sha256, integrity: `sha512-${createHash("sha512").update(content).digest("base64")}` },
+  }, null, 2)}\n`);
+};
+
 const lines = (...parts: string[]) => `${parts.join("\n")}\n`;
 const descriptor = (name: string) => lines(
   'import type { ContractDescriptor } from "./package.js";',
@@ -56,7 +71,7 @@ before(() => {
   put(".gitignore", "dist/\n.impeccable/qa/\n");
   put("leftover.md", "# Leftover\n\nA stray that is already there; a stray file is no documentation either: [gone](missing.md).\n");
   for (const name of ["a", "b", "c"]) put(`outputs/${name}.md`, `# ${name}\n\nA stray folder is not documentation: [gone](missing.md).\n`);
-  put("vendor/prologue-sdk/a.tgz", "a");
+  vendoredArchive("vendor/prologue-sdk/a.tgz", "a");
 
   put("README.md", "# Fixture\n\nStart with [the guide](docs/guide.md#setup-steps).\n");
   put("AGENTS.md", lines("# Agents", "",
@@ -304,7 +319,8 @@ test("the clean base passes: archive/ links, fenced and inline code, globs, plac
   git("checkout", "-q", "-f", "main");
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
-  assert.match(run.out, /2 root strays, 6 \.impeccable files, 1 placeholder contract subpaths/);
+  // The summary lists the counts of every gate in the order the gates are registered, so each count is matched on its own.
+  for (const count of [/2 root strays/, /6 \.impeccable files/, /1 placeholder contract subpaths/]) assert.match(run.out, count);
   assert.equal(gate().code, 0, "and so does the quick check against the committed baseline");
 });
 
@@ -317,8 +333,8 @@ test("changes that shrink things pass against the merge-base, and say what got s
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
-  assert.match(run.out, /0 root strays, 5 \.impeccable files, 0 placeholder contract subpaths/);
-  assert.match(run.out, /Lower than the merge-base: rootStrays, impeccableFiles, contractPlaceholders/);
+  for (const count of [/0 root strays/, /5 \.impeccable files/, /0 placeholder contract subpaths/]) assert.match(run.out, count);
+  assert.match(run.out, /Lower than the merge-base: rootStrays, contractPlaceholders, impeccable;/);
   assert.equal(gate("--update", "--base", "main").code, 0);
 });
 
@@ -414,7 +430,7 @@ test("--report lists the document problems and the new counts", () => {
   branch("report", () => append("docs/guide.md", "\n[gone](missing.md)\n"));
   const text = gate("--report").out;
   assert.match(text, /Root entries outside the allow-list \(tracked files\): 4 in 2 root entries\n  count  entry/);
-  assert.match(text, /Files under \.impeccable \(per group\): 6 in 5 groups\n  count  group/);
+  assert.match(text, /Tracked \.impeccable files: 6 in 5 groups\n  count  group/);
   assert.match(text, /Placeholder subpaths in @molis-ai\/molis-work-contracts: 1 in 1 subpaths\n  count  subpath/);
   assert.match(text, /Document references: 1 problems\n- broken link: docs\/guide\.md:\d+: link missing\.md/);
 });

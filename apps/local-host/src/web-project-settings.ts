@@ -7,13 +7,9 @@ import { settingsProject, installationDiagnostics } from "./web-project-presenta
 import { L } from "./web-locale.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createProjectDeletionHttp } from "./web-project-deletion.js";
+import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
-
-export interface ProjectDeletionWebPorts {
-  isPanelAlive(panelId: string): boolean;
-  releaseProject(databasePath: string): Promise<void>;
-}
 
 export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner) {
   const handleProjectDeletion = createProjectDeletionHttp(withMolisWorkProjectCatalog);
@@ -21,7 +17,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
     return withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjects().map(settingsProject));
   }
 
-  async function handle(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, projectCount: number, deletionPorts: ProjectDeletionWebPorts): Promise<boolean> {
+  async function handle(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, projectCount: number, deletionPorts: ProjectDeletionPorts): Promise<boolean> {
     if (request.method === "GET" && url.pathname === "/api/settings/project-plugins") {
       const projects = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.listProjects().map(project => ({
         project_id: project.project_id, display_name: project.display_name,

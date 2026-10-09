@@ -1,6 +1,8 @@
 import { createLocalImServer } from "./im-server.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
+import { handleProjectDeletionGatewayHttp } from "./project-deletion-gateway.js";
+import { ProjectDeletionService, webProjectDeletionPorts } from "./project-deletion-service.js";
 import { closeExperiments } from "./experiments-native-plugin-http.js";
 import { loadCasebookConfiguration } from "./casebook/config.js";
 import { handleCasebookHttp } from "./casebook/http.js";
@@ -103,6 +105,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     void sessionResources.catch(() => undefined);
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
     const pty = { host: null as MolisWorkPtyHost | null };
+    // The deletion a forwarding process (the stdio MCP) asks of this Host: the terminals and runtimes it must check and let go of are this server's.
+    const projectDeletion = new ProjectDeletionService(withCatalog, webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }));
     const im = createLocalImServer(storageHome, async id => {
       if (fixture && id === fixture.projectId) return { id, title: fixture.project?.display_name ?? 'Molis Work' };
       return withCatalog({homeDirectory:storageHome}, catalog => {
@@ -182,6 +186,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
           if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog)) return;
+          if (await handleProjectDeletionGatewayHttp(request, response, url, storageHome, projectDeletion)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
           await handleMolisWorkWebRequest(

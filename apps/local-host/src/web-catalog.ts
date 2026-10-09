@@ -63,7 +63,7 @@ import { molisWorkOnboardingStatus } from "./onboarding.js";
 import { codingBackgroundTasks } from "./coding-background-tasks.js";
 import { createProjectArrivalHttp } from "./project-arrival-http.js";
 import { pruneProjectArrival } from "./project-arrival.js";
-import type { ProjectDeletionWebPorts } from "./web-project-settings.js";
+import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 
 /** One per Host, so the few-second answer a brief is good for is shared by every look at the chooser. */
 const projectArrivalHttps = new WeakMap<MolisWorkLocalHost, ReturnType<typeof createProjectArrivalHttp>>();
@@ -72,7 +72,7 @@ export async function handleLocalCatalogWebRequest(
   request: IncomingMessage, response: ServerResponse, url: URL, serverOptions: WebServerOptions,
   runtimeIntegrations: RuntimeIntegrationService, webService: MolisWorkWebServiceManager, controlToken: string,
   localHost: MolisWorkLocalHost, projects: WebProjectNavigation[], composition: LocalWebComposition,
-  deletionPorts: ProjectDeletionWebPorts,
+  deletionPorts: ProjectDeletionPorts,
   codingRuntimes: () => Promise<readonly AgentRuntimeDescriptor[]> = async () => [],
 ): Promise<void> {
   const { PAGE_CSP, handleOnboarding, renderCapsuleShell, isDesktopShellRequest, planningHttp, projectSettings, servePtyClient } = composition;

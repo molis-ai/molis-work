@@ -34,7 +34,10 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     let failResponse = true;
     const handlers = createMcpRuntimeContextHandlers({
       connection,
+      createError: (code, message) => new MolisWorkV1Error(code, message),
       requireHost: () => host,
+      actorFor: () => "runtime:codex:host-session",
+      deleteProject: async () => { throw new Error("this test does not delete"); },
       catalogs: { withCatalog: (home, operation) => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => {
         scoped = catalog;
         return operation(catalog);
@@ -50,7 +53,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
       },
     });
     const context = { runtimeSessionId: null, runtimeSessionIdSource: null };
-    await assert.rejects(handlers.molis_work_v1_context_bind({ project_id: project.project_id, actor_id: "runtime", user_confirmed: "true" }, context),
+    await assert.rejects(handlers.molis_work_v1_context_bind({ project_id: project.project_id, user_confirmed: "true" }, context),
       (error: unknown) => error instanceof MolisWorkProjectCatalogError && error.code === "context.user_confirmation_required");
     assert.equal(connection.connection, originalConnection);
     assert.deepEqual(fixture.listRuntimeContextBindings(), before);

@@ -11,8 +11,9 @@ import * as goalsPlugin from "@molis-ai/molis-work-plugin-goals";
 import { createGoalIntentCapability, configureGoalEventsCapability, reportGoalEventsCapability, recordGoalProgressCapability,
   applyGoalConcernCapability, requestGoalDecisionCapability, citeGoalDecisionCapability, setGoalEventAgreementCapability,
   submitGoalEventClosureCapability, resumeGoalEventWorkCapability, recordGoalNoteCapability, setActiveGoalCapability,
-  recordGoalUserDecisionCapability, readGoalEventStateCapability, goalTreeCapabilities, goalsActions,
+  recordGoalUserDecisionCapability, readGoalEventStateCapability, goalTreeCapabilities, goalsActions, goalsEntryCapabilities,
   hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import type { ResolvedPlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostCapabilityDefinition, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -412,4 +413,137 @@ export const nested: Free<[{ project_id: string; actor_kind: "user" }]> = true;
 export const clean: Free<{ project_id: string }> = true;
 `);
   assert.deepEqual(errors.map(error => error.split(":")[0]), ["line 5", "line 6"], errors.join("\n"));
+});
+
+
+const guidanceEntry = (key: string) => ({ kind: "constraint" as const, content: "用户数据只保存在本机。", source_refs: ["project://requirements"], reason: "长期数据边界",
+  confirmation_summary: "用户已确认此原文", user_confirmed: true, idempotency_key: key });
+const proposalEntry = (key: string, name = "child") => ({ summary: "拆一个子目标", idempotency_key: key, items: [{ item_id: `${name}-item`, kind: "goal" as const, operation: "create" as const,
+  payload: { goal_id: `${name}-goal`, title: "子目标", outcome: "结果" }, source_refs: ["runtime"], reason: "需要", confidence: 0.9 }] });
+
+/**
+ * Project guidance, a planning method and a structure proposal are written through the same management door as the event writes
+ * (the CLI and the typed Host client), so they follow the same rule: the person on this machine is recorded, and an identity in the
+ * arguments is refused instead of trusted. A Runtime writes them through the registered actions, which take the identity from the
+ * call context.
+ */
+test("guidance, a planning method and a structure proposal written through the management door record the person on this machine", async () => {
+  const home = await mkdtemp(join(tmpdir(), "goal-management-entries-"));
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Entries", actor_id: "user" }));
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const typed = host.client(ref), project_id = project.project_id;
+  const runtime = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:writer", audit_actor_id: "runtime:writer:session", actor_kind: "runtime",
+    audience: "agent", project_id, permissions: ["goals:read", "goals:write"], runtime_session_id: "session" }));
+  const events = (type: string) => host.withProject(ref, r => r.store.db.prepare("SELECT actor_id FROM events WHERE type = ? ORDER BY seq").all(type) as Array<{ actor_id: string }>);
+  const identities = [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" }];
+  try {
+    // Guidance: add and update.
+    const add = guidanceEntry("guidance-add");
+    for (const identity of identities) {
+      await assert.rejects(typed.invoke(goalsEntryCapabilities.commands.addProjectGuidance, [{ project_id, ...add, ...identity }] as never), { code: "actions.input_invalid" }, `add refuses ${Object.keys(identity).join(" and ")}`);
+    }
+    await assert.rejects(typed.invoke(goalsEntryCapabilities.commands.addProjectGuidance, [{ ...add, project_id: "foreign", actor_id: "someone-else" }] as never), { code: "actions.scope_mismatch" });
+    assert.deepEqual((await runtime.invoke(goalsActions.guidanceRead, {})).entries, [], "a refused call writes nothing");
+    const added = await typed.invoke(goalsEntryCapabilities.commands.addProjectGuidance, [{ project_id, ...add }]);
+    assert.equal(added.entry.created_by, LOCAL_PERSON_ACTOR_ID);
+    assert.equal((await typed.invoke(goalsEntryCapabilities.commands.addProjectGuidance, [{ project_id, ...add }])).replayed, true, "the same key replays for the same person");
+    const edit = { guidance_id: added.entry.guidance_id, action: "edit" as const, kind: "constraint" as const, content: "导出前由用户明确确认。", source_refs: ["project://new"],
+      reason: "准确说明导出边界", confirmation_summary: "用户确认修改", user_confirmed: true, idempotency_key: "guidance-edit" };
+    for (const identity of identities) {
+      await assert.rejects(typed.invoke(goalsEntryCapabilities.commands.updateProjectGuidance, [{ project_id, ...edit, ...identity }] as never), { code: "actions.input_invalid" }, `update refuses ${Object.keys(identity).join(" and ")}`);
+    }
+    await assert.rejects(typed.invoke(goalsEntryCapabilities.commands.updateProjectGuidance, [{ ...edit, project_id: "foreign", actor_id: "someone-else" }] as never), { code: "actions.scope_mismatch" });
+    const edited = await typed.invoke(goalsEntryCapabilities.commands.updateProjectGuidance, [{ project_id, ...edit }]);
+    assert.equal(edited.entry.updated_by, LOCAL_PERSON_ACTOR_ID);
+    assert.equal(edited.entry.revision, 2);
+    // A Runtime still writes through the action, and is recorded as its Session.
+    const viaAction = await runtime.invoke(goalsActions.guidanceAdd, { ...guidanceEntry("guidance-runtime"), content: "另一条长期说明。" });
+    assert.equal(viaAction.entry.created_by, "runtime:writer:session");
+
+    // Planning method save.
+    const source = (await runtime.invoke(goalsActions.planningRead, {})).methods.find(method => method.scope !== "project");
+    assert.ok(source, "the built-in methods are there to copy");
+    const { scope: _scope, version: _version, created_at: _created, updated_at: _updated, overridden_scopes: _overrides, ...method } = source as ResolvedPlanningMethodPack;
+    const planning = { project_id, user_confirmed: true, method: { ...method, enabled: false, instructions: "项目独立正文" } };
+    for (const identity of identities) {
+      await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.saveProjectMethod, [{ ...planning, ...identity }] as never), { code: "actions.input_invalid" }, `planning save refuses ${Object.keys(identity).join(" and ")}`);
+    }
+    await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.saveProjectMethod, [{ ...planning, project_id: "foreign", actor_id: "someone-else" }] as never), { code: "actions.scope_mismatch" });
+    assert.deepEqual(await events("planning.method_saved"), [], "a refused call writes nothing");
+    const saved = await typed.invoke(goalsEntryCapabilities.planning.saveProjectMethod, [planning]);
+    assert.equal(saved.method.instructions, "项目独立正文");
+    assert.deepEqual(await events("planning.method_saved"), [{ actor_id: LOCAL_PERSON_ACTOR_ID }]);
+
+    // Structure proposal submit.
+    const proposal = proposalEntry("proposal-submit");
+    for (const identity of [...identities, { submitted_session_id: "forged-session" }]) {
+      await assert.rejects(typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ project_id, ...proposal, ...identity }] as never), { code: "actions.input_invalid" }, `submit refuses ${Object.keys(identity).join(" and ")}`);
+    }
+    await assert.rejects(typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ ...proposal, project_id: "foreign", actor_id: "someone-else" }] as never), { code: "actions.scope_mismatch" });
+    assert.deepEqual((await runtime.invoke(goalsActions.treeRead, {})).proposals, [], "a refused call writes nothing");
+    const submitted = await typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ project_id, ...proposal }]);
+    assert.equal(submitted.proposal.submitted_by, LOCAL_PERSON_ACTOR_ID);
+    assert.equal(submitted.proposal.submitted_session_id, null, "the management door has no Runtime Session");
+    assert.equal(submitted.replayed, false);
+    assert.equal((await typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ project_id, ...proposal }])).replayed, true, "the same key replays for the same person");
+    // The Runtime's action with the same key is its own proposal under its own Session: no entry replays the other's.
+    const viaTree = await runtime.invoke(goalsActions.treeSubmit, proposalEntry("proposal-submit", "runtime"));
+    assert.equal(viaTree.replayed, false);
+    assert.equal(viaTree.proposal.submitted_by, "runtime:writer:session");
+    assert.equal(viaTree.proposal.submitted_session_id, "session");
+    assert.notEqual(viaTree.proposal.proposal_id, submitted.proposal.proposal_id);
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+/** These entries record the person on this machine, so a plugin that lists one must be refused rather than recorded as that person. */
+test("a plugin that lists guidance, planning save or structure submit under consumes is refused", async () => {
+  const home = await mkdtemp(join(tmpdir(), "goal-management-entries-plugin-"));
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "EntriesPlugin", actor_id: "user" }));
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const typed = host.client(ref), project_id = project.project_id;
+  const asPlugin = (actor_id: string): HostCapabilityCallOptions => ({ consumer: "plugin", before_effect: async () => {},
+    plugin_caller: { plugin_id: "io.molis.work.test.entry-writer", install_id: "install-1", actor_id, project_id,
+      declaration: { manifest: {} as HostPluginCaller["declaration"]["manifest"] }, assertActive: () => {} } });
+  const runtime = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:writer", project_id, audience: "agent", permissions: ["goals:read", "goals:write"] }));
+  try {
+    const entries = [
+      { name: "add guidance", capability: goalsEntryCapabilities.commands.addProjectGuidance as HostCapabilityDefinition<unknown, unknown>, input: [{ project_id, ...guidanceEntry("plugin-add") }] as unknown },
+      { name: "update guidance", capability: goalsEntryCapabilities.commands.updateProjectGuidance as HostCapabilityDefinition<unknown, unknown>,
+        input: [{ project_id, guidance_id: "g", action: "deactivate", reason: "停用", confirmation_summary: "确认", user_confirmed: true, idempotency_key: "plugin-update" }] as unknown },
+      { name: "save planning method", capability: goalsEntryCapabilities.planning.saveProjectMethod as HostCapabilityDefinition<unknown, unknown>, input: [{ project_id, user_confirmed: true, method: {} }] as unknown },
+      { name: "submit structure proposal", capability: goalTreeCapabilities.submitGoalTreeProposal as HostCapabilityDefinition<unknown, unknown>, input: [{ project_id, ...proposalEntry("plugin-submit") }] as unknown },
+    ];
+    assert.deepEqual(entries.filter(entry => entry.capability.host_only !== true).map(entry => entry.name), [], "every one of them is flagged host_only");
+    const manifest = { ...filesManifest, plugin_id: "io.molis.work.test.entry-writer", capabilities: { provides: [], consumes: entries.map(entry => entry.capability.capability_id) } };
+    const sdk = createPluginCapabilityClient(manifest, typed);
+    for (const { name, capability, input } of entries) {
+      const available = sdk.availability(capability);
+      assert.equal(available.available, false, `${name} is not available to a plugin`);
+      assert.equal(!available.available && available.code, "actions.host_only", name);
+      await assert.rejects(sdk.invoke(capability, input), { code: "actions.host_only" }, `${name}: through the plugin client`);
+      await assert.rejects(sdk.invoke({ ...capability, host_only: false }, input), { code: "actions.host_only" }, `${name}: through an unflagged copy`);
+      await assert.rejects(typed.invoke(capability, input, asPlugin("plugin-person")), { code: "actions.host_only" }, `${name}: with the plugin's own call context`);
+    }
+    assert.deepEqual((await runtime.invoke(goalsActions.guidanceRead, {})).entries, []);
+    assert.deepEqual((await runtime.invoke(goalsActions.treeRead, {})).proposals, []);
+    // Reading stays open to the Host's own client and to plugins that list it: only the writes carry the person's name.
+    assert.equal(goalTreeCapabilities.listGoalTreeProposals.host_only === true, false);
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("the typed guidance, planning-save and structure-submit entries are typed without an identity", { timeout: 180_000 }, () => {
+  const source = `
+import type { HostCapabilityInput } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { goalsEntryCapabilities, goalTreeCapabilities } from "@molis-ai/molis-work-plugin-goals";
+${FREE_OF_IDENTITY}
+export const addFree: Free<HostCapabilityInput<typeof goalsEntryCapabilities.commands.addProjectGuidance>> = true;
+export const updateFree: Free<HostCapabilityInput<typeof goalsEntryCapabilities.commands.updateProjectGuidance>> = true;
+export const saveFree: Free<HostCapabilityInput<typeof goalsEntryCapabilities.planning.saveProjectMethod>> = true;
+export const submitFree: Free<HostCapabilityInput<typeof goalTreeCapabilities.submitGoalTreeProposal>> = true;
+type SessionFree<Input> = Input extends readonly [infer First, ...unknown[]] ? ("submitted_session_id" extends keyof First ? false : true) : true;
+export const submitSessionFree: SessionFree<HostCapabilityInput<typeof goalTreeCapabilities.submitGoalTreeProposal>> = true;
+`;
+  assert.deepEqual(typeErrors(source), []);
 });

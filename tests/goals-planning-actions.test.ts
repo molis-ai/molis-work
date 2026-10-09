@@ -41,7 +41,7 @@ test("planning actions preserve complete methods, project versions, live policy 
     assert.deepEqual(applied.method.event_types, source.event_types);
     assert.deepEqual(applied.method.default_requirements, source.default_requirements);
     const { scope: _scope, version: _version, created_at: _created, updated_at: _updated, overridden_scopes: _overrides, ...method } = source as ResolvedPlanningMethodPack;
-    const saved = await typed.invoke(goalsEntryCapabilities.planning.saveProjectMethod, [{ project_id: project.project_id, actor_id: caller.actor_id,
+    const saved = await typed.invoke(goalsEntryCapabilities.planning.saveProjectMethod, [{ project_id: project.project_id,
       user_confirmed: true, method: { ...method, enabled: false, instructions: "项目独立正文" } }]);
     assert.equal(saved.method.version, source.version + 1);
     const read = await typed.invoke(goalEntryCompositionCapabilities.readPlanningComposition, [project.project_id]);
@@ -60,7 +60,7 @@ test("planning actions preserve complete methods, project versions, live policy 
     await assert.rejects(typed.invoke(goalEntryCompositionCapabilities.readPlanningComposition, [project.project_id]), { code: "actions.plugin_disabled" });
     await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.analyzeChange, [project.project_id, ["PLAN-GOAL"]]), { code: "actions.plugin_disabled" });
     await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.validateBoardGraph, [project.project_id]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.saveProjectMethod, [{ project_id: project.project_id, actor_id: caller.actor_id,
+    await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.saveProjectMethod, [{ project_id: project.project_id,
       user_confirmed: true, method }]), { code: "actions.plugin_disabled" });
     await host.close();
     const reopened = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });

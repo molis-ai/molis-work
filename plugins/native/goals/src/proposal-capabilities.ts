@@ -4,9 +4,13 @@ import type { GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-con
 import type { GoalTreeApplicationApi, GoalTreeEntryApi } from "./goal-tree-contract.js";
 
 export const goalTreeCapabilities = {
+  /**
+   * Management entries only (the CLI, the typed client), like the check below: the host records the person on this machine, so a
+   * plugin that lists this under capabilities.consumes is refused. A Runtime submits through the `goals.tree.submit` action.
+   */
   submitGoalTreeProposal: {
-    capability_id: "io.molis.work.goals.submit-goal-tree-proposal", version: 1, operation: "command",
-  } as MethodCapability<GoalTreeApplicationApi["submitGoalTreeProposal"]>,
+    capability_id: "io.molis.work.goals.submit-goal-tree-proposal", version: 1, operation: "command", host_only: true,
+  } as MethodCapability<GoalTreeEntryApi["submitGoalTreeProposal"]>,
   listGoalTreeProposals: {
     capability_id: "io.molis.work.goals.list-goal-tree-proposals", version: 1, operation: "query",
   } as MethodCapability<GoalTreeApplicationApi["listGoalTreeProposals"]>,

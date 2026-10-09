@@ -74,14 +74,14 @@ test("Agent Host loads current guidance through actions and freezes each real re
   const client = localHost.client(reference);
   try {
     await client.invoke(initializeBoardCapability, { project_id: "board", title: "Guidance", idempotency_key: "init" });
-    const added = await client.invoke(goalsEntryCapabilities.commands.addProjectGuidance, [{ project_id: "board", actor_id: "user", kind: "constraint",
+    const added = await client.invoke(goalsEntryCapabilities.commands.addProjectGuidance, [{ project_id: "board", kind: "constraint",
       content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" }]);
     const request: AgentStartRequest = { project_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user", session: { runtime_id: "probe", session_id: "s" },
       task: "读取项目", role_id: "reader", directory: { canonical_path: directory, realpath_verified: true } };
     await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
     const first = captured[0]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!;
     assert.match(first.body, /保留源文件/); assert.equal(first.version, 1);
-    await client.invoke(goalsEntryCapabilities.commands.updateProjectGuidance, [{ project_id: "board", actor_id: "user", guidance_id: added.entry.guidance_id,
+    await client.invoke(goalsEntryCapabilities.commands.updateProjectGuidance, [{ project_id: "board", guidance_id: added.entry.guidance_id,
       action: "edit", kind: "constraint", content: "保留源文件和备份。", reason: "补充边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "edit" }]);
     await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
     const second = captured[1]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!;

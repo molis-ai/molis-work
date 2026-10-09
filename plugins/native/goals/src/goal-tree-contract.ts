@@ -31,7 +31,15 @@ export interface GoalTreeApplicationApi {
  */
 export type GoalTreeCheckEntryInput = Omit<GoalTreeProposalCheckInput, "actor_id">;
 
-/** The proposal API as the Host entries offer it: the domain API, except that checking takes no identity. */
-export type GoalTreeEntryApi = Omit<GoalTreeApplicationApi, "checkGoalTreeProposal"> & {
+/**
+ * What the Host entry takes to submit a proposal. It names no one either: the person on this machine submits, and there is no
+ * Runtime Session behind this door to name, so `submitted_session_id` is not taken from the arguments (a Runtime's action takes
+ * its Session from the call context).
+ */
+export type GoalTreeSubmitEntryInput = Omit<GoalTreeProposalSubmitInput, "actor_id" | "submitted_session_id">;
+
+/** The proposal API as the Host entries offer it: the domain API, except that checking and submitting take no identity. */
+export type GoalTreeEntryApi = Omit<GoalTreeApplicationApi, "checkGoalTreeProposal" | "submitGoalTreeProposal"> & {
   checkGoalTreeProposal(input: GoalTreeCheckEntryInput): GoalTreeProposalCheckResult;
+  submitGoalTreeProposal(input: GoalTreeSubmitEntryInput): ReturnType<GoalTreeApplicationApi["submitGoalTreeProposal"]>;
 };

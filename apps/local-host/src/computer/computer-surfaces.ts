@@ -8,7 +8,6 @@ import { ComputerRecords } from "./computer-records.js";
 import { HelperConnection } from "./helper-connection.js";
 import { handleComputerHttp } from "./computer-http.js";
 import { attachMolisWorkComputerSocket } from "./computer-socket.js";
-import { registerComputerRecordSource } from "./computer-record-source.js";
 
 /**
  * What the Agent Host may attach from the person's Mac (specs/computer-use): the one desktop desk, offered only when the
@@ -57,27 +56,21 @@ export function computerSurfaceProvider(desk: ComputerDesk, enabled: () => boole
  * giant request-wiring stays small: the desk and helper, the surface and file-record providers, the hourly screenshot
  * sweep, the HTTP endpoints and the socket. Attaching to a server also disposes it all when the server closes.
  */
-export function installComputerDesk(localHost: ComputerRegistryHost, homeDirectory: string): InstalledComputerDesk {
+export function installComputerDesk(localHost: object, homeDirectory: string): InstalledComputerDesk {
   const settings = new ComputerSettings(homeDirectory);
   const records = new ComputerRecords(homeDirectory);
   const helper = new HelperConnection({ appPath: resolveComputerHelperApp() });
   const desk = new ComputerDesk({ helper, settings, records });
   const unregisterSurfaces = registerComputerSurfaces(localHost, computerSurfaceProvider(desk, () => settings.enabled));
-  // The round records show in the 文件 tab as a home file source (not search-indexed; keeping one as a 成果 is separate).
-  const unregisterRecords = registerComputerRecordSource(localHost.actionRegistry(), () => records);
   // Screenshots in records hold screen content: cleared after the retention period, swept hourly.
   const sweep = setInterval(() => { try { records.sweep(); } catch { /* a failed sweep retries next hour */ } }, 60 * 60 * 1000);
   sweep.unref();
-  const dispose = () => { unregisterSurfaces(); unregisterRecords(); clearInterval(sweep); desk.close(); void helper.close(); };
+  const dispose = () => { unregisterSurfaces(); clearInterval(sweep); desk.close(); void helper.close(); };
   return {
     desk,
     handleHttp: (request, response, url) => handleComputerHttp(request, response, url, { settings, helper, desk, records }),
     attach: (server, controlToken) => { attachMolisWorkComputerSocket(server, controlToken, () => desk); server.once("close", dispose); },
   };
-}
-
-export interface ComputerRegistryHost {
-  actionRegistry(): Parameters<typeof registerComputerRecordSource>[0];
 }
 
 export interface InstalledComputerDesk {

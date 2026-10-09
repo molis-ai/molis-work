@@ -110,7 +110,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: "助理在这个项目里的工作", alive: () => ports.localHost.lifecycle() === "running",
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.removeFollowUp(id); } }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
-  try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service); }
+  try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory); }
   catch (error) { console.warn("[assistant] 提醒规则动作没能登记到动作目录", error); }
   return entry;
 }

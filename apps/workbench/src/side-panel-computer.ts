@@ -100,7 +100,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   };
   const draw=async()=>{
     if(!pending){drawing=false;return;}drawing=true;const data=pending;pending=null;
-    try{const bmp=await createImageBitmap(new Blob([data],{type:'image/png'}));canvas.width=bmp.width;canvas.height=bmp.height;ctx.drawImage(bmp,0,0);bmp.close?.();cover.hidden=true;}catch{}
+    try{const bmp=await createImageBitmap(new Blob([data],{type:'image/png'}));canvas.width=bmp.width;canvas.height=bmp.height;ctx.drawImage(bmp,0,0);bmp.close?.();cover.hidden=true;}catch{/* a dropped frame is fine; the next one redraws */}
     draw();
   };
   const placeMarker=(point)=>{
@@ -157,7 +157,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       const response=await fetch(routePrefix+'/api/agent/reviews?status=pending',{headers:{accept:'application/json'}});
       const result=await response.json();
       rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(f=>f.label==='应用')&&(!row.receipt||row.receipt.status==='pending'));
-    }catch{}
+    }catch{/* a failed poll is retried on the next tick below */}
     renderApproval(rows[0]||null);
     if(rows.length||(state?.control?.mode&&state.control.mode!=='idle'))reviewTimer=setTimeout(pollReviews,1500);
   };

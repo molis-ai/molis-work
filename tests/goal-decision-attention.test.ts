@@ -130,20 +130,14 @@ test("Goal pending decisions appear in Inbox and on the Goal document, not in Fe
   try {
     propose(data.app, "child-ui", "propose-ui");
     const view = buildMolisWorkWebView(data.store, data.app, { projectId: BOARD });
-    const decisions = renderMolisWorkWeb(view, undefined, false, true);
     const home = renderMolisWorkWeb(view);
     const goalPage = renderMolisWorkWeb(view, "root");
-    assert.match(decisions, /data-desktop-directory="root"/);
-    assert.match(decisions, /data-desktop-surface="inbox"/);
-    assert.match(decisions, /data-inbox-directory/);
-    assert.match(decisions, /data-inbox-workbench/);
-    assert.match(decisions, /data-inbox-subject-type="goal_decision"/);
-    assert.match(decisions, /data-inbox-subject-id="root"/);
-    assert.match(decisions, /Inbox · Molis Work/);
-    assert.doesNotMatch(decisions, /data-feed-entry-id="decision:/);
-    assert.doesNotMatch(decisions, /data-feed-detail="decision:/);
-    assert.doesNotMatch(decisions, /class="tui-pane"|pty-client\.js/);
-    assert.match(decisions, /打开 Goal/);
+    assert.match(home, /data-desktop-directory="root"/);
+    assert.match(home, /data-inbox-directory/);
+    assert.match(home, /data-inbox-workbench/);
+    assert.match(home, /data-inbox-subject-type="goal_decision"/);
+    assert.match(home, /data-inbox-subject-id="root"/);
+    assert.match(home, /打开 Goal/);
     assert.doesNotMatch(home, /data-feed-entry-id="decision:/);
     assert.doesNotMatch(home, /data-feed-detail="decision:/);
     assert.match(goalPage, /data-goal-decision-panel/);

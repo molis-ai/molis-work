@@ -119,7 +119,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     ${CODING_SETTINGS_CLIENT_SCRIPT}
     (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(),
-      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
+      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
       project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || state.snapshot.board.title || "" },
     });
     (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders(),
@@ -149,7 +149,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     bindGoalCreateEvents();
     addEventListener("popstate", (event) => {
-      if (localPathname() === "/" && !decisionView && !collectionView) {
+      if (localPathname() === "/" && !collectionView) {
         setDesktopDirectory("root", false, false);
         if (!openWorkbenchSurface("home")) setDesktopWorkSurface("home");
       } else handleGoalPopState(event);
@@ -200,10 +200,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       scheduleGoalGraphLayout();
     });
 
-    if (decisionView && location.hash.startsWith("#decision-goal-")) {
-      const goalId = decodeURIComponent(location.hash.slice("#decision-goal-".length));
-      if (goalId) location.replace(route("/goals/" + encodeURIComponent(goalId)));
-    }
     setTreeWidth(treePane.getBoundingClientRect().width, false);
     if (tuiPane) setTuiWidth(tuiPane.getBoundingClientRect().width, false);
     let restoredUi = false;
@@ -211,7 +207,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     try {
       const stored = JSON.parse(
         sessionStorage.getItem(storageKey) ||
-        (!decisionView && !collectionView ? sessionStorage.getItem(goalUiStorageKey) : null) ||
+        (!collectionView ? sessionStorage.getItem(goalUiStorageKey) : null) ||
         "null",
       );
       if (stored) {
@@ -256,7 +252,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       if (settingsKind === "project-settings") void settingsDirectory?.loadProjectSection?.(section || settingsDirectory?.getProjectActive?.() || "general", fetchPath);
       else void settingsDirectory?.loadSection?.(section || settingsDirectory?.getActive?.() || "appearance", fetchPath);
     }
-    if (!tabWorkspace && !directGoalRequested && !restoredNavigation && !decisionView && !collectionView) {
+    if (!tabWorkspace && !directGoalRequested && !restoredNavigation && !collectionView) {
       goalWorkspaceMode = "graph";
       setDesktopDirectory("root", false, false);
       setDesktopWorkSurface("home", false, false);
@@ -325,7 +321,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     tabWorkspace?.apply();
     if (directGoalRequested && selected && !restoredNavigation && tabWorkspace) {
       tabWorkspace.openItem("goals", selected);
-    } else if (tabWorkspace && !directGoalRequested && !decisionView && !collectionView) {
+    } else if (tabWorkspace && !directGoalRequested && !collectionView) {
       const navigationType = performance.getEntriesByType("navigation")[0]?.type;
       if (navigationType !== "reload" && navigationType !== "back_forward" && !tabWorkspace.isEmbedded?.()) tabWorkspace.landAtProjectRoot();
     }

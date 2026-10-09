@@ -59,6 +59,9 @@ const definitions: Definition[] = [
   ["a parenthesised double cast", `${SRC}/b2.ts`, "export const x = (value as unknown) as string;", { unknownCasts: 1 }],
   ["a double cast in several parentheses", `${SRC}/b3.ts`, "export const x = ((value as unknown)) as string;", { unknownCasts: 1 }],
   ["the angle-bracket double cast", `${SRC}/b4.ts`, "export const x = <string><unknown>value;", { unknownCasts: 1 }],
+  // The rule is a superset of the AST counter it replaced: the mixed forms count too (no file of the tree has one today).
+  ["a cast to unknown in parentheses under an angle-bracket cast", `${SRC}/b4a.ts`, "export const x = <string>(value as unknown);", { unknownCasts: 1 }],
+  ["an angle-bracket cast to unknown in parentheses under as", `${SRC}/b4b.ts`, "export const x = (<unknown>value) as string;", { unknownCasts: 1 }],
   ["two casts in one expression", `${SRC}/b5.ts`, "export const x = (a as unknown as A) && (b as unknown as B);", { unknownCasts: 2 }],
   ["a single cast to unknown", `${SRC}/b6.ts`, "export const x = value as unknown;", {}],
   ["as any as is another rule (explicit any)", `${SRC}/b7.ts`, "export const x = value as any as string;", { explicitAny: 1 }],
@@ -119,6 +122,7 @@ test("policy: the real biome.jsonc is a clean, stricter-only description of itse
   assert.deepEqual(Object.keys(real.rules).sort(), ["nursery/noFloatingPromises", "suspicious/noConsole", "suspicious/noDebugger", "suspicious/noExplicitAny"]);
   assert.deepEqual(real.covers, [...coverGlobs].sort(), "files.includes names the directories the gate copies into the check, and nothing else");
   assert.deepEqual(real.unsupported, [], "the gate reads every setting in biome.jsonc");
+  assert.deepEqual(real.orderDependent, [], "no two overrides of biome.jsonc depend on their order");
 });
 
 test("policy: nothing changed, or only tightened, is not looser", () => {
@@ -197,6 +201,62 @@ test("policy: problems in the configuration itself", () => {
   assert.deepEqual(policyProblems(policy()), []);
   // The check's reach has to name the directories the gate copies into the check.
   assert.match(problems((config) => { config.files.includes = config.files.includes.filter((glob) => glob !== "tests/**/*.{ts,mts,mjs}"); }), /does not list tests\/\*\*\/\*\.\{ts,mts,mjs\}, so the files under tests\/ are not checked/);
+  // ...and nothing else: `pnpm lint` runs in place and checks every positive entry, the gate counts the LINT_ROOTS only. An extra
+  // directory (or a wider pattern) would be linted by one and not frozen by the other, although looserThan lets a list grow.
+  assert.match(problems((config) => { config.files.includes.push("docs/**/*.mjs"); }), /lists docs\/\*\*\/\*\.mjs, which is not one of the directories the gate copies into the check/);
+  assert.match(problems((config) => { config.files.includes.push("**/*.{ts,mts,mjs}"); }), /lists \*\*\/\*\.\{ts,mts,mjs\}, which is not one of the directories/);
+  assert.match(problems((config) => { config.files.includes = config.files.includes.map((glob) => (glob === "tests/**/*.{ts,mts,mjs}" ? "tests/**/*.ts" : glob)); }), /lists tests\/\*\*\/\*\.ts, which is not one of the directories/);
+  assert.deepEqual(policyProblems(policy((config) => { config.files.includes.push("!docs/**", "!**/node_modules"); })), [], "an exclusion is not a directory that is checked");
+  assert.deepEqual(looser((config) => { config.files.includes.push("docs/**/*.mjs"); }), [], "the comparison with the merge-base lets the list grow; the problem above is what refuses it");
+});
+
+// Biome applies the overrides in the order they are written and the later one wins. policyOf keeps sorted sets, so two versions
+// that differ only in the order of two overrides are the same policy to looserThan: one pull request adds a stricter override
+// after an exception (stricter, allowed), the next swaps them (the exception is back, and the numbers fall on both sides).
+test("overrides: the order of two overrides that set one rule differently is real in Biome, so the gate refuses the case instead of ignoring it", () => {
+  const scratch = mkdtempSync(path.join(tmpdir(), "molis-health-lint-order-"));
+  try {
+    for (const file of ["tooling/gates/lint/no-empty-catch.grit", "tooling/gates/lint/no-double-cast.grit"]) {
+      mkdirSync(path.dirname(path.join(scratch, file)), { recursive: true });
+      copyFileSync(path.join(repoRoot, file), path.join(scratch, file));
+    }
+    const real = readFileSync(path.join(repoRoot, "biome.jsonc"), "utf8");
+    const off = '{ "includes": ["packages/alpha/**"], "linter": { "rules": { "suspicious": { "noExplicitAny": "off" } } } }';
+    const on = '{ "includes": ["packages/alpha/**"], "linter": { "rules": { "suspicious": { "noExplicitAny": "error" } } } }';
+    const withOrder = (...overrides: string[]) => { writeFileSync(path.join(scratch, "biome.jsonc"), real.replace('"overrides": [', `"overrides": [\n    ${overrides.join(",\n    ")},`)); return readFileSync(path.join(scratch, "biome.jsonc"), "utf8"); };
+    const texts = new Map([[`${SRC}/x.ts`, "export const f = (v: any) => v;\n"]]);
+    const found = () => lintTexts(scratch, texts).counts.explicitAny[`${SRC}/x.ts`] ?? 0;
+    const exceptionLast = withOrder(on, off);
+    assert.equal(found(), 0, "the exception written last wins");
+    const exceptionFirst = withOrder(off, on);
+    assert.equal(found(), 1, "the stricter override written last wins: the same two overrides, the other order, a different result");
+    // The sorted sets do not tell the two orders apart: that is the blind spot, and why each order is refused on its own.
+    const [first, last] = [policyOf(exceptionFirst), policyOf(exceptionLast)];
+    assert.deepEqual(looserThan(last, first), []);
+    assert.deepEqual(looserThan(first, last), []);
+    for (const side of [first, last]) assert.match(policyProblems(side).join("\n"), /overrides whose order decides the outcome \(suspicious\/noExplicitAny: overrides\.\d sets it to (?:error|off) for packages\/alpha\/\*\* and overrides\.\d to (?:error|off) for packages\/alpha\/\*\*\)/);
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});
+
+test("overrides: only overrides that can name the same files and set one rule to different levels are refused", () => {
+  const conflicts = (...overrides: Array<Record<string, unknown>>) => policyProblems(policy((config) => { config.overrides = overrides; })).filter((problem: string) => /order decides/.test(problem));
+  const rule = (level: string, name = "noExplicitAny", groupName = "suspicious") => ({ linter: { rules: { [groupName]: { [name]: level } } } });
+  assert.equal(conflicts({ includes: ["packages/a/**"], ...rule("off") }, { includes: ["packages/a/**"], ...rule("error") }).length, 1, "the same directory");
+  assert.equal(conflicts({ includes: ["packages/**"], ...rule("off") }, { includes: ["packages/a/**"], ...rule("error") }).length, 1, "a directory inside the other");
+  assert.equal(conflicts({ includes: ["packages/a/**"], ...rule("error") }, { includes: ["packages/**"], ...rule("off") }).length, 1, "and the other way round");
+  assert.equal(conflicts({ ...rule("off") }, { includes: ["packages/a/**"], ...rule("error") }).length, 1, "an override with no includes is the whole tree");
+  assert.equal(conflicts({ includes: ["**/*.test.ts"], ...rule("off") }, { includes: ["packages/a/**"], ...rule("error") }).length, 1, "a pattern that starts with a wildcard can be anywhere");
+  assert.equal(conflicts({ includes: ["{packages,apps}/**"], ...rule("off") }, { includes: ["apps/cli/**"], ...rule("error") }).length, 1, "a brace in the first segment can be anywhere");
+  assert.equal(conflicts({ includes: ["packages/a/**"], linter: { enabled: false } }, { includes: ["packages/a/**"], linter: { enabled: true } }).length, 1, "the linter itself, off and on");
+  assert.equal(conflicts({ includes: ["packages/a/**"], ...rule("off") }, { includes: ["packages/a/**"], linter: { rules: { suspicious: "error" } } }).length, 1, "a rule and the group it is in");
+  // Not refused: directories that part ways, a level set twice the same way, other rules.
+  assert.deepEqual(conflicts({ includes: ["packages/a/**"], ...rule("off") }, { includes: ["packages/b/**"], ...rule("error") }), [], "disjoint directories");
+  assert.deepEqual(conflicts({ includes: ["scripts/**", "apps/cli/**"], ...rule("off") }, { includes: ["apps/desktop/launchers/**"], ...rule("error") }), [], "disjoint directories, several in one override");
+  assert.deepEqual(conflicts({ includes: ["packages/**"], ...rule("off") }, { includes: ["packages/a/**"], ...rule("off") }), [], "the same level twice");
+  assert.deepEqual(conflicts({ includes: ["packages/a/**"], ...rule("off") }, { includes: ["packages/a/**"], ...rule("off", "noConsole") }), [], "two different rules");
+  assert.deepEqual(conflicts({ includes: ["packages/a/**"], ...rule("off") }), [], "one override on its own");
+  // The same override cannot disagree with itself (one key per rule), and top-level rules versus an override have a fixed order.
+  assert.deepEqual(policy().orderDependent, []);
 });
 
 // A setting the gate does not read is refused: it can switch a check off with no trace in the numbers. Each of these was
@@ -466,6 +526,12 @@ const violations: Scenario[] = [
     expect: [/biome\.jsonc sets javascript, which the gate does not read/], absolute: true },
   { name: "a nested Biome configuration", mutate: () => put("packages/alpha/biome.json", '{ "extends": "//", "linter": { "rules": { "suspicious": { "noExplicitAny": "off" } } } }\n'),
     expect: [/packages\/alpha\/biome\.json is a nested Biome configuration/], absolute: true },
+  // Review of dcdf2b9f: a list that only grows is stricter to looserThan, but `pnpm lint` and the gate would see different files; and a
+  // stricter override written after an exception cannot be told from the same two in the other order, which loosens it.
+  { name: "a directory added to files.includes that the gate does not copy into the check", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('"!**/*.d.ts"', '"docs/**/*.mjs", "!**/*.d.ts"')),
+    expect: [/biome\.jsonc's files\.includes lists docs\/\*\*\/\*\.mjs, which is not one of the directories the gate copies into the check/], absolute: true },
+  { name: "a stricter override written after the exception it cancels", mutate: () => put("biome.jsonc", read("biome.jsonc").replace(/\n  \]\n\}\s*$/, ',\n    { "includes": ["scripts/**"], "linter": { "rules": { "suspicious": { "noConsole": "error" } } } }\n  ]\n}\n')),
+    expect: [/overrides whose order decides the outcome \(suspicious\/noConsole: overrides\.0 sets it to off for scripts\/\*\*, apps\/cli\/\*\*, .* and overrides\.1 to error for scripts\/\*\*\)/], absolute: true },
   { name: "a rule that no count covers", mutate: () => put("biome.jsonc", read("biome.jsonc").replace('"noDebugger": "error"', '"noDebugger": "error", "noDoubleEquals": "error"')), expect: [/turns on suspicious\/noDoubleEquals, which no count/], absolute: true },
 ];
 

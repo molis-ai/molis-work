@@ -254,7 +254,8 @@ jobs:
 
       # The SwiftPM package (jelly-whisper) has swift-tools-version 6.2, which needs Xcode 26, and a cold build takes about seven
       # minutes. It is reported but does not decide anything until a runner with that Swift is confirmed; then drop
-      # continue-on-error.
+      # continue-on-error. Until then only the JellyMaterial.swift type check above blocks a merge, so a compile error in the
+      # package does not turn CI red. The follow-up is specs/BACKLOG.md BL-122.
       - name: Swift package build (jelly-whisper, not required yet)
         continue-on-error: true
         run: node scripts/gates/native-checks.mjs swift --package

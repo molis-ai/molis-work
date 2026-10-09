@@ -1534,6 +1534,7 @@
       "suspicious/noConsole@tooling/plugin-cli/**=off"
     ],
     "ignored": [
+      "!!.claude",
       "!**/*.d.ts",
       "!**/dist",
       "!**/node_modules"
@@ -1556,6 +1557,7 @@
       "./tooling/gates/lint/no-empty-catch.grit"
     ],
     "unsupported": [],
+    "orderDependent": [],
     "nested": []
   },
   "note": "Only decreases. Lower it with `node scripts/check-health-gates.mjs --update --base origin/main` in the PR that lowers a number. CI compares with the merge-base, not with this file."

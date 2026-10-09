@@ -17,7 +17,9 @@
 //   emptyCatches        molis/no-empty-catch (tooling/gates/lint/no-empty-catch.grit): a `catch` clause whose block has no
 //                       statement and no comment. The same definition and the same per-file numbers as the AST counter this
 //                       replaces (W1-04); Biome's noEmptyBlockStatements is not used because it reports every empty function.
-//   unknownCasts        molis/no-double-cast (no-double-cast.grit): `x as unknown as T`, `(x as unknown) as T`, `<T><unknown>x`.
+//   unknownCasts        molis/no-double-cast (no-double-cast.grit): `x as unknown as T`, `(x as unknown) as T`, `<T><unknown>x`; also
+//                       the mixed forms `<T>(x as unknown)` and `(<unknown>x) as T`, which the AST counter skipped (a superset; the
+//                       per-file numbers of the files that counter scanned are the same).
 //   floatingPromises    nursery/noFloatingPromises: a promise neither awaited, returned, handled with .catch nor marked `void`.
 //   explicitAny         suspicious/noExplicitAny.
 //   consoleCalls        suspicious/noConsole, off for the command-line programs and scripts that print (biome.jsonc overrides).
@@ -25,7 +27,9 @@
 //   lintParseErrors     a file Biome reports a syntax error in. Biome recovers and keeps linting what it can still read, so
 //                       the other rules do run on the file; but recovery can leave parts of it unchecked (an unterminated
 //                       template literal makes the rest of the file one token, and nothing after it is seen), so the file is
-//                       counted, once, instead of passing as clean.
+//                       counted, once, instead of passing as clean. A limit that stays: a file that already has a baselined syntax
+//                       error counts 1 however many errors it gets, so a further one (an unterminated template literal) that
+//                       hides what follows it changes no number; repair such a file and take it out of the baseline instead.
 //   lintSuppressions    `biome-ignore` comments, which silence a rule: counted so that they are no way around the others.
 // PLUS lintPolicy: the shape of biome.jsonc. It is compared with the merge-base's and may only get stricter: no rule removed or
 // switched off for a directory, no new exclusion, no narrower list of the files that are checked (files.includes, linter.includes),
@@ -34,6 +38,16 @@
 // only the part of biome.jsonc it understands (policyOf): a setting outside it (rule options such as noConsole's `allow`, a
 // per-language `javascript.linter.enabled`, domains, extends) is refused, because each of them can switch a check off with no
 // trace in the numbers. Nested Biome configurations are refused too: the gate reads the root one only.
+// Two shapes are refused outright because the comparison cannot see them (policyProblems, whatever the merge-base says):
+//   - files.includes lists a directory that is not one of LINT_ROOTS (or lacks one): `pnpm lint` runs in place and checks every
+//     positive entry, the gate copies the LINT_ROOTS only, so an entry of its own would be linted by one and frozen by neither.
+//   - two overrides set the same rule (or the linter itself) to different levels for scopes that may overlap. Biome applies the
+//     overrides in the order they are written, the later one wins, but the policy keeps sorted sets, so the same two overrides
+//     in the other order are the same policy to the comparison: a stricter override added after an exception (allowed by the
+//     comparison) could be swapped in front of it in the next change, un-cancelling the exception while the numbers fall on
+//     both sides. The gate does not model the order; it tells scopes apart only when their literal leading directories part
+//     ways (mayOverlap), and takes anything else (a wildcard or a brace in the first segment, no includes at all) to overlap.
+//     Write such directories disjoint, or give the rule one override.
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -174,6 +188,45 @@ const unsupportedOf = (config) => {
   return out;
 };
 
+/** The literal directories a glob starts with, before its first segment that has a wildcard: "packages/a/**" -> ["packages", "a"]. */
+const literalPrefix = (glob) => {
+  const out = [];
+  for (const segment of glob.replace(/^\.\//, "").split("/")) { if (/[*?[\]{}()!]/.test(segment)) break; out.push(segment); }
+  return out;
+};
+/**
+ * Whether two scopes (an override's `includes` glob, or "*") can name the same file. Only a pair whose literal directories
+ * part ways ("scripts/**" and "apps/cli/**") is told apart; anything else is taken to overlap, because deciding that for two
+ * arbitrary globs is not worth a glob engine in a gate (a `**` or a brace in the first segment overlaps everything).
+ */
+const mayOverlap = (a, b) => {
+  if (a === "*" || b === "*") return true;
+  const left = literalPrefix(a), right = literalPrefix(b);
+  for (let at = 0; at < Math.min(left.length, right.length); at++) if (left[at] !== right[at]) return false;
+  return true;
+};
+/** Whether two rule names are the same setting; "group/*" (a group given as a bare level) is every rule of that group. */
+const sameRule = (a, b) => a === b || (a.endsWith("/*") && b.startsWith(a.slice(0, -1))) || (b.endsWith("/*") && a.startsWith(b.slice(0, -1)));
+/**
+ * Biome applies the overrides in the order they are written and the later one wins, but the policy keeps its sets sorted, so
+ * two versions that differ only in the order of two overrides look the same to the comparison (an exception that was cancelled
+ * by a later stricter override could be un-cancelled by swapping them, and the numbers fall on both sides). The gate does not
+ * model the order; it refuses the case where the order could matter: two overrides that set the same rule (or the linter
+ * itself) to different levels for scopes that may overlap. Write the directories so that they are disjoint, or list the rule
+ * once. `settings` are { rule, level, scopes, at } from policyOf, `at` being the override's position.
+ */
+const overrideConflicts = (settings) => {
+  const out = new Set();
+  for (const [index, first] of settings.entries()) {
+    for (const second of settings.slice(index + 1)) {
+      if (first.at === second.at || first.level === second.level || !sameRule(first.rule, second.rule)) continue;
+      if (!first.scopes.some((a) => second.scopes.some((b) => mayOverlap(a, b)))) continue;
+      out.add(`${first.rule === second.rule ? first.rule : `${first.rule} and ${second.rule}`}: overrides.${first.at} sets it to ${first.level} for ${first.scopes.join(", ")} and overrides.${second.at} to ${second.level} for ${second.scopes.join(", ")}`);
+    }
+  }
+  return [...out].sort();
+};
+
 /**
  * The part of biome.jsonc that decides what is checked, in a form that two versions can be compared in. A scope is "*" (the
  * whole tree) or one glob of an override's `includes`, so adding a directory to an override is a new scope and removing one
@@ -186,6 +239,7 @@ const unsupportedOf = (config) => {
  *   plugins      the plugin files
  *   preset       the rule preset ("none": only the rules listed here run)
  *   unsupported  the settings the gate does not read (unsupportedOf)
+ *   orderDependent  overrides that set the same rule to different levels for files that may be the same (overrideConflicts)
  */
 export const policyOf = (text) => {
   if (text === null || text === undefined) return null;
@@ -197,8 +251,9 @@ export const policyOf = (text) => {
     linterEnabled: config.linter?.enabled !== false, preset, rules: {}, off: [], ignored: [],
     covers: globs(config.files?.includes).filter((glob) => !glob.startsWith("!")),
     linterCovers: globs(config.linter?.includes).filter((glob) => !glob.startsWith("!")),
-    plugins: configPluginsOf(config), unsupported: unsupportedOf(config),
+    plugins: configPluginsOf(config), unsupported: unsupportedOf(config), orderDependent: [],
   };
+  const settings = []; // every level an override sets, in the order the overrides are written (overrideConflicts)
   const place = (rule, level, scopes) => {
     for (const scope of scopes) {
       if (level === "error") (policy.rules[rule] ??= []).push(scope);
@@ -209,15 +264,17 @@ export const policyOf = (text) => {
   for (const [rule, level] of ruleLevels(config.linter?.rules)) place(rule, level, ["*"]);
   exclusions(config.files?.includes);
   exclusions(config.linter?.includes);
-  for (const override of Array.isArray(config.overrides) ? config.overrides : []) {
-    if (!isRecord(override)) continue;
+  (Array.isArray(config.overrides) ? config.overrides : []).forEach((override, at) => {
+    if (!isRecord(override)) return;
     const list = globs(override.includes);
     const scopes = list.filter((glob) => !glob.startsWith("!"));
     if (!scopes.length) scopes.push("*");
     exclusions(list, "override:");
+    if (typeof override.linter?.enabled === "boolean") settings.push({ rule: "linter", level: override.linter.enabled ? "on" : "off", scopes, at });
     if (override.linter?.enabled === false) place("linter", "off", scopes);
-    for (const [rule, level] of ruleLevels(override.linter?.rules)) place(rule, level, scopes);
-  }
+    for (const [rule, level] of ruleLevels(override.linter?.rules)) { place(rule, level, scopes); settings.push({ rule, level, scopes, at }); }
+  });
+  policy.orderDependent = overrideConflicts(settings);
   for (const key of Object.keys(policy.rules)) policy.rules[key].sort();
   policy.rules = Object.fromEntries(Object.entries(policy.rules).sort(([a], [b]) => a.localeCompare(b)));
   for (const key of ["off", "ignored", "covers", "linterCovers", "plugins", "unsupported"]) policy[key].sort();
@@ -247,9 +304,17 @@ export const policyProblems = (policy) => {
   for (const plugin of policy.plugins) {
     if (!/^\.\/tooling\/gates\/lint\/[^/]+\.grit$/.test(plugin)) problems.push(`biome.jsonc names the plugin ${plugin}; the gate runs the GritQL plugins in tooling/gates/lint/ only`);
   }
-  // The gate copies the LINT_ROOTS into the check; files.includes has to name exactly those, or `pnpm lint` and the gate disagree.
-  for (const lintRoot of LINT_ROOTS) {
-    if (!(policy.covers ?? []).includes(coverGlob(lintRoot))) problems.push(`biome.jsonc's files.includes does not list ${coverGlob(lintRoot)}, so the files under ${lintRoot}/ are not checked (scripts/gates/lint.mjs LINT_ROOTS and files.includes name the same directories)`);
+  for (const conflict of policy.orderDependent ?? []) {
+    problems.push(`biome.jsonc has overrides whose order decides the outcome (${conflict}). Biome lets the later override win; the gate compares the rule set without its order, so a swap of the two would loosen it unseen. Make the directories disjoint, or set the rule in one override only`);
+  }
+  // The gate copies the LINT_ROOTS into the check; the positive entries of files.includes have to be exactly those, or `pnpm lint`
+  // (which runs in place and checks whatever files.includes names) and the gate (which counts the LINT_ROOTS only) see different files.
+  const wanted = LINT_ROOTS.map(coverGlob);
+  for (const glob of wanted) {
+    if (!(policy.covers ?? []).includes(glob)) problems.push(`biome.jsonc's files.includes does not list ${glob}, so the files under ${glob.slice(0, glob.indexOf("/"))}/ are not checked (scripts/gates/lint.mjs LINT_ROOTS and files.includes name the same directories)`);
+  }
+  for (const glob of policy.covers ?? []) {
+    if (!wanted.includes(glob)) problems.push(`biome.jsonc's files.includes lists ${glob}, which is not one of the directories the gate copies into the check, so \`pnpm lint\` would report files whose count the gate does not freeze (add the directory to LINT_ROOTS in scripts/gates/lint.mjs and to files.includes together, or take the entry out)`);
   }
   return problems;
 };

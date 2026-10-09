@@ -19,15 +19,17 @@
     "dist",
     "README.md",
     "native/materials/bin",
+    "native/computer/bin",
     "native/materials/THIRD-PARTY-NOTICES.md",
     "native/materials/licenses"
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && node native/materials/build.mjs",
+    "build": "tsc -p tsconfig.json && node native/materials/build.mjs && node native/computer/build.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "materials:build": "bash native/materials/build.sh",
-    "materials:build:whisper": "bash native/materials/build-whisper.sh"
+    "materials:build:whisper": "bash native/materials/build-whisper.sh",
+    "computer:build": "bash native/computer/build.sh"
   },
   "dependencies": {
     "node-pty": "^1.1.0",

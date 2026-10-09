@@ -13,7 +13,7 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-OUT_DIR="${1:-$HERE/build}"
+OUT_DIR="${1:-$HERE/bin}"
 APP="$OUT_DIR/Molis Work Computer Helper.app"
 BUNDLE_ID="com.molis.work.computer-helper"
 VERSION="$(node -p "require('$HERE/../../../../package.json').version" 2>/dev/null || echo 0.0.0)"

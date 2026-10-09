@@ -18,16 +18,28 @@ export const FULL_REGRESSION = {
   corePackages: ["packages/contracts", "packages/kernel"],
   corePackagePrefixes: ["modules/"],
   /**
-   * "local-host 的装配、workbench 外壳": 14 files the two packages' READMEs name by file name (their "从哪里读代码" tables and prose),
-   * 6 hub files of PARALLEL-DEVELOPMENT section 2 that wire things together and that the READMEs do not name by file name
-   * (route dispatch, plugin assembly, the shell and its client program), and `document-shell.ts`, which neither source names
-   * (added on judgment: it renders the shell document and holds the five workbench slots). Not the barrels (`index.ts`), and not
-   * every file of apps/workbench (214 files, most of them one plugin's page): whether the whole package is the shell is open point 1
-   * of section 6.1.
-   * tests/affected-tests.test.ts checks that each file a README table calls 装配 or 组合 is listed here.
+   * "local-host 的装配、workbench 外壳": 23 files, from three places (how each got on the list is checked against the READMEs by
+   * tests/affected-tests.test.ts, so this account cannot drift from them again):
+   *  - 15 that the two packages' READMEs name by file name. By table ("从哪里读代码"): local-host's project-host, local-host,
+   *    project-capabilities, web-server, mcp-server, system-agent-service, goal-project-application, and workbench's ui-composition,
+   *    goals-page-renderer, scripts/client/initialization, browser-assets. By prose: the workbench README's invariants name
+   *    src/builtin-plugins.ts, src/plugin-catalog.ts and src/plugin-workbench.ts (the projections derived from BUILTIN_PLUGIN_CATALOG),
+   *    and its "阅读装配方式" line points to apps/local-host/src/workbench-renderer.ts, the 12 lines that bind the renderer to the host.
+   *  - 7 from the hub table of PARALLEL-DEVELOPMENT section 2 (and, for project-plugins, the AGENTS.md pointer to it), which neither
+   *    README names by file name: web-request (route dispatch), web-catalog, project-plugins, and workbench's renderer, immersive-shell,
+   *    page-assets and the client program scripts/client/plugin-workbench.ts (not src/plugin-workbench.ts, which the README names).
+   *  - 1 added on judgment, which no README and no hub table names: document-shell.ts, which renders the shell document and holds
+   *    the five workbench slots.
+   * Not on it: the barrels (`index.ts`); apps/desktop/src/web-host.ts, which the local-host README points to in the same
+   * "阅读装配方式" line but which belongs to the desktop package, not to local-host or the workbench; and the rest of apps/workbench
+   * (214 files under src, 217 in the package; most are one plugin's page or one piece of UI). Whether the whole package is the shell
+   * is open point 1 of section 6.1.
+   * tests/affected-tests.test.ts checks that each file a README table calls 装配 or 组合 is listed here, and that each 阅读装配方式
+   * pointer is either listed or an excluded one.
    */
   assemblyFiles: [
-    // apps/local-host: 项目运行实例装配, 插件装配, Host Client 与调用生命周期, 能力绑定, Web 请求与 Home 装配, 对外 MCP 装配, Agent/Git 装配, 跨 Module 应用组合
+    // apps/local-host: 项目运行实例装配, 插件装配, Host Client 与调用生命周期, 能力绑定, Web 请求与 Home 装配, 对外 MCP 装配, Agent/Git 装配, 跨 Module 应用组合,
+    // and the binding of the Workbench renderer to this host
     "apps/local-host/src/project-host.ts",
     "apps/local-host/src/project-plugins.ts",
     "apps/local-host/src/local-host.ts",
@@ -38,6 +50,7 @@ export const FULL_REGRESSION = {
     "apps/local-host/src/mcp-server.ts",
     "apps/local-host/src/system-agent-service.ts",
     "apps/local-host/src/goal-project-application.ts",
+    "apps/local-host/src/workbench-renderer.ts",
     // apps/workbench: UI 组合, 工作台整页装配, 客户端初始化与恢复, 浏览器资产入口, the shell, its catalog and its slots
     "apps/workbench/src/builtin-plugins.ts",
     "apps/workbench/src/browser-assets.ts",
@@ -46,6 +59,7 @@ export const FULL_REGRESSION = {
     "apps/workbench/src/immersive-shell.ts",
     "apps/workbench/src/page-assets.ts",
     "apps/workbench/src/plugin-catalog.ts",
+    "apps/workbench/src/plugin-workbench.ts",
     "apps/workbench/src/renderer.ts",
     "apps/workbench/src/ui-composition.ts",
     "apps/workbench/src/scripts/client/initialization.ts",

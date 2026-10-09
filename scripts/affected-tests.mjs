@@ -136,7 +136,7 @@ if (options.json) {
   if (browser.length) out.push("  browser (need Chrome; one batch per machine, see PARALLEL-DEVELOPMENT.md section 5):", ...browser.map((test) => `    ${describe(test)}`));
   if (unit.length) out.push("", "Run:", `  node scripts/run-tests.mjs ${unit.map((test) => test.file).join(" ")}`);
   if (browser.length) out.push(`  node scripts/run-tests.mjs ${browser.map((test) => test.file).join(" ")}   # browser`);
-  if (result.uncovered.length) out.push("", `No test reads these directly (only the package-wide tests above cover them): ${result.uncovered.join(", ")}`);
+  if (result.uncovered.length) out.push("", `No test reads these directly${unit.length || browser.length ? " (only the package-wide tests above cover them)" : ", and no test is listed above"}: ${result.uncovered.join(", ")}`);
   if (checks.length) out.push("", "Also:", ...checks.map((check) => `  ${check.command}   # ${check.why}`));
   if (result.notes.length) out.push("", "Notes:", ...result.notes.map((text) => `  - ${text}`));
   console.log(out.join("\n"));

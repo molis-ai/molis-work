@@ -139,20 +139,21 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 - 一个包被超过 40 个用例 import 或同名时不整包选，只选读到改动文件与名字的用例，Notes 里写明；`--wide` 选全部。
 - 一个文件只被借 fixture 间接读到（用例自己没写它），共用这个 fixture 的用例超过 25 个时不选：那些用例是起整个宿主，不是读这个文件；Notes 写出 fixture 名。`--wide` 选全部。
 - 一个名字被超过 25 个用例直接提到，说明不了谁读它，不用。
-- 一条路由被超过 25 个用例提到（`/projects/` 在 199 个用例里，`/health` 在 143 个），说明它只是路径的一个常见片段，不当作“读这条路由”：不选，Notes 写出路由和个数，`--wide` 选全部。点名一个路由文件（当作整个文件都改了）时也一样：`web-request.ts` 原来选出 265 个用例，现在 70 个。
+- 一条路由被超过 25 个用例提到（`/projects/` 在 199 个用例里，`/health` 在 143 个），说明它只是路径的一个常见片段，不当作“读这条路由”：不选，Notes 写出路由和个数，`--wide` 选全部。点名一个路由文件（当作整个文件都改了）时也一样：`web-request.ts` 原来选出 265 个用例，现在 70 个。这个上限比 10-03 原话“所有读这条路由的用例”窄，代价不止这两个片段：在全部产品源码里量（`76ba1545`），被它挡掉的真路由还有 `/settings`（77 个用例）、`/api/plugins`（62）、`/archive`（58）、`/sessions`（38）、`/api/plugins/io.molis.work.coding`（28），片段还有 `/desktop/`（236）、`/settings/`（66）。它们的读者不选，只在 Notes 里写出路由和个数。`web-catalog.ts` 在装配名单上，改它本来就建议全量；`web-goals-read.ts`、`web-routing.ts`、`document-routes.ts` 这类不在名单上的文件改到这些路由时，读者只在 Notes 里，不在用例列表里，`--wide` 才选。放不放宽等用户拍板（第 12 节第 3 点）。
 - README 里除「改动后必跑」「界面改动加跑」之外带测试路径的分项（「助理逻辑验证」等）和 `再加跑` 之后的条件部分，只列在 Notes，`--readme-extras` 才选。
 - 没有任何用例直接读到的改动文件单独列出（`No test reads these directly`），别当成已覆盖。
 
 建议全量的条件，写在 `scripts/affected-tests/rules.mjs`，`tests/affected-tests.test.ts` 逐条验证：
 
 - 改了 contracts、kernel 或任一 `modules/*`。
-- 改了 local-host 的装配或 workbench 的外壳文件：名单是 rules.mjs 的 `assemblyFiles`，共 21 个文件，不含 `index.ts` 出口，来源有三处。测试里有一条核对：两个 README 的「从哪里读代码」表里，用途写了“装配”或“组合”的文件都在名单上。
-  - 两个包 README 按文件名点到的 14 个：local-host 的 `project-host`、`local-host`、`project-capabilities`、`web-server`、`mcp-server`、`system-agent-service`、`goal-project-application`（「从哪里读代码」表）；workbench 的 `ui-composition`、`goals-page-renderer`、`scripts/client/initialization`、`browser-assets`（同一张表）和 `builtin-plugins`、`plugin-catalog`、`scripts/client/plugin-workbench`（正文）。
-  - 第 2 节枢纽表里把东西接在一起的 6 个，两个 README 没按文件名点到：local-host 的 `web-request`（路由分发）、`web-catalog`、`project-plugins`（`AGENTS.md` 把每个新内置插件的装配点指到它，第 2 节按枢纽对待）；workbench 的 `renderer`（README 只在“一次典型调用”里把它叫作“Workbench renderer”）、`immersive-shell`、`page-assets`。
+- 改了 local-host 的装配或 workbench 的外壳文件：名单是 rules.mjs 的 `assemblyFiles`，共 23 个文件，不含 `index.ts` 出口，来源有三处。测试逐条核对这些来源：下面说“README 点到”的文件，README 里真有这个文件名；说“枢纽表”的，第 2 节的表里真有，README 里没有；两个 README 的「从哪里读代码」表里用途写了“装配”或“组合”的文件都在名单上；两个 README 里“阅读装配方式”指到的文件，在名单上或明确排除。
+  - 两个包 README 按文件名点到的 15 个：local-host 的 `project-host`、`local-host`、`project-capabilities`、`web-server`、`mcp-server`、`system-agent-service`、`goal-project-application`（local-host README「从哪里读代码」表）；workbench 的 `ui-composition`、`goals-page-renderer`、`scripts/client/initialization`、`browser-assets`（workbench README 同一张表），以及 `builtin-plugins`、`plugin-catalog`、`plugin-workbench`（workbench README 不变量里“派生相应投影”那一句点到的 `src/` 下三个文件；注意 README 没点到客户端程序 `scripts/client/plugin-workbench`，它是下一条里的），再加 `apps/local-host/src/workbench-renderer.ts`（workbench README“阅读装配方式”指到的现有调用方，12 行，把 Workbench renderer 绑到这个 Host 的语言、桌面端口和 Goals 默认值上）。
+  - 第 2 节枢纽表里把东西接在一起的 7 个，两个 README 没按文件名点到：local-host 的 `web-request`（路由分发）、`web-catalog`、`project-plugins`（`AGENTS.md` 把每个新内置插件的装配点指到它，第 2 节按枢纽对待）；workbench 的 `renderer`（README 只在“一次典型调用”里把它叫作“Workbench renderer”）、`immersive-shell`、`page-assets`，以及浏览器端的客户端程序 `scripts/client/plugin-workbench`。
   - `apps/workbench/src/document-shell.ts`：README 和枢纽表都没点名，是实现时按判断加的，因为它出整页外壳文档和 `WORKBENCH_UI_SLOTS` 这五个挂载位。
+  - 明确不在名单上的：`apps/desktop/src/web-host.ts`（local-host README 在同一句“阅读装配方式”里指到它，但它是 desktop 包的文件，不属于 local-host 的装配或 workbench 外壳；测试固定这一点）；`index.ts` 出口；`apps/workbench` 的其余文件（`src` 下 214 个，包里共 217 个，大多是某个插件的一页或一块界面，见第 12 节第 1 点）。
 - 改了存储或迁移：`packages/storage` 的任何源码；名字带 migration 的文件；改动行调用或写了 `PRAGMA user_version`、`user_version`、`applySqliteBaseline`；或者一个产品源码文件持有的结构变了。后一种不看哪几行变了，而是把这个文件在合并基点和现在的两个版本各读一遍，比较它持有的结构：所有含 `CREATE`、`ALTER`、`DROP` 表、索引、视图、触发器或 `PRAGMA user_version` 的字符串与模板字符串的全文，和每个 `SqliteBaseline = { version, schema }` 声明的整个内容。所以 `version: 2` 改 `3`、在多行 `CREATE TABLE` 中间加一列、删一张表都算，注释里的 DDL 不算；名字里带 baseline 但不存数据的文件（`proposal-baselines.ts`）不算。点名文件（没有基点可比）时，持有结构的文件按整个文件改了算。此时还会提示 `node scripts/verify-release-versions.mjs`（库版本表在 `docs/releases/CHECKLIST.md`）。
 - 动了三个或更多包的非文档文件。
-- 删了整块旧代码：三个或更多源文件被删除（改名不算删除）；或者产品源码里取走的代码行（不算注释和空行）合计 300 行或更多，按文件算“删去的减去加上的”，所以重写一个文件不算、别处新增一个文件也盖不住。300 取自 2026-09-28 以来合入的 245 个 PR：合计取走 300 行以上的有 17 个（7%），其中有 #164（旧表单）、#176（独立页面）、#198（旧构建器）、#260（库基线）、#263、#268（事件前历史）、#269、#272、#275、#285 这些删旧路径的 PR；取 200 是 26 个，取 500 是 13 个。
+- 删了整块旧代码：三个或更多源文件被删除（已暂存或已提交的改名不算删除；没暂存的 `mv` 见下面的局限）；或者产品源码里取走的代码行（不算注释和空行）合计 300 行或更多，按文件算“删去的减去加上的”，所以重写一个文件不算、别处新增一个文件也盖不住。300 取自 2026-09-28 以来合入的 245 个 PR：合计取走 300 行以上的有 17 个（7%），其中有 #164（旧表单）、#176（独立页面）、#198（旧构建器）、#260（库基线）、#263、#268（事件前历史）、#269、#272、#275、#285 这些删旧路径的 PR；取 200 是 26 个，取 500 是 13 个。
 - `--full`：阶段收尾，或合入后相关用例意外失败；这两条看 diff 看不出来，要人说。
 
 脚本只建议，不替你跑全量。
@@ -165,7 +166,8 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 - 不追反向依赖：改了 A 包，只依赖 A 的 B 包的用例不会被选。波及面大的改动走全量条件，不靠它挑。
 - 阈值（40、25、3 个包、3 个文件、300 行、往上找 120 行）是首批取值，不是量出来的最优。用一两周后按漏选、多选的实例调；调的地方只有 `rules.mjs` 的 `LIMITS` 和 `FULL_REGRESSION`。
 - 路由按缩进认包着改动的那一层：路由条件拆成几行、路由字面量那行和函数体缩进一样时认不到（只剩改动行里直接写着的路由）；顶层的辅助函数不算在任何路由里；删除整段处理函数时，只有被删的行里写着路由才认得到。
-- 两处对 10-03 原话的读法还没有人拍板（第 12 节）：“workbench 外壳”读成名单上的文件，不是整个 `apps/workbench`；“删除整块旧代码”读成 3 个文件或 300 行，没有别的形状（比如只删一个 250 行的大函数）。
+- 改名要先暂存：git 只有在两个路径都进了索引之后才认得出改名。没 `git add` 的 `mv` 在它眼里是三个删除加三个未跟踪的新文件，于是报“删了整块旧代码”并建议全量（3 个源文件，或搬走的代码行达到 300）。这是往安全的一侧错；输出里这时会多一句提示，`git mv` 或 `git add -A` 之后再问一次就只剩改名。改名的同时改了很多内容，git 也可能认不成改名，那就按删除加新增算。
+- 三处对 10-03 原话的读法还没有人拍板（第 12 节）：“workbench 外壳”读成名单上的文件，不是整个 `apps/workbench`；“删除整块旧代码”读成 3 个文件或 300 行，没有别的形状（比如只删一个 250 行的大函数）；“所有读这条路由的用例”读成最多 25 个，更多的只在 Notes 里。
 - 它不替代 CI：CI 每个 PR 都跑的合同与门禁用例（`pnpm test:contracts` 等）不一定在选出的用例里。
 
 ## 7. 集成分支上跑全量
@@ -228,9 +230,10 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 
 - 合成包负责人和流程：方向已定，人选与方案等路线图 W1-20（见上一节）。
 - 读取兼容的合同流程：起点已定为第一个装到开发机之外的版本（用户 2026-10-08），日期到时写进 [合同变更流程](CONTRACT-CHANGES.md)；在那之前不留兼容期。
-- 挑相关用例的脚本已有（第 6.1 节）；阈值是首批取值，要用一两周后按漏选、多选的实例调整，反向依赖不追。有两处读法等用户（或统筹会话）拍板，现在按推荐的做：
-  1. “workbench 外壳”。选项：名单上的 21 个文件（推荐：`apps/workbench` 有 214 个文件，大多是某个插件的一页或一块界面，这类改动已经会选浏览器用例，整包都算外壳会让每个界面小改动都建议跑 77 分钟）；整个 `apps/workbench`（README 第一行把整个包叫“工作台外壳”）；名单加上 `side-panel*`、`assistant-dock`、`project-home` 这类外壳零件。“local-host 的装配”同理，名单是 10 个文件：README 按文件名点到的 7 个（`project-host`、`local-host`、`project-capabilities`、`web-server`、`mcp-server`、`system-agent-service`、`goal-project-application`），加第 2 节枢纽表与 `AGENTS.md` 点到的 3 个（`web-request`、`web-catalog`、`project-plugins`）。workbench 的 11 个里，README 按文件名点到 7 个；另 4 个（`renderer`、`immersive-shell`、`page-assets` 来自枢纽表，`document-shell` 是实现时加的，两处都没点名）要不要留，随这一问一起定。
+- 挑相关用例的脚本已有（第 6.1 节）；阈值是首批取值，要用一两周后按漏选、多选的实例调整，反向依赖不追。有三处读法等用户（或统筹会话）拍板，现在按推荐的做：
+  1. “workbench 外壳”。选项：名单上的 23 个文件（推荐：`apps/workbench` 的 `src` 下有 214 个文件（包里共 217 个），大多是某个插件的一页或一块界面，这类改动已经会选浏览器用例，整包都算外壳会让每个界面小改动都建议跑 77 分钟）；整个 `apps/workbench`（README 第一行把整个包叫“工作台外壳”）；名单加上 `side-panel*`、`assistant-dock`、`project-home` 这类外壳零件。“local-host 的装配”同理，名单是 11 个文件：README 按文件名点到的 8 个（`project-host`、`local-host`、`project-capabilities`、`web-server`、`mcp-server`、`system-agent-service`、`goal-project-application`，加 workbench README 指到的 `workbench-renderer`），加第 2 节枢纽表与 `AGENTS.md` 点到的 3 个（`web-request`、`web-catalog`、`project-plugins`）。workbench 的 12 个里，README 按文件名点到 7 个（`ui-composition`、`goals-page-renderer`、`scripts/client/initialization`、`browser-assets`、`builtin-plugins`、`plugin-catalog`、`plugin-workbench`）；另 5 个（`renderer`、`immersive-shell`、`page-assets` 和客户端程序 `scripts/client/plugin-workbench` 来自枢纽表，`document-shell` 是实现时加的，两处都没点名）要不要留，随这一问一起定。
   2. “删除整块旧代码”。选项：3 个文件或净取走 300 行（推荐，现状，以 245 个 PR 量过）；只看文件数；再加一条“一个文件净取走 150 行以上”以抓住只删一个大函数的情形（245 个 PR 里 18 个会触发，其中只有 4 个是 300 行条件抓不到的）。
+  3. “所有读这条路由的用例”。现状：一条路由被超过 25 个用例提到就不选（Notes 写出路由和个数，`--wide` 选全部），因为 `/projects/`（199 个）、`/health`（143 个）、`/desktop/`（236 个）这类只是路径的常见片段，全选会让每个路由改动都带上几百个用例（`web-request.ts` 原来选出 265 个，现在 70 个）。代价是真路由也被挡，在 `76ba1545` 上量：`/settings`（77）、`/api/plugins`（62）、`/archive`（58）、`/sessions`（38）、`/api/plugins/io.molis.work.coding`（28）；不在装配名单上的文件（`web-goals-read.ts`、`web-routing.ts`、`document-routes.ts`）改到它们时，读者只在 Notes 里。选项：保持 25（推荐，现状；Notes 与 `--wide` 兜底）；把上限提到 80，让上面五条真路由选上（`/settings/` 的 66 也会进来），`/projects/`、`/health`、`/desktop/` 仍挡；不设上限，路由改动一律带上所有读者（一次可到几百个用例）。
 - 测试并发隔离（每个测试文件一个 Home 和密钥库，非浏览器用例并发）：路线图 W5-12。在那之前全量约 76–78 分钟。
 - CI 里的产品用例子集、浏览器冒烟、隔离名单：非浏览器用例的 Linux 探针作业已有（路线图 W1-11，不挡合并，见第 3 节）；`tests/ci-product-subset.txt`、3–5 个浏览器冒烟、隔离名单（`tests/quarantine.json`）和并入 `Verify` 在路线图 W2-16，约两周的探针结果出来后做。
 - 远端已合入分支的清理与「合并后自动删除分支」：用户来做（见第 10 节），还没做。

@@ -288,6 +288,9 @@ export function selectAffected({ root, changes, packages, index, options = {} })
   const blocks = [];
   if (deleted.length >= FULL_REGRESSION.deletedSourceFiles) blocks.push(`${deleted.length} source files deleted (${FULL_REGRESSION.deletedSourceFiles} or more): ${sample(deleted.map((change) => change.path))}`);
   if (takenOut >= FULL_REGRESSION.deletedCodeLines) blocks.push(`${takenOut} code lines taken out of ${shrunk.length} file${shrunk.length === 1 ? "" : "s"} (${FULL_REGRESSION.deletedCodeLines} or more): ${sample(shrunk.sort((left, right) => right.lines - left.lines).map((entry) => `${entry.path} -${entry.lines}`), 3)}`);
+  // A move made with a plain `mv` reads as a deletion plus new untracked files until git knows both paths; say so when that could be the case.
+  const unstaged = codeChanges.filter((change) => change.untracked && change.status === "A" && SOURCE_FILE.test(change.path) && packageOf(packages, change.path));
+  if (blocks.length && unstaged.length) blocks.push(`${unstaged.length} new source file${unstaged.length === 1 ? " is" : "s are"} untracked (${sample(unstaged.map((change) => change.path), 2)}): if these were moved with a plain mv, git cannot tell a move from a deletion until it is staged; run git add -A and ask again`);
   if (blocks.length) full.push({ rule: "deletes-code", detail: blocks.join("; ") });
   if (options.full) full.push({ rule: "requested", detail: "asked for with --full (end of a phase, or related tests failed unexpectedly after a merge)" });
 

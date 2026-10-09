@@ -768,6 +768,27 @@ test("renaming source files is not deleting them: three renamed files do not rec
   assert.deepEqual(rulesOf(select(null)), []);
 });
 
+test("a move made with a plain mv reads as deletions until it is staged, and the recommendation says so; staged, it is a rename and recommends nothing", () => {
+  for (const name of ["alpha", "store", "client"]) renameSync(path.join(repo, `plugins/native/alpha/src/${name}.ts`), path.join(repo, `plugins/native/alpha/src/${name}-moved.ts`));
+  const unstaged = select(null);
+  assert.deepEqual(rulesOf(unstaged), ["deletes-code"], "git cannot pair a deleted file with an untracked one");
+  assert.match(unstaged.full[0].detail, /3 source files deleted \(3 or more\)/);
+  assert.match(unstaged.full[0].detail, /3 new source files are untracked \(.*\): if these were moved with a plain mv.*run git add -A and ask again/);
+  git("add", "-A");
+  assert.deepEqual(rulesOf(select(null)), [], "the same move, staged");
+  restore();
+  // Deleting without adding anything gives no reason to think of a move.
+  for (const name of ["alpha", "store", "client"]) unlinkSync(path.join(repo, `plugins/native/alpha/src/${name}.ts`));
+  const deleted = select(null);
+  assert.deepEqual(rulesOf(deleted), ["deletes-code"]);
+  assert.doesNotMatch(deleted.full[0].detail, /untracked|git add/);
+  restore();
+  // A new file that is not a source file, or an untracked one beside a rule that did not fire, adds no hint.
+  put("plugins/native/alpha/src/new-note.txt", "x\n");
+  put("plugins/native/alpha/src/brand-new.ts", "export const BRAND_NEW = 1;\n");
+  assert.deepEqual(rulesOf(select(null)), []);
+});
+
 test("taking 300 code lines out of the source is a block of old code, in one file or spread over files; comments, blank lines, rewrites and other files' additions do not hide or add to it", () => {
   const large = "plugins/native/alpha/src/large.ts", second = "plugins/native/alpha/src/second.ts";
   keepLines(large, 51);
@@ -938,6 +959,16 @@ test("the text output says when the full suite is recommended and which checks g
   const docs = cli("docs/system/NOTE.md").out;
   assert.doesNotMatch(docs, /FULL REGRESSION/);
   assert.doesNotMatch(docs, /pnpm build/, "a document needs no build");
+});
+
+test("the line about files no test reads says what is true: the package-wide tests cover them only when tests are listed", () => {
+  const withTests = cli("plugins/native/alpha/src/orphan.ts").out;
+  assert.match(withTests, /Related tests: [1-9]/);
+  assert.match(withTests, /No test reads these directly \(only the package-wide tests above cover them\): plugins\/native\/alpha\/src\/orphan\.ts/);
+  const none = cli("scripts/run-tests.mjs").out;
+  assert.match(none, /Related tests: 0 unit, 0 browser/);
+  assert.match(none, /No test reads these directly, and no test is listed above: scripts\/run-tests\.mjs/);
+  assert.doesNotMatch(none, /package-wide tests above/);
 });
 
 test("the checks that go with the tests: boundaries, health gates and the secret scan for any change; a build for source; page resources for UI; release versions for a package.json or a schema", () => {
@@ -1127,10 +1158,11 @@ test("in this repository, a change to a package selects every test its README li
 const ASSEMBLY = [
   "apps/local-host/src/project-host.ts", "apps/local-host/src/project-plugins.ts", "apps/local-host/src/local-host.ts", "apps/local-host/src/project-capabilities.ts",
   "apps/local-host/src/web-server.ts", "apps/local-host/src/web-request.ts", "apps/local-host/src/web-catalog.ts", "apps/local-host/src/mcp-server.ts",
-  "apps/local-host/src/system-agent-service.ts", "apps/local-host/src/goal-project-application.ts",
+  "apps/local-host/src/system-agent-service.ts", "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/workbench-renderer.ts",
   "apps/workbench/src/builtin-plugins.ts", "apps/workbench/src/browser-assets.ts", "apps/workbench/src/document-shell.ts", "apps/workbench/src/goals-page-renderer.ts",
-  "apps/workbench/src/immersive-shell.ts", "apps/workbench/src/page-assets.ts", "apps/workbench/src/plugin-catalog.ts", "apps/workbench/src/renderer.ts",
-  "apps/workbench/src/ui-composition.ts", "apps/workbench/src/scripts/client/initialization.ts", "apps/workbench/src/scripts/client/plugin-workbench.ts",
+  "apps/workbench/src/immersive-shell.ts", "apps/workbench/src/page-assets.ts", "apps/workbench/src/plugin-catalog.ts", "apps/workbench/src/plugin-workbench.ts",
+  "apps/workbench/src/renderer.ts", "apps/workbench/src/ui-composition.ts", "apps/workbench/src/scripts/client/initialization.ts",
+  "apps/workbench/src/scripts/client/plugin-workbench.ts",
 ];
 let realCache: { packages: unknown[]; index: ReturnType<typeof buildTestIndex> } | null = null;
 const realAt = (...paths: string[]) => {
@@ -1169,6 +1201,79 @@ test("every file a README table of local-host or workbench calls 装配 or 组�
     }
   }
   assert.ok(found >= 6, `${found} files found in the READMEs' tables: the table format changed`);
+});
+
+// Where each file of the assembly list comes from, as docs/system/PARALLEL-DEVELOPMENT.md section 6.1 and the comment in rules.mjs
+// state it. The READMEs are read here, so that "the README names this file" cannot be claimed of a file it does not name (the
+// client program scripts/client/plugin-workbench.ts was once credited to the workbench README, which names src/plugin-workbench.ts).
+/** The files a README names by file name, with the text of that README that names it (a link in a table, a code span in the prose, a link to the other package). */
+const NAMED_BY_README: { file: string; readme: string; text: string }[] = [
+  ...["project-host", "local-host", "project-capabilities", "web-server", "mcp-server", "system-agent-service", "goal-project-application"]
+    .map((name) => ({ file: `apps/local-host/src/${name}.ts`, readme: "apps/local-host", text: `[src/${name}.ts](src/${name}.ts)` })),
+  ...["ui-composition", "goals-page-renderer", "scripts/client/initialization", "browser-assets"]
+    .map((name) => ({ file: `apps/workbench/src/${name}.ts`, readme: "apps/workbench", text: `[src/${name}.ts](src/${name}.ts)` })),
+  ...["builtin-plugins", "plugin-catalog", "plugin-workbench"]
+    .map((name) => ({ file: `apps/workbench/src/${name}.ts`, readme: "apps/workbench", text: `\`${name}.ts\`` })),
+  { file: "apps/local-host/src/workbench-renderer.ts", readme: "apps/workbench", text: "[apps/local-host/src/workbench-renderer.ts](../local-host/src/workbench-renderer.ts)" },
+];
+/** Files on the list that neither README names: the hub table of section 2 (with the AGENTS.md pointer to project-plugins), and one added on judgment. */
+const NOT_NAMED = {
+  hub: ["apps/local-host/src/web-request.ts", "apps/local-host/src/web-catalog.ts", "apps/local-host/src/project-plugins.ts", "apps/workbench/src/renderer.ts",
+    "apps/workbench/src/immersive-shell.ts", "apps/workbench/src/page-assets.ts", "apps/workbench/src/scripts/client/plugin-workbench.ts"],
+  judgment: ["apps/workbench/src/document-shell.ts"],
+};
+/** The path as a README would write it after `src/`; a name that stands alone in the prose is looked for as a whole word of a file name. */
+const namedIn = (text: string, file: string) => {
+  const rest = file.replace(/^apps\/[^/]+\/src\//, "");
+  return new RegExp(`(?<![\\w-])${rest.replace(/[.]/g, "\\.")}(?![\\w-])`).test(text);
+};
+
+test("the assembly list is the README-named files, the hub-table files and the one judgment call, and the READMEs and the hub table say what the list claims of them", () => {
+  const readmes = new Map(["apps/local-host", "apps/workbench"].map((dir) => [dir, readFileSync(path.join(realRoot, dir, "README.md"), "utf8")]));
+  for (const entry of NAMED_BY_README) assert.ok(readmes.get(entry.readme)!.includes(entry.text), `${entry.readme}/README.md does not contain ${entry.text}`);
+  const allText = [...readmes.values()].join("\n");
+  for (const file of [...NOT_NAMED.hub, ...NOT_NAMED.judgment]) assert.equal(namedIn(allText, file), false, `a README names ${file}: it is not a hub-table or judgment file`);
+  assert.ok(namedIn("`plugin-workbench.ts`", "apps/workbench/src/plugin-workbench.ts") && !namedIn("`plugin-workbench.ts`", "apps/workbench/src/scripts/client/plugin-workbench.ts"), "the two files of the same name are told apart");
+  assert.ok(namedIn("[src/renderer.ts](src/renderer.ts)", "apps/workbench/src/renderer.ts") && !namedIn("goals-page-renderer.ts", "apps/workbench/src/renderer.ts"), "a name inside a longer file name is not the file");
+  const parts = [...NAMED_BY_README.map((entry) => entry.file), ...NOT_NAMED.hub, ...NOT_NAMED.judgment];
+  assert.equal(new Set(parts).size, parts.length, "no file is counted in two places");
+  assert.deepEqual([...parts].sort(), [...ASSEMBLY].sort(), "the three groups are the whole list");
+  assert.deepEqual([...FULL_REGRESSION.assemblyFiles].sort(), [...ASSEMBLY].sort());
+  // The hub table of section 2 lists the hub files; project-plugins is the one the text beneath it adds because AGENTS.md points to it.
+  const guide = readFileSync(path.join(realRoot, "docs/system/PARALLEL-DEVELOPMENT.md"), "utf8");
+  const hubRow = guide.split("\n").find((line) => line.startsWith("| 工作台聚合"))!;
+  const hostRow = guide.split("\n").find((line) => line.startsWith("| 宿主聚合"))!;
+  for (const file of NOT_NAMED.hub) {
+    if (file.endsWith("/project-plugins.ts")) continue;
+    assert.ok((file.startsWith("apps/workbench") ? hubRow : hostRow).includes(`\`${file.replace(/^apps\/[^/]+\/src\//, "")}\``), `${file} is in the hub table`);
+  }
+  assert.match(readFileSync(path.join(realRoot, "AGENTS.md"), "utf8"), /apps\/local-host\/src\/project-plugins\.ts/);
+  // The account in section 6.1 and open point 1 of section 12 use these numbers.
+  const named = NAMED_BY_README.length, hub = NOT_NAMED.hub.length, hosts = ASSEMBLY.filter((file) => file.startsWith("apps/local-host")).length;
+  assert.deepEqual([named, hub, NOT_NAMED.judgment.length, ASSEMBLY.length, hosts], [15, 7, 1, 23, 11]);
+  assert.ok(guide.includes(`共 ${ASSEMBLY.length} 个文件`), "section 6.1 gives the size of the list");
+  assert.ok(guide.includes(`两个包 README 按文件名点到的 ${named} 个`), "section 6.1 gives the README-named count");
+  assert.ok(guide.includes(`第 2 节枢纽表里把东西接在一起的 ${hub} 个`), "section 6.1 gives the hub-table count");
+  assert.ok(guide.includes(`名单是 ${hosts} 个文件`), "section 12 gives the size of the local-host half");
+  const workbench = ASSEMBLY.length - hosts, workbenchNamed = NAMED_BY_README.filter((entry) => entry.file.startsWith("apps/workbench")).length;
+  assert.ok(guide.includes(`workbench 的 ${workbench} 个里，README 按文件名点到 ${workbenchNamed} 个`), "section 12 gives the workbench split");
+});
+
+test("every README line that points to a caller to read the assembly from names a file that is on the list, or one that is excluded on purpose", () => {
+  const EXCLUDED = new Map([["apps/desktop/src/web-host.ts", "the desktop package's, not local-host's or the workbench's"]]);
+  let found = 0;
+  for (const dir of ["apps/local-host", "apps/workbench"]) {
+    for (const line of readFileSync(path.join(realRoot, dir, "README.md"), "utf8").split("\n").filter((text) => text.includes("阅读装配方式"))) {
+      const [, target] = /\]\(([^)]+\.ts)\)/.exec(line) ?? [];
+      assert.ok(target, `${dir}/README.md: no link in "${line}"`);
+      const file = path.posix.normalize(path.posix.join(dir, target));
+      found++;
+      assert.ok(FULL_REGRESSION.assemblyFiles.includes(file) || EXCLUDED.has(file), `${file} (named by ${dir}/README.md as the place to read the assembly) is neither on the assembly list nor excluded`);
+      assert.ok(existsSync(path.join(realRoot, file)), file);
+    }
+  }
+  assert.equal(found, 2, "both READMEs have the pointer");
+  assert.equal(FULL_REGRESSION.assemblyFiles.includes("apps/desktop/src/web-host.ts"), false);
 });
 
 test("in this repository, every file that declares a SqliteBaseline is read whole (version and schema), and a file named for baselines that stores nothing holds none", () => {

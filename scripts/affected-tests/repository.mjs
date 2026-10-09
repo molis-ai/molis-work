@@ -73,7 +73,9 @@ const textAt = (root, mergeBase, file) => {
 
 /**
  * Files changed against `mergeBase` (committed, staged, unstaged and untracked) with the lines each change added and removed.
- * status: A added, M modified, D deleted, R renamed (`from` is the old path; the old path is not listed again).
+ * status: A added, M modified, D deleted, R renamed (`from` is the old path; the old path is not listed again). Git pairs a rename
+ * only when both paths are known to the index: a file moved with a plain `mv` is a D and an untracked A (`untracked: true`) until
+ * it is staged (`git add -A`, or `git mv`).
  * `hunks` are the changed places in the file as it is now: `{ start, count }` (a pure deletion has count 0 and the line before it
  * as start). `before` is the text of a product source file at the base ("" for a new one), for the rules that compare two versions.
  */
@@ -111,7 +113,7 @@ export function readChanges(root, mergeBase) {
   for (const file of git(root, ["ls-files", "--others", "--exclude-standard", "-z"]).split("\0").filter(Boolean)) {
     if (changes.has(file)) continue;
     const added = linesOf(readText(root, file));
-    changes.set(file, { path: file, status: "A", added, removed: [], hunks: [{ start: 1, count: added.length }] });
+    changes.set(file, { path: file, status: "A", added, removed: [], hunks: [{ start: 1, count: added.length }], untracked: true });
   }
   for (const change of changes.values()) {
     if (PRODUCT_SOURCE.test(change.path)) change.before = change.status === "A" ? "" : textAt(root, mergeBase, change.from ?? change.path);

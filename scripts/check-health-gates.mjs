@@ -402,8 +402,8 @@ const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, compatMark
 // The structure gates (W1-05) live in scripts/gates/: each module says what to count, this file compares.
 METRICS.push(...structureMetrics({ isSource: isStructureSource, perFile, rekey, rekeyUnit, sumOf }));
 METRICS.push(...docGateMetrics({ perFile }));
-METRICS.push(createTranslationMetric({ isSource, requireShape, isRecord }));
 // 7. Translations (decision #16): missing English fails, conflicting translations are frozen, dead keys are reported. The rules live in scripts/gates/translations.mjs.
+METRICS.push(createTranslationMetric({ isSource, requireShape, isRecord }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 

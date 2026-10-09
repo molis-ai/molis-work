@@ -957,8 +957,7 @@ const CRAFT_BASE_STYLES = `
   /* A later round opens with when it began. */
   ${ASSIST} .assistant-round-time { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
   ${ASSIST} .assistant-round-time::before, ${ASSIST} .assistant-round-time::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-  /* What a round carried reads as a line under the person's own message. */
-  /* The conversation: the person's words on the right, the assistant's answer as text, what it did as quiet lines. */
+  /* The conversation: the person's words on the right, the Host's in the middle, the answer as text, what it did as quiet lines. */
   ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 16px; font-size: 13px; line-height: 1.6; overscroll-behavior: contain; }
   ${ASSIST} .assistant-empty { color: var(--muted); }
   ${ASSIST} .assistant-empty strong { display: block; margin-bottom: 4px; color: var(--ink); font-weight: 500; }
@@ -969,6 +968,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-msg--user { align-self: flex-end; max-width: 85%; padding: 8px 12px; border-radius: 12px; background: var(--nav-active); color: var(--ink); white-space: pre-wrap; }
   ${ASSIST} .assistant-msg--assistant { color: var(--ink); }
   ${ASSIST} .assistant-msg--note { font-size: 12px; color: var(--muted); }
+  ${ASSIST} .assistant-msg--host { align-self: center; max-width: 85%; padding: 4px 12px; border: 1px dashed var(--line); border-radius: 999px; color: var(--muted); font-size: 12px; text-align: center; white-space: pre-wrap; }
   ${ASSIST} .assistant-rich > :last-child { margin-bottom: 0; }
   ${ASSIST} .assistant-rich p { margin: 0 0 8px; }
   ${ASSIST} .assistant-rich :is(ul, ol) { margin: 0 0 8px; padding-left: 24px; }

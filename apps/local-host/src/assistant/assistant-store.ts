@@ -72,6 +72,10 @@ export interface StoredWork extends Omit<AssistantWork, "state"> {
   project_ref?: LocalHostProjectReference;
   /** On a delegated work: follow-ups its delegating work sent it. */
   follow_ups?: number;
+  /** On a delegated work: its latest round whose result reached its delegating work (by checking, or at its next round). */
+  handed_back_run?: string;
+  /** On a delegating work: its round after which the person stopped it — what its sub-tasks hand back then does not move it on by itself. */
+  hand_back_held?: string;
 }
 
 /** A change that can be taken back: the public view plus the exact undo to run. */
@@ -209,7 +213,7 @@ export class AssistantStore {
   }
 
   /** Optimistic: a caller holding an older revision gets a conflict instead of overwriting a newer change. */
-  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "follow_ups" | "delegated_by" | "budget_tokens">>, touch = true): StoredWork {
+  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "follow_ups" | "delegated_by" | "budget_tokens" | "handed_back_run" | "hand_back_held">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw new AssistantStoreError("assistant.conflict", "这项工作已在别处更新，请刷新后再改");
     const next: StoredWork = { ...current, ...patch, revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };

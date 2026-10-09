@@ -5,7 +5,7 @@ import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 
 /** A version of a work's view that changes when anything the page draws from it does. */
-export function workViewVersion(view: AssistantWorkView): string {
+export function workViewVersion(view: unknown): string {
   return createHash("sha256").update(JSON.stringify(view)).digest("hex").slice(0, 24);
 }
 
@@ -14,8 +14,8 @@ export function workViewVersion(view: AssistantWorkView): string {
  * wakes on what can change the view — the work's stored facts and the live run it waits on — gathers a burst for 40 ms,
  * and reads the view again; nothing is read on a timer (specs/prologue-adoption §4.5, item 12).
  */
-export async function waitForWorkChange(input: {
-  read(): Promise<AssistantWorkView>;
+export async function waitForWorkChange<View = AssistantWorkView>(input: {
+  read(): Promise<View>;
   /** Subscribe to this work's stored changes; returns the unsubscribe. */
   onStored(listener: () => void): () => void;
   /** Subscribe to the runs the work is waiting on now; returns the unsubscribe. */
@@ -23,15 +23,18 @@ export async function waitForWorkChange(input: {
   since: string | null;
   timeoutMs: number;
   signal?: AbortSignal;
-}): Promise<{ version: string; view: AssistantWorkView }> {
-  let view = await input.read(), version = workViewVersion(view);
-  if (version !== input.since) return { version, view };
+}): Promise<{ version: string; view: View }> {
+  // Nothing to compare with: the view as it is now.
+  if (input.since === null) { const view = await input.read(); return { version: workViewVersion(view), view }; }
   const deadline = Date.now() + Math.max(0, Math.min(25_000, input.timeoutMs));
   let wake: (() => void) | undefined, pending = false;
   const poke = () => { pending = true; wake?.(); };
+  // Listening starts before the first read, so a change between the two is not lost.
   const stopStored = input.onStored(poke);
   const stopRuns = await input.onRuns(poke).catch(() => () => {});
   try {
+    let view = await input.read(), version = workViewVersion(view);
+    if (version !== input.since) return { version, view };
     while (Date.now() < deadline && !input.signal?.aborted) {
       const woke = await new Promise<boolean>(resolve => {
         const timer = setTimeout(() => done(false), Math.max(0, deadline - Date.now()));
@@ -51,19 +54,16 @@ export async function waitForWorkChange(input: {
 }
 
 /**
- * Wait on one of the person's works as the page shows it: its own stored facts and those of the sub-tasks it handed out,
- * and the runs they wait on now (each one's latest Assistant round, and the latest round of the Coding session it runs
- * in or handed to).
+ * What wakes a wait on some of the person's works: their own stored facts, and the runs they wait on now (each one's
+ * latest Assistant round, and the latest round of the Coding session it runs in or handed to, when `codingRun` says).
  */
-export function waitForAssistantWork(ports: { store: AssistantStore; actorId: string; host(): Promise<AgentHost>; read(): Promise<AssistantWorkView>;
-  codingRun(work: StoredWork): Promise<AgentRunRef | undefined> }, workId: string, since: string | null, timeoutMs: number, signal?: AbortSignal) {
-  const watched = () => [workId, ...ports.store.delegatedBy(ports.actorId, workId).map(child => child.work_id)];
-  return waitForWorkChange({ read: ports.read, since, timeoutMs, signal,
-    onStored: listener => { const ids = new Set(watched()); return ports.store.onChange(id => { if (ids.has(id)) listener(); }); },
-    onRuns: async listener => {
+export function watchWorks(ports: { store: AssistantStore; actorId: string; host(): Promise<AgentHost>; codingRun?(work: StoredWork): Promise<AgentRunRef | undefined> }, workIds: readonly string[]) {
+  return {
+    onStored: (listener: () => void) => { const ids = new Set(workIds); return ports.store.onChange(id => { if (ids.has(id)) listener(); }); },
+    onRuns: async (listener: () => void) => {
       const adapter = (await ports.host()).adapter("prologue");
-      const refs = (await Promise.all(watched().map(async id => {
-        const work = ports.store.get(ports.actorId, id), own = ports.store.rounds(id).filter(round => round.executor !== "coding").at(-1), coding = await ports.codingRun(work);
+      const refs = (await Promise.all(workIds.map(async id => {
+        const work = ports.store.get(ports.actorId, id), own = ports.store.rounds(id).filter(round => round.executor !== "coding").at(-1), coding = await ports.codingRun?.(work);
         return [...(own && work.session_id ? [{ session_id: work.session_id, run_id: own.run_id }] : []), ...(coding ? [coding] : [])];
       }))).flat();
       // Observing replays the run as it is now; only what happens after wakes the wait.
@@ -71,5 +71,12 @@ export function waitForAssistantWork(ports: { store: AssistantStore; actorId: st
       const stops = refs.flatMap(ref => { try { return [adapter.observe(ref, () => { if (!replaying) listener(); })]; } catch { return []; } });
       replaying = false;
       return () => stops.forEach(stop => stop());
-    } });
+    },
+  };
+}
+
+/** Wait on one of the person's works as the page shows it, with the sub-tasks it handed out. */
+export function waitForAssistantWork(ports: Parameters<typeof watchWorks>[0] & { read(): Promise<AssistantWorkView> }, workId: string, since: string | null, timeoutMs: number, signal?: AbortSignal) {
+  const ids = [workId, ...ports.store.delegatedBy(ports.actorId, workId).map(child => child.work_id)];
+  return waitForWorkChange({ read: ports.read, since, timeoutMs, signal, ...watchWorks(ports, ids) });
 }

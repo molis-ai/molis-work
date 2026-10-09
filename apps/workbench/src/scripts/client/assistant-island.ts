@@ -915,7 +915,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (entry.turn) {
         flush();
         const turn = entry.turn;
-        const kind = turn.kind === "user" ? "user" : turn.kind === "assistant" ? "assistant" : "note";
+        // Words the Host wrote (a timed round, a work going on when its sub-tasks came back) are not shown as the person's.
+        const kind = turn.kind === "user" ? (round.written_by === "host" ? "host" : "user") : turn.kind === "assistant" ? "assistant" : "note";
         const bubble = keyed(node, "data-entry", entry.key, () => el("div", "assistant-msg assistant-msg--" + kind));
         if (bubble.dataset.text !== turn.text) {
           bubble.dataset.text = turn.text;
@@ -949,7 +950,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           if (!more.textContent) more.textContent = bubble.hasAttribute("data-folded") ? L("展开全文") : L("收起");
           put(more);
         }
-        if (kind === "user" && carried) { put(carried); carried = null; }
+        if ((kind === "user" || kind === "host") && carried) { put(carried); carried = null; }
       } else run.push(entry.item);
     });
     flush();
@@ -1892,11 +1893,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (id === currentId) showProblem({ message: error.message });
     }
   };
-  const follower = (${ASSISTANT_FOLLOW_FACTORY_SCRIPT})({ route: host.route, headers: host.headers, isLive, current: () => currentId, show: (next) => { view = next; render(); } });
-  const schedule = () => {
-    const state = currentId && view && view.work.work_id === currentId ? view.work.state : null;
-    if (isLive(state)) follower.follow(currentId); else follower.stop();
-  };
+  // A work is followed while it or a sub-task it handed out is live: what they hand back may move it on by itself.
+  const followed = (seen) => isLive(seen.work.state) || (seen.delegated || []).some((child) => !child.taken_back && isLive(child.state));
+  const follower = (${ASSISTANT_FOLLOW_FACTORY_SCRIPT})({ route: host.route, headers: host.headers, followed, current: () => currentId, show: (next) => { view = next; render(); } });
+  const schedule = () => { if (currentId && view && view.work.work_id === currentId && followed(view)) follower.follow(currentId); else follower.stop(); };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { refresh().then(schedule); loadWorks(); } });
   // Another window may have changed this work (a Coding mode, a new round): coming back to this one reads it again.
   window.addEventListener("focus", () => { if (!document.hidden && currentId) refresh().then(schedule); });

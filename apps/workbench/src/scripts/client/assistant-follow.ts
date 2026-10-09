@@ -18,7 +18,7 @@ export const ASSISTANT_FOLLOW_FACTORY_SCRIPT = String.raw`(input) => {
         const result = await response.json();
         failures = 0;
         if (result.version !== since && input.current() === id && !controller.signal.aborted) { since = result.version; input.show(result.view); }
-        if (!input.isLive(result.view.work.state)) break;
+        if (!input.followed(result.view)) break;
       } catch {
         if (controller.signal.aborted) return;
         failures += 1;

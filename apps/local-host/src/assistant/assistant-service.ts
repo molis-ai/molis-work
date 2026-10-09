@@ -1,9 +1,10 @@
 import { isDeepStrictEqual } from "node:util";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentDelegatedWork, AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
+import { AssistantDelegations } from "./assistant-delegation.js";
 import { actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
@@ -82,7 +83,6 @@ const FOLLOW_UP_GRACE_MS = 10 * 60 * 1000;
 const MAX_FOLLOW_UPS_PER_WORK = 5;
 
 /** Delegation bounds: works one work may hand out in all, at once, and follow-ups to each. */
-const MAX_DELEGATED = 6, MAX_ACTIVE_DELEGATED = 3, MAX_FOLLOW_UPS = 2;
 
 /** Reminders are asked for from where the last look stopped, but never further back than this (Molis Work was off). */
 const REMINDER_LOOKBACK_MS = 12 * 60 * 60 * 1000;
@@ -177,7 +177,7 @@ function checkMaterials(value: unknown): AssistantMaterial[] {
 }
 
 /** What a round is given as marked data, and what in it is told only once (marked told after the round has started). */
-interface RoundMaterials { materials: AgentTextMaterial[]; told: { undos: string[]; jobs: string[]; unsettled: string[] } }
+interface RoundMaterials { materials: AgentTextMaterial[]; told: { undos: string[]; jobs: string[]; unsettled: string[] }; handedBack: StoredWork[] }
 
 /** PNG, JPEG, GIF or WebP, by the bytes themselves. */
 function looksLikeImage(bytes: Buffer): boolean {
@@ -526,8 +526,22 @@ export class AssistantService {
   private readonly starting = new Map<string, string>();
   /** The memories chosen for the round a work is starting (null: none), until it starts. */
   private readonly chosenMemory = new Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>();
+  /** Sub-tasks this person's works hand out, and what they hand back. */
+  private readonly delegations: AssistantDelegations;
   constructor(private readonly store: AssistantStore, private readonly ports: AssistantServicePorts, private readonly actorId: string,
-    private readonly now = () => new Date()) {}
+    private readonly now = () => new Date()) {
+    this.delegations = new AssistantDelegations({ store, actorId, host: () => ports.host(), ...(ports.characters ? { characters: project => ports.characters!(project) } : {}),
+      stateOf: (host, work) => this.stateFor(host, work), latestRun: (host, work) => this.latestRun(host, work), chooseCharacter: (work, choice) => this.chooseCharacter(work, choice),
+      lastReply: async work => [...((await this.assistantPart(work)).rounds.at(-1)?.turns ?? [])].reverse().find(turn => turn.kind === "assistant" && turn.text?.trim())?.text?.trim(),
+      read: workId => this.read(workId), fail: (code, message) => new AssistantError(code, message),
+      notify: (work, text, key) => void this.store.raiseNotice(actorId, { kind: "needs-decision", work_id: work.work_id, work_title: work.title, text }, key),
+      // A start the Host writes happens once per key: a repeated settle finds it claimed.
+      dispatch: async (work, text, materials, writtenBy, request) => {
+        if (request && !store.claimRequest(actorId, request).claimed) return;
+        try { const result = await this.dispatch(work, text, materials, null, undefined, writtenBy); if (request) store.finishRequest(actorId, request, result); return result; }
+        catch (error) { if (request) store.releaseRequest(actorId, request); throw error; }
+      } });
+  }
 
   async list(): Promise<AssistantWork[]> {
     const works = this.store.list(this.actorId);
@@ -728,6 +742,8 @@ export class AssistantService {
       if (held && (held.state === "failed" || held.state === "reconcile-required")) { await this.runFollowUp(followUp).catch(() => undefined); continue; }
       await schedule.enqueue(task).catch(() => undefined);
     }
+    // Sub-tasks that settled while nobody took up what they hand back (the Host went away in between): taken up now.
+    void this.delegations.resume();
     return true;
   }
 
@@ -1038,6 +1054,7 @@ export class AssistantService {
       .map(async child => ({ child, run: await this.latestRun(host, child).catch(() => null) })))).filter(item => item.run && !isTerminalAgentPhase(item.run.phase)) : [];
     const running = latest && !isTerminalAgentPhase(latest.phase);
     if (!running && !children.length) throw new AssistantError("assistant.state", "这项工作当前没有在执行的一轮");
+    if (control.kind === "stop") this.delegations.hold(work);
     if (running) {
       await host.adapter(RUNTIME).control(latest.ref, { kind: control.kind });
       // A stopped round's held effects will never run: withdraw them so no one approves a change nothing will make.
@@ -1633,6 +1650,7 @@ export class AssistantService {
     const adapter = (await this.ports.host()).adapter(RUNTIME);
     if (!adapter.recovery) throw new AssistantError("assistant.unsupported", "当前运行时不能核对中断的执行");
     await adapter.recovery.close(sessionRef(work), String(input.run_id), Number(input.version));
+    if (work.delegated_by) void this.delegations.settle(work.delegated_by.work_id);
     return this.read(workId);
   }
 
@@ -1946,12 +1964,13 @@ export class AssistantService {
       this.recalled.delete(work.work_id); this.chosenMemory.delete(work.work_id); this.starting.delete(work.work_id);
       throw error;
     }
-    this.store.markTold(this.actorId, prepared.told);
+    this.store.markTold(this.actorId, prepared.told); this.delegations.markHandedBack(prepared.handedBack);
     this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}), ...(work.character ? { character: { ...work.character } } : {}),
       ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });
     this.recalled.delete(work.work_id);
     this.chosenMemory.delete(work.work_id);
     this.starting.delete(work.work_id);
+    this.delegations.watch(work, handle.ref);
     return this.result(work, "started", handle.ref.run_id);
   }
 
@@ -2031,6 +2050,9 @@ export class AssistantService {
       out.push(...chunked({ ...base, title: "后台任务" }, "jobs", jobs.map(job => `- 「${job.title}」（任务 ${job.job_id}）：${job.state === "running" ? "仍在进行" : job.state === "completed" ? "已完成" : job.state === "failed" ? "没有完成" : "不再跟进"}${job.last_state ? `（${job.last_state}）` : ""}`).join("\n")));
       told.jobs = jobs.filter(job => job.state !== "running").map(job => job.key);
     }
+    // What its sub-tasks handed back that it has not had yet (marked with the rest once the round has started).
+    const { material: handed, told: handedBack } = await this.delegations.material(work, base);
+    if (handed) out.push(handed);
     // Professional roles this work may hand a part to (published here, runnable now): delegation names one by its id.
     if (!work.delegated_by && work.project_ref && this.ports.characters && work.executor.kind !== "coding") {
       const roles = (await this.ports.characters(work.project_ref).catch(() => [])).filter(item => item.available);
@@ -2093,7 +2115,7 @@ export class AssistantService {
         material.object ? `对象：${material.object.title ?? material.object.id}（${material.object.kind}${material.object.version !== undefined ? `，版本 ${material.object.version}` : ""}）` : ""].filter(Boolean).join("\n");
       out.push(...chunked({ ...base, title: `材料：${material.title}` }, `material-${material.material_id}`, `${head}\n\n${material.text ?? "（没有可读正文）"}`));
     }
-    return { materials: out.slice(0, 30), told };
+    return { materials: out.slice(0, 30), told, handedBack };
   }
 
   /** A supplement reaches a running round as text; its materials go with it, marked as data. */
@@ -2405,99 +2427,10 @@ export class AssistantService {
     return { changes: memory.changes(caller, { scope: "all", work_id: work.work_id, limit: 20 }) };
   }
 
-  delegation(parent: StoredWork): AgentDelegation | undefined {
-    if (parent.delegated_by) return undefined;
-    const own = (workId: string) => {
-      const work = this.store.get(this.actorId, workId);
-      if (work.delegated_by?.work_id !== parent.work_id) throw new AssistantError("assistant.scope", "这不是这项工作委托出去的子任务");
-      return work;
-    };
-    const view = async (work: StoredWork): Promise<AgentDelegatedWork> => {
-      const host = await this.ports.host();
-      const state = await this.stateFor(host, work);
-      const turns = work.session_id ? (await this.assistantPart(work).catch(() => null))?.rounds.at(-1)?.turns ?? [] : [];
-      const reply = [...turns].reverse().find(turn => turn.kind === "assistant" && turn.text?.trim())?.text?.trim();
-      const results = this.store.relations.forWork(identity(work)).filter(row => row.relation === "result").map(row => ({ kind: row.object.kind, id: row.object.id, revision: row.object.revision }));
-      return { work_id: work.work_id, title: work.title, state, ...(reply ? { reply: reply.length > 1200 ? reply.slice(0, 1200) + "…" : reply } : {}),
-        ...(results.length ? { results } : {}), follow_ups: work.follow_ups ?? 0,
-        ...(work.delegated_by?.taken_back_at ? { taken_back: true, note: "用户把这个子任务收回到这项工作：它已停下，已产出的保留。这部分由你在这项工作里完成（可读取它已产出的对象接着做），不要再委托出去或对它追加；用户若另有要求，以用户为准。" } : {}) };
-    };
-    return {
-      start: async input => {
-        const host = await this.ports.host();
-        // A professional role, when asked for: exactly one the person published here and can run now — never a stand-in.
-        let role: AssistantCharacterChoice | undefined;
-        if (input.character) {
-          const choices = parent.project_ref && this.ports.characters ? await this.ports.characters(parent.project_ref) : [];
-          const named = choices.filter(item => item.reference.artifact_id === input.character || item.title === input.character)
-            .sort((a, b) => Number(b.available) - Number(a.available) || b.reference.version - a.reference.version);
-          role = named[0];
-          if (!role) throw new AssistantError("assistant.not_found", `没有叫「${input.character}」的专业角色（只能用「可委托的专业角色」里列出的）；没有换成别的角色`);
-          if (!role.available) throw new AssistantError("assistant.character_unavailable", `角色「${role.title}」现在不能用：${role.reason ?? "不可用"}；没有换成别的角色`);
-        }
-        const children = this.store.delegatedBy(this.actorId, parent.work_id, "any");
-        const active = (await Promise.all(children.map(child => this.stateFor(host, child)))).filter(state => !["completed", "failed", "stopped", "idle"].includes(state)).length;
-        if (children.length >= MAX_DELEGATED) throw new AssistantError("assistant.limit", `这项工作已经委托了 ${MAX_DELEGATED} 个子任务，不能再多；请自己完成剩下的部分或告诉用户`);
-        if (active >= MAX_ACTIVE_DELEGATED) throw new AssistantError("assistant.limit", `已有 ${MAX_ACTIVE_DELEGATED} 个子任务在进行，等其中一个结束再委托`);
-        const child = this.store.create({ actor_id: this.actorId, title: input.title.slice(0, 80), scope: parent.scope, ...(parent.scope_title ? { scope_title: parent.scope_title } : {}),
-          origin: { surface: "assistant", title: `「${parent.title}」委托` }, ...(parent.project_ref ? { project_ref: parent.project_ref } : {}),
-          delegated_by: { work_id: parent.work_id, title: parent.title, acceptance: input.acceptance.slice(0, 2000) } });
-        const materials: AssistantMaterial[] = (input.materials ?? []).slice(0, 4).map((material, index) => ({ material_id: `delegated-${index + 1}`, kind: "text", title: material.title.slice(0, 200),
-          text: material.text.slice(0, 20_000), explicit: true, source: { surface: "assistant", title: parent.title } }));
-        try {
-          const assigned = role ? await this.chooseCharacter(child, role.reference) : child;
-          await this.dispatch(assigned, [`这是「${parent.title}」委托给你的子任务，只做这一部分。`, input.brief, `验收标准：${input.acceptance}`,
-            "完成时说明结果在哪里（对象名称）、是否满足验收；做不到的部分如实说明，不要声称已完成。"].join("\n\n"), materials, null, undefined, "assistant");
-        } catch (error) { this.store.discard(this.actorId, child.work_id); throw error; }
-        return view(this.store.get(this.actorId, child.work_id));
-      },
-      status: async (input, signal) => {
-        const deadline = Date.now() + Math.max(0, Math.min(50_000, input.wait_ms ?? 0));
-        for (;;) {
-          const works = this.store.delegatedBy(this.actorId, parent.work_id).filter(work => !input.work_ids || input.work_ids.includes(work.work_id));
-          const views = await Promise.all(works.map(view));
-          if (views.every(item => !["running", "paused"].includes(item.state)) || Date.now() >= deadline || signal?.aborted) return views;
-          await new Promise(resolve => setTimeout(resolve, 1500));
-        }
-      },
-      follow_up: async (workId, text) => {
-        const child = own(workId);
-        if (child.delegated_by?.taken_back_at) throw new AssistantError("assistant.invalid", "用户已把这个子任务收回到这项工作，这部分由你在这里继续，不要再对它追加");
-        if ((child.follow_ups ?? 0) >= MAX_FOLLOW_UPS) throw new AssistantError("assistant.limit", `已经追加过 ${MAX_FOLLOW_UPS} 次；仍达不到验收时停止它，并把实际情况告诉用户`);
-        const updated = this.store.update(this.actorId, child.work_id, null, { follow_ups: (child.follow_ups ?? 0) + 1 }, false);
-        await this.dispatch(updated, text, [], null, undefined, "assistant");
-        return view(this.store.get(this.actorId, child.work_id));
-      },
-      stop: async workId => {
-        const child = own(workId);
-        const host = await this.ports.host();
-        const latest = await this.latestRun(host, child);
-        if (latest && !isTerminalAgentPhase(latest.phase)) {
-          await host.adapter(RUNTIME).control(latest.ref, { kind: "stop" });
-          host.reviews.cancelPending(latest.ref.run_id, "委托它的工作停止了这个子任务");
-        }
-        return view(this.store.get(this.actorId, child.work_id));
-      },
-    };
-  }
+  /** The delegation tools of a round of `parent` (assistant-delegation.ts). */
+  delegation(parent: StoredWork): AgentDelegation | undefined { return this.delegations.of(parent); }
 
-  /**
-   * The person takes a sub-task back into the work that delegated it: it stops if still running (what it made stays
-   * with it), no more follow-ups go to it, and the delegating work's next round finishes that part itself.
-   */
-  async takeBack(childId: string): Promise<AssistantWorkView> {
-    const child = this.store.get(this.actorId, childId);
-    if (!child.delegated_by) throw new AssistantError("assistant.invalid", "这不是一个子任务");
-    if (child.delegated_by.taken_back_at) throw new AssistantError("assistant.invalid", "这个子任务已经收回了");
-    const host = await this.ports.host();
-    const latest = await this.latestRun(host, child);
-    if (latest && !isTerminalAgentPhase(latest.phase)) {
-      await host.adapter(RUNTIME).control(latest.ref, { kind: "stop" });
-      host.reviews.cancelPending(latest.ref.run_id, "用户把这个子任务收回了");
-    }
-    this.store.update(this.actorId, child.work_id, null, { delegated_by: { ...child.delegated_by, taken_back_at: this.now().toISOString() } }, false);
-    return this.read(child.delegated_by.work_id);
-  }
+  takeBack(childId: string): Promise<AssistantWorkView> { return this.delegations.takeBack(childId); }
 
   /** The Characters the person may choose for a work: only project work has them, and only the Assistant's own rounds use them. */
   async characters(workId: string | undefined, caller: AssistantCaller): Promise<AssistantCharacterChoice[]> {
@@ -2544,7 +2477,7 @@ export class AssistantService {
   }
 
   private roundView(round: StoredRound, view: AgentRunView | undefined, titles: CapabilityTitles | undefined): AssistantRound {
-    return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character } } : {}),
+    return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character } } : {}), ...(round.written_by === "host" ? { written_by: "host" as const } : {}),
       materials: round.materials.map(({ text: _text, ...rest }) => rest.kind === "image" && rest.image && !this.holdsImage(rest.image) ? { ...rest, expired: true } : rest),
       phase: view?.phase ?? "unknown", turns: spokenTurns(view?.turns ?? []), activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
       ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}),
@@ -2552,7 +2485,7 @@ export class AssistantService {
   }
 
   private publicWork(work: StoredWork, state: AssistantWorkState): AssistantWork {
-    const { actor_id: _actor, project_ref: _ref, handover_brief: _brief, ...rest } = work;
+    const { actor_id: _actor, project_ref: _ref, handover_brief: _brief, handed_back_run: _handed, hand_back_held: _held, ...rest } = work;
     return { ...rest, state };
   }
 

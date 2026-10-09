@@ -18,7 +18,7 @@ export function renderAlchemistWorkbench({primitives:p}:AlchemistUiModel):string
       <nav class="alc-collections" aria-label="${t('炼金术集合')}">${[['directions','方向'],['ideas','已保留'],['pulse','市场脉搏'],['decisions','决策']].map(([id,label])=>`<button type="button" class="mw-btn mw-btn--ghost" data-alc-collection="${id}" aria-pressed="${id==='directions'}">${t(label!)}</button>`).join('')}</nav>
       <label class="alc-search">${icon('search')}<input class="mw-input" type="search" data-alc-search placeholder="${t('搜索当前集合')}" aria-label="${t('搜索当前集合')}"></label>
       <div data-alc-list-actions class="alc-list-actions"></div>
-      <p class="alc-muted alc-list-note" data-alc-pulse-note hidden>${t('采集会联网访问 Toolify、观猹和 GitHub，只读公开页面，不发送你的内容。GitHub 用「设置 › 服务连接」里绑定的账号，没绑定就匿名访问，限额较低。')}</p>
+      <p class="alc-muted alc-list-note" data-alc-pulse-note hidden>${t('采集会联网访问 Toolify、观猹和 GitHub，只读公开页面，不发送你的内容。GitHub 用「设置 › 服务连接」里最早添加、未断开的 GitHub 账号；没有就匿名访问，限额较低。')}</p>
       <div data-alc-rows><p class="alc-empty mw-loading">${t('正在读取…')}</p></div>
     </div>
     <section class="plugin-stage-workspace alc-workspace" data-alc-workspace hidden>

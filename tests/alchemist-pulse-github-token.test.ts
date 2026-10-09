@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
 import { MolisWorkLocalHost, alchemistPulseGithubToken, molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
 
 // W2-18 decision 7: the market pulse's GitHub source uses the Settings GitHub connection's secret reference and searches
@@ -43,6 +44,27 @@ test("only a GitHub account connection with a stored secret lends its token", as
   assert.equal(alchemistPulseGithubToken(directory), undefined, "another service's token and a CLI login (no stored secret) are not GitHub account tokens");
   withConnectorConnections(directory, store => store.createToken({ serviceId: "github", displayName: "GitHub · device", token: "device-token", accountLabel: "octo", authMethod: "oauth" }));
   assert.equal(alchemistPulseGithubToken(directory), "device-token");
+});
+
+test("with several GitHub accounts the earliest one that is not disconnected lends its token, and a later one never stands in for it", async t => {
+  const directory = await home(t);
+  const tick = () => new Promise(resolve => setTimeout(resolve, 5));
+  const first = withConnectorConnections(directory, store => store.createToken({ serviceId: "github", displayName: "GitHub · first", token: "first-token", accountLabel: "first", authMethod: "token" }));
+  await tick();
+  const second = withConnectorConnections(directory, store => store.createToken({ serviceId: "github", displayName: "GitHub · second", token: "second-token", accountLabel: "second", authMethod: "oauth" }));
+  await tick();
+  withConnectorConnections(directory, store => store.createToken({ serviceId: "github", displayName: "GitHub · third", token: "third-token", accountLabel: "third", authMethod: "token" }));
+  assert.equal(alchemistPulseGithubToken(directory), "first-token", "the earliest account is the one the pulse note names");
+
+  // The earliest account is still connected but its secret cannot be read: anonymous, not the next account's token.
+  runWithMolisWorkHome(directory, () => createFileSecretStore().delete(first.credential_ref!));
+  assert.equal(alchemistPulseGithubToken(directory), undefined, "an unreadable secret of the earliest account does not move the pulse on to another account");
+
+  // Disconnecting an account is the user's way of stepping it aside: the next earliest one that is not disconnected takes over.
+  withConnectorConnections(directory, store => store.disconnect(first.connection_id));
+  assert.equal(alchemistPulseGithubToken(directory), "second-token");
+  withConnectorConnections(directory, store => store.disconnect(second.connection_id));
+  assert.equal(alchemistPulseGithubToken(directory), "third-token");
 });
 
 test("a live market pulse sends the bound connection's token to api.github.com, and nothing when none is bound", { timeout: 60_000 }, async t => {

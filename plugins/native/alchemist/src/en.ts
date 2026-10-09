@@ -113,7 +113,7 @@ export const ALCHEMIST_EN: Record<string, string> = {
   "市场空间默认调用上限": "Default market-space call limit",
   "市场脉搏": "Market pulse",
   "市场脉搏来源": "Market pulse sources",
-  "采集会联网访问 Toolify、观猹和 GitHub，只读公开页面，不发送你的内容。GitHub 用「设置 › 服务连接」里绑定的账号，没绑定就匿名访问，限额较低。": "Collecting contacts Toolify, Watcha (观猹) and GitHub and only reads public pages; none of your content is sent. GitHub uses the account bound in Settings › Service connections; without one it searches anonymously, with a lower rate limit.",
+  "采集会联网访问 Toolify、观猹和 GitHub，只读公开页面，不发送你的内容。GitHub 用「设置 › 服务连接」里最早添加、未断开的 GitHub 账号；没有就匿名访问，限额较低。": "Collecting contacts Toolify, Watcha (观猹) and GitHub and only reads public pages; none of your content is sent. GitHub uses the earliest-added GitHub account in Settings › Service connections that is not disconnected; without one it searches anonymously, with a lower rate limit.",
   "应用次数": "Times applied",
   "应用研究方法": "Applied research methods",
   "开始炼化": "Start refining",

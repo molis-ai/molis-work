@@ -4,7 +4,7 @@ import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-des
  * itself, rendered by the host component renderer from the frozen component tree. Everything shown is derived
  * from the build record the host pushes; nothing here advances a build or fakes progress.
  */
-export function renderAgentStudio(): string {
+export function renderAgentStudio(text: (zh: string, values?: Record<string, string | number>) => string = zh => zh): string {
   return '<section class="as-shell" data-agent-studio>'
     + '<header class="as-top"><div class="as-top-actions"><label class="as-select"><span class="as-sr">我的插件</span><select data-as-builds aria-label="我的插件"></select></label>'
     + '<button class="as-icon" type="button" data-as-new aria-label="新建插件" title="新建插件"><svg aria-hidden="true"><use href="#icon-plus"/></svg></button>'
@@ -16,7 +16,7 @@ export function renderAgentStudio(): string {
     + '<button class="as-send" type="submit" aria-label="发送" title="发送"><svg aria-hidden="true"><use href="#icon-send"/></svg></button></form>'
     + '<p class="as-model-note" data-as-model-note></p>'
     // The build check's packaging step downloads the dependencies a generated plugin declares from the npm registry (W2-18 decision 14).
-    + '<p class="as-model-note" data-as-network-note>构建检查的「打包」一步：插件声明了依赖包时，会把包名和版本发给 npm 官方仓库（registry.npmjs.org）下载，不发送你的内容。</p></aside>'
+    + '<p class="as-model-note" data-as-network-note>' + text('构建检查的「打包」一步：插件声明了依赖包时，会把包名和版本发给 npm 官方仓库（registry.npmjs.org）下载，不发送你的内容。') + '</p></aside>'
     + '<main class="as-right"><header class="as-canvas-head"><div class="as-title"><h1 data-as-title>新插件</h1><span class="as-phase" data-as-phase></span></div>'
     + '<div class="as-segment" role="tablist" aria-label="画布模式"><button type="button" role="tab" data-as-tab="build" aria-selected="true">构建</button><button type="button" role="tab" data-as-tab="try" aria-selected="false">试用</button></div>'
     + '<div class="as-head-actions" data-as-head-actions></div></header>'

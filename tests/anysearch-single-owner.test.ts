@@ -52,11 +52,16 @@ function isClientRequest(value: FakeRequest): value is FakeRequest & http.Client
   return typeof value.end === "function" && typeof value.destroy === "function";
 }
 
+/** The proxy variables `resolveModelHostname` consults (`hasProxy` in node-model-dns.ts). */
+const PROXY_VARIABLES = ["https_proxy", "HTTPS_PROXY", "all_proxy", "ALL_PROXY"] as const;
+
 /** Script only DNS and the TLS socket; the real Host transport, AnySearch protocol and SEL execution run. */
 function scriptNetwork(t: test.TestContext, input: { system: string; publicDns?: string; proxy: boolean }) {
   const seen = { connections: 0, calls: [] as string[], publicDnsQueries: 0, systemLookups: 0 };
-  const previous = process.env.HTTPS_PROXY;
-  if (input.proxy) process.env.HTTPS_PROXY = "http://explicit-test-proxy.invalid"; else delete process.env.HTTPS_PROXY;
+  // The resolver reads all four names (a shell behind a fake-IP proxy often exports only the lowercase ones), so all four are set here.
+  const previous = Object.fromEntries(PROXY_VARIABLES.map(name => [name, process.env[name]]));
+  for (const name of PROXY_VARIABLES) delete process.env[name];
+  if (input.proxy) process.env.HTTPS_PROXY = "http://explicit-test-proxy.invalid";
   t.mock.method(dns, "lookup", async (host: string) => {
     assert.equal(host, "api.anysearch.com");
     seen.systemLookups++;
@@ -97,7 +102,7 @@ function scriptNetwork(t: test.TestContext, input: { system: string; publicDns?:
   syncBuiltinESMExports();
   t.after(() => {
     t.mock.restoreAll(); syncBuiltinESMExports();
-    if (previous === undefined) delete process.env.HTTPS_PROXY; else process.env.HTTPS_PROXY = previous;
+    for (const [name, value] of Object.entries(previous)) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
   });
   return seen;
 }

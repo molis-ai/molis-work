@@ -221,13 +221,15 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
       if (!info?.client_id || !info.client_secret) throw new McpConnectionError("configuration", "飞书 / Lark MCP 需要 App ID 与 App Secret");
       const token = session.secrets.get("access");
       const launch = larkMcpLaunch({ appId: info.client_id, appSecret: info.client_secret, domain: new URL(config.endpoint).origin, userAccessToken: token });
-      const parameters: StdioServerParameters = { command: launch.command, args: launch.args, env: launch.env, cwd: launch.cwd, stderr: "pipe" };
-      const transport = options.stdioTransport ? options.stdioTransport(parameters) : new StdioClientTransport(parameters);
       const client = new Client({ name: "molis-work", version: "0.2.0" }, { capabilities: {} });
       const abort = () => { void client.close().catch(() => {}); };
-      signal?.addEventListener("abort", abort, { once: true });
-      try { await client.connect(transport, { timeout: 60_000, signal }); session.checkActive?.(); const result = await run(client); session.checkActive?.(); signal?.throwIfAborted(); return { result }; }
-      finally { signal?.removeEventListener("abort", abort); await client.close().catch(() => {}); }
+      try {
+        const parameters: StdioServerParameters = { command: launch.command, args: launch.args, env: launch.env, cwd: launch.cwd, stderr: "pipe" };
+        const transport = options.stdioTransport ? options.stdioTransport(parameters) : new StdioClientTransport(parameters);
+        signal?.addEventListener("abort", abort, { once: true });
+        await client.connect(transport, { timeout: 60_000, signal }); session.checkActive?.(); const result = await run(client); session.checkActive?.(); signal?.throwIfAborted(); return { result };
+      }
+      finally { signal?.removeEventListener("abort", abort); await client.close().catch(() => {}); launch.cleanup(); }
     }
     const expires = Number(session.secrets.get("expires"));
     // Some official servers also expose anonymous tools. A user asking to link

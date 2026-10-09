@@ -3,8 +3,8 @@ import { BUILDER_PLUGIN_ID, BUILDER_UI_ID } from './manifest.js';
 import { renderAgentStudio } from './agent-studio.js';
 
 /** The studio's stage in the workbench (specs/artifact-positioning S4); its client comes with the plugin's workbench pack. */
-export function renderStudioStage(): string {
-  return '<section class="desktop-work-surface pb-surface" data-work-surface="plugin-builder" data-work-surface-label="插件创作工作台" hidden>' + renderAgentStudio() + '</section>';
+export function renderStudioStage(text?: Parameters<typeof renderAgentStudio>[0]): string {
+  return '<section class="desktop-work-surface pb-surface" data-work-surface="plugin-builder" data-work-surface-label="插件创作工作台" hidden>' + renderAgentStudio(text) + '</section>';
 }
 
 /** The studio's place in the workbench: its own entry in the plugin list and its stage. */

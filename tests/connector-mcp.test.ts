@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -292,24 +292,28 @@ test("MCP explicit new authorization cannot replace an existing account binding"
 
 // The Host starts the Feishu/Lark child through `stdioTransport` here: the same parameters the real transport gets, with
 // the pinned package swapped for a fixture server that reports the environment it was started with.
-function larkChild(started: StdioServerParameters[]) {
+function larkChild(started: StdioServerParameters[], directories: string[][] = []) {
   const fixtureServer = fileURLToPath(new URL("./fixtures/connector-stdio-server.ts", import.meta.url));
   return (parameters: StdioServerParameters) => {
     started.push(parameters);
+    directories.push(readdirSync(parameters.cwd!));
     return new StdioClientTransport({ ...parameters, command: process.execPath, args: ["--import", import.meta.resolve("tsx"), fixtureServer] });
   };
 }
 
 test("official Lark MCP stdio transport discovers and calls tools with environment credentials", async () => {
-  const temp = home(), started: StdioServerParameters[] = [];
+  const temp = home(), started: StdioServerParameters[] = [], directories: string[][] = [];
   try {
-    const host = createConnectorMcpHost({ stdioTransport: larkChild(started) });
+    const host = createConnectorMcpHost({ stdioTransport: larkChild(started, directories) });
     const connected = await host.startMcpConnection(temp, { serviceId: "feishu", displayName: "Tenant", clientId: "fixture-app", clientSecret: "fixture-secret", origin: callbackOrigin });
     assert.equal(connected.tools?.[0]?.name, "read");
     const result = await host.callMcpConnectionTool(temp, connected.connectionId, "read", {});
     assert.match(JSON.stringify(result), /actual stdio response/u);
     assert.doesNotMatch(JSON.stringify(connected), /fixture-secret/u);
     assert.ok(started.length >= 2, "the Host started the child for each use of the connection");
+    assert.equal(new Set(started.map(parameters => parameters.cwd)).size, started.length, "every start has a working directory of its own");
+    assert.deepEqual(directories.flat(), [], "each one was empty when the child started, so there was no .env for it to read");
+    assert.deepEqual(started.filter(parameters => existsSync(parameters.cwd!)), [], "and each is removed once the Host is done with that child");
     withConnectorConnections(temp, store => store.disconnect(connected.connectionId));
     await assert.rejects(host.inspectMcpConnection(temp, connected.connectionId), /断开/u);
   } finally { rmSync(temp, { recursive: true, force: true }); }
@@ -326,8 +330,9 @@ test("the Host starts the Feishu/Lark child with the launch it built, and the ch
   const connected = await host.startMcpConnection(temp, { serviceId: "feishu", displayName: "Tenant", clientId: "fixture-app", clientSecret: "fixture-secret", origin: callbackOrigin });
   const parameters = started.at(-1)!;
   const expected = larkMcpLaunch({ appId: "fixture-app", appSecret: "fixture-secret", domain: "https://open.feishu.cn" });
+  expected.cleanup();
   assert.deepEqual(parameters.env, expected.env, "the transport gets the launch environment unchanged: not merged with the Host's process.env");
-  assert.equal(parameters.cwd, expected.cwd);
+  assert.notEqual(parameters.cwd, expected.cwd, "and its own working directory, not one shared with another launch");
   assert.equal(parameters.stderr, "pipe");
   for (const name of Object.keys(hostSecrets)) assert.equal(name in (parameters.env ?? {}), false, `${name} stays in the Host`);
   const answer = await host.callMcpConnectionTool(temp, connected.connectionId, "environment", {}) as { content: Array<{ text: string }> };

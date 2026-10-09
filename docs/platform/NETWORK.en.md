@@ -19,7 +19,7 @@ Commands you run in the terminal panel, commands the host runs after you approve
 | 4 | Pages and links you name | The addresses you give | Ordinary read requests, without your credentials |
 | 5 | Plugins made in the plugin studio | The sites the plugin declared and you approved | The plugin's own requests |
 | 6 | Casebook reference client | No product feature uses it | — |
-| 7 | Alchemist market pulse | Toolify, Watcha (观猹), GitHub | Public pages and search requests; GitHub carries the account you bound |
+| 7 | Alchemist market pulse | Toolify, Watcha (观猹), GitHub | Public pages and search requests; GitHub carries the earliest-added GitHub account in Service connections that is not disconnected |
 | 8 | On this machine | Loopback addresses | Never leaves your computer |
 | 9 | Plugin studio build check | `registry.npmjs.org` | **Dependency package names and versions** |
 | 10 | Public DNS fallback for host names | `dns.google`, `dns.alidns.com` | **Site names** (only where a proxy hands out placeholder addresses) |
@@ -32,7 +32,7 @@ Only classes 9 and 10 send a **name** (a package name, a site name) to a third p
 ## The three cases that tell a third party a name
 
 1. **Plugin studio build check (class 9).** If a generated plugin declares runtime dependencies, the "packaging" step of the build check sends the dependencies' **package names and versions** to the npm registry (`registry.npmjs.org`) to download them. With no declared dependencies nothing goes online. The studio says this in its interface.
-2. **Proxy placeholder addresses (class 10, 10a).** If your computer runs proxy software that answers every host name lookup with a placeholder address first (`198.18.0.0` through `198.19.255.255`), Molis Work sends the **site name** it needs to reach to Google (`dns.google`) and Alibaba Cloud (`dns.alidns.com`) public DNS services to ask for the real address. The site names concerned are the model and image services you configured, and AnySearch (`api.anysearch.com`, used by both the Feed web search and the Alchemist research). This only happens when a proxy environment variable is set (one of `https_proxy`, `HTTPS_PROXY`, `all_proxy`, `ALL_PROXY`) and the system answer is a placeholder address; an ordinary network never does it.
+2. **Proxy placeholder addresses (class 10, 10a).** If your computer runs proxy software that answers every host name lookup with a placeholder address first (`198.18.0.0` through `198.19.255.255`), Molis Work sends the **site name** it needs to reach to Google (`dns.google`) and Alibaba Cloud (`dns.alidns.com`) public DNS services to ask for the real address. The site names concerned are the model, image and judgement services you configured, and AnySearch (`api.anysearch.com`, used by both the Feed web search and the Alchemist research). This only happens when a proxy environment variable is set (one of `https_proxy`, `HTTPS_PROXY`, `all_proxy`, `ALL_PROXY`) and the system answer is a placeholder address; an ordinary network never does it.
 3. **Jelly page import behind placeholder addresses (class 10, 10b).** When every address the system returns is a placeholder (the proxy variables are not consulted), Jelly sends the **site name of the page being read** to Google's public DNS service. This is closer to "which sites you read", so it is listed on its own.
 
 All three exist so that the product still works in unusual environments. Only a name is sent, never credentials or content, and the proxy software can already see those names.
@@ -42,7 +42,7 @@ All three exist so that the product still works in unusual environments. Only a 
 ### 0. Model, image and judgement services
 
 - **When:** you use the assistant, a plugin's AI feature, image generation, Functions, and so on.
-- **Where to:** the service address you configured in Settings › Model settings or Service connections. No model vendor's address is written into the code. The judgement service (Functions) uses `api.typesafe.ai`.
+- **Where to:** the service address you configured in Settings › Model settings or Service connections. Molis Work does not pick a model vendor for you, and no vendor's address is contacted by default; the code carries a vendor address in only two places: the image connection form pre-fills the API base URL of the OpenAI or Gemini preset when you choose it (it is used only once you save it), and a development-only environment path (when `MINIMAX_API_KEY` is set and no model provider is configured, it defaults to `https://api.minimaxi.com/anthropic` as the text model address; ordinary use never reaches it). The judgement service (Functions) uses `api.typesafe.ai`.
 - **Limits:** every model request goes through the Home's one Prologue inference port. The port denies all outbound traffic by default and Molis Work allows exactly three: models, external MCP services (the assistant and Coding calling the MCP services you connected), and loopback. Authorization and configuration are checked again before sending; a cancelled or revoked call is not sent.
 
 ### 1. Service connections
@@ -85,7 +85,7 @@ No product feature instantiates it; only tests do. It is a reference implementat
 
 - **When:** you press "Collect market signals" in Alchemist. The interface states that this contacts the three sites.
 - **Where to:** `www.toolify.ai`, `watcha.cn` (观猹), `api.github.com`.
-- **GitHub token:** the token of the GitHub account you bound in Settings › Service connections (read at each request, so a renewed or disconnected token applies at once); without one the search is anonymous with a lower rate limit. Environment variables are not read.
+- **GitHub token:** the token of the **earliest-added GitHub account in Settings › Service connections that is not disconnected** (a token or OAuth account; a command-line login stores no token and does not count), read at each request, so a renewed or disconnected token applies at once. With several GitHub accounts the earliest added one is always the one used; the market pulse has no setting of its own for choosing an account; only after the earliest one is disconnected (which also disconnects it everywhere else it is used) does the next one that is not disconnected take over. If that account's token cannot be read the pulse does not fall back to another account but searches anonymously; with no usable account it is anonymous too, with a lower rate limit. The market pulse list states this rule. Environment variables are not read.
 - **Limits:** a fixed host list, re-checked on every redirect, 12 seconds, responses up to about 8 MB, public pages and search interfaces only, none of your content is sent.
 
 ### 8. On this machine

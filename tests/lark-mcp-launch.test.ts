@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -33,12 +34,28 @@ test("the Lark MCP package is an exact dependency of the Host that the lockfile 
   assert.deepEqual(launchers, [], "no Host source starts a package with npx (it would fetch the latest release at run time)");
 });
 
-test("the child runs the pinned package with the Host's own Node, from a neutral directory", () => {
+test("the child runs the pinned package with the Host's own Node", t => {
   const launch = larkMcpLaunch({ ...credentials });
+  t.after(() => launch.cleanup());
   assert.equal(launch.command, process.execPath);
   const entry = createRequire(join(root, "apps/local-host/package.json")).resolve("@larksuiteoapi/lark-mcp/dist/cli.js");
   assert.deepEqual(launch.args, [entry, "mcp"]);
-  assert.notEqual(launch.cwd, process.cwd(), "a .env file in the Host's working directory is not read by the child");
+});
+
+test("each launch gets a fresh empty working directory of its own, removed when the Host is done with it", t => {
+  const first = larkMcpLaunch({ ...credentials }), second = larkMcpLaunch({ ...credentials });
+  t.after(() => { first.cleanup(); second.cleanup(); });
+  assert.notEqual(first.cwd, second.cwd, "no directory is shared between launches");
+  for (const launch of [first, second]) {
+    assert.notEqual(launch.cwd, process.cwd(), "a .env file in the Host's working directory is not read by the child");
+    assert.notEqual(launch.cwd, tmpdir(), "nor one in the directory that other programs share");
+    assert.deepEqual(readdirSync(launch.cwd), [], "it starts empty, so there is no .env for the package to read");
+    if (process.platform !== "win32") assert.equal(statSync(launch.cwd).mode & 0o077, 0, "only its owner can add files to it");
+  }
+  first.cleanup();
+  assert.equal(existsSync(first.cwd), false, "the directory is removed once the Host is done");
+  assert.equal(existsSync(second.cwd), true, "another launch's directory is untouched");
+  assert.doesNotThrow(() => first.cleanup(), "cleaning up twice is harmless");
 });
 
 test("the child gets the app credentials and network settings, and none of the Host's other variables", t => {
@@ -74,5 +91,22 @@ test("the pinned package starts and lists its tools with only that environment",
     await client.connect(transport, { timeout: 45_000 });
     const { tools } = await client.listTools();
     assert.ok(tools.length > 10, "the server lists its Feishu tools without any network call");
+  } finally { await client.close().catch(() => undefined); }
+});
+
+test("a .env file in the directory that programs share is not read by the child", { timeout: 60_000 }, async t => {
+  // The package calls dotenv.config(), which loads <cwd>/.env: a file there could add LARK_TOOLS (or a proxy, or a TLS switch) to the child.
+  const shared = mkdtempSync(join(tmpdir(), "lark-shared-tmp-"));
+  t.after(() => rmSync(shared, { recursive: true, force: true }));
+  writeFileSync(join(shared, ".env"), "LARK_TOOLS=im.v1.message.create\n");
+  withEnvironment(t, { TMPDIR: shared, LARK_TOOLS: undefined });
+  const launch = larkMcpLaunch({ ...credentials });
+  t.after(() => launch.cleanup());
+  const transport = new StdioClientTransport({ command: launch.command, args: launch.args, env: launch.env, cwd: launch.cwd, stderr: "pipe" });
+  const client = new Client({ name: "molis-work-test", version: "0.0.0" }, { capabilities: {} });
+  try {
+    await client.connect(transport, { timeout: 45_000 });
+    const { tools } = await client.listTools();
+    assert.ok(tools.length > 10, `the tool list is the package's own (${tools.length} tools), not the one the shared .env asked for`);
   } finally { await client.close().catch(() => undefined); }
 });

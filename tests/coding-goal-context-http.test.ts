@@ -139,7 +139,8 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     assert.equal((await request(progressPath)).body.recorded.event_id, recorded.event_id);
     assert.equal((await request(progressPath)).body.current, null, "receipt is read without pretending a new progress confirmation is needed");
     assert.equal(await host.client(ref).invoke(goalProgressCapabilities.receipt, { goal_id: "next", actor_id: "web-user", idempotency_key: `coding-report-progress:${report.body.reference.artifact_id}@1` }), null, "a receipt cannot be relabeled as another Goal");
-    await assert.rejects(host.client(ref).invoke(goalProgressCapabilities.record, { ...confirmed, project_id: "other", goal_id: "foreign", actor_id: "web-user", idempotency_key: "forged-board", based_on_cursor: 0 } as any));
+    const { actor_id: _forgedActor, ...forgedProgress } = confirmed;
+    await assert.rejects(host.client(ref).invoke(goalProgressCapabilities.record, { ...forgedProgress, project_id: "other", goal_id: "foreign", idempotency_key: "forged-board", based_on_cursor: 0 } as any));
 
     assert.equal((await start()).status, 200);
     assert.equal(starts[2].text_materials?.[0]?.source_artifact_id, next.reference.artifact_id);

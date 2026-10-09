@@ -181,3 +181,60 @@ for (const width of [1440, 390]) {
     }
   });
 }
+
+// specs/prologue-adoption §4.5 (item 10): the reply shows while the model writes it, marked as not saved; Stop closes the
+// request, which stops the call: nothing is saved and the words stay in the box; a finished reply replaces the preview.
+test("灵光对话：回复边写边显示，停止后不保存且输入保留，写完后换成保存的回复", { timeout: 90_000 }, async (t) => {
+  let calls = 0;
+  const firstStopped = Promise.withResolvers<void>();
+  const browser = await openGoalBrowser(t, true, undefined, async (_prompt, options) => {
+    calls++;
+    await options?.beforeDispatch?.();
+    options?.onProgress?.({ type: "text-delta", text: "可以先" } as never);
+    await new Promise(resolve => setTimeout(resolve, 150));
+    options?.onProgress?.({ type: "text-delta", text: "画三张小图，" } as never);
+    if (calls === 1) {
+      await new Promise<void>(resolve => options?.signal?.addEventListener("abort", () => resolve(), { once: true }));
+      firstStopped.resolve();
+      options?.signal?.throwIfAborted();
+    }
+    options?.onProgress?.({ type: "text-delta", text: "看光怎么移动。" } as never);
+    return "可以先画三张小图，看光怎么移动。";
+  });
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')");
+  await click('[data-plugin-picker-popover] [data-plugin-id="lingguang"]');
+  await waitFor("document.body.dataset.desktopSurface === 'lingguang'");
+  await click('[data-lingguang-capture]');
+  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'");
+  await evaluate(`(() => { const title = document.querySelector('[data-lingguang-title]'); title.value = '光的笔记'; title.dispatchEvent(new InputEvent('input', {bubbles:true})); const body = document.querySelector('[data-lingguang-body]'); body.value = '下午三点的光从窗边移到桌上。'; body.dispatchEvent(new InputEvent('input', {bubbles:true})); })()`);
+  await click('[data-lingguang-brainstorm-current]');
+  await waitFor("!document.querySelector('[data-lingguang-pane=chat]').hidden");
+  await evaluate(`document.querySelector('[data-lingguang-chat-input]').value = '怎么记录光的变化？'`);
+  await click('[data-lingguang-chat] [type=submit]');
+  // The preview grows while the model writes; it says it is not saved, and Stop is offered.
+  await waitFor("document.querySelector('[data-lingguang-draft] p')?.textContent.includes('画三张小图')", 8_000);
+  assert.match(await evaluate<string>("document.querySelector('[data-lingguang-draft] strong').textContent"), /还没保存/);
+  assert.equal(await evaluate("document.querySelector('[data-lingguang-chat-stop]').hidden"), false);
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  const directory = new URL("../.impeccable/qa/review/prologue-adoption/", import.meta.url);
+  await mkdir(directory, { recursive: true });
+  const shot = async (name: string) => writeFile(new URL(`${name}.png`, directory), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  await shot("lingguang-reply-preview");
+  await click('[data-lingguang-chat-stop]');
+  await firstStopped.promise;
+  await waitFor("document.querySelector('[data-lingguang-note]').textContent.includes('已停止')", 8_000);
+  assert.equal(await evaluate("document.querySelectorAll('.lingguang-message').length"), 0, "a stopped reply leaves nothing behind");
+  assert.equal(await evaluate("document.querySelector('[data-lingguang-chat-input]').value"), "怎么记录光的变化？", "the words stay in the box");
+  assert.equal(await evaluate("document.querySelector('[data-lingguang-chat-stop]').hidden"), true);
+  await click('[data-lingguang-chat] [type=submit]');
+  await waitFor("document.querySelectorAll('.lingguang-message:not(.is-draft)').length === 2", 8_000);
+  assert.equal(await evaluate("document.querySelector('[data-lingguang-messages]').lastElementChild.querySelector('p').textContent"), "可以先画三张小图，看光怎么移动。");
+  assert.equal(await evaluate("document.querySelectorAll('[data-lingguang-draft]').length"), 0, "the saved reply replaced the preview");
+  assert.equal(await evaluate("document.querySelector('[data-lingguang-chat-input]').value"), "");
+  await shot("lingguang-reply-saved");
+});

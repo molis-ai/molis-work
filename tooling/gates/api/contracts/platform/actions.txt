@@ -312,6 +312,7 @@ export interface ActionCallContext {
     readonly on_progress?: (event: {
         readonly stage: string;
         readonly progress: number;
+        readonly text_delta?: string;
     }) => void;
     readonly scene_binding?: {
         readonly scene_id: string;

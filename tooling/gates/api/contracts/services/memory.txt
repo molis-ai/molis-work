@@ -79,7 +79,7 @@ export interface MemoryChange {
     scope: MemoryScope;
     project_id: string | null;
     text: string;
-    by: "person" | "policy" | "maintenance";
+    by: "person" | "policy" | "maintenance" | "assistant";
     rule: string | null;
     reason: string | null;
     work: {
@@ -204,6 +204,7 @@ export interface MemoryLedgerPort {
     saveCandidate(record: MemoryCandidateRecord): void;
     dropCandidate(candidateId: string): void;
     changes(actorId: string, limit: number): MemoryChangeRecord[];
+    changesOf(memoryId: string): MemoryChangeRecord[];
     change(changeId: string): MemoryChangeRecord | null;
     saveChange(record: MemoryChangeRecord): void;
     prefs(actorId: string, key: string): Partial<MemoryPrefs> | null;

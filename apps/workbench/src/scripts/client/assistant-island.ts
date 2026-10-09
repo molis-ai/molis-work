@@ -165,7 +165,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (detail.action !== "handback") return;
     browserHeld.delete(holder.work_id); paintSummary();
     void (async () => {
-      // The note goes to a running round as a steer, or starts the next one (marked as the page's words, not the person's). A round waiting on an answer would take it
+      // The note goes to a running round as a steer, or starts the next one. A round waiting on an answer would take it
       // as that answer, and one waiting on a check refuses it: then the panel only says the browser is back.
       let latest = null;
       try {
@@ -737,7 +737,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       status.setAttribute("role", "status"); status.tabIndex = -1; node.append(status);
     }
     if (card.status === "stale") {
-      // Only an explicit request: the Assistant re-reads and offers a fresh card; nothing runs in this one's place. The note is the page's words (the card's title is the model's), marked so.
+      // Only an explicit request: the Assistant re-reads and offers a fresh card; nothing runs in this one's place.
       const redo = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("请助理按最新状态重新准备")); redo.type = "button";
       redo.addEventListener("click", async () => {
         redo.disabled = true;
@@ -2544,7 +2544,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   /* ─── What plugin pages tell the Assistant (spec 8.3): by purpose, never by wording ───────────────────────── */
   const offerBar = island.querySelector("[data-assistant-offer]");
   const heard = new Set();
-  // A delegated Send reuses its message id, so the same message twice starts one work. Its words are the page's, sent without the person seeing them first: pageText marks them (unless the person changes them).
+  // A delegated Send reuses its message id, so the same message twice starts one work. Its words are the page's: pageText marks them.
   let requestOverride = null, pageText = null;
   const tidyMessage = (raw) => {
     if (!raw || typeof raw !== "object" || typeof raw.message_id !== "string" || !raw.message_id || raw.message_id.length > 120) return null;
@@ -2593,7 +2593,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!message.work_id && message.executor === "coding" && codingHere()) { newExecutor = "coding"; paintTarget(); paintSummary(); } // e.g. the 成果库's 「交给 Coding」
     bring(message);
     if (!String(input.value || "").trim()) { setPanel(true); input.focus(); return; }
-    requestOverride = "msg-" + message.message_id; pageText = message.text ? String(input.value || "").trim() : null;
+    requestOverride = "msg-" + message.message_id; pageText = message.text && input.value.trim();
     composer.requestSubmit(send);
   };
   /* Another part of the page opens the panel for the person (the contextual actions' “助理：…” hint, say): the work it
@@ -2675,8 +2675,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const text = String(input.value || "").trim();
     if (!text || busy) return;
     busy = true; syncSend(); problem = null; setPanel(true);
-    const requestId = requestOverride || (unsettled && unsettled.text === text && unsettled.work === currentId ? unsettled.id : crypto.randomUUID());
-    const byPage = pageText === text || Boolean(unsettled && unsettled.byPage && unsettled.text === text && unsettled.work === currentId); requestOverride = null; pageText = null;
+    const again = unsettled && unsettled.text === text && unsettled.work === currentId ? unsettled : null;
+    const requestId = requestOverride || (again ? again.id : crypto.randomUUID()), byPage = pageText === text || (again && again.byPage); requestOverride = pageText = null;
     const materials = sendMaterials();
     setStarters(false); if (materialsList) setMaterials(false);
     // A draft save still waiting to go out would land after the send and bring the sent text back: cancel it, and let

@@ -29,5 +29,5 @@ test("every Send the bottom bar writes itself is marked as the page's; only the 
   assert.equal(calls.filter(call => call === "body").length, 1, "the composer sends the body it builds");
   for (const call of calls.filter(call => call !== "body")) assert.match(call, /written_by: "page"/, call.slice(0, 100));
   assert.match(script, /const body = \{[^\n]*\.\.\.\(byPage \? \{ written_by: "page" \} : \{\}\)/, "the composer marks a hand-over the person neither wrote nor changed");
-  assert.match(script, /pageText = message\.text \?/, "a hand-over with words is remembered as the page's until it is sent");
+  assert.match(script, /pageText = message\.text && input\.value\.trim\(\);/, "a hand-over with words is remembered as the page's until it is sent");
 });

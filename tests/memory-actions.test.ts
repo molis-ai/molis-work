@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryBackendPort } from "@molis-ai/molis-work-service-memory";
 import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
 import { memoryHostFor } from "../apps/local-host/src/memory/memory-host.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/src/local-owner-permissions.js";
@@ -75,7 +76,9 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
 
   // The call is stopped while it is reading the store: the read finishes, the call's own effect check refuses, and no receipt is written.
   const controller = new AbortController();
-  const backend = (service as unknown as { ports: { backend: { list: (...args: unknown[]) => Promise<unknown> } } }).ports.backend;
+  // The store the service reads through is the one place a test can stop a call mid-read; `ports` is private, so it is reached by name and checked.
+  const backend: MemoryBackendPort = service["ports"].backend;
+  assert.equal(typeof backend.list, "function", "the service keeps its store as ports.backend");
   const list = backend.list.bind(backend);
   backend.list = async (...args) => { controller.abort(); return list(...args); };
   try { await assert.rejects(client.invoke({ ...agent, signal: controller.signal }, recallRef, { query: "总结一下" })); }

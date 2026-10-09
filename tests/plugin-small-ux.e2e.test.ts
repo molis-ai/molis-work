@@ -11,6 +11,11 @@ const until = async (check: () => boolean, ms = 8_000) => {
   while (!check()) { if (Date.now() > end) assert.fail("condition not reached in time"); await new Promise(resolve => setTimeout(resolve, 50)); }
 };
 
+// A surface opened for the first time is inert until its client is mounted (#150); a click sent straight to the page, which the
+// fixture's click() would wait for, is lost before that.
+const CLIENTS_READY = `!document.querySelector('[data-ui-client-state="loading"]')
+  && ![...document.querySelectorAll('[data-deferred-surface]')].some(surface => !surface.closest('[hidden]') && surface.dataset.uiClientState !== 'failed')`;
+
 test("Schedule's new-task dialog says what a due task still needs, and creating is still possible", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor } = b;
@@ -69,6 +74,8 @@ test("Pages: 「新建文档」 left empty is gone when the person goes back, an
   await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
   await until(() => titles().length === before.length);
   assert.deepEqual(titles(), before, "nothing was left behind");
+  // The list drops the row when the discard is answered, which is after the store has already changed.
+  await waitFor("![...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
   assert.equal(await evaluate("[...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')"), false, "and not in the list either");
 
   await click("[data-pages-new]");
@@ -116,7 +123,7 @@ test("Pages and 灵光: a blank item is gone when the person switches to another
   assert.equal(await evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "true", "and still open");
 
   await click("[data-bar-resident=lingguang]");
-  await waitFor("document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]')", 20_000);
+  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
   await evaluate("document.querySelector('[data-lingguang-capture]').click()");
   await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
@@ -149,7 +156,7 @@ test("Pages and 灵光: reloading with a blank item open takes it back, and the 
   assert.equal(await evaluate("[...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')"), false);
 
   await click("[data-bar-resident=lingguang]");
-  await waitFor("document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]')", 20_000);
+  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
   await evaluate("document.querySelector('[data-lingguang-capture]').click()");
   await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
@@ -165,7 +172,7 @@ test("灵光: 「记下第一条灵光」 left empty is thrown away when the per
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
   await click("[data-bar-resident=lingguang]");
-  await waitFor("document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]')", 20_000);
+  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const kept = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
   assert.deepEqual(kept(), []);
   await evaluate("document.querySelector('[data-lingguang-capture]').click()");

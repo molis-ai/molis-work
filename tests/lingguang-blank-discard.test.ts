@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
+import { fakeLifetime } from "./fixtures/fake-client-lifetime.js";
 
 // W2-18 decision 6, 灵光 side: 「记下第一条灵光」 makes a spark at once; one left with nothing written is thrown away with
-// the existing lingguang.discard when the person leaves it (back to the list, another spark, another new spark). A spark that
-// already existed, or has anything written in it (as the server sees it when the person leaves), is never touched.
+// the existing lingguang.discard when the person leaves it (back to the list, another spark, another new spark, the workbench
+// hiding the page for another plugin, the page going away). A spark that already existed, went into a brainstorm, or has
+// anything written in it (as the server sees it when the person leaves), is never touched.
 
 interface FakeNode {
   hidden: boolean; textContent: string; value: string; title: string; className: string; innerHTML: string; disabled: boolean;
@@ -31,6 +33,7 @@ function element(): FakeNode {
 const click = (targetSelector: string, dataset: Record<string, string> = {}) => ({
   target: { nodeType: 1, closest: (selector: string) => selector === targetSelector ? { dataset } : null }, preventDefault() {}, stopPropagation() {},
 });
+const BRAINSTORM = "[data-lingguang-brainstorm], [data-lingguang-brainstorm-current]";
 const flush = async () => { for (let i = 0; i < 12; i += 1) await new Promise(resolve => setImmediate(resolve)); };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -39,8 +42,9 @@ const spark = (id: string, title: string, body = ""): Spark => ({ id, project_id
 
 async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Spark; discard?: () => Response | null } = {}) {
   const store = new Map<string, Spark>(initial.map(item => [item.id, item]));
-  const calls: Array<{ method: string; path: string; body: Record<string, unknown> }> = [];
+  const calls: Array<{ method: string; path: string; body: Record<string, unknown>; keepalive?: boolean }> = [];
   let created = 0, clock = 0;
+  const lifetime = fakeLifetime();
   const saved = { fetch: globalThis.fetch, document: (globalThis as { document?: unknown }).document, window: (globalThis as { window?: unknown }).window,
     location: (globalThis as { location?: unknown }).location, molis: (globalThis as { molisWorkControlHeaders?: unknown }).molisWorkControlHeaders };
   const workbench = element();
@@ -49,14 +53,14 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
   workbench.querySelector = (selector?: string) => part(selector ?? "");
   part("[data-lingguang=directory]").contains = () => true;
   Object.assign(globalThis, {
-    document: { querySelector: (selector: string) => selector === "[data-lingguang=workbench]" ? workbench : null, createElement: () => element(), addEventListener() {} },
+    document: { querySelector: (selector: string) => selector === "[data-lingguang=workbench]" ? workbench : null, createElement: () => element(), addEventListener() {}, hidden: false },
     window: { dispatchEvent() {}, addEventListener() {} },
     location: { search: "" },
   });
   globalThis.fetch = (async (url: string, init?: RequestInit) => {
     const parsed = new URL(url, "http://lingguang.test"), method = init?.method ?? "GET";
     const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
-    calls.push({ method, path: parsed.pathname, body });
+    calls.push({ method, path: parsed.pathname, body, keepalive: init?.keepalive });
     if (parsed.pathname === "/api/placement/describe") return json({ associations: [] });
     if (parsed.pathname === "/api/plugins/lingguang") {
       if (method === "GET") return json({ sparks: [...store.values()].filter(item => item.status === "inbox") });
@@ -64,6 +68,10 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
       const made = spark(`S${created}`, String(body.title ?? "未命名灵光"), String(body.body ?? ""));
       store.set(made.id, made);
       return json({ spark: made });
+    }
+    if (parsed.pathname === "/api/plugins/lingguang/conversations") {
+      const ids = body.spark_ids as string[];
+      return json({ conversation: { id: "C1" }, sparks: ids.map(id => store.get(id)), messages: [] });
     }
     if (parsed.pathname === "/api/plugins/lingguang/discard") {
       const refused = options.discard?.(); if (refused) return refused;
@@ -81,12 +89,14 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
     }
     return json({ spark: options.onGet ? options.onGet(current) : current });
   }) as typeof fetch;
-  const factory = Function(`return (${LINGGUANG_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; route: (path: string) => string }) => void;
-  factory({ translate: value => value, route: path => path });
+  const factory = Function(`return (${LINGGUANG_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; route: (path: string) => string; mountPluginClient: typeof lifetime.mount }) => void;
+  factory({ translate: value => value, route: path => path, mountPluginClient: lifetime.mount });
   await flush();
   const fire = async (event: ReturnType<typeof click>) => { await workbench.listeners.click!(event); await flush(); };
   return {
-    store, calls, fire, parts, part,
+    store, calls, fire, parts, part, lifetime,
+    editorOpen: () => part("[data-lingguang-stage-workspace]").hidden === false,
+    elapse: async () => { await flush(); },
     /** The person types in the title or the body; the autosave runs before they leave (the client saves first). */
     async write(next: { title?: string; body?: string }) {
       if (next.title !== undefined) part("[data-lingguang-title]").value = next.title;
@@ -167,4 +177,118 @@ test("a failed tidy-up is silent: the spark stays and the person still gets back
     assert.equal(page.part("[data-lingguang-note]").textContent, "");
     assert.equal(page.part("[data-lingguang-stage-workspace]").hidden, true);
   } finally { page.restore(); }
+});
+
+test("a spark that went into a brainstorm is in use: leaving it does not throw it away", async () => {
+  const page = await mounted([]);
+  try {
+    await page.fire(click("[data-lingguang-capture]"));
+    await page.fire(click(BRAINSTORM));
+    assert.deepEqual(page.calls.filter(call => call.path === "/api/plugins/lingguang/conversations").map(call => call.body.spark_ids), [["S1"]]);
+    await page.fire(click("[data-lingguang-back]"));
+    assert.equal(page.discards().length, 0);
+    assert.equal(page.calls.some(call => call.method === "GET" && call.path === "/api/plugins/lingguang/S1"), false, "it is not even read: it was never going to be thrown away");
+    assert.equal(page.store.get("S1")?.status, "inbox");
+    // The same when it is left by the page being hidden while the chat is open.
+    await page.fire(click("[data-lingguang-capture]"));
+    await page.fire(click(BRAINSTORM));
+    page.lifetime.hideSurface(); await page.elapse();
+    assert.equal(page.discards().length, 0);
+    assert.equal(page.store.get("S2")?.status, "inbox");
+  } finally { page.restore(); }
+});
+
+test("when the workbench hides the page for another plugin, the blank spark is thrown away and the editor is closed", async () => {
+  const page = await mounted([spark("OLD", "想法", "有内容")]);
+  try {
+    await page.fire(click("[data-lingguang-capture]"));
+    assert.equal(page.editorOpen(), true);
+    page.lifetime.hideSurface(); await page.elapse();
+    assert.deepEqual(page.discards().map(call => call.body.ids), [["S1"]]);
+    assert.equal(page.discards()[0]!.keepalive, undefined, "an ordinary call: the page is still here");
+    assert.ok(page.calls.findIndex(call => call.method === "GET" && call.path === "/api/plugins/lingguang/S1") < page.calls.indexOf(page.discards()[0]!), "the Host's copy was read first");
+    assert.equal(page.editorOpen(), false, "what comes back is the list");
+    assert.equal(page.store.get("S1")?.status, "discarded");
+    assert.equal(page.store.get("OLD")?.status, "inbox");
+    page.lifetime.showSurface(); await page.elapse();
+    assert.equal(page.discards().length, 1);
+  } finally { page.restore(); }
+});
+
+test("hiding the page leaves alone a spark with words, one that was already there, and one written to elsewhere meanwhile", async () => {
+  const written = await mounted([]);
+  try {
+    await written.fire(click("[data-lingguang-capture]"));
+    await written.write({ body: "刚冒出来的想法" });
+    written.lifetime.hideSurface(); await written.elapse();
+    assert.equal(written.discards().length, 0);
+    assert.equal(written.editorOpen(), true, "words on screen: nothing is closed under the person");
+  } finally { written.restore(); }
+  const old = await mounted([spark("OLD", "")]);
+  try {
+    await old.fire(click("[data-lingguang-id]", { lingguangId: "OLD" }));
+    old.lifetime.hideSurface(); await old.elapse();
+    assert.equal(old.discards().length, 0);
+    assert.equal(old.editorOpen(), true);
+  } finally { old.restore(); }
+  const elsewhere = await mounted([], { onGet: current => ({ ...current, body: "助理刚替你记了一句" }) });
+  try {
+    await elsewhere.fire(click("[data-lingguang-capture]"));
+    elsewhere.lifetime.hideSurface(); await elsewhere.elapse();
+    assert.equal(elsewhere.discards().length, 0);
+    assert.equal(elsewhere.store.get("S1")?.status, "inbox");
+  } finally { elsewhere.restore(); }
+});
+
+test("a tab or window that is only hidden is not leaving", async () => {
+  const page = await mounted([]);
+  try {
+    await page.fire(click("[data-lingguang-capture]"));
+    page.lifetime.hideDocument(); await page.elapse();
+    page.lifetime.showDocument(); await page.elapse();
+    assert.equal(page.discards().length, 0);
+    assert.equal(page.editorOpen(), true);
+    assert.equal(page.store.get("S1")?.status, "inbox");
+  } finally { page.restore(); }
+});
+
+test("a failed tidy-up on hiding is silent: the spark stays", async () => {
+  const page = await mounted([], { discard: () => json({ error: "暂时丢不掉" }, 503) });
+  try {
+    await page.fire(click("[data-lingguang-capture]"));
+    page.lifetime.hideSurface(); await page.elapse();
+    assert.equal(page.discards().length, 1);
+    assert.equal(page.store.get("S1")?.status, "inbox");
+    assert.equal(page.part("[data-lingguang-note]").textContent, "");
+  } finally { page.restore(); }
+});
+
+test("when the page goes away, the blank spark is thrown away with a call that outlives the page, judged by the copy the page last saw", async () => {
+  const page = await mounted([]);
+  try {
+    await page.fire(click("[data-lingguang-capture]"));
+    page.lifetime.unload(); await page.elapse();
+    assert.deepEqual(page.discards().map(call => [call.body.ids, call.keepalive]), [[["S1"], true]]);
+    assert.equal(page.calls.some(call => call.method === "GET" && call.path === "/api/plugins/lingguang/S1"), false, "no time to read the Host's copy first");
+    assert.equal(page.store.get("S1")?.status, "discarded");
+    assert.equal(page.editorOpen(), true, "the page is going away anyway: nothing on it is redrawn");
+  } finally { page.restore(); }
+  // Words saved a moment ago and then cleared on screen: the copy last saved still has them, so it stays.
+  const cleared = await mounted([]);
+  try {
+    await cleared.fire(click("[data-lingguang-capture]"));
+    await cleared.write({ body: "存过的话" });
+    await cleared.fire(click("[data-lingguang-save-retry]"));
+    assert.equal(cleared.store.get("S1")?.body, "存过的话", "saved");
+    await cleared.write({ body: "" });
+    cleared.lifetime.unload(); await cleared.elapse();
+    assert.equal(cleared.discards().length, 0);
+  } finally { cleared.restore(); }
+  const written = await mounted([]);
+  try {
+    await written.fire(click("[data-lingguang-capture]"));
+    await written.write({ body: "屏幕上有字" });
+    written.lifetime.unload(); await written.elapse();
+    assert.equal(written.discards().length, 0);
+  } finally { written.restore(); }
 });

@@ -6,6 +6,12 @@
  * has no body and the given title or none, it is thrown away with lingguang.discard, without asking. The Host's copy decides, so
  * words that arrived from elsewhere in the meantime keep it; a spark that went into a brainstorm is in use and stays. A failed
  * read or discard changes nothing.
+ *
+ * Leaving also means the surface going away. When the workbench hides this page (another plugin, Home, Settings) the open blank
+ * spark is saved, the editor closed and the spark taken back the same way, so what comes back is the list. When the page itself
+ * is going away (reload, window closed) there is no time to read the Host's copy: the copy this page last saw decides, and the
+ * call is sent with keepalive. A tab or window that is only hidden is not leaving. The scope's cleanups run in the same order
+ * when the page goes away; `alive` tells the two apart, so the call is made once.
  */
 export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
@@ -78,11 +84,12 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const headers = () => typeof molisWorkControlHeaders === "function"
     ? molisWorkControlHeaders()
     : { "content-type": "application/json" };
-  const request = async (method, path, body) => {
+  const request = async (method, path, body, keepalive) => {
     const response = await fetch(host.route(path), {
       method,
       headers: headers(),
       body: body === undefined || method === "GET" ? undefined : JSON.stringify(body),
+      keepalive,
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || L("灵光请求失败"));
@@ -192,17 +199,27 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (preview) preview.textContent = previewOf(record);
   };
   const fresh = new Map();
-  const dropBlank = async (id) => {
+  const dropBlank = async (id, unloading) => {
     const given = fresh.get(id);
     if (given === undefined) return;
     fresh.delete(id);
     try {
-      const { spark } = await request("GET", "/api/plugins/lingguang/" + encodeURIComponent(id));
+      const { spark } = unloading ? { spark: records.find((item) => item.id === id) } : await request("GET", "/api/plugins/lingguang/" + encodeURIComponent(id));
       if ((spark.body || "").trim() || (spark.title.trim() && spark.title !== given)) return;
-      await request("POST", "/api/plugins/lingguang/discard", { ids: [id] });
+      await request("POST", "/api/plugins/lingguang/discard", { ids: [id] }, unloading);
       records = records.filter((item) => item.id !== id);
       renderList();
     } catch { /* stays as it was */ }
+  };
+  const leaveBlank = async (unloading) => {
+    const id = selected?.id;
+    if (!id || !fresh.has(id) || bodyInput.value.trim() || (titleInput.value.trim() && titleInput.value !== fresh.get(id))) return;
+    if (!unloading) {
+      await save();
+      if (selected?.id !== id) return;
+      closeWorkspace();
+    }
+    await dropBlank(id, unloading);
   };
   const fillEditor = (record) => {
     const left = selected && selected.id !== record.id ? selected.id : "";
@@ -666,6 +683,9 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     retry.addEventListener("click", () => { retry.disabled = true; void loadList().then(() => box.remove(), (next) => { retry.disabled = false; box.querySelector("p").textContent = next?.message || L("请稍后重试"); }); });
     rowsEl.replaceChildren(box);
   };
+  const lifetime = host.mountPluginClient?.(workbench);
+  lifetime?.whenVisible(() => () => { if (lifetime.alive && !document.hidden) void leaveBlank().catch(() => {}); });
+  lifetime?.own(() => { void leaveBlank(true); });
   void loadList().catch((error) => { listFailed(error); throw error; }).then(openWanted).catch((error) => showNote(error.message, true));
 }
 `;

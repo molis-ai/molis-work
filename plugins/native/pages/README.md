@@ -43,7 +43,7 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
   - Host 注入 prepareImport；ZIP/DOCX/编码解析归 Host worker，Pages 的 preparePagesImport 只接受公共 MaterialDocumentBatch 并转换为编辑器正文。解析等待不占项目串行队列，返回后复查授权/取消。
   - 导入预览不写入；批量写入一个事务，同一请求重试不覆盖编辑、不重复创建。
   - 编辑器单独打成浏览器脚本，不进工作台 factory 字符串。
-  - 「新建文档」仍立刻建一条，但离开时内容为空就收回（W2-18 决定 6，2026-10-09）：只对本页刚建的空白文档（不含模板、AI 结果、已有的空文档），离开 = 返回列表、打开另一篇、再新建一篇；标题没动（或为空）且正文只有空段落才算空，一个分隔线、图片、表格都算内容；经既有的 `pages.discard`（`POST /api/pages/:id/discard`），按最后保存的版本，期间在别处改过就被拒绝、文档保留；被拒或没连上都不提示。逻辑在 `src/blank-client.ts`。
+  - 「新建文档」仍立刻建一条，但离开时内容为空就收回（W2-18 决定 6，2026-10-09）：只对本页刚建的空白文档（不含模板、AI 结果、已有的空文档），离开 = 返回列表、打开另一篇、再新建一篇、工作台把本页藏起来（切到别的插件、回 Home、进设置），以及页面本身走掉（刷新、关窗口）；标题没动（或为空）且正文只有空段落才算空，一个分隔线、图片、表格都算内容，还有一次保存没发出去时不动它；经既有的 `pages.discard`（`POST /api/pages/:id/discard`），按最后保存的版本，期间在别处改过就被拒绝、文档保留；被拒或没连上都不提示。工作台藏起本页时同时关掉编辑器，回来看到的是列表；页面走掉时这次调用带 `keepalive`，编辑器不动；只是浏览器标签或窗口被藏起来（`document.hidden`）不算离开。逻辑在 `src/blank-client.ts`，生命周期用 Host 注入的 `mountPluginClient`。
   - `src/client.ts` 是登记过的巨大单元，行数不许增加；浏览器脚本发出去时去掉整行 `//` 注释（`apps/workbench/src/builtin-plugins.ts` 的 `served`，`tests/plugin-client-served.test.ts` 证明发出去的是同一段程序）。
   - 项目被删除时宿主按目录条目上的 `project_data`（`pagesProjectData`，`src/project-data.ts`：确认框里的标签与 `purgePagesProject`）调用清掉文稿与文件夹，连同生成与导入回执和还能撤回的修改；只读库文件，库不存在时不创建，重复运行没有副作用。
 - 改动后必跑：`node scripts/run-tests.mjs tests/pages-actions.test.ts tests/pages-cross-module.test.ts tests/pages-generation-lease.test.ts tests/pages-conversion.test.ts tests/action-before-effect.test.ts tests/pages-publication.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/pages-blank-discard.test.ts tests/pages-draft-race.test.ts tests/plugin-client-served.test.ts`

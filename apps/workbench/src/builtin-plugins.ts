@@ -36,11 +36,12 @@ import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/
 export interface PluginSearchRow { readonly selector: string; readonly idDataset: string }
 
 /**
- * Whole-line `//` comments in a plugin's client script are notes for the people who read its source; the page does not run them.
- * An entry that lists its script through this is sent without them (the page asset budget only shrinks, and these are the bytes
- * that are provably dead). tests/plugin-client-served.test.ts holds the result to the same program as the source.
+ * Comments that fill whole lines (`// …` and `/* … *\/`) in a plugin's client script are notes for the people who read its source;
+ * the page does not run them. An entry that lists its script through this is sent without them (the page asset budget only
+ * shrinks, and these are the bytes that are provably dead). A block comment is taken only when nothing else shares its lines.
+ * tests/plugin-client-served.test.ts holds the result to the same program as the source.
  */
-const served = (script: string): string => script.replace(/^[ \t]*\/\/[^\n]*\n/gm, "");
+const served = (script: string): string => script.replace(/^[ \t]*(?:\/\/[^\n]*|\/\*(?:(?!\*\/)[\s\S])*\*\/[ \t]*)\n/gm, "");
 
 export interface BuiltinPluginWorkbench {
   /** Asset cascade/initialization order, independent of navigation order in the Manifest. */

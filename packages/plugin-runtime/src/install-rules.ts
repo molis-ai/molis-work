@@ -1,6 +1,7 @@
-import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDeployment, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { comparePluginVersions } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PluginRuntimeError } from "./errors.js";
+import { pluginManifestDigest } from "./identity.js";
 
 /**
  * Why a confirmed install at another version may not reuse the private data an uninstall kept, or undefined when it
@@ -20,8 +21,8 @@ export function keptDataRefusal(previous: PluginInstanceRecord | null, manifest:
 
 /**
  * What a start asks for when its entry names no grants: every required permission, or what the existing installation
- * already holds when that still covers them. A permission that became optional in a bundled upgrade stays granted, and
- * the next start of the same version replays it instead of looking like a silent grant change.
+ * already holds when that still covers them. A permission that became optional in a bundled follow stays granted, and
+ * the next start of the same build replays it instead of looking like a silent grant change.
  */
 export function defaultGrants(manifest: PluginManifest, installs: readonly PluginInstanceRecord[]): string[] {
   const required = manifest.permissions.filter(permission => permission.required).map(permission => permission.permission);
@@ -67,12 +68,39 @@ export function normalizeGrants(manifest: PluginManifest, requested: string[]): 
 }
 
 /**
- * A plugin that ships with the Host follows the Host's version (2026-10-04): its install record moves up with it,
- * keeping the grants the new Manifest still declares and adding the ones it requires, as a fresh install would.
+ * The record a bundled plugin's build is to be moved onto, or null. A plugin that ships with the Host runs the Host's build
+ * whatever its install record holds (2026-10-04 for a higher version, 2026-10-08 for a lower one and for the same version with
+ * another Manifest digest; docs/releases/POLICY.md section 7). Null when the plugin is not bundled, has no installation (an
+ * uninstalled row is installed afresh, under the kept-data rule), or its record already is the build.
  */
-export function bundledUpgrade(current: PluginInstanceRecord, manifest: PluginManifest, digest: string, entrypoint: string, at: string): PluginInstanceRecord {
+export function recordToFollow(current: PluginInstanceRecord | null, manifest: PluginManifest, digest: string, bundled: boolean): PluginInstanceRecord | null {
+  return bundled && current && current.state !== "uninstalled" && (current.version !== manifest.version || current.manifest_digest !== digest) ? current : null;
+}
+
+/**
+ * The record moved onto the build's Manifest. It stays the same installation: install_id, installation generation, state,
+ * install time and the retained-data choice are untouched, so private data stays attached; the deployment cannot change.
+ * Grants converge the way a fresh install would reach them from what the person holds: the ones the new Manifest still
+ * declares stay, the ones it requires are added (granted without asking, as in a fresh install), the ones it no longer
+ * declares go. This is the same whether the build is newer, older or the same version.
+ */
+export function followBundledBuild(current: PluginInstanceRecord, deployment: PluginDeployment, manifest: PluginManifest, digest: string, entrypoint: string, at: string): PluginInstanceRecord {
+  if (current.deployment !== deployment) throw new PluginRuntimeError("plugin_state_invalid", "已有安装不能通过启动改变部署环境");
   const declared = new Set(manifest.permissions.map(permission => permission.permission));
   const required = manifest.permissions.filter(permission => permission.required).map(permission => permission.permission);
   return { ...current, version: manifest.version, publisher_id: manifest.publisher.publisher_id, manifest_digest: digest, selected_entrypoint: entrypoint,
     grants: normalizeGrants(manifest, [...current.grants.filter(permission => declared.has(permission)), ...required]), updated_at: at };
+}
+
+/**
+ * Whether the Host's own definition can run over an install record without restoring a stored release. A bundled plugin always
+ * can: its record is moved onto the build (`followBundledBuild`). Any other plugin only at the recorded digest, or when its
+ * Manifest names the recorded version as an upgrade source and is the same version or higher.
+ */
+export function directlyUsable(manifest: PluginManifest, bundled: boolean, installed: PluginInstanceRecord): boolean {
+  if (bundled) return true;
+  const named = (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(installed.version);
+  return installed.version === manifest.version
+    ? installed.manifest_digest === pluginManifestDigest(manifest) || named
+    : comparePluginVersions(manifest.version, installed.version) > 0 && named;
 }

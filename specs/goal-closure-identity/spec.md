@@ -46,12 +46,12 @@
 - 决策工具测试继续证明：带 `actor_id` 被拒绝，不带时决定者是本机这个人。
 - `tests/goal-management-identity.test.ts` 逐个覆盖管理入口：带 `actor_id` 或 `actor_kind` 都是 `actions.input_invalid` 且不写入，项目不对仍是 `actions.scope_mismatch`，不带身份时记本机这个人。
 - `tests/mcp-action-catalog.test.ts` 证明决策工具的 properties 和 required 都没有 `actor_id`；`tests/goal-read-entry.test.ts` 证明 CLI 的 `active-goal` 不转发 JSON 里的 `actor_id`。
-- `tests/goal-management-identity.test.ts` 还证明：这十三项入口在插件的 Manifest 里列出也被 `actions.host_only` 拒绝（用插件客户端、去掉标记的定义副本、带插件调用上下文的调用三种方式），拒绝后不留记录；同样的参数从 Host 自己的客户端调用，记本机这个人；`goals.progress.record.v1` 仍对插件开放。同文件里有一项类型检查：用已构建的类型声明编译一小段调用，十三项入口的输入类型都不含 `actor_id`、`actor_kind`，结构提案检查不带 `actor_id` 可以通过编译、带了不能。
+- `tests/goal-management-identity.test.ts` 还证明：这十三项入口在插件的 Manifest 里列出也被 `actions.host_only` 拒绝（用插件客户端、去掉标记的定义副本、带插件调用上下文的调用三种方式），拒绝后不留记录；同样的参数从 Host 自己的客户端调用，记本机这个人；`goals.progress.record.v1` 仍对插件开放。同文件里有一项类型检查：用已构建的类型声明编译一小段调用，十三项入口的输入类型都不含 `actor_id`、`actor_kind`，结构提案检查不带 `actor_id` 可以通过编译、带了不能。这两项测试都是从 Goals 插件的导出里读出所有事件写入的 typed 入口再检查，不靠手写名单：之后新增的写入没有 `host_only`、没登记进逐个覆盖的表、或输入类型带身份，测试就失败。
 
 验证：
 
 ```text
-node scripts/run-tests.mjs tests/goal-events-state.test.ts tests/goals-actions.test.ts tests/goals-command-actions.test.ts tests/goals-mcp-actions.test.ts tests/goals-lifecycle-actions.test.ts tests/goals-tree-actions.test.ts tests/local-host.test.ts tests/host-entry-consistency.test.ts tests/goal-read-entry.test.ts tests/home-backup-recovery.test.ts tests/mcp-goal-events-state.test.ts tests/mcp-action-catalog.test.ts tests/coding-goal-context-http.test.ts tests/proposal-entry-chain.test.ts tests/casebook-interaction.test.ts tests/casebook-current-host.test.ts tests/casebook-operation-receipts.test.ts tests/project-policy-save.test.ts tests/goal-progress-plugin-identity.test.ts tests/goal-management-identity.test.ts
+node scripts/run-tests.mjs tests/goal-events-state.test.ts tests/goals-actions.test.ts tests/goals-command-actions.test.ts tests/goals-mcp-actions.test.ts tests/goals-lifecycle-actions.test.ts tests/goals-tree-actions.test.ts tests/local-host.test.ts tests/host-entry-consistency.test.ts tests/goal-read-entry.test.ts tests/home-backup-recovery.test.ts tests/mcp-goal-events-state.test.ts tests/mcp-action-catalog.test.ts tests/coding-goal-context-http.test.ts tests/proposal-entry-chain.test.ts tests/casebook-interaction.test.ts tests/casebook-current-host.test.ts tests/casebook-operation-receipts.test.ts tests/project-policy-save.test.ts tests/goal-progress-plugin-identity.test.ts tests/goal-management-identity.test.ts tests/goals-board-actions.test.ts tests/goals-decision-actions.test.ts tests/plugin-capability-availability.test.ts tests/plugin-host-executor.test.ts
 ```
 
 ## 合入主线时的调整（2026-10-08）
@@ -70,4 +70,6 @@ node scripts/run-tests.mjs tests/goal-events-state.test.ts tests/goals-actions.t
 - 插件够得到管理入口。这些 typed 入口原先不是 `host_only`，`createPluginCapabilityClient` 放行 Manifest 的 `consumes` 里列出的任何能力，宿主又对每个调用方都记本机这个人，所以列出一项的插件，调用会被记成 `web-user`、`user`、出处 management。仓库里没有插件列出过它们，但这条路是通的，且比改动前更像冒充。处理：十一项事件写入、`setActiveGoalCapability`、`goalTreeCapabilities.checkGoalTreeProposal` 声明 `host_only`，沿用事件用户决定、结构提案决定、初始化已有的做法，不另写插件名单；宿主的入口和 Host 自己的客户端（CLI、管理 MCP、Web 创建入口）调用不受影响。没有选「给插件它调用上下文里的身份」：这些入口是管理入口，没有为插件开放的理由，插件要写进展已有 `goals.progress.record.v1`。
 - 结构提案检查的类型与宿主不一致。`GoalTreeProposalCheckInput` 仍要求 `actor_id`，按类型写的调用必被拒绝；只有 CLI 在用，它传原始 JSON 所以没暴露。处理：在 Goals 插件里把管理入口的输入类型分出来（`GoalTreeCheckEntryInput`，`GoalTreeEntryApi`），`goalTreeCapabilities.checkGoalTreeProposal` 与 `createGoalProposalClients().goalTree` 改用它；领域输入、动作处理函数和 contracts 的公开 API 快照都不动。CLI 的 `createCliGoalTreeHandlers` 改收 `GoalTreeEntryApi`。
 
-验证补充：新增的两项测试在改动前的实现（c042bd0d）上失败，失败信息分别是「入口对插件可用」和「检查入口要求 `actor_id`」。
+没有动的：项目引导的新增与修改、规划保存、结构提案提交（本规格「不做」）仍把参数里的 `actor_id` 当作者，插件在 Manifest 里列出它们仍能调用；它们不是记本机这个人的管理入口，要不要同样挡住，另行决定。`createGoalCapability` 有定义和导出，但宿主没有注册，调用不到。
+
+验证补充：新增的两项测试在改动前的实现（c042bd0d）上失败，失败信息分别是「入口对插件可用」（插件以 `web-user`、`user` 写进了一条便笺）和「检查入口要求 `actor_id`」。枚举护栏另用损坏构建产物的办法验证过：去掉一项入口的标记，或加一项没登记的新写入，测试各自失败，并说明该怎么做。

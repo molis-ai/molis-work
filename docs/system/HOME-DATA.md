@@ -156,10 +156,17 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 
 见 3.2、3.4：placement 是 `context_edges` 加宿主的 `placement_titles`；assistant 是宿主的 12 张 `assistant_*` 加 `context_edges`；server 是 `server` 包的 `mw_*` 与 `im_*`。`modules/context-ledger` 的 `context_edges` 因此在 5 个文件里各有一份同样的表：目录库、项目库、`sessions.db`、`placement.db`、`assistant.db`。
 
-### 4.5 共享日志表与已知的跨 owner 直接 SQL
+### 4.5 共享日志表与跨 owner 直接 SQL 的门禁
 
-- `events` 和 `idempotency_records` 由 `packages/storage` 定义（`src/sqlite.ts`），由 `modules/goals`（`src/repository.ts:246`、`:282`）、`modules/governance-collaboration`（`src/repository.ts:87`、`src/proposal-operation-store.ts:68`）和 storage 自己的 `LocalSqliteJournal`（`packages/storage/src/sqlite.ts:65`、`:113`）直接写。`modules/artifacts`（`src/repository.ts:121`）不写，但直接读 `events` 取游标（`MAX(seq)`）；goals（`src/repository.ts:239`）和 governance（`src/repository.ts:39`）也直接读同一个游标。路线图把 goals、artifacts、governance 三个模块都算作直接读写者，W2-06 的允许名单要把读者一起列上。这是有意共享，但还没有门禁约束只能经日志 API 读写。
-- 还在的跨 owner 直接 SQL 共 4 处，计划在 W2-06 去掉：`apps/local-host/src/coding-background-tasks.ts:44` 读 Coding 的 `coding_sessions`；`apps/local-host/src/demo-seed.ts:622` 更新 Goals 的 `boards`；`apps/local-host/src/im-server.ts:56`、`:60` 读 `server` 的 `mw_projects`、`mw_members`；`modules/projects/src/installation-inspection.ts:10` 读 storage 的 `catalog_meta`。
+规则：一张表只由建它的包读写，别的包要读写就走那个包导出的函数。门禁是 `scripts/gates/table-owners.mjs`（`pnpm health:check` 里跑，没有基线，出现一处就失败）；它从各包 TypeScript 源码的 SQL 字符串里找 `CREATE TABLE` 定出每张表的 owner 包，再找别的包里对这张表的 `SELECT … FROM`、`JOIN`、`INSERT INTO`、`UPDATE`、`DELETE FROM`、`ALTER TABLE`、`DROP TABLE`。读不到的写在门禁文件开头：表名不是字面量的（`FROM ${table}`，Artifacts 的 Repository 从选项取表名、助理清理项目时遍历一个表名数组）、拼接出来的 SQL、非 TypeScript 文件里的 SQL。
+
+- `events` 和 `idempotency_records` 由 `packages/storage` 定义（`src/sqlite.ts`），由几个模块在自己的事务里直接读写，是有意共享，登记在 `tooling/gates/table-owners.json`（写明 owner、用到的包和理由；门禁两头核对，登记的包不再用它就失败）：`events` 的使用者是 `modules/goals`（`src/repository.ts`，读游标并追加事件）、`modules/governance-collaboration`（`src/repository.ts`，同上）、`modules/artifacts`（`src/repository.ts`，只读游标 `MAX(seq)`）；`idempotency_records` 的使用者是 `modules/goals`（`src/repository.ts`）和 `modules/governance-collaboration`（`src/proposal-operation-store.ts`）。storage 自己的 `LocalSqliteJournal` 是 owner。理由是事件和它记的事实要在同一个事务里提交，日志 API 接不进各模块的事务。
+- 原先 4 处跨 owner 直接 SQL 已去掉，门禁另量到 2 处，一并改了。都改成 owner 导出的函数：
+  - `apps/local-host/src/coding-background-tasks.ts` 读 Coding 的 `coding_sessions`：Coding 导出 `listCodingBackgroundSessions`（`plugins/native/coding/src/store.ts`），宿主的路由把它传给跨项目列表。
+  - `apps/local-host/src/demo-seed.ts` 更新 Goals 的 `boards`：改用 `setActiveGoal`，所以演示项目的日志里多一条 `board.active_goal_changed`（与用户在界面上设当前目标是同一条路径）。
+  - `apps/local-host/src/im-server.ts` 读 `server` 的 `mw_projects`、`mw_members`：`server` 包的 `ContinuityService.projectOwner` 给出项目的所有者。`apps/server/src/main.ts` 的同类 SQL（`mw_access`、`mw_members`、`mw_projects`、`mw_codes`）改成 `Identity.roleOf`、`hasMember`、`memberAccess` 和 `ContinuityService.closeProjectsExcept`。
+  - `modules/projects/src/installation-inspection.ts` 读 storage 的 `catalog_meta`：模块只列目录里的项目（`listCatalogProjectsForUninstall`），目录是不是 Molis Work 的由宿主用 storage 的 `LocalCatalogMetadata` 判断。一个没有 `catalog_meta` 表的 `catalog.db` 现在报「项目 catalog 不属于 Molis Work」，以前报「无法安全读取项目 catalog」，两者都是冲突、都挡住卸载。
+  - 门禁多量到的：`apps/local-host/src/feed-history-release.ts` 读 Feed 的 `feed_materials` 和 Listener Host 的 `feed_source_runs`：改用 `listFeedMaterialContentRefs`（`modules/feed`）和 `listListenerRunReceipts`（`horizontal/listener-host`）。后者遇到读不出的回执就抛错，不当成没有引用，所以删正文时仍然「证明不了就不删」。
 
 ## 5. 派生库与锁库
 

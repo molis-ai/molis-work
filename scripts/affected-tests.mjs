@@ -8,21 +8,24 @@
 //                                                        unstaged and untracked): the related tests, whether a full run is
 //                                                        recommended, and the checks to run beside them
 //   node scripts/affected-tests.mjs <file…>              the named files, as if each were modified in full
-//   node scripts/run-tests.mjs $(node scripts/affected-tests.mjs --list --unit-only)
+//   node scripts/affected-tests.mjs --run                run the related non-browser tests (see --run below)
 //
 //   --base <ref>          compare with the merge-base of HEAD and <ref> (default: origin/main, else main)
 //   --root <dir>          another repository root (tests/affected-tests.test.ts builds scratch repositories)
-//   --list                only the test files, one per line: unit tests first, then browser tests
+//   --list                only the test files, one per line: unit tests first, then browser tests. An empty list means nothing to run:
+//                         never hand it bare to scripts/run-tests.mjs (`run-tests.mjs $(… --list)` with nothing listed runs the
+//                         whole suite); use --run, which does nothing when nothing is selected
 //   --unit-only | --browser-only    keep one kind in --list and --run (browser = needs Chrome; see the probe marks)
 //   --json                the whole result as JSON
 //   --explain             why each test is selected
-//   --wide                also select every test that imports a changed package, however many there are
+//   --wide                lift the limits: also select every test that imports a changed package, reaches it only through shared fixtures,
+//                         or reads a route that many tests mention, however many there are
 //   --readme-extras       also select the scoped extras of the READMEs ("助理逻辑验证" and the like)
 //   --package-limit <n>   a package imported by more tests than n is not selected whole (default 40)
-//   --symbol-limit <n>    a name mentioned by more tests than n says nothing about its readers (default 25)
+//   --symbol-limit <n>    a name exported by a changed file, or a route, mentioned by more tests than n says nothing about its readers (default 25)
 //   --full                state that the full suite is needed (end of a phase, or related tests failed unexpectedly after a merge)
 //   --run                 run the related unit tests with scripts/run-tests.mjs (add --include-browser for the browser ones, after the
-//                         unit run, only if it passed). Refuses while another build or test run is going or the build is older than the
+//                         unit run, only if it passed; --browser-only runs the browser ones alone). Refuses while another build or test run is going or the build is older than the
 //                         sources (--ignore-busy, --allow-stale). The full suite is never started from here.
 // Exit: 0 (also when a full run is recommended), 2 the command or the repository is unusable, with --run the exit code of the run.
 import path from "node:path";
@@ -105,10 +108,11 @@ if (options.json) {
     base: base && { ref: base.ref, mergeBase: base.mergeBase },
     changes: changes.map((change) => ({ path: change.path, status: change.status, from: change.from })),
     packages: result.packages, ui: result.ui, storage: result.storage, full: result.full, tests: result.tests, uncovered: result.uncovered, notes: result.notes, checks,
-    limits: { packageTests: options.packageLimit ?? LIMITS.packageTests, symbolTests: options.symbolLimit ?? LIMITS.symbolTests },
+    limits: { packageTests: options.packageLimit ?? LIMITS.packageTests, symbolTests: options.symbolLimit ?? LIMITS.symbolTests, routeScanLines: LIMITS.routeScanLines },
   }, null, 2));
 } else if (options.list) {
   for (const test of [...unit, ...browser]) console.log(test.file);
+  if (!unit.length && !browser.length) console.error("affected-tests: no related tests; the list is empty (do not pass an empty list to scripts/run-tests.mjs, it runs every test)");
 } else {
   const out = [];
   const count = (items, noun) => `${items} ${noun}${items === 1 ? "" : "s"}`;

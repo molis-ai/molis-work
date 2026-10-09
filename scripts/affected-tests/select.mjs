@@ -5,9 +5,10 @@
 // The rule it encodes (user, 2026-10-03; docs/system/PARALLEL-DEVELOPMENT.md section 6):
 //   a package's source        its README's "改动后必跑", plus the tests that read or call it (`git grep -l <name> tests`)
 //   a file with `L()` text    plus tests/i18n.test.ts
-//   a route                   plus every test that reads that route
+//   a route                   plus the tests that read that route (the routes a changed line names, and in a route file the route
+//                             a changed hunk is inside), unless more than the symbol limit read it
 //   the UI                    plus the browser tests (the README's "界面改动加跑"), run in a serial slot
-//   shared core, storage or migration, three or more packages, deleting a block of old code
+//   shared core, the assembly of the host or the shell, storage or migration, three or more packages, deleting a block of old code
 //                             the full suite is recommended (`node scripts/run-tests.mjs`, about 77 minutes)
 // "Reads or calls it" is read from the tests, tier by tier, narrowest first; each selected test carries the reasons.
 import { devRequirementsSection } from "../package-dev-requirements.mjs";
@@ -17,6 +18,7 @@ import {
 } from "./rules.mjs";
 import { packageOf, readText } from "./repository.mjs";
 import { TEST_FILE } from "./index.mjs";
+import { holdsSchema, schemaChanged } from "./storage.mjs";
 
 const TEST_PATH = /tests\/[^\s`，、；）)（(]+\.test\.(?:ts|mjs)/g;
 /** The labelled lines of a 开发要求 section that are not lists of tests. */
@@ -51,18 +53,44 @@ export function routeChunks(route) {
   return chunks.some((chunk) => chunk.length >= 6) ? chunks : [];
 }
 
-/** Routes named in the changed lines: any "/api/…" or "/__…", and in files that serve routes any literal "/x/y". */
-export function routesIn(change) {
+/** The routes one line names: any "/api/…" or "/__…", and in files that serve routes any literal "/x/y". */
+function routesOfLine(line, routeFile) {
+  const text = line.replace(/\\\//g, "/");
+  const candidates = [...text.matchAll(/\/(?:api|__[a-z]+)(?:\/[^\s"'`),;]*)?/g)].map((match) => match[0]);
+  if (routeFile) candidates.push(...[...text.matchAll(/["'`](\/[a-z][\w-]*(?:\/[^"'`\s]*)?)["'`]/g)].map((match) => match[1]));
+  return candidates.map((route) => ({ route, chunks: routeChunks(route) })).filter((item) => item.chunks.length);
+}
+
+const indentOf = (line) => /^\s*/.exec(line)[0].length;
+
+/**
+ * Routes named in the changed lines, and in a route file the route each changed place is inside: editing the body of a handler
+ * changes what its route does, though the line that names the route is not among the changed ones. That route is on the nearest
+ * enclosing line above the hunk (`change.hunks`, new file coordinates; `text` is the file as it is now): the nearest line above that
+ * is indented less than the changed lines and names a route, within `LIMITS.routeScanLines` lines. A path in the response or in a
+ * sibling line is at the same indentation and does not count; a helper at the top level of the file is inside no route. A deletion
+ * is inside the block of the line before it.
+ */
+export function routesIn(change, text = "") {
   const found = new Map();
   if (!PRODUCT_AREA.test(change.path)) return [];
   const routeFile = ROUTE_FILE.test(change.path);
-  for (const line of codeLines(change)) {
-    const text = line.replace(/\\\//g, "/");
-    const candidates = [...text.matchAll(/\/(?:api|__[a-z]+)(?:\/[^\s"'`),;]*)?/g)].map((match) => match[0]);
-    if (routeFile) candidates.push(...[...text.matchAll(/["'`](\/[a-z][\w-]*(?:\/[^"'`\s]*)?)["'`]/g)].map((match) => match[1]));
-    for (const candidate of candidates) {
-      const chunks = routeChunks(candidate);
-      if (chunks.length) found.set(chunks.join("\u0000"), { route: candidate, chunks });
+  const take = (hits) => { for (const item of hits) found.set(item.chunks.join("\u0000"), item); };
+  for (const line of codeLines(change)) take(routesOfLine(line, routeFile));
+  if (routeFile && text && change.hunks?.length) {
+    const lines = text.split("\n");
+    for (const hunk of change.hunks) {
+      if (hunk.count === 0 && hunk.start === 0) continue;   // taken out above the first line
+      const first = Math.min(Math.max(hunk.start, 1), lines.length), deletion = hunk.count === 0;
+      // A deletion sits after line `first`, which can be the line that names the route (the first line of its body was deleted).
+      let ceiling = deletion ? indentOf(lines[first - 1]) + 1 : Math.min(...lines.slice(first - 1, first - 1 + hunk.count).filter((line) => line.trim() !== "").map(indentOf));
+      for (let number = deletion ? first : first - 1; number >= Math.max(1, first - LIMITS.routeScanLines); number--) {
+        const line = lines[number - 1];
+        if (line.trim() === "" || isComment(line) || indentOf(line) >= ceiling) continue;
+        ceiling = indentOf(line);
+        const hits = routesOfLine(line, routeFile);
+        if (hits.length) { take(hits); break; }
+      }
     }
   }
   return [...found.values()];
@@ -94,8 +122,21 @@ const isUi = (change, item) => !isDocument(change.path) && !isTestSide(change.pa
   && ((item && UI.packages.includes(item.dir)) || UI.files.test(change.path) || (PRODUCT_AREA.test(change.path) && codeLines(change).some((line) => UI.lines.test(line))));
 const showsText = (change) => PRODUCT_SOURCE.test(change.path)
   && (DICTIONARY_FILE.test(change.path) || codeLines(change).some((line) => TRANSLATOR_CALL.test(line) || CHINESE_LITERAL.test(line)));
-const touchesStorage = (change, item) => (item && FULL_REGRESSION.storagePackages.includes(item.dir))
-  || (PRODUCT_SOURCE.test(change.path) && (codeLines(change).some((line) => FULL_REGRESSION.storageLines.test(line)) || FULL_REGRESSION.storageFiles.test(change.path)));
+const isProductCode = (change) => PRODUCT_SOURCE.test(change.path) && !/(?:^|\/)tests?\/|\.test\.(?:ts|mts)$/.test(change.path);
+/**
+ * A change to stored data: the storage package, a file named for a migration, a changed line that calls or versions a baseline, or
+ * a source file whose schema is another one than at the base (storage.mjs). With no base to compare (named files) a file that holds a
+ * schema counts as changed in full.
+ */
+const touchesStorage = (root, change, item) => {
+  if (item && FULL_REGRESSION.storagePackages.includes(item.dir)) return true;
+  if (!isProductCode(change)) return false;
+  if (FULL_REGRESSION.storageFiles.test(change.path) || codeLines(change).some((line) => FULL_REGRESSION.storageLines.test(line))) return true;
+  const now = readText(root, change.path);   // "" for a deleted file
+  if (typeof change.before === "string") return schemaChanged(change.before, now);
+  return change.added.length > 0 && holdsSchema(now);
+};
+const codeLineCount = (lines) => lines.filter((line) => line.trim() !== "" && !isComment(line)).length;
 
 /**
  * @param {object} input
@@ -215,7 +256,14 @@ export function selectAffected({ root, changes, packages, index, options = {} })
   // ---- rules about what the change does ---------------------------------------------------------------------------------------
   for (const change of codeChanges) {
     if (showsText(change)) add(I18N_TEST, "text", `${change.path} has text people read`, change.path);
-    for (const { route, chunks } of routesIn(change)) for (const test of index.containingAll(chunks)) add(test, "route", route, change.path);
+    // A route read by more tests than the symbol limit is a common piece of a path (`/projects/`, `/health`), not a route they read.
+    const crowded = [];
+    for (const { route, chunks } of routesIn(change, change.status === "D" ? "" : readText(root, change.path))) {
+      const readers = [...index.containingAll(chunks)];
+      if (!options.wide && readers.length > symbolLimit) { crowded.push(`${route} (${readers.length})`); continue; }
+      for (const test of readers) add(test, "route", route, change.path);
+    }
+    if (crowded.length) note(`${change.path}: routes mentioned by more than ${symbolLimit} tests are too common to tell their readers apart, not selected (${sample(crowded, 3)}); --wide selects them`);
   }
 
   // ---- things the diff cannot say are covered ---------------------------------------------------------------------------------
@@ -230,11 +278,17 @@ export function selectAffected({ root, changes, packages, index, options = {} })
     return item && (FULL_REGRESSION.corePackages.includes(item.dir) || FULL_REGRESSION.corePackagePrefixes.some((prefix) => item.dir.startsWith(prefix)));
   }).map((change) => change.path));
   group("assembly", "assembly of the host or the workbench shell", codeChanges.filter((change) => FULL_REGRESSION.assemblyFiles.includes(change.path)).map((change) => change.path));
-  const storage = codeChanges.filter((change) => touchesStorage(change, packageOf(packages, change.path))).map((change) => change.path);
+  const storage = codeChanges.filter((change) => touchesStorage(root, change, packageOf(packages, change.path))).map((change) => change.path);
   group("storage", "storage or migration", storage);
   if (changedPackages.size >= FULL_REGRESSION.packageSpan) full.push({ rule: "spans-packages", detail: `${changedPackages.size} packages changed (${FULL_REGRESSION.packageSpan} or more): ${sample([...changedPackages.keys()].map((item) => item.dir))}` });
   const deleted = codeChanges.filter((change) => change.status === "D" && SOURCE_FILE.test(change.path) && packageOf(packages, change.path));
-  if (deleted.length >= FULL_REGRESSION.deletedSourceFiles) full.push({ rule: "deletes-code", detail: `${deleted.length} source files deleted (${FULL_REGRESSION.deletedSourceFiles} or more): ${sample(deleted.map((change) => change.path))}` });
+  // Code lines taken out of one file and not put back in it; a deleted file counts with all its lines.
+  const shrunk = codeChanges.filter((change) => isProductCode(change)).map((change) => ({ path: change.path, lines: codeLineCount(change.removed) - codeLineCount(change.added) })).filter((entry) => entry.lines > 0);
+  const takenOut = shrunk.reduce((total, entry) => total + entry.lines, 0);
+  const blocks = [];
+  if (deleted.length >= FULL_REGRESSION.deletedSourceFiles) blocks.push(`${deleted.length} source files deleted (${FULL_REGRESSION.deletedSourceFiles} or more): ${sample(deleted.map((change) => change.path))}`);
+  if (takenOut >= FULL_REGRESSION.deletedCodeLines) blocks.push(`${takenOut} code lines taken out of ${shrunk.length} file${shrunk.length === 1 ? "" : "s"} (${FULL_REGRESSION.deletedCodeLines} or more): ${sample(shrunk.sort((left, right) => right.lines - left.lines).map((entry) => `${entry.path} -${entry.lines}`), 3)}`);
+  if (blocks.length) full.push({ rule: "deletes-code", detail: blocks.join("; ") });
   if (options.full) full.push({ rule: "requested", detail: "asked for with --full (end of a phase, or related tests failed unexpectedly after a merge)" });
 
   const uiFiles = codeChanges.filter((change) => isUi(change, packageOf(packages, change.path))).map((change) => change.path);

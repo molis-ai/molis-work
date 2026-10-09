@@ -18,15 +18,29 @@ export const FULL_REGRESSION = {
   corePackages: ["packages/contracts", "packages/kernel"],
   corePackagePrefixes: ["modules/"],
   /**
-   * The assembly of the host and the shell of the workbench: the hub files of PARALLEL-DEVELOPMENT section 2 that wire things
-   * together (route dispatch, project host, plugin assembly, the shell and its client program), not the barrels (`index.ts`).
+   * "local-host 的装配、workbench 外壳": the files the two packages' READMEs name as assembly or shell (their "从哪里读代码" tables
+   * and "一次典型调用"), plus the hub files of PARALLEL-DEVELOPMENT section 2 that wire things together (route dispatch,
+   * plugin assembly, the shell and its client program). Not the barrels (`index.ts`), and not every file of apps/workbench
+   * (214 files, most of them one plugin's page): whether the whole package is the shell is open point 1 of section 6.1.
+   * tests/affected-tests.test.ts checks that each file a README table calls 装配 or 组合 is listed here.
    */
   assemblyFiles: [
+    // apps/local-host: 项目运行实例装配, 插件装配, Host Client 与调用生命周期, 能力绑定, Web 请求与 Home 装配, 对外 MCP 装配, Agent/Git 装配, 跨 Module 应用组合
     "apps/local-host/src/project-host.ts",
     "apps/local-host/src/project-plugins.ts",
+    "apps/local-host/src/local-host.ts",
+    "apps/local-host/src/project-capabilities.ts",
+    "apps/local-host/src/web-server.ts",
     "apps/local-host/src/web-request.ts",
     "apps/local-host/src/web-catalog.ts",
+    "apps/local-host/src/mcp-server.ts",
+    "apps/local-host/src/system-agent-service.ts",
+    "apps/local-host/src/goal-project-application.ts",
+    // apps/workbench: UI 组合, 工作台整页装配, 客户端初始化与恢复, 浏览器资产入口, the shell, its catalog and its slots
     "apps/workbench/src/builtin-plugins.ts",
+    "apps/workbench/src/browser-assets.ts",
+    "apps/workbench/src/document-shell.ts",
+    "apps/workbench/src/goals-page-renderer.ts",
     "apps/workbench/src/immersive-shell.ts",
     "apps/workbench/src/page-assets.ts",
     "apps/workbench/src/plugin-catalog.ts",
@@ -35,14 +49,30 @@ export const FULL_REGRESSION = {
     "apps/workbench/src/scripts/client/initialization.ts",
     "apps/workbench/src/scripts/client/plugin-workbench.ts",
   ],
-  /** The storage package, files named for a migration or baseline, and any file whose changed lines define or version a table. */
+  /**
+   * Storage: the storage package; a file named for a migration; a changed line that calls or versions a baseline; and a source file
+   * whose schema changed. The schema of a file is read from the file as it was at the base and as it is now (scripts/affected-tests/
+   * storage.mjs): the text of every string or template literal that holds DDL, and the whole declaration of every
+   * `SqliteBaseline = { version, schema }`, so a version bump, a column added in the middle of a multi-line CREATE TABLE and a
+   * dropped table are all seen however few lines the diff has.
+   */
   storagePackages: ["packages/storage"],
-  storageFiles: /(?:^|[/-])(?:migrations?|baselines?)(?:[-./]|$)/,
-  storageLines: /\b(?:CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX)|PRAGMA\s+user_version|user_version|applySqliteBaseline)\b/i,
+  storageFiles: /(?:^|[/-])migrations?(?:[-./]|$)/,
+  storageLines: /\b(?:PRAGMA\s+user_version|user_version|applySqliteBaseline)\b/i,
+  /** A string or template literal that holds DDL (or sets the schema version) is part of a stored schema. */
+  schemaLiteral: /\b(?:CREATE\s+(?:UNIQUE\s+|VIRTUAL\s+|TEMP(?:ORARY)?\s+)?(?:TABLE|INDEX|VIEW|TRIGGER)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX|VIEW|TRIGGER)|PRAGMA\s+user_version)\b/i,
   /** "三个以上包": three or more distinct packages with a non-document change. */
   packageSpan: 3,
   /** "整块旧代码": this many source files deleted (not renamed) in one change. */
   deletedSourceFiles: 3,
+  /**
+   * "整块旧代码" inside files that stay: this many code lines (no comments, no blank lines) taken out of product sources, counted per
+   * file as removed minus added so that a rewrite is not a deletion and a new file elsewhere does not hide one. Measured with
+   * `git diff --numstat` (comments and blank lines included, so a little high) over the 245 PRs merged since 2026-09-28, 300 picks 17
+   * (7%), among them the drop-old-path PRs #164 (old forms), #176 (standalone pages), #198 (old builder), #260 (database baselines),
+   * #263, #268 (pre-event history), #269, #272, #275 and #285; 200 would pick 26 and 500 would pick 13.
+   */
+  deletedCodeLines: 300,
 };
 
 // ---- what a UI change is ---------------------------------------------------------------------------------------------------
@@ -79,8 +109,13 @@ export const ROUTE_FILE = /(?:^|\/)(?:web|http|route|routes|server)[-.\w]*\.(?:t
 export const LIMITS = {
   /** A package imported by more tests than this is not selected as a whole; its files and the names they export are. `--wide` lifts it. */
   packageTests: 40,
-  /** A name exported by a changed file that more tests mention than this is too common to say anything. */
+  /**
+   * A name exported by a changed file, or a route, that more tests mention than this is too common to say anything about who reads it.
+   * (`/projects/` is in 199 tests, `/health` in 143.) `--wide` lifts it.
+   */
   symbolTests: 25,
+  /** In a route file a changed hunk belongs to the nearest route literal at or above it, looked for this many lines up. */
+  routeScanLines: 120,
   /** A symbol is at least this long, and is not one of the plain words below. */
   symbolLength: 4,
 };

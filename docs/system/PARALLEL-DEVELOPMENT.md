@@ -115,9 +115,11 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 node scripts/affected-tests.mjs                 # 自 origin/main 合并基点以来的全部改动：已提交、暂存、未暂存、未跟踪
 node scripts/affected-tests.mjs <文件>…         # 只看点名的文件，当作整个文件都改了（没有行信息，按整个文件判断）
 node scripts/affected-tests.mjs --explain       # 每个用例为什么被选
-node scripts/run-tests.mjs $(node scripts/affected-tests.mjs --list --unit-only)   # 只取非浏览器用例
-node scripts/affected-tests.mjs --run [--include-browser]
+node scripts/affected-tests.mjs --run           # 跑相关的非浏览器用例；没选到就什么都不跑。--include-browser 再跑浏览器用例，--browser-only 只跑浏览器用例
+node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列文件名，给人看或给别的工具
 ```
+
+不要写 `node scripts/run-tests.mjs $(node scripts/affected-tests.mjs --list …)`：列表为空（只改了文档，或相关用例都是另一类）时 `run-tests.mjs` 收到零个参数，会把 700 多个用例全跑一遍（约 77 分钟），绕过排时段的规矩。要交给别的命令就先判空；`--list` 在列表为空时会往 stderr 写一句提醒。
 
 `pnpm test:affected` 等于 `node scripts/affected-tests.mjs`。基点是本地的 `origin/main`（没有就退到 `main`，`--base <ref>` 另指），所以先 `git fetch -q origin main`。输出四块：改动的文件；「FULL REGRESSION RECOMMENDED」及原因（有才出现）；相关用例，分非浏览器与浏览器（浏览器 = Linux 探针标记里的 browser，要本机 Chrome，排时段，见第 5 节）；陪着跑的检查（`pnpm build`、`pnpm boundary:check`、健康门禁、页面资源、版本一致性、密钥扫描，按改动内容出现）。`--json` 给机器读，`--list` 只列文件名。
 
@@ -128,7 +130,7 @@ node scripts/affected-tests.mjs --run [--include-browser]
 | 包的「改动后必跑」 | 读改动所在包 README `## 开发要求` 里 `- 改动后必跑：` 一行的 `tests/….test.ts`。只有非文档文件的改动才触发，README 自己的改动不触发 |
 | 读它、调它的用例 | 静态读 `tests/*.test.*` 和它们 import 的 `tests/` 下的 fixture（与探针读标记是同一个闭包），不运行。依次：① 用例自己 import 这个文件，或在字符串里写出它的路径（认 `.js` 与 `.ts`、`dist` 与 `src`、包的子路径 import、`join(root, "plugins", "x")` 这种拼法，也认写到上层目录）；② 用例触及这个包（import 包名，或路径进了包目录）并提到这个文件导出的名字，已删除的导出也算（用例会因此加载失败）；③ 用例文件名对得上：`tests/<文件名>` 开头，`actions`、`store` 这类通用名改用 `<包目录名>-<文件名>`；④ 包整体：import 该包或以包目录名开头的用例 |
 | 带 `L()` 文案加 `tests/i18n.test.ts` | 产品源码里改动的行（注释不算）调用翻译函数（`L`、`x.L`、`p.text`、`primitives.text`、`translate`、`this.t`），或含中文字符串，或改的是词典文件 |
-| 改路由加所有读这条路由的用例 | 改动行里的 `/api/…`、`/__…`；路由文件（`*-http.ts`、`routes.ts`、`web-*.ts` 等）里任何 `"/x/y"` 字面量。在参数处（`${}`、`:id`）拆开，读这条路由的用例要含全部固定片段（`/api/projects/` 和 `/brief`），查询串不算 |
+| 改路由加读这条路由的用例 | 改动行里的 `/api/…`、`/__…`；路由文件（`*-http.ts`、`routes.ts`、`web-*.ts` 等）里任何 `"/x/y"` 字面量。路由文件里，改动落在哪段处理函数里就算改了哪条路由：从每处改动往上找，第一行缩进比改动浅、又写着路由字面量的，就是包着它的那条路由（注释和同缩进的兄弟行不算，最多往上找 120 行），所以只改了处理函数的函数体、没碰路由那一行，也会选到读这条路由的用例。在参数处（`${}`、`:id`）拆开，读这条路由的用例要含全部固定片段（`/api/projects/` 和 `/brief`），查询串不算 |
 | 界面加浏览器用例 | 改动在界面包（workbench、design-system、ui-host、im-ui），或文件名像客户端、样式、视图、渲染器，或是 css、html、svg，或改动行是页面脚本与样式模板。加 README「界面改动加跑」一行里 `再加跑` 之前的用例，并加该包同名的浏览器用例。输出提示页面资源门禁和三宽度、明暗截图（PR 模板） |
 | 全量 | 见下 |
 
@@ -137,18 +139,30 @@ node scripts/affected-tests.mjs --run [--include-browser]
 - 一个包被超过 40 个用例 import 或同名时不整包选，只选读到改动文件与名字的用例，Notes 里写明；`--wide` 选全部。
 - 一个文件只被借 fixture 间接读到（用例自己没写它），共用这个 fixture 的用例超过 25 个时不选：那些用例是起整个宿主，不是读这个文件；Notes 写出 fixture 名。`--wide` 选全部。
 - 一个名字被超过 25 个用例直接提到，说明不了谁读它，不用。
+- 一条路由被超过 25 个用例提到（`/projects/` 在 199 个用例里，`/health` 在 143 个），说明它只是路径的一个常见片段，不当作“读这条路由”：不选，Notes 写出路由和个数，`--wide` 选全部。点名一个路由文件（当作整个文件都改了）时也一样：`web-request.ts` 原来选出 265 个用例，现在 70 个。
 - README 里除「改动后必跑」「界面改动加跑」之外带测试路径的分项（「助理逻辑验证」等）和 `再加跑` 之后的条件部分，只列在 Notes，`--readme-extras` 才选。
 - 没有任何用例直接读到的改动文件单独列出（`No test reads these directly`），别当成已覆盖。
 
-建议全量的条件，写在 `scripts/affected-tests/rules.mjs`，`tests/affected-tests.test.ts` 逐条验证：改了 contracts、kernel 或任一 `modules/*`；改了 local-host 或 workbench 的装配、外壳文件（名单是 rules.mjs 的 `assemblyFiles`，取自第 2 节的枢纽，不含 `index.ts` 出口）；改了 `packages/storage`、名字带 migration 或 baseline 的文件，或改动行里有 `CREATE`、`ALTER`、`DROP` 表或索引、`user_version`、`applySqliteBaseline`；动了三个或更多包的非文档文件；删了三个或更多源文件；`--full`（阶段收尾，或合入后相关用例意外失败：这两条看 diff 看不出来，要人说）。脚本只建议，不替你跑全量。
+建议全量的条件，写在 `scripts/affected-tests/rules.mjs`，`tests/affected-tests.test.ts` 逐条验证：
 
-`--run` 守第 5 节的规矩：改动的包源码比它的 `dist` 新（没构建）就拒绝，`--allow-stale` 放行；`pgrep` 看到别的构建、测试运行或 tsc 就拒绝，`--ignore-busy` 放行。先跑非浏览器用例；给了 `--include-browser` 且前一批通过，才跑浏览器用例。两批各是一次 `scripts/run-tests.mjs`。
+- 改了 contracts、kernel 或任一 `modules/*`。
+- 改了 local-host 的装配或 workbench 的外壳文件：名单是 rules.mjs 的 `assemblyFiles`，来自两个包 README 自己说是装配、组合、外壳的文件（local-host：`project-host`、`project-plugins`、`local-host`、`project-capabilities`、`web-server`、`web-request`、`web-catalog`、`mcp-server`、`system-agent-service`、`goal-project-application`；workbench：`builtin-plugins`、`browser-assets`、`document-shell`、`goals-page-renderer`、`immersive-shell`、`page-assets`、`plugin-catalog`、`renderer`、`ui-composition`、`scripts/client/initialization`、`scripts/client/plugin-workbench`），不含 `index.ts` 出口。测试里有一条核对：两个 README 的「从哪里读代码」表里，用途写了“装配”或“组合”的文件都在名单上。
+- 改了存储或迁移：`packages/storage` 的任何源码；名字带 migration 的文件；改动行调用或写了 `PRAGMA user_version`、`user_version`、`applySqliteBaseline`；或者一个产品源码文件持有的结构变了。后一种不看哪几行变了，而是把这个文件在合并基点和现在的两个版本各读一遍，比较它持有的结构：所有含 `CREATE`、`ALTER`、`DROP` 表、索引、视图、触发器或 `PRAGMA user_version` 的字符串与模板字符串的全文，和每个 `SqliteBaseline = { version, schema }` 声明的整个内容。所以 `version: 2` 改 `3`、在多行 `CREATE TABLE` 中间加一列、删一张表都算，注释里的 DDL 不算；名字里带 baseline 但不存数据的文件（`proposal-baselines.ts`）不算。点名文件（没有基点可比）时，持有结构的文件按整个文件改了算。此时还会提示 `node scripts/verify-release-versions.mjs`（库版本表在 `docs/releases/CHECKLIST.md`）。
+- 动了三个或更多包的非文档文件。
+- 删了整块旧代码：三个或更多源文件被删除（改名不算删除）；或者产品源码里取走的代码行（不算注释和空行）合计 300 行或更多，按文件算“删去的减去加上的”，所以重写一个文件不算、别处新增一个文件也盖不住。300 取自 2026-09-28 以来合入的 245 个 PR：合计取走 300 行以上的有 17 个（7%），其中有 #164（旧表单）、#176（独立页面）、#198（旧构建器）、#260（库基线）、#263、#268（事件前历史）、#269、#272、#275、#285 这些删旧路径的 PR；取 200 是 26 个，取 500 是 13 个。
+- `--full`：阶段收尾，或合入后相关用例意外失败；这两条看 diff 看不出来，要人说。
+
+脚本只建议，不替你跑全量。
+
+`--run` 守第 5 节的规矩：改动的包源码比它的 `dist` 新（没构建）就拒绝，`--allow-stale` 放行；`pgrep` 看到别的构建、测试运行或 tsc 就拒绝，`--ignore-busy` 放行。先跑非浏览器用例；给了 `--include-browser` 且前一批通过，才跑浏览器用例；`--browser-only` 只跑浏览器用例。没选到任何用例就什么都不跑。两批各是一次 `scripts/run-tests.mjs`。
 
 局限，知道它会漏、会多的地方：
 
 - 它读文本，不读运行。字符串拼出来的路径、动态 import、环境变量传的路径看不到；用例对包名的 import 只看到包名，看不到包里哪个文件被用到，大包只能靠上面的收窄规则。
 - 不追反向依赖：改了 A 包，只依赖 A 的 B 包的用例不会被选。波及面大的改动走全量条件，不靠它挑。
-- 阈值（40、25、3 个包、3 个文件）是首批取值，不是量出来的最优。用一两周后按漏选、多选的实例调；调的地方只有 `rules.mjs` 的 `LIMITS` 和 `FULL_REGRESSION`。
+- 阈值（40、25、3 个包、3 个文件、300 行、往上找 120 行）是首批取值，不是量出来的最优。用一两周后按漏选、多选的实例调；调的地方只有 `rules.mjs` 的 `LIMITS` 和 `FULL_REGRESSION`。
+- 路由按缩进认包着改动的那一层：路由条件拆成几行、路由字面量那行和函数体缩进一样时认不到（只剩改动行里直接写着的路由）；顶层的辅助函数不算在任何路由里；删除整段处理函数时，只有被删的行里写着路由才认得到。
+- 两处对 10-03 原话的读法还没有人拍板（第 12 节）：“workbench 外壳”读成名单上的文件，不是整个 `apps/workbench`；“删除整块旧代码”读成 3 个文件或 300 行，没有别的形状（比如只删一个 250 行的大函数）。
 - 它不替代 CI：CI 每个 PR 都跑的合同与门禁用例（`pnpm test:contracts` 等）不一定在选出的用例里。
 
 ## 7. 集成分支上跑全量
@@ -211,7 +225,9 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 
 - 合成包负责人和流程：方向已定，人选与方案等路线图 W1-20（见上一节）。
 - 读取兼容的合同流程：起点已定为第一个装到开发机之外的版本（用户 2026-10-08），日期到时写进 [合同变更流程](CONTRACT-CHANGES.md)；在那之前不留兼容期。
-- 挑相关用例的脚本已有（第 6.1 节）；阈值是首批取值，要用一两周后按漏选、多选的实例调整，反向依赖不追。
+- 挑相关用例的脚本已有（第 6.1 节）；阈值是首批取值，要用一两周后按漏选、多选的实例调整，反向依赖不追。有两处读法等用户（或统筹会话）拍板，现在按推荐的做：
+  1. “workbench 外壳”。选项：名单上的 21 个文件（推荐：`apps/workbench` 有 214 个文件，大多是某个插件的一页或一块界面，这类改动已经会选浏览器用例，整包都算外壳会让每个界面小改动都建议跑 77 分钟）；整个 `apps/workbench`（README 第一行把整个包叫“工作台外壳”）；名单加上 `side-panel*`、`assistant-dock`、`project-home` 这类外壳零件。“local-host 的装配”同理，名单是 README 点名的 10 个文件。
+  2. “删除整块旧代码”。选项：3 个文件或净取走 300 行（推荐，现状，以 245 个 PR 量过）；只看文件数；再加一条“一个文件净取走 150 行以上”以抓住只删一个大函数的情形（245 个 PR 里 18 个会触发，其中只有 4 个是 300 行条件抓不到的）。
 - 测试并发隔离（每个测试文件一个 Home 和密钥库，非浏览器用例并发）：路线图 W5-12。在那之前全量约 76–78 分钟。
 - CI 里的产品用例子集、浏览器冒烟、隔离名单：非浏览器用例的 Linux 探针作业已有（路线图 W1-11，不挡合并，见第 3 节）；`tests/ci-product-subset.txt`、3–5 个浏览器冒烟、隔离名单（`tests/quarantine.json`）和并入 `Verify` 在路线图 W2-16，约两周的探针结果出来后做。
 - 远端已合入分支的清理与「合并后自动删除分支」：用户来做（见第 10 节），还没做。

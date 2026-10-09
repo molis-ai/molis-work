@@ -1,6 +1,6 @@
 # 完成确认与管理入口身份
 
-状态：待验收（2026-10-08）。2026-10-07 在旧 main（d81b12cb）上做成，2026-10-08 重做到 main 1d891c8b 之上并重新验证；与旧版的差异见文末「合入主线时的调整」。评审后补了 typed 入口对插件的边界和结构提案检查的输入类型，见文末「评审后的补充」。再次评审后补了完成确认的回归测试，见文末「第二次评审后的补充」。第三次评审指出授权完成的决定放行得太久，按用户 2026-10-08 的决定改成只对当时的约定和那一轮工作有效，见文末「第三次评审后的补充」。第四次评审指出同一份决定里一并接受了要求的授权仍能绕过这两条限制，已补上，见文末「第四次评审后的补充」。同一次评审提出：单纯接受某条要求（没有授权 `complete`）的结论也应受这两条限制；用户 2026-10-09 决定同样限制，并且「约定」指整份承诺，已按此实现，见文末「用户的第二个决定与处理」。
+状态：待验收（2026-10-08）。2026-10-07 在旧 main（d81b12cb）上做成，2026-10-08 重做到 main 1d891c8b 之上并重新验证；与旧版的差异见文末「合入主线时的调整」。评审后补了 typed 入口对插件的边界和结构提案检查的输入类型，见文末「评审后的补充」。再次评审后补了完成确认的回归测试，见文末「第二次评审后的补充」。第三次评审指出授权完成的决定放行得太久，按用户 2026-10-08 的决定改成只对当时的约定和那一轮工作有效，见文末「第三次评审后的补充」。第四次评审指出同一份决定里一并接受了要求的授权仍能绕过这两条限制，已补上，见文末「第四次评审后的补充」。同一次评审提出：单纯接受某条要求（没有授权 `complete`）的结论也应受这两条限制；用户 2026-10-09 决定同样限制，并且「约定」指整份承诺，已按此实现，见文末「用户的第二个决定与处理」。完整回归发现的两项失败（一项是用户决定带来的断言变化，一项是夹具里存的决定还是旧形状）见文末「完整回归后的调整」。
 
 ## 背景
 
@@ -287,3 +287,12 @@ node scripts/run-tests.mjs tests/goal-events-state.test.ts tests/goals-actions.t
 - 技能文档（`skills/goal-advance`）没有改。它没有提到项目规则；Runtime 收到 `event_closure.human_approval_required` 后应像第一次那样请用户点头，要不要把这一点写进技能，另行决定。
 
 其余检查：`pnpm build` 通过；本规格的验证清单（二十四个测试文件）一百二十八项，一百二十六项通过，两项被取消：`tests/goals-actions.test.ts` 的「官方 MCP 启动器」那一项和 `tests/goals-mcp-actions.test.ts` 的那一项，都在测试自带的 60 秒上限处超时。当时机器负载约 22（另有会话在跑测试），这两项都要起一个 MCP 子进程；分开重跑：后者 47 秒通过；前者单独跑在 60 秒上限处仍然超时，把上限放宽到 900 秒的临时副本（已删）上，干净的基线源码用 110 秒、本分支用 142 秒，都通过。所以是环境与时序，不是这次的改动。`modules/goals` README「改动后必跑」的六个文件七十五项全部通过；评审自己的临时对抗测试里 ADV-1 到 ADV-5、ADV-7 到 ADV-10 的输出逐项符合上面的规则（ADV-2、ADV-8 由放行变为 `completion_applied` 为 false，原因只有 `event_closure.human_approval_required`；约定改了又改回的 ADV-3 授权恢复）。`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`、`node scripts/check-secrets.mjs` 通过，基线不用更新（只多了几行函数，没有巨型单元变大，`GoalEventStateRepository`、`GoalEventStateEffects` 两个巨型类的行数没动）。
+
+## 完整回归后的调整（2026-10-09）
+
+完整回归在 `tests/goal-event-imported-requirements.test.ts` 里发现两项确定性失败，它们在 origin/main 上通过，因为主线上项目规则还没有接进完成检查。两项都是第二个决定带来的预期变化，不是放宽断言；下面是改动的断言清单。
+
+1. 「real event closure stays distinct; explicit continue can reuse the same-scope approval」，改名为「…after an explicit continue the old approval no longer counts and the close waits for a fresh nod」。这是用户的决定（继续之后，更早的点头不再算）。原断言是已完成的 Goal 被继续、Concern 解决之后，收尾复用迁入的那次批准而成立；现在改成：同样的步骤之后收尾 `completion_applied` 为 false，原因只有 `event_closure.human_approval_required`；迁入的策略要求仍保留原来的结论、当前决定仍是原来那一条；人在 Web 上新记一条授权 `complete` 的决定后，收尾成立，当前决定只剩新的那一条。
+2. 「still-valid same-scope complete approval satisfies imported policy after the real blocker is resolved」，断言一字未改。原因：它没有继续、约定没变，轮次是对的，收尾回执里只有 `event_closure.human_approval_required`。夹具 `tests/fixtures/goal-event-history/approved.sql` 与 `approved-completed.sql` 里存的授权完成决定是旧形状：承诺只有结果说明，`requirements` 为空；而这个 Goal 的约定有两条要求（`MIXED-C1` 和迁入的策略要求）。逐字比对不通过。代码没有判错：这条决定没有记整份约定，按本规格就不放行。仓库的规则是读取不兜底旧形状、存量由整理处理、夹具存的是当前形状，所以改夹具，不改代码：这两个夹具里该决定的 `commitment`（决定表与幂等回执各一处，共四处）改成当前形状，即结果说明加这两条要求。新值与现行代码对同一份约定记一条授权完成的决定时写下的逐字相同（用 `mixed` 夹具对照过）。这个测试按此通过。夹具 README 记了这次更新。
+
+真实 Home 是否受影响：看了演练拷贝（`maint4/home`，只读打开）里全部 18 个项目库。项目规则「完成前必须你点头」生效的项目是 2 个，共 4 条生效的绑定，全是 Goal 范围的，没有项目默认；另有 1 个项目有一条值为 false 的绑定。已存的决定（`goal_event_trusted_decisions`、`goal_event_applied_decisions`）在这 18 个库里是 0 条，所以授权完成或接受要求的决定没有一条会因为旧形状而不再算数，不需要整理。受影响的是那 4 个 Goal：其中 2 个已经完成，之后若被继续，要重新点头；另 2 个未完成，完成前要有这一轮、对当前约定的点头，这是项目规则接进完成检查（本规格的第一个目标）带来的，不是旧形状造成的。

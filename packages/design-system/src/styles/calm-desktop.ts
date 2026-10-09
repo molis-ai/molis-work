@@ -560,16 +560,16 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   }
 
   @media (min-width: 761px) {
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .workspace {
+    html[data-density="compact"] body[data-board-view] .workspace {
       --tree-width: clamp(276px, 22vw, 304px);
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-project { min-height: 82px; padding-block: 8px 8px; }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-chrome { padding-block: 4px 8px; }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-search input { height: 30px; }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-node,
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-goal-row { min-height: 32px; }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-node { padding-block: 4px; }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-status {
+    html[data-density="compact"] body[data-board-view] .navigator-project { min-height: 82px; padding-block: 8px 8px; }
+    html[data-density="compact"] body[data-board-view] .tree-chrome { padding-block: 4px 8px; }
+    html[data-density="compact"] body[data-board-view] .tree-search input { height: 30px; }
+    html[data-density="compact"] body[data-board-view] .tree-node,
+    html[data-density="compact"] body[data-board-view] .navigator-goal-row { min-height: 32px; }
+    html[data-density="compact"] body[data-board-view] .tree-node { padding-block: 4px; }
+    html[data-density="compact"] body[data-board-view] .goal-status {
       min-height: 20px;
       padding-inline: 8px;
       border: 1px solid color-mix(in srgb, var(--goal-status-tone) 28%, var(--line));
@@ -577,7 +577,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
       background: color-mix(in srgb, var(--goal-status-tone) 7%, var(--paper));
       font-size: 11px;
     }
-    html[data-density="compact"] body[data-desktop-shell="true"][data-board-view]:not([data-board-view="decisions"]) .tree-node .goal-status {
+    html[data-density="compact"] body[data-desktop-shell="true"][data-board-view] .tree-node .goal-status {
       min-height: 20px;
       padding-inline: 8px;
       border: 1px solid color-mix(in srgb, var(--goal-status-tone) 28%, var(--line));
@@ -585,20 +585,20 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
       background: color-mix(in srgb, var(--goal-status-tone) 7%, var(--paper));
       font-size: 11px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-progress > span { display: none; }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-progress > i {
+    html[data-density="compact"] body[data-board-view] .tree-progress > span { display: none; }
+    html[data-density="compact"] body[data-board-view] .tree-progress > i {
       width: 24px;
       height: 2px;
       display: block;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-document {
+    html[data-density="compact"] body[data-board-view] .goal-document {
       width: min(100%, 960px);
       padding: 32px 48px 64px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-title-row h1 { font-size: 20px; }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-now,
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-criteria,
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-context { padding-block: 24px 24px; }
+    html[data-density="compact"] body[data-board-view] .goal-title-row h1 { font-size: 20px; }
+    html[data-density="compact"] body[data-board-view] .goal-now,
+    html[data-density="compact"] body[data-board-view] .goal-focus-criteria,
+    html[data-density="compact"] body[data-board-view] .goal-focus-context { padding-block: 24px 24px; }
   }
 
   @media (max-width: 760px) {
@@ -672,7 +672,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     grid-template-columns: 18px minmax(0, 1fr) auto;
     gap: 8px;
   }
-  html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-project {
+  html[data-density="compact"] body[data-board-view] .navigator-project {
     min-height: 62px;
     padding-block: 8px 8px;
   }
@@ -880,14 +880,14 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .goal-header { padding-bottom: 24px; }
 
   @media (min-width: 761px) {
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-document {
+    html[data-density="compact"] body[data-board-view] .goal-document {
       width: min(100%, 960px);
       padding: 0;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-hero {
+    html[data-density="compact"] body[data-board-view] .goal-hero {
       padding: 24px 32px 0;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-workspace-panels {
+    html[data-density="compact"] body[data-board-view] .goal-workspace-panels {
       padding: 24px 32px 56px;
     }
   }
@@ -1316,9 +1316,9 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: color-mix(in srgb, var(--rail) 62%, var(--paper));
   }
   @media (min-width: 761px) {
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-now,
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-criteria,
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-context {
+    html[data-density="compact"] body[data-board-view] .goal-now,
+    html[data-density="compact"] body[data-board-view] .goal-focus-criteria,
+    html[data-density="compact"] body[data-board-view] .goal-focus-context {
       padding: 16px 16px 16px;
     }
   }

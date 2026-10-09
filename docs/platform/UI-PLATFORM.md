@@ -32,7 +32,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 ## 4. 迁移
 
-Goals 的结构提案（新建 Goal 与关系）与最近结果是 Goals Native Plugin 的正式 Contribution，Workbench 经 UiHost 挂载。`apps/workbench/src/decision-center.ts` 只组合各 owner 已生成的内容；`decision-groups.ts` / `decision-results.ts` 归 Goals Plugin。客户端确认/退回归 `proposal-client.ts`，Workbench 保留跨 Feed/Goal 的刷新、receipt 和共享状态。提案 CSS 在原层叠位置与 media query 内插入，英文文案由共享 catalog 组合。调用清单与 209 项验收见 `specs/molis-work-architecture-reorganization/dd2-caller-audit.md` 和 `dd2-validation.md`（当时的验收记录）。
+Goals 的结构提案（新建 Goal 与关系）与最近结果是 Goals Native Plugin 的正式 Contribution，Workbench 经 UiHost 挂载。`decision-groups.ts` / `decision-results.ts` 归 Goals Plugin（Workbench 里曾经把它们拼成独立「决定中心」页的 `decision-center.ts` 与 `/decisions` 页已随 2026-10-08 的死代码批删除；「最近处理结果」贡献仍在 Goals 注册，暂时没有挂载点）。客户端确认/退回归 `proposal-client.ts`，Workbench 保留跨 Feed/Goal 的刷新、receipt 和共享状态。提案 CSS 在原层叠位置与 media query 内插入，英文文案由共享 catalog 组合。调用清单与 209 项验收见 `specs/molis-work-architecture-reorganization/dd2-caller-audit.md` 和 `dd2-validation.md`（当时的验收记录）。
 
 旧 `src/web/render.ts` 已删除，职责归 Workbench Shell、Design System、UI Host 和 Native Plugin UI；各产品内容由各 Native Plugin 提供。GW5 的 Goals 页面、交互、route descriptor 和就近文案已完成工程验收；Workbench 仅装配，GW4 的写入口边界保持不变。Cutover 已将跨 Decision/Feed 的具名 UI 组合归 Workbench，Native Goals 持有对应 Contribution，旧 renderer caller 清零。
 

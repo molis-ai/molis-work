@@ -13,7 +13,7 @@
 | 列 | 含义 |
 | --- | --- |
 | owner | 定义这个库或文件的结构、并且是唯一写者的目录。写“宿主”的，结构定义在 `apps/local-host`，宿主是事实上的 owner，这是否合理见第 11 节。 |
-| 种类 | SQLite 带版本：经 `applySqliteBaseline`（`packages/storage/src/sqlite-baseline.ts:31`）建库，版本不符就拒绝，不就地升级。SQLite 自带版本：用自己的 meta 表或自己读写 `user_version`。SQLite 无版本。JSON 文件。加密文件。目录。WAL 表示打开时设了 `journal_mode = WAL`，旁边会有 `-wal`、`-shm`；没写 WAL 的是 SQLite 默认回滚日志，旁边可能有 `-journal`。 |
+| 种类 | SQLite 带版本：经 `applySqliteBaseline`（`packages/storage/src/sqlite-baseline.ts:31`）建库，版本不符就拒绝，不就地升级。SQLite 自带版本：用自己的 meta 表或自己读写 `user_version`。JSON 文件。加密文件。目录。WAL 表示打开时设了 `journal_mode = WAL`，旁边会有 `-wal`、`-shm`；没写 WAL 的是 SQLite 默认回滚日志，旁边可能有 `-journal`。 |
 | 版本 | 版本方案和现行版本。 |
 | 备份 | 必备份：用户事实或配置，丢了不可再得。密钥：密钥或凭据，必须和它加密的数据取同一时点，不进共享位置与日志。可重建：删了代码会重建。日志：不必备份。前四类是路线图的分类；程序（安装器写入，可由安装包重装）和临时（锁、暂存、残留，从不备份）是本表为了把安装物和锁文件放进同一张表加的。 |
 | 卸载 | `purge` 指 `uninstall --purge-user-data`，删除 `apps/local-host/src/installer/uninstall.ts:44-56` 列出的路径。“普通”指不带 purge 的 `uninstall`，只删安装器自有的程序文件（`apps/local-host/src/installer/uninstall-files.ts:15-48`）。“否”表示两者都不碰。 |
@@ -24,10 +24,9 @@ Home 里有 29 种 SQLite 文件：权威库 25 种（Home 级 22 种，按项�
 
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
-| `PRAGMA user_version`，经 `applySqliteBaseline` | 20 | 项目库（6）、Alchemist 工作室库、assistant（2）、memory（2）、placement、agent-definitions、connectors、context-onboarding、functions（3）、10 个个人插件库、server |
+| `PRAGMA user_version`，经 `applySqliteBaseline` | 22 | 项目库（6）、Alchemist 工作室库与搜索库、assistant（2）、memory（2）、placement、agent-definitions、connectors、context-onboarding、functions（3）、10 个个人插件库、server、`plugins/experiments/private.sqlite` |
 | 自己的 meta 表 | 2 | `projects/catalog.db`（`catalog_meta`，22）、`sessions/sessions.db`（`session_meta`，7） |
 | 自己读写 `user_version` | 1 | `characters/characters.sqlite`（1） |
-| 没有版本 | 2 | `plugins/experiments/private.sqlite`、`alchemist/projects/<id>/search.sqlite` |
 
 派生库 `search/search.db` 用 `search_meta`，版本不符就重建，不属于“拒绝”。
 
@@ -79,16 +78,16 @@ Home 里有 29 种 SQLite 文件：权威库 25 种（Home 级 22 种，按项�
 | `cognia/cognia.db` | `plugins/native/cognia/src/store.ts:146-148`，基线 `:136` | 1 · WAL | `cognia_domains`、`cognia_sources`、`cognia_materials`、`cognia_versions`、`cognia_previews`、`cognia_drafts` |
 | `workflows/workflows.db` | `plugins/native/workflows/src/store.ts:195-197`，基线 `:166` | 1 · WAL | `workflows`、`instances` |
 
-`tests/home-store-baselines.test.ts` 把这些基线（以及 3.2 里的 assistant、memory、functions、placement、agent-definitions、connectors、context-onboarding）和 `tests/fixtures/home-store-schemas/` 下取自存量库的结构夹具比对；`scripts/stamp-store-baselines.mjs` 是给存量库盖版本的一次性工具。
+`tests/home-store-baselines.test.ts` 把这些基线（以及 3.2 里的 assistant、memory、functions、placement、agent-definitions、connectors、context-onboarding）和 `tests/fixtures/home-store-schemas/` 下取自存量库的结构夹具比对。2026-10-04 真实 Home 的 17 个库用一次性工具盖了版本 1，工具已删（取自 Git 历史 `scripts/stamp-store-baselines.mjs`）；实验私有库与炼金术士搜索库的夹具是 `experiments-private.sql`（取自真实 Home 的文件）和 `alchemist-search.sql`（上一版建库语句生成，真实 Home 没有这种文件）。
 
 ### 3.4 其他按 Home 与按项目的库
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `plugins/experiments/private.sqlite` | 宿主；`apps/local-host/src/experiments-native-plugin-http.ts:15`，表来自 `packages/plugin-runtime` 的 `PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL`（`plugin_private_values`） | SQLite 无版本 · WAL · 用 `CREATE TABLE IF NOT EXISTS` 建表，旧库、新库没有区别 | 必备份 | 否 |
+| `plugins/experiments/private.sqlite` | 宿主；`apps/local-host/src/experiments-private-store.ts`（`openExperimentsPrivateStore`，被 `experiments-native-plugin-http.ts` 的 `openExperiments` 调用），基线 `EXPERIMENTS_PRIVATE_BASELINE`，表来自 `packages/plugin-runtime` 的 `PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL`（`plugin_private_values`） | SQLite 带版本 · WAL · 1（W2-05；真实 Home 的这个文件要先经维护盖版本，见 `docs/releases/CHECKLIST.md` 第 3 节） | 必备份 | 否 |
 | `server/server.sqlite` | `server`；`server/src/database.ts:34-37` 打开，基线 `:29`；本机由 `apps/local-host/src/im-server.ts:13` 挂载（IM 实验线） | SQLite 带版本 · WAL · 1 | 必备份 | 否 |
 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | `plugins/native/alchemist`；路径 `apps/local-host/src/alchemist-paths.ts:4`（`alchemistProjectDirectory`；`apps/local-host/src/alchemist-service-host.ts:49` 在其下拼 `studio.sqlite`），建库 `src/studio/server/db/schema.ts:480`，基线 `:8` | SQLite 带版本 · WAL · 1 | 必备份 | purge（`alchemist` 在 `PERSONAL_HOME_SQLITE_STORES`，整个目录） |
-| `alchemist/projects/<编码后的 project_id>/search.sqlite` | 宿主；`apps/local-host/src/alchemist-search.ts:14`（目录同样由 `apps/local-host/src/alchemist-paths.ts:4` 给出），表 `feed_runtime_blobs` 来自 `packages/storage` 的 `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | SQLite 无版本 · WAL | 必备份（研究报告引用的证据，重取要花外部请求）；只在用过搜索后才出现 | purge（同上） |
+| `alchemist/projects/<编码后的 project_id>/search.sqlite` | 宿主；`apps/local-host/src/alchemist-search.ts`（`createAlchemistSearchPort`，基线 `ALCHEMIST_SEARCH_BASELINE`；目录同样由 `apps/local-host/src/alchemist-paths.ts:4` 给出），表 `feed_runtime_blobs` 来自 `packages/storage` 的 `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | SQLite 带版本 · WAL · 1（W2-05） | 必备份（研究报告引用的证据，重取要花外部请求）；只在用过搜索后才出现 | purge（同上） |
 
 工作室库的表（36 张）：`workspaces`、`workspace_actors`、`directions`、`exploration_runs`、`ideas`、`idea_cards`、`idea_versions`、`jobs`、`job_events`、`ui_context`、`activity_events`、`mvp_scope_versions`、`research_plans`、`lens_runs`、`evidence`、`lens_reports`、`claims`、`claim_evidence`、`decisions`、`source_settings`、`pulse_runs`、`source_fetches`、`supply_signals`、`pulse_reports`、`pulse_report_signals`、`opportunities`、`opportunity_signals`、`annotations`、`action_proposals`、`taste_rules`、`research_playbook_rules`、`memory_rule_applications`、`conversation_messages`、`runtime_settings`、`research_playbook_revisions`、`work_reuse_receipts`。其中 `conversation_messages`、`runtime_settings` 在 `src/studio/server/db/schema.ts:412`、`:424` 用带引号的标识符建表，按 `CREATE TABLE [a-z_]+` 扫描会漏掉它们。工作室库的 `workspaces` 与目录库的同名表、`jobs` 与 Images 的同名表是互不相干的表；炼金术士的表名（`workspaces`、`jobs`、`evidence`、`claims`）与平台库重名，因为每个项目一个独立的 `studio.sqlite`，不会冲突，`specs/repository-anti-corruption/spec.md` §9.5 第 9 条定为不改。
 
@@ -297,7 +296,7 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 缺口（按处理它的路线图条目）：
 
 - 没有 Home 存储的单一登记；`PERSONAL_HOME_SQLITE_STORES` 缺 `assistant`、`placement`、`agent-definitions` 这三个带基线的 Home 库，也缺 `characters`、`plugins/experiments`、`server`（W4-11）。
-- 两个库没有版本（`plugins/experiments/private.sqlite`、`alchemist/projects/<id>/search.sqlite`），`characters.sqlite` 自管版本（W2-05）。
+- `characters.sqlite` 自己读写 `user_version`、只拒绝更高的版本，不经 `applySqliteBaseline`（W2-05 只给了实验私有库和炼金术士搜索库版本，这一个没有排期）。
 - 4 处跨 owner 直接 SQL，共享日志表没有写入约束（W2-06）。
 - 没有备份命令和快照；第 7 节的同一时点组没有工具保证（W5-16）。
 - 目录库存项目库的绝对路径（W5-17）。

@@ -35,7 +35,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 - `RUNTIME_ASSEMBLED`（7）：characters、shelf、coding、files、git、diff、text-stats，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 6。
 - `BUILD_TIME_ASSEMBLED`（19）：alchemist、artifacts、cognia、dataset、experiments、feed、form、goals、images、inbox、jelly、lingguang、pages、plugin-builder、ppt、schedule、sessions、workflows、todo。
 
-宿主里手写的接线（`apps/local-host/src` 下）：18 个 `*-native-plugin-http.ts`（共 962 行）；17 个以插件命名的 `*-actions.ts`（共 623 行：artifact、cognia、dataset、experiments、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 26 处 `registerProvider`，其中按插件逐个登记的 17 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
+宿主里手写的接线（`apps/local-host/src` 下）：18 个 `*-native-plugin-http.ts`（共 961 行）；17 个以插件命名的 `*-actions.ts`（共 623 行：artifact、cognia、dataset、experiments、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 26 处 `registerProvider`，其中按插件逐个登记的 17 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
 
 ### 2.2 19 个构建期插件的分类与放置
 
@@ -57,7 +57,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 | Jelly | 是 | Home 级 | `{home}/jelly/jelly.db` | 没有（包里没有 `project_id`） | 36、32 |
 | Cognia | 是 | Home 级 | `{home}/cognia/cognia.db` | 没有 | 21、14 |
 | Images | 是 | Home 级 | `{home}/images/images.db`，另有运行锁 | 有：`jobs` 表带 `project_id`（`plugins/native/images/src/store.ts`） | 7、61；另有 `ImagesHostService` |
-| Experiments | 是 | Home 级 | `plugins/experiments/private.sqlite` | 没有 | 30、54 |
+| Experiments | 是 | Home 级 | `plugins/experiments/private.sqlite` | 没有 | 30、53；另有 `experiments-private-store.ts` 25（打开私有库，版本 1） |
 | Alchemist | 是 | Home 级 | `{home}/alchemist/alchemist.db`，每项目另有 `alchemist/projects/<id>/studio.sqlite` | 有：每个项目一个工作室库（`alchemist-service-host.ts`），决定里的「工作室与密钥」 | 没有 `*-actions.ts`（`AlchemistHostService`）、51 |
 | Inbox | 否 | 每个项目一个 | 项目库，表由 Attention 模块建（`ATTENTION_SCHEMA_SQL`） | 不需要：项目库随项目目录一起移走 | 70、92 |
 | Schedule | 否 | 每个项目一个 | 项目库，表由插件包自建（`SCHEDULE_*_SCHEMA_SQL`） | 不需要 | 26、92；另有 `scheduleReminderActionProvider` |
@@ -232,7 +232,7 @@ Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用
 | 目录条目 | 26 | 25（Characters 并进宿主后少一条） |
 | `RUNTIME_ASSEMBLED`（Runtime 装配的内置插件） | 7 | 21（现有 6 个，Characters 移出，加迁来的 15 个） |
 | `BUILD_TIME_ASSEMBLED`（构建期装配的内置插件） | 19 | 4（Goals、Artifacts、Sessions、插件创作台） |
-| `apps/local-host/src/*-native-plugin-http.ts` | 18 个文件，962 行 | 1 个（`artifact-native-plugin-http.ts`，208 行） |
+| `apps/local-host/src/*-native-plugin-http.ts` | 18 个文件，961 行 | 1 个（`artifact-native-plugin-http.ts`，208 行） |
 | 以插件命名的 `apps/local-host/src/*-actions.ts` | 17 个，623 行 | 3 个（`artifact-actions.ts`、`goals-actions.ts`、`work-actions.ts`，共 136 行） |
 | `project-host.ts` 里按插件逐个登记的 `registerProvider` | 17 行 | 0 |
 | 新增一个内置插件在包外的手改文件数（外加门禁名单一行与 SSOT 一行，两端都要） | 12（见 EXTENSION-POINTS.md 3.1） | 1（要 X-1；没有 X-1 是 4） |

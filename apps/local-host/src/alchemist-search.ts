@@ -1,10 +1,18 @@
 import path from "node:path";
 import { mkdirSync } from "node:fs";
-import { createEvidenceContentStore, createFileSecretStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, runWithMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, createEvidenceContentStore, createFileSecretStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, runWithMolisWorkHome, type SecretStore, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 import { createSearchEvidenceRuntime } from "./search-evidence-runtime.js";
 import { createAnySearchTransport } from "./anysearch-transport.js";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
+
+/**
+ * A project's search database (`alchemist/projects/<id>/search.sqlite`) as one current schema (repository-anti-corruption
+ * §4.1, §4.11): a new file gets it with the version; one at another version, or with tables and no version, is refused
+ * and never upgraded in place. A change to the opaque blob table means a new version here and a new fixture in
+ * `tests/fixtures/home-store-schemas/`.
+ */
+export const ALCHEMIST_SEARCH_BASELINE: SqliteBaseline = { version: 1, schema: LOCAL_OPAQUE_BLOB_SCHEMA_SQL };
 
 /** Own the search database and encrypted material directory independently of Studio's schema/lifecycle. */
 export function createAlchemistSearchPort(options: { homeDirectory: string; projectId: string; secretStore?: SecretStore }): {
@@ -16,7 +24,7 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
   const storage = new LocalSqliteStorage(path.join(directory, "search.sqlite"));
   const runtime = (() => {
     try {
-      storage.db.exec(LOCAL_OPAQUE_BLOB_SCHEMA_SQL);
+      applySqliteBaseline(storage.db, storage.path, ALCHEMIST_SEARCH_BASELINE);
       return runWithMolisWorkHome(options.homeDirectory, () => {
         const secretStore = options.secretStore ?? createFileSecretStore();
         return createSearchEvidenceRuntime({ db: storage.db, secretStore, queryTransport: createAnySearchTransport(),

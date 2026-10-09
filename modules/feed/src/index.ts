@@ -131,6 +131,12 @@ export const FEED_SCHEMA_SQL = `
       ON feed_items(project_id, signal_id) WHERE signal_id IS NOT NULL;
 `;
 
+/** The evidence bodies the Feed materials in this database point at (`content_ref`), each once. */
+export function listFeedMaterialContentRefs(db: Pick<FeedSqliteDatabase, "prepare">): string[] {
+  return (db.prepare("SELECT DISTINCT content_ref FROM feed_materials WHERE content_ref IS NOT NULL").all() as Row[])
+    .map((row) => text(row.content_ref));
+}
+
 export class FeedModule implements FeedApi {
   private readonly goalLinks: FeedGoalLinks;
   readonly query = {

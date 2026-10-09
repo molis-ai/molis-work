@@ -2,7 +2,7 @@ import { applySqliteBaseline, clearInExistingHomeSqlite, homeSqlitePath, openHom
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { ImagesError } from "./error.js";
 
@@ -32,6 +32,11 @@ export const IMAGES_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
   CREATE INDEX jobs_project_created ON jobs(project_id, created_at DESC);
 ` };
 
+/** A runner's lock file is its id plus `.db`; a process killed with a transaction open also leaves the `-journal` beside it. */
+const RUNNER_FILE = /^([a-f0-9-]{36})\.db(?:-journal)?$/u;
+/** A runner file this young may belong to a runner that has created it but not yet locked it. It waits for the next start. */
+const RUNNER_START_GRACE_MS = 30_000;
+
 export class ImagesStore {
   private readonly db: DatabaseSync;
   private readonly runnerLock: DatabaseSync;
@@ -56,6 +61,7 @@ export class ImagesStore {
     this.db.exec("PRAGMA busy_timeout = 5000;");
     applySqliteBaseline(this.db, homeSqlitePath(homeDirectory, "images"), IMAGES_STORE_BASELINE);
     this.recoverInterrupted();
+    this.reclaimRunnerFiles();
     } catch (error) {
       try { this.db.close(); } finally { this.releaseLocks(); }
       throw error;
@@ -68,8 +74,35 @@ export class ImagesStore {
 
   private releaseLocks(): void {
     this.runnerLock.close();
-    // The ID is never reused. A crashed runner's file is removed during recovery.
+    // The ID is never reused. Closing the lock connection rolls its transaction back, which removes the journal; a crashed
+    // runner's file and journal are removed at the next start (reclaimRunnerFiles).
     try { rmSync(join(this.runnerDirectory, this.runnerId + ".db"), { force: true }); } catch { /* Safe to retain an unlocked file. */ }
+  }
+
+  /**
+   * Removes the files of every runner that is gone: each `<id>.db` whose exclusive lock this process can take, with its
+   * `-journal`. recoverInterrupted names only the runners that still had a running job, so the others (and the journal
+   * of any killed runner) stayed for good. A file another process holds is alive and stays; so does one too young to
+   * tell from a runner that is still starting. A file that cannot be probed stays too, and the next start tries again.
+   */
+  private reclaimRunnerFiles(): void {
+    const ids = new Set<string>();
+    for (const name of readdirSync(this.runnerDirectory)) {
+      const id = RUNNER_FILE.exec(name)?.[1];
+      if (id && id !== this.runnerId) ids.add(id);
+    }
+    const now = Date.now();
+    for (const id of ids) {
+      const path = join(this.runnerDirectory, id + ".db");
+      try {
+        const changed = lastRunnerFileChange(path);
+        if (changed === 0 || now - changed < RUNNER_START_GRACE_MS) continue;
+        const probe = lockDeadRunner(path);
+        if (!probe) continue;
+        probe.close();
+        removeRunnerFiles(path);
+      } catch { /* Not provably dead, or not ours to delete: retained, and the next start tries again. */ }
+    }
   }
 
   private recoverInterrupted(): void {
@@ -81,19 +114,13 @@ export class ImagesStore {
         // Every job names the runner that holds it; that runner's exclusive lock proves it is still alive.
         if (!/^[a-f0-9-]{36}$/u.test(String(owner))) throw new Error("Invalid Images runner identity");
         const path = join(this.runnerDirectory, String(owner) + ".db");
-        let probe: DatabaseSync | undefined;
+        const probe = lockDeadRunner(path);
+        if (!probe) continue;
         try {
-          probe = new DatabaseSync(path);
-          probe.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
           this.db.prepare("UPDATE jobs SET status = 'interrupted', error = ?, finished_at = ? WHERE status = 'running' AND runner_id = ?")
             .run("本机执行进程已停止，未自动重新生成。请先检查厂商用量，再决定是否重试。", new Date().toISOString(), String(owner));
-        } catch (error) {
-          // Only SQLITE_BUSY proves another runner holds this lock. I/O errors
-          // must not be mistaken for process death.
-          if (!(error && typeof error === "object" && "errcode" in error && error.errcode === 5)) throw error;
-          continue;
-        } finally { probe?.close(); }
-        try { rmSync(path, { force: true }); } catch { /* No live owner; retaining it is harmless. */ }
+        } finally { probe.close(); }
+        removeRunnerFiles(path);
       }
       this.db.exec("COMMIT");
     } catch (error) { this.db.exec("ROLLBACK"); throw error; }
@@ -190,6 +217,35 @@ export class ImagesStore {
       .run(status, JSON.stringify(images), error, new Date().toISOString(), projectId, id);
     return Number(result.changes) === 1;
   }
+}
+
+/**
+ * Takes the exclusive lock of a runner's file and returns the connection that holds it (the caller closes it), or null
+ * when another process holds the lock: that runner is alive. Only SQLITE_BUSY proves that. Any other error, an I/O
+ * error included, must not be mistaken for process death, so it is thrown.
+ */
+function lockDeadRunner(path: string): DatabaseSync | null {
+  const probe = new DatabaseSync(path);
+  try {
+    probe.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
+    return probe;
+  } catch (error) {
+    probe.close();
+    if (error && typeof error === "object" && "errcode" in error && error.errcode === 5) return null;
+    throw error;
+  }
+}
+
+/** A runner's lock file and its journal, both: neither belongs to anyone once the runner is gone. */
+function removeRunnerFiles(path: string): void {
+  for (const file of [path, path + "-journal"]) {
+    try { rmSync(file, { force: true }); } catch { /* No live owner; retaining it is harmless. */ }
+  }
+}
+
+/** When the runner's file or its journal last changed, in epoch milliseconds; 0 when neither exists. */
+function lastRunnerFileChange(path: string): number {
+  return Math.max(0, ...[path, path + "-journal"].map(file => statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0));
 }
 
 /** Removes a project's jobs inside the caller's transaction; returns the names of the image files they held. */

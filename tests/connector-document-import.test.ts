@@ -14,7 +14,7 @@ test("document import reads only the selected account, preserves provenance and 
   const db = new Database(":memory:");
   db.exec("CREATE TABLE boards(project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES('board');");
   createArtifactsSchema(db as unknown as ArtifactsSqliteDatabase);
-  const artifacts = new ArtifactsModule({ db: db as unknown as ArtifactsSqliteDatabase, appendEvent: () => 1 });
+  const artifacts = new ArtifactsModule({ db: db as unknown as ArtifactsSqliteDatabase, appendEvent: () => 1, eventCursor: () => 1 });
   const ports = { projectId: "board", actorId: "fixture", ownerActorId: "fixture", routePrefix: "", artifacts };
   const calls: string[] = [];
   let revoke: (() => void) | undefined;

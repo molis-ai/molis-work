@@ -11,16 +11,11 @@ import {
   buildGoalsNavigationItems,
   countGoalDecisions,
   createGoalStateExplainer,
-  createGoalsDecisionPresentation,
-  decisionTypeCounts,
   GOAL_DISPLAY_STATUSES,
-  type GoalsDecisionGroup,
   type GoalsDocumentView as WebGoalView,
   partOfChildViews,
-  pendingDecisionCount,
   sortGoalTreeItems,
 } from "@molis-ai/molis-work-plugin-goals";
-import { createWorkbenchDecisionCenterRenderer, type WorkbenchDecisionGroup } from "./decision-center.js";
 import { createWorkbenchFeedProjectionRenderer, type FeedSupplementalEntry } from "./feed-projection-ui.js";
 import { createWorkbenchFocusSections } from "./focus-sections.js";
 import { createWorkbenchGoalsFragmentRenderer } from "./goals-fragment-renderer.js";
@@ -44,7 +39,6 @@ import { createWorkbenchSettingsRenderer } from "./settings-renderer.js";
 import {
   createArtifactReferenceRenderer,
   createWorkbenchGoalsContextRenderer,
-  createWorkbenchGoalsDecisionResultsRenderer,
   createWorkbenchGoalsDialogsRenderer,
   createWorkbenchGoalsDocumentRenderer,
   createWorkbenchGoalsFactorsRenderer,
@@ -84,15 +78,6 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   const { appendDesktopQueryToLocalHrefs, withDesktopQuery, bootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } = ports.desktop;
   const { defaultPolicy: DEFAULT_GOAL_POLICY, composePlanningMethodPacks } = ports.goals;
 const { sectionHeading, subsectionHeading, renderFocusSectionDeck } = createWorkbenchFocusSections({ L, escapeHtml });
-
-const decisionCenterRenderer = createWorkbenchDecisionCenterRenderer({ translate: L, escapeHtml, icon, currentLocale, formatDate });
-
-const renderRecentDecisionResults = createWorkbenchGoalsDecisionResultsRenderer({ translate: L, escapeHtml, icon, formatDate });
-
-type DecisionGoalGroup = GoalsDecisionGroup<WebGoalView>;
-
-const { renderDecisionGoalLink } =
-  createGoalsDecisionPresentation({ translate: L, escapeHtml });
 
 const { renderGoalTreeProposalDecision } = createWorkbenchGoalsProposalRenderer({ translate: L, escapeHtml, icon, renderList });
 
@@ -271,22 +256,6 @@ const { renderProjectPolicyDocument, renderPolicyEditor } = createWorkbenchGoals
   translate: L, escapeHtml, formatDate, icon, defaultPolicy: DEFAULT_GOAL_POLICY,
 });
 
-function decisionGroupModel(group: DecisionGoalGroup, view: MolisWorkWebView): WorkbenchDecisionGroup {
-  return { ownerGoalId: group.ownerGoalId, item: group.item,
-    counts: { goalTree: group.goalTreeProposals.length },
-    ownerLinkHtml: renderDecisionGoalLink(group.item),
-    content: {
-      goalTree: group.goalTreeProposals.map((proposal) => renderGoalTreeProposalDecision(proposal, view)).join(""),
-    },
-  };
-}
-
-function renderDecisionCenter(view: MolisWorkWebView): string {
-  return decisionCenterRenderer.renderDecisionCenter({ groups: buildDecisionGroups(view).map(group => decisionGroupModel(group, view)),
-    count: pendingDecisionCount(view), typeCounts: decisionTypeCounts(view), recentHtml: renderRecentDecisionResults(view),
-  });
-}
-
 function renderPersistedFeedItemDetail(
   item: FeedItemRecord,
   routePrefix = "",
@@ -434,7 +403,6 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderMolisWorkProjectIndex,
     renderMolisWorkProjectBrief,
     renderMolisWorkSettings,
-    renderDecisionCenter,
     renderPersistedFeedItemDetail,
     renderFeedWorkbenchFragment,
     renderInboxWorkbenchFragment,

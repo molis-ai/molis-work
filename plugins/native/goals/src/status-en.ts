@@ -35,4 +35,6 @@ export const GOALS_STATUS_EN: Record<string, string> = {
   "说明执行和完成前需要哪些检查；项目默认与当前 Goal 的额外要求会合并生效。": "Define checks required before work starts or finishes. Project defaults and Goal-specific requirements are merged.",
   "归属、依赖和对其他 Goal 的影响": "Hierarchy, dependencies, and effects on other Goals",
   "执行、检查和完成前必须遵守的规则": "Rules for execution, review, and completion",
+  // plugins/native/goals/src/factors-ui.ts
+  "查看会影响这条 Goal 的关系和完成规则；需要时再修改。": "Review the relationships and completion rules that affect this Goal. Edit them only when needed.",
 };

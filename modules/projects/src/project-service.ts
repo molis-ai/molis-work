@@ -2,7 +2,7 @@ import path from "node:path";
 
 import type {
   AddProjectPluginInput,
-  ProjectDeletionRecord,
+  ProjectDeletionReceipt,
   ProjectPluginId,
   ProjectPluginMembership,
   ProjectPluginRegistry,
@@ -196,7 +196,7 @@ export class ProjectService {
     return this.repository.removeProject(this.requiredProjectId(projectId));
   }
 
-  listDeletions(): ProjectDeletionRecord[] {
+  listDeletions(): ProjectDeletionReceipt[] {
     return this.repository.listProjectDeletions();
   }
 
@@ -222,7 +222,7 @@ export class ProjectService {
     return this.getDeletion(deletionId);
   }
 
-  deletionRecord(record: StoredProjectDeletion): ProjectDeletionRecord {
+  deletionRecord(record: StoredProjectDeletion): ProjectDeletionReceipt {
     return {
       deletion_id: record.deletion_id,
       project_id: record.project_id,

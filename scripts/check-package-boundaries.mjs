@@ -7,6 +7,7 @@ import {
   evaluateImportBoundary,
   extractImportSpecifiers,
   findDependencyCycles,
+  unusedLayerExceptions,
 } from "@molis-ai/molis-work-test-kit";
 
 import { checkWorkspacePackages, WORKSPACE_PACKAGES } from "./workspace-packages.mjs";
@@ -70,6 +71,7 @@ function formatViolation(violation) {
 
 function checkSourceImports(repositoryRoot, packages) {
   const errors = [];
+  const edges = new Set();
   let sourceFileCount = 0;
   let importCount = 0;
 
@@ -101,6 +103,7 @@ function checkSourceImports(repositoryRoot, packages) {
           if (relativeOwner && relativeOwner.name !== importer.name) target = relativeOwner;
           relativeCrossOwner = !isWithin(resolvedTarget, importer.root);
         }
+        if (target && target.path !== importer.path) edges.add(`${importer.path} -> ${target.path}`);
 
         for (const violation of evaluateImportBoundary({
           importer,
@@ -115,11 +118,12 @@ function checkSourceImports(repositoryRoot, packages) {
     }
   }
 
-  return { errors, importCount, sourceFileCount };
+  return { errors, edges, importCount, sourceFileCount };
 }
 
 function checkDependencyGraph(packages) {
   const errors = [];
+  const edges = new Set();
   const packageNames = new Set(packages.map((item) => item.name));
   const graph = new Map();
 
@@ -128,6 +132,7 @@ function checkDependencyGraph(packages) {
     graph.set(importer.name, workspaceDependencies);
     for (const dependency of importer.declaredDependencies) {
       const target = packages.find((item) => item.name === dependency);
+      if (target) edges.add(`${importer.path} -> ${target.path}`);
       for (const violation of evaluateImportBoundary({
         importer,
         target,
@@ -145,7 +150,16 @@ function checkDependencyGraph(packages) {
   for (const cycle of findDependencyCycles(graph)) {
     errors.push(`[workspace-dependency-cycle] ${cycle.join(" -> ")}`);
   }
-  return { errors, edgeCount: [...graph.values()].reduce((total, edges) => total + edges.length, 0) };
+  return { errors, edges, edgeCount: [...graph.values()].reduce((total, targets) => total + targets.length, 0) };
+}
+
+/**
+ * APP_IMPORT_ALLOWLIST and PLUGIN_MODULE_IMPORT_ALLOWLIST (packages/test-kit/src/boundaries.ts) only ever shrink: an entry that
+ * no import and no manifest dependency uses any more has to leave the list, or the edge could come back without a decision.
+ */
+function checkLayerExceptionsInUse(...observed) {
+  return unusedLayerExceptions(observed.flatMap((edges) => [...edges])).map((edge) =>
+    `[layer-exception-unused] "${edge}" is allowed in packages/test-kit/src/boundaries.ts but no import or declared dependency has that edge; remove it from the list and from the pinned list in packages/test-kit/tests/boundaries.test.mjs`);
 }
 
 /** The old root `src/` left the product (PACKAGE-BOUNDARIES.md); nothing may bring it back. */
@@ -1346,6 +1360,7 @@ export function checkPackageBoundaries(repositoryRoot) {
     ...inventory.errors.map((message) => `[workspace-inventory] ${message}`),
     ...sourceImports.errors,
     ...dependencyGraph.errors,
+    ...checkLayerExceptionsInUse(sourceImports.edges, dependencyGraph.edges),
     ...rootSource.map((message) => `[root-source] ${message}`),
     ...migratedFeedOwnership.errors.map((message) => `[feed-owner] ${message}`),
     ...migratedIntegrationOwnership.errors.map((message) => `[integration-owner] ${message}`),

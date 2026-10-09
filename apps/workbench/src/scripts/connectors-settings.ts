@@ -197,7 +197,6 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         catch { button.textContent = L('请选中地址复制'); }
       }));
       box.querySelectorAll('[data-oauth-callback], [data-mcp-callback]').forEach(node => {
-        const service = node.dataset.accountCallback;
         let path = node.hasAttribute('data-mcp-callback') ? '/api/settings/connectors/methods/mcp/callback' : '/api/settings/connectors/methods/oauth/callback';
         // Other app credentials use the generic flow even when a preset exists.
         const url = new URL(path, location.origin); node.textContent = url.href;

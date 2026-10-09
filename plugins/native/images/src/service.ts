@@ -5,7 +5,7 @@ import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
 import { ImagesError } from "./error.js";
 import { generateProviderImages, isLocalImageEndpoint, normalizeImageBaseUrl, type ImageGeneration, type ImageProviderRequest } from "./providers.js";
-import { ImagesStore, type StoredConnection } from "./store.js";
+import { ImagesStore, removeAssetFiles, type StoredConnection } from "./store.js";
 
 /** Keys live in the Home's service connections; an image service only names the connection it uses. */
 export interface ImagesServiceOptions {
@@ -159,6 +159,16 @@ export class ImagesService {
       this.active.get(job.id)?.controller.abort();
     }
     return this.store.getJob(job.project_id, job.id);
+  }
+
+  /**
+   * The project is deleted: what is still being generated for it is stopped without a result, and its jobs and pictures
+   * go. Running it again finds nothing.
+   */
+  deleteProject(projectId: string): void {
+    this.assertOpen();
+    for (const entry of this.active.values()) if (entry.projectId === projectId) entry.controller.abort();
+    removeAssetFiles(this.assets, this.store.deleteProject(projectId));
   }
 
   readImage(projectId: string, jobId: string, imageId: string): { bytes: Buffer; mime: GeneratedImage["mime_type"]; filename: string } {

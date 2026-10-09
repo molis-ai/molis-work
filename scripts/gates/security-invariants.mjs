@@ -4,8 +4,8 @@
 // tests that assert its refusal. A table of promises is only worth what is behind it, so this reads the table and checks that
 //   - the row ids are S-01, S-02, … in order, each once;
 //   - every row names at least one test, and every test file it names exists;
-//   - every test named with a title fragment (`tests/x.test.ts`「fragment」) has that fragment in the file, so a renamed or
-//     deleted test cannot leave the row pointing at nothing;
+//   - every test named with title fragments (`tests/x.test.ts`「first」「second」…; a row may list several, none of them skipped)
+//     has each fragment in the file, so a renamed or deleted test cannot leave the row pointing at nothing;
 //   - the tests in the CI column are run by CI: the file is named (or matched by a glob) in the root package.json scripts
 //     `test:security` or `test:contracts`, or in .github/workflows/ci.yml;
 //   - every tests/security-invariants-*.test.ts file is named by some row, so a new invariant test cannot sit outside the table.
@@ -13,12 +13,13 @@
 // (tests/security-invariants-doc.test.ts) and each states the refusal it checks.
 export const SECURITY_DOC = "docs/system/SECURITY-INVARIANTS.md";
 const ROW = /^\|\s*(S-\d+)\s*\|/;
-const TEST_REFERENCE = /`(tests\/[^`\s]+\.test\.(?:ts|mjs))`(?:「([^」]+)」)?/g;
+// A file in backticks, then the whole run of 「…」 title fragments that follows it (none, one or several).
+const TEST_REFERENCE = /`(tests\/[^`\s]+\.test\.(?:ts|mjs))`((?:「[^」]+」)*)/g;
 const CI_COLUMN = 3;
 const LOCAL_COLUMN = 4;
 
 function references(cell) {
-  return [...cell.matchAll(TEST_REFERENCE)].map((match) => ({ file: match[1], fragment: match[2] ?? null }));
+  return [...cell.matchAll(TEST_REFERENCE)].map((match) => ({ file: match[1], fragments: [...match[2].matchAll(/「([^」]+)」/g)].map((fragment) => fragment[1]) }));
 }
 
 /** Words of a package.json script or a workflow that name test files: `tests/foo.test.ts`, `tests/action-*.test.ts`. */
@@ -53,10 +54,11 @@ export function securityInvariantProblems(snapshot) {
     const ci = references(cells[CI_COLUMN] ?? ""), local = references(cells[LOCAL_COLUMN] ?? "");
     if (!ci.length && !local.length) problems.push(`${where}: ${id} names no test`);
     for (const [column, list] of [["CI", ci], ["local", local]]) {
-      for (const { file, fragment } of list) {
+      for (const { file, fragments } of list) {
         named.add(file);
         if (!files.has(file)) { problems.push(`${where}: ${id} names ${file}, which does not exist`); continue; }
-        if (fragment !== null && !(snapshot.read(file) ?? "").includes(fragment)) problems.push(`${where}: ${id} names 「${fragment}」 in ${file}, which says nothing of the sort`);
+        const source = snapshot.read(file) ?? "";
+        for (const fragment of fragments) if (!source.includes(fragment)) problems.push(`${where}: ${id} names 「${fragment}」 in ${file}, which says nothing of the sort`);
         if (column === "CI" && !covers(ciTokens, file)) problems.push(`${where}: ${id} lists ${file} as run by CI, but package.json test:security / test:contracts and ci.yml do not run it`);
       }
     }

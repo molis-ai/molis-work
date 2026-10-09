@@ -173,3 +173,20 @@ test("Gmail authorization and forced refresh retain each account's original OAut
   } });
   assert.deepEqual(refreshed, { ok: true, accessToken: "fresh-a" });
 });
+
+// Security invariant S-09 (docs/system/SECURITY-INVARIANTS.md): "is this the local machine?" is the shared check, so Gmail's return address
+// accepts the loopback spellings a browser uses (`[::1]` was refused before) and nothing else, and says no before any session exists.
+test("Gmail's return address must be a loopback host: 127.0.0.1, localhost and [::1] start a flow, every other host is refused before a session is stored", async () => {
+  const path = "/projects/project-a/api/feed/connectors/gmail/oauth/callback";
+  for (const host of ["127.0.0.1:3000", "localhost:3000", "[::1]:3000"]) {
+    const { flow, writes } = fixture();
+    const started = await flow.startGmailOAuthFlow({ redirectUri: `http://${host}${path}` });
+    assert.ok(started.state, `${host} starts a flow`);
+    assert.ok(writes.length > 0, `${host}: the pending session is stored`);
+  }
+  for (const host of ["127.0.0.2:3000", "0.0.0.0:3000", "localhost.evil.example:3000", "localhost.:3000", "[::ffff:127.0.0.1]:3000", "[::2]:3000", "evil.example", "192.168.1.5:3000", "10.0.0.1:3000"]) {
+    const { flow, writes } = fixture();
+    await assert.rejects(flow.startGmailOAuthFlow({ redirectUri: `http://${host}${path}` }), /must target loopback/, host);
+    assert.deepEqual(writes, [], `${host}: nothing was stored`);
+  }
+});

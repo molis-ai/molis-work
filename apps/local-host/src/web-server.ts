@@ -15,11 +15,11 @@ import { createMolisWorkLocalHost } from "./project-host.js";
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import { resolveWebControlToken } from "./web-control-token.js";
-import { sendLocalWebJson as sendJson, authorizeLocalWebRequest, requestHost, type LocalMutationState } from "./web-http.js";
+import { sendLocalWebJson as sendJson, authorizeLocalWebRequest, refuseForeignRequest, type LocalMutationState } from "./web-http.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
 import { seedDemoBoard } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
-import { L, isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
+import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
 import { fixtureWebBoardOptions, resolveWebRequest } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
@@ -140,8 +140,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
-        // Every route (locale switch and Casebook included) answers only a request addressed to this machine by a loopback name: DNS rebinding, S-02.
-        if (!requestHost(request)) { sendJson(response, 403, url.pathname.startsWith("/casebook/v1/") ? { code: "not_authorized" } : { error: L("本地控制请求校验失败") }); return; }
+        // Every route (locale switch and Casebook included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
+        if (refuseForeignRequest(request, response, url.pathname)) return;
         if (request.method === "GET" && url.pathname === "/locale") {
           const requested = url.searchParams.get("lang");
           const nextLocale = isWebLocale(requested)

@@ -44,6 +44,18 @@ export function requestHost(request: IncomingMessage): string | null {
 }
 
 /**
+ * What every request of the web host meets before any route (S-02, S-21). The answer is marked as one that no other origin's frame may show
+ * (clickjacking: the pages hold the control token, and the plugin Studio's pages set no CSP of their own, so the rule is made once, here);
+ * and a request not addressed to this machine by a loopback name is refused with 403 (DNS rebinding). Returns true when it has answered.
+ */
+export function refuseForeignRequest(request: IncomingMessage, response: ServerResponse, pathname: string): boolean {
+  response.setHeader("x-frame-options", "SAMEORIGIN");
+  if (requestHost(request)) return false;
+  sendLocalWebJson(response, 403, pathname.startsWith("/casebook/v1/") ? { code: "not_authorized" } : { error: L("本地控制请求校验失败") });
+  return true;
+}
+
+/**
  * Mutations the control token guards: the API of the host and of a project. A state-changing request anywhere else is
  * refused rather than left to a handler that forgot to ask for the token (S-03). The IM mount (`/im/…`) is the one other
  * place that accepts a POST: it checks Host, Origin, Fetch Metadata and its own session itself (server/src/http.ts).

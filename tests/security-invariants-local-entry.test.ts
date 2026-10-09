@@ -6,6 +6,7 @@
 //   S-04  the PTY and side-panel browser sockets refuse a foreign Origin, a foreign Host and an unauthenticated first message
 //   S-05  the Casebook channel is POST-only, bearer-only, project-scoped and never browser-addressable
 //   S-06  the control token is long, random and owner-only
+//   S-21  no answer of the host can be shown in another origin's frame (clickjacking)
 // The tests import public entries only (tests/*.test.ts may not reach into package sources: pnpm health:check).
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -320,6 +321,31 @@ test("S-04 the browser socket serves a project only after authenticating, and on
   assert.ok(reply !== "closed" && reply.type === "error", JSON.stringify(reply));
 });
 
+test("S-04 the names a browser may use for this machine (localhost, [::1]) reach both sockets as well, and the token is still what lets a client in", { timeout: 60_000 }, async t => {
+  // The refusals above are about foreign names; this is the other side of the same rule: the spellings of loopback that a person's own browser sends
+  // are not refused. `[::1]` is the one the terminal socket used to refuse (it compared the bracket-less spelling).
+  const host = await startHost(t);
+  for (const path of ["/pty", BROWSER_SOCKET_PATH]) {
+    for (const name of ["localhost", "[::1]"]) {
+      const authority = `${name}:${host.port}`;
+      const wrong = await open(host, path, { host: authority, origin: `http://${authority}` });
+      assert.equal(wrong.opened, true, `${path} answered to Host: ${authority}`);
+      const refused = nextMessage(wrong.socket);
+      wrong.socket.send(JSON.stringify({ type: "auth", token: "x".repeat(TOKEN.length) }));
+      const reply = await refused;
+      assert.ok(reply !== "closed" && reply.type === "error", `${path} as ${authority}: a wrong token is still refused: ${JSON.stringify(reply)}`);
+      const right = await open(host, path, { host: authority, origin: `http://${authority}` });
+      assert.equal(right.opened, true);
+      const ready = nextMessage(right.socket);
+      right.socket.send(JSON.stringify({ type: "auth", token: TOKEN }));
+      assert.deepEqual(await ready, { type: "ready" }, `${path} as ${authority}`);
+      // An Origin of another name is not the same origin, even when both are loopback.
+      const crossed = await open(host, path, { host: authority, origin: `http://127.0.0.1:${host.port}` });
+      assert.equal(crossed.opened, false, `${path}: Host ${authority} with another loopback spelling as Origin must not upgrade`);
+    }
+  }
+});
+
 // ---- S-05 ------------------------------------------------------------------------------------------------------
 
 test("S-05 the Casebook channel answers POST with a project bearer token only, never a browser request, a query or another project", { timeout: 60_000 }, async t => {
@@ -388,4 +414,26 @@ test("S-06 the control token is long and random, written owner-only, and a short
   const other = await mkdtemp(join(os.tmpdir(), "security-invariants-token-"));
   t.after(() => rm(other, { recursive: true, force: true }));
   assert.notEqual(resolveWebControlToken({ homeDirectory: other }), replaced, "two Homes never share a token");
+});
+
+// ---- S-21 ------------------------------------------------------------------------------------------------------
+
+test("S-21 no answer of the host can be shown in another origin's frame: every route says SAMEORIGIN, and the pages' policy says frame-ancestors 'self'", { timeout: 60_000 }, async t => {
+  const host = await startHost(t);
+  const routes: Array<[string, string, Record<string, string | undefined>]> = [
+    ["GET", "/", {}], ["GET", "/onboarding", {}], ["GET", "/health", {}], ["GET", "/__ui/catalog", {}], ["GET", "/api/settings/projects", {}], ["GET", "/assets/missing.css", {}],
+    ["GET", "/no/such/page", {}], ["GET", "/locale?lang=en", {}],
+    // Refusals carry it as well: the header is made before any route decides.
+    ["GET", "/", { host: "evil.example" }], ["POST", "/api/settings/projects", {}],
+  ];
+  let pages = 0;
+  for (const [method, path, headers] of routes) {
+    const answer = await send(host, method, path, headers);
+    assert.equal(answer.headers["x-frame-options"], "SAMEORIGIN", `${method} ${path} (${answer.status}) can be framed by another site`);
+    if (String(answer.headers["content-type"] ?? "").startsWith("text/html") && answer.headers["content-security-policy"]) {
+      pages++;
+      assert.match(String(answer.headers["content-security-policy"]), /(?:^|;\s*)frame-ancestors 'self'(?:;|$)/, `${method} ${path}: the page's policy lets another site frame it`);
+    }
+  }
+  assert.ok(pages >= 2, `the sweep looked at pages with a policy (${pages})`);
 });

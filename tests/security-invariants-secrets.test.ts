@@ -3,7 +3,8 @@
 // rotated token, a Casebook credential) and then looks everywhere a value could surface:
 //   - the answer to the request that planted it, and the answer to every read surface of the host
 //   - what the host printed (stdout, stderr, console)
-//   - the action error a secret-bearing input raises, and the call log it is recorded in
+//   - the action error a secret-bearing input raises, and the call log the commands that received it are recorded in (a finished one and a
+//     failed one are produced on purpose, so the log has records to sweep)
 //   - every file of the Home, whatever its format (SQLite files and their journals, JSON, logs, the secret store itself)
 // The control token is not a secret in this sense: the host hands it to the page it serves (to loopback Hosts only, S-02).
 import assert from "node:assert/strict";
@@ -120,17 +121,39 @@ test("S-12 a secret handed to the host once never comes back: not in an answer, 
   assert.ok(answers.some(([label, answer]) => label === "GET /api/settings/connectors/connections" && answer.status === 200 && answer.body.includes(connectionId)), "the listing did list the connection (the sweep looked at something)");
   assert.ok(answers.some(([label, answer]) => label === "GET /api/settings/models" && answer.status === 200 && answer.body.includes("sweep-provider")), "…and the provider");
 
-  // 3. An action whose input carries a secret fails its input check: neither the error nor the call record names the value.
-  const definition: ActionDefinition<{ count: number }, Record<string, never>> = { capability_id: "unknown.sweep.save", version: 1, operation: "command", action: {
-    title: "Sweep save", description: "Fixture", kind: "operation", scope: "home", audiences: ["user"], permissions: ["sweep:write"], subject_kinds: [],
-    input_schema: { type: "object", properties: { count: { type: "integer" } }, required: ["count"], additionalProperties: false },
-    output_schema: { type: "object", properties: {}, additionalProperties: false } } };
-  host.actionRegistry().registerProvider({ provider: { provider_id: "sweep", title: "Sweep", kind: "plugin", plugin_id: "io.molis.work.example.sweep" }, definitions: [definition], handlers: [{ ...definition, handle: async () => ({}) }] });
+  // 3. Actions whose input carries a secret. One fails its input check: the error names the field, never the value. Two reach their handler,
+  // one that finishes and one that fails: each leaves a record in the call log (what ran, for whom, how it ended), and that record
+  // keeps neither the input nor the result.
+  const command = (name: string, properties: Record<string, unknown>): ActionDefinition<Record<string, unknown>, Record<string, unknown>> => ({ capability_id: `unknown.sweep.${name}`, version: 1, operation: "command", action: {
+    title: `Sweep ${name}`, description: "Fixture", kind: "operation", scope: "home", audiences: ["user"], permissions: ["sweep:write"], subject_kinds: [],
+    input_schema: { type: "object", properties, required: Object.keys(properties), additionalProperties: false },
+    output_schema: { type: "object", properties: { echoed: { type: "string" } }, additionalProperties: false } } });
+  const refused = command("save", { count: { type: "integer" } });
+  const finished = command("finish", { note: { type: "string" } });
+  const failing = command("fail", { note: { type: "string" } });
+  host.actionRegistry().registerProvider({ provider: { provider_id: "sweep", title: "Sweep", kind: "plugin", plugin_id: "io.molis.work.example.sweep" }, definitions: [refused, finished, failing], handlers: [
+    { ...refused, handle: async () => ({}) },
+    { ...finished, handle: async (_context, input) => ({ echoed: String(input.note) }) },
+    { ...failing, handle: async () => { throw new Error("the sweep handler refuses this one"); } },
+  ] });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: ["sweep:write"] };
-  const failure = await host.homeActionClient().invoke(caller, definition, { count: SECRETS.actionInput } as never).then(() => null, (error: Error) => error);
+  const failure = await host.homeActionClient().invoke(caller, refused, { count: SECRETS.actionInput } as never).then(() => null, (error: Error) => error);
   assert.ok(failure, "the input was refused");
   assert.deepEqual(leaks(`${failure.message} ${JSON.stringify(failure)}`), [], "the error names the field, never the value");
-  assert.ok(host.callLog, "the host keeps a call log in this Home");
+  const done = await host.homeActionClient().invoke(caller, finished, { note: SECRETS.actionInput });
+  assert.equal((done as { echoed?: string }).echoed, SECRETS.actionInput, "the handler did receive the value (the caller gets its own result back)");
+  const handlerFailure = await host.homeActionClient().invoke(caller, failing, { note: SECRETS.actionInput }).then(() => null, (error: Error) => error);
+  assert.ok(handlerFailure, "the failing handler's call failed");
+  assert.deepEqual(leaks(`${handlerFailure.message} ${JSON.stringify(handlerFailure)}`), [], "a handler's error carries no input value");
+  // The records are there (the sweep looked at something) and hold neither value.
+  const records = host.callLog!.list(null);
+  assert.ok(records.some(record => record.capability_id === finished.capability_id && record.ok), `the finished command is in the call log: ${JSON.stringify(records)}`);
+  assert.ok(records.some(record => record.capability_id === failing.capability_id && !record.ok && record.message), `the failed command is in the call log: ${JSON.stringify(records)}`);
+  const callLogFile = join(home, "logs", "action-calls.jsonl");
+  const callLogText = await readFile(callLogFile, "utf8");
+  assert.match(callLogText, /unknown\.sweep\.finish/);
+  assert.match(callLogText, /unknown\.sweep\.fail/);
+  assert.deepEqual(leaks(callLogText), [], "the call log keeps what ran and how it ended, not what it was given or what it returned");
 
   // 4. The Home, file by file (the secret store included: it holds ciphertext, so even it holds no value in the clear).
   const files = (await filesUnder(home)).filter(file => !file.endsWith(".sock"));

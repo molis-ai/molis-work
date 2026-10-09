@@ -151,7 +151,11 @@ jobs:
       # address that is not public; a path that leaves its directory; a secret that comes back out; a hostile text that is not data; a desktop
       # capability that widens. The real web host and the real launcher are started on loopback; the Seatbelt sandbox cases need macOS and
       # run locally (the document lists which). The table's own rule (every row names tests that exist) runs in the health gates above.
+      # Not blocking yet (decision #14: product tests do not block a merge until about two weeks of linux-probe runs and quarantine, W2-16):
+      # the set includes product tests, and the six security-invariants-* files had never run on Linux when they were added. A red step shows
+      # on the step; the job, and so Verify, stays green. Drop `continue-on-error` when the probe has shown these files green for two weeks.
       - name: Security invariants
+        continue-on-error: true
         run: pnpm test:security
 
       - name: One workbench shell (no standalone pages)

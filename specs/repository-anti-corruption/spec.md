@@ -717,18 +717,21 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 ## 6. 安全不变量（§4.18，W2-19 已落地）
 
-初稿的 9 行已展开成 20 条，搬到 [docs/system/SECURITY-INVARIANTS.md](../../docs/system/SECURITY-INVARIANTS.md)：每条写明拒绝什么、代码位置、断言拒绝本身的测试；门禁（`pnpm health:check` 的 `security invariants` 规则）看住这张表，CI 的 `Security invariants` 一步（`pnpm test:security`）跑其中 Linux 上能稳定跑过的部分，只能在 macOS 上跑的（Seatbelt 沙箱）与较重的整机用例留在本机。
+初稿的 9 行已展开成 21 条，搬到 [docs/system/SECURITY-INVARIANTS.md](../../docs/system/SECURITY-INVARIANTS.md)：每条写明拒绝什么、代码位置、断言拒绝本身的测试；门禁（`pnpm health:check` 的 `security invariants` 规则）看住这张表，CI 的 `Security invariants` 一步（`pnpm test:security`）跑其中 Linux 上能稳定跑过的部分，只能在 macOS 上跑的（Seatbelt 沙箱、真 Chrome）与较重的整机用例留在本机。这一步先不挡合并（`continue-on-error`，决定 #14 的口径：产品用例约两周的 `linux-probe` 之后才并入 `Verify`，W2-16 一起做）。
 
-初稿各行现在对应：Web 只绑回环地址 S-01；变更请求要控制令牌、同源 Origin、一次性操作键 S-02、S-03、S-06；动作网关只接受回环 http S-07；MCP 逐客户端授权 S-08；插件权限与沙箱 S-15；密钥只给引用 S-12；侧栏浏览器站点策略与逐步确认 S-16；提示注入防护 S-13；路径与 URL 校验 S-09、S-10、S-11。初稿漏掉的也补进来了：终端与浏览器 socket S-04、Casebook 通道 S-05、可信身份 S-17、取消后不再写 S-18、推送前扫密钥 S-19、桌面 IPC 范围 S-14（F15/D9）、表本身为真 S-20。
+初稿各行现在对应：Web 只绑回环地址 S-01；变更请求要控制令牌、同源 Origin、一次性操作键 S-02、S-03、S-06；动作网关只接受回环 http S-07；MCP 逐客户端授权 S-08；插件权限与沙箱 S-15；密钥只给引用 S-12；侧栏浏览器站点策略与逐步确认 S-16；提示注入防护 S-13；路径与 URL 校验 S-09、S-10、S-11。初稿漏掉的也补进来了：终端与浏览器 socket S-04、Casebook 通道 S-05、可信身份 S-17、取消后不再写 S-18、推送前扫密钥 S-19、桌面 IPC 范围 S-14（F15/D9）、表本身为真 S-20、页面不被别的站点嵌进框架 S-21。
 
 写测试时找到、补了拒绝的缺口（每一处都先写出会失败的测试，再做最小修复）：
 
 - `/locale` 在主机头检查之前处理，外来 `Host` 也能拿到 302（现在所有路由先查 `Host`）；
 - `/api/` 与 `/projects/<id>/api/` 之外的变更请求不过令牌检查，只靠各处理器碰巧都在 `/api/` 下（现在一律 403，IM 挂载自己查）；
 - 终端 socket 的第一条消息里令牌不是文字时抛异常、socket 不关（现在按验证失败处理并关闭）；
-- 插件创作台的网络门（`plugin-builder/network.ts` 的 `publicAddress`）认不出 `::ffff:7f00:1`、6to4、Teredo、`::127.0.0.1` 写法的私有地址，自定义 RSS 的解析地址检查认不出多播、NAT64、6to4、Teredo 和文档网段（现在前者委托给沙箱代理的 `isPublicAddress`，只多放过用户决定的 `198.18.0.0/15`，后者按 2000::/3 判断）。
+- 插件创作台的网络门（`plugin-builder/network.ts` 的 `publicAddress`）认不出 `::ffff:7f00:1`、6to4、Teredo、`::127.0.0.1` 写法的私有地址，自定义 RSS 的解析地址检查认不出多播、NAT64、6to4、Teredo 和文档网段（现在前者委托给沙箱代理的 `isPublicAddress`，只多放过用户决定的 `198.18.0.0/15`，后者按 2000::/3 判断）；
+- 宿主的页面和回答可以被别的网站嵌进框架（点击劫持）：页面里就有控制令牌，点击发生在真页面里，S-03 的 Origin 检查挡不住。现在请求入口给每个回答加 `X-Frame-Options: SAMEORIGIN`，`PAGE_CSP` 加 `frame-ancestors 'self'`（S-21）。创作台的页面带着控制令牌却没有自己的 CSP，所以头在入口统一加，不只加在 `PAGE_CSP`。不受影响的已核对：插件侧栏、创作台、群聊都是同源框架且没有 `sandbox` 属性；桌面壳（`apps/desktop/adapters/tauri/src/main.rs`）把窗口 `navigate` 到 `http://127.0.0.1:4173`，作为顶层文档加载；仓库里找不到任何跨源嵌入宿主页面的地方（Casebook 走的是 `/casebook/v1/` 的 POST 通道，不嵌页面）。如果用户要让某个别的网站嵌入宿主页面，要在这里和 S-21 里明说加例外，不是默认。
 
-“是不是本机地址”原来在源码里各写一份（初稿列了 8 处：`action-gateway.ts`、`browser-socket.ts`、`configured-models.ts`、`connector-api-oauth.ts`、`connector-mcp.ts` 两处、`im-server.ts`、`web-http.ts`，实际还有 `pty-socket.ts`、模型供应商、Notion、Casebook、Images、Gmail、连接存储、外部 MCP、管理命令、群聊服务共 22 处），允许的写法也不一样。现在收成 `packages/contracts/src/platform/loopback.ts`（`isLoopbackHostname`、`isLoopbackHttpUrl`、`isLoopbackHttpOrigin`、`loopbackHost`，S-09），这些地方都问它。两处因此变宽，都是原来错拒了合法的回环写法：终端 socket 认 `[::1]` 作 `Host`，Gmail 回调认 `[::1]`。
+“是不是本机地址”原来在源码里各写一份（初稿列了 8 处：`action-gateway.ts`、`browser-socket.ts`、`configured-models.ts`、`connector-api-oauth.ts`、`connector-mcp.ts` 两处、`im-server.ts`、`web-http.ts`，实际还有 `pty-socket.ts`、模型供应商、Notion、Casebook、Images、Gmail、连接存储、外部 MCP、管理命令、群聊服务共 22 处），允许的写法也不一样。现在收成 `packages/contracts/src/platform/loopback.ts`（`isLoopbackHostname`、`isLoopbackHttpUrl`、`isLoopbackHttpOrigin`、`loopbackHost`，S-09），这些地方都问它。三处因此变宽，都是原来错拒了合法的回环写法（`new URL("http://[::1]").hostname` 带方括号，原来的写法拿它跟不带括号的 `::1` 比）：终端 socket 认 `[::1]` 作 `Host`（S-04 的测试断言它仍要令牌），Gmail 回调认 `[::1]`（`tests/gmail-oauth.test.ts`），创作台验收浏览器认 `[::1]` 作预览地址（`tests/agent-built-plugins-components.test.ts` 断言它拒绝其他一切）。
+
+创作台的网络门改成委托给沙箱代理的 `isPublicAddress`，策略因此不只是补上上面那几种写法，还有这些变化（`tests/agent-built-plugins-network.test.ts` 逐条断言）：IPv4 变宽：原来整个 `192.0.0.0/16` 都拒，现在只拒 `192.0.0.0/24` 和 `192.0.2.0/24`，`192.0.1.0/24` 与 `192.0.3.0`–`192.0.255.255`（例如 WordPress.com 的 `192.0.78.x`）可达；IPv4 变严：`198.51.100.0/24`、`203.0.113.0/24`（文档网段）和 `192.88.99.0/24` 原来可达，现在拒；IPv6 变严：只认 `2000::/3`（去掉 6to4、Teredo、`2001:db8::/32`、`3fff::/20`），所以 `::ffff:<公网 IPv4>` 这样的映射写法原来按里面的 IPv4 判断而放行，现在一律拒（DNS 解析本来就不会答出这种地址，影响只在构造的输入上）。`198.18.0.0/15` 的例外（用户 2026-09-27 的决定）不变。
 
 ## 7. 需要用户操作的事项
 

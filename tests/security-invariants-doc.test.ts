@@ -1,7 +1,7 @@
 // Security invariant S-20 (docs/system/SECURITY-INVARIANTS.md): the table of invariants is true. The rule is
 // scripts/gates/security-invariants.mjs (a problem rule of `pnpm health:check`); this test shows that it holds on the repository as it
 // is, and that each way the table can stop being true makes it fail: a missing document, a row with no test, a test file that is
-// gone, a test title that was renamed, a "runs in CI" test that CI does not run, ids out of order, and a security-invariants test file
+// gone, a test title that was renamed (any title a row lists, not only the first after a file), a "runs in CI" test that CI does not run, ids out of order, and a security-invariants test file
 // that no row names.
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
@@ -33,6 +33,19 @@ test("S-20 the table is checked: each way it can stop being true is caught", () 
   expectProblem("a row names no test", altered({ [SECURITY_DOC]: `${doc}\n| S-21 | an invariant with nothing behind it | somewhere | | |\n` }), /S-21 names no test/);
   expectProblem("a row names a test file that does not exist", altered({ [SECURITY_DOC]: `${doc}\n| S-21 | x | y | \`tests/no-such-file.test.ts\` | |\n` }), /tests\/no-such-file\.test\.ts, which does not exist/);
   expectProblem("a test title was renamed", altered({ [SECURITY_DOC]: doc.replace("「S-06 the control token is long and random」", "「S-06 a title nobody wrote」") }), /a title nobody wrote/);
+  // A row lists several titles after one file (S-03, S-16 and others): the ones after the first are checked too.
+  expectProblem("the second title of a file was renamed", altered({ [SECURITY_DOC]: doc.replace("「S-03 the IM mount (/im)」", "「S-03 a title nobody wrote」") }), /S-03 names 「S-03 a title nobody wrote」/);
+  expectProblem("the last title of a file was renamed", altered({ [SECURITY_DOC]: doc.replace("「turning the Assistant's browser off stops a round that already holds the page」", "「a title nobody wrote」") }), /S-16 names 「a title nobody wrote」/);
+  // And all of them: every 「title」 in the table, renamed on its own, is reported by name (the table has 60 at the time of writing).
+  const fragments = [...doc.split("\n").filter(line => /^\| S-\d+ \|/.test(line)).join("\n").matchAll(/「([^」]+)」/g)].map(match => match[1]!);
+  assert.ok(fragments.length >= 50, `the table lists its test titles (${fragments.length})`);
+  // The replacement is built at run time: this file is itself one of the files the table names (S-20), and its own source must not contain it.
+  const nobodyWrote = ["a", "title", "nobody", "wrote", "twice"].join(" ");
+  for (const fragment of fragments) {
+    const renamed = doc.replace(`「${fragment}」`, `「${nobodyWrote}」`);
+    assert.notEqual(renamed, doc, `the table has 「${fragment}」`);
+    expectProblem(`「${fragment}」 was renamed`, altered({ [SECURITY_DOC]: renamed }), new RegExp(`names 「${nobodyWrote}」`));
+  }
   expectProblem("a CI test that CI does not run", altered({ [SECURITY_DOC]: `${doc}\n| S-21 | x | y | \`tests/rss-custom-feeds.test.ts\` | |\n`, "tests/rss-custom-feeds.test.ts": "" }, ["tests/rss-custom-feeds.test.ts"]), /do not run it/);
   expectProblem("the ids run out of order", altered({ [SECURITY_DOC]: doc.replace("| S-05 |", "| S-04 |") }), /they run S-01, S-02/);
   expectProblem("an id is used twice", altered({ [SECURITY_DOC]: doc.replace(/\| S-07 \|/, "| S-06 |") }), /S-06 is on two rows/);

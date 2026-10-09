@@ -82,6 +82,8 @@ test("project operation renderer uses real records or an honest empty state with
   assert.doesNotMatch(rendered.rootItems, /工作目录|data-directory-open="workspaces"/);
   assert.doesNotMatch(rendered.rootItems, /<em>\d+<\/em>/);
   assert.match(html, /这个项目还没有 Session/);
+  // The empty list is the shared block: the mark, what is missing, what a Session is for, and the create action (E-6).
+  assert.match(html, /<div class="mw-empty" data-operation-empty="sessions"><span class="mw-empty__mark"><svg[^>]*><use href="#icon-terminal"><\/use><\/svg><\/span><strong>这个项目还没有 Session<\/strong><p>启动一条新的工作会话，或关联已有的 Runtime 会话。<\/p><button class="mw-btn mw-btn--secondary" type="button" data-open-session-add>/);
   assert.doesNotMatch(html, /从这里启动新工作|创建或显式关联后/);
   assert.doesNotMatch(html, /data-directory-panel="workspaces"|data-work-surface="workspaces"/);
   assert.match(html, /data-session-add-dialog[\s\S]*新建 Session/);

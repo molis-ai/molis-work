@@ -18,7 +18,7 @@
 
 执行中的任务持续续租，其他进程不会因原始租期结束而接管仍在执行的任务。取消或租约丢失后，原执行者停止等待；业务结果和检查点写入在原任务库中校验执行归属。任务状态与事件同事务保存，失败不会留下只有状态、没有对应事件的半次更新。系统动作服务迁移仍在进行，进度见 `specs/action-architecture/migration.md`。
 
-Studio 的 41 项业务已声明为 `alchemistActions`，输入输出验证与目录 JSON Schema 来自同一 Zod 合同。`createAlchemistActionHandlers` 为 Host 提供处理器，`LocalRuntime.actions` 执行原有业务；HTTP 仅负责参数映射、状态码、SSE 和下载。事件读取使用原任务库的一致快照，取消观察不会取消任务。生产 Host 注册这 41 项，HTTP 经同一 Kernel 执行；旧演示数据的只读能力与「历史演示记录」入口已删除（2026-10-02，artifact-positioning P8）；按 Home/项目共享运行时，最后一个 Host 释放才停止。可信调用者身份保留到对象、任务和 Prologue 会话，重启后后台任务继续使用原发起身份。标准 MCP 测试使用真实 Host 和显式 fixture 权限，不能当作生产客户端授权管理完成。旧演示 writer 和生成器已移除，仅保留历史读取及导出。
+Studio 的 54 项业务已声明为 `alchemistActions`，输入输出验证与目录 JSON Schema 来自同一 Zod 合同。`createAlchemistActionHandlers` 为 Host 提供处理器，`LocalRuntime.actions` 执行原有业务；HTTP 仅负责参数映射、状态码、SSE 和下载。事件读取使用原任务库的一致快照，取消观察不会取消任务。生产 Host 注册这 41 项，HTTP 经同一 Kernel 执行；旧演示数据的只读能力与「历史演示记录」入口已删除（2026-10-02，artifact-positioning P8）；按 Home/项目共享运行时，最后一个 Host 释放才停止。可信调用者身份保留到对象、任务和 Prologue 会话，重启后后台任务继续使用原发起身份。标准 MCP 测试使用真实 Host 和显式 fixture 权限，不能当作生产客户端授权管理完成。旧演示 writer 和生成器已移除，仅保留历史读取及导出。
 
 `src/studio` 是迁入后的唯一实现来源，不依赖原仓库路径。UI 使用宿主 plugin-stage、设计 token、列表与详情、对象侧面板及原生对话框；不再发布独立 React 页面或插件 iframe。业务 API 和已有数据原样保留，模型接入仍使用 Prologue。凭据只由宿主管理，不进入业务数据库或导出。此插件不自动创建 Goal 或修改其他插件。
 
@@ -33,7 +33,8 @@ AI 固定指令统一定义于 `src/prompts.ts`，由共同目录登记 `ALCHEMI
 - 公开入口：`@molis-ai/molis-work-plugin-alchemist`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 未配置模型时保留输入并提示，不生成演示卡。
+  - 未配置模型时保留输入并提示，不生成演示卡。卡片上因缺模型而停下的炼化或研究只说一次「还没有可用模型」并带「打开模型设置」，不显示状态、等待标签或内部错误码。
+  - 研究阶段的端口类型在 `src/studio/server/runtime/research-runtime-port.ts`；会写 `fixture://research/…` 假证据的 `FixtureResearchRuntimeAdapter` 只在 `tests/fixtures/`，生产代码不导入它。
   - 预算不足产生部分报告，不能当作完整的双 Lens 依据；费用不可观测时不把调用数换算成金额。
   - 执行中的任务持续续租；任务状态与事件同事务保存。
   - 可信调用者身份保留到对象、任务与 Prologue 会话；对话发送与复用适用性判断声明 `scheduling: "concurrent"`，等模型不占项目串行队列。

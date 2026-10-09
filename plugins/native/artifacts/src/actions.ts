@@ -40,11 +40,21 @@ const pluginInputsOutput = object({ inputs: array(object({ plugin_id: text, plug
 const searchEntries = defineSearchEntriesAction("artifacts.search.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
 /** The side panel's file tab (specs/archive/side-panel): the newest available version of each Artifact; previews read `subject`. */
 const fileEntries = defineFileEntriesAction("artifacts.files.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
-function payloadText(value: unknown, out: string[] = [], budget = { left: 4000 }): string[] {
+/**
+ * The text of a payload that a person can read under a search hit. Producers keep ids, node types, encodings and
+ * references in the same payload, so only these fields count, wherever they sit in it. A `cells` object is a table row
+ * whose keys are column ids: its values are the text. `title` repeated by the payload is the hit's own title line.
+ */
+const SEARCHABLE_FIELDS = new Set(["title", "name", "text", "content", "body", "filename", "description", "summary", "caption", "label", "heading", "notes", "markdown", "cells"]);
+function payloadText(value: unknown, title: string, field = "", out: string[] = [], budget = { left: 4000 }): string[] {
   if (budget.left <= 0 || value == null) return out;
-  if (typeof value === "string") { const text = searchText(value, budget.left); if (text) { out.push(text); budget.left -= text.length; } }
-  else if (Array.isArray(value)) for (const item of value) payloadText(item, out, budget);
-  else if (typeof value === "object") for (const item of Object.values(value)) payloadText(item, out, budget);
+  if (typeof value === "string") {
+    if (!SEARCHABLE_FIELDS.has(field)) return out;
+    const text = searchText(value, budget.left);
+    if (text && text !== title) { out.push(text); budget.left -= text.length; }
+  }
+  else if (Array.isArray(value)) for (const item of value) payloadText(item, title, field, out, budget);
+  else if (typeof value === "object") for (const [key, item] of Object.entries(value)) payloadText(item, title, field === "cells" ? field : key, out, budget);
   return out;
 }
 export const artifactsActions = {
@@ -152,7 +162,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         if (!current || record.version > current.version) latest.set(record.artifact_id, record);
       }
       return [...latest.values()].map((record): SearchEntry => ({ subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
-        revision: `${record.version}:${record.content_digest}`, title: record.title, summary: payloadText(record.payload).join("\n").slice(0, 4000),
+        revision: `${record.version}:${record.content_digest}`, title: record.title, summary: payloadText(record.payload, searchText(record.title)).join("\n").slice(0, 4000),
         updated_at: record.created_at, content: "summary", open: { surface: "artifacts", id: artifactVersionPath(record) } }));
     }),
     bindFileEntriesHandler(artifactsActions.fileEntries, () => {

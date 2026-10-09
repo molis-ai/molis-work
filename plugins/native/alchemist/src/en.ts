@@ -200,6 +200,7 @@ export const ALCHEMIST_EN: Record<string, string> = {
   "还没有可用模型。连接模型后再炼化，已写的方向不会丢失。": "No model is available. Connect a model to refine. Your direction is saved.",
   "还没有活动记录。": "No activity yet.",
   "这次炼化未完成，方向已保存。检查模型后可重新炼化。": "Refining failed. Your direction is saved. Check the model and retry.",
+  "还没有可用模型。连接模型后再研究，已取得的材料会保留。": "No model is available. Connect a model to research again. Material already gathered is kept.",
   "进行中": "Running",
   "适用范围": "Applies to",
   "部分完成": "Partial",

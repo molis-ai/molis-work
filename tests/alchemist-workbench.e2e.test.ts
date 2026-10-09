@@ -86,9 +86,17 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   const source=(await read('/pulse/sources')).sources[0];await visible('[data-alc-dialog] [name="'+source.sourceId+'"]');await click('[data-alc-dialog] [name="'+source.sourceId+'"]');await click('[data-alc-submit]');await includes('来源设置已保存。');assert.equal((await read('/pulse/sources')).sources[0].enabled,!source.enabled);await click('[data-alc-action="notice-close"]');
   await visible('[data-alc-open="pulse"]');await click('[data-alc-open="pulse"]');await includes('可以探索的机会');await click('[data-alc-action="save-opportunity"]');await includes('已保存');await click('[data-alc-action="convert"]');await visible('[data-alc-action="explore"]');
   assert.equal((await read('/bootstrap')).directions.length,2);
-  await click('[data-alc-action="new"]');await fill('description','浏览器验收缺模型也保存方向');await click('[data-alc-submit]');await includes('这次炼化未完成');
-  const saved=await read('/bootstrap');assert.equal(saved.directions.length,3);assert.equal(saved.explorations[0].status,'failed');assert.deepEqual(saved.explorations[0].cards,[]);
-  await click('[data-alc-action="explore"]');await includes('这次炼化未完成');
+  await click('[data-alc-action="new"]');await fill('description','浏览器验收缺模型也保存方向');await click('[data-alc-submit]');
+  // The run is recorded as failed for want of a model; the card then says so once, with the way to settings: not its status, its waiting label or its internal code (E-7).
+  for(let n=0;n<100&&(await read('/bootstrap')).explorations[0]?.status!=='failed';n++)await new Promise(r=>setTimeout(r,100));
+  await waitFor(`document.querySelector(${text(content)})?.innerText.includes('还没有可用模型') && !document.querySelector(${text(content+' .alc-progress')})`,12_000);
+  const card=async()=>evaluate<string>(`document.querySelector(${text(content)}).innerText`);
+  const noModelCard=async()=>{const shown=await card();assert.match(shown,/还没有可用模型/);assert.match(shown,/打开模型设置/);assert.doesNotMatch(shown,/RUNTIME_NOT_CONFIGURED|等待执行|失败|这次炼化未完成/);assert.equal(shown.split('还没有可用模型').length-1,1,'the hint is shown once');};
+  const saved=await read('/bootstrap');assert.equal(saved.directions.length,3);assert.equal(saved.explorations[0].status,'failed');assert.equal(saved.explorations[0].errorCode,'RUNTIME_NOT_CONFIGURED');assert.deepEqual(saved.explorations[0].cards,[]);
+  await noModelCard();
+  await click('[data-alc-action="explore"]');
+  for(let n=0;n<100&&(await read('/bootstrap')).explorations[0]?.status!=='failed';n++)await new Promise(r=>setTimeout(r,100));
+  await waitFor(`document.querySelector(${text(content)})?.innerText.includes('还没有可用模型') && !document.querySelector(${text(content+' .alc-progress')})`,12_000);await noModelCard();
   await command('Page.reload',{},sessionId);await visible('[data-alc-action="explore"]');await includes('浏览器验收缺模型也保存方向');
   await click('[data-alc-collection="ideas"]');await click(`[data-alchemist-id="${ids.idea}"]`);await visible('[data-alc-action="market"]');await click('[data-alc-action="market"]');await includes('研究摘要');
   const screenshotDirectory = process.env.MOLIS_WORK_ALCHEMIST_SCREENSHOTS ?? specEvidenceDirectory('specs/archive/alchemist-plugin/verification');

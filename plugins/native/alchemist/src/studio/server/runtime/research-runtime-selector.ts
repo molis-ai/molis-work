@@ -1,6 +1,6 @@
 import type { Claim, Evidence } from "../../domain/research/report.js";
 import type { SqliteMemoryRepository } from "../db/memory-repository.js";
-import type { ResearchExecutionRuntimePort, RuntimeInput } from "./fixture-research-runtime.js";
+import type { ResearchExecutionRuntimePort, RuntimeInput } from "./research-runtime-port.js";
 import type { AlchemistAiPort } from "./host-port.js";
 import { HostResearchRuntimeAdapter } from "./host-research-runtime.js";
 

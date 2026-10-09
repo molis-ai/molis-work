@@ -9,7 +9,7 @@ import type { SqliteResearchRepository } from "../db/research-repository.js";
 import type {
   LensExecutionCheckpoint,
   ResearchExecutionRuntimePort,
-} from "../runtime/fixture-research-runtime.js";
+} from "../runtime/research-runtime-port.js";
 import { RESEARCH_LENS_JOB, type ResearchLensJobInput } from "../services/start-lens-run.js";
 import { JobExecutionError, type JobHandler, type JobHandlerControl } from "./local-worker.js";
 import type { PersistedJob } from "./sqlite-job-runner.js";

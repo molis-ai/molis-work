@@ -146,11 +146,6 @@ export const RESPONSIVE_STYLES = `
     .relation-form > footer button { align-self: flex-end; }
     .relation-editor-action { display: none; }
     .history-list li { grid-template-columns: 1fr; gap: 4px; }
-    .decision-center { padding-inline: 24px; }
-    .decision-center-header, .decision-owner { align-items: flex-start; }
-    .decision-center-header { display: grid; }
-    .decision-center-header > strong { text-align: left; }
-    .decision-summary { gap: 8px 16px; }
     .decision-record-heading { align-items: flex-start; }
     .decision-guidance { grid-template-columns: 1fr; }
     .decision-guidance > section { border-right: 0; border-bottom: 1px solid var(--line); }

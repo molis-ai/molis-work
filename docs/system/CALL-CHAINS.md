@@ -191,7 +191,7 @@
 | 1 | 来源声明 | 插件用 `defineSearchEntriesAction` 声明可搜的对象种类（输入输出类型 `SEARCH_ENTRIES_INPUT_TYPE`、`SEARCH_ENTRIES_OUTPUT_TYPE`），用 `defineSubjectContextAction` 声明对象读取器 | Manifest → 动作目录里的两类动作 | 注册时校验输入输出合同（`searchSourceDeclarationProblems`） | `actions.definition_invalid` | 无 |
 | 2 | 建索引 | `horizontal/search/src/index.ts`（`SearchService.catchUp`、`runSync`）；Host 装配 `apps/local-host/src/search-actions.ts` | 来源的集合版本、条目版本 → 增量读取变化的正文 → `{home}/search/search.db` | 用 Host 给的本机用户上下文建索引，结果不随提问者变化 | 一次同步失败不删已有条目；删除只在完整列出之后；项目没打开则稍后再更新 | 触发：成功的命令（`SearchHost.changed`）、提供方注册或撤下（`providerChanged`）、超过新鲜期、`search.rebuild` |
 | 3 | 查询 | 系统动作 `search.query`（提供方 `system.search`）← `apps/local-host/src/search-http.ts` | 查询词、范围 → 命中（对象引用、摘要、高亮、状态） | 用调用者自己的权限发现来源，只返回调用者当前可用的来源；有读取器的种类还要求调用者能用该读取器 | `actions.input_invalid`；`empty_scope`；索引未好返回 `indexing` 或 `partial` | 无 |
-| 4 | 打开 | 系统动作 `search.open`（`SearchService.open`） | `hit_id` → `ok`、`missing` 或 `unavailable` | 按调用者重新发现来源，用保留的调用授权调原插件的对象读取器；读取器报任何错，都只记作「现在读不到」，不看错误码和措辞，随后用调用者的权限再向来源自己的完整列出（`findEntry`）核对，和建索引判断「已删除」是同一条规则 | `unavailable`：来源已停用、升级或无权限，读取器返回的对象与命中不一致，读取器报错而来源的列出里仍有这个对象（索引条目保留），或按需查询的来源（没有列出可核对，读取器报错或没有读取器都是 `unavailable`）；`missing`：来源的完整列出里没有它，同时把它移出索引；读取器没有、且列出本身读不了时，错误原样抛出 | 无 |
+| 4 | 打开 | 系统动作 `search.open`（`SearchService.open`） | `hit_id` → `ok`、`missing` 或 `unavailable` | 按调用者重新发现来源，用保留的调用授权调原插件的对象读取器；读取器报任何错，都只记作「现在读不到」，不看错误码和措辞，随后用调用者的权限再向来源自己的完整列出（`findEntry`）核对，和建索引判断「已删除」是同一条规则 | `unavailable`：来源已停用、升级或无权限，读取器返回的对象与命中不一致，或读取器报错而来源的列出里仍有这个对象（索引条目保留）；`missing`：来源的完整列出里没有它，同时把它移出索引；读取器没有、且列出本身读不了时，错误原样抛出 | 无 |
 | 5 | @ 引用 | 输入框 `@` → `search.query` → 命中带 `reference` 随 Send 发出；`AssistantService.readReferences` | 命中 → 重新核对并读正文，作为材料 | 以人的上下文调 `search.open` 和读取器 | 引用对象已不存在或读不到：Send 被拒绝并说明原因；若已被移走，说明移到了哪里 | 材料里写明版本；没有读取器就只给搜索摘要并说明不是全文 |
 | 6 | 放置 | 系统动作 `placement.link`、`placement.move`、`placement.copy` 等（`apps/local-host/src/placement-actions.ts`）← `apps/local-host/src/placement-http.ts`；服务 `horizontal/placement/src/index.ts` | 对象 + 目的地 → 位置描述、关联、移动、复制、转成 | 改变位置与访问范围的动作只对本机用户（`user`）开放；读取描述的动作（`placement.describe`、`placement.spaces`、`placement.related`、`placement.locate`、`placement.goals`）对 `user` 和 `agent` 开放，创作台生成的插件也看得到（受众规则 `actionReachesAudience`：声明了 `plugin` 受众，或对 `agent` 开放且没有 `plugin: false`，撤不回的除外），工作流不在其内；对象存在性向所有者读 | `placement.project_missing`；所有者报 `not_found` 才是「原对象已删除」，其余是「暂时读不到」 | 关系写在 Home 的 `{home}/placement/placement.db`（Context Ledger 加标题缓存）；用于项目、来自、复制自 |
 | 7 | 跨插件移动与复制 | 服务调插件声明的放置协议动作（`PLACEMENT_MOVE_INPUT_TYPE` 等） | 对象 → 新分区里的同一对象 | 受调用者权限约束；移入某项目时指向它的「用于项目」关系自动去掉 | 对象所在的插件没有声明移动或复制协议时，该操作不可用 | 位置索引更新，旧引用经它找到新位置 |
@@ -200,7 +200,7 @@
 
 **现状与缺口**
 
-- 搜索来源 21 个插件在用，对象读取器 21 个插件加宿主自己在用。`defineSearchQueryAction`（按需查询的来源）在产品里没有生产方，只有 `tests/system-search.test.ts` 的夹具。已定（决定 19）删除，要一起去掉的有：合同定义（`packages/contracts/src/platform/search-sources.ts`）、插件 SDK 的出口（`packages/plugin-sdk/src/index.ts`）、搜索服务里为它留的分支（`horizontal/search/src/index.ts` 的 `querySources`，以及它在 `open` 和查询里的用法）、夹具用例，和 `skills/molis-plugin-dev/search.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`packages/plugin-sdk/README.md` 里的说明（W2-03）。
+- 搜索来源 21 个插件在用，对象读取器 21 个插件加宿主自己在用。按需查询的来源（`defineSearchQueryAction`）在产品里没有生产方，已按决定 19 删除（W2-03）：合同定义、插件 SDK 的出口、搜索服务里为它留的分支、夹具用例和三处说明都已去掉；Manifest 里按旧协议声明的来源现在被 `searchSourceDeclarationProblems` 拒绝，用例是 `tests/system-search.test.ts` 的「a declaration of the retired on-demand source protocol is refused…」（夹具是旧辅助函数原样的输出，旧代码接受、现在拒绝），另一条用例证明形状像旧来源的普通动作不会被搜索调用。
 - 逻辑复查 #22（读取器报「读不到」被当作已删除、条目被移出索引）已由 PR #305 合入 main，表中第 4 步按合入后的代码写；打开时按读取器的错误码和措辞猜「已删除」的旧判断已不在代码里。
 - 放置协议的生产方（Dataset、Form、灵光、Pages、PPT、Todo 等）都是构建期插件，没有 Runtime 插件的停用、卸载、升级用例（W4-01）。
 
@@ -210,22 +210,23 @@
 
 | # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 入口 | 系统动作 `memory.write`、`memory.recall`、`memory.change` 等（提供方 `system.memory`）；设置页走 `/api/memory/*`（`handleMemoryHttp`） | 请求 → `MemoryService` | 使用方（助理、Agent、界面、插件、MCP）从可信上下文的受众得出，不从输入读；`memory.recall` 声明了 `user`、`agent`、`workflow`、`plugin`、`mcp`；`memory.list` 声明了 `user`、`agent`（对 `plugin` 可达是按受众规则从 `agent` 带出来的，见缺口）；`memory.write` 声明了 `user`、`agent`、`plugin`，MCP 不能写；其余动作只对 `user` | `memory.forbidden`；`memory.invalid`；`memory.not_found`；`memory.off`（运行时没有记忆能力） | 无 |
+| 1 | 入口 | 系统动作 `memory.write`、`memory.recall`、`memory.change` 等（提供方 `system.memory`）；设置页走 `/api/memory/*`（`handleMemoryHttp`） | 请求 → `MemoryService` | 使用方（助理、Agent、界面、插件、MCP）从可信上下文的受众得出，不从输入读；`memory.recall` 声明了 `user`、`agent`、`workflow`、`mcp`；`memory.list` 与 `memory.write` 声明了 `user`、`agent`，MCP 不能列、不能写；这三个都带 `plugin: false`，插件今天不是记忆的使用方（见缺口）；其余动作只对 `user`。外部 MCP 客户端只有在本人给它授权 `memory.recall`（`mcp-tools.json`）之后才看得到、调得了它 | `memory.forbidden`；`memory.invalid`；`memory.not_found`；`memory.off`（运行时没有记忆能力） | 无 |
 | 2 | 写入门 | `MemoryService.write` / `offer`（`horizontal/memory/src/service.ts`） | 文字 + 范围 + 种类 → 写入、替换、重复、候选或拒绝 | 开关、秘密形状、像指令的文字、范围、重复与冲突；Agent 必须带 `said`；插件只能写进自己的命名空间且要有人允许 | 结果是 `outcome`，不是异常：`refused`、`candidate` 带原因 | 每次写入记一条「最近变动」，规则版本写进来源 |
 | 3 | 存储 | `prologueMemoryBackend`（memory-host.ts）→ Agent Host 的 Prologue 适配器 | → 记忆条目 | 运行时没起来则先启动 | `memory.off` | 旁表（开关、候选、变动、使用记录、配对）在 `{home}/memory/memory.db`（`openMemoryLedger`） |
 | 4 | 召回 | `MemoryService.recall`；助理轮次用 `memoryForRound`，其他 Agent 轮次用 `memoryForAgentRun`，情境判断用 `memory.recall` | 查询 + 情境 → 带出处和类别的条目 | 按使用方的开关取范围与类别；停用、暂停、过期、不适用的不返回；外部 AI 客户端默认读不到个人记忆 | 全部范围被关掉时返回 `state: "off"` 和原因 | 每次召回生成回执，用上的和因预算或上限没带上的都记使用记录 |
 | 5 | 使用回执 | `MemoryService.uses` / `settleUses` | 回执 → 设置里「最近用于」 | 本人 | — | 删除一条记忆后，旁表和最近变动里的正文也一并清除 |
 | 6 | 查看与撤销 | 设置页 `apps/workbench/src/settings-memory.ts` → `/api/memory/overview`、`/api/memory/changes/<id>/undo` | 变动 → 撤销（写入的删除、替换的还原、停用的恢复） | 只有本人能撤销 | `memory.invalid`（这次变动不能撤销） | 变动标为 `undone` |
 
-**守住它的用例**：`tests/memory-service.test.ts`、`tests/memory-actions.test.ts`、`tests/memory-scopes.test.ts`、`tests/memory-agent-runs.test.ts`、`tests/memory-learning.test.ts`、`tests/memory-upkeep.test.ts`、`tests/assistant-memory.test.ts`。
+**守住它的用例**：`tests/memory-service.test.ts`、`tests/memory-actions.test.ts`、`tests/memory-scopes.test.ts`、`tests/memory-mcp.test.ts`、`tests/memory-agent-runs.test.ts`、`tests/memory-learning.test.ts`、`tests/memory-upkeep.test.ts`、`tests/assistant-memory.test.ts`。
 
 **现状与缺口**
 
 - 记忆服务里的写入门和候选规则是跨插件的产品策略，不是业务事实；按 N-03 的决定归「平台产品服务」，代码位置不动。
-- **记忆的 `plugin` 受众与 MCP 受众：决定 19 已定，代码还没跟上。**
-  - **目标（决定 19，2026-10-08）**：MCP 受众保留，并补一条经 `mcp-tools.json` 授权键的用例（今天只有服务层的 `tests/memory-service.test.ts` 用 `consumer: "mcp"` 查过只回项目范围的条目，没有走 MCP 授权的）；`plugin` 受众在有插件真的要用记忆之前标「未启用」。落地是后续项，归 W2-03（同一条决定里删按需搜索的那一片），登记在 §10.2：让目录与「未启用」一致，也就是三个动作不再对 `plugin` 受众提供（三个都加 `plugin: false`，因为它们都对 `agent` 开放，光去掉声明还会被 `actionReachesAudience` 带进来；`memory.recall`、`memory.write` 另从 `audiences` 去掉 `plugin`），创作台的「能力板」随之不再列出它们；有插件要用记忆时，连同宿主确认的插件身份一起重新打开。
-  - **今天**：`plugin` 受众在目录层是通的，只是没有人用。`memory.recall`、`memory.list`、`memory.write` 三个动作对 `plugin` 受众都可达（用 `actionReachesAudience` 逐个核对 `memoryActions` 的结果：`memory.recall` 对 `plugin`、`workflow`、`mcp` 可达；`memory.write` 自己声明了 `plugin` 受众；`memory.list` 只声明了 `user`、`agent`，因对 `agent` 开放且没有 `plugin: false`（效果为读，不属于撤不回的）而被带进来；其余动作只对 `user`）。创作台的「能力板」（面向生成插件的动作目录，`apps/local-host/src/plugin-builder/catalog.ts` 的 `capabilityCatalog`）按 `plugin` 受众列目录，这三个都在里面；生成插件装上时要用户授权（`memory:recall`、`memory:read`、`memory:write`），调用时沙箱 broker 再对照这份授权。实际调用的结果与目录不一致：创作台生成插件的调用上下文（`catalogCapabilities`）不带 `host_plugin`，产品代码里只有 `LocalHost.invoke` 在带 `plugin_caller` 的类型化调用上设置它，所以 `apps/local-host/src/memory/memory-host.ts` 的 `caller()` 取到 `plugin_id: null`。后果是：`memory.write` 被 `MemoryService.write`（`horizontal/memory/src/service.ts`）以「插件写记忆必须由宿主确认插件身份」拒绝；`memory.recall`、`memory.list` 照常执行，但用户对某个插件单独放行或禁止的规则（`prefs.plugins[<插件 id>]`）套不上，只剩插件总开关，`recall` 按默认类别（preference、convention）取，`list` 还不按类别过滤（它只看是否允许，不像 `recall` 那样套 `access.kinds`），所以比 `recall` 宽；别的插件写在自己命名空间里的记忆除外，它们对其他调用者不可见。没有使用方的是：没有任何内置插件调用 `memory.*`，仓库里也没有流程消费 MCP 受众（它只对被授权的外部客户端有意义）。
-  - 插件开发 Skill 没写插件怎么用记忆。
+- **记忆的 `plugin` 受众与 MCP 受众（决定 19，2026-10-08，W2-03 已落地）。**
+  - **MCP 受众保留。** 外部 AI 客户端只能召回：目录对 MCP 只提供 `memory.recall`，读列表、写入和管理都不对它开放。客户端要先有本人在 `config/mcp-tools.json` 里给它的授权（逐客户端；`memory.recall` 是 Home 范围，所以是 Home 级授权）才看得到、调得了这个工具；撤销后工具立即消失。它读什么由本人的开关决定：项目记忆默认可读，个人记忆默认不可读，要本人对「外部 AI 客户端」单独打开。用例 `tests/memory-mcp.test.ts` 用真实 Host 与 MCP 服务器走完这条路（授权前不可见也调不了、授权后只召回、开关、伪造的 `consumer`/`actor_id`/`project_id` 参数被拒、撤销）。
+  - **`plugin` 受众未启用，目录里关上了。** 没有内置插件调用 `memory.*`，创作台生成插件的调用上下文（`catalogCapabilities`）不带宿主确认的插件身份（`host_plugin`；产品代码里只有 `LocalHost.invoke` 在带 `plugin_caller` 的类型化调用上设置它），所以 `apps/local-host/src/memory/memory-host.ts` 的 `caller()` 取到 `plugin_id: null`：`memory.write` 会被 `MemoryService.write` 拒绝，`memory.recall`、`memory.list` 套不上用户对单个插件的设置（`prefs.plugins[<插件 id>]`）。因此 `memory.recall`、`memory.list`、`memory.write` 都加了 `plugin: false`（三个都对 `agent` 开放，只去掉 `plugin` 声明还会被 `actionReachesAudience` 带进来），`memory.recall`、`memory.write` 另从 `audiences` 去掉 `plugin`。后果：目录和元数据检查对插件都看不到它们，调用得 `actions.forbidden`；创作台的「能力板」不再把它们提供给生成插件，而是和别的「Agent 能用、插件不能用」的动作一样列在「不开放给插件」里，写明「提供方没有开放给插件」（实现取舍：保持能力板对这类动作的统一规则，不为这三项另写名单；要在板上整个隐藏它们是产品取舍，待用户定，见 roadmap W2-03）。用例 `tests/memory-scopes.test.ts`（真实 Host 的目录与调用）、`tests/agent-built-plugins-catalog.test.ts`（能力板）。
+  - **重新打开的条件：** 有插件要用记忆，并且调用上下文带宿主确认的插件身份。到那时 `plugin` 回到 `memory.recall`、`memory.write` 的 `audiences`，三个动作去掉 `plugin: false`，同时给用例补上经目录的插件路径。`MemoryService` 里按插件命名空间和类别的规则（`tests/memory-scopes.test.ts` 的服务层用例）一直保留着。
+  - 插件开发 Skill 不写插件怎么用记忆：插件今天用不了，重新打开时再写。
 - 已定未做：自动写入的建议不再由模型的 `same_as` 决定保留别人的建议、撤销自动记忆不删本人明说的内容、`memory.recall` 补写入前复查（#24、#27、#32）。
 
 ## 9. 链 8：CLI、安装与升级
@@ -241,7 +242,7 @@
 | 5 | Runtime 接入 | `apps/local-host/src/installer/runtime-integration.ts`（`RuntimeIntegrationService`）；网页 `apps/local-host/src/web-runtime-settings.ts` | 客户端、动作 → 预览，确认后写 MCP 配置与 Skill 链接 | 显式确认；只改带 Molis 所有权收据的条目 | 配置与收据不符报冲突，不执行 | 所有权收据；改动前备份 |
 | 6 | 启动 Web 宿主 | `apps/desktop/launchers/web/server.ts`，`molis-work-web`（`apps/local-host/src/web-server.ts`） | Home → 常驻服务；令牌写进 Home | 控制令牌；回环地址 | 不再支持 `--db`、`--project-id`、`--demo`，直接报错 | 令牌文件 `web-control-token` |
 | 7 | 数据库版本 | `packages/storage/src/sqlite-baseline.ts`（`applySqliteBaseline`） | 打开任一 Home 库 → 空库建当前基线；同版本放行 | 无 | 版本不符或有表无版本：`storage.schema_version_mismatch`，说明路径、两个版本，不就地升级 | 无 |
-| 8 | 项目命令 | `apps/local-host/src/cli-project.ts`（`runV1Cli`）→ `apps/cli/src/command-dispatch.ts` | `v1 init`、`snapshot`、`active-goal`、`goal-tree-*` → typed 的 Goals 能力 | 进程内的 `LocalHost`，直接打开 `--db` 指的项目库 | `Molis Work 数据库不存在` | Goals 自己的事件 |
+| 8 | 项目命令 | `apps/local-host/src/cli-project.ts`（`runV1Cli`）→ `apps/cli/src/command-dispatch.ts` | `v1 init`、`snapshot`、`active-goal`、`goal-tree-*` → typed 的 Goals 能力 | 进程内的 `LocalHost`，直接打开 `--db` 指的项目库；`--db` 必须给，没有默认路径（W2-04，不再按当前目录猜） | 没给 `--db`（缺值、空白，或后面紧跟另一个以 `--` 开头的旗标，都算没给）：`Molis Work 命令需要 --db PATH …`；路径下没有库：`Molis Work 数据库不存在` | Goals 自己的事件 |
 | 9 | 插件开发 | `tooling/plugin-cli/src/main.ts` → `apps/local-host/src/local-plugin-development.ts` | 插件目录 → 在隔离的开发库里安装、启动、渲染、卸载 | 显式 `allow_unsigned_development`；状态目录必须是带标记的空目录 | 非空普通目录拒绝 | 开发库不进用户项目 |
 | 10 | 卸载 | `apps/local-host/src/installer/uninstall.ts`（`MolisWorkUninstallService`），命令 `molis-work uninstall` | 预览 → 确认 | 普通卸载保留用户项目、目录库、备份与日志；清除用户数据是另一次确认，要求完全相同的目录和项目数 | `uninstall.conflict`、`uninstall.plan_missing` | `{home}/config/uninstall.json` 回执 |
 
@@ -258,7 +259,7 @@
 
 ## 10. 例外登记
 
-下列路径不符合「能力只有一条路径」或「每项事实一个主人」（10.2 里还有一项是目录开放的范围比已定的决定宽），分两张表：10.1 是长期登记的例外，各自写明理由和删除条件；10.2 是已定要修的偏离，不是例外，写明修在哪一片。新增例外要先改这张表并经评审。
+下列路径不符合「能力只有一条路径」或「每项事实一个主人」，分两张表：10.1 是长期登记的例外，各自写明理由和删除条件；10.2 是已定要修的偏离，不是例外，写明修在哪一片。新增例外要先改这张表并经评审。
 
 ### 10.1 长期登记的例外
 
@@ -294,7 +295,6 @@
 | MCP 连接工具读 `actor_id` 参数 | `apps/mcp/src/runtime-context-tools.ts` | 连接发生在项目解析之前，当时没有可信项目身份 | 决定 6：从可信会话取并删参数（W2-07） |
 | Casebook 的 5 个 typed 能力与 HTTP | `apps/local-host/src/casebook/integration.ts`（`registerCasebookCapabilities` 登记 `io.molis.work.casebook.interaction-authorization`、`set-interaction-authorization`、`read-interaction-facts`、`read-goal-contexts`、`read-operation-receipts`），`apps/local-host/src/casebook/http.ts`（路径 `/casebook/v1/`） | 外部 Casebook 插件按这些 id 与路径对接，在控制令牌门之前有自己的回环检查（`apps/local-host/src/web-server.ts`） | N-12 与决定 8：改成同 id 的 `plugin` 受众动作，与外部 Casebook 插件一起发版（W3-08） |
 | 两个读工作区的重复身份 | 定义 `packages/contracts/src/modules/workspace-artifacts.ts`，登记 `apps/local-host/src/project-capabilities.ts` | 同一处理器同时注册 typed（`projects.workspace.file.read.v1`、`projects.workspace.git.read.v1`）与动作两个 id | N-12：保留动作 id，删 typed id（W2-09） |
-| 记忆的 `plugin` 受众在目录里可达，产品里没有使用方；MCP 受众没有走授权键的用例 | `packages/contracts/src/services/memory.ts`（`memory.recall`、`memory.list`、`memory.write` 的 `audiences`）；创作台的「能力板」`apps/local-host/src/plugin-builder/catalog.ts`（`capabilityCatalog`） | 三个动作对 `plugin` 受众可达，创作台会列给生成插件；生成插件的调用不带宿主确认的插件身份，所以 `memory.write` 被拒绝，另两个套不上用户对单个插件的设置（逐项见 §8 缺口）。MCP 受众只有服务层的用例，没有经 `mcp-tools.json` 授权键的 | 决定 19（已定，2026-10-08）：MCP 受众保留并补那条用例；`plugin` 受众标「未启用」，目录里也不再提供（三个动作加 `plugin: false`，`memory.recall`、`memory.write` 另去掉 `audiences` 里的 `plugin`），有插件要用记忆时连同宿主确认的插件身份一起重新打开。后续项，归 W2-03 |
 
 **登记之外**：页面渲染、静态资产、终端和浏览器 WebSocket、面板会话等传输层路由（`apps/local-host/src/web-server.ts`）不是「能力」，不进这两张表，但它们也不能绕开链 1 的步骤 2。IM 服务的路由（`/im`、`/projects/<id>/api/im/connect`）同样是「讨论」页签自己的传输层；它越界读表的问题在 10.2。
 

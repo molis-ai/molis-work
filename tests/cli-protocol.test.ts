@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -45,7 +45,8 @@ test("CLI help and failed input retain storage side effects, error order and inj
   const host = createMolisWorkLocalHost({ onRuntimeOpen: () => { opens += 1; } });
   try {
     const help = await captureCli(() => runV1Cli(["--help", "--db", databasePath, "--json", "{"], { localHost: host }));
-    assert.match(help.join("\n"), /The SQLite database defaults to \.molis-work\/molis-work\.db/);
+    assert.match(help.join("\n"), /--db PATH is required[^\n]*There is no default path/);
+    assert.doesNotMatch(help.join("\n"), /\.molis-work\/molis-work\.db/, "no default database path is advertised");
     assert.equal(existsSync(dirname(databasePath)), false);
     await assert.rejects(runV1Cli(["snapshot", "--db", databasePath, "--json", "{"], { localHost: host }), {
       message: `Molis Work 数据库不存在: ${databasePath}`,
@@ -71,6 +72,28 @@ test("CLI help and failed input retain storage side effects, error order and inj
     assert.equal(opens, 1);
     assert.deepEqual(await host.client(reference).invoke(snapshotBoardCapability, { project_id: input.project_id }), snapshot);
   } finally {
+    await host.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("CLI has no default database: a command without --db fails before it creates or opens anything in the working directory", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-cli-no-default-"));
+  let opens = 0;
+  const host = createMolisWorkLocalHost({ onRuntimeOpen: () => { opens += 1; } });
+  const previous = process.cwd();
+  process.chdir(directory);
+  try {
+    // `init` is the command that would have created the default path; a flag with no value or a blank one names nothing either,
+    // and neither does a --db followed by another flag (the flag must not be taken for the database file).
+    const flagAfter = ["--json", JSON.stringify({ project_id: "p" })];
+    for (const args of [["init"], ["init", "--db"], ["init", "--db", ""], ["snapshot", "--db", "  "], ["active-goal"], ["init", "--db", ...flagAfter], ["snapshot", "--db", "--file", "payload.json"]]) {
+      await assert.rejects(runV1Cli(args, { localHost: host }), { message: /需要 --db PATH/ }, args.join(" "));
+    }
+    assert.deepEqual(readdirSync(directory), [], "nothing is created relative to the working directory");
+    assert.equal(opens, 0);
+  } finally {
+    process.chdir(previous);
     await host.close();
     rmSync(directory, { recursive: true, force: true });
   }

@@ -461,8 +461,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
           const template = document.createElement("template");
           template.innerHTML = (await response.text()).trim();
           if (requestedPreset !== activeFeedPreset) return false;
-          feedWorkbench.querySelectorAll(".feed-detail--decision, .feed-detail--result")
-            .forEach((detail) => detail.remove());
           for (const detail of [...template.content.querySelectorAll("[data-feed-detail]")]) {
             feedWorkbench.insertBefore(detail, feedDetailEmpty);
           }

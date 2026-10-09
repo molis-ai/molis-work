@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ActionService } from '@molis-ai/molis-work-kernel';
+import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from '@molis-ai/molis-work-contracts/services/memory';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import { REMINDER_ACTIONS, createReminderActionHandlers, SCHEDULE_REMINDER_PROVIDER_ID, SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID, createScheduledOperationActionHandlers } from '@molis-ai/molis-work-plugin-schedule';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, sampleFromSchema, standIn } from '../apps/local-host/src/plugin-builder/catalog.js';
@@ -43,6 +44,23 @@ test('the capability board is the project\'s action directory: platform, install
   assert.equal((await capabilityCatalog(actions, 'web-user')).some(entry => entry.id === 'model.generate'), false, 'withdrawn with the studio');
   assert.equal((await capabilityCatalog(actions, 'web-user')).find(entry => entry.id === 'reminders.add')?.provider_id, SCHEDULE_REMINDER_PROVIDER_ID, 'Schedule remains available after the Studio withdraws');
   assert.equal((await capabilityCatalog(actions, 'web-user')).find(entry => entry.id === 'schedules.add')?.provider_id, SCHEDULE_OPERATION_PROVIDER_ID, 'scheduled operations belong to Schedule too');
+});
+
+// Decision 19 (specs/repository-anti-corruption, W2-03): no plugin uses memory and a generated plugin's call carries no Host-confirmed plugin
+// identity, so the real declarations of memory.recall, memory.list and memory.write stay out of what a generated plugin may be granted.
+test('memory is closed to generated plugins: the board offers none of it and lists recall, list and write as not offered, with the reason', async () => {
+  const { actions } = project();
+  const definitions = Object.values(memoryActions) as ActionDefinition[];
+  actions.registry.registerProvider({ provider: { provider_id: MEMORY_PROVIDER_ID, title: '记忆', kind: 'system' }, definitions,
+    handlers: definitions.map(definition => ({ capability_id: definition.capability_id, version: 1, handle: () => ({}) })) });
+  const catalog = await capabilityCatalog(actions, 'web-user');
+  const memory = catalog.filter(entry => entry.provider_id === MEMORY_PROVIDER_ID);
+  assert.deepEqual(memory.map(entry => entry.id).sort(), ['memory.list', 'memory.recall', 'memory.write'], 'only what agents can use appears, and only as closed');
+  assert.deepEqual(memory.map(entry => [entry.offered, entry.reason]), memory.map(() => [false, '提供方没有开放给插件']));
+  assert.deepEqual(catalog.filter(entry => entry.offered && entry.id.startsWith('memory.')), []);
+  // What a plugin may call is the same list: nothing of memory is discoverable to it, whatever permission its install holds.
+  const plugin = { actor_id: 'plugin:tables', project_id: 'p', audience: 'plugin' as const, permissions: [...MEMORY_PERMISSIONS] };
+  assert.deepEqual((await actions.client.discover(plugin)).filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID), []);
 });
 
 test('a composition that hands the studio no metadata inspection still gets the directory the caller can discover, never an empty board', async () => {

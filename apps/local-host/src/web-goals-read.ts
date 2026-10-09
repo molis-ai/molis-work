@@ -111,7 +111,7 @@ export function createLocalGoalsReadHttp(ports: {
   ): Promise<boolean> {
     const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
       request.method, url.pathname, readWebView,
-      async (view, { goalId: requestedGoalId, archiveView, trashView, decisionView }) => {
+      async (view, { goalId: requestedGoalId, archiveView, trashView }) => {
         const desktopShell = isDesktopShellRequest(request, url);
         const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => ({
           plugins: catalog.listProjectPlugins(options.project!.project_id),
@@ -171,7 +171,6 @@ export function createLocalGoalsReadHttp(ports: {
             : view,
           requestedGoalId,
           archiveView,
-          decisionView,
           trashView,
           controlToken,
           desktopShell,

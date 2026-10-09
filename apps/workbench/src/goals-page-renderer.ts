@@ -121,7 +121,7 @@ function renderMolisWorkRefreshFragment(
   archiveView = false,
   trashView = false,
 ): string {
-  const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, false, L);
+  const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, L);
   const { selected } = collection;
   const document = selected
     ? trashView
@@ -142,18 +142,17 @@ function renderMolisWorkWeb(
   view: TView,
   requestedGoalId?: string,
   archiveView = false,
-  decisionView = false,
   trashView = false,
   controlToken = "",
   desktopShell = false,
   cliAvailability: Record<string, boolean> = {},
   projectOperationsData?: ProjectOperationsData,
 ): string {
-  const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, decisionView, L);
+  const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, L);
   const { selected, title, collectionTitle } = collection;
   const initialFeedPreset = "feed" as const;
   const initialDesktopDirectory = "root";
-  const initialDesktopSurface = decisionView ? "inbox" : requestedGoalId || archiveView || trashView ? "goal" : "home";
+  const initialDesktopSurface = requestedGoalId || archiveView || trashView ? "goal" : "home";
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
   const enabledPlugins = shownProjectPlugins(view.enabled_plugins ?? ["goals", "sessions", "inbox", "feed", "artifacts"], view.hidden_plugins ?? []);
@@ -172,7 +171,7 @@ function renderMolisWorkWeb(
   const pluginEnabled = (id: string) => enabledPlugins.includes(id);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";
-  const showTui = !decisionView && !archiveView && !trashView;
+  const showTui = !archiveView && !trashView;
   const renderedDocumentContent = selected
     ? trashView ? renderTrashGoalDocument(selected, true) : renderGoalDocument(selected, view, true)
     : goalsDocumentRenderer.renderEmptyGoalCollection(trashView, true);
@@ -204,7 +203,7 @@ function renderMolisWorkWeb(
         ${renderGoalDetailsAside(goalDocument, primitives)}
       </div>
     </section>
-  </div>` : `${decisionView ? "" : stageList}${goalDocument}`;
+  </div>` : `${stageList}${goalDocument}`;
   const frameStage = showTui ? `<section class="goal-frame-surface" data-goal-frame-surface aria-label="Frame" hidden>
     <header class="frame-goal-summary"><div class="frame-goal-heading"><h1 data-frame-goal-title></h1><span data-frame-goal-status></span></div><p data-frame-goal-outcome></p>    <div class="frame-goal-actions mw-toolbar"><button class="mw-btn mw-btn--secondary" type="button" data-frame-add-content>${icon("plus")}${L("添加已有内容")}</button><button class="mw-btn mw-btn--secondary" type="button" data-frame-goal-work>${icon("terminal")}${L("打开工作区")}</button><button class="mw-btn mw-btn--ghost" type="button" data-frame-goal-locate>${icon("target")}${L("在关系画布中定位")}</button></div></header>
     <div class="goal-frame-canvas" data-frame-canvas><div class="frame-empty mw-empty" data-frame-empty><strong>${L("把这项目标需要的内容放在这里")}</strong><p>${L("从目录拖入消息、会话或资料，在同一个画布上组织工作。")}</p><button type="button" class="mw-btn mw-btn--primary" data-frame-add-content>${icon("plus")}${L("添加已有内容")}</button></div>
@@ -234,7 +233,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <link rel="stylesheet" href="__WORKBENCH_CSS__">`,
     body_attributes: {
       class: "immersive-workbench",
-      "data-board-view": decisionView ? "decisions" : trashView ? "trash" : archiveView ? "archive" : "current",
+      "data-board-view": trashView ? "trash" : archiveView ? "archive" : "current",
       "data-route-prefix": view.route_prefix,
       "data-project-id": view.project?.project_id || "",
       "data-desktop-shell": "true",

@@ -9,6 +9,9 @@
 -- The statements stop at the first error. The transaction is then still open and is rolled back when the connection closes, so
 -- either the whole script ran or nothing changed. Do not run it in the sqlite3 shell without -bail: the shell goes on after an
 -- error, and what is left of the script commits.
+--
+-- The window is run by tests/fixtures/store-maintenance-run.sh (rehearsal on copies; --apply backs the Home up first, then runs this
+-- file on the real store and checks the result): spec §4.1, the section "Real-Home maintenance five" (真实 Home 维护五).
 BEGIN IMMEDIATE;
 
 -- Only an unversioned store that is exactly the baseline goes on: one table, its four columns in order with the primary key,

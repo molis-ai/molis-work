@@ -1063,15 +1063,6 @@
   },
   "rootStrayTotal": 0,
   "rootStrays": {},
-  "contractPlaceholderTotal": 6,
-  "contractPlaceholders": {
-    "./modules/actions": 1,
-    "./modules/automation": 1,
-    "./modules/identity-team-access": 1,
-    "./modules/sync-replication": 1,
-    "./platform/exchange": 1,
-    "./platform/observability": 1
-  },
   "translationConflictTotal": 194,
   "translationConflicts": {
     "{agent} 的执行能力将在运行时检查，登录与隔离范围尚未确认。": 2,

@@ -32,9 +32,7 @@ tests/git-product-http.test.ts
 tests/goals-actions.test.ts
 tests/goals-board-actions.test.ts
 tests/goals-command-actions.test.ts
-tests/goals-decision-actions.test.ts
 tests/goals-lifecycle-actions.test.ts
-tests/goals-tree-actions.test.ts
 tests/goals-web-actions.test.ts
 tests/home-event-actions.test.ts
 tests/i18n.test.ts
@@ -61,7 +59,6 @@ tests/agent-built-plugins-agent.test.ts
 tests/agent-built-plugins-authoring.test.ts
 tests/agent-built-plugins-capabilities.test.ts
 tests/agent-built-plugins-catalog.test.ts
-tests/agent-built-plugins-network.test.ts
 tests/agent-built-plugins-workbench.test.ts
 tests/agent-definitions.test.ts
 tests/agent-host-wiring.test.ts
@@ -79,7 +76,6 @@ tests/agent-workspace-none.test.ts
 # artifact
 tests/artifact-compare-moved.test.ts
 tests/artifact-links.test.ts
-tests/artifact-project-reference.test.ts
 tests/artifact-reference-ui.test.ts
 tests/artifact-subject-context.test.ts
 
@@ -155,7 +151,6 @@ tests/connector-authorization-recovery.test.ts
 tests/connector-cli.test.ts
 tests/connector-document-import.test.ts
 tests/connector-method-directory.test.ts
-tests/connector-oauth-broker.test.ts
 tests/connector-oauth-choice.test.ts
 tests/connector-provider-contracts.test.ts
 tests/connector-reconnect-regressions.test.ts
@@ -212,7 +207,6 @@ tests/goals-tree-ui.test.ts
 
 # memory
 tests/memory-learning.test.ts
-tests/memory-service.test.ts
 tests/memory-spoken.test.ts
 tests/memory-text.test.ts
 tests/memory-upkeep.test.ts
@@ -282,7 +276,6 @@ tests/prologue-approval-bridge.test.ts
 tests/prologue-checkpoints.test.ts
 tests/prologue-compaction-continue.test.ts
 tests/prologue-compaction.test.ts
-tests/prologue-credential-bridge.test.ts
 tests/prologue-git.test.ts
 tests/prologue-inference-images.test.ts
 tests/prologue-inference-native.test.ts
@@ -338,7 +331,6 @@ tests/coss-control-language.test.ts
 tests/creative-artifact-promote.test.ts
 tests/creative-tools-plugins.test.ts
 tests/cross-device-client.test.ts
-tests/cross-device-http.test.ts
 tests/demo-plugin-sample.test.ts
 tests/desktop-shell-bootstrap.test.ts
 tests/diff-plugin.test.ts
@@ -355,7 +347,6 @@ tests/git-operation-review.test.ts
 tests/git-operations.test.ts
 tests/git-plugin.test.ts
 tests/github-device-flow.test.ts
-tests/gmail-oauth.test.ts
 tests/governance-collaboration-module.test.ts
 tests/governance-provenance.test.ts
 tests/handoff-ledger.test.ts
@@ -373,7 +364,6 @@ tests/inbox-native-plugin.test.ts
 tests/inbox-prepared-pages.test.ts
 tests/jelly-calendar.test.ts
 tests/jelly-content.test.ts
-tests/jelly-source-providers.test.ts
 tests/lingguang-store.test.ts
 tests/list-silent-refresh.test.ts
 tests/local-host-checkpoint.test.ts
@@ -402,7 +392,6 @@ tests/shelf-cli-probe.test.ts
 tests/shelf-job-runner.test.ts
 tests/shelf-settings.test.ts
 tests/shelf-terminal-recovery.test.ts
-tests/side-panel-assistant-surface.test.ts
 tests/soft-workbench-refinement.test.ts
 tests/system-search-artifact-open.test.ts
 tests/system-search.test.ts

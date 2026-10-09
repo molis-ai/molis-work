@@ -195,8 +195,10 @@ export class HelperConnection {
 
   private receive(message: Record<string, unknown>): void {
     if (typeof message.event === "string") {
-      if (message.event === "status") this.last = message as unknown as HelperStatus;
-      this.emit(message as unknown as HelperEvent);
+      // The helper is this Home's own process; its event lines match the union it declares. Read through `unknown`.
+      const event: unknown = message;
+      if (message.event === "status") this.last = event as HelperStatus;
+      this.emit(event as HelperEvent);
       return;
     }
     const id = typeof message.id === "number" ? message.id : -1;

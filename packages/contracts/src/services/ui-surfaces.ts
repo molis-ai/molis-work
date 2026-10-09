@@ -81,6 +81,8 @@ export interface HostSurfaceDriver {
   assess?(action: HostSurfaceAction): Promise<{ readonly irreversible: boolean; readonly why: string }>;
   /** Desktop: the app the surface shows now, for the person's approval card; null before any app is targeted. */
   currentApp?(): Promise<{ readonly bundle_id: string; readonly name: string } | null>;
+  /** Desktop: the round about to use the computer names its goal and ids, so the record started on first look names them. */
+  describeRound?(sessionId: string, context: { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string }): void;
 }
 
 /** The side panel reports who drives the page; the Agent Host tells it when a round starts and stops acting. */

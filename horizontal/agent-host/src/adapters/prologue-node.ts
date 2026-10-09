@@ -1311,7 +1311,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       // Read-only rounds only look; a page another live round holds is not shared, and the round is told why.
       const surface = business && surfaceHost && input.browser !== false
         ? await surfaceHost.attach(session, index.owner.project_id, input.session_id, { readOnly: input.provenance.frozen.execution === "read-only",
-          live: sessionRefId => [...activeRuns.entries()].some(([runId, run]) => run.live() && runSessions.get(runId) === sessionRefId) })
+          live: sessionRefId => [...activeRuns.entries()].some(([runId, run]) => run.live() && runSessions.get(runId) === sessionRefId),
+          goal: input.task, projectId: index.owner.project_id })
           .catch((error: unknown) => ({ tools: [] as readonly string[], note: `界面控制这一轮不可用：${error instanceof Error ? error.message : String(error)}`, surfaces: [] as readonly ("browser" | "desktop")[] }))
         : { tools: [] as readonly string[], note: null, surfaces: [] as readonly ("browser" | "desktop")[] };
       const surfaceTools = surface.tools;

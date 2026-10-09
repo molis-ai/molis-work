@@ -770,7 +770,7 @@ export interface AgentReviewDecisionInput {
     decision: "approve" | "reject";
     actor_id: string;
     note?: string;
-    remember?: "session";
+    remember?: "session" | "app-this-round";
 }
 
 export type AgentReviewDocument = AgentTextReviewDocument | AgentCommandReviewDocument | AgentToolOperationReviewDocument | AgentMcpReviewDocument | AgentGitIndexReviewDocument | AgentGitIntegrationReviewDocument | AgentRewindReviewDocument;
@@ -1305,6 +1305,10 @@ export interface AgentToolOperationReviewDocument {
         label: string;
         value: string;
     }>;
+    round_allow?: {
+        app: string;
+        label: string;
+    };
 }
 
 export type AgentTurnKind = "user" | "assistant" | "system" | "notice";

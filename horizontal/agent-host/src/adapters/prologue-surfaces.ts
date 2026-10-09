@@ -95,7 +95,7 @@ export interface PrologueSurfaces {
    * only looks; a browser page another live session holds is not shared, and the round is told so rather than silently
    * getting nothing. The desktop is one per computer; whether another work holds it is decided by its own readiness.
    */
-  attach(session: { readonly ref: ExactRef<"session"> }, owner: string, sessionId: string, options: { readonly readOnly: boolean; readonly live: (sessionRefId: string) => boolean }): Promise<SurfaceAttachment>;
+  attach(session: { readonly ref: ExactRef<"session"> }, owner: string, sessionId: string, options: { readonly readOnly: boolean; readonly live: (sessionRefId: string) => boolean; readonly goal?: string; readonly projectId?: string | null }): Promise<SurfaceAttachment>;
   /** Chinese detail for a browser approval card: what exactly, with the element's own name where the page still shows it. */
   describe(sessionRefId: string, action: string, summary: string, typed?: string): Promise<string>;
   /** Chinese detail for a desktop approval card: what exactly, with the control's own name where the app still shows it. */
@@ -116,6 +116,57 @@ export interface PrologueSurfaces {
   /** A run reached a terminal state: its run-bound approvals are dropped. */
   releaseRun(run: ExactRef<"run">): void;
   close(): Promise<void>;
+}
+
+type DescribeDriver = { describePoint?(x: number, y: number): Promise<string>; focusedField?(): Promise<{ label: string; sensitive: boolean }> } | undefined;
+
+async function typedText(driver: DescribeDriver, typed: string | undefined, where: (label: string) => string): Promise<string> {
+  const field = driver?.focusedField ? await driver.focusedField().catch(() => ({ label: "", sensitive: false })) : { label: "", sensitive: false };
+  const at = field.label ? where(`「${field.label}」`) : where("当前输入框");
+  if (typed === undefined) return `${at}文字（内容读不到，请拒绝后让助理重新说明）`;
+  if (field.sensitive) return `${at} ${[...typed].length} 个字。这是密码类输入框，内容已遮住。`;
+  const chars = [...typed];
+  return chars.length > 2000 ? `${at}：\n${chars.slice(0, 2000).join("")}\n……（共 ${chars.length} 字，只显示前 2000 字）` : `${at}：\n${typed}`;
+}
+
+async function pointerDetail(driver: DescribeDriver, summary: string, where: string): Promise<string> {
+  const point = /at (\d+),(\d+)/u.exec(summary);
+  const clicks = /\((\d+)×(\w+)\)/u.exec(summary);
+  const label = point && driver?.describePoint ? await driver.describePoint(Number(point[1]), Number(point[2])).catch(() => "") : "";
+  const verb = clicks?.[2] === "right" ? "右键点击" : Number(clicks?.[1] ?? 1) > 1 ? "双击" : "点击";
+  return label ? `${verb}「${label}」` : point ? `${verb}${where}（${point[1]}, ${point[2]}）` : verb;
+}
+
+/** Chinese detail for a browser approval card. */
+async function describeBrowserAction(driver: DescribeDriver, action: string, summary: string, typed?: string): Promise<string> {
+  switch (action) {
+    case "pointer": return pointerDetail(driver, summary, "页面上的位置");
+    case "key": return `按下 ${summary.replace(/^press /u, "")}`;
+    case "text": return typedText(driver, typed, label => `在${label}里输入`);
+    case "navigate": return `打开 ${summary.replace(/^navigate to /u, "")}`;
+    case "wait": return `等待 ${summary.replace(/^wait /u, "").replace(/ms$/u, " 毫秒")}`;
+    case "upload": return `上传本机文件 /${summary.replace(/^upload /u, "")}`;
+    case "download": return `下载到 /${summary.replace(/^download to /u, "")}`;
+    default: return summary;
+  }
+}
+
+/** Chinese detail for a desktop approval card. */
+async function describeDesktopAction(driver: DescribeDriver, action: string, summary: string, typed?: string): Promise<string> {
+  switch (action) {
+    case "pointer": return pointerDetail(driver, summary, "窗口里的位置");
+    case "key": return `按下 ${summary.replace(/^press /u, "")}`;
+    case "text": return typedText(driver, typed, label => `在${label}里输入`);
+    case "scroll": return summary.replace(/^scroll by \(([-\d]+), ([-\d]+)\) points at.*$/u, (_m, dx: string, dy: string) => `滚动（横 ${dx}、纵 ${dy} 点；正数表示往右、往下看更多）`);
+    case "drag": return summary.replace(/^drag from (\d+),(\d+) to (\d+),(\d+)$/u, "从（$1, $2）拖到（$3, $4）");
+    case "hover": return summary.replace(/^move the pointer to (\d+),(\d+)$/u, "把鼠标移到（$1, $2）");
+    case "menu": return `选择菜单 ${summary.replace(/^choose menu /u, "").replace(/ > /gu, " › ")}`;
+    case "app": return `打开或切换到应用 ${summary.replace(/^switch to application /u, "").replace(/ \(launching it if needed\)$/u, "")}`;
+    case "wait": return `等待 ${summary.replace(/^wait /u, "").replace(/ms$/u, " 毫秒")}`;
+    case "upload": return `把本机文件交给应用：/${summary.replace(/^upload /u, "")}`;
+    case "download": return `从应用取出文件，存到 /${summary.replace(/^download to /u, "")}`;
+    default: return summary;
+  }
 }
 
 export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSurfacePorts,
@@ -153,13 +204,16 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
     return "browser";
   };
 
-  const attachDesktop = async (session: { readonly ref: ExactRef<"session"> }, sessionId: string): Promise<boolean> => {
+  const attachDesktop = async (session: { readonly ref: ExactRef<"session"> }, sessionId: string,
+    context: { readonly goal?: string; readonly projectId?: string | null }): Promise<boolean> => {
     const held = desktopAttached.get(session.ref.id);
     const driver = ports.desktop?.() ?? null;
     if (!driver) {
       if (held) { await runtime().surfaces.close(held.target).catch(() => undefined); desktopAttached.delete(session.ref.id); }
       return false;
     }
+    // Name this round so the record the desk starts on first look names it; only takes effect until the lease is taken.
+    driver.describeRound?.(sessionId, { run_id: null, project_id: context.projectId ?? null, goal: context.goal ?? "" });
     if (held && held.driver === driver && runtime().surfaces.get(held.target)?.open) return true;
     drivers.add(driver);
     const surface: UiSurface = {
@@ -180,7 +234,7 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
   return {
     async attach(session, owner, sessionId, options) {
       const browser = await attachBrowser(session, owner, sessionId, options);
-      const desktop = await attachDesktop(session, sessionId);
+      const desktop = await attachDesktop(session, sessionId, { goal: options.goal, projectId: options.projectId });
       const present: ("browser" | "desktop")[] = [...(browser === "browser" ? ["browser" as const] : []), ...(desktop ? ["desktop" as const] : [])];
       if (present.length === 0) {
         return { tools: [], note: browser === "held" ? "侧栏浏览器正被这个项目里的另一项工作使用，这一轮不能用它；需要的话请用户稍后再让你继续。" : null, surfaces: [] };
@@ -193,65 +247,8 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
         surfaces: present,
       };
     },
-    async describe(sessionRefId, action, summary, typed) {
-      const driver = attached.get(sessionRefId)?.driver;
-      const point = /at (\d+),(\d+)$/u.exec(summary);
-      switch (action) {
-        case "pointer": {
-          const clicks = /\((\d+)×(\w+)\)/u.exec(summary);
-          const label = point && driver?.describePoint ? await driver.describePoint(Number(point[1]), Number(point[2])).catch(() => "") : "";
-          const verb = clicks?.[2] === "right" ? "右键点击" : Number(clicks?.[1] ?? 1) > 1 ? "双击" : "点击";
-          return label ? `${verb}「${label}」` : point ? `${verb}页面上的位置（${point[1]}, ${point[2]}）` : verb;
-        }
-        case "key": return `按下 ${summary.replace(/^press /u, "")}`;
-        case "text": {
-          // The exact text is what the person approves; only a password-like field keeps it covered (a fallback: the
-          // Assistant is told never to enter credentials).
-          const field = driver?.focusedField ? await driver.focusedField().catch(() => ({ label: "", sensitive: false })) : { label: "", sensitive: false };
-          const where = field.label ? `在「${field.label}」里输入` : "在当前输入框里输入";
-          if (typed === undefined) return `${where}文字（内容读不到，请拒绝后让助理重新说明）`;
-          if (field.sensitive) return `${where} ${[...typed].length} 个字。这是密码类输入框，内容已遮住。`;
-          const chars = [...typed];
-          return chars.length > 2000 ? `${where}：\n${chars.slice(0, 2000).join("")}\n……（共 ${chars.length} 字，只显示前 2000 字）` : `${where}：\n${typed}`;
-        }
-        case "navigate": return `打开 ${summary.replace(/^navigate to /u, "")}`;
-        case "wait": return `等待 ${summary.replace(/^wait /u, "").replace(/ms$/u, " 毫秒")}`;
-        case "upload": return `上传本机文件 /${summary.replace(/^upload /u, "")}`;
-        case "download": return `下载到 /${summary.replace(/^download to /u, "")}`;
-        default: return summary;
-      }
-    },
-    async describeDesktop(sessionRefId, action, summary, typed) {
-      const driver = desktopAttached.get(sessionRefId)?.driver;
-      switch (action) {
-        case "pointer": {
-          const point = /at (\d+),(\d+)/u.exec(summary);
-          const clicks = /\((\d+)×(\w+)\)/u.exec(summary);
-          const label = point && driver?.describePoint ? await driver.describePoint(Number(point[1]), Number(point[2])).catch(() => "") : "";
-          const verb = clicks?.[2] === "right" ? "右键点击" : Number(clicks?.[1] ?? 1) > 1 ? "双击" : "点击";
-          return label ? `${verb}「${label}」` : point ? `${verb}窗口里的位置（${point[1]}, ${point[2]}）` : verb;
-        }
-        case "key": return `按下 ${summary.replace(/^press /u, "")}`;
-        case "text": {
-          const field = driver?.focusedField ? await driver.focusedField().catch(() => ({ label: "", sensitive: false })) : { label: "", sensitive: false };
-          const where = field.label ? `在「${field.label}」里输入` : "在当前输入框里输入";
-          if (typed === undefined) return `${where}文字（内容读不到，请拒绝后让助理重新说明）`;
-          if (field.sensitive) return `${where} ${[...typed].length} 个字。这是密码类输入框，内容已遮住。`;
-          const chars = [...typed];
-          return chars.length > 2000 ? `${where}：\n${chars.slice(0, 2000).join("")}\n……（共 ${chars.length} 字，只显示前 2000 字）` : `${where}：\n${typed}`;
-        }
-        case "scroll": return summary.replace(/^scroll by \(([-\d]+), ([-\d]+)\) points at.*$/u, (_m, dx: string, dy: string) =>
-          `滚动（横 ${dx}、纵 ${dy} 点；正数表示往右、往下看更多）`);
-        case "drag": return summary.replace(/^drag from (\d+),(\d+) to (\d+),(\d+)$/u, "从（$1, $2）拖到（$3, $4）");
-        case "hover": return summary.replace(/^move the pointer to (\d+),(\d+)$/u, "把鼠标移到（$1, $2）");
-        case "menu": return `选择菜单 ${summary.replace(/^choose menu /u, "").replace(/ > /gu, " › ")}`;
-        case "app": return `打开或切换到应用 ${summary.replace(/^switch to application /u, "").replace(/ \(launching it if needed\)$/u, "")}`;
-        case "wait": return `等待 ${summary.replace(/^wait /u, "").replace(/ms$/u, " 毫秒")}`;
-        case "upload": return `把本机文件交给应用：/${summary.replace(/^upload /u, "")}`;
-        case "download": return `从应用取出文件，存到 /${summary.replace(/^download to /u, "")}`;
-        default: return summary;
-      }
-    },
+    describe: (sessionRefId, action, summary, typed) => describeBrowserAction(attached.get(sessionRefId)?.driver, action, summary, typed),
+    describeDesktop: (sessionRefId, action, summary, typed) => describeDesktopAction(desktopAttached.get(sessionRefId)?.driver, action, summary, typed),
     async describeApp(sessionRefId, bundleId) {
       const current = await desktopAttached.get(sessionRefId)?.driver.currentApp?.().catch(() => null);
       return current && current.bundle_id === bundleId ? current.name : bundleId;

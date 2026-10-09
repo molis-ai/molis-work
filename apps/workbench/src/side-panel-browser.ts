@@ -222,7 +222,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     try{
       const response=await fetch(routePrefix+'/api/agent/reviews?status=pending',{headers:{accept:'application/json'}});
       const result=await response.json();
-      rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(!row.receipt||row.receipt.status==='pending'));
+      rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(f=>f.label==='网站')&&(!row.receipt||row.receipt.status==='pending'));
     }catch{}
     renderApproval(rows[0]||null);
     if(rows.length||state?.control?.mode==='assistant'||state?.control?.mode==='taken-over')reviewTimer=setTimeout(pollReviews,1500);

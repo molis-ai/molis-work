@@ -754,3 +754,15 @@ function loadFailure(errorText: string): string {
 function safeFilename(name: string): string {
   return name.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").slice(0, 200) || "download";
 }
+
+/** A browser host started on first use, forbidding the loopback origin of the server that owns it. Its getter also
+ * exposes the started instance (or null) so a shutdown can close it without starting one. */
+export function lazyBrowserHost(homeDirectory: string, server: () => { address(): unknown }): (() => BrowserHost) & { current(): BrowserHost | null } {
+  let instance: BrowserHost | null = null;
+  const getter = () => instance ??= new BrowserHost({ homeDirectory, forbiddenOrigins: () => {
+    const address = server().address();
+    const port = address && typeof address === "object" ? (address as { port?: number }).port ?? 0 : 0;
+    return port ? [`http://127.0.0.1:${port}`, `http://localhost:${port}`, `http://[::1]:${port}`] : [];
+  } });
+  return Object.assign(getter, { current: () => instance });
+}

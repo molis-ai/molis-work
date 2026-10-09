@@ -114,8 +114,10 @@ function persisted(home: string, kind: Kind, input: Record<string, unknown>) {
 
 for (const kind of ["form", "dataset", "lingguang", "pages", "cognia"] as const) for (const mode of ["revoked", "disabled", "cancelled"] as const) {
   test(`${kind}: ${mode} during model wait prevents all later original SQLite writes and permits authorized recovery`, { timeout: 15_000 }, async t => {
-    const home = await mkdtemp(join(tmpdir(), `${kind}-effect-`)), entered = gate(), release = gate(); let enabled = true, allowed = true;
-    const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: async () => { entered.resolve(); await release.promise; return output[kind]; },
+    const home = await mkdtemp(join(tmpdir(), `${kind}-effect-`)), entered = gate(), release = gate(); let enabled = true, allowed = true, dispatched = 0;
+    // The Host's model port: wait (the runtime being prepared), then the action's own pre-dispatch check, then send.
+    const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: async (_prompt, options) => { entered.resolve(); await release.promise;
+      await options?.beforeDispatch?.(); dispatched++; return output[kind]; },
       actionAvailability: () => enabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "Disabled" } });
     const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
     const client = kind === "cognia" ? host.homeActionClient() : host.actionClient(reference);
@@ -127,13 +129,15 @@ for (const kind of ["form", "dataset", "lingguang", "pages", "cognia"] as const)
     try {
       const input = await prepare(kind, bound);
       const pending = client.invoke({ ...context, signal: controller.signal }, actions[kind], input);
-      const rejected = assert.rejects(pending, mode === "cancelled" ? kind === "cognia" ? errorCode("cognia.cancelled") : { name: "AbortError" } : errorCode(mode === "revoked" ? "actions.revoked" : "actions.plugin_disabled"));
+      // Cancelled before the model request is sent: the pre-dispatch check is what refuses, for every kind alike.
+      const rejected = assert.rejects(pending, mode === "cancelled" ? { name: "AbortError" } : errorCode(mode === "revoked" ? "actions.revoked" : "actions.plugin_disabled"));
       await waitForModel(entered.promise, pending);
       const before = persisted(home, kind, input);
       if (mode === "revoked") allowed = false;
       if (mode === "disabled") enabled = false;
       if (mode === "cancelled") controller.abort();
       release.resolve(); await rejected;
+      assert.equal(dispatched, 0, "the action's pre-dispatch check stops the model request itself, not only the write after it");
       assert.deepEqual(persisted(home, kind, input), before, "neither generated content nor failure bookkeeping may change after rejection");
       allowed = true; enabled = true;
       if (kind === "pages") {

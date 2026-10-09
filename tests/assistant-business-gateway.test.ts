@@ -904,3 +904,26 @@ test("a review names common fields in words even when the plugin gave them no ti
     { markdown: "# 周报", folder_id: "f1" });
   assert.deepEqual(fields.map(field => field.label), ["正文", "文件夹"]);
 });
+
+// The runtime may start a `safe-read` tool before the model has finished speaking and folds old read output into
+// "call it again" (specs/prologue-adoption §2 items 4–5): only calls that change nothing may say they read.
+test("gateway and action tools say they read only when they change nothing; the Host-governed writers run without a new prompt", async () => {
+  const { HOST_GOVERNED_TOOLS } = await import("../horizontal/agent-host/src/adapters/prologue-action-gateway.js");
+  const { prologueActionTools } = await import("../horizontal/agent-host/src/adapters/prologue-action-tools.js");
+  const client = { discover: async () => [], invoke: async () => ({}), offer: async () => ({ offer_id: "o" }),
+    delegate: { start: async () => ({}), status: async () => [], follow_up: async () => ({}), stop: async () => ({}) },
+    memory: { remember: async () => ({}), list: async () => [], forget: async () => ({ forgotten: true }), propose: async () => ({}) } };
+  const { pack } = prologueActionGateway({ client, operate: true } as never);
+  const kinds = Object.fromEntries(pack.tools.map(tool => [tool.registration.name, tool.registration.effectKind]));
+  assert.deepEqual(Object.entries(kinds).filter(([, kind]) => kind === "safe-read").map(([name]) => name).sort(),
+    ["check-delegated-work", "find-capabilities", "list-memories", "read-capability"]);
+  for (const name of ["suggest-action", "delegate-work", "follow-up-delegated-work", "stop-delegated-work", "remember", "forget-memory", "suggest-memory",
+    "change-capability", "change-reversible"]) assert.equal(kinds[name], "mutate-external", name);
+  assert.deepEqual([...HOST_GOVERNED_TOOLS].sort(), ["delegate-work", "follow-up-delegated-work", "forget-memory", "remember", "stop-delegated-work", "suggest-action", "suggest-memory"]);
+  const view = (operation: "query" | "command", effect?: "read" | "write") => ({ capability_id: `demo.${operation}.${effect ?? "none"}`, version: 1, operation,
+    provider: { provider_id: "demo", title: "Demo" }, availability: { available: true },
+    action: { title: "Demo", description: "Demo", kind: operation === "query" ? "query" : "operation", ...(effect ? { effect } : {}), input_schema: { type: "object" }, audiences: ["agent"] } });
+  const tools = prologueActionTools({ tools: [view("query"), view("query", "write"), view("command", "read")], client } as never);
+  assert.deepEqual(tools.pack.tools.map(tool => tool.registration.effectKind).sort(), ["mutate-external", "mutate-external", "safe-read"],
+    "a query that declares a write, and a command, are not reads");
+});

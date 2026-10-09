@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import { setImmediate } from "node:timers/promises";
@@ -152,6 +152,102 @@ test("images: a job an earlier runner left running recovers only after that runn
   try {
     assert.equal(restarted.getJob("project-a", job.id).status, "interrupted");
     assert.equal(restarted.listConnections()[0]!.id, connection.id);
+  } finally { await restarted.close(); }
+});
+
+/** A process that holds a runner file's exclusive lock until it is killed, the way an Images host does. */
+async function holdRunnerLock(path: string) {
+  const script = `import { DatabaseSync } from "node:sqlite";
+    const db = new DatabaseSync(${JSON.stringify(path)}); db.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
+    process.stdout.write("locked"); setInterval(() => {}, 1000);`;
+  const child = spawn(process.execPath, ["--disable-warning=ExperimentalWarning", "--input-type=module", "-e", script], { stdio: ["ignore", "pipe", "ignore"] });
+  const exited = new Promise<void>(resolve => child.once("exit", () => resolve()));
+  await new Promise<void>((resolve, reject) => {
+    child.once("error", reject);
+    void exited.then(() => reject(new Error("the lock holder exited before it held the lock")));
+    child.stdout.once("data", () => resolve());
+  });
+  return { async kill() { child.kill("SIGKILL"); await exited; } };
+}
+
+const longAgo = () => new Date(Date.now() - 3_600_000);
+const age = (path: string) => utimesSync(path, longAgo(), longAgo());
+
+test("images: a start reclaims the lock files and journals killed runners left, and leaves live runners and other files alone", async (t) => {
+  const home = mkdtempSync(join(tmpdir(), "molis-images-orphans-"));
+  const runners = join(home, "images", "runners");
+  mkdirSync(runners, { recursive: true });
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const file = (id: string, suffix = ".db") => join(runners, id + suffix);
+
+  // A runner killed while it held its lock leaves the file and the journal of the transaction it had open.
+  const killed = randomUUID(), live = randomUUID();
+  const killedHolder = await holdRunnerLock(file(killed)), liveHolder = await holdRunnerLock(file(live));
+  t.after(() => liveHolder.kill());
+  await killedHolder.kill();
+  assert.ok(existsSync(file(killed)) && existsSync(file(killed, ".db-journal")), "a killed runner leaves its file and its journal");
+  // The other shapes a crash leaves: killed before it locked (empty file), a journal on its own, and a journal SQLite
+  // itself would leave behind (a zeroed header is not a hot journal) next to a file that holds data.
+  const empty = randomUUID(), journalOnly = randomUUID(), stray = randomUUID();
+  writeFileSync(file(empty), "");
+  writeFileSync(file(journalOnly, ".db-journal"), Buffer.alloc(512));
+  const strayDb = new DatabaseSync(file(stray)); strayDb.exec("CREATE TABLE t (x)"); strayDb.close();
+  writeFileSync(file(stray, ".db-journal"), Buffer.alloc(512));
+  // Not a runner's: other names stay, and a file as young as a runner that is still starting up waits.
+  const starting = randomUUID();
+  writeFileSync(file(starting), "");
+  writeFileSync(join(runners, "notes.txt"), "keep");
+  writeFileSync(join(runners, "not-a-runner.db"), "keep");
+  for (const path of [file(killed), file(killed, ".db-journal"), file(live), file(live, ".db-journal"), file(empty), file(journalOnly, ".db-journal"), file(stray), file(stray, ".db-journal")]) age(path);
+
+  const liveFiles = readdirSync(runners).filter(name => name.startsWith(live)).sort();
+  const store = new ImagesStore(home);
+  const own = Reflect.get(store, "runnerId") as string;
+  try {
+    assert.ok(existsSync(file(own)), "the new runner holds its own file");
+    assert.deepEqual(readdirSync(runners).filter(name => !name.startsWith(own)).sort(), [...liveFiles, starting + ".db", "not-a-runner.db", "notes.txt"].sort(),
+      "the killed, empty, journal-only and stray-journal runner files are gone; the live runner's files, the young file and the other names stay");
+  } finally { store.close(); }
+  assert.deepEqual(readdirSync(runners).filter(name => name.startsWith(own)), [], "closing removes the runner's own file and journal");
+
+  // The lock is what protects a runner, not its age: once the holder is killed, the next start clears its files.
+  await liveHolder.kill();
+  age(file(starting));
+  const restarted = new ImagesStore(home);
+  const restartedId = Reflect.get(restarted, "runnerId") as string;
+  try {
+    assert.deepEqual(readdirSync(runners).filter(name => name.startsWith(restartedId) === false).sort(), ["not-a-runner.db", "notes.txt"],
+      "with the holder gone and the young file aged, only the names that are not runners' remain");
+  } finally { restarted.close(); }
+});
+
+test("images: recovering a dead runner's running job removes its lock file and the journal beside it, even one SQLite itself would keep", async (t) => {
+  const { service, home, ports } = fixture(t, () => new Promise(() => {}));
+  const connection = service.saveConnection(connectionInput);
+  const jobs = ["killed", "kept-journal"].map(request_id => service.start("project-a", { request_id, connection_id: connection.id, prompt: request_id }));
+  await service.close();
+  const runners = join(home, "images", "runners");
+  const name = (id: string, suffix = ".db") => id + suffix;
+  const path = (id: string, suffix = ".db") => join(runners, name(id, suffix));
+  // A runner killed while it held its lock: an empty file and the journal of its open transaction. The recovery probe
+  // takes the same lock, and SQLite discards that journal itself.
+  const killed = randomUUID(), killedHolder = await holdRunnerLock(path(killed));
+  await killedHolder.kill();
+  assert.ok(existsSync(path(killed, ".db-journal")), "the kill left a journal");
+  // A runner file that holds data next to a journal whose header is zeroed (not hot): SQLite keeps this journal through
+  // the probe, so only the recovery can remove it. Both files are as young as a runner that has just started, so the
+  // sweep that clears the files of dead runners leaves them alone (30 seconds of grace).
+  const keptJournal = randomUUID();
+  const seeded = new DatabaseSync(path(keptJournal)); seeded.exec("CREATE TABLE t (x)"); seeded.close();
+  writeFileSync(path(keptJournal, ".db-journal"), Buffer.alloc(512));
+  const db = new DatabaseSync(join(home, "images", "images.db"));
+  [killed, keptJournal].forEach((runner, index) => db.prepare("UPDATE jobs SET status = 'running', runner_id = ?, finished_at = NULL WHERE id = ?").run(runner, jobs[index]!.id));
+  db.close();
+  assert.deepEqual(readdirSync(runners).sort(), [name(killed), name(killed, ".db-journal"), name(keptJournal), name(keptJournal, ".db-journal")].sort(), "the files the recovery meets");
+  const restarted = new ImagesService({ homeDirectory: home, ...ports });
+  try {
+    assert.deepEqual(jobs.map(job => restarted.getJob("project-a", job.id).status), ["interrupted", "interrupted"]);
+    assert.deepEqual(readdirSync(runners).filter(name => name.startsWith(killed) || name.startsWith(keptJournal)), [], "each dead runner's file and journal are gone");
   } finally { await restarted.close(); }
 });
 

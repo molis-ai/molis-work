@@ -357,7 +357,7 @@ Inbox 尚未全量闭环：判断场景仍在旧 Functions 场景体系，部分
 
 - 根因是消费 SDK 的 Model 目录允许回环 HTTP，而 Session 的 Run 启动使用 HTTPS-only 正则。以原消费 a7e785b8 建立隔离源码工作树，目录和 Run 统一使用 Model 端点校验，Host 继续拥有最终出网授权。没有回退到其他模型或另一条 completion 执行链。
 - 同时修正回环判定的实际漏洞：`127.example.com`、`127.0.0.1.example.com` 不是回环 IP。Node/Rust 仅识别准确的回环 IP/localhost 名称，Rust 补齐 URL 解析返回的 `[::1]`。登记不放行网络；无 model 或 loopback 授权的实际请求为零。Run 沿用既有 MODEL_NETWORK_FAILED 错误投影，仍保留可理解的拒绝原因。
-- 新包 `vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-loopback-model.tgz` 已成为唯一活动依赖，agent-host、workspace inventory 与 pnpm 锁文件同步。500 个 dist 文件与源码构建、包内和实际安装逐字节一致。`model-loopback.patch` 保存全部未提交源码、合同及测试，反向 apply 检查通过；README 给出基线和重建命令。原 Prologue checkout 仍干净；未提交、发布 npm 或替换正式安装版。Rust 判据已编译测试，未将其宣称为原生安装版实操。
+- 新包 `vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-loopback-model.tgz` 已成为唯一活动依赖，agent-host、workspace inventory 与 pnpm 锁文件同步。500 个 dist 文件与源码构建、包内和实际安装逐字节一致。`model-loopback.patch` 保存全部未提交源码、合同及测试，反向 apply 检查通过，README 给出基线和重建命令（补丁与当时的 README 在提交 e4bdeb12 的 vendor/prologue-sdk/；2026-10-08 起树里只留补丁的大小、SHA-256、git blob 与来源，见 vendor/prologue-sdk/patch-history.json）。原 Prologue checkout 仍干净；未提交、发布 npm 或替换正式安装版。Rust 判据已编译测试，未将其宣称为原生安装版实操。
 - 删除 Cognia 临时 HTTP 禁用及对应过时英文文案；无可用模型时明确提示检查模型设置和服务连接。能力目录、工作台、实际执行继续独立检查元数据；发现不启动模型、不解密。HTTP/HTTPS 均经正式打包 SDK 和 Molis 原 Node 适配器执行。
 
 验证：

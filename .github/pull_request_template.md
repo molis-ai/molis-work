@@ -4,11 +4,12 @@
 
 ## 验证
 
-CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base）及其变异用例、Goal 边界与存储基线、启动器类型检查、动作与插件合同（`pnpm test:contracts`）、单一外壳与成果声明门禁、密钥扫描（推送前先跑 `pnpm secrets:check`）、炼金术士测试。产品用例的全量回归在本机跑，写明结果；排时段、集成分支、基线比对的做法见 `docs/system/PARALLEL-DEVELOPMENT.md`：
+CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base）及其变异用例、Goal 边界与存储基线、启动器类型检查、动作与插件合同（`pnpm test:contracts`）、单一外壳与成果声明门禁、密钥扫描（推送前先跑 `pnpm secrets:check`）、炼金术士测试；另有一个不挡合并的 Linux 探针作业，只记录哪些非浏览器测试文件在 Linux 上通过，不是门禁（`docs/system/PACKAGE-BOUNDARIES.md`）。产品用例的全量回归在本机跑，写明结果；排时段、集成分支、基线比对的做法见 `docs/system/PARALLEL-DEVELOPMENT.md`：
 
 - [ ] 改过 `*/src`、`scripts` 或 `package.json` 后已整体 `pnpm build`
 - [ ] 健康门禁对照 merge-base 通过：`node scripts/check-health-gates.mjs --base origin/main`（CI 也这样比，在 PR 里 `--update` 放不过变大的）；数字变小就用 `--update --base origin/main` 在本 PR 更新 `tooling/gates/baseline.json`
 - [ ] 公开 API（contracts 各 subpath、插件 SDK）有变化时：已 `pnpm api:update` 刷新 `tooling/gates/api/`，并在「做了什么」写明对插件和调用方的影响
+- [ ] 改过样式、客户端脚本或字体：`pnpm workspace:build` 后 `node scripts/gates/page-assets.mjs --base origin/main` 通过（页面资源只许变小；变小了用 `--update --base origin/main` 在本 PR 把 `tooling/gates/page-assets.json` 降下来）
 - [ ] 全量非浏览器：`node scripts/run-tests.mjs` → 通过 / 失败数：
 - [ ] 浏览器用例（界面改动时）：跑了哪些文件、结果：
 - [ ] 失败逐项说明：与基线（`git worktree add --detach <base>`，同一批文件）对比，哪些是本 PR 引入的、哪些基线就有

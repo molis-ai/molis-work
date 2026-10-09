@@ -1,7 +1,10 @@
 export {
+  APP_IMPORT_ALLOWLIST,
+  PLUGIN_MODULE_IMPORT_ALLOWLIST,
   evaluateImportBoundary,
   extractImportSpecifiers,
   findDependencyCycles,
+  unusedLayerExceptions,
 } from "./boundaries.js";
 export type {
   BoundaryPackage,

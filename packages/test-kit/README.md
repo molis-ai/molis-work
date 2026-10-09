@@ -14,7 +14,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/boundaries.ts](src/boundaries.ts) | 导入边界与依赖环规则 |
+| [src/boundaries.ts](src/boundaries.ts) | 导入边界与依赖环规则（含层与层之间的方向：Module 不向上依赖 Horizontal、Plugin、App；Plugin 不依赖 App、Horizontal、Module 实现包（合同包不算）；App 之间只有登记的边；例外名单按包路径记，只许减少，`unusedLayerExceptions` 找出仓库里已经没有的边） |
 | [src/index.ts](src/index.ts) | 公开检查 API |
 | [tests](tests) | 规则回归 |
 
@@ -52,7 +52,7 @@ pnpm boundary:test
   - 规则与业务无关，不替代模块测试、浏览器验收或迁移验证。
   - 新增边界规则同时提供允许与拒绝案例，不靠检查固定文件数量。
   - 本包自己的测试用 `pnpm --filter @molis-ai/molis-work-test-kit test`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/import-boundary-template.test.ts tests/workbench-registration-boundaries.test.mjs`
+- 改动后必跑：`node scripts/run-tests.mjs tests/import-boundary-template.test.ts tests/workbench-registration-boundaries.test.mjs tests/health-gates-structure.test.ts`（例外名单的条目另由健康门禁对照 merge-base 只许减少）
 - 相关手册：[docs/platform/CONTRACTS-AND-OPERATIONS.md](../../docs/platform/CONTRACTS-AND-OPERATIONS.md)、[docs/system/PACKAGE-BOUNDARIES.md](../../docs/system/PACKAGE-BOUNDARIES.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

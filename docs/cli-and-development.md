@@ -185,6 +185,8 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 `workspace:check` 只核对 F2 包清单；`boundary:check` 扫描真实 import、依赖方向、Contract 入口、依赖环；`workspace:verify` 是本地与 CI 共用的完整 package 门禁。
 
+改过样式、客户端脚本、插件客户端包或字体，在 `pnpm workspace:build` 之后跑 `node scripts/gates/page-assets.mjs --base origin/main`（即 `pnpm page-assets:check` 加 `--base`；CI 在 `workspace:verify` 之后跑同一条）：宿主在 `/assets/` 下发的每个文件的字节数冻结在 `tooling/gates/page-assets.json`，只许变小。变小了就跑 `node scripts/gates/page-assets.mjs --update --base origin/main` 把数字降下来；`--report` 打印逐文件的字节、gzip 与预算。规则、没覆盖的几项见 [`specs/repository-anti-corruption/spec.md`](../specs/repository-anti-corruption/spec.md) §5a。
+
 推送前扫描密钥：先 `git fetch origin main`，再跑 `pnpm secrets:check`。它逐个提交扫描本分支相对 `origin/main` 合并基点新增的行（`scripts/check-secrets.mjs`），找 OpenAI/Anthropic key（`sk-…`、`sk-ant-…`）、GitHub 令牌（`ghp_…`、`github_pat_…`）、Slack 令牌、AWS access key（`AKIA…`）、Google API key（`AIza…`）、私钥块、JWT，以及 `api_key`、`secret`、`password`、`token` 这类名字后面带引号、至少 12 位且字母数字混合的字面量（引用、`${…}`、占位符和网址不算）。名字也包括 `secretKey`、`private_key`、`aws_secret_access_key`、`clientKey` 这类以 secret、private、access、client、auth、signing、encryption 开头的 key（单独的 `key` 不算），名字和 `=` 之间可以带类型标注（`const apiKey: string = "…"`）。文件名里带引号、反斜杠、控制字符的文件（git 在 diff 头里会加引号转义）同样会被扫描，日志里的文件名也会把控制字符转义；读 diff 时关掉外部 diff 驱动、textconv 和 diff.noprefix，不受本机 git 配置影响。命中只打印文件、行号、规则和值的前 4 位，不打印整条。CI 里的 Secret scan 任务跑同一条命令（拉取完整历史；PR 取其基线分支，推送 main 取推送前的提交），并且是 `Verify` 的前置；规则本身的测试 `tests/secret-scan.test.ts` 在 CI 的 Package boundaries 任务里跑。
 
 - 真凭据：不要只在后一个提交里删掉，它已经在历史里；用 rebase 或 squash 从所有提交里去掉，再轮换这把密钥。密钥进 Home 的密钥库或环境变量，代码里只放引用。

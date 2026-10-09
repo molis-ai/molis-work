@@ -11,7 +11,7 @@
 - 信息流：保存资料后“已保存”筛选出现对应文章，刷新保留收藏；选择文章、窄屏返回列表、搜索不存在内容显示空状态。
 - 底栏：插件菜单向上展开；Escape 关闭；草稿从目标切到信息流仍在，刷新也保留；发送后显示当前页面上下文和明确标记的脚本回复。
 - Onboarding：完整 8 步走到首页；英语/简中切换，浅深色即时变化，空项目名阻止继续，返回保留项目名/Runtime 选择，AI 和通知选项切换，密度变化，完成后进入统一底栏工作台。
-- 视口：1440×1000 桌面、实际 1422×800 浏览器、390×844 窄屏。窄屏 document 无水平溢出，main 底边与 dock 顶边衔接；引导继续按钮位于视口内。截图在 `.impeccable/review/soft-workbench/`。
+- 视口：1440×1000 桌面、实际 1422×800 浏览器、390×844 窄屏。窄屏 document 无水平溢出，main 底边与 dock 顶边衔接；引导继续按钮位于视口内。截图没有入库在这个路径（`.impeccable/review/soft-workbench/` 从未提交过）；这次改版的评审图曾在 `.impeccable/review/soft-workbench-rollout/`，2026-10-08 起不在树里，取回方法见 [REPOSITORY-HYGIENE](../../system/REPOSITORY-HYGIENE.md)。
 - 减少动态效果：模拟媒体偏好时 mini-window animationName 为 none；测试后已撤销媒体和视口模拟。
 - 浏览器最终没有 error/warn 日志。
 

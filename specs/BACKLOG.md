@@ -47,7 +47,6 @@
 | BL-021 | macOS 公开发布：是否申请 Developer ID 与公证 | [macos-desktop-release](archive/macos-desktop-release/spec.md) | 外部账号与费用 | 低 |
 | BL-022 | 多人协作项目里项目记忆的可见性；团队共享记忆 | [memory-system §3、§15](archive/memory-system/spec.md) | 等协作能力定型 | 低 |
 | BL-023 | Coding 会话的执行目录（项目偏好）与 Files/Git 浏览目录（项目设置）是否合成一个 | [coding-plugin/spec.md 第 0 节「仍未做到」](coding-plugin/spec.md) | 设计取舍 | 中 |
-| BL-024 | 侧栏界面控制与平台记忆的 Prologue 提交（`9fc3b173` 等）是否推到 prologue 远端。W1-20 的方案（#318，[dependencies-and-sdk-plan §4.1](repository-anti-corruption/dependencies-and-sdk-plan.md)）查到来源分支早已推到远端并合入（PR #3，2026-09-30），所以没有要推的了；`vendor/prologue-sdk/README.md` 里「暂未推到」的说法过期，随清理 vendored 的那一片（W1-23）改 | [vendor/prologue-sdk/README.md](../vendor/prologue-sdk/README.md)、[dependencies-and-sdk-plan](repository-anti-corruption/dependencies-and-sdk-plan.md) | 推 Prologue 上游需要用户同意 | 低 |
 
 ## 3. 助理、记忆与动态交互
 

@@ -1,0 +1,54 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "9fc3b17386419625a36359b74fb4789c17a3adc8",
+    "mergedUpstream": {
+      "branch": "main",
+      "pullRequest": 3,
+      "mergedAt": "2026-09-30T19:14:36Z",
+      "checkedHead": "4f7110fe0a07ba13fb19025ceb496016ecc0f494",
+      "checkedOn": "2026-10-08"
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz",
+    "bytes": 953138,
+    "sha256": "942de9c594d8fc0bbb81d3b36d766761427ff51c2c4cee33aab342033c85846c",
+    "integrity": "sha512-5IVD+ua8DasLpR/qfF30xAhh8s/EWORx/9V/hEDX2nc6PMiRI1jY/brw/o0EaPF8CNox15kr1fSb/wI8qXOYyw=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "git archive 9fc3b17386419625a36359b74fb4789c17a3adc8 | tar -x -C <dir>",
+      "pnpm install --frozen-lockfile --ignore-scripts",
+      "pnpm --filter @prologue/sdk build",
+      "cd packages/sdk && pnpm pack --out <absolute path>/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz"
+    ],
+    "packedOn": "2026-09-30",
+    "reproducedOn": "2026-10-08",
+    "reproducedByteIdentical": true
+  },
+  "alsoBuildableFrom": {
+    "note": "Not needed: the commit above builds the same bytes without a patch. Kept until the user confirms deleting it (specs/repository-anti-corruption/dependencies-and-sdk-plan.md section 4.2).",
+    "base": "af7375c74a2e551184c443e2a5e06e105168fed3",
+    "patch": {
+      "file": "side-panel-memory.patch",
+      "bytes": 225092,
+      "sha256": "1f64a15ce9d5d90d0f4ace90211c147efdea189d225c9236fc138438e86c7c55"
+    }
+  }
+}

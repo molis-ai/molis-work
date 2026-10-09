@@ -67,7 +67,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 - 合并前把分支同步到最新 main（spec §1，2026-10-03）。main 的分支保护（2026-10-08 用 `gh api repos/molis-ai/molis-work/branches/main/protection` 读到）：必需检查只有 `Verify`（对应 `.github/workflows/ci.yml` 的 `verify` 作业，它等 `architecture-boundaries` 和 `secret-scan` 两个作业都成功；改这个作业的名字就等于改保护规则），并且要求分支与 main 同步；必需的批准数是 0，没有开「必须由代码所有者批准」。
 - 不开合并队列，不强制评审（spec §1，2026-10-02）。`.github/CODEOWNERS` 只自动请求评审，不改分支保护；谁评审、评审哪些包见 `docs/SSOT-MATRIX.md` 的「归属」列。
 - PR 描述按 `.github/pull_request_template.md` 写，包括验证结果、基线比对、API 影响和基本合同检查。
-- 产品用例子集进 CI 的做法（用户 2026-10-08 定，spec §1「CI 产品子集是否挡合并」）：先作一个单独的作业，不挡合并，跑约两周；隔离掉不稳定的用例后并入 `Verify`，不改分支保护。怎么并入（比如让 `verify` 作业 `needs` 它）由路线图 W2-16 定。这个作业现在还没有：`ci.yml` 里只有 `architecture-boundaries`、`secret-scan` 和 `verify` 三个作业，全量产品用例在本机跑。
+- 产品用例子集进 CI 的做法（用户 2026-10-08 定，spec §1「CI 产品子集是否挡合并」）：先作一个单独的作业，不挡合并，跑约两周；隔离掉不稳定的用例后并入 `Verify`，不改分支保护。怎么并入（比如让 `verify` 作业 `needs` 它）由路线图 W2-16 定。第一步已经有了：`ci.yml` 的 `linux-probe` 作业（`continue-on-error`，不在 `verify` 的 `needs` 里）在 ubuntu 上把非浏览器用例逐个跑一遍，记下哪些通过，并给 macOS 专有和用真实模型的文件打标记（做法与产物见 [PACKAGE-BOUNDARIES.md](PACKAGE-BOUNDARIES.md)）；它的 `pass.txt` 是 W2-16 的 `tests/ci-product-subset.txt` 的底稿。`ci.yml` 现在有 `architecture-boundaries`、`secret-scan`、`linux-probe` 和 `verify` 四个作业，其中挡合并的只有前两个，经 `verify` 汇总；全量产品用例和浏览器用例仍在本机跑。
 
 ## 4. PR 体量
 
@@ -161,8 +161,8 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 ## 11. Prologue SDK 合成包
 
 - 只有 `horizontal/agent-host` 依赖 `@prologue/sdk`（`AGENTS.md` 硬约束）。包放在 `vendor/prologue-sdk/`，目录里只留当前使用的一份，最多再加一份在途分支的；换新包时删掉旧包，旧包从 Git 历史取。健康门禁数这个目录里的 `.tgz` 包数，上限是 `tooling/gates/limits.json` 的 `vendoredPrologueSdk`（现在是 2：当前一份加一份在途）。
-- 两条线要不同的 SDK 改动时，合成一个包共用，不各带一份：先落地的线在 Prologue 仓库里把几条分支合成一个分支，打一个包；后一条线在这个包的基础上重建，不另加包。`vendor/prologue-sdk/README.md` 当前一节的写法就是模板：源码分支与提交、重建步骤（检出哪个基准、应用哪个补丁、构建、`pnpm pack`）、SHA-256、验证结果。
-- 方向已定（spec §1，2026-10-08「Prologue SDK 收敛与私有包」）：把来源分支 `feat/molis-side-panel-surfaces-on-memory` 推到 Prologue 远端的特性分支，按一个合成流程、一个负责人收敛到上游基线；删掉重建用不着的历史补丁，记下 sha256 与来源；`prologue-sdk`、`adeptify intelligence-client`、`search-evidence-layer` 的 tgz 改从私有 registry 或 release 附件取，不再放进公开仓库。这些都还没做，方案由路线图 W1-20 出；做完之前上面的做法照旧。推送 Prologue 远端、删除 vendored 文件按用户当次的授权办。
+- 两条线要不同的 SDK 改动时，合成一个包共用，不各带一份：先落地的线在 Prologue 仓库里把几条分支合成一个分支，打一个包；后一条线在这个包的基础上重建，不另加包。当前包的来源记在 `vendor/prologue-sdk/<包>.provenance.json` 和 `.sha256`，`vendor/prologue-sdk/README.md` 当前一节写重建步骤（检出哪个上游提交、构建、`pnpm pack`）与验证结果；这几份的写法就是模板，`pnpm health:check` 核对它们和 tgz 相符。
+- 方向已定（spec §1，2026-10-08「Prologue SDK 收敛与私有包」）：来源分支 `feat/molis-side-panel-surfaces-on-memory` 收敛到上游基线，按一个合成流程、一个负责人；删掉重建用不着的历史补丁，记下 sha256 与来源；`prologue-sdk`、`adeptify intelligence-client`、`search-evidence-layer` 的 tgz 改从私有 registry 或 release 附件取，不再放进公开仓库。方案是 [dependencies-and-sdk-plan.md](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md)：来源分支早已作为 Prologue PR #3 合入上游 main，没有要推的东西；25 份历史补丁已删，记录在 `vendor/prologue-sdk/patch-history.json`（W1-23）；tgz 移出公开仓库（方案 §5）还没做，做完之前上面的做法照旧，删除 vendored 的 tgz 按用户当次的授权办。
 - 合成负责人：还没有指定人。上面的决定要求设一个，W1-20 出方案时提名。在那之前，谁要换包谁做，并把 README 写全；`/vendor/` 在 `.github/CODEOWNERS` 里走默认规则，只请求 @yijunw0212。指定之后，把负责人写在这一节。
 
 ## 12. 还没做、还开着
@@ -171,7 +171,7 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 - 读取兼容的合同流程：起点已定为第一个装到开发机之外的版本（用户 2026-10-08），日期到时写进 [合同变更流程](CONTRACT-CHANGES.md)；在那之前不留兼容期。
 - 挑相关用例的脚本：路线图 W2-17。
 - 测试并发隔离（每个测试文件一个 Home 和密钥库，非浏览器用例并发）：路线图 W5-12。在那之前全量约 76–78 分钟。
-- CI 里的产品用例子集、浏览器冒烟、隔离名单：路线图 W1-11、W2-16。是否挡合并已定（先不挡，约两周后并入 `Verify`，见第 3 节），作业还没有。
+- CI 里的产品用例子集、浏览器冒烟、隔离名单：非浏览器用例的 Linux 探针作业已有（路线图 W1-11，不挡合并，见第 3 节）；`tests/ci-product-subset.txt`、3–5 个浏览器冒烟、隔离名单（`tests/quarantine.json`）和并入 `Verify` 在路线图 W2-16，约两周的探针结果出来后做。
 - 远端已合入分支的清理与「合并后自动删除分支」：用户来做（见第 10 节），还没做。
 - 第 4 节的 PR 体量数字是建议；要改成门禁，先量再定。
 - 从零安装到跑起预览与测试的步骤和耗时（新成员上手）：还没写。

@@ -32,6 +32,7 @@ export const GOALS_POLICY_EN: Record<string, string> = {
   "完全继承项目": "Fully inherited from the project",
   "最终生效门槛": "Effective bar",
   "用户最终确认": "Your final confirmation",
+  "完成前必须由用户确认工作结果": "You must confirm the work result before the Goal can be completed",
   "变更说明": "Change note",
   "旧规则会标记为已替换，历史仍保留。": "The old rule is marked replaced. History is kept.",
   "项目基线已设置": "Project baseline is set",

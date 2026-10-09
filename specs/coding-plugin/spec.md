@@ -679,7 +679,7 @@
 **1. 派出子任务的标识在审查前就校验（SDK，f4420813）**
 - 原来：模型给出 `写 README/第二份` 这类派出标识，要等你批准、SDK 落盘时才以 `STORAGE_KEY_INVALID` 失败，批准白给。
 - 现在：SDK 的工具参数检查在进入审查之前就校验声明了 `idempotencyKey` 的系统工具，格式为 1–48 个字母、数字、点、短横或下划线，首字符为字母或数字。坏标识当场以 `TOOL_ARGUMENTS_INVALID` 退回，模型换一个再派，不产生审查项；工具说明写明格式。
-- vendored 包换成 `prologue-sdk-0.0.0-rc.1-dispatch-key.tgz`（累计补丁 `dispatch-key.patch`），500 个 dist 文件与源码构建逐字节相同。
+- vendored 包换成 `prologue-sdk-0.0.0-rc.1-dispatch-key.tgz`（累计补丁 `dispatch-key.patch`，2026-10-08 起只留记录，见 vendor/prologue-sdk/patch-history.json），500 个 dist 文件与源码构建逐字节相同。
 - 测试：SDK 新增 1 项定向。全量中 5 项 live 测试在满载并行时失败，单独重跑 5 个文件全部通过（58 + 11 项）。
 
 **2. 协调者自己跑命令：不拦**（你定）。不改代码；每条命令仍经宿主审查。
@@ -1169,7 +1169,7 @@
 
 方案与拍板见 [`benchmark.md`](benchmark.md) 末两节。这一期做"每一步都有负责人、看得出谁在做"和"任务图摘要"。
 
-**SDK（vendored `prologue-sdk-0.0.0-rc.1-claims.tgz`，累计补丁 [`claims.patch`](../../vendor/prologue-sdk/claims.patch)）**
+**SDK（vendored `prologue-sdk-0.0.0-rc.1-claims.tgz`，累计补丁 `claims.patch`；2026-10-08 起树里只留补丁的大小、SHA-256、git blob 与来源，见 [vendor/prologue-sdk/patch-history.json](../../vendor/prologue-sdk/patch-history.json)）**
 
 - 任务图的负责人从"只能是角色"扩成三种：角色、会话（包括子任务自己的会话）、人。
   - 只有负责人能报告这一步；报别人名下的步骤明确失败，错误里写着现在归谁。
@@ -1342,7 +1342,7 @@
 - 信封记下答复的是哪一封（`inReplyTo`，必须存在）、发信方是否在等答复（`awaitReply`）和发出时间。
 - 投递箱可以存下、重启后读回、订阅变化、按收发方列出。
 - `session-send` 工具新增 `inReplyTo` 和 `wait`。带 `wait` 时，回执让模型说清在等什么，然后结束这一轮。
-- 新测试 `delivery-durable.test.ts` 通过，原有 65 项投递测试通过。SDK 这一期**没有**重跑全量。重新打包，SHA-256 `905e3d04…`（见 vendor/prologue-sdk/README.md）。
+- 新测试 `delivery-durable.test.ts` 通过，原有 65 项投递测试通过。SDK 这一期**没有**重跑全量。重新打包，SHA-256 `905e3d04…`（当时记在 vendor/prologue-sdk/README.md 里，后来被更新的包取代，README 不再逐包记录；`git show fcb0f599:vendor/prologue-sdk/README.md` 里有全文）。
 
 **宿主**
 
@@ -1441,7 +1441,7 @@
 - 唤醒后自动继续；
 - 这一项作为第四期，原第四期顺延为第五期。
 
-**SDK**（claims.patch 累计补丁；包的 SHA-256 见 vendor/prologue-sdk/README.md）
+**SDK**（claims.patch 累计补丁；包的 SHA-256 见 vendor/prologue-sdk/patch-history.json）
 
 - `runtime.background`：后台命令登记到发起它的会话。
   - 记录跑没跑完、退出码、起止时间，并落盘。

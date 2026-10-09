@@ -1,0 +1,54 @@
+{
+  // Static checks (specs/repository-anti-corruption W1-09): the minimal rule set. tooling/gates/README.md ("Static checks")
+  // says what each rule is for and how the frozen per-file baseline works; the gate is scripts/gates/lint.mjs, run by
+  // `pnpm health:check`. Biome only lints here: no formatter and no import sorting, so nothing is ever reformatted wholesale.
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "root": true,
+  "vcs": { "enabled": false },
+  "formatter": { "enabled": false },
+  "assist": { "enabled": false },
+  "files": {
+    // Code only: the packages, the cross-package tests, the repository scripts and the examples, TypeScript and ES modules.
+    // Prototypes under docs/ and the archive under specs/ are not code that ships. scripts/gates/lint.mjs keeps the same
+    // list (LINT_ROOTS); the gate copies only tracked files of these kinds into a scratch tree before it runs Biome.
+    "includes": [
+      "apps/**/*.{ts,mts,mjs}", "horizontal/**/*.{ts,mts,mjs}", "modules/**/*.{ts,mts,mjs}", "packages/**/*.{ts,mts,mjs}",
+      "plugins/**/*.{ts,mts,mjs}", "server/**/*.{ts,mts,mjs}", "tooling/**/*.{ts,mts,mjs}", "tests/**/*.{ts,mts,mjs}",
+      "scripts/**/*.{ts,mts,mjs}", "examples/**/*.{ts,mts,mjs}",
+      "!**/*.d.ts", "!**/node_modules", "!**/dist"
+    ],
+    "maxSize": 4000000
+  },
+  // Rules that are not a Biome built-in. Each is a GritQL pattern in tooling/gates/lint/, counted by the gate like a rule.
+  "plugins": [
+    "./tooling/gates/lint/no-empty-catch.grit",
+    "./tooling/gates/lint/no-double-cast.grit"
+  ],
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "none",
+      "nursery": {
+        // A promise that is neither awaited, returned, handled with .catch/.then nor marked `void`. Biome follows the
+        // promise through imports between the files of one tree; it does not see through a package name, so a call into
+        // another workspace package is only caught when that package is also written with a relative import.
+        "noFloatingPromises": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "error",
+        // Leftover debug output. Programs whose job is to print are switched off below, by directory.
+        "noConsole": "error",
+        "noDebugger": "error"
+      }
+    }
+  },
+  // A rule is switched off for a directory only here, with the reason beside it. The gate refuses an entry that is new
+  // relative to the merge-base (scripts/gates/lint.mjs, "the rule set only gets stricter").
+  "overrides": [
+    {
+      // Command-line programs and repository scripts: printing is what they do.
+      "includes": ["scripts/**", "apps/cli/**", "apps/desktop/launchers/**", "tooling/plugin-cli/**", "server/tooling/**"],
+      "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
+    }
+  ]
+}

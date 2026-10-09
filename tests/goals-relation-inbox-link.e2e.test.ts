@@ -14,7 +14,9 @@ test("the Inbox link in the relation editor opens the Inbox plugin, not a page o
   await command("Page.bringToFront", {}, sessionId);
   await waitFor("document.querySelector('[data-goal-view]')", 15_000);
   const link = ".relation-authority a[data-work-surface-link=\"inbox\"]";
-  await waitFor(`Boolean(document.querySelector(${JSON.stringify(link)}))`);
+  // The link is in the served markup before the page's client binds its click handler; a click before that is an ordinary
+  // navigation to the front page. A person clicks a loaded page, so wait for it to be loaded and its surfaces settled.
+  await waitFor(`document.readyState === "complete" && !document.querySelector('[data-ui-client-state="loading"]') && Boolean(document.querySelector(${JSON.stringify(link)}))`, 15_000);
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(link)}).getAttribute("href")`), "/", "without the Inbox plugin the link falls back to the project's front page");
   // The click may leave the Goal's own page for the project's front page, so the page can be reloaded under the wait.
   await evaluate(`setTimeout(() => document.querySelector(${JSON.stringify(link)}).click(), 0), true`);

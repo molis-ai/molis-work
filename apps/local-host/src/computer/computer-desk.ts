@@ -23,8 +23,8 @@ import { HelperError, type HelperConnection, type HelperEvent, type HelperStatus
  * same frame its screenshot shows; the driver converts to screen points only when it hands an action to the helper.
  */
 
-/** The scope before any app is targeted: Prologue's blank surface, which no app rule matches. */
-export const NO_APP_SCOPE = "about:blank";
+/** The scope before any app is targeted: Prologue's `DESKTOP_NO_APP_SCOPE`, which no app rule matches. */
+export const NO_APP_SCOPE = "desktop:no-app";
 
 /** Moves of the person's mouse this recent make the next action wait for the mouse to settle. */
 const SETTLE_MS = 600;
@@ -58,7 +58,7 @@ interface AppState {
 interface Target { readonly bundle_id: string; readonly name: string; pid: number; readonly verdict: AppTierVerdict }
 
 class Refused extends Error implements HostSurfaceRefusalError {
-  constructor(readonly refusal: HostSurfaceRefusal, message: string) { super(message); this.name = "HostSurfaceRefused"; }
+  constructor(readonly refusal: HostSurfaceRefusal, message: string, readonly partial = false) { super(message); this.name = "HostSurfaceRefused"; }
 }
 
 export interface ComputerDeskOptions {
@@ -551,6 +551,8 @@ export class ComputerDesk {
     let state: AppState;
     try { state = await this.options.helper.call<AppState>("app.open", { bundle_id: bundleId }, 30_000); }
     catch (error) { throw this.translate(error); }
+    // Prologue judged the switch by exactly this identity: an app that answers to another one is not the app approved.
+    if (state.bundle_id !== bundleId) throw new Refused("outside-target", `打开的应用是「${state.bundle_id}」，不是要求的「${bundleId}」`);
     this.target = { bundle_id: bundleId, name: state.name || known.name, pid: state.pid, verdict };
     this.forbidCheck(state);
     this.changed();
@@ -624,7 +626,8 @@ export class ComputerDesk {
       switch (error.code) {
         case "person.present":
           this.mode = "paused"; this.pausedReason = "person-input"; this.activity = null; this.changed();
-          return new Refused("person-present", "用户动了鼠标或键盘，这一步停在半途，助理暂停；等用户交还后先重新观察。");
+          // Some of the step's events may have landed already: Prologue settles it as needing reconciliation, never replays it.
+          return new Refused("person-present", "用户动了鼠标或键盘，这一步停在半途，助理暂停；等用户交还后先重新观察。", true);
         case "landing.covered": return new Refused("outside-target", `${error.message}；不点，先重新观察。`);
         case "permission.accessibility": case "permission.screen_recording": case "helper.crashed": case "helper.timeout":
         case "helper.unsupported": case "helper.missing": case "helper.start_failed": case "helper.restarting_too_often":

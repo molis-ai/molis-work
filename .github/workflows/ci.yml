@@ -149,6 +149,13 @@ jobs:
       - name: Secret scan rules
         run: node scripts/run-tests.mjs tests/secret-scan.test.ts
 
+      # The Linux probe's own rules (the linux-probe job below only reports): browser files are left out and the rest marked
+      # darwin or live from their own source, every result is recorded as what it is, a process a test leaves behind is stopped,
+      # and a run that is cancelled or killed still leaves a report of what it had. Runs fake test files in a scratch directory;
+      # under a minute.
+      - name: Linux probe rules
+        run: node scripts/run-tests.mjs tests/ci-linux-probe.test.ts
+
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests
         run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test
@@ -197,3 +204,54 @@ jobs:
           test "$PACKAGE_BOUNDARIES_RESULT" = "success"
           test "$SECRET_SCAN_RESULT" = "success"
           echo "Package boundary, Contract, typecheck, build, action contract and secret scan verification passed."
+
+  # Decision #14 (specs/repository-anti-corruption): which test files pass on Linux is not known yet (some touch macOS-only
+  # paths: Seatbelt, Keychain, launchctl, Swift helpers), so the non-browser suite runs here as an information job and does
+  # not decide anything.
+  # It is deliberately NOT in `verify`'s needs and `continue-on-error` keeps a red run from marking the workflow red; branch
+  # protection is untouched. scripts/ci-linux-probe.mjs runs the test files one at a time (one MOLIS_WORK_HOME each, two at a
+  # time, one retry for a failure), marks each file darwin / live / browser from its own source, and leaves report.json,
+  # pass.txt and summary.md (also in this run's summary). A test file that fails is a result, not an error of the job.
+  # This workflow cancels a run when a newer push to the same pull request or to main arrives (concurrency above), and a run
+  # of about 100 minutes meets that often. The probe rewrites its three files after every file and, on the SIGINT/SIGTERM a
+  # cancel or the time limit sends, stops the running tests and writes a final partial report (unfinished files are `not-run`,
+  # `endedBy` says why); the upload step below is `if: always()`, so a cancelled run still keeps what it had.
+  # After about two weeks of runs: quarantine the flaky files, keep the passing ones as tests/ci-product-subset.txt (W2-16),
+  # then add this job to `verify`'s needs and drop `continue-on-error`.
+  linux-probe:
+    name: Linux probe (not required)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    # The probe stops starting files after 85 minutes and still writes its report; this is the hard stop around it. Reaching it
+    # cancels the job like a newer push does, and the probe writes its partial report on that signal.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # The version is the root package.json "packageManager", the pin the other jobs use.
+      - name: Install pnpm
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The tests import the built workspace packages and dist/; a full build, as `pnpm test` does before the suite.
+      - name: Build
+        run: pnpm build
+
+      # `exec` makes the probe the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
+      - name: Run the non-browser test files and record which pass
+        run: exec node scripts/ci-linux-probe.mjs --expect-platform linux --out "$RUNNER_TEMP/linux-probe" --jobs 2 --timeout-seconds 600 --retries 1 --budget-minutes 85
+
+      - name: Keep the report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-probe
+          path: ${{ runner.temp }}/linux-probe
+          retention-days: 30
+          if-no-files-found: warn

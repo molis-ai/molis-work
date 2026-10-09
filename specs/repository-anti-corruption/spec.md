@@ -685,6 +685,7 @@
 | vendored 包数量 | `vendor/prologue-sdk/*.tgz` 不超过 2 份 | #170 合入后 1 份 | 放回一份旧包 |
 | spec 状态句与根目录 | `specs/` 根目录每份都有状态句；只许在做的与现行规范 | 当前根目录 | 新建一份没有状态句的 spec |
 | 兼容逻辑不回流 | 源码不再出现 `ALTER TABLE`、`ensureSqliteColumn`、旧产品名与兼容标记（建库基线与允许名单除外） | 删兼容后为 0 | 加一处 `ALTER TABLE` |
+| 页面资源预算（§4.8，用户决定 #17） | 宿主 `apps/local-host/src/web-assets.ts` 里写成字符串字面量的每个 `/assets/` 路径（三份样式表、`molis-work-workbench.js` 与 `molis-work-capabilities.js` 两份脚本、Pages 编辑器、各插件客户端包、字体）向构建产物要内容，量发出去的字节数；预算文件（当前的与 merge-base 的）里读不到路由、宿主却还在发的路径照样量并按发现遗漏失败，所以删条目躲不掉；读不成整条字面量的写法（模板、拼接、前缀）、拿请求路径和非字面量比较、文件里除整条 `/assets/…` 字面量和插件包那一条已知正则以外还出现单词 `assets`（正则或带转义斜杠的写法：`\/assets\/`、`[\/]assets`、`(assets)`），退出 2；CI 在 `workspace:verify` 之后跑，预算文件与 merge-base 里的那份比，调大数字、加条目、删仍在发的条目都放不过；数字必须等于实测 | `tooling/gates/page-assets.json`（先冻结，只许变小；旧皮肤删完后再定真实上限） | 工作台样式表多一个字节；新增一个 `/assets/` 路由（含写成正则的，但把 `assets` 一词本身拆开的除外，见没覆盖的几项）；手改预算调大；把路由改成读不到的写法并删掉预算条目 |
 | 独立整页（artifact-positioning S7） | 除例外清单外没有路由返回完整 HTML；插件内容里不出现自带外壳；站内链接不跳出工作台 | [artifact-positioning §4](../artifact-positioning/spec.md) | 加一个返回整页的路由 |
 | 成果库声明（artifact-positioning A7） | manifest 声明与实际写入一致；可见类型必须有预览；交换数据不进用户可见列表 | 同上 | 写一个未声明的类型 |
 | 文档引用（W1-06） | 活文档（`archive/` 之外的 `.md`）没有断链（含标题锚点）；`skills/`、`AGENTS.md`、`docs/system/CALL-CHAINS.md` 引用的路径、`pnpm` 脚本与动作 id 存在；`specs/README.md` 索引与根目录分类一致；`specs/BACKLOG.md` 没有完成行 | 从 0 开始，没有基线；有意的例外在 `tooling/gates/doc-citation-exceptions.json`（带理由，不再需要就要删） | 加一处断链、引用一个不存在的 id、少列一份 spec、留一行已完成 |
@@ -698,6 +699,18 @@
 - 实例：基线若从 98984bf7 起算，#171 会被拦下。它让 `events-primary.ts`、`navigation-feed.ts`、`craft-finish.ts` 三个超长文件又变长，并新增 2 处测试内部引用。
 - 公开 API 快照（W1-04，2026-10-08，分支 `chore/gates-api-snapshot`）：contracts 的 64 个 subpath 加插件 SDK 共 65 个文件，口径和刷新命令见 `tooling/gates/README.md`；每条声明各占一段（函数的每个重载、同名的类型与常量都在），导出提到、却没有任何 subpath 导出的声明（如 `GoalWorkEventBase`）列在辅助声明里；`pnpm health:check` 比较源码与快照，`--base` 时在日志里列出相对 merge-base 的 API 变化。同一片接上了空 catch（TypeScript 代码与浏览器脚本的模板字符串各记一项）、`as unknown as`（含测试）、旧名（`goalboard`、`board_id`，只数源码）三类按文件计数（浏览器脚本一项也只数源码），口径写在 `scripts/gates/source-counts.mjs` 开头。静态检查工具（W1-09）仍待做，它接进来后替换 TypeScript 代码这部分的计数。每条新规则的突变验证是 `tests/health-gates-source-counts.test.ts`、`tests/health-gates-api-snapshot.test.ts`。
 - 文档与仓库形状门禁（W1-06，`scripts/gates/`，说明见 [scripts/gates/README.md](../../scripts/gates/README.md)）：接进 `pnpm health:check`，突变用例在 `tests/doc-reference-gates.test.ts`（CI 单独一步）。开工时门禁量到 7 处断链，已改：`plugins/native/plugin-builder/DESIGN.md` 5 处指向 S1b 已删的文件、`specs/molis-work-architecture-reorganization/f2-validation.md` 2 处指向已删的 `docs/system/MIGRATION.md`，都改成不带链接的说明；Skill `elements.md` 里的 `functions.evaluate.v1` 是故意写的反例（`.v1` 后缀是 id 的一部分、不是版本，所以是另一个 id；代码里没有它），文字不改，写进 `tooling/gates/doc-citation-exceptions.json` 并带理由。哪些顶层文件夹算文档、哪些路径写法算引用，都从 `tooling/gates/root-allowlist.json` 取（`scripts/gates/allowlist.mjs` 的 `allowedRoots`），不另存名单；名单之外的根目录条目（`outputs/`、`.zcode/`）不查链接、不读引用（W1-23 移走）；`contracts` 的 6 个占位子路径由 W2-01 删，删完这条规则就是「一个也没有」。
+- 页面资源预算（W1-07）已做：`scripts/gates/page-assets.mjs`、`pnpm page-assets:check`，CI 在 `workspace:verify` 之后一步，规则用例 `tests/page-assets-budget.test.ts`（临时仓库 + 假宿主构建 + 本仓库真构建）。冻结时（`f876a503` 上的构建）量到 29 个文件、11,481,575 字节：工作台样式表 1,946,506、设置样式表 1,341,060、开场样式表 1,022,266、工作台脚本 1,414,769、Pages 编辑器 1,051,178、21 个插件客户端包（coding、files、git、diff、text-stats 各约 498 KB，合计 3,442,954）、两个字体。这是冻结值，不是目标，现行数字以 `tooling/gates/page-assets.json` 为准：旧皮肤删完后再定真实上限（`VISUAL_FOUNDATION_STYLES` 现在把五套旧皮肤拼进每个页面）。宿主不压缩这些响应，所以量的是原始字节。评审发现的洞已补：改写路由让读源码读不到、再删预算条目，原先 `--base` 全过；现在预算里的每个路径都向构建产物要一遍（`tests/page-assets-budget.test.ts` 的「discovery」几例，在假宿主构建上走完整的基线分支流程；同一手法在本仓库构建的临时副本上，修前 `--base` 通过、修后失败），读不成整条字面量的写法（模板、拼接、前缀），以及拿请求路径和非字面量比较，都退出 2。评审补的：`\/assets\/` 不是整条 `/assets/`，原先既不计入提及次数也躲过比较检查，新增一个按这种写法的路由会通过；先补成「认 `\/assets`、`assets\/`、`[/]assets` 相邻的写法」，复审用 `[\/]assets[\/]`、`(assets)` 绕过了，所以改成按单词认：把整条 `/assets/…` 字面量和插件包那一条已知正则（`/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.js$/`，id 来自已登记的工作台包）从代码里拿掉以后，文件里不许再剩单词 `assets`（注释不算），剩下的一律退出 2，不管它是正则、带转义斜杠的字符串还是别的用法。现在 `web-assets.ts` 里恰好 9 处这个词，1 处插件包正则、8 处字面量；以后在这个文件里为别的用途写 `assets`（比如导入 `./assets.js`）也会停下来，改写或教会脚本都行。
+
+页面资源预算没覆盖的几项（脚本头部写着同一份清单）：
+
+- 只读 `apps/local-host/src/web-assets.ts`：别的宿主文件里新增的 `/assets/` 路由看不到，不管怎么写。今天只有 `serveWorkbenchAsset` 回应 `/assets/`（`web-server.ts` 把请求交给它），所以现在成立；新增这类路由要靠评审。
+- 写法既读不出（拆成两段字符串拼接、`\x2f` 或 `\u002f` 转义、运行时拼出，或把 `assets` 一词本身拆开的正则，如 `asset[s]`、`a(?:ss)ets`，这些文本里不剩单词 `assets`）、又不在任何预算里的新增路由，只能靠评审 `web-assets.ts` 的改动；已在预算里的路径不受影响，照样向构建产物要。把这一项收紧要换成真正的解析（读出所有正则字面量再逐个判断）。
+- 比较检查认标识符 `pathname`，即 `web-assets.ts` 给请求路径起的名字：参数改了名、又拿别的文件导入的常量去比，看不到；常量声明在 `web-assets.ts` 里则读得到它的字面量。
+- 把字节从被量的资源挪进页面 HTML 里内联的 `<style>`、`<script>`（`side-view-document.ts` 已经这么做）不量；首屏 HTML 的大小与首屏时间要带数据的宿主，这个门禁没量。插件客户端代码从 `/assets/molis-work-plugins/` 搬走（迁到 Plugin Runtime）时，条目随之删除是允许的，那部分重量离开这个预算，要由 Runtime 一侧另算。
+- 终端客户端 `dist/web/pty-client.js`（根 `pnpm build:pty-client` 生成，CI 不跑）。
+- 只在 macOS 上量过；输出不随语言、时区、路径变，但 Linux CI 上的第一次运行才是核对。
+
+工作流上要知道：冻结按资源、等号严格，也没有像巨大单元那样的例外文件（用户决定 #17 就是这样写的），所以合入后，任何给 `workbench.css`、`workbench.js`、`settings.css`、`arrival.css` 或某个插件包多加一个字节的在途界面 PR 都会在 CI 里红，除非它在同一个资源里省回同样多；两个 PR 都压低同一个资源时会在 `page-assets.json` 的同一行冲突，合并后要重新 `--update --base origin/main`。
 
 CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.yml`）；以上门禁都以非浏览器用例或脚本形式加到 `architecture-boundaries` 作业里，时间预算 3 分钟以内。
 

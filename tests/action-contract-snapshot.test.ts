@@ -1,30 +1,31 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir, userInfo } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
-  ACTIONS_FILE, HOST_ACTIONS_FILE, SCENES_FILE, buildAll, canonicalJson, checkActionSnapshots, schemaHash,
+  ACTIONS_FILE, HOST_ACTIONS_FILE, SCENES_FILE, buildAll, canonicalJson, checkActionSnapshots, schemaHash, updateActionSnapshots,
 } from "../scripts/gates/action-contract-snapshot.mjs";
-import { collectHostViews, loadProduct, withIsolatedHome } from "../scripts/gates/action-contract-host.mjs";
+import { assertThrowawayHome, collectHost, loadProduct, withIsolatedHome } from "../scripts/gates/action-contract-host.mjs";
 
 // specs/repository-anti-corruption §4.7 (W2-15): the callable contract of every built-in Manifest is written down in
-// tooling/gates/actions (capability@version, provider, who may call it, a hash of each schema), together with what the Host
-// registers that no Manifest declares. The Manifest layer needs no Host and is mutation-verified on copies of the real Manifests;
+// tooling/gates/actions (capability@version, provider, the provider id the Host registers it under, who may call it, a hash of each
+// schema), together with what the Host registers that no Manifest declares. The Manifest layer needs no Host and is mutation-verified on copies of the real Manifests;
 // the Host layer is mutation-verified on copies of the directory a real Host listed. Nothing here writes to the repository:
 // the committed files are only read, and the tests that need to change one work on a copy in a temporary directory.
 const root = fileURLToPath(new URL("..", import.meta.url));
 const script = path.join(root, "scripts/gates/action-contract-snapshot.mjs");
 
-interface Product { manifests: any[]; effectOf: (meta: any, id: string) => string; hostViews: any[] }
+interface Product { manifests: any[]; effectOf: (meta: any, id: string) => string; hostViews: any[]; hostScenes: any[] }
 let product: Product;
 before(async () => { product = await loadProduct(); }, { timeout: 180_000 });
 
 const copyOfManifests = () => product.manifests.map((manifest) => ({ plugin_id: manifest.plugin_id,
   actions: structuredClone(manifest.actions ?? []), action_scenes: structuredClone(manifest.action_scenes ?? []) }));
 const copyOfViews = () => structuredClone(product.hostViews);
+const copyOfScenes = () => structuredClone(product.hostScenes);
 const allActions = (manifests: any[]) => manifests.flatMap((manifest) => manifest.actions as any[]);
 const find = (actions: any[], predicate: (definition: any) => boolean, what: string) => {
   const found = actions.find(predicate);
@@ -33,8 +34,8 @@ const find = (actions: any[], predicate: (definition: any) => boolean, what: str
 };
 /** The problems the Manifest layer reports for these Manifests against the committed files. */
 const manifestProblems = (manifests: any[]) => checkActionSnapshots({ root, manifests, effectOf: product.effectOf }).problems.join("\n");
-/** The problems the whole product (Manifests and the Host's directory) reports against the committed files. */
-const productProblems = (hostViews: any[], manifests = product.manifests) => checkActionSnapshots({ root, manifests, effectOf: product.effectOf, hostViews }).problems.join("\n");
+/** The problems the whole product (Manifests and the Host's directories) reports against the committed files. */
+const productProblems = (hostViews: any[], manifests = product.manifests, hostScenes = product.hostScenes) => checkActionSnapshots({ root, manifests, effectOf: product.effectOf, hostViews, hostScenes }).problems.join("\n");
 
 const scratch: string[] = [];
 const scratchRoot = (...files: string[]) => {
@@ -47,18 +48,19 @@ after(() => { for (const dir of scratch) rmSync(dir, { recursive: true, force: t
 
 // ---- the real gate -----------------------------------------------------------------------------------------------------
 test("the committed snapshot is what the built-in Manifests and the Host's action directory generate", () => {
-  const result = checkActionSnapshots({ root, manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews });
+  const result = checkActionSnapshots({ root, manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes });
   assert.deepEqual(result.problems, [], "Refresh on purpose with `pnpm actions:update` and say in the PR what the change means for callers (docs/system/CONTRACT-CHANGES.md)");
 });
 
 test("every action and scene a built-in Manifest declares has a row, and every row has a Manifest", () => {
-  const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews });
+  const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes });
   assert.deepEqual(built.problems, []);
   const declaredActions = product.manifests.flatMap((manifest) => (manifest.actions ?? []).map((definition: any) => `${definition.capability_id}@${definition.version} ${manifest.plugin_id}`));
   assert.deepEqual(built.actions.map((row: any) => `${row.key} ${row.cells.provider}`).sort(), declaredActions.sort());
   const declaredScenes = product.manifests.flatMap((manifest) => (manifest.action_scenes ?? []).map((scene: any) => `${scene.scene_id}@${scene.version} ${manifest.plugin_id}`));
   assert.deepEqual(built.scenes.map((row: any) => `${row.key} ${row.cells.provider}`).sort(), declaredScenes.sort());
   assert.ok(declaredActions.length > 400 && declaredScenes.length >= 2, "the built-in Manifests were not read");
+  for (const row of [...built.actions, ...built.scenes]) assert.match(row.cells.registered_provider, /^[^-,\s][^,\s]*$/, `${row.key}: the provider id the Host registers it under is not recorded`);
   // The committed files are the same rows, read back from disk.
   const committed = (file: string) => readFileSync(path.join(root, file), "utf8").split("\n").filter((line) => line && !line.startsWith("#")).length - 1;
   assert.equal(committed(ACTIONS_FILE), declaredActions.length);
@@ -67,7 +69,7 @@ test("every action and scene a built-in Manifest declares has a row, and every r
 });
 
 test("the Host layer lists the providers no Manifest carries, and no Manifest provider hides in it", () => {
-  const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews });
+  const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes });
   const providers = new Set(built.host.map((row: any) => row.cells.provider));
   assert.ok([...providers].some((provider: string) => provider.startsWith("system.")), "the system.* providers are missing from the Host layer");
   assert.ok([...providers].some((provider: string) => provider.startsWith("sdk.artifacts.plugin-install-")), "the Runtime SDK services are missing from the Host layer");
@@ -290,29 +292,152 @@ test("the Host must register what each Manifest declares, and the plugin's regis
 });
 
 test("a capability a Manifest declares and a Home-level provider also registers is one Host row of its own", () => {
-  const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews });
+  const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes });
   const both = built.host.filter((row: any) => built.actions.some((declared: any) => declared.key === `${row.cells.capability_id}@${row.cells.version}`));
   assert.ok(both.length >= 1, "the Goals personal planning actions are registered under io.molis.work.goals.home as well as declared by the Goals Manifest");
   for (const row of both) assert.notEqual(row.cells.provider, built.actions.find((declared: any) => declared.key === `${row.cells.capability_id}@${row.cells.version}`).cells.provider);
 });
 
+// ---- the provider id the Host registers an action under ---------------------------------------------------------------
+// A persisted reference holds the registered provider id (workflow steps: provider_id; allowed_actions; Feed and Inbox scene
+// references), and the kernel throws actions.provider_changed when it differs. So the id is part of the contract of every action.
+const declaredKeys = (plugin: string) => new Set(product.manifests.find((manifest) => manifest.plugin_id === plugin).actions.map((definition: any) => `${definition.capability_id}@${definition.version}`));
+/** The views, with the Manifest actions of `plugin` registered by the plugin under `providerId`. */
+const registeredUnder = (views: any[], plugin: string, providerId: string) => {
+  const declared = declaredKeys(plugin);
+  return views.map((view: any) => (view.provider.plugin_id === plugin && declared.has(`${view.capability_id}@${view.version}`) ? { ...view, provider: { ...view.provider, provider_id: providerId } } : view));
+};
+const committedRegistration = (plugin: string) => {
+  const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes });
+  const ids = new Set(built.actions.filter((row: any) => row.cells.provider === plugin).map((row: any) => row.cells.registered_provider));
+  assert.equal(ids.size, 1, `${plugin} is registered under one provider id`);
+  return { id: [...ids][0] as string, count: built.actions.filter((row: any) => row.cells.provider === plugin).length };
+};
+
+test("an action the Host registers under another provider id is named, action by action: a rename, and a move between assemblies", () => {
+  // A plugin registered under its own id, renamed.
+  const todo = committedRegistration("io.molis.work.todo");
+  assert.equal(todo.id, "io.molis.work.todo");
+  const renamed = productProblems(registeredUnder(copyOfViews(), "io.molis.work.todo", "todo"));
+  assert.match(renamed, /tooling\/gates\/actions\/actions\.tsv: [\s\S]*actions registered under another provider id \(a reference that pins the old provider id meets actions\.provider_changed/);
+  assert.match(renamed, new RegExp(`${todo.count} actions registered under another provider id`));
+  for (const key of declaredKeys("io.molis.work.todo")) assert.match(renamed, new RegExp(`${key.replaceAll(".", "\\.")}: io\\.molis\\.work\\.todo -> todo\n`), `${key}: the new provider id was not named`);
+  assert.doesNotMatch(renamed, /SAME version|who may call it/, "the provider id is its own list, not a change of shape");
+  // A plugin assembled by the Runtime, registered under the id derived from its signature, moved to its own id: the direction
+  // AGENTS.md asks of the native plugins in the other way round.
+  const shelf = committedRegistration("io.molis.work.shelf");
+  assert.match(shelf.id, /^plugin-install-[0-9a-f]{32}$/);
+  const moved = productProblems(registeredUnder(copyOfViews(), "io.molis.work.shelf", "io.molis.work.shelf"));
+  assert.match(moved, new RegExp(`${shelf.count} actions registered under another provider id`));
+  assert.match(moved, new RegExp(`shelf\\.[a-z_.]+@1: ${shelf.id} -> io\\.molis\\.work\\.shelf\n`));
+  // And the other way: a native plugin that becomes a Runtime plugin keeps its plugin_id and gains a plugin-install-… id.
+  const migrated = productProblems(registeredUnder(copyOfViews(), "io.molis.work.todo", `plugin-install-${"a".repeat(32)}`));
+  assert.match(migrated, new RegExp(`${todo.count} actions registered under another provider id`));
+  assert.match(migrated, /io\.molis\.work\.todo -> plugin-install-a{32}/);
+});
+
+test("an action registered under two provider ids, or under none, or a scene likewise, is refused with its name", () => {
+  const views = copyOfViews();
+  const [target] = [...declaredKeys("io.molis.work.todo")];
+  const view = find(views, (candidate) => candidate.provider.plugin_id === "io.molis.work.todo" && `${candidate.capability_id}@${candidate.version}` === target, "a todo action");
+  views.push({ ...structuredClone(view), provider: { ...view.provider, provider_id: "io.molis.work.todo-second" } });
+  assert.match(productProblems(views), new RegExp(`${target.replaceAll(".", "\\.")}: the Host registers it under 2 provider ids \\(io\\.molis\\.work\\.todo, io\\.molis\\.work\\.todo-second\\)`));
+  const nameless = copyOfViews();
+  const unnamed = find(nameless, (candidate) => candidate.provider.plugin_id === "io.molis.work.todo", "a todo action");
+  unnamed.provider = { plugin_id: "io.molis.work.todo" } as any;
+  assert.match(productProblems(nameless), /names no provider id/);
+});
+
+test("a consumer scene is registered under a provider id too, and a change of it is named under scenes.tsv", () => {
+  const renamed = copyOfScenes().map((scene: any) => (scene.definition.scene_id === "feed.capture" ? { ...scene, provider: { ...scene.provider, provider_id: "io.molis.work.feed-two" } } : scene));
+  const problems = productProblems(copyOfViews(), product.manifests, renamed);
+  assert.match(problems, /tooling\/gates\/actions\/scenes\.tsv: [\s\S]*scene registered under another provider id/);
+  assert.match(problems, /feed\.capture@1: io\.molis\.work\.feed -> io\.molis\.work\.feed-two\n/);
+  assert.doesNotMatch(problems, /inbox\.next/, "only the scene that moved is named");
+  assert.match(productProblems(copyOfViews(), product.manifests, copyOfScenes().filter((scene: any) => scene.definition.scene_id !== "inbox.next")), /scene inbox\.next@1: io\.molis\.work\.inbox declares it but the Host registers it under no provider at all/);
+  assert.match(productProblems(copyOfViews(), product.manifests, [...copyOfScenes(), { ...copyOfScenes()[0], provider: { ...copyOfScenes()[0].provider, provider_id: "io.molis.work.feed-two" } }]), /scene feed\.capture@1: the Host registers it under 2 provider ids/);
+  assert.match(productProblems(copyOfViews(), product.manifests, []), /scene feed\.capture@1: .* no provider at all/, "a Host that lists no scene is not a pass");
+});
+
+test("a provider id edited by hand in the committed file is refused, and the writer needs the Host's directory", () => {
+  const edit = (change: (text: string) => string, hostViews = product.hostViews) => {
+    const dir = scratchRoot(ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE);
+    writeFileSync(path.join(dir, ACTIONS_FILE), change(readFileSync(path.join(dir, ACTIONS_FILE), "utf8")));
+    return checkActionSnapshots({ root: dir, manifests: product.manifests, effectOf: product.effectOf, hostViews, hostScenes: product.hostScenes }).problems.join("\n");
+  };
+  const copy = scratchRoot(ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE);
+  assert.deepEqual(checkActionSnapshots({ root: copy, manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes }).problems, [], "the copy of the committed files passes");
+  assert.match(edit((text) => text.replace(/\t(io\.molis\.work\.todo)\t(io\.molis\.work\.todo)\t/, "\t$1\ttodo\t")), /todo\.[a-z_.]+@1: todo -> io\.molis\.work\.todo\n/);
+  const dir = scratchRoot(ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE);
+  const written = updateActionSnapshots({ root: dir, manifests: product.manifests, effectOf: product.effectOf });
+  assert.match(written.problems.join("\n"), /written from the Host's directory/);
+  assert.equal(readFileSync(path.join(dir, ACTIONS_FILE), "utf8"), readFileSync(path.join(root, ACTIONS_FILE), "utf8"), "nothing is written without the Host's directory");
+});
+
 // ---- the Host runs on a throwaway Home ---------------------------------------------------------------------------------
+const ENVIRONMENT = ["HOME", "MOLIS_WORK_HOME", "MOLIS_WORK_SECRET_BACKEND", "MOLIS_WORK_ENCRYPTION_KEY"];
+/** Runs `operation` with these variables set (`undefined` removes one), and puts the environment back. */
+const withEnvironment = async (overrides: Record<string, string | undefined>, operation: () => Promise<void> | void) => {
+  const saved = Object.fromEntries(ENVIRONMENT.map((name) => [name, process.env[name]]));
+  for (const [name, value] of Object.entries(overrides)) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
+  try { await operation(); } finally { for (const name of ENVIRONMENT) { if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name]; } }
+};
+const REFUSED = /refusing to start a Host/;
+
 test("the Host half never runs against the real Home: it needs the throwaway one, and puts the environment back", async () => {
-  const names = ["HOME", "MOLIS_WORK_HOME", "MOLIS_WORK_SECRET_BACKEND", "MOLIS_WORK_ENCRYPTION_KEY"];
-  const before = Object.fromEntries(names.map((name) => [name, process.env[name]]));
-  await assert.rejects(collectHostViews(tmpdir()), /refusing to start a Host/, "the temporary directory itself is not a throwaway Home");
-  await assert.rejects(collectHostViews(path.join(tmpdir(), "action-contract-no-such-home")), /refusing to start a Host/, "a Home the environment does not point at is refused");
+  const before = Object.fromEntries(ENVIRONMENT.map((name) => [name, process.env[name]]));
+  await assert.rejects(collectHost(tmpdir()), REFUSED, "the temporary directory itself is not a throwaway Home");
+  await assert.rejects(collectHost(path.join(tmpdir(), "action-contract-no-such-home")), REFUSED, "a Home the environment does not point at is refused");
   let inside = "";
   await withIsolatedHome(async (home: string) => {
     inside = home;
     assert.equal(process.env.HOME, home);
     assert.equal(process.env.MOLIS_WORK_HOME, home);
     assert.equal(process.env.MOLIS_WORK_SECRET_BACKEND, "file");
+    assert.equal(process.env.MOLIS_WORK_ENCRYPTION_KEY, "");
     assert.ok(realpathSync(home).startsWith(realpathSync(tmpdir()) + path.sep));
-    await assert.rejects(collectHostViews(path.join(home, "other")), /refusing to start a Host/, "only the Home the environment points at is accepted");
+    await assert.rejects(collectHost(path.join(home, "other")), REFUSED, "only the Home the environment points at is accepted");
+    assert.doesNotThrow(() => assertThrowawayHome(home), "the environment withIsolatedHome sets up is the one that is accepted");
   });
   assert.ok(!existsSync(inside), "the throwaway Home is removed");
-  assert.deepEqual(Object.fromEntries(names.map((name) => [name, process.env[name]])), before, "the environment is put back");
+  assert.deepEqual(Object.fromEntries(ENVIRONMENT.map((name) => [name, process.env[name]])), before, "the environment is put back");
+});
+
+test("the Host is refused unless every part of the throwaway environment is there: Home, HOME, the file secret backend, no key", async () => {
+  await withIsolatedHome(async (home: string) => {
+    // A directory that exists, is inside the temporary directory, and that the environment does not point at.
+    const other = mkdtempSync(path.join(tmpdir(), "action-contract-other-"));
+    scratch.push(other);
+    const cases: Array<[string, Record<string, string | undefined>]> = [
+      ["MOLIS_WORK_HOME names another existing temporary directory", { MOLIS_WORK_HOME: other }],
+      ["MOLIS_WORK_HOME is not set", { MOLIS_WORK_HOME: undefined }],
+      ["HOME names another existing temporary directory", { HOME: other }],
+      ["HOME is not set", { HOME: undefined }],
+      ["the secret backend is env", { MOLIS_WORK_SECRET_BACKEND: "env" }],
+      ["the secret backend is the keychain", { MOLIS_WORK_SECRET_BACKEND: "keychain" }],
+      ["the secret backend is not set (macOS would choose the machine-wide keychain)", { MOLIS_WORK_SECRET_BACKEND: undefined }],
+      ["an encryption key is set", { MOLIS_WORK_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") }],
+    ];
+    for (const [what, overrides] of cases) {
+      await withEnvironment(overrides, async () => {
+        assert.throws(() => assertThrowawayHome(home), REFUSED, what);
+        await assert.rejects(collectHost(home), REFUSED, `${what}: the Host half starts only after the guard`);
+      });
+    }
+    // A Home outside the temporary directory is refused even when the environment names it (nothing is opened: the guard only checks).
+    // userInfo() reads the account, not $HOME, which withIsolatedHome has just changed.
+    const outsideTheTemporaryDirectory = [userInfo().homedir, root];
+    for (const outside of outsideTheTemporaryDirectory) {
+      await withEnvironment({ HOME: outside, MOLIS_WORK_HOME: outside }, () => assert.throws(() => assertThrowawayHome(outside), REFUSED, `${outside} is not inside the temporary directory`));
+    }
+    // A path inside the temporary directory that leads out of it is outside (symbolic links are followed).
+    const link = path.join(other, "leads-out");
+    symlinkSync(root, link);
+    try {
+      await withEnvironment({ HOME: link, MOLIS_WORK_HOME: link }, () => assert.throws(() => assertThrowawayHome(link), REFUSED, "a link out of the temporary directory"));
+    } finally { unlinkSync(link); }
+    assert.doesNotThrow(() => assertThrowawayHome(home), "with the environment as it was, the throwaway Home passes");
+  });
 });
 
 // ---- the command line --------------------------------------------------------------------------------------------------

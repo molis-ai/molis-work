@@ -73,6 +73,8 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
   - 一个 Home 只有一个执行进程（`agent-runtime/.molis-runtime-owner.db` 锁）；其他入口经 `LocalActionGatewayClient` 转发，连接丢失不退回本地执行。
+  - 开发者模式（`developer-mode.ts`）是 Host 进程的开关：以 `MOLIS_WORK_DEVELOPER_MODE=1` 启动才开，每次组装页面视图时读（`developer_mode`），不是用户设置、不改任何插件的行为；它只让插件列表多出目录里标了 `developer` 的条目（Text Stats）。
+  - 定时任务就绪（`scheduledTaskReadiness`，在 `schedule-task-runner.ts`）与到点的 runner 读同样两样：配置的文字模型的元数据（`configuredModelChoices`，不解密）和项目的已核对工作区；Schedule 的动作提供方把它作为 `readiness` 端口交给插件，创建任务从不等它。
   - 每个项目一条串行操作队列；等模型或外部服务的动作声明 `scheduling: "concurrent"`，例外写进 `tests/action-model-scheduling.test.ts` 的名单并说明理由。并发动作不占队列：它调用的串行动作排队等自己的轮次，只有嵌套在占着队列的调用里的调用直接在队列上运行；场景运行取触发它的调用的位置（`tests/local-host-queue-scope.test.ts`）。
   - 被取消、撤权、停用的调用不再写任何记录，包括失败记账。
   - 安装插件的 Action/定时入口通过可信 route execution 向沙箱传递当前控制；异步能力、密钥/DNS 解析与存储 CAS 后续派出或提交前复查。生成式外层动作 concurrent，串行由沙箱队列承担；未知结果不自动重放。定时调用者按数据库/项目隔离。

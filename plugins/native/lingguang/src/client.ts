@@ -1,4 +1,12 @@
-/** Lingguang workbench client: capture, list, edit, discard, contextual conversation. */
+/**
+ * Lingguang workbench client: capture, list, edit, discard, contextual conversation.
+ *
+ * Leaving a blank spark (W2-18 decision 6): `fresh` holds the sparks 「记下」 made blank, with the title the Host gave them. When the
+ * person leaves one (back to the list, another spark, another new one) it is read once more from the Host, and if that copy still
+ * has no body and the given title or none, it is thrown away with lingguang.discard, without asking. The Host's copy decides, so
+ * words that arrived from elsewhere in the meantime keep it; a spark that went into a brainstorm is in use and stays. A failed
+ * read or discard changes nothing.
+ */
 export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const workbench = document.querySelector("[data-lingguang=workbench]");
@@ -183,7 +191,21 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const preview = row.querySelector("[data-lingguang-snippet]");
     if (preview) preview.textContent = previewOf(record);
   };
+  const fresh = new Map();
+  const dropBlank = async (id) => {
+    const given = fresh.get(id);
+    if (given === undefined) return;
+    fresh.delete(id);
+    try {
+      const { spark } = await request("GET", "/api/plugins/lingguang/" + encodeURIComponent(id));
+      if ((spark.body || "").trim() || (spark.title.trim() && spark.title !== given)) return;
+      await request("POST", "/api/plugins/lingguang/discard", { ids: [id] });
+      records = records.filter((item) => item.id !== id);
+      renderList();
+    } catch { /* stays as it was */ }
+  };
   const fillEditor = (record) => {
+    const left = selected && selected.id !== record.id ? selected.id : "";
     selected = record;
     conversation = null;
     workbench.setAttribute("data-expanded", "true");
@@ -195,6 +217,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     bodyInput.value = record.body || "";
     syncTodo();
     markSelected(record.id);
+    void dropBlank(left);
   };
   const closeWorkspace = () => {
     clearTimeout(saveTimer);
@@ -419,6 +442,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const ids = selectedIds.size ? [...selectedIds] : (selected ? [selected.id] : []);
     if (!ids.length) throw new Error(L("先选至少一条"));
     await save();
+    ids.forEach((id) => fresh.delete(id));
     const payload = await request("POST", "/api/plugins/lingguang/conversations", { spark_ids: ids });
     conversation = payload.conversation;
     workbench.setAttribute("data-expanded", "true");
@@ -479,6 +503,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-lingguang-capture]")) {
         await save();
         const payload = await request("POST", "/api/plugins/lingguang", {});
+        fresh.set(payload.spark.id, payload.spark.title);
         selectedIds = new Set([payload.spark.id]);
         await loadList();
         fillEditor(payload.spark);
@@ -542,7 +567,9 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-lingguang-back]")) {
         await save();
+        const left = selected?.id;
         closeWorkspace();
+        await dropBlank(left);
         await loadList();
         return;
       }

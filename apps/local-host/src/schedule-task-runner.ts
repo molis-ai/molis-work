@@ -8,10 +8,29 @@ import {
   composeScheduledTaskPrompt,
   parseScheduledAgentReply,
   type ScheduledTaskRunner,
+  type ScheduleTaskReadiness,
 } from "@molis-ai/molis-work-plugin-schedule";
+import { configuredModelChoices } from "./configured-models.js";
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const POLL_MS = 400;
+
+/**
+ * What the runner below needs when a task is due, asked ahead of time: a configured text model, and a verified workspace bound
+ * to the project. The same facts the runner reads, from the same sources (the model catalog's metadata, never a credential; the
+ * project's workspace). Creating a task never waits on this; the dialog uses it to say what is missing.
+ */
+export async function scheduledTaskReadiness(options: {
+  homeDirectory?: string;
+  projectId: string;
+  workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
+}): Promise<ScheduleTaskReadiness> {
+  const workspace = await options.workspaceFor?.(options.projectId);
+  return {
+    model: options.homeDirectory !== undefined && configuredModelChoices(options.homeDirectory).length > 0,
+    workspace: workspace?.realpath_verified === true,
+  };
+}
 
 export function createHostScheduledTaskRunner(options: {
   agentHost: AgentHost;

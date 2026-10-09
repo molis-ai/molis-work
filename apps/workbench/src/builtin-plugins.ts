@@ -34,6 +34,14 @@ import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui"
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
 export interface PluginSearchRow { readonly selector: string; readonly idDataset: string }
+
+/**
+ * Whole-line `//` comments in a plugin's client script are notes for the people who read its source; the page does not run them.
+ * An entry that lists its script through this is sent without them (the page asset budget only shrinks, and these are the bytes
+ * that are provably dead). tests/plugin-client-served.test.ts holds the result to the same program as the source.
+ */
+const served = (script: string): string => script.replace(/^[ \t]*\/\/[^\n]*\n/gm, "");
+
 export interface BuiltinPluginWorkbench {
   /** Asset cascade/initialization order, independent of navigation order in the Manifest. */
   readonly order: number;
@@ -51,6 +59,8 @@ export interface BuiltinPluginEntry {
   readonly project_plugin_id: ProjectPluginId;
   readonly manifest: PluginManifest;
   readonly personal?: boolean;
+  /** Kept out of the plugin list (switcher and market) unless the Host is in developer mode; still installable and enabled where already added. */
+  readonly developer?: boolean;
   readonly summary?: string;
   /** Fixed model-call instructions, exported by this plugin and registered by the Host. */
   readonly instructions?: readonly InstructionPrompt[];
@@ -186,7 +196,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       order: 7,
       contributions: [scheduleUiContribution],
       stylesheet: SCHEDULE_STYLES,
-      clientFactory: SCHEDULE_CLIENT_FACTORY_SCRIPT,
+      clientFactory: served(SCHEDULE_CLIENT_FACTORY_SCRIPT),
       searchRow: { selector: "[data-schedule-row][data-schedule-task-id]", idDataset: "scheduleTaskId" },
     },
   },
@@ -225,7 +235,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       order: 13,
       contributions: [lingguangUiContribution],
       stylesheet: LINGGUANG_STYLES,
-      clientFactory: LINGGUANG_CLIENT_FACTORY_SCRIPT,
+      clientFactory: served(LINGGUANG_CLIENT_FACTORY_SCRIPT),
       searchRow: { selector: "[data-lingguang-id]", idDataset: "lingguangId" },
     },
   },
@@ -270,7 +280,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       order: 9,
       contributions: [pagesUiContribution],
       stylesheet: PAGES_STYLES,
-      clientFactory: PAGES_CLIENT_FACTORY_SCRIPT,
+      clientFactory: served(PAGES_CLIENT_FACTORY_SCRIPT),
       clientAssets: ["/assets/molis-work-pages-editor.js"],
       searchRow: { selector: "button.feed-stage-entry[data-page-id]", idDataset: "pageId" },
     },
@@ -390,6 +400,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID,
     manifest: textStatsManifest,
+    developer: true,
     workbench: { order: 24, contributions: [], clientFactory: CODING_WORKBENCH_SETUP_SCRIPT },
     summary: "统计文件快照的字数、字节与行数。",
   },

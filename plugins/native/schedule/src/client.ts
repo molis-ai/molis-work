@@ -204,6 +204,8 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     const submit = form?.querySelector("[type=submit]");
     if (submit) { submit.disabled = busy; submit.textContent = L(busy ? "正在保存…" : editingTaskId ? "保存" : "创建"); }
   };
+  const hints = workbench.querySelectorAll("[data-schedule-hint]");
+  const hint = (ready) => hints.forEach((node) => { node.hidden = !ready || ready[node.dataset.scheduleHint] !== false; });
   workbench.querySelector("[data-schedule-new]")?.addEventListener("click", () => {
     if (creating) return;
     editingTaskId = "";
@@ -213,6 +215,8 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     setCreating(false);
     showError("");
     dialog?.showModal();
+    hint();
+    fetch(route("/api/schedule/readiness"), { cache: "no-store" }).then((response) => response.json()).then(hint).catch(() => undefined);
     form?.querySelector("[name=title]")?.focus();
   });
   workbench.querySelectorAll("[data-schedule-create-close]").forEach((button) => {
@@ -300,6 +304,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (heading) heading.textContent = L("编辑定时任务");
       setCreating(false);
       showError("");
+      hint();
       dialog.showModal();
       return;
     }

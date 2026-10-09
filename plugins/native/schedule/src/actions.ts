@@ -44,10 +44,15 @@ function define<I, O>(name: string, title: string, description: string, operatio
 }
 
 export interface ScheduleTaskInput { title: string; instructions: string; time: string; notify_important?: boolean }
+/** What a due task still needs from the Host: a configured text model, and a verified workspace bound to the project. */
+export interface ScheduleTaskReadiness { model: boolean; workspace: boolean }
 export const scheduleActions = {
   list: define<Record<string, never>, { jobs: ScheduleJobView[]; tasks: ScheduleConversationTaskView[]; operations: ScheduledOperationView[] }>("tasks.list", "定时任务列表",
     "读取当前项目的每日对话任务与其他插件登记的闹钟；已归档任务不在列表中", "query", object({}),
     object({ jobs: { type: "array", items: job }, tasks: { type: "array", items: task }, operations: { type: "array", items: operationView } }), read),
+  readiness: define<Record<string, never>, ScheduleTaskReadiness>("tasks.readiness", "定时任务就绪情况",
+    "读取对话任务到点执行需要的条件：已配置的文字模型、项目绑定的工作区；缺任何一项都仍可创建任务，到点时才会叫醒失败", "query", object({}),
+    object({ model: { type: "boolean" }, workspace: { type: "boolean" } }), read),
   createTask: define<ScheduleTaskInput, { task: ScheduleConversationTaskView }>("tasks.create", "新建定时任务",
     "新建每天定时运行的对话任务并登记下一次唤醒；到点后由项目 Agent 按说明执行", "command",
     object(fields, ["title", "instructions", "time"]), object({ task }), write),
@@ -83,6 +88,8 @@ export interface ScheduleActionPorts {
   listOperations?(): ScheduledOperationView[];
   recoverOperation?(input: RecoverScheduledOperationInput): ScheduledOperationView;
   listTasks(): readonly ScheduleConversationTaskView[];
+  /** Whether the Host can run a due task right now; a Host that cannot say leaves it out. */
+  readiness?(): ScheduleTaskReadiness | Promise<ScheduleTaskReadiness>;
   createTask(input: { title: string; instructions: string; hour: number; minute: number; notify_important: boolean }): ScheduleConversationTaskView;
   updateTask(taskId: string, input: { title: string; instructions: string; hour: number; minute: number; notify_important: boolean }): ScheduleConversationTaskView;
   archiveTask(taskId: string): void;
@@ -101,6 +108,10 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
   const editable = (input: ScheduleTaskInput) => ({ title: input.title, instructions: input.instructions, ...parseClockTime(input.time), notify_important: input.notify_important !== false });
   return [
     bind(scheduleActions.list, () => ({ jobs: [...ports.listJobs()], tasks: [...ports.listTasks()], operations: ports.listOperations?.() ?? [] })),
+    bind(scheduleActions.readiness, () => {
+      if (!ports.readiness) throw new ActionError("actions.unredeemed", "当前宿主未提供定时任务就绪检查");
+      return ports.readiness();
+    }),
     bind(scheduleActions.createTask, input => ({ task: ports.createTask(editable(input)) })),
     bind(scheduleActions.updateTask, input => ({ task: ports.updateTask(input.task_id, editable(input)) })),
     bind(scheduleActions.archiveTask, input => { ports.archiveTask(input.task_id); return { archived: true as const }; }),

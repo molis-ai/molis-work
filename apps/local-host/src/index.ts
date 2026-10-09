@@ -130,10 +130,11 @@ export { createLocalHostCapsule } from "./capsule.js";
 export { attachMolisWorkPtySocket, type MolisWorkPtySocketHandlers } from "./pty-socket.js";
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
+export { developerMode } from "./developer-mode.js";
 export { rewriteNativePluginApiPath, withRewrittenPluginApi } from "./native-plugin-api.js";
 export { hostCompleteText, hostTextGeneration, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
 export { bindScheduledTaskRunner, bindScheduleDeliveryFeed, scheduleServiceFor } from "./schedule-runtime.js";
-export { createHostScheduledTaskRunner } from "./schedule-task-runner.js";
+export { createHostScheduledTaskRunner, scheduledTaskReadiness } from "./schedule-task-runner.js";
 
 export { sendLocalWebJson, readLocalWebBody, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
 export { createLocalWebAssets } from "./web-assets.js";

@@ -45,6 +45,8 @@ export const SCHEDULE_EN: Record<string, string> = {
   "选择一条定时任务": "Select a scheduled task",
   "新建定时任务": "New scheduled task",
   "到点后会在这条任务自己的对话里跑一轮，不会进现有 Coding 会话。": "When due, it runs a round in this task’s own chat, not an existing Coding session.",
+  "还没有配置文字模型：到点时 Agent 跑不起来。仍可以创建，稍后在“模型设置”里配置。": "No text model is configured, so the agent can’t run when the task is due. You can still create it and set up a model later in Model settings.",
+  "这个项目还没有绑定工作区：到点时只读 Agent 无法启动。仍可以创建，稍后再绑定。": "This project has no workspace bound, so the read-only agent can’t start when the task is due. You can still create it and bind a workspace later.",
   "标题": "Title",
   "例如：每天早上汇总未读": "e.g. Morning unread summary",
   "说明": "Instructions",

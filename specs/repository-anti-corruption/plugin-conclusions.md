@@ -2,7 +2,7 @@
 
 状态：结论（2026-10-09，main `11878059`）；本文只读代码、不改代码。26 个内置插件和 6 个官方接入逐个对着代码核过，核对用到的证据在 §0 写明，能复现的方法在 §9。
 
-任务要求：`docs/prompts/repository-anti-corruption.md` 交付第 10 项（逐插件的实现、契约、接入与体验结论），以及 `docs/prompts/repository-systematic-review.md` §6（用户任务闭环；占位与半实现；生命周期；空数据、首次使用、无模型；横向比较；组合场景；平台接点）。路线上的位置见 [roadmap-2026-10-07.md](roadmap-2026-10-07.md) 的 W2-18 与「覆盖缺口」；进度与决定在 [spec.md](spec.md)。同一片的另外两份产出：[AI 入口清单](ai-entry-inventory.md)、[前端动线走查](frontend-flow-walk.md)（截图编号写作「截图 NN」，指那份文档里的图）。包级的结构审查（职责、变化原因、放错位置）是 §4.4 的另一片（W1-18 后续），不在这里。
+任务要求：`docs/prompts/repository-anti-corruption.md` 交付第 10 项（逐插件的实现、契约、接入与体验结论），以及 `docs/prompts/repository-systematic-review.md` §6（用户任务闭环；占位与半实现；生命周期；空数据、首次使用、无模型；横向比较；组合场景；平台接点）。路线上的位置见 [roadmap-2026-10-07.md](roadmap-2026-10-07.md) 的 W2-18 与「覆盖缺口」；进度与决定在 [spec.md](spec.md)。同一片的另外两份产出：[AI 入口清单](ai-entry-inventory.md)、[前端动线走查](frontend-flow-walk.md)（截图编号写作「截图 NN」，指那份文档里的图）。包级的结构审查（职责、变化原因、放错位置）是 §4.4 的另一片（W1-18 后续），不在这里。**§6 的十条检查并没有全部逐插件做完**：哪些做了、哪些只做了一部分、哪些没做，逐条列在 §0.1；没做的写在 §8「没有核的」，并交给 [spec.md](spec.md) §10 的遗留。
 
 ## 0. 怎么读
 
@@ -18,6 +18,8 @@
 
 结论词三个：**通**（我核到的路径都对）、**部分**（主路径对，有已列出的缺口）、**缺**（用户会卡住）。
 
+**一行的「结论」怎么从五格滚上来**（§1 总表最后一栏）：五格都是「通」才记「通」；有任何一格是「部分」或「缺」，记「部分」；只有「闭环」这一格是「缺」（主任务做不下去）才记「缺」。别的维度的「缺」只记为该格的缺口，行结论仍是「部分」，因为「缺」的定义是用户会卡住，而不是某个维度有缺口。「部分」有两种来源，都不记「通」：已确认的缺口（带 E-、K- 编号），和没有核到的路径（§4 里标 [未验证]：Goals 的空项目、Cognia 与图片到 Pages 的衔接），因为「通」要求这个维度的路径都核过。结论栏括号里是非「通」的格数，方便看出是一处小缺口还是多处。
+
 **证据**五种，写在每格或每节的末尾：
 
 - **P 目录探针**：在隔离的临时 Home 里开一个项目、加上全部项目插件，用 `MolisWorkLocalHost.inspectActions` 读动作目录（方法见 §9）。动作数、受众、权限、可用性、接点都出自它。
@@ -30,40 +32,59 @@
 
 **范围与分类。** 26 个内置插件按装配方式分：构建期装配 19（Goals、Sessions、Inbox、Schedule、Feed、Artifacts、Cognia、Plugin Builder、Images、Jelly、Experiments、灵光、Todo、Pages、Form、Dataset、PPT、炼金术士、工作流程），Plugin Runtime 监督器启动 7（Characters、Shelf、Coding、Files、Git、Diff、Text Stats）。范围分项目级 11（可以按项目加入或移出：Goals、Sessions、Inbox、Schedule、Feed、Artifacts、Coding、Files、Git、Diff、Text Stats）和个人级 15（对每个项目常驻，只能「隐藏」，见 §2 的 K-1）。数字取自 `scripts/gates/package-inventory.mjs` 同一份证据，与 [spec.md](spec.md) §5.1 一致。
 
+### 0.1 对照任务书 §6 的十条检查
+
+`docs/prompts/repository-systematic-review.md` §6 对每个插件列了十条检查。本文的五个维度只对应其中几条，其余的在平台层、别的文档里做，或者没做。「做了」是逐插件有结论；「部分」是只在平台层或抽样做过；下表最后一栏写缺什么、归谁。
+
+| # | §6 的检查 | 程度 | 在哪里，缺什么 |
+| --- | --- | --- | --- |
+| 1 | 用户任务是否形成完整闭环 | 做了 | 「闭环」列、§4 各节、§7 的 11 个组合场景 |
+| 2 | 有无占位、半实现、不可达或失效的功能 | 做了大半 | 「占位」列（标记搜索、读码、目录探针），找到 E-3、E-7、E-8、E-11、E-13 与 [AI 清单](ai-entry-inventory.md) TX-7。「不可达」只是读码时顺带发现的，没有对整个目录（537 个动作）逐个找生产调用方 → §8 |
+| 3 | 注册、协议、事件和对外入口是否落实 | 部分 | §6 的接点矩阵（13 个接点 × 26 个插件，P）。事件只核了首页事件与到点提醒两列；协议字段的一致性要靠 W2-15 的动作合同快照门禁，截至 main `11878059` 还没有合入 |
+| 4 | 输入、输出、持久化和产物是否一致 | 部分 | 537 个动作都有输出合同（[AI 清单](ai-entry-inventory.md) §6）；文档族的合同面一致（H-1）；产物在插件之间怎么流转见 §7 的 S1 至 S3、S5、S6；E-4 是一处不一致。处理器的实际返回是否都符合它的输出合同，没有逐个核 → §8 |
+| 5 | 是否越过领域 owner 或依赖其他插件的内部实现 | 做了 | 本表下面「第 5 条的实测」 |
+| 6 | 是否重复已有能力，或遗漏应共享的技术能力 | 部分 | 横向比较 H-1 至 H-7、AI 清单 §2 与 §4（约 17 个宿主绑定文件各写一份「拿模型」的几行，已有 W3-06、W5-11 收敛）。没有逐个插件去找「自己又写了一遍的工具函数」→ §8 |
+| 7 | 安装、初始化、配置变化、升级、禁用、卸载 | 做了大半 | 「生命周期」列；§7 的 S10、S11；内置插件随宿主升级（spec §1 的 10-04 与 10-08 两条，#337）、生成插件的停用与升级用例（`tests/plugin-lifecycle-states.test.ts`，本片跑过）。「配置变化」只在模型或连接变了的路径上核过（AI 清单 §5 的 `actions.configuration_changed`），别的配置（项目绑定、工作目录）没有逐插件核 → §8 |
+| 8 | 权限撤销、失败、取消、并发和恢复 | 部分 | 平台层有证据：S10（移除插件后动作变 `actions.plugin_disabled`）、K-1（个人插件移除无效）；AI 清单 §1 第 3 项与 §5（等模型的动作并发调度、`beforeEffect`、取消与撤权后不写记录，有门禁测试）；§6 的「取消或停止」列；spec §11 的逻辑复查（15 组，14 组的修复已合 main，另一组按「不留兼容」不修）。**逐插件的专项审查没做**：§11 按 8 个区查过（含「个人插件」「Coding/创作台/炼金术士」两区），但只记录了有成立条目的 15 组，没有条目的插件无法从记录判断是「查过没发现」还是「没查到」；§11 的表里没有点名的有 Sessions、Schedule、图片、Shelf、Characters、实验、炼金术士、Coding、Files、Git、Diff、Text Stats、插件创作台。W2-19 只做安全不变量的拒绝用例，不替代它 → §8，未排片 |
+| 9 | 空数据、首次使用、依赖缺失、无模型 | 做了 | 「空、首次、无模型」列；[frontend-flow-walk.md](frontend-flow-walk.md) §3 的逐页表。有模型的路径没核（§8） |
+| 10 | 测试是否覆盖真实行为 | 部分 | 只核了两件事：README 点名的 167 条引用的文件都存在，以及跑了两批共 28 个文件、全绿（§8）。每条断言是否对应预期行为没有逐个读，那是 `repository-systematic-review.md` §12「测试与预期对齐」的内容，[spec.md](spec.md) §9.2 记着「系统性审查待做」，路线里没有片承接 → §8，未排片 |
+
+**第 5 条的实测**（本轮补做）：（a）26 个插件的源码和 `package.json`：没有一处引用另一个插件的包名、`plugins/native/<别的插件>` 路径，或越出自己目录的相对路径，也没有声明对另一个插件的依赖（扫 `from`、`import()`、`require()` 与三类依赖声明，0 命中，方法见 §9）；插件引用的工作区包只有 5 个：contracts（26 个插件都引）、design-system（18）、storage（11，全部用在自己的 `store.ts` 与 `project-data.ts` 里）、plugin-sdk（2：炼金术士、图片）、module-shelf（1：Shelf 引自己的模块）；Coding 与 Files、Git、Diff、Text Stats 的嵌入关系是 Manifest 里的声明（`embedded_plugins`），不是代码引用。（b）`pnpm boundary:check` 通过（71 个包、1,815 个源文件、7,467 条导入、0 个错误），CI 里跑。（c）宿主这一侧是另一回事：19 个构建期插件由宿主手工装配，宿主直接引用它们的实现（`<插件>-native-plugin-http.ts`、`builtin-plugins.ts`、`project-host.ts` 的 `registerProvider`），名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts`、只许减少，迁移从 W4-04 起。（d）数据层面跨 owner 的直接 SQL 有 4 处，都在宿主里，不在插件里（`docs/system/HOME-DATA.md` §4.5，W2-06 去掉）。（e）功能层面越过 owner 的是 E-15：Feed 的升格端口直接写 Goals 的数据，绕过 Goals 的启用检查。[已确认]
+
 ## 1. 总表
 
 行按族排：目标与工作、写与做、个人、研究、编码与工作区、平台。「§4.n」指向下面逐插件的证据。
 
 | 插件（目录） | 闭环 | 占位与半实现 | 生命周期 | 空、首次、无模型 | 组合 | 结论 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Goals（`goals`） | 通 | 通 | 通 | 部分：画布有空状态，空项目没走查 | 通 | 通 §4.1 |
-| Sessions（`work`） | 部分：看 Runtime 能力 | 通 | **缺：删项目留下 Session 记录** | 部分：空状态只有一行字 | 通 | 部分 §4.2 |
+| Goals（`goals`） | 通 | 通 | 通 | 部分：画布有空状态，空项目没走查 | 通 | 部分（1 格）§4.1 |
+| Sessions（`work`） | 部分：看 Runtime 能力 | 通 | **缺：删项目留下 Session 记录** | 部分：空状态只有一行字 | 通 | 部分（3 格）§4.2 |
 | Inbox（`inbox`） | 通 | 通 | 通 | 通 | 通 | 通 §4.3 |
-| Feed（`feed`） | 通 | 部分：示例项目里有一整套「演示」前端 | 部分：Goals 停用后升格仍写（E-15） | 通 | 通 | 部分 §4.4 |
-| Schedule（`schedule`） | 部分：只能按钟点跑，没有「立即跑一次」 | 通 | 部分：服务不在就不响（BL-030） | 部分：创建时不查模型与工作区 | 部分：只读 Agent，到点才暴露缺什么 | 部分 §4.5 |
+| Feed（`feed`） | 通 | 部分：示例项目里有一整套「演示」前端 | 部分：Goals 停用后升格仍写（E-15） | 通 | 通 | 部分（2 格）§4.4 |
+| Schedule（`schedule`） | 部分：只能按钟点跑，没有「立即跑一次」 | 通 | 部分：服务不在就不响（BL-030） | 部分：创建时不查模型与工作区 | 部分：只读 Agent，到点才暴露缺什么 | 部分（4 格）§4.5 |
 | 工作流程（`workflows`） | 通 | 通 | 通 | 通：无模型时在衔接处写明 | 通：它就是组合器 | 通 §4.6 |
-| Pages（`pages`） | 通 | 部分：`stub` 死字段与「未接模型」残留 | 通 | 通：写作命令灰着并写原因 | 通 | 通 §4.7 |
-| Form（`form`） | 通 | 通 | 通 | 通 | 部分：与数据表的衔接靠导出再粘贴 | 通 §4.8 |
-| Dataset（`dataset`） | 通 | 通 | 通 | 通 | 部分：同上 | 通 §4.9 |
+| Pages（`pages`） | 通 | 部分：`stub` 死字段与「未接模型」残留 | 通 | 通：写作命令灰着并写原因 | 通 | 部分（1 格）§4.7 |
+| Form（`form`） | 通 | 通 | 通 | 通 | 部分：与数据表的衔接靠导出再粘贴 | 部分（1 格）§4.8 |
+| Dataset（`dataset`） | 通 | 通 | 通 | 通 | 部分：同上 | 部分（1 格）§4.9 |
 | PPT（`ppt`） | 通 | 通 | 通 | 通 | 通：可从 Pages 文稿出大纲 | 通 §4.10 |
-| 成果（`artifacts`） | 通 | 通 | 通 | 部分：空列表缺使用说明；搜索摘要露出内部 id | 通 | 部分 §4.11 |
-| 图片（`images`） | 部分：真实厂商没测；生成的图不进成果库 | 通 | 通 | 通：先连接服务有引导 | 部分 | 部分 §4.12 |
+| 成果（`artifacts`） | 通 | 通 | 通 | 部分：空列表缺使用说明；搜索摘要露出内部 id | 通 | 部分（1 格）§4.11 |
+| 图片（`images`） | 部分：真实厂商没测；生成的图不进成果库 | 通 | 通 | 通：先连接服务有引导 | 部分 | 部分（2 格）§4.12 |
 | 灵光（`lingguang`） | 通 | 通 | 通 | 通 | 通：转文档、Jelly、Goal、待办 | 通 §4.13 |
 | 待办（`todo`） | 通 | 通 | 通 | 通 | 通 | 通 §4.14 |
-| Jelly（`jelly`） | 通 | 通 | 通：个人库、不按项目分区 | 通：拆解有手工路径 | 部分 | 通 §4.15 |
-| Cognia（`cognia`） | 通 | 通 | 通 | 通：横幅 + 打开模型设置 | 部分 | 通 §4.16 |
-| Shelf（`shelf`） | 通 | 部分：兼容入口 `shelf.jobs.run`、首次自动放示例 | 通 | 通：`shelf.no_model` | 通：材料交给 Coding | 部分 §4.17 |
-| Characters（`characters`） | 通 | 通 | 部分：要并进宿主设置（决定 #26） | 通 | 部分 | 部分 §4.18 |
-| 实验（`experiments`） | 部分：本地 grok/laya 要自己配 | 通 | 部分：库没有版本，卸载不清 | 通 | 缺：没有别的插件消费它的结果（个人研究工具，按设计） | 部分 §4.19 |
-| 炼金术士（`alchemist`） | 通 | 部分：死的测试用运行时放在 `src`、README 数字过期 | 通 | 部分：失败后卡片露出原码 | 部分 | 部分 §4.20 |
+| Jelly（`jelly`） | 通 | 通 | 通：个人库、不按项目分区 | 通：拆解有手工路径 | 部分 | 部分（1 格）§4.15 |
+| Cognia（`cognia`） | 通 | 通 | 通 | 通：横幅 + 打开模型设置 | 部分 | 部分（1 格）§4.16 |
+| Shelf（`shelf`） | 通 | 部分：兼容入口 `shelf.jobs.run`、首次自动放示例 | 通 | 通：`shelf.no_model` | 通：材料交给 Coding | 部分（1 格）§4.17 |
+| Characters（`characters`） | 通 | 通 | 部分：要并进宿主设置（决定 #26） | 通 | 部分 | 部分（2 格）§4.18 |
+| 实验（`experiments`） | 部分：本地 grok/laya 要自己配 | 通 | 部分：库没有版本，卸载不清 | 通 | 缺：没有别的插件消费它的结果（个人研究工具，按设计） | 部分（3 格）§4.19 |
+| 炼金术士（`alchemist`） | 通 | 部分：死的测试用运行时放在 `src`、README 数字过期 | 通 | 部分：失败后卡片露出原码 | 部分 | 部分（3 格）§4.20 |
 | Coding（`coding`） | 通 | 通 | 通 | 通 | 通 | 通 §4.21 |
 | Files（`files`） | 通 | 通 | 通 | 通：说明要绑定工作区 | 通 | 通 §4.22 |
 | Git（`git`） | 通 | 通 | 通 | 通 | 通 | 通 §4.23 |
 | Diff（`diff`） | 通 | 通 | 通 | 通 | 通 | 通 §4.24 |
-| Text Stats（`text-stats`） | 通 | 部分：它是平台的最小参考插件，却在用户的插件列表里 | 通 | 通 | 通 | 部分 §4.25 |
-| 插件创作台（`plugin-builder`） | 通 | 通 | 通 | 通：选模型与打开设置都在顶栏 | 缺：目录里没有任何动作，助理、MCP、工作流用不了 | 部分 §4.26 |
+| Text Stats（`text-stats`） | 通 | 部分：它是平台的最小参考插件，却在用户的插件列表里 | 通 | 通 | 通 | 部分（1 格）§4.25 |
+| 插件创作台（`plugin-builder`） | 通 | 通 | 通 | 通：选模型与打开设置都在顶栏 | 缺：目录里没有任何动作，助理、MCP、工作流用不了 | 部分（1 格）§4.26 |
 
-数字：结论列通 15、部分 11，没有「缺」；单个维度里的「缺」有 3 处（Sessions 的生命周期、实验与插件创作台的组合），原因都在 §2；E-1 至 E-16 共 16 条新发现。
+数字：26 行里，结论为「通」9、「部分」17、「缺」0。五格全通的 9 个是 Inbox、工作流程、PPT、灵光、待办、Coding、Files、Git、Diff。17 个「部分」里只有 1 格非「通」的 10 个（Goals、Pages、Form、Dataset、成果、Jelly、Cognia、Shelf、Text Stats、插件创作台），其余 7 个有 2 至 4 格（Sessions、Feed、Schedule、图片、Characters、实验、炼金术士）。按格数：130 格里「通」101、「部分」26、「缺」3（Sessions 的生命周期、实验与插件创作台的组合，原因都在 §2）。「缺」都不在「闭环」格，所以没有一个插件的结论是「缺」；E-1 至 E-16 共 16 条新发现。
 
 ## 2. 本片新发现
 
@@ -71,24 +92,24 @@
 
 | # | 严重度 | 发现 | 证据 | 去向 |
 | --- | --- | --- | --- | --- |
-| E-1 | 中 | **删除项目不清 Sessions 记录。** 项目的 Session 登记在 Home 的 `sessions/sessions.db`，项目删除的登记表（`apps/local-host/src/project-deleted-owners.ts` 的 `homeProjectOwners`，探针取到的 owner 为 pages、form、dataset、ppt、workflows、todo、functions、lingguang、images、alchemist、plugin-builder、assistant、memory、search）里没有它 | P：建项目、`registry.createSession({ project_id })`、`catalog.deleteProject(...)`，`cleanup_state: "complete"`，之后 `registry.list({ project_id })` 仍返回 1 条 | 给 Sessions 加 `project_data` 声明（`plugins/native/work`，和 Todo 的 `project-data.ts` 同形）并补 `tests/project-deletion-owners.test.ts` 一例；属 W2-07（项目删除统一）的收尾 |
-| E-2 | 中 | **Characters 的草稿写入没有权限声明，且对助理、MCP、工作流开放。** `characters.create`、`characters.update`、`characters.state` 的 `permissions` 是空数组、受众是 `SHARED`（用户、工作流、助理、MCP）；角色决定将来 Agent 的工具范围与提示词 | R：`plugins/native/characters/src/actions.ts` 第 34–38 行；P：这三个动作在 agent 与 mcp 受众的目录里都出现 | 加 `characters:write`，或把受众收到仅用户；Characters 本来要并进宿主设置（决定 #26），可以随那一片做，但不要等太久 |
+| E-1 | 中 | **删除项目不清 Sessions 记录。** 项目的 Session 登记在 Home 的 `sessions/sessions.db`，项目删除的登记表（`apps/local-host/src/project-deleted-owners.ts` 的 `homeProjectOwners`，探针取到的 owner 为 pages、form、dataset、ppt、workflows、todo、functions、lingguang、images、alchemist、plugin-builder、assistant、memory、search）里没有它 | P：建项目、`registry.createSession({ project_id })`、`catalog.deleteProject(...)`，`cleanup_state: "complete"`，之后 `registry.list({ project_id })` 仍返回 1 条 | 给 Sessions 加 `project_data` 声明（`plugins/native/work`，和 Todo 的 `project-data.ts` 同形）并补 `tests/project-deletion-owners.test.ts` 一例；属 W2-07（项目删除统一）的收尾。**不需要新决定**：2026-10-07 已定「各主人一起删、可重试」（[spec.md](spec.md) §1），这条是它漏掉的一个主人；修好后，真实 Home 里以前删项目留下的 Sessions 记录（若有）按 10-08 已定的做法在下一次维护里先列后删，本片没有读真实 Home，不知道有没有 |
+| E-2 | 中 | **Characters 的草稿写入没有权限声明，且对助理、MCP、工作流开放。** `characters.create`、`characters.update`、`characters.state` 的 `permissions` 是空数组、受众是 `SHARED`（用户、工作流、助理、MCP）；角色决定将来 Agent 的工具范围与提示词 | R：`plugins/native/characters/src/actions.ts` 第 34–38 行；P：这三个动作在 agent 与 mcp 受众的目录里都出现 | 加 `characters:write`，或把受众收到仅用户；Characters 本来要并进宿主设置（决定 #26），可以随那一片做，但不要等太久。**W2-18 待决 8**（[spec.md](spec.md) §1）：受众收到仅用户（推荐），还是加 `characters:write` |
 | E-3 | 低 | **Feed 在示例项目里带一整套「演示」前端。** 示例项目的 Feed 没有消息时，客户端凭空补出三条消息（「GitHub · adeptify」「Gmail · product@adeptify.ai」「RSS · Latent Space」）和对应来源，按钮只改页面状态、「拉取」是 `setTimeout` 模拟；还有一整条 prototype 详情渲染 | R：`apps/workbench/src/feed-projection-ui.ts:37-40`、`:118`、`:122-197`、`:319-371`；`apps/workbench/src/scripts/client/events-primary.ts:497-632`；`plugins/native/feed/src/ui.ts` 的 `renderPrototypeFeedDetail`（`:370`）与 `renderPrototypeSourceDetail`（`:578`）；U：把示例项目 Feed 的消息清掉后出现（截图 23） | 删掉，示例项目的内容由种子写成真实的 Feed 行（现在 `demo-seed` 已经写了真实消息与来源）；属 W2-02 死代码批；页面资源预算会因此下降 |
 | E-4 | 低 | **成果的搜索摘要露出内部 id。** 搜索条目的摘要把成果载荷里所有字符串拼起来，没有字段白名单，第一个字符串是文档 id | R：`plugins/native/artifacts/src/actions.ts:43-49`（`payloadText`）、`:155`；U：搜「周报」，成果那条摘要是「…8a4cf60-5069-4cf5-aab8-a313f6f607ae 周报草稿」（截图 13）。同类已登记：BL-096（Feed 摘要露出内部值） | 只取标题、正文、文件名这类声明过的字段；顺带让「搜内部 id 能搜到成果」这件事消失 |
 | E-5 | 低 | **成果空列表缺使用说明。** 说明文字写在详情区的空状态里（`browser-ui.ts` 的 `detail()`），而主区的空列表只渲染一行「还没有成果」（`browser-ui.ts:46`），所以用户看到的是一行字和「导入」按钮 | R；U：截图 06 | 把 `detail()` 里那句话挪进列表的空状态，用和别的插件一样的 `mw-empty` 块 |
 | E-6 | 低 | **Sessions 空状态只有一行字**：「这个项目还没有 Session」，没有图标、没有说明、没有主操作（主操作在右上角） | U：截图 05；对比 Feed、Pages、Schedule、Workflows 的空状态都是图标 + 标题 + 说明 + 主操作 | 同上，用共用的空状态块 |
 | E-7 | 低 | **炼金术士无模型时的卡片露出内部名与原码**：「失败 / Prologue · 等待执行」「……可重新炼化。RUNTIME_NOT_CONFIGURED」。同一页的讨论区里另有一条写得好的提示和「打开模型设置」。另外 README 写「Studio 的 41 项业务」，目录里是 54 个动作；`studio/server/runtime/fixture-research-runtime.ts` 里有个只被插件测试引用的 `FixtureResearchRuntimeAdapter`（会生成 `fixture://research/…` 的假证据），而生产代码从同一个文件导入端口类型 | U：截图 18；P：alchemist 54；R：`plugins/native/alchemist/README.md:21`、`fixture-research-runtime.ts:30` 与 `research-runtime-selector.ts:3` | 卡片只显示「还没有可用模型」一条并带按钮；把端口类型挪到 `host-port.ts` 一类的文件，测试用的假运行时移进 `tests/`；README 改数字。无模型的可用性声明见 [AI 入口清单](ai-entry-inventory.md) §7 第 4 项 |
 | E-8 | 低 | **Pages 的 `stub` 死字段与「未接模型」残留**（`pages.ai` 的输出合同写死 `stub: false`，编辑器与 `actionItemsFromText` 里还有占位文稿时代的分支） | R：`plugins/native/pages/src/actions.ts:107`、`ai.ts:77`、`:85-86`、`editor-browser.ts:3333` | 同 [AI 入口清单](ai-entry-inventory.md) §7 第 3 项；输出合同变了要刷新 API 快照 |
-| E-9 | 低 | **Pages「新建文档」立刻落库一条空的「未命名文档」，退出不清理**：点完马上返回，列表里留下这一条，刷新后还在 | U：Pages 点「新建文档」后立刻返回、再刷新，列表里仍有「未命名文档」（截图 11 的左栏也能看到留下的那一条）；灵光点「记下第一条灵光」也立刻出现「未命名灵光」，离开时是否丢弃没有验证 [未验证] | 产品行为，先问；我倾向「内容为空就在离开时丢弃」，`pages.discard` 已经有 |
+| E-9 | 低 | **Pages「新建文档」立刻落库一条空的「未命名文档」，退出不清理**：点完马上返回，列表里留下这一条，刷新后还在 | U：Pages 点「新建文档」后立刻返回、再刷新，列表里仍有「未命名文档」（截图 11 的左栏也能看到留下的那一条）；灵光点「记下第一条灵光」也立刻出现「未命名灵光」，离开时是否丢弃没有验证 [未验证] | 产品行为，先问；我倾向「内容为空就在离开时丢弃」，`pages.discard` 已经有。**W2-18 待决 6**（[spec.md](spec.md) §1） |
 | E-10 | 低 | **Pages 灰色命令的标签被挤成逐字换行**（「解/释」「提出反/例」「读者视/角」），因为原因文字占掉了标签列的宽度 | U：截图 11 | 样式调整，标签不换行或原因放到第二行 |
 | E-11 | 低 | **Shelf 的兼容入口 `shelf.jobs.run` 没有任何内置调用方**：界面走 `jobs.extract` 与 `jobs.generate`（`plugins/native/shelf/src/route-handlers.ts:90`），只有测试调用；声明写着「兼容入口」「旧调用兼容」，成本是 `unknown`，AI 分支的 `model:invoke` 只在处理器里查、没写进它的声明权限 | R：`plugins/native/shelf/src/actions.ts:79`、`:165-176`；T：`tests/shelf-ai-host.test.ts:137-143` | 删掉（不留兼容，合同变了要刷新快照）；这是兼容标记门禁里该减的一处 |
-| E-12 | 低 | **Shelf 首次打开自动放一份「试用示例.pdf」**（`modules/shelf/src/store.ts` 的 `ensureSample`，只放一次，可删除） | R；U：截图里 Shelf 一打开就有一份材料 | 产品行为，保留也可以；只是和「不生成演示数据」的口径要写明是有意的 |
-| E-13 | 低 | **Text Stats 是平台的最小参考插件，却出现在用户的插件列表里**（「更多」一栏） | R：`plugins/native/text-stats/README.md`（「The smallest complete Plugin in the system … keep the platform honest」）；U：截图 03、30 | 产品行为，先问：保留作示例、隐藏进开发者模式，或删 |
+| E-12 | 低 | **Shelf 首次打开自动放一份「试用示例.pdf」**（`modules/shelf/src/store.ts` 的 `ensureSample`，只放一次，可删除） | R；U：截图里 Shelf 一打开就有一份材料 | 产品行为，保留也可以；只是和「不生成演示数据」的口径要写明是有意的。**W2-18 待决 12**（[spec.md](spec.md) §1） |
+| E-13 | 低 | **Text Stats 是平台的最小参考插件，却出现在用户的插件列表里**（「更多」一栏） | R：`plugins/native/text-stats/README.md`（「The smallest complete Plugin in the system … keep the platform honest」）；U：截图 03、30 | 产品行为，先问：保留作示例、隐藏进开发者模式，或删。**W2-18 待决 5**（[spec.md](spec.md) §1） |
 | E-14 | 低 | **Diff 与 Text Stats 的页面版式偏离 DESIGN.md 的「插件舞台」**：内容从窗口边缘约 46px 起、全宽，页头与说明贴左，空状态是一行小字，而不是「居中最宽 960px、页头在左、操作在右、空状态用 `mw-empty`」（`DESIGN.md` Layout 的 Plugin stage 与 Toasts, alerts and empty states 两节）。别的插件页都是后者 | U：截图 30、31（对照 24、25、27） | 按插件舞台的版式重做这两页的 UI 贡献，样式不新写 |
-| E-15 | 中 | **Goals 从项目里移除后，Feed 的「升格为 Goal」仍然成功并写进 Goals 的数据。** `feed.items.promote` 的可用性只看宿主有没有给它 `promote` 端口（`enabled = !!ports.promote`），不看 Goals 在这个项目里是否启用；Goals 自己的动作全部是 `actions.plugin_disabled`，所以这条 Goal 用户看不见，加回 Goals 才出现 | P：同一个临时项目，加入全部项目插件、造一条 Feed 消息，移除 Goals 后目录里 `feed.items.promote` 仍 `available: true`，调用返回成功；同一时刻 `goals.list` 报 `actions.plugin_disabled`（移除 Goals 时目录里变化的非 Goals 动作只有 `feed.goals.context` 一个）；R：`plugins/native/feed/src/item-actions.ts:46`、`:86-90`（`promote` 端口，`bind(…, !!ports.promote)`） | 让这个动作的可用性与 `offers` 里的「升格为 Goal」都跟 Goals 的项目启用状态走（和 `feed.goals.context` 一样），或把升格改成经 Goals 动作写；属 W2-08（Goals 无生产调用方的桥删除）要一起看的那一类宿主端口 |
-| E-16 | 中 | **炼金术士的市场脉搏自带三个公开来源，其中 GitHub 的令牌直接读环境变量 `GITHUB_TOKEN`。** `createLocalRuntime` 在没有指定 `pulseSourceMode: "fixture"` 时（宿主从不指定，只有测试指定）建 Toolify、观猹、GitHub 三个来源，GitHub 来源的第二个参数是 `process.env.GITHUB_TOKEN`；它不经连接器，也不是 Settings 里的密钥引用，所以开发机或服务环境里碰巧有这个变量，令牌就会被带到 `api.github.com` 的搜索请求里，用户在界面上看不到、也关不掉。出站范围本身是收紧的（固定主机名单、跳转复验、12 秒、8,000,000 字节上限，但上限是读完整个响应后才检查），README 也写了这三个来源；问题只在令牌的读法和这条出站没有登记进统一的出站清单 | R：`plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts:118-130`、`sources/http-source-client.ts:30-60`（`SafePublicHttpClient`）、`sources/github-source.ts`；`apps/local-host/src/alchemist-service-host.ts:14,50`（`pulseSourceMode` 只透传）；`git grep -n pulseSourceMode` 的非测试命中只有这两处；对照：官方 GitHub 接入的令牌来自 Settings 绑定（`plugins/official-integrations/github/src/provider.ts:136-155` 的 `resolveToken()`，没绑定时提示去设置里绑定） | 建议：脉搏的 GitHub 来源改用连接器的密钥引用（没绑定就不带令牌，GitHub 搜索匿名也能用，只是限额低），删掉 `process.env.GITHUB_TOKEN`；三个来源的主机登记进 AI 清单 SE-3 并让界面写明「市场脉搏会访问 Toolify、观猹、GitHub」。改动小，但属于插件行为与密钥口径，先问；我倾向这样做 |
-| K-1 | 中 | **个人插件在项目里「移除」只是隐藏，动作仍可用**：插件选择器里 13 个个人插件有「移除」按钮；逐个移除（含选择器里没有的 Characters 与插件创作台，共 15 个）后，目录里它们的动作一个都没有变成不可用；助理与 MCP 仍然调得到 | P：逐个移除后「无可用性变化」；R：`apps/local-host/src/project-action-availability.ts` 只处理非个人插件。已登记：BL-088（用户 2026-10-01 已定「停用」，高优先级、未做） | 按 BL-088 做 |
-| K-2 | 低 | **Schedule 创建时不查模型与工作区**：Prologue 与已绑定的工作区在到点才查，缺了就「叫醒失败」 | R：`apps/local-host/src/schedule-task-runner.ts:33`、`:38`；U：截图 17（创建成功、已启用、下次 09:00） | 见 [AI 入口清单](ai-entry-inventory.md) §7 第 5 项，先问 |
+| E-15 | 中 | **Goals 从项目里移除后，Feed 的「升格为 Goal」仍然成功并写进 Goals 的数据。** `feed.items.promote` 的可用性只看宿主有没有给它 `promote` 端口（`enabled = !!ports.promote`），不看 Goals 在这个项目里是否启用；Goals 自己的动作全部是 `actions.plugin_disabled`，所以这条 Goal 用户看不见，加回 Goals 才出现 | P：同一个临时项目，加入全部项目插件、造一条 Feed 消息，移除 Goals 后目录里 `feed.items.promote` 仍 `available: true`，调用返回成功；同一时刻 `goals.list` 报 `actions.plugin_disabled`（移除 Goals 时目录里变化的非 Goals 动作只有 `feed.goals.context` 一个）；R：`plugins/native/feed/src/item-actions.ts:46`、`:86-90`（`promote` 端口，`bind(…, !!ports.promote)`） | 让这个动作的可用性与 `offers` 里的「升格为 Goal」都跟 Goals 的项目启用状态走（和 `feed.goals.context` 一样），或把升格改成经 Goals 动作写；属 W2-08（Goals 无生产调用方的桥删除）要一起看的那一类宿主端口。**W2-18 待决 9**（[spec.md](spec.md) §1）：改成经 Goals 的动作写（推荐，与 N-12 同向）还是只让可用性跟 Goals 走 |
+| E-16 | 中 | **炼金术士的市场脉搏自带三个公开来源，其中 GitHub 的令牌直接读环境变量 `GITHUB_TOKEN`。** `createLocalRuntime` 在没有指定 `pulseSourceMode: "fixture"` 时（宿主从不指定，只有测试指定）建 Toolify、观猹、GitHub 三个来源，GitHub 来源的第二个参数是 `process.env.GITHUB_TOKEN`；它不经连接器，也不是 Settings 里的密钥引用，所以开发机或服务环境里碰巧有这个变量，令牌就会被带到 `api.github.com` 的搜索请求里，用户在界面上看不到、也关不掉。出站范围本身是收紧的（固定主机名单、跳转复验、12 秒、8,000,000 字节上限，但上限是读完整个响应后才检查），README 也写了这三个来源；问题只在令牌的读法，和这条出站在产品里没有登记、界面也没告诉用户（本片已把它登记进 [AI 清单](ai-entry-inventory.md) §3.10 第 7 类） | R：`plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts:118-130`、`sources/http-source-client.ts:30-60`（`SafePublicHttpClient`）、`sources/github-source.ts`；`apps/local-host/src/alchemist-service-host.ts:14,50`（`pulseSourceMode` 只透传）；`git grep -n pulseSourceMode` 的非测试命中只有这两处；对照：官方 GitHub 接入的令牌来自 Settings 绑定（`plugins/official-integrations/github/src/provider.ts:136-155` 的 `resolveToken()`，没绑定时提示去设置里绑定） | 建议：脉搏的 GitHub 来源改用连接器的密钥引用（没绑定就不带令牌，GitHub 搜索匿名也能用，只是限额低），删掉 `process.env.GITHUB_TOKEN`；三个来源的主机已登记在 AI 清单 SE-3 与 §3.10 第 7 类，再让界面写明「市场脉搏会访问 Toolify、观猹、GitHub」。改动小，但属于插件行为与密钥口径，先问；我倾向这样做。**W2-18 待决 7**（[spec.md](spec.md) §1） |
+| K-1 | 中 | **个人插件在项目里「移除」只是隐藏，动作仍可用**：插件选择器里 13 个个人插件有「移除」按钮；逐个移除（含选择器里没有的 Characters 与插件创作台，共 15 个）后，目录里它们的动作一个都没有变成不可用；助理与 MCP 仍然调得到 | P：逐个移除后「无可用性变化」；R：`apps/local-host/src/project-action-availability.ts` 只处理非个人插件。已登记：BL-088（用户 2026-10-01 已定「停用」，高优先级、未做） | 按 BL-088 做。行为用户早已定，**W2-18 待决 13** 只问排期（[spec.md](spec.md) §1） |
+| K-2 | 低 | **Schedule 创建时不查模型与工作区**：Prologue 与已绑定的工作区在到点才查，缺了就「叫醒失败」 | R：`apps/local-host/src/schedule-task-runner.ts:33`、`:38`；U：截图 17（创建成功、已启用、下次 09:00） | 见 [AI 入口清单](ai-entry-inventory.md) §7 第 5 项，先问。**W2-18 待决 3**（[spec.md](spec.md) §1） |
 | K-3 | 低 | **插件创作台在 Dock 里显示内部 id `plugin-builder`**，插件列表里却是「插件创作工作台」 | U：打开创作台后底栏左下角写 `plugin-builder`（截图 29），插件列表里是「插件创作工作台」（截图 03）。已登记：BL-114 | 按 BL-114 |
 | K-4 | 低 | **Schedule 与定时只在服务进程活着时运行**；Todo 提醒在关闭期间也不送达 | R；已登记：BL-030 | 按 BL-030 |
 
@@ -424,6 +445,7 @@
   - 浏览器 5 个文件：`attention-journey.e2e`、`artifact-walkthrough.e2e`、`lingguang-one-place.e2e`、`contextual-interaction.e2e`、`cross-plugin-recovery.e2e`：**12 个用例全部通过、0 失败**（耗时 206 秒，机器负载很高）：成果库 1440 与 390 两个宽度、Kanban 滚轮、框架选择器、情境动作 1440 与 390 加两个边界例（拒绝的结果不写入、改过的范围拒绝）、P2 搜索调色板、Characters 升级后打开且不丢草稿、Shelf 离开前保存最后一次输入、Schedule 草稿稳定且只打开一次、灵光读入文件变成灵光再变成 Jelly 笔记并在 Jelly 里打开。
 - **探针**（P）跑了七种：模型动作清单、无模型的可用性、移除插件的可用性变化、Runtime 插件的嵌入关系、项目删除后的孤儿数据、平台接点、工具描述质量；方法在 §9，结果数字都写在上面各处。本片没有改任何代码，也没有碰真实 Home。
 - **界面走查**（U）见 [frontend-flow-walk.md](frontend-flow-walk.md)：隔离的临时 Home、无头 Chrome、1440 宽，26 个插件页面逐个打开（全部加载成功、没有脚本错误、没有横向溢出），关键路径手动操作，窄屏 390 宽看 8 个页面。
+- **任务书 §6 里只做了一部分或没做的检查**（对照表见 §0.1，路线里没有片承接，已列进 [spec.md](spec.md) §10「第 2 波产出」的遗留）：（a）对整个动作目录（537 个）逐个找生产调用方，找「不可达或失效」的入口；（b）处理器的实际返回与它的输出合同逐个比对；（c）模型与连接之外的配置变化（项目绑定、工作目录）对每个插件的影响；（d）逐插件的失败、取消、并发、恢复审查（§0.1 第 8 条列出的 13 个插件）；（e）测试断言是否对应预期行为（`repository-systematic-review.md` §12）；（f）逐个插件找重复实现的技术能力（§0.1 第 6 条）。
 - **没有核的**：Goals 空项目的呈现；Form 与 Dataset 的真实填写与导入；Shelf 的 AI 配方在真模型下；真实厂商的图片生成；Coding 在真实仓库上的一轮；所有「有模型」的路径（没有可用的模型凭据，也不动真实 Home）；`placement` 库里按项目分区的标题缓存在项目删除后是否残留（它的表 `placement_titles` 没有项目列，只有 kind 与 id，读码没有发现项目删除的清理钩子，我没有造数据验证）。
 
 ## 9. 复现方法
@@ -432,4 +454,32 @@
 - **移除插件的影响**：同一个夹具里 `catalog.removeProjectPlugin({ project_id, plugin_id, actor_id })`，每一步前把所有项目插件加回，再读目录，比较「新变为不可用」的数目；个人插件用 `PERSONAL_PLUGIN_IDS` 同样操作。
 - **项目删除的孤儿**：同一个 Home 里先写数据（`openWorkSessionRegistry(...).createSession({ project_id })`），再 `catalog.deleteProject({ project_id, actor_id, delete_confirmed: true, idempotency_key })`，最后读登记簿；`projectDeletedHooksFor(home).owners()` 给出 owner 清单。
 - **界面走查**：`tests/fixtures/goal-browser.ts` 的 `openGoalBrowser(t, "seeded")`（项目插件全加上、种子目标）与 `openGoalBrowser(t, true)`（示例项目），用其中的 `command`、`evaluate`、`click` 开页面、点按钮、截图；每步截图后读 DOM 文字。夹具自己起 Chrome（`MOLIS_WORK_TEST_CHROME` 或 `/Applications/Google Chrome.app`）和临时 Home，不碰真实 Home。
+- **插件之间没有引用**（§0.1 第 5 条）：在仓库根目录运行下面的脚本（`python3 -I`），干净时只打印 `scanned 26 plugins`。它查三样：导入另一个插件的包名、相对路径越出自己目录进了别的插件、`package.json` 里声明了对另一个插件的依赖。验证过它抓得到：临时放一个 `import x from '@molis-ai/molis-work-plugin-pages'` 或 `import y from '../../pages/src/ai.js'` 的文件，它各报一行，删掉后恢复为空。速查可以用 `git grep -noE "@molis-ai/molis-work-plugin-[a-z-]+|plugins/native/[a-z-]+" -- 'plugins/native/*/src' 'plugins/native/*/package.json' ':!**/*.md'`，去掉每个插件指向自己的之后只剩三行（炼金术士与图片对 SDK 包 `molis-work-plugin-sdk` 的依赖，和创作台自己的包名 `molis-work-plugin-builder`）。引用了哪些工作区包：把每个插件 `src` 里 `@molis-ai/` 开头的导入按包名数一遍（contracts 26、design-system 18、storage 11、plugin-sdk 2、module-shelf 1）。边界门禁：`pnpm boundary:check`。
+
+```python
+import json, os, re
+root = "plugins/native"
+names = {d: json.load(open(f"{root}/{d}/package.json"))["name"] for d in sorted(os.listdir(root)) if os.path.isdir(f"{root}/{d}")}
+other = {v: k for k, v in names.items()}
+spec = re.compile(r'''(?:from\s+|import\s*\(\s*|import\s+|require\(\s*)["']([^"']+)["']''')
+for me in names:
+    base = f"{root}/{me}"
+    for dp, _, fs in os.walk(base):
+        if "node_modules" in dp or "/dist" in dp: continue
+        for f in fs:
+            if not f.endswith((".ts", ".tsx", ".mts", ".js", ".mjs")): continue
+            for m in spec.finditer(open(os.path.join(dp, f), encoding="utf8", errors="ignore").read()):
+                s = m.group(1)
+                hit = next((o for pkg, o in other.items() if (s == pkg or s.startswith(pkg + "/")) and o != me), None)
+                if s.startswith("."):
+                    t = os.path.normpath(os.path.join(dp, s))
+                    if t.startswith(root + "/") and not t.startswith(base + "/"): hit = t
+                if hit: print(me, "->", hit, s)
+    deps = json.load(open(f"{base}/package.json"))
+    for key in ("dependencies", "devDependencies", "peerDependencies"):
+        for d in deps.get(key, {}):
+            if d in other and other[d] != me: print(me, "declares", d)
+print("scanned", len(names), "plugins")
+```
+
 - **README 必跑测试都在**：`bash -c 'for p in plugins/native/*; do grep -m1 "改动后必跑" $p/README.md | grep -o "tests/[A-Za-z0-9._/-]*\.test\.ts" | sort -u | while read f; do [ -f "$f" ] || echo "missing $f"; done; done'`（注意 zsh 下 for 里的未加引号变量不会分词，要用 bash）。

@@ -96,7 +96,9 @@ export class PluginHostExecutor implements PluginExecutor {
       disposeArtifacts = artifactService.dispose;
       // What the Plugin's own actions cannot work without (`required_actions`) is Host actions it also lists under
       // `capabilities.consumes`. The kernel checks those dependencies for the caller of each own action, so the caller
-      // must be able to see them; being seen is not being callable, which the client below decides.
+      // must be able to see them (`allowed_actions`); being seen is not being callable: the kernel asks
+      // `validate_authority` only about the action that is invoked, and for the Plugin's own client that is always one
+      // of its own actions.
       const consumed = new Set(manifest.capabilities.consumes);
       const required = (manifest.actions ?? []).flatMap(action => action.action.required_actions ?? [])
         .map(reference => ({ capability_id: reference.capability_id, version: reference.version, provider_id: reference.provider_id ?? HOST_PROVIDER_ID }));
@@ -110,10 +112,7 @@ export class PluginHostExecutor implements PluginExecutor {
           validate_authority: reference => {
             if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开");
             const action = manifest.actions?.find(item => sameAction(item, reference));
-            if (!action) {
-              if (required.some(item => sameAction(item, reference))) return;
-              throw new ActionError("actions.forbidden", "插件未声明提供此动作");
-            }
+            if (!action) throw new ActionError("actions.forbidden", "插件未声明提供此动作");
             for (const permission of action.action.permissions) context.requireGrant(permission);
           },
         };
@@ -134,8 +133,10 @@ export class PluginHostExecutor implements PluginExecutor {
           },
         };
       };
-      const ownActions = manifest.actions?.length ? bindActionClient(this.options.actions.client, actionCaller) : undefined;
-      const actions: BoundActionClient | undefined = ownActions && {
+      // The client exists when the Plugin has actions of its own or lists anything under `consumes`: a Plugin with no
+      // action of its own still reaches a Host action it consumes. Without either there is nothing to call.
+      const ownActions = bindActionClient(this.options.actions.client, actionCaller);
+      const actions: BoundActionClient | undefined = !manifest.actions?.length && consumed.size === 0 ? undefined : {
         discover: async () => (await ownActions.discover()).filter(view => view.provider.provider_id === context.install_id),
         invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => {
           if ((manifest.actions ?? []).some(action => sameAction(action, definition))) return ownActions.invoke(definition, input);

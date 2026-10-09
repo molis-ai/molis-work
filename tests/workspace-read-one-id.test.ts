@@ -45,19 +45,19 @@ test("a Runtime plugin reaches a Host action only when its Manifest consumes it:
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", artifacts, processItems,
     ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { actions });
   const contexts = new Map<string, PluginStartContext>();
-  const pluginFor = (name: string, consumes: string[]): PluginDefinition => {
+  const pluginFor = (name: string, consumes: string[], ownAction = true): PluginDefinition => {
     const own: ActionDefinition = { capability_id: `${name}.list`, version: 1, operation: "query", action: { title: name, description: "Lists through the workspace read", kind: "query", scope: "project",
       audiences: ["user"], permissions: ["workspace:read"], subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "object" },
       required_actions: [{ capability_id: readFile.capability_id, version: readFile.version }] } };
     return { manifest: { schema_version: 2, host_api_version: 2, plugin_id: `io.molis.work.example.${name}`, version: "1.0.0", name, kind: "app",
         publisher: { publisher_id: "example", signature: `example-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
         permissions: [{ permission: "workspace:read", required: false, reason: "Reads the linked folder" }], capabilities: { provides: [], consumes },
-        artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [own], routes: [] },
-      async start(context) { contexts.set(name, context); return { kind: "app", actions: [{ ...own, handle: () => ({}) }], routes: [] }; } };
+        artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: ownAction ? [own] : [], routes: [] },
+      async start(context) { contexts.set(name, context); return { kind: "app", actions: ownAction ? [{ ...own, handle: () => ({}) }] : [], routes: [] }; } };
   };
   try {
-    const start = async (name: string, consumes: string[], grants: string[]) => {
-      const installed = runtime.install({ definition: pluginFor(name, consumes), deployment: "local", grants }).install;
+    const start = async (name: string, consumes: string[], grants: string[], ownAction = true) => {
+      const installed = runtime.install({ definition: pluginFor(name, consumes, ownAction), deployment: "local", grants }).install;
       await runtime.start(installed.install_id);
       return installed;
     };
@@ -101,6 +101,21 @@ test("a Runtime plugin reaches a Host action only when its Manifest consumes it:
     await runtime.stop(reader.install_id);
     await assert.rejects(client.invoke(readFile, query), { code: "actions.forbidden" });
     assert.equal(reads.host, 1);
+
+    // The client does not depend on having an action of one's own: a plugin that only consumes the Host action reaches it,
+    // sees no action in its directory, and reaches nothing else. A plugin that lists nothing under consumes and has no action
+    // has no client at all.
+    await start("viewer", [readFile.capability_id], ["workspace:read"], false);
+    const viewer = contexts.get("viewer")!.services!.actions!;
+    assert.deepEqual(await viewer.invoke(readFile, query), { outcome: "directory", entries: [], truncated: false });
+    assert.equal(reads.host, 2);
+    assert.equal(seen[1]!.host_plugin?.plugin_id, "io.molis.work.example.viewer");
+    assert.deepEqual(await viewer.discover(), []);
+    await assert.rejects(viewer.invoke(other, {}), { code: "actions.forbidden" }, "another plugin's action is not consumed here");
+    await assert.rejects(viewer.invoke(readGit, { workspace_id: "w", kind: "status" }), { code: "actions.forbidden" }, "the other read is not listed either");
+    assert.equal(reads.host, 2);
+    await start("quiet", [], ["workspace:read"], false);
+    assert.equal(contexts.get("quiet")!.services!.actions, undefined);
     void silent;
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
@@ -123,8 +138,9 @@ test("one read action serves everyone: the whole file is for plugins, and a call
     const client = host.actionClient(reference);
     const text = { workspace_id: workspace.workspace_id, path: ["chart.png"] };
 
-    // The whole file is for a plugin's preview: the person, the Agent, workflows and MCP clients are refused, even holding the permission.
-    for (const audience of ["user", "agent", "workflow", "mcp"] as const) {
+    // The whole file is for the preview of a plugin the Host runs: the person, the Agent, workflows, MCP clients and a plugin that
+    // calls as the plugin audience without the Host's identity for it (a generated plugin) are refused, even holding the permission.
+    for (const audience of ["user", "agent", "workflow", "mcp", "plugin"] as const) {
       await assert.rejects(client.invoke(person(["workspace:read"], audience), readFile, { ...text, kind: "bytes" }), { code: "actions.forbidden" }, audience);
       assert.equal((await client.invoke(person(["workspace:read"], audience), readFile, { ...text, kind: "text" }) as { outcome: string }).outcome, "binary", audience);
     }

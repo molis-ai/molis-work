@@ -6,7 +6,12 @@ import type { ActionDefinition, ActionMetadata } from "../platform/actions.js";
 export interface WorkspaceFileQuery {
   workspace_id: string;
   path: readonly string[];
-  /** `bytes` reads a file as it is (an image, a PDF) for a preview, up to `WORKSPACE_BYTES_LIMIT`; the Host refuses it to every caller but a plugin. */
+  /**
+   * `bytes` reads a file as it is (an image, a PDF) for a preview, up to `WORKSPACE_BYTES_LIMIT`. The Host refuses it unless
+   * the call carries the identity of a plugin the Host runs (`ActionCallContext.host_plugin`, set only for a Manifest's
+   * `capabilities.consumes` through `services.actions`): the person, the Agent, workflows, MCP clients and a generated
+   * (sandbox) plugin, which calls as the plugin audience without that identity, are all refused.
+   */
   kind: "directory" | "text" | "bytes";
 }
 /** The most a `bytes` read returns: the side panel's preview limit. */
@@ -753,9 +758,9 @@ const workspaceRead = (title: string, description: string, input: Record<string,
 });
 export const workspaceReadActions = {
   file: { capability_id: "projects.workspace.files.read", version: 1, operation: "query",
-    action: workspaceRead("读取项目目录文件", "按路径列出当前项目已关联工作目录中的条目，或读取一个文本文件；只读，路径相对于工作目录。bytes（整份文件，供图片、PDF 预览）只有插件可用，其他调用方会被拒绝",
+    action: workspaceRead("读取项目目录文件", "按路径列出当前项目已关联工作目录中的条目，或读取一个文本文件；只读，路径相对于工作目录。kind 为 bytes（整份文件，供图片、PDF 预览）时，只有宿主运行的、在 Manifest 的 capabilities.consumes 里列出本动作并持有 workspace:read 的插件能用；其他调用方（用户、内置 Agent、工作流、MCP 客户端、生成的沙箱插件）用 bytes 会被拒绝（actions.forbidden），请读目录或文本",
       { workspace_id: { type: "string", minLength: 1, title: "工作目录" }, path: { type: "array", items: { type: "string", minLength: 1 }, maxItems: 256, title: "路径" },
-        kind: { enum: ["directory", "text", "bytes"], title: "读取目录、文本或整份文件（仅插件）" } }, ["workspace_id", "path", "kind"]),
+        kind: { enum: ["directory", "text", "bytes"], title: "读取目录、文本，或整份文件（bytes，仅限宿主运行的插件）" } }, ["workspace_id", "path", "kind"]),
   } as ActionDefinition<WorkspaceFileQuery, WorkspaceFileResult>,
   git: { capability_id: "projects.workspace.git.inspect", version: 1, operation: "query",
     action: workspaceRead("读取项目仓库状态", "读取当前项目已关联工作目录的 Git 状态、摘要、差异或冲突文件；只读，不改变仓库",

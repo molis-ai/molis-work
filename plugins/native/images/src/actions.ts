@@ -22,7 +22,7 @@ export const imagesActions={
   saveConnection:define<ImageConnectionInput,{connection:ImageConnection}>("connections.save","保存生图服务","保存协议、地址、模型及已有系统连接引用；API Key 在服务连接中管理","command","home",object({id,name:id,api_format:format,base_url:id,model:id,auth_connection_id:text},["name","api_format","base_url","model"]),object({connection}),["images:connections:write"]),
   deleteConnection:define<{id:string},{deleted:true}>("connections.delete","删除生图服务","删除生图配置及其绑定，保留生成历史和图片","command","home",object({id}),object({deleted:{const:true}}),["images:connections:write"]),
   list:define<Record<string,never>,{jobs:ImageJob[]}>("jobs.list","生成记录","读取当前项目的生成状态、提示和图片记录","query","project",object({}),object({jobs:array(job)}),["images:read"]),
-  get:define<{id:string},{job:ImageJob}>("jobs.get","读取生成任务","按任务 ID 读取当前状态，不重新调用厂商","query","project",object({id}),changed,["images:read"]),
+  get:define<{id:string},{job:ImageJob}>("jobs.get","读取生图任务","按任务 ID 读取当前状态，不重新调用厂商","query","project",object({id}),changed,["images:read"]),
   start:define<ImageGenerateInput,{job:ImageJob}>("jobs.start","生成图片","启动持久任务并返回 running；request_id 去重同次提交，后续查询任务。HTTP 断开不自动取消","command","project",object({request_id:{...id,maxLength:128},connection_id:id,prompt:{...id,maxLength:32000},size:text,aspect_ratio:text},["request_id","connection_id","prompt"]),changed,["images:generate"],{cost:"metered"}),
   cancel:define<{id:string},{job:ImageJob}>("jobs.cancel","停止本机等待","停止当前项目任务等待；厂商可能仍在生成或计费，不会自动重新生成","command","project",object({id}),changed,["images:generate"]),
   delete:define<{id:string},{deleted:true}>("jobs.delete","删除生成记录","删除终态任务及本机图片文件；运行中需先取消","command","project",object({id}),object({deleted:{const:true}}),["images:delete"]),

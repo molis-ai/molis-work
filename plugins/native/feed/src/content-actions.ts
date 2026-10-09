@@ -15,7 +15,7 @@ export const feedSourceSubjectAction = defineSubjectContextAction("feed.source.s
  * and only this owner decrypts them on request, so they never enter the plain-text index.
  */
 export const feedSearchEntriesAction = defineSearchEntriesAction("feed.search.entries",
-  [{ kind: "feed_item", title: "Feed 材料", surface: "feed" }, { kind: "source", title: "来源", surface: "feed" }], "Feed", ["feed:read"]);
+  [{ kind: "feed_item", title: "Feed 材料", surface: "feed" }, { kind: "source", title: "来源", surface: "feed" }], "Feed 材料与来源", ["feed:read"]);
 
 export function createFeedContentHandlers(feed: FeedApplication, board: string, hydrate: (item: FeedItemRecord) => FeedItemRecord, readSubject?: (subject: ActionSubject, caller: ActionCallContext) => Promise<ActionSubjectContext>) {
   return [createFeedHomeEventsHandler(feed, board, hydrate, readSubject), feedArtifactPreviewHandler, ...bindWorkflowContentHandlers(feedContentActions, {

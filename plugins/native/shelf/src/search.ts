@@ -7,7 +7,7 @@ import type { ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf
  * clipboard action, so it is its own source open to `user` only: no Agent, workflow or external client finds it.
  */
 export const shelfSearchEntriesAction = defineSearchEntriesAction("shelf.search.entries",
-  [{ kind: "shelf_item", title: "置物架材料", surface: "shelf" }], "置物架", ["shelf:read"], "home");
+  [{ kind: "shelf_item", title: "置物架材料", surface: "shelf" }], "置物架材料", ["shelf:read"], "home");
 export const shelfClipboardSearchEntriesAction = defineSearchEntriesAction("shelf.clipboard.search.entries",
   [{ kind: "shelf_clip", title: "剪贴板", surface: "shelf" }], "剪贴板", ["shelf:read"], "home", ["user"]);
 

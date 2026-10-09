@@ -16,8 +16,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const remindersBox = $("[data-todo-reminders]");
   const note = $("[data-todo-note]");
   const noteText = $("[data-todo-note-text]");
-  const undoButton = $("[data-todo-undo]");
-  const viewButton = $("[data-todo-note-view]");
+  const undoButton = $("[data-todo-undo]"), viewButton = $("[data-todo-note-view]");
   const quick = $("[data-todo-quick]");
   const quickInput = $("[data-todo-quick-input]");
   const quickParts = $("[data-todo-quick-parts]");
@@ -70,8 +69,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   let backlinks = [];
   let linkPool = [];
   const picked = new Set();
-  let undo = null;
-  let noteView = null;
+  let undo = null, noteView = null;
   let noteTimer = 0;
   let saveTimer = 0;
   let saving = null;
@@ -104,20 +102,10 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (method === "POST" && path.indexOf("/api/todo") === 0) (payload.item ? [payload.item] : payload.items || []).forEach((item) => { if (item && item.id) tellAssistant("change", item); });
     return payload;
   };
-  // On a narrow screen the strip of views scrolls: the chosen one is never left half out of it.
-  const markView = (button) => {
-    const on = button.dataset.todoView === view;
-    button.classList.toggle("is-current", on);
-    button.setAttribute("aria-pressed", String(on));
-    if (on && !button.hidden) button.scrollIntoView({ inline: "nearest", block: "nearest" });
-  };
-  const batchOf = (id) => batches.find((entry) => entry.candidates.some((candidate) => candidate.candidate_id === id));
-  const candidateIn = (batch, id) => batch.candidates.find((candidate) => candidate.candidate_id === id);
-  const watchWorks = () => {
-    const asked = selected;
-    watchWorksUntil = Date.now() + 60000;
-    setTimeout(() => { if (selected && selected.id === asked.id) void loadWorks(asked); }, 1500);
-  };
+  const markView = (button) => { const on = button.dataset.todoView === view; button.classList.toggle("is-current", on); button.setAttribute("aria-pressed", String(on));
+    if (on && !button.hidden) button.scrollIntoView({ inline: "nearest", block: "nearest" }); }; // a narrow strip scrolls: the chosen view is never left half out of it
+  const batchOf = (id) => batches.find((entry) => entry.candidates.some((candidate) => candidate.candidate_id === id)), candidateIn = (batch, id) => batch.candidates.find((candidate) => candidate.candidate_id === id);
+  const watchWorks = () => { const asked = selected; watchWorksUntil = Date.now() + 60000; setTimeout(() => { if (selected && selected.id === asked.id) void loadWorks(asked); }, 1500); };
   const todoPath = (id, tail = "") => "/api/todo/" + encodeURIComponent(id) + tail;
   const post = (item, tail, body) => request("POST", todoPath(item.id, tail), { ...body, expected_revision: item.revision });
   const undoOf = (payload) => payload.change_id ? { change_id: payload.change_id } : null;
@@ -188,8 +176,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     note.classList.toggle("is-error", Boolean(options.error));
     undo = options.undo || null;
     undoButton.hidden = !undo;
-    noteView = options.view || null;
-    viewButton.hidden = !noteView;
+    noteView = options.view || null; viewButton.hidden = !noteView;
     if (text && !options.error) noteTimer = setTimeout(() => { note.hidden = true; undo = null; noteView = null; }, options.undo ? 12000 : 4000);
   };
   const showDetailNote = (text, error) => {
@@ -1042,12 +1029,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (button.matches("[data-todo-note-view]") && noteView) {
-        const target = noteView;
-        noteView = null; viewButton.hidden = true;
-        view = target.key; picked.clear();
-        await load();
-        arrive(rowsEl.querySelector('[data-todo-row="' + target.id + '"]'));
-        return;
+        const target = noteView; noteView = null; viewButton.hidden = true; view = target.key; picked.clear(); await load(); arrive(rowsEl.querySelector('[data-todo-row="' + target.id + '"]')); return;
       }
       if (button.matches("[data-todo-undo]") && undo) {
         const target = undo;
@@ -1115,8 +1097,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         const payload = await post(item, "", { remind_at: remindAt });
         await load();
         if (selected && selected.id === item.id) await openDetail(item.id, true);
-        showNote(remindAt ? L("会在 {time} 再提醒「{title}」").replace("{time}", timeLabel(remindAt)).replace("{title}", item.title) : L("已关闭「{title}」的提醒").replace("{title}", item.title),
-          { undo: undoOf(payload) });
+        showNote(remindAt ? L("会在 {time} 再提醒「{title}」").replace("{time}", timeLabel(remindAt)).replace("{title}", item.title) : L("已关闭「{title}」的提醒").replace("{title}", item.title), { undo: undoOf(payload) });
         return;
       }
       if (button.matches("[data-todo-open-linked]")) { await flush(); await openDetail(button.dataset.todoOpenLinked); return; }
@@ -1175,8 +1156,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (!target) { showDetailNote(L("先选一件待办"), true); return; }
         await flush();
         const other = linkPool.find((entry) => entry.id === target);
-        await post(selected, "/link", {
-          add: { kind: "todo", subject: { kind: "todo_item", id: target }, title: other ? other.title : target, relation: $("[data-todo-link-relation]").value } });
+        await post(selected, "/link", { add: { kind: "todo", subject: { kind: "todo_item", id: target }, title: other ? other.title : target, relation: $("[data-todo-link-relation]").value } });
         await openDetail(selected.id);
         return;
       }

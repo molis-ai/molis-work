@@ -36,7 +36,7 @@ export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN = { type: "object", prop
  * person's own Home (a calendar, personal notes), so personal work can read them back too.
  */
 export function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<{ subject_id: string }, ActionSubjectContext> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { title, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
+  return { capability_id: capabilityId, version: 1, operation: "query", action: { title: `读取${/^[A-Za-z]/.test(title) ? " " : ""}${title}${/[A-Za-z]$/.test(title) ? " " : ""}的正文与关联`, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
     kind: "query", scope, scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: [kind],
     input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, input_schema: SUBJECT_CONTEXT_INPUT_SCHEMA, output_schema: SUBJECT_CONTEXT_OUTPUT_SCHEMA } };
 }

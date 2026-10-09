@@ -1601,8 +1601,7 @@ const CRAFT_BASE_STYLES = `
 
   /* ─── Plugin stage: an empty plugin is a calm centred invitation, not a note in the corner ── */
   ${WORKBENCH} .plugin-stage-list > .mw-empty,
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child,
-  ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) {
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child, ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) {
     display: grid; justify-items: center; align-content: center; gap: 0; box-sizing: border-box;
     width: 100%; max-width: 440px; min-height: calc(100% - 24px); margin: 0 auto; padding: 48px 24px 64px; text-align: center;
   }
@@ -1632,14 +1631,11 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} .mw-empty--error > strong { margin: 0 0 4px; font-size: 15px; font-weight: var(--weight-title, 600); color: var(--ink); }
   ${PAGES} .mw-empty--error > p { margin: 0 0 16px; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
   ${WORKBENCH} .plugin-stage-list > .mw-empty > :is(strong, h1, h2),
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(strong, h1, h2),
-  ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > strong { margin: 0 0 8px; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; color: var(--ink); }
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(strong, h1, h2), ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > strong { margin: 0 0 8px; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; color: var(--ink); }
   ${WORKBENCH} .plugin-stage-list > .mw-empty > p,
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > p,
-  ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > p { margin: 0; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.75; }
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > p, ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > p { margin: 0; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.75; }
   ${WORKBENCH} .plugin-stage-list > .mw-empty > :is(.mw-btn, .mw-empty__actions),
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(.mw-btn, .mw-empty__actions),
-  ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > .mw-btn { margin: 24px 0 0; justify-content: center; }
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(.mw-btn, .mw-empty__actions), ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > .mw-btn { margin: 24px 0 0; justify-content: center; }
   ${WORKBENCH} .plugin-stage-list .mw-empty__actions { gap: 8px; }
 
   /* ─── Lists and rows ───────────────────────────────────────────────────── */

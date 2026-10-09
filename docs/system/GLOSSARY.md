@@ -170,7 +170,7 @@
 - 代码：页签与内嵌框在 `apps/workbench/src/side-panel.ts:38,42`；服务端包 `server/`（`@molis-ai/molis-work-server`，Home 下的库 `server/server.sqlite`，表名前缀 `mw_`，`server/src/database.ts`）里的群聊域；界面包 `packages/im-ui`（`@molis-ai/molis-work-im-ui`）；合同子路径 `@molis-ai/molis-work-contracts/services/im`；宿主挂载在 `apps/local-host/src/im-server.ts`。`apps/server` 是同一服务的独立启动器，没有产品入口，去留随功能迭代另定。
 - 写法：文档写「讨论」或「项目讨论」，代码缩写是 IM。不再写「IM 实验」「实验线」。它不是 `experiments` 插件（界面叫「实验」），也不在内置插件清单里。
 - 重名：`im` 在工作台代码里同时是整个右栏的 dock 窗口 id（`apps/workbench/src/side-panel.ts:35` 的 `dock-window-im`、`apps/workbench/src/immersive-shell.ts` 的 `data-dock-toggle="im"`），不只指讨论页签，见 R-A10。
-- 同一决定里的三处账目修正不属于命名，列在这里避免误会：`server/server.sqlite` 登记进 Home 数据与备份表；宿主不再直接读它的表（`apps/local-host/src/im-server.ts` 里读 `mw_projects`、`mw_members`）；`server` 的包类别已由基础包改成业务包（`scripts/workspace-packages.mjs:36` 标 `module`，按 Module 规则检查）；`packages/im-ui` 是界面包、不拥有事实，仍标 `foundation`（同文件第 37 行），是否改类另待决定。
+- 同一决定里的三处账目修正不属于命名，列在这里避免误会：`server/server.sqlite` 已登记进 Home 数据与备份表（`docs/system/HOME-DATA.md` 3.4），`uninstall --purge-user-data` 也清除 `server/`（W2-12）；宿主不再直接读它的表（`apps/local-host/src/im-server.ts` 里读 `mw_projects`、`mw_members`，W2-06 未做）；`server` 的包类别已由基础包改成业务包（`scripts/workspace-packages.mjs:36` 标 `module`，按 Module 规则检查）；`packages/im-ui` 是界面包、不拥有事实，仍标 `foundation`（同文件第 37 行），是否改类另待决定。
 
 ### 2.7 术语与翻译键
 
@@ -371,7 +371,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 
 | # | 旧标识符 | 建议新名 | 规模 | 说明 |
 | --- | --- | --- | --- | --- |
-| R-A1 | `GoalsBoardRecord`、`getBoard`、`requireBoard`、`checkGoalBoard`、`validateManagedBoard`、`readManagedBoard`、`initializeBoard`（含 `InitializeBoardInput`、`InitializeBoardOutput`、`initializeBoardCapability`）、`BoardSnapshot*`（含 `boardSnapshotSchema`、`snapshotBoardCapability`）、`MolisWorkCommands`（在 `board-commands.ts`）、`GOAL_BOARDS_SCHEMA_SQL` | 去掉 Board：目标资料库（Goals 根记录）写 `GoalsLibrary*`（如 `GoalsLibraryRecord`、`getGoalsLibrary`、`requireGoalsLibrary`、`initializeGoalsLibrary`）；`BoardSnapshot*` 去掉 Board 前缀，具体名落地时定（`GoalsQuerySnapshot` 已存在，避开）；`MolisWorkCommands` 改 `GoalsLibraryCommands` | 源码：`GoalsBoardRecord` 4 个文件、`getBoard` 10、`requireBoard` 10、`checkGoalBoard` 1（36 处）、`validateManagedBoard`/`readManagedBoard` 4、`initializeBoard` 系 14、`BoardSnapshot` 13；测试：`initializeBoard` 系 58 | 表名 `boards` 保留（2026-10-06 决定）。`initializeBoard` 在测试里是初始化项目的目标资料库的公用写法，改名要连测试一起 |
+| R-A1 | `GoalsBoardRecord`、`getBoard`、`requireBoard`、`validateManagedBoard`、`readManagedBoard`、`initializeBoard`（含 `InitializeBoardInput`、`InitializeBoardOutput`、`initializeBoardCapability`）、`BoardSnapshot*`（含 `boardSnapshotSchema`、`snapshotBoardCapability`）、`MolisWorkCommands`（在 `board-commands.ts`）、`GOAL_BOARDS_SCHEMA_SQL` | 去掉 Board：目标资料库（Goals 根记录）写 `GoalsLibrary*`（如 `GoalsLibraryRecord`、`getGoalsLibrary`、`requireGoalsLibrary`、`initializeGoalsLibrary`）；`BoardSnapshot*` 去掉 Board 前缀，具体名落地时定（`GoalsQuerySnapshot` 已存在，避开）；`MolisWorkCommands` 改 `GoalsLibraryCommands` | 源码：`GoalsBoardRecord` 4 个文件、`getBoard` 10、`requireBoard` 10、`validateManagedBoard`/`readManagedBoard` 4、`initializeBoard` 系 14、`BoardSnapshot` 13；测试：`initializeBoard` 系 58 | 表名 `boards` 保留（2026-10-06 决定）。`initializeBoard` 在测试里是初始化项目的目标资料库的公用写法，改名要连测试一起 |
 | R-A2 | 文件 `modules/goals/src/board-commands.ts`、`plugins/native/goals/src/board-actions.ts`、`board-entry-capabilities.ts`、`board-snapshot-query.ts`；`tests/goals-board-actions.test.ts` | 去掉 `board-` 前缀 | 5 个文件 | 引用这些路径的 README 和 `docs/` 同步 |
 | R-A3 | 判断规则的 TypeScript 类型：`FunctionRecord`、`FunctionDraftPatch`、`FunctionSummary`、`FunctionDescribe`、`FunctionSample`、`FunctionCriteria`、`FunctionInvokeResult`、`FunctionsPrimitive`、`FunctionStatus`、`FunctionAuthoring*` | `JudgmentRule*` | 源码 9 个文件、测试 3 个 | 只改类型名；`function_key`、表和动作 id 见 R-B2 |
 | R-A4 | 包 `@molis-ai/molis-work-module-functions`、目录 `modules/functions`、`apps/workbench/src/functions/`、`apps/local-host/src/functions-*.ts` | `judgment-rules` | 源码 15 个文件、测试 20 个文件导入这个包名 | Home 里的 `functions` 库名属合同，见 R-B2 |
@@ -424,7 +424,6 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 | 方法（指 Skill） | `docs/horizontal/agent-host.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`plugins/native/coding/README.md`、`specs/coding-plugin/spec.md` |
 | 行为（指推荐选项） | `docs/platform/PLUGIN-DEVELOPMENT.md`、`packages/plugin-sdk/README.md`、`plugins/official-integrations/catalog/README.md`、`skills/molis-plugin-dev/{elements,host,integrations}.md`、`specs/action-architecture/spec.md` |
 | Board（指项目） | `docs/mcp.md`、`docs/mcp.en.md`、`plugins/native/goals/README.md` |
-| IM 实验、实验线（指讨论） | `docs/system/HOME-DATA.md`（`server/server.sqlite` 一行）、`docs/SSOT-MATRIX.md`（`apps/server` 与 `packages/im-ui` 两行标成实验） |
 | Characters 当作插件写（2.3 的决定落地后不再成立；落地前这些文档与代码一致，不先改） | `plugins/native/characters/README.md`、`docs/platform/PLUGIN-PLATFORM.md`、`docs/platform/UI-PLATFORM.md`、`skills/molis-plugin-dev/{SKILL,elements,host,search}.md`、`tests/builtin-plugin-assembly-gate.test.ts` 的冻结名单 |
 
 按日期的迁移记录和归档 spec（`specs/action-architecture/migration.md`、`specs/archive/`、`specs/molis-work-architecture-reorganization/`）保持当时的写法，不回改。

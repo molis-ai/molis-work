@@ -444,6 +444,31 @@ export class GoalEventStateRepository {
   }
 }
 
+/** A decision of the Goal, marked with whether it was recorded in the round of work the Goal is in now. */
+export type AppliedDecisionWithRound = GoalEventAppliedDecisionView & { in_current_round: boolean };
+
+/**
+ * Every decision of the Goal in the order it was recorded, each marked with whether it falls in the round of work the Goal is in
+ * now: after the latest time it was reopened or resumed. A completed or cancelled Goal works again only through one of those two
+ * events, so what was decided before the latest of them belongs to a round that is over.
+ */
+export function listDecisionsByRound(db: GoalsSqliteDatabase, projectId: string, goalId: string): AppliedDecisionWithRound[] {
+  return (db.prepare(`
+    SELECT d.*, e.journal_seq > COALESCE((
+      SELECT MAX(r.journal_seq) FROM goal_work_events r
+      WHERE r.project_id = ? AND r.goal_id = ? AND r.kind = 'system'
+        AND json_extract(r.payload_json, '$.operation') IN ('completion_reopened', 'work_resumed')
+    ), 0) AS in_current_round
+    FROM goal_event_applied_decisions d
+    JOIN goal_work_events e ON e.event_id = d.event_id AND e.project_id = d.project_id AND e.goal_id = d.goal_id
+    WHERE d.project_id = ? AND d.goal_id = ?
+    ORDER BY e.journal_seq ASC, d.decision_id ASC
+  `).all(projectId, goalId, projectId, goalId) as Row[]).map((row) => ({
+    ...mapAppliedDecision(row),
+    in_current_round: Number(row.in_current_round) === 1,
+  }));
+}
+
 export function normalizeScope(raw?: Partial<GoalEventScope> | null): GoalEventScope {
   return {
     requirement_ids: uniqueStrings(raw?.requirement_ids),

@@ -51,7 +51,7 @@ test("MCP composes a lazy Host-owned review service before Web; later Web approv
     { homeDirectory: home, runtimeContext: { runtime_id: "fixture", stable_work_context_id: null, host_declares_stable: false } }, host);
   const service = ensureSystemAgentService(host, home, catalog);
   const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
-  const caller: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"] };
+  const caller: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private", "workspace:read"] };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
   const token = "system-agent-fixture-control-token-0123456789";
   let server: ReturnType<typeof createMolisWorkWebServer> | undefined;

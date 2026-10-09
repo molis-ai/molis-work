@@ -36,7 +36,7 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
     } finally { console.log = original; }
   }
   const makeIntent = (goalId: string) => ({
-    project_id: projectId, actor_id: "user", actor_kind: "user" as const, idempotency_key: goalId,
+    project_id: projectId, idempotency_key: goalId,
     goal_id: goalId, title: goalId, outcome: "保留入口行为", why: "重组", business_logic: "通过公开入口读写",
   });
   try {
@@ -57,7 +57,9 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
     assert.equal(selected.active_goal_id, "working");
     assert.equal((await snapshot()).board.active_goal_id, "working");
     assert.deepEqual(await cli("active-goal", input), { ...selected, replayed: true });
-    const request = { database_path: databasePath, project_id: projectId,
+    assert.deepEqual(await cli("active-goal", { ...input, actor_id: "intruder" }), { ...selected, replayed: true },
+      "the CLI does not forward an actor_id from its JSON: an old script that still writes it is the same person on this machine");
+    const request ={ database_path: databasePath, project_id: projectId,
       payload: { ...input, project_id: "forged-board", idempotency_key: "active-mcp", legacy_note: "preserved" } };
     const beforeUnbound = await snapshot();
     await assert.rejects(management.callTool("molis_work_v1_action_goals.active.set__v1", request));

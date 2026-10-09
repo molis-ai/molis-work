@@ -486,10 +486,6 @@ export declare const readGitResultsCapability: HostCapabilityDefinition<{
     workspace_id: string;
 }, readonly GitReviewedResult[]>;
 
-export declare const readWorkspaceFileCapability: HostCapabilityDefinition<WorkspaceFileQuery, WorkspaceFileResult>;
-
-export declare const readWorkspaceGitCapability: HostCapabilityDefinition<WorkspaceGitQuery, WorkspaceGitResult>;
-
 export declare function reconstructSides(ops: readonly DiffOp[]): {
     before: string;
     after: string;
@@ -512,8 +508,8 @@ export declare const workspaceArtifactsContract: {
 };
 
 export declare const workspaceReadActions: {
-    readonly file: HostCapabilityDefinition<WorkspaceFileQuery, WorkspaceFileResult>;
-    readonly git: HostCapabilityDefinition<WorkspaceGitQuery, WorkspaceGitResult>;
+    readonly file: ActionDefinition<WorkspaceFileQuery, WorkspaceFileResult>;
+    readonly git: ActionDefinition<WorkspaceGitQuery, WorkspaceGitResult>;
 };
 
 export declare function workspaceScopeKey(ref: WorkspaceRef): string;

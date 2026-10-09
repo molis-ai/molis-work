@@ -1,12 +1,17 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { HostCapabilityDefinition } from "../platform/app-host.js";
-import type { ActionMetadata } from "../platform/actions.js";
+import type { ActionDefinition, ActionMetadata } from "../platform/actions.js";
 
 /** Host reads are always scoped to a currently linked workspace, never an absolute path. */
 export interface WorkspaceFileQuery {
   workspace_id: string;
   path: readonly string[];
-  /** `bytes` reads a file as it is (an image, a PDF) for a preview, up to `WORKSPACE_BYTES_LIMIT`; plugins only. */
+  /**
+   * `bytes` reads a file as it is (an image, a PDF) for a preview, up to `WORKSPACE_BYTES_LIMIT`. The Host refuses it unless
+   * the call carries the identity of a plugin the Host runs (`ActionCallContext.host_plugin`, set only for a Manifest's
+   * `capabilities.consumes` through `services.actions`): the person, the Agent, workflows, MCP clients and a generated
+   * (sandbox) plugin, which calls as the plugin audience without that identity, are all refused.
+   */
   kind: "directory" | "text" | "bytes";
 }
 /** The most a `bytes` read returns: the side panel's preview limit. */
@@ -18,10 +23,6 @@ export type WorkspaceFileResult =
   | { outcome: "bytes"; data: string; bytes: number; fingerprint: string }
   | { outcome: "too-large"; bytes: number; limit: number }
   | { outcome: "binary" | "unsupported" | "missing" | "denied" | "changed" };
-
-export const readWorkspaceFileCapability = {
-  capability_id: "projects.workspace.file.read.v1", version: 1, operation: "query",
-} as HostCapabilityDefinition<WorkspaceFileQuery, WorkspaceFileResult>;
 
 /** Git reads are scoped by the current project grant, never by a caller path. */
 export type GitFileMode = "100644" | "100755";
@@ -97,10 +98,6 @@ export interface GitOperationRecord {
 export const readGitOperationsCapability = {
   capability_id: "projects.workspace.git.operations.v1", version: 1, operation: "query",
 } as HostCapabilityDefinition<{ workspace_id: string }, readonly GitOperationRecord[]>;
-
-export const readWorkspaceGitCapability = {
-  capability_id: "projects.workspace.git.read.v1", version: 1, operation: "query",
-} as HostCapabilityDefinition<WorkspaceGitQuery, WorkspaceGitResult>;
 
 /** Preparing returns a Host review identity, never permission to execute. */
 export const prepareGitIndexCapability = {
@@ -750,9 +747,10 @@ export function parseCodingChangeSet(value: unknown): CodingChangeSet {
 }
 
 /**
- * The same project-folder reads, for callers other than the plugins that already consume the capabilities above:
- * the person, the built-in Agent, workflows and granted MCP clients. They need `workspace:read`, so an MCP client
- * gets them only by an exact grant; the plugin-facing capabilities keep their own contract.
+ * The project-folder reads: one id each, for every caller. The person, the built-in Agent, workflows and granted MCP
+ * clients reach them as actions that need `workspace:read` (an MCP client only by an exact grant); the Files, Git and
+ * Coding plugins reach the same two ids through their Manifest `capabilities.consumes` and the `workspace:read` grant,
+ * and declare them as `required_actions` where an action cannot work without the read.
  */
 const workspaceRead = (title: string, description: string, input: Record<string, unknown>, required: readonly string[]): ActionMetadata => ({
   title, description, kind: "query", scope: "project", audiences: ["user", "agent", "workflow", "mcp"], permissions: ["workspace:read"], subject_kinds: ["workspace"],
@@ -760,13 +758,13 @@ const workspaceRead = (title: string, description: string, input: Record<string,
 });
 export const workspaceReadActions = {
   file: { capability_id: "projects.workspace.files.read", version: 1, operation: "query",
-    action: workspaceRead("读取项目目录文件", "按路径列出当前项目已关联工作目录中的条目，或读取一个文本文件；只读，路径相对于工作目录",
+    action: workspaceRead("读取项目目录文件", "按路径列出当前项目已关联工作目录中的条目，或读取一个文本文件；只读，路径相对于工作目录。kind 为 bytes（整份文件，供图片、PDF 预览）时，只有宿主运行的、在 Manifest 的 capabilities.consumes 里列出本动作并持有 workspace:read 的插件能用；其他调用方（用户、内置 Agent、工作流、MCP 客户端、生成的沙箱插件）用 bytes 会被拒绝（actions.forbidden），请读目录或文本",
       { workspace_id: { type: "string", minLength: 1, title: "工作目录" }, path: { type: "array", items: { type: "string", minLength: 1 }, maxItems: 256, title: "路径" },
-        kind: { enum: ["directory", "text"], title: "读取目录或文本" } }, ["workspace_id", "path", "kind"]),
-  } as HostCapabilityDefinition<WorkspaceFileQuery, WorkspaceFileResult>,
+        kind: { enum: ["directory", "text", "bytes"], title: "读取目录、文本，或整份文件（bytes，仅限宿主运行的插件）" } }, ["workspace_id", "path", "kind"]),
+  } as ActionDefinition<WorkspaceFileQuery, WorkspaceFileResult>,
   git: { capability_id: "projects.workspace.git.inspect", version: 1, operation: "query",
     action: workspaceRead("读取项目仓库状态", "读取当前项目已关联工作目录的 Git 状态、摘要、差异或冲突文件；只读，不改变仓库",
       { workspace_id: { type: "string", minLength: 1, title: "工作目录" }, kind: { enum: ["status", "summary", "pr-support", "diff", "conflict"], title: "读取什么" },
         path: { type: ["array", "string"], title: "路径" }, side: { enum: ["index", "worktree"], title: "差异一侧" } }, ["workspace_id", "kind"]),
-  } as HostCapabilityDefinition<WorkspaceGitQuery, WorkspaceGitResult>,
+  } as ActionDefinition<WorkspaceGitQuery, WorkspaceGitResult>,
 } as const;

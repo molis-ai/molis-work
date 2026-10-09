@@ -50,7 +50,11 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     const check = { proposal_id, idempotency_key: "check" };
     const checked = await bound.invoke(goalsActions.treeCheck, check);
     assert.deepEqual(checked.conflict_item_ids, []);
-    assert.deepEqual(await typed.invoke(goalTreeCapabilities.checkGoalTreeProposal, [{ ...check, project_id: project.project_id, actor_id: caller.audit_actor_id! }]), checked);
+    await assert.rejects(typed.invoke(goalTreeCapabilities.checkGoalTreeProposal, [{ ...check, project_id: project.project_id, actor_id: caller.audit_actor_id! }]), { code: "actions.input_invalid" });
+    const localCheck = { proposal_id, project_id: project.project_id, idempotency_key: "check-local" };
+    const typedChecked = await typed.invoke(goalTreeCapabilities.checkGoalTreeProposal, [localCheck]);
+    assert.deepEqual(typedChecked.conflict_item_ids, checked.conflict_item_ids);
+    assert.deepEqual(await typed.invoke(goalTreeCapabilities.checkGoalTreeProposal, [localCheck]), typedChecked);
     assert.deepEqual((await snapshot()).goals, empty.goals, "submission and check never materialize Goals");
     assert.deepEqual((await snapshot()).relations, empty.relations);
     const read = { proposal_id };
@@ -113,7 +117,7 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     for (const definition of [goalsActions.treeSubmit, goalsActions.treeRead, goalsActions.treeCheck, goalsActions.treeDecide]) denied.add(definition.capability_id);
     await assert.rejects(typed.invoke(goalTreeCapabilities.listGoalTreeProposals, [{ project_id: project.project_id }]), { code: "actions.plugin_disabled" });
     await assert.rejects(typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ ...proposalInput("denied"), project_id: project.project_id, actor_id: "user" }]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalTreeCapabilities.checkGoalTreeProposal, [{ ...check, project_id: project.project_id, actor_id: caller.audit_actor_id! }]), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(goalTreeCapabilities.checkGoalTreeProposal, [{ ...check, project_id: project.project_id }]), { code: "actions.plugin_disabled" });
     await assert.rejects(typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [{ ...decision, project_id: project.project_id, authority }]), { code: "actions.plugin_disabled" });
     assert.deepEqual(await snapshot(), after);
     await host.close();

@@ -11,6 +11,7 @@ CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base）及其�
 - [ ] 公开 API（contracts 各 subpath、插件 SDK）有变化时：已 `pnpm api:update` 刷新 `tooling/gates/api/`，并在「做了什么」写明对插件和调用方的影响
 - [ ] 动作或消费场景（Manifest 声明的，或宿主登记的）的身份、权限、受众、输入输出有变化时：`pnpm build` 后已 `pnpm actions:update` 刷新 `tooling/gates/actions/`（`pnpm test:contracts` 会对照）；同一 `capability@version` 下形状变了的，写明已升版本并改完固定它的引用，或为什么没有固定它的引用会坏
 - [ ] 改过样式、客户端脚本或字体：`pnpm workspace:build` 后 `node scripts/gates/page-assets.mjs --base origin/main` 通过（页面资源只许变小；变小了用 `--update --base origin/main` 在本 PR 把 `tooling/gates/page-assets.json` 降下来）
+- [ ] 相关用例：`node scripts/affected-tests.mjs` 选出的用例已跑 → 通过 / 失败数（它建议全量时，说明跑了还是按什么理由不跑）：
 - [ ] 全量非浏览器：`node scripts/run-tests.mjs` → 通过 / 失败数：
 - [ ] 浏览器用例（界面改动时）：跑了哪些文件、结果：
 - [ ] 失败逐项说明：与基线（`git worktree add --detach <base>`，同一批文件）对比，哪些是本 PR 引入的、哪些基线就有

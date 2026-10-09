@@ -49,6 +49,7 @@
     "typecheck:all": "pnpm typecheck && pnpm boundary:check && pnpm workspace:typecheck",
     "test": "pnpm build && pnpm test:run",
     "test:run": "node scripts/run-tests.mjs",
+    "test:affected": "node scripts/affected-tests.mjs",
     "test:contracts": "node scripts/run-tests.mjs tests/action-*.test.ts tests/builtin-manifests-contract.test.ts tests/builtin-plugin-assembly-gate.test.ts tests/builtin-plugin-agent-texts.test.ts tests/mcp-action-grants.test.ts tests/mcp-action-settings.test.ts tests/plugin-declarative-mounting.test.ts tests/plugin-manifest-v2.test.ts tests/pages-generation-lease.test.ts tests/client-script-undeclared.test.ts",
     "workspace:build": "pnpm workspace:clean && pnpm -r --filter './apps/**' --filter './server' --filter './packages/**' --filter './modules/**' --filter './horizontal/**' --filter './plugins/**' --filter './tooling/plugin-cli' run build",
     "workspace:check": "node scripts/workspace-packages.mjs",

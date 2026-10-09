@@ -2,17 +2,25 @@ import { resolve, join } from "node:path";
 import { rm } from "node:fs/promises";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
-import { ActionError, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { alchemistManifest, createAlchemistActionHandlers, createAlchemistStudioRuntime,
+import { ActionError, type ActionAvailability, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { alchemistActions, alchemistManifest, createAlchemistActionHandlers, createAlchemistStudioRuntime,
   type AlchemistAiPort, type AlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
 import { createAlchemistProloguePort } from "./alchemist-prologue.js";
 import { createAlchemistSearchPort } from "./alchemist-search.js";
+import { configuredModelChoices } from "./configured-models.js";
 
 export interface AlchemistHostOptions {
   /** Explicit embedding/test boundary. Production uses the configured Prologue and search owners. */
   ai?: (projectId: string) => AlchemistAiPort;
   pulseSourceMode?: "live" | "fixture";
 }
+/**
+ * The actions that need a model, so the directory can say so before anyone calls. It says so to the Assistant, MCP clients,
+ * workflows and plugins, not to the person at the page: a message sent without a model is still saved, and an exploration or a
+ * research run is still recorded as stopped, so the card tells the person how to continue (see the Alchemist README, 不变量).
+ */
+const NEEDS_MODEL: ReadonlySet<string> = new Set([alchemistActions.reuseAssess, alchemistActions.conversationSend,
+  alchemistActions.explorationStart, alchemistActions.researchStart].map(action => action.capability_id));
 interface SharedStudio { runtime: AlchemistStudioRuntime; search?: ReturnType<typeof createAlchemistSearchPort>; owners: Set<AlchemistHostService>; closing?: Promise<void> }
 const studios = new Map<string, SharedStudio>();
 
@@ -29,8 +37,18 @@ export class AlchemistHostService {
   provider(): ActionProviderRegistration {
     return { provider: { provider_id: alchemistManifest.plugin_id, plugin_id: alchemistManifest.plugin_id, title: alchemistManifest.name, kind: "plugin" },
       definitions: alchemistManifest.actions!, handlers: [
-        ...createAlchemistActionHandlers(caller => this.get(caller).actionsFor(caller.actor_id)),
+        ...createAlchemistActionHandlers(caller => this.get(caller).actionsFor(caller.actor_id)).map(handler => NEEDS_MODEL.has(handler.capability_id) ? { ...handler, availability: (caller: ActionCallContext) => caller.audience === "user" ? { available: true as const } : this.modelAvailability() } : handler),
       ] };
+  }
+  /**
+   * Whether the Home has a model Alchemist could use, without opening a studio. An embedding that brings its own model port
+   * (`options.ai`) is not judged by the Home's settings: only the default Prologue port reads them.
+   */
+  private modelAvailability(): ActionAvailability {
+    if (this.options.ai) return { available: true };
+    try { if (configuredModelChoices(this.home).length) return { available: true }; }
+    catch { return { available: false, code: "actions.connection_required", reason: "模型配置无法读取，请到模型设置检查。" }; }
+    return { available: false, code: "actions.connection_required", reason: "没有可用模型，请先在 Molis Work 的模型设置中启用模型并配置凭据。" };
   }
   private assertOpen(): void { if (this.closed) throw new ActionError("alchemist.closed", "炼金术士服务已停止。"); }
   private get(caller: ActionCallContext): AlchemistStudioRuntime {

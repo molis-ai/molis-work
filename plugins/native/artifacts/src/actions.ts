@@ -45,7 +45,10 @@ const fileEntries = defineFileEntriesAction("artifacts.files.entries", [{ kind: 
  * references in the same payload, so only these fields count, wherever they sit in it. A `cells` object is a table row
  * whose keys are column ids: its values are the text. `title` repeated by the payload is the hit's own title line.
  */
-const SEARCHABLE_FIELDS = new Set(["title", "name", "text", "content", "body", "filename", "description", "summary", "caption", "label", "heading", "notes", "markdown", "cells"]);
+const SEARCHABLE_FIELDS = new Set(["title", "name", "text", "content", "body", "filename", "description", "summary", "caption", "label", "heading", "notes", "markdown", "cells",
+  // The reading text the built-in producers keep under their own keys: a Coding report (task, answer, markdown body), a deck's
+  // bullets, a character's instructions, a captured Feed message's source name and tags.
+  "body_markdown", "task", "model_answer", "bullets", "instructions", "source_label", "tags"]);
 function payloadText(value: unknown, title: string, field = "", out: string[] = [], budget = { left: 4000 }): string[] {
   if (budget.left <= 0 || value == null) return out;
   if (typeof value === "string") {

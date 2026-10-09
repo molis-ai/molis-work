@@ -147,7 +147,7 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
   - `MINIMAX_API_KEY`：MiniMax。端点默认 `https://api.minimaxi.com/anthropic`，模型默认 `MiniMax-M3`；实测用 `appkey exec minimax` 注入。
   - `MOLIS_WORK_TEXT_API_KEY`：不指定供应商，必须同时给 `MOLIS_WORK_TEXT_BASE_URL` 与 `MOLIS_WORK_TEXT_MODEL`，缺一个就不配置（不会默认成 MiniMax）。
   - 两者都可选配 `MOLIS_WORK_TEXT_API_FORMAT`（`anthropic-messages`，默认；或 `openai-chat-completions`）。`MOLIS_WORK_TEXT_BASE_URL` 也能改 MiniMax 的端点。
-  - `TYPESAFE_API_KEY`：和上面两个同属开发与实测变量，但管的是 TypeSafe 判断（Functions 与 Jev 的规则、首页与 Inbox 的判断、实验里的 Jev 参试者、插件创作台的设计选择），不是文字模型。它不受「模型目录为空才生效」的限制：只要设了，判断一律用它，盖过设置里选的 TypeSafe 连接，Functions 设置页会显示「来自 TYPESAFE_API_KEY」且该字段只读。
+  - `TYPESAFE_API_KEY`：和上面两个同属开发与实测变量，但管的是 TypeSafe 判断（Functions 与 Jev 的规则、首页与 Inbox 的判断、实验里的 Jev 参试者、插件创作台的设计选择），不是文字模型。它不受「模型目录为空才生效」的限制：只要设了，判断一律用它，盖过设置里选的 TypeSafe 连接：Functions 设置页的状态行写「来自 TYPESAFE_API_KEY。」，页面上的连接选择仍然可以改、可以保存，但变量还设着时，保存下来的连接被忽略。
 - 业务插件只拿 Host 注入的函数端口；Host 到 Agent Host 的输入才使用 `credential_ref` + `resolveCredential`。插件不拿凭据解析器或明文；日志、事件、错误和产物里不出现密钥。
 - 一次调用只带这次需要的材料，不隐式读整个项目；用户正文是数据不是指令。
 

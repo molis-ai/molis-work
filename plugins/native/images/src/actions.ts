@@ -1,4 +1,4 @@
-import { ActionError, type ActionDefinition, type ActionSchema, type ActionHandlerBinding, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionAvailability, type ActionDefinition, type ActionSchema, type ActionHandlerBinding, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
 import type { ImagesService } from "./service.js";
@@ -33,7 +33,9 @@ export const imagesActions={
   fileContent:imagesSearchActions.fileContent,
 };
 export const IMAGES_ACTION_PERMISSIONS=[...new Set(Object.values(imagesActions).flatMap(d=>d.action.permissions))];
-export interface ImagesActionPorts { service():ImagesService; authConnections():ConnectorConnectionView[]; validateConnection(input:ImageConnectionInput):void }
+export interface ImagesActionPorts { service():ImagesService; authConnections():ConnectorConnectionView[]; validateConnection(input:ImageConnectionInput):void;
+  /** Whether a generation can start now for this caller (a service that can be used exists); absent means always. Must not open the store just to answer. */
+  startAvailability?(caller:ActionCallContext):ActionAvailability }
 export function createImagesActionHandlers(ports:ImagesActionPorts):ActionHandlerBinding[]{
   const project=(caller:ActionCallContext)=>{if(!caller.project_id)throw new ActionError("actions.project_required","请选择项目");return caller.project_id;};
   const bind=<I,O>(definition:ActionDefinition<I,O>,run:(input:I,caller:ActionCallContext)=>O):ActionHandlerBinding=>({capability_id:definition.capability_id,version:definition.version,handle:(caller,input)=>run(input as I,caller)});
@@ -43,7 +45,7 @@ export function createImagesActionHandlers(ports:ImagesActionPorts):ActionHandle
     bind(imagesActions.deleteConnection,input=>{ports.service().deleteConnection(input.id);return {deleted:true};}),
     bind(imagesActions.list,(_,caller)=>({jobs:ports.service().listJobs(project(caller))})),
     bind(imagesActions.get,(input,caller)=>({job:ports.service().getJob(project(caller),input.id)})),
-    bind(imagesActions.start,(input,caller)=>({job:ports.service().start(project(caller),input)})),
+    {...bind(imagesActions.start,(input,caller)=>({job:ports.service().start(project(caller),input)})),...(ports.startAvailability?{availability:(caller:ActionCallContext)=>ports.startAvailability!(caller)}:{})},
     bind(imagesActions.cancel,(input,caller)=>({job:ports.service().cancel(project(caller),input.id)})),
     bind(imagesActions.delete,(input,caller)=>{ports.service().deleteJob(project(caller),input.id);return {deleted:true};}),
     bind(imagesActions.image,(input,caller)=>{const image=ports.service().readImage(project(caller),input.id,input.image_id);return {base64:image.bytes.toString("base64"),mime_type:image.mime,filename:image.filename};}),    ...createImagesSearchHandlers(ports.service),

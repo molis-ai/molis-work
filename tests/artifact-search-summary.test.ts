@@ -72,3 +72,57 @@ test("a table keeps its description, column names and cell text searchable", asy
   for (const wanted of ["华东区", "公司", "星河科技"]) assert.match(entry!.summary, new RegExp(wanted));
   assert.doesNotMatch(entry!.summary, /col-a1|row-9|dataset-1/);
 });
+
+// The built-in producers keep their reading text under their own keys; a hit on any of them must still find the body
+// (the first version of this allow-list dropped them, so fixed reports, decks and characters could no longer be found).
+test("a Coding report is searchable by its task, the model's answer and its markdown body", async t => {
+  const f = fixture(); t.after(f.close);
+  f.publish("coding-report:s1:r1", "修复登录超时", "coding.report.v1", {
+    title: "修复登录超时", run_id: "run-77f2", body_markdown: "## 结果\n登录接口的重试间隔改为指数退避",
+    task: "排查登录接口为什么偶尔超时", model_answer: "根因是连接池耗尽", state: "completed", ended_at: "2026-10-09T00:00:00.000Z",
+    source: { session_id: "session-5e1", runtime_id: "codex", runtime_session_id: "rt-9" } });
+  const [entry] = await f.summaries();
+  for (const wanted of ["指数退避", "排查登录接口为什么偶尔超时", "根因是连接池耗尽"]) assert.match(entry!.summary, new RegExp(wanted));
+  assert.doesNotMatch(entry!.summary, /run-77f2|session-5e1|rt-9|codex|completed/);
+});
+
+test("a deck is searchable by its slide bullets and notes, not by slide ids or colors", async t => {
+  const f = fixture(); t.after(f.close);
+  f.publish("deck-1", "季度汇报", "io.molis.work.ppt.deck", {
+    title: "季度汇报", description: "给管理层", color_primary: "#1a73e8", color_background: "#ffffff", color_text: "#202124",
+    slides: [{ id: "slide-c0ffee", title: "封面", bullets: ["营收同比增长两成", "新增三家标杆客户"], notes: "开场先讲结论", order: 0 }] });
+  const [entry] = await f.summaries();
+  for (const wanted of ["给管理层", "封面", "营收同比增长两成", "新增三家标杆客户", "开场先讲结论"]) assert.match(entry!.summary, new RegExp(wanted));
+  assert.doesNotMatch(entry!.summary, /slide-c0ffee|#1a73e8/);
+});
+
+test("a character is searchable by its instructions", async t => {
+  const f = fixture(); t.after(f.close);
+  f.publish("character-1", "严格的评审员", "character.definition.v1", {
+    character_id: "char-0b7d", title: "严格的评审员", instructions: "逐条核对验收标准，缺证据就退回",
+    host_tools: null, source: { owner_actor_id: "web-user", draft_revision: 3 } });
+  const [entry] = await f.summaries();
+  assert.match(entry!.summary, /逐条核对验收标准，缺证据就退回/);
+  assert.doesNotMatch(entry!.summary, /char-0b7d|web-user/);
+});
+
+test("a captured Feed message keeps its summary, tags and source name searchable, not its source ids", async t => {
+  const f = fixture(); t.after(f.close);
+  f.publish("feed-capture-1", "新版本发布", "io.molis.work.feed.capture", {
+    title: "新版本发布", summary: "修复了同步冲突", url: "https://example.com/post/1", occurred_at: "2026-10-08T00:00:00.000Z",
+    source: { source_id: "src-3d9a", source_kind: "rss", source_label: "产品更新日志" }, tags: ["发布说明"],
+    materials: [{ material_id: "mat-1", canonical_url: "https://example.com/post/1", title: "发布公告" }] });
+  const [entry] = await f.summaries();
+  for (const wanted of ["修复了同步冲突", "产品更新日志", "发布说明", "发布公告"]) assert.match(entry!.summary, new RegExp(wanted));
+  assert.doesNotMatch(entry!.summary, /src-3d9a|mat-1|rss/);
+});
+
+test("a questionnaire keeps its questions and option labels searchable, not question types", async t => {
+  const f = fixture(); t.after(f.close);
+  f.publish("form-1", "满意度调查", "io.molis.work.form.questionnaire", {
+    title: "满意度调查", description: "下季度改进依据", status: "published",
+    questions: [{ id: "q-41", type: "single_choice", title: "你最看重哪方面", required: true, order: 0, options: [{ id: "o-1", label: "响应速度" }] }] });
+  const [entry] = await f.summaries();
+  for (const wanted of ["下季度改进依据", "你最看重哪方面", "响应速度"]) assert.match(entry!.summary, new RegExp(wanted));
+  assert.doesNotMatch(entry!.summary, /q-41|o-1|single_choice/);
+});

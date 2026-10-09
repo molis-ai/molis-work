@@ -5,6 +5,8 @@ import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createLocalRuntime } from "../plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.js";
+import { alchemistActions } from "@molis-ai/molis-work-plugin-alchemist";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
 // Seed through the production API; only the external model/search are explicit fixtures.
@@ -26,7 +28,13 @@ async function seed(home: string, project: string) {
     const research=await api(`/ideas/${idea.id}/versions/1/research`);
     assert.equal(research.lenses.market_space.status,"completed");assert.equal(research.lenses.build_cost.status,"completed");
     await api('/pulse/runs',{});await runtime.runPending();
-    return {direction:direction.id,idea:idea.id,card:exploration.cards[1].id};
+    // A second idea whose market research is confirmed with the model that exists now, but not started: started in the Host, where no model exists, its run stops for want of one (E-7).
+    const {direction:other}=await api("/directions",{description:"帮助小团队保存会议结论和待办"});
+    const {runId:otherRun}=await api(`/directions/${other.id}/explorations`,{});await runtime.runPending();
+    const {idea:planned}=await api(`/idea-cards/${(await api(`/explorations/${otherRun}`)).exploration.cards[0].id}/keep`,{});
+    // The plan belongs to the person the Host serves, not to this seed's own actor: only its owner may start it.
+    await runtime.actionsFor(LOCAL_PERSON_ACTOR_ID).invoke(alchemistActions.researchPlan,{id:planned.id,lens:"market_space",ideaVersion:1,modelPolicy:"fixed",modelId:"test/model",budget:{kind:"calls",limit:3}} as never);
+    return {direction:direction.id,idea:idea.id,card:exploration.cards[1].id,planned:planned.id};
   } finally {await runtime.close();}
 }
 
@@ -52,7 +60,7 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   assert.equal((await read(`/idea-cards/${ids.card}`)).model.status,'discarded');
   await click('[data-alc-action="restore"]');await visible('[data-alc-action="discard"]');
   await click('[data-alc-action="keep"]');await visible('[data-alc-action="market"]');
-  assert.equal((await read('/bootstrap')).ideas.length,2);
+  assert.equal((await read('/bootstrap')).ideas.length,3);
   await click('[data-alc-collection="ideas"]');await click(`[data-alchemist-id="${ids.idea}"]`);await visible('[data-alc-action="market"]');
   await click('[data-alc-action="market"]');await includes('研究摘要');await includes('测试来源');
   await click('[data-alc-action="plan"]');await visible('[data-alc-submit]');await click('[data-alc-submit]');await includes('请先在宿主设置里配置模型。');await click('[data-alc-dialog] [data-alc-action="close"]');
@@ -85,14 +93,14 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   await click('[data-alc-collection="pulse"]');await click('[data-alc-action="sources"]');
   const source=(await read('/pulse/sources')).sources[0];await visible('[data-alc-dialog] [name="'+source.sourceId+'"]');await click('[data-alc-dialog] [name="'+source.sourceId+'"]');await click('[data-alc-submit]');await includes('来源设置已保存。');assert.equal((await read('/pulse/sources')).sources[0].enabled,!source.enabled);await click('[data-alc-action="notice-close"]');
   await visible('[data-alc-open="pulse"]');await click('[data-alc-open="pulse"]');await includes('可以探索的机会');await click('[data-alc-action="save-opportunity"]');await includes('已保存');await click('[data-alc-action="convert"]');await visible('[data-alc-action="explore"]');
-  assert.equal((await read('/bootstrap')).directions.length,2);
+  assert.equal((await read('/bootstrap')).directions.length,3);
   await click('[data-alc-action="new"]');await fill('description','浏览器验收缺模型也保存方向');await click('[data-alc-submit]');
   // The run is recorded as failed for want of a model; the card then says so once, with the way to settings: not its status, its waiting label or its internal code (E-7).
   for(let n=0;n<100&&(await read('/bootstrap')).explorations[0]?.status!=='failed';n++)await new Promise(r=>setTimeout(r,100));
   await waitFor(`document.querySelector(${text(content)})?.innerText.includes('还没有可用模型') && !document.querySelector(${text(content+' .alc-progress')})`,12_000);
   const card=async()=>evaluate<string>(`document.querySelector(${text(content)}).innerText`);
   const noModelCard=async()=>{const shown=await card();assert.match(shown,/还没有可用模型/);assert.match(shown,/打开模型设置/);assert.doesNotMatch(shown,/RUNTIME_NOT_CONFIGURED|等待执行|失败|这次炼化未完成/);assert.equal(shown.split('还没有可用模型').length-1,1,'the hint is shown once');};
-  const saved=await read('/bootstrap');assert.equal(saved.directions.length,3);assert.equal(saved.explorations[0].status,'failed');assert.equal(saved.explorations[0].errorCode,'RUNTIME_NOT_CONFIGURED');assert.deepEqual(saved.explorations[0].cards,[]);
+  const saved=await read('/bootstrap');assert.equal(saved.directions.length,4);assert.equal(saved.explorations[0].status,'failed');assert.equal(saved.explorations[0].errorCode,'RUNTIME_NOT_CONFIGURED');assert.deepEqual(saved.explorations[0].cards,[]);
   await noModelCard();
   await click('[data-alc-action="explore"]');
   for(let n=0;n<100&&(await read('/bootstrap')).explorations[0]?.status!=='failed';n++)await new Promise(r=>setTimeout(r,100));
@@ -109,4 +117,12 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   }
   await click('[data-alc-action="back"]');await visible(`[data-alchemist-id="${ids.idea}"]`);
   assert.equal(await evaluate(`document.querySelector('${root}').dataset.expanded`),'false');
+  // The confirmed research of the second idea is started in a Host with no model: the run stops, and its card says so once, with the way to settings, not the status, the stages or the internal code (E-7).
+  await click('[data-alc-collection="ideas"]');await click(`[data-alchemist-id="${ids.planned}"]`);await visible('[data-alc-action="market"]');await click('[data-alc-action="market"]');
+  await visible('[data-alc-action="resume-plan"]');await click('[data-alc-action="resume-plan"]');await visible('[data-alc-submit]');await click('[data-alc-submit]');
+  for(let n=0;n<100&&(await read(`/ideas/${ids.planned}/versions/1/research`)).lenses.market_space.status!=='failed';n++)await new Promise(r=>setTimeout(r,100));
+  await waitFor(`document.querySelector(${text(content)})?.innerText.includes('还没有可用模型') && !document.querySelector(${text(content+' .alc-progress')})`,12_000);
+  const stopped=await evaluate<string>(`document.querySelector(${text(content)}).innerText`);
+  assert.match(stopped,/打开模型设置/);assert.doesNotMatch(stopped,/RUNTIME_MODEL_UNAVAILABLE|RUNTIME_NOT_CONFIGURED|研究未完成|规划|收集|交叉验证/);assert.equal(stopped.split('还没有可用模型').length-1,1,'the hint is shown once');
+  assert.equal((await read(`/ideas/${ids.planned}/versions/1/research`)).lenses.market_space.run.errorCode,'RUNTIME_MODEL_UNAVAILABLE');
 });

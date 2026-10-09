@@ -62,7 +62,9 @@ export const gitManifest: PluginManifest = {
       prepareGitOperationCapability.capability_id, readGitOperationsCapability.capability_id],
   },
   actions: GIT_ACTIONS,
-  artifacts: {
+  artifacts: { produces: [], consumes: [] },
+  // Change sets and run receipts are exchange data for Diff and Coding; they are not 成果.
+  process_items: {
     produces: [
       { artifact_type_id: DIFF_CHANGESET_TYPE, schema_version: DIFF_CHANGESET_SCHEMA_VERSION },
       { artifact_type_id: GIT_RESULT_TYPE, schema_version: GIT_RESULT_SCHEMA_VERSION },

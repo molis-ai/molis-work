@@ -14,7 +14,7 @@ import type { CodingSessionRecord, CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
 import type { AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_REPORT_TYPE } from "./artifacts.js";
-import { codingReportPreview, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
+import { codingReportPreview, codingReportPublication, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
 import { codingContinuation, CONTINUATION_MARKER } from "./continuation.js";
@@ -686,8 +686,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     if (saved) return saved;
     const reference = codingReportReference(record.session_id, runId);
     const result = artifacts.publish({ ...reference, artifact_type_id: CODING_REPORT_TYPE, schema_version: 1,
-      content: { kind: "inline", payload: JSON.parse(JSON.stringify(report)) },
-      metadata: { title: report.title, session_id: record.session_id, run_id: runId } });
+      content: { kind: "inline", payload: JSON.parse(JSON.stringify(report)) }, ...codingReportPublication(report, record.session_id, runId, artifacts) });
     return { report, reference, saved_at: result.artifact.created_at };
   };
   const reportOutput = (write: boolean) => route(write ? "coding.select-report-output" : "coding.report-output", async (request, _api, execution) => {
@@ -753,7 +752,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       const saved = readCodingChangeSet(artifacts, record.session_id, runId);
       if (saved) return { ...saved, output: context.services!.outputs!.reference("changeset") };
       const reference = codingChangeSetReference(record.session_id, runId);
-      const result = artifacts.publish({ ...reference, artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1,
+      const result = context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1,
         content: { kind: "inline", payload: JSON.parse(JSON.stringify(change)) },
         metadata: { title: `${record.title} · 第 ${snapshot.runs.indexOf(ref) + 1} 轮固定变更`, session_id: record.session_id, run_id: runId } });
       return { change, reference, saved_at: result.artifact.created_at, output: context.services!.outputs!.reference("changeset") };
@@ -939,7 +938,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       const reference = planReference(record.session_id, draft.revision), fixed = { ...draft, confirmed: reference };
       planMaterial(fixed);
       const artifacts = context.services!.artifacts;
-      if (!artifacts.read(reference)) artifacts.publish({ ...reference, artifact_type_id: CODING_PLAN_TYPE, schema_version: 1,
+      if (!artifacts.read(reference)) context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_PLAN_TYPE, schema_version: 1,
         content: { kind: "inline", payload: JSON.parse(JSON.stringify(fixed)) },
         metadata: { title: fixed.content.title, session_id: record.session_id, run_id: fixed.source.run_id } });
       const saved = confirmedPlan(context, record.session_id, draft.revision);

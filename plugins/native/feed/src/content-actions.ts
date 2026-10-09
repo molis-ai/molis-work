@@ -3,6 +3,7 @@ import { retainActionAuthority, ActionError, defineSubjectContextAction, subject
 import type { FeedApplication } from "./application.js";
 import type { FeedItemRecord } from "./projection.js";
 import { createFeedHomeEventsHandler } from "./home-events.js";
+import { feedArtifactPreviewHandler } from "./artifact-preview.js";
 
 export const feedContentActions = defineWorkflowContentActions({ id: "feed", title: "Feed", icon: "rss",
   read_permissions: ["feed:read"], write_permissions: ["feed:write"] });
@@ -17,7 +18,7 @@ export const feedSearchEntriesAction = defineSearchEntriesAction("feed.search.en
   [{ kind: "feed_item", title: "Feed 材料", surface: "feed" }, { kind: "source", title: "来源", surface: "feed" }], "Feed", ["feed:read"]);
 
 export function createFeedContentHandlers(feed: FeedApplication, board: string, hydrate: (item: FeedItemRecord) => FeedItemRecord, readSubject?: (subject: ActionSubject, caller: ActionCallContext) => Promise<ActionSubjectContext>) {
-  return [createFeedHomeEventsHandler(feed, board, hydrate, readSubject), ...bindWorkflowContentHandlers(feedContentActions, {
+  return [createFeedHomeEventsHandler(feed, board, hydrate, readSubject), feedArtifactPreviewHandler, ...bindWorkflowContentHandlers(feedContentActions, {
     list: () => feed.snapshot(board).feed_items.slice().sort((a, b) => String(b.imported_at).localeCompare(String(a.imported_at)))
       .map(item => ({ item_id: item.item_id, title: item.title, caption: item.source_label || item.source_kind || "Feed", at: item.imported_at })),
     read: ({ item_id }): WorkflowPayload => {

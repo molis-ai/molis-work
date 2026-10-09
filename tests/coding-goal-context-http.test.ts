@@ -160,7 +160,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     assert.equal((await request(`${sessionPath}/goal`, "PUT", { goal_id: null })).status, 200);
     assert.equal((await start()).status, 200); assert.deepEqual(starts.at(-1)?.text_materials, []);
     assert.deepEqual((await request(`${sessionPath}/runs/run-1/report`)).body, report.body);
-    await host.withProject(ref, ({ coordinator }) => coordinator.artifacts.commands.archiveVersion({
+    await host.withProject(ref, ({ coordinator }) => coordinator.processItems.commands.archiveVersion({
       board_id: DEMO_BOARD_ID, actor_id: "web-user", ...original.reference,
     }));
     const missingSource = await request(`${sessionPath}/runs/run-2/report`, "POST");

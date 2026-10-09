@@ -26,7 +26,7 @@ test("Form standard MCP preserves submissions and publications across processes 
   try {
     const writer = await connect("a"), reader = await connect("a", "read"), other = await connect("b");
     assert.deepEqual((await writer.listTools()).tools.map(t => t.name).filter(n => n.startsWith("form.")).sort(),
-      ["list","get","create","update","publish","close","promote","delete","questions.add","questions.ai","submit","results","results.csv","answers.import","fillpage","search.entries","subject.read",
+      ["list","get","create","update","publish","close","promote","artifacts.pin","delete","questions.add","questions.ai","submit","results","results.csv","answers.import","fillpage","search.entries","subject.read",
         "content.list","content.read","content.receive","content.create"].map(n=>`form.${n}__v1`).sort());
     assert.equal((await call(reader,"list")).ai_available, false);
     let {form} = await call(writer,"create",{title:"MCP 问卷"}); const id = form.id;

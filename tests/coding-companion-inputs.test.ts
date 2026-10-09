@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { DEMO_BOARD_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
@@ -18,9 +18,9 @@ async function fixture() {
   const databasePath = join(directory, "project.db");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
-  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID), board_id: DEMO_BOARD_ID, actor_id: "tester", db: store.db,
-    artifacts, ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
+    artifacts, processItems, ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   const contexts = new Map<string, PluginStartContext>();
   const capture = (definition: PluginDefinition): PluginDefinition => ({ ...definition, async start(context) {
     contexts.set(context.plugin_id, context);
@@ -42,7 +42,7 @@ async function fixture() {
     assert.equal(response?.status, 200);
     return (response!.body as { view: Record<string, any> }).view;
   };
-  return { artifacts, platform, outputs, state, close() { store.close(); rmSync(directory, { recursive: true, force: true }); } };
+  return { artifacts, processItems, platform, outputs, state, close() { store.close(); rmSync(directory, { recursive: true, force: true }); } };
 }
 
 test("Diff consumes its selected Git input group and preserves that group while input is missing", async () => {
@@ -82,12 +82,12 @@ test("Text Stats never counts retained payload from an unavailable or archived A
     const first = publish(); await host.platform.wiring.drain();
     const ready = await host.state("text-stats");
     assert.equal(ready.phase, "ready"); assert.equal(ready.characters, 4); assert.equal(ready.utf8_bytes, 11); assert.equal(ready.lines, 1);
-    host.artifacts.commands.markUnavailable({ board_id: DEMO_BOARD_ID, actor_id: "tester", artifact_id: first.artifact_id, version: first.version, reason: "原内容不可读取" });
+    host.processItems.commands.markUnavailable({ board_id: DEMO_BOARD_ID, actor_id: "tester", artifact_id: first.artifact_id, version: first.version, reason: "原内容不可读取" });
     const unavailable = await host.state("text-stats");
     assert.equal(unavailable.phase, "unavailable"); assert.equal(unavailable.characters, undefined); assert.equal(unavailable.source, undefined);
     const second = publish(); await host.platform.wiring.drain();
     assert.equal((await host.state("text-stats")).phase, "ready");
-    host.artifacts.commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: "tester", artifact_id: second.artifact_id, version: second.version });
+    host.processItems.commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: "tester", artifact_id: second.artifact_id, version: second.version });
     const archived = await host.state("text-stats");
     assert.equal(archived.phase, "unavailable"); assert.equal(archived.characters, undefined); assert.equal(archived.source, undefined);
   } finally { host.close(); }

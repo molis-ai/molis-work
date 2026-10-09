@@ -13,6 +13,7 @@ import {
   createMolisWorkLocalHost, createGoalIntentCapability, molisWorkHostProjectReference,
   snapshotBoardCapability,
 } from "@molis-ai/molis-work-app-local-host";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 test("offline Home restore preserves Project, Goal history, Artifact versions and encrypted Session content", async () => {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-home-recovery-"));
@@ -35,7 +36,7 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
     const source = new LocalProjectDatabase(project.database_path);
     const artifacts = new ArtifactsModule({ db: source.db, appendEvent: event => source.appendEvent(event) });
     try {
-      for (const version of [1, 2]) artifacts.commands.registerVersion({
+      for (const version of [1, 2]) artifacts.commands.registerVersion({ ...pinnedArtifact(`第${version}版报告`, { kind: "item", id: "report" }, String(version)),
         board_id: project.board_id, artifact_id: "report", version, actor_id: "user",
         artifact_type_id: "example.report", schema_version: 1,
         producer: { plugin_id: "example.writer", plugin_version: "1.0.0", binding_signature: "example-publisher" },

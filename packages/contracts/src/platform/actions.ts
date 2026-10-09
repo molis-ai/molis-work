@@ -22,6 +22,7 @@ import { fragmentOfferDeclarationProblems, type FragmentOfferChoice } from "./ac
 export * from "./action-fragments.js";
 import { fileSourceDeclarationProblems, type FileSourceDeclaration } from "./file-sources.js";
 export * from "./file-sources.js";
+export * from "./artifact-pins.js";
 import { placementDeclarationProblems } from "./placement.js";
 export * from "./placement.js";
 

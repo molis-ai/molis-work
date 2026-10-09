@@ -21,6 +21,7 @@ import {
 } from "@molis-ai/molis-work-module-goals";
 import {
   ARTIFACTS_SCHEMA_SQL,
+  PROCESS_ITEMS_SCHEMA_SQL,
   migrateArtifactsSchema,
   type ArtifactsSqliteDatabase,
 } from "@molis-ai/molis-work-module-artifacts";
@@ -136,7 +137,7 @@ export function migrateLocalProjectDatabase(storage: LocalSqliteStorage): void {
 
         ${GOVERNANCE_SCHEMA_SQL}
 
-        ${ARTIFACTS_SCHEMA_SQL}
+        ${ARTIFACTS_SCHEMA_SQL} ${PROCESS_ITEMS_SCHEMA_SQL}
 
         ${CLARIFICATION_SCHEMA_SQL}
 
@@ -322,10 +323,9 @@ export function migrateLocalProjectDatabase(storage: LocalSqliteStorage): void {
       !continuousActionModelApplied ||
       !currentGoalColumns.some((column) => column.name === "current_contract_revision")
     ) migrateContinuousActionModel(storage);
+    // The 成果库 (library_*) and the process items store; an older project gains both, its old artifact tables are left as they are.
     const artifactsApplied = schema.hasMigration(31);
-    const artifactsTable = schema.hasTable("artifacts");
-    const artifactVersionsTable = schema.hasTable("artifact_versions");
-    if (!artifactsApplied || !artifactsTable || !artifactVersionsTable) {
+    if (!artifactsApplied || !schema.hasTable("library_artifact_versions") || !schema.hasTable("process_item_versions")) {
       migrateArtifactsSchema(storage.db as unknown as ArtifactsSqliteDatabase);
     }
     const goalEventFactsApplied = schema.hasMigration(32);

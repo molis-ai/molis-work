@@ -227,7 +227,7 @@ export class FormStore {
   delete(id: string, projectId?: string, expectedVersion?: number): void {
     this.transaction(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
-      if (current.publication_pending) throw new FormError("form.publication_pending", "请先恢复上次 Artifact 发布，再删除问卷");
+      if (current.publication_pending) throw new FormError("form.publication_pending", "请先恢复上次成果发布，再删除问卷");
       this.db.prepare("DELETE FROM submissions WHERE form_id = ?").run(id);
       this.db.prepare("DELETE FROM forms WHERE id = ?").run(id);
     });

@@ -1,12 +1,13 @@
-import { ActionError, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { slidesFromMarkdown } from "./content-actions.js";
 import { PPT_DRAFT_OUTLINE } from "./prompts.js";
-import type { PptRecord, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_ARTIFACT_TYPE_ID, type PptRecord, type PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { promotePpt, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
 import type { PptStore } from "./store.js";
 import { createPptSearchHandlers, pptSearchActions } from "./search.js";
+import { pptArtifactPreview, pptArtifactPreviewHandler } from "./artifact-preview.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -28,15 +29,21 @@ function define<I, O>(name: string, title: string, description: string, operatio
   return { capability_id: `ppt.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["ppt"], input_schema: input, output_schema: output, permissions, ...(name === "outline_ai" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const pptActions = {
+  /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
+  artifactPreview: pptArtifactPreview,
+  /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
+  artifactPin: defineArtifactPinAction("ppt.artifacts.pin", "presentation", "演示稿", [...write, "artifact:write"]),
+  /** Whether a pinned version still matches the ppt object it came from (A4b, 「原文已改」); compares content, not revisions. */
+  artifactCompare: defineArtifactCompareAction("ppt.artifacts.compare", "演示稿", read),
   list: define<Record<string, never>, { presentations: PptRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "演示稿列表", "读取当前项目的演示稿，以及当前调用方能否让模型整理大纲", "query", object({}),
     object({ presentations: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { presentation: PptRecord }>("get", "读取演示稿", "读取幻灯片、配色、版本和发布状态；id 来自列表或创建结果", "query", object({ id }), changed),
   create: define<{ title?: string }, { presentation: PptRecord }>("create", "新建演示稿", "创建带一页空白幻灯片的演示稿", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
   update: define<Edit, { presentation: PptRecord }>("update", "编辑演示稿", "替换指定字段或整组幻灯片；提交读取版本以避免覆盖其他编辑", "command", object({ ...identity, title: { ...text, maxLength: 80 }, description: { ...text, maxLength: 2000 }, color_primary: color, color_background: color, color_text: color,
     slides: { ...array(object(slideFields, [])), minItems: 1, maxItems: 40 } }, ["id"]), changed),
-  delete: define<Identity, { ok: true }>("delete", "删除演示稿", "删除当前项目演示稿，待恢复的 Artifact 发布需先完成", "command", object(identity, ["id"]), object({ ok: { const: true } })),
+  delete: define<Identity, { ok: true }>("delete", "删除演示稿", "删除当前项目演示稿，待恢复的成果发布需先完成", "command", object(identity, ["id"]), object({ ok: { const: true } })),
   export: define<Identity, { filename: string; mime_type: "application/json"; content: string }>("export", "导出演示稿 JSON", "返回已保存演示稿的完整 JSON、文件名和 MIME 类型；不是 PPTX", "query", object(identity, ["id"]), object({ filename: text, mime_type: { const: "application/json" }, content: text })),
-  promote: define<Identity, { presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "演示稿存成 Artifact", "发布固定幻灯片与配色或恢复原发布；后续编辑保留", "command", object(identity, ["id"]), object({ presentation: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  promote: define<Identity, { presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "演示稿存为成果", "发布固定幻灯片与配色或恢复原发布；后续编辑保留", "command", object(identity, ["id"]), object({ presentation: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
   pptx: define<Identity, { filename: string; mime_type: typeof PPTX_MIME_TYPE; content_base64: string; slide_count: number }>("pptx", "导出 PowerPoint 文件",
     "按已保存的版本生成 .pptx（每页标题、要点、讲者备注与配色），PowerPoint、Keynote、WPS 可直接打开和放映；不含图片与图表", "query", object(identity, ["id"]),
     object({ filename: text, mime_type: { const: PPTX_MIME_TYPE }, content_base64: text, slide_count: { type: "integer", minimum: 1 } })),
@@ -93,7 +100,11 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
   };
   const modelAvailability = (): ActionAvailability => ports.modelAvailability ? ports.modelAvailability() : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
+  const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promotePpt(store, id, project(caller), value => ports.publishArtifact!(value, caller),
+    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined }));
+  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "ppt.unavailable", reason: "当前环境不能发出成果" };
   return [
+    pptArtifactPreviewHandler,
     bind(pptActions.list, (_, caller) => {
       const ai = modelAvailability(), permitted = pptActions.outlineAi.action.permissions.every(p => caller.permissions.includes(p))
         && (!caller.allowed_capability_ids || caller.allowed_capability_ids.includes(pptActions.outlineAi.capability_id));
@@ -109,8 +120,10 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
       if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后导出");
       return { filename: presentation.title.replace(/[\\/:*?"<>|\x00-\x1f]/g, "_") + ".json", mime_type: "application/json" as const, content: JSON.stringify(presentation, null, 2) };
     })),
-    bind(pptActions.promote, (input, caller) => ports.withStore(store => promotePpt(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
-      () => ports.publishArtifact ? { available: true } : { available: false, code: "ppt.unavailable", reason: "当前环境不能发出 Artifact" }),
+    bind(pptActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
+    bind(pptActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bindArtifactCompare(pptActions.artifactCompare, PPT_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "color_primary", "color_background", "color_text", "slides"])),
     bind(pptActions.pptx, (input, caller) => ports.withStore(store => {
       const presentation = store.get(input.id, project(caller));
       if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后导出");

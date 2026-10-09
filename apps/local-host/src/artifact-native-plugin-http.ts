@@ -1,16 +1,17 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
+import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  ArtifactBrowserError, ArtifactImportError, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath,
+  ArtifactBrowserError, ArtifactImportError, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, PAGES_READABLE_FILE,
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { ExternalDocumentImportError } from "@molis-ai/molis-work-integration-catalog";
-import { artifactWorkbench, renderArtifactWorkbenchPage, renderArtifactImportPage } from "@molis-ai/molis-work-app-workbench";
-import { codingChangeSetPreview, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
-import { compareRunChangeSet, renderDiff } from "@molis-ai/molis-work-plugin-diff";
-import { icon } from "@molis-ai/molis-work-design-system";
-import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
-import { dateTimeLocale, htmlLang, L } from "./web-locale.js";
+import { artifactWorkbench, artifactTypeDeclarations, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
+import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
+import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactCompareResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
+import { dateTimeLocale, L } from "./web-locale.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
 
@@ -19,6 +20,10 @@ export interface ArtifactHttpContext {
   readonly routePrefix: string;
   readonly projectTitle: string;
   readonly actions: BoundActionClient;
+  /** Pages, bound with its own permissions, for "在 Pages 继续". */
+  readonly pages?: BoundActionClient;
+  /** A type owner's actions, bound with the permissions its preview declares (A4). */
+  readonly ownerActions?: (permissions: readonly string[]) => BoundActionClient;
   readonly controlToken: string;
   readonly desktopShell: boolean;
   readonly pageCsp: string;
@@ -30,13 +35,40 @@ function escape(value: string): string {
 
 const primitives = { escape, text: (value: string) => escape(L(value)), formatDate: (value: string) => new Date(value).toLocaleString(dateTimeLocale()) };
 
+/**
+ * The owner's preview of a 成果 version (specs/artifact-positioning A4): the type's declared preview action turns the
+ * version into a file, rendered read-only, with a way back to the pinned work object in its owner.
+ */
+async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations: ReadonlyMap<string, ArtifactTypeDeclaration>, context: ArtifactHttpContext) {
+  const declaration = artifact ? declarations.get(artifact.artifact_type_id) : undefined;
+  // Only the type's declared owner previews it, and only versions that owner produced.
+  if (!artifact || artifact.availability !== "available" || !declaration?.preview || !context.ownerActions
+    || artifact.producer_plugin_id !== declaration.plugin_id) return undefined;
+  let content: FileContent;
+  try { content = await context.ownerActions(declaration.preview.action.permissions).invoke(declaration.preview, { artifact }) as FileContent; }
+  catch { return undefined; }
+  const pinned = artifact.origin.kind === "pinned" ? artifact.origin.subject : null;
+  // 「原文已改」 (A4b): the owner compares the version with its work object as it is now.
+  let compared: ArtifactCompareResult["state"] | null = null;
+  if (pinned && declaration.compare) {
+    try { compared = (await context.ownerActions(declaration.compare.action.permissions).invoke(declaration.compare, { artifact }) as ArtifactCompareResult).state; }
+    catch { compared = null; }
+  }
+  const notice = artifact.origin.kind === "imported" ? "这是导入时保存的版本；原文后续修改不会自动同步。"
+    : compared === "changed" ? "原对象之后改过了；这里仍是固定下来的这一版。" : compared === "missing" ? "原对象已经删除；这里仍保留固定下来的这一版。" : undefined;
+  return { body_html: renderFilePreviewHtml(content, primitives), ...(notice ? { notice } : {}),
+    source_href: pinned && compared !== "missing" ? `${context.routePrefix}/?openPlugin=${encodeURIComponent(declaration.surface)}&openItem=${encodeURIComponent(pinned.id)}&openTitle=${encodeURIComponent(artifact.title)}` : "",
+    source_label: pinned ? `在${/^[\x20-\x7e]+$/u.test(declaration.plugin_title) ? ` ${declaration.plugin_title} ` : declaration.plugin_title}打开原对象` : "",
+    plugin_id: declaration.surface, item_id: pinned?.id ?? "" };
+}
+
 export function renderGoalArtifactContext(embeds: GoalArtifactEmbed[]): string {
   // The containing Goal fragment applies its Project prefix once to every local link.
   return artifactWorkbench.goalContext(embeds, { routePrefix: "", primitives });
 }
 
 /** HTTP composition only: Artifact application owns routing and exact-version reads. */
-export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: string }) {
+export function createLocalArtifactHttp() {
   return async function handleArtifactNativePluginHttp(
     request: IncomingMessage, response: ServerResponse, pathname: string, context: ArtifactHttpContext,
   ): Promise<boolean> {
@@ -48,8 +80,8 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
         if (input.source !== "file" && !EXTERNAL_DOCUMENT_SOURCES.includes(input.source as ArtifactExternalImport["source"])) {
           throw new ArtifactImportError(400, "document.source_invalid", "请选择支持的文档来源");
         }
-        if (input.source === "file" && typeof input.content !== "string") {
-          throw new ArtifactImportError(400, "document.content_invalid", "文件必须是 UTF-8 文本");
+        if (input.source === "file" && typeof input.content !== "string" && input.original_file === undefined) {
+          throw new ArtifactImportError(400, "document.content_invalid", "请选择要导入的文件");
         }
         const saved = input.source === "file"
           ? await context.actions.invoke(artifactsActions.importFile, input as unknown as ArtifactFileImport)
@@ -58,19 +90,53 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
         sendLocalWebJson(response, result.reused ? 200 : 201, { ...result, warnings: result.warnings.map(warning => L(warning)) });
         return true;
       }
+      if (pathname === "/api/artifacts/continue-in-pages" && request.method === "POST") {
+        // "从这一版继续" (A3): Pages starts a document from an imported text version, parsed the way Pages reads files.
+        const body = await readArtifactImportBody(request) as { reference?: { artifact_id?: unknown; version?: unknown } };
+        const reference = { artifact_id: String(body.reference?.artifact_id ?? ""), version: Number(body.reference?.version) };
+        const view = await context.actions.invoke(artifactsActions.browser, { reference,
+          supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }] });
+        const file = importedFileOf(view.selected);
+        if (!file || !PAGES_READABLE_FILE.test(file.filename)) { sendLocalWebJson(response, 400, { error: L("Pages 读不了这一版：支持 Markdown、TXT、HTML、CSV、Word 与 ZIP") }); return true; }
+        if (!context.pages) { sendLocalWebJson(response, 404, { error: L("这个项目没有 Pages") }); return true; }
+        const files = [{ name: file.filename, data: file.bytes.toString("base64") }];
+        const prepared = await context.pages.invoke(pagesActions.previewImport, { files });
+        const imported = await context.pages.invoke(pagesActions.import, { files, request_id: randomUUID(),
+          selected_keys: prepared.documents.map(document => document.key) });
+        const document = imported.documents[0];
+        if (!document) { sendLocalWebJson(response, 400, { error: L("这一版没有可以继续的正文") }); return true; }
+        // A ZIP can hold several documents; the first opens, the rest stay in Pages.
+        sendLocalWebJson(response, 201, { document: { id: document.id, title: document.title }, count: imported.documents.length });
+        return true;
+      }
       if (request.method !== "GET") return false;
-      if (pathname === "/artifacts/import") {
-        const available = await context.actions.invoke(artifactsActions.importSources, {});
-        const html = renderArtifactImportPage({
-          ...context, connectionStatus: available.sources, connections: available.connections,
-          lang: htmlLang(), nativeDesktopBootstrapScript: ports.nativeDesktopBootstrapScript, primitives,
-        });
-        response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": context.pageCsp });
-        response.end(html);
+      if (pathname === "/api/artifacts/versions") {
+        // What a Goal can hand in (A5): the latest available version of each 成果, named as its owner declares the type.
+        const view = await context.actions.invoke(artifactsActions.browser, { reference: null });
+        const declarations = artifactTypeDeclarations(), latest = new Map<string, ArtifactVersionRecord>();
+        for (const version of view.versions) {
+          if (version.lifecycle_state !== "active" || version.availability !== "available") continue;
+          const current = latest.get(version.artifact_id);
+          if (!current || version.version > current.version) latest.set(version.artifact_id, version);
+        }
+        sendLocalWebJson(response, 200, { versions: [...latest.values()].map(version => ({ reference: { artifact_id: version.artifact_id, version: version.version },
+          title: version.title, type_title: declarations.get(version.artifact_type_id)?.title ?? version.artifact_type_id, created_at: version.created_at })) });
         return true;
       }
       const route = matchArtifactBrowserRoute(pathname);
       if (!route) return false;
+      if (route.kind === "file") {
+        // A download (S7 exception list): an imported version's original file, or the text it was read into (A3).
+        const view = await context.actions.invoke(artifactsActions.browser, { reference: route.reference,
+          supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }] });
+        const file = importedFileOf(view.selected);
+        if (!file) { sendLocalWebJson(response, 404, { error: L("这个版本没有可取回的文件") }); return true; }
+        response.writeHead(200, { "content-type": file.mime, "cache-control": "no-store", "x-content-type-options": "nosniff",
+          "content-security-policy": "default-src 'none'; sandbox",
+          "content-disposition": `${file.inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.filename)}` });
+        response.end(file.bytes);
+        return true;
+      }
       if (route.kind === "export") {
         const exported = await context.actions.invoke(artifactsActions.export, { reference: route.reference });
         response.writeHead(200, {
@@ -83,43 +149,28 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
       }
       const view = await context.actions.invoke(artifactsActions.browser, { reference: route.reference,
         supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }] });
-      const report = codingReportPreview(view.selected), changes = codingChangeSetPreview(view.selected);
-      const changesHtml = changes?.change.files.map((file, index) => {
-        const comparison = compareRunChangeSet({ content: changes.change, source_plugin_id: "io.molis.work.coding", content_version: changes.reference.version }, undefined, index);
-        const decisions = { pending: "待审", approved: "已批准", rejected: "已拒绝", cancelled: "已取消", expired: "已过期" };
-        const executions = { applied: "已执行", failed: "执行失败", unknown: "执行结果未知", "not-applied": "未执行" };
-        const status = file.review ? `${L(decisions[file.review.decision])} / ${L(executions[file.review.execution])}` : L("旧版记录");
-        return `<details${index === 0 ? " open" : ""}><summary>${escape(file.path)} · ${L("修改")} ${index + 1} · ${escape(status)}</summary>${renderDiff({ route_prefix: context.routePrefix,
-          view: { ...comparison, files: [] }, primitives: { escape: value => escape(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } })}</details>`;
-      }).join("");
-      const presentation = report ? { body_html: renderFeedRichText(report.body_markdown),
-        source_href: `${context.routePrefix}/?openPlugin=coding&openItem=${encodeURIComponent(report.reference.artifact_id)}&openTitle=${encodeURIComponent(report.title)}`,
-        source_label: "在 Coding 打开原报告与会话", plugin_id: "coding", item_id: report.reference.artifact_id } : changes ? {
-          body_html: changesHtml || `<p>${escape(L("这一轮没有可读取的文本审查；命令及外部操作请查看原回执"))}</p>`,
-          notice: "这是保存时的文本审查，包含未执行提案；不代表当前文件状态或目标验收。",
-          source_href: `${context.routePrefix}/?openPlugin=coding&openItem=${encodeURIComponent(changes.reference.artifact_id)}&openTitle=${encodeURIComponent(changes.title)}`,
-          source_label: "在 Coding 查看固定变更并返回原任务", plugin_id: "coding", item_id: changes.reference.artifact_id,
-        } : undefined;
-      const fragment = requestHeader(request, "x-molis-work-fragment");
-      if (fragment === "artifact-workbench" || fragment === "frame-block") {
-        const compact = fragment === "frame-block";
-        response.writeHead(view.requested && !view.selected ? 404 : 200, {
-          "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
-        });
-        response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation }, compact ? "frame-block" : "detail"));
+      // Read first, so a disabled or forbidden 成果 surface answers as before. A direct visit (address bar, refresh, a link
+      // from elsewhere) then opens the workbench on the 成果 surface and, for a version, that version; only the workbench's
+      // own fragment requests get the surface's HTML.
+      if (!requestHeader(request, "x-molis-work-fragment")) {
+        const target = new URLSearchParams({ openPlugin: "artifacts" });
+        if (route.kind === "detail") target.set("openItem", context.routePrefix + pathname);
+        response.writeHead(302, { location: `${context.routePrefix}/?${target}`, "cache-control": "no-store" });
+        response.end();
         return true;
       }
-      const html = renderArtifactWorkbenchPage({
-        view, routePrefix: context.routePrefix, projectTitle: context.projectTitle,
-        lang: htmlLang(), desktopShell: context.desktopShell,
-        nativeDesktopBootstrapScript: ports.nativeDesktopBootstrapScript,
-        primitives, presentation,
-      });
+      const declarations = artifactTypeDeclarations();
+      const presentation = await ownerPreview(view.selected, declarations, context);
+      const links = view.selected && route.kind === "detail" ? await context.actions.invoke(artifactsActions.links, { reference: { artifact_id: view.selected.artifact_id, version: view.selected.version } }) : undefined;
+      const compact = requestHeader(request, "x-molis-work-fragment") === "frame-block";
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
-        "content-type": "text/html; charset=utf-8", "cache-control": "no-store",
-        "content-security-policy": context.pageCsp,
+        "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
       });
-      response.end(html);
+      // The directory carries the 成果库's one import entry (A3); its dialog needs the connected document services.
+      const available = compact ? null : await context.actions.invoke(artifactsActions.importSources, {});
+      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, ...(links ? { links } : {}),
+        typeTitles: Object.fromEntries([...declarations].map(([type, declaration]) => [type, declaration.title])),
+        ...(available ? { importForm: { connectionStatus: available.sources, connections: available.connections } } : {}) }, compact ? "frame-block" : "detail"));
       return true;
     } catch (error) {
       if (error instanceof ActionError) {

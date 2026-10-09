@@ -1,10 +1,11 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { DATASET_NAME_COLUMN } from "./prompts.js";
-import { ActionError, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { DatasetRecord, DatasetVersionRecord, DatasetColumnInput, DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
+import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { DATASET_ARTIFACT_TYPE_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { promoteDataset, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStore } from "./store.js";
 import { createDatasetSearchHandlers, datasetSearchActions } from "./search.js";
+import { datasetArtifactPreview, datasetArtifactPreviewHandler } from "./artifact-preview.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -23,6 +24,12 @@ function define<I, O>(name: string, title: string, description: string, operatio
   return { capability_id: `dataset.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["dataset"], input_schema: input, output_schema: output, permissions, ...(name === "columns.ai" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const datasetActions = {
+  /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
+  artifactPreview: datasetArtifactPreview,
+  /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
+  artifactPin: defineArtifactPinAction("dataset.artifacts.pin", "dataset", "数据表", [...write, "artifact:write"]),
+  /** Whether a pinned version still matches the dataset object it came from (A4b, 「原文已改」); compares content, not revisions. */
+  artifactCompare: defineArtifactCompareAction("dataset.artifacts.compare", "数据表", read),
   list: define<Record<string, never>, { datasets: DatasetRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "数据表列表", "读取当前项目数据表及当前 AI 加列可用性", "query", object({}), object({ datasets: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { dataset: DatasetRecord }>("get", "读取数据表", "读取当前项目表格的完整列、行、版本及发布状态", "query", object({ id }), changed),
   create: define<{ title?: string }, { dataset: DatasetRecord }>("create", "新建数据表", "创建当前项目的草稿数据表", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
@@ -35,7 +42,7 @@ export const datasetActions = {
   versions: define<{ id: string }, { versions: DatasetVersionRecord[] }>("versions", "版本列表", "读取当前表的本机快照；保留稳定版本 ID", "query", object({ id }), object({ versions: array(snapshot) })),
   snapshot: define<Identity & { note?: string }, { version: DatasetVersionRecord }>("snapshot", "保存版本", "把当前表保存为可回滚的本机快照", "command", object({ ...identity, note: { ...text, maxLength: 80 } }, ["id"]), object({ version: snapshot })),
   rollback: define<Identity & { version_id: string }, { dataset: DatasetRecord }>("rollback", "回滚版本", "从当前表的指定快照恢复内容；保留发布引用与其他快照", "command", object({ ...identity, version_id: id }, ["id", "version_id"]), changed),
-  promote: define<Identity, { dataset: DatasetRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布数据表", "把固定表内容存成 Artifact，或恢复上次中断发布；本机快照不进入发布内容", "command", object(identity, ["id"]), object({ dataset: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  promote: define<Identity, { dataset: DatasetRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布数据表", "把固定表内容存为成果，或恢复上次中断发布；本机快照不进入发布内容", "command", object(identity, ["id"]), object({ dataset: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
   searchEntries: datasetSearchActions.entries,
   subject: datasetSearchActions.subject,
   files: datasetSearchActions.files,
@@ -57,7 +64,11 @@ export interface DatasetActionPorts {
 export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
+  const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promoteDataset(store, id, project(caller), value => ports.publishArtifact!(value, caller),
+    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined }));
+  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "dataset.unavailable", reason: "当前环境不能发出成果" };
   return [
+    datasetArtifactPreviewHandler,
     bind(datasetActions.list, (_, caller) => ports.withStore(store => {
       const ai = ports.modelAvailability();
       const permitted = datasetActions.generateAi.action.permissions.every(permission => caller.permissions.includes(permission))
@@ -86,8 +97,10 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
     bind(datasetActions.versions, (input, caller) => ports.withStore(store => ({ versions: store.listVersions(input.id, project(caller)) }))),
     bind(datasetActions.snapshot, (input, caller) => ports.withStore(store => ({ version: store.saveVersion(input.id, input.note, project(caller), input.expected_version) }))),
     bind(datasetActions.rollback, (input, caller) => ports.withStore(store => ({ dataset: store.rollback(input.id, input.version_id, project(caller), input.expected_version) }))),
-    bind(datasetActions.promote, (input, caller) => ports.withStore(store => promoteDataset(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
-      () => ports.publishArtifact ? { available: true } : { available: false, code: "dataset.unavailable", reason: "当前环境不能发出 Artifact" }),
+    bind(datasetActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
+    bind(datasetActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bindArtifactCompare(datasetActions.artifactCompare, DATASET_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "columns", "rows"])),
     ...createDatasetSearchHandlers(ports.withStore),
     bindObjectMoveHandler(datasetActions.move, input => ports.withStore(store => {
       const dataset = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);

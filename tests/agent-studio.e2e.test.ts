@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { ChromeHarness } from './fixtures/plugin-builder-browser.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
+import { STUDIO_HARNESS_PATH, studioHarnessPage } from '../scripts/agent-studio-harness.mjs';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
 import { seedDemoBoard, DEMO_BOARD_ID } from '../apps/local-host/src/demo-seed.js';
 import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/src/plugin-builder/agent-surface.js';
@@ -32,6 +33,8 @@ test('studio: a request becomes a working, published plugin that the person can 
     if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
     const url = new URL(request.url ?? '/', 'http://localhost') /* as the product server does: no port in the base */;
     if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
+    // The studio as the workbench mounts it in its stage (scripts/agent-studio-harness.mts): it has no page of its own.
+    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); response.end(studioHarnessPage(token)); return; }
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     void handleAgentStudioHttp(request, response, url, options, token).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); });
   });
@@ -41,7 +44,12 @@ test('studio: a request becomes a working, published plugin that the person can 
     const page = await browser.page();
     await page.viewport(1440, 900);
     await page.command('Page.enable');
-    await page.command('Page.navigate', { url: origin + '/plugin-builder/studio' });
+    // The studio is drawn in the workbench's stage (specs/artifact-positioning S4): it has no page of its own, framed or not.
+    for (const address of ['/plugin-builder/studio', '/plugin-builder/studio?frame=workbench']) {
+      const direct = await fetch(origin + address, { redirect: 'manual' });
+      assert.equal(direct.status, 404, address); await direct.text();
+    }
+    await page.command('Page.navigate', { url: origin + STUDIO_HARNESS_PATH });
     await page.wait(`[...document.querySelectorAll('[data-as-model] option')].some(o=>o.value.startsWith('fixture'))`);
     // The models and the canvas load separately; wait for the canvas's own empty state instead of reading it at once.
     await page.wait(`/这里会出现你的插件/.test(document.querySelector('[data-as-empty]')?.innerText || '')`);
@@ -136,10 +144,14 @@ test('studio: a request becomes a working, published plugin that the person can 
     // The workbench lists it beside the built-in plugins: one stage framing its installed page.
     const stages = await installedPluginStages(options);
     assert.deepEqual(stages.map(item => [item.label, item.surface.startsWith('app-')]), [['笔记墙', true]]);
-    assert.match(stages[0]!.stage, new RegExp('data-work-surface="' + stages[0]!.surface + '"[^>]*hidden><iframe src="' + pluginHref.replaceAll('.', '\\.') + '"'));
+    assert.match(stages[0]!.stage, new RegExp('data-work-surface="' + stages[0]!.surface + '"[^>]*hidden><iframe src="' + pluginHref.replaceAll('.', '\\.') + '\\?frame=workbench"'));
+    // Its address opened directly (a link in a notice, say) opens the workbench on that plugin's stage, not a page of its own.
+    const directPlugin = await fetch(origin + pluginHref, { redirect: 'manual' });
+    assert.equal(directPlugin.status, 302); assert.equal(directPlugin.headers.get('location'), '/?openSurface=' + encodeURIComponent(stages[0]!.surface)); await directPlugin.text();
     const installedPage = await browser.page();
     await installedPage.command('Page.enable');
-    await installedPage.command('Page.navigate', { url: origin + pluginHref });
+    await installedPage.command('Page.navigate', { url: origin + pluginHref + '?frame=workbench' });
+    assert.equal(await installedPage.evaluate(`Boolean(document.querySelector('.as-installed-bar, a[href*="/plugin-builder/studio"]'))`), false, 'the frame shows only the plugin: no own header or link back');
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('还没有笔记')`);
     await installedPage.click('[data-pc-open="editor"]');
     await installedPage.fill('[data-component-id="editor"] [data-field]', '正式使用的第一条');
@@ -177,10 +189,14 @@ test('studio: a request becomes a working, published plugin that the person can 
     await installedPage.wait(`globalThis.__molisPluginReady===true&&!!document.querySelector('[data-pc-open="editor"]')&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
 
     // The standalone page reads the same preview data through the same renderer.
-    const buildId = await page.evaluate<string>(`new URLSearchParams(location.search).get('build')`);
+    // The open plugin is the one chosen in the studio's own picker (in the workbench the address does not name it).
+    const buildId = await page.evaluate<string>(`document.querySelector('[data-as-builds]').value`);
+    assert.match(buildId, /^[a-f0-9-]{36}$/);
     const standalone = await browser.page();
     await standalone.command('Page.enable');
-    await standalone.command('Page.navigate', { url: origin + '/plugin-builder/studio/preview/' + buildId });
+    const directPreview = await fetch(origin + '/plugin-builder/studio/preview/' + buildId, { redirect: 'manual' });
+    assert.equal(directPreview.status, 302); assert.equal(directPreview.headers.get('location'), '/?openPlugin=plugin-builder'); await directPreview.text();
+    await standalone.command('Page.navigate', { url: origin + '/plugin-builder/studio/preview/' + buildId + '?frame=workbench' });
     await standalone.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('间隔复习比集中复习记得更久')`);
 
     const installedOwner = await ensureInstalledPlugins(options);

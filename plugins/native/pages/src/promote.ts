@@ -20,6 +20,8 @@ export interface PagesPublishArtifactPort {
     body: PagesBody;
     goal_id: string;
     version: number;
+    /** The document revision this version pins (artifact-positioning A1). */
+    source_version: number;
   }): { artifact_id: string; version: number };
 }
 
@@ -43,11 +45,11 @@ export function promotePagesDocument(
   if (current.artifact_version > 0) options.readArtifact?.({ project_id: projectId, page_id: id, version: current.artifact_version });
   const intent = store.beginPublication(id, projectId, options.actorId, goalId, options.expectedVersion ?? current.version, existing ?? undefined);
   if (existing && (existing.title !== intent.title || existing.goal_id !== intent.goal_id || !isDeepStrictEqual(existing.body, intent.body))) {
-    throw new PagesError("pages.publication_conflict", "已保存的 Artifact 与上次发布快照不同，文稿和原记录均已保留");
+    throw new PagesError("pages.publication_conflict", "已保存的成果与上次发布快照不同，文稿和原记录均已保留");
   }
   const published = existing ? { artifact_id: "pages-" + id, version: intent.version }
-    : publishArtifact({ project_id: projectId, page_id: id, title: intent.title, body: intent.body, goal_id: intent.goal_id, version: intent.version });
-  if (published.artifact_id !== "pages-" + id || published.version !== intent.version) throw new PagesError("pages.publication_conflict", "Artifact 返回的身份与本次发布不一致，上次快照已保留");
+    : publishArtifact({ project_id: projectId, page_id: id, title: intent.title, body: intent.body, goal_id: intent.goal_id, version: intent.version, source_version: intent.source_version });
+  if (published.artifact_id !== "pages-" + id || published.version !== intent.version) throw new PagesError("pages.publication_conflict", "成果返回的身份与本次发布不一致，上次快照已保留");
   return {
     document: store.completePublication(id, projectId, intent, published),
     artifact: published,

@@ -4,7 +4,6 @@ import Database from "better-sqlite3";
 
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
-import { createBuilderPlugin } from "@molis-ai/molis-work-plugin-builder";
 import {
   NativePluginExecutor,
   PluginRuntime,
@@ -88,19 +87,6 @@ test("Native plugin factory archives are bundled and rehydrated as exact definit
   const current = createFilesPlugin({ readable: () => true });
   const source = await artifact.capture();
   const restored = await artifact.restore(source);
-  assert.deepEqual(restored.manifest, current.manifest);
-  assert.equal(typeof restored.start, "function");
-});
-
-test("Plugin Builder's Native factory can be archived without persisting Host ports", async () => {
-  const ports = { ready: async () => undefined, models: async () => [] };
-  const artifact = nativePluginReleaseArtifact<typeof createBuilderPlugin>(
-    "@molis-ai/molis-work-plugin-builder",
-    "createBuilderPlugin",
-    factory => factory(ports, () => undefined),
-  );
-  const current = createBuilderPlugin(ports, () => undefined);
-  const restored = await artifact.restore(await artifact.capture());
   assert.deepEqual(restored.manifest, current.manifest);
   assert.equal(typeof restored.start, "function");
 });

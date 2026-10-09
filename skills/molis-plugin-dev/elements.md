@@ -101,9 +101,11 @@ SSOT：`specs/archive/plugin-outbound-mcp/spec.md`。
 
 ## Artifacts / ports
 
-- `artifacts.produces/consumes`：`artifact_type_id` + `schema_version`。消费方按类型匹配，不指定生产者插件。
+- `artifacts.produces/consumes`：成果，人要留存、引用的固定版本，进成果库。`artifact_type_id` + `schema_version`。消费方按类型匹配，不指定生产者插件。
+- 每种 `artifacts.produces` 写 `title`（显示名，如「文档」）与 `preview`（用 `defineArtifactPreviewAction` 定义、`bindArtifactPreview` 绑定的动作：只把这一版的 payload 转成 Markdown、CSV、文本或位图，不读存储）。工作对象能当场固定成一版的（Goal 收尾时交付），再写 `pin`：用 `defineArtifactPinAction(id, 对象种类, 显示名, 权限)` 定义，输入 `{subject_id}`，输出 `{artifact, recovered}`，内部就是你的「存为成果」；每种对象至多一个 owner。门禁 `tests/artifact-type-gate.test.ts`。
+- `process_items.produces/consumes`：过程项，插件之间交换的数据（快照、变更集、回执），记在生产插件名下，不进成果库、侧栏文件和搜索。一种类型要么是成果、要么是过程项。端口发布一律记成过程项；直接记用 `services.processItems.record`。
 - **新类型先写合同**（如 `packages/contracts/src/modules/workspace-artifacts.ts` 或该插件的 `modules/<id>.ts`），再声明 `produces`。只写端口、合同里没有这个类型，连不上。
-- `ports.inputs/outputs`：按 Artifact 类型连接，不指定生产者插件。声明输出口必须同时 `artifact:write` 且类型在 `produces`。输入同理 `artifact:read` + `consumes`。
+- `ports.inputs/outputs`：按 Artifact 类型连接，不指定生产者插件。声明输出口必须同时 `artifact:write` 且类型在 `process_items.produces`（或固定后再选择的成果在 `artifacts.produces`）。输入同理 `artifact:read` + `consumes`。
 - 输入口默认必选。项目启用时会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。不会永远有生产者就不要声明必选入口。
 - 缺绑定仍然可以 `start`。状态是 `missing`，Host 不会调用 `onUpstreamReady`。整份构建里没有产出者时，解析只记 `port_type_unsatisfiable`，插件不因此进 `blocked`。挡住启动的是必需 Capability、依赖成环，或依赖的插件被挡住。
 - 产品里还没有连线页。`PluginWiringApi.bind` / `selectInputGroup` 在 Runtime 里，测试会调用。Local Host 没有挂 `/api/plugins/:id/ports`。

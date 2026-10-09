@@ -377,7 +377,7 @@ function renderGoalDocument(item: WebGoalView, view: MolisWorkWebView, selected:
     decisionCount: countGoalDecisions(view, item.goal.goal_id),
     relatedWorkHtml: renderGoalFactors(item, view),
     artifactHtml: item.artifact_embed_html
-      ? `<h3>${L("关联结果")}</h3>${item.artifact_embed_html}`
+      ? `<h3>${L("交付物与输入")}</h3>${item.artifact_embed_html}`
       : "",
     coverageHtml: `${renderCoverageHtml(item)}${renderInputBindingsHtml(item)}${renderContractCoverage(item, view)}${renderChildProgress(item, view)}`,
     decisionHtml: renderGoalDecisionHtml(item, view),
@@ -437,10 +437,10 @@ const { renderMolisWorkProjectSettingsHub, renderMolisWorkProjectGeneralSettings
 });
 
 function prefixLocalLinks(html: string, routePrefix: string, desktopShell = false): string {
-  // Global settings and the capability service live outside any project; a Plugin linking to them from the
-  // project page means the global page (project settings come in through the __PROJECT_SETTINGS__ tokens).
+  // Global settings and the capability service live outside any project; a Plugin linking to them from the project page
+  // means the global page (project settings come in through the __PROJECT_SETTINGS__ tokens). Only href itself: data-*-href stays.
   const prefixed = routePrefix
-    ? html.replace(/href="\/(?!locale(?:\?|")|projects\/|settings(?:[/?#"])|capabilities(?:[/?#"]))/g, `href="${routePrefix}/`)
+    ? html.replace(/(\s)href="\/(?!locale(?:\?|")|projects\/|settings(?:[/?#"])|capabilities(?:[/?#"]))/g, `$1href="${routePrefix}/`)
     : html;
   const resolved = prefixed
     .replaceAll('href="__PROJECT_INDEX__"', 'href="/"')

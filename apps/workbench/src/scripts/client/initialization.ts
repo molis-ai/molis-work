@@ -246,10 +246,13 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         ? treePane.dataset.desktopDirectory
         : "";
     if (settingsKind) {
+      // A reload stays on the category (and the page inside it) the person was on: "<section>" or "<section> <address>".
+      const [section, ...address] = (tabWorkspace?.coverPlace?.(settingsKind) || "").split(" ");
+      const fetchPath = address.join(" ") || undefined;
       setDesktopDirectory(settingsKind, false, false);
       tabWorkspace?.setExclusive(settingsKind);
-      if (settingsKind === "project-settings") void settingsDirectory?.loadProjectSection?.(settingsDirectory?.getProjectActive?.() || "general");
-      else void settingsDirectory?.loadSection?.(settingsDirectory?.getActive?.() || "appearance");
+      if (settingsKind === "project-settings") void settingsDirectory?.loadProjectSection?.(section || settingsDirectory?.getProjectActive?.() || "general", fetchPath);
+      else void settingsDirectory?.loadSection?.(section || settingsDirectory?.getActive?.() || "appearance", fetchPath);
     }
     if (!tabWorkspace && !directGoalRequested && !restoredNavigation && !decisionView && !collectionView) {
       goalWorkspaceMode = "graph";
@@ -337,6 +340,40 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       setMobileView(restoredMobileView);
     }
     openRequestedFeedRule();
+    // An address the project does not have opens here (the server sends it with ?missing=): say so, then forget it.
+    // A plugin the studio just installed opens once its entry is on the page (?openSurface=app-…), then the address forgets it.
+    const askedSurface = new URLSearchParams(location.search).get("openSurface");
+    if (askedSurface && /^app-[a-f0-9-]{36}$/.test(askedSurface)) {
+      const cleaned = new URL(location.href); cleaned.searchParams.delete("openSurface"); history.replaceState(history.state, "", cleaned);
+      setTimeout(() => [...document.querySelectorAll("[data-work-surface-open]")].find((el) => el.dataset.workSurfaceOpen === askedSurface)?.click(), 0);
+    }
+    const missingPage = new URLSearchParams(location.search).get("missing");
+    if (missingPage) {
+      showToast(L("找不到这个页面：{path}").replace("{path}", missingPage), true);
+      const cleaned = new URL(location.href); cleaned.searchParams.delete("missing");
+      history.replaceState(history.state, "", cleaned);
+    }
+    // A project reference (a file in the project that evidence points to) opens in an overlay here, never a new tab.
+    const referenceDialog = document.querySelector("[data-project-reference-dialog]");
+    referenceDialog?.addEventListener("click", (event) => { if (event.target?.closest?.("[data-dialog-close]")) referenceDialog.close(); });
+    document.addEventListener("click", async (event) => {
+      const link = event.target?.closest?.("a[data-project-reference]");
+      if (!link || !referenceDialog || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      const href = link.getAttribute("href") || "";
+      const url = href.startsWith("/api/") ? route(href) : href;
+      const body = referenceDialog.querySelector("[data-project-reference-body]");
+      referenceDialog.querySelector("#project-reference-title").textContent = link.textContent.trim() || L("项目内引用");
+      referenceDialog.querySelector("[data-project-reference-download]").href = url;
+      body.textContent = L("正在读取…");
+      if (!referenceDialog.open) referenceDialog.showModal();
+      try {
+        const response = await fetch(url, { cache: "no-store" });
+        const text = await response.text();
+        if (!response.ok) { let reason = text; try { reason = JSON.parse(text).error || text; } catch {} throw new Error(reason); }
+        body.textContent = text;
+      } catch (error) { body.textContent = error?.message || L("项目内引用无法打开"); }
+    });
     updateRelationPreviews();
     updateAllRelationFormPreviews();
     boardLifetime.poll(async signal => {

@@ -15,7 +15,7 @@ import type {
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_ROUTE_PREFIX } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import {
   DEMO_BOARD_ID,
   LocalProjectDatabase,
@@ -66,7 +66,9 @@ function manifestFor(input: {
       ...(hasInputs ? [{ permission: "artifact:read", required: true, reason: "读取输入" }] : []),
     ],
     capabilities: { provides: [], consumes: [] },
-    artifacts: {
+    artifacts: { produces: [], consumes: [] },
+    // Port values are process items: exchange data kept out of the 成果库 (artifact-positioning A2).
+    process_items: {
       produces: hasOutputs ? [{ artifact_type_id: TYPE, schema_version: 1 }] : [],
       consumes: hasInputs ? [{ artifact_type_id: TYPE, schema_version: 1 }] : [],
     },
@@ -152,16 +154,18 @@ function project(directory: string) {
     db: store.db,
     appendEvent: (event) => store.appendEvent(event),
   });
+  const processItems = new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) });
   const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID),
     board_id: DEMO_BOARD_ID,
     actor_id: "tester",
     db: store.db,
     journal: store,
     artifacts,
+    processItems,
     ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
-  return { store, platform, artifacts };
+  return { store, platform, artifacts, processItems };
 }
 
 test('stopped activation event clients remain revoked after restart and bus close releases a waiting subscriber', async () => {
@@ -320,11 +324,11 @@ test("bindings, port values and undelivered events survive reopening the project
   }
 });
 
-test('committed Artifact changes refresh existing inputs across connections and stop at project close', { timeout: 18000 }, async () => {
+test('committed changes to a port\'s process item refresh existing inputs across connections and stop at project close', { timeout: 18000 }, async () => {
   const directory = mkdtempSync(join(tmpdir(), 'artifact-input-journal-'));
-  const { store, platform, artifacts } = project(directory);
+  const { store, platform, artifacts, processItems } = project(directory);
   const other = new LocalProjectDatabase(join(directory, 'board.db'));
-  const remote = new ArtifactsModule({ db: other.db, appendEvent: event => other.appendEvent(event) });
+  const remote = new ProcessItemsModule({ db: other.db, appendEvent: event => other.appendEvent(event) });
   const recorder: Recorder = { received: [], delivered: [] };
   let outputs!: PluginOutputsClient;
   const contexts: PluginInputDeliveryContext[] = [];
@@ -354,15 +358,15 @@ test('committed Artifact changes refresh existing inputs across connections and 
       objectType: 'artifact', objectId: 'unrelated@1', reason: 'Other project', payload: {}, at: new Date().toISOString() });
     await delay(1100); assert.equal(refreshes, 0, 'another project does not invalidate this input graph');
     assert.throws(() => createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID), board_id: DEMO_BOARD_ID,
-      actor_id: 'tester', db: store.db, journal: other, artifacts, ui: new UiHost(),
+      actor_id: 'tester', db: store.db, journal: other, artifacts, processItems, ui: new UiHost(),
       privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) }), /当前项目连接/u);
     store.db.exec('BEGIN IMMEDIATE');
-    artifacts.commands.markUnavailable({ board_id: DEMO_BOARD_ID, actor_id: 'tester', ...first, reason: 'rolled back' });
+    processItems.commands.markUnavailable({ board_id: DEMO_BOARD_ID, actor_id: 'tester', ...first, reason: 'rolled back' });
     await delay(1100);
     assert.equal(unavailable, 0); assert.equal(contexts[0]!.signal.aborted, false);
     store.db.exec('ROLLBACK'); await delay(1100);
     assert.equal(unavailable, 0); contexts[0]!.beforeEffect();
-    assert.equal(artifacts.query.getArtifactVersion(DEMO_BOARD_ID, first)!.availability, 'available');
+    assert.equal(processItems.query.getArtifactVersion(DEMO_BOARD_ID, first)!.availability, 'available');
 
     other.db.exec('BEGIN IMMEDIATE');
     remote.commands.markUnavailable({ board_id: DEMO_BOARD_ID, actor_id: 'tester', ...first, reason: 'removed remotely' });
@@ -376,7 +380,7 @@ test('committed Artifact changes refresh existing inputs across connections and 
     onUnavailable = Promise.withResolvers<void>();
     remote.commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: 'tester', ...second });
     await onUnavailable.promise; assert.equal(unavailable, 2);
-    assert.equal(artifacts.query.getArtifactVersion(DEMO_BOARD_ID, second)!.lifecycle_state, 'archived');
+    assert.equal(processItems.query.getArtifactVersion(DEMO_BOARD_ID, second)!.lifecycle_state, 'archived');
     outputs.publish({ port: 'payload', content: { kind: 'inline', payload: 'third' } });
     await platform.wiring.drain(); assert.equal(contexts.length, 3);
     await platform.supervisor.restart(CONSUMER); await platform.wiring.drain();

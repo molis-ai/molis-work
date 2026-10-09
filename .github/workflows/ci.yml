@@ -36,6 +36,11 @@ jobs:
       - name: Verify package contracts and boundaries
         run: pnpm workspace:verify
 
+      # Numbers that may only go down: giant units, tests reaching into package internals, vendored SDK packages,
+      # in-place schema patches, and a status line on every spec in specs/ (specs/repository-anti-corruption §5a).
+      - name: Health gates
+        run: pnpm health:check
+
       - name: Verify Goal boundaries, migrations and release assets
         run: |
           node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
@@ -51,6 +56,12 @@ jobs:
       # The full product suite still runs locally (see the PR template).
       - name: Action and plugin contracts
         run: pnpm test:contracts
+
+      - name: One workbench shell (no standalone pages)
+        run: node scripts/run-tests.mjs tests/shell-page-gate.test.ts
+
+      - name: 成果 types have owner previews; writes match Manifests; process items stay out of user lists
+        run: node scripts/run-tests.mjs tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts
 
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests

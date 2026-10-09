@@ -1025,8 +1025,11 @@ function checkArtifactsOwnership(repositoryRoot) {
 
   const repository = read("modules/artifacts/src/repository.ts");
   for (const required of [
-    "CREATE TABLE IF NOT EXISTS artifacts",
-    "CREATE TABLE IF NOT EXISTS artifact_versions",
+    // One engine, two stores: the 成果库 and the process items plugins hand to each other (artifact-positioning A2).
+    "export const ARTIFACT_TABLES",
+    "export const PROCESS_ITEM_TABLES",
+    "CREATE TABLE IF NOT EXISTS ${t.identities}",
+    "CREATE TABLE IF NOT EXISTS ${t.versions}",
     "PRIMARY KEY (artifact_id, version)",
     "producer_binding_signature",
     "content_digest",

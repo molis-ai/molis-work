@@ -123,62 +123,6 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
 `;
 
 export const SETTINGS_CLIENT_SCRIPT = MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + PROMPT_SETTINGS_CLIENT_SCRIPT + ASSISTANT_SETTINGS_CLIENT_SCRIPT + MEMORY_SETTINGS_CLIENT_SCRIPT + AGENT_DIAGNOSTICS_CLIENT_SCRIPT + `
-  (() => {
-    const projectManager = document.querySelector("[data-project-manager]");
-    if (projectManager) {
-      const radios = [...projectManager.querySelectorAll('input[name="project-focus"]')];
-      const panes = projectManager.querySelectorAll("[data-project-pane]");
-      const showPane = (value) => {
-        panes.forEach((pane) => {
-          const hide = pane.dataset.projectPane !== value;
-          if (hide && !pane.hidden) globalThis.molisWorkResetProjectSettingsEmbeds?.(pane);
-          pane.hidden = hide;
-        });
-      };
-      const applyHash = () => {
-        const raw = decodeURIComponent(location.hash.replace(/^#/, ""));
-        const match = raw && radios.find((radio) => radio.value === raw);
-        if (!match) return;
-        match.checked = true;
-        showPane(match.value);
-      };
-      radios.forEach((radio) => {
-        radio.addEventListener("change", () => {
-          if (!radio.checked) return;
-          showPane(radio.value);
-          const next = "#" + encodeURIComponent(radio.value);
-          if (location.hash !== next) history.replaceState(null, "", next);
-        });
-      });
-      window.addEventListener("hashchange", applyHash);
-      applyHash();
-    }
-    const createForm = document.querySelector("[data-project-create]");
-    createForm?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const values = new FormData(createForm);
-      const error = createForm.querySelector(".settings-form-error");
-      if (values.get("user_confirmed") !== "on") {
-        error.textContent = L("请先确认创建这个项目。");
-        error.hidden = false;
-        return;
-      }
-      const submit = createForm.querySelector("button[type=submit]");
-      submit.disabled = true;
-      error.hidden = true;
-      try {
-        const response = await fetch("/api/settings/projects", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ display_name: String(values.get("display_name") || "").trim(), user_confirmed: true }) });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || L("项目创建失败"));
-        location.assign(globalThis.molisWorkNavigationUrl(result.project_path));
-      } catch (caught) {
-        error.textContent = caught.message || L("项目创建失败");
-        error.hidden = false;
-        submit.disabled = false;
-      }
-    });
-    globalThis.molisWorkBindProjectIdentity?.(document);
-  })();
 ` + SHELF_SETTINGS_CLIENT_SCRIPT + CODING_SETTINGS_CLIENT_SCRIPT + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + MCP_ACCESS_CLIENT_SCRIPT + `
   (() => {
     const root = document.querySelector("[data-mcp-settings]");

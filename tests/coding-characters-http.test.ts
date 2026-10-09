@@ -13,6 +13,7 @@ import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 test("Coding saves exact Character versions, blocks unavailable selection before SDK creation, and preserves task drafts across reopen", async () => {
   const home = mkdtempSync(join(tmpdir(), "coding-characters-")), dbPath = join(home, "board.db");
@@ -20,7 +21,7 @@ test("Coding saves exact Character versions, blocks unavailable selection before
   const personal = openCharacters(home, "web-user"), draft = personal.service.create();
   personal.service.update(draft.character_id, 1, { title: "原角色", instructions: "旧的固定要求", host_tools: null });
   const artifacts = () => new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
-  const publish = (version: number) => personal.service.publish(draft.character_id, version + 1, content => artifacts().commands.registerVersion({
+  const publish = (version: number) => personal.service.publish(draft.character_id, version + 1, content => artifacts().commands.registerVersion({ ...pinnedArtifact(content.title, { kind: "character", id: content.character_id }),
     board_id: DEMO_BOARD_ID, actor_id: "web-user", artifact_id: `character:${DEMO_BOARD_ID}:${draft.character_id}`, version,
     artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1,
     producer: { plugin_id: CHARACTER_PLUGIN_ID, plugin_version: "1.0.0", binding_signature: CHARACTER_PUBLISHER_SIGNATURE },

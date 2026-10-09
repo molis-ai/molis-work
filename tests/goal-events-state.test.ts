@@ -7,6 +7,7 @@ import test from "node:test";
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkV1Error, handleGoalEventDecisionHttp, hostEventDecisionAuthority, GOALS_ACTIONS, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
 import { ActionService } from "@molis-ai/molis-work-kernel";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { bindGoalsWebActions } from "../apps/local-host/src/goals-actions.js";
 import type { GoalEventTypeDefinitionInput } from "@molis-ai/molis-work-contracts/modules/goals";
 
@@ -636,7 +637,9 @@ test("protected Web user entry records a decision; Host-injected identity is req
         goals: data.app.goalQueries, inputs: data.app.goalInputs, eventWork: data.app.goalEvents,
         projectGoalLifecycle: (snapshot, goalId) => data.app.projectGoalLifecycle(snapshot, goalId) },
       readGoal: goalId => data.app.goalQueries.getGoal(BOARD, goalId),
-        readContract: goalId => data.app.goalQueries.readGoalContract(BOARD, goalId), history: {
+        readContract: goalId => data.app.goalQueries.readGoalContract(BOARD, goalId),
+      deliverables: { readArtifact: reference => data.app.artifacts.query.getArtifactVersion(BOARD, reference), ledger: createContextLedger(data.store.db, { authorize: () => true }) },
+      history: {
         snapshot: () => data.store.snapshot(BOARD), journalEvents: () => data.store.readEventsDescending(BOARD),
       }, planning: { planning: data.app.goals.planning, baseMethods: () => [] }, guidance: { commands: data.app.goals.commands, read: boardId => data.app.goalQueries.readProjectGuidance(boardId) },
       lifecycle: { lifecycle: data.app.goals.lifecycle, setActiveGoal: (...args) => data.app.setActiveGoal(...args), eventCursor: () => data.store.eventCursor(BOARD) },

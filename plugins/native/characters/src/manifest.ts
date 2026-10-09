@@ -15,7 +15,7 @@ export const charactersManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [agentHostCapabilities.listActions.capability_id, agentHostCapabilities.listRuntimes.capability_id] },
   actions: CHARACTERS_ACTIONS,
-  artifacts: { produces: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 }], consumes: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 }] },
+  artifacts: { produces: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1, title: "角色", preview: { capability_id: "characters.artifacts.preview", version: 1 } }], consumes: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 }] },
   routes: [
     { route_id: "characters.actions", method: "GET", path: "/actions" },
     { route_id: "characters.discover", method: "POST", path: "/imports/discover" },

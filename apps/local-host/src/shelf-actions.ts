@@ -4,7 +4,7 @@ import { SHELF_ACTIONS, SHELF_PROJECT_ACTIONS, createShelfActionHandlers, create
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { SHELF_TEXT_MATERIAL_TYPE, type ShelfTextMaterial, type ShelfMaterialPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
-import type { ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { readMaterialWebsite } from "./material-web.js";
 import { extractMaterial } from "./material-extraction.js";
@@ -44,14 +44,14 @@ export function shelfActionProvider(home: string, materials: ShelfMaterialPorts 
 export function shelfProjectActionProvider(runtime: MolisWorkProjectRuntime, home: string): ActionProviderRegistration {
   return { provider: provider(runtime.project_id), definitions: SHELF_PROJECT_ACTIONS, handlers: createShelfProjectActionHandlers(runtime.project_id, {
     readFile: itemId => openShelfStore(home, shelfRuntimeProbe()).readFile(itemId),
-    publish: (payload, actorId) => publishShelfMaterial(runtime.coordinator.artifacts, runtime.board_id, actorId, payload),
+    publish: (payload, actorId) => publishShelfMaterial(runtime.coordinator.processItems, runtime.board_id, actorId, payload),
   }) };
 }
 
-/** Joins a personal Shelf copy to the project Artifact store; the confirming caller owns every version. */
-export function publishShelfMaterial(artifacts: ArtifactsApplicationApi, boardId: string, actorId: string, payload: ShelfTextMaterial): { artifact_id: string; version: number } {
+/** Joins a personal Shelf copy to the project as a process item other plugins read; the confirming caller owns every version. */
+export function publishShelfMaterial(processItems: ProcessItemsApplicationApi, boardId: string, actorId: string, payload: ShelfTextMaterial): { artifact_id: string; version: number } {
   const artifactId = "shelf-material:" + boardId + ":" + payload.source.item_id;
-  const latest = artifacts.query.latestArtifactVersion(boardId, artifactId);
+  const latest = processItems.query.latestArtifactVersion(boardId, artifactId);
   if (latest && (latest.owner_actor_id !== actorId || latest.producer_plugin_id !== shelfManifest.plugin_id
     || latest.producer_binding_signature !== shelfManifest.publisher.signature || latest.artifact_type_id !== SHELF_TEXT_MATERIAL_TYPE)) throw new Error("项目材料的原归属不一致");
   // Artifact storage canonicalizes object keys; compare data independently of property order.
@@ -62,7 +62,7 @@ export function publishShelfMaterial(artifacts: ArtifactsApplicationApi, boardId
   };
   if (latest && latest.lifecycle_state === "active" && latest.availability === "available" && same(latest.payload, payload)) return { artifact_id: latest.artifact_id, version: latest.version };
   const version = (latest?.version ?? 0) + 1;
-  const result = artifacts.commands.registerVersion({ board_id: boardId, actor_id: actorId, artifact_id: artifactId, version,
+  const result = processItems.commands.registerVersion({ board_id: boardId, actor_id: actorId, artifact_id: artifactId, version,
     artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1,
     producer: { plugin_id: shelfManifest.plugin_id, plugin_version: shelfManifest.version, binding_signature: shelfManifest.publisher.signature },
     content: { kind: "inline", payload: JSON.parse(JSON.stringify(payload)) }, metadata: { title: payload.title, item_id: payload.source.item_id },

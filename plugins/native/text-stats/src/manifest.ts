@@ -32,7 +32,8 @@ export const textStatsManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   actions: TEXT_STATS_ACTIONS,
-  artifacts: {
+  artifacts: { produces: [], consumes: [] },
+  process_items: {
     produces: [],
     consumes: [{ artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION }],
   },

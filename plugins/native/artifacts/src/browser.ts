@@ -1,6 +1,6 @@
 import type {
   ArtifactConsumptionCompatibility, ArtifactConsumerType, ArtifactReference,
-  ArtifactsQueryApi, ArtifactJsonValue, ArtifactVersionRecord,
+  ArtifactsQueryApi, ArtifactVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ARTIFACT_SUBJECT_KIND, artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, subjectContext, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -66,7 +66,7 @@ export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: 
   const relatedGoals = [...new Set(goalIds)].sort();
   return subjectContext({
     subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
-    revision: JSON.stringify([record.version, record.content_digest, relatedGoals]), title: artifactDisplayTitle(record),
+    revision: JSON.stringify([record.version, record.content_digest, relatedGoals]), title: record.title,
     content: JSON.stringify({ artifact_id: record.artifact_id, version: record.version,
       artifact_type_id: record.artifact_type_id, schema_version: record.schema_version,
       producer: { plugin_id: record.producer_plugin_id, plugin_version: record.producer_plugin_version,
@@ -78,40 +78,45 @@ export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: 
 
 export type ArtifactBrowserRoute =
   | { readonly kind: "index"; readonly reference: null }
-  | { readonly kind: "detail" | "export"; readonly reference: ArtifactReference };
-
-const DISPLAY_TITLE_KEYS = ["title", "name", "text"] as const;
-
-/** Directory and reading-card title. Exact identity stays on artifact_id. */
-export function artifactDisplayTitle(artifact: Pick<ArtifactVersionRecord, "artifact_id" | "payload"> & Partial<Pick<ArtifactVersionRecord, "metadata">>): string {
-  const line = payloadDisplayLine(artifact.payload);
-  return line || payloadDisplayLine({ title: artifact.metadata?.title ?? null }) || artifact.artifact_id;
-}
-
-function payloadDisplayLine(payload: ArtifactJsonValue | null): string {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return "";
-  for (const key of DISPLAY_TITLE_KEYS) {
-    const value = payload[key];
-    if (typeof value !== "string") continue;
-    const line = value.trim().split(/\r?\n/, 1)[0]?.trim() ?? "";
-    if (line) return line;
-  }
-  return "";
-}
+  | { readonly kind: "detail" | "export" | "file"; readonly reference: ArtifactReference };
 
 /** Routes require an exact producer-supplied version, never an implicit latest. */
 export function matchArtifactBrowserRoute(pathname: string): ArtifactBrowserRoute | null {
   if (pathname === "/artifacts") return { kind: "index", reference: null };
-  const match = pathname.match(/^\/(api\/)?artifacts\/([^/]+)\/versions\/([^/]+)(\/export)?$/);
+  const match = pathname.match(/^\/(api\/)?artifacts\/([^/]+)\/versions\/([^/]+)(\/export|\/file)?$/);
   if (!match || (Boolean(match[1]) !== Boolean(match[4]))) return null;
   if (!/^[1-9]\d*$/.test(match[3]!) || !Number.isSafeInteger(Number(match[3]))) {
-    throw new ArtifactBrowserError(400, "Artifact version 必须是正整数");
+    throw new ArtifactBrowserError(400, "成果版本必须是正整数");
   }
   let id: string;
   try { id = decodeURIComponent(match[2]!); }
-  catch { throw new ArtifactBrowserError(400, "Artifact ID 编码无效"); }
-  return { kind: match[1] ? "export" : "detail", reference: { artifact_id: id, version: Number(match[3]) } };
+  catch { throw new ArtifactBrowserError(400, "成果 ID 编码无效"); }
+  // `/file` hands back an imported file's original bytes (A3); `/export` the version's JSON record.
+  return { kind: match[4] === "/file" ? "file" : match[1] ? "export" : "detail", reference: { artifact_id: id, version: Number(match[3]) } };
 }
+
+/** Inline in the page only for raster images; everything else, SVG included, is a download. */
+const INLINE_IMAGE = /^image\/(?:png|jpeg|gif|webp|avif)$/u;
+
+/**
+ * An imported version's file (specs/artifact-positioning A3): the original bytes when one was kept, else the text it was
+ * read into. Null when the version is not an available imported document.
+ */
+export function importedFileOf(artifact: ArtifactVersionRecord | null): { filename: string; mime: string; bytes: Buffer; inline: boolean } | null {
+  if (!artifact || artifact.artifact_type_id !== "io.molis.work.document" || artifact.availability !== "available"
+    || artifact.content_kind !== "inline") return null;
+  const payload = artifact.payload as { content?: unknown; format?: unknown; original_file?: { filename?: unknown; mime?: unknown; data_base64?: unknown } } | null;
+  const original = payload?.original_file;
+  if (original && typeof original.filename === "string" && typeof original.mime === "string" && typeof original.data_base64 === "string") {
+    return { filename: original.filename, mime: original.mime, bytes: Buffer.from(original.data_base64, "base64"), inline: INLINE_IMAGE.test(original.mime) };
+  }
+  if (typeof payload?.content !== "string") return null;
+  const text = payload.format === "text";
+  return { filename: `${artifact.title}.${text ? "txt" : "md"}`, mime: `${text ? "text/plain" : "text/markdown"}; charset=utf-8`, bytes: Buffer.from(payload.content, "utf8"), inline: false };
+}
+
+/** What Pages can start documents from: text it reads, and the Word, CSV and ZIP (e.g. Notion export) files it parses. */
+export const PAGES_READABLE_FILE = /\.(?:md|markdown|txt|html?|csv|docx|zip)$/iu;
 
 export function artifactVersionPath(reference: ArtifactReference): string {
   return `/artifacts/${encodeURIComponent(reference.artifact_id)}/versions/${reference.version}`;
@@ -120,6 +125,6 @@ export function artifactVersionPath(reference: ArtifactReference): string {
 /** Read-only local interchange; no publication, registration or state change. */
 export function exportArtifactVersion(query: ArtifactsQueryApi, boardId: string, reference: ArtifactReference): string {
   const artifact = query.getArtifactVersion(boardId, reference);
-  if (!artifact) throw new ArtifactBrowserError(404, "当前项目中找不到这个 Artifact 版本");
+  if (!artifact) throw new ArtifactBrowserError(404, "当前项目中找不到这个成果版本");
   return `${JSON.stringify(artifact, null, 2)}\n`;
 }

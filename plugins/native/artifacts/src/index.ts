@@ -2,7 +2,7 @@ export { openArtifactProjectReference, ArtifactProjectReferenceError } from "./p
 export type { ArtifactProjectReferencePorts } from "./project-reference.js";
 export { artifactReferenceUiContribution, ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, isProjectReference } from "./reference-ui.js";
 export type { ArtifactReferenceUiPrimitives, ArtifactReferenceUiModel } from "./reference-ui.js";
-export { readArtifactBrowser, matchArtifactBrowserRoute, exportArtifactVersion, artifactVersionPath, artifactDisplayTitle, ArtifactBrowserError } from "./browser.js";
+export { readArtifactBrowser, matchArtifactBrowserRoute, exportArtifactVersion, artifactVersionPath, importedFileOf, PAGES_READABLE_FILE, ArtifactBrowserError } from "./browser.js";
 export type { ArtifactBrowserView, ArtifactBrowserRoute } from "./browser.js";
 export { requireArtifactAnalysisRecord, artifactAnalysisContext } from "./browser.js";
 export { artifactBrowserUiContribution, ARTIFACT_BROWSER_UI_CONTRIBUTION_ID } from "./browser-ui.js";
@@ -10,9 +10,10 @@ export type { ArtifactBrowserUiModel } from "./browser-ui.js";
 export { ARTIFACT_EN } from "./en.js";
 export { importArtifactDocument, ArtifactImportError, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, EXTERNAL_DOCUMENT_SOURCES } from "./document-import.js";
 export type { ArtifactDocumentImportPorts, ImportedArtifactDocument, ExternalDocumentSource } from "./document-import.js";
-export { renderArtifactImportSurface, ARTIFACT_IMPORT_STYLES } from "./import-ui.js";
+export { renderArtifactImportDialog, ARTIFACT_IMPORT_STYLES } from "./import-ui.js";
 export type { ArtifactImportUiModel } from "./import-ui.js";
 export { ARTIFACT_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
+export { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT } from "./goal-input-client.js";
 export { createPluginArtifactClient, PluginArtifactAccessError } from "./plugin-client.js";
 export { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./goal-context.js";
 

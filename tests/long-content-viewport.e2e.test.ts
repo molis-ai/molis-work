@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID, GoalProjectApplication, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps actions and reading usable at ${width}×${height}`,{timeout:90_000},async t=>{
   const b=await openGoalBrowser(t,true); if(!b)return;
@@ -13,7 +14,7 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   for(const plugin_id of ["feed","sessions","artifacts"])catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:"content-test"});
   catalog.close();
   const app=new GoalProjectApplication(b.store);
-  app.artifacts.commands.registerVersion({board_id:DEMO_BOARD_ID,actor_id:"content-test",artifact_id:"reading-report",version:1,artifact_type_id:"io.example.report",schema_version:1,producer:{plugin_id:"io.example.writer",plugin_version:"1.0.0",binding_signature:"fixture"},content:{kind:"inline",payload:{title:"工作台阅读体验检查与修复记录",findings:Array.from({length:60},(_,i)=>({title:`第 ${i+1} 项检查`,detail:"保留阅读位置与动作入口，让长内容在所属组件内滚动。"}))}},metadata:{review:"组件内阅读"}});
+  app.artifacts.commands.registerVersion({...pinnedArtifact("工作台阅读体验检查与修复记录"),board_id:DEMO_BOARD_ID,actor_id:"content-test",artifact_id:"reading-report",version:1,artifact_type_id:"io.example.report",schema_version:1,producer:{plugin_id:"io.example.writer",plugin_version:"1.0.0",binding_signature:"fixture"},content:{kind:"inline",payload:{title:"工作台阅读体验检查与修复记录",findings:Array.from({length:60},(_,i)=>({title:`第 ${i+1} 项检查`,detail:"保留阅读位置与动作入口，让长内容在所属组件内滚动。"}))}},metadata:{review:"组件内阅读"}});
   const source=createLocalFeedSourceService(b.store.db,DEMO_BOARD_ID).register({kind:"web_query",query:"交互检查"}).source;
   const item=createLocalFeedApplication(b.store.db).ingestItem({source,externalId:"long-reading",title:"请确认工作台在矮窗口和上下分屏中的阅读体验：标题、处理动作与上下文应当保持清晰可达",summary:"核对真实长内容。",body:"需要保留原消息。",occurredAt:new Date().toISOString(),attention:false}).item;
   const registry=await openWorkSessionRegistry({homeDirectory:b.homeDirectory});
@@ -136,12 +137,16 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
     await capture("session-split");
   }
   await command("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile:false},sessionId);
+  // Opened in a single pane: the split panes made above would leave the version a 122px frame at this height.
+  await evaluate(`localStorage.removeItem(${JSON.stringify("molis-work-tab-workspace:"+projectId)})`);
   await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/artifacts/reading-report/versions/1`},sessionId));
-  await waitFor("document.body.classList.contains('artifact-page')");
+  // A direct address opens the workbench on that version, not a page of its own.
+  await waitFor("document.body.dataset.desktopSurface === 'artifacts' && Boolean(document.querySelector('[data-artifact-detail] [data-artifact-id=\"reading-report\"][data-artifact-version=\"1\"]'))", 15_000);
+  assert.equal(await evaluate("Boolean(document.querySelector('.artifact-shell, .artifact-back, body.artifact-page'))"), false, "no standalone artifact page shell");
   await click('.artifact-raw:nth-of-type(2) > summary');
   const directHeader=await probe('.artifact-detail > header');
   const directFooter=await probe('.artifact-actions');
-  assert.ok(directHeader.top>=0 && directFooter.bottom<=height,"standalone artifact keeps title and export visible");
+  assert.ok(directHeader.top>=0 && directFooter.bottom<=height,"a directly opened artifact keeps title and export visible");
   await evaluate("document.querySelector('.artifact-detail-content').scrollTop=99999");
   assert.deepEqual(await probe('.artifact-detail > header'),directHeader);
   assert.deepEqual(await probe('.artifact-actions'),directFooter);

@@ -11,6 +11,7 @@ import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { openServerDatabase, Identity, ServerEvents, ContinuityService, startServer, memberClientId, CONTINUITY_ACTIONS } from "../server/src/index.js";
 import type { ActionFactory } from "../server/src/index.js";
 import { restoreWorkAssets, readRestoredAssets } from "../apps/server/src/assets.js";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 class Client {
   cookie="";
@@ -32,7 +33,7 @@ test("real Goal/Artifact actions survive phone retry, two members, revocation, r
   app.initializeBoard({board_id:boardId,title:'接续验证',actor_id:'desktop',idempotency_key:'init'});
   app.goalEvents.createIntent({board_id:boardId,actor_id:'desktop',idempotency_key:'seed-goal',goal_id:goalId,title:'完成真实接续',outcome:'手机记录后桌面继续'});
   app.goalEvents.createIntent({board_id:boardId,actor_id:'desktop',idempotency_key:'private-goal',goal_id:'PRIVATE',title:'私人目标不得出现在共享响应'});
-  app.artifacts.commands.registerVersion({board_id:boardId,artifact_id:'shared-artifact',version:2,actor_id:'desktop',artifact_type_id:'io.test.document',schema_version:1,
+  app.artifacts.commands.registerVersion({...pinnedArtifact('操作说明'),board_id:boardId,artifact_id:'shared-artifact',version:2,actor_id:'desktop',artifact_type_id:'io.test.document',schema_version:1,
     producer:{plugin_id:'io.test.writer',plugin_version:'1.0.0',binding_signature:'original'},content:{kind:'inline',payload:{content:'实际固定成果正文'}},metadata:{title:'操作说明',source_path:'/private/home/never-export'},scope:'team_project',team_share_authorized:true});
   db.close();
   const ref=molisWorkHostProjectReference({projectId,boardId,databasePath:dbPath});

@@ -13,6 +13,8 @@ export interface DatasetPublishArtifactPort {
     record_id: string;
     title: string;
     version: number;
+    /** The record revision this version pins (artifact-positioning A1). */
+    source_version: number;
     content: {
       title: string;
       description: string;
@@ -34,15 +36,16 @@ export function promoteDataset(
   const existing = options.readArtifact?.({ project_id: projectId, record_id: id, version });
   if (current.artifact_version > 0) options.readArtifact?.({ project_id: projectId, record_id: id, version: current.artifact_version });
   const intent = store.beginPublication(id, projectId, options.actorId, options.expectedVersion ?? current.version, existing ?? undefined);
-  if (existing && !isDeepStrictEqual(existing, intent.content)) throw new DatasetError("dataset.publication_conflict", "Artifact 与原发布快照不同，数据表及快照已保留");
+  if (existing && !isDeepStrictEqual(existing, intent.content)) throw new DatasetError("dataset.publication_conflict", "成果与原发布快照不同，数据表及快照已保留");
   const published = existing ? { artifact_id: "dataset-" + id, version: intent.version } : publishArtifact({
     project_id: projectId,
     record_id: current.id,
     title: intent.content.title,
     version: intent.version,
+    source_version: intent.source_version,
     content: intent.content,
   });
-  if (published.artifact_id !== "dataset-" + id || published.version !== intent.version) throw new DatasetError("dataset.publication_conflict", "Artifact 返回身份与发布意图不一致，原快照已保留");
+  if (published.artifact_id !== "dataset-" + id || published.version !== intent.version) throw new DatasetError("dataset.publication_conflict", "成果返回身份与发布意图不一致，原快照已保留");
   return {
     dataset: store.completePublication(current.id, projectId, intent, published),
     artifact: published,

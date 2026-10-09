@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import {
   DEMO_BOARD_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
@@ -20,7 +20,7 @@ function platformFor(directory: string) {
   const store = new LocalProjectDatabase(file);
   const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID),
     board_id: DEMO_BOARD_ID, actor_id: "tester", db: store.db,
-    artifacts: new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }),
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }),
     ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });

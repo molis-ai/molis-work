@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { ActionDefinition, ActionExecutionContext, ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { ActionService } from '@molis-ai/molis-work-kernel';
-import { ArtifactsModule } from '@molis-ai/molis-work-module-artifacts';
+import { ArtifactsModule, ProcessItemsModule } from '@molis-ai/molis-work-module-artifacts';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
@@ -21,7 +21,7 @@ async function fixture(t: TestContext) {
   const service = new ActionService(), actions = { registry: service, client: service, project_id: 'p' };
   const storage = new SqlitePluginPrivateStorage(store.db);
   const platform = createPluginPlatform({ board_id: 'p', actor_id: 'owner', db: store.db, actions, ui: new UiHost(),
-    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest) });
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest) });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), finished = Promise.withResolvers<void>();
   let waiting = false, calls = 0, effects = 0, dispose = () => {};
   const register = (policy: ActionExecutionPolicy, options: { provider?: string; version?: number; effect?: 'read' | 'write'; available?: boolean } = {}) => {

@@ -8,7 +8,8 @@ import { writeNativePluginJsonResponse } from "./native-plugin-http.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
+import { ARTIFACT_SUBJECT_KIND, parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 /**
  * The side panel's file tab (specs/archive/side-panel P3): the file sources plugins declare in this project, their entries,
@@ -27,6 +28,19 @@ const sourceId = (view: ActionView) => `${view.provider.provider_id}|${view.capa
 const isReader = (view: ActionView) => view.action.input_type === SUBJECT_REFERENCE_TYPE && view.action.output_type === SUBJECT_CONTEXT_TYPE;
 const RAW_TYPES = new Set(["application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
 const textual = (mediaType: string) => /^text\/|\/(json|xml|yaml|javascript|typescript|x-sh)$|\+(json|xml)$/u.test(mediaType);
+
+/** The owner's preview of one 成果 version, or null to fall back to the 成果库's own reading of it. */
+async function ownerPreview(subjectId: string, views: readonly ActionView[], invoke: (view: ActionView, input: unknown) => Promise<unknown>, ports: SideFilesPorts): Promise<FileContent | null> {
+  const reference = parseArtifactSubjectId(subjectId);
+  if (!reference) return null;
+  const artifact = await ports.localHost.withProject(ports.reference, runtime => runtime.coordinator.artifacts.query.getArtifactVersion(runtime.board_id, reference));
+  const declaration = artifact ? artifactTypeDeclarations().get(artifact.artifact_type_id) : undefined;
+  // Only the declared owner previews its type, and only versions it produced.
+  if (!artifact || artifact.availability !== "available" || !declaration?.preview || artifact.producer_plugin_id !== declaration.plugin_id) return null;
+  const view = views.find(item => item.capability_id === declaration.preview!.capability_id && item.version === declaration.preview!.version && item.availability.available);
+  if (!view) return null;
+  try { return await invoke(view, { artifact }) as FileContent; } catch { return null; }
+}
 
 export async function handleSideFilesHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: SideFilesPorts): Promise<boolean> {
   const route = /^\/api\/side\/files\/(sources|entries|content|raw)$/u.exec(url.pathname)?.[1];
@@ -62,6 +76,9 @@ export async function handleSideFilesHttp(request: IncomingMessage, response: Se
     const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
     if (!kind || !id || !source.action.file_source!.kinds.some(entry => entry.kind === kind)) { json(400, { error: "没有说明要预览哪个文件" }); return true; }
     const provider = source.provider.provider_id;
+    // A 成果 version previews through its type's owner (artifact-positioning A4b), the same as in the 成果库.
+    const owned = kind === ARTIFACT_SUBJECT_KIND && route === "content" ? await ownerPreview(id, views, (view, input) => client.invoke(caller, referenceOf(view), input), ports) : null;
+    if (owned) { json(200, { content: owned, via: "owner" }); return true; }
     const content = views.find(view => isFileContentSource(view.action) && view.availability.available && view.provider.provider_id === provider
       && view.action.file_source?.kinds.some(entry => entry.kind === kind));
     if (content) {

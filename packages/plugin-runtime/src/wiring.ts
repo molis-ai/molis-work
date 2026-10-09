@@ -1,6 +1,6 @@
 import type {
   ArtifactReference,
-  ArtifactVersionRecord,
+  FixedVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import {
   PluginWiringError,
@@ -26,7 +26,7 @@ import type { PluginHostLifecycle } from "./lifecycle.js";
 
 /** Reads a published Artifact version. The graph never owns Artifact storage. */
 export interface PluginArtifactReaderPort {
-  read(reference: ArtifactReference): ArtifactVersionRecord | null;
+  read(reference: ArtifactReference): FixedVersionRecord | null;
 }
 
 export interface PluginInputFailure {
@@ -449,7 +449,7 @@ export class PluginInputGraph implements PluginWiringApi {
     }
 
     const missing: string[] = [];
-    const resolved = new Map<string, { output: PluginPortOutputRecord; record: ArtifactVersionRecord }>();
+    const resolved = new Map<string, { output: PluginPortOutputRecord; record: FixedVersionRecord }>();
     let unavailable: PluginUpstreamUnavailableReason | undefined;
 
     for (const port of required) {
@@ -531,7 +531,7 @@ export class PluginInputGraph implements PluginWiringApi {
       };
     }
 
-    const delivered: Record<string, ArtifactVersionRecord> = {};
+    const delivered: Record<string, FixedVersionRecord> = {};
     const signatureParts: string[] = [];
     for (const port of [...resolved.keys()].sort()) {
       const entry = resolved.get(port)!;

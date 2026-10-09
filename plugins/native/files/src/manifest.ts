@@ -60,7 +60,9 @@ export const filesManifest: PluginManifest = {
     consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, readWorkspaceFileCapability.capability_id],
   },
   actions: FILES_ACTIONS,
-  artifacts: {
+  artifacts: { produces: [], consumes: [] },
+  // Snapshots, collections and selections are handed to other plugins through ports; they are not 成果.
+  process_items: {
     produces: [
       { artifact_type_id: FILES_COLLECTION_TYPE, schema_version: FILES_COLLECTION_SCHEMA_VERSION },
       { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION },

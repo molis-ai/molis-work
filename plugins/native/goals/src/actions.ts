@@ -27,6 +27,9 @@ import type { BoardSnapshot, GoalContractView } from "./goal-entry-contract.js";
 
 import { goalsBoardActions, createGoalsBoardActionHandlers } from "./board-actions.js";
 import { goalsInputActions, createGoalsInputActionHandlers } from "./input-actions.js";
+import { goalsDeliverableActions, goalsArtifactInputActions, createGoalsDeliverableActionHandlers, type GoalDeliverablePorts } from "./deliverable-actions.js";
+import { boundGoalObjects } from "./input-actions.js";
+export { goalsDeliverableActions, goalsArtifactInputActions, createGoalsDeliverableActionHandlers, type GoalDeliverable, type GoalDeliverablePorts } from "./deliverable-actions.js";
 import type { LegacyV3ImportPorts } from "./board-v3-import.js";
 import { goalsCollectionAction, createGoalsCollectionActionHandler } from "./collection-action.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
@@ -49,6 +52,14 @@ export const goalsActions = {
   inputsBind: goalsInputActions.bind,
   inputsRelease: goalsInputActions.release,
   inputsList: goalsInputActions.list,
+  deliverablesAdd: goalsDeliverableActions.add,
+  deliverablesRemove: goalsDeliverableActions.remove,
+  deliverablesList: goalsDeliverableActions.list,
+  deliverablesPin: goalsDeliverableActions.pin,
+  deliverablesCandidates: goalsDeliverableActions.candidates,
+  artifactInputsAdd: goalsArtifactInputActions.add,
+  artifactInputsRemove: goalsArtifactInputActions.remove,
+  artifactInputsList: goalsArtifactInputActions.list,
   ...goalsPlanningActions,
   ...goalsGuidanceActions,
   ...goalsLifecycleActions,
@@ -112,15 +123,19 @@ export async function readGoalResumeFacts(actions: Pick<BoundActionClient, "invo
 }
 
 /** The plugin keeps its original transaction, event history and idempotency owner. */
-export function createGoalsActionHandlers({ events, boardId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board }: {
+export function createGoalsActionHandlers({ events, boardId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables }: {
   events: GoalEventApplication; boardId: string; history: GoalHistoryQueryPorts; planning: GoalsPlanningActionPorts;
   guidance: GoalsGuidanceActionPorts; lifecycle: GoalsLifecycleActionPorts; tree: GoalTreeApplicationApi; configuration: GoalsConfigurationActionPorts;
   readGoal: Parameters<typeof createGoalDocumentActionHandler>[1]["goal"];
   readContract(goalId: string): GoalContractView;
   collection: GoalsDocumentReadPorts;
   board: LegacyV3ImportPorts;
+  /** The 成果库 and context ledger for a Goal's deliverables (artifact-positioning A5), and the owners that pin work objects. */
+  deliverables: Omit<GoalDeliverablePorts, "boardId" | "goalExists" | "boundObjects">;
 }): ActionHandlerBinding[] {
+  const goalExists = (goalId: string) => Boolean(readGoal(goalId) && events.readDirectoryItem(boardId, goalId));
   return [
+    ...createGoalsDeliverableActionHandlers({ ...deliverables, boardId, goalExists, boundObjects: goalId => boundGoalObjects(collection.inputs.list(boardId), goalId) }),
     ...createGoalsInputActionHandlers(boardId, collection.inputs, goalId => Boolean(readGoal(goalId) && events.readDirectoryItem(boardId, goalId))),
     { ...goalsActions.subject, handle: (_caller, input) => {
       const id = (input as { subject_id: string }).subject_id;

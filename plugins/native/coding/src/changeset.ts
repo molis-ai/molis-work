@@ -1,12 +1,12 @@
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentReviewRequest, AgentReviewReceipt, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_CHANGESET_TYPE, compareTexts, parseCodingChangeSet, parseFilePath, splitLines, type CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 export const codingChangeSetReference = (sessionId: string, runId: string) => ({ artifact_id: `coding-changeset:${encodeURIComponent(sessionId)}:${encodeURIComponent(runId)}`, version: 1 });
 
 /** Only a genuine fixed source may offer a return to its original Coding task. */
-export function codingChangeSetPreview(artifact: ArtifactVersionRecord | null) {
+export function codingChangeSetPreview(artifact: FixedVersionRecord | null) {
   if (!artifact || artifact.artifact_type_id !== CODING_CHANGESET_TYPE || artifact.schema_version !== 1
     || artifact.availability !== "available" || artifact.content_kind !== "inline"
     || artifact.producer_plugin_id !== "io.molis.work.coding" || artifact.producer_binding_signature !== "official-coding-binding") return null;

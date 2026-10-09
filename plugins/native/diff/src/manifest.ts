@@ -48,7 +48,8 @@ export const diffManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   actions: DIFF_ACTIONS,
-  artifacts: {
+  artifacts: { produces: [], consumes: [] },
+  process_items: {
     produces: [],
     consumes: [
       { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION },

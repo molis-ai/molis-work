@@ -26,7 +26,6 @@ export const ALCHEMIST_STYLES = WORK_REUSE_STYLES + `
 .alc-empty.mw-empty { justify-items:center; gap:0; }
 .alc-empty.mw-empty > strong { margin:0 0 4px; font-size:15px; font-weight: var(--weight-title, 600); color:var(--ink); }
 .alc-empty.mw-empty > p { margin:0; color:var(--muted); }
-.alc-empty h2 { font-size:15px; color:var(--ink); font-weight: var(--weight-title, 600); }
 .alc-workspace { overflow:hidden; }
 .alc-detail-layout { flex:1; display:flex; min-height:0; }
 .alc-document { flex:1; display:flex; flex-direction:column; min-height:0; min-width:0; }

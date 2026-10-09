@@ -14,7 +14,7 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { ListToolsRequestSchema, CallToolRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { createConnectorMcpHost, MCP_SERVERS } from "../apps/local-host/src/connector-mcp.ts";
-import { larkMcpLaunch } from "../apps/local-host/src/lark-mcp-launch.ts";
+import { larkMcpLaunch } from "@molis-ai/molis-work-app-local-host";
 import { createAgentConnectorPorts } from "../apps/local-host/src/agent-connector-ports.ts";
 import { connectorAuthorizationStatus } from "../apps/local-host/src/connector-authorization-status.ts";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.ts";

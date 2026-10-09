@@ -18,7 +18,7 @@
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 166,
     "function apps/local-host/src/character-import-discovery.ts#createCharacterDiscovery": 205,
     "function apps/local-host/src/character-import-discovery.ts#discover": 176,
-    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 290,
+    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 291,
     "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 541,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 185,
     "function apps/local-host/src/installed-plugin-host.ts#openInstalledPlugins": 164,

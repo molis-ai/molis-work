@@ -115,10 +115,15 @@ function safeError(error: unknown): McpConnectionError | ActionError {
   return new McpConnectionError("provider", "MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试");
 }
 
-/** Test-only endpoint injection keeps production HTTP input behind the official allowlist. */
-export function createConnectorMcpHost(options: { testServers?: Readonly<Record<string, McpServerConfiguration>>; now?: () => number;
+interface ConnectorMcpHostOptions {
+  testServers?: Readonly<Record<string, McpServerConfiguration>>;
+  now?: () => number;
   /** Tests only: builds the transport for a local stdio server (Feishu/Lark), so a test sees exactly what the Host starts it with. */
-  stdioTransport?: (parameters: StdioServerParameters) => Transport } = {}) {
+  stdioTransport?: (parameters: StdioServerParameters) => Transport;
+}
+
+/** Test-only endpoint injection keeps production HTTP input behind the official allowlist. */
+export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
   if ((options.testServers || options.stdioTransport) && process.env.NODE_ENV !== "test") throw new Error("MCP test endpoints require NODE_ENV=test");
   const servers = options.testServers ?? MCP_SERVERS;
   const now = options.now ?? Date.now;

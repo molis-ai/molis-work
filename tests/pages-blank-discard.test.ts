@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 
 import { PAGES_CLIENT_FACTORY_SCRIPT, PAGES_NATIVE_PLUGIN_ROUTES } from "@molis-ai/molis-work-plugin-pages";
 
@@ -40,16 +40,12 @@ const EMPTY = { type: "doc", content: [{ type: "paragraph" }] };
 const text = (value: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: value }] }] });
 interface Doc { id: string; title: string; body: unknown; version: number; goal_id: string; artifact_version: number }
 
-async function mounted(initial: Doc[], options: { discard?: (doc: Doc, expected: number) => Response | null } = {}) {
+async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc: Doc, expected: number) => Response | null } = {}) {
   const store = new Map<string, Doc>(initial.map(doc => [doc.id, doc]));
   const calls: Array<{ method: string; path: string; body: Record<string, unknown>; stored_version?: number }> = [];
   let editorBody: unknown = EMPTY, change: (() => void) | null = null, created = 0;
-  const timers = new Map<number, () => void>();
-  let timerId = 0;
-  const saved = { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout, fetch: globalThis.fetch,
-    document: (globalThis as { document?: unknown }).document, window: (globalThis as { window?: unknown }).window };
-  globalThis.setTimeout = ((fn: () => void) => { const id = ++timerId; timers.set(id, fn); return id as unknown as ReturnType<typeof setTimeout>; }) as typeof setTimeout;
-  globalThis.clearTimeout = ((id?: number) => { if (id) timers.delete(id); }) as typeof clearTimeout;
+  const saved = { fetch: globalThis.fetch, document: (globalThis as { document?: unknown }).document, window: (globalThis as { window?: unknown }).window };
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const workbench = element(), rows = element(), titleInput = element(), note = element();
   const parts = new Map<string, FakeNode>([["[data-pages-rows]", rows], ["[data-pages-title]", titleInput], ["[data-pages-note]", note]]);
   workbench.querySelector = (selector?: string) => {
@@ -109,11 +105,10 @@ async function mounted(initial: Doc[], options: { discard?: (doc: Doc, expected:
     async write(next: { title?: string; body?: unknown }) {
       if (next.title !== undefined) { titleInput.value = next.title; await titleInput.listeners.input?.({}); }
       if (next.body !== undefined) { editorBody = next.body; change?.(); }
-      for (const fn of [...timers.values()]) fn();
-      timers.clear(); await flush();
+      t.mock.timers.tick(400); await flush();
     },
     discards: () => calls.filter(call => call.path.endsWith("/discard")),
-    restore() { Object.assign(globalThis, { setTimeout: saved.setTimeout, clearTimeout: saved.clearTimeout, fetch: saved.fetch, document: saved.document, window: saved.window }); },
+    restore() { t.mock.timers.reset(); Object.assign(globalThis, { fetch: saved.fetch, document: saved.document, window: saved.window }); },
   };
 }
 const existing = (id: string, title: string, body: unknown = EMPTY): Doc => ({ id, title, body, version: 4, goal_id: "", artifact_version: 0 });
@@ -122,8 +117,8 @@ test("the discard route exists next to delete and maps to pages.discard", () => 
   assert.ok(PAGES_NATIVE_PLUGIN_ROUTES.some(route => route.route_id === "pages.discard" && route.method === "POST" && route.pattern.test("/api/pages/abc/discard")));
 });
 
-test("a new document left blank is discarded when the person goes back to the list", async () => {
-  const page = await mounted([existing("A", "周报", text("本周"))]);
+test("a new document left blank is discarded when the person goes back to the list", async t => {
+  const page = await mounted(t, [existing("A", "周报", text("本周"))]);
   try {
     await page.fire(click("[data-pages-new]"));
     assert.deepEqual([...page.store.keys()].sort(), ["A", "N1"], "created at once, as before");
@@ -136,8 +131,8 @@ test("a new document left blank is discarded when the person goes back to the li
   } finally { page.restore(); }
 });
 
-test("a new document the person wrote in is kept, and so is one that only has a title", async () => {
-  const page = await mounted([]);
+test("a new document the person wrote in is kept, and so is one that only has a title", async t => {
+  const page = await mounted(t, []);
   try {
     await page.fire(click("[data-pages-new]"));
     await page.write({ body: text("开头一句") });
@@ -150,8 +145,8 @@ test("a new document the person wrote in is kept, and so is one that only has a 
   } finally { page.restore(); }
 });
 
-test("a body that has anything other than empty paragraphs is not blank", async () => {
-  const page = await mounted([]);
+test("a body that has anything other than empty paragraphs is not blank", async t => {
+  const page = await mounted(t, []);
   try {
     await page.fire(click("[data-pages-new]"));
     await page.write({ body: { type: "doc", content: [{ type: "paragraph" }, { type: "horizontal_rule" }] } });
@@ -160,8 +155,8 @@ test("a body that has anything other than empty paragraphs is not blank", async 
   } finally { page.restore(); }
 });
 
-test("typing and then clearing everything again still leaves a blank document, discarded at its latest version", async () => {
-  const page = await mounted([]);
+test("typing and then clearing everything again still leaves a blank document, discarded at its latest version", async t => {
+  const page = await mounted(t, []);
   try {
     await page.fire(click("[data-pages-new]"));
     await page.write({ body: text("写了又删") });
@@ -175,8 +170,8 @@ test("typing and then clearing everything again still leaves a blank document, d
   } finally { page.restore(); }
 });
 
-test("opening another document or making another new one also leaves the blank one", async () => {
-  const page = await mounted([existing("A", "周报", text("本周"))]);
+test("opening another document or making another new one also leaves the blank one", async t => {
+  const page = await mounted(t, [existing("A", "周报", text("本周"))]);
   try {
     await page.fire(click("[data-pages-new]"));
     await page.fire(click("button[data-page-id]", { pageId: "A" }));
@@ -189,8 +184,8 @@ test("opening another document or making another new one also leaves the blank o
   } finally { page.restore(); }
 });
 
-test("an existing blank document, a template and an AI result are never discarded on leaving", async () => {
-  const page = await mounted([existing("OLD", "未命名文档")]);
+test("an existing blank document, a template and an AI result are never discarded on leaving", async t => {
+  const page = await mounted(t, [existing("OLD", "未命名文档")]);
   try {
     await page.fire(click("button[data-page-id]", { pageId: "OLD" }));
     await page.fire(click("[data-pages-back]"));
@@ -201,8 +196,8 @@ test("an existing blank document, a template and an AI result are never discarde
   } finally { page.restore(); }
 });
 
-test("when the discard is refused (it changed elsewhere) or fails, the document stays and the person is not interrupted", async () => {
-  const page = await mounted([], { discard: () => json({ error: "改过了", code: "pages.conflict" }, 409) });
+test("when the discard is refused (it changed elsewhere) or fails, the document stays and the person is not interrupted", async t => {
+  const page = await mounted(t, [], { discard: () => json({ error: "改过了", code: "pages.conflict" }, 409) });
   try {
     await page.fire(click("[data-pages-new]"));
     await page.fire(click("[data-pages-back]"));

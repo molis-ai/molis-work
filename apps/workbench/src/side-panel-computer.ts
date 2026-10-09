@@ -25,7 +25,7 @@ export function renderSideComputer({ L, icon }: SidePanelPrimitives): string {
       <div class="side-computer-strip" data-computer-strip hidden role="status" aria-live="polite">
         <div class="side-computer-doing"><span class="side-computer-app" data-computer-app></span><span class="side-computer-activity" data-computer-activity></span></div>
         <div class="side-computer-controls">
-          ${control("pause", L("暂停"), "pause")}${control("handback", L("交还助理"), "play")}${control("takeover", L("接手"), "switch")}${control("stop", L("停止"), "x")}
+          ${control("pause", L("暂停"), "pause")}${control("handback", L("交还助理"), "play")}${control("takeover", L("接手"), "switch")}${control("shelf", L("放进 Shelf"), "archive")}${control("stop", L("停止"), "x")}
         </div>
       </div>
       <div class="side-computer-status" data-computer-status hidden></div>
@@ -140,7 +140,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       activityEl.textContent=paused||state.control?.activity?.summary||L('正在操作电脑');
       placeMarker(mode==='assistant'?state.control?.activity?.point:null);
     }else marker.hidden=true;
-    const show={pause:mode==='assistant',handback:mode==='paused'||mode==='taken-over',takeover:mode==='assistant'||mode==='paused',stop:acting};
+    const show={pause:mode==='assistant',handback:mode==='paused'||mode==='taken-over',takeover:mode==='assistant'||mode==='paused',shelf:!!state.record_id,stop:acting};
     controls.forEach(btn=>btn.hidden=!show[btn.dataset.computerAction]);
     cover.hidden=canvas.width>0&&acting;
   };
@@ -154,7 +154,9 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     clearTimeout(reviewTimer);reviewTimer=null;
     let rows=[];
     try{
-      const response=await fetch(routePrefix+'/api/agent/reviews?status=pending',{headers:{accept:'application/json'}});
+      // Only the round holding the computer, so another project's round never shows its card here.
+      const holder=state?.control?.work_id;
+      const response=await fetch(routePrefix+'/api/agent/reviews?status=pending'+(holder?'&run_session_id='+encodeURIComponent(holder):''),{headers:{accept:'application/json'}});
       const result=await response.json();
       rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(f=>f.label==='应用')&&(!row.receipt||row.receipt.status==='pending'));
     }catch{/* a failed poll is retried on the next tick below */}
@@ -189,7 +191,24 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       if(work)await fetch(routePrefix+'/api/assistant/works/'+encodeURIComponent(work)+'/control',{method:'POST',headers:{...headers(),'content-type':'application/json'},body:JSON.stringify({kind:'stop'})}).catch(()=>{});
       return;
     }
+    if(action==='shelf'){await putOnShelf();return;}
     sendRaw({type:action});
+  };
+  // Put the current round's record on the Shelf through its existing admit endpoint (specs/computer-use §5): the goal,
+  // the result and a short step summary as a text item. Screenshots stay in the record; the person keeps the record as
+  // a 成果 separately.
+  const putOnShelf=async()=>{
+    const id=state?.record_id;if(!id)return;
+    try{
+      const response=await fetch(routePrefix+'/api/computer/records/'+encodeURIComponent(id),{headers:{accept:'application/json'}});
+      const record=(await response.json()).record;if(!record)throw 0;
+      const outcome=record.outcome==='completed'?L('完成'):record.outcome==='failed'?L('失败'):record.outcome==='stopped'?L('已停止'):L('进行中');
+      const lines=[record.goal?L('目标：{goal}',{goal:record.goal}):'',L('结果：{outcome}',{outcome}),record.conclusion||'',
+        '',L('步骤（{n} 步）：',{n:record.steps.length}),...record.steps.slice(-40).map(step=>'- '+(step.app?('『'+step.app.name+'』'):'')+step.summary)].filter(Boolean);
+      const title=(record.goal?record.goal.slice(0,40):L('电脑操作'))+'（'+new Date(record.started_at).toLocaleString()+'）';
+      const shelf=await fetch('/api/shelf/items',{method:'POST',headers:{...headers(),'content-type':'application/json','x-molis-work-idempotency-key':'cu-shelf-'+id+'-'+Date.now()},body:JSON.stringify({title,text:lines.join('\n')})});
+      say(shelf.ok?L('已放进 Shelf。'):L('没能放进 Shelf。'));
+    }catch{say(L('没能放进 Shelf。'));}
   };
   root.addEventListener('click',event=>{
     const review=event.target.closest('[data-computer-review]');

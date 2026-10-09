@@ -468,7 +468,16 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     "只说未做": "ended-on-promise" };
   return activity.flatMap(item => {
     if (item.name === "reasoning" || item.name === "context-remaining") return [];
-    const verb = verbs[item.name] ?? item.name;
+    let verb = verbs[item.name] ?? item.name;
+    // The browser and the desktop share the surface-* tools; a desktop step is told apart by what the driver's text or
+    // refusal says (reliable for looking and for refusals; a bare successful desktop action reads as the browser one,
+    // which the Assistant's own words and the 电脑 tab still make clear). Looking/acting on the desktop reads as the computer.
+    if (verb === "browser-look" || verb === "browser-act" || verb === "browser-list") {
+      const said = `${item.summary} ${item.output ?? ""}`;
+      if (/应用：|还没有选定要操作的应用|坐标以这个窗口的左上角|桌面应用没有 DOM|落点不在目标应用|电脑正被另一项工作|用户已接手电脑|助理不操作电脑|助理不能操作自己的确认卡|只能看和点/.test(said)) {
+        verb = verb === "browser-look" ? "computer-look" : verb === "browser-list" ? "computer-list" : "computer-act";
+      }
+    }
     const named = titles?.get(item.target);
     const target = (verb === "read" || verb === "change" || verb === "suggest") && named ? `${named.provider} · ${named.title}` : item.target;
     // Sent and not finished: it may have happened, so it is neither done nor a failure to retry.

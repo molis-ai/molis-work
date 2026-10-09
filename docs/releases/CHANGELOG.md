@@ -40,6 +40,7 @@
 - **收想法只在灵光**：Jelly 去掉灵感页，灵光接上导入文件、读取链接和转成 Jelly 笔记（#153）。
 - **Casebook 对外合同改用 Molis Work 的名字**（#248）。
 - **删除项目时，各数据所有者一起清、可重试**（`fix/project-deletion-owners`，PR 待开）：Pages、Form（含全部回答）、Dataset、PPT、Workflows、Todo、Functions、灵光、Images、炼金术士、插件创作台、记忆、助理工作各自清掉按项目保存的数据；删除回执里每个所有者一步，失败的步骤保持 pending，用同一个删除请求重试，运行中的 Web 服务也会接着做完；确认框列出会一起删的数据。
+- **「卸载并清除用户数据」也清掉「讨论」库**（W2-12，防腐 spec 决定 4 与决定 20；`fix/im-home-registration`，PR 待开）：右栏「讨论」页签的群聊与 Thread 存在 `server/server.sqlite`，以前它不在 `PERSONAL_HOME_SQLITE_STORES` 里，`uninstall --purge-user-data` 会留着它。现在 `server` 登记进这份名单，确认后的清除会永久删除整个 `server/` 目录（群聊正文、成员显示名、房间邀请令牌）；普通卸载仍保留。备份表同时登记这个库：必备份，副本因含明文房间邀请令牌按密钥对待，见 [HOME-DATA.md](../system/HOME-DATA.md) 3.4。`server` 包由基础包改归业务包，SSOT 对应行同步。
 - **场景绑定一套模型**（#279）；会话表为唯一来源（#277）；判断方式四种、复审状态两种（#278）。
 - **生成插件只走统一能力目录**：工作室目录之前的能力和内联模型要求删除（#284）。
 

@@ -125,28 +125,35 @@ export function syncClosedState(
   records.setFulfillment(goal.goal_id, fulfillmentForWorkStatus(status), at);
 }
 
+/**
+ * Whether the person has given the nod the project's approval rule asks for. A nod is a trusted conclusion of the person, and it is
+ * good for the agreement they were shown and the round of work they were told about, no longer: a decision counts only if it was
+ * recorded since the Goal was last reopened or resumed and its commitment is the agreement as it stands, word for word. Any change
+ * to the agreement, or a new round, asks for it again. It comes in two kinds, judged the same way: an accepted conclusion on a
+ * requirement that still stands, through the decision that wrote it, and the latest decision about completing, when it authorizes it.
+ */
 function hasCurrentHumanApproval(
   requirements: GoalEventRequirementStatus[],
   outcome: string,
   decisions: AppliedDecisionWithRound[],
 ): boolean {
-  // An accepted conclusion on a requirement counts while it stands, except one written by a decision that also authorizes completing:
-  // that decision is an authorization, judged below for its agreement and its round, and its conclusion must not outlive either.
-  const authorizations = new Set(
-    decisions.filter((item) => decisionHasEffect(item, "authorize_action", "complete")).map((item) => item.decision_id),
+  const inRound = decisions.filter((item) => item.in_current_round);
+  const forThisAgreement = new Set(
+    inRound.filter((item) => decisionCommitsToCurrentAgreement(item, requirements, outcome)).map((item) => item.decision_id),
   );
+  // An accepted conclusion counts through the decision that wrote it, whichever decision that is, for as long as it stands.
   if (requirements.some((item) =>
     item.user_conclusion?.verdict === "accepted"
-    && !authorizations.has(item.user_conclusion.decision_id)
+    && forThisAgreement.has(item.user_conclusion.decision_id)
     && requirementCurrentlySatisfied(item))) {
     return true;
   }
-  // An authorization to complete counts for the agreement it was given for and for the round it was given in: a changed
-  // agreement, or a Goal that was reopened or resumed since, needs the person's conclusion again.
-  const current = currentActionDecision(decisions.filter((item) => item.in_current_round), "complete");
+  // The latest decision about completing counts when it authorizes it. What it does decides that, not the action its scope names:
+  // a decision that names complete but only accepts a requirement is an acceptance and counts only as one.
+  const latest = currentActionDecision(inRound, "complete");
   return Boolean(
-    current
-    && decisionHasEffect(current, "authorize_action", "complete")
-    && decisionCommitsToCurrentAgreement(current, requirements, outcome),
+    latest
+    && decisionHasEffect(latest, "authorize_action", "complete")
+    && forThisAgreement.has(latest.decision_id),
   );
 }

@@ -178,9 +178,9 @@ export function snapshotCommitment(
   requirements: GoalEventRequirementStatus[],
   outcome: string,
   scope: GoalEventScope,
+  effects: GoalEventDecisionEffect[],
 ): GoalEventDecisionCommitment {
-  // Completing answers for the whole agreement, so a decision about it commits to every requirement the agreement has now.
-  const scoped = scopeAppliesToComplete(scope)
+  const scoped = commitsToWholeAgreement(scope, effects)
     ? requirements
     : scope.requirement_ids.length
       ? requirements.filter((item) => scope.requirement_ids.includes(item.requirement_id))
@@ -189,6 +189,15 @@ export function snapshotCommitment(
     outcome,
     requirements: scoped.map(requirementCommitment),
   };
+}
+
+/**
+ * Completing, and accepting requirements, are the person's nod for the agreement as a whole: the project's approval rule counts
+ * either one for the agreement it was given for, so a decision of either kind commits to every requirement the agreement has now,
+ * not only to the ones its scope names.
+ */
+function commitsToWholeAgreement(scope: GoalEventScope, effects: GoalEventDecisionEffect[]): boolean {
+  return scopeAppliesToComplete(scope) || effects.some((effect) => effect.kind === "accept_requirements");
 }
 
 export function snapshotAgreementChangeCommitment(
@@ -281,8 +290,8 @@ export function scopedRequirementCommitmentsMatch(
   const ids = decision.scope.requirement_ids;
   if (!ids.length) return true;
   const current = currentCommitment(requirements, "", ids).requirements;
-  // A decision about completing commits to the whole agreement, but reusing it is judged on the requirements its scope names.
-  const recorded = scopeAppliesToComplete(decision.scope)
+  // A decision that commits to the whole agreement is reused on the requirements its scope names, not on the rest of it.
+  const recorded = commitsToWholeAgreement(decision.scope, decision.effects)
     ? decision.commitment.requirements.filter((item) => ids.includes(item.requirement_id))
     : decision.commitment.requirements;
   if (!recorded.length) {

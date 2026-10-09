@@ -267,7 +267,7 @@ export class GoalEventStateEffects {
               requirements,
               outcome,
             )
-          : snapshotCommitment(requirements, outcome, commitmentScope);
+          : snapshotCommitment(requirements, outcome, commitmentScope, resolved.effects);
       const configVersion = this.host.configVersion(goal.project_id, goal.goal_id);
       const agreementVersion = agreement?.version ?? 0;
       const decisionId = `gdec-${randomUUID()}`;

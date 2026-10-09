@@ -14,7 +14,7 @@
 
 本机管理接口 `GET/POST /api/settings/mcp/actions` 由 Web 的原有同源和控制令牌规则保护；权限从当前注册定义取得，不能由请求自填。接口可检查目录、保存或撤销准确授权；提供方消失后仍保留并允许撤销原记录。只读检查不授予执行权限，也不放进插件 ActionClient。
 
-受保护的用户操作可以要求独立权限和 Host 注入的 `ActionCallContext.user_action` 出处。会话/消息引用本身不授予权限，不接受业务参数或 MCP 请求自填；Host 在排队时保留调用者与出处快照。例如 `goals.decisions.record` 只允许 user audience 和 `goals:decide`，普通模型仍只能请求或引用决定。旧 typed 用户决定适配声明 `host_only`；Plugin SDK 在检查和调用时固定传递 plugin 消费者限制，Host 按已注册定义拒绝，插件不能通过 Manifest 或伪造描述把此入口变成可消费能力。
+受保护的用户操作可以要求独立权限和 Host 注入的 `ActionCallContext.user_action` 出处。会话/消息引用本身不授予权限，不接受业务参数或 MCP 请求自填；Host 在排队时保留调用者与出处快照。例如 `goals.decisions.record` 只允许 user audience 和 `goals:decide`，普通模型仍只能请求或引用决定。旧 typed 用户决定适配声明 `host_only`；Goals 管理入口上其余记本机这个人的 typed 写入（事件写入、设当前目标、结构提案检查）同样声明 `host_only`。Plugin SDK 在检查和调用时固定传递 plugin 消费者限制，Host 按已注册定义拒绝，插件不能通过 Manifest 或伪造描述把此入口变成可消费能力。
 
 持续任务继续复用 Images、Alchemist 等业务 owner 的原记录。平台不另造任务表来复制其状态，也不将每次轻量调用升级为 Goal。[历史模块合同](../../packages/contracts/src/modules/actions.ts) 的声明不等于已有实现；不要据此再创建第二套动作执行服务。
 

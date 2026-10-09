@@ -1,18 +1,17 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { mkdirSync, chmodSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { resolve } from "node:path";
+import type { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { ExperimentsService, experimentsActions, experimentsManifest, EXPERIMENTS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-experiments";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createExperimentExecutor } from "./experiments-executor.js";
+import { openExperimentsPrivateStore } from "./experiments-private-store.js";
 const services = new Map<string,{service:ExperimentsService; db:LocalSqliteStorage}>();
 export function openExperiments(home: string) {
   home = resolve(home);
   let entry = services.get(home);
   if (!entry) {
-    const directory = join(home,"plugins","experiments"); mkdirSync(directory,{recursive:true,mode:0o700}); chmodSync(directory,0o700);
-    const db = new LocalSqliteStorage(join(directory,"private.sqlite")); chmodSync(join(directory,"private.sqlite"),0o600);
+    const db = openExperimentsPrivateStore(home);
     const storage = new SqlitePluginPrivateStorage(db.db).forPlugin({install_id:EXPERIMENTS_PLUGIN_ID,plugin_id:EXPERIMENTS_PLUGIN_ID,version:experimentsManifest.version,deployment:"local",grants:["storage:private"],requireGrant(p){if(p!=="storage:private")throw new Error("权限未授予");}},experimentsManifest);
     const service = new ExperimentsService(storage,()=>createExperimentExecutor(home)); entry={service,db}; services.set(home,entry);
   }

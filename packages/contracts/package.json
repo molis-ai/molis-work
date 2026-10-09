@@ -134,6 +134,10 @@
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"
     },
+    "./platform/loopback": {
+      "types": "./dist/platform/loopback.d.ts",
+      "import": "./dist/platform/loopback.js"
+    },
     "./platform/observability": {
       "types": "./dist/platform/observability.d.ts",
       "import": "./dist/platform/observability.js"

@@ -87,9 +87,21 @@ export function isDisallowedResolvedAddress(address: string): boolean {
     if (ip.startsWith("::ffff:")) {
       return isDisallowedIpv4(ip.slice("::ffff:".length));
     }
-    return false;
+    // Anything else must be global unicast (2000::/3): multicast, NAT64, 6to4, Teredo, documentation and every
+    // other spelling of an embedded IPv4 address are refused, whatever form the resolver wrote them in.
+    return !isGlobalUnicastIpv6(ip);
   }
   return isDisallowedIpv4(ip);
+}
+
+function isGlobalUnicastIpv6(ip: string): boolean {
+  let normalized: string;
+  try { normalized = new URL(`http://[${ip}]/`).hostname.slice(1, -1); } catch { return false; }
+  const [first = "", second = ""] = normalized.split(":");
+  const head = Number.parseInt(first || "0", 16);
+  const next = Number.parseInt(second || "0", 16);
+  if (!(head >= 0x2000 && head <= 0x3fff)) return false;
+  return !(normalized.startsWith("2001:db8:") || head === 0x2002 || head === 0x3fff || (head === 0x2001 && next < 0x200));
 }
 
 function isPublicDnsHostname(hostname: string): boolean {
@@ -124,14 +136,17 @@ function isDisallowedIpv4(address: string): boolean {
   if (octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
     return true;
   }
-  const [a, b] = octets;
-  if (a === undefined || b === undefined) return true;
+  const [a, b, c] = octets;
+  if (a === undefined || b === undefined || c === undefined) return true;
   if (a === 0 || a === 10 || a === 127) return true;
   if (a === 169 && b === 254) return true;
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 192 && b === 168) return true;
   if (a === 100 && b >= 64 && b <= 127) return true;
   if (a >= 224) return true;
+  // Reserved for protocol assignments and documentation: nothing public answers there (198.18.0.0/15 stays allowed:
+  // a fake-IP proxy answers names from it, the same user decision as for generated plugins).
+  if ((a === 192 && b === 0 && (c === 0 || c === 2)) || (a === 192 && b === 88 && c === 99) || (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113)) return true;
   return false;
 }
 

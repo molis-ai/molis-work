@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { openServerDatabase, Identity, ServerEvents, ContinuityService, createServerRequestHandler, createImDomain } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
+import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 /** Only the IM surface is mounted here; the shared server owns identity and transport. */
 export function createLocalImServer(homeDirectory: string, projectFor?: (id: string) => Promise<{ id: string; title: string } | null>) {
@@ -36,7 +37,7 @@ export function createLocalImServer(homeDirectory: string, projectFor?: (id: str
       let origin: string;
       try {
         const address = new URL(`http://${host ?? ""}`), listening = new URL(listeningOrigin);
-        if (!host || host !== address.host || !["127.0.0.1", "localhost", "[::1]"].includes(address.hostname)
+        if (!host || host !== address.host || !isLoopbackHostname(address.hostname)
           || (address.port || "80") !== (listening.port || "80")) throw new Error("host mismatch");
         origin = address.origin;
       } catch {

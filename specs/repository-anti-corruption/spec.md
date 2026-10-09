@@ -715,33 +715,20 @@
 
 CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.yml`）；以上门禁都以非浏览器用例或脚本形式加到 `architecture-boundaries` 作业里，时间预算 3 分钟以内。
 
-## 6. 安全不变量（§4.18，初稿）
+## 6. 安全不变量（§4.18，W2-19 已落地）
 
-开工后逐条补上守住它的测试（要求断言「拒绝」本身），没有的补写。
+初稿的 9 行已展开成 20 条，搬到 [docs/system/SECURITY-INVARIANTS.md](../../docs/system/SECURITY-INVARIANTS.md)：每条写明拒绝什么、代码位置、断言拒绝本身的测试；门禁（`pnpm health:check` 的 `security invariants` 规则）看住这张表，CI 的 `Security invariants` 一步（`pnpm test:security`）跑其中 Linux 上能稳定跑过的部分，只能在 macOS 上跑的（Seatbelt 沙箱）与较重的整机用例留在本机。
 
-| 不变量 | 代码位置（main 16879b22） | 守住的测试 |
-| --- | --- | --- |
-| Web 只绑回环地址 | `apps/desktop/launchers/web/server.ts:52` | 待确认 |
-| 变更请求要控制令牌、同源 Origin、一次性操作键 | `apps/local-host/src/web-http.ts` 的 `authorizeLocalWebRequest` | `tests/action-gateway.test.ts` 等，待逐条确认 |
-| 跨进程动作网关只接受回环 http，不带账号、密码与查询串 | `apps/local-host/src/action-gateway.ts:16` | 待确认 |
-| MCP 逐客户端授权 | `apps/local-host/src/mcp-action-client.ts` 的 `authorizeMcpActions` | 待确认 |
-| 插件权限与沙箱 | Plugin Runtime 的权限与网络策略 | `tests/installed-plugin-policy.test.ts`、`agent-built-plugins-network.test.ts`，待确认 |
-| 密钥只给引用 | 连接存储与密钥库 | 待确认 |
-| 侧栏浏览器与 Computer Use 的站点策略与逐步确认 | Prologue `surface-act` 闸门；Molis 侧 `prologue-surfaces.ts` | `tests/side-panel-*`，待确认 |
-| 网页与记忆内容的提示注入防护 | Prologue 以 `<untrusted-page-content>` 交给模型 | 待确认 |
-| 外部输入的路径与 URL 校验 | 见下 | 待确认 |
+初稿各行现在对应：Web 只绑回环地址 S-01；变更请求要控制令牌、同源 Origin、一次性操作键 S-02、S-03、S-06；动作网关只接受回环 http S-07；MCP 逐客户端授权 S-08；插件权限与沙箱 S-15；密钥只给引用 S-12；侧栏浏览器站点策略与逐步确认 S-16；提示注入防护 S-13；路径与 URL 校验 S-09、S-10、S-11。初稿漏掉的也补进来了：终端与浏览器 socket S-04、Casebook 通道 S-05、可信身份 S-17、取消后不再写 S-18、推送前扫密钥 S-19、桌面 IPC 范围 S-14（F15/D9）、表本身为真 S-20。
 
-「是不是本机地址」的判断在源码里至少各写了一份：
+写测试时找到、补了拒绝的缺口（每一处都先写出会失败的测试，再做最小修复）：
 
-- `action-gateway.ts:16`；
-- `browser/browser-socket.ts:19`；
-- `configured-models.ts:45`；
-- `connector-api-oauth.ts:32`；
-- `connector-mcp.ts:105`、`:136`；
-- `im-server.ts:39`；
-- `web-http.ts:32`。
+- `/locale` 在主机头检查之前处理，外来 `Host` 也能拿到 302（现在所有路由先查 `Host`）；
+- `/api/` 与 `/projects/<id>/api/` 之外的变更请求不过令牌检查，只靠各处理器碰巧都在 `/api/` 下（现在一律 403，IM 挂载自己查）；
+- 终端 socket 的第一条消息里令牌不是文字时抛异常、socket 不关（现在按验证失败处理并关闭）；
+- 插件创作台的网络门（`plugin-builder/network.ts` 的 `publicAddress`）认不出 `::ffff:7f00:1`、6to4、Teredo、`::127.0.0.1` 写法的私有地址，自定义 RSS 的解析地址检查认不出多播、NAT64、6to4、Teredo 和文档网段（现在前者委托给沙箱代理的 `isPublicAddress`，只多放过用户决定的 `198.18.0.0/15`，后者按 2000::/3 判断）。
 
-允许的写法也不一样（有的认 `localhost`，有的只认 IP）。这一条并入 R-08 的重复实现，收成一个共用判断。
+“是不是本机地址”原来在源码里各写一份（初稿列了 8 处：`action-gateway.ts`、`browser-socket.ts`、`configured-models.ts`、`connector-api-oauth.ts`、`connector-mcp.ts` 两处、`im-server.ts`、`web-http.ts`，实际还有 `pty-socket.ts`、模型供应商、Notion、Casebook、Images、Gmail、连接存储、外部 MCP、管理命令、群聊服务共 22 处），允许的写法也不一样。现在收成 `packages/contracts/src/platform/loopback.ts`（`isLoopbackHostname`、`isLoopbackHttpUrl`、`isLoopbackHttpOrigin`、`loopbackHost`，S-09），这些地方都问它。两处因此变宽，都是原来错拒了合法的回环写法：终端 socket 认 `[::1]` 作 `Host`，Gmail 回调认 `[::1]`。
 
 ## 7. 需要用户操作的事项
 
@@ -881,7 +868,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | §4.15 术语表 | 部分（W1-17 已做，#315）：`docs/system/GLOSSARY.md` 已写（一概念一名一定义；术语到翻译稳定键的对应；界面用词待批清单；代码改名清单分内部改名与合同改名；Characters 按「设置的一节」写，讨论按在用功能写）；代码改名（W5-14）、旧术语门禁、两套能力机制的收敛未做 | `docs/system/GLOSSARY.md`、§1 |
 | §4.16 静态检查 | 待做：仓库没有 lint/format 脚本（W1-09） | `package.json` |
 | §4.17 依赖与 SDK | 部分（W1-20 已做，#318）：[依赖清单与 Prologue SDK 收敛方案](dependencies-and-sdk-plan.md)；根 `package.json` 已固定 `packageManager`（pnpm 11.9.0），CI 与发布工作流读它。方案查到 Prologue 来源分支早已合入上游（PR #3）、现行 vendored 包不需要补丁、25 个历史补丁可删；推送、删 vendored 文件、改依赖版本都还没做，等用户确认后按方案分片执行（W1-23） | §3 N-14、`dependencies-and-sdk-plan.md` |
-| §4.18 安全不变量 | 初稿（§6）；密钥扫描已接 CI（#294）；逐条拒绝用例 W2-19 | §6 |
+| §4.18 安全不变量 | 已写成 docs/system/SECURITY-INVARIANTS.md（W2-19，20 条，门禁与 CI 步骤在位）；密钥扫描已接 CI（#294）；开放项在该文档第 4 节 | §6 |
 | §4.19 C 端就绪方案 | 部分（W1-21 已做，#316）：[`c-end-readiness.md`](c-end-readiness.md) 三个里程碑（M1 能装到第二台 mac、M2 保持更新不丢数据、M3 不止 macOS）、各项成本与依赖、5 个探针；还要用户定的 7 项在它的 §8，用户决定后各写成 §1 表的一行 | §3 C 组 |
 
 **仓库系统整理要求（15 节）**：§1、§2 已覆盖（第一步 spec §1、§7）；§9 前端动线：壳子 S1–S7 与成果库走查覆盖了「插件不出整页、直达打开工作台、对话框与侧栏在工作台里」，其余页面的质感审查待做（W2-18）；§12 测试与预期对齐：第一步回归基线与本轮的 #206、#214（用例装配与下载竞态）覆盖了已发现的，系统性审查待做；§13 Prologue AI 手册与 Skill 已有（`docs/platform/PROLOGUE-AI.md`、`skills/molis-prologue-ai/SKILL.md`），与当前代码的一致性待第二步 §4.14 复核；§3–§8、§10、§11、§14、§15 归第二步，见上表。

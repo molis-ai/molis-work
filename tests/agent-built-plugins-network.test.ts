@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { hostNetwork, NETWORK_STAND_IN, publicAddress } from '../apps/local-host/src/plugin-builder/network.js';
+import { ADDRESSES_NEVER_PUBLIC, ADDRESSES_PUBLIC } from './fixtures/public-address-policy.js';
 
 const context = (namespace = 'installed') => ({ identity: { projectId: 'p', installationId: 'i', pluginId: 'io.molis.work.generated.weather', namespace }, signal: new AbortController().signal }) as never;
 const approved = { domains: ['api.weather.example'], secretRefs: [] as string[] };
@@ -20,6 +21,12 @@ test('addresses a plugin may reach are public ones only', () => {
   for (const address of ['93.184.216.34', '1.1.1.1', '2606:4700:4700::1111']) assert.equal(publicAddress(address), true, address);
   // A proxy in fake-IP mode answers every site's name from 198.18.0.0/15 (the development machine's proxy).
   for (const address of ['198.18.0.51', '198.19.255.1']) assert.equal(publicAddress(address), true, address);
+});
+
+// Security invariant S-10 (docs/system/SECURITY-INVARIANTS.md): the same table every address policy is held to; 198.18.0.0/15 is the one user-decided exception (above).
+test('the network door refuses every address of the shared table that is not public, in every spelling', () => {
+  for (const address of ADDRESSES_NEVER_PUBLIC) assert.equal(publicAddress(address), false, address);
+  for (const address of ADDRESSES_PUBLIC) assert.equal(publicAddress(address), true, address);
 });
 
 test('checks get a stand-in; a trial only reads; the address, port and scheme are the host\'s rules', async () => {

@@ -33,6 +33,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - 插件只提供内容，挂在工作台的位置（目录、主区、浮层、设置、侧栏）；不出自己的整页、不开第二个浏览器标签页。例外清单见 `specs/artifact-positioning/spec.md` §4，门禁 `tests/shell-page-gate.test.ts`（CI 里跑）。
 - 成果库只收人要留存、引用的固定版本与导入文件：类型在 manifest `artifacts.produces` 声明，带显示名与 owner 的预览动作；交给别的插件的数据是过程项（`process_items.produces`），不进成果库、侧栏文件和搜索。宿主按 manifest 拒绝未声明的写入；门禁 `tests/artifact-type-gate.test.ts`、`tests/artifact-declaration-gate.test.ts`（CI 里跑）。
 - `vendor/prologue-sdk/` 只放当前使用的 Prologue 包（最多再加一份在途分支的）；换新包时删掉旧包，旧包从 Git 历史取。每个 vendored 的 tgz 旁边有 `.sha256` 和 `.provenance.json`，与 tgz 不符、或包换掉后记录还留着，`pnpm health:check` 拦下；当前包的上游提交与重建步骤见该目录 README，已删的历史补丁（大小、SHA-256、git blob、基线、来源）记在 `vendor/prologue-sdk/patch-history.json`。
+- 本机的安全边界（回环绑定、Host/Origin/令牌/一次性键、两个 socket、Casebook 通道、动作网关、MCP 授权、地址与路径校验、密钥只给引用、提示注入、桌面 IPC）逐条登记在 `docs/system/SECURITY-INVARIANTS.md`，每条有断言「拒绝」本身的测试，CI 里跑 `pnpm test:security`，表由 `pnpm health:check` 看住。改这些边界要同步改表和测试；写测试时找不到拒绝，就是安全缺陷：先补最小的拒绝，再在提交说明里写明。「是不是本机地址」只有一份写法：`@molis-ai/molis-work-contracts/platform/loopback`。
 
 ## 构建与测试
 

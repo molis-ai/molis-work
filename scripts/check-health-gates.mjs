@@ -29,6 +29,7 @@ import path from "node:path";
 import ts from "typescript";
 import { SOURCE_COUNT_RULES } from "./gates/source-counts.mjs";
 import { checkApiSnapshots } from "./gates/api-snapshot.mjs";
+import { docGateInputs, docGateMetrics, docGateProblems } from "./gates/doc-gates.mjs";
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 
@@ -115,7 +116,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => isStructureSource(file) || isTestFile(file) || structureWantsText(file);
+const needsText = (file) => isStructureSource(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -278,9 +279,10 @@ const perFile = {
     return json[key];
   },
   lowered: (head, ref) => sumOf(head) < sumOf(ref) || Object.entries(head).some(([file, count]) => ref[file] !== undefined && count < ref[file]),
-  lines(title, head, ref, { top }) {
+  // `unit` names what the keys are when they are not files (a root entry, a group, a subpath); the default is the per-file count.
+  lines(title, head, ref, { top }, unit = { many: "files", one: "file" }) {
     const rows = Object.entries(head).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-    const out = [`${title}: ${sumOf(head)} in ${rows.length} files`, `  ${"count".padStart(5)}${ref ? "   base" : ""}  file`];
+    const out = [`${title}: ${sumOf(head)} in ${rows.length} ${unit.many}`, `  ${"count".padStart(5)}${ref ? "   base" : ""}  ${unit.one}`];
     for (const [file, count] of rows.slice(0, top)) out.push(`  ${String(count).padStart(5)}${ref ? String(ref[file] ?? "new").padStart(7) : ""}  ${file}`);
     if (top && rows.length > top) out.push(`  … ${rows.length - top} more (omit --top to see all)`);
     return out;
@@ -394,6 +396,7 @@ const sourceCounts = SOURCE_COUNT_RULES.map((rule) => ({
 const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, compatMarkers, ...sourceCounts];
 // The structure gates (W1-05) live in scripts/gates/: each module says what to count, this file compares.
 METRICS.push(...structureMetrics({ isSource: isStructureSource, perFile, rekey, rekeyUnit, sumOf }));
+METRICS.push(...docGateMetrics({ perFile }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 
@@ -459,7 +462,7 @@ const limitErrors = () => {
 const exceptionErrors = () => Object.entries(exceptions).flatMap(([unit, entry]) => (!Object.hasOwn(head.giant, unit)
   ? [`giant exception for ${unit} is stale: it is not a giant unit any more (split, shrunk or renamed); delete the entry from tooling/gates/giant-exceptions.json, or key it by the new name after a rename`]
   : problemsOfException(entry).map((problem) => `giant exception for ${unit}: ${problem}`)));
-const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : [])];
+const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree())];
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
 const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });
@@ -478,6 +481,8 @@ if (report) {
   console.log(`\nSpec status lines: ${problems.length ? problems.join("; ") : "every specs/ root directory has one"}`);
   const api = apiSnapshots();
   console.log(`Public API snapshots: ${api.errors.length ? "out of date (see the gate's output)" : api.summary || api.notes.join("; ")}`);
+  const docProblems = docGateProblems(workingTree());
+  console.log(`\nDocument references: ${docProblems.length ? `${docProblems.length} problems\n- ${docProblems.join("\n- ")}` : "none broken"}`);
   process.exit(0);
 }
 

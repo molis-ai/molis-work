@@ -45,7 +45,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | 9 | 记忆作用域 | 10 | 3 | 无切片，建议并入 W4-08 的边界规则 |
 | 10 | 新 Module | 6（有项目库表 7） | 4 | X-1（包登记生成）；表登记靠 W4-11、X-5 |
 | 11 | 新横向服务 | 6 | 4 | 同上 |
-| 12 | 新 Agent Runtime | Agent Host 内 CLI 1、自写适配器 3；外部 Runtime 接入 6，接入加角色导入 11–15 | 1 / 3 / 2 | 无切片，建议新增 |
+| 12 | 新 Agent Runtime | Agent Host 内自写适配器 3；外部 Runtime 接入 6，接入加角色导入 11–15 | 3 / 2 | 无切片，建议新增 |
 | 13 | 界面插槽 | 5 | 2 | 无切片 |
 | 14 | 界面语言 | 6 个代码文件 + 42 份词典 | 1 + 每个词典所有者各交一份 | W5-03（2026-10-08 改为稳定键）覆盖一部分 |
 | 15 | 操作系统平台 | 20 个 macOS 专用文件 | 4 个适配器 | 属 W1-21（C 端计划），本阶段不实现 |
@@ -185,11 +185,10 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 ### 3.12 新 Agent Runtime
 
-「Agent Runtime」有三种，改动处差别很大：
+「Agent Runtime」有两种，改动处差别很大（Agent Host 里的 `claude` 命令行适配器已于 2026-10 删除，不再是一种）：
 
 | 种类 | 现在 | 位置 | 目标 |
 | --- | --- | --- | --- |
-| Agent Host 里的命令行 Runtime | 1 | `apps/local-host/src/agent-host-composition.ts` 的 `DEFAULT_CLI_RUNTIMES` 加一行（`CliAgentAdapter`） | 1 |
 | Agent Host 里自写适配器 | 3 | `horizontal/agent-host/src/adapters/<名>.ts`（实现 `AgentRuntimeAdapter`，`packages/contracts/src/services/agent-host.ts`）、`horizontal/agent-host/src/index.ts` 导出、`agent-host-composition.ts` 注册 | 3 |
 | 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 6；接入加角色导入 11–15 | 以 `pi-agent` 为例（6）：`packages/contracts/src/platform/installation-detection.ts`（`SUPPORTED_RUNTIME_IDS`）、`apps/local-host/src/installer/runtime-config-adapters.ts`、`apps/desktop/src/launch.ts`、`apps/desktop/src/web-host.ts`、`plugins/native/work/src/ui/render.ts`、`plugins/native/work/src/ui/terminal.ts`；`grok-build` 还点名 Characters 导入（11 个文件），`opencode` 再加 Shelf 和设置页（15 个文件，分布在 8 个包） | 2 |
 

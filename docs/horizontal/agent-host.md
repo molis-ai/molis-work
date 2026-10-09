@@ -43,10 +43,10 @@ Prologue Node 用 SDK 的 SkillRegistry、prepareSkillIntent、fillSkillBody 准
 | Adapter | 已接通 | 申报为不支持，以及为什么 |
 | --- | --- | --- |
 | Prologue | 会话、Run 的启动/观察/控制、事件流投影；Node 已挂宿主审查桥、固定命令提案与 SDK 持久回执读取 | 没有桥时不支持写入；命令还必须有回执读取端口。Node 装配已满足，两者缺一的装配仍拒绝命令。检查点、子代理等另按真实接通情况声明 |
-| CLI（Claude Code / Codex） | 只读任务真实执行、`stream-json` 投影、停止、用量 | `text-edit` / `command`：CLI 的审批发生在它自己的权限模型里，**不经过宿主 Review 队列**。报成支持等于放行一次没有记录批准的写入 |
 
 能力矩阵来自实际装配；未接通不能报成支持，已接通也不能继续沿用旧的不支持说明。
-要打开 CLI 的写入，需要一个 permission-prompt 工具把询问转回宿主队列。
+
+没有第二个 adapter：`claude` 命令行适配器（`CliAgentAdapter`）默认注册却没有内置调用方，2026-10 已删除，公开入口也不再导出它。外部 Agent 运行时按口径暂缓（[PROLOGUE-AI.md](../platform/PROLOGUE-AI.md) 开头）；将来要接，是新的适配器和新的评审，不是把旧的找回来。
 
 ## 项目 MCP 配置与执行
 
@@ -59,8 +59,8 @@ MCP 提案使用 SDK 持久的工具名和实际参数进入现有 Review 队列
 ## 从哪里读代码
 
 `horizontal/agent-host/src/index.ts`（注册与启动授权）、`src/reviews.ts`（Review 队列）、
-`src/adapters/`（两个 adapter 与投影）、`tests/agent-host.test.ts`、
-`tests/prologue-approval-bridge.test.ts`、`tests/prologue-stream.test.ts`、`tests/cli-agent-adapter.test.ts`。
+`src/adapters/`（Prologue adapter 与投影）、`tests/agent-host.test.ts`、
+`tests/prologue-approval-bridge.test.ts`、`tests/prologue-stream.test.ts`。
 
 ## 执行记录显示时间的恢复
 

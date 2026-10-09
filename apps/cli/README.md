@@ -53,7 +53,7 @@ node --import tsx --test --test-concurrency=1 tests/cli-protocol.test.ts
   - 不是数据库入口：命令复用 Host 能力，不在处理器里直接打开 Store。
   - JSON 与文件输入的解析、错误呈现留在 CLI；状态变化由实际 owner 完成。
   - 参数优先级、输出格式与退出码按 `src/protocol.ts`，改动同步更新协议测试。
-- 改动后必跑：`node scripts/run-tests.mjs tests/cli-protocol.test.ts tests/cli-command-receipts.test.ts tests/cli-agent-adapter.test.ts tests/cli-node-process.test.ts tests/goal-management-identity.test.ts tests/goal-read-entry.test.ts tests/proposal-entry-chain.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/cli-protocol.test.ts tests/goal-management-identity.test.ts tests/goal-read-entry.test.ts tests/proposal-entry-chain.test.ts`
 - 相关手册：[docs/cli-and-development.md](../../docs/cli-and-development.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

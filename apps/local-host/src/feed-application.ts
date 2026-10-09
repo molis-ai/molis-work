@@ -108,6 +108,7 @@ export function createLocalFeedApplication(
       payload: input.payload,
       at: input.at,
     }),
+    eventCursor: (projectId) => journal.eventCursor(projectId),
   });
   return new FeedApplication({
     sources, feed: feedItems, attention, appendEvent,

@@ -1646,7 +1646,7 @@ export declare function goalPluginObjectRef(subject: {
 }): string;
 
 export declare const goalProgressCapabilities: {
-    record: HostCapabilityDefinition<Omit<RecordGoalProgressSummaryInput, "project_id" | "actor_id" | "actor_kind"> & GoalProgressActor, GoalEventProgressResult>;
+    record: HostCapabilityDefinition<Omit<RecordGoalProgressSummaryInput, "project_id" | "actor_id" | "actor_kind">, GoalEventProgressResult>;
     receipt: HostCapabilityDefinition<{
         goal_id: string;
         idempotency_key: string;

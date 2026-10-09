@@ -1,7 +1,6 @@
 export { createCliGoalTreeHandlers } from "./goal-tree-commands.js";
 
 export {
-  DEFAULT_CLI_DATABASE,
   cliFlagValue,
   readCliJsonPayload,
   printCliJson,

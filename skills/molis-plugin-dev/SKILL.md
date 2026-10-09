@@ -143,7 +143,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 - Manifest 字段、kind 语义、permissions、视图槽
 - MCP 对外协议、`agent.mcp`、闸门/scope
 - actions / action_scenes / 动作录取
-- 系统搜索的来源协议（`search_source`、条目列出、按需查询）与打开方式
+- 系统搜索的来源协议（`search_source`、条目列出）与打开方式
 - 当前项目设置的具名读取能力与按项授权
 - 插件 Manifest 升级兼容声明、升级预检或市场升级入口
 - 插件事件、ports、Artifact 交换

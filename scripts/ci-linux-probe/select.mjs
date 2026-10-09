@@ -44,17 +44,18 @@ const candidates = (base) => [
   ...(/\.m?js$/.test(base) ? [base.replace(/\.(m?)js$/, ".$1ts")] : []),
 ];
 
-// The file and the files under tests/ it imports (fixtures, helpers), followed through their own imports.
-export function readClosure(root, file) {
+// The file and the files under tests/ it imports (fixtures, helpers), followed through their own imports: repository-relative
+// path and text of each, the file itself first. scripts/affected-tests also reads which files a test pulls in.
+export function readClosureFiles(root, file) {
   const testsRoot = path.join(root, "tests") + path.sep;
   const seen = new Set();
-  const texts = [];
+  const entries = [];
   const visit = (absolute) => {
     if (seen.has(absolute)) return;
     seen.add(absolute);
     let text;
     try { text = readFileSync(absolute, "utf8"); } catch { return; }
-    texts.push(text);
+    entries.push({ file: path.relative(root, absolute).split(path.sep).join("/"), text });
     for (const [, specifier] of text.matchAll(IMPORT)) {
       const base = path.resolve(path.dirname(absolute), specifier);
       if (!base.startsWith(testsRoot)) continue;
@@ -63,15 +64,19 @@ export function readClosure(root, file) {
     }
   };
   visit(path.join(root, file));
-  return texts.join("\n");
+  return entries;
 }
+
+// The same, as one text.
+export const readClosure = (root, file) => readClosureFiles(root, file).map((entry) => entry.text).join("\n");
 
 const hits = (rule, name, text) => Boolean((rule.name && rule.name.test(name)) || (rule.text && rule.text.test(text)));
 
+// The marks of a test file from its name and the text of the file with its fixtures.
+export const marksOf = (name, text) => MARKS.filter((mark) => hits(RULES[mark], name, text));
+
 export function classifyFile(root, file) {
-  const name = path.basename(file);
-  const text = readClosure(root, file);
-  const marks = MARKS.filter((mark) => hits(RULES[mark], name, text));
+  const marks = marksOf(path.basename(file), readClosure(root, file));
   return { file, marks, run: !marks.includes("browser") };
 }
 

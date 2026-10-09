@@ -188,6 +188,16 @@ export type MemoryKind = "preference" | "convention" | "fact" | "experience";
 
 export interface MemoryLedgerPort {
     forget(memoryId: string): void;
+    forgetScopes(input: {
+        scopes: ReadonlyArray<{
+            scope: MemoryScope;
+            owner: string;
+        }>;
+        project_id: string;
+        prefs_keys: readonly string[];
+        signal_prefixes: readonly string[];
+        marker_keys: readonly string[];
+    }): void;
     revisions(memoryId: string): MemoryRevision[];
     addRevision(memoryId: string, revision: MemoryRevision): void;
     candidates(actorId: string): MemoryCandidateRecord[];
@@ -230,6 +240,10 @@ export interface MemoryLedgerPort {
         title: string;
         subject?: string | null;
     }): void;
+    candidateOwners(projectId: string): Array<{
+        scope: MemoryScope;
+        owner: string;
+    }>;
     pairs(actorId: string): Array<MemoryPair & {
         owner: string;
         state: "pending" | "resolved";

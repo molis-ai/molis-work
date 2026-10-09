@@ -44,7 +44,13 @@ export declare const PROJECT_PLUGIN_COMPANIONS: {
     readonly [K in BuiltinProjectPluginId]: readonly BuiltinProjectPluginId[];
 };
 
-export interface ProjectDeletionRecord {
+export interface ProjectDataDeclaration {
+    readonly label: string;
+    readonly order?: number;
+    purge(homeDirectory: string, projectId: string): void | Promise<void>;
+}
+
+export interface ProjectDeletionReceipt {
     deletion_id: string;
     project_id: string;
     display_name: string;
@@ -56,9 +62,20 @@ export interface ProjectDeletionRecord {
     cleaned_at: string | null;
 }
 
+export interface ProjectDeletionRecord extends ProjectDeletionReceipt {
+    owner_steps: ProjectDeletionStep[];
+}
+
 export interface ProjectDeletionResult {
     deletion: ProjectDeletionRecord;
     replayed: boolean;
+}
+
+export interface ProjectDeletionStep {
+    owner_id: string;
+    state: "pending" | "complete";
+    error: string | null;
+    updated_at: string;
 }
 
 export type ProjectPluginId = string;

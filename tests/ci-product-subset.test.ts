@@ -14,6 +14,9 @@ import { failing, FAILING, STATUSES, summaryMarkdown, totals } from "../scripts/
 // of the two files themselves (list, quarantine) are in tests/ci-product-subset-plan.test.ts.
 //
 // The words the Linux probe marks files by are spelled in pieces, so that this file does not carry the marks of the fixtures it writes.
+const w = (...parts: string[]) => parts.join("");
+const DARWIN = w("dar", "win");
+const TEST_CHROME = w("MOLIS_WORK_TEST", "_CHROME");
 const script = fileURLToPath(new URL("../scripts/ci-product-subset.mjs", import.meta.url));
 const repoModules = fileURLToPath(new URL("../node_modules", import.meta.url));
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -372,7 +375,7 @@ test("only a counted file with a failing result fails the subset; a quarantined 
   assert.deepEqual(failing(results).map((result) => result.status).sort(), ["fail", "not-run", "skipped", "timeout"]);
   assert.ok(failing(results).every((result) => result.counted));
   assert.deepEqual(totals(results), { files: 12, counted: 6, quarantined: 6, pass: 1, flaky: 1, skipped: 1, fail: 1, timeout: 1, "not-run": 1, failing: 4 });
-  const meta = { platform: "darwin", arch: "arm64", node: "v24", commit: "abc", today: "2026-10-09", jobs: 2, timeoutSeconds: 180, browserTimeoutSeconds: 240, retries: 1, budgetMinutes: 15, browserBudgetMinutes: 8, minutes: 1, phases: { browser: 0.2, other: 0.5, quarantined: 0 }, endedBy: "finished" };
+  const meta = { platform: DARWIN, arch: "arm64", node: "v24", commit: "abc", today: "2026-10-09", jobs: 2, timeoutSeconds: 180, browserTimeoutSeconds: 240, retries: 1, budgetMinutes: 15, browserBudgetMinutes: 8, minutes: 1, phases: { browser: 0.2, other: 0.5, quarantined: 0 }, endedBy: "finished" };
   const text = summaryMarkdown({ results: [item("pass", true)], meta });
   assert.match(text, /not Linux: its results say nothing about Linux/);
   assert.match(text, /browser smokes 0\.2 min \(budget 8 min\), other files 0\.5 min \(budget 15 min\)/);
@@ -400,7 +403,7 @@ test("ci.yml: the product subset is an ubuntu job that cannot fail the workflow,
   assert.match(job, /run: exec node scripts\/ci-product-subset\.mjs --expect-platform linux /, "the runner is the step's own process, so a cancel's signal reaches it, and it refuses to record another platform");
   assert.match(job, /- name: Keep the report\n\s+if: \$\{\{ always\(\) \}\}\n\s+uses: actions\/upload-artifact@/, "the report is kept when the job is cancelled or stopped");
   assert.match(job, /run: pnpm build$/m, "the tests import the built packages");
-  assert.match(job, /MOLIS_WORK_TEST_CHROME=/, "the browser smokes are told which Chrome to use");
+  assert.ok(job.includes(`${TEST_CHROME}=`), "the browser smokes are told which Chrome to use");
   const timeout = Number(/^    timeout-minutes: (\d+)$/m.exec(job)?.[1]);
   const budget = Number(/--budget-minutes (\d+(?:\.\d+)?)/.exec(job)?.[1]);
   const browserBudget = Number(/--browser-budget-minutes (\d+(?:\.\d+)?)/.exec(job)?.[1]);

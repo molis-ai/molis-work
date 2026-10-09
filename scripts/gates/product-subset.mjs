@@ -18,7 +18,7 @@
 // taking a file out of the list is a reviewed edit of a visible file, not something this gate refuses.
 // A repository with neither file (the scratch repositories of the other gates' tests) is not under this gate.
 //
-// Every rule is a `problems.push` in plan.mjs; tests/ci-product-subset.test.ts has a case for each. Pure Node built-ins, so the gate
+// Every rule is a `problems.push` in plan.mjs; tests/ci-product-subset-plan.test.ts has a case for each. Pure Node built-ins, so the gate
 // runs before any dependency is installed.
 import { readPlan } from "../ci-product-subset/plan.mjs";
 

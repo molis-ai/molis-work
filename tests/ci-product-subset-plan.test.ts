@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
+import { classifyFile } from "../scripts/ci-linux-probe/select.mjs";
 import { BROWSER_SMOKES, datingProblems, dayNumber, LIST_FILE, parseList, parseQuarantine, QUARANTINE_FILE, QUARANTINE_LIMITS, readPlan, REQUIRED_ENTRIES, resolvePlan } from "../scripts/ci-product-subset/plan.mjs";
 import { productSubsetProblems } from "../scripts/gates/product-subset.mjs";
 
@@ -19,6 +20,7 @@ const w = (...parts: string[]) => parts.join("");
 const DARWIN = w("dar", "win");
 const CHROME = w("google", "-chrome");
 const LIVE_ACCEPTANCE = w("MOLIS_WORK_LIVE", "_ACCEPTANCE");
+const MAC_APP = w("/Applic", "ations/Chrome.app/Con", "tents/MacOS/x");
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const gateScript = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import.meta.url));
 
@@ -82,7 +84,7 @@ test("a live file and a macOS-only non-browser file are refused; a browser smoke
   only(problemsOf({ list: [...ALWAYS, "tests/needs-model.test.ts"], files: { "tests/needs-model.test.ts": `// ${LIVE_ACCEPTANCE}\n` } }), /tests\/needs-model\.test\.ts is a live file/);
   only(problemsOf({ list: [...ALWAYS, "tests/model-live.test.ts"], files: { "tests/model-live.test.ts": "" } }), /tests\/model-live\.test\.ts is a live file/);
   only(problemsOf({ list: [...ALWAYS, "tests/only-mac.test.ts"], files: { "tests/only-mac.test.ts": `const platform = "${DARWIN}";\n` } }), /tests\/only-mac\.test\.ts touches macOS-only paths/);
-  noProblems({ files: { "tests/smoke-one.e2e.test.ts": `const app = "/Applications/Chrome.app/Contents/MacOS/x"; const platform = "${DARWIN}";\n` } });
+  noProblems({ files: { "tests/smoke-one.e2e.test.ts": `const app = "${MAC_APP}"; const platform = "${DARWIN}";\n` } });
   only(problemsOf({ files: { "tests/smoke-one.e2e.test.ts": `// ${LIVE_ACCEPTANCE}\n` } }), /tests\/smoke-one\.e2e\.test\.ts is a live file/);
 });
 
@@ -269,4 +271,11 @@ test("on this repository: the list and the quarantine file are valid, the i18n t
   const patterns = named.map((name) => new RegExp(`^${name.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*")}$`));
   const duplicated = plan.entries.filter((item) => patterns.some((pattern) => pattern.test(item.file))).map((item) => item.file);
   assert.deepEqual(duplicated, [], "the blocking job runs these files itself; the subset need not run them again");
+});
+
+test("the two test files of the subset carry none of the Linux probe's marks, so the probe runs them as the plain files they are", () => {
+  // The fixtures they write contain the marker words; the files spell those in pieces (see the note at the top of each).
+  for (const file of ["tests/ci-product-subset.test.ts", "tests/ci-product-subset-plan.test.ts"]) {
+    assert.deepEqual(classifyFile(repoRoot, file).marks, [], `${file} is marked by the probe: a literal marker word is in it, or in a fixture it imports`);
+  }
 });

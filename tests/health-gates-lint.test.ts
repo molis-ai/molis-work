@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { LINT_RULES, lintTexts, looserThan, policyOf, policyProblems } from "../scripts/gates/lint.mjs";
+import { LINT_RULES, createLintMetrics, lintTexts, looserThan, policyOf, policyProblems } from "../scripts/gates/lint.mjs";
 
 // specs/repository-anti-corruption §4.16 (W1-09): the static checks. A minimal Biome rule set (empty catch, `as unknown as`,
 // floating promises, explicit `any`, console, debugger) is counted per file like the other health gates: it may only fall,
@@ -135,6 +135,25 @@ const loosenings: Array<[string, (config: Config) => void, RegExp]> = [
 ];
 for (const [name, change, expected] of loosenings) test(`policy: ${name} is looser`, () => assert.match(looser(change).join("\n"), expected));
 
+test("policy: an override's directories are scopes of their own", () => {
+  const withOverride = (includes: string[]) => (config: Config) => { config.overrides = [{ includes, linter: { rules: { suspicious: { noConsole: "off" } } } }]; };
+  const before = policy(withOverride(["scripts/**", "tooling/plugin-cli/**"]));
+  assert.deepEqual(before.off, ["suspicious/noConsole@scripts/**=off", "suspicious/noConsole@tooling/plugin-cli/**=off"]);
+  // The same directories in one override or in two are the same policy; one more directory is a rule switched off there.
+  const split = policy((config) => { config.overrides = [
+    { includes: ["scripts/**"], linter: { rules: { suspicious: { noConsole: "off" } } } },
+    { includes: ["tooling/plugin-cli/**"], linter: { rules: { suspicious: { noConsole: "off" } } } }]; });
+  assert.deepEqual(looserThan(split, before), []);
+  assert.deepEqual(looserThan(before, split), []);
+  assert.match(looserThan(policy(withOverride(["scripts/**", "tooling/plugin-cli/**", "packages/storage/**"])), before).join("\n"), /suspicious\/noConsole@packages\/storage\/\*\* is switched off/);
+  assert.deepEqual(looserThan(policy(withOverride(["scripts/**"])), before), [], "a directory taken out of the exception is stricter");
+  // A rule that is an error only in some directories: extending the list is stricter, shrinking it is looser.
+  const only = (includes: string[]) => (config: Config) => { delete group(config, "suspicious").noDebugger; config.overrides = [{ includes, linter: { rules: { suspicious: { noDebugger: "error" } } } }]; };
+  assert.deepEqual(looserThan(policy(only(["packages/a/**", "packages/b/**"])), policy(only(["packages/a/**"]))), []);
+  assert.match(looserThan(policy(only(["packages/a/**"])), policy(only(["packages/a/**", "packages/b/**"]))).join("\n"), /noDebugger is no longer an error for packages\/b\/\*\*/);
+  assert.match(looserThan(policy((config) => { config.overrides = [{ includes: ["scripts/**", "!scripts/keep/**"], linter: { rules: { suspicious: { noConsole: "off" } } } }]; }), policy()).join("\n"), /override:!scripts\/keep\/\*\* excludes files/);
+});
+
 test("policy: problems in the configuration itself", () => {
   const problems = (change: (config: Config) => void) => policyProblems(policy(change)).join("\n");
   assert.match(problems((config) => { group(config, "suspicious").noConsole = "warn"; }), /sets suspicious\/noConsole@\* to warn/);
@@ -143,6 +162,18 @@ test("policy: problems in the configuration itself", () => {
   assert.match(problems((config) => { config.plugins.push("./elsewhere/rule.grit"); }), /names the plugin \.\/elsewhere\/rule\.grit/);
   assert.match(problems((config) => { config.linter.enabled = false; }), /linter is switched off/);
   assert.deepEqual(policyProblems(policy()), []);
+});
+
+test("policy: the repository the script belongs to must have a configuration, any other root may lack one", () => {
+  const helpers = { fail: (message: string) => { throw new Error(message); }, perFile: {}, rekey: () => ({}), rekeyFile: () => "", sumOf: () => 0, requireShape: () => {} };
+  const bare = mkdtempSync(path.join(tmpdir(), "molis-health-lint-nocfg-"));
+  try {
+    const policyMetric = (required: boolean) => createLintMetrics({ root: bare, required, ...helpers }).find((metric: { id: string }) => metric.id === "lintPolicy");
+    const snapshot = { files: ["packages/a/src/index.ts"], read: () => null };
+    assert.equal(policyMetric(true).measure(snapshot), null, "no biome.jsonc in the snapshot: no policy");
+    assert.match(policyMetric(true).absolute(null).join("\n"), /biome\.jsonc is missing/);
+    assert.deepEqual(policyMetric(false).absolute(null), []);
+  } finally { rmSync(bare, { recursive: true, force: true }); }
 });
 
 // ---- 3. mutations on a scratch repository -----------------------------------------------------------------------------
@@ -298,7 +329,7 @@ test("the report lists each count per file, next to the merge-base's", () => {
   assert.match(text, /Floating promises: 1 in 1 files/);
   assert.match(text, /Explicit `any` types: 1 in 1 files/);
   assert.match(text, /console calls \(leftover debug output\): 1 in 1 files/);
-  assert.match(text, /Static check rules \(biome\.jsonc\): 4 rules, 1 switched off for a directory, 2 plugins/);
+  assert.match(text, /Static check rules \(biome\.jsonc\): 4 rules, 5 directory exceptions, 2 plugins/);
   const json = JSON.parse(gate("--report", "--json", "--base", "main").out);
   assert.deepEqual(json.head.emptyCatches, { "packages/alpha/src/swallow.ts": 1, "tests/old.test.ts": 1 });
   assert.deepEqual(json.head.unknownCasts, { "packages/alpha/src/cast.ts": 1, "tests/old.test.ts": 1 });

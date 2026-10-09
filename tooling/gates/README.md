@@ -70,11 +70,24 @@ W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 
 **看明细**：`pnpm health:check` 失败时会写出文件和行号。`pnpm lint` 直接跑 Biome（在工作树里原地跑，列出每一处，含基线已接受的；编辑器装 Biome 扩展读同一份 `biome.jsonc`），原地跑能看到临时目录里看不到的（见下）。加一条定义要同时改：`scripts/gates/lint.mjs`（`LINT_RULES`）、`biome.jsonc`、本节的表，并在 `tests/health-gates-lint.test.ts` 里加定义用例和突变用例。
 
 **看不到的**（已知限制，不是决定）：
-- `noFloatingPromises` 沿着文件之间的相对 import 找 promise，不会穿过包名：调用另一个 workspace 包导出的 async 函数没有被 await，临时目录里看不到（要先 build 出 `.d.ts`，门禁不依赖构建）。原地跑 `pnpm lint` 在构建之后能看到更多。Biome 的这条规则还在 nursery，版本固定，升级前先在 `tests/health-gates-lint.test.ts` 里看定义用例。
+- `noFloatingPromises` 沿着文件之间的相对 import 找 promise，不会穿过包名：调用另一个 workspace 包导出的 async 函数没有被 await，临时目录里看不到（要先 build 出 `.d.ts`，门禁不依赖构建）。构建之后原地跑 `pnpm lint` 能多看到 1 处（`prologue-node.ts` 里 Prologue SDK 的方法，类型来自 `node_modules`），其余都在树里。Biome 的这条规则还在 nursery，版本固定，升级前先在 `tests/health-gates-lint.test.ts` 里看定义用例。
 - `async` 回调传给期望同步返回的位置（`noMisusedPromises`）不查：这个版本的 Biome 把 `if (pending) return pending` 这种“可能为空的 promise 缓存”也报成错误（27 处误报），没法用。
 - 浏览器脚本（写成模板字符串的客户端程序）Biome 看不到：那里的空 catch 仍由 `emptyCatchesInScripts` 数，其余规则没有对应物。
 - 没有检查未用变量与导入：`tsc` 的 `noUnusedLocals` 已经在每个包里查了；`tests/` 与 `scripts/` 不在任何 tsconfig 里，没有类型检查（路线图 §4.16 记了 798 处）。
 
-## Rust、Swift 与 shell
+## Rust、Swift、shell 与 Python
 
-见 `scripts/gates/native-checks.mjs` 开头和 `docs/system/PACKAGE-BOUNDARIES.md`。不是数字，是通过或失败：`cargo fmt --check` 与 `cargo clippy -D warnings`（`apps/desktop`）、`swiftc -typecheck`（原生素材提取器）、`shellcheck`（所有被跟踪的 `.sh`）。
+`scripts/gates/native-checks.mjs`（开头的注释是口径的出处）。这几项不是数字，没有基线：通过，或者失败，每个告警都算错误。CI 里 `native-checks` 任务（macOS）跑 Rust 和 Swift，`shell-checks` 任务（Linux）跑 shell 与 Python，两个都在 `Verify` 的 `needs` 里；本机 `node scripts/gates/native-checks.mjs rust|swift|shell|python`。
+
+| 检查 | 命令 | 范围与说明 |
+| --- | --- | --- |
+| Rust 格式 | `rustfmt --check` | 所有被跟踪的 `.rs`。`apps/desktop` 之外的 `.rs` 文件直接失败（不在检查范围里的代码不许悄悄加进来） |
+| Rust 静态检查 | `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings` | 要编译 crate，所以在 macOS 上跑。CI 用 `RUSTUP_TOOLCHAIN` 固定 Rust 版本（clippy 每个版本都会新增 lint，`-D warnings` 跟着“stable”走会让每次发布变红）；换版本是单独的改动，同一个 PR 里清掉新告警。本机用已装的版本，新版本可能多报 |
+| Swift 类型检查 | `swiftc -typecheck -parse-as-library -target <arch>-apple-macosx14.0 JellyMaterial.swift` | 原生素材提取器。每个被跟踪的 `.swift` 都要登记在脚本的 `SWIFT_UNITS`，否则失败 |
+| Swift 包构建 | `swift build --package-path apps/local-host/native/materials/whisper`（加 `--package`） | `jelly-whisper` 的 SwiftPM 包，`swift-tools-version: 6.2`（要 Xcode 26），冷编译约 7 分钟，要联网拉 `argmax-oss-swift`。CI 里先作为不挡合并的步骤跑（`continue-on-error`），确认有 Swift 6.2 的 runner 后去掉 |
+| shell | `shellcheck --severity=warning` | 所有被跟踪的 `.sh`，和第一行是 sh/bash 的无后缀文件。告警和错误失败，风格提示不失败 |
+| Python | `python3 -I`，`ast.parse` | 被跟踪的 `.py`（现在只有 `apps/local-host/tooling/experiments/laya-worker.py`，实验执行器启动的工作进程）必须能解析；不写 `__pycache__`。只查语法，没有 linter |
+
+工具缺失是退出码 2，不是通过。规则本身在 `tests/native-checks.test.mjs`（纯 `node:test`，不需要装依赖）里各被故意违反一次；本机没有的工具对应的用例会跳过并说明（shell 用例另有一个替身 shellcheck，验证“交了哪些文件、严重度参数、失败的退出码”）。
+
+本机的 Rust 测试 `cargo test` 不在 CI 里：有两个测试用纳秒时间戳给临时目录命名，并行时偶尔撞名（`shelf_http`、`context_directory_files`）。

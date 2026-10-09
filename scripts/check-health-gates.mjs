@@ -410,7 +410,8 @@ METRICS.push(...docGateMetrics({ perFile }));
 METRICS.push(createTranslationMetric({ isSource, requireShape, isRecord }));
 METRICS.push(createImpeccableMetric({ perFile }));
 // 8. Static checks (W1-09): Biome with a minimal rule set, counted per file; the rules live in scripts/gates/lint.mjs.
-METRICS.push(...createLintMetrics({ root, required: Boolean(packageRegistry), fail, perFile, rekey, rekeyFile, sumOf, requireShape }));
+// The repository this script belongs to must have the configuration; another --root (the scratch repositories of the gate tests) may lack one.
+METRICS.push(...createLintMetrics({ root, required: root === path.resolve(path.dirname(new URL(import.meta.url).pathname), ".."), fail, perFile, rekey, rekeyFile, sumOf, requireShape }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 

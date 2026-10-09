@@ -1527,7 +1527,11 @@
       ]
     },
     "off": [
-      "suspicious/noConsole@scripts/**,apps/cli/**,apps/desktop/launchers/**,tooling/plugin-cli/**,server/tooling/**=off"
+      "suspicious/noConsole@apps/cli/**=off",
+      "suspicious/noConsole@apps/desktop/launchers/**=off",
+      "suspicious/noConsole@scripts/**=off",
+      "suspicious/noConsole@server/tooling/**=off",
+      "suspicious/noConsole@tooling/plugin-cli/**=off"
     ],
     "ignored": [
       "!**/*.d.ts",

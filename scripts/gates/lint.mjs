@@ -80,6 +80,8 @@ const ruleOf = (diagnostic) => {
   const rule = RULE_BY_BIOME.get(diagnostic.category);
   if (rule) return rule;
   if (diagnostic.severity === "information" || diagnostic.severity === "info" || diagnostic.severity === "hint") return null;
+  // An unused or malformed suppression is about a comment lintSuppressions already counts.
+  if (String(diagnostic.category).startsWith("suppressions/")) return null;
   throw new Error(`Biome reported ${diagnostic.category} (${diagnostic.message.slice(0, 120)}) in ${diagnostic.location?.path ?? "the configuration"}, which no count in scripts/gates/lint.mjs covers; add the rule there or take it out of biome.jsonc`);
 };
 
@@ -104,10 +106,12 @@ const ruleLevels = (rules) => {
 };
 
 /**
- * The part of biome.jsonc that decides what is checked, in a form that two versions can be compared in:
- *   rules  { "group/rule": [the scopes where it is an error] }, "*" for everywhere, else the includes of an override
- *   off    "group/rule@scope=level" for every place a rule is set to anything but error (an override, or the top level)
- *   ignored the `!` entries of files.includes and linter.includes
+ * The part of biome.jsonc that decides what is checked, in a form that two versions can be compared in. A scope is "*" (the
+ * whole tree) or one glob of an override's `includes`, so adding a directory to an override is a new scope and removing one
+ * is a lost scope, however the lists are grouped:
+ *   rules   { "group/rule": [the scopes where it is an error] }
+ *   off     "group/rule@scope=level" for every scope where a rule is set to anything but error
+ *   ignored the `!` entries of files.includes and linter.includes, and of an override's includes
  *   plugins the plugin files
  *   preset  the rule preset ("none": only the rules listed here run)
  */
@@ -117,19 +121,24 @@ export const policyOf = (text) => {
   const rulesBlock = config.linter?.rules ?? {};
   const preset = rulesBlock.preset ?? (rulesBlock.recommended === false ? "none" : "recommended");
   const policy = { linterEnabled: config.linter?.enabled !== false, preset, rules: {}, off: [], ignored: [], plugins: configPluginsOf(config) };
-  const place = (rule, level, scope) => {
-    if (level === "error") (policy.rules[rule] ??= []).push(scope);
-    else policy.off.push(`${rule}@${scope}=${level}`);
+  const place = (rule, level, scopes) => {
+    for (const scope of scopes) {
+      if (level === "error") (policy.rules[rule] ??= []).push(scope);
+      else policy.off.push(`${rule}@${scope}=${level}`);
+    }
   };
-  for (const [rule, level] of ruleLevels(config.linter?.rules)) place(rule, level, "*");
+  const exclusions = (list, prefix = "") => { for (const entry of Array.isArray(list) ? list : []) if (String(entry).startsWith("!")) policy.ignored.push(`${prefix}${entry}`); };
+  for (const [rule, level] of ruleLevels(config.linter?.rules)) place(rule, level, ["*"]);
+  exclusions(config.files?.includes);
+  exclusions(config.linter?.includes);
   for (const override of Array.isArray(config.overrides) ? config.overrides : []) {
-    const scope = (Array.isArray(override.includes) ? override.includes : ["*"]).join(",");
-    if (override.linter?.enabled === false) policy.off.push(`linter@${scope}=off`);
-    for (const [rule, level] of ruleLevels(override.linter?.rules)) place(rule, level, scope);
-    for (const entry of Array.isArray(override.linter?.includes) ? override.linter.includes : []) if (String(entry).startsWith("!")) policy.ignored.push(`${scope}:${entry}`);
-  }
-  for (const list of [config.files?.includes, config.linter?.includes]) {
-    for (const entry of Array.isArray(list) ? list : []) if (String(entry).startsWith("!")) policy.ignored.push(String(entry));
+    const globs = Array.isArray(override.includes) ? override.includes.map(String) : [];
+    const scopes = globs.filter((glob) => !glob.startsWith("!"));
+    if (!scopes.length) scopes.push("*");
+    exclusions(globs, "override:");
+    exclusions(override.linter?.includes, "override:");
+    if (override.linter?.enabled === false) place("linter", "off", scopes);
+    for (const [rule, level] of ruleLevels(override.linter?.rules)) place(rule, level, scopes);
   }
   for (const key of Object.keys(policy.rules)) policy.rules[key].sort();
   policy.rules = Object.fromEntries(Object.entries(policy.rules).sort(([a], [b]) => a.localeCompare(b)));
@@ -276,7 +285,7 @@ export const createLintMetrics = ({ root, required, fail, perFile, rekey, rekeyF
     ],
     grew: (head, ref) => looserThan(head, ref).map((what) => `${CONFIG_FILE} is looser than the merge-base's: ${what}; the rule set only gets stricter (a new exclusion or a rule switched off for a directory is a decision for a reviewed change to this gate)`),
     lowered: () => false,
-    lines: (head) => [`Static check rules (${CONFIG_FILE}): ${head ? `${Object.keys(head.rules).length} rules, ${head.off.length} switched off for a directory, ${head.plugins.length} plugins` : "no configuration"}`],
+    lines: (head) => [`Static check rules (${CONFIG_FILE}): ${head ? `${Object.keys(head.rules).length} rules, ${head.off.length} directory exceptions, ${head.plugins.length} plugins` : "no configuration"}`],
     summary: (policy) => `${policy ? Object.keys(policy.rules).length + policy.plugins.length : 0} lint rules`,
   };
 

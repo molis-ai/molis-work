@@ -4,7 +4,7 @@
 
 ## 验证
 
-CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base）及其变异用例、Goal 边界与存储基线、启动器类型检查、动作与插件合同（`pnpm test:contracts`）、单一外壳与成果声明门禁、密钥扫描（推送前先跑 `pnpm secrets:check`）、炼金术士测试；另有一个不挡合并的 Linux 探针作业，只记录哪些非浏览器测试文件在 Linux 上通过，不是门禁（`docs/system/PACKAGE-BOUNDARIES.md`）。产品用例的全量回归在本机跑，写明结果；排时段、集成分支、基线比对的做法见 `docs/system/PARALLEL-DEVELOPMENT.md`：
+CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base，含 Biome 静态检查）及其变异用例、Rust（fmt、clippy）与 Swift 检查（macOS）、shell 脚本检查、Goal 边界与存储基线、启动器类型检查、动作与插件合同（`pnpm test:contracts`）、单一外壳与成果声明门禁、密钥扫描（推送前先跑 `pnpm secrets:check`）、炼金术士测试；另有一个不挡合并的 Linux 探针作业，只记录哪些非浏览器测试文件在 Linux 上通过，不是门禁（`docs/system/PACKAGE-BOUNDARIES.md`）。产品用例的全量回归在本机跑，写明结果；排时段、集成分支、基线比对的做法见 `docs/system/PARALLEL-DEVELOPMENT.md`：
 
 - [ ] 改过 `*/src`、`scripts` 或 `package.json` 后已整体 `pnpm build`
 - [ ] 健康门禁对照 merge-base 通过：`node scripts/check-health-gates.mjs --base origin/main`（CI 也这样比，在 PR 里 `--update` 放不过变大的）；数字变小就用 `--update --base origin/main` 在本 PR 更新 `tooling/gates/baseline.json`
@@ -24,7 +24,7 @@ CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base）及其�
 
 ## 只许减少的数字
 
-<!-- 巨大单元、测试引用包内部、兼容标记、就地补表、vendored SDK 份数、空 catch、`as unknown as`、旧名。通过与否、怎样更新 baseline.json 看上面「验证」里的健康门禁一项；这里只写变化的数字。变大的放不过；要放宽只能另开 PR 改门禁本身（脚本、limits.json、CI），那个 PR 会请求 @yijunw0212 评审（`.github/CODEOWNERS` 只请求，不强制）。 -->
+<!-- 巨大单元、测试引用包内部、兼容标记、就地补表、vendored SDK 份数、空 catch、`as unknown as`、浮动 promise、显式 `any`、`console`、`debugger`、`biome-ignore`、旧名。通过与否、怎样更新 baseline.json 看上面「验证」里的健康门禁一项；这里只写变化的数字。变大的放不过；要放宽只能另开 PR 改门禁本身（脚本、limits.json、CI），那个 PR 会请求 @yijunw0212 评审（`.github/CODEOWNERS` 只请求，不强制）。 -->
 
 - [ ] 相对 merge-base 变小的项（项目、旧值 → 新值），没有变大的；不涉及就写“无变化”：
 

@@ -3,7 +3,6 @@ import {
   SUBJECT_CONTEXT_TYPE,
   SUBJECT_REFERENCE_TYPE,
   isSearchEntriesSource,
-  isSearchQuerySource,
   retainActionAuthority,
   SEARCH_ENTRIES_PAGE_LIMIT,
   type ActionCallContext,
@@ -13,7 +12,6 @@ import {
   type ActionView,
   type SearchEntriesPage,
   type SearchEntry,
-  type SearchQueryResult,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   SEARCH_PROVIDER_ID,
@@ -209,7 +207,6 @@ export class SearchService {
         title: match.title, snippet: match.snippet, highlights: match.highlights, revision: match.revision, updated_at: match.updated_at,
         open: match.open ?? this.defaultOpen(source, match.kind, match.object_id), locator: match.locator }];
     });
-    if (offset === 0) hits.push(...await this.onDemand(views, access, scoped, input, query, limit, hits));
     const sources = this.statuses(all);
     const pending = sources.some(source => source.state === "indexing");
     const degraded = sources.some(source => ["failed", "stale", "unavailable", "indexing"].includes(source.state));
@@ -227,8 +224,7 @@ export class SearchService {
       catch (error) { return { state: "unavailable", hit_id, reason: errorText(error) }; }
     }
     const views = await access.client.discover(access.caller);
-    const candidates = [...this.entrySources(views, access.caller), ...this.querySources(views, access.caller)];
-    const source = candidates.find(candidate => candidate.project_id === hit.project_id && sameReference(candidate.reference, hit));
+    const source = this.entrySources(views, access.caller).find(candidate => candidate.project_id === hit.project_id && sameReference(candidate.reference, hit));
     if (!source) return { state: "unavailable", hit_id, reason: "来源插件已停用、升级或当前没有读取权限" };
     if (!source.view.availability.available) return { state: "unavailable", hit_id, reason: source.view.availability.reason };
     if (!source.kinds.has(hit.kind)) return { state: "unavailable", hit_id, reason: "来源不再提供这类对象" };
@@ -248,7 +244,6 @@ export class SearchService {
         refusal = errorText(error);
       }
     }
-    if (isSearchQuerySource(source.view.action)) return { state: "unavailable", hit_id, reason: refusal ?? "来源没有提供对象读取，无法核对这条结果" };
     // Gone is decided by the owner's own complete listing (the caller's authority), the same rule indexing follows.
     let entry: SearchEntry | null;
     try { entry = await findEntry(access.client, nested, source, hit.kind, hit.id); }
@@ -310,15 +305,6 @@ export class SearchService {
   private entrySources(views: readonly ActionView[], caller: ActionCallContext): SourceView[] {
     return views.filter(view => isSearchEntriesSource(view.action) && view.action.search_source?.kinds.length).map(view => {
       // A registration bound to a project serves that project; a Home registration of a project action serves the caller's project.
-      const project_id = view.provider.project_id ?? (view.action.scope === "project" ? caller.project_id : null);
-      const reference = referenceOf(view);
-      return { key: searchSourceKey({ project_id, ...reference }), project_id, view, reference,
-        kinds: new Map(view.action.search_source!.kinds.map(entry => [entry.kind, { title: entry.title, surface: entry.surface }])) };
-    });
-  }
-
-  private querySources(views: readonly ActionView[], caller: ActionCallContext): SourceView[] {
-    return views.filter(view => isSearchQuerySource(view.action) && view.action.search_source?.kinds.length).map(view => {
       const project_id = view.provider.project_id ?? (view.action.scope === "project" ? caller.project_id : null);
       const reference = referenceOf(view);
       return { key: searchSourceKey({ project_id, ...reference }), project_id, view, reference,
@@ -551,23 +537,6 @@ export class SearchService {
       if (record.error) return { ...base, state: "stale" as const, reason: record.error };
       return { ...base, state: "ready" as const, reason: null };
     });
-  }
-
-  /** Owners that search their own data at query time; nothing they return is written to the index. */
-  private async onDemand(views: readonly ActionView[], access: SearchAccess, scoped: Scoped, input: SearchQueryRequest, query: string, limit: number,
-    already: readonly SearchHit[]): Promise<SearchHit[]> {
-    const sources = this.querySources(views, access.caller).filter(source => source.view.availability.available && this.inScope(source, scoped) && this.matchesFilter(source, input));
-    const nested = retainActionAuthority(access.caller, { ...searchActions.query, provider_id: SEARCH_PROVIDER_ID });
-    const seen = new Set(already.map(hit => hit.hit_id));
-    const results = await Promise.allSettled(sources.map(async source => {
-      const result = await access.client.invoke(nested, source.reference, { query, limit }) as SearchQueryResult;
-      return result.hits.filter(hit => source.kinds.has(hit.subject.kind)).map((hit): SearchHit => ({
-        hit_id: encodeSearchHitId({ project_id: source.project_id, ...source.reference, kind: hit.subject.kind, id: hit.subject.id }), subject: hit.subject,
-        project_id: source.project_id, plugin_id: source.view.provider.plugin_id ?? source.reference.provider_id, plugin_title: source.view.provider.title,
-        source: source.reference, title: hit.title, snippet: hit.snippet, highlights: [], revision: hit.revision, updated_at: hit.updated_at,
-        open: hit.open ?? this.defaultOpen(source, hit.subject.kind, hit.subject.id), locator: { field: "content", offset: 0, length: 0, text: "" } }));
-    }));
-    return results.flatMap(result => result.status === "fulfilled" ? result.value : []).filter(hit => !seen.has(hit.hit_id) && (seen.add(hit.hit_id), true));
   }
 }
 

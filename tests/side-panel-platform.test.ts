@@ -226,8 +226,10 @@ test("a workspace file is read whole for a preview (plugins only), still inside 
     assert.deepEqual(await readWorkspaceFile({ workspace_id: "w1", path: ["docs", "large.pdf"], kind: "bytes" }, workspaces),
       { outcome: "too-large", bytes: WORKSPACE_BYTES_LIMIT + 1, limit: WORKSPACE_BYTES_LIMIT });
     assert.equal((await readWorkspaceFile({ workspace_id: "w1", path: ["..", "outside.png"], kind: "bytes" }, workspaces).catch(() => ({ outcome: "refused" }))).outcome !== "bytes", true);
-    // People, Agents and MCP clients read folders and text only: the public action does not offer whole files.
+    // The one read action names the whole-file mode, and says plain in its text that only plugins may use it; the Host refuses it
+    // to the person, the Agent, workflows and MCP clients (tests/workspace-read-one-id.test.ts runs those refusals).
     const kind = (workspaceReadActions.file.action.input_schema as { properties: { kind: { enum: string[] } } }).properties.kind.enum;
-    assert.deepEqual(kind, ["directory", "text"]);
+    assert.deepEqual(kind, ["directory", "text", "bytes"]);
+    assert.match(workspaceReadActions.file.action.description, /bytes.*只有插件可用/u);
   } finally { await rm(root, { recursive: true, force: true }); }
 });

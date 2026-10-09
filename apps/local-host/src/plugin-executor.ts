@@ -11,7 +11,8 @@ import {
   type PluginInputGraph,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
-import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { HOST_PROVIDER_ID } from "./local-host.js";
+import { bindActionClient, ActionError, type ActionCallContext, type ActionDefinition, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -93,19 +94,54 @@ export class PluginHostExecutor implements PluginExecutor {
         project_id: this.options.project_id, actor_id: this.options.actor_id });
       const artifacts = artifactService.client;
       disposeArtifacts = artifactService.dispose;
+      // What the Plugin's own actions cannot work without (`required_actions`) is Host actions it also lists under
+      // `capabilities.consumes`. The kernel checks those dependencies for the caller of each own action, so the caller
+      // must be able to see them; being seen is not being callable, which the client below decides.
+      const consumed = new Set(manifest.capabilities.consumes);
+      const required = (manifest.actions ?? []).flatMap(action => action.action.required_actions ?? [])
+        .map(reference => ({ capability_id: reference.capability_id, version: reference.version, provider_id: reference.provider_id ?? HOST_PROVIDER_ID }));
+      const sameAction = (left: ActionReference, right: ActionReference) => left.capability_id === right.capability_id && left.version === right.version;
       const actionCaller = (): ActionCallContext => {
         if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开");
         return {
           actor_id: this.options.actor_id, project_id: this.options.actions.project_id,
           audience: "user", permissions: context.grants,
-          allowed_actions: (manifest.actions ?? []).map(action => ({ ...action, provider_id: context.install_id })),
+          allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: context.install_id })), ...required],
           validate_authority: reference => {
             if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开");
-            const action = manifest.actions?.find(item => item.capability_id === reference.capability_id && item.version === reference.version);
-            if (!action) throw new ActionError("actions.forbidden", "插件未声明提供此动作");
+            const action = manifest.actions?.find(item => sameAction(item, reference));
+            if (!action) {
+              if (required.some(item => sameAction(item, reference))) return;
+              throw new ActionError("actions.forbidden", "插件未声明提供此动作");
+            }
             for (const permission of action.action.permissions) context.requireGrant(permission);
           },
         };
+      };
+      // An action of the Host (not of another Plugin) that the Manifest lists under `capabilities.consumes`. The Plugin
+      // reaches it as the plugin audience, with its own grants and the exact action named, so the kernel applies what it
+      // applies to every plugin: the audience the action is offered to, the permissions it needs, its availability and
+      // its input schema.
+      const dependencyCaller = (definition: ActionDefinition): ActionCallContext => {
+        if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开");
+        return {
+          actor_id: this.options.actor_id, project_id: this.options.actions.project_id, audience: "plugin", permissions: context.grants,
+          host_plugin: pluginCaller, plugin_install_id: context.install_id,
+          allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id: HOST_PROVIDER_ID }],
+          validate_authority: () => {
+            if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开");
+            for (const permission of definition.action?.permissions ?? []) context.requireGrant(permission);
+          },
+        };
+      };
+      const ownActions = manifest.actions?.length ? bindActionClient(this.options.actions.client, actionCaller) : undefined;
+      const actions: BoundActionClient | undefined = ownActions && {
+        discover: async () => (await ownActions.discover()).filter(view => view.provider.provider_id === context.install_id),
+        invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => {
+          if ((manifest.actions ?? []).some(action => sameAction(action, definition))) return ownActions.invoke(definition, input);
+          if (!consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项宿主动作");
+          return await this.options.actions.client.invoke(dependencyCaller(definition), definition, input) as Output;
+        },
       };
       // Each service appears only when the Manifest declared it, so the Manifest
       // stays a complete account of what this Plugin can reach.
@@ -125,7 +161,7 @@ export class PluginHostExecutor implements PluginExecutor {
         actor_id: this.options.actor_id,
         ...(wiring === undefined ? {} : { input_group: wiring.selectedGroup(manifest.plugin_id) }),
         services: Object.freeze({
-          ...(manifest.actions?.length ? { actions: bindActionClient(this.options.actions.client, actionCaller) } : {}),
+          ...(actions ? { actions } : {}),
           storage: manifest.permissions.some(item => item.permission === "storage:private")
             ? this.options.privateStorageFor(context, manifest) : undefined,
           artifacts,

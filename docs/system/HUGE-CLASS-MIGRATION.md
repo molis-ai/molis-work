@@ -134,7 +134,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | W5-09 | `contracts` 的 `services/agent-host.ts` 按领域拆，纯搬移，由 API 快照守着 | 1 | `agent-host.ts` 合同 |
 | W5-10 | 其余巨大单元拆分（范围见上） | 123 | 123 个，含助理协作者、Pages 编辑器与命令 |
 | W5-11 | 宿主瘦身：连接器提供方设置与 OAuth 移进官方连接器插件，或按决定 #7 作为宿主管理接口留下 | 1 | `web-connectors-settings.ts` |
-| W2-08、W2-09、W3-07 | 删 Goals 无生产调用方的类型化桥；工作区读取只留一个 id；管理入口改走动作并删剩余桥 | 1 | `project-capabilities.ts` |
+| W2-08、W3-07 | 删 Goals 无生产调用方的类型化桥；管理入口改走动作并删剩余桥（工作区读取只留一个 id 已由 W2-09 做完，函数仍 270 行：删了两处登记，补了整份文件只给插件的判断） | 1 | `project-capabilities.ts` |
 | W2-06 | 删四处跨主人 SQL（含 `demo-seed.ts` 一处） | — | 只删几行，不改判定 |
 
 已定的决定对判定的影响（决定的编号是 `specs/repository-anti-corruption/spec.md` §10 用户决定表里的序号，N-03 是 10-07 的“记忆、放置与情境启发式的层次”）：
@@ -171,7 +171,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `installer/runtime-integration.ts` | `RuntimeIntegrationService` 类 341 行 / 15 方法 | 拆 · W5-10 | `confirm` 一个方法 136 行：先验证已应用的计划，再分连接分支与移除分支，失败时还原配置文件与技能快照并写“已回滚”的尝试记录。四步（验证、连接、移除、回滚）各成函数；回执与备份的读写（`readReceipt`、`writeReceipt`、`writeAttempt`、`receiptPath`、`backupPath`）移到回执存取类，服务类只编排。 | 0 |
 | `local-host.ts` | `LocalHost` 类 570 行 / 23 方法 | 拆 · W5-10 | `LocalHost` 的大头是 `sceneClient`（95）、项目内操作队列 `enqueue`（54）、可用性判定 `resolveActionAvailability`（44）、`register`（38）。场景客户端、操作队列、可用性判定各成协作者；家目录的那条操作线已经是独立的 `HomeLine`（`home-line.ts`），项目内的 `enqueue` 是同一套机制，照它拆。W3-01（调用编号进调用上下文）和 W3-07（`host_only` 变成可用性策略）预计会碰这里的调用上下文与可用性判定；类已冻结，它们的新增部分先写在新文件里。 | 5 |
 | `plugin-builder/agent-surface.ts` | `ensureStudio` 函数 196 行<br>`created callback 1` 函数 188 行 | 拆 · W5-10 | `ensureStudio` 里的 `created` 异步回调 188 行，是创作台的整套装配：模型选择与凭据（`selected`、`models`、`access`）、沙箱运行器与预览（`runnerFor`、`previewFor`、`inTrial`）、交给工作流的端口对象（约 90 行）。三块各成 `create…` 函数。`created` 内嵌在 `ensureStudio` 里（同一段计两次）。 | 8 |
-| `project-capabilities.ts` | `registerProjectCapabilities` 函数 270 行 | 归线 · §4.3 · W2-08、W2-09、W3-07 | 里面登记 Goals 的类型化桥和工作区读取的两个 id，这三片要删；删完重量，仍超限就在 W3-07 的同一个 PR 里按能力族拆。 | 5 |
+| `project-capabilities.ts` | `registerProjectCapabilities` 函数 270 行 | 归线 · §4.3 · W2-08、W3-07 | 里面登记 Goals 的类型化桥，这两片要删（工作区读取的两个 typed id 已由 W2-09 删掉）；删完重量，仍超限就在 W3-07 的同一个 PR 里按能力族拆。 | 5 |
 | `project-catalog.ts` | `MolisWorkProjectCatalog` 类 293 行 / 41 方法 | 拆 · W5-10 | 41 个方法里约三十个是三行的转发（项目与插件、运行上下文绑定、桌面面板、工作区成员、示例项目），`constructor` 72 行是装配。按资源分子门面，调用方拿自己要的那个，转发层随之去掉。 | 6 |
 | `project-host.ts` | `MolisWorkLocalHost` 类 361 行 / 24 方法 | 归线 · §4.6 · W4-04、W5-01、W5-02 | 项目 composition owner。`constructor` 153 行，文件里 26 处 `registerProvider`，插件族迁到 Runtime 时各删各的（W4-04 先删 Form 的），W5-02 再把名单改成由声明生成。这几片之后类仍超限，W6-04 重量时在门禁里会看到，同一片补拆。 | 14 |
 | `web-catalog.ts` | `handleLocalCatalogWebRequest` 函数 336 行 | 拆 · W5-10 | 目录级 HTTP（项目选择、搜索、待办、角色、跨项目会话等）：`handleLocalCatalogWebRequest` 46 条语句，主要是 `if` 路由分支，最大的两个 77 和 60 行。按路由族拆成 `{match, handle}` 条目，形态与 W5-07 的注册表一致。 | 15 |

@@ -18,6 +18,7 @@
 - **内置插件一律跟宿主的构建**（#237 起，2026-10-08 补全）：随宿主发布的内置插件（监督器条目标 `bundled`）启动时，安装记录和宿主这个构建的清单只要有一点不同，Runtime 就把记录改成当前构建的清单，保留 `install_id` 与私有数据，也不再恢复旧发行物。不同包括版本更高（#237 起）、版本更低、版本相同而清单内容（摘要）变了；后两种以前 Runtime 不跟，已装的旧代码继续悄悄跑，旧发行物的存档不在时插件启动失败。授权按向上跟的规则收敛：新清单仍声明的保留，必需的补上（同版本改清单时新增的必需权限像新装一样自动授予），不再声明的去掉。为旧版本写的「可从旧版本升级」名单已删除；第三方与生成的插件不变，规则一字没改。0.3.0 的发布 PR 再把内置清单版本改成产品版本，见 [POLICY.md](POLICY.md) 第 7 节。
 
 - **目录库 v22：删除项目的所有者步骤**（`fix/project-deletion-owners`，PR 待开）。目录库多一张表 `project_deletion_steps`，版本由 21 升到 22。新构建拒绝 v21 的目录库（`catalog.unsupported_schema`），做完维护后只认 21 的旧构建又拒绝 v22（`catalog.reader_too_old`）。所以 v21 的 Home 要先做一次一次性维护：`tests/fixtures/catalog-maintenance-v22.sql`，一个事务，版本或表不符就整体回滚；流程与演练记录见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护四。
+- **工作区读取只剩一个 id，Files、Git、Coding 多了必需权限 `workspace:read`**（W2-09，PR 待开）。对外 MCP 客户端以前授权过的 `files.directory`、`files.open`、`files.capture`、`git.state`、`git.select-diff`、`git.summary`、`git.pr-support`、`git.conflict` 因权限集合多了 `workspace:read` 而不再匹配，要在对外接入设置里重新授权；这些动作现在依赖 `projects.workspace.files.read`、`projects.workspace.git.inspect`，客户端要同时授权对应的读取动作才能用（授权按准确的权限集合匹配，没有静默放行）。已经装过这三个插件的 Home 不用动手：启动时清单跟当前构建，必需权限自动获得。插件创作台的能力板不再提供这几个依赖读取的动作给生成插件。
 
 ### 新增
 
@@ -42,6 +43,7 @@
 
 ### 移除
 
+- 类型化宿主能力 `projects.workspace.file.read.v1`、`projects.workspace.git.read.v1` 和合同里的 `readWorkspaceFileCapability`、`readWorkspaceGitCapability`（W2-09）：每个工作区读取只留动作 `projects.workspace.files.read`、`projects.workspace.git.inspect`。
 - 0.1.x 根 SDK（#262）；数据库迁移链与 V3 导入；其他已确认不再需要的兼容路径，源码里的兼容标记按文件计数、只许减少（#283、#285、#289）。
 
 ### 开发流程

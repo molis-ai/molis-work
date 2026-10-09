@@ -924,7 +924,7 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 338,
+  "typedCapabilitiesTotal": 330,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 10,
     "apps/local-host/src/casebook/integration.ts#type-refs": 1,
@@ -934,7 +934,7 @@
     "apps/local-host/src/local-host.ts#type-refs": 6,
     "apps/local-host/src/local-host.ts#without-action": 1,
     "apps/local-host/src/local-host.ts#register-calls": 1,
-    "apps/local-host/src/project-capabilities.ts#register-calls": 49,
+    "apps/local-host/src/project-capabilities.ts#register-calls": 47,
     "apps/local-host/src/project-host.ts#type-refs": 1,
     "apps/local-host/src/project-host.ts#register-calls": 1,
     "horizontal/agent-host/src/capability-registration.ts#type-refs": 2,
@@ -943,8 +943,8 @@
     "horizontal/scheduler/src/index.ts#register-calls": 4,
     "packages/contracts/src/modules/goals.ts#type-refs": 4,
     "packages/contracts/src/modules/goals.ts#without-action": 4,
-    "packages/contracts/src/modules/workspace-artifacts.ts#type-refs": 12,
-    "packages/contracts/src/modules/workspace-artifacts.ts#without-action": 10,
+    "packages/contracts/src/modules/workspace-artifacts.ts#type-refs": 8,
+    "packages/contracts/src/modules/workspace-artifacts.ts#without-action": 8,
     "packages/contracts/src/platform/actions.ts#type-refs": 1,
     "packages/contracts/src/platform/app-host.ts#type-refs": 4,
     "packages/contracts/src/platform/plugin.ts#type-refs": 1,

@@ -18,7 +18,7 @@ import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/plat
 import { projectsCapabilities, projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { goalContextCapabilities, goalProgressCapabilities, type GoalProgressActor } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { readWorkspaceFileCapability, readWorkspaceGitCapability, workspaceReadActions, type WorkspaceFileQuery, type WorkspaceGitQuery, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { workspaceReadActions, type WorkspaceFileQuery, type WorkspaceGitQuery, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { readConflictFile, readGitSummary, readPullRequestSupport } from "./git-operations.js";
 import { readWorkspaceGit } from "./workspace-git.js";
 import { readWorkspaceFile } from "./workspace-files.js";
@@ -112,14 +112,14 @@ export function registerProjectCapabilities(
     if (!(await current()).some(item => item.workspace_id === query.workspace_id && item.realpath_verified && item.canonical_path === accepted?.canonical_path)) return { outcome: "denied", message: "工作区授权已变化，请重新读取" };
     return result;
   };
-  const readFile = async (runtime: MolisWorkProjectRuntime, query: WorkspaceFileQuery) => {
+  const readFile = async (runtime: MolisWorkProjectRuntime, query: WorkspaceFileQuery, invocation: HostCapabilityInvocation) => {
+    // A whole file (an image, a PDF) is for a plugin's preview; the person, the Agent, workflows and MCP clients read folders and text.
+    if (query.kind === "bytes" && invocation.consumer !== "plugin") throw new ActionError("actions.forbidden", "整份文件只供插件预览，请读取目录或文本");
     const selected = ports.workspacesFor ? await ports.workspacesFor(runtime.project_id) : [await workspaceFor!(runtime.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
     return readWorkspaceFile(query, selected);
   };
   if (ports.workspacesFor || workspaceFor) {
-    // Plugins that consume the Host capabilities keep them; everyone else reads through the same handlers as directory actions.
-    host.register(readWorkspaceGitCapability, readGit);
-    host.register(readWorkspaceFileCapability, readFile);
+    // One id per read, for every caller: the Files, Git and Coding plugins call these two actions as the plugin audience.
     host.register(workspaceReadActions.git, readGit);
     host.register(workspaceReadActions.file, readFile);
   }

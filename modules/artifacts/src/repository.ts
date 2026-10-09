@@ -128,13 +128,6 @@ export class ArtifactsRepository<R extends FixedVersionRecord = ArtifactVersionR
     return this.db.transaction(operation).immediate();
   }
 
-  eventCursor(projectId: string): number {
-    const row = this.db
-      .prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE project_id = ?")
-      .get(projectId) as Row | undefined;
-    return Number(row?.cursor ?? 0);
-  }
-
   getIdentityById(artifactId: string): ArtifactIdentityRecord | null {
     const row = this.db.prepare(`SELECT * FROM ${this.tables.identities} WHERE artifact_id = ?`).get(artifactId) as Row | undefined;
     return row ? mapArtifactIdentity(row) : null;

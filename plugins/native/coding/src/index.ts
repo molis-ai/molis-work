@@ -97,8 +97,11 @@ export {
 export {
   CodingSessionStore,
   CodingStoreError,
+  CODING_ACTIVE_STATES,
   CODING_SCHEMA_SQL,
+  listCodingBackgroundSessions,
   toDirectoryEntries,
+  type CodingBackgroundSession,
   type CodingSessionRecord,
   type CodingSqliteDatabase,
   type CreateCodingSessionInput,

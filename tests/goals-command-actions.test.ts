@@ -9,7 +9,7 @@ import { goalsActions, configureGoalEventsCapability, reportGoalEventsCapability
   applyGoalConcernCapability, requestGoalDecisionCapability, citeGoalDecisionCapability, setGoalEventAgreementCapability,
   submitGoalEventClosureCapability, resumeGoalEventWorkCapability, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 test("Goals work actions keep atomic reports, original receipts, user authority, and completion rules", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-command-actions-"));
@@ -38,15 +38,25 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     await assert.rejects(actions.invoke(goalsActions.report, { ...report, idempotency_key: "bad-batch",
       events: [...report.events, { ...report.events[0]!, type_id: "missing" }] }));
     assert.equal((await state()).goal_event_cursor, before, "an invalid batch must not partially save its first fact");
-    const recorded = await typed.invoke(reportGoalEventsCapability, { ...report, project_id, actor_id, actor_kind });
-    assert.equal(recorded.events.length, 1); assert.equal(recorded.events[0]?.actor_id, actor_id);
+    const recorded = await typed.invoke(reportGoalEventsCapability, { ...report, project_id });
+    assert.equal(recorded.events.length, 1); assert.equal(recorded.events[0]?.actor_id, LOCAL_PERSON_ACTOR_ID);
+    assert.equal(recorded.events[0]?.actor_kind, "user");
     assert.equal(recorded.events[0]?.payload.body, "旧回执和原文保留");
     assert.equal(recorded.completion_effect, false);
-    assert.deepEqual(await actions.invoke(goalsActions.report, report), { ...JSON.parse(JSON.stringify(recorded)), replayed: true });
-    const progress = { goal_id, based_on_cursor: recorded.goal_event_cursor, summary: "等待用户验收", idempotency_key: "progress" };
-    const progressed = await typed.invoke(goalProgressCapabilities.record, { ...progress, actor_id, actor_kind });
+    assert.equal((await typed.invoke(reportGoalEventsCapability, { ...report, project_id })).replayed, true);
+    await assert.rejects(typed.invoke(reportGoalEventsCapability, { ...report, project_id, actor_id, actor_kind }), { code: "actions.input_invalid" });
+    const runtimeReport = { ...report, idempotency_key: "runtime-report" };
+    const runtimeRecorded = await actions.invoke(goalsActions.report, runtimeReport);
+    assert.equal(runtimeRecorded.events[0]?.actor_id, actor_id);
+    assert.deepEqual(await actions.invoke(goalsActions.report, runtimeReport), { ...JSON.parse(JSON.stringify(runtimeRecorded)), replayed: true });
+    const progress = { goal_id, based_on_cursor: runtimeRecorded.goal_event_cursor, summary: "等待用户验收", idempotency_key: "progress" };
+    const progressed = await actions.invoke(goalsActions.progress, progress);
     assert.equal(progressed.progress_summary.actor_id, actor_id);
     assert.deepEqual(await actions.invoke(goalsActions.progress, progress), { ...progressed, replayed: true });
+    const typedProgress = { ...progress, idempotency_key: "typed-progress" };
+    const typedProgressed = await typed.invoke(goalProgressCapabilities.record, typedProgress);
+    assert.equal(typedProgressed.progress_summary.actor_id, LOCAL_PERSON_ACTOR_ID);
+    assert.equal((await typed.invoke(goalProgressCapabilities.record, typedProgress)).replayed, true);
     const receiptQuery = { goal_id, idempotency_key: progress.idempotency_key };
     const receipt = { ...progressed, replayed: true };
     assert.deepEqual(await actions.invoke(goalsActions.progressReceipt, receiptQuery), receipt);
@@ -87,7 +97,7 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
       new_requirements: [{ requirement_id: "extra", statement: "补充说明" }] });
     assert.equal(agreed.agreement.version, now.agreement.version + 1);
     const beforeDenied = (await state()).goal_event_cursor;
-    await assert.rejects(typed.invoke(configureGoalEventsCapability, { ...configure, project_id: "foreign", actor_id }), { code: "actions.scope_mismatch" });
+    await assert.rejects(typed.invoke(configureGoalEventsCapability, { ...configure, project_id: "foreign" }), { code: "actions.scope_mismatch" });
     for (const [capability, action] of [
       [configureGoalEventsCapability, goalsActions.configure], [reportGoalEventsCapability, goalsActions.report],
       [recordGoalProgressCapability, goalsActions.progress], [applyGoalConcernCapability, goalsActions.concern],
@@ -96,17 +106,17 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
       [resumeGoalEventWorkCapability, goalsActions.resume],
     ] as const) {
       denied = action.capability_id;
-      await assert.rejects(typed.invoke<unknown, unknown>(capability, { goal_id, project_id, actor_id, actor_kind, idempotency_key: "denied" } as never), { code: "actions.plugin_disabled" });
+      await assert.rejects(typed.invoke<unknown, unknown>(capability, { goal_id, project_id, idempotency_key: "denied" } as never), { code: "actions.plugin_disabled" });
     }
     denied = goalsActions.progress.capability_id;
-    await assert.rejects(typed.invoke(goalProgressCapabilities.record, { ...progress, actor_id, actor_kind }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(goalProgressCapabilities.record, { ...progress, idempotency_key: "denied-progress" }), { code: "actions.plugin_disabled" });
     denied = goalsActions.progressReceipt.capability_id;
     await assert.rejects(typed.invoke(goalProgressCapabilities.receipt, { ...receiptQuery, actor_id }), { code: "actions.plugin_disabled" });
     assert.equal((await state()).goal_event_cursor, beforeDenied);
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     try {
-      const replay = await restarted.client(ref).invoke(reportGoalEventsCapability, { ...report, project_id, actor_id, actor_kind });
+      const replay = await restarted.client(ref).invoke(reportGoalEventsCapability, { ...report, project_id });
       assert.equal(replay.replayed, true); assert.equal(replay.events[0]?.event_id, recorded.events[0]?.event_id);
       assert.equal(replay.goal_event_cursor, beforeDenied, "retry after restart must not append another report");
       assert.deepEqual(await restarted.client(ref).invoke(goalProgressCapabilities.receipt, { ...receiptQuery, actor_id }), receipt);

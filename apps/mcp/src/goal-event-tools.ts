@@ -9,8 +9,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [{
   name: "molis_work_v1_event_decide",
   description: goalsActions.decide.action.description,
   inputSchema: { ...business,
-    properties: { ...V1_COMMON, ...business.properties as Record<string, unknown>,
-      actor_id: { type: "string", description: "受保护管理入口的操作者；Runtime 不能使用此入口。" } },
-    required: ["project_id", "actor_id", ...business.required as string[]],
+    properties: { ...V1_COMMON, ...business.properties as Record<string, unknown> },
+    required: ["project_id", ...business.required as string[]],
   },
 }];

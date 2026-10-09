@@ -44,69 +44,21 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       return trigger ? activateFocusSection(trigger) : false;
     };
 
-    const decisionActionSelector = "[data-goal-tree-decision-form]";
-
-    const activateDecisionFeedItem = (itemId) => {
-      const goalId = String(itemId || "").startsWith("decision:") ? String(itemId).slice("decision:".length) : "";
-      if (goalId) {
-        location.assign(route("/goals/" + encodeURIComponent(goalId)));
-        return null;
-      }
-      return null;
-    };
-
     const revealDeepLinkTarget = (target) => {
-      const decisionDetail = target?.matches?.("[data-feed-detail^='decision:']")
-        ? target
-        : target?.closest?.("[data-feed-detail^='decision:']");
-      let scrollTarget = target;
-      if (decisionView && decisionDetail && feedList && feedWorkbench) {
-        const itemId = decisionDetail.dataset.feedDetail;
-        activateDecisionFeedItem(itemId);
-        scrollTarget = decisionDetail.querySelector(decisionActionSelector) || target;
-      }
       let disclosure = target?.matches?.("details") ? target : target?.closest?.("details");
       while (disclosure) {
         disclosure.open = true;
         disclosure = disclosure.parentElement?.closest?.("details");
       }
       revealFocusTarget(target);
-      return scrollTarget;
-    };
-
-    const deepLinkTargetFromId = (targetId) => {
-      const directTarget = targetId ? document.getElementById(targetId) : null;
-      if (directTarget || !decisionView || !targetId?.startsWith("decision-goal-")) return directTarget;
-      const goalId = targetId.slice("decision-goal-".length);
-      const itemId = "decision:" + goalId;
-      return [...(feedWorkbench?.querySelectorAll("[data-feed-detail]") || [])]
-        .find((candidate) => candidate.dataset.feedDetail === itemId) || null;
+      return target;
     };
 
     const revealDeepLinkFromId = async (targetId, behavior = "auto") => {
-      const decisionGoalId = targetId?.startsWith("decision-goal-")
-        ? targetId.slice("decision-goal-".length)
-        : "";
-      if (decisionGoalId) {
-        location.assign(route("/goals/" + encodeURIComponent(decisionGoalId)));
-        return null;
-      }
-      let target = deepLinkTargetFromId(targetId);
+      const target = targetId ? document.getElementById(targetId) : null;
       if (!target) return null;
-      const scrollTarget = revealDeepLinkTarget(target);
-      requestAnimationFrame(() => {
-        scrollTarget.scrollIntoView({ behavior, block: "start" });
-        if (scrollTarget.matches?.(decisionActionSelector)) {
-          scrollTarget.setAttribute("tabindex", "-1");
-          if (!scrollTarget.hasAttribute("aria-label")) {
-            scrollTarget.setAttribute(
-              "aria-label",
-              scrollTarget.querySelector('button[type="submit"]')?.textContent?.trim() || L("待处理决定"),
-            );
-          }
-          scrollTarget.focus({ preventScroll: true });
-        }
-      });
+      revealDeepLinkTarget(target);
+      requestAnimationFrame(() => target.scrollIntoView({ behavior, block: "start" }));
       return target;
     };
 
@@ -207,10 +159,10 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       desktopSurfaceScroll = ui?.surfaceScroll && typeof ui.surfaceScroll === "object" ? { ...ui.surfaceScroll } : {};
       if (ui?.documentTop != null && desktopSurfaceScroll.goal == null) desktopSurfaceScroll.goal = Number(ui.documentTop || 0);
       goalWorkspaceMode = ui?.workspaceMode || "graph";
-      const requestedDesktopSurface = ui?.workSurface === "sources" ? "feed" : (ui?.workSurface || (decisionView ? "inbox" : "goal"));
+      const requestedDesktopSurface = ui?.workSurface === "sources" ? "feed" : (ui?.workSurface || "goal");
       let nextDesktopSurface = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === requestedDesktopSurface)
         ? requestedDesktopSurface
-        : decisionView ? "inbox" : "goal";
+        : "goal";
       if (ui?.treeWidth) setTreeWidth(ui.treeWidth, false);
       if (ui?.tuiWidth) setTuiWidth(ui.tuiWidth, false);
       setDirectoryCollapsed(ui?.directoryCollapsed === true, false);
@@ -239,7 +191,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       });
       filterTree("");
       if (feedDirectory || feedWorkbench) {
-        const deepLinkedDecisionEntry = decisionFeedEntryFromHash();
         activeFeedPreset = "feed";
         const persistedPresets = ui?.feedPresets && typeof ui.feedPresets === "object"
           ? ui.feedPresets
@@ -263,17 +214,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
           feedPresetState.feed = {
             ...feedPresetState.feed,
             task: String(ui?.sourceSelected || feedPresetState.feed.task || "all"),
-          };
-        }
-        if (deepLinkedDecisionEntry) {
-          feedPresetState.feed = {
-            ...feedPresetState.feed,
-            selected: deepLinkedDecisionEntry,
-            query: "",
-            source: "all",
-            type: "all",
-            time: "all",
-            status: "active",
           };
         }
         setFeedPreset(activeFeedPreset, true);

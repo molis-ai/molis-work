@@ -5,7 +5,7 @@ import { artifactSubjectId, parseArtifactSubjectId, type ArtifactVersionRecord, 
 import { ActionError, resolveActionSubject, type ActionCallContext } from "../packages/contracts/src/platform/actions.js";
 import { ActionService } from "../packages/kernel/src/action-service.js";
 import { ArtifactsModule, createArtifactsSchema } from "../modules/artifacts/src/index.js";
-import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 import { createContextLedger, createContextLedgerSchema } from "../modules/context-ledger/src/index.js";
 import { artifactsActions, createArtifactActionHandlers } from "../plugins/native/artifacts/src/actions.js";
 import { artifactsManifest } from "../plugins/native/artifacts/src/manifest.js";
@@ -24,7 +24,7 @@ function fixture(t: test.TestContext) {
   createArtifactsSchema(db);
   createContextLedgerSchema(db);
   const artifacts = new ArtifactsModule({ db, now: () => "2026-09-26T00:00:00.000Z",
-    appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid) });
+    appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid), eventCursor: eventCursorOf(db) });
   // As the Host authorizes it: by the project's personal scope, not by who is asking.
   const ledger = createContextLedger(db, { authorize: access => access.scope.kind === "personal" && access.scope.id === projectId });
   const publish = (override: Partial<RegisterArtifactVersionInput> = {}) => artifacts.commands.registerVersion({

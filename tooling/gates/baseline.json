@@ -719,7 +719,7 @@
     "plugins/native/todo/src/client.ts": 1,
     "plugins/native/workflows/src/client.ts": 2
   },
-  "unknownCastsTotal": 200,
+  "unknownCastsTotal": 199,
   "unknownCasts": {
     "apps/cli/src/goal-tree-commands.ts": 4,
     "apps/local-host/cloudflare/worker.ts": 1,
@@ -829,7 +829,6 @@
     "tests/personal-artifact-owner.test.ts": 6,
     "tests/plugin-composition.test.ts": 1,
     "tests/plugin-private-storage.test.ts": 3,
-    "tests/plugin-upgrades.test.ts": 1,
     "tests/project-catalog-preservation.test.ts": 1,
     "tests/project-policy-save.test.ts": 1,
     "tests/runtime-host.test.ts": 1,

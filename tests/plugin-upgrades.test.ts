@@ -1,7 +1,8 @@
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
 import type { IntegrationProviderPort, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   MemoryPluginRuntimeRepository,
@@ -17,6 +18,15 @@ import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+/** A real ServerResponse whose `writeHead` and `end` record the status and body instead of writing to a socket. */
+function recordedResponse(): { response: ServerResponse; recorded: { statusCode: number; body: string } } {
+  const recorded = { statusCode: 0, body: "" };
+  const response = new ServerResponse(new IncomingMessage(new Socket()));
+  response.writeHead = (status: number) => { recorded.statusCode = status; return response; };
+  response.end = (body?: unknown) => { recorded.body = String(body); return response; };
+  return { response, recorded };
+}
 
 const provider: IntegrationProviderPort = {
   type: "upgrade-fixture",
@@ -151,16 +161,11 @@ test("a bundled plugin's older install moves up when the project starts, so the 
       workspaces: [],
     };
     const request = { method: "GET" } as IncomingMessage;
-    const response = {
-      statusCode: 0,
-      body: "",
-      writeHead(status: number) { this.statusCode = status; return this; },
-      end(body: string) { this.body = body; },
-    } as unknown as ServerResponse & { statusCode: number; body: string };
+    const { response, recorded } = recordedResponse();
     const handled = await handleCodingPluginHttp(request, response, new URL("http://localhost/api/plugins/runtime/updates"), ports);
     assert.equal(handled, true);
-    assert.equal(response.statusCode, 200);
-    const updates = JSON.parse(response.body).updates as Array<{ plugin_id: string; installed_version: string; target_version: string; mode: string; can_upgrade: boolean; project_plugin_id: string }>;
+    assert.equal(recorded.statusCode, 200);
+    const updates = JSON.parse(recorded.body).updates as Array<{ plugin_id: string; installed_version: string; target_version: string; mode: string; can_upgrade: boolean; project_plugin_id: string }>;
     // Coding ships with the Host (2026-10-04): its 0.9.0 install moved up to the Host's version when the project started.
     assert.equal(updates.find(item => item.plugin_id === CODING_PLUGIN_ID), undefined);
     assert.equal(new PluginRuntime(new SqlitePluginRuntimeRepository(store.db)).get(oldInstall.install.install_id).version, currentDefinition.manifest.version);
@@ -198,16 +203,12 @@ for (const shape of ["above the build's version", "at the build's version with a
         store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "follow-test",
         goalTitle: () => undefined, escapeHtml: String, translate: String, workspaces: [],
       };
-      const response = {
-        statusCode: 0, body: "",
-        writeHead(status: number) { this.statusCode = status; return this; },
-        end(body: string) { this.body = body; },
-      } as unknown as ServerResponse & { statusCode: number; body: string };
+      const { response, recorded } = recordedResponse();
       const handled = await handleCodingPluginHttp({ method: "GET" } as IncomingMessage, response,
         new URL("http://localhost/api/plugins/runtime/updates"), ports);
       assert.equal(handled, true);
-      assert.equal(response.statusCode, 200);
-      const updates = JSON.parse(response.body).updates as Array<{ plugin_id: string }>;
+      assert.equal(recorded.statusCode, 200);
+      const updates = JSON.parse(recorded.body).updates as Array<{ plugin_id: string }>;
       assert.equal(updates.find(item => item.plugin_id === CODING_PLUGIN_ID), undefined, "the market has nothing to confirm for a bundled plugin");
 
       const installs = new SqlitePluginRuntimeRepository(store.db).list().filter(item => item.plugin_id === CODING_PLUGIN_ID);

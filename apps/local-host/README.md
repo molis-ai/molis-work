@@ -73,7 +73,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
   - 一个 Home 只有一个执行进程（`agent-runtime/.molis-runtime-owner.db` 锁）；其他入口经 `LocalActionGatewayClient` 转发，连接丢失不退回本地执行。
-  - 开发者模式（`developer-mode.ts`）是 Host 进程的开关：以 `MOLIS_WORK_DEVELOPER_MODE=1` 启动才开，每次组装页面视图时读（`developer_mode`），不是用户设置、不改任何插件的行为；它只让插件列表多出目录里标了 `developer` 的条目（Text Stats）。
+  - 开发者模式（`developer-mode.ts`）是 Host 进程的开关：以 `MOLIS_WORK_DEVELOPER_MODE=1` 启动才开，每次组装页面视图时读（`developer_mode`），不是用户设置、不改任何插件的行为；它只让插件列表多出目录里标了 `developer` 的条目（Text Stats）。**暂定：** W2-18 决定 5 只定了「藏进开发者模式」，没定怎么打开；现在只有这个启动环境变量，界面里看不到也改不了，桌面应用的用户打不开它。要不要在设置里加开关、还是只留环境变量、还是两者都有，等用户定，定后记进 `specs/repository-anti-corruption/spec.md` §1。
   - 定时任务就绪（`scheduledTaskReadiness`，在 `schedule-task-runner.ts`）与到点的 runner 读同样两样：配置的文字模型的元数据（`configuredModelChoices`，不解密）和项目的已核对工作区；Schedule 的动作提供方把它作为 `readiness` 端口交给插件，创建任务从不等它。
   - 每个项目一条串行操作队列；等模型或外部服务的动作声明 `scheduling: "concurrent"`，例外写进 `tests/action-model-scheduling.test.ts` 的名单并说明理由。并发动作不占队列：它调用的串行动作排队等自己的轮次，只有嵌套在占着队列的调用里的调用直接在队列上运行；场景运行取触发它的调用的位置（`tests/local-host-queue-scope.test.ts`）。
   - 被取消、撤权、停用的调用不再写任何记录，包括失败记账。

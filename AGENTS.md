@@ -35,6 +35,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - 页面里跨模块说话用 DOM `CustomEvent`，每个事件在 `packages/contracts/src/platform/dom-events.ts` 登记（名字、种类、页面状态的主人、发在哪里、载荷）：浏览器代码里名字写字符串字面量，与发它的代码同一个改动里登记；未登记的 `CustomEvent`、监听未登记的页面前缀名、登记了却没人发或听的条目，门禁 `scripts/gates/dom-events.mjs` 拦下（`pnpm health:check`，CI 里跑；`--report` 列出谁发谁听）。新增事件改合同，跑 `pnpm api:update`。
 - `vendor/prologue-sdk/` 只放当前使用的 Prologue 包（最多再加一份在途分支的）；换新包时删掉旧包，旧包从 Git 历史取。每个 vendored 的 tgz 旁边有 `.sha256` 和 `.provenance.json`，与 tgz 不符、或包换掉后记录还留着，`pnpm health:check` 拦下；当前包的上游提交与重建步骤见该目录 README，已删的历史补丁（大小、SHA-256、git blob、基线、来源）记在 `vendor/prologue-sdk/patch-history.json`。
 - 一张表只由建它的包读写：别的包要读写就调那个包导出的函数，不直接写 SQL；几个包有意共写的表登记在 `tooling/gates/table-owners.json`（带理由；门禁 `scripts/gates/table-owners.mjs`，CI 里跑）。
+- 本机的安全边界（回环绑定、Host/Origin/令牌/一次性键、两个 socket、Casebook 通道、动作网关、MCP 授权、地址与路径校验、密钥只给引用、提示注入、桌面 IPC）逐条登记在 `docs/system/SECURITY-INVARIANTS.md`，每条有断言「拒绝」本身的测试，CI 里跑 `pnpm test:security`，表由 `pnpm health:check` 看住。改这些边界要同步改表和测试；写测试时找不到拒绝，就是安全缺陷：先补最小的拒绝，再在提交说明里写明。「是不是本机地址」在 TypeScript 里只有一份写法：`@molis-ai/molis-work-contracts/platform/loopback`（桌面壳的 Rust 与单独部署的 OAuth 代理 Worker 各留一份，Worker 的由 `tests/connector-oauth-broker.test.ts` 钉住，原因见 `SECURITY-INVARIANTS.md` 第 4 节）。
 
 ## 构建与测试
 

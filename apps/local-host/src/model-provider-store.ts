@@ -12,6 +12,7 @@ import {
   inspectThinkingChoice,
   providerHealth,
 } from "@molis-ai/molis-work-contracts/modules/model-providers";
+import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 /**
  * Where configured model providers live.
@@ -186,7 +187,7 @@ export class ModelProviderStore {
     let endpoint: URL;
     try { endpoint = new URL(input.base_url); }
     catch { throw new ModelProviderError("model-provider.invalid", "Base URL 必须是完整地址"); }
-    const localHttp = endpoint.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname);
+    const localHttp = isLoopbackHttpUrl(endpoint);
     if ((!localHttp && endpoint.protocol !== "https:") || endpoint.username || endpoint.password || endpoint.hash || endpoint.search) {
       throw new ModelProviderError("model-provider.invalid", "Base URL 必须使用 HTTPS 或本机 HTTP，不能包含密码、查询参数或片段");
     }

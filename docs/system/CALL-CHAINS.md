@@ -241,7 +241,7 @@
 | 5 | Runtime 接入 | `apps/local-host/src/installer/runtime-integration.ts`（`RuntimeIntegrationService`）；网页 `apps/local-host/src/web-runtime-settings.ts` | 客户端、动作 → 预览，确认后写 MCP 配置与 Skill 链接 | 显式确认；只改带 Molis 所有权收据的条目 | 配置与收据不符报冲突，不执行 | 所有权收据；改动前备份 |
 | 6 | 启动 Web 宿主 | `apps/desktop/launchers/web/server.ts`，`molis-work-web`（`apps/local-host/src/web-server.ts`） | Home → 常驻服务；令牌写进 Home | 控制令牌；回环地址 | 不再支持 `--db`、`--project-id`、`--demo`，直接报错 | 令牌文件 `web-control-token` |
 | 7 | 数据库版本 | `packages/storage/src/sqlite-baseline.ts`（`applySqliteBaseline`） | 打开任一 Home 库 → 空库建当前基线；同版本放行 | 无 | 版本不符或有表无版本：`storage.schema_version_mismatch`，说明路径、两个版本，不就地升级 | 无 |
-| 8 | 项目命令 | `apps/local-host/src/cli-project.ts`（`runV1Cli`）→ `apps/cli/src/command-dispatch.ts` | `v1 init`、`snapshot`、`active-goal`、`goal-tree-*` → typed 的 Goals 能力 | 进程内的 `LocalHost`，直接打开 `--db` 指的项目库 | `Molis Work 数据库不存在` | Goals 自己的事件 |
+| 8 | 项目命令 | `apps/local-host/src/cli-project.ts`（`runV1Cli`）→ `apps/cli/src/command-dispatch.ts` | `v1 init`、`snapshot`、`active-goal`、`goal-tree-*` → typed 的 Goals 能力 | 进程内的 `LocalHost`，直接打开 `--db` 指的项目库；`--db` 必须给，没有默认路径（W2-04，不再按当前目录猜） | 没给 `--db`（缺值、空白，或后面紧跟另一个以 `--` 开头的旗标，都算没给）：`Molis Work 命令需要 --db PATH …`；路径下没有库：`Molis Work 数据库不存在` | Goals 自己的事件 |
 | 9 | 插件开发 | `tooling/plugin-cli/src/main.ts` → `apps/local-host/src/local-plugin-development.ts` | 插件目录 → 在隔离的开发库里安装、启动、渲染、卸载 | 显式 `allow_unsigned_development`；状态目录必须是带标记的空目录 | 非空普通目录拒绝 | 开发库不进用户项目 |
 | 10 | 卸载 | `apps/local-host/src/installer/uninstall.ts`（`MolisWorkUninstallService`），命令 `molis-work uninstall` | 预览 → 确认 | 普通卸载保留用户项目、目录库、备份与日志；清除用户数据是另一次确认，要求完全相同的目录和项目数 | `uninstall.conflict`、`uninstall.plan_missing` | `{home}/config/uninstall.json` 回执 |
 

@@ -17,7 +17,7 @@
  * - `reopen`: History and the bar reopen a settings cover on the section it last showed. A place is "<section>" or "<section> <address>" (a nested page such as one role's prompts).
  * - `openGlobalSettingsFromUrl`: A project page draws root links under its own prefix; a global page named there is still the global page.
  * - `openGlobalSettingsFromUrl (moved pages)`: MCP, connectors and Functions moved to 能力; their old settings addresses open the 能力 page.
- * - `molis-work:model-ready`: The first model that can run ends the setup that sent the person to settings: the cover closes and the page shows as it was.
+ * - `bindEmbed` (models): The first model that can run ends the setup that sent the person to settings: the page calls `ready`, the cover closes and the page shows as it was.
  * - `molis-work:open-settings-section`: A plugin whose page lives in settings (角色) is opened there, from search, a link or an old tab.
  * - `?settings=`: “?settings=<section>” on the workbench address opens that settings page once the workbench has landed.
  * - `?settingsPath=`: “?settingsPath=<address>” is a settings page that was opened directly; the server sent it here to open in place.
@@ -64,6 +64,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindPlanningSettings?.(root);
     globalThis.molisWorkBindPlanningAdoption?.(root);
     globalThis.molisWorkBindShelfSettings?.(root);
+    globalThis.molisWorkBindModelSettings?.(root, { ready: () => { if (host.closeCover?.()) host.showToast?.(L("模型已连接，可以继续了。")); } });
     globalThis.molisWorkBindConnectorsSettings?.(root, page);
     globalThis.molisWorkBindMcpAccess?.(root, page);
     globalThis.molisWorkBindFunctionsRules?.(root, page);
@@ -317,7 +318,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const href = event.detail?.href || "";
     if (!openProjectSettingsFromUrl(href)) openGlobalSettingsFromUrl(href);
   });
-  document.addEventListener("molis-work:model-ready", () => { if (host.closeCover?.()) host.showToast?.(L("模型已连接，可以继续了。")); });
   const knownGlobalSection = (section) => [...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
     .some((row) => row.dataset.settingsSection === section);
   document.addEventListener("molis-work:open-settings-section", (event) => {

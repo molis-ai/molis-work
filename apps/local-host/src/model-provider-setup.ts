@@ -83,8 +83,8 @@ export function planConnectionCheck(catalog: MolisWorkProjectCatalog, home: stri
   if (unchanged) return null;
   const connection = picked ?? current;
   let apiKey = save.api_key;
-  if (!apiKey && connection) {
-    apiKey = withConnectorConnections(home!, (store) => {
+  if (!apiKey && connection && home) {
+    apiKey = withConnectorConnections(home, (store) => {
       if (store.state(connection) !== "connected") throw new Error(L("所选连接不可用"));
       const pinned = store.targetOrigin(connection.connection_id), origin = new URL(record.base_url).origin;
       if (pinned && pinned !== origin) throw new Error(L("这条连接已绑定 {pinned}；如需访问 {origin}，请新建连接", { pinned, origin }));
@@ -94,8 +94,10 @@ export function planConnectionCheck(catalog: MolisWorkProjectCatalog, home: stri
   // A provider saved before connections existed holds its key under its own reference, not in a connection.
   apiKey ||= catalog.models.resolveConfiguration({ provider_id: save.provider_id })?.api_key ?? "";
   if (!apiKey.trim()) throw new Error(L("读不到已保存的密钥，请重新填写 API Key"));
-  const target = added ?? enabled[0]!;
-  return { provider: { ...record, credential_ref: existing?.credential_ref || "pending-check" }, model: record.models.find((model) => model.model_id === target)!, api_key: apiKey };
+  const target = added ?? enabled[0];
+  const model = record.models.find((entry) => entry.model_id === target);
+  if (!model) throw new Error(L("还没有可用的模型：先添加一个模型 ID（供应商文档里的模型名）再保存。"));
+  return { provider: { ...record, credential_ref: existing?.credential_ref || "pending-check" }, model, api_key: apiKey };
 }
 
 /** What the person reads when a check fails: a reason they can act on, from the error's code only, never its text. */

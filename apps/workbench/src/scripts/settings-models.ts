@@ -3,7 +3,7 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
 (() => {
   if (globalThis.molisWorkBindModelSettings) return;
   const bound = new WeakSet();
-  const bind = (scope) => {
+  const bind = (scope, options = {}) => {
     const roots = [...scope.querySelectorAll('[data-model-settings]')];
     if (scope.matches?.('[data-model-settings]')) roots.push(scope);
     roots.forEach((root) => {
@@ -81,8 +81,7 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
             });
             dirty = false;
             await refresh(query); status(L(saved.checked ? '连接检查通过，已保存。配置会用于下一轮执行。' : '已保存。配置会用于下一轮执行；可以测试模型是否实际响应。'));
-            // The first model that can run ends the setup: whoever opened settings for it takes the person back.
-            if (saved.first_model_ready) document.dispatchEvent(new CustomEvent('molis-work:model-ready'));
+            if (saved.first_model_ready) options.ready?.();
           } else if (button.matches('[data-model-test]')) {
             if (dirty) { status(L('请先保存配置，再测试这个模型。')); return; }
             begin(); status(L('正在等待模型响应…'));

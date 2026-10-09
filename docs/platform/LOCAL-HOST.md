@@ -4,7 +4,7 @@
 
 DV1 的 CLI/MCP 项目命令已全部通过 Host Client，不再从 `withProject` 拿 Coordinator 或 availability。`withScope` 只保持打开 Runtime 到响应完成的资源周期，不暴露 Store，也不把整个 callback 放进串行队列；内部具名 invoke 仍按原队列执行。Available+projection、trash+work state、planning methods+composition 分别是一个 Host 组合操作，避免异步迁移拆开原有一致性。初始化、快照、恢复事实、回收站等声明和完整输入输出类型归官方 Goals Plugin；Host 的 `project-capabilities.ts` 只注册原实现。DV1 已通过复核；逐项证据见 `specs/molis-work-architecture-reorganization/dv1-validation.md`。
 
-Goal Tree 提案通过 `createGoalProposalClients` 使用正式 Host Client（只含提交、列出、检查和决定四项）；Draft、Draft resume 与旧提案组已删除。公开 capability 逐项注册到原方法，其中 Goal Tree check 会保存检查记录。App 负责 await 后展示，Host 不复制提案业务规则。
+Goal Tree 提案通过 `createGoalProposalClients` 使用正式 Host Client（只含提交、列出、检查和决定四项）；Draft、Draft resume 与旧提案组已删除。公开 capability 逐项注册到原方法，其中 Goal Tree check 会保存检查记录。检查和决定是管理入口，声明 `host_only`，检查记在本机这个人身上，所以检查的输入类型 `GoalTreeCheckEntryInput` 不带 `actor_id`（领域输入 `GoalTreeProposalCheckInput` 仍带，由动作处理函数从调用上下文补上）。App 负责 await 后展示，Host 不复制提案业务规则。
 
 Local Host 是本地产品的“总装配间”。以前 Web、CLI、MCP 各自打开数据库、创建 Store 和 Coordinator；同一个 Project 可能同时出现多份业务运行对象。AP2 把这件事收回到一个地方：入口只描述要连接哪个 Project，再通过 Host Client 调用能力。
 

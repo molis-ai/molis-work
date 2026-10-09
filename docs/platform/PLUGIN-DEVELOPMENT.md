@@ -27,7 +27,7 @@ Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plug
 - 交付流程与每步做完的标准：`process.md`（按模型能力伸缩：能出图就给效果图，能读图就加截图走查）。
 - 质量线（所有插件）：`ui.md#质量线所有插件`——只用 UI 目录组件、三态、一处主操作、token 配色、不重复插件名大标题。视觉统一按 [DESIGN.md](../../DESIGN.md) 的 Soft Workbench：插件画在同一张连续白色工作面里，不画自己的外框卡片、不带身份色；石墨主操作、铜色焦点与链接、字重 400/500/600；全局入口在底栏（Dock 与插件切换器），`navigator` Slot id 保留，没有全局侧栏。
 - 生成界面：首次生成先运行体验设计，输入所选方案与组件能力，输出可重组的部件草图和代表性使用场景；主线 detail 将它们落成绑定与验收后才冻结。`generated-experience.md` 管任务动线、信息层级与体验标准；`generated-ui.md` 管冻结合同后的整页呈现。UI 与评审收到宿主的交互词表：Sheet/Dialog 的 title 是入口及面板名称，submitLabel 是内部提交；行内动作先选中所点记录再执行；成功反馈会清除（包括减少动效模式）。有全文阅读路径的组合目录使用两行摘要，完整正文不裁切。界面纯修订不改变绑定或后端。
-- 能力：`capabilities.md`——统一动作服务是唯一目录；动作写清 `effect`（read / write / irreversible），带 `agent` 受众的可逆动作自动对生成插件开放，`plugin: false` 可退出。
+- 能力：`capabilities.md`——统一动作服务是唯一目录；动作写清 `effect`（read / write / irreversible），带 `agent` 受众的可逆动作自动对生成插件开放，`plugin: false` 可退出。名字像删除、其实可撤销的动作用 `withActionEffect(definition, "write")` 明写效果，`withActionEffect` 从 `@molis-ai/molis-work-plugin-sdk` 导入（导入写法放在本页而不放进 `capabilities.md`：创作台挂载那一章，改动要先按 [STUDIO-SKILL-REPLAY](STUDIO-SKILL-REPLAY.md) 用真实模型跑 `smoke`；生成代码也只能导入 `@molis/plugin-sdk`，用不到它）。
 
 生成插件从能力到安装：
 - 能力板是项目的统一动作目录。目录第二次询问时带上动作需要的权限，只列真能调用的；插件没在本项目启用的显示"未启用"。

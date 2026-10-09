@@ -145,7 +145,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 - 决定 N-03（记忆、放置、搜索、情境启发式归“平台产品服务”，代码不搬）：路线 W4-08 末尾的“再拆 MemoryService”不再执行，`MemoryService`、`PlacementService`、`SearchService` 改在包内由 W5-10 拆。
 - 决定 #7（宿主设置写入只走 HTTP，登记为管理接口的例外）：那份例外写在 CALL-CHAINS 的例外表里，和本文的巨大单元例外是两回事；它说连接器路由以后搬进各自的官方接入插件，所以 `web-connectors-settings.ts` 判“归线 · W5-11”，搬的时候要在同一个 PR 里拆到阈值以下。
 - 决定 #16（界面翻译全部换成稳定键，词典按主人分）：`en.ts` 不是例外，判“归线 · §4.7 · W5-03”。词典按主人分已经定了，这张表不再是“必须一整块”的东西；W5-03 把插件自有词条移给主人、删无引用的键，它随之变小。
-- 决定 #19（删按需搜索来源）：`SearchService.onDemand` 一支随之去掉，W5-10 在它之后拆 `SearchService` 更省。
+- 决定 #19（删按需搜索来源）：`SearchService.onDemand` 一支已随之去掉（W2-03），W5-10 直接拆删后的 `SearchService`。
 - 10-07 的插件平台范围决定把 Goals、Artifacts、Sessions 与插件创作台列为构建期例外，它们不迁 Runtime，也就不会因 W5-01 缩小；它们的巨大单元都判“拆 · W5-10”。
 
 ## 3. 清单

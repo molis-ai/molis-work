@@ -14,7 +14,9 @@ export function renderAgentStudio(): string {
     + '<label class="as-select" data-as-edit-label hidden><span>修改范围</span><select data-as-edit-mode aria-label="修改范围"><option value="message">功能与界面</option><option value="visual">只调整界面</option></select></label>'
     + '<form class="as-composer" data-as-composer><div class="as-target" data-as-target hidden></div><textarea data-as-input rows="2" maxlength="48000" aria-label="描述或修改"></textarea>'
     + '<button class="as-send" type="submit" aria-label="发送" title="发送"><svg aria-hidden="true"><use href="#icon-send"/></svg></button></form>'
-    + '<p class="as-model-note" data-as-model-note></p></aside>'
+    + '<p class="as-model-note" data-as-model-note></p>'
+    // The build check's packaging step downloads the dependencies a generated plugin declares from the npm registry (W2-18 decision 14).
+    + '<p class="as-model-note" data-as-network-note>构建检查的「打包」一步：插件声明了依赖包时，会把包名和版本发给 npm 官方仓库（registry.npmjs.org）下载，不发送你的内容。</p></aside>'
     + '<main class="as-right"><header class="as-canvas-head"><div class="as-title"><h1 data-as-title>新插件</h1><span class="as-phase" data-as-phase></span></div>'
     + '<div class="as-segment" role="tablist" aria-label="画布模式"><button type="button" role="tab" data-as-tab="build" aria-selected="true">构建</button><button type="button" role="tab" data-as-tab="try" aria-selected="false">试用</button></div>'
     + '<div class="as-head-actions" data-as-head-actions></div></header>'

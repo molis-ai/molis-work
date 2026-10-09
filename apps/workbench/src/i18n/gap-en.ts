@@ -109,6 +109,8 @@ export const GAP_EN: Record<string, string> = {
   "能力": "Capabilities",
   "能力库": "Capability library",
   "服务连接": "Service connections",
+  "Molis Work 自己联网的去处（模型、搜索、订阅源、依赖下载等）逐类写在这一页：": "Everywhere Molis Work goes online by itself (models, search, feed sources, dependency downloads, ...) is listed, class by class, on this page: ",
+  "Molis Work 会联网去哪里": "Where Molis Work connects to",
   "对外接入": "External access",
   "调用记录": "Call history",
   "能力服务": "Capability service",

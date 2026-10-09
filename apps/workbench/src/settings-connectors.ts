@@ -20,6 +20,8 @@ interface ConnectorsSettingsPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: "link" | "mail" | "back" | "tree"): string;
+  /** Where the docs page that lists every outbound network class is read, in the interface language; no link without it. */
+  networkDocHref?: string;
 }
 
 function renderConnectorMark(connectorId: string, escapeHtml: ConnectorsSettingsPrimitives["escapeHtml"]): string {
@@ -175,6 +177,7 @@ export function renderConnectorsSettings(
     ${placeholderGroups}
   </section>` : ""}
         </section>
+        ${primitives.networkDocHref ? `<p class="settings-footnote" data-network-doc>${L("Molis Work 自己联网的去处（模型、搜索、订阅源、依赖下载等）逐类写在这一页：")}<a href="${escapeHtml(primitives.networkDocHref)}" target="_blank" rel="noopener noreferrer">${L("Molis Work 会联网去哪里")}</a></p>` : ""}
       </div>
       ${details}
     </div>

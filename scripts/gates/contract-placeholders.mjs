@@ -1,11 +1,11 @@
 // Gate: @molis-ai/molis-work-contracts has no placeholder subpath (specs/repository-anti-corruption §4.9/§4.12, R-11).
+// A rule with no baseline: the six that existed were deleted in W2-01, so any hit is a failure (scripts/gates/doc-gates.mjs).
 //
 // A placeholder is a subpath whose source exports nothing but one `ContractDescriptor` constant (a name, a maturity word and
 // a doc pointer, no types or functions) AND that nothing uses: no import of it anywhere outside the contracts package, and
 // no package that names it as its `contract`. A descriptor-only subpath that a package metadata still points at (platform/
 // kernel, platform/testing) is not counted; it is a stale-looking but wired entry, and the packages decide its fate.
-// The record is the list of placeholders ({ "./platform/exchange": 1, … }); a subpath may only leave it, and a new one
-// cannot enter. Deleting the six that exist today lowers the number to 0, after which the rule is simply "none".
+// Each placeholder is one problem, whether the subpath is new or an old one that nobody uses any more.
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
@@ -13,7 +13,7 @@ const ts = createRequire(fileURLToPath(import.meta.url))("typescript");
 
 export const CONTRACTS_PACKAGE = "packages/contracts/package.json";
 const SPECIFIER = /@molis-ai\/molis-work-contracts\/([a-z0-9][a-z0-9/-]*)/g;
-// What the merge-base snapshot can read too (TypeScript sources and tests, package metadata, the package list): one definition on both sides.
+// What can use a subpath: TypeScript sources and tests, package metadata, the package list.
 const CONSUMER_FILE = /\.(?:ts|mts)$|(?:^|\/)package\.json$|^scripts\/workspace-packages\.mjs$/;
 
 /** True when the source exports exactly one const, built `as const satisfies ContractDescriptor`, and nothing else. */
@@ -32,11 +32,11 @@ export function isDescriptorOnly(file, text) {
   return Boolean(init) && ts.isSatisfiesExpression(init) && init.type.getText(source) === "ContractDescriptor";
 }
 
-function measure(snapshot) {
+function placeholderSubpaths(snapshot) {
   const manifest = snapshot.read(CONTRACTS_PACKAGE);
-  if (manifest === null) return {};
+  if (manifest === null) return [];
   let exportsMap;
-  try { exportsMap = JSON.parse(manifest).exports ?? {}; } catch { return {}; }
+  try { exportsMap = JSON.parse(manifest).exports ?? {}; } catch { return []; }
   const descriptorOnly = [];
   for (const [subpath, target] of Object.entries(exportsMap)) {
     const built = typeof target === "string" ? target : target?.import ?? target?.default;
@@ -45,7 +45,7 @@ function measure(snapshot) {
     const text = snapshot.read(sourceFile);
     if (text !== null && isDescriptorOnly(sourceFile, text)) descriptorOnly.push(subpath);
   }
-  if (!descriptorOnly.length) return {};
+  if (!descriptorOnly.length) return [];
   const used = new Set();
   for (const file of snapshot.files) {
     if (file.startsWith("packages/contracts/") || !CONSUMER_FILE.test(file) || file.startsWith(".impeccable/") || file.includes("/node_modules/")) continue;
@@ -53,22 +53,11 @@ function measure(snapshot) {
     if (text === null) continue;
     for (const match of text.matchAll(SPECIFIER)) used.add(match[1]);
   }
-  const placeholders = {};
-  for (const subpath of descriptorOnly) if (!used.has(subpath.slice(2))) placeholders[subpath] = 1;
-  return placeholders;
+  return descriptorOnly.filter((subpath) => !used.has(subpath.slice(2))).sort();
 }
 
-/** Package metadata and the scripts that list packages are read at the merge-base too, because they decide "used". */
-export const contractPlaceholderInputs = (file) => file === CONTRACTS_PACKAGE || file === "scripts/workspace-packages.mjs" || /(?:^|\/)package\.json$/.test(file);
+const HINT = "put the types or functions in the subpath, or delete it (a contract starts when something uses it)";
 
-export const contractPlaceholders = {
-  id: "contractPlaceholders",
-  baselineKey: "contractPlaceholders",
-  totalKey: "contractPlaceholderTotal",
-  measure,
-  grewWhat: "descriptor-only, unused contracts subpath",
-  grewHint: "put the types or functions in the subpath, or do not add it (a contract starts when something uses it)",
-  title: "Placeholder subpaths in @molis-ai/molis-work-contracts",
-  unit: { many: "subpaths", one: "subpath" },
-  summary: (placeholders) => `${Object.keys(placeholders).length} placeholder contract subpaths`,
-};
+/** One problem per placeholder subpath: its source exports only a descriptor, and nothing imports it or names it as a package contract. */
+export const contractPlaceholderProblems = (snapshot) => placeholderSubpaths(snapshot)
+  .map((subpath) => `descriptor-only, unused contracts subpath in ${subpath}; ${HINT}`);

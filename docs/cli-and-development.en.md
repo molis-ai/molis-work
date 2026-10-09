@@ -35,7 +35,7 @@ Complex inputs can be passed with `--json` or `--file payload.json`. Old create-
 
 ```text
 apps/                        Six product-entry and composition-root boundaries
-packages/                    Ten foundation packages (plus the root server/); contracts exposes 63 public subpaths
+packages/                    Ten foundation packages (plus the root server/); contracts exposes 57 public subpaths
 modules/                     Thirteen business-fact owners
 horizontal/                  Eight packages: five horizontal runtime services and three platform product services (Memory, Placement, Search)
 plugins/                     26 native plugins and six official integration plugins

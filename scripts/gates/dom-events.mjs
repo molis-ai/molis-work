@@ -17,8 +17,14 @@
 //   registry            names that repeat or are out of order, a name without one of the listed prefixes, a prefix no
 //                       event uses, a field with an unknown value
 //
+// TypeScript type arguments are read through: `new CustomEvent<T>("x")`, `addEventListener<K>("x", f)` and
+// `lifetime.listen<E>(target, "x", f)` are the same sites as without them. They are read up to FIRST_ARGUMENT_LIMIT
+// characters; type arguments that do not close within that are reported for a CustomEvent (unreadable, like a name that is
+// not a literal) and not seen for a listener.
+//
 // What it does not see: names built at run time (rejected, not skipped), a listener registered through an array of names or
-// a helper the regular expressions below do not know, events from the browser itself, `postMessage` types and storage
+// a helper the regular expressions below do not know, an event class reached through a subclass or an alias
+// (`class X extends CustomEvent`, `const E = CustomEvent`), events from the browser itself, `postMessage` types and storage
 // keys (other channels, no registry yet), and test files (a test may dispatch its own events to a page it controls).
 // `--report` prints who dispatches and who listens, per event, computed from the source, and the receivers that cannot
 // meet (a `window` listener for an event dispatched on `document`); those are findings, not failures.
@@ -110,11 +116,47 @@ function namesOf(argument) {
   return left && right ? [left[2], right[2]] : null;
 }
 
-const CONSTRUCTOR = /\bnew\s+(?:(?:window|globalThis|self)\s*\.\s*)?(CustomEvent|Event)\s*\(/g;
+/**
+ * Where the call that follows a callee name opens: skips white space, an optional-call `?.` and TypeScript type arguments
+ * (`<T>`, `<{ a: Array<string> }>`, `<() => void>`), so `new CustomEvent<T>("x")` is read as `new CustomEvent("x")`.
+ * { open } is the index of the `(`; { unreadable } means type arguments begin but do not close within
+ * FIRST_ARGUMENT_LIMIT characters; null means no call follows (a type, a property, a comparison).
+ */
+function callAfter(text, from) {
+  let index = from;
+  const space = () => { while (index < text.length && /\s/.test(text[index])) index++; };
+  space();
+  if (text[index] === "?") index++;
+  if (text[index] === ".") index++;
+  space();
+  if (text[index] === "<") {
+    let depth = 0, quote = "", end = -1;
+    for (let cursor = index; cursor < text.length && cursor - index <= FIRST_ARGUMENT_LIMIT; cursor++) {
+      const char = text[cursor];
+      if (quote) {
+        if (char === "\\") cursor++;
+        else if (char === quote) quote = "";
+      } else if (char === '"' || char === "'" || char === "`") quote = char;
+      else if (char === "=" && text[cursor + 1] === ">") cursor++;
+      else if (char === "<") depth++;
+      else if (char === ">" && --depth === 0) { end = cursor + 1; break; }
+    }
+    if (end < 0) return { unreadable: true };
+    index = end;
+    space();
+  }
+  return text[index] === "(" ? { open: index } : null;
+}
+
+const CONSTRUCTOR = /\bnew\s+(?:(?:window|globalThis|self)\s*\.\s*)?(CustomEvent|Event)\b/g;
 const DISPATCH_RECEIVER = /(?:^|[^\w$.])(window|document)\s*\??\.\s*dispatchEvent\s*\??\.?\s*\(\s*!?\s*$/;
-const LISTEN_BY_METHOD = /\b(addEventListener|removeEventListener)\s*\??\.?\s*\(\s*(["'`])([^"'`\\\s$]+)\2/g;
-const LISTEN_BY_HELPER = /\blisten\s*\??\.?\s*\(\s*([A-Za-z_$][\w$]*(?:\??\.[A-Za-z_$][\w$]*)*)\s*,\s*(["'`])([^"'`\\\s$]+)\2/g;
+const LISTEN_BY_METHOD = /\b(addEventListener|removeEventListener)\b/g;
+const METHOD_ARGUMENTS = /\s*(["'`])([^"'`\\\s$]+)\1/y;
+const LISTEN_BY_HELPER = /\blisten\b/g;
+const HELPER_ARGUMENTS = /\s*([A-Za-z_$][\w$]*(?:\??\.[A-Za-z_$][\w$]*)*)\s*,\s*(["'`])([^"'`\\\s$]+)\2/y;
 const METHOD_RECEIVER = /([A-Za-z_$][\w$]*)\s*\??\.\s*$/;
+/** What the sticky `pattern` reads right after the `(` at `open`. */
+const argumentsAt = (pattern, text, open) => { pattern.lastIndex = open + 1; return pattern.exec(text); };
 
 /**
  * Every place the source dispatches or listens to a page event.
@@ -126,24 +168,29 @@ export function domEventSites(snapshot, prefixes) {
   const pageName = (name) => prefixes.some((prefix) => name.startsWith(prefix));
   for (const file of snapshot.files.filter(isScanned)) {
     const text = snapshot.read(file);
-    if (text === null || !/Event\s*\(|listen\s*\??\.?\s*\(|Listener\s*\??\.?\s*\(/.test(text)) continue;
+    if (text === null || !/Event\b|Listener\b|\blisten\b/.test(text)) continue;
     for (const match of text.matchAll(CONSTRUCTOR)) {
-      const open = match.index + match[0].length - 1;
-      const argument = firstArgument(text, open);
+      const call = callAfter(text, match.index + match[0].length);
+      if (!call) continue;
+      const argument = call.open === undefined ? null : firstArgument(text, call.open);
       const names = argument === null ? null : namesOf(argument);
       // A plain `new Event(...)` is a browser event unless it carries a page name; a CustomEvent is always ours.
       if (match[1] === "Event" && !(names && names.some(pageName))) continue;
       const before = text.slice(Math.max(0, match.index - 80), match.index);
-      dispatches.push({ file, line: lineOf(text, match.index), names, text: argument === null ? "(no end within reach)" : argument.trim(), ctor: match[1],
-        receiver: DISPATCH_RECEIVER.exec(before)?.[1] ?? "" });
+      dispatches.push({ file, line: lineOf(text, match.index), names, ctor: match[1], receiver: DISPATCH_RECEIVER.exec(before)?.[1] ?? "",
+        text: call.open === undefined ? "(type arguments do not end within reach)" : argument === null ? "(no end within reach)" : argument.trim() });
     }
     for (const match of text.matchAll(LISTEN_BY_METHOD)) {
-      if (!pageName(match[3])) continue;
-      listeners.push({ file, line: lineOf(text, match.index), name: match[3], receiver: METHOD_RECEIVER.exec(text.slice(Math.max(0, match.index - 60), match.index))?.[1] ?? "" });
+      const call = callAfter(text, match.index + match[0].length);
+      const read = call?.open === undefined ? null : argumentsAt(METHOD_ARGUMENTS, text, call.open);
+      if (!read || !pageName(read[2])) continue;
+      listeners.push({ file, line: lineOf(text, match.index), name: read[2], receiver: METHOD_RECEIVER.exec(text.slice(Math.max(0, match.index - 60), match.index))?.[1] ?? "" });
     }
     for (const match of text.matchAll(LISTEN_BY_HELPER)) {
-      if (!pageName(match[3])) continue;
-      listeners.push({ file, line: lineOf(text, match.index), name: match[3], receiver: match[1] });
+      const call = callAfter(text, match.index + match[0].length);
+      const read = call?.open === undefined ? null : argumentsAt(HELPER_ARGUMENTS, text, call.open);
+      if (!read || !pageName(read[3])) continue;
+      listeners.push({ file, line: lineOf(text, match.index), name: read[3], receiver: read[1] });
     }
   }
   return { dispatches, listeners };

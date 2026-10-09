@@ -11,8 +11,11 @@ export const platformDomEventsContract = {
 /**
  * The page-level event vocabulary of the Workbench: every `CustomEvent` that crosses a module boundary inside one page,
  * and the module that owns the page state each of them is about. The Workbench is one page made of a shell, plugin
- * surfaces and a few frames. They share no objects (docs/platform/UI-PLATFORM.md §3); what they share is this list of
- * names, a payload each, and one owner.
+ * surfaces and a few frames. The rule is that they pass no objects (docs/platform/UI-PLATFORM.md §3) and share this list
+ * of names, a payload each, and one owner per piece of state. The page does not keep the rule everywhere yet: the
+ * segments of the Workbench client share one scope and some of them read or set another owner's variables directly. The
+ * page-events section of docs/platform/UI-PLATFORM.md lists the known gaps ("现状与例外"); this list does not claim they
+ * are closed.
  *
  * The browser programs are template-literal strings, so they cannot import this file. It is checked against their source
  * instead: `scripts/gates/dom-events.mjs` (in `pnpm health:check`) fails when a `CustomEvent` is created, or a
@@ -20,8 +23,10 @@ export const platformDomEventsContract = {
  * anywhere, and when an owner does not hold what it claims to own. An event is added by listing it here in the same
  * change that dispatches it.
  *
- * Not in scope: events created by the browser itself, `postMessage` types between the shell and its frames, storage
- * keys, and state that no event announces. Those are other channels with no registry yet.
+ * Not in scope: events created by the browser itself, `postMessage` types between the shell and its frames, the
+ * `data-assistant-context` attribute, the `host` object handed to plugin client scripts, storage keys, direct calls
+ * between the segments of the Workbench client, and state that no event announces. Those are other channels with no
+ * registry yet.
  */
 
 /**
@@ -30,7 +35,12 @@ export const platformDomEventsContract = {
  */
 export const DOM_EVENT_PREFIXES = ["molis-work:", "molis:", "molis-shelf-", "workbench-"] as const;
 
-/** The module that holds a piece of page state: the only place that changes it, and the one other modules ask or listen to. */
+/**
+ * The module that holds a piece of page state. The rule: it is the only place that changes it, and the one other modules
+ * ask (a `request`) or listen to (an `announcement`). The gate checks the owner's side only (its files send the
+ * announcements and handle the requests), not that nobody else reaches in; the known cases that do are listed in
+ * docs/platform/UI-PLATFORM.md.
+ */
 export interface PageStateOwner {
   /**
    * Repository paths of the client modules that hold the state (the Workbench client is assembled from segment files, so

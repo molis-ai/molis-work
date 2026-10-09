@@ -123,6 +123,14 @@ jobs:
       - name: Document gates reject what they claim to
         run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts
 
+      # The page-event rule (scripts/gates/dom-events.mjs, also run inside the health gates above on the real tree): its own
+      # mutation cases. A CustomEvent or listener under an unregistered name, in any constructor spelling (including
+      # TypeScript type arguments), an unreadable name, a stale entry, an owner that holds nothing, and every field of the
+      # registry in packages/contracts/src/platform/dom-events.ts each fail it; the registry is also checked against the event
+      # constants the other contracts name. It imports the built contracts, so it runs after the build in workspace:verify.
+      - name: Page event gate rejects what it claims to
+        run: node scripts/run-tests.mjs tests/dom-events-contract.test.ts
+
       # The tracked-.impeccable-files rule (scripts/gates/impeccable-files.mjs), mutation-verified the same way.
       - name: Health gate for tracked .impeccable files rejects growth
         run: node scripts/run-tests.mjs tests/health-gates-impeccable.test.ts

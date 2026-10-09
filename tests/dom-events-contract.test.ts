@@ -88,11 +88,28 @@ test("an unregistered CustomEvent name fails, however the constructor is written
     'new CustomEvent(open ? "molis:side-open" : "molis:brand-new")',
     'new CustomEvent(open?"molis:brand-new":"molis:side-open")',
     "new Event('molis:brand-new')",
+    // TypeScript type arguments sit between the name and the parenthesis: the natural way to dispatch from a typed client.
+    'new CustomEvent<{ a: 1 }>("molis:brand-new", { detail: { a: 1 } })',
+    "new CustomEvent<string>('molis:brand-new')",
+    "new CustomEvent<Detail>(`molis:brand-new`)",
+    'new window.CustomEvent<Detail>("molis:brand-new")',
+    'new globalThis.CustomEvent <Detail> ("molis:brand-new")',
+    'new CustomEvent<Map<string, Set<number>>>("molis:brand-new")',
+    'new CustomEvent<{ run: (id: string) => void; mode: "a" | "b" }>("molis:brand-new")',
+    'new CustomEvent<{ sign: ">" | "<" }>("molis:brand-new")',
+    "new CustomEvent<{ quote: '\\'>' }>(\"molis:brand-new\")",
+    'new CustomEvent<\n   { a: 1 }\n>(\n   "molis:brand-new",\n   { bubbles: true })',
+    'new CustomEvent<Detail>(open ? "molis:side-open" : "molis:brand-new")',
+    'new CustomEvent<Detail>(open?"molis:brand-new":"molis:side-open")',
   ]) {
     const problems = problemsWith({ [NEW_FILE]: script(`window.dispatchEvent(${make});`) });
     assert.equal(problems.length, 1, `${make}: ${problems.join(" | ")}`);
     assert.match(problems[0], new RegExp(`${NEW_FILE}:2 dispatches "molis:brand-new", which is not registered`));
   }
+  // A file whose only sign of an event is a generic constructor (nothing like `dispatchEvent(`) is still read.
+  const alone = problemsWith({ [NEW_FILE]: script('const made = new CustomEvent<Detail>("molis:brand-new");\nbus.emit(made);') });
+  assert.equal(alone.length, 1, alone.join(" | "));
+  assert.match(alone[0], new RegExp(`${NEW_FILE}:2 dispatches "molis:brand-new", which is not registered`));
   const rust = problemsWith({ "apps/desktop/adapters/tauri/src/wheel.rs": 'fn go() { eval(r#"window.dispatchEvent(new CustomEvent("molis-shelf-brand-new"));"#); }\n' });
   assert.equal(rust.length, 1);
   assert.match(rust[0], /wheel\.rs:1 dispatches "molis-shelf-brand-new"/);
@@ -105,12 +122,18 @@ test("registered names, and a condition choosing between two of them, pass; even
     "input.dispatchEvent(new Event('input', { bubbles: true }));",
     "form.dispatchEvent(new Event(kind));",
     "window.dispatchEvent(new StorageEvent('storage', { key: 'molis-work:theme' }));",
+    'window.dispatchEvent(new CustomEvent<{ a: 1 }>("molis:placement-result", { detail: { a: 1 } }));',
+    'document.dispatchEvent(new CustomEvent<Detail>(open ? "molis:side-open" : "molis:side-close"));',
+    "const earlier = a < b, later = c > (d);",
   ].join("\n")) }), []);
 });
 
 test("a CustomEvent whose name the gate cannot read fails instead of being skipped", () => {
   for (const make of ["new CustomEvent(name)", "new CustomEvent(EVENT_NAME, { detail })", 'new CustomEvent("molis:" + kind)', "new CustomEvent(`molis:${kind}`)",
-    'new CustomEvent(open ? "molis:side-open" : other)', "new CustomEvent(pick())"]) {
+    'new CustomEvent(open ? "molis:side-open" : other)', "new CustomEvent(pick())", "new CustomEvent<Detail>(name)", "new CustomEvent<{ a: 1 }>(EVENT_NAME, { detail })",
+    'new CustomEvent<Detail>("molis:" + kind)',
+    // Type arguments that do not close within reach hide the name just as a computed name does.
+    'new CustomEvent<{ a: (b ("molis:side-open")']) {
     const problems = problemsWith({ [NEW_FILE]: script(`window.dispatchEvent(${make});`) });
     assert.equal(problems.length, 1, `${make}: ${problems.join(" | ")}`);
     assert.match(problems[0], new RegExp(`${NEW_FILE}:2 creates a CustomEvent whose name is not a string literal`));
@@ -124,6 +147,12 @@ test("a listener on a page prefix that nothing registers fails: a typo hears not
     'surface.removeEventListener("workbench-open-grup", handler);',
     'lifetime.listen(window, "molis-work:goal-chaged", () => {});',
     "lifetime.listen(frame.contentWindow,'molis-shelf-refrsh',e=>{});",
+    'window.addEventListener<any>("molis:brand-neww", () => {});',
+    "document.addEventListener<CustomEvent<{ id: string }>>('molis:placement-reslt', (event) => {});",
+    "surface.removeEventListener <Handler> (\"workbench-open-grup\", handler);",
+    'window.addEventListener?.<Event>("molis:side-shwn", handler);',
+    'lifetime.listen<CustomEvent<Detail>>(window, "molis-work:goal-chaged", () => {});',
+    "lifetime.listen<Event>(frame.contentWindow,'molis-shelf-refrsh',e=>{});",
   ]) {
     const problems = problemsWith({ [NEW_FILE]: script(listen) });
     assert.equal(problems.length, 1, `${listen}: ${problems.join(" | ")}`);
@@ -134,6 +163,11 @@ test("a listener on a page prefix that nothing registers fails: a typo hears not
     'window.addEventListener("molis:placement-result", () => {});',
     'lifetime.listen(window, "storage", () => {});',
     'document.addEventListener("workbench-feed-task", () => {});',
+    'window.addEventListener<any>("molis:placement-result", () => {});',
+    "document.addEventListener<CustomEvent<{ id: string }>>('workbench-feed-task', (event) => {});",
+    'lifetime.listen<CustomEvent<Detail>>(window, "molis-work:goal-changed", () => {});',
+    'lifetime.listen<Event>(window, "storage", () => {});',
+    'window.addEventListener<"click">("click", () => {});',
   ].join("\n")) }), []);
 });
 
@@ -152,6 +186,19 @@ test("test files, the gates themselves, fixtures, declarations and build output 
     "docs/design/prototype/main.js": violation,
   }), []);
   assert.equal(problemsWith({ "scripts/preview/client.ts": violation }).length, 2, "scripts/ outside scripts/gates/ is scanned");
+});
+
+test("every kind of browser source under the production roots is read, and nothing else is", () => {
+  const violation = 'window.dispatchEvent(new CustomEvent("molis:brand-new"));\n';
+  const roots = ["apps", "horizontal", "modules", "packages", "plugins", "scripts", "server", "tooling"];
+  const extensions = ["js", "mjs", "cjs", "jsx", "ts", "mts", "cts", "tsx", "rs", "html"];
+  const read = roots.flatMap((dir) => extensions.map((extension) => `${dir}/alpha/src/page.${extension}`));
+  const problems = problemsWith(Object.fromEntries(read.map((file) => [file, violation])));
+  for (const file of read) assert.ok(problems.some((problem) => problem.includes(`${file}:1 dispatches "molis:brand-new"`)), `${file} is not read`);
+  assert.equal(problems.length, read.length);
+  const skipped = ["docs/page.js", "skills/molis/page.ts", "specs/page.html", "page.ts", "alpha/src/page.ts", "plugins/native/alpha/src/page.md", "plugins/native/alpha/src/page.json",
+    "plugins/native/alpha/src/page.css", "plugins/native/alpha/src/page.py", "plugins/native/alpha/src/page.txt", "plugins/native/alpha/src/page.tsx.map"];
+  assert.deepEqual(problemsWith(Object.fromEntries(skipped.map((file) => [file, violation]))), []);
 });
 
 test("renaming an event in its dispatcher only is caught from both sides", () => {
@@ -214,6 +261,62 @@ test("the registry itself is held to its shape: order, names, prefixes, fields",
   assert.ok(nobody.some((problem) => /"workbench-open-group" is owned by "ghost", which is not in PAGE_STATE_OWNERS/.test(problem)), nobody.join("\n"));
   const silent = domEventProblems(withRegistry('    summary: "Open a group of the Feed directory.",\n', ""));
   assert.ok(silent.some((problem) => /"workbench-open-group" needs a summary sentence/.test(problem)), silent.join("\n"));
+});
+
+test("an event's name, payload and meaning are held to their shape", () => {
+  const entry = '    name: "workbench-open-group"';
+  const badName = /an event has a name that is not lowercase words joined by - with one optional prefix colon: /;
+  for (const bad of ["molis:Side-Open", "molis:side_open", "molis:side open", "molis:side:open", "molis::side-open", "molis:", "Molis:side-open", "-molis:side-open", "1molis:side-open", "workbench-open-group\\n", ""]) {
+    const problems = domEventProblems(withRegistry(entry, `    name: ${JSON.stringify(bad)}`));
+    assert.ok(problems.some((problem) => badName.test(problem) && problem.endsWith(JSON.stringify(bad))), `${JSON.stringify(bad)}: ${problems.join("\n")}`);
+  }
+  const number = domEventProblems(withRegistry(entry, "    name: 42"));
+  assert.ok(number.some((problem) => badName.test(problem) && problem.endsWith(": 42")), number.join("\n"));
+  const lacking = domEventProblems(withRegistry(entry, "    nom: 1"));
+  assert.ok(lacking.some((problem) => badName.test(problem) && problem.endsWith(": undefined")), lacking.join("\n"));
+  // The names the page really uses all pass the pattern.
+  assert.deepEqual(domEventProblems(tree).filter((problem) => badName.test(problem)), []);
+
+  for (const field of ["detail", "summary"]) {
+    const line = new RegExp(`    ${field}: "[^"\\n]*",\\n(?=(?:    summary: "[^"\\n]*",\\n)?  \\},\\n\\] as const satisfies readonly DomEventDeclaration)`);
+    const missing = domEventProblems(withRegistry(line, ""));
+    assert.ok(missing.some((problem) => new RegExp(`"workbench-open-group" needs ${field === "detail" ? "detail" : "a summary sentence"}`).test(problem)), `${field}: ${missing.join("\n")}`);
+    for (const blank of ['""', '"   "', "3", "null"]) {
+      const empty = domEventProblems(withRegistry(new RegExp(`(    ${field}: )"[^"\\n]*"(,\\n)(?=(?:    summary: "[^"\\n]*",\\n)?  \\},\\n\\] as const satisfies readonly DomEventDeclaration)`), `$1${blank}$2`));
+      assert.ok(empty.some((problem) => new RegExp(`"workbench-open-group" needs ${field === "detail" ? "detail" : "a summary sentence"}`).test(problem)), `${field}: ${blank}: ${empty.join("\n")}`);
+    }
+  }
+  // Both flags are held to "leave it out or write true".
+  const bubbles = domEventProblems(withRegistry('name: "molis:side-close", kind: "request", owner: "side-panel", on: "document"', 'name: "molis:side-close", kind: "request", owner: "side-panel", on: "document", bubbles: "yes"'));
+  assert.ok(bubbles.some((problem) => /"molis:side-close" has bubbles: "yes"; leave it out or write true/.test(problem)), bubbles.join("\n"));
+  const target = domEventProblems(withRegistry('name: "molis:side-close", kind: "request", owner: "side-panel", on: "document"', 'name: "molis:side-close", kind: "request", owner: "side-panel"'));
+  assert.ok(target.some((problem) => /"molis:side-close" has on undefined/.test(problem)), target.join("\n"));
+});
+
+test("an owner is held to its shape: files, a sentence about its state, no other fields", () => {
+  const filesOf = 'files: ["apps/workbench/src/scripts/client/plugin-membership.ts"],';
+  const stateOf = '    state: "Which plugins the project has, brought in line in place when one is added or removed.",\n';
+  const unknown = domEventProblems(withRegistry(filesOf, `${filesOf} note: "x",`));
+  assert.ok(unknown.some((problem) => /owner "plugin-membership" has the unknown field "note"/.test(problem)), unknown.join("\n"));
+  const silent = domEventProblems(withRegistry(stateOf, ""));
+  assert.ok(silent.some((problem) => /owner "plugin-membership" needs a sentence saying what state it owns/.test(problem)), silent.join("\n"));
+  for (const blank of ['""', '"  "', "7"]) {
+    const empty = domEventProblems(withRegistry(stateOf, `    state: ${blank},\n`));
+    assert.ok(empty.some((problem) => /owner "plugin-membership" needs a sentence saying what state it owns/.test(problem)), `${blank}: ${empty.join("\n")}`);
+  }
+  const text = domEventProblems(withRegistry(filesOf, 'files: "apps/workbench/src/scripts/client/plugin-membership.ts",'));
+  assert.ok(text.some((problem) => /owner "plugin-membership" needs files/.test(problem)), text.join("\n"));
+  const none = domEventProblems(withRegistry(filesOf + "\n" + stateOf, ""));
+  assert.ok(none.some((problem) => /owner "plugin-membership" needs files/.test(problem)) && none.some((problem) => /owner "plugin-membership" needs a sentence/.test(problem)), none.join("\n"));
+});
+
+test("the prefixes are held to their shape: at least one, each a non-empty string", () => {
+  const prefixes = /DOM_EVENT_PREFIXES = \[[^\]]*\]/;
+  const wanted = /DOM_EVENT_PREFIXES has to list the name prefixes as non-empty strings/;
+  for (const list of ["[]", '["molis-work:", "molis:", "molis-shelf-", "workbench-", ""]', '["molis-work:", "molis:", "molis-shelf-", "workbench-", 3]', '["molis-work:", "molis:", "molis-shelf-", "workbench-", null]']) {
+    const problems = domEventProblems(withRegistry(prefixes, `DOM_EVENT_PREFIXES = ${list}`));
+    assert.ok(problems.some((problem) => wanted.test(problem)), `${list}: ${problems.join("\n")}`);
+  }
 });
 
 test("a registry that is not plain data, or is missing, is reported", () => {

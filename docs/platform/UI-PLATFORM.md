@@ -32,17 +32,31 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 ### 页面里的事件与状态归属
 
-工作台是一页：外壳、插件界面和几个 iframe。它们不共享对象（上一节），页面内跨模块说话只有一条通道，DOM `CustomEvent`。这条通道的词汇登记在一份合同里：[`packages/contracts/src/platform/dom-events.ts`](../../packages/contracts/src/platform/dom-events.ts)（子路径 `@molis-ai/molis-work-contracts/platform/dom-events`）。
+工作台是一页：外壳、插件界面和几个 iframe。目标规则是：模块之间不传内部对象（上一节），页面内的状态变化用 DOM `CustomEvent` 宣布、请别的模块改状态也用它。这条通道的词汇登记在一份合同里：[`packages/contracts/src/platform/dom-events.ts`](../../packages/contracts/src/platform/dom-events.ts)（子路径 `@molis-ai/molis-work-contracts/platform/dom-events`）。登记只覆盖这一条通道，页面今天也不是处处守着这条规则；差距写在本节末的「现状与例外」里，不要把规则读成现状。
 
-- **事件**（`DOM_EVENTS`，按名字排序）：名字、种类、主人、发在哪里、载荷、含义。种类只有两种：`announcement`（主人报告自己状态的变化或自己做的决定，主人发、别人听）和 `request`（别人请主人去改它的状态，主人听、别人发）。发在哪里是 `window`、`document` 或某个元素（`bubbles` 说明它是否冒泡）；`window` 上的监听器听不到发在 `document` 上的、不冒泡的事件，两个模块对不上多半就是这一条。`cancelable` 的请求由接住它的一方调用 `preventDefault()`，发的一方读结果决定要不要另想办法。
-- **页面状态的主人**（`PAGE_STATE_OWNERS`）：持有一块页面状态的客户端模块和它持有什么。工作台客户端由许多片段文件拼成一个程序，所以一个主人可以是几个文件。别的模块不碰这块状态的内部变量，只发 request、听 announcement。登记的范围是「别的模块要通过事件看到或请它改」的状态；模块内部的变量、只有一处用的存储键不在其中。
+- **事件**（`DOM_EVENTS`，按名字排序）：名字、种类、主人、发在哪里、载荷、含义。种类只有两种：`announcement`（主人报告自己状态的变化或自己做的决定，主人发、别人听）和 `request`（别人请主人去改它的状态，主人听、别人发）。发在哪里是 `window`、`document` 或某个元素（`bubbles` 说明它是否冒泡）；`window` 上的监听器听不到发在 `document` 上的、不冒泡的事件，两个模块对不上多半就是这一条。带 `cancelable` 的事件（现在两个：请求 `molis:side-open`，公告 `molis:assistant-context-action-chosen`）由接住它的一方调用 `preventDefault()`，发的一方读结果决定要不要另想办法。
+- **页面状态的主人**（`PAGE_STATE_OWNERS`）：持有一块页面状态的客户端模块和它持有什么。工作台客户端由许多片段文件拼成一个程序，所以一个主人可以是几个文件。目标规则：一块状态一个主人，别的模块不去改它的内部变量，只发 request、听 announcement。门禁查的只有主人这一侧（announcement 从它的文件里发出、request 在它的文件里被听到），不查别的模块有没有绕过去。登记的范围是「别的模块要通过事件看到或请它改」的状态；模块内部的变量和存储键都不在其中（`state` 的描述里提到某个存储键，只是说明主人持有什么，那个键本身没有登记）。
 - **前缀**（`DOM_EVENT_PREFIXES`）：现在有四种写法（`molis-work:`、`molis:`、`molis-shelf-`、`workbench-`）。合成一种是后续单独的改动；在那之前，新名字必须落在列表里的某个前缀上，不会出现第五种。
 
-加一个事件：在 `DOM_EVENTS` 里按名字顺序加一条，与发它的代码在同一个改动里；浏览器代码里把名字写成字符串字面量，不拼接、不放进变量（浏览器程序是模板字符串，不能 import 这份合同，门禁只能读源码）。合同的公开 API 快照随之变，跑 `pnpm api:update`，并在 PR 里说明新事件对插件和调用方意味着什么。
+加一个事件：在 `DOM_EVENTS` 里按名字顺序加一条，与发它的代码在同一个改动里；浏览器代码里把名字写成字符串字面量，不拼接、不放进变量（浏览器程序是模板字符串，不能 import 这份合同，门禁只能读源码；TypeScript 的类型实参 `new CustomEvent<T>("名字")` 照常读）。合同的公开 API 快照随之变，跑 `pnpm api:update`，并在 PR 里说明新事件对插件和调用方意味着什么。
 
-门禁 `scripts/gates/dom-events.mjs`（`pnpm health:check` 里跑，CI 里同样）在下面几种情况失败，没有基线、从 0 起算：创建了没登记的 `CustomEvent`（或带页面前缀的 `Event`）；`CustomEvent` 的名字读不出来；`addEventListener`、`removeEventListener` 或 `.listen` 监听一个带页面前缀却没登记的名字（拼错的监听器永远听不到）；登记了的事件没有任何代码发或听；主人不持有它名下的事件（`announcement` 要从主人的文件里发出，`request` 要在主人的文件里被听到）；条目重复、乱序、字段不对。测试文件不扫（测试可以对自己驱动的页面发自己的事件）。`node scripts/gates/dom-events.mjs --report` 按事件列出谁发、谁听，并指出对不上的接收方；那是线索，不是失败。
+门禁 `scripts/gates/dom-events.mjs`（`pnpm health:check` 里跑，CI 里同样；它自己的规则由 `tests/dom-events-contract.test.ts` 逐条突变验证，CI 里单独一步跑）在下面几种情况失败，没有基线、从 0 起算：创建了没登记的 `CustomEvent`（或带页面前缀的 `Event`）；`CustomEvent` 的名字读不出来；`addEventListener`、`removeEventListener` 或 `.listen` 监听一个带页面前缀却没登记的名字（拼错的监听器永远听不到）；登记了的事件没有任何代码发或听；主人不持有它名下的事件（`announcement` 要从主人的文件里发出，`request` 要在主人的文件里被听到）；条目重复、乱序、字段不对。测试文件不扫（测试可以对自己驱动的页面发自己的事件）。`node scripts/gates/dom-events.mjs --report` 按事件列出谁发、谁听，并指出对不上的接收方；那是线索，不是失败。
 
-这份登记不覆盖浏览器自己的事件、外壳与 iframe 之间的 `postMessage` 类型、存储键，以及没有事件宣布的状态；它们是另外的通道，还没有登记。
+#### 现状与例外
+
+登记只覆盖 DOM `CustomEvent`。页面里还有下面这些通道，没有登记，门禁也不看：
+
+- 外壳与 iframe 之间的 `postMessage`（`type` 如 `workbench-surface-focus`、`molis:side-open`、`molis:im-visibility`）；
+- `data-assistant-context` 属性：界面把自己的对象写在属性里，情境动作从那里读（常量 `ASSISTANT_CONTEXT_ATTRIBUTE`，在 `services/assistant` 合同里）；
+- 传给插件客户端脚本的 `host` 对象（`translate`、`mountPluginClient` 等宿主能力）；
+- 存储键（`localStorage` 等）和浏览器自己的事件。
+
+工作台客户端的片段文件共用一个函数作用域，片段之间可以直接读变量、直接调函数，绕过事件。把登记和代码对照后，已知没有守住「别的模块不碰主人的状态」的有两处（文件都在 `apps/workbench/src/scripts/client/`）。它们不是批准的例外，是待清的差距，清的时候把状态收进主人的文件、改成发 request 或听 announcement：
+
+- `navigation-feed`：选中的 Feed 任务 `selectedFeedTask` 声明在 `bootstrap.ts`，读它的有 `documents-state.ts`；`setFeedTask` 定义在 `navigation-feed.ts`，却被 `events-primary.ts`、`events-secondary.ts` 直接调用，`events-primary.ts` 还直接给 `selectedFeedTask` 赋值，`tab-workspace.ts` 拿到的也是这个函数。
+- `goal-selection`：选中的 Goal `selected` 声明在 `bootstrap.ts`（不在主人的文件里），`documents-state.ts`、`editing-graph.ts` 直接读它，`immersive-navigation.ts` 经 `getSelected` 回调读它。
+
+其余的主人没有逐一核对过：登记写的是谁应该持有，不是已经证明只有它碰。
 
 ## 4. 迁移
 

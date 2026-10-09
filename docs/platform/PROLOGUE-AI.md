@@ -54,7 +54,7 @@ Alchemist 的 `alchemist-prologue.ts` 复用同一模型目录与 `hostTextGener
 
 Alchemist 六类固定指令在 `src/prompts.ts` 登记为 `ALCHEMIST_INSTRUCTIONS`：方向生成、Copilot、研究交叉检查/综合、成果适用性和格式纠正。`systemPrompt` 接收 `InstructedPrompt`，研究维度作为 data，用户内容仍在 userPrompt；Host 在授权复查后解析当前 Home 的用户覆盖并记录使用。用户修改正文不改变领域校验或增加格式纠正次数；原预算/授权检查继续约束纠正调用。
 
-Jelly 的 Host `completeJson` 同样使用 SDK JSON 解码，插件继续核实证据块 ID、逐字引用、章节顺序与计划内容。每次分段摘要或合并都在派出前复查原 Action 的 `beforeEffect`，返回后和持久化前再复查；不把取消或撤权写成成功摘要。
+Jelly 的 Host `completeJson` 同样使用 SDK JSON 解码，插件继续核实计划内容（1 至 30 个动作，每项有标题）。现在 Jelly 只剩「拆解计划」一条登记指令，没有分段摘要或合并调用；拆解在派出前复查原 Action 的 `beforeEffect`，返回后再复查一次，不把取消或撤权写成成功拆解。
 
 生成插件的 `model.generate` 经公共 Action → `plugin-builder/model.ts` → `hostTextGeneration`，返回既有 `{ text }`。模型派出和结果复查继续调用原 Action 的 `beforeEffect`；取消信号来自当前沙箱调用。无需 Builder Agent、工作目录或另一份运行 JSON，旧私有记录保持原位。只有设计和编码继续使用 Builder Agent，其 Run 也通过 SDK `collectRun` 有界收集全部终态，原检查、活动和业务记录仍由构建模块拥有。
 
@@ -147,6 +147,7 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
   - `MINIMAX_API_KEY`：MiniMax。端点默认 `https://api.minimaxi.com/anthropic`，模型默认 `MiniMax-M3`；实测用 `appkey exec minimax` 注入。
   - `MOLIS_WORK_TEXT_API_KEY`：不指定供应商，必须同时给 `MOLIS_WORK_TEXT_BASE_URL` 与 `MOLIS_WORK_TEXT_MODEL`，缺一个就不配置（不会默认成 MiniMax）。
   - 两者都可选配 `MOLIS_WORK_TEXT_API_FORMAT`（`anthropic-messages`，默认；或 `openai-chat-completions`）。`MOLIS_WORK_TEXT_BASE_URL` 也能改 MiniMax 的端点。
+  - `TYPESAFE_API_KEY`：和上面两个同属开发与实测变量，但管的是 TypeSafe 判断（Functions 与 Jev 的规则、首页与 Inbox 的判断、实验里的 Jev 参试者、插件创作台的设计选择），不是文字模型。它不受「模型目录为空才生效」的限制：只要设了，判断一律用它，盖过设置里选的 TypeSafe 连接，Functions 设置页会显示「来自 TYPESAFE_API_KEY」且该字段只读。
 - 业务插件只拿 Host 注入的函数端口；Host 到 Agent Host 的输入才使用 `credential_ref` + `resolveCredential`。插件不拿凭据解析器或明文；日志、事件、错误和产物里不出现密钥。
 - 一次调用只带这次需要的材料，不隐式读整个项目；用户正文是数据不是指令。
 

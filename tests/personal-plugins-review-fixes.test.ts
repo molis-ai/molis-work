@@ -382,7 +382,7 @@ test("PPT 用色板，没有系统 color input", () => {
   assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /type=["']color["']/);
 });
 
-test("Host 文本补全口暂无模型；注入后 Pages AI 不再走 stub", async () => {
+test("Host 文本补全口暂无模型；注入后 Pages AI 返回模型的候选文字，不带占位标记", async () => {
   await withHome(async (home) => {
     assert.equal(hostCompleteText({ homeDirectory: home, env: {} }), undefined);
     const dispatcher = await listenDispatcher(home, { completeText: async () => "host-outline" });
@@ -399,8 +399,8 @@ test("Host 文本补全口暂无模型；注入后 Pages AI 不再走 stub", asy
         body: JSON.stringify({ project_id: "project-alpha", command: "outline", text: "先写目标再写范围" }),
       });
       assert.equal(ai.status, 200);
-      const body = await ai.json() as { stub: boolean; text: string };
-      assert.equal(body.stub, false);
+      const body = await ai.json() as { text: string };
+      assert.equal("stub" in body, false);
       assert.equal(body.text, "host-outline");
     } finally {
       await dispatcher.close();

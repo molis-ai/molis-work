@@ -75,7 +75,6 @@ export const PAGES_EN: Record<string, string> = {
   "评论": "Comment",
   "写作": "Write",
   "候选": "Draft",
-  "未接模型": "No model connected",
   "正在处理": "Working",
   "写作失败": "Could not write",
   "替换": "Replace",

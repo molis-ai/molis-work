@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { shelfActions as a, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfActions as a, SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { createExtractablePdf, openShelfStore, SHELF_RECIPES } from "@molis-ai/molis-work-module-shelf";
 import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
@@ -132,15 +132,16 @@ test("original images require the selected vision model; folder and PDF contents
   assert.equal(f.requests.length, count, "discovery does not call the model");
 }));
 
-test("discovery has separate model cost/permissions and legacy AI cannot borrow local extraction permission", async () => fixture(async f => {
+test("discovery has separate model cost/permissions, AI cannot borrow local extraction permission, and no compatibility entry is left", async () => fixture(async f => {
   assert.equal(a.generate.action.execution?.cost, "metered"); assert.ok(a.generate.action.permissions.includes("model:invoke"));
-  assert.equal(a.extract.action.execution?.cost, "none"); assert.equal(a.runJob.action.execution?.cost, "unknown");
+  assert.equal(a.extract.action.execution?.cost, "none");
+  assert.equal("runJob" in a, false, "the compatibility entry shelf.jobs.run is gone"); assert.equal(SHELF_ACTIONS.some(definition => definition.capability_id === "shelf.jobs.run"), false);
+  assert.equal((await f.host.homeActionClient().discover({ actor_id: "reader", project_id: null, audience: "mcp", permissions: SHELF_ACTION_PERMISSIONS })).some(row => row.capability_id === "shelf.jobs.run"), false);
   const local = bindActionClient(f.host.homeActionClient(), () => ({ actor_id: "local", project_id: null, audience: "user", permissions: ["shelf:write", "shelf:read"] }));
   const item = (await local.invoke(a.admit, { filename: "sample.pdf", mime: "application/pdf", bytes_base64: createExtractablePdf("Local PDF").toString("base64") })).item;
-  await assert.rejects(local.invoke(a.generate, { recipe: "summarize", item_id: item.item_id }));
-  await assert.rejects(local.invoke(a.runJob, { recipe: "summarize", item_id: item.item_id }), { code: "actions.forbidden" });
+  await assert.rejects(local.invoke(a.generate, { recipe: "summarize", item_id: item.item_id }), { code: "actions.forbidden" });
   assert.equal(f.requests.length, 0); assert.equal((await f.actions.invoke(a.snapshot, {})).running_jobs.length, 0);
-  const out = await local.invoke(a.runJob, { recipe: "extract_text", item_id: item.item_id });
+  const out = await local.invoke(a.extract, { recipe: "extract_text", item_id: item.item_id });
   assert.equal(out.job.runtime, "pdfkit"); assert.equal(f.requests.length, 0);
 }));
 

@@ -30,7 +30,7 @@ function define<I, O>(name: string, title: string, description: string, operatio
     scope: "home", scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output, ...(resultView ? { result_view: resultView } : {}) } };
 }
 
-function jobDefinition(name: string, title: string, description: string, recipes: readonly ShelfRecipeId[], cost: "none" | "metered" | "unknown", permissions: readonly string[]): ActionDefinition<ShelfRunJobInput, ShelfJobOutcome> {
+function jobDefinition(name: string, title: string, description: string, recipes: readonly ShelfRecipeId[], cost: "none" | "metered", permissions: readonly string[]): ActionDefinition<ShelfRunJobInput, ShelfJobOutcome> {
   const definition = define<ShelfRunJobInput, ShelfJobOutcome>(name, title, description, "command",
     object({ recipe: { type: "string", enum: recipes }, item_id: id, item_ids: { type: "array", minItems: 1, maxItems: 50, items: id },
       option_id: nullableText, shortcut_id: nullableText }, ["recipe"]),
@@ -76,7 +76,6 @@ export const shelfActions = {
     object({ item_id: id, text: { type: "string", maxLength: 2_000_000 } }), object({ item }), write, SHARED),
   generate: jobDefinition("jobs.generate", "用 AI 处理 Shelf 材料", "通过配置的模型和共享 Prologue 生成结果，可能产生模型费用；不执行终端命令", AI_RECIPES, "metered", [...write, "model:invoke"]),
   extract: jobDefinition("jobs.extract", "在本机提取 Shelf 文字", "在本机提取 PDF 或图片文字，不调用模型或联网", ["extract_text"], "none", write),
-  runJob: jobDefinition("jobs.run", "处理 Shelf 材料（兼容入口）", "旧调用兼容；新调用使用 jobs.generate 或 jobs.extract。AI 分支要求额外的 model:invoke 权限并可能产生模型费用", [...AI_RECIPES, "extract_text"], "unknown", write),
   cancelJob: define<{ job_id: string }, { job: ShelfJobRecord }>("jobs.cancel", "取消 Shelf 任务", "取消运行中的处理任务", "command", object({ job_id: id }), object({ job }), write, SHARED),
   settings: define<Record<string, never>, ShelfDeviceSettings>("settings.read", "读取 Shelf 设置", "读取本机快捷键、动作排序与运行时设置", "query", object({}), { type: "object" }, read, LOCAL),
   saveSettings: define<Record<string, unknown>, ShelfDeviceSettings>("settings.write", "保存 Shelf 设置", "修改本机快捷键、动作排序与运行时设置", "command", { type: "object" }, { type: "object" }, write, LOCAL),
@@ -162,16 +161,9 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
     bind(shelfActions.delete, input => { ports.deleteCopy(input.item_id); return { deleted: true as const }; }),
     bind(shelfActions.useAsMaterial, input => ({ item: ports.useAsMaterial(input.item_id) })),
     bind(shelfActions.edit, input => ({ item: ports.writeCopy(input.item_id, input.text) })),
-    ...[shelfActions.generate, shelfActions.extract, shelfActions.runJob].map(definition => bind(definition, async (input, caller) => {
+    ...[shelfActions.generate, shelfActions.extract].map(definition => bind(definition, async (input, caller) => {
       if (!input.item_id && !input.item_ids?.length) throw new ActionError("shelf.invalid", "请选择动作和材料");
-      const beforeEffect = async () => {
-        await caller.beforeEffect();
-        if (definition === shelfActions.runJob && input.recipe !== "extract_text") {
-          if (!caller.permissions.includes("model:invoke")) throw new ActionError("actions.forbidden", "AI 生成需要 model:invoke 权限");
-          await caller.validate_permissions?.(["model:invoke"]);
-          caller.signal?.throwIfAborted();
-        }
-      };
+      const beforeEffect = () => caller.beforeEffect();
       await beforeEffect();
       return ports.runJob(input, { signal: caller.signal, beforeEffect });
     })),

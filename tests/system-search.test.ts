@@ -10,11 +10,11 @@ import {
   ActionError,
   bindSearchEntriesHandler,
   defineSearchEntriesAction,
-  defineSearchQueryAction,
   defineSubjectContextAction,
   inspectActionDeclarations,
   searchEntriesPage,
   subjectContext,
+  type ActionAudience,
   type ActionAvailability,
   type ActionCallContext,
   type SearchEntry,
@@ -41,9 +41,6 @@ const entries = defineSearchEntriesAction("notes.search.entries", kinds, "笔记
 const reader = defineSubjectContextAction("notes.subject.read", "note", "笔记", ["notes:read"]);
 const personalKinds = [{ kind: "memo", title: "备忘", surface: "memos" }];
 const personalEntries = defineSearchEntriesAction("memos.search.entries", personalKinds, "备忘", ["memos:read"], "home");
-const personalReader = defineSubjectContextAction("memos.subject.read", "memo", "备忘", ["memos:read"]);
-// Personal readers are Home-scoped once the subject protocol allows it; until then this source indexes summaries only.
-const personalQuery = defineSearchQueryAction("memos.search.query", personalKinds, "备忘按需", ["memos:read"], "home");
 
 function source(notes: Note[] = []): Source {
   return { notes: new Map(notes.map(note => [note.id, note])), lists: 0, reads: 0, fail: false, availability: { available: true } };
@@ -70,15 +67,13 @@ function register(service: ActionService, state: Source, provider: { provider_id
     ],
   });
 }
-function registerPersonal(service: ActionService, memos: Note[], onDemand: Note[] = []) {
+function registerPersonal(service: ActionService, memos: Note[]) {
   return service.registerProvider({
     provider: { provider_id: "memos", plugin_id: "memos", title: "备忘插件", kind: "plugin" },
-    definitions: [personalEntries, personalQuery],
+    definitions: [personalEntries],
     handlers: [
       bindSearchEntriesHandler(personalEntries, () => memos.map(memo => ({ subject: { kind: "memo", id: memo.id }, revision: String(memo.version), title: memo.title,
         summary: memo.body, updated_at: null, content: "summary" as const, open: null }))),
-      { ...personalQuery, handle: (_caller, input) => ({ hits: onDemand.filter(memo => memo.body.includes((input as { query: string }).query)).map(memo => ({
-        subject: { kind: "memo", id: memo.id }, revision: String(memo.version), title: memo.title, snippet: memo.body.slice(0, 40), updated_at: null, open: null })) }) },
     ],
   });
 }
@@ -111,7 +106,7 @@ const ask = (f: { actions: ActionService; search: SearchService }, caller: Actio
 const ids = (response: { hits: Array<{ subject: { id: string } }> }) => response.hits.map(hit => hit.subject.id).sort();
 
 test("search source protocol rejects declarations that do not honor the canonical contract", () => {
-  assert.deepEqual(inspectActionDeclarations([entries, reader, personalEntries, personalQuery], undefined), []);
+  assert.deepEqual(inspectActionDeclarations([entries, reader, personalEntries], undefined), []);
   const broken = { ...entries, action: { ...entries.action, search_source: { kinds: [{ kind: "other", title: "别的", surface: "notes" }] } } };
   assert.match(inspectActionDeclarations([broken], undefined).join(), /搜索来源协议/);
   const badSurface = { ...entries, action: { ...entries.action, search_source: { kinds: [{ kind: "note", title: "笔记", surface: "not a surface" }] } } };
@@ -318,22 +313,6 @@ test("whatever error the reader throws, only the owner's listing decides between
   assert.deepEqual(ids(await ask(f, owner("a"), "实验")), ["kept"], "both deletions left the index; the listed one stayed");
 });
 
-test("an on-demand source has no listing to confirm a deletion, so a refusing reader means unavailable", async t => {
-  const f = await fixture(t);
-  let reads = 0;
-  f.actions.registerProvider({ provider: { provider_id: "memos", plugin_id: "memos", title: "备忘插件", kind: "plugin" }, definitions: [personalEntries, personalQuery, personalReader],
-    handlers: [
-      bindSearchEntriesHandler(personalEntries, () => []),
-      { ...personalQuery, handle: () => ({ hits: [{ subject: { kind: "memo", id: "live" }, revision: "1", title: "按需", snippet: "只在查询时出现的正文", updated_at: null, open: null }] }) },
-      { ...personalReader, handle: () => { reads += 1; throw new ActionError("actions.subject_unavailable", "备忘已锁定"); } },
-    ] });
-  const hit = (await ask(f, owner("a"), "查询时")).hits[0]!;
-  const opened = await f.search.open({ client: f.actions, caller: owner("a") }, { hit_id: hit.hit_id });
-  assert.equal(reads, 1, "the owner's reader was asked");
-  assert.equal(opened.state, "unavailable");
-  assert.match(opened.state === "unavailable" ? opened.reason : "", /锁定/);
-});
-
 test("a failing source keeps what it had, reports it, and recovers", async t => {
   const f = await fixture(t);
   const notes = source([{ id: "kept", title: "稳定内容", body: "索引里保留的正文", version: 1 }]);
@@ -419,18 +398,27 @@ test("pages through results with a cursor bound to the query", async t => {
   await assert.rejects(ask(f, owner("a"), "别的词", { cursor: one.next_cursor }), (error: { code?: string }) => error.code === "actions.input_invalid");
 });
 
-test("an on-demand source is searched at query time and never persisted", async t => {
+// Decision 19 (specs/repository-anti-corruption): searching an owner's data at query time had no producer in the product and was removed
+// with `defineSearchQueryAction`. What it declared is no longer a search source, and the search never calls it.
+test("the retired on-demand source protocol is refused as a source declaration and never called by the search", async t => {
   const f = await fixture(t);
-  registerPersonal(f.actions, [], [{ id: "live", title: "按需", body: "只在查询时出现的正文", version: 1 }]);
+  const retired = { capability_id: "memos.search.query", version: 1, operation: "query" as const, action: {
+    title: "备忘按需", description: "在备忘的原数据中按需搜索；结果不写入系统索引。", kind: "query" as const, scope: "home" as const, scheduling: "concurrent" as const,
+    audiences: ["user", "agent", "workflow", "mcp", "plugin"] as ActionAudience[], permissions: ["memos:read"], subject_kinds: ["memo"], search_source: { kinds: personalKinds },
+    input_type: "molis.search.query.request.v1", output_type: "molis.search.query.hits.v1",
+    input_schema: { type: "object", properties: { query: { type: "string" }, limit: { type: "integer" } }, required: ["query", "limit"], additionalProperties: false },
+    output_schema: { type: "object", properties: { hits: { type: "array" } }, required: ["hits"], additionalProperties: false } } };
+  assert.match(inspectActionDeclarations([retired], undefined).join(), /搜索来源协议/, "a declaration of the old protocol no longer passes as a source");
+  // Without the source declaration it is an ordinary query action: it registers, and the search does not treat it as a source.
+  const { search_source: _dropped, ...ordinary } = retired.action;
+  let asked = 0;
+  f.actions.registerProvider({ provider: { provider_id: "memos", plugin_id: "memos", title: "备忘插件", kind: "plugin" }, definitions: [{ ...retired, action: ordinary }],
+    handlers: [{ capability_id: retired.capability_id, version: 1, handle: () => { asked += 1; return { hits: [{ subject: { kind: "memo", id: "live" }, revision: "1", title: "按需", snippet: "只在查询时出现的正文", updated_at: null, open: null }] }; } }] });
   const response = await ask(f, owner(null), "查询时");
-  assert.deepEqual(ids(response), ["live"]);
-  assert.equal(response.hits[0]!.plugin_id, "memos");
-  await f.reopen();
-  assert.deepEqual(ids(await ask(f, owner(null), "查询时")), ["live"]);
+  assert.deepEqual([response.status, ids(response), asked], ["empty_scope", [], 0], "nothing is searched at query time any more");
 });
 
 test("the Host's search actions are well-formed directory entries", () => {
   assert.deepEqual(inspectActionDeclarations(Object.values(searchActions), undefined), []);
   assert.equal(SEARCH_PROVIDER_ID, "system.search");
-  void personalReader;
 });

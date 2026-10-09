@@ -10,7 +10,7 @@
 | `effect` | 调用它对世界做了什么：`read`（只读）、`write`（改了能改回来）、`irreversible`（不能撤销） |
 | `plugin: false` | 即使给了 agent，也不给生成插件 |
 
-未写 `effect` 时按规则推断：query / navigation 是读；能力 id 里有 delete、trash、purge、destroy、erase、wipe、reset、uninstall、remove 这类动词段的是不可撤销；其余是写。名字像删除但其实可撤销（例如移除一个标签、删除前的预览、移入可恢复的回收站）就明写：`withActionEffect(definition, "write")`；原本靠误判挡在生成插件之外的，同时写 `plugin: false` 保持不开放。
+未写 `effect` 时按规则推断：query / navigation 是读；能力 id 里有 delete、trash、purge、destroy、erase、wipe、reset、uninstall、remove 这类动词段的是不可撤销；其余是写。名字像删除但其实可撤销（例如移除一个标签、删除前的预览、移入可恢复的回收站）就明写：`withActionEffect(definition, "write")`（从 `@molis-ai/molis-work-plugin-sdk` 导入）；原本靠误判挡在生成插件之外的，同时写 `plugin: false` 保持不开放。
 
 **给生成插件的规则**：带 `agent` 受众的动作自动对 `plugin` 受众开放，除非它不可撤销或写了 `plugin: false`。不可撤销的动作永远不给插件。
 

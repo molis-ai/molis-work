@@ -128,7 +128,12 @@ test("memories limited to a plugin, an object kind or a Goal come only where tha
   assert.equal((await service.recall(tables, { query: "导出 格式" })).items.some(item => item.text === "上次导出用的是 CSV 格式"), false);
 });
 
-test("through the shared directory a plugin's identity comes from the Host, never from input: it writes into its own namespace, and cannot manage memories", { timeout: 60_000 }, async t => {
+// Decision 19 (specs/repository-anti-corruption, W2-03): no plugin uses memory, and a plugin's call carries no Host-confirmed plugin identity
+// today (the Studio's generated plugins carry none), so `memory.write` was refused and `memory.recall` and `memory.list` could not apply the
+// person's rule for one plugin. The directory shows plugins none of them until a plugin really uses memory with a Host-confirmed identity;
+// MemoryService above still holds a plugin to its own namespace and to the kinds the person allows, for that day. The Studio's capability
+// board follows the directory: tests/agent-built-plugins-catalog.test.ts.
+test("plugins are not an audience of memory yet: the directory offers them none of memory.*, and a call is refused", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-plugin-actions-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
@@ -136,13 +141,26 @@ test("through the shared directory a plugin's identity comes from the Host, neve
   const plugin = (plugin_id: string): ActionCallContext => ({ actor_id: `plugin:${plugin_id}`, actor_kind: "runtime", project_id: null, audience: "plugin",
     host_plugin: { plugin_id, install_id: `install-${plugin_id}` } as never, permissions: [...MEMORY_PERMISSIONS] });
   const person: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
-  const seen = (await client.discover(plugin("tables"))).filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID).map(view => view.capability_id).sort();
-  assert.deepEqual(seen, ["memory.list", "memory.recall", "memory.write"]);
-  const asTables = bindActionClient(client, () => plugin("tables")), asPages = bindActionClient(client, () => plugin("pages")), asPerson = bindActionClient(client, () => person);
-  const kept = await asTables.invoke(memoryActions.write, { scope: "personal", text: "表格默认按日期倒序" });
-  assert.equal(kept.memory?.plugin_id, "tables");
-  assert.deepEqual((await asTables.invoke(memoryActions.recall, { query: "表格 日期 排序" })).items.map(item => item.text), ["表格默认按日期倒序"]);
-  assert.deepEqual((await asPages.invoke(memoryActions.recall, { query: "表格 日期 排序" })).items, []);
-  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items.map(item => [item.text, item.source, item.plugin_id]), [["表格默认按日期倒序", "plugin", "tables"]]);
-  await assert.rejects(client.invoke(plugin("tables"), { capability_id: memoryActions.change.capability_id, version: 1, provider_id: MEMORY_PROVIDER_ID }, { memory_id: kept.memory!.memory_id, action: "remove" }));
+  const agent: ActionCallContext = { actor_id: "agent:coding-1", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [...MEMORY_PERMISSIONS] };
+  const ofMemory = (views: readonly { provider: { provider_id: string }; capability_id: string }[]) => views.filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID).map(view => view.capability_id).sort();
+
+  // Declared: no plugin audience, and `plugin: false` because all three are open to agents and would otherwise reach plugins through them.
+  for (const action of [memoryActions.recall, memoryActions.list, memoryActions.write]) {
+    assert.equal(action.action.audiences.includes("plugin" as never), false, action.capability_id);
+    assert.equal(action.action.plugin, false, action.capability_id);
+  }
+  // Directory and metadata inspection: a plugin sees none of them, an agent the same three as before.
+  assert.deepEqual(ofMemory(await client.discover(plugin("tables"))), []);
+  assert.deepEqual(ofMemory(await host.inspectActions(plugin("tables"))), []);
+  assert.deepEqual(ofMemory(await client.discover(agent)), ["memory.list", "memory.recall", "memory.write"]);
+
+  // A call from a plugin is refused whatever the permission it holds, and nothing was kept.
+  const asPerson = bindActionClient(client, () => person);
+  const call = (capability_id: string, input: unknown) => client.invoke(plugin("tables"), { capability_id, version: 1, provider_id: MEMORY_PROVIDER_ID }, input);
+  const forbidden = { code: "actions.forbidden" };
+  await assert.rejects(call(memoryActions.write.capability_id, { scope: "personal", text: "表格默认按日期倒序" }), forbidden);
+  await assert.rejects(call(memoryActions.recall.capability_id, { query: "表格 日期 排序" }), forbidden);
+  await assert.rejects(call(memoryActions.list.capability_id, {}), forbidden);
+  await assert.rejects(call(memoryActions.change.capability_id, { memory_id: "m1", action: "remove" }), forbidden);
+  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items, []);
 });

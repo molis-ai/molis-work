@@ -68,7 +68,7 @@
 | 13 | `horizontal/listener-host` | 1 | 1 | 5 |  |
 | 14 | `modules/feed` | 1 | 1 | 5 |  |
 | 15 | `packages/storage` | 2 | 2 | 4 |  |
-| 16 | `horizontal/search` | 1 | 1 | 4 | 决定 #19 删按需搜索来源后再拆更省 |
+| 16 | `horizontal/search` | 1 | 1 | 4 | 按需搜索来源已删（W2-03），可直接拆 |
 | 17 | `plugins/native/todo` | 1 | 1 | 4 |  |
 | 18 | `modules/goals` | 7 | 10 | 3 |  |
 | 19 | `modules/functions` | 1 | 2 | 3 |  |
@@ -230,7 +230,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `memory` | `src/service.ts` | 文件 1,338 行<br>`MemoryService` 类 1,101 行 / 56 方法 | 拆 · W5-10 | 决定 N-03：代码不搬，只在包内拆。`MemoryService` 56 个方法分组：偏好、召回与使用（`recall` 57）、写入与候选（`commit` 107、`change` 71、`propose`、`accept`）、从工作中学习（`learnFromWork`）、维护（`upkeep` 91、`pairs`）、范围操作（`previewScope`、`clearScope`、`exportScope`、`importScope`）。每组一个协作者；声明与类型另放，文件回到 800 行以下。路线 W4-08 末尾写“再拆 MemoryService”，但 N-03 决定把 W4-08 改成文档与边界规则，所以拆分改归这一片。 | 3 |
 | `placement` | `src/index.ts` | `PlacementService` 类 419 行 / 28 方法 | 拆 · W5-10 | 决定 N-03：代码不搬。`PlacementService` 28 个方法分四组：位置读取（`locate`、`describe` 69、`readIn` 27、`location`）、关系（`link`、`unlink`、`related`）、目标绑定（`goals`、`bindGoal`、`goalBindings`）、移动复制转换（`move`、`moveHome`、`copy`、`convert` 40）。 | 3 |
 | `scheduler` | `src/index.ts` | `createScheduleService` 函数 282 行 | 拆 · W5-10 | `createScheduleService` 里 `fire` 86 行、`register` 38、`claim` 23、`setEnabled` 20、`toRecord` 20、`tick` 19、`renewExecutions` 16：触发（`fire`、`claim`、`tick`、`renewExecutions`）与登记管理（`register`、`setEnabled`、`toRecord`）分成两个文件。 | 2 |
-| `search` | `src/index.ts` | `SearchService` 类 436 行 / 28 方法 | 拆 · W5-10 | `SearchService` 28 个方法分三组：查询（`query`、`open` 46、`entrySources`、`scoped`、`matchesFilter`）、同步（`runSync` 67、`reconcile`、`needsSync`、`catchUp`、`scheduleRefresh`、`refreshKnown`）、登记与状态（`markRegistration`、`markChanged`、`announce`、`status`、`statuses`、`purgeDisabled`）。决定 #19 删按需搜索来源，`onDemand` 与 `querySources` 随之去掉，先做那一步再拆更省。 | 4 |
+| `search` | `src/index.ts` | `SearchService` 类 407 行 / 26 方法 | 拆 · W5-10 | `SearchService` 26 个方法分三组：查询（`query`、`open` 44、`entrySources`、`scoped`、`matchesFilter`）、同步（`runSync` 67、`reconcile`、`needsSync`、`catchUp`、`scheduleRefresh`、`refreshKnown`）、登记与状态（`markRegistration`、`markChanged`、`announce`、`status`、`statuses`、`purgeDisabled`）。决定 #19 的按需搜索来源已删（W2-03），`onDemand` 与 `querySources` 已去掉，所以上面的行数和方法数是删后的；可以直接拆。 | 4 |
 
 ### 业务事实 Module `modules/*`
 

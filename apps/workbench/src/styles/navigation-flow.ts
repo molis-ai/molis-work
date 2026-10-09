@@ -18,7 +18,7 @@ export const NAVIGATION_FLOW_STYLES = `
   ${WORKBENCH} .tab-view-chip-close:hover { background: var(--nav-active); color: var(--ink); }
   ${WORKBENCH} .tab-view-chip-close:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
   @media (max-width: 760px), (pointer: coarse) {
-    ${WORKBENCH} .tab-view-chip-close { width: 32px; height: 32px; }
+    ${WORKBENCH} .tab-view-chip-close { width: 44px; height: 44px; }
   }
 
   /* The two groups of the bar sit in trays as tall as the composer: the Dock on the left, the person's own (Shelf,

@@ -190,3 +190,21 @@ test("product HTML no longer uses retired control class names", () => {
   assert.deepEqual(hits, []);
 });
 
+
+// Soft Workbench (DESIGN.md → Focus and accessibility): at phone width the bar's and the title strip's controls are 44px
+// targets and the desktop window's chrome keeps one written, scoped exception. tests/touch-targets.e2e.test.ts measures the
+// real shell; this keeps the declarations and the written exception in step without a browser.
+test("the phone shell declares 44px targets, the desktop bar keeps its sizes, and DESIGN.md writes the exception", () => {
+  const css = renderMolisWorkWorkbenchStylesheet();
+  assert.match(css, /--dock-btn: 38px;/, "the desktop bar keeps its 38px Dock buttons");
+  assert.match(css, /@media \(max-width: 600px\) \{\s*:is\(body\.immersive-workbench[^{]*\) \{[^}]*--dock-btn: 44px;/, "a phone's Dock, resident, discussion and directory buttons are 44px");
+  assert.match(css, /\[data-assistant-send\] \{ width: 44px; height: 44px; min-height: 44px; \}/, "send is 44px on a phone");
+  assert.match(css, /\.bar-composer \.bar-composer-attach \{[^}]*min-width: 44px; height: 44px;/, "attach is 44px on a phone");
+  assert.match(css, /\.bar-composer \.assistant-composer-input \{ height: 44px;/, "the input is 44px tall on a phone");
+  assert.match(css, /\.navigator-project-selector \{ grid-template-columns: 44px; width: 44px; height: 44px; min-height: 44px; \}/, "the project mark is 44px on a phone");
+  assert.match(css, /@media \(max-width: 760px\), \(pointer: coarse\) \{[^}]*\.tab-view-chip \{ height: 44px; \}/, "the location chip is 44px where the tabs are");
+  assert.match(css, /@media \(max-width: 760px\), \(pointer: coarse\) \{\s*body\.immersive-workbench \.tab-view-chip-close \{ width: 44px; height: 44px; \}/, "and so is its close mark");
+  const design = readFileSync(join(process.cwd(), "DESIGN.md"), "utf8");
+  assert.match(design, /\*\*Exception: the desktop window's chrome\.\*\*/, "DESIGN.md writes the exception for the title bar's strip and the bottom bar");
+  assert.match(design, /tests\/touch-targets\.e2e\.test\.ts/, "and names the test that holds it");
+});

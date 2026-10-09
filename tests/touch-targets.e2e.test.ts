@@ -1,0 +1,109 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { layoutFindings } from "./fixtures/layout-audit.js";
+
+// DESIGN.md → Focus and accessibility: every target is 44px on a phone, except that the desktop window's chrome (the
+// title bar's tab strip and the bottom bar) keeps a written, scoped exception. This measures both sides of it on the real
+// shell: at 390px (a phone) every control of the strip and of the bar is 44px on its short side, and the bar and the strip
+// still lay out cleanly with them; at 1280px the chrome keeps the sizes the exception names and does not sink below its floor.
+
+type Control = { kind: string; area: "strip" | "bar"; label: string; w: number; h: number };
+
+const KINDS: Record<string, string> = {
+  "[data-assistant-input]": "assistant input",
+  "[data-assistant-attach]": "assistant attach",
+  "[data-assistant-send]": "assistant send",
+  "[data-plugin-picker-toggle]": "plugin switcher",
+  ".dock-pin": "dock",
+  ".bar-resident": "resident",
+  ".bar-chat": "discussion",
+  ".navigator-project-selector": "project",
+  ".immersive-show-directory, .navigator-directory-toggle": "directory toggle",
+  ".workspace-history-button": "history",
+  ".tab-item-trigger": "tab",
+  ".tab-item-close": "tab close",
+  ".tab-add-button": "open plugin",
+  ".tab-split-button": "layout",
+  ".tab-view-chip": "location chip",
+  ".tab-view-chip-close": "cover close",
+};
+
+/** Every shown control of the strip and of the bar (not what opens from them), with its kind and box. */
+const SHELL_CONTROLS = `(() => {
+  const kinds = ${JSON.stringify(KINDS)};
+  const out = [];
+  const roots = [["bar", ".workbench-bar"], ["strip", "nav.tab-strip"], ["strip", ".immersive-titlebar"]];
+  for (const [area, root] of roots) {
+    for (const el of document.querySelectorAll(root + " :is(button, summary, input, [role=tab])")) {
+      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || el.closest("[hidden], [inert], .assistant-panel, .assistant-popover, .plugin-picker-popover, [data-dock-overflow], .navigator-project-menu-popover")) continue;
+      const box = el.getBoundingClientRect();
+      if (box.width < 2 || box.height < 2) continue;
+      const kind = Object.entries(kinds).find(([selector]) => el.matches(selector))?.[1];
+      out.push({ kind: kind ?? "unlisted " + el.tagName.toLowerCase() + "." + String(el.className).split(" ")[0], area, label: el.getAttribute("aria-label") || el.textContent.trim().slice(0, 20), w: Math.round(box.width * 10) / 10, h: Math.round(box.height * 10) / 10 });
+    }
+  }
+  return out;
+})()`;
+
+/** A finding that is about the strip or the bar (the page behind them has its own audits). */
+const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-resident|bar-chat|plugin-picker|navigator-project|navigator-directory|immersive-show|workbench-bar|bar-start|bar-end|tab-view-chip|tab-item|tab-strip|tab-add|tab-split|workspace-history/;
+
+for (const scheme of ["light", "dark"] as const) {
+  test(`the shell's controls are 44px on a phone and keep the written desktop exception · ${scheme}`, { timeout: 300_000 }, async t => {
+    const browser = await openGoalBrowser(t, "seeded");
+    if (!browser) return;
+    const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+
+    const open = async (width: number, height: number, mobile: boolean, path: string, ready: string) => {
+      await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
+      await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/${path}` }, sessionId));
+      await waitFor(`${ready} && !!document.querySelector('[data-dock-pins] [data-dock-pin]') && document.fonts.status === 'loaded'`, 15_000);
+      assert.equal(await evaluate("document.documentElement.dataset.resolvedTheme"), scheme, "the page follows the emulated scheme");
+      // The Dock folds what does not fit after its first paint; let it settle before measuring.
+      await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 150))))");
+      return evaluate<Control[]>(SHELL_CONTROLS);
+    };
+    const shellFindings = async () => (await layoutFindings(evaluate)).filter(finding => IN_SHELL.test(`${finding.a ?? ""} ${finding.b ?? ""}`));
+    const short = (control: Control) => Math.min(control.w, control.h);
+
+    // A phone. Three screens carry every control: the project's home, a plugin's page (its location chip), and the project's
+    // settings (a cover chip with its close mark, and the directory toggle: the widest the bar gets).
+    const seen = new Set<string>();
+    for (const [name, path, ready] of [
+      ["home", "", "true"],
+      ["a plugin's page", "?openPlugin=todo", "!!document.querySelector('.tab-view-chip')"],
+      ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"],
+    ] as const) {
+      const controls = await open(390, 844, true, path, ready);
+      for (const control of controls) seen.add(control.kind);
+      assert.deepEqual(controls.filter(control => short(control) < 44).map(control => `${control.kind} 「${control.label}」 ${control.w}×${control.h}`), [],
+        `${name} · 390: every control of the strip and the bar is a 44px target`);
+      assert.deepEqual(controls.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name} · 390: a control this test does not know is a control nobody measured`);
+      assert.deepEqual(await shellFindings(), [], `${name} · 390: the bar and the strip lay out cleanly with 44px targets`);
+    }
+    assert.deepEqual(Object.values(KINDS).filter(kind => !seen.has(kind)), [], "the three screens showed every kind of control, so none went unmeasured");
+
+    // The Assistant line stays a 44px input with room to type, and its attach and send keep their size while typing.
+    await evaluate(`(() => { const input = document.querySelector('[data-assistant-input]'); input.focus(); input.value = '整理一下本周的待办'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    const typing = (await evaluate<Control[]>(SHELL_CONTROLS)).filter(control => control.kind.startsWith("assistant"));
+    assert.equal(typing.length, 3, "input, attach and send are all there while typing");
+    assert.deepEqual(typing.filter(control => short(control) < 44), [], "and are still 44px");
+    assert.ok(typing.find(control => control.kind === "assistant input")!.w >= 120, "the input keeps room to type");
+
+    // A desktop window: the exception is the sizes DESIGN.md names, and its floor holds.
+    const floors = { strip: 20, bar: 28 };
+    for (const [name, path, ready] of [
+      ["home", "", "true"],
+      ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"],
+    ] as const) {
+      const controls = await open(1280, 800, false, path, ready);
+      assert.deepEqual(controls.filter(control => short(control) < floors[control.area]).map(control => `${control.kind} ${control.w}×${control.h}`), [],
+        `${name} · 1280: nothing in the strip is under ${floors.strip}px or in the bar under ${floors.bar}px`);
+      assert.deepEqual(controls.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name} · 1280: every control is a known one`);
+      const input = controls.find(control => control.kind === "assistant input");
+      assert.ok(input && input.h <= 32, "the desktop Assistant line stays the 28px line the exception describes, not a phone's 44px");
+    }
+  });
+}

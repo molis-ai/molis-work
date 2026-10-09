@@ -144,6 +144,7 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} .tab-view-chip:active:not([aria-current="page"]) { transform: scale(.97); }
   ${PAGES} .tab-view-chip + .tab-view-divider { flex: none; width: 1px; height: 14px; margin: 0 4px 0 4px; background: var(--line-strong); align-self: center; }
   ${WORKBENCH} .tab-pane > .tab-strip .tab-view-chip { height: 24px; }
+  @media (max-width: 760px), (pointer: coarse) { ${WORKBENCH} :is(.tab-strip, .tab-pane > .tab-strip) .tab-view-chip { height: 44px; } }
   ${viewChipTints()}
 
   /* ─── Plugin rail: this project — where the work lives and its plugins; the account at the foot ── */
@@ -1322,28 +1323,30 @@ const CRAFT_BASE_STYLES = `
   /* A phone: two rows at the foot — the Assistant line first, then the Dock and the project. A plugin's own list
      opens in a drawer from a button just left of the project, only when that plugin has one. */
   @media (max-width: 600px) {
-    ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-h: 116px; --dock-btn: 40px; --composer-h: 50px; }
+    ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-h: 116px; --dock-btn: 44px; --composer-h: 50px; }
     ${SHELL} .immersive-workspace,
     ${SHELL} .immersive-workspace.is-directory-collapsed,
     ${SHELL} .immersive-workspace.is-plugin-directory-empty { grid-template-rows: auto 0 0 minmax(0, 1fr) auto; }
     ${SHELL} .workbench-bar {
-      z-index: 45; grid-row: 5; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 58px 50px; gap: 0 8px;
-      padding: 4px 12px max(8px, env(safe-area-inset-bottom));
+      z-index: 45; grid-row: 5; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 58px 50px; gap: 0 4px;
+      padding: 4px 8px max(8px, env(safe-area-inset-bottom));
     }
     ${SHELL} .bar-center { grid-column: 1 / -1; grid-row: 1; align-self: center; }
     ${SHELL} .bar-start { grid-column: 1; grid-row: 2; }
     html ${SHELL} .workbench-bar .bar-end { grid-column: 2; grid-row: 2; justify-self: end; }
-    /* 4px between the row's 40px targets, so the widest state (a plugin with a directory) still fits 390px. */
-    ${SHELL} .dock-pins { gap: 4px; margin-left: 8px; }
-    ${SHELL} .dock-pins::before { left: -5px; }
+    /* The row's 44px targets touch, so the widest state (a plugin with a directory) still fits 390px. */
+    ${SHELL} .dock-pins { gap: 0; margin-left: 4px; }
+    ${SHELL} .dock-pins::before { left: -3px; }
     ${SHELL} .dock-pin.is-fixed { margin-right: 4px; }
     ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { right: -4px; }
-    html ${SHELL} .workbench-bar :is(.bar-start, .bar-end) { gap: 4px; }
-    ${SHELL} .bar-composer .assistant-composer-input { font-size: 16px; }
-    ${SHELL} .plugin-picker-trigger { max-width: 132px; }
+    html ${SHELL} .workbench-bar :is(.bar-start, .bar-end) { gap: 0; }
+    ${SHELL} .bar-composer .assistant-composer-input { height: 44px; font-size: 16px; line-height: 44px; }
+    ${SHELL} .bar-composer [data-assistant-send] { width: 44px; height: 44px; min-height: 44px; }
+    ${ASSIST} .bar-composer .bar-composer-attach { justify-content: center; min-width: 44px; height: 44px; padding: 0; }
+    ${SHELL} .plugin-picker-trigger { justify-content: center; min-width: 44px; max-width: 132px; }
     html ${SHELL} .immersive-workspace > .tree-pane,
     html ${SHELL} .immersive-sidebar-scrim:not([hidden]) { bottom: var(--dock-h); }
-    html ${SHELL} .workbench-bar .bar-end .navigator-project-primary { gap: 4px; }
+    html ${SHELL} .workbench-bar .bar-end .navigator-project-selector { grid-template-columns: 44px; width: 44px; height: 44px; min-height: 44px; }
     html ${SHELL} .immersive-workspace:not(.is-plugin-directory-empty) .workbench-bar .bar-end .immersive-show-directory,
     html ${SHELL} .is-directory-drawer-open .workbench-bar .bar-end .navigator-directory-toggle {
       display: inline-grid !important; place-items: center; order: -1; width: var(--dock-btn); min-width: var(--dock-btn); height: var(--dock-btn); min-height: var(--dock-btn); padding: 0; border: 0; border-radius: 11px;
@@ -1363,7 +1366,7 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
     /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
     ${ASSIST} .assistant-target { max-width: 30%; }
-    ${SHELL} .bar-start .plugin-picker { max-width: none; padding-right: 4px; }
+    ${SHELL} .bar-start .plugin-picker { max-width: none; padding-right: 0; }
     ${SHELL} .bar-start .plugin-picker-trigger { padding: 0 8px; }
     /* On a phone the Dock beside it already shows where you are: the switcher is the door to all plugins. */
     ${SHELL} .bar-start .plugin-picker-current, ${SHELL} .bar-start .plugin-picker-trigger > svg:last-child { display: none; }

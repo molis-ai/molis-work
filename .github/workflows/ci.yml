@@ -296,10 +296,13 @@ jobs:
   # For about two weeks from its first run on main it is an information job like the probe: NOT in `verify`'s needs,
   # `continue-on-error` keeps a red run from marking the workflow red, branch protection is untouched. At the end of that time, with the
   # flaky files quarantined: add `product-subset` to `verify`'s needs (and its result to the two lines of the final step), drop
-  # `continue-on-error`, take "(not required yet)" out of the name, and change the two tests in tests/ci-product-subset.test.ts that
-  # pin this state. Joining Verify keeps the required check `Verify` as it is, so the repository settings are not touched.
+  # `continue-on-error`, take "(not required yet)" out of the name, and change the one test in tests/ci-product-subset.test.ts that
+  # pins this state (the first of its two ci.yml cases). Joining Verify keeps the required check `Verify` as it is, so the repository
+  # settings are not touched.
   # Time: the job is meant to stay about as long as `architecture-boundaries` (about 20 minutes), so it never lengthens the check:
-  # install and build about 2 minutes, the browser smokes within 8, the other files within 15, and the job is stopped at 35.
+  # install and build about 2 minutes, the browser smokes within 8, the other files within 15, and the job is stopped at 35. No attempt
+  # (a first run or a retry) starts after its budget, so the worst case is 2 + 8 + a 4 minute smoke attempt + 15 + a 4 minute attempt = 33
+  # minutes, inside the 35 (tests/ci-product-subset.test.ts works this out from the arguments below).
   # The runner stops starting files when a budget is used up and fails the run for the files it did not reach; the summary shows how
   # much of each budget was used and which files are slowest. This workflow cancels a run when a newer push arrives; the runner
   # writes its report on that signal, and the upload below is `if: always()`.

@@ -13,8 +13,8 @@
 //     --jobs <n>                        non-browser files at once (default 2); the browser smokes always run one at a time
 //     --timeout-seconds <n>             per attempt of a non-browser file (default 180); a timeout is not retried
 //     --browser-timeout-seconds <n>     per attempt of a browser smoke (default 240)
-//     --retries <n>                     extra attempts for a file that failed; a later pass is `flaky` (default 1)
-//     --budget-minutes <n>              stop starting non-browser files after this long; the rest are `not-run`, which fails the run
+//     --retries <n>                     extra attempts for a file that failed; a later pass is `flaky`, a retry that runs no test is not one (default 1)
+//     --budget-minutes <n>              stop starting non-browser files after this long, and stop retrying; the rest are `not-run`, which fails the run
 //     --browser-budget-minutes <n>      the same for the browser smokes, which run first
 //     --expect-platform <p>             exit 2 before running anything unless process.platform is <p> (CI: linux)
 //     --today <YYYY-MM-DD>              the date quarantine entries are judged against: their end dates, and a `since` more than a day after it is refused (default: today, UTC)

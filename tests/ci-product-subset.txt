@@ -1,7 +1,7 @@
 # Test files the CI job `product-subset` runs (specs/repository-anti-corruption §4.7, W2-16, decision #14).
 # One path per line; a line that starts with # is a comment. The rules this file must keep are in scripts/ci-product-subset/plan.mjs and
-# are checked by `pnpm health:check`; docs/system/PARALLEL-DEVELOPMENT.md (the section on the product subset) says how the job runs
-# and how it joins Verify.
+# are checked by `pnpm health:check`; docs/system/PACKAGE-BOUNDARIES.md (the section 「产品子集作业」) says how the job runs and how it
+# joins Verify.
 #
 # What belongs here: the fast user-flow files that pass on Linux. What does not: the contract and gate tests the blocking job already
 # runs, files the Linux probe marks darwin or live (scripts/ci-linux-probe/select.mjs), and browser files other than the smokes.
@@ -320,6 +320,7 @@ tests/alchemist-structured-output.test.ts
 tests/announce-guard.test.ts
 tests/arrival-components.test.ts
 tests/artifacts-module.test.ts
+tests/builtin-plugin-composition.test.ts
 tests/capsule.test.ts
 tests/casebook-recovery-details.test.ts
 tests/casebook-user-action.test.ts
@@ -378,7 +379,6 @@ tests/list-silent-refresh.test.ts
 tests/local-host-checkpoint.test.ts
 tests/mcp-protocol.test.ts
 tests/package-dev-requirements.test.ts
-tests/package-owners.test.mjs
 tests/panel-sessions.test.ts
 tests/personal-artifact-owner.test.ts
 tests/planning-engine.test.ts
@@ -426,7 +426,6 @@ tests/work-session-ui.test.ts
 tests/work-terminal-client.test.ts
 tests/workbench-asset-cache.test.ts
 tests/workbench-local-links.test.ts
-tests/workbench-registration-boundaries.test.mjs
 tests/workbench-ui-platform.test.ts
 tests/workflow-content-actions.test.ts
 tests/workflow-station-kinds.test.ts

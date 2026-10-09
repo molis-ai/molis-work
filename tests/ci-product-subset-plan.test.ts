@@ -51,6 +51,28 @@ const problemsOf = (over: Scratch) => readPlan(scratch(over)).problems;
 const only = (problems: string[], pattern: RegExp) => { assert.ok(problems.some((problem) => pattern.test(problem)), `expected a problem matching ${pattern}, got:\n- ${problems.join("\n- ")}`); };
 const noProblems = (over: Scratch = {}) => assert.deepEqual(problemsOf(over), []);
 
+// The test files a CI job runs, as the paths its steps name plus the paths named by the root package.json scripts it reaches through
+// `pnpm <script>` or `pnpm run <script>` (followed to any depth: `workspace:verify` runs `boundary:test`). Comment lines are not steps.
+// `pnpm --filter ...`, `pnpm -r` and `pnpm exec` run package scripts and tools, not root scripts, and are not followed. A script file that
+// starts tests by itself (`node scripts/x.mjs` spawning them) is not read: the job text and package.json are all this sees.
+const TEST_PATH = /\btests\/[A-Za-z0-9*._-]+\.test\.(?:ts|mjs)\b/g;
+function blockingTestFiles(job: string, scripts: Record<string, string>): string[] {
+  const steps = (text: string) => text.split("\n").filter((line) => !line.trim().startsWith("#")).join("\n");
+  const reached = (text: string) => [...text.matchAll(/(?:^|[\s&|;(])pnpm[ \t]+(?:run[ \t]+)?([A-Za-z][A-Za-z0-9:_-]*)/g)].map((match) => match[1]).filter((name) => Object.hasOwn(scripts, name));
+  const texts = [steps(job)];
+  const seen = new Set<string>();
+  const queue = reached(texts[0]);
+  for (let name = queue.shift(); name !== undefined; name = queue.shift()) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    texts.push(scripts[name]);
+    queue.push(...reached(scripts[name]));
+  }
+  return [...new Set(texts.flatMap((text) => [...text.matchAll(TEST_PATH)].map((match) => match[0])))];
+}
+/** A test path with `*` (any characters but a slash) as a pattern that matches a whole file path. */
+const blockingTestPatterns = (names: string[]) => names.map((name) => new RegExp(`^${name.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*")}$`));
+
 test("a valid list and an empty quarantine file have no problems; a repository without either file is not under the rule", () => {
   noProblems();
   const bare = mkdtempSync(path.join(tmpdir(), "molis-subset-bare-"));
@@ -261,16 +283,53 @@ test("on this repository: the list and the quarantine file are valid, the i18n t
   assert.ok(smokes.length >= BROWSER_SMOKES.min && smokes.length <= BROWSER_SMOKES.max, smokes.map((item) => item.file).join(", "));
   assert.ok(plan.entries.length > 100, "the list is the user-flow part of the suite, not a handful of files");
   assert.ok(smokes.every((item) => /\.e2e\.test\.ts$/.test(item.file)), "the smokes are browser tests by name");
-  // No file of the list is also run by the blocking job: the subset adds to what that job checks. The blocking job names its test files
-  // in ci.yml and in the `test:contracts` script (some as globs), so both are read and the globs expanded.
+  // No file of the list is also run by the blocking job: the subset adds to what that job checks. What the job runs is read from its
+  // steps in ci.yml and from the root package.json scripts those steps reach through `pnpm <script>` (blockingTestPatterns).
   const workflow = readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
   const blocking = workflow.slice(workflow.indexOf("  architecture-boundaries:"), workflow.indexOf("  secret-scan:"));
-  const contracts = String(JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")).scripts["test:contracts"]);
-  const named = [...`${blocking}\n${contracts}`.matchAll(/\btests\/[A-Za-z0-9*._-]+\.test\.(?:ts|mjs)\b/g)].map((match) => match[0]);
+  const scripts = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")).scripts as Record<string, string>;
+  const named = blockingTestFiles(blocking, scripts);
   assert.ok(named.length > 20, "the blocking job's test files were found");
-  const patterns = named.map((name) => new RegExp(`^${name.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*")}$`));
+  // The reading itself is checked on the real job: files only a nested script names (`workspace:verify` runs `boundary:test`), a glob, a file a step names.
+  for (const found of ["tests/package-owners.test.mjs", "tests/workbench-registration-boundaries.test.mjs", "tests/action-*.test.ts", "tests/ci-product-subset.test.ts", "tests/goals-query-boundaries.test.mjs"]) {
+    assert.ok(named.includes(found), `the reading of the blocking job finds ${found}`);
+  }
+  const patterns = blockingTestPatterns(named);
   const duplicated = plan.entries.filter((item) => patterns.some((pattern) => pattern.test(item.file))).map((item) => item.file);
   assert.deepEqual(duplicated, [], "the blocking job runs these files itself; the subset need not run them again");
+});
+
+test("blockingTestFiles: follows pnpm scripts to any depth, leaves package filters, comments and other commands alone", () => {
+  const job = [
+    "  architecture-boundaries:",
+    "    steps:",
+    "      # pnpm hidden-by-comment would run tests/commented.test.ts",
+    "      - name: Install pnpm",
+    "        run: npm install --global pnpm@1",
+    "      - name: Verify",
+    "        run: pnpm outer",
+    "      - name: By run",
+    "        run: pnpm run viaRun --flag",
+    "      - name: Named in the step",
+    "        run: node scripts/run-tests.mjs tests/in-step.test.ts tests/glob-*.test.ts",
+    "      - name: Package scripts are not root scripts",
+    "        run: pnpm --filter @scope/pkg test",
+    "      - name: Other tools",
+    "        run: pnpm exec tsc --noEmit",
+  ].join("\n");
+  const scripts = {
+    outer: "pnpm middle && node scripts/x.mjs",
+    middle: "pnpm --filter @scope/pkg test && node --test tests/deep-one.test.mjs tests/deep-two.test.mjs",
+    viaRun: "node scripts/run-tests.mjs tests/via-run.test.ts",
+    test: "node scripts/run-tests.mjs tests/everything-else.test.ts",
+    unreached: "node scripts/run-tests.mjs tests/unreached.test.ts",
+  };
+  assert.deepEqual(blockingTestFiles(job, scripts).sort(), ["tests/deep-one.test.mjs", "tests/deep-two.test.mjs", "tests/glob-*.test.ts", "tests/in-step.test.ts", "tests/via-run.test.ts"]);
+  const patterns = blockingTestPatterns(["tests/glob-*.test.ts", "tests/in-step.test.ts"]);
+  assert.ok(patterns.some((pattern) => pattern.test("tests/glob-anything.test.ts")));
+  assert.ok(patterns.some((pattern) => pattern.test("tests/in-step.test.ts")));
+  assert.ok(!patterns.some((pattern) => pattern.test("tests/glob-sub/dir.test.ts") || pattern.test("tests/in-step.test.mjs")));
+  assert.deepEqual(blockingTestFiles("      - run: pnpm loop", { loop: "pnpm loop && node --test tests/once.test.mjs" }), ["tests/once.test.mjs"], "a script that names itself does not loop");
 });
 
 test("the two test files of the subset carry none of the Linux probe's marks, so the probe runs them as the plain files they are", () => {

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
+import { runFile } from "../scripts/ci-linux-probe/run.mjs";
 import { failing, FAILING, STATUSES, summaryMarkdown, totals } from "../scripts/ci-product-subset/report.mjs";
 
 // specs/repository-anti-corruption §4.7 (W2-16, decision #14): the runner of the CI product subset (scripts/ci-product-subset.mjs)
@@ -33,6 +34,9 @@ const skipping = spec('test("a", { skip: "no Chrome here" }, () => {});\ntest("b
 const sleeping = (seconds: number) => spec(`test("takes ${seconds} s", async () => { await new Promise((resolve) => setTimeout(resolve, ${seconds * 1000})); });`);
 // Fails on its first attempt only: the marker file is in the state directory the runs share.
 const flakyOnce = (name: string) => spec(`test("fails once", () => {\n  const marker = \`\${process.env.SUBSET_STATE}/${name}-seen\`;\n  if (!existsSync(marker)) { writeFileSync(marker, "1"); assert.fail("first attempt"); }\n});`);
+
+// Fails on its first attempt, and on the next ones every test is skipped: a retry that verifies nothing.
+const failThenSkip = (name: string) => spec(`const marker = \`\${process.env.SUBSET_STATE}/${name}-seen\`;\nconst seen = existsSync(marker);\nif (!seen) writeFileSync(marker, "1");\ntest("fails, then skips", { skip: seen }, () => assert.fail("first attempt"));`);
 
 const CODEOWNERS = "# fixture\n* @alice\n/plugins/ @alice @bob\n";
 const entry = (file: string, over: Record<string, string> = {}) => ({ file, owner: "@alice", since: "2026-10-01", expires: "2026-10-20", reason: "fails one run in five on Linux, seen in run 123", ...over });
@@ -186,9 +190,12 @@ test("a flaky pass and a failing quarantined file or smoke leave the run green w
 
 // ---- the time budgets ------------------------------------------------------------------------------------------------------------
 test("the time budget stops new files from starting, and a file that was never reached fails the run", () => {
-  const files = { ...basics(), "tests/a-sleep.test.ts": sleeping(2), "tests/b-after.test.ts": passing, "tests/held-late.test.ts": passing };
+  const files = { ...basics(), "tests/a-sleep.test.ts": sleeping(2), "tests/b-after.test.ts": passing, "tests/held-late.test.ts": passing, "tests/held-smoke.e2e.test.ts": passing };
   // a-sleep is the first of the other files; it takes longer than the whole budget (0.6 s), so nothing after it is started
-  const root = scratch({ files, list: ["tests/a-sleep.test.ts", "tests/b-after.test.ts", ...BASIC_LIST, "tests/held-late.test.ts"], quarantine: [entry("tests/held-late.test.ts", { expires: "2026-10-20" })] });
+  const root = scratch({
+    files, list: ["tests/a-sleep.test.ts", "tests/b-after.test.ts", ...BASIC_LIST, "tests/held-late.test.ts", "tests/held-smoke.e2e.test.ts"],
+    quarantine: [entry("tests/held-late.test.ts", { expires: "2026-10-20" }), entry("tests/held-smoke.e2e.test.ts", { expires: "2026-10-20" })],
+  });
   const run = subset(root, ["--jobs", "1", "--budget-minutes", "0.01", "--timeout-seconds", "30", "--today", "2026-10-09"]);
   assert.equal(run.code, 1, run.text);
   assert.equal(byFile(run.report, "a-sleep.test.ts").status, "pass");
@@ -199,6 +206,8 @@ test("the time budget stops new files from starting, and a file that was never r
   }
   assert.equal(byFile(run.report, "held-late.test.ts").status, "not-run", "a quarantined file gets only what is left");
   assert.equal(byFile(run.report, "held-late.test.ts").counted, false);
+  assert.equal(byFile(run.report, "held-smoke.e2e.test.ts").status, "not-run", "a quarantined smoke gets only what is left of the other files' budget too, not the smokes' (which has no end here)");
+  assert.equal(byFile(run.report, "held-smoke.e2e.test.ts").counted, false);
   assert.match(run.text, /2 counted files did not pass:\n- tests\/b-after\.test\.ts \(not-run\)\n- tests\/i18n\.test\.ts \(not-run\)/, "a file never reached fails the run, a quarantined one does not");
   assert.match(section(run.summary, "Not run"), /tests\/b-after\.test\.ts/);
   assert.match(section(run.summary, "Not run"), /time budget of the phase was used up/);
@@ -206,13 +215,15 @@ test("the time budget stops new files from starting, and a file that was never r
 });
 
 test("the smokes have their own budget and their own time limit, and run one at a time", () => {
-  const files = { ...basics(), "tests/smoke-a.e2e.test.ts": sleeping(2), "tests/smoke-b.e2e.test.ts": sleeping(30), "tests/ok.test.ts": sleeping(3) };
+  // Timing, with room on both sides for a loaded machine: smoke-a is only a start-up (one to a few seconds) and has to end before the
+  // smoke budget (6 s) so that smoke-b starts; smoke-b then runs until its own limit (8 s), which is past that budget however fast smoke-a was.
+  const files = { ...basics(), "tests/smoke-b.e2e.test.ts": sleeping(30), "tests/ok.test.ts": sleeping(3) };
   const root = scratch({ files, list: [...BASIC_LIST, "tests/ok.test.ts"] });
-  const run = subset(root, ["--browser-timeout-seconds", "5", "--timeout-seconds", "60", "--browser-budget-minutes", "0.1", "--jobs", "2"]);
+  const run = subset(root, ["--browser-timeout-seconds", "8", "--timeout-seconds", "60", "--browser-budget-minutes", "0.1", "--jobs", "2"]);
   assert.equal(run.code, 1, run.text);
   assert.equal(byFile(run.report, "smoke-a.e2e.test.ts").status, "pass");
-  assert.equal(byFile(run.report, "smoke-b.e2e.test.ts").status, "timeout", "a smoke is stopped at the smoke limit (5 s), not the 60 s of the other files");
-  assert.ok((byFile(run.report, "smoke-b.e2e.test.ts").seconds ?? 99) < 15);
+  assert.equal(byFile(run.report, "smoke-b.e2e.test.ts").status, "timeout", "a smoke is stopped at the smoke limit (8 s), not the 60 s of the other files");
+  assert.ok((byFile(run.report, "smoke-b.e2e.test.ts").seconds ?? 99) < 20);
   assert.equal(byFile(run.report, "smoke-c.e2e.test.ts").status, "not-run", "the smoke budget (6 s) was used up by then");
   assert.equal(byFile(run.report, "ok.test.ts").status, "pass", "the other files are under their own limit and budget");
   assert.ok(run.report!.phases.browser > 0 && run.report!.phases.other > 0);
@@ -224,6 +235,29 @@ test("a smoke whose tests all skip (no Chrome on the machine) fails the run like
   assert.equal(run.code, 1, run.text);
   assert.equal(byFile(run.report, "smoke-c.e2e.test.ts").status, "skipped");
   assert.match(section(run.summary, "Skipped everything"), /tests\/smoke-c\.e2e\.test\.ts/);
+});
+
+test("a retry that runs no test does not turn a failure into a pass, and no retry starts once the time budget is used up", async () => {
+  process.env.SUBSET_STATE = state;
+  const root = scratch({
+    files: { ...basics(), "tests/fail-skip.test.ts": failThenSkip("retry-skip"), "tests/fail.test.ts": failingTest, "tests/flaky-a.test.ts": flakyOnce("retry-a"), "tests/flaky-b.test.ts": flakyOnce("retry-b") },
+    list: BASIC_LIST,
+  });
+  const run = (name: string, deadline: number) => runFile(root, { file: `tests/${name}`, marks: [] }, { timeoutMs: 60_000, retries: 1, deadline });
+  const skipped = await run("fail-skip.test.ts", Infinity);
+  assert.equal(skipped.status, "fail", "the retry skipped everything, which confirms nothing: the first failure stands");
+  assert.equal(skipped.attempts, 2);
+  assert.match(skipped.detail ?? "", /first attempt[\s\S]*the retry ran no test/);
+  const flaky = await run("flaky-a.test.ts", Date.now() + 120_000);
+  assert.equal(flaky.status, "flaky", "a retry that passes is flaky while there is budget");
+  assert.equal(flaky.attempts, 2);
+  // The same file, the budget already used up when its first attempt fails: no second attempt, so it fails (it would have passed on the retry).
+  const spent = await run("flaky-b.test.ts", Date.now() - 1);
+  assert.equal(spent.status, "fail");
+  assert.equal(spent.attempts, 1, "no attempt starts after the budget");
+  assert.match(spent.detail ?? "", /first attempt[\s\S]*not retried again: the time budget was used up/);
+  const nothing = await run("fail.test.ts", Date.now() - 1);
+  assert.equal(nothing.attempts, 1);
 });
 
 // ---- a run that CI cancels -------------------------------------------------------------------------------------------------------
@@ -385,7 +419,8 @@ test("only a counted file with a failing result fails the subset; a quarantined 
 // ---- the job in ci.yml -----------------------------------------------------------------------------------------------------------
 // Decision #14: for about two weeks the product subset informs and does not block; then it joins Verify by being one of its needs,
 // which leaves the required check as it is. Until then these lines of .github/workflows/ci.yml must stay as they are; carrying the
-// decision out means changing the two tests below in the same pull request.
+// decision out means changing the first of the two tests below in the same pull request (the second, the blocking job running the
+// subset's own rules, stays true after the join).
 const workflow = readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
 const jobBlock = (name: string) => {
   const lines = workflow.split("\n");
@@ -409,6 +444,14 @@ test("ci.yml: the product subset is an ubuntu job that cannot fail the workflow,
   const browserBudget = Number(/--browser-budget-minutes (\d+(?:\.\d+)?)/.exec(job)?.[1]);
   assert.ok(budget > 0 && browserBudget > 0, "both time budgets are given");
   assert.ok(timeout >= budget + browserBudget + 5, `the job limit (${timeout}) leaves room for install, build and both budgets (${budget} + ${browserBudget})`);
+  // No attempt starts after its phase's budget, so each phase ends at most one attempt after it: the smokes' budget plus one smoke attempt, then the
+  // other files' budget plus the longest attempt (the quarantined phase shares that budget and may end on a smoke). Install and build are about 2 minutes.
+  const seconds = (flag: string) => Number(new RegExp(`(?<![\\w-])${flag} (\\d+(?:\\.\\d+)?)`).exec(job)?.[1]);
+  const attempt = seconds("--timeout-seconds") / 60;
+  const smokeAttempt = seconds("--browser-timeout-seconds") / 60;
+  assert.ok(attempt > 0 && smokeAttempt > 0, "both per-file time limits are given");
+  const worst = 2 + (browserBudget + smokeAttempt) + (budget + Math.max(attempt, smokeAttempt));
+  assert.ok(timeout >= worst, `the job limit (${timeout} min) holds the worst case: 2 for install and build, the smokes' budget and a last smoke attempt, the other files' budget and a last attempt = ${worst} min`);
   assert.ok(budget + browserBudget <= 25, "the job stays about as long as the blocking one (about 20 minutes), so joining Verify does not lengthen the check");
   const needs = workflow.split("\n").filter((line) => /^\s*needs:/.test(line));
   assert.ok(needs.every((line) => !line.includes("product-subset")), `no job needs product-subset yet: ${needs.join(" | ")}`);

@@ -1,4 +1,3 @@
-export { createWorkbenchDecisionCenterRenderer, type WorkbenchDecisionGroup } from "./decision-center.js";
 export { renderSideViewDocument, type SideViewDocumentInput, type SideViewModel } from "./side-view-document.js";
 export { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
 export { renderWorkbenchPlanningRequest } from "./goals-planning-request.js";
@@ -17,10 +16,6 @@ export {
   buildGoalsNavigationItems,
   createGoalActionPresenter,
   createGoalStateExplainer,
-  createGoalsDecisionPresentation,
-  createGoalsDecisionResults,
-  decisionGroupCount,
-  decisionTypeCounts,
   displayedPassedCriterionIds,
   findGoalView,
   firstBlockedDescendant,
@@ -48,7 +43,6 @@ export {
   type GoalDocumentCollection,
   type GoalPresentationState,
   type GoalsDecisionEvent,
-  type GoalsDecisionGroup,
   type GoalsDocumentView,
   type GoalsInputBinding,
   type GoalsPlanningPrimitives,

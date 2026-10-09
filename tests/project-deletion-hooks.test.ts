@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID, createMolisWorkLocalHost, projectDeletedHooksFor, type ProjectDeletedOwner } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, EN, createMolisWorkLocalHost, projectDeletedHooksFor, type ProjectDeletedOwner } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 type Catalog = Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
@@ -266,4 +266,39 @@ test("the delete dialog lists what goes with the project, and the web deletion r
   assert.deepEqual(result.deletion.owner_steps.filter(step => step.owner_id === "test-web"), [{ owner_id: "test-web", state: "complete", error: null, updated_at: result.deletion.owner_steps.find(step => step.owner_id === "test-web")!.updated_at }]);
   assert.deepEqual(owner.calls, [project.project_id]);
   assert.equal(existsSync(project.database_path), false);
+});
+
+test("an English request gets the dialog's sentence and every plugin's data label in English, from the owners' own tables", async t => {
+  const { project, origin } = await webFixture(t);
+  const scopePath = `/api/settings/projects/${project.project_id}/delete-scope`;
+  const english = { headers: { cookie: "molis_work_locale=en" } };
+  type Scope = { owners: Array<{ owner_id: string; label: string }> };
+  const zh = await (await fetch(origin + scopePath)).json() as Scope;
+  const en = await (await fetch(origin + scopePath, english)).json() as Scope;
+
+  // The labels are the owners' Chinese words: the person's language is picked at this route, with the served catalog.
+  assert.ok(zh.owners.length >= 9, "the plugins of this Home name the data they keep");
+  assert.deepEqual(en.owners.map(owner => owner.owner_id), zh.owners.map(owner => owner.owner_id));
+  for (const [index, owner] of zh.owners.entries()) {
+    assert.ok(EN[owner.label], `${owner.label} has an English text`);
+    assert.equal(en.owners[index]!.label, EN[owner.label]);
+    assert.notEqual(en.owners[index]!.label, owner.label, `${owner.owner_id} is shown in English`);
+  }
+  // Each of the owners' own tables reaches the dialog (not a copy kept by the Host).
+  const labels = new Map(en.owners.map(owner => [owner.owner_id, owner.label]));
+  assert.equal(labels.get("pages"), "Pages documents and folders");
+  assert.equal(labels.get("form"), "Forms and every answer they received");
+  assert.equal(labels.get("dataset"), "Dataset tables");
+  assert.equal(labels.get("ppt"), "PPT presentations");
+  assert.equal(labels.get("workflows"), "Workflows and their runs");
+  assert.equal(labels.get("todo"), "Todos placed in this project");
+  assert.equal(labels.get("functions"), "Function bindings and judgments made in this project");
+  assert.equal(labels.get("images"), "Image jobs and the pictures they made");
+
+  const dialog = (response: string) => response.slice(response.indexOf("data-project-delete-scope"));
+  const chinese = dialog(await (await fetch(`${origin}/projects/${project.project_id}/settings/general?embed=1`)).text());
+  const englishDialog = dialog(await (await fetch(`${origin}/projects/${project.project_id}/settings/general?embed=1`, english)).text());
+  assert.match(chinese, /各插件里属于这个项目的数据也会一起删除。/);
+  assert.match(englishDialog, /Data that plugins keep for this project is deleted with it\./);
+  assert.doesNotMatch(englishDialog.slice(0, englishDialog.indexOf("</p>")), /各插件里属于这个项目的数据也会一起删除。/);
 });

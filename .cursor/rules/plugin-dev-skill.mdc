@@ -10,6 +10,8 @@ alwaysApply: false
 
 涉及调模型、跑 Agent、提示词、模型设置或 `horizontal/agent-host` 时，另读 `skills/molis-prologue-ai/SKILL.md`（手册 `docs/platform/PROLOGUE-AI.md`）。
 
+改 `skills/molis-plugin-dev/` 里创作台挂载的章节（`apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`）、`plugins/native/plugin-builder/src/agent-prompts.ts` 或设计答卷的整理与校验，就是在改生成插件的做法：跑 `pnpm studio:replay`，再按 `docs/platform/STUDIO-SKILL-REPLAY.md` 在隔离 Home 里跑 `pnpm studio:replay smoke`。
+
 合同或装配边界变了（新 Manifest 字段、MCP 闸门、动作录取、Slot、kind 语义、Host 接线位置），同一任务内更新：
 
 1. `skills/molis-plugin-dev/`（SKILL.md 或对应 reference）

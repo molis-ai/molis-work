@@ -96,5 +96,8 @@ export const FEED_EN: Record<string, string> = {
   "查看全部": "Show all",
   "未读内容已经读完了": "You're all caught up",
   "还没有保存的资料": "Nothing saved yet",
-  "这个来源还没有消息，拉取后会出现在这里": "No messages from this source yet. They appear here after a pull."
+  "这个来源还没有消息，拉取后会出现在这里": "No messages from this source yet. They appear here after a pull.",
+  // plugins/native/feed/src/ui.ts
+  "仅建议": "Suggest only",
+  "已启用，正在检查判断能力": "Enabled; checking the judgment capability",
 };

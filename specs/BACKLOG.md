@@ -47,6 +47,7 @@
 | BL-021 | macOS 公开发布：是否申请 Developer ID 与公证 | [macos-desktop-release](archive/macos-desktop-release/spec.md) | 外部账号与费用 | 低 |
 | BL-022 | 多人协作项目里项目记忆的可见性；团队共享记忆 | [memory-system §3、§15](archive/memory-system/spec.md) | 等协作能力定型 | 低 |
 | BL-023 | Coding 会话的执行目录（项目偏好）与 Files/Git 浏览目录（项目设置）是否合成一个 | [coding-plugin/spec.md 第 0 节「仍未做到」](coding-plugin/spec.md) | 设计取舍 | 中 |
+| BL-123 | W2-18 决定 10 之外的触控窗口：指针为 coarse、窗口宽于 600px（平板、横过来的手机，如 852×393）时，标签条已是 44px，底栏仍按桌面画：Dock、常驻、切换器按钮高 38px（矮窗口 34px），助理输入 28px、附件 30×28px、发送 34px、项目钮 40px（`tests/touch-targets.e2e.test.ts` 在 768、1024 宽守着）。决定 10 写的是「手机宽度」；横过来的手机算不算，是你的答复要补的一句。DESIGN.md「Focus and accessibility」把它写成已知缺口，不在例外内，不得援引 | [DESIGN.md](../DESIGN.md)、[repository-anti-corruption §1](repository-anti-corruption/spec.md) | 底栏在这个宽度的高度与排版要产品判断。选项：①（推荐）`(pointer: coarse)` 下 Dock、常驻、切换器、项目钮与输入、附件、发送、助理的小按钮都提到 44px：宽于 600px 的底栏高 76px 够放，窄的触控窗口里 Dock 更早折叠成 +N；②只把输入、附件、发送放到 44px，Dock 保持 38px 并写进例外：这是决定 10 的字面做法，改动最小，底栏其余仍是缺口；③把例外扩到触控窗口，维持现状。矮窗口（高度 ≤560px，输入条只有 40px、底栏 52px）里 44px 的按钮几乎占满底栏，不论选哪项都要一并定：输入条加高，还是矮窗口不跟 | 中 |
 
 ## 3. 助理、记忆与动态交互
 
@@ -128,7 +129,7 @@
 | BL-072 | 构建期装配的 Native 插件不在版本化升级与恢复内 | [plugin-upgrades](archive/plugin-upgrades/spec.md) | 已知缺口 | 随插件装配统一解决 | BL-080 | 中 | 第二步 |
 | BL-108 | Runtime 的 MCP 启动器找不到自己 Home 的服务时：①写进 Codex 等配置的环境只有 Home、受众、Runtime，没有 Web 地址，启动器一律去 127.0.0.1:4173，常驻服务不在 4173（如开发用的 4207）就连不上；②4173 上若是另一个 Home 的服务（例如开发时用临时 Home，而 4173 是真实 Home 的常驻服务），发现能力被拒（403），启动器在 tools/list 时抛错退出，Runtime 只看到 MCP 起不来 | [post-merge-review §6.1](archive/post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02) | 已知缺口 | ①要改 Runtime 配置合同（加地址，或让启动器从 Home 读服务地址），属合同变化；②被拒时回 JSON-RPC 错误、说明「4173 上不是这个 Home 的服务」，而不是退出进程 | 无 | 中 | 未分配 |
 | BL-110 | 管理项目导航卡死：桌面 Coding 页点「管理项目」后停在原项目。网页与 desktop=1 路径都没复现，原生 WebView 路径没有现场 | [project-management-freeze](archive/project-management-freeze/spec.md) | 已知缺口 | 现场没有复现，要用户再遇到时记下项目与操作 | 无 | 低 | 未分配 |
-| BL-123 | 触控窗口里的底栏：指针为 coarse、窗口宽于 600px（平板、横过来的手机）时，标签条已是 44px，底栏仍按桌面画：Dock、常驻、切换器按钮高 38px（矮窗口 34px），助理输入 28px、附件 30×28px、发送 34px、项目钮 40px（模拟触控实测 768、1024 宽，`tests/touch-targets.e2e.test.ts` 守着）。W2-18 决定 10 只管手机宽度（底栏与标签条在 ≤600px / ≤760px 已是 44px）和桌面标题栏与底栏的有范围例外；这一块 DESIGN.md「Focus and accessibility」写成已知缺口，不在例外内，不得援引 | [DESIGN.md](../DESIGN.md)、[repository-anti-corruption §1](repository-anti-corruption/spec.md) | 已知缺口 | 底栏在这个宽度的高度与排版要产品判断。选项：①`(pointer: coarse)` 下 `--dock-btn` 与输入、附件、发送、项目钮都提到 44px，底栏高度 76px 够放，窄的触控窗口里 Dock 更早折叠成 +N；②只把输入、附件、发送放到 44px，Dock 保持 38px，写进例外；③把例外扩到触控窗口，维持现状。矮窗口（高度 ≤560px，底栏只有 52px）里 44px 的按钮几乎占满底栏，要一并定 | 无 | 中 | 未分配 |
+| BL-124 | 手机上助理输入条挤满时（390 宽：Coding 工作的方式、材料、通知同时在输入旁），岛按 `data-fit` 让没人改过的选择器把宽度让给输入，方式按钮缩成 8px 宽的一条（高仍 44px）；再加上选定的角色，输入条超出药丸约 40px。W2-18 决定 10 之前就有，决定 10 之后按钮变高了，宽度没有保证（DESIGN.md「Focus and accessibility」已写明） | [DESIGN.md](../DESIGN.md)、`apps/workbench/src/scripts/client/assistant-island.ts`（`fitComposer`） | 已知缺口 | 要决定挤满时谁先退：方式、材料或通知收进「+」菜单，或输入条在手机上自己折成两行。选项要用户拍板，不在本批做 | 无 | 低 | 未分配 |
 
 ## 8. 交给第二步（防腐整理）
 

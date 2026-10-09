@@ -1016,7 +1016,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-target[data-mode="work"] .assistant-target-main { color: var(--ink); padding-right: 4px; }
   ${ASSIST} .assistant-target-main:hover { color: var(--ink); }
   ${ASSIST} :is(.assistant-target-main, .assistant-target-clear):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; margin-right: 4px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+  ${ASSIST} .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
   ${ASSIST} .assistant-target-clear[hidden] { display: none; }
   ${ASSIST} .assistant-target-clear:hover { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} .assistant-target-clear svg { width: 12px; height: 12px; }
@@ -1362,7 +1362,11 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
     /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
-    ${ASSIST} .assistant-target { max-width: 30%; }
+    ${SHELL} .bar-composer .assistant-target[data-mode="work"] { min-width: 88px; }
+    /* Its chips are 44px targets too, like the input, attach and send: the work's chip with its mark, materials, attention, who does it. */
+    ${ASSIST} :is(.assistant-target, .assistant-target-main, .assistant-target-clear, .assistant-executor, .assistant-materials-button, .assistant-attention) { height: 44px; }
+    ${SHELL} .bar-composer :is(.assistant-executor, .assistant-materials-button, .assistant-attention) { min-width: 44px; }
+    ${ASSIST} .assistant-target-clear { width: 44px; }
     ${SHELL} .bar-start .plugin-picker { max-width: none; padding-right: 0; }
     ${SHELL} .bar-start .plugin-picker-trigger { padding: 0 8px; }
     /* On a phone the Dock beside it already shows where you are: the switcher is the door to all plugins. */
@@ -1377,7 +1381,7 @@ const CRAFT_BASE_STYLES = `
     /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
     ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }
-    ${ASSIST} .assistant-executor { flex: 0 1 auto; min-width: 28px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+    ${ASSIST} .assistant-executor { flex: 0 1 auto; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
     ${ASSIST} .assistant-executor > svg { display: none; }
     /* One chooser beside the input: the Character appears while the panel is open (to choose) or once chosen (then it
        replaces the executor, which a Character implies); search steps aside while the panel is open. */

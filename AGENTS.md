@@ -32,7 +32,6 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - 新的内置插件只走 Plugin Runtime 装配（`apps/local-host/src/project-plugins.ts` 的监督器条目）：不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往 `apps/workbench/src/builtin-plugins.ts` 加构建期条目。现存的旧路径插件名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts`，只许减少。
 - 插件只提供内容，挂在工作台的位置（目录、主区、浮层、设置、侧栏）；不出自己的整页、不开第二个浏览器标签页。例外清单见 `specs/artifact-positioning/spec.md` §4，门禁 `tests/shell-page-gate.test.ts`（CI 里跑）。
 - 成果库只收人要留存、引用的固定版本与导入文件：类型在 manifest `artifacts.produces` 声明，带显示名与 owner 的预览动作；交给别的插件的数据是过程项（`process_items.produces`），不进成果库、侧栏文件和搜索。宿主按 manifest 拒绝未声明的写入；门禁 `tests/artifact-type-gate.test.ts`、`tests/artifact-declaration-gate.test.ts`（CI 里跑）。
-- 触控下限：手机宽度下外壳（标签条、底栏、助理输入）的控件是 44px 目标；桌面窗口的标题栏与底栏只有 `DESIGN.md`「Focus and accessibility」里那一条有范围的例外，别处不得援引。改外壳控件尺寸跑 `tests/touch-targets.e2e.test.ts`。
 - `vendor/prologue-sdk/` 只放当前使用的 Prologue 包（最多再加一份在途分支的）；换新包时删掉旧包，旧包从 Git 历史取。每个 vendored 的 tgz 旁边有 `.sha256` 和 `.provenance.json`，与 tgz 不符、或包换掉后记录还留着，`pnpm health:check` 拦下；当前包的上游提交与重建步骤见该目录 README，已删的历史补丁（大小、SHA-256、git blob、基线、来源）记在 `vendor/prologue-sdk/patch-history.json`。
 - 一张表只由建它的包读写：别的包要读写就调那个包导出的函数，不直接写 SQL；几个包有意共写的表登记在 `tooling/gates/table-owners.json`（带理由；门禁 `scripts/gates/table-owners.mjs`，CI 里跑）。
 

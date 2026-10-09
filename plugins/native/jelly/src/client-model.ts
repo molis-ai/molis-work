@@ -1,7 +1,8 @@
 /** Configuration uses the Host's existing model providers and credential storage. */
 export const JELLY_MODEL_CLIENT_SCRIPT = String.raw`
+  let leftForSettings=false;
   const openModelSettings=async()=>{
-    await flushEditor();const payload=await request('GET','/api/jelly/model-settings');const settings=payload.settings||payload;
+    leftForSettings=false;await flushEditor();const payload=await request('GET','/api/jelly/model-settings');const settings=payload.settings||payload;
     let providerId=settings.selection?.provider_id||settings.effective_selection?.provider_id||settings.providers?.find((provider)=>provider.enabled!==false)?.provider_id||settings.providers?.[0]?.id||'';
     let modelId=settings.selection?.model_id||settings.effective_selection?.model_id||'';let custom=false;let apiFormat='openai-chat-completions';
     const providers=(settings.providers||[]).filter((provider)=>provider.enabled!==false);
@@ -20,7 +21,7 @@ export const JELLY_MODEL_CLIENT_SCRIPT = String.raw`
       $('[data-jelly-model-options]').innerHTML=custom?'':models().map((model)=>btn(model.display_name||model.model_id,'data-jelly-model-choice="'+esc(model.model_id)+'" aria-pressed="'+(model.model_id===modelId)+'"')).join('');
       $('[data-jelly-model-custom]').hidden=!custom;
       $('[data-jelly-model-api]').innerHTML=btn('OpenAI Chat Completions','data-jelly-api-format="openai-chat-completions" aria-pressed="'+(apiFormat==='openai-chat-completions')+'"')+btn('Anthropic Messages','data-jelly-api-format="anthropic-messages" aria-pressed="'+(apiFormat==='anthropic-messages')+'"');
-      const status=$('[data-jelly-model-status]');status.replaceChildren(document.createTextNode(L(settings.selection&&!settings.configured?'原来选择的模型已不可用，选择仍保留。请恢复连接或重新选择模型。':!providers.length&&!custom?'还没有可用模型。':settings.configured?'已有模型配置；可在这里切换 Jelly 使用的模型。':'配置后即可拆成任务。按原文逐行拆分无需模型。')));if(!providers.length&&!custom){status.append(document.createTextNode(' '));const link=document.createElement('a');link.href='/settings/models';link.textContent=tx('打开模型设置');status.append(link);}
+      const status=$('[data-jelly-model-status]');status.replaceChildren(document.createTextNode(L(settings.selection&&!settings.configured?'原来选择的模型已不可用，选择仍保留。请恢复连接或重新选择模型。':!providers.length&&!custom?'还没有可用模型。':settings.configured?'已有模型配置；可在这里切换 Jelly 使用的模型。':'配置后即可拆成任务。按原文逐行拆分无需模型。')));if(!providers.length&&!custom){status.append(document.createTextNode(' '));const link=document.createElement('a');link.href='/settings/models';link.textContent=tx('打开模型设置');link.addEventListener('click',()=>{leftForSettings=true;$('[data-jelly-dialog]').close();});status.append(link);}
     };
     const dialogBody=$('[data-jelly-dialog-body]');dialogBody.onclick=(event)=>{
       const target=event.target.closest('button');if(!target)return;
@@ -30,4 +31,5 @@ export const JELLY_MODEL_CLIENT_SCRIPT = String.raw`
     };
     genericCleanup=()=>{dialogBody.onclick=null;};paint();
   };
+  document.addEventListener('molis-work:model-ready',()=>{if(leftForSettings)void run(openModelSettings);});
 `;

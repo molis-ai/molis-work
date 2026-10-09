@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { saveFirstModel } from "./fixtures/first-model-browser.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
@@ -23,8 +24,12 @@ test("no model → settings → template → a failing check saves nothing → a
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?desktop=1` }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  // The page that asks is Cognia: with no text model it offers the link to the settings and keeps its model actions off.
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?desktop=1&openPlugin=cognia` }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'cognia' && document.querySelector('[data-cognia-action=model-settings]') && !document.querySelector('[data-cognia-action=model-settings]').hidden");
+  const cogniaState = () => evaluate<{ link: boolean; ai: boolean[] }>(`({ link: !document.querySelector('[data-cognia-action=model-settings]').hidden,
+    ai: ['synthesize', 'query'].map(action => document.querySelector('[data-cognia-action="' + action + '"]').disabled) })`);
+  assert.deepEqual(await cogniaState(), { link: true, ai: [true, true] }, "with no model, Cognia offers the link and keeps its model actions off");
   const providers = async () => (await (await fetch(origin + "/api/settings/models")).json()) as { providers: unknown[]; health: { status: string }[] };
   const setValue = (selector: string, value: string) => evaluate(`(() => { const field = document.querySelector(${JSON.stringify(selector)});
     field.value = ${JSON.stringify(value)}; field.dispatchEvent(new Event('input', { bubbles: true })); })()`);
@@ -89,6 +94,10 @@ test("no model → settings → template → a failing check saves nothing → a
     toast: document.querySelector('[data-toast]')?.textContent || '', leaked: document.documentElement.outerHTML.includes(${JSON.stringify(goodKey)}) })`);
   assert.deepEqual({ surface: back.surface, input: back.input, work: back.work }, asked, "the page shows what it showed before settings opened");
   assert.match(back.toast, /模型已连接/);
+  // The page the person returns to agrees with the toast: the failed card is gone and Cognia offers its model actions.
+  assert.equal(await evaluate("document.querySelector('[data-assistant-thread] .assistant-problem')"), null, "the card that pointed at the settings is gone");
+  await waitFor("document.querySelector('[data-cognia-action=model-settings]').hidden", 10_000);
+  assert.deepEqual(await cogniaState(), { link: false, ai: [false, false] }, "Cognia read the model again");
   assert.equal(back.leaked, false, "the key is nowhere in the page");
   const saved = await providers();
   assert.equal(saved.providers.length, 1);
@@ -127,4 +136,50 @@ test("the templates fit a phone: they wrap, nothing scrolls sideways, and a chos
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
   const shot = reviewEvidenceUrl("first-model-setup/"); await mkdir(shot, { recursive: true });
   await writeFile(new URL("5-phone-template.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+});
+
+test("Cognia in a pane beside the page: its settings link opens the settings over the panes, and the first model reaches the pane and the page", { timeout: 120_000 }, async t => {
+  const standIn = await startModelStandIn(goodKey);
+  t.after(() => standIn.close());
+  const browser = await openGoalBrowser(t, "seeded");
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?desktop=1&openPlugin=cognia` }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'cognia' && document.querySelector('[data-cognia-action=model-settings]') && !document.querySelector('[data-cognia-action=model-settings]').hidden");
+  await click("[data-titlebar-tabs]:not([hidden]) [data-tab-split], .tab-pane.is-focused [data-tab-split]");
+  await click("[data-layout-split=right]");
+  const pane = "document.querySelector('iframe.tab-content-frame')?.contentDocument";
+  const link = `${pane}?.querySelector('[data-cognia-action=model-settings]')`;
+  await waitFor(`${link} && !${link}.hidden`, 20_000);
+  const hidden = () => evaluate<{ page: boolean; pane: boolean }>(`({ page: document.querySelector('[data-cognia-action=model-settings]').hidden, pane: ${pane}.querySelector('[data-cognia-action=model-settings]').hidden })`);
+  assert.deepEqual(await hidden(), { page: false, pane: false });
+
+  // The pane's own link is relayed to the page, which opens the settings over the panes.
+  await evaluate(`${link}.click()`);
+  await waitFor("document.body.dataset.desktopSurface === 'settings'", 10_000);
+  await saveFirstModel(browser, standIn.baseUrl);
+  await waitFor("document.body.dataset.desktopSurface !== 'settings'", 15_000);
+  assert.match(await evaluate<string>("document.querySelector('[data-toast]')?.textContent || ''"), /模型已连接/, "the pane's link was a page's way of sending the person: the settings give way to the panes");
+  await waitFor(`${pane}.querySelector('[data-cognia-action=model-settings]').hidden && document.querySelector('[data-cognia-action=model-settings]').hidden`, 10_000);
+  assert.deepEqual(await hidden(), { page: true, pane: true }, "the pane in its own frame and the page both read the model again");
+  assert.equal(await evaluate(`${pane}.querySelector('[data-cognia-action=synthesize]').disabled`), false);
+});
+
+test("settings reached by address (a new tab from onboarding) stay where they are after the first model: no page here sent the person", { timeout: 120_000 }, async t => {
+  const standIn = await startModelStandIn(goodKey);
+  t.after(() => standIn.close());
+  const browser = await openGoalBrowser(t, "seeded");
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, origin } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  // A link that opens in a new tab is a plain address; with a project it lands in that project's workbench with the settings open.
+  await navigate(() => command("Page.navigate", { url: `${origin}/settings/models` }, sessionId));
+  await waitFor("document.querySelector('[data-cover-chip=settings]') && document.querySelector('[data-model-settings] [data-model-template]')", 15_000);
+  await saveFirstModel(browser, standIn.baseUrl);
+  await waitFor("/连接检查通过/.test(document.querySelector('[data-model-status]')?.textContent || '')", 15_000);
+  await new Promise(resolve => setTimeout(resolve, 600));
+  assert.deepEqual(await evaluate(`({ cover: document.querySelector('[data-cover-chip]')?.dataset.coverChip, toast: document.querySelector('[data-toast]')?.textContent || '' })`),
+    { cover: "settings", toast: "" }, "the cover is still open and says nothing about carrying on: the page that waits is in the other tab");
+  assert.equal(((await (await fetch(origin + "/api/settings/models")).json()) as { providers: unknown[] }).providers.length, 1);
 });

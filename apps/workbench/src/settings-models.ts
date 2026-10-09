@@ -116,7 +116,7 @@ function renderEmptyDetail(p: ModelSettingsPrimitives): string {
 /** One click per common provider; the form it opens is the same one a hand-made provider uses. */
 function renderTemplateChoices(p: ModelSettingsPrimitives, chosen: string | null): string {
   return `<div class="mw-choice-group" role="group" aria-label="${p.L("常用供应商")}">${MODEL_PROVIDER_TEMPLATES.map((template) => renderChoice({
-    label: template.display_name, selected: template.template_id === chosen, attrs: { "data-model-template": template.template_id },
+    label: p.L(template.display_name), selected: template.template_id === chosen, attrs: { "data-model-template": template.template_id },
   })).join("")}</div>`;
 }
 
@@ -168,7 +168,7 @@ function renderProviderDetail(provider: ModelProviderRecord, model: ModelSetting
 /** A new provider starts from a template or from nothing; what the template cannot know is named, not guessed. */
 function renderDraftTemplates(model: ModelSettingsModel, p: ModelSettingsPrimitives): string {
   const template = modelProviderTemplate(model.draft_template_id);
-  const name = template === null ? "" : p.escape(template.display_name);
+  const name = template === null ? "" : p.escape(p.L(template.display_name));
   const note = template === null ? "" : template.base_url === "" ? p.L("{name} 的格式已经选好，还差 Base URL、API Key 和模型 ID。", { name })
     : template.model_ids.length === 0 ? p.L("{name} 的地址和格式已经填好，还差 API Key 和模型 ID。", { name })
     : p.L("{name} 的地址、格式和模型已经填好，还差 API Key。", { name });

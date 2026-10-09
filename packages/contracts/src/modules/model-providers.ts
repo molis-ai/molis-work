@@ -72,6 +72,11 @@ export interface ModelProviderRecord {
 export interface ModelProviderTemplate {
   /** Lower-case key used in the settings address (`?template=`). Not a provider id: saving mints a fresh one. */
   template_id: string;
+  /**
+   * The name shown on the choice and saved as the provider's name. Written the way every interface text is: the
+   * Chinese wording is the key the UI translator looks up (English lives in the Workbench's dictionary); a brand name
+   * with no Chinese in it is the same in every language.
+   */
   display_name: string;
   base_url: string;
   api_format: ModelApiFormat;
@@ -88,12 +93,12 @@ export const MODEL_PROVIDER_TEMPLATES: readonly ModelProviderTemplate[] = [
   { template_id: "openai", display_name: "OpenAI", base_url: "https://api.openai.com/v1", api_format: "openai-chat-completions", model_ids: [] },
   { template_id: "deepseek", display_name: "DeepSeek", base_url: "https://api.deepseek.com", api_format: "openai-chat-completions", model_ids: ["deepseek-chat"] },
   { template_id: "minimax", display_name: "MiniMax", base_url: "https://api.minimaxi.com/anthropic", api_format: "anthropic-messages", model_ids: ["MiniMax-M3"] },
-  { template_id: "qwen", display_name: "Qwen (Alibaba Cloud)", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", api_format: "openai-chat-completions", model_ids: ["qwen-plus"] },
-  { template_id: "kimi", display_name: "Kimi (Moonshot)", base_url: "https://api.moonshot.cn/v1", api_format: "openai-chat-completions", model_ids: [] },
-  { template_id: "glm", display_name: "GLM (Zhipu)", base_url: "https://open.bigmodel.cn/api/paas/v4", api_format: "openai-chat-completions", model_ids: [] },
+  { template_id: "qwen", display_name: "通义千问（阿里云）", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", api_format: "openai-chat-completions", model_ids: ["qwen-plus"] },
+  { template_id: "kimi", display_name: "Kimi（月之暗面）", base_url: "https://api.moonshot.cn/v1", api_format: "openai-chat-completions", model_ids: [] },
+  { template_id: "glm", display_name: "GLM（智谱）", base_url: "https://open.bigmodel.cn/api/paas/v4", api_format: "openai-chat-completions", model_ids: [] },
   { template_id: "openrouter", display_name: "OpenRouter", base_url: "https://openrouter.ai/api/v1", api_format: "openai-chat-completions", model_ids: [] },
-  { template_id: "anthropic-compatible", display_name: "Anthropic-compatible", base_url: "", api_format: "anthropic-messages", model_ids: [] },
-  { template_id: "openai-compatible", display_name: "OpenAI-compatible", base_url: "", api_format: "openai-chat-completions", model_ids: [] },
+  { template_id: "anthropic-compatible", display_name: "Anthropic 兼容", base_url: "", api_format: "anthropic-messages", model_ids: [] },
+  { template_id: "openai-compatible", display_name: "OpenAI 兼容", base_url: "", api_format: "openai-chat-completions", model_ids: [] },
 ];
 
 /** The template an address names, or null for anything else (an unknown id opens the blank form). */

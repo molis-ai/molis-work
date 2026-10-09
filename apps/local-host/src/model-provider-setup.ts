@@ -25,7 +25,7 @@ export function modelProviderDraft(templateId: string | null | undefined): { pro
     template_id: template?.template_id ?? null,
     provider: {
       provider_id: template ? `${template.template_id}-${randomUUID().slice(0, 8)}` : `custom-${randomUUID()}`,
-      display_name: template?.display_name ?? "新供应商", base_url: template?.base_url ?? "",
+      display_name: L(template?.display_name ?? "新供应商"), base_url: template?.base_url ?? "",
       api_format: template?.api_format ?? "anthropic-messages", credential_ref: "", enabled: true, prompt_cache: "off",
       models: template && models.length === 0 ? [{ model_id: "", enabled: true }] : models, created_at: "", updated_at: "",
     },
@@ -91,8 +91,9 @@ export function planConnectionCheck(catalog: MolisWorkProjectCatalog, home: stri
       return store.resolveToken(connection.connection_id, "model-api");
     });
   }
-  // A provider saved before connections existed holds its key under its own reference, not in a connection.
-  apiKey ||= catalog.models.resolveConfiguration({ provider_id: save.provider_id })?.api_key ?? "";
+  // A key is usable only through a connection pinned to the provider's address (the 2026-10-05 decision, 6fabc13e6): a
+  // provider whose reference has no connection has no key to check with, and a Run would refuse it as well. The person
+  // types the key again, which makes the connection.
   if (!apiKey.trim()) throw new Error(L("读不到已保存的密钥，请重新填写 API Key"));
   const target = added ?? enabled[0];
   const model = record.models.find((entry) => entry.model_id === target);

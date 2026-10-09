@@ -8,6 +8,7 @@ import path from "node:path";
 import { MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 
 /**
  * First-time model setup, through the production routes: the templates the settings page offers, and the one connectivity
@@ -241,6 +242,85 @@ test("连不上、没填模型 ID、没要求检查：各自的结果", async ()
       assert.equal(standIn.requests.length, 0);
     });
   } finally { await standIn.close(); }
+});
+
+test("没有连接的供应商不能借检查把旧密钥发到新地址：改了地址就要重新填 API Key，没有任何请求发出", async () => {
+  const pinned = await startModelStandIn(goodKey);
+  const other = await startModelStandIn(goodKey);
+  try {
+    await withHost(async ({ save, providers, connections, root }) => {
+      // A provider from before connections: its key sits under its own reference and no connection holds it.
+      const home = path.join(root, "home");
+      const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
+      const { runWithMolisWorkHome, createFileSecretStore } = await import("@molis-ai/molis-work-storage");
+      await runWithMolisWorkHome(home, () => withMolisWorkProjectCatalog({ homeDirectory: home }, (catalog) => {
+        createFileSecretStore().put("legacy-slot-key", goodKey);
+        catalog.models.upsert({ credential_ref: "legacy-slot-key", provider_id: "legacy", display_name: "旧供应商", base_url: pinned.baseUrl,
+          api_format: "openai-chat-completions", models: [{ model_id: "m", enabled: true }] });
+      }));
+      assert.deepEqual(await connections(), [], "the provider has no connection");
+      const models = [{ model_id: "m", enabled: true }];
+
+      // The address changes and no key is typed: the old key is not read, not sent, and the form says what to do.
+      const moved = await save("legacy", form(other.baseUrl, models, { check_connection: true }));
+      assert.equal(moved.status, 400);
+      assert.match(String(moved.json.error), /读不到已保存的密钥，请重新填写 API Key/);
+      assert.equal(moved.text.includes(goodKey), false);
+      assert.equal(other.requests.length, 0, "nothing reached the newly typed address");
+      assert.equal(pinned.requests.length, 0, "nothing reached the old address either");
+      const unchanged = (await providers()).providers.find((entry) => entry.provider_id === "legacy");
+      assert.ok(unchanged);
+
+      // Adding a model needs a check too, and a check needs a key that a connection holds.
+      const extra = await save("legacy", form(pinned.baseUrl, [...models, { model_id: "m2", enabled: true }], { check_connection: true }));
+      assert.equal(extra.status, 400);
+      assert.equal(pinned.requests.length, 0);
+
+      // Nothing about reaching the provider changed: a rename saves without a request, as before.
+      const renamed = await save("legacy", form(pinned.baseUrl, models, { display_name: "改了名字", check_connection: true }));
+      assert.equal(renamed.status, 200, renamed.text);
+      assert.equal(renamed.json.checked, false);
+      assert.equal(pinned.requests.length, 0);
+
+      // Typing the key again is the way through: it becomes a connection pinned to the address it was checked against.
+      const retyped = await save("legacy", form(other.baseUrl, models, { api_key: goodKey, check_connection: true }));
+      assert.equal(retyped.status, 200, retyped.text);
+      assert.equal(retyped.json.checked, true);
+      assert.equal(other.requests.length, 1);
+      assert.equal(other.requests[0]!.offeredKey, goodKey);
+      assert.equal(withConnectorConnections(home, (store) => store.list("model-api").length), 1);
+    });
+  } finally { await pinned.close(); await other.close(); }
+});
+
+test("模板的名字也是界面文字：中文界面给中文名，英文界面给英文名，存下来的供应商名跟着当时的界面", async () => {
+  await withHost(async ({ html }) => {
+    const han = /\p{Script=Han}/u;
+    const named = MODEL_PROVIDER_TEMPLATES.filter((template) => han.test(template.display_name));
+    assert.deepEqual(named.map((template) => template.template_id).sort(), ["anthropic-compatible", "glm", "kimi", "openai-compatible", "qwen"],
+      "the names that carry Chinese are the ones that are not brand names alone");
+    const choiceLabels = (page: string) => [...page.matchAll(/<span class="mw-choice__label">([^<]*)<\/span>/g)].map((match) => match[1]!);
+    const zh = await html("");
+    const en = await html("", "en");
+    assert.deepEqual(choiceLabels(zh), MODEL_PROVIDER_TEMPLATES.map((template) => template.display_name), "Chinese UI: every choice carries its own Chinese or brand name");
+    assert.equal(choiceLabels(en).some((label) => han.test(label)), false, "English UI: no choice label is left in Chinese");
+    for (const label of ["Anthropic-compatible", "OpenAI-compatible", "Qwen (Alibaba Cloud)", "Kimi (Moonshot)", "GLM (Zhipu)"]) assert.ok(choiceLabels(en).includes(label), label);
+    assert.ok(choiceLabels(zh).includes("Anthropic 兼容") && choiceLabels(zh).includes("OpenAI 兼容"));
+    assert.equal(choiceLabels(zh).some((label) => /-compatible|\(/.test(label)), false, "no English-only label in the Chinese UI");
+
+    for (const template of MODEL_PROVIDER_TEMPLATES) {
+      const inZh = await html(`?new=1&template=${template.template_id}`);
+      const inEn = await html(`?new=1&template=${template.template_id}`, "en");
+      const savedName = (page: string) => /data-model-name value="([^"]*)"/.exec(page)?.[1];
+      assert.equal(savedName(inZh), template.display_name, `${template.template_id}: the name saved in the Chinese UI`);
+      assert.equal(han.test(savedName(inEn) ?? ""), false, `${template.template_id}: the name saved in the English UI is English`);
+      assert.match(inEn, /Still needed:/, `${template.template_id}: the note is English`);
+    }
+    assert.match(await html("?new=1&template=anthropic-compatible"), /Anthropic 兼容 的格式已经选好，还差 Base URL、API Key 和模型 ID。/);
+    assert.match(await html("?new=1&template=anthropic-compatible", "en"), /Anthropic-compatible: the format is chosen\. Still needed: Base URL, API key and model ID\./);
+    assert.match(await html("?new=1"), /data-model-name value="新供应商"/);
+    assert.match(await html("?new=1", "en"), /data-model-name value="New provider"/);
+  });
 });
 
 test("英文界面里，检查失败的原因也是英文", async () => {

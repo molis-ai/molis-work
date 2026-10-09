@@ -17,7 +17,7 @@
  * - `reopen`: History and the bar reopen a settings cover on the section it last showed. A place is "<section>" or "<section> <address>" (a nested page such as one role's prompts).
  * - `openGlobalSettingsFromUrl`: A project page draws root links under its own prefix; a global page named there is still the global page.
  * - `openGlobalSettingsFromUrl (moved pages)`: MCP, connectors and Functions moved to 能力; their old settings addresses open the 能力 page.
- * - `bindEmbed` (models): The first model that can run ends the setup that sent the person to settings: the page calls `ready`, the cover closes and the page shows as it was.
+ * - `molis-work:model-ready` (models): When the model settings page reports the first model that can run, this announces it on the document and into every pane frame, and each page re-reads what it showed about models. When a page of this tab sent the person to the settings (a link or a pane's relay, not the gear, not an address opened on load), the cover also closes over that page and a toast says so; a settings page opened directly (a new tab from onboarding) stays where it is.
  * - `molis-work:open-settings-section`: A plugin whose page lives in settings (角色) is opened there, from search, a link or an old tab.
  * - `?settings=`: “?settings=<section>” on the workbench address opens that settings page once the workbench has landed.
  * - `?settingsPath=`: “?settingsPath=<address>” is a settings page that was opened directly; the server sent it here to open in place.
@@ -51,6 +51,15 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       script.onerror = () => { capabilityScripts = null; script.remove(); reject(new Error(L("无法加载设置"))); };
       document.head.append(script);
     });
+  let sentFromPage = false;
+  const modelReady = () => {
+    const announce = (doc, view) => doc.dispatchEvent(new view.CustomEvent("molis-work:model-ready"));
+    announce(document, window);
+    document.querySelectorAll("iframe[data-pane-tab]").forEach((frame) => { if (frame.contentDocument) announce(frame.contentDocument, frame.contentWindow); });
+    if (!sentFromPage) return;
+    sentFromPage = false;
+    if (host.closeCover?.()) host.showToast?.(L("模型已连接，可以继续了。"));
+  };
   const bindEmbed = (root) => {
     const page = pageOf(root);
     globalThis.molisWorkBindPromptSettings?.(root, { search: root.dataset.settingsSearch || "", hash: root.dataset.settingsHash || "" });
@@ -64,7 +73,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindPlanningSettings?.(root);
     globalThis.molisWorkBindPlanningAdoption?.(root);
     globalThis.molisWorkBindShelfSettings?.(root);
-    globalThis.molisWorkBindModelSettings?.(root, { ready: () => { if (host.closeCover?.()) host.showToast?.(L("模型已连接，可以继续了。")); } });
+    globalThis.molisWorkBindModelSettings?.(root, { ready: modelReady });
     globalThis.molisWorkBindConnectorsSettings?.(root, page);
     globalThis.molisWorkBindMcpAccess?.(root, page);
     globalThis.molisWorkBindFunctionsRules?.(root, page);
@@ -256,6 +265,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     return known.includes(slug) ? slug : "";
   };
   const openShell = (kind, section, fetchPath) => {
+    sentFromPage = false;
     setDirectory?.(kind, true, true);
     setExclusive?.(kind);
     if (kind === "project-settings") {
@@ -286,7 +296,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     openProjectSettings(projectSection, nested ? url.pathname + url.search : undefined);
     return true;
   };
-  const openGlobalSettingsFromUrl = (href) => {
+  const openGlobalSettingsFromUrl = (href, fromPage) => {
     const url = new URL(href, location.origin);
     if (url.origin !== location.origin) return false;
     const global = (path) => /^\\/(settings\\/|capabilities(\\/|$))/.test(path);
@@ -304,6 +314,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       globalSettings ||= bindGlobal();
       if (!section || !globalSettings) return false;
     }
+    if (fromPage !== undefined) sentFromPage = fromPage && section === "models";
     setDirectory?.("settings", true, true);
     setExclusive?.("settings");
     if (section === "appearance" && pathname === "/settings/appearance") {
@@ -316,7 +327,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   };
   document.addEventListener("molis-work:open-settings-path", (event) => {
     const href = event.detail?.href || "";
-    if (!openProjectSettingsFromUrl(href)) openGlobalSettingsFromUrl(href);
+    if (!openProjectSettingsFromUrl(href)) openGlobalSettingsFromUrl(href, true);
   });
   const knownGlobalSection = (section) => [...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
     .some((row) => row.dataset.settingsSection === section);
@@ -337,7 +348,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     address.searchParams.delete("settingsPath");
     history.replaceState(history.state, "", address);
     const asked = new URL(requestedPath, location.origin);
-    if (openProjectSettingsFromUrl(asked.href) || openGlobalSettingsFromUrl(asked.href)) return;
+    if (openProjectSettingsFromUrl(asked.href) || openGlobalSettingsFromUrl(asked.href, false)) return;
     openShell("settings", "appearance");
   }, 0);
   document.addEventListener("click", (event) => {
@@ -362,11 +373,11 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       event.preventDefault();
       return;
     }
-    if (openGlobalSettingsFromUrl(link.href)) {
+    const inSettingsShell = link.closest("[data-work-surface=settings], [data-work-surface=project-settings], [data-directory-panel=settings], [data-directory-panel=project-settings]");
+    if (openGlobalSettingsFromUrl(link.href, !inSettingsShell)) {
       event.preventDefault();
       return;
     }
-    const inSettingsShell = link.closest("[data-work-surface=settings], [data-work-surface=project-settings], [data-directory-panel=settings], [data-directory-panel=project-settings]");
     if (!inSettingsShell) return;
     if ((link.hasAttribute("data-settings-return-workbench") || link.matches(".settings-nav-back")) && url.pathname === projectPrefix + "/") {
       event.preventDefault();

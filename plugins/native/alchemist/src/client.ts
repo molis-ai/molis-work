@@ -2,6 +2,7 @@ import { WORK_REUSE_CLIENT } from "./work-reuse/client.js";
 import { ALCHEMIST_VIEWS } from './client-views.js';
 import { ALCHEMIST_FLOWS } from './client-flows.js';
 /** Uses the same native Workbench client lifecycle and project routes as Pages. */
+// Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `publishContext`: What is on screen, for the Assistant: the direction or Idea being looked at, under the kinds system search uses. It is republished whenever the content redraws (every view sets the discussion context above as it renders).
 export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const root=document.querySelector('[data-alchemist=workbench]');if(!root)return;
   const L=host.translate, $=s=>root.querySelector(s), enc=encodeURIComponent;
@@ -18,8 +19,6 @@ export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const active=status=>['queued','running'].includes(status);
   let data={directions:[],explorations:[],ideas:[]},pulse={reports:[]},decisions={cases:[],activities:[],log:[]},runtime={models:[],configured:false},memory={taste:[],playbook:[]};
   let collection='directions',showArchived=false,current=null,model=null,research=null,decision=null,pulseBundle=null,context={kind:'surface',label:L('方向'),surface:'ideas'},target=null,selection=null,sideMode='',onSubmit=null,formBusy=false,returnFocus=null,seq=0,loadSeq=0,loaded=false,pollTimer,detailSignature='',lastRow=null;
-  // What is on screen, for the Assistant: the direction or Idea being looked at, under the kinds system search uses. It is
-  // republished whenever the content redraws (every view sets the discussion context above as it renders).
   let shownContext='';
   const publishContext=()=>{const c={plugin_id:'io.molis.work.alchemist',surface_title:L('炼金术士')};
     if(context.kind==='direction'&&context.directionId)c.object={kind:'alchemist-direction',id:context.directionId,title:context.label||''};
@@ -33,6 +32,7 @@ export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   function setTitle(title){$('[data-alc-title]').textContent=title;}
 `+WORK_REUSE_CLIENT+ALCHEMIST_VIEWS+ALCHEMIST_FLOWS+String.raw`
   async function load(){const n=++loadSeq;const values=await Promise.all([api('/bootstrap'),api('/pulse/reports'),api('/decisions'),api('/settings/runtime')]);if(n!==loadSeq)return;[data,pulse,decisions,runtime]=values;loaded=true;renderList();schedule();}
+  document.addEventListener('molis-work:model-ready',()=>{if(loaded)load().then(()=>current&&open(current,false)).catch(e=>notice(e.message,true));});
   function closeDetail(){seq++;current=null;target=null;selection=null;side.hidden=true;sideMode='';root.dataset.expanded='false';$('[data-alc-workspace]').hidden=true;renderList();persist();lastRow?.isConnected&&lastRow.focus();}
   async function open(next,save=true){
     if(!next)return;const n=++seq;const changed=!sameCurrent(next);current={...next};detailSignature='';selection=null;if(changed){side.hidden=true;sideMode='';target=null;research=null;$('[data-alc-action=annotations]').hidden=true;content.scrollTop=0;}

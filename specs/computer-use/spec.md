@@ -89,8 +89,10 @@
 - [x] Molis 桌面驱动与会话装配：`HostSurfaceDriver` 桌面一支、一轮同时挂浏览器与桌面、分级与禁区、确认卡（含「本轮内允许」）、记录、拉起与协议、权限引导
 - [x] 「电脑」标签、助理设置（总开关默认关、禁区、权限引导）、记录进「文件」
 - [x] 对话步骤展示（`presentActivity`，桌面与浏览器共用 surface-* 工具）
-- [x] 整体 `pnpm build`、`pnpm boundary:check` 通过；`pnpm health:check` 对自己引入的改动零新增失败（仅剩基线分支 `feat/prologue-adoption` 自带的两项：评审文档的失效链接、business-gateway 测试的内部 import 计数，均非本任务文件）
-- [ ] 真实模型的跨应用验收（一次说完、二十步、过程在「电脑」标签、记录进「文件」、放上 Shelf、对话引用、中途动鼠标暂停、拒绝不换办法、禁区/终端/落点/自批/密码/锁屏各一遍）——未跑
+- [x] 整体 `pnpm build`、`pnpm boundary:check`、`pnpm health:check` 全通过（叠在 `feat/prologue-adoption` 当前头 `8c0b60fb` 上；该分支先前自带的两项失效已由其修复）
+- [x] 本分支的 Web 服务在独立 Home、独立端口上启动并冒烟（无模型）：`/api/computer/*` 可用，总开关默认关、开关与禁区应用持久，`state`/`records` 正常；**助手在 Web 服务下连通、三项系统权限均已授权**（`helper: ready`）
+- [ ] 真实模型的跨应用验收（一次说完、二十步、过程在「电脑」标签、记录进「文件」、放上 Shelf、对话引用、中途动鼠标暂停、拒绝不换办法、禁区/终端/落点/自批/密码/锁屏各一遍）——未跑；需要一个带模型的项目，建议和用户一起走一遍
+- [ ] 「文件」里记录的实际呈现：记录源已挂进助理 provider，但 `/api/side/files/sources` 要在选中项目后才发现，空 Home 下未验证
 - [ ] 锁屏、用户在场、驱动不可用三种拒绝在真机上触发——未跑（Prologue 侧 live 也未触发，见其 `docs/slices/computer-use.md`）
 - [ ] 全量回归对干净基线——未跑
 - [ ] Shelf 放入记录/截图：用 Shelf 现有入口，尚未接

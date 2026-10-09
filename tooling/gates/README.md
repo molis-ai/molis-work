@@ -9,6 +9,7 @@
 | `baseline.json` | 各项数字的本地快查基线；CI 不读它，只对照 merge-base 比 | `node scripts/check-health-gates.mjs --update --base origin/main`（数字变小时） |
 | `limits.json` | 巨大单元与 vendored SDK 的阈值，只许收紧 | 人，过评审 |
 | `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK 的公开 API 快照 | `pnpm api:update`（见下） |
+| `actions/*.tsv` | 内置 Manifest 声明的动作与消费场景、宿主另外登记的动作的合同快照（提供方、谁能调、输入输出 schema 的哈希） | `pnpm actions:update`（见「动作合同快照」） |
 | `secret-allowlist.txt` | 密钥扫描的已知测试值 | 人，过评审 |
 
 ## 按文件计数、只许减少的项
@@ -41,3 +42,44 @@
 - 有意改 API：先改代码，再 `pnpm api:update`（即 `node scripts/gates/api-snapshot.mjs --update`），把 `tooling/gates/api/` 的变化提交，并在 PR 里写这个变化对插件和调用方意味着什么。`--update`（数字基线）不会改快照。
 - 只查不写：`node scripts/gates/api-snapshot.mjs`。
 - 目前只覆盖 contracts 与插件 SDK。插件还依赖 design-system 与 storage；要加就在 `scripts/gates/api-snapshot.mjs` 的 `API_PACKAGES` 里加一行。
+
+## 动作合同快照
+
+内置插件的动作是别人固定引用的合同：工作流程步骤、判断绑定、MCP 工具名都写成 `capability_id@version` 加提供方（`docs/system/CONTRACT-CHANGES.md` 第 1 节）。同一个 `capability_id@version` 下输入输出变了，固定了它的引用就遇到另一份合同，而没有任何提示。`actions/` 下三个 TSV 把这些合同写下来，让这种变化在 PR 的 diff 里露面。实现是 `scripts/gates/action-contract-snapshot.mjs`（行、比较、文字）和 `scripts/gates/action-contract-host.mjs`（读内置 Manifest、在临时 Home 里启动宿主）；核对跑在 `pnpm test:contracts` 的 `tests/action-contract-snapshot.test.ts`（CI「Action and plugin contracts」步骤），不在 `pnpm health:check` 里，因为它要读已构建的包和一个宿主，而健康门禁不构建。
+
+| 文件 | 内容 |
+| --- | --- |
+| `actions/actions.tsv` | 内置 Manifest（工作台的 `BUILTIN_PLUGIN_CATALOG`）声明的每个动作，一行一个 `capability_id@version`。提供方列是 Manifest 的 `plugin_id` |
+| `actions/scenes.tsv` | 它们声明的消费场景（`action_scenes`），一行一个 `scene_id@version` |
+| `actions/host-actions.tsv` | 所有内置插件在一个项目里启用时，宿主登记着、却没有任何内置 Manifest 声明的动作：`system.*` 提供方、每个 Runtime 插件的 SDK 服务、写在代码里而不在自己 Manifest 里的插件动作（Shelf 的 27 个、Experiments 的 15 个）和由场景派生的开关动作（Feed、Inbox 各 3 个 `scenes.*`）。一行一个 `capability_id@version via 提供方`；提供方列是宿主登记用的 id |
+
+**一行写什么。** 可读列：`capability_id`、`version`、`provider`、`operation`、`kind`、`scope`、`effect`（声明的，或像 `actionEffect` 那样从 id 推断：删除类 id 不可撤销）、`scheduling`、`audiences`、`permissions`、`subjects`（主体种类）都排了序，顺序不是合同；`input_type`、`output_type` 是工作流程按它匹配的语义类型。哈希列（sha256 前 12 位）：`input`、`output` 是 JSON Schema 的规范形（键排序、数组顺序保留）的哈希，**先去掉 `title`、`description`、`$comment`、`examples` 这些注解**，因为改一个标签或一句帮助不是改形状；`const`、`default`、`enum` 下面的值是数据，原样算进去，名叫 `title` 的属性是属性不是注解。`traits` 是动作声明里其余的结构化部分（依赖的动作、撤销、后台任务、搜索与文件来源、执行策略、署名、工作流内容，以及以后加进动作元数据的任何新字段）去掉文字与呈现（`title`、`description`、`result_view`、受理选项的 `title` 与 `hint`）后的哈希。`-` 表示没有。
+
+**失败信息怎么读。** 源码生成的内容和入库的文件有任何不同就失败（新增、删除、改任何一格、行被手改或重排、文件缺了），并把变化分开列：
+
+| 列出的 | 意思 | 该怎么办 |
+| --- | --- | --- |
+| 同一版本下形状变了 | `capability_id@version` 不变，而 `input`、`output`、`traits`、`subjects`、`input_type`、`output_type` 里有一格变了 | 升版本，或在 PR 里写明为什么没有固定它的引用会坏（合同变更流程第 3 节第 3 条）。评审拦这一类 |
+| 谁能调、怎么调变了 | 权限、受众、`kind`、`scope`、`effect`、`scheduling`、`operation`、提供方变了，形状没变 | 写进 PR 的合同影响 |
+| 换了新版本 | 同一提供方的 id 少了 `@旧` 多了 `@新` | 旧版本的固定引用不再能解析：列出消费者 |
+| 新增、删除 | 一个动作多了或少了 | 删除同样会让固定它的引用失效 |
+
+**两层要一致。** 核对还要求：Manifest 声明的每个动作，宿主都登记着（在某个提供方下）；它的插件登记它时，用的就是 Manifest 里那份声明（不是另一份）；同一个 `capability_id@version` 在同一提供方下，各受众和各范围看到的声明相同。Goals 的 `goals.planning.personal.*` 是现在唯一的例外：Manifest 声明了它们，宿主却登记在 Home 级提供方 `io.molis.work.goals.home` 下（`host-actions.tsv` 里有这两行，`actions.tsv` 里也有），这是登记位置与 Manifest 不一致的现状，快照把两边都固定下来。Runtime 装配的插件，宿主登记用的提供方是 `plugin-install-<sha256(plugin_id, publisher.signature) 前 32 位>`，已固定的引用里写的就是它；`actions.tsv` 写 `plugin_id`，换了 `publisher.signature` 会改变这个 id，在 `host-actions.tsv` 里表现为各 `sdk.artifacts.plugin-install-…` 行变化。
+
+**有意改。** 先 `pnpm build`，再 `pnpm actions:update`（即 `node scripts/gates/action-contract-snapshot.mjs --update`；约 10 秒，宿主跑在临时 Home 里），提交 `tooling/gates/actions/` 的变化，并把命令打印出来的那几组变化写进 PR「公开合同与 API 影响」一栏。只查不写：`node scripts/gates/action-contract-snapshot.mjs`。`pnpm health:check` 的 `--update` 与基线不碰这三个文件。
+
+**宿主那一半从不碰真实 Home。** `withIsolatedHome` 在运行期间把 `HOME`、`MOLIS_WORK_HOME` 指向新建的临时目录、密钥库用文件后端；`collectHostViews` 找不到恰好这个环境就拒绝启动。在别处直接启动一个宿主列目录，没有设 `MOLIS_WORK_HOME` 时有的代码路径会解析到默认的 `~/.molis-work`（`resolveMolisWorkHome`），所以要列动作目录就走这两个函数，或者用 `scripts/run-tests.mjs`。
+
+**看不到的。**
+- 函数体与行为，以及动作的 `title`、`description`、`result_view` 的文字。
+- 每类受众此刻能不能在目录里看到它：那取决于授权、生命周期和连接，是宿主动态给出的；快照只记声明的 `audiences`。步骤一的快照记过这个矩阵。
+- MCP 默认工具（`apps/mcp` 的 `MCP_TOOLS`、`RUNTIME_MCP_TOOLS`，步骤一记了 12 个）的名字与参数；运行时才有的动作（发布的判断函数 `functions.published.*`、外部 MCP 与服务连接的工具、创作台生成的插件、有配置的 Coding 外部 MCP）：空 Home 里没有它们。
+- `traits` 只去掉已知的文字类字段（受理选项的 `title`、`hint`）：以后在别处加的说明性字段会让哈希变，刷新即可。这是多报，不会漏报。
+
+**首次入库（2026-10-09，main `11878059`）与步骤一快照的对账。** 步骤一的 `specs/archive/post-merge-review/capability-snapshot.tsv` 有 663 个动作（main `62cbc14d`，空 Home 加演示项目）。现在 Manifest 层 544 个动作与 2 个场景（26 份内置 Manifest 里 24 份有动作；plugin-builder 与 experiments 的 Manifest 没有动作声明），宿主层 156 行，按 `capability_id@version` 去重后共 698 个。对账（动作 id 为键）：
+
+- 663 个里 646 个现在仍登记着，`kind` 一个没变；4 个的调度改成了 `concurrent`（`coding.runs.start`、`feed.content.receive`、`feed.items.inbox`、`inbox.content.receive`）。
+- 646 个里 62 个提供方列不同，都是表示不同，不是变化：60 个是 Runtime 装配的 7 个插件（Characters 17、Coding 18、Git 10、Files 6、Shelf 5、Diff 2、Text Stats 2），步骤一写的是宿主登记用的 `plugin-install-…`，用 `sha256(plugin_id, publisher.signature)` 算出来逐个相同，本快照在 `actions.tsv` 里写 `plugin_id`；2 个是上面说的 `goals.planning.personal.*`。
+- 17 个已经不在：`alchemist.legacy.*` 3 个（6a6116d2，2026-10-02 删炼金术士历史演示记录）、`goals.board.import-v3`（c1d0b64a，2026-10-04，BL-083）、`jelly.inspiration.*`、`jelly.material.*`、`jelly.source.read` 共 13 个（faa85449，2026-10-01，Jelly 去掉灵感页，读取链接和文件改由灵光做）。
+- 52 个是新的：42 个 Manifest 声明的（成果库的预览、固定、比较、从这一版继续，Goals 的交付物与成果输入，Jelly 的内容来源动作，灵光的 `lingguang.material.read` 与 `lingguang.source.read`，Pages 的引用方，Todo 的项目搜索），3 个 `platform` 提供方的工作目录读取动作，7 个每个 Runtime 插件一份的 `sdk.artifacts.…record`。
+- 步骤一记的 12 个 MCP 默认工具这次没有对账（见上，不在快照里）。

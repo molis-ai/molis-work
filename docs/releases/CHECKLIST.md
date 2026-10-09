@@ -7,7 +7,7 @@
 - [ ] 对照上个 tag 以来的变化选次版本或补丁（[POLICY.md](POLICY.md) 第 2 节）。库版本有没有变，看第 3 节的表：`git diff <上个 tag> -- <表里的定义处文件>`。
 - [ ] 这个版本会装到开发机之外吗？用户 2026-10-08 的决定 #15：「不留兼容」到第一个装到开发机之外的版本为止，1.0 或更早出现的第一个外部用户，哪个先发生，它就是那个版本（`specs/repository-anti-corruption/spec.md` §1）。会的话，发布 PR 把版本号、日期和提交写进 [docs/system/CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md) 顶部的「起点日期」，并把它的第 3 节标为已结束；从那以后合同变更走那份文件第 4 节的读取兼容流程，库的版本变更要带升级路径，不再是拒绝加一次性维护（[POLICY.md](POLICY.md) 第 2、5 节和本清单第 4.3 节写的做法只到这一版为止）。那份文件第 5 节列的前置（公开 API 快照、动作合同快照、插件回放工具等）要在发这个版本之前就位；库的升级机制现在也没有，方案见 `specs/repository-anti-corruption/c-end-readiness.md` §3.2。不会的话，在这一项写明「不是外部版本」，仍按「不留兼容」办。
 - [ ] 改版本号：根 `package.json`；`apps/desktop/src-tauri/` 的 `tauri.conf.json`、`Cargo.toml`、`Cargo.lock` 里的 `molis-work-desktop`；`apps/local-host/src/feed-source-runtime.ts` 的 `APP_VERSION`；`horizontal/runtime-host/src/adapters/codex-app-server.ts` 的 `clientInfo.version`（[POLICY.md](POLICY.md) 第 1 节）。
-- [ ] 内置插件清单的版本与摘要（监督器的 7 个：Characters、Shelf、Coding、Files、Diff、Git、TextStats，名单以第 4.5 节的命令为准）。在构建好的仓库根目录跑第 4.5 节的命令，得到每个清单的 `plugin_id`、版本、摘要，和**上一次发布记下的同一张表**逐行比：摘要变了的插件，版本必须更高；版本被改低，或摘要变了而版本没变，都不能发布。Runtime 对这两种都不跟：已装的旧代码悄悄继续跑，或者启动失败（旧发行物的存档不在时，`plugin_release_artifact_missing`）。其中摘要变了而版本没变的，main 上到 `8118e617` 已经出现过至少 24 次（[POLICY.md](POLICY.md) 第 7.3 节），没有机制拦，所以这一项是人工兜底。不要用 `git diff <上个 tag> -- 'plugins/native/*/src/manifest.ts'` 代替：清单里的 `actions`、`consumes` 来自插件别的文件和 contracts，改它们不碰 `manifest.ts`，摘要照样变。把这张表写进发布说明的「兼容与升级」，下一次发布拿它比，不用再构建旧 tag；上一次发布没有记表时，在另一个干净工作树里检出上个 tag、整体 `pnpm build`，跑同一条命令取表。**v0.2.0 里还没有这 7 个插件，所以 0.3.0 没有可比的表**：这一次按 POLICY 第 7.7 节办（在用户对第 7 节做决定之前，7 份清单的 `version` 各升一格，不降任何版本，也不重置；这一格是建议，待用户在 POLICY 第 7.6 节第 4 项确认），并且第 4.5 节对开发机 Home 的核对不能跳过。POLICY 第 7 节的决定落地后，这一项按所选的做法改；若落地了摘要锁门禁（第 7.5 节），这一项改成「门禁通过」。
+- [ ] 内置插件清单的版本与摘要（监督器的 7 个：Characters、Shelf、Coding、Files、Diff、Git、TextStats，名单以第 4.5 节的命令为准）。在构建好的仓库根目录跑第 4.5 节的命令，得到每个清单的 `plugin_id`、版本、摘要，和**上一次发布记下的同一张表**逐行比：摘要变了的插件，版本必须更高；版本被改低，或摘要变了而版本没变，都不能发布。Runtime 对这两种都不跟：已装的旧代码悄悄继续跑，或者启动失败（旧发行物的存档不在时，`plugin_release_artifact_missing`）。其中摘要变了而版本没变的，main 上到 `8118e617` 已经出现过至少 24 次（[POLICY.md](POLICY.md) 第 7.3 节），没有机制拦，所以这一项是人工兜底。不要用 `git diff <上个 tag> -- 'plugins/native/*/src/manifest.ts'` 代替：清单里的 `actions`、`consumes` 来自插件别的文件和 contracts，改它们不碰 `manifest.ts`，摘要照样变。把这张表写进发布说明的「兼容与升级」，下一次发布拿它比，不用再构建旧 tag；上一次发布没有记表时，在另一个干净工作树里检出上个 tag、整体 `pnpm build`，跑同一条命令取表。**v0.2.0 里还没有这 7 个插件，所以 0.3.0 没有可比的表**：用户 2026-10-08 选了 POLICY 第 7.5 节的做法 A（第 7.6 节），0.3.0 的发布 PR 要等 A 合入，再把 7 份清单的 `version` 改成 0.3.0，并让脚本的「内置清单等于产品版本」通过；A 落地后 Runtime 对内置插件一律跟当前构建，这一项改成「确认 A 在这个构建里、脚本通过」，第 4.5 节对开发机 Home 的核对不能跳过。
 - [ ] [CHANGELOG.md](CHANGELOG.md)：`[Unreleased]` 改成 `[<版本>] - <日期>`，上面另起一个空的 `[Unreleased]`，页尾比较链接（若有）跟着改。
 - [ ] 写 `docs/releases/v<版本>.md`，包含「兼容与升级」（哪些库的版本变了、旧 Home 要做什么、Runtime 要不要重新接入）和「发布范围与验证」（真实的回归数字、已知失败、没验证的东西）。
 - [ ] `node scripts/verify-release-versions.mjs` 通过（打 tag 时再加 `--tag v<版本>`）。
@@ -29,7 +29,7 @@
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
 | 项目库 | `projects/<project_id>/molis-work.db` | 6 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 拒绝 |
-| 目录库 | `projects/catalog.db` | 21 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
+| 目录库 | `projects/catalog.db` | 22 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
 | 会话库 | `sessions/sessions.db` | 7 | `session_meta.schema_version` | `modules/private-work-context/src/session-schema.ts#SESSION_REGISTRY_SCHEMA_VERSION` | 拒绝 |
 | Functions | `functions/functions.db` | 3 | `user_version` | `modules/functions/src/store.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
 | 助理 | `assistant/assistant.db` | 2 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
@@ -77,7 +77,7 @@
 - [ ] 现在的做法是离线整份备份 Home（`docs/installation.md`「离线备份与恢复边界」）：先退出 App、停止常驻服务和其他写入进程，再把整个 Home 拷到 Home 之外（过去用 `~/molis-work-backups/<日期>-before-<事项>`；APFS 上可以用克隆，逻辑大小不变、实际占用少）。不要只拷单个 `.db`：目录库、会话库、加密正文和密钥必须是同一时点。外部工作区文件不在 Home 里，另行备份。
 - [ ] 服务已停的情况下，备份与原 Home 逐个比对一致（库和配置文件），记下路径、大小和比对方式，写进发布 PR。
 - [ ] Keychain 或环境变量里的密钥不随 Home 文件复制，另行确认还在（`docs/installation.md`）。
-- [ ] 恢复只能恢复到原来的绝对路径：目录库保存了项目库的绝对路径（`ProjectService.prepareRecord` 里的 `database_path`，`modules/projects/src/project-service.ts:61`）。路线图 W5-17 把目录库改成由 Home 和 `project_id` 推导路径（目录库 v22，用户 2026-10-08 的决定），那一版之后这一条和 `docs/installation.md` 里的同一句一起改。
+- [ ] 恢复只能恢复到原来的绝对路径：目录库保存了项目库的绝对路径（`ProjectService.prepareRecord` 里的 `database_path`，`modules/projects/src/project-service.ts:61`）。路线图 W5-17 把目录库改成由 Home 和 `project_id` 推导路径（目录库 v23，用户 2026-10-08 的决定；v22 是删除收据的所有者步骤表，见 spec §4.1 的维护四），那一版之后这一条和 `docs/installation.md` 里的同一句一起改。
 - [ ] 旧备份删不删由用户定，发布者不自行清理；2026-10-08 用户已经定了一次性清理的范围，见第 4.5 节「Home 里没有来路不明的东西」一项。
 
 ### 4.3 第 3 节有库的版本变了：先演练再动真库
@@ -99,7 +99,7 @@
 
 - [ ] 只读核对第 3 节每个库在真实 Home 里的版本、`integrity_check`、`foreign_key_check`；项目数与动之前一致；抽查一个项目的 Goal、成果版本和会话内容能读。
 - [ ] 核对 `config/mcp-tools.json` 的授权条数没有莫名变少（版本不符时它读成空，不报错）。
-- [ ] 内置插件的安装记录等于这个构建的清单，版本和摘要都要一致（[POLICY.md](POLICY.md) 第 7 节；第 1 节也用这条命令）。对开发机的真实 Home，这是第 7.6 节要用户批准的那一步：先得到批准，在新拷贝上查（只打开拷贝里的路径，见第 4.3 节第一项），不碰真库。先在构建好的仓库根目录打出这个构建里每个内置插件清单的版本与摘要：
+- [ ] 内置插件的安装记录等于这个构建的清单，版本和摘要都要一致（[POLICY.md](POLICY.md) 第 7 节；第 1 节也用这条命令）。对开发机的真实 Home，在 A 落地后的第一次启动之后查，确认记录已经跟上：在新拷贝上查（只打开拷贝里的路径，见第 4.3 节第一项），不碰真库；查拷贝也是真实 Home 的数据操作，照例先问用户。先在构建好的仓库根目录打出这个构建里每个内置插件清单的版本与摘要：
 
   ```sh
   node --input-type=module -e '
@@ -112,7 +112,7 @@
   ```
 
   （Characters 并进宿主、不再交给监督器之后，从上面的 `keys` 和下面的名单里去掉它。）再对每个项目库取安装记录（只读，停写时在快照拷贝上做最稳妥）：`SELECT json_extract(record_json,'$.plugin_id'), json_extract(record_json,'$.version'), json_extract(record_json,'$.manifest_digest'), json_extract(record_json,'$.state') FROM plugin_runtime_installs;`。`apps/local-host/src/project-plugins.ts` 交给监督器的 Characters、Shelf、Coding、Files、Diff、Git、TextStats 每个项目最多一条（项目撤下的插件除外），记录的版本与摘要要和上面打出的相同。记录版本比清单高，或版本相同而摘要不同，都说明 Runtime 没有跟上：旧代码在悄悄运行、没有任何报错，或者（旧发行物的存档不在时）插件启动失败。第 7 节的决定落地后按所选的做法改这一项（例如选了「同版本自我声明」，记录里的摘要永远是第一次安装的，要改成查 `plugin_runtime_release_artifacts` 里有没有这个构建的版本与摘要）。
-- [ ] Home 里没有来路不明的东西。把 Home 的目录和 [HOME-DATA.md](../system/HOME-DATA.md) 对一遍，不在里面的文件夹、旧备份、没有表的空库、孤儿文件、旧的 `goalboard-*` 安装版，都算残留。残留先核对（谁写的、有没有引用、里面有没有数据），有用的搬到 `~/molis-work-backups`，确认没用的才删，不批量删。用户 2026-10-08 为开发机的真实 Home 定了一次性清理：保留 2026-10-07 维护前的整份备份和 `runtime-configs`，维护替换下来的旧文件搬到 `~/molis-work-backups`，其余旧备份、孤儿文件、空库、旧 `goalboard-*` 安装版核对后删；动手前先整份备份。同一个决定里还有目录库 v22 的路径派生（W5-17）和给实验库标版本 1（W2-05）；三件事都经用户批准，先在拷贝上演练再动真库。
+- [ ] Home 里没有来路不明的东西。把 Home 的目录和 [HOME-DATA.md](../system/HOME-DATA.md) 对一遍，不在里面的文件夹、旧备份、没有表的空库、孤儿文件、旧的 `goalboard-*` 安装版，都算残留。残留先核对（谁写的、有没有引用、里面有没有数据），有用的搬到 `~/molis-work-backups`，确认没用的才删，不批量删。用户 2026-10-08 为开发机的真实 Home 定了一次性清理：保留 2026-10-07 维护前的整份备份和 `runtime-configs`，维护替换下来的旧文件搬到 `~/molis-work-backups`，其余旧备份、孤儿文件、空库、旧 `goalboard-*` 安装版核对后删；动手前先整份备份。同一个决定里还有目录库 v23 的路径派生（W5-17）和给实验库标版本 1（W2-05）；三件事都经用户批准，先在拷贝上演练再动真库。
 - [ ] 版本不符被拒绝是正常的保护：不要回滚库，也不要用 SQLite 命令绕过；用与它相符的构建打开，或从备份恢复。
 
 ## 5. 发布后

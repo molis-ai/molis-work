@@ -86,10 +86,10 @@ QA 工具只创建显式隔离目录和实际业务对象；`lose-next-response`
 
 ## 开发要求
 
-- 负责：共享的身份、设备、项目访问、HTTP/SSE 与接续回执。
+- 负责：共享的身份、设备、项目访问、HTTP/SSE 与接续回执，以及群聊（IM）领域（`src/im`）。它是在用、还会迭代的业务功能，按 Module 规则检查，不算平台包（2026-10-08 决定第 4 项）。
 - 不负责：Goal 或 Artifact 事实、模型执行、独立的 App 启动器。
 - 公开入口：`@molis-ai/molis-work-server`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：Module 只依赖合同与平台包，不依赖 Horizontal Service、App 或 Plugin（[包边界规则](../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
 - 不变量：
   - 项目访问在每次读取、操作前和返回前重查；已经发生的事实不会因撤权被伪装成未发生。
   - 控制令牌不发到手机，也不把本机 Host 暴露到公网；令牌文件权限 0600，不写日志。

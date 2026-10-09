@@ -1,4 +1,7 @@
 import { resolve, join } from "node:path";
+import { rm } from "node:fs/promises";
+import { alchemistProjectDirectory } from "./alchemist-paths.js";
+import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { ActionError, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistManifest, createAlchemistActionHandlers, createAlchemistStudioRuntime,
   type AlchemistAiPort, type AlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
@@ -18,7 +21,11 @@ export class AlchemistHostService {
   private readonly home: string;
   private readonly entries = new Map<string, SharedStudio>();
   private closed = false;
-  constructor(home: string, private readonly options: AlchemistHostOptions = {}) { this.home = resolve(home); }
+  constructor(home: string, private readonly options: AlchemistHostOptions = {}) {
+    this.home = resolve(home);
+    // Deleting a project closes its studio here (a running worker would keep writing to a database about to go) before its directory goes.
+    projectDeletedHooksFor(this.home).register({ id: "alchemist", label: "炼金术士的研究空间", alive: () => !this.closed, clear: projectId => this.deleteProject(projectId) });
+  }
   provider(): ActionProviderRegistration {
     return { provider: { provider_id: alchemistManifest.plugin_id, plugin_id: alchemistManifest.plugin_id, title: alchemistManifest.name, kind: "plugin" },
       definitions: alchemistManifest.actions!, handlers: [
@@ -39,12 +46,27 @@ export class AlchemistHostService {
         entry!.search ??= createAlchemistSearchPort({ homeDirectory: this.home, projectId });
         return entry!.search.search(input);
       } });
-      const runtime = createAlchemistStudioRuntime({ databasePath: join(this.home, "alchemist", "projects", encodeURIComponent(projectId).replaceAll(".", "%2E"), "studio.sqlite"),
+      const runtime = createAlchemistStudioRuntime({ databasePath: join(alchemistProjectDirectory(this.home, projectId), "studio.sqlite"),
         ai, pulseSourceMode: this.options.pulseSourceMode });
       entry = { runtime, owners: new Set() }; studios.set(key, entry); runtime.start();
     }
     entry.owners.add(this); this.entries.set(key, entry);
     return entry.runtime;
+  }
+  /**
+   * The project is deleted: its studio is evicted from every Host in this process that holds it, closed (its worker and
+   * search database with it), and its directory removed, so a project made again under the same id starts empty.
+   */
+  async deleteProject(projectId: string): Promise<void> {
+    const key = JSON.stringify([this.home, projectId]);
+    const entry = studios.get(key);
+    if (entry) {
+      studios.delete(key);
+      for (const owner of entry.owners) owner.entries.delete(key);
+      entry.closing ??= (async () => { try { await entry.runtime.close(); } finally { await entry.search?.shutdown(); } })();
+      await entry.closing;
+    }
+    await rm(alchemistProjectDirectory(this.home, projectId), { recursive: true, force: true });
   }
   async close(): Promise<void> {
     this.closed = true;

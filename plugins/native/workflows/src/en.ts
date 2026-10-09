@@ -1,4 +1,6 @@
 export const WORKFLOWS_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "工作流程及其运行记录": "Workflows and their runs",
   "正文仅显示节选。": "Showing an excerpt.",
   "动作已返回": "Action returned",
   "服务已返回": "Service responded",

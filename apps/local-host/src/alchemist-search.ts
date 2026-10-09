@@ -4,13 +4,14 @@ import { createEvidenceContentStore, createFileSecretStore, LocalSqliteStorage, 
 import type { AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 import { createSearchEvidenceRuntime } from "./search-evidence-runtime.js";
 import { createAnySearchTransport } from "./anysearch-transport.js";
+import { alchemistProjectDirectory } from "./alchemist-paths.js";
 
 /** Own the search database and encrypted material directory independently of Studio's schema/lifecycle. */
 export function createAlchemistSearchPort(options: { homeDirectory: string; projectId: string; secretStore?: SecretStore }): {
   search: AlchemistAiPort["search"];
   shutdown(): Promise<void>;
 } {
-  const directory = path.join(options.homeDirectory, "alchemist", "projects", encodeURIComponent(options.projectId).replaceAll(".", "%2E"));
+  const directory = alchemistProjectDirectory(options.homeDirectory, options.projectId);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const storage = new LocalSqliteStorage(path.join(directory, "search.sqlite"));
   const runtime = (() => {

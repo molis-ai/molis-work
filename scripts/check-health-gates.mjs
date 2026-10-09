@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Repository health gates (specs/repository-anti-corruption §5a): numbers that may only go down, including the
-// anti-backflow count of compatibility markers per file (§4.1).
+// anti-backflow count of compatibility markers per file (§4.1). The per-file counts of empty catches, `as unknown as`
+// casts and old names are defined in scripts/gates/source-counts.mjs. The public API of the contracts package and the
+// plugin SDK is not a number: it is compared with the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs) and
+// refreshed on purpose with `pnpm api:update`. tooling/gates/README.md lists what each file and counter means.
 //
 // It also fails, with no comparison against the merge-base, when the package table of specs/repository-anti-corruption
 // §5.1 disagrees with scripts/workspace-packages.mjs or with the layer and status the code gives a package (a package
@@ -24,7 +27,11 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { SOURCE_COUNT_RULES } from "./gates/source-counts.mjs";
+import { checkApiSnapshots } from "./gates/api-snapshot.mjs";
+import { docGateInputs, docGateMetrics, docGateProblems } from "./gates/doc-gates.mjs";
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
+import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
 const fail = (message) => { console.error(message); process.exit(2); };
@@ -105,7 +112,11 @@ const isSource = (file) => AREAS.test(file) && /\.(ts|mts)$/.test(file) && !file
   && !/(^|\/)(tests?|dist|node_modules|fixtures)\//.test(file) && !/\.test\.(ts|mts)$/.test(file);
 const isTestFile = (file) => /^tests\/.*\.(ts|mts|mjs)$/.test(file);
 const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
-const needsText = (file) => isSource(file) || isTestFile(file);
+// The structure gates (scripts/gates/) also scan a `fixtures/` directory that is not under a `tests/` one: production code
+// cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
+const FIXTURES_DIR = /(^|\/)fixtures\//;
+const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
+const needsText = (file) => isStructureSource(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -268,9 +279,10 @@ const perFile = {
     return json[key];
   },
   lowered: (head, ref) => sumOf(head) < sumOf(ref) || Object.entries(head).some(([file, count]) => ref[file] !== undefined && count < ref[file]),
-  lines(title, head, ref, { top }) {
+  // `unit` names what the keys are when they are not files (a root entry, a group, a subpath); the default is the per-file count.
+  lines(title, head, ref, { top }, unit = { many: "files", one: "file" }) {
     const rows = Object.entries(head).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-    const out = [`${title}: ${sumOf(head)} in ${rows.length} files`, `  ${"count".padStart(5)}${ref ? "   base" : ""}  file`];
+    const out = [`${title}: ${sumOf(head)} in ${rows.length} ${unit.many}`, `  ${"count".padStart(5)}${ref ? "   base" : ""}  ${unit.one}`];
     for (const [file, count] of rows.slice(0, top)) out.push(`  ${String(count).padStart(5)}${ref ? String(ref[file] ?? "new").padStart(7) : ""}  ${file}`);
     if (top && rows.length > top) out.push(`  … ${rows.length - top} more (omit --top to see all)`);
     return out;
@@ -368,7 +380,23 @@ const compatMarkers = {
   summary: (counts) => `${sumOf(counts)} compat markers`,
 };
 
-const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, compatMarkers];
+// 5b. Per-file counts of what a minimal lint rule set flags (empty catch, `as unknown as`) and of the old names
+// (goalboard, board_id). The definitions live in scripts/gates/source-counts.mjs; here each rule becomes a per-file metric.
+const sourceCounts = SOURCE_COUNT_RULES.map((rule) => ({
+  id: rule.id,
+  measure: (snapshot) => rule.measure(snapshot, { isSource, isTestFile }),
+  toBaseline: (counts) => ({ [`${rule.id}Total`]: sumOf(counts), [rule.id]: counts }),
+  fromBaseline: (json) => perFile.fromBaseline(json, rule.id),
+  grew: perFile.grew(rule.what, rule.hint),
+  lowered: perFile.lowered,
+  lines: (head, ref, env) => perFile.lines(rule.title, head, ref, env),
+  summary: (counts) => `${sumOf(counts)} ${rule.summary}`,
+}));
+
+const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, compatMarkers, ...sourceCounts];
+// The structure gates (W1-05) live in scripts/gates/: each module says what to count, this file compares.
+METRICS.push(...structureMetrics({ isSource: isStructureSource, perFile, rekey, rekeyUnit, sumOf }));
+METRICS.push(...docGateMetrics({ perFile }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 
@@ -434,7 +462,10 @@ const limitErrors = () => {
 const exceptionErrors = () => Object.entries(exceptions).flatMap(([unit, entry]) => (!Object.hasOwn(head.giant, unit)
   ? [`giant exception for ${unit} is stale: it is not a giant unit any more (split, shrunk or renamed); delete the entry from tooling/gates/giant-exceptions.json, or key it by the new name after a rename`]
   : problemsOfException(entry).map((problem) => `giant exception for ${unit}: ${problem}`)));
-const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : [])];
+const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree())];
+// The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
+// not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
+const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "tooling/gates/baseline.json";
 
 // ---- --report --------------------------------------------------------------------------------------------------------
@@ -448,6 +479,10 @@ if (report) {
   for (const metric of METRICS) console.log("\n" + metric.lines(head[metric.id], reference?.[metric.id], env).join("\n"));
   const problems = specProblems();
   console.log(`\nSpec status lines: ${problems.length ? problems.join("; ") : "every specs/ root directory has one"}`);
+  const api = apiSnapshots();
+  console.log(`Public API snapshots: ${api.errors.length ? "out of date (see the gate's output)" : api.summary || api.notes.join("; ")}`);
+  const docProblems = docGateProblems(workingTree());
+  console.log(`\nDocument references: ${docProblems.length ? `${docProblems.length} problems\n- ${docProblems.join("\n- ")}` : "none broken"}`);
   process.exit(0);
 }
 
@@ -468,7 +503,8 @@ if (update) {
 }
 
 // ---- the verdict -----------------------------------------------------------------------------------------------------
-const errors = [...growth(), ...limitErrors(), ...absolute()];
+const api = apiSnapshots();
+const errors = [...growth(), ...limitErrors(), ...absolute(), ...api.errors];
 if (errors.length) {
   console.error(`Health gates failed against ${against}:\n- ` + errors.join("\n- "));
   process.exit(1);
@@ -480,4 +516,5 @@ let hint = "";
 if (lowered.length && mergeBase) hint = ` Lower than the merge-base: ${lowered.join(", ")}; \`--update --base origin/main\` lowers the local quick check in tooling/gates/baseline.json.`;
 else if (lowered.length) hint = ` Lower than the baseline: ${lowered.join(", ")}; lower it with --update --base origin/main.`;
 const registered = Object.keys(head.giant).filter((unit) => registeredEntry(unit) !== undefined).length;
-console.log(`Health gates passed against ${against} (${summaryOf(head)}; ${registered} of the giant units registered as exceptions).${hint}${notes.length ? ` Note: ${notes.join("; ")}.` : ""}`);
+console.log(`Health gates passed against ${against} (${summaryOf(head)}${api.summary ? `, ${api.summary}` : ""}; ${registered} of the giant units registered as exceptions).${hint}${notes.length ? ` Note: ${notes.join("; ")}.` : ""}`);
+for (const note of api.notes) console.log(`Note: ${note}`);

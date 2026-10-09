@@ -13,6 +13,11 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
  * `project-host.ts`, an `<plugin>-native-plugin-http.ts` route file, and a
  * `builtin-plugins.ts` catalog entry. The second path is frozen: the lists below may
  * only shrink as plugins move to the Runtime (`skills/molis-plugin-dev/host.md`).
+ *
+ * The lists match the disk exactly, both ways: a name that is no longer there has to leave the list, and a plugin the
+ * Runtime starts has to be on the Runtime list (specs/repository-anti-corruption W1-05). The numbers that cannot be gamed
+ * by editing this file (plugin-named Host files, registerProvider lines, hybrid plugins, names of a plugin outside its
+ * package) are compared with the merge-base by `pnpm health:check` (scripts/gates/assembly.mjs).
  */
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
@@ -68,4 +73,65 @@ test("no new <plugin>-native-plugin-http.ts route file appears in the Host", asy
   const added = names.filter(name => !NATIVE_PLUGIN_HTTP_FILES.has(name));
   assert.deepEqual(added, [],
     `Plugin HTTP belongs to the plugin's own Manifest routes (served under /api/plugins/<plugin_id>/), not a hand-written Host file: ${added.join(", ")}`);
+});
+
+const hostSourceFiles = async (): Promise<string[]> => {
+  const out: string[] = [];
+  const walk = async (dir: string): Promise<void> => {
+    for (const entry of await readdir(join(repoRoot, dir), { withFileTypes: true })) {
+      if (entry.isDirectory()) await walk(`${dir}/${entry.name}`);
+      else if (entry.name.endsWith(".ts")) out.push(`${dir}/${entry.name}`);
+    }
+  };
+  await walk("apps/local-host/src");
+  return out.sort();
+};
+const stemsOf = (id: string): string[] => [id, ...(id === "characters" ? ["character"] : [])];
+
+test("the frozen lists name exactly what exists: no id, route file or Runtime plugin is missing or left behind", async () => {
+  const catalogIds = new Set(BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id as string));
+  const listed = [...RUNTIME_ASSEMBLED.keys(), ...BUILD_TIME_ASSEMBLED];
+  assert.deepEqual(listed.filter(id => !catalogIds.has(id)), [],
+    "an id on the Runtime or build-time list has no catalog entry any more; delete it from the list (the lists match the disk exactly)");
+
+  const files = await readdir(join(repoRoot, "apps/local-host/src"));
+  const onDisk = new Set(files.filter(name => name.endsWith("-native-plugin-http.ts")).map(name => name.slice(0, -"-native-plugin-http.ts".length)));
+  assert.deepEqual([...NATIVE_PLUGIN_HTTP_FILES].filter(name => !onDisk.has(name)), [],
+    "a <name>-native-plugin-http.ts route file was deleted or renamed; delete its name from NATIVE_PLUGIN_HTTP_FILES");
+
+  // The supervisor entries in project-plugins.ts are the other half of the Runtime list.
+  const supervisor = await readFile(join(repoRoot, "apps/local-host/src/project-plugins.ts"), "utf8");
+  const started = new Set([...supervisor.matchAll(/"(@molis-ai\/molis-work-plugin-[a-z0-9-]+)",\s*"create[A-Za-z]+Plugin"/g)].map(match => match[1]));
+  assert.deepEqual([...started].sort(), [...RUNTIME_ASSEMBLED.values()].sort(),
+    "the plugins project-plugins.ts starts and RUNTIME_ASSEMBLED have to be the same set");
+});
+
+/**
+ * Plugins that the Runtime starts and the Host ALSO assembles by hand: a `<plugin>-native-plugin-http.ts` route file, a
+ * `<plugin>…ActionProvider` registered in project-host.ts, or Host files named after the plugin. A hybrid is neither the
+ * Runtime shape (declarations only) nor the frozen build-time shape, and the name list above cannot see it. Frozen on
+ * 2026-10-08; a plugin leaves this list when its Host code is gone, and none joins.
+ *  - shelf: shelf-native-plugin-http.ts, shelf-actions.ts, shelf-ai.ts, and shelfActionProvider / shelfProjectActionProvider
+ *  - characters: characters-host.ts and character-*.ts. Decision 26 (2026-10-08): Characters is no longer a Runtime plugin
+ *    long-term; its code merges into the Host or a Module and its interface stays a section of Settings (a wave 4 slice)
+ *  - coding, git: the workspace surface adapters in the Host (coding-*.ts, git-*.ts), the part R-03 asks to move behind
+ *    declarations
+ */
+const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set(["characters", "coding", "git", "shelf"]);
+
+test("Runtime plugins that the Host also assembles by hand are named, and no plugin joins them", async () => {
+  const sources = await hostSourceFiles();
+  const projectHost = await readFile(join(repoRoot, "apps/local-host/src/project-host.ts"), "utf8");
+  const camel = (name: string) => name.replace(/-([a-z0-9])/g, (_, letter: string) => letter.toUpperCase());
+  const hybrid = [...RUNTIME_ASSEMBLED.keys()].filter(id => {
+    const stems = stemsOf(id);
+    const named = sources.some(file => {
+      const base = file.slice(file.lastIndexOf("/") + 1);
+      return stems.some(stem => base.startsWith(`${stem}-`) || base === `${stem}.ts`);
+    });
+    const registered = stems.some(stem => new RegExp(`registerProvider\\(\\s*${camel(stem)}[A-Za-z]*Provider\\(`).test(projectHost));
+    return named || registered;
+  }).sort();
+  assert.deepEqual(hybrid, [...HYBRID_RUNTIME_PLUGINS].sort(),
+    `Runtime plugins with hand-written Host code. A new one joins nothing: put the code in the plugin package. One that is clean leaves HYBRID_RUNTIME_PLUGINS.`);
 });

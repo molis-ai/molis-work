@@ -3,7 +3,9 @@ import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contr
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ArtifactsModule, ProcessItemsModule } from '@molis-ai/molis-work-module-artifacts';
 import { LOCAL_PERSON_ACTOR_ID } from '@molis-ai/molis-work-contracts/platform/actions';
-import { AgentBuilderStore, type AgentRelease, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+// The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
+export type { AgentBuilderPorts, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { createReminderActionHandlers, REMINDER_ACTIONS, SCHEDULE_REMINDER_PROVIDER_ID, createScheduledOperations, createScheduledOperationActionHandlers,
   SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID } from '@molis-ai/molis-work-plugin-schedule';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
@@ -24,9 +26,9 @@ import { hostNetwork } from './plugin-builder/network.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { buildSources, generatedRegistration, readPluginPrompts, registerGeneratedPrompts, unregisterGeneratedPrompts } from './plugin-builder/prompts.js';
+import { APPROVED_KEY, covered, installedLifecycle } from './installed-plugin-lifecycle.js';
 
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
-const APPROVED_KEY = 'plugin-builder:agent-studio:approved:';
 const SIGNATURE = installedSignature('');
 
 export interface InstalledPluginHostOptions {
@@ -182,56 +184,15 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     definitions.set(key, { pluginId: release.pluginId, value });
     return value;
   };
-  const covered = (next: SandboxEffects, approved: SandboxEffects) => Object.entries(next).every(([key, values]) => (values as string[]).every(value => ((approved as Record<string, string[]>)[key] ?? []).includes(value)));
   const promptScope = (installationId: string) => JSON.stringify([actions.project_id, projectId, installationId]);
   const registerPrompts = (release: AgentRelease, state: 'enabled' | 'disabled') =>
     registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, releaseVersion(release.version)), promptScope(recordFor(release.pluginId)!.install_id));
-  const lifecycle: AgentBuilderPorts['lifecycle'] = async (action, release, grants) => {
-    if (closed) throw new Error('安装运行入口已关闭');
-    const consent = (grants as { consent?: unknown } | undefined)?.consent === true, record = recordFor(release.pluginId);
-    if (action === 'install') {
-      if (record) throw new Error('这个插件已经安装，可以直接打开或升级');
-      if (!consent) throw new Error('安装前请确认插件要使用的权限');
-      const entry = { definition: definition(release, release.permissions), grants: ['storage:private'] };
-      // A confirmed reinstall creates a fresh installation fact even if this Supervisor still remembers its revocation.
-      platform.runtime.install({ ...entry, deployment: 'local' });
-      storage.set(APPROVED_KEY + release.pluginId, JSON.stringify(release.permissions));
-      await platform.start([entry]);
-      const state = platform.supervisor.state(release.pluginId)?.code === 'plugin_revoked'
-        ? await platform.supervisor.enable(release.pluginId) : platform.supervisor.state(release.pluginId);
-      if (state?.status !== 'running') { storage.delete(APPROVED_KEY + release.pluginId); throw new Error('安装没有完成：' + (state?.message ?? '插件未能启动')); }
-      await expose(release); registerPrompts(release, 'enabled'); recoveryErrors.delete(release.pluginId); return;
-    }
-    if (!record) throw new Error('这个插件还没有安装');
-    if (action === 'upgrade' || action === 'rollback') {
-      const approved = approvedFor(release.pluginId) ?? {};
-      if (!covered(release.permissions, approved) && !consent) throw new Error('这个版本需要新的权限，请确认后再切换');
-      const nextApproval = covered(release.permissions, approved) ? approved : release.permissions;
-      const next = definition(release, nextApproval);
-      const state = action === 'upgrade' ? await platform.upgrade(release.pluginId, next) : await platform.rollback(release.pluginId, next);
-      if (state?.status !== 'running') throw new Error((action === 'upgrade' ? '升级' : '回滚') + '没有完成：' + (state?.message ?? '插件未能启动') + '，原版本继续可用');
-      storage.set(APPROVED_KEY + release.pluginId, JSON.stringify(nextApproval)); await expose(release); registerPrompts(release, 'enabled'); recoveryErrors.delete(release.pluginId); return;
-    }
-    if (action === 'disable') { withdraw(release.pluginId); platform.supervisor.revoke(release.pluginId); await platform.runtime.stop(record.install_id); registerPrompts(releaseFor(release.pluginId) ?? release, 'disabled'); return; }
-    if (action === 'enable') {
-      const approved = approvedFor(release.pluginId);
-      if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
-      if (!platform.supervisor.state(release.pluginId)) await platform.start([{ definition: definition(release, approved), grants: record.grants }]);
-      const state = await platform.supervisor.enable(release.pluginId);
-      if (state.status !== 'running') throw new Error('启用没有完成：' + (recoveryErrors.get(release.pluginId) ?? state.message ?? ''));
-      await expose(release); registerPrompts(releaseFor(release.pluginId) ?? release, 'enabled'); recoveryErrors.delete(release.pluginId); return;
-    }
-    if (action === 'uninstall') {
-      withdraw(release.pluginId); platform.supervisor.revoke(release.pluginId);
-      reminders.cancelInstallation(release.pluginId, record.install_id); scheduledRuns.cancelInstallation(release.pluginId, record.install_id); secrets.remove(release.pluginId);
-      const keepData = (grants as { keepData?: unknown } | undefined)?.keepData === true;
-      await platform.runtime.uninstall(record.install_id, { retain_private_data: keepData });
-      unregisterGeneratedPrompts(homeDirectory, release.pluginId, promptScope(record.install_id));
-      for (const [key, entry] of definitions) if (entry.pluginId === release.pluginId) definitions.delete(key);
-      if (!keepData) privateStorage.deleteInstallationData(record.install_id);
-      storage.delete(APPROVED_KEY + release.pluginId); recoveryErrors.delete(release.pluginId);
-    }
-  };
+  const lifecycle = installedLifecycle({ platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
+    cancelScheduled: (pluginId, installId) => { reminders.cancelInstallation(pluginId, installId); scheduledRuns.cancelInstallation(pluginId, installId); },
+    forget(pluginId, installId) {
+      unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId));
+      for (const [key, entry] of definitions) if (entry.pluginId === pluginId) definitions.delete(key);
+    } });
   let stopScheduledRuns: (() => void) | undefined;
   const close = async () => {
     if (closed) return;
@@ -256,7 +217,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
         if (record.state === 'disabled' || record.state === 'quarantined') continue;
         const report = await platform.start([{ definition: definition(release, approved), grants: record.grants }]);
         if (report.running.includes(record.plugin_id)) await expose(release);
-        else throw new Error(report.failed[0]?.message ?? report.blocked[0]?.message ?? '安装插件未能恢复');
+        else throw new Error(platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
       } catch (error) { recoveryErrors.set(record.plugin_id, error instanceof Error ? error.message : String(error)); }
     }
     stopScheduledRuns = bindInstalledOperationCaller(store.db, projectId, { describe: scheduledInstallation, async call(run, control) {

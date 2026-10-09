@@ -33,14 +33,6 @@ const GOALS_SELECT_SCRIPT = `    const selectGoal = async (goalId, updateHistory
 
 `;
 
-const GOALS_SELECT_CLICK_SCRIPT = `      const goalLink = target.closest("[data-select-goal]");
-      if (goalLink) {
-        selectGoal(goalLink.dataset.selectGoal);
-        return true;
-      }
-      return false;
-`;
-
 const GOALS_HISTORY_SCRIPT = `    const handleGoalPopState = (event) => {
       const pathname = localPathname();
       const match = pathname.match(
@@ -74,7 +66,5 @@ export const GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT = `(host) => {
       setGoalFactor, revealDeepLinkFromId,
     } = host;
 ${GOALS_SELECT_SCRIPT}${GOALS_HISTORY_SCRIPT}
-    const handleGoalSelectClick = (target) => {
-${GOALS_SELECT_CLICK_SCRIPT}    };
-    return { selectGoal, handleGoalSelectClick, handleGoalPopState, handleGoalHashChange };
+    return { selectGoal, handleGoalPopState, handleGoalHashChange };
   }`;

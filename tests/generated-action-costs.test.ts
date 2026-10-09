@@ -42,7 +42,9 @@ test('cost refresh revokes only the changed operation; repeated inspection and d
   const entered = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>(); let calls = 0;
   const exposed = exposeInstalledPlugin(actions, value, async () => { if (++calls === 2) entered.resolve(); await finish.promise; return { status: 200, body: { value: 'ok' } }; });
   t.after(() => { finish.resolve(); exposed.dispose(); });
-  const changed = assert.rejects(service.invoke(caller, reference(value), null), { code: 'actions.provider_changed' });
+  // The stand-in returns 200 before the registration is replaced, so the command has committed: it is told apart from a
+  // plain failure (provider_changed) so that nobody repeats it. Only the operation whose registration changed is affected.
+  const changed = assert.rejects(service.invoke(caller, reference(value), null), { code: 'actions.outcome_unknown' });
   const kept = service.invoke(caller, reference(value, 'local'), null);
   await entered.promise;
   assert.equal(exposed.refresh(new Map([['run', 'none'], ['local', 'none']])), false);
@@ -71,4 +73,30 @@ test('cost refresh preserves exact MCP grants; a new release still requires its 
   const next = { ...value, version: 2 }, upgraded = exposeInstalledPlugin(actions, next, call); t.after(upgraded.dispose);
   assert.deepEqual(resolveMcpActionContext(client, service.inspect(client), preference).allowed_actions, []);
   await assert.rejects(service.invoke(resolveMcpActionContext(client, service.inspect(client), preference), reference(next), null));
+});
+
+test('a command that already committed is reported as done-but-unconfirmed when the caller\'s authority ends during the call, never as a plain failure to retry', async () => {
+  const service = new ActionService(), actions = { registry: service, client: service, project_id: 'p' };
+  const contract = { version: 1, pluginId: 'io.molis.work.generated.notes', revision: 'r', entities: [], pages: [], acceptance: [], operations: [
+    { id: 'notes.add', kind: 'command', description: '记一条', input: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false }, output: { type: 'object' }, errors: [], effects: { storage: ['read', 'write'] }, examples: [] },
+    { id: 'notes.list', kind: 'query', description: '列出', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array' }, errors: [], effects: { storage: ['read'] }, examples: [] },
+  ] };
+  const release = { buildId: '0a1b2c3d-46ed', pluginId: contract.pluginId, version: 1, design: { title: '记事', contract, parts: [], acceptance: [] } } as never;
+  const rows: string[] = []; let revoked = false;
+  // The operation commits (a row is written) and the caller's grant is withdrawn before the answer comes back.
+  const exposed = exposeInstalledPlugin(actions, release, async (_pluginId, operation, input) => {
+    if (operation === 'notes.add') rows.push(JSON.stringify(input));
+    revoked = true;
+    return { status: 200, body: { value: operation === 'notes.add' ? { ok: true } : [] } };
+  });
+  const caller = { actor_id: 'runtime:client', project_id: 'p', audience: 'mcp' as const, permissions: [],
+    validate_authority: async () => { if (revoked) throw Object.assign(new Error('此客户端的能力授权已撤销'), { code: 'mcp.action_revoked' }); } };
+  const call = (operation: string, input: unknown) => service.invoke(caller, { capability_id: exposedActionId(release, operation), version: 1, provider_id: 'plugin:' + contract.pluginId }, input);
+  try {
+    await assert.rejects(call('notes.add', { text: 'hello' }), (error: { code?: string; message: string }) => error.code === 'actions.outcome_unknown' && /不要重复/.test(error.message),
+      'the caller is told the operation ran, so it does not repeat it');
+    assert.deepEqual(rows, ['{"text":"hello"}']);
+    revoked = false;
+    await assert.rejects(call('notes.list', {}), (error: { code?: string }) => error.code === 'mcp.action_revoked', 'a query has no effect to protect: withholding its result is the point');
+  } finally { exposed.dispose(); }
 });

@@ -14,8 +14,8 @@
 
 | 合同 | 在哪里 | 版本记在哪 |
 | --- | --- | --- |
-| `packages/contracts` 的公开子路径 | `packages/contracts/package.json` 的 `exports` | 暂无；公开 API 快照是路线图 W1-04 |
-| `packages/plugin-sdk` 的出口 | `packages/plugin-sdk/src` | 同上 |
+| `packages/contracts` 的公开子路径 | `packages/contracts/package.json` 的 `exports` | 没有版本号；形状记在公开 API 快照 `tooling/gates/api/contracts/<子路径>.txt`，`pnpm health:check` 对照源码，有任何不同就失败，有意改用 `pnpm api:update`（第 3 节第 6 条） |
+| `packages/plugin-sdk` 的出口 | `packages/plugin-sdk/src` | 同上，快照是 `tooling/gates/api/plugin-sdk/index.txt` |
 | 动作（能力）的身份、输入输出 schema | `packages/contracts/src/platform/actions.ts`；各插件 Manifest 的动作声明；规则见 `specs/action-architecture/spec.md` §3 | 每个能力定义的 `version`；被固定的引用写成 `capability_id@version` 加提供方 |
 | 插件 Manifest 的格式与升级声明 | `packages/contracts/src/platform/plugin-manifest.ts`；用法见 `docs/platform/PLUGIN-DEVELOPMENT.md`「插件版本升级」 | Manifest `version`（SemVer）；`upgrade_compatibility.compatible_from_versions` / `migratable_from_versions` |
 | MCP 工具名与参数 | `apps/mcp`；`docs/mcp.md`；`skills/goal-advance` | 工具名即身份；Skill 与手册随它改 |
@@ -36,6 +36,9 @@
 4. **存量数据由维护改成现行形状，读取时不兜底。** Home 的库：改建库基线并升结构版本，版本不符的库被拒绝（`applySqliteBaseline`），不就地升级，也不写迁移链。开发用的 Home 用一次性脚本升级或重建，脚本放会话临时目录，不进仓库产品代码（spec §1，2026-10-04）。真实 Home 的任何改动：先整份备份，在拷贝上演练，再动原库，并且要用户当次同意（spec §1，2026-10-02 至 10-07 各行）。
 5. **外部已经在用的名字**（Casebook 的合同 id、Runtime 用的 MCP 工具名）：改动是产品决定，先问用户，在 spec §1 记一行，PR 里列新旧名，外部插件同步。
 6. **门禁守着**：源码里的兼容标记（`legacy`、`compat`、`@deprecated`、`backfill`）按文件计数，只许减少，新文件从零（`pnpm health:check`，`AGENTS.md` 健康门禁一条）。就地补表、测试引用包内部同样只许减少。
+
+   **公开 API 快照门禁**（`scripts/gates/api-snapshot.mjs`，口径在 `tooling/gates/README.md`「公开 API 快照」）：`packages/contracts` 每个子路径和 `packages/plugin-sdk` 的公开 API 由编译器的声明输出生成（名字加签名，去注释），入库在 `tooling/gates/api/`。`pnpm health:check` 把源码生成的内容和入库的快照比，有任何不同就失败：加、删、改签名、新子路径没有快照、已删子路径的快照还在、快照被手改。它是一份不许静默变化的清单，不是只许减少的数字，所以 `--update` 和改基线都碰不到它。有意改 API 的 PR：先改代码，再跑 `pnpm api:update`，提交 `tooling/gates/api/` 的变化，并在 PR「公开合同与 API 影响」一栏写这个变化对插件和调用方的影响（`.github/pull_request_template.md`）；`--base` 时门禁日志还会列出相对 merge-base 的 API 变化，评审读它。它只管形状：函数体、注释、语义变化看不到，各插件 Manifest 里的动作声明与 schema 也不在里面（那是路线图 W2-15 的动作合同快照），所以第 3 条的版本字段和评审照旧要做。
+
 7. **不算兼容、要保留的**：合同和 Schema 的版本号字段，插件升级声明 `compatible_from_versions` / `migratable_from_versions` 与发行物留存。它们是起点之后要用的机制，不是为旧数据留的（spec §1，2026-10-02「插件升级声明的机制」）。
 
 ## 4. 阶段二：起点之后，读取兼容
@@ -55,7 +58,7 @@
 
 起点一到就要能用，所以这些要在起点之前就位。进度以 `specs/repository-anti-corruption/spec.md` §10 为准：
 
-- 公开 API 快照（`packages/contracts` 各子路径和 `packages/plugin-sdk`），导出一变必须显式更新快照（路线图 W1-04）。
+- 公开 API 快照（`packages/contracts` 各子路径和 `packages/plugin-sdk`）：**已就位**（路线图 W1-04，门禁见第 3 节第 6 条）。导出一变必须显式 `pnpm api:update`，PR 里写影响。
 - 动作合同快照：每个内置 Manifest 的 `capability@version`、提供方和 schema 哈希，进 `pnpm test:contracts`（路线图 W2-15）。schema 变了而版本没变，评审要拦下。
 - 插件回放工具与样本集（路线图 W4-01）。
 - **提议（未经用户确认，见第 4 节第 5 条）：** 兼容标记门禁改成允许「带窗口编号、登记表里有对应行」的标记，其余仍只许减少。现在的门禁一律只许减少，起点之后的第一段兼容会被它拦住；放宽门禁要另开 PR，改 `tooling/gates/` 与门禁脚本，请求 @yijunw0212 评审。

@@ -571,6 +571,22 @@ export function peekSealedEntry(authRef: string): string | null {
   return file.entries[authRef] ?? null;
 }
 
+/**
+ * Deletes every entry whose reference starts with `prefix` (a deleted project's secrets), under the same cross-process
+ * lock as the store's other writes. Nothing is decrypted, so it needs no master key. Returns how many went.
+ */
+export function deleteSecretEntriesWithPrefix(prefix: string): number {
+  if (!prefix) throw new Error("a secret prefix is required");
+  if (!fs.existsSync(secretsPath())) return 0;
+  return withSecretsLock(() => {
+    const file = loadFile();
+    const names = Object.keys(file.entries).filter(name => name.startsWith(prefix));
+    for (const name of names) delete file.entries[name];
+    if (names.length) saveFile(file);
+    return names.length;
+  });
+}
+
 export function readSecretsFileMeta(): {
   version: number;
   backend: string;

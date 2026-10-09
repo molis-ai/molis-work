@@ -677,7 +677,7 @@
 | 门禁 | 机制 | 基线 | 突变验证 |
 | --- | --- | --- | --- |
 | 静态检查最小规则集 | ESLint（或 Biome）只开几条：无未用变量与导入、无空 catch（显式注释的除外）、无 `as unknown as`（现有处数进基线） | `tooling/gates/lint-baseline.json` | 新增一处空 catch |
-| 公开 API 快照 | 插件 SDK、contracts 各 subpath 的导出清单生成文件入库；导出一变就要显式更新快照，PR 里说明兼容影响 | `tooling/gates/api/*.txt` | 新增一个导出不更新快照 |
+| 公开 API 快照 | 插件 SDK、contracts 各 subpath 的导出（名字加签名，去注释）由编译器的声明输出生成、文件入库；源码和快照有任何不同就失败，要改用 `pnpm api:update` 有意刷新，PR 里说明兼容影响（`scripts/gates/api-snapshot.mjs`） | `tooling/gates/api/<包>/<subpath>.txt` | 新增一个导出不更新快照（`tests/health-gates-api-snapshot.test.ts`） |
 | 巨大单元只减不增 | 按 §4.5 阈值（文件 800 行、类 300 行或 25 个方法、函数 150 行）统计，超出的列名单 | `tooling/gates/giant-units.json`（开工时 37 个文件、43 个类、99 个函数） | 新增一个 160 行函数 |
 | 装配名单只减不增 | 已有 `tests/builtin-plugin-assembly-gate.test.ts`，接进 CI | 冻结名单 | 加回一个 `*-native-plugin-http.ts` |
 | 分层与依赖方向 | 已有 `pnpm boundary:check`，按 `PACKAGE-BOUNDARIES.md` 补上「向上依赖」与「插件互引」的统计 | 现有规则 | 插件 import 另一插件 |
@@ -694,7 +694,7 @@
 - 开工基线（main 2b138559）：巨大单元 182（文件 37、类 48、函数 97），测试内部引用 1016，vendored SDK 1，就地补表 115。
 - 突变验证四项都失败。
 - 实例：基线若从 98984bf7 起算，#171 会被拦下。它让 `events-primary.ts`、`navigation-feed.ts`、`craft-finish.ts` 三个超长文件又变长，并新增 2 处测试内部引用。
-- 静态检查规则集与公开 API 快照放下一批：要加 ESLint 依赖或生成 `.d.ts` 清单。
+- 公开 API 快照（W1-04，2026-10-08，分支 `chore/gates-api-snapshot`）：contracts 的 64 个 subpath 加插件 SDK 共 65 个文件，口径和刷新命令见 `tooling/gates/README.md`；每条声明各占一段（函数的每个重载、同名的类型与常量都在），导出提到、却没有任何 subpath 导出的声明（如 `GoalWorkEventBase`）列在辅助声明里；`pnpm health:check` 比较源码与快照，`--base` 时在日志里列出相对 merge-base 的 API 变化。同一片接上了空 catch（TypeScript 代码与浏览器脚本的模板字符串各记一项）、`as unknown as`（含测试）、旧名（`goalboard`、`board_id`，只数源码）三类按文件计数（浏览器脚本一项也只数源码），口径写在 `scripts/gates/source-counts.mjs` 开头。静态检查工具（W1-09）仍待做，它接进来后替换 TypeScript 代码这部分的计数。每条新规则的突变验证是 `tests/health-gates-source-counts.test.ts`、`tests/health-gates-api-snapshot.test.ts`。
 
 CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.yml`）；以上门禁都以非浏览器用例或脚本形式加到 `architecture-boundaries` 作业里，时间预算 3 分钟以内。
 
@@ -1025,7 +1025,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
   - 演练：真实目录库的拷贝只差模型供应商表的列序和项目表上的一条约束；按列名搬进版本 20 的新库，655 行全部搬过，只丢恒空的那一列；新代码打开，18 个项目都在。
 - **第五批**（`integration/batch-10-04e` = 项目库基线分支（含 #253、#254、#255、Schedule）+ 记忆 + 目录库）：整体构建、`typecheck:all`、边界、健康门禁通过（就地补表 72 → 5）；相关用例全过（项目库 227 个里 8 个失败已修：其中 2 条只测迁移 36 导入规则的用例删掉，运行时的同类规则另有用例；目录与记忆 120 个里 1 个已修）。全量在跑。
   - [#257](https://github.com/molis-ai/molis-work/pull/257)：记忆第一版导入；[#258](https://github.com/molis-ai/molis-work/pull/258)：Schedule 旧导入。
-- 门禁第二批（§5a）：空 catch、`as unknown as`、旧产品名的计数，以及 contracts 与插件 SDK 的公开 API 快照，加进 `pnpm health:check`（分支 `chore/health-gates-lint-api`）。公开 API 会随前面的合同改动变化，等本批合入后再生成基线开 PR。
+- 门禁第二批（§5a）：空 catch、`as unknown as`、旧产品名的计数，以及 contracts 与插件 SDK 的公开 API 快照。最初的 WIP 分支 `chore/health-gates-lint-api` 只数名字、用正则数空 catch（137/141 处落在浏览器脚本的模板字符串里）；已由 W1-04 的 `chore/gates-api-snapshot` 取代：基于合并基点比对的门禁，快照含签名，空 catch 与双重断言按语法树数，口径见 `tooling/gates/README.md`。旧分支不再使用。
 - 「其他旧账号导入」已查（10-04）：**不全是兼容，不能直接删**。
   - `importLegacyAccounts`（`apps/local-host/src/web-connector-connections.ts`）每次列出连接时都会做几种「认领」：旧图片密钥、TypeSafe 的 `FUNCTIONS_CREDENTIAL_REF`、各连接器的 `connector:<id>:…`、模型目录的 `model-provider:<id>`，以及各项目来源里的凭据引用。认领后它们出现在设置的「连接」里。
   - 其中至少三种仍由现行流程写入：模型设置按 `model-provider:<id>` 存密钥（`model-provider-store.ts:96`）；Functions / Jev 仍直接读 `FUNCTIONS_CREDENTIAL_REF`（`functions-host.ts`、`experiments-executor.ts`）；Feed 的 GitHub、Gmail 来源注册仍写连接器凭据引用（`plugins/native/feed/src/connector-service.ts`、`connector-source-registration.ts`）。

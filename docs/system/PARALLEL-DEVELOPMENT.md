@@ -55,7 +55,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
    ```
 
 2. 只加自己的几行，写在自己的位置上。不顺手重排、重命名、换格式；那类改动单独一个 PR，不夹逻辑改动。
-3. 解冲突时两边的条目都要留，不整块取「我的」或「对方的」。解完重跑 `pnpm boundary:check` 和健康门禁。`tooling/gates/baseline.json` 冲突时不手工合并：合入 main 后重跑 `node scripts/check-health-gates.mjs --update --base origin/main`。CI 不读这份文件（`AGENTS.md`「构建与测试」）。
+3. 解冲突时两边的条目都要留，不整块取「我的」或「对方的」。解完重跑 `pnpm boundary:check` 和健康门禁。`tooling/gates/baseline.json` 冲突时不手工合并：合入 main 后重跑 `node scripts/check-health-gates.mjs --update --base origin/main`。CI 不读这份文件（`AGENTS.md`「构建与测试」）。`tooling/gates/api/` 下的快照冲突时同样不手工合并：合入 main 后重跑 `pnpm api:update`，再看 diff 里是否只剩自己的 API 变化。
 4. 两个 PR 动同一个枢纽：先准备好的先合；后一个合入 main 再重跑相关用例。
 5. 门禁脚本、`tooling/gates/`、`limits.json`、CI 工作流的改动单独一个 PR：它们是唯一能放宽数字的地方（`AGENTS.md` 的健康门禁一条）。这几处在 `.github/CODEOWNERS` 里只请求 @yijunw0212 评审；这是请求，不是强制（必需批准数是 0，见第 3 节）。放宽数字的 PR 在描述里写清放宽哪一项、为什么。
 

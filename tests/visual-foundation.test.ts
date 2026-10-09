@@ -135,6 +135,8 @@ test("visual foundation keeps Standard and Compact as local presentation choices
   assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-density="compact"\] body\[data-board-view\] \.tree-row \{/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /data-board-view="decisions"/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-row \{\s*min-height: 27px;/);
+  // BL-121 3: the compact child indent stays. The doubled class keeps the specificity that beats goal-canvas.ts's flat stage list; if the indent is dropped on purpose, change both.
+  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-density="compact"\] body\[data-board-view\] \.tree-children\.tree-children \{\s*margin-left: 8px;\s*padding-left: 4px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-node \{\s*min-height: 25px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-document \{\s*width: min\(100%, 1120px\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /data-desktop-shell="true"[^}]+\.goal-document \{\s*padding: 12px 16px 32px;/); // spec → 第三轮 · 视觉精修: spacing scale
@@ -285,7 +287,7 @@ test("desktop shell uses one project directory, project tabs, and soft work surf
   assert.match(VISUAL_FOUNDATION_STYLES, /\.desktop-module-item \{[\s\S]*min-height: 40px;[\s\S]*border-radius: 8px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.desktop-module-item\.is-current \{[\s\S]*background: color-mix\(in srgb, var\(--ink\) 8%, transparent\)/);
   // The Goal-era Inbox/decision page has no producer any more; its skin rules are gone with it.
-  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.inbox-workspace|\.inbox-item\b|\.decision-(?:empty|summary|groups|owner|stack)\b/);
+  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.inbox-workspace|\.inbox-item\b|\.decision-(?:empty|summary|groups|owner|stack)\b|\.feed-decision-work\b/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.desktop-goal-directory \.tree-search \{ display: flex; flex: 1 0 100%; order: -1; \}/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.personal-sidebar-footer \{[\s\S]*grid-row: 3;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.desktop-work-tab\.is-selected \{[\s\S]*background: var\(--paper\)/);

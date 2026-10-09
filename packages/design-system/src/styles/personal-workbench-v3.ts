@@ -987,10 +987,6 @@ export const PERSONAL_WORKBENCH_V3_STYLES = `  /* Personal workbench v3: one dir
     body[data-desktop-shell="true"] .feed-detail-empty svg { width: 20px; height: 20px; stroke-width: 1.6; }
     body[data-desktop-shell="true"] .feed-detail-empty h1 { margin: 0; color: var(--ink-soft); font-size: 17px; }
     body[data-desktop-shell="true"] .feed-detail-empty p { max-width: 46ch; margin: 0; font-size: 11px; line-height: 1.55; }
-    body[data-desktop-shell="true"] .feed-decision-work { max-width: 820px; margin-top: 48px; }
-    body[data-desktop-shell="true"] .feed-decision-work > header { margin-bottom: 12px; padding: 0 4px; display: flex; align-items: end; justify-content: space-between; gap: 12px; }
-    body[data-desktop-shell="true"] .feed-decision-work > header > div { display: grid; gap: 4px; }
-    body[data-desktop-shell="true"] .feed-decision-work > header > div > span, body[data-desktop-shell="true"] .feed-decision-work > header > small { color: var(--faint); font-size: 11px; }
 
   }
 

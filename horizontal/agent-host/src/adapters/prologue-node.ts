@@ -1,6 +1,6 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { GATEWAY_TOOLS, gatewayProblem, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
-import { createPrologueSurfaces, surfaceRules, SURFACE_GUIDANCE, type PrologueSurfacePorts, type PrologueSurfaces } from "./prologue-surfaces.js";
+import { createPrologueSurfaces, surfaceRules, SURFACE_GUIDANCE, DESKTOP_GUIDANCE, type PrologueSurfacePorts, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, claimsSavedChange, internalIdsHeld, memoryHeld, mentionsInternalIds, writesToolCallAsText } from "./announce-guard.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
@@ -257,6 +257,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const activeRuns = new Map<string, { live(): boolean; steer(text: string): Promise<void> }>();
   /** Which session each run belongs to, for "is another round using this page right now" (the side panel browser). */
   const runSessions = new Map<string, string>();
+  /** The run ref for each live run id, for binding "allow in this app this round" to the run (specs/computer-use). */
+  const runRefs = new Map<string, import("@prologue/sdk").ExactRef<"run">>();
   const reviewEffects = new Map<string, ExactRef<"effect">>();
   const deadlines = new Map<string, number>();
   type CommandEvent = Extract<ModelEvent, { type: "command-receipt" }>;
@@ -357,13 +359,25 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           return { kind: "tool-operation", tool: subject.name, summary: subject.name === "dispatch-subagent" ? (attempt.subagent_roots?.length ? "分派独立目录子任务；修改仍需审查，结果仍需核对" : "分派只读子任务；结果仍需核对") : "向原子任务补充要求",
             fields: [...readable, { label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
         }
-        // An action on the side panel's browser: the card says on which site, what, and — for a file — which one.
+        // An action on the side panel's browser or the desktop: the card says on which site or app, what, and — for a
+        // file — which one. The two are different trust levels and read differently.
         if (subject.what === "surface") {
           reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
-          const verbs: Record<string, string> = { pointer: "点击页面", key: "按键", text: "输入文字", navigate: "打开网址", wait: "等待页面", upload: "向网站上传本机文件", download: "把文件存到本机" };
           const label = effect.proposal.summary.replace(/^On this \w+: /u, "").replace(/\.$/u, "");
           const typed = subject.action === "text" && effect.proposal.reviewRef ? await readResourceText(effect.proposal.reviewRef).catch(() => undefined) : undefined;
+          if (subject.surface === "desktop") {
+            const verbs: Record<string, string> = { pointer: "点击", key: "按键", text: "输入文字", scroll: "滚动", drag: "拖动", hover: "悬停", menu: "选择菜单", wait: "等待", app: "打开或切换应用", upload: "把本机文件交给应用", download: "从应用取出文件到本机" };
+            const detail = surfaceHost ? await surfaceHost.describeDesktop(pending.origin?.session ?? "", subject.action, label, typed) : label;
+            const appName = surfaceHost ? await surfaceHost.describeApp(pending.origin?.session ?? "", subject.scope).catch(() => subject.scope) : subject.scope;
+            // "本轮内允许" only for a reversible action (not mutate-external) inside the app, not for switching apps.
+            const reversible = effect.proposal.kind !== "mutate-external" && subject.action !== "app";
+            return { kind: "tool-operation", tool: "surface-act", summary: `在「${appName}」${verbs[subject.action] ?? subject.action}`,
+              fields: [{ label: "应用", value: appName }, { label: "动作", value: verbs[subject.action] ?? subject.action }, { label: "详情", value: detail },
+                ...(subject.action === "upload" || subject.action === "download" ? [{ label: "注意", value: "这会在这台电脑和应用之间传文件，确认前请核对是哪个文件" }] : [])],
+              ...(reversible ? { round_allow: { app: subject.scope, label: appName } } : {}) };
+          }
           const detail = surfaceHost ? await surfaceHost.describe(pending.origin?.session ?? "", subject.action, label, typed) : label;
+          const verbs: Record<string, string> = { pointer: "点击页面", key: "按键", text: "输入文字", navigate: "打开网址", wait: "等待页面", upload: "向网站上传本机文件", download: "把文件存到本机" };
           const where = subject.scope === "about:blank" ? "空白页" : subject.scope;
           return { kind: "tool-operation", tool: "surface-act", summary: `在 ${where} ${verbs[subject.action] ?? subject.action}`,
             fields: [{ label: "网站", value: where }, { label: "动作", value: verbs[subject.action] ?? subject.action }, { label: "详情", value: detail },
@@ -450,6 +464,17 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     queue: options.reviewQueue, pendings: pendingPort,
     async recordRequest(pending, request) {
       await rememberReview(pending.origin!.session!, pending.ref.id, options.reviewQueue!.receipt(request.review_id)!);
+    },
+    async allowAppForRound(pending) {
+      // The approved action's app and run: only a live desktop surface pending qualifies, and the rule itself is
+      // limited to reversible local actions in that one app for that one run.
+      const effect = pending.effectRef && runtime.effects.get(pending.effectRef);
+      const subject = effect?.proposal.subject;
+      const run = pending.origin?.run ? runRefs.get(pending.origin.run) : undefined;
+      if (!surfaceHost || !run || !subject || subject.what !== "surface" || subject.surface !== "desktop") {
+        throw new Error("只有桌面应用的待审操作可以设为「本轮内允许在这个应用里操作」");
+      }
+      surfaceHost.allowAppForRound(run, subject.scope);
     },
     async recordDecision(pending, receipt) {
       if (!pending.origin?.session) throw new Error("审查缺少会话归属，不能保存决定");
@@ -1287,11 +1312,12 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const surface = business && surfaceHost && input.browser !== false
         ? await surfaceHost.attach(session, index.owner.project_id, input.session_id, { readOnly: input.provenance.frozen.execution === "read-only",
           live: sessionRefId => [...activeRuns.entries()].some(([runId, run]) => run.live() && runSessions.get(runId) === sessionRefId) })
-          .catch((error: unknown) => ({ tools: [] as readonly string[], note: `侧栏浏览器这一轮不可用：${error instanceof Error ? error.message : String(error)}` }))
-        : { tools: [] as readonly string[], note: null };
+          .catch((error: unknown) => ({ tools: [] as readonly string[], note: `界面控制这一轮不可用：${error instanceof Error ? error.message : String(error)}`, surfaces: [] as readonly ("browser" | "desktop")[] }))
+        : { tools: [] as readonly string[], note: null, surfaces: [] as readonly ("browser" | "desktop")[] };
       const surfaceTools = surface.tools;
       const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods,
-        ...(surfaceTools.length ? [SURFACE_GUIDANCE] : []), ...(surface.note ? [`## 侧栏浏览器\n${surface.note}`] : []),
+        ...(surface.surfaces.includes("browser") ? [SURFACE_GUIDANCE] : []), ...(surface.surfaces.includes("desktop") ? [DESKTOP_GUIDANCE] : []),
+        ...(surface.note ? [`## 界面控制\n${surface.note}`] : []),
         ...(plan && stepBoard ? [stepBoards.instructions(stepBoard, plan, { session: session.ref.id, dispatch: childRoles.size > 0 })] : []), (none || business ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
       if (!none && !business) {
         await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
@@ -1470,6 +1496,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       let stopping: Promise<void> | undefined;
       // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
       runSessions.set(started.run.ref.id, session.ref.id);
+      runRefs.set(started.run.ref.id, started.run.ref);
       activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state) && stopping === undefined,
         steer: text => started.control.steer({ text }) });
       if (plan && stepBoard) stepBoards.follow(stepBoard.ref, { session_id: session.ref.id, run_id: started.run.ref.id }, plan);
@@ -1495,8 +1522,10 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
                 actionController.abort(); actionControllers.delete(started.run.ref.id);
                 if (stepBoard) stepBoards.unfollow(stepBoard.ref.id);
                 if (liveSessions.get(session.ref.id) === started.run.ref.id) liveSessions.delete(session.ref.id);
-                // The side panel stops saying the Assistant is using the page the moment its round is over.
-                if (surfaceHost) void surfaceHost.release(session.ref.id).catch(() => undefined);
+                // The side panel stops saying the Assistant is using the page the moment its round is over, and the
+                // run's "allow in this app this round" approvals are dropped.
+                if (surfaceHost) { void surfaceHost.release(session.ref.id).catch(() => undefined); surfaceHost.releaseRun(started.run.ref); }
+                runRefs.delete(started.run.ref.id);
                 const work = runWork.get(started.run.ref.id);
                 if (work) { runWork.delete(started.run.ref.id); void projectWork.end(work.project, work.id, event.type === "cancelled" ? "stopped" : event.type).catch(() => undefined); }
                 // A round that finished normally saw every message given to it; unanswered requests are settled.

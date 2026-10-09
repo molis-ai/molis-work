@@ -37,7 +37,11 @@ export type HostSurfaceAction =
 export type HostSurfaceRefusal = "driver-unavailable" | "person-present" | "screen-locked" | "outside-target";
 
 /** An error a driver throws to refuse with one of those reasons; the Agent Host maps it onto Prologue's refusal. */
-export interface HostSurfaceRefusalError extends Error { readonly refusal: HostSurfaceRefusal }
+export interface HostSurfaceRefusalError extends Error {
+  readonly refusal: HostSurfaceRefusal;
+  /** Part of the action may already have happened (the person interrupted between two events). */
+  readonly partial?: boolean;
+}
 
 export function isHostSurfaceRefusal(error: unknown): error is HostSurfaceRefusalError {
   const refusal = error instanceof Error ? (error as Partial<HostSurfaceRefusalError>).refusal : undefined;

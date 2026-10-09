@@ -898,6 +898,11 @@ export interface AgentToolOperationReviewDocument {
   tool: string;
   summary: string;
   fields: Array<{ label: string; value: string }>;
+  /**
+   * Present on a reversible desktop computer action in an app the person has not yet allowed for this round: the
+   * Assistant's "电脑" tab and the conversation card may then offer "本轮内允许在这个应用里操作" (specs/computer-use D06).
+   */
+  round_allow?: { app: string; label: string };
 }
 
 export interface AgentMcpReviewDocument {
@@ -957,10 +962,12 @@ export interface AgentReviewDecisionInput {
   actor_id: string;
   note?: string;
   /**
-   * A person approving a command may also allow the same command for the rest of this Agent session.
-   * Only an in-boundary command qualifies; the Host records who set it and applies it to exact repeats.
+   * A person approving an operation may also widen it for the rest of this session or round:
+   * - "session": the same in-boundary command, applied to exact repeats this Agent session.
+   * - "app-this-round": reversible desktop actions in the approved action's app, for this run only; dropped when it
+   *   ends, never persisted, and only on a desktop surface action whose card carried `round_allow` (specs/computer-use D06).
    */
-  remember?: "session";
+  remember?: "session" | "app-this-round";
 }
 
 export interface AgentReviewReceipt {

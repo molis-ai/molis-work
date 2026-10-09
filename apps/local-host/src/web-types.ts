@@ -34,6 +34,8 @@ export interface WebServerOptions {
   runtimeSessionTransport?: RuntimeSessionTransport;
   /** Shared Local Host fixture or embedding owner. Production Web owns one when omitted. */
   localHost?: MolisWorkLocalHost;
+  /** How often (milliseconds, default one minute) the server finishes project deletions that other processes left pending. */
+  deletionSweepMs?: number;
 }
 
 export interface ResolvedWebBoardOptions {

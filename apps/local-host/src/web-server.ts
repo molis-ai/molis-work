@@ -32,6 +32,7 @@ import { BrowserSiteDecisions, registerBrowserSurfaces } from "./browser/browser
 import { createBrowserSurfaceDriver } from "./browser/surface-driver.js";
 import { locateBrowser } from "./browser/locate.js";
 import { createWebCatalogAccess } from "./web-catalog-access.js";
+import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 
@@ -277,7 +278,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       if (ownsLocalHost) void localHost.close();
       if (ownsLocalHost) void catalogAccess?.close();
     });
-    if (!fixture) void catalogAccess?.warm().catch(() => undefined);
+    if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, serverOptions.deletionSweepMs);
     return server;
   }
 

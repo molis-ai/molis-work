@@ -58,6 +58,7 @@ export { initializeProjectDatabase, readManagedBoard, validateManagedBoard } fro
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
 export { ManagedProjectDeletion, type ProjectDeletionCleanupPorts } from "./managed-project-deletion.js";
+export { ProjectDeletedHooks, projectDeletedHooksFor, type ProjectDeletedOwner, type ProjectDeletedPort } from "./project-deleted-hooks.js";
 export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-lifecycle.js";
 export { exists } from "./project-file-paths.js";
 export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
@@ -216,4 +217,8 @@ export { CONNECTORS_BASELINE } from "./connectors-store.js";
 export { CONTEXT_ONBOARDING_BASELINE } from "./context-onboarding-store.js";
 export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";
 export { PLACEMENT_BASELINE } from "./placement-actions.js";
-export { ASSISTANT_STORE_BASELINE } from "./assistant/assistant-store.js";
+export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
+export { AssistantService } from "./assistant/assistant-service.js";
+export { assistantAuthority } from "./assistant/assistant-authority.js";
+export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
+export { prologueMemoryBackend } from "./memory/memory-host.js";

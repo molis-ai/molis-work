@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 
 /** What a baseline needs from a connection: `node:sqlite` and better-sqlite3 both fit. */
@@ -111,4 +112,24 @@ export function describeSqliteSchema(db: SqliteBaselineDatabase): SqliteSchemaSh
     shape.tables[table.name] = { columns, checks: checkClauses(table.sql ?? ""), foreign_keys: foreignKeys, indexes };
   }
   return shape;
+}
+
+/**
+ * Runs `clear` in one write transaction on a personal library of the Home, straight from its file, for a project's
+ * data that has to go when the project is deleted. A library that does not exist yet has nothing to clear and is not
+ * created; one at another schema version is refused like anywhere else. Returns undefined when there was no library.
+ */
+export function clearInExistingHomeSqlite<T>(homeDirectory: string, storeName: string, baseline: SqliteBaseline,
+  clear: (db: ReturnType<typeof openBaselineHomeSqlite>) => T): T | undefined {
+  if (!existsSync(homeSqlitePath(homeDirectory, storeName))) return undefined;
+  const db = openBaselineHomeSqlite(homeDirectory, storeName, baseline);
+  try {
+    db.exec("PRAGMA busy_timeout = 5000;");
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const result = clear(db);
+      db.exec("COMMIT");
+      return result;
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
+  } finally { db.close(); }
 }

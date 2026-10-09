@@ -1,5 +1,7 @@
 /** English for the Todo surface; Chinese strings are the keys. Placeholders ({title}, {count}, {view}, {y}, {m}, {d}) stay as written. */
 export const TODO_EN: Readonly<Record<string, string>> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "放在这个项目里的待办": "Todos placed in this project",
   "待办": "Todo",
   "待办视图": "Todo views",
   "搜索待办": "Search todos",

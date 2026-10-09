@@ -54,6 +54,11 @@ export interface LocalRuntimeOptions {
   workerIntervalMs?: number;
   jobLeaseMs?: number;
   pulseSourceMode?: "live" | "fixture";
+  /**
+   * The token the market pulse's GitHub source sends, asked for at each request. The Host lends it from the Settings
+   * GitHub connection; without one (or without this option) the source searches anonymously. Never read from the environment.
+   */
+  pulseGithubToken?: () => string | undefined;
   localSecurity?: LocalSecurityOptions;
   /** Production Host supplies its trusted Kernel client; standalone Studio uses the same plugin operations. */
   actions?: AlchemistActionInvoker;
@@ -125,7 +130,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
       : [
           new ToolifySource(new SafePublicHttpClient(["www.toolify.ai"])),
           new WatchaSource(new SafePublicHttpClient(["watcha.cn"])),
-          new GitHubSource(new SafePublicHttpClient(["api.github.com"]), process.env.GITHUB_TOKEN),
+          new GitHubSource(new SafePublicHttpClient(["api.github.com"]), options.pulseGithubToken),
         ];
   const handlers = createJobHandlers({
       explorations,

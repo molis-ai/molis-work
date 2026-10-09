@@ -1,4 +1,5 @@
 import { WORK_REUSE_STYLES } from "./work-reuse/ui.js";
+/** The `[data-expanded="false"]` rule centres an empty collection on the list page, like the other plugins' empty states (the comment stays out of the served string). */
 export const ALCHEMIST_STYLES = WORK_REUSE_STYLES + `
 [data-alchemist=workbench] { color:var(--ink); font-size:13px; }
 [data-alchemist=workbench] button,[data-alchemist=workbench] input,[data-alchemist=workbench] textarea { font:inherit; }
@@ -20,7 +21,6 @@ export const ALCHEMIST_STYLES = WORK_REUSE_STYLES + `
 .alc-state[data-state=failed] { color:var(--tone-blocked); }
 .alc-state[data-state=completed] { color:var(--tone-done); }
 .alc-empty { color:var(--muted); line-height:1.7; padding:32px 12px; }
-/* On the list page an empty collection is a centred note, like the other plugins' empty states. */
 .plugin-stage-shell[data-expanded="false"] [data-alc-rows] > .alc-empty:only-child { max-width:32em; margin:0 auto; padding:12vh 24px 64px; text-align:center; font-size:13px; }
 .alc-empty.mw-empty { justify-items:center; gap:0; }
 .alc-empty.mw-empty > strong { margin:0 0 4px; font-size:15px; font-weight: var(--weight-title, 600); color:var(--ink); }

@@ -74,6 +74,23 @@ describe("Market Pulse source adapters", () => {
     });
   });
 
+  it("sends the GitHub token the Host resolves at each request, and no credential when there is none", async () => {
+    const authorizations: Array<string | undefined> = [];
+    let token: string | undefined = "first-token";
+    const source = new GitHubSource({
+      async get(_url, options) {
+        authorizations.push(options?.headers?.authorization);
+        return response(fixture("github-repositories.json"), 200);
+      },
+    }, () => token);
+    await source.collect({ since: "2026-07-24T00:00:00.000Z", limit: 10 });
+    token = "rotated-token";
+    await source.collect({ since: "2026-07-24T00:00:00.000Z", limit: 10 });
+    token = undefined;
+    await source.collect({ since: "2026-07-24T00:00:00.000Z", limit: 10 });
+    expect(authorizations).toEqual(["Bearer first-token", "Bearer rotated-token", undefined]);
+  });
+
   it("does not turn malformed source output into an empty successful result", async () => {
     const source = new WatchaSource(client("{bad json", 200));
     const result = await source.collect({ since: "2026-07-24T00:00:00.000Z", limit: 10 });

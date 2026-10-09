@@ -22,9 +22,10 @@ interface GitHubRepository {
 export class GitHubSource implements SourcePort {
   readonly sourceId = "github" as const;
 
+  /** `token` is asked for at every request: the Host decides which GitHub connection, if any, lends its token. */
   constructor(
     private readonly client: SourceHttpClient,
-    private readonly token?: string,
+    private readonly token?: () => string | undefined,
   ) {}
 
   async collect(input: SourceQuery, signal?: AbortSignal) {
@@ -36,6 +37,7 @@ export class GitHubSource implements SourcePort {
       per_page: String(Math.min(input.limit, 50)),
     });
     const requestUrl = `${GITHUB_SEARCH_URL}?${params.toString()}`;
+    const token = this.token?.();
     let response: SourceHttpResponse;
     try {
       response = await this.client.get(requestUrl, {
@@ -43,7 +45,7 @@ export class GitHubSource implements SourcePort {
         headers: {
           accept: "application/vnd.github+json",
           "x-github-api-version": "2026-03-10",
-          ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
         },
       });
     } catch (error) {

@@ -219,10 +219,8 @@ export function registerProjectCapabilities(
     checkGoalBoard(runtime, project_id);
     return goalAction(runtime, goalsActions.treeRead, query, { actor_id: "local-host" }, invocation);
   });
-  host.register(goalTreeCapabilities.checkGoalTreeProposal, (runtime, [input], invocation) => {
-    const { actor_id: _actor, ...payload } = managementPayload(runtime, input);
-    return goalAction(runtime, goalsActions.treeCheck, payload, managementIdentity(runtime, input.idempotency_key), invocation);
-  });
+  host.register(goalTreeCapabilities.checkGoalTreeProposal, (runtime, [input], invocation) =>
+    goalAction(runtime, goalsActions.treeCheck, managementPayload(runtime, input), managementIdentity(runtime, input.idempotency_key), invocation));
   host.register(goalTreeCapabilities.decideGoalTreeProposal, (runtime, [{ project_id, authority, runtime_actor_id, ...input }], invocation) => {
     checkGoalBoard(runtime, project_id);
     requireLocalPerson(authority, "goal_tree_proposal.authority_source_invalid");

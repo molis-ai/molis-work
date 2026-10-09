@@ -69,10 +69,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const request = async (method, path, body, more) => {
     const payloadBody = body === undefined ? undefined : { ...body, project_id: projectId() };
     const response = await fetch(route(withProject(path)), {
-      method,
-      headers: headers(),
+      method, headers: headers(), ...more,
       body: payloadBody === undefined || method === "GET" ? undefined : JSON.stringify(payloadBody),
-      ...more,
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || L("文档请求失败"));

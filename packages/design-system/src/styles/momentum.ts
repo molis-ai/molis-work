@@ -957,64 +957,64 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   }
 
   @media (min-width: 761px) {
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-chrome {
+    html[data-density="compact"] body[data-board-view] .tree-chrome {
       padding: 4px 8px;
       gap: 4px 4px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-search input {
+    html[data-density="compact"] body[data-board-view] .tree-search input {
       height: 26px;
       border-radius: 5px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-view-switch {
+    html[data-density="compact"] body[data-board-view] .navigator-view-switch {
       padding: 1px;
       border-radius: 6px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-view-switch button {
+    html[data-density="compact"] body[data-board-view] .navigator-view-switch button {
       min-height: 22px;
       border-radius: 4px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-scroll {
+    html[data-density="compact"] body[data-board-view] .tree-scroll {
       padding: 4px 8px 8px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-children {
+    /* doubled class: keeps specificity 0,4,2 so the compact indent beats goal-canvas.ts's flat stage list (BL-121) */ html[data-density="compact"] body[data-board-view] .tree-children.tree-children {
       margin-left: 8px;
       padding-left: 4px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-row {
+    html[data-density="compact"] body[data-board-view] .tree-row {
       min-height: 27px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-toggle,
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-guide {
+    html[data-density="compact"] body[data-board-view] .tree-toggle,
+    html[data-density="compact"] body[data-board-view] .tree-guide {
       width: 13px;
       height: 23px;
       flex-basis: 13px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-node {
+    html[data-density="compact"] body[data-board-view] .tree-node {
       min-height: 25px;
       padding: 1px 4px;
       border-radius: 4px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-copy strong {
+    html[data-density="compact"] body[data-board-view] .tree-copy strong {
       font-size: 12px;
       font-weight: var(--weight-control, 500);
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-copy {
+    html[data-density="compact"] body[data-board-view] .tree-copy {
       display: flex;
       align-items: center;
       gap: 4px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-copy strong {
+    html[data-density="compact"] body[data-board-view] .tree-copy strong {
       min-width: 0;
       flex: 1;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-progress {
+    html[data-density="compact"] body[data-board-view] .tree-progress {
       flex: 0 0 auto;
       margin-top: 0;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-progress > i {
+    html[data-density="compact"] body[data-board-view] .tree-progress > i {
       display: none;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-node .goal-status {
+    html[data-density="compact"] body[data-board-view] .tree-node .goal-status {
       min-height: 16px;
       padding-inline: 0;
       border-color: transparent;
@@ -1022,146 +1022,146 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
       background: transparent;
       font-size: 11px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-node .goal-status svg {
+    html[data-density="compact"] body[data-board-view] .tree-node .goal-status svg {
       display: none;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-relations {
+    html[data-density="compact"] body[data-board-view] .tree-relations {
       margin: 0 0 1px 12px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-relations > summary {
+    html[data-density="compact"] body[data-board-view] .tree-relations > summary {
       min-height: 17px;
       padding-block: 0;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-deps {
+    html[data-density="compact"] body[data-board-view] .tree-deps {
       margin: 0 0 4px 12px;
       padding-block: 1px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-dep {
+    html[data-density="compact"] body[data-board-view] .tree-dep {
       min-height: 21px;
       padding-block: 1px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-footer {
+    html[data-density="compact"] body[data-board-view] .tree-footer {
       min-height: 30px;
       padding-inline: 8px;
       font-size: 11px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-document {
+    html[data-density="compact"] body[data-board-view] .goal-document {
       width: min(100%, 1120px);
       padding: 12px 16px 32px;
       font-size: 12px;
       line-height: 1.5;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-header {
+    html[data-density="compact"] body[data-board-view] .goal-header {
       padding-bottom: 8px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-title-kicker {
+    html[data-density="compact"] body[data-board-view] .goal-title-kicker {
       min-height: 15px;
       margin-bottom: 1px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-title-row {
+    html[data-density="compact"] body[data-board-view] .goal-title-row {
       gap: 8px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-title-row h1 {
+    html[data-density="compact"] body[data-board-view] .goal-title-row h1 {
       font-size: 20px;
       line-height: 1.2;
       letter-spacing: -.025em;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-title-outcome {
+    html[data-density="compact"] body[data-board-view] .goal-title-outcome {
       margin-top: 4px;
       font-size: 12px;
       line-height: 1.4;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-outcome {
+    html[data-density="compact"] body[data-board-view] .goal-focus-outcome {
       padding: 12px 0;
       gap: 8px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-outcome p {
+    html[data-density="compact"] body[data-board-view] .goal-focus-outcome p {
       margin-top: 4px;
       font-size: 13px;
       line-height: 1.42;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-now {
+    html[data-density="compact"] body[data-board-view] .goal-now {
       padding: 8px 0;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-now-body {
+    html[data-density="compact"] body[data-board-view] .goal-now-body {
       margin-top: 8px;
       gap: 8px 12px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-now-body > div > strong {
+    html[data-density="compact"] body[data-board-view] .goal-now-body > div > strong {
       font-size: 13px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-now-body small {
+    html[data-density="compact"] body[data-board-view] .goal-now-body small {
       margin-top: 4px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-now-blockers {
+    html[data-density="compact"] body[data-board-view] .goal-now-blockers {
       margin-top: 8px;
       padding-top: 8px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-criteria,
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-context {
+    html[data-density="compact"] body[data-board-view] .goal-focus-criteria,
+    html[data-density="compact"] body[data-board-view] .goal-focus-context {
       padding: 8px 0 12px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-criteria ul,
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-context dl {
+    html[data-density="compact"] body[data-board-view] .goal-focus-criteria ul,
+    html[data-density="compact"] body[data-board-view] .goal-focus-context dl {
       margin-top: 4px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-criteria li {
+    html[data-density="compact"] body[data-board-view] .goal-focus-criteria li {
       min-height: 28px;
       padding: 4px 0;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-context dl > div {
+    html[data-density="compact"] body[data-board-view] .goal-focus-context dl > div {
       min-height: 27px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .document-section {
+    html[data-density="compact"] body[data-board-view] .document-section {
       padding: 8px 0;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .section-heading {
+    html[data-density="compact"] body[data-board-view] .section-heading {
       margin-bottom: 4px;
       gap: 4px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .section-heading h2,
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-technical > header strong {
+    html[data-density="compact"] body[data-board-view] .section-heading h2,
+    html[data-density="compact"] body[data-board-view] .goal-technical > header strong {
       font-size: 15px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .section-heading p,
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-technical > header small {
+    html[data-density="compact"] body[data-board-view] .section-heading p,
+    html[data-density="compact"] body[data-board-view] .goal-technical > header small {
       font-size: 11px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .document-subsection {
+    html[data-density="compact"] body[data-board-view] .document-subsection {
       margin-top: 8px;
       padding-top: 8px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-purpose > section {
+    html[data-density="compact"] body[data-board-view] .goal-purpose > section {
       padding: 8px 0;
       gap: 8px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-technical {
+    html[data-density="compact"] body[data-board-view] .goal-technical {
       padding-top: 12px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-technical > header {
+    html[data-density="compact"] body[data-board-view] .goal-technical > header {
       padding-bottom: 8px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-technical-body {
+    html[data-density="compact"] body[data-board-view] .goal-technical-body {
       padding-bottom: 12px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-project {
+    html[data-density="compact"] body[data-board-view] .navigator-project {
       padding: 8px 12px 8px;
       gap: 4px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-project-primary {
+    html[data-density="compact"] body[data-board-view] .navigator-project-primary {
       gap: 8px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-project-primary > strong {
+    html[data-density="compact"] body[data-board-view] .navigator-project-primary > strong {
       font-size: 13px;
     }
-    html[data-density="compact"] body[data-desktop-shell="true"][data-board-view]:not([data-board-view="decisions"]) .tree-pane {
+    html[data-density="compact"] body[data-desktop-shell="true"][data-board-view] .tree-pane {
       grid-template-rows: auto 30px auto minmax(0, 1fr) 32px;
     }
-    html[data-density="compact"] body[data-desktop-shell="true"][data-board-view]:not([data-board-view="decisions"]) .desktop-pane-header--navigator {
+    html[data-density="compact"] body[data-desktop-shell="true"][data-board-view] .desktop-pane-header--navigator {
       min-height: 30px;
       padding-inline: 12px;
     }
-    html[data-density="compact"] body[data-desktop-shell="true"][data-board-view]:not([data-board-view="decisions"]) .goal-document {
+    html[data-density="compact"] body[data-desktop-shell="true"][data-board-view] .goal-document {
       padding: 12px 16px 32px;
     }
   }

@@ -57,14 +57,6 @@ export function pendingDecisionCount<T extends GoalsSafetyItem>(view: GoalsDecis
   return view.snapshot.goal_tree_proposals.filter((item) => goalTreeProposalNeedsDecision(item)).length;
 }
 
-export function decisionGroupCount<T extends GoalsSafetyItem>(group: GoalsDecisionGroup<T>): number {
-  return group.goalTreeProposals.length;
-}
-
-export function decisionTypeCounts<T extends GoalsSafetyItem>(view: GoalsDecisionView<T>) {
-  return { proposals: pendingDecisionCount(view) };
-}
-
 export function countGoalDecisions<T extends GoalsSafetyItem>(view: GoalsDecisionView<T>, goalId: string): number {
   const group = buildDecisionGroups(view).find((item) => item.item?.goal.goal_id === goalId);
   return group?.goalTreeProposals.length ?? 0;

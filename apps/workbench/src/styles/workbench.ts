@@ -285,28 +285,6 @@ export const MORE_STYLES = `
   .history-list span { min-width: 0; display: grid; }
   .history-list strong, .history-list small { overflow-wrap: anywhere; }
   .history-list small { color: var(--muted); }
-  .decision-center { width: min(100%, 1080px); margin: 0 auto; padding: 32px 32px 80px; container-type: inline-size; animation: document-in 250ms var(--ease-quint); }
-  .decision-center-header { padding-bottom: 24px; border-bottom: 1px solid var(--line-strong); display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
-  .decision-center-header > div { max-width: 710px; }
-  .decision-center-header > div > small { color: var(--ink-soft); font-size: 11px; font-weight: 400; letter-spacing: .12em; }
-  .decision-center-header h1 { margin: 0 0 4px; font-size: 24px; line-height: 1.25; letter-spacing: -.03em; }
-  .decision-center-header p { margin: 0; color: var(--muted); }
-  .decision-center-header > strong { min-width: 94px; font-size: 30px; line-height: 1; text-align: right; font-variant-numeric: tabular-nums; }
-  .decision-center-header > strong small { margin-top: 4px; display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
-  .decision-summary { min-height: 48px; border-bottom: 1px solid var(--line); display: flex; align-items: center; flex-wrap: wrap; gap: 8px 24px; color: var(--muted); font-size: 12px; }
-  .decision-summary span { display: inline-flex; align-items: center; gap: 8px; }
-  .decision-summary strong { color: var(--ink); font-variant-numeric: tabular-nums; }
-  .decision-groups { display: grid; }
-  .decision-goal-group { padding: 24px 0 32px; border-bottom: 1px solid var(--line-strong); scroll-margin-top: 12px; }
-  .decision-owner { margin-bottom: 12px; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
-  .decision-owner > div { min-width: 0; display: grid; gap: 4px; }
-  .decision-owner > div > span { color: var(--muted); font-size: 11px; font-weight: 400; }
-  .decision-owner > small { flex: 0 0 auto; color: var(--muted); }
-  .decision-owner-link { min-width: 0; color: inherit; display: grid; text-decoration: none; }
-  a.decision-owner-link:hover strong { color: var(--blue-dark); text-decoration: underline; }
-  .decision-owner-link strong { font-size: 17px; letter-spacing: -.015em; overflow-wrap: anywhere; }
-  .decision-owner-link small { color: var(--muted); font-size: 11px; }
-  .decision-stack { display: grid; gap: 12px; }
 ${GOALS_DECISION_COMMON_STYLES}
 ${GOALS_PROPOSAL_STYLES}
 ${GOALS_EVENT_DOCUMENT_STYLES}
@@ -344,11 +322,6 @@ ${GOALS_EVENT_DOCUMENT_STYLES}
   .decision-result-links { min-width: 0; display: grid; justify-items: end; gap: 4px; }
   .decision-result-links a { max-width: 100%; color: var(--blue-dark); font-size: 11px; font-weight: 400; text-decoration: none; display: flex; align-items: center; justify-content: flex-end; gap: 4px; text-align: right; overflow-wrap: anywhere; }
   .decision-result-links a svg { flex: 0 0 auto; width: 12px; height: 12px; }
-  .decision-empty { min-height: 410px; display: grid; place-content: center; justify-items: center; text-align: center; color: var(--muted); }
-  .decision-empty > svg { width: 30px; height: 30px; color: var(--green); }
-  .decision-empty h2 { margin: 12px 0 4px; color: var(--ink); font-size: 20px; }
-  .decision-empty p { margin: 0; }
-  .decision-empty a { margin-top: 12px; color: var(--blue-dark); font-weight: 400; text-decoration: none; }
   .mobile-switch { display: none; }
   .create-dialog { width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 40px); padding: 0; border: 1px solid var(--control-border); border-radius: var(--radius-surface); box-shadow: var(--control-shadow); }
   .create-dialog::backdrop { background: var(--scrim); backdrop-filter: blur(2px); }

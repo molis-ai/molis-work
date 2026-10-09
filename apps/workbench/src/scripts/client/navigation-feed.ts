@@ -714,8 +714,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         if (feedDetailEmpty) feedDetailEmpty.hidden = true;
       } else if (selectedRow.dataset.feedEntryPersisted === "true") {
         void loadFeedItemDetail(selectedRow, itemId);
-      } else if (selectedRow.dataset.feedEntryPrototype === "true") {
-        if (feedDetailEmpty) feedDetailEmpty.hidden = true;
       } else {
         setFeedDetailPlaceholder(L("无法读取这条 Item"), L("刷新页面后再试。"), true);
       }

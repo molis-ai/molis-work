@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  FEED_STYLES,
   FEED_UI_CONTRIBUTION_ID,
   FeedPluginRouteTable,
   createFeedRouteHandlers,
@@ -482,6 +483,40 @@ test("A demo project whose Feed holds nothing is given no invented sources or me
   assert.deepEqual(built.entries, []);
   assert.deepEqual(built.sources, []);
   assert.equal("demo" in built, false, "the model has no demo flag for the plugin to draw a prototype from");
+});
+
+/** Top-level rules of a stylesheet, descending into conditional at-rules; keyframes and font faces are kept whole. */
+function cssRules(css: string): Array<{ prelude: string; body: string }> {
+  const source = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules: Array<{ prelude: string; body: string }> = [];
+  let start = 0;
+  for (let at = 0; at < source.length; at += 1) {
+    if (source[at] === ";") { start = at + 1; continue; }
+    if (source[at] !== "{") continue;
+    let depth = 1;
+    let end = at + 1;
+    for (; end < source.length && depth > 0; end += 1) depth += source[end] === "{" ? 1 : source[end] === "}" ? -1 : 0;
+    const prelude = source.slice(start, at).trim();
+    const body = source.slice(at + 1, end - 1);
+    rules.push({ prelude, body });
+    if (/^@(media|container|supports|layer)\b/.test(prelude)) rules.push(...cssRules(body));
+    at = end - 1;
+    start = end;
+  }
+  return rules;
+}
+
+test("The Feed stylesheet keeps every rule whole: no selector list runs into the next rule, and the reader keeps its own block", () => {
+  const rules = cssRules(FEED_STYLES);
+  for (const { prelude } of rules) {
+    assert.doesNotMatch(prelude, /,\s*$/, `a selector list ends in a comma and swallowed the next rule: ${prelude.slice(-80)}`);
+    if (!prelude.startsWith("@")) assert.doesNotMatch(prelude, /@\w/, `a selector swallowed an at-rule: ${prelude.slice(-80)}`);
+  }
+  const reading = rules.filter(({ prelude }) => /\.feed-stage-item-detail \.feed-detail$/.test(prelude));
+  assert.equal(reading.length, 1, "the reader's own .feed-detail block");
+  assert.match(reading[0].body, /max-width:\s*700px/);
+  assert.match(reading[0].body, /animation:\s*feed-reading-in\b/);
+  assert.ok(rules.some(({ prelude }) => prelude === "@keyframes feed-reading-in"), "the keyframes the reader animates with");
 });
 
 test("Feed with nothing to show says so: no sources, or a source with no messages, never fabricated rows", () => {

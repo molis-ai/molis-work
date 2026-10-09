@@ -139,7 +139,7 @@ ${F} .feed-reader-bar .feed-back-wide svg { transform: none; }
 ${F} .feed-reader-source { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 ${F} .feed-reader-source svg { flex: none; width: 14px; height: 14px; }
 ${F} .plugin-stage-workspace .feed-stage-item-detail { flex: 1; min-height: 0; margin: 0; padding: 12px clamp(20px, 6cqi, 64px) 56px; overflow: auto; overscroll-behavior: contain; border-radius: 0; background: transparent; animation: none; }
-${F} .feed-stage-item-detail .feed-detail,
+${F} .feed-stage-item-detail .feed-detail { width: 100%; max-width: 700px; margin: 0 auto; padding: 0; border-radius: 0; background: transparent; box-shadow: none; animation: feed-reading-in var(--dur-arrive) var(--ease-quint) both; }
 @keyframes feed-reading-in { from { opacity: 0; transform: translateY(6px); } }
 
 /* Heading: where it came from, the title, who and when, then the summary as the lead. */

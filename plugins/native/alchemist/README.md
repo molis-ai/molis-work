@@ -34,7 +34,7 @@ AI 固定指令统一定义于 `src/prompts.ts`，由共同目录登记 `ALCHEMI
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 未配置模型时保留输入并提示，不生成演示卡。方向卡与研究卡上因缺模型而停下的炼化或研究只说一次「还没有可用模型」并带「打开模型设置」（模型之后配好了就不再说），不显示状态、等待标签或内部错误码。
-  - 没有模型时，`alchemist.reuse.assess`、`alchemist.conversation.send`、`alchemist.explorations.start`、`alchemist.research.start` 在目录里对助理、MCP、工作流和插件标成不可用，原因是缺模型（`AlchemistHostService`）；用户自己的页面不受影响，这是有意的：发送讨论先保存消息，启动炼化与启动研究记一条停下的运行，卡片再指向模型设置。让用户自己的页面也事先拒绝是产品行为的变化，等决定（`specs/BACKLOG.md` BL-122）。`alchemist.pulse.start` 用规则综合、不调模型，不声明。`tests/model-unavailable-declarations.test.ts` 钉着现在的划分。
+  - 没有模型时，`alchemist.reuse.assess`、`alchemist.conversation.send`、`alchemist.explorations.start`、`alchemist.research.start` 在目录里对助理、MCP、工作流和插件标成不可用，原因是缺模型（`AlchemistHostService`）；用户自己的页面不受影响，这是有意的：发送讨论先保存消息，启动炼化与启动研究记一条停下的运行，卡片再指向模型设置。让用户自己的页面也事先拒绝是产品行为的变化，等决定（`specs/BACKLOG.md` BL-125）。`alchemist.pulse.start` 用规则综合、不调模型，不声明。`tests/model-unavailable-declarations.test.ts` 钉着现在的划分。
   - 研究阶段的端口类型在 `src/studio/server/runtime/research-runtime-port.ts`；会写 `fixture://research/…` 假证据的 `FixtureResearchRuntimeAdapter` 只在 `tests/fixtures/`，生产代码不导入它。
   - 预算不足产生部分报告，不能当作完整的双 Lens 依据；费用不可观测时不把调用数换算成金额。
   - 执行中的任务持续续租；任务状态与事件同事务保存。

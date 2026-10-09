@@ -279,7 +279,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 - 执行规则里的动作：沿用现有受众（`ActionAudience`，`packages/contracts/src/platform/actions.ts`，目前是 `user | agent | workflow | mcp | plugin`），不新增受众（新增要改这个联合并复核所有按受众分支的位置）；无人在场执行的授权语义要在设计稿里单独定。
 - 补什么：X-6「领域事件订阅口」（读项目库事件流、按声明订阅）；插件部分靠 3.1 的四片加 X-1；Module 部分靠 3.10 的目标。**再推演：6，外加 2** = Module 4 + 插件 1 + 订阅口 1。
 
-**F6 调用诊断**（`packages/contracts/src/platform/observability.ts` 是占位；`docs/platform/CONTRACTS-AND-OPERATIONS.md` 写明 `packages/observability` 尚未创建；路线 W3-01 的调用编号）。
+**F6 调用诊断**（合同包里的 `platform/observability` 占位子路径已在 W2-01 删除；`docs/platform/CONTRACTS-AND-OPERATIONS.md` 写明 `packages/observability` 尚未创建；路线 W3-01 的调用编号）。
 
 - 现在（推演，约 12）：内核给每次调用编号（`packages/kernel/src/action-service.ts`、`packages/contracts/src/platform/actions.ts`）2；六类入口各自带出编号：Web（`apps/local-host/src/web-request.ts`）、MCP（`apps/mcp/src/action-tools.ts`）、助理（`apps/local-host/src/assistant/assistant-service.ts`）、Agent 工具（`horizontal/agent-host/src/adapters/prologue-action-gateway.ts`）、CLI（`apps/cli/src/command-dispatch.ts`）、调度（`apps/local-host/src/schedule-task-runner.ts`）6；调用记录 `apps/local-host/src/action-call-log.ts` 1；诊断界面 `apps/local-host/src/web-capabilities.ts`、`apps/workbench/src/capabilities.ts`、`apps/workbench/src/settings-agent-diagnostics.ts` 3。宿主里还有 60 处 `console.*` 在 10 个文件，没有统一日志器。
 - 补什么：W3-01（编号贯通）、W3-02（一个错误模型）、W5-13（结构化日志）。这些是一次性铺设，不是每个功能都付的成本。界面形态按用户 2026-10-08 的决定 #5（`specs/repository-anti-corruption/spec.md` §1「调用编号是否上界面」，PR #312）：错误详情里显示可复制的短编号，「设置 › 诊断」按编号列出最近的调用。**再推演：3**（面板、导出路由、登记一项）。

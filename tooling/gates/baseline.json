@@ -44,7 +44,7 @@
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 336,
     "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
-    "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 158,
+    "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 436,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 327,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 241,

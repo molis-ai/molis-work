@@ -32,7 +32,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - 新的内置插件只走 Plugin Runtime 装配（`apps/local-host/src/project-plugins.ts` 的监督器条目）：不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往 `apps/workbench/src/builtin-plugins.ts` 加构建期条目。现存的旧路径插件名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts`，只许减少。
 - 插件只提供内容，挂在工作台的位置（目录、主区、浮层、设置、侧栏）；不出自己的整页、不开第二个浏览器标签页。例外清单见 `specs/artifact-positioning/spec.md` §4，门禁 `tests/shell-page-gate.test.ts`（CI 里跑）。
 - 成果库只收人要留存、引用的固定版本与导入文件：类型在 manifest `artifacts.produces` 声明，带显示名与 owner 的预览动作；交给别的插件的数据是过程项（`process_items.produces`），不进成果库、侧栏文件和搜索。宿主按 manifest 拒绝未声明的写入；门禁 `tests/artifact-type-gate.test.ts`、`tests/artifact-declaration-gate.test.ts`（CI 里跑）。
-- 删除项目只有一份 Host 服务（`apps/local-host/src/project-deletion-service.ts`），设置页与 MCP 都是它的入口，操作者由入口给、不从参数读；存在 Home 里按项目分区的数据，主人在自己的包里声明 `project_data`（插件在目录条目上，模块导出同形的声明），删除代码不点名插件、表或目录。
+- 删除项目只有一份 Host 服务（`apps/local-host/src/project-deletion-service.ts`：有终端活着就拒绝、释放运行环境、再由目录删除），设置页（删除项目与删除示例项目）和 MCP 的 `project_delete` 是它的入口，操作者由入口给、不从参数读；命令行的 `demo remove` 与卸载程序是例外，在自己的进程里直接删示例项目、不问常驻 Host 的终端（`docs/system/CALL-CHAINS.md` 链 7 的缺口），新的删除入口走这份服务；示例项目的「重建」不清 Session（它保留的面板与 Runtime 绑定还指着它们），删除和删除后同 id 重新创建才清；存在 Home 里按项目分区的数据，主人在自己的包里声明 `project_data`（插件在目录条目上，模块导出同形的声明），删除代码不点名插件、表或目录。
 - `vendor/prologue-sdk/` 只放当前使用的 Prologue 包（最多再加一份在途分支的）；换新包时删掉旧包，旧包从 Git 历史取。每个 vendored 的 tgz 旁边有 `.sha256` 和 `.provenance.json`，与 tgz 不符、或包换掉后记录还留着，`pnpm health:check` 拦下；当前包的上游提交与重建步骤见该目录 README，已删的历史补丁（大小、SHA-256、git blob、基线、来源）记在 `vendor/prologue-sdk/patch-history.json`。
 
 ## 构建与测试

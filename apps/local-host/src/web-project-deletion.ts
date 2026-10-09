@@ -1,4 +1,6 @@
+import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { L } from "./web-locale.js";
@@ -7,6 +9,27 @@ import { resolveConfiguredHome } from "./product-home.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
 import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
+
+/** How the settings page hears a refused or failed deletion: a live terminal is a conflict the person can resolve (409, with its code), anything else a 400. */
+export function sendDeletionFailure(response: ServerResponse, error: unknown): void {
+  const live = error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_terminal_live";
+  sendJson(response, live ? 409 : 400, { error: error instanceof Error ? error.message : String(error), ...(live ? { code: error.code } : {}) });
+}
+
+/**
+ * The settings page's "delete the demo": the same Host deletion service as deleting any project (terminal check, the
+ * runtime let go of, then the catalog's receipt), for the one project marked as regenerable demo data. Null when there is no demo.
+ */
+export async function removeDemoThroughService(withCatalog: LocalWebCatalogRunner, homeDirectory: string | undefined, ports: ProjectDeletionPorts): Promise<ProjectDeletionResult | null> {
+  const demo = await withCatalog({ homeDirectory }, catalog => catalog.listProjects().find(project => project.data_class === "regenerable_demo"));
+  if (!demo) return null;
+  return new ProjectDeletionService(withCatalog, ports).deleteProject(homeDirectory, {
+    project_id: demo.project_id,
+    actor_id: LOCAL_PERSON_ACTOR_ID,
+    delete_confirmed: true,
+    idempotency_key: `web-demo-remove-${randomBytes(16).toString("hex")}`,
+  });
+}
 
 /**
  * The project deletion routes: what the confirmation dialog lists, and the deletion itself with the receipt it returns
@@ -39,8 +62,7 @@ export function createProjectDeletionHttp(withMolisWorkProjectCatalog: LocalWebC
         });
         sendJson(response, 200, result);
       } catch (error) {
-        const live = error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_terminal_live";
-        sendJson(response, live ? 409 : 400, { error: error instanceof Error ? error.message : String(error), ...(live ? { code: error.code } : {}) });
+        sendDeletionFailure(response, error);
       }
       return true;
     }

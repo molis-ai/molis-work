@@ -38,9 +38,13 @@ export class SessionEventRepository {
       : 0;
     const occurredAt = validIsoTimestamp(input.occurred_at) ?? this.now().toISOString();
     const createdAt = this.now().toISOString();
-    const { content_ref: contentRef } = this.contentStore.write(content);
     const metadata = safeEventMetadata(input.metadata);
+    // The content is stored once the write lock is held, like the handoffs' and the messages': content is addressed by its
+    // text, so a block already there is shared, and the purge that deletes a project's Sessions (any process on the Home)
+    // removes blocks no row names while it holds this lock. A block checked or written before the lock could be removed
+    // before the row that names it exists.
     return this.db.transaction(() => {
+      const { content_ref: contentRef } = this.contentStore.write(content);
       const existing = this.db.prepare(`
         SELECT event_id FROM session_events
         WHERE session_id = ? AND source = ? AND source_id = ?
@@ -70,7 +74,7 @@ export class SessionEventRepository {
         createdAt,
       );
       return this.get(eventId);
-    })();
+    }).immediate();
   }
 
   list(sessionId: string): MolisWorkSessionEventRecord[] {

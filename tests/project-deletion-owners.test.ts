@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import fs, { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { mock } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, EN, L, openWorkSessionRegistry, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import Database from "better-sqlite3";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
@@ -266,5 +268,69 @@ test("clearing a project's Sessions twice changes nothing, and a Home without a 
     assert.equal(first.deletion.cleanup_state, "complete");
     assert.equal(existsSync(join(home, "sessions", "sessions.db")), false, "clearing a Home that never had Sessions does not create the file");
     assert.equal(await projectDeletedHooksFor(home).clear("sessions", gone), true, "running the owner again finds nothing and succeeds");
+  });
+});
+
+test("rebuilding the demo keeps its Sessions, which its panels and Runtime bindings still point at; removing it clears them", async () => {
+  await withHome(async ({ home, catalog }) => {
+    const input = { actor_id: "test-user", user_confirmed: true };
+    await catalog.ensureDemoProject(input);
+    const written = await seedSessions(home, DEMO_PROJECT_ID);
+    const before = sessionRows(home, DEMO_PROJECT_ID, written);
+    for (const [name, value] of Object.entries(before)) assert.ok(value > 0, `the fixture wrote ${name}`);
+
+    await catalog.resetDemoProject(input);
+    assert.deepEqual(sessionRows(home, DEMO_PROJECT_ID, written), before, "the rebuilt demo keeps the Sessions and their Ledger edges");
+    const registry = await openWorkSessionRegistry({ homeDirectory: home });
+    try {
+      // What a live demo terminal or a Runtime bound to the demo goes on doing after the rebuild.
+      registry.appendEvent({ session_id: written.sessionId, source: "molis_work", kind: "runtime_message", source_id: "event-after-reset", content: "重建之后仍在记录" });
+      assert.deepEqual(registry.events(written.sessionId).map(event => event.source_id).sort(), ["event-after-reset", "event-own", "event-shared"]);
+    } finally { registry.close(); }
+
+    await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-sessions" });
+    assert.deepEqual(sessionRows(home, DEMO_PROJECT_ID, written), nothing(before), "removing the demo clears its Sessions with the other owners");
+
+    // Left by something that did not clear it: the demo made again with the same fixed id starts without them.
+    const left = await seedSessions(home, DEMO_PROJECT_ID);
+    assert.ok(sessionRows(home, DEMO_PROJECT_ID, left).sessions > 0);
+    await catalog.ensureDemoProject(input);
+    assert.deepEqual(sessionRows(home, DEMO_PROJECT_ID, left), nothing(before), "the demo made again starts without Sessions");
+  });
+});
+
+test("a Sessions purge cannot take a content block out from under an event that is being written", async () => {
+  await withHome(async ({ home, gone, kept }) => {
+    const shared = "两个项目说了同一句话";
+    await seedSessions(home, gone);
+    const blob = `${createHash("sha256").update(shared).digest("hex")}.blob`;
+    const registry = await openWorkSessionRegistry({ homeDirectory: home });
+    try {
+      const session = registry.createSession({ runtime_id: "codex", native_runtime_session_id: "native-late-writer", project_id: kept, current_goal_id: "goal-late", user_confirmed: true, actor_id: "test-user" });
+      // The moment between the writer having found the shared block already stored and verified (it has read it) and its row naming it: if nothing holds the
+      // registry's write lock then, a purge of the other project's Sessions gets in and sees the block named by nobody.
+      const window: { open: boolean | null; purge: Promise<boolean> | null } = { open: null, purge: null };
+      const real = fs.readFileSync;
+      mock.method(fs, "readFileSync", ((target: fs.PathOrFileDescriptor, options?: unknown) => {
+        const read = real(target, options as BufferEncoding);
+        if (window.open === null && String(target).endsWith(blob)) {
+          // The registry's own SQLite library, so that opening and closing this connection does not disturb its locks.
+          const probe = new Database(join(home, "sessions", "sessions.db"), { timeout: 0 });
+          try { probe.exec("BEGIN IMMEDIATE"); probe.exec("ROLLBACK"); window.open = true; } catch { window.open = false; } finally { probe.close(); }
+          if (window.open) window.purge = projectDeletedHooksFor(home).clear("sessions", gone);
+        }
+        return read;
+      }) as typeof fs.readFileSync);
+      let event: ReturnType<typeof registry.appendEvent>;
+      try { event = registry.appendEvent({ session_id: session.session_id, source: "molis_work", kind: "runtime_message", source_id: "event-late", content: shared }); }
+      finally { mock.restoreAll(); }
+      await window.purge;
+
+      assert.equal(window.open, false, "the block is written while the write lock is held, so a purge waits until the event names it");
+      assert.equal(event.content_available, true);
+      assert.equal(event.content, shared);
+      await projectDeletedHooksFor(home).clear("sessions", gone);
+      assert.equal(registry.events(session.session_id)[0]?.content, shared, "a purge that runs after the event keeps the block the event names");
+    } finally { mock.restoreAll(); registry.close(); }
   });
 });

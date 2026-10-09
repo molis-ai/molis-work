@@ -192,3 +192,32 @@ test("with no resident Host to ask, the MCP tool deletes in its own process: it 
   assert.equal(existsSync(project.database_path), false);
   assert.equal(localHost.status().projects.some(row => row.project_id === project.project_id), false, "the process's own runtime of the project was let go of");
 });
+
+test("removing the demo from the settings page is the same service: a live terminal stops it (409), then the Host lets go of the runtime and deletes", { timeout: 60_000 }, async t => {
+  const { directory, home, catalog } = await scratchHome(t);
+  const demo = (await catalog.ensureDemoProject({ actor_id: "test-user", user_confirmed: true })).project;
+  const { localHost, origin, token, closeTerminal } = await residentHostWithTerminal(t, home, demo.project_id, directory, catalog);
+  await localHost.withProject(molisWorkHostProjectReference({ databasePath: demo.database_path, projectId: demo.project_id }), () => undefined);
+  let sequence = 0;
+  const remove = () => fetch(`${origin}/api/settings/demo`, { method: "POST",
+    headers: { "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": `demo-remove-${++sequence}` },
+    body: JSON.stringify({ action: "remove", user_confirmed: true }) });
+
+  const blocked = await remove();
+  assert.equal(blocked.status, 409);
+  const refusal = await blocked.json() as { code?: string; error: string };
+  assert.equal(refusal.code, "catalog.project_terminal_live");
+  assert.match(refusal.error, /关闭.*终端/);
+  assert.equal(existsSync(demo.database_path), true);
+  assert.equal(localHost.status().projects.some(row => row.project_id === demo.project_id), true, "a refused removal leaves the runtime open");
+  assert.equal(catalog.listProjectDeletions().length, 0, "no receipt is written");
+
+  await closeTerminal();
+  const removed = await remove();
+  assert.equal(removed.status, 200, JSON.stringify(await removed.clone().json()));
+  const receipt = await removed.json() as { replayed: boolean; deletion: { cleanup_state: string } };
+  assert.equal(receipt.deletion.cleanup_state, "complete");
+  assert.equal(existsSync(demo.database_path), false);
+  assert.equal(localHost.status().projects.some(row => row.project_id === demo.project_id), false, "the Host let go of the demo's runtime");
+  assert.equal((await remove()).status, 404, "a demo that is gone answers the settings page as it did");
+});

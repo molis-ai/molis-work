@@ -56,14 +56,15 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
  * order the confirmation dialog lists them in.
  */
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
-  const declared: Array<{ id: string; data: ProjectDataDeclaration }> = [
+  const declared: Array<{ id: string; data: ProjectDataDeclaration; survivesRebuild?: true }> = [
     ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.project_data ? [{ id: entry.project_plugin_id, data: entry.project_data }] : []),
     { id: "functions", data: functionsProjectData },
-    { id: "sessions", data: sessionsProjectData(db => createSessionLedger(db)) },
+    // The demo's reset keeps its panels and Runtime bindings, so the Sessions they name stay with them.
+    { id: "sessions", data: sessionsProjectData(db => createSessionLedger(db)), survivesRebuild: true },
   ];
   return declared.map((item, position) => ({ ...item, position }))
     .sort((a, b) => (a.data.order ?? Number.MAX_SAFE_INTEGER) - (b.data.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)
-    .map(({ id, data }) => ({ id, label: data.label, clear: projectId => data.purge(home, projectId) }));
+    .map(({ id, data, survivesRebuild }) => ({ id, label: data.label, ...(survivesRebuild ? { survivesRebuild } : {}), clear: projectId => data.purge(home, projectId) }));
 }
 
 /**

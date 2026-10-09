@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
 import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions, MolisWorkProjectCatalogError } from "./project-catalog.js";
@@ -6,7 +5,7 @@ import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./we
 import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
 import { L } from "./web-locale.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createProjectDeletionHttp } from "./web-project-deletion.js";
+import { createProjectDeletionHttp, removeDemoThroughService, sendDeletionFailure } from "./web-project-deletion.js";
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
@@ -104,6 +103,16 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
         sendJson(response, 400, { error: L("请明确确认要创建、重建或删除演示数据") });
         return true;
       }
+      if (action === "remove") {
+        try {
+          const removed = await removeDemoThroughService(withMolisWorkProjectCatalog, homeDirectory, deletionPorts);
+          if (removed) sendJson(response, 200, { ...removed, message: L("可重建 demo 已删除；用户项目未修改") });
+          else sendJson(response, 404, { error: L("示例项目已经不存在") });
+        } catch (error) {
+          sendDeletionFailure(response, error);
+        }
+        return true;
+      }
       try {
         await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
           if (action === "create") {
@@ -115,27 +124,12 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
             });
             return;
           }
-          if (action === "reset") {
-            const result = await catalog.resetDemoProject({ actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
-            sendJson(response, 200, {
-              ...result,
-              project: settingsProject(result.project),
-              message: L("示例项目已重建；用户项目未修改"),
-            });
-            return;
-          }
-          const demo = catalog.listProjects().find((project) => project.data_class === "regenerable_demo");
-          if (!demo) {
-            sendJson(response, 404, { error: L("示例项目已经不存在") });
-            return;
-          }
-          const result = await catalog.removeDemoProject({
-            project_id: demo.project_id,
-            actor_id: LOCAL_PERSON_ACTOR_ID,
-            delete_confirmed: true,
-            idempotency_key: `web-demo-remove-${randomBytes(16).toString("hex")}`,
+          const result = await catalog.resetDemoProject({ actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
+          sendJson(response, 200, {
+            ...result,
+            project: settingsProject(result.project),
+            message: L("示例项目已重建；用户项目未修改"),
           });
-          sendJson(response, 200, { ...result, message: L("可重建 demo 已删除；用户项目未修改") });
         });
       } catch (error) {
         sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });

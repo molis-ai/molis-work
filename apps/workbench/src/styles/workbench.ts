@@ -322,11 +322,6 @@ ${GOALS_EVENT_DOCUMENT_STYLES}
   .decision-result-links { min-width: 0; display: grid; justify-items: end; gap: 4px; }
   .decision-result-links a { max-width: 100%; color: var(--blue-dark); font-size: 11px; font-weight: 400; text-decoration: none; display: flex; align-items: center; justify-content: flex-end; gap: 4px; text-align: right; overflow-wrap: anywhere; }
   .decision-result-links a svg { flex: 0 0 auto; width: 12px; height: 12px; }
-  .decision-empty { min-height: 410px; display: grid; place-content: center; justify-items: center; text-align: center; color: var(--muted); }
-  .decision-empty > svg { width: 30px; height: 30px; color: var(--green); }
-  .decision-empty h2 { margin: 12px 0 4px; color: var(--ink); font-size: 20px; }
-  .decision-empty p { margin: 0; }
-  .decision-empty a { margin-top: 12px; color: var(--blue-dark); font-weight: 400; text-decoration: none; }
   .mobile-switch { display: none; }
   .create-dialog { width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 40px); padding: 0; border: 1px solid var(--control-border); border-radius: var(--radius-surface); box-shadow: var(--control-shadow); }
   .create-dialog::backdrop { background: var(--scrim); backdrop-filter: blur(2px); }

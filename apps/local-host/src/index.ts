@@ -211,11 +211,13 @@ export { ensureSystemAgentService } from "./system-agent-service.js";
 export { LocalActionGatewayClient } from "./action-gateway.js";
 
 export { createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./search-evidence-runtime.js";
-// Home stores' one current schema each (repository-anti-corruption §4.1); read by scripts/stamp-store-baselines.mjs.
+// Home stores' one current schema each (repository-anti-corruption §4.1); compared with the stores' fixtures by tests/home-store-baselines.test.ts.
 export { CONNECTORS_BASELINE } from "./connectors-store.js";
 export { CONTEXT_ONBOARDING_BASELINE } from "./context-onboarding-store.js";
 export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";
 export { PLACEMENT_BASELINE } from "./placement-actions.js";
+export { EXPERIMENTS_PRIVATE_BASELINE, openExperimentsPrivateStore } from "./experiments-private-store.js";
+export { ALCHEMIST_SEARCH_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
 export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
 export { AssistantService } from "./assistant/assistant-service.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";

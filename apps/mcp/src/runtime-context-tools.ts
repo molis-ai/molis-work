@@ -25,60 +25,60 @@ export interface McpRuntimeContextPorts {
 
 const IDENTITY_FIELDS = ["actor_id", "actor_kind", "audit_actor_id", "runtime_actor_id"];
 
+async function resolveRuntimeContext(ports: McpRuntimeContextPorts, callContext: McpToolCallContext): Promise<string> {
+  const host = ports.requireHost(callContext);
+  // A later resolve must never keep using an earlier in-process answer.
+  ports.connection.clear(false);
+  return ports.catalogs.withCatalog(host.homeDirectory, (catalog) => {
+    return ports.presentResolution(
+      catalog.resolveRuntimeContext(host.runtimeContext, host.projectSuggestionClues),
+      host,
+    );
+  });
+}
+
+async function listRuntimeProjects(ports: McpRuntimeContextPorts, callContext: McpToolCallContext): Promise<string> {
+  const host = ports.requireHost(callContext);
+  return ports.catalogs.withCatalog(host.homeDirectory, (catalog) => {
+    const current = catalog.resolveRuntimeContext(host.runtimeContext, host.projectSuggestionClues);
+    if (current.status !== "bound") {
+      ports.connection.clear();
+    }
+    return JSON.stringify(
+      {
+        context: current.context,
+        status: current.status,
+        reason: current.reason,
+        next_action: current.next_action,
+        current_project: current.project,
+        suggested_projects: current.suggested_projects,
+        projects: catalog.listProjects().map((project) => ({
+          project_id: project.project_id,
+          display_name: project.display_name,
+          source: project.source,
+        })),
+      },
+      null,
+      2,
+    );
+  });
+}
+
+/** The schemas name no actor: a caller that still sends one is told so instead of being recorded as it asked. */
+function refuseIdentity(ports: McpRuntimeContextPorts, arguments_: Record<string, unknown>): void {
+  const named = IDENTITY_FIELDS.filter(field => Object.hasOwn(arguments_, field));
+  if (named.length) {
+    throw ports.createError("mcp.unexpected_field", `不能使用未许可字段：${named.join("、")}。操作者由宿主从 MCP 客户端与当前 Session 取得，参数里不要带身份`, { fields: named });
+  }
+}
+
 /** Named tool conversions over the Host's public catalog scope; no binding algorithm or Store. */
 export function createMcpRuntimeContextHandlers(ports: McpRuntimeContextPorts) {
-  // The schemas name no actor: a caller that still sends one is told so instead of being recorded as it asked.
-  const refuseIdentity = (arguments_: Record<string, unknown>) => {
-    const named = IDENTITY_FIELDS.filter(field => Object.hasOwn(arguments_, field));
-    if (named.length) {
-      throw ports.createError("mcp.unexpected_field", `不能使用未许可字段：${named.join("、")}。操作者由宿主从 MCP 客户端与当前 Session 取得，参数里不要带身份`, { fields: named });
-    }
-  };
-
-  async function resolveRuntimeContext(callContext: McpToolCallContext): Promise<string> {
-    const host = ports.requireHost(callContext);
-    // A later resolve must never keep using an earlier in-process answer.
-    ports.connection.clear(false);
-    return ports.catalogs.withCatalog(host.homeDirectory, (catalog) => {
-      return ports.presentResolution(
-        catalog.resolveRuntimeContext(host.runtimeContext, host.projectSuggestionClues),
-        host,
-      );
-    });
-  }
-
-  async function listRuntimeProjects(callContext: McpToolCallContext): Promise<string> {
-    const host = ports.requireHost(callContext);
-    return ports.catalogs.withCatalog(host.homeDirectory, (catalog) => {
-      const current = catalog.resolveRuntimeContext(host.runtimeContext, host.projectSuggestionClues);
-      if (current.status !== "bound") {
-        ports.connection.clear();
-      }
-      return JSON.stringify(
-        {
-          context: current.context,
-          status: current.status,
-          reason: current.reason,
-          next_action: current.next_action,
-          current_project: current.project,
-          suggested_projects: current.suggested_projects,
-          projects: catalog.listProjects().map((project) => ({
-            project_id: project.project_id,
-            display_name: project.display_name,
-            source: project.source,
-          })),
-        },
-        null,
-        2,
-      );
-    });
-  }
-
   async function rejectRuntimeContextSuggestion(
     arguments_: Record<string, unknown>,
     callContext: McpToolCallContext,
   ): Promise<string> {
-    refuseIdentity(arguments_);
+    refuseIdentity(ports, arguments_);
     const host = ports.requireHost(callContext);
     const actorId = ports.actorFor(host, callContext);
     return ports.catalogs.withCatalog(host.homeDirectory, (catalog) => {
@@ -100,7 +100,7 @@ export function createMcpRuntimeContextHandlers(ports: McpRuntimeContextPorts) {
     arguments_: Record<string, unknown>,
     callContext: McpToolCallContext,
   ): Promise<string> {
-    refuseIdentity(arguments_);
+    refuseIdentity(ports, arguments_);
     const host = ports.requireHost(callContext);
     const actorId = ports.actorFor(host, callContext);
     return ports.catalogs.withCatalog(host.homeDirectory, (catalog) => {
@@ -122,7 +122,7 @@ export function createMcpRuntimeContextHandlers(ports: McpRuntimeContextPorts) {
     arguments_: Record<string, unknown>,
     callContext: McpToolCallContext,
   ): Promise<string> {
-    refuseIdentity(arguments_);
+    refuseIdentity(ports, arguments_);
     const host = ports.requireHost(callContext);
     const actorId = ports.actorFor(host, callContext);
     return ports.catalogs.withCatalog(host.homeDirectory, (catalog) => {
@@ -142,7 +142,7 @@ export function createMcpRuntimeContextHandlers(ports: McpRuntimeContextPorts) {
     arguments_: Record<string, unknown>,
     callContext: McpToolCallContext,
   ): Promise<string> {
-    refuseIdentity(arguments_);
+    refuseIdentity(ports, arguments_);
     const host = ports.requireHost(callContext);
     const actorId = ports.actorFor(host, callContext);
     return ports.catalogs.withCatalog(host.homeDirectory, async (catalog) => {
@@ -165,7 +165,7 @@ export function createMcpRuntimeContextHandlers(ports: McpRuntimeContextPorts) {
     arguments_: Record<string, unknown>,
     callContext: McpToolCallContext,
   ): Promise<string> {
-    refuseIdentity(arguments_);
+    refuseIdentity(ports, arguments_);
     const host = ports.requireHost(callContext);
     const result = await ports.deleteProject({
       project_id: typeof arguments_.project_id === "string" ? arguments_.project_id : "",
@@ -181,8 +181,8 @@ export function createMcpRuntimeContextHandlers(ports: McpRuntimeContextPorts) {
   }
 
   return {
-    molis_work_v1_context_resolve: (_arguments_: Record<string, unknown>, context: McpToolCallContext) => resolveRuntimeContext(context),
-    molis_work_v1_context_list_projects: (_arguments_: Record<string, unknown>, context: McpToolCallContext) => listRuntimeProjects(context),
+    molis_work_v1_context_resolve: (_arguments_: Record<string, unknown>, context: McpToolCallContext) => resolveRuntimeContext(ports, context),
+    molis_work_v1_context_list_projects: (_arguments_: Record<string, unknown>, context: McpToolCallContext) => listRuntimeProjects(ports, context),
     molis_work_v1_context_reject_suggestion: (arguments_: Record<string, unknown>, context: McpToolCallContext) => rejectRuntimeContextSuggestion(arguments_, context),
     molis_work_v1_context_bind: (arguments_: Record<string, unknown>, context: McpToolCallContext) => bindRuntimeContext(arguments_, context),
     molis_work_v1_context_unbind: (arguments_: Record<string, unknown>, context: McpToolCallContext) => unbindRuntimeContext(arguments_, context),

@@ -59,3 +59,7 @@ export function webProjectDeletionPorts(web: {
     },
   };
 }
+
+/** What the resident Web Host runs when a process that only forwards (the stdio MCP) hands it a deletion: this server's own terminals and runtimes. */
+export const webProjectDeletion = (withCatalog: LocalWebCatalogRunner, web: Parameters<typeof webProjectDeletionPorts>[0]): ProjectDeletionService =>
+  new ProjectDeletionService(withCatalog, webProjectDeletionPorts(web));

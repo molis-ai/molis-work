@@ -7,15 +7,20 @@
 //                                 right now. It stays in the list but its result does not count; every entry has an owner and
 //                                 an end date, and the end date is at most 30 days after `since`.
 //
-// This module only reads and judges the two files, with no clock for the static rules, so the health gate (scripts/gates/
-// product-subset.mjs, `pnpm health:check`) and the runner (scripts/ci-product-subset.mjs) read them the same way. Node built-ins
-// only: it runs before any dependency is installed.
+// This module reads and judges the two files. `readPlan` has no clock, so the health gate (scripts/gates/product-subset.mjs,
+// `pnpm health:check`) and the runner (scripts/ci-product-subset.mjs) read them the same way; the two questions that need a date
+// (`resolvePlan`: has an entry run out, `datingProblems`: does one begin in the future) are asked by the runner with `today`.
+// Node built-ins only: it runs before any dependency is installed.
 //
 // Why quarantine is a list with an end and not a skip: nothing in a test file is skipped or loosened. A quarantined file keeps
 // being run by the runner (after the files that count, with whatever time is left) and by the Linux probe and every local run;
 // only the verdict of the subset ignores it, until the end date. When the date passes the file counts again, whether anyone
-// remembered or not, and an entry cannot be renewed past 30 days from `since`: after that the file is fixed, or taken out of the list
-// on purpose in a reviewed change (docs/system/PARALLEL-DEVELOPMENT.md, section on the product subset).
+// remembered or not.
+//
+// What the 30 days do and do not stop: the limit is counted from `since`, and `since` cannot be later than the day the runner runs
+// (one day of slack for a time zone east of UTC), so an entry cannot be dated ahead to run longer. A newer `since` on an entry that
+// already exists does restart the 30 days, and nothing here can tell it from a new quarantine: that is an edit of a visible file,
+// seen in review (docs/system/PACKAGE-BOUNDARIES.md, product subset job), not something this module blocks.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { classifyFile } from "../ci-linux-probe/select.mjs";
@@ -26,8 +31,8 @@ const CODEOWNERS_FILE = ".github/CODEOWNERS";
 
 /** The browser smokes: enough to say the workbench starts and its main surfaces work, few enough to stay fast and steady. */
 export const BROWSER_SMOKES = { min: 3, max: 5 };
-/** Quarantine is short and small on purpose. `maxDays` counts from `since` to `expires`. */
-export const QUARANTINE_LIMITS = { maxEntries: 10, maxDays: 30, minReasonCharacters: 20 };
+/** Quarantine is short and small on purpose. `maxDays` counts from `since` to `expires`; `sinceSlackDays` is how far ahead of the UTC date `since` may be. */
+export const QUARANTINE_LIMITS = { maxEntries: 10, maxDays: 30, minReasonCharacters: 20, sinceSlackDays: 1 };
 /** Files the list may never lose without changing this module in review: W2-16 asks for the i18n test in CI. */
 export const REQUIRED_ENTRIES = ["tests/i18n.test.ts"];
 
@@ -158,6 +163,23 @@ export function readPlan(root) {
     problems.push(`${QUARANTINE_FILE}: ${smokes.length - counted.length} of ${smokes.length} browser smokes are quarantined, which leaves ${counted.length} that count; at least ${BROWSER_SMOKES.min} must (add a smoke, or fix the quarantined one)`);
   }
   return { applies: true, entries, quarantine: quarantined.entries, problems };
+}
+
+/**
+ * The entries that begin after `today` (YYYY-MM-DD) by more than the slack: a `since` in the future would stretch the 30 days that are
+ * counted from it. Asked by the runner, which has the date (the gate has none); an entry it names is never held.
+ */
+export function datingProblems(plan, today) {
+  const now = dayNumber(today);
+  if (now === null) return [];
+  const problems = [];
+  for (const entry of plan.quarantine) {
+    const since = dayNumber(entry.since);
+    if (since !== null && since - now > QUARANTINE_LIMITS.sinceSlackDays) {
+      problems.push(`${QUARANTINE_FILE} (${entry.file}): "since" ${entry.since} is ${since - now} days after today (${today}); a quarantine begins the day it is written, and an entry dated ahead would run past the ${QUARANTINE_LIMITS.maxDays} days (write the day it began, or today)`);
+    }
+  }
+  return problems;
 }
 
 /**

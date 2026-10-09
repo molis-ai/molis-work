@@ -17,19 +17,20 @@
 //     --budget-minutes <n>              stop starting non-browser files after this long; the rest are `not-run`, which fails the run
 //     --browser-budget-minutes <n>      the same for the browser smokes, which run first
 //     --expect-platform <p>             exit 2 before running anything unless process.platform is <p> (CI: linux)
-//     --today <YYYY-MM-DD>              the date quarantine end dates are judged against (default: today, UTC)
+//     --today <YYYY-MM-DD>              the date quarantine entries are judged against: their end dates, and a `since` more than a day after it is refused (default: today, UTC)
 // Order: the browser smokes, then the other files, then the quarantined ones (one at a time, no retry, with what is left of the
 // other files' budget; they are watched, never counted). A file counts as passed when it ran a test and nothing failed; a file whose
 // tests all skipped (no Chrome for a smoke, a platform guard) did not verify anything and fails the run like a failure does.
 // Exit: 0 every counted file passed (a `flaky` pass included), 1 a counted file failed, timed out, ran nothing or was not reached,
-// 2 the run could not start (usage, wrong platform, the list or the quarantine file breaks a rule), 128 + the signal when CI
-// cancels the run or stops the job (the test processes are stopped and a partial report is written first).
+// 2 the run could not start (usage, wrong platform, the list or the quarantine file breaks a rule, a quarantine entry that begins
+// in the future), 128 + the signal when CI cancels the run or stops the job (the test processes are stopped and a partial report is
+// written first).
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAll, stopRunning } from "./ci-linux-probe/run.mjs";
-import { dayNumber, LIST_FILE, readPlan, resolvePlan } from "./ci-product-subset/plan.mjs";
+import { datingProblems, dayNumber, LIST_FILE, readPlan, resolvePlan } from "./ci-product-subset/plan.mjs";
 import { failing, STATUSES, totals, writeSubsetReport } from "./ci-product-subset/report.mjs";
 
 const USAGE = "usage: ci-product-subset.mjs [--list] [--root <dir>] [--out <dir>] [--only <regex>] [--jobs <n>] [--timeout-seconds <n>] [--browser-timeout-seconds <n>] [--retries <n>] [--budget-minutes <n>] [--browser-budget-minutes <n>] [--expect-platform <p>] [--today <YYYY-MM-DD>]";
@@ -65,6 +66,8 @@ if (dayNumber(today) === null) die(`--today needs a real date written YYYY-MM-DD
 const plan = readPlan(root);
 if (!plan.applies) die(`${path.join(root, LIST_FILE)} does not exist; there is no product subset to run`);
 if (plan.problems.length) die(`the product subset's files break a rule, nothing was run:\n- ${plan.problems.join("\n- ")}`);
+const dating = datingProblems(plan, today);
+if (dating.length) die(`the quarantine file has an entry that begins in the future, nothing was run:\n- ${dating.join("\n- ")}`);
 let only = null;
 try { only = options.only ? new RegExp(options.only) : null; } catch (error) { die(`--only needs a regular expression: ${error.message}`); }
 if (only) plan.entries = plan.entries.filter((entry) => only.test(entry.file));

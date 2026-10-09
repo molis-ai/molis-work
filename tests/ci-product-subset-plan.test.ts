@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { BROWSER_SMOKES, dayNumber, LIST_FILE, parseList, parseQuarantine, QUARANTINE_FILE, QUARANTINE_LIMITS, readPlan, REQUIRED_ENTRIES, resolvePlan } from "../scripts/ci-product-subset/plan.mjs";
+import { BROWSER_SMOKES, datingProblems, dayNumber, LIST_FILE, parseList, parseQuarantine, QUARANTINE_FILE, QUARANTINE_LIMITS, readPlan, REQUIRED_ENTRIES, resolvePlan } from "../scripts/ci-product-subset/plan.mjs";
 import { productSubsetProblems } from "../scripts/gates/product-subset.mjs";
 
 // specs/repository-anti-corruption §4.7 (W2-16, decision #14): the rules the CI product subset's two files keep, as the health gate
@@ -136,7 +136,7 @@ test("quarantine file: shape, fields, owner, dates, reason", () => {
   only(problemsOf({ quarantine: quarantine(entry({ reason: `${"a ".repeat(9)}a  ` })) }), /"reason" needs at least 20 characters/); // spaces do not count
 });
 
-test("a quarantine lasts at most 30 days from the day it began, so it cannot be renewed for ever", () => {
+test("a quarantine lasts at most 30 days, counted from its `since`", () => {
   noProblems({ quarantine: quarantine(entry({ since: "2026-10-01", expires: "2026-10-31" })) }); // 30 days exactly
   only(problemsOf({ quarantine: quarantine(entry({ since: "2026-10-01", expires: "2026-11-01" })) }), /"expires" is 31 days after "since"; a quarantine lasts at most 30 days/);
   noProblems({ quarantine: quarantine(entry({ since: "2026-10-01", expires: "2026-10-01" })) }); // the day it began
@@ -145,6 +145,26 @@ test("a quarantine lasts at most 30 days from the day it began, so it cannot be 
   assert.equal(dayNumber("2026-13-01"), null);
   assert.equal(dayNumber("2026-1-1"), null);
   assert.equal(dayNumber(20261001 as never), null);
+});
+
+test("`since` cannot be dated ahead, so the 30 days cannot be stretched: the runner asks with today's date, with a day of slack for time zones", () => {
+  const dated = (since: string, expires: string, today: string) => datingProblems(readPlan(scratch({ quarantine: quarantine(entry({ since, expires })) })), today);
+  assert.deepEqual(dated("2026-10-09", "2026-10-30", "2026-10-09"), [], "it begins today");
+  assert.deepEqual(dated("2026-10-01", "2026-10-30", "2026-10-09"), [], "it began earlier");
+  assert.deepEqual(dated("2026-10-10", "2026-11-09", "2026-10-09"), [], "one day of slack: someone east of UTC writes their own date");
+  const ahead = dated("2026-10-11", "2026-11-10", "2026-10-09");
+  assert.equal(ahead.length, 1, ahead.join("\n"));
+  assert.match(ahead[0]!, /^tests\/quarantine\.json \(tests\/flow-a\.test\.ts\): "since" 2026-10-11 is 2 days after today \(2026-10-09\); a quarantine begins the day it is written/);
+  // The way round the 30 days that was found in review: a `since` a year ahead and 29 days of quarantine. Every static rule passes it
+  // (they have no clock); only the runner's question, with a date, refuses it, and the day it begins it is an ordinary entry.
+  const year = readPlan(scratch({ quarantine: quarantine(entry({ since: "2027-09-01", expires: "2027-09-30" })) }));
+  assert.deepEqual(year.problems, []);
+  assert.equal(datingProblems(year, "2026-10-09").length, 1);
+  assert.equal(datingProblems(year, "2027-08-31").length, 0, "the last day of slack");
+  assert.equal(datingProblems(year, "2027-09-01").length, 0);
+  assert.deepEqual(datingProblems(readPlan(scratch()), "2026-10-09"), [], "no entry, nothing to refuse");
+  assert.deepEqual(datingProblems(year, "next week"), [], "a today that is not a date is the runner's own refusal");
+  assert.equal(QUARANTINE_LIMITS.sinceSlackDays, 1);
 });
 
 test("a quarantine entry names a file the subset runs, once, and an owner who is in CODEOWNERS", () => {

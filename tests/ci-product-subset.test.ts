@@ -325,6 +325,26 @@ test("the runner refuses to run when it cannot say what it measured, and writes 
   refused([], /there is no product subset to run/, noList);
 });
 
+test("a quarantine entry that begins in the future is refused, by the run and by --list, so the 30 days cannot be stretched by dating ahead", () => {
+  // Valid for every static rule (29 days from its `since`), and the file would be held for a year: the way round that review found.
+  const ahead = scratch({ files: { ...basics(), "tests/held.test.ts": passing }, list: [...BASIC_LIST, "tests/held.test.ts"], quarantine: [entry("tests/held.test.ts", { since: "2027-09-01", expires: "2027-09-30" })] });
+  for (const args of [["--today", "2026-10-09"], ["--list", "--today", "2026-10-09"], ["--only", "i18n", "--today", "2026-10-09"]]) {
+    const run = subset(ahead, args);
+    assert.equal(run.code, 2, `${args.join(" ")}: ${run.text}`);
+    assert.match(run.text, /has an entry that begins in the future, nothing was run:\n- tests\/quarantine\.json \(tests\/held\.test\.ts\): "since" 2027-09-01 is \d+ days after today \(2026-10-09\)/, args.join(" "));
+    assert.equal(existsSync(run.out), false, `${args.join(" ")}: wrote a report`);
+  }
+  // On the day it begins it is an ordinary entry; so is one dated the next day (someone east of UTC writes their own date).
+  const listed = subset(ahead, ["--list", "--today", "2027-09-01"]);
+  assert.equal(listed.code, 0, listed.text);
+  assert.match(listed.text, /^held {5}tests\/held\.test\.ts {2}\[quarantined until 2027-09-30, @alice: /m);
+  const tomorrow = scratch({ files: { ...basics(), "tests/held.test.ts": passing }, list: [...BASIC_LIST, "tests/held.test.ts"], quarantine: [entry("tests/held.test.ts", { since: "2026-10-10", expires: "2026-10-31" })] });
+  assert.equal(subset(tomorrow, ["--list", "--today", "2026-10-09"]).code, 0);
+  const afterTomorrow = subset(tomorrow, ["--list", "--today", "2026-10-08"]);
+  assert.equal(afterTomorrow.code, 2, afterTomorrow.text);
+  assert.match(afterTomorrow.text, /"since" 2026-10-10 is 2 days after today \(2026-10-08\)/);
+});
+
 test("--list shows what runs, what is held and what has ended, and runs nothing", () => {
   const files = { ...basics(), "tests/held.test.ts": passing, "tests/ended.test.ts": passing, "tests/ok.test.ts": passing };
   const root = scratch({

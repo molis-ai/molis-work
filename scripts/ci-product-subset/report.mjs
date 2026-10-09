@@ -75,7 +75,7 @@ export function summaryMarkdown({ results, meta }) {
     ...section("Quarantined: watched, not counted", held, [FILE, KIND, OWNER, ["until", (e) => e.quarantine.expires], ["days left", (e) => daysLeft(e, meta.today)], ["latest result", (e) => e.status], ["reason", (e) => cell(e.quarantine.reason)]],
       "Run after the counted files with what is left of the budget; their result never fails the subset. A `pass` here for several runs in a row is the sign to take the entry out."),
     ...section("Quarantine ended: counted again", returned, [FILE, KIND, OWNER, ["ended", (e) => e.expiredQuarantine.expires], ["result", (e) => e.status]],
-      "The entry's end date passed, so the file counts again. Fix the test, or take it out of the list in a reviewed change; the entry cannot be renewed past 30 days from `since`."),
+      "The entry's end date passed, so the file counts again. Fix the test, or take it out of the list in a reviewed change. An end date is at most 30 days after `since`; renewing means writing a newer `since`, which is a reviewed edit of tests/quarantine.json, not something that happens by itself."),
     ...section("Slowest files", [...counted].filter((entry) => entry.seconds !== undefined).sort((a, b) => b.seconds - a.seconds).slice(0, 8), [FILE, KIND, ["seconds", (e) => e.seconds]]),
     "",
   ].join("\n");

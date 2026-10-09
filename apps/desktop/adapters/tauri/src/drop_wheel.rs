@@ -267,6 +267,7 @@ pub fn has_drag_cargo(types: &[&str], has_files: bool, has_text: bool, has_http_
     })
 }
 
+#[cfg(test)]
 pub fn dummy_drag_is_empty(types: &[&str]) -> bool {
     !has_drag_cargo(types, false, false, false)
 }
@@ -316,6 +317,8 @@ impl DropWheelSession {
         }
     }
 
+    // One argument per input the macOS drag monitor reads in a tick; a struct would only move the same eight values.
+    #[allow(clippy::too_many_arguments)]
     pub fn on_drag(
         &mut self,
         mouse: Point,

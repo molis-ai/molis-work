@@ -108,7 +108,9 @@ pub fn copy_files(paths: &[String]) -> Result<(), String> {
         if !path.starts_with(&root) {
             return Err("只能复制 Shelf 工作区里的副本".into());
         }
-        urls.push(unsafe { NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy())) });
+        urls.push(NSURL::fileURLWithPath(&NSString::from_str(
+            &path.to_string_lossy(),
+        )));
     }
     if urls.is_empty() {
         return Err("请先选择要复制的文件".into());
@@ -129,9 +131,12 @@ fn write_file_urls(board: &NSPasteboard, urls: &[Retained<NSURL>]) -> Result<(),
 
 /// DropAgent's drag ghost is a small chip — mark plus name — not a screenshot
 /// of the whole row, so it never covers the window you are dropping into.
+// lockFocus/unlockFocus are deprecated in favour of an image with a drawing handler. The chip is a one-shot drag ghost and
+// the legacy pair draws it correctly on every supported macOS, so it stays until the drag image is redrawn on purpose.
+#[allow(deprecated)]
 fn chip_image(icon: &NSImage, name: &str) -> Retained<NSImage> {
     let label = NSString::from_str(name);
-    let font = unsafe { NSFont::systemFontOfSize(12.0) };
+    let font = NSFont::systemFontOfSize(12.0);
     let attributes = NSDictionary::from_slices(
         &[unsafe { NSFontAttributeName }, unsafe {
             NSForegroundColorAttributeName
@@ -180,14 +185,13 @@ fn text_colour() -> Retained<NSColor> {
 
 /// The chip follows the shelf's own light/dark surface, not the system accent.
 fn dynamic_colour(lr: f64, lg: f64, lb: f64, dr: f64, dg: f64, db: f64) -> Retained<NSColor> {
-    let dark = unsafe {
-        NSApplication::sharedApplication(MainThreadMarker::new().unwrap()).effectiveAppearance()
-    }
-    .name()
-    .to_string()
-    .contains("Dark");
+    let dark = NSApplication::sharedApplication(MainThreadMarker::new().unwrap())
+        .effectiveAppearance()
+        .name()
+        .to_string()
+        .contains("Dark");
     let (r, g, b) = if dark { (dr, dg, db) } else { (lr, lg, lb) };
-    unsafe { NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, 1.0) }
+    NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, 1.0)
 }
 
 fn begin_on_main(app: &AppHandle, paths: &[String]) -> Result<(), String> {
@@ -205,28 +209,28 @@ fn begin_on_main(app: &AppHandle, paths: &[String]) -> Result<(), String> {
         .ns_window()
         .map_err(|error| format!("拿不到窗口：{error}"))?;
     let ns_window = unsafe { &*(ptr as *const NSWindow) };
-    let view: Retained<NSView> = unsafe { ns_window.contentView() }.ok_or("窗口还没有内容视图")?;
+    let view: Retained<NSView> = ns_window.contentView().ok_or("窗口还没有内容视图")?;
     let event: Retained<NSEvent> = NSApplication::sharedApplication(mtm)
         .currentEvent()
         .ok_or("现在没有可以带起拖动的事件")?;
 
-    let workspace = unsafe { NSWorkspace::sharedWorkspace() };
+    let workspace = NSWorkspace::sharedWorkspace();
     let mut items: Vec<Retained<NSDraggingItem>> = Vec::new();
     for (index, file) in files.iter().enumerate() {
         let path = NSString::from_str(&file.to_string_lossy());
-        let url = unsafe { NSURL::fileURLWithPath(&path) };
+        let url = NSURL::fileURLWithPath(&path);
         let item: Retained<NSDraggingItem> = unsafe {
             let allocated: Allocated<NSDraggingItem> = NSDraggingItem::alloc();
             msg_send![allocated, initWithPasteboardWriter: &*url]
         };
-        let icon: Retained<NSImage> = unsafe { workspace.iconForFile(&path) };
+        let icon: Retained<NSImage> = workspace.iconForFile(&path);
         let name = file
             .file_name()
             .map(|value| value.to_string_lossy().to_string())
             .unwrap_or_default();
         let chip = chip_image(&icon, &name);
         let size = chip.size();
-        let origin = unsafe { event.locationInWindow() };
+        let origin = event.locationInWindow();
         let frame = NSRect::new(
             NSPoint::new(
                 origin.x - 18.0 + (index as f64 * 6.0),

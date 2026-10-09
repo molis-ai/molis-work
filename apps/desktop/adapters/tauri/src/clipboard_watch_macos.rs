@@ -114,53 +114,50 @@ fn current_change_count() -> isize {
     let Some(board) = general_board() else {
         return -1;
     };
-    unsafe { board.changeCount() }
+    board.changeCount()
 }
 
 fn general_board() -> Option<objc2::rc::Retained<NSPasteboard>> {
-    Some(unsafe { NSPasteboard::generalPasteboard() })
+    Some(NSPasteboard::generalPasteboard())
 }
 
 fn read_pasteboard() -> Option<Cargo> {
     let board = general_board()?;
-    let types: Vec<String> = unsafe { board.types() }
+    let types: Vec<String> = board
+        .types()
         .map(|array| array.iter().map(|item| item.to_string()).collect())
         .unwrap_or_default();
     let mut files: Vec<PathBuf> = Vec::new();
-    unsafe {
-        if let Some(list) = board.propertyListForType(ns_string!("NSFilenamesPboardType")) {
-            if let Ok(array) = list.downcast::<NSArray>() {
-                for item in array.iter() {
-                    if let Some(name) = item.downcast_ref::<NSString>() {
-                        let path = PathBuf::from(name.to_string());
-                        if path.is_file() {
-                            files.push(path);
-                        }
+    if let Some(list) = board.propertyListForType(ns_string!("NSFilenamesPboardType")) {
+        if let Ok(array) = list.downcast::<NSArray>() {
+            for item in array.iter() {
+                if let Some(name) = item.downcast_ref::<NSString>() {
+                    let path = PathBuf::from(name.to_string());
+                    if path.is_file() {
+                        files.push(path);
                     }
                 }
             }
         }
-        if files.is_empty() {
-            if let Some(url) = board.stringForType(ns_string!("public.file-url")) {
-                if let Some(path) = path_from_file_url(&url.to_string()) {
-                    files.push(path);
-                }
+    }
+    if files.is_empty() {
+        if let Some(url) = board.stringForType(ns_string!("public.file-url")) {
+            if let Some(path) = path_from_file_url(&url.to_string()) {
+                files.push(path);
             }
         }
     }
     // `stringForType:` comes back empty for some writers, so read the bytes.
-    let text = unsafe {
-        board
-            .dataForType(ns_string!("public.utf8-plain-text"))
-            .or_else(|| board.dataForType(ns_string!("NSStringPboardType")))
-    }
-    .map(|data| String::from_utf8_lossy(data.to_vec().as_slice()).to_string())
-    .filter(|value| !value.is_empty())
-    .or_else(|| unsafe {
-        board
-            .stringForType(ns_string!("public.utf8-plain-text"))
-            .map(|value| value.to_string())
-    });
+    let text = board
+        .dataForType(ns_string!("public.utf8-plain-text"))
+        .or_else(|| board.dataForType(ns_string!("NSStringPboardType")))
+        .map(|data| String::from_utf8_lossy(data.to_vec().as_slice()).to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            board
+                .stringForType(ns_string!("public.utf8-plain-text"))
+                .map(|value| value.to_string())
+        });
     Some(Cargo { files, text, types })
 }
 

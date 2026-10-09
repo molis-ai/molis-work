@@ -391,7 +391,7 @@ fn position_capsule_below_tray(
                 CAPSULE_TRAY_GAP as f64,
                 CAPSULE_EDGE_MARGIN as f64,
             )?;
-            let _ = window.eval(&format!(
+            let _ = window.eval(format!(
                 "document.documentElement.style.setProperty('--capsule-anchor-x', '{css_anchor:.1}px')"
             ));
             return Ok(());
@@ -432,7 +432,7 @@ fn position_capsule_below_tray(
         .map_err(|error| error.to_string())?;
     let anchor_x =
         ((tray_center.x - position.x) as f64 / scale_factor).clamp(24.0, CAPSULE_WIDTH - 24.0);
-    let _ = window.eval(&format!(
+    let _ = window.eval(format!(
         "document.documentElement.style.setProperty('--capsule-anchor-x', '{anchor_x:.1}px')"
     ));
     Ok(())
@@ -714,7 +714,7 @@ fn shelf_drag_out(
 ) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        return shelf_drag_macos::begin(&app, &paths, &item_ids.unwrap_or_default());
+        shelf_drag_macos::begin(&app, &paths, &item_ids.unwrap_or_default())
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -906,16 +906,14 @@ fn main() {
       Ok(())
     })
     .on_page_load(|window, payload| {
-      if payload.event() == PageLoadEvent::Finished {
-        if window.label() == "main" {
-          traffic_lights::pin_from_handle(window.app_handle());
-          let _ = window.eval(
-            r#"(() => {
-              const locale = String(document.documentElement.lang || "zh").toLowerCase().startsWith("en") ? "en" : "zh";
-              globalThis.__TAURI__?.core?.invoke?.("capsule_set_locale", { locale }).catch(() => {});
-            })();"#,
-          );
-        }
+      if payload.event() == PageLoadEvent::Finished && window.label() == "main" {
+        traffic_lights::pin_from_handle(window.app_handle());
+        let _ = window.eval(
+          r#"(() => {
+            const locale = String(document.documentElement.lang || "zh").toLowerCase().startsWith("en") ? "en" : "zh";
+            globalThis.__TAURI__?.core?.invoke?.("capsule_set_locale", { locale }).catch(() => {});
+          })();"#,
+        );
       }
     })
     .on_window_event(|window, event| {

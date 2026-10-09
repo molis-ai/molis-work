@@ -332,12 +332,9 @@ fn on_files() {
     let kind = classify_front(bundle, SELF_BUNDLE);
     let ax = ax_trusted();
     let capture_label = shelf_hotkeys::current_capture().label();
-    match decide_front(kind, ax, true) {
-        Err(fail) => {
-            notice(&fail.message(&capture_label));
-            return;
-        }
-        Ok(()) => {}
+    if let Err(fail) = decide_front(kind, ax, true) {
+        notice(&fail.message(&capture_label));
+        return;
     }
     let paths = match kind {
         FrontFileKind::Finder => match finder_selection() {

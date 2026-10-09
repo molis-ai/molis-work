@@ -94,10 +94,6 @@ fn admit_folder(path: &Path) -> Result<String, String> {
     post_json("/api/shelf/folders", &body).and_then(parse_item_id)
 }
 
-pub fn admit_text(text: &str) -> Result<String, String> {
-    admit_text_capturing(text, true)
-}
-
 /// The wheel's 发给终端 hands the link itself over; it does not fetch the page.
 pub fn admit_text_capturing(text: &str, capture_pages: bool) -> Result<String, String> {
     let body = serde_json::json!({ "text": text, "capture_pages": capture_pages });

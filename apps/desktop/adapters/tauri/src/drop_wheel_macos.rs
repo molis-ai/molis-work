@@ -820,7 +820,7 @@ fn refresh_shelf(ids: &[String]) {
         return;
     };
     let ids = serde_json::to_string(ids).unwrap_or_else(|_| "[]".into());
-    let _ = window.eval(&format!(r#"window.dispatchEvent(new CustomEvent("molis-shelf-refresh", {{ detail: {{ item_ids: {ids} }} }}));"#));
+    let _ = window.eval(format!(r#"window.dispatchEvent(new CustomEvent("molis-shelf-refresh", {{ detail: {{ item_ids: {ids} }} }}));"#));
 }
 
 /// Hand the copies to the terminal session without opening the panel.
@@ -1039,7 +1039,7 @@ fn schedule_reveal(app: AppHandle) {
         if REVEAL_GEN.load(Ordering::SeqCst) != gen {
             return;
         }
-        let _ = app.run_on_main_thread(|| on_drag());
+        let _ = app.run_on_main_thread(on_drag);
     });
 }
 
@@ -1094,7 +1094,7 @@ fn over_shelf_panel(app: &AppHandle, mouse: Point) -> bool {
     let Some(window) = app.get_webview_window("main") else {
         return false;
     };
-    if window.is_visible().unwrap_or(false) == false {
+    if !window.is_visible().unwrap_or(false) {
         return false;
     }
     let Ok(ptr) = window.ns_window() else {

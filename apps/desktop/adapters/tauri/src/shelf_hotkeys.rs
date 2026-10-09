@@ -24,6 +24,7 @@ pub const HOTKEY_CAPTURE: u32 = 2;
 pub const HOTKEY_FILES: u32 = 3;
 
 pub const NO_BROWSER: &str = "没读到当前页。把 Safari、Chrome 或 Edge 放到最前面，再抓一次。";
+#[cfg(test)]
 pub const NO_BROWSER_HOTKEY: &str =
     "没读到当前页。把 Safari、Chrome 或 Edge 放到最前面，再按 ⌃⌥W。";
 pub const NEED_ACCESSIBILITY: &str =
@@ -409,6 +410,7 @@ pub fn capture_failure(
     }
 }
 
+#[cfg(test)]
 pub fn occupied_message(label: &str) -> String {
     format!("{label} 已被占用，这次没注册上。")
 }
@@ -782,8 +784,7 @@ fn attr(tag: &str, name: &str) -> Option<String> {
     }
     let quote = bytes[start];
     if quote == b'"' || quote == b'\'' {
-        let end = tag[start + 1..]
-            .as_bytes()
+        let end = tag.as_bytes()[start + 1..]
             .iter()
             .position(|&ch| ch == quote)?
             + start

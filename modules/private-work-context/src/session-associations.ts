@@ -2,10 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type { MolisWorkSessionGoalLink } from "./contract-aliases.js";
 
-/** The Ledger scope and the edge type that say which project a Session belongs to; the project's deletion reads them (project-data.ts). */
-export const SESSION_LEDGER_SCOPE = { kind: "personal", id: "private-work-context" } as const;
-export const SESSION_PROJECT_RELATION = "work.project";
-const scope = SESSION_LEDGER_SCOPE;
+const scope = { kind: "personal", id: "private-work-context" } as const;
 const access = (actor = "module:private-work-context"): ContextAccess => ({ actor_id: actor, scope });
 const source = (sessionId: string): ObjectRef => ({ module: "private-work-context", id: sessionId, version: null, scope });
 const target = (module: "goals" | "projects", id: string, projectId: string | null, objectType?: string): ObjectRef =>
@@ -28,6 +25,16 @@ export class SessionAssociationRepository {
       current_goal_id: active[0]?.target.id ?? null,
       workspace_id: this.ledger.query.get(access(), `work.workspace:${sessionId}`)?.target.id ?? null,
     };
+  }
+
+  /** The Sessions that belong to a project: the ones whose project edge is this project's. */
+  sessionsOfProject(projectId: string): string[] {
+    return this.ledger.query.list(access(), { type: "work.project", target: target("projects", projectId, projectId, "project") }).map(edge => edge.source.id);
+  }
+
+  /** Unlinks a Session from its project, Goal and workspace. The Ledger keeps the append-only history of the edges it removes (ids only). */
+  release(sessionId: string, actor: string, at: string): void {
+    this.set(sessionId, { project_id: null, current_goal_id: null, workspace_id: null }, actor, at);
   }
 
   history(sessionId: string): MolisWorkSessionGoalLink[] {

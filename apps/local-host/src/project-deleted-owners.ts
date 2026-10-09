@@ -2,6 +2,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { functionsProjectData } from "@molis-ai/molis-work-module-functions";
 import { sessionsProjectData } from "@molis-ai/molis-work-module-private-work-context";
+import { createSessionLedger } from "./session-registry.js";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
@@ -58,7 +59,7 @@ function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
   const declared: Array<{ id: string; data: ProjectDataDeclaration }> = [
     ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.project_data ? [{ id: entry.project_plugin_id, data: entry.project_data }] : []),
     { id: "functions", data: functionsProjectData },
-    { id: "sessions", data: sessionsProjectData },
+    { id: "sessions", data: sessionsProjectData(db => createSessionLedger(db)) },
   ];
   return declared.map((item, position) => ({ ...item, position }))
     .sort((a, b) => (a.data.order ?? Number.MAX_SAFE_INTEGER) - (b.data.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)

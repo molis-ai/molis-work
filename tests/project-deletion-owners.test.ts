@@ -202,9 +202,14 @@ const blobs = (home: string): string[] => {
   const root = join(home, "sessions", "content", "blobs");
   return existsSync(root) ? readdirSync(root, { recursive: true, encoding: "utf8" }).filter(entry => entry.endsWith(".blob")) : [];
 };
-/** How much of one project the Sessions file holds: the Sessions, what hangs off them, and the Ledger edges that say whose they are. */
+/**
+ * How much of one project the Sessions file holds: the Sessions, what hangs off them, and the Ledger edges that say whose they are.
+ * The Ledger is append-only: unlinking an edge adds a removed revision and keeps the history (ids only), so "holds" counts the
+ * edges that are still active, the latest revision of each key.
+ */
 function sessionRows(home: string, projectId: string, written: { sessionId: string; handoffId: string; messageId: string }): Record<string, number> {
-  const edges = (id: string) => count(home, "sessions", "SELECT COUNT(*) n FROM context_edges WHERE json_extract(source_json, '$.id') = ?", id);
+  const active = "SELECT COUNT(*) n FROM context_edges e WHERE e.state = 'active' AND e.revision = (SELECT MAX(h.revision) FROM context_edges h WHERE h.scope_kind = e.scope_kind AND h.scope_id = e.scope_id AND h.edge_key = e.edge_key)";
+  const edges = (id: string) => count(home, "sessions", `${active} AND json_extract(e.source_json, '$.id') = ?`, id);
   return {
     sessions: count(home, "sessions", "SELECT COUNT(*) n FROM sessions WHERE session_id = ?", written.sessionId),
     events: count(home, "sessions", "SELECT COUNT(*) n FROM session_events WHERE session_id = ?", written.sessionId),
@@ -213,7 +218,8 @@ function sessionRows(home: string, projectId: string, written: { sessionId: stri
     sessionEdges: edges(written.sessionId),
     handoffEdges: edges(written.handoffId),
     // A Session moved to another project keeps the history of having been here; only the ones that belong here are counted.
-    projectEdges: count(home, "sessions", "SELECT COUNT(*) n FROM context_edges WHERE json_extract(target_json, '$.id') = ? AND json_extract(source_json, '$.id') = ?", projectId, written.sessionId),
+    // (The moved Session's first project edge is a removed revision now, and stays in the Ledger's history.)
+    projectEdges: count(home, "sessions", `${active} AND json_extract(e.target_json, '$.id') = ? AND json_extract(e.source_json, '$.id') = ?`, projectId, written.sessionId),
   };
 }
 

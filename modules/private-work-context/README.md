@@ -54,7 +54,7 @@ node --import tsx --test --test-concurrency=1 tests/private-work-context-module.
   - 默认只在本机；私人恢复包不自动发布为 Artifact 或 Team 内容，共享必须由用户显式发布。
   - 关系事实只存在 Context Ledger，不另建关系表；打开时必须提供 `createLedger` 并复用事务连接。
   - 终端面板与 Runtime 绑定在写入时记下会话（读取时不再搬运）；面板的绑定与面板共用一个会话。
-  - 项目被删除时，Home 里属于这个项目的 Session 记录由本模块自己清：`sessionsProjectData` 是它的声明（标签与 `purgeSessionsProject`，宿主与 Functions 的声明一起列出）。Session 靠 Ledger 边 `work.project` 属于项目，清除一次事务里删这些 Session 的事件、交接、消息请求、它们的 Ledger 边，再删没有别的行引用的内容块；只读已存在的库文件，不创建，版本不符照常拒绝，重复运行没有副作用。别的项目的 Session 和移到别处的 Session 不动。
+  - 项目被删除时，Home 里属于这个项目的 Session 记录由本模块自己清：`sessionsProjectData` 是它的声明（标签与 `purgeSessionsProject`，宿主与 Functions 的声明一起列出）。Session 靠 Ledger 边 `work.project` 属于项目，由 Ledger 的查询找出；清除一次事务里经 Ledger 取消这些 Session 与交接包的关联边（Ledger 只追加，已取消的边留在历史里，只有 id、没有内容），删这些 Session 的事件、交接、消息请求，再删没有别的行引用的内容块；本模块不对 Ledger 的表写 SQL；只读已存在的库文件，不创建，版本不符照常拒绝，重复运行没有副作用。别的项目的 Session 和移到别处的 Session 不动。
 - 改动后必跑：`node scripts/run-tests.mjs tests/private-work-context-module.test.ts tests/session-handoff.test.ts tests/session-directory.test.ts tests/session-content-privacy.test.ts tests/project-deletion-owners.test.ts`
 - 相关手册：[docs/modules/private-work-context.md](../../docs/modules/private-work-context.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

@@ -10,6 +10,10 @@
 // added or deleted, a plugin moved to the Plugin Runtime supervisor, an import that changes what is reachable from the
 // product entry): scripts/gates/package-inventory.mjs --table prints the rows, --check reports the disagreement.
 //
+// The translation check (scripts/gates/translations.mjs, apps/workbench/README.md section 界面文字) is one more metric: conflicting
+// translations are a number that may only go down; a translator call with no English and a `*_EN` dictionary the served catalog
+// never reaches fail outright, with no comparison.
+//
 //   node scripts/check-health-gates.mjs                  measure the working tree and compare it with the committed
 //                                                        tooling/gates/baseline.json (the quick local check)
 //   node scripts/check-health-gates.mjs --base <ref>     measure the working tree AND the merge-base of HEAD and <ref>
@@ -30,6 +34,7 @@ import ts from "typescript";
 import { SOURCE_COUNT_RULES } from "./gates/source-counts.mjs";
 import { checkApiSnapshots } from "./gates/api-snapshot.mjs";
 import { docGateInputs, docGateMetrics, docGateProblems } from "./gates/doc-gates.mjs";
+import { createTranslationMetric } from "./gates/translations.mjs";
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 
@@ -397,6 +402,8 @@ const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, compatMark
 // The structure gates (W1-05) live in scripts/gates/: each module says what to count, this file compares.
 METRICS.push(...structureMetrics({ isSource: isStructureSource, perFile, rekey, rekeyUnit, sumOf }));
 METRICS.push(...docGateMetrics({ perFile }));
+// 7. Translations (decision #16): missing English fails, conflicting translations are frozen, dead keys are reported. The rules live in scripts/gates/translations.mjs.
+METRICS.push(createTranslationMetric({ isSource, requireShape, isRecord }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 

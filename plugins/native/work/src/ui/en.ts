@@ -251,4 +251,8 @@ export const WORK_EN: Record<string, string> = {
   "目标 Runtime 没有完成 Handoff，package 已保留。": "The target Runtime did not finish the Handoff. The package is kept.",
   "新原生 Session 已创建，Handoff 已作为第一条消息发送。": "A new native Session was created, and the Handoff was sent as the first message.",
   "新的 Molis Work 托管 Session 已创建；package 已保存为可读取内容。": "A new Molis Work-hosted Session was created. The package was saved as readable content.",
+  // plugins/native/work/src/ui/terminal.ts
+  "继续已有会话（可选）": "Continue an existing session (optional)",
+  "会话 ID": "Session ID",
+  "先填入对应 Runtime 的会话 ID，再选择上方的 Runtime。": "Enter the session ID for the matching Runtime first, then choose that Runtime above.",
 };

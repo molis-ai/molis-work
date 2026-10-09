@@ -502,6 +502,13 @@ test("routesIn takes the nearest enclosing line that names a route, within the s
   assert.deepEqual(routesAt(file, [{ start: 3, count: 1 }], nested), ["/api/alpha/real"], "through a block that names no route");
   const inner = ['  if (url.pathname === "/api/alpha/real") {', '    const redirect = "/api/alpha/elsewhere";', "    if (request.method === 'POST') {", "      work();", "    }", "  }"].join("\n");
   assert.deepEqual(routesAt(file, [{ start: 4, count: 1 }], inner), ["/api/alpha/real"], "a path beside the block the change is in is not above the route that holds both");
+  // web-request.ts really nests like this: an outer prefix test around the handlers of its routes. A change inside a handler is a change
+  // to that route, not also to every route line further up (the scan stops at the nearest one).
+  const outer = ['  if (url.pathname.startsWith("/api/alpha/")) {', '    if (url.pathname === "/api/alpha/inner") {', "      work();", "    }", "  }"].join("\n");
+  assert.deepEqual(routesAt(file, [{ start: 3, count: 1 }], outer), ["/api/alpha/inner"], "only the nearest enclosing route, not the outer one around it");
+  assert.deepEqual(routesAt(file, [{ start: 3, count: 0 }], outer), ["/api/alpha/inner"], "a deletion in the inner handler is the same");
+  const besideInner = ['  if (url.pathname.startsWith("/api/alpha/")) {', '    if (url.pathname === "/api/alpha/inner") {', "      work();", "    }", "    other();", "  }"].join("\n");
+  assert.deepEqual(routesAt(file, [{ start: 5, count: 1 }], besideInner), ["/api/alpha/"], "beside the inner handler the outer route is the nearest enclosing one");
   const aside = ['  if (url.pathname === "/api/alpha/real") {', '  // was "/api/alpha/old"', "    work();"].join("\n");
   assert.deepEqual(routesAt(file, [{ start: 3, count: 1 }], aside), ["/api/alpha/real"], "a comment indented like the route line is a comment, not the route");
   const helper = ['  if (url.pathname === "/api/alpha/real") {', "    work();", "  }", "}", "function help() {", "  return 1;", "}"].join("\n");
@@ -1141,7 +1148,7 @@ test("in this repository: shared core recommends the full suite, a document alon
   assert.ok(index.tests.filter((entry: { file: string }) => entry.file.includes(".e2e.")).every((entry: { kind: string }) => entry.kind === "browser"), "every .e2e. file is a browser file");
 });
 
-test("in this repository, each file the READMEs call assembly or shell recommends the full suite, and the barrels and ordinary files of the two packages do not", () => {
+test("in this repository, each file on the assembly list recommends the full suite, and the barrels and ordinary files of the two packages do not", () => {
   for (const file of ASSEMBLY) assert.deepEqual(realAt(file).full.map((entry: { rule: string }) => entry.rule), ["assembly"], file);
   for (const file of ["apps/local-host/src/index.ts", "apps/workbench/src/index.ts", "apps/local-host/src/action-gateway.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/settings-models.ts"]) {
     assert.deepEqual(realAt(file).full, [], file);

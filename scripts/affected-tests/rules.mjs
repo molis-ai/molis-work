@@ -18,10 +18,12 @@ export const FULL_REGRESSION = {
   corePackages: ["packages/contracts", "packages/kernel"],
   corePackagePrefixes: ["modules/"],
   /**
-   * "local-host 的装配、workbench 外壳": the files the two packages' READMEs name as assembly or shell (their "从哪里读代码" tables
-   * and "一次典型调用"), plus the hub files of PARALLEL-DEVELOPMENT section 2 that wire things together (route dispatch,
-   * plugin assembly, the shell and its client program). Not the barrels (`index.ts`), and not every file of apps/workbench
-   * (214 files, most of them one plugin's page): whether the whole package is the shell is open point 1 of section 6.1.
+   * "local-host 的装配、workbench 外壳": 14 files the two packages' READMEs name by file name (their "从哪里读代码" tables and prose),
+   * 6 hub files of PARALLEL-DEVELOPMENT section 2 that wire things together and that the READMEs do not name by file name
+   * (route dispatch, plugin assembly, the shell and its client program), and `document-shell.ts`, which neither source names
+   * (added on judgment: it renders the shell document and holds the five workbench slots). Not the barrels (`index.ts`), and not
+   * every file of apps/workbench (214 files, most of them one plugin's page): whether the whole package is the shell is open point 1
+   * of section 6.1.
    * tests/affected-tests.test.ts checks that each file a README table calls 装配 or 组合 is listed here.
    */
   assemblyFiles: [

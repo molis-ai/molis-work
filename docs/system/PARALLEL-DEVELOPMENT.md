@@ -146,7 +146,10 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 建议全量的条件，写在 `scripts/affected-tests/rules.mjs`，`tests/affected-tests.test.ts` 逐条验证：
 
 - 改了 contracts、kernel 或任一 `modules/*`。
-- 改了 local-host 的装配或 workbench 的外壳文件：名单是 rules.mjs 的 `assemblyFiles`，来自两个包 README 自己说是装配、组合、外壳的文件（local-host：`project-host`、`project-plugins`、`local-host`、`project-capabilities`、`web-server`、`web-request`、`web-catalog`、`mcp-server`、`system-agent-service`、`goal-project-application`；workbench：`builtin-plugins`、`browser-assets`、`document-shell`、`goals-page-renderer`、`immersive-shell`、`page-assets`、`plugin-catalog`、`renderer`、`ui-composition`、`scripts/client/initialization`、`scripts/client/plugin-workbench`），不含 `index.ts` 出口。测试里有一条核对：两个 README 的「从哪里读代码」表里，用途写了“装配”或“组合”的文件都在名单上。
+- 改了 local-host 的装配或 workbench 的外壳文件：名单是 rules.mjs 的 `assemblyFiles`，共 21 个文件，不含 `index.ts` 出口，来源有三处。测试里有一条核对：两个 README 的「从哪里读代码」表里，用途写了“装配”或“组合”的文件都在名单上。
+  - 两个包 README 按文件名点到的 14 个：local-host 的 `project-host`、`local-host`、`project-capabilities`、`web-server`、`mcp-server`、`system-agent-service`、`goal-project-application`（「从哪里读代码」表）；workbench 的 `ui-composition`、`goals-page-renderer`、`scripts/client/initialization`、`browser-assets`（同一张表）和 `builtin-plugins`、`plugin-catalog`、`scripts/client/plugin-workbench`（正文）。
+  - 第 2 节枢纽表里把东西接在一起的 6 个，两个 README 没按文件名点到：local-host 的 `web-request`（路由分发）、`web-catalog`、`project-plugins`（`AGENTS.md` 把每个新内置插件的装配点指到它，第 2 节按枢纽对待）；workbench 的 `renderer`（README 只在“一次典型调用”里把它叫作“Workbench renderer”）、`immersive-shell`、`page-assets`。
+  - `apps/workbench/src/document-shell.ts`：README 和枢纽表都没点名，是实现时按判断加的，因为它出整页外壳文档和 `WORKBENCH_UI_SLOTS` 这五个挂载位。
 - 改了存储或迁移：`packages/storage` 的任何源码；名字带 migration 的文件；改动行调用或写了 `PRAGMA user_version`、`user_version`、`applySqliteBaseline`；或者一个产品源码文件持有的结构变了。后一种不看哪几行变了，而是把这个文件在合并基点和现在的两个版本各读一遍，比较它持有的结构：所有含 `CREATE`、`ALTER`、`DROP` 表、索引、视图、触发器或 `PRAGMA user_version` 的字符串与模板字符串的全文，和每个 `SqliteBaseline = { version, schema }` 声明的整个内容。所以 `version: 2` 改 `3`、在多行 `CREATE TABLE` 中间加一列、删一张表都算，注释里的 DDL 不算；名字里带 baseline 但不存数据的文件（`proposal-baselines.ts`）不算。点名文件（没有基点可比）时，持有结构的文件按整个文件改了算。此时还会提示 `node scripts/verify-release-versions.mjs`（库版本表在 `docs/releases/CHECKLIST.md`）。
 - 动了三个或更多包的非文档文件。
 - 删了整块旧代码：三个或更多源文件被删除（改名不算删除）；或者产品源码里取走的代码行（不算注释和空行）合计 300 行或更多，按文件算“删去的减去加上的”，所以重写一个文件不算、别处新增一个文件也盖不住。300 取自 2026-09-28 以来合入的 245 个 PR：合计取走 300 行以上的有 17 个（7%），其中有 #164（旧表单）、#176（独立页面）、#198（旧构建器）、#260（库基线）、#263、#268（事件前历史）、#269、#272、#275、#285 这些删旧路径的 PR；取 200 是 26 个，取 500 是 13 个。
@@ -226,7 +229,7 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 - 合成包负责人和流程：方向已定，人选与方案等路线图 W1-20（见上一节）。
 - 读取兼容的合同流程：起点已定为第一个装到开发机之外的版本（用户 2026-10-08），日期到时写进 [合同变更流程](CONTRACT-CHANGES.md)；在那之前不留兼容期。
 - 挑相关用例的脚本已有（第 6.1 节）；阈值是首批取值，要用一两周后按漏选、多选的实例调整，反向依赖不追。有两处读法等用户（或统筹会话）拍板，现在按推荐的做：
-  1. “workbench 外壳”。选项：名单上的 21 个文件（推荐：`apps/workbench` 有 214 个文件，大多是某个插件的一页或一块界面，这类改动已经会选浏览器用例，整包都算外壳会让每个界面小改动都建议跑 77 分钟）；整个 `apps/workbench`（README 第一行把整个包叫“工作台外壳”）；名单加上 `side-panel*`、`assistant-dock`、`project-home` 这类外壳零件。“local-host 的装配”同理，名单是 README 点名的 10 个文件。
+  1. “workbench 外壳”。选项：名单上的 21 个文件（推荐：`apps/workbench` 有 214 个文件，大多是某个插件的一页或一块界面，这类改动已经会选浏览器用例，整包都算外壳会让每个界面小改动都建议跑 77 分钟）；整个 `apps/workbench`（README 第一行把整个包叫“工作台外壳”）；名单加上 `side-panel*`、`assistant-dock`、`project-home` 这类外壳零件。“local-host 的装配”同理，名单是 10 个文件：README 按文件名点到的 7 个（`project-host`、`local-host`、`project-capabilities`、`web-server`、`mcp-server`、`system-agent-service`、`goal-project-application`），加第 2 节枢纽表与 `AGENTS.md` 点到的 3 个（`web-request`、`web-catalog`、`project-plugins`）。workbench 的 11 个里，README 按文件名点到 7 个；另 4 个（`renderer`、`immersive-shell`、`page-assets` 来自枢纽表，`document-shell` 是实现时加的，两处都没点名）要不要留，随这一问一起定。
   2. “删除整块旧代码”。选项：3 个文件或净取走 300 行（推荐，现状，以 245 个 PR 量过）；只看文件数；再加一条“一个文件净取走 150 行以上”以抓住只删一个大函数的情形（245 个 PR 里 18 个会触发，其中只有 4 个是 300 行条件抓不到的）。
 - 测试并发隔离（每个测试文件一个 Home 和密钥库，非浏览器用例并发）：路线图 W5-12。在那之前全量约 76–78 分钟。
 - CI 里的产品用例子集、浏览器冒烟、隔离名单：非浏览器用例的 Linux 探针作业已有（路线图 W1-11，不挡合并，见第 3 节）；`tests/ci-product-subset.txt`、3–5 个浏览器冒烟、隔离名单（`tests/quarantine.json`）和并入 `Verify` 在路线图 W2-16，约两周的探针结果出来后做。

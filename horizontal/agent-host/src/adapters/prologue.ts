@@ -879,10 +879,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       stop_reason: stopReason,
       ...(record.state.memory_recalled ? { memory_recalled: structuredClone(record.state.memory_recalled) } : {}),
       ...(record.state.todo?.length ? { todo: record.state.todo.map(item => ({ ...item })) } : {}),
+      ...(record.state.turn_changes.length ? { turn_changes: structuredClone(record.state.turn_changes) } : {}),
+      ...(record.state.sleeping_until !== undefined && !isEnded(phase) ? { sleeping_until: record.state.sleeping_until } : {}),
       ...(stampTerminal && isEnded(phase) && record.view.ended_at === null
         ? { ended_at: record.observedEndAt ?? this.#now().toISOString() }
         : {}),
     };
+    // A wait that is over is not carried forward from the previous view.
+    if (record.state.sleeping_until === undefined || isEnded(phase)) delete record.view.sleeping_until;
     const snapshot = structuredClone(record.view);
     for (const listener of record.listeners) listener(structuredClone(snapshot));
   }

@@ -31,6 +31,13 @@ export interface TimelineRun {
   stop_reason?: string | null;
   step_board?: { terminal: boolean; nodes: Array<{ state: string }> };
   turns?: Array<{ kind: string; text: string; at?: string | null }>;
+  turn_changes?: TimelineTurnChanges[];
+}
+/** What one turn wrote, from the runtime's write receipts (AgentRunView.turn_changes). */
+export interface TimelineTurnChanges {
+  turn: number;
+  sequence: number;
+  files: Array<{ path: string; byte_length: number; digest: string; checkpoint_id: string }>;
 }
 
 export function createCodingTimeline() {
@@ -62,6 +69,8 @@ export function createCodingTimeline() {
     "session-send": { verb: "给其他会话发信", icon: "share", noun: "封", unit: "" },
     "上下文整理": { verb: "整理上下文", icon: "clock", noun: "", unit: "次" },
     "工具调用纠正": { verb: "纠正工具调用", icon: "circle-alert", noun: "", unit: "次" },
+    "sleep-wait": { verb: "等一会儿", icon: "clock", noun: "", unit: "次" },
+    "model-switch": { verb: "换模型", icon: "sparkles", noun: "", unit: "次" },
   };
   const kindOf = (item: TimelineActivity) => KIND[item.name] ?? { verb: item.name, icon: "activity", noun: "操作", unit: "项" };
   /** A command's own exit code is a fact from its receipt; "passed" is never inferred beyond it. */
@@ -109,15 +118,31 @@ export function createCodingTimeline() {
     const all = text.replace(/\n$/, "").split("\n");
     return all.length <= limit ? { text: all.join("\n"), hidden: 0 } : { text: all.slice(0, limit).join("\n"), hidden: all.length - limit };
   };
+  /**
+   * What a runtime refusal on one tool call means, in words, above its raw output. Only codes whose meaning is fixed:
+   * the raw `CODE: message` stays below for the exact path, line and kind.
+   */
+  const toolHint = (item: TimelineActivity): string => {
+    if (item.state !== "failed") return "";
+    const code = /^([A-Z][A-Z0-9_]+):/.exec((item.output ?? "").trim())?.[1];
+    const hint = code === "WORKSPACE_SECRET_DETECTED" ? "新写的内容里有像密钥的一段，没有写入，也没有生成待审修改。密钥不要放进项目文件：放在密钥库或环境变量里，让它改用引用。"
+      : code === "PATCH_BASE_CHANGED" || code === "WORKSPACE_NOT_OBSERVED" ? "文件在它读过之后又被改过，这次修改没有覆盖上去；它需要重新读取文件再改。"
+      : code === "COMMAND_DENIED" ? "这条命令没有运行：它的写法或点名要的额外访问不合规则。"
+      : "";
+    return hint ? `<p class="coding-tool-hint">${escape(hint)}</p>` : "";
+  };
   const rowHtml = (item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
     const kind = kindOf(item), result = outcome(item, ended, waiting, items);
     // Reasoning is prose, so its row previews the first line as text rather than as a code target.
     const firstLine = item.name === "reasoning" ? (item.output ?? "").trim().split("\n")[0]!.slice(0, 140) : "";
-    const what = item.target ? `<code>${escape(item.target)}</code>` : firstLine ? `<span class="coding-tool-preview">${escape(firstLine)}</span>` : "";
+    // A wait the Run sleeps in says until when, in this machine's time.
+    const until = item.name === "sleep-wait" && Number.isFinite(Date.parse(item.target)) ? `到 ${new Date(item.target).toLocaleTimeString()}` : "";
+    const what = until ? `<span class="coding-tool-preview">${escape(until)}</span>`
+      : item.target ? `<code>${escape(item.target)}</code>` : firstLine ? `<span class="coding-tool-preview">${escape(firstLine)}</span>` : "";
     const output = (item.output ?? "").trim();
     const shown = output ? lines(output, item.name === "reasoning" ? 120 : 24) : null;
     const hidden = (shown?.hidden ?? 0) + (item.output_hidden_lines ?? 0);
-    const body = shown ? `<pre class="coding-tool-output">${escape(shown.text)}${hidden ? `\n… 另有 ${hidden} 行` : ""}${item.output_truncated ? "\n（输出已截断）" : ""}</pre>` : "";
+    const body = shown ? `${toolHint(item)}<pre class="coding-tool-output">${escape(shown.text)}${hidden ? `\n… 另有 ${hidden} 行` : ""}${item.output_truncated ? "\n（输出已截断）" : ""}</pre>` : "";
     const head = `<span class="coding-tool-icon">${svg(kind.icon)}</span><span class="coding-tool-verb">${escape(kind.verb)}</span>${what}<span class="coding-tool-state" data-tone="${result.tone}">${statusMark(result.tone)}${result.label ? `<span>${escape(result.label)}</span>` : ""}</span>`;
     return body
       ? `<details class="coding-tool" data-tone="${result.tone}" data-kind="${escape(item.name)}" data-tool="${escape(item.call_id)}"><summary>${head}</summary>${body}</details>`
@@ -294,5 +319,25 @@ export function createCodingTimeline() {
       node.textContent = show ? `模型已 ${quiet} 秒没有新输出，可能在长时间思考，也可能网络不稳。一直没有回应时这一轮会自动结束，已完成的操作都保留，可以从断点继续。` : "";
     });
   }
-  return { renderGroup, renderFooter, tick, explainFailure };
+  /**
+   * What one turn really wrote, as the runtime counted it from its write receipts (never the model's own account): a
+   * row where it happened, the round's changes one click away, and — once the round has ended — a reviewed rewind to
+   * before each write. Rebuilt only when what it shows changes, so an open row stays open while the round goes on.
+   */
+  const renderTurnChanges = (node: Element, changes: TimelineTurnChanges, run: TimelineRun, rewindable: boolean) => {
+    const key = JSON.stringify([changes.files.map(file => [file.path, file.digest, file.checkpoint_id]), rewindable]);
+    node.className = "coding-turn-changes";
+    node.dataset.codingTurnChanges = `${run.ref.run_id}:${changes.turn}`;
+    if (node.dataset.key === key) return;
+    node.dataset.key = key;
+    const files = changes.files;
+    const names = files.slice(0, 3).map(file => file.path.split("/").at(-1)).join(" · ") + (files.length > 3 ? ` 等 ${files.length} 个` : "");
+    const open = node.querySelector("details")?.open ? " open" : "";
+    node.innerHTML = `<details${open}><summary><span class="coding-tool-icon">${svg("edit")}</span><span class="coding-tool-verb">本轮写入 ${files.length} 个文件</span><span class="coding-tool-preview">${escape(names)}</span></summary>`
+      + `<ul class="coding-turn-changes-files">${files.map(file => `<li><code>${escape(file.path)}</code><small title="${escape("写入后磁盘上内容的 SHA-256：" + file.digest)}">${file.byte_length} 字节</small>`
+        + (rewindable ? `<button type="button" class="mw-btn mw-btn--ghost" data-coding-rewind="${escape(file.checkpoint_id)}" aria-label="${escape("预览回退到写入 " + file.path + " 之前")}">预览回退</button>` : "") + "</li>").join("")}</ul>`
+      + `<p class="coding-turn-changes-note">按写入回执记下的实际修改，不是模型的说法。命令改动的文件不在这里。</p>`
+      + `<button type="button" class="mw-btn mw-btn--ghost" data-coding-change-open="${escape(run.ref.run_id)}">查看这一轮的变更</button></details>`;
+  };
+  return { renderGroup, renderFooter, renderTurnChanges, tick, explainFailure };
 }

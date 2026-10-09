@@ -1,5 +1,5 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { GATEWAY_TOOLS, gatewayProblem, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
+import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS, gatewayProblem, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
 import { createPrologueSurfaces, surfaceRules, SURFACE_GUIDANCE, type PrologueSurfacePorts, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, claimsSavedChange, internalIdsHeld, memoryHeld, mentionsInternalIds, writesToolCallAsText } from "./announce-guard.js";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -157,7 +157,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   // Async context holds only a trusted denial guard, never serializes it in a Run.
   const dispatchGuards = new AsyncLocalStorage<() => void | Promise<void>>();
   const host = createNodeHost({
-    ...(options.storageRoot === undefined ? {} : { storageRoot: options.storageRoot }),
+    // This process holds the storage root's owner lock (acquirePrologueStorageOwner) for its whole life, so a write claim
+    // found there at start is one a crashed owner left: the Host clears it instead of refusing that record for ever.
+    ...(options.storageRoot === undefined ? {} : { storageRoot: options.storageRoot, exclusiveOwner: true }),
     resolveHost: resolveModelHostname,
     beforeNetworkDispatch: async () => { await dispatchGuards.getStore()?.(); },
     // A model call that got no response at all (the connection dropped) is sent again under the retry policy, rather
@@ -203,6 +205,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.change } },
       // A reversible change the person lets run without asking: the gateway itself refuses any other change on this tool.
       { source: "runtime" as const, effect: "allow" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.direct } },
+      // A suggestion, a delegated work, a memory: recorded under the Host's own rules and limits, as before, without asking.
+      ...HOST_GOVERNED_TOOLS.map(name => ({ source: "runtime" as const, effect: "allow" as const, match: { what: "tool" as const, name } })),
       // The side panel's browser: looking is allowed, every action asks, the person's standing site decisions apply.
       ...(options.surfaces ? surfaceRules() : [])] } : {}),
     require: ["secrets", "network", "clock", "workspace.read", "storage"],
@@ -240,6 +244,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   /** Per session, the capabilities the round now running has seen offered (so one gone later reads as taken away). */
   const gatewayKnown = new Map<string, Set<string>>();
   const gatewayHooks = new Set<string>();
+  /** Sessions whose subtask dispatch is checked for a yield the Host has not wired (one hook per session). */
+  const yieldHooks = new Set<string>();
   // Why each held ending was held, in order (the runtime's event does not say), and rounds that ended still only announcing.
   const heldLabels = new Map<string, Array<{ target: string; summary: string }>>();
   // Rounds that may change things: an ending that only announces the next step is held once per run.
@@ -424,9 +430,12 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           && typeof review.executable === "string" && Array.isArray(review.argv) && review.argv.every((arg: unknown) => typeof arg === "string")
           && typeof review.cwd === "string" && Number.isFinite(review.timeoutMs) && review.timeoutMs > 0
           && Array.isArray(review.envAllowlist) && review.envAllowlist.every((name: unknown) => typeof name === "string") && typeof review.escalate === "boolean") {
+          // Extra access the command names (paths, network) is shown exactly as asked; one the card cannot read is not approvable.
+          const grants = review.grants === undefined ? undefined : commandGrants(review.grants);
+          if (grants === null) throw new Error("命令点名要的额外访问不可读，不能批准");
           reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
           return { kind: "command", ...(childDirectory ? { workspace_path: childDirectory } : {}), command: review.executable, args: review.argv, cwd: review.cwd,
-            timeout_ms: review.timeoutMs, env_allowlist: review.envAllowlist, escalate: review.escalate,
+            timeout_ms: review.timeoutMs, env_allowlist: review.envAllowlist, escalate: review.escalate, ...(grants ? { grants } : {}),
             ...(review.background === true ? { background: true, outlives_run: review.outlivesRun === true } : {}) };
         }
         if (review.kind !== "workspace-patch" || review.version !== 1 || typeof review.path !== "string"
@@ -1249,6 +1258,15 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         const published = runtime.characters.publish(draft.ref);
         childRoles.set(exactCharacterKey(published.ref), role);
       }
+      // Handing the wake-up to subtasks (dispatch-subagent yield) restarts this session outside the Host's own start:
+      // no start record, no dispatch check, no review bridge. Until that is wired, a yield is refused before it runs.
+      if (childRoles.size && !yieldHooks.has(input.session_id)) {
+        yieldHooks.add(input.session_id);
+        runtime.hooks.register({ id: `molis-subagent-yield-${input.session_id}`, event: "tool-before", forSession: input.session_id, handler: async context =>
+          context.toolName === "dispatch-subagent" && (context.input as { yield?: unknown } | undefined)?.yield === true
+            ? { kind: "deny" as const, why: "this work cannot hand its wake-up to subtasks (yield). Dispatch without yield (background: true), then wait with await-subagents" }
+            : { kind: "allow" as const } });
+      }
       const childScope = childRoots.length
         ? "每个子任务必须选择一个不同的 workspace 标识：" + JSON.stringify(childRoots.map(root => ({ id: root.id, path: root.path }))) + "。主任务只读，不能直接修改主工作区。子任务只在自己的目录里执行，修改仍经过宿主审查。"
           + "核对子任务成果时，可以给 read、list、search 加 workspace 参数（上面的标识）只读查看对应目录；不加就是主工作区。你的查看不代替子任务自己的先读后改，也不能在这些目录里写入或运行命令。"
@@ -1346,6 +1364,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         });
         throw error;
       }
+      // One set of call parameters. Thinking is absent when off, so the request carries no thinking field at all. On,
+      // thinking and the answer share one output limit, and the SDK's default (4096) is spent on thinking before a plan
+      // or file is written: the raised ceiling replaces that default only. A budget the round was given always wins.
+      const outputBudget = input.provenance.frozen.budget?.max_output_tokens;
+      const params = {
+        ...(input.model.thinking ? { thinking: input.model.thinking } : {}),
+        ...(outputBudget !== undefined ? { maxOutputTokens: outputBudget } : input.model.thinking ? { maxOutputTokens: THINKING_OUTPUT_TOKENS } : {}),
+      };
       const dispatchGuard = async () => {
         await input.beforeDispatch?.();
         if (!none && !business) {
@@ -1424,7 +1450,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           endpoint: input.model.endpoint,
           model: input.model.model,
           credentialRef,
-          ...(input.provenance.frozen.budget?.max_output_tokens === undefined ? {} : { params: { maxOutputTokens: input.provenance.frozen.budget.max_output_tokens } }),
+          ...(Object.keys(params).length ? { params } : {}),
           // How long one model call may take to answer and then pause between parts. The SDK's 60 s default cut off
           // reasoning models on larger rounds before their first byte (MiniMax-M3, measured 2026-09-28); a round with
           // a time budget keeps that budget.
@@ -1437,9 +1463,6 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           ...(input.model.prompt_cache === undefined || input.model.prompt_cache === "off"
             ? {}
             : { promptCache: input.model.prompt_cache }),
-          // Absent when off: the request carries no thinking field at all. On, thinking and the answer share one
-          // output limit, and the SDK's default (4096) is spent on thinking before a plan or file is written.
-          ...(input.model.thinking ? { params: { thinking: input.model.thinking, maxOutputTokens: THINKING_OUTPUT_TOKENS } } : {}),
         },
         agent: {
           // A round started without a budget keeps the turns it always had; only subagents use the raised default.
@@ -1588,6 +1611,17 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         || attempt.subagent_roots?.some(root => paths.includes(root.path)))) throw new Error(`“${index.title}”仍有涉及此目录的写入执行、待审或未知结果，请先核对原任务`);
     }
   } });
+}
+
+/** A command's named extra access, as the runtime recorded it for review; null when it is not that shape. */
+function commandGrants(value: unknown): import("@molis-ai/molis-work-contracts/services/agent-host").AgentCommandGrants | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const { paths = [], network = false } = value as { paths?: unknown; network?: unknown };
+  if (!Array.isArray(paths) || typeof network !== "boolean") return null;
+  const named = paths.map(item => item && typeof item === "object" && typeof (item as { path?: unknown }).path === "string" && ["read", "write"].includes((item as { access?: unknown }).access as string)
+    ? { path: (item as { path: string }).path, access: (item as { access: "read" | "write" }).access } : null);
+  if (named.some(item => item === null) || !named.length && !network) return null;
+  return { paths: named as Array<{ path: string; access: "read" | "write" }>, network };
 }
 
 /** Whether any call this round finished was a change (a capability no longer offered counts as one: nothing is held then). */

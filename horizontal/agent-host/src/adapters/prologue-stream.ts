@@ -8,6 +8,7 @@ import type {
   AgentUsageCoverage,
   AgentToolActivity,
   AgentTodoItem,
+  AgentTurnChanges,
   AgentTurnView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -24,6 +25,8 @@ export type PrologueControlState =
   | "running"
   | "pausing"
   | "paused"
+  /** The Run sleeps on its own until a time and then goes on (runtime `sleep`); not waiting for a person. */
+  | "sleeping"
   | "stopped"
   | "cancelled"
   | "completed"
@@ -50,6 +53,9 @@ export type PrologueEvent =
   | { type: "compaction-failed"; why?: string }
   | { type: "compaction-cancelled" }
   | { type: "tripped"; stage: "input" | "output"; rail: string; why: string; failed?: boolean }
+  | { type: "agent-control"; state: "running" | "pausing" | "paused" | "sleeping"; untilMs?: number }
+  | { type: "turn-changes"; turn: number; changes: ReadonlyArray<{ path: string; byteLength: number; digest: string; checkpointId: string }> }
+  | { type: "model-switched"; from: { protocol: string; model: string }; to: { protocol: string; model: string } }
   | { type: "run-recovered"; atMs: number; transcript: "opening-only" | "durable-prefix"; questions?: ReadonlyArray<{ ref: { id: string; revision: number }; kind: string; prompt: string }>; operations: Array<{ summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }> }
   | { type: "completed" }
   | { type: "failed"; why?: string; error?: { code: string; safeMessage: string } }
@@ -97,6 +103,10 @@ export interface PrologueStreamState {
   memory_recalled?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryRecallFact;
   /** The Run's own step list as the runtime last replaced it. */
   todo?: AgentTodoItem[];
+  /** Files each writing turn really changed, from the runtime's `turn-changes` (receipts, not the model's account). */
+  turn_changes: AgentTurnChanges[];
+  /** While the Run sleeps on its own: when it wakes. */
+  sleeping_until?: string;
 }
 
 export function emptyPrologueStreamState(): PrologueStreamState {
@@ -116,16 +126,18 @@ export function emptyPrologueStreamState(): PrologueStreamState {
     unknown_frames: 0,
     streaming: "",
     streaming_at: null,
+    turn_changes: [],
   };
 }
 
 /**
  * `pausing` stays `running`: Prologue has been asked to pause but has not
  * reached a model boundary, and saying "paused" before it does would be a
- * claim the runtime has not made.
+ * claim the runtime has not made. `sleeping` is `running` too: the Run goes on
+ * by itself and waits for nobody; when it wakes is `sleeping_until`.
  */
 export function prologuePhaseOf(state: PrologueControlState): AgentRunPhase {
-  return state === "pausing" ? "running" : state;
+  return state === "pausing" || state === "sleeping" ? "running" : state;
 }
 
 const clip = (value: string) => value.length <= 200 ? value : `${value.slice(0, 200)}…`;
@@ -241,6 +253,7 @@ function closeStreamingText(state: PrologueStreamState): void {
 export function closeInterruptedPrologueStream(state: PrologueStreamState): void {
   closeStreaming(state);
   closeUnappliedSteers(state);
+  closeSleep(state);
   for (const activity of state.activity) {
     if (activity.state === "started") {
       activity.state = "unknown";
@@ -248,6 +261,14 @@ export function closeInterruptedPrologueStream(state: PrologueStreamState): void
     }
   }
   state.usage.unavailable_reason = "中断前用量未完整保存，已报告部分仍保留";
+}
+
+/** A Run that ended is not asleep any more: a wait it was in ends with it. */
+function closeSleep(state: PrologueStreamState): void {
+  if (state.sleeping_until === undefined) return;
+  delete state.sleeping_until;
+  const asleep = state.activity.find(item => item.name === "sleep-wait" && item.state === "started");
+  if (asleep) Object.assign(asleep, { state: "completed", summary: "这一轮在等待中结束" });
 }
 
 function closeUnappliedSteers(state: PrologueStreamState): void {
@@ -465,6 +486,7 @@ export function applyPrologueEvent(
       const tripped = event as Extract<PrologueEvent, { type: "tripped" }>;
       closeStreaming(state);
       closeUnappliedSteers(state);
+      closeSleep(state);
       // A guardrail stop is terminal but is not a failure of the work.
       state.phase = "stopped";
       state.stop_reason = tripped.failed === true
@@ -497,6 +519,7 @@ export function applyPrologueEvent(
       const tripped = event as unknown as { reason?: string; count?: number; why?: string };
       closeStreaming(state);
       closeUnappliedSteers(state);
+      closeSleep(state);
       state.phase = "stopped";
       const count = tripped.count ?? "几";
       const what = tripped.reason === "repeated-calls" ? `同一个调用连续重复了 ${count} 次，没有进展`
@@ -504,6 +527,47 @@ export function applyPrologueEvent(
         : tripped.reason === "repeated-errors" ? `连续 ${count} 次调用都没有成功`
         : `连续 ${count} 次调用都没有成功${tripped.why ? `（${tripped.why}）` : ""}`;
       state.stop_reason = `${what}，这一轮先停在这里；已完成的保留，可以说明怎么调整后继续`;
+      return true;
+    }
+
+    // The person's (or the Run's own) control of the Run changed. Only sleeping says something the phase does not.
+    case "agent-control": {
+      const control = event as Extract<PrologueEvent, { type: "agent-control" }>;
+      const asleep = state.activity.findIndex(item => item.name === "sleep-wait" && item.state === "started");
+      if (control.state === "sleeping" && typeof control.untilMs === "number" && Number.isFinite(control.untilMs)) {
+        closeStreaming(state);
+        const until = new Date(control.untilMs).toISOString();
+        state.sleeping_until = until;
+        if (asleep >= 0) Object.assign(state.activity[asleep]!, { target: until, at });
+        else state.activity.push({ call_id: `sleep-${state.next_sequence}`, name: "sleep-wait", target: until, state: "started",
+          summary: "按自己的安排等一会儿，到点自动接着做", at, sequence: state.next_sequence++ });
+        return true;
+      }
+      if (state.sleeping_until === undefined) return false;
+      delete state.sleeping_until;
+      if (asleep >= 0) Object.assign(state.activity[asleep]!, { state: "completed", summary: "等待结束，接着做", at });
+      return true;
+    }
+
+    // What this turn really wrote, from the runtime's write receipts: the timeline shows it and links to the checkpoint.
+    case "turn-changes": {
+      const changed = event as Extract<PrologueEvent, { type: "turn-changes" }>;
+      if (!Number.isSafeInteger(changed.turn) || !Array.isArray(changed.changes) || !changed.changes.length
+        || state.turn_changes.some(entry => entry.turn === changed.turn)) return false;
+      closeStreaming(state);
+      state.turn_changes.push({ turn: changed.turn, sequence: state.next_sequence++, at,
+        files: changed.changes.map(file => ({ path: file.path, byte_length: file.byteLength, digest: file.digest, checkpoint_id: file.checkpointId })) });
+      return true;
+    }
+
+    // The person switched the model during the Run; from the next model call on, calls go to the new one.
+    case "model-switched": {
+      const switched = event as Extract<PrologueEvent, { type: "model-switched" }>;
+      if (typeof switched.to?.model !== "string") return false;
+      closeStreaming(state);
+      const sequence = state.next_sequence++;
+      state.activity.push({ call_id: `model-switch-${sequence}`, name: "model-switch", target: `${switched.from?.model ?? ""} → ${switched.to.model}`,
+        state: "completed", summary: `从这一次模型调用起改用 ${switched.to.model}；之前的结果与授权不变`, at, sequence });
       return true;
     }
 
@@ -527,6 +591,7 @@ export function applyPrologueEvent(
     case "completed": {
       closeStreaming(state);
       closeUnappliedSteers(state);
+      closeSleep(state);
       state.phase = "completed";
       return true;
     }
@@ -535,6 +600,7 @@ export function applyPrologueEvent(
       const failed = event as Extract<PrologueEvent, { type: "failed"; why?: string }>;
       closeStreaming(state);
       closeUnappliedSteers(state);
+      closeSleep(state);
       state.phase = "failed";
       state.stop_reason = failed.error?.code === "RUN_INTERRUPTED" ? "本轮因中断结束。已核实的操作已保留，可输入新要求继续。"
         : failed.error?.code?.startsWith("CONTEXT_COMPACTION") ? "上下文整理失败，原上下文未被替换，而它已放不下模型窗口，这一轮停下了；可以点继续再整理一次。"
@@ -547,6 +613,7 @@ export function applyPrologueEvent(
     case "cancelled": {
       closeStreaming(state);
       closeUnappliedSteers(state);
+      closeSleep(state);
       state.phase = "cancelled";
       state.stop_reason = "已取消";
       return true;

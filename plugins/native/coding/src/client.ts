@@ -838,6 +838,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         ...run.turns.filter(turn=>turn.kind!=='system').map((value,index)=>({kind:'turn',value,sequence:value.sequence ?? index})),
         ...run.activity.map((value,index)=>({kind:'activity',value,sequence:value.sequence ?? run.turns.length+index})),
         ...(run.awaiting_input || []).map((value,index)=>({kind:'question',value,sequence:value.sequence ?? run.turns.length+run.activity.length+index})),
+        // What each turn really wrote (the runtime's receipts), where it happened.
+        ...(run.turn_changes || []).map(value=>({kind:'changes',value,sequence:value.sequence})),
       ].sort((a,b)=>a.sequence-b.sequence);
       const groups=[];
       for(const entry of entries) {
@@ -906,6 +908,12 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           if(!detail) { detail=document.createElement('details'); detail.className='coding-activity'; detail.dataset.codingActivity=key; }
           timeline.renderGroup(detail,activities,run,entry===groups.findLast(group=>group.kind==='activity') && run===all.at(-1));
           ordered.push(detail);
+        } else if(entry.kind==='changes') {
+          const key=run.ref.run_id+':'+entry.value.turn;
+          const node=[...block.children].find(node=>node.dataset.codingTurnChanges===key) || document.createElement('div');
+          // A rewind is offered once the session is idle: the person reviews its preview like any other change.
+          timeline.renderTurnChanges(node,entry.value,run,terminal(run.phase) && run===all.at(-1) && !recovery && !checkpointBusy);
+          ordered.push(node);
         } else {
           const question=entry.value,key=JSON.stringify([run.ref.run_id,question.pending_id,question.pending_revision]);
           const form=[...block.querySelectorAll('[data-coding-question]')].find(node=>node.dataset.questionKey===key);

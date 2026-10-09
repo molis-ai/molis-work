@@ -833,8 +833,28 @@ export interface AgentRunView {
   memory_recalled?: AgentMemoryRecallFact;
   /** The steps this Run keeps for itself (the runtime's todo list), the latest list as a whole; absent when it keeps none. */
   todo?: readonly AgentTodoItem[];
+  /**
+   * Files this Run really wrote, turn by turn, as the runtime computed them from its write receipts (never from what
+   * the model said). A turn that only read has no entry. Absent until a turn writes.
+   */
+  turn_changes?: readonly AgentTurnChanges[];
+  /**
+   * Present while the Run sleeps on its own until this time and then goes on by itself. It stays `running`: stop and
+   * cancel act at once, an added instruction waits for it to wake. The wait counts against its time budget.
+   */
+  sleeping_until?: string;
   started_at: string;
   ended_at: string | null;
+}
+
+/** What one turn of a Run wrote: each file's size, the SHA-256 of its bytes on disk, and the checkpoint before it. */
+export interface AgentTurnChanges {
+  /** The runtime's turn number within the Run, from 0. */
+  turn: number;
+  /** Position among this Run's visible entries. */
+  sequence: number;
+  at: string | null;
+  files: ReadonlyArray<{ path: string; byte_length: number; digest: string; checkpoint_id: string }>;
 }
 
 export interface AgentSessionView {
@@ -887,10 +907,21 @@ export interface AgentCommandReviewDocument {
   timeout_ms: number;
   env_allowlist?: string[];
   escalate?: boolean;
+  /**
+   * Access this one command names beyond the Host boundary: extra paths (absolute) and the network. The person approves
+   * exactly this, for this command only; it is never remembered for the session. The command still runs as itself:
+   * a Host without operating-system isolation enforces none of it, so it is shown as asked, not as confined.
+   */
+  grants?: AgentCommandGrants;
   /** Started in the background: the round does not wait for it. */
   background?: boolean;
   /** A background command that keeps running after the round ends, until it ends or is stopped. */
   outlives_run?: boolean;
+}
+
+export interface AgentCommandGrants {
+  paths: ReadonlyArray<{ path: string; access: "read" | "write" }>;
+  network: boolean;
 }
 
 export interface AgentToolOperationReviewDocument {

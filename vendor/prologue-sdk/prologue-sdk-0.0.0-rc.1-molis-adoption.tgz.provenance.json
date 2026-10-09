@@ -1,0 +1,44 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
+    "inFlight": {
+      "branch": "feat/molis-adoption",
+      "base": "4f7110fe0a07ba13fb19025ceb496016ecc0f494",
+      "pushed": false,
+      "note": "Upstream main 4f7110fe plus one commit (micro-compaction keeps mutation receipts, exclusive-owner storage claim cleanup, App-owned yield continuation). Not on upstream main yet: before this package reaches Molis main, the branch is merged upstream and the package is rebuilt from that main commit (specs/prologue-adoption/spec.md section 3.4)."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-molis-adoption.tgz",
+    "bytes": 1057983,
+    "sha256": "100aa5770b5e48844f770cba8a1bd3706f389673671956c84ab7375942919b01",
+    "integrity": "sha512-wim1eXfJSHA+6/KJJ3ZoxCgTU1w2bm+So+MzssgtolDOmazybAFccHGlEftIM78lHafrbd4cu+Z0+gIpor5K8Q=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "git archive c4b9fde33df465b6f1798ef1c34de85c2b1904f0 | tar -x -C <dir>",
+      "pnpm install --frozen-lockfile --ignore-scripts",
+      "pnpm --filter @prologue/sdk build",
+      "cd packages/sdk && pnpm pack --out <absolute path>/prologue-sdk-0.0.0-rc.1-molis-adoption.tgz"
+    ],
+    "packedOn": "2026-10-09",
+    "reproducedOn": "2026-10-09",
+    "reproducedByteIdentical": true
+  }
+}

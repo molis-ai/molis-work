@@ -97,6 +97,7 @@ export interface HostSurfaceDriver {
         readonly project_id: string | null;
         readonly goal: string;
     }): void;
+    noteRun?(sessionId: string, runId: string): void;
 }
 
 export type HostSurfaceKind = "browser" | "desktop";

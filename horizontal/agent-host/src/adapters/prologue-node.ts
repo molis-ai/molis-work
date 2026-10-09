@@ -1498,6 +1498,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
       runSessions.set(started.run.ref.id, session.ref.id);
       runRefs.set(started.run.ref.id, started.run.ref);
+      if (surfaceHost) surfaceHost.noteRun(session.ref.id, started.run.ref.id);
       activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state) && stopping === undefined,
         steer: text => started.control.steer({ text }) });
       if (plan && stepBoard) stepBoards.follow(stepBoard.ref, { session_id: session.ref.id, run_id: started.run.ref.id }, plan);

@@ -115,6 +115,8 @@ export interface PrologueSurfaces {
   release(sessionRefId: string): Promise<void>;
   /** A run reached a terminal state: its run-bound approvals are dropped. */
   releaseRun(run: ExactRef<"run">): void;
+  /** The round's run started (after attach): name it on the desktop driver so the record names the run. */
+  noteRun(sessionRefId: string, runId: string): void;
   close(): Promise<void>;
 }
 
@@ -276,6 +278,9 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
     },
     releaseRun(run) {
       runtime().effects.releaseRun(run);
+    },
+    noteRun(sessionRefId, runId) {
+      desktopAttached.get(sessionRefId)?.driver.noteRun?.(sessionRefId, runId);
     },
     async close() {
       for (const { target } of [...attached.values(), ...desktopAttached.values()]) await runtime().surfaces.close(target).catch(() => undefined);

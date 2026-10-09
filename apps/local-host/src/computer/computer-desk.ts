@@ -162,6 +162,11 @@ export class ComputerDesk implements DeskContext {
     if (!this.lease || this.lease.session_id !== sessionId) this.context = context;
   }
 
+  /** The run id arrives after attach; fold it into the round's context so the record names it (until the lease is taken). */
+  noteRun(sessionId: string, runId: string): void {
+    if ((!this.lease || this.lease.session_id !== sessionId) && this.context) this.context = { ...this.context, run_id: runId };
+  }
+
   // ── readiness ────────────────────────────────────────────────────────────
 
   /** Whether the session may look or act at all right now; null when nothing stands in the way. */

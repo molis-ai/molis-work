@@ -5,7 +5,7 @@ import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { openServerDatabase, Identity } from '../server/src/index.js';
+import { openServerDatabase, Identity, ServerEvents, ContinuityService } from '../server/src/index.js';
 
 const launcher=new URL('../apps/server/dist/main.js',import.meta.url).pathname;
 function launch(args:string[]){
@@ -75,4 +75,39 @@ test('compiled standalone launcher starts headless, restores a real Catalog proj
     if(server){server.child.kill('SIGKILL');await server.exited;}
     await rm(directory,{recursive:true,force:true});
   }
+});
+
+// The server database is read and written only through the server package's own objects (the host's IM mount and this launcher
+// used to run SQL on mw_* themselves; scripts/gates/table-owners.mjs now refuses that).
+test('the server package answers owner, role, member and closing questions itself, and the launcher lists members through it',{timeout:120000},async()=>{
+  const directory=await mkdtemp(join(tmpdir(),'continuity-owner-api-'));
+  const storage=openServerDatabase(join(directory,'server'));
+  try {
+    const identity=new Identity(storage.db),events=new ServerEvents(storage.db);
+    const continuity=new ContinuityService(storage.db,identity,events,()=>{throw new Error('no host actions in this test');});
+    const owner=identity.createMember('Owner'),member=identity.createMember('Member'),stranger=identity.createMember('Stranger');
+    const scope=(id:string)=>({id,title:'Project '+id,goal_ids:[],artifacts:[]});
+    assert.equal(continuity.projectOwner('kept'),null,'a project that is not registered has no owner');
+    continuity.registerProject(scope('kept'),owner.id);continuity.registerProject(scope('closed'),owner.id);
+    assert.deepEqual(continuity.projectOwner('kept'),owner);
+    assert.equal(identity.hasMember(owner.id),true);assert.equal(identity.hasMember('nobody'),false);
+    assert.equal(identity.roleOf('kept',owner.id),'owner');assert.equal(identity.roleOf('kept',member.id),null);
+    const invitation=identity.code('invite',owner.id,{projectId:'closed',role:'editor'}).code;
+    const request={headers:{}} as never,response={setHeader(){}} as never;
+    const joined=identity.connect({code:invitation,display_name:'Member',device_label:'phone'},request,response,false);
+    assert.equal(identity.roleOf('closed',joined.member_id!),'editor');
+    const before=identity.memberAccess();
+    assert.ok(before.some(row=>row.id===stranger.id&&row.project_id===null&&row.role===null),'a member with no project appears once, with no project');
+    assert.ok(before.some(row=>row.id===owner.id&&row.project_id==='kept'&&row.role==='owner'));
+    const open=identity.code('invite',owner.id,{projectId:'closed',role:'viewer'}).code;
+    assert.deepEqual(continuity.closeProjectsExcept(new Set(['kept'])),['closed']);
+    assert.equal(identity.roleOf('closed',owner.id),null,'the owner loses access to a closed project too');
+    assert.equal(identity.roleOf('closed',joined.member_id!),null);
+    assert.equal(identity.roleOf('kept',owner.id),'owner','a project that stays keeps its access');
+    assert.throws(()=>identity.connect({code:open,display_name:'Late',device_label:'phone'},request,response,false),/代码已使用或过期/);
+    assert.deepEqual(continuity.closeProjectsExcept(new Set(['kept'])),['closed'],'closing is repeatable: the record stays, only the access is gone');
+    assert.equal(continuity.projectOwner('closed')?.id,owner.id,'history stays');
+    const listed=await command(['members','--state',join(directory,'server')]);
+    assert.deepEqual(listed,JSON.parse(JSON.stringify(identity.memberAccess())));
+  } finally {storage.close();await rm(directory,{recursive:true,force:true});}
 });

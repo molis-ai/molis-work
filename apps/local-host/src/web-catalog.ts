@@ -46,7 +46,7 @@ import { SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { EXPERIMENTS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-experiments";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
 import { CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-characters";
-import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest, listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 import { handleMcpActionSettingsHttp } from "./web-mcp-action-settings.js";
@@ -348,7 +348,7 @@ export async function handleLocalCatalogWebRequest(
   }
   // Coding sessions running or waiting on the person in any project, for the project directory and the title bar.
   if (request.method === "GET" && url.pathname === "/api/background-tasks") {
-    sendJson(response, 200, { tasks: codingBackgroundTasks(projects) });
+    sendJson(response, 200, { tasks: codingBackgroundTasks(projects, listCodingBackgroundSessions) });
     return;
   }
   if (request.method === "GET" && url.pathname === "/health") {

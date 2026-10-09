@@ -18,9 +18,10 @@
 //              its ids back: an archived prefix stays taken (a later spec cannot use it, so the old tests that cite it never
 //              count as coverage for new criteria), an archived id stays defined (the tests that cite it are not stale), and
 //              nothing else is asked of an archived spec (no coverage, no ids required, no exemption).
-//   Tests      every tracked file that is a test (*.test.* anywhere, or a code file under a tests/ directory, fixtures
-//              excepted): a mention of a defined id anywhere in the file (a test name, a comment) covers it. Mentions are
-//              looked for by the prefixes the specs define, so SHA-256 or UTF-16 in a test is never taken for an id.
+//   Tests      every tracked file that is a test (*.test.* anywhere, or a code file under a tests/ directory; nothing under
+//              a fixtures/, vendor/, node_modules/, dist/ or .impeccable/ folder is, whatever it is called): a mention of
+//              a defined id anywhere in the file (a test name, a comment) covers it. Mentions are looked for by the
+//              prefixes the specs define, so SHA-256 or UTF-16 in a test is never taken for an id.
 //
 // A snapshot is { files: string[], read(file): string | null }, as in scripts/gates/markdown.mjs.
 import { readMarkdown } from "./markdown.mjs";
@@ -39,9 +40,10 @@ const MANUAL = /\[人工\]/;
 const EXEMPT = /^验收编号：[ \t]*不适用(?:[（(]([^）)\n]*)[）)])?/m;
 
 export const isTestFile = (file) => {
-  if (/(^|\/)(node_modules|dist|\.impeccable)\//.test(file) || file.startsWith("vendor/")) return false;
+  // Not tests whatever their name: dependencies, build output, review screenshots, and fixtures/ (input a test reads, not a proof).
+  if (/(^|\/)(node_modules|dist|\.impeccable|fixtures)\//.test(file) || file.startsWith("vendor/")) return false;
   if (/\.test\.(ts|mts|tsx|mjs|cjs|js)$/.test(file)) return true;
-  return /(^|\/)tests?\//.test(file) && /\.(ts|mts|tsx|mjs|cjs|js)$/.test(file) && !/(^|\/)fixtures\//.test(file);
+  return /(^|\/)tests?\//.test(file) && /\.(ts|mts|tsx|mjs|cjs|js)$/.test(file);
 };
 
 /** One spec's text: its acceptance headings, the ids defined, the criteria that carry none, and an exemption if it has one. */

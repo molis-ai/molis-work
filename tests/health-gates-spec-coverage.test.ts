@@ -89,6 +89,11 @@ const mutations: { name: string; kind: string; where: RegExp; change: (files: Fi
     change: (files) => { files["specs/alpha/spec.md"] = files["specs/alpha/spec.md"].replace("\n\n## 验证命令", "\n5. forgot the id\n\n## 验证命令"); } },
   { name: "a bullet without an id beside numbered bullets", kind: "criterion-without-id", where: /a criterion beside numbered ones carries no id: - forgot the id/,
     change: (files) => { files["specs/alpha/spec.md"] = criteria("Alpha", "- **QXALPHA-01** a", "- **QXALPHA-02** b", "- forgot the id"); } },
+  ...[["*", "a star bullet"], ["+", "a plus bullet"], ["5)", "an ordered item with a closing parenthesis"], ["12.", "a two-digit ordered item"]].map(([marker, name]) => ({
+    name: `${name} without an id beside numbered ones`, kind: "criterion-without-id",
+    where: new RegExp(`a criterion beside numbered ones carries no id: ${marker.replace(/[*+).]/g, "\\$&")} forgot the id`),
+    change: (files: Files) => { files["specs/alpha/spec.md"] = criteria("Alpha", "- **QXALPHA-01** a", "- **QXALPHA-02** b", `${marker} forgot the id`); },
+  })),
   { name: "a table row without an id beside numbered rows", kind: "criterion-without-id", where: /a criterion beside numbered ones carries no id: \| forgot/,
     change: (files) => { files["specs/alpha/spec.md"] = criteria("Alpha", "| 编号 | 标准 |", "| --- | --- |", "| **QXALPHA-01** | a |", "| **QXALPHA-02** | b |", "| forgot | c |"); } },
   { name: "an acceptance section with no id at all", kind: "unnumbered", where: /specs\/beta\/spec\.md: has an acceptance section/,
@@ -117,6 +122,15 @@ const mutations: { name: string; kind: string; where: RegExp; change: (files: Fi
     change: (files) => { files["tests/alpha.test.ts"] += 'test("QXALPHA-09 proves something nobody asked for", () => {});\n'; } },
   { name: "a test citing a retired id", kind: "stale-reference", where: /tests\/alpha\.test\.ts: cites QXALPHA-04, which specs\/alpha\/spec\.md retired/,
     change: (files) => { files["tests/alpha.test.ts"] += 'test("QXALPHA-04 proves the dropped thing", () => {});\n'; } },
+  // ---- [人工] is the whole mark: the word, or half of the brackets, does not exempt a criterion from its proof ----------------
+  ...[
+    ["the word 人工 in its text", "3. **QXALPHA-03** 需要人工确认"],
+    ["the mark with no closing bracket", "3. **QXALPHA-03** 需要 [人工 确认"],
+    ["the mark with no opening bracket", "3. **QXALPHA-03** 需要 人工] 确认"],
+  ].map(([name, line]) => ({
+    name: `a criterion with ${name} still needs a test`, kind: "uncovered", where: /specs\/alpha\/spec\.md:\d+: QXALPHA-03 is cited by no test/,
+    change: (files: Files) => { files["specs/alpha/spec.md"] = files["specs/alpha/spec.md"].replace("3. **QXALPHA-03** a person looks at it [人工]", line); },
+  })),
   // ---- an archived spec keeps what it defined -------------------------------------------------------------------------------
   { name: "a spec in progress taking the prefix of an archived spec", kind: "prefix-shared", where: /QXOLD: the prefix QXOLD is used by archive\/old and fresh; one prefix names one spec, and an archived spec keeps its prefix/,
     change: (files) => { files["specs/archive/old/spec.md"] = ARCHIVED_OLD; files["specs/fresh/spec.md"] = criteria("Fresh", "1. **QXOLD-07** a [人工]"); } },
@@ -138,6 +152,9 @@ const mutations: { name: string; kind: string; where: RegExp; change: (files: Fi
     ["a test file under a dist/ folder", "packages/p/dist/thing.test.js"],
     ["a test file under .impeccable/", ".impeccable/qa/thing.test.ts"],
     ["a helper under a nested fixtures/ folder", "plugins/p/tests/fixtures/helper.ts"],
+    ["a *.test.* file under tests/fixtures/", "tests/fixtures/helper.test.ts"],
+    ["a *.test.* file under a nested fixtures/ folder", "plugins/p/src/fixtures/case.test.mjs"],
+    ["a *.test.* file under a fixtures/ folder at the root", "fixtures/case.test.js"],
   ].map(([name, file]) => ({
     name: `an id cited only from ${name} (${file})`, kind: "uncovered", where: /QXALPHA-02 is cited by no test/,
     change: (files: Files) => { files["tests/alpha.test.ts"] = 'test("QXALPHA-01 does the first thing", () => {});\n'; files[file] = "// QXALPHA-02\n"; },
@@ -152,10 +169,10 @@ const mutations: { name: string; kind: string; where: RegExp; change: (files: Fi
   { name: "an exemption quoted in backticks", kind: "unnumbered", where: /specs\/beta\/spec\.md: has an acceptance section/,
     change: (files) => { files["specs/beta/spec.md"] = exemptionAt(5, "- 写成 `验收编号：不适用（程序性）` 才算豁免"); } },
   // ---- a citation is the id on its own, not part of a longer token -----------------------------------------------------------
-  { name: "an id glued to a longer token in a test (XQXALPHA-02, QXALPHA-02a, QXALPHA-0212, ranges)", kind: "uncovered", where: /QXALPHA-02 is cited by no test/,
+  { name: "an id glued to a longer token in a test (XQXALPHA-02, xQXALPHA-02, QXALPHA-02a, QXALPHA-0212, ranges)", kind: "uncovered", where: /QXALPHA-02 is cited by no test/,
     change: (files) => {
       files["tests/alpha.test.ts"] = 'test("QXALPHA-01 does the first thing", () => {});\n';
-      files["tests/glued.test.ts"] = lines("// XQXALPHA-02  9QXALPHA-02  _QXALPHA-02  -QXALPHA-02  AQXALPHA-02", "// QXALPHA-02a  QXALPHA-02Z  QXALPHA-02-b  QXALPHA-0212", "// QXALPHA-01..02 is a range: only the first id of it is cited");
+      files["tests/glued.test.ts"] = lines("// XQXALPHA-02  xQXALPHA-02  9QXALPHA-02  _QXALPHA-02  -QXALPHA-02  AQXALPHA-02", "// QXALPHA-02a  QXALPHA-02Z  QXALPHA-02-b  QXALPHA-0212", "// QXALPHA-01..02 is a range: only the first id of it is cited");
     } },
 ];
 for (const mutation of mutations) {
@@ -220,22 +237,22 @@ test("what is read as a citation, as written: every form of a test file counts, 
     ...BASE,
     // One id per way of being a test file, one per way of standing in a line.
     "specs/ext/spec.md": criteria("Ext", ...extensions.map((ext, index) => `${index + 1}. **QXEXT-0${index + 1}** ${ext} [人工]`), "7. **QXEXT-07** helper under tests/", "8. **QXEXT-08** nested tests/ directory", "9. **QXEXT-09** e2e name"),
-    "specs/sep/spec.md": criteria("Sep", ...["a", "b", "c", "d", "e", "f", "g", "h", "i"].map((letter, index) => `${index + 1}. **QXSEP-0${index + 1}** ${letter}`)),
+    "specs/sep/spec.md": criteria("Sep", ...["a", "b", "c", "d", "e", "f", "g", "h", "i"].map((letter, index) => `${index + 1}. **QXSEP-0${index + 1}** ${letter}`), "10. **QXSEP-10** a Chinese comment, no space before the id"),
     "tests/e2e/x.e2e.test.ts": "// QXEXT-09\n",
     "tests/helper.ts": "// QXEXT-07\n",
     "packages/q/tests/deep/helper.mjs": "// QXEXT-08\n",
-    "tests/sep.test.ts": lines("// (QXSEP-01) [QXSEP-02] `QXSEP-03` \"QXSEP-04: 'QXSEP-05' /QXSEP-06. ,QXSEP-07, {QXSEP-08}", "QXSEP-09"),
+    "tests/sep.test.ts": lines("// (QXSEP-01) [QXSEP-02] `QXSEP-03` \"QXSEP-04: 'QXSEP-05' /QXSEP-06. ,QXSEP-07, {QXSEP-08}", "QXSEP-09", "// 见QXSEP-10。"),
   };
   extensions.forEach((ext, index) => { files[`src/unit${index}.test.${ext}`] = `// QXEXT-0${index + 1}\n`; });
   const strict = check(scratch(files), "--strict");
   assert.equal(strict.code, 0, strict.out);
   assert.match(strict.out, /specs\/ext\/spec\.md \[QXEXT\]: 9 criteria; 9 cited by a test/);
-  assert.match(strict.out, /specs\/sep\/spec\.md \[QXSEP\]: 9 criteria; 9 cited by a test/);
+  assert.match(strict.out, /specs\/sep\/spec\.md \[QXSEP\]: 10 criteria; 10 cited by a test/);
 });
 
-test("isTestFile: *.test.* anywhere and code under tests/ count; Markdown, data, vendor/, node_modules/, dist/, .impeccable/ and fixtures/ do not", () => {
-  for (const file of ["tests/a.test.ts", "a.test.mts", "plugins/p/src/a.test.tsx", "x/y/a.test.js", "tests/a.mjs", "tests/a.mts", "tests/a.tsx", "tests/a.js", "test/a.cjs", "packages/q/tests/deep/a.ts", "tests/e2e/a.e2e.test.ts"]) assert.equal(isTestFile(file), true, file);
-  for (const file of ["apps/web/src/a.ts", "scripts/a.mjs", "src/contest/a.ts", "src/latest/a.ts", "tests/a.md", "tests/a.json", "src/a.test.ts.snap", "src/a.test.js.map", "docs/a.test.md", "tests/fixtures/a.ts", "vendor/x/a.test.ts", "vendor/tests/a.ts", "node_modules/x/a.test.js", "packages/p/dist/a.test.js", ".impeccable/qa/a.test.ts", "a.ts"]) assert.equal(isTestFile(file), false, file);
+test("isTestFile: *.test.* anywhere and code under tests/ count; Markdown, data, and anything under vendor/, node_modules/, dist/, .impeccable/ or fixtures/ (a *.test.* file there too) do not", () => {
+  for (const file of ["tests/a.test.ts", "a.test.mts", "plugins/p/src/a.test.tsx", "x/y/a.test.js", "tests/a.mjs", "tests/a.mts", "tests/a.tsx", "tests/a.js", "test/a.cjs", "packages/q/tests/deep/a.ts", "tests/e2e/a.e2e.test.ts", "tests/my-fixtures/a.ts", "src/fixtures.test.ts", "src/fixtures-extra/a.test.ts"]) assert.equal(isTestFile(file), true, file);
+  for (const file of ["apps/web/src/a.ts", "scripts/a.mjs", "src/contest/a.ts", "src/latest/a.ts", "tests/a.md", "tests/a.json", "src/a.test.ts.snap", "src/a.test.js.map", "docs/a.test.md", "tests/fixtures/a.ts", "tests/fixtures/a.test.ts", "plugins/p/src/fixtures/a.test.mjs", "fixtures/a.test.js", "vendor/x/a.test.ts", "vendor/tests/a.ts", "node_modules/x/a.test.js", "packages/p/dist/a.test.js", ".impeccable/qa/a.test.ts", "a.ts"]) assert.equal(isTestFile(file), false, file);
 });
 
 test("an exemption counts on line 12 and not a line later, and only when it starts the line", () => {
@@ -304,7 +321,7 @@ test("what counts as an id, as written", () => {
     assert.deepEqual(defined(line), [line.match(/QXABC-\d+/)![0]], line);
   }
   // Too short, too long, lowercase, one letter, a suffix, glued to a longer token, in the middle of the line, or nested.
-  for (const line of ["1. QXABC-1 x", "1. QXABC-1234 x", "1. abc-01 x", "1. A-01 x", "1. ABCDEFGHI-01 x", "1. QXABC-01a x", "1. QXABC-01-2 x", "1. see QXABC-01", "  - QXABC-01 nested by two spaces", "    - QXABC-01 nested", "text QXABC-01"]) {
+  for (const line of ["1. QXABC-1 x", "1. QXABC-1234 x", "1. abc-01 x", "1. A-01 x", "1. ABCDEFGHI-01 x", "1. QXABC-01a x", "1. QXABC-01A x", "1. QXABC-01-2 x", "1. see QXABC-01", "  - QXABC-01 nested by two spaces", "    - QXABC-01 nested", "text QXABC-01"]) {
     assert.deepEqual(defined(line), [], line);
   }
   assert.equal(parseSpec("## 验收\n\n1. ~~QXABC-01~~ x\n2. **~~QXABC-02~~** y\n3. QXABC-03 [人工]\n").definitions.map((d: { retired: boolean; manual: boolean }) => `${d.retired}${d.manual}`).join(","), "truefalse,truefalse,falsetrue");

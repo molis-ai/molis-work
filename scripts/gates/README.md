@@ -1,6 +1,6 @@
 # 文档引用与仓库形状门禁
 
-`pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录、`.impeccable/`、`contracts` 的子路径只许变少。设计来源：[specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
+`pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录和 `.impeccable/` 只许变少，`contracts` 不许有占位子路径。设计来源：[specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
 
 入口只引入 `doc-gates.mjs` 这一个文件；每条规则一个模块，互不引用（共用的只有两个读取模块：Markdown 在 `markdown.mjs`，根目录允许名单在 `allowlist.mjs`）。哪些顶层文件夹算文档、哪些能起头一个被引用的路径，只有一份来源：`tooling/gates/root-allowlist.json`（`allowlist.mjs` 的 `allowedRoots` 读它）；往名单里加一个文件夹，它的 `.md` 链接和被引用的路径就自动被查，名单之外的（stray）两者都不查。
 
@@ -21,7 +21,22 @@
 | BACKLOG 没有完成行 | `backlog-rows.mjs` | `BACKLOG: … says it is done` | 做完就删行，在提交说明里写编号；编号不复用 |
 | 根目录只放允许名单里的 | `root-entries.mjs` + `tooling/gates/root-allowlist.json` | `tracked files at the repository root outside the allow-list in <名>` | 放到合适的目录；确要放在根目录，把名字和理由写进允许名单。名单里的名字不在根目录了要删。名单之外的现存条目只许变少 |
 | `.impeccable/` 文件数只许减少 | `impeccable-files.mjs` | `tracked files under .impeccable in <组> n → m` | 评审截图默认写进被忽略的 `.impeccable/qa/review/`；原地覆盖已有图不改数量；删掉没有现行 spec、文档或测试引用的评审组 |
-| `contracts` 没有占位子路径 | `contract-placeholders.mjs` | `descriptor-only, unused contracts subpath in ./<子路径>` | 占位子路径 = 源文件只导出一个 `ContractDescriptor` 常量，且仓内没有 import、也没有包的 `contract` 元数据指向它。要用就放类型进去，不用就别加（现存的由 W2-01 删） |
+| `contracts` 没有占位子路径 | `contract-placeholders.mjs` | `contract placeholder: descriptor-only, unused contracts subpath in ./<子路径>` | 占位子路径 = 源文件只导出一个 `ContractDescriptor` 常量，且仓内没有 import、也没有包的 `contract` 元数据指向它。没有基线，出现一个就失败（W2-01 已删掉原来的六个）。要用就放类型进去，不用就别加；`platform/kernel`、`platform/testing` 是描述符，但有包把它们声明为自己的合同入口，不算占位 |
+
+## 库与表的 owner（`table-owners.mjs`，W2-06）
+
+一张表只由建它的包读写。入口 `scripts/check-health-gates.mjs` 单独引入 `table-owners.mjs`，在工作树上量，没有基线，出现一处就失败（和上面「问题」同一类）。
+
+| 项 | 说明 |
+| --- | --- |
+| 怎么判 | 包 = 源码文件向上最近的有 `package.json` 的目录。表的 owner = SQL 文本里有 `CREATE [VIRTUAL] TABLE <名>` 的包（同名表两个包各建一张，如 `workspaces`、`jobs`，两个都是 owner，库不同）。别的包的 SQL 里对它做 `SELECT … FROM`、`JOIN`、`INSERT INTO`、`REPLACE INTO`、`UPDATE`、`DELETE FROM`、`ALTER TABLE`、`DROP TABLE` 就失败 |
+| 读什么 | `apps`、`horizontal`、`modules`、`packages`、`plugins`、`server`、`tooling` 下 TypeScript 源码的字符串和模板字符串（语法树里找，注释不算；测试、夹具、`dist`、`.d.ts` 不看）。SQL 关键字只认大写：仓库里的 SQL 都这么写，不分大小写会把英文句子（`from Pages`）读成 SQL |
+| 失败时说什么 | `<文件>:<行> reads|writes table "<表>", which <owner 包> creates; go through that package's own API` |
+| 怎么办 | 让 owner 包导出一个函数（读就导出读取函数，写就走它的命令），宿主或别的包调用它。不要往基线或允许名单里加 |
+| 允许名单 | `tooling/gates/table-owners.json`，两节，都两头核对。`shared`：几个包有意共写的表，写 owner、用到它的其他包（`users`）、理由（至少 20 个字符）；用到而没登记的包失败，登记的包不再用它、owner 不是建表的包、没人建这张表、字段多余，都失败。`same_name`：两个包各建一张的同名表（不同库里的两张表，今天是 `workspaces`、`jobs`），写建它的包（`packages`，至少两个）和理由；一张表被不止一个包建而没登记就失败（所以给别的包的表自己再写一句 `CREATE TABLE` 不能让包变成共同 owner），登记的包和实际建表的包对不上、只剩一个包建了、同时登记在 `shared` 里，也失败 |
+| 读不到的（已知限制） | 表名不是字面量的 SQL（`FROM ${table}`：Artifacts 的 Repository 从选项取表名，助理清理项目时遍历一个表名数组）、字符串拼接出来的 SQL、非 TypeScript 文件里的 SQL、`PRAGMA table_info(<表>)` 这类读结构的语句 |
+
+加一条允许：改 `tooling/gates/table-owners.json`，评审时要说清为什么 owner 的函数接不住。今天 `events` 和 `idempotency_records` 在 `shared` 里的理由是依赖方向：`modules/goals` 和 `modules/governance-collaboration` 只依赖 contracts、没法 import storage 的日志函数（`LocalSqliteJournal` 与模块的事务在同一条连接上，事务不是障碍）；去掉它们的办法是宿主注入日志端口，Artifacts 已经这样做了，登记随后删掉。验证：`node scripts/run-tests.mjs tests/health-gates-table-owners.test.ts`（每种写法在临时仓库里被违反一次，门禁必须变红；注释、小写、测试、夹具、动态表名与自己的表必须不变红）。
 
 ## 引用怎么写，门禁才认
 

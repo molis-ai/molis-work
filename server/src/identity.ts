@@ -93,9 +93,20 @@ export class Identity {
   }
   access(session: Session, projectId: string, minimum: Role = "viewer"): Role {
     const member = this.requireMember(session);
-    const row = this.db.prepare("SELECT role FROM mw_access WHERE project_id=? AND member_id=?").get(projectId, member.id) as {role:Role} | undefined;
-    if (!row || (minimum === "owner" && row.role !== "owner") || (minimum === "editor" && row.role === "viewer")) throw new ImError("identity.forbidden", "此项目的访问已撤回或没有操作权限", 403);
-    return row.role;
+    const role = this.roleOf(projectId, member.id);
+    if (!role || (minimum === "owner" && role !== "owner") || (minimum === "editor" && role === "viewer")) throw new ImError("identity.forbidden", "此项目的访问已撤回或没有操作权限", 403);
+    return role;
+  }
+  /** The role a member holds in a project, or null when they have none (never invited, or the access was withdrawn). */
+  roleOf(projectId: string, memberId: string): Role | null {
+    return (this.db.prepare("SELECT role FROM mw_access WHERE project_id=? AND member_id=?").get(projectId, memberId) as {role:Role} | undefined)?.role ?? null;
+  }
+  hasMember(memberId: string): boolean {
+    return Boolean(this.db.prepare("SELECT 1 FROM mw_members WHERE id=?").get(memberId));
+  }
+  /** Every member with the projects they can reach: a member with no project appears once, with `project_id` and `role` null. */
+  memberAccess(): Array<{ id: string; display_name: string; project_id: string | null; role: Role | null }> {
+    return this.db.prepare("SELECT m.id,m.display_name,a.project_id,a.role FROM mw_members m LEFT JOIN mw_access a ON a.member_id=m.id").all() as Array<{id:string;display_name:string;project_id:string|null;role:Role|null}>;
   }
   devices(session: Session) {
     const member = this.requireMember(session);

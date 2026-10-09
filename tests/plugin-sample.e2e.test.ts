@@ -117,7 +117,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     store = new LocalProjectDatabase(boardPath);
     privateDb = new Database(join(directory, "private.db"));
     const privateOwner = new SqlitePluginPrivateStorage(privateDb);
-    const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store!.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store!.appendEvent(event) });
+    const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store!.appendEvent(event), eventCursor: projectId => store!.eventCursor(projectId) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store!.appendEvent(event), eventCursor: projectId => store!.eventCursor(projectId) });
     const ui = new UiHost();
     const actions = pluginActions(store, DEMO_PROJECT_ID);
     let registeredPublications = 0;

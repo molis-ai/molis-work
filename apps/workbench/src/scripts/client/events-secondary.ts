@@ -170,8 +170,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
             expected_revision: expectedRevision,
           });
           saveUiState();
-          if (decisionView) await refreshBoard(true);
-          else await refreshInboxStage();
+          await refreshInboxStage();
         } catch (error) {
           if (status) {
             status.classList.remove("is-done");
@@ -280,7 +279,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
           }
         }
         const available = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === surface);
-        if (surface === "goal" && (decisionView || !available)) {
+        if (surface === "goal" && !available) {
           saveUiState();
           restoreLastGoal(true);
           return;
@@ -298,7 +297,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         if (pluginId && pluginId !== "home" && pluginId !== "market" && nextDirectory !== "root") setDirectoryCollapsed?.(false, false);
         if (!openDirectorySurface(surface, undefined, undefined, event)) setDesktopWorkSurface(surface, true, true);
         if (surface === "feed" && surfaceOpen.dataset.pluginId === "feed" && !surfaceOpen.dataset.feedSource) setFeedTask("all");
-        if (surface === "home" && !decisionView && !collectionView && localPathname() !== "/") {
+        if (surface === "home" && !collectionView && localPathname() !== "/") {
           history.pushState({ workSurface: "home" }, "", route("/"));
         }
         if (surface === "feed" && selectedFeedItem) selectFeedItem(selectedFeedItem, false, true, false);

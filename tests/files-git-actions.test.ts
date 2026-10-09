@@ -25,7 +25,7 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     workspacesFor: async () => { if (++reads === pauseAt) { enter(); await barrier; } return [workspace]; },
   });
   const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project" });
-  const caller: ActionCallContext = { actor_id: "web-user", project_id: "project", audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"],
+  const caller: ActionCallContext = { actor_id: "web-user", project_id: "project", audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private", "workspace:read"],
     validate_authority: () => { if (!allowed) throw new ActionError("actions.revoked", "已撤权"); } };
   const client = host.actionClient(reference), bound = bindActionClient(client, () => caller);
   try {

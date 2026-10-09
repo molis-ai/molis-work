@@ -37,16 +37,15 @@ test("collection selection preserves requested/active precedence without default
     active_goal_id: "active", counts: { waiting_for_human: 1, executing: 2, execution_pending: 0,
       execution_blocked: 2, invalidated: 6 } };
   const before = structuredClone(model);
-  const select = (id?: string, archive = false, trash = false, decision = false) =>
-    buildGoalCollectionModel(model, id, archive, trash, decision, L);
+  const select = (id?: string, archive = false, trash = false) =>
+    buildGoalCollectionModel(model, id, archive, trash, L);
   assert.equal(select("requested").selected, requested);
   assert.equal(select("missing").selected, active);
   assert.equal(select().selected, active);
   assert.equal(select(undefined, true).selected, requested, "Archive does not use the current active Goal");
   assert.equal(select("active", true).selected, active);
   assert.equal(select("active", false, true).selected, first);
-  assert.equal(select("requested", false, false, true).selected, undefined);
-  const noDefault = buildGoalCollectionModel({ ...model, active_goal_id: null }, undefined, false, false, false, L);
+  const noDefault = buildGoalCollectionModel({ ...model, active_goal_id: null }, undefined, false, false, L);
   assert.equal(noDefault.selected, undefined, "Current list does not open the first Goal by default");
   assert.doesNotMatch(
     renderer.renderGoalStageList({ ...model, active_goal_id: null }, noDefault),
@@ -90,7 +89,7 @@ test("collection selection preserves requested/active precedence without default
   assert.match(archive.stage, /data-goal-collection-fold="archive"[^>]*\sopen/);
   assert.match(archive.stage, /data-collection-open/);
   assert.match(archive.stage, /data-tree-root/);
-  const empty = buildGoalCollectionModel({ ...model, goals: [] }, undefined, false, false, false, L);
+  const empty = buildGoalCollectionModel({ ...model, goals: [] }, undefined, false, false, L);
   assert.equal(empty.selected, undefined);
   assert.equal(empty.selectedId, "");
   assert.equal(empty.title, "Molis Work");
@@ -189,7 +188,7 @@ test("stage list keeps current, archive and trash collection folds", () => {
   const emptyModel = {
     ...view([]), active_goal_id: null, counts: { waiting_for_human: 0, executing: 0, execution_pending: 0, execution_blocked: 0, invalidated: 0 },
   };
-  const emptyCollection = buildGoalCollectionModel(emptyModel, undefined, false, false, false, L);
+  const emptyCollection = buildGoalCollectionModel(emptyModel, undefined, false, false, L);
   const emptyDirectory = renderer.renderGoalDirectory(view([]), emptyCollection, true);
   const empty = renderer.renderGoalStageList(view([]), emptyCollection);
   assert.doesNotMatch(emptyDirectory, /data-goal-collection-fold|data-select-goal|data-tree-root/);
@@ -206,7 +205,7 @@ test("stage list keeps current, archive and trash collection folds", () => {
   const current = item("live");
   const model = { ...view([current]), archived_goals: [archived], trashed_goals: [trashed],
     active_goal_id: "live", counts: { waiting_for_human: 0, executing: 0, execution_pending: 0, execution_blocked: 0, invalidated: 0 } };
-  const html = renderer.renderGoalStageList(model, buildGoalCollectionModel(model, "old", true, false, false, L));
+  const html = renderer.renderGoalStageList(model, buildGoalCollectionModel(model, "old", true, false, L));
   assert.match(html, /data-tree-root/);
   assert.match(html, /data-select-goal="live"/);
   assert.doesNotMatch(html, /data-goal-collection-fold="current"[^>]*\sopen/);
@@ -217,7 +216,7 @@ test("stage list keeps current, archive and trash collection folds", () => {
   assert.match(html, /data-select-goal="gone"/);
   const english = runWithLocale("en", () => renderer.renderGoalStageList(view([]), buildGoalCollectionModel({
     ...view([]), active_goal_id: null, counts: { waiting_for_human: 0, executing: 0, execution_pending: 0, execution_blocked: 0, invalidated: 0 },
-  }, undefined, false, false, false, L)));
+  }, undefined, false, false, L)));
   assert.match(english, />Current<\/strong>/);
   assert.match(english, /No Goals yet/);
 });

@@ -14,10 +14,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./modules/actions": {
-      "types": "./dist/modules/actions.d.ts",
-      "import": "./dist/modules/actions.js"
-    },
     "./modules/artifacts": {
       "types": "./dist/modules/artifacts.d.ts",
       "import": "./dist/modules/artifacts.js"
@@ -25,10 +21,6 @@
     "./modules/attention-resumption": {
       "types": "./dist/modules/attention-resumption.d.ts",
       "import": "./dist/modules/attention-resumption.js"
-    },
-    "./modules/automation": {
-      "types": "./dist/modules/automation.d.ts",
-      "import": "./dist/modules/automation.js"
     },
     "./modules/context-ledger": {
       "types": "./dist/modules/context-ledger.d.ts",
@@ -78,10 +70,6 @@
       "types": "./dist/modules/governance-collaboration.d.ts",
       "import": "./dist/modules/governance-collaboration.js"
     },
-    "./modules/identity-team-access": {
-      "types": "./dist/modules/identity-team-access.d.ts",
-      "import": "./dist/modules/identity-team-access.js"
-    },
     "./modules/model-providers": {
       "types": "./dist/modules/model-providers.d.ts",
       "import": "./dist/modules/model-providers.js"
@@ -106,10 +94,6 @@
       "types": "./dist/modules/sources.d.ts",
       "import": "./dist/modules/sources.js"
     },
-    "./modules/sync-replication": {
-      "types": "./dist/modules/sync-replication.d.ts",
-      "import": "./dist/modules/sync-replication.js"
-    },
     "./modules/workspace-artifacts": {
       "types": "./dist/modules/workspace-artifacts.d.ts",
       "import": "./dist/modules/workspace-artifacts.js"
@@ -122,10 +106,6 @@
       "types": "./dist/platform/errors.d.ts",
       "import": "./dist/platform/errors.js"
     },
-    "./platform/exchange": {
-      "types": "./dist/platform/exchange.d.ts",
-      "import": "./dist/platform/exchange.js"
-    },
     "./platform/execution-lifetime": {
       "types": "./dist/platform/execution-lifetime.d.ts",
       "import": "./dist/platform/execution-lifetime.js"
@@ -133,10 +113,6 @@
     "./platform/kernel": {
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"
-    },
-    "./platform/observability": {
-      "types": "./dist/platform/observability.d.ts",
-      "import": "./dist/platform/observability.js"
     },
     "./platform/package": {
       "types": "./dist/platform/package.d.ts",

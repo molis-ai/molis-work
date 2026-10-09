@@ -12,7 +12,7 @@ import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-
 import { artifactsManifest, createArtifactActionHandlers } from "@molis-ai/molis-work-plugin-artifacts";
 import { SearchService } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
-import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 // A version the owner lists in search but cannot hand over as text (it is kept only as a file reference): the artifacts
 // subject reader refuses it with `actions.subject_unavailable`, the same code it uses for a version that is gone.
@@ -27,7 +27,7 @@ async function fixture(t: test.TestContext) {
   createArtifactsSchema(db);
   createContextLedgerSchema(db);
   const artifacts = new ArtifactsModule({ db, now: () => "2026-10-07T00:00:00.000Z",
-    appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid) });
+    appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid), eventCursor: eventCursorOf(db) });
   const ledger = createContextLedger(db, { authorize: () => true });
   const actions = new ActionService();
   actions.registerProvider({

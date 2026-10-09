@@ -1,7 +1,5 @@
 import fs from "node:fs";
 
-export const DEFAULT_CLI_DATABASE = ".molis-work/molis-work.db";
-
 export function cliFlagValue(args: string[], name: string): string | undefined {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : undefined;
@@ -38,6 +36,6 @@ Operations:
   active-goal
 
 Complex payloads may use --file payload.json instead of --json.
-The SQLite database defaults to ${DEFAULT_CLI_DATABASE}.`);
+--db PATH is required. It names the project's SQLite file. There is no default path: without --db nothing is created or opened.`);
   console.log("\nInstall Molis Work itself: molis-work install [--home PATH]");
 }

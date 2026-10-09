@@ -23,6 +23,9 @@ test("relation contribution preserves all nine types, direction, target ordering
   const view = { goals: [current, later, target], archived_goals: [] };
   const html = renderer.renderRelations(current, view, true, '<aside data-decision-history="owner">Decision history</aside>');
   assert.match(html, /data-current-goal-name="Current &quot;&lt;goal&gt;"/);
+  // Relation changes proposed by tools wait in the Inbox: the note links there as a plugin surface, not to a page of its own.
+  assert.match(html, /<a href="\/" data-work-surface-link="inbox">Inbox<\/a>/);
+  assert.doesNotMatch(html, /href="\/decisions"/);
   assert.match(html, /value="target" data-goal-name="Target"/);
   assert.ok(html.indexOf('value="target" data-goal-name') < html.indexOf('value="later" data-goal-name'));
   assert.match(html, /name="direction" required/);

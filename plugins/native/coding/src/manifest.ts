@@ -1,6 +1,6 @@
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
-import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, readWorkspaceFileCapability, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -53,6 +53,7 @@ export const codingManifest: PluginManifest = {
       required: true,
       reason: "把变更集、报告与图作为成果发布，带来源与版本",
     },
+    { permission: "workspace:read", required: true, reason: "读取已关联工作目录里的目录与文本，用于任务里 @ 提到的文件与目录" },
   ],
   capabilities: {
     provides: [],
@@ -61,7 +62,7 @@ export const codingManifest: PluginManifest = {
       ...Object.values(goalContextCapabilities).map((entry) => entry.capability_id),
       ...Object.values(goalProgressCapabilities).map((entry) => entry.capability_id),
       projectsCapabilities.readWorkspace.capability_id,
-      readWorkspaceFileCapability.capability_id,
+      workspaceReadActions.file.capability_id,
       projectSettingsCapabilities.workspaces.capability_id,
       projectSettingsCapabilities.browsingWorkspace.capability_id,
       ...Object.values(writerDirectoryCapabilities).map(entry => entry.capability_id),

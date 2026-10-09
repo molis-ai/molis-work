@@ -1,6 +1,6 @@
 # 个人助理的完整 Computer Use
 
-状态：进行中（2026-10-09 开工）。最小真机切片已在用户的 Mac 上证明（§5）；Prologue 合同、SDK 换包、Molis 驱动与侧栏呈现在做（§7）。目标原文见 [goal-prompt.md](goal-prompt.md)。
+状态：进行中（2026-10-09）。最小真机切片已在用户的 Mac 上证明（§5）；Prologue 合同、SDK 一条线、Molis 助手与桌面驱动、「电脑」标签、设置、记录均已实现、整体构建与边界通过（§7）。尚未做：真实模型的端到端验收、全量回归（§8）。目标原文见 [goal-prompt.md](goal-prompt.md)。
 
 ## 1. 要解决的事
 
@@ -77,11 +77,27 @@
 
 不在本任务内：Windows 与 Linux；远程与云桌面；插件声明会操作哪些应用；右栏 Shelf 格（PR #180）；截图进模型与文字识别（D16）。
 
-## 7. 进度
+## 7. 进度（2026-10-09）
+
+分支：Molis `feat/computer-use`（叠在 `feat/prologue-adoption` 上）；Prologue `feat/desktop-computer-use`（叠在 `feat/molis-adoption` c4b9fde3 上）。
 
 - [x] 三项决定弹窗问过（D06–D08）
-- [x] 最小真机切片（§5）
-- [ ] SDK 换包：基线与差距（D20 待写）
-- [ ] Prologue 合同与测试、变异测试、真机记录
-- [ ] Molis：助手拉起与协议、桌面驱动、分级与禁区、会话同时挂两台界面、确认卡、记录、「电脑」标签、设置、引导
-- [ ] 真实模型的跨应用验收、全量回归对基线
+- [x] 最小真机切片（§5，全部通过）
+- [x] SDK 一条线：产出 `prologue-sdk-0.0.0-rc.1-computer-use.tgz`（4f7110fe → c4b9fde3 → 5 个桌面提交），两次构建逐字节相同，替换在途包；来源与重建写进 `vendor/prologue-sdk/README.md`，`.sha256`/`.provenance.json` 与门禁测试更新
+- [x] Prologue 合同（另一会话实现）：桌面有类型动作、应用身份作 scope 且切应用按目标判、四种一等拒绝、不可撤回归改外部、只活一轮的批准；类型检查与构建通过，单元 2593 项全过，46 个变异全杀，真机 live 6/6
+- [x] Molis 助手：Swift 原生助手（截图、辅助功能树、输入、前台、锁屏与输入监听、权限、落点校验、中文输入），随 local-host 构建与分发
+- [x] Molis 桌面驱动与会话装配：`HostSurfaceDriver` 桌面一支、一轮同时挂浏览器与桌面、分级与禁区、确认卡（含「本轮内允许」）、记录、拉起与协议、权限引导
+- [x] 「电脑」标签、助理设置（总开关默认关、禁区、权限引导）、记录进「文件」
+- [x] 对话步骤展示（`presentActivity`，桌面与浏览器共用 surface-* 工具）
+- [x] 整体 `pnpm build`、`pnpm boundary:check` 通过；`pnpm health:check` 对自己引入的改动零新增失败（仅剩基线分支 `feat/prologue-adoption` 自带的两项：评审文档的失效链接、business-gateway 测试的内部 import 计数，均非本任务文件）
+- [ ] 真实模型的跨应用验收（一次说完、二十步、过程在「电脑」标签、记录进「文件」、放上 Shelf、对话引用、中途动鼠标暂停、拒绝不换办法、禁区/终端/落点/自批/密码/锁屏各一遍）——未跑
+- [ ] 锁屏、用户在场、驱动不可用三种拒绝在真机上触发——未跑（Prologue 侧 live 也未触发，见其 `docs/slices/computer-use.md`）
+- [ ] 全量回归对干净基线——未跑
+- [ ] Shelf 放入记录/截图：用 Shelf 现有入口，尚未接
+
+## 8. 待验证与已知缺口
+
+- 真实模型的端到端验收尚未做：以上是工程通过（构建、边界、单元/门禁、最小真机切片），不是「真实场景通过」，更不是用户验收。
+- 记录的 `goal` 取自 attach 时的 `input.task`；`run_id` 在 attach 时还没有，记为 null。
+- 「电脑」标签的确认卡轮询用当前项目的 `/api/agent/reviews`；个人（home）助理轮次的审查路由未单独处理。
+- Shelf 入口、多显示器、Intel、macOS 14/15、发布签名与公证（BL-021）未做或未验证。

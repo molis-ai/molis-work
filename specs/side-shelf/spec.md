@@ -1,6 +1,6 @@
 # 右栏里的 Shelf：左右互动与同一个动作池
 
-状态：需求书草稿（2026-10-01），等用户审阅，未动代码；架构见第 4 节。2026-10-02 起与 context-toolbar、quick-create 合并设计，交叉的部分（浮条、候选、追加与放进、执行规则、分期）以[情境动作总纲](../context-program/spec.md)为准。2026-10-02 起与 context-toolbar、quick-create、总纲同在分支 `feature/context-toolbar`（工作树 `.claude/worktrees/context-toolbar`），一个 PR。
+状态：设计已定（2026-10-02），未动代码；2026-10-09 按 origin/main 11878059 重新核对了现状（第 2 节）与成果库定位的影响；架构见第 4 节。2026-10-02 起与 context-toolbar、quick-create 合并设计，交叉的部分（浮条、候选、追加与放进、执行规则、分期）以[情境动作总纲](../context-program/spec.md)为准。2026-10-02 起与 context-toolbar、quick-create、总纲同在分支 `feature/context-toolbar`（工作树 `.claude/worktrees/context-toolbar`），一个 PR。
 
 相关的已归档需求：[平台侧栏](../archive/side-panel/spec.md)（右栏本身）、[情境驱动的动态交互](../archive/contextual-interaction/spec.md)（动作池、Jev 判断、底栏动作条）、[Shelf](../archive/shelf-plugin/spec.md)（DropAgent 复刻）、[craft-finish](../craft-finish/spec.md)（底栏）。
 
@@ -22,21 +22,24 @@
 | U6 | Shelf 格里 DropAgent 自己的动作栏 | 界面不动，这些动作同时登记进动作池 |
 | U7 | 下一步 | 先写需求书，用户看过再动代码 |
 
-## 2. 现状（已对照代码核对）
+## 2. 现状（2026-10-09 按 origin/main 11878059 重新核对）
 
 | 部分 | 事实 | 对本需求的意义 |
 | --- | --- | --- |
-| 右栏 | `apps/workbench/src/side-panel.ts`：讨论、浏览器、文件三格是平台自带的；插件声明 `slot: "side"` 的视图也成为一格，现在只有灵光声明了（`plugins/native/lingguang/src/manifest.ts`）。各格隐藏后不销毁，`molis:side-open` 负责打开 | Shelf 可以按同样的方式进来，不用另造一个面板 |
-| 右栏的群聊痕迹 | 面板 id 还叫 `dock-window-im`，开关按钮是 `data-dock-toggle="im"`，第一次打开默认在讨论格 | 「侧边不止是群聊里」：命名、默认格都要改 |
-| 底栏右侧 | `immersive-shell.ts` 的 `BAR_RESIDENT_IDS = ["shelf", "lingguang"]`：两个图标按钮，点了把左边主区切换到该插件；旁边是侧栏按钮，再往右是项目圆钮 | 两个按钮要并进侧栏按钮 |
-| Shelf | 普通插件（`plugins/native/shelf`），只有 `navigator` 视图，在左边主区占一整页；数据是个人的，在 `<home>/shelf`；已经由 Runtime 装配，但 HTTP 仍有旧路径文件 `apps/local-host/src/shelf-native-plugin-http.ts`（在冻结名单里，只许减少） | 改动在视图和入口，动作和存储不用改；本任务不新增旧路径文件 |
-| Shelf 的桌面入口 | 全局热键、菜单栏、轮盘都调用 `globalThis.molisWorkOpenShelf`（`apps/desktop/src/shell.ts`），实现方式是点插件列表里 Shelf 那一行；轮盘的 `over_shelf_panel` 判断鼠标是否在 Shelf 面板上 | 都要改成打开右栏的 Shelf 格 |
-| Shelf 的文件来源 | `shelf.files.entries`（`plugins/native/shelf/src/search.ts`）让 Shelf 的材料也出现在右栏「文件」格 | Shelf 有了自己的格之后，会出现两份清单 |
-| 动作池 | 统一能力目录，加上插件声明的可选动作。整个对象用 `subject_offer_choices`，选中一部分用 `fragment_offer_choices`，后者带意图、效果、提示句、粒度、内容角色、`requires: ["goal"]`。现有约 40 条：Pages 约 20、Feed 10、Inbox 5、Goals 4、灵光 2、Todo 2；灵光「记下」、Todo「记成待办」、Goals 声明的是 `FRAGMENT_ANY_OBJECT`（任何对象都适用） | 这就是用户说的「同一份动作列表」 |
-| 候选与判断 | `packages/kernel/src/contextual.ts` 按手上的东西挑出候选，`apps/local-host/src/contextual/` 负责准备参数、执行前核对、调用 Jev（两个问题：`next` 和 `surface`）。Jev 失败时按规则排列 | 本需求复用这一条链，不另起一套 |
-| 底栏动作条 | `apps/workbench/src/scripts/client/context-actions.ts`：页面发出 `molis:surface-focus`，动作条显示候选；点了之后交给拥有该对象的页面，页面先预览、确认后才写入。分屏窗格是 iframe，会把焦点转发到顶层 | 右栏各格也按这个方式把焦点转发上来 |
-| 情境里没有「落点」 | `SurfaceFocus` 只描述手上的东西（`plugin_id`、对象、粒度、选中的几段）。可选动作的范围也只描述手上的东西，没有「东西在哪」，也没有「放到哪」 | 要补的就是这两样（第 4、5 节） |
-| 右栏各格能否声明手上的东西 | Shelf、灵光已经用 `data-assistant-context` 声明当前对象（情境交互 §2.1 的逐插件检查）；文件格的预览、浏览器（画面是 canvas，选区要经 `/api/browser/capture` 取）、讨论（im iframe）都还没有声明 | 第 6 节逐格补 |
+| 右栏 | `apps/workbench/src/side-panel.ts`：讨论、浏览器、文件三格是平台自带的，顺序在 `renderSidePanel` 里写死（讨论、浏览器、文件，后面接插件格）；插件声明 `slot: "side"` 的视图也成为一格，按 Manifest 顺序（`apps/workbench/src/plugin-catalog.ts:192`），现在只有灵光声明了（`plugins/native/lingguang/src/manifest.ts:29`）。各格打开后隐藏不销毁；`molis:side-open` / `-close` / `-toggle` 负责打开，`molis:side-shown` 报告当前格 | Shelf 可以按同样的方式进来，不用另造面板；顺序要从写死改成按登记的 `order` 排 |
+| 右栏的群聊痕迹 | 面板 id 还叫 `dock-window-im`，还有 `data-dock-window="im"`、讨论框 `data-dock-frame="im"`；开关按钮是 `data-dock-toggle="im"`（同时带 `data-side-toggle`），提示「侧栏：讨论、浏览器与文件」。出现在 `side-panel.ts`、`immersive-shell.ts:260`、`navigation-presentation.ts:294`、`docs/system/GLOSSARY.md`。第一次打开默认在讨论格；之后用 `localStorage` 的 `molis:side-tab` 记住上次那一格 | 「侧边不止是群聊里」：命名、默认格都要改；「记住上次那一格」已经有了，只改默认值 |
+| 底栏右侧 | `immersive-shell.ts:95` 的 `BAR_RESIDENT_IDS = ["shelf", "lingguang"]`：两个图标按钮（`data-bar-resident`），点了把左边主区切换到该插件；旁边是侧栏按钮，再往右是项目圆钮。这两个 id 还让它们在 Dock 里免于被收起（`immersive-shell.ts:167`） | 两个按钮要并进侧栏按钮 |
+| Shelf | 普通插件（`plugins/native/shelf`），只有 `navigator` 视图，在左边主区占一整页；数据是个人的，在 `<home>/shelf`；由 Runtime 装配，但仍是「混合」插件：HTTP 走旧路径文件 `apps/local-host/src/shelf-native-plugin-http.ts`（经 `personal-native-plugin-http.ts` 接入，在 `tests/builtin-plugin-assembly-gate.test.ts` 的冻结名单里，只许减少） | 改动在视图和入口，动作和存储不用改；本任务不新增旧路径文件 |
+| Shelf 与成果库 | 按 [artifact-positioning](../artifact-positioning/spec.md)：Shelf 交给项目的文字材料 `shelf.text-material.v1` 是**过程项**（manifest `process_items.produces`），不进成果库、侧栏文件和搜索；Shelf 把 Coding 报告 `coding.report.v1` 当成果消费、把变更集 `coding.changeset.v1` 当过程项消费（输入端口 `coding-report`、`coding-changeset`），经 `shelf.results.receive` 收成个人副本 | 见总纲 15.1：右栏里能拿起的是 Shelf 材料与副本，过程项不出现在「文件」格 |
+| Shelf 的桌面入口 | 全局热键（`apps/desktop/adapters/tauri/src/shelf_hotkeys_macos.rs`）、菜单栏、轮盘都调用 `globalThis.molisWorkOpenShelf`（`apps/desktop/src/shell.ts:17`），实现方式是点插件列表里 Shelf 那一行（`[data-plugin-strip] [data-plugin-id="shelf"]`）；轮盘的 `over_shelf_panel`（`drop_wheel_macos.rs:1063`）判断鼠标是否在 Shelf 面板上 | 都要改成打开右栏的 Shelf 格 |
+| Shelf 的其他入口 | `shelf.items.admit` 的结果视图链接写成 `?openPlugin=shelf&openItem=…`；搜索结果 `open: { surface: "shelf" }`（`plugins/native/shelf/src/search.ts`） | 改道到右栏 Shelf 格并选中那一行（总纲 15.2） |
+| Shelf 的文件来源 | `shelf.files.entries`（`plugins/native/shelf/src/search.ts:44`）让 Shelf 的材料出现在右栏「文件」格：个人范围（`scope: "home"`），列材料与结果，不列文件夹和失败的，按真实媒体类型；不含过程项 | Shelf 有了自己的格之后，两边都出现（用户已定，§11） |
+| 动作池 | 统一能力目录，加上插件声明的可选动作。整个对象用 `subject_offer_choices`，选中一部分用 `fragment_offer_choices`，后者带意图、效果、提示句、粒度、内容角色、`requires: ["goal"]`。现有 33 条：选区动作 25 条（Pages 20、Goals 2、Todo 1、灵光 1、搜索「在项目里查找」1），对象动作 8 条（Feed 5、Inbox 3）；灵光「记下」、Todo「记成待办」、Goals 声明的是 `FRAGMENT_ANY_OBJECT`（任何对象都适用） | 这就是用户说的「同一份动作列表」 |
+| 候选与判断 | `packages/kernel/src/contextual.ts`（340 行）按手上的东西挑出候选；`apps/local-host/src/contextual/`（`contextual-http.ts`、`contextual-service.ts`、`judgment-service.ts`）负责准备参数、执行前核对、调用 Jev（两个问题：`next` 和 `surface`），Jev 失败时按规则排列 | 本需求复用这一条链，不另起一套 |
+| 底栏动作条 | `apps/workbench/src/scripts/client/context-actions.ts`（642 行）：页面发出 `molis:surface-focus`，`bar`（:180）显示候选，`bus`（:372）管情境、请求、判断与信号；点了之后交给拥有该对象的页面，页面先预览、确认后才写入。分屏窗格是 iframe，经 `workbench-surface-focus` 把焦点转发到顶层，方案经 `workbench-context-plan` 发回，选择经 `workbench-context-action-choose` 回到总线（嵌入分支 :135–159） | 右栏各格也按这个方式把焦点转发上来；动这个文件前先把 `bar` 与 `bus` 拆开（总纲 15.3） |
+| 情境里没有「落点」 | `SurfaceFocus`（`packages/contracts/src/services/contextual.ts`）只描述手上的东西（`plugin_id`、对象、粒度、选中的几段）。可选动作的范围也只描述手上的东西，没有「东西在哪」，也没有「放到哪」 | 要补的就是这两样（第 4、5 节） |
+| 右栏各格能否声明手上的东西 | Shelf（`plugins/native/shelf/src/client.ts:335`）、灵光（`plugins/native/lingguang/src/client.ts:36`）已经用 `data-assistant-context` 声明当前对象；文件格的预览、浏览器、讨论（im iframe）都没有。浏览器的画面是 canvas，没有 DOM 选区；浏览器服务经 CDP 的 `evaluate()` 读页面选中的文字（`apps/local-host/src/browser/browser-host.ts` 的 `selectedText`、`capture`），`POST /projects/<id>/api/browser/capture` 返回选中文字或可读正文、地址与时间 | 第 6 节逐格补；浏览器选区的矩形可以经同一条路取到（第 6 节） |
+| 灵光的 `island` 视图 | 仍在用：它让灵光排在插件菜单「个人」组的最前面（`plugin-catalog.ts:147` 的 `islandEntries`，`immersive-shell.ts:178`） | 底栏按钮取消后它不受影响，保留（§7） |
 
 ## 3. 目标形态
 
@@ -233,9 +236,9 @@ readonly places?: readonly ("main" | "side" | "assistant")[];
 | --- | --- | --- | --- |
 | Pages | 插入到光标处、替换选中的内容、作为引用插入、整理成要点后插入 | `ItemAttach`，落点是 Pages 文档的光标或选区；手上的东西不限 | 放进落点，先预览（整理类先调用模型生成） |
 | Goals | 作为依据附到当前 Goal、拆成子目标 | `ItemAttach`（落点是 Goal 对象）/ 创建入口 | 放进落点 / 提案卡片 |
-| Coding | 作为材料交给当前会话 | `ItemAttach`，落点是 Coding 会话（只许本机本人） | 放进落点，先预览（复用现有的 Shelf 材料到 Coding 的通路） |
+| Coding | 作为材料交给当前会话 | `ItemAttach`，落点是 Coding 会话（只许本机本人） | 放进落点，先预览。手上是 Shelf 材料时复用现有通路（`shelf.material.save` → 过程项 `shelf.text-material.v1` → Coding 的 `materials` 端口）；别的来源由 Coding 新增自己名下的文字摘录过程项（总纲 8.5） |
 | Shelf | 整合、提取文字、快捷动作、各 Agent 动作（U6） | 手上是 Shelf 材料，或者手上的文件是 Shelf 认得的类型 | result / record（Agent 动作沿用 Shelf 原有的确认页） |
-| Shelf | 放上 Shelf（第二期） | `places: ["main"]`，手上的东西不限 | record |
+| Shelf | 放上 Shelf（第二期） | 创建入口，底层动作 `shelf.items.admit`，撤销 `shelf.items.delete`；手上的东西不限 | record（个人材料，不产生过程项） |
 | 灵光、Todo、Goals、搜索 | 记下、记成待办、推进、查找（已有） | 不变；右栏的东西也适用 | 不变 |
 
 ### 5.5 Jev 怎样判断
@@ -252,7 +255,7 @@ readonly places?: readonly ("main" | "side" | "assistant")[];
 | Shelf | 选中的材料或结果（多选时粒度是 `objects`）；预览里选中的文字 | 已经声明了对象；格是 iframe，要把焦点转发到顶层，转发方式与分屏窗格相同 |
 | 灵光 | 当前这条灵光，或其中选中的文字 | 已经声明了对象；同样要转发焦点 |
 | 文件 | 正在预览的文件（对象种类取自文件来源条目），或预览里选中的文字 | 预览区补上 `data-assistant-context` |
-| 浏览器 | 当前页面，或页面里选中的一段 | 画面是 canvas，没有 DOM 选区。选中时经 `/api/browser/capture` 取选中文字或可读正文，作为平台对象种类 `web.page`（名字待定），带地址和时间 |
+| 浏览器 | 当前页面，或页面里选中的一段 | 画面是 canvas，没有 DOM 选区。选中时经 `/api/browser/capture` 取选中文字或可读正文，作为平台对象种类 `web.page`（名字待定），带地址和时间。浮条的位置（2026-10-09 核对可行）：加一条取选区的消息，浏览器服务用 `evaluate()` 取 `getSelection().getRangeAt(0).getBoundingClientRect()`，外壳按页面视口与 canvas 的比例换算（`side-panel-browser.ts:201` 已有同样的换算），把浮条画在 canvas 上方；页面里跨源 iframe 的选区取不到 |
 | 讨论 | 选中的一条或几条消息 | im-ui 给消息补上对象声明（`im.message`，名字待定），并转发焦点 |
 
 左边的各插件还要报告**落点**（光标、选区或当前对象）。现在左边只在有选区时才报焦点。第一批先补 Pages（编辑器知道光标位置）、Goals（当前 Goal）、Coding（当前会话）。
@@ -261,14 +264,14 @@ readonly places?: readonly ("main" | "side" | "assistant")[];
 
 | 存量 | 处理 |
 | --- | --- |
-| 底栏的 `BAR_RESIDENT_IDS` 和两个按钮 | 删掉，只留侧栏按钮；`dock-window-im`、`data-dock-toggle="im"` 改用通用名字，不留兼容别名 |
+| 底栏的 `BAR_RESIDENT_IDS` 和两个按钮 | 删掉，只留侧栏按钮；`dock-window-im`、`data-dock-window="im"`、`data-dock-frame="im"`、`data-dock-toggle="im"` 改用通用名字，不留兼容别名（`immersive-shell.ts`、`side-panel.ts`、`navigation-presentation.ts`、`docs/system/GLOSSARY.md` 一起改）；侧栏按钮的提示改为「侧栏：Shelf、灵光、文件、浏览器与讨论」 |
 | 右栏格的顺序 | 平台自带的格也给一个 `order`，与插件侧栏视图放在一起排序，不在宿主里写死 Shelf 排第一 |
-| Shelf 的 manifest | `navigator` 视图改为 `side` 视图；内置目录里标为「平台自带」：始终启用，不进插件列表（用通用字段，名字审阅时定） |
+| Shelf 的 manifest | `navigator` 视图改为 `side` 视图，由宿主排版的侧栏文档出（已在整页门禁的例外清单里，不新增例外）；内置目录里标为「平台自带」：始终启用，不进插件列表（用通用字段，名字审阅时定） |
 | Shelf 在插件分组里（`immersive-shell.ts` 的「个人」组）、插件选择、市场、项目插件管理 | 撤下 |
 | 桌面的 `molisWorkOpenShelf` 和轮盘的 `over_shelf_panel` | 改成发 `molis:side-open` 打开 Shelf 格；轮盘的命中判断改用右栏的位置 |
-| 搜索与 placement 中打开 Shelf 材料 | 打开右栏的 Shelf 格，并选中那一行 |
-| Shelf 的文件来源 `shelf.files.entries` | 保留：Shelf 的材料继续出现在「文件」格（只能看），也在 Shelf 格（能加工） |
-| 灵光 `island` 视图 | 底栏按钮取消后，确认是否还有入口在用；没有就删 |
+| 搜索、placement 与结果视图链接中打开 Shelf 材料 | 打开右栏的 Shelf 格，并选中那一行；包括 `shelf.items.admit` 结果视图里的 `?openPlugin=shelf&openItem=…`。整页门禁沿链接打开地址，改道后仍须落在工作台里（总纲 15.2） |
+| Shelf 的文件来源 `shelf.files.entries` | 保留：Shelf 的材料继续出现在「文件」格（只能看），也在 Shelf 格（能加工）。它是个人范围，只列材料与结果，不含过程项（`shelf.text-material.v1` 不进「文件」格，总纲 15.1） |
+| 灵光 `island` 视图 | 2026-10-09 核对：仍在用，它让灵光排在插件菜单「个人」组的最前面，保留 |
 | 文档 | 更新 PRODUCT.md（内置插件数与「界面」一句）、DESIGN.md、craft-finish 底栏一节、Shelf README、`skills/molis-plugin-dev`（新的范围字段）、动作手册 |
 | 测试 | 修改量底栏几何与常驻按钮的 e2e、`shelf-plugin.e2e`、侧栏平台测试、`plugin-global-settings` 中 Shelf 那条；新增合同、派生、准备核对、落点冻结、右→左与拖放的测试 |
 
@@ -334,3 +337,5 @@ readonly places?: readonly ("main" | "side" | "assistant")[];
 | 2026-10-01 | 助理默认带上「手上 + 落点」，显示在输入框上方，可删；助理把东西放进左边落点时一律先预览确认；助理面板是一个位置（`place: assistant`），第一期就做 | 用户 |
 | 2026-10-01 | 新增的范围字段缺省为「两边都可以」 | 现有约 40 条动作不用改声明 |
 | 2026-10-01 | 落点动作只由落点对象的主人提供 | 插件不能写别的插件的对象，这是现有边界规则 |
+| 2026-10-09 | 吸收 main：Shelf 交给项目的文字材料是过程项，不进「文件」格；Coding 报告与变更集收进 Shelf 都是个人副本；「放上 Shelf」的底层动作是 `shelf.items.admit`（撤销 `shelf.items.delete`），不产生过程项；Shelf 的侧栏视图由宿主排版的侧栏文档出，不新增整页例外；改名不留别名（总纲第 15 节） | 常规取舍，按 artifact-positioning、整页门禁与健康门禁 |
+| 2026-10-09 | 灵光的 `island` 视图保留：它仍在给插件菜单的「个人」组排序 | 核对结果 |

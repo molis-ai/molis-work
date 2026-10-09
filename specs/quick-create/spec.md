@@ -1,6 +1,6 @@
 # 创建入口：每个插件一句话新建，选中内容自动创建
 
-状态：设计已定，未开工（2026-10-02）。三处取舍用户都按推荐拍板（§8）。同日与右栏需求合并设计，交叉的部分以[情境动作总纲](../context-program/spec.md)为准。分支 `feature/context-toolbar`（与 [context-toolbar](../context-toolbar/spec.md) 同一分支），只有本文件，没有代码改动。
+状态：设计已定，未开工（2026-10-02）。三处取舍用户都按推荐拍板（§8）。同日与右栏需求合并设计，交叉的部分以[情境动作总纲](../context-program/spec.md)为准。分支 `feature/context-toolbar`（与 [context-toolbar](../context-toolbar/spec.md) 同一分支），只有本文件，没有代码改动。2026-10-09 按 origin/main 11878059 重新核对了 §2、§7 的能力名与输入形状（总纲第 15 节）。
 
 ## 1. 用户的话与要解决的事
 
@@ -12,9 +12,9 @@
 
 ## 2. 现状（均已对照代码核对）
 
-1. **没有统一的「创建 Item」接口。** 各插件有各自的创建动作，名字、输入、有没有来源字段都不同：Todo 的 `todo.items.create`（带 `sources` 来源字段）、灵光的 `lingguang.create`、Pages 的 `pages.create`、Goals 的 `goals.create` / `goals.tree.submit`（提案，要在 Goals 里确认）、炼金术士的 `directions.create`、Jelly 的 `item.create` / `note.create`、Schedule 的 `tasks.create` / `reminders.add`、Cognia 的 `material.create`、Shelf 的 `shelf.material.save`、Characters 的 `characters.create`、Coding 的 `coding.create-session`……
-2. **已经有一个小范围的统一合同：工作流内容站**（`packages/contracts/src/platform/workflow-content.ts`）。角色是 `list / read / receive / create`；`receive` 收 `{ title, body, url?, source? }` 返回 `{ plugin, item_id, title }`。Form、灵光、Inbox、Dataset、Jelly、Feed、PPT、Pages 这 8 个插件已经实现了它。但它为工作流设计：幂等键是「工作流实例 + 步骤」，不适合「选中一段文字」这类来源。
-3. **助理卡片已经有「先看、再改、再确认」的形态**（`POST /api/assistant/cards`，`apps/local-host` 的助理服务）：卡片带 `reference`（要调的动作）、`input`（完整输入）、`editable`（可改的字段）、`missing`（还缺的字段）、`source_object`、`materials`。选区动作里的写入类（记成待办、记下灵光）已经走这条路。
+1. **没有统一的「创建 Item」接口。** 各插件有各自的创建动作，名字、输入、有没有来源字段都不同（能力 id 是 `前缀.动作`，不是插件 id）：Todo 的 `todo.items.create`（带 `sources` 来源字段，最多 20 条）、灵光的 `lingguang.create`、Pages 的 `pages.create`、Goals 的 `goals.create` / `goals.tree.submit`（提案，要在 Goals 里确认）、炼金术士的 `alchemist.directions.create`、Jelly 的 `jelly.item.create` / `jelly.note.create`、Schedule 的 `schedule.tasks.create`、Cognia 的 `cognia.material.create`、Shelf 的 `shelf.items.admit`、Characters 的 `characters.create`、Coding 的 `coding.sessions.create`……
+2. **已经有一个小范围的统一合同：工作流内容站**（`packages/contracts/src/platform/workflow-content.ts`）。角色是 `list / read / receive / create`，能力 id 是 `<站>.content.<角色>`；`receive` 收 `{ payload: { title, body, url?, source?, feed_item_id? }, context: { instance_id, step, title? } }`，返回 `{ plugin, item_id, title }`。Form、灵光、Inbox、Dataset、Jelly、Feed、PPT、Pages 这 8 个插件已经实现了它（成果库是第 9 个站，只能列、读，不能收）。但它为工作流设计：幂等键是「工作流实例 + 步骤」（`workflowDeliveryKey` 返回 `workflow:<实例>:<步骤>`，6 个插件用它；Feed 自己拼 `<实例>:<步骤>`；Inbox 沿用 Feed 条目或交给 Feed），不适合「选中一段文字」这类来源。
+3. **助理卡片已经有「先看、再改、再确认」的形态**（`POST /api/assistant/cards`，路由在 `apps/local-host/src/assistant/assistant-http.ts:148`，合同 `AssistantPreparedCard` 在 `packages/contracts/src/services/assistant.ts:134`）：卡片带 `reference`（要调的动作）、`input`（完整输入）、`editable`（可改的字段）、`missing`（还缺的字段）、`source_object`、`materials`（最多 4 段，每段 2 万字）。能否直接执行由 `directEligible`（`assistant-authority.ts:22`）判断。选区动作里的写入类（记成待办、记下灵光）已经走这条路。
 4. **助理能直接用目录里的能力**，所以「对助理说一句话让它建待办」今天已经可能；缺的是**每个插件页面里一个看得见的入口**，和**从选区一键送去哪里**的目的地列表。
 5. **页面上的新建入口**：设计规范里每个插件列表页有「一个石墨色的新建按钮」，没有自然语言入口。
 
@@ -57,7 +57,7 @@ interface ItemIntake {
   action: ActionReference;           // 真正创建的动作：就是插件自己已有的那个
   material_field?: string;           // 选中的文字作为来源写进输入的哪个字段（如 Todo 的 "sources"）
   prepare?: ActionReference;         // 可选：给定文字与出处，不调模型、确定地算出输入（如灵光、Todo）
-  effect?: "creates" | "proposes";   // proposes：只提交提案，要在所有者那里再确认（Goals），永远出卡片
+  effect?: "creates" | "proposes";   // proposes：只提交提案，要在所有者那里再确认（Goals），永远出卡片。这是创建入口自己的字段，与动作合同的 effect（read / write / irreversible）无关
   undo?: ActionReference;            // 撤销这一次创建的动作（删除或归档）；声明了才允许「点一下就创建」，没声明就出预填卡片
 }
 ```
@@ -87,7 +87,7 @@ interface ItemIntake {
 - **仅本人可见的来源**（Shelf）：选中文字不参与任何判断，只在用户点了具体去处之后才用于起草；
 - **确认按插件分**：声明了 `undo` 的直接创建（带「撤销」），其余出预填卡片、一键确认；创建动作是 `write` 就按卡片的现有规则执行，请求号在卡片路径来自卡片的 `message_id`，直接创建路径由起草服务生成，重发不会建第二条；`effect: "proposes"` 的（Goals）确认后只提交提案；
 - **可信身份**：actor、项目从调用上下文来，不从输入读；用户一句话里写的「帮我建给某某」不会改变归属；
-- **只许本机本人的创建动作**（如 Coding 新建会话，`LOCAL`）：入口只在本机界面里出现，不进 Agent / MCP 受众；
+- **只许本机本人的创建动作**（`LOCAL`，受众只有 `user` 的）：入口只在本机界面里出现，不进 Agent / MCP 受众。2026-10-09 核对：Coding 新建会话 `coding.sessions.create` 的受众是 user、agent、workflow、mcp，不属于这一类；Coding 里只许本机本人的是改会话、开跑、控制一轮、存报告与变更、存与确认计划；
 - **失败**：起草失败或超时，退回「只带着文字去目的地的新建表单」，不丢用户写的话；创建失败保留卡片和输入；
 - **撤销**：沿用卡片的撤销；目的地没有撤销就不显示，不假装能撤。
 
@@ -107,34 +107,34 @@ interface ItemIntake {
 
 - **追加到已有 Item（F2）**：声明 `ItemAttach`：`action`（把一段文字加到某个已有 Item 里的动作）、`material_field`、`find`（怎么找候选 Item：沿用该插件的搜索来源，加最近打开的），以及 `positions`（总纲 3.4：与右栏「放进左边落点」合成一个声明）。一个候选只有一种目标：`positions` 只用于落点目标（左边当前打开的编辑器，位置精确到光标或选区，一律先在落点处预览确认）；`find` 找到的目标一律放末尾或建关联。推荐时由 Jev 在候选 Item 里选最合适的一个，结果提示写「已追加到：某条 ▾」，可改。有 `undo` 才直接追加；
 - **一次提取多个 Item（F3）**：创建入口允许 `multiple: true`：起草可以返回若干条，出**一张批量卡片**，每条可单独取消，确认后逐条创建，每条各有请求号；条数有上限（先定 8）；Todo 已有的「从材料提取候选」提示词是现成的起点；
-- **选中文字运行工作流（F13，用户提出）**：Workflows 插件里的每个工作流是一个动态候选（key `wf.<工作流 id>`，名称与站点链进判断材料）。点了之后，选中的文字作为第一个节点的输入：工作流的第一站是内容站，所以这一步就是第一站的 `receive`——**创建 Item**，然后工作流照常往下推进。要改两处：`instances.start` 新增 `payload`（标题、正文、出处），创建运行后交给第一站的 `receive`（步骤 0，幂等键沿用「运行 + 步骤」）；片段动作的选项允许按项目动态枚举（有上限、key 稳定、准备时核对工作流仍存在）。工作流可能连着外部动作，所以**总是出预填卡片**（工作流名、起点站、将创建的 Item 预览），确认才运行。
+- **选中文字运行工作流（F13，用户提出）**：Workflows 插件里的每个工作流是一个动态候选（key `wf.<工作流 id>`，名称与站点链进判断材料）。点了之后，选中的文字作为第一个节点的输入：工作流的第一站是内容站，所以这一步就是第一站的 `receive`——**创建 Item**，然后工作流照常往下推进。要改两处：`instances.start`（现在的输入是 `{ id, item_id?, title? }`：给了 `item_id` 就从第一站已有的内容起步，否则要第一站支持 `can_start_blank` 才建空白，且至少两站）新增 `payload`（标题、正文、出处），创建运行后交给第一站的 `receive`（步骤 0，幂等键沿用「运行 + 步骤」）；片段动作的选项允许按项目动态枚举（有上限、key 稳定、准备时核对工作流仍存在）。工作流可能连着外部动作，所以**总是出预填卡片**（工作流名、起点站、将创建的 Item 预览），确认才运行。
 
-## 7. 各插件的创建动作现状（2026-10-02，按代码核对）
+## 7. 各插件的创建动作现状（2026-10-09 按 origin/main 11878059 重新核对）
 
-记号：● 只需声明；◐ 要补一小段逻辑或做一个选择；○ 要先设计。
+记号：● 只需声明；◐ 要补一小段逻辑或做一个选择；○ 要先设计。能力 id 是注册在目录里的 `前缀.动作`，不是插件 id，也不是路由 id 或场景 id。
 
 | 插件 | 现有创建 / 接收动作 | 作为创建入口 |
 | --- | --- | --- |
-| Todo | `todo.items.create`（有 `sources`） | ● 「记成待办」；已有 `prepare` 的雏形（`todo.fragment.offers`） |
-| 灵光 | `lingguang.create` + 内容站 | ● 「记下灵光」；同上 |
+| Todo | `todo.items.create`（有 `sources`，最多 20 条） | ● 「记成待办」；已有 `prepare` 的雏形（`todo.fragment.offers`） |
+| 灵光 | `lingguang.create` + 内容站 | ● 「记下灵光」；同上（`lingguang.fragment.offers`） |
 | Pages | `pages.create` + 内容站 | ● 「存为文档」「追加到文档」 |
-| Inbox | 内容站 `receive` | ● 「放进收件箱」 |
-| Jelly | `item.create`、`note.create` + 内容站 | ◐ 事项、笔记两个入口；含时间时事项最有用 |
-| Feed | 内容站 `receive`、`feed.capture`、`feed.out-rules.create` | ◐ 「加入 Feed」与「建规则」两个入口 |
-| Dataset | `dataset.create` + 内容站 | ◐ 「建成数据表」更适合选中表格文字 |
-| Form | `form.create` + 内容站 | ◐ 「拟成问卷」 |
-| PPT | `ppt.create` + 内容站 | ◐ 「做成演示稿大纲」 |
+| Inbox | 内容站 `receive`（沿用 Feed 条目或交给 Feed） | ● 「放进收件箱」 |
+| Jelly | `jelly.item.create`、`jelly.note.create` + 内容站 | ◐ 事项、笔记两个入口；含时间时事项最有用 |
+| Feed | 内容站 `receive`（`feed.content.receive`）、`feed.rules.create`（原写的 `feed.out-rules.create` 是路由 id；`feed.capture` 是场景，不是动作） | ◐ 「加入 Feed」（`receive`）与「建规则」（`feed.rules.create`）两个入口 |
+| Dataset | `dataset.create`（只收可选的标题）+ 内容站 | ◐ 「建成数据表」更适合选中表格文字；带内容的创建走 `receive` |
+| Form | `form.create`（只收可选的标题）+ 内容站 | ◐ 「拟成问卷」；带内容的创建走 `receive` |
+| PPT | `ppt.create`（只收可选的标题）+ 内容站 | ◐ 「做成演示稿大纲」；带内容的创建走 `receive` |
 | Goals | `goals.create`、`goals.tree.submit`（提案） | ◐ `effect: "proposes"`，确认后到 Goals 里再确认 |
-| 炼金术士 | `directions.create` 等 | ◐ 方向、想法两个入口；方向读取动作缺失，个人空间列举有问题 |
-| Schedule | `tasks.create`、`reminders.add` | ◐ 要理解时间，由助理起草 |
-| Cognia | `material.create`、`draft.save` | ◐ 「收进知识库」 |
-| Shelf | `shelf.material.save`、`clipboard.add` | ● 但仅本人可见 |
-| Characters | `characters.create` | ○ 个人草稿，「一句话拟人设」要另想 |
-| Coding | `coding.create-session` | ◐ 「新开编码会话并放入这段话」，不开跑；只许本机本人 |
-| Sessions | `sessions.create` | ○ |
+| 炼金术士 | `alchemist.directions.create` 等 | ◐ 方向、想法两个入口。方向与想法的读取动作现在都有（`alchemist.direction.subject.read`、`alchemist.idea.subject.read`），但没有列举动作；所有动作都是项目范围，个人空间里没有可列的内容 |
+| Schedule | `schedule.tasks.create`；`reminders.add` 只对插件开放（受众 `plugin`），不能当入口 | ◐ 要理解时间，由助理起草；入口指向 `schedule.tasks.create` |
+| Cognia | `cognia.material.create`、`cognia.draft.save` | ◐ 「收进知识库」 |
+| Shelf | `shelf.items.admit`（收文字与标题，个人范围，受众 user、workflow、agent、mcp；撤销 `shelf.items.delete`）。`shelf.material.save` 是把已有的 Shelf 材料交给项目（产生过程项，只许人），`shelf.clipboard.add` 是记剪贴板（只许人），都不是这里的入口 | ● 「收进 Shelf」，但仅本人可见 |
+| Characters | `characters.create`（输入为空，只建空白草稿） | ○ 个人草稿，「一句话拟人设」要另想 |
+| Coding | `coding.sessions.create`（受众 user、agent、workflow、mcp，不是只许本机本人） | ◐ 「新开编码会话并放入这段话」，不开跑；没有撤销，出卡片 |
+| Sessions（目录 `work`） | `sessions.create` | ○ |
 | Workflows | `workflows.create` | ○ |
-| Images | `jobs.start`（生图，花钱耗时） | ○ 不是「建 Item」，按「生成」另设计 |
-| Experiments、Artifacts、Files、Git、Diff、Text stats | 没有创建动作 | 不适用，或后续 |
+| Images | `images.jobs.start`（生图，花钱耗时） | ○ 不是「建 Item」，按「生成」另设计 |
+| Experiments、Artifacts、Files、Git、Diff、Text stats | 没有创建动作（Text stats 只有 `text-stats.state`、`text-stats.count` 两个查询） | 不适用，或后续 |
 
 ## 8. 取舍（用户 2026-10-02 已按推荐拍板）
 
@@ -151,6 +151,12 @@ interface ItemIntake {
 | 2026-10-02 | 入口放在插件页标题栏「✦」 | 用户（推荐项） |
 | 2026-10-02 | 并入「记成待办」「记下灵光」，删旧动作 | 用户（推荐项） |
 | 2026-10-02 | 总是出卡片，确认才创建（同日被下面「创建确认按插件分」取代） | 用户（推荐项） |
+| 2026-10-02 | 纠正：「发送到」不是「更多」里的菜单；创建类候选进同一份推荐，由 Jev 按上下文在浮条动作区推荐，不进「更多」与「全部操作」 | 用户 |
+| 2026-10-02 | 选中内容后的创建**不用用户再输入**：助理按选区上下文自动填字段创建；一句话输入只在插件页「✦」里需要，或作为浮条「✦助理」里的可选项 | 用户 |
+| 2026-10-02 | 创建确认按插件分：声明了 `undo` 的直接创建，其余出预填卡片（取代「总是出卡片」） | 用户（推荐项） |
+| 2026-10-02 | 同形姊妹纳入：追加到已有 Item（`ItemAttach`）、一次提取多个 Item（`multiple`）、选中文字运行工作流（`instances.start` 加 `payload`，第一站 `receive` 创建 Item） | 用户 |
+| 2026-10-02 | 与右栏需求合并设计：`ItemAttach` 同时承担「放进左边落点」，加 `positions`；手上的东西可以来自右栏与助理面板，创建入口与工作流候选对它们同样适用 | 用户（总纲） |
+| 2026-10-09 | 吸收 main：§2、§7 的能力名与输入形状按 11878059 改正；「收进 Shelf」指向 `shelf.items.admit`（不是 `shelf.material.save`）；Coding 新建会话不是只许本机本人；Schedule 的入口只用 `schedule.tasks.create` | 核对结果（总纲第 15 节） |
 
 ## 9. 分期与验收
 
@@ -182,8 +188,3 @@ interface ItemIntake {
 ## 10. 开发手册、Skill、模板与门禁
 
 创建入口要「大部分插件都有」，所以手册、Skill、`plugin create` 模板、覆盖率门禁（冻结豁免名单，只许减少）、生成插件由平台代写，都放在 [context-toolbar §11](../context-toolbar/spec.md)，不在这里重复。本 spec 只要求：Q1 合同落地时同一个 PR 带上 Skill 与手册的对应章节，Q2 起每接一个插件就把它移出豁免名单。
-| 2026-10-02 | 纠正：「发送到」不是「更多」里的菜单；创建类候选进同一份推荐，由 Jev 按上下文在浮条动作区推荐，不进「更多」与「全部操作」 | 用户 |
-| 2026-10-02 | 选中内容后的创建**不用用户再输入**：助理按选区上下文自动填字段创建；一句话输入只在插件页「✦」里需要，或作为浮条「✦助理」里的可选项 | 用户 |
-| 2026-10-02 | 创建确认按插件分：声明了 `undo` 的直接创建，其余出预填卡片（取代「总是出卡片」） | 用户（推荐项） |
-| 2026-10-02 | 同形姊妹纳入：追加到已有 Item（`ItemAttach`）、一次提取多个 Item（`multiple`）、选中文字运行工作流（`instances.start` 加 `payload`，第一站 `receive` 创建 Item） | 用户 |
-| 2026-10-02 | 与右栏需求合并设计：`ItemAttach` 同时承担「放进左边落点」，加 `positions`；手上的东西可以来自右栏与助理面板，创建入口与工作流候选对它们同样适用 | 用户（总纲） |

@@ -1,6 +1,6 @@
 # 情境动作总纲：一个动作池、一条浮条、右栏与创建入口
 
-状态：综合设计已定（2026-10-02），第 11 节四问用户都按推荐拍板；未动代码，下一步是 W0 高保真切片。
+状态：综合设计已定（2026-10-02），第 11 节四问用户都按推荐拍板；2026-10-09 已吸收 main 的 888 个提交（合入 origin/main 11878059），按当前代码核对了四份 spec 的现状与六项待核对（第 15 节）；未动产品代码，下一步是 W0 高保真切片。
 
 本文把三批需求合成一套设计，三份子需求书各管一块，交叉的地方以本文为准：
 
@@ -200,6 +200,8 @@ interface ItemAttach {
 - **F12 带到项目讨论**：讨论格的输入框成为右栏上的一个落点。放进去只是放进输入框，不写记录，由用户自己发送。这取代 context-toolbar §10.4 里那条待设计的「讨论草稿入口」。讨论是 iframe 里的 im-ui，现在的 `molis:side-open` 没有草稿入口，IM 的 `quote_id` 也只能引用已有消息，所以 im-ui 要新做两件事：输入框报告落点；接收带出处的外部引文（新格式）。
 - **左→右**：「收进 Shelf」「记下灵光」就是这两个插件的创建入口，不另做一套。落进去之后，右栏自动切到那一格，并高亮新建的那一条（side-shelf 3.1「某件事需要右栏时打开相关的那一格」）。
 - **右栏插件格的标题栏也有「✦ 一句话新建」**，例如灵光、Shelf。
+- **「文件」格收什么（2026-10-09 按[成果库定位](../artifact-positioning/spec.md)核对）**：它是只读的汇总，收三样：项目的成果（固定版本，预览走类型 owner，与成果库同一份渲染）、各插件声明的文件来源（Pages 文档、工作区文件等）、Shelf 的材料（`shelf.files.entries`，个人范围，列材料与结果，不列文件夹和失败的）。**过程项一律不进**：Shelf 交给项目的文字材料 `shelf.text-material.v1`、Coding 的变更集与计划、Files 的快照等，不进「文件」格、成果库和搜索，所以也不会以「文件」格条目的身份成为手上的东西；它们只在消费它的插件里出现（Coding 的材料、Shelf 收下的副本）。Shelf 材料两边都出现：「文件」格只能看，Shelf 格能加工。
+- **左边的东西「收进 Shelf」只建个人材料**：底层动作是现有的 `shelf.items.admit`（收文字与标题，个人范围），撤销用 `shelf.items.delete`；它不产生过程项。过程项只在用户把 Shelf 的一份材料交给项目时（`shelf.material.save`，只许人）才产生。
 
 ## 8. 能力总表：扩展的动作和能力都在哪
 
@@ -220,7 +222,7 @@ interface ItemAttach {
 | 判断：规则先筛 ≤12（创建类 ≤8）、Jev 两题、两组评估、隐私来源不进 Jev | 本文 3.5 | W0（评估）、W1 |
 | 合同、目录检查、关系视图、SDK 页面端模块 | 本文 §4、side-shelf 4.3–4.4 | W1 |
 | 手册、Skill、`plugin create` 模板、覆盖率门禁（冻结名单只许减少）；side-shelf 的新声明（`objects`、`places`、落点报告、`ItemAttach.positions`）写进同一份 `contextual.md`、纳入同一个门禁 | context-toolbar §11 | 随各波 |
-| 平台零代码默认：工作台按搜索来源代为声明对象；内容站 `receive` 派生创建入口；生成插件由平台绘制处代写对象声明与「✦」；`plugin create` 模板带三件事 | context-toolbar §11.2 | W1 起，生成插件那项先核对（§11） |
+| 平台零代码默认：工作台按搜索来源代为声明对象；内容站 `receive` 派生创建入口；生成插件由平台绘制处代写对象声明与「✦」；`plugin create` 模板带三件事 | context-toolbar §11.2 | W1 起；生成插件的「✦」与创建入口可以由平台代写，对象声明要先补平台侧的种类与读取器（15.4） |
 | G1 文本框里选字；G2 画布与终端自报焦点；G3 对象级动作贴在行旁（`anchor.element`） | context-toolbar §10.1 | G1 在 W7 的 F4 之前；G3 在 W3（Shelf 等右栏条目要用） |
 
 ### 8.2 选区与对象上的动作家族（context-toolbar §10.7）
@@ -236,7 +238,7 @@ interface ItemAttach {
 | F7 带出处的复制引用 | 系统工具 | context-toolbar §10.7 | W7 第二批 |
 | F8 材料篮 | **就用 Shelf**：「加入材料」就是 Shelf 的创建入口「收进 Shelf」；在 Shelf 格多选几项，浮条上出现「一起交给助理」。Shelf 是仅本人可见的来源，内容只在用户点了具体动作后才进模型 | 本文 §7 | W6 |
 | F9 批注与标记 | 新服务，排最后 | context-toolbar §10.7 | W7 最后 |
-| F10 记住 | 先核对记忆合同有没有显式写入入口 | context-toolbar §10.7 | W7 第二批 |
+| F10 记住 | 用现有的 `memory.write`（「记住一件事」，2026-10-09 核对）：人点的写入经写入门直接生效，撤销用 `memory.changes.undo`；Agent 写的只成为待认可的建议。与 Coding C3 共用这一个入口 | context-toolbar §10.7 | W7 第二批 |
 | F11 做成规则或自动化 | 并入 F1：各插件「建规则」就是它的创建入口 | context-toolbar §10.7 | 随各插件补齐 |
 | F12 带去别处讨论 | 带到助理已有；带到项目讨论 = 讨论格的输入框作为落点。im-ui 要新做：输入框报告落点、接收带出处的引文（现有 `quote_id` 只能引用已有消息） | 本文 §7、context-toolbar §10.4 | W6 |
 | F13 运行工作流 | 见 8.4 | quick-create §6.2 | W7 第一批 |
@@ -272,12 +274,12 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 
 | 能力 | 在这套设计里 | 细节在 | 波次 |
 | --- | --- | --- | --- |
-| 放进当前会话的下一轮材料（带出处，不开跑） | `ItemAttach`，落点是左边打开的 Coding 会话；复用现有的 Shelf 材料到 Coding 的通路 | side-shelf 5.4、context-toolbar §10.4 | W3 |
-| 补充给正在运行的这一轮（`runs.control` 的 `steer`） | 只在有一轮正在运行时出现；必须出卡片 | context-toolbar §10.4 | W7 |
+| 放进当前会话的下一轮材料（带出处，不开跑） | `ItemAttach`，落点是左边打开的 Coding 会话；改会话属于只许本机本人的写入，在落点处预览确认。按成果库定位（2026-10-09 核对）分两种来源：手上是 **Shelf 材料**时复用现有通路——`shelf.material.save` 把它交给项目，成为 Shelf 名下的过程项 `shelf.text-material.v1`，Coding 经 `materials` 端口挂到这个会话；手上是**别的东西**（网页选段、Pages 选区、助理结果）时，Coding 现在没有通用的文字摘录材料，要新增一个 **Coding 自己名下的过程项类型**（暂名 `coding.text-excerpt.v1`，带出处），不经 Shelf、不进成果库 | side-shelf 5.4、context-toolbar §10.4 | W3 |
+| 补充给正在运行的这一轮（`coding.runs.control` 的 `steer`） | 只在有一轮正在运行时出现；只许本机本人；必须出卡片 | context-toolbar §10.4 | W7 |
 | 放进 Coding 的输入框 | 输入框作为落点（与讨论输入框同一做法）；只放进去、不写记录，由用户发送 | context-toolbar §10.5、本文 §7 | W6 |
-| 新开编码会话并放入这段话（不开跑） | 创建入口（`coding.create-session`），出卡片 | quick-create §7 | W4 之后按 ◐ |
+| 新开编码会话并放入这段话（不开跑） | 创建入口，底层动作是 `coding.sessions.create`（2026-10-09 核对：原写的 `coding.create-session` 是路由 id；它的受众是 user、agent、workflow、mcp，**不是**只许本机本人）。没有撤销动作，所以出预填卡片 | quick-create §7 | W4 之后按 ◐ |
 | 在转录里选中回复或日志：存成待办、存为成果、补充给这一轮、放进下一轮、复制为引用 | 选区动作加推荐的创建动作。先核对：转录里选的字算不算会话对象 | context-toolbar §10.4 第二张表 | W7 |
-| Coding 的固定报告与变更：收进 Shelf、发到左边 | Shelf 已有「接收项目成果」通路；在右栏 Shelf 格里选中它就是手上的东西 | Shelf README、本文 §7 | W6 |
+| Coding 的报告与变更：收进 Shelf、发到左边 | 2026-10-09 按成果库定位改写：Coding 的执行报告是**成果**（`coding.report.v1`），变更集是**过程项**（`coding.changeset.v1`）。Shelf 用现有的接收通路（`shelf.results.list`、`shelf.results.preview`、`shelf.results.receive`，带 `expected_fingerprint`）把任一种收成一份**个人副本**（Markdown 材料，记着来源）。收下后它就是普通 Shelf 材料：在 Shelf 格里选中就是手上的东西，能放进左边，出处指回原报告或变更集。变更集不会因此进成果库、侧栏文件或搜索；报告要留存引用，引用成果库里的那一版，不从 Shelf 副本再存一次 | Shelf README、本文 §7 | W6 |
 | Files 的选区引用给 Coding（`files.text-selection.v1`） | 入口收进浮条 | context-toolbar §10.4 Files 行 | W7 |
 | 对话里的网址（开发服务器等）在右栏浏览器打开 | 已有（侧栏的存量接入） | archive/side-panel §4.1 | 已有 |
 
@@ -335,14 +337,14 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 
 留到切片阶段看着实物再定的：第一批「放进左边」的动作清单（side-shelf 5.4、本文 8.3）；`web.page`、`im.message` 的命名。
 
-**开工前先核对**（结果写回对应的子需求书）：
+**开工前先核对**：六项都已核对（2026-10-09，按 origin/main 11878059），结果写回了对应的子需求书，汇总在第 15.4 节：
 
-- 生成插件的绘制处能否代写对象声明和「✦」槽（context-toolbar §11.2）；
-- Goals 事件类动作（备注、风险、请求决策）的能力名（context-toolbar §10.4）；
-- 记忆合同有没有显式写入入口（F10）；
-- Shelf 有没有创建文字材料的动作（「收进 Shelf」的底层动作）；
-- Coding 转录里的选字算不算会话对象、Jelly 笔记块能否选中（context-toolbar §10.1）；
-- 浏览器服务能否给出页面选区的矩形，供浮条画在 canvas 上方（本文 §5）。
+- ~~生成插件的绘制处能否代写对象声明和「✦」槽~~：部分可以。「✦」与创建入口可以代写；对象声明还缺平台侧的对象种类与读取器（context-toolbar §11.2）；
+- ~~Goals 事件类动作的能力名~~：`goals.note`、`goals.concerns.apply`、`goals.decisions.request`、`goals.progress.record`、`goals.relations.add`（只许人）；「风险」已移出 Goals（context-toolbar §10.4）；
+- ~~记忆合同有没有显式写入入口~~：有，`memory.write`（本文 8.2 F10 行）；
+- ~~Shelf 有没有创建文字材料的动作~~：有，`shelf.items.admit`，撤销用 `shelf.items.delete`（本文 §7）；
+- ~~Coding 转录里的选字算不算会话对象、Jelly 笔记块能否选中~~：Coding 算，每一轮有 `data-turn` 可作锚点；Jelly 笔记块是 `contenteditable`，通用路径现在排除它，并进 G1（context-toolbar §10.1）；
+- ~~浏览器服务能否给出页面选区的矩形~~：能，经现有的 `evaluate()` 取 `getSelection()` 的矩形，再按现有的视口比例换算到 canvas（side-shelf §6）。
 
 **风险**：
 
@@ -438,3 +440,109 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 | 2026-10-02 | 执行的总规则：写进人眼前正在编辑的对象一律先预览；写到别处按插件声明（`undo` 直接、其余卡片） | 合并两条用户决定 |
 | 2026-10-02 | Coding 的「模型操作浏览器」（next-requirements D3）共用右栏浏览器，不另起一个 | 用户（推荐项） |
 | 2026-10-02 | 材料篮（F8）就用 Shelf；Shelf 格里 DropAgent 动作栏管自己的动作、浮条只显示去别处的动作（通用声明，不按插件分支）；四份文档合到 `feature/context-toolbar` 一个 PR；F2 追加与放进落点合成一个 `ItemAttach`（加 `positions`） | 用户（推荐项） |
+| 2026-10-09 | 吸收 main 的变化（第 15 节）：「收进 Shelf」只建个人材料（`shelf.items.admit`），不产生过程项；Coding 报告（成果）与变更集（过程项）收进 Shelf 都是个人副本；「文件」格不收过程项 | 常规取舍，按 artifact-positioning 已定的规则 |
+| 2026-10-09 | 「放进 Coding 下一轮材料」：Shelf 材料复用现有通路；别的来源由 Coding 新增自己名下的文字摘录过程项（暂名 `coding.text-excerpt.v1`），不经 Shelf | 常规取舍：交换数据存在产生它的插件名下（artifact-positioning 2026-10-02） |
+| 2026-10-09 | 动大文件之前先拆：`context-actions.ts` 先把 `bar` 与 `bus` 分成两个文件；浮条、情境条、落点、Shelf 窄版式、讨论落点都写成新文件，不往巨大单元里加行；改名不留别名 | 健康门禁（AGENTS.md） |
+| 2026-10-09 | 与 ai-interaction-experience 的分界：与输入框同排的按钮只放对话的下一步，页面选区动作走本设计的浮条 | 用户（该任务的 D1，经 goalboard-4e 告知） |
+
+## 15. 吸收 main 的变化（2026-10-09）
+
+设计稿按 a4e246e0、2b138559 写成。2026-10-09 把 origin/main 11878059 合进本分支（之间 888 个提交），按当前代码逐条核对。下面只写**改动了设计**的地方；行号、能力名这类纯事实更正，直接改在各子需求书的现状节里。
+
+### 15.1 成果库定位
+
+[artifact-positioning](../artifact-positioning/spec.md) 已全部合入：成果只表示固定版本；插件之间的交换数据是**过程项**，存在产生它的插件名下，不进成果库、侧栏「文件」和搜索（门禁 `tests/artifact-type-gate.test.ts`、`tests/artifact-declaration-gate.test.ts`）；侧栏的成果预览走类型 owner。对本设计有四处影响，已改进正文：
+
+1. **Coding 报告与变更收进 Shelf**：报告是成果（`coding.report.v1`），变更集是过程项（`coding.changeset.v1`），Shelf 经 `shelf.results.receive` 把两种都收成一份个人副本；收下后就是普通 Shelf 材料（8.5）。
+2. **放进 Coding 下一轮材料**：手上是 Shelf 材料时，`shelf.material.save` 把它交给项目，成为 Shelf 名下的过程项 `shelf.text-material.v1`，Coding 经 `materials` 端口挂到会话；手上是别的东西时，Coding 新增自己名下的文字摘录过程项（8.5）。
+3. **「文件」格收什么**：成果、文件来源、Shelf 材料，过程项不进（§7）。
+4. **`shelf.files.entries`**：保留。它是个人范围，只列 Shelf 的材料与结果（不列文件夹和失败的），本来就不含过程项（side-shelf §7）。
+
+创建入口与追加不改变这些规则：`ItemIntake`、`ItemAttach` 指向的都是插件自己已有的写入动作，写成果还是过程项由那个动作决定；宿主按 manifest 拒绝未声明的写入，本设计不另加检查。
+
+### 15.2 整页门禁
+
+- Shelf 改为 `side` 视图后，由宿主排版的侧栏文档 `/projects/<id>/side/<插件>/<视图>`（`apps/workbench/src/side-view-document.ts`）出。它已在例外清单里（artifact-positioning §4、`tests/shell-page-gate.test.ts`），不新增例外，也不新增整页生产者。
+- Shelf 的 `navigator` 视图删掉后，左边主区不再有 Shelf 页。原来指向它的入口都要改道到右栏的 Shelf 格：
+  - `shelf.items.admit` 结果视图里的链接 `?openPlugin=shelf&openItem=…`；
+  - 搜索结果的 `open: { surface: "shelf" }`；
+  - 桌面的 `molisWorkOpenShelf`（现在的做法是点插件列表里 Shelf 那一行）。
+- 整页门禁会沿工作台里的链接逐个打开地址，改道之后仍须落在工作台里。
+- 浏览器格、文件格、助理面板都在顶层文档里，浮条直接画在那里，不涉及整页。
+
+### 15.3 健康门禁
+
+**巨大单元只许变小**（上限：文件 800 行、函数 150 行）。本设计要动的文件现状如下，先拆再加：
+
+| 文件 | 现在 | 先拆什么 | 波次 |
+| --- | --- | --- | --- |
+| `plugins/native/pages/src/editor-browser.ts` | 4042 行；`mount` 1024、`hoverHandlePlugin` 798、`view` 676、`renderMenu` 173、`findPlugin` 169、`slashPlugin` 160 | `placeOverlay`、`pinAt`、`followScroll` 上移到设计系统；格式条与写作菜单的迁移只删不增，搬出的部分写成新文件 | W1、W2 |
+| `apps/workbench/src/scripts/client/assistant-island.ts` | 2812 行 | 情境条、助理面板作为位置写成独立模块，不往这个文件里加行 | W3 |
+| `packages/design-system/src/styles/craft-finish.ts` | 2312 行 | 浮条样式放进新的设计系统原件；底栏动作条样式（:1079–1145）只删 | W1、W2 |
+| `plugins/native/shelf/src/client.ts` | 1708 行 | Shelf 格的窄宽度版式写成独立文件 | W2' |
+| `packages/im-ui/src/browser/controller.ts` | 966 行；`startIm` 957 | 输入框落点、外部引文写成独立模块 | W6 |
+| `apps/workbench/src/scripts/client/context-actions.ts` | 642 行，还不是巨大单元，但离 800 不远 | 先把 `bar`（渲染，:180）与 `bus`（总线，:372）分成两个文件，再接浮条与落点 | W1 |
+
+**兼容标记只许减少，新文件从零开始。**
+- 改名时直接改，不留别名：`dock-window-im`、`data-dock-window="im"`、`data-dock-frame="im"`、`data-dock-toggle="im"`。现在出现在 `immersive-shell.ts`、`side-panel.ts`、`navigation-presentation.ts`、`docs/system/GLOSSARY.md`。
+- 右栏记住上次那一格用的是 `localStorage` 的 `molis:side-tab`，格 id（`discussion`、`browser`、`files`、`plugin:<插件>/<视图>`）不改，所以不用迁移旧值。
+- 删除底部动作条、`BAR_RESIDENT_IDS`、Pages 的「AI」按钮与写作菜单时，都不留兜底分支。
+
+**旧路径插件名单**（`tests/builtin-plugin-assembly-gate.test.ts`）：Shelf 还在名单里，`apps/local-host/src/shelf-native-plugin-http.ts` 仍在。本设计只改 Shelf 的视图，不碰它的 HTTP，也不新增旧路径文件。
+
+### 15.4 六项待核对的结果
+
+| 待核对 | 结论 | 依据 | 对设计的影响 |
+| --- | --- | --- | --- |
+| 生成插件的绘制处能否代写对象声明和「✦」 | **部分可以** | 所有生成插件都由同一个客户端 `packages/design-system/src/plugin-component-client.ts` 绘制，画在沙箱框（`?frame=workbench`）里；它记着每个集合选中的记录；带 `submit` 的录入部件（`intent: "input"`）就是「新建」 | 「✦」槽和创建入口可以由平台代写：从录入部件的提交动作派生。对象声明还缺两样：生成插件没有 `subject.read` 读取器，记录的对象种类也没有机器可读的声明，要由平台按读取绑定派生种类和读取器；框是 iframe，要像分屏窗格一样把焦点转发上来。排在 context-toolbar §11.6 波次 3 之前做一个平台侧的统一声明（§11.2 已写明） |
+| Goals 事件类动作的能力名 | **已核对** | `plugins/native/goals/src/actions.ts:104`（`goals.note`）、`event-command-actions.ts`（`goals.progress.record`、`goals.concerns.apply`、`goals.decisions.request`）、`configuration-actions.ts:39`（`goals.relations.add`，只许人） | 「记为备注」「提出问题」「请求决定」「记进展」各有现成动作，受众含 agent；「关联到别的 Goal」只能由人在界面里点。「风险」已移出 Goals（另有待做的[风险插件](../risk-plugin/spec.md)），浮条里不再写「记为风险」 |
+| 记忆合同有没有显式写入入口 | **有** | `packages/contracts/src/services/memory.ts:449` 的 `memory.write`（受众 user、agent、plugin），撤销 `memory.changes.undo` | F10 直接用它，不用新合同；人点的写入经写入门直接生效并带撤销 |
+| Shelf 有没有创建文字材料的动作 | **有** | `plugins/native/shelf/src/actions.ts` 的 `shelf.items.admit`（收文字、标题，个人范围，受众 user、workflow、agent、mcp）；撤销 `shelf.items.delete` | 「收进 Shelf」的底层动作就是它，声明了撤销，所以可以直接执行并带「撤销」。它的输入没有出处字段，出处先写进正文开头（与浏览器「交给助理」的做法相同），以后需要再给 admit 加字段 |
+| Coding 转录里的选字算不算会话对象；Jelly 笔记块能否选中 | **Coding 算；Jelly 现在不行** | Coding：转录是普通 DOM，每一轮是 `article.coding-turn[data-turn=<turn_id>]`（`plugins/native/coding/src/client.ts:853`），根元素声明 `coding_session`（:1125），通用选区路径不排除它。Jelly：笔记块是 `contenteditable`（`plugins/native/jelly/src/client-content.ts:30`），通用路径的 `own()` 排除可编辑区 | Coding 转录里选字就是 `coding_session` 的选区；「从这里分叉」用 `data-turn` 那一行作 `anchor.element`，输入里带 `turn_id`。Jelly 笔记的选字并进 G1（文本框与可编辑区的选区），另外 Jelly 也有自己的格式条（`jelly-format-bar`），按 Pages 的做法迁成浮条工具 |
+| 浏览器服务能否给出页面选区的矩形 | **能** | `apps/local-host/src/browser/browser-host.ts` 已经用 CDP 的 `evaluate()` 读选中文字（`selectedText`、`capture`）；侧栏已有页面视口坐标到 canvas 的换算（`apps/workbench/src/side-panel-browser.ts:201`） | 加一条取选区的消息：页面里取 `getSelection().getRangeAt(0).getBoundingClientRect()` 和文字，外壳按视口比例换算到 canvas，把浮条画在 canvas 上方。只覆盖顶层框，页面里跨源 iframe 的选区取不到，如实写明 |
+
+### 15.5 其他事实更正（细节在子需求书）
+
+- **对象声明**：Inbox、Artifacts、Sessions 原表写「✗ 没有浮条」，其实工作台已按搜索来源给它们命名对象（打开为条目标签时）；Characters 声明了表面，但不在 `SEARCH_ITEM_TAB_SURFACES` 里，实际仍没有；Git、Diff 仍没有（context-toolbar §10.1）。
+- **动作池**：现在是选区动作 25 条（Pages 20、Goals 2、Todo 1、灵光 1、搜索 1）加对象动作 8 条（Feed 5、Inbox 3），共 33 条，不是「约 40 条」（side-shelf §2）。
+- **能力名**：`coding.create-session` → `coding.sessions.create`（不是只许本机本人）；`feed.out-rules.create` → `feed.rules.create`；`feed.capture` 是场景不是动作；炼金术士、Jelly、Schedule、Cognia、Images 的动作都带插件前缀；`reminders.add` 只对插件开放；`shelf.material.save` 是把已有的 Shelf 材料交给项目，不是「从文字建」（quick-create §7）。
+- **内容站**：`receive` 的输入是 `{ payload: { title, body, url?, source?, feed_item_id? }, context: { instance_id, step, title? } }`；幂等键 `workflow:<实例>:<步骤>`（6 个插件用 `workflowDeliveryKey`，Feed、Inbox 各自做）；成果库是第 9 个站，只能列、读，不能收（quick-create §2）。
+- **工作流**：`instances.start` 的输入是 `{ id, item_id?, title? }`，至少两站，空白起步要第一站支持 `can_start_blank`（quick-create §6.2）。
+
+### 15.6 与其他在做的任务的交界
+
+- **ai-interaction-experience**（会话 goalboard-4e，分支 `feat/ai-interaction-experience`，需求书在该分支的 `specs/ai-interaction-experience/spec.md`）：用户已定，与输入框同排的按钮只放对话的下一步，页面选区动作走本设计的浮条。2026-10-09 两边约定：
+  - 输入框上方留一个独立槽，挂本设计的「手上 + 落点」情境条；同排推荐只占输入框那一行的右侧，窄屏时挪到输入框上方、排在情境条之下；那边动输入区的 DOM 之前先把结构发过来；
+  - `AssistantPreparedCard` 与 `POST /api/assistant/cards` 只加可选字段，不删、不改名；那边把操作卡拆成协作者后告知文件名，本设计直接用；
+  - `context-actions.ts`、底栏动作条的容器（`assistant-dock.ts:72`）与样式（`craft-finish.ts:1079–1145`）归本设计，那边不改，也不依赖底部动作条。
+- **[repository-anti-corruption](../repository-anti-corruption/spec.md)**：它在拆 `AssistantService` 等巨大单元；本设计改到同一文件前先问。
+- **[risk-plugin](../risk-plugin/spec.md)**：「记为风险」的去处等它落地，由它声明创建入口。
+
+## 16. 进度与证据
+
+工程验证、真实场景验证、用户本人验收分开记。
+
+### 16.1 合入记录
+
+- 2026-10-09：本分支合入 origin/main 11878059（888 个提交，没有冲突），四份 spec 按当前代码核对并改正（第 15 节）；`pnpm health:check`（对 merge-base）通过。
+
+### 16.2 W0 计划（2026-10-09）
+
+**范围**：一个高保真切片，在现有的 `scripts/preview-contextual-interaction.mts` 与 `scripts/contextual-slice/` 上扩展，真实的部分沿用（Pages 编辑器、kernel 陈列策略、Host 判断服务、设计系统），替身照旧标明。同一个页面里演示：
+
+1. 左边 Pages 选区的浮条：工具区（原格式条的按钮，窄时折成「格式 ▾」）、动作区（≤3）、更多、✦助理、面板槽；底部不再有动作条；
+2. 右栏五格（Shelf · 灵光 · 文件 · 浏览器 · 讨论）：选中 Shelf 的一行，浮条贴着那一行出现，最前面标出落点「→ Pages · 第 N 段光标处」，悬停「放进」类动作时左边的落点闪一下；
+3. 放进落点的预览画在左边落点处的面板槽里，确认才写入；
+4. 拖放：从右栏拖到左边松手，在松手处弹出同一份列表；另在桌面版里验证 Shelf 行的原生拖出能否和应用内放置分开；
+5. 推荐的创建动作：直接创建的带「撤销」「改放到 ▾」，没有撤销的出预填卡片；
+6. 「✦ 一句话新建」：Pages 标题栏和 Shelf 格标题栏各一个；
+7. 助理输入框上方的「手上 + 落点」情境条。
+
+**两组 Jev 离线评估**（沿用 `scripts/contextual-slice/evaluate.mts` 的方法，真实 Jev 经 Prologue，Key 在进程内从本人 Home 读取，2026-09-30 用户已同意过这种读法）：
+
+- 左右互动：手上的东西在右栏或助理面板、左边有落点，标注合理动作；门槛首位 ≥ 80%、前三 ≥ 95%、p95 ≤ 2 秒，同时记下落在 1.5～2 秒、退回规则的比例；
+- 最合适的去处：选区加创建入口候选（`describe`、`examples`），先测一轮，再定目标。
+
+**给用户看着实物定的两件事**：第一批「放进左边」的动作清单（side-shelf 5.4、本文 8.3）；`web.page`、`im.message` 的命名。
+
+**分工**：W0 由本会话做，切片与评估各交给一个子代理并行（切片用的是独立预览脚本，不碰产品代码）。W1 起按 A 浮条、B 创建入口、C 右栏三块，各开工作树和分支；A、C 都改 `context-actions.ts`、`contextual.ts` 和底栏，接口按第 4 节，谁先改谁告知另一方。

@@ -46,7 +46,7 @@
 
 ## 先读哪里（按顺序）
 
-设计稿在分支 `feature/context-toolbar`（工作树 `/Users/yijunwang/code/goalboard/.claude/worktrees/context-toolbar`，从 origin/main a4e246e0；文件里的路径与行号以 a4e246e0 为准）。
+设计稿在分支 `feature/context-toolbar`（工作树 `/Users/yijunwang/code/goalboard/.claude/worktrees/context-toolbar`，从 origin/main a4e246e0 开，2026-10-09 合入 11878059；下面的路径与行号按 11878059 核对）。
 
 0. `specs/context-program/spec.md`：总纲。统一模型（§3）、合同（§4）、情境中枢（§5）、助理（§6）、右栏与浮条的交点（§7）、能力总表（§8）、合并分期（§9）、需求对照表（§13）。
 0'. `specs/side-shelf/spec.md`：右栏、Shelf、左右互动、落点、架构（§4）。
@@ -59,18 +59,18 @@
 
 **浮条与外壳**
 - `apps/workbench/src/scripts/client/context-actions.ts`：现在的底栏（`bar` 渲染）和情境总线（`bus`，保留）、通用 DOM 选区路径、窗格转发。
-- `apps/workbench/src/assistant-dock.ts:72`、`packages/design-system/src/styles/craft-finish.ts:1010–1072`：底栏容器与样式，要删。
+- `apps/workbench/src/assistant-dock.ts:72`、`packages/design-system/src/styles/craft-finish.ts:1079–1145`：底栏容器与样式，要删。
 - `apps/workbench/src/scripts/client/assistant-island.ts`：`molis:assistant-open`、助理开场建议（不受影响）。
 - `apps/workbench/src/side-panel.ts`：侧栏，`molis:side-open`。
 - `packages/contracts/src/services/contextual.ts`：`SurfaceFocus`、事件常量、`ContextualCandidate`、陈列方案。
 
 **Pages（浮条的外观来源，也是第一个迁移对象）**
 - `plugins/native/pages/src/editor-browser.ts`：格式条 `pages-format-bar`（2990）、写作菜单 `openAi`（3248）、`placeToolbar`（3643）、`placeOverlay` / `pinAt` / `followScroll`（309–357）。
-- `plugins/native/pages/src/client.ts`（225–335）、`floating.ts`、`styles.ts`（`.pages-format-bar` 约 318）、`actions.ts`、`fragment-offers.ts`。
+- `plugins/native/pages/src/client.ts`（226–334；传给 `mount` 的选项在 514–534）、`floating.ts`、`styles.ts`（`.pages-format-bar` 在 283）、`actions.ts`、`fragment-offers.ts`。
 
 **情境服务（Host）**
 - `apps/local-host/src/contextual/`（`contextual-http.ts`、`contextual-service.ts`、`judgment-service.ts`）、`packages/kernel/src/contextual.ts`。
-- `packages/contracts/src/platform/action-fragments.ts`、`action-offers.ts`、`placement.ts`；助理卡片 `POST /api/assistant/cards`（`apps/local-host/src/assistant/assistant-service.ts`）。
+- `packages/contracts/src/platform/action-fragments.ts`、`action-offers.ts`、`placement.ts`；助理卡片 `POST /api/assistant/cards`（路由在 `apps/local-host/src/assistant/assistant-http.ts:148`）。
 
 **右栏与左右互动**
 - `apps/workbench/src/side-panel.ts`、`side-panel-files.ts`、`side-panel-browser.ts`：右栏壳、文件格、浏览器格；
@@ -82,8 +82,8 @@
 **创建入口相关**
 - 现有创建与选区动作：`plugins/native/todo/src/actions.ts`（`todo.items.create`、记成待办）、`lingguang/src/actions.ts`、`goals/src/fragment-offers.ts`、`packages/contracts/src/services/search.ts`。
 - 内容站 `receive`：`packages/contracts/src/platform/workflow-content.ts`，实现在 form、lingguang、inbox、dataset、jelly、feed、ppt、pages 的 `content-actions.ts`。
-- 工作流：`plugins/native/workflows/src/actions.ts`（`instances.start` 约 161）、`model.ts`。
-- Coding：`plugins/native/coding/src/route-actions.ts`（只许本机本人的动作）、`routes.ts`（`steer` 约 1315）、`specs/coding-plugin/next-requirements.md`（C1、C4）。
+- 工作流：`plugins/native/workflows/src/actions.ts`（`instances.start` 在 163）、`model.ts`。
+- Coding：`plugins/native/coding/src/route-actions.ts`（只许本机本人的动作）、`routes.ts`（`coding.runs.control` 的处理在 1537，`steer` 在 1548）、`specs/coding-plugin/next-requirements.md`（C1、C4）。
 
 **手册、模板、门禁**
 - `skills/molis-plugin-dev/`（SKILL、process、placement、continuity、ui、examples）、`docs/platform/PLUGIN-DEVELOPMENT.md`、`tooling/plugin-cli/src/create.ts`。

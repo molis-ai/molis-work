@@ -1,6 +1,6 @@
 # 情境浮条：动作出现在用户动作发生的地方
 
-状态：设计已定，未开工（2026-10-02）。三处取舍用户都按推荐拍板（§9），下一步是 S0 高保真切片给用户看。同日与右栏需求（side-shelf）、创建入口（quick-create）合并设计：交叉的部分（浮条也贴着右栏条目与助理面板的结果、落点、`ItemAttach`、分期）以[情境动作总纲](../context-program/spec.md)为准，总纲第 8 节是全部能力的索引。分支 `feature/context-toolbar`（从 origin/main a4e246e0），只有本文件，没有代码改动。
+状态：设计已定，未开工（2026-10-02）。三处取舍用户都按推荐拍板（§9），下一步是 S0 高保真切片给用户看。同日与右栏需求（side-shelf）、创建入口（quick-create）合并设计：交叉的部分（浮条也贴着右栏条目与助理面板的结果、落点、`ItemAttach`、分期）以[情境动作总纲](../context-program/spec.md)为准，总纲第 8 节是全部能力的索引。分支 `feature/context-toolbar`（从 origin/main a4e246e0），只有本文件，没有代码改动。2026-10-09 合入 origin/main 11878059，现状（§1、§10.1）与行号按当前代码重新核对，核对结果见总纲第 15 节。
 
 ## 1. 用户的话与要解决的事
 
@@ -8,7 +8,7 @@
 
 现状的三个毛病（均已对照代码核对）：
 
-1. **离动作太远。** 情境动作条是输入框上方的固定一行（`apps/workbench/src/assistant-dock.ts:72` 的 `[data-assistant-context-actions]`，`craft-finish.ts:1010` 起的样式）。人在文档中间选了一句话，眼睛要跳到屏幕底部才看得到「改写 / 找依据」。助理面板打开时它还会整个隐藏（`craft-finish.ts:1012`）。
+1. **离动作太远。** 情境动作条是输入框上方的固定一行（`apps/workbench/src/assistant-dock.ts:72` 的 `[data-assistant-context-actions]`，`packages/design-system/src/styles/craft-finish.ts:1079–1145` 的样式）。人在文档中间选了一句话，眼睛要跳到屏幕底部才看得到「改写 / 找依据」。助理面板打开、或助理的建议条出现时，它还会整个隐藏（`craft-finish.ts:1081` 的 `:has(...)`）。
 2. **Pages 里同一件事有三个入口。** 选中文字时：①底部动作条；②选区上方的格式条 `pages-format-bar`（`plugins/native/pages/src/editor-browser.ts:2990`，14 个格式按钮 + 一个「AI」按钮）；③点「AI」弹出的写作菜单 `pages-pop`（`openAi`，:3248），它是把底部动作条的方案再抄一遍（`menuActions` / `watchMenuActions` / `chooseMenuAction`，经 `molis:assistant-context-actions` 与 `…-choose` 来回转），底部还有一段只有 Pages 才有的「助理」小节。
 3. **只有 Pages 有就地的浮层，也只有 Pages 有成套的选区动作。** 其余 17 个声明了对象的插件（Todo、灵光、Goals、Feed、Cognia、Dataset……逐个见 §10.1）选中文字后，底部一行里只有跨插件的通用动作（查找、记成待办、记下灵光、拆成目标步骤、助理）；它们想加自己的快捷操作没有地方放；Inbox、Artifacts、Characters、Sessions 等还没有声明对象，选中文字什么都不出。
 
@@ -53,7 +53,7 @@
 
 - **组件**：`packages/design-system/src/primitives/` 新增情境浮条（DOM 构建 + 样式）。外观就是 `pages-format-bar`：`--paper` 底、8px 圆角、`--shadow-raised`、无描边、4px 内边距、28px 按钮 / 6px 圆角、悬停与开启态 `--nav-hover`、130ms 升起（`pages-rise`）。落地时写进 `DESIGN.md` 与规格板 `/__ui/catalog`（规则：共享控件的改动必须与规格板一致）。
 - **定位**：把 `plugins/native/pages/src/floating.ts`（`placeFloating`、`scrollShouldFollow`）和 `editor-browser.ts` 里的 `placeOverlay` / `pinAt` / `followScroll`（含「窗格本身成了 fixed 的参照盒」的校正）上移到设计系统，Pages 改为引用它。
-- **谁画在哪**：浮条画在**拥有这段选区的那个文档**里（总纲 §5：右栏的 iframe 格、助理面板同样适用，手上的东西可以在 `main`、`side`、`assistant`）。主文档：画进当前插件舞台的浮层根（舞台已 `isolation: isolate`，层级 z 40，低于助理面板 50）；分屏窗格（iframe）：画在窗格自己的文档里。这样不需要跨 frame 换算坐标、不需要追踪窗格内滚动，焦点和选区也不会跨文档丢失。
+- **谁画在哪**：浮条画在**拥有这段选区的那个文档**里（总纲 §5：右栏的 iframe 格、助理面板同样适用，手上的东西可以在 `main`、`side`、`assistant`）。主文档：画进当前插件舞台的浮层根（舞台已 `isolation: isolate`，`craft-finish.ts:1147`；Pages 的浮层在舞台里是 z 40，`plugins/native/pages/src/styles.ts:284`；助理面板是 z 50，现在的底栏动作条是 z 54）；分屏窗格（iframe）：画在窗格自己的文档里。这样不需要跨 frame 换算坐标、不需要追踪窗格内滚动，焦点和选区也不会跨文档丢失。
 - **大脑只有一个**：外壳的情境总线（`context-actions.ts` 里的 `bus`）仍在顶层：收情境、请求候选与判断、保存方案。窗格仍把情境转发上来（`workbench-surface-focus`）、方案仍转发回窗格（`workbench-context-plan`）、选择仍经 `workbench-context-action-choose` 回到总线——这三条现成的消息就是浮条在窗格里工作所需的全部。
 - **不抢焦点**：浮条上的 `mousedown` 一律 `preventDefault`，点它不改变选区与焦点；键盘用 ⌘. 进入（现有快捷键）、←→ 移动、Esc 回到原处；`role="toolbar"`，每项有无障碍名称；「可以做：…」的读屏播报保留。
 
@@ -166,42 +166,47 @@ interface ContextToolItem {
 
 浮条主体（§2–§8）解决「放在哪、怎么协议」；这一节回答「各插件放什么」。浮条上线后，插件的价值全在这一节：每多一项声明，所有插件的选区上就多一个动作，外壳不写名单。
 
-### 10.1 现状（2026-10-02，origin/main a4e246e0，按代码核对；带 † 的取自 9 月 30 日的逐插件检查，未重跑）
+### 10.1 现状（2026-10-09 按 origin/main 11878059 重新核对；原表按 a4e246e0 写成）
 
 本表同时回答统一待办清单的 BL-038（其他插件片段动作的第一批名单）和 BL-039（Goals、Inbox 没有对象声明、除 Pages 外没有片段级动作）；合入时同步那两条。
 
 「通用动作」= 在项目里查找（选中一个词）、记成待办、记下灵光、拆成目标步骤（选一段）、记录进展（选中清单项且知道所属 Goal）、助理。声明了对象的插件选中文字时都能得到，条件是插件已启用且有对应权限。
 
+对象怎么来，有三种：①页面自报焦点（`molis:surface-focus`，只有 Pages）；②外壳替它声明（Goals：`tab-workspace.ts:265`；Feed：`navigation-feed.ts:647`）；③工作台按搜索来源命名（打开为条目标签时，`context-actions.ts:102–133`；只有一个种类、一个插件认领的表面才命名，`apps/local-host/src/contextual/contextual-http.ts:212`）。其余插件在自己的根元素上写 `data-assistant-context`。
+
 | 插件 | 对象声明 | 自己作为提供方的选区动作 | 选中文字现在得到 | 缺口 |
 | --- | --- | --- | --- | --- |
-| Pages | ✓ 编辑器自报焦点 | 13 项 + 整篇 | 全套，另有格式条 | 格式条是 Pages 私有的 |
-| Todo | ✓ 打开一条时（`todo_item`） | 记成待办 | 通用 | 描述是文本框，选字不触发（G1） |
-| 灵光 | ✓ `lingguang_spark` | 记下灵光 | 通用 | 正文是文本框（G1） |
-| Goals | ✓ 由外壳按打开的 Goal 声明（9 月 30 日检查时还没有） | 拆成目标步骤、记录进展 | 通用 + 自己两项 | 备注 / 风险 / 请求决策等事件类动作未接 |
-| Feed | ✓ 由外壳的 Feed 壳声明，插件自己的代码里没有 | — | 通用 | 无专属动作 |
+| Pages | ✓ 编辑器自报焦点（`client.ts:242`、`:287`） | 20 项（15 项作用于选区，其中教练、总结、提纲也作用于整篇；比较、合并、综合 3 项作用于多篇；校对、翻译成新文档 2 项只作用于整篇） | 全套，另有格式条 | 格式条是 Pages 私有的 |
+| Todo | ✓ 打开一条时（`todo_item`，`client.ts:195`） | 记成待办 | 通用 | 描述是文本框，选字不触发（G1） |
+| 灵光 | ✓ `lingguang_spark`（`client.ts:36`） | 记下灵光 | 通用 | 正文是文本框（G1） |
+| Goals | ✓ 由外壳按打开的 Goal 声明 | 拆成目标步骤、记录进展 | 通用 + 自己两项 | 事件类动作未接进浮条（能力名见 §10.4） |
+| Feed | ✓ 由外壳的 Feed 壳声明（两种对象，所以工作台命名跳过它） | — | 通用 | 无专属选区动作；对象动作 5 项（加入 Inbox、保存为资料、升格为 Goal、忽略、恢复） |
 | Cognia | ✓ `cognia_material` | — | 通用 | 无专属动作 |
 | Dataset | ✓ | — | 通用 | 无专属动作；表格内选字 |
 | Form | ✓ | — | 通用 | 题目是文本框（G1） |
-| PPT | ✓ | — | 通用 | 文本框（G1） |
-| Schedule | ✓ | — | 通用 | 无专属动作 |
-| Jelly | ✓ 笔记、事项各自声明 | — | 通用 | 笔记块能否选中待核对 † |
-| Shelf | ✓ | — | 通用 | 仅本人可见的来源（contextual-interaction §4.2）：正文不进判断模型 |
-| Coding | ✓ `coding_session`（声明的是会话，转录里的选字是否算它待核对） | — | 通用 | 无专属动作；没有旁问和分叉（§10.3） |
-| Workflows | ✓ | — | 通用 | 画布不是 DOM 文字（G2） |
-| Alchemist | ✓ 页面级 † | — | 通用 | 无专属动作（方向、想法的读取动作 `alchemist.direction.subject.read` 等现在都有） |
-| Experiments | ✓ 页面级 † | — | 通用 | 无专属动作（`experiments.subject.read` 现在有了） |
-| Images | ✓ | — | 通用 | 无专属动作 |
-| Files | ✓ | — | 通用 | 已有「选区引用」给 Coding（`files.text-selection.v1`，Coding 的 `selection` 端口） |
-| Inbox | ✗ | — | 没有浮条 | 先补对象声明 |
-| Artifacts | ✗ | — | 没有浮条 | 先补声明；他人的个人成果无权读 |
-| Characters | ✗ | — | 没有浮条 | 先补声明 |
-| Sessions | ✗ | — | 没有浮条 | 先补声明；终端内容不可选（G2） |
-| Git、Diff | ✗ | — | 没有浮条 | 按需补（评论一处改动、让 Coding 改这一处） |
+| PPT | ✓ `presentation` | — | 通用 | 文本框（G1） |
+| Schedule | ✓ `schedule_task` | — | 通用 | 无专属动作 |
+| Jelly | ✓ 笔记、事项各自声明（`jelly_note`、`jelly_item`） | — | 事项：通用；**笔记：没有** | 笔记块是 `contenteditable`（`client-content.ts:30`），通用路径排除可编辑区，选字不出浮条（并进 G1）；Jelly 也有自己的格式条 `jelly-format-bar`，按 Pages 的做法迁成浮条工具 |
+| Shelf | ✓ `shelf_item`（`client.ts:335`） | — | 通用 | 仅本人可见的来源（contextual-interaction §4.2）：正文不进判断模型 |
+| Coding | ✓ `coding_session`（`client.ts:1125`）；转录是普通 DOM，选字就是这个会话的选区；每一轮是 `article.coding-turn[data-turn]`（`client.ts:853`） | — | 通用 | 无专属动作；没有旁问和分叉（§10.3）；输入框是文本框（G1） |
+| Workflows | ✓ `workflow` | — | 通用 | 画布不是 DOM 文字（G2） |
+| Alchemist | ✓ 对象级（方向、想法各自声明） | — | 通用 | 无专属动作（读取动作 `alchemist.direction.subject.read`、`alchemist.idea.subject.read` 都有） |
+| Experiments | ✓ 对象级（`experiment`） | — | 通用 | 无专属动作 |
+| Images | ✓ `image_job` | — | 通用 | 无专属动作 |
+| Files | ✓ `workspace_file` | — | 通用 | 已有「选区引用」给 Coding（`files.text-selection.v1`，过程项，Coding 的 `selection` 端口） |
+| Inbox | ✓ 工作台按搜索来源命名（`inbox_entry`，打开为条目标签时） | — | 通用 | 原表写「✗」，核对时发现命名机制在 a4e246e0 就有；对象动作 3 项（做完了、忽略、整理成文稿） |
+| Artifacts | ✓ 工作台按搜索来源命名 | — | 通用 | 他人的个人成果无权读 |
+| Sessions（目录 `work`） | ✓ 工作台按搜索来源命名（`session`） | — | 通用 | 终端内容不可选（G2） |
+| Characters | ✗ 声明了表面，但不在 `SEARCH_ITEM_TAB_SURFACES`（`global-search.ts:31`）里，实际不会打开成条目标签 | — | 没有浮条 | 先补声明 |
+| Git、Diff | ✗ 没有搜索来源，也没有声明 | — | 没有浮条 | 按需补（评论一处改动、让 Coding 改这一处） |
 | Text stats、插件创作台、市场 | 不适用 | — | — | Text stats 适合做「纯计算动作」的样板（见 10.4） |
+| 官方集成（`plugins/official-integrations/`：catalog、github、gmail、rss、web-query、youtube） | 不适用 | — | — | 没有舞台，内容经 Feed 进来 |
+
+另有平台搜索提供的「在项目里查找」（`packages/contracts/src/services/search.ts:101`）。
 
 三个机制层面的缺口，不是某个插件的问题：
 
-- **G1 文本框里选字不出情境。** 通用 DOM 选区路径显式排除 `input / textarea / select / contenteditable`（`context-actions.ts` 的 `own()`），Todo 描述、灵光正文、Form 题目、PPT 要点这类「写字的地方」选中文字什么都不出。要补一个外壳助手：读 `selectionStart / End`，用镜像元素算出选区矩形，作为 `anchor.rect`。
+- **G1 文本框里选字不出情境。** 通用 DOM 选区路径显式排除 `input / textarea / select / contenteditable`，以及自报焦点的 `[data-surface-focus="own"]`、助理面板和动作条本身（`context-actions.ts:68–70` 的 `own()`），Todo 描述、灵光正文、Form 题目、PPT 要点、Jelly 笔记块、Coding 输入框这类「写字的地方」选中文字什么都不出。要补一个外壳助手：文本框读 `selectionStart / End`，用镜像元素算出选区矩形；不是自报焦点编辑器的 `contenteditable`（Jelly 笔记块）直接取 DOM 选区的矩形；都作为 `anchor.rect`。
 - **G2 画布与终端不是 DOM 文字。** Workflows 画布、Sessions 终端要由插件自己上报焦点（`molis:surface-focus`）和矩形，或声明为「对象级」动作，不能指望通用路径。
 - **G3 对象级动作只有 Pages 有「整篇」。** 其他插件的对象级动作（subject offers）现在只出现在助理开场建议和首页 / Dock 里，浮条不带。S4 的 `anchor.element` 就是给它们的：点中一条待办、一封收件，浮条贴在那一行旁边。
 
@@ -246,9 +251,9 @@ interface ContextToolItem {
 | Todo | 记成待办，带出处（`todo.items.create` 有 `sources` 字段） | ● |
 | 灵光 / Pages / Inbox / Feed / Jelly / Dataset / Form / PPT | 这 8 个插件已经实现了工作流的「接收内容」（`receive`，收标题、正文、网址、来源） | ◐ 把它的幂等键从工作流实例泛化为请求号 |
 | 炼金术士 | 作为新的方向或想法（`directions.create` 等） | ◐ 个人空间列举有问题 |
-| Goals | 拆成目标步骤（已有）；记为备注 / 风险 / 请求决策；关联到别的 Goal | ◐ 核对 Goals 现有的事件类型与能力名 |
-| Coding | 放进某个会话的下一轮材料（带出处，不开跑）；没有会话就先新建 | ◐ 通用「文字摘录」材料类型（现有的材料类型各绑文件或置物架） |
-| Coding | 补充给正在运行的这一轮（`runs.control` 的 `steer`） | ◐ 写入类，只许本机本人，必须出卡片确认；仅当有一轮在运行时出现 |
+| Goals | 拆成目标步骤（已有）；记为备注（`goals.note`）、提出问题（`goals.concerns.apply`）、请求决定（`goals.decisions.request`）、记进展（`goals.progress.record`）；关联到别的 Goal（`goals.relations.add`，只许人在界面里点） | ● 能力名已核对（2026-10-09）；「风险」已移出 Goals，由待做的风险插件声明创建入口 |
+| Coding | 放进某个会话的下一轮材料（带出处，不开跑）；没有会话就先新建（`coding.sessions.create`） | ◐ 2026-10-09 核对：确实没有通用的文字摘录材料（现有的是 Shelf 文字材料、Files 快照与选区、Diff 与 Git 的变更、Coding 自己的报告、变更集与计划）。按成果库定位，新增 Coding 自己名下的过程项（暂名 `coding.text-excerpt.v1`）；手上是 Shelf 材料时仍走现有的 `materials` 端口（总纲 8.5） |
+| Coding | 补充给正在运行的这一轮（`coding.runs.control` 的 `steer`，`plugins/native/coding/src/routes.ts:1548`） | ◐ 写入类，只许本机本人，必须出卡片确认；仅当有一轮在运行时出现 |
 | 项目讨论（侧栏） | 带着这段话打开「讨论」，放进输入框，由你发送 | ○ 按总纲 §7：讨论格的输入框作为落点；im-ui 要让输入框报告落点、接收带出处的外部引文（`quote_id` 只能引用已有消息） |
 | Schedule / Jelly | 选中文字含时间 → 建日程或提醒 | ◐ 时间解析放在提供方准备里，规则优先 |
 | Shelf | 收进置物架（同时就是 F8 材料篮的「加入材料」与左→右，总纲 §7） | ● 注意仅本人可见的规则 |
@@ -261,7 +266,7 @@ interface ContextToolItem {
 | Pages | 在已有 13 项上：链接到另一篇、评论转待办、复制为 Markdown | 把现在页面里的「存为固定版本」收进浮条的整篇动作 | 无 |
 | Todo | 拆成子待办（选中的几行各记一条）、选中含日期就设为截止、关联到 Goal、合并成一条 | 贴在选中那一行：完成、改优先级、改日期 | G1、`anchor.element` |
 | 灵光 | 展开这个想法、找相似灵感、拆成待办、转成 Jelly 笔记（已有按钮收进来） | — | G1 |
-| Goals | 补一条验收标准；记为备注 / 风险 / 请求决策 | — | 事件能力名核对 |
+| Goals | 补一条验收标准；记为备注、提出问题、请求决定 | — | 无（能力名见上表） |
 | Feed | 加入收件箱；把这个词做成 Feed 规则（`feed-rule-authoring` 已有）；总结这条消息 | 已读、归档 | 无 |
 | Inbox | 转为待办；交给助理核查（`inbox.next` 已有判断）；完成 / 忽略 | 贴在这一封：完成、忽略、稍后 | 先补对象声明 |
 | Cognia | 摘录为知识草稿；找相关资料；引用到 Pages | — | 核对草稿能力 |
@@ -316,7 +321,7 @@ interface ContextToolItem {
 | F7 复制与引用 | 复制为引用（带对象名和出处）、复制为 Markdown、复制「链接到这一段」 | Files 的选区引用标签；Pages 的 Markdown 转换 | 先做带出处的引用；定位到一段的深链要各插件支持滚动高亮，后做 | **系统工具**（外壳自带，固定放在「更多」底部，与「助理」同组，不进目录、不排序） | **建议纳入**（先引用，深链后做） |
 | F8 材料篮（跨页面多选收集） | 选区「加入材料」，积累来自不同页面、不同插件的几段，之后一起交给助理比较、综合，或作为多个来源创建 Item | 助理的材料（卡片最多 4 段）；`granularity: "objects"`；S3 场景；**Shelf** | **就用 Shelf**（用户 2026-10-02 定，总纲 §7）：「加入材料」= Shelf 的创建入口「收进 Shelf」；在 Shelf 格多选几项，浮条上出现「一起交给助理」。Shelf 是仅本人可见的来源，内容只在用户点了具体动作后才进模型 | Shelf 的创建入口 + 对象动作 | **纳入**，不另做外壳暂存篮 |
 | F9 批注与标记 | 在 Feed 条目、Cognia 资料、Artifacts 版本这类只读内容上高亮、留一句话，再打开时还在 | Pages 评论；炼金术士的 `annotations.create` | 跨插件的批注服务：对象引用 + 引文 + 锚点，由所有者保存 | 新服务 | 用户选择纳入（我原本建议暂缓：它是新服务，改动最大），排在最后一批；读类插件最缺它 |
-| F10 记住 | 把选中的一句话记成偏好、约定、事实，确认后写进项目记忆 | `memory.*` 合同；记忆线 | 核对记忆合同有没有显式写入入口 | 选区动作（`record`，记忆线提供） | **建议纳入**，先核对合同 |
+| F10 记住 | 把选中的一句话记成偏好、约定、事实，确认后写进项目记忆 | `memory.write`（「记住一件事」，受众 user、agent、plugin；2026-10-09 核对） | 无新合同：人点的写入经写入门直接生效，撤销用 `memory.changes.undo`；Agent 写的只成为待认可的建议 | 选区动作（`record`，记忆线提供） | **纳入**（第二批） |
 | F11 做成规则或自动化 | 以这段内容为样例，起草 Feed 规则、Inbox 判断规则、定时任务、工作流步骤 | `feed-rule-authoring`、Schedule、Workflows | 无新机制 | 并入 F1：各插件的「建规则」就是它的一个创建入口 | 并入 F1，不单列 |
 | F12 带去别处讨论 | 带到助理（已有）、带到项目讨论、请某个角色看看 | `molis:assistant-open`、`molis:side-open` | 讨论的草稿入口（§10.4） | 选区动作（放进输入框，不写记录） | 已列 |
 | F13 运行工作流 | 选中一段会议纪要，运行「整理成周报」工作流：选中的文字作为第一个节点的输入，第一个节点创建 Item，然后继续往下执行 | Workflows 插件：流程由若干「站」和交接组成，第一站是内容站（Feed、Inbox、Pages、灵光……）；`instances.start` 现在只能从第一站已有的内容或空白开始；内容站的 `receive` 就是创建 Item；`receive` 的幂等键是「运行 + 步骤」 | ①`instances.start` 加 `payload`（标题、正文、出处）：创建运行，再把它交给第一站的 `receive`（步骤 0）创建 Item，然后照常推进；②每个工作流是用户建的动态集合，而片段动作的选项现在是静态声明的：要允许提供方按项目枚举（有上限、key 稳定为 `wf.<工作流 id>`、准备时核对它仍存在）；③工作流说明（名称、站点链）进 Jev 的判断材料 | 选区动作（动态候选，`apply: "record"`，Workflows 提供） | **用户提出，纳入**；工作流可能连着外部动作，所以总是出预填卡片，不直接运行 |
@@ -346,7 +351,7 @@ interface ContextToolItem {
 | 选区浮条与创建入口的推荐 | 所有声明了对象的插件 | 外壳全包，插件不写代码 |
 | 对象声明 | 列表 + 详情型、且写了搜索来源的插件 | 工作台按搜索来源的「表面 → 对象种类」命名（`/api/contextual/surfaces`，`named_by: "workbench"`，已实现），所以写好 [search.md](../../skills/molis-plugin-dev/search.md) 的搜索来源就有 |
 | 创建入口 | 已实现工作流内容站 `receive` 的 8 个插件（Form、灵光、Inbox、Dataset、Jelly、Feed、PPT、Pages） | 从站点声明派生（名称、图标、动词），作者只需要补示例和可选的 `prepare` |
-| 对象声明、「✦ 一句话新建」、创建入口 | **插件创作台生成的插件** | 界面由平台用 UI 目录绘制，平台在绘制处统一写 `data-assistant-context`、放「✦」槽，并从说明书里的「新建」功能派生创建入口；作者与创作台 Agent 零工作（落地时核对绘制处） |
+| 对象声明、「✦ 一句话新建」、创建入口 | **插件创作台生成的插件** | 界面由平台用 UI 目录绘制。2026-10-09 核对：所有生成插件都由同一个客户端 `packages/design-system/src/plugin-component-client.ts` 绘制，画在沙箱框里；它记着每个集合选中的记录，带 `submit` 的录入部件就是「新建」。所以「✦」槽与创建入口（从录入部件的提交动作派生）可以由平台代写，作者与创作台 Agent 零工作；对象声明还缺两样：平台按读取绑定派生的对象种类与读取器（生成插件没有 `subject.read`），以及沙箱框向上转发焦点（同分屏窗格）。这一项排在 11.6 波次 3 之前做 |
 | 三件事的最小样例 | 新建的插件 | `molis-work plugin create` 生成的示例带对象声明、一个创建入口和一个选区动作 |
 
 ### 11.3 要改的文件
@@ -364,11 +369,11 @@ interface ContextToolItem {
 | `docs/platform/PLUGIN-DEVELOPMENT.md` | 一节「选区与创建入口」：合同名、事件名、命令；与 Skill 同一任务更新 | 同上 |
 | `tooling/plugin-cli/src/create.ts` 与它的 README | 示例项目带三件事；`validate` 对没有对象声明或创建入口的给提示 | S1、Q1 |
 | `AGENTS.md` 硬约束 | 一条：有用户可创建对象的新插件必须声明创建入口、必须能得到对象声明；覆盖率名单冻结只许减少 | 门禁落地时 |
-| `specs/BACKLOG.md` | 关 BL-038、BL-039，改指向本设计 | 合入时 |
+| `specs/BACKLOG.md` | 关 BL-038（现状「待你决定」）、BL-039（现状「部分实现」：Feed、炼金术士方向、Experiments 已做），改指向本设计 | 合入时 |
 
 ### 11.4 已经在 main、手册里却没有的（并进 S1 一起补）
 
-核对：`defineFragmentOffersAction` / `FragmentOfferChoice`（选区动作）、`molis:surface-focus`（编辑器自报焦点）、`data-surface-focus="own"`、`molis:assistant-context-action-chosen`（页面接下动作）在 Skill 和 `docs/platform/` 里都没有写；contextual-interaction §4.1 当时承诺「这套约定写进插件开发手册」，没有兑现。这些合同不会因浮条而变，所以 S1 写第一份 `contextual.md` 时，前半（对象声明、选区动作、页面接动作）直接按现状写全，后半（工具、锚点、创建入口）随各阶段代码补。在此之前，编码 Agent 新写插件仍不知道有选区动作这回事，这是已知的空窗。
+核对（2026-10-09 重查仍成立）：`defineFragmentOffersAction` / `FragmentOfferChoice`（选区动作）、`molis:surface-focus`（编辑器自报焦点）、`data-surface-focus="own"`、`molis:assistant-context-action-chosen`（页面接下动作）在 Skill 和 `docs/platform/` 里都没有写（`docs/platform/PLUGIN-PLATFORM.md:140` 的清单里有一行 `defineFragmentOffersAction`，写的正是「手册、Skill 与 SDK 导出都缺」）；contextual-interaction §4.1 当时承诺「这套约定写进插件开发手册」，没有兑现。这些合同不会因浮条而变，所以 S1 写第一份 `contextual.md` 时，前半（对象声明、选区动作、页面接动作）直接按现状写全，后半（工具、锚点、创建入口）随各阶段代码补。在此之前，编码 Agent 新写插件仍不知道有选区动作这回事，这是已知的空窗。
 
 ### 11.5 覆盖率门禁（冻结的豁免名单，只许减少）
 
@@ -376,7 +381,7 @@ interface ContextToolItem {
 
 - 每个 native / app 插件：有用户可创建的对象（有创建类动作）→ 必须有创建入口（自声明或由内容站派生），否则必须在豁免名单里并写理由；
 - 每个展示用户内容的插件：必须能得到对象声明（自己写或工作台按搜索来源命名），否则同样要在名单里；
-- **名单分两类**：「待补」（存量缺口，每项写明波次，见 11.6，补完就删）和「不适用」（永久，每项写理由）。永久不适用的只有：Text stats（无用户内容对象，它是纯计算动作的提供方）、插件创作台、市场，以及 `integration` 家族（GitHub、Gmail、RSS、YouTube……不展示用户内容对象，内容经 Feed 进来）；
+- **名单分两类**：「待补」（存量缺口，每项写明波次，见 11.6，补完就删）和「不适用」（永久，每项写理由）。永久不适用的只有：Text stats（无用户内容对象，它是纯计算动作的提供方）、插件创作台、市场，以及 `plugins/official-integrations/` 下的集成（catalog、GitHub、Gmail、RSS、web-query、YouTube，不展示用户内容对象，内容经 Feed 进来）；
 - **名单只许减少**：新插件不能加入名单，只能声明；每补完一个存量插件，那一个 PR 里把它从「待补」里删掉；
 - 测试输出一张覆盖率表（对象声明 / 创建入口 / 选区动作 各覆盖多少个插件），进度一眼可见；
 - `molis-work plugin validate` 对第三方与生成插件给**提示**（不拦截），说明缺什么、用户会因此少什么。
@@ -437,3 +442,4 @@ interface ContextToolItem {
 | 2026-10-02 | 选区能力版图（§10.7）第一批纳入：追加到已有 Item、一次提取多个 Item、任意文本框润色翻译、材料篮；第二批纳入：识别选中内容、带出处的复制引用、记住（记忆）、批注标记（我建议暂缓，用户选了纳入，排最后） | 用户 |
 | 2026-10-02 | 新增 F13：选中文字运行工作流，文字作为第一个节点的输入，第一个节点创建 Item 再往下执行；总是出预填卡片确认 | 用户 |
 | 2026-10-02 | 与 side-shelf、quick-create 合并设计（[总纲](../context-program/spec.md)）：浮条也贴着右栏条目与助理面板的结果出现；F8 材料篮就用 Shelf；F12 讨论输入框作为落点；F2 与「放进左边落点」合成 `ItemAttach`（加 `positions`）；四份文档同一分支、一个 PR | 用户 |
+| 2026-10-09 | 吸收 main：现状表按 11878059 重写（Inbox、Artifacts、Sessions 已由工作台命名对象；Characters、Git、Diff 仍没有；Jelly 笔记块并进 G1、Jelly 格式条迁成浮条工具）；Goals 事件动作、记忆写入、生成插件绘制处的核对结果写进 §10.4、§10.7、§11.2 | 核对结果（总纲第 15 节） |

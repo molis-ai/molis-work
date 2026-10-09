@@ -11,9 +11,10 @@ import * as goalsPlugin from "@molis-ai/molis-work-plugin-goals";
 import { createGoalIntentCapability, configureGoalEventsCapability, reportGoalEventsCapability, recordGoalProgressCapability,
   applyGoalConcernCapability, requestGoalDecisionCapability, citeGoalDecisionCapability, setGoalEventAgreementCapability,
   submitGoalEventClosureCapability, resumeGoalEventWorkCapability, recordGoalNoteCapability, setActiveGoalCapability,
-  recordGoalUserDecisionCapability, readGoalEventStateCapability, goalTreeCapabilities } from "@molis-ai/molis-work-plugin-goals";
+  recordGoalUserDecisionCapability, readGoalEventStateCapability, goalTreeCapabilities, goalsActions,
+  hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostCapabilityDefinition, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
@@ -37,7 +38,7 @@ const managementDoors = (goal_id: string, cursor: number) => [
 ];
 
 /** Every typed event write the Goals plugin exports, by export name: the commands under the event entry's id prefix. */
-const typedEventWrites = () => Object.entries(goalsPlugin).filter((entry): entry is [string, HostCapabilityDefinition<unknown, unknown>] => {
+const typedEventWrites = () => Object.entries(goalsPlugin as Record<string, unknown>).filter((entry): entry is [string, HostCapabilityDefinition<unknown, unknown>] => {
   const value = entry[1] as { capability_id?: unknown; operation?: unknown } | null;
   return typeof value === "object" && value !== null && value.operation === "command"
     && typeof value.capability_id === "string" && value.capability_id.startsWith("io.molis.work.goals.events.");
@@ -165,6 +166,77 @@ test("a plugin that lists a management entry under consumes is refused and is ne
     const recorded = await typed.invoke(goalProgressCapabilities.record,
       { goal_id, based_on_cursor: await cursor(), summary: "插件的进展", idempotency_key: "plugin-progress" } as never, asPlugin("plugin-person"));
     assert.equal(recorded.progress_summary.actor_id, "plugin-person");
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+/**
+ * The management door records its closes as the person on this machine, a user. Under the project rule 「完成前必须你点头」 that is
+ * still not the approval (specs/goal-closure-identity): neither is the Web's complete button or a runtime's close. What releases the
+ * rule is a trusted user conclusion, and the door can record one as the person too.
+ */
+test("under the project approval rule a close from the management door, the Web or a runtime is not the approval", async () => {
+  const home = await mkdtemp(join(tmpdir(), "goal-management-approval-"));
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Approval", actor_id: "user" }));
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const typed = host.client(ref), project_id = project.project_id;
+  const runtime = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:closer", audit_actor_id: "runtime:closer:session",
+    actor_kind: "runtime", audience: "agent", project_id, permissions: ["goals:read", "goals:write"] }));
+  const web = bindActionClient(host.actionClient(ref), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id,
+    permissions: ["goals:read", "goals:write", "goals:decide"], user_action: { source: "web", conversation_ref: "web:approval", message_ref: "web:click" } }));
+  const requirement = (goal_id: string) => `${goal_id}-requirement`;
+  /** A Goal whose one requirement the work already supports, so the project's approval rule is the only thing left to satisfy. */
+  const supported = async (goal_id: string) => {
+    await runtime.invoke(goalsActions.create, { goal_id, title: "需要点头", outcome: "结果可以检查", idempotency_key: `create-${goal_id}`,
+      requirements: [{ requirement_id: requirement(goal_id), statement: "结果可以检查" }] });
+    await runtime.invoke(goalsActions.configure, { goal_id, expected_version: 0, idempotency_key: `configure-${goal_id}`,
+      types: [{ type_id: "work", version: 1, name: "交付", purpose: "保留事实",
+        fields: [{ field_id: "body", name: "正文", purpose: "原文", format: "longtext", required: true }] }],
+      requirement_bindings: [{ type_id: "work", requirement_id: requirement(goal_id) }] });
+    await runtime.invoke(goalsActions.report, { goal_id, idempotency_key: `report-${goal_id}`,
+      events: [{ type_id: "work", type_version: 1, title: "交付", fields: { body: "已交付" },
+        judgments: [{ requirement_id: requirement(goal_id), verdict: "supports" }] }] });
+  };
+  const closeInput = async (goal_id: string, idempotency_key: string) => {
+    const state = await runtime.invoke(goalsActions.state, { goal_id });
+    return { goal_id, kind: "complete" as const, result: "结果可以检查", reason: "试着完成", idempotency_key,
+      expected_config_version: state.config.version, expected_agreement_version: state.agreement.version };
+  };
+  const closers = {
+    runtime: async (goal_id: string, key: string) => runtime.invoke(goalsActions.close, await closeInput(goal_id, key)),
+    web: async (goal_id: string, key: string) => web.invoke(goalsActions.close, await closeInput(goal_id, key)),
+    management: async (goal_id: string, key: string) => typed.invoke(submitGoalEventClosureCapability, { project_id, ...await closeInput(goal_id, key) }),
+  };
+  const APPROVAL_REQUIRED = "event_closure.human_approval_required";
+  try {
+    // Without the rule the management door completes a supported Goal, so a refusal below is the rule's and not the door's.
+    await supported("CONTROL");
+    assert.equal((await closers.management("CONTROL", "close-control")).completion_applied, true);
+
+    await web.invoke(goalsActions.policySave, { policy: { human_approval: true }, user_confirmed: true, idempotency_key: "policy" });
+    await supported("DECIDED");
+    for (const [name, close] of Object.entries(closers)) {
+      const held = await close("DECIDED", `close-${name}`);
+      assert.equal(held.completion_applied, false, `${name} clicking complete is not the approval`);
+      assert.deepEqual(held.unmet_reasons.map(reason => reason.code), [APPROVAL_REQUIRED], name);
+      if (name === "management") {
+        // What makes the case worth pinning: the held close is recorded as the person on this machine, a user.
+        const recorded = await host.withProject(ref, open => open.coordinator.goalEvents.readEvent(project_id, "DECIDED", held.event_id));
+        assert.deepEqual([recorded.actor_id, recorded.actor_kind], [LOCAL_PERSON_ACTOR_ID, "user"]);
+      }
+    }
+    // A decision from the person that authorizes complete releases it, for the same door that was held back before.
+    await typed.invoke(recordGoalUserDecisionCapability, { project_id, goal_id: "DECIDED", idempotency_key: "allow",
+      authority: hostEventDecisionAuthority("management", project_id, LOCAL_PERSON_ACTOR_ID, "allow"), conclusion: "可以完成",
+      effects: [{ kind: "authorize_action", action: "complete" }], scope: { action: "complete" } });
+    assert.equal((await closers.management("DECIDED", "close-management-after")).completion_applied, true);
+
+    // An accepted conclusion on the requirement releases it as well, with no decision about completing at all.
+    await supported("ACCEPTED");
+    assert.deepEqual((await closers.runtime("ACCEPTED", "close-before")).unmet_reasons.map(reason => reason.code), [APPROVAL_REQUIRED]);
+    await web.invoke(goalsActions.decide, { goal_id: "ACCEPTED", idempotency_key: "accept", conclusion: "接受这条要求",
+      accepts_requirements: true, scope: { requirement_ids: [requirement("ACCEPTED")] } });
+    assert.equal((await closers.runtime("ACCEPTED", "close-after")).completion_applied, true);
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 

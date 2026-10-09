@@ -2087,3 +2087,109 @@ test("project human-approval policy blocks completion until a current user autho
     close(data);
   }
 });
+
+const APPROVAL_REQUIRED = "event_closure.human_approval_required";
+
+function requireProjectApproval(app: GoalProjectApplication, key: string) {
+  app.goals.commands.saveProjectPolicy({
+    project_id: BOARD, actor_id: "user-1", user_confirmed: true,
+    policy: { human_approval: true }, idempotency_key: key,
+  });
+}
+
+/** A Goal whose one requirement the work already supports, so the project's approval rule is the only thing left to satisfy. */
+function supportedGoal(app: GoalProjectApplication, key: string, requirementId: string): string {
+  const created = app.goalEvents.createIntent({
+    project_id: BOARD, title: `需要你点头 ${key}`, outcome: "结果可以检查",
+    actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: `intent-${key}`,
+  });
+  configure(app, created.goal.goal_id, `cfg-${key}`, { new_requirements: [{ requirement_id: requirementId, statement: "结果可以检查" }] });
+  reportSupport(app, created.goal.goal_id, `rep-${key}`, requirementId);
+  return created.goal.goal_id;
+}
+
+function tryComplete(app: GoalProjectApplication, goalId: string, key: string, closer: { actor_id: string; actor_kind: "user" | "runtime" }) {
+  return app.goalEvents.submitClosure({
+    project_id: BOARD, goal_id: goalId, ...closer, idempotency_key: key, kind: "complete",
+    result: "结果可以检查", reason: "试着完成", ...versions(app, goalId),
+  });
+}
+
+const reasonCodes = (closure: { unmet_reasons: Array<{ code: string }> }) => closure.unmet_reasons.map((reason) => reason.code);
+
+test("under the project human-approval rule the person who clicks complete is not the approval", () => {
+  const data = fixture();
+  try {
+    requireProjectApproval(data.app, "policy-clicker");
+    const goalId = supportedGoal(data.app, "clicker", "clicker-req");
+    // Every closer is held back for the same one reason, a user included: whoever clicks "complete" is a user, and that click is
+    // not the trusted conclusion the rule asks for. The management door records its closes as exactly such a user.
+    for (const [key, closer] of [
+      ["close-local-person", { actor_id: "web-user", actor_kind: "user" }],
+      ["close-local-person-again", { actor_id: "web-user", actor_kind: "user" }],
+      ["close-another-user", { actor_id: "review-user", actor_kind: "user" }],
+      ["close-runtime", { actor_id: "runtime-1", actor_kind: "runtime" }],
+    ] as const) {
+      const held = tryComplete(data.app, goalId, key, closer);
+      assert.equal(held.completion_applied, false, `${closer.actor_kind} ${closer.actor_id} clicking complete`);
+      assert.deepEqual(reasonCodes(held), [APPROVAL_REQUIRED], `${closer.actor_kind} ${closer.actor_id} clicking complete`);
+    }
+    assert.equal(data.app.goalEvents.readState(BOARD, goalId).work_status, "open");
+    // A user's conclusion authorizing complete is what releases it, and the same person's next click then completes.
+    data.app.goalEvents.recordTrustedDecision({
+      project_id: BOARD, goal_id: goalId, idempotency_key: "allow-clicker",
+      authority: hostEventDecisionAuthority("web", BOARD, "web-user", "allow-clicker"),
+      conclusion: "我确认可以完成",
+      effects: [{ kind: "authorize_action", action: "complete" }],
+      scope: { action: "complete" },
+    });
+    const closed = tryComplete(data.app, goalId, "close-local-person-after", { actor_id: "web-user", actor_kind: "user" });
+    assert.equal(closed.completion_applied, true);
+    assert.equal(data.app.goalEvents.readState(BOARD, goalId).work_status, "completed");
+  } finally {
+    close(data);
+  }
+});
+
+test("under the project human-approval rule an accepted requirement conclusion that still stands releases it, and a revised or rejected one does not", () => {
+  const data = fixture();
+  try {
+    requireProjectApproval(data.app, "policy-conclusion");
+    const runtime = { actor_id: "runtime-1", actor_kind: "runtime" } as const;
+    const conclude = (goalId: string, requirementId: string, key: string, accepts: boolean) => data.app.goalEvents.recordTrustedDecision({
+      project_id: BOARD, goal_id: goalId, idempotency_key: key,
+      authority: hostEventDecisionAuthority("web", BOARD, "web-user", key),
+      conclusion: accepts ? "接受这条要求" : "不接受这条要求", accepts_requirements: accepts,
+      scope: { requirement_ids: [requirementId] },
+    });
+
+    // An accepted conclusion on the requirement is enough on its own: no decision about the complete action is recorded here.
+    const standing = supportedGoal(data.app, "standing", "standing-req");
+    assert.deepEqual(reasonCodes(tryComplete(data.app, standing, "close-standing", runtime)), [APPROVAL_REQUIRED]);
+    const accepted = conclude(standing, "standing-req", "accept-standing", true);
+    assert.equal(accepted.decision.scope.action, null, "the conclusion is about the requirement, not about completing");
+    assert.equal(tryComplete(data.app, standing, "close-standing-after", runtime).completion_applied, true);
+
+    // The conclusion was given to the requirement as it stood. Once the requirement is revised it no longer counts, however fresh
+    // the supporting work is, and a new conclusion on the revised requirement releases it again.
+    const revised = supportedGoal(data.app, "revised", "revised-req");
+    conclude(revised, "revised-req", "accept-revised", true);
+    data.app.goalEvents.setAgreement({
+      project_id: BOARD, goal_id: revised, actor_id: "web-user", actor_kind: "user", idempotency_key: "revise-revised",
+      ...versions(data.app, revised), revise_requirements: [{ requirement_id: "revised-req", statement: "改写后的要求" }],
+    });
+    reportSupport(data.app, revised, "rep-revised-again", "revised-req");
+    assert.deepEqual(reasonCodes(tryComplete(data.app, revised, "close-revised", runtime)), [APPROVAL_REQUIRED]);
+    conclude(revised, "revised-req", "accept-revised-again", true);
+    assert.equal(tryComplete(data.app, revised, "close-revised-after", runtime).completion_applied, true);
+
+    // A later rejection of the same requirement withdraws the acceptance.
+    const rejected = supportedGoal(data.app, "rejected", "rejected-req");
+    conclude(rejected, "rejected-req", "accept-rejected", true);
+    conclude(rejected, "rejected-req", "reject-rejected", false);
+    assert.equal(data.app.goalEvents.readState(BOARD, rejected).requirements[0]?.user_conclusion?.verdict, "rejected");
+    assert.deepEqual(reasonCodes(tryComplete(data.app, rejected, "close-rejected", runtime)), [APPROVAL_REQUIRED]);
+  } finally {
+    close(data);
+  }
+});

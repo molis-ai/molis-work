@@ -58,9 +58,10 @@ node --import tsx --test --test-concurrency=1 tests/goals-command-module.test.ts
   - `events` 是当前工作状态与完成效果的唯一写入者。
   - 实质承诺变化须引用对具体变化的有效授权，不能靠改类型绑定或自填操作者绕过；版本缺失或过期在副作用前拒绝。
   - 完成只经显式收尾：普通支持不自动完成，无关笔记不重开已完成的 Goal。
+  - 项目规则「完成前必须你点头」进入完成检查：打开时，完成前要有仍然有效的可信用户结论（某条要求上已接受且仍然成立的结论，或授权 `complete` 的当前决定）；点「完成」的人是用户，本身不算，管理入口把收尾记成本机这个人也不算。`tests/goal-events-state.test.ts` 守着这条，管理入口那一面在 `tests/goal-management-identity.test.ts`。
   - 关系图合法性、授权与事务在正式入口检查，页面和 MCP 只呈现结果。
   - 结果合同只认现行取值；存量数据由维护改成现行形状，读取不兜底历史取值。
-- 改动后必跑：`node scripts/run-tests.mjs tests/goals-command-module.test.ts tests/goal-events.test.ts tests/goals-query-facts.test.ts tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs`
+- 改动后必跑：`node scripts/run-tests.mjs tests/goals-command-module.test.ts tests/goal-events.test.ts tests/goal-events-state.test.ts tests/goals-query-facts.test.ts tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs`
 - 相关手册：[docs/modules/goals.md](../../docs/modules/goals.md)、[PRODUCT.md](../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

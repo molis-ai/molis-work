@@ -12,7 +12,7 @@ import {
   GIT_FILE_CHANGED_EVENT,
   GIT_RESULT_SCHEMA_VERSION,
   GIT_RESULT_TYPE,
-  readWorkspaceGitCapability,
+  workspaceReadActions,
   prepareGitIndexCapability,
   readGitResultsCapability, prepareGitOperationCapability, readGitOperationsCapability,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -54,10 +54,11 @@ export const gitManifest: PluginManifest = {
     { permission: "artifact:read", required: true, reason: "读取工作目录引用与待接受的变更" },
     { permission: "artifact:write", required: true, reason: "发布工作区改动与操作回执" },
     { permission: "storage:private", required: true, reason: "保留固定差异选择、提交信息与冲突草稿" },
+    { permission: "workspace:read", required: true, reason: "读取项目已关联工作目录的 Git 状态、摘要、差异与冲突文件" },
   ],
   capabilities: {
     provides: [],
-    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, readWorkspaceGitCapability.capability_id, prepareGitIndexCapability.capability_id, readGitResultsCapability.capability_id,
+    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, workspaceReadActions.git.capability_id, prepareGitIndexCapability.capability_id, readGitResultsCapability.capability_id,
       prepareGitOperationCapability.capability_id, readGitOperationsCapability.capability_id],
   },
   actions: GIT_ACTIONS,

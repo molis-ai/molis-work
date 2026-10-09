@@ -1,13 +1,20 @@
-import { readWorkspaceFileCapability, type WorkspaceFileQuery, type WorkspaceFileResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { workspaceReadActions, type WorkspaceFileQuery, type WorkspaceFileResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { MENTIONS_MARKER } from "./continuation.js";
 
 /**
  * Naming files with @, as in Claude Code or Cursor. The picker lists the workspace's files; when the round starts,
- * each file named with @ is read through the Host's read-only file capability and attached after the person's words,
+ * each file named with @ is read through the Host's read-only workspace file action and attached after the person's words,
  * labelled as its content at the moment of sending. Nothing is written, and a file that cannot be read says why.
  */
 
 type ReadFile = (query: WorkspaceFileQuery) => Promise<WorkspaceFileResult>;
+/** A file or folder of the linked workspace, through the Host's one read action: the Manifest consumes it and holds `workspace:read`. */
+export const workspaceFileReader = (context: PluginStartContext): ReadFile => async query => {
+  if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
+  return context.services.actions.invoke(workspaceReadActions.file, query);
+};
 const SKIPPED = new Set(["node_modules", ".git", "dist", "build", "out", "coverage", ".next", ".nuxt", "target", "__pycache__", ".turbo", ".cache", ".venv", "venv", ".idea", ".vscode", ".molis-work"]);
 const FILE_LIMIT = 4_000, DIRECTORY_LIMIT = 400, DEPTH_LIMIT = 10;
 const PER_FILE = 24_000, TOTAL = 60_000, MENTION_LIMIT = 10;
@@ -165,4 +172,3 @@ export async function attachMentions(read: ReadFile, workspaceId: string, task: 
   return { task: task + MENTIONS_MARKER + "以下是你在任务里用 @ 提到的文件、目录和定义，在发送这一刻的内容（只读；之后的改动以工作区为准）。\n\n" + parts.join("\n\n"), attached };
 }
 
-export { readWorkspaceFileCapability };

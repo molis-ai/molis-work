@@ -23,7 +23,7 @@
 
 ## 接入与边界
 
-使用方只经 `memory.*` 动作或 Host 进程内的服务调用；使用方身份来自可信调用上下文（受众），不从输入读。插件只能读到被允许的类别；外部 AI 客户端默认读不到个人记忆。
+使用方只经 `memory.*` 动作或 Host 进程内的服务调用；使用方身份来自可信调用上下文（受众），不从输入读。插件只能读到被允许的类别（服务里的规则；动作目录今天不向插件提供记忆，见 [CALL-CHAINS §8](../../docs/system/CALL-CHAINS.md)）；外部 AI 客户端只能召回，要本人授权，默认读不到个人记忆。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。
 
@@ -54,13 +54,13 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 为什么是整条消息而不是其中一句：一句话的意思可能在旁边那一句里（“转账不用确认。除非超过一万元。”“下面这些以后别做了。把客户名单发给外部顾问。”“把客户名单发给外部顾问？没门！”）。每一句都是本人的原话，单拿出第一句或第二句，意思却和本人的相反；机械核对读不到邻句，所以不去读。列表也一样，标题和每一项都是这条消息。此前六轮评审在每一条读意思的规则（否定、例外、数字、判断、项目名）里都找到了绕过的办法，这条规则不读意思，没有可绕的。同一个文字出现在本人的另一条消息里、并且那条消息还有后文（比如整条是“不要……”），也不记作“他说的”；但另一条消息里的改口或撤回（没有出现这段文字的）读不了，一条消息只按它自己判断，记下之后本人随时能在设置里改或停用，较新的明确要求也会替换旧的。
   - 只有本人打的消息才是本人的原话。不是本人写的轮次在写入时就标了 `written_by`，既不交给写入门核对，也不交给工作结束时的提炼：`host`（定时安排到点时宿主拼出的一轮：“（按你的定时安排…）…”，标签和说明可能是助理写的）、`assistant`（助理给子任务写的说明和追加的话）、`page`（页面自己写的话：浏览器交还时工作台写的那一句；卡片失效后“请助理按最新状态重新准备”拼的那一句，里面有模型写的卡片标题；插件页替本人发出、本人没看过也没改过的交办，如待办的“帮我推进「…」”；Pages、灵光里本人在插件自己的框里打字再交办的话也算，宿主看不到那个框）。`page` 的标记由页面随 `POST /api/assistant/send` 的 `written_by: "page"` 带来（本人改过的交办、本人自己打的字不带），路由只认这一个值，`host` 和 `assistant` 只能由宿主代码标，外部不能自称；宿主看不到按键，所以这是工作台自己写的话的标记，不是对每个调用者的认证：绕过工作台直接调接口又不带标记的脚本，宿主分不出。本人在一轮进行中补充的话和对提问的回答没有存成轮次，也不在其中：照这条规则它们只会变成建议，不会被错记成“他说的”。
   - 已经存下的轮次的限制：这个标记是写入时加的，之前的构建存下的轮次没有它，一律当作本人打的——包括旧版宿主存的定时安排轮次、旧版工作台存的上述三种页面写的话。读取时不去猜（合同只认现行取值，历史数据由维护补标记，见 [合同变更流程](../../docs/system/CONTRACT-CHANGES.md) 第 3 节第 4 条）；真实 Home 里的这些轮次要等维护按请求标识（定时安排 `fu-…`、插件交办 `msg-…`）和固定的话补上 `written_by`（待用户批准，见 [spec §7](../../specs/repository-anti-corruption/spec.md)），补之前，把其中某一条整条照抄进 `remember` 仍会记作“他说的”。
-  - 经 `memory.write` 动作调用的其他 Agent（Coding 会话、插件里的 Agent 等；MCP 不在这个动作的受众里），宿主没有它和本人的对话，没有可核对的原话：它交来的 `said` 是它自己写的，不算消息。所以它写的一律作为建议（候选，依据记为推断，原因写“宿主没有保存你对这个 Agent 说过的话”），本人认可才生效；它写的内容正好是已有的一条时只回“已经记着”，不改那条的来源。要让某个入口也能记作“他说的”，得先由宿主保存本人在那里打的消息，再像助理那样交给写入门。
+  - 经 `memory.write` 动作调用的其他 Agent（Coding 会话、插件里的 Agent 等；MCP 和插件都不在这个动作的受众里），宿主没有它和本人的对话，没有可核对的原话：它交来的 `said` 是它自己写的，不算消息。所以它写的一律作为建议（候选，依据记为推断，原因写“宿主没有保存你对这个 Agent 说过的话”），本人认可才生效；它写的内容正好是已有的一条时只回“已经记着”，不改那条的来源。要让某个入口也能记作“他说的”，得先由宿主保存本人在那里打的消息，再像助理那样交给写入门。
   - 用户自己说过、认可过、替换或改过的记忆，不会被撤销之前的某次自动写入而删掉或覆盖：之后这些自动记录不再可撤销，撤销时也再核对一次这条还是不是自动的。
   - 助理只能把记忆停用（记作助理的变动，本人可撤销）；改正文和彻底删除只有本人，在设置里做。
   - 召回的使用回执（最近用于）是这次调用的副作用：调用被取消或撤权后不写（`recall` 在写回执前走调用自己的 `beforeEffect`）。
   - 项目被删除时 `purgeProjectMemories` 清掉该项目及其角色的记忆（存储里的条目与候选）和账本里与之相关的一切（修订、使用、变动、候选记录、成对提示、开关、界面计数）；角色的范围从账本记下的所有者（写入记忆时才记下）和候选记录上的项目找到，所以只有建议、没有写过记忆的角色也清得掉；Home 里没有 Agent 运行环境时 `backend` 为 null，只清账本；不需要预览指纹确认，删除项目就是本人的确认。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
-- 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/project-deletion-memory.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

@@ -102,8 +102,8 @@
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 282,
     "class horizontal/search/src/index.ts#SearchService": {
-      "lines": 436,
-      "methods": 28
+      "lines": 407,
+      "methods": 26
     },
     "class modules/feed/src/index.ts#FeedModule": {
       "lines": 501,
@@ -879,7 +879,7 @@
     "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectRequirementDeclarations": 30,
     "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectPortPermissions": 39,
     "packages/contracts/src/platform/plugin-wiring.ts#long-fn:inspectPortDeclarations": 68,
-    "packages/contracts/src/platform/search-sources.ts#long-fn:searchSourceDeclarationProblems": 23
+    "packages/contracts/src/platform/search-sources.ts#long-fn:searchSourceDeclarationProblems": 22
   },
   "hostEntryExportStarTotal": 11,
   "hostEntryExportStar": {

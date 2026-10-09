@@ -160,6 +160,24 @@ jobs:
       - name: Alchemist plugin tests
         run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test
 
+      # The studio's corpus of designer answers (a hand-written seed, 380 real answers exported on 2026-10-08 from a read-only copy of the user's Home
+      # and reviewed for personal data as specs/repository-anti-corruption/spec.md §1 decided, and 3 real first proposals) through the host's design checks
+      # (docs/platform/STUDIO-SKILL-REPLAY.md): what the baseline says was accepted is still accepted, and every entry it records,
+      # accepted or refused, is still in the corpus with the answer it had. Also against the baseline at the merge-base of HEAD and the commit scripts/ci-health-base.mjs prints
+      # (the base branch as merged, on a pull request), so rewriting the baseline file, or rewriting or deleting corpus entries,
+      # cannot hide a regression; every baseline row carries the digest of its answer, and `live` is accepted for the prompt
+      # example alone. Then the replay's own rules and the Cursor Skill links, each failing on a scratch copy that
+      # breaks it. The generation smoke needs a model and is run by hand on an isolated Home.
+      - name: Studio Skill replay
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          base="$(node scripts/ci-health-base.mjs)"
+          pnpm studio:replay --base "$base"
+          node scripts/run-tests.mjs tests/studio-replay.test.ts tests/cursor-skill-links.test.ts
+
   # No dependencies and no build: it reads git history only, so it starts at once and is cheap to keep on every change.
   secret-scan:
     name: Secret scan

@@ -62,6 +62,7 @@
     "cli": "tsx apps/desktop/launchers/cli/main.ts",
     "mcp": "tsx apps/desktop/launchers/mcp/server.ts",
     "web": "tsx apps/desktop/launchers/web/server.ts",
+    "studio:replay": "tsx scripts/studio-replay.mts",
     "desktop": "cargo run --manifest-path apps/desktop/src-tauri/Cargo.toml",
     "start": "node scripts/start.mjs",
     "desktop:build:macos": "bash apps/desktop/tooling/build-macos-release.sh",

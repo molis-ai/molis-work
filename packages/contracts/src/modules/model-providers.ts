@@ -63,6 +63,45 @@ export interface ModelProviderRecord {
 }
 
 /**
+ * A provider the first-time setup offers as one click.
+ *
+ * A template is only a starting form: the name, the address, the format and, where the provider has a model name that
+ * stays put, that model. It holds no key and nothing about the user; saving still goes through the same check as a
+ * form filled in by hand, so a wrong address or a model name that has moved is told at save, not at the first Run.
+ */
+export interface ModelProviderTemplate {
+  /** Lower-case key used in the settings address (`?template=`). Not a provider id: saving mints a fresh one. */
+  template_id: string;
+  display_name: string;
+  base_url: string;
+  api_format: ModelApiFormat;
+  /** Model names the provider keeps stable (aliases). Empty when we cannot promise one: the person types it. */
+  model_ids: readonly string[];
+}
+
+/**
+ * The common providers, one entry per address, plus one blank form for each request shape the product speaks.
+ * Anthropic-compatible and OpenAI-compatible are exactly the two shapes Prologue's adapters carry.
+ */
+export const MODEL_PROVIDER_TEMPLATES: readonly ModelProviderTemplate[] = [
+  { template_id: "anthropic", display_name: "Anthropic", base_url: "https://api.anthropic.com", api_format: "anthropic-messages", model_ids: [] },
+  { template_id: "openai", display_name: "OpenAI", base_url: "https://api.openai.com/v1", api_format: "openai-chat-completions", model_ids: [] },
+  { template_id: "deepseek", display_name: "DeepSeek", base_url: "https://api.deepseek.com", api_format: "openai-chat-completions", model_ids: ["deepseek-chat"] },
+  { template_id: "minimax", display_name: "MiniMax", base_url: "https://api.minimaxi.com/anthropic", api_format: "anthropic-messages", model_ids: ["MiniMax-M3"] },
+  { template_id: "qwen", display_name: "Qwen (Alibaba Cloud)", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", api_format: "openai-chat-completions", model_ids: ["qwen-plus"] },
+  { template_id: "kimi", display_name: "Kimi (Moonshot)", base_url: "https://api.moonshot.cn/v1", api_format: "openai-chat-completions", model_ids: [] },
+  { template_id: "glm", display_name: "GLM (Zhipu)", base_url: "https://open.bigmodel.cn/api/paas/v4", api_format: "openai-chat-completions", model_ids: [] },
+  { template_id: "openrouter", display_name: "OpenRouter", base_url: "https://openrouter.ai/api/v1", api_format: "openai-chat-completions", model_ids: [] },
+  { template_id: "anthropic-compatible", display_name: "Anthropic-compatible", base_url: "", api_format: "anthropic-messages", model_ids: [] },
+  { template_id: "openai-compatible", display_name: "OpenAI-compatible", base_url: "", api_format: "openai-chat-completions", model_ids: [] },
+];
+
+/** The template an address names, or null for anything else (an unknown id opens the blank form). */
+export function modelProviderTemplate(templateId: string | null | undefined): ModelProviderTemplate | null {
+  return MODEL_PROVIDER_TEMPLATES.find((template) => template.template_id === templateId) ?? null;
+}
+
+/**
  * Whether this format has a cache breakpoint **we** can set.
  *
  * Anthropic-compatible takes a `cache_control` marker on the system block (or,

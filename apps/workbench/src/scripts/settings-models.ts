@@ -11,7 +11,11 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
       bound.add(root);
       let busy = false;
       let dirty = false;
-      const status = (text) => { root.querySelector('[data-model-status]').textContent = text; };
+      const status = (text, failed) => {
+        const line = root.querySelector('[data-model-status]');
+        line.textContent = text; line.toggleAttribute('data-failed', Boolean(failed)); line.setAttribute('aria-live', failed ? 'assertive' : 'polite');
+        if (failed) line.scrollIntoView({ block: 'nearest' });
+      };
       root.addEventListener('input', () => { dirty = true; status(L('有未保存的修改')); });
       root.addEventListener('change', () => { dirty = true; });
       const refresh = async (query = '') => {
@@ -57,10 +61,11 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
           }
           if (button.matches('[data-model-delete-cancel]')) { root.querySelector('[data-model-delete-confirm]').hidden = true; return; }
           if (button.matches('[data-model-save]')) {
-            begin(); status(L('正在保存…'));
+            begin(); status(L('正在保存，并检查连接…'));
             const keyField = root.querySelector('[data-model-key-field]');
             const apiKey = keyField && !keyField.hidden ? root.querySelector('[data-model-api-key]')?.value.trim() : '';
-            await mutate(encodeURIComponent(provider), 'POST', {
+            const saved = await mutate(encodeURIComponent(provider), 'POST', {
+              check_connection: true,
               display_name: root.querySelector('[data-model-name]').value,
               base_url: root.querySelector('[data-model-base-url]').value,
               api_format: root.querySelector('[data-model-api-format]').value,
@@ -75,7 +80,9 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
               ...(apiKey ? { api_key: apiKey } : {}),
             });
             dirty = false;
-            await refresh(query); status(L('已保存。配置会用于下一轮执行；可以测试模型是否实际响应。'));
+            await refresh(query); status(L(saved.checked ? '连接检查通过，已保存。配置会用于下一轮执行。' : '已保存。配置会用于下一轮执行；可以测试模型是否实际响应。'));
+            // The first model that can run ends the setup: whoever opened settings for it takes the person back.
+            if (saved.first_model_ready) document.dispatchEvent(new CustomEvent('molis-work:model-ready'));
           } else if (button.matches('[data-model-test]')) {
             if (dirty) { status(L('请先保存配置，再测试这个模型。')); return; }
             begin(); status(L('正在等待模型响应…'));
@@ -86,17 +93,19 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
           } else if (button.matches('[data-model-delete]')) {
             begin();
             await mutate(encodeURIComponent(provider), 'DELETE'); await refresh(); status(L('供应商及其密钥已移除'));
-          } else if (button.matches('[data-model-provider], [data-model-add-provider], [data-model-refresh], [data-model-discard]')) {
+          } else if (button.matches('[data-model-provider], [data-model-add-provider], [data-model-template], [data-model-refresh], [data-model-discard]')) {
             if (dirty && !button.matches('[data-model-discard]')) {
               status(L('请先保存修改，或使用「撤销未保存修改」后切换。')); return;
             }
             begin();
             const next = button.matches('[data-model-add-provider]') ? '?new=1'
+              : button.dataset.modelTemplate ? '?new=1&template=' + encodeURIComponent(button.dataset.modelTemplate)
               : button.dataset.modelProvider ? '?provider=' + encodeURIComponent(button.dataset.modelProvider) : query;
             await refresh(next);
+            if (button.dataset.modelTemplate) root.querySelector('[data-model-api-key]')?.focus();
           }
         } catch (error) {
-          status(error instanceof TypeError ? L('无法连接本地服务，输入已保留，请重试。') : error.message || L('操作失败，输入已保留'));
+          status(error instanceof TypeError ? L('无法连接本地服务，输入已保留，请重试。') : error.message || L('操作失败，输入已保留'), true);
         } finally { busy = false; root.removeAttribute('aria-busy'); locked.forEach((control) => { if (control.isConnected) control.disabled = false; }); }
       });
       const syncKeyField = () => {

@@ -26,11 +26,10 @@ import { molisWorkHostProjectReference } from "./project-host.js";
 import { handleFunctionsHttp } from "./functions-http.js";
 import { functionsConnectionStatus } from "./functions-host.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { randomUUID } from "node:crypto";
 import { handleModelSettingsHttp } from "./web-model-settings.js";
 import { capabilitiesView } from "./web-capabilities.js";
 import type { CapabilitySection } from "@molis-ai/molis-work-app-workbench";
-import type { ModelProviderRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
+import { modelProviderDraft } from "./model-provider-setup.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -221,15 +220,13 @@ export async function handleLocalCatalogWebRequest(
     const runtimes = section === "runtimes" ? await runtimeIntegrations.detectAll() : [];
     const modelConnections = section === "models" && serverOptions.homeDirectory
       ? listConnectorConnectionViews(serverOptions.homeDirectory, "model-api") : [];
+    const draft = section === "models" && url.searchParams.get("new") === "1" ? modelProviderDraft(url.searchParams.get("template")) : null;
     const model_settings = section === "models" ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => ({
       providers: catalog.models.list(), health: catalog.models.health(), connections: modelConnections,
       selected_connection_ids: Object.fromEntries(catalog.models.list().map((provider) => [provider.provider_id,
         modelConnections.find((connection) => withConnectorConnections(serverOptions.homeDirectory!, (store) => store.require(connection.connection_id).credential_ref === provider.credential_ref))?.connection_id ?? ""])),
       selected_provider_id: url.searchParams.get("provider"),
-      ...(url.searchParams.get("new") === "1" ? { draft_provider: {
-        provider_id: `custom-${randomUUID()}`, display_name: "新供应商", base_url: "",
-        api_format: "anthropic-messages", credential_ref: "", enabled: true, prompt_cache: "off", models: [], created_at: "", updated_at: "",
-      } satisfies ModelProviderRecord } : {}),
+      ...(draft ? { draft_provider: draft.provider, draft_template_id: draft.template_id } : {}),
     })) : undefined;
     const membership = await pluginMembership(contextProject?.project_id ?? null);
     response.writeHead(200, {

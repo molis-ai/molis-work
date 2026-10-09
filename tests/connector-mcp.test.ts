@@ -7,12 +7,14 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { once } from "node:events";
 import test from "node:test";
+import { StdioClientTransport, type StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { ListToolsRequestSchema, CallToolRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { createConnectorMcpHost, MCP_SERVERS } from "../apps/local-host/src/connector-mcp.ts";
+import { larkMcpLaunch } from "../apps/local-host/src/lark-mcp-launch.ts";
 import { createAgentConnectorPorts } from "../apps/local-host/src/agent-connector-ports.ts";
 import { connectorAuthorizationStatus } from "../apps/local-host/src/connector-authorization-status.ts";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.ts";
@@ -288,22 +290,50 @@ test("MCP explicit new authorization cannot replace an existing account binding"
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });
 
+// The Host starts the Feishu/Lark child through `stdioTransport` here: the same parameters the real transport gets, with
+// the pinned package swapped for a fixture server that reports the environment it was started with.
+function larkChild(started: StdioServerParameters[]) {
+  const fixtureServer = fileURLToPath(new URL("./fixtures/connector-stdio-server.ts", import.meta.url));
+  return (parameters: StdioServerParameters) => {
+    started.push(parameters);
+    return new StdioClientTransport({ ...parameters, command: process.execPath, args: ["--import", import.meta.resolve("tsx"), fixtureServer] });
+  };
+}
+
 test("official Lark MCP stdio transport discovers and calls tools with environment credentials", async () => {
-  const temp = home(), priorPath = process.env.PATH;
-  const script = fileURLToPath(new URL("./fixtures/connector-stdio-server.ts", import.meta.url));
-  const tsx = import.meta.resolve("tsx");
-  writeFileSync(join(temp, "npx"), `#!${process.execPath}\nconst {spawnSync}=require('node:child_process'); const child=spawnSync(process.execPath,['--import',${JSON.stringify(tsx)},${JSON.stringify(script)}],{stdio:'inherit',env:process.env}); process.exit(child.status??1);`, { mode: 0o755 });
-  process.env.PATH = `${temp}:${priorPath}`;
+  const temp = home(), started: StdioServerParameters[] = [];
   try {
-    const host = createConnectorMcpHost();
+    const host = createConnectorMcpHost({ stdioTransport: larkChild(started) });
     const connected = await host.startMcpConnection(temp, { serviceId: "feishu", displayName: "Tenant", clientId: "fixture-app", clientSecret: "fixture-secret", origin: callbackOrigin });
     assert.equal(connected.tools?.[0]?.name, "read");
     const result = await host.callMcpConnectionTool(temp, connected.connectionId, "read", {});
     assert.match(JSON.stringify(result), /actual stdio response/u);
     assert.doesNotMatch(JSON.stringify(connected), /fixture-secret/u);
+    assert.ok(started.length >= 2, "the Host started the child for each use of the connection");
     withConnectorConnections(temp, store => store.disconnect(connected.connectionId));
     await assert.rejects(host.inspectMcpConnection(temp, connected.connectionId), /断开/u);
-  } finally { process.env.PATH = priorPath; rmSync(temp, { recursive: true, force: true }); }
+  } finally { rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("the Host starts the Feishu/Lark child with the launch it built, and the child sees none of the Host's other variables", async t => {
+  const hostSecrets = { MINIMAX_API_KEY: "minimax-secret", GITHUB_TOKEN: "github-secret", MOLIS_WORK_ENCRYPTION_KEY: "encryption-secret", MOLIS_WORK_TEXT_API_KEY: "text-secret" };
+  const previous = Object.fromEntries(Object.keys(hostSecrets).map(name => [name, process.env[name]]));
+  Object.assign(process.env, hostSecrets);
+  t.after(() => { for (const [name, value] of Object.entries(previous)) { if (value === undefined) delete process.env[name]; else process.env[name] = value; } });
+  const temp = home(), started: StdioServerParameters[] = [];
+  t.after(() => rmSync(temp, { recursive: true, force: true }));
+  const host = createConnectorMcpHost({ stdioTransport: larkChild(started) });
+  const connected = await host.startMcpConnection(temp, { serviceId: "feishu", displayName: "Tenant", clientId: "fixture-app", clientSecret: "fixture-secret", origin: callbackOrigin });
+  const parameters = started.at(-1)!;
+  const expected = larkMcpLaunch({ appId: "fixture-app", appSecret: "fixture-secret", domain: "https://open.feishu.cn" });
+  assert.deepEqual(parameters.env, expected.env, "the transport gets the launch environment unchanged: not merged with the Host's process.env");
+  assert.equal(parameters.cwd, expected.cwd);
+  assert.equal(parameters.stderr, "pipe");
+  for (const name of Object.keys(hostSecrets)) assert.equal(name in (parameters.env ?? {}), false, `${name} stays in the Host`);
+  const answer = await host.callMcpConnectionTool(temp, connected.connectionId, "environment", {}) as { content: Array<{ text: string }> };
+  const reported = JSON.parse(answer.content[0]!.text) as string[];
+  for (const name of Object.keys(hostSecrets)) assert.equal(reported.includes(name), false, `${name} does not reach the child process`);
+  for (const name of ["APP_ID", "APP_SECRET", "LARK_DOMAIN", "LARK_TOKEN_MODE"]) assert.equal(reported.includes(name), true, `${name} reaches the child process`);
 });
 
 test("official MCP OAuth flows through Host into Agent selections, refreshes, and revokes active access", async () => {

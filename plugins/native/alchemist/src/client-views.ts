@@ -11,13 +11,14 @@ export const ALCHEMIST_VIEWS = String.raw`
   function renderList(){
     const q=$('[data-alc-search]').value.trim().toLowerCase(),match=(...v)=>v.join(' ').toLowerCase().includes(q), el=$('[data-alc-rows]'),scroll=$('[data-alchemist=directory]').scrollTop;
     root.querySelectorAll('[data-alc-collection]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.alcCollection===collection)));
+    $('[data-alc-pulse-note]').hidden=collection!=='pulse';
     $('[data-alc-list-actions]').innerHTML=collection==='pulse'?button('采集市场信号','pulse-start',true)+button('来源设置','sources')+(pulse.latestRun?status(pulse.latestRun.status):''):collection==='decisions'?button('活动记录','activity'):collection==='directions'?button(showArchived?'隐藏已归档':'查看已归档','archived-toggle'):'';
     let html='';
     if(collection==='directions')for(const [state,label] of [['active','方向'],...(showArchived?[['archived','已归档']]:[])])html+=group(label,data.directions.filter(d=>d.status===state&&match(d.title,d.description)).map(d=>{const run=data.explorations.find(e=>e.directionId===d.id);return row('direction',d.id,d.title,run?.understanding?.summary||d.description,d.status==='archived'?'archived':run?.status||'not_started');}));
     if(collection==='ideas')for(const [value,label] of [['exploring','研究中'],['build','去做'],['hold','先放着'],['drop','不做']])html+=group(label,data.ideas.filter(i=>i.lifecycle===value&&match(i.title)).map(i=>row('idea',i.id,i.title,'v'+i.currentVersion,i.lifecycle,i.currentVersion)));
     if(collection==='decisions')for(const [value,label] of [['pending','待决策'],['decided','已决策'],['old_version','旧版本']])html+=group(label,decisions.cases.filter(c=>c.status===value&&match(c.title,c.decision?.reason)).map(c=>row('idea',c.ideaId,c.title,c.decision?.reason||c.nextAction,c.decision?.outcome||'exploring',c.ideaVersion)));
     if(collection==='pulse')html=group('研究报告',pulse.reports.filter(b=>match(b.report.title,b.report.summary)).map(b=>row('pulse',b.report.id,b.report.title,new Date(b.report.createdAt).toLocaleDateString(),b.report.status)));
-    const folded=new Set([...el.querySelectorAll('details:not([open])')].map(d=>d.dataset.alcGroup));el.innerHTML=(collection==='pulse'?'<p class="alc-muted">'+tx('采集会联网访问 Toolify、观猹和 GitHub，只读公开页面，不发送你的内容。GitHub 用「设置 › 服务连接」里绑定的账号，没绑定就匿名访问，限额较低。')+'</p>':'')+(html||(q?empty('没有匹配的内容。'):'<div class="mw-empty alc-empty"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-zap"></use></svg></span><strong>'+tx('这里还是空的')+'</strong><p>'+tx('当前集合还没有内容。新建方向，或采集一轮市场信号开始。')+'</p></div>'));
+    const folded=new Set([...el.querySelectorAll('details:not([open])')].map(d=>d.dataset.alcGroup));el.innerHTML=html||(q?empty('没有匹配的内容。'):'<div class="mw-empty alc-empty"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-zap"></use></svg></span><strong>'+tx('这里还是空的')+'</strong><p>'+tx('当前集合还没有内容。新建方向，或采集一轮市场信号开始。')+'</p></div>');
     el.querySelectorAll('details[data-alc-group]').forEach(d=>{if(folded.has(d.dataset.alcGroup))d.open=false;});$('[data-alchemist=directory]').scrollTop=scroll;
   }
   function renderDirection(d){

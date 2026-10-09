@@ -10,7 +10,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { auth, UnauthorizedError, type OAuthClientProvider, type OAuthDiscoveryState } from "@modelcontextprotocol/sdk/client/auth.js";
 import { StreamableHTTPClientTransport, StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StdioClientTransport, type StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { larkMcpLaunch } from "./lark-mcp-launch.js";
 import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
@@ -115,8 +116,10 @@ function safeError(error: unknown): McpConnectionError | ActionError {
 }
 
 /** Test-only endpoint injection keeps production HTTP input behind the official allowlist. */
-export function createConnectorMcpHost(options: { testServers?: Readonly<Record<string, McpServerConfiguration>>; now?: () => number } = {}) {
-  if (options.testServers && process.env.NODE_ENV !== "test") throw new Error("MCP test endpoints require NODE_ENV=test");
+export function createConnectorMcpHost(options: { testServers?: Readonly<Record<string, McpServerConfiguration>>; now?: () => number;
+  /** Tests only: builds the transport for a local stdio server (Feishu/Lark), so a test sees exactly what the Host starts it with. */
+  stdioTransport?: (parameters: StdioServerParameters) => Transport } = {}) {
+  if ((options.testServers || options.stdioTransport) && process.env.NODE_ENV !== "test") throw new Error("MCP test endpoints require NODE_ENV=test");
   const servers = options.testServers ?? MCP_SERVERS;
   const now = options.now ?? Date.now;
   const queues = new Map<string, Promise<unknown>>();
@@ -213,7 +216,8 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
       if (!info?.client_id || !info.client_secret) throw new McpConnectionError("configuration", "飞书 / Lark MCP 需要 App ID 与 App Secret");
       const token = session.secrets.get("access");
       const launch = larkMcpLaunch({ appId: info.client_id, appSecret: info.client_secret, domain: new URL(config.endpoint).origin, userAccessToken: token });
-      const transport = new StdioClientTransport({ command: launch.command, args: launch.args, env: launch.env, cwd: launch.cwd, stderr: "pipe" });
+      const parameters: StdioServerParameters = { command: launch.command, args: launch.args, env: launch.env, cwd: launch.cwd, stderr: "pipe" };
+      const transport = options.stdioTransport ? options.stdioTransport(parameters) : new StdioClientTransport(parameters);
       const client = new Client({ name: "molis-work", version: "0.2.0" }, { capabilities: {} });
       const abort = () => { void client.close().catch(() => {}); };
       signal?.addEventListener("abort", abort, { once: true });

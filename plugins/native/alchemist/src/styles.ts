@@ -10,6 +10,7 @@ export const ALCHEMIST_STYLES = WORK_REUSE_STYLES + `
 .alc-search svg { position:absolute; left:10px; width:14px; height:14px; flex:none; pointer-events:none; }
 .alc-search input { width:100%; min-width:0; padding-left:32px; }
 .alc-list-actions { display:flex; align-items:center; gap:8px; margin:0 4px 8px; flex-wrap:wrap; }
+.alc-list-note { margin:0 4px 8px; }
 .alc-row { width:100%; text-align:left; display:flex; align-items:center; gap:12px; min-height:58px; padding:12px 8px; border:0; border-radius:6px; background:transparent; color:var(--ink); cursor:pointer; }
 .alc-row:hover { background:var(--nav-hover); }
 .alc-row[aria-current=true] { background:var(--nav-active); }

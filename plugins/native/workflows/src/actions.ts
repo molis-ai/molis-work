@@ -1,7 +1,7 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { presentActionResult, type ActionResultPresentation, ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  WorkflowError, advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
+  WorkflowError, advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, holdInstance, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
   isActionStation, mapActionInput, WORKFLOW_PAYLOAD_FIELDS, WORKFLOWS_PLUGIN_ID,
   type Workflow, type WorkflowActionStep, type WorkflowChain, type WorkflowHandoff, type WorkflowInstance, type WorkflowItemRef, type WorkflowLink, type WorkflowPayload, type WorkflowStation, type WorkflowVerdict,
 } from "./model.js";
@@ -98,6 +98,8 @@ export interface WorkflowStationInfo {
   readonly reason?: string;
   /** Starting a run here can begin from an empty item instead of an existing one. */
   readonly can_start_blank: boolean;
+  /** False for a station that only starts a run: it stands first and is never handed content. */
+  readonly receives?: boolean;
 }
 
 /** Cross-plugin content, bound per call to the caller's own authority. */
@@ -223,12 +225,12 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     if (problem) throw new WorkflowError("workflows.not_ready", `动作「${station.action.title}」的字段映射需要调整：${problem}`);
     return choice;
   };
-  const resolveStation = async (reach: Reach, content: WorkflowContentPorts, station: WorkflowStation) =>
-    isActionStation(station) ? (await resolveAction(reach, station), station) : content.resolveStation(station);
+  const resolveStation = async (reach: Reach, content: WorkflowContentPorts, station: WorkflowStation) => isActionStation(station) ? (await resolveAction(reach, station), station) : content.resolveStation(station);
   const validChain = async (content: WorkflowContentPorts, value: unknown, reach: Reach): Promise<WorkflowChain> => {
     const parsed = parseChain(value);
     if (parsed.stations[0] && isActionStation(parsed.stations[0])) throw new WorkflowError("workflows.invalid", "第一站要选一个能挑出内容的插件，动作只能接在后面");
-    return { ...parsed, stations: await Promise.all(parsed.stations.map(station => resolveStation(reach, content, station))) };
+    const stations = await Promise.all(parsed.stations.map(station => resolveStation(reach, content, station)));
+    return { ...parsed, stations: await sourcesFirst(stations, plugin => labelOf(content, plugin)) };
   };
   const describe = async <T extends WorkflowChain>(content: WorkflowContentPorts, chainValue: T, reach: Reach): Promise<T> => ({ ...chainValue,
     stations: await Promise.all(chainValue.stations.map(async station => {
@@ -298,7 +300,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
         await caller.beforeEffect();
         const at = new Date().toISOString();
         const reason = verdict.status === "needs_review" ? "判断需要人确认，这一次没有交过去" : `判断结果是「${verdict.choice ?? "无"}」，不在可以交过去的结果里`;
-        return { stopped: await ports.withStore(store => store.saveInstance(current, { ...current, status: "stopped", stopped: { at, from, reason, verdict }, updated_at: at })) };
+        return { stopped: await ports.withStore(store => store.saveInstance(current, holdInstance(current, from, { at, reason, verdict }))) };
       }
       output = handed; actor = "judgment"; judged = verdict;
       rule = link.judgment!.title ?? link.judgment!.capability_id;
@@ -436,7 +438,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       const { attempted_at: _attempted, attempt_error: _error, ...recorded } = pending;
       try {
         const base = current;
-        return changed({ instance: await ports.withStore(store => store.saveInstance(base, advanceInstance(base, from, recorded, arrived, recorded.at, arrival))) });
+        return changed({ instance: await ports.withStore(store => store.saveInstance(base, advanceInstance(base, from, recorded, arrived, new Date().toISOString(), arrival))) });
       } catch (error) {
         // Another call already recorded this exact delivery: reuse it rather than report a failure that did not happen.
         const latest = await ports.withStore(store => store.instance(current.instance_id, projectId));
@@ -453,6 +455,13 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     bind(workflowsActions.judgments, async (_input, _content, _caller, reach) => ({ judgments: workflowJudgmentChoices(await reach.all()) })),
     ...createWorkflowsSearchHandlers(projectId, ports.withStore),
   ];
+}
+
+/** A station that only provides content (the 成果库) starts a run; nothing is handed to it. */
+async function sourcesFirst(stations: WorkflowStation[], labelOf: (plugin: string) => Promise<string>): Promise<WorkflowStation[]> {
+  const late = stations.find((station, index) => index > 0 && !isActionStation(station) && !station.content?.actions.receive);
+  if (late) throw new WorkflowError("workflows.invalid", `「${await labelOf(late.plugin)}」只能作为第一站：它提供内容，不接收交过来的内容`);
+  return stations;
 }
 
 const CONTENT_ROLE: Readonly<Record<string, string>> = { list: "列出内容", read: "读取内容", receive: "接收内容", create: "新建空白内容" };

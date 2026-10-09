@@ -1,7 +1,7 @@
 import { PLUGIN_COMPONENTS, PLUGIN_PRESENTATION_GUIDE, type PluginComponentIntent } from '@molis-ai/molis-work-design-system';
 import type { AgentProposal, AgentDesign } from './agent-model.js';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { parseModelJson } from './validation.js';
+import { parseModelJson } from './model-json.js';
 
 interface ExperiencePage { id: string; title: string; parts: Array<{ id: string; intent: PluginComponentIntent; purpose: string; uses?: string | string[] }> }
 

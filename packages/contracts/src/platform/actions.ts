@@ -23,6 +23,7 @@ export * from "./action-fragments.js";
 import { fileSourceDeclarationProblems, type FileSourceDeclaration } from "./file-sources.js";
 export * from "./file-sources.js";
 export * from "./artifact-pins.js";
+export * from "./local-person.js";
 import { placementDeclarationProblems } from "./placement.js";
 export * from "./placement.js";
 
@@ -51,7 +52,7 @@ export interface ActionCallContext {
   readonly audit_actor_id?: string;
   /** Stable session supplied by the authenticated Host; never a business input. */
   readonly runtime_session_id?: string;
-  /** Trusted audit classification; null preserves legacy callers whose kind was not recorded. Never business input. */
+  /** Trusted audit classification; null when the trusted caller does not know it (not inferred). Never business input. */
   readonly actor_kind?: "user" | "runtime" | null;
   /** Authenticated user-operation provenance supplied only by a protected Host adapter.
    * These audit locators grant no authority on their own; never copy them from tool/business input. */
@@ -106,6 +107,8 @@ export interface ActionMetadata {
   readonly plugin?: false;
   /** Provider owns transaction/conflict safety across awaits; Host still tracks lifetime. Default is serial. */
   readonly scheduling?: "concurrent";
+  /** `session`: a Runtime may call it only from a stable Session, which becomes the author of what it records. */
+  readonly authorship?: "session";
   /** Declarative limits shared by every entry; cancellation uses signal + beforeEffect. */
   readonly execution?: ActionExecutionPolicy;
   readonly audiences: readonly ActionAudience[];
@@ -391,7 +394,7 @@ export function retainActionAuthority<Context extends ActionCallContext>(context
   } };
 }
 
-/** A compatibility HTTP route only adapts transport; execution always goes through the Host. */
+/** A plugin HTTP route only adapts transport to an action; execution always goes through the Host. */
 export function bindPluginActionRoute<Input, Output>(
   context: import("./plugin.js").PluginStartContext,
   definition: ActionDefinition<Input, Output>,
@@ -411,7 +414,7 @@ export function bindPluginActionRoute<Input, Output>(
   } };
 }
 
-/** Bridge for legacy owner-bound storage/Artifact SDKs. It never impersonates the startup owner. */
+/** An action over the local owner's personal state and 成果: it runs only for that owner and never impersonates the startup owner. */
 export function bindOwnerPluginAction<Input, Output>(
   context: import("./plugin.js").PluginStartContext,
   definition: ActionDefinition<Input, Output>,
@@ -480,7 +483,7 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
         const a = raw.action;
         if (!object(a) || !text(a.title) || !text(a.description)
           || !["query", "judgment", "operation", "navigation"].includes(String(a.kind))
-          || !["home", "project"].includes(String(a.scope)) || (a.scheduling !== undefined && a.scheduling !== "concurrent") || !strings(a.permissions) || !strings(a.subject_kinds)
+          || !["home", "project"].includes(String(a.scope)) || (a.scheduling !== undefined && a.scheduling !== "concurrent") || (a.authorship !== undefined && a.authorship !== "session") || !strings(a.permissions) || !strings(a.subject_kinds)
           || !strings(a.audiences) || a.audiences.length === 0
           || !a.audiences.every(v => ["user", "agent", "workflow", "mcp", "plugin"].includes(v))
           || (a.effect !== undefined && !["read", "write", "irreversible"].includes(String(a.effect))) || (a.plugin !== undefined && a.plugin !== false)
@@ -574,7 +577,7 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
         if (a.workflow_content !== undefined) {
           const w = a.workflow_content;
           if (!object(w) || !/^[a-z][a-z0-9-]{1,40}$/.test(String(w.id)) || !text(w.title) || !text(w.icon)
-            || w.protocol !== 1 || !["list", "read", "receive", "create"].includes(String(w.role))) {
+            || w.protocol !== 1 || !["list", "read", "receive", "create"].includes(String(w.role)) || (w.receives !== undefined && (w.receives !== false || w.role === "receive"))) {
             problems.push(`能力 ${key} 的工作流内容合同无效`);
           } else {
             const role = w.role as WorkflowContentStation["role"];

@@ -6,11 +6,11 @@ import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 // must still share a source lease; in-memory databases have distinct identities.
 const files = new Map<string, Set<string>>();
 const memory = new WeakMap<SqliteDatabase, Set<string>>();
-export function feedSourceSyncLease(db: SqliteDatabase): (boardId: string, sourceId: string) => () => void {
+export function feedSourceSyncLease(db: SqliteDatabase): (projectId: string, sourceId: string) => () => void {
   const file = db.name && db.name !== ":memory:" ? realpathSync(db.name) : undefined;
-  return (boardId, sourceId) => {
+  return (projectId, sourceId) => {
     const active = (file ? files.get(file) : memory.get(db)) ?? new Set<string>();
-    const key = JSON.stringify([boardId, sourceId]);
+    const key = JSON.stringify([projectId, sourceId]);
     if (active.has(key)) throw new FeedDomainError("该来源正在拉取，请稍后重试", "feed_source_sync_interrupted");
     active.add(key);
     if (file) files.set(file, active); else memory.set(db, active);

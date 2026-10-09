@@ -2,6 +2,7 @@ import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { PagesStore } from "./store.js";
 import { PagesError } from "./error.js";
 import { isDeepStrictEqual } from "node:util";
+import { LOCAL_PERSON_ACTOR_ID, nextPinnedVersion, type ArtifactLineHead } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface PagesPublicationSnapshot { title: string; body: PagesBody; goal_id: string }
 export interface PagesPublicationIntent extends PagesPublicationSnapshot {
@@ -11,6 +12,8 @@ export interface PagesPublicationIntent extends PagesPublicationSnapshot {
   actor_id: string;
 }
 export type PagesReadArtifactPort = (input: { project_id: string; page_id: string; version: number }) => PagesPublicationSnapshot | null;
+/** The newest fixed version of this document in the project's 成果库, whatever the record counted. */
+export type PagesLineHeadPort = (input: { project_id: string; page_id: string }) => ArtifactLineHead | null;
 
 export interface PagesPublishArtifactPort {
   (input: {
@@ -31,19 +34,23 @@ export function promotePagesDocument(
   projectId: string,
   publishArtifact: PagesPublishArtifactPort,
   goalId?: string,
-  options: { actorId: string; expectedVersion?: number; readArtifact?: PagesReadArtifactPort } = { actorId: "web-user" },
+  options: { actorId: string; expectedVersion?: number; readArtifact?: PagesReadArtifactPort; lineHead?: PagesLineHeadPort } = { actorId: LOCAL_PERSON_ACTOR_ID },
 ): {
   document: ReturnType<PagesStore["get"]>;
   artifact: { artifact_id: string; version: number };
   recovered: boolean;
 } {
   const current = store.get(id, projectId);
-  const version = current.publication_pending?.version ?? current.artifact_version + 1;
-  // Read through the original owner before recording a new intent. This also repairs
+  const head = options.lineHead?.({ project_id: projectId, page_id: id }) ?? null;
+  const version = nextPinnedVersion({ recorded: current.artifact_version, pending: current.publication_pending?.version ?? null, head });
+  // Read the version already written before recording a new intent. This also repairs
   // old interrupted publications that predate the durable snapshot column.
   const existing = options.readArtifact?.({ project_id: projectId, page_id: id, version });
-  if (current.artifact_version > 0) options.readArtifact?.({ project_id: projectId, page_id: id, version: current.artifact_version });
-  const intent = store.beginPublication(id, projectId, options.actorId, goalId, options.expectedVersion ?? current.version, existing ?? undefined);
+  // Check the newest version already written for this line too, not only the one the record counted: after a move out and
+  // back the record counts none, and a version that cannot be continued must be refused before an intent is recorded.
+  const written = Math.max(current.artifact_version, head?.version ?? 0);
+  if (written > 0) options.readArtifact?.({ project_id: projectId, page_id: id, version: written });
+  const intent = store.beginPublication(id, projectId, options.actorId, goalId, options.expectedVersion ?? current.version, existing ?? undefined, version);
   if (existing && (existing.title !== intent.title || existing.goal_id !== intent.goal_id || !isDeepStrictEqual(existing.body, intent.body))) {
     throw new PagesError("pages.publication_conflict", "已保存的成果与上次发布快照不同，文稿和原记录均已保留");
   }

@@ -80,7 +80,7 @@ Inbox 当前状态迁移合同：当前建议和绑定摘要通过 Inbox 的共�
 
 Feed 迁移顺序：先将捕捉规则目录、创建、编辑、删除和关键词预览注册为 Feed 自己的能力，HTTP 仅解析旧字段并调用共同客户端；原项目规则表和原业务校验继续由 Feed 持有，不能新建规则副本。查询与写入分别要求 feed:read/feed:write，预览只读原始内容，不运行模型或产生捕捉结果。随后将全局旧函数绑定迁入规则 owner 的同一状态并接入共同场景触发，再迁移已有消息处理、来源自动事件及结果写入。第一步不把仍使用旧 judge 的 evaluate 或自动触发冒充完成；临时绑定兼容在对应场景切换后删除。
 
-Feed 场景切换合同：捕捉规则的原项目表保存精确判断引用（能力、版本、提供方）及每次配置变化的 revision；全局旧绑定只做一次明确来源的迁移，项目保存成功后删除对应旧绑定，历史保留。无法恢复版本的旧键保留为失效配置，不能变成关键词自动入箱或日后自动绑定同名能力。规则写入前通过共同场景目录验证兼容性，异步检查后按原 revision 保存；停用或修改无关字段允许保留失效引用。共同 feed.capture 场景读取原消息并核对规则匹配，消费前重查消息内容与 revision，规则/绑定/权限由共同执行核心复核。仅原规则明确配置自动入箱时，inbox.admit 或 needs_review 才进入 Inbox；其他建议不自动执行。来源事件和手动处理均调用共同场景；手动/工作流调用透传原调用者，后台只使用既有来源事件的有限权限。旧 judge 分支移除。
+Feed 场景切换合同：捕捉规则的原项目表保存精确判断引用（能力、版本、提供方）及每次配置变化的 revision；没有判断引用的规则只是关键词或来源过滤（项目库第 5 版删掉了旧的函数键列与按规则的全局绑定）。规则写入前通过共同场景目录验证兼容性，异步检查后按原 revision 保存；停用或修改无关字段允许保留失效引用。共同 feed.capture 场景读取原消息并核对规则匹配，消费前重查消息内容与 revision，规则/绑定/权限由共同执行核心复核。仅原规则明确配置自动入箱时，inbox.admit 或 needs_review 才进入 Inbox；其他建议不自动执行。来源事件和手动处理均调用共同场景；手动/工作流调用透传原调用者，后台只使用既有来源事件的有限权限。旧 judge 分支移除。
 
 Feed 产品合同同步：判断选择器、原消息试跑、已有消息处理和当前建议注册为 Feed 能力，界面从授权目录加载兼容能力与真实 usages，不限定系统函数。旧函数键 HTTP 输入保留为薄解析别名；新绑定保存精确引用。目录请求晚返回不得清空用户新选择；使用位置链接直接定位原来源规则。判断历史使用既有 scene_provenance 保存绑定/消息依据，当前建议按原 owner 和实时授权核验后展示。来源实例通过共同场景入箱时，由真正执行 Attention 写入的实例消费后续 Inbox 事件。共同场景在结果消费前再次检查可信授权回调，再核对绑定/对象；Feed 的嵌套判断保留发起动作授权，不能因转入来源事件身份扩大手动/工作流权限。
 
@@ -102,7 +102,7 @@ Feed 产品合同同步：判断选择器、原消息试跑、已有消息处理
 
 首页判断对象迁移合同：任意插件提供正式对象上下文后，首页判断可在原权限下读取对象；判断规则声明的非空对象类型决定实际适用范围，未限定对象类型的规则作为通用文本判断。不能把已限定类型的规则用于它未声明的对象。场景配置表达接受共同文本输入的规则，触发和批量执行逐对象校验适用性。提交判断及展示建议时重新核对原读取能力的身份、版本、对象内容和绑定；内容变化、对象消失、多个上下文提供方、停用或撤权时不保存过期结果、不回退其他提供方。只从当前项目/场景的最新历史逐对象核验，不再扫描 Feed 快照来决定哪些插件存在。原判断数据保持可读；旧记录缺少新来源身份时只保留历史，重新判断后显示建议。项目事件由 Host 共同 journal 记录，不通过 Feed 代写。Feed/WebView 上已经没有消费者的首页建议副本随本段清理；首页只通过共同 events/recommendations 获取建议。推荐动作身份及作者界面按前述合同迁移。
 
-本段回归发现原 Functions 绑定存储丢弃共同服务固定的 provider_id，必须一并修复。新绑定完整保存提供方；旧系统函数键可由原 owner 恢复 system.functions 身份，保留绑定、版本和 revision。无法确定来源的旧插件绑定保留为已配置但不可用，统一 usages 给出原因，runScene 拒绝；用户明确重新绑定后恢复，不按当前同名能力自动迁移。验证存储重新打开、来源替换、旧绑定缺失身份以及 Inbox 既有自动触发路径。
+本段回归发现原 Functions 绑定存储丢弃共同服务固定的 provider_id，必须一并修复。绑定完整保存提供方，读出时原样给出，从不按能力名或当前安装的同名能力补出身份；没有提供方的绑定保留为已配置但不可用，统一 usages 给出原因，runScene 拒绝，用户明确重新绑定后恢复。验证存储重新打开、来源替换、缺失身份以及 Inbox 既有自动触发路径。
 
 本段合同：首页事项改由插件注册的事件查询提供。查询接收明确时间窗口，返回原对象引用、稳定事件 ID、发生时间、日期摆放方式、标题/正文/事实及可选打开目标；Feed、Inbox、Work 各自拥有投影，Home 删除按插件拼接数据与分类的旧实现。提供方与事件 ID 共同确定页面身份，未知插件不能覆盖已有事件。停用、撤权、读取失败时撤回失效数据并说明原因，不继续使用旧快照冒充当前结果。
 
@@ -167,7 +167,7 @@ Session 接续执行：先将项目 Session 目录、内容读取和原生恢复
 
 - [行为目录](../../apps/local-host/src/behavior-catalog.ts)、[首页白名单](../../packages/contracts/src/modules/functions.ts)、[首页点击处理](../../apps/workbench/src/scripts/client/project-home.ts)。
 - [判断触发](../../plugins/native/feed/src/application.ts)、[判断服务](../../modules/functions/src/service.ts)、[判断模型调用](../../modules/functions/src/provider.ts)、[判断结果投影](../../apps/local-host/src/web-view.ts)。
-- [工作流程模板转换](../../plugins/native/workflows/src/model.ts)、[Actions 定位](../../docs/modules/actions.md)、[历史 Execution 边界](../../modules/execution/README.md)。
+- [工作流程模板转换](../../plugins/native/workflows/src/model.ts)、[Actions 定位](../../docs/modules/actions.md)、历史 Execution 边界（`modules/execution` 已于 #268 删除）。
 - [现有对外 MCP Server](../../apps/local-host/src/mcp-server.ts)、[MCP 目录](../../apps/local-host/src/mcp-catalog.ts)、[协议适配](../../apps/mcp/src/protocol.ts)、[Agent 外部 MCP 接入](../../horizontal/agent-host/src/adapters/prologue-mcp.ts)。现有协议入口的 resources/list 返回空列表，不能把宣告支持 resources 视为内容已经打通。
 - [工作流程手写支持名单与分发](../../apps/local-host/src/workflows-native-plugin-http.ts)、[函数固定目的地](../../packages/contracts/src/modules/functions.ts)。它们是此次必须替换的扩展障碍。
 
@@ -326,6 +326,65 @@ MCP 适配从实时授权目录生成工具，调用时重新读取目录并通�
 现有模板交接保留并明确称为「模板转换」。AI 整理、判断条件和人工交接分别描述各自职责。Functions 可以参与流程的条件判断，模板转换不会因为改名就变成模型调用。
 
 Agent 根据任务上下文选用可用工具；对已纳入动作体系的操作走相同执行入口。Agent 的自由编排和工作流程的预设步骤可以并存，各自保留过程记录。
+
+### 基本合同复核：情境、对象、撤销、后台任务、到期提醒、效果与作者（2026-10-08）
+
+状态：复核结论，逐条对照 main（4d59cd4d）的代码；缺口各自指向路线里的切片，不在这里改代码。
+
+2026-09-30 之后，情境驱动的动态交互、助理、插件生成几条线陆续往 `packages/contracts/src/platform` 与 `packages/kernel` 里加了八类合同，没有按上面的基本合同单独复核（体检 N-04）。本节补上：先把基本合同拆成八条可核对的条款，再逐类合同逐条核对，最后列缺口。每个合同的全链路（定义、注册、发现、调用、授权、执行、返回，加停用、卸载、升级、撤权）另见 [PLUGIN-PLATFORM 的合同台账](../../docs/platform/PLUGIN-PLATFORM.md)；各入口的统一调用路径见[调用链](../../docs/system/CALL-CHAINS.md)。
+
+**八条条款**（出处是上面「基本合同」「动作」「生命周期与配置有效性」「执行」各节）：
+
+| 编号 | 条款 |
+| --- | --- |
+| C1 | 注册一次：插件只靠自己的声明和实现接入，不改 Host 名单、工作流分支、首页动作分支、函数场景枚举、MCP 工具总表；已有扩展合同的普通插件不再增加宿主特判 |
+| C2 | 兑现：每项声明要有处理器和结果合同，使用能力的一侧要有真实触发；声明不完整或处理器缺失的不进入可调用目录 |
+| C3 | 声明同源并早检查：Manifest 引用 SDK 的同一份定义；开发期和激活期都检查重复身份、非法 schema、未兑现项 |
+| C4 | 声明不是授权：权限在调用时按可信上下文重新核对；客户端参数和 `_meta` 不提供身份、项目或权限 |
+| C5 | 发现不执行：目录来自注册表，不靠运行业务动作探测；排序与推荐不改变完整目录 |
+| C6 | 一处读取：所有消费方读同一注册中心，不另写名单、不另复制目录 |
+| C7 | 生命周期同步：安装、停用、卸载、升级、授权变化都更新共同目录和使用关系；失效的引用保留并说明原因，不换成同名能力 |
+| C8 | 入口一致：同一能力从各入口进来，权限、错误、事件一致；写入前复查 |
+
+**逐类核对**（满足 / 部分 / 缺 / 无关）：
+
+| 合同 | C1 | C2 | C3 | C4 | C5 | C6 | C7 | C8 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 情境片段推荐（`fragment_offer_choices`） | 部分 | 部分 | 部分 | 满足 | 满足 | 满足 | 部分 | 满足 |
+| 对象（对象上下文读取器、事项动作、`result_subject`） | 满足 | 满足 | 部分 | 满足 | 满足 | 满足 | 满足 | 满足 |
+| 情境判断与布局（`packages/kernel/src/contextual.ts`） | 满足 | 部分 | 无关 | 满足 | 满足 | 满足 | 部分 | 满足 |
+| 撤销声明（`undo`） | 满足 | 部分 | 部分 | 满足 | 满足 | 满足 | 部分 | 满足 |
+| 后台任务回报（`background_job`） | 满足 | 部分 | 部分 | 满足 | 满足 | 满足 | 部分 | 满足 |
+| 到期提醒 | 部分 | 满足 | 满足 | 满足 | 满足 | 满足 | 部分 | 满足 |
+| 效果（`effect`） | 部分 | 满足 | 满足 | 满足 | 满足 | 满足 | 无关 | 满足 |
+| 作者（`authorship`） | 满足 | 部分 | 满足 | 满足 | 满足 | 部分 | 无关 | 缺 |
+
+**依据**
+
+- **情境片段推荐**：定义在 `packages/contracts/src/platform/action-fragments.ts`，注册时由 `fragmentOfferDeclarationProblems` 检查选项形状（唯一标识、意图、结果方式、说明、目标动作版本）。生产方是 Goals、灵光、Pages、Todo，另有搜索这个平台提供方；消费方是 `packages/kernel/src/contextual.ts` 的 `fragmentCandidates` 和 `apps/local-host/src/contextual/`，候选完全从动作目录推出，这两处没有任何插件名单（C1 的主体满足）。选项的目标动作是否真在同一提供方，注册时不查，使用时才在候选上标「原执行能力尚未注册或当前授权不可访问」（C2、C3 部分）。选择只准备输入，不执行；目标动作不是只读的一律按 `record` 呈现，不可撤回的不提供（C4）。意图是封闭的九项（`FRAGMENT_INTENTS`），增加一项要改合同，这属于通用扩展点而不是宿主特判。`defineFragmentOffersAction` 没从 `packages/plugin-sdk/src/index.ts` 导出，生成插件和第三方插件拿不到它（C1 部分）。用例 `tests/contextual-fragment-offers.test.ts`、`tests/contextual-interaction.test.ts` 不涉及停用、撤权、升级（C7 部分）；消费方只有工作台的情境条和助理卡片，它们读同一份目录，没有第二套（C6）。
+- **对象**：读取器由 `defineSubjectContextAction` 声明（`packages/contracts/src/platform/action-subjects.ts`），事项动作由 `defineSubjectOffersAction` 声明，都已从插件 SDK 导出；注册时 `inspectActionDeclarations` 要求输入输出与规范 schema 逐字相同。21 个插件加宿主自己有读取器，消费方有搜索的打开核对、`@` 引用、放置、助理的工作对象；用例 `tests/system-search-lifecycle.test.ts` 覆盖停用、重新启用、重启。缺口是 C3：注册时接受三种输出形状（现行的、没有 `project_id` 的、没有 `open` 的），后两种是历史取值，`tests/assistant-work-continuity.test.ts` 还在用其中一种，与 AGENTS.md「合同读写都只认现行取值」不符（G3）。`result_subject` 没声明时，`actionResultSubject` 按输出里「带 id 和版本的记录」推断，是一条按形状猜的路径（G6）。
+- **情境判断与布局**：`packages/kernel/src/contextual.ts` 含候选过滤、意图先验、规则打分、判断状态文字和布局（`CONTEXTUAL_THRESHOLDS`、`intentPriors`、`ruleScores`、`judgmentState`、`planContextualLayout`），唯一消费方是 `apps/local-host/src/contextual/`。它不引入插件名单，Home 的规则与底栏用同一份候选（`tests/contextual-dock-parity.test.ts`）。判断本身由宿主内的评估器经 TypeSafe 连接和 Prologue 完成，不是注册的判断能力加消费场景（C2 部分）；这是系统自用的排序，不会进用户的判断函数库，需要时另起一项。按 N-03，情境排序属平台产品服务、代码位置不变；内核 README 写着「不负责：业务状态机、提供方实现、界面」，与这里的内容不符，要改 README 而不是搬代码（G4）。
+- **撤销声明**：`ActionMetadata.undo`，注册时要求是命令、不是不可撤回、路径格式正确。生产方是 Pages（两处）、Todo（单项与批量、整理）、灵光的 `lingguang.create`；消费方只有助理：`directEligible`（`apps/local-host/src/assistant/assistant-authority.ts`）要求撤销命令此刻在同一提供方可用、人没设成每次确认，`AssistantService.undo` 以人的身份执行。撤销目标是否存在、是否同一提供方，注册时不查（G2）；记忆自己的撤销是 `memory.changes.undo` 这条独立的动作，不是 `undo` 声明。用例 `tests/assistant-undo.test.ts`；插件开发 Skill 没写（G7）。
+- **后台任务回报**：`ActionMetadata.background_job`，唯一生产方是炼金术士（`plugins/native/alchemist/src/studio/shared/contracts/actions.ts`），消费方是助理的 `watchJob`、`checkJob`，按 15 秒起翻倍、最长 5 分钟的间隔读状态查询，6 小时未结束记为 `unknown`。状态查询是否存在不在注册时查（G2）；跟踪途中提供方停用或撤权时，读状态抛错就当这次没读到，继续按间隔重试，6 小时后记为 `unknown`，没有用例（C7 部分）。用例 `tests/assistant-business-gateway.test.ts`。
+- **到期提醒**：`packages/contracts/src/platform/due-reminders.ts`，注册时要求 Home 范围、只读查询、输入输出规范 schema 相同（C2、C3 满足）。唯一生产方是 Todo 的 `todo.reminders.window`，消费方是 `AssistantService.sweepReminders`，每分钟问一次、每个提醒只告知一次。`defineDueRemindersAction` 没导出到插件 SDK（G1）；`docs/platform/PLUGIN-DEVELOPMENT.md` 举例「日程的提前提醒」，读起来像有第二个生产方，但代码里没有（G5）。用例 `tests/assistant-reminders.test.ts` 不涉及停用或撤权。
+- **效果**：`ActionMetadata.effect` 与 `actionEffect`：声明优先，没声明就按能力 id 里是否含 delete、trash、purge、remove 等词推断（`IRREVERSIBLE_ID`）。推断决定一个动作是否对生成插件开放（`actionReachesAudience`：声明了 `plugin` 受众，或对 `agent` 开放且没有 `plugin: false`，撤不回的除外），也是情境推荐、能力网关（读与写分开的工具）、助理免确认资格的依据，所以只减少暴露、不扩大权限（C4）。名字推断对 `delete_preview` 这类会误判，要用 `withActionEffect` 显式声明，但它没从插件 SDK 导出（G1）。
+- **作者**：`authorship: "session"` 由 Goals 的命令声明（`plugins/native/goals/src/action-contract.ts`），含义是 Runtime 只能在稳定 Session 里调用，Session 成为所写记录的作者。检查只在 MCP 入口做（`apps/local-host/src/mcp-server.ts` 在动作带该声明时要求稳定会话，否则 `mcp.runtime_identity_missing`）；内核和其他入口不看这个字段，助理用 `audit_actor_id: assistant:<work_id>` 自带作者。这个会话 id 来自 MCP 调用的 `_meta`，只做审计作者，不是身份或权限，而 C4 现在的措辞是「`_meta` 不提供身份」，需要写明这一点（G8）。同一条合同在不同入口得到不同的拒绝，C8 判为缺（G9）。用例只在 `tests/mcp-goal-events.test.ts` 里覆盖了 MCP 一侧。
+
+**缺口与去向**
+
+| 编号 | 缺口 | 去向 |
+| --- | --- | --- |
+| G1 | 插件 SDK 缺 `defineFragmentOffersAction`、`defineDueRemindersAction`、`withActionEffect`，以及成果库的 `defineArtifactPreviewAction`、`defineArtifactPinAction`、`defineArtifactCompareAction`、`defineArtifactContinueAction`、`defineArtifactReferrersAction` | W2-03 |
+| G2 | 注册时不做交叉校验：撤销目标、后台任务状态查询、片段和事项选项的目标动作 | W3-05 |
+| G3 | 对象上下文接受两种历史输出形状 | 建议作为兼容清单的新项：确认没有生产方后删除，同步改用例 |
+| G4 | 情境排序与布局放在内核，内核 README 没写；按 N-03 代码不搬 | 改内核 README 与边界规则；W3-04 原本是搬出内核，按 N-03 要重估 |
+| G5 | 手册举例「日程的提前提醒」，读起来像有第二个生产方，代码里只有 Todo 一个 | W2-03 |
+| G6 | `result_subject` 未声明时按输出形状推断 | 建议随 W3-05 评估：要么全部显式声明，要么记为已知推断 |
+| G7 | 插件开发 Skill 没写撤销、后台任务、到期提醒、片段推荐、页面操作卡 | 与 W1-12 的回放工具一起补；Skill 的改动在全量回归之外做 |
+| G8 | 基本合同对 `_meta` 的措辞要补上「只给审计作者」 | 本节落地后改「基本合同」那一句 |
+| G9 | `authorship` 只在 MCP 入口检查 | 建议并入 W3-01（调用标识）：把检查移进内核，或登记成入口规则；合同有变化，先问用户 |
+
+**文档同步**：「生命周期与配置有效性」一节里「没有模型目录配置的旧环境/文本密钥入口可作为兼容来源」一句已与「不留兼容」的口径不符，归 W1-02 改写，这里不动。
 
 ## 4. 用户流程与可观察状态
 
@@ -493,7 +552,7 @@ Host 暴露与动作客户端同作用域的场景客户端：发现兼容场景
 
 触发场景的动作通过 `required_scene` 声明依赖。Host 根据该场景的真实绑定、合同、判断能力与消费方实时状态派生动作可用性，发现和排队执行前使用同一检查；不在 Inbox 中另写 Functions 专属的可用性判定。没有启用绑定或全部绑定不可用时，触发动作说明原因；具体执行仍重新校验所选绑定。
 
-Inbox 继续使用原 function_scene_bindings 数据行，以可空的 action_binding_json 保存通用能力引用、启用状态及修订身份；旧行按原 function_key/version 读取，下一次保存写入同一行。关闭判断保留引用。旧 API 只投影仍启用且可表示为 Functions 的绑定，不伪造其他插件函数的 function_key。判断历史由场景在过期校验后保存，普通直接函数调用仍保存原调用记录。
+Inbox 与首页的绑定存在 Functions 库的 function_scene_bindings：每个场景、每个项目一行，行里是通用能力引用（含提供方）、启用状态与修订号（Functions 库第 2 版，repository-anti-corruption 删掉了按函数键的旧绑定）。关闭判断保留引用。按函数键读写的入口（`inbox.judgment.write`、首页判断设置）只认已发布的 Functions 规则，读出时也只给能表示为 Functions 规则的绑定写出 function_key。判断历史由场景在过期校验后保存，普通直接函数调用仍保存原调用记录。
 
 ### 自动入箱判断迁移
 
@@ -539,7 +598,7 @@ Cognia 本机模型合同：HTTPS 和显式授权的回环 HTTP 均走同一 Pro
 
 Cognia 固定版本选择补齐：列表和详情发起整理时传入所见资料 ID/revision，包括从草稿打开的历史引用；后台按该版本读取。新动作接受 material_refs（ID 与 revision）或旧 material_ids（执行时读取当前版本），两者互斥。旧 HTTP 仍兼容 material_ids；新界面提交明确版本，避免看到 v1 却将 v2 交给模型。已知模型不可用时禁用整理/问答入口并显示实际原因；后台继续独立校验。
 
-本机模型依赖修复（本项已验证）：以消费基线 Prologue a7e785b8 的隔离工作树统一 Model 登记与 Session 启动；实际请求继续由原 Host 的 model/loopback 授权、DNS、重定向与凭据检查控制。Node 与 Rust Host 精确识别回环，127 前缀公网域名不能借此获得 HTTP 许可。当前依赖为 loopback-model.tgz，依赖与锁文件同步；vendor/prologue-sdk/model-loopback.patch 保存未提交的完整源码修改，README 记录基线、构建及验证。实际 Molis 动作、桌面/窄屏生成→审阅→保存→刷新和停用后仍可保存资料已通过；没有注入 completion 替代此 HTTP 路径。原源码 checkout 未修改，未发布 npm 或替换正式安装版。
+本机模型依赖修复（本项已验证）：以消费基线 Prologue a7e785b8 的隔离工作树统一 Model 登记与 Session 启动；实际请求继续由原 Host 的 model/loopback 授权、DNS、重定向与凭据检查控制。Node 与 Rust Host 精确识别回环，127 前缀公网域名不能借此获得 HTTP 许可。当前依赖为 loopback-model.tgz，依赖与锁文件同步；model-loopback.patch 保存未提交的完整源码修改，README 记录基线、构建及验证（二者当时在提交 e4bdeb12 的 vendor/prologue-sdk/；2026-10-08 起树里只留补丁的大小、SHA-256、git blob 与来源，见 vendor/prologue-sdk/patch-history.json）。实际 Molis 动作、桌面/窄屏生成→审阅→保存→刷新和停用后仍可保存资料已通过；没有注入 completion 替代此 HTTP 路径。原源码 checkout 未修改，未发布 npm 或替换正式安装版。
 
 ### Dataset 全量接线
 

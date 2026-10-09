@@ -13,7 +13,6 @@ import type {
   FeedItemDisposition,
   FeedItemRecord,
   FeedMaterialRecord,
-  InfoflowContractMigrationReport,
   IngestFeedItemInput,
 } from "@molis-ai/molis-work-contracts/modules/feed";
 
@@ -28,8 +27,6 @@ export const packageDescriptor = {
   capabilities: ["feed.query.v1", "feed.command.v1"],
 } as const;
 
-export const INFOFLOW_SCHEMA_MIGRATION_ID = 29 as const;
-
 type Row = Record<string, unknown>;
 type Statement = {
   all(...params: unknown[]): unknown[];
@@ -39,11 +36,11 @@ type Statement = {
 export interface FeedSqliteDatabase {
   exec(sql: string): void;
   prepare(sql: string): Statement;
-  pragma(sql: string): unknown;
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export interface FeedLegacyEvent {
+/** The project journal's record of an item change; the journal keeps its own event names. */
+export interface FeedJournalEvent {
   project_id: string;
   item_id: string;
   type: string;
@@ -55,20 +52,19 @@ export interface FeedLegacyEvent {
 export interface FeedModuleOptions {
   ledger: ContextLedgerApi;
   now?: () => Date;
-  eventSink?: (event: FeedLegacyEvent) => void;
+  eventSink?: (event: FeedJournalEvent) => void;
 }
 
 export { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
 
-export function migrateFeed(db: FeedSqliteDatabase): void {
-  db.exec(`
+/** The Feed tables, as one current schema; the host composes them into the project database baseline. */
+export const FEED_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_items (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       item_id TEXT NOT NULL,
       source_id TEXT,
       signal_id TEXT,
       signal_revision INTEGER,
-      item_type TEXT NOT NULL CHECK (item_type IN ('inbox_message', 'feed')),
       kind TEXT NOT NULL,
       title TEXT NOT NULL,
       summary TEXT NOT NULL DEFAULT '',
@@ -82,24 +78,21 @@ export function migrateFeed(db: FeedSqliteDatabase): void {
       tags_json TEXT NOT NULL DEFAULT '[]',
       author TEXT,
       disposition TEXT NOT NULL CHECK (disposition IN ('inbox', 'saved', 'promoted', 'processing', 'archived')),
-      linked_goal_id TEXT,
       read_at TEXT,
       revision INTEGER NOT NULL DEFAULT 1,
       source_created_at TEXT NOT NULL,
       source_updated_at TEXT NOT NULL,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, item_id)
+      PRIMARY KEY (project_id, item_id)
     );
-    CREATE INDEX IF NOT EXISTS feed_items_board_type_updated_idx
-      ON feed_items(board_id, item_type, disposition, source_updated_at DESC);
-    CREATE INDEX IF NOT EXISTS feed_items_board_goal_idx
-      ON feed_items(board_id, linked_goal_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS feed_items_board_source_external_idx
-      ON feed_items(board_id, source_id, external_id)
+    CREATE INDEX IF NOT EXISTS feed_items_project_updated_idx
+      ON feed_items(project_id, disposition, source_updated_at DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS feed_items_project_source_external_idx
+      ON feed_items(project_id, source_id, external_id)
       WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
     CREATE TABLE IF NOT EXISTS feed_materials (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       material_id TEXT NOT NULL,
       item_id TEXT NOT NULL,
       canonical_url TEXT,
@@ -117,11 +110,11 @@ export function migrateFeed(db: FeedSqliteDatabase): void {
       selected_for_context INTEGER NOT NULL DEFAULT 0,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, material_id),
-      FOREIGN KEY (board_id, item_id) REFERENCES feed_items(board_id, item_id) ON DELETE CASCADE
+      PRIMARY KEY (project_id, material_id),
+      FOREIGN KEY (project_id, item_id) REFERENCES feed_items(project_id, item_id) ON DELETE CASCADE
     );
-    CREATE INDEX IF NOT EXISTS feed_materials_board_item_idx
-      ON feed_materials(board_id, item_id, updated_at DESC, material_id);
+    CREATE INDEX IF NOT EXISTS feed_materials_project_item_idx
+      ON feed_materials(project_id, item_id, updated_at DESC, material_id);
 
     CREATE TABLE IF NOT EXISTS feed_item_events (
       event_id TEXT PRIMARY KEY,
@@ -134,28 +127,9 @@ export function migrateFeed(db: FeedSqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS feed_item_events_project_item_idx
       ON feed_item_events(project_id, item_id, at, event_id);
 
-    CREATE TABLE IF NOT EXISTS feed_contract_migration_receipts (
-      receipt_id TEXT PRIMARY KEY,
-      schema_version INTEGER NOT NULL,
-      preflight_json TEXT NOT NULL,
-      postflight_json TEXT NOT NULL,
-      rollback_strategy TEXT NOT NULL CHECK (rollback_strategy = 'sqlite_immediate_transaction'),
-      applied_at TEXT NOT NULL
-    );
-  `);
-  ensureColumn(db, "feed_materials", "content_ref", "TEXT");
-  ensureColumn(db, "feed_materials", "content_available", "INTEGER NOT NULL DEFAULT 0");
-  ensureColumn(db, "feed_materials", "content_type", "TEXT");
-  ensureColumn(db, "feed_materials", "character_count", "INTEGER");
-  ensureColumn(db, "feed_materials", "captured_at", "TEXT");
-  ensureColumn(db, "feed_items", "read_at", "TEXT");
-  ensureColumn(db, "feed_items", "signal_id", "TEXT");
-  ensureColumn(db, "feed_items", "signal_revision", "INTEGER");
-  db.exec(`
-    CREATE UNIQUE INDEX IF NOT EXISTS feed_items_board_signal_idx
-      ON feed_items(board_id, signal_id) WHERE signal_id IS NOT NULL
-  `);
-}
+    CREATE UNIQUE INDEX IF NOT EXISTS feed_items_project_signal_idx
+      ON feed_items(project_id, signal_id) WHERE signal_id IS NOT NULL;
+`;
 
 export class FeedModule implements FeedApi {
   private readonly goalLinks: FeedGoalLinks;
@@ -179,11 +153,7 @@ export class FeedModule implements FeedApi {
     ) => this.setDisposition(projectId, itemId, disposition, expectedRevision),
     restore: (projectId: string, itemId: string, expectedRevision?: number) =>
       this.restore(projectId, itemId, expectedRevision),
-    markRead: (
-      projectId: string,
-      itemId: string,
-      expectedItemType?: "feed" | "inbox_message",
-    ) => this.markRead(projectId, itemId, expectedItemType),
+    markRead: (projectId: string, itemId: string) => this.markRead(projectId, itemId),
     linkGoal: (
       projectId: string,
       itemId: string,
@@ -202,59 +172,46 @@ export class FeedModule implements FeedApi {
     private readonly attention: AttentionApi,
     private readonly options: FeedModuleOptions,
   ) {
-    migrateFeed(db);
+    db.exec(FEED_SCHEMA_SQL);
     this.goalLinks = new FeedGoalLinks(options.ledger);
-    this.migrateGoalLinks();
-  }
-
-  private migrateGoalLinks(): void {
-    this.db.transaction(() => {
-      const rows = this.db.prepare(`SELECT board_id, item_id, linked_goal_id, updated_at
-        FROM feed_items WHERE linked_goal_id IS NOT NULL`).all() as Row[];
-      for (const row of rows) {
-        this.goalLinks.set(text(row.board_id), text(row.item_id), text(row.linked_goal_id), text(row.updated_at), true);
-        this.db.prepare("UPDATE feed_items SET linked_goal_id = NULL WHERE board_id = ? AND item_id = ?")
-          .run(row.board_id, row.item_id);
-      }
-    }).immediate();
   }
 
   private list(projectId: string): FeedItemRecord[] {
     const links = this.goalLinks.list(projectId);
     const materials = (this.db.prepare(
-      "SELECT * FROM feed_materials WHERE board_id = ? ORDER BY updated_at DESC, material_id",
+      "SELECT * FROM feed_materials WHERE project_id = ? ORDER BY updated_at DESC, material_id",
     ).all(projectId) as Row[]).map(mapFeedMaterial);
     const byItem = new Map<string, FeedMaterialRecord[]>();
     for (const material of materials) {
       byItem.set(material.item_id, [...(byItem.get(material.item_id) ?? []), material]);
     }
     return (this.db.prepare(
-      "SELECT * FROM feed_items WHERE board_id = ? ORDER BY source_updated_at DESC, item_id",
+      "SELECT * FROM feed_items WHERE project_id = ? ORDER BY source_updated_at DESC, item_id",
     ).all(projectId) as Row[]).map((row) => mapFeedItem(row, byItem.get(text(row.item_id)) ?? [],
       links.get(text(row.item_id)) ?? null));
   }
 
   private get(projectId: string, itemId: string): FeedItemRecord {
     const row = this.db.prepare(
-      "SELECT * FROM feed_items WHERE board_id = ? AND item_id = ?",
+      "SELECT * FROM feed_items WHERE project_id = ? AND item_id = ?",
     ).get(projectId, itemId) as Row | undefined;
     if (!row) throw new FeedError("feed_item_not_found", "找不到这个 Feed Item");
     const materials = (this.db.prepare(`
       SELECT * FROM feed_materials
-      WHERE board_id = ? AND item_id = ? ORDER BY updated_at DESC, material_id
+      WHERE project_id = ? AND item_id = ? ORDER BY updated_at DESC, material_id
     `).all(projectId, itemId) as Row[]).map(mapFeedMaterial);
     return mapFeedItem(row, materials, this.goalLinks.get(projectId, itemId));
   }
 
   private exists(projectId: string, itemId: string): boolean {
     return Boolean(this.db.prepare(
-      "SELECT 1 FROM feed_items WHERE board_id = ? AND item_id = ?",
+      "SELECT 1 FROM feed_items WHERE project_id = ? AND item_id = ?",
     ).get(projectId, itemId));
   }
 
   private countBySource(projectId: string, sourceId: string): number {
     return Number((this.db.prepare(`
-      SELECT COUNT(*) AS count FROM feed_items WHERE board_id = ? AND source_id = ?
+      SELECT COUNT(*) AS count FROM feed_items WHERE project_id = ? AND source_id = ?
     `).get(projectId, sourceId) as { count?: number } | undefined)?.count ?? 0);
   }
 
@@ -262,7 +219,7 @@ export class FeedModule implements FeedApi {
     const linked = this.goalLinks.find(projectId, goalId).filter((id) => itemId == null || id === itemId);
     if (!linked.length) return null;
     const found = this.db.prepare(`SELECT item_id FROM feed_items
-      WHERE board_id = ? AND item_id IN (SELECT value FROM json_each(?))
+      WHERE project_id = ? AND item_id IN (SELECT value FROM json_each(?))
       ORDER BY updated_at DESC, item_id LIMIT 1`).get(projectId, JSON.stringify(linked)) as { item_id: string } | undefined;
     return found ? this.get(projectId, found.item_id) : null;
   }
@@ -275,15 +232,17 @@ export class FeedModule implements FeedApi {
     return this.db.transaction(() => {
       const existingRow = this.db.prepare(`
         SELECT * FROM feed_items
-        WHERE board_id = ? AND source_id = ? AND external_id = ?
+        WHERE project_id = ? AND source_id = ? AND external_id = ?
       `).get(input.project_id, input.source_id, input.external_id) as Row | undefined;
       const attention = input.attention === false ? null : input.attention ?? null;
       if (existingRow) {
         const existing = mapFeedItem(existingRow, []);
-        const shouldUpdate = input.signal != null
+        // A newer Signal revision updates the item. A source without Signals (a package republished under the same
+        // id) says so with `refresh`, and the item then changes together with the material it carries.
+        const shouldUpdate = input.refresh === true || (input.signal != null
           && (existing.signal_id !== input.signal.signal_id
             || existing.signal_revision == null
-            || input.signal.revision > existing.signal_revision);
+            || input.signal.revision > existing.signal_revision));
         if (shouldUpdate) {
           const at = this.now().toISOString();
           this.db.prepare(`
@@ -291,10 +250,10 @@ export class FeedModule implements FeedApi {
               signal_id = ?, signal_revision = ?, kind = ?, title = ?, summary = ?, body = ?,
               source_kind = ?, source_label = ?, url = ?, priority = ?, tags_json = ?, author = ?,
               revision = revision + 1, source_updated_at = ?, updated_at = ?
-            WHERE board_id = ? AND item_id = ?
+            WHERE project_id = ? AND item_id = ?
           `).run(
-            input.signal!.signal_id,
-            input.signal!.revision,
+            input.signal?.signal_id ?? existing.signal_id,
+            input.signal?.revision ?? existing.signal_revision,
             input.kind ?? "update",
             normalizeTitle(input.title),
             normalizeSummary(input.summary),
@@ -315,8 +274,8 @@ export class FeedModule implements FeedApi {
             existing.item_id,
             "feed_item.updated",
             "feed_item.updated",
-            "Signal 新版本已更新 Feed Item",
-            { signal_id: input.signal!.signal_id, signal_revision: input.signal!.revision },
+            input.signal ? "Signal 新版本已更新 Feed Item" : "来源内容新版本已更新 Feed Item",
+            input.signal ? { signal_id: input.signal.signal_id, signal_revision: input.signal.revision } : { refreshed: true },
             at,
           );
         }
@@ -329,7 +288,8 @@ export class FeedModule implements FeedApi {
             updated_at: this.now().toISOString(),
           });
         }
-        if (attention) {
+        // A source seeing an ignored item again does not bring it back to the Inbox; the person restores it.
+        if (attention && existing.disposition !== "archived") {
           this.attention.commands.ensureFeedItem(
             input.project_id,
             existing.item_id,
@@ -344,12 +304,12 @@ export class FeedModule implements FeedApi {
       const itemId = `feeditem-${randomUUID()}`;
       this.db.prepare(`
         INSERT INTO feed_items (
-          board_id, item_id, source_id, signal_id, signal_revision, item_type,
+          project_id, item_id, source_id, signal_id, signal_revision,
           kind, title, summary, body, source_kind, source_label, external_id,
           url, origin_status, priority, tags_json, author, disposition,
-          linked_goal_id, read_at, revision, source_created_at, source_updated_at,
+          read_at, revision, source_created_at, source_updated_at,
           imported_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'feed', ?, ?, ?, ?, ?, ?, ?, ?, 'inbox', ?, ?, ?, 'inbox', NULL, NULL, 1, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'inbox', ?, ?, ?, 'inbox', NULL, 1, ?, ?, ?, ?)
       `).run(
         input.project_id,
         itemId,
@@ -406,12 +366,12 @@ export class FeedModule implements FeedApi {
     this.get(material.project_id, material.item_id);
     this.db.prepare(`
       INSERT INTO feed_materials (
-        board_id, material_id, item_id, canonical_url, title, source_name,
+        project_id, material_id, item_id, canonical_url, title, source_name,
         published_at, preview, content_hash, content_ref, content_available,
         content_type, character_count, captured_at, provenance_json,
         selected_for_context, imported_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(board_id, material_id) DO UPDATE SET
+      ON CONFLICT(project_id, material_id) DO UPDATE SET
         item_id = excluded.item_id,
         canonical_url = excluded.canonical_url,
         title = excluded.title,
@@ -471,28 +431,25 @@ export class FeedModule implements FeedApi {
         if (disposition === "inbox") this.openManualAttention(projectId, itemId);
         return this.get(projectId, itemId);
       }
+      // An ignored item is brought back by restore, never by admitting it to the Inbox or by another disposition.
+      if (current.disposition === "archived") {
+        throw new FeedError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
+      }
       if (disposition === "inbox") {
         this.openManualAttention(projectId, itemId);
         return this.get(projectId, itemId);
-      }
-      if (current.disposition === "archived") {
-        throw new FeedError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
       }
       const at = this.now().toISOString();
       this.db.prepare(`
         UPDATE feed_items
         SET disposition = ?, revision = revision + 1, updated_at = ?
-        WHERE board_id = ? AND item_id = ?
+        WHERE project_id = ? AND item_id = ?
       `).run(disposition, at, projectId, itemId);
-      const inbox = this.attention.query.findActiveForSubject(projectId, "feed_item", itemId);
-      if (inbox) {
-        const nextStatus: AttentionStatus = disposition === "processing"
-          ? "in_progress"
-          : disposition === "archived"
-            ? "dismissed"
-            : "done";
-        this.attention.commands.setStatus(projectId, inbox.entry_id, nextStatus, inbox.revision);
-      }
+      settleActiveAttention(this.attention, projectId, itemId, disposition === "processing"
+        ? "in_progress"
+        : disposition === "archived"
+          ? "dismissed"
+          : "done");
       this.appendEvent(
         projectId,
         itemId,
@@ -517,10 +474,9 @@ export class FeedModule implements FeedApi {
       this.db.prepare(`
         UPDATE feed_items
         SET disposition = 'inbox', revision = revision + 1, updated_at = ?
-        WHERE board_id = ? AND item_id = ?
+        WHERE project_id = ? AND item_id = ?
       `).run(at, projectId, itemId);
-      const inbox = this.attention.query.findActiveForSubject(projectId, "feed_item", itemId);
-      if (inbox) this.attention.commands.setStatus(projectId, inbox.entry_id, "dismissed", inbox.revision);
+      settleActiveAttention(this.attention, projectId, itemId, "dismissed");
       this.appendEvent(
         projectId,
         itemId,
@@ -534,24 +490,14 @@ export class FeedModule implements FeedApi {
     }).immediate();
   }
 
-  private markRead(
-    projectId: string,
-    itemId: string,
-    expectedItemType: "feed" | "inbox_message" = "feed",
-  ): FeedItemRecord {
+  private markRead(projectId: string, itemId: string): FeedItemRecord {
     return this.db.transaction(() => {
       const current = this.get(projectId, itemId);
-      if (expectedItemType !== "feed") {
-        throw new FeedError(
-          "feed_read_not_supported",
-          "Inbox Message 使用处理状态，不记录已读状态",
-        );
-      }
       if (current.read_at) return current;
       const at = this.now().toISOString();
       this.db.prepare(`
         UPDATE feed_items SET read_at = ?, updated_at = ?
-        WHERE board_id = ? AND item_id = ?
+        WHERE project_id = ? AND item_id = ?
       `).run(at, at, projectId, itemId);
       this.appendEvent(
         projectId,
@@ -583,17 +529,9 @@ export class FeedModule implements FeedApi {
       this.db.prepare(`
         UPDATE feed_items
         SET disposition = ?, revision = revision + 1, updated_at = ?
-        WHERE board_id = ? AND item_id = ?
+        WHERE project_id = ? AND item_id = ?
       `).run(disposition, at, projectId, itemId);
-      const inbox = this.attention.query.findActiveForSubject(projectId, "feed_item", itemId);
-      if (inbox) {
-        this.attention.commands.setStatus(
-          projectId,
-          inbox.entry_id,
-          disposition === "processing" ? "in_progress" : "done",
-          inbox.revision,
-        );
-      }
+      settleActiveAttention(this.attention, projectId, itemId, disposition === "processing" ? "in_progress" : "done");
       this.appendEvent(
         projectId,
         itemId,
@@ -609,7 +547,7 @@ export class FeedModule implements FeedApi {
 
   private deleteBySource(projectId: string, sourceId: string): string[] {
     const itemIds = (this.db.prepare(
-      "SELECT item_id FROM feed_items WHERE board_id = ? AND source_id = ? ORDER BY item_id",
+      "SELECT item_id FROM feed_items WHERE project_id = ? AND source_id = ? ORDER BY item_id",
     ).all(projectId, sourceId) as Array<{ item_id: string }>).map((row) => row.item_id);
     if (itemIds.length === 0) return [];
     return this.db.transaction(() => {
@@ -618,7 +556,7 @@ export class FeedModule implements FeedApi {
         this.goalLinks.remove(projectId, itemId);
         this.attention.commands.deleteSubject(projectId, "feed_item", itemId);
       }
-      this.db.prepare("DELETE FROM feed_items WHERE board_id = ? AND source_id = ?")
+      this.db.prepare("DELETE FROM feed_items WHERE project_id = ? AND source_id = ?")
         .run(projectId, sourceId);
       for (const itemId of itemIds) {
         this.appendEvent(
@@ -670,7 +608,7 @@ export class FeedModule implements FeedApi {
     projectId: string,
     itemId: string,
     type: FeedEvent["type"],
-    legacyType: string,
+    journalType: string,
     reason: string,
     payload: Record<string, unknown>,
     at: string,
@@ -687,7 +625,7 @@ export class FeedModule implements FeedApi {
       JSON.stringify(payload),
       at,
     );
-    this.options.eventSink?.({ project_id: projectId, item_id: itemId, type: legacyType, reason, payload, at });
+    this.options.eventSink?.({ project_id: projectId, item_id: itemId, type: journalType, reason, payload, at });
   }
 
   private now(): Date {
@@ -696,141 +634,15 @@ export class FeedModule implements FeedApi {
 }
 
 /**
- * Compatibility migration from the former stored inbox_message type. Feed owns
- * the old Feed rows; Attention is updated only through its public migration API.
+ * An item can be in the Inbox for more than one reason at once (the person added it, a capture rule admitted it,
+ * a capture-out failure). What happens to the item happens to all of those entries, in the item's transaction.
  */
-export function migrateInfoflowContractV2(
-  db: FeedSqliteDatabase,
-  attention: AttentionApi,
-  now: () => Date = () => new Date(),
-): InfoflowContractMigrationReport {
-  migrateFeed(db);
-  const legacyRows = db.prepare(`
-    SELECT board_id, item_id, source_kind, disposition, imported_at, updated_at
-    FROM feed_items
-    WHERE item_type = 'inbox_message'
-    ORDER BY board_id, item_id
-  `).all() as Array<{
-    board_id: string;
-    item_id: string;
-    source_kind: string;
-    disposition: FeedItemDisposition;
-    imported_at: string;
-    updated_at: string;
-  }>;
-  const preflight = {
-    feed_items: scalarCount(db, "SELECT COUNT(*) AS count FROM feed_items"),
-    legacy_inbox_messages: legacyRows.length,
-    inbox_entries: attention.migrations.countEntries(),
-  };
-  for (const row of legacyRows) {
-    const reason = row.source_kind === "github" || row.source_kind === "gmail"
-      ? "source_rule" as const
-      : "manual" as const;
-    const status: AttentionStatus = row.disposition === "processing"
-      ? "in_progress"
-      : row.disposition === "archived"
-        ? "dismissed"
-        : row.disposition === "saved" || row.disposition === "promoted"
-          ? "done"
-          : "open";
-    attention.migrations.importLegacy({
-      project_id: row.board_id,
-      entry_id: `inboxentry-legacy-${row.item_id}`,
-      subject_type: "feed_item",
-      subject_id: row.item_id,
-      reason,
-      status,
-      detail: { migrated_from: "feed_items.item_type", migration_id: INFOFLOW_SCHEMA_MIGRATION_ID },
-      revision: 1,
-      created_at: row.imported_at,
-      updated_at: row.updated_at,
-      completed_at: status === "done" || status === "dismissed" ? row.updated_at : null,
-    });
-  }
-  db.prepare("UPDATE feed_items SET item_type = 'feed' WHERE item_type = 'inbox_message'").run();
-  db.exec("DROP INDEX IF EXISTS feed_items_board_external_idx");
-  db.exec(`
-    CREATE UNIQUE INDEX IF NOT EXISTS feed_items_board_source_external_idx
-    ON feed_items(board_id, source_id, external_id)
-    WHERE source_id IS NOT NULL AND external_id IS NOT NULL
-  `);
-
-  for (const row of legacyRows) {
-    if (attention.query.findForSubject(row.board_id, "feed_item", row.item_id).length === 0) {
-      throw new Error(`feed_contract_migration_missing_inbox_reference:${row.item_id}`);
+function settleActiveAttention(attention: AttentionApi, projectId: string, itemId: string, status: AttentionStatus): void {
+  for (const entry of attention.query.findForSubject(projectId, "feed_item", itemId)) {
+    if (entry.status === "open" || entry.status === "in_progress") {
+      attention.commands.setStatus(projectId, entry.entry_id, status, entry.revision);
     }
   }
-  const orphanFeedItemEntries = attention.migrations.listFeedItemReferences()
-    .filter((entry) => !existsFeedItem(db, entry.project_id, entry.subject_id)).length;
-  const postflight = {
-    feed_items: scalarCount(db, "SELECT COUNT(*) AS count FROM feed_items"),
-    legacy_inbox_messages: scalarCount(
-      db,
-      "SELECT COUNT(*) AS count FROM feed_items WHERE item_type = 'inbox_message'",
-    ),
-    inbox_entries: attention.migrations.countEntries(),
-    orphan_feed_item_entries: orphanFeedItemEntries,
-  };
-  if (postflight.feed_items !== preflight.feed_items) {
-    throw new Error("feed_contract_migration_item_count_mismatch");
-  }
-  if (postflight.legacy_inbox_messages !== 0) {
-    throw new Error("feed_contract_migration_legacy_rows_remain");
-  }
-  if (postflight.orphan_feed_item_entries !== 0) {
-    throw new Error("feed_contract_migration_orphan_inbox_reference");
-  }
-  const report: InfoflowContractMigrationReport = {
-    receipt_id: "infoflow-contract-v1",
-    schema_version: INFOFLOW_SCHEMA_MIGRATION_ID,
-    preflight,
-    postflight,
-    rollback_strategy: "sqlite_immediate_transaction",
-    applied_at: now().toISOString(),
-  };
-  db.prepare(`
-    INSERT INTO feed_contract_migration_receipts (
-      receipt_id, schema_version, preflight_json, postflight_json,
-      rollback_strategy, applied_at
-    ) VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(receipt_id) DO UPDATE SET
-      schema_version = excluded.schema_version,
-      preflight_json = excluded.preflight_json,
-      postflight_json = excluded.postflight_json,
-      rollback_strategy = excluded.rollback_strategy,
-      applied_at = excluded.applied_at
-  `).run(
-    report.receipt_id,
-    report.schema_version,
-    JSON.stringify(report.preflight),
-    JSON.stringify(report.postflight),
-    report.rollback_strategy,
-    report.applied_at,
-  );
-  return report;
-}
-
-function ensureColumn(
-  db: FeedSqliteDatabase,
-  table: string,
-  column: string,
-  definition: string,
-): void {
-  const columns = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
-  if (!columns.some((entry) => entry.name === column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  }
-}
-
-function scalarCount(db: FeedSqliteDatabase, sql: string): number {
-  return Number((db.prepare(sql).get() as { count?: number } | undefined)?.count ?? 0);
-}
-
-function existsFeedItem(db: FeedSqliteDatabase, projectId: string, itemId: string): boolean {
-  return Boolean(db.prepare(
-    "SELECT 1 FROM feed_items WHERE board_id = ? AND item_id = ?",
-  ).get(projectId, itemId));
 }
 
 function normalizeTitle(value: string): string {
@@ -843,7 +655,7 @@ function normalizeSummary(value: string): string {
 
 function mapFeedMaterial(row: Row): FeedMaterialRecord {
   return {
-    project_id: text(row.board_id),
+    project_id: text(row.project_id),
     material_id: text(row.material_id),
     item_id: text(row.item_id),
     canonical_url: optionalText(row.canonical_url),
@@ -866,7 +678,7 @@ function mapFeedMaterial(row: Row): FeedMaterialRecord {
 
 function mapFeedItem(row: Row, materials: FeedMaterialRecord[], linkedGoalId: string | null = null): FeedItemRecord {
   return {
-    project_id: text(row.board_id),
+    project_id: text(row.project_id),
     item_id: text(row.item_id),
     source_id: optionalText(row.source_id),
     signal_id: optionalText(row.signal_id),
@@ -915,7 +727,6 @@ function json<T>(value: unknown, fallback: T): T {
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
-export { FeedReceiptStore } from "./contract-receipts.js";
 
 // Compatibility names for the existing public Feed API; Storage owns the only implementation.
 export { type EvidenceContentStore as FeedEvidenceContentStore, createEvidenceContentStore as createFeedEvidenceContentStore } from "@molis-ai/molis-work-storage";

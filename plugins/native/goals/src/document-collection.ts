@@ -1,26 +1,25 @@
-import { GOALS_PRESENTATION_STATES, type GoalsCoverageItem, type GoalsInputBinding } from "./document-view.js";
+import { GOALS_PRESENTATION_STATES, type GoalsInputBinding } from "./document-view.js";
 import type { GoalsPolicyBinding } from "./policy-ui-model.js";
 import type { GoalPresentationState } from "./tree-order.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 import { createGoalDocumentIndex } from "./document-index.js";
 import { projectGoalDocument } from "./document-projection.js";
 
-export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, boardId: string) {
-  const snapshot = ports.snapshot(boardId);
-  const coverage: GoalsCoverageItem[] = ports.goals.listLegacyCoverage(boardId);
-  const inputBindings = ports.inputs.list(boardId)
-    .map(({ board_id: _boardId, ...binding }): GoalsInputBinding => binding);
-  const policyBindings: GoalsPolicyBinding[] = ports.goals.listPolicyHistory(boardId);
-  const events = ports.events(boardId);
-  const index = createGoalDocumentIndex(snapshot, coverage, inputBindings, policyBindings, events, ports.goals.listGoalRiskLinks(boardId));
+export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, projectId: string) {
+  const snapshot = ports.snapshot(projectId);
+  const inputBindings = ports.inputs.list(projectId)
+    .map(({ project_id: _boardId, ...binding }): GoalsInputBinding => binding);
+  const policyBindings: GoalsPolicyBinding[] = ports.goals.listPolicyHistory(projectId);
+  const events = ports.events(projectId);
+  const index = createGoalDocumentIndex(snapshot, inputBindings, policyBindings, events, ports.goals.listWorkEventGoalLinks(projectId));
   const allGoals = snapshot.goals.map(goal => projectGoalDocument(goal, {
-    boardId, snapshot, ports, index,
+    projectId, snapshot, ports, index,
   }));
   // Trash is intentionally absent from both the ordinary Tree and the
   // completed-only archive. The dedicated trash view selects it through the
   // shared coordinator read service instead of leaking it into normal work.
   const trashedGoalIds = new Set(
-    ports.goals.listTrashedGoals(boardId).map((goal) => goal.goal_id),
+    ports.goals.listTrashedGoals(projectId).map((goal) => goal.goal_id),
   );
   const goals = allGoals.filter((item) => !item.goal.archived_at && !item.goal.trashed_at);
   const archivedGoals = allGoals.filter((item) => Boolean(item.goal.archived_at) && !item.goal.trashed_at);
@@ -33,7 +32,7 @@ export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, boar
   return {
     snapshot, active_goal_id: activeGoalId,
     goals, archived_goals: archivedGoals, trashed_goals: trashedGoals,
-    counts, coverage, input_bindings: inputBindings, policy_bindings: policyBindings, events,
+    counts, input_bindings: inputBindings, policy_bindings: policyBindings, events,
   };
 }
 

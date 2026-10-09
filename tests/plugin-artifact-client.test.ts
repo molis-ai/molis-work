@@ -9,7 +9,7 @@ import { createPluginArtifactClient, PluginArtifactAccessError } from "@molis-ai
 import { PluginRuntime, PluginRuntimeError } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginArtifactClient, PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
@@ -36,7 +36,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
         artifacts: { produces: [{ artifact_type_id: "example.note", schema_version: 1 }],
           consumes: [{ artifact_type_id: "example.note", schema_version: options.schema ?? 1 }] } };
       const definition: PluginDefinition = { manifest, async start(context) {
-        const hosted = createPluginArtifactClient({ api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_BOARD_ID), board_id: DEMO_BOARD_ID,
+        const hosted = createPluginArtifactClient({ api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID,
           actor_id: options.actor ?? "author" });
         client = hosted.client; dispose = hosted.dispose;
         return base.start(context);
@@ -51,16 +51,16 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     const consumer = await author("consumer");
     const value = { ...pinnedArtifact("First", { kind: "note", id: "plugin-note" }), artifact_id: "plugin-note", version: 1, artifact_type_id: "example.note", schema_version: 1,
       content: { kind: "inline" as const, payload: { title: "First", custom: [1, "opaque", null] } },
-      board_id: "forged-board", actor_id: "forged-user", scope: "team_project", team_share_authorized: true,
+      project_id: "forged-board", actor_id: "forged-user", scope: "team_project", team_share_authorized: true,
       producer: { plugin_id: "forged", plugin_version: "9.0.0", binding_signature: "forged" } };
     const first = producer.client.publish(value);
-    assert.equal(first.artifact.board_id, DEMO_BOARD_ID);
+    assert.equal(first.artifact.project_id, DEMO_PROJECT_ID);
     assert.equal(first.artifact.owner_actor_id, "author");
     assert.equal(first.artifact.producer_plugin_id, "io.molis.work.example.producer");
     assert.equal(first.artifact.scope, "personal");
     assert.deepEqual(consumer.client.read({ artifact_id: value.artifact_id, version: 1 }), first.artifact);
-    const actions = pluginActions(store, DEMO_BOARD_ID);
-    const caller = { actor_id: "author", project_id: DEMO_BOARD_ID, audience: "plugin" as const,
+    const actions = pluginActions(store, DEMO_PROJECT_ID);
+    const caller = { actor_id: "author", project_id: DEMO_PROJECT_ID, audience: "plugin" as const,
       plugin_install_id: consumer.installId, permissions: ["artifact:read", "artifact:write"] };
     const read = actions.registry.discover(caller).find(action => action.provider.provider_id === `sdk.artifacts.${consumer.installId}` && action.operation === "query")!;
     assert.ok(read, "the SDK operation must exist in the same Kernel directory");
@@ -88,24 +88,71 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     assert.equal(denied?.availability.available, false, "directory reflects the actual Runtime grant");
     const wrongSchema = await author("wrong-schema", { schema: 2 });
     const otherUser = await author("other-user", { actor: "other" });
-    const before = store.snapshot(DEMO_BOARD_ID);
-    const versions = api.query.listArtifactVersions(DEMO_BOARD_ID, value.artifact_id);
+    const before = store.snapshot(DEMO_PROJECT_ID);
+    const versions = api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id);
     assert.throws(() => noRead.client.read(value), (error: unknown) => error instanceof PluginRuntimeError
       && error.code === "plugin_grant_denied");
     assert.throws(() => wrongSchema.client.read(value), (error: unknown) => error instanceof PluginArtifactAccessError
       && error.code === "plugin_artifact_incompatible");
-    assert.throws(() => otherUser.client.read(value), (error: unknown) => error instanceof PluginArtifactAccessError
-      && error.code === "plugin_artifact_denied");
+    // A personal 成果 belongs to the Home's person whoever produced it: another actor's installation reads it by type, not by being its producer.
+    assert.deepEqual(otherUser.client.read(value), first.artifact);
     assert.throws(() => producer.client.publish({ ...value, artifact_id: "not-created", schema_version: 2 }),
       PluginArtifactAccessError);
-    assert.deepEqual(store.snapshot(DEMO_BOARD_ID), before);
-    assert.deepEqual(api.query.listArtifactVersions(DEMO_BOARD_ID, value.artifact_id), versions);
-    assert.equal(api.query.getArtifactVersion(DEMO_BOARD_ID, { artifact_id: "not-created", version: 1 }), null);
+    assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), before);
+    assert.deepEqual(api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id), versions);
+    assert.equal(api.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "not-created", version: 1 }), null);
     await runtime.uninstall(producer.installId);
     assert.deepEqual(consumer.client.read(value), first.artifact, "uninstall preserves exchanged content");
     assert.throws(() => producer.client.publish({ ...value, version: 3 }),
       (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin_grant_denied");
-    assert.deepEqual(api.query.listArtifactVersions(DEMO_BOARD_ID, value.artifact_id), versions,
+    assert.deepEqual(api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id), versions,
       "a retained client cannot keep writing after uninstall");
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("an installation reads a process item only for the actor it was recorded for, while a personal 成果 is read by type", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-process-read-"));
+  const databasePath = join(directory, "board.db");
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const runtime = new PluginRuntime();
+  try {
+    const base = createGithubIntegrationPlugin({ provider: {
+      type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
+      async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
+    } });
+    async function install(name: string, actor: string) {
+      let hosted!: ReturnType<typeof createPluginArtifactClient>;
+      const manifest: PluginManifest = { ...base.manifest, plugin_id: `io.molis.work.example.${name}`,
+        permissions: [...base.manifest.permissions,
+          { permission: "artifact:write", required: false, reason: "Publish notes" },
+          { permission: "artifact:read", required: false, reason: "Read notes" }],
+        artifacts: { produces: [{ artifact_type_id: "example.note", schema_version: 1 }], consumes: [{ artifact_type_id: "example.note", schema_version: 1 }] },
+        process_items: { produces: [{ artifact_type_id: "example.item", schema_version: 1 }], consumes: [{ artifact_type_id: "example.item", schema_version: 1 }] } };
+      const definition: PluginDefinition = { manifest, async start(context) {
+        hosted = createPluginArtifactClient({ api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: actor });
+        return base.start(context);
+      }, stop() { hosted.dispose(); } };
+      const installed = runtime.install({ definition, deployment: "local", grants: ["network:github.com", "secret:github", "artifact:write", "artifact:read"] });
+      await runtime.start(installed.install.install_id);
+      return hosted;
+    }
+    const producer = await install("producer", "author"), sameActor = await install("same-actor", "author"), otherActor = await install("other-actor", "other");
+
+    // A process item belongs to the actor whose installation recorded it: the ownership decision (2026-10-07) is about personal 成果 only.
+    const item = { artifact_id: "item-1", version: 1, artifact_type_id: "example.item", schema_version: 1,
+      content: { kind: "inline" as const, payload: { step: "draft" } } };
+    const recorded = producer.process.record(item);
+    assert.equal(recorded.artifact.owner_actor_id, "author");
+    assert.deepEqual(sameActor.client.read(item), recorded.artifact);
+    assert.throws(() => otherActor.client.read(item), (error: unknown) => error instanceof PluginArtifactAccessError && error.code === "plugin_artifact_denied");
+
+    // A personal 成果 is the person's whoever produced it, so any installation of the Home reads it by type.
+    const note = { ...pinnedArtifact("Note", { kind: "note", id: "n-1" }), artifact_id: "note-1", version: 1, artifact_type_id: "example.note", schema_version: 1,
+      content: { kind: "inline" as const, payload: { title: "Note" } } };
+    const published = producer.client.publish(note);
+    assert.deepEqual(otherActor.client.read(note), published.artifact);
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });

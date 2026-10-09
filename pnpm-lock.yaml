@@ -68,12 +68,6 @@ importers:
       '@molis-ai/molis-work-module-context-ledger':
         specifier: workspace:*
         version: link:modules/context-ledger
-      '@molis-ai/molis-work-module-evidence-verification':
-        specifier: workspace:*
-        version: link:modules/evidence-verification
-      '@molis-ai/molis-work-module-execution':
-        specifier: workspace:*
-        version: link:modules/execution
       '@molis-ai/molis-work-module-feed':
         specifier: workspace:*
         version: link:modules/feed
@@ -354,12 +348,6 @@ importers:
       '@molis-ai/molis-work-module-context-ledger':
         specifier: workspace:*
         version: link:../../modules/context-ledger
-      '@molis-ai/molis-work-module-evidence-verification':
-        specifier: workspace:*
-        version: link:../../modules/evidence-verification
-      '@molis-ai/molis-work-module-execution':
-        specifier: workspace:*
-        version: link:../../modules/execution
       '@molis-ai/molis-work-module-feed':
         specifier: workspace:*
         version: link:../../modules/feed
@@ -746,18 +734,6 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
 
-  modules/evidence-verification:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-
-  modules/execution:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-
   modules/feed:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -1056,15 +1032,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-module-evidence-verification':
-        specifier: workspace:*
-        version: link:../../../modules/evidence-verification
-      '@molis-ai/molis-work-module-execution':
-        specifier: workspace:*
-        version: link:../../../modules/execution
-      '@molis-ai/molis-work-module-goals':
-        specifier: workspace:*
-        version: link:../../../modules/goals
 
   plugins/native/images:
     dependencies:

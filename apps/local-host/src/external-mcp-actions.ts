@@ -1,14 +1,14 @@
 import path from "node:path";
-import type { ActionDefinition, ActionHandlerBinding, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionDefinition, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMcpLibrary, AgentMcpToolDescriptor, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { createMcpVersionBook, EXTERNAL_MCP_CAPABILITY_PREFIX, EXTERNAL_MCP_PERMISSION, mcpIdPart, mcpInputContract, mcpToolDescription, readJsonFile, writeJsonFile } from "./mcp-tool-actions.js";
+import { createMcpVersionBook, createRegistrationSet, EXTERNAL_MCP_CAPABILITY_PREFIX, EXTERNAL_MCP_PERMISSION, mcpIdPart, mcpInputContract, mcpToolDescription, readJsonFile, writeJsonFile } from "./mcp-tool-actions.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 
 const OUTPUT: ActionSchema = { type: "object", properties: { text: { type: "string" }, truncated: { type: "boolean" } }, required: ["text", "truncated"], additionalProperties: false };
 const VERSIONS_PATH = "config/external-mcp-actions.json";
 /** What each project's connected servers offered, so a restart keeps the entries (shown unavailable until reconnected). No secrets. */
 const SEEN_PATH = "config/external-mcp-tools.json";
-type Place = { project_id: string; board_id: string; storage_key: string };
+type Place = { project_id: string; storage_key: string };
 type Seen = Place & { plugin_id: string; runtime_id: string; tools: AgentMcpToolDescriptor[] };
 
 /**
@@ -18,7 +18,11 @@ type Seen = Place & { plugin_id: string; runtime_id: string; tools: AgentMcpTool
  * does, so saved references never silently run a different tool.
  */
 export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalHost; homeDirectory?: string }) {
-  const registered = new Map<string, Array<() => void>>();
+  const registered = new Map<string, ReturnType<typeof createRegistrationSet>>();
+  /** A registration's handlers hold the library they were made with, so another library is another registration. */
+  const libraries = new WeakMap<object, number>();
+  let libraryCount = 0;
+  const libraryId = (library: object) => { let id = libraries.get(library); if (id === undefined) libraries.set(library, id = ++libraryCount); return id; };
   /** Tools last seen per project and plugin: a saved server that disconnects keeps its entries, shown unavailable with the reason. */
   const lastSeen = new Map<string, AgentMcpToolDescriptor[]>();
   const versions = createMcpVersionBook(options.homeDirectory ? path.join(options.homeDirectory, VERSIONS_PATH) : undefined);
@@ -57,23 +61,29 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
           subject_kinds: [], input_schema: contract.schema, output_schema: OUTPUT, result_view: { summary: "服务已返回", text_pointer: "/text" } } } }; });
       next.push({ server, label: list[0]!.server_label, entries });
     }
-    for (const dispose of registered.get(key) ?? []) dispose();
+    // The server's tools are registered one by one: a refresh that finds a tool unchanged leaves its registration alone, so a
+    // call in flight on it is not withdrawn; a tool that changed or vanished is replaced or withdrawn.
+    const set = registered.get(key) ?? createRegistrationSet();
+    registered.set(key, set);
+    set.retain(new Set(next.flatMap(({ entries }) => entries.map(entry => entry.definition.capability_id))));
     const registry = options.localHost.actionRegistry(place);
-    registered.set(key, next.map(({ server, label, entries }) => registry.registerProvider({
-      provider: { provider_id: `${pluginId}#mcp:${server}`, plugin_id: pluginId, title: label, kind: "plugin", project_id: place.project_id },
-      definitions: entries.map(entry => entry.definition),
-      handlers: entries.map(({ definition, tool, contract }): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version,
-        availability: () => !contract.availability.available ? contract.availability : library.live!(tool) ? { available: true } : { available: false, code: "actions.connection_unavailable", reason: `外部 MCP「${label}」已断开或工具形状已变化，请重新连接后再用` },
-        handle: async (caller, input) => {
-          // beforeEffect rechecks the availability above; the library validates the tool against the live server again.
-          await caller.beforeEffect();
-          return library.call!(owner, tool, input as Record<string, unknown>, { signal: caller.signal, beforeDispatch: caller.beforeEffect });
-        } })),
-    })));
+    for (const { server, label, entries } of next) for (const { definition, tool, contract } of entries) {
+      set.ensure(definition.capability_id, JSON.stringify([label, definition, tool, owner, libraryId(library)]), () => registry.registerProvider({
+        provider: { provider_id: `${pluginId}#mcp:${server}`, plugin_id: pluginId, title: label, kind: "plugin", project_id: place.project_id },
+        definitions: [definition],
+        handlers: [{ capability_id: definition.capability_id, version: definition.version,
+          availability: () => !contract.availability.available ? contract.availability : library.live!(tool) ? { available: true } : { available: false, code: "actions.connection_unavailable", reason: `外部 MCP「${label}」已断开或工具形状已变化，请重新连接后再用` },
+          handle: async (caller, input) => {
+            // beforeEffect rechecks the availability above; the library validates the tool against the live server again.
+            await caller.beforeEffect();
+            return library.call!(owner, tool, input as Record<string, unknown>, { signal: caller.signal, beforeDispatch: caller.beforeEffect });
+          } }],
+      }));
+    }
   }
   return {
     sync(runtime: MolisWorkProjectRuntime, pluginId: string, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner) {
-      return sync({ project_id: runtime.project_id, board_id: runtime.board_id, storage_key: runtime.store.path }, pluginId, runtimeId, library, owner);
+      return sync({ project_id: runtime.project_id, storage_key: runtime.store.path }, pluginId, runtimeId, library, owner);
     },
     /**
      * After a restart (or a project reopening) the directory is empty until someone lists the servers again. The first
@@ -86,7 +96,7 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
         const run = restoring.get(key) ?? (async () => {
           try {
             const library = await libraryFor(entry.runtime_id);
-            if (library && !registered.has(key)) await sync(entry, entry.plugin_id, entry.runtime_id, library, { board_id: entry.board_id, plugin_id: entry.plugin_id });
+            if (library && !registered.has(key)) await sync(entry, entry.plugin_id, entry.runtime_id, library, { project_id: entry.project_id, plugin_id: entry.plugin_id });
           } catch { /* The directory stays as it is; the next list of the servers catches up. */ }
           finally { restoring.delete(key); }
         })();
@@ -94,6 +104,6 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
         return run;
       }));
     },
-    close() { for (const list of registered.values()) for (const dispose of list) dispose(); registered.clear(); },
+    close() { for (const set of registered.values()) set.clear(); registered.clear(); },
   };
 }

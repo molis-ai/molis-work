@@ -7,7 +7,7 @@ import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { actionEffect, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionEffect, type ActionCallContext, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { AssistantError, AssistantService } from "./assistant-service.js";
 import type { PersonActions } from "./assistant-coding.js";
@@ -18,9 +18,11 @@ import { registerAssistantRuleActions } from "./assistant-rule-actions.js";
 import { agentDefinitionsFor } from "../agent-definitions/agent-definitions.js";
 import { memoryHostFor } from "../memory/memory-host.js";
 import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
+import { projectDeletedHooksFor } from "../project-deleted-hooks.js";
+import { purgeAssistantProject } from "./assistant-project-purge.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
-const WEB_ACTOR = "web-user";
+const WEB_ACTOR = LOCAL_PERSON_ACTOR_ID;
 /** How long one working-out of the person's grants is reused by the calls that follow it. */
 const PERSON_CONTEXT_REUSE_MS = 2_000;
 
@@ -104,6 +106,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   }, WEB_ACTOR);
   const entry = { home: ports.homeDirectory, service, store };
   services.set(ports.localHost, entry);
+  // Deleting a project also stops the round its works still run and cancels their timed follow-ups, which only this service can do.
+  projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: "助理在这个项目里的工作", alive: () => ports.localHost.lifecycle() === "running",
+    clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.removeFollowUp(id); } }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
   try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service); }
   catch (error) { console.warn("[assistant] 提醒规则动作没能登记到动作目录", error); }
@@ -112,7 +117,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
 
 /** The person's published Characters in one project: listed with whether each can run, and frozen exactly for a round. */
 async function projectCharacters(ports: AssistantHttpPorts, project: LocalHostProjectReference) {
-  const { board, artifacts } = await ports.localHost.withProject(project, async runtime => ({ board: runtime.board_id, artifacts: runtime.coordinator.artifacts.query }));
+  const { board, artifacts } = await ports.localHost.withProject(project, async runtime => ({ board: runtime.project_id, artifacts: runtime.coordinator.artifacts.query }));
   return codingCharacterPorts(ports.homeDirectory, WEB_ACTOR, board, artifacts);
 }
 
@@ -144,6 +149,8 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         return { status: 200, body: await service.offerFromPage(body as unknown as AssistantPageCardInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "send") {
+        // A page marks the words it wrote itself ("page"); the marks of the Host's and the Assistant's own rounds are set in code and cannot be claimed from outside.
+        if (body.written_by !== undefined && body.written_by !== "page") throw new AssistantError("assistant.invalid", "written_by 只能是 page");
         return { status: 200, body: await service.send(body as unknown as AssistantSendInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
       }
       // What the Assistant may use here, and what the person switched off for it.

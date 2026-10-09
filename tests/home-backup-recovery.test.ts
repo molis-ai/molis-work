@@ -23,11 +23,11 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     const project = await catalog.createProject({ display_name: "恢复演练项目", actor_id: "user" });
     catalog.close();
-    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id });
+    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const host = createMolisWorkLocalHost({ instanceId: "backup-source" });
     try {
       await host.client(reference).invoke(createGoalIntentCapability, {
-        board_id: project.board_id, actor_id: "user", actor_kind: "user", idempotency_key: "backup-goal",
+        project_id: project.project_id, actor_id: "user", actor_kind: "user", idempotency_key: "backup-goal",
         goal_id: "retained-goal", title: "保留交接正文", outcome: "恢复后继续工作",
         why: "不能只恢复空壳", business_logic: "保留正文、关系、版本和历史", priority: 50,
       });
@@ -37,13 +37,13 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
     const artifacts = new ArtifactsModule({ db: source.db, appendEvent: event => source.appendEvent(event) });
     try {
       for (const version of [1, 2]) artifacts.commands.registerVersion({ ...pinnedArtifact(`第${version}版报告`, { kind: "item", id: "report" }, String(version)),
-        board_id: project.board_id, artifact_id: "report", version, actor_id: "user",
+        project_id: project.project_id, artifact_id: "report", version, actor_id: "user",
         artifact_type_id: "example.report", schema_version: 1,
         producer: { plugin_id: "example.writer", plugin_version: "1.0.0", binding_signature: "example-publisher" },
         content: { kind: "inline", payload: { text: `第${version}版报告`, custom: [null, 7, "附件说明"] } },
       });
     } catch (error) { source.close(); throw error; }
-    const before = source.snapshot(project.board_id);
+    const before = source.snapshot(project.project_id);
     source.close();
 
     const registry = await openWorkSessionRegistry({ homeDirectory: home });
@@ -65,16 +65,16 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
     finally { restoredCatalog.close(); }
     const restoredHost = createMolisWorkLocalHost({ instanceId: "backup-restored" });
     try {
-      const snapshot = await restoredHost.client(reference).invoke(snapshotBoardCapability, { board_id: project.board_id });
+      const snapshot = await restoredHost.client(reference).invoke(snapshotBoardCapability, { project_id: project.project_id });
       assert.deepEqual(snapshot, before, "all Goal facts and event history survive, not only IDs");
       assert.equal(snapshot.goals.find(goal => goal.goal_id === "retained-goal")?.outcome, "恢复后继续工作");
     } finally { await restoredHost.close(); }
     const restored = new LocalProjectDatabase(project.database_path);
     try {
       const reader = new ArtifactsModule({ db: restored.db, appendEvent: event => restored.appendEvent(event) });
-      assert.deepEqual(reader.query.listArtifactVersions(project.board_id, "report").map(item => item.version).sort(), [1, 2]);
+      assert.deepEqual(reader.query.listArtifactVersions(project.project_id, "report").map(item => item.version).sort(), [1, 2]);
       for (const version of [1, 2]) assert.deepEqual(
-        reader.query.getArtifactVersion(project.board_id, { artifact_id: "report", version })?.payload,
+        reader.query.getArtifactVersion(project.project_id, { artifact_id: "report", version })?.payload,
         { text: `第${version}版报告`, custom: [null, 7, "附件说明"] },
       );
     } finally { restored.close(); }

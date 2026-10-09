@@ -21,10 +21,10 @@ export async function runLocalPluginDevelopment(input: {
     await writeFile(join(directory, markerName), JSON.stringify(marker) + "\n", { flag: "wx" });
   }
   const host = createMolisWorkLocalHost();
-  const boardId = "plugin-development";
+  const projectId = "plugin-development";
   try {
-    return await host.client(molisWorkHostProjectReference({ databasePath: join(directory, "development.db"), boardId }))
-      .invoke(pluginDevelopmentCapability, { directory: input.directory, board_id: boardId,
+    return await host.client(molisWorkHostProjectReference({ databasePath: join(directory, "development.db"), projectId }))
+      .invoke(pluginDevelopmentCapability, { directory: input.directory, project_id: projectId,
         actor_id: "local-plugin-developer", grants: input.grants, allow_unsigned_development: input.allow_unsigned_development });
   } finally { await host.close(); }
 }

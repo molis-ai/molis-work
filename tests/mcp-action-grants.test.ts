@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { createMcpActionGrant, resolveMcpActionContext, assertMcpActionAuthority, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
-import { parseMcpToolPreference, readMcpToolPreference, writeMcpToolPreference, writeMcpActionGrant, mcpToolPreferencePath } from "../apps/local-host/src/mcp-settings-store.js";
+import { createMcpActionGrant, resolveMcpActionContext, assertMcpActionAuthority } from "../apps/local-host/src/mcp-action-grants.js";
+import { parseMcpToolPreference, readMcpToolPreference, writeMcpActionGrant, mcpToolPreferencePath } from "../apps/local-host/src/mcp-settings-store.js";
 
 const caller: ActionCallContext = { actor_id: "runtime:client-a", project_id: "a", audience: "mcp", permissions: [] };
 function view(scope: "home" | "project" = "project", version = 1, provider = "unknown-plugin"): ActionView {
@@ -16,29 +16,32 @@ function view(scope: "home" | "project" = "project", version = 1, provider = "un
       input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "integer" } } };
 }
 
-test("persisted grants keep old switches and concurrent management updates, with duplicates failing closed", async t => {
+test("persisted grants keep concurrent management updates; duplicates and other versions fail closed", async t => {
   const home = await mkdtemp(join(tmpdir(), "mcp-grants-")); t.after(() => rm(home, { recursive: true, force: true }));
   const first = createMcpActionGrant(caller.actor_id, "a", view(), true);
   const second = { ...first, client_id: "runtime:client-b", enabled: false };
   await Promise.all([writeMcpActionGrant(home, first), writeMcpActionGrant(home, second)]);
-  await writeMcpToolPreference(home, { molis_work_v1_functions_list: false });
   const preference = await readMcpToolPreference(home);
-  assert.deepEqual(preference.action_grants, [first, second]);
-  assert.equal(preference.overrides.molis_work_v1_functions_list, false);
+  assert.deepEqual(preference, { version: 2, action_grants: [first, second] });
   await writeMcpActionGrant(home, { ...first, enabled: false });
   assert.equal((await readMcpToolPreference(home)).action_grants?.length, 2);
   assert.equal(JSON.parse(await readFile(mcpToolPreferencePath(home), "utf8")).action_grants[1].enabled, false);
   const invalid = JSON.stringify({ ...preference, action_grants: [first, { ...first, enabled: false }, { ...first, version: "1" }] });
   assert.deepEqual(parseMcpToolPreference(JSON.parse(invalid)).action_grants, []);
   await writeFile(mcpToolPreferencePath(home), invalid);
-  await assert.rejects(writeMcpToolPreference(home, {}), /已保留原文件/);
+  await assert.rejects(writeMcpActionGrant(home, first), /已保留原文件/);
   assert.equal(await readFile(mcpToolPreferencePath(home), "utf8"), invalid);
+  const otherVersion = JSON.stringify({ version: 1, overrides: {}, action_grants: [first] });
+  assert.deepEqual(parseMcpToolPreference(JSON.parse(otherVersion)).action_grants, [], "a file of another version grants nothing");
+  await writeFile(mcpToolPreferencePath(home), otherVersion);
+  await assert.rejects(writeMcpActionGrant(home, first), /已保留原文件/);
+  assert.equal(await readFile(mcpToolPreferencePath(home), "utf8"), otherVersion);
 });
 
 test("MCP grants are exact for client, project, Home, provider, version and accepted permissions; no permission borrowing", () => {
   const project = view(), home = view("home"), newer = view("project", 2), replacement = view("project", 1, "replacement");
   const grant = createMcpActionGrant(caller.actor_id, "a", project, true);
-  const preference = { version: 1 as const, overrides: {}, action_grants: [grant] };
+  const preference = { version: 2 as const, action_grants: [grant] };
   const resolve = (context = caller, actions = [project, home, newer, replacement]) => resolveMcpActionContext(context, actions, preference);
   assert.deepEqual(resolve().allowed_actions, [{ capability_id: project.capability_id, version: 1, provider_id: project.provider.provider_id }]);
   assert.deepEqual(resolve({ ...caller, project_id: "b" }).permissions, []);
@@ -50,7 +53,6 @@ test("MCP grants are exact for client, project, Home, provider, version and acce
   assert.throws(() => createMcpActionGrant(caller.actor_id, null, project, true), { code: "actions.project_required" });
   const globalPreference = { ...preference, action_grants: [createMcpActionGrant(caller.actor_id, null, home, true)] };
   assert.equal(resolveMcpActionContext({ ...caller, project_id: null }, [home], globalPreference).allowed_actions?.length, 1);
-  assert.deepEqual(resolveMcpActionContext(caller, [project], { ...preference, overrides: { [hostActionToolName(project)]: false } }).permissions, []);
   assert.equal(preference.action_grants[0], grant, "resolving unavailable/changed definitions must retain original records");
 });
 
@@ -58,7 +60,7 @@ test("Host inspection exposes metadata without execution rights; exact scope and
   const home = await mkdtemp(join(tmpdir(), "mcp-grant-queue-"));
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const action = view(), newer = view("project", 2), reference = { project_id: "a", board_id: "a", storage_key: "memory:a" };
+  const action = view(), newer = view("project", 2), reference = { project_id: "a", storage_key: "memory:a" };
   let writes = 0;
   const dispose = host.actionRegistry(reference).registerProvider({ provider: action.provider, definitions: [action, newer],
     handlers: [action, newer].map(def => ({ capability_id: def.capability_id, version: def.version, handle: () => ++writes })) });
@@ -107,7 +109,7 @@ test("permission-free system defaults can be revoked per client and restored, wi
   const base = view("home");
   const action: ActionView = { ...base, provider: { ...base.provider, kind: "system" }, action: { ...base.action, permissions: [] } };
   const context = { ...caller, project_id: null };
-  const preference = { version: 1 as const, overrides: {} };
+  const preference = { version: 2 as const, action_grants: [] };
   assert.equal(resolveMcpActionContext(context, [action], preference).allowed_actions?.length, 1);
   const deny = createMcpActionGrant(caller.actor_id, null, action, false);
   assert.deepEqual(resolveMcpActionContext(context, [action], { ...preference, action_grants: [deny] }).allowed_actions, []);

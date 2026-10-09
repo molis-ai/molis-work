@@ -27,16 +27,16 @@ class Client {
 
 test("real Goal/Artifact actions survive phone retry, two members, revocation, restart and asset relocation", {timeout:120000}, async()=>{
   const directory=await mkdtemp(join(tmpdir(),'molis-continuity-'));
-  const projectId='shared-project',boardId='shared-board',goalId='PHONE-GOAL';
+  const projectId='shared-project',goalId='PHONE-GOAL';
   const dbPath=join(directory,'project.sqlite');
   const db=new LocalProjectDatabase(dbPath),app=new GoalProjectApplication(db);
-  app.initializeBoard({board_id:boardId,title:'接续验证',actor_id:'desktop',idempotency_key:'init'});
-  app.goalEvents.createIntent({board_id:boardId,actor_id:'desktop',idempotency_key:'seed-goal',goal_id:goalId,title:'完成真实接续',outcome:'手机记录后桌面继续'});
-  app.goalEvents.createIntent({board_id:boardId,actor_id:'desktop',idempotency_key:'private-goal',goal_id:'PRIVATE',title:'私人目标不得出现在共享响应'});
-  app.artifacts.commands.registerVersion({...pinnedArtifact('操作说明'),board_id:boardId,artifact_id:'shared-artifact',version:2,actor_id:'desktop',artifact_type_id:'io.test.document',schema_version:1,
+  app.initializeBoard({project_id:projectId,title:'接续验证',actor_id:'desktop',idempotency_key:'init'});
+  app.goalEvents.createIntent({project_id:projectId,actor_id:'desktop',idempotency_key:'seed-goal',goal_id:goalId,title:'完成真实接续',outcome:'手机记录后桌面继续'});
+  app.goalEvents.createIntent({project_id:projectId,actor_id:'desktop',idempotency_key:'private-goal',goal_id:'PRIVATE',title:'私人目标不得出现在共享响应'});
+  app.artifacts.commands.registerVersion({...pinnedArtifact('操作说明'),project_id:projectId,artifact_id:'shared-artifact',version:2,actor_id:'desktop',artifact_type_id:'io.test.document',schema_version:1,
     producer:{plugin_id:'io.test.writer',plugin_version:'1.0.0',binding_signature:'original'},content:{kind:'inline',payload:{content:'实际固定成果正文'}},metadata:{title:'操作说明',source_path:'/private/home/never-export'},scope:'team_project',team_share_authorized:true});
   db.close();
-  const ref=molisWorkHostProjectReference({projectId,boardId,databasePath:dbPath});
+  const ref=molisWorkHostProjectReference({projectId,databasePath:dbPath});
   let host=new MolisWorkLocalHost({homeDirectory:directory,completeText:null});
   let drop=false,hold:Promise<void>|null=null,entered:()=>void=()=>{};
   const factory:ActionFactory=({projectId,memberId,validate,signal})=>{
@@ -66,7 +66,7 @@ test("real Goal/Artifact actions survive phone retry, two members, revocation, r
     const first=await phone.get(path);
     assert.equal(first.goals.length,1);assert.equal(first.goals[0].title,'完成真实接续');
     assert.match(first.artifacts[0].content,/实际固定成果正文/);assert.doesNotMatch(JSON.stringify(first),/PRIVATE|never-export|database_path/);
-    const command={command_id:randomUUID(),project_id:projectId,goal_id:goalId,cursor:first.goals[0].cursor,revision:first.goals[0].revision,summary:'手机已核对成果',next_step:'桌面继续验证',next_actor:'桌面用户'};
+    const command={command_id:randomUUID(),project_id:projectId,goal_id:goalId,cursor:first.goals[0].cursor,summary:'手机已核对成果',next_step:'桌面继续验证',next_actor:'桌面用户'};
     drop=true;
     assert.equal((await phone.request('/continuity/api'+path+'/progress',command)).status,503);
     const committed=await desktop.get(path);assert.equal(committed.goals[0].summary,command.summary);

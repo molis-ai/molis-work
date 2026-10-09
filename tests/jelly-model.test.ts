@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, existsSync, rmSync } from "node:f
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { LocalSqliteStorage, LocalCatalogMetadata, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { ModelProviderStore } from "../apps/local-host/src/model-provider-store.js";
+import { ModelProviderStore, createModelProviderTables } from "../apps/local-host/src/model-provider-store.js";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/src/project-catalog-contract.js";
 import { readJellyModelSettings, saveJellyModelSettings, createJellyCompletion } from "../apps/local-host/src/jelly-model.js";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
@@ -22,8 +22,12 @@ function inferenceAt(t: test.TestContext, home: string, reply: string) {
   return seen;
 }
 
-function modelConnection(home: string, name: string, token: string) {
-  return withConnectorConnections(home, store => store.createToken({ serviceId: "model-api", displayName: name, token }));
+function modelConnection(home: string, name: string, token: string, address?: string) {
+  return withConnectorConnections(home, store => {
+    const connection = store.createToken({ serviceId: "model-api", displayName: name, token });
+    if (address) store.assertTarget(connection.connection_id, "model-api", address);
+    return connection;
+  });
 }
 
 function homeFor(t: test.TestContext, catalog = true): string {
@@ -31,7 +35,7 @@ function homeFor(t: test.TestContext, catalog = true): string {
   const prior = { ...process.env }; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   for (const key of ["MOLIS_WORK_TEXT_API_KEY", "MOLIS_WORK_TEXT_BASE_URL", "MOLIS_WORK_TEXT_MODEL", "MOLIS_WORK_TEXT_API_FORMAT", "MINIMAX_API_KEY"]) delete process.env[key];
   t.after(() => { process.env = prior; resetSecretStoreCache(); rmSync(home, { recursive: true, force: true }); });
-  if (catalog) { mkdirSync(join(home, "projects")); const db = new LocalSqliteStorage(join(home, "projects", "catalog.db")); const metadata = new LocalCatalogMetadata(db.db); metadata.create(); metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION); db.close(); }
+  if (catalog) { mkdirSync(join(home, "projects")); const db = new LocalSqliteStorage(join(home, "projects", "catalog.db")); const metadata = new LocalCatalogMetadata(db.db); metadata.create(); metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION); createModelProviderTables(db.db); db.close(); }
   return home;
 }
 function providerStore(home: string, action: (store: ModelProviderStore, storage: LocalSqliteStorage) => void): void {
@@ -61,7 +65,8 @@ test("Jelly custom model selects a Connector credential and keeps preferences fr
 });
 
 test("Jelly existing-provider selection changes no shared record or key, and scoped home credentials remain isolated", async t => {
-  const home = homeFor(t); providerStore(home, store => { store.upsert({ provider_id: "shared", display_name: "已有供应商", base_url: "https://shared.example.com/v1", api_format: "openai-chat-completions", models: [{ model_id: "existing-model", enabled: true }] }); store.setCredential("shared", "shared-test-key"); });
+  const home = homeFor(t); const shared = modelConnection(home, "已有供应商", "shared-test-key", "https://shared.example.com/v1");
+  providerStore(home, store => { store.upsert({ credential_ref: shared.credential_ref!, provider_id: "shared", display_name: "已有供应商", base_url: "https://shared.example.com/v1", api_format: "openai-chat-completions", models: [{ model_id: "existing-model", enabled: true }] }); });
   assert.equal(readJellyModelSettings(home).source, "provider"); let before = ""; providerStore(home, store => { before = JSON.stringify(store.get("shared")); });
   saveJellyModelSettings(home, { provider_id: "shared", model_id: "existing-model" }); providerStore(home, store => assert.equal(JSON.stringify(store.get("shared")), before));
   assert.throws(() => saveJellyModelSettings(home, { provider_id: "shared", model_id: "existing-model", api_key: "replacement" } as never), /Connectors/);
@@ -76,7 +81,7 @@ test("Jelly uses the selected Connector for local model calls and falls back to 
   const seen = inferenceAt(t, home, "Anthropic结果");
   assert.equal(await createJellyCompletion(home)!("生成"), "Anthropic结果");
   assert.deepEqual(seen.at(-1), { protocol: "anthropic-compatible", endpoint: "http://127.0.0.1:9000/anthropic/v1/messages", model: "anthropic-model", key: "local-test-key" });
-  const emptyHome = join(home, "another-home"); mkdirSync(emptyHome); process.env.MOLIS_WORK_TEXT_API_KEY = "env-test-key"; process.env.MOLIS_WORK_TEXT_API_FORMAT = "anthropic-messages"; process.env.MOLIS_WORK_TEXT_BASE_URL = "https://env.example.com";
+  const emptyHome = join(home, "another-home"); mkdirSync(emptyHome); process.env.MOLIS_WORK_TEXT_API_KEY = "env-test-key"; process.env.MOLIS_WORK_TEXT_API_FORMAT = "anthropic-messages"; process.env.MOLIS_WORK_TEXT_BASE_URL = "https://env.example.com"; process.env.MOLIS_WORK_TEXT_MODEL = "env-model";
   const environment = inferenceAt(t, emptyHome, "Anthropic结果");
   assert.equal(readJellyModelSettings(emptyHome).source, "environment"); assert.equal(await createJellyCompletion(emptyHome)!("生成"), "Anthropic结果");
   assert.equal(environment.at(-1)?.key, "env-test-key"); assert.equal(environment.at(-1)?.endpoint, "https://env.example.com/v1/messages");
@@ -95,9 +100,9 @@ test("Jelly model actions reuse the original provider and preference owners and 
   const { jellyActions, jellyServiceActions } = await import("@molis-ai/molis-work-plugin-jelly");
   const { bindActionClient } = await import("@molis-ai/molis-work-contracts/platform/actions");
   const home = homeFor(t);
+  const shared = modelConnection(home, "已有模型", "fixture-key", "https://shared.example.com/v1");
   providerStore(home, store => {
-    store.upsert({ provider_id: "shared", display_name: "已有模型", base_url: "https://shared.example.com/v1", api_format: "openai-chat-completions", models: [{ model_id: "model", enabled: true }] });
-    store.setCredential("shared", "fixture-key");
+    store.upsert({ credential_ref: shared.credential_ref!, provider_id: "shared", display_name: "已有模型", base_url: "https://shared.example.com/v1", api_format: "openai-chat-completions", models: [{ model_id: "model", enabled: true }] });
   });
   let sharedBefore = ""; providerStore(home, store => { sharedBefore = JSON.stringify(store.get("shared")); });
   const host = new MolisWorkLocalHost({ homeDirectory: home });

@@ -133,17 +133,6 @@ export function parseGoalEventSystemPayload(raw: Record<string, unknown>): GoalE
         operation,
         source_kind: asSourceKind(raw.source_kind),
       };
-    case "legacy_completion_imported":
-      return {
-        operation,
-        journal_type: nullable(raw.journal_type),
-        journal_seq: raw.journal_seq == null ? null : Number(raw.journal_seq),
-        journal_at: nullable(raw.journal_at),
-        evidence_ids: asStringArray(raw.evidence_ids),
-        review_ids: asStringArray(raw.review_ids),
-        contract_accepted_at: nullable(raw.contract_accepted_at),
-        contract_accepted_by: nullable(raw.contract_accepted_by),
-      };
     default:
       return emptyProgress();
   }
@@ -212,7 +201,7 @@ function asSourceKind(value: unknown): "web" | "onboarding" | "feed" | "runtime"
   return "web";
 }
 
-/** Old events have no source; malformed legacy data must not create navigation. */
+/** A progress report's source is optional; one that does not hold up creates no navigation. */
 export function parseGoalProgressSource(raw: unknown): GoalProgressArtifactSource | undefined {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
   const source = raw as Partial<GoalProgressArtifactSource>;

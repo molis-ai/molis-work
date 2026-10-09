@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -15,11 +15,11 @@ import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js
 test("parallel assignment routes retain drafts, freeze trusted roots and task bodies, and reject revoked or foreign directories before execution", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-assignment-http-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
-  new CodingSessionStore(store.db).create({ board_id: DEMO_BOARD_ID, session_id: "app", title: "并行分工", runtime_id: "prologue", at: new Date().toISOString() });
+  new CodingSessionStore(store.db).create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "并行分工", runtime_id: "prologue", at: new Date().toISOString() });
   const roots = ["main", "writer-a", "writer-b", "foreign"].map(id => ({ workspace_id: id, canonical_path: join(root, id), realpath_verified: true }));
   let grants = roots.slice(), owned = roots.slice(1, 3).map((grant, i) => ({ ...grant, branch: `writer/${i}`, base_commit: "abc123" }));
   const starts: AgentStartRequest[] = []; let created = 0;
-  const host = () => ({ store, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
@@ -49,7 +49,7 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
     }
     assert.equal(created, 0); assert.equal(starts.length, 0);
     assert.equal((await request("", "PATCH", { draft: "主任务草稿", configuration })).status, 200);
-    await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     const restored = (await request()).body; assert.deepEqual(restored.configuration, configuration); assert.equal(restored.draft, "主任务草稿");
     grants = roots.filter(root => root.workspace_id !== "writer-b");
     assert.equal((await start(assignments)).status, 400); assert.equal(created, 0);
@@ -69,7 +69,7 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
     assert.equal((await start(assignments, { task: "长".repeat(99_999) })).status, 400);
     assert.equal(starts.length, 1);
     assert.equal((await request("", "PATCH", { configuration: { ...configuration, writer_assignments: [{ workspace_id: "writer-a", task: "" }] } })).status, 200, "incomplete drafts are retained without starting");
-    await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     assert.equal((await request()).body.configuration.writer_assignments[0].task, ""); assert.equal(starts.length, 1);
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

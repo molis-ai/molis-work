@@ -46,11 +46,11 @@ test("MCP composes a lazy Host-owned review service before Web; later Web approv
   });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
     workspacesFor: id => catalog({ homeDirectory: home }, c => c.listWorkspaceDirectory(id)) });
-  const mcp = new LocalMcpServer(catalog, "runtime", { projectId: project.project_id, boardId: project.board_id,
+  const mcp = new LocalMcpServer(catalog, "runtime", { projectId: project.project_id,
     databasePath: project.database_path, webBaseUrl: "http://127.0.0.1:4173" },
     { homeDirectory: home, runtimeContext: { runtime_id: "fixture", stable_work_context_id: null, host_declares_stable: false } }, host);
   const service = ensureSystemAgentService(host, home, catalog);
-  const reference = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"] };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
   const token = "system-agent-fixture-control-token-0123456789";
@@ -71,14 +71,14 @@ test("MCP composes a lazy Host-owned review service before Web; later Web approv
     const first = await prepare(); // no Web server has existed
     assert.equal(service.agentHost.reviews.receipt(first.review_id)?.status, "pending");
     assert.equal(git("show", ":note"), "before\n");
-    const probe = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("./fixtures/agent-storage-owner.ts", import.meta.url)), home, project.board_id], { stdio: ["ignore", "ignore", "pipe", "ipc"] });
+    const probe = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("./fixtures/agent-storage-owner.ts", import.meta.url)), home, project.project_id], { stdio: ["ignore", "ignore", "pipe", "ipc"] });
     const exited = once(probe, "exit");
     try {
       const [message] = await Promise.race([once(probe, "message"), exited.then(() => { throw new Error("Probe exited without a result"); })]);
       assert.deepEqual(message, { code: "agent.storage_busy" });
       await exited;
     } finally { if (probe.exitCode === null && probe.signalCode === null) { probe.kill("SIGKILL"); await exited; } }
-    await service.agentHost.reviews.refresh(project.board_id);
+    await service.agentHost.reviews.refresh(project.project_id);
     assert.equal(service.agentHost.reviews.receipt(first.review_id)?.status, "pending", "another process must not cancel this owner's live review");
     server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token, localHost: host });
     await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
@@ -107,7 +107,7 @@ test("MCP composes a lazy Host-owned review service before Web; later Web approv
     const reopened = new MolisWorkLocalHost({ homeDirectory: home });
     try {
       const next = ensureSystemAgentService(reopened, home, catalog); await next.ready;
-      await next.agentHost.reviews.refresh(project.board_id);
+      await next.agentHost.reviews.refresh(project.project_id);
       assert.equal(next.agentHost.reviews.receipt(first.review_id)?.effect_settled, true);
       assert.equal(next.agentHost.reviews.receipt(abandoned.review_id)?.status, "cancelled");
       assert.equal(git("show", ":note"), "later\n");

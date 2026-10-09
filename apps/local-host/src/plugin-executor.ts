@@ -14,7 +14,7 @@ import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface PluginHostExecutorOptions {
-  board_id: string;
+  project_id: string;
   actor_id: string;
   artifacts: ArtifactsApplicationApi;
   /** Exchange data plugins record for each other, kept out of the 成果库 (specs/artifact-positioning A2). */
@@ -85,12 +85,12 @@ export class PluginHostExecutor implements PluginExecutor {
       const manifest = definition.manifest;
       const pluginCaller: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller = Object.freeze({
         plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actor_id,
-        board_id: this.options.board_id, project_id: this.options.actions.project_id,
+        project_id: this.options.actions.project_id,
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }),
         assertActive: () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); },
       });
       const artifactService = createPluginArtifactClient({ api: this.options.artifacts, process: this.options.processItems, manifest, context, actions: this.options.actions,
-        board_id: this.options.board_id, actor_id: this.options.actor_id });
+        project_id: this.options.project_id, actor_id: this.options.actor_id });
       const artifacts = artifactService.client;
       disposeArtifacts = artifactService.dispose;
       const actionCaller = (): ActionCallContext => {
@@ -118,10 +118,10 @@ export class PluginHostExecutor implements PluginExecutor {
         ? undefined
         : { manifest, graph: wiring, artifacts, processItems: artifactService.process, scopeKey: this.options.scopeKey ?? null,
             requireGrant: (permission: string) => context.requireGrant(permission),
-            latestVersion: (artifactId: string) => this.options.processItems.query.latestArtifactVersion(this.options.board_id, artifactId)?.version ?? 0 };
+            latestVersion: (artifactId: string) => this.options.processItems.query.latestArtifactVersion(this.options.project_id, artifactId)?.version ?? 0 };
 
       const hostedContext: PluginStartContext = Object.freeze({ ...context,
-        board_id: this.options.board_id,
+        project_id: this.options.project_id,
         actor_id: this.options.actor_id,
         ...(wiring === undefined ? {} : { input_group: wiring.selectedGroup(manifest.plugin_id) }),
         services: Object.freeze({
@@ -133,7 +133,7 @@ export class PluginHostExecutor implements PluginExecutor {
           ui: ui.client,
           ...(declaresEvents && this.options.events !== undefined
             ? { events: this.options.events.clientFor({
-              board_id: this.options.board_id,
+              project_id: this.options.project_id,
               plugin_id: manifest.plugin_id,
               install_id: context.install_id,
             }, pluginCaller.assertActive) }
@@ -162,7 +162,7 @@ export class PluginHostExecutor implements PluginExecutor {
     // The plugin owns its cleanup hook, so it may yield indefinitely. Revoke
     // invocation authority before waiting for it, while retaining cleanup data.
     session?.revoke();
-    this.options.events?.revoke(this.options.board_id, definition.manifest.plugin_id);
+    this.options.events?.revoke(this.options.project_id, definition.manifest.plugin_id);
     try {
       await definition.stop?.(session?.context ?? context);
     } finally {
@@ -179,7 +179,7 @@ export class PluginHostExecutor implements PluginExecutor {
       : {};
     const hostedContext: PluginUpgradeContext = Object.freeze({
       ...context,
-      board_id: this.options.board_id,
+      project_id: this.options.project_id,
       services: Object.freeze(services),
     });
     await definition.validateUpgrade({ from, context: hostedContext });

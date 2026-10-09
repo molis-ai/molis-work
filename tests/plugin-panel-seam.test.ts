@@ -14,7 +14,7 @@ function baseView(): MolisWorkWebView {
   const view = {
     snapshot: {
       board: {
-        board_id: "board-root-directory",
+        project_id: "board-root-directory",
         title: "根目录一致性",
         active_goal_id: null,
         created_at: "2026-08-31T00:00:00.000Z",
@@ -23,18 +23,6 @@ function baseView(): MolisWorkWebView {
       cursor: 0,
       goals: [],
       relations: [],
-      impacts: [],
-      risks: [],
-      claims: [],
-      runs: [],
-      evidence: [],
-      review_obligations: [],
-      reviews: [],
-      candidates: [],
-      contract_proposals: [],
-      rewires: [],
-      clarification_sessions: [],
-      clarification_turns: [],
       goal_tree_proposals: [],
       planning_method_packs: [],
     },
@@ -47,7 +35,6 @@ function baseView(): MolisWorkWebView {
     archived_goals: [],
     trashed_goals: [],
     counts: {},
-    coverage: [],
     input_bindings: [],
     policy_bindings: [],
     events: [],
@@ -56,7 +43,6 @@ function baseView(): MolisWorkWebView {
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      contract_migrations: [],
       out_rules: [],
     },
   } as MolisWorkWebView;

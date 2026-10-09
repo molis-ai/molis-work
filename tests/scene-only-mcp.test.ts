@@ -15,7 +15,7 @@ import { hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js"
 test("scene-only plugin receives exact MCP configuration grants through existing settings and updates its original storage", { timeout: 90_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "scene-only-mcp-")), token = "scene-only-mcp-configuration-control-token";
   const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "场景管理", actor_id: "owner" }));
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const db = await host.withProject(reference, runtime => runtime.store.db);
   db.exec("CREATE TABLE fixture_scene_configuration (id TEXT PRIMARY KEY, value TEXT NOT NULL, revision TEXT NOT NULL); CREATE TABLE fixture_scene_effect (value INTEGER NOT NULL)");
@@ -84,7 +84,7 @@ test("scene-only plugin receives exact MCP configuration grants through existing
     assert.equal(settings.actions.filter((row: { provider: { provider_id: string } }) => row.provider.provider_id === installed.install_id).length, 3);
     await grant(management.targets, true, false);
     await grant(management.targets);
-    external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id, boardId: project.board_id,
+    external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id,
       databasePath: project.database_path, webBaseUrl: origin }, { homeDirectory: home,
       runtimeContext: { runtime_id: "scene-only", stable_work_context_id: null, host_declares_stable: false } }, host);
     let request = 0;

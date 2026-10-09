@@ -1,6 +1,6 @@
 import path from "node:path";
 import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { composeAgentHost, workspaceRefFor, type AgentHostCompositionOptions } from "./agent-host-composition.js";
 import { createAgentConnectorPorts } from "./agent-connector-ports.js";
 import { openConfiguredModels } from "./configured-models.js";
@@ -12,6 +12,7 @@ import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 import { registerMemoryHost } from "./memory/memory-host.js";
 import { browserSurfacesFor } from "./browser/browser-surfaces.js";
+import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 
 const owners = new WeakMap<MolisWorkLocalHost, { withCatalog?: LocalWebCatalogRunner; home: string; release?: () => void }>();
 type WorkspacePorts = Pick<AgentHostCompositionOptions, "workspacesFor"> & Partial<Pick<AgentHostCompositionOptions, "workspaceFor">>;
@@ -35,7 +36,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
       prompts: agentDefinitionsFor(storageHome, builtinRegistrations),
       authorizeWriterDirectory: async (projectId, canonicalPath) => {
         if (!owner.withCatalog) throw new Error("项目目录授权服务尚未装配");
-        await owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: canonicalPath, project_id: projectId, actor_id: "web-user", user_confirmed: true })));
+        await owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: canonicalPath, project_id: projectId, actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true })));
       },
       workspacesFor: projectId => owner.withCatalog
         ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId))
@@ -44,7 +45,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         ? owner.withCatalog({ homeDirectory: storageHome }, catalog => workspaceRefFor(catalog, projectId))
         : workspaces.workspaceFor?.(projectId) ?? null,
       prologue: {
-        storageRoot: path.join(storageHome, "agent-runtime"),
+        storageRoot: agentRuntimeDirectory(storageHome),
         // The side panel's browser, when the server that owns it registered one for this Host (specs/archive/side-panel P5).
         surfaces: {
           driverFor: owner => browserSurfacesFor(localHost)?.driverFor(owner) ?? null,
@@ -63,8 +64,12 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     const unbind = bindPrologueInference(storageHome, service.inference);
     const unbindBuilder = bindPrologueBuilder(storageHome, service.createBuilderAgent);
     // Memory lives in this runtime: the platform memory is registered with it (specs/archive/memory-system §5.2).
+    // The Web server and the embedded MCP pass the catalog owner: they have taken this service as their own and run the Home's
+    // runtime. The lazy binding every Host with a Home gets in its constructor, all a forwarding stdio MCP has, does not.
     const memory = registerMemoryHost({ localHost, homeDirectory: storageHome, agentHost: service.agentHost, ready: () => service.ready, started: () => service.started,
+      executes: () => owner.withCatalog !== undefined,
       projects: async () => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().map(project => project.project_id)) : [],
+      projectExists: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().some(project => project.project_id === projectId)) : null,
       projectTitle: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }) : null });
     owner.release = () => { unbind(); unbindBuilder(); };
     const dispose = service.dispose.bind(service);

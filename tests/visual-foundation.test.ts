@@ -66,14 +66,6 @@ test("visual foundation keeps Light, Dark, and System as local presentation choi
   assert.match(VISUAL_FOUNDATION_STYLES, /data-navigation-pending="true"/);
 });
 
-test("dependency proposal records use semantic colors in both themes", () => {
-  const stylesheet = renderMolisWorkWorkbenchStylesheet();
-  assert.match(stylesheet, /\.dependency-proposal \{[^}]*background: var\(--paper\);[^}]*color: var\(--ink\);/);
-  assert.match(stylesheet, /\.dependency-rationale div \{[^}]*border-top: 1px solid var\(--line\);/);
-  assert.match(stylesheet, /\.dependency-evidence \{[^}]*border-top: 1px solid var\(--line\);/);
-  assert.doesNotMatch(stylesheet, /\.dependency-proposal \{[^}]*background: #fff;/);
-});
-
 // Soft Workbench (DESIGN.md → Primary): graphite action in both themes, and no `!important` skin that
 // would stop a disabled or hovered primary from showing its own state.
 test("primary and danger buttons keep semantic foregrounds across Light and Dark", () => {
@@ -403,7 +395,6 @@ test("visual foundation makes the default Goal view an action-led Focus", () => 
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-focus-criteria/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-now-blockers--clear/);
   assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"\] \.goal-factor-nav/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"\] \.risk-state-preview/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-focus-layout \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /@container \(min-width: 720px\)[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(220px, 250px\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /@media \(min-width: 761px\) \{[\s\S]*data-density="compact"[\s\S]*\.goal-now,[\s\S]*\.goal-focus-criteria,[\s\S]*\.goal-focus-context \{[\s\S]*padding: 12px 16px 16px;/); // spacing scale

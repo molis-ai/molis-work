@@ -4,24 +4,38 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import { setImmediate } from "node:timers/promises";
 import type { ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
-import { ImagesService, type ImagesSecretPort } from "../plugins/native/images/src/service.js";
+import { ImagesService } from "../plugins/native/images/src/service.js";
 import { ImagesStore } from "../plugins/native/images/src/store.js";
 import type { ImageGeneration } from "../plugins/native/images/src/providers.js";
 
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==", "base64");
 const success = () => [{ bytes: PNG, mime: "image/png" }];
-const connectionInput = { name: "测试生图", api_format: "openai-images" as const, base_url: "https://provider.example/v1", model: "test-image", api_key: "only-in-secret-store" };
+const connectionInput = { name: "测试生图", api_format: "openai-images" as const, base_url: "https://provider.example/v1", model: "test-image", auth_connection_id: "account" };
+const NO_CONNECTIONS = { resolveConnectionKey: () => undefined, selectConnection: () => {}, selectedConnectionId: () => null, clearConnection: () => {} };
+
+/** The Home's service connections as the Images host ports see them: image service → chosen connection → key. */
+function connectionPorts() {
+  const keys = new Map<string, string>([["account", "only-in-secret-store"]]);
+  const chosen = new Map<string, string>();
+  const ports = {
+    resolveConnectionKey: (id: string) => { const choice = chosen.get(id); return choice === undefined ? undefined : keys.get(choice) ?? null; },
+    selectConnection: (id: string, connectionId: string) => { chosen.set(id, connectionId); },
+    selectedConnectionId: (id: string) => chosen.get(id) ?? null,
+    clearConnection: (id: string) => { chosen.delete(id); },
+  };
+  return { keys, chosen, ports };
+}
 
 function fixture(t: TestContext, generate: ImageGeneration = async () => success()) {
   const home = mkdtempSync(join(tmpdir(), "molis-images-"));
-  const keys = new Map<string, string>();
-  const secrets: ImagesSecretPort = { get: (reference) => keys.get(reference) ?? null, put: (reference, key) => { keys.set(reference, key); }, delete: (reference) => { keys.delete(reference); } };
-  const service = new ImagesService({ homeDirectory: home, secrets, generate });
+  const { keys, chosen, ports } = connectionPorts();
+  const service = new ImagesService({ homeDirectory: home, ...ports, generate });
   t.after(async () => { await service.close(); rmSync(home, { recursive: true, force: true }); });
-  return { home, service, keys, secrets };
+  return { home, service, keys, chosen, ports };
 }
 
 async function settled(service: ImagesService, job: ImageJob): Promise<ImageJob> {
@@ -33,22 +47,17 @@ async function settled(service: ImagesService, job: ImageJob): Promise<ImageJob>
   assert.fail("图片任务没有进入终态");
 }
 
-test("images: connection credentials stay outside SQLite and endpoint edits cannot reuse old keys", (t) => {
-  const { home, service, keys } = fixture(t);
+test("images: the key stays in the chosen service connection, outside SQLite and every listing", (t) => {
+  const { home, service, chosen } = fixture(t);
   const connection = service.saveConnection(connectionInput);
   assert.equal(connection.has_key, true);
-  assert.equal(keys.size, 1);
+  assert.equal(connection.auth_connection_id, "account");
   assert.doesNotMatch(JSON.stringify(service.listConnections()), /only-in-secret-store|api_key/u);
   assert.doesNotMatch(readFileSync(join(home, "images", "images.db")).toString("utf8"), /only-in-secret-store/u);
-  const unchanged = service.saveConnection({ ...connectionInput, id: connection.id, api_key: "", name: "新名称" });
-  assert.equal(unchanged.has_key, true);
-  assert.equal([...keys.values()][0], connectionInput.api_key);
-  assert.throws(() => service.saveConnection({ ...connectionInput, id: connection.id, api_key: "", base_url: "https://other.example/v1" }), { code: "images.key_required" });
-  assert.throws(() => service.saveConnection({ ...connectionInput, id: connection.id, api_key: "", api_format: "gemini" }), { code: "images.key_required" });
-  assert.equal(service.listConnections()[0]?.base_url, connectionInput.base_url);
-  const local = service.saveConnection({ ...connectionInput, id: connection.id, api_key: "", base_url: "http://localhost:9876/v1" });
-  assert.equal(local.has_key, false);
-  assert.equal(keys.size, 0);
+  const renamed = service.saveConnection({ ...connectionInput, id: connection.id, name: "新名称" });
+  assert.equal(renamed.has_key, true, "editing a service keeps its chosen connection");
+  service.deleteConnection(connection.id);
+  assert.equal(chosen.has(connection.id), false, "deleting a service clears its choice; the connection stays in Connectors");
 });
 
 test("images: generation persists real bytes, isolates projects, and deduplicates requests including after completion", async (t) => {
@@ -82,8 +91,8 @@ test("images: generation persists real bytes, isolates projects, and deduplicate
 
 test("images: concurrency is capped per home across projects, cancellation frees capacity and late responses never overwrite it", async (t) => {
   const resolvers: Array<(value: ReturnType<typeof success>) => void> = [];
-  const { service, home, secrets } = fixture(t, () => new Promise((resolve) => { resolvers.push(resolve); }));
-  assert.throws(() => new ImagesService({ homeDirectory: home, secrets }), { code: "images.already_open" });
+  const { service, home, ports } = fixture(t, () => new Promise((resolve) => { resolvers.push(resolve); }));
+  assert.throws(() => new ImagesService({ homeDirectory: home, ...ports }), { code: "images.already_open" });
   const connection = service.saveConnection(connectionInput);
   const input = (request_id: string) => ({ request_id, connection_id: connection.id, prompt: "纸雕狐狸" });
   const first = service.start("project-a", input("one"));
@@ -113,7 +122,7 @@ test("images: a second Host process reads live jobs and closing it does not inte
   const moduleUrl = new URL("../plugins/native/images/src/service.ts", import.meta.url).href;
   const script = `import { ImagesService } from ${JSON.stringify(moduleUrl)};
     try {
-      const service = new ImagesService({homeDirectory:${JSON.stringify(home)},secrets:{get:()=>null,put:()=>{},delete:()=>{}}});
+      const service = new ImagesService({homeDirectory:${JSON.stringify(home)},resolveConnectionKey:()=>undefined,selectConnection:()=>{},selectedConnectionId:()=>null,clearConnection:()=>{}});
       process.stdout.write(service.getJob('project-a', ${JSON.stringify(job.id)}).status);
       await service.close();
     } catch(error) { process.stdout.write(error.code ?? 'unexpected error'); }`;
@@ -123,32 +132,26 @@ test("images: a second Host process reads live jobs and closing it does not inte
   assert.equal(service.getJob("project-a", job.id).status, "running");
 });
 
-test("images: legacy running data recovers only after the old exclusive runner closes", async (t) => {
-  const { service, home, secrets } = fixture(t, () => new Promise(() => {}));
+test("images: a job an earlier runner left running recovers only after that runner's exclusive lock closes", async (t) => {
+  const { service, home, ports } = fixture(t, () => new Promise(() => {}));
   const connection = service.saveConnection(connectionInput);
-  const job = service.start("project-a", { request_id: "legacy", connection_id: connection.id, prompt: "legacy" });
+  const job = service.start("project-a", { request_id: "earlier", connection_id: connection.id, prompt: "earlier" });
   await service.close();
+  const earlierRunner = randomUUID();
   const db = new DatabaseSync(join(home, "images", "images.db"));
-  db.prepare("UPDATE jobs SET status = 'running', runner_id = NULL, finished_at = NULL WHERE id = ?").run(job.id);
-  db.exec("ALTER TABLE jobs DROP COLUMN runner_id");
+  db.prepare("UPDATE jobs SET status = 'running', runner_id = ?, finished_at = NULL WHERE id = ?").run(earlierRunner, job.id);
   db.close();
-  const oldLock = new DatabaseSync(join(home, "images", ".runner-lock.db"));
-  oldLock.exec("BEGIN EXCLUSIVE");
-  try { assert.throws(() => new ImagesService({ homeDirectory: home, secrets }), { code: "images.already_open" }); }
-  finally { oldLock.close(); }
-  const restarted = new ImagesService({ homeDirectory: home, secrets });
+  const earlierLock = new DatabaseSync(join(home, "images", "runners", earlierRunner + ".db"));
+  earlierLock.exec("BEGIN EXCLUSIVE");
+  try {
+    const alongside = new ImagesService({ homeDirectory: home, ...ports });
+    try { assert.equal(alongside.getJob("project-a", job.id).status, "running", "a live runner's job is not interrupted"); }
+    finally { await alongside.close(); }
+  } finally { earlierLock.close(); }
+  const restarted = new ImagesService({ homeDirectory: home, ...ports });
   try {
     assert.equal(restarted.getJob("project-a", job.id).status, "interrupted");
     assert.equal(restarted.listConnections()[0]!.id, connection.id);
-    // An old executable must also be excluded while the new runner is alive.
-    const module = new URL("node:sqlite").href;
-    const script = `import { DatabaseSync } from ${JSON.stringify(module)};
-      const lock = new DatabaseSync(${JSON.stringify(join(home, "images", ".runner-lock.db"))});
-      try { lock.exec('BEGIN EXCLUSIVE'); process.stdout.write('unexpected'); }
-      catch (error) { process.stdout.write(String(error.errcode)); }
-      finally { lock.close(); }`;
-    const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", timeout: 10_000 });
-    assert.equal(child.status, 0, child.stderr); assert.equal(child.stdout, "5");
   } finally { await restarted.close(); }
 });
 
@@ -166,7 +169,7 @@ test("images: a generation passes its fixed model and credential reference to th
 
 test("images: close and restart mark unfinished jobs interrupted and do not charge again", async (t) => {
   let calls = 0;
-  const { service, home, secrets } = fixture(t, () => { calls += 1; return new Promise(() => {}); });
+  const { service, home, ports } = fixture(t, () => { calls += 1; return new Promise(() => {}); });
   const connection = service.saveConnection(connectionInput);
   const input = { request_id: "restart", connection_id: connection.id, prompt: "狐狸" };
   const job = service.start("project-a", input);
@@ -177,7 +180,7 @@ test("images: close and restart mark unfinished jobs interrupted and do not char
   const db = new DatabaseSync(join(home, "images", "images.db"));
   db.prepare("UPDATE jobs SET status = 'running', finished_at = NULL WHERE id = ?").run(job.id);
   db.close();
-  const restarted = new ImagesService({ homeDirectory: home, secrets, generate: () => { calls += 1; return new Promise(() => {}); } });
+  const restarted = new ImagesService({ homeDirectory: home, ...ports, generate: () => { calls += 1; return new Promise(() => {}); } });
   try {
     assert.equal(restarted.getJob("project-a", job.id).status, "interrupted");
     assert.equal(restarted.start("project-a", input).id, job.id);
@@ -188,7 +191,7 @@ test("images: close and restart mark unfinished jobs interrupted and do not char
 
 test("images: shutdown aborts every task and releases the runner when interruption writes fail", async (t) => {
   const signals: AbortSignal[] = [];
-  const { service, home, secrets } = fixture(t, (_input, signal) => {
+  const { service, home, ports } = fixture(t, (_input, signal) => {
     signals.push(signal);
     return new Promise(() => {});
   });
@@ -200,7 +203,7 @@ test("images: shutdown aborts every task and releases the runner when interrupti
   await service.close();
   assert.equal(signals.length, 2);
   assert.ok(signals.every((signal) => signal.aborted));
-  const restarted = new ImagesService({ homeDirectory: home, secrets });
+  const restarted = new ImagesService({ homeDirectory: home, ...ports });
   try {
     assert.ok(jobs.every((job) => restarted.getJob("project-a", job.id).status === "interrupted"));
   } finally { await restarted.close(); }
@@ -209,8 +212,7 @@ test("images: shutdown aborts every task and releases the runner when interrupti
 test("images: a database close error still releases both the SQLite runner lock and the in-process registration", async (t) => {
   const home = mkdtempSync(join(tmpdir(), "molis-images-close-fault-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  const secrets: ImagesSecretPort = { get: () => null, put: () => {}, delete: () => {} };
-  const service = new ImagesService({ homeDirectory: home, secrets });
+  const service = new ImagesService({ homeDirectory: home, ...NO_CONNECTIONS });
   const store = Reflect.get(service, "store");
   const db = Reflect.get(store, "db") as DatabaseSync;
   const originalClose = db.close.bind(db);
@@ -219,7 +221,7 @@ test("images: a database close error still releases both the SQLite runner lock 
     throw new Error("injected database close failure");
   });
   await assert.rejects(service.close(), /injected database close failure/u);
-  const restarted = new ImagesService({ homeDirectory: home, secrets });
+  const restarted = new ImagesService({ homeDirectory: home, ...NO_CONNECTIONS });
   try { assert.deepEqual(restarted.listConnections(), []); }
   finally { await restarted.close(); }
 });
@@ -230,7 +232,7 @@ test("images: failed store initialization releases the runner even when database
   const originalExec = DatabaseSync.prototype.exec;
   const originalClose = DatabaseSync.prototype.close;
   const execMock = t.mock.method(DatabaseSync.prototype, "exec", function (this: DatabaseSync, sql: string) {
-    if (sql.includes("CREATE TABLE IF NOT EXISTS connections")) throw new Error("injected schema initialization failure");
+    if (sql.includes("CREATE TABLE connections")) throw new Error("injected schema initialization failure");
     return originalExec.call(this, sql);
   });
   let closes = 0;
@@ -240,7 +242,7 @@ test("images: failed store initialization releases the runner even when database
     if (closes === 1) throw new Error("injected constructor cleanup failure");
   });
   assert.throws(() => new ImagesStore(home), /injected constructor cleanup failure/u);
-  assert.equal(closes, 3);
+  assert.equal(closes, 2, "the database and the runner lock both close");
   execMock.mock.restore();
   closeMock.mock.restore();
   const store = new ImagesStore(home);
@@ -268,9 +270,10 @@ test("images: localhost can generate without a key and remote connections fail c
     assert.equal(input.resolveCredential(input.credential_ref), "");
     return success();
   });
-  const remote = service.saveConnection({ ...connectionInput, api_key: "" });
+  const { auth_connection_id: _, ...unchosen } = connectionInput;
+  const remote = service.saveConnection(unchosen);
   assert.throws(() => service.start("project-a", { request_id: "remote", connection_id: remote.id, prompt: "狐狸" }), { code: "images.key_required" });
-  const local = service.saveConnection({ ...connectionInput, base_url: "http://127.0.0.1:8787/v1", api_key: "" });
+  const local = service.saveConnection({ ...unchosen, base_url: "http://127.0.0.1:8787/v1" });
   assert.equal((await settled(service, service.start("project-a", { request_id: "local", connection_id: local.id, prompt: "狐狸" }))).status, "succeeded");
 });
 
@@ -297,9 +300,9 @@ for (const change of ["model", "endpoint", "credential", "delete"] as const) {
     const input = { request_id: `pending-${change}`, connection_id: connection.id, prompt: "保留的原始描述" };
     const job = service.start("project-a", input);
     await entered.promise;
-    if (change === "model") service.saveConnection({ ...connectionInput, id: connection.id, model: "changed-model", api_key: "" });
+    if (change === "model") service.saveConnection({ ...connectionInput, id: connection.id, model: "changed-model" });
     if (change === "endpoint") service.saveConnection({ ...connectionInput, id: connection.id, base_url: "https://changed.example/v1" });
-    if (change === "credential") keys.set(`images:${connection.id}`, "replacement-key");
+    if (change === "credential") keys.set("account", "replacement-key");
     if (change === "delete") service.deleteConnection(connection.id);
     reply.resolve(success());
     const result = await settled(service, job);
@@ -317,7 +320,7 @@ test("images: revocation between enqueue and dispatch prevents the model call", 
   const { service, keys } = fixture(t, async () => { calls++; return success(); });
   const connection = service.saveConnection(connectionInput);
   const job = service.start("project-a", { request_id: "before-dispatch", connection_id: connection.id, prompt: "原材料" });
-  keys.delete(`images:${connection.id}`);
+  keys.delete("account");
   assert.equal((await settled(service, job)).status, "failed");
   assert.equal(calls, 0);
 });
@@ -332,7 +335,7 @@ test("images: deferred Host credential resolution refuses a changed selection", 
   const connection = service.saveConnection(connectionInput);
   const job = service.start("project-a", { request_id: "deferred-credential", connection_id: connection.id, prompt: "原始素材" });
   await entered.promise;
-  keys.set(`images:${connection.id}`, "changed-key");
+  keys.set("account", "changed-key");
   release.resolve();
   const result = await settled(service, job);
   assert.equal(result.status, "failed");

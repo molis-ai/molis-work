@@ -23,7 +23,7 @@ async function fixture(t: TestContext, memory = false) {
   db.exec("CREATE TABLE effects (id INTEGER PRIMARY KEY, value TEXT)");
   const repository = memory ? new MemoryPluginEventsRepository() : new SqlitePluginEventsRepository(db);
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db)), supervisor = new PluginSupervisor(runtime);
-  const bus = new PluginEventBus({ boardId: EVENT_BOARD, lifecycle: supervisor, repository });
+  const bus = new PluginEventBus({ projectId: EVENT_BOARD, lifecycle: supervisor, repository });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let holding = true;
   const subscriber = eventCrashDefinition(EVENT_SUBSCRIBER, async context => {
@@ -37,7 +37,7 @@ async function fixture(t: TestContext, memory = false) {
     db.close(); rmSync(directory, { recursive: true, force: true });
   });
   await supervisor.start([{ definition: eventCrashDefinition(EVENT_SOURCE) }, { definition: subscriber }]);
-  const publish = (value: string) => bus.publish({ board_id: EVENT_BOARD, plugin_id: EVENT_SOURCE,
+  const publish = (value: string) => bus.publish({ project_id: EVENT_BOARD, plugin_id: EVENT_SOURCE,
     install_id: supervisor.installation(EVENT_SOURCE)!.install_id }, { event_type_id: EVENT_TYPE, type_version: 1, payload: { value } });
   publish("first"); await entered.promise; publish("second");
   bus.revoke(EVENT_BOARD, EVENT_SUBSCRIBER); await bus.drain();
@@ -129,20 +129,4 @@ test("same-id reinstall never takes over the old event and close cannot resolve 
   await rig.bus.close();
   assert.throws(() => rig.bus.recover(EVENT_BOARD, "tester", input), { code: "event_recovery_changed" });
   assert.equal(rig.count(), 1);
-});
-
-test("identity-era cursor migration preserves progress and introduces a revision without inventing a decision", () => {
-  const db = new Database(":memory:");
-  try {
-    db.exec(`CREATE TABLE plugin_event_cursors (board_id TEXT, subscriber_plugin_id TEXT, subscriber_install_id TEXT,
-      subscriber_generation TEXT, source_plugin_id TEXT, event_type_id TEXT, type_version INTEGER, delivered_sequence INTEGER,
-      state TEXT, retry_at TEXT, last_error_code TEXT, updated_at TEXT,
-      PRIMARY KEY(board_id,subscriber_plugin_id,subscriber_install_id,subscriber_generation,source_plugin_id,event_type_id,type_version))`);
-    db.prepare("INSERT INTO plugin_event_cursors VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
-      .run(EVENT_BOARD, EVENT_SUBSCRIBER, "install", "generation", EVENT_SOURCE, EVENT_TYPE, 1, 4, "quarantined", null, "unknown", "past");
-    const repository = new SqlitePluginEventsRepository(db), row = repository.listCursors(EVENT_BOARD)[0]!;
-    assert.equal(row.revision, ""); assert.equal(row.delivered_sequence, 4); assert.equal(row.last_error_code, "unknown");
-    assert.equal(row.updated_at, "past"); assert.deepEqual(repository.resolutions(EVENT_BOARD), []);
-    assert.deepEqual(new SqlitePluginEventsRepository(db).listCursors(EVENT_BOARD), [row]);
-  } finally { db.close(); }
 });

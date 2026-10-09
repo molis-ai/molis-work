@@ -6,8 +6,6 @@ import test from "node:test";
 import { cliFlagValue, cliGoalUrl, readCliJsonPayload } from "@molis-ai/molis-work-app-cli";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import type { LegacyV3ImportInput } from "@molis-ai/molis-work-plugin-goals";
 
 async function captureCli(operation: () => Promise<number>): Promise<string[]> {
   const lines: string[] = [];
@@ -58,75 +56,21 @@ test("CLI help and failed input retain storage side effects, error order and inj
     assert.equal(existsSync(databasePath), false);
     assert.equal(opens, 0, "failed input must not open a runtime");
 
-    const input = { board_id: "cli-input-board", title: "从文件初始化", actor_id: "user", idempotency_key: "init" };
+    const input = { project_id: "cli-input-board", title: "从文件初始化", actor_id: "user", idempotency_key: "init" };
     const file = join(directory, "payload.json");
     writeFileSync(file, JSON.stringify(input));
     const output = await captureCli(() => runV1Cli(["init", "--db", databasePath, "--file", file], { localHost: host }));
     assert.match(output[0]!, /\n  "/, "JSON output remains indented");
-    const reference = molisWorkHostProjectReference({ databasePath, boardId: input.board_id });
-    const snapshot = await host.client(reference).invoke(snapshotBoardCapability, { board_id: input.board_id });
+    const reference = molisWorkHostProjectReference({ databasePath, projectId: input.project_id });
+    const snapshot = await host.client(reference).invoke(snapshotBoardCapability, { project_id: input.project_id });
     assert.equal(snapshot.board.title, "从文件初始化");
-    await assert.rejects(runV1Cli(["unknown", "--db", databasePath, "--board-id", input.board_id], { localHost: host }), {
+    await assert.rejects(runV1Cli(["unknown", "--db", databasePath, "--project-id", input.project_id], { localHost: host }), {
       message: "未知 V1 operation: unknown",
     });
     assert.equal(host.status().state, "running");
     assert.equal(opens, 1);
-    assert.deepEqual(await host.client(reference).invoke(snapshotBoardCapability, { board_id: input.board_id }), snapshot);
+    assert.deepEqual(await host.client(reference).invoke(snapshotBoardCapability, { project_id: input.project_id }), snapshot);
   } finally {
-    await host.close();
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
-
-test("CLI V3 import and MCP share the Host, preserve mapped facts, and reject overwrite without changing history", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-cli-import-"));
-  const databasePath = join(directory, "nested", "project.db");
-  const boardId = "import-board";
-  const legacy: LegacyV3ImportInput = {
-    schema_version: "3.0", goal_id: "legacy-root", meta: { title: "旧项目", source: { seed: "source" } },
-    root_goal: { constraints: ["保留功能"] },
-    goals: [
-      { id: "root", parent: null, one_liner: "总目标", covers: ["功能"], inputs: ["旧输入"], outputs: ["结果"] },
-      { id: "child", parent: "root", one_liner: "子目标", covers: [], inputs: [], outputs: ["明细"] },
-    ],
-    coverage_ledger: [{ id: "requirement", requirement: "保留数据", status: "now", owner_goal: "child" }],
-  };
-  let opens = 0;
-  const host = createMolisWorkLocalHost({ onRuntimeOpen: () => { opens += 1; } });
-  const mcp = new MolisWorkServer("management", null, null, host);
-  const reference = molisWorkHostProjectReference({ databasePath, boardId });
-  try {
-    const output = await captureCli(() => runV1Cli([
-      "import-v3", "--db", databasePath, "--board-id", boardId, "--actor", "user", "--key", "import",
-      "--json", JSON.stringify(legacy),
-    ], { localHost: host }));
-    const report = JSON.parse(output[0]!);
-    assert.deepEqual(report.goal_id_map, { root: "import-board:v3:root", child: "import-board:v3:child" });
-    const snapshot = await host.client(reference).invoke(snapshotBoardCapability, { board_id: boardId });
-    assert.equal(snapshot.board.title, "旧项目");
-    const root = snapshot.goals.find((goal) => goal.goal_id === "import-board:v3:root")!;
-    assert.equal(root.title, "总目标");
-    assert.deepEqual(root.required_inputs, ["旧输入"]);
-    assert.deepEqual(root.promised_outputs, ["结果"]);
-    assert.deepEqual(root.constraints, ["保留功能"]);
-    assert.ok(snapshot.goals.every((goal) => goal.definition_state === "draft"));
-    assert.ok(snapshot.relations.some((relation) => relation.from_goal_id === "import-board:v3:child"
-      && relation.to_goal_id === "import-board:v3:root" && relation.type === "part_of"));
-    await assert.rejects(mcp.callTool("molis_work_v1_import_v3", {
-      database_path: databasePath, board_id: boardId,
-      payload: { legacy, actor_id: "user", idempotency_key: "import" },
-    }), { message: `目标 Board 已存在，不会覆盖: ${boardId}` });
-    assert.deepEqual(await host.client(reference).invoke(snapshotBoardCapability, { board_id: boardId }), snapshot);
-    assert.equal(opens, 1);
-    await host.close();
-    const restarted = createMolisWorkLocalHost();
-    try {
-      assert.deepEqual(await restarted.client(reference).invoke(snapshotBoardCapability, { board_id: boardId }), snapshot);
-    } finally {
-      await restarted.close();
-    }
-  } finally {
-    await mcp.close();
     await host.close();
     rmSync(directory, { recursive: true, force: true });
   }

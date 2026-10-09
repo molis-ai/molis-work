@@ -84,11 +84,11 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
     };
 
     const revealDeepLinkFromId = async (targetId, behavior = "auto") => {
-      const legacyDecisionGoalId = targetId?.startsWith("decision-goal-")
+      const decisionGoalId = targetId?.startsWith("decision-goal-")
         ? targetId.slice("decision-goal-".length)
         : "";
-      if (legacyDecisionGoalId) {
-        location.assign(route("/goals/" + encodeURIComponent(legacyDecisionGoalId)));
+      if (decisionGoalId) {
+        location.assign(route("/goals/" + encodeURIComponent(decisionGoalId)));
         return null;
       }
       let target = deepLinkTargetFromId(targetId);

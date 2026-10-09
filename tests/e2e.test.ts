@@ -319,21 +319,21 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         "utf8",
       );
       assert.match(installedSkill, /Never require a fixed phrase or verbatim repetition/);
-      assert.match(installedSkill, /molis_work_v1_event_resume/);
+      assert.match(installedSkill, /goals\.work\.resume/);
       assert.match(installedSkill, /Planning is optional/);
       const installedExecution = await readFile(
         join(userHome, ".codex", "skills", "goal-advance", "references", "execution.md"),
         "utf8",
       );
-      assert.match(installedExecution, /molis_work_v1_event_note/);
-      assert.match(installedExecution, /molis_work_v1_event_report/);
-      assert.match(installedExecution, /molis_work_v1_event_resume/);
+      assert.match(installedExecution, /goals\.note/);
+      assert.match(installedExecution, /goals\.events\.report/);
+      assert.match(installedExecution, /goals\.work\.resume/);
       const installedPlanning = await readFile(
         join(userHome, ".codex", "skills", "goal-advance", "references", "planning.md"),
         "utf8",
       );
       assert.match(installedPlanning, /Plan useful outcomes and real dependencies/);
-      assert.match(installedPlanning, /molis_work_v1_goal_tree_propose/);
+      assert.match(installedPlanning, /goals\.tree\.submit/);
       assert.match(installedPlanning, /Only that real consumption justifies consumer depends_on provider/);
       const installedIndustryMethod = await readFile(
         join(userHome, ".codex", "skills", "goal-advance", "methods", "industries", "industry-education.md"),
@@ -391,7 +391,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
           }>;
         }).tools;
         const installedNames = installedTools.map((tool) => tool.name);
-        for (const name of ["molis_work_v1_goal_intent_create", "molis_work_v1_event_note", "molis_work_v1_goal_list", "molis_work_v1_goal_state", "molis_work_v1_event_list", "molis_work_v1_event_read", "molis_work_v1_event_configure", "molis_work_v1_event_report", "molis_work_v1_event_progress", "molis_work_v1_event_concern", "molis_work_v1_event_decision_request", "molis_work_v1_event_cite_decision", "molis_work_v1_event_agree", "molis_work_v1_event_close", "molis_work_v1_event_resume"]) {
+        for (const name of ["molis_work_v1_action_goals.create__v1", "molis_work_v1_action_goals.note__v1", "molis_work_v1_action_goals.list__v1", "molis_work_v1_action_goals.state.read__v1", "molis_work_v1_action_goals.events.list__v1", "molis_work_v1_action_goals.events.read__v1", "molis_work_v1_action_goals.events.configure__v1", "molis_work_v1_action_goals.events.report__v1", "molis_work_v1_action_goals.progress.record__v1", "molis_work_v1_action_goals.concerns.apply__v1", "molis_work_v1_action_goals.decisions.request__v1", "molis_work_v1_action_goals.decisions.cite__v1", "molis_work_v1_action_goals.agreement.set__v1", "molis_work_v1_action_goals.closure.submit__v1", "molis_work_v1_action_goals.work.resume__v1"]) {
           assert.equal(installedNames.includes(name), false, "project binding and explicit action grants are required");
         }
         for (const name of [
@@ -425,9 +425,9 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
           project_id: created.project.project_id,
           actor_id: "runtime-codex",
           user_confirmed: true,
-        }) as { connection: { board_id: string; project_id: string } };
+        }) as { connection: { project_id: string } };
         assert.equal(bound.connection.project_id, created.project.project_id);
-        assert.ok(bound.connection.board_id);
+        assert.equal("board_id" in bound.connection, false, "a connection names the project once");
         for (const capability_id of ["goals.create", "goals.note", "goals.list", "goals.state.read", "goals.events.list", "goals.events.read", "goals.events.configure", "goals.events.report", "goals.progress.record", "goals.concerns.apply", "goals.decisions.request", "goals.decisions.cite", "goals.agreement.set", "goals.closure.submit", "goals.work.resume"]) {
           const granted = await securePost(origin, token, "/api/settings/mcp/actions", {
             client_id: "runtime:codex", project_id: created.project.project_id, capability_id,
@@ -437,26 +437,28 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         }
         const grantedTools = await firstMcp.request("tools/list", {});
         const grantedNames = (grantedTools.result as { tools: Array<{ name: string }> }).tools.map(tool => tool.name);
-        assert.ok(grantedNames.includes("molis_work_v1_goal_intent_create"));
-        assert.ok(grantedNames.includes("molis_work_v1_event_note"));
-        const started = await firstMcp.call("molis_work_v1_goal_intent_create", {
+        assert.ok(grantedNames.includes("molis_work_v1_action_goals.create__v1"));
+        assert.ok(grantedNames.includes("molis_work_v1_action_goals.note__v1"));
+        const started = await firstMcp.call("molis_work_v1_action_goals.create__v1", {
           title: "让用户在当前 Runtime 中通过自然语言维护 Molis Work。",
           outcome: "当前 Runtime 负责继续对话并持久化工作结果。",
           idempotency_key: "fresh-install-intent",
         }) as { goal: { goal_id: string }; replayed: boolean };
         assert.equal(started.replayed, false);
-        const note = await firstMcp.call("molis_work_v1_event_note", {
+        const note = await firstMcp.call("molis_work_v1_action_goals.note__v1", {
           goal_id: started.goal.goal_id,
           body: originalNoteBody,
           idempotency_key: "fresh-install-note",
         }) as { event_id: string; recorded: boolean; replayed?: boolean };
         assert.equal(note.recorded, true);
-        const state = await firstMcp.call("molis_work_v1_goal_state", {
+        const state = await firstMcp.call("molis_work_v1_action_goals.state.read__v1", {
           goal_id: started.goal.goal_id,
-        }) as { work_status: string; goal_url: string };
+        }) as { work_status: string };
         assert.equal(state.work_status, "open");
+        // Action results carry IDs; the Goal's page comes from the bound context's template.
+        const context = await firstMcp.call("molis_work_v1_context_resolve", {}) as { connection: { goal_url_template: string } };
         assert.equal(
-          state.goal_url,
+          context.connection.goal_url_template.replace("{goal_id}", encodeURIComponent(started.goal.goal_id)),
           `${origin}/projects/${encodeURIComponent(created.project.project_id)}/goals/${encodeURIComponent(started.goal.goal_id)}`,
         );
         return { goalId: started.goal.goal_id, noteId: note.event_id };
@@ -470,25 +472,25 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         await restartedMcp.initialize();
         const restored = await restartedMcp.call("molis_work_v1_context_resolve", {}) as {
           status: string;
-          connection: { project_id: string; board_id: string };
+          connection: { project_id: string };
         };
         assert.equal(restored.status, "bound");
         assert.equal(restored.connection.project_id, created.project.project_id);
-        const replayedIntent = await restartedMcp.call("molis_work_v1_goal_intent_create", {
+        const replayedIntent = await restartedMcp.call("molis_work_v1_action_goals.create__v1", {
           title: "让用户在当前 Runtime 中通过自然语言维护 Molis Work。",
           outcome: "当前 Runtime 负责继续对话并持久化工作结果。",
           idempotency_key: "fresh-install-intent",
         }) as { replayed: boolean; goal: { goal_id: string } };
         assert.equal(replayedIntent.replayed, true);
         assert.equal(replayedIntent.goal.goal_id, createdGoal.goalId);
-        const replayedNote = await restartedMcp.call("molis_work_v1_event_note", {
+        const replayedNote = await restartedMcp.call("molis_work_v1_action_goals.note__v1", {
           goal_id: createdGoal.goalId,
           body: originalNoteBody,
           idempotency_key: "fresh-install-note",
         }) as { replayed: boolean; event_id: string };
         assert.equal(replayedNote.replayed, true);
         assert.equal(replayedNote.event_id, createdGoal.noteId);
-        const listed = await restartedMcp.call("molis_work_v1_event_list", {
+        const listed = await restartedMcp.call("molis_work_v1_action_goals.events.list__v1", {
           goal_id: createdGoal.goalId,
           limit: 20,
         }) as { events: Array<{ event_id: string; kind: string; payload?: { operation?: string; body?: string } }> };

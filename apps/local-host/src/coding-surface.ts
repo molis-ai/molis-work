@@ -103,7 +103,7 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
 
   try {
     const sessions = toDirectoryEntries(
-      new CodingSessionStore(ports.store.db).list(ports.boardId),
+      new CodingSessionStore(ports.store.db).list(ports.projectId),
       ports.goalTitle,
     );
     const model: CodingUiModel = {
@@ -161,7 +161,7 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   const record = await ensureStarted(ports);
   if (!record.platform) { sendLocalWebJson(response, 503, { error: record.error ?? "插件运行平台未能启动" }); return true; }
   if (runtimeEvents) {
-    await handlePluginEventHttp(request, response, url, { events: record.platform.events, boardId: ports.boardId, actorId: ports.actorId });
+    await handlePluginEventHttp(request, response, url, { events: record.platform.events, projectId: ports.projectId, actorId: ports.actorId });
     return true;
   }
   if (runtimeUpdates) {

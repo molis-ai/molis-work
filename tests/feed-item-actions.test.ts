@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_BOARD_ID, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { FeedPluginRouteTable, createFeedRouteHandlers, feedItemActions, feedRouteErrorResponse, type FeedRouteHandlerPorts } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
@@ -17,15 +17,15 @@ const PROJECT = "project-feed-items";
 test("Feed item commands are directory actions: Home prepares and runs them, stale revisions are refused, and the old route forwards", { timeout: 120_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "feed-item-actions-"));
   const dbPath = join(home, "project.db");
-  seedDemoBoard(dbPath);
+  seedDemoBoard(dbPath, PROJECT);
   const seed = new LocalProjectDatabase(dbPath);
-  const source = createLocalFeedSourceService(seed.db, DEMO_BOARD_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
+  const source = createLocalFeedSourceService(seed.db, PROJECT).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
   const feedApp = createLocalFeedApplication(seed.db);
   const ingest = (externalId: string, title: string) => feedApp.ingestItem({ source, externalId, title, summary: title, body: title + " 的正文", occurredAt: new Date().toISOString(), attention: false }).item;
   const first = ingest("one", "客户反馈导出失败"), second = ingest("two", "周报已生成"), third = ingest("three", "需要跟进的合同");
   seed.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const reference = molisWorkHostProjectReference({ databasePath: dbPath, boardId: DEMO_BOARD_ID, projectId: PROJECT });
+  const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS] };
   const client = host.actionClient(reference);
   const actions = bindActionClient(client, () => caller);
@@ -67,7 +67,7 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
 
     // The Workbench route translates its URL into the same action and keeps its answers.
     let changes = 0;
-    const table = new FeedPluginRouteTable(createFeedRouteHandlers({ actions, boardId: DEMO_BOARD_ID, routePrefix: "/projects/p", changed: () => { changes++; } } as unknown as FeedRouteHandlerPorts));
+    const table = new FeedPluginRouteTable(createFeedRouteHandlers({ actions, projectId: PROJECT, routePrefix: "/projects/p", changed: () => { changes++; } } as unknown as FeedRouteHandlerPorts));
     const archived = await table.handle({ method: "POST", pathname: `/api/feed/items/${third.item_id}/archive`, query: new URLSearchParams(), body: { expected_revision: third.revision } });
     assert.equal(archived?.status, 200);
     assert.equal((archived?.body as { item: { disposition: string } }).item.disposition, "archived");

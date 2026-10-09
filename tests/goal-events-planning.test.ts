@@ -75,33 +75,32 @@ test("engineering planning drives configure/report; no template is not auto-adop
     };
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, runtimeHost);
-    const board_id = project.board_id;
+    const project_id = project.project_id;
 
-    const methods = JSON.parse(await mcp.callTool("molis_work_v1_planning_methods", {
-      method_ids: ["domain-software-development"], include_instructions: false,
+    const methods = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.planning.read__v1", {
+      method_ids: ["domain-software-development"],
     }));
     assert.equal(methods.methods[0]?.version, software.version);
     assert.ok(methods.methods[0]?.event_types.some((type: { type_id: string }) => type.type_id === "engineering-behavior-verification"));
     assert.ok(methods.methods[0]?.default_requirements.some((item: { requirement_id: string }) => item.requirement_id === "engineering-concern"));
 
-    const blank = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const blank = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "空白互动故事", idempotency_key: "blank-intent",
     }));
-    const blankState = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", {
+    const blankState = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", {
       goal_id: blank.goal.goal_id,
     }));
     assert.deepEqual(blankState.config.adopted_planning, []);
     assert.equal(blankState.config.types.length, 0);
     assert.ok(!blankState.config.types.some((type: { type_id: string }) => type.type_id.startsWith("engineering-")));
 
-    const engineeringGoal = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const engineeringGoal = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "工程改动", outcome: "行为变化可验证", idempotency_key: "eng-intent",
     }));
-    const adopted = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", {
+    const adopted = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id: engineeringGoal.goal.goal_id,
       expected_version: 0,
       idempotency_key: "eng-adopt",
@@ -114,10 +113,10 @@ test("engineering planning drives configure/report; no template is not auto-adop
     assert.ok(adopted.config.types.some((type: { type_id: string }) => type.type_id === "engineering-concern"));
     assert.equal(adopted.config.extra_requirements.length, 0);
 
-    const withRequirement = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", {
+    const withRequirement = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id: engineeringGoal.goal.goal_id,
       expected_version: 1,
-      expected_agreement_version: JSON.parse(await mcp.callTool("molis_work_v1_goal_state", {
+      expected_agreement_version: JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", {
         goal_id: engineeringGoal.goal.goal_id,
       })).agreement.version,
       idempotency_key: "eng-req",
@@ -133,7 +132,7 @@ test("engineering planning drives configure/report; no template is not auto-adop
     assert.ok(!withRequirement.config.extra_requirements.some((item: { source?: { template_requirement_id?: string } }) =>
       item.source?.template_requirement_id === "engineering-ui-inspection"));
 
-    const delivered = JSON.parse(await mcp.callTool("molis_work_v1_event_report", {
+    const delivered = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", {
       goal_id: engineeringGoal.goal.goal_id,
       idempotency_key: "eng-report",
       events: [{
@@ -148,14 +147,14 @@ test("engineering planning drives configure/report; no template is not auto-adop
     assert.equal(delivered.events[0]?.type?.source?.method_id, "domain-software-development");
     assert.equal(delivered.events[0]?.type?.source?.method_version, software.version);
 
-    await mcp.callTool("molis_work_v1_planning_method_save", {
+    await mcp.callTool("molis_work_v1_action_goals.planning.save__v1", {
       user_confirmed: true,
       method: eventMethod("project-story", "留下项目观察", "项目第一版"),
     });
-    const projectGoal = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const projectGoal = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "项目方法故事", idempotency_key: "project-intent",
     }));
-    const projectAdopted = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", {
+    const projectAdopted = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id: projectGoal.goal.goal_id,
       expected_version: 0,
       idempotency_key: "project-adopt",
@@ -164,7 +163,7 @@ test("engineering planning drives configure/report; no template is not auto-adop
     assert.equal(projectAdopted.config.adopted_planning[0]?.source, "project");
     const firstVersion = projectAdopted.config.adopted_planning[0]?.version;
     assert.ok(firstVersion);
-    await mcp.callTool("molis_work_v1_event_report", {
+    await mcp.callTool("molis_work_v1_action_goals.events.report__v1", {
       goal_id: projectGoal.goal.goal_id,
       idempotency_key: "project-report",
       events: [{
@@ -186,16 +185,16 @@ test("engineering planning drives configure/report; no template is not auto-adop
         { field_id: "rewrite", name: "新字段", purpose: "只有新 Goal 才该看到", format: "text", required: true },
       ],
     }];
-    await mcp.callTool("molis_work_v1_planning_method_save", {
+    await mcp.callTool("molis_work_v1_action_goals.planning.save__v1", {
       user_confirmed: true, method: updatedMethod,
     });
-    const afterUpgrade = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", {
+    const afterUpgrade = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", {
       goal_id: projectGoal.goal.goal_id,
     }));
     assert.equal(afterUpgrade.config.adopted_planning[0]?.version, firstVersion);
     assert.ok(afterUpgrade.config.types[0]?.fields.some((field: { field_id: string }) => field.field_id === "edition"));
     assert.ok(!afterUpgrade.config.types[0]?.fields.some((field: { field_id: string }) => field.field_id === "rewrite"));
-    const localAfterUpgrade = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", {
+    const localAfterUpgrade = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id: projectGoal.goal.goal_id,
       expected_version: afterUpgrade.config.version,
       idempotency_key: "project-local-after-upgrade",
@@ -210,16 +209,16 @@ test("engineering planning drives configure/report; no template is not auto-adop
     assert.equal(localAfterUpgrade.config.adopted_planning[0]?.version, firstVersion);
     assert.ok(localAfterUpgrade.config.types.some((type: { type_id: string }) => type.type_id === "local-after-upgrade"));
     assert.ok(localAfterUpgrade.config.types.some((type: { type_id: string }) => type.type_id === "project-story-note"));
-    const catalogNow = JSON.parse(await mcp.callTool("molis_work_v1_planning_methods", {
-      method_ids: ["project-story"], include_instructions: false,
+    const catalogNow = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.planning.read__v1", {
+      method_ids: ["project-story"],
     }));
     assert.ok(catalogNow.methods[0].version > firstVersion);
     assert.ok(catalogNow.methods[0].event_types[0].fields.some((field: { field_id: string }) => field.field_id === "rewrite"));
 
-    const personalGoal = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const personalGoal = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "个人方法故事", idempotency_key: "personal-intent",
     }));
-    const personalAdopted = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", {
+    const personalAdopted = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id: personalGoal.goal.goal_id,
       expected_version: 0,
       idempotency_key: "personal-adopt",
@@ -227,7 +226,7 @@ test("engineering planning drives configure/report; no template is not auto-adop
     }));
     assert.equal(personalAdopted.config.adopted_planning[0]?.source, "personal");
     assert.equal(personalAdopted.config.types[0]?.type_id, "personal-story-note");
-    const personalReport = JSON.parse(await mcp.callTool("molis_work_v1_event_report", {
+    const personalReport = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", {
       goal_id: personalGoal.goal.goal_id,
       idempotency_key: "personal-report",
       events: [{
@@ -239,18 +238,18 @@ test("engineering planning drives configure/report; no template is not auto-adop
     }));
     assert.equal(personalReport.events[0]?.payload.edition, "个人版");
 
-    const g2 = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const g2 = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "第二个工程 Goal", goal_id: "g2", idempotency_key: "g2-intent",
     }));
-    const g3 = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const g3 = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "第三个工程 Goal", goal_id: "g3", idempotency_key: "g3-intent",
     }));
-    const g2Adopted = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", {
+    const g2Adopted = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id: g2.goal.goal_id, expected_version: 0, expected_agreement_version: 0, idempotency_key: "g2-adopt",
       adopted_planning: [{ method_id: "domain-software-development" }],
       adopt_default_requirement_ids: ["engineering-delivery"],
     }));
-    const g3Adopted = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", {
+    const g3Adopted = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id: g3.goal.goal_id, expected_version: 0, expected_agreement_version: 0, idempotency_key: "g3-adopt",
       adopted_planning: [{ method_id: "domain-software-development" }],
       adopt_default_requirement_ids: ["engineering-delivery"],
@@ -263,7 +262,7 @@ test("engineering planning drives configure/report; no template is not auto-adop
     assert.ok(g3Req);
     assert.notEqual(g2Req.requirement_id, g3Req.requirement_id);
     assert.equal(g2Req.source.template_requirement_id, "engineering-delivery");
-    const g2Again = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id: "g2" }));
+    const g2Again = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id: "g2" }));
     assert.equal(g2Again.config.extra_requirements[0]?.requirement_id, g2Req.requirement_id);
     assert.equal(g2Again.requirements.find((item: { origin?: { planning?: { template_requirement_id?: string } } }) =>
       item.origin?.planning?.template_requirement_id === "engineering-delivery")?.requirement_id, g2Req.requirement_id);
@@ -283,34 +282,34 @@ test("configure idempotency uses the original request before resolving upgraded 
     const project = await catalog.createProject({ display_name: "幂等采用", actor_id: "user" });
     await grantGoalsMcp(null, homeDirectory, project);
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
+      databasePath: project.database_path, projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-idempotency", host_declares_stable: true },
     });
-    const board_id = project.board_id;
-    await mcp.callTool("molis_work_v1_planning_method_save", {
+    const project_id = project.project_id;
+    await mcp.callTool("molis_work_v1_action_goals.planning.save__v1", {
       user_confirmed: true,
       method: eventMethod("project-idempotent", "留下观察", "第一版"),
     });
-    const implicitGoal = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const implicitGoal = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "隐式版本", idempotency_key: "implicit-intent",
     }));
-    const explicitGoal = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const explicitGoal = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "显式版本", idempotency_key: "explicit-intent",
     }));
     const implicitInput = {
       goal_id: implicitGoal.goal.goal_id, expected_version: 0, idempotency_key: "implicit-adopt",
       adopted_planning: [{ method_id: "project-idempotent" }],
     };
-    const implicitFirst = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", implicitInput));
+    const implicitFirst = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", implicitInput));
     const savedVersion = implicitFirst.config.adopted_planning[0]?.version as number;
     const explicitInput = {
       goal_id: explicitGoal.goal.goal_id, expected_version: 0, idempotency_key: "explicit-adopt",
       adopted_planning: [{ method_id: "project-idempotent", version: savedVersion, source: "project" as const }],
     };
-    const explicitFirst = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", explicitInput));
+    const explicitFirst = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", explicitInput));
     const updated = eventMethod("project-idempotent", "留下观察", "第二版");
     updated.event_types = [{
       type_id: "project-idempotent-note",
@@ -323,19 +322,19 @@ test("configure idempotency uses the original request before resolving upgraded 
         { field_id: "rewrite", name: "新字段", purpose: "新 Goal 才该看到", format: "text", required: true },
       ],
     }];
-    await mcp.callTool("molis_work_v1_planning_method_save", {
+    await mcp.callTool("molis_work_v1_action_goals.planning.save__v1", {
       user_confirmed: true, method: updated,
     });
-    const implicitReplay = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", implicitInput));
+    const implicitReplay = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", implicitInput));
     assert.equal(implicitReplay.replayed, true);
     assert.equal(implicitReplay.event_id, implicitFirst.event_id);
     assert.equal(implicitReplay.config.adopted_planning[0]?.version, savedVersion);
     assert.ok(implicitReplay.config.types[0]?.fields.some((field: { field_id: string }) => field.field_id === "edition"));
-    const explicitReplay = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", explicitInput));
+    const explicitReplay = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", explicitInput));
     assert.equal(explicitReplay.replayed, true);
     assert.equal(explicitReplay.event_id, explicitFirst.event_id);
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_event_configure", {
+      () => mcp!.callTool("molis_work_v1_action_goals.events.configure__v1", {
         ...implicitInput,
         types: [{
           type_id: "changed-request",
@@ -349,13 +348,13 @@ test("configure idempotency uses the original request before resolving upgraded 
     );
     await mcp.close();
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
+      databasePath: project.database_path, projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-idempotency", host_declares_stable: true },
     });
-    const persisted = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", {
+    const persisted = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", {
       goal_id: implicitGoal.goal.goal_id,
     }));
     assert.equal(persisted.config.adopted_planning[0]?.version, savedVersion);
@@ -376,13 +375,13 @@ test("equivalent planning packs merge with provenance; conflicting packs fail at
     const project = await catalog.createProject({ display_name: "合并规划", actor_id: "user" });
     await grantGoalsMcp(null, homeDirectory, project);
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
+      databasePath: project.database_path, projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-merge", host_declares_stable: true },
     });
-    const board_id = project.board_id;
+    const project_id = project.project_id;
     const sharedFields = [
       { field_id: "note", name: "内容", purpose: "观察正文", format: "text" as const, required: true },
     ];
@@ -396,16 +395,16 @@ test("equivalent planning packs merge with provenance; conflicting packs fail at
     const packB = eventMethod("merge-b", "留下观察", "B");
     packB.event_types = packA.event_types;
     packB.default_requirements = packA.default_requirements;
-    await mcp.callTool("molis_work_v1_planning_method_save", {
+    await mcp.callTool("molis_work_v1_action_goals.planning.save__v1", {
       user_confirmed: true, method: packA,
     });
-    await mcp.callTool("molis_work_v1_planning_method_save", {
+    await mcp.callTool("molis_work_v1_action_goals.planning.save__v1", {
       user_confirmed: true, method: packB,
     });
-    const mergedGoal = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const mergedGoal = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "合并采用", idempotency_key: "merge-intent",
     }));
-    const merged = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", {
+    const merged = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id: mergedGoal.goal.goal_id, expected_version: 0, expected_agreement_version: 0, idempotency_key: "merge-adopt",
       adopted_planning: [{ method_id: "merge-a" }, { method_id: "merge-b" }],
       adopt_default_requirement_ids: ["shared-note-needed"],
@@ -429,23 +428,23 @@ test("equivalent planning packs merge with provenance; conflicting packs fail at
       type_id: "conflict-note", version: 1, name: "观察", purpose: "B 的定义", semantic_family: "observation",
       fields: [{ field_id: "note", name: "内容", purpose: "B", format: "text", required: false }],
     }];
-    await mcp.callTool("molis_work_v1_planning_method_save", {
+    await mcp.callTool("molis_work_v1_action_goals.planning.save__v1", {
       user_confirmed: true, method: conflictA,
     });
-    await mcp.callTool("molis_work_v1_planning_method_save", {
+    await mcp.callTool("molis_work_v1_action_goals.planning.save__v1", {
       user_confirmed: true, method: conflictB,
     });
-    const conflictGoal = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const conflictGoal = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "冲突采用", idempotency_key: "conflict-intent",
     }));
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_event_configure", {
+      () => mcp!.callTool("molis_work_v1_action_goals.events.configure__v1", {
         goal_id: conflictGoal.goal.goal_id, expected_version: 0, idempotency_key: "conflict-adopt",
         adopted_planning: [{ method_id: "conflict-a" }, { method_id: "conflict-b" }],
       }),
       (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_config.planning_type_conflict",
     );
-    const unchanged = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", {
+    const unchanged = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", {
       goal_id: conflictGoal.goal.goal_id,
     }));
     assert.equal(unchanged.config.version, 0);

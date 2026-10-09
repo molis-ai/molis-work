@@ -32,7 +32,7 @@ function result(callId: string, content: unknown, isError = false) {
 }
 
 test("跑过的命令留下回执，退出码是「未知」而不是 0", () => {
-  const state = emptyStreamState();
+  const state = emptyStreamState("run-1");
   feed(state, bash("c1", "pnpm test"));
   feed(state, result("c1", "42 passing\n"));
 
@@ -47,7 +47,7 @@ test("跑过的命令留下回执，退出码是「未知」而不是 0", () => 
 });
 
 test("失败的命令，输出进 stderr 而不是混进 stdout", () => {
-  const state = emptyStreamState();
+  const state = emptyStreamState("run-1");
   feed(state, bash("c1", "pnpm build"));
   feed(state, result("c1", "error TS2304", true));
 
@@ -58,7 +58,7 @@ test("失败的命令，输出进 stderr 而不是混进 stdout", () => {
 });
 
 test("不是命令的工具调用不留回执——读文件不该出现在终端页", () => {
-  const state = emptyStreamState();
+  const state = emptyStreamState("run-1");
   feed(state, {
     type: "assistant",
     message: { content: [{ type: "tool_use", id: "c1", name: "Read", input: { file_path: "a.ts" } }] },
@@ -70,7 +70,7 @@ test("不是命令的工具调用不留回执——读文件不该出现在终�
 });
 
 test("tool_result 以文本块数组到达时也能读出来", () => {
-  const state = emptyStreamState();
+  const state = emptyStreamState("run-1");
   feed(state, bash("c1", "ls"));
   feed(state, result("c1", [
     { type: "text", text: "a.ts" },
@@ -80,7 +80,7 @@ test("tool_result 以文本块数组到达时也能读出来", () => {
 });
 
 test("超长输出被截断，并且如实标出来", () => {
-  const state = emptyStreamState();
+  const state = emptyStreamState("run-1");
   feed(state, bash("c1", "cat huge.log"));
   feed(state, result("c1", "x".repeat(CLI_RECEIPT_MAX_BYTES + 5_000)));
 
@@ -90,7 +90,7 @@ test("超长输出被截断，并且如实标出来", () => {
 });
 
 test("同一轮里多条命令各自留回执，互不覆盖", () => {
-  const state = emptyStreamState();
+  const state = emptyStreamState("run-1");
   feed(state, bash("c1", "pnpm build"));
   feed(state, bash("c2", "pnpm test"));
   feed(state, result("c2", "ok"));

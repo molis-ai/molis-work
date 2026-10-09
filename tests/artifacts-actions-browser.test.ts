@@ -45,12 +45,14 @@ test("actual Artifact import, fixed version, Goal embed and disabled reader surv
     const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(`${REVIEW_EVIDENCE}/action-service/artifacts/read-${width}.png`, Buffer.from(screenshot.data, "base64"));
   }
-  const board = store.goalsQuery.listBoardIds()[0]!, scope = { kind: "personal" as const, id: board };
+  const board = store.goalsQuery.listProjectIds()[0]!, scope = { kind: "personal" as const, id: board };
   const ledger = createContextLedger(store.db, { authorize: () => true });
   ledger.commands.put({ actor_id: "browser-owner", scope }, { key: "artifact-action-input", type: "goal.input", cause: "Explicit browser fixture",
     source: { module: "goals", id: "V1", version: null, scope }, target: { module: "artifacts", id: exact!.artifact_id, version: exact!.version, scope } });
+  // A fixed input is listed with the Goal's other inputs (artifact-positioning 五.1, one entry), opening its exact version.
+  const fixedInput = `Boolean(document.querySelector('[data-goal-inputs] [data-goal-input-fixed] [data-workbench-item-id="/artifacts/${encodeURIComponent(exact!.artifact_id)}/versions/1"]'))`;
   await visit("/goals/V1");
-  assert.equal(await evaluate(`Boolean(document.querySelector('[data-artifact-version="1"]'))`), true);
+  assert.equal(await evaluate(fixedInput), true);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory });
   try {
     catalog.removeProjectPlugin({ project_id: projectId!, plugin_id: "artifacts", actor_id: "browser-owner" });
@@ -60,6 +62,6 @@ test("actual Artifact import, fixed version, Goal embed and disabled reader surv
     assert.equal(denied.status, 404); await denied.text();
     catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "artifacts", actor_id: "browser-owner" });
     await visit("/goals/V1");
-    assert.equal(await evaluate(`Boolean(document.querySelector('[data-artifact-version="1"]'))`), true);
+    assert.equal(await evaluate(fixedInput), true);
   } finally { catalog.close(); }
 });

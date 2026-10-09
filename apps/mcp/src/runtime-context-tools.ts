@@ -6,7 +6,7 @@ export interface McpRuntimeContextPorts {
   catalogs: RuntimeProjectCatalogProvider;
   connection: RuntimeProjectConnectionState;
   requireHost(context: McpToolCallContext): MolisWorkRuntimeContextHost;
-  presentResolution(resolution: MolisWorkRuntimeContextResolution, host: MolisWorkRuntimeContextHost, reconcileLegacy?: boolean): Promise<string>;
+  presentResolution(resolution: MolisWorkRuntimeContextResolution, host: MolisWorkRuntimeContextHost, bound?: boolean): Promise<string>;
 }
 
 /** Named tool conversions over the Host's public catalog scope; no binding algorithm or Store. */
@@ -41,7 +41,6 @@ export function createMcpRuntimeContextHandlers(ports: McpRuntimeContextPorts) {
           projects: catalog.listProjects().map((project) => ({
             project_id: project.project_id,
             display_name: project.display_name,
-            board_id: project.board_id,
             source: project.source,
           })),
         },

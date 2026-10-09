@@ -1,5 +1,5 @@
 import { ScheduleError, type ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
-import { getScheduleReminder, migrateScheduleReminders, REMINDERS_PER_INSTALLATION, type ScheduleReminder } from "./reminders.js";
+import { getScheduleReminder, SCHEDULE_REMINDERS_SCHEMA_SQL, REMINDERS_PER_INSTALLATION, type ScheduleReminder } from "./reminders.js";
 import type { ScheduleTaskDatabase } from "./tasks.js";
 
 /** Resolved by the Host from Runtime, never from a request's claimed installation. */
@@ -17,15 +17,15 @@ export interface RecoverScheduleReminderInput {
 
 /** Schedule owns recovery decisions; Runtime identity and the same-db wakeup port are supplied by the Host. */
 export function createScheduleReminderManagement(options: {
-  db: ScheduleTaskDatabase; boardId: string;
+  db: ScheduleTaskDatabase; projectId: string;
   schedule: { get(jobId: string): ScheduleJobRecord | null; setEnabled(jobId: string, enabled: boolean, owner?: string): ScheduleJobRecord };
   currentInstallation(pluginId: string): ReminderRecoveryInstallation | null;
 }) {
   const { db, schedule } = options;
-  migrateScheduleReminders(db);
+  db.exec(SCHEDULE_REMINDERS_SCHEMA_SQL);
   const recordFor = (job: ScheduleJobRecord): ScheduleReminder | null => {
-    const row = db.prepare("SELECT id FROM schedule_plugin_reminders WHERE board_id = ? AND json_extract(record_json, '$.jobId') = ?")
-      .get(options.boardId, job.job_id) as { id: string } | undefined;
+    const row = db.prepare("SELECT id FROM schedule_plugin_reminders WHERE project_id = ? AND json_extract(record_json, '$.jobId') = ?")
+      .get(options.projectId, job.job_id) as { id: string } | undefined;
     const record = row ? getScheduleReminder(db, row.id) : null;
     return record?.jobOwner === job.plugin_id ? record : null;
   };
@@ -57,8 +57,8 @@ export function createScheduleReminderManagement(options: {
         }
         // A repeated confirmation must not undo a later pause or rearm a consumed one-shot job.
         if (matches(record, installation)) return view(job);
-        const count = db.prepare("SELECT COUNT(*) AS n FROM schedule_plugin_reminders WHERE board_id = ? AND plugin_id = ? AND installation_id = ? AND json_extract(record_json, '$.installationGeneration') = ?")
-          .get(options.boardId, record.pluginId, installation.installation_id, installation.generation) as { n: number };
+        const count = db.prepare("SELECT COUNT(*) AS n FROM schedule_plugin_reminders WHERE project_id = ? AND plugin_id = ? AND installation_id = ? AND json_extract(record_json, '$.installationGeneration') = ?")
+          .get(options.projectId, record.pluginId, installation.installation_id, installation.generation) as { n: number };
         if (count.n >= REMINDERS_PER_INSTALLATION) throw new ScheduleError("schedule_job_invalid", "这个插件的提醒已经太多了，先取消一些");
         db.prepare("UPDATE schedule_plugin_reminders SET installation_id = ?, record_json = ? WHERE id = ?")
           .run(installation.installation_id, JSON.stringify({ ...record, installationId: installation.installation_id, installationGeneration: installation.generation }), record.id);

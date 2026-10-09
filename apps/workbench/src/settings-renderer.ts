@@ -2,7 +2,7 @@ import { renderModelSettingsDocument } from "./settings-models.js";
 import { renderHint, icon as modelIcon } from "@molis-ai/molis-work-design-system";
 import { CONTROL_CLIENT_SCRIPT, SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
 import type { RuntimeIntegrationDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { MolisWorkSettingsView, WebSettingsProject, McpSettingsToolView } from "./settings-view.js";
+import type { MolisWorkSettingsView, WebSettingsProject } from "./settings-view.js";
 import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { createProjectSettingsFolds } from "./project-settings-folds.js";
 import { renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
@@ -76,24 +76,9 @@ function renderRuntimeSettings(view: MolisWorkSettingsView): string {
 }
 
 function renderMcpSettings(view: MolisWorkSettingsView, desktopShell: boolean): string {
-  const tools = view.mcp_tools ?? [];
-  const groups = new Map<string, { title: string; tools: McpSettingsToolView[] }>();
-  for (const tool of tools) {
-    const group = groups.get(tool.group_id) ?? { title: tool.group_title, tools: [] };
-    group.tools.push(tool);
-    groups.set(tool.group_id, group);
-  }
-  const sections = [...groups.entries()].map(([id, group]) => {
-    const rows = group.tools.map((tool) => {
-      const checked = tool.enabled ? " checked" : "";
-      return `<label class="settings-setting-row"><div class="setting-copy"><strong>${escapeHtml(tool.name.replace("molis_work_v1_", ""))}</strong><span>${escapeHtml(tool.description)}</span></div><div class="setting-value"><input type="checkbox" data-mcp-tool="${escapeHtml(tool.name)}"${checked}></div></label>`;
-    }).join("");
-    return `<section class="settings-section" data-mcp-group="${escapeHtml(id)}" aria-label="${escapeHtml(group.title)}"><h2>${escapeHtml(L(group.title))}</h2>${rows}</section>`;
-  }).join("");
   return `<section class="settings-document" aria-labelledby="settings-title" data-mcp-settings>
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L(view.capabilities ? "对外接入" : "MCP")}</h1>${renderHint({ id: "settings-hint-mcp", label: L("如何生效"), text: L("授权决定客户端可以发现和调用的能力。撤销后再次调用会被拒绝；客户端可能需要刷新自己的工具列表。") })}</div><p>${L("选择客户端，决定它可以读取什么、执行哪些操作。")}</p><p><a href="${settingsContextHref("/settings/runtimes", view.context_project ?? null, desktopShell)}">${L("连接外部 AI 工具")}</a></p></header>
     ${view.mcp_access ? renderMcpAccess(view.mcp_access, view.projects, desktopShell, primitives) : ""}
-    <details class="mcp-legacy-tools"${view.mcp_access ? "" : " open"}><summary>${L("旧版工具（全局开关）")}</summary><p>${L("这些开关影响所有客户端。插件和判断工具还须取得上方对应动作的授权；旧平台工具继续沿用原权限规则。")}</p>${sections || `<div class="settings-empty"><strong>${L("还没有可开关的方法")}</strong></div>`}</details>
     <p class="settings-form-error" data-mcp-settings-error role="alert" hidden></p>
   </section>`;
 }

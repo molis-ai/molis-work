@@ -1,12 +1,12 @@
 # 结构提案与可信决定
 
-保存当前结构提案、决定和确认来源，回答“谁依据什么确认了哪个具体变化”；同时保留旧澄清、提案和 Review 的原始历史。
+保存当前结构提案、决定和确认来源，回答“谁依据什么确认了哪个具体变化”。
 
 包名：`@molis-ai/molis-work-module-governance-collaboration`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-Native Goals 通过 `records` 保存有限 Goal/Relation 结构提案，使用 `decisions` 在同一事务内记录决定并调用实际数据 owner。`eventDecisions` 保存受保护入口产生的可信用户决定，供当前约定与要求验收引用。`query` 和只读 `clarification` 提供历史记录。
+Native Goals 通过 `records` 保存有限 Goal/Relation 结构提案，使用 `decisions` 在同一事务内记录决定并调用实际数据 owner。`eventDecisions` 保存受保护入口产生的可信用户决定，供当前约定与要求验收引用。`query` 读取事件游标、快照与 Goal Tree 提案。
 
 ## 从哪里读代码
 
@@ -19,13 +19,13 @@ Native Goals 通过 `records` 保存有限 Goal/Relation 结构提案，使用 `
 | [src/decision-transactions.ts](src/decision-transactions.ts) | 决定、幂等和事务边界 |
 | [src/event-decisions.ts](src/event-decisions.ts) | 可信用户决定与具体授权范围 |
 | [src/state-machine.ts](src/state-machine.ts) | 提案/决定状态转换 |
-| [src/clarification-store.ts](src/clarification-store.ts) | 历史澄清会话及轮次读取 |
+| [src/goal-tree-records.ts](src/goal-tree-records.ts) | Goal Tree 提案、条目与决定记录 |
 
 可对照现有调用方 [apps/local-host/src/goal-project-application.ts](../../apps/local-host/src/goal-project-application.ts) 阅读装配方式。
 
 ## 接入与边界
 
-Governance 不替代 Goals/Artifacts/Projects 的写入接口，也不自行宣布 Goal 完成。Runtime 不能用自填身份或文字确认伪造用户授权。旧 Contract/Candidate/Rewire、Review 和澄清写协议已退役，原记录与来源仍能通过历史查询读取。
+Governance 不替代 Goals/Artifacts/Projects 的写入接口，也不自行宣布 Goal 完成。Runtime 不能用自填身份或文字确认伪造用户授权。旧 Contract/Candidate/Rewire、Review 和澄清已连同记录一起删除。
 
 由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。
 
@@ -48,7 +48,7 @@ node --import tsx --test --test-concurrency=1 tests/goal-tree-event-flow.test.ts
 
 ## 开发要求
 
-- 负责：结构提案、决定与确认来源，以及旧澄清、提案、Review 的历史。
+- 负责：Goal Tree 结构提案、可信用户决定与确认来源。
 - 不负责：直接修改 Goal、Artifact、Project 事实。
 - 公开入口：`@molis-ai/molis-work-module-governance-collaboration`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/governance-collaboration`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
@@ -57,7 +57,7 @@ node --import tsx --test --test-concurrency=1 tests/goal-tree-event-flow.test.ts
   - Runtime 不能用自填的 `actor_kind=user`、`user_confirmed` 或对话摘要作为授权；不同范围的授权不能互相复用。
   - 跨 owner 写入走实际的决定事务，UI 与 MCP 不另写批准或完成规则。
   - 历史 self-verifier 不能展示为用户验收，旧决定不能变成当前任意变更的授权。
-- 改动后必跑：`node scripts/run-tests.mjs tests/governance-collaboration-module.test.ts tests/governance-provenance.test.ts tests/draft-dialogue-application.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/governance-collaboration-module.test.ts tests/governance-provenance.test.ts`
 - 相关手册：[docs/modules/governance-collaboration.md](../../docs/modules/governance-collaboration.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

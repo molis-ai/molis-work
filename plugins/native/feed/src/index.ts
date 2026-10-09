@@ -43,6 +43,7 @@ export { renderFeedRichText, feedPlainText } from "./rich-content.js";
 
 export { FeedApplication } from "./application.js";
 export type { FeedApplicationPorts } from "./application-ports.js";
+export { receiptContentRefs, FEED_RECEIPT_CONTENT_REFS, type FeedSourceHistory, type FeedSourceHistoryHolding, type FeedSourceHistoryRelease } from "./source-history.js";
 export * from "./application-errors.js";
 
 export {
@@ -52,7 +53,7 @@ export {
   FeedOutRuleStore,
   feedCaptureArtifactId,
   feedOutRuleMatches,
-  migrateFeedOutRules,
+  FEED_OUT_RULES_SCHEMA_SQL,
   parseFeedOutRulePatch,
   parseFeedOutRuleWrite,
 } from "./out-rules.js";
@@ -62,13 +63,12 @@ export { createFeedExactRouteResolver, type FeedExactSourceDefinitions } from ".
 
 export { FeedSourceService } from "./source-service.js";
 export type * from "./source-ports.js";
-export { createFeedSourceSyncGuard, type FeedSourceSyncAuthority } from "./source-sync-guard.js";
+export { createFeedSourceSyncGuard, type FeedSourceSyncAuthority, type FeedSourceSyncGuard } from "./source-sync-guard.js";
 
 export { FeedConnectorSync } from "./connector-sync.js";
 export type { ConnectorSyncMode, FeedConnectorSyncPorts, FeedConnectorListener } from "./connector-sync-ports.js";
 
-export { FeedConnectorService } from "./connector-service.js";
-export type { FeedConnectorAccountPorts, FeedConnectorKind, CatalogConnectorPort, ConnectorCredentialStatus, ConnectorAuthStatus } from "./connector-account-ports.js";
+export type { ConnectorAuthStatus } from "./connector-auth-status.js";
 
 export { FeedSourceScheduler, type FeedSourceSchedulerDispatch, type FeedSourceSchedulerResult } from "./source-scheduler.js";
 

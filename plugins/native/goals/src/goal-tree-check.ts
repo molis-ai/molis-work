@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import type { GoalsQueryApi, GoalsPlanningApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GovernanceApplicationApi, GoalTreeProposalCheckInput, GoalTreeProposalCheckResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
-import { goalTreeProposalItemValidationIssues } from "./proposal-item-validation.js";
 import { GoalTreeQueryApplication } from "./goal-tree-query.js";
 import { GoalTreeMaterializationApplication } from "./goal-tree-materialization.js";
 
@@ -30,47 +29,29 @@ export class GoalTreeCheckApplication implements Pick<GoalTreeApplicationApi, "c
       "需要指定要检查的 Goal Tree proposal_id",
     );
     const proposalView = this.ports.query.listGoalTreeProposals({
-      board_id: input.board_id,
+      project_id: input.project_id,
       proposal_id: proposalId,
-      include_legacy: true,
     }).proposals[0];
     if (!proposalView) {
       throw this.ports.errorFactory("goal_tree_proposal.not_found", `找不到 Goal Tree 提案: ${proposalId}`);
     }
-    if (proposalView.origin !== "native") {
-      throw this.ports.errorFactory(
-        "goal_tree_proposal.kind_retired",
-        "历史提案不能从新 check 落地；请读取历史后提交新的 Goal/关系提案",
-        { proposal_id: proposalView.proposal_id },
-      );
-    }
     const canonicalProposalId = proposalView.proposal_id;
-    const hash = requestHash({ board_id: input.board_id, proposal_id: canonicalProposalId, actor_id: actorId });
+    const hash = requestHash({ project_id: input.project_id, proposal_id: canonicalProposalId, actor_id: actorId });
     return this.ports.governance.records.executeGoalTreeCheck({
-      board_id: input.board_id, actor_id: actorId, idempotency_key: input.idempotency_key, request_hash: hash,
+      project_id: input.project_id, actor_id: actorId, idempotency_key: input.idempotency_key, request_hash: hash,
     }, () => {
-      const proposal = this.ports.query.readNative(input.board_id, canonicalProposalId);
+      const proposal = this.ports.query.readNative(input.project_id, canonicalProposalId);
       const now = this.ports.clock().toISOString();
       const conflictItemIdSet = new Set<string>();
       for (const item of proposal.items) {
         if (item.state !== "pending" && item.state !== "conflict") continue;
-        const validationIssue = goalTreeProposalItemValidationIssues(item)[0];
         const baselineConflicts = item.baseline_versions.flatMap((baseline) => {
-          const current = this.ports.query.baselines.forBaseline(input.board_id, baseline, item);
+          const current = this.ports.query.baselines.objectVersion(input.project_id, baseline);
           return baseline.exists === current.exists && baseline.version === current.version
             ? []
             : [{ object: { object_type: baseline.object_type, object_id: baseline.object_id }, baseline, current }];
         });
-        const conflict = validationIssue
-          ? {
-              code: validationIssue.code,
-              field: validationIssue.field,
-              message: validationIssue.message,
-              recovery: validationIssue.recovery,
-            }
-          : baselineConflicts.length > 0
-            ? { objects: baselineConflicts }
-            : null;
+        const conflict = baselineConflicts.length > 0 ? { objects: baselineConflicts } : null;
         if (conflict) conflictItemIdSet.add(item.item_id);
         this.ports.governance.records.setGoalTreeItemCheck(
           canonicalProposalId,
@@ -80,9 +61,9 @@ export class GoalTreeCheckApplication implements Pick<GoalTreeApplicationApi, "c
           now,
         );
       }
-      const checkedItems = this.ports.query.readNative(input.board_id, canonicalProposalId).items;
+      const checkedItems = this.ports.query.readNative(input.project_id, canonicalProposalId).items;
       const materializationConflicts = this.ports.materialization.preflight(
-        input.board_id,
+        input.project_id,
         checkedItems.filter((item) => item.state === "pending"),
         actorId,
         now,
@@ -102,14 +83,13 @@ export class GoalTreeCheckApplication implements Pick<GoalTreeApplicationApi, "c
       const conflictItemIds = proposal.items
         .filter((item) => conflictItemIdSet.has(item.item_id))
         .map((item) => item.item_id);
-      const planningIssues = this.ports.goals.planning.proposalGraphIssues(input.board_id, proposal.items);
+      const planningIssues = this.ports.goals.planning.proposalGraphIssues(input.project_id, proposal.items);
       const cursor = this.ports.governance.records.recordGoalTreeCheck({
-        board_id: input.board_id, proposal_id: canonicalProposalId, actor_id: actorId,
+        project_id: input.project_id, proposal_id: canonicalProposalId, actor_id: actorId,
         conflict_item_ids: conflictItemIds, planning_issue_codes: planningIssues.map(issue => issue.code), at: now,
-        origin: "native",
       });
       const outcome: GoalTreeProposalCheckResult = {
-        proposal: this.ports.query.readNative(input.board_id, canonicalProposalId),
+        proposal: this.ports.query.readNative(input.project_id, canonicalProposalId),
         conflict_item_ids: conflictItemIds,
         planning_issues: planningIssues,
         observed_event_cursor: cursor,

@@ -1,4 +1,4 @@
-import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
   TODO_STATUSES,
@@ -75,6 +75,16 @@ const RELATIONS: readonly TodoRelation[] = ["blocked_by", "blocks", "split_from"
 const SOURCE_KINDS: readonly TodoSource["kind"][] = ["manual", "material", "assistant", "onboarding", "inbox", "lingguang"];
 const MAX_BATCH = 200;
 
+/**
+ * What makes two requests one: who asked, from which project (or none), and the id they chose. The store is one
+ * Home-wide database and callers choose their own ids, so the id alone would hand one caller another caller's todo.
+ * Both the todo receipts and the organizer's batches keep requests under this key.
+ */
+export function todoRequestKey(access: Pick<TodoAccess, "actorId" | "projectId">, requestId: string | undefined): string | null {
+  const id = requestId?.trim();
+  return id ? JSON.stringify([access.actorId, access.projectId, id]) : null;
+}
+
 export class TodoStore {
   constructor(private readonly db: DatabaseSync, private readonly now: () => Date = () => new Date()) {}
 
@@ -109,9 +119,9 @@ export class TodoStore {
   }
 
   create(input: TodoCreateInput, access: TodoAccess, batchId: string | null = null): { item: TodoItem; change_id: string; replayed: boolean } {
-    const requestId = input.request_id?.trim();
-    if (requestId) {
-      const seen = this.db.prepare("SELECT item_id FROM todo_requests WHERE request_id = ?").get(requestId) as { item_id: string } | undefined;
+    const requestKey = todoRequestKey(access, input.request_id);
+    if (requestKey) {
+      const seen = this.db.prepare("SELECT item_id FROM todo_requests WHERE request_id = ?").get(requestKey) as { item_id: string } | undefined;
       if (seen) {
         const change = this.db.prepare("SELECT change_id FROM todo_changes WHERE item_id = ? AND kind = 'create'").get(seen.item_id) as { change_id: string } | undefined;
         return { item: this.get(seen.item_id, access), change_id: change?.change_id ?? "", replayed: true };
@@ -152,7 +162,7 @@ export class TodoStore {
       this.insert(item);
       this.record({ change_id: changeId, item_id: item.id, batch_id: batchId, kind: "create", actor: access.actor, at, before: null,
         after: { title: item.title }, revision_after: 1 });
-      if (requestId) this.db.prepare("INSERT INTO todo_requests (request_id, item_id, created_at) VALUES (?, ?, ?)").run(requestId, item.id, at);
+      if (requestKey) this.db.prepare("INSERT INTO todo_requests (request_id, item_id, created_at) VALUES (?, ?, ?)").run(requestKey, item.id, at);
     });
     return { item, change_id: changeId, replayed: false };
   }
@@ -424,7 +434,7 @@ export class TodoStore {
     const relation = input.kind === "todo" ? input.relation ?? "related" : null;
     if (relation !== null && !RELATIONS.includes(relation)) throw invalid("关系无效");
     const outcome = input.kind === "outcome" ? input.outcome ?? "draft" : null;
-    if (outcome !== null && outcome !== "draft" && outcome !== "done") throw invalid("成果状态无效");
+    if (outcome !== null && outcome !== "draft" && outcome !== "done") throw invalid("产出状态无效");
     return { link_id: crypto.randomUUID(), kind: input.kind, subject: { kind: subject.kind, id: subject.id }, title, relation, outcome,
       open: normalizeOpen(input.open), added_at: this.now().toISOString() };
   }
@@ -457,55 +467,71 @@ export class TodoStore {
   }
 }
 
+/**
+ * The Todo store's one current schema (repository-anti-corruption §4.1), the organizer's tables included: new stores are
+ * created from it, existing ones must already be at its version.
+ */
+export const TODO_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE todo_items (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    notes TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL,
+    placement TEXT NOT NULL,
+    project_id TEXT,
+    due_date TEXT,
+    due_time TEXT,
+    planned_date TEXT,
+    remind_at TEXT,
+    important INTEGER NOT NULL DEFAULT 0,
+    waiting_json TEXT,
+    sources_json TEXT NOT NULL DEFAULT '[]',
+    links_json TEXT NOT NULL DEFAULT '[]',
+    edited_fields_json TEXT NOT NULL DEFAULT '[]',
+    archived_at TEXT,
+    completed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    reminder_acknowledged_at TEXT
+  );
+  CREATE INDEX todo_items_project ON todo_items (project_id);
+  CREATE TABLE todo_changes (
+    change_id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL,
+    batch_id TEXT,
+    kind TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    at TEXT NOT NULL,
+    before_json TEXT,
+    after_json TEXT NOT NULL,
+    revision_after INTEGER NOT NULL,
+    reverted_by TEXT
+  );
+  CREATE INDEX todo_changes_item ON todo_changes (item_id);
+  CREATE INDEX todo_changes_batch ON todo_changes (batch_id) WHERE batch_id IS NOT NULL;
+  CREATE TABLE todo_requests (
+    request_id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  -- The organizer's review batches and what it remembers about sources (organize.ts).
+  CREATE TABLE todo_batches (
+    batch_id TEXT PRIMARY KEY, project_id TEXT, origin TEXT NOT NULL, method TEXT NOT NULL, title TEXT NOT NULL,
+    body_json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL,
+    request_id TEXT UNIQUE
+  );
+  CREATE TABLE todo_source_memory (
+    source_key TEXT NOT NULL, fingerprint TEXT NOT NULL, decision TEXT NOT NULL, item_id TEXT, reason TEXT NOT NULL, at TEXT NOT NULL,
+    PRIMARY KEY (source_key, fingerprint)
+  );
+` };
+
 export function openTodoStore(homeDirectory: string, now?: () => Date): TodoStore {
   const db = openHomeSqliteDatabase(homeDirectory, "todo");
-  db.exec(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA busy_timeout = 5000;
-    CREATE TABLE IF NOT EXISTS todo_items (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      notes TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL,
-      placement TEXT NOT NULL,
-      project_id TEXT,
-      due_date TEXT,
-      due_time TEXT,
-      planned_date TEXT,
-      remind_at TEXT,
-      important INTEGER NOT NULL DEFAULT 0,
-      waiting_json TEXT,
-      sources_json TEXT NOT NULL DEFAULT '[]',
-      links_json TEXT NOT NULL DEFAULT '[]',
-      edited_fields_json TEXT NOT NULL DEFAULT '[]',
-      archived_at TEXT,
-      completed_at TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      revision INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS todo_items_project ON todo_items (project_id);
-    CREATE TABLE IF NOT EXISTS todo_changes (
-      change_id TEXT PRIMARY KEY,
-      item_id TEXT NOT NULL,
-      batch_id TEXT,
-      kind TEXT NOT NULL,
-      actor TEXT NOT NULL,
-      at TEXT NOT NULL,
-      before_json TEXT,
-      after_json TEXT NOT NULL,
-      revision_after INTEGER NOT NULL,
-      reverted_by TEXT
-    );
-    CREATE INDEX IF NOT EXISTS todo_changes_item ON todo_changes (item_id);
-    CREATE INDEX IF NOT EXISTS todo_changes_batch ON todo_changes (batch_id) WHERE batch_id IS NOT NULL;
-    CREATE TABLE IF NOT EXISTS todo_requests (
-      request_id TEXT PRIMARY KEY,
-      item_id TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-  `);
-  ensureSqliteColumn(db, "todo_items", "reminder_acknowledged_at", "TEXT");
+  db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
+  applySqliteBaseline(db, homeSqlitePath(homeDirectory, "todo"), TODO_STORE_BASELINE);
   return new TodoStore(db, now);
 }
 

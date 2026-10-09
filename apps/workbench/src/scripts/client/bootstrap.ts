@@ -52,7 +52,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     findFeedNodes();
     const mobileTreeTab = document.querySelector('[data-mobile-target="tree"]');
     const mobileDocumentTab = document.querySelector('[data-mobile-target="document"]');
-    const mobileDirectoryTab = document.querySelector("[data-mobile-directory-root]");
     const defaultMobileTreeLabel = mobileTreeTab?.textContent || L("目标");
     const defaultMobileDocumentLabel = mobileDocumentTab?.textContent || L("聚焦");
     const dialog = document.querySelector("[data-create-dialog]");
@@ -133,7 +132,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       return "decision:" + decodeURIComponent(location.hash.slice(prefix.length));
     };
     const visibleGoals = (source = state) => trashView ? source.trashed_goals : archiveView ? source.archived_goals : source.goals;
-    const goalUiStorageKey = "molis-work-ui:" + (state.project?.project_id || state.snapshot.board.board_id);
+    const goalUiStorageKey = "molis-work-ui:" + (state.project?.project_id || state.snapshot.board.project_id);
     const currentGoalUiStorageKey = goalUiStorageKey + ":current";
     const storageKey = decisionView
       ? goalUiStorageKey + ":inbox"
@@ -142,7 +141,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
         : archiveView
           ? goalUiStorageKey + ":archive"
           : currentGoalUiStorageKey;
-    const goalMoveReceiptKey = "molis-work-goal-move-receipt:" + (state.project?.project_id || state.snapshot.board.board_id);
+    const goalMoveReceiptKey = "molis-work-goal-move-receipt:" + (state.project?.project_id || state.snapshot.board.project_id);
     const desktopNavigationStateVersion = 4;
     let immersiveNavigation = null;
     let frameContainer = null;
@@ -192,7 +191,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     };
     let resizeStartX = 0;
     let resizeStartWidth = 0;
-    let quickRecordRequest = null;
     let feedWorkbenchRequest = null;
     let feedDetailRequest = null;
     let searchBusyUntil = 0;

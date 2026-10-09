@@ -112,6 +112,9 @@ async function workbench(t: { after(fn: () => void): void }) {
       body: { dataset: { routePrefix: "" }, hasAttribute: () => false, append() {} },
       activeElement: null,
       querySelector: (selector: string) => selector === "[data-pages=workbench]" ? surface : null,
+      // The document's open tab, named after it (tab-workspace's appendTab).
+      querySelectorAll: (selector: string) => selector === ".tab-item[data-item-id]"
+        ? [{ dataset: { itemId: DOC.id }, getAttribute: (name: string) => name === "title" ? DOC.title : null }] : [],
       createElement: () => node(),
       addEventListener: (type: string, fn: Listener, capture?: boolean) => { documentListeners.push({ type, fn, capture: capture === true }); },
       dispatchEvent: () => true,
@@ -168,6 +171,8 @@ test("the workbench names the document first when Pages is slower, and Pages' ow
   page.selectItem(DOC.id);
   await page.advance(250);
   assert.equal(page.context()?.named_by, "workbench");
+  // Named after its open tab, so the Assistant shows the document's title rather than its id.
+  assert.equal((page.context()?.object as { title?: string } | undefined)?.title, DOC.title);
   documentRead.resolve(undefined);
   await flush();
   assert.deepEqual(page.context()?.object, ownNaming);

@@ -1,8 +1,7 @@
-import { importV3Capability, initializeBoardCapability, snapshotBoardCapability, createGoalProposalClients, setActiveGoalCapability } from "@molis-ai/molis-work-plugin-goals";
+import { initializeBoardCapability, snapshotBoardCapability, createGoalProposalClients, setActiveGoalCapability } from "@molis-ai/molis-work-plugin-goals";
 import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { LegacyV3ImportInput } from "@molis-ai/molis-work-plugin-goals";
 import { createCliGoalTreeHandlers } from "./goal-tree-commands.js";
-import { cliFlagValue as value, printCliJson as print } from "./protocol.js";
+import { printCliJson as print } from "./protocol.js";
 
 /** CLI wire conversion over the Host's already selected project. */
 export async function dispatchCliProjectCommand(
@@ -16,9 +15,8 @@ export async function dispatchCliProjectCommand(
     case "init":
       print(
         await client.invoke(initializeBoardCapability, {
-          board_id: String(input.board_id),
+          project_id: String(input.project_id),
           title: String(input.title),
-          actor_id: String(input.actor_id),
           idempotency_key: String(input.idempotency_key),
         }),
       );
@@ -38,24 +36,14 @@ export async function dispatchCliProjectCommand(
     case "active-goal":
       print(
         await client.invoke(setActiveGoalCapability, {
-          board_id: String(input.board_id),
+          project_id: String(input.project_id),
           goal: { goal_id: String(input.goal_id), reason: String(input.reason) },
           write: { actor_id: String(input.actor_id), idempotency_key: String(input.idempotency_key) },
         }),
       );
       break;
     case "snapshot":
-      print(await client.invoke(snapshotBoardCapability, { board_id: String(input.board_id) }));
-      break;
-    case "import-v3":
-      print(
-        await client.invoke(importV3Capability, {
-          legacy: input as unknown as LegacyV3ImportInput,
-          target_board_id: String(value(args, "--board-id")),
-          actor_id: String(value(args, "--actor")),
-          idempotency_key: String(value(args, "--key")),
-        }),
-      );
+      print(await client.invoke(snapshotBoardCapability, { project_id: String(input.project_id) }));
       break;
     default:
       throw new Error(`未知 V1 operation: ${operation}`);

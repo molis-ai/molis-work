@@ -1,7 +1,7 @@
 import { ActionError, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import { FeedStoreError } from "./application-errors.js";
-import type { ConnectorAuthStatus } from "./connector-account-ports.js";
+import type { ConnectorAuthStatus } from "./connector-auth-status.js";
 import type { FeedItemRecord, FeedSnapshot } from "./projection.js";
 
 const empty = { type: "object", properties: {}, additionalProperties: false };
@@ -27,18 +27,19 @@ export const feedQueryActions = {
     "读取当前项目的来源、消息与拉取记录；默认省略正文，Inbox 事项由 Inbox 自己授权读取",
     { ...empty, properties: { include_contents: { type: "boolean" } } },
     { type: "object", properties: { sources: rows(["source_id"]), feed_items: { type: "array", items: item },
-      runs: rows(["run_id"]), contract_migrations: rows([]), out_rules: rows(["rule_id"]) },
-    required: ["sources", "feed_items", "runs", "contract_migrations", "out_rules"], additionalProperties: false }),
+      runs: rows(["run_id"]), out_rules: rows(["rule_id"]) },
+    required: ["sources", "feed_items", "runs", "out_rules"], additionalProperties: false }),
   item: define<{ item_id: string }, { item: FeedItemRecord }>("feed.items.get", "读取 Feed 消息",
     "读取一条消息的当前内容，包含仍可读取的原始材料正文",
     { ...empty, properties: { item_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["item_id"] },
     { type: "object", properties: { item }, required: ["item"], additionalProperties: false }),
   connections: define<Record<string, never>, ConnectorAuthStatus>("feed.connections.status", "Feed 连接状态",
-    "读取 Feed 本机账号的连接状态，不包含令牌", empty,
-    { type: "object", required: ["github", "gmail", "github_client_id_configured", "gmail_oauth_configured", "gmail_redirect_uri"] }),
+    "读取本机是否已连上 GitHub、Gmail 账号，不包含令牌", empty,
+    { type: "object", properties: { github: { type: "object", properties: { bound: { type: "boolean" } }, required: ["bound"] },
+      gmail: { type: "object", properties: { bound: { type: "boolean" } }, required: ["bound"] } }, required: ["github", "gmail"] }),
 } as const;
 
-export function createFeedQueryHandlers(feed: FeedApplication, boardId: string, ports: {
+export function createFeedQueryHandlers(feed: FeedApplication, projectId: string, ports: {
   hydrate(item: FeedItemRecord): FeedItemRecord;
   authStatus(): ConnectorAuthStatus;
   linkedContext(input: { goal_id: string; item_id?: string }, caller: ActionExecutionContext): Promise<{ source_context: string } | null>;
@@ -53,11 +54,11 @@ export function createFeedQueryHandlers(feed: FeedApplication, boardId: string, 
   return [
     bind(feedQueryActions.linkedContext, (input, caller) => ports.linkedContext(input, caller)),
     bind(feedQueryActions.snapshot, input => {
-      const { inbox_entries: _inbox, ...snapshot } = feed.snapshot(boardId);
+      const { inbox_entries: _inbox, ...snapshot } = feed.snapshot(projectId);
       return { ...snapshot, feed_items: snapshot.feed_items.map(item => ({ ...(input.include_contents ? ports.hydrate(item)
         : { ...item, body: null, materials: item.materials.map(material => ({ ...material, content: undefined })) }), suggested_behavior_ids: [] })) };
     }),
-    bind(feedQueryActions.item, input => ({ item: ports.hydrate(feed.getFeedItem(boardId, input.item_id)) })),
+    bind(feedQueryActions.item, input => ({ item: ports.hydrate(feed.getFeedItem(projectId, input.item_id)) })),
     bind(feedQueryActions.connections, () => ports.authStatus()),
   ];
 }

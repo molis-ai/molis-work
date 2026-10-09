@@ -151,7 +151,8 @@ export interface MemoryChange {
   project_id: string | null;
   /** The memory's text at the change; empty once the memory is deleted. */
   text: string;
-  by: "person" | "policy" | "maintenance";
+  /** Who made it: the person, the write gate's policy, upkeep, or the Assistant on the person's request (it only ever switches a memory off). */
+  by: "person" | "policy" | "maintenance" | "assistant";
   /** The gate rule behind an automatic change, e.g. "自动记住 · 规则 v1". */
   rule: string | null;
   /** Why, in words: 依据：你两次这样要求. */
@@ -273,7 +274,7 @@ export interface MemoryWriteRequest {
   text: string;
   kind?: MemoryKind;
   applies?: MemoryApplies;
-  /** The person's own words asking for it. Required when an agent writes. */
+  /** The person's own words asking for it. Required when an agent writes, but only a pointer: the Host holds no message of the person's for an Agent that calls this action, so what it writes is a suggestion for them to accept, never “you said”. (The Assistant's own tool is judged against the messages the Host saved, and what is then kept is that saved message.) */
   said?: string;
   /** An object it rests on: when that object is deleted or no longer readable, the memory pauses (spec §6.4). */
   rests_on?: { kind: string; id: string };
@@ -398,7 +399,7 @@ const candidateSchema = { type: "object", properties: {
   required: ["candidate_id", "scope", "project_id", "kind", "text", "applies", "basis", "why", "from", "work", "hold_reason", "supersedes", "state", "created_at", "memory_id"],
   additionalProperties: false };
 const changeSchema = { type: "object", properties: {
-  change_id: text, kind: text, memory_id: nullableText, scope: scopeSchema, project_id: nullableText, text, by: { enum: ["person", "policy", "maintenance"] },
+  change_id: text, kind: text, memory_id: nullableText, scope: scopeSchema, project_id: nullableText, text, by: { enum: ["person", "policy", "maintenance", "assistant"] },
   rule: nullableText, reason: nullableText, work: workRef, at: text, undoable: { type: "boolean" }, state: { enum: ["active", "undone"] } },
   required: ["change_id", "kind", "memory_id", "scope", "project_id", "text", "by", "rule", "reason", "work", "at", "undoable", "state"], additionalProperties: false };
 const prefsSchema = { type: "object", properties: {
@@ -446,7 +447,7 @@ export const memoryActions = {
       counts: { type: "object", properties: { personal: { type: "integer" }, project: { type: "integer" }, auto_this_week: { type: "integer" }, pending: { type: "integer" } }, required: ["personal", "project", "auto_this_week", "pending"], additionalProperties: false } },
       required: ["items", "counts"], additionalProperties: false } } } as ActionDefinition<MemoryListRequest, MemoryListResponse>,
   write: { capability_id: "memory.write", version: 1, operation: "command", action: { ...writes, audiences: ["user", "agent", "plugin"] as ("user" | "agent" | "plugin")[], permissions: [MEMORY_WRITE_PERMISSION],
-    title: "记住一件事", description: "按用户的明确要求记住一条偏好、约定、背景或经验（个人或当前项目）。经写入门：形似秘密的不写，像指令的文字只作为待认可的建议；与已有的冲突时新的明确要求替换旧的。Agent 调用时必须在 said 里附上用户原话。插件写的只进它自己的命名空间：只有它自己能读，用户在设置里看得到、撤得回。",
+    title: "记住一件事", description: "按用户的明确要求记住一条偏好、约定、背景或经验（个人或当前项目）。经写入门：形似秘密的不写，像指令的文字只作为待认可的建议；与已有的冲突时新的明确要求替换旧的。Agent 调用时必须在 said 里附上用户原话，但宿主没有保存用户对这个 Agent 说过的话，没法核对，said 是 Agent 自己写的，不算；所以经这个动作写的一律只是待认可的建议，等用户认可才生效，不记作“用户说的”（只有助理自己的工具，把宿主保存的用户原话交给写入门核对后，才可能记作“用户说的”）。插件写的只进它自己的命名空间：只有它自己能读，用户在设置里看得到、撤得回。",
     input_schema: { type: "object", properties: { scope: scopeSchema, text: memoryText, kind: kindSchema, applies: appliesSchema, said: { type: "string", maxLength: 400 },
       expires_at: nullableText, replaces: memoryId, rests_on: { type: "object", properties: { kind: { type: "string", minLength: 1, maxLength: 200 }, id: { type: "string", minLength: 1, maxLength: 200 } },
         required: ["kind", "id"], additionalProperties: false } }, required: ["scope", "text"], additionalProperties: false },
@@ -481,7 +482,7 @@ export const memoryActions = {
     input_schema: { type: "object", properties: { scope: { enum: ["personal", "project", "all"] }, work_id: { type: "string", maxLength: 200 }, limit: { type: "integer", minimum: 1, maximum: 200 } }, additionalProperties: false },
     output_schema: { type: "object", properties: { changes: { type: "array", items: changeSchema } }, required: ["changes"], additionalProperties: false } } } as ActionDefinition<{ scope?: MemoryScope | "all"; work_id?: string; limit?: number }, { changes: MemoryChange[] }>,
   undo: { capability_id: "memory.changes.undo", version: 1, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_WRITE_PERMISSION],
-    title: "撤销一次记忆变动", description: "自动记住的删除；自动替换的回到旧版本；自动停用的重新启用。",
+    title: "撤销一次记忆变动", description: "自动记住的删除；自动替换的回到旧版本；自动停用的、助理按要求停用的重新启用。之后用户自己说过、认可过或改过的记忆，不能再按自动记住撤销。",
     input_schema: { type: "object", properties: { change_id: memoryId }, required: ["change_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { change: changeSchema }, required: ["change"], additionalProperties: false } } } as ActionDefinition<{ change_id: string }, { change: MemoryChange }>,
   prefs: { capability_id: "memory.prefs.read", version: 1, operation: "query", action: { ...reads, audiences: person, permissions: [MEMORY_CONFIGURE_PERMISSION],
@@ -599,11 +600,15 @@ export interface MemoryUseRecord {
 }
 
 export interface MemoryLedgerPort {
-  meta(memoryId: string): MemoryMetaRecord | null;
-  metas(scope: MemoryScope, owner: string): MemoryMetaRecord[];
-  saveMeta(record: MemoryMetaRecord): void;
-  /** Forget everything the ledger knows about a deleted memory: its facts, history and uses; changes keep no text. */
+  /** Forget everything the ledger knows about a deleted memory: its history and uses; changes keep no text. */
   forget(memoryId: string): void;
+  /**
+   * Scopes that no longer exist (a deleted project and its Characters): their changes go entirely, with the notes on their
+   * held candidates, the pairs raised in them, the owner notes, and the named switches, interface counts and markers.
+   * The memories themselves are forgotten one by one with `forget`.
+   */
+  forgetScopes(input: { scopes: ReadonlyArray<{ scope: MemoryScope; owner: string }>; project_id: string;
+    prefs_keys: readonly string[]; signal_prefixes: readonly string[]; marker_keys: readonly string[] }): void;
   revisions(memoryId: string): MemoryRevision[];
   addRevision(memoryId: string, revision: MemoryRevision): void;
   /** The Host's notes about candidates (why, from which work, why held back); the candidates themselves are Prologue's. */
@@ -611,6 +616,8 @@ export interface MemoryLedgerPort {
   saveCandidate(record: MemoryCandidateRecord): void;
   dropCandidate(candidateId: string): void;
   changes(actorId: string, limit: number): MemoryChangeRecord[];
+  /** Every change recorded for one memory, newest first. */
+  changesOf(memoryId: string): MemoryChangeRecord[];
   change(changeId: string): MemoryChangeRecord | null;
   saveChange(record: MemoryChangeRecord): void;
   prefs(actorId: string, key: string): Partial<MemoryPrefs> | null;
@@ -624,11 +631,17 @@ export interface MemoryLedgerPort {
   /** Owners that stand for something (a Character in a project): its id, as the owner is only a short storage key. */
   owners(projectId: string): Array<{ scope: MemoryScope; owner: string; title: string; subject: string | null }>;
   noteOwner(input: { scope: MemoryScope; owner: string; project_id: string | null; title: string; subject?: string | null }): void;
+  /**
+   * Scopes that hold a note about a waiting candidate in a project, found from the notes themselves: a Character's
+   * suggestion made before its owner was noted still has its scope here.
+   */
+  candidateOwners(projectId: string): Array<{ scope: MemoryScope; owner: string }>;
   /** Pairs waiting for the person, and the pair keys ever raised (a pair kept both is not raised again). */
   pairs(actorId: string): Array<MemoryPair & { owner: string; state: "pending" | "resolved" }>;
   savePair(actorId: string, pair: MemoryPair & { owner: string; state: "pending" | "resolved" }): void;
-  migration(actorId: string, source: string): { at: string; body: unknown } | null;
-  markMigration(actorId: string, source: string, body: unknown, at: string): void;
+  /** Small notes the service keeps per person between rounds: the last upkeep report, what tidying last saw, the upkeep session. */
+  marker(actorId: string, key: string): { at: string; body: unknown } | null;
+  setMarker(actorId: string, key: string, body: unknown, at: string): void;
   /** One unit of work: all or nothing. */
   transaction<T>(work: () => T): T;
   close(): void;

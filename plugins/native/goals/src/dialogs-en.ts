@@ -27,10 +27,6 @@ export const GOALS_DIALOGS_EN: Record<string, string> = {
   "请确认把这条 Goal 恢复到日常 Goal Tree。": "Confirm restoring this Goal to the everyday Goal Tree.",
   "恢复不会创建新 Goal，也不会自动启动 Runtime。系统只会恢复两端都不在回收站的关联关系；其余关系会保留为待处理事实。": "Restore does not create a new Goal and does not start a Runtime. Only relations whose both ends are out of trash are restored. The rest stay as pending facts.",
   "说明为什么现在要恢复这条 Goal": "Say why this Goal should come back now",
-  "历史 Claim：": "Historical Claims: ",
-  "历史 Run：": "Historical Runs: ",
-  "现在无法移入回收站：这条 Goal 仍有未结束的历史活动记录。": "It cannot go to trash now: this Goal still has unfinished historical activity.",
-  "这些历史活动结束后才能移入回收站。": "Those historical records must finish before it can go to trash.",
   "请说明本次操作原因。": "Give a reason for this action.",
   "Molis Work 返回了无法识别的回收站状态": "Molis Work returned an unrecognized trash state",
   "操作失败": "The action failed",
@@ -40,4 +36,6 @@ export const GOALS_DIALOGS_EN: Record<string, string> = {
   "Goal 应描述一项有限、可验收、最终能完成的改变。": "A Goal should describe one finite, acceptable change that can ultimately be completed.",
   "能力稳定后，用普通报告记录反复出现的结果；发现问题再开有限的改进 Goal，不必把原 Goal 一直留着。": "After the capability is stable, record recurring results with ordinary reports. If a problem appears, open a finite improvement Goal instead of leaving the original unfinished.",
   "它会怎样运转 ": "How it works ",
+  // plugins/native/goals/src/dialogs-ui.ts
+  "收尾前需要哪些 Goal 先完成？ ": "Which Goals must finish before this one can close? ",
 };

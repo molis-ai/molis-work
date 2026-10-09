@@ -10,7 +10,7 @@ export type ReminderRepeat = "none" | "daily" | "weekly";
 export interface ReminderIdentity { projectId: string; pluginId: string; installationId: string }
 export interface ReminderInput { at: string; text: string; repeat?: ReminderRepeat }
 export interface ScheduleReminder {
-  id: string; boardId: string; pluginId: string; installationId: string | null; installationGeneration?: string | null; pluginTitle: string;
+  id: string; projectId: string; pluginId: string; installationId: string | null; installationGeneration?: string | null; pluginTitle: string;
   text: string; link: string; jobId: string; jobOwner: string; repeat: ReminderRepeat; at: string;
 }
 export interface ReminderScheduler {
@@ -18,45 +18,31 @@ export interface ReminderScheduler {
   cancel(jobId: string, pluginId?: string): { cancelled: boolean };
 }
 
-export function migrateScheduleReminders(db: ScheduleTaskDatabase): void {
-  db.exec(`CREATE TABLE IF NOT EXISTS schedule_plugin_reminders (
-    id TEXT PRIMARY KEY, board_id TEXT NOT NULL, plugin_id TEXT NOT NULL, installation_id TEXT,
+/** The plugin reminder table, as one current schema; the host composes it into the project database baseline. */
+export const SCHEDULE_REMINDERS_SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS schedule_plugin_reminders (
+    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, plugin_id TEXT NOT NULL, installation_id TEXT,
     record_json TEXT NOT NULL
   );
-  CREATE INDEX IF NOT EXISTS schedule_plugin_reminders_owner ON schedule_plugin_reminders(board_id, plugin_id, installation_id);`);
-}
+  CREATE INDEX IF NOT EXISTS schedule_plugin_reminders_owner ON schedule_plugin_reminders(project_id, plugin_id, installation_id);
+`;
 export function getScheduleReminder(db: ScheduleTaskDatabase, id: string): ScheduleReminder | null {
   const row = db.prepare("SELECT record_json FROM schedule_plugin_reminders WHERE id = ?").get(id) as { record_json: string } | undefined;
   return row ? JSON.parse(row.record_json) as ScheduleReminder : null;
 }
-/** Used by the Host's legacy reader inside the same transaction that removes the old record. */
-export function importScheduleReminder(db: ScheduleTaskDatabase, reminder: ScheduleReminder): void {
-  db.prepare("INSERT INTO schedule_plugin_reminders (id, board_id, plugin_id, installation_id, record_json) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING")
-    .run(reminder.id, reminder.boardId, reminder.pluginId, reminder.installationId, JSON.stringify(reminder));
-}
-
-/** Legacy timestamps cannot prove ownership after reinstall. Preserve records and pause their jobs atomically. */
-export function pauseLegacyScheduleReminders(db: ScheduleTaskDatabase, pause: (reminder: ScheduleReminder) => void): void {
-  const rows = db.prepare("SELECT id FROM schedule_plugin_reminders WHERE json_type(record_json, '$.installationGeneration') IS NULL").all() as Array<{ id: string }>;
-  for (const row of rows) {
-    db.transaction(() => {
-      const reminder = getScheduleReminder(db, row.id);
-      if (!reminder || Object.hasOwn(reminder, 'installationGeneration')) return;
-      pause(reminder);
-      db.prepare("UPDATE schedule_plugin_reminders SET record_json = ? WHERE id = ?")
-        .run(JSON.stringify({ ...reminder, installationGeneration: null }), reminder.id);
-    }).immediate();
-  }
+function saveNewScheduleReminder(db: ScheduleTaskDatabase, reminder: ScheduleReminder): void {
+  db.prepare("INSERT INTO schedule_plugin_reminders (id, project_id, plugin_id, installation_id, record_json) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING")
+    .run(reminder.id, reminder.projectId, reminder.pluginId, reminder.installationId, JSON.stringify(reminder));
 }
 
 /** Product rules and persistence; the Host supplies installation metadata and same-database Scheduler. */
 export function createScheduleReminders(options: {
-  db: ScheduleTaskDatabase; boardId: string; projectId: string; schedule: ReminderScheduler;
+  db: ScheduleTaskDatabase; projectId: string; schedule: ReminderScheduler;
   describe(identity: ReminderIdentity): { title: string; link: string; generation: string };
   now?(): number;
 }) {
   const { db, schedule } = options;
-  migrateScheduleReminders(db);
+  db.exec(SCHEDULE_REMINDERS_SCHEMA_SQL);
   const authorize = (identity: ReminderIdentity) => {
     if (identity.projectId !== options.projectId || !identity.pluginId || !identity.installationId) throw new Error("提醒缺少当前项目的插件安装身份");
     const descriptor = options.describe(identity);
@@ -78,13 +64,13 @@ export function createScheduleReminders(options: {
       if (typeof input.text !== "string" || !input.text.trim() || input.text.length > 200) throw new Error("提醒文字需要 1 到 200 字");
       return db.transaction(() => {
         const descriptor = authorize(identity);
-        const count = db.prepare("SELECT COUNT(*) AS n FROM schedule_plugin_reminders WHERE board_id = ? AND plugin_id = ? AND installation_id = ? AND json_extract(record_json, '$.installationGeneration') = ?")
-          .get(options.boardId, identity.pluginId, identity.installationId, descriptor.generation) as { n: number };
+        const count = db.prepare("SELECT COUNT(*) AS n FROM schedule_plugin_reminders WHERE project_id = ? AND plugin_id = ? AND installation_id = ? AND json_extract(record_json, '$.installationGeneration') = ?")
+          .get(options.projectId, identity.pluginId, identity.installationId, descriptor.generation) as { n: number };
         if (count.n >= REMINDERS_PER_INSTALLATION) throw new Error("这个插件的提醒已经太多了，先取消一些");
         const id = randomUUID(), due = new Date(at).toISOString();
         const job = schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_REMINDER_WAKEUP, object_ref: id,
           title: input.text.slice(0, 120), due_at: due, recurrence: repeat === "none" ? { kind: "once" } : { kind: "interval", interval_ms: repeat === "daily" ? DAY : 7 * DAY } });
-        importScheduleReminder(db, { id, boardId: options.boardId, pluginId: identity.pluginId, installationId: identity.installationId,
+        saveNewScheduleReminder(db, { id, projectId: options.projectId, pluginId: identity.pluginId, installationId: identity.installationId,
           installationGeneration: descriptor.generation,
           pluginTitle: descriptor.title, link: descriptor.link, text: input.text, jobId: job.job_id, jobOwner: SCHEDULE_PLUGIN_ID, repeat, at: due });
         return { reminderId: id };
@@ -94,7 +80,7 @@ export function createScheduleReminders(options: {
       return db.transaction(() => {
         const descriptor = authorize(identity);
         const record = getScheduleReminder(db, input.reminderId);
-        if (!record || record.boardId !== options.boardId || record.pluginId !== identity.pluginId || record.installationId !== identity.installationId
+        if (!record || record.projectId !== options.projectId || record.pluginId !== identity.pluginId || record.installationId !== identity.installationId
           || record.installationGeneration !== descriptor.generation) return { cancelled: false };
         cancelRecord(record); return { cancelled: true };
       }).immediate();
@@ -102,8 +88,8 @@ export function createScheduleReminders(options: {
     /** A trusted uninstall path removes only this installation's reminders. */
     cancelInstallation(pluginId: string, installationId: string): number {
       return db.transaction(() => {
-        const rows = db.prepare("SELECT record_json FROM schedule_plugin_reminders WHERE board_id = ? AND plugin_id = ? AND installation_id = ?")
-          .all(options.boardId, pluginId, installationId) as Array<{ record_json: string }>;
+        const rows = db.prepare("SELECT record_json FROM schedule_plugin_reminders WHERE project_id = ? AND plugin_id = ? AND installation_id = ?")
+          .all(options.projectId, pluginId, installationId) as Array<{ record_json: string }>;
         for (const row of rows) cancelRecord(JSON.parse(row.record_json) as ScheduleReminder);
         return rows.length;
       }).immediate();
@@ -118,8 +104,7 @@ export function deliverScheduleReminder(db: ScheduleTaskDatabase, input: Schedul
 }): { detail: string } {
   return db.transaction(() => {
     control.beforeEffect();
-    const id = input.capability_id === SCHEDULE_REMINDER_WAKEUP ? input.object_ref : input.object_ref.slice(input.object_ref.indexOf("|") + 1);
-    const record = getScheduleReminder(db, id);
+    const record = getScheduleReminder(db, input.object_ref);
     if (!record || record.jobId !== input.job_id || record.jobOwner !== input.plugin_id) return { detail: "提醒已取消" };
     if (!record.installationId || !record.installationGeneration || !ports.currentInstallation(record)) throw new Error("提醒的原安装身份已不可用，记录已保留；需要重新确认归属后才能恢复");
     ports.deliver(record, input.due_at);

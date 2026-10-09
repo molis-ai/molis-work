@@ -1,8 +1,6 @@
 import { inspectAgentDeclaration, inspectMethodDeclarations } from "./plugin-agent.js";
 import { inspectActionDeclarations } from "./actions.js";
 import { inspectEventDeclarations } from "./plugin-events.js";
-import { inspectMcpExports } from "./plugin-mcp.js";
-import { inspectBehaviors, inspectFunctionScenes, inspectJudgmentSubjects } from "./plugin-behaviors.js";
 import { inspectPortDeclarations } from "./plugin-wiring.js";
 import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "./ui.js";
 import type { PluginManifest } from "./plugin.js";
@@ -184,10 +182,6 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
     ["routes", manifest.routes],
     ["requires", manifest.requires],
     ["agent", manifest.agent],
-    ["mcp_exports", manifest.mcp_exports],
-    ["behaviors", manifest.behaviors],
-    ["function_scenes", manifest.function_scenes],
-    ["judgment_subjects", manifest.judgment_subjects],
     ["actions", manifest.actions],
     ["action_scenes", manifest.action_scenes],
     ["ui.embedded_plugins", ui.embedded_plugins],
@@ -228,10 +222,6 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   problems.push(...inspectViewDeclarations(parsed, ui));
   problems.push(...inspectCommandDeclarations(parsed));
   problems.push(...inspectRouteDeclarations(parsed));
-  problems.push(...inspectMcpExports(parsed.mcp_exports));
-  problems.push(...inspectBehaviors(parsed.plugin_id, parsed.behaviors));
-  problems.push(...inspectFunctionScenes(parsed.function_scenes));
-  problems.push(...inspectJudgmentSubjects(parsed.judgment_subjects));
   problems.push(...inspectRequirementDeclarations(parsed));
   problems.push(...inspectPortPermissions(parsed));
   if (problems.length > 0) {

@@ -15,12 +15,16 @@ export interface ConnectorAuthorizationSession<T extends ConnectorProtocolConfig
   configuration: T;
 }
 
+/** The protocol tables, for the Home connectors store's baseline to include (repository-anti-corruption §4.1). */
+export const CONNECTOR_PROTOCOLS_SCHEMA = `
+  CREATE TABLE connector_protocols (connection_id TEXT PRIMARY KEY, configuration_json TEXT NOT NULL);
+  CREATE TABLE connector_authorization_sessions
+    (state TEXT PRIMARY KEY, origin TEXT NOT NULL, created_at INTEGER NOT NULL, configuration_json TEXT NOT NULL);
+`;
+
 export class ConnectorProtocolStore {
-  constructor(private readonly db: Database, private readonly discardStage?: (sessionId: string) => void) {
-    db.exec(`CREATE TABLE IF NOT EXISTS connector_protocols (connection_id TEXT PRIMARY KEY, configuration_json TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS connector_authorization_sessions
-        (state TEXT PRIMARY KEY, origin TEXT NOT NULL, created_at INTEGER NOT NULL, configuration_json TEXT NOT NULL);`);
-  }
+  /** Over the connectors store's baseline tables. */
+  constructor(private readonly db: Database, private readonly discardStage?: (sessionId: string) => void) {}
   private clearStage(configuration: string): void {
     const config = JSON.parse(configuration) as { sessionId?: string; connectionId: string };
     if (config.sessionId && config.sessionId !== config.connectionId) this.discardStage?.(config.sessionId);

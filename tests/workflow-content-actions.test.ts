@@ -14,7 +14,7 @@ import { workflowsActionProvider } from "../apps/local-host/src/workflows-action
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: "project-a", audience: "workflow", permissions: ["drafts:read", "drafts:write"] };
-const declarations = defineWorkflowContentActions({ id: "unknown-drafts", title: "未知草稿", icon: "note", create: true,
+const declarations = defineWorkflowContentActions({ id: "unknown-drafts", title: "未知草稿", icon: "note", create: true, subject_kind: "unknown_draft",
   read_permissions: ["drafts:read"], write_permissions: ["drafts:write"] });
 
 async function fixture(run: (f: {

@@ -58,7 +58,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       return loadGoalDocument(goalId);
     };
 
-    const { selectGoal, handleGoalSelectClick, handleGoalPopState, handleGoalHashChange } =
+    const { selectGoal, handleGoalPopState, handleGoalHashChange } =
       (${GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT})({
         decisionView, trashView, archiveView, documentPane,
         getSelected: () => selected, getActiveGoalId: () => state.active_goal_id,
@@ -354,6 +354,6 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     document.addEventListener("change", (event) => {
       const changed = event.target?.nodeType === 1 ? event.target : null;
       if (!changed) return;
-      const changedFactorForm = changed.closest("[data-relation-form], [data-risk-create-form], [data-risk-edit-form], [data-impact-create-form], [data-impact-edit-form], [data-policy-form]");
+      const changedFactorForm = changed.closest("[data-relation-form], [data-risk-create-form], [data-risk-edit-form], [data-policy-form]");
       if (changedFactorForm) {
 `;

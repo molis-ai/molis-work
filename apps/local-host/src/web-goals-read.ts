@@ -4,10 +4,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { availableProjectPluginIds, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { goalsActions, resolveGoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
 import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
-import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
+import { declaredArtifactTypes, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
 import { withSelectedEventDocument, type WebViewOptions } from "./web-view.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
@@ -127,9 +127,9 @@ export function createLocalGoalsReadHttp(ports: {
           const surfacePorts = {
             ...codingServices,
             store,
-            boardId: options.boardId,
-            actorId: "web-user",
-            goalTitle: (goalId: string) => coordinator?.goalQueries.getGoal(options.boardId, goalId)?.title,
+            projectId: options.projectId,
+            actorId: LOCAL_PERSON_ACTOR_ID,
+            goalTitle: (goalId: string) => coordinator?.goalQueries.getGoal(options.projectId, goalId)?.title,
             escapeHtml,
             translate: (value: string) => value,
             workspaces: projectConfiguration.workspaces,
@@ -138,8 +138,8 @@ export function createLocalGoalsReadHttp(ports: {
           const characterStage = await charactersWorkbenchPanel(surfacePorts);
           view = { ...view, plugin_stages: [characterStage.panel, await builderWorkbenchPanel(surfacePorts), ...await codingCompanionStages(surfacePorts, projectConfiguration.plugins)] };
           // Installed execution supplies rail entries and stages independently of opening the authoring studio.
-          const installed = await installedPluginStages({ store, boardId: options.boardId, homeDirectory, routePrefix: view.route_prefix,
-            models: async () => await codingServices.execution?.models() ?? [], actorId: "web-user", actions: codingServices.actions,
+          const installed = await installedPluginStages({ store, projectId: options.projectId, homeDirectory, routePrefix: view.route_prefix,
+            models: async () => await codingServices.execution?.models() ?? [], actorId: LOCAL_PERSON_ACTOR_ID, actions: codingServices.actions,
             ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }).catch(() => []);
           if (installed.length) view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.map(item => item.stage)], plugin_rail: installed.map(({ surface, label }) => ({ surface, label })) };
           if (projectConfiguration.plugins.includes("coding")) {
@@ -215,10 +215,22 @@ async function withSelectedGoalDocument(
     goalActions.invoke(goalsActions.policyResolve, { goal_id: goalId }),
   ]);
   const policyBindings = history.bindings.filter(binding => binding.goal_id === null || binding.goal_id === goalId);
-  let html: string | undefined;
+  let html: string | undefined, outputs = 0;
+  let inputs: Array<{ artifact_id: string; version: number; title: string; state: "available" | "unavailable" | "archived" | "missing"; reason: string | null }> = [];
   if (collection !== "trash") try {
-    const { embeds } = await actions.invoke(artifactsActions.goalEmbeds, { goal_id: goalId });
-    html = renderGoalArtifactContext(embeds);
+    // Every declared 成果 type has an owner that reads it (artifact-positioning A4): none of them is "no compatible plugin".
+    const { embeds } = await actions.invoke(artifactsActions.goalEmbeds, { goal_id: goalId, supported_types: declaredArtifactTypes() });
+    // The card under 「完成要求」 is what the Goal hands in; its fixed inputs are listed with the rest of its inputs (五.1).
+    const delivered = embeds.filter(embed => embed.relationship === "output");
+    html = renderGoalArtifactContext(delivered);
+    // What the Goal hands in shows on its overview too (F6), not only under 「完成要求」.
+    outputs = delivered.length;
+    inputs = embeds.filter(embed => embed.relationship === "input" && embed.view.requested).map(embed => {
+      const selected = embed.view.selected;
+      return { artifact_id: embed.view.requested!.artifact_id, version: embed.view.requested!.version, title: selected?.title ?? embed.view.requested!.artifact_id,
+        state: !selected ? "missing" : selected.availability !== "available" ? "unavailable" : selected.lifecycle_state === "archived" ? "archived" : "available",
+        reason: selected?.unavailable_reason ?? null };
+    });
   } catch (error) {
     if (!(error instanceof ActionError) || !["actions.plugin_disabled", "actions.forbidden", "actions.missing"].includes(error.code)) throw error;
     // An unavailable optional reader must not prevent opening the Goal itself.
@@ -227,7 +239,7 @@ async function withSelectedGoalDocument(
   }
   const decorate = (item: MolisWorkWebView["goals"][number]) =>
     item.goal.goal_id === goalId ? { ...item, relations: relations.relations, policy_bindings: policyBindings, resolved_policy: resolved.policy,
-      ...(html === undefined ? {} : { artifact_embed_html: html }) } : item;
+      ...(html === undefined ? {} : { artifact_embed_html: html, artifact_outputs: outputs, artifact_inputs: inputs }) } : item;
   return {
     ...eventView,
     goals: eventView.goals.map(decorate),

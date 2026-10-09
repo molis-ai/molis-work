@@ -7,7 +7,7 @@ import { join } from "node:path";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { DEMO_BOARD_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { createDiffPlugin } from "../plugins/native/diff/src/plugin.js";
@@ -19,7 +19,7 @@ async function fixture() {
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
-  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID), board_id: DEMO_BOARD_ID, actor_id: "tester", db: store.db,
+  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db,
     artifacts, processItems, ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   const contexts = new Map<string, PluginStartContext>();
   const capture = (definition: PluginDefinition): PluginDefinition => ({ ...definition, async start(context) {
@@ -30,7 +30,7 @@ async function fixture() {
     .map(definition => ({ definition: capture(definition) })));
   assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []);
   const bind = (target: string, targetPort: string, source: string, sourcePort: string) => platform.wiring.bind({
-    board_id: DEMO_BOARD_ID, actor_id: "tester", target_plugin_id: `io.molis.work.${target}`, target_port: targetPort,
+    project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: `io.molis.work.${target}`, target_port: targetPort,
     source_plugin_id: `io.molis.work.${source}`, source_port: sourcePort, origin: "user",
   });
   bind("diff", "git-changeset", "git", "changeset");
@@ -82,12 +82,12 @@ test("Text Stats never counts retained payload from an unavailable or archived A
     const first = publish(); await host.platform.wiring.drain();
     const ready = await host.state("text-stats");
     assert.equal(ready.phase, "ready"); assert.equal(ready.characters, 4); assert.equal(ready.utf8_bytes, 11); assert.equal(ready.lines, 1);
-    host.processItems.commands.markUnavailable({ board_id: DEMO_BOARD_ID, actor_id: "tester", artifact_id: first.artifact_id, version: first.version, reason: "原内容不可读取" });
+    host.processItems.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, actor_id: "tester", artifact_id: first.artifact_id, version: first.version, reason: "原内容不可读取" });
     const unavailable = await host.state("text-stats");
     assert.equal(unavailable.phase, "unavailable"); assert.equal(unavailable.characters, undefined); assert.equal(unavailable.source, undefined);
     const second = publish(); await host.platform.wiring.drain();
     assert.equal((await host.state("text-stats")).phase, "ready");
-    host.processItems.commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: "tester", artifact_id: second.artifact_id, version: second.version });
+    host.processItems.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "tester", artifact_id: second.artifact_id, version: second.version });
     const archived = await host.state("text-stats");
     assert.equal(archived.phase, "unavailable"); assert.equal(archived.characters, undefined); assert.equal(archived.source, undefined);
   } finally { host.close(); }

@@ -1,6 +1,6 @@
 import { PERSONAL_PLUGIN_IDS } from "../../plugin-catalog.js";
 import { PLUGIN_EVENT_RECOVERY_CLIENT } from "./plugin-event-recovery.js";
-import { ARTIFACT_IMPORT_CLIENT_SCRIPT, ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACT_IMPORT_CLIENT_SCRIPT, ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT, ARTIFACT_WORKS_CLIENT_SCRIPT, ARTIFACT_HANDOFF_CLIENT_SCRIPT, ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-artifacts";
 
 /** Workbench composes bundled project entries and exact Artifact contributions. */
 export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
@@ -276,6 +276,8 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       document.querySelector('[data-artifact-stage-shell]')?.setAttribute('data-expanded', String(selected));
       const workspace = document.querySelector('[data-artifact-stage-workspace]');
       if (workspace) workspace.hidden = !selected;
+      void loadArtifactWorks();
+      showHandoff();
       return;
     }
     artifactRequest?.abort();
@@ -298,6 +300,8 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       if (shell) shell.dataset.expanded = selected ? "true" : "false";
       if (workspace) workspace.hidden = !selected;
       try { sessionStorage.setItem(artifactKey, path); } catch {}
+      void loadArtifactWorks();
+      showHandoff();
     } catch (error) {
       if (controller.signal.aborted) return;
       message.textContent = error.message;
@@ -305,7 +309,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       detail.replaceChildren(message, button);
     } finally { if (controller === artifactRequest) artifactRequest = null; }
   };
-  ${ARTIFACT_IMPORT_CLIENT_SCRIPT}${ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT}
+  ${ARTIFACT_IMPORT_CLIENT_SCRIPT}${ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT}${ARTIFACT_WORKS_CLIENT_SCRIPT}${ARTIFACT_HANDOFF_CLIENT_SCRIPT}${ARTIFACT_PORT_INPUT_CLIENT_SCRIPT}
   // The 成果库's one import entry is a dialog in its directory (specs/artifact-positioning A3).
   const openImport = (button) => {
     const dialog = button.closest("header")?.querySelector("[data-artifact-import-dialog]");
@@ -317,28 +321,28 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     dialog.addEventListener("close", () => { if (imported && !artifactRequest) void loadArtifacts(artifactPath || route("/artifacts"), true); }, { once: true });
     dialog.showModal();
   };
-  // "在 Pages 继续": Pages starts a document from this version and opens it here.
-  const continueInPages = async (button) => {
+  // 「从这一版继续」 (A4b): the chosen plugin starts a new object from this version and it opens here.
+  const continueFrom = async (button) => {
     if (button.disabled) return;
     button.disabled = true;
     let status = button.parentElement.querySelector("[data-artifact-continue-status]");
-    if (!status) { status = document.createElement("span"); status.dataset.artifactContinueStatus = ""; status.role = "status"; button.after(status); }
+    if (!status) { status = document.createElement("span"); status.dataset.artifactContinueStatus = ""; status.role = "status"; button.parentElement.append(status); }
     status.textContent = "";
     try {
-      const response = await fetch(route("/api/artifacts/continue-in-pages"), { method: "POST",
+      const response = await fetch(route("/api/artifacts/continue"), { method: "POST",
         headers: { ...(globalThis.molisWorkControlHeaders?.() || {}), "content-type": "application/json", "x-molis-work-idempotency-key": crypto.randomUUID() },
-        body: JSON.stringify({ reference: JSON.parse(button.dataset.artifactReference) }) });
+        body: JSON.stringify({ reference: JSON.parse(button.dataset.artifactReference), plugin_id: button.dataset.artifactContinue }) });
       const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload?.document?.id) throw new Error(payload?.error || L("没能在 Pages 打开这一版"));
-      openTabItem?.("pages", payload.document.id, payload.document.title);
+      if (!response.ok || !payload?.open?.id) throw new Error(payload?.error || L("没能从这一版继续"));
+      openTabItem?.(payload.open.surface, payload.open.id, payload.open.title);
     } catch (error) { status.textContent = error.message; }
     finally { button.disabled = false; }
   };
   document.addEventListener("click", event => {
     const importButton = event.target.closest("[data-artifact-import-open]");
     if (importButton) { openImport(importButton); return; }
-    const continueButton = event.target.closest('[data-artifact-continue="pages"]');
-    if (continueButton) { void continueInPages(continueButton); return; }
+    const continueButton = event.target.closest("[data-artifact-continue]");
+    if (continueButton) { void continueFrom(continueButton); return; }
     const retryButton = event.target.closest("[data-artifact-retry]");
     if (retryButton) { void loadArtifacts(retryButton.dataset.artifactRetry); return; }
     const collapse = event.target.closest("[data-artifact-collapse]");
@@ -357,13 +361,14 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (link.closest("[data-frame-block]")) { event.preventDefault(); return; }
     if (event.detail > 1) return;
     setSurface("artifacts");
-    openTabItem?.("artifacts", url.pathname, link.textContent?.trim());
+    openTabItem?.("artifacts", url.pathname, link.dataset.tabTitle || link.textContent?.trim());
     void loadArtifacts(url.pathname);
     if (matchMedia("(max-width: 600px)").matches) setMobileView(url.pathname === base ? "tree" : "document");
   });
   document.querySelector('[data-work-surface=artifacts]')?.addEventListener('molis-work:select-item', event => {
     const base = route('/artifacts');
-    const path = event.detail.itemId || base;
+    // A version's own path (/artifacts/ID/versions/N, as search, the side panel and toasts give it) opens in this project.
+    const raw = event.detail.itemId || base, path = !raw.startsWith(base) && raw.startsWith('/artifacts') ? route(raw) : raw;
     if (path !== base && !path.startsWith(base + '/')) return;
     void loadArtifacts(path);
   });

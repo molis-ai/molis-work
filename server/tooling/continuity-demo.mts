@@ -9,15 +9,15 @@ import type { ActionFactory } from "../src/index.js";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "../../packages/im-ui/src/index.js";
 const directory=resolve(process.argv[2] ?? (()=>{throw Error("Pass an explicit isolated QA directory");})());
 await mkdir(directory,{recursive:true,mode:0o700});
-const databasePath=join(directory,'project.sqlite'),projectId='continuity-qa',boardId='continuity-qa-board';
+const databasePath=join(directory,'project.sqlite'),projectId='continuity-qa',projectId='continuity-qa-board';
 const db=new LocalProjectDatabase(databasePath),app=new GoalProjectApplication(db);
-app.initializeBoard({board_id:boardId,title:'设备接续 · 隔离实操',actor_id:'desktop',idempotency_key:'init'});
-app.goalEvents.createIntent({board_id:boardId,goal_id:'mobile-handoff',title:'让工作在手机上继续',outcome:'查看桌面成果，记录下一步，再回桌面接续。',actor_id:'desktop',idempotency_key:'goal'});
-app.artifacts.commands.registerVersion({board_id:boardId,artifact_id:'handoff-guide',version:2,actor_id:'desktop',artifact_type_id:'io.test.document',schema_version:1,
+app.initializeBoard({project_id:projectId,title:'设备接续 · 隔离实操',actor_id:'desktop',idempotency_key:'init'});
+app.goalEvents.createIntent({project_id:projectId,goal_id:'mobile-handoff',title:'让工作在手机上继续',outcome:'查看桌面成果，记录下一步，再回桌面接续。',actor_id:'desktop',idempotency_key:'goal'});
+app.artifacts.commands.registerVersion({project_id:projectId,artifact_id:'handoff-guide',version:2,actor_id:'desktop',artifact_type_id:'io.test.document',schema_version:1,
   producer:{plugin_id:'io.test.writer',plugin_version:'1.0.0',binding_signature:'qa-writer'},content:{kind:'inline',payload:'跨设备接续操作说明\n\n桌面整理固定成果 → 手机核对并留下下一步 → 桌面继续。\n\n这是隔离项目中的真实保存，不读取私人账号。'},metadata:{title:'跨设备接续 · 操作说明'},scope:'team_project',team_share_authorized:true});
 db.close();
 const host=new MolisWorkLocalHost({homeDirectory:directory,completeText:null});
-const ref=molisWorkHostProjectReference({projectId,boardId,databasePath});
+const ref=molisWorkHostProjectReference({projectId,databasePath});
 const factory:ActionFactory=({memberId,projectId,validate,signal})=>{
   const client=host.actionClient(ref);
   return {caller:{actor_id:memberClientId(memberId),project_id:projectId,audience:'user',actor_kind:'user',permissions:['goals:read','goals:write','artifacts:read'],allowed_actions:CONTINUITY_ACTIONS,validate_authority:validate,signal},

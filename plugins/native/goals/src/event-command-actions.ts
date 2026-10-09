@@ -10,7 +10,7 @@ import { goalAction as action, goalActor } from "./action-contract.js";
 import { text, identifier, count, boolean, object, array, enumeration, nullable, goalConfigSchema, goalStateSchema, goalReportEventSchema,
   eventType, binding, scope, artifactSource, progress, concern, option, change, decisionRequest, decision, reason, closure, judgment, agreement } from "./event-action-schemas.js";
 
-type BusinessInput<Input> = Omit<Input, "board_id" | "actor_id" | "actor_kind">;
+type BusinessInput<Input> = Omit<Input, "project_id" | "actor_id" | "actor_kind">;
 const version = { type: "integer", minimum: 1 };
 const base = { goal_id: identifier, idempotency_key: identifier };
 const required = Object.keys(base);
@@ -36,7 +36,7 @@ export const goalsEventActions = {
       work_status: stateProperties.work_status!, gaps: stateProperties.gaps!, progress_summary: nullable(progress), completion_effect: boolean, can_record: boolean })),
   progress: action<BusinessInput<RecordGoalProgressSummaryInput>, GoalEventProgressResult>("goals.progress.record", "记录目标进展", "记录基于当前目标事件游标的进展与下一步；事务内核对预期 Goal 版本。可附成果引用，引用不代表成果内容已验证", "command",
     object({ ...base, based_on_cursor: count, summary: identifier, next_step: text, next_actor: text,
-      source: artifactSource, expected_goal_cursor: count, expected_contract_revision: count }, [...required, "based_on_cursor", "summary"]),
+      source: artifactSource, expected_goal_cursor: count }, [...required, "based_on_cursor", "summary"]),
     goalProgressResultSchema),
   concern: action<BusinessInput<ApplyGoalConcernInput>, GoalEventConcernResult>("goals.concerns.apply", "处理目标问题", "提出问题须填标题、说明和影响范围；解决/撤销须引用问题后的实际事件或用户决定，接受风险须引用适用的用户决定", "command",
     object({ ...base, action: enumeration(goalEventConcernActions), concern_id: text, title: text, statement: text, scope: partialScope,
@@ -58,16 +58,16 @@ export const goalsEventActions = {
     object({ ...base, reason: identifier }, [...required, "reason"]), object({ ...mutation, work_status: { const: "open" } })),
 } as const;
 
-export function createGoalsEventActionHandlers(events: GoalEventApplication, boardId: string): ActionHandlerBinding[] {
+export function createGoalsEventActionHandlers(events: GoalEventApplication, projectId: string): ActionHandlerBinding[] {
   return [
-    { ...goalsEventActions.configure, handle: (caller, input) => events.configure({ ...input as BusinessInput<ConfigureGoalEventsApplicationInput>, board_id: boardId, ...goalActor(caller) }) },
-    { ...goalsEventActions.report, handle: (caller, input) => events.report({ ...input as BusinessInput<ReportGoalEventsInput>, board_id: boardId, ...goalActor(caller) }) },
-    { ...goalsEventActions.progress, handle: (caller, input) => events.recordProgress({ ...input as BusinessInput<RecordGoalProgressSummaryInput>, board_id: boardId, ...goalActor(caller) }) },
-    { ...goalsEventActions.concern, handle: (caller, input) => events.applyConcern({ ...input as BusinessInput<ApplyGoalConcernInput>, board_id: boardId, ...goalActor(caller) }) },
-    { ...goalsEventActions.requestDecision, handle: (caller, input) => events.requestDecision({ ...input as BusinessInput<RequestGoalDecisionInput>, board_id: boardId, ...goalActor(caller) }) },
-    { ...goalsEventActions.citeDecision, handle: (caller, input) => events.citeDecision({ ...input as BusinessInput<CiteGoalDecisionInput>, board_id: boardId, ...goalActor(caller) }) },
-    { ...goalsEventActions.agree, handle: (caller, input) => events.setAgreement({ ...input as BusinessInput<SetGoalEventAgreementInput>, board_id: boardId, ...goalActor(caller) }) },
-    { ...goalsEventActions.close, handle: (caller, input) => events.submitClosure({ ...input as BusinessInput<SubmitGoalEventClosureInput>, board_id: boardId, ...goalActor(caller) }) },
-    { ...goalsEventActions.resume, handle: (caller, input) => events.resumeWork({ ...input as BusinessInput<ResumeGoalEventWorkInput>, board_id: boardId, ...goalActor(caller) }) },
+    { ...goalsEventActions.configure, handle: (caller, input) => events.configure({ ...input as BusinessInput<ConfigureGoalEventsApplicationInput>, project_id: projectId, ...goalActor(caller) }) },
+    { ...goalsEventActions.report, handle: (caller, input) => events.report({ ...input as BusinessInput<ReportGoalEventsInput>, project_id: projectId, ...goalActor(caller) }) },
+    { ...goalsEventActions.progress, handle: (caller, input) => events.recordProgress({ ...input as BusinessInput<RecordGoalProgressSummaryInput>, project_id: projectId, ...goalActor(caller) }) },
+    { ...goalsEventActions.concern, handle: (caller, input) => events.applyConcern({ ...input as BusinessInput<ApplyGoalConcernInput>, project_id: projectId, ...goalActor(caller) }) },
+    { ...goalsEventActions.requestDecision, handle: (caller, input) => events.requestDecision({ ...input as BusinessInput<RequestGoalDecisionInput>, project_id: projectId, ...goalActor(caller) }) },
+    { ...goalsEventActions.citeDecision, handle: (caller, input) => events.citeDecision({ ...input as BusinessInput<CiteGoalDecisionInput>, project_id: projectId, ...goalActor(caller) }) },
+    { ...goalsEventActions.agree, handle: (caller, input) => events.setAgreement({ ...input as BusinessInput<SetGoalEventAgreementInput>, project_id: projectId, ...goalActor(caller) }) },
+    { ...goalsEventActions.close, handle: (caller, input) => events.submitClosure({ ...input as BusinessInput<SubmitGoalEventClosureInput>, project_id: projectId, ...goalActor(caller) }) },
+    { ...goalsEventActions.resume, handle: (caller, input) => events.resumeWork({ ...input as BusinessInput<ResumeGoalEventWorkInput>, project_id: projectId, ...goalActor(caller) }) },
   ];
 }

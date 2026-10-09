@@ -14,18 +14,27 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, type SqliteDatabase } from "./sqlite.js";
 
-export { SqliteSchema, LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
+export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
 export { LocalCatalogMetadata } from "./catalog-metadata.js";
 
 export { atomicWriteFileSync } from "./adapters/atomic-write.js";
 
 export {
   PERSONAL_HOME_SQLITE_STORES,
-  ensureSqliteColumn,
   homeSqlitePath,
   openHomeSqliteDatabase,
   type PersonalHomeSqliteStore,
 } from "./home-sqlite.js";
+export {
+  SqliteSchemaVersionError,
+  applySqliteBaseline,
+  clearInExistingHomeSqlite,
+  describeSqliteSchema,
+  openBaselineHomeSqlite,
+  type SqliteBaseline,
+  type SqliteBaselineDatabase,
+  type SqliteSchemaShape,
+} from "./sqlite-baseline.js";
 
 export {
   runWithMolisWorkHome,
@@ -37,10 +46,10 @@ export {
   PROJECT_DATABASE_FILENAME,
 } from "./adapters/local-security-paths.js";
 
-export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, type SecretStoreMigrationResult, KeychainUnavailableError, holdSecretsLockForTest, isLegacyEnvelope, sealLegacyForTest, assertNotReversibleBase64Only, safeEqualString, createFileSecretStore, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, readSecretsFileMeta } from "./adapters/file-secret-store.js";
+export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, KeychainUnavailableError, holdSecretsLockForTest, createFileSecretStore, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, deleteSecretEntriesWithPrefix, readSecretsFileMeta } from "./adapters/file-secret-store.js";
 
 export * from "./adapters/search-storage.js";
 
 export { createEvidenceContentStore, type EvidenceContentStore } from "./adapters/evidence-content.js";
-export { openMemoryLedger, MEMORY_LEDGER_STORE } from "./adapters/memory-ledger.js";
+export { openMemoryLedger, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE } from "./adapters/memory-ledger.js";
 export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";

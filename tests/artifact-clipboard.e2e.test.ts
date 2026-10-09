@@ -7,11 +7,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { WebSocket } from "ws";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { insertHistoricalEvidence } from "./historical-sql-fixture.js";
 
 // This checks the real browser clipboard, not the automation tool's virtual clipboard.
 test("migrated result reference copies exact text and handles denied clipboard permission without changing facts", { timeout: 30_000 }, async (t) => {
@@ -37,21 +36,14 @@ test("migrated result reference copies exact text and handles denied clipboard p
     store.close();
     await rm(directory, { recursive: true, force: true });
   });
-  new GoalProjectApplication(store);
   const reference = "artifact://迁移结果/季度?version=1&note=原始引用";
-  insertHistoricalEvidence(store.db, {
-    evidence_id: "clipboard-fixture",
-    board_id: DEMO_BOARD_ID,
-    goal_id: "V1",
-    producer_actor_id: "fixture-user",
-    criterion_ids: ["V1-C1"],
-    kind: "artifact",
-    locator: reference,
-    result: "inconclusive",
-  });
-  server = createMolisWorkWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory,
+  // An opaque reference among the Goal's inputs is shown as a copy button.
+  new GoalProjectApplication(store).goalInputs.register({ binding_id: "clipboard-fixture", project_id: DEMO_PROJECT_ID, goal_id: "V1",
+    input_name: "迁移结果", source_type: "reference", source_ref: reference, snapshot_digest: null, state: "confirmed",
+    reason: "fixture", created_by: "fixture-user", created_at: new Date().toISOString() });
+  server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory,
     controlToken: "artifact-clipboard-test-control-token-0123456789" });
-  child = spawn(chrome, ["--headless=new", "--disable-gpu", "--disable-background-networking",
+  child = spawn(chrome, ["--headless=new", "--lang=zh-CN", "--accept-lang=zh-CN", "--disable-gpu", "--disable-background-networking",
     "--disable-component-update", "--disable-extensions", "--no-first-run", "--no-default-browser-check",
     "--remote-debugging-port=0", `--user-data-dir=${join(directory, "chrome-profile")}`, "about:blank"],
   { stdio: ["ignore", "ignore", "pipe"] });
@@ -92,7 +84,7 @@ test("migrated result reference copies exact text and handles denied clipboard p
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   await (await fetch(origin + "/health")).text();
-  const before = store.snapshot(DEMO_BOARD_ID);
+  const before = store.snapshot(DEMO_PROJECT_ID);
   const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   async function evaluate<T = unknown>(expression: string): Promise<T> {
@@ -124,13 +116,8 @@ test("migrated result reference copies exact text and handles denied clipboard p
   await command("Page.bringToFront", {}, sessionId);
   await waitFor("document.readyState === 'complete' && document.querySelector('[data-goal-event-document]')");
   if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
-  const evidenceItem = await evaluate<string>(`(() => {
-    const items = [...document.querySelectorAll("[data-timeline-item]")];
-    const hit = items.find((item) => String(item.dataset.timelineItem || "").includes("evidence") || item.textContent.includes(${JSON.stringify(reference)}));
-    return hit?.dataset.timelineItem || items[0]?.dataset.timelineItem || "";
-  })()`);
-  assert.ok(evidenceItem, "timeline must expose the submitted Evidence");
-  await click(`[data-goal-event-document]:not([hidden]) [data-timeline-item="${evidenceItem}"]`);
+  await click('[data-goal-event-document]:not([hidden]) [data-event-reader="description"]');
+  await waitFor("document.querySelector('[data-event-panel=\"description\"]')?.hidden === false");
   const copySelector = `[data-copy-value=${JSON.stringify(reference)}]`;
   await waitFor(`document.querySelector(${JSON.stringify(copySelector)})`);
   await click(copySelector);
@@ -142,9 +129,6 @@ test("migrated result reference copies exact text and handles denied clipboard p
   await waitFor(`document.querySelector('[data-toast]')?.textContent.includes('无法访问剪贴板')`);
   await command("Browser.grantPermissions", { origin, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
   assert.equal(await evaluate("navigator.clipboard.readText()"), reference);
-  const after = store.snapshot(DEMO_BOARD_ID);
-  assert.deepEqual(after.goals, before.goals);
-  assert.deepEqual(after.evidence, before.evidence);
-  assert.deepEqual(after.runs, before.runs);
-  assert.deepEqual(after.reviews, before.reviews);
+  const after = store.snapshot(DEMO_PROJECT_ID);
+  assert.deepEqual(after.goals, before.goals, "copying a reference changes no Goal");
 });

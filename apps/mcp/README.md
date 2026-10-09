@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-根 apps/desktop/launchers/mcp/server.ts 处理进程入口；Host 管理项目连接和调用身份。本包通过 handleMcpMessage、工具目录及 dispatchMcpProjectTool 把请求交给 Host Client，再组合返回值。Runtime 事件工具是 `molis_work_v1_goal_intent_create`、`molis_work_v1_goal_state`、`molis_work_v1_event_configure`、`molis_work_v1_event_report`、`molis_work_v1_event_list`、`molis_work_v1_event_read`、`molis_work_v1_event_progress`、`molis_work_v1_event_concern`、`molis_work_v1_event_decision_request`、`molis_work_v1_event_cite_decision`、`molis_work_v1_event_agree`、`molis_work_v1_event_close`、`molis_work_v1_event_resume`。`molis_work_v1_event_decide` 只接受 Host Web/管理入口，不属于 Runtime audience。Runtime 身份由 Host 写入，工具参数不能自填用户或批准。上报返回记录成功，不表示正式完成；显式收尾才可能让 `completion_applied` 为 true。未转交 `legacy_claim_run` Goal 仍暴露 `select_goal` / `claim_renew` / `run_*` / `evidence_*` / `review_submit`。
+根 apps/desktop/launchers/mcp/server.ts 处理进程入口；Host 管理项目连接和调用身份。本包提供 MCP 协议（handleMcpMessage）、平台工具目录（连接工具与受信管理入口的工具）、连接工具与管理工具的分发，以及把动作目录里每个动作变成 MCP 工具的适配（`createActionMcpPorts`，名称 `molis_work_v1_action_<动作>__v<版本>`）。Goals 与各插件的能力都经动作工具对外。
 
 ## 从哪里读代码
 
@@ -15,7 +15,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | [src/protocol.ts](src/protocol.ts) | handleMcpMessage：协议处理 |
-| [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录（连接 / Goals / 事件）。插件工具不在这里写死 |
+| [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录：7 个连接工具与受信管理入口的 initialize、event_decide、goal_tree_decide。插件与 Goals 能力都是动作工具，不在这里写死 |
 | [src/tool-dispatch.ts](src/tool-dispatch.ts) | 项目工具分发 |
 | [src/launcher-validation.ts](src/launcher-validation.ts) | 启动器验证 |
 
@@ -23,7 +23,7 @@
 
 ## 接入与边界
 
-Session 身份来自 Host 上下文，不能把模型提交的参数直接当作身份。工具 schema 与响应适配属于这里；Goal 事件事实和完成效果属于 Goals，可信用户决定属于 Governance，UI 不另算完成。插件对外方法由 Manifest `mcp_exports` 登记、由 Local Host 合成，不进本包静态目录。作者与 Host 改法见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
+Session 身份来自 Host 上下文，不能把模型提交的参数直接当作身份。工具 schema 与响应适配属于这里；Goal 事件事实和完成效果属于 Goals，可信用户决定属于 Governance，UI 不另算完成。插件的对外能力就是它声明的动作，由 Local Host 按授权列入目录，不进本包静态目录。作者与 Host 改法见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。其他运行依赖见 [package.json](package.json)。
 
@@ -52,7 +52,7 @@ node --import tsx --test --test-concurrency=1 tests/host-entry-consistency.test.
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。方向：apps → 组合根 → 公开合同（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - Runtime 与 Session 身份由 Host 写入，工具参数不能自填用户、批准或身份。
-  - 插件对外方法由 Manifest `mcp_exports` 登记、Local Host 合成，不进本包的静态目录，也不按公开名写 `if`。
+  - 平台工具只有连接工具与受信管理入口的工具；其余能力都是动作工具，不进本包的静态目录，也不按名称写 `if`。
   - 生产启动器走常驻服务通道，不回退到本地 typed Host。
   - 说明或恢复目录不可读时返回真实连接并把对应内容置 null、附错误字段；不伪报空项目、不自动重新绑定。
 - 改动后必跑：`node scripts/run-tests.mjs tests/mcp-protocol.test.ts tests/mcp-action-grants.test.ts tests/mcp-action-settings.test.ts tests/action-mcp.test.ts tests/mcp-goal-events.test.ts`

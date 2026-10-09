@@ -46,7 +46,7 @@
 
 Coding 的 `agent.draft-text.v1` 经 `agent-host-composition.ts` → `model-draft.ts` → `hostTextGeneration` → 当前 composition 的 inference。正文和写法由 Coding 提供，无工具、不建每次起草的 workspace 或 Runtime；用量仅在 input/output 都为 reported 时提供，否则为 null。调用的 signal 与 beforeEffect 经 Host Capability 合同传入，调用方可以取消自身操作而不能改变身份。
 
-Coding 的提交说明与接续摘要定义在 `plugins/native/coding/src/prompts.ts`，共同目录登记 `CODING_INSTRUCTIONS`。请求传 `{ purpose, prompt: CODING_COMMIT_DRAFT.prompt_id, material, model_selection }`；Host 从原 invocation 的插件身份确定 owner，再读取用户修改后的有效正文，材料仍单独传递。输入不能冒充 owner；未知引用或缺失身份拒绝派出。旧 `instructions` 字符串仅兼容旧调用，不能与 `prompt` 并用。Prompt 使用记录在初次授权复查之后写入，原授权等待与模型执行共用两分钟生命周期；取消或撤权后的迟到检查不登记使用、不启动模型。
+Coding 的提交说明与接续摘要定义在 `plugins/native/coding/src/prompts.ts`，共同目录登记 `CODING_INSTRUCTIONS`。请求传 `{ purpose, prompt: CODING_COMMIT_DRAFT.prompt_id, material, model_selection }`；Host 从原 invocation 的插件身份确定 owner，再读取用户修改后的有效正文，材料仍单独传递。输入不能冒充 owner；未知引用或缺失身份拒绝派出。请求必须带已登记的 `prompt`，不再接受 `instructions` 字符串。Prompt 使用记录在初次授权复查之后写入，原授权等待与模型执行共用两分钟生命周期；取消或撤权后的迟到检查不登记使用、不启动模型。
 
 Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native/cognia/src/ai.ts` 拥有。`cognia-prologue.ts` 只固定目录中的模型并注入 `hostCompleteText`，使用 Home 已绑定的同一 Runtime；不再建立 cognia/runtime/runs。发现只读元数据，执行才解析凭据。
 
@@ -71,7 +71,7 @@ SDK 的 schema 支持明确的类型、nullable/anyOf、必填、enum、对象�
 ```text
 Coding 页面 → plugins/native/coding/src/routes.ts
   → agent.run.start.v1 → AgentHost.start（horizontal/agent-host/src/index.ts）
-      冻结角色（Manifest + BUILTIN_PLUGIN_AGENTS 的提示词正文）→ 核对目录授权 → 核对原会话归属（board/plugin/install/actor）
+      冻结角色（Manifest + BUILTIN_PLUGIN_AGENTS 的提示词正文）→ 核对目录授权 → 核对原会话归属（project/plugin/install/actor）
       → 解析 Character 固定版本 → 组装宿主工具与动作工具（精确引用）
   → Prologue 适配器（adapters/prologue-node.ts）运行工具循环
       写文件/跑命令/调用写入动作 → AgentReviewQueue（reviews.ts）等人批准
@@ -85,7 +85,7 @@ Coding 页面 → plugins/native/coding/src/routes.ts
 
 **动作定义**：写明 `model:invoke` 权限；等模型的动作一律 `scheduling: "concurrent"`，否则它会占住整个项目的串行队列（门禁 `tests/action-model-scheduling.test.ts`）。
 
-提供方还应在 `action.execution` 声明实际时限、费用类别和必要调用频率；这些事实经同一目录到达插件、Agent、Workflow 与 MCP，Kernel 执行明确声明的限额。生成插件的 `model.generate` 声明 120 秒、metered、每身份每分钟 20 次；旧生成物也进入同一 ActionService。Agent 的工具入口可以设置更短的上限。Native 的直接生成与 Coding/Images/Alchemist/Experiments 的后台启动都由提供方声明 metered，表示可能消耗计量额度；读取历史、配置和取消不因此标为收费。后台启动的 Action 返回后，任务自己的预算、取消和恢复继续有效，不能把整个任务时长填成处理器时限。计费未知保持 unknown，Action 超时不等于外部请求未执行，也不授权自动重试。完整字段语义见 [插件开发手册](./PLUGIN-DEVELOPMENT.md)。
+提供方还应在 `action.execution` 声明实际时限、费用类别和必要调用频率；这些事实经同一目录到达插件、Agent、Workflow 与 MCP，Kernel 执行明确声明的限额。生成插件的 `model.generate` 声明 120 秒、metered、每身份每分钟 20 次。Agent 的工具入口可以设置更短的上限。Native 的直接生成与 Coding/Images/Alchemist/Experiments 的后台启动都由提供方声明 metered，表示可能消耗计量额度；读取历史、配置和取消不因此标为收费。后台启动的 Action 返回后，任务自己的预算、取消和恢复继续有效，不能把整个任务时长填成处理器时限。计费未知保持 unknown，Action 超时不等于外部请求未执行，也不授权自动重试。完整字段语义见 [插件开发手册](./PLUGIN-DEVELOPMENT.md)。
 
 ```ts
 message: define("conversation.message", "继续灵光对话", "结合所选灵光和历史生成回复；需要文字模型，失败保留原会话且不生成占位回复", "command",
@@ -119,7 +119,7 @@ modelAvailability: () => model() ? { available: true } : { available: false, cod
 
 **提示词登记与用户修改**：插件在 `src/prompts.ts` 用 `defineInstructionPrompt` 声明 owner、稳定 id、版本、用途、使用位置和默认正文，从包入口导出指令列表，在 `apps/workbench/src/builtin-plugins.ts` 的同一插件项声明 `instructions`；Host 从共同目录派生登记。插件端口接收 `InstructedPrompt`，调用传 `instructed(LINGGUANG_CONVERSATION, JSON.stringify(materials))`；Host 经 `resolveModelPrompt` 读取有效正文并记使用版本，之后才交给共享推理入口。用户材料与本次参数属于 data，不拼入可编辑的默认指令。材料中的指令不授予任何权限；超长先拒绝（灵光 18 万字符、Pages 10 万）。
 
-生成插件声明 `export const prompts = [...]`，调用 `model.generate` 能力时传 `{ prompt: id, input }` 指定一段正文。Host 的 `plugin-builder/model.ts` 解析当前指令/用户覆盖，继续调用同一 `hostTextGeneration`；只有旧发布物保留 inline instructions 的读取兼容，新生成代码须用声明的 prompt。安装、停用、启用、版本切换、卸载与恢复的登记属于 `installed-plugin-host.ts`，不依赖打开创作台。设计与编码阶段则由 Builder 的 prompt 端口取有效正文，运行版本包含用户修订号。
+生成插件声明 `export const prompts = [...]`，调用 `model.generate` 能力时传 `{ prompt: id, input }` 指定一段正文。Host 的 `plugin-builder/model.ts` 解析当前指令/用户覆盖，继续调用同一 `hostTextGeneration`；不接受写在代码里的 instructions。安装、停用、启用、版本切换、卸载与恢复的登记属于 `installed-plugin-host.ts`，不依赖打开创作台。设计与编码阶段则由 Builder 的 prompt 端口取有效正文，运行版本包含用户修订号。
 
 Cognia 同时保留已登记的知识角色与回答指令：角色作为共享单次推理的 system 输入，回答指令与固定资料作为正文。可编辑的提示词必须真实进入调用，不能只有登记页面。`tests/cognia-prologue.test.ts` 与 `tests/plugin-model-generation.test.ts` 经真实 SDK 和本地 HTTP 核对用户覆盖、工具边界、取消和撤权；`tests/installed-plugin-host.test.ts` 核对真实安装生命周期。
 
@@ -142,13 +142,17 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
 ## 5. 模型、凭据、上下文
 
 - 模型来自设置里的 `catalog.models` 与服务连接；`hostCompleteText` 发现阶段只读元数据，执行前才解密，派发前与返回后都核对「这次固定的供应商/模型/凭据」没变，变了报 `actions.configuration_changed` 且不提交结果。
-- 已有目录记录或明确选择时，旧的环境变量密钥（`MOLIS_WORK_TEXT_API_KEY`、`MINIMAX_API_KEY`）不能绕过停用；它只是没有配置过目录时的兼容来源。
+- 产品里只有模型目录配置模型；没配时提示去设置。密钥库里目录之外的旧凭据（`model:text:api_key`）不读。
+- 环境变量只给开发与测试用，且仅在 Home 的模型目录为空时生效。已有目录记录或明确选择时，它不能绕过停用。
+  - `MINIMAX_API_KEY`：MiniMax。端点默认 `https://api.minimaxi.com/anthropic`，模型默认 `MiniMax-M3`；实测用 `appkey exec minimax` 注入。
+  - `MOLIS_WORK_TEXT_API_KEY`：不指定供应商，必须同时给 `MOLIS_WORK_TEXT_BASE_URL` 与 `MOLIS_WORK_TEXT_MODEL`，缺一个就不配置（不会默认成 MiniMax）。
+  - 两者都可选配 `MOLIS_WORK_TEXT_API_FORMAT`（`anthropic-messages`，默认；或 `openai-chat-completions`）。`MOLIS_WORK_TEXT_BASE_URL` 也能改 MiniMax 的端点。
 - 业务插件只拿 Host 注入的函数端口；Host 到 Agent Host 的输入才使用 `credential_ref` + `resolveCredential`。插件不拿凭据解析器或明文；日志、事件、错误和产物里不出现密钥。
 - 一次调用只带这次需要的材料，不隐式读整个项目；用户正文是数据不是指令。
 
 ### 原图输入
 
-可信 Local Host 可以给 `hostTextGeneration` 传 `images: [{ root_path, relative_path, label? }]`。根目录及相对路径必须由 Host 从当前已授权材料中解析，不能从模型输出或插件 JSON 直接授权。已配置模型必须声明 `vision: true`；环境变量兼容模型不推定具备视觉能力，也不自动换模型。配置、视觉声明和凭据在实际派出及返回时仍重新核对。
+可信 Local Host 可以给 `hostTextGeneration` 传 `images: [{ root_path, relative_path, label? }]`。根目录及相对路径必须由 Host 从当前已授权材料中解析，不能从模型输出或插件 JSON 直接授权。已配置模型必须声明 `vision: true`；环境变量配置的模型不推定具备视觉能力，也不自动换模型。配置、视觉声明和凭据在实际派出及返回时仍重新核对。
 
 Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Session attachments，按实际字节识别 PNG/JPEG/GIF/WebP，不把 OCR 文本冒充原图。单图最多 32 MiB，每次最多 30 张、合计 128 MiB，还受 Home 共享资源余量约束；超限拒绝整次派出。普通 `resources.stage().publishDurable()` 没有 Host 字节位置，不能用来伪造模型附件。附件不会向模型开放目录或文件工具。
 

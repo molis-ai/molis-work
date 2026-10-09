@@ -1,5 +1,7 @@
 /** English for the Todo surface; Chinese strings are the keys. Placeholders ({title}, {count}, {view}, {y}, {m}, {d}) stay as written. */
 export const TODO_EN: Readonly<Record<string, string>> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "放在这个项目里的待办": "Todos placed in this project",
   "待办": "Todo",
   "待办视图": "Todo views",
   "搜索待办": "Search todos",
@@ -251,7 +253,7 @@ export const TODO_EN: Readonly<Record<string, string>> = {
   "到时间会在底栏提醒你，并受你设的提醒规则约束；Molis Work 关着时不会按时提醒，打开后会补上。": "You are reminded in the bottom bar when it is time, following your own reminder rules. Nothing arrives while Molis Work is closed; missed ones show when you open it.",
   "个人空间": "Personal space",
   "项目「{name}」": "Project “{name}”",
-  "成果": "Result",
+  "产出": "Output",
   "之后改过": "Changed since",
   "已不存在": "No longer exists",
   "暂时读不到": "Can't be read right now",

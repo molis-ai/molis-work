@@ -1332,45 +1332,6 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   }
   body[data-desktop-shell="true"] .goal-focus-aside .companion-runtime,
   .goal-focus-aside .companion-runtime { margin: 0; background: color-mix(in srgb, var(--rail) 62%, var(--paper)); }
-  html[data-resolved-theme="dark"] .focus-section-card-reveal :is(
-    .risk-empty,
-    .impact-empty,
-    .risk-create,
-    .impact-create,
-    .impact-history,
-    .risk-record,
-    .impact-record,
-    .risk-actions,
-    .impact-actions,
-    .risk-goal-picker,
-    .policy-scope-note,
-    .scope-gaps,
-    .scope-gaps > .contract-list
-  ) { background: var(--rail); color: var(--ink-soft); }
-  html[data-resolved-theme="dark"] .focus-section-card-reveal :is(
-    .risk-form,
-    .risk-state-form,
-    .impact-form,
-    .impact-deactivate form
-  ) { background: var(--paper); color: var(--ink); }
-  html[data-resolved-theme="dark"] .focus-section-card-reveal :is(
-    .risk-form input:not([type=checkbox]),
-    .risk-form textarea,
-    .risk-form select,
-    .risk-state-form textarea,
-    .risk-state-form select,
-    .impact-form input,
-    .impact-form textarea,
-    .impact-form select,
-    .impact-deactivate textarea
-  ) { border-color: var(--line-strong); background: var(--page); color: var(--ink); }
-  html[data-resolved-theme="dark"] .focus-section-card-reveal :is(.risk-effect, .risk-state-preview, .impact-effect) {
-    background: var(--nav-hover);
-    color: var(--ink-soft);
-  }
-  html[data-resolved-theme="dark"] .focus-section-card-reveal :is(.risk-actions, .impact-actions, .risk-create, .impact-create, .impact-history) summary:hover {
-    background: var(--nav-hover);
-  }
   .focus-section-card-reveal .full-records > summary {
     background: color-mix(in srgb, var(--rail) 78%, var(--paper));
     color: var(--muted);

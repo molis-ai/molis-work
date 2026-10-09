@@ -7,7 +7,7 @@ import test from "node:test";
 
 import { DatabaseSync } from "node:sqlite";
 import type { ModelProviderRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
-import { ModelProviderStore } from "@molis-ai/molis-work-app-local-host";
+import { ModelProviderStore, createModelProviderTables } from "@molis-ai/molis-work-app-local-host";
 import { AgentReviewQueue, createPrologueNodeAdapter, prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import { renderModelSettingsDocument, type ModelSettingsPrimitives } from "@molis-ai/molis-work-app-workbench";
 
@@ -23,22 +23,18 @@ const p: ModelSettingsPrimitives = {
 };
 const record = (overrides: Partial<ModelProviderRecord> = {}): ModelProviderRecord => ({
   provider_id: "minimax", display_name: "minimax", base_url: "https://api.minimaxi.com/anthropic", api_format: "anthropic-messages",
-  credential_ref: "model-provider:minimax", enabled: true, models: [{ model_id: "MiniMax-M3", enabled: true }],
+  credential_ref: "connector-connection:fixture:token", enabled: true, models: [{ model_id: "MiniMax-M3", enabled: true }],
   created_at: "2026-09-20T00:00:00Z", updated_at: "2026-09-20T00:00:00Z", ...overrides,
 });
 
-test("思考档：没选过是关着；打开后保存下来；没有思考字段的格式在保存时拒绝；旧库补列后是关着", () => {
+test("思考档：没选过是关着；打开后保存下来；没有思考字段的格式在保存时拒绝", () => {
   const directory = mkdtempSync(join(tmpdir(), "model-thinking-"));
   const db = new DatabaseSync(join(directory, "catalog.db"));
   try {
-    // A table written before the column existed.
-    db.exec(`CREATE TABLE model_providers (provider_id TEXT PRIMARY KEY, display_name TEXT NOT NULL, base_url TEXT NOT NULL,
-      api_format TEXT NOT NULL, credential_ref TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, prompt_cache TEXT NOT NULL DEFAULT 'off',
-      models_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`);
-    db.exec(`INSERT INTO model_providers VALUES ('old', 'old', 'https://x.test', 'anthropic-messages', 'model-provider:old', 1, 'off', '[]', 'a', 'b')`);
-    const store = new ModelProviderStore({ db: db as never, secrets: { put: () => {}, get: () => null, delete: () => {} } });
-    assert.equal(store.get("old")?.thinking, "off", "an old provider never asked to think");
-    const base = { provider_id: "minimax", display_name: "minimax", base_url: "https://api.minimaxi.com/anthropic", api_format: "anthropic-messages" as const };
+    createModelProviderTables(db as never);
+    const store = new ModelProviderStore({ db: db as never, secrets: { get: () => null } });
+    const base = { provider_id: "minimax", display_name: "minimax", base_url: "https://api.minimaxi.com/anthropic", api_format: "anthropic-messages" as const,
+      credential_ref: "connector-connection:fixture:token" };
     assert.equal(store.upsert(base).thinking, "off");
     assert.equal(store.upsert({ ...base, thinking: "adaptive" }).thinking, "adaptive");
     assert.equal(store.upsert(base).thinking, "adaptive", "saving without the field keeps the choice");
@@ -82,7 +78,7 @@ test("packed SDK: 开着时请求带上思考档、这一轮记下它；关着�
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "test", ...(thinking ? { thinking } : {}) }),
     resolveCredential: () => "test-only" });
   try {
-    const owner = { board_id: "board", plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: "user" }, directory = { canonical_path: project, realpath_verified: true };
+    const owner = { project_id: "board", plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: "user" }, directory = { canonical_path: project, realpath_verified: true };
     const role = { role_id: "reader", version: 1, execution: "read-only" as const, prompts: [], host_tools: [] };
     const session = await adapter.createSession({ ...owner, directory, title: "thinking" });
     const done = async (ref: never) => { for (let i = 0; i < 200; i++) { const view = await adapter.read(ref); if (view.phase === "completed") return view; await new Promise(r => setTimeout(r, 25)); } throw new Error("run did not complete"); };
@@ -121,7 +117,7 @@ test("packed SDK: 回答被输出上限截断时接着写，几段连成一条�
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "test", thinking: "adaptive" as const }),
     resolveCredential: () => "test-only" });
   try {
-    const owner = { board_id: "board", plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: "user" }, directory = { canonical_path: project, realpath_verified: true };
+    const owner = { project_id: "board", plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: "user" }, directory = { canonical_path: project, realpath_verified: true };
     const role = { role_id: "planner", version: 1, execution: "read-only" as const, prompts: [], host_tools: [] };
     const session = await adapter.createSession({ ...owner, directory, title: "continue" });
     const handle = await adapter.start({ ...owner, directory, session, task: "写一份计划。", role_id: "planner", role });

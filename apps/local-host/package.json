@@ -50,8 +50,6 @@
     "@molis-ai/molis-work-module-attention-resumption": "workspace:*",
     "@molis-ai/molis-work-module-characters": "workspace:*",
     "@molis-ai/molis-work-module-context-ledger": "workspace:*",
-    "@molis-ai/molis-work-module-evidence-verification": "workspace:*",
-    "@molis-ai/molis-work-module-execution": "workspace:*",
     "@molis-ai/molis-work-module-feed": "workspace:*",
     "@molis-ai/molis-work-module-functions": "workspace:*",
     "@molis-ai/molis-work-module-goals": "workspace:*",

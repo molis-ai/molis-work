@@ -1,8 +1,8 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { DATASET_NAME_COLUMN } from "./prompts.js";
-import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DATASET_ARTIFACT_TYPE_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
-import { promoteDataset, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
+import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { DATASET_ARTIFACT_TYPE_ID, DATASET_PROJECT_PLUGIN_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
+import { promoteDataset, type DatasetLineHeadPort, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStore } from "./store.js";
 import { createDatasetSearchHandlers, datasetSearchActions } from "./search.js";
 import { datasetArtifactPreview, datasetArtifactPreviewHandler } from "./artifact-preview.js";
@@ -30,6 +30,8 @@ export const datasetActions = {
   artifactPin: defineArtifactPinAction("dataset.artifacts.pin", "dataset", "数据表", [...write, "artifact:write"]),
   /** Whether a pinned version still matches the dataset object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("dataset.artifacts.compare", "数据表", read),
+  /** 「从这一版继续」 (A4b): a new 数据表 with the content of a pinned version; the version itself is unchanged. */
+  artifactContinue: defineArtifactContinueAction("dataset.artifacts.continue", "数据表", write),
   list: define<Record<string, never>, { datasets: DatasetRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "数据表列表", "读取当前项目数据表及当前 AI 加列可用性", "query", object({}), object({ datasets: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { dataset: DatasetRecord }>("get", "读取数据表", "读取当前项目表格的完整列、行、版本及发布状态", "query", object({ id }), changed),
   create: define<{ title?: string }, { dataset: DatasetRecord }>("create", "新建数据表", "创建当前项目的草稿数据表", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
@@ -51,21 +53,22 @@ export const datasetActions = {
   copy: defineObjectCopyAction("dataset.placement.copy", ["dataset"], "数据表", write),
 };
 /** A table is a workflow content station: it hands its CSV on, and makes a new table from CSV it receives (a form's responses). */
-export const datasetContentActions = defineWorkflowContentActions({ id: "dataset", title: "数据表", icon: "database", create: true,
+export const datasetContentActions = defineWorkflowContentActions({ id: "dataset", title: "数据表", icon: "database", create: true, subject_kind: "dataset",
   read_permissions: ["dataset:read"], write_permissions: ["dataset:read", "dataset:write"] });
 export const DATASET_ACTION_PERMISSIONS = [...new Set(Object.values(datasetActions).flatMap(d => d.action.permissions))];
 export interface DatasetActionPorts {
   withStore<T>(run: (store: DatasetStore) => T): T;
   modelAvailability(): ActionAvailability;
-  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
+  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
   publishArtifact?: (input: Parameters<DatasetPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<DatasetPublishArtifactPort>;
   readArtifact?: (input: Parameters<DatasetReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<DatasetReadArtifactPort>;
+  lineHead?: DatasetLineHeadPort;
 }
 export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promoteDataset(store, id, project(caller), value => ports.publishArtifact!(value, caller),
-    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined }));
+    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead }));
   const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "dataset.unavailable", reason: "当前环境不能发出成果" };
   return [
     datasetArtifactPreviewHandler,
@@ -86,7 +89,7 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw new ActionError("dataset.conflict", "数据表已改变，请重新读取后生成");
       caller.signal?.throwIfAborted();
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
-      const name = (await ports.completeText(instructed(DATASET_NAME_COLUMN, JSON.stringify({ request: input.prompt })), { signal: caller.signal })).trim();
+      const name = (await ports.completeText(instructed(DATASET_NAME_COLUMN, JSON.stringify({ request: input.prompt })), { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
       caller.signal?.throwIfAborted();
       if (!name || name.length > 80 || /[\r\n]/.test(name)) throw new ActionError("dataset.invalid", "模型没有返回有效列名，请调整提示后重试");
       await caller.beforeEffect();
@@ -99,8 +102,18 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
     bind(datasetActions.rollback, (input, caller) => ports.withStore(store => ({ dataset: store.rollback(input.id, input.version_id, project(caller), input.expected_version) }))),
     bind(datasetActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
     bind(datasetActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bindArtifactContinue(datasetActions.artifactContinue, [DATASET_ARTIFACT_TYPE_ID], (artifact, caller) => ports.withStore(store => {
+      const payload = (artifact.payload ?? {}) as Record<string, unknown>, at = project(caller);
+      const created = store.create({ title: typeof payload.title === "string" ? payload.title : artifact.title, project_id: at });
+      // A version the editor cannot take leaves no empty 数据表 behind.
+      try { store.update(created.id, Object.fromEntries(["description", "columns", "rows"].filter(field => payload[field] !== undefined).map(field => [field, payload[field]])), at); }
+      catch (error) { store.delete(created.id, at); throw error; }
+      return { surface: DATASET_PROJECT_PLUGIN_ID, id: created.id, title: created.title };
+    })),
     bindArtifactCompare(datasetActions.artifactCompare, DATASET_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
-      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "columns", "rows"])),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "columns", "rows"]),
+      // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.
+      id => ports.withStore(store => objectOrMissing(() => store.get(id)) !== null)),
     ...createDatasetSearchHandlers(ports.withStore),
     bindObjectMoveHandler(datasetActions.move, input => ports.withStore(store => {
       const dataset = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);

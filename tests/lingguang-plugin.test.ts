@@ -52,7 +52,7 @@ function emptyView(): MolisWorkWebView {
   return {
     snapshot: {
       board: {
-        board_id: "board-lingguang",
+        project_id: "board-lingguang",
         title: "灵光",
         active_goal_id: null,
         created_at: "2026-09-21T00:00:00.000Z",
@@ -61,18 +61,6 @@ function emptyView(): MolisWorkWebView {
       cursor: 0,
       goals: [],
       relations: [],
-      impacts: [],
-      risks: [],
-      claims: [],
-      runs: [],
-      evidence: [],
-      review_obligations: [],
-      reviews: [],
-      candidates: [],
-      contract_proposals: [],
-      rewires: [],
-      clarification_sessions: [],
-      clarification_turns: [],
       goal_tree_proposals: [],
       planning_method_packs: [],
     },
@@ -85,7 +73,6 @@ function emptyView(): MolisWorkWebView {
     archived_goals: [],
     trashed_goals: [],
     counts: {},
-    coverage: [],
     input_bindings: [],
     policy_bindings: [],
     events: [],
@@ -94,7 +81,6 @@ function emptyView(): MolisWorkWebView {
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      contract_migrations: [],
       out_rules: [],
     },
   } as MolisWorkWebView;
@@ -124,7 +110,6 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
   assert.equal(market?.copy, "先记下想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
   assert.equal(lingguangManifest.ui.views?.[0]?.slot, "island");
-  assert.equal(lingguangManifest.mcp_exports, undefined);
 });
 
 test("工作台挂上灵光空态、确认框和快记区", () => {
@@ -181,7 +166,7 @@ test("快记、重开还在；项目隔离；丢掉后离开列表", async () =>
   await withHome(async (home, host) => {
     const store = openLingguangStore(home);
     const routes = new LingguangPluginRouteTable(createLingguangRouteHandlers({ projectId: PROJECT, actions: bindActionClient(host.actionClient(
-      molisWorkHostProjectReference({ projectId: PROJECT, boardId: PROJECT, databasePath: join(home, "project.sqlite") })),
+      molisWorkHostProjectReference({ projectId: PROJECT, databasePath: join(home, "project.sqlite") })),
       () => ({ actor_id: "test", project_id: PROJECT, audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS })) }));
     const created = await routes.handle({
       method: "POST",
@@ -237,7 +222,7 @@ test("改正文会写入 store；头脑风暴使用注入模型并保存真实�
   await withHome(async (home, host) => {
     const store = openLingguangStore(home);
     const routes = new LingguangPluginRouteTable(createLingguangRouteHandlers({ projectId: PROJECT, actions: bindActionClient(host.actionClient(
-      molisWorkHostProjectReference({ projectId: PROJECT, boardId: PROJECT, databasePath: join(home, "project.sqlite") })),
+      molisWorkHostProjectReference({ projectId: PROJECT, databasePath: join(home, "project.sqlite") })),
       () => ({ actor_id: "test", project_id: PROJECT, audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS })) }));
     const created = await routes.handle({
       method: "POST",

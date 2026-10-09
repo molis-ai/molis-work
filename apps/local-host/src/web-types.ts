@@ -15,7 +15,7 @@ export interface WebServerOptions {
    * Molis Work project catalog and never accepts a database path.
    */
   databasePath?: string;
-  boardId?: string;
+  projectId?: string;
   /** Shared Web resource Home. Explicit value overrides MOLIS_WORK_HOME, then ~/.molis-work. */
   homeDirectory?: string;
   demo?: boolean;
@@ -34,11 +34,13 @@ export interface WebServerOptions {
   runtimeSessionTransport?: RuntimeSessionTransport;
   /** Shared Local Host fixture or embedding owner. Production Web owns one when omitted. */
   localHost?: MolisWorkLocalHost;
+  /** How often (milliseconds, default one minute) the server finishes project deletions that other processes left pending. */
+  deletionSweepMs?: number;
 }
 
 export interface ResolvedWebBoardOptions {
   databasePath: string;
-  boardId: string;
+  projectId: string;
   demo?: boolean;
   projectRoot?: string;
   project: WebProjectNavigation | null;

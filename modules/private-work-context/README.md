@@ -16,14 +16,14 @@
 | --- | --- |
 | [src/session-registry.ts](src/session-registry.ts) | Registry 与资源生命周期 |
 | [src/content-store.ts](src/content-store.ts) | 加密内容引用 |
-| [src/session-migration.ts](src/session-migration.ts) | 历史会话迁移 |
+| [src/session-surfaces.ts](src/session-surfaces.ts) | 终端面板与 Runtime 绑定写入时记下的会话 |
 | [src/project-binding-commands.ts](src/project-binding-commands.ts) | 项目绑定命令 |
 
 可对照现有调用方 [apps/local-host/src/session-registry.ts](../../apps/local-host/src/session-registry.ts) 阅读装配方式。
 
 ## 接入与边界
 
-Session 不是 Execution Run；私人的恢复包不会自动发布为 Artifact 或 Team 内容。历史未知 Project/Goal revision 保持未知。环境变量解析和 Runtime 进程启动由 Host 完成。
+私人的恢复包不会自动发布为 Artifact 或 Team 内容。历史未知 Project/Goal revision 保持未知。环境变量解析和 Runtime 进程启动由 Host 完成。
 
 由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。
 
@@ -36,10 +36,10 @@ pnpm --filter @molis-ai/molis-work-module-private-work-context typecheck
 pnpm --filter @molis-ai/molis-work-module-private-work-context build
 ```
 
-已有行为示例与回归：[private-work-context-module.test.ts](../../tests/private-work-context-module.test.ts)、[session-ledger-migration.test.ts](../../tests/session-ledger-migration.test.ts)。完成上述构建后运行：
+已有行为示例与回归：[private-work-context-module.test.ts](../../tests/private-work-context-module.test.ts)、[session-associations-atomic.test.ts](../../tests/session-associations-atomic.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/private-work-context-module.test.ts tests/session-ledger-migration.test.ts
+node --import tsx --test --test-concurrency=1 tests/private-work-context-module.test.ts tests/session-associations-atomic.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
@@ -53,7 +53,7 @@ node --import tsx --test --test-concurrency=1 tests/private-work-context-module.
 - 不变量：
   - 默认只在本机；私人恢复包不自动发布为 Artifact 或 Team 内容，共享必须由用户显式发布。
   - 关系事实只存在 Context Ledger，不另建关系表；打开时必须提供 `createLedger` 并复用事务连接。
-  - 旧面板与绑定的迁移幂等，保留原回执。
+  - 终端面板与 Runtime 绑定在写入时记下会话（读取时不再搬运）；面板的绑定与面板共用一个会话。
 - 改动后必跑：`node scripts/run-tests.mjs tests/private-work-context-module.test.ts tests/session-handoff.test.ts tests/session-directory.test.ts tests/session-content-privacy.test.ts`
 - 相关手册：[docs/modules/private-work-context.md](../../docs/modules/private-work-context.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

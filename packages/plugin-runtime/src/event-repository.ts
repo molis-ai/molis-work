@@ -18,13 +18,13 @@ export interface PluginEventsDatabase {
 }
 
 function cursorKey(
-  boardId: string,
+  projectId: string,
   subscriberPluginId: string,
   source: PluginEventSubscribeSource,
   identity: PluginEventSubscriberIdentity,
 ): string {
   return [
-    boardId,
+    projectId,
     subscriberPluginId,
     identity.install_id,
     identity.installation_generation,
@@ -53,38 +53,38 @@ export class MemoryPluginEventsRepository implements PluginEventsRepository {
   readonly #resolutions: PluginEventResolutionRecord[] = [];
 
   append(record: Omit<PluginEventRecord, "sequence">): PluginEventRecord {
-    const sequence = (this.#sequences.get(record.board_id) ?? 0) + 1;
-    this.#sequences.set(record.board_id, sequence);
+    const sequence = (this.#sequences.get(record.project_id) ?? 0) + 1;
+    this.#sequences.set(record.project_id, sequence);
     const stored: PluginEventRecord = structuredClone({ ...record, sequence });
     this.#events.push(stored);
     return structuredClone(stored);
   }
 
-  list(boardId: string, query?: PluginEventLogQuery): PluginEventRecord[] {
+  list(projectId: string, query?: PluginEventLogQuery): PluginEventRecord[] {
     const rows = this.#events
-      .filter((record) => record.board_id === boardId && matches(record, query))
+      .filter((record) => record.project_id === projectId && matches(record, query))
       .sort((left, right) => left.sequence - right.sequence)
       .map((record) => structuredClone(record));
     return query?.limit === undefined ? rows : rows.slice(0, query.limit);
   }
 
-  latestSequence(boardId: string): number {
-    return this.#sequences.get(boardId) ?? 0;
+  latestSequence(projectId: string): number {
+    return this.#sequences.get(projectId) ?? 0;
   }
 
   cursor(
-    boardId: string,
+    projectId: string,
     subscriberPluginId: string,
     source: PluginEventSubscribeSource,
     identity: PluginEventSubscriberIdentity,
   ): PluginEventCursorRecord | null {
-    const record = this.#cursors.get(cursorKey(boardId, subscriberPluginId, source, identity));
+    const record = this.#cursors.get(cursorKey(projectId, subscriberPluginId, source, identity));
     return record ? { ...record } : null;
   }
 
-  listCursors(boardId: string, subscriberPluginId?: string): PluginEventCursorRecord[] {
+  listCursors(projectId: string, subscriberPluginId?: string): PluginEventCursorRecord[] {
     return [...this.#cursors.values()]
-      .filter((record) => record.board_id === boardId
+      .filter((record) => record.project_id === projectId
         && (subscriberPluginId === undefined || record.subscriber_plugin_id === subscriberPluginId))
       .map((record) => ({ ...record }))
       .sort((left, right) => left.subscriber_plugin_id.localeCompare(right.subscriber_plugin_id));
@@ -92,7 +92,7 @@ export class MemoryPluginEventsRepository implements PluginEventsRepository {
 
   saveCursor(record: PluginEventCursorRecord): void {
     this.#cursors.set(
-      cursorKey(record.board_id, record.subscriber_plugin_id, {
+      cursorKey(record.project_id, record.subscriber_plugin_id, {
         source_plugin_id: record.source_plugin_id,
         event_type_id: record.event_type_id,
         type_version: record.type_version,
@@ -102,7 +102,7 @@ export class MemoryPluginEventsRepository implements PluginEventsRepository {
   }
 
   resolveCursor(previous: PluginEventCursorRecord, next: PluginEventCursorRecord, resolution: PluginEventResolutionRecord): boolean {
-    const current = this.cursor(previous.board_id, previous.subscriber_plugin_id, previous,
+    const current = this.cursor(previous.project_id, previous.subscriber_plugin_id, previous,
       { install_id: previous.subscriber_install_id, installation_generation: previous.subscriber_generation });
     if (current?.state !== "quarantined" || current.revision !== previous.revision) return false;
     const saved = structuredClone(resolution);
@@ -111,14 +111,14 @@ export class MemoryPluginEventsRepository implements PluginEventsRepository {
     return true;
   }
 
-  resolutions(boardId: string, subscriberPluginId?: string): PluginEventResolutionRecord[] {
-    return this.#resolutions.filter(record => record.board_id === boardId
+  resolutions(projectId: string, subscriberPluginId?: string): PluginEventResolutionRecord[] {
+    return this.#resolutions.filter(record => record.project_id === projectId
       && (subscriberPluginId === undefined || record.subscriber_plugin_id === subscriberPluginId)).map(record => structuredClone(record));
   }
 
-  deleteCursors(boardId: string, subscriberPluginId: string): void {
+  deleteCursors(projectId: string, subscriberPluginId: string): void {
     for (const [key, record] of [...this.#cursors]) {
-      if (record.board_id === boardId && record.subscriber_plugin_id === subscriberPluginId) {
+      if (record.project_id === projectId && record.subscriber_plugin_id === subscriberPluginId) {
         this.#cursors.delete(key);
       }
     }
@@ -127,7 +127,7 @@ export class MemoryPluginEventsRepository implements PluginEventsRepository {
 
 interface EventRow {
   event_id: string;
-  board_id: string;
+  project_id: string;
   sequence: number;
   event_type_id: string;
   type_version: number;
@@ -141,7 +141,7 @@ interface EventRow {
 function toRecord(row: EventRow): PluginEventRecord {
   return {
     event_id: row.event_id,
-    board_id: row.board_id,
+    project_id: row.project_id,
     sequence: Number(row.sequence),
     event_type_id: row.event_type_id,
     type_version: Number(row.type_version),
@@ -153,15 +153,11 @@ function toRecord(row: EventRow): PluginEventRecord {
   };
 }
 
-/**
- * Durable event log owned by Plugin Runtime. It stores coordination facts and
- * delivery cursors only; no Goal, Artifact or Provider table is read here.
- */
-export class SqlitePluginEventsRepository implements PluginEventsRepository {
-  constructor(private readonly db: PluginEventsDatabase) {
-    db.exec(`CREATE TABLE IF NOT EXISTS plugin_events (
+/** The plugin event tables, as one current schema; the host composes them into the project database baseline. */
+export const PLUGIN_EVENTS_SCHEMA_SQL = `
+    CREATE TABLE IF NOT EXISTS plugin_events (
       event_id TEXT PRIMARY KEY,
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       sequence INTEGER NOT NULL,
       event_type_id TEXT NOT NULL,
       type_version INTEGER NOT NULL,
@@ -170,12 +166,12 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
       payload_json TEXT NOT NULL,
       correlation_id TEXT,
       occurred_at TEXT NOT NULL
-    )`);
-    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS plugin_events_board_sequence ON plugin_events (board_id, sequence)");
-    db.exec(`CREATE INDEX IF NOT EXISTS plugin_events_board_type_source
-      ON plugin_events (board_id, event_type_id, type_version, source_plugin_id, sequence)`);
-    const cursorTable = `CREATE TABLE IF NOT EXISTS plugin_event_cursors (
-      board_id TEXT NOT NULL,
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS plugin_events_board_sequence ON plugin_events (project_id, sequence);
+    CREATE INDEX IF NOT EXISTS plugin_events_board_type_source
+      ON plugin_events (project_id, event_type_id, type_version, source_plugin_id, sequence);
+    CREATE TABLE IF NOT EXISTS plugin_event_cursors (
+      project_id TEXT NOT NULL,
       subscriber_plugin_id TEXT NOT NULL,
       subscriber_install_id TEXT NOT NULL,
       subscriber_generation TEXT NOT NULL,
@@ -188,36 +184,30 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
       retry_at TEXT,
       last_error_code TEXT,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, subscriber_plugin_id, subscriber_install_id, subscriber_generation, source_plugin_id, event_type_id, type_version)
-    )`;
-    const columns = db.prepare("PRAGMA table_info(plugin_event_cursors)").all() as Array<{ name: string }>;
-    if (columns.length && !columns.some(column => column.name === "subscriber_generation")) {
-      db.exec("SAVEPOINT plugin_event_cursor_identity");
-      try {
-        db.exec("ALTER TABLE plugin_event_cursors RENAME TO plugin_event_cursors_legacy");
-        db.exec(cursorTable);
-        db.exec(`INSERT INTO plugin_event_cursors SELECT board_id, subscriber_plugin_id, '', '', '', source_plugin_id, event_type_id, type_version,
-          delivered_sequence, state, retry_at, last_error_code, updated_at FROM plugin_event_cursors_legacy`);
-        db.exec("DROP TABLE plugin_event_cursors_legacy");
-        db.exec("RELEASE plugin_event_cursor_identity");
-      } catch (error) { db.exec("ROLLBACK TO plugin_event_cursor_identity"); db.exec("RELEASE plugin_event_cursor_identity"); throw error; }
-    } else db.exec(cursorTable);
-    if (columns.some(column => column.name === "subscriber_generation") && !columns.some(column => column.name === "revision")) {
-      db.exec("ALTER TABLE plugin_event_cursors ADD COLUMN revision TEXT NOT NULL DEFAULT ''");
-    }
-    db.exec(`CREATE TABLE IF NOT EXISTS plugin_event_resolutions (
-      resolution_id TEXT PRIMARY KEY, board_id TEXT NOT NULL, subscriber_plugin_id TEXT NOT NULL, record_json TEXT NOT NULL
-    )`);
+      PRIMARY KEY (project_id, subscriber_plugin_id, subscriber_install_id, subscriber_generation, source_plugin_id, event_type_id, type_version)
+    );
+    CREATE TABLE IF NOT EXISTS plugin_event_resolutions (
+      resolution_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, subscriber_plugin_id TEXT NOT NULL, record_json TEXT NOT NULL
+    );
+`;
+
+/**
+ * Durable event log owned by Plugin Runtime. It stores coordination facts and
+ * delivery cursors only; no Goal, Artifact or Provider table is read here.
+ */
+export class SqlitePluginEventsRepository implements PluginEventsRepository {
+  constructor(private readonly db: PluginEventsDatabase) {
+    db.exec(PLUGIN_EVENTS_SCHEMA_SQL);
   }
 
   append(record: Omit<PluginEventRecord, "sequence">): PluginEventRecord {
     const row = this.db.prepare(`INSERT INTO plugin_events (
-      event_id, board_id, sequence, event_type_id, type_version,
+      event_id, project_id, sequence, event_type_id, type_version,
       source_plugin_id, source_install_id, payload_json, correlation_id, occurred_at
-    ) VALUES (?, ?, (SELECT COALESCE(MAX(sequence), 0) + 1 FROM plugin_events WHERE board_id = ?), ?, ?, ?, ?, ?, ?, ?) RETURNING sequence`).get(
+    ) VALUES (?, ?, (SELECT COALESCE(MAX(sequence), 0) + 1 FROM plugin_events WHERE project_id = ?), ?, ?, ?, ?, ?, ?, ?) RETURNING sequence`).get(
       record.event_id,
-      record.board_id,
-      record.board_id,
+      record.project_id,
+      record.project_id,
       record.event_type_id,
       record.type_version,
       record.source_plugin_id,
@@ -229,9 +219,9 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
     return { ...record, sequence: Number(row.sequence) };
   }
 
-  list(boardId: string, query?: PluginEventLogQuery): PluginEventRecord[] {
-    const clauses = ["board_id = ?"];
-    const parameters: unknown[] = [boardId];
+  list(projectId: string, query?: PluginEventLogQuery): PluginEventRecord[] {
+    const clauses = ["project_id = ?"];
+    const parameters: unknown[] = [projectId];
     if (query?.event_type_id !== undefined) {
       clauses.push("event_type_id = ?");
       parameters.push(query.event_type_id);
@@ -255,23 +245,23 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
     ).all(...parameters).map((row) => toRecord(row as EventRow));
   }
 
-  latestSequence(boardId: string): number {
-    const row = this.db.prepare("SELECT MAX(sequence) AS latest FROM plugin_events WHERE board_id = ?")
-      .get(boardId) as { latest: number | null } | undefined;
+  latestSequence(projectId: string): number {
+    const row = this.db.prepare("SELECT MAX(sequence) AS latest FROM plugin_events WHERE project_id = ?")
+      .get(projectId) as { latest: number | null } | undefined;
     return Number(row?.latest ?? 0);
   }
 
   cursor(
-    boardId: string,
+    projectId: string,
     subscriberPluginId: string,
     source: PluginEventSubscribeSource,
     identity: PluginEventSubscriberIdentity,
   ): PluginEventCursorRecord | null {
     const row = this.db.prepare(`SELECT * FROM plugin_event_cursors
-      WHERE board_id = ? AND subscriber_plugin_id = ? AND source_plugin_id = ?
+      WHERE project_id = ? AND subscriber_plugin_id = ? AND source_plugin_id = ?
         AND event_type_id = ? AND type_version = ? AND subscriber_install_id = ? AND subscriber_generation = ?`)
       .get(
-        boardId,
+        projectId,
         subscriberPluginId,
         source.source_plugin_id,
         source.event_type_id,
@@ -282,13 +272,13 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
     return row ? { ...row, delivered_sequence: Number(row.delivered_sequence) } : null;
   }
 
-  listCursors(boardId: string, subscriberPluginId?: string): PluginEventCursorRecord[] {
+  listCursors(projectId: string, subscriberPluginId?: string): PluginEventCursorRecord[] {
     const rows = subscriberPluginId === undefined
-      ? this.db.prepare("SELECT * FROM plugin_event_cursors WHERE board_id = ? ORDER BY subscriber_plugin_id")
-        .all(boardId)
+      ? this.db.prepare("SELECT * FROM plugin_event_cursors WHERE project_id = ? ORDER BY subscriber_plugin_id")
+        .all(projectId)
       : this.db.prepare(`SELECT * FROM plugin_event_cursors
-          WHERE board_id = ? AND subscriber_plugin_id = ? ORDER BY source_plugin_id`)
-        .all(boardId, subscriberPluginId);
+          WHERE project_id = ? AND subscriber_plugin_id = ? ORDER BY source_plugin_id`)
+        .all(projectId, subscriberPluginId);
     return rows.map((row) => {
       const record = row as PluginEventCursorRecord;
       return { ...record, delivered_sequence: Number(record.delivered_sequence) };
@@ -297,14 +287,14 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
 
   saveCursor(record: PluginEventCursorRecord): void {
     this.db.prepare(`INSERT INTO plugin_event_cursors (
-      board_id, subscriber_plugin_id, subscriber_install_id, subscriber_generation, source_plugin_id, event_type_id, type_version,
+      project_id, subscriber_plugin_id, subscriber_install_id, subscriber_generation, source_plugin_id, event_type_id, type_version,
       delivered_sequence, state, retry_at, last_error_code, updated_at, revision
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT (board_id, subscriber_plugin_id, subscriber_install_id, subscriber_generation, source_plugin_id, event_type_id, type_version)
+    ON CONFLICT (project_id, subscriber_plugin_id, subscriber_install_id, subscriber_generation, source_plugin_id, event_type_id, type_version)
     DO UPDATE SET delivered_sequence = excluded.delivered_sequence, state = excluded.state,
       retry_at = excluded.retry_at, last_error_code = excluded.last_error_code,
       updated_at = excluded.updated_at, revision = excluded.revision`).run(
-      record.board_id,
+      record.project_id,
       record.subscriber_plugin_id,
       record.subscriber_install_id,
       record.subscriber_generation,
@@ -324,18 +314,18 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
     this.db.exec("SAVEPOINT plugin_event_resolution");
     try {
       const changed = this.db.prepare(`UPDATE plugin_event_cursors SET delivered_sequence = ?, state = ?, retry_at = ?,
-        last_error_code = ?, updated_at = ?, revision = ? WHERE board_id = ? AND subscriber_plugin_id = ?
+        last_error_code = ?, updated_at = ?, revision = ? WHERE project_id = ? AND subscriber_plugin_id = ?
         AND subscriber_install_id = ? AND subscriber_generation = ? AND source_plugin_id = ? AND event_type_id = ?
         AND type_version = ? AND revision = ? AND state = 'quarantined'`).run(next.delivered_sequence, next.state, next.retry_at,
-        next.last_error_code, next.updated_at, next.revision, previous.board_id, previous.subscriber_plugin_id,
+        next.last_error_code, next.updated_at, next.revision, previous.project_id, previous.subscriber_plugin_id,
         previous.subscriber_install_id, previous.subscriber_generation, previous.source_plugin_id, previous.event_type_id,
         previous.type_version, previous.revision) as { changes: number };
       if (changed.changes !== 1) {
         this.db.exec("RELEASE plugin_event_resolution");
         return false;
       }
-      this.db.prepare("INSERT INTO plugin_event_resolutions (resolution_id, board_id, subscriber_plugin_id, record_json) VALUES (?, ?, ?, ?)")
-        .run(next.revision, resolution.board_id, resolution.subscriber_plugin_id, JSON.stringify(resolution));
+      this.db.prepare("INSERT INTO plugin_event_resolutions (resolution_id, project_id, subscriber_plugin_id, record_json) VALUES (?, ?, ?, ?)")
+        .run(next.revision, resolution.project_id, resolution.subscriber_plugin_id, JSON.stringify(resolution));
       this.db.exec("RELEASE plugin_event_resolution");
       return true;
     } catch (error) {
@@ -345,15 +335,15 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
     }
   }
 
-  resolutions(boardId: string, subscriberPluginId?: string): PluginEventResolutionRecord[] {
+  resolutions(projectId: string, subscriberPluginId?: string): PluginEventResolutionRecord[] {
     const rows = subscriberPluginId === undefined
-      ? this.db.prepare("SELECT record_json FROM plugin_event_resolutions WHERE board_id = ? ORDER BY rowid").all(boardId)
-      : this.db.prepare("SELECT record_json FROM plugin_event_resolutions WHERE board_id = ? AND subscriber_plugin_id = ? ORDER BY rowid").all(boardId, subscriberPluginId);
+      ? this.db.prepare("SELECT record_json FROM plugin_event_resolutions WHERE project_id = ? ORDER BY rowid").all(projectId)
+      : this.db.prepare("SELECT record_json FROM plugin_event_resolutions WHERE project_id = ? AND subscriber_plugin_id = ? ORDER BY rowid").all(projectId, subscriberPluginId);
     return rows.map(row => JSON.parse((row as { record_json: string }).record_json) as PluginEventResolutionRecord);
   }
 
-  deleteCursors(boardId: string, subscriberPluginId: string): void {
-    this.db.prepare("DELETE FROM plugin_event_cursors WHERE board_id = ? AND subscriber_plugin_id = ?")
-      .run(boardId, subscriberPluginId);
+  deleteCursors(projectId: string, subscriberPluginId: string): void {
+    this.db.prepare("DELETE FROM plugin_event_cursors WHERE project_id = ? AND subscriber_plugin_id = ?")
+      .run(projectId, subscriberPluginId);
   }
 }

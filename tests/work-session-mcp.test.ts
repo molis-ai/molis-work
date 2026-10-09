@@ -26,7 +26,7 @@ test("formal MCP and Web share Session directory/content/resume and borrowed Hos
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "sessions", actor_id: "owner" });
     return project;
   });
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id, boardId: project.board_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const requests: string[] = [];
   const withPolicyCatalog: LocalWebCatalogRunner = async (options, operation) => {
     const catalog = await MolisWorkProjectCatalog.open(options, { createPanelSchema: createDesktopPanelTables,

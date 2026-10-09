@@ -1,4 +1,3 @@
-import { MolisWorkSessionError } from "./errors.js";
 import { SessionMessageRepository } from "./session-messages.js";
 import type { SessionMessageApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
@@ -20,18 +19,18 @@ import type {
   MolisWorkSessionGoalLink,
   MolisWorkSessionHandoffRecord,
   MolisWorkSessionRecord,
-  LegacySessionMigrationInput,
-  LegacySessionMigrationReport,
   LinkNativeRuntimeSessionInput,
   ReassignWorkspaceSessionsInput,
   SessionListFilter,
   SetMolisWorkSessionStatusInput,
   UpdateSessionAssociationsInput,
   UpdateSessionHandoffDraftInput,
+  WorkSessionBindingInput,
+  WorkSessionPanelInput,
 } from "./contract-aliases.js";
 import { SessionEventRepository } from "./session-events.js";
 import { SessionHandoffRepository } from "./session-handoffs.js";
-import { LegacySessionMigrator } from "./session-migration.js";
+import { SessionSurfaceRecorder } from "./session-surfaces.js";
 import { SessionRecordRepository } from "./session-records.js";
 import { initializeOrValidateSessionSchema } from "./session-schema.js";
 
@@ -42,9 +41,9 @@ export interface MolisWorkSessionRegistryOptions {
 }
 
 /**
- * Compatibility facade for the Private Work Context owner.
+ * Facade for the Private Work Context owner.
  *
- * Persistence, events, handoffs and legacy migration live in separate owner
+ * Persistence, events, handoffs and the panel/binding Sessions live in separate owner
  * components; callers keep the established API while their imports move to the
  * package public entrypoint.
  */
@@ -58,7 +57,7 @@ export class MolisWorkSessionRegistry implements WorkSessionApi {
     private readonly sessions: SessionRecordRepository,
     private readonly eventsRepository: SessionEventRepository,
     private readonly handoffs: SessionHandoffRepository,
-    private readonly migration: LegacySessionMigrator,
+    private readonly surfaces: SessionSurfaceRecorder,
     readonly messages: SessionMessageApi,
   ) {
     this.homeDirectory = homeDirectory;
@@ -78,28 +77,19 @@ export class MolisWorkSessionRegistry implements WorkSessionApi {
       db.pragma("busy_timeout = 5000");
       const now = options.now ?? (() => new Date());
       const contentStore = createSessionContentStore(path.join(sessionsDirectory, "content"));
-      // Schema, association migrations and message storage publish as one upgrade.
-      // Rebuilding old CHECK constraints requires FK enforcement disabled before the transaction.
-      db.pragma("foreign_keys = OFF");
-      let registry: MolisWorkSessionRegistry;
-      try {
-        registry = db.transaction(() => {
-          initializeOrValidateSessionSchema(db);
-          const ledger = options.createLedger(db);
-          const associations = new SessionAssociationRepository(ledger);
-          associations.migrate(db);
-          const handoffAssociations = new HandoffAssociationRepository(ledger);
-          handoffAssociations.migrate(db);
-          const sessions = new SessionRecordRepository(db, now, associations);
-          const handoffs = new SessionHandoffRepository(db, now, contentStore, sessions, handoffAssociations);
-          const events = new SessionEventRepository(db, now, contentStore, sessions);
-          const messages = new SessionMessageRepository(db, now, contentStore, sessions, events);
-          messages.migrate();
-          if (db.prepare("PRAGMA foreign_key_check").all().length) throw new MolisWorkSessionError("session.invalid_input", "Session 升级发现失效引用，已保留原数据库");
-          return new MolisWorkSessionRegistry(db, homeDirectory, sessions, events, handoffs,
-            new LegacySessionMigrator(db, now, sessions), messages);
-        }).immediate();
-      } finally { db.pragma("foreign_keys = ON"); }
+      // Only the current schema is read; a new registry is created at it (no upgrade path from older registries).
+      const registry = db.transaction(() => {
+        initializeOrValidateSessionSchema(db);
+        const ledger = options.createLedger(db);
+        const associations = new SessionAssociationRepository(ledger);
+        const handoffAssociations = new HandoffAssociationRepository(ledger);
+        const sessions = new SessionRecordRepository(db, now, associations);
+        const handoffs = new SessionHandoffRepository(db, now, contentStore, sessions, handoffAssociations);
+        const events = new SessionEventRepository(db, now, contentStore, sessions);
+        const messages = new SessionMessageRepository(db, now, contentStore, sessions, events);
+        return new MolisWorkSessionRegistry(db, homeDirectory, sessions, events, handoffs,
+          new SessionSurfaceRecorder(db, now, sessions), messages);
+      }).immediate();
       registry.handoffs.recoverInterrupted();
       return registry;
     } catch (error) {
@@ -227,7 +217,7 @@ export class MolisWorkSessionRegistry implements WorkSessionApi {
     return this.handoffs.cancel(packageId);
   }
 
-  migrateLegacy(input: LegacySessionMigrationInput): LegacySessionMigrationReport {
-    return this.migration.migrate(input);
-  }
+  /** Sessions are written with their surface: a desktop panel's own, and a Runtime binding's (a panel's binding shares the panel's). */
+  recordPanelSession(panel: WorkSessionPanelInput): MolisWorkSessionRecord { return this.surfaces.recordPanel(panel); }
+  recordBindingSession(binding: WorkSessionBindingInput, panelSurfaceId: string | null = null): MolisWorkSessionRecord { return this.surfaces.recordBinding(binding, panelSurfaceId); }
 }

@@ -1,4 +1,6 @@
 export const PPT_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "PPT 演示稿": "PPT presentations",
   "大纲来自": "Outline from",
   "粘贴文字": "Paste text",
   "选一篇文档": "Pick a document",
@@ -90,6 +92,8 @@ export const PPT_EN: Record<string, string> = {
   "PowerPoint 文件（.pptx）": "PowerPoint file (.pptx)",
   "打印或存为 PDF": "Print or save as PDF",
   "导出数据（JSON，不是演示文稿）": "Export data (JSON, not a presentation)",
-  "把当前内容存成不会再变的一版，放进这个位置的成果": "Save the current content as a version that won't change, in this location's Artifacts",
+  "把当前内容存成不会再变的一版，放进这个位置的成果（Artifacts）": "Save the current content as a version that won't change, in this location's Artifacts",
   "继续保存上次固定版本": "Finish saving the last fixed version",
+  // plugins/native/ppt/src/ui.ts
+  "生成方式": "How to generate",
 };

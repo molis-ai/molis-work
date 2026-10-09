@@ -3,16 +3,17 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { formActions as actions, FORM_ACTION_PERMISSIONS, openFormStore, runFormMcpTool } from "@molis-ai/molis-work-plugin-form";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import { formActions as actions, FORM_ACTION_PERMISSIONS, FORM_ANSWER_FORMAT, FormPluginRouteTable, createFormRouteHandlers, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
 async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null) {
   const home = await mkdtemp(join(tmpdir(), "form-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "legacy-board", projectId: "a" });
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: ref.board_id, title: "Form", actor_id: "owner", idempotency_key: "init" }));
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
+  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "Form", actor_id: "owner", idempotency_key: "init" }));
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: FORM_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };
@@ -23,40 +24,46 @@ const questions = [
   { id: "rating", type: "rating" as const, title: "评分" }, { id: "date", type: "date" as const, title: "日期" },
 ];
 const answers = { text: "第一份回答", singleChoice: "是", multiChoice: "是\n否", dropdown: "否", rating: "5", date: "2026-09-25" };
+/** What the exported fill page hands back: one answer file that names its form and the questions it answered (question `q`). */
+function answerFile(form: FormRecord, answerId: string, value: string) {
+  return { name: `${answerId}.molis-answer.json`, content: JSON.stringify({ format: FORM_ANSWER_FORMAT, form_id: form.id, form_version: form.version, answer_id: answerId,
+    submitted_at: "2026-10-08T01:02:03.000Z", questions: form.questions, answers: { q: value } }) };
+}
 
-test("Form all actions and ten legacy tools share original data, six question types and snapshot-backed submissions", async t => {
+test("Form actions share original data, six question types and snapshot-backed submissions", async t => {
   const f = await fixture(t);
-  const legacy = async (tool_id: string, args = {}) => JSON.parse(await runFormMcpTool(f.bound, { tool_id, arguments: args }));
+  const invoke = (key: keyof typeof actions, args: object = {}): Promise<any> => f.bound.invoke(actions[key] as never, args as never);
   const catalog = await f.bound.discover();
   for (const action of Object.values(actions)) assert.ok(catalog.some(item => item.capability_id === action.capability_id));
-  let { form } = await legacy("create", { title: "原问卷" }); const id = form.id;
-  assert.equal((await legacy("list")).forms[0].id, id);
+  let { form } = await invoke("create", { title: "原问卷" }); const id = form.id;
+  assert.equal((await invoke("list")).forms[0].id, id);
   await assert.rejects(f.client.invoke({ ...f.caller, project_id: "b" }, actions.list, {}), { code: "actions.scope_mismatch" });
   await assert.rejects(f.client.invoke({ ...f.caller, permissions: ["form:read"] }, actions.create, {}), { code: "actions.forbidden" });
   await assert.rejects(f.bound.invoke(actions.create, { project_id: "b" } as never), { code: "actions.input_invalid" });
-  form = (await legacy("update", { id, questions, expected_version: form.version })).form;
+  form = (await invoke("update", { id, questions, expected_version: form.version })).form;
   for (const invalid of [{ ...answers, text: "" }, { ...answers, singleChoice: "不在选项中" }, { ...answers, multiChoice: "是\n是" }, { ...answers, rating: "6" }, { ...answers, date: "2026-02-30" }, { ...answers, unknown: "不得静默丢弃" }]) {
     await assert.rejects(f.bound.invoke(actions.submit, { id, answers: invalid, expected_version: form.version }), { code: "form.invalid" });
   }
-  assert.equal((await legacy("results", { id })).analysis.submission_count, 0);
+  assert.equal((await invoke("results", { id })).analysis.submission_count, 0);
   const input = { id, answers, expected_version: form.version, request_id: "first-submission" };
-  const first = (await legacy("submit", input)).submission;
+  const first = (await invoke("submit", input)).submission;
   assert.deepEqual(first.answers, answers); assert.equal(first.form_version, form.version);
   assert.equal(first.questions[0].title, "原问题");
-  assert.deepEqual((await legacy("submit", input)).submission, first);
+  assert.deepEqual((await invoke("submit", input)).submission, first);
   await assert.rejects(f.bound.invoke(actions.submit, { ...input, answers: { ...answers, text: "不能换内容" } }), { code: "form.request_conflict" });
-  form = (await legacy("update", { id, questions: [{ id: "replacement", title: "新问题" }], expected_version: form.version })).form;
+  form = (await invoke("update", { id, questions: [{ id: "replacement", title: "新问题" }], expected_version: form.version })).form;
   await assert.rejects(f.bound.invoke(actions.submit, { ...input, request_id: "stale-preview" }), { code: "form.conflict" });
-  assert.deepEqual((await legacy("submit", input)).submission, first, "a completed request can recover even after the form changes");
-  assert.equal((await legacy("results", { id })).submissions[0].questions[0].title, "原问题");
-  const published = (await legacy("publish", { id, expected_version: form.version })).form;
+  assert.deepEqual((await invoke("submit", input)).submission, first, "a completed request can recover even after the form changes");
+  assert.equal((await invoke("results", { id })).submissions[0].questions[0].title, "原问题");
+  const published = (await invoke("publish", { id, expected_version: form.version })).form;
   assert.equal(published.status, "published"); assert.ok(published.share_id);
-  assert.equal((await legacy("publish", { id })).form.share_id, published.share_id);
-  assert.equal((await legacy("generate", { id, prompt: "本地追加" })).form.questions.at(-1).title, "本地追加");
-  const promoted = await legacy("promote", { id });
+  assert.equal((await invoke("publish", { id })).form.share_id, published.share_id);
+  assert.equal((await invoke("generate", { id, prompt: "本地追加" })).form.questions.at(-1).title, "本地追加");
+  const promoted = await invoke("promote", { id });
   await f.host.withProject(f.ref, runtime => {
-    const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id, promoted.artifact)!;
-    assert.equal(artifact.owner_actor_id, "owner"); assert.equal((artifact.payload as any).questions.length, 2);
+    const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, promoted.artifact)!;
+    // A pinned form belongs to the Home's person; the actor who pinned it is its producer.
+    assert.equal(artifact.owner_actor_id, LOCAL_PERSON_ACTOR_ID); assert.equal(artifact.created_by, "owner"); assert.equal((artifact.payload as any).questions.length, 2);
     assert.equal((artifact.payload as any).answers, undefined);
   });
   const store = openFormStore(f.home);
@@ -64,27 +71,18 @@ test("Form all actions and ten legacy tools share original data, six question ty
   try { foreign = store.create({ project_id: "b" }).id; assert.equal(store.listSubmissions(id, "a").length, 1); } finally { store.close(); }
   for (const definition of [actions.get, actions.results, actions.delete]) await assert.rejects(f.bound.invoke(definition, { id: foreign }), { code: "form.not_found" });
   await f.host.closeProject(f.ref);
-  assert.deepEqual((await legacy("results", { id })).submissions[0], first);
-  assert.equal((await legacy("get", { id })).form.share_id, published.share_id);
-  await legacy("delete", { id }); assert.deepEqual((await legacy("list")).forms, []);
+  assert.deepEqual((await invoke("results", { id })).submissions[0], first);
+  assert.equal((await invoke("get", { id })).form.share_id, published.share_id);
+  await invoke("delete", { id }); assert.deepEqual((await invoke("list")).forms, []);
   const another = await fixture(t); assert.deepEqual((await another.bound.invoke(actions.list, {})).forms, []);
 });
 
-test("Form upgrades old submissions without inventing historical questions; deletion rolls back all rows on failure", async t => {
+test("Form deletion rolls back all rows on failure", async t => {
   const f = await fixture(t), db = openHomeSqliteDatabase(f.home, "form");
   try {
-    db.exec(`CREATE TABLE forms (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL,
-      share_id TEXT, questions_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, version INTEGER NOT NULL,
-      artifact_id TEXT NOT NULL DEFAULT '', artifact_version INTEGER NOT NULL DEFAULT 0);
-      CREATE TABLE submissions (id TEXT PRIMARY KEY, form_id TEXT NOT NULL, answers_json TEXT NOT NULL, submitted_at TEXT NOT NULL);`);
-    db.prepare("INSERT INTO forms (id,project_id,title,description,status,share_id,questions_json,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .run("historical-form", "a", "Old form", "original description", "published", "original-share", "[]", "2025-01-01", "2025-01-01", 7);
-    const form = {id:"historical-form"};
-    db.prepare("INSERT INTO submissions (id, form_id, answers_json, submitted_at) VALUES (?, ?, ?, ?)").run("legacy", form.id, JSON.stringify({ "deleted-question": "old value" }), "2025-01-01T00:00:00Z");
-    const old = (await f.bound.invoke(actions.results, { id: form.id })).submissions[0]!;
-    const migrated = (await f.bound.invoke(actions.get, { id:form.id })).form;
-    assert.equal(migrated.share_id,"original-share"); assert.equal(migrated.version,7); assert.equal(migrated.title,"Old form");
-    assert.equal(old.questions, null); assert.equal(old.form_version, null); assert.deepEqual(old.answers, { "deleted-question": "old value" });
+    let { form } = await f.bound.invoke(actions.create, { title: "Old form" });
+    form = (await f.bound.invoke(actions.update, { id: form.id, questions, expected_version: form.version })).form;
+    await f.bound.invoke(actions.submit, { id: form.id, answers, expected_version: form.version, request_id: "kept-submission" });
     db.exec("CREATE TRIGGER fail_form_delete BEFORE DELETE ON forms BEGIN SELECT RAISE(ABORT, 'fixture delete failure'); END");
     await assert.rejects(f.bound.invoke(actions.delete, { id: form.id }), /fixture delete failure/);
     assert.equal((await f.bound.invoke(actions.results, { id: form.id })).submissions.length, 1);
@@ -110,8 +108,8 @@ test("Form fixed publication survives partial success, actor isolation, restart 
   const restored = await f.bound.invoke(actions.promote, { id: form.id });
   assert.equal(restored.form.title, "Later edit"); assert.equal(restored.recovered, true); assert.equal(restored.artifact.version, 1);
   await f.host.withProject(f.ref, runtime => {
-    assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id, restored.artifact)!.payload as any).title, "Original snapshot");
-    assert.equal(runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id, { ...restored.artifact, version: 2 }), null);
+    assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, restored.artifact)!.payload as any).title, "Original snapshot");
+    assert.equal(runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, { ...restored.artifact, version: 2 }), null);
   });
   assert.equal((await f.bound.invoke(actions.promote, { id: form.id })).artifact.version, 2);
 });
@@ -144,4 +142,152 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
   const forms = (await f.bound.invoke(actions.list, {})).forms;
   assert.equal(forms.length, mode === "delete" ? 0 : 1);
   if (forms.length) assert.equal(forms[0]!.questions.length, 1);
+});
+
+test("a form that is not collecting takes no answer from an agent, MCP, a workflow or a plugin; only the person's own trial fill goes in", async t => {
+  const f = await fixture(t);
+  const as = (audience: ActionAudience) => bindActionClient(f.client, () => ({ ...f.caller, audience }));
+  const outside = ["agent", "mcp", "workflow", "plugin"] as const;
+  let { form } = await f.bound.invoke(actions.create, { title: "收集中才收" });
+  const id = form.id;
+  form = (await f.bound.invoke(actions.update, { id, questions: [{ id: "q", type: "text", title: "Q?" }], expected_version: form.version })).form;
+  const stored = async () => (await f.bound.invoke(actions.results, { id })).submissions.map(submission => `${submission.source}:${submission.answers.q}`).sort();
+  // Refused whatever source the input claims: the call's audience decides, the refusal says why and what to do, and nothing is written.
+  const refuse = async (reason: RegExp, remedy: RegExp) => {
+    for (const audience of outside) for (const claimed of [undefined, "preview", "fill"] as const) {
+      const label = `${audience} claiming ${claimed ?? "nothing"}`;
+      await assert.rejects(as(audience).invoke(actions.submit, { id, answers: { q: label }, ...(claimed ? { source: claimed } : {}) }), error => {
+        assert.ok(error instanceof ActionError, `${label}: an MCP client is told the code and reason of an ActionError only`);
+        assert.equal((error as { code?: string }).code, "form.closed", label);
+        assert.match((error as Error).message, reason, label);
+        assert.match((error as Error).message, remedy, label);
+        return true;
+      }, label);
+    }
+  };
+
+  // A draft is not collecting yet.
+  await refuse(/还没有开始收集答卷/u, /请本人先在问卷里开始收集/u);
+  // The person's own trial fill, at the workbench, still goes in: it is how an author tries the form out.
+  assert.equal((await f.bound.invoke(actions.submit, { id, answers: { q: "试填" } })).submission.source, "preview");
+  assert.equal((await f.bound.invoke(actions.submit, { id, answers: { q: "再试填" }, source: "preview" })).submission.source, "preview");
+  // The fill page is for collecting; the person's own page cannot use it on a form that is not.
+  await assert.rejects(f.bound.invoke(actions.submit, { id, answers: { q: "填写页" }, source: "fill" }), { code: "form.closed", message: /还没有开始收集答卷/u });
+  assert.deepEqual(await stored(), ["preview:再试填", "preview:试填"]);
+
+  // Collecting: every source is taken, and recorded as the call's own.
+  form = (await f.bound.invoke(actions.publish, { id, expected_version: form.version })).form;
+  for (const audience of outside) assert.equal((await as(audience).invoke(actions.submit, { id, answers: { q: `收集中 ${audience}` } })).submission.source, audience);
+  assert.equal((await f.bound.invoke(actions.submit, { id, answers: { q: "收集中 填写页" }, source: "fill" })).submission.source, "fill");
+
+  // Collection stopped: the same refusal, with the way back; the answers already in stay.
+  form = (await f.bound.invoke(actions.close, { id, expected_version: form.version })).form;
+  await refuse(/已停止收集答卷/u, /请本人在问卷里重新开始收集/u);
+  assert.equal((await f.bound.invoke(actions.submit, { id, answers: { q: "停止后试填" }, source: "preview" })).submission.source, "preview");
+  await assert.rejects(f.bound.invoke(actions.submit, { id, answers: { q: "填写页" }, source: "fill" }), { code: "form.closed", message: /已停止收集答卷/u });
+
+  // Starting again opens the form to every source again.
+  await f.bound.invoke(actions.publish, { id, expected_version: form.version });
+  for (const audience of outside) assert.equal((await as(audience).invoke(actions.submit, { id, answers: { q: `重新收集 ${audience}` } })).submission.source, audience);
+
+  assert.deepEqual(await stored(), [
+    "agent:收集中 agent", "agent:重新收集 agent", "fill:收集中 填写页", "mcp:收集中 mcp", "mcp:重新收集 mcp",
+    "plugin:收集中 plugin", "plugin:重新收集 plugin", "preview:停止后试填", "preview:再试填", "preview:试填",
+    "workflow:收集中 workflow", "workflow:重新收集 workflow",
+  ].sort());
+});
+
+test("the store itself refuses every source but the trial fill while a form is not collecting", async t => {
+  const home = await mkdtemp(join(tmpdir(), "form-collecting-")), store = openFormStore(home);
+  t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
+  const draft = store.create({ project_id: "p", title: "F" });
+  const form = store.update(draft.id, { questions: [{ id: "q", title: "Q?" }], expected_version: draft.version }, "p");
+  const sources = ["fill", "agent", "mcp", "workflow", "plugin"] as const;
+  const refused = (what: string) => { for (const source of sources) assert.throws(() => store.submit(form.id, { q: "x" }, "p", { source }), { name: "FormError", code: "form.closed" }, `${source} on a ${what} form`); };
+
+  refused("draft");
+  assert.equal(store.submit(form.id, { q: "a" }, "p", { source: "preview" }).source, "preview");
+  assert.equal(store.submit(form.id, { q: "b" }, "p").source, "preview", "a call that names no source is the trial fill");
+  store.publish(form.id, "p");
+  for (const source of ["preview", ...sources] as const) assert.equal(store.submit(form.id, { q: source }, "p", { source }).source, source);
+  store.closeCollection(form.id, "p");
+  refused("stopped");
+  assert.equal(store.submit(form.id, { q: "c" }, "p", { source: "preview" }).source, "preview");
+  assert.equal(store.listSubmissions(form.id, "p").length, 2 + 6 + 1, "a refused call leaves no answer behind");
+});
+
+test("answer files go into a form that is not collecting only when the person imports them; every other caller is refused", async t => {
+  const f = await fixture(t);
+  const as = (audience: ActionAudience) => bindActionClient(f.client, () => ({ ...f.caller, audience }));
+  const outside = ["agent", "mcp", "workflow", "plugin"] as const;
+  let { form } = await f.bound.invoke(actions.create, { title: "答卷文件" });
+  const id = form.id;
+  form = (await f.bound.invoke(actions.update, { id, questions: [{ id: "q", type: "text", title: "Q?" }], expected_version: form.version })).form;
+  const stored = async () => (await f.bound.invoke(actions.results, { id })).submissions.map(submission => `${submission.source}:${submission.answers.q}`).sort();
+  const imports = (audience: ActionAudience, phase: string, label: string) => as(audience).invoke(actions.importAnswers, { id, files: [answerFile(form, `${phase}-${audience}-0001`, label)] });
+  // Refused before any file is read, whatever the file holds: the call's audience decides, the refusal says why and what to do,
+  // and nothing is written.
+  const refuse = async (phase: string, reason: RegExp, remedy: RegExp) => {
+    for (const audience of outside) {
+      const label = `${audience} importing in ${phase}`;
+      await assert.rejects(imports(audience, phase, label), error => {
+        assert.ok(error instanceof ActionError, `${label}: an MCP client is told the code and reason of an ActionError only`);
+        assert.equal((error as { code?: string }).code, "form.closed", label);
+        for (const pattern of [reason, /导入答卷文件/u, remedy]) assert.match((error as Error).message, pattern, label);
+        return true;
+      }, label);
+    }
+    await assert.rejects(as("agent").invoke(actions.importAnswers, { id, files: [{ name: "not-an-answer.txt", content: "not json" }] }), { code: "form.closed" }, "a file nobody could read is refused as a whole, not listed as a bad file");
+  };
+
+  // A draft is not collecting yet: only the person's own import goes in.
+  await refuse("draft", /还没有开始收集答卷/u, /请本人先在问卷里开始收集/u);
+  assert.deepEqual(await stored(), []);
+  assert.deepEqual(await f.bound.invoke(actions.importAnswers, { id, files: [answerFile(form, "person-draft-0001", "草稿时本人导入")] }), { imported: 1, skipped: 0, rejected: [] });
+
+  // Collecting: every caller can import, and what comes in is an answer file whoever brought it.
+  form = (await f.bound.invoke(actions.publish, { id, expected_version: form.version })).form;
+  for (const audience of outside) assert.deepEqual(await imports(audience, "open", `收集中 ${audience}`), { imported: 1, skipped: 0, rejected: [] }, audience);
+
+  // Collection stopped: the same refusal, with the way back, also for a file that came in before; the answers already in stay.
+  form = (await f.bound.invoke(actions.close, { id, expected_version: form.version })).form;
+  await refuse("stopped", /已停止收集答卷/u, /请本人在问卷里重新开始收集/u);
+  await assert.rejects(imports("agent", "open", "收集中 agent"), { code: "form.closed" }, "a file that was imported before is refused, not counted as skipped");
+  // The person still imports: the page promises it after stopping, and the same answer counts once.
+  assert.deepEqual(await f.bound.invoke(actions.importAnswers, { id, files: [answerFile(form, "person-stopped-0001", "停止后本人导入")] }), { imported: 1, skipped: 0, rejected: [] });
+  assert.deepEqual(await f.bound.invoke(actions.importAnswers, { id, files: [answerFile(form, "person-stopped-0001", "停止后本人导入")] }), { imported: 0, skipped: 1, rejected: [] });
+  // Through the workbench's own route, which is always the person.
+  const routes = new FormPluginRouteTable(createFormRouteHandlers({ projectId: "a", actions: f.bound }));
+  const viaRoute = await routes.handle({ method: "POST", pathname: `/api/form/${id}/answers`, query: new URLSearchParams(), body: { project_id: "a", files: [answerFile(form, "page-stopped-0001", "停止后经页面导入")] } });
+  assert.equal(viaRoute?.status, 200); assert.deepEqual(viaRoute?.body, { imported: 1, skipped: 0, rejected: [] });
+
+  // Starting again opens the form to every caller again.
+  await f.bound.invoke(actions.publish, { id, expected_version: form.version });
+  for (const audience of outside) assert.deepEqual(await imports(audience, "again", `重新收集 ${audience}`), { imported: 1, skipped: 0, rejected: [] }, audience);
+
+  assert.deepEqual(await stored(), [
+    "file:草稿时本人导入", "file:停止后本人导入", "file:停止后经页面导入",
+    ...outside.flatMap(audience => [`file:收集中 ${audience}`, `file:重新收集 ${audience}`]),
+  ].sort());
+});
+
+test("the store itself refuses an answer-file import from anyone but the person while a form is not collecting", async t => {
+  const home = await mkdtemp(join(tmpdir(), "form-collecting-import-")), store = openFormStore(home);
+  t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
+  const draft = store.create({ project_id: "p", title: "F" });
+  const form = store.update(draft.id, { questions: [{ id: "q", title: "Q?" }], expected_version: draft.version }, "p");
+  const outside = ["agent", "mcp", "workflow", "plugin"] as const;
+  const refused = (phase: string) => { for (const source of outside) assert.throws(() => store.importAnswers(form.id, [answerFile(form, `${phase}-${source}-0001`, source)], "p", { source }), { name: "FormError", code: "form.closed" }, `${source} on a ${phase} form`); };
+
+  refused("draft");
+  assert.equal(store.importAnswers(form.id, [answerFile(form, "person-0001", "a")], "p", { source: "preview" }).imported, 1);
+  assert.equal(store.importAnswers(form.id, [answerFile(form, "person-0002", "b")], "p").imported, 1, "a call that names no caller is the person");
+  store.publish(form.id, "p");
+  for (const source of outside) assert.equal(store.importAnswers(form.id, [answerFile(form, `open-${source}-0001`, source)], "p", { source }).imported, 1, source);
+  store.closeCollection(form.id, "p");
+  refused("stopped");
+  assert.equal(store.importAnswers(form.id, [answerFile(form, "person-0003", "c")], "p").imported, 1);
+  const rows = store.listSubmissions(form.id, "p");
+  assert.equal(rows.length, 2 + outside.length + 1, "a refused call leaves no answer behind");
+  assert.ok(rows.every(row => row.source === "file"), "imported answers are answer files whoever imports them");
 });

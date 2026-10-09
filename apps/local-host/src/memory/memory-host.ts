@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { homeSqlitePath, openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   MEMORY_PROVIDER_ID,
@@ -17,12 +17,14 @@ import {
   type MemorySignalReport,
   type MemoryWriteRequest,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { MemoryError, MemoryService, type LegacyMemoryState, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { MemoryError, MemoryService, purgeProjectMemories, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { ProjectDeletedDeferred, projectDeletedHooksFor } from "../project-deleted-hooks.js";
+import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
+import { MEMORY_OWNER, memoryOwnerWithoutService } from "../project-deleted-owners.js";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { ASSISTANT_STORE_NAME, AssistantStore } from "../assistant/assistant-store.js";
 import { learnFromWork, type MemoryLearningRequest } from "./memory-learning.js";
 import { runUpkeep, subjectTitles } from "./memory-upkeep.js";
 
@@ -33,7 +35,7 @@ import { runUpkeep, subjectTitles } from "./memory-upkeep.js";
  */
 
 /** This Home's person. Agents, plugins and external clients act on their behalf, so personal memories are theirs. */
-export const LOCAL_PERSON = "web-user";
+export const LOCAL_PERSON = LOCAL_PERSON_ACTOR_ID;
 const RUNTIME = "prologue";
 
 export interface MemoryHost {
@@ -62,8 +64,17 @@ export interface MemoryHostPorts {
   ready(): Promise<void>;
   /** Settles once the runtime started because something needed it (never starts it). */
   started?(): Promise<void>;
+  /**
+   * Whether this process runs the Home's Agent runtime: the Web server and the embedded MCP take the Agent service as their
+   * own (they pass the catalog owner), a Host that only forwards actions to the resident Host (the stdio MCP's) does not.
+   * Only an executor, or a Host whose runtime has already started, starts the runtime to clear a deleted project's memory;
+   * elsewhere that step waits for the executor.
+   */
+  executes(): boolean;
   /** Project ids in this Home, for upkeep over every project's memories. */
   projects?(): Promise<string[]>;
+  /** Whether the project is still in this Home's catalog; null when this process has no catalog to ask. */
+  projectExists?(projectId: string): Promise<boolean | null>;
   projectTitle?(projectId: string): Promise<string | null>;
 }
 
@@ -90,16 +101,8 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     if (!memory) throw new MemoryError("memory.off", "当前运行时没有记忆能力");
     return memory;
   };
-  const service = new MemoryService({ backend: prologueMemoryBackend(store), ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) });
-  // The Assistant's first version kept switches, a switched-off list and candidates in its own library: moved once.
-  let migrated = false;
-  const migrate = () => {
-    if (migrated) return;
-    migrated = true;
-    const legacy = readAssistantMemory(ports.homeDirectory, LOCAL_PERSON);
-    if (legacy) service.migrateLegacy(LOCAL_PERSON, legacy);
-  };
-  const guarded = <T>(work: () => T): T => { migrate(); return work(); };
+  const backend = prologueMemoryBackend(store);
+  const service = new MemoryService({ backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) });
   const caller = (context: ActionCallContext, work?: { work_id: string; title: string } | null): MemoryCaller => {
     const consumer: MemoryConsumer = context.audience === "plugin" ? "plugin" : context.audience === "mcp" ? "mcp" : context.audience === "user" ? "ui" : "agent";
     return { actor_id: LOCAL_PERSON, project_id: context.project_id, consumer, plugin_id: context.host_plugin?.plugin_id ?? null, work: work ?? null,
@@ -107,30 +110,30 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   };
   const input = <T>(value: unknown) => (value ?? {}) as T;
   const bindings: ActionHandlerBinding[] = [
-    { ...memoryActions.recall, handle: (context, value) => guarded(() => service.recall(caller(context), input<MemoryRecallRequest>(value))) },
-    { ...memoryActions.list, handle: (context, value) => guarded(() => service.list(caller(context), input<MemoryListRequest>(value))) },
-    { ...memoryActions.write, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.write(caller(context), input<MemoryWriteRequest>(value)); } },
-    { ...memoryActions.change, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.change(caller(context), input<MemoryChangeRequest>(value)); } },
-    { ...memoryActions.history, handle: (context, value) => guarded(() => service.history(caller(context), String(input<{ memory_id: string }>(value).memory_id))) },
-    { ...memoryActions.candidates, handle: async (context, value) => { migrate(); return { candidates: await service.candidates(caller(context), input(value)) }; } },
-    { ...memoryActions.accept, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ candidate_id: string; text?: string }>(value);
+    { ...memoryActions.recall, handle: (context, value) => service.recall(caller(context), input<MemoryRecallRequest>(value), { beforeEffect: () => context.beforeEffect() }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
+    { ...memoryActions.list, handle: (context, value) => service.list(caller(context), input<MemoryListRequest>(value)) },
+    { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return service.write(caller(context), input<MemoryWriteRequest>(value)); } },
+    { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return service.change(caller(context), input<MemoryChangeRequest>(value)); } },
+    { ...memoryActions.history, handle: (context, value) => service.history(caller(context), String(input<{ memory_id: string }>(value).memory_id)) },
+    { ...memoryActions.candidates, handle: async (context, value) => { return { candidates: await service.candidates(caller(context), input(value)) }; } },
+    { ...memoryActions.accept, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ candidate_id: string; text?: string }>(value);
       return service.accept(caller(context), request.candidate_id, request.text !== undefined ? { text: request.text } : {}); } },
-    { ...memoryActions.discard, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.discard(caller(context), input<{ candidate_id: string }>(value).candidate_id); } },
-    { ...memoryActions.changes, handle: (context, value) => guarded(() => ({ changes: service.changes(caller(context), input(value)) })) },
-    { ...memoryActions.undo, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.undo(caller(context), input<{ change_id: string }>(value).change_id); } },
-    { ...memoryActions.prefs, handle: (context, value) => guarded(() => service.prefs(caller(context), input<{ scope?: MemoryScope }>(value).scope)) },
-    { ...memoryActions.savePrefs, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ scope?: MemoryScope; prefs: Partial<MemoryPrefs> }>(value);
+    { ...memoryActions.discard, handle: async (context, value) => { await context.beforeEffect(); return service.discard(caller(context), input<{ candidate_id: string }>(value).candidate_id); } },
+    { ...memoryActions.changes, handle: (context, value) => ({ changes: service.changes(caller(context), input(value)) }) },
+    { ...memoryActions.undo, handle: async (context, value) => { await context.beforeEffect(); return service.undo(caller(context), input<{ change_id: string }>(value).change_id); } },
+    { ...memoryActions.prefs, handle: (context, value) => service.prefs(caller(context), input<{ scope?: MemoryScope }>(value).scope) },
+    { ...memoryActions.savePrefs, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope?: MemoryScope; prefs: Partial<MemoryPrefs> }>(value);
       return service.savePrefs(caller(context), request.scope, request.prefs); } },
-    { ...memoryActions.signal, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.signal(caller(context), input<MemorySignalReport>(value)); } },
-    { ...memoryActions.pairs, handle: async (context, value) => { migrate(); return { pairs: await service.pairs(caller(context), input(value)) }; } },
-    { ...memoryActions.resolvePair, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ pair_id: string; keep: "a" | "b" | "both" }>(value);
+    { ...memoryActions.signal, handle: async (context, value) => { await context.beforeEffect(); return service.signal(caller(context), input<MemorySignalReport>(value)); } },
+    { ...memoryActions.pairs, handle: async (context, value) => { return { pairs: await service.pairs(caller(context), input(value)) }; } },
+    { ...memoryActions.resolvePair, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ pair_id: string; keep: "a" | "b" | "both" }>(value);
       return service.resolvePair(caller(context), request.pair_id, request.keep); } },
     { ...memoryActions.upkeep, handle: async context => { if (context.audience !== "user") throw new ActionError("memory.forbidden", "只有本人能立即整理"); await context.beforeEffect(); return upkeepNow(); } },
-    { ...memoryActions.preview, handle: async (context, value) => { migrate(); return service.previewScope(caller(context), input<{ scope: MemoryScope }>(value).scope); } },
-    { ...memoryActions.clear, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ scope: MemoryScope; fingerprint: string }>(value);
+    { ...memoryActions.preview, handle: async (context, value) => { return service.previewScope(caller(context), input<{ scope: MemoryScope }>(value).scope); } },
+    { ...memoryActions.clear, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope: MemoryScope; fingerprint: string }>(value);
       return service.clearScope(caller(context), request.scope, request.fingerprint); } },
-    { ...memoryActions.export, handle: async (context, value) => { migrate(); return { package: await service.exportScope(caller(context), input<{ scope: MemoryScope }>(value).scope) }; } },
-    { ...memoryActions.import, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ scope: MemoryScope; package: unknown }>(value);
+    { ...memoryActions.export, handle: async (context, value) => { return { package: await service.exportScope(caller(context), input<{ scope: MemoryScope }>(value).scope) }; } },
+    { ...memoryActions.import, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope: MemoryScope; package: unknown }>(value);
       return service.importScope(caller(context), request.scope, request.package); } },
   ];
   // The service's own errors reach every caller as the directory's errors, with the same code and words.
@@ -143,14 +146,14 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const LEARN_KIND = "memory.learn", UPKEEP_KIND = "memory.upkeep";
   let queueAttached = false;
   const person: MemoryCaller = { actor_id: LOCAL_PERSON, project_id: null, consumer: "ui", person: true };
-  const upkeepNow = async () => { migrate(); return runUpkeep(service, { homeDirectory: ports.homeDirectory, localHost: ports.localHost, caller: person, projects: await ports.projects?.().catch(() => []) ?? [] }); };
+  const upkeepNow = async () => runUpkeep(service, { homeDirectory: ports.homeDirectory, localHost: ports.localHost, caller: person, projects: await ports.projects?.().catch(() => []) ?? [] });
   /** The runtime's queue hangs tasks on a session: upkeep has its own, made once and kept in the ledger. */
   const upkeepSession = async (): Promise<string> => {
-    const saved = ledger.migration(LOCAL_PERSON, "upkeep-session")?.body as { session_id?: string } | undefined;
+    const saved = ledger.marker(LOCAL_PERSON, "upkeep-session")?.body as { session_id?: string } | undefined;
     if (saved?.session_id) return saved.session_id;
-    const session = await ports.agentHost.adapter(RUNTIME).createSession({ board_id: MEMORY_PROVIDER_ID, plugin_id: MEMORY_PROVIDER_ID, install_id: MEMORY_PROVIDER_ID,
+    const session = await ports.agentHost.adapter(RUNTIME).createSession({ project_id: MEMORY_PROVIDER_ID, plugin_id: MEMORY_PROVIDER_ID, install_id: MEMORY_PROVIDER_ID,
       actor_id: LOCAL_PERSON, workspace: "none", role_id: "memory-upkeep", title: "记忆整理" });
-    ledger.markMigration(LOCAL_PERSON, "upkeep-session", { session_id: session.session_id }, new Date().toISOString());
+    ledger.setMarker(LOCAL_PERSON, "upkeep-session", { session_id: session.session_id }, new Date().toISOString());
     return session.session_id;
   };
   /** Next upkeep: at four in the morning local time (today's when that has not passed and today's has not run yet). */
@@ -167,9 +170,13 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     await schedule.enqueue({ key, session_id: await upkeepSession(), kind: UPKEEP_KIND, payload: {}, due_at: when.toISOString(), max_attempts: 2 });
   };
   const runLearning = async (request: MemoryLearningRequest) => {
-    migrate();
+    // A round queued before its project was deleted, or still being learned from, writes nothing for it afterwards.
+    const stillWanted = async () => {
+      const project = request.caller.project_id;
+      return !project || await ports.projectExists?.(project).catch(() => null) !== false;
+    };
     try {
-      const outcome = await learnFromWork(service, ports.homeDirectory, request);
+      const outcome = await learnFromWork(service, ports.homeDirectory, request, undefined, stillWanted);
       if (process.env.MOLIS_WORK_MEMORY_DEBUG) console.warn("[memory] learn", JSON.stringify(outcome));
     } catch (error) {
       // Nothing was written (the gate commits only whole proposals); the queue may try once more.
@@ -186,9 +193,36 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     queueAttached = true;
     void scheduleUpkeep(new Date()).catch(error => console.warn("[memory] 没有排上整理", error));
   };
-  void ports.started?.().then(attachQueue).catch(() => undefined);
+  // The runtime has started in this process: it holds the Home's runtime whatever transport it serves.
+  let runtimeHere = false;
+  void ports.started?.().then(() => { runtimeHere = true; attachQueue(); }).catch(() => undefined);
+  // Deleting a project clears its memories and its Characters' from the runtime, and the ledger forgets their history.
+  // The runtime has one owner process in the Home, the executor: only a Host that runs it (`ports.executes`, or one whose
+  // runtime has started) starts it for this, and while another process owns it the step is deferred (it stays pending in
+  // the deletion's receipt, and the process that owns the runtime runs it), never failed. A Host that only forwards to
+  // the executor behaves as a process with no memory service at all: it never takes the runtime, which would lock the
+  // resident Host's AI out of it. A Home whose runtime never started (no directory yet) has no store to clear, so none
+  // is started for it: only the ledger forgets the project.
+  let closed = false;
+  const executes = () => ports.executes() || runtimeHere;
+  const runtimeExists = () => existsSync(agentRuntimeDirectory(ports.homeDirectory));
+  const elsewhere = memoryOwnerWithoutService(ports.homeDirectory);
+  const whileRuntimeIsOurs = async <T>(work: () => Promise<T>): Promise<T> => {
+    try { return await work(); }
+    catch (error) {
+      if ((error as { code?: unknown }).code === "agent.storage_busy") throw new ProjectDeletedDeferred("记忆放在 Agent 执行服务里，而它正由另一个 Molis Work 进程使用；那个进程会接着清理，或关闭它后重试");
+      throw error;
+    }
+  };
+  projectDeletedHooksFor(ports.homeDirectory).register({ ...MEMORY_OWNER, alive: () => !closed,
+    check: () => executes() ? (runtimeExists() ? whileRuntimeIsOurs(() => ports.ready()) : undefined) : elsewhere.check?.(),
+    clear: async projectId => {
+      if (!executes()) return elsewhere.clear(projectId);
+      if (!runtimeExists()) { await purgeProjectMemories({ backend: null, ledger }, projectId); return; }
+      await whileRuntimeIsOurs(async () => { await ports.ready(); await purgeProjectMemories({ backend, ledger }, projectId); });
+    } });
   const host: MemoryHost = {
-    get service() { migrate(); return service; },
+    service,
     caller,
     learnLater: async request => {
       const said = request.said.map(text => text.trim()).filter(Boolean).slice(-6);
@@ -202,7 +236,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
       const queued = await schedule.enqueue({ key: `memory-learn:${request.key}`, session_id: request.session_id, kind: LEARN_KIND, payload, due_at: new Date().toISOString(), max_attempts: 2 });
       if (process.env.MOLIS_WORK_MEMORY_DEBUG) console.warn("[memory] learn queued", queued.key, queued.state, queued.due_at);
     },
-    close: () => { dispose(); ledger.close(); hosts.delete(ports.localHost); },
+    close: () => { closed = true; dispose(); ledger.close(); hosts.delete(ports.localHost); },
   };
   hosts.set(ports.localHost, { home: ports.homeDirectory, host });
   return host;
@@ -249,22 +283,6 @@ const box = async (store: () => Promise<AgentMemoryCapability>) => {
   return candidates;
 };
 const candidateView = (item: AgentMemoryCandidateEntry) => ({ candidate_id: item.candidate_id, text: item.text, state: item.state, ...(item.memory_id ? { memory_id: item.memory_id } : {}) });
-
-/** The first version's state in the Assistant's library, when there is one. Never creates that library. */
-function readAssistantMemory(homeDirectory: string, actorId: string): LegacyMemoryState | null {
-  if (!existsSync(homeSqlitePath(homeDirectory, ASSISTANT_STORE_NAME))) return null;
-  const db = openHomeSqliteDatabase(homeDirectory, ASSISTANT_STORE_NAME);
-  try {
-    const legacy = new AssistantStore(db).legacyMemory(actorId);
-    return {
-      prefs: legacy.prefs,
-      disabled: legacy.disabled,
-      candidates: legacy.candidates.map(candidate => ({ candidate_id: candidate.candidate_id, work_id: candidate.work_id, work_title: candidate.work_title, scope: candidate.scope,
-        ...(candidate.project_id ? { project_id: candidate.project_id } : {}), text: candidate.text, why: candidate.why, applies: candidate.applies, state: candidate.state,
-        created_at: candidate.created_at, ...(candidate.memory_id ? { memory_id: candidate.memory_id } : {}) })),
-    };
-  } finally { db.close(); }
-}
 
 export function asActionError(error: unknown): unknown {
   if (error instanceof MemoryError) return new ActionError(error.code === "memory.not_found" ? "memory.not_found" : error.code, error.message);

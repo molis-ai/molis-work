@@ -10,7 +10,7 @@ import {
   promptCacheIsClientControlled,
   type ModelProviderRecord,
 } from "@molis-ai/molis-work-contracts/modules/model-providers";
-import { ModelProviderStore, addPromptCacheColumn } from "@molis-ai/molis-work-app-local-host";
+import { ModelProviderStore, createModelProviderTables } from "@molis-ai/molis-work-app-local-host";
 import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import {
   formatContext,
@@ -36,15 +36,8 @@ const p: ModelSettingsPrimitives = {
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "model-prompt-cache-"));
   const db = new DatabaseSync(join(directory, "catalog.db"));
-  const secrets = new Map<string, string>();
-  const store = new ModelProviderStore({
-    db: db as never,
-    secrets: {
-      put: (ref, value) => { secrets.set(ref, value); },
-      get: (ref) => secrets.get(ref) ?? null,
-      delete: (ref) => { secrets.delete(ref); },
-    },
-  });
+  createModelProviderTables(db as never);
+  const store = new ModelProviderStore({ db: db as never, secrets: { get: () => null } });
   return { directory, db, store };
 }
 
@@ -54,7 +47,7 @@ function record(overrides: Partial<ModelProviderRecord> = {}): ModelProviderReco
     display_name: "minimax",
     base_url: "https://api.minimaxi.com/anthropic",
     api_format: "anthropic-messages",
-    credential_ref: "model-provider:minimax",
+    credential_ref: "connector-connection:fixture:token",
     enabled: true,
     models: [{ model_id: "MiniMax-M3", enabled: true }],
     created_at: "2026-09-20T00:00:00Z",
@@ -67,6 +60,7 @@ test("没选过就是关着，而不是替用户开一个他没要的东西", ()
   const item = fixture();
   try {
     const saved = item.store.upsert({
+      credential_ref: "connector-connection:fixture:token",
       provider_id: "minimax", display_name: "minimax",
       base_url: "https://api.minimaxi.com/anthropic", api_format: "anthropic-messages",
     });
@@ -83,6 +77,7 @@ test("打不开断点的格式上，「要求缓存支持」在保存时就被�
   try {
     assert.throws(
       () => item.store.upsert({
+      credential_ref: "connector-connection:fixture:token",
         provider_id: "openai", display_name: "openai",
         base_url: "https://api.openai.com/v1", api_format: "openai-chat-completions",
         prompt_cache: "required",
@@ -94,6 +89,7 @@ test("打不开断点的格式上，「要求缓存支持」在保存时就被�
 
     // 「尽量使用缓存」在两种格式上都是合法选择——对面自己做前缀缓存不等于不能选。
     const best = item.store.upsert({
+      credential_ref: "connector-connection:fixture:token",
       provider_id: "openai", display_name: "openai",
       base_url: "https://api.openai.com/v1", api_format: "openai-chat-completions",
       prompt_cache: "best-effort",
@@ -109,11 +105,13 @@ test("换了格式之后，原来合法的档位会重新判一次", () => {
   const item = fixture();
   try {
     item.store.upsert({
+      credential_ref: "connector-connection:fixture:token",
       provider_id: "p", display_name: "p", base_url: "https://x.test",
       api_format: "anthropic-messages", prompt_cache: "required",
     });
     assert.throws(
       () => item.store.upsert({
+      credential_ref: "connector-connection:fixture:token",
         provider_id: "p", display_name: "p", base_url: "https://x.test",
         api_format: "openai-chat-completions",
       }),
@@ -123,33 +121,6 @@ test("换了格式之后，原来合法的档位会重新判一次", () => {
   } finally {
     item.db.close();
     rmSync(item.directory, { recursive: true, force: true });
-  }
-});
-
-test("旧库补上这一列之后，已有的供应商是关着的", () => {
-  const directory = mkdtempSync(join(tmpdir(), "model-prompt-cache-old-"));
-  const db = new DatabaseSync(join(directory, "catalog.db"));
-  try {
-    // 这一列出现之前的建表语句。
-    db.exec(`CREATE TABLE model_providers (
-      provider_id TEXT PRIMARY KEY, display_name TEXT NOT NULL, base_url TEXT NOT NULL,
-      api_format TEXT NOT NULL, credential_ref TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,
-      models_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`);
-    db.exec(`INSERT INTO model_providers VALUES
-      ('old', 'old', 'https://x.test', 'anthropic-messages', 'model-provider:old', 1, '[]', 'a', 'b')`);
-
-    addPromptCacheColumn(db as never);
-    addPromptCacheColumn(db as never); // 再来一次不能炸：迁移要能重复跑
-
-    const store = new ModelProviderStore({
-      db: db as never,
-      secrets: { put: () => {}, get: () => null, delete: () => {} },
-    });
-    assert.equal(store.get("old")?.prompt_cache, "off",
-      "老配置没要过缓存，升级不该替它要");
-  } finally {
-    db.close();
-    rmSync(directory, { recursive: true, force: true });
   }
 });
 

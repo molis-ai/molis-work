@@ -5,14 +5,13 @@ import { feedRuleActions, FeedPluginRouteTable, createFeedRouteHandlers, feedRou
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { LocalFeedApplicationOptions } from "./feed-application.js";
-import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface FeedNativePluginHttpOptions {
   readonly actions: BoundActionClient;
   readonly renderer: Pick<WorkbenchRenderer, "renderFeedWorkbenchFragment" | "renderPersistedFeedItemDetail">;
-  readonly boardId: string;
+  readonly projectId: string;
   readonly routePrefix: string;
   readonly store: LocalProjectDatabase;
   readonly readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>;
@@ -55,7 +54,6 @@ function createHandlers(options: FeedNativePluginHttpOptions): ReturnType<typeof
     actions: options.actions,
     routePrefix: options.routePrefix,
     inboxEntries: async () => (await optionalPluginQuery(options.actions, inboxActions.list, {}))?.entries ?? [],
-    connectors: () => createLocalFeedConnectorService(options.store.db, options.boardId, undefined, options.homeDirectory, options.feedOptions),
     changed: () => options.invalidateWebView(),
     hydrateItem: async item => {
       const { recommendations } = await options.actions.invoke(feedRuleActions.recommendations, {});

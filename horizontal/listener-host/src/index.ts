@@ -40,8 +40,8 @@ export interface ListenerSqliteDatabase {
 export { ListenerHostError } from "@molis-ai/molis-work-contracts/services/listener-host";
 import { ListenerHostError } from "@molis-ai/molis-work-contracts/services/listener-host";
 
-export function migrateListenerHost(db: ListenerSqliteDatabase): void {
-  db.exec(`
+/** The listener tables, as one current schema; the host composes them into the project database baseline. */
+export const LISTENER_HOST_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS listener_instances (
       project_id TEXT NOT NULL,
       source_id TEXT NOT NULL,
@@ -77,8 +77,10 @@ export function migrateListenerHost(db: ListenerSqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS listener_deliveries_recovery_idx
       ON listener_deliveries(project_id, source_id, state, updated_at, raw_event_id);
 
+    -- The run ledger belongs to Listener Host and names its Source by id only: the Source table is modules/sources' own, and
+    -- a Source's runs are forgotten explicitly (deleteListenerSourceState), never through another owner's foreign key.
     CREATE TABLE IF NOT EXISTS feed_source_runs (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       run_id TEXT NOT NULL,
       operation_id TEXT NOT NULL,
       source_id TEXT NOT NULL,
@@ -93,26 +95,12 @@ export function migrateListenerHost(db: ListenerSqliteDatabase): void {
       started_at TEXT NOT NULL,
       completed_at TEXT,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, run_id),
-      UNIQUE (board_id, operation_id),
-      FOREIGN KEY (board_id, source_id) REFERENCES feed_sources(board_id, source_id) ON DELETE CASCADE
+      PRIMARY KEY (project_id, run_id),
+      UNIQUE (project_id, operation_id)
     );
-    CREATE INDEX IF NOT EXISTS feed_source_runs_board_source_idx
-      ON feed_source_runs(board_id, source_id, started_at DESC);
-  `);
-
-  if (tableExists(db, "feed_sources")) {
-    const migratedAt = new Date().toISOString();
-    db.prepare(`
-      INSERT OR IGNORE INTO listener_instances (
-        project_id, source_id, cursor_json, state, attempt, retry_at,
-        last_error_code, lease_owner, lease_expires_at, updated_at
-      )
-      SELECT board_id, source_id, cursor_json, 'idle', 0, NULL, NULL, NULL, NULL, ?
-      FROM feed_sources
-    `).run(migratedAt);
-  }
-}
+    CREATE INDEX IF NOT EXISTS feed_source_runs_project_source_idx
+      ON feed_source_runs(project_id, source_id, started_at DESC);
+`;
 
 export function readListenerCheckpoint(
   db: ListenerSqliteDatabase,
@@ -149,7 +137,7 @@ export function deleteListenerSourceState(
 ): void {
   db.prepare("DELETE FROM listener_deliveries WHERE project_id = ? AND source_id = ?")
     .run(projectId, sourceId);
-  db.prepare("DELETE FROM feed_source_runs WHERE board_id = ? AND source_id = ?")
+  db.prepare("DELETE FROM feed_source_runs WHERE project_id = ? AND source_id = ?")
     .run(projectId, sourceId);
   db.prepare("DELETE FROM listener_instances WHERE project_id = ? AND source_id = ?")
     .run(projectId, sourceId);
@@ -161,7 +149,7 @@ export function getListenerRunByOperationId(
   operationId: string,
 ): ListenerRunRecord | null {
   const row = db.prepare(`
-    SELECT * FROM feed_source_runs WHERE board_id = ? AND operation_id = ?
+    SELECT * FROM feed_source_runs WHERE project_id = ? AND operation_id = ?
   `).get(projectId, operationId) as Row | undefined;
   return row ? mapRun(row) : null;
 }
@@ -171,7 +159,7 @@ export function listListenerRuns(
   projectId: string,
 ): ListenerRunRecord[] {
   return (db.prepare(`
-    SELECT * FROM feed_source_runs WHERE board_id = ? ORDER BY started_at DESC, run_id
+    SELECT * FROM feed_source_runs WHERE project_id = ? ORDER BY started_at DESC, run_id
   `).all(projectId) as Row[]).map(mapRun);
 }
 
@@ -183,11 +171,11 @@ export function saveListenerRun(
   if (current) assertRunTransition(current.phase, run.phase);
   db.prepare(`
     INSERT INTO feed_source_runs (
-      board_id, run_id, operation_id, source_id, phase, outcome, empty,
+      project_id, run_id, operation_id, source_id, phase, outcome, empty,
       error_code, receipt_json, created_count, deduped_count, recovery_count,
       started_at, completed_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(board_id, run_id) DO UPDATE SET
+    ON CONFLICT(project_id, run_id) DO UPDATE SET
       phase = excluded.phase,
       outcome = excluded.outcome,
       empty = excluded.empty,
@@ -226,7 +214,7 @@ export function recoverInterruptedListenerRuns(
   const result = db.prepare(`
     UPDATE feed_source_runs
     SET phase = 'interrupted', error_code = 'process_interrupted', updated_at = ?
-    WHERE board_id = ? AND phase = 'running'
+    WHERE project_id = ? AND phase = 'running'
   `).run(at, projectId);
   db.prepare(`
     UPDATE listener_instances
@@ -253,7 +241,7 @@ export class ListenerHost implements ListenerHostApi {
       ) => void | Promise<void>;
     } = {},
   ) {
-    migrateListenerHost(db);
+    db.exec(LISTENER_HOST_SCHEMA_SQL);
   }
 
   checkpoint(projectId: string, sourceId: string): ListenerCheckpoint {
@@ -655,7 +643,7 @@ function mapRun(row: Row): ListenerRunRecord {
   return {
     run_id: text(row.run_id),
     operation_id: text(row.operation_id),
-    project_id: text(row.board_id),
+    project_id: text(row.project_id),
     source_id: text(row.source_id),
     phase: text(row.phase) as ListenerRunRecord["phase"],
     outcome: optionalText(row.outcome) as ListenerRunRecord["outcome"],
@@ -709,12 +697,6 @@ function assertRunTransition(
   if (!allowed[current].includes(next)) {
     throw new ListenerHostError("listener_delivery_failed", `Listener Run 不能从 ${current} 变成 ${next}`);
   }
-}
-
-function tableExists(db: ListenerSqliteDatabase, table: string): boolean {
-  return Boolean(db.prepare(
-    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-  ).get(table));
 }
 
 function ensureCheckpointRow(

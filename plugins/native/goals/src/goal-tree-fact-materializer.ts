@@ -12,27 +12,27 @@ export class GoalTreeFactMaterializer {
   ) {}
 
   materializeGoalTreeRelations(
-    boardId: string,
+    projectId: string,
     item: GoalTreeProposalItemRecord,
     actorId: string,
     reasonText: string,
     at: string,
   ): ProposalAffectedObject[] {
     return this.goals.commands.applyConfirmedRelations({
-      board_id: boardId, actor_id: actorId, reason: reasonText, at, source_item_id: item.item_id,
+      project_id: projectId, actor_id: actorId, reason: reasonText, at, source_item_id: item.item_id,
       relations: this.inputs.goalTreeRelationEntries(item).map(raw => this.inputs.normalizeGoalTreeRelation(item, raw)),
     }).map(relation => ({ object_type: "relation", object_id: relation.relation_id }));
   }
 
   materializeGoalTreeGoal(
-    boardId: string,
+    projectId: string,
     item: GoalTreeProposalItemRecord,
     actorId: string,
     _reasonText: string,
     _at: string,
   ): ProposalAffectedObject {
     if (item.kind !== "goal" || item.operation !== "create") {
-      throw this.errorFactory("goal_tree_proposal.kind_retired", "结构提案只能落地新 Goal 或关系");
+      throw this.errorFactory("goal_tree_proposal.item_operation_invalid", "结构提案只能新增 Goal");
     }
     const goal = this.inputs.goalTreeGoalInput(item);
     const goalId = this.inputs.goalTreeTargetGoalId(item, goal);
@@ -48,7 +48,7 @@ export class GoalTreeFactMaterializer {
         })
       : undefined;
     this.createIntent({
-      board_id: boardId,
+      project_id: projectId,
       goal_id: goalId,
       title: String(payload.title ?? goal.title),
       outcome: payload.outcome == null ? undefined : String(payload.outcome),

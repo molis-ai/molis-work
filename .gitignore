@@ -4,10 +4,6 @@ node_modules/
 dist/
 *.tsbuildinfo
 
-# Local GoalBoard home / leftover install dirs if created in-repo
-.goalboard/
-.requirements/
-
 # Desktop / Rust
 target/
 apps/desktop/src-tauri/target/
@@ -50,3 +46,8 @@ coverage/
 .tmp/
 /${userHome}/
 .claude/launch.json
+
+# Personal tool state and generated working material stay out of the repository (specs/repository-anti-corruption,
+# decision 2026-10-08): product material lives under docs/, never in a root outputs/ folder.
+/outputs/
+/.zcode/

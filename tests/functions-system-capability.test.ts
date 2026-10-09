@@ -9,9 +9,7 @@ import {
   FEED_CAPTURE_SCENE_ID,
   FEED_OPEN_BEHAVIOR_ID,
   FEED_PROMOTE_BEHAVIOR_ID,
-  FEED_REAUTH_BEHAVIOR_ID,
   FEED_SAVE_BEHAVIOR_ID,
-  HOME_ASK_BEHAVIOR_ID,
   HOME_CONTINUE_BEHAVIOR_ID,
   HOME_DOCK_SCENE_ID,
   HOME_TALK_BEHAVIOR_ID,
@@ -23,18 +21,17 @@ import {
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
   filterSuggestedBehaviorIds,
-  functionFitsScene,
   mapJudgmentChoice,
   defaultInboxNextBehaviorIds,
   defaultFeedCaptureBehaviorIds,
   suggestedAuthoringBehaviors,
   visibleFeedDispositionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
-import { mcpPublicToolName } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   FunctionsError,
   createFunctionsService,
   openFunctionsStore,
+  publishedFunctionAction,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
@@ -42,15 +39,11 @@ import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { liveHostFunctionAuthoringCatalog } from "../apps/local-host/src/behavior-catalog.ts";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectHomeEvents } from "../apps/workbench/src/home-flow.ts";
-import { assertContributionMatchesManifest, PluginContributionError } from "@molis-ai/molis-work-plugin-runtime";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
-const LIST = mcpPublicToolName("functions", "list");
-const DESCRIBE = mcpPublicToolName("functions", "describe");
-const INVOKE = mcpPublicToolName("functions", "invoke");
 
 function memorySecrets(initial: Record<string, string> = {}) {
   const map = new Map(Object.entries(initial));
@@ -166,7 +159,7 @@ test("historical judgments retain original object, project and scene scope", asy
     const store = openFunctionsStore(home);
     try {
       const write = (scene: string, project: string, result: string) => store.recordJudgment({ function_key: "old-rule", function_version: 1,
-        subject: { kind: "inbox_entry", id: "same-object", board_id: project }, scene_id: scene, outcome: "ok", suggested_behavior_ids: [result], error_code: null });
+        subject: { kind: "inbox_entry", id: "same-object", project_id: project }, scene_id: scene, outcome: "ok", suggested_behavior_ids: [result], error_code: null });
       const inbox = write(INBOX_NEXT_SCENE_ID, "first", INBOX_DONE_BEHAVIOR_ID);
       const home = write(HOME_DOCK_SCENE_ID, "first", HOME_CONTINUE_BEHAVIOR_ID);
       const foreign = write(INBOX_NEXT_SCENE_ID, "other", INBOX_DISMISS_BEHAVIOR_ID);
@@ -260,96 +253,7 @@ test("built-in function keys exist in the Module store", async () => {
   });
 });
 
-test("functionFitsScene keeps every Choice option inside the scene pool", () => {
-  const homeDock = {
-    primitive: "choice" as const,
-    criteria: [
-      { key: HOME_CONTINUE_BEHAVIOR_ID, description: "接着做" },
-      { key: INBOX_DONE_BEHAVIOR_ID, description: "做完了" },
-      { key: FEED_REAUTH_BEHAVIOR_ID, description: "重新授权" },
-      { key: HOME_ASK_BEHAVIOR_ID, description: "问问" },
-    ],
-  };
-  const admit = {
-    primitive: "choice" as const,
-    criteria: [
-      { key: INBOX_ADMIT_BEHAVIOR_ID, description: "进 Inbox" },
-      { key: FEED_OPEN_BEHAVIOR_ID, description: "留在 Feed" },
-    ],
-  };
-  const next = {
-    primitive: "choice" as const,
-    criteria: [
-      { key: INBOX_DONE_BEHAVIOR_ID, description: "已处理" },
-      { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" },
-    ],
-  };
-  assert.equal(functionFitsScene(homeDock, HOME_DOCK_SCENE_ID), false, "legacy static helpers cannot establish Home compatibility");
-  assert.equal(functionFitsScene(homeDock, INBOX_NEXT_SCENE_ID), false);
-  assert.equal(functionFitsScene(homeDock, FEED_CAPTURE_SCENE_ID), false);
-  assert.equal(functionFitsScene(admit, FEED_CAPTURE_SCENE_ID), true);
-  assert.equal(functionFitsScene(admit, INBOX_NEXT_SCENE_ID), false);
-  assert.equal(functionFitsScene(admit, HOME_DOCK_SCENE_ID), false);
-  assert.equal(functionFitsScene(next, INBOX_NEXT_SCENE_ID), true);
-  assert.equal(functionFitsScene(next, HOME_DOCK_SCENE_ID), false);
-  assert.equal(functionFitsScene(next, FEED_CAPTURE_SCENE_ID), false);
-  const continueDismiss = {
-    primitive: "choice" as const,
-    criteria: [
-      { key: HOME_CONTINUE_BEHAVIOR_ID, description: "接着做" },
-      { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" },
-    ],
-  };
-  assert.equal(functionFitsScene(continueDismiss, HOME_DOCK_SCENE_ID), false);
-  assert.equal(functionFitsScene(continueDismiss, INBOX_NEXT_SCENE_ID), false);
-  assert.equal(functionFitsScene({ primitive: "noul", criteria: { true_description: "是", false_description: "否" } }, HOME_DOCK_SCENE_ID), false);
-  assert.equal(functionFitsScene(admit, "unknown.scene"), true);
-  assert.equal(functionFitsScene({ ...admit, scene_id: FEED_CAPTURE_SCENE_ID }, INBOX_NEXT_SCENE_ID), false);
-  assert.equal(functionFitsScene({
-    primitive: "choice" as const,
-    criteria: [
-      { key: "molis_work_v1_form_create", description: "建问卷" },
-      { key: "molis_work_v1_functions_invoke", description: "调判断" },
-    ],
-    scene_id: "agent.mcp",
-  }, INBOX_NEXT_SCENE_ID), false);
-  assert.equal(functionFitsScene({
-    primitive: "choice" as const,
-    criteria: [
-      { key: "molis_work_v1_form_create", description: "建问卷" },
-      { key: "molis_work_v1_functions_invoke", description: "调判断" },
-    ],
-    scene_id: "agent.mcp",
-  }, "agent.mcp"), true);
-  assert.equal(functionFitsScene({
-    primitive: "choice" as const,
-    criteria: [
-      { key: "urgent", description: "急" },
-      { key: "later", description: "不急" },
-    ],
-    scene_id: INBOX_NEXT_SCENE_ID,
-  }, INBOX_NEXT_SCENE_ID), false);
-  assert.equal(functionFitsScene({
-    primitive: "choice" as const,
-    criteria: [
-      { key: "urgent", description: "急" },
-      { key: "later", description: "不急" },
-    ],
-    scene_id: INBOX_NEXT_SCENE_ID,
-    scene_map: {
-      urgent: INBOX_DONE_BEHAVIOR_ID,
-      later: INBOX_DISMISS_BEHAVIOR_ID,
-    },
-  }, INBOX_NEXT_SCENE_ID), true);
-  assert.equal(functionFitsScene({
-    primitive: "noul" as const,
-    criteria: { true_description: "够", false_description: "不够" },
-    scene_id: INBOX_NEXT_SCENE_ID,
-    scene_map: {
-      true: INBOX_DONE_BEHAVIOR_ID,
-      false: INBOX_DISMISS_BEHAVIOR_ID,
-    },
-  }, INBOX_NEXT_SCENE_ID), true);
+test("a judgment's choice follows the rule's scene map", () => {
   assert.equal(mapJudgmentChoice({
     primitive: "choice",
     criteria: [
@@ -365,20 +269,10 @@ test("functionFitsScene keeps every Choice option inside the scene pool", () => 
   }, { noul: 0.8 }), INBOX_DONE_BEHAVIOR_ID);
 });
 
-test("bindScene rejects a published function whose options miss the scene pool", async () => {
+test("the built-in Home rule is seeded for the Home scene and Inbox entries", async () => {
   await withHome(async (home) => {
     const store = openFunctionsStore(home);
-    const service = createFunctionsService({
-      store,
-      secrets: memorySecrets(),
-    });
     try {
-      assert.throws(
-        () => service.bindScene(INBOX_NEXT_SCENE_ID, SYSTEM_INBOX_ADMIT_FUNCTION_KEY, "board"),
-        (error: unknown) => error instanceof FunctionsError && error.code === "functions.scene_mismatch",
-      );
-      const bound = service.bindScene(INBOX_NEXT_SCENE_ID, SYSTEM_INBOX_NEXT_FUNCTION_KEY, "board");
-      assert.equal(bound.function_key, SYSTEM_INBOX_NEXT_FUNCTION_KEY);
       assert.equal(store.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.scene_id, HOME_DOCK_SCENE_ID);
       assert.deepEqual(store.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.subject_kinds, ["inbox_entry"]);
     } finally {
@@ -387,7 +281,7 @@ test("bindScene rejects a published function whose options miss the scene pool",
   });
 });
 
-test("agent.mcp functions cannot bind to a site scene", async () => {
+test("agent.mcp functions are plain judgments, never a site scene's recommendation", async () => {
   await withHome(async (home) => {
     const store = openFunctionsStore(home);
     const service = createFunctionsService({
@@ -408,11 +302,8 @@ test("agent.mcp functions cannot bind to a site scene", async () => {
         subject_kinds: ["mcp_invoke"],
       });
       await service.preview(created.id, "样例");
-      service.publish(created.id);
-      assert.throws(
-        () => service.bindScene(INBOX_NEXT_SCENE_ID, "pick_tool", "board"),
-        (error: unknown) => error instanceof FunctionsError && error.code === "functions.scene_mismatch",
-      );
+      const published = service.publish(created.id);
+      assert.equal(publishedFunctionAction(published).action.output_type, "molis.judgment.v1");
     } finally {
       store.close();
     }
@@ -441,7 +332,6 @@ test("Feed and Inbox declare scenes without naming the Functions plugin implemen
     assert.ok(feedManifest.actions?.some((row) => row.capability_id === capability));
   }
   assert.equal(inboxManifest.action_scenes?.[0]?.scene_id, "inbox.next");
-  assert.equal(inboxManifest.function_scenes, undefined);
   assert.equal(inboxManifest.plugin_id.includes("functions"), false);
 });
 
@@ -580,41 +470,6 @@ test("home dock HTTP binds a published function at the scene without executing w
   });
   assert.equal(unbound.status, 200);
   assert.equal((await unbound.json() as { function_key: string | null }).function_key, null);
-});
-
-test("undeclared behavior handlers are refused", () => {
-  assert.throws(
-    () => assertContributionMatchesManifest(feedManifest, {
-      kind: "app",
-      views: [],
-      behaviors: [{ behavior_id: "invented", handle: () => undefined }],
-    }),
-    (error: unknown) => error instanceof PluginContributionError && error.message.includes("invented"),
-  );
-});
-
-test("app plugins must redeem declared behavior handlers", () => {
-  const manifest = {
-    ...feedManifest,
-    kind: "app" as const,
-    plugin_id: "io.molis.work.demo-dock",
-    actions: [],
-    action_scenes: [],
-    ui: { contributions: [], views: [] },
-    behaviors: [{ behavior_id: "pin", title: "挂到 Goal", effect: "write" as const, subject_kinds: ["inbox_entry"] }],
-    mcp_exports: [],
-    routes: [],
-    function_scenes: [],
-  };
-  assert.throws(
-    () => assertContributionMatchesManifest(manifest, { kind: "app", views: [] }),
-    (error: unknown) => error instanceof PluginContributionError && String(error.message).includes("pin"),
-  );
-  assertContributionMatchesManifest(manifest, {
-    kind: "app",
-    views: [],
-    behaviors: [{ behavior_id: "pin", handle: () => undefined }],
-  });
 });
 
 test("FunctionsError still surfaces from the Module", () => {

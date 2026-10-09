@@ -184,7 +184,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     const action=target.closest('[data-side-files-action]')?.dataset.sideFilesAction;
     if(action==='refresh'){void load(true);return;}
     if(action==='back'){show(false);current=null;paint();list.querySelector('[data-side-file]')?.focus();return;}
-    if(action==='open'&&openButton.dataset.surface){host.openRecord?.(openButton.dataset.surface,openButton.dataset.id);return;}
+    if(action==='open'&&openButton.dataset.surface){host.openRecord?.(openButton.dataset.surface,openButton.dataset.id,title.textContent||'');return;}
     if(action==='source'){const url=target.closest('[data-url]')?.dataset.url;if(url)document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser',target:{url},focus:true}}));return;}
   });
   root.addEventListener('keydown',event=>{if(event.key==='Escape'&&!preview.hidden&&!wide){event.preventDefault();show(false);current=null;paint();}});

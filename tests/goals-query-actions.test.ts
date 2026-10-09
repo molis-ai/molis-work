@@ -10,21 +10,20 @@ import { goalsActions, readGoalEventStateCapability, listGoalEventsCapability, l
   snapshotBoardCapability, readGoalContractCapability } from "@molis-ai/molis-work-plugin-goals";
 import { goalContextCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { bindActionClient, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { materializeGoalEventV35Fixture, goalEventV35Kinds } from "./goal-event-v35-fixture.js";
+import { materializeGoalEventHistory, goalEventHistoryKinds } from "./goal-event-history-fixture.js";
 import { readTestGoalCollection } from "./fixtures/web-view.js";
-import { assertActionInput } from "@molis-ai/molis-work-kernel";
 
 test("Goals query actions preserve full bodies, cursor order, scope and live policy for typed consumers", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-query-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Queries", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let denied: string | undefined;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
     actionAvailability: (_caller, view) => view.capability_id === denied
       ? { available: false, code: "actions.plugin_disabled", reason: "当前查询已停用" } : { available: true } });
   const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "query-reader", audience: "user",
     project_id: project.project_id, permissions: ["goals:read", "goals:write"] }));
-  const typed = host.client(ref), goal_id = "QUERY-GOAL", board_id = project.board_id;
+  const typed = host.client(ref), goal_id = "QUERY-GOAL", project_id = project.project_id;
   try {
     await actions.invoke(goalsActions.create, { goal_id, title: "保持原始记录", outcome: "分页能读到全部原文", idempotency_key: "create" });
     const noteIds: string[] = [];
@@ -36,17 +35,11 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     assert.equal(state.agreement.outcome, "分页能读到全部原文");
     assert.equal(state.work_status, "open");
     const snapshot = await actions.invoke(goalsActions.snapshot, {});
-    assert.deepEqual(snapshot, await host.withProject(ref, r => r.store.snapshot(board_id)));
-    assert.deepEqual(await typed.invoke(snapshotBoardCapability, { board_id }), snapshot);
-    // Saved contract revisions keep decomposition_review as null until a review exists; the snapshot contract must accept them.
-    const goal = (snapshot as { goals: Array<Record<string, unknown>> }).goals.find(row => row.goal_id === goal_id)!;
-    const saved = { goal_id, title: goal.title, outcome: goal.outcome, why: goal.why, business_logic: goal.business_logic, in_scope: [], out_of_scope: [], constraints: [],
-      required_inputs: [], promised_outputs: [], decomposition_review: null, acceptance_criteria: [] };
-    assert.doesNotThrow(() => assertActionInput(goalsActions.snapshot.action.output_schema, { ...snapshot, goal_contract_revisions: [{ goal_id, board_id, revision: 1,
-      contract: saved, effect: "metadata", source_proposal_id: null, changed_by: "user", reason: "初始合同", created_at: new Date().toISOString() }] }));
+    assert.deepEqual(snapshot, await host.withProject(ref, r => r.store.snapshot(project_id)));
+    assert.deepEqual(await typed.invoke(snapshotBoardCapability, { project_id }), snapshot);
     const contract = await actions.invoke(goalsActions.contract, { goal_id });
-    assert.deepEqual(contract, await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(board_id, goal_id)));
-    assert.deepEqual(await typed.invoke(readGoalContractCapability, { board_id, goal_id }), contract);
+    assert.deepEqual(contract, await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(project_id, goal_id)));
+    assert.deepEqual(await typed.invoke(readGoalContractCapability, { project_id, goal_id }), contract);
     const checkReadBoundary = async <Input, Output>(action: ActionDefinition<Input, Output>, input: Input) => {
       await assert.rejects(actions.invoke(action, { ...input, actor_id: "forged" } as never), { code: "actions.input_invalid" });
       await assert.rejects(host.actionClient(ref).invoke({ actor_id: "reader", audience: "mcp", project_id: ref.project_id, permissions: [] }, action, input), { code: "actions.forbidden" });
@@ -54,11 +47,11 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     await checkReadBoundary(goalsActions.snapshot, {});
     await checkReadBoundary(goalsActions.contract, { goal_id });
     const collection = await actions.invoke(goalsActions.collection, {});
-    assert.deepEqual(collection, await host.withProject(ref, r => readTestGoalCollection(r.store, r.coordinator, board_id)));
+    assert.deepEqual(collection, await host.withProject(ref, r => readTestGoalCollection(r.store, r.coordinator, project_id)));
     assert.equal(collection.goals[0]?.goal.goal_id, goal_id);
     await checkReadBoundary(goalsActions.collection, {});
-    await assert.rejects(typed.invoke(snapshotBoardCapability, { board_id: "foreign" }), { code: "actions.scope_mismatch" });
-    await assert.rejects(typed.invoke(readGoalContractCapability, { board_id: "foreign", goal_id }), { code: "actions.scope_mismatch" });
+    await assert.rejects(typed.invoke(snapshotBoardCapability, { project_id: "foreign" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(typed.invoke(readGoalContractCapability, { project_id: "foreign", goal_id }), { code: "actions.scope_mismatch" });
     const document = await actions.invoke(goalsActions.document, { goal_id });
     assert.deepEqual(document.state, state);
     assert.equal(document.description.title, "保持原始记录");
@@ -67,22 +60,22 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     assert.ok(document.planning_methods.length > 0);
     assert.deepEqual(document.transfer, { available: false, kind: null });
     await assert.rejects(actions.invoke(goalsActions.document, { goal_id: "MISSING" }));
-    await assert.rejects(actions.invoke(goalsActions.document, { goal_id, board_id: "foreign" } as never), { code: "actions.input_invalid" });
+    await assert.rejects(actions.invoke(goalsActions.document, { goal_id, project_id: "foreign" } as never), { code: "actions.input_invalid" });
     await assert.rejects(host.actionClient(ref).invoke({ actor_id: "query-reader", audience: "mcp", project_id: "foreign", permissions: ["goals:read"] },
       goalsActions.document, { goal_id }), { code: "actions.scope_mismatch" });
-    assert.deepEqual(await typed.invoke(readGoalEventStateCapability, { board_id, goal_id }), state);
+    assert.deepEqual(await typed.invoke(readGoalEventStateCapability, { project_id, goal_id }), state);
     const coding = await typed.invoke(goalContextCapabilities.read, { goal_id });
     assert.equal(coding.goal.goal_id, goal_id); assert.equal(coding.state.goal_event_cursor, state.goal_event_cursor);
     const directory = await actions.invoke(goalsActions.directoryItem, { goal_id });
     assert.equal(directory?.title, state.intent.title);
     assert.equal(await actions.invoke(goalsActions.directoryItem, { goal_id: "MISSING" }), null);
-    const resumed = await typed.invoke(projectResumeFactsCapability, { board_id, focus_goal_ids: [goal_id] });
+    const resumed = await typed.invoke(projectResumeFactsCapability, { project_id, focus_goal_ids: [goal_id] });
     assert.deepEqual(resumed.goals, [directory]);
     const ascending: string[] = [];
     let after_cursor: number | undefined;
     do {
       const page = await actions.invoke(goalsActions.events, { goal_id, limit: 2, ...(after_cursor === undefined ? {} : { after_cursor }) });
-      assert.deepEqual(await typed.invoke(listGoalEventsCapability, { board_id, goal_id, limit: 2, after_cursor }), page);
+      assert.deepEqual(await typed.invoke(listGoalEventsCapability, { project_id, goal_id, limit: 2, after_cursor }), page);
       assert.ok(page.events.length <= 2);
       ascending.push(...page.events.map(event => event.event_id));
       after_cursor = page.next_cursor ?? undefined;
@@ -93,19 +86,19 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     let before_cursor: number | undefined;
     do {
       const page = await actions.invoke(goalsActions.latestEvents, { goal_id, limit: 2, ...(before_cursor === undefined ? {} : { before_cursor }) });
-      assert.deepEqual(await typed.invoke(listLatestGoalEventsCapability, { board_id, goal_id, limit: 2, before_cursor }), page);
+      assert.deepEqual(await typed.invoke(listLatestGoalEventsCapability, { project_id, goal_id, limit: 2, before_cursor }), page);
       descending.push(...page.events.map(event => event.event_id));
       before_cursor = page.next_cursor ?? undefined;
     } while (before_cursor !== undefined);
     assert.deepEqual(descending, ascending.toReversed());
     const timeline = await actions.invoke(goalsActions.timeline, { goal_id, limit: 2 });
     assert.deepEqual(timeline.items.map(item => item.event_id), noteIds.slice(-2).reverse());
-    assert.deepEqual(await typed.invoke(listLatestGoalTimelineCapability, { board_id, goal_id, limit: 2 }), timeline);
+    assert.deepEqual(await typed.invoke(listLatestGoalTimelineCapability, { project_id, goal_id, limit: 2 }), timeline);
     const event_id = noteIds[3]!;
     const event = await actions.invoke(goalsActions.event, { goal_id, event_id });
     assert.equal(event.actor_id, "query-reader");
     assert.deepEqual(event.payload, { operation: "observation_note", body: "原文 3 <script>保留但转义</script>" });
-    assert.deepEqual(await typed.invoke(readGoalEventCapability, { board_id, goal_id, event_id }), event);
+    assert.deepEqual(await typed.invoke(readGoalEventCapability, { project_id, goal_id, event_id }), event);
     const history = await actions.invoke(goalsActions.history, { goal_id, limit: 2 });
     assert.equal(history.items[0]?.item_id, event_id); assert.ok(history.next_cursor);
     const nextHistory = await actions.invoke(goalsActions.history, { goal_id, limit: 2, before_cursor: history.next_cursor });
@@ -118,50 +111,45 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     await actions.invoke(goalsActions.create, { goal_id: "OTHER-GOAL", title: "另一个目标", idempotency_key: "other" });
     await assert.rejects(actions.invoke(goalsActions.event, { goal_id: "OTHER-GOAL", event_id }));
     await assert.rejects(actions.invoke(goalsActions.events, { goal_id, limit: 101 }), { code: "actions.input_invalid" });
-    await assert.rejects(actions.invoke(goalsActions.state, { goal_id, board_id: "foreign" } as never), { code: "actions.input_invalid" });
-    await assert.rejects(typed.invoke(readGoalEventStateCapability, { goal_id, board_id: "foreign" }), { code: "actions.scope_mismatch" });
-    await assert.rejects(typed.invoke(projectResumeFactsCapability, { board_id: "foreign" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(actions.invoke(goalsActions.state, { goal_id, project_id: "foreign" } as never), { code: "actions.input_invalid" });
+    await assert.rejects(typed.invoke(readGoalEventStateCapability, { goal_id, project_id: "foreign" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(typed.invoke(projectResumeFactsCapability, { project_id: "foreign" }), { code: "actions.scope_mismatch" });
     denied = goalsActions.state.capability_id;
-    await assert.rejects(typed.invoke(readGoalEventStateCapability, { board_id, goal_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(readGoalEventStateCapability, { project_id, goal_id }), { code: "actions.plugin_disabled" });
     await assert.rejects(typed.invoke(goalContextCapabilities.read, { goal_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.list.capability_id;
-    await assert.rejects(typed.invoke(projectResumeFactsCapability, { board_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(projectResumeFactsCapability, { project_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.document.capability_id;
     await assert.rejects(actions.invoke(goalsActions.document, { goal_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.snapshot.capability_id;
-    await assert.rejects(typed.invoke(snapshotBoardCapability, { board_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(snapshotBoardCapability, { project_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.contract.capability_id;
-    await assert.rejects(typed.invoke(readGoalContractCapability, { board_id, goal_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(readGoalContractCapability, { project_id, goal_id }), { code: "actions.plugin_disabled" });
     await assert.rejects(typed.invoke(goalContextCapabilities.read, { goal_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.collection.capability_id;
     await assert.rejects(actions.invoke(goalsActions.collection, {}), { code: "actions.plugin_disabled" });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("query contracts retain migrated completion, human requirements and original v35 event payloads", async () => {
-  for (const kind of goalEventV35Kinds) {
-    const fixture = materializeGoalEventV35Fixture(kind);
+test("query contracts read the completion, human requirements and event payloads of projects with earlier history", async () => {
+  for (const kind of goalEventHistoryKinds) {
+    const fixture = materializeGoalEventHistory(kind);
     const host = new MolisWorkLocalHost({ homeDirectory: fixture.directory, completeText: null });
-    const ref = molisWorkHostProjectReference({ databasePath: fixture.path, boardId: "goalboard-v1-demo" });
+    const ref = molisWorkHostProjectReference({ databasePath: fixture.path, projectId: "goalboard-v1-demo" });
     const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "migration-reader", audience: "user",
       project_id: ref.project_id, permissions: ["goals:read"] }));
     try {
       const snapshot = await actions.invoke(goalsActions.snapshot, {});
-      assert.deepEqual(snapshot, await host.withProject(ref, r => r.store.snapshot(ref.board_id)));
-      assert.ok(snapshot.claims.length > 0);
-      assert.ok(snapshot.runs.length > 0);
-      assert.ok(snapshot.evidence.length > 0);
+      assert.deepEqual(snapshot, await host.withProject(ref, r => r.store.snapshot(ref.project_id)));
       const collection = await actions.invoke(goalsActions.collection, {});
-      assert.deepEqual(collection, await host.withProject(ref, r => readTestGoalCollection(r.store, r.coordinator, ref.board_id)));
+      assert.deepEqual(collection, await host.withProject(ref, r => readTestGoalCollection(r.store, r.coordinator, ref.project_id)));
       assert.deepEqual(await actions.invoke(goalsActions.snapshot, {}), snapshot, "collection reads must not write history or attention");
       for (const goal of snapshot.goals) {
         assert.deepEqual(await actions.invoke(goalsActions.contract, { goal_id: goal.goal_id }),
-          await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(ref.board_id, goal.goal_id)));
+          await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(ref.project_id, goal.goal_id)));
       }
       const core = await actions.invoke(goalsActions.state, { goal_id: "CORE" });
       assert.equal(core.work_status, "completed");
-      assert.equal(core.imported_completion?.historical.journal_type, "goal.satisfied");
-      assert.ok(core.imported_completion!.historical.evidence_ids.length > 0);
       assert.equal(core.closure, null);
       const human = await actions.invoke(goalsActions.state, { goal_id: "OLD-HUMAN" });
       assert.equal(human.requirements.find(item => item.requirement_id === "OLD-HUMAN-C1")?.human_decision_required, true);
@@ -173,12 +161,12 @@ test("query contracts retain migrated completion, human requirements and origina
         assert.equal(document.description.title, goal.title);
         if (goal.goal_id === "CORE") {
           assert.equal(document.transfer.kind, "reopen_event_completed");
-          assert.ok(document.timeline.items.some(item => item.source !== "event_work"), "migrated history remains in the document");
+          assert.ok(document.timeline.items.some(item => item.source !== "event_work"), "the journal's earlier records remain in the document");
         }
         assert.equal(state.work_status, goal.work_status);
         const page = await actions.invoke(goalsActions.events, { goal_id: goal.goal_id, limit: 100 });
         for (const event of page.events) {
-          assert.equal(event.board_id, ref.board_id); assert.equal(event.goal_id, goal.goal_id);
+          assert.equal(event.project_id, ref.project_id); assert.equal(event.goal_id, goal.goal_id);
           if (event.kind === "report") assert.ok(Object.values(event.payload).every(value => typeof value === "string"));
         }
       }
@@ -187,57 +175,18 @@ test("query contracts retain migrated completion, human requirements and origina
 });
 
 
-test("records written by earlier versions still read through the action contracts; new criteria must use a known decision method", async () => {
-  const home = await mkdtemp(join(tmpdir(), "goals-legacy-records-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Legacy", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+test("Goal definitions take only the four decision methods and the two review statuses", async () => {
+  const home = await mkdtemp(join(tmpdir(), "goals-definition-values-"));
+  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Values", actor_id: "user" }));
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "legacy-reader", audience: "user",
-    project_id: project.project_id, permissions: ["goals:read", "goals:write"] }));
-  const goal_id = "LEGACY-GOAL", board_id = project.board_id, at = "2026-09-01T00:00:00.000Z";
+  const project_id = project.project_id;
   try {
-    await actions.invoke(goalsActions.create, { goal_id, title: "早期记录", outcome: "仍然能打开", idempotency_key: "create" });
-    // What earlier versions left behind: an agent's own wording for a decision method (in the criterion and in the saved
-    // contract revision) and for a review status, a proposal in an older format, and a project method pack saved before
-    // instructions, event types and default requirements existed.
-    await host.withProject(ref, r => {
-      r.store.db.prepare(`INSERT INTO acceptance_criteria (criterion_id, goal_id, statement, decision_method, pass_condition, target_json, required_evidence_json)
-        VALUES ('legacy-criterion', ?, '试玩一局', 'playtest', '三分钟内能进球', NULL, '[]')`).run(goal_id);
-      r.store.db.prepare(`UPDATE goals SET decomposition_review_json = '{"status":"closed_leaf","method_pack_ids":[],"coverage":[],"open_goal_ids":[],"next_step":""}'
-        WHERE goal_id = ?`).run(goal_id);
-      r.store.db.prepare(`UPDATE goal_contract_revisions SET contract_json = json_set(contract_json, '$.acceptance_criteria',
-        json('[{"statement":"场景跑通","decision_method":"scenario","pass_condition":"无报错"}]')) WHERE goal_id = ?`).run(goal_id);
-      const pack = { method_id: "legacy-pack", name: "早期方法", kind: "custom", summary: "旧版保存的方法", applies_to: [], domain_tags: [], enabled: true,
-        confidence: 0.6, source_refs: [], required_coverage: [{ area: "scope", label: "范围", question: "做什么" }], steps: ["拆分"],
-        dependency_rules: [{ rule_id: "r1", statement: "先定范围", direction_hint: "scope → work" }], evidence_requirements: [], completion_checks: [],
-        failure_modes: [], scope: "project", version: 1, created_at: at, updated_at: at };
-      const submitted = { title: "旧提案", outcome: "o", why: "w", business_logic: "b", acceptance_criteria: [], source_refs: ["doc#1"], review_policy: "human" };
-      r.store.db.prepare(`INSERT INTO candidates (candidate_id, board_id, submitted_by, proposed_goal_json, blocking_mode, state, created_at)
-        VALUES ('legacy-candidate', ?, 'agent', ?, 'none', 'pending', ?)`).run(board_id, JSON.stringify(submitted), at);
-      r.store.db.prepare(`INSERT INTO planning_method_packs (board_id, method_id, version, enabled, pack_json, created_at, updated_at)
-        VALUES (?, 'legacy-pack', 1, 1, ?, ?, ?)`).run(board_id, JSON.stringify(pack), at, at);
-    });
-    const snapshot = await actions.invoke(goalsActions.snapshot, {}) as {
-      goals: Array<{ goal_id: string; acceptance_criteria: Array<{ decision_method: string }>; decomposition_review: { status: string } | null }>;
-      goal_contract_revisions: Array<{ goal_id: string; contract: { acceptance_criteria: Array<{ decision_method: string }> } }>;
-      planning_method_packs: Array<{ method_id: string; instructions: string; event_types: unknown[]; default_requirements: unknown[] }>;
-      candidates: Array<{ candidate_id: string; proposed_goal: Record<string, unknown> }>;
-    };
-    // Read and shown as recorded, not rewritten.
-    const legacy = snapshot.goals.find(row => row.goal_id === goal_id)!;
-    assert.deepEqual(legacy.acceptance_criteria.map(row => row.decision_method), ["playtest"]);
-    assert.equal(legacy.decomposition_review?.status, "closed_leaf");
-    assert.equal(snapshot.goal_contract_revisions.find(row => row.goal_id === goal_id)!.contract.acceptance_criteria[0]!.decision_method, "scenario");
-    assert.deepEqual(snapshot.candidates.find(row => row.candidate_id === "legacy-candidate")!.proposed_goal.source_refs, ["doc#1"]);
-    const pack = snapshot.planning_method_packs.find(row => row.method_id === "legacy-pack")!;
-    assert.ok(pack.instructions.includes("拆分"), "instructions are compiled from the pack's own steps");
-    assert.deepEqual([pack.event_types, pack.default_requirements], [[], []]);
-    assert.equal((await actions.invoke(goalsActions.collection, {})).goals.find(row => row.goal.goal_id === goal_id)!.goal.acceptance_criteria[0]!.decision_method, "playtest");
     // New criteria are held to the known methods.
-    await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(board_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
+    await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(project_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
       acceptance_criteria: [{ statement: "试玩", decision_method: "playtest" as never, pass_condition: "能进球" }] },
       { actor_id: "user", idempotency_key: "new-goal" })), { code: "goal.acceptance_invalid", message: /automated_check、measurement、inspection、human_decision/ });
-    await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(board_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
+    await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(project_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
       acceptance_criteria: [], decomposition_review: { status: "closed_leaf" as never, coverage: [], open_goal_ids: [], next_step: "" } },
       { actor_id: "user", idempotency_key: "new-review" })), { code: "goal.decomposition_review_invalid", message: /complete、paused/ });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
@@ -246,7 +195,7 @@ test("records written by earlier versions still read through the action contract
 test("Web cache keeps the cursor of its authorized collection when a write lands before composition", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-collection-cache-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Cache", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "cache-user", audience: "user", project_id: project.project_id,
     permissions: ["goals:read", "goals:write"] }));
@@ -262,7 +211,7 @@ test("Web cache keeps the cursor of its authorized collection when a write lands
       }
       return result;
     } };
-    const cache = new Map(), options = { databasePath: project.database_path, boardId: project.board_id, homeDirectory: home };
+    const cache = new Map(), options = { databasePath: project.database_path, projectId: project.project_id, homeDirectory: home };
     const first = await cachedMolisWorkWebView(cache, runtime.store, options, delayed);
     assert.equal(first.goals.some(item => item.goal.goal_id === "after"), false);
     const next = await cachedMolisWorkWebView(cache, runtime.store, options, delayed);

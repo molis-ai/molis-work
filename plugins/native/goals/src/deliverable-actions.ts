@@ -61,10 +61,14 @@ export const goalsArtifactInputActions = {
     object({ goal_id: identifier, reference }), object({ removed: boolean })),
   list: goalAction<{ goal_id: string }, { inputs: GoalDeliverable[] }>("goals.artifact_inputs.list",
     "目标的成果输入", "列出目标作为输入的成果版本，以及还在等用户确认的提议（proposed）", "query", object({ goal_id: identifier }), object({ inputs: array(deliverable) })),
+  /** 「固定这一版」 when a Goal takes an object as input (one entry for both kinds, artifact-positioning 五.1). */
+  pin: goalAction<{ goal_id: string; subject: { kind: string; id: string }; reason?: string }, { input: GoalDeliverable; replayed: boolean }>("goals.artifact_inputs.pin",
+    "固定这一版作为输入", "把一份资料（文档、问卷、演示稿、数据表）的当前内容固定为成果库里的一版，并记为目标的输入；目标认的是这一版，原对象之后仍可修改。由助理等调用时只记为提议", "command",
+    object({ goal_id: identifier, subject, reason }, ["goal_id", "subject"]), object({ input: deliverable, replayed: boolean })),
 } as const;
 
 export interface GoalDeliverablePorts {
-  readonly boardId: string;
+  readonly projectId: string;
   goalExists(goalId: string): boolean;
   /** A version in the 成果库 (never a process item); null when it is not there. */
   readArtifact(reference: ArtifactReference): { title: string; artifact_type_id: string; availability: string; lifecycle_state: string } | null;
@@ -78,7 +82,7 @@ export interface GoalDeliverablePorts {
 }
 
 export function createGoalsDeliverableActionHandlers(ports: GoalDeliverablePorts): ActionHandlerBinding[] {
-  const access = (caller: ActionCallContext): ContextAccess => ({ actor_id: goalActor(caller).actor_id, scope: { kind: "personal", id: ports.boardId } });
+  const access = (caller: ActionCallContext): ContextAccess => ({ actor_id: goalActor(caller).actor_id, scope: { kind: "personal", id: ports.projectId } });
   const active = (at: ContextAccess, key: string) => { const edge = ports.ledger.query.get(at, key); return edge?.state === "active" ? edge : null; };
   const requireGoal = (goalId: string) => { if (!ports.goalExists(goalId)) throw new ActionError("goals.not_found", "找不到这个目标"); };
   const links = (role: LinkRole) => {
@@ -120,7 +124,7 @@ export function createGoalsDeliverableActionHandlers(ports: GoalDeliverablePorts
   };
   const outputs = links(OUTPUT_ROLE), inputs = links(INPUT_ROLE);
   type Ref = { goal_id: string; reference: ArtifactReference; reason?: string };
-  const bindLinks = (actions: typeof goalsArtifactInputActions | Pick<typeof goalsDeliverableActions, "add" | "remove" | "list">, role: ReturnType<typeof links>): ActionHandlerBinding[] => [
+  const bindLinks = (actions: Pick<typeof goalsArtifactInputActions | typeof goalsDeliverableActions, "add" | "remove" | "list">, role: ReturnType<typeof links>): ActionHandlerBinding[] => [
     { ...actions.add, handle: (caller, input) => { const value = input as Ref; requireGoal(value.goal_id); return role.record(caller, value.goal_id, value.reference, value.reason); } },
     { ...actions.remove, handle: (caller, input) => { const value = input as Ref; requireGoal(value.goal_id); return role.remove(caller, value.goal_id, value.reference); } },
     { ...actions.list, handle: (caller, input) => { const value = input as { goal_id: string }; requireGoal(value.goal_id); return role.list(caller, value.goal_id); } },
@@ -132,6 +136,11 @@ export function createGoalsDeliverableActionHandlers(ports: GoalDeliverablePorts
       const value = input as { goal_id: string; subject: { kind: string; id: string }; reason?: string };
       requireGoal(value.goal_id);
       return outputs.record(caller, value.goal_id, await ports.pin(caller, value.subject), value.reason);
+    } },
+    { ...goalsArtifactInputActions.pin, handle: async (caller, input) => {
+      const value = input as { goal_id: string; subject: { kind: string; id: string }; reason?: string };
+      requireGoal(value.goal_id);
+      return inputs.record(caller, value.goal_id, await ports.pin(caller, value.subject), value.reason);
     } },
     { ...goalsDeliverableActions.candidates, handle: async (caller, input) => {
       const value = input as { goal_id: string };

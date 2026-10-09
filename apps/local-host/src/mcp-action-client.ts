@@ -7,7 +7,7 @@ import { readMcpToolPreference } from "./mcp-settings-store.js";
 /** Shared by direct MCP and its authenticated local transport. Neither grants itself authority. */
 export async function authorizeMcpActions(host: Pick<MolisWorkLocalHost, "inspectActions" | "actionClient" | "homeActionClient">, caller: ActionCallContext, home: string | undefined,
   reference?: LocalHostProjectReference, checkTransport?: () => void | Promise<void>) {
-  const preference = home ? await readMcpToolPreference(home) : { version: 1 as const, overrides: {} };
+  const preference = home ? await readMcpToolPreference(home) : { version: 2 as const, action_grants: [] };
   const catalog = await host.inspectActions(caller, reference);
   const context: ActionCallContext = { ...resolveMcpActionContext(caller, catalog, preference),
     validate_permissions: async permissions => {

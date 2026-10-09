@@ -138,7 +138,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       locateGraphNode, handleMomentumNavigationClick, handleMomentumSelectionClick, handleMomentumZoomClick } =
       (${GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT})({
         workspace, treeSearch, documentCollection, route, translate: L,
-        projectId: state.project?.project_id || state.snapshot.board.board_id,
+        projectId: state.project?.project_id || state.snapshot.board.project_id,
         selectGoal: (...args) => selectGoal(...args),
         openFrame: (id) => frameContainer?.openFrame(id),
         applySelection: (id) => applySelection(id, false),
@@ -217,7 +217,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       setMobileView: (...args) => setMobileView(...args),
       applySelection: (goalId) => applySelection(goalId, false),
       locateGraphNode: (id) => locateGraphNode(id),
-      getProjectId: () => state.project?.project_id || state.snapshot.board.board_id,
+      getProjectId: () => state.project?.project_id || state.snapshot.board.project_id,
       route,
       openGoalTab: (id) => tabWorkspace?.openItem("goals", id, undefined, "frame"),
       openGoalWork: () => tabWorkspace?.openGoalWork(),
@@ -244,15 +244,13 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         applySelection: (goalId) => applySelection(goalId, false),
         loadGoalDocument: (goalId) => loadGoalDocument(goalId),
         getDocumentGoalId: () => documentPane.querySelector("[data-goal-view]")?.dataset.goalView,
-        locateGraphNode: (id) => locateGraphNode(id),
         selectFeedItem: (...args) => selectFeedItem(...args),
         selectInboxEntry: (...args) => selectInboxEntry(...args),
-        getProjectId: () => state.project?.project_id || state.snapshot.board.board_id,
+        getProjectId: () => state.project?.project_id || state.snapshot.board.project_id,
         visibleGoals: () => visibleGoals(),
         showCanvas: () => frameContainer?.showCanvas(),
         restoreBoard: () => frameContainer?.restoreBoard(),
         releaseFrame: () => frameContainer?.releaseFrame(),
-        isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
       });
     } catch (error) {
       console.warn("Molis Work tab workspace failed to start", error);

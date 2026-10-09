@@ -1,13 +1,11 @@
 export * from "@molis-ai/molis-work-contracts/modules/private-work-context";
 export { findSessionForHostSignals } from "./session-host-signals.js";
 export { createSessionContentStore, type SessionContentStore } from "./content-store.js";
-export { migrateRuntimeContextProjectReferences } from "./context-binding-references.js";
 export {
   RuntimeContextBindingRepository,
   createRuntimeContextBindingTables,
   createRuntimeContextSetupRequestTable,
   createRuntimeContextSuggestionRejectionTable,
-  migrateRuntimeContextBindingEventsForUnbind,
   type RuntimeContextSetupRequestRecord,
 } from "./context-bindings.js";
 export { MolisWorkSessionError, PrivateWorkContextError } from "./errors.js";
@@ -32,7 +30,7 @@ export const packageDescriptor = {
     "encrypted-content-store",
     "session-events",
     "session-handoff-facts",
-    "legacy-session-migration",
+    "panel-and-binding-sessions",
     "runtime-context-bindings",
   ],
 } as const;

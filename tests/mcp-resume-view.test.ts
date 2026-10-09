@@ -34,7 +34,7 @@ function factsFor(entries: Array<[string, McpResumeFacts["goals"][number]["work_
   };
 }
 
-test("MCP resume preserves host/session focus and no automatic claim", () => {
+test("MCP resume preserves host/session focus and leaves the input facts unchanged", () => {
   const facts = factsFor([
     ["active", "open", true], ["session", "open", true], ["host", "open", true],
   ]);
@@ -42,11 +42,9 @@ test("MCP resume preserves host/session focus and no automatic claim", () => {
   const hostFocus = buildMcpResumeView(facts, "host", "session");
   assert.equal(hostFocus.focus?.goal_id, "host");
   assert.equal(hostFocus.focus?.source, "host_focus");
-  assert.equal(hostFocus.auto_claimed, false);
   const sessionFocus = buildMcpResumeView(facts, "missing-host-goal", "session");
   assert.equal(sessionFocus.focus?.goal_id, "session");
   assert.equal(sessionFocus.focus?.source, "session_focus");
-  assert.equal(sessionFocus.auto_claimed, false);
   assert.deepEqual(facts, before, "display construction must not change input facts");
 });
 
@@ -61,9 +59,8 @@ test("MCP resume keeps recovery ordering and excludes completed suggestions", ()
   assert.equal(view.focus?.goal_id, "attention");
   assert.equal(view.focus?.source, "project_recovery_order");
   assert.equal(view.next_goals.some((goal) => goal.goal_id === "done"), false);
-  assert.equal(view.auto_claimed, false);
   assert.deepEqual(buildMcpResumeView({ goals: [] }, null, null), {
-    focus: null, next_goals: [], auto_claimed: false,
+    focus: null, next_goals: [],
   });
 });
 
@@ -80,14 +77,14 @@ test("context_resolve restores Host and Session focus outside the discovery wind
     let tick = Date.parse("2026-09-10T00:00:00.000Z");
     const app = new GoalProjectApplication(store, () => new Date(tick++));
     const create = (goal_id: string, title: string) => app.goalEvents.createIntent({
-      board_id: project.board_id, goal_id, title, actor_id: "focus-user", actor_kind: "user",
+      project_id: project.project_id, goal_id, title, actor_id: "focus-user", actor_kind: "user",
       idempotency_key: `focus-create-${goal_id}`, source_kind: "web",
     });
     create("FOCUS-HOST", "明确的 Host 目标");
     create("FOCUS-SESSION", "原 Session 正在处理的目标");
     for (let i = 0; i < 105; i++) create(`FOCUS-RECENT-${String(i).padStart(3, "0")}`, `后续记录目标 ${i + 1}`);
     assert.equal(
-      app.goalEvents.listGoals({ board_id: project.board_id, limit: 100 }).goals
+      app.goalEvents.listGoals({ project_id: project.project_id, limit: 100 }).goals
         .some((item) => item.goal_id === "FOCUS-HOST" || item.goal_id === "FOCUS-SESSION"),
       false,
     );
@@ -112,8 +109,8 @@ test("context_resolve restores Host and Session focus outside the discovery wind
       actor_id: "focus-user", user_confirmed: true,
     });
     const connection = {
-      databasePath: project.database_path, boardId: project.board_id,
-      projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
+      databasePath: project.database_path, projectId: project.project_id,
+      webBaseUrl: "http://127.0.0.1:4173",
     };
     runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);
     const views = await host.inspectActions({ actor_id: "runtime:codex", audience: "mcp", project_id: project.project_id, permissions: [] }, molisWorkHostProjectReference(connection));

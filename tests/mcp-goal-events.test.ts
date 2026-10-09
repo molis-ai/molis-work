@@ -46,12 +46,11 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     };
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, runtimeHost, host);
-    const board_id = project.board_id;
-    const created = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const project_id = project.project_id;
+    const created = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "互动故事开场", outcome: "玩家能走进洞穴并做一次选择", idempotency_key: "intent-1",
     }));
     assert.equal(created.completion_effect, false);
@@ -61,16 +60,16 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(created.goal.title, "互动故事开场");
     assert.equal(created.goal.why, undefined);
     const goal_id = created.goal.goal_id as string;
-    const createdState = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
+    const createdState = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     assert.equal(createdState.intent.source_kind, "runtime");
-    const replayed = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const replayed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "互动故事开场", outcome: "玩家能走进洞穴并做一次选择", idempotency_key: "intent-1",
     }));
     assert.equal(replayed.replayed, true);
     assert.equal(replayed.goal.goal_id, goal_id);
     assert.equal(replayed.observed_event_cursor, created.observed_event_cursor);
 
-    const configured = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", {
+    const configured = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id, expected_version: 0, idempotency_key: "cfg-1", types: [localType()],
     }));
     assert.equal(configured.replayed, false);
@@ -78,7 +77,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(configured.config.types[0]?.type_id, "story-delivery");
     assert.deepEqual(configured.config.adopted_planning, []);
 
-    const reported = JSON.parse(await mcp.callTool("molis_work_v1_event_report", {
+    const reported = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", {
       goal_id, idempotency_key: "report-1",
       events: [{
         type_id: "story-delivery", type_version: 1, title: "做出了开场片段",
@@ -96,7 +95,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(reported.completion_effect, false);
     assert.ok(reported.goal_event_cursor >= reported.events[0]!.journal_seq);
 
-    const retry = JSON.parse(await mcp.callTool("molis_work_v1_event_report", {
+    const retry = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", {
       goal_id, idempotency_key: "report-1",
       events: [{
         type_id: "story-delivery", type_version: 1, title: "做出了开场片段",
@@ -107,7 +106,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(retry.events[0]?.event_id, reported.events[0]?.event_id);
     assert.equal(retry.work_status, "open");
 
-    const state = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
+    const state = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     assert.equal(state.owner?.kind, "event_work");
     assert.equal("protocol" in state, false);
     assert.equal(state.completion_effect, false);
@@ -115,7 +114,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(state.latest_reports[0]?.event_id, reported.events[0]?.event_id);
     assert.equal(state.config.types.length, 1);
 
-    const listed = JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id }));
+    const listed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id }));
     assert.deepEqual(listed.events.map((item: { kind: string }) => item.kind), ["system", "configuration", "report"]);
     assert.equal(listed.events[0]?.kind, "system");
     assert.equal(listed.events[0]?.payload.operation, "intent_created");
@@ -123,29 +122,27 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(listed.events[1]?.kind, "configuration");
     assert.equal(listed.events[1]?.payload.config_version, 1);
     assert.ok(Array.isArray(listed.events[1]?.payload.types));
-    const read = JSON.parse(await mcp.callTool("molis_work_v1_event_read", {
+    const read = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.read__v1", {
       goal_id, event_id: reported.events[0]!.event_id,
     }));
     assert.equal(read.kind, "report");
     assert.equal(read.payload.piece, "开场洞穴");
 
     const snapshot = await host.client(molisWorkHostProjectReference({
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
-    })).invoke(snapshotBoardCapability, { board_id });
-    assert.equal(snapshot.claims.length, 0);
-    assert.equal(snapshot.runs.length, 0);
+      databasePath: project.database_path, projectId: project.project_id,
+    })).invoke(snapshotBoardCapability, { project_id });
+    assert.equal("claims" in snapshot || "runs" in snapshot, false, "the retired claim/run protocol has no state");
 
     await mcp.close();
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, runtimeHost, host);
-    const reopened = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
+    const reopened = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     assert.equal(reopened.config.version, 1);
     assert.equal(reopened.latest_reports[0]?.title, "做出了开场片段");
-    const oldBody = JSON.parse(await mcp.callTool("molis_work_v1_event_read", {
+    const oldBody = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.read__v1", {
       goal_id, event_id: reported.events[0]!.event_id,
     }));
     assert.equal(oldBody.payload.piece, "开场洞穴");
@@ -156,18 +153,18 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     v2.fields.push({
       field_id: "entry", name: "怎样体验", purpose: "从哪里开始", format: "text", required: false,
     });
-    await mcp.callTool("molis_work_v1_event_configure", {
+    await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id, expected_version: 1, idempotency_key: "cfg-2", types: [v2],
     });
-    const stillOld = JSON.parse(await mcp.callTool("molis_work_v1_event_read", {
+    const stillOld = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.read__v1", {
       goal_id, event_id: reported.events[0]!.event_id,
     }));
     assert.equal(stillOld.type.version, 1);
     assert.equal(stillOld.payload.entry, undefined);
 
-    const beforeInvalid = JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id }));
+    const beforeInvalid = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id }));
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_event_report", {
+      () => mcp!.callTool("molis_work_v1_action_goals.events.report__v1", {
         goal_id, idempotency_key: "bad-batch",
         events: [
           { type_id: "story-delivery", type_version: 1, title: "合法", fields: { piece: "仍应回滚" } },
@@ -176,57 +173,56 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
       }),
       (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_report.missing_required_field",
     );
-    const afterInvalid = JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id }));
+    const afterInvalid = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id }));
     assert.equal(afterInvalid.events.length, beforeInvalid.events.length);
 
     const beforeReject = afterInvalid.events.length;
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_event_report", {
-        board_id: "other-board", goal_id, idempotency_key: "cross-board",
+      () => mcp!.callTool("molis_work_v1_action_goals.events.report__v1", {
+        project_id: "other-board", goal_id, idempotency_key: "cross-board",
         events: [{ type_id: "story-delivery", type_version: 1, title: "跨 board", fields: { piece: "不应写入" } }],
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.connection_override_denied",
+      { code: "actions.input_invalid" },
     );
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_event_report", {
+      () => mcp!.callTool("molis_work_v1_action_goals.events.report__v1", {
         goal_id, idempotency_key: "override-db", database_path: "/tmp/not-this.db",
         events: [{ type_id: "story-delivery", type_version: 1, title: "覆盖路径", fields: { piece: "不应写入" } }],
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.connection_override_denied",
+      { code: "actions.input_invalid" },
     );
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_event_report", {
+      () => mcp!.callTool("molis_work_v1_action_goals.events.report__v1", {
         goal_id, idempotency_key: "fake-user", actor_kind: "user",
         events: [{ type_id: "story-delivery", type_version: 1, title: "伪造用户", fields: { piece: "不应写入" } }],
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.user_impersonation_denied",
+      { code: "actions.input_invalid" },
     );
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_goal_intent_create", {
+      () => mcp!.callTool("molis_work_v1_action_goals.create__v1", {
         title: "伪造身份", idempotency_key: "fake-actor", actor_id: "user-admin",
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.user_impersonation_denied",
+      { code: "actions.input_invalid" },
     );
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_goal_state", { goal_id, board_id }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.connection_override_denied",
+      () => mcp!.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id, project_id }),
+      { code: "actions.input_invalid" },
     );
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_goal_state", { goal_id, board_id: null }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.connection_override_denied",
+      () => mcp!.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id, project_id: null }),
+      { code: "actions.input_invalid" },
     );
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_event_note", { goal_id, body: "覆盖身份", idempotency_key: "note-undef", actor_id: undefined }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.user_impersonation_denied",
+      () => mcp!.callTool("molis_work_v1_action_goals.note__v1", { goal_id, body: "覆盖身份", idempotency_key: "note-undef", actor_id: undefined }),
+      { code: "actions.input_invalid" },
     );
-    const afterReject = JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id }));
+    const afterReject = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id }));
     assert.equal(afterReject.events.length, beforeReject);
 
     const persisted = await host.client(molisWorkHostProjectReference({
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
-    })).invoke(snapshotBoardCapability, { board_id });
-    assert.equal(persisted.claims.length, 0);
-    assert.equal(persisted.runs.length, 0);
+      databasePath: project.database_path, projectId: project.project_id,
+    })).invoke(snapshotBoardCapability, { project_id });
+    assert.equal("claims" in persisted || "runs" in persisted, false, "the retired claim/run protocol has no state");
   } finally {
     await mcp?.close();
     await host.close();
@@ -253,32 +249,32 @@ test("event report stays persisted when secondary Session indexing fails", async
       }).session_id;
     } finally { registry.close(); }
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id,
-      projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
+      databasePath: project.database_path, projectId: project.project_id,
+      webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-events-activity", host_declares_stable: true },
     }, host);
-    const board_id = project.board_id;
-    const created = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const project_id = project.project_id;
+    const created = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "记录事件活动", idempotency_key: "intent-activity",
     }));
     const goal_id = created.goal.goal_id as string;
-    await mcp.callTool("molis_work_v1_event_configure", {
+    await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id, expected_version: 0, idempotency_key: "cfg-activity", types: [localType()],
     });
     const restoreSessionIndex = rejectSessionReportIndex(homeDirectory);
-    const reported = JSON.parse(await mcp.callTool("molis_work_v1_event_report", {
+    const reported = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", {
       goal_id, idempotency_key: "report-activity",
       events: [{ type_id: "story-delivery", type_version: 1, title: "已记录", fields: { piece: "洞穴" } }],
     })) as ReportGoalEventsResult;
     assert.equal(reported.events[0]?.payload.piece, "洞穴");
     restoreSessionIndex();
-    const listed = JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id }));
+    const listed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id }));
     assert.equal(listed.events.filter((item: { kind: string }) => item.kind === "report").length, 1);
     const inspect = await openWorkSessionRegistry({ homeDirectory });
     try {
-      assert.equal(inspect.events(sessionId).filter((event) => event.source_id === "molis_work_v1_event_report:report-activity").length, 0);
+      assert.equal(inspect.events(sessionId).filter((event) => event.source_id === "molis_work_v1_action_goals.events.report__v1:report-activity").length, 0);
     } finally { inspect.close(); }
   } finally {
     await mcp?.close();
@@ -298,42 +294,42 @@ test("missing stable Session identity rejects event writes with no Goal or event
     const project = await catalog.createProject({ display_name: "身份拒绝", actor_id: "user" });
     await grantGoalsMcp(host, homeDirectory, project);
     const reference = molisWorkHostProjectReference({
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
+      databasePath: project.database_path, projectId: project.project_id,
     });
-    const before = await host.client(reference).invoke(snapshotBoardCapability, { board_id: project.board_id });
+    const before = await host.client(reference).invoke(snapshotBoardCapability, { project_id: project.project_id });
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id,
-      projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
+      databasePath: project.database_path, projectId: project.project_id,
+      webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false },
     }, host);
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_goal_intent_create", {
+      () => mcp!.callTool("molis_work_v1_action_goals.create__v1", {
         title: "不应写入", idempotency_key: "missing-session",
       }),
       (error: unknown) => error instanceof MolisWorkV1Error
         && error.code === "mcp.runtime_identity_missing"
         && /稳定 Session/.test(error.message),
     );
-    const after = await host.client(reference).invoke(snapshotBoardCapability, { board_id: project.board_id });
+    const after = await host.client(reference).invoke(snapshotBoardCapability, { project_id: project.project_id });
     assert.equal(after.goals.length, before.goals.length);
     assert.deepEqual(after.goals.map((goal) => goal.goal_id), before.goals.map((goal) => goal.goal_id));
 
     await mcp.close();
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id,
-      projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
+      databasePath: project.database_path, projectId: project.project_id,
+      webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       nativeRuntimeSessionId: "native-session",
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false },
     }, host);
-    const created = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const created = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "稳定 native Session", idempotency_key: "native-session-intent",
     }));
     assert.equal(created.goal.title, "稳定 native Session");
-    assert.match(JSON.parse(await mcp.callTool("molis_work_v1_event_configure", {
+    assert.match(JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id: created.goal.goal_id, expected_version: 0, idempotency_key: "native-cfg",
       types: [localType()],
     })).config.updated_by, /^runtime:codex:native-session$/);
@@ -365,16 +361,15 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
     };
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, runtimeHost, host);
     store = new LocalProjectDatabase(project.database_path);
-    const board_id = project.board_id;
+    const project_id = project.project_id;
     const call = async (name: string, input: Record<string, unknown>) =>
-      JSON.parse(await mcp!.callTool(`molis_work_v1_${name}`, { ...input }));
-    const parent = await call("goal_intent_create", { title: "用户购买结果", goal_id: "SOURCE-PARENT", idempotency_key: "source-parent" });
-    const dependency = await call("goal_intent_create", { title: "实际付款", goal_id: "SOURCE-DEPENDENCY", idempotency_key: "source-dependency" });
+      JSON.parse(await mcp!.callTool(`molis_work_v1_action_${name}__v1`, { ...input }));
+    const parent = await call("goals.create", { title: "用户购买结果", goal_id: "SOURCE-PARENT", idempotency_key: "source-parent" });
+    const dependency = await call("goals.create", { title: "实际付款", goal_id: "SOURCE-DEPENDENCY", idempotency_key: "source-dependency" });
     const input = {
       title: "订单收据",
       goal_id: "SOURCE-CHILD",
@@ -384,35 +379,37 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
       dependency_goal_ids: [dependency.goal.goal_id],
       idempotency_key: "source-child",
     };
-    const created = await call("goal_intent_create", input);
-    const state = await call("goal_state", { goal_id: created.goal.goal_id }) as GoalEventStateView;
+    const created = await call("goals.create", input);
+    const state = await call("goals.state.read", { goal_id: created.goal.goal_id }) as GoalEventStateView;
     assert.equal(state.intent.source_kind, "runtime");
     for (const field of ["definition_state", "decomposition_state", "fulfillment_state"]) {
       assert.equal(Object.hasOwn(created.goal, field), false);
     }
-    const finalCursor = Number((store.db.prepare("SELECT MAX(seq) AS n FROM events WHERE board_id=?").get(board_id) as { n: number }).n);
+    const finalCursor = Number((store.db.prepare("SELECT MAX(seq) AS n FROM events WHERE project_id=?").get(project_id) as { n: number }).n);
     assert.equal(created.observed_event_cursor, finalCursor);
     assert.deepEqual(state.requirements.map((item) => item.statement), ["包含真实付款金额"]);
-    assert.equal(store.snapshot(board_id).relations.filter((relation) => relation.from_goal_id === created.goal.goal_id).length, 2);
-    const replay = await call("goal_intent_create", input);
+    assert.equal(store.snapshot(project_id).relations.filter((relation) => relation.from_goal_id === created.goal.goal_id).length, 2);
+    const replay = await call("goals.create", input);
     assert.equal(replay.replayed, true);
     assert.equal(replay.observed_event_cursor, created.observed_event_cursor);
     assert.equal(replay.goal.goal_id, created.goal.goal_id);
-    const before = store.snapshot(board_id);
-    for (const source_kind of ["web", "onboarding", "feed", "tree", "runtime"]) {
+    // Naming its own channel is not a forgery; any other channel is refused before anything is written.
+    assert.equal((await call("goals.create", { title: "自报来源", goal_id: "SELF-RUNTIME", source_kind: "runtime", idempotency_key: "self-runtime" })).goal.goal_id, "SELF-RUNTIME");
+    const before = store.snapshot(project_id);
+    for (const source_kind of ["web", "onboarding", "feed", "tree"]) {
       await assert.rejects(
-        () => call("goal_intent_create", {
+        () => call("goals.create", {
           title: "伪造入口来源", goal_id: `FORGED-${source_kind}`, source_kind, idempotency_key: `forged-${source_kind}`,
         }),
-        (error: unknown) => error instanceof MolisWorkV1Error
-          && /source_kind|来源|字段|unknown|拒绝|权限/i.test(error.message),
+        // Only the person names how a Goal came in; a Runtime's Goals are always `runtime`.
+        { code: "actions.input_invalid", message: "只有本人可以指定 Goal 的创建渠道" },
       );
     }
-    assert.deepEqual(store.snapshot(board_id), before);
+    assert.deepEqual(store.snapshot(project_id), before);
     const app = new GoalProjectApplication(store);
     for (let index = 0; index < 45; index++) {
       app.goalEvents.recordNote({
-        board_id,
+        project_id,
         goal_id: created.goal.goal_id,
         actor_id: "runtime:codex:thread-source",
         actor_kind: "runtime",
@@ -420,24 +417,23 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
         idempotency_key: `source-after-${index}`,
       });
     }
-    assert.equal((await call("goal_state", { goal_id: created.goal.goal_id })).intent.source_kind, "runtime");
+    assert.equal((await call("goals.state.read", { goal_id: created.goal.goal_id })).intent.source_kind, "runtime");
     await mcp.close();
     await host.close();
     store.close();
     host = createMolisWorkLocalHost();
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, runtimeHost, host);
     store = new LocalProjectDatabase(project.database_path);
-    const reopened = await call("goal_state", { goal_id: created.goal.goal_id }) as GoalEventStateView;
+    const reopened = await call("goals.state.read", { goal_id: created.goal.goal_id }) as GoalEventStateView;
     assert.equal(reopened.intent.source_kind, "runtime");
-    const restartedReplay = await call("goal_intent_create", input);
+    const restartedReplay = await call("goals.create", input);
     assert.equal(restartedReplay.replayed, true);
     assert.equal(restartedReplay.observed_event_cursor, created.observed_event_cursor);
-    assert.equal(store.snapshot(board_id).goals.length, 3);
+    assert.equal(store.snapshot(project_id).goals.length, 4, "parent, dependency, the child and the self-declared Runtime Goal");
   } finally {
     await mcp?.close();
     await host.close();
@@ -457,37 +453,37 @@ test("no-config note and combined report progress persist; implicit focus, illeg
     const project = await catalog.createProject({ display_name: "笔记继续", actor_id: "user" });
     await grantGoalsMcp(host, homeDirectory, project);
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id,
-      projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
+      databasePath: project.database_path, projectId: project.project_id,
+      webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-note", host_declares_stable: true },
     }, host);
-    const created = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const created = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "无类型笔记", outcome: "玩家能走完开场", idempotency_key: "note-intent",
     }));
     const goal_id = created.goal.goal_id as string;
-    assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView).config.types.length, 0);
-    const note = JSON.parse(await mcp.callTool("molis_work_v1_event_note", {
+    assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView).config.types.length, 0);
+    const note = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.note__v1", {
       goal_id, body: "先记下已核对的流程", idempotency_key: "note-1",
     }));
     assert.equal(note.recorded, true);
-    const replayNote = JSON.parse(await mcp.callTool("molis_work_v1_event_note", {
+    const replayNote = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.note__v1", {
       goal_id, body: "先记下已核对的流程", idempotency_key: "note-1",
     }));
     assert.equal(replayNote.replayed, true);
     assert.equal(replayNote.event_id, note.event_id);
-    assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView).config.types.length, 0);
+    assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView).config.types.length, 0);
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_event_note", { body: "不能靠焦点", idempotency_key: "implicit-focus" }),
-      (error: unknown) => error instanceof MolisWorkV1Error,
+      () => mcp!.callTool("molis_work_v1_action_goals.note__v1", { body: "不能靠焦点", idempotency_key: "implicit-focus" }),
+      { code: "actions.input_invalid" },
     );
 
-    await mcp.callTool("molis_work_v1_event_configure", {
+    await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id, expected_version: 0, idempotency_key: "note-cfg", types: [localType()],
     });
-    const state = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
-    await mcp.callTool("molis_work_v1_event_agree", {
+    const state = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
+    await mcp.callTool("molis_work_v1_action_goals.agreement.set__v1", {
       goal_id, idempotency_key: "note-agree",
       expected_config_version: state.config.version,
       expected_agreement_version: state.agreement.version,
@@ -501,51 +497,51 @@ test("no-config note and combined report progress persist; implicit focus, illeg
       }],
       progress: { summary: "开场可玩", next_step: "等确认" },
     };
-    const reported = JSON.parse(await mcp.callTool("molis_work_v1_event_report", batch)) as ReportGoalEventsResult;
+    const reported = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", batch)) as ReportGoalEventsResult;
     assert.equal(reported.progress_summary?.summary, "开场可玩");
     assert.equal(reported.progress_summary?.stale, false);
     assert.ok(reported.goal_event_cursor > reported.events[0]!.journal_seq);
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_event_report", { ...batch, progress: { summary: "不同进展" } }),
+      () => mcp!.callTool("molis_work_v1_action_goals.events.report__v1", { ...batch, progress: { summary: "不同进展" } }),
       (error: unknown) => error instanceof MolisWorkV1Error && /幂等|重复|idempot|conflict|冲突/i.test(error.message),
     );
-    const prior = JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id, limit: 100 }));
+    const prior = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id, limit: 100 }));
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_event_report", {
+      () => mcp!.callTool("molis_work_v1_action_goals.events.report__v1", {
         goal_id, idempotency_key: "bad-progress",
         events: [{ type_id: "story-delivery", type_version: 1, title: "应回滚", fields: { piece: "x" } }],
         progress: { summary: "非法", extra: true },
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error,
+      { code: "actions.input_invalid" },
     );
-    assert.equal(JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id, limit: 100 })).events.length, prior.events.length);
+    assert.equal(JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id, limit: 100 })).events.length, prior.events.length);
 
-    const ready = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
-    const closed = JSON.parse(await mcp.callTool("molis_work_v1_event_close", {
+    const ready = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
+    const closed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.closure.submit__v1", {
       goal_id, idempotency_key: "note-close", kind: "complete",
       reason: "开场可用", result: "可玩",
       expected_config_version: ready.config.version,
       expected_agreement_version: ready.agreement.version,
     }));
     assert.equal(closed.completion_applied, true);
-    await mcp.callTool("molis_work_v1_event_note", { goal_id, body: "完成后的历史补充", idempotency_key: "history-note" });
-    assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView).work_status, "completed");
+    await mcp.callTool("molis_work_v1_action_goals.note__v1", { goal_id, body: "完成后的历史补充", idempotency_key: "history-note" });
+    assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView).work_status, "completed");
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_event_resume", { goal_id, idempotency_key: "missing-reason" }),
-      (error: unknown) => error instanceof MolisWorkV1Error && /原因|理由|reason/i.test(error.message),
+      () => mcp!.callTool("molis_work_v1_action_goals.work.resume__v1", { goal_id, idempotency_key: "missing-reason" }),
+      { code: "actions.input_invalid" },
     );
     const resume = { goal_id, reason: "明确开始新一轮", idempotency_key: "resume-done" };
-    const resumed = JSON.parse(await mcp.callTool("molis_work_v1_event_resume", resume));
+    const resumed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.work.resume__v1", resume));
     assert.equal(resumed.work_status, "open");
-    const replayResume = JSON.parse(await mcp.callTool("molis_work_v1_event_resume", resume));
+    const replayResume = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.work.resume__v1", resume));
     assert.equal(replayResume.replayed, true);
     assert.equal(replayResume.event_id, resumed.event_id);
-    const openBefore = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
+    const openBefore = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_event_resume", { goal_id, reason: "已在进行", idempotency_key: "resume-open" }),
+      () => mcp!.callTool("molis_work_v1_action_goals.work.resume__v1", { goal_id, reason: "已在进行", idempotency_key: "resume-open" }),
       (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_resume.already_open",
     );
-    assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView).goal_event_cursor, openBefore.goal_event_cursor);
+    assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView).goal_event_cursor, openBefore.goal_event_cursor);
   } finally {
     await mcp?.close();
     await host.close();

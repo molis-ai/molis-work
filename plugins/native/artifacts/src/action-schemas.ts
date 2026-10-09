@@ -7,7 +7,7 @@ export const nullable = (schema: unknown) => ({ anyOf: [schema, { type: "null" }
 export const reference = object({ artifact_id: id, version });
 export const consumerTypes = array(object({ artifact_type_id: id, schema_version: version }));
 // Payload and metadata retain the producer's JSON contract, including unknown Artifact types.
-const fixedFields = { artifact_id: id, version, board_id: id, artifact_type_id: id, schema_version: version,
+const fixedFields = { artifact_id: id, version, project_id: id, artifact_type_id: id, schema_version: version,
   producer_plugin_id: id, producer_plugin_version: id, producer_binding_signature: id, owner_actor_id: id,
   content_kind: { enum: ["inline", "reference"] }, payload: {}, content_ref: nullable(text), content_digest: text,
   size_bytes: { type: "integer", minimum: 0 }, metadata: { type: "object" }, scope: { enum: ["personal", "team_project"] },

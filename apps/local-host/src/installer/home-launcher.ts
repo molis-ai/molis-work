@@ -1,5 +1,5 @@
 import path from "node:path";
-import { LEGACY_LAUNCHER_HEADER, BUNDLED_NODE_LAUNCHER_HEADER } from "./home-contract.js";
+import { NODE_LAUNCHER_HEADER, BUNDLED_NODE_LAUNCHER_HEADER } from "./home-contract.js";
 
 export function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
@@ -35,7 +35,7 @@ exec ${serviceEnvironment}${shellQuote(nodePath)} ${shellQuote(entryPath)} "$@"
     PWD: process.cwd(),
   }`
       : "process.env";
-  return `${LEGACY_LAUNCHER_HEADER}
+  return `${NODE_LAUNCHER_HEADER}
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";

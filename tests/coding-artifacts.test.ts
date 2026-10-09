@@ -114,7 +114,7 @@ test("只读角色拿不到改写者的 Prompt——角色各自声明自己的"
     async health() { return { ok: true, status: "ready", message: "ok" }; },
     async createSession() { return { session_id: "s", runtime_id: "probe" }; },
     // Start checks the run against the session's recorded owner, as a real adapter reports it.
-    async readSession() { return { session: { session_id: "s", runtime_id: "probe" }, owner: { board_id: "board", plugin_id: "io.molis.work.coding", install_id: "install", actor_id: "actor" } }; },
+    async readSession() { return { session: { session_id: "s", runtime_id: "probe" }, owner: { project_id: "board", plugin_id: "io.molis.work.coding", install_id: "install", actor_id: "actor" } }; },
     async start(request: { role?: { prompts: Array<{ prompt_id: string }>; role_id: string; version: number; execution: string } }) {
       seen.push(request.role!.prompts.map((prompt) => prompt.prompt_id));
       return { ref: { run_id: "r", session_id: "s" }, frozen: { ...request.role!, model_id: "m", skills: [], mcp_tools: [], text_materials: [], budget: null, directory: { canonical_path: "/tmp/ws", realpath_verified: true }, role_version: request.role!.version } };
@@ -131,7 +131,7 @@ test("只读角色拿不到改写者的 Prompt——角色各自声明自己的"
     prompts: codingPrompts,
   };
   const base = {
-    board_id: "board", plugin_id: "io.molis.work.coding", install_id: "install", actor_id: "actor",
+    project_id: "board", plugin_id: "io.molis.work.coding", install_id: "install", actor_id: "actor",
     session: { session_id: "s", runtime_id: "probe" },
     task: "看看这段代码",
     directory: { canonical_path: "/tmp/ws", realpath_verified: true },

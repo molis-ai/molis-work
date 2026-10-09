@@ -112,7 +112,7 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
     const { project } = found;
     const personal = isPersonalSpace(project);
     const now = new Date();
-    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const actions = bindLocalWebActions(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS);
     const arrival = readProjectArrival(homeDirectory);
     const remembered = arrival.projects[project.project_id];

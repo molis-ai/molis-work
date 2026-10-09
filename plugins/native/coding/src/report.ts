@@ -10,7 +10,7 @@ import { codingChangeSetReference } from "./changeset.js";
 
 export interface CodingExecutionReport extends CodingReport {
   steps?: CodingReportSteps;
-  goal?: { goal_id: string; title: string; contract_revision: number; agreement_version?: number; goal_event_cursor: number; reference: ArtifactReference } | null;
+  goal?: { goal_id: string; title: string; agreement_version: number; goal_event_cursor: number; reference: ArtifactReference } | null;
   goal_source_error?: { references: ArtifactReference[]; reason: string };
   source: { session_id: string; runtime_id: string; runtime_session_id: string };
   state: AgentRunView["phase"];

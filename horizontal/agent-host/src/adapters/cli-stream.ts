@@ -40,6 +40,8 @@ function resultText(content: unknown): string {
 }
 
 export interface CliStreamState {
+  /** The Run this stream belongs to; its command receipts name it. */
+  runId: string;
   turns: AgentTurnView[];
   activity: AgentToolActivity[];
   /** What each command this Run ran produced. Only commands, not every tool. */
@@ -51,8 +53,9 @@ export interface CliStreamState {
   sessionId?: string;
 }
 
-export function emptyStreamState(): CliStreamState {
+export function emptyStreamState(runId: string): CliStreamState {
   return {
+    runId,
     turns: [],
     activity: [],
     receipts: [],
@@ -147,7 +150,7 @@ export function applyCliStreamLine(state: CliStreamState, line: string, at: stri
         const command = text(input?.command);
         if (command !== "") {
           state.receipts.push({
-            ref: { call_id: callId },
+            ref: { run_id: state.runId, call_id: callId },
             command,
             // The CLI reports success or failure, never a status code. Null is
             // "unknown", and showing 0 here would be inventing a result.

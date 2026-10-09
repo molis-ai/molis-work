@@ -7,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { DEMO_BOARD_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -21,9 +21,9 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
   seedDemoBoard(database);
   const store = new LocalProjectDatabase(database);
   store.db.exec("CREATE TABLE unfamiliar_results (value INTEGER NOT NULL)");
-  const shared = pluginActions(store, DEMO_BOARD_ID);
+  const shared = pluginActions(store, DEMO_PROJECT_ID);
   let dependencyCalls = 0;
-  const ports = { store, boardId: DEMO_BOARD_ID, actorId: "web-user", actions: shared,
+  const ports = { store, projectId: DEMO_PROJECT_ID, actorId: "web-user", actions: shared,
     goalTitle: () => undefined, escapeHtml: String, translate: (value: string) => value,
     capabilities: { availability: () => ({ available: true as const }), invoke: async () => { dependencyCalls++; return null as never; } } };
   const pluginId = `io.molis.work.example.${randomUUID()}`;
@@ -96,7 +96,7 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
     assert.deepEqual(store.db.prepare("SELECT value FROM unfamiliar_results").all().map(row => (row as { value: number }).value), [14, 18, 26]);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
-    await releaseProjectPlugins(store, DEMO_BOARD_ID);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     store.close(); rmSync(home, { recursive: true, force: true });
   }
 });
@@ -105,7 +105,7 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
   const home = mkdtempSync(join(tmpdir(), "runtime-product-discovery-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Registered", actor_id: "user" }));
   const other = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Other", actor_id: "user" }));
-  const reference = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const pluginId = `io.molis.work.example.${randomUUID()}`;
   const action: ActionDefinition<{ text: string }, { count: number }> = {
@@ -118,7 +118,7 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
   };
   const platform = await host.withProject(reference, async runtime => {
     runtime.store.db.exec("CREATE TABLE web_plugin_notes (text TEXT NOT NULL)");
-    const started = await ensureProjectPlugins({ store: runtime.store, boardId: project.board_id, actorId: "web-user",
+    const started = await ensureProjectPlugins({ store: runtime.store, projectId: project.project_id, actorId: "web-user",
       homeDirectory: home, goalTitle: () => undefined, capabilities: host.client(reference),
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: project.project_id } });
     assert.ok(started.platform);

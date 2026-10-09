@@ -113,9 +113,6 @@ export const PLUGIN_COMPONENTS: readonly PluginComponentMetadata[] = [
   c('skeleton', 'Skeleton', '骨架', '反馈', 'rows', 'inside', '内容加载前的占位'),
   c('spinner', 'Spinner', '加载中', '反馈', 'refresh', 'inside', '按钮在等待结果'),
 ];
-/** Part kinds of builds made before parts came from the UI catalog, and the catalog component each now is. */
-export const LEGACY_COMPONENT_KINDS: Readonly<Record<string, string>> = { heading: 'frame', text: 'card', list: 'directory', cards: 'card', reader: 'accordion', chat: 'card', matrix: 'table', notice: 'alert' };
-export const catalogKind = (kind: string): string => LEGACY_COMPONENT_KINDS[kind] ?? kind;
 /** For each intent, the catalog components that can express it, most usual first (the rule's choice when Jev is absent). */
 const PREFERENCE: Record<PluginComponentIntent, string[]> = {
   heading: ['frame'], description: ['card', 'alert', 'badge'], input: ['form', 'sheet', 'dialog'], action: ['button', 'alert-dialog'],
@@ -227,7 +224,7 @@ export function validatePluginComponentNodes(nodes: PluginComponentNode[], plans
   for (const node of nodes) {
     if (ids.has(node.id)) fail('已装配零件重复'); ids.add(node.id);
     const plan = plans.find(part => part.id === node.id);
-    if (!plan || !pluginComponentChoices(plan, contract).some(choice => choice.kind === catalogKind(node.kind))) fail('装配了候选之外的组件');
+    if (!plan || !pluginComponentChoices(plan, contract).some(choice => choice.kind === node.kind)) fail('装配了候选之外的组件');
     const { kind: _kind, ...attributes } = node;
     if (JSON.stringify(attributes) !== JSON.stringify(plan)) fail('装配不能改写主线配置');
   }

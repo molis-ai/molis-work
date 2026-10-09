@@ -41,12 +41,9 @@ export function codingBackgroundTasks(projects: readonly WebProjectNavigation[],
     let store: LocalSqliteStorage | undefined;
     try {
       store = new LocalSqliteStorage(project.database_path, { readonly: true });
-      // Stores from before step holders were recorded have no such column; they list as before.
-      const columns = (store.db.prepare("PRAGMA table_info(coding_sessions)").all() as Array<{ name: string }>).map(column => column.name);
-      const hasSteps = columns.includes("steps_json"), hasBackground = columns.includes("background_json");
-      const rows = store.db.prepare(`SELECT session_id, title, state, updated_at${hasSteps ? ", steps_json" : ""}${hasBackground ? ", background_json" : ""} FROM coding_sessions
-        WHERE archived = 0 AND (state IN (${ACTIVE_STATES.map(() => "?").join(", ")})${hasSteps ? " OR steps_json IS NOT NULL" : ""}${hasBackground ? " OR background_json IS NOT NULL" : ""}) ORDER BY updated_at DESC`).all(...ACTIVE_STATES) as Array<{
-        session_id: string; title: string; state: string; updated_at: string; steps_json?: string | null; background_json?: string | null }>;
+      const rows = store.db.prepare(`SELECT session_id, title, state, updated_at, steps_json, background_json FROM coding_sessions
+        WHERE archived = 0 AND (state IN (${ACTIVE_STATES.map(() => "?").join(", ")}) OR steps_json IS NOT NULL OR background_json IS NOT NULL) ORDER BY updated_at DESC`).all(...ACTIVE_STATES) as Array<{
+        session_id: string; title: string; state: string; updated_at: string; steps_json: string | null; background_json: string | null }>;
       for (const row of rows) {
         let steps: CodingBackgroundTask["steps"], commands: CodingBackgroundTask["commands"];
         try { steps = row.steps_json ? JSON.parse(row.steps_json) : undefined; } catch { steps = undefined; }

@@ -33,7 +33,7 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
   const db = new DatabaseSync(join(home, "notes.sqlite"));
   db.exec("CREATE TABLE notes (body TEXT NOT NULL, project TEXT NOT NULL, actor TEXT NOT NULL)");
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "project", storage_key: "memory:project" };
   const definition: ActionDefinition = { capability_id: "unknown.notes.write", version: 1, operation: "command", action: {
     title: "Save a note", description: "Store a note in the original project", kind: "operation", scope: "project", audiences: ["agent"],
     permissions: ["notes:write"], subject_kinds: [], input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false },
@@ -66,10 +66,10 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   let adapter = await make(); host.register(adapter);
   try {
-    const owner = { board_id: "board", plugin_id: "caller", install_id: "i", actor_id: "user" }, directory = { canonical_path: home, realpath_verified: true };
+    const owner = { project_id: "project", plugin_id: "caller", install_id: "i", actor_id: "user" }, directory = { canonical_path: home, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Action tools" });
-    const character = { character_id: "c", reference: { artifact_id: "character:board:c", version: 1 }, title: "Scoped writer", instructions: "Use the chosen tools.",
-      host_tools: null, action_tools: [...selected, queryRef], source: { owner_actor_id: "user", draft_revision: 1 }, board_id: "board", content_digest: "original",
+    const character = { character_id: "c", reference: { artifact_id: "character:project:c", version: 1 }, title: "Scoped writer", instructions: "Use the chosen tools.",
+      host_tools: null, action_tools: [...selected, queryRef], source: { owner_actor_id: "user", draft_revision: 1 }, project_id: "project", content_digest: "original",
       producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "official-characters-binding" }, published_at: "2026-09-26T00:00:00Z" };
     const authority: AgentStartAuthority = { authorizedDirectories: [home], manifest: { roles: [{ role_id: "writer", version: 1, name: "Writer", execution: "workspace-write", prompts: ["base", "writer"], host_tools: [] }],
       characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["writer"] },
@@ -85,7 +85,7 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
       await writeMcpActionGrant(home, grant); characterActive = true;
       callNext = true;
       const handle = await host.start("prologue", { ...owner, session, directory, task: "Save a note", role_id: "writer", action_tools: selected, character: character.reference }, authority);
-      const review = await until(async () => { const pending = queue.list("board", "pending")[0]; const run = await adapter.read(handle.ref);
+      const review = await until(async () => { const pending = queue.list("project", "pending")[0]; const run = await adapter.read(handle.ref);
         if (!pending && ["failed", "completed"].includes(run.phase)) throw new Error(JSON.stringify(run)); return pending; });
       assert.equal(review.document.kind, "tool-operation");
       assert.ok(JSON.stringify(review.document).includes("unknown.notes.write"));
@@ -136,7 +136,7 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
 test("real SDK binds identical tools to separate callers and cancellation reaches the original action handler", { timeout: 40_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-agent-action-isolation-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "p", board_id: "b", storage_key: "memory:p" };
+  const project = { project_id: "p", storage_key: "memory:p" };
   const definition: ActionDefinition = { capability_id: "unknown.actor.read", version: 1, operation: "query", action: {
     title: "Read caller", description: "Read using the original caller", kind: "query", scope: "project", scheduling: "concurrent", audiences: ["agent"], permissions: [], subject_kinds: [],
     input_schema: { type: "object", properties: { key: { type: "string" } }, required: ["key"], additionalProperties: false },
@@ -161,7 +161,7 @@ test("real SDK binds identical tools to separate callers and cancellation reache
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.action-isolation", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   const host = new AgentHost(); host.register(adapter);
-  const owner = { board_id: "b", plugin_id: "caller", install_id: "i", actor_id: "user" }, directory = { canonical_path: home, realpath_verified: true };
+  const owner = { project_id: "p", plugin_id: "caller", install_id: "i", actor_id: "user" }, directory = { canonical_path: home, realpath_verified: true };
   const authority = async (actor: string): Promise<AgentStartAuthority> => {
     const caller = { actor_id: actor, audience: "agent" as const, project_id: "p", permissions: [] };
     await writeMcpActionGrant(home, createMcpActionGrant(actor, "p", (await local.inspectActions(caller, project))[0]!, true));

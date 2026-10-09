@@ -5,56 +5,6 @@ import { existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { WebSocket } from "ws";
-import type { PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
-import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-
-const design = {
-  id: "inventory-table", title: "库存小账本", description: "记录每件商品的数量、单价和库存价值。", journey: ["添加商品与数量", "比较库存价值", "导出 CSV 交接"], acceptance: ["库存价值等于数量乘单价", "刷新后记录仍在"],
-  fields: [{ id: "name", label: "商品名称", type: "text", required: true }, { id: "quantity", label: "数量", type: "number", required: true }, { id: "price", label: "单价", type: "number", required: true }],
-  calculations: [{ id: "value", label: "库存价值", expression: { op: "multiply", left: { op: "field", id: "quantity" }, right: { op: "field", id: "price" } } }],
-  layout: "table", allowImport: true, allowExport: true,
-};
-const outputs: Record<string, string> = {
-  design: JSON.stringify({ summary: "按你的库存场景整理了两种方式。表格方便比较，卡片方便逐项查看。", candidates: [
-    { ...design, rationale: "同时比较数量、单价和价值，方便盘点。" },
-    { ...design, id: "inventory-cards", title: "库存收藏册", layout: "cards", rationale: "每件商品一张卡片，逐项查看更轻松。" },
-  ] }),
-  ui: JSON.stringify([
-    { id: "heading", kind: "heading", label: "标题" }, { id: "form", kind: "form", label: "录入表单" },
-    { id: "search", kind: "search", label: "搜索" }, { id: "collection", kind: "collection", label: "库存表格" },
-    { id: "actions", kind: "actions", label: "导入导出" }, { id: "summary", kind: "summary", label: "价值汇总" },
-  ]),
-  behavior: JSON.stringify({ calculations: [{ id: "value", label: "库存价值", expression: { op: "multiply", left: { op: "field", id: "quantity" }, right: { op: "field", id: "price" } } }], allowImport: true, allowExport: true }),
-};
-/** Fixture only: these independent outputs simulate Prologue timing, never contact a model. */
-export class BrowserFixtureRuntime implements PluginCapabilityPort {
-  readonly starts: Array<{ runtime: string; role: string }> = [];
-  private sessions = 0;
-  private readonly runs = new Map<string, { role: string; reads: number; session_id: string }>();
-  constructor(private readonly directory: string) {}
-  async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
-    const input = args as unknown as unknown[];
-    if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "browser-workspace", display_name: "浏览器验证工作区", canonical_path: this.directory, realpath_verified: true }] as Output;
-    if (definition.capability_id === agent.listRuntimes.capability_id) return [{ runtime_id: "prologue" }] as Output;
-    if (definition.capability_id === agent.createSession.capability_id) { assert.equal(input[0], "prologue"); return { runtime_id: "prologue", session_id: `browser-session-${++this.sessions}` } as Output; }
-    if (definition.capability_id === agent.startRun.capability_id) {
-      const request = input[1] as { role_id: string; session: { session_id: string } };
-      assert.equal(input[0], "prologue"); assert.ok(outputs[request.role_id]);
-      const id = `browser-run-${this.starts.length + 1}`; this.starts.push({ runtime: String(input[0]), role: request.role_id });
-      this.runs.set(id, { role: request.role_id, reads: 0, session_id: request.session.session_id });
-      return { ref: { run_id: id, session_id: request.session.session_id } } as Output;
-    }
-    if (definition.capability_id === agent.readRun.capability_id) {
-      const ref = input[1] as { run_id: string; session_id: string }, run = this.runs.get(ref.run_id); assert.ok(run);
-      run.reads += 1;
-      const completed = run.role !== "behavior" || run.reads >= 5;
-      return { ref, phase: completed ? "completed" : "running", turns: completed ? [{ kind: "assistant", text: outputs[run.role] }] : [] } as Output;
-    }
-    if (definition.capability_id === agent.controlRun.capability_id) return undefined as Output;
-    throw new Error(`Unexpected browser fixture capability: ${definition.capability_id}`);
-  }
-}
 
 export class ChromeHarness {
   private next = 0;
@@ -72,7 +22,7 @@ export class ChromeHarness {
   static async start(directory: string) {
     const chrome = [process.env.MOLIS_WORK_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"].find((path): path is string => Boolean(path && existsSync(path)));
     if (!chrome) return null;
-    const child = spawn(chrome, ["--headless=new", "--disable-gpu", "--disable-background-networking", "--disable-component-update", "--disable-extensions", "--no-first-run", "--no-default-browser-check", "--remote-debugging-port=0", `--user-data-dir=${join(directory, "chrome")}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawn(chrome, ["--headless=new", "--lang=zh-CN", "--accept-lang=zh-CN", "--disable-gpu", "--disable-background-networking", "--disable-component-update", "--disable-extensions", "--no-first-run", "--no-default-browser-check", "--remote-debugging-port=0", `--user-data-dir=${join(directory, "chrome")}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
     const url = await new Promise<string>((resolve, reject) => {
       let stderr = ""; const timer = setTimeout(() => reject(new Error("Chrome debugger startup timed out")), 8000);
       child.once("error", error => { clearTimeout(timer); reject(error); });

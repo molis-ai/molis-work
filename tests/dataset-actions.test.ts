@@ -3,8 +3,8 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { datasetActions as actions, DATASET_ACTION_PERMISSIONS, openDatasetStore, runDatasetMcpTool, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { datasetActions as actions, DATASET_ACTION_PERMISSIONS, openDatasetStore, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
@@ -12,47 +12,48 @@ import type { HostCompleteText } from "../apps/local-host/src/host-complete-text
 async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null) {
   const home = await mkdtemp(join(tmpdir(), "dataset-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "legacy-board", projectId: "a" });
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: ref.board_id, title: "Dataset", actor_id: "owner", idempotency_key: "init" }));
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
+  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "Dataset", actor_id: "owner", idempotency_key: "init" }));
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: DATASET_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };
 }
 
-test("Dataset registers all business actions; legacy MCP, snapshots, CSV and Artifact share original storage", async t => {
+test("Dataset registers all business actions; snapshots, CSV and Artifact share original storage", async t => {
   const f = await fixture(t);
-  const legacy = async (tool_id: string, args = {}) => JSON.parse(await runDatasetMcpTool(f.bound, { tool_id, arguments: args }));
+  const invoke = (key: keyof typeof actions, args: object = {}): Promise<any> => f.bound.invoke(actions[key] as never, args as never);
   const catalog = await f.bound.discover();
   for (const action of Object.values(actions)) assert.ok(catalog.some(item => item.capability_id === action.capability_id));
   assert.equal(catalog.find(item => item.capability_id === actions.generateAi.capability_id)!.availability.available, false);
-  const { dataset } = await legacy("create", { title: "Original" });
-  assert.equal((await legacy("list")).datasets[0].id, dataset.id);
+  const { dataset } = await invoke("create", { title: "Original" });
+  assert.equal((await invoke("list")).datasets[0].id, dataset.id);
   await assert.rejects(f.client.invoke({ ...f.caller, project_id: "b" }, actions.list, {}), { code: "actions.scope_mismatch" });
   await assert.rejects(f.client.invoke({ ...f.caller, permissions: ["dataset:read"] }, actions.create, {}), { code: "actions.forbidden" });
   await assert.rejects(f.bound.invoke(actions.create, { project_id: "b" } as never), { code: "actions.input_invalid" });
   await assert.rejects(f.bound.invoke(actions.update, { id: dataset.id, columns: ["bad"] } as never), { code: "actions.input_invalid" });
-  const updated = (await legacy("update", { id: dataset.id, title: "Edited", expected_version: dataset.version })).dataset;
+  const updated = (await invoke("update", { id: dataset.id, title: "Edited", expected_version: dataset.version })).dataset;
   await assert.rejects(f.bound.invoke(actions.update, { id: dataset.id, title: "Stale", expected_version: dataset.version }), { code: "dataset.conflict" });
-  assert.equal((await legacy("get", { id: dataset.id })).dataset.title, "Edited");
-  await legacy("generate", { id: dataset.id, prompt: "Local column", expected_version: updated.version });
+  assert.equal((await invoke("get", { id: dataset.id })).dataset.title, "Edited");
+  await invoke("generate", { id: dataset.id, prompt: "Local column", expected_version: updated.version });
   const csv = '姓名,说明,日期\r\n一骏,"a,b\nline ""quoted""",2026-09-25\r\n小陈,"",2026-09-26';
-  const imported = (await legacy("import", { id: dataset.id, csv })).dataset;
+  const imported = (await invoke("import", { id: dataset.id, csv })).dataset;
   assert.equal(imported.rows.length, 2); assert.equal(imported.rows[0].cells[imported.columns[1].id], 'a,b\nline "quoted"');
   assert.equal(imported.columns[2].type, "date");
-  const exported = await legacy("export", { id: dataset.id });
+  const exported = await invoke("export", { id: dataset.id });
   assert.deepEqual(parseCsv(exported.csv).rows.map(r => r.cells), imported.rows.map((r: any) => r.cells));
   assert.equal(exported.csv, toCsv(imported));
   await assert.rejects(f.bound.invoke(actions.import, { id: dataset.id, csv: 'col\n"broken' }), { code: "dataset.invalid" });
-  assert.deepEqual((await legacy("get", { id: dataset.id })).dataset, imported);
-  const snapshot = (await legacy("snapshot", { id: dataset.id, note: "Original snapshot" })).version;
-  assert.equal((await legacy("versions", { id: dataset.id })).versions[0].id, snapshot.id);
-  await legacy("update", { id: dataset.id, rows: [] });
-  assert.equal((await legacy("rollback", { id: dataset.id, version_id: snapshot.id })).dataset.rows.length, 2);
-  const promoted = await legacy("promote", { id: dataset.id });
+  assert.deepEqual((await invoke("get", { id: dataset.id })).dataset, imported);
+  const snapshot = (await invoke("snapshot", { id: dataset.id, note: "Original snapshot" })).version;
+  assert.equal((await invoke("versions", { id: dataset.id })).versions[0].id, snapshot.id);
+  await invoke("update", { id: dataset.id, rows: [] });
+  assert.equal((await invoke("rollback", { id: dataset.id, version_id: snapshot.id })).dataset.rows.length, 2);
+  const promoted = await invoke("promote", { id: dataset.id });
   assert.equal(promoted.artifact.artifact_id, "dataset-" + dataset.id); assert.equal(promoted.dataset.artifact_version, 1);
   await f.host.withProject(f.ref, runtime => {
-    const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id, promoted.artifact)!;
-    assert.equal(artifact.owner_actor_id, "owner"); assert.deepEqual((artifact.payload as any).rows, imported.rows);
+    const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, promoted.artifact)!;
+    // A pinned dataset belongs to the Home's person; the actor who pinned it is its producer.
+    assert.equal(artifact.owner_actor_id, LOCAL_PERSON_ACTOR_ID); assert.equal(artifact.created_by, "owner"); assert.deepEqual((artifact.payload as any).rows, imported.rows);
   });
   const store = openDatasetStore(f.home); let foreign: string;
   try { foreign = store.create({ project_id: "b", title: "Private" }).id; assert.equal(store.get(dataset.id).artifact_version, 1); } finally { store.close(); }
@@ -60,8 +61,8 @@ test("Dataset registers all business actions; legacy MCP, snapshots, CSV and Art
   const another = await fixture(t);
   assert.deepEqual((await another.bound.invoke(actions.list, {})).datasets, []);
   await f.host.closeProject(f.ref);
-  assert.equal((await legacy("versions", { id: dataset.id })).versions[0].id, snapshot.id);
-  await legacy("delete", { id: dataset.id }); assert.deepEqual((await legacy("list")).datasets, []);
+  assert.equal((await invoke("versions", { id: dataset.id })).versions[0].id, snapshot.id);
+  await invoke("delete", { id: dataset.id }); assert.deepEqual((await invoke("list")).datasets, []);
 });
 
 test("Dataset publication recovers original Artifact after restart without replacing newer edits or another actor", async t => {
@@ -79,11 +80,11 @@ test("Dataset publication recovers original Artifact after restart without repla
     const restored = await bound.invoke(actions.promote, { id: dataset.id, expected_version: edited.version });
     assert.equal(restored.recovered, true); assert.equal(restored.dataset.title, "New local edit"); assert.equal(restored.dataset.publication_pending, undefined);
     await host.withProject(ref, runtime => {
-      assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(ref.board_id, restored.artifact)!.payload as any).title, "Publication v1");
-      assert.equal(runtime.coordinator.artifacts.query.getArtifactVersion(ref.board_id, { ...restored.artifact, version: 2 }), null);
+      assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(ref.project_id, restored.artifact)!.payload as any).title, "Publication v1");
+      assert.equal(runtime.coordinator.artifacts.query.getArtifactVersion(ref.project_id, { ...restored.artifact, version: 2 }), null);
     });
     const next = await bound.invoke(actions.promote, { id: dataset.id }); assert.equal(next.artifact.version, 2);
-    await host.withProject(ref, runtime => assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(ref.board_id, next.artifact)!.payload as any).title, "New local edit"));
+    await host.withProject(ref, runtime => assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(ref.project_id, next.artifact)!.payload as any).title, "New local edit"));
   } finally { db.close(); }
 });
 

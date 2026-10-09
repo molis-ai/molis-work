@@ -8,12 +8,10 @@ const PENDING_REF = `${PREFIX}oauth:pending`;
 const PENDING_INDEX = `${PENDING_REF}:index`;
 const CLIENT_ID_REF = `${PREFIX}client_id`;
 const CLIENT_SECRET_REF = `${PREFIX}client_secret`;
-const REFRESH_REF = `${PREFIX}refresh`;
-const WORKSPACE_REF = `${PREFIX}workspace`;
 const CALLBACK_PATH = "/api/settings/connectors/notion/oauth/callback";
 const PENDING_TTL_MS = 10 * 60_000;
 
-type Pending = { state: string; clientId: string; clientSecret?: string; redirectUri: string; createdAt: number; connectionId?: string; displayName?: string };
+type Pending = { state: string; clientId: string; clientSecret?: string; redirectUri: string; createdAt: number; connectionId: string; displayName?: string };
 const refreshInFlight = new Map<string, Promise<string>>();
 function pendingIndex(): Array<{ state: string; at: number }> {
   try { return JSON.parse(createFileSecretStore().get(PENDING_INDEX) || "[]"); } catch { return []; }
@@ -22,7 +20,6 @@ function removePending(state: string): void {
   const store = createFileSecretStore();
   store.delete(`${PENDING_REF}:${state}`);
   store.put(PENDING_INDEX, JSON.stringify(pendingIndex().filter(row => row.state !== state)));
-  try { if (JSON.parse(store.get(PENDING_REF) || "{}").state === state) store.delete(PENDING_REF); } catch { /* Invalid legacy slot. */ }
 }
 type TokenRefs = { access: string; refresh: string; workspace: string };
 
@@ -46,9 +43,7 @@ function assertLoopback(url: URL): void {
   }
 }
 
-function saveTokens(tokens: NotionOAuthTokens, refs: TokenRefs = {
-  access: "connector:notion:token", refresh: REFRESH_REF, workspace: WORKSPACE_REF,
-}): void {
+function saveTokens(tokens: NotionOAuthTokens, refs: TokenRefs): void {
   const store = createFileSecretStore();
   // The refresh token rotates. Persist it before the access token so a later retry can recover.
   store.put(refs.refresh, tokens.refreshToken);
@@ -63,21 +58,12 @@ export function notionOAuthConfigured(): boolean {
   } catch { return false; }
 }
 
-export function notionOAuthWorkspace(): string | null {
-  try {
-    const raw = createFileSecretStore().get(WORKSPACE_REF);
-    if (!raw) return null;
-    const value: unknown = JSON.parse(raw);
-    return value && typeof value === "object" && "name" in value && typeof value.name === "string"
-      ? value.name || null : null;
-  } catch { return null; }
-}
-
 export function startNotionOAuth(input: {
   origin: string;
   clientId?: string;
   clientSecret?: string;
-  connectionId?: string;
+  /** The connection the authorized workspace is saved to. */
+  connectionId: string;
   displayName?: string;
   nowMs?: number;
 }): { authorizationUrl: string; redirectUri: string } {
@@ -96,16 +82,14 @@ export function startNotionOAuth(input: {
   for (const entry of pendingIndex()) if (entry.at > now || now - entry.at > PENDING_TTL_MS) removePending(entry.state);
   store.put(PENDING_INDEX, JSON.stringify([...pendingIndex(), { state, at: now }]));
   const pendingValue = JSON.stringify({ state, clientId, clientSecret, redirectUri, createdAt: input.nowMs ?? Date.now(),
-    ...(input.connectionId ? { connectionId: input.connectionId } : {}),
-    ...(input.displayName ? { displayName: input.displayName } : {}) } satisfies Pending);
+    connectionId: input.connectionId, ...(input.displayName ? { displayName: input.displayName } : {}) } satisfies Pending);
   store.put(`${PENDING_REF}:${state}`, pendingValue);
-  store.put(PENDING_REF, pendingValue);
   return { authorizationUrl: notionAuthorizationUrl({ clientId, redirectUri, state }), redirectUri };
 }
 
 function readPending(state: string, nowMs: number): Pending {
   if (!/^[A-Za-z0-9_-]{32}$/u.test(state)) throw new Error("Notion 授权状态不匹配");
-  const raw = createFileSecretStore().get(`${PENDING_REF}:${state}`) ?? createFileSecretStore().get(PENDING_REF);
+  const raw = createFileSecretStore().get(`${PENDING_REF}:${state}`);
   if (!raw) throw new Error("Notion 授权会话不存在，请重新开始授权");
   let pending: Pending;
   try { pending = JSON.parse(raw) as Pending; }
@@ -118,6 +102,7 @@ function readPending(state: string, nowMs: number): Pending {
     throw new Error("Notion 授权已过期，请重新开始");
   }
   assertLoopback(new URL(pending.redirectUri));
+  if (typeof pending.connectionId !== "string" || !pending.connectionId) throw new Error("Notion 授权会话无效，请重新开始授权");
   if (pending.clientSecret === undefined && pending.clientId !== credentials().clientId) throw new Error("Notion 应用配置已改变，请重新开始授权");
   return pending;
 }
@@ -128,8 +113,8 @@ export async function completeNotionOAuth(input: {
   callbackUrl: URL;
   nowMs?: number;
   fetchImpl?: typeof fetch;
-  validateAccount?: (tokens: NotionOAuthTokens, connectionId?: string) => void;
-}): Promise<NotionOAuthTokens & { connectionId?: string; displayName?: string }> {
+  validateAccount?: (tokens: NotionOAuthTokens, connectionId: string) => void;
+}): Promise<NotionOAuthTokens & { connectionId: string; displayName?: string }> {
   const pending = readPending(input.state, input.nowMs ?? Date.now());
   if (input.callbackUrl.origin + input.callbackUrl.pathname !== pending.redirectUri) throw new Error("Notion 回调地址不匹配");
   if (!input.code.trim()) throw new Error("Notion 未返回授权码");
@@ -142,19 +127,17 @@ export async function completeNotionOAuth(input: {
     fetchImpl: input.fetchImpl,
   });
   input.validateAccount?.(tokens, pending.connectionId);
-  const refs = pending.connectionId ? scopedRefs(pending.connectionId) : undefined;
+  const refs = scopedRefs(pending.connectionId);
   saveTokens(tokens, refs);
-  store.put(`${refs?.access ?? "connector:notion:token"}:client`, JSON.stringify({ clientId: pending.clientId, clientSecret }));
-  return { ...tokens, ...(pending.connectionId ? { connectionId: pending.connectionId } : {}),
-    ...(pending.displayName ? { displayName: pending.displayName } : {}) };
+  store.put(`${refs.access}:client`, JSON.stringify({ clientId: pending.clientId, clientSecret }));
+  return { ...tokens, connectionId: pending.connectionId, ...(pending.displayName ? { displayName: pending.displayName } : {}) };
 }
 
-export async function resolveUsableNotionToken(forceRefresh = false, fetchImpl?: typeof fetch, connectionId?: string): Promise<string | null> {
+/** A connection's Notion access token, refreshed once when asked or when only the refresh token is left. */
+export async function resolveUsableNotionToken(connectionId: string, forceRefresh = false, fetchImpl?: typeof fetch): Promise<string | null> {
   const store = createFileSecretStore();
-  const refs = connectionId ? scopedRefs(connectionId) : {
-    access: "connector:notion:token", refresh: REFRESH_REF, workspace: WORKSPACE_REF,
-  };
-  const current = store.get(refs.access)?.trim() || (!connectionId ? readProductEnv("NOTION_TOKEN")?.trim() : "") || null;
+  const refs = scopedRefs(connectionId);
+  const current = store.get(refs.access)?.trim() || null;
   if (!current && store.get(refs.refresh)) forceRefresh = true;
   if (!forceRefresh || !store.get(refs.refresh)) return current;
   const key = JSON.stringify([resolveMolisWorkHome(), refs.refresh]);
@@ -182,10 +165,4 @@ export async function resolveUsableNotionToken(forceRefresh = false, fetchImpl?:
     refreshInFlight.set(key, pending);
   }
   return refreshInFlight.get(key)!;
-}
-
-export function clearNotionOAuth(): void {
-  const store = createFileSecretStore();
-  for (const entry of pendingIndex()) removePending(entry.state);
-  for (const ref of [PENDING_REF, PENDING_INDEX, REFRESH_REF, WORKSPACE_REF, "connector:notion:token:client"]) store.delete(ref);
 }

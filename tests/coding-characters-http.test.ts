@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE } from "@molis-ai/molis-work-contracts/modules/characters";
-import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -22,18 +22,18 @@ test("Coding saves exact Character versions, blocks unavailable selection before
   personal.service.update(draft.character_id, 1, { title: "原角色", instructions: "旧的固定要求", host_tools: null });
   const artifacts = () => new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const publish = (version: number) => personal.service.publish(draft.character_id, version + 1, content => artifacts().commands.registerVersion({ ...pinnedArtifact(content.title, { kind: "character", id: content.character_id }),
-    board_id: DEMO_BOARD_ID, actor_id: "web-user", artifact_id: `character:${DEMO_BOARD_ID}:${draft.character_id}`, version,
+    project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: `character:${DEMO_PROJECT_ID}:${draft.character_id}`, version,
     artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1,
     producer: { plugin_id: CHARACTER_PLUGIN_ID, plugin_version: "1.0.0", binding_signature: CHARACTER_PUBLISHER_SIGNATURE },
     content: { kind: "inline", payload: content as unknown as Record<string, unknown> },
   }));
   publish(1);
   personal.service.update(draft.character_id, 2, { title: "新的角色", instructions: "新要求", host_tools: null });publish(2);
-  const ref = { artifact_id: `character:${DEMO_BOARD_ID}:${draft.character_id}`, version: 1 };
+  const ref = { artifact_id: `character:${DEMO_PROJECT_ID}:${draft.character_id}`, version: 1 };
   const sessions = new CodingSessionStore(store.db);
-  for (const id of ["app", "new"]) sessions.create({ board_id: DEMO_BOARD_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() });
+  for (const id of ["app", "new"]) sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() });
   const starts: AgentStartRequest[] = []; let created = 0;
-  const host = () => ({ store, homeDirectory: home, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
@@ -60,7 +60,7 @@ test("Coding saves exact Character versions, blocks unavailable selection before
     assert.equal(choices.body.characters.length, 2);assert.ok(choices.body.characters.every((item: any) => item.available));
     assert.equal((await request("", "PATCH", { character: { ...ref, instructions: "伪造正文" }, draft: "不要丢失任务" })).status, 200);
     assert.deepEqual((await request()).body.character, ref);assert.equal((await request()).body.character_title, "原角色");
-    await releaseCodingSurface(store, DEMO_BOARD_ID);store.close();store = new LocalProjectDatabase(dbPath);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request()).body.character, ref);assert.equal((await request()).body.draft, "不要丢失任务");
     assert.equal((await start()).status, 200);assert.deepEqual(starts[0].budget, {max_turns:60});assert.deepEqual(starts[0].character, ref, "only an exact reference reaches Agent Host, not browser text or the newer version");
     for (const character of [{ ...ref, version: 99 }, { ...ref, artifact_id: "foreign-project" }]) assert.equal((await start({ character }, "new")).status, 400);
@@ -75,7 +75,7 @@ test("Coding saves exact Character versions, blocks unavailable selection before
     assert.equal((await request("", "PATCH", { character: { ...ref, version: 0 } })).status, 400);
     assert.deepEqual(starts[0].character, ref);
   } finally {
-    await new Promise<void>(resolve => server.close(() => resolve()));await releaseCodingSurface(store, DEMO_BOARD_ID);
+    await new Promise<void>(resolve => server.close(() => resolve()));await releaseCodingSurface(store, DEMO_PROJECT_ID);
     personal.close();store.close();rmSync(home, { recursive: true, force: true });
   }
 });

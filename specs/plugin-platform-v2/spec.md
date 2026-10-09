@@ -189,7 +189,7 @@ catalog schema 15 → 16。已有项目的启用状态原样保留（迁移测�
 ### D9 端口当前值与作用域键（P3 实现时补充）
 
 端口投递需要知道"这个输出口现在是哪个版本"，这不是 Artifact 历史能直接回答的问题。新增
-`plugin_port_outputs`（board、plugin、port → artifact_id/version/失效原因/作用域键）作为端口的 head：
+`plugin_port_outputs`（project、plugin、port → artifact_id/version/失效原因/作用域键）作为端口的 head：
 publish 推进它，invalidate 撤回它，重启后从它恢复连线现状。
 
 跨来源一致性用**生产者附带的不透明作用域键**：Host 只比较键是否相同，从不解析其中的业务字段；
@@ -239,12 +239,12 @@ v1 manifest 继续解析：`parsePluginManifest` 按 `schema_version` 分派，v
 
 ## 数据
 
-项目库新增（`board_id` 为现有项目库身份）：
+项目库新增（`project_id` 是项目库身份）：
 
 ```
 plugin_events (
   event_id       TEXT PRIMARY KEY,
-  board_id       TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+  project_id     TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
   sequence       INTEGER NOT NULL,
   event_type_id  TEXT NOT NULL,
   type_version   INTEGER NOT NULL,
@@ -254,34 +254,34 @@ plugin_events (
   correlation_id TEXT,
   occurred_at    TEXT NOT NULL
 )
-UNIQUE (board_id, sequence)
-INDEX (board_id, event_type_id, type_version, source_plugin_id, sequence)
+UNIQUE (project_id, sequence)
+INDEX (project_id, event_type_id, type_version, source_plugin_id, sequence)
 
 plugin_event_cursors (
-  board_id, subscriber_plugin_id, source_plugin_id, event_type_id, type_version,
+  project_id, subscriber_plugin_id, source_plugin_id, event_type_id, type_version,
   delivered_sequence INTEGER NOT NULL DEFAULT 0,
   state TEXT NOT NULL,              -- idle | delivering | retry_wait | quarantined
   retry_at TEXT, last_error_code TEXT, updated_at TEXT NOT NULL,
-  PRIMARY KEY (board_id, subscriber_plugin_id, source_plugin_id, event_type_id, type_version)
+  PRIMARY KEY (project_id, subscriber_plugin_id, source_plugin_id, event_type_id, type_version)
 )
 
 plugin_port_bindings (
-  board_id, target_plugin_id, target_port,
+  project_id, target_plugin_id, target_port,
   source_plugin_id TEXT, source_port TEXT,
   origin TEXT NOT NULL,             -- user | default | unique
   created_at, updated_at,
-  PRIMARY KEY (board_id, target_plugin_id, target_port)
+  PRIMARY KEY (project_id, target_plugin_id, target_port)
 )
 
 plugin_input_groups (
-  board_id, plugin_id, group_id, updated_at,
-  PRIMARY KEY (board_id, plugin_id)
+  project_id, plugin_id, group_id, updated_at,
+  PRIMARY KEY (project_id, plugin_id)
 )
 
 plugin_registry (
-  board_id, plugin_id, version, kind, manifest_json, enabled INTEGER NOT NULL,
+  project_id, plugin_id, version, kind, manifest_json, enabled INTEGER NOT NULL,
   installed_at, updated_at,
-  PRIMARY KEY (board_id, plugin_id)
+  PRIMARY KEY (project_id, plugin_id)
 )
 ```
 

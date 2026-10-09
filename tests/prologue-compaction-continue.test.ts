@@ -29,7 +29,7 @@ test("a round whose early compaction fails goes on while its history still fits 
     calls++;
     return calls <= files.length ? response("", { name: "read", input: { path: files[calls - 1] } }) : response("读完了，每个文件 200 行。");
   });
-  const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
+  const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
   const queue = new AgentReviewQueue();
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.compaction-continue-test", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });

@@ -64,7 +64,7 @@ test("steps that wait on nothing run side by side on the SDK graph, and a joinin
     if (turn === 11) return report("step-3", "succeeded", "全部测试通过");
     return response("三步都已报告，等待用户验收。");
   });
-  const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
+  const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
   const plan = { source: { artifact_id: "fixed-plan", version: 1 }, title: "两处独立修改", steps: [
     { id: "step-1", title: "改 a.ts", acceptance: "a 的测试通过" },
     { id: "step-2", title: "改 b.ts", acceptance: "b 的测试通过", depends_on: [] },

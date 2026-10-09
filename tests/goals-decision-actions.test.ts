@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, recordGoalUserDecisionCapability, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
@@ -14,7 +14,7 @@ import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 test("user decisions share the action path without granting user authority to models or business input", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-decisions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Decisions", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let blocked = false, release: (() => void) | undefined, entered: (() => void) | undefined, gate: Promise<void> | undefined;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: async (_caller, action) => {
     if (action.capability_id === goalsActions.decide.capability_id) {
@@ -24,14 +24,14 @@ test("user decisions share the action path without granting user authority to mo
     return { available: true };
   } });
   const client = host.actionClient(ref), typed = host.client(ref);
-  const caller: ActionCallContext = { actor_id: "actual-user", actor_kind: "user", project_id: project.project_id, audience: "user",
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", project_id: project.project_id, audience: "user",
     permissions: ["goals:read", "goals:write", "goals:decide"] };
   const goal_id = "USER-DECISION";
   const payload = { goal_id, idempotency_key: "decision", conclusion: "允许发布当前结果", effects: [{ kind: "authorize_action" as const, action: "publish" }], scope: { action: "publish" } };
-  const oldAuthority = hostEventDecisionAuthority("management", project.board_id, caller.actor_id, payload.idempotency_key);
+  const oldAuthority = hostEventDecisionAuthority("management", project.project_id, caller.actor_id, payload.idempotency_key);
   const provenance = { source: oldAuthority.authority_source, conversation_ref: oldAuthority.conversation_ref, message_ref: oldAuthority.message_ref };
   const trusted: ActionCallContext = { ...caller, user_action: provenance };
-  const cursor = () => host.withProject(ref, r => r.coordinator.goalEvents.readState(project.board_id, goal_id).goal_event_cursor);
+  const cursor = () => host.withProject(ref, r => r.coordinator.goalEvents.readState(project.project_id, goal_id).goal_event_cursor);
   try {
     await client.invoke(caller, goalsActions.create, { title: "用户决定", goal_id, idempotency_key: "create" });
     const decisionView = (await host.inspectActions(caller, ref)).find(v => v.capability_id === goalsActions.decide.capability_id)!;
@@ -50,19 +50,25 @@ test("user decisions share the action path without granting user authority to mo
     for (const extra of [{ authority: oldAuthority }, { actor_id: "another-user" }, { user_confirmed: true }, { user_action: provenance }]) {
       await assert.rejects(client.invoke(trusted, goalsActions.decide, { ...payload, ...extra }), { code: "actions.input_invalid" });
     }
-    await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, authority: oldAuthority, board_id: "other-board" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, authority: oldAuthority, project_id: "other-board" }), { code: "actions.scope_mismatch" });
     const plugin = createPluginCapabilityClient({ ...filesManifest, plugin_id: "io.molis.work.example.claimed-user",
       capabilities: { provides: [], consumes: [recordGoalUserDecisionCapability.capability_id] } }, typed);
     const availability = plugin.availability(recordGoalUserDecisionCapability);
     assert.equal(availability.available, false); assert.equal(!availability.available && availability.code, "actions.host_only");
     await assert.rejects(plugin.invoke({ ...recordGoalUserDecisionCapability, host_only: false },
-      { ...payload, board_id: project.board_id, authority: oldAuthority }, { consumer: undefined }), { code: "actions.host_only" });
+      { ...payload, project_id: project.project_id, authority: oldAuthority }, { consumer: undefined }), { code: "actions.host_only" });
+    // The host capability belongs to the management entry, which decides as the person on this machine; another person named
+    // in the input, or another entry's provenance, is refused (repository-anti-corruption §9.5 #6).
+    for (const authority of [hostEventDecisionAuthority("management", project.project_id, "another-person", payload.idempotency_key),
+      hostEventDecisionAuthority("web", project.project_id, LOCAL_PERSON_ACTOR_ID, payload.idempotency_key)]) {
+      await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id, authority }), { code: "event_decision.untrusted_actor" });
+    }
     assert.equal(await cursor(), before, "rejected authority never appends a decision");
 
-    const old = await host.withProject(ref, r => r.coordinator.goalEvents.recordTrustedDecision({ ...payload, board_id: project.board_id, authority: oldAuthority }));
+    const old = await host.withProject(ref, r => r.coordinator.goalEvents.recordTrustedDecision({ ...payload, project_id: project.project_id, authority: oldAuthority }));
     const expected = { ...JSON.parse(JSON.stringify(old)), replayed: true };
     assert.deepEqual(await client.invoke(trusted, goalsActions.decide, payload), expected);
-    assert.deepEqual(await typed.invoke(recordGoalUserDecisionCapability, { ...payload, board_id: project.board_id, authority: oldAuthority }), expected);
+    assert.deepEqual(await typed.invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id, authority: oldAuthority }), expected);
     assert.equal(await cursor(), old.observed_event_cursor, "legacy decision retries use the same receipt and provenance");
 
     const pendingInput = { ...payload, idempotency_key: "snapshot", conclusion: "第二次真实用户操作" };
@@ -74,15 +80,15 @@ test("user decisions share the action path without granting user authority to mo
     mutable.message_ref = "changed-while-waiting";
     release!();
     const saved = await pending as typeof old; gate = undefined;
-    const stored = await host.withProject(ref, r => r.coordinator.governance.eventDecisions.read(project.board_id, saved.decision.governance_decision_id));
+    const stored = await host.withProject(ref, r => r.coordinator.governance.eventDecisions.read(project.project_id, saved.decision.governance_decision_id));
     assert.equal(stored?.message_ref, "original-user-message", "queued calls retain their provenance snapshot");
     assert.equal(stored?.conversation_ref, provenance.conversation_ref);
     const replay = await client.invoke({ ...caller, user_action: { ...provenance, message_ref: "original-user-message" } }, goalsActions.decide, pendingInput) as typeof old;
     assert.equal(replay.replayed, true); assert.equal(replay.decision.actor_id, caller.actor_id);
 
     const governanceCount = () => host.withProject(ref, r => Number((r.store.db.prepare(
-      "SELECT count(*) AS n FROM goal_event_trusted_decisions WHERE board_id = ? AND goal_id = ?",
-    ).get(project.board_id, goal_id) as { n: number }).n));
+      "SELECT count(*) AS n FROM goal_event_trusted_decisions WHERE project_id = ? AND goal_id = ?",
+    ).get(project.project_id, goal_id) as { n: number }).n));
     const beforeFailure = await cursor(), beforeGovernance = await governanceCount();
     await host.withProject(ref, r => r.store.db.exec(`CREATE TEMP TRIGGER fail_goal_decision_event BEFORE INSERT ON goal_work_events
       WHEN json_extract(NEW.payload_json, '$.operation') = 'user_decision'
@@ -99,12 +105,12 @@ test("user decisions share the action path without granting user authority to mo
 
     const beforeDenied = await cursor();
     blocked = true;
-    await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, idempotency_key: "disabled", board_id: project.board_id, authority: oldAuthority }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, idempotency_key: "disabled", project_id: project.project_id, authority: oldAuthority }), { code: "actions.plugin_disabled" });
     assert.equal(await cursor(), beforeDenied);
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     try {
-      assert.deepEqual(await restarted.client(ref).invoke(recordGoalUserDecisionCapability, { ...payload, board_id: project.board_id, authority: oldAuthority }), expected);
+      assert.deepEqual(await restarted.client(ref).invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id, authority: oldAuthority }), expected);
     } finally { await restarted.close(); }
   } finally { release?.(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

@@ -43,10 +43,9 @@ export { createMolisWorkRuntimePayload, type MolisWorkRuntimePayloadOptions } fr
 export { createMolisWorkNpmPackageDirectory } from "./installer/npm-package.js";
 export { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
 
-export { migrateLocalProjectDatabase } from "./project-migrations.js";
-export { migrateFeedTables, migrateInfoflowContractV2 } from "./feed-migrations.js";
 
 export { LocalProjectDatabase } from "./project-database.js";
+export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export * from "./goal-project-application.js";
 
@@ -55,18 +54,19 @@ export * from "./web-locale.js";
 export { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
 export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, isOwnedCatalogOwner, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, type MolisWorkProjectCatalogErrorDetails } from "./project-catalog-contract.js";
-export { initializeProjectDatabase, readManagedBoard, validateManagedBoard, assertProjectHasNoActiveWork } from "./managed-project-database.js";
+export { initializeProjectDatabase, readManagedBoard, validateManagedBoard } from "./managed-project-database.js";
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
 export { ManagedProjectDeletion, type ProjectDeletionCleanupPorts } from "./managed-project-deletion.js";
+export { ProjectDeletedHooks, projectDeletedHooksFor, type ProjectDeletedOwner, type ProjectDeletedPort } from "./project-deleted-hooks.js";
 export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-lifecycle.js";
 export { exists } from "./project-file-paths.js";
 export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 
-export { initializeCatalog, assertOwnedCatalog, migrateCatalog, type CatalogDesktopSchema } from "./catalog-migrations.js";
+export { initializeCatalog, assertOwnedCatalog, assertCurrentCatalog, type CatalogDesktopSchema } from "./catalog-schema.js";
 
 export * from "./project-catalog.js";
-export { seedDemoBoard, DEMO_BOARD_ID } from "./demo-seed.js";
+export { seedDemoBoard, DEMO_PROJECT_ID } from "./demo-seed.js";
 export {
   seedDemoPluginSurfaces,
   seedDemoProjectExtras,
@@ -88,7 +88,7 @@ export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type
 export { createLocalFeedSourceService, listFeedSourceCatalog } from "./feed-source-service.js";
 export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
 
-export * from "./connector-credentials.js";
+export { withConnectorConnections } from "./connector-connection-store.js";
 export * from "./github-oauth.js";
 
 export * from "./gmail-oauth.js";
@@ -100,7 +100,7 @@ export { OfficialIntegrationRegistry, type OfficialProviderFactory } from "./off
 
 export { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
 
-export { createLocalFeedConnectorService } from "./feed-connector-service.js";
+export { feedConnectorAuthStatus } from "./feed-connector-auth.js";
 
 export { createLocalFeedSourceScheduler } from "./feed-source-scheduler.js";
 
@@ -132,34 +132,28 @@ export { attachMolisWorkPtySocket, type MolisWorkPtySocketHandlers } from "./pty
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
 export { rewriteNativePluginApiPath, withRewrittenPluginApi } from "./native-plugin-api.js";
 export { hostCompleteText, hostTextGeneration, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
-export { bindScheduledTaskRunner, scheduleServiceFor } from "./schedule-runtime.js";
+export { bindScheduledTaskRunner, bindScheduleDeliveryFeed, scheduleServiceFor } from "./schedule-runtime.js";
 export { createHostScheduledTaskRunner } from "./schedule-task-runner.js";
 
 export { sendLocalWebJson, readLocalWebBody, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
 export { createLocalWebAssets } from "./web-assets.js";
 
 export * from "./web-session.js";
-export { reconcileLegacySessionCatalog } from "./session-migration.js";
+export { panelSessionInput, recordDesktopPanelSessions } from "./panel-sessions.js";
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
-export { handleLocalMcpSettingsHttp } from "./web-mcp-settings.js";
-export { assembleMcpCatalog, findAssembledMcpTool, listMcpSettingsEntries } from "./mcp-catalog.js";
-export {
-  createNativeMcpPluginAdapters,
-  dispatchNativeMcpPluginTool,
-  nativeMcpPluginSources,
-} from "./mcp-native-plugins.js";
-export { readMcpToolPreference, writeMcpToolPreference } from "./mcp-settings-store.js";
+export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
+export { readMcpToolPreference } from "./mcp-settings-store.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
-export { importV3Board } from "./board-v3-import.js";
 export * from "./project-host.js";
-export { importV3Capability, projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability, createGoalCapability, createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
-export type { CreateGoalCapabilityInput, ImportV3CapabilityInput } from "@molis-ai/molis-work-plugin-goals";
+export { projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability, createGoalCapability, createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
+export type { CreateGoalCapabilityInput } from "@molis-ai/molis-work-plugin-goals";
 export { runLocalPluginDevelopment } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { createLocalPanelHttp } from "./web-panel.js";
 export { createLocalWorkSessionHttp } from "./web-work-session.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
+export { readProjectReference, ProjectReferenceError } from "./project-file-reference.js";
 export { createLocalPlanningHttp } from "./web-planning.js";
 export { createLocalGoalsReadHttp } from "./web-goals-read.js";
 export { createLocalWebServerFactory } from "./web-server.js";
@@ -188,9 +182,7 @@ export {
 export {
   ModelProviderError,
   ModelProviderStore,
-  addPromptCacheColumn,
   createModelProviderTables,
-  modelCredentialRef,
   type ModelProviderSqlite,
   type ModelProviderStoreOptions,
   type ModelSecretPort,
@@ -220,3 +212,13 @@ export { ensureSystemAgentService } from "./system-agent-service.js";
 export { LocalActionGatewayClient } from "./action-gateway.js";
 
 export { createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./search-evidence-runtime.js";
+// Home stores' one current schema each (repository-anti-corruption §4.1); read by scripts/stamp-store-baselines.mjs.
+export { CONNECTORS_BASELINE } from "./connectors-store.js";
+export { CONTEXT_ONBOARDING_BASELINE } from "./context-onboarding-store.js";
+export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";
+export { PLACEMENT_BASELINE } from "./placement-actions.js";
+export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
+export { AssistantService } from "./assistant/assistant-service.js";
+export { assistantAuthority } from "./assistant/assistant-authority.js";
+export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
+export { prologueMemoryBackend } from "./memory/memory-host.js";

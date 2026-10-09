@@ -22,7 +22,6 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .goal-event-document .overview-grid h3 { font-size: 11px; font-weight: var(--weight-title, 600); color: var(--muted); margin: 0 0 4px; }
   .goal-event-document .overview-grid p { font-size: 12px; line-height: 1.7; color: var(--ink); margin: 0; }
   .goal-event-document .overview-grid .owner { color: var(--blue); }
-  .goal-event-document .overview-grid .risk-copy { color: var(--amber); }
   .goal-event-document .goal-layout { display: grid; grid-template-columns: 302px minmax(0, 1fr); min-height: 0; flex: 1; margin: 0 16px 16px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--paper); }
   .goal-event-document .goal-pending-proposals { flex: none; margin: 0 16px 12px; max-height: min(48vh, 520px); overflow: auto; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); }
   .goal-event-document .goal-pending-proposals > .decision-record { margin: 0; border: 0; border-radius: 0; }
@@ -81,9 +80,11 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .goal-event-document .event-form h2, .goal-event-document .event-form h3 { margin: 0; }
   .goal-event-document .event-form label, .goal-event-document .event-form fieldset { display: grid; gap: 4px; margin: 0; padding: 0; border: 0; min-width: 0; }
   .goal-event-document .event-form label > span, .goal-event-document .event-form legend { font-size: 12px; font-weight: 400; }
-  .goal-event-document .closure-deliverables [data-closure-deliverable-list] { display: grid; gap: 6px; max-height: 240px; overflow: auto; }
-  .goal-event-document .closure-deliverables [data-closure-deliverable-list] label { display: flex; align-items: baseline; gap: 8px; font-weight: 400; }
-  .goal-event-document .closure-deliverables [data-closure-deliverable-list] small { color: var(--muted); margin-left: auto; white-space: nowrap; }
+  /* The closure's deliverables, wherever the form opens (the Goal document or the workspace's side panel). */
+  .closure-deliverables [data-closure-deliverable-list] { display: grid; gap: 6px; max-height: 240px; overflow: auto; }
+  .closure-deliverables [data-closure-deliverable-list] label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; font-weight: 400; }
+  .closure-deliverables [data-closure-deliverable-list] input[type="checkbox"] { width: auto; margin: 0; padding: 0; }
+  .closure-deliverables [data-closure-deliverable-list] small { color: var(--muted); white-space: nowrap; }
   .goal-event-document .event-form small, .goal-event-document .form-lead, .goal-event-document .form-note { color: var(--muted); font-size: 11px; }
   .goal-event-document .event-form input, .goal-event-document .event-form select, .goal-event-document .event-form textarea { width: 100%; min-width: 0; padding: 8px 8px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--paper); color: var(--ink); }
   .goal-event-document .check-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; }
@@ -134,7 +135,7 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
     .composer-bottom { flex-direction: column; align-items: stretch; }
     .event-form input, .event-form select, .event-form textarea { font-size: 16px; }
     .draft-form-row, .draft-list-grid, .decomposition-editor > div, .criterion-editor-grid, .draft-aux-form { grid-template-columns: minmax(0, 1fr) !important; }
-    .draft-list-grid label:last-child, .criterion-pass, .draft-aux-wide { grid-column: 1; }
+    .draft-list-grid label:last-child, .draft-aux-wide { grid-column: 1; }
     .criteria-editor > header, .draft-contract-form > footer { align-items: stretch; flex-direction: column; }
     .criteria-editor > header button, .draft-contract-form > footer button { align-self: stretch; }
     .goal-edit-disclosure, .draft-editor-section { margin-left: 0; }

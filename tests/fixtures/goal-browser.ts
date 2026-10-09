@@ -9,16 +9,15 @@ import { join } from "node:path";
 import type { Socket } from "node:net";
 import type { TestContext } from "node:test";
 import { WebSocket } from "ws";
-import { DEMO_BOARD_ID, seedDemoBoard, MolisWorkLocalHost, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard, MolisWorkLocalHost, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { projectActionAvailability } from "../../apps/local-host/dist/project-action-availability.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
-import Database from "better-sqlite3";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
 
 
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
-export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed = seedDemoBoard, completion?: HostCompleteText | null,
+export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
   runtimeSessionTransport?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["runtimeSessionTransport"],
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"]) {
   const chrome = [process.env.MOLIS_WORK_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -73,7 +72,6 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   let projectId: string | null = null;
   if (catalogMode === true || catalogMode === "seeded" || catalogMode === "user") {
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
-    let catalogDatabasePath: string | undefined;
     try {
       if (catalogMode === "seeded" || catalogMode === "user") {
         const project = await catalog.createProject({ display_name: "目录交互验证", actor_id: "browser-test" });
@@ -84,40 +82,30 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
         }
         databasePath = project.database_path;
         projectId = project.project_id;
-        catalogDatabasePath = catalog.databasePath;
       } else {
         const project = (await catalog.ensureDemoProject({ actor_id: "browser-test", user_confirmed: true })).project;
         databasePath = project.database_path;
         projectId = project.project_id;
       }
     } finally { catalog.close(); }
-    if ((catalogMode === "seeded" || catalogMode === "user") && catalogDatabasePath && projectId) {
+    // A created project's database is replaced by the seed, under the project's own id.
+    if ((catalogMode === "seeded" || catalogMode === "user") && projectId) {
       await rm(databasePath, { force: true });
       await rm(`${databasePath}-wal`, { force: true });
       await rm(`${databasePath}-shm`, { force: true });
-      seed(databasePath);
-      const catalogDb = new Database(catalogDatabasePath);
-      let projectDb: LocalProjectDatabase | undefined;
-      try {
-        projectDb = new LocalProjectDatabase(databasePath);
-        const boardId = projectDb.goalsQuery.listBoardIds()[0];
-        if (boardId) catalogDb.prepare("UPDATE projects SET board_id = ? WHERE project_id = ?").run(boardId, projectId);
-      } finally {
-        projectDb?.close();
-        catalogDb.close();
-      }
+      seed(databasePath, projectId);
     }
   } else seed(databasePath);
   store = new LocalProjectDatabase(databasePath);
   localHost = completion === undefined && !runtimeSessionTransport && !functions ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions,
     ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
-  server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, boardId: DEMO_BOARD_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
+  server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
     controlToken: "goals-risk-test-control-token-0123456789" });
   server.on("connection", connection => {
     connections.add(connection);
     connection.once("close", () => connections.delete(connection));
   });
-  child = spawn(chrome, ["--headless=new", "--disable-gpu", "--disable-background-networking",
+  child = spawn(chrome, ["--headless=new", "--lang=zh-CN", "--accept-lang=zh-CN", "--disable-gpu", "--disable-background-networking",
     "--disable-component-update", "--disable-extensions", "--disable-background-timer-throttling",
     "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows", "--no-first-run", "--no-default-browser-check",
     "--remote-debugging-port=0", `--user-data-dir=${join(directory, "chrome-profile")}`, "about:blank"],
@@ -163,7 +151,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   await (await fetch(origin + "/health")).text();
-  const before = store.snapshot(DEMO_BOARD_ID);
+  const before = store.snapshot(projectId ?? DEMO_PROJECT_ID);
   const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await command("Target.activateTarget", { targetId });

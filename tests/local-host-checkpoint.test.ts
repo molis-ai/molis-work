@@ -8,7 +8,7 @@ test("trusted capability checkpoints remain outside business input and cannot ou
   let writes = 0, release!: () => void, enter!: () => void, checkpoint: HostCapabilityInvocation | undefined;
   let wait = Promise.resolve();
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const reference = { project_id: "project", board_id: "board", storage_key: "memory:checkpoint" };
+  const reference = { project_id: "board", storage_key: "memory:checkpoint" };
   const register = () => host.register(capability, async (_runtime, input, invocation) => {
     assert.deepEqual(Object.keys(input), ["value"], "callback cannot enter cloned inputs or business audit records");
     checkpoint = invocation; enter?.(); await wait;

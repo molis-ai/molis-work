@@ -1,8 +1,8 @@
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, clearInExistingHomeSqlite, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
-import { chmodSync, mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { ImagesError } from "./error.js";
 
@@ -10,27 +10,37 @@ export type StoredConnection = Omit<ImageConnection, "has_key">;
 type Row = Record<string, unknown>;
 
 /** Private data only: credentials are owned by the Host secret store. */
+/**
+ * The images store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
+ * must already be at its version.
+ */
+export const IMAGES_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE connections (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, api_format TEXT NOT NULL,
+    base_url TEXT NOT NULL, model TEXT NOT NULL,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
+  CREATE TABLE jobs (
+    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, request_id TEXT NOT NULL,
+    input_hash TEXT NOT NULL, connection_id TEXT NOT NULL, connection_name TEXT NOT NULL,
+    api_format TEXT NOT NULL, model TEXT NOT NULL, prompt TEXT NOT NULL,
+    size TEXT NOT NULL, aspect_ratio TEXT NOT NULL, status TEXT NOT NULL,
+    images_json TEXT NOT NULL, error TEXT NOT NULL,
+    created_at TEXT NOT NULL, finished_at TEXT, runner_id TEXT,
+    UNIQUE (project_id, request_id)
+  );
+  CREATE INDEX jobs_project_created ON jobs(project_id, created_at DESC);
+` };
+
 export class ImagesStore {
   private readonly db: DatabaseSync;
   private readonly runnerLock: DatabaseSync;
-  private readonly compatibilityLock: DatabaseSync;
   private readonly runnerId = randomUUID();
   private readonly runnerDirectory: string;
 
   constructor(homeDirectory: string) {
     const directory = join(homeDirectory, "images");
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    const lockPath = join(directory, ".runner-lock.db");
-    this.compatibilityLock = new DatabaseSync(lockPath);
-    try { chmodSync(lockPath, 0o600); } catch { /* Some volumes do not support Unix modes. */ }
-    try {
-      // New runners share a read lock. An old binary's lifetime EXCLUSIVE lock
-      // cannot overlap: it would incorrectly interrupt every running job.
-      this.compatibilityLock.exec("PRAGMA busy_timeout = 0; BEGIN; SELECT COUNT(*) FROM sqlite_schema");
-    } catch {
-      this.compatibilityLock.close();
-      throw new ImagesError("images.already_open", "旧版图片服务仍在运行，请关闭旧版进程后重试。", 409);
-    }
     this.runnerDirectory = join(directory, "runners");
     let runnerLock: DatabaseSync | undefined;
     try {
@@ -39,33 +49,12 @@ export class ImagesStore {
       this.runnerLock.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
       this.db = openHomeSqliteDatabase(homeDirectory, "images");
     } catch (error) {
-      try { runnerLock?.close(); } finally { this.compatibilityLock.close(); }
+      runnerLock?.close();
       throw error;
     }
     try {
-    this.db.exec(`
-      PRAGMA busy_timeout = 5000;
-      BEGIN IMMEDIATE;
-      CREATE TABLE IF NOT EXISTS connections (
-        id TEXT PRIMARY KEY, name TEXT NOT NULL, api_format TEXT NOT NULL,
-        base_url TEXT NOT NULL, model TEXT NOT NULL,
-        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS jobs (
-        id TEXT PRIMARY KEY, project_id TEXT NOT NULL, request_id TEXT NOT NULL,
-        input_hash TEXT NOT NULL, connection_id TEXT NOT NULL, connection_name TEXT NOT NULL,
-        api_format TEXT NOT NULL, model TEXT NOT NULL, prompt TEXT NOT NULL,
-        size TEXT NOT NULL, aspect_ratio TEXT NOT NULL, status TEXT NOT NULL,
-        images_json TEXT NOT NULL, error TEXT NOT NULL,
-        created_at TEXT NOT NULL, finished_at TEXT,
-        UNIQUE (project_id, request_id)
-      );
-      CREATE INDEX IF NOT EXISTS jobs_project_created ON jobs(project_id, created_at DESC);
-    `);
-    if (!(this.db.prepare("PRAGMA table_info(jobs)").all() as Row[]).some(row => row.name === "runner_id")) {
-      this.db.exec("ALTER TABLE jobs ADD COLUMN runner_id TEXT");
-    }
-    this.db.exec("COMMIT");
+    this.db.exec("PRAGMA busy_timeout = 5000;");
+    applySqliteBaseline(this.db, homeSqlitePath(homeDirectory, "images"), IMAGES_STORE_BASELINE);
     this.recoverInterrupted();
     } catch (error) {
       try { this.db.close(); } finally { this.releaseLocks(); }
@@ -78,7 +67,7 @@ export class ImagesStore {
   }
 
   private releaseLocks(): void {
-    try { this.runnerLock.close(); } finally { this.compatibilityLock.close(); }
+    this.runnerLock.close();
     // The ID is never reused. A crashed runner's file is removed during recovery.
     try { rmSync(join(this.runnerDirectory, this.runnerId + ".db"), { force: true }); } catch { /* Safe to retain an unlocked file. */ }
   }
@@ -89,25 +78,22 @@ export class ImagesStore {
       const owners = this.db.prepare("SELECT DISTINCT runner_id FROM jobs WHERE status = 'running'").all() as Row[];
       for (const { runner_id: owner } of owners) {
         if (owner === this.runnerId) continue;
-        // Legacy jobs had no owner. The shared compatibility lock excludes an
-        // old live runner before those records can be recovered.
+        // Every job names the runner that holds it; that runner's exclusive lock proves it is still alive.
+        if (!/^[a-f0-9-]{36}$/u.test(String(owner))) throw new Error("Invalid Images runner identity");
+        const path = join(this.runnerDirectory, String(owner) + ".db");
         let probe: DatabaseSync | undefined;
-        const path = owner === null ? null : join(this.runnerDirectory, String(owner) + ".db");
-        if (owner !== null && !/^[a-f0-9-]{36}$/u.test(String(owner))) throw new Error("Invalid Images runner identity");
         try {
-          if (path) {
-            probe = new DatabaseSync(path);
-            probe.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
-          }
-          this.db.prepare("UPDATE jobs SET status = 'interrupted', error = ?, finished_at = ? WHERE status = 'running' AND runner_id IS ?")
-            .run("本机执行进程已停止，未自动重新生成。请先检查厂商用量，再决定是否重试。", new Date().toISOString(), owner as string | null);
+          probe = new DatabaseSync(path);
+          probe.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
+          this.db.prepare("UPDATE jobs SET status = 'interrupted', error = ?, finished_at = ? WHERE status = 'running' AND runner_id = ?")
+            .run("本机执行进程已停止，未自动重新生成。请先检查厂商用量，再决定是否重试。", new Date().toISOString(), String(owner));
         } catch (error) {
           // Only SQLITE_BUSY proves another runner holds this lock. I/O errors
           // must not be mistaken for process death.
           if (!(error && typeof error === "object" && "errcode" in error && error.errcode === 5)) throw error;
           continue;
         } finally { probe?.close(); }
-        if (path) { try { rmSync(path, { force: true }); } catch { /* No live owner; retaining it is harmless. */ } }
+        try { rmSync(path, { force: true }); } catch { /* No live owner; retaining it is harmless. */ }
       }
       this.db.exec("COMMIT");
     } catch (error) { this.db.exec("ROLLBACK"); throw error; }
@@ -188,12 +174,47 @@ export class ImagesStore {
     }
   }
 
+  /** The project is deleted: its jobs go. Returns the names of the image files they held; deleting those is the caller's. */
+  deleteProject(projectId: string): string[] {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const files = deleteProjectJobs(this.db, projectId);
+      this.db.exec("COMMIT");
+      return files;
+    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+  }
+
   finish(projectId: string, id: string, status: Exclude<ImageJobStatus, "running">, images: GeneratedImage[], error: string): boolean {
     const result = this.db.prepare(`UPDATE jobs SET status = ?, images_json = ?, error = ?, finished_at = ?
       WHERE project_id = ? AND id = ? AND status = 'running'`)
       .run(status, JSON.stringify(images), error, new Date().toISOString(), projectId, id);
     return Number(result.changes) === 1;
   }
+}
+
+/** Removes a project's jobs inside the caller's transaction; returns the names of the image files they held. */
+function deleteProjectJobs(db: DatabaseSync, projectId: string): string[] {
+  const files = (db.prepare("SELECT images_json FROM jobs WHERE project_id = ?").all(projectId) as Row[])
+    .flatMap(row => (JSON.parse(String(row.images_json)) as GeneratedImage[]).map(image => image.filename));
+  db.prepare("DELETE FROM jobs WHERE project_id = ?").run(projectId);
+  return files;
+}
+
+/** Image files are named by a generated id; anything else in a stored record is not ours to delete. */
+const ASSET_FILE = /^[a-f0-9-]+\.(png|jpg|webp)$/u;
+
+/**
+ * Clears a deleted project's jobs and pictures straight from the Home's files, for a process that runs no Images
+ * service. A library that does not exist yet has nothing to clear and is not created. A job still running in another
+ * process loses its record; its result is dropped when it finishes.
+ */
+export function purgeImagesProject(homeDirectory: string, projectId: string): void {
+  const files = clearInExistingHomeSqlite(homeDirectory, "images", IMAGES_STORE_BASELINE, db => deleteProjectJobs(db, projectId));
+  if (files) removeAssetFiles(join(homeDirectory, "images", "assets"), files);
+}
+
+export function removeAssetFiles(directory: string, filenames: readonly string[]): void {
+  for (const name of filenames) if (ASSET_FILE.test(name)) rmSync(join(directory, name), { force: true });
 }
 
 function jobFromRow(row: Row): ImageJob {

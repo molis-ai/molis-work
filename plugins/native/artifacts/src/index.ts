@@ -2,7 +2,7 @@ export { openArtifactProjectReference, ArtifactProjectReferenceError } from "./p
 export type { ArtifactProjectReferencePorts } from "./project-reference.js";
 export { artifactReferenceUiContribution, ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, isProjectReference } from "./reference-ui.js";
 export type { ArtifactReferenceUiPrimitives, ArtifactReferenceUiModel } from "./reference-ui.js";
-export { readArtifactBrowser, matchArtifactBrowserRoute, exportArtifactVersion, artifactVersionPath, importedFileOf, PAGES_READABLE_FILE, ArtifactBrowserError } from "./browser.js";
+export { readArtifactBrowser, matchArtifactBrowserRoute, exportArtifactVersion, artifactVersionPath, importedFileOf, ArtifactBrowserError } from "./browser.js";
 export type { ArtifactBrowserView, ArtifactBrowserRoute } from "./browser.js";
 export { requireArtifactAnalysisRecord, artifactAnalysisContext } from "./browser.js";
 export { artifactBrowserUiContribution, ARTIFACT_BROWSER_UI_CONTRIBUTION_ID } from "./browser-ui.js";
@@ -14,6 +14,9 @@ export { renderArtifactImportDialog, ARTIFACT_IMPORT_STYLES } from "./import-ui.
 export type { ArtifactImportUiModel } from "./import-ui.js";
 export { ARTIFACT_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
 export { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT } from "./goal-input-client.js";
+export { ARTIFACT_WORKS_CLIENT_SCRIPT } from "./works-client.js";
+export { ARTIFACT_HANDOFF_CLIENT_SCRIPT } from "./handoff-client.js";
+export { ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "./port-input-ui.js";
 export { createPluginArtifactClient, PluginArtifactAccessError } from "./plugin-client.js";
 export { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./goal-context.js";
 
@@ -31,4 +34,4 @@ export const packageDescriptor = {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest } from "./manifest.js";
 export { artifactsActions, ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, createArtifactActionHandlers } from "./actions.js";
-export type { ArtifactActionPorts, ArtifactFileImport, ArtifactExternalImport, ArtifactImportResult } from "./actions.js";
+export type { ArtifactActionPorts, ArtifactFileImport, ArtifactExternalImport, ArtifactImportResult, ArtifactPluginInput } from "./actions.js";

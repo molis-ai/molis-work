@@ -11,8 +11,8 @@ const revision = { type: "integer", minimum: 1 };
 const item = { type: "object", properties: { item_id: { type: "string" }, revision: { type: "integer" }, disposition: { type: "string" } }, required: ["item_id", "revision"] };
 const itemResult: ActionSchema = { type: "object", properties: { item }, required: ["item"] };
 const closed = (properties: Record<string, unknown>, required: string[]): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
-function define<Input, Output>(suffix: string, title: string, description: string, input: ActionSchema, output: ActionSchema, permissions: string[]): ActionDefinition<Input, Output> {
-  return { capability_id: `feed.items.${suffix}`, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project",
+function define<Input, Output>(suffix: string, title: string, description: string, input: ActionSchema, output: ActionSchema, permissions: string[], scheduling?: "concurrent"): ActionDefinition<Input, Output> {
+  return { capability_id: `feed.items.${suffix}`, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project", ...(scheduling ? { scheduling } : {}),
     audiences: ["user", "agent", "workflow", "mcp"], permissions, subject_kinds: ["feed_item"], input_schema: input, output_schema: output } };
 }
 
@@ -29,7 +29,7 @@ export const feedItemActions = {
   ]),
   read: define<{ item_id: string }, FeedItemResult>("read", "标为已读", "把一条 Feed 消息标为已读；不改变它的去向", closed({ item_id: id }, ["item_id"]), itemResult, ["feed:read", "feed:write"]),
   inbox: define<{ item_id: string; expected_revision: number }, FeedItemResult>("inbox", "加入 Inbox", "按读取到的版本把这条消息加入 Inbox，并按当前 Inbox 规则判断下一步",
-    closed({ item_id: id, expected_revision: revision }, ["item_id", "expected_revision"]), itemResult, ["feed:read", "feed:write", "inbox:write"]),
+    closed({ item_id: id, expected_revision: revision }, ["item_id", "expected_revision"]), itemResult, ["feed:read", "feed:write", "inbox:write"], "concurrent"),
   disposition: define<{ item_id: string; disposition: "saved" | "archived"; expected_revision: number }, FeedItemResult>("disposition", "保存或忽略", "按读取到的版本把消息保存为资料（saved）或忽略（archived）",
     closed({ item_id: id, disposition: { enum: ["saved", "archived"] }, expected_revision: revision }, ["item_id", "disposition", "expected_revision"]), itemResult, ["feed:read", "feed:write"]),
   restore: define<{ item_id: string; expected_revision: number }, FeedItemResult>("restore", "恢复到 Feed", "把已忽略或已处理的消息放回 Feed",
@@ -75,14 +75,16 @@ export function createFeedItemHandlers(feed: FeedApplication, board: string, por
     bind(feedItemActions.read, input => ({ item: feed.markRead(board, input.item_id) })),
     bind(feedItemActions.inbox, async (input, caller) => {
       const item = feed.addToInbox(board, input.item_id, input.expected_revision);
-      // Admission starts the Inbox next-step judgment with this caller's authority, as the Workbench route always did.
-      await feed.flushPendingJudgments(retainActionAuthority(caller, { ...feedItemActions.inbox, provider_id: FEED_PLUGIN_ID }));
+      // Admission starts the Inbox next-step judgment with this caller's authority, as the Workbench route always did. The
+      // action runs beside the project's queue while the model answers, so it judges the entry it admitted and no other's.
+      const entry = feed.listInboxEntries(board).find(entry => entry.subject_type === "feed_item" && entry.subject_id === item.item_id && (entry.status === "open" || entry.status === "in_progress"));
+      if (entry) await feed.flushPendingInboxJudgments(retainActionAuthority(caller, { ...feedItemActions.inbox, provider_id: FEED_PLUGIN_ID }), [entry.entry_id]);
       return { item };
     }),
     bind(feedItemActions.disposition, input => ({ item: feed.setDisposition(board, input.item_id, input.disposition, input.expected_revision) })),
     bind(feedItemActions.restore, input => ({ item: feed.restoreToFeed(board, input.item_id, input.expected_revision) })),
     bind(feedItemActions.promote, (input, caller) => {
-      const { item, goal_id, created, runtime_autofill } = ports.promote!({ boardId: board, routePrefix: "", itemId: input.item_id,
+      const { item, goal_id, created, runtime_autofill } = ports.promote!({ projectId: board, routePrefix: "", itemId: input.item_id,
         startProcessing: input.start_processing === true, expectedRevision: input.expected_revision, actorId: caller.actor_id });
       return { item, goal_id, created, runtime_autofill };
     }, !!ports.promote),

@@ -35,6 +35,7 @@ import {
   renderMolisWorkWorkbenchClientScript as renderWorkbenchClient,
   renderMolisWorkWorkbenchStylesheet as renderWorkbenchCss,
 } from "./page-assets.js";
+import { renderGoalInputsHtml } from "./goal-inputs-html.js";
 import type { MolisWorkWebView } from "./page-view.js";
 import { createWorkbenchProjectChooserRenderer } from "./arrival/chooser.js";
 import { createWorkbenchProjectSettingsPages } from "./project-settings-pages.js";
@@ -51,7 +52,6 @@ import {
   createWorkbenchGoalsPolicyRenderer,
   createWorkbenchGoalsProposalRenderer,
   createWorkbenchGoalsRelationRenderer,
-  createWorkbenchGoalsSafetyRenderer,
   createWorkbenchGoalsStatusRenderer,
   createWorkbenchGoalsTreeRenderer,
   renderProjectOperations,
@@ -204,7 +204,7 @@ function dataJson(view: MolisWorkWebView): string {
   );
   return JSON.stringify({
     snapshot: {
-      board: { board_id: view.snapshot.board.board_id },
+      board: { project_id: view.snapshot.board.project_id },
       cursor: view.snapshot.cursor,
     },
     project: view.project,
@@ -232,8 +232,8 @@ function formatDate(value: string | null | undefined): string {
 
 const artifactReferenceRenderer = createArtifactReferenceRenderer({ escape: escapeHtml, icon, text: L });
 
-function renderReference(value: string, label = value, evidenceId?: string): string {
-  return artifactReferenceRenderer(value, label, evidenceId);
+function renderReference(value: string, label = value): string {
+  return artifactReferenceRenderer(value, label);
 }
 
 function renderList(values: string[], empty: string): string {
@@ -267,12 +267,8 @@ const { renderChildProgress, renderContractCoverage } = createWorkbenchGoalsCont
   subsectionHeading, explainWorkState, explainParentCompletion,
 });
 
-const { renderRiskWorkbench, renderImpactWorkbench } = createWorkbenchGoalsSafetyRenderer({
-  translate: L, escapeHtml, formatDate, icon, currentLocale, renderReference, renderList,
-});
-
 const { renderProjectPolicyDocument, renderPolicyEditor } = createWorkbenchGoalsPolicyRenderer({
-  translate: L, escapeHtml, formatDate, icon, currentLocale, defaultPolicy: DEFAULT_GOAL_POLICY,
+  translate: L, escapeHtml, formatDate, icon, defaultPolicy: DEFAULT_GOAL_POLICY,
 });
 
 function decisionGroupModel(group: DecisionGoalGroup, view: MolisWorkWebView): WorkbenchDecisionGroup {
@@ -285,10 +281,10 @@ function decisionGroupModel(group: DecisionGoalGroup, view: MolisWorkWebView): W
   };
 }
 
-function renderDecisionCenter(view: MolisWorkWebView, desktopInbox = false): string {
+function renderDecisionCenter(view: MolisWorkWebView): string {
   return decisionCenterRenderer.renderDecisionCenter({ groups: buildDecisionGroups(view).map(group => decisionGroupModel(group, view)),
     count: pendingDecisionCount(view), typeCounts: decisionTypeCounts(view), recentHtml: renderRecentDecisionResults(view),
-  }, desktopInbox);
+  });
 }
 
 function renderPersistedFeedItemDetail(
@@ -322,8 +318,6 @@ const goalsFactorsRenderer = createWorkbenchGoalsFactorsRenderer({ translate: L,
 function renderGoalFactors(item: WebGoalView, view: MolisWorkWebView): string {
   return goalsFactorsRenderer(item, {
     relationsHtml: renderRelations(item, view, Boolean(item.event_document?.state.owner)),
-    risksHtml: renderRiskWorkbench(item, view, true, false),
-    impactsHtml: renderImpactWorkbench(item, true, false),
     policyHtml: renderPolicyEditor(item),
   });
 }
@@ -334,35 +328,9 @@ const goalsDocumentRenderer = createWorkbenchGoalsDocumentRenderer({
 
 const { renderTrashGoalDocument } = goalsDocumentRenderer;
 
-function renderCoverageHtml(item: WebGoalView): string {
-  if (!item.coverage.length) return "";
-  return `<h3>${L("历史需求覆盖")}</h3><ul>${item.coverage.map((coverage) =>
-    `<li><strong>${escapeHtml(coverage.requirement_id)} · ${escapeHtml(coverage.statement)}</strong><small>${escapeHtml(coverage.disposition)}${coverage.reason ? ` · ${escapeHtml(coverage.reason)}` : ""}</small></li>`
-  ).join("")}</ul>`;
-}
-
-/**
- * The Goal's materials (specs/archive/work-placement §4): create straight into this Goal's project and bind, list what is bound
- * with where it lives and whether it still opens. Plugin objects are filled in by the placement client from their owners.
- */
+/** The Goal's inputs, followed and fixed, in one list with one 「加输入」 (goal-inputs-html.ts). */
 function renderInputBindingsHtml(item: WebGoalView): string {
-  const goalId = escapeHtml(item.goal.goal_id);
-  const active = item.input_bindings.filter((binding) => binding.state !== "inactive");
-  const rows = active.map((binding) => {
-    if (binding.source_type === "plugin_object") {
-      let subject: [string, string] | null = null;
-      try { const value = JSON.parse(binding.source_ref); if (Array.isArray(value) && value.length === 2) subject = [String(value[0]), String(value[1])]; } catch { subject = null; }
-      if (!subject) return "";
-      return `<article class="placement-goal-material" data-placement-material data-placement-kind="${escapeHtml(subject[0])}" data-placement-id="${escapeHtml(subject[1])}" data-placement-binding="${escapeHtml(binding.binding_id)}" data-goal-id="${goalId}"><div><strong>${escapeHtml(binding.input_name)}</strong><small data-placement-material-state>${escapeHtml(L("正在读取…"))}</small></div><span class="placement-goal-material-actions"></span></article>`;
-    }
-    return `<article>${renderReference(binding.source_ref, binding.input_name)}<small>${escapeHtml(binding.state)} · ${escapeHtml(binding.reason)}${binding.snapshot_digest ? ` · ${escapeHtml(binding.snapshot_digest)}` : ""}</small></article>`;
-  }).join("");
-  const create = ([["pages", "文档"], ["ppt", "演示稿"], ["form", "问卷"], ["dataset", "数据表"]] as const)
-    .map(([station, label]) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${station}" data-goal-id="${goalId}">${escapeHtml(L(label))}</button>`).join("");
-  return `<section class="placement-goal-materials" data-placement-goal-materials data-goal-id="${goalId}"><h3>${L("资料")}</h3>
-    <div class="placement-goal-create"><span>${L("为这个 Goal 新建")}</span>${create}</div>
-    ${rows ? `<div class="bound-list">${rows}</div>` : `<p class="empty-row">${L("还没有绑定资料。")}</p>`}
-    <p class="placement-goal-hint">${L("新建的内容存到本项目并关联到这个 Goal；已有的资料可以在它的位置条里选“关联到 Goal…”，不会复制或移动。")}</p></section>`;
+  return renderGoalInputsHtml(item, { L, escapeHtml, renderReference });
 }
 
 function renderGoalDecisionHtml(item: WebGoalView, view: MolisWorkWebView): string {
@@ -377,9 +345,9 @@ function renderGoalDocument(item: WebGoalView, view: MolisWorkWebView, selected:
     decisionCount: countGoalDecisions(view, item.goal.goal_id),
     relatedWorkHtml: renderGoalFactors(item, view),
     artifactHtml: item.artifact_embed_html
-      ? `<h3>${L("交付物与输入")}</h3>${item.artifact_embed_html}`
+      ? `<h3>${L("交付物")}</h3>${item.artifact_embed_html}`
       : "",
-    coverageHtml: `${renderCoverageHtml(item)}${renderInputBindingsHtml(item)}${renderContractCoverage(item, view)}${renderChildProgress(item, view)}`,
+    coverageHtml: `${renderInputBindingsHtml(item)}${renderContractCoverage(item, view)}${renderChildProgress(item, view)}`,
     decisionHtml: renderGoalDecisionHtml(item, view),
     eventDocument: item.event_document ?? null,
   }, selected);

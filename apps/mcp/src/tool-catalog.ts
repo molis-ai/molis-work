@@ -2,16 +2,14 @@ import type { McpToolDefinition } from "./protocol.js";
 import { V1_TOOLS } from "./goal-tools.js";
 import { EVENT_TOOLS } from "./goal-event-tools.js";
 import { CONTEXT_TOOLS } from "./context-tools.js";
-import { LEGACY_GOALS_MCP_TOOLS } from "./goal-action-aliases.js";
 
-/** Platform MCP tools only. Plugin tools are Manifest `mcp_exports`, assembled by Local Host. */
+/**
+ * Platform MCP tools only: connecting a Runtime to a project, and the trusted management entry's own tools. Every
+ * capability is an action tool, discovered from the action catalog and granted per client (Local Host assembles them).
+ */
 const SERVER_INFO = { name: "molis-work-mcp", version: "1.0.0" };
 
-const TOOLS: McpToolDefinition[] = [...V1_TOOLS, ...EVENT_TOOLS, ...LEGACY_GOALS_MCP_TOOLS, ...CONTEXT_TOOLS];
-
-const RUNTIME_V1_TOOL_NAMES = new Set([
-  ...LEGACY_GOALS_MCP_TOOLS.map(tool => tool.name),
-]);
+const TOOLS: McpToolDefinition[] = [...V1_TOOLS, ...EVENT_TOOLS, ...CONTEXT_TOOLS];
 
 const RUNTIME_CONTEXT_TOOL_NAMES = new Set([
   "molis_work_v1_context_resolve",
@@ -23,53 +21,14 @@ const RUNTIME_CONTEXT_TOOL_NAMES = new Set([
   "molis_work_v1_project_delete",
 ]);
 
-const RUNTIME_TOOL_NAMES = new Set([...RUNTIME_V1_TOOL_NAMES, ...RUNTIME_CONTEXT_TOOL_NAMES]);
-
-const RUNTIME_STRIPPED_FIELDS = [
-  "board_id",
-  "database_path",
-  "web_base_url",
-  "actor_id",
-  "actor_kind",
-  "runtime_actor_id",
-  "submitted_session_id",
-] as const;
-
-function runtimeToolDefinition(tool: McpToolDefinition): McpToolDefinition {
-  const clone = structuredClone(tool);
-  if (!isRuntimeContextMcpTool(tool.name)) {
-    const inputProperties = clone.inputSchema.properties as Record<string, unknown>;
-    for (const field of RUNTIME_STRIPPED_FIELDS) delete inputProperties[field];
-    const required = clone.inputSchema.required as string[] | undefined;
-    if (required) {
-      clone.inputSchema.required = required.filter((field) =>
-        !(RUNTIME_STRIPPED_FIELDS as readonly string[]).includes(field),
-      );
-    }
-  }
-  return clone;
-}
-
-const RUNTIME_TOOLS = TOOLS
-  .filter((tool) => RUNTIME_TOOL_NAMES.has(tool.name))
-  .map(runtimeToolDefinition);
-
-/** Current MCP tool names are already canonical. */
-export function canonicalMcpToolName(name: string): string {
-  return name;
-}
-
-/** Classify the same tool audience used by discovery before host execution. */
-export function isRuntimeMcpTool(name: string): boolean {
-  return RUNTIME_TOOL_NAMES.has(name);
-}
+const RUNTIME_TOOLS = TOOLS.filter((tool) => RUNTIME_CONTEXT_TOOL_NAMES.has(tool.name));
 
 /** Platform schema names, including management-only tools the Runtime must not treat as unknown. */
 export function isPlatformMcpTool(name: string): boolean {
   return TOOLS.some((tool) => tool.name === name);
 }
 
-/** Connection tools run before a project has been resolved. */
+/** The platform tools a Runtime may call: the connection tools, which run before a project has been resolved. */
 export function isRuntimeContextMcpTool(name: string): boolean {
   return RUNTIME_CONTEXT_TOOL_NAMES.has(name);
 }

@@ -1,7 +1,7 @@
 /** Goal-owned confirmation receipt. A locator is not automatically an Artifact identity. */
 export interface GoalInputBindingRecord {
   binding_id: string;
-  board_id: string;
+  project_id: string;
   goal_id: string;
   input_name: string;
   source_type: string;
@@ -14,10 +14,10 @@ export interface GoalInputBindingRecord {
 }
 
 export interface GoalInputBindingsApi {
-  list(boardId: string): GoalInputBindingRecord[];
+  list(projectId: string): GoalInputBindingRecord[];
   register(input: GoalInputBindingRecord): void;
   /** Ends a binding; the receipt stays in history as `inactive`. Returns false when it was already inactive. */
-  deactivate?(boardId: string, bindingId: string): boolean;
+  deactivate?(projectId: string, bindingId: string): boolean;
 }
 
 /** A Plugin object bound to a Goal (source_type `plugin_object`): the owner's subject kind and id, in the Goal's project. */

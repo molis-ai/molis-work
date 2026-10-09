@@ -9,7 +9,8 @@ import test from "node:test";
 
 import { PERSONAL_PLUGIN_IDS, railEntries } from "@molis-ai/molis-work-app-workbench";
 import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { DEMO_BOARD_ID, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { EN } from "../apps/workbench/src/i18n/en.js";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
@@ -122,23 +123,23 @@ async function withProject(run: (ctx: {
   db: LocalProjectDatabase;
   home: string;
   prompts: string[];
-}) => Promise<void>): Promise<void> {
+}) => Promise<void>, extraPermissions: readonly string[] = []): Promise<void> {
   const home = mkdtempSync(join(tmpdir(), "molis-workflows-"));
   const dbPath = join(home, "project.db");
-  seedDemoBoard(dbPath);
+  seedDemoBoard(dbPath, PROJECT);
   const db = new LocalProjectDatabase(dbPath);
   const feed = createLocalFeedApplication(db.db);
-  const source = createLocalFeedSourceService(db.db, DEMO_BOARD_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
+  const source = createLocalFeedSourceService(db.db, PROJECT).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
   for (const [id, title] of [["m1", "第一条消息"], ["m2", "第二条消息"]] as const) {
     feed.ingestItem({ source, externalId: id, title, summary: `${title}的摘要`, body: `${title}的正文。`, url: `https://example.com/${id}`, occurredAt: new Date().toISOString(), attention: false });
   }
   const prompts: string[] = [];
   const host = new MolisWorkLocalHost({ homeDirectory: home,
     completeText: async (prompt) => { prompts.push(prompt); return "给 Pages 的一页\n\n结论：可以推进。\n\n- 背景\n- 要点"; } });
-  const reference = molisWorkHostProjectReference({ databasePath: dbPath, boardId: DEMO_BOARD_ID, projectId: PROJECT });
+  const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   // Every route is a registered Workflows action; each station is reached through the project's content actions.
   const actions = bindActionClient(host.actionClient(reference), () => ({ actor_id: "test-user", project_id: PROJECT, audience: "user",
-    permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS] }));
+    permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS, ...extraPermissions] }));
   const call = async (method: "GET" | "POST", pathname: string, body: Record<string, unknown> = {}) => {
     try {
       const table = new WorkflowsPluginRouteTable(createWorkflowsRouteHandlers(actions));
@@ -197,7 +198,7 @@ test("一次实例按每段衔接走完 Feed → Inbox → Pages → 灵光，�
     assert.equal((await continueFrom(first, { title: "again", body: "again" })).status, 409, "a stale view cannot hand over twice");
 
     const feed = createLocalFeedApplication(db.db);
-    const entry = feed.getInboxEntry(DEMO_BOARD_ID, afterManual.steps[1]!.item!.item_id);
+    const entry = feed.getInboxEntry(PROJECT, afterManual.steps[1]!.item!.item_id);
     assert.equal(entry.subject_id, items[0]!.item_id);
     assert.equal(entry.detail.added_by, "workflow");
     const [ui] = buildInboxUiEntries([entry], () => ({ title: items[0]!.title, source_label: "Feed", available: true, open: null }) as never, (value, values) => value.replace(/\{(\w+)\}/g, (_, key) => String(values?.[key] ?? "")));
@@ -265,6 +266,45 @@ test("一次实例按每段衔接走完 Feed → Inbox → Pages → 灵光，�
     assert.equal(((await call("GET", "/api/workflows")).body.workflows as unknown[]).length, 0);
     assert.equal((await call("GET", `/api/workflows/instances/${first.instance_id}`)).body.workflow_title, "已删除的流程");
   });
+});
+
+test("成果库里的一版可以作为一次运行的起点，带着 owner 预览的正文；成果只能作为第一站", async () => {
+  await withProject(async ({ call, db }) => {
+    new GoalProjectApplication(db).artifacts.commands.registerVersion({ project_id: PROJECT, actor_id: "web-user", artifact_id: "pages-brief", version: 1,
+      artifact_type_id: "io.molis.work.pages.document", schema_version: 1,
+      producer: { plugin_id: "io.molis.work.pages", plugin_version: "1.0.0", binding_signature: "official-pages-binding" },
+      content: { kind: "inline", payload: { title: "需求说明", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "范围与验收" }] }] } } },
+      ...pinnedArtifact("需求说明", { kind: "pages_document", id: "brief" }, "1") });
+    const stations = (await call("GET", "/api/workflows")).body.stations as Array<{ plugin: string; supported: boolean; receives?: boolean }>;
+    assert.deepEqual(stations.find(station => station.plugin === "artifacts"), { plugin: "artifacts", label: "成果", icon: "package", supported: true, can_start_blank: false, receives: false });
+    assert.equal(stations.find(station => station.plugin === "pages")?.receives, true);
+
+    // Nothing is handed to the 成果库: it can only start a run.
+    const second = await call("POST", "/api/workflows", { title: "x", chain: { stations: [{ plugin: "pages" }, { plugin: "artifacts" }], links: [manualLink()] } });
+    assert.equal(second.status, 400);
+    assert.match(String(second.body.error), /「成果」只能作为第一站/);
+
+    const created = await call("POST", "/api/workflows", { title: "从成果开始", chain: { stations: [{ plugin: "artifacts" }, { plugin: "lingguang" }], links: [manualLink()] } });
+    assert.equal(created.status, 200, JSON.stringify(created.body));
+    const workflow = created.body.workflow as { workflow_id: string };
+    const items = (await call("GET", "/api/workflows/stations/artifacts/items")).body.items as Array<{ item_id: string; title: string; caption: string }>;
+    const version = items.find(item => item.title === "需求说明 · v1");
+    assert.ok(version, JSON.stringify(items));
+    assert.equal(version.caption, "文档");
+    assert.equal((await call("POST", `/api/workflows/${workflow.workflow_id}/instances`, {})).status, 400, "the 成果库 cannot start blank");
+
+    const instance = (await call("POST", `/api/workflows/${workflow.workflow_id}/instances`, { item_id: version.item_id })).body.instance as WorkflowInstance;
+    assert.equal(instance.steps[0]!.item?.title, "需求说明");
+    // The run starts with the version's text as its owner previews it, and where the version is.
+    const preview = (await call("POST", `/api/workflows/instances/${instance.instance_id}/preview`, { from: 0 })).body as { input: { title: string; body: string; url: string; source: string } };
+    assert.equal(preview.input.title, "需求说明");
+    assert.match(preview.input.body, /范围与验收/);
+    assert.equal(preview.input.url, "/artifacts/pages-brief/versions/1");
+    assert.equal(preview.input.source, "成果库");
+    const handed = await call("POST", `/api/workflows/instances/${instance.instance_id}/continue`, { from: 0, updated_at: instance.updated_at, title: preview.input.title, body: preview.input.body });
+    assert.equal(handed.status, 200, JSON.stringify(handed.body));
+    assert.equal((handed.body.instance as WorkflowInstance).steps[1]!.plugin, "lingguang");
+  }, ["artifacts:read", "pages:read"]);
 });
 
 test("内容站选择完整列出当前项目的文稿，不截断前 60 条或混入其他项目", async () => {

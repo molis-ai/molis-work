@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, type openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
-import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -11,56 +12,55 @@ export const ASSISTANT_STORE_NAME = "assistant";
 
 /**
  * The Assistant's own facts: its works, the rounds the person started in them, and each Send's outcome. Conversation
- * content and run state stay in the Prologue session; business results stay with their owners.
+ * content and run state stay in the Prologue session; business results stay with their owners. One current schema
+ * (repository-anti-corruption §4.1), the relations the Assistant keeps in the context ledger included.
  */
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS assistant_works (
+export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
+CREATE TABLE assistant_works (
   work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS assistant_works_by_actor ON assistant_works(actor_id, archived, updated_at);
-CREATE TABLE IF NOT EXISTS assistant_rounds (
+CREATE INDEX assistant_works_by_actor ON assistant_works(actor_id, archived, updated_at);
+CREATE TABLE assistant_rounds (
   work_id TEXT NOT NULL, run_id TEXT NOT NULL, position INTEGER NOT NULL, body TEXT NOT NULL,
   PRIMARY KEY(work_id, run_id)
 );
-CREATE TABLE IF NOT EXISTS assistant_cards (
+CREATE TABLE assistant_cards (
   card_id TEXT PRIMARY KEY, work_id TEXT NOT NULL, revision INTEGER NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS assistant_cards_by_work ON assistant_cards(work_id, created_at);
-CREATE TABLE IF NOT EXISTS assistant_settings (
+CREATE INDEX assistant_cards_by_work ON assistant_cards(work_id, created_at);
+CREATE TABLE assistant_settings (
   actor_id TEXT NOT NULL, key TEXT NOT NULL, revision INTEGER NOT NULL, value TEXT NOT NULL, PRIMARY KEY(actor_id, key)
 );
-CREATE TABLE IF NOT EXISTS assistant_notices (
+CREATE TABLE assistant_notices (
   notice_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL,
   dedupe TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL, UNIQUE(actor_id, dedupe)
 );
-CREATE INDEX IF NOT EXISTS assistant_notices_open ON assistant_notices(actor_id, state, created_at);
-CREATE TABLE IF NOT EXISTS assistant_followups (
+CREATE INDEX assistant_notices_open ON assistant_notices(actor_id, state, created_at);
+CREATE TABLE assistant_followups (
   followup_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS assistant_memory_candidates (
-  candidate_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, state TEXT NOT NULL, body TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS assistant_undos (
+CREATE TABLE assistant_undos (
   undo_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS assistant_jobs (
+CREATE TABLE assistant_jobs (
   key TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, told INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS assistant_usage (
+CREATE TABLE assistant_usage (
   run_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, ended_at TEXT NOT NULL, input INTEGER NOT NULL, output INTEGER NOT NULL, cached INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS assistant_usage_by_day ON assistant_usage(actor_id, ended_at);
-CREATE TABLE IF NOT EXISTS assistant_unsettled (
+CREATE INDEX assistant_usage_by_day ON assistant_usage(actor_id, ended_at);
+CREATE TABLE assistant_unsettled (
   change_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, told INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS assistant_observed (
+CREATE TABLE assistant_observed (
   actor_id TEXT NOT NULL, work_id TEXT NOT NULL, state TEXT NOT NULL, PRIMARY KEY(actor_id, work_id)
 );
-CREATE TABLE IF NOT EXISTS assistant_requests (
+CREATE TABLE assistant_requests (
   actor_id TEXT NOT NULL, request_id TEXT NOT NULL, work_id TEXT, state TEXT NOT NULL, result TEXT, created_at TEXT NOT NULL,
   PRIMARY KEY(actor_id, request_id)
-);`;
+);
+${CONTEXT_LEDGER_SCHEMA}` };
 
 /** A work as stored: the public record plus the project reference its actions and sessions are bound to. */
 export interface StoredWork extends Omit<AssistantWork, "state"> {
@@ -103,6 +103,8 @@ export interface StoredRound {
   executor?: "coding";
   /** The Character that carried it, as frozen at its start. */
   character?: AssistantCharacter;
+  /** Who wrote `text` when it was not the person: the Host (a timed round: its wrapper and the standing request), the Assistant (a sub-task's brief, a follow-up to it) or a page (what the bottom bar composes itself, or a plugin's page sends for them). Absent: the person typed it. Only what they typed is their words (memory's “you said”, what learning draws on). */
+  written_by?: "host" | "assistant" | "page";
   text: string;
   materials: AssistantMaterial[];
   context: AssistantContextSnapshot | null;
@@ -112,6 +114,9 @@ export interface StoredRound {
   /** The platform memory's recall receipt for this round: what it was given and what did not fit. */
   memory_receipt?: string;
 }
+
+/** What the person typed in these rounds, in order: a round the Host, the Assistant or a page wrote is not their words. */
+export const typedTexts = (rounds: readonly StoredRound[]): string[] => rounds.filter(round => !round.written_by).map(round => round.text);
 
 /** A card as stored: the public view's facts plus the exact reference and input it runs. */
 export interface StoredCard {
@@ -155,7 +160,7 @@ export class AssistantStore {
   readonly relations: AssistantRelations;
 
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
-    db.exec(SCHEMA);
+    applySqliteBaseline(db, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
     this.relations = new AssistantRelations(db, now);
   }
 
@@ -180,9 +185,10 @@ export class AssistantStore {
     return work.executor ? work : { ...work, executor: { kind: "assistant" } };
   }
 
-  list(actorId: string, options: { archived?: boolean; limit?: number } = {}): StoredWork[] {
-    return this.db.prepare("SELECT body FROM assistant_works WHERE actor_id=? AND archived=? ORDER BY updated_at DESC LIMIT ?")
-      .all(actorId, options.archived ? 1 : 0, options.limit ?? 50).map(row => JSON.parse(String(row.body)) as StoredWork)
+  list(actorId: string, options: { archived?: boolean | "any"; limit?: number } = {}): StoredWork[] {
+    const [low, high] = options.archived === "any" ? [0, 1] : options.archived ? [1, 1] : [0, 0];
+    return this.db.prepare("SELECT body FROM assistant_works WHERE actor_id=? AND archived BETWEEN ? AND ? ORDER BY updated_at DESC LIMIT ?")
+      .all(actorId, low, high, options.limit ?? 50).map(row => JSON.parse(String(row.body)) as StoredWork)
       .map(work => work.executor ? work : { ...work, executor: { kind: "assistant" as const } });
   }
 
@@ -252,15 +258,13 @@ export class AssistantStore {
 
   /** Actions the person switched off for the Assistant, by exact capability, version and provider. */
   disabledActions(actorId: string): Set<string> {
-    const row = this.db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key='disabled_actions'").get(actorId);
-    return new Set(row ? JSON.parse(String(row.value)) as string[] : []);
+    return new Set(JSON.parse(this.setting(actorId, "disabled_actions") ?? "[]") as string[]);
   }
 
   setActionEnabled(actorId: string, key: string, enabled: boolean): Set<string> {
     const current = this.disabledActions(actorId);
     if (enabled) current.delete(key); else current.add(key);
-    this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, 'disabled_actions', 1, ?)
-      ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, JSON.stringify([...current].sort()));
+    this.setSetting(actorId, "disabled_actions", JSON.stringify([...current].sort()));
     return current;
   }
 
@@ -318,21 +322,8 @@ export class AssistantStore {
       .run(change.change_id, actorId, change.work_id, JSON.stringify(change));
   }
 
-  markUnsettledTold(actorId: string, changeIds: readonly string[]): void {
-    for (const id of changeIds) this.db.prepare("UPDATE assistant_unsettled SET told=1 WHERE actor_id=? AND change_id=?").run(actorId, id);
-  }
-
   removeFollowUp(actorId: string, followupId: string): boolean {
     return Number(this.db.prepare("DELETE FROM assistant_followups WHERE actor_id=? AND followup_id=?").run(actorId, followupId).changes) > 0;
-  }
-
-  /**
-   * The first version's memory state, read once by the platform memory (specs/archive/memory-system §2.1.1): the switches as
-   * the person saved them (null when never changed), the switched-off list and every candidate. Read only.
-   */
-  legacyMemory(actorId: string): { prefs: Partial<AssistantMemoryPrefs> | null; disabled: string[]; candidates: AssistantMemoryCandidate[] } {
-    const saved = this.setting(actorId, "memory_prefs");
-    return { prefs: saved ? JSON.parse(saved) as Partial<AssistantMemoryPrefs> : null, disabled: [...this.disabledMemories(actorId)], candidates: this.memoryCandidates(actorId) };
   }
 
   /** A plain per-person value the Assistant keeps for itself (e.g. how far it has looked for new material). */
@@ -371,14 +362,12 @@ export class AssistantStore {
   }
 
   saveUndo(actorId: string, undo: StoredUndo): void {
-    this.db.prepare("INSERT INTO assistant_undos(undo_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(undo_id) DO UPDATE SET body=excluded.body")
-      .run(undo.undo_id, actorId, undo.work_id, JSON.stringify(undo));
+    this.db.prepare("INSERT INTO assistant_undos(undo_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(undo_id) DO UPDATE SET body=excluded.body").run(undo.undo_id, actorId, undo.work_id, JSON.stringify(undo));
   }
 
   /** Capabilities (action keys) the person wants confirmed each time even though they could be undone. */
   confirmAlways(actorId: string): Set<string> {
-    const saved = this.setting(actorId, "confirm_always");
-    return new Set(saved ? JSON.parse(saved) as string[] : []);
+    return new Set(JSON.parse(this.setting(actorId, "confirm_always") ?? "[]") as string[]);
   }
 
   setConfirmAlways(actorId: string, key: string, on: boolean): void {
@@ -387,8 +376,17 @@ export class AssistantStore {
     this.setSetting(actorId, "confirm_always", JSON.stringify([...keys]));
   }
 
-  markJobsTold(actorId: string, keys: readonly string[]): void {
-    for (const key of keys) this.db.prepare("UPDATE assistant_jobs SET told=1 WHERE actor_id=? AND key=?").run(actorId, key);
+  /** What a round that has started was told: those undone changes, ended jobs and settled changes are not told again. */
+  markTold(actorId: string, told: { undos?: readonly string[]; jobs?: readonly string[]; unsettled?: readonly string[] }): void {
+    for (const id of told.undos ?? []) this.db.prepare("UPDATE assistant_undos SET body=json_set(body,'$.told',json('true')) WHERE actor_id=? AND undo_id=? AND json_extract(body,'$.state')='undone'").run(actorId, id);
+    for (const key of told.jobs ?? []) this.db.prepare("UPDATE assistant_jobs SET told=1 WHERE actor_id=? AND key=?").run(actorId, key);
+    for (const id of told.unsettled ?? []) this.db.prepare("UPDATE assistant_unsettled SET told=1 WHERE actor_id=? AND change_id=?").run(actorId, id);
+  }
+
+  /** A work whose first round could not start is dropped with what was kept for it; one that has a round is never dropped. */
+  discard(actorId: string, workId: string): void {
+    if (this.rounds(workId).length) return;
+    for (const table of ["works", "observed", "notices", "followups", "undos", "jobs", "unsettled"]) this.db.prepare(`DELETE FROM assistant_${table} WHERE actor_id=? AND work_id=?`).run(actorId, workId);
   }
 
   /** One finished round's reported usage, kept once. */
@@ -422,49 +420,17 @@ export class AssistantStore {
       .map(row => ({ work_id: String(row.work_id), round: JSON.parse(String(row.body)) as StoredRound })).filter(item => item.round.started_at >= since);
   }
 
-  memoryPrefs(actorId: string): AssistantMemoryPrefs {
-    const saved = this.setting(actorId, "memory_prefs");
-    return { form: true, use_personal: true, use_project: true, learn_personal: false, learn_project: false, ...(saved ? JSON.parse(saved) as Partial<AssistantMemoryPrefs> : {}) };
-  }
-
-  /** Candidates to keep: one work's, or all of the person's; newest last. */
-  memoryCandidates(actorId: string, workId?: string): AssistantMemoryCandidate[] {
-    const rows = workId ? this.db.prepare("SELECT body FROM assistant_memory_candidates WHERE actor_id=? AND work_id=? ORDER BY rowid").all(actorId, workId)
-      : this.db.prepare("SELECT body FROM assistant_memory_candidates WHERE actor_id=? ORDER BY rowid").all(actorId);
-    return rows.map(row => JSON.parse(String(row.body)) as AssistantMemoryCandidate);
-  }
-
-  saveMemoryCandidate(actorId: string, candidate: AssistantMemoryCandidate): void {
-    this.db.prepare("INSERT INTO assistant_memory_candidates(candidate_id,actor_id,work_id,state,body) VALUES (?,?,?,?,?) ON CONFLICT(candidate_id) DO UPDATE SET state=excluded.state, body=excluded.body")
-      .run(candidate.candidate_id, actorId, candidate.work_id, candidate.state, JSON.stringify(candidate));
-  }
-
-  setMemoryPrefs(actorId: string, prefs: AssistantMemoryPrefs): void { this.setSetting(actorId, "memory_prefs", JSON.stringify(prefs)); }
-
-  disabledMemories(actorId: string): Set<string> {
-    const saved = this.setting(actorId, "memory_disabled");
-    return new Set(saved ? JSON.parse(saved) as string[] : []);
-  }
-
-  setMemoryDisabled(actorId: string, memoryId: string, disabled: boolean): void {
-    const current = this.disabledMemories(actorId);
-    if (disabled) current.add(memoryId); else current.delete(memoryId);
-    this.setSetting(actorId, "memory_disabled", JSON.stringify([...current].sort()));
-  }
-
   rules(actorId: string): AssistantRule[] {
-    const row = this.db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key='attention_rules'").get(actorId);
-    return row ? JSON.parse(String(row.value)) as AssistantRule[] : [];
+    return JSON.parse(this.setting(actorId, "attention_rules") ?? "[]") as AssistantRule[];
   }
 
   setRules(actorId: string, rules: readonly AssistantRule[]): void {
-    this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, 'attention_rules', 1, ?)
-      ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, JSON.stringify(rules));
+    this.setSetting(actorId, "attention_rules", JSON.stringify(rules));
   }
 
-  /** The works a work delegated, oldest first. */
-  delegatedBy(actorId: string, workId: string): StoredWork[] {
-    return this.list(actorId, { limit: 500 }).filter(work => work.delegated_by?.work_id === workId).sort((a, b) => a.created_at.localeCompare(b.created_at));
+  /** The works a work delegated, oldest first; those put away only when asked for ("any"): they still count toward its budget, limit and stop. */
+  delegatedBy(actorId: string, workId: string, archived: boolean | "any" = false): StoredWork[] {
+    return this.list(actorId, { archived, limit: 500 }).filter(work => work.delegated_by?.work_id === workId).sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
   releaseRequest(actorId: string, requestId: string): void {

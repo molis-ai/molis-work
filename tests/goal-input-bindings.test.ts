@@ -11,21 +11,21 @@ import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger"
 test("Goal input receipts retain opaque locators and snapshots, isolate Projects, and share rollback", () => {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
-  db.exec(`CREATE TABLE boards (board_id TEXT PRIMARY KEY);
-    CREATE TABLE goals (goal_id TEXT PRIMARY KEY, board_id TEXT NOT NULL REFERENCES boards(board_id));
+  db.exec(`CREATE TABLE boards (project_id TEXT PRIMARY KEY);
+    CREATE TABLE goals (goal_id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES boards(project_id));
     INSERT INTO boards VALUES ('project-a'), ('project-b');
     INSERT INTO goals VALUES ('goal-a', 'project-a');
     ${GOAL_INPUT_BINDINGS_SCHEMA_SQL}`);
   try {
     const inputs = new GoalInputBindings(db, createContextLedger(db, { authorize: () => true }));
-    const record: GoalInputBindingRecord = { binding_id: "binding-a", board_id: "project-a", goal_id: "goal-a",
+    const record: GoalInputBindingRecord = { binding_id: "binding-a", project_id: "project-a", goal_id: "goal-a",
       input_name: "Product requirements", source_type: "url", source_ref: "https://example.com/requirements",
       snapshot_digest: "sha256:existing-snapshot", state: "confirmed", reason: "User chose this source",
       created_by: "user-a", created_at: "2026-09-05T00:00:00Z" };
     inputs.register(record);
     assert.deepEqual(inputs.list("project-a"), [record]);
     assert.deepEqual(inputs.list("project-b"), []);
-    assert.throws(() => inputs.register({ ...record, binding_id: "wrong-project", board_id: "project-b" }), /不属于这个 Project/);
+    assert.throws(() => inputs.register({ ...record, binding_id: "wrong-project", project_id: "project-b" }), /不属于这个 Project/);
     assert.deepEqual(inputs.list("project-a"), [record]);
     assert.deepEqual(inputs.list("project-b"), []);
     assert.throws(() => db.transaction(() => {
@@ -38,35 +38,28 @@ test("Goal input receipts retain opaque locators and snapshots, isolate Projects
   } finally { db.close(); }
 });
 
-const oldSchema = `CREATE TABLE input_bindings (
-  binding_id TEXT PRIMARY KEY, board_id TEXT NOT NULL, goal_id TEXT NOT NULL,
-  input_name TEXT NOT NULL, source_type TEXT NOT NULL, source_ref TEXT NOT NULL,
-  snapshot_digest TEXT, state TEXT NOT NULL, reason TEXT NOT NULL,
-  created_by TEXT NOT NULL, created_at TEXT NOT NULL
-);`;
 const feedReceipt: GoalInputBindingRecord = {
-  binding_id: "binding-feed", board_id: "project-a", goal_id: "goal-a", input_name: "Inbox input",
+  binding_id: "binding-feed", project_id: "project-a", goal_id: "goal-a", input_name: "Inbox input",
   source_type: "feed_item", source_ref: "feed-item:item-a", snapshot_digest: "old-confirmed-snapshot",
   state: "confirmed", reason: "Confirmed by user", created_by: "original-user", created_at: "2026-09-01T10:00:00Z",
 };
 
-function seedLegacy(db: Database.Database): void {
-  db.exec(`CREATE TABLE goals (goal_id TEXT PRIMARY KEY, board_id TEXT);
-    INSERT INTO goals VALUES ('goal-a', 'project-a'); ${oldSchema}`);
-  db.prepare("INSERT INTO input_bindings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(feedReceipt.binding_id, feedReceipt.board_id, feedReceipt.goal_id, feedReceipt.input_name,
-      feedReceipt.source_type, feedReceipt.source_ref, feedReceipt.snapshot_digest, feedReceipt.state,
-      feedReceipt.reason, feedReceipt.created_by, feedReceipt.created_at);
+function seedGoal(db: Database.Database): void {
+  db.exec(`CREATE TABLE boards (project_id TEXT PRIMARY KEY);
+    CREATE TABLE goals (goal_id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES boards(project_id));
+    INSERT INTO boards VALUES ('project-a');
+    INSERT INTO goals VALUES ('goal-a', 'project-a'); ${GOAL_INPUT_BINDINGS_SCHEMA_SQL}`);
 }
 
-test("Feed input provenance migrates losslessly and survives reopen independently of current Feed links", () => {
+test("Feed input provenance is recorded once and survives reopen independently of current Feed links", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-input-ledger-"));
   const path = join(directory, "test.db");
   let db = new Database(path);
   try {
-    seedLegacy(db);
+    seedGoal(db);
     let ledger = createContextLedger(db, { authorize: () => true });
     let inputs = new GoalInputBindings(db, ledger);
+    inputs.register(feedReceipt);
     const access = { actor_id: "reader", scope: { kind: "personal" as const, id: "project-a" } };
     assert.deepEqual(inputs.list("project-a"), [feedReceipt]);
     assert.deepEqual(inputs.list("project-b"), []);
@@ -96,10 +89,10 @@ test("Feed input provenance migrates losslessly and survives reopen independentl
   }
 });
 
-test("Source migration and registration roll back ledger writes and receipt changes on failure", () => {
+test("Source registration rolls back ledger writes and receipt changes on failure", () => {
   const db = new Database(":memory:");
   try {
-    seedLegacy(db);
+    seedGoal(db);
     const ledger = createContextLedger(db, { authorize: () => true });
     const access = { actor_id: "reader", scope: { kind: "personal" as const, id: "project-a" } };
     let fail = true;
@@ -110,13 +103,12 @@ test("Source migration and registration roll back ledger writes and receipt chan
         return result;
       },
     } };
-    assert.throws(() => new GoalInputBindings(db, failingLedger), /source write failed/);
-    assert.equal((db.prepare("SELECT source_ref FROM input_bindings").get() as { source_ref: string }).source_ref, "feed-item:item-a");
-    assert.equal((db.prepare("PRAGMA table_info(input_bindings)").all() as Array<{ name: string }>)
-      .some((column) => column.name === "source_edge_key"), false);
-    assert.deepEqual(ledger.query.list(access), []);
-    fail = false;
     const inputs = new GoalInputBindings(db, failingLedger);
+    assert.throws(() => inputs.register(feedReceipt), /source write failed/);
+    assert.deepEqual(ledger.query.list(access), []);
+    assert.deepEqual(inputs.list("project-a"), []);
+    fail = false;
+    inputs.register(feedReceipt);
     fail = true;
     assert.throws(() => inputs.register({ ...feedReceipt, binding_id: "failed-new" }), /source write failed/);
     assert.deepEqual(ledger.query.history(access, "goal.input:failed-new"), []);

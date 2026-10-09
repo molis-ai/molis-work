@@ -1,4 +1,5 @@
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { createHash } from "node:crypto";
+import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type {
@@ -68,27 +69,25 @@ export class LingguangStore {
     return fromSparkRow(row);
   }
 
-  /** A repeated `request_id` (a retried workflow delivery) returns the spark it created the first time. */
+  /**
+   * A request id names one save. Repeating it with the same input (a retried workflow delivery) returns the spark it
+   * created the first time, wherever that spark lives now; another input under the same id is refused, so a save is
+   * never silently dropped in favour of someone else's spark.
+   */
   create(input: { title?: string; body?: string; project_id: string; request_id?: string }): LingguangSpark {
-    if (input.request_id) {
-      const requestId = input.request_id;
-      return this.transaction(() => {
-        const prior = this.db.prepare("SELECT spark_id FROM spark_requests WHERE project_id = ? AND request_id = ?")
-          .get(normalizeProjectId(input.project_id), requestId) as { spark_id: string } | undefined;
-        if (prior) return this.get(prior.spark_id, input.project_id);
-        const created = this.create({ title: input.title, body: input.body, project_id: input.project_id });
-        this.db.prepare("INSERT INTO spark_requests (project_id, request_id, spark_id) VALUES (?, ?, ?)").run(created.project_id, requestId, created.id);
-        return created;
-      });
-    }
-    const now = new Date().toISOString();
     const project_id = normalizeProjectId(input.project_id);
     const body = normalizeBody(input.body ?? "");
-    const title = normalizeTitle(input.title ?? "", body);
+    const title = normalizeTitle(input.title ?? "", body) || "未命名灵光";
+    if (!input.request_id) return this.insertSpark(project_id, title, body);
+    return this.once(project_id, input.request_id, fingerprint("create", title, body), () => this.insertSpark(project_id, title, body));
+  }
+
+  private insertSpark(project_id: string, title: string, body: string): LingguangSpark {
+    const now = new Date().toISOString();
     const record: LingguangSpark = {
       id: crypto.randomUUID(),
       project_id,
-      title: title || "未命名灵光",
+      title,
       body,
       source_kind: "manual",
       status: "inbox",
@@ -102,6 +101,26 @@ export class LingguangStore {
       record.created_at, record.updated_at,
     );
     return record;
+  }
+
+  /**
+   * Run `make` once for a request id in a partition. The stored key is the id plus a fingerprint of the input: the table
+   * has no column for one, and its schema version is not raised for it (an existing store would be refused). A repeat with
+   * the same fingerprint returns the earlier spark by its id alone, because the person may have moved it since.
+   */
+  private once(project_id: string, requestId: string, inputFingerprint: string, make: () => LingguangSpark): LingguangSpark {
+    return this.transaction(() => {
+      const sameId = (this.db.prepare("SELECT request_id, spark_id FROM spark_requests WHERE project_id = ? AND request_id >= ? AND request_id < ?")
+        .all(project_id, requestId + "#", requestId + "$") as { request_id: string; spark_id: string }[])
+        .filter(row => row.request_id.length === requestId.length + 1 + FINGERPRINT_LENGTH);
+      const key = requestId + "#" + inputFingerprint;
+      const prior = sameId.find(row => row.request_id === key);
+      if (prior) return this.get(prior.spark_id);
+      if (sameId.length) throw new LingguangError("lingguang.request_conflict", "这个请求 ID 已用于保存另一条灵光，请换一个新的请求 ID");
+      const created = make();
+      this.db.prepare("INSERT INTO spark_requests (project_id, request_id, spark_id) VALUES (?, ?, ?)").run(project_id, key, created.id);
+      return created;
+    });
   }
 
   update(id: string, patch: { title?: string; body?: string; expected_updated_at?: string }, projectId?: string): LingguangSpark {
@@ -148,8 +167,12 @@ export class LingguangStore {
 
   /** An independent copy in another partition (without its brainstorms); the same request returns the same copy. */
   duplicate(id: string, from: string, to: string, requestId: string): LingguangSpark {
-    const source = this.get(id, from);
-    return this.create({ title: source.title, body: source.body, project_id: to, request_id: "copy:" + requestId });
+    const target = normalizeProjectId(to), origin = normalizeProjectId(from);
+    // The request is the copy of this spark from this partition: what the spark says at retry time does not change it.
+    return this.once(target, "copy:" + requestId, fingerprint("copy", id, origin), () => {
+      const source = this.get(id, origin);
+      return this.insertSpark(target, source.title, source.body);
+    });
   }
 
   discard(ids: readonly string[], projectId?: string): void {
@@ -239,42 +262,47 @@ export class LingguangStore {
   }
 }
 
+/**
+ * The 灵光 store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
+ * must already be at its version.
+ */
+export const LINGGUANG_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE sparks (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    source_kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE conversations (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    spark_key TEXT NOT NULL,
+    spark_ids_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (project_id, spark_key)
+  );
+  CREATE TABLE spark_requests (
+    project_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    spark_id TEXT NOT NULL,
+    PRIMARY KEY (project_id, request_id)
+  );
+  CREATE TABLE messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+` };
+
 export function openLingguangStore(homeDirectory: string): LingguangStore {
-  const db = openHomeSqliteDatabase(homeDirectory, "lingguang");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS sparks (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      body TEXT NOT NULL,
-      source_kind TEXT NOT NULL,
-      status TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS conversations (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      spark_key TEXT NOT NULL,
-      spark_ids_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      UNIQUE (project_id, spark_key)
-    );
-    CREATE TABLE IF NOT EXISTS spark_requests (
-      project_id TEXT NOT NULL,
-      request_id TEXT NOT NULL,
-      spark_id TEXT NOT NULL,
-      PRIMARY KEY (project_id, request_id)
-    );
-    CREATE TABLE IF NOT EXISTS messages (
-      id TEXT PRIMARY KEY,
-      conversation_id TEXT NOT NULL,
-      role TEXT NOT NULL,
-      body TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-  `);
+  const db = openBaselineHomeSqlite(homeDirectory, "lingguang", LINGGUANG_STORE_BASELINE);
   return new LingguangStore(db);
 }
 
@@ -335,6 +363,12 @@ function fromConversationRow(row: ConversationRow): LingguangConversation {
 
 function uniqueSparkIds(value: readonly string[]): string[] {
   return [...new Set(value.map((id) => id.trim()).filter(Boolean))];
+}
+
+/** Two hex digits per byte of SHA-256. */
+const FINGERPRINT_LENGTH = 64;
+function fingerprint(...parts: string[]): string {
+  return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
 }
 
 function normalizeProjectId(value: string): string {

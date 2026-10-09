@@ -32,7 +32,7 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 
 ## 接入与边界
 
-SDK 不包含 Runtime 或业务 Store。Manifest 解析委托 Contracts；授权的实际执行由 Host/Runtime 控制。当前工作区包是 private，不能把包名当作已经发布到 npm 的承诺。作者可声明 `mcp_exports` 并向 Host 贡献工具；公开名和开关留在 Host。步骤见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
+SDK 不包含 Runtime 或业务 Store。Manifest 解析委托 Contracts；授权的实际执行由 Host/Runtime 控制。当前工作区包是 private，不能把包名当作已经发布到 npm 的承诺。插件对外的能力就是它声明的动作，MCP 名称与授权都在 Host。步骤见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
 
 工作区依赖：只有 `@molis-ai/molis-work-contracts`。Plugin SDK 属于公共发布面，不依赖私有的 Kernel；`createExecutionLifetime` 从 contracts 的 `platform/execution-lifetime` 转出（`tests/plugin-sample.e2e.test.ts` 只用打包后的 contracts 与 SDK 离线安装，守住这一点）。其他运行依赖见 [package.json](package.json)。
 
@@ -64,7 +64,7 @@ Host 为每个提供 `targets` 的场景自动注册三项真实动作：`scenes
 
 保存启用绑定时，服务将实际 `provider_id` 固定在判断引用中，场景 owner 应完整保存这个引用。提供方被替换后，即使动作 ID 和版本相同，原绑定也不可用；重新选择新提供方才可继续。停用绑定仍保留原引用和历史。
 
-读取旧绑定时缺少 `provider_id`，共同服务会保留使用位置并标记不可用；不能根据当前目录替它猜一个来源。已知属于系统 Functions 的旧函数键由原存储 owner 恢复其固定系统身份。插件自己的持久化适配必须保存服务返回的完整引用，包含提供方和版本。
+读取旧绑定时缺少 `provider_id`，共同服务会保留使用位置并标记不可用；不能根据当前目录替它猜一个来源。插件自己的持久化适配必须保存服务返回的完整引用，包含提供方和版本。
 
 当触发事件和判断输入不同，用 `event_schema` 描述事件参数、`prepare` 读取实际业务对象并返回 `{ input, state }`。`input` 满足场景的 `input_schema`，`state` 是消费方私有快照。`consume` 的第四个参数包含本次绑定和私有状态；消费方须核对业务对象版本后落地，不能把模型结果直接当作写入授权。Host 会在准备后和判断后检查绑定修订、提供方实例及实时策略。场景可用 `failed` 显式消费判断失败；失败消费同样经过这些检查。已准备的上下文不满足函数输入合同也可进入该失败路径，事件参数校验或对象读取失败则直接拒绝。失败记录应标明需要人工处理及错误码，不能伪装成功或自动重试。
 
@@ -78,7 +78,7 @@ Host 为每个提供 `targets` 的场景自动注册三项真实动作：`scenes
 
 `user_action` 由受保护 Host 渠道注入，表示真实用户操作的出处，不能由插件或模型根据文本构造。它不单独授予操作权限。旧 typed 接口若声明 `host_only`，Manifest 的 consumes 也不能使其可调用；SDK 的依赖检查和调用都保留 plugin 消费者身份，传入另一个描述或调用选项不能解除限制。用户决定应交给产品的受保护入口处理。
 
-生产 MCP 的新动作由用户在「能力 → 对外接入」按客户端与范围授权。界面从同一注册表读取名称、合同、权限和状态，新插件不需修改该页白名单。版本、提供方或权限变化不能继承旧授权；移除插件后保留原记录供撤销。默认开放的系统查询可以被单独撤销。目录注册不等于授权，也不自动授予组合动作的依赖。旧 `mcp_exports` 别名仍沿用原全局规则，不能用它们证明新动作授权生效。
+生产 MCP 的动作由用户在「能力 → 对外接入」按客户端与范围授权。界面从同一注册表读取名称、合同、权限和状态，新插件不需修改该页白名单。版本、提供方或权限变化不能继承旧授权；移除插件后保留原记录供撤销。默认开放的系统查询可以被单独撤销。目录注册不等于授权，也不自动授予组合动作的依赖。
 
 需要等待模型、网络或材料处理的能力，可声明 `action.scheduling: "concurrent"`。这只适用于业务 owner 已使用短事务和版本/来源校验保证安全的处理器；Host 默认仍串行执行。调度方式从正式注册定义读取，调用方不能自行打开并发；Host 关闭时等待这些调用完成。使用可信 `ActionCallContext.signal` 取消，`on_progress?.({ stage, progress })` 回传传输进度；回调不是能力参数，也不替代需要持久保存的运行记录。
 
@@ -160,7 +160,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 
 ### 工作流内容站
 
-`defineWorkflowContentActions({ id, title, icon, create, read_permissions, write_permissions })` 生成内容协议 v1 的规范动作；将 `Object.values(actions)` 放入 Manifest `actions`，用 `bindWorkflowContentHandlers(actions, { list, read, receive, create })` 兑现处理器并从 `start()` 返回。SDK 会核对权限声明；运行时再次核对协议 schema。处理器拿到可信 `ActionCallContext`，按当前项目读写插件自己的数据。
+`defineWorkflowContentActions({ id, title, icon, create, subject_kind, read_permissions, write_permissions })`（`subject_kind` 是站点内容的对象种类，要有读取它的 subject 动作，不是站点 id） 生成内容协议 v1 的规范动作；将 `Object.values(actions)` 放入 Manifest `actions`，用 `bindWorkflowContentHandlers(actions, { list, read, receive, create })` 兑现处理器并从 `start()` 返回。SDK 会核对权限声明；运行时再次核对协议 schema。处理器拿到可信 `ActionCallContext`，按当前项目读写插件自己的数据。
 
 工作流从统一目录自动发现这些角色，使用同一执行服务，不增加 Host 支持名单或逐插件分支。读写权限须由安装 grant 和调用者同时满足。`receive` 返回该站点的实际内容引用；`list` 返回完整可选内容；不要把无结构输出或另一种业务对象冒充此内容合同。新增版本应保留或明确迁移旧引用，不能靠同名替换。
 

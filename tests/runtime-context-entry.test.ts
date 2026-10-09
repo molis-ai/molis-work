@@ -23,7 +23,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "host-session", host_declares_stable: true } };
     fixture.bindRuntimeContext({ context: host.runtimeContext, project_id: project.project_id, actor_id: "user", user_confirmed: true });
     const before = fixture.listRuntimeContextBindings();
-    const connection = new RuntimeProjectConnection({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path, webBaseUrl: "http://127.0.0.1:4173" });
+    const connection = new RuntimeProjectConnection({ projectId: project.project_id, databasePath: project.database_path, webBaseUrl: "http://127.0.0.1:4173" });
     const originalConnection = connection.connection;
     const currentConnection = () => connection.connection;
     let scoped: MolisWorkProjectCatalog | undefined;
@@ -68,12 +68,12 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     const restored = JSON.parse(await handlers.molis_work_v1_context_resolve({}, context));
     assert.equal(restored.status, "bound");
     assert.equal(restored.project.project_id, project.project_id);
-    assert.equal(currentConnection()?.boardId, project.board_id);
+    assert.equal(currentConnection()?.projectId, project.project_id);
     assert.deepEqual(fixture.listRuntimeContextBindings(), before, "recovering the response does not create a second binding");
     assert.throws(() => scoped!.listProjects(), /closed|not open/);
     const localHost = createMolisWorkLocalHost();
     const client = localHost.client(molisWorkHostProjectReference({
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
+      databasePath: project.database_path, projectId: project.project_id,
     }));
     let failGuidance = true;
     const calls: string[] = [];
@@ -82,7 +82,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
       createError: (code, message, details) => new MolisWorkV1Error(code, message, details),
       readGuidance: async () => {
         calls.push("guidance");
-        const guidance = await client.invoke(readProjectGuidanceCapability, { board_id: project.board_id });
+        const guidance = await client.invoke(readProjectGuidanceCapability, { project_id: project.project_id });
         if (failGuidance) throw new Error("guidance unavailable");
         return guidance;
       },
@@ -93,7 +93,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
       },
       readResumeFacts: () => {
         calls.push("resume");
-        return client.invoke(projectResumeFactsCapability, { board_id: project.board_id });
+        return client.invoke(projectResumeFactsCapability, { project_id: project.project_id });
       },
     });
     const actual = createMcpRuntimeContextHandlers({
@@ -110,8 +110,9 @@ test("context handlers preserve a denied binding and hold the catalog open throu
       assert.deepEqual(calls, ["guidance", "session", "resume"]);
       assert.equal(presented.connection.project_id, project.project_id);
       assert.equal(presented.connection.project_url, `http://127.0.0.1:4173/projects/${project.project_id}`);
+      assert.equal(presented.connection.goal_url_template, `http://127.0.0.1:4173/projects/${project.project_id}/goals/{goal_id}`);
       assert.deepEqual(presented.session_registry, { status: "unavailable", message: "secondary Session unavailable", session: null });
-      assert.deepEqual(presented.resume, { focus: null, next_goals: [], auto_claimed: false });
+      assert.deepEqual(presented.resume, { focus: null, next_goals: [] });
       assert.equal(presented.runtime_prompt_prefix, presented.project_guidance.runtime_prompt_prefix);
       assert.deepEqual(fixture.listRuntimeContextBindings(), before);
     } finally { await localHost.close(); }

@@ -7,6 +7,7 @@ import { clearShelfRuntimeCache, openShelfStore } from "@molis-ai/molis-work-mod
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 
 test("Shelf DropAgent parity: full copies, reading, comparison, actions and client bridges", { timeout: 180_000 }, async (t) => {
   const bin = await mkdtemp(join(tmpdir(), "shelf-parity-agent-"));
@@ -48,9 +49,9 @@ fi
     resetSecretStoreCache();
   });
   await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
-    catalog.models.upsert({ provider_id: "shelf-parity", display_name: "测试模型", base_url: "http://127.0.0.1:9", api_format: "anthropic-messages",
+    const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "shelf-parity", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", "http://127.0.0.1:9"); return created; });
+    catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "shelf-parity", display_name: "测试模型", base_url: "http://127.0.0.1:9", api_format: "anthropic-messages",
       models: [{ model_id: "fixture-model", enabled: true }] });
-    catalog.models.setCredential("shelf-parity", "fixture-local-model-key");
   }));
   const shelf = openShelfStore(homeDirectory, { pathEnvironment: bin, home: homeDirectory, preferred: "claude" }, {},
     shelfTestAi(async () => ({ text: "# 合稿\n\n两份材料经过受控执行，来源可切换。\n", execution: shelfTestReceipt })));

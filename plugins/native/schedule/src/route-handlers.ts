@@ -8,22 +8,19 @@ export interface ScheduleRouteHandlerPorts {
   renderWorkbench?(): string | Promise<string>;
 }
 
-/** HTTP adapts presentation and legacy parameters; validation and business work belong to actions. */
+/** HTTP adapts presentation and form parameters; validation and business work belong to actions. */
 export function createScheduleRouteHandlers(options: ScheduleRouteHandlerPorts): Record<string, SchedulePluginRouteHandler> {
   const run = async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, status = 200): Promise<SchedulePluginRouteResponse> => {
     const body = await options.actions.invoke(definition, input);
     if (definition.operation === "command") options.changed();
     return { status, body };
   };
-  const task = (body: Readonly<Record<string, unknown>>): ScheduleTaskInput => {
-    const clock = body.time ?? body.clock;
-    return {
-      title: typeof body.title === "string" ? body.title : "",
-      instructions: typeof body.instructions === "string" ? body.instructions : "",
-      time: typeof clock === "string" ? clock : "",
-      notify_important: body.notify_important !== false,
-    };
-  };
+  const task = (body: Readonly<Record<string, unknown>>): ScheduleTaskInput => ({
+    title: typeof body.title === "string" ? body.title : "",
+    instructions: typeof body.instructions === "string" ? body.instructions : "",
+    time: typeof body.time === "string" ? body.time : "",
+    notify_important: body.notify_important !== false,
+  });
   const enabled = (body: Readonly<Record<string, unknown>>) => typeof body.enabled === "boolean" ? body.enabled : null;
   return {
     "schedule.list": () => run(scheduleActions.list, {}),

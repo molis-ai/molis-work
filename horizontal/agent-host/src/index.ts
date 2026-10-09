@@ -454,8 +454,8 @@ export class AgentHost implements AgentHostApi {
     }
     const session = await adapter.readSession(request.session);
     if (request.session.runtime_id !== runtimeId || session.session.runtime_id !== runtimeId || session.session.session_id !== request.session.session_id
-      || session.owner.board_id !== request.board_id || session.owner.plugin_id !== request.plugin_id || session.owner.install_id !== request.install_id
-      || (session.owner.actor_id !== undefined || workspace === "none" || workspace === "business") && session.owner.actor_id !== request.actor_id
+      || session.owner.project_id !== request.project_id || session.owner.plugin_id !== request.plugin_id || session.owner.install_id !== request.install_id
+      || session.owner.actor_id !== request.actor_id
       || (session.workspace ?? "required") !== workspace) {
       throw new AgentHostError("agent.session_unknown", "执行请求与原会话的身份或工作区方式不一致");
     }
@@ -473,7 +473,7 @@ export class AgentHost implements AgentHostApi {
         || !Number.isSafeInteger(ref.version) || ref.version < 1) throw new AgentHostError("agent.capability_unavailable", "Character 精确版本引用无效");
       character = structuredClone(authority.resolveCharacter({ artifact_id: ref.artifact_id, version: ref.version }, request.actor_id));
       if (character.reference.artifact_id !== ref.artifact_id || character.reference.version !== ref.version
-        || character.board_id !== request.board_id || character.source.owner_actor_id !== request.actor_id) {
+        || character.project_id !== request.project_id || character.source.owner_actor_id !== request.actor_id) {
         throw new AgentHostError("agent.capability_unavailable", "Character 来源与本轮项目、所有者或版本不一致");
       }
       if (character.host_tools !== null) {
@@ -485,7 +485,7 @@ export class AgentHost implements AgentHostApi {
     const validateCharacter = character ? () => {
       const current = authority.resolveCharacter!(character.reference, request.actor_id);
       if (current.reference.artifact_id !== character.reference.artifact_id || current.reference.version !== character.reference.version
-        || current.content_digest !== character.content_digest || current.board_id !== request.board_id || current.source.owner_actor_id !== request.actor_id) {
+        || current.content_digest !== character.content_digest || current.project_id !== request.project_id || current.source.owner_actor_id !== request.actor_id) {
         throw new AgentHostError("agent.capability_unavailable", "原 Character 版本已变化，请重新选择后执行");
       }
     } : undefined;

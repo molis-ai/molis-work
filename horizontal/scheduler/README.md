@@ -14,7 +14,7 @@ Owner 经 Host Capability `schedule.register` 挂一条 job，并事先把唤醒
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | 表迁移、WakeupIndex、ScheduleService、Capability 注册 |
+| [src/index.ts](src/index.ts) | 表结构、WakeupIndex、ScheduleService、Capability 注册 |
 
 可对照现有调用方 [apps/local-host/src/schedule-runtime.ts](../../apps/local-host/src/schedule-runtime.ts)。
 

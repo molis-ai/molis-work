@@ -1,6 +1,6 @@
 # Runtime 协议：约定、事实与收尾
 
-Molis Work 保存目标、实际工作与当前结果。Runtime 在已有授权内推进工作，用户可以看到做了什么、还差什么，以及哪些变化需要自己决定。普通工作不需要领取角色、Run、完整规划或默认模板。
+本文是 AI Runtime 使用 Goals 插件的协议：Goals 保存目标、实际工作与当前结果（其他插件的能力同样以动作经 MCP 对外，见 [MCP 接入](mcp.md)）。Runtime 在已有授权内推进工作，用户可以看到做了什么、还差什么，以及哪些变化需要自己决定。普通工作不需要完整规划或默认模板。
 
 ## 当前工作模型
 
@@ -15,7 +15,7 @@ Molis Work 保存目标、实际工作与当前结果。Runtime 在已有授权�
 | 收尾与继续 | 显式完成或取消；需要继续时说明原因，开启新一轮 |
 | 目标树与依赖 | 表达父子结果和真实前置关系；按需要使用，不是创建每个Goal的前提 |
 
-`goal_state` 是当前约定、要求、工作状态和差距的统一读取入口。工作状态为 `open`、`completed` 或 `cancelled`。父目标可以记录自己的整合结果；子目标数量不能证明父目标完成。未完成依赖会影响正式完成，但不会禁止先记笔记或保存部分工作。
+`goals.state.read` 是当前约定、要求、工作状态和差距的统一读取入口。工作状态为 `open`、`completed` 或 `cancelled`。父目标可以记录自己的整合结果；子目标数量不能证明父目标完成。未完成依赖会影响正式完成，但不会禁止先记笔记或保存部分工作。
 
 ## 连接项目与选择目标
 
@@ -23,52 +23,52 @@ Runtime 通过 MCP 使用 Molis Work。工具名、输入与展示由 `apps/mcp`
 
 先调用 `context_resolve`。已有Session绑定或唯一、已验证的workspace关联可以恢复项目；普通候选、目录名和模型猜测不授权绑定。需要选择项目时，复用用户对唯一项目的明确选择；只有存在歧义才询问。绑定、切换、新建、解绑和删除遵循各自授权，普通绑定不设置目录默认项目。具体接入见 [MCP 接入](mcp.md)。
 
-连接后用 `goal_list` 发现目标，或用 `goal_intent_create` 保存新意图。新建至少需要标题，可附结果说明。普通调用省略 `board_id`、`actor_id` 等项目和身份字段，由Host注入；读取和记录某个Goal时仍显式提供 `goal_id`，不能靠当前焦点猜写入对象。
+连接后用 `goals.list` 发现目标，或用 `goals.create` 保存新意图。新建至少需要标题，可附结果说明。普通调用省略 `project_id`、`actor_id` 等项目和身份字段，由Host注入；读取和记录某个Goal时仍显式提供 `goal_id`，不能靠当前焦点猜写入对象。
 
 ## 日常记录
 
-下列工具名省略 `molis_work_v1_` 前缀：
+下列是 Goals 动作名（MCP 工具名是 `molis_work_v1_action_<动作>__v1`），连接工具名省略 `molis_work_v1_` 前缀：
 
 ```text
-context_resolve → goal_list / goal_intent_create → goal_state
-  → 无类型记录：event_note
-  → 结构化记录：按需 event_configure → event_report
-  → 仅更新进展：event_progress
-  → 问题与决定：event_concern / event_decision_request / event_cite_decision
-  → 查原文：event_list / event_read
+context_resolve → goals.list / goals.create → goals.state.read
+  → 无类型记录：goals.note
+  → 结构化记录：按需 goals.events.configure → goals.events.report
+  → 仅更新进展：goals.progress.record
+  → 问题与决定：goals.concerns.apply / goals.decisions.request / goals.decisions.cite
+  → 查原文：goals.events.list / goals.events.read
 ```
 
-`event_configure` 可以登记局部类型，也可以采用合适的规划。类型的已发布版本不能重写；新增版本可以调整名称、字段和约束，旧报告始终按其保存的类型版本读取。专业方法可通过 `planning_methods` 按实际任务选择，不要求先规划才能记录。
+`goals.events.configure` 可以登记局部类型，也可以采用合适的规划。类型的已发布版本不能重写；新增版本可以调整名称、字段和约束，旧报告始终按其保存的类型版本读取。专业方法可通过 `goals.planning.catalog` 按实际任务选择，不要求先规划才能记录。
 
-一次 `event_report` 可以保存多个事实及可选进展说明。整批输入有效才写入；某项非法时本批次全部回滚，先前成功调用的记录仍在。回执给出保存的事实、当前工作状态、差距和游标，通常无需立即重读全部历史。没有新事实时可单独用 `event_progress`，遵循它的 `based_on_cursor` 约束。
+一次 `goals.events.report` 可以保存多个事实及可选进展说明。整批输入有效才写入；某项非法时本批次全部回滚，先前成功调用的记录仍在。回执给出保存的事实、当前工作状态、差距和游标，通常无需立即重读全部历史。没有新事实时可单独用 `goals.progress.record`，遵循它的 `based_on_cursor` 约束。
 
 同一幂等键和相同输入可以安全重试，不会重复写入；同键换输入会被拒绝。报告重放保留原保存结果，同时读取现在的状态和差距，不能把旧回执当成目标此刻的完成证明。
 
 ## 当前约定与人工验收
 
-`event_agree` 维护当前结果与要求。要求可以新增、修订或退休；退休退出当前判断，历史要求与报告仍可阅读。当前要求可绑定相应局部类型。`human_decision_required=false` 的要求允许Runtime报告参与支持判断；设为 `true` 时，仍须有适用于当前要求的可信用户验收，Runtime的支持报告不能代替它。
+`goals.agreement.set` 维护当前结果与要求。要求可以新增、修订或退休；退休退出当前判断，历史要求与报告仍可阅读。当前要求可绑定相应局部类型。`human_decision_required=false` 的要求允许Runtime报告参与支持判断；设为 `true` 时，仍须有适用于当前要求的可信用户验收，Runtime的支持报告不能代替它。
 
 首次补充结果、普通备注和已授权范围内的工作不额外制造审批。替换已承诺的结果、退休或降级要求、取消人工验收等变化，Runtime需要引用对这份具体变化的有效用户决定。无关的批准、笼统的 `authorize_action` 或自填 `user_confirmed` 不能授权另一份变化。已有仍有效的同范围决定可以复用。
 
 Runtime可以请求决定、读取其状态并引用已有决定。真正的用户选择由受保护的Web或管理入口记录；Runtime没有 `event_decide` 或 `goal_tree_decide` 权限。需要这一决定时，把具体变化和返回的Goal页面交给用户，其他已授权工作可以继续。
 
-两个版本有不同用途：配置版本标识当前类型配置；约定版本标识当前结果与承诺。正式约定修改和收尾使用工具要求的当前版本。缺失或过期版本在正式副作用前被拒绝；重新读 `goal_state`、核对变化后再提交。普通历史报告按其实际类型版本保存，不套用正式收尾的并发锁。
+两个版本有不同用途：配置版本标识当前类型配置；约定版本标识当前结果与承诺。正式约定修改和收尾使用工具要求的当前版本。缺失或过期版本在正式副作用前被拒绝；重新读 `goals.state.read`、核对变化后再提交。普通历史报告按其实际类型版本保存，不套用正式收尾的并发锁。
 
 ## 收尾与继续
 
 ```text
-goal_state → 核对当前约定、要求、依赖与决定
-  → event_close(kind=complete 或 cancel)
-  → completed / cancelled 后需要继续：event_resume(reason=具体原因)
+goals.state.read → 核对当前约定、要求、依赖与决定
+  → goals.closure.submit(kind=complete 或 cancel)
+  → completed / cancelled 后需要继续：goals.work.resume(reason=具体原因)
 ```
 
-记录成功不等于完成成立。`event_close` 的完成回执只有 `completion_applied=true` 才表示正式完成；当前版本仍有验收缺口时，可以保存收尾报告而不应用完成结论。按返回差距处理具体未满足项。缺失或过期版本等非法输入则直接拒绝，不保存本次收尾。
+记录成功不等于完成成立。`goals.closure.submit` 的完成回执只有 `completion_applied=true` 才表示正式完成；当前版本仍有验收缺口时，可以保存收尾报告而不应用完成结论。按返回差距处理具体未满足项。缺失或过期版本等非法输入则直接拒绝，不保存本次收尾。
 
-结果发生实质修改、有效反证等情况可能使原完成退出当前生效；历史报告和完成依据保留。普通无关笔记或报告不会自动重开目标。对 `completed` 和 `cancelled` 都用同一个 `event_resume`，原因必填；已经open时不创建多余的新一轮，同键重试不会重复恢复。
+结果发生实质修改、有效反证等情况可能使原完成退出当前生效；历史报告和完成依据保留。普通无关笔记或报告不会自动重开目标。对 `completed` 和 `cancelled` 都用同一个 `goals.work.resume`，原因必填；已经open时不创建多余的新一轮，同键重试不会重复恢复。
 
 ## 按需调整结构
 
-用 `goal_tree_propose` 保存明确的Goal和关系变化，通过 `goal_tree_read` / `goal_tree_check` 跨Session恢复与检查。来源引用指向真实已保存的记录。用户通过受保护入口决定整组或选定条目；Runtime不能用自填确认批准结构。
+用 `goals.tree.submit` 保存明确的Goal和关系变化，通过 `goals.tree.read` / `goals.tree.check` 跨Session恢复与检查。来源引用指向真实已保存的记录。用户通过受保护入口决定整组或选定条目；Runtime不能用自填确认批准结构。
 
 只物化用户选中的有效条目。循环、跨项目引用、过期关系基线和并发修改会被拒绝或作为具体冲突返回；未选中的新Goal不能因某条关系获批而被顺带创建。根据当前状态处理返回的影响与冲突，不重新引入固定拆分阈值、叶子种类或非空规划数组门槛。
 
@@ -78,6 +78,6 @@ goal_state → 核对当前约定、要求、依赖与决定
 
 切换Goal不会自动改绑终端或发送消息。Host Session、终端进程与面板继续承担各自职责。
 
-旧库升级和V3导入把当前工作接入事件状态，保留原始来源、关系和真实历史。旧Claim、Run、Evidence、Review仍可按原记录阅读，原有批准不会被伪造或重新编造；这些历史记录不提供另一套可继续执行的工作协议。旧领取、Run写入、Contract/Candidate/Rewire写工具已退役。
+项目库只认当前 schema 版本，不就地升级；V3 导入已删除。事件之前的 Claim、Run、Evidence、Review 历史已删除（#268），事件是唯一的工作协议。
 
 实际可调用示例与必要恢复细节见 [Runtime Skill](../skills/goal-advance/SKILL.md)。

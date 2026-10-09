@@ -10,7 +10,7 @@ import { ChromeHarness } from './fixtures/plugin-builder-browser.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { STUDIO_HARNESS_PATH, studioHarnessPage } from '../scripts/agent-studio-harness.mjs';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
-import { seedDemoBoard, DEMO_BOARD_ID } from '../apps/local-host/src/demo-seed.js';
+import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
 import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/src/plugin-builder/agent-surface.js';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/src/installed-plugin-host.js';
 import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from '../apps/local-host/src/web-http.js';
@@ -26,7 +26,7 @@ test('studio: a request becomes a working, published plugin that the person can 
   const databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0); let modelDelay = 0;
-  const options = { store, boardId: DEMO_BOARD_ID, homeDirectory: home, ...fixture,
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, ...fixture,
     generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => { await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
   let liveSubscriptions = 0, subscriptions = 0;
   const server: Server = createServer((request, response) => {
@@ -200,7 +200,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     await standalone.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('间隔复习比集中复习记得更久')`);
 
     const installedOwner = await ensureInstalledPlugins(options);
-    await releaseAgentStudio(store, DEMO_BOARD_ID);
+    await releaseAgentStudio(store, DEMO_PROJECT_ID);
     await installedPage.command('Page.reload');
     await installedPage.wait(`document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
     assert.equal(await ensureInstalledPlugins(options), installedOwner, 'closing authoring does not close or recreate installed execution');
@@ -208,6 +208,20 @@ test('studio: a request becomes a working, published plugin that the person can 
     await installedPage.command('Page.close'); await standalone.command('Page.close'); await page.command('Page.bringToFront');
     await page.command('Page.reload');
     await page.wait(`document.querySelector('[data-as-uninstall]')`);
+
+    // A switched-off install takes the next version without being switched on, and is switched on when the person says so.
+    const lifecycle = (action: string, version: number) => page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)},{build}=await(await fetch('/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:${JSON.stringify(action)},revision:build.revision,version:${version},grants:{consent:true}})});if(!r.ok)throw Error(await r.text())})()`);
+    await lifecycle('disable', 1);
+    await page.command('Page.reload');
+    await page.wait(`document.querySelector('[data-as-upgrade]')`);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-upgrade]').innerText`), /仍保持停用/, 'the upgrade button says the plugin stays off');
+    await page.click('[data-as-upgrade]');
+    await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v2')||document.querySelector('[role=alert]')`);
+    assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText ?? ''`), '', 'upgrading a disabled install reports no problem');
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-feed]').innerText`), /已安装 v2[\s\S]*disabled/, 'and it is still disabled');
+    await page.click('[data-as-install-enable]');
+    await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v2')&&!document.querySelector('[data-as-install-enable]')`);
+    await lifecycle('rollback', 1);
 
     // Uninstall keeps the data when asked to; the plugin page then no longer serves it.
     await page.click('[data-as-uninstall]');
@@ -217,6 +231,31 @@ test('studio: a request becomes a working, published plugin that the person can 
     assert.deepEqual(await installedPluginStages(options), [], 'an uninstalled plugin leaves the workbench');
     const gone = await fetch(origin + pluginHref);
     assert.notEqual(gone.status, 200, 'an uninstalled plugin page is not served');
+
+    // The uninstall kept v1's data and only v2 is left to install: it does not say it can read that data, so the person is asked.
+    const shelf = JSON.parse(installedOwner.storage.get('plugin-builder:agent-built:v1')!) as { releases: Array<{ version: number }> };
+    installedOwner.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ ...shelf, releases: shelf.releases.filter(release => release.version === 2) }));
+    await page.command('Page.reload');
+    await page.wait(`document.querySelector('[data-as-install]')`);
+    await page.click('[data-as-install]');
+    await page.wait(`document.querySelector('.as-dialog button[value=ok]')`);
+    await page.click('.as-dialog button[value=ok]');
+    await page.wait(`document.querySelector('.as-dialog button[value=discard]')`);
+    assert.match(await page.evaluate<string>(`document.querySelector('.as-dialog').innerText`), /读不了/, 'the dialog says the old data cannot be used');
+    await page.click('.as-dialog button[value=cancel]');
+    await page.wait(`!document.querySelector('.as-dialog')`);
+    assert.deepEqual(await installedPluginStages(options), [], 'cancelling installs nothing');
+    await page.click('[data-as-install]');
+    await page.wait(`document.querySelector('.as-dialog button[value=ok]')`);
+    await page.click('.as-dialog button[value=ok]');
+    await page.wait(`document.querySelector('.as-dialog button[value=discard]')`);
+    await page.click('.as-dialog button[value=discard]');
+    await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('已安装 v2')||document.querySelector('[role=alert]')`);
+    assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText ?? ''`), '', 'dropping the old data lets the install through');
+    await page.click('[data-as-uninstall]');
+    await page.wait(`document.querySelector('.as-dialog button[value=drop]')`);
+    await page.click('.as-dialog button[value=drop]');
+    await page.wait(`document.querySelector('[data-as-install]')`);
 
     // Narrow screens keep the whole journey without horizontal page scrolling.
     await page.viewport(390, 844, true);
@@ -242,7 +281,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     throw error;
   } finally {
     await browser.close();
-    await releaseAgentStudio(store, DEMO_BOARD_ID); await releaseInstalledPlugins(store, DEMO_BOARD_ID);
+    await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID);
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve())); store.close();
     await rm(home, { recursive: true, force: true });

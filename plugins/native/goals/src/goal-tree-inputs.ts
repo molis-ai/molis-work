@@ -1,7 +1,6 @@
-import { goalRelationTypes, type CreateGoalInput, type GoalRecord, type GoalRelationRecord, type GoalsCommandApi, type GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import { goalRelationTypes, type CreateGoalInput, type GoalRelationRecord, type GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalTreeProposalItemRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
-type GoalTreeProposalItemShape = Pick<GoalTreeProposalItemRecord, "item_id" | "kind" | "operation" | "payload">;
 const GOAL_RELATION_TYPES = new Set<GoalRelationRecord["type"]>(goalRelationTypes);
 
 /** Parse existing Proposal payloads and compose the owner's input validation. */
@@ -95,7 +94,6 @@ export class GoalTreeInputReader {
   }
 
   constructor(private readonly ports: {
-    query: Pick<GoalsQueryApi, "getRisk">;
     commands: Pick<GoalsCommandApi, "validateGoalInput">;
     errorFactory: (code: string, message: string) => Error;
   }) {}
@@ -210,61 +208,10 @@ export class GoalTreeInputReader {
     return target;
   }
 
-  isRiskLifecycleChange(boardId: string, item: GoalTreeProposalItemShape): boolean {
-    if (item.kind !== "risk" || item.operation === "create") return false;
-    const payload = this.goalTreePayloadRecord(item.payload, "Risk 条目");
-    const riskId = String(payload.risk_id ?? "").trim();
-    const current = riskId
-      ? this.ports.query.getRisk(boardId, riskId)
-      : undefined;
-    const currentState = current ? current.state : null;
-    if (item.operation === "deactivate") return currentState !== "expired";
-    const requestedState = String(payload.state ?? "").trim();
-    return requestedState.length > 0 && requestedState !== currentState;
-  }
-
-  requireDraftRiskLifecycleContract<T extends GoalTreeProposalItemShape>(
-    boardId: string,
-    rootGoal: GoalRecord,
-    items: T[],
-  ): T | null {
-    if (
-      rootGoal.definition_state !== "draft" ||
-      !items.some((item) => this.isRiskLifecycleChange(boardId, item))
-    ) {
-      return null;
-    }
-    const companion = items.find((item) => {
-      if (!(["goal", "contract"] as GoalTreeProposalItemRecord["kind"][]).includes(item.kind)) return false;
-      if (item.operation !== "update") return false;
-      const payload = this.goalTreePayloadRecord(item.payload, "Goal Tree 条目 payload");
-      const raw = this.goalTreePayloadRecord(payload.goal ?? payload.proposed_goal ?? payload, "Goal Contract");
-      const targetGoalId = String(payload.goal_id ?? raw.goal_id ?? "").trim();
-      if (targetGoalId !== rootGoal.goal_id) return false;
-      const goal = this.goalTreeGoalInput(item);
-      return (
-        goal.definition_state === "accepted" &&
-        goal.decomposition_state === "closed_leaf" &&
-        goal.acceptance_criteria.length > 0
-      );
-    });
-    if (!companion) {
-      throw this.ports.errorFactory(
-        "goal_tree_proposal.risk_goal_contract_required",
-        "处理 Risk 本身就是一条正式 Goal。当前 root Goal 仍是 Draft，提案必须同时补全并接受这条 Goal 的 Contract，不能只改 Risk 后留下空 Draft",
-      );
-    }
-    return companion;
-  }
-
   goalTreeRelationEntries(item: GoalTreeProposalItemRecord): Record<string, unknown>[] {
     const payload = this.goalTreePayloadRecord(item.payload, "关系条目 payload");
-    const nested = payload.rewire && typeof payload.rewire === "object" && !Array.isArray(payload.rewire)
-      ? payload.rewire as Record<string, unknown>
-      : payload.proposal && typeof payload.proposal === "object" && !Array.isArray(payload.proposal)
-        ? payload.proposal as Record<string, unknown>
-        : payload;
-    const source = nested.relations ?? nested.relation ?? payload.relations ?? payload.relation ?? nested;
+    // A stored relation item may carry several relations; new items carry one (repository-anti-corruption 例外清单).
+    const source = payload.relations ?? payload.relation ?? payload;
     const values = Array.isArray(source) ? source : [source];
     if (values.length === 0) {
       throw this.ports.errorFactory("goal_tree_proposal.relations_required", "关系条目至少需要一条关系");
@@ -290,7 +237,7 @@ export class GoalTreeInputReader {
     const relationId = String(relation.relation_id ?? "").trim() || null;
     const fromGoalId = String(relation.from_goal_id ?? "").trim();
     const toGoalId = String(relation.to_goal_id ?? "").trim();
-    const rawType = item.kind === "dependency" ? "depends_on" : String(relation.type ?? "").trim();
+    const rawType = String(relation.type ?? "").trim();
     const type = rawType
       ? rawType as GoalRelationRecord["type"]
       : null;

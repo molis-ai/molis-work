@@ -35,14 +35,19 @@ export const ANNOUNCE_HELD =
  * MiniMax-M3: it listed the memories and then answered “记下了……”, keeping nothing. Only the closing paragraph counts.
  */
 const KEPT = /已(?:经)?(?:记下|记住)|(?:记下|记住)(?:了|啦)|已(?:经)?(?:保存|存)(?:为|到|进)(?:记忆|偏好)|(?:记|存)(?:到|进)(?:了)?(?:项目「[^」]{1,40}」里|个人(?:偏好|记忆)|你的(?:偏好|记忆))|用\s*remember|\b(?:I(?:'ve| have) (?:noted|saved|remembered)|noted that)\b/i;
-const FORGOT = /已(?:经)?(?:删除|删掉|忘掉|忘记)|(?:删除|删掉|忘掉|忘记)(?:了|啦)|\bI(?:'ve| have) (?:forgotten|deleted|removed)\b/i;
+const FORGOT = /已(?:经)?(?:忘掉|忘记)|(?:忘掉|忘记)(?:了|啦)|\bI(?:'ve| have) forgotten\b/i;
+// Forgetting switches a memory off or deletes it. Plugins, rules, schedules and documents are switched off and deleted all the time
+// (“已停用这条提醒规则，以后不会再提醒你”): only a sentence that also speaks of a memory is this claim.
+const REMOVED = /已(?:经)?(?:删除|删掉|停用|停掉)|(?:删除|删掉|停用|停掉)(?:了|啦)|\bI(?:'ve| have) (?:deleted|removed|switched off)\b/i;
+const MEMORY_WORDS = /记忆|偏好|记住的|\b(?:memory|memories|preference)\b/i;
+const removedMemory = (text: string) => text.split(/[。！？!?\n]+|\.\s/).some(sentence => REMOVED.test(sentence) && MEMORY_WORDS.test(sentence));
 // Only about memory: a note written into a document (“已记下会议要点”) or a deleted page is a business change, not this.
 const ABOUT_MEMORY = /记忆|偏好|以后|生效|适用|记住的|\b(?:memory|memories|preference|from now on)\b/i;
-const NOT_DONE = /(?:没有|没|未|不会|无法|不能)(?:记下|记住|保存|删除|删掉|忘掉)/;
+const NOT_DONE = /(?:没有|没|未|不会|无法|不能)(?:记下|记住|保存|删除|删掉|忘掉|停用|停掉)/;
 export function claimsMemoryChange(text: string): "keep" | "forget" | null {
   const trimmed = text.trim();
   if (!trimmed || trimmed.length > 1200 || /[？?]\s*$/.test(trimmed) || !ABOUT_MEMORY.test(trimmed) || NOT_DONE.test(trimmed)) return null;
-  if (FORGOT.test(trimmed)) return "forget";
+  if (FORGOT.test(trimmed) || removedMemory(trimmed)) return "forget";
   if (KEPT.test(trimmed)) return "keep";
   return null;
 }
@@ -54,8 +59,17 @@ export const MEMORY_OFF_HELD =
 /** What the model reads when it claimed a memory change it did not make. */
 export const MEMORY_CLAIM_HELD = {
   keep: "You said you remembered it, but no remember call succeeded in this round, so nothing was kept. Call remember now if the person asked you to keep it; otherwise say plainly that it was not kept.",
-  forget: "You said you forgot or deleted it, but no forget-memory call succeeded in this round, so it is still kept. Call forget-memory now if the person asked; otherwise say plainly that it was not deleted.",
+  forget: "You said you forgot it, but no forget-memory call succeeded in this round, so it is still in use. Call forget-memory now if the person asked; otherwise say plainly that it was not forgotten. (forget-memory switches it off; it does not delete it.)",
 } as const;
+
+/** What the model reads when it claimed a memory change in a work that was handed to it: it has no tool to keep or forget. */
+export const MEMORY_NOT_GIVEN_HELD =
+  "This work was handed to you by another work, so you have no tools to keep or forget memories (only the person's own work does): nothing was kept or forgotten. Say plainly that you did not keep or forget it, and leave it to the work that handed this to you to do it if the person asked.";
+
+/** What the model reads when a round's reply claims `claim` that no call made: switched off, no such tool in a handed-down work, or just not done. */
+export function memoryHeld(round: { off: boolean; without: { keep: boolean; forget: boolean } }, claim: "keep" | "forget"): string {
+  return round.off ? MEMORY_OFF_HELD : round.without[claim] ? MEMORY_NOT_GIVEN_HELD : MEMORY_CLAIM_HELD[claim];
+}
 
 /**
  * A reply that says a button is ready when no suggestion was made this round. Seen from MiniMax-M3: asked for a

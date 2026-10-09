@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -18,7 +18,7 @@ const { createDeliveryBox } = await import(requireSdk.resolve("@prologue/sdk"));
 test("委派与交付走会话间的信：只由对应一方推进，发送即开始，交付可退回再交，收下后成为下一轮材料；结束后的答复只记录；重启后回执不变；旧记录只读", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-cooperation-http-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
-  new CodingSessionStore(store.db).create({ board_id: DEMO_BOARD_ID, session_id: "A", title: "发起的会话", runtime_id: "prologue", at: new Date().toISOString() });
+  new CodingSessionStore(store.db).create({ project_id: DEMO_PROJECT_ID, session_id: "A", title: "发起的会话", runtime_id: "prologue", at: new Date().toISOString() });
   const at = new Date().toISOString(), runs = new Map<string, { ref: { session_id: string; run_id: string } }>();
   const box = createDeliveryBox({ newId: () => crypto.randomUUID(), canReceive: () => true });
   const made: string[] = [], session = (id: string) => ({ kind: "session", id, revision: 1 }), letter = (id: string) => ({ kind: "envelope", id, revision: 1 });
@@ -32,7 +32,7 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
     frozen: { role_id: "builder", role_version: 1, execution: "workspace-write", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: root, realpath_verified: true } },
     turns: [{ turn_id: "u", kind: "user", text: "补测试", at }, { turn_id: "a", kind: "assistant", text: "三个测试已补，全部通过。", at }],
     activity: [], usage: { tokens: { input: 10, output: 5 } }, awaiting_input: [], command_outputs: [] });
-  const host = () => ({ store, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
@@ -119,7 +119,7 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
     const late = await call(`/sessions/A/delegations/${id}`, "POST", { action: "cancel" });
     assert.equal(late.status, 400); assert.match(late.body.error, /这次操作只记录，不改变结果/);
 
-    await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     seen = (await call(`/sessions/A/delegations`)).body.outgoing[0];
     assert.equal(seen.state, "completed", "state survives a restart");
     assert.deepEqual(seen.receipts.map((receipt: { event: string; recorded_only?: boolean }) => receipt.event + (receipt.recorded_only ? "*" : "")),
@@ -131,15 +131,5 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
     assert.deepEqual(replies.map((reply: any) => [reply.kind, reply.inReplyTo.id, reply.state, reply.attachments[0].id]),
       [["reply", id, "rejected", `coding-report:${encodeURIComponent(C)}:r1`], ["reply", id, "completed", `coding-report:${encodeURIComponent(C)}:r2`]]);
 
-    // A delegation kept before delegations went by letter is still shown, and read-only.
-    const install = (store.db.prepare("SELECT install_id FROM plugin_private_values WHERE item_key = 'configuration:A'").get() as { install_id: string }).install_id;
-    const old = { delegation_id: "old-1", from_session: "A", to_session: C, title: "旧的委派", task: "旧任务", materials: [], hops: 1, state: "delivered", revision: 2, deliveries: [],
-      receipts: [{ event: "submitted", state: "received", at, actor: "web-user" }, { event: "delivered", state: "delivered", at, actor: "web-user" }], created_by: "web-user", created_at: at, updated_at: at };
-    const put = store.db.prepare("INSERT INTO plugin_private_values (install_id, item_key, item_value) VALUES (?, ?, ?)");
-    put.run(install, "delegation:old-1", JSON.stringify(old)); put.run(install, "delegations:A", JSON.stringify(["old-1"]));
-    const listed = (await call(`/sessions/A/delegations`)).body.outgoing;
-    assert.deepEqual(listed.map((item: { delegation_id: string; legacy?: boolean }) => [item.delegation_id, item.legacy ?? false]), [[id, false], ["old-1", true]]);
-    const refused = await call(`/sessions/A/delegations/old-1`, "POST", { action: "cancel" });
-    assert.equal(refused.status, 400); assert.match(refused.body.error, /迁移前的委派记录，只读/);
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

@@ -175,7 +175,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (latest && (latest.phase === "awaiting-input" || (latest.awaiting_input && latest.awaiting_input.length))) { host.showToast?.(L("浏览器已交还；助理还在等你回答上面的问题")); return; }
       if (holder.state === "needs-check" || (latest && latest.phase === "reconcile-required")) { host.showToast?.(L("浏览器已交还；先核对上一步的结果，助理再接着做")); return; }
       try {
-        await api("/send", "POST", { work_id: holder.work_id, request_id: crypto.randomUUID(), text: L("我把浏览器交还给你了，先重新观察页面再继续") });
+        await api("/send", "POST", { work_id: holder.work_id, request_id: crypto.randomUUID(), written_by: "page", text: L("我把浏览器交还给你了，先重新观察页面再继续") });
         await refresh(); schedule();
       } catch (error) { host.showToast?.(error.message); }
     })();
@@ -742,7 +742,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       redo.addEventListener("click", async () => {
         redo.disabled = true;
         try {
-          await api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(),
+          await api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(), written_by: "page",
             text: L("建议「") + card.title + L("」没有执行：") + (card.outcome || L("数据在建议之后变化了")) + L("。请读取最新状态，按现在的情况重新准备这一项的操作卡。") });
           await refresh(); schedule();
         } catch (error) { showProblem({ message: error.message }); redo.disabled = false; }
@@ -1033,7 +1033,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (announcing) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: item.capability_id } }));
     }));
   };
-  const RELATION_LABEL = { origin: "起点", material: "材料", result: "成果", session: "专业会话" };
   // Short on the card; the versions behind it are in its title.
   const objectState = (object) => object.state === "changed" ? L("之后被改过") : object.state === "missing" ? L("已不存在") : object.state === "unavailable" ? L("暂时读不到")
     : object.state === "moved" ? (object.moved_to ? L("已移到") + "「" + object.moved_to.title + "」" : L("在别的项目里")) : "";
@@ -1344,7 +1343,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     });
   }
 
-  /* 成果: what it produced or changed, each a card that opens it or takes it back; work still running elsewhere after it. */
+  /* 产出 (not the 成果库's 成果): what it produced or changed, each a card that opens it or takes it back; work still running elsewhere after it. */
   const renderResults = (work) => {
     const node = blocks.results;
     if (!node) return;
@@ -1378,10 +1377,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       /* Memory the work kept (asked for, or kept on its own): the memory service owns it; this is where it can be taken back. */
       // The memory service names more kinds than these; one this panel does not know reads as plainly kept.
       const KEPT = { kept: "", auto_kept: "自动记住", replaced: "替换了旧的一条", auto_replaced: "自动替换了旧的一条", merged: "和旧的一条合并", edited: "改过",
-        auto_disabled: "自动停用" };
+        auto_disabled: "自动停用", disabled: "助理按你的要求停用" };
       // What undoing did depends on the kind: a memory kept on its own is deleted (its words go with it), a replacement
       // goes back to the earlier version, a memory switched off is on again. The last two keep the words they undid.
-      const UNDONE = { auto_replaced: "已撤销（回到了原来那条）", auto_disabled: "已撤销（已重新启用）" };
+      const UNDONE = { auto_replaced: "已撤销（回到了原来那条）", auto_disabled: "已撤销（已重新启用）", disabled: "已撤销（已重新启用）" };
       const remembered = kept.map((change) => {
         const undone = change.state === "undone";
         const actions = [];
@@ -1408,7 +1407,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (stopped.length) content.append(group(L("停止时仍在执行"), stack(stopped)));
       if (remembered.length) content.append(group(L("记住的事"), stack(remembered)));
       const canUndo = undoable.filter((change) => change.state === "available").length;
-      paintBlock(node, L("成果"), "package", content.children.length ? content : null, canUndo ? canUndo + " " + L("项可撤销") : String(made.length + changes.length + background.length + stopped.length + remembered.length), false);
+      paintBlock(node, L("产出"), "package", content.children.length ? content : null, canUndo ? canUndo + " " + L("项可撤销") : String(made.length + changes.length + background.length + stopped.length + remembered.length), false);
     });
   };
 
@@ -2179,8 +2178,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   materialsButton?.addEventListener("click", () => setMaterials(materialsList.hidden));
   /* Starting points for what is open (specs/archive/contextual-interaction §6.4.2): what the action directory offers for it,
      through the context row's controller — the row's own plan while something is in hand. Choosing one of those runs
-     it as a click on the row would. With nothing offered, three plain questions that only fill the input. Pages no
-     longer list their own (their "starters" are still accepted and ignored). */
+     it as a click on the row would. With nothing offered, three plain questions that only fill the input. Pages do not
+     list their own. */
   const plainStarters = () => [
     { label: L("总结这一页"), prompt: L("总结这一页的要点") },
     { label: L("列出这一页的要点"), prompt: L("把这一页的要点逐条列出来") },
@@ -2545,8 +2544,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   /* ─── What plugin pages tell the Assistant (spec 8.3): by purpose, never by wording ───────────────────────── */
   const offerBar = island.querySelector("[data-assistant-offer]");
   const heard = new Set();
-  // A delegated Send reuses its message id, so the same message twice starts one work.
-  let requestOverride = null;
+  // A delegated Send reuses its message id, so the same message twice starts one work. Its words are the page's: pageText marks them.
+  let requestOverride = null, pageText = null;
   const tidyMessage = (raw) => {
     if (!raw || typeof raw !== "object" || typeof raw.message_id !== "string" || !raw.message_id || raw.message_id.length > 120) return null;
     if (!["background", "change", "suggest", "delegate", "reply"].includes(raw.purpose)) return null;
@@ -2558,7 +2557,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const materials = Array.isArray(raw.materials) ? raw.materials.filter((item) => item && typeof item.title === "string" && typeof item.text === "string" && item.text)
       .slice(0, 4).map((item) => ({ title: item.title.slice(0, 200), text: item.text.slice(0, 20000) })) : [];
     return { message_id: raw.message_id, purpose: raw.purpose, source, object, text: typeof raw.text === "string" ? raw.text.trim().slice(0, 8000) : "", materials,
-      work_id: typeof raw.work_id === "string" && raw.work_id ? raw.work_id : null };
+      work_id: typeof raw.work_id === "string" && raw.work_id ? raw.work_id : null, executor: raw.executor === "coding" ? "coding" : null };
   };
   /** What a request brings becomes this Send's materials, marked as from that page; its words go into the input. */
   const bring = (message) => {
@@ -2591,9 +2590,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (busy) { showOffer(message, false); return; }
     if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id);
     else if (message.work_id || currentId) await switchTo(null);
+    if (!message.work_id && message.executor === "coding" && codingHere()) { newExecutor = "coding"; paintTarget(); paintSummary(); } // e.g. the 成果库's 「交给 Coding」
     bring(message);
     if (!String(input.value || "").trim()) { setPanel(true); input.focus(); return; }
-    requestOverride = "msg-" + message.message_id;
+    requestOverride = "msg-" + message.message_id; pageText = message.text && input.value.trim();
     composer.requestSubmit(send);
   };
   /* Another part of the page opens the panel for the person (the contextual actions' “助理：…” hint, say): the work it
@@ -2675,15 +2675,15 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const text = String(input.value || "").trim();
     if (!text || busy) return;
     busy = true; syncSend(); problem = null; setPanel(true);
-    const requestId = requestOverride || (unsettled && unsettled.text === text && unsettled.work === currentId ? unsettled.id : crypto.randomUUID());
-    requestOverride = null;
+    const again = unsettled && unsettled.text === text && unsettled.work === currentId ? unsettled : null;
+    const requestId = requestOverride || (again ? again.id : crypto.randomUUID()), byPage = pageText === text || (again && again.byPage); requestOverride = pageText = null;
     const materials = sendMaterials();
     setStarters(false); if (materialsList) setMaterials(false);
     // A draft save still waiting to go out would land after the send and bring the sent text back: cancel it, and let
     // one already on its way arrive first.
     clearTimeout(draftTimer);
     await draftWrite;
-    const body = { text, request_id: requestId, context: pageContext(), materials };
+    const body = { text, request_id: requestId, context: pageContext(), materials, ...(byPage ? { written_by: "page" } : {}) };
     // The Character choice travels with the Send that makes it; the Host freezes that exact version or refuses.
     const character = currentId ? pendingCharacter : newCharacter || undefined;
     if (character !== undefined && characterAllowed()) body.character = character ? { artifact_id: character.artifact_id, version: character.version } : null;
@@ -2693,7 +2693,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (newExecutor === "coding") { const session = openCodingSession(); if (session) body.coding_session_id = session; else body.mode = newMode; }
     }
     else body.scope = newScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
-    unsettled = { id: requestId, text, work: currentId };
+    unsettled = { id: requestId, text, work: currentId, byPage };
     try {
       const result = await api("/send", "POST", body);
       unsettled = null;

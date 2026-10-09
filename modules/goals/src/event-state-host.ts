@@ -10,10 +10,10 @@ import type {
 import type { GoalEventCompletionContext } from "./event-state-completion.js";
 
 export interface GoalEventStateHost {
-  requireWritableGoal(boardId: string, goalId: string): GoalRecord;
+  requireWritableGoal(projectId: string, goalId: string): GoalRecord;
   actorKind(kind: "user" | "runtime" | undefined): "user" | "runtime" | null;
-  configVersion(boardId: string, goalId: string): number;
-  readCurrentRequirements(boardId: string, goalId: string): GoalEventRequirementStatus[];
+  configVersion(projectId: string, goalId: string): number;
+  readCurrentRequirements(projectId: string, goalId: string): GoalEventRequirementStatus[];
   applyAgreementChange(input: {
     actor_id: string;
     new_requirements: GoalEventExtraRequirementInput[];
@@ -22,12 +22,12 @@ export interface GoalEventStateHost {
     expire_requirement_ids: string[];
     journal_seq: number;
   }, goal: GoalRecord): void;
-  readCompletionContext(boardId: string, goalId: string): GoalEventCompletionContext;
+  readCompletionContext(projectId: string, goalId: string): GoalEventCompletionContext;
 }
 
 export interface GoalEventStateCore {
   mutate<T extends { event_id: string; observed_event_cursor: number; recorded: true }>(
-    input: { board_id: string; goal_id: string; actor_id: string; actor_kind?: "user" | "runtime"; idempotency_key: string },
+    input: { project_id: string; goal_id: string; actor_id: string; actor_kind?: "user" | "runtime"; idempotency_key: string },
     operation: string,
     hash: string,
     write: (goal: GoalRecord, actorKind: "user" | "runtime" | null) => T,
@@ -39,7 +39,7 @@ export interface GoalEventStateCore {
     title: string,
     payload: GoalEventSystemPayload,
   ): GoalSystemWorkEventRecord;
-  requireOwnedWritable(boardId: string, goalId: string): GoalRecord;
+  requireOwnedWritable(projectId: string, goalId: string): GoalRecord;
   requireLocalScope(goal: GoalRecord, raw?: Partial<GoalEventScope>): GoalEventScope;
   assertConfigVersion(goal: GoalRecord, expected: number): void;
   assertAgreementVersion(goal: GoalRecord, expected: number, code: string): void;

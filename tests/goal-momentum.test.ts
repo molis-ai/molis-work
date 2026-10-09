@@ -24,13 +24,7 @@ function goal(
     created_at: "2026-07-01T00:00:00.000Z",
     updated_at: "2026-07-01T00:00:00.000Z",
     completed: false,
-    acceptance_criteria_count: 1,
-    passed_criteria_count: 0,
     reasons: [],
-    runs: [],
-    evidence: [],
-    reviews: [],
-    risks: [],
     events: [],
     ...overrides,
   };
@@ -164,13 +158,13 @@ test("dependency cycles and dangling relations remain visible with integrity dia
   assert.equal(view.selected_goal_id, "A");
 });
 
-test("cadence uses first executor start, satisfaction and blocking facts without inventing missing history", () => {
+test("cadence uses the first work event and applied closures without inventing missing history", () => {
   const view = buildGoalMomentumView(
     [
       goal("STARTED", {
-        runs: [
-          { role: "self_verifier", state: "completed", started_at: "2026-08-27T09:00:00.000Z", ended_at: "2026-08-27T10:00:00.000Z" },
-          { role: "executor", state: "started", started_at: "2026-08-28T09:00:00.000Z", ended_at: null },
+        events: [
+          { type: "goal.event_config.configured", at: "2026-08-27T09:00:00.000Z" },
+          { type: "goal.work_event.reported", at: "2026-08-28T09:00:00.000Z" },
         ],
       }),
       goal("DONE", {
@@ -178,23 +172,18 @@ test("cadence uses first executor start, satisfaction and blocking facts without
         status: "satisfied",
         work_state: "satisfied",
         display_status: "completed",
-        events: [{ type: "goal.satisfied", at: "2026-08-29T11:00:00.000Z" }],
+        events: [
+          { type: "goal.event_state.closure_submitted", at: "2026-08-28T10:00:00.000Z", payload: { operation: "closure_submitted", completion_applied: false } },
+          { type: "goal.event_state.closure_submitted", at: "2026-08-29T11:00:00.000Z", payload: { operation: "closure_submitted", completion_applied: true } },
+        ],
       }),
       goal("BLOCKED", {
         work_state: "completion_blocked",
         display_status: "blocked",
-        risks: [{
-          risk_id: "risk-1",
-          state: "open",
-          blocking_mode: "completion",
-          created_at: "2026-08-30T08:00:00.000Z",
-          updated_at: "2026-08-30T08:00:00.000Z",
-        }],
-        events: [{ type: "risk.created", at: "2026-08-30T08:00:00.000Z" }],
+        events: [{ type: "goal.event_state.concern_opened", at: "2026-08-30T08:00:00.000Z" },
+          { type: "goal.event_state.closure_submitted", at: "2026-08-30T09:00:00.000Z", payload: { operation: "closure_submitted", completion_applied: false } }],
       }),
-      goal("STALE", {
-        runs: [{ role: "executor", state: "completed", started_at: "2026-08-01T08:00:00.000Z", ended_at: "2026-08-01T09:00:00.000Z" }],
-      }),
+      goal("STALE", { events: [{ type: "goal.work_event.reported", at: "2026-08-01T08:00:00.000Z" }] }),
       goal("UNKNOWN"),
     ],
     [],
@@ -205,27 +194,24 @@ test("cadence uses first executor start, satisfaction and blocking facts without
     {
       started: view.cadence[7].started,
       completed: view.cadence[7].completed,
-      blockers: view.cadence[7].new_blockers,
       stalled: view.cadence[7].stalled,
       incomplete: view.cadence[7].history_incomplete,
     },
-    { started: 1, completed: 1, blockers: 1, stalled: 1, incomplete: 1 },
+    { started: 1, completed: 1, stalled: 1, incomplete: 1 },
   );
   assert.equal(view.cadence[7].buckets.find((bucket) => bucket.date === "2026-08-28")?.started, 1);
   assert.equal(view.cadence[7].buckets.find((bucket) => bucket.date === "2026-08-29")?.completed, 1);
-  assert.equal(view.cadence[7].buckets.find((bucket) => bucket.date === "2026-08-30")?.blockers, 1);
+  assert.equal(view.cadence[7].buckets.find((bucket) => bucket.date === "2026-08-30")?.completed, 0, "a closure that was not applied does not complete");
 });
 
 test("action queue explains decision, finish, high-impact start, ordinary start and stale tiers", () => {
   const view = buildGoalMomentumView(
     [
       goal("DECIDE", { work_state: "waiting_for_human", display_status: "waiting_user", reasons: [{ code: "rewire.user_confirmation_required" }] }),
-      goal("FINISH", { work_state: "review_pending", passed_criteria_count: 1 }),
+      goal("FINISH", { work_state: "executing", display_status: "in_progress" }),
       goal("HIGH", { priority: 4 }),
       goal("START", { priority: 2 }),
-      goal("STALE", {
-        runs: [{ role: "executor", state: "completed", started_at: "2026-08-01T08:00:00.000Z", ended_at: "2026-08-01T09:00:00.000Z" }],
-      }),
+      goal("STALE", { events: [{ type: "goal.work_event.reported", at: "2026-08-01T08:00:00.000Z" }] }),
       goal("COMPOUND", { work_state: "waiting_children", display_status: "waiting", priority: 9 }),
       goal("D1"), goal("D2"), goal("D3"), goal("D4"), goal("D5"),
     ],

@@ -1,9 +1,9 @@
-import { createFileSecretStore, peekSealedEntry, resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { createFileSecretStore, resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { prologueProtocolFor, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { configuredTextModelSnapshot, openConfiguredModels, selectConfiguredTextModel, modelCredentialMetadata, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
+import { configuredTextModelSnapshot, openConfiguredModels, selectConfiguredTextModel, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
 
 export interface HostTextRequestOptions {
   signal?: AbortSignal;
@@ -61,45 +61,49 @@ export function hostTextGeneration(options: HostTextOptions = {}): HostTextGener
     } finally { opened.storage.close(); }
     if (options.selection) return undefined;
   }
-  // Compatibility for installations that have not configured catalog providers yet.
   const env = options.env ?? process.env;
-  const environmentKey = env.MOLIS_WORK_TEXT_API_KEY?.trim() || env.MINIMAX_API_KEY?.trim();
-  const legacyRef = "model:text:api_key";
-  if (!environmentKey && (options.env || !runWithMolisWorkHome(home, () => peekSealedEntry(legacyRef)))) return undefined;
-  const config: TextConfiguration = { base_url: validateTextModelUrl(env.MOLIS_WORK_TEXT_BASE_URL?.trim() || "https://api.minimaxi.com/anthropic"),
-    api_format: (env.MOLIS_WORK_TEXT_API_FORMAT?.trim() || "anthropic-messages") as ModelApiFormat, model_id: env.MOLIS_WORK_TEXT_MODEL?.trim() || "MiniMax-M3" };
-  if (!["anthropic-messages", "openai-chat-completions"].includes(config.api_format)) throw new Error("模型接口格式无效");
-  const legacyState = () => {
+  const environmentState = () => {
     if (options.env === undefined) {
       const catalog = openConfiguredModels(home);
       try { if (catalog?.store.list().length) return undefined; }
       finally { catalog?.storage.close(); }
     }
-    const key = env.MOLIS_WORK_TEXT_API_KEY?.trim() || env.MINIMAX_API_KEY?.trim();
-    const credential = key ? { available: true, revision: null } : modelCredentialMetadata(home, { credential_ref: legacyRef, base_url: config.base_url });
-    if (!credential.available) return undefined;
-    return { config: { ...config,
-      base_url: validateTextModelUrl(env.MOLIS_WORK_TEXT_BASE_URL?.trim() || "https://api.minimaxi.com/anthropic"),
-      api_format: env.MOLIS_WORK_TEXT_API_FORMAT?.trim() || "anthropic-messages", model_id: env.MOLIS_WORK_TEXT_MODEL?.trim() || "MiniMax-M3" },
-      environmentKey: key, revision: credential.revision,
-      credential_snapshot: key ? undefined : runWithMolisWorkHome(home, () => peekSealedEntry(legacyRef)) };
+    return environmentModel(env);
   };
-  if (!legacyState()) return undefined;
+  const initial = environmentState();
+  if (!initial) return undefined;
+  const { config } = initial;
   return async (prompt, request) => {
     validatePrompt(prompt); request?.signal?.throwIfAborted();
     assertVisionInput(request, false);
-    const before = legacyState();
+    const before = environmentState();
     if (!before || JSON.stringify(before.config) !== JSON.stringify(config)) throw unavailable();
-    const key = before.environmentKey || (options.env ? undefined : runWithMolisWorkHome(home, () => createFileSecretStore().get(legacyRef))?.trim());
-    if (!key) throw unavailable();
-    const result = await completeTextRequest(config, legacyRef, () => {
-      if (JSON.stringify(legacyState()) !== JSON.stringify(before)) throw unavailable();
-      return key;
+    const result = await completeTextRequest(config, ENVIRONMENT_CREDENTIAL, () => {
+      if (JSON.stringify(environmentState()) !== JSON.stringify(before)) throw unavailable();
+      return before.key;
     }, prompt, home, request, options.resolveInference,
-    () => JSON.stringify(legacyState()) !== JSON.stringify(before));
-    if (JSON.stringify(legacyState()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
+    () => JSON.stringify(environmentState()) !== JSON.stringify(before));
+    if (JSON.stringify(environmentState()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
     return result;
   };
+}
+
+/** Names the environment key to the model runtime; it is not a stored credential. */
+const ENVIRONMENT_CREDENTIAL = "environment:text-model";
+
+/**
+ * Development and tests only (repository-anti-corruption §1, 2026-10-04): an explicit environment key configures a text model
+ * when no catalog provider exists; stored credentials outside the catalog are never read. `MINIMAX_API_KEY` names MiniMax;
+ * `MOLIS_WORK_TEXT_API_KEY` names no provider, so it configures nothing without its own base URL and model.
+ */
+function environmentModel(env: NodeJS.ProcessEnv): { config: TextConfiguration; key: string } | undefined {
+  const generic = env.MOLIS_WORK_TEXT_API_KEY?.trim(); const key = generic || env.MINIMAX_API_KEY?.trim();
+  const base_url = env.MOLIS_WORK_TEXT_BASE_URL?.trim() || (generic ? "" : "https://api.minimaxi.com/anthropic");
+  const model_id = env.MOLIS_WORK_TEXT_MODEL?.trim() || (generic ? "" : "MiniMax-M3");
+  if (!key || !base_url || !model_id) return undefined;
+  const api_format = (env.MOLIS_WORK_TEXT_API_FORMAT?.trim() || "anthropic-messages") as ModelApiFormat;
+  if (!["anthropic-messages", "openai-chat-completions"].includes(api_format)) throw new Error("模型接口格式无效");
+  return { config: { base_url: validateTextModelUrl(base_url), api_format, model_id }, key };
 }
 
 function assertVisionInput(request: HostTextRequestOptions | undefined, vision: boolean): void {

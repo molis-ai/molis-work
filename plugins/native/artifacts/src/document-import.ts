@@ -32,8 +32,11 @@ export class ArtifactImportError extends Error {
 }
 
 export interface ArtifactDocumentImportPorts {
-  boardId: string;
+  projectId: string;
+  /** Who imports (a person, a workflow, an Agent, an MCP client): the producer, kept as the version's `created_by`. */
   actorId: string;
+  /** Who the snapshot belongs to: the Home's person, whoever imported it. The same source then has one line of snapshots. */
+  ownerActorId: string;
   routePrefix: string;
   artifacts: ArtifactsApplicationApi;
   readExternal(input: { source: ExternalDocumentSource; url: string; connection_id?: string }): Promise<ImportedArtifactDocument>;
@@ -44,7 +47,7 @@ export interface ArtifactDocumentImportPorts {
   beforeSave?: () => void | Promise<void>;
 }
 
-/** An explicit import creates a personal snapshot; no scheduler or source write-back. */
+/** An explicit import creates a personal snapshot of the person; no scheduler or source write-back. */
 export async function importArtifactDocument(input: Record<string, unknown>, ports: ArtifactDocumentImportPorts) {
   const source = input.source;
   let document: ImportedArtifactDocument;
@@ -63,18 +66,18 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
   await ports.beforeSave?.();
   ports.signal?.throwIfAborted();
   // Project-scoped identity: the same source can be independently imported into two projects.
-  const artifactId = `document-${digest(JSON.stringify([ports.boardId, document.source, document.source_id]))}`;
-  const latest = ports.artifacts.query.latestArtifactVersion(ports.boardId, artifactId);
+  const artifactId = `document-${digest(JSON.stringify([ports.projectId, document.source, document.source_id]))}`;
+  const latest = ports.artifacts.query.latestArtifactVersion(ports.projectId, artifactId);
   const payload = JSON.parse(JSON.stringify(document)) as ArtifactJsonValue;
   const previous = latest?.payload;
   const sameContent = previous && typeof previous === "object" && !Array.isArray(previous)
     && Object.entries(document).every(([key, value]) => key === "source_url" || isDeepStrictEqual(previous[key], value));
   if (latest && sameContent && latest.lifecycle_state === "active" && latest.availability === "available") {
-    return { artifact_id: artifactId, version: latest.version, reused: true,
+    return { artifact_id: artifactId, version: latest.version, title: latest.title, reused: true,
       url: ports.routePrefix + artifactVersionPath(latest), warnings: document.warnings };
   }
   const result = ports.artifacts.commands.registerVersion({
-    board_id: ports.boardId, actor_id: ports.actorId, artifact_id: artifactId,
+    project_id: ports.projectId, actor_id: ports.actorId, owner_actor_id: ports.ownerActorId, artifact_id: artifactId,
     version: (latest?.version ?? 0) + 1,
     artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1,
     producer: { plugin_id: artifactsManifest.plugin_id, plugin_version: artifactsManifest.version,
@@ -88,7 +91,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
     title: document.title, media_type: document.format === "file" ? document.original_file!.mime
       : document.format === "text" ? "text/plain" : "text/markdown",
   });
-  return { artifact_id: artifactId, version: result.artifact.version, reused: false,
+  return { artifact_id: artifactId, version: result.artifact.version, title: result.artifact.title, reused: false,
     url: ports.routePrefix + artifactVersionPath(result.artifact), warnings: document.warnings };
 }
 

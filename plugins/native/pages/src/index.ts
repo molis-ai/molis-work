@@ -22,8 +22,8 @@ export type { PagesPluginRouteHandler, PagesPluginRouteRequest, PagesPluginRoute
 export { createPagesRouteHandlers, pagesRouteErrorResponse } from "./route-handlers.js";
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "./manifest.js";
 export { pagesMethods } from "./methods.js";
-export { PAGES_MCP_EXPORTS, runPagesMcpTool } from "./mcp.js";
-export { openPagesStore, PagesStore } from "./store.js";
+export { openPagesStore, PagesStore, PAGES_STORE_BASELINE } from "./store.js";
+export { purgePagesProject, pagesProjectData } from "./project-data.js";
 export type { PagesImportDocumentsInput } from "./store.js";
 export { generatePagesFromMaterials } from "./generate.js";
 export { preparePagesImport } from "./import-files.js";
@@ -160,9 +160,9 @@ export {
 export { extractFromPagesBody } from "./extract.js";
 export { PAGES_AI_COMMANDS, runPagesAi } from "./ai.js";
 export type { PagesRoutePorts } from "./route-handlers.js";
-export type { PagesPublishArtifactPort, PagesReadArtifactPort } from "./promote.js";
+export type { PagesLineHeadPort, PagesPublishArtifactPort, PagesReadArtifactPort } from "./promote.js";
 
 export { pagesContentActions, createPagesContentHandlers } from "./content-actions.js";
 
-export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, createPagesActionHandlers } from "./actions.js";
+export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, PAGES_READABLE_FILE, createPagesActionHandlers } from "./actions.js";
 export type { PagesActionPorts } from "./actions.js";

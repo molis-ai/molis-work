@@ -17,12 +17,15 @@ import {
   prepareScheduledOperation,
   reconcileScheduledOperations,
   handleScheduleTaskWakeup,
-  migrateScheduleConversationTasks,
+  SCHEDULE_TASKS_SCHEMA_SQL,
+  SCHEDULE_REMINDERS_SCHEMA_SQL,
+  SCHEDULED_OPERATIONS_SCHEMA_SQL,
   rescheduleEnabledConversationTasks,
   type ScheduledTaskRunner,
 } from "@molis-ai/molis-work-plugin-schedule";
-import { deliverHostReminder, LEGACY_REMINDER_OWNER, LEGACY_REMINDER_WAKEUP, migrateLegacyReminders } from "./schedule-reminders.js";
-import { LEGACY_OPERATION_OWNER, LEGACY_OPERATION_WAKEUP, migrateLegacyScheduledOperations, runHostScheduledOperation } from "./schedule-operations.js";
+import { deliverHostReminder } from "./schedule-reminders.js";
+import { runHostScheduledOperation } from "./schedule-operations.js";
+import { createLocalFeedApplication, type LocalFeedApplicationOptions } from "./feed-application.js";
 
 const wakeupIndex = new PluginWakeupIndex();
 const tickContext = new AsyncLocalStorage<{
@@ -30,6 +33,7 @@ const tickContext = new AsyncLocalStorage<{
   runner: ScheduledTaskRunner;
 }>();
 const runners = new WeakMap<object, ScheduledTaskRunner>();
+const deliveryFeeds = new WeakMap<object, LocalFeedApplicationOptions>();
 let wakeupBound = false;
 
 const missingRunner: ScheduledTaskRunner = {
@@ -46,24 +50,45 @@ function ensureHostWakeups(): void {
     if (!ctx) throw new Error("闹钟叫醒没有项目现场");
     return handleScheduleTaskWakeup(ctx.db, input.object_ref, ctx.runner, undefined, control);
   });
-  for (const [owner, capability] of [[SCHEDULE_PLUGIN_ID, SCHEDULE_REMINDER_WAKEUP], [LEGACY_REMINDER_OWNER, LEGACY_REMINDER_WAKEUP]] as const) {
-    wakeupIndex.register(owner, capability, async (input, control) => {
-      const ctx = tickContext.getStore();
-      if (!ctx) throw new Error("提醒没有项目现场");
-      return deliverHostReminder(ctx.db, input, control);
-    });
-  }
-  for (const [owner, capability] of [[SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP], [LEGACY_OPERATION_OWNER, LEGACY_OPERATION_WAKEUP]] as const) {
-    wakeupIndex.register(owner, capability, async (input, control) => {
-      const ctx = tickContext.getStore();
-      if (!ctx) throw new Error("定时操作没有项目现场");
-      return runHostScheduledOperation(ctx.db, input, control);
-    }, { prepare(input) {
-      const ctx = tickContext.getStore();
-      if (!ctx) throw new Error("定时操作没有项目现场");
-      prepareScheduledOperation(ctx.db, input);
-    } });
-  }
+  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_REMINDER_WAKEUP, async (input, control) => {
+    const ctx = tickContext.getStore();
+    if (!ctx) throw new Error("提醒没有项目现场");
+    const feed = deliveryFeed(ctx.db);
+    const reply = deliverHostReminder(ctx.db, input, control, feed);
+    await judgeDelivered(feed, control);
+    return reply;
+  });
+  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, async (input, control) => {
+    const ctx = tickContext.getStore();
+    if (!ctx) throw new Error("定时操作没有项目现场");
+    const feed = deliveryFeed(ctx.db);
+    const reply = await runHostScheduledOperation(ctx.db, input, control, feed);
+    await judgeDelivered(feed, control);
+    return reply;
+  }, { prepare(input) {
+    const ctx = tickContext.getStore();
+    if (!ctx) throw new Error("定时操作没有项目现场");
+    prepareScheduledOperation(ctx.db, input);
+  } });
+}
+
+/** Reminders and scheduled results enter Feed through a wakeup, so the project binds the judgments such an entry starts. */
+export function bindScheduleDeliveryFeed(db: ScheduleSqliteDatabase, options: LocalFeedApplicationOptions): void {
+  deliveryFeeds.set(db, options);
+}
+
+function deliveryFeed(db: ScheduleSqliteDatabase) {
+  return createLocalFeedApplication(db as Parameters<typeof createLocalFeedApplication>[0], deliveryFeeds.get(db));
+}
+
+/**
+ * The delivery has committed (a rolled-back or refused one threw before this point), so the Inbox next step and
+ * capture rules its item started run now. They follow the delivery: a model failure never un-delivers a reminder,
+ * and a wakeup that lost its lease starts nothing new.
+ */
+async function judgeDelivered(feed: ReturnType<typeof deliveryFeed>, control: ScheduleWakeupControl): Promise<void> {
+  if (control.signal.aborted) return;
+  try { await feed.flushPendingJudgments(); } catch { /* The judgment is recorded or can be asked for again from the Inbox entry. */ }
 }
 
 /**
@@ -85,22 +110,19 @@ export function bindScheduledTaskRunner(db: ScheduleSqliteDatabase, runner: Sche
 
 export function scheduleServiceFor(db: ScheduleSqliteDatabase, now?: () => Date): ScheduleService {
   ensureHostWakeups();
-  migrateScheduleConversationTasks(db);
+  db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
   const inner = createScheduleService(db, {
     wakeupIndex,
     ...(now ? { now } : {}),
   });
-  migrateLegacyReminders(db, inner);
-  migrateLegacyScheduledOperations(db, inner);
+  db.exec(SCHEDULE_REMINDERS_SCHEMA_SQL);
+  db.exec(SCHEDULED_OPERATIONS_SCHEMA_SQL);
   return {
     ...inner,
     async tick(at) {
       const runner = runners.get(db) ?? missingRunner;
       const when = at ?? now?.() ?? new Date();
       return tickContext.run({ db, runner }, async () => {
-        // A long-lived timer may have first opened while an old process still held a lease.
-        // Retry the one-way import before claiming any newly available legacy wakeup.
-        migrateLegacyScheduledOperations(db, inner);
         reconcileScheduledOperations(db, inner);
         const result = await inner.tick(when);
         reconcileScheduledOperations(db, inner);

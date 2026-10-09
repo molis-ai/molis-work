@@ -11,6 +11,6 @@ export const EVENT_TOOLS: McpToolDefinition[] = [{
   inputSchema: { ...business,
     properties: { ...V1_COMMON, ...business.properties as Record<string, unknown>,
       actor_id: { type: "string", description: "受保护管理入口的操作者；Runtime 不能使用此入口。" } },
-    required: ["board_id", "actor_id", ...business.required as string[]],
+    required: ["project_id", "actor_id", ...business.required as string[]],
   },
 }];

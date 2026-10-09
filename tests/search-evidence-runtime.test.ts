@@ -23,7 +23,6 @@ function fixture(t: test.TestContext) {
     createIfAbsent(ref, value) { if (keys.has(ref)) return false; keys.set(ref, value); return true; },
     deleteIfPresent: ref => keys.delete(ref),
     backend: () => ({ kind: "aes-gcm-file", label: "explicit test memory", masterKeyExternal: false, formatVersion: 2 }),
-    migrateIfNeeded: () => ({ migrated: 0, remainingLegacy: 0, backend: "aes-gcm-file" }),
   };
   const content = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(directory, "content") });
   t.after(() => { storage.close(); rmSync(directory, { recursive: true, force: true }); });

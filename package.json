@@ -15,16 +15,11 @@
   "engines": {
     "node": ">=24"
   },
+  "packageManager": "pnpm@11.9.0",
   "bin": {
     "molis-work": "./dist/cli/main.js",
     "molis-work-mcp": "./dist/mcp/server.js",
     "molis-work-web": "./dist/web/server.js"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
   },
   "files": [
     "dist",
@@ -41,14 +36,17 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "pnpm build:migrated-packages && pnpm clean && tsc -p tsconfig.json && tsc -p tsconfig.sdk.json && pnpm build:pty-client && node apps/local-host/tooling/write-build-manifest.mjs .",
+    "build": "pnpm build:migrated-packages && pnpm clean && tsc -p tsconfig.json && pnpm build:pty-client && node apps/local-host/tooling/write-build-manifest.mjs .",
     "build:migrated-packages": "pnpm workspace:build",
     "boundary:check": "pnpm --filter @molis-ai/molis-work-test-kit build && node scripts/check-package-boundaries.mjs",
     "health:check": "node scripts/check-health-gates.mjs",
-    "boundary:test": "pnpm --filter @molis-ai/molis-work-test-kit test && node --test tests/workbench-registration-boundaries.test.mjs",
+    "api:update": "node scripts/gates/api-snapshot.mjs --update",
+    "page-assets:check": "node scripts/gates/page-assets.mjs",
+    "secrets:check": "node scripts/check-secrets.mjs",
+    "boundary:test": "pnpm --filter @molis-ai/molis-work-test-kit test && node --test tests/workbench-registration-boundaries.test.mjs tests/package-owners.test.mjs",
     "build:all": "pnpm build && pnpm boundary:check && pnpm workspace:build",
     "build:pty-client": "esbuild apps/workbench/src/terminal-client.ts --bundle --format=iife --platform=browser --outfile=dist/web/pty-client.js --loader:.css=text",
-    "typecheck": "pnpm build:migrated-packages && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.sdk.json",
+    "typecheck": "pnpm build:migrated-packages && tsc --noEmit -p tsconfig.json",
     "typecheck:all": "pnpm typecheck && pnpm boundary:check && pnpm workspace:typecheck",
     "test": "pnpm build && pnpm test:run",
     "test:run": "node scripts/run-tests.mjs",
@@ -64,6 +62,7 @@
     "cli": "tsx apps/desktop/launchers/cli/main.ts",
     "mcp": "tsx apps/desktop/launchers/mcp/server.ts",
     "web": "tsx apps/desktop/launchers/web/server.ts",
+    "studio:replay": "tsx scripts/studio-replay.mts",
     "desktop": "cargo run --manifest-path apps/desktop/src-tauri/Cargo.toml",
     "start": "node scripts/start.mjs",
     "desktop:build:macos": "bash apps/desktop/tooling/build-macos-release.sh",
@@ -91,8 +90,6 @@
     "@molis-ai/molis-work-module-attention-resumption": "workspace:*",
     "@molis-ai/molis-work-module-characters": "workspace:*",
     "@molis-ai/molis-work-module-context-ledger": "workspace:*",
-    "@molis-ai/molis-work-module-evidence-verification": "workspace:*",
-    "@molis-ai/molis-work-module-execution": "workspace:*",
     "@molis-ai/molis-work-module-feed": "workspace:*",
     "@molis-ai/molis-work-module-functions": "workspace:*",
     "@molis-ai/molis-work-module-goals": "workspace:*",

@@ -67,9 +67,8 @@ function configure(f: Parameters<Parameters<typeof fixture>[0]>[0], providerId =
     const value = store.createToken({ serviceId: "model-api", displayName: providerId, token: `${providerId}-fixture-key` });
     store.assertTarget(value.connection_id, "model-api", f.modelOrigin); return value;
   });
-  f.catalog.models.upsert({ provider_id: providerId, display_name: providerId, base_url: f.modelOrigin + "/v1", api_format: format,
+  f.catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: providerId, display_name: providerId, base_url: f.modelOrigin + "/v1", api_format: format,
     prompt_cache: format === "anthropic-messages" ? "required" : "off", models: [{ model_id: `${providerId}-model`, enabled: true }] });
-  f.catalog.models.selectConnection(providerId, connection.credential_ref!);
   return connection;
 }
 
@@ -120,7 +119,7 @@ test("production settings HTTP -> shared connection -> Lingguang action actually
     assert.equal(f.requests[0]!.headers.authorization, "Bearer http-model-fixture-key");
     assert.equal(f.requests[0]!.body.model, "settings-model");
     assert.match(f.requests[0]!.body.messages[0].content, /本轮材料/);
-    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: LINGGUANG_ACTION_PERMISSIONS };
     await http(`/api/settings/connectors/connections/${connection.connection_id}`, undefined, 200, "DELETE");
     const directory = await host.actionClient(ref).discover(caller);
@@ -168,7 +167,7 @@ for (const change of ["disconnect", "disable", "replace-model", "replace-key", "
     const resumed = new Promise<void>(resolve => { release = resolve; });
     f.answer(async () => { entered(); await resumed; return { choices: [{ message: { content: "stale" } }] }; });
     const host = f.host;
-    const ref = molisWorkHostProjectReference({ databasePath: join(f.home, "project.sqlite"), projectId: "a", boardId: "a" });
+    const ref = molisWorkHostProjectReference({ databasePath: join(f.home, "project.sqlite"), projectId: "a" });
     const caller = { actor_id: "test", project_id: "a", audience: "user" as const, permissions: LINGGUANG_ACTION_PERMISSIONS };
     const client = host.actionClient(ref);
     const { spark } = await client.invoke(caller, lingguangActions.create, { body: "材料" });
@@ -231,31 +230,20 @@ test("two configured Homes keep account credentials separate even under another 
   } finally { await hostB.close(); catalogB.close(); }
 }));
 
-test("legacy stored key remains usable only without catalog configuration and respects disconnect during a request", async () => fixture(async f => {
+// Only the model catalog configures text models, or an explicit environment key in development (repository-anti-corruption
+// §1, 2026-10-04): a key stored outside the catalog under the old reference is never read.
+test("a key stored outside the model catalog is never read; the catalog configures the model", async () => fixture(async f => {
   const secrets = runWithMolisWorkHome(f.home, () => createFileSecretStore());
   secrets.put("model:text:api_key", "legacy-fixture-key");
   process.env.MOLIS_WORK_TEXT_BASE_URL = f.modelOrigin + "/v1/chat/completions";
   process.env.MOLIS_WORK_TEXT_API_FORMAT = "openai-chat-completions";
-  const legacy = hostCompleteText({ homeDirectory: f.home })!;
-  assert.equal(await legacy("old installation"), "模型读取到了全局配置。");
-  assert.equal(f.requests[0]!.url, "/v1/chat/completions");
-  let enter!: () => void, release!: () => void;
-  const entered = new Promise<void>(resolve => { enter = resolve; });
-  const resumed = new Promise<void>(resolve => { release = resolve; });
-  f.answer(async () => { enter(); await resumed; return { choices: [{ message: { content: "late legacy" } }] }; });
-  const pending = legacy("revoke while pending");
-  const rejected = assert.rejects(pending, { code: "actions.configuration_changed" });
-  await entered; secrets.delete("model:text:api_key"); release(); await rejected;
   assert.equal(hostCompleteText({ homeDirectory: f.home }), undefined);
-  secrets.put("model:text:api_key", "legacy-restored-fixture-key");
-  const imported = withConnectorConnections(f.home, store => store.adoptLegacy({ serviceId: "model-api", displayName: "旧文本连接", credentialRef: "model:text:api_key", authMethod: "token" }));
-  assert.ok(imported);
-  withConnectorConnections(f.home, store => store.disconnect(imported.connection_id));
-  secrets.put("model:text:api_key", "bytes-do-not-override-disconnect");
-  assert.equal(hostCompleteText({ homeDirectory: f.home }), undefined);
+  assert.equal(f.requests.length, 0, "nothing is sent with the old key");
   configure(f);
-  await assert.rejects(legacy("must use new configuration"), { code: "actions.connection_required" });
-  assert.equal(f.requests.length, 2);
+  const complete = hostCompleteText({ homeDirectory: f.home })!;
+  assert.ok(complete, "a catalog provider configures the model");
+  await complete("new installation");
+  assert.equal(f.requests.length, 1);
 }));
 
 test("a saved connection cannot send its credential to a changed provider origin", async t => fixture(async f => {
@@ -278,7 +266,7 @@ test("Dataset uses the configured model connection, keeps local columns offline 
   const connection = configure(f);
   const host = f.host;
   try {
-    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: DATASET_ACTION_PERMISSIONS };
     const client = host.actionClient(ref);
     assert.equal((await client.discover(caller)).find(row => row.capability_id === datasetActions.generateAi.capability_id)!.availability.available, true);
@@ -312,7 +300,7 @@ test("Form uses the configured model connection, keeps local questions offline a
   const connection = configure(f);
   const host = f.host;
   try {
-    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: FORM_ACTION_PERMISSIONS };
     const client = host.actionClient(ref);
     assert.equal((await client.discover(caller)).find(row => row.capability_id === formActions.generateAi.capability_id)!.availability.available, true);

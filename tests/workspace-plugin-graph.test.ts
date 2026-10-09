@@ -9,7 +9,7 @@ import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import {
-  DEMO_BOARD_ID,
+  DEMO_PROJECT_ID,
   LocalProjectDatabase,
   createPluginPlatform,
   seedDemoBoard,
@@ -22,6 +22,7 @@ import { GIT_PLUGIN_ID, createGitPlugin } from "@molis-ai/molis-work-plugin-git"
 import { TEXT_STATS_PLUGIN_ID, createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 /** Artifact companions run independently of the retired Workspace plugin. */
 
@@ -43,16 +44,17 @@ function project(directory: string, capabilities?: Parameters<typeof createPlugi
   const file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
-  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID),
-    board_id: DEMO_BOARD_ID,
+  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) });
+  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID),
+    project_id: DEMO_PROJECT_ID,
     actor_id: "tester",
     db: store.db,
-    artifacts: new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }),
+    artifacts, processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }),
     ui: new UiHost(),
     ...(capabilities ? { capabilities } : {}),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
-  return { store, platform };
+  return { store, platform, artifacts };
 }
 
 
@@ -103,7 +105,7 @@ test("Files reads browsing settings without a Workspace binding and rejects the 
     assert.equal((first!.body as any).workspace.workspace_id, "one");
     selected = { ...selected, workspace_id: "two", canonical_path: "/two" };
     assert.equal(((await read())!.body as any).workspace.workspace_id, "two");
-    assert.throws(() => platform.wiring.bind({ board_id: DEMO_BOARD_ID, actor_id: "tester", target_plugin_id: FILES_PLUGIN_ID,
+    assert.throws(() => platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: FILES_PLUGIN_ID,
       target_port: "workspace", source_plugin_id: "io.molis.work.workspace", source_port: "workspace", origin: "user" }));
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
@@ -126,7 +128,7 @@ test("Files 捕获的快照到得了 Text stats，数出来的是那一份", asy
     ]);
 
     platform.wiring.bind({
-      board_id: DEMO_BOARD_ID,
+      project_id: DEMO_PROJECT_ID,
       target_plugin_id: TEXT_STATS_PLUGIN_ID,
       target_port: "text",
       source_plugin_id: FILES_PLUGIN_ID,
@@ -160,7 +162,7 @@ test("Coding fixed output reaches Diff through the production default binding wi
       { definition: createFilesPlugin() }, { definition: createGitPlugin() },
       { definition: createTextStatsPlugin() }, { definition: createDiffPlugin() },
     ]);
-    bindWorkspaceCompanions(platform, DEMO_BOARD_ID, "tester");
+    bindWorkspaceCompanions(platform, DEMO_PROJECT_ID, "tester");
     assert.equal(platform.wiring.selectedGroup(DIFF_PLUGIN_ID), "snapshots", "publishing must not change the user's comparison group");
     // Coding records its change set as a process item (artifact-positioning A2), then selects it into the port.
     const saved = coding!.services!.processItems!.record({ artifact_id: "fixed-coding", version: 1, artifact_type_id: "coding.changeset.v1", schema_version: 1,
@@ -175,6 +177,37 @@ test("Coding fixed output reaches Diff through the production default binding wi
     const view = (response?.body as { view: { rows: Array<{ text: string }>; group: string; partial: boolean } }).view;
     assert.equal(view.group, "change-set"); assert.equal(view.partial, false);
     assert.deepEqual(view.rows.map(row => row.text), ["original", "fixed"]);
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("the default wiring leaves a 成果 version the person gave an input in place, on every project open and when another port is put back", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "pinned-input-graph-"));
+  const { store, platform, artifacts } = project(directory);
+  try {
+    await platform.start([
+      { definition: createCodingPlugin() }, { definition: createShelfPlugin() },
+      { definition: createFilesPlugin() }, { definition: createGitPlugin() }, { definition: createTextStatsPlugin() }, { definition: createDiffPlugin() },
+    ]);
+    const shelfReport = () => platform.wiring.view().plugins.find(plugin => plugin.plugin_id === "io.molis.work.shelf")!.ports.find(port => port.port === "coding-report")!;
+    bindWorkspaceCompanions(platform, DEMO_PROJECT_ID, "tester");
+    assert.equal(shelfReport().source?.source_plugin_id, "io.molis.work.coding", "an input that reads nothing follows the default source");
+    artifacts.commands.registerVersion({ ...pinnedArtifact("固定的执行报告"), project_id: DEMO_PROJECT_ID, actor_id: "tester", artifact_id: "report-1", version: 2,
+      artifact_type_id: "coding.report.v1", schema_version: 1, producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.50.0", binding_signature: "official-coding-binding" },
+      content: { kind: "inline", payload: { title: "固定的执行报告", run_id: "run", source: { session_id: "session" }, body_markdown: "## 报告" } } });
+    platform.wiring.bindArtifact({ target_plugin_id: "io.molis.work.shelf", target_port: "coding-report", artifact_id: "report-1", version: 2, actor_id: "tester" });
+    const pinned = { artifact_id: "report-1", version: 2 };
+    assert.deepEqual(shelfReport().artifact, pinned);
+
+    bindWorkspaceCompanions(platform, DEMO_PROJECT_ID, "tester");                       // the project is opened again
+    assert.deepEqual(shelfReport().artifact, pinned, "opening the project does not replace the given version");
+    assert.equal(shelfReport().source, undefined);
+    assert.equal(shelfReport().origin, "user");
+
+    platform.wiring.unbind("io.molis.work.coding", "materials");                         // another port is put back to its default
+    bindWorkspaceCompanions(platform, DEMO_PROJECT_ID, "tester");
+    assert.deepEqual(shelfReport().artifact, pinned, "putting back another port does not replace the given version");
+    assert.equal(platform.wiring.view().plugins.find(plugin => plugin.plugin_id === "io.molis.work.coding")!.ports.find(port => port.port === "materials")!.source?.source_plugin_id,
+      "io.molis.work.shelf", "the port that was put back follows its default source again");
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 

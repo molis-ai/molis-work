@@ -38,7 +38,7 @@ export interface SourcesSqliteDatabase {
 export { SourcesError } from "@molis-ai/molis-work-contracts/modules/sources";
 
 const FEED_SOURCES_COLUMNS = `
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       source_id TEXT NOT NULL,
       kind TEXT NOT NULL,
       definition_id TEXT,
@@ -51,7 +51,6 @@ const FEED_SOURCES_COLUMNS = `
       origin TEXT NOT NULL CHECK (origin = 'molis_work'),
       config_json TEXT NOT NULL DEFAULT '{}',
       schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
-      cursor_json TEXT NOT NULL DEFAULT '{}',
       credential_ref TEXT,
       account_label TEXT,
       last_sync_at TEXT,
@@ -59,27 +58,17 @@ const FEED_SOURCES_COLUMNS = `
       last_error_code TEXT,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, source_id)
+      PRIMARY KEY (project_id, source_id)
 `;
 
-function feedSourcesTableSql(tableName: string, ifNotExists: boolean): string {
-  return `CREATE TABLE ${ifNotExists ? "IF NOT EXISTS " : ""}${tableName} (${FEED_SOURCES_COLUMNS});`;
-}
-
-function feedSourcesIndexSql(): string {
-  return `CREATE INDEX IF NOT EXISTS feed_sources_board_updated_idx
-      ON feed_sources(board_id, updated_at DESC, source_id);`;
-}
-
 /**
- * Owns Source desired state in the existing `feed_sources` table while FD1
- * callers are migrated. `cursor_json` remains only as a legacy migration input;
- * all active cursor reads and writes belong to Listener Host.
+ * Source desired state in the `feed_sources` table, as one current schema the host composes into the project database
+ * baseline. Cursor reads and writes belong to Listener Host.
  */
-export function migrateSources(db: SourcesSqliteDatabase): void {
-  db.exec(`
-    ${feedSourcesTableSql("feed_sources", true)}
-    ${feedSourcesIndexSql()}
+export const SOURCES_SCHEMA_SQL = `
+    CREATE TABLE IF NOT EXISTS feed_sources (${FEED_SOURCES_COLUMNS});
+    CREATE INDEX IF NOT EXISTS feed_sources_project_updated_idx
+      ON feed_sources(project_id, updated_at DESC, source_id);
 
     CREATE TABLE IF NOT EXISTS source_events (
       event_id TEXT PRIMARY KEY,
@@ -91,67 +80,8 @@ export function migrateSources(db: SourcesSqliteDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS source_events_project_source_idx
       ON source_events(project_id, source_id, at, event_id);
-  `);
-  ensureColumn(db, "feed_sources", "definition_id", "TEXT");
-  ensureColumn(db, "feed_sources", "sync_kind", "TEXT NOT NULL DEFAULT 'manual'");
-  ensureColumn(db, "feed_sources", "config_json", "TEXT NOT NULL DEFAULT '{}'");
-  ensureColumn(db, "feed_sources", "schedule_json", "TEXT NOT NULL DEFAULT '{\"mode\":\"manual\"}'");
-  ensureColumn(db, "feed_sources", "cursor_json", "TEXT NOT NULL DEFAULT '{}'");
-  ensureColumn(db, "feed_sources", "credential_ref", "TEXT");
-  ensureColumn(db, "feed_sources", "account_label", "TEXT");
-  ensureColumn(db, "feed_sources", "last_sync_at", "TEXT");
-  ensureColumn(db, "feed_sources", "last_outcome", "TEXT");
-  ensureColumn(db, "feed_sources", "last_error_code", "TEXT");
-  rebuildFeedSourcesOriginCheck(db);
-  rebuildFeedSourcesSyncKindCheck(db);
-  db.exec("UPDATE feed_sources SET status = 'disconnected' WHERE status = 'imported'");
-}
+`;
 
-function rebuildFeedSourcesOriginCheck(db: SourcesSqliteDatabase): void {
-  rebuildFeedSourcesTable(db, "feed_sources__origin_v2", (sql) => !sql.includes("CHECK (origin = 'molis_work')"));
-}
-
-function rebuildFeedSourcesSyncKindCheck(db: SourcesSqliteDatabase): void {
-  rebuildFeedSourcesTable(db, "feed_sources__sync_kind_v2", (sql) => !sql.includes("'connector'"));
-}
-
-function rebuildFeedSourcesTable(
-  db: SourcesSqliteDatabase,
-  stagingTable: string,
-  needed: (sql: string) => boolean,
-): void {
-  const sql = String(
-    (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get() as { sql?: string } | undefined)?.sql ?? "",
-  );
-  if (!sql || !needed(sql)) return;
-  db.pragma("foreign_keys = OFF");
-  try {
-    db.exec(`
-      ${feedSourcesTableSql(stagingTable, false)}
-      INSERT INTO ${stagingTable} (
-        board_id, source_id, kind, definition_id, sync_kind, name, description,
-        status, enabled, item_count, origin, config_json, schedule_json, cursor_json,
-        credential_ref, account_label, last_sync_at, last_outcome, last_error_code,
-        imported_at, updated_at
-      )
-      SELECT
-        board_id, source_id, kind, definition_id, sync_kind, name, description,
-        CASE status WHEN 'imported' THEN 'disconnected' ELSE status END,
-        enabled, item_count, 'molis_work', config_json, schedule_json, cursor_json,
-        credential_ref, account_label, last_sync_at, last_outcome, last_error_code,
-        imported_at, updated_at
-      FROM feed_sources;
-      DROP TABLE feed_sources;
-      ALTER TABLE ${stagingTable} RENAME TO feed_sources;
-      ${feedSourcesIndexSql()}
-    `);
-  } finally {
-    db.pragma("foreign_keys = ON");
-  }
-}
-
-export type AccountSourceCredential = Pick<SourceRecord,
-  "kind" | "name" | "connection_ref" | "account_label" | "config">;
 
 function hasStoredSources(db: Pick<SourcesSqliteDatabase, "prepare">): boolean {
   return Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get());
@@ -163,17 +93,6 @@ function storedSourceConfig(value: unknown): Record<string, unknown> {
     ? parsed as Record<string, unknown> : {};
 }
 
-/** Read legacy account references without migrating Sources or opening credentials. */
-export function inspectAccountSourceCredentials(db: Pick<SourcesSqliteDatabase, "prepare">): AccountSourceCredential[] {
-  if (!hasStoredSources(db)) return [];
-  const rows = db.prepare(`SELECT kind, name, credential_ref, account_label, config_json
-    FROM feed_sources WHERE credential_ref IS NOT NULL AND sync_kind IN ('github', 'gmail', 'connector')`).all() as Row[];
-  return rows.map(row => ({
-    kind: asText(row.kind), name: asText(row.name), connection_ref: optionalText(row.credential_ref),
-    account_label: optionalText(row.account_label), config: storedSourceConfig(row.config_json),
-  })).filter(source => sourceDeletedAt(source) === null);
-}
-
 /** Connection availability changes Source state through its normal command/event path. */
 export function refreshSourceConnectionState(db: SourcesSqliteDatabase, input: {
   connection_id: string; available: boolean; at?: string;
@@ -182,13 +101,13 @@ export function refreshSourceConnectionState(db: SourcesSqliteDatabase, input: {
   const sources = new SourcesModule(db);
   const at = input.at ?? new Date().toISOString();
   return db.transaction(() => {
-    const rows = db.prepare(`SELECT board_id, source_id, enabled, config_json FROM feed_sources
+    const rows = db.prepare(`SELECT project_id, source_id, enabled, config_json FROM feed_sources
       WHERE sync_kind IN ('github', 'gmail', 'connector')`).all() as Row[];
     let changed = 0;
     for (const row of rows) {
       const config = storedSourceConfig(row.config_json);
       if (config.connection_id !== input.connection_id || !Number(row.enabled) || sourceDeletedAt({ config })) continue;
-      const source = sources.query.get(asText(row.board_id), asText(row.source_id));
+      const source = sources.query.get(asText(row.project_id), asText(row.source_id));
       const status = input.available
         ? source.status === "disconnected" ? "active" : source.status
         : source.status === "paused" ? "paused" : "disconnected";
@@ -230,18 +149,18 @@ export class SourcesModule implements SourcesApi {
   };
 
   constructor(private readonly db: SourcesSqliteDatabase) {
-    migrateSources(db);
+    db.exec(SOURCES_SCHEMA_SQL);
   }
 
   private list(projectId: string): SourceRecord[] {
     return (this.db.prepare(
-      "SELECT * FROM feed_sources WHERE board_id = ? ORDER BY updated_at DESC, name COLLATE NOCASE, source_id",
+      "SELECT * FROM feed_sources WHERE project_id = ? ORDER BY updated_at DESC, name COLLATE NOCASE, source_id",
     ).all(projectId) as Row[]).map(mapSource).filter((source) => sourceDeletedAt(source) === null);
   }
 
   private get(projectId: string, sourceId: string): SourceRecord {
     const row = this.db.prepare(
-      "SELECT * FROM feed_sources WHERE board_id = ? AND source_id = ?",
+      "SELECT * FROM feed_sources WHERE project_id = ? AND source_id = ?",
     ).get(projectId, sourceId) as Row | undefined;
     if (!row) throw new SourcesError("source_not_found", "找不到这个来源");
     return mapSource(row);
@@ -254,7 +173,7 @@ export class SourcesModule implements SourcesApi {
     configFingerprint?: string,
   ): SourceRecord | null {
     const rows = this.db.prepare(
-      "SELECT * FROM feed_sources WHERE board_id = ? AND sync_kind = ?",
+      "SELECT * FROM feed_sources WHERE project_id = ? AND sync_kind = ?",
     ).all(projectId, syncKind) as Row[];
     return rows.map(mapSource).filter((source) => sourceDeletedAt(source) === null).find((source) => {
       if (definitionId !== null && source.definition_id !== definitionId) return false;
@@ -269,17 +188,17 @@ export class SourcesModule implements SourcesApi {
     assertSchedule(source.schedule);
     return this.db.transaction(() => {
       const current = this.db.prepare(
-        "SELECT * FROM feed_sources WHERE board_id = ? AND source_id = ?",
+        "SELECT * FROM feed_sources WHERE project_id = ? AND source_id = ?",
       ).get(source.project_id, source.source_id) as Row | undefined;
       if (current) assertStatusTransition(mapSource(current).status, source.status);
       this.db.prepare(`
       INSERT INTO feed_sources (
-        board_id, source_id, kind, definition_id, sync_kind, name, description,
-        status, enabled, item_count, origin, config_json, schedule_json, cursor_json,
+        project_id, source_id, kind, definition_id, sync_kind, name, description,
+        status, enabled, item_count, origin, config_json, schedule_json,
         credential_ref, account_label, last_sync_at, last_outcome,
         last_error_code, imported_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, '{}', ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(board_id, source_id) DO UPDATE SET
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(project_id, source_id) DO UPDATE SET
         kind = excluded.kind,
         definition_id = excluded.definition_id,
         sync_kind = excluded.sync_kind,
@@ -405,7 +324,7 @@ function mapSource(row: Row): SourceRecord {
   const schedule = parseJson<SourceSchedule>(row.schedule_json, { mode: "manual" });
   assertSchedule(schedule);
   return {
-    project_id: asText(row.board_id),
+    project_id: asText(row.project_id),
     source_id: asText(row.source_id),
     kind: asText(row.kind),
     definition_id: optionalText(row.definition_id),
@@ -451,13 +370,6 @@ function assertStatusTransition(current: SourceStatus, next: SourceStatus): void
   };
   if (!allowed[current]?.includes(next)) {
     throw new SourcesError("source_invalid_transition", `来源不能从 ${current} 变成 ${next}`);
-  }
-}
-
-function ensureColumn(db: SourcesSqliteDatabase, table: string, column: string, definition: string): void {
-  const columns = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
-  if (!columns.some((entry) => entry.name === column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
 }
 

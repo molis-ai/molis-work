@@ -1,6 +1,6 @@
-import { ActionError, bindArtifactPreview, defineArtifactPreviewAction, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, bindArtifactPreview, defineArtifactPreviewAction, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactConsumerType, ArtifactReference, ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactVersionPath, importedFileOf, type ArtifactBrowserView } from "./browser.js";
 import { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./goal-context.js";
@@ -12,7 +12,7 @@ import { text, id, version, object, array, nullable, reference, consumerTypes, r
 const selection = { selected: nullable(record), requested: nullable(reference), compatibility: nullable(object({ artifact: reference,
   consumable: { type: "boolean" }, reason: { enum: ["compatible_consumer", "consumer_missing", "artifact_unavailable", "artifact_archived"] } })) };
 const browser = object({ versions: array(record), ...selection });
-const imported = object({ artifact_id: id, version, reused: { type: "boolean" }, url: text, warnings: array(text) });
+const imported = object({ artifact_id: id, version, title: text, reused: { type: "boolean" }, url: text, warnings: array(text) });
 const sources = { enum: ["notion", "feishu", "lark", "google-docs"] };
 const read = ["artifacts:read"], write = [...read, "artifacts:write"];
 const subjectDefinition = defineSubjectContextAction("artifacts.subject.read", ARTIFACT_SUBJECT_KIND, "固定版本成果", read);
@@ -23,11 +23,19 @@ const subject: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = 
 export interface ArtifactFileImport { source: "file"; filename: string; content?: string; title?: string;
   source_id?: string; original_file?: { filename: string; mime: string; data_base64: string } }
 export interface ArtifactExternalImport { source: ExternalDocumentSource; url: string; connection_id?: string }
-export interface ArtifactImportResult { artifact_id: string; version: number; reused: boolean; url: string; warnings: string[] }
+export interface ArtifactImportResult { artifact_id: string; version: number; title: string; reused: boolean; url: string; warnings: string[] }
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = read, scheduling?: ActionDefinition['action']['scheduling']): ActionDefinition<I, O> {
   return { capability_id: `artifacts.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
     scope: "project", ...(scheduling ? { scheduling } : {}), audiences: ["user", "agent", "workflow", "mcp"], permissions, subject_kinds: ["artifact"], input_schema: input, output_schema: output } };
 }
+const onlyPeople = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> => ({ ...definition, action: { ...definition.action, audiences: ["user"] } });
+/**
+ * A plugin input port that takes this version's type (artifact-positioning, 2026-10-04), and what it reads now: this very
+ * version, another fixed version, another plugin's output (`source_title`), or nothing.
+ */
+export interface ArtifactPluginInput { plugin_id: string; plugin_title: string; port: string; source: "this" | "another-version" | "plugin" | "none"; source_title: string | null }
+const pluginInputsOutput = object({ inputs: array(object({ plugin_id: text, plugin_title: text, port: text,
+  source: { enum: ["this", "another-version", "plugin", "none"] }, source_title: nullable(text) })) });
 /** System search: the newest available version of each Artifact, by title and the text inside its payload. */
 const searchEntries = defineSearchEntriesAction("artifacts.search.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
 /** The side panel's file tab (specs/archive/side-panel): the newest available version of each Artifact; previews read `subject`. */
@@ -60,29 +68,56 @@ export const artifactsActions = {
     object({ embeds: array(object({ relationship: { enum: ["input", "output"] }, view: browser })) })),
   links: define<{ reference: ArtifactReference }, ArtifactReferences>("links", "这一版被谁引用", "列出把这一版作为输入、交付物或提议交付物的目标，以及其他引用的数量；不修改数据",
     "query", object({ reference }), object({ goals: { type: "array", items: object({ goal_id: { type: "string" }, title: { type: "string" },
-      role: { enum: ["input", "deliverable", "proposed"] } }) }, other: { type: "integer", minimum: 0 } })),
-  projectReference: define<{ reference: string; evidence_id?: string | null }, { filename: string; content_base64: string }>("references.open", "打开项目结果引用", "通过受限读取器读取 project:// 或历史相对路径引用；已验证 Evidence 的原工作区优先，不接受调用者提供目录", "query",
-    object({ reference: id, evidence_id: nullable(id) }, ["reference"]), object({ filename: text, content_base64: text }), [...read, "workspace:read"]),
+      role: { enum: ["input", "deliverable", "proposed", "proposed_input"] } }) }, other: { type: "integer", minimum: 0 } })),
+  pluginInputs: define<{ reference: ArtifactReference }, { inputs: ArtifactPluginInput[] }>("plugin_inputs", "可以接这一版的插件输入",
+    "列出已启用插件里能接收这一版类型的输入端口，以及它们现在读的是什么；不修改数据", "query", object({ reference }), pluginInputsOutput),
+  // Changing what another plugin reads is the person's own choice (artifact-positioning, 2026-10-04).
+  bindPluginInput: onlyPeople(define<{ reference: ArtifactReference; plugin_id: string; port: string; restore?: boolean }, { inputs: ArtifactPluginInput[] }>("plugin_inputs.bind",
+    "把这一版交给插件的输入", "让一个插件的输入端口固定读这一版，直到改回原来的来源；restore 为真时改回原来的来源", "command",
+    object({ reference, plugin_id: id, port: id, restore: { type: "boolean" } }, ["reference", "plugin_id", "port"]), pluginInputsOutput, write)),
+  projectReference: define<{ reference: string }, { filename: string; content_base64: string }>("references.open", "打开项目结果引用", "通过受限读取器读取当前工作区里的 project:// 或相对路径引用；不接受调用者提供目录", "query",
+    object({ reference: id }, ["reference"]), object({ filename: text, content_base64: text }), [...read, "workspace:read"]),
 };
-export const ARTIFACT_ACTIONS: readonly ActionDefinition[] = Object.values(artifactsActions);
+/**
+ * A version in the 成果库 as the first station of a workflow run (artifact-positioning 五.1): any version starts a run with
+ * its text; workflows never hand content to the 成果库.
+ */
+export const artifactsContentActions = defineWorkflowContentActions({ id: "artifacts", title: "成果", icon: "package", receive: false,
+  subject_kind: ARTIFACT_SUBJECT_KIND, read_permissions: read, write_permissions: read });
+export const ARTIFACT_ACTIONS: readonly ActionDefinition[] = [...Object.values(artifactsActions), ...Object.values(artifactsContentActions)];
 export const ARTIFACT_ACTION_PERMISSIONS = [...new Set(ARTIFACT_ACTIONS.flatMap(value => value.action.permissions))];
 export interface ArtifactActionPorts {
-  boardId: string;
+  projectId: string;
   artifacts: ArtifactsApplicationApi;
   ledger: ContextLedgerApi["query"];
   importDocument(input: ArtifactFileImport | ArtifactExternalImport, caller: ActionExecutionContext): Promise<ArtifactImportResult>;
   importSources(): Record<string, boolean>;
   importConnections?(): ConnectorConnectionView[];
-  openProjectReference(input: { reference: string; evidence_id?: string | null }): Promise<{ filename: string; content_base64: string }>;
+  openProjectReference(input: { reference: string }): Promise<{ filename: string; content_base64: string }>;
   /** A Goal's title for 「被谁引用」, read by the host; null when the Goal is gone. */
   goalTitle?(goalId: string): string | null;
+  /** A 成果 type's display name as its owner declares it (the side panel groups by it); null when undeclared. */
+  typeTitle?(artifactTypeId: string): string | null;
+  /** A version's text as its type's owner previews it, for a workflow run that starts from it; null when there is none. */
+  previewText?(artifact: ArtifactVersionRecord, caller: ActionExecutionContext): Promise<string | null>;
+  /** Plugin input ports that take the version's type, read from the host's plugin wiring; absent where no plugins run. */
+  pluginInputs?(artifact: ArtifactVersionRecord): Promise<ArtifactPluginInput[]>;
+  /** Give the port this version, or with `restore` its former source; returns the ports as they are afterwards. */
+  bindPluginInput?(artifact: ArtifactVersionRecord, input: { plugin_id: string; port: string; restore: boolean }, caller: ActionExecutionContext): Promise<ArtifactPluginInput[]>;
 }
-/** Who refers to one version (A4b, 「被谁引用」): Goals that take it as input, hand it in, or have it proposed; other links counted. */
+/** Who refers to one version (A4b, 「被谁引用」): Goals that take it as input, hand it in, or have it proposed as either; other links counted. */
 export interface ArtifactReferences {
-  goals: Array<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" }>;
+  goals: Array<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" | "proposed_input" }>;
   other: number;
 }
-const GOAL_ROLES: Record<string, ArtifactReferences["goals"][number]["role"]> = { "goal.input": "input", "goal.output": "deliverable", "goal.output.proposal": "proposed" };
+const GOAL_ROLES: Record<string, ArtifactReferences["goals"][number]["role"]> = { "goal.input": "input", "goal.input.proposal": "proposed_input", "goal.output": "deliverable", "goal.output.proposal": "proposed" };
+/** A version people can still hand on: in the 成果库, readable and not archived. */
+function requireUsable(ports: ArtifactActionPorts, reference: ArtifactReference): ArtifactVersionRecord {
+  const artifact = ports.artifacts.query.getArtifactVersion(ports.projectId, reference);
+  if (!artifact || artifact.availability !== "available" || artifact.lifecycle_state === "archived") throw new ActionError("actions.subject_unavailable", "这一版不存在或不可用");
+  return artifact;
+}
+
 export function createArtifactActionHandlers(ports: ArtifactActionPorts): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => run(input as I, caller),
@@ -97,11 +132,11 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
     bind(artifactsActions.subject, (input, caller) => {
       const reference = parseArtifactSubjectId(input.subject_id);
       if (!reference) throw new ActionError("actions.invalid_input", "成果事项必须包含准确的成果 ID 和版本");
-      const artifact = requireArtifactAnalysisRecord(ports.artifacts.query.getArtifactVersion(ports.boardId, reference),
-        { board_id: ports.boardId, actor_id: caller.actor_id, reference });
-      const scope = { kind: "personal" as const, id: ports.boardId };
-      // Legacy edges omit the namespace or retain board_id; newer edges can name the canonical project.
-      const currentProject = (project: string | null | undefined) => project == null || project === ports.boardId || project === caller.project_id;
+      const artifact = requireArtifactAnalysisRecord(ports.artifacts.query.getArtifactVersion(ports.projectId, reference),
+        { project_id: ports.projectId, reference });
+      const scope = { kind: "personal" as const, id: ports.projectId };
+      // Edges in this project's ledger name this project or no project (Goals' input bindings name none).
+      const currentProject = (project: string | null | undefined) => project == null || project === ports.projectId;
       const edges = ports.ledger.list({ actor_id: caller.actor_id, scope });
       const goalIds = edges.filter(edge => (edge.type === "goal.input" || edge.type === "goal.output")
         && edge.target.module === "artifacts" && edge.target.id === reference.artifact_id && edge.target.version === reference.version
@@ -111,7 +146,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
     }),
     bindSearchEntriesHandler(artifactsActions.searchEntries, () => {
       const latest = new Map<string, ArtifactVersionRecord>();
-      for (const record of ports.artifacts.query.listArtifacts(ports.boardId)) {
+      for (const record of ports.artifacts.query.listArtifacts(ports.projectId)) {
         if (record.lifecycle_state !== "active" || record.availability !== "available") continue;
         const current = latest.get(record.artifact_id);
         if (!current || record.version > current.version) latest.set(record.artifact_id, record);
@@ -122,29 +157,47 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
     }),
     bindFileEntriesHandler(artifactsActions.fileEntries, () => {
       const latest = new Map<string, ArtifactVersionRecord>();
-      for (const record of ports.artifacts.query.listArtifacts(ports.boardId)) {
+      for (const record of ports.artifacts.query.listArtifacts(ports.projectId)) {
         if (record.lifecycle_state !== "active" || record.availability !== "available") continue;
         const current = latest.get(record.artifact_id);
         if (!current || record.version > current.version) latest.set(record.artifact_id, record);
       }
       return [...latest.values()].map(record => ({ subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
-        revision: `${record.version}:${record.content_digest}`, title: record.title, folder: [record.artifact_type_id],
+        revision: `${record.version}:${record.content_digest}`, title: record.title, folder: [ports.typeTitle?.(record.artifact_type_id) ?? record.artifact_type_id],
         media_type: record.media_type, size: record.size_bytes ?? null, updated_at: record.created_at, open: { surface: "artifacts", id: artifactVersionPath(record) } }));
     }),
-    bind(artifactsActions.browser, input => readArtifactBrowser(ports.artifacts.query, ports.boardId, input.reference ?? null, input.supported_types)),
-    bind(artifactsActions.read, input => readArtifactSelection(ports.artifacts.query, ports.boardId, input.reference, input.supported_types)),
-    bind(artifactsActions.export, input => ({ filename: `artifact-v${input.reference.version}.json`, mime: "application/json", content: exportArtifactVersion(ports.artifacts.query, ports.boardId, input.reference) })),
+    bind(artifactsActions.browser, input => readArtifactBrowser(ports.artifacts.query, ports.projectId, input.reference ?? null, input.supported_types)),
+    bind(artifactsActions.read, input => readArtifactSelection(ports.artifacts.query, ports.projectId, input.reference, input.supported_types)),
+    bind(artifactsActions.export, input => ({ filename: `artifact-v${input.reference.version}.json`, mime: "application/json", content: exportArtifactVersion(ports.artifacts.query, ports.projectId, input.reference) })),
     bind(artifactsActions.importFile, (input, caller) => ports.importDocument(input, caller)),
     bind(artifactsActions.importExternal, (input, caller) => ports.importDocument(input, caller)),
     bind(artifactsActions.importSources, () => ({ sources: ports.importSources(), connections: ports.importConnections?.() ?? [] })),
-    bind(artifactsActions.goalEmbeds, input => ({ embeds: readGoalArtifactEmbeds({ boardId: ports.boardId, goalId: input.goal_id, artifacts: ports.artifacts.query, ledger: ports.ledger, supportedTypes: input.supported_types }) })),
+    bind(artifactsActions.goalEmbeds, input => ({ embeds: readGoalArtifactEmbeds({ projectId: ports.projectId, goalId: input.goal_id, artifacts: ports.artifacts.query, ledger: ports.ledger, supportedTypes: input.supported_types }) })),
     bind(artifactsActions.projectReference, input => ports.openProjectReference(input)),
+    bind(artifactsActions.pluginInputs, async input => ({ inputs: await ports.pluginInputs?.(requireUsable(ports, input.reference)) ?? [] })),
+    bind(artifactsActions.bindPluginInput, async (input, caller) => {
+      const artifact = requireUsable(ports, input.reference);
+      if (!ports.bindPluginInput) throw new ActionError("artifacts.unavailable", "这里没有运行中的插件，不能改插件的输入");
+      return { inputs: await ports.bindPluginInput(artifact, { plugin_id: input.plugin_id, port: input.port, restore: input.restore === true }, caller) };
+    }),
     bind(artifactsActions.links, (input, caller) => {
-      const edges = ports.ledger.list({ actor_id: caller.actor_id, scope: { kind: "personal", id: ports.boardId } }).filter(edge => edge.state === "active"
+      const edges = ports.ledger.list({ actor_id: caller.actor_id, scope: { kind: "personal", id: ports.projectId } }).filter(edge => edge.state === "active"
         && edge.target.module === "artifacts" && edge.target.id === input.reference.artifact_id && edge.target.version === input.reference.version);
       const goals = edges.filter(edge => edge.source.module === "goals" && GOAL_ROLES[edge.type])
         .map(edge => ({ goal_id: edge.source.id, title: ports.goalTitle?.(edge.source.id) ?? edge.source.id, role: GOAL_ROLES[edge.type]! }));
       return { goals, other: edges.length - goals.length } satisfies ArtifactReferences;
+    }),
+    ...bindWorkflowContentHandlers(artifactsContentActions, {
+      list: () => ports.artifacts.query.listArtifacts(ports.projectId).filter(record => record.availability === "available" && record.lifecycle_state !== "archived")
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map(record => ({ item_id: artifactSubjectId(record), title: `${record.title} · v${record.version}`, caption: ports.typeTitle?.(record.artifact_type_id) ?? record.artifact_type_id, at: record.created_at })),
+      read: async ({ item_id }, caller) => {
+        const reference = parseArtifactSubjectId(item_id);
+        const record = reference ? ports.artifacts.query.getArtifactVersion(ports.projectId, reference) : null;
+        if (!record || record.availability !== "available") throw new ActionError("actions.subject_unavailable", "这一版不存在或不可用");
+        const text = await ports.previewText?.(record, caller as ActionExecutionContext) ?? importedDocumentFile(record)?.text ?? null;
+        return { title: record.title, body: text ?? record.title, url: artifactVersionPath(record), source: "成果库" };
+      },
     }),
   ];
 }

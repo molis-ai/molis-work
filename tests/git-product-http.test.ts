@@ -61,7 +61,7 @@ test("Git formal routes select the current grant, publish exact staged/worktree 
     const prepare = async (action: "stage" | "unstage") => {
       const selected = await request(api("git", "/diff"), "POST", { ...input, side: action === "stage" ? "worktree" : "index" });
       assert.equal(selected.body.result.outcome, "diff", JSON.stringify(selected));
-      const prepared = await request(api("git", "/prepare-index"), "POST", { ...input, action, revision: selected.body.result.revision, operation_id: randomUUID() });
+      const prepared = await request(api("git", "/prepare-index"), "POST", { workspace_id: input.workspace_id, path: input.path, action, revision: selected.body.result.revision, operation_id: randomUUID() });
       assert.equal(prepared.status, 200, JSON.stringify(prepared)); return prepared.body.review_id;
     };
     const decide = (review_id: string, decision = "approve") => request(reviews("/decide"), "POST", { review_id, decision });

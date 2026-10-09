@@ -77,8 +77,6 @@ export interface ConnectorHostApi {
   revoke(connectionId: string): void;
 }
 
-/** Machine-level account card shown on Host Connectors settings. Not a Feed source. */
-export type ConnectorAccountState = "connected" | "disconnected" | "reauth_required";
 export type ConnectorDirectoryAvailability = "live" | "placeholder";
 export type ConnectorAuthKind = "github" | "gmail" | "notion" | "feishu" | "token" | "none";
 export type ConnectorDirectoryGroupId =
@@ -151,7 +149,8 @@ export interface ConnectorConnectionRecord {
   readonly credential_ref: string | null;
   readonly refresh_ref: string | null;
   readonly expires_ref: string | null;
-  readonly source: "managed" | "legacy" | "external";
+  /** Managed: the key is in the Home's secret store. External: the account lives in an official CLI. */
+  readonly source: "managed" | "external";
   readonly disconnected_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;

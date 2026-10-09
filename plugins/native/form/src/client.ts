@@ -193,7 +193,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     document.addEventListener("keydown", onKey, true);
     document.body.append(stage);
   };
-  const SOURCE = { preview: "试填", fill: "本机填写页", file: "答卷文件" };
+  const SOURCE = { preview: "试填", fill: "本机填写页", file: "答卷文件", agent: "助理提交", mcp: "外部工具提交", workflow: "工作流提交", plugin: "插件提交" };
   /** Each question at a glance: counts for choices and ratings (with the average), recent answers for text. */
   const renderStats = (questions, submissions) => {
     statsEl.replaceChildren();
@@ -648,7 +648,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
           }
           throw error;
         }
-        placed({ verb: "versioned", title: payload.form.title, object: { kind: "form", id: payload.form.id },
+        placed({ verb: "versioned", title: payload.form.title, object: { kind: "form", id: payload.form.id }, artifact: payload.artifact,
           note: L("第 {version} 版题目 · 放在这个位置的成果里；不含答卷", { version: payload.artifact.version }) });
         await loadList();
         if (payload.form && selected && selected.id === payload.form.id) remember(payload.form, false);
@@ -849,11 +849,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       const when = submission.submitted_at ? new Date(submission.submitted_at).toLocaleString() : "";
       head.textContent = L("答卷") + " " + (index + 1) + (when ? " · " + when : "");
       card.append(head);
-      if (!submission.questions) {
-        const legacy = document.createElement("p"); legacy.className = "form-result-legacy"; legacy.textContent = L("历史答卷未保存题目快照；名称参考当前问卷，未知题目保留原题号。"); card.append(legacy);
-      }
-      const submittedQuestions = submission.questions || questions;
-      const labels = new Map(submittedQuestions.map(question => [question.id, question.title]));
+      const labels = new Map(submission.questions.map(question => [question.id, question.title]));
       Object.entries(submission.answers || {}).forEach(([questionId, answer]) => {
         const row = document.createElement("p");
         const label = document.createElement("span");

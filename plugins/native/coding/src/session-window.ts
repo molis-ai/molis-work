@@ -26,7 +26,7 @@ export interface CodingRunSummary {
   task: string;
   frozen: Pick<AgentRunView["frozen"], "role_id" | "model_id"> & { character?: { title: string }; directory?: { canonical_path: string }; text_materials: Array<{ source_artifact_id: string; source_version: number }> };
   usage: AgentRunUsage;
-  command_outputs: Array<{ call_id: string; run_id?: string; target: string }>;
+  command_outputs: Array<{ call_id: string; run_id: string; target: string }>;
   stop_reason?: string;
 }
 

@@ -25,7 +25,7 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
   const policy = projectActionAvailability(async (_options, run) => run(catalog), home);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: policy });
-  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: SCHEDULE_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   const clients: Client[] = [];
@@ -34,14 +34,14 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     assert.deepEqual(directory.map(row => row.capability_id).sort(), SCHEDULE_ACTIONS.map(row => row.capability_id).sort());
     assert.ok(directory.every(row => row.availability.available && row.provider.project_id === project.project_id));
 
-    // The old HTTP paths are thin: legacy `clock`, the 201 status and the owner's validation messages survive.
+    // The HTTP paths are thin: the 201 status and the owner's validation messages come through.
     let changed = 0;
     const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: bound, changed: () => { changed++; } }));
     const post = async (pathname: string, body: Record<string, unknown>) => {
       try { return await routes.handle({ method: "POST", pathname, query: new URLSearchParams(), body }); }
       catch (error) { return scheduleRouteErrorResponse(error); }
     };
-    const created = await post("/api/schedule/tasks", { title: "晨报", instructions: "把未读收成三条", clock: "08:30" });
+    const created = await post("/api/schedule/tasks", { title: "晨报", instructions: "把未读收成三条", time: "08:30" });
     assert.equal(created?.status, 201);
     const task = (created?.body as { task: ScheduleConversationTaskView }).task;
     assert.equal(task.clock_label, "08:30");
@@ -86,7 +86,7 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     }
     const sdk = new Client({ name: "untrusted-name", version: "1" }); clients.push(sdk);
     await sdk.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
-      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, "scheduler", project.database_path, project.board_id], stderr: "pipe" }));
+      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, "scheduler", project.database_path], stderr: "pipe" }));
     const tools = (await sdk.listTools()).tools.map(tool => tool.name);
     assert.ok(tools.includes(hostActionToolName(s.createTask)));
     assert.ok(!tools.includes(hostActionToolName(s.archiveTask)), "ungranted actions are not exported");

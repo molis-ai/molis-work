@@ -4,11 +4,9 @@ import type {
   GoalTreeProposalItemProvenanceInput, GoalTreeProposalItemRecord,
 } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { GovernanceError, type GovernanceErrorFactory } from "./errors.js";
-import { legacyProposalView } from "./legacy-proposal-view.js";
 
 /** Confirmation provenance belongs to Governance; a locator is not automatically a Ledger edge. */
 export class GovernanceProvenance implements GovernanceProvenanceApi {
-  readonly legacyProposalView = legacyProposalView;
   constructor(private readonly error: GovernanceErrorFactory = (code, message, details) => new GovernanceError(code, message, details)) {}
 
   normalizeProposalSource(input: Pick<GoalTreeProposalItemProvenanceInput, "source_refs" | "reason" | "confidence" | "requires_user_confirmation">,
@@ -35,7 +33,7 @@ export class GovernanceProvenance implements GovernanceProvenanceApi {
       const first = issues[0]!;
       throw this.error(first.code, issues.map(issue => issue.message).join("；"), {
         path: first.path, issues,
-        recovery: "修正列出的字段后重试 molis_work_v1_goal_tree_propose；失败调用不会创建提案，无需切换接口。",
+        recovery: "修正列出的字段后重试 goals.tree.submit；失败调用不会创建提案，无需切换接口。",
       });
     }
     return { source_refs: sourceRefs, reason, confidence: input.confidence, requires_user_confirmation: true };

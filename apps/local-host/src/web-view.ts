@@ -9,7 +9,7 @@ import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 
 export interface WebViewOptions {
-  databasePath: string; boardId: string; demo?: boolean; projectRoot?: string;
+  databasePath: string; projectId: string; demo?: boolean; projectRoot?: string;
   project?: WebProjectNavigation | null; projects?: WebProjectNavigation[]; routePrefix?: string;
   homeDirectory?: string;
 }
@@ -22,8 +22,8 @@ interface MolisWorkWebViewCacheEntry {
 
 export type MolisWorkWebViewCache = Map<string, MolisWorkWebViewCacheEntry>;
 
-type PluginProjection = Pick<MolisWorkWebView, "feed" | "feed_source_catalog" | "feed_connector_auth" | "schedule_jobs" | "schedule_tasks" | "schedule_operations" | "schedule_orphaned_occurrences">;
-const emptyFeed = (): FeedSnapshot => ({ sources: [], feed_items: [], inbox_entries: [], runs: [], contract_migrations: [], out_rules: [] });
+type PluginProjection = Pick<MolisWorkWebView, "feed" | "feed_source_catalog" | "feed_connector_auth" | "schedule_jobs" | "schedule_tasks" | "schedule_operations">;
+const emptyFeed = (): FeedSnapshot => ({ sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] });
 
 /** Optional areas disappear when their owner refuses access; unexpected failures must remain visible. */
 export async function optionalPluginQuery<I, O>(actions: BoundActionClient, definition: ActionDefinition<I, O>, input: I): Promise<O | undefined> {
@@ -37,13 +37,13 @@ export async function optionalPluginQuery<I, O>(actions: BoundActionClient, defi
 export function buildMolisWorkWebView(_store: LocalProjectDatabase, collection: GoalsDocumentCollectionView, options: WebViewOptions, projection: PluginProjection = { feed: emptyFeed() }): MolisWorkWebView {
   return {
     snapshot: options.project
-      ? { ...collection.snapshot, board: { ...collection.snapshot.board, board_id: "" } }
+      ? { ...collection.snapshot, board: { ...collection.snapshot.board, project_id: "" } }
       : collection.snapshot,
     project: options.project ?? null, projects: options.projects ?? [],
     route_prefix: options.routePrefix ?? "", demo: Boolean(options.demo),
     active_goal_id: collection.active_goal_id, goals: collection.goals,
     archived_goals: collection.archived_goals, trashed_goals: collection.trashed_goals,
-    counts: collection.counts, coverage: collection.coverage, input_bindings: collection.input_bindings,
+    counts: collection.counts, input_bindings: collection.input_bindings,
     policy_bindings: collection.policy_bindings, events: collection.events,
     ...projection,
   };
@@ -59,7 +59,7 @@ export async function cachedMolisWorkWebView(
   const collection = await actions.invoke(goalsActions.collection, {});
   const cursor = collection.snapshot.cursor;
   const optionsFingerprint = JSON.stringify({
-    board_id: options.boardId,
+    project_id: options.projectId,
     locale: currentLocale(),
     demo: Boolean(options.demo),
     project_root: options.projectRoot ?? "",
@@ -84,7 +84,7 @@ export async function cachedMolisWorkWebView(
   ]);
   return { ...base, feed: { ...(feed ?? emptyFeed()), inbox_entries: [...(inbox?.entries ?? [])] },
     feed_source_catalog: feed ? listFeedSourceCatalog() : [], feed_connector_auth: connections,
-    schedule_jobs: schedule?.jobs ?? [], schedule_tasks: schedule?.tasks ?? [], schedule_operations: schedule?.operations ?? [], schedule_orphaned_occurrences: schedule?.orphaned_occurrences ?? [] };
+    schedule_jobs: schedule?.jobs ?? [], schedule_tasks: schedule?.tasks ?? [], schedule_operations: schedule?.operations ?? [] };
 }
 
 export async function withSelectedEventDocument(

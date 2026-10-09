@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { actionResultSubject, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { JELLY_ACTION_PERMISSIONS, jellyActions as actions, jellyCommandActions as commands, jellyServiceActions as services, runJellyMcpTool, openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
+import { JELLY_ACTION_PERMISSIONS, jellyActions as actions, jellyCommandActions as commands, jellyServiceActions as services, openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
 import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
 import { assistantContributions } from "../apps/local-host/src/assistant/assistant-contributions.js";
 import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
@@ -239,31 +239,6 @@ for (const mode of ["cancel", "failure", "success"] as const) test(`Jelly model 
   if (mode === "success") assert.equal((await pending).plan.actions[0]!.title, "核对来源");
   else await assert.rejects(pending, mode === "cancel" ? { code: "jelly.cancelled" } : /model down/);
   assert.deepEqual(await f.read(), before);
-});
-
-test("all legacy Jelly MCP aliases call real actions with optional revision compatibility", async t => {
-  const { bound, read, home } = fixture(t);
-  const call = async (tool_id: string, args: Record<string, unknown> = {}) => JSON.parse(await runJellyMcpTool(bound, { tool_id, arguments: args }));
-  const created = await call("create_item", { item: { title: "MCP item", start_date: day } }), id = created.state.items[0].id;
-  assert.equal((await call("list_items", { start: day, end: day })).items[0].id, id);
-  assert.equal((await call("get_item", { id })).item.title, "MCP item");
-  assert.equal((await call("list_categories")).categories[0].id, "uncategorized");
-  await call("update_item", { id, patch: { title: "Updated" } });
-  await call("move_items", { ids: [id], date: tomorrow });
-  await call("reorder_untimed_items", { ids: [id], date: tomorrow });
-  await call("set_task_completed", { id, completed: true }); assert.ok((await read()).items[0]!.completed_at);
-  assert.equal((await call("search", { query: "updated" })).items.length, 1);
-  const series = (await call("create_series", { series: { title: "MCP repeat", start_date: day, weekdays: [5, 6] } })).state.series[0].id;
-  await call("modify_series", { id: series, original_date: day, scope: "onlyThis", patch: { title: "Occurrence" } });
-  await call("set_task_completed", { id: series, original_date: day, completed: true });
-  await call("modify_series", { id: series, original_date: tomorrow, scope: "onlyThis", delete: true });
-  assert.equal((await call("list_items", { start: day, end: tomorrow })).items.filter((i: { series_id: string }) => i.series_id).length, 1);
-  await call("delete_item", { id }); assert.equal((await read()).items.length, 0);
-  await call("undo"); assert.equal((await read()).items[0]!.id, id);
-  await assert.rejects(call("update_item", { id, patch: { title: "stale" }, expected_revision: 0 }), { code: "jelly.conflict" });
-  await assert.rejects(call("toString"), /未知/);
-  // The original SQLite owner sees the exact same facts.
-  const store = openJellyStore(home); try { assert.equal(store.read().items[0]!.id, id); } finally { store.close(); }
 });
 
 test("model plan action returns a real preview and requires source mapping before execution", async t => {

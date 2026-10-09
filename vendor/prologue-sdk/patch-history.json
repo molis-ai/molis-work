@@ -1,0 +1,569 @@
+{
+  "schema": "prologue-sdk-patch-history-v1",
+  "recordedOn": "2026-10-08",
+  "purpose": "已从 vendor/prologue-sdk/ 删除的 25 份历史补丁的记录（决定：specs/repository-anti-corruption/spec.md §1「Prologue SDK 收敛与私有包」，2026-10-08；方案：specs/repository-anti-corruption/dependencies-and-sdk-plan.md §4.5）。重建当前包用不着它们（见同目录的 provenance.json）。每一项记大小、SHA-256、git blob、基线、来源和它产出的包。",
+  "retrieval": {
+    "commitWithAllPatches": "e4bdeb120259846cb94b7e99ddf215db1e91544c",
+    "note": "这是一个已知齐全的 Molis 提交，不是「最后一个」：25 份补丁、side-panel-memory.patch 和带逐包验证记录的旧版 README 都在里面；main 上此后到删除这些补丁的那次合并之前的每个提交（2026-10-08 逐个核对了 e4bdeb12..ba223d95 的 133 个）也都有那 26 份补丁；更早的提交没有逐个核对。补丁和包按 gitBlob 取回，再用本文件的 SHA-256 核对。",
+    "command": "git cat-file blob <gitBlob> > <file> && shasum -a 256 <file>"
+  },
+  "upstream": {
+    "repository": "https://github.com/molis-ai/prologue",
+    "checkedOn": "2026-10-08",
+    "mainHead": "4f7110fe0a07ba13fb19025ceb496016ecc0f494",
+    "statement": "下面 commitsChecked 里的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；本机克隆的 origin/main 与 git ls-remote 一致）。远端已没有特性分支（git ls-remote 只列出 main 和三个 pull 引用），所以按提交号定位，不按分支名。",
+    "commitsChecked": [
+      "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
+      "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
+      "18a1c827c933eb22624a6904b71d704945567682",
+      "22a1be0866eaa6241c49038aee51860226c73037",
+      "46d8092e6057370012e8148c792d587f62a01275",
+      "4702abe3e701cd2394db192bcb535436a85ed4c7",
+      "4b6cd9bcf772f2b73185d8858a3ab4c7c52aa962",
+      "4d5f874d37287eb2cd87c10a5837013d922555f0",
+      "52c49cf5095e67cd62f4db9e9c1d515afa68ddd8",
+      "6f530d5a818e0f7aecfb6322c5bfe22dbe7552ea",
+      "8d590818e32534880984f9e84e1efd005caa105a",
+      "93bbe1db280540361bf9f24be9e82589e8818e5c",
+      "9fc3b17386419625a36359b74fb4789c17a3adc8",
+      "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "a8ac8e1eb7362a2189973cbe7aaa4f4624649ee0",
+      "ac4d11350ab3b6848460d140230081a58cbb215f",
+      "af7375c74a2e551184c443e2a5e06e105168fed3",
+      "c63ea1a16eec8d8217223db1624b2409a1a33d14",
+      "d2f5a05df6459440a253787e94ee6520f12d754d"
+    ]
+  },
+  "patches": [
+    {
+      "file": "claims.patch",
+      "bytes": 458308,
+      "sha256": "9248c7fdb87f650749d623b4ba64c93df595e05c94b3345793220bb54f176471",
+      "gitBlob": "20c99b08ec96cf583147a0e7c0270de25564fee6",
+      "diffEntries": 93,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": "af7375c74a2e551184c443e2a5e06e105168fed3",
+      "sourceKind": "upstream-commit",
+      "source": "molis-ai/prologue 分支 `codex/molis-coding-collab`，提交 `af7375c7`（基线 `a7e785b8`）；补丁与该提交相对基线的差异逐字节相同",
+      "summary": "协同第一至五期：任务图负责人与交接（`handOver`）、常开任务图、会话间信件持久化、后台命令与挂起唤醒、给人看的信；可选项 `continueWhenCompactionFails` 与 `retryUnansweredModelCalls`。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-claims.tgz",
+        "bytes": 932493,
+        "sha256": "0a616614ae5882d20016c4ac07de30f149e0d78e05ff459e29689c0b5eefb43c",
+        "gitBlob": "e9ec6924b7c0b9511316f4ad2e6697791a5e3f3f"
+      }
+    },
+    {
+      "file": "dispatch-denied.patch",
+      "bytes": 10191,
+      "sha256": "5d425a16c2d0d4b112759e3fb63688f70ae8132027cc4e3d25b76bdc6cf38308",
+      "gitBlob": "ffa781eeebc7141e68b4aebc08a510c7ef98ab7c",
+      "diffEntries": 4,
+      "base": "af7375c74a2e551184c443e2a5e06e105168fed3",
+      "commit": "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
+      "sourceKind": "upstream-commit",
+      "source": "molis-ai/prologue 分支 `fix/molis-dispatch-denied`，提交 `03c6ba0b`（父提交 `af7375c7`，4 个文件）",
+      "summary": "App 的派出前复核拒绝时报 `EFFECT_NOT_AUTHORIZED`，不算网络失败，也不换备选目标。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz",
+        "bytes": 933116,
+        "sha256": "3b8dcca04121e458e3c5f6d4fed77617f2e68178dccaad5cfcdb602601bc7c6f",
+        "gitBlob": "7d01d9c33fc0c0d015c7b761999a919c38c874d6"
+      }
+    },
+    {
+      "file": "bounded-results.patch",
+      "bytes": 48451,
+      "sha256": "d5fb9392f14fad2c70d0c25d7ab8aa172c6c61f05ae81e150f8bc674241dfae3",
+      "gitBlob": "22c7cb6f37bc418ea5a3fd19a727f34cd4f97e44",
+      "diffEntries": 20,
+      "base": "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
+      "commit": "4b6cd9bcf772f2b73185d8858a3ab4c7c52aa962",
+      "sourceKind": "upstream-commit",
+      "source": "`~/code/prologue-dispatch-denied` 分支 `feature/molis-bounded-results`，提交 `4b6cd9bc`，基线 `03c6ba0b`（含 Molis main 提交 `21cdfbf8` 带来的网络授权增量）",
+      "summary": "`collectRun`、有界文字与结构校验、`decodeJsonOutput`。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz",
+        "bytes": 935708,
+        "sha256": "2269225bc71c3fd4fccaf4cdd5690244f6608348b79a56b73d50bbe6aef6b04a",
+        "gitBlob": "5e054a7f0279f0e9dec938996b8abeddd0de4d3a"
+      }
+    },
+    {
+      "file": "assistant.patch",
+      "bytes": 65093,
+      "sha256": "256d92254d179a2e1fe9caff85c1895b9ba8a4488d00f4e6c140d68af2e2294a",
+      "gitBlob": "c9e49f9ae9d9eff6e6c215ec6d72a061e330c822",
+      "diffEntries": 17,
+      "base": "af7375c74a2e551184c443e2a5e06e105168fed3",
+      "commit": "4702abe3e701cd2394db192bcb535436a85ed4c7",
+      "sourceKind": "upstream-commit",
+      "source": "`~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`，提交链 `03c6ba0b`→`6f530d5a`（app 模式）→`22a1be08`（session-stop）→`4702abe3`（并入 network-dispatch 增量），终点 `4702abe3`，相对 `af7375c7`",
+      "summary": "Assistant 的 app 模式与 session-stop，并入 network-dispatch 的增量。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-assistant.tgz",
+        "bytes": 935709,
+        "sha256": "22265b9165486a265cacbed3b080f8b172a0e161b7e718da3220e7d01a9301a5",
+        "gitBlob": "9da176643c3316c12d9106d35db55ea6e7f34607"
+      }
+    },
+    {
+      "file": "bounded-results-assistant.patch",
+      "bytes": 99441,
+      "sha256": "3ca3e60f3a9a11bc2bfd372dc3875a58976de579dacb029272f34625ffe65845",
+      "gitBlob": "3f111dcaf4904f5a3d1051a67f24749475b937f0",
+      "diffEntries": 30,
+      "base": "af7375c74a2e551184c443e2a5e06e105168fed3",
+      "commit": "93bbe1db280540361bf9f24be9e82589e8818e5c",
+      "sourceKind": "upstream-commit",
+      "source": "`~/code/prologue-dispatch-denied` 分支 `feature/molis-bounded-results`，提交 `93bbe1db`（合并 `4b6cd9bc` 与 `4702abe3`），相对 `af7375c7`",
+      "summary": "有界结果与 Assistant（app 模式、session-stop）两条线合一。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-bounded-results-assistant.tgz",
+        "bytes": 938095,
+        "sha256": "32201e9e8d3ea6bb8de7cd74b155c1e31677b4b61d9bdd431506ac88419b024f",
+        "gitBlob": "bd9f374d303cb222129a249bbb7d3236b31b9c89"
+      }
+    },
+    {
+      "file": "memory-project.patch",
+      "bytes": 3363,
+      "sha256": "64fbe525bc7428aa506e51c2504948dab35f1e7d64da9a1da8f25cd07dcf7e29",
+      "gitBlob": "aff2523e728bc141fb0944adf8e4a8bc6ed1b17f",
+      "diffEntries": 2,
+      "base": "4702abe3e701cd2394db192bcb535436a85ed4c7",
+      "commit": "ac4d11350ab3b6848460d140230081a58cbb215f",
+      "sourceKind": "upstream-commit",
+      "source": "`~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`，提交 `ac4d1135`（父提交 `4702abe3`），增量补丁（2 个文件）；另可干净应用在 `a7e785b8`、`af7375c7`、`03c6ba0b` 上",
+      "summary": "记忆作用域 `MemoryScope` 新增 `project`。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-assistant-memory.tgz",
+        "bytes": 935828,
+        "sha256": "6c356f5cda731a402c5c5db1bb233f3ea22d2881593c0f7966e50439448998ca",
+        "gitBlob": "c0a71ff7cda6ac319042357340829a9119139b5a"
+      }
+    },
+    {
+      "file": "resource-intake.patch",
+      "bytes": 122692,
+      "sha256": "6ad3f649ffbfba5733f29d80c7aa130913adf4471a8cba7908c77b4b799b89dc",
+      "gitBlob": "416e33fb4f13f8a5c9a39d40fad82e2a93dd7c6f",
+      "diffEntries": 37,
+      "base": "af7375c74a2e551184c443e2a5e06e105168fed3",
+      "commit": "18a1c827c933eb22624a6904b71d704945567682",
+      "sourceKind": "upstream-commit",
+      "source": "`~/code/prologue-dispatch-denied` 分支 `feature/molis-bounded-results`，提交 `18a1c827`（基于 `93bbe1db`），相对 `af7375c7` 的完整补丁",
+      "summary": "原图摄取与资源限额。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-resource-intake.tgz",
+        "bytes": 938808,
+        "sha256": "2f7c0eb3eda0d748079d628d1260eac1a812afd50d08153483ff502ceb707974",
+        "gitBlob": "35cefdb7b0c2852e202d451433ea043d1a1c8138"
+      }
+    },
+    {
+      "file": "network-dispatch.patch",
+      "bytes": 22204,
+      "sha256": "1698fe484443bcb07016fac87952b8d627b7dad1b63e328894094201a4072884",
+      "gitBlob": "8ba05347b9cb02c2cd98a81899e0bd1393e509a4",
+      "diffEntries": 8,
+      "base": "af7375c74a2e551184c443e2a5e06e105168fed3",
+      "commit": null,
+      "sourceKind": "molis-repo",
+      "source": "已提交的 `03c6ba0b`（dispatch-denied）加上当时未提交的网络回调与 MCP 取消收尾；补丁只保存在 Molis 仓库（提交 `d4a2f41b`，经 Molis 的 `21cdfbf8` 合入 Molis main，二者都是 Molis 仓库的提交，不是 Prologue 的）；当时的 README 称 `4702abe3` 并入了这部分增量，补丁新增的 196 个非空行在 `4702abe3` 的同名文件里全部找得到（推断，没有逐行追查）",
+      "summary": "Node Host 对每次真实 fetch 执行可信 App 的 `beforeNetworkDispatch`；已包含在 assistant.patch 与 bounded-results.patch 中。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz",
+        "bytes": 933284,
+        "sha256": "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e",
+        "gitBlob": "42c0b84752157fa1d5e39ef05c691ce9a407fde5"
+      }
+    },
+    {
+      "file": "model-loopback.patch",
+      "bytes": 21154,
+      "sha256": "f6a1c161b6f8a8a7dde0b0dce06c03fadb976740cb22fcfb0f1e12277ce88722",
+      "gitBlob": "3ee07f178bee731844b2411179e1c256c473e02a",
+      "diffEntries": 12,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-action-loopback`（分离 HEAD 的工作树，未提交）",
+      "summary": "模型目录允许本机 HTTP 而 Run 启动只收 HTTPS 的不一致；回环精确识别 IPv4/IPv6；含 Rust Host 的一致性修复。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-loopback-model.tgz",
+        "bytes": 884573,
+        "sha256": "5eb410ce861d12c987f45515fc605acc59dc8ee558fcd1786b792d6eaae3e3ae",
+        "gitBlob": "7b30043b1ac3d2f2da3ba2956e9a706c0c43cdaa"
+      }
+    },
+    {
+      "file": "output-continuation.patch",
+      "bytes": 34225,
+      "sha256": "8b5acc173ce76f1dc5ee11be1ef8c665ea4600b8d28dd593b10ed0a355cef2ae",
+      "gitBlob": "d291824a08e02ca1007dea9777a5d2cbf72b888d",
+      "diffEntries": 17,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-output-continuation`（分离 HEAD 的工作树，先应用 `model-loopback.patch` 再改，未提交）",
+      "summary": "被输出上限截断的回答接着写完，续写上界 8 次，超过以 `MODEL_OUTPUT_TRUNCATED` 失败。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-output-continuation.tgz",
+        "bytes": 885574,
+        "sha256": "a8a8d1563cf7257015f54ac385f58c189b6e0407b2f4a6a1a5889d88c4a36c6b",
+        "gitBlob": "cc0e3256541f5408d72976217e45d059dd4b1bc3"
+      }
+    },
+    {
+      "file": "dispatch-key.patch",
+      "bytes": 39459,
+      "sha256": "11cbafb86473bfb7b6ba77f350c8788c3b2952e3802dde7bff9622a9262fb944",
+      "gitBlob": "12e9c030d27ba7644a4a5f8c6919d65b6ebc0e1b",
+      "diffEntries": 20,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-output-continuation`（分离 HEAD 的工作树，未提交的累计补丁）",
+      "summary": "派出键（`idempotencyKey`）进入审查前就按存储地址格式校验。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-dispatch-key.tgz",
+        "bytes": 885899,
+        "sha256": "35367d16ad89cc9b1aac0beaab9fa105e79f07c48addea19cf19d36c52ef81b8",
+        "gitBlob": "20c50bcdbe424cb6ee668aaf72e655fccb23356a"
+      }
+    },
+    {
+      "file": "file-mode.patch",
+      "bytes": 43090,
+      "sha256": "28bf633436ca2ff2078a41f2768a6433169ca074ddd4b5768d9e723bcba5036d",
+      "gitBlob": "a286dc3ce219f4fd5ce4789c3728a9767c16ab76",
+      "diffEntries": 22,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-output-continuation`（分离 HEAD 的工作树，未提交的累计补丁）",
+      "summary": "工作区写入保留文件原来的权限，新文件按默认权限。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-file-mode.tgz",
+        "bytes": 886145,
+        "sha256": "f9ca532288b8b6a3d3f68b575f48458f948f8ab93ac29244beb7fce840438398",
+        "gitBlob": "c955962815a452106172bc95c78abe8ee2eaa750"
+      }
+    },
+    {
+      "file": "search-file.patch",
+      "bytes": 50975,
+      "sha256": "ce563d89dc0bab3268da2216652c580fc7dca750b593ccfd5d36f063a1bfe88e",
+      "gitBlob": "009ea840524cfae040fb66d42d8a393ec78152e1",
+      "diffEntries": 28,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-output-continuation`（分离 HEAD 的工作树，未提交的累计补丁）",
+      "summary": "搜索路径可以是单个文件，路径不存在报 `ROOT_NOT_FOUND`；Tauri 原生 Host 同步修正。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-search-file.tgz",
+        "bytes": 886495,
+        "sha256": "fd822866fe9125a641123f056c0f4e94c6416540ac5cbc56677c94bb08e93551",
+        "gitBlob": "a6deb50b6545955fb4c3d77e0ed305ed895796d3"
+      }
+    },
+    {
+      "file": "search-scope.patch",
+      "bytes": 58103,
+      "sha256": "74148e65fb4de7c8ccb86157adeeea6858f5bd4569aca01242065f19bf5b3c6c",
+      "gitBlob": "632fd323b42c135ad192402ae6ca3c8cc64a5bbe",
+      "diffEntries": 30,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-output-continuation`（分离 HEAD 的工作树，未提交的累计补丁）",
+      "summary": "搜索上界提到 20000 个文件，到上界时结果带 `truncated`；Tauri 原生 Host 同步修正。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-search-scope.tgz",
+        "bytes": 886931,
+        "sha256": "11307936c5b68c42460865a407cf4db5c0081a5ac444be674b246b53346a2bb4",
+        "gitBlob": "bc319779261c9a460a62b188d9f32ae66fbe6464"
+      }
+    },
+    {
+      "file": "search-large.patch",
+      "bytes": 61930,
+      "sha256": "a6591f0a0072365d4f0c2ddb7033655913319f85977c65bff499a970e733767a",
+      "gitBlob": "95b14ae7eaca38dadccc166432742634d48d78f6",
+      "diffEntries": 30,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-output-continuation`（分离 HEAD 的工作树，未提交的累计补丁）",
+      "summary": "搜索单个文件可读到 2MB，更大的仍跳过但计入“没搜全”；Tauri 原生 Host 同步修正。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-search-large.tgz",
+        "bytes": 887132,
+        "sha256": "4a40774bf8f6fb111e12da40b83304f1253ea4fcb4b7ca1975d1c8c2da4ac123",
+        "gitBlob": "6b5e22467bcf84e6844815e8ea41af718efdb908"
+      }
+    },
+    {
+      "file": "large-read.patch",
+      "bytes": 75886,
+      "sha256": "cebaa6cc540245c473b554afee480728cde58d34c403a4c386b83f3a01c5cd1f",
+      "gitBlob": "67977b11a2a8fe750747c0824ca9e8ceb6c2adb6",
+      "diffEntries": 34,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-output-continuation`（分离 HEAD 的工作树，未提交的累计补丁）",
+      "summary": "read 工具有 `offset`/`limit` 行窗；edit 与补丁准备为生成差异可整读到 2MB。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-large-read.tgz",
+        "bytes": 888150,
+        "sha256": "9ec1243b2eb0bd08fdb866926021a8e714dd77cff8c1afa9da23c64ea46c4ebb",
+        "gitBlob": "73c82dcea2d091e813dae09c6c7e03f76d696c20"
+      }
+    },
+    {
+      "file": "board-same-state.patch",
+      "bytes": 78764,
+      "sha256": "91761254666c6a3c4330a4236d2dd4bd00c2feca3797ce48796ce3d0438a7b8e",
+      "gitBlob": "0eff96d857e1b1002bf7e8ebd9c279d9e3df0249",
+      "diffEntries": 36,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-output-continuation`（分离 HEAD 的工作树，未提交的累计补丁）",
+      "summary": "任务图报告一个步骤已在的状态时只记进展，不算冲突；显式 transition 仍严格拒绝。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-board-same-state.tgz",
+        "bytes": 888271,
+        "sha256": "4070d1b2939a084c5da2caa88f979e03ee355334c9262f6ddb5333a07b9a6e7d",
+        "gitBlob": "5682610c27e317c37a814ecda5c1695e71d6a09b"
+      }
+    },
+    {
+      "file": "subagent-close.patch",
+      "bytes": 84217,
+      "sha256": "4cfffc68f5a744a0f18c36e0d1ac903dc1a5571dc85af78ba28681941b4d82b9",
+      "gitBlob": "7b7d50d2d22a8de3cc0e25eda026150dc64f1e2e",
+      "diffEntries": 39,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-output-continuation`（分离 HEAD 的工作树，未提交的累计补丁）",
+      "summary": "核对并结束子任务被中断的那一轮后，立即重读子任务登记表，子任务有终态。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-subagent-close.tgz",
+        "bytes": 889245,
+        "sha256": "c054fe2e7fd45b0a78c4f0a0614436cda5e27fd1341bafc9abc082505e51dd1e",
+        "gitBlob": "42ef0a8e4258f7c9a2efc52d1ea9d890c9f618ce"
+      }
+    },
+    {
+      "file": "character-precheck.patch",
+      "bytes": 87269,
+      "sha256": "dfca57cb8ab04f00d5c4d11157be2370499083a56cdaa53909d98c1d1c36478a",
+      "gitBlob": "c9123b77292ac601a0d7f1d73aa6a93a969f28d6",
+      "diffEntries": 40,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-output-continuation`（分离 HEAD 的工作树，未提交的累计补丁）",
+      "summary": "派出子任务写错角色版本时，在审查前以 `CHARACTER_NOT_FOUND` 拒绝并列出现有版本。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-character-precheck.tgz",
+        "bytes": 889764,
+        "sha256": "2015571474b5dbc6033d74d54f6a9456fac7ddc588a737536e3811d0fe76cecc",
+        "gitBlob": "e855c5a68624c614eb460f7d2ec455c78bb2aad4"
+      }
+    },
+    {
+      "file": "role-tools.patch",
+      "bytes": 91553,
+      "sha256": "67a3aa642d2ae3998aa7f8dddcb35d0496a81702adc4e6107d4b8c7b928fef44",
+      "gitBlob": "82adf855116b69f502aa9c6c9e63b341195eceb8",
+      "diffEntries": 41,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-output-continuation`（分离 HEAD 的工作树，未提交的累计补丁）",
+      "summary": "子角色带着它声明、且父任务本轮也有的工具去派出；父任务没有的工具仍然整次失败。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-role-tools.tgz",
+        "bytes": 890116,
+        "sha256": "8e544ec408c6f6ea5c6321d20080c6f7001a91c41fe7163f4d61249a3bcb99b2",
+        "gitBlob": "46c9bd547c54e50ca0e15da65614a652745e0e46"
+      }
+    },
+    {
+      "file": "parent-reads.patch",
+      "bytes": 109089,
+      "sha256": "af374ba71bc14bc01b7f45a61b89948fcda1d7ea1d0b25c119b0e84f04e03e68",
+      "gitBlob": "3f9d3dc347c548c4e4e23140912581e58c6cc1bf",
+      "diffEntries": 44,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-output-continuation`（分离 HEAD 的工作树，未提交的累计补丁）",
+      "summary": "分派到独立目录的父任务可只读这些目录（`subagents.parentReads`）。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-parent-reads.tgz",
+        "bytes": 891068,
+        "sha256": "3584a8b6c21c6761d65f9ed9c4320ecf570bcd52aba5ee470d6f984eb75d34e3",
+        "gitBlob": "537249b2b657573c930c38a99a25c823778b0127"
+      }
+    },
+    {
+      "file": "bounded-inference.patch",
+      "bytes": 155672,
+      "sha256": "7c76c342b0c05ba47d7b6a4f507d9ae26a8ffa4fdb6d5dfc6ad8bd9ac3de594a",
+      "gitBlob": "6de6772e26c32112f5236ad1e24c0336832fc18d",
+      "diffEntries": 49,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "共享推理线，`~/code/prologue-action-loopback`（未提交，含 `model-loopback` 的修复）",
+      "summary": "有界文字、OpenAI/Gemini 图片、原生 TypeSafe、每次真实网络派出前的 Host 权限复核。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-bounded-inference.tgz",
+        "bytes": 894573,
+        "sha256": "9c6d6c0975334c029328d98306c5d5b58a764390d3196a4cdce94e48d4d8166e",
+        "gitBlob": "fbbba9c2de61803d556bc73023d30b8dde48ebc5"
+      }
+    },
+    {
+      "file": "coding-inference.patch",
+      "bytes": 240972,
+      "sha256": "8a2c2cb6b1c2380641d0286ed870687d6879a8f21ae4f04f0a1a6df5ef27966c",
+      "gitBlob": "dcacb59643e1e89ce76c940bab1a87693248582b",
+      "diffEntries": 72,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-molis-integrated`（分离 HEAD 的工作树，`parent-reads` 与 `bounded-inference` 三方合并，未提交）",
+      "summary": "Coding 线（parent-reads）与共享推理线（bounded-inference）合成；重建时先 `git apply parent-reads.patch`，再 `git apply --3way bounded-inference.patch`，三方合并零冲突。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-coding-inference.tgz",
+        "bytes": 901261,
+        "sha256": "76fc2bda33a3f94d28e0f27be3f83dc2a2a2d5f061c080dc5dc977a016b93c03",
+        "gitBlob": "2f81b43ccc6854fd4a5a3c973b861bd785894c1e"
+      }
+    },
+    {
+      "file": "cache-breakpoint.patch",
+      "bytes": 247275,
+      "sha256": "67080d78dc1dc1638413234c1eb41b94d1b6d83cfa45bc2516d1fa8a70c1ff51",
+      "gitBlob": "58c41dc59fb0f39aab73ce24b5fe57aa0c209913",
+      "diffEntries": 74,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-molis-integrated`（未提交的累计补丁）",
+      "summary": "没有系统段时把 Anthropic 缓存断点挂到最后一条用户消息；修 `test/host-agnostic-adapters.test.ts` 的类型错误。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-cache-breakpoint.tgz",
+        "bytes": 901501,
+        "sha256": "61bb2ee7a56b70c42e5a65dbbec3159cf08620a9f75f1d9672238aaa5d7bb964",
+        "gitBlob": "11d4788b9ecee5fd9b8711dbed597ce8a4adab3d"
+      }
+    },
+    {
+      "file": "ledger-status.patch",
+      "bytes": 257429,
+      "sha256": "32121cd6f32bba0d3349e943f0077ab9bab60849a3f3143d172b8bc97f7fb8d8",
+      "gitBlob": "2b8ee7178e40534aea3267e9c60cb9f10930b193",
+      "diffEntries": 77,
+      "base": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "commit": null,
+      "sourceKind": "uncommitted-worktree",
+      "source": "`~/code/prologue-molis-integrated`（未提交的累计补丁；当时的 README 称为「Prologue 线」）",
+      "summary": "Session 账本保存 400–599 的 HTTP 状态；工具超时默认值归 Runtime 配置，去掉 runtime 与 tool 的双向依赖。已并入 claims。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-ledger-status.tgz",
+        "bytes": 901565,
+        "sha256": "a50e14cd8bd4afb2fa2f041e639855d21848ee4c9ffbe3c0a010b136e714f2fd",
+        "gitBlob": "e55a0f3e577797288f76f34e82ab1522ef93a877"
+      }
+    }
+  ],
+  "packagesWithoutPatch": [
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-assistant-intake.tgz",
+      "bytes": 938931,
+      "sha256": "5eab31e2c4a8b2a4d4b9c2bf7ab30804800025b2df709c3cd8c85822782e95b0",
+      "gitBlob": "f7d648ded91c43e764529aad294d826a85705b83",
+      "commit": "c63ea1a16eec8d8217223db1624b2409a1a33d14",
+      "description": "`~/code/prologue-assistant` 分支 `feat/molis-assistant-resource-intake`，提交 `c63ea1a1`（合并 `18a1c827` 与 `ac4d1135`）。重建：检出 `af7375c7`，先应用 resource-intake.patch，再应用 memory-project.patch。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-compaction-growth.tgz",
+      "bytes": 875139,
+      "sha256": "a00d705a28b94894682a5dea78887ac295e78dfc21fd08e8555307a3400cf61f",
+      "gitBlob": "bf794cd051dc91212187ea641784b7b63c654dc4",
+      "commit": "a7e785b8c76149961d25b2f918aeec55554d8420",
+      "description": "分支 `codex/molis-coding-receipts`，提交 `a7e785b8`（已推送）。一次实际上下文整理后，按新增内容达到原阈值再软触发。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-step-reports-v2.tgz",
+      "bytes": 874995,
+      "sha256": "353ea0bc7c6d6d4e32dda43a597b15f60e82aec5c7e3728b35c2ed8326a89f3f",
+      "gitBlob": "0d74c6a8e773793b729a4f6b34144837725527dc",
+      "commit": "d2f5a05df6459440a253787e94ee6520f12d754d",
+      "description": "同一分支，提交 `d2f5a05df6459440a253787e94ee6520f12d754d`。`board-report` 允许 blocked 节点解除阻塞；safe-read 经公开 tool-before hook。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-child-observe.tgz",
+      "bytes": 874583,
+      "sha256": "26a0ef1fd3c862949ea0ccc77f26002c639b4971e834179cbfd28e57a5957bd8",
+      "gitBlob": "5ee33cef469d0c6e963a918eaaf2018da2a59c27",
+      "commit": "4d5f874d37287eb2cd87c10a5837013d922555f0",
+      "description": "同一分支，提交 `4d5f874d37287eb2cd87c10a5837013d922555f0`。同步子任务先确认原分派回执，再由同一次工具调用等待原子结果。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-subagent-report-pages.tgz",
+      "bytes": 874380,
+      "sha256": "fb62c2951b4d72c53e45d25390c27cdd786eb04610bca9caedd5362ef4ccd2d0",
+      "gitBlob": "22d4dd6baac84951845ef42e704b6fc9ca0f720c",
+      "commit": "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
+      "description": "同一分支，提交 `07ad08a11e3b4a01b9fe877dedff1efba6f4833c`。`await-subagents` 的 `reportOffset` 分页读取子任务的完整最终结果。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-neutral-agent-prompt.tgz",
+      "bytes": 866377,
+      "sha256": "cd2bf974c609fe5277313e876857a61b2b03cc79ee5be6b12a37a5f3cb1b6000",
+      "gitBlob": "b9025777540f3343cffac7f19747d87fb2413d2c",
+      "commit": "52c49cf5095e67cd62f4db9e9c1d515afa68ddd8",
+      "description": "同一分支，提交 `52c49cf5095e67cd62f4db9e9c1d515afa68ddd8`。去掉 SDK Agent 循环强加的本地项目检查人格和固定 list/search/read 流程。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-compaction-usage.tgz",
+      "bytes": 866435,
+      "sha256": "a6dcf44718152403d5194fde7df0af0cad34b8d280e9a455bb744b0b3d147322",
+      "gitBlob": "b992c1d273b259bfc4db10836f58d834b04cf11c",
+      "commit": "a8ac8e1eb7362a2189973cbe7aaa4f4624649ee0",
+      "description": "同一分支，提交 `a8ac8e1eb7362a2189973cbe7aaa4f4624649ee0`（基于 `46d8092`）。中断恢复、过程与补充要求持久化、上下文整理用量归属。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-approved-receipts.tgz",
+      "bytes": 863822,
+      "sha256": "852620648243866d755d0b733fbc8354e6cee2eb26b7c9bafa3f077025ead14a",
+      "gitBlob": "49daa987c3b50a8dd14113dbc59e03eeeda0db22",
+      "commit": "a8ac8e1eb7362a2189973cbe7aaa4f4624649ee0",
+      "description": "对应上一行的提交 `a8ac8e1e`。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-command-feedback.tgz",
+      "bytes": 852438,
+      "sha256": "302c81c049c8a1250a47aff9a5aa5f3fe862e409369f6697c5359b9b7cf2ae81",
+      "gitBlob": "5bf0ef21e9d925801fb87b46dc821f1de3304cdb",
+      "commit": "8d590818e32534880984f9e84e1efd005caa105a",
+      "description": "提交 `8d590818e32534880984f9e84e1efd005caa105a`。命令回执与超时反馈。"
+    }
+  ],
+  "notes": [
+    "sourceKind：upstream-commit 是补丁施加到基线上得到的整棵树与所写提交的树逐文件相同（git archive、git apply -p1、diff -r 实测）；uncommitted-worktree 是来源为未提交的工作树、该工作树已不在，其中以 a7e785b8 为基线的 17 份，新增的非空行绝大部分在 af7375c7 的同名文件里（方案 §4.5 的逐行比对，标为推断）；molis-repo 是补丁只保存在 Molis 仓库里。18 份没有自己提交的补丁都能干净应用在所写的基线上（git apply --check -p1）。",
+    "ledger-status.patch 已并入 claims.patch；network-dispatch.patch 已包含在 assistant.patch 与 bounded-results.patch 中（当时 README 的说法）。",
+    "2026-10-01 清理时这些工作树的未提交状态另存在开发机的 ~/code/prologue-cleanup-backup-20261001/wip.bundle，只在那台机器上，不属于本记录。",
+    "最早的 prologue-sdk-0.0.0-rc.1.tgz 没有对应的源码提交，不能当作任何一个提交的构建；其余本地中间包不是依赖，也没有作为分发物提交过。"
+  ]
+}

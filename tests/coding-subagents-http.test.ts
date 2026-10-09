@@ -5,16 +5,16 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
 
 test('Coding child controls bind original run, keep acceptance separate, reject stale and foreign requests',async()=>{
   const home=mkdtempSync(join(tmpdir(),'coding-child-http-')),dbPath=join(home,'board.db');seedDemoBoard(dbPath);let store=new LocalProjectDatabase(dbPath);
-  const sessions=new CodingSessionStore(store.db);sessions.create({board_id:DEMO_BOARD_ID,session_id:'app',title:'App',runtime_id:'prologue',at:new Date().toISOString()});sessions.setRuntimeSession(DEMO_BOARD_ID,'app','sdk',new Date().toISOString());
+  const sessions=new CodingSessionStore(store.db);sessions.create({project_id:DEMO_PROJECT_ID,session_id:'app',title:'App',runtime_id:'prologue',at:new Date().toISOString()});sessions.setRuntimeSession(DEMO_PROJECT_ID,'app','sdk',new Date().toISOString());
   let state='running',cancels=0;
-  const host=()=>({store,homeDirectory:home,boardId:DEMO_BOARD_ID,actions:pluginActions(store,DEMO_BOARD_ID),actorId:'web-user',goalTitle:()=>undefined,escapeHtml:(v:unknown)=>String(v),translate:(v:string)=>v,
+  const host=()=>({store,homeDirectory:home,projectId:DEMO_PROJECT_ID,actions:pluginActions(store,DEMO_PROJECT_ID),actorId:'web-user',goalTitle:()=>undefined,escapeHtml:(v:unknown)=>String(v),translate:(v:string)=>v,
     execution:{ready:async()=>{},models:async()=>[]},capabilities:{async invoke<I,O>(definition:{capability_id:string},args:I):Promise<O>{
       const input=args as any[];
       if(input[0]?.session_id!=='sdk'||input[1]?.run_id!=='parent')throw new Error('not original parent');
@@ -32,10 +32,10 @@ test('Coding child controls bind original run, keep acceptance separate, reject 
     state='completed';assert.equal((await post({action:'needs-work',expected_revision:0,notes:''})).status,400);
     assert.equal((await post({action:'needs-work',expected_revision:0,notes:'缺少文件依据'})).status,200);
     assert.equal((await post({action:'accepted',expected_revision:0})).status,400);
-    await releaseCodingSurface(store,DEMO_BOARD_ID);store.close();store=new LocalProjectDatabase(dbPath);
+    await releaseCodingSurface(store,DEMO_PROJECT_ID);store.close();store=new LocalProjectDatabase(dbPath);
     assert.equal((await post({action:'accepted',expected_revision:0})).status,400,'revision and verdict persist after reopen');
     assert.equal((await post({action:'accepted',expected_revision:1,notes:'已独立核对'})).status,200);
     assert.equal(state,'completed','verdict does not modify execution state');assert.equal(cancels,1,'verdict does not execute or stop again');
     state='reconcile-required';assert.equal((await post({action:'accepted',expected_revision:2})).status,400);
-  }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));await releaseCodingSurface(store,DEMO_BOARD_ID);store.close();rmSync(home,{recursive:true,force:true});}
+  }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));await releaseCodingSurface(store,DEMO_PROJECT_ID);store.close();rmSync(home,{recursive:true,force:true});}
 });

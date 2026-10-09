@@ -1,6 +1,6 @@
 # Molis Work 与 Casebook
 
-本接口复用 GoalBoard Casebook 协议，供服务端读取授权后的有限事实。产品更名不改变已有线协议的 contract_id、purpose 和摘要规则。操作 capability 使用真实的 io.molis.work 命名，消费者需同时识别旧、新前缀。
+本接口是 Molis Work 的 Casebook 协议，供服务端读取授权后的有限事实。合同 id 是 `molis-work.casebook.*`，JSON Schema 的 `$id` 在 `https://molis-work.dev/contracts/casebook/` 下，用户动作签名的域名串是 `molis-work.casebook.user-action.v1`（2026-10-04 起；旧名 `goalboard.casebook.*` 不再接受，外部 Casebook 插件同步改）。purpose 和摘要规则不变。操作 capability 使用真实的 io.molis.work 命名，消费者需同时识别旧、新前缀。
 
 ## 接入
 
@@ -10,7 +10,7 @@
 
 POST /casebook/v1/projects 返回项目目录；POST /casebook/v1/{project_ref}/ 后分别接 authorization、set-authorization、facts、goal-contexts、operation-receipts、diagnostics。只允许带服务 Bearer 的非浏览器请求，不接受 Origin。
 
-项目由 Molis Work 自己的 Host 打开。Casebook 不接收数据库路径。恢复只允许现有且版本完整的项目，不新建、不代为迁移；缺少结构需由 Molis Work 正式打开并完成其自身升级。
+项目由 Molis Work 自己的 Host 打开。Casebook 不接收数据库路径。恢复只允许现有且版本完整的项目，不新建、不代为迁移；版本不符的项目库由 Molis Work 拒绝打开（只认当前 schema 版本，不就地升级）。
 
 ## 能看见什么
 

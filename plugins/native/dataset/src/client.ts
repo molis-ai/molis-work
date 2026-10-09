@@ -467,7 +467,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
           }
           throw error;
         }
-        placed({ verb: "versioned", title: payload.dataset.title, object: { kind: "dataset", id: payload.dataset.id },
+        placed({ verb: "versioned", title: payload.dataset.title, object: { kind: "dataset", id: payload.dataset.id }, artifact: payload.artifact,
           note: L("第 {version} 版 · 放在这个位置的成果里；继续编辑不会改变这一版", { version: payload.artifact.version }) });
         await loadList();
         if (payload.dataset && selected && selected.id === payload.dataset.id) remember(payload.dataset, false);

@@ -15,7 +15,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   }
   const storage = prepareLocalProjectStorage(
     value(args, "--db") ?? DEFAULT_CLI_DATABASE,
-    operation === "init" || operation === "import-v3" ? "create" : "existing",
+    operation === "init" ? "create" : "existing",
   );
   const { databasePath } = storage;
   if (storage.status === "missing") {
@@ -26,7 +26,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   const ownsLocalHost = !options.localHost;
   const reference = molisWorkHostProjectReference({
     databasePath,
-    boardId: String(input.board_id ?? value(args, "--board-id") ?? `database:${databasePath}`),
+    projectId: String(input.project_id ?? value(args, "--project-id") ?? `database:${databasePath}`),
   });
   const client = localHost.client(reference);
   try {

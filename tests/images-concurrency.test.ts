@@ -31,7 +31,7 @@ async function until(check: () => boolean | Promise<boolean>) {
 test("Images Web and the standard MCP launcher share live jobs through the resident Host, deduplicate and cancel from either side", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "images-concurrency-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Images concurrency", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   // As in production the resident service writes its control token into the Home, where the MCP launcher finds it.
   const web = createMolisWorkWebServer({ homeDirectory: home, localHost: host });

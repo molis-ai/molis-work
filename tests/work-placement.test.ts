@@ -44,7 +44,7 @@ interface Note { id: string; project: string; title: string; body: string; versi
 const reader = defineSubjectContextAction("notes.subject.read", "note", "笔记", ["notes:read"]);
 const mover = defineObjectMoveAction("notes.placement.move", ["note"], "笔记", ["notes:write"]);
 const copier = defineObjectCopyAction("notes.placement.copy", ["note"], "笔记", ["notes:write"]);
-const station = defineWorkflowContentActions({ id: "notes", title: "笔记", icon: "note", create: true, read_permissions: ["notes:read"], write_permissions: ["notes:write"] });
+const station = defineWorkflowContentActions({ id: "notes", title: "笔记", icon: "note", create: true, subject_kind: "note", read_permissions: ["notes:read"], write_permissions: ["notes:write"] });
 const homeReader = defineSubjectContextAction("clips.subject.read", "clip", "剪藏", ["notes:read"], "home");
 
 function notesPlugin(actions: ActionService, notes: Map<string, Note>, projects: readonly string[]) {
@@ -268,14 +268,14 @@ test("the Goals page shows a newly bound material without waiting for the next j
   const binding = { binding_id: "b1", goal_id: "g1", input_name: "发布说明", source_type: "plugin_object", source_ref: '["pages_document","d1"]',
     snapshot_digest: null, state: "confirmed", reason: "", created_by: "web-user", created_at: "2026-09-28T00:00:00.000Z" };
   let bindings: typeof binding[] = [];
-  const collection = () => ({ snapshot: { cursor: 7, board: { board_id: "b", title: "B", active_goal_id: null } }, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [],
-    counts: {}, coverage: [], input_bindings: bindings, policy_bindings: [], events: [] });
+  const collection = () => ({ snapshot: { cursor: 7, board: { project_id: "b", title: "B", active_goal_id: null } }, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [],
+    counts: {}, input_bindings: bindings, policy_bindings: [], events: [] });
   const actions = { discover: async () => [], invoke: async (definition: { capability_id: string }) => {
     if (definition.capability_id === "goals.collection.read") return collection();
     throw new ActionError("actions.not_found", "not here");
   } } as never;
   const cache = new Map();
-  const options = { databasePath: "/tmp/placement-cache.db", boardId: "b" } as never;
+  const options = { databasePath: "/tmp/placement-cache.db", projectId: "b" } as never;
   assert.equal((await cachedMolisWorkWebView(cache as never, {} as never, options, actions)).input_bindings.length, 0);
   bindings = [binding];
   // Same journal cursor: binding a material writes no Goal event.

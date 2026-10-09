@@ -1,113 +1,530 @@
 #!/usr/bin/env node
-// Repository health gates (specs/repository-anti-corruption §5a): numbers that may only go down.
-// Measures the working tree, compares with tooling/gates/baseline.json and fails on any growth.
-// `--update` rewrites the baseline; a change that lowers a number should update it in the same PR.
+// Repository health gates (specs/repository-anti-corruption §5a): numbers that may only go down, including the
+// anti-backflow count of compatibility markers per file (§4.1). The per-file counts of empty catches, `as unknown as`
+// casts and old names are defined in scripts/gates/source-counts.mjs. The public API of the contracts package and the
+// plugin SDK is not a number: it is compared with the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs) and
+// refreshed on purpose with `pnpm api:update`. tooling/gates/README.md lists what each file and counter means.
+//
+// It also fails, with no comparison against the merge-base, when the package table of specs/repository-anti-corruption
+// §5.1 disagrees with scripts/workspace-packages.mjs or with the layer and status the code gives a package (a package
+// added or deleted, a plugin moved to the Plugin Runtime supervisor, an import that changes what is reachable from the
+// product entry): scripts/gates/package-inventory.mjs --table prints the rows, --check reports the disagreement.
+//
+// The translation check (scripts/gates/translations.mjs, apps/workbench/README.md section 界面文字) is one more metric: conflicting
+// translations are a number that may only go down; a translator call with no English and a `*_EN` dictionary the served catalog
+// never reaches fail outright, with no comparison.
+//
+//   node scripts/check-health-gates.mjs                  measure the working tree and compare it with the committed
+//                                                        tooling/gates/baseline.json (the quick local check)
+//   node scripts/check-health-gates.mjs --base <ref>     measure the working tree AND the merge-base of HEAD and <ref>
+//                                                        with this same script and compare the two. The committed
+//                                                        baseline is not consulted, so rewriting it in a PR hides
+//                                                        nothing. CI always runs this form.
+//   --update                      rewrite baseline.json (with --base: only when nothing grew relative to the merge-base)
+//   --report [--top N] [--json]   print the per-file and per-unit numbers (with --base: next to the merge-base's)
+//   --root <dir>                  gate another repository root (tests/health-gates-merge-base.test.ts)
+// tooling/gates/giant-exceptions.json records the verdict "this giant unit has to be long" (a translation table, a stylesheet,
+// static data, generated code), each with a reason. It admits nothing: a unit that is not a giant unit at the merge-base
+// fails as new whether or not it is registered, and a registered unit may never grow.
+// Exit codes: 0 passed, 1 a gate failed, 2 the command or the environment is unusable (there is no silent fallback).
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { SOURCE_COUNT_RULES } from "./gates/source-counts.mjs";
+import { checkApiSnapshots } from "./gates/api-snapshot.mjs";
+import { docGateInputs, docGateMetrics, docGateProblems } from "./gates/doc-gates.mjs";
+import { createTranslationMetric } from "./gates/translations.mjs";
+import { createImpeccableMetric } from "./gates/impeccable-files.mjs";
+import { vendoredProvenanceProblems } from "./gates/vendored-provenance.mjs";
+import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
+import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
+const fail = (message) => { console.error(message); process.exit(2); };
+
+// ---- command line ---------------------------------------------------------------------------------------------------
+const args = process.argv.slice(2);
+const options = {};
+const flags = new Set();
+for (let index = 0; index < args.length; index++) {
+  const [name, inline] = args[index].split(/=(.*)/s);
+  if (["--update", "--report", "--json"].includes(name)) flags.add(name);
+  else if (["--base", "--root", "--top"].includes(name)) {
+    const value = inline ?? args[++index];
+    if (!value || value.startsWith("--")) fail(`${name} needs a value\n${USAGE}`);
+    options[name.slice(2)] = value;
+  } else fail(`unknown argument ${args[index]}\n${USAGE}`);
+}
+if (flags.has("--json") && !flags.has("--report")) fail(`--json goes with --report\n${USAGE}`);
+if (options.top !== undefined && !(Number(options.top) > 0)) fail(`--top needs a positive number\n${USAGE}`);
+const update = flags.has("--update"), report = flags.has("--report");
+const root = options.root ? path.resolve(options.root) : path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const baselinePath = path.join(root, "tooling/gates/baseline.json");
-const update = process.argv.includes("--update");
+const limitsPath = path.join(root, "tooling/gates/limits.json");
+// The package table of specs/repository-anti-corruption §5 is checked against the registry (the scratch repositories of
+// tests/health-gates-merge-base.test.ts have none, so the check does not apply to them).
+const packageRegistry = await loadRegistry(root);
+const exceptionsPath = path.join(root, "tooling/gates/giant-exceptions.json");
 
-const tracked = execFileSync("git", ["-c", "core.quotepath=off", "ls-files"], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
+const run = (gitArgs, extra = {}) => execFileSync("git", gitArgs, { cwd: root, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["pipe", "pipe", "pipe"], ...extra });
+const git = (gitArgs, extra) => {
+  try { return run(gitArgs, extra); } catch (error) { fail(`git ${gitArgs.join(" ")} failed in ${root}: ${String(error.stderr ?? error.message).trim()}`); }
+};
+const gitMaybe = (gitArgs) => { try { return run(gitArgs).trim(); } catch { return ""; } };
+
+// ---- the thresholds (§4.5): they may be tightened, never loosened; --base compares them with the merge-base's --------
+const LIMIT_KEYS = ["file", "classLines", "classMethods", "functionLines", "vendoredPrologueSdk"];
+const parseLimits = (text, where) => {
+  let parsed;
+  try { parsed = JSON.parse(text); } catch { fail(`${where} is not valid JSON`); }
+  for (const key of LIMIT_KEYS) if (!(parsed[key] > 0)) fail(`${where} needs a positive number for "${key}"`);
+  return parsed;
+};
+if (!existsSync(limitsPath)) fail(`${limitsPath} is missing`);
+const limits = parseLimits(readFileSync(limitsPath, "utf8"), limitsPath);
+
+// ---- the giant-unit exceptions (§4.5 "must be long, with a reason") -----------------------------------------------------
+// tooling/gates/giant-exceptions.json: { "exceptions": { "<unit key as in baseline.json>": { "kind", "reason" } } }. An entry
+// is a verdict on a unit that is already giant, not a licence: it never lets a unit exist that was not a giant unit at the
+// merge-base (a new giant unit fails whatever the registry says; the PR that adds the entry is the PR that would be
+// excused, and review requests are not enforced), and, like every giant unit, a registered one may never grow. The entries
+// are checked against the head: each has to be a current giant unit, with a kind from the closed list and a reason that
+// says why splitting it would be wrong. A missing file is an empty registry; a file that is not JSON is exit 2.
+const EXCEPTION_KINDS = ["translation-table", "stylesheet", "static-data", "generated-code"];
+const MIN_REASON_CHARACTERS = 20;
+const problemsOfException = (entry) => {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [`the entry must be an object with "kind" and "reason"`];
+  const problems = Object.keys(entry).filter((field) => field !== "kind" && field !== "reason").map((field) => `unknown field "${field}" (only "kind" and "reason")`);
+  if (!EXCEPTION_KINDS.includes(entry.kind)) problems.push(`"kind" must be one of ${EXCEPTION_KINDS.join(", ")}`);
+  if (typeof entry.reason !== "string" || entry.reason.replace(/\s+/g, "").length < MIN_REASON_CHARACTERS) problems.push(`"reason" needs at least ${MIN_REASON_CHARACTERS} characters that say why this unit has to be long`);
+  return problems;
+};
+const loadExceptions = () => {
+  if (!existsSync(exceptionsPath)) return {};
+  let parsed;
+  try { parsed = JSON.parse(readFileSync(exceptionsPath, "utf8")); } catch { fail(`${exceptionsPath} is not valid JSON`); }
+  if (!parsed || typeof parsed !== "object" || !parsed.exceptions || typeof parsed.exceptions !== "object" || Array.isArray(parsed.exceptions)) {
+    fail(`${exceptionsPath} needs an "exceptions" object keyed by giant unit`);
+  }
+  return parsed.exceptions;
+};
+const exceptions = loadExceptions();
+// An own entry only: a key such as "constructor" or "__proto__" must not resolve through the prototype.
+const registeredEntry = (unit) => (Object.hasOwn(exceptions, unit) ? exceptions[unit] : undefined);
+
+// ---- what is scanned ------------------------------------------------------------------------------------------------
 const AREAS = /^(apps|horizontal|modules|packages|plugins|server|tooling)\//;
 const isSource = (file) => AREAS.test(file) && /\.(ts|mts)$/.test(file) && !file.endsWith(".d.ts")
   && !/(^|\/)(tests?|dist|node_modules|fixtures)\//.test(file) && !/\.test\.(ts|mts)$/.test(file);
-const sources = tracked.filter(isSource);
-const read = (file) => readFileSync(path.join(root, file), "utf8");
+const isTestFile = (file) => /^tests\/.*\.(ts|mts|mjs)$/.test(file);
+const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
+// The structure gates (scripts/gates/) also scan a `fixtures/` directory that is not under a `tests/` one: production code
+// cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
+const FIXTURES_DIR = /(^|\/)fixtures\//;
+const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
+const needsText = (file) => isStructureSource(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file);
 
-// 1. Giant units (§4.5 thresholds): files over 800 lines, classes over 300 lines or 25 methods, functions over 150 lines.
-const LIMITS = { file: 800, classLines: 300, classMethods: 25, functionLines: 150 };
-const giant = {};
-for (const file of sources) {
-  const text = read(file);
-  const lines = text.split("\n").length;
-  if (lines > LIMITS.file) giant[`file ${file}`] = lines;
-  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-  const span = (node) => source.getLineAndCharacterOfPosition(node.getEnd()).line - source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
-  // An unnamed function is named by the named function it sits in and its order among the giant ones there, so an edit
-  // above it does not make it look new.
-  const callbacks = {};
-  const ownerOf = (node) => {
-    if (node.name && ts.isIdentifier(node.name)) return node.name.text;
-    if ((ts.isVariableDeclaration(node.parent) || ts.isPropertyAssignment(node.parent)) && ts.isIdentifier(node.parent.name)) return node.parent.name.text;
-    let outer = node.parent;
-    while (outer && !((ts.isFunctionDeclaration(outer) || ts.isMethodDeclaration(outer) || ts.isVariableDeclaration(outer)) && outer.name && ts.isIdentifier(outer.name))) outer = outer.parent;
-    const base = outer ? outer.name.text : "(module)";
-    callbacks[base] = (callbacks[base] ?? 0) + 1;
-    return `${base} callback ${callbacks[base]}`;
-  };
-  const visit = (node) => {
-    if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
-      const name = node.name?.text ?? "(anonymous)";
-      const methods = node.members.filter((member) => ts.isMethodDeclaration(member) || ts.isGetAccessor(member) || ts.isSetAccessor(member)).length;
-      const size = span(node);
-      if (size > LIMITS.classLines || methods > LIMITS.classMethods) giant[`class ${file}#${name}`] = Math.max(size, methods);
+// A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
+// merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
+const workingTree = () => ({
+  files: git(["-c", "core.quotepath=off", "ls-files", "-z"]).split("\0").filter(Boolean),
+  read: (file) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } },
+});
+const commitTree = (commit) => {
+  const files = git(["ls-tree", "-r", "-z", "--name-only", commit]).split("\0").filter(Boolean);
+  const paths = files.filter(needsText);
+  const out = git(["cat-file", "--batch"], { input: Buffer.from(paths.map((file) => `${commit}:${file}\n`).join("")), encoding: "buffer" });
+  const texts = new Map();
+  let position = 0;
+  for (const file of paths) {
+    const end = out.indexOf(10, position);
+    const [, type, size] = out.toString("utf8", position, end).split(" ");
+    position = end + 1;
+    if (type === "missing") continue;
+    texts.set(file, out.toString("utf8", position, position + Number(size)));
+    position += Number(size) + 1;
+  }
+  return { files, read: (file) => texts.get(file) ?? null };
+};
+
+// ---- the metrics ----------------------------------------------------------------------------------------------------
+// Each metric measures one snapshot, writes itself into baseline.json (and reads itself back) and says what counts as
+// growth relative to a reference: the committed baseline, or the merge-base measured by this same code. A new gate adds
+// one entry here. Measuring both sides with one definition means a change of definition needs no re-baselining in CI.
+const sizeOf = (value) => (typeof value === "number" ? value : Math.max(value.lines, value.methods));
+const describeUnit = (value) => (typeof value === "number" ? String(value) : `${value.lines} lines, ${value.methods} methods`);
+const sumOf = (record) => Object.values(record).reduce((sum, count) => sum + count, 0);
+const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+const requireShape = (ok, what) => { if (!ok) fail(`tooling/gates/baseline.json: ${what} is missing or has an old shape; regenerate it with \`node scripts/check-health-gates.mjs --update\``); };
+// A file renamed or moved between the reference and the head keeps its record under the new name; only content that is
+// new counts as new.
+const unitFile = (unit) => unit.replace(/^(?:file|class|function) /, "").split("#")[0];
+const rekeyUnit = (unit, renames) => (renames.has(unitFile(unit)) ? unit.replace(unitFile(unit), renames.get(unitFile(unit))) : unit);
+const rekeyFile = (file, renames) => renames.get(file) ?? file;
+const rekey = (record, renames, rename) => {
+  const out = {};
+  for (const [key, value] of Object.entries(record)) {
+    const next = rename(key, renames);
+    out[next] = typeof value === "number" ? Math.max(out[next] ?? 0, value) : value;
+  }
+  return out;
+};
+
+const giantUnits = {
+  id: "giant",
+  // 1. Giant units (§4.5 thresholds): files over 800 lines, classes over 300 lines or 25 methods, functions over 150
+  // lines. A class records its lines and its methods separately, each against its own limit.
+  measure(snapshot) {
+    const giant = {};
+    for (const file of snapshot.files.filter(isSource)) {
+      const text = snapshot.read(file);
+      if (text === null) continue;
+      const lines = text.split("\n").length;
+      if (lines > limits.file) giant[`file ${file}`] = lines;
+      const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+      const span = (node) => source.getLineAndCharacterOfPosition(node.getEnd()).line - source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+      // An unnamed function is named by the named function it sits in and its order among the giant ones there, so an
+      // edit above it does not make it look new.
+      const callbacks = {};
+      const ownerOf = (node) => {
+        if (node.name && ts.isIdentifier(node.name)) return node.name.text;
+        if ((ts.isVariableDeclaration(node.parent) || ts.isPropertyAssignment(node.parent)) && ts.isIdentifier(node.parent.name)) return node.parent.name.text;
+        let outer = node.parent;
+        while (outer && !((ts.isFunctionDeclaration(outer) || ts.isMethodDeclaration(outer) || ts.isVariableDeclaration(outer)) && outer.name && ts.isIdentifier(outer.name))) outer = outer.parent;
+        const base = outer ? outer.name.text : "(module)";
+        callbacks[base] = (callbacks[base] ?? 0) + 1;
+        return `${base} callback ${callbacks[base]}`;
+      };
+      const visit = (node) => {
+        if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
+          const key = `class ${file}#${node.name?.text ?? "(anonymous)"}`;
+          const methods = node.members.filter((member) => ts.isMethodDeclaration(member) || ts.isGetAccessor(member) || ts.isSetAccessor(member)).length;
+          const size = span(node);
+          if (size > limits.classLines || methods > limits.classMethods) giant[key] = { lines: Math.max(giant[key]?.lines ?? 0, size), methods: Math.max(giant[key]?.methods ?? 0, methods) };
+        }
+        if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+          const size = span(node);
+          if (size > limits.functionLines) {
+            const key = `function ${file}#${ownerOf(node)}`;
+            giant[key] = Math.max(giant[key] ?? 0, size);
+          }
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(source);
     }
-    if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
-      const size = span(node);
-      if (size > LIMITS.functionLines) {
-        const owner = ownerOf(node);
-        giant[`function ${file}#${owner}`] = Math.max(giant[`function ${file}#${owner}`] ?? 0, size);
+    return giant;
+  },
+  toBaseline: (giant) => ({ giantUnits: Object.keys(giant).length, giant }),
+  fromBaseline(json) {
+    requireShape(isRecord(json.giant), "giant");
+    for (const [unit, value] of Object.entries(json.giant)) {
+      requireShape(unit.startsWith("class ") ? isRecord(value) && Number.isInteger(value.lines) && Number.isInteger(value.methods) : Number.isInteger(value), `giant "${unit}"`);
+    }
+    return json.giant;
+  },
+  grew(head, ref, { renames }) {
+    const before = rekey(ref, renames, rekeyUnit);
+    const errors = [];
+    for (const [unit, value] of Object.entries(head)) {
+      const was = before[unit];
+      // A unit the reference does not record as giant is new, registered or not: giant-exceptions.json admits nothing.
+      if (was === undefined) {
+        errors.push(`new giant unit: ${unit} (${describeUnit(value)}); split it or keep it under the limit. A tooling/gates/giant-exceptions.json entry does not admit it: the registry only records why a unit that is already giant at the merge-base has to stay long`);
+      } else if (typeof value === "number") {
+        if (value > was) errors.push(`giant unit grew: ${unit} ${was} → ${value}`);
+      } else {
+        // Two rules, both must hold. Lines and methods are two limits: whichever is over its limit may not exceed what the
+        // reference recorded. And the old freeze stays: the larger of the two (the old single number) may not grow either,
+        // so a class that is giant only by methods cannot gain lines while it is still under the line limit.
+        const found = [];
+        if (value.lines > limits.classLines && value.lines > was.lines) found.push(`giant class grew: ${unit} lines ${was.lines} → ${value.lines}`);
+        if (value.methods > limits.classMethods && value.methods > was.methods) found.push(`giant class grew: ${unit} methods ${was.methods} → ${value.methods}`);
+        if (!found.length && sizeOf(value) > sizeOf(was)) {
+          found.push(`giant class grew: ${unit} ${sizeOf(was)} → ${sizeOf(value)} (lines ${was.lines} → ${value.lines}, methods ${was.methods} → ${value.methods}); a giant class may not get bigger in either dimension`);
+        }
+        errors.push(...found);
       }
     }
+    return errors;
+  },
+  lowered: (head, ref) => Object.keys(head).length < Object.keys(ref).length || Object.entries(head).some(([unit, value]) => ref[unit] !== undefined && sizeOf(value) < sizeOf(ref[unit])),
+  lines(head, ref, { top }) {
+    const kindOf = (unit, value) => (typeof value === "number" ? unit.split(" ")[0]
+      : value.lines > limits.classLines && value.methods > limits.classMethods ? "class both" : value.lines > limits.classLines ? "class lines" : "class methods");
+    const rows = Object.entries(head).map(([unit, value]) => ({ unit, value, kind: kindOf(unit, value) }))
+      .sort((a, b) => sizeOf(b.value) - sizeOf(a.value) || a.unit.localeCompare(b.unit));
+    const tally = {};
+    for (const row of rows) tally[row.kind] = (tally[row.kind] ?? 0) + 1;
+    const registered = rows.filter((row) => registeredEntry(row.unit) !== undefined).length;
+    const out = [`Giant units: ${rows.length} (${Object.entries(tally).sort().map(([name, count]) => `${count} ${name}`).join(", ")})`,
+      `  registered as exceptions (tooling/gates/giant-exceptions.json): ${registered}; the other ${rows.length - registered} are to be split or handed to the line that owns them (docs/system/HUGE-CLASS-MIGRATION.md)`,
+      `  ${"kind".padEnd(13)}${"lines".padStart(6)}${"methods".padStart(9)}${ref ? "  base (l/m)".padEnd(14) : ""}  unit`];
+    for (const row of rows.slice(0, top)) {
+      const lines = typeof row.value === "number" ? row.value : row.value.lines;
+      const methods = typeof row.value === "number" ? "" : row.value.methods;
+      const was = ref?.[row.unit];
+      const base = was === undefined ? "new" : typeof was === "number" ? was : `${was.lines}/${was.methods}`;
+      out.push(`  ${row.kind.padEnd(13)}${String(lines).padStart(6)}${String(methods).padStart(9)}${ref ? `  ${String(base)}`.padEnd(14) : ""}  ${row.unit.replace(/^(?:file|class|function) /, "")}${registeredEntry(row.unit) !== undefined ? `  [exception: ${registeredEntry(row.unit)?.kind}]` : ""}`);
+    }
+    if (top && rows.length > top) out.push(`  … ${rows.length - top} more (omit --top to see all)`);
+    return out;
+  },
+  summary: (giant) => `${Object.keys(giant).length} giant units`,
+};
+
+// Per-file counts that may only fall; a file with no record (a new file, or one that had none) starts at 0.
+const perFile = {
+  grew: (what, hint) => (head, ref, { renames }) => {
+    const before = rekey(ref, renames, rekeyFile);
+    return Object.entries(head).filter(([file, count]) => count > (before[file] ?? 0))
+      .map(([file, count]) => `${what} in ${file} ${before[file] ?? 0} → ${count}; ${hint}`);
+  },
+  fromBaseline(json, key) {
+    requireShape(isRecord(json[key]) && Object.values(json[key]).every(Number.isInteger), key);
+    return json[key];
+  },
+  lowered: (head, ref) => sumOf(head) < sumOf(ref) || Object.entries(head).some(([file, count]) => ref[file] !== undefined && count < ref[file]),
+  // `unit` names what the keys are when they are not files (a root entry, a group, a subpath); the default is the per-file count.
+  lines(title, head, ref, { top }, unit = { many: "files", one: "file" }) {
+    const rows = Object.entries(head).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const out = [`${title}: ${sumOf(head)} in ${rows.length} ${unit.many}`, `  ${"count".padStart(5)}${ref ? "   base" : ""}  ${unit.one}`];
+    for (const [file, count] of rows.slice(0, top)) out.push(`  ${String(count).padStart(5)}${ref ? String(ref[file] ?? "new").padStart(7) : ""}  ${file}`);
+    if (top && rows.length > top) out.push(`  … ${rows.length - top} more (omit --top to see all)`);
+    return out;
+  },
+};
+
+// 2. Tests that reach into another package's source or build output instead of its public entry. Counted per test file
+// by parsing it: every import, export … from, import() and require() whose literal specifier resolves to a package's
+// src/ or dist/ (server/src included). A test file may only lose them and a new test file starts with none.
+const INTERNAL_TARGET = /^(?:apps|horizontal|modules|packages|plugins|server)\/(?:.+\/)?(?:src|dist)(?:\/|$)/;
+const internalImportCount = (file, text) => {
+  if (!/(?:src|dist)\b/.test(text)) return 0;
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false);
+  let count = 0;
+  const specifier = (node) => {
+    if (!node || !ts.isStringLiteralLike(node) || !node.text.startsWith(".")) return;
+    if (INTERNAL_TARGET.test(path.posix.normalize(path.posix.join(path.posix.dirname(file), node.text)))) count++;
+  };
+  const visit = (node) => {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) specifier(node.moduleSpecifier);
+    else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) specifier(node.moduleReference.expression);
+    else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === "require"))) specifier(node.arguments[0]);
     ts.forEachChild(node, visit);
   };
   visit(source);
-}
-
-// 2. Tests that reach into another package's source or build output instead of its public entry.
-const testFiles = tracked.filter((file) => /^tests\/.*\.(ts|mts|mjs)$/.test(file));
-let internalImports = 0;
-for (const file of testFiles) {
-  internalImports += (read(file).match(/from\s+["'](?:\.\.\/)+(?:apps|horizontal|modules|packages|plugins|server)\/[^"']*\/(?:src|dist)\//g) ?? []).length;
-}
+  return count;
+};
+const testImports = {
+  id: "testImports",
+  measure(snapshot) {
+    const counts = {};
+    for (const file of snapshot.files.filter(isTestFile)) {
+      const text = snapshot.read(file);
+      const count = text === null ? 0 : internalImportCount(file, text);
+      if (count) counts[file] = count;
+    }
+    return counts;
+  },
+  toBaseline: (counts) => ({ testInternalImports: sumOf(counts), testImports: counts }),
+  fromBaseline: (json) => perFile.fromBaseline(json, "testImports"),
+  grew: perFile.grew("tests reach into package internals", "import the public entry instead"),
+  lowered: perFile.lowered,
+  lines: (head, ref, env) => perFile.lines("Test internal imports", head, ref, env),
+  summary: (counts) => `${sumOf(counts)} test internal imports`,
+};
 
 // 3. Vendored Prologue SDK packages (AGENTS.md: the current one, at most one more for a branch in flight).
-const vendored = tracked.filter((file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file)).length;
+const vendoredSdk = {
+  id: "vendored",
+  measure: (snapshot) => snapshot.files.filter(isVendoredSdk).length,
+  toBaseline: (count) => ({ vendoredPrologueSdk: count }),
+  fromBaseline(json) { requireShape(Number.isInteger(json.vendoredPrologueSdk), "vendoredPrologueSdk"); return json.vendoredPrologueSdk; },
+  absolute: (count) => (count > limits.vendoredPrologueSdk ? [`vendor/prologue-sdk holds ${count} packages; keep the current one and at most ${limits.vendoredPrologueSdk - 1} in flight`] : []),
+  grew: () => [],
+  lowered: (head, ref) => head < ref,
+  lines: (head, ref) => [`Vendored Prologue SDK packages: ${head} (limit ${limits.vendoredPrologueSdk})${ref !== undefined && ref !== head ? `, base ${ref}` : ""}`],
+  summary: (count) => `${count} vendored SDK`,
+};
 
 // 4. Compatibility code coming back: in-place table patching outside a baseline schema.
-let schemaPatches = 0;
-for (const file of sources) schemaPatches += (read(file).match(/ALTER TABLE|ensureSqliteColumn\(/g) ?? []).length;
+const schemaPatches = {
+  id: "schemaPatches",
+  measure(snapshot) {
+    let count = 0;
+    for (const file of snapshot.files.filter(isSource)) count += (snapshot.read(file)?.match(/ALTER TABLE|ensureSqliteColumn\(/g) ?? []).length;
+    return count;
+  },
+  toBaseline: (count) => ({ schemaPatches: count }),
+  fromBaseline(json) { requireShape(Number.isInteger(json.schemaPatches), "schemaPatches"); return json.schemaPatches; },
+  grew: (head, ref) => (head > ref ? [`in-place schema patches ${ref} → ${head}; change the baseline schema instead`] : []),
+  lowered: (head, ref) => head < ref,
+  lines: (head, ref) => [`In-place schema patches: ${head}${ref !== undefined && ref !== head ? `, base ${ref}` : ""}`],
+  summary: (count) => `${count} schema patches`,
+};
 
-// 5. specs/ root: only work in progress and current norms, each with a status line.
-const specProblems = [];
-for (const entry of readdirSync(path.join(root, "specs"), { withFileTypes: true })) {
-  if (!entry.isDirectory() || entry.name === "archive") continue;
-  const spec = path.join(root, "specs", entry.name, "spec.md");
-  if (!existsSync(spec)) { specProblems.push(`${entry.name}: no spec.md`); continue; }
-  if (!/^状态：/m.test(readFileSync(spec, "utf8").split("\n").slice(0, 8).join("\n"))) specProblems.push(`${entry.name}: no status line near the top`);
+// 5. Compatibility code coming back (§4.1 "no compat logic"): words that keep an old shape alive, counted per source
+// file. A file may only lose them and a new file starts with none; a kept mechanism is recorded in the spec and stays in
+// the baseline. Scene "compatible" alone is ordinary vocabulary; identifiers built on it (compatibleRun) are counted.
+const COMPAT_MARKERS = /[Ll]egacy|LEGACY|\b[Cc]ompat(?![a-z])|\bcompatible(?=[A-Z])|@deprecated|[Bb]ackfill/g;
+const compatMarkers = {
+  id: "compatMarkers",
+  measure(snapshot) {
+    const counts = {};
+    for (const file of snapshot.files.filter(isSource)) {
+      const count = (snapshot.read(file)?.match(COMPAT_MARKERS) ?? []).length;
+      if (count) counts[file] = count;
+    }
+    return counts;
+  },
+  toBaseline: (counts) => ({ compatMarkerTotal: sumOf(counts), compatMarkers: counts }),
+  fromBaseline: (json) => perFile.fromBaseline(json, "compatMarkers"),
+  grew: perFile.grew("compatibility markers", "delete the old path instead of keeping it (CI has no way to accept more, and neither does --update)"),
+  lowered: perFile.lowered,
+  lines: (head, ref, env) => perFile.lines("Compatibility markers", head, ref, env),
+  summary: (counts) => `${sumOf(counts)} compat markers`,
+};
+
+// 5b. Per-file counts of what a minimal lint rule set flags (empty catch, `as unknown as`) and of the old names
+// (goalboard, board_id). The definitions live in scripts/gates/source-counts.mjs; here each rule becomes a per-file metric.
+const sourceCounts = SOURCE_COUNT_RULES.map((rule) => ({
+  id: rule.id,
+  measure: (snapshot) => rule.measure(snapshot, { isSource, isTestFile }),
+  toBaseline: (counts) => ({ [`${rule.id}Total`]: sumOf(counts), [rule.id]: counts }),
+  fromBaseline: (json) => perFile.fromBaseline(json, rule.id),
+  grew: perFile.grew(rule.what, rule.hint),
+  lowered: perFile.lowered,
+  lines: (head, ref, env) => perFile.lines(rule.title, head, ref, env),
+  summary: (counts) => `${sumOf(counts)} ${rule.summary}`,
+}));
+
+const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, compatMarkers, ...sourceCounts];
+// The structure gates (W1-05) live in scripts/gates/: each module says what to count, this file compares.
+METRICS.push(...structureMetrics({ isSource: isStructureSource, perFile, rekey, rekeyUnit, sumOf }));
+METRICS.push(...docGateMetrics({ perFile }));
+// 7. Translations (decision #16): missing English fails, conflicting translations are frozen, dead keys are reported. The rules live in scripts/gates/translations.mjs.
+METRICS.push(createTranslationMetric({ isSource, requireShape, isRecord }));
+METRICS.push(createImpeccableMetric({ perFile }));
+const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
+const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
+
+// 6. specs/ root: only work in progress and current norms, each with a status line. Reads the working tree.
+const specProblems = () => {
+  const problems = [];
+  const specs = path.join(root, "specs");
+  if (!existsSync(specs)) return problems;
+  for (const entry of readdirSync(specs, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === "archive") continue;
+    const spec = path.join(specs, entry.name, "spec.md");
+    if (!existsSync(spec)) { problems.push(`specs/${entry.name}: no spec.md`); continue; }
+    if (!/^状态：/m.test(readFileSync(spec, "utf8").split("\n").slice(0, 8).join("\n"))) problems.push(`specs/${entry.name}: no status line near the top`);
+  }
+  return problems;
+};
+
+// ---- the reference to compare with -----------------------------------------------------------------------------------
+const committedBaseline = () => {
+  if (!existsSync(baselinePath)) fail(`${baselinePath} is missing; create it with --update`);
+  let json;
+  try { json = JSON.parse(readFileSync(baselinePath, "utf8")); } catch { fail(`${baselinePath} is not valid JSON; regenerate it with \`node scripts/check-health-gates.mjs --update\``); }
+  return Object.fromEntries(METRICS.map((metric) => [metric.id, metric.fromBaseline(json)]));
+};
+
+let mergeBase = "";
+if (options.base) {
+  const target = gitMaybe(["rev-parse", "--verify", "--quiet", `${options.base}^{commit}`]);
+  if (!target) fail(`--base ${options.base} is not a commit in this clone; fetch it first (CI: actions/checkout with fetch-depth: 0)`);
+  mergeBase = gitMaybe(["merge-base", "HEAD", target]);
+  if (!mergeBase) fail(`HEAD and ${options.base} share no history in this clone; fetch the full history (CI: actions/checkout with fetch-depth: 0)`);
 }
 
-const measured = { giantUnits: Object.keys(giant).length, giant, testInternalImports: internalImports, vendoredPrologueSdk: vendored, schemaPatches };
-if (update) {
-  writeFileSync(baselinePath, JSON.stringify({ ...measured, note: "Only decreases. Regenerate with `node scripts/check-health-gates.mjs --update` in the PR that lowers a number." }, null, 2) + "\n");
-  console.log(`baseline written: ${measured.giantUnits} giant units, ${internalImports} test internal imports, ${vendored} vendored SDK, ${schemaPatches} schema patches`);
+const head = measureAll(workingTree());
+const renames = new Map();
+let reference;
+if (mergeBase) {
+  reference = measureAll(commitTree(mergeBase));
+  // Renames between the merge-base and the working tree, so moving a file does not make its records look new.
+  const fields = git(["diff", "-M", "-l", "5000", "--name-status", "--diff-filter=R", "-z", mergeBase]).split("\0");
+  fields.forEach((field, index) => { if (/^R\d*$/.test(field)) renames.set(fields[index + 1], fields[index + 2]); });
+} else if (!update && !report) reference = committedBaseline();
+
+// ---- the guards ------------------------------------------------------------------------------------------------------
+const notes = [];
+const growth = () => METRICS.flatMap((metric) => metric.grew(head[metric.id], reference[metric.id], { renames }));
+// The limits may be tightened but never loosened or removed: compared with the merge-base's tooling/gates/limits.json.
+const limitErrors = () => {
+  if (!mergeBase) return [];
+  const limitsFile = "tooling/gates/limits.json";
+  // `git()` exits 2 when git itself fails, so only a clean answer that the file is not in the merge-base's tree (the first
+  // run, before limits.json existed) skips the comparison; an unreadable tree or blob is an error, never a pass.
+  if (!git(["ls-tree", "--name-only", mergeBase, "--", limitsFile]).trim()) {
+    notes.push(`the merge-base has no ${limitsFile}, so the limits were not compared`);
+    return [];
+  }
+  const before = parseLimits(git(["cat-file", "blob", `${mergeBase}:${limitsFile}`]), `${mergeBase.slice(0, 8)}:${limitsFile}`);
+  return LIMIT_KEYS.filter((key) => limits[key] > before[key]).map((key) => `limit "${key}" loosened ${before[key]} → ${limits[key]} in tooling/gates/limits.json; limits only get tighter`);
+};
+// Every registered exception has to describe a giant unit that exists now, with a kind and a reason. A split or a rename that
+// leaves the entry behind fails here, so the registry shrinks with the list. (Whether a unit may exist at all is decided in
+// giantUnits.grew, and the registry has no say in it.)
+const exceptionErrors = () => Object.entries(exceptions).flatMap(([unit, entry]) => (!Object.hasOwn(head.giant, unit)
+  ? [`giant exception for ${unit} is stale: it is not a giant unit any more (split, shrunk or renamed); delete the entry from tooling/gates/giant-exceptions.json, or key it by the new name after a rename`]
+  : problemsOfException(entry).map((problem) => `giant exception for ${unit}: ${problem}`)));
+const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree()), ...vendoredProvenanceProblems(root)];
+// The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
+// not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
+const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });
+const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "tooling/gates/baseline.json";
+
+// ---- --report --------------------------------------------------------------------------------------------------------
+if (report) {
+  if (flags.has("--json")) {
+    console.log(JSON.stringify({ limits, mergeBase: mergeBase || null, head, base: reference ?? null, giantExceptions: exceptions }, null, 2));
+    process.exit(0);
+  }
+  const env = { top: options.top ? Number(options.top) : undefined };
+  console.log(`Health report: working tree${mergeBase ? ` against ${against}` : ""}; limits ${JSON.stringify(limits)}`);
+  for (const metric of METRICS) console.log("\n" + metric.lines(head[metric.id], reference?.[metric.id], env).join("\n"));
+  const problems = specProblems();
+  console.log(`\nSpec status lines: ${problems.length ? problems.join("; ") : "every specs/ root directory has one"}`);
+  const api = apiSnapshots();
+  console.log(`Public API snapshots: ${api.errors.length ? "out of date (see the gate's output)" : api.summary || api.notes.join("; ")}`);
+  const docProblems = docGateProblems(workingTree());
+  console.log(`\nDocument references: ${docProblems.length ? `${docProblems.length} problems\n- ${docProblems.join("\n- ")}` : "none broken"}`);
   process.exit(0);
 }
 
-const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
-const errors = [];
-for (const [unit, size] of Object.entries(giant)) {
-  const before = baseline.giant[unit];
-  if (before === undefined) errors.push(`new giant unit: ${unit} (${size}); split it or keep it under the limit`);
-  else if (size > before) errors.push(`giant unit grew: ${unit} ${before} → ${size}`);
+// ---- --update --------------------------------------------------------------------------------------------------------
+if (update) {
+  if (mergeBase) {
+    const errors = [...growth(), ...limitErrors()];
+    if (errors.length) {
+      console.error(`Baseline not written: something grew relative to ${against}:\n- ` + errors.join("\n- "));
+      process.exit(1);
+    }
+  }
+  const written = Object.assign({}, ...METRICS.map((metric) => metric.toBaseline(head[metric.id])),
+    { note: "Only decreases. Lower it with `node scripts/check-health-gates.mjs --update --base origin/main` in the PR that lowers a number. CI compares with the merge-base, not with this file." });
+  writeFileSync(baselinePath, JSON.stringify(written, null, 2) + "\n");
+  console.log(`baseline written: ${summaryOf(head)}`);
+  process.exit(0);
 }
-if (internalImports > baseline.testInternalImports) errors.push(`tests reach into package internals ${baseline.testInternalImports} → ${internalImports}; import the public entry instead`);
-if (vendored > 2) errors.push(`vendor/prologue-sdk holds ${vendored} packages; keep the current one and at most one in flight`);
-if (schemaPatches > baseline.schemaPatches) errors.push(`in-place schema patches ${baseline.schemaPatches} → ${schemaPatches}; change the baseline schema instead`);
-errors.push(...specProblems.map((problem) => `specs/${problem}`));
 
-const lowered = [
-  measured.giantUnits < baseline.giantUnits && "giant units",
-  internalImports < baseline.testInternalImports && "test internal imports",
-  schemaPatches < baseline.schemaPatches && "schema patches",
-].filter(Boolean);
+// ---- the verdict -----------------------------------------------------------------------------------------------------
+const api = apiSnapshots();
+const errors = [...growth(), ...limitErrors(), ...absolute(), ...api.errors];
 if (errors.length) {
-  console.error("Health gates failed:\n- " + errors.join("\n- "));
+  console.error(`Health gates failed against ${against}:\n- ` + errors.join("\n- "));
   process.exit(1);
 }
-console.log(`Health gates passed (${measured.giantUnits} giant units, ${internalImports} test internal imports, ${vendored} vendored SDK, ${schemaPatches} schema patches).`
-  + (lowered.length ? ` Lower than the baseline: ${lowered.join(", ")}; update it with --update.` : ""));
+const lowered = METRICS.filter((metric) => metric.lowered(head[metric.id], reference[metric.id])).map((metric) => metric.id);
+let hint = "";
+// --base never reads the committed tooling/gates/baseline.json (not even to say it is stale): it may be missing, old or
+// rewritten in the PR, and none of that matters here.
+if (lowered.length && mergeBase) hint = ` Lower than the merge-base: ${lowered.join(", ")}; \`--update --base origin/main\` lowers the local quick check in tooling/gates/baseline.json.`;
+else if (lowered.length) hint = ` Lower than the baseline: ${lowered.join(", ")}; lower it with --update --base origin/main.`;
+const registered = Object.keys(head.giant).filter((unit) => registeredEntry(unit) !== undefined).length;
+console.log(`Health gates passed against ${against} (${summaryOf(head)}${api.summary ? `, ${api.summary}` : ""}; ${registered} of the giant units registered as exceptions).${hint}${notes.length ? ` Note: ${notes.join("; ")}.` : ""}`);
+for (const note of api.notes) console.log(`Note: ${note}`);

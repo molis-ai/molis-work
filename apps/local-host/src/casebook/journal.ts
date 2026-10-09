@@ -5,7 +5,8 @@ import { CasebookError, CONTRACT, VERSION, PURPOSE, CONTEXT_PURPOSE, RECEIPTS_PU
   type AuthorizationRequest, type ReadRequest, type Fact, type Envelope } from './contract.js';
 
 interface Scope { board: string; epoch: string; state: string; secret: string; since: string; pauses: number; }
-const SQL = `CREATE TABLE IF NOT EXISTS casebook_interaction_scopes (
+/** The Casebook interaction tables, as one current schema; the host composes them into the project database baseline. */
+export const CASEBOOK_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS casebook_interaction_scopes (
  board TEXT PRIMARY KEY, epoch TEXT NOT NULL, state TEXT NOT NULL, secret TEXT NOT NULL, since TEXT NOT NULL, pauses INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS casebook_interaction_facts (
  board TEXT NOT NULL, epoch TEXT NOT NULL, seq INTEGER NOT NULL, id TEXT NOT NULL UNIQUE, body TEXT NOT NULL,
@@ -41,7 +42,7 @@ export class InteractionJournal {
       throw new CasebookError('not_authorized');
     if (!['join','pause','resume','remove'].includes(input.action)) throw new CasebookError('invalid_request');
     // Called only after the owner-supplied authority verifier approved this exact action.
-    this.db.exec(SQL);
+    this.db.exec(CASEBOOK_SCHEMA_SQL);
     return this.db.transaction(() => {
       this.db.prepare('INSERT OR IGNORE INTO casebook_interaction_audit_keys VALUES (?,?)').run(this.key,randomBytes(32).toString('hex'));
       const audit=this.db.prepare('SELECT secret FROM casebook_interaction_audit_keys WHERE board=?').get(this.key) as {secret:string};

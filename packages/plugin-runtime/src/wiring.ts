@@ -1,5 +1,6 @@
 import type {
   ArtifactReference,
+  ArtifactVersionRecord,
   FixedVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import {
@@ -7,13 +8,12 @@ import {
   portTypeKey,
   requiredPorts,
   type PluginInputGroupSelectionRecord,
-  type PluginInputPortView,
-  type PluginInputSourceCandidate,
   type PluginInputStatus,
   type PluginManifest,
+  type PluginPortArtifactBindingInput,
+  type PluginPortArtifactBindingRecord,
   type PluginPortBindingInput,
   type PluginPortBindingRecord,
-  type PluginPortOutputRecord,
   type PluginUpstreamReadyInputs,
   type PluginUpstreamUnavailableCode,
   type PluginUpstreamUnavailableReason,
@@ -23,14 +23,17 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import type { PluginHostLifecycle } from "./lifecycle.js";
+import { buildWiringView, usableVersion } from "./wiring-view.js";
 
 /** Reads a published Artifact version. The graph never owns Artifact storage. */
 export interface PluginArtifactReaderPort {
   read(reference: ArtifactReference): FixedVersionRecord | null;
+  /** The 成果库 only, never process items: the versions someone can bind to an input port. */
+  library?(reference: ArtifactReference): ArtifactVersionRecord | null;
 }
 
 export interface PluginInputFailure {
-  board_id: string;
+  project_id: string;
   plugin_id: string;
   code: PluginUpstreamUnavailableCode | "consumer_failed";
   message: string;
@@ -49,7 +52,7 @@ function bindingId(pluginId: string, port: string): string {
  * told, so a slow read cannot land after its authority is gone.
  */
 export class PluginInputGraph implements PluginWiringApi {
-  readonly #boardId: string;
+  readonly #projectId: string;
   readonly #lifecycle: PluginHostLifecycle;
   readonly #repository: PluginWiringRepository;
   readonly #artifacts: PluginArtifactReaderPort;
@@ -63,14 +66,14 @@ export class PluginInputGraph implements PluginWiringApi {
   readonly #shutdown = new AbortController();
 
   constructor(input: {
-    boardId: string;
+    projectId: string;
     lifecycle: PluginHostLifecycle;
     repository: PluginWiringRepository;
     artifacts: PluginArtifactReaderPort;
     now?: () => Date;
     canReadCommitted?(): boolean;
   }) {
-    this.#boardId = input.boardId;
+    this.#projectId = input.projectId;
     this.#lifecycle = input.lifecycle;
     this.#repository = input.repository;
     this.#artifacts = input.artifacts;
@@ -115,12 +118,12 @@ export class PluginInputGraph implements PluginWiringApi {
     }
     const at = this.#now().toISOString();
     const existing = this.#repository.getBinding(
-      this.#boardId,
+      this.#projectId,
       input.target_plugin_id,
       input.target_port,
     );
     const record: PluginPortBindingRecord = {
-      board_id: this.#boardId,
+      project_id: this.#projectId,
       target_plugin_id: input.target_plugin_id,
       target_port: input.target_port,
       source_plugin_id: input.source_plugin_id,
@@ -133,8 +136,22 @@ export class PluginInputGraph implements PluginWiringApi {
     return { ...record };
   }
 
+  /** Give an input port one fixed 成果 version instead of another plugin's output (artifact-positioning, 2026-10-04). */
+  bindArtifact(input: PluginPortArtifactBindingInput): PluginPortArtifactBindingRecord {
+    const port = (this.#requireManifest(input.target_plugin_id).ports?.inputs ?? []).find((candidate) => candidate.port === input.target_port);
+    if (!port) throw new PluginWiringError("port_unknown", `${input.target_plugin_id} 没有输入端口 ${input.target_port}`);
+    const version = this.#artifacts.library?.({ artifact_id: input.artifact_id, version: input.version }) ?? null;
+    if (!version) throw new PluginWiringError("port_artifact_invalid", "成果库里没有这一版");
+    const wanted = portTypeKey(port.artifact_type_id, port.schema_version), offered = portTypeKey(version.artifact_type_id, version.schema_version);
+    if (wanted !== offered) throw new PluginWiringError("port_type_mismatch", `端口类型不匹配：${input.target_port} 需要 ${wanted}，这一版是 ${offered}`);
+    if (!usableVersion(version)) throw new PluginWiringError("port_artifact_invalid", "这一版现在不可用或已归档");
+    const record: PluginPortArtifactBindingRecord = { project_id: this.#projectId, ...input, created_at: this.#now().toISOString() };
+    this.#repository.saveArtifactBinding(record);
+    return { ...record };
+  }
+
   unbind(targetPluginId: string, targetPort: string): void {
-    this.#repository.deleteBinding(this.#boardId, targetPluginId, targetPort);
+    this.#repository.deleteBinding(this.#projectId, targetPluginId, targetPort);
   }
 
   selectInputGroup(pluginId: string, groupId: string): PluginInputGroupSelectionRecord {
@@ -144,7 +161,7 @@ export class PluginInputGraph implements PluginWiringApi {
       throw new PluginWiringError("input_group_unknown", `${pluginId} 没有输入组 ${groupId}`);
     }
     const record: PluginInputGroupSelectionRecord = {
-      board_id: this.#boardId,
+      project_id: this.#projectId,
       plugin_id: pluginId,
       group_id: groupId,
       updated_at: this.#now().toISOString(),
@@ -154,7 +171,7 @@ export class PluginInputGraph implements PluginWiringApi {
   }
 
   selectedGroup(pluginId: string): string | undefined {
-    return this.#repository.getInputGroup(this.#boardId, pluginId)?.group_id;
+    return this.#repository.getInputGroup(this.#projectId, pluginId)?.group_id;
   }
 
   /** Record a producer's new value for one output port. */
@@ -172,7 +189,7 @@ export class PluginInputGraph implements PluginWiringApi {
       );
     }
     this.#repository.saveOutput({
-      board_id: this.#boardId,
+      project_id: this.#projectId,
       plugin_id: input.plugin_id,
       port: input.port,
       artifact_id: input.reference.artifact_id,
@@ -185,9 +202,9 @@ export class PluginInputGraph implements PluginWiringApi {
 
   /** Withdraw an output port's current value with a user-safe reason. */
   invalidate(pluginId: string, port: string, safeReason: string): void {
-    const existing = this.#repository.getOutput(this.#boardId, pluginId, port);
+    const existing = this.#repository.getOutput(this.#projectId, pluginId, port);
     this.#repository.saveOutput({
-      board_id: this.#boardId,
+      project_id: this.#projectId,
       plugin_id: pluginId,
       port,
       artifact_id: existing?.artifact_id ?? null,
@@ -200,10 +217,10 @@ export class PluginInputGraph implements PluginWiringApi {
 
   /** The fixed reference currently bound to one input port, or null. */
   reference(pluginId: string, port: string): ArtifactReference | null {
-    const binding = this.#repository.getBinding(this.#boardId, pluginId, port);
+    const binding = this.#repository.getBinding(this.#projectId, pluginId, port);
     if (!binding) return null;
     const output = this.#repository.getOutput(
-      this.#boardId,
+      this.#projectId,
       binding.source_plugin_id,
       binding.source_port,
     );
@@ -214,11 +231,11 @@ export class PluginInputGraph implements PluginWiringApi {
 
   /** The current version on one output port; 0 when it has never published. */
   currentVersion(pluginId: string, port: string): number {
-    return this.#repository.getOutput(this.#boardId, pluginId, port)?.version ?? 0;
+    return this.#repository.getOutput(this.#projectId, pluginId, port)?.version ?? 0;
   }
 
   outputReference(pluginId: string, port: string): ArtifactReference | null {
-    const value = this.#repository.getOutput(this.#boardId, pluginId, port);
+    const value = this.#repository.getOutput(this.#projectId, pluginId, port);
     return value && value.invalidated_reason === null && value.artifact_id !== null && value.version !== null
       ? { artifact_id: value.artifact_id, version: value.version } : null;
   }
@@ -247,58 +264,8 @@ export class PluginInputGraph implements PluginWiringApi {
   }
 
   view(): PluginWiringView {
-    const plugins = this.#lifecycle.enabledPluginIds()
-      .map((pluginId) => {
-        const manifest = this.#lifecycle.manifest(pluginId);
-        if (!manifest) return null;
-        const inputs = manifest.ports?.inputs ?? [];
-        const selected = this.selectedGroup(pluginId);
-        const required = new Set(requiredPorts(manifest.ports, selected));
-        const ports: PluginInputPortView[] = inputs.map((port) => {
-          const binding = this.#repository.getBinding(this.#boardId, pluginId, port.port);
-          const candidates = this.#candidatesFor(port.artifact_type_id, port.schema_version, pluginId);
-          const optional = port.optional === true || !required.has(port.port);
-          const output = binding
-            ? this.#repository.getOutput(this.#boardId, binding.source_plugin_id, binding.source_port)
-            : null;
-          const state: PluginInputPortView["state"] = binding === null
-            ? (candidates.length > 1 ? "ambiguous" : "missing")
-            : output === null || output.artifact_id === null
-              ? "missing"
-              : output.invalidated_reason !== null
-                ? "unavailable"
-                : "selected";
-          return {
-            port: port.port,
-            artifact_type_id: port.artifact_type_id,
-            schema_version: port.schema_version,
-            optional,
-            state,
-            ...(binding
-              ? {
-                origin: binding.origin,
-                source: {
-                  source_plugin_id: binding.source_plugin_id,
-                  source_port: binding.source_port,
-                },
-              }
-              : {}),
-            ...(output?.invalidated_reason ? { reason: output.invalidated_reason } : {}),
-            candidates,
-          };
-        });
-        return {
-          plugin_id: pluginId,
-          title: manifest.name,
-          enabled: true,
-          ports,
-          groups: (manifest.ports?.input_groups ?? [])
-            .map((group) => ({ group_id: group.group_id, title: group.title })),
-          ...(selected === undefined ? {} : { selected_group: selected }),
-        };
-      })
-      .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-    return { board_id: this.#boardId, plugins };
+    return buildWiringView({ projectId: this.#projectId, lifecycle: this.#lifecycle, repository: this.#repository, artifacts: this.#artifacts,
+      selectedGroup: (pluginId) => this.selectedGroup(pluginId) });
   }
 
   /** Re-evaluate one consumer and deliver or revoke as the current wiring says. */
@@ -392,34 +359,6 @@ export class PluginInputGraph implements PluginWiringApi {
     return manifest;
   }
 
-  #candidatesFor(
-    artifactTypeId: string,
-    schemaVersion: number,
-    excludePluginId: string,
-  ): PluginInputSourceCandidate[] {
-    const wanted = portTypeKey(artifactTypeId, schemaVersion);
-    const candidates: PluginInputSourceCandidate[] = [];
-    for (const pluginId of this.#lifecycle.enabledPluginIds()) {
-      if (pluginId === excludePluginId) continue;
-      const manifest = this.#lifecycle.manifest(pluginId);
-      for (const output of manifest?.ports?.outputs ?? []) {
-        if (portTypeKey(output.artifact_type_id, output.schema_version) !== wanted) continue;
-        const record = this.#repository.getOutput(this.#boardId, pluginId, output.port);
-        candidates.push({
-          source_plugin_id: pluginId,
-          source_port: output.port,
-          title: `${manifest?.name ?? pluginId} · ${output.port}`,
-          availability: record === null || record.artifact_id === null
-            ? "waiting"
-            : record.invalidated_reason !== null
-              ? "unavailable"
-              : "ready",
-        });
-      }
-    }
-    return candidates;
-  }
-
   #resolve(pluginId: string): {
     applicable: boolean;
     status: PluginInputStatus;
@@ -449,17 +388,26 @@ export class PluginInputGraph implements PluginWiringApi {
     }
 
     const missing: string[] = [];
-    const resolved = new Map<string, { output: PluginPortOutputRecord; record: FixedVersionRecord }>();
+    const resolved = new Map<string, { scope: string | null; record: FixedVersionRecord }>();
     let unavailable: PluginUpstreamUnavailableReason | undefined;
 
     for (const port of required) {
-      const binding = this.#repository.getBinding(this.#boardId, pluginId, port);
+      const fixed = this.#repository.getArtifactBinding(this.#projectId, pluginId, port);
+      if (fixed) {
+        // A fixed version stays what the port gives until someone changes it; it carries no scope of its own.
+        const record = this.#artifacts.library?.(fixed) ?? null;
+        if (record && usableVersion(record)) { resolved.set(port, { scope: null, record }); continue; }
+        missing.push(port);
+        unavailable ??= { binding_id: bindingId(pluginId, port), code: "content_unavailable", message: `输入 ${port} 固定的那一版已不可读取` };
+        continue;
+      }
+      const binding = this.#repository.getBinding(this.#projectId, pluginId, port);
       if (!binding) {
         missing.push(port);
         continue;
       }
       const output = this.#repository.getOutput(
-        this.#boardId,
+        this.#projectId,
         binding.source_plugin_id,
         binding.source_port,
       );
@@ -480,7 +428,7 @@ export class PluginInputGraph implements PluginWiringApi {
         artifact_id: output.artifact_id,
         version: output.version,
       });
-      if (!record || record.availability !== "available" || record.lifecycle_state !== "active") {
+      if (!record || !usableVersion(record)) {
         missing.push(port);
         unavailable ??= {
           binding_id: bindingId(pluginId, port),
@@ -489,7 +437,7 @@ export class PluginInputGraph implements PluginWiringApi {
         };
         continue;
       }
-      resolved.set(port, { output, record });
+      resolved.set(port, { scope: output.scope_key, record });
     }
 
     if (missing.length > 0) {
@@ -510,7 +458,7 @@ export class PluginInputGraph implements PluginWiringApi {
     // out of them. A null key places no constraint.
     const scopes = new Set(
       [...resolved.values()]
-        .map((entry) => entry.output.scope_key)
+        .map((entry) => entry.scope)
         .filter((scope): scope is string => scope !== null),
     );
     if (scopes.size > 1) {
@@ -536,7 +484,7 @@ export class PluginInputGraph implements PluginWiringApi {
     for (const port of [...resolved.keys()].sort()) {
       const entry = resolved.get(port)!;
       delivered[port] = entry.record;
-      signatureParts.push(`${port}=${entry.output.artifact_id}@${entry.output.version}`);
+      signatureParts.push(`${port}=${entry.record.artifact_id}@${entry.record.version}`);
     }
     return {
       applicable: true,
@@ -592,7 +540,7 @@ export class PluginInputGraph implements PluginWiringApi {
 
   #fail(pluginId: string, code: PluginInputFailure["code"], message: string): void {
     const failure: PluginInputFailure = {
-      board_id: this.#boardId,
+      project_id: this.#projectId,
       plugin_id: pluginId,
       code,
       message,

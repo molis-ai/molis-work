@@ -10,7 +10,6 @@ export * from "./proposal-client.js";
 export * from "./proposal-ui.js";
 export * from "./proposal-ui-model.js";
 export * from "./board-entry-capabilities.js";
-export * from "./board-import-contract.js";
 export * from "./entry-composition-capabilities.js";
 export * from "./goals-entry-capabilities.js";
 export * from "./goal-event-application.js";
@@ -24,16 +23,13 @@ export * from "./goal-tree-materialization-conflicts.js";
 export * from "./goal-tree-materialization.js";
 export * from "./goal-tree-check.js";
 export * from "./proposal-normalizer.js";
-export * from "./proposal-item-validation.js";
 export * from "./goal-tree-inputs.js";
 export * from "./goal-tree-materialization-order.js";
 export * from "./goal-tree-contract.js";
 export * from "./policy-ui.js";
 export * from "./policy-ui-model.js";
 export { GOALS_POLICY_EN } from "./policy-en.js";
-export * from "./safety-ui.js";
 export * from "./safety-ui-model.js";
-export * from "./risk-presentation.js";
 export * from "./tree-order.js";
 export { GOALS_SAFETY_EN } from "./safety-en.js";
 export * from "./policy-client.js";
@@ -61,7 +57,7 @@ export * from "./document-ui.js";
 export { GOALS_EVENT_DOCUMENT_STYLES } from "./event-document-styles.js";
 export { GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "./event-document-client.js";
 export { createGoalEventDocumentView, eventDirectoryPresentation, listGoalDocumentHistory, findHistoryIndexItem } from "./event-document-model.js";
-export { mergeGoalHistoryItems, pageHistoryItems, mapLegacyHistoryItems, mapJournalHistoryItems, isNewWorkJournalType, mixedPageIsStable } from "./event-history-map.js";
+export { mergeGoalHistoryItems, pageHistoryItems, mapJournalHistoryItems, isNewWorkJournalType, mixedPageIsStable } from "./event-history-map.js";
 export { renderHistoryItemBody, renderWorkEventBody, formatEventTime } from "./event-history-body.js";
 export * from "./context-ui-model.js";
 export * from "./context-ui.js";
@@ -99,17 +95,16 @@ export const packageDescriptor = {
   contract: "@molis-ai/molis-work-contracts/platform/plugin",
   migrationGoals: ["goal-reorg-f2","goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8","goal-reorg-gw4","goal-reorg-gw5","goal-reorg-ex4"],
   ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["goals.event-application.v1", "goals.policy-ui.v1", "goals.safety-ui.v1", "goals.relation-ui.v1", "goals.tree-ui.v1", "goals.momentum-ui.v1", "goals.document-ui.v1", "goals.context-ui.v1", "goals.planning-ui.v1", "goals.status-ui.v1", "goals.factors-ui.v1", "goals.dialogs-ui.v1", "goals.document-routes.v1"],
+  capabilities: ["goals.event-application.v1", "goals.policy-ui.v1", "goals.relation-ui.v1", "goals.tree-ui.v1", "goals.momentum-ui.v1", "goals.document-ui.v1", "goals.context-ui.v1", "goals.planning-ui.v1", "goals.status-ui.v1", "goals.factors-ui.v1", "goals.dialogs-ui.v1", "goals.document-routes.v1"],
 } as const;
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { GoalTreeDecisionNormalizer, type NormalizedGoalTreeProposalDecision } from "./goal-tree-decision-inputs.js";
 export { GoalTreeDecisionFollowup } from "./goal-tree-decision-followup.js";
 export { GoalTreeDecisionApplication } from "./goal-tree-decision.js";
-export { explainGoalDecision, type HumanDecisionKind, type DecisionCopy } from "./decision-copy.js";
 export { createGoalsDecisionPresentation, type GoalsDecisionPresentationPrimitives, type DecisionEventKind } from "./decision-common-ui.js";
 
-export { GoalReadApplication, projectGoalLifecycle } from "./goal-query-application.js";
+export { GoalReadApplication } from "./goal-query-application.js";
 export { GoalDecisionAttentionSync } from "./goal-decision-attention.js";
 
 export { readMolisWorkSnapshot, type MolisWorkSnapshotPorts } from "./board-snapshot-query.js";
@@ -118,13 +113,12 @@ export { MolisWorkV1Error } from "./errors.js";
 
 export { TRASH_GOAL_STYLES } from "./trash-document-styles.js";
 
-export { GOALS_PRESENTATION_STATES, type GoalsDocumentView, type GoalsCoverageItem, type GoalsInputBinding } from "./document-view.js";
+export { GOALS_PRESENTATION_STATES, type GoalsDocumentView, type GoalsInputBinding } from "./document-view.js";
 
 export { countGoalDecisions } from "./decision-groups.js";
 
 export { buildGoalsDocumentCollection, type GoalsDocumentCollectionView } from "./document-collection.js";
 export type { GoalsDocumentReadPorts } from "./document-read-ports.js";
-export * from "./board-v3-import.js";
 export { handleGoalsWebHttp } from "./http/index.js";
 export { handleGoalEventDecisionHttp } from "./http/event-decisions.js";
 export type { GoalsHttpContext } from "./http/types.js";

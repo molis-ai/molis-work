@@ -71,7 +71,7 @@ export class GoalEventStateEffects {
 
   requestDecision(input: RequestGoalDecisionInput): GoalEventDecisionRequestResult {
     const hash = requestHash({
-      board_id: input.board_id,
+      project_id: input.project_id,
       goal_id: input.goal_id,
       question: input.question,
       options: input.options,
@@ -83,8 +83,8 @@ export class GoalEventStateEffects {
       const question = requiredText(this.core.error, input.question, "event_decision.question_required", "决定请求需要具体问题");
       const options = normalizeOptions(this.core.error, input.options);
       const purpose = requiredDecisionPurpose(this.core.error, input.purpose);
-      const requirements = this.host.readCurrentRequirements(goal.board_id, goal.goal_id);
-      const currentOutcome = this.records.latestAgreement(goal.board_id, goal.goal_id)?.outcome || goal.outcome.trim();
+      const requirements = this.host.readCurrentRequirements(goal.project_id, goal.goal_id);
+      const currentOutcome = this.records.latestAgreement(goal.project_id, goal.goal_id)?.outcome || goal.outcome.trim();
       let proposedChange = input.proposed_change
         ? toWireChange(compactChange(normalizeAgreementChange(this.core.error, input.proposed_change), requirements, currentOutcome))
         : null;
@@ -121,7 +121,7 @@ export class GoalEventStateEffects {
       });
       this.records.insertDecisionRequest({
         requestId,
-        boardId: goal.board_id,
+        projectId: goal.project_id,
         goalId: goal.goal_id,
         eventId: event.event_id,
         question,
@@ -154,14 +154,14 @@ export class GoalEventStateEffects {
 
   citeDecision(input: CiteGoalDecisionInput): GoalEventDecisionResult {
     const hash = requestHash({
-      board_id: input.board_id,
+      project_id: input.project_id,
       goal_id: input.goal_id,
       decision_id: input.decision_id,
       scope: input.scope ?? null,
     });
     return this.core.mutate(input, "cite_goal_decision", hash, (goal, actorKind) => {
-      const existing = this.records.getAppliedDecision(goal.board_id, goal.goal_id, input.decision_id)
-        ?? this.records.getAppliedDecisionByGovernanceId(goal.board_id, goal.goal_id, input.decision_id);
+      const existing = this.records.getAppliedDecision(goal.project_id, goal.goal_id, input.decision_id)
+        ?? this.records.getAppliedDecisionByGovernanceId(goal.project_id, goal.goal_id, input.decision_id);
       if (!existing) {
         throw this.context.error("event_decision.not_found", "只能引用当前 Goal 已持久化的可信决定");
       }
@@ -187,7 +187,7 @@ export class GoalEventStateEffects {
     persistGovernance: (normalized: RecordGoalUserDecisionInput) => GoalEventTrustedDecisionRecord,
   ): GoalEventDecisionResult {
     const hash = requestHash({
-      board_id: input.board_id,
+      project_id: input.project_id,
       goal_id: input.goal_id,
       request_id: input.request_id ?? null,
       selected_option_id: input.selected_option_id ?? null,
@@ -201,12 +201,12 @@ export class GoalEventStateEffects {
     });
     return this.context.repository.immediate(() => {
       const replay = this.context.replay<Omit<GoalEventDecisionResult, "replayed">>(
-        input.board_id, input.authority.actor_id, "record_goal_user_decision", input.idempotency_key, hash,
+        input.project_id, input.authority.actor_id, "record_goal_user_decision", input.idempotency_key, hash,
       );
       if (replay) return { ...replay, replayed: true };
-      const goal = this.core.requireOwnedWritable(input.board_id, input.goal_id);
+      const goal = this.core.requireOwnedWritable(input.project_id, input.goal_id);
       const request = input.request_id
-        ? this.records.getDecisionRequest(goal.board_id, goal.goal_id, input.request_id)
+        ? this.records.getDecisionRequest(goal.project_id, goal.goal_id, input.request_id)
         : null;
       if (input.request_id && !request) {
         throw this.context.error("event_decision.request_not_found", "决定请求不存在或不属于当前 Goal");
@@ -216,8 +216,8 @@ export class GoalEventStateEffects {
         throw this.context.error("event_decision.scope_required", "可信决定需要明确的作用范围，空范围不能扩大权限");
       }
       const resolved = resolveRecordedDecision(this.core.error, input, request, scope);
-      const requirements = this.host.readCurrentRequirements(goal.board_id, goal.goal_id);
-      const agreement = this.records.latestAgreement(goal.board_id, goal.goal_id);
+      const requirements = this.host.readCurrentRequirements(goal.project_id, goal.goal_id);
+      const agreement = this.records.latestAgreement(goal.project_id, goal.goal_id);
       const outcome = agreement?.outcome || goal.outcome.trim();
       if (
         request?.purpose === "agreement_change"
@@ -242,11 +242,11 @@ export class GoalEventStateEffects {
         authorized_change: resolved.authorized_change ?? undefined,
         scope: resolved.scope,
       });
-      if (recorded.board_id !== goal.board_id || recorded.goal_id !== goal.goal_id) {
+      if (recorded.project_id !== goal.project_id || recorded.goal_id !== goal.goal_id) {
         throw this.context.error("event_decision.cross_goal_reference", "可信决定不属于当前 Goal");
       }
       if (recorded.request_id) {
-        const existingRequest = this.records.getDecisionRequest(goal.board_id, goal.goal_id, recorded.request_id);
+        const existingRequest = this.records.getDecisionRequest(goal.project_id, goal.goal_id, recorded.request_id);
         if (!existingRequest) throw this.context.error("event_decision.request_not_found", "决定请求不存在或不属于当前 Goal");
         if (recorded.selected_option_id && !existingRequest.options.some((option) => option.option_id === recorded.selected_option_id)) {
           throw this.context.error("event_decision.option_not_found", "所选选项不在该决定请求中");
@@ -268,7 +268,7 @@ export class GoalEventStateEffects {
               outcome,
             )
           : snapshotCommitment(requirements, outcome, commitmentScope);
-      const configVersion = this.host.configVersion(goal.board_id, goal.goal_id);
+      const configVersion = this.host.configVersion(goal.project_id, goal.goal_id);
       const agreementVersion = agreement?.version ?? 0;
       const decisionId = `gdec-${randomUUID()}`;
       const event = this.core.insertSystem(goal, recorded.actor_id, "user", "记录用户决定", {
@@ -287,7 +287,7 @@ export class GoalEventStateEffects {
       });
       this.records.insertAppliedDecision({
         decisionId,
-        boardId: goal.board_id,
+        projectId: goal.project_id,
         goalId: goal.goal_id,
         governanceDecisionId: recorded.decision_id,
         requestId: recorded.request_id,
@@ -310,7 +310,7 @@ export class GoalEventStateEffects {
         || (resolved.accepts_requirements && resolved.scope.requirement_ids.length > 0);
       if (requirementEffect && resolved.scope.requirement_ids.length) {
         this.records.insertConclusions({
-          boardId: goal.board_id,
+          projectId: goal.project_id,
           goalId: goal.goal_id,
           requirementIds: resolved.scope.requirement_ids,
           decisionId,
@@ -320,7 +320,7 @@ export class GoalEventStateEffects {
           journalSeq: event.journal_seq,
         });
       }
-      if (this.records.workStatus(goal.board_id, goal.goal_id) === "completed") {
+      if (this.records.workStatus(goal.project_id, goal.goal_id) === "completed") {
         const rejected = resolved.effects.some((effect) => effect.kind === "reject_requirements") && resolved.scope.requirement_ids.length > 0;
         const deniedComplete = resolved.effects.some((effect) => effect.kind === "deny_action" && effect.action === "complete");
         if (rejected || deniedComplete) {
@@ -331,9 +331,9 @@ export class GoalEventStateEffects {
         event_id: event.event_id,
         observed_event_cursor: event.journal_seq,
         recorded: true as const,
-        decision: this.records.getAppliedDecision(goal.board_id, goal.goal_id, decisionId)!,
+        decision: this.records.getAppliedDecision(goal.project_id, goal.goal_id, decisionId)!,
       };
-      this.context.remember(goal.board_id, input.authority.actor_id, "record_goal_user_decision", input.idempotency_key, hash, outcomeResult, event.received_at);
+      this.context.remember(goal.project_id, input.authority.actor_id, "record_goal_user_decision", input.idempotency_key, hash, outcomeResult, event.received_at);
       return { ...outcomeResult, replayed: false };
     });
   }
@@ -346,7 +346,7 @@ export class GoalEventStateEffects {
   submitClosure(input: SubmitGoalEventClosureInput): GoalEventClosureResult {
     const kind = requiredClosureKind(this.core.error, input.kind);
     const hash = requestHash({
-      board_id: input.board_id,
+      project_id: input.project_id,
       goal_id: input.goal_id,
       kind,
       result: input.result ?? null,
@@ -356,10 +356,10 @@ export class GoalEventStateEffects {
     });
     return this.context.repository.immediate(() => {
       const replay = this.context.replay<Omit<GoalEventClosureResult, "replayed">>(
-        input.board_id, input.actor_id, "submit_goal_event_closure", input.idempotency_key, hash,
+        input.project_id, input.actor_id, "submit_goal_event_closure", input.idempotency_key, hash,
       );
       if (replay) return { ...replay, replayed: true };
-      const goal = this.core.requireOwnedWritable(input.board_id, input.goal_id);
+      const goal = this.core.requireOwnedWritable(input.project_id, input.goal_id);
       const expectedConfig = requiredVersion(
         this.core.error,
         input.expected_config_version,
@@ -375,17 +375,17 @@ export class GoalEventStateEffects {
       this.core.assertConfigVersion(goal, expectedConfig);
       this.core.assertAgreementVersion(goal, expectedAgreement, "event_closure.stale_version");
       const agreementVersion = expectedAgreement;
-      const status = this.records.workStatus(goal.board_id, goal.goal_id);
+      const status = this.records.workStatus(goal.project_id, goal.goal_id);
       if (status === "cancelled") {
         throw this.context.error("event_closure.cancelled", "已取消的 Goal 需要显式继续后才能再收尾");
       }
       const reason = requiredText(this.core.error, input.reason, "event_closure.reason_required", "收尾需要理由");
       const actorKind = this.host.actorKind(input.actor_kind);
       const result = input.result?.trim() || null;
-      const configVersion = this.host.configVersion(goal.board_id, goal.goal_id);
+      const configVersion = this.host.configVersion(goal.project_id, goal.goal_id);
       if (kind === "cancel") {
         if (status === "completed") {
-          this.records.supersedeAppliedClosures(goal.board_id, goal.goal_id, "用户取消使已完成效果不再成立");
+          this.records.supersedeAppliedClosures(goal.project_id, goal.goal_id, "用户取消使已完成效果不再成立");
         }
         const closureId = `gclo-${randomUUID()}`;
         const event = this.core.insertSystem(goal, input.actor_id, actorKind, "取消当前 Goal", {
@@ -402,7 +402,7 @@ export class GoalEventStateEffects {
         });
         this.records.insertClosure({
           closureId,
-          boardId: goal.board_id,
+          projectId: goal.project_id,
           goalId: goal.goal_id,
           eventId: event.event_id,
           kind: "cancel",
@@ -418,7 +418,7 @@ export class GoalEventStateEffects {
         });
         syncClosedState(this.records, goal, "cancelled", event.received_at);
         const outcome = this.closureOutcome(goal, event.event_id, event.journal_seq);
-        this.context.remember(goal.board_id, input.actor_id, "submit_goal_event_closure", input.idempotency_key, hash, outcome, event.received_at);
+        this.context.remember(goal.project_id, input.actor_id, "submit_goal_event_closure", input.idempotency_key, hash, outcome, event.received_at);
         return { ...outcome, replayed: false };
       }
       const unmet = this.completionUnmet(goal, result);
@@ -438,7 +438,7 @@ export class GoalEventStateEffects {
       });
       this.records.insertClosure({
         closureId,
-        boardId: goal.board_id,
+        projectId: goal.project_id,
         goalId: goal.goal_id,
         eventId: event.event_id,
         kind: "complete",
@@ -453,24 +453,24 @@ export class GoalEventStateEffects {
         at: event.received_at,
       });
       if (applied) {
-        this.context.repository.clearActiveGoalIfMatches(goal.board_id, goal.goal_id, event.received_at);
+        this.context.repository.clearActiveGoalIfMatches(goal.project_id, goal.goal_id, event.received_at);
         syncClosedState(this.records, goal, "completed", event.received_at);
       }
       const outcome = this.closureOutcome(goal, event.event_id, event.journal_seq);
-      this.context.remember(goal.board_id, input.actor_id, "submit_goal_event_closure", input.idempotency_key, hash, outcome, event.received_at);
+      this.context.remember(goal.project_id, input.actor_id, "submit_goal_event_closure", input.idempotency_key, hash, outcome, event.received_at);
       return { ...outcome, replayed: false };
     });
   }
 
   resumeWork(input: ResumeGoalEventWorkInput): GoalEventResumeResult {
     const hash = requestHash({
-      board_id: input.board_id,
+      project_id: input.project_id,
       goal_id: input.goal_id,
       reason: input.reason,
     });
     return this.core.mutate(input, "resume_goal_event_work", hash, (goal, actorKind) => {
       const reason = requiredText(this.core.error, input.reason, "event_resume.reason_required", "重新继续需要说明理由");
-      const previous = this.records.workStatus(goal.board_id, goal.goal_id);
+      const previous = this.records.workStatus(goal.project_id, goal.goal_id);
       if (previous === "open") {
         throw this.context.error("event_resume.already_open", "当前已在进行，无须重开");
       }
@@ -478,7 +478,7 @@ export class GoalEventStateEffects {
         throw this.context.error("event_resume.not_resumable", "只有已完成或已取消的 Goal 才能显式继续");
       }
       if (previous === "completed") {
-        this.records.supersedeAppliedClosures(goal.board_id, goal.goal_id, reason);
+        this.records.supersedeAppliedClosures(goal.project_id, goal.goal_id, reason);
       }
       const event = previous === "completed"
         ? this.core.insertSystem(goal, input.actor_id, actorKind, "明确继续已完成目标，开启新一轮工作", {
@@ -503,12 +503,12 @@ export class GoalEventStateEffects {
   }
 
   reassessAfterReports(goal: GoalRecord, actorId: string, actorKind: "user" | "runtime" | null, judgedIds: string[]): void {
-    if (!this.records.isOwner(goal.board_id, goal.goal_id)) return;
-    if (this.records.workStatus(goal.board_id, goal.goal_id) !== "completed") return;
-    const closure = this.records.currentAppliedClosure(goal.board_id, goal.goal_id);
+    if (!this.records.isOwner(goal.project_id, goal.goal_id)) return;
+    if (this.records.workStatus(goal.project_id, goal.goal_id) !== "completed") return;
+    const closure = this.records.currentAppliedClosure(goal.project_id, goal.goal_id);
     if (!closure || !closure.completion_applied || closure.superseded) return;
     if (judgedIds.length === 0) return;
-    const current = this.host.readCurrentRequirements(goal.board_id, goal.goal_id);
+    const current = this.host.readCurrentRequirements(goal.project_id, goal.goal_id);
     const unsatisfied = current
       .filter((item) => judgedIds.includes(item.requirement_id) && !item.currently_satisfied)
       .map((item) => item.requirement_id);
@@ -523,31 +523,31 @@ export class GoalEventStateEffects {
     if (!emptyScope(requested) && !scopeIsSubset(requested, decision.scope)) {
       throw this.context.error("event_decision.scope_expanded", "不能把已有决定扩大到原范围之外");
     }
-    const requirements = this.host.readCurrentRequirements(goal.board_id, goal.goal_id);
+    const requirements = this.host.readCurrentRequirements(goal.project_id, goal.goal_id);
     if (!scopedRequirementCommitmentsMatch(decision, requirements)) {
       throw this.context.error("event_decision.stale_commitment", "承诺已经变化，不能把旧决定静默套用到新约定");
     }
-    const later = laterComparableDecision(this.records.listAppliedDecisions(goal.board_id, goal.goal_id), decision);
+    const later = laterComparableDecision(this.records.listAppliedDecisions(goal.project_id, goal.goal_id), decision);
     if (later) {
       throw this.context.error("event_decision.superseded", "已有更新的决定覆盖了这个授权，不能把旧决定当作当前有效结果");
     }
   }
 
   completionUnmet(goal: GoalRecord, result: string | null) {
-    const requirements = this.host.readCurrentRequirements(goal.board_id, goal.goal_id);
+    const requirements = this.host.readCurrentRequirements(goal.project_id, goal.goal_id);
     return completionUnmetReasons({
       goal,
       result,
       requirements,
       agreement: agreementView(
-        this.records.latestAgreement(goal.board_id, goal.goal_id),
+        this.records.latestAgreement(goal.project_id, goal.goal_id),
         requirements.length,
-        this.context.requireGoal(goal.board_id, goal.goal_id).outcome,
+        this.context.requireGoal(goal.project_id, goal.goal_id).outcome,
       ),
-      blockingConcerns: this.records.openBlockingConcerns(goal.board_id, goal.goal_id),
-      pendingDecisions: this.records.listDecisionRequests(goal.board_id, goal.goal_id).filter((item) => item.status === "pending"),
-      appliedDecisions: this.records.listAppliedDecisions(goal.board_id, goal.goal_id),
-      context: this.host.readCompletionContext(goal.board_id, goal.goal_id),
+      blockingConcerns: this.records.openBlockingConcerns(goal.project_id, goal.goal_id),
+      pendingDecisions: this.records.listDecisionRequests(goal.project_id, goal.goal_id).filter((item) => item.status === "pending"),
+      appliedDecisions: this.records.listAppliedDecisions(goal.project_id, goal.goal_id),
+      context: this.host.readCompletionContext(goal.project_id, goal.goal_id),
     });
   }
 
@@ -556,13 +556,13 @@ export class GoalEventStateEffects {
     eventId: string,
     cursor: number,
   ): Omit<GoalEventClosureResult, "replayed"> {
-    const closure = this.records.closureByEventId(goal.board_id, goal.goal_id, eventId)!;
+    const closure = this.records.closureByEventId(goal.project_id, goal.goal_id, eventId)!;
     return {
       event_id: eventId,
       observed_event_cursor: cursor,
       recorded: true,
       completion_applied: closure.completion_applied,
-      work_status: this.records.workStatus(goal.board_id, goal.goal_id),
+      work_status: this.records.workStatus(goal.project_id, goal.goal_id),
       unmet_reasons: closure.unmet_reasons,
       closure,
     };
@@ -575,9 +575,9 @@ export class GoalEventStateEffects {
     requirementIds: string[],
     reason: string,
   ): void {
-    const previous = this.records.workStatus(goal.board_id, goal.goal_id);
+    const previous = this.records.workStatus(goal.project_id, goal.goal_id);
     const at = this.context.now().toISOString();
-    this.records.supersedeAppliedClosures(goal.board_id, goal.goal_id, reason);
+    this.records.supersedeAppliedClosures(goal.project_id, goal.goal_id, reason);
     syncClosedState(this.records, goal, "open", at);
     this.core.insertSystem(goal, actorId, actorKind, "相关事实使完成效果不再成立", {
       operation: "completion_reopened",

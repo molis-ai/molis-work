@@ -93,10 +93,10 @@ test("published rules become versioned system actions without a project, preserv
     await assert.rejects(client.invoke(caller, definition, { content: "no credential" }), { code: "actions.connection_required" });
     assert.equal(calls.value, beforeDenied);
     options.env.TYPESAFE_API_KEY = "fixture-provider-credential";
-    const project = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "board-a", projectId: "project-a" });
+    const project = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-a" });
     await host.actionClient(project).invoke({ ...caller, project_id: "project-a" }, definition, { content: "project content" });
     const history = withFunctionsService(home, service => service.listJudgments(), options);
-    assert.equal(history.filter(row => row.function_key === records[0]!.function_key && row.subject.board_id === "project-a").length, 1);
+    assert.equal(history.filter(row => row.function_key === records[0]!.function_key && row.subject.project_id === "project-a").length, 1);
     await host.close();
     await assert.rejects(client.invoke(caller, definition, { content: "closed" }), { code: "host.closed" });
     host = new MolisWorkLocalHost({ homeDirectory: home, functions: options });
@@ -158,7 +158,7 @@ test("global HTTP published invocation uses the same system handler and separate
     assert.deepEqual((usages.structuredContent as { usages: unknown[] }).usages, []);
     const directory = await external.callTool({ name: directoryName, arguments: {} });
     assert.ok((directory.structuredContent as { functions: { function_key: string }[] }).functions.some(row => row.function_key === record.function_key));
-    const result = await external.callTool({ name: "molis_work_v1_functions_invoke", arguments: { function_key: record.function_key, input: "external MCP" } });
+    const result = await external.callTool({ name: "molis_work_v1_action_functions.invoke__v1", arguments: { function_key: record.function_key, input: "external MCP" } });
     assert.notEqual(result.isError, true, JSON.stringify(result));
     assert.equal(JSON.parse((result.content as { text: string }[])[0]!.text).data.choice, "yes");
     const history = withFunctionsService(home, service => service.listJudgments(), options);
@@ -172,7 +172,7 @@ test("global HTTP published invocation uses the same system handler and separate
 
 test("system judgments use the selected TypeSafe account and a disconnected selection never falls back to an older key", async () => {
   const { resetSecretStoreCache, runWithMolisWorkHome, createLazyFileSecretStore } = await import("@molis-ai/molis-work-storage");
-  const { FUNCTIONS_CREDENTIAL_REF } = await import("@molis-ai/molis-work-contracts/modules/functions");
+  const OLD_FIXED_SLOT = "plugin:io.molis.work.functions:typesafe"; // where the key lived before connections
   const { withConnectorConnections } = await import("../apps/local-host/src/connector-connection-store.ts");
   const { bindTypeSafeConnection } = await import("../apps/local-host/src/typesafe-connection.ts");
   const home = await mkdtemp(join(tmpdir(), "functions-account-"));
@@ -187,7 +187,7 @@ test("system judgments use the selected TypeSafe account and a disconnected sele
   } } satisfies TypeSafeProvider };
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions: options });
   try {
-    runWithMolisWorkHome(home, () => createLazyFileSecretStore(home).put(FUNCTIONS_CREDENTIAL_REF, "fixture-old-key"));
+    runWithMolisWorkHome(home, () => createLazyFileSecretStore(home).put(OLD_FIXED_SLOT, "fixture-old-key"));
     const [first, second] = withConnectorConnections(home, store => [
       store.createToken({ serviceId: "typesafe", displayName: "Account A", token: "fixture-account-a" }),
       store.createToken({ serviceId: "typesafe", displayName: "Account B", token: "fixture-account-b" }),

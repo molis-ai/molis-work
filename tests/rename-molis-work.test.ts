@@ -8,8 +8,8 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_BOARD_ID, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
-import { canonicalMcpToolName, isRuntimeMcpTool } from "@molis-ai/molis-work-app-mcp";
+import { DEMO_PROJECT_ID, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { isPlatformMcpTool } from "@molis-ai/molis-work-app-mcp";
 import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   PROJECT_DATABASE_FILENAME,
@@ -113,14 +113,13 @@ test("catalog rejects GoalBoard owner", async () => {
 });
 
 test("demo board id is the current product id", () => {
-  assert.equal(DEMO_BOARD_ID, "molis-work-v1-demo");
+  assert.equal(DEMO_PROJECT_ID, "molis-work-v1-demo");
 });
 
-test("legacy MCP tool names are not mapped onto current tools", () => {
-  assert.equal(canonicalMcpToolName("goalboard_v1_goal_list"), "goalboard_v1_goal_list");
-  assert.equal(canonicalMcpToolName("molis_work_v1_goal_list"), "molis_work_v1_goal_list");
-  assert.equal(isRuntimeMcpTool("goalboard_v1_goal_list"), false);
-  assert.equal(isRuntimeMcpTool("molis_work_v1_goal_list"), true);
+test("legacy MCP tool names are not current tools", () => {
+  assert.equal(isPlatformMcpTool("goalboard_v1_goal_list"), false);
+  assert.equal(isPlatformMcpTool("molis_work_v1_goal_list"), false);
+  assert.equal(isPlatformMcpTool("molis_work_v1_context_resolve"), true);
 });
 
 test("macOS App install copies Molis Work and does not look for GoalBoard.app", {

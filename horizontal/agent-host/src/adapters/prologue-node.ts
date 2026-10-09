@@ -1,7 +1,7 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { GATEWAY_TOOLS, gatewayProblem, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
 import { createPrologueSurfaces, surfaceRules, SURFACE_GUIDANCE, type PrologueSurfacePorts, type PrologueSurfaces } from "./prologue-surfaces.js";
-import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, MEMORY_CLAIM_HELD, MEMORY_OFF_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, claimsSavedChange, internalIdsHeld, mentionsInternalIds, writesToolCallAsText } from "./announce-guard.js";
+import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, claimsSavedChange, internalIdsHeld, memoryHeld, mentionsInternalIds, writesToolCallAsText } from "./announce-guard.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { createPrologueInference } from "./prologue-inference.js";
@@ -244,7 +244,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const heldLabels = new Map<string, Array<{ target: string; summary: string }>>();
   // Rounds that may change things: an ending that only announces the next step is held once per run.
   /** Per session, what the round now running really kept and forgot (only for sessions given memory tools). */
-  const memoryRounds = new Map<string, { keep: number; forget: number; off: boolean; spoken: string }>();
+  const memoryRounds = new Map<string, { keep: number; forget: number; off: boolean; spoken: string; /** Given memory, but not the tool that keeps (or forgets): a work handed down by another work. */ without: { keep: boolean; forget: boolean } }>();
   /** The exact Prologue references of the memories the Host chose for a run (set with the memory capability below). */
   let memoryRefs: (pinned: readonly import("@molis-ai/molis-work-contracts/services/agent-host").AgentPinnedMemory[]) => Promise<import("@prologue/sdk").ExactRef<"memory">[]> = async () => [];
   // Suggestions this round really made, for the same check: a reply may not say a button is ready when none was.
@@ -471,15 +471,15 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     },
   });
   const restoredReviewBoards = new Set<string>();
-  const detachReviews = options.reviewQueue?.registerRefresh(async boardId => {
-    if (!restoredReviewBoards.has(boardId)) {
+  const detachReviews = options.reviewQueue?.registerRefresh(async projectId => {
+    if (!restoredReviewBoards.has(projectId)) {
       const report = await runtime.effects.readRecovery();
       if (report.unavailable.length) throw new Error("部分执行审查历史不可读，请保留当前内容后重试");
       for (const effect of report.effects) {
         const pending = effect.pending;
         if (!pending?.origin?.session || !pending.origin.run) continue;
         const index = await readIndex(pending.origin.session);
-        if (!index || index.owner.board_id !== boardId) continue;
+        if (!index || index.owner.project_id !== projectId) continue;
         const attempt = index.attempts.find(item => item.run_id === pending.origin!.run);
         if (!attempt?.root_ref || activeRuns.has(pending.origin.run)) continue;
         runRoots.set(pending.origin.run, attempt.root_ref);
@@ -488,7 +488,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         const document = await pendingPort.document(restored);
         const decision = index.review_decisions?.[pending.ref.id];
         const request = { review_id: `prologue:${pending.ref.id}`, run: { session_id: pending.origin.session, run_id: pending.origin.run },
-          board_id: boardId, plugin_id: index.owner.plugin_id, kind: document.kind, document,
+          project_id: projectId, plugin_id: index.owner.plugin_id, kind: document.kind, document,
           requested_at: decision?.requested_at ?? new Date(effect.preparedAtMs).toISOString(), expires_at: decision?.expires_at ?? null };
         if (decision && decision.status !== "pending") {
           const { status, decided_by, decided_at, note } = decision;
@@ -501,9 +501,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           await rememberReview(pending.origin.session, pending.ref.id, options.reviewQueue!.receipt(request.review_id)!);
         }
       }
-      restoredReviewBoards.add(boardId);
+      restoredReviewBoards.add(projectId);
     }
-    for (const request of options.reviewQueue!.list(boardId)) {
+    for (const request of options.reviewQueue!.list(projectId)) {
       const ref = reviewEffects.get(request.review_id);
       if (!ref) continue;
       const effect = runtime.effects.get(ref);
@@ -548,7 +548,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const value: SessionIndex = JSON.parse(new TextDecoder().decode(bytes));
       if (value.schema !== 1 || value.ref?.id !== id || value.ref?.kind !== "session"
         || typeof value.title !== "string" || !Array.isArray(value.attempts)
-        || ![value.owner?.board_id, value.owner?.plugin_id, value.owner?.install_id].every(v => typeof v === "string" && v.length > 0)) {
+        || ![value.owner?.project_id, value.owner?.plugin_id, value.owner?.install_id].every(v => typeof v === "string" && v.length > 0)) {
         throw new Error("Coding 会话归属索引损坏，不能当作空会话继续");
       }
       if (value.workspace !== undefined && value.workspace !== "required" && value.workspace !== "none" && value.workspace !== "business"
@@ -614,7 +614,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const messages = createSessionMessages(runtime, {
     async owner(sessionId) {
       const index = await readIndex(sessionId).catch(() => undefined);
-      return index ? { project: index.owner.board_id, ref: index.ref, subtask: Boolean(index.parent_run) } : undefined;
+      return index ? { project: index.owner.project_id, ref: index.ref, subtask: Boolean(index.parent_run) } : undefined;
     },
     async title(project, sessionId) {
       const listed = (await projectWork.read(project).catch(() => ({ items: [] }))).items.find(item => item.session_id === sessionId);
@@ -625,7 +625,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       // The files this session's round under way names or wrote, against the other work under way in its directory.
       const index = await readIndex(sessionId).catch(() => undefined);
       if (!index) return [];
-      const project = index.owner.board_id, mine = (await projectWork.read(project)).items.find(item => item.session_id === sessionId && item.state === "running");
+      const project = index.owner.project_id, mine = (await projectWork.read(project)).items.find(item => item.session_id === sessionId && item.state === "running");
       if (!mine) return [];
       const seen = await projectWork.read(project, { session_id: sessionId, directory: mine.directory, paths: mine.paths });
       return [...new Set(seen.overlaps.map(overlap => overlap.work.session_id))];
@@ -633,11 +633,11 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   });
   /** Parked sessions and background commands; a wait that fires while its session runs a round is told to that round. */
   const waitsPort = createPrologueWaits(runtime, {
-    project: async sessionId => (await readIndex(sessionId).catch(() => undefined))?.owner.board_id,
+    project: async sessionId => (await readIndex(sessionId).catch(() => undefined))?.owner.project_id,
     title: async sessionId => {
       const index = await readIndex(sessionId).catch(() => undefined);
       if (!index) return sessionId;
-      return (await projectWork.read(index.owner.board_id).catch(() => ({ items: [] }))).items.find(item => item.session_id === sessionId)?.title ?? index.title;
+      return (await projectWork.read(index.owner.project_id).catch(() => ({ items: [] }))).items.find(item => item.session_id === sessionId)?.title ?? index.title;
     },
     steer: (sessionId, text) => steerSession(sessionId, text),
   });
@@ -654,7 +654,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     return true;
   }, async sessionId => {
     const index = await readIndex(sessionId);
-    return index ? projectWork.boardId(index.owner.board_id) : undefined;
+    return index ? projectWork.projectId(index.owner.project_id) : undefined;
   }, sessionId => liveSessions.has(sessionId));
   const rememberReview = async (sessionId: string, pendingId: string, receipt: AgentReviewReceipt): Promise<void> => {
     const request = options.reviewQueue!.get(receipt.review_id);
@@ -815,7 +815,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       act: (project, id, action, detail, actorId) => messages.act(project, id, action, detail, actorId),
       async prioritize(project, sessionId, actorId) {
         const index = await readIndex(sessionId).catch(() => undefined);
-        if (!index || index.owner.board_id !== project) throw new Error("会话不属于这个项目");
+        if (!index || index.owner.project_id !== project) throw new Error("会话不属于这个项目");
         // Its work under way (or waiting): the files it names, against the other work under way in its directory.
         const mine = (await projectWork.read(project)).items.find(item => item.session_id === sessionId && ["running", "waiting"].includes(item.state));
         if (!mine) return { notified: [], paths: [] };
@@ -839,13 +839,13 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       read: (project, probe) => projectWork.read(project, probe && { ...(probe.session_id ? { session_id: probe.session_id } : {}), directory: probe.directory, paths: workPaths(probe.text) }),
       async queue(project, input, actorId) {
         const index = await readIndex(input.session.session_id);
-        if (!index || index.owner.board_id !== project) throw new Error("会话不属于这个项目");
+        if (!index || index.owner.project_id !== project) throw new Error("会话不属于这个项目");
         const item = await projectWork.queue(project, { session: index.ref, title: input.title?.slice(0, 120) ?? index.title, task: input.task, directory: input.directory, paths: workPaths(input.task), after: input.after, person: actorId });
         // The session is parked on the work it waits for: it is started with `data` when that work ends.
         const target = (await projectWork.read(project)).items.find(work => work.work_id === input.after);
         let waitId: string;
         try {
-          waitId = await waitsPort.parkOnWork(index.ref, await projectWork.boardId(project), input.after, `等「${(target?.title ?? input.after).slice(0, 40)}」那一轮完成后再开始`,
+          waitId = await waitsPort.parkOnWork(index.ref, await projectWork.projectId(project), input.after, `等「${(target?.title ?? input.after).slice(0, 40)}」那一轮完成后再开始`,
             { app: input.data ?? null, work_id: item.work_id });
         } catch (error) {
           // That work's session is already waiting on this one: they would wait on each other for ever.
@@ -1105,7 +1105,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       async create(input) {
         const session = await runtime.sessions.create();
         await saveIndex({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
-          owner: { board_id: input.board_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] });
+          owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] });
         sessions.set(session.ref.id, session.ref);
         return session;
       },
@@ -1137,7 +1137,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       // A business round the person gave no memory (switched off) keeps nothing, so any claim of keeping is held too.
       const memory = input.action_gateway?.client.memory;
       // What the round has said so far: a claim made before the call that then failed counts as much as one at the end.
-      const memoryDone = { keep: 0, forget: 0, off: !memory, spoken: "" };
+      const memoryDone = { keep: 0, forget: 0, off: !memory, spoken: "", without: { keep: !!memory && !memory.remember, forget: !!memory && !memory.forget } };
       if (input.action_gateway) memoryRounds.set(input.session_id, memoryDone); else memoryRounds.delete(input.session_id);
       const offer = input.action_gateway?.client.offer;
       const offersDone = { offered: 0 };
@@ -1148,9 +1148,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const gatewayForRun = input.action_gateway && client ? { ...input.action_gateway, client: { ...client,
         invoke: async (reference: ExactActionReference, value: unknown, signal?: AbortSignal) => { const result = await client.invoke(reference, value, signal); changesDone!.invoked.push(reference); return result; },
         ...(memory ? { memory: {
-          remember: async (value: Parameters<typeof memory.remember>[0]) => { const kept = await memory.remember(value); memoryDone.keep += 1; return kept; },
+          ...(memory.remember ? { remember: async (value: Parameters<NonNullable<typeof memory.remember>>[0]) => { const kept = await memory.remember!(value); memoryDone.keep += 1; return kept; } } : {}),
           list: () => memory.list(),
-          forget: async (id: string) => { const result = await memory.forget(id); if (result.forgotten) memoryDone.forget += 1; return result; },
+          ...(memory.forget ? { forget: async (id: string) => { const result = await memory.forget!(id); if (result.forgotten) memoryDone.forget += 1; return result; } } : {}),
           ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
         } } : {}),
         ...(offer ? { offer: async (proposal: Parameters<typeof offer>[0]) => { const made = await offer(proposal); offersDone.offered += 1; return made; } } : {}),
@@ -1189,7 +1189,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           // A claim of keeping or forgetting that no call made this round is held, whatever the round's execution.
           const tracked = memoryRounds.get(sessionId);
           const claim = tracked && !held.has("memory") ? claimsMemoryChange(tracked.spoken.trim() ? tracked.spoken.slice(-1200) : text) : null;
-          if (claim && memoryRounds.get(sessionId)![claim] === 0) return hold("memory", memoryRounds.get(sessionId)!.off ? MEMORY_OFF_HELD : MEMORY_CLAIM_HELD[claim]);
+          if (claim && memoryRounds.get(sessionId)![claim] === 0) return hold("memory", memoryHeld(memoryRounds.get(sessionId)!, claim));
           if (business && !held.has("written") && writesToolCallAsText(text)) return hold("written", WRITTEN_CALL_HELD);
           if (!held.has("button") && offerRounds.get(sessionId)?.offered === 0 && claimsButton(text)) return hold("button", BUTTON_CLAIM_HELD);
           // Tool names, capability ids this round found, UUIDs and error codes are ours, not the person's words.
@@ -1265,12 +1265,12 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         : earlier ? stepBoards.standing(earlier.step_board!, earlier.frozen.execution_plan!, session.ref.id) : "";
       if (digest) textResources.push({ ref: await stageTextResource(runtime, digest, "coding-board-digest"), as: "original" });
       // What other sessions in the project are doing, and where it overlaps this round, as the round starts.
-      const project = index.owner.board_id, workText = `${input.task}\n${(plan?.steps ?? []).map(step => `${step.title}\n${step.acceptance}`).join("\n")}`;
+      const project = index.owner.project_id, workText = `${input.task}\n${(plan?.steps ?? []).map(step => `${step.title}\n${step.acceptance}`).join("\n")}`;
       const scopePaths = none ? [] : workPaths(workText);
       if (!none && input.root_path && !index.parent_run) {
         try {
           const seen = await projectWork.read(project, { session_id: session.ref.id, directory: input.root_path, paths: scopePaths });
-          const note = projectWorkDigest(await projectWork.boardId(project), seen.items, session.ref.id, seen.overlaps, input.character.tools.includes("session-send") && !index.parent_run);
+          const note = projectWorkDigest(await projectWork.projectId(project), seen.items, session.ref.id, seen.overlaps, input.character.tools.includes("session-send") && !index.parent_run);
           if (note) textResources.push({ ref: await stageTextResource(runtime, note, "coding-project-work"), as: "original" });
         } catch { /* the project's list is a courtesy to the round; a failed read leaves it out rather than stopping the round */ }
         // Messages other sessions left for this one while it was not running.
@@ -1285,7 +1285,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       // The project's side panel browser, for this session only: its tools join the round and the round is told how to use them.
       // Read-only rounds only look; a page another live round holds is not shared, and the round is told why.
       const surface = business && surfaceHost && input.browser !== false
-        ? await surfaceHost.attach(session, index.owner.board_id, input.session_id, { readOnly: input.provenance.frozen.execution === "read-only",
+        ? await surfaceHost.attach(session, index.owner.project_id, input.session_id, { readOnly: input.provenance.frozen.execution === "read-only",
           live: sessionRefId => [...activeRuns.entries()].some(([runId, run]) => run.live() && runSessions.get(runId) === sessionRefId) })
           .catch((error: unknown) => ({ tools: [] as readonly string[], note: `侧栏浏览器这一轮不可用：${error instanceof Error ? error.message : String(error)}` }))
         : { tools: [] as readonly string[], note: null };

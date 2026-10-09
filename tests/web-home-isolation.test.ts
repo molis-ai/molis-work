@@ -7,12 +7,13 @@ import test from "node:test";
 import type { Server } from "node:http";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { createFeedEvidenceContentStore } from "@molis-ai/molis-work-module-feed";
-import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard, DEMO_PROJECT_ID, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const controlToken = "home-isolation-test-control-token-0123456789";
-const authRef = "connector:github:token";
+/** A secret in the default Home's store; no other Home may read or replace it. */
+const defaultOnlyRef = "connector:github:client_id";
 
 test("Web resolves environment Home once for Catalog, Sessions, control token and Feed", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "molis-work-web-env-home-"));
@@ -40,11 +41,12 @@ test("Web resolves environment Home once for Catalog, Sessions, control token an
     let response = await fetch(origin + feedPath);
     assert.equal(response.status, 200, await response.text());
     const token = readFileSync(join(envHome, "config/web-control-token"), "utf8").trim();
-    response = await fetch(origin + feedPath + "/connectors/github/token", {
+    response = await fetch(origin + "/api/settings/connectors/connections", {
       method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "env-home-synthetic-bind" },
-      body: JSON.stringify({ token: "synthetic-env-home-token-cccc" }),
+      body: JSON.stringify({ service_id: "github", display_name: "Env Home GitHub", token: "synthetic-env-home-token-cccc" }),
     });
-    assert.equal(response.status, 200, await response.text());
+    assert.equal(response.status, 201, await response.text());
+    assert.ok(existsSync(join(envHome, "connectors/connectors.db")));
     assert.ok(existsSync(join(envHome, "sessions/sessions.db")));
     assert.ok(existsSync(join(envHome, "feed/secrets.json")));
     await new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
@@ -52,7 +54,9 @@ test("Web resolves environment Home once for Catalog, Sessions, control token an
     origin = await start();
     response = await fetch(origin + feedPath);
     assert.equal(response.status, 200);
-    assert.equal((await response.json()).connector_auth.github.hint, "…cccc");
+    assert.equal((await response.json()).connector_auth.github.bound, true);
+    response = await fetch(origin + "/api/settings/connectors/connections?service_id=github", { headers: { "x-molis-work-control-token": token } });
+    assert.deepEqual((await response.json()).connections.map((row: { display_name: string }) => row.display_name), ["Env Home GitHub"]);
     assert.equal(readFileSync(join(envHome, "config/web-control-token"), "utf8").trim(), token);
     assert.equal(existsSync(defaultHome), false, "No service resource may fall back to the default user Home");
   } finally {
@@ -64,7 +68,7 @@ test("Web resolves environment Home once for Catalog, Sessions, control token an
   }
 });
 
-test("explicit Web homes isolate connector writes and survive service recreation", async () => {
+test("explicit Web homes read only their own connections and survive service recreation", async () => {
   const root = mkdtempSync(join(tmpdir(), "molis-work-web-homes-"));
   const originalEnv = { ...process.env };
   const servers: Server[] = [];
@@ -77,7 +81,7 @@ test("explicit Web homes isolate connector writes and survive service recreation
   const homes = [join(root, "a"), join(root, "b")];
   const databases = homes.map((_, i) => join(root, `board-${i}.sqlite`));
   async function start(i: number) {
-    const server = createMolisWorkWebServer({ homeDirectory: homes[i], databasePath: databases[i], boardId: DEMO_BOARD_ID, controlToken });
+    const server = createMolisWorkWebServer({ homeDirectory: homes[i], databasePath: databases[i], projectId: DEMO_PROJECT_ID, controlToken });
     servers.push(server);
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();
@@ -87,27 +91,25 @@ test("explicit Web homes isolate connector writes and survive service recreation
   try {
     databases.forEach((db) => seedDemoBoard(db));
     const defaultStore = createFileSecretStore();
-    defaultStore.put(authRef, "default-home-only-0000");
+    defaultStore.put(defaultOnlyRef, "default-home-only-0000");
     const urls = await Promise.all([start(0), start(1)]);
-    const read = async (url: string) => {
+    const bound = async (url: string) => {
       const response = await fetch(`${url}/api/feed`);
       assert.equal(response.status, 200);
-      return (await response.json()).connector_auth.github;
+      return (await response.json()).connector_auth.github.bound;
     };
-    for (const status of await Promise.all(urls.map(read))) assert.equal(status.bound, false);
-    await Promise.all(urls.map(async (url, i) => {
-      const response = await fetch(`${url}/api/feed/connectors/github/token`, {
-        method: "POST", headers: { origin: url, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": `isolated-write-${i}` },
-        body: JSON.stringify({ token: `synthetic-home-token-${i === 0 ? "aaaa" : "bbbb"}` }),
-      });
-      assert.equal(response.status, 200, await response.text());
-    }));
-    assert.deepEqual((await Promise.all(urls.map(read))).map((s) => s.hint), ["…aaaa", "…bbbb"]);
-    assert.equal(defaultStore.get(authRef), "default-home-only-0000");
+    const read = () => homes.map(home => withConnectorConnections(home, store => store.list("github").map(row => row.display_name)));
+    assert.deepEqual(await Promise.all(urls.map(bound)), [false, false]);
+    homes.forEach((home, i) => withConnectorConnections(home, store => store.createToken({
+      serviceId: "github", displayName: `Home ${i === 0 ? "A" : "B"}`, token: `synthetic-home-token-${i === 0 ? "aaaa" : "bbbb"}` })));
+    assert.deepEqual(read(), [["Home A"], ["Home B"]]);
+    assert.deepEqual(await Promise.all(urls.map(bound)), [true, true]);
+    assert.equal(defaultStore.get(defaultOnlyRef), "default-home-only-0000");
     await Promise.all(servers.splice(0).map((s) => new Promise<void>((resolve, reject) => s.close((e) => e ? reject(e) : resolve()))));
     resetSecretStoreCache();
     const restarted = await Promise.all([start(0), start(1)]);
-    assert.deepEqual((await Promise.all(restarted.map(read))).map((s) => s.hint), ["…aaaa", "…bbbb"]);
+    assert.deepEqual(await Promise.all(restarted.map(bound)), [true, true]);
+    assert.deepEqual(read(), [["Home A"], ["Home B"]]);
   } finally {
     await Promise.all(servers.map((s) => new Promise<void>((resolve) => s.close(() => resolve()))));
     resetSecretStoreCache();
@@ -119,6 +121,7 @@ test("explicit Web homes isolate connector writes and survive service recreation
 
 test("async home scopes and retained stores keep secrets and body keys in their creation home", async () => {
   const root = mkdtempSync(join(tmpdir(), "molis-work-storage-homes-"));
+  const authRef = "fixture:home-scoped-secret";
   const oldBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   let release!: () => void;

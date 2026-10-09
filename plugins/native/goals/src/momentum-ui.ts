@@ -3,47 +3,32 @@ import type { GoalsMomentumItem, GoalsMomentumBoardView, GoalsMomentumUiPrimitiv
 import { createKanbanRenderer } from "./kanban-ui.js";
 import { sortGoalTreeItems } from "./tree-order.js";
 import { buildGoalMomentumView } from "./momentum-view.js";
+import type { GoalMomentumGoalInput } from "./momentum-model.js";
 
 export const GOALS_MOMENTUM_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.momentum.v1";
+
+/** The facts momentum reads from one Goal of the document collection. */
+export function goalMomentumInput(item: GoalsMomentumItem): GoalMomentumGoalInput {
+  return {
+    goal_id: item.goal.goal_id,
+    title: item.goal.title,
+    status: item.status,
+    work_state: item.work_state ?? item.status,
+    display_status: item.display_status,
+    priority: item.goal.priority,
+    created_at: item.goal.created_at,
+    updated_at: item.goal.updated_at,
+    completed: item.goal.fulfillment_state === "satisfied" || item.status === "archived" || item.work_state === "archived",
+    reasons: (item.reasons ?? []).map((reason) => ({ code: reason.code })),
+    events: item.events.map((event) => ({ type: event.type, at: event.at, payload: event.payload })),
+  };
+}
 
 function createMomentumRenderer(primitives: GoalsMomentumUiPrimitives) {
   const { translate: L, escapeHtml, icon, renderVisibleGoalStatus } = primitives;
   function renderGoalMomentum(view: GoalsMomentumBoardView, selectedGoalId: string, items: readonly GoalsMomentumItem[]): string {
     const byId = new Map(items.map((item) => [item.goal.goal_id, item]));
-  const momentum = buildGoalMomentumView(
-    items.map((item) => ({
-      goal_id: item.goal.goal_id,
-      title: item.goal.title,
-      status: item.status,
-      work_state: item.work_state ?? item.status,
-      display_status: item.display_status,
-      priority: item.goal.priority,
-      created_at: item.goal.created_at,
-      updated_at: item.goal.updated_at,
-      completed: item.goal.fulfillment_state === "satisfied" || item.status === "archived" || item.work_state === "archived",
-      acceptance_criteria_count: item.goal.acceptance_criteria.length,
-      passed_criteria_count: item.passed_criteria.length,
-      reasons: (item.reasons ?? []).map((reason) => ({ code: reason.code })),
-      runs: item.runs.map((run) => ({
-        role: run.role,
-        state: run.state,
-        started_at: run.started_at,
-        ended_at: run.ended_at,
-      })),
-      evidence: item.evidence.map((evidence) => ({ captured_at: evidence.captured_at })),
-      reviews: item.reviews.map((review) => ({ submitted_at: review.submitted_at })),
-      risks: item.risks.map((risk) => ({
-        risk_id: risk.risk_id,
-        state: risk.state,
-        blocking_mode: risk.blocking_mode,
-        created_at: risk.created_at,
-        updated_at: risk.updated_at,
-      })),
-      events: item.events.map((event) => ({ type: event.type, at: event.at })),
-    })),
-    view.snapshot.relations,
-    selectedGoalId,
-  );
+    const momentum = buildGoalMomentumView(items.map(goalMomentumInput), view.snapshot.relations, selectedGoalId);
     const preferred = sortGoalTreeItems([...items]).find(item => item.display_status === "continue" && (item.goal.decomposition_state !== "closed_compound" || item.event_work))
       || items.find(item => item.display_status === "in_progress") || byId.get(selectedGoalId) || items[0];
     const edges = momentum.edges.map((edge) => `<g data-graph-edge data-edge-from="${escapeHtml(edge.provider_goal_id)}" data-edge-to="${escapeHtml(edge.consumer_goal_id)}"><path marker-end="url(#momentum-arrow)"></path><title>${escapeHtml(`${byId.get(edge.provider_goal_id)?.goal.title} → ${byId.get(edge.consumer_goal_id)?.goal.title} · ${edge.reason}`)}</title></g>`).join("");

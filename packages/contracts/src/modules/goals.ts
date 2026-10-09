@@ -1,6 +1,5 @@
 import type { RecordGoalProgressSummaryInput, GoalEventProgressResult } from "./goal-event-state.js";
 import type { ContractDescriptor } from "../platform/package.js";
-import type { StoredModuleEvent } from "../platform/storage.js";
 import type { HostCapabilityDefinition } from "../platform/app-host.js";
 import type { GoalEventDirectoryPage, GoalEventStateView } from "./goal-events.js";
 
@@ -16,12 +15,17 @@ export const goalContextCapabilities = {
   read: { capability_id: "goals.context.read.v1", version: 1, operation: "query" } as HostCapabilityDefinition<
     { goal_id: string }, GoalContextSnapshot>,
 };
+/**
+ * Who a Goal progress call acts for. Host-direct callers (the CLI, MCP and tests: trusted composition) name the actor; a
+ * plugin never does, because the Host takes it from the plugin's own call context and refuses one in the arguments.
+ */
+export interface GoalProgressActor { actor_id?: string; actor_kind?: "user" | "runtime" }
 /** Project-scoped access to the original Goal progress transaction and receipt. */
 export const goalProgressCapabilities = {
   record: { capability_id: "goals.progress.record.v1", version: 1, operation: "command" } as HostCapabilityDefinition<
-    Omit<RecordGoalProgressSummaryInput, "board_id">, GoalEventProgressResult>,
+    Omit<RecordGoalProgressSummaryInput, "project_id" | "actor_id" | "actor_kind"> & GoalProgressActor, GoalEventProgressResult>,
   receipt: { capability_id: "goals.progress.receipt.v1", version: 1, operation: "query" } as HostCapabilityDefinition<
-    { goal_id: string; actor_id: string; idempotency_key: string }, GoalEventProgressResult | null>,
+    { goal_id: string; idempotency_key: string } & Pick<GoalProgressActor, "actor_id">, GoalEventProgressResult | null>,
 };
 import type {
   GoalEventAdoptedPlanningRequest,
@@ -39,29 +43,6 @@ export const modulesGoalsContract = {
 } as const satisfies ContractDescriptor;
 
 export type GoalDefinitionState = "draft" | "accepted";
-export type ImpactAccess = "read" | "write" | "decide" | "exclusive";
-
-/** A Goal's resource declaration, not a cross-module ObjectRef relationship. */
-export interface ImpactBindingRecord {
-  binding_id: string;
-  board_id: string;
-  goal_id: string;
-  surface: string;
-  access: ImpactAccess;
-  input_snapshot: string | null;
-  state: "proposed" | "confirmed" | "inactive";
-  reason: string;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-  deactivated_at: string | null;
-  deactivation_reason: string | null;
-}
-
-export interface GoalsImpactApi {
-  list(boardId: string): ImpactBindingRecord[];
-  get(boardId: string, bindingId: string): ImpactBindingRecord | null;
-}
 export type GoalDecompositionState =
   | "abstract"
   | "frontier_open"
@@ -69,9 +50,7 @@ export type GoalDecompositionState =
   | "closed_compound";
 export type GoalValidityState = "valid" | "needs_revalidation" | "invalidated";
 export type GoalFulfillmentState = "unmet" | "satisfied";
-export type GoalContractRevisionEffect = "metadata" | "revalidate" | "rework";
 export type GoalTaskContext = "game" | "app" | "ai_data" | "content_research" | "operations" | "other";
-export type GoalLegacyProductContext = "game" | "app" | "other";
 export const goalRelationTypes = ["part_of", "depends_on", "conflicts_with", "mitigates", "extends", "replaces", "corrects", "invalidates", "migrates_from"] as const;
 export type GoalRelationType = typeof goalRelationTypes[number];
 
@@ -80,11 +59,9 @@ export const goalDecompositionReviewStatuses = ["complete", "paused"] as const;
 export type GoalDecompositionReviewStatus = (typeof goalDecompositionReviewStatuses)[number];
 
 export interface GoalDecompositionReview {
-  /** One of goalDecompositionReviewStatuses; reviews recorded before writes were checked may carry other wording. */
-  status: GoalDecompositionReviewStatus | (string & {});
+  status: GoalDecompositionReviewStatus;
   method_pack_ids?: string[];
   task_context?: GoalTaskContext;
-  product_context?: GoalLegacyProductContext;
   coverage: Array<{
     area: string;
     disposition: "goal" | "owned" | "not_applicable";
@@ -97,13 +74,13 @@ export interface GoalDecompositionReview {
     promised_outputs: Array<{
       parent_promised_output: string;
       status: "complete" | "partial" | "integration_required" | "uncovered";
-      child_outputs: Array<{ goal_id: string; promised_output: string; contract_revision?: number }>;
+      child_outputs: Array<{ goal_id: string; promised_output: string }>;
       reason: string;
     }>;
     acceptance_criteria: Array<{
       parent_criterion_id: string;
       status: "complete" | "partial" | "integration_required" | "uncovered";
-      child_criteria: Array<{ goal_id: string; criterion_id: string; contract_revision?: number }>;
+      child_criteria: Array<{ goal_id: string; criterion_id: string }>;
       reason: string;
     }>;
   };
@@ -117,11 +94,7 @@ export interface GoalAcceptanceCriterion {
   criterion_id: string;
   goal_id: string;
   statement: string;
-  /**
-   * One of goalDecisionMethods. Criteria recorded before writes were checked may carry an agent's own wording
-   * ("test", "playtest", ...); they are read and shown as recorded.
-   */
-  decision_method: GoalDecisionMethod | (string & {});
+  decision_method: GoalDecisionMethod;
   pass_condition: string;
   target: Record<string, unknown> | null;
   required_evidence: string[];
@@ -151,7 +124,7 @@ export interface GoalLeafReadiness {
 
 export interface GoalRecord {
   goal_id: string;
-  board_id: string;
+  project_id: string;
   title: string;
   outcome: string;
   why: string;
@@ -166,7 +139,6 @@ export interface GoalRecord {
   decomposition_state: GoalDecompositionState;
   validity_state: GoalValidityState;
   fulfillment_state: GoalFulfillmentState;
-  current_contract_revision: number;
   trashed_at: string | null;
   trashed_by: string | null;
   archived_at: string | null;
@@ -207,7 +179,7 @@ export interface CreateGoalInput {
 
 export interface GoalRelationRecord {
   relation_id: string;
-  board_id: string;
+  project_id: string;
   from_goal_id: string;
   to_goal_id: string;
   type: GoalRelationType;
@@ -348,28 +320,28 @@ export interface GoalChangeImpact {
 }
 
 export interface SaveProjectPlanningMethodInput {
-  board_id: string;
+  project_id: string;
   method: PlanningMethodPackInput;
   actor_id: string;
   user_confirmed: boolean;
 }
 
 export interface GoalsPlanningApi {
-  validateRelationAddition(boardId: string, input: AddGoalRelationInput): Pick<PlanningGraphIssue, "code" | "message"> | null;
-  proposalGraphIssues(boardId: string, items: readonly PlanningProposalItem[]): PlanningGraphIssue[];
-  wouldCreatePartOfCycle(boardId: string, fromGoalId: string, toGoalId: string): boolean;
-  effectiveMethods(boardId: string): PlanningMethodPack[];
-  projectComposition(boardId: string): PlanningMethodComposition;
+  validateRelationAddition(projectId: string, input: AddGoalRelationInput): Pick<PlanningGraphIssue, "code" | "message"> | null;
+  proposalGraphIssues(projectId: string, items: readonly PlanningProposalItem[]): PlanningGraphIssue[];
+  wouldCreatePartOfCycle(projectId: string, fromGoalId: string, toGoalId: string): boolean;
+  effectiveMethods(projectId: string): PlanningMethodPack[];
+  projectComposition(projectId: string): PlanningMethodComposition;
   saveProjectMethod(input: SaveProjectPlanningMethodInput): {
     method: PlanningMethodPack;
     observed_event_cursor: number;
   };
   resolveEventAdoption(
-    boardId: string,
+    projectId: string,
     requested: GoalEventAdoptedPlanningRequest[],
   ): ResolvedPlanningEventAdoption;
-  analyzeChange(boardId: string, changedGoalIds: readonly string[]): GoalChangeImpact;
-  validateBoardGraph(boardId: string): {
+  analyzeChange(projectId: string, changedGoalIds: readonly string[]): GoalChangeImpact;
+  validateBoardGraph(projectId: string): {
     issues: PlanningGraphIssue[];
     observed_event_cursor: number;
   };
@@ -379,8 +351,7 @@ export type GoalTrashStatus =
   | "trashed"
   | "restored"
   | "already_trashed"
-  | "already_active"
-  | "blocked";
+  | "already_active";
 
 export interface GoalTrashResult {
   status: GoalTrashStatus;
@@ -389,8 +360,6 @@ export interface GoalTrashResult {
   deactivated_relation_ids: string[];
   restored_relation_ids: string[];
   pending_relation_ids: string[];
-  blocking_claim_ids: string[];
-  blocking_run_ids: string[];
 }
 
 export interface GoalArchiveResult {
@@ -408,27 +377,23 @@ export interface AddGoalRelationInput {
   reason: string;
 }
 
+/** A Goal's rules. Only the user's acceptance at closure is a rule; quality checks belong to Coding (specs/coding-quality-assurance). */
 export interface GoalPolicy {
-  goal_mode: "disabled" | "preferred" | "required";
-  required_capabilities: string[];
-  self_verification: boolean;
-  cross_reviewers: number;
-  adversarial_reviewers: number;
   human_approval: boolean;
-  max_lease_seconds: number;
 }
 
 export interface GoalsBoardRecord {
-  board_id: string;
+  project_id: string;
   title: string;
   active_goal_id: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export interface GoalRiskLinkRecord {
+/** The journal keys a work event by its own id; this names the Goal it was recorded on. */
+export interface GoalWorkEventLinkRecord {
   goal_id: string;
-  risk_id: string;
+  event_id: string;
 }
 
 export interface GoalPolicyBindingRecord {
@@ -454,50 +419,6 @@ export interface GoalReplacementFact {
   replacement_goal_title: string;
 }
 
-export type RiskBlockingMode = "none" | "claim" | "completion" | "invalidate_on_trigger";
-
-export interface RiskRecord {
-  risk_id: string;
-  board_id: string;
-  description: string;
-  probability: string;
-  impact: string;
-  affected_surfaces: string[];
-  trigger: string;
-  treatment: "accept" | "mitigate" | "avoid" | "defer";
-  treatment_plan: string;
-  blocking_mode: RiskBlockingMode;
-  revisit_condition: string;
-  owner: string;
-  state: "open" | "triggered" | "resolved" | "accepted" | "expired";
-  resolution_basis: {
-    summary: string;
-    evidence_refs: string[];
-    residual_gaps: string[];
-  } | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface RiskFactsInput {
-  risk_id?: string;
-  goal_ids: string[];
-  description: string;
-  probability: string;
-  impact: string;
-  affected_surfaces?: string[];
-  trigger: string;
-  treatment: RiskRecord["treatment"];
-  treatment_plan?: string;
-  blocking_mode: RiskRecord["blocking_mode"];
-  revisit_condition: string;
-  owner: string;
-}
-
-export type AcceptedRiskFacts = Omit<RiskRecord, "state" | "resolution_basis" | "created_at" | "updated_at"> & {
-  goal_ids: string[];
-};
-
 export type ProjectGuidanceKind =
   | "context"
   | "requirement"
@@ -508,7 +429,7 @@ export type ProjectGuidanceKind =
 
 export interface ProjectGuidanceEntryRecord {
   guidance_id: string;
-  board_id: string;
+  project_id: string;
   position: number;
   revision: number;
   active: boolean;
@@ -527,7 +448,7 @@ export interface ProjectGuidanceEntryRecord {
 export interface ProjectGuidanceRevisionRecord {
   revision_id: string;
   guidance_id: string;
-  board_id: string;
+  project_id: string;
   revision: number;
   kind: ProjectGuidanceKind;
   content: string;
@@ -554,8 +475,6 @@ export interface GoalsQuerySnapshot {
   observed_event_cursor: number;
   goals: GoalRecord[];
   relations: GoalRelationRecord[];
-  risks: RiskRecord[];
-  goal_risks: GoalRiskLinkRecord[];
   policy_bindings: GoalPolicyBindingRecord[];
   planning_method_packs: PlanningMethodPack[];
   project_guidance: ProjectGuidanceEntryRecord[];
@@ -574,62 +493,39 @@ export interface GoalFactsView {
     acceptance_criteria: NonNullable<GoalDecompositionReview["contract_coverage"]>["acceptance_criteria"];
   }>;
   relations: GoalRelationRecord[];
-  risks: RiskRecord[];
   resolved_policy: GoalPolicy;
   project_guidance: ProjectGuidanceEntryRecord[];
 }
 
-/** Retained V3 requirement coverage, distinct from Contract revision coverage. */
-export interface GoalLegacyCoverageRecord {
-  requirement_id: string;
-  board_id: string;
-  statement: string;
-  disposition: "covered" | "deferred" | "out" | "unresolved";
-  owner_goal_id: string | null;
-  reason: string | null;
-  revisit_condition: string | null;
-  blocking: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface GoalsQueryApi {
-  listBoardIds(): string[];
-  listActivePolicyBindings(boardId: string, goalId?: string): GoalPolicyBindingRecord[];
-  listLegacyCoverage(boardId: string): Array<Omit<GoalLegacyCoverageRecord, "board_id">>;
-  listPolicyHistory(boardId: string): GoalPolicyHistoryRecord[];
-  listGoalRiskLinks(boardId: string): GoalRiskLinkRecord[];
-  listDependencies(boardId: string, goalId: string): GoalDependencyFact[];
-  listOpenGoalRisks(boardId: string, goalId: string): RiskRecord[];
-  activeReplacement(boardId: string, goalId: string): GoalReplacementFact | null;
+  listProjectIds(): string[];
+  listActivePolicyBindings(projectId: string, goalId?: string): GoalPolicyBindingRecord[];
+  listPolicyHistory(projectId: string): GoalPolicyHistoryRecord[];
+  listWorkEventGoalLinks(projectId: string): GoalWorkEventLinkRecord[];
+  listDependencies(projectId: string, goalId: string): GoalDependencyFact[];
+  activeReplacement(projectId: string, goalId: string): GoalReplacementFact | null;
   /** Global ID collision check only; does not expose another Board's Goal contents. */
   hasGoalIdentity(goalId: string): boolean;
-  listLifecycleEvents(boardId: string): StoredModuleEvent[];
-  listContractRevisions(boardId: string): GoalContractRevisionRecord[];
-  listCoverageRevisions(boardId: string): CoverageContractRevisionRecord[];
-  getRelation(boardId: string, relationId: string): GoalRelationRecord | null;
-  getRisk(boardId: string, riskId: string): RiskRecord | null;
-  policyBindingState(boardId: string, bindingId: string): "active" | "replaced" | "withdrawn" | null;
+  getRelation(projectId: string, relationId: string): GoalRelationRecord | null;
+  policyBindingState(projectId: string, bindingId: string): "active" | "replaced" | "withdrawn" | null;
   /** Global criterion identity is needed to reject cross-Goal ID collisions. */
   criterionGoalId(criterionId: string): string | null;
-  /** Existing Proposal compatibility versions; persistence representation stays inside Goals. */
-  policyBindingVersion(boardId: string, bindingId: string, mode: "legacy" | "semantic-v1"): { exists: boolean; version: string };
-  getBoard(boardId: string): GoalsBoardRecord | null;
-  getGoal(boardId: string, goalId: string): GoalRecord | null;
+  getBoard(projectId: string): GoalsBoardRecord | null;
+  getGoal(projectId: string, goalId: string): GoalRecord | null;
   listGoals(
-    boardId: string,
+    projectId: string,
     options?: { include_archived?: boolean; include_trashed?: boolean },
   ): GoalRecord[];
-  listRelations(boardId: string, goalId?: string): GoalRelationRecord[];
-  listTrashedGoals(boardId: string): GoalRecord[];
-  snapshot(boardId: string): GoalsQuerySnapshot;
-  resolvePolicy(boardId: string, goalId: string, strengthen?: Partial<GoalPolicy>): GoalPolicy;
-  readGoal(boardId: string, goalId: string): GoalFactsView;
-  readProjectGuidance(boardId: string): ProjectGuidanceView;
+  listRelations(projectId: string, goalId?: string): GoalRelationRecord[];
+  listTrashedGoals(projectId: string): GoalRecord[];
+  snapshot(projectId: string): GoalsQuerySnapshot;
+  resolvePolicy(projectId: string, goalId: string, strengthen?: Partial<GoalPolicy>): GoalPolicy;
+  readGoal(projectId: string, goalId: string): GoalFactsView;
+  readProjectGuidance(projectId: string): ProjectGuidanceView;
 }
 
 export interface AddProjectGuidanceInput {
-  board_id: string;
+  project_id: string;
   actor_id: string;
   kind: ProjectGuidanceKind;
   content: string;
@@ -648,7 +544,7 @@ export interface AddProjectGuidanceResult {
 }
 
 export interface UpdateProjectGuidanceInput {
-  board_id: string;
+  project_id: string;
   guidance_id: string;
   actor_id: string;
   action: "edit" | "deactivate" | "restore";
@@ -677,7 +573,7 @@ export interface GoalsActorWrite {
 
 /** Finite Policy write inside an already-authorized Proposal decision transaction. */
 export type ConfirmedPolicyChange = {
-  board_id: string;
+  project_id: string;
   actor_id: string;
   reason: string;
   at: string;
@@ -689,17 +585,8 @@ export type ConfirmedPolicyChange = {
   policy: { [K in keyof GoalPolicy]?: unknown };
 });
 
-export type ConfirmedRiskChange = {
-  board_id: string; risk_id: string; actor_id: string; reason: string; at: string; source_item_id: string;
-} & ({ operation: "deactivate" } | {
-  operation: "create" | "update";
-  facts: Omit<RiskFactsInput, "risk_id">;
-  requested_state: string;
-  resolution_basis: { summary: string; evidence_refs: string[]; residual_gaps?: string[] } | null;
-});
-
 export interface ConfirmedRelationBatch {
-  board_id: string; actor_id: string; reason: string; at: string; source_item_id: string;
+  project_id: string; actor_id: string; reason: string; at: string; source_item_id: string;
   relations: Array<{
     action: "add" | "deactivate";
     relation_id?: string | null;
@@ -713,31 +600,24 @@ export interface ConfirmedRelationBatch {
 export interface GoalsCommandApi {
   /** User-submitted project defaults. Replaces the active binding and preserves history. */
   saveProjectPolicy(input: {
-    board_id: string; actor_id: string; user_confirmed: boolean;
+    project_id: string; actor_id: string; user_confirmed: boolean;
     policy: GoalPolicy; idempotency_key: string;
   }): { policy_binding_id: string; observed_event_cursor: number; replayed: boolean };
-  /** Internal import port; caller retains the complete V3 import transaction and audit event. */
-  importLegacyCoverage(boardId: string, rows: ReadonlyArray<Omit<GoalLegacyCoverageRecord, "board_id">>): void;
-  /** Finish an existing V3 import transaction; does not accept the imported Draft as live work. */
-  completeLegacyBoardImport(input: {
-    board_id: string; active_goal_id: string | null; actor_id: string; at: string;
-    legacy_goal_id: string; legacy_schema_version: string;
-  }): number;
   validateGoalInput(input: CreateGoalInput): void;
   applyConfirmedRelations(input: ConfirmedRelationBatch): Array<{ relation_id: string }>;
-  initializeBoard(input: { board_id: string; title: string; actor_id: string; idempotency_key: string }): { board_id: string; replayed: boolean; observed_event_cursor: number };
-  setActiveGoal(boardId: string, input: { goal_id: string; reason: string }, write: GoalsActorWrite): { active_goal_id: string; replayed: boolean; observed_event_cursor: number };
-  createGoal(boardId: string, input: CreateGoalInput, write: GoalsActorWrite): {
+  initializeBoard(input: { project_id: string; title: string; actor_id: string; idempotency_key: string }): { project_id: string; replayed: boolean; observed_event_cursor: number };
+  setActiveGoal(projectId: string, input: { goal_id: string; reason: string }, write: GoalsActorWrite): { active_goal_id: string; replayed: boolean; observed_event_cursor: number };
+  createGoal(projectId: string, input: CreateGoalInput, write: GoalsActorWrite): {
     goal: GoalRecord;
     observed_event_cursor: number;
     replayed: boolean;
   };
-  addRelation(boardId: string, input: AddGoalRelationInput, write: GoalsActorWrite): {
+  addRelation(projectId: string, input: AddGoalRelationInput, write: GoalsActorWrite): {
     relation_id: string;
     observed_event_cursor: number;
     replayed: boolean;
   };
-  deactivateRelation(boardId: string, input: { relation_id: string; reason: string }, write: GoalsActorWrite): {
+  deactivateRelation(projectId: string, input: { relation_id: string; reason: string }, write: GoalsActorWrite): {
     relation: GoalRelationRecord;
     observed_event_cursor: number;
     replayed: boolean;
@@ -748,21 +628,20 @@ export interface GoalsCommandApi {
 
 export interface GoalsLifecycleApi {
   setArchived(
-    boardId: string,
+    projectId: string,
     input: { goal_id: string; archived: boolean; reason: string },
     write: GoalsActorWrite,
   ): GoalArchiveResult;
   setTrashed(
-    boardId: string,
+    projectId: string,
     input: { goal_id: string; trashed: boolean; reason: string },
     write: GoalsActorWrite,
   ): GoalTrashResult & { observed_event_cursor: number; replayed: boolean };
-  listTrashed(boardId: string): GoalRecord[];
+  listTrashed(projectId: string): GoalRecord[];
 }
 
 /** Public application-facing Goals capabilities; Apps bind this port without owning rules or Stores. */
 export interface GoalsApplicationApi {
-  impacts: GoalsImpactApi;
   commands: GoalsCommandApi;
   lifecycle: GoalsLifecycleApi;
   planning: GoalsPlanningApi;
@@ -825,7 +704,6 @@ export type {
   GoalEventDirectoryItem,
   GoalEventDirectoryPage,
   GoalEventDirectoryQuery,
-  GoalEventImportedCompletion,
   GoalEventReportSummary,
   GoalEventRequirementBinding,
   GoalEventRequirementCommitment,
@@ -891,22 +769,3 @@ export {
   goalEventUserConclusionVerdicts,
   goalEventWorkStatuses,
 } from "./goal-events.js";
-export interface GoalContractRevisionRecord {
-  goal_id: string;
-  board_id: string;
-  revision: number;
-  contract: CreateGoalInput;
-  effect: GoalContractRevisionEffect;
-  source_proposal_id: string | null;
-  changed_by: string;
-  reason: string;
-  created_at: string;
-}
-
-export interface CoverageContractRevisionRecord {
-  parent_goal_id: string;
-  child_goal_id: string;
-  parent_contract_revision: number;
-  child_contract_revision: number;
-  recorded_at: string;
-}

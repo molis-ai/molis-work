@@ -51,62 +51,6 @@ async function fixture(legacy = true) {
   } finally { catalog.close(); }
 }
 
-test("v9 Runtime bindings migrate once with exact identities, projects, actors and control history", async () => {
-  const data = await fixture();
-  try {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const catalog = await openMolisWorkProjectCatalog({ homeDirectory: data.homeDirectory });
-      try {
-        assert.deepEqual(catalog.listRuntimeContextBindings(), data.bindings);
-        assert.deepEqual(catalog.listRuntimeContextBindingEvents(), data.events);
-        assert.deepEqual(catalog.listProjects(), data.projects);
-        assert.equal(catalog.resolveRuntimeContext(context("first")).project?.project_id, data.first.project_id);
-        assert.equal(catalog.resolveRuntimeContext(context("second")).project?.project_id, data.second.project_id);
-      } finally { catalog.close(); }
-    }
-    const db = new Database(data.databasePath);
-    try {
-      // The v9 sample is upgraded through every later catalog migration, not only the v10 ledger step.
-      assert.equal((db.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get() as { value: string }).value, String(CATALOG_SCHEMA_VERSION));
-      const columns = db.prepare("PRAGMA table_info(runtime_context_bindings)").all() as { name: string }[];
-      assert.equal(columns.some(({ name }) => name === "project_id"), false);
-      const ledger = createContextLedger(db, { authorize: () => true });
-      for (const original of data.bindings) {
-        const history = ledger.query.history(access, `work.binding_project:${original.binding_id}`);
-        assert.equal(history.length, 1);
-        assert.equal(history[0]!.target.id, original.project_id);
-        assert.equal(history[0]!.target.project_id, original.project_id);
-        assert.equal(history[0]!.target.version, null);
-        assert.equal(history[0]!.actor_id, original.bound_by);
-        assert.equal(history[0]!.recorded_at, original.updated_at);
-      }
-    } finally { db.close(); }
-  } finally { await rm(data.directory, { recursive: true, force: true }); }
-});
-
-test("a failure after the first migrated binding rolls back the entire catalog upgrade and supports retry", async () => {
-  const data = await fixture();
-  const db = new Database(data.databasePath);
-  try {
-    db.exec(`CREATE TRIGGER reject_second_binding BEFORE INSERT ON context_edges
-      WHEN NEW.relation_type = 'work.binding_project'
-        AND EXISTS (SELECT 1 FROM context_edges WHERE relation_type = 'work.binding_project')
-      BEGIN SELECT RAISE(ABORT, 'injected migration failure'); END;`);
-    await assert.rejects(openMolisWorkProjectCatalog({ homeDirectory: data.homeDirectory }), /injected migration failure/);
-    assert.equal((db.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get() as { value: string }).value, "9");
-    assert.deepEqual(db.prepare("SELECT * FROM runtime_context_bindings ORDER BY binding_id").all(),
-      [...data.bindings].sort((a, b) => a.binding_id.localeCompare(b.binding_id)));
-    assert.deepEqual(db.prepare("SELECT * FROM context_edges").all(), []);
-    db.exec("DROP TRIGGER reject_second_binding");
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: data.homeDirectory });
-    try {
-      assert.deepEqual(catalog.listRuntimeContextBindings(), data.bindings);
-      assert.deepEqual(catalog.listRuntimeContextBindingEvents(), data.events);
-      assert.deepEqual(catalog.listProjects(), data.projects);
-    } finally { catalog.close(); }
-  } finally { db.close(); await rm(data.directory, { recursive: true, force: true }); }
-});
-
 test("binding changes and deletion atomically preserve metadata, events, Ledger history and the other project", async () => {
   const data = await fixture(false);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: data.homeDirectory });

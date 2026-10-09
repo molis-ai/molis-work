@@ -84,7 +84,6 @@ import { createGoalsPlanningWorkbenchRenderer } from "./goals-planning-ui.js";
 import { createGoalsPolicyWorkbenchRenderer } from "./goals-policy-ui.js";
 import { createGoalsProposalWorkbenchRenderer } from "./goals-proposal-ui.js";
 import { createGoalsRelationWorkbenchRenderer } from "./goals-relation-ui.js";
-import { createGoalsSafetyWorkbenchRenderer } from "./goals-safety-ui.js";
 import { createGoalsStatusWorkbenchRenderer } from "./goals-status-ui.js";
 import { createGoalsTreeWorkbenchRenderer } from "./goals-tree-ui.js";
 import { createWorkSessionRenderer } from "./work-ui.js";
@@ -179,7 +178,6 @@ export const createWorkbenchGoalsProposalRenderer = createGoalsProposalWorkbench
 
 export const createWorkbenchGoalsPolicyRenderer = createGoalsPolicyWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
 
-export const createWorkbenchGoalsSafetyRenderer = createGoalsSafetyWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
 
 export const createWorkbenchGoalsRelationRenderer = createGoalsRelationWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
 
@@ -202,12 +200,12 @@ export const createWorkbenchGoalsDialogsRenderer = createGoalsDialogsWorkbenchRe
 export const artifactWorkbench = createArtifactWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS);
 
 export function createArtifactReferenceRenderer(primitives: ArtifactReferenceUiPrimitives) {
-  return (value: string, label = value, evidenceId?: string): string => workbenchUiHost.mount({
+  return (value: string, label = value): string => workbenchUiHost.mount({
     slot: WORKBENCH_UI_SLOTS.main,
     contribution: {
       contribution_id: ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID,
       surface: "reference",
-      model: { value, label, evidenceId, primitives },
+      model: { value, label, primitives },
     },
   }).html;
 }

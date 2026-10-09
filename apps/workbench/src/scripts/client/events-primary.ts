@@ -1,6 +1,6 @@
 /** AP3 Workbench client segment: events-primary. */
 export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("aria-invalid");
-        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-risk-error], [data-impact-error], [data-policy-error]");
+        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-risk-error], [data-policy-error]");
         if (factorError) factorError.hidden = true;
       }
       if (handleTreeStatusChange(changed)) return;
@@ -9,10 +9,10 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     document.addEventListener("input", (event) => {
       const changed = event.target?.nodeType === 1 ? event.target : null;
       if (!changed) return;
-      const changedFactorForm = changed.closest("[data-relation-form], [data-risk-create-form], [data-risk-edit-form], [data-impact-create-form], [data-impact-edit-form], [data-policy-form]");
+      const changedFactorForm = changed.closest("[data-relation-form], [data-risk-create-form], [data-risk-edit-form], [data-policy-form]");
       if (changedFactorForm) {
         changed.removeAttribute("aria-invalid");
-        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-risk-error], [data-impact-error], [data-policy-error]");
+        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-risk-error], [data-policy-error]");
         if (factorError) factorError.hidden = true;
       }
     });
@@ -275,13 +275,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     document.addEventListener("click", async (event) => {
       const target = event.target?.nodeType === 1 ? event.target : null;
       if (!target) return;
-      const humanReviewJump = target.closest("[data-human-review-jump]");
-      if (humanReviewJump) {
-        const reviewForm = humanReviewJump.closest(".human-review-list")?.querySelector("[data-human-review-form]");
-        reviewForm?.scrollIntoView({ block: "start" });
-        requestAnimationFrame(() => reviewForm?.querySelector('[name="verdict"]')?.focus({ preventScroll: true }));
-        return;
-      }
       const activeProjectMenu = target.closest("[data-project-menu]");
       projectMenus.forEach((menu) => {
         if (menu.open && menu !== activeProjectMenu) menu.open = false;
@@ -566,7 +559,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         const labels = {
           inbox: [L("已进入 Inbox"), L("Inbox 只保存需处理引用；原消息仍在 Feed")],
           save: [L("已保存为资料"), L("当前页面演示状态，不写入数据库")],
-          promote: [L("已准备升格 Goal"), L("正式 Goal 创建留给后续功能")],
+          promote: [L("演示：未真正创建 Goal"), L("真实消息可在详情里升格为 Goal")],
           ignore: [L("已忽略"), L("消息仍可从 Feed 历史追溯")],
         }[action] || [L("演示状态已更新"), L("没有发生真实写入")];
         if (destination) {
@@ -813,76 +806,4 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         }
         return;
       }
-      const connectorBind = target.closest("[data-feed-connector-bind]");
-      if (connectorBind) {
-        const kind = connectorBind.dataset.feedConnectorBind;
-        const input = feedSourcesDialog?.querySelector('[data-feed-connector-token="' + kind + '"]');
-        connectorBind.disabled = true;
-        try {
-          await feedApi("/api/feed/connectors/" + kind + "/token", "POST", { token: input?.value || "" });
-          if (input) input.value = "";
-          saveUiState();
-          await refreshFeedStage();
-          connectorBind.disabled = false;
-        } catch (error) {
-          setFeedSourceFeedback(error.message || L("账号连接失败"), true);
-          connectorBind.disabled = false;
-        }
-        return;
-      }
-      const connectorUnbind = target.closest("[data-feed-connector-unbind]");
-      if (connectorUnbind) {
-        const kind = connectorUnbind.dataset.feedConnectorUnbind;
-        connectorUnbind.disabled = true;
-        try {
-          await feedApi("/api/feed/connectors/" + kind + "/token", "DELETE");
-          saveUiState();
-          await refreshFeedStage();
-          connectorUnbind.disabled = false;
-        } catch (error) {
-          setFeedSourceFeedback(error.message || L("断开账号失败"), true);
-          connectorUnbind.disabled = false;
-        }
-        return;
-      }
-      if (target.closest("[data-feed-github-device-start]")) {
-        const button = target.closest("[data-feed-github-device-start]");
-        const clientId = feedSourcesDialog?.querySelector("[data-feed-github-client-id]")?.value || "";
-        const status = feedSourcesDialog?.querySelector("[data-feed-github-device-status]");
-        const poll = feedSourcesDialog?.querySelector("[data-feed-github-device-poll]");
-        button.disabled = true;
-        try {
-          const result = await feedApi("/api/feed/connectors/github/device/start", "POST", { client_id: clientId });
-          if (status) {
-            status.textContent = L("授权码：{code}。已打开 GitHub，完成后回来检查状态。", { code: result.user_code });
-            status.dataset.deviceCode = result.device_code;
-            status.hidden = false;
-          }
-          if (poll) poll.hidden = false;
-          globalThis.open(result.verification_uri, "_blank", "noopener,noreferrer");
-        } catch (error) {
-          setFeedSourceFeedback(error.message || L("GitHub 授权启动失败"), true);
-          button.disabled = false;
-        }
-        return;
-      }
-      if (target.closest("[data-feed-github-device-poll]")) {
-        const button = target.closest("[data-feed-github-device-poll]");
-        const status = feedSourcesDialog?.querySelector("[data-feed-github-device-status]");
-        const clientId = feedSourcesDialog?.querySelector("[data-feed-github-client-id]")?.value || "";
-        button.disabled = true;
-        try {
-          const result = await feedApi("/api/feed/connectors/github/device/poll", "POST", { device_code: status?.dataset.deviceCode || "", client_id: clientId });
-          if (result.status === "authorized") {
-            saveUiState();
-            await refreshFeedStage();
-            button.disabled = false;
-          } else {
-            if (status) status.textContent = result.message || L("GitHub 仍在等待授权。完成后再次检查。");
-            button.disabled = false;
-          }
-        } catch (error) {
-          setFeedSourceFeedback(error.message || L("GitHub 授权检查失败"), true);
-          button.disabled = false;
-        }
 `;

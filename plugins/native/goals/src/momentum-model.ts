@@ -3,6 +3,8 @@ import type { GoalDisplayStatus } from "./tree-order.js";
 export interface GoalMomentumEventInput {
   type: string;
   at: string;
+  /** Journal payload; completion is read from it, so a closure that did not apply is not counted. */
+  payload?: unknown;
 }
 
 export interface GoalMomentumGoalInput {
@@ -15,24 +17,7 @@ export interface GoalMomentumGoalInput {
   created_at: string;
   updated_at: string;
   completed: boolean;
-  acceptance_criteria_count: number;
-  passed_criteria_count: number;
   reasons: Array<{ code: string }>;
-  runs: Array<{
-    role: string;
-    state: string;
-    started_at: string;
-    ended_at: string | null;
-  }>;
-  evidence: Array<{ captured_at: string }>;
-  reviews: Array<{ submitted_at: string }>;
-  risks: Array<{
-    risk_id: string;
-    state: string;
-    blocking_mode: string;
-    created_at: string;
-    updated_at: string;
-  }>;
   events: GoalMomentumEventInput[];
 }
 
@@ -83,14 +68,12 @@ export interface GoalMomentumCadenceBucket {
   date: string;
   started: number;
   completed: number;
-  blockers: number;
 }
 
 export interface GoalMomentumCadence {
   days: 7 | 30;
   started: number;
   completed: number;
-  new_blockers: number;
   stalled: number;
   history_incomplete: number;
   buckets: GoalMomentumCadenceBucket[];

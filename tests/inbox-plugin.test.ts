@@ -21,7 +21,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   const functionEnv: NodeJS.Dict<string> = {};
   const host = new MolisWorkLocalHost({ homeDirectory, functions: { env: functionEnv },
     actionAvailability: projectActionAvailability(async (_options, operation) => operation(catalog), homeDirectory) });
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const actions = host.actionClient(reference);
   const caller: ActionCallContext = { actor_id: "test-owner", project_id: project.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
   const server = createMolisWorkWebServer({ homeDirectory, controlToken: TOKEN, localHost: host });
@@ -260,30 +260,30 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   }
 });
 
-function insertFeedItem(project: { database_path: string; board_id: string }, itemId: string): void {
+function insertFeedItem(project: { database_path: string; project_id: string }, itemId: string): void {
   const store = new LocalProjectDatabase(project.database_path);
   const now = "2026-09-14T10:00:00.000Z";
   try {
     store.db.prepare(`
       INSERT OR IGNORE INTO feed_sources (
-        board_id, source_id, kind, name, description, status, enabled, item_count,
+        project_id, source_id, kind, name, description, status, enabled, item_count,
         origin, last_sync_at, last_outcome, last_error_code, imported_at, updated_at
-      ) VALUES (@board_id, 'source-inbox-plugin', 'rss', '测试 RSS', '测试来源', 'active', 1, 1,
+      ) VALUES (@project_id, 'source-inbox-plugin', 'rss', '测试 RSS', '测试来源', 'active', 1, 1,
         'molis_work', @now, 'completed', NULL, @now, @now)
-    `).run({ board_id: project.board_id, now });
+    `).run({ project_id: project.project_id, now });
     store.db.prepare(`
       INSERT INTO feed_items (
-        board_id, item_id, source_id, item_type, kind, title, summary, body,
+        project_id, item_id, source_id, kind, title, summary, body,
         source_kind, source_label, external_id, url, origin_status, priority,
-        tags_json, author, disposition, linked_goal_id, revision, source_created_at,
+        tags_json, author, disposition, revision, source_created_at,
         source_updated_at, imported_at, updated_at
       ) VALUES (
-        @board_id, @item_id, 'source-inbox-plugin', 'feed', 'article',
+        @project_id, @item_id, 'source-inbox-plugin', 'article',
         '确认对象边界', '摘要不应被 Inbox 复制', '正文里包含需要核对的事实',
         'rss', '测试 RSS', @external_id, 'https://example.com/item',
-        'inbox', 'normal', '[]', '测试作者', 'inbox', NULL, 1, @now, @now, @now, @now
+        'inbox', 'normal', '[]', '测试作者', 'inbox', 1, @now, @now, @now, @now
       )
-    `).run({ board_id: project.board_id, item_id: itemId, external_id: `external-${itemId}`, now });
+    `).run({ project_id: project.project_id, item_id: itemId, external_id: `external-${itemId}`, now });
   } finally {
     store.close();
   }

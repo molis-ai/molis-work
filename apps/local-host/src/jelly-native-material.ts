@@ -1,6 +1,4 @@
-import { createHash } from "node:crypto";
-import { constants } from "node:fs";
-import { link, lstat, mkdir, mkdtemp, open, realpath, rm } from "node:fs/promises";
+import { lstat, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import type { MaterialExtraction, MaterialPage } from "@molis-ai/molis-work-contracts/services/materials";
 import { createMaterialExtractor, MaterialExtractionError, supportsMaterialExtension } from "./material-extraction.js";
@@ -11,7 +9,7 @@ export class JellyMaterialError extends Error {
   constructor(public readonly code: string, message: string, public readonly status = 400, public readonly details?: { approximate_bytes?: number; variant?: string }) { super(message); this.name = "JellyMaterialError"; }
 }
 export type JellyMaterialPage = MaterialPage;
-export interface JellyMaterialExtraction extends MaterialExtraction { file_name: string; source_sha256: string }
+export interface JellyMaterialExtraction extends MaterialExtraction { file_name: string }
 export interface JellyMaterialUpload { file_name: string; data_base64: string; allow_model_download?: boolean }
 export interface JellyMaterialOptions { helperPath?: string; whisperHelperPath?: string; platform?: NodeJS.Platform; signal?: AbortSignal; beforeEffect?: () => void | Promise<void>; onProgress?: (progress: { stage: string; progress: number }) => void }
 function fail(condition: unknown, code: string, message: string, status = 400): asserts condition { if (!condition) throw new JellyMaterialError(code, message, status); }
@@ -29,43 +27,20 @@ async function privateDirectory(parent: string, name: string): Promise<string> {
   const directory = path.join(parent, name); await mkdir(directory, { recursive: true, mode: 0o700 }); const stat = await lstat(directory);
   fail(stat.isDirectory() && !stat.isSymbolicLink() && await realpath(directory) === directory, "jelly.material.unsafe_storage", "素材保存目录无效", 500); return directory;
 }
-async function saveUpload(home: string, extension: string, data: Buffer, hash: string, options: JellyMaterialOptions): Promise<string> {
-  await checkCurrent(options);
-  await mkdir(home, { recursive: true, mode: 0o700 }); const homeRoot = await realpath(home);
-  // Kept where 灵光, the one that reads files now, keeps its things.
-  const jelly = await privateDirectory(homeRoot, "lingguang"); const directory = await privateDirectory(jelly, "imports");
-  const file = path.join(directory, `${hash}${extension}`);
-  await checkCurrent(options);
-  const staging = await mkdtemp(path.join(jelly, "material-upload-")), staged = path.join(staging, "source");
-  try {
-    await checkCurrent(options);
-    const handle = await open(staged, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
-    try { await checkCurrent(options); await handle.writeFile(data, { signal: options.signal }); await handle.sync(); }
-    finally { await handle.close(); }
-    await checkCurrent(options);
-    try { await link(staged, file); }
-    catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      const existing = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
-      try {
-        const stat = await existing.stat();
-        fail(stat.isFile() && stat.size === data.length && createHash("sha256").update(await existing.readFile()).digest("hex") === hash,
-          "jelly.material.storage_conflict", "已有上传副本校验失败", 409);
-      } finally { await existing.close(); }
-    }
-  } finally { await rm(staging, { recursive: true, force: true }); }
-  return file;
-}
 async function checkCurrent(options: JellyMaterialOptions): Promise<void> {
   options.signal?.throwIfAborted(); await options.beforeEffect?.(); options.signal?.throwIfAborted();
 }
+/**
+ * Read text out of an uploaded file. The upload is only ever held in memory (and in the extractor's own temporary
+ * directory, which it removes): reading keeps no spark, so a stored copy would have no reader and no owner. Only the
+ * speech-model cache, which a later reading reuses, lives under the Home.
+ */
 export async function extractJellyMaterial(home: string, upload: JellyMaterialUpload, options: JellyMaterialOptions = {}): Promise<JellyMaterialExtraction> {
   try {
     await checkCurrent(options);
-    const { name, extension, data } = decodeUpload(upload), hash = createHash("sha256").update(data).digest("hex");
-    const stored = await saveUpload(home, extension, data, hash, options);
+    const { name, extension, data } = decodeUpload(upload);
     await checkCurrent(options);
-    const modelDirectory = materialMediaExtensions.has(extension) ? await privateDirectory(path.dirname(path.dirname(stored)), "models") : undefined;
+    const modelDirectory = materialMediaExtensions.has(extension) ? await modelCacheDirectory(home) : undefined;
     await checkCurrent(options);
     const extract = createMaterialExtractor({ helperPath: options.helperPath ?? process.env.MOLIS_JELLY_NATIVE_HELPER,
       whisperHelperPath: options.whisperHelperPath ?? process.env.MOLIS_JELLY_WHISPER_HELPER,
@@ -76,11 +51,14 @@ export async function extractJellyMaterial(home: string, upload: JellyMaterialUp
     // The public Jelly v1 result keeps its historical shape; coverage.status already conveys partial text.
     const { title: _title, ...material } = result;
     const { truncated: _truncated, ...coverage } = result.coverage;
-    return { ...material, coverage, file_name: name, source_sha256: hash };
+    return { ...material, coverage, file_name: name };
   } catch (error) {
-    if (options.signal?.aborted) throw new JellyMaterialError("jelly.material.cancelled", "素材提取已取消；已保存的原始副本保留", 499);
+    if (options.signal?.aborted) throw new JellyMaterialError("jelly.material.cancelled", "素材提取已取消", 499);
     if (error instanceof MaterialExtractionError) throw new JellyMaterialError(`jelly.material.${error.code}`, error.message, error.status, error.details);
     throw error;
   }
 }
-
+async function modelCacheDirectory(home: string): Promise<string> {
+  await mkdir(home, { recursive: true, mode: 0o700 });
+  return privateDirectory(await privateDirectory(await realpath(home), "lingguang"), "models");
+}

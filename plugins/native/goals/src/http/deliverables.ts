@@ -53,8 +53,12 @@ async function handleGoalArtifactInputsHttp(context: GoalsHttpContext): Promise<
     if (typeof body.used !== "boolean") { context.respond(400, { error: "used 必须是 boolean" }); return true; }
     const value = body.reference as { artifact_id?: unknown; version?: unknown } | undefined;
     const reference = { artifact_id: String(value?.artifact_id ?? ""), version: Number(value?.version) };
-    const result = body.used ? await context.actions.invoke(goalsActions.artifactInputsAdd, { goal_id: goalId, reference })
-      : await context.actions.invoke(goalsActions.artifactInputsRemove, { goal_id: goalId, reference });
+    // A work object (not yet a version) taken as 「固定这一版」 is pinned through its owner first.
+    const subject = body.subject as { kind?: unknown; id?: unknown } | undefined;
+    const result = subject && body.used
+      ? await context.actions.invoke(goalsActions.artifactInputsPin, { goal_id: goalId, subject: { kind: String(subject.kind ?? ""), id: String(subject.id ?? "") } })
+      : body.used ? await context.actions.invoke(goalsActions.artifactInputsAdd, { goal_id: goalId, reference })
+        : await context.actions.invoke(goalsActions.artifactInputsRemove, { goal_id: goalId, reference });
     context.changed();
     context.respond(200, result);
   } catch (error) {

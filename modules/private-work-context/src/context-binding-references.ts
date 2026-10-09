@@ -1,6 +1,5 @@
 import type Database from "better-sqlite3";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import type { RuntimeContextBindingRecord } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { MolisWorkSessionError } from "./errors.js";
 
 const scope = { kind: "personal", id: "private-work-context" } as const;
@@ -41,19 +40,3 @@ const BINDING_METADATA_SCHEMA = `CREATE TABLE runtime_context_bindings (
 );`;
 
 export function createRuntimeContextBindingMetadata(db: Database.Database): void { db.exec(BINDING_METADATA_SCHEMA); }
-
-/** Catalog owns its version; Work owns this table migration and only consumes the Ledger API. */
-export function migrateRuntimeContextProjectReferences(db: Database.Database, ledger: ContextLedgerApi): void {
-  const columns = db.prepare("PRAGMA table_info(runtime_context_bindings)").all() as Array<{ name: string }>;
-  if (!columns.some((column) => column.name === "project_id")) return;
-  db.transaction(() => {
-    const rows = db.prepare("SELECT * FROM runtime_context_bindings ORDER BY binding_id").all() as RuntimeContextBindingRecord[];
-    const refs = new RuntimeContextProjectReferences(ledger);
-    for (const row of rows) refs.set(row.binding_id, row.project_id, row.bound_by, row.updated_at);
-    db.exec(`ALTER TABLE runtime_context_bindings RENAME TO runtime_context_bindings_legacy;
-      ${BINDING_METADATA_SCHEMA}
-      INSERT INTO runtime_context_bindings (binding_id, runtime_id, stable_work_context_id, bound_by, created_at, updated_at)
-        SELECT binding_id, runtime_id, stable_work_context_id, bound_by, created_at, updated_at FROM runtime_context_bindings_legacy;
-      DROP TABLE runtime_context_bindings_legacy;`);
-  }).immediate();
-}

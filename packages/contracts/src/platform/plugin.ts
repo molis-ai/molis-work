@@ -29,10 +29,6 @@ import type {
   PluginUpstreamUnavailableReason,
 } from "./plugin-wiring.js";
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
-import type {
-  PluginMcpExportDeclaration,
-  PluginMcpHandlerBinding,
-} from "./plugin-mcp.js";
 
 export { parsePluginManifest, PluginManifestError, canonicalPluginId, comparePluginVersions, SURFACE_BROWSER_PERMISSION } from "./plugin-manifest.js";
 import { SURFACE_BROWSER_PERMISSION } from "./plugin-manifest.js";
@@ -41,8 +37,6 @@ export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, Plug
 export * from "./plugin-events.js";
 export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
-export * from "./plugin-mcp.js";
-export * from "./plugin-behaviors.js";
 export * from "./actions.js";
 
 /** Opaque, personal installation data. The author owns serialization, not storage paths or SQL. */
@@ -198,10 +192,12 @@ export interface PluginManifest {
    * names its pin action, defined with `defineArtifactPinAction`.
    * A type pinned from a work object names its compare action (`defineArtifactCompareAction`): whether the version still
    * matches the object, for 「原文已改」 (A4b).
+   * A plugin that can start new work from a version declares `continue` (`defineArtifactContinueAction`) on that type,
+   * whether it produces it or only consumes it (「从这一版继续」, A4b).
    */
   artifacts: {
-    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number } }>;
-    consumes: Array<{ artifact_type_id: string; schema_version: number }>;
+    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number }; continue?: { capability_id: string; version: number } }>;
+    consumes: Array<{ artifact_type_id: string; schema_version: number; continue?: { capability_id: string; version: number } }>;
   };
   /** Exchange data this Plugin records for others and reads from them; kept out of the 成果库. A type is either a 成果 type or a process item type. */
   process_items?: {
@@ -235,19 +231,6 @@ export interface PluginManifest {
   methods?: import("./plugin-agent.js").AgentSkillDeclaration[];
   /** Exact old installation versions this release can upgrade from. */
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
-  /**
-   * Tools this Plugin contributes to the Host's unified MCP catalog.
-   * Public names and enablement stay with the Host; `agent.mcp` is the
-   * opposite direction and must not be reused here.
-   */
-  mcp_exports?: PluginMcpExportDeclaration[];
-  /** Local actions the Host may offer on objects; not MCP and not events. */
-  /** @deprecated Callable behavior is declared as `actions` and discovered from the common directory; no built-in plugin declares this. */
-  behaviors?: import("./plugin-behaviors.js").PluginBehaviorDeclaration[];
-  /** Places where a user can bind a function. Binding values are not in the Manifest. */
-  function_scenes?: import("./plugin-behaviors.js").PluginFunctionSceneDeclaration[];
-  /** Object kinds this Plugin can project into a judgment input. */
-  judgment_subjects?: import("./plugin-behaviors.js").PluginJudgmentSubjectDeclaration[];
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */
@@ -256,8 +239,8 @@ export interface PluginManifest {
 
 export interface PluginInstanceRecord {
   install_id: string;
-  /** Changes on confirmed reinstall, unlike the stable private-data namespace. Missing on legacy records. */
-  installation_generation?: string;
+  /** Changes on confirmed reinstall, unlike the stable private-data namespace. */
+  installation_generation: string;
   plugin_id: string;
   version: string;
   publisher_id: string;
@@ -266,8 +249,8 @@ export interface PluginInstanceRecord {
   deployment: PluginDeployment;
   selected_entrypoint: string;
   grants: string[];
-  /** Trusted host provenance, never read from a plugin Manifest. Missing means an existing native installation. */
-  execution?: "host" | "sandbox";
+  /** Trusted host provenance, never read from a plugin Manifest. */
+  execution: "host" | "sandbox";
   state: PluginLifecycleState;
   recovery_count: number;
   last_error_code: string | null;
@@ -335,10 +318,6 @@ export interface PluginAppContribution {
   views?: readonly UiContribution[];
   /** Handlers for the routes the Manifest declares. */
   routes?: readonly PluginRouteBinding[];
-  /** Handlers for the MCP tools the Manifest registers. */
-  mcp?: readonly PluginMcpHandlerBinding[];
-  /** Handlers for Manifest `behaviors`. Native plugins composed at build time may omit these. */
-  behaviors?: readonly { behavior_id: string; handle(input: Record<string, unknown>): unknown | Promise<unknown> }[];
   commandAvailability?(commandId: string): UiCommandAvailability;
   executeCommand?(
     commandId: string,
@@ -366,7 +345,7 @@ export interface PluginStartContext {
   deployment: PluginDeployment;
   grants: readonly string[];
   /** Project scope this activation belongs to. Absent for project-less reference runs. */
-  board_id?: string;
+  project_id?: string;
   /** Trusted local owner for HTTP entrypoint binding; never read from business arguments. */
   readonly actor_id?: string;
   /** Input group the Host validated at activation. Undefined means no selection; never the first group. */

@@ -15,7 +15,7 @@
 
 import { parseGmailScope, type GmailScope } from "./scope.js";
 
-/** Live cursor schema version. Bump only with an explicit migration story. */
+/** Live cursor schema version; a cursor of any other version is refused and its Source rebuilds the cursor. */
 export const GMAIL_LIVE_CURSOR_VERSION = 1 as const;
 
 /**
@@ -39,9 +39,6 @@ export const GMAIL_FIXTURE_CURSOR = {
   historyId: "fixture-complete",
   mode: "fixture",
 } as const;
-
-/** Legacy live placeholder previously written by the adapter — not a real history id. */
-export const GMAIL_LEGACY_LIVE_PLACEHOLDER_HISTORY_ID = "live" as const;
 
 const MAX_CURSOR_JSON_CHARS = 512;
 const MAX_HISTORY_ID_DIGITS = 20;
@@ -76,7 +73,6 @@ export type GmailFixtureCursor = typeof GMAIL_FIXTURE_CURSOR;
 
 export type GmailFullSyncReason =
   | "missing"
-  | "legacy_placeholder"
   | "fixture"
   | "stale_history"
   | "scope_changed";
@@ -306,10 +302,11 @@ export function buildGmailLiveCursor(input: {
 
 /**
  * Parse an unknown persisted connector cursor into a closed sync entry decision.
- * Never throws raw JSON; never treats legacy/fixture placeholders as live history ids.
+ * Never throws raw JSON; never treats a fixture cursor as a live history id.
  */
 export function decideGmailSyncFromCursor(raw: unknown): GmailSyncEntryDecision {
-  if (raw == null) {
+  // A new Source starts with no cursor (null or an empty object).
+  if (raw == null || (isPlainObject(raw) && Object.keys(raw).length === 0)) {
     return fullSync("missing");
   }
 
@@ -339,19 +336,6 @@ export function decideGmailSyncFromCursor(raw: unknown): GmailSyncEntryDecision 
 
   const historyId = raw.historyId;
   const mode = raw.mode;
-
-  // Legacy live placeholder written by earlier adapter revisions.
-  if (
-    historyId === GMAIL_LEGACY_LIVE_PLACEHOLDER_HISTORY_ID ||
-    historyId === GMAIL_FIXTURE_CURSOR.historyId
-  ) {
-    return fullSync("legacy_placeholder");
-  }
-
-  // Pre-version or non-live shapes: recover via bounded full sync, do not invent progress.
-  if (raw.v == null) {
-    return fullSync("legacy_placeholder");
-  }
 
   if (raw.v !== GMAIL_LIVE_CURSOR_VERSION) {
     return invalid(

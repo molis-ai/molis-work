@@ -8,13 +8,14 @@ import { join } from "node:path";
 import test from "node:test";
 import { readResearchLibrary } from "@molis-ai/molis-work-integration-github";
 import { generatePagesFromMaterials, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { createFeedContentHandlers, feedContentActions } from "@molis-ai/molis-work-plugin-feed";
+import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { hostCompleteText } from "../apps/local-host/src/host-complete-text.js";
 import { planInformationWork } from "../apps/local-host/src/information-planner.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/assistant-island.js";
 import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/src/scripts/client/navigation-inbox.js";
-import { functionFitsScene, sceneBehaviorIds } from "@molis-ai/molis-work-contracts/modules/functions";
 
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 function publishedPackage() {
@@ -62,25 +63,6 @@ test("a failed run cannot complete or fail a retry started in the same milliseco
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
 
-test("expired legacy generation migrates its snapshot and cannot be resurrected by the old worker", t => {
-  const home = mkdtempSync(join(tmpdir(), "molis-pages-legacy-running-"));
-  const store = openPagesStore(home);
-  let now = Date.parse("2026-09-25T00:00:00Z");
-  t.mock.method(Date, "now", () => now);
-  try {
-    const old = store.beginGeneration(request());
-    now += 180_001;
-    store.migrateProjectScope(old.project_id, "canonical-project");
-    const moved = store.generation("canonical-project", old.request_id)!;
-    assert.equal(moved.status, "failed"); assert.deepEqual(moved.inputs, old.inputs);
-    assert.throws(() => store.completeGeneration(old, { type: "doc" }), /另一次处理/);
-    store.failGeneration(old, "old worker stopped"); assert.equal(store.hasProjectData(old.project_id), false);
-    const resumed = store.beginGeneration(moved);
-    const document = store.completeGeneration(resumed, { type: "doc" });
-    assert.equal(document.project_id, "canonical-project"); assert.equal(store.list("canonical-project").length, 1);
-  } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
-});
-
 test("Pages retries saved input, rejects concurrent generation and preserves later user edits", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-loop-pages-"));
   const store = openPagesStore(home);
@@ -112,16 +94,16 @@ test("explicit auto admission separates positive, negative and review outcomes a
     suggested_behavior_ids: content.includes("admit-item") ? ["inbox.admit"] : ["feed.open"] }));
   try {
     const feed = createLocalFeedApplication(store.db, fixture.options);
-    fixture.attach(feed, DEMO_BOARD_ID);
-    const source = createLocalFeedSourceService(store.db, DEMO_BOARD_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
-    feed.createOutRule(DEMO_BOARD_ID, { name: "语义筛选", match: { source_id: source.source_id }, judgment: fixture.reference, admission: "inbox" });
+    fixture.attach(feed, DEMO_PROJECT_ID);
+    const source = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
+    feed.createOutRule(DEMO_PROJECT_ID, { name: "语义筛选", match: { source_id: source.source_id }, judgment: fixture.reference, admission: "inbox" });
     const ids = ["admit-item", "leave-item", "review-item"].map(id => feed.ingestItem({ source, externalId: id, title: id, summary: "", occurredAt: new Date().toISOString(), attention: false }).item.item_id);
     await feed.flushPendingJudgments();
-    const entries = feed.listInboxEntries(DEMO_BOARD_ID).filter(entry => ids.includes(entry.subject_id) && entry.reason === "source_rule");
+    const entries = feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => ids.includes(entry.subject_id) && entry.reason === "source_rule");
     assert.equal(entries.length, 2); assert.equal(entries.find(entry => entry.subject_id === ids[2])?.detail.needs_review, true);
-    await feed.evaluateItems(DEMO_BOARD_ID, ids);
-    assert.equal(feed.listInboxEntries(DEMO_BOARD_ID).filter(entry => ids.includes(entry.subject_id) && entry.reason === "source_rule").length, 2);
-    await assert.rejects(planInformationWork(feed.snapshot(DEMO_BOARD_ID), DEMO_BOARD_ID, { prompt: "整理" }, async () => JSON.stringify({ message: "ok", action: { kind: "draft_pages", entry_ids: ["other-project"], title: "t", instructions: "i" } })), /当前 Inbox/);
+    await feed.evaluateItems(DEMO_PROJECT_ID, ids);
+    assert.equal(feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => ids.includes(entry.subject_id) && entry.reason === "source_rule").length, 2);
+    await assert.rejects(planInformationWork(feed.snapshot(DEMO_PROJECT_ID), DEMO_PROJECT_ID, { prompt: "整理" }, async () => JSON.stringify({ message: "ok", action: { kind: "draft_pages", entry_ids: ["other-project"], title: "t", instructions: "i" } })), /当前 Inbox/);
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
 
@@ -133,11 +115,6 @@ test("Host uses configured model transport and never fabricates text on failure"
   assert.equal(hostCompleteText({ env: {} }), undefined);
   new Function("return " + ASSISTANT_ISLAND_FACTORY_SCRIPT);
   new Function(CLIENT_NAVIGATION_INBOX_SCRIPT);
-});
-
-test("legacy Inbox authoring still recognizes the supported next-step recommendations", () => {
-  assert.equal(functionFitsScene({ primitive: "choice", scene_id: "inbox.next", criteria: ["inbox.compose", "inbox.verify", "inbox.dismiss"].map(key => ({ key, description: key })) }, "inbox.next"), true);
-  assert.ok(sceneBehaviorIds("inbox.next").includes("inbox.compose"));
 });
 
 test("Multi-material document retains every source and a project-scoped return link", async () => {
@@ -163,15 +140,54 @@ test("an Inbox operation drains only its own queued event with its original call
   const received: { id: string; actor: string | undefined }[] = [];
   const feed = createLocalFeedApplication(store.db, { inboxJudgment: async (entry, caller) => { received.push({ id: entry.entry_id, actor: caller?.actor_id }); } });
   try {
-    const source = createLocalFeedSourceService(store.db, DEMO_BOARD_ID).register({ kind: "research_library", repository: "fixture/events", research_source: "queue" }).source;
+    const source = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).register({ kind: "research_library", repository: "fixture/events", research_source: "queue" }).source;
     const create = (id: string) => feed.ingestItem({ source, externalId: id, title: id, summary: "材料", occurredAt: new Date().toISOString(), attention: false }).item;
-    const background = feed.ensureInboxEntryForFeedItem(DEMO_BOARD_ID, create("background").item_id, "manual").entry;
-    const own = feed.ensureInboxEntryForFeedItem(DEMO_BOARD_ID, create("own").item_id, "manual").entry;
+    const background = feed.ensureInboxEntryForFeedItem(DEMO_PROJECT_ID, create("background").item_id, "manual").entry;
+    const own = feed.ensureInboxEntryForFeedItem(DEMO_PROJECT_ID, create("own").item_id, "manual").entry;
     await feed.flushPendingInboxJudgments({ actor_id: "workflow-user", project_id: "project", audience: "workflow", permissions: [] }, [own.entry_id]);
     assert.deepEqual(received, [{ id: own.entry_id, actor: "workflow-user" }]);
     await feed.flushPendingInboxJudgments();
     assert.deepEqual(received, [{ id: own.entry_id, actor: "workflow-user" }, { id: background.entry_id, actor: undefined }]);
     await feed.flushPendingInboxJudgments();
     assert.equal(received.length, 2, "each event is removed once and other producers' events are preserved");
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("a workflow receive into Feed judges what its own ingest queued, never another producer's pending judgments under its caller", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "feed-receive-owner-"));
+  const databasePath = join(directory, "project.db"); seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  const judged: string[] = [];
+  const note = (kind: string, id: string, caller?: ActionCallContext) => { judged.push(`${kind}:${id}:${caller?.actor_id ?? "background"}`); };
+  const feed = createLocalFeedApplication(store.db, {
+    captureJudgment: async (item, caller) => note("capture", item.item_id, caller),
+    homeJudgment: async (subject, caller) => note(`home-${subject.kind}`, subject.id, caller),
+    inboxJudgment: async (entry, caller) => note("inbox", entry.entry_id, caller),
+  });
+  try {
+    const source = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).register({ kind: "research_library", repository: "fixture/receive", research_source: "queue" }).source;
+    const create = (id: string) => feed.ingestItem({ source, externalId: id, title: id, summary: "材料", occurredAt: new Date().toISOString(), attention: false }).item;
+    // Another producer (a source sync) has queued a feed item and an Inbox entry; it flushes them itself, under its own authority.
+    const background = create("background");
+    const admitted = create("background-entry");
+    const backgroundEntry = feed.ensureInboxEntryForFeedItem(DEMO_PROJECT_ID, admitted.item_id, "manual").entry;
+    // A rule that admits what the workflow delivers, so the receive itself queues an Inbox entry too.
+    feed.createOutRule(DEMO_PROJECT_ID, { name: "工作流交来的", match: { contains: "工作流交来的内容" }, admission: "inbox" });
+
+    const receive = createFeedContentHandlers(feed, DEMO_PROJECT_ID, item => item).find(handler => handler.capability_id === feedContentActions.receive.capability_id)!;
+    const caller: ActionCallContext = { actor_id: "workflow-user", project_id: DEMO_PROJECT_ID, audience: "workflow", permissions: ["feed:write"] };
+    const received = await receive.handle(caller, { payload: { title: "工作流交来的内容", body: "正文" }, context: { instance_id: "queue-test", step: 1 } }) as { item_id: string };
+    const ownEntry = feed.listInboxEntries(DEMO_PROJECT_ID).find(entry => entry.subject_id === received.item_id)!;
+    assert.ok(ownEntry, "the delivery was admitted to the Inbox by the rule");
+
+    assert.deepEqual(judged.slice().sort(), [`capture:${received.item_id}:workflow-user`, `home-feed_item:${received.item_id}:workflow-user`,
+      `home-inbox_entry:${ownEntry.entry_id}:workflow-user`, `inbox:${ownEntry.entry_id}:workflow-user`].sort(),
+      "the receive judges its own item and the entry its ingest created, as its caller, and nothing another producer queued");
+
+    judged.length = 0;
+    await feed.flushPendingJudgments();
+    assert.deepEqual(judged.slice().sort(), [background, admitted].flatMap(item => [`capture:${item.item_id}:background`, `home-feed_item:${item.item_id}:background`])
+      .concat(`home-inbox_entry:${backgroundEntry.entry_id}:background`, `inbox:${backgroundEntry.entry_id}:background`).sort(),
+      "what the other producer queued is still there for it, under its own authority");
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });

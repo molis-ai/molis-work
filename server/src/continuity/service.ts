@@ -3,17 +3,17 @@ import { transaction, type ServerDatabase } from "../database.js";
 import { Identity, type Role, type Session } from "../identity.js";
 import { ServerEvents } from "../events.js";
 import { ContinuityActions } from "./actions.js";
-import type { ActionFactory, ArtifactVersionRecord, BoundActions, GoalContractView, GoalEventProgressResult, GoalEventStateView, GoalProjection, ProgressCommand, ProjectScope } from "./types.js";
+import type { ActionFactory, ArtifactVersionRecord, BoundActions, GoalEventProgressResult, GoalEventStateView, GoalProjection, ProgressCommand, ProjectScope } from "./types.js";
 
 function count(value: unknown): number {
   if (!Number.isSafeInteger(value) || Number(value) < 0) throw new ImError("continuity.invalid_version", "缺少有效的目标版本");
   return Number(value);
 }
 export function progressInput(value: Record<string, unknown>, projectId: string): ProgressCommand {
-  const allowed = ["command_id","project_id","goal_id","cursor","revision","summary","next_step","next_actor"];
+  const allowed = ["command_id","project_id","goal_id","cursor","summary","next_step","next_actor"];
   if (Object.keys(value).some(k => !allowed.includes(k)) || value.project_id !== projectId) throw new ImError("continuity.invalid_input", "操作不属于此项目或包含不支持的字段");
   const optional = (v: unknown, max: number) => v === "" || v === undefined ? "" : textInput(v, "后续说明", max);
-  return {command_id:clientId(value.command_id),project_id:projectId,goal_id:textInput(value.goal_id,"目标",128),cursor:count(value.cursor),revision:count(value.revision),
+  return {command_id:clientId(value.command_id),project_id:projectId,goal_id:textInput(value.goal_id,"目标",128),cursor:count(value.cursor),
     summary:textInput(value.summary,"进展",4000),next_step:optional(value.next_step,2000),next_actor:optional(value.next_actor,100)};
 }
 
@@ -58,11 +58,8 @@ export class ContinuityService {
     } finally { clearTimeout(timeout);this.active.delete(active); }
   }
   private async goal(bound: BoundActions, goalId: string): Promise<GoalProjection> {
-    const [state,contract] = await Promise.all([
-      this.actions.invoke<GoalEventStateView>(bound,"goals.state.read",{goal_id:goalId}),
-      this.actions.invoke<GoalContractView>(bound,"goals.contract.read",{goal_id:goalId}),
-    ]);
-    return {goal_id:goalId,title:state.intent.title,outcome:state.agreement.outcome,status:state.work_status,cursor:state.goal_event_cursor,revision:contract.goal.current_contract_revision,
+    const state = await this.actions.invoke<GoalEventStateView>(bound,"goals.state.read",{goal_id:goalId});
+    return {goal_id:goalId,title:state.intent.title,outcome:state.agreement.outcome,status:state.work_status,cursor:state.goal_event_cursor,
       can_record:state.can_record,summary:state.progress_summary?.summary ?? "",next_step:state.progress_summary?.next_step ?? "",next_actor:state.progress_summary?.next_actor ?? "",updated_at:state.progress_summary?.recorded_at ?? null};
   }
   private async artifacts(bound: BoundActions, scope: ProjectScope, team: boolean): Promise<ArtifactVersionRecord[]> {
@@ -126,7 +123,7 @@ export class ContinuityService {
         if (!result) {
           validate();
           result = await this.actions.invoke<GoalEventProgressResult>(bound,"goals.progress.record",{goal_id:input.goal_id,idempotency_key:input.command_id,
-            based_on_cursor:input.cursor,expected_goal_cursor:input.cursor,expected_contract_revision:input.revision,summary:input.summary,next_step:input.next_step,next_actor:input.next_actor});
+            based_on_cursor:input.cursor,expected_goal_cursor:input.cursor,summary:input.summary,next_step:input.next_step,next_actor:input.next_actor});
         }
         validate(); const receipt = {saved:true as const,event_id:result.event_id,replayed:replayed || result.replayed};
         transaction(this.db, () => {

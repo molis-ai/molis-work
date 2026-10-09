@@ -226,7 +226,7 @@ test("Inbox separates preparation, verification and uncertain judgment without c
   const render = (outcome: "ok" | "needs_review") => inboxUiContribution.render({ surface: "workbench", model: model({
     entries: [entry({ suggested_behavior_ids: outcome === "ok" ? ["inbox.verify"] : [], next_judgment: {
       judgment_id: "j1", function_key: "next", function_version: 1, outcome, suggested_behavior_ids: outcome === "ok" ? ["inbox.verify"] : [],
-      subject: { kind: "inbox_entry", id: "entry-open", board_id: "p" }, scene_id: "inbox.next", error_code: null, created_at: "2026-09-22T08:00:00Z",
+      subject: { kind: "inbox_entry", id: "entry-open", project_id: "p" }, scene_id: "inbox.next", error_code: null, created_at: "2026-09-22T08:00:00Z",
     } })],
   }) } as Parameters<typeof inboxUiContribution.render>[0]);
   const html = render("ok");

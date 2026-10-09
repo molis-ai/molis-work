@@ -8,7 +8,6 @@ import {
 import { FORM_UI_CONTRIBUTION_ID } from "./ui.js";
 import { formActions, FORM_ACTION_PERMISSIONS } from "./actions.js";
 import { formContentActions } from "./content-actions.js";
-import { FORM_MCP_EXPORTS } from "./mcp.js";
 
 export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID };
 
@@ -31,7 +30,7 @@ export const formManifest: PluginManifest = {
   artifacts: {
     produces: [{ artifact_type_id: FORM_ARTIFACT_TYPE_ID, schema_version: FORM_ARTIFACT_SCHEMA_VERSION, title: "问卷",
       preview: { capability_id: "form.artifacts.preview", version: 1 }, pin: { capability_id: "form.artifacts.pin", version: 1 },
-      compare: { capability_id: "form.artifacts.compare", version: 1 } }],
+      compare: { capability_id: "form.artifacts.compare", version: 1 }, continue: { capability_id: "form.artifacts.continue", version: 1 } }],
     consumes: [],
   },
   ui: {
@@ -40,5 +39,4 @@ export const formManifest: PluginManifest = {
       { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", order: 57 },
     ],
   },
-  mcp_exports: [...FORM_MCP_EXPORTS],
 };

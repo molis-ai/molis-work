@@ -29,7 +29,7 @@ function reply(tool?: { name: string; input: unknown }, text = "好的。"): Res
 test("a work hands an independent part to a work of its own, waits for it, reads back what it did; one level deep and bounded", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "board", storage_key: "memory:project" };
   const parentTools: string[][] = [], childTools: string[][] = [];
   let parentStep = 0;
   const parentScript = [
@@ -84,7 +84,7 @@ test("a work hands an independent part to a work of its own, waits for it, reads
 test("stopping a work also stops the sub-tasks it handed out that are still running, even after its own round ended", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-stop-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "board", storage_key: "memory:project" };
   let parentStep = 0;
   const parentScript = [
     () => reply({ name: "delegate-work", input: { title: "起草", brief: "起草一段话。", acceptance: "一段话" } }),
@@ -123,7 +123,7 @@ test("stopping a work also stops the sub-tasks it handed out that are still runn
 test("the person takes a sub-task back: it stops, the board says so, no more follow-ups go to it, and the delegating work finishes that part", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-takeback-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "board", storage_key: "memory:project" };
   let parentStep = 0, childId = "";
   const parentBodies: string[] = [];
   const parentScript = [
@@ -173,4 +173,86 @@ test("the person takes a sub-task back: it stops, the board says so, no more fol
     assert.match(last, /用户已把这个子任务收回到这项工作/, "the follow-up was refused");
     assert.equal((await service.read(childId)).work.follow_ups ?? 0, 0);
   } finally { releaseChild(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+/** A delegating work and a runtime whose model can be held or switched off; the parent's model script is the caller's. */
+async function delegationFixture(t: import("node:test").TestContext, parentScript: Array<() => Response>, child: (round: number, signal: AbortSignal | null | undefined) => Promise<Response>) {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-fixture-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "board", storage_key: "memory:project" };
+  let parentStep = 0, childRound = 0;
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    if (JSON.stringify(body.messages).includes("委托给你的子任务")) return child(childRound++, init.signal);
+    return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))();
+  });
+  const flags = { model: true };
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-fixture-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)), projectTitle: async () => "项目" }, "web-user");
+  return { service, store, project, flags, close: async () => { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+}
+
+test("a sub-task the person put away still counts for the work that handed it out: its tokens, its place among the limit, and the stop", { timeout: 60_000 }, async t => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const f = await delegationFixture(t, [() => reply({ name: "delegate-work", input: { title: "起草", brief: "起草一段话。", acceptance: "一段话" } }), () => reply(undefined, "已交给子任务。")],
+    async (round, signal) => {
+      // The first round answers at once; a later one (after a follow-up) takes its time and gives up when stopped.
+      if (round > 0) await Promise.race([held, new Promise((_resolve, reject) => signal?.addEventListener("abort", () => reject(signal.reason), { once: true }))]);
+      return reply(undefined, "草稿。");
+    });
+  try {
+    const sent = await f.service.send({ text: "分给子任务起草", request_id: "req-delegation-archived" }, { project_ref: f.project });
+    const parent = await until(async () => { const view = await f.service.read(sent.work.work_id); return view.work.state === "completed" && view.delegated?.[0]?.state === "completed" ? view : undefined; }, "child done");
+    const childId = parent.delegated![0]!.work_id;
+    const before = (await f.service.read(sent.work.work_id)).usage!;
+    assert.ok(before.tokens > 0 && before.rounds === 2, JSON.stringify(before));
+
+    await f.service.archive(childId, true);
+    assert.equal((await f.service.read(sent.work.work_id)).delegated, undefined, "the board no longer shows a sub-task put away");
+    assert.deepEqual((await f.service.read(sent.work.work_id)).usage, before, "its tokens and rounds still count toward the work's cap");
+
+    // Its place among the six also stays: three more handed out and three put away leave no room.
+    const made = [childId];
+    for (let index = 0; index < 5; index++) {
+      const extra = f.store.create({ actor_id: "web-user", title: `子任务 ${index}`, scope: { kind: "project", project_id: "board" }, origin: null, project_ref: f.project,
+        delegated_by: { work_id: sent.work.work_id, title: sent.work.title, acceptance: "完成" } });
+      made.push(extra.work_id);
+    }
+    for (const id of made.slice(1, 3)) await f.service.archive(id, true);
+    const delegation = f.service.delegation(f.store.get("web-user", sent.work.work_id))!;
+    await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof AssistantError && error.code === "assistant.limit");
+
+    // The parent's stop reaches a put-away sub-task that a follow-up has set going again.
+    await delegation.follow_up(childId, "再改改");
+    await until(async () => (await f.service.read(childId)).work.state === "running", "the sub-task runs again");
+    const stopped = await f.service.control(sent.work.work_id, { kind: "stop" });
+    assert.equal(stopped.work.state, "completed", "the parent's own finished round stays finished");
+    const child = await until(async () => { const view = await f.service.read(childId); return ["stopped", "failed"].includes(view.work.state) ? view : undefined; }, "the put-away sub-task stopped");
+    assert.equal(child.work.state, "stopped");
+  } finally { release(); await f.close(); }
+});
+
+test("a sub-task whose first round cannot start is not left behind: no idle orphan, and failed starts do not use up the slots", { timeout: 60_000 }, async t => {
+  const f = await delegationFixture(t, [], async () => reply(undefined, "草稿。"));
+  try {
+    const parent = f.store.create({ actor_id: "web-user", title: "总任务", scope: { kind: "project", project_id: "board" }, origin: null, project_ref: f.project });
+    const delegation = f.service.delegation(parent)!;
+    f.flags.model = false;
+    // Seven failed starts: each says why, none is told the six are used up.
+    for (let attempt = 0; attempt < 7; attempt++) {
+      await assert.rejects(delegation.start({ title: `子任务 ${attempt}`, brief: "做一点。", acceptance: "完成" }), (error: unknown) => !(error instanceof AssistantError && error.code === "assistant.limit") && /模型/.test(String((error as Error).message)));
+    }
+    assert.deepEqual(f.store.delegatedBy("web-user", parent.work_id), [], "no orphan is left on the board");
+    assert.deepEqual(f.store.list("web-user", { archived: true }).concat(f.store.list("web-user")).map(work => work.work_id), [parent.work_id], "nor anywhere else");
+    f.flags.model = true;
+    const started = await delegation.start({ title: "能开始的", brief: "做一点。", acceptance: "完成" });
+    assert.equal(f.store.delegatedBy("web-user", parent.work_id).length, 1);
+    assert.equal(started.title, "能开始的");
+  } finally { await f.close(); }
 });

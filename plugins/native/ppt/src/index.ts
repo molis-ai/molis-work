@@ -21,10 +21,10 @@ export type { PptRoutePorts } from "./route-handlers.js";
 export { promotePpt } from "./promote.js";
 export { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 export { pptContentActions, pptMarkdown, slidesFromMarkdown, createPptContentHandlers } from "./content-actions.js";
-export type { PptPublishArtifactPort, PptReadArtifactPort, PptPublicationSnapshot } from "./promote.js";
+export type { PptLineHeadPort, PptPublishArtifactPort, PptReadArtifactPort, PptPublicationSnapshot } from "./promote.js";
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, pptManifest } from "./manifest.js";
-export { PPT_MCP_EXPORTS, runPptMcpTool } from "./mcp.js";
-export { openPptStore, PptStore } from "./store.js";
+export { openPptStore, PptStore, PPT_STORE_BASELINE } from "./store.js";
+export { purgePptProject, pptProjectData } from "./project-data.js";
 export { PptError } from "./error.js";
 
 export { pptActions, PPT_ACTION_PERMISSIONS, createPptActionHandlers } from "./actions.js";

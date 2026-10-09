@@ -1,5 +1,4 @@
-import { ProjectRecoveryError } from '../project-migrations.js';
-import { parseProjectRecoveryDetails } from '../project-recovery-details.js';
+import { ProjectRecoveryError } from '../project-database.js';
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { MolisWorkLocalHost } from '../project-host.js';
@@ -44,14 +43,14 @@ export async function handleCasebookHttp(request:IncomingMessage,response:Server
         if(catalog.kind!=='catalog_index')return fail('source_unavailable',503);
         // Only catalog identity: never open a project runtime, read facts, or manufacture consent.
         const projects=catalog.projects.map(p=>({project_ref:p.project_id,project_name:p.display_name}));
-        sendLocalWebJson(response,200,{contract_id:'goalboard.casebook.projects',schema_version:'1.0.0',projects});return true;
+        sendLocalWebJson(response,200,{contract_id:'molis-work.casebook.projects',schema_version:'1.0.0',projects});return true;
       }
       const projects:{project_ref:string;project_name:string}[]=[];
       const ids=[...new Set(grants.map(g=>g.project_ref))];if(ids.length>100)return fail('invalid_request',400);
       for(const id of ids){const resolved=await resolve(`/projects/${encodeURIComponent(id)}/`);
         if(resolved.kind==='board'&&resolved.options.project?.project_id===id)projects.push({project_ref:id,project_name:resolved.options.project.display_name});
       }
-      sendLocalWebJson(response,200,{contract_id:'goalboard.casebook.projects',schema_version:'1.0.0',projects});return true;
+      sendLocalWebJson(response,200,{contract_id:'molis-work.casebook.projects',schema_version:'1.0.0',projects});return true;
     }catch{return fail('source_unavailable',503);}
   }
   let project:string;
@@ -65,16 +64,15 @@ export async function handleCasebookHttp(request:IncomingMessage,response:Server
       body.project_ref!==project||!await options.verifyUserAction?.(body as unknown as AuthorizationRequest)))return fail('not_authorized');
     if(match![2]==='diagnostics'){
       exact(body,['project_ref']);if(body.project_ref!==project)return fail('not_authorized');
-      const result:ConnectionDiagnostics={contract_id:'goalboard.casebook.connection-diagnostics',schema_version:'1.0.0',project_ref:project,observed_at:new Date().toISOString(),historical_record:false,project_state:host.status().projects.some(p=>p.project_id===project&&p.state==='ready')?'ready':'not_open',runtime:receiptRuntime(),available_methods:['authorization','set-authorization','facts','goal-contexts','operation-receipts','diagnostics'],missing:['prior_connection_failures','client_transport_before_http','mcp_context_resolve_and_bootstrap','project_storage_compatibility_not_probed']};
+      const result:ConnectionDiagnostics={contract_id:'molis-work.casebook.connection-diagnostics',schema_version:'1.0.0',project_ref:project,observed_at:new Date().toISOString(),historical_record:false,project_state:host.status().projects.some(p=>p.project_id===project&&p.state==='ready')?'ready':'not_open',runtime:receiptRuntime(),available_methods:['authorization','set-authorization','facts','goal-contexts','operation-receipts','diagnostics'],missing:['prior_connection_failures','client_transport_before_http','mcp_context_resolve_and_bootstrap','project_storage_compatibility_not_probed']};
       sendLocalWebJson(response,200,result);return true;
     }
     const resolved=await resolve(`/projects/${encodeURIComponent(project)}/`);
     if(resolved.kind!=='board') return fail('not_authorized');
-    const ref=molisWorkHostProjectReference({databasePath:resolved.options.databasePath,boardId:resolved.options.boardId,
-      projectId:resolved.options.project?.project_id ?? resolved.options.boardId});
+    const ref=molisWorkHostProjectReference({databasePath:resolved.options.databasePath,projectId:resolved.options.projectId});
     if(ref.project_id!==project) return fail('not_authorized');
     // The existing owner may recover only explicitly configured projects; no initialization/migration.
-    if(!host.status().projects.some(p=>p.project_id===ref.project_id && p.board_id===ref.board_id && p.storage_key===ref.storage_key && p.state==='ready')) {
+    if(!host.status().projects.some(p=>p.project_id===ref.project_id && p.storage_key===ref.storage_key && p.state==='ready')) {
       if (!connection&&!options.restoreProjects?.includes(project)) return fail('source_unavailable',503);
       await host.restoreExistingProject(ref);
     }
@@ -84,8 +82,7 @@ export async function handleCasebookHttp(request:IncomingMessage,response:Server
     sendLocalWebJson(response,200,result);return true;
   } catch(error) {
     if(error instanceof ProjectRecoveryError) {
-      const details=error.code==='project_recovery_requires_migration'?parseProjectRecoveryDetails(error.details):undefined;
-      sendLocalWebJson(response,503,{code:error.code,...(details?{details}:{})});return true;
+      sendLocalWebJson(response,503,{code:error.code});return true;
     }
     return fail(error instanceof CasebookError?error.code:'source_unavailable',error instanceof CasebookError?400:503);
   }

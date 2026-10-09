@@ -383,7 +383,7 @@ export interface AgentStepOwner {
 }
 
 export interface AgentStepBoard {
-  board_id: string;
+  project_id: string;
   version: number;
   terminal: boolean;
   /** In execution order: dependencies first, the original plan order breaking ties. */
@@ -422,7 +422,7 @@ export type AgentStepAmendment =
  */
 export interface AgentFrozenCharacter extends CharacterContent {
   reference: ArtifactReference;
-  board_id: string;
+  project_id: string;
   content_digest: string;
   producer: ArtifactProducerIdentity;
   published_at: string;
@@ -478,7 +478,7 @@ interface AgentFrozenStartFields {
 export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace;
 
 interface AgentCreateSessionFields {
-  board_id: string;
+  project_id: string;
   plugin_id: string;
   install_id: string;
   actor_id: string;
@@ -556,17 +556,17 @@ export interface AgentDelegation {
 }
 
 /**
- * A round's own memory tools: remember what the person explicitly asked to keep, list and forget. Absent when forming
- * memories is switched off everywhere the work could keep something. Never used to infer preferences from behaviour.
+ * A round's own memory tools (absent when forming memories is off everywhere the work could keep something). `remember` and `forget` rest on the person's own words and wishes, so a delegated work, whose only words are the delegating work's brief, gets neither.
  */
 export interface AgentMemoryTools {
   /**
    * Kept through the platform's write gate (specs/archive/memory-system §6.2); it throws with the reason when nothing was kept
-   * (switched off, secret-shaped, held for the person). `note` says it was already kept.
+   * (switched off, secret-shaped, held for the person). It is recorded as the person's own words (“you said”) only when `text` is the whole of one message they typed in this work, as the Host saved it, apart from case, width, spacing, quotation-mark style and one sentence mark at the very end (nothing else: a superscript, a ligature or an invisible character is not a space or the plain form). A paraphrase, a part of a message, words of two messages joined, a project's name put in: not theirs. It is left as the Assistant's suggestion for them to accept, and this throws. The judgement is against the saved message, never against `said`, which is only a pointer, and what is kept is the saved message as they wrote it, not the text given here. `note` says it was already kept.
    */
-  remember(input: { text: string; scope: "personal" | "project" | "character"; said: string; kind?: "preference" | "convention" | "fact" | "experience"; replaces?: string }): Promise<{ memory_id: string; scope: "personal" | "project" | "character"; applies: string; note?: string }>;
+  remember?(input: { text: string; scope: "personal" | "project" | "character"; said: string; kind?: "preference" | "convention" | "fact" | "experience"; replaces?: string }): Promise<{ memory_id: string; scope: "personal" | "project" | "character"; applies: string; note?: string }>;
   list(): Promise<Array<{ memory_id: string; scope: "personal" | "project" | "character"; text: string; origin: string }>>;
-  forget(memoryId: string): Promise<{ forgotten: boolean }>;
+  /** Switches one off (not a delete: the person can switch it on again or delete it in settings), as the Assistant's change. */
+  forget?(memoryId: string): Promise<{ forgotten: boolean; note?: string }>;
   /** Suggest keeping something the person did not ask for: a candidate only, until they accept it. Absent: this round may not suggest. */
   propose?(input: { text: string; scope: "personal" | "project"; why: string; applies: string }): Promise<{ candidate_id: string; note: string }>;
 }
@@ -650,7 +650,7 @@ interface AgentStartRequestFields {
   /** Only a reference is accepted from the caller; the Host resolves its immutable content. */
   character?: ArtifactReference | null;
   session: AgentSessionRef;
-  board_id: string;
+  project_id: string;
   plugin_id: string;
   install_id: string;
   actor_id: string;
@@ -746,7 +746,7 @@ export interface AgentRunUsage {
   compaction?: { recorded_calls: number; incomplete: boolean };
   tokens: AgentTokenCount;
   cost_usd?: number;
-  /** Per-field provenance; absent on legacy runtimes. Unknown numeric placeholders must not be displayed. */
+  /** Per-field provenance; absent when the runtime reports none. Unknown numeric placeholders must not be displayed. */
   coverage?: Record<"input" | "output" | "cached_input" | "cache_creation" | "cost_usd", AgentUsageCoverage>;
   /** Missing, interrupted or estimated scope; known subtotals remain readable with this warning. */
   unavailable_reason?: string;
@@ -759,8 +759,8 @@ export interface AgentRunUsage {
 
 export interface AgentCommandOutputRef {
   call_id: string;
-  /** Required for unambiguous product links; legacy callers may omit it. */
-  run_id?: string;
+  /** The run that produced it: a call id is only unique within its run. */
+  run_id: string;
 }
 
 export interface AgentCommandOutput {
@@ -844,7 +844,7 @@ export interface AgentSessionView {
   checkpoint_busy?: boolean;
   /** Persisted work exists but is not safe to continue automatically. */
   recovery?: { required: true; reason: string };
-  owner: Pick<AgentCreateSessionInput, "board_id" | "plugin_id" | "install_id"> & { actor_id?: string };
+  owner: Pick<AgentCreateSessionInput, "project_id" | "plugin_id" | "install_id" | "actor_id">;
   session: AgentSessionRef;
   title: string;
   runs: AgentRunRef[];
@@ -943,7 +943,7 @@ export interface AgentReviewRequest {
   run: AgentRunRef | null;
   operation?: { operation_id: string; session_id: string; kind: "checkpoint-rewind"; workspace_id?: never }
     | { operation_id: string; workspace_id: string; kind: "git-index" | "git-worktree" | "git-integration" | "git-operation"; session_id?: never };
-  board_id: string;
+  project_id: string;
   plugin_id: string;
   kind: AgentReviewKind;
   document: AgentReviewDocument;
@@ -1011,7 +1011,7 @@ export interface AgentReviewRecoveryInput {
  * Host records a decision, and only a recorded approval releases an effect.
  */
 export interface AgentReviewQueueApi {
-  list(boardId: string, status?: AgentReviewStatus): AgentReviewRequest[];
+  list(projectId: string, status?: AgentReviewStatus): AgentReviewRequest[];
   get(reviewId: string): AgentReviewRequest | null;
   decide(input: AgentReviewDecisionInput): AgentReviewReceipt;
   receipt(reviewId: string): AgentReviewReceipt | null;
@@ -1041,7 +1041,7 @@ export interface AgentSkillCatalogEntry extends AgentSkillDeclaration {
   enabled: boolean;
 }
 
-export interface AgentSkillOwner { board_id: string; plugin_id: string }
+export interface AgentSkillOwner { project_id: string; plugin_id: string }
 export interface AgentSkillCandidate {
   candidate_id: string;
   name: string;
@@ -1444,10 +1444,8 @@ export interface AgentHostApi {
 /** What to draft: the purpose in a few words, how to write it, and the material it is drawn from. */
 export interface AgentDraftTextRequest {
   purpose: string;
-  /** Registered instruction owned by the trusted calling Plugin. Use this for new calls. */
-  prompt?: string;
-  /** Legacy inline instruction; cannot be combined with prompt. */
-  instructions?: string;
+  /** Registered instruction owned by the trusted calling Plugin. */
+  prompt: string;
   material: string;
   model_selection?: { provider_id: string; model_id: string };
 }
@@ -1663,7 +1661,7 @@ export const agentHostCapabilities = {
     version: 1,
     operation: "query",
   } as HostCapabilityDefinition<
-    [boardId: string, status?: AgentReviewStatus],
+    [projectId: string, status?: AgentReviewStatus],
     AgentReviewRequest[]
   >,
 } as const;

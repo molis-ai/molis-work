@@ -123,43 +123,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
 `;
 
 export const SETTINGS_CLIENT_SCRIPT = MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + PROMPT_SETTINGS_CLIENT_SCRIPT + ASSISTANT_SETTINGS_CLIENT_SCRIPT + MEMORY_SETTINGS_CLIENT_SCRIPT + AGENT_DIAGNOSTICS_CLIENT_SCRIPT + `
-` + SHELF_SETTINGS_CLIENT_SCRIPT + CODING_SETTINGS_CLIENT_SCRIPT + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + MCP_ACCESS_CLIENT_SCRIPT + `
-  (() => {
-    const root = document.querySelector("[data-mcp-settings]");
-    if (!root) return;
-    const errorBox = root.querySelector("[data-mcp-settings-error]");
-    const setError = (message) => {
-      if (!errorBox) return;
-      errorBox.textContent = message || "";
-      errorBox.hidden = !message;
-    };
-    root.querySelectorAll("[data-mcp-tool]").forEach((input) => {
-      input.addEventListener("change", async () => {
-        setError("");
-        input.disabled = true;
-        try {
-          const response = await fetch("/api/settings/mcp", {
-            method: "POST",
-            headers: globalThis.molisWorkControlHeaders(),
-            body: JSON.stringify({ name: input.getAttribute("data-mcp-tool"), enabled: input.checked }),
-          });
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            input.checked = !input.checked;
-            setError(payload.error || L("无法保存 MCP 开关"));
-            return;
-          }
-          if (typeof payload.enabled === "boolean") input.checked = payload.enabled;
-        } catch {
-          input.checked = !input.checked;
-          setError(L("无法保存 MCP 开关"));
-        } finally {
-          input.disabled = false;
-        }
-      });
-    });
-  })();
-`;
+` + SHELF_SETTINGS_CLIENT_SCRIPT + CODING_SETTINGS_CLIENT_SCRIPT + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + MCP_ACCESS_CLIENT_SCRIPT;
 
 
 export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
@@ -191,7 +155,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
     let saving = false;
     let focusTimer;
     const labels = {
-      add: { title: L("新增项目说明"), description: L("保存后会立即成为所有 Goal 共享的长期上下文。"), submit: L("保存说明") },
+      add: { title: L("新增项目说明"), description: L("保存后会立即成为这个项目所有工作（助理、插件 Agent 与 Runtime）共享的长期上下文。"), submit: L("保存说明") },
       edit: { title: L("修改项目说明"), description: L("原版本会保留在下方的版本记录中。"), submit: L("保存新版本") },
       deactivate: { title: L("停用项目说明"), description: L("停用后 Runtime 不再收到这条说明，历史版本仍会保留。"), submit: L("确认停用") },
       restore: { title: L("恢复项目说明"), description: L("恢复后这条说明会重新进入 Runtime Prompt。"), submit: L("确认恢复") },
@@ -351,7 +315,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       if (mode === "edit") return L("项目说明的新版本已生效。");
       if (mode === "deactivate") return L("项目说明已停用，Runtime 将不再收到它。");
       if (mode === "restore") return L("项目说明已恢复，并重新进入 Runtime Prompt。");
-      return L("项目说明已新增，并会用于后续 Goal。");
+      return L("项目说明已新增，这个项目之后的工作都会用到。");
     }
     };
     globalThis.molisWorkBindProjectGuidance = bind;

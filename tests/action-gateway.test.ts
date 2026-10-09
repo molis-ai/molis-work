@@ -25,7 +25,7 @@ const save: ActionDefinition<{ text: string }, { saved: number }> = { capability
 test("official MCP process uses the shared Host registry and durable writes with fresh grants, exact Home, project and instance", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "action-gateway-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Gateway", actor_id: "user" }));
-  const reference = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const caller: ActionCallContext = { actor_id: "runtime:gateway", project_id: project.project_id, audience: "mcp", permissions: [] };
   let enter: (() => void) | undefined, release: (() => void) | undefined, barrier: Promise<void> | undefined;
@@ -91,7 +91,7 @@ test("official MCP process uses the shared Host registry and durable writes with
     assert.equal((await rows()).length, 1);
     // Calls still go through the gateway URL; in one process the server shares the resident Host (one Runtime owner per Home).
     const formal = new LocalMcpServer(withCatalog, "runtime", { projectId: project.project_id,
-      databasePath: project.database_path, boardId: project.board_id, webBaseUrl: origin }, {
+      databasePath: project.database_path, webBaseUrl: origin }, {
       homeDirectory: home, webBaseUrl: origin, runtimeContext: { runtime_id: "gateway", stable_work_context_id: null, host_declares_stable: false },
     }, host, origin);
     const scopeEntered = new Promise<void>(resolve => { enter = resolve; });

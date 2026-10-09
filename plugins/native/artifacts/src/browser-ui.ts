@@ -1,7 +1,10 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon } from "@molis-ai/molis-work-design-system";
-import { artifactVersionPath, PAGES_READABLE_FILE, type ArtifactBrowserView } from "./browser.js";
+import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
 import { renderArtifactImportDialog, type ArtifactImportUiModel } from "./import-ui.js";
+import { renderArtifactPortInputs } from "./port-input-ui.js";
+import type { ArtifactPluginInput } from "./actions.js";
 
 /** A type's display name as its owner declares it (artifact-positioning A4); an undeclared type shows its last segment. */
 function artifactTypeLabel(typeId: string, titles: ArtifactBrowserUiModel["typeTitles"], p: ArtifactBrowserUiModel["primitives"]): string {
@@ -20,8 +23,14 @@ export interface ArtifactBrowserUiModel {
   /** Display names the owners declare for their 成果 types (A4). */
   readonly typeTitles?: Readonly<Record<string, string>>;
   readonly relationship?: "input" | "output";
+  /** The plugins that can start new work from the selected version (A4b, 「从这一版继续」), as the host found them declared. */
+  readonly continuers?: ReadonlyArray<{ plugin_id: string; plugin_title: string }>;
   /** Who refers to the selected version (A4b, 「被谁引用」), read by the host through `artifacts.links`. */
-  readonly links?: { readonly goals: ReadonlyArray<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" }>; readonly other: number };
+  readonly links?: { readonly goals: ReadonlyArray<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" | "proposed_input" }>; readonly other: number;
+    /** Objects of other plugins that link to the version (a Pages document), each opening in its plugin (五.1). */
+    readonly referrers?: ReadonlyArray<{ title: string; open: { surface: string; id: string }; plugin_title: string }> };
+  /** Plugin input ports that take the selected version's type, and what they read now (artifact-positioning, 2026-10-04). */
+  readonly pluginInputs?: ReadonlyArray<ArtifactPluginInput>;
   /** The import dialog's connected services; the directory offers the 成果库's one import entry when present (A3). */
   readonly importForm?: Pick<ArtifactImportUiModel, "connections" | "connectionStatus">;
   readonly primitives: {
@@ -89,9 +98,7 @@ function documentPreview(artifact: NonNullable<ArtifactBrowserView["selected"]>,
   const original = payload.original_file && typeof payload.original_file === "object" && !Array.isArray(payload.original_file) ? payload.original_file : null;
   const mime = typeof original?.mime === "string" ? original.mime : "";
   const image = /^image\/(?:png|jpeg|gif|webp|avif)$/u.test(mime) ? `<img class="artifact-document-image" src="${p.escape(file)}" alt="${p.escape(artifact.title)}">` : "";
-  const pagesReadable = payload.format !== "file" || (typeof original?.filename === "string" && PAGES_READABLE_FILE.test(original.filename));
-  const actions = `<p class="artifact-document-actions"><a class="mw-btn" href="${p.escape(file)}" download>${p.text(original ? "下载原文件" : "下载正文")}</a>${pagesReadable
-    ? `<button class="mw-btn" type="button" data-artifact-continue="pages" data-artifact-reference="${p.escape(JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version }))}">${p.text("在 Pages 继续")}</button>` : ""}</p>`;
+  const actions = `<p class="artifact-document-actions"><a class="mw-btn" href="${p.escape(file)}" download>${p.text(original ? "下载原文件" : "下载正文")}</a></p>`;
   let sourceLink = "";
   if (typeof payload.source_url === "string" && payload.source_url) {
     try {
@@ -117,7 +124,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     <p>${p.text("关联的版本不可用或不存在。引用仍然保留，不会替换成最新版本。")}</p></article>`;
   if (!artifact) return `<section class="artifact-empty"${view.requested ? ' role="status"' : ""}>
     <h1>${p.text(view.requested ? "找不到这个成果版本" : view.versions.length ? "选择一个结果版本" : "还没有项目成果")}</h1>
-    ${!view.requested && !view.versions.length ? `<p>${p.text("项目成果与导入的文档会保存在这里。可以先导入文档，或推进 Goal 后提交成果。")}</p>` : ""}
+    ${!view.requested && !view.versions.length ? `<p>${p.text("在 Pages、问卷、演示稿、数据表里「存为固定版本」，或在这里导入文件，固定下来的版本都在这里。")}</p>` : ""}
     ${view.requested ? `<p>${p.text("它可能属于其他项目，或这个版本尚未发布。请返回列表选择；不会自动替换成最新版本。")}</p><a href="${p.escape(routePrefix + "/artifacts")}">${p.text("返回成果列表")}</a>` : ""}</section>`;
   const href = routePrefix + artifactVersionPath(artifact);
   const title = artifact.title;
@@ -132,7 +139,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
           ? artifact.content_kind === "inline"
             ? "没有兼容插件。当前可查看版本信息和原始 JSON，或导出本地副本。"
             : "没有兼容插件。当前可查看版本信息和内容引用，或导出本地副本。"
-          : "已有兼容的类型声明；具体操作由消费插件提供。";
+          : "这是固定下来的一版；原对象之后的修改不会改变它。";
   const reference = JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version });
   const versionLabel = `v${artifact.version}${model.relationship ? ` · ${p.text(model.relationship === "input" ? "输入" : "交付物")}` : ""}`;
   const heading = embedded
@@ -140,11 +147,14 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     : `<header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-artifact-collapse aria-label="${p.text("返回成果列表")}" title="${p.text("返回成果列表")}">${icon("chevron-right")}</button><h1>${p.escape(title)}</h1><span>${versionLabel}</span></header>`;
   return `<article class="artifact-detail${embedded ? " artifact-embed" : ""}" data-artifact-id="${p.escape(artifact.artifact_id)}" data-artifact-version="${artifact.version}">
     ${heading}
-    ${embedded ? "" : `<div class="artifact-detail-content">`}<p class="artifact-notice">${p.text(embedded && !preview && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice)}</p>
+    ${embedded ? "" : `<div class="artifact-detail-content">`}<p class="artifact-notice">${p.text(embedded && !preview && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice).replace("{version}", String(artifact.version))}</p>
     ${artifact.unavailable_reason ? `<p>${p.escape(artifact.unavailable_reason)}</p>` : ""}
     ${!embedded && model.presentation ? `${model.presentation.source_href ? `<p><a class="mw-btn" href="${p.escape(model.presentation.source_href)}" data-workbench-item-plugin="${p.escape(model.presentation.plugin_id)}" data-workbench-item-id="${p.escape(model.presentation.item_id)}" data-workbench-item-title="${p.escape(title)}">${p.text(model.presentation.source_label)}</a></p>` : ""}<section class="artifact-business-preview mw-prose" data-artifact-business-preview>${model.presentation.body_html}</section>` : ""}
+    ${!embedded && model.continuers?.length ? continueActions(model.continuers, artifact, p) : ""}
+    ${!embedded ? handoffActions(artifact, p) : ""}
     ${preview}
     ${!embedded && model.links ? linksSection(model.links, routePrefix, p, artifact) : ""}
+    ${!embedded && model.pluginInputs?.length ? renderArtifactPortInputs(model.pluginInputs, { artifact_id: artifact.artifact_id, version: artifact.version }, p) : ""}
     <dl class="artifact-facts">
       <div><dt>${p.text("结果类型")}</dt><dd>${p.escape(artifactTypeLabel(artifact.artifact_type_id, model.typeTitles, p))} · ${p.escape(artifact.artifact_type_id)} · Schema ${artifact.schema_version}</dd></div>
       <div><dt>${p.text("来源插件")}</dt><dd>${p.escape(artifact.producer_plugin_id)} · ${p.escape(artifact.producer_plugin_version)}</dd></div>
@@ -160,16 +170,38 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
   </article>`;
 }
 
-const LINK_ROLES = { input: "输入", deliverable: "交付物", proposed: "提议的交付物" } as const;
-/** 「被谁引用」: the Goals that use this version, each opening in the workbench, and how many other links there are. */
+/** 「从这一版继续」: one button per plugin that declares it can continue from this type. */
+function continueActions(continuers: NonNullable<ArtifactBrowserUiModel["continuers"]>, artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"]): string {
+  const reference = p.escape(JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version }));
+  return `<p class="artifact-continue-actions">${continuers.map(item => `<button class="mw-btn" type="button" data-artifact-continue="${p.escape(item.plugin_id)}" data-artifact-reference="${reference}">${p.text(`在 ${item.plugin_title} 继续`)}</button>`).join("")}</p>`;
+}
+
+/**
+ * 「交给助理 / Coding」 (artifact-positioning 五.1): the version goes to a new work as material, with what the detail shows of
+ * it. Coding is offered only where the project has it; the 成果 client finds out and shows the button.
+ */
+function handoffActions(artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"]): string {
+  if (artifact.availability !== "available" || artifact.lifecycle_state === "archived") return "";
+  const data = `data-artifact-subject="${p.escape(artifactSubjectId(artifact))}" data-artifact-title="${p.escape(artifact.title)}" data-artifact-version="${artifact.version}"`;
+  return `<p class="artifact-continue-actions" data-artifact-handoff ${data}><button class="mw-btn" type="button" data-artifact-hand="assistant">${p.text("交给助理")}</button><button class="mw-btn" type="button" data-artifact-hand="coding" hidden>${p.text("交给 Coding")}</button></p>`;
+}
+
+const LINK_ROLES = { input: "输入", deliverable: "交付物", proposed: "提议的交付物", proposed_input: "提议的输入" } as const;
+/** 「被谁引用」: the Goals that use this version, each opening in the workbench, the Assistant's works, and how many other links there are. */
 function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, routePrefix: string, p: ArtifactBrowserUiModel["primitives"], artifact: NonNullable<ArtifactBrowserView["selected"]>): string {
   const goals = links.goals.map(link => `<li><a href="${p.escape(`${routePrefix}/goals/${encodeURIComponent(link.goal_id)}`)}">${p.escape(link.title)}</a><span>${p.text(LINK_ROLES[link.role])}</span></li>`).join("");
+  const referrers = (links.referrers ?? []).map(row => `<li><a href="#" data-workbench-item-plugin="${p.escape(row.open.surface)}" data-workbench-item-id="${p.escape(row.open.id)}" data-workbench-item-title="${p.escape(row.title)}">${p.escape(row.title)}</a><span>${p.escape(row.plugin_title)} · ${p.text("链接了这一版")}</span></li>`).join("");
   const other = links.other ? `<p class="artifact-links-other">${p.text("另有其他引用")} · ${links.other}</p>` : "";
   // 「作为 Goal 的输入」 (A4b): only a version people can still use is offered.
   const usable = artifact.availability === "available" && artifact.lifecycle_state !== "archived";
   const reference = p.escape(JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version }));
   const asInput = usable ? `<details class="artifact-goal-input" data-artifact-goal-input><summary>${p.text("作为 Goal 的输入")}</summary><form data-artifact-goal-input-form data-artifact-reference="${reference}"><select class="mw-select" name="goal" required aria-label="${p.text("选择目标")}"><option value="">${p.text("正在读取目标…")}</option></select><button class="mw-btn" type="submit">${p.text("记为输入")}</button><span data-artifact-goal-input-status role="status"></span></form></details>` : "";
-  return `<section class="artifact-links" data-artifact-links><h2>${p.text("被谁引用")}</h2>${goals ? `<ul>${goals}</ul>` : `<p>${p.text("还没有目标引用这一版。")}</p>`}${other}${asInput}</section>`;
+  // Assistant works that started from this version, took it as material or produced it: the Assistant keeps these in its
+  // own store, so the 成果 client reads them once the detail shows. A version is named by its subject or, from a tab, its path
+  // (with the project's prefix when the tab came from a direct link).
+  const subjects = p.escape(JSON.stringify([...new Set([artifactSubjectId(artifact), artifactVersionPath(artifact), routePrefix + artifactVersionPath(artifact)])]));
+  const works = `<div class="artifact-links-works" data-artifact-works="${subjects}" hidden><h3>${p.text("助理工作")}</h3><ul></ul></div>`;
+  return `<section class="artifact-links" data-artifact-links><h2>${p.text("被谁引用")}</h2>${goals ? `<ul>${goals}</ul>` : `<p>${p.text("还没有目标引用这一版。")}</p>`}${referrers ? `<h3 class="artifact-links-heading">${p.text("文档")}</h3><ul data-artifact-referrers>${referrers}</ul>` : ""}${works}${other}${asInput}</section>`;
 }
 
 export function renderArtifactFrameBlock({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel): string {

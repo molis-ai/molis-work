@@ -34,15 +34,15 @@ node apps/server/dist/main.js members --state /absolute/server-state
 node apps/server/dist/main.js authorize --state /absolute/server-state --member MEMBER_ID --project PROJECT_ID --control-token-file /absolute/molis-home/config/web-control-token --host-url http://127.0.0.1:4173
 ```
 
-该命令调用原 `/api/settings/mcp/actions`，不另存授权目录。每位成员的 client 是 `runtime:cross-device:<member-id>`。只读成员获得四个读取动作，协作成员加 `goals.progress.record`；精确 provider 和版本固定在 `CONTINUITY_ACTIONS`。每条更新单独回执，错误会报告已应用条数，可修复后重跑。
+该命令调用原 `/api/settings/mcp/actions`，不另存授权目录。每位成员的 client 是 `runtime:cross-device:<member-id>`。只读成员获得三个读取动作，协作成员加 `goals.progress.record`；精确 provider 和版本固定在 `CONTINUITY_ACTIONS`。每条更新单独回执，错误会报告已应用条数，可修复后重跑。
 
 网页中撤回项目访问立即阻断接续入口、取消等待请求并关闭事件流。本机管理员还可清除同成员原 Host grants：在上述 authorize 命令追加 `--revoke`。不能把控制令牌发送到手机，或把本机 Host 暴露到公网。
 
 ## 接续与冲突
 
-桌面仍是 Goal/Artifact 真相源。页面逐字段投影显式选中的目标，不返回完整合约、私人历史或 Home。手机仅可记录进展、下一步和下一位接手人，不会提交用户决定、启动 Agent 或自动完成 Goal。
+桌面本机仍是事实来源：Goal 事实由 Goals 保存（`modules/goals` 持有，Goals 插件提供动作），页面只是投影。页面逐字段投影显式选中的目标，不返回完整合约、私人历史或 Home。手机仅可记录进展、下一步和下一位接手人，不会提交用户决定、启动 Agent 或自动完成 Goal。
 
-命令先保存原输入和稳定 command id，再调用原 Goal 进展动作。收到成功才显示已保存。结果未知时先查询原 actor 的进展回执；没有回执时才按原键、原内容、原 cursor/contract revision 重试。Goal 原业务事务负责最终幂等。版本冲突保留草稿，用户查看最新状态后用新命令提交。该保证只适用于这项有业务回执的动作，不适用于任意 Action。
+命令先保存原输入和稳定 command id，再调用原 Goal 进展动作。收到成功才显示已保存。结果未知时先查询原 actor 的进展回执；没有回执时才按原键、原内容、原 cursor 重试。Goal 原业务事务负责最终幂等。版本冲突保留草稿，用户查看最新状态后用新命令提交。该保证只适用于这项有业务回执的动作，不适用于任意 Action。
 
 浏览器 localStorage 仅保存当前成员待发送进展，成功后删除。退出、会话失效或撤权事件会清除页面、代码和待发送内容。已授权下载的资产无法远程收回。首次打开仍需要联网，未提供离线安装的 PWA。
 
@@ -86,10 +86,10 @@ QA 工具只创建显式隔离目录和实际业务对象；`lose-next-response`
 
 ## 开发要求
 
-- 负责：共享的身份、设备、项目访问、HTTP/SSE 与接续回执。
+- 负责：共享的身份、设备、项目访问、HTTP/SSE 与接续回执，以及群聊（IM）领域（`src/im`）。它是在用、还会迭代的业务功能，按 Module 规则检查，不算平台包（2026-10-08 决定第 4 项）。
 - 不负责：Goal 或 Artifact 事实、模型执行、独立的 App 启动器。
 - 公开入口：`@molis-ai/molis-work-server`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：Module 只依赖合同与平台包，不依赖 Horizontal Service、App 或 Plugin（[包边界规则](../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
 - 不变量：
   - 项目访问在每次读取、操作前和返回前重查；已经发生的事实不会因撤权被伪装成未发生。
   - 控制令牌不发到手机，也不把本机 Host 暴露到公网；令牌文件权限 0600，不写日志。

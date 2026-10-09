@@ -54,7 +54,6 @@ export const goalEventSystemOperations = [
   "event_owner_continued",
   "observation_note",
   "intent_created",
-  "legacy_completion_imported",
 ] as const;
 export type GoalEventSystemOperation = (typeof goalEventSystemOperations)[number];
 
@@ -65,7 +64,7 @@ export interface GoalEventStateOwnerView {
   kind: "event_work";
   adopted_at: string;
   adopted_by: string;
-  source: "intent" | "configuration" | "continue" | "migration";
+  source: "intent" | "configuration" | "continue";
 }
 
 export interface GoalEventScope {
@@ -225,7 +224,7 @@ export interface GoalEventTrustedAuthority {
 
 export interface GoalEventTrustedDecisionRecord {
   decision_id: string;
-  board_id: string;
+  project_id: string;
   goal_id: string;
   actor_id: string;
   actor_kind: "user";
@@ -253,8 +252,7 @@ export interface RecordGoalProgressSummaryInput {
   source?: GoalProgressArtifactSource;
   /** When supplied, compare inside the same transaction after idempotency replay. */
   expected_goal_cursor?: number;
-  expected_contract_revision?: number;
-  board_id: string;
+  project_id: string;
   goal_id: string;
   actor_id: string;
   actor_kind?: "user" | "runtime";
@@ -266,7 +264,7 @@ export interface RecordGoalProgressSummaryInput {
 }
 
 export interface ApplyGoalConcernInput {
-  board_id: string;
+  project_id: string;
   goal_id: string;
   actor_id: string;
   actor_kind?: "user" | "runtime";
@@ -283,7 +281,7 @@ export interface ApplyGoalConcernInput {
 }
 
 export interface RequestGoalDecisionInput {
-  board_id: string;
+  project_id: string;
   goal_id: string;
   actor_id: string;
   actor_kind?: "user" | "runtime";
@@ -296,7 +294,7 @@ export interface RequestGoalDecisionInput {
 }
 
 export interface CiteGoalDecisionInput {
-  board_id: string;
+  project_id: string;
   goal_id: string;
   actor_id: string;
   actor_kind?: "user" | "runtime";
@@ -306,7 +304,7 @@ export interface CiteGoalDecisionInput {
 }
 
 export interface RecordGoalUserDecisionInput {
-  board_id: string;
+  project_id: string;
   goal_id: string;
   idempotency_key: string;
   authority: GoalEventTrustedAuthority;
@@ -320,7 +318,7 @@ export interface RecordGoalUserDecisionInput {
 }
 
 export interface SetGoalEventAgreementInput {
-  board_id: string;
+  project_id: string;
   goal_id: string;
   actor_id: string;
   actor_kind?: "user" | "runtime";
@@ -335,7 +333,7 @@ export interface SetGoalEventAgreementInput {
 }
 
 export interface SubmitGoalEventClosureInput {
-  board_id: string;
+  project_id: string;
   goal_id: string;
   actor_id: string;
   actor_kind?: "user" | "runtime";
@@ -348,7 +346,7 @@ export interface SubmitGoalEventClosureInput {
 }
 
 export interface ResumeGoalEventWorkInput {
-  board_id: string;
+  project_id: string;
   goal_id: string;
   actor_id: string;
   actor_kind?: "user" | "runtime";
@@ -495,35 +493,10 @@ export type GoalEventSystemPayload =
   | {
       operation: "intent_created";
       source_kind: "web" | "onboarding" | "feed" | "runtime" | "tree";
-    }
-  | {
-      operation: "legacy_completion_imported";
-      journal_type: string | null;
-      journal_seq: number | null;
-      journal_at: string | null;
-      evidence_ids: string[];
-      review_ids: string[];
-      contract_accepted_at: string | null;
-      contract_accepted_by: string | null;
     };
 
-export interface GoalEventImportedCompletion {
-  source: "legacy_fulfillment";
-  imported_at: string;
-  label: "迁入的历史完成";
-  historical: {
-    journal_type: string | null;
-    journal_seq: number | null;
-    journal_at: string | null;
-    evidence_ids: string[];
-    review_ids: string[];
-    contract_accepted_at: string | null;
-    contract_accepted_by: string | null;
-  };
-}
-
 export interface RecordGoalNoteInput {
-  board_id: string;
+  project_id: string;
   goal_id: string;
   actor_id: string;
   actor_kind?: "user" | "runtime";
@@ -541,5 +514,4 @@ export interface GoalEventWorkStateView {
   applied_decisions: GoalEventAppliedDecisionView[];
   current_decisions: GoalEventAppliedDecisionView[];
   closure: GoalEventClosureView | null;
-  imported_completion: GoalEventImportedCompletion | null;
 }

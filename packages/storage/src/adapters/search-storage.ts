@@ -22,9 +22,18 @@ const utf8Fatal = new TextDecoder("utf-8", { fatal: true });
 
 type SecretBackend = Pick<SecretStore, "get" | "createIfAbsent" | "deleteIfPresent">;
 
+/** The operation store SEL runs on, plus the host's own way to forget entries SEL has no API to delete. */
+export interface SearchOpaqueBlobStore extends SearchDeadlineAwareOpaqueBlobStorePort {
+  /**
+   * Deletes the entries of a namespace whose key `discard` accepts and returns how many went. The values stay sealed
+   * and unread: only the keys decide, so the caller must know how SEL derives the keys it wants gone.
+   */
+  collect(input: { namespace: string; discard(key: string): boolean }): number;
+}
+
 export function createSearchOpaqueBlobStore(
   db: SqliteDatabase,
-): SearchDeadlineAwareOpaqueBlobStorePort {
+): SearchOpaqueBlobStore {
   const readNowMs = db.prepare(`SELECT ${SQLITE_NOW_MS} AS now_ms`);
   const readRow = db.prepare(
     "SELECT opaque, cas_token FROM feed_runtime_blobs WHERE namespace = ? AND key = ?",
@@ -37,6 +46,9 @@ export function createSearchOpaqueBlobStore(
   );
   const deleteCas = db.prepare(
     "DELETE FROM feed_runtime_blobs WHERE namespace = ? AND key = ? AND cas_token = ?",
+  );
+  const listKeys = db.prepare(
+    "SELECT key, cas_token FROM feed_runtime_blobs WHERE namespace = ?",
   );
   const scanPage = db.prepare(
     "SELECT key, opaque, cas_token FROM feed_runtime_blobs WHERE namespace = ? AND key > ? ORDER BY key COLLATE BINARY LIMIT ?",
@@ -54,22 +66,6 @@ export function createSearchOpaqueBlobStore(
     return now;
   };
 
-  const inImmediate = <T>(fn: () => T): T => {
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      const result = fn();
-      db.exec("COMMIT");
-      return result;
-    } catch (error) {
-      try {
-        db.exec("ROLLBACK");
-      } catch {
-        /* already rolled back */
-      }
-      throw error;
-    }
-  };
-
   return {
     async read(input) {
       const row = readRow.get(input.namespace, input.key) as
@@ -81,7 +77,7 @@ export function createSearchOpaqueBlobStore(
 
     async createIfAbsent(input) {
       const casToken = newCasToken();
-      return inImmediate(() => {
+      return inImmediate(db, () => {
         const result = insertIgnore.run(
           input.namespace,
           input.key,
@@ -97,7 +93,7 @@ export function createSearchOpaqueBlobStore(
 
     async compareAndSet(input) {
       const casToken = newCasToken();
-      return inImmediate(() => {
+      return inImmediate(db, () => {
         const result = updateCas.run(
           input.opaque,
           casToken,
@@ -119,7 +115,7 @@ export function createSearchOpaqueBlobStore(
         throw new Error("Invalid atomic deadline");
       }
       const casToken = newCasToken();
-      return inImmediate(() => {
+      return inImmediate(db, () => {
         const observedAtUnixMs = trustedNowUnixMs();
         if (observedAtUnixMs >= input.deadlineUnixMs) {
           return {
@@ -159,6 +155,16 @@ export function createSearchOpaqueBlobStore(
       return Number(result.changes ?? 0) === 1;
     },
 
+    collect(input) {
+      let deleted = 0;
+      for (const row of listKeys.all(input.namespace) as Array<{ key: string; cas_token: string }>) {
+        if (!input.discard(row.key)) continue;
+        const result = deleteCas.run(input.namespace, row.key, row.cas_token) as SqliteChanges;
+        if (Number(result.changes ?? 0) === 1) deleted += 1;
+      }
+      return deleted;
+    },
+
     async scan(input) {
       if (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 128) {
         throw new Error("Invalid blob scan page");
@@ -185,6 +191,22 @@ export function createSearchOpaqueBlobStore(
       };
     },
   };
+}
+
+function inImmediate<T>(db: SqliteDatabase, fn: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = fn();
+    db.exec("COMMIT");
+    return result;
+  } catch (error) {
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      /* already rolled back */
+    }
+    throw error;
+  }
 }
 
 export function createSearchAead(): SearchAeadPort {

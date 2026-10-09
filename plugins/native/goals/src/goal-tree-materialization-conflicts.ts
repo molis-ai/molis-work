@@ -11,13 +11,10 @@ export class GoalTreeMaterializationConflicts {
     private readonly inputs: GoalTreeInputReader) {}
 
   read(
-    boardId: string,
+    projectId: string,
     item: GoalTreeProposalItemRecord,
   ): Record<string, unknown> | null {
-    if (item.kind !== "goal" && item.kind !== "relation") {
-      return { code: "goal_tree_proposal.kind_retired", message: "历史结构条目不能从新 check/decide 落地", kind: item.kind };
-    }
-    const onBoard = (goalId: string) => this.goals.query.getGoal(boardId, goalId);
+    const onBoard = (goalId: string) => this.goals.query.getGoal(projectId, goalId);
     if (item.kind === "goal") {
       const payload = this.inputs.goalTreePayloadRecord(item.payload, "Goal 条目");
       const goalId = String(payload.goal_id ?? "").trim();
@@ -48,7 +45,7 @@ export class GoalTreeMaterializationConflicts {
         }
       }
       const type = String(relation.type ?? "").trim();
-      if (item.operation !== "deactivate" && type === "part_of" && fromId && toId && this.goals.planning.wouldCreatePartOfCycle(boardId, fromId, toId)) {
+      if (item.operation !== "deactivate" && type === "part_of" && fromId && toId && this.goals.planning.wouldCreatePartOfCycle(projectId, fromId, toId)) {
         return { code: "goal_tree_proposal.part_of_cycle", message: "父子关系会形成循环", goal_ids: [fromId, toId] };
       }
     }

@@ -5,21 +5,17 @@ import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
 import { ImagesError } from "./error.js";
 import { generateProviderImages, isLocalImageEndpoint, normalizeImageBaseUrl, type ImageGeneration, type ImageProviderRequest } from "./providers.js";
-import { ImagesStore, type StoredConnection } from "./store.js";
+import { ImagesStore, removeAssetFiles, type StoredConnection } from "./store.js";
 
-export interface ImagesSecretPort {
-  get(reference: string): string | null;
-  put(reference: string, plaintext: string): void;
-  delete(reference: string): void;
-}
+/** Keys live in the Home's service connections; an image service only names the connection it uses. */
 export interface ImagesServiceOptions {
   homeDirectory: string;
-  secrets: ImagesSecretPort;
   generate?: ImageGeneration;
-  resolveConnectionKey?: (imageConnectionId: string, baseUrl: string) => string | null | undefined;
-  selectConnection?: (imageConnectionId: string, authConnectionId: string) => void;
-  selectedConnectionId?: (imageConnectionId: string) => string | null;
-  clearConnection?: (imageConnectionId: string) => void;
+  /** The chosen connection's key: undefined when none is chosen, null when the chosen one is unusable for this address. */
+  resolveConnectionKey: (imageConnectionId: string, baseUrl: string) => string | null | undefined;
+  selectConnection: (imageConnectionId: string, authConnectionId: string) => void;
+  selectedConnectionId: (imageConnectionId: string) => string | null;
+  clearConnection: (imageConnectionId: string) => void;
   /** Metadata only; no credential plaintext or provider requests during discovery. */
   connectionStatus?: (connection: StoredConnection) => { available: boolean; has_key: boolean; revision: string; reason?: string };
 
@@ -57,34 +53,17 @@ export class ImagesService {
     if (input.id !== undefined && !previous) throw new ImagesError("images.not_found", "找不到要修改的生图服务。", 404);
     if (input.api_format !== "openai-images" && input.api_format !== "gemini") throw new ImagesError("images.invalid", "请选择受支持的图片 API 协议。");
     const base = normalizeImageBaseUrl(textField(input.base_url, "API 基址", 2048));
-    const key = optionalText(input.api_key, "API Key", 8192);
     const authConnectionId = input.auth_connection_id?.trim();
-    if (/[\r\n]/u.test(key)) throw new ImagesError("images.invalid", "API Key 不能包含换行。");
-    const changedDestination = previous && (previous.base_url !== base || previous.api_format !== input.api_format);
-    if (changedDestination && !key && !authConnectionId && !isLocalImageEndpoint(base)) {
-      throw new ImagesError("images.key_required", "修改 API 基址或协议时，请重新填写该服务的 API Key。");
-    }
     const now = new Date().toISOString();
     const connection: StoredConnection = {
       id, name: textField(input.name, "服务名称", 100), api_format: input.api_format, base_url: base,
       model: textField(input.model, "模型名称", 200), created_at: previous?.created_at ?? now, updated_at: now,
     };
-    const reference = credentialRef(id);
-    const previousKey = this.options.secrets.get(reference);
-    const replaceKey = Boolean(key) || Boolean(changedDestination);
     try {
-      if (key) this.options.secrets.put(reference, key);
-      else if (changedDestination) this.options.secrets.delete(reference);
       this.store.saveConnection(connection);
-      if (authConnectionId) this.options.selectConnection?.(id, authConnectionId);
+      if (authConnectionId) this.options.selectConnection(id, authConnectionId);
     } catch {
-      if (replaceKey) {
-        try {
-          if (previousKey) this.options.secrets.put(reference, previousKey);
-          else this.options.secrets.delete(reference);
-        } catch { /* Report the write failure without leaking secret-store details. */ }
-      }
-      throw new ImagesError("images.save_failed", "无法保存生图服务，请检查本机密钥存储和磁盘权限。", 500);
+      throw new ImagesError("images.save_failed", "无法保存生图服务，请检查服务连接和磁盘权限。", 500);
     }
     return this.publicConnection(connection);
   }
@@ -93,15 +72,8 @@ export class ImagesService {
     this.assertOpen();
     const connectionId = textField(id, "服务 ID", 128);
     if (!this.store.getConnection(connectionId)) throw new ImagesError("images.not_found", "找不到要删除的生图服务。", 404);
-    const reference = credentialRef(connectionId);
-    const previousKey = this.options.secrets.get(reference);
-    this.options.secrets.delete(reference);
-    try { this.store.deleteConnection(connectionId); }
-    catch (error) {
-      if (previousKey) this.options.secrets.put(reference, previousKey);
-      throw error;
-    }
-    this.options.clearConnection?.(connectionId);
+    this.store.deleteConnection(connectionId);
+    this.options.clearConnection(connectionId);
   }
 
   listJobs(projectId: string): ImageJob[] {
@@ -144,10 +116,10 @@ export class ImagesService {
     }
     const authorization = this.options.connectionStatus?.(connection);
     if (authorization && !authorization.available) throw new ImagesError("images.key_required", authorization.reason || "所选图像连接不可用", 409);
-    const selectedKey = this.options.resolveConnectionKey?.(connection.id, connection.base_url);
+    const selectedKey = this.options.resolveConnectionKey(connection.id, connection.base_url);
     if (selectedKey === null) throw new ImagesError("images.key_required", "所选图像连接不可用", 409);
-    const key = selectedKey === undefined ? this.options.secrets.get(credentialRef(connection.id)) ?? "" : selectedKey ?? "";
-    if (!key && !isLocalImageEndpoint(connection.base_url)) throw new ImagesError("images.key_required", "请先为所选生图服务保存 API Key。");
+    const key = selectedKey ?? "";
+    if (!key && !isLocalImageEndpoint(connection.base_url)) throw new ImagesError("images.key_required", "请先为所选生图服务选择一条带 API Key 的服务连接。");
     const job: ImageJob = {
       id: randomUUID(), project_id: projectIdValue, request_id: requestId, connection_id: connection.id,
       connection_name: connection.name, api_format: connection.api_format, model: connection.model,
@@ -171,9 +143,8 @@ export class ImagesService {
       if (authorization && (!status?.available || status.revision !== authorization.revision)) {
         throw new ImagesError("images.connection_changed", "图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。", 409);
       }
-      // A standalone service uses its original secret port, without Connector metadata.
-      const selected = this.options.resolveConnectionKey?.(current.id, current.base_url);
-      const currentKey = selected === undefined ? this.options.secrets.get(credentialRef(current.id)) ?? "" : selected;
+      const selected = this.options.resolveConnectionKey(current.id, current.base_url);
+      const currentKey = selected === undefined ? "" : selected;
       if (currentKey === null || currentKey !== key) throw new ImagesError("images.connection_changed", "图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。", 409);
     };
     const promise = Promise.resolve().then(() => this.run(job, request, controller, assertCurrent)).finally(() => this.active.delete(job.id));
@@ -188,6 +159,16 @@ export class ImagesService {
       this.active.get(job.id)?.controller.abort();
     }
     return this.store.getJob(job.project_id, job.id);
+  }
+
+  /**
+   * The project is deleted: what is still being generated for it is stopped without a result, and its jobs and pictures
+   * go. Running it again finds nothing.
+   */
+  deleteProject(projectId: string): void {
+    this.assertOpen();
+    for (const entry of this.active.values()) if (entry.projectId === projectId) entry.controller.abort();
+    removeAssetFiles(this.assets, this.store.deleteProject(projectId));
   }
 
   readImage(projectId: string, jobId: string, imageId: string): { bytes: Buffer; mime: GeneratedImage["mime_type"]; filename: string } {
@@ -265,18 +246,18 @@ export class ImagesService {
   }
 
   private publicConnection(connection: StoredConnection): ImageConnection {
-    const selected = this.options.selectedConnectionId?.(connection.id) ?? null;
+    const selected = this.options.selectedConnectionId(connection.id);
     const state = this.options.connectionStatus?.(connection);
     if (state) return { ...connection, has_key: state.has_key, available: state.available,
       ...(!state.available ? { unavailable_reason: state.reason || "所选图像连接不可用" } : {}),
       ...(selected ? { auth_connection_id: selected } : {}) };
-    const selectedKey = this.options.resolveConnectionKey?.(connection.id, connection.base_url);
-    return { ...connection, has_key: Boolean(selectedKey === undefined ? this.options.secrets.get(credentialRef(connection.id)) : selectedKey),
+    return { ...connection, has_key: Boolean(this.options.resolveConnectionKey(connection.id, connection.base_url)),
       ...(selected ? { auth_connection_id: selected } : {}) };
   }
   private assertOpen(): void { if (this.closed) throw new ImagesError("images.closed", "图片服务已停止。", 503); }
 }
 
+/** Names the key for one request to the Prologue runtime; nothing is stored under it. */
 function credentialRef(id: string): string { return `images:${id}`; }
 function textField(value: unknown, name: string, maximum: number): string {
   if (typeof value !== "string" || !value.trim() || value.trim().length > maximum) {

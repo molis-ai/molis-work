@@ -129,7 +129,7 @@ test("workbench project gear opens a directory of categories and an exclusive se
   const html = renderMolisWorkWeb({
     snapshot: {
       board: {
-        board_id: "board-1",
+        project_id: "board-1",
         title: "工作台",
         active_goal_id: null,
         created_at: "2026-01-01T00:00:00.000Z",
@@ -138,18 +138,6 @@ test("workbench project gear opens a directory of categories and an exclusive se
       cursor: 0,
       goals: [],
       relations: [],
-      impacts: [],
-      risks: [],
-      claims: [],
-      runs: [],
-      evidence: [],
-      review_obligations: [],
-      reviews: [],
-      candidates: [],
-      contract_proposals: [],
-      rewires: [],
-      clarification_sessions: [],
-      clarification_turns: [],
       goal_tree_proposals: [],
       planning_method_packs: [],
     },
@@ -162,7 +150,6 @@ test("workbench project gear opens a directory of categories and an exclusive se
     archived_goals: [],
     trashed_goals: [],
     counts: {},
-    coverage: [],
     input_bindings: [],
     policy_bindings: [],
     events: [],
@@ -171,7 +158,6 @@ test("workbench project gear opens a directory of categories and an exclusive se
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      contract_migrations: [],
       out_rules: [],
     },
   } as MolisWorkWebView);
@@ -235,7 +221,7 @@ test("project guidance keeps runtime notes on the title hint instead of the page
   const html = renderMolisWorkProjectGuidanceSettings({
     snapshot: {
       board: {
-        board_id: "board-1",
+        project_id: "board-1",
         title: "工作台",
         active_goal_id: null,
         created_at: "2026-09-17T00:00:00.000Z",
@@ -244,18 +230,6 @@ test("project guidance keeps runtime notes on the title hint instead of the page
       cursor: 0,
       goals: [],
       relations: [],
-      impacts: [],
-      risks: [],
-      claims: [],
-      runs: [],
-      evidence: [],
-      review_obligations: [],
-      reviews: [],
-      candidates: [],
-      contract_proposals: [],
-      rewires: [],
-      clarification_sessions: [],
-      clarification_turns: [],
       goal_tree_proposals: [],
       planning_method_packs: [],
     },
@@ -268,7 +242,6 @@ test("project guidance keeps runtime notes on the title hint instead of the page
     archived_goals: [],
     trashed_goals: [],
     counts: {},
-    coverage: [],
     input_bindings: [],
     policy_bindings: [],
     events: [],
@@ -277,13 +250,12 @@ test("project guidance keeps runtime notes on the title hint instead of the page
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      contract_migrations: [],
       out_rules: [],
     },
   } as MolisWorkWebView, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, []);
   assert.match(html, /id="guidance-title">项目说明/);
   assert.match(html, /settings-heading-title[\s\S]*id="guidance-title"/);
   assert.match(html, /class="mw-hint"/);
-  assert.match(html, /只发送当前生效版本，并放在当前 Goal 和外部内容之前/);
+  assert.match(html, /只发送当前生效版本，放在这一轮的任务和外部内容之前/);
   assert.doesNotMatch(html, /class="settings-footnote"/);
 });

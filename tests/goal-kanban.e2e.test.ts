@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Goal kanban sits beside the canvas, opens Frame, and remembers the board view", { timeout: 90_000 }, async (t) => {
@@ -104,7 +104,7 @@ test("Goal kanban sits beside the canvas, opens Frame, and remembers the board v
   assert.equal(stacked.groups, 6);
   assert.equal(stacked.outcome, "none");
   assert.ok(stacked.overflowX === "hidden" || stacked.overflowX === "clip", "narrow kanban stacks groups instead of scrolling sideways " + JSON.stringify(stacked));
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
 });
 
 test("narrow stacked kanban only appears on the kanban view", { timeout: 90_000 }, async (t) => {

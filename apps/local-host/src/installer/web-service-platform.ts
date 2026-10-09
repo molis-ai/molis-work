@@ -21,7 +21,6 @@ export class WebServiceEnvironment {
   readonly nodeExecutablePath: string;
   readonly runCommand: NonNullable<MolisWorkWebServiceManagerOptions["runCommand"]>;
   readonly healthCheck: NonNullable<MolisWorkWebServiceManagerOptions["healthCheck"]>;
-  readonly legacyInstanceCheck: NonNullable<MolisWorkWebServiceManagerOptions["legacyInstanceCheck"]>;
   readonly portCheck: NonNullable<MolisWorkWebServiceManagerOptions["portCheck"]>;
   readonly transitionDelayMilliseconds: number;
   constructor(options: MolisWorkWebServiceManagerOptions = {}) {
@@ -39,7 +38,6 @@ export class WebServiceEnvironment {
     this.stderrLog = path.join(this.homeDirectory, "logs", "web-service.error.log");
     this.runCommand = options.runCommand ?? runCommand;
     this.healthCheck = options.healthCheck ?? molisWorkWebHealthCheck;
-    this.legacyInstanceCheck = options.legacyInstanceCheck ?? molisWorkLegacyWebInstanceCheck;
     this.portCheck = options.portCheck ?? molisWorkWebPortCheck;
     this.transitionDelayMilliseconds = Math.max(0, options.transitionDelayMilliseconds ?? 250);
   }
@@ -139,40 +137,6 @@ export async function molisWorkWebHealthCheck(expectedProcessId?: number): Promi
     return body.status === "ok"
       && (expectedProcessId == null
         || (body.service_process_id ?? body.process_id) === expectedProcessId);
-  } catch {
-    return false;
-  }
-}
-
-export async function molisWorkLegacyWebInstanceCheck(expectedProcessId: number): Promise<boolean> {
-  try {
-    const response = await fetch("http://127.0.0.1:4173/health", {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(1_000),
-    });
-    if (!response.ok) return false;
-    const body = await response.json() as {
-      status?: unknown;
-      process_id?: unknown;
-      service_process_id?: unknown;
-    };
-    if (body.status !== "ok" || body.process_id != null || body.service_process_id != null) {
-      return false;
-    }
-    const listener = await runCommand("/usr/sbin/lsof", [
-      "-nP",
-      "-iTCP:4173",
-      "-sTCP:LISTEN",
-      "-Fp",
-    ]);
-    if (listener.code !== 0) return false;
-    const processIds = new Set(
-      listener.stdout
-        .split(/\r?\n/)
-        .filter((line) => /^p\d+$/.test(line))
-        .map((line) => Number(line.slice(1))),
-    );
-    return processIds.size === 1 && processIds.has(expectedProcessId);
   } catch {
     return false;
   }

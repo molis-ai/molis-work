@@ -86,7 +86,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 要做：打开列表、点一行、主按钮、返回、空态、错误、搜索。只服务端渲 HTML、不写客户端，主路径点不动。
 
-搜索：Pages 族用 `searchRow: { selector, idDataset }`，例如 `[data-page-id]`。Feed/Inbox/Goals 的全局搜索在 `global-search.ts` 写死，只配 searchRow 不会进那份名单。
+搜索：内容来自系统搜索，插件声明搜索来源即可（见 [search.md](search.md)）。打开到对象时，用 `searchRow: { selector, idDataset }`（例如 `[data-page-id]`）让工作台点那一行；按标签打开（`molis-work:select-item`）的插件列在 `global-search.ts` 的 `SEARCH_ITEM_TAB_SURFACES`。
 
 确认用 `dialog.mw-dialog`，不要 `window.confirm` / `alert` / `prompt`。异步失败 `showNote`。
 
@@ -119,7 +119,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 ## 文案与 i18n
 
-- UI 字符串用中文当 key：`p.text("加入 Inbox")`。英文写插件 `src/en.ts`，**还要**在 `apps/workbench/src/i18n/en.ts` 里 `import { X_EN }` 并展开进总表。只写插件文件，英文界面仍是中文 key。
+- UI 字符串用中文当 key：`p.text("加入 Inbox")`。英文写插件 `src/en.ts`，**还要**在 `apps/workbench/src/i18n/en.ts` 里 `import { X_EN }` 并展开进总表。只写插件文件，英文界面仍是中文 key。两种漏写都由 `pnpm health:check` 拦下（CI 也跑）：调用的中文原文没有英文，和 `X_EN` 写了却没并进总表；`node scripts/gates/translations.mjs --missing` 列出缺哪句、该加到哪个词典，哪本词典没接上。检查靠变量名以 `_EN` 结尾认词典。
 - 按钮说人做的事，不说机制（不要「提交 Attention Command」）。
 - 空态说明下一步能做什么，不要空讲架构。
 

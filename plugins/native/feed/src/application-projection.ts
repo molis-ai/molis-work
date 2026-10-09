@@ -1,52 +1,13 @@
-import type { AttentionEntryRecord as ModuleAttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import type { FeedItemRecord as ModuleFeedItemRecord, FeedMaterialRecord as ModuleFeedMaterialRecord } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { FeedItemRecord as ModuleFeedItemRecord } from "@molis-ai/molis-work-contracts/modules/feed";
 
 import type { ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
 
-import type { FeedItemRecord, FeedMaterialRecord, FeedSourceRunRecord, InboxEntryRecord, InboxEntryStatus } from "./projection.js";
+import type { FeedItemRecord, FeedSourceRunRecord, InboxEntryStatus } from "./projection.js";
 
-export function toLegacyAttentionEntry(entry: ModuleAttentionEntryRecord): InboxEntryRecord {
+/** A Feed item as the plugin shows it: the module record without its signal fields, typed as a Feed item. */
+export function feedItemRecord(item: ModuleFeedItemRecord): FeedItemRecord {
   return {
-    board_id: entry.project_id,
-    entry_id: entry.entry_id,
-    subject_type: entry.subject_type,
-    subject_id: entry.subject_id,
-    reason: entry.reason,
-    status: entry.status,
-    detail: entry.detail,
-    revision: entry.revision,
-    created_at: entry.created_at,
-    updated_at: entry.updated_at,
-    completed_at: entry.completed_at,
-  };
-}
-
-export function toLegacyFeedMaterial(material: ModuleFeedMaterialRecord): FeedMaterialRecord {
-  return {
-    board_id: material.project_id,
-    material_id: material.material_id,
-    item_id: material.item_id,
-    canonical_url: material.canonical_url,
-    title: material.title,
-    source_name: material.source_name,
-    published_at: material.published_at,
-    preview: material.preview,
-    content_hash: material.content_hash,
-    content_ref: material.content_ref,
-    content_available: material.content_available,
-    content_type: material.content_type,
-    character_count: material.character_count,
-    captured_at: material.captured_at,
-    provenance: material.provenance,
-    selected_for_context: material.selected_for_context,
-    imported_at: material.imported_at,
-    updated_at: material.updated_at,
-  };
-}
-
-export function toLegacyFeedItem(item: ModuleFeedItemRecord): FeedItemRecord {
-  return {
-    board_id: item.project_id,
+    project_id: item.project_id,
     item_id: item.item_id,
     source_id: item.source_id,
     item_type: "feed",
@@ -70,13 +31,14 @@ export function toLegacyFeedItem(item: ModuleFeedItemRecord): FeedItemRecord {
     source_updated_at: item.source_updated_at,
     imported_at: item.imported_at,
     updated_at: item.updated_at,
-    materials: item.materials.map(toLegacyFeedMaterial),
+    materials: item.materials,
   };
 }
 
-export function compatibleRun(run: ListenerRunRecord): FeedSourceRunRecord {
+/** A source run with the connector's receipt under the name the Feed UI reads. */
+export function sourceRunRecord(run: ListenerRunRecord): FeedSourceRunRecord {
   return {
-    board_id: run.project_id,
+    project_id: run.project_id,
     run_id: run.run_id,
     operation_id: run.operation_id,
     source_id: run.source_id,

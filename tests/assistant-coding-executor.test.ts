@@ -44,7 +44,7 @@ function fixture() {
   const host = { adapter: () => ({ readSession: async () => ({}), read: async () => null }), reviews: { list: () => [] } };
   const service = new AssistantService(store, { host: async () => host as unknown as AgentHost, authority: async () => { throw new Error("not used"); },
     personActions: async () => coding.actions }, "web-user");
-  const caller = { project_ref: { project_id: "project", board_id: "board", storage_key: "memory:project" } as any };
+  const caller = { project_ref: { project_id: "project", storage_key: "memory:project" } as any };
   return { coding, store, service, caller };
 }
 
@@ -121,7 +121,7 @@ test("a new Coding work can continue the session the person started on the Codin
 
 test("an Assistant work handed to Coding stays one work: the first Coding round is told the work so far, and handing back keeps Coding's rounds", async () => {
   const { coding, store, service } = fixture();
-  const project_ref = { project_id: "project", board_id: "board", storage_key: "memory:project" } as any;
+  const project_ref = { project_id: "project", storage_key: "memory:project" } as any;
   const work = store.create({ actor_id: "web-user", title: "加法函数", scope: { kind: "project", project_id: "project" }, origin: null, project_ref });
   store.addRound(work.work_id, { run_id: "assistant-1", text: "写一个加法函数，放在 calc.js", materials: [], context: null, started_at: "2026-09-28T00:00:00.000Z" });
 
@@ -168,7 +168,7 @@ test("handing a work to Coding carries what its documents say now, read from the
   } } as PersonActions;
   const service = new AssistantService(store, { host: async () => host as unknown as AgentHost, authority: async () => { throw new Error("not used"); },
     personActions: async () => coding.actions, scopeActions: async () => pages }, "web-user");
-  const project_ref = { project_id: "project", board_id: "board", storage_key: "memory:project" } as any;
+  const project_ref = { project_id: "project", storage_key: "memory:project" } as any;
   const work = store.create({ actor_id: "web-user", title: "calc average", scope: { kind: "project", project_id: "project" }, origin: null, project_ref });
   store.addRound(work.work_id, { run_id: "assistant-1", text: "整理成需求文档", materials: [], context: null, started_at: "2026-09-30T00:00:00.000Z" });
   store.relations.link({ work_id: work.work_id, project_id: "project" }, "result", { kind: "pages_document", id: "doc-1", revision: "2" }, "助理产出");
@@ -177,7 +177,7 @@ test("handing a work to Coding carries what its documents say now, read from the
   await service.send({ work_id: work.work_id, text: "按文档实现", request_id: randomUUID() }, { project_ref });
   const task = coding.calls.filter(call => call.name === "runs.start").at(-1)!.input.task as string;
   assert.match(task, /相关对象的当前内容/);
-  assert.match(task, /《calc average 需求》（成果，版本 2）：\n## 错误处理\n空数组抛 RangeError/);
+  assert.match(task, /《calc average 需求》（产出，版本 2）：\n## 错误处理\n空数组抛 RangeError/);
   // The person reads their own message for that round, not the note that travelled with it.
   const shown = (await service.read(work.work_id)).rounds.at(-1)!.turns.find(turn => turn.kind === "user")!.text;
   assert.equal(shown, "按文档实现");

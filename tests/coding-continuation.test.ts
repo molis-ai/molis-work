@@ -81,7 +81,7 @@ test("计划的原任务是开始规划的那句话；续上的规划轮不算�
 });
 
 test("继续计划时带上你在任务图上留下的决定、跳过与插入，并让模型按决定直接做", () => {
-  const board = { board_id: "b", version: 7, terminal: false, nodes: [
+  const board = { project_id: "b", version: 7, terminal: false, nodes: [
     { id: "step-1", title: "加小节标题", state: "succeeded", dependsOn: [], reports: [{ note: "已完成", at_ms: 1 }] },
     { id: "step-2", title: "写一条记录", state: "ready", dependsOn: ["step-1"], reports: [{ note: "blocked：两种措辞", at_ms: 2 }, { note: "用户决定：用候选 B，措辞保持原样", at_ms: 3 }] },
     { id: "step-3", title: "补 README", state: "cancelled", dependsOn: ["step-2"], reports: [{ note: "用户跳过：下个 PR 再写", at_ms: 4 }] },
@@ -94,7 +94,7 @@ test("继续计划时带上你在任务图上留下的决定、跳过与插入�
 });
 
 test("上一轮只宣布了下一步就结束时，继续会说明这一点并要求直接调用工具", () => {
-  const board = { board_id: "b", version: 7, terminal: false, nodes: [{ id: "step-1", title: "写一条记录", state: "ready", dependsOn: [], reports: [] }] };
+  const board = { project_id: "b", version: 7, terminal: false, nodes: [{ id: "step-1", title: "写一条记录", state: "ready", dependsOn: [], reports: [] }] };
   const stalled = run({ phase: "completed", stop_reason: undefined, command_outputs: [], step_board: board,
     activity: [{ call_id: "r1", name: "reasoning", target: "", state: "completed", summary: "", at: null }],
     turns: [{ turn_id: "u1", kind: "user", text: "继续", at: null }, { turn_id: "a1", kind: "assistant", text: "我先核对任务图和 README.md 的当前状态。", at: null }] } as never);
@@ -123,13 +123,13 @@ test("并行和协作轮次也能一键继续：列出上一轮子任务的状�
 });
 
 test("问过几句话之后，最近一次计划轮仍可继续；后面还有计划轮或没结束的轮次时不行", () => {
-  const open = { step_board: { board_id: "b", version: 3, terminal: false, nodes: [] } } as never;
+  const open = { step_board: { project_id: "b", version: 3, terminal: false, nodes: [] } } as never;
   const talk = (phase: string) => ({ phase, frozen: { role_id: "discuss" } }) as never;
   const planned = { phase: "completed", frozen: { role_id: "writers", execution_plan: { title: "t" } } } as never;
   assert.equal(planContinuesAfterTalk(open, []), true);
   assert.equal(planContinuesAfterTalk(open, [talk("completed"), talk("stopped")]), true, "questions asked after the plan do not close it");
   assert.equal(planContinuesAfterTalk(open, [talk("running")]), false, "a round still going comes first");
   assert.equal(planContinuesAfterTalk(open, [planned]), false, "a later plan round is the one to continue");
-  assert.equal(planContinuesAfterTalk({ step_board: { board_id: "b", version: 3, terminal: true, nodes: [] } } as never, [talk("completed")]), false);
+  assert.equal(planContinuesAfterTalk({ step_board: { project_id: "b", version: 3, terminal: true, nodes: [] } } as never, [talk("completed")]), false);
   assert.equal(planContinuesAfterTalk({} as never, [talk("completed")]), false, "a round without a plan is only continued as the newest");
 });

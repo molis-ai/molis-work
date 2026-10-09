@@ -1,11 +1,6 @@
-export type DecisionEventKind = "review" | "contract" | "candidate" | "rewire" | "risk" | "goalTree";
+export type DecisionEventKind = "goalTree";
 
 const HANDLED_DECISION_EVENT_TYPES: Record<DecisionEventKind, ReadonlySet<string>> = {
-  review: new Set(["review.submitted"]),
-  contract: new Set(["contract_proposal.approved", "contract_proposal.rejected"]),
-  candidate: new Set(["candidate.approved", "candidate.rejected"]),
-  rewire: new Set(["rewire.applied", "rewire.rejected"]),
-  risk: new Set(["risk.open", "risk.triggered", "risk.resolved", "risk.accepted", "risk.expired"]),
   goalTree: new Set(["goal_tree_proposal.decided"]),
 };
 

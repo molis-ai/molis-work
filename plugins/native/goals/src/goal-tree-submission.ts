@@ -15,7 +15,7 @@ export interface GoalTreeSubmissionPorts {
   attention?: Pick<GoalDecisionAttentionSync, "settleProposal">;
 }
 
-/** Submit a proposal, never materialize its suggested Goal/Relation/Risk changes. */
+/** Submit a proposal, never materialize its suggested Goal and relation changes. */
 export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationApi, "submitGoalTreeProposal"> {
   private readonly normalizer: GoalTreeProposalNormalizer;
   constructor(private readonly ports: GoalTreeSubmissionPorts) {
@@ -40,7 +40,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
     const rootGoalId = input.root_goal_id?.trim() || null;
     const supersedesProposalId = input.supersedes_proposal_id?.trim() || null;
     const hash = requestHash({
-      board_id: input.board_id,
+      project_id: input.project_id,
       actor_id: actorId,
       submitted_session_id: input.submitted_session_id ?? null,
       root_goal_id: rootGoalId,
@@ -51,10 +51,10 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
       supersedes_proposal_id: supersedesProposalId,
     });
     const result = this.ports.governance.records.executeGoalTreeSubmission({
-      board_id: input.board_id, actor_id: actorId, idempotency_key: input.idempotency_key, request_hash: hash,
+      project_id: input.project_id, actor_id: actorId, idempotency_key: input.idempotency_key, request_hash: hash,
     }, () => {
-      this.requireBoard(input.board_id);
-      const currentCursor = this.ports.governance.query.eventCursor(input.board_id);
+      this.requireBoard(input.project_id);
+      const currentCursor = this.ports.governance.query.eventCursor(input.project_id);
       const baseEventCursor = input.base_event_cursor ?? currentCursor;
       if (!Number.isInteger(baseEventCursor) || baseEventCursor < 0 || baseEventCursor > currentCursor) {
         throw this.ports.errorFactory(
@@ -66,30 +66,13 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
       let previous: GoalTreeProposalRecord | null = null;
       if (supersedesProposalId) {
         previous = this.ports.query.listGoalTreeProposals({
-          board_id: input.board_id,
+          project_id: input.project_id,
           proposal_id: supersedesProposalId,
-          include_legacy: true,
         }).proposals[0] ?? null;
         if (!previous) {
           throw this.ports.errorFactory(
             "goal_tree_proposal.not_found",
             `找不到 Goal Tree 提案: ${supersedesProposalId}`,
-          );
-        }
-        if (previous.origin !== "native" && previous.origin !== "legacy_contract_proposal") {
-          throw this.ports.errorFactory(
-            "goal_tree_proposal.legacy_supersession_unsupported",
-            `supersedes_proposal_id=${supersedesProposalId} 指向 ${previous.origin}；当前只支持修订 native Proposal 或 legacy Contract Proposal。Candidate 请用 candidate item 晋升，Rewire 只会在等价关系变更确认落地后自动关闭。`,
-            {
-              path: "supersedes_proposal_id",
-              received_value: supersedesProposalId,
-              resolved_proposal_id: previous.proposal_id,
-              origin: previous.origin,
-              allowed_origins: ["native", "legacy_contract_proposal"],
-              next_action: previous.origin === "legacy_candidate"
-                ? "promote_candidate_with_candidate_item"
-                : "submit_equivalent_relation_change_without_supersedes_handle",
-            },
           );
         }
         if (previous.state !== "pending") {
@@ -106,12 +89,8 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
         }
       }
       const canonicalSupersedesProposalId = previous?.proposal_id ?? null;
-      const supersedesNativeProposalId = previous?.origin === "native" ? previous.proposal_id : null;
-      const supersedesLegacyProposalId = previous?.origin === "legacy_contract_proposal"
-        ? previous.proposal_id
-        : null;
       const effectiveRootGoalId = rootGoalId ?? previous?.root_goal_id ?? null;
-      if (effectiveRootGoalId) this.requireGoalOnBoard(input.board_id, effectiveRootGoalId);
+      if (effectiveRootGoalId) this.requireGoalOnBoard(input.project_id, effectiveRootGoalId);
       if (!previous && items.some((item) => item.supersedes_item_id)) {
         throw this.ports.errorFactory(
           "goal_tree_proposal.item_revision_without_proposal",
@@ -141,7 +120,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
             path: `items[${index}].item_id`,
             received_value: item.item_id,
             conflicting_proposal_id: conflictingProposalId,
-            conflicting_board_id: existingItem.board_id,
+            conflicting_project_id: existingItem.project_id,
             next_action: "use_unique_item_id",
             recovery: "生成新的全局唯一 item_id；若这是对旧条目的修订，同时填写 supersedes_proposal_id 和 supersedes_item_id。失败调用不会创建 Proposal。",
           },
@@ -153,15 +132,13 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
       const version = (previous?.version ?? 0) + 1;
       this.ports.governance.records.insertGoalTreeProposal({
         proposal_id: proposalId,
-        board_id: input.board_id,
+        project_id: input.project_id,
         root_goal_id: effectiveRootGoalId,
         submitted_by: actorId,
-        discovered_in_run_id: null,
         submitted_session_id: input.submitted_session_id?.trim() || null,
         state: "pending",
         version,
-        supersedes_proposal_id: supersedesNativeProposalId,
-        supersedes_legacy_proposal_id: supersedesLegacyProposalId,
+        supersedes_proposal_id: canonicalSupersedesProposalId,
         base_event_cursor: baseEventCursor,
         summary,
         narrative,
@@ -170,12 +147,12 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
       });
       for (const [index, item] of items.entries()) {
         const baselineVersions = item.affected_objects.map((object) =>
-          this.ports.query.baselines.objectVersion(input.board_id, object, item),
+          this.ports.query.baselines.objectVersion(input.project_id, object),
         );
         this.ports.governance.records.insertGoalTreeProposalItem({
           item_id: item.item_id,
           proposal_id: proposalId,
-          board_id: input.board_id,
+          project_id: input.project_id,
           ordinal: index + 1,
           kind: item.kind,
           operation: item.operation,
@@ -193,20 +170,18 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
           updated_at: now,
         });
       }
-      if (previous?.origin === "native") {
-        this.ports.governance.records.supersedeGoalTreeProposal(previous.proposal_id, now);
-      }
+      if (previous) this.ports.governance.records.supersedeGoalTreeProposal(previous.proposal_id, now);
       const cursor = this.ports.governance.records.recordGoalTreeSubmission({
-        board_id: input.board_id, proposal_id: proposalId, actor_id: actorId,
-        root_goal_id: effectiveRootGoalId, discovered_in_run_id: null,
+        project_id: input.project_id, proposal_id: proposalId, actor_id: actorId,
+        root_goal_id: effectiveRootGoalId,
         base_event_cursor: baseEventCursor, version, supersedes_proposal_id: canonicalSupersedesProposalId,
         item_ids: items.map(item => item.item_id), at: now,
       });
-      const proposal = this.ports.query.readNative(input.board_id, proposalId);
+      const proposal = this.ports.query.readNative(input.project_id, proposalId);
       const outcome = { proposal, observed_event_cursor: cursor };
       return outcome;
     });
-    this.ports.attention?.settleProposal(input.board_id, result.proposal);
+    this.ports.attention?.settleProposal(input.project_id, result.proposal);
     return result;
   }
 
@@ -216,12 +191,12 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
     return text;
   }
 
-  private requireBoard(boardId: string): void {
-    if (!this.ports.goals.query.getBoard(boardId)) throw this.ports.errorFactory("board.not_found", `Board 不存在: ${boardId}`);
+  private requireBoard(projectId: string): void {
+    if (!this.ports.goals.query.getBoard(projectId)) throw this.ports.errorFactory("board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
   }
 
-  private requireGoalOnBoard(boardId: string, goalId: string): GoalRecord {
-    const goal = this.ports.goals.query.getGoal(boardId, goalId);
+  private requireGoalOnBoard(projectId: string, goalId: string): GoalRecord {
+    const goal = this.ports.goals.query.getGoal(projectId, goalId);
     if (!goal) throw this.ports.errorFactory("goal.not_found", `Goal 不存在: ${goalId}`);
     return goal;
   }

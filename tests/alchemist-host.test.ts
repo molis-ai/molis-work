@@ -47,8 +47,8 @@ test("studio HTTP keeps project isolation, authorized writes, persisted cards, e
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     const project = /^\/projects\/([^/]+)/.exec(url.pathname)?.[1] ?? "a";
     url.pathname = url.pathname.replace(/^\/projects\/[^/]+/, "");
-    const ref = molisWorkHostProjectReference({ databasePath: join(home, `${project}.sqlite`), boardId: project, projectId: project });
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: project, title: "HTTP Alchemist", actor_id: "http-user", idempotency_key: "alchemist-http-init" }));
+    const ref = molisWorkHostProjectReference({ databasePath: join(home, `${project}.sqlite`), projectId: project });
+    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: project, title: "HTTP Alchemist", actor_id: "http-user", idempotency_key: "alchemist-http-init" }));
     await handleAlchemistNativePluginHttp(request, response, url, { projectId: project, routePrefix: `/projects/${project}`,
       actions: { invoke: async (definition, input, signal) => await host.actionClient(ref).invoke({ actor_id: "http-user", project_id: project, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS, signal }, definition, input) as never } });
   });
@@ -104,8 +104,7 @@ async function configuredAi(t: test.TestContext, endpoint = "http://127.0.0.1:1"
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "model-api", displayName: "Alchemist test", token: "explicit-test-secret" }));
   withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", endpoint));
-  catalog.models.upsert({ provider_id: "fixture", display_name: "显式测试 Provider", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "model", enabled: true }] });
-  catalog.models.selectConnection("fixture", connection.credential_ref!);
+  catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "显式测试 Provider", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "model", enabled: true }] });
   const host = new MolisWorkLocalHost({ homeDirectory: home }); ensureSystemAgentService(host, home);
   t.after(async () => {
     await host.close(); catalog.close(); resetSecretStoreCache();
@@ -189,7 +188,6 @@ test("Alchemist search initializes its own persistent SEL storage and returns ac
     createIfAbsent(ref, value) { if (secrets.has(ref)) return false; secrets.set(ref, value); return true; },
     deleteIfPresent: ref => secrets.delete(ref),
     backend: () => ({ kind: "aes-gcm-file", label: "explicit test memory", masterKeyExternal: false, formatVersion: 2 }),
-    migrateIfNeeded: () => ({ migrated: 0, remainingLegacy: 0, backend: "aes-gcm-file" }),
   };
   const calls: string[] = [];
   let addresses = [{ address: "1.1.1.1", family: 4 }], peer = "1.1.1.1";

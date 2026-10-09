@@ -1,10 +1,10 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { TodoBatch, TodoBatchMaterial, TodoCandidate, TodoPlacement, TodoSource } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoBatch, TodoBatchMaterial, TodoCandidate, TodoItem, TodoPlacement, TodoSource } from "@molis-ai/molis-work-contracts/modules/todo";
 import { TODO_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/todo";
 import { isTodoDate, isTodoTime } from "./dates.js";
 import { TodoError } from "./error.js";
 import { normalizeForMatch, TODO_ORGANIZE_MATERIAL_CHARS, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
-import type { TodoAccess, TodoFields, TodoStore } from "./store.js";
+import { todoRequestKey, type TodoAccess, type TodoFields, type TodoStore } from "./store.js";
 
 /** What the person chose for one candidate in the review. */
 export interface TodoCandidateDecision {
@@ -51,48 +51,53 @@ export class TodoOrganizer {
   private readonly db: DatabaseSync;
 
   constructor(private readonly store: TodoStore) {
+    // Its tables are part of the Todo store's baseline (TODO_STORE_BASELINE).
     this.db = store.database();
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS todo_batches (
-        batch_id TEXT PRIMARY KEY, project_id TEXT, origin TEXT NOT NULL, method TEXT NOT NULL, title TEXT NOT NULL,
-        body_json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL,
-        request_id TEXT UNIQUE
-      );
-      CREATE TABLE IF NOT EXISTS todo_source_memory (
-        source_key TEXT NOT NULL, fingerprint TEXT NOT NULL, decision TEXT NOT NULL, item_id TEXT, reason TEXT NOT NULL, at TEXT NOT NULL,
-        PRIMARY KEY (source_key, fingerprint)
-      );
-    `);
   }
 
   list(access: TodoAccess, status: "open" | "all" = "open"): TodoBatch[] {
     const rows = this.db.prepare("SELECT * FROM todo_batches ORDER BY created_at DESC LIMIT 50").all() as unknown as BatchRow[];
-    return rows.map(row => this.live(row)).filter(batch => visible(batch, access) && (status === "all" || batch.status === "open"));
+    return rows.filter(row => visible(row, access)).map(row => this.live(row, access)).filter(batch => status === "all" || batch.status === "open");
   }
 
   get(id: string, access: TodoAccess): TodoBatch {
     const row = this.db.prepare("SELECT * FROM todo_batches WHERE batch_id = ?").get(id) as BatchRow | undefined;
-    const batch = row ? this.live(row) : null;
+    const batch = row ? this.live(row, access) : null;
     if (!batch || !visible(batch, access)) throw new TodoError("todo.not_found", "找不到这份整理结果");
     return batch;
   }
 
-  /** A candidate whose added todo was undone is undecided again; the batch reopens if it was only closed by decisions. */
-  private live(row: BatchRow): TodoBatch {
+  /**
+   * The batch as it stands now: a candidate whose added todo was undone is undecided again (the batch reopens if it was only
+   * closed by decisions), and an undecided candidate for an existing todo is read against that todo as it is today.
+   */
+  private live(row: BatchRow, access: TodoAccess): TodoBatch {
     const batch = fromRow(row);
     let reopened = false;
     const candidates = batch.candidates.map(candidate => {
-      if (candidate.decision?.action !== "added" || !candidate.decision.item_id) return candidate;
-      if (this.db.prepare("SELECT 1 FROM todo_items WHERE id = ?").get(candidate.decision.item_id)) return candidate;
-      reopened = true;
-      return { ...candidate, decision: null };
+      const added = candidate.decision?.action === "added" ? candidate.decision.item_id : null;
+      if (added && !this.db.prepare("SELECT 1 FROM todo_items WHERE id = ?").get(added)) {
+        reopened = true;
+        return { ...candidate, decision: null };
+      }
+      return this.asOfNow(candidate, access);
     });
-    return reopened ? { ...batch, candidates, status: "open" } : batch;
+    return reopened ? { ...batch, candidates, status: "open" } : { ...batch, candidates };
+  }
+
+  /** An undecided candidate for an existing todo, with what it asks checked against the todo as it is now. */
+  private asOfNow(candidate: TodoCandidate, access: TodoAccess): TodoCandidate {
+    if (candidate.decision || !candidate.existing) return candidate;
+    let item: TodoItem;
+    try { item = this.store.get(candidate.existing.item_id, access); } catch { return candidate; }
+    const existing = currentExisting(candidate.existing, item);
+    return { ...candidate, existing, selected: existing.relation === "conflict" ? false : candidate.selected };
   }
 
   /** The batch an earlier request with this id created, so a retried request never organizes twice. */
   byRequest(requestId: string, access: TodoAccess): TodoBatch | null {
-    const seen = this.db.prepare("SELECT batch_id FROM todo_batches WHERE request_id = ?").get(requestId.trim()) as { batch_id: string } | undefined;
+    const key = todoRequestKey(access, requestId);
+    const seen = key ? this.db.prepare("SELECT batch_id FROM todo_batches WHERE request_id = ?").get(key) as { batch_id: string } | undefined : undefined;
     return seen ? this.get(seen.batch_id, access) : null;
   }
 
@@ -102,9 +107,9 @@ export class TodoOrganizer {
    */
   create(input: { title: string; origin: TodoBatch["origin"]; method: string; materials: readonly TodoOrganizeMaterial[]; candidates: readonly TodoCandidateDraft[];
     reference_only: TodoBatch["reference_only"]; unverified: number; request_id?: string }, access: TodoAccess): { batch: TodoBatch; replayed: boolean } {
-    const requestId = input.request_id?.trim();
-    if (requestId) {
-      const seen = this.db.prepare("SELECT batch_id FROM todo_batches WHERE request_id = ?").get(requestId) as { batch_id: string } | undefined;
+    const requestKey = todoRequestKey(access, input.request_id);
+    if (requestKey) {
+      const seen = this.db.prepare("SELECT batch_id FROM todo_batches WHERE request_id = ?").get(requestKey) as { batch_id: string } | undefined;
       if (seen) return { batch: this.get(seen.batch_id, access), replayed: true };
     }
     const at = this.store.clock().toISOString();
@@ -154,7 +159,7 @@ export class TodoOrganizer {
       created_at: at, updated_at: at, revision: 1 };
     this.db.prepare(`INSERT INTO todo_batches (batch_id, project_id, origin, method, title, body_json, status, created_at, updated_at, revision, request_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(batch.batch_id, batch.project_id, batch.origin, batch.method, batch.title,
-      JSON.stringify({ materials, candidates, reference_only: batch.reference_only, notes } satisfies BatchBody), batch.status, at, at, 1, requestId ?? null);
+      JSON.stringify({ materials, candidates, reference_only: batch.reference_only, notes } satisfies BatchBody), batch.status, at, at, 1, requestKey);
     return { batch, replayed: false };
   }
 
@@ -164,7 +169,7 @@ export class TodoOrganizer {
     if (!row || !visible(fromRow(row), access)) throw new TodoError("todo.not_found", "找不到这份整理结果");
     if (expectedRevision !== undefined && row.revision !== expectedRevision) throw new TodoError("todo.conflict", "这份整理结果已在别处处理过，请重新打开");
     const body = JSON.parse(row.body_json) as BatchBody;
-    const current = this.live(row);
+    const current = this.live(row, access);
     body.candidates = body.candidates.map(candidate => ({ ...candidate, decision: current.candidates.find(entry => entry.candidate_id === candidate.candidate_id)?.decision ?? null }));
     if (!decisions.length) throw new TodoError("todo.invalid", "先选要怎么处理");
     const changeBatch = crypto.randomUUID();
@@ -180,6 +185,7 @@ export class TodoOrganizer {
         const sources = candidate.evidence.map(entry => this.sourceFor(body.materials[entry.material - 1]!, entry.excerpt, candidate, row.origin as TodoBatch["origin"]));
         const keys = [...new Set(candidate.evidence.map(entry => body.materials[entry.material - 1]!.source_key))];
         let itemId: string | null = null;
+        let record = candidate.existing;
         let outcome: NonNullable<TodoCandidate["decision"]>["action"];
         if (decision.action === "ignore") {
           outcome = "ignored";
@@ -202,10 +208,11 @@ export class TodoOrganizer {
           if (!candidate.existing) throw new TodoError("todo.invalid", `「${candidate.title}」没有对应的已有待办`);
           const target = this.store.get(candidate.existing.item_id, access);
           itemId = target.id;
-          const accepted = Object.fromEntries(candidate.existing.protected.filter(entry => decision.accept_protected?.includes(entry.field)).map(entry => [entry.field, entry.value]));
-          const changes = { ...candidate.existing.changes, ...accepted } as TodoFields;
+          // Protection is read from the todo as it is at this moment, not as it was when the batch was made; what is written
+          // and what the candidate keeps as its record come from the same reading.
+          record = settled(currentExisting(candidate.existing, target), decision.action, decision.accept_protected ?? []);
           if (decision.action === "update" || decision.action === "reopen") {
-            if (Object.keys(changes).length) this.store.update(target.id, changes, undefined, access, changeBatch);
+            if (Object.keys(record.changes).length) this.store.update(target.id, record.changes as TodoFields, undefined, access, changeBatch);
             if (decision.action === "reopen") this.store.setStatus(target.id, "open", undefined, access, changeBatch);
           }
           if (decision.action === "complete") this.store.setStatus(target.id, "done", undefined, access, changeBatch);
@@ -221,7 +228,7 @@ export class TodoOrganizer {
             .run(key, fingerprint(candidate.title), outcome === "ignored" ? "ignored" : "handled", itemId, decision.ignore_reason?.slice(0, 100) ?? "", at);
         }
         if (itemId) itemFor.set(candidate.candidate_id, itemId);
-        body.candidates[index] = { ...candidate, decision: { action: outcome, item_id: itemId, reason: decision.ignore_reason?.slice(0, 100) ?? "", at } };
+        body.candidates[index] = { ...candidate, existing: record, decision: { action: outcome, item_id: itemId, reason: decision.ignore_reason?.slice(0, 100) ?? "", at } };
         results.push({ candidate_id: candidate.candidate_id, action: outcome, item_id: itemId });
       }
       // A todo added from a candidate that waits for another one waits for that todo.
@@ -256,6 +263,42 @@ export class TodoOrganizer {
     return { kind: origin === "onboarding" ? "onboarding" : "material", title: material.title, excerpt, reason: candidate.why.slice(0, 500),
       subject: material.subject, open: material.open };
   }
+}
+
+/**
+ * What a candidate asks of an existing todo, against the todo as it is now. The candidate was written when the batch was
+ * made; a field the person has edited by hand since is theirs, so it moves from `changes` to `protected` (taken only when
+ * they choose), and what the todo already says needs no asking. An update left with nothing to change reads as a conflict
+ * (something is held back) or as the same thing.
+ */
+function currentExisting(existing: NonNullable<TodoCandidate["existing"]>, item: TodoItem): NonNullable<TodoCandidate["existing"]> {
+  const edited: readonly string[] = item.edited_fields;
+  const held = existing.protected.filter(entry => item[entry.field] !== entry.value);
+  const changes: Partial<Record<TodoChangeField, string | null>> = {};
+  for (const [field, value] of Object.entries(existing.changes) as [TodoChangeField, string | null][]) {
+    if (item[field] === value) continue;
+    if (!edited.includes(field)) changes[field] = value;
+    else if (!held.some(entry => entry.field === field)) held.push({ field, value });
+  }
+  const relation = existing.relation === "update" && !Object.keys(changes).length ? (held.length ? "conflict" : "same") : existing.relation;
+  return { ...existing, relation, changes, protected: held };
+}
+
+type TodoChangeField = NonNullable<TodoCandidate["existing"]>["protected"][number]["field"];
+
+/**
+ * What a decided candidate keeps of its ask, for the review to read back: the changes actually written (a protected field
+ * the person took counts, and only update and reopen write any) and the fields left as theirs. Its relation follows what
+ * came of it, so a change that was held back or never written does not read as done.
+ */
+function settled(existing: NonNullable<TodoCandidate["existing"]>, action: TodoCandidateDecision["action"], taken: readonly string[]): NonNullable<TodoCandidate["existing"]> {
+  const writes = action === "update" || action === "reopen";
+  const accepted = writes ? existing.protected.filter(entry => taken.includes(entry.field)) : [];
+  const changes = writes ? { ...existing.changes, ...Object.fromEntries(accepted.map(entry => [entry.field, entry.value])) } : {};
+  const held = existing.protected.filter(entry => !accepted.includes(entry));
+  const asked = existing.relation === "update" || existing.relation === "conflict";
+  const relation = !asked ? existing.relation : Object.keys(changes).length ? "update" : held.length ? "conflict" : "same";
+  return { ...existing, relation, changes, protected: held };
 }
 
 function sourceKeyOf(source: Pick<TodoSource, "subject" | "excerpt">): string {

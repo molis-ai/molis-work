@@ -19,7 +19,8 @@ export type { LingguangPluginRouteHandler, LingguangPluginRouteRequest, Lingguan
 export { createLingguangRouteHandlers, lingguangRouteErrorResponse } from "./route-handlers.js";
 export type { LingguangRoutePorts } from "./route-handlers.js";
 export { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest } from "./manifest.js";
-export { openLingguangStore, LingguangStore } from "./store.js";
+export { openLingguangStore, LingguangStore, LINGGUANG_STORE_BASELINE } from "./store.js";
+export { purgeLingguangProject, lingguangProjectData } from "./project-data.js";
 export { LingguangError } from "./error.js";
 
 export { lingguangContentActions, createLingguangContentHandlers } from "./content-actions.js";

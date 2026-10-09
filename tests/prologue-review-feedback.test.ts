@@ -33,7 +33,7 @@ test('packed SDK: rejected review feedback reaches the next model request before
     modelConfiguration:async()=>({protocol:'anthropic-compatible',endpoint:'https://1.1.1.1/v1/messages',model:'fixture',credential_ref:'test'}),resolveCredential:()=> 'test-only'});
   let adapter=await make();
   try{
-    const owner={board_id:'board',plugin_id:'io.molis.work.coding',install_id:'installed',actor_id:'user'},directory={canonical_path:project,realpath_verified:true};
+    const owner={project_id:'board',plugin_id:'io.molis.work.coding',install_id:'installed',actor_id:'user'},directory={canonical_path:project,realpath_verified:true};
     const session=await adapter.createSession({...owner,directory,title:'review feedback'});
     const handle=await adapter.start({...owner,directory,session,task:'Change a.ts after host review.',role_id:'writer',role:{role_id:'writer',version:1,execution:'text-edit',prompts:[],host_tools:['read-file','write']}});
     const first=await until(async()=>{const review=queue.list('board','pending')[0];const view=await adapter.read(handle.ref);if(!review && ['failed','completed'].includes(view.phase))throw new Error(JSON.stringify({view,requests}));return review;});assert.equal(await readFile(join(project,'a.ts'),'utf8'),'original\n');
@@ -81,7 +81,7 @@ test('packed SDK: a refused command carries its reason, naming the command, into
   const adapter=await createPrologueNodeAdapter({app:{appId:'molis.review-command.test',appVersion:'1.0.0'},storageRoot:join(root,'sdk'),reviewQueue:queue,
     modelConfiguration:async()=>({protocol:'anthropic-compatible',endpoint:'https://1.1.1.1/v1/messages',model:'fixture',credential_ref:'test'}),resolveCredential:()=> 'test-only'});
   try{
-    const owner={board_id:'board',plugin_id:'io.molis.work.coding',install_id:'installed',actor_id:'user'},directory={canonical_path:project,realpath_verified:true};
+    const owner={project_id:'board',plugin_id:'io.molis.work.coding',install_id:'installed',actor_id:'user'},directory={canonical_path:project,realpath_verified:true};
     const session=await adapter.createSession({...owner,directory,title:'command feedback'});
     const handle=await adapter.start({...owner,directory,session,task:'Touch a file.',role_id:'builder',role:{role_id:'builder',version:1,execution:'workspace-write',prompts:[],host_tools:['read-file','run-command']}});
     const asked=await until(async()=>{const review=queue.list('board','pending')[0];const view=await adapter.read(handle.ref);if(!review && ['failed','completed'].includes(view.phase))throw new Error(JSON.stringify({view,requests}));return review;});

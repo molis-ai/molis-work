@@ -12,7 +12,7 @@ export interface FeedConnectorListener {
 }
 export interface FeedConnectorSyncPorts {
   feed: FeedApplication;
-  acquireSync?(boardId: string, sourceId: string): () => void;
+  acquireSync?(projectId: string, sourceId: string): () => void;
   /** The connection owner pins its original account; Feed owns source configuration. */
   connectionAuthority?(source: FeedSourceRecord): () => void | Promise<void>;
   createListener(source: FeedSourceRecord, afterAccepted: (
@@ -23,5 +23,5 @@ export interface FeedConnectorSyncPorts {
   reportCrash(sourceId: string, errorCode: string): Promise<void>;
   sourceMetadata(source: FeedSourceRecord, cursor: unknown): Pick<FeedSourceRecord, "account_label" | "config"> | Record<string, never>;
   transaction<T>(operation: () => T): T;
-  appendEvent(boardId: string, sourceId: string, type: string, reason: string, payload: Record<string, unknown>): void;
+  appendEvent(projectId: string, sourceId: string, type: string, reason: string, payload: Record<string, unknown>): void;
 }

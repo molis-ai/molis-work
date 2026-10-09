@@ -26,15 +26,14 @@ import { renderMolisWorkWeb, renderMolisWorkWorkbenchClientScript, type MolisWor
 const PROJECT = "project-todo";
 
 function view(): MolisWorkWebView {
-  const board = { board_id: "board-todo", title: "待办", active_goal_id: null, created_at: "2026-09-28T00:00:00.000Z", updated_at: "2026-09-28T00:00:00.000Z" };
+  const board = { project_id: "board-todo", title: "待办", active_goal_id: null, created_at: "2026-09-28T00:00:00.000Z", updated_at: "2026-09-28T00:00:00.000Z" };
   return {
-    snapshot: { board, cursor: 0, goals: [], relations: [], impacts: [], risks: [], claims: [], runs: [], evidence: [], review_obligations: [], reviews: [], candidates: [],
-      contract_proposals: [], rewires: [], clarification_sessions: [], clarification_turns: [], goal_tree_proposals: [], planning_method_packs: [] },
+    snapshot: { board, cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [] },
     project: { project_id: PROJECT, display_name: "待办" },
     projects: [{ project_id: PROJECT, display_name: "待办" }],
     route_prefix: `/projects/${PROJECT}`,
-    demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {}, coverage: [], input_bindings: [], policy_bindings: [], events: [],
-    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], contract_migrations: [], out_rules: [] },
+    demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {}, input_bindings: [], policy_bindings: [], events: [],
+    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
   } as unknown as MolisWorkWebView;
 }
 
@@ -90,7 +89,7 @@ test("HTTP routes map to the same actions; fixed paths are not read as ids; a pr
   await withHost(async (home, host) => {
     const personal = new TodoPluginRouteTable(createTodoRouteHandlers({ actions: bindActionClient(host.homeActionClient(),
       () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: TODO_ACTION_PERMISSIONS })) }));
-    const reference = molisWorkHostProjectReference({ projectId: PROJECT, boardId: PROJECT, databasePath: join(home, "project.sqlite") });
+    const reference = molisWorkHostProjectReference({ projectId: PROJECT, databasePath: join(home, "project.sqlite") });
     const inProject = new TodoPluginRouteTable(createTodoRouteHandlers({ actions: bindActionClient(host.actionClient(reference),
       () => ({ actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: TODO_ACTION_PERMISSIONS })) }));
     const call = async (table: TodoPluginRouteTable, method: "GET" | "POST", pathname: string, body: Record<string, unknown> = {}, query = new URLSearchParams()) => {

@@ -1,6 +1,6 @@
 import { ACTION_REFERENCE_SCHEMA, ACTION_SCENE_TARGETS_SCHEMA, withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionExecutionContext, ActionDefinition, ActionHandlerBinding, ActionSchema, ActionSceneTarget, ActionSceneUsage } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { JudgmentRecord, FunctionDraftPatch, FunctionRecord, FunctionSceneBinding, FunctionsPrimitive, FunctionAuthoringCatalog } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { JudgmentRecord, FunctionDraftPatch, FunctionRecord, FunctionsPrimitive, FunctionAuthoringCatalog } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsActionPorts } from "./actions.js";
 import { assertReadyToPublish } from "./store.js";
 
@@ -65,7 +65,7 @@ export const functionContextActions = {
       subjects: { type: "array", items: { type: "object" } }, destinations: { type: "array", items: { type: "object" } }, behaviors: { type: "array", items: { type: "object" } },
     }, required: ["subjects", "destinations", "behaviors"] } }, required: ["catalog"],
   }),
-  usages: define<{ id: string }, { usages: (ActionSceneUsage | FunctionSceneBinding)[] }>("usages", "判断规则实际使用位置", "读取当前范围由消费场景保存的真实绑定与可用状态；草稿没有生效绑定。", input({ id }, ["id"]), {
+  usages: define<{ id: string }, { usages: ActionSceneUsage[] }>("usages", "判断规则实际使用位置", "读取当前范围由消费场景保存的真实绑定与可用状态；草稿没有生效绑定。", input({ id }, ["id"]), {
     type: "object", properties: { usages: { type: "array", items: { type: "object", properties: { scene_id: id }, required: ["scene_id"] } } }, required: ["usages"],
   }),
 } as const;

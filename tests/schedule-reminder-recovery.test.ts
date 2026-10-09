@@ -6,13 +6,12 @@ import { join } from "node:path";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { createScheduleReminderManagement, getScheduleReminder, createScheduleActionPorts, scheduleActions, SCHEDULE_ACTION_PERMISSIONS,
+import { createScheduleReminders, createScheduleReminderManagement, getScheduleReminder, createScheduleActionPorts, scheduleActions, SCHEDULE_ACTION_PERMISSIONS,
   SchedulePluginRouteTable, createScheduleRouteHandlers, type ScheduleJobView } from "@molis-ai/molis-work-plugin-schedule";
 import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
-import { seedDemoBoard, DEMO_BOARD_ID } from "../apps/local-host/src/demo-seed.js";
+import { seedDemoBoard } from "../apps/local-host/src/demo-seed.js";
 import { scheduleServiceFor } from "../apps/local-host/src/schedule-runtime.js";
-import { hostScheduleReminders, hostScheduleReminderManagement, migrateLegacyReminders, LEGACY_REMINDER_OWNER, LEGACY_REMINDER_WAKEUP } from "../apps/local-host/src/schedule-reminders.js";
-import { studioStorage } from "../apps/local-host/src/plugin-builder/storage.js";
+import { hostScheduleReminders, hostScheduleReminderManagement } from "../apps/local-host/src/schedule-reminders.js";
 import { createLocalFeedApplication } from "../apps/local-host/src/feed-application.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -24,27 +23,26 @@ function installation(generation = "original"): PluginInstanceRecord {
     execution: "sandbox", state: "running", recovery_count: 0, last_error_code: null, installed_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z", uninstalled_at: null, retain_private_data: false };
 }
-function legacy(db: LocalProjectDatabase["db"], boardId: string, schedule: ReturnType<typeof scheduleServiceFor>, id: string, at: string, repeat: "daily" | "none" = "none") {
-  const job = schedule.register({ plugin_id: LEGACY_REMINDER_OWNER, capability_id: LEGACY_REMINDER_WAKEUP, object_ref: boardId + "|" + id,
-    title: "旧提醒：复习今天的笔记", due_at: at, recurrence: repeat === "daily" ? { kind: "interval", interval_ms: 86_400_000 } : { kind: "once" } });
-  const storage = studioStorage(db, boardId);
-  storage.set("plugin-builder:reminder:" + id, JSON.stringify({ id, boardId, pluginId, pluginTitle: "原笔记插件", text: "复习 <今天> 的笔记", link: "/original-link",
-    jobId: job.job_id, at, repeat }));
-  storage.set("plugin-builder:reminders:" + pluginId, JSON.stringify([id]));
-  migrateLegacyReminders(db, schedule);
-  return schedule.get(job.job_id)!;
+/** A reminder the plugin set under an earlier generation of its installation and the person then paused: after the reinstall it waits for them to confirm. */
+function setBeforeReinstall(db: LocalProjectDatabase["db"], projectId: string, schedule: ReturnType<typeof scheduleServiceFor>, at: string, repeat: "daily" | "none" = "none") {
+  const reminders = createScheduleReminders({ db, projectId, schedule, now: () => Date.parse(at) - 3_600_000,
+    describe: () => ({ title: "原笔记插件", link: "/original-link", generation: "before-reinstall" }) });
+  const { reminderId } = reminders.add({ projectId, pluginId, installationId: installation().install_id }, { at, text: "复习 <今天> 的笔记", repeat });
+  const { jobId, jobOwner } = getScheduleReminder(db, reminderId)!;
+  schedule.setEnabled(jobId, false, jobOwner);
+  return { id: reminderId, job: schedule.get(jobId)! };
 }
 const confirmation = (view: ScheduleJobView) => ({ job_id: view.job_id,
   expected_installation_id: view.reminder!.installation!.installation_id, expected_generation: view.reminder!.installation!.generation });
 
 test("recovery respects the current installation's reminder limit and requires a running unique target", async () => {
-  const home = await mkdtemp(join(tmpdir(), "reminder-recover-limit-")), path = join(home, "project.db"); seedDemoBoard(path);
+  const home = await mkdtemp(join(tmpdir(), "reminder-recover-limit-")), path = join(home, "project.db"); seedDemoBoard(path, "p");
   const store = new LocalProjectDatabase(path);
   try {
     const repository = new SqlitePluginRuntimeRepository(store.db); repository.save(installation());
     const schedule = scheduleServiceFor(store.db), at = new Date(Date.now() + 86_400_000).toISOString();
-    const job = legacy(store.db, DEMO_BOARD_ID, schedule, "legacy", at);
-    const management = hostScheduleReminderManagement({ db: store.db, boardId: DEMO_BOARD_ID, schedule });
+    const { id, job } = setBeforeReinstall(store.db, "p", schedule, at);
+    const management = hostScheduleReminderManagement({ db: store.db, projectId: "p", schedule });
     const input = confirmation(management.view(job));
     repository.save({ ...installation(), state: "disabled" });
     assert.equal(management.view(job).reminder?.installation, null);
@@ -54,51 +52,51 @@ test("recovery respects the current installation's reminder limit and requires a
     assert.equal(management.view(job).reminder?.installation, null);
     assert.throws(() => management.recover(input), /安装并启用/);
     repository.save({ ...repository.get("another")!, state: "uninstalled" });
-    const reminders = hostScheduleReminders({ db: store.db, boardId: DEMO_BOARD_ID, projectId: "p", schedule });
+    const reminders = hostScheduleReminders({ db: store.db, projectId: "p", schedule });
     const identity = { projectId: "p", pluginId, installationId: installation().install_id };
     const created = Array.from({ length: 200 }, () => reminders.add(identity, { at, text: "current reminder" }));
     assert.throws(() => management.recover(input), /提醒已经太多/);
     assert.equal(schedule.get(job.job_id)?.enabled, false);
-    assert.equal(getScheduleReminder(store.db, "legacy")?.installationGeneration, null);
+    assert.equal(getScheduleReminder(store.db, id)?.installationGeneration, "before-reinstall");
     reminders.cancel(identity, created[0]!);
     assert.equal(management.recover(input).enabled, true);
     assert.throws(() => reminders.add(identity, { at, text: "overflow" }), /提醒已经太多/);
   } finally { store.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("legacy reminder recovery rechecks current consent, commits atomically and preserves cadence across restart", async () => {
-  const home = await mkdtemp(join(tmpdir(), "reminder-recover-")), path = join(home, "project.db"); seedDemoBoard(path);
+test("reminder recovery after a reinstall rechecks current consent, commits atomically and preserves cadence across restart", async () => {
+  const home = await mkdtemp(join(tmpdir(), "reminder-recover-")), path = join(home, "project.db"); seedDemoBoard(path, "p");
   let store = new LocalProjectDatabase(path);
   const clock = new Date("2026-09-27T02:00:00.000Z"), at = "2026-09-27T01:00:00.000Z";
   try {
     const repository = new SqlitePluginRuntimeRepository(store.db); repository.save(installation());
     const schedule = scheduleServiceFor(store.db, () => clock);
-    const daily = legacy(store.db, DEMO_BOARD_ID, schedule, "daily", at, "daily");
-    const once = legacy(store.db, DEMO_BOARD_ID, schedule, "once", at);
-    const manage = hostScheduleReminderManagement({ db: store.db, boardId: DEMO_BOARD_ID, schedule });
+    const { id: dailyId, job: daily } = setBeforeReinstall(store.db, "p", schedule, at, "daily");
+    const { id: onceId, job: once } = setBeforeReinstall(store.db, "p", schedule, at);
+    const manage = hostScheduleReminderManagement({ db: store.db, projectId: "p", schedule });
     const ports = createScheduleActionPorts({ db: store.db, schedule, reminders: manage });
     assert.equal(manage.view(daily).reminder?.needs_confirmation, true);
     assert.throws(() => ports.setEnabled(daily.job_id, true), /确认当前插件/);
     const oldConfirmation = confirmation(manage.view(daily));
     repository.save(installation("reinstalled"));
     assert.throws(() => manage.recover(oldConfirmation), /安装已变更/);
-    assert.equal(getScheduleReminder(store.db, "daily")?.installationGeneration, null);
+    assert.equal(getScheduleReminder(store.db, dailyId)?.installationGeneration, "before-reinstall");
     assert.equal(schedule.get(daily.job_id)?.enabled, false);
 
     const current = confirmation(manage.view(daily));
-    const broken = createScheduleReminderManagement({ db: store.db, boardId: DEMO_BOARD_ID,
+    const broken = createScheduleReminderManagement({ db: store.db, projectId: "p",
       currentInstallation: () => manage.view(daily).reminder!.installation,
       schedule: { get: schedule.get, setEnabled(...args) { schedule.setEnabled(...args); throw new Error("disk-write-failed"); } } });
     assert.throws(() => broken.recover(current), /disk-write-failed/);
-    assert.equal(getScheduleReminder(store.db, "daily")?.installationGeneration, null);
+    assert.equal(getScheduleReminder(store.db, dailyId)?.installationGeneration, "before-reinstall");
     assert.deepEqual(schedule.get(daily.job_id), daily, "failed enabling rolls back both identity and job");
-    const otherBoard = hostScheduleReminderManagement({ db: store.db, boardId: "other-board", schedule });
+    const otherBoard = hostScheduleReminderManagement({ db: store.db, projectId: "other-board", schedule });
     assert.throws(() => otherBoard.recover(current), /不存在/);
 
     const recovered = manage.recover(current);
     assert.equal(recovered.reminder?.needs_confirmation, false);
     assert.deepEqual({ ...recovered, enabled: false, updated_at: daily.updated_at, reminder: undefined }, { ...daily, reminder: undefined });
-    assert.equal(getScheduleReminder(store.db, "daily")?.link, "/original-link");
+    assert.equal(getScheduleReminder(store.db, dailyId)?.link, "/original-link");
     ports.setEnabled(daily.job_id, false);
     assert.equal(manage.recover(current).enabled, false, "a duplicate confirmation cannot undo a later pause");
     ports.setEnabled(daily.job_id, true);
@@ -106,11 +104,11 @@ test("legacy reminder recovery rechecks current consent, commits atomically and 
     store.close(); store = new LocalProjectDatabase(path);
     const reopened = scheduleServiceFor(store.db, () => clock);
     await reopened.tick(clock); await reopened.tick(clock);
-    const items = createLocalFeedApplication(store.db).snapshot(DEMO_BOARD_ID).feed_items.filter(item => item.source_id === "plugin-reminders");
+    const items = createLocalFeedApplication(store.db).snapshot("p").feed_items.filter(item => item.source_id === "plugin-reminders");
     assert.equal(items.length, 2, "each overdue reminder delivers only once");
     assert.ok(items.every(item => item.summary === "复习 <今天> 的笔记" && item.url === "/original-link"));
-    assert.equal(getScheduleReminder(store.db, "once"), null);
-    assert.equal(getScheduleReminder(store.db, "daily")?.installationGeneration, "reinstalled");
+    assert.equal(getScheduleReminder(store.db, onceId), null);
+    assert.equal(getScheduleReminder(store.db, dailyId)?.installationGeneration, "reinstalled");
     assert.equal(reopened.get(daily.job_id)?.next_due_at, "2026-09-28T01:00:00.000Z");
     assert.equal(reopened.get(daily.job_id)?.last_wakeup?.status, "ok");
   } finally { store.close(); await rm(home, { recursive: true, force: true }); }
@@ -119,14 +117,14 @@ test("legacy reminder recovery rechecks current consent, commits atomically and 
 test("reminder recovery through Host and HTTP uses current authorization and cannot cross Home or project", async () => {
   const home = await mkdtemp(join(tmpdir(), "reminder-recovery-actions-"));
   const hosts = [new MolisWorkLocalHost(), new MolisWorkLocalHost()];
-  const refs = ["one", "two"].map(name => { const path = join(home, name + ".db"); seedDemoBoard(path);
-    return molisWorkHostProjectReference({ databasePath: path, boardId: DEMO_BOARD_ID, projectId: "p" }); });
+  const refs = ["one", "two"].map(name => { const path = join(home, name + ".db"); seedDemoBoard(path, "p");
+    return molisWorkHostProjectReference({ databasePath: path, projectId: "p" }); });
   const caller = { actor_id: "owner", project_id: "p", audience: "user" as const, permissions: SCHEDULE_ACTION_PERMISSIONS };
   try {
     const jobs = [];
     for (let i = 0; i < hosts.length; i++) jobs.push(await hosts[i]!.withProject(refs[i]!, runtime => {
       new SqlitePluginRuntimeRepository(runtime.store.db).save(installation("home-" + i));
-      return legacy(runtime.store.db, DEMO_BOARD_ID, scheduleServiceFor(runtime.store.db), "same-id", new Date(Date.now() + 86_400_000).toISOString());
+      return setBeforeReinstall(runtime.store.db, "p", scheduleServiceFor(runtime.store.db), new Date(Date.now() + 86_400_000).toISOString()).job;
     }));
     const client = hosts[0]!.actionClient(refs[0]!), bound = bindActionClient(client, () => caller);
     const view = (await bound.invoke(scheduleActions.list, {})).jobs.find(job => job.job_id === jobs[0]!.job_id)!;
@@ -151,10 +149,9 @@ test("reminder recovery through Host and HTTP uses current authorization and can
 test("Schedule reminder recovery can be cancelled and re-reviewed after reinstall in a narrow browser", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { store, origin, projectId, command, sessionId, navigate, click, evaluate, waitFor } = b;
-  const boardId = store.goalsQuery.listBoardIds()[0]!;
   const repository = new SqlitePluginRuntimeRepository(store.db); repository.save(installation());
   const schedule = scheduleServiceFor(store.db);
-  const job = legacy(store.db, boardId, schedule, "browser-reminder", new Date(Date.now() + 86_400_000).toISOString());
+  const { id: reminderId, job } = setBeforeReinstall(store.db, projectId!, schedule, new Date(Date.now() + 86_400_000).toISOString());
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click("[data-plugin-strip] [data-plugin-id=schedule]");
@@ -170,7 +167,7 @@ test("Schedule reminder recovery can be cancelled and re-reviewed after reinstal
   await click("[data-schedule-recovery-form] [type=submit]");
   await waitFor("document.querySelector('[data-schedule-recovery-error]').textContent.includes('安装已变更')");
   assert.equal(schedule.get(job.job_id)?.enabled, false);
-  assert.equal(getScheduleReminder(store.db, "browser-reminder")?.installationGeneration, null);
+  assert.equal(getScheduleReminder(store.db, reminderId)?.installationGeneration, "before-reinstall");
   assert.equal(await evaluate("document.querySelector('[data-schedule-recovery-dialog]').open"), true);
   await evaluate(`{ const original = window.fetch; window.restoreRecoveryFetch = () => window.fetch = original;
     window.fetch = (url, options) => String(url).endsWith('/api/schedule/workbench')
@@ -178,7 +175,7 @@ test("Schedule reminder recovery can be cancelled and re-reviewed after reinstal
   await click("[data-schedule-recovery-refresh]");
   await waitFor("document.querySelector('[data-schedule-recovery-error]').textContent.includes('无法更新')");
   assert.equal(await evaluate("document.querySelector('[data-schedule-recovery-dialog]').open"), true);
-  assert.equal(getScheduleReminder(store.db, "browser-reminder")?.installationGeneration, null, "a refresh failure cannot submit a new identity");
+  assert.equal(getScheduleReminder(store.db, reminderId)?.installationGeneration, "before-reinstall", "a refresh failure cannot submit a new identity");
   await evaluate("window.restoreRecoveryFetch()");
   await click("[data-schedule-recovery-refresh]");
   await waitFor("document.querySelector('[data-schedule-reminder-recover]').dataset.generation === 'replacement' && !document.querySelector('[data-schedule-recovery-form] [type=submit]').disabled");
@@ -195,6 +192,6 @@ test("Schedule reminder recovery can be cancelled and re-reviewed after reinstal
   await click("[data-schedule-recovery-form] [type=submit]");
   await waitFor("!document.querySelector('[data-schedule-recovery-dialog]').open && !document.querySelector('[data-schedule-reminder-recover]')");
   assert.equal(schedule.get(job.job_id)?.enabled, true);
-  assert.equal(getScheduleReminder(store.db, "browser-reminder")?.installationGeneration, "replacement");
-  assert.equal(getScheduleReminder(store.db, "browser-reminder")?.link, "/original-link");
+  assert.equal(getScheduleReminder(store.db, reminderId)?.installationGeneration, "replacement");
+  assert.equal(getScheduleReminder(store.db, reminderId)?.link, "/original-link");
 });

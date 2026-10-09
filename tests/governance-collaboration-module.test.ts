@@ -10,7 +10,7 @@ import {
   deriveGoalTreeProposalState,
 } from "@molis-ai/molis-work-module-governance-collaboration";
 
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 function fixture(name: string): {
@@ -45,14 +45,14 @@ test("Governance decision provenance and target-owner materialization share one 
     const itemId = "goal-tree-item-module-test";
     governance.records.insertGoalTreeProposal({
       proposal_id: proposalId,
-      board_id: DEMO_BOARD_ID,
+      project_id: DEMO_PROJECT_ID,
       root_goal_id: "V1",
       submitted_by: "runtime-a",
       discovered_in_run_id: null,
       state: "pending",
       version: 1,
       supersedes_proposal_id: null,
-      base_event_cursor: store.eventCursor(DEMO_BOARD_ID),
+      base_event_cursor: store.eventCursor(DEMO_PROJECT_ID),
       summary: "atomic materialization test",
       narrative: null,
       created_at: "2026-09-02T00:00:00.000Z",
@@ -61,28 +61,28 @@ test("Governance decision provenance and target-owner materialization share one 
     governance.records.insertGoalTreeProposalItem({
       item_id: itemId,
       proposal_id: proposalId,
-      board_id: DEMO_BOARD_ID,
+      project_id: DEMO_PROJECT_ID,
       ordinal: 1,
       kind: "goal",
-      operation: "update",
-      payload: { goal_id: "V1" },
+      operation: "create",
+      payload: { goal_id: "V1-child", title: "Child", outcome: "Child outcome" },
       source_refs: ["conversation://thread/message"],
       reason: "user confirmed",
       explanation: null,
       confidence: 1,
-      affected_objects: [{ object_type: "goal", object_id: "V1" }],
-      baseline_versions: [{ object_type: "goal", object_id: "V1", exists: true, version: "v1" }],
+      affected_objects: [{ object_type: "goal", object_id: "V1-child" }],
+      baseline_versions: [{ object_type: "goal", object_id: "V1-child", exists: false, version: "absent" }],
       requires_user_confirmation: true,
       state: "pending",
       supersedes_item_id: null,
       created_at: "2026-09-02T00:00:00.000Z",
       updated_at: "2026-09-02T00:00:00.000Z",
     });
-    const beforeTitle = (store.db.prepare("SELECT title FROM boards WHERE board_id = ?")
-      .get(DEMO_BOARD_ID) as { title: string }).title;
+    const beforeTitle = (store.db.prepare("SELECT title FROM boards WHERE project_id = ?")
+      .get(DEMO_PROJECT_ID) as { title: string }).title;
     const decision = {
       decision_id: "goal-tree-decision-module-test",
-      board_id: DEMO_BOARD_ID,
+      project_id: DEMO_PROJECT_ID,
       proposal_id: proposalId,
       item_id: itemId,
       decision: "confirmed" as const,
@@ -93,7 +93,7 @@ test("Governance decision provenance and target-owner materialization share one 
       message_ref: "message-test",
       reason: "confirmed in the current dialogue",
       revision_proposal_id: null,
-      materialized_objects: [{ object_type: "goal" as const, object_id: "V1" }],
+      materialized_objects: [{ object_type: "goal" as const, object_id: "V1-child" }],
       created_at: "2026-09-02T00:00:01.000Z",
     };
 
@@ -106,14 +106,14 @@ test("Governance decision provenance and target-owner materialization share one 
         materialized_objects: decision.materialized_objects,
         updated_at: decision.created_at,
       });
-      store.db.prepare("UPDATE boards SET title = ? WHERE board_id = ?")
-        .run("must roll back", DEMO_BOARD_ID);
+      store.db.prepare("UPDATE boards SET title = ? WHERE project_id = ?")
+        .run("must roll back", DEMO_PROJECT_ID);
       throw new Error("target owner failed");
     }), /target owner failed/);
-    assert.equal(governance.query.getGoalTreeProposal(DEMO_BOARD_ID, proposalId)?.decisions.length, 0);
-    assert.equal(governance.query.getGoalTreeProposal(DEMO_BOARD_ID, proposalId)?.items[0]?.state, "pending");
-    assert.equal((store.db.prepare("SELECT title FROM boards WHERE board_id = ?")
-      .get(DEMO_BOARD_ID) as { title: string }).title, beforeTitle);
+    assert.equal(governance.query.getGoalTreeProposal(DEMO_PROJECT_ID, proposalId)?.decisions.length, 0);
+    assert.equal(governance.query.getGoalTreeProposal(DEMO_PROJECT_ID, proposalId)?.items[0]?.state, "pending");
+    assert.equal((store.db.prepare("SELECT title FROM boards WHERE project_id = ?")
+      .get(DEMO_PROJECT_ID) as { title: string }).title, beforeTitle);
 
     governance.decisions.materializeAtomically(() => {
       governance.records.insertGoalTreeDecision(decision);
@@ -124,10 +124,10 @@ test("Governance decision provenance and target-owner materialization share one 
         materialized_objects: decision.materialized_objects,
         updated_at: decision.created_at,
       });
-      store.db.prepare("UPDATE boards SET title = ? WHERE board_id = ?")
-        .run("materialized", DEMO_BOARD_ID);
+      store.db.prepare("UPDATE boards SET title = ? WHERE project_id = ?")
+        .run("materialized", DEMO_PROJECT_ID);
     });
-    const persisted = governance.query.getGoalTreeProposal(DEMO_BOARD_ID, proposalId);
+    const persisted = governance.query.getGoalTreeProposal(DEMO_PROJECT_ID, proposalId);
     assert.equal(persisted?.decisions[0]?.authority_source, "runtime_dialogue");
     assert.equal(persisted?.decisions[0]?.conversation_ref, "codex://threads/test");
     assert.equal(persisted?.decisions[0]?.message_ref, "message-test");

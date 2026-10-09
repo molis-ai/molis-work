@@ -100,8 +100,6 @@ export interface FeedUiCatalogSource {
 
 export interface FeedUiConnectorStatus {
   readonly bound: boolean;
-  readonly hint?: string | null;
-  readonly problem?: string | null;
 }
 
 export interface FeedUiPrimitives {
@@ -122,8 +120,7 @@ export interface FeedUiOutRule {
   readonly contains: string | null;
   readonly source_id: string | null;
   readonly source_kind: string | null;
-  readonly function_key: string | null;
-  readonly judgment?: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference | null;
+  readonly judgment: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference | null;
 }
 
 export interface FeedUiModel {
@@ -484,8 +481,7 @@ function renderFeedSetupPanel(model: FeedUiModel): string {
   const p = model.primitives;
   const catalogOptions = model.source_catalog.map((source) => `<option value="${p.escape(source.id)}">${p.escape(`${source.category_label} · ${source.name}`)}</option>`).join("");
   const connectorLabel = (status: FeedUiConnectorStatus, kind: "github" | "gmail") => status.bound
-    ? `${p.text(kind === "gmail" ? "凭据已保存" : "已连接")} ${p.escape(status.hint || "")}`
-    : status.problem ? p.text("凭据不可读取") : p.text("未连接");
+    ? p.text(kind === "gmail" ? "凭据已保存" : "已连接") : p.text("未连接");
   const choices = [
     ["research_library", "book", "共享研究库", "已发布的研究成果"],
     ["custom_rss", "rss", "RSS / Atom", "粘贴地址"],
@@ -526,14 +522,14 @@ function renderOutRulesSection(model: FeedUiModel, source: FeedUiSource): string
   const rules = model.out_rules.filter((rule) => rule.source_id === source.source_id);
   const rows = rules.length
     ? rules.map((rule) => {
-      const judgmentName = rule.judgment ? p.text("已绑定判断能力") : rule.function_key ? p.text("原判断规则不可用") : null;
+      const judgmentName = rule.judgment ? p.text("已绑定判断能力") : null;
       const filter = [
         rule.contains ? p.text("包含 “{contains}”", { contains: rule.contains }) : p.text("该来源的全部新消息"),
         judgmentName ?? "",
         p.text(rule.admission === "inbox" ? "筛选后自动入 Inbox，待复核单独标明" : "仅建议"),
         rule.source_kind ? p.text("来源类型 {kind}", { kind: rule.source_kind }) : "",
       ].filter(Boolean).join(" · ");
-      return `<article class="feed-capture-rule" data-feed-out-rule-row="${p.escape(rule.rule_id)}"><div class="feed-capture-rule-copy"><strong>${p.escape(rule.name)}</strong><p>${p.escape(filter)}</p><small data-feed-rule-binding-status>${rule.enabled ? p.text(rule.judgment || rule.function_key ? "已启用，正在检查判断能力" : "已启用") : p.text("已停用")}</small></div><div class="feed-capture-rule-actions"><button class="mw-btn mw-btn--ghost" type="button" data-feed-out-rule-toggle="${p.escape(rule.rule_id)}" data-enabled="${rule.enabled ? "true" : "false"}"${source.prototype ? " disabled" : ""}>${rule.enabled ? p.text("停用") : p.text("启用")}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-feed-out-rule-delete="${p.escape(rule.rule_id)}"${source.prototype ? " disabled" : ""}>${p.text("删除")}</button></div></article>`;
+      return `<article class="feed-capture-rule" data-feed-out-rule-row="${p.escape(rule.rule_id)}"><div class="feed-capture-rule-copy"><strong>${p.escape(rule.name)}</strong><p>${p.escape(filter)}</p><small data-feed-rule-binding-status>${rule.enabled ? p.text(rule.judgment ? "已启用，正在检查判断能力" : "已启用") : p.text("已停用")}</small></div><div class="feed-capture-rule-actions"><button class="mw-btn mw-btn--ghost" type="button" data-feed-out-rule-toggle="${p.escape(rule.rule_id)}" data-enabled="${rule.enabled ? "true" : "false"}"${source.prototype ? " disabled" : ""}>${rule.enabled ? p.text("停用") : p.text("启用")}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-feed-out-rule-delete="${p.escape(rule.rule_id)}"${source.prototype ? " disabled" : ""}>${p.text("删除")}</button></div></article>`;
     }).join("")
     : `<p class="feed-source-empty">${p.text("还没有捕捉规则。在下方直接添加，无需离开 Feed。")}</p>`;
   const form = source.prototype ? `<p>${p.text("添加真实来源后，即可试跑和保存规则。")}</p>` : `<section class="feed-rule-composer" data-feed-rule-composer>

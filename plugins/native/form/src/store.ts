@@ -1,4 +1,4 @@
-import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import type {
   FormOption,
@@ -8,6 +8,7 @@ import type {
   FormRecord,
   FormStatus,
   FormSubmissionRecord,
+  FormSubmissionSource,
 } from "@molis-ai/molis-work-contracts/modules/form";
 import { FormError } from "./error.js";
 import { FORM_ANSWER_FORMAT } from "./fillpage.js";
@@ -34,11 +35,15 @@ interface SubmissionRow {
   form_id: string;
   answers_json: string;
   submitted_at: string;
-  form_version: number | null;
-  questions_json: string | null;
+  form_version: number;
+  questions_json: string;
   request_id: string | null;
-  source: string | null;
+  source: string;
 }
+
+/** What a form holds; a hand-over from another plugin is shaped to fit before it is received. */
+export const FORM_TITLE_LIMIT = 80;
+export const FORM_QUESTION_LIMIT = 40;
 
 const QUESTION_TYPES: readonly FormQuestionType[] = [
   "text", "singleChoice", "multiChoice", "dropdown", "rating", "date",
@@ -161,10 +166,16 @@ export class FormStore {
   /**
    * Answer files people sent back from the exported fill page. Each file is untrusted: it must name this form, carry
    * its own question snapshot and valid answers. The same answer imported twice counts once.
+   *
+   * `source` is who imports, in the words of a submission's source: the person at the Host's own page (`preview`, the
+   * default) or the audience that called. Whoever imports, what comes in is recorded as `file`. While the form is not
+   * collecting, only the person imports; any other caller is refused as a whole, before a file is read.
    */
-  importAnswers(id: string, files: readonly { name: string; content: string }[], projectId?: string): { imported: number; skipped: number; rejected: { name: string; reason: string }[] } {
+  importAnswers(id: string, files: readonly { name: string; content: string }[], projectId?: string,
+    options: { source?: Exclude<FormSubmissionSource, "file"> } = {}): { imported: number; skipped: number; rejected: { name: string; reason: string }[] } {
     return this.transaction(() => {
       const form = this.get(id, projectId);
+      assertTakesAnswers(form, options.source ?? "preview", "import");
       let imported = 0, skipped = 0;
       const rejected: { name: string; reason: string }[] = [];
       for (const file of files) {
@@ -181,7 +192,8 @@ export class FormStore {
           const questions = normalizeQuestions(Array.isArray(parsed.questions) ? parsed.questions as FormQuestionInput[] : []);
           const answers = normalizeAnswers(questions, (parsed.answers && typeof parsed.answers === "object" ? parsed.answers : {}) as Record<string, string>);
           const at = typeof parsed.submitted_at === "string" && Number.isFinite(Date.parse(parsed.submitted_at)) ? new Date(parsed.submitted_at).toISOString() : new Date().toISOString();
-          const version = Number.isSafeInteger(parsed.form_version) ? Number(parsed.form_version) : null;
+          if (!Number.isSafeInteger(parsed.form_version) || Number(parsed.form_version) < 1) throw new FormError("form.invalid", "答卷缺少问卷版本");
+          const version = Number(parsed.form_version);
           this.db.prepare("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id, source) VALUES (?, ?, ?, ?, ?, ?, ?, 'file')")
             .run(crypto.randomUUID(), id, JSON.stringify(answers), at, version, JSON.stringify(questions), requestId);
           imported += 1;
@@ -248,15 +260,16 @@ export class FormStore {
   }
 
   submit(id: string, answers: Readonly<Record<string, string>>, projectId?: string,
-    options: { expectedVersion?: number; requestId?: string; source?: "preview" | "fill" } = {}): FormSubmissionRecord {
+    options: { expectedVersion?: number; requestId?: string; source?: Exclude<FormSubmissionSource, "file"> } = {}): FormSubmissionRecord {
     return this.transaction(() => {
       const form = this.get(id, projectId);
-      if (options.source === "fill" && form.status !== "published") throw new FormError("form.closed", form.status === "closed" ? "这份问卷已停止收集答卷" : "这份问卷还没有开始收集答卷");
+      const source = options.source ?? "preview";
+      assertTakesAnswers(form, source);
       if (options.requestId) {
         const existing = this.db.prepare("SELECT * FROM submissions WHERE form_id = ? AND request_id = ?").get(id, options.requestId) as SubmissionRow | undefined;
         if (existing) {
           const prior = submissionFromRow(existing);
-          const normalized = normalizeAnswers(prior.questions ?? form.questions, answers);
+          const normalized = normalizeAnswers(prior.questions, answers);
           if (options.expectedVersion !== undefined && prior.form_version !== options.expectedVersion
             || Object.keys(normalized).some(key => prior.answers[key] !== normalized[key]))
             throw new FormError("form.request_conflict", "这次提交已保存为其他内容，请重新填写后提交");
@@ -265,7 +278,6 @@ export class FormStore {
       }
       this.assertVersion(form, options.expectedVersion);
       const normalized = normalizeAnswers(form.questions, answers);
-      const source = options.source ?? "preview";
       const submission: FormSubmissionRecord = { id: crypto.randomUUID(), form_id: id, answers: normalized,
         submitted_at: new Date().toISOString(), form_version: form.version, questions: form.questions, source };
       this.db.prepare("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
@@ -289,7 +301,7 @@ export class FormStore {
     ).get(id) as { count: number };
     return { form_id: id, submission_count: Number(row.count) };
   }
-  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: FormPublicationSnapshot): FormPublicationIntent {
+  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: FormPublicationSnapshot, version?: number): FormPublicationIntent {
     return this.transaction(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
       const pending = this.publicationIntent(id);
@@ -298,7 +310,7 @@ export class FormStore {
         return pending;
       }
       const intent: FormPublicationIntent = { content: existing ?? { title: current.title, description: current.description, status: current.status, questions: current.questions },
-        version: current.artifact_version + 1, source_version: current.version, actor_id: actorId };
+        version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
       this.db.prepare("UPDATE forms SET publication_pending_json = ? WHERE id = ?").run(JSON.stringify(intent), id);
       return intent;
     });
@@ -331,40 +343,42 @@ export class FormStore {
 
 }
 
+/**
+ * The form store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
+ * must already be at its version. Columns keep the order existing stores have them in.
+ */
+export const FORM_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
+  CREATE TABLE forms (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    status TEXT NOT NULL,
+    share_id TEXT,
+    questions_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    project_id TEXT NOT NULL DEFAULT '',
+    artifact_id TEXT NOT NULL DEFAULT '',
+    artifact_version INTEGER NOT NULL DEFAULT 0,
+    publication_pending_json TEXT
+  );
+  CREATE TABLE submissions (
+    id TEXT PRIMARY KEY,
+    form_id TEXT NOT NULL,
+    answers_json TEXT NOT NULL,
+    submitted_at TEXT NOT NULL,
+    form_version INTEGER NOT NULL,
+    questions_json TEXT NOT NULL,
+    request_id TEXT,
+    source TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX submissions_request ON submissions (form_id, request_id) WHERE request_id IS NOT NULL;
+  CREATE TABLE form_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
+` };
+
 export function openFormStore(homeDirectory: string): FormStore {
-  const db = openHomeSqliteDatabase(homeDirectory, "form");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS forms (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL DEFAULT '',
-      title TEXT NOT NULL,
-      description TEXT NOT NULL,
-      status TEXT NOT NULL,
-      share_id TEXT,
-      questions_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      version INTEGER NOT NULL,
-      artifact_id TEXT NOT NULL DEFAULT '',
-      artifact_version INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS submissions (
-      id TEXT PRIMARY KEY,
-      form_id TEXT NOT NULL,
-      answers_json TEXT NOT NULL,
-      submitted_at TEXT NOT NULL
-    );
-  `);
-  ensureSqliteColumn(db, "forms", "project_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "forms", "artifact_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "forms", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
-  ensureSqliteColumn(db, "forms", "publication_pending_json", "TEXT");
-  ensureSqliteColumn(db, "submissions", "form_version", "INTEGER");
-  ensureSqliteColumn(db, "submissions", "questions_json", "TEXT");
-  ensureSqliteColumn(db, "submissions", "request_id", "TEXT");
-  ensureSqliteColumn(db, "submissions", "source", "TEXT");
-  db.exec("CREATE TABLE IF NOT EXISTS form_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id))");
-  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS submissions_request ON submissions (form_id, request_id) WHERE request_id IS NOT NULL");
+  const db = openBaselineHomeSqlite(homeDirectory, "form", FORM_STORE_BASELINE);
   return new FormStore(db);
 }
 
@@ -389,8 +403,24 @@ function fromRow(row: FormRow): FormRecord {
 
 function submissionFromRow(row: SubmissionRow): FormSubmissionRecord {
   return { id: row.id, form_id: row.form_id, answers: JSON.parse(row.answers_json), submitted_at: row.submitted_at,
-    form_version: row.form_version ?? null, questions: row.questions_json ? JSON.parse(row.questions_json) : null,
-    source: row.source === "fill" || row.source === "file" ? row.source : "preview" };
+    form_version: row.form_version, questions: JSON.parse(row.questions_json) as FormQuestion[], source: row.source as FormSubmissionSource };
+}
+
+/**
+ * A form takes answers while it is collecting (`published`). A draft, and a form whose collection stopped, take only what
+ * the person does at the Host's own page (`preview`): the trial fill, and importing the answer files people sent back,
+ * which the page promises still works after collection stops. The fill page is for collecting, and what an agent, an
+ * external tool, a workflow or a plugin submits or imports is refused until the person starts collecting. Checked in the
+ * submit or import transaction, so a form that is stopped between the check and the write cannot take the answer.
+ */
+function assertTakesAnswers(form: FormRecord, source: Exclude<FormSubmissionSource, "file">, how: "submit" | "import" = "submit"): void {
+  if (form.status === "published" || source === "preview") return;
+  const stopped = form.status === "closed", reason = stopped ? "这份问卷已停止收集答卷" : "这份问卷还没有开始收集答卷";
+  if (source === "fill") throw new FormError("form.closed", reason);
+  const what = how === "import" ? "导入答卷文件" : "提交";
+  throw new FormError("form.closed", reason + (stopped
+    ? `，助理、外部工具、工作流和插件不能再${what}；需要继续收集时，请本人在问卷里重新开始收集`
+    : `，助理、外部工具、工作流和插件暂时不能${what}；请本人先在问卷里开始收集`));
 }
 
 function normalizeProjectId(value: string): string {
@@ -402,7 +432,7 @@ function normalizeProjectId(value: string): string {
 
 function normalizeTitle(value: string): string {
   const title = value.trim() || "未命名问卷";
-  if (title.length > 80) throw new FormError("form.invalid", "标题须为 1 到 80 个字");
+  if (title.length > FORM_TITLE_LIMIT) throw new FormError("form.invalid", `标题须为 1 到 ${FORM_TITLE_LIMIT} 个字`);
   return title;
 }
 
@@ -417,7 +447,7 @@ function usesOptions(type: FormQuestionType): boolean {
 
 function normalizeQuestions(value: readonly FormQuestionInput[]): FormQuestion[] {
   if (!Array.isArray(value)) throw new FormError("form.invalid", "题目须是列表");
-  if (value.length > 40) throw new FormError("form.invalid", "最多 40 题");
+  if (value.length > FORM_QUESTION_LIMIT) throw new FormError("form.invalid", `最多 ${FORM_QUESTION_LIMIT} 题`);
   const normalized = value.map((question: FormQuestionInput, index) => {
     const type = question.type && QUESTION_TYPES.includes(question.type) ? question.type : "text";
     const title = String(question.title ?? "").trim() || `问题 ${index + 1}`;

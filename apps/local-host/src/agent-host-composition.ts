@@ -138,8 +138,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     {
       agentHost: () => agentHost,
       authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller),
-      legacyActorId: () => "web-user",
-      boardId: (runtime) => runtime.board_id,
+      projectId: (runtime) => runtime.project_id,
       mcpChanged: (runtime, runtimeId, pluginId, library, owner) => externalMcp.sync(runtime, pluginId, runtimeId, library, owner),
     },
   );
@@ -152,7 +151,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const workspace = (await current()).find(item => item.workspace_id === input.workspace_id);
     if (!workspace) throw new Error("工作区已取消授权");
     await invocation.beforeEffect();
-    const request = await prologue.gitReviews.prepare({ board_id: project.board_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
+    const request = await prologue.gitReviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
       document: { kind: "git-index", action: input.action, workspace_name: workspace.display_name ?? "当前仓库", files: prepared.files } }, prepared);
     return { review_id: request.review_id };
   });
@@ -177,11 +176,11 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const prepared = await prepareGitOperation(workspace, input.revision, input.operation);
     // The caller's authority is checked again right before the review is created, as for staging.
     await invocation.beforeEffect();
-    const request = await prologue.gitReviews.prepare({ board_id: project.board_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
+    const request = await prologue.gitReviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
       operation_kind: "git-operation", document: { kind: "tool-operation", tool: prepared.tool, summary: prepared.summary, fields: prepared.fields } },
       { check: prepared.check, async execute() {
         const detail = await prepared.execute();
-        try { await saveDetail(`${project.board_id}:${input.operation_id}`, detail); } catch { /* the operation happened; only its description is missing */ }
+        try { await saveDetail(`${project.project_id}:${input.operation_id}`, detail); } catch { /* the operation happened; only its description is missing */ }
       } });
     return { review_id: request.review_id };
   });
@@ -197,15 +196,15 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const grants = options.workspacesFor ? await options.workspacesFor(project.project_id)
       : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
     if (!grants.some(item => item.workspace_id === input.workspace_id && item.realpath_verified)) throw new Error("工作区已取消授权，不能读取操作结果");
-    await agentHost.reviews.refresh(project.board_id);
+    await agentHost.reviews.refresh(project.project_id);
     const details = await readDetails(), records: GitOperationRecord[] = [];
-    for (const request of agentHost.reviews.list(project.board_id)) {
+    for (const request of agentHost.reviews.list(project.project_id)) {
       if (request.operation?.kind !== "git-operation" || request.operation.workspace_id !== input.workspace_id || request.document.kind !== "tool-operation") continue;
       const receipt = agentHost.reviews.receipt(request.review_id);
       const outcome: GitOperationRecord["outcome"] = !receipt ? "unknown" : receipt.effect_uncertain ? "unknown" : receipt.status === "pending" ? "pending"
         : receipt.status === "rejected" ? "denied" : receipt.status === "cancelled" ? "cancelled" : receipt.status === "expired" ? "expired"
         : receipt.effect_settled ? "succeeded" : receipt.effect_error ? "failed" : "running";
-      const detail = details[`${project.board_id}:${request.operation.operation_id}`];
+      const detail = details[`${project.project_id}:${request.operation.operation_id}`];
       records.push({ operation_id: request.operation.operation_id, review_id: request.review_id, tool: request.document.tool, summary: request.document.summary, outcome,
         ...(outcome === "succeeded" && detail ? { detail } : {}), ...(receipt?.effect_error ? { failure_reason: receipt.effect_error } : {}),
         requested_at: request.requested_at, decided_by: receipt?.decided_by ?? null, decided_at: receipt?.decided_at ?? null });
@@ -217,9 +216,9 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const grants = options.workspacesFor ? await options.workspacesFor(project.project_id)
       : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
     if (!grants.some(item => item.workspace_id === input.workspace_id && item.realpath_verified)) throw new Error("工作区已取消授权，不能读取操作结果");
-    await agentHost.reviews.refresh(project.board_id);
+    await agentHost.reviews.refresh(project.project_id);
     const results: GitReviewedResult[] = [];
-    for (const request of agentHost.reviews.list(project.board_id)) {
+    for (const request of agentHost.reviews.list(project.project_id)) {
       if (request.operation?.kind !== "git-index" || request.operation.workspace_id !== input.workspace_id || request.document.kind !== "git-index") continue;
       const receipt = agentHost.reviews.receipt(request.review_id);
       if (!receipt || receipt.effect_uncertain || receipt.delivery_error || receipt.status === "pending") continue;
@@ -268,7 +267,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       const current = await writerParent(project.project_id, input.workspace_id);
       if (current.parent.canonical_path !== parent.canonical_path || JSON.stringify(await current.port.preview(id)) !== JSON.stringify(preview)) throw new Error("主仓库或授权已改变，请重新预览独立目录");
     };
-    const request = await prologue.gitReviews.prepare({ board_id: project.board_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
+    const request = await prologue.gitReviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
       operation_kind: "git-worktree", document: { kind: "tool-operation", tool: "git-worktree-create", summary: "创建独立工作树，并授权本项目在该目录执行任务",
         fields: [{ label: "主工作区", value: parent.canonical_path }, { label: "新目录", value: target }, { label: "新分支", value: preview.branch },
           { label: "起点提交", value: preview.base_commit }, { label: "执行范围", value: "仅创建独立目录和本地分支，关联到当前项目；不发送模型任务、不修改主工作区、不推送远端。禁用 Git hooks。" }] } },
@@ -286,7 +285,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     await initialize();
     if (!prologue?.gitReviews || !prologue.subagents) throw new Error("子任务成果整合执行方尚未接通");
     const session = await prologue.readSession({ runtime_id: "prologue", session_id: source.session_id });
-    if (session.owner.board_id !== project.board_id || session.owner.plugin_id !== "io.molis.work.coding" || session.recovery) throw new Error("执行不属于本项目的 Coding 会话，或原结果仍需核对");
+    if (session.owner.project_id !== project.project_id || session.owner.plugin_id !== "io.molis.work.coding" || session.recovery) throw new Error("执行不属于本项目的 Coding 会话，或原结果仍需核对");
     const ref = session.runs.find(run => run.run_id === source.run_id);
     if (!ref) throw new Error("此轮执行不属于原会话");
     const run = await prologue.read(ref);
@@ -316,7 +315,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   const unregisterPrepareIntegration = options.localHost.registerCapability(writerIntegrationCapabilities.prepare, async (project, input) => {
     const source = await integrationSource(project, input);
     const prepared = await prepareWriterIntegration({ ...source, files: input.files }, async () => (await integrationSource(project, input)).grants);
-    const request = await prologue!.gitReviews!.prepare({ board_id: project.board_id, workspace_id: source.workspace_id, operation_id: input.operation_id,
+    const request = await prologue!.gitReviews!.prepare({ project_id: project.project_id, workspace_id: source.workspace_id, operation_id: input.operation_id,
       operation_kind: "git-integration", document: { kind: "git-integration", target_directory: prepared.view.target_path,
         source: { session_id: input.session_id, run_id: input.run_id, subagent_id: input.subagent_id, branch: prepared.view.branch, base_commit: prepared.view.base_commit, directory: prepared.view.source_path },
         files: prepared.files.map(file => ({ path: file.path.join("/"), before_text: file.before_text!, after_text: file.after_text!, before_mode: file.before_mode!, after_mode: file.after_mode! })) } }, prepared);
@@ -387,9 +386,9 @@ async function startAuthority(
     authorizedDirectories: workspaces.filter(entry => entry.realpath_verified).map(entry => entry.canonical_path),
     prompts: declared?.prompts ?? [],
     skills: declared?.skills ?? [],
-    method_owner: { board_id: runtime.board_id, plugin_id: pluginId },
+    method_owner: { project_id: runtime.project_id, plugin_id: pluginId },
     actions: async (runtimeId, validate) => {
-      const reference = { project_id: runtime.project_id, board_id: runtime.board_id, storage_key: runtime.store.path };
+      const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
       const current = (signal?: AbortSignal) => authorizeMcpActions(localHost, { actor_id: `agent:${runtimeId}`, actor_kind: "runtime",
         project_id: runtime.project_id, audience: "agent", permissions: [], ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); });
       return {
@@ -397,7 +396,7 @@ async function startAuthority(
         invoke: async (action, input, signal) => { const authorized = await current(signal); return authorized.service.invoke(authorized.context, action, input); },
       };
     },
-    ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.board_id, runtime.coordinator.artifacts.query, reference) } : {}),
+    ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.project_id, runtime.coordinator.artifacts.query, reference) } : {}),
     project_prompts: await projectPrompts(runtime, localHost),
     // The platform memory under the Agent work switch: the person's and this project's, where they apply.
     memory: (task, context) => memoryForAgentRun(localHost, { project_id: runtime.project_id, task, plugin_id: pluginId, ...(context?.character ? { character: context.character } : {}),
@@ -420,8 +419,8 @@ async function startAuthority(
 async function projectPrompts(runtime: MolisWorkProjectRuntime, localHost: MolisWorkLocalHost): Promise<AgentPromptText[]> {
   let view: ProjectGuidanceView;
   try {
-    view = await localHost.client({ project_id: runtime.project_id, board_id: runtime.board_id, storage_key: runtime.store.path })
-      .invoke(readProjectGuidanceCapability, { board_id: runtime.board_id });
+    view = await localHost.client({ project_id: runtime.project_id, storage_key: runtime.store.path })
+      .invoke(readProjectGuidanceCapability, { project_id: runtime.project_id });
   } catch {
     // Guidance is an addition, not a precondition. A project whose guidance
     // cannot be read still starts Runs; it just starts them without this layer.

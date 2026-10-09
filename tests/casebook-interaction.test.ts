@@ -10,14 +10,14 @@ import {PURPOSE,CONTEXT_PURPOSE,VERSION,type AuthorizationRequest} from '../apps
 import {createCasebookUserActionSigner,createCasebookUserActionVerifier} from '../apps/local-host/src/casebook/user-action.js';
 
 async function fixture(t:test.TestContext){
- const dir=mkdtempSync(join(tmpdir(),'casebook-invariants-'));const host=createMolisWorkLocalHost();const ref=molisWorkHostProjectReference({databasePath:join(dir,'test.db'),boardId:'board'});const client=host.client(ref);
- await client.invoke(initializeBoardCapability,{board_id:'board',title:'隔离',actor_id:'user',idempotency_key:'init'});
+ const dir=mkdtempSync(join(tmpdir(),'casebook-invariants-'));const host=createMolisWorkLocalHost();const ref=molisWorkHostProjectReference({databasePath:join(dir,'test.db'),projectId:'board'});const client=host.client(ref);
+ await client.invoke(initializeBoardCapability,{project_id:'board',title:'隔离',idempotency_key:'init'});
  const config={secret:randomBytes(32).toString('hex'),audience:'owner'};const sign=createCasebookUserActionSigner(config);
  const api=new MolisWorkCasebookIntegration({client,verifyUserAction:createCasebookUserActionVerifier(config)});
  const request=(action:AuthorizationRequest['action'],key:string):AuthorizationRequest=>{const r={project_ref:'board',purpose:PURPOSE,action,include_goal_context:true as const,actor_ref:'github:1',user_confirmed:true as const,idempotency_key:key};return{...r,user_action_ref:sign(r)};};
  const auth=async()=>await api.readInteractionAuthorization({project_ref:'board',purpose:PURPOSE}) as {authorization_epoch:string;state:string};
  const read=async()=>api.readInteractionFacts({project_ref:'board',schema_version:VERSION,authorization_epoch:(await auth()).authorization_epoch,after_cursor:0,limit:100});
- const create=(id:string,title='目标')=>client.invoke(createGoalIntentCapability,{board_id:'board',goal_id:id,title,actor_id:'user',idempotency_key:'create-'+id});
+ const create=(id:string,title='目标')=>client.invoke(createGoalIntentCapability,{project_id:'board',goal_id:id,title,actor_id:'user',idempotency_key:'create-'+id});
  t.after(async()=>{await host.close();rmSync(dir,{recursive:true,force:true});});return{dir,host,ref,client,api,request,auth,read,create};
 }
 test('signed dual-purpose authorization replays remain durable across restart and cannot undo newer intent',async t=>{
@@ -57,39 +57,25 @@ test('both purpose grants are atomic, background revocation deletes text without
  await assert.rejects(f.api.readGoalContexts(query),{code:'not_authorized'});
  const count=await f.host.withProject(f.ref,r=>r.store.db.prepare('SELECT COUNT(*) n FROM casebook_goal_contexts').get() as {n:number});assert.equal(count.n,0);
 });
-test('recovery refuses missing files, old/future schemas and missing unnumbered upgrades without changing them',async t=>{
- const f=await fixture(t);const missing=molisWorkHostProjectReference({databasePath:join(f.dir,'absent.db'),boardId:'missing'});
+test('recovery refuses missing files and databases at another schema version without changing them',async t=>{
+ const f=await fixture(t);const missing=molisWorkHostProjectReference({databasePath:join(f.dir,'absent.db'),projectId:'missing'});
  await assert.rejects(f.host.restoreExistingProject(missing),{code:'project_recovery_missing'});assert.equal(existsSync(missing.storage_key),false);
  const {LocalSqliteStorage}=await import('@molis-ai/molis-work-storage');
- for(const [sql,code] of [["DELETE FROM schema_migrations WHERE migration_id=36",'project_recovery_requires_migration'],["INSERT INTO schema_migrations VALUES(39,'future')",'project_recovery_unsupported_schema'],["ALTER TABLE goal_event_requirements DROP COLUMN source_json",'project_recovery_requires_migration']] as const){
-  const ref=molisWorkHostProjectReference({databasePath:join(f.dir,randomBytes(6).toString('hex')+'.db'),boardId:'bad'});
-  await f.host.client(ref).invoke(initializeBoardCapability,{board_id:'bad',title:'坏夹具',actor_id:'user',idempotency_key:'init'});
+ for(const [sql,code] of [["PRAGMA user_version = 0",'project_recovery_unsupported_schema'],["PRAGMA user_version = 99",'project_recovery_unsupported_schema']] as const){
+  const ref=molisWorkHostProjectReference({databasePath:join(f.dir,randomBytes(6).toString('hex')+'.db'),projectId:'bad'});
+  await f.host.client(ref).invoke(initializeBoardCapability,{project_id:'bad',title:'坏夹具',idempotency_key:'init'});
   await f.host.withProject(ref,r=>r.store.db.exec(sql));await f.host.closeProject(ref);
   await assert.rejects(f.host.restoreExistingProject(ref),{code});assert.equal(f.host.status().projects.some(x=>x.storage_key===ref.storage_key),false);
   const check=new LocalSqliteStorage(ref.storage_key,{readonly:true});assert.ok(check.db.open);check.close();
   await f.create(randomBytes(4).toString('hex'));
  }
 });
-test('legacy planning remains explicit delegation, not inferred from the current workflow',async t=>{
- const f=await fixture(t);assert.throws(()=>f.api.readPlanningEvents({}),{code:'legacy_planning_provider_required'});
-});
-
-test('compatible Goal facts recover without Task retirement or deletion of retained Task data',async t=>{
+test('a current project recovers with its interaction facts intact and keeps recording',async t=>{
  const f=await fixture(t);
  await f.api.setInteractionAuthorization(f.request('join','join'));
  await f.create('before-recovery');const facts=(await f.read()).facts;
- await f.host.withProject(f.ref,r=>r.store.db.exec(`
-  DELETE FROM schema_migrations WHERE migration_id=38;
-  INSERT INTO schema_migrations VALUES(37,'fixture-history');
-  CREATE TABLE tasks(task_id TEXT PRIMARY KEY, title TEXT, frame_json TEXT);
-  INSERT INTO tasks VALUES('retained-task','保留的旧任务','{"blocks":["keep-me"]}');
- `));
  await f.host.closeProject(f.ref);
  await f.host.restoreExistingProject(f.ref);
  assert.deepEqual((await f.read()).facts,facts);
  await f.create('after-recovery');assert.ok((await f.read()).facts.length>facts.length);
- await f.host.withProject(f.ref,r=>{
-  assert.equal(r.store.db.prepare('SELECT migration_id FROM schema_migrations WHERE migration_id=38').get(),undefined);
-  assert.deepEqual(r.store.db.prepare('SELECT * FROM tasks').all(),[{task_id:'retained-task',title:'保留的旧任务',frame_json:'{"blocks":["keep-me"]}'}]);
- });
 });

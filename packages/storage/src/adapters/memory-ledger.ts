@@ -2,81 +2,69 @@ import type {
   MemoryCandidateRecord,
   MemoryChangeRecord,
   MemoryLedgerPort,
-  MemoryMetaRecord,
   MemoryPrefs,
   MemoryRevision,
   MemoryScope,
   MemoryUseRecord,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { openHomeSqliteDatabase } from "../home-sqlite.js";
+import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
+import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js";
 
 /**
- * The Host's memory ledger (specs/archive/memory-system §5.1): structured facts about Prologue memory entries, candidates,
- * recent changes, switches, interface-signal counts and uses. The text of a memory lives in Prologue Memory; the
- * ledger keeps an earlier version's text only as that entry's history, and forgets it with the entry.
+ * The Host's memory ledger (specs/archive/memory-system §5.1): what the platform knows around Prologue memory entries —
+ * history, notes on candidates, recent changes, switches, interface-signal counts, uses, owners, pairs and per-person
+ * markers. The text and facts of a memory live on its Prologue entry; the ledger keeps an earlier version's text only as
+ * that entry's history, and forgets it with the entry.
  */
 export const MEMORY_LEDGER_STORE = "memory";
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS memory_meta (
-  memory_id TEXT PRIMARY KEY, scope TEXT NOT NULL, owner TEXT NOT NULL, body TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS memory_meta_owner ON memory_meta(scope, owner);
-CREATE TABLE IF NOT EXISTS memory_revisions (
+/** The memory ledger's one current schema (repository-anti-corruption §4.1). */
+export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 2, schema: `
+CREATE TABLE memory_revisions (
   memory_id TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (memory_id, version)
 );
-CREATE TABLE IF NOT EXISTS memory_candidates (
+CREATE TABLE memory_candidates (
   candidate_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, state TEXT NOT NULL, body TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS memory_candidates_actor ON memory_candidates(actor_id);
-CREATE TABLE IF NOT EXISTS memory_changes (
+CREATE INDEX memory_candidates_actor ON memory_candidates(actor_id);
+CREATE TABLE memory_changes (
   change_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, memory_id TEXT, at TEXT NOT NULL, body TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS memory_changes_actor ON memory_changes(actor_id, at);
-CREATE INDEX IF NOT EXISTS memory_changes_memory ON memory_changes(memory_id);
-CREATE TABLE IF NOT EXISTS memory_prefs (
+CREATE INDEX memory_changes_actor ON memory_changes(actor_id, at);
+CREATE INDEX memory_changes_memory ON memory_changes(memory_id);
+CREATE TABLE memory_prefs (
   actor_id TEXT NOT NULL, key TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (actor_id, key)
 );
-CREATE TABLE IF NOT EXISTS memory_signal_events (
+CREATE TABLE memory_signal_events (
   event_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, key TEXT NOT NULL, occurrence TEXT NOT NULL, at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS memory_signal_key ON memory_signal_events(actor_id, key);
-CREATE TABLE IF NOT EXISTS memory_uses (
+CREATE INDEX memory_signal_key ON memory_signal_events(actor_id, key);
+CREATE TABLE memory_uses (
   memory_id TEXT NOT NULL, receipt_id TEXT NOT NULL, at TEXT NOT NULL, work_id TEXT, state TEXT NOT NULL, body TEXT NOT NULL,
   PRIMARY KEY (memory_id, receipt_id)
 );
-CREATE INDEX IF NOT EXISTS memory_uses_receipt ON memory_uses(receipt_id);
-CREATE INDEX IF NOT EXISTS memory_uses_work ON memory_uses(work_id);
-CREATE TABLE IF NOT EXISTS memory_owners (
+CREATE INDEX memory_uses_receipt ON memory_uses(receipt_id);
+CREATE INDEX memory_uses_work ON memory_uses(work_id);
+CREATE TABLE memory_owners (
   scope TEXT NOT NULL, owner TEXT NOT NULL, project_id TEXT, title TEXT NOT NULL, subject TEXT, PRIMARY KEY (scope, owner)
 );
-CREATE TABLE IF NOT EXISTS memory_pairs (
+CREATE TABLE memory_pairs (
   pair_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, state TEXT NOT NULL, body TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS memory_migrations (
-  actor_id TEXT NOT NULL, source TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (actor_id, source)
+CREATE TABLE memory_markers (
+  actor_id TEXT NOT NULL, key TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (actor_id, key)
 );
-`;
+` };
 
 const parse = <T>(row: Record<string, unknown> | undefined): T | null => row ? JSON.parse(String(row.body)) as T : null;
 
 export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedgerPort {
   const db = openHomeSqliteDatabase(options.homeDirectory, MEMORY_LEDGER_STORE);
   db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
-  db.exec(SCHEMA);
-  // Ledgers from before owners carried what they stand for get the column (nothing else changes).
-  if (!(db.prepare("PRAGMA table_info(memory_owners)").all() as Array<{ name: string }>).some(column => column.name === "subject")) db.exec("ALTER TABLE memory_owners ADD COLUMN subject TEXT");
+  try { applySqliteBaseline(db, homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), MEMORY_LEDGER_BASELINE); } catch (error) { db.close(); throw error; }
   let depth = 0;
   const ledger: MemoryLedgerPort = {
-    meta: memoryId => parse<MemoryMetaRecord>(db.prepare("SELECT body FROM memory_meta WHERE memory_id=?").get(memoryId)),
-    metas: (scope: MemoryScope, owner: string) => db.prepare("SELECT body FROM memory_meta WHERE scope=? AND owner=?").all(scope, owner)
-      .map(row => JSON.parse(String(row.body)) as MemoryMetaRecord),
-    saveMeta: record => {
-      db.prepare("INSERT INTO memory_meta(memory_id,scope,owner,body) VALUES (?,?,?,?) ON CONFLICT(memory_id) DO UPDATE SET scope=excluded.scope, owner=excluded.owner, body=excluded.body")
-        .run(record.memory_id, record.scope, record.owner, JSON.stringify(record));
-    },
     forget: memoryId => ledger.transaction(() => {
-      db.prepare("DELETE FROM memory_meta WHERE memory_id=?").run(memoryId);
       db.prepare("DELETE FROM memory_revisions WHERE memory_id=?").run(memoryId);
       db.prepare("DELETE FROM memory_uses WHERE memory_id=?").run(memoryId);
       // Recent changes stay (what happened, when), but no longer carry the deleted text.
@@ -96,6 +84,24 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
           .run(JSON.stringify({ ...candidate, text: "", why: "", memory_id: null }), String(row.candidate_id));
       }
     }),
+    forgetScopes: input => ledger.transaction(() => {
+      const gone = new Set(input.scopes.map(item => JSON.stringify([item.scope, item.owner])));
+      // Changes, candidate notes and pairs carry their scope and owner in the record, not in a column.
+      const drop = (table: string, key: string) => {
+        for (const row of db.prepare(`SELECT ${key}, body FROM ${table}`).all()) {
+          const record = JSON.parse(String(row.body)) as { scope?: string; owner?: string };
+          if (gone.has(JSON.stringify([record.scope, record.owner]))) db.prepare(`DELETE FROM ${table} WHERE ${key}=?`).run(String(row[key]));
+        }
+      };
+      drop("memory_changes", "change_id");
+      drop("memory_candidates", "candidate_id");
+      drop("memory_pairs", "pair_id");
+      for (const item of input.scopes) db.prepare("DELETE FROM memory_owners WHERE scope=? AND owner=?").run(item.scope, item.owner);
+      db.prepare("DELETE FROM memory_owners WHERE project_id=?").run(input.project_id);
+      for (const key of input.prefs_keys) db.prepare("DELETE FROM memory_prefs WHERE key=?").run(key);
+      for (const key of input.marker_keys) db.prepare("DELETE FROM memory_markers WHERE key=?").run(key);
+      for (const prefix of input.signal_prefixes) db.prepare("DELETE FROM memory_signal_events WHERE substr(key, 1, ?)=?").run(prefix.length, prefix);
+    }),
     revisions: memoryId => db.prepare("SELECT body FROM memory_revisions WHERE memory_id=? ORDER BY version").all(memoryId)
       .map(row => JSON.parse(String(row.body)) as MemoryRevision),
     addRevision: (memoryId, revision) => {
@@ -110,6 +116,8 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
     },
     dropCandidate: candidateId => { db.prepare("DELETE FROM memory_candidates WHERE candidate_id=?").run(candidateId); },
     changes: (actorId, limit) => db.prepare("SELECT body FROM memory_changes WHERE actor_id=? ORDER BY at DESC, rowid DESC LIMIT ?").all(actorId, limit)
+      .map(row => JSON.parse(String(row.body)) as MemoryChangeRecord),
+    changesOf: memoryId => db.prepare("SELECT body FROM memory_changes WHERE memory_id=? ORDER BY at DESC, rowid DESC").all(memoryId)
       .map(row => JSON.parse(String(row.body)) as MemoryChangeRecord),
     change: changeId => parse<MemoryChangeRecord>(db.prepare("SELECT body FROM memory_changes WHERE change_id=?").get(changeId)),
     saveChange: record => {
@@ -145,18 +153,26 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       db.prepare("INSERT INTO memory_owners(scope,owner,project_id,title,subject) VALUES (?,?,?,?,?) ON CONFLICT(scope,owner) DO UPDATE SET project_id=excluded.project_id, title=excluded.title, subject=COALESCE(excluded.subject, memory_owners.subject)")
         .run(input.scope, input.owner, input.project_id, input.title, input.subject ?? null);
     },
+    candidateOwners: projectId => {
+      const found = new Map<string, { scope: MemoryScope; owner: string }>();
+      for (const row of db.prepare("SELECT body FROM memory_candidates").all()) {
+        const note = JSON.parse(String(row.body)) as MemoryCandidateRecord;
+        if (note.project_id === projectId) found.set(JSON.stringify([note.scope, note.owner]), { scope: note.scope, owner: note.owner });
+      }
+      return [...found.values()];
+    },
     pairs: actorId => db.prepare("SELECT body FROM memory_pairs WHERE actor_id=? ORDER BY rowid").all(actorId).map(row => JSON.parse(String(row.body)) as ReturnType<MemoryLedgerPort["pairs"]>[number]),
     savePair: (actorId, pair) => {
       db.prepare("INSERT INTO memory_pairs(pair_id,actor_id,state,body) VALUES (?,?,?,?) ON CONFLICT(pair_id) DO UPDATE SET state=excluded.state, body=excluded.body")
         .run(pair.pair_id, actorId, pair.state, JSON.stringify(pair));
     },
-    migration: (actorId, source) => {
-      const row = db.prepare("SELECT at, body FROM memory_migrations WHERE actor_id=? AND source=?").get(actorId, source);
+    marker: (actorId, key) => {
+      const row = db.prepare("SELECT at, body FROM memory_markers WHERE actor_id=? AND key=?").get(actorId, key);
       return row ? { at: String(row.at), body: JSON.parse(String(row.body)) as unknown } : null;
     },
-    markMigration: (actorId, source, body, at) => {
-      db.prepare("INSERT INTO memory_migrations(actor_id,source,at,body) VALUES (?,?,?,?) ON CONFLICT(actor_id,source) DO UPDATE SET at=excluded.at, body=excluded.body")
-        .run(actorId, source, at, JSON.stringify(body));
+    setMarker: (actorId, key, body, at) => {
+      db.prepare("INSERT INTO memory_markers(actor_id,key,at,body) VALUES (?,?,?,?) ON CONFLICT(actor_id,key) DO UPDATE SET at=excluded.at, body=excluded.body")
+        .run(actorId, key, at, JSON.stringify(body));
     },
     transaction: <T>(work: () => T): T => {
       if (depth > 0) return work();

@@ -1,6 +1,6 @@
 # Artifact 定位与动线梳理，所有插件统一进同一个壳子
 
-状态：壳子 S1–S7 已合入 main，S4（#197）与 S1b（#198）待合并；成果库 A1–A7 未开始（2026-10-02 起）。用户在防腐收尾目标进行中追加，标为严重问题；与[合入后审查](../archive/post-merge-review/spec.md)、[防腐整理](../repository-anti-corruption/spec.md)同一目标推进。本文是这件事唯一的进度与证据记录。
+状态：壳子 S1–S7 与成果库 A1–A7、A4b 全部合入 main（2026-10-03）；隔离 Home 走查（桌面与 390）已完成，发现已修（§5b，#217、#219、#223）；对照任务要求的补漏（五.1）按用户 10-03 拍板全部合入：「被谁引用」的助理工作（#222、#227）与文档（#225）、助理「产出」改名（#224）、交给助理 / Coding（#226）、工作流从一版起步（#228）、Goal 输入合成一个入口（#230、#235）。拷贝真实 Home 用当前 main 打开也已验证（场景 9）。用户 10-04 定「成果也作插件端口的输入」，[#247](https://github.com/molis-ai/molis-work/pull/247) 已合入 main（314be1cf）；只差用户验收。§4 的独立页面例外清单被 `AGENTS.md` 与 `tests/shell-page-gate.test.ts` 引为现行规则，归档时需先把这一节留作现行规范。本文是这件事唯一的进度与证据记录。用户在防腐收尾目标进行中追加，标为严重问题；与[合入后审查](../archive/post-merge-review/spec.md)、[防腐整理](../repository-anti-corruption/spec.md)同一目标推进。
 
 ## 0. 任务要求（用户 2026-10-02 原文要点）
 
@@ -103,51 +103,71 @@
 | 2026-10-03 | 合并 #212 A4b-2 | CI 通过即合并（用户已授权） | 已合并 | 9b604065 |
 | 2026-10-03 | 侧栏和成果库怎么共用一份渲染（A4b-3a，常规取舍） | 服务端渲染好 HTML 给侧栏；设计系统把同一组函数做成页面脚本 | 页面脚本 | 侧栏还要显示别处交给它的预览（助理的附件、结果），这些只在浏览器里，服务端渲染不到。`FILE_PREVIEW_CLIENT_SCRIPT` 由 `renderFilePreviewHtml` 与它的 Markdown、CSV 两个函数原样拼成，侧栏删掉自己那份；用例逐字比较两边输出 |
 | 2026-10-03 | 侧栏里的成果预览（A4b-3a，常规取舍） | — | 走类型 owner 的预览，与成果库相同 | 只有声明的 owner 且是它生产的版本；拿不到 owner 预览时退回成果库自己的读取 |
+| 2026-10-03 | 合并 #213 A4b-3a | CI 通过即合并（用户已授权） | 已合并 | 9d4475e6 |
+| 2026-10-03 | 「从这一版继续」怎么接（A4b-3b，常规取舍） | 宿主为每个插件写一条路由；插件在 manifest 为成果类型声明 `continue` | 声明 `continue` | 协议 `defineArtifactContinueAction`（输入这一版，输出新对象在哪打开），可以声明在自己生产的类型上，也可以声明在只读取的类型上（Pages 接着导入的文本文件）。宿主只有一条 `POST /api/artifacts/continue`，按声明找插件、用它自己的权限调用；删掉专为 Pages 写的 `continue-in-pages` 路由和宿主里那个 Pages 客户端 |
+| 2026-10-03 | 哪些类型没有「从这一版继续」（A4b-3b，常规取舍） | — | Feed 捕获、角色、Coding 执行报告 | 它们是记录而不是可接着编辑的工作：捕获是收到的内容，角色版本由角色插件自己的版本历史管理，报告是一次运行的结果（接着做是在 Coding 里新开任务）。预览、导出、被引用、作为输入对它们照常适用。名单写在门禁里（`tests/artifact-type-gate.test.ts`），新类型不声明就过不了 |
+| 2026-10-03 | 导入文件的格式归谁（A4b-3b，常规取舍） | — | 合同 `modules/artifacts`（`IMPORTED_DOCUMENT_TYPE`、`importedDocumentFile`） | Pages 接着导入的文件要读它，插件之间不能互相 import；什么文件 Pages 读得了（`PAGES_READABLE_FILE`）归 Pages |
+| 2026-10-03 | 合并 #214、#215、#216、#217 | CI 通过即合并（用户已授权） | 已合并 | #214 PPT 用例下载竞态（c6958277）、#215 A4b-3b 从这一版继续（e87a9402）、#216 任务书合入 main（592f15bc）、#217 走查发现的「固定版本后的打开」与不带前缀的版本地址（fbc21e03） |
+| 2026-10-03 | 任务书来源 | — | 以 main 为准 | 任务书已合入 main：[#216](https://github.com/molis-ai/molis-work/pull/216)（`592f15bc`）用 anti-rot 上的两份任务书替换 main 上的旧版（anti-rot 自分叉以来只改了这两个文件）。此后任务要求、代码与 spec 都以 main 为准，按目标原文「anti-rot 合入 main 后以 main 为准」执行；每个分支从最新 origin/main 开，开工前 fetch、合并前同步到最新 main，不再基于 anti-rot 或其他旧分支开新工作 |
+| 2026-10-03 | 验证频率 | — | 用户调整 | 用户 2026-10-03 调整验证频率：小改动攒成一批，整体构建一次，跑这批改动涉及的相关用例（改了什么就跑读它、调它的用例；带 `L()` 文案的加 `tests/i18n.test.ts`，改路由的加所有读这条路由的用例）；全量回归只在大改动时跑（改共享核心 contracts、kernel、modules、local-host 的装配、workbench 外壳，改迁移或存储，改动跨三个以上包，删除整块旧代码，或合入后相关用例意外失败），每个阶段收尾也跑一次全量作为阶段证据。不变的底线：每个 PR 的 CI 必须通过；跑测试前先整体构建；构建与浏览器用例串行；不跳过、不放宽、不删除断言；失败先用干净基线工作树比对 |
 | 2026-10-03 | A1 遗留：Pages 成果的来源种类（常规取舍） | — | 改为 Pages 自己的对象种类 `pages_document` | A1 写成了 `page`，与 Pages 的对象读取、搬动、搜索用的种类不一致，A4b 的「原文已改」与当场固定都按种类找 owner。真实 Home 里还没有 A1 之后的 Pages 成果（A1 刚合入），不需要迁移 |
 | 2026-10-03 | A6 遗留：Goal Frame 选材料的「交付物」来源（常规取舍） | — | 改叫「成果」，英文「交付物」改为 Deliverable | 这个筛选项指成果库，不是 Goal 的交付物；A6 只改了「Artifact」字样，漏了这里 |
+| 2026-10-03 | 助理面板里也叫「成果」的那一栏（五.1，弹窗） | 改叫「产出」（推荐）；改叫「结果」；保持不改 | 改叫「产出」 | 「成果」只指成果库里的固定版本与导入文件；助理面板、待办里助理工作的东西、交给模型与 Coding 的关系词都叫「产出」。[#224](https://github.com/molis-ai/molis-work/pull/224)（960acab7） |
+| 2026-10-03 | 「存为固定版本」与「放在哪里」重叠；Goal 有两种输入（五.1，弹窗） | 保留两种、分清叫法（推荐）；合成一种入口；先不动 | 合成一种入口 | Goal 只留一个「加输入…」，选对象时再选「跟着原文」或「固定这一版」；对象位置条的「关联到 Goal…」同样问；成果库里的版本本来就是固定的。Goal 页「输入」一张列表列出两种，「完成要求」下的卡片只放交付物 |
+| 2026-10-03 | 成果作为输入的其他去处（五.1，弹窗） | 先做交给助理 / Coding（推荐）；两个都现在做；都放第二步 | 两个都现在做 | 交给助理 / Coding：[#226](https://github.com/molis-ai/molis-work/pull/226)（ebeca52c）；工作流步骤：[#228](https://github.com/molis-ai/molis-work/pull/228) |
+| 2026-10-03 | 「被谁引用」的文档引用（五.1，弹窗） | 识别正文里的版本链接（推荐）；加「引用成果」块；不做 | 识别正文里的版本链接 | 新协议 `molis.artifacts.referrers`，Pages 先接；[#225](https://github.com/molis-ai/molis-work/pull/225)（a9cd3f8c） |
+| 2026-10-03 | 助理工作怎么进「被谁引用」（常规取舍） | 宿主把助理服务接进成果动作；成果详情读助理已有的关系接口 | 读助理已有的关系接口 | 与 Todo 相同（`GET /api/assistant/related`）；一版在助理里有主体、路径、带项目前缀的路径三种叫法，都查。[#222](https://github.com/molis-ai/molis-work/pull/222)、[#227](https://github.com/molis-ai/molis-work/pull/227) |
+| 2026-10-03 | 文档引用由谁回答（常规取舍） | 宿主扫描各插件的存储；插件声明 referrers 动作 | 插件声明，宿主按协议问 | 成果详情按协议找出声明者、各用自己的权限去问，答不了的略过；不写名单 |
+| 2026-10-04 | 工作流里只能作起点的站（常规取舍） | 成果库接收交来的内容（存成一版）；协议支持只能作起点的站 | 只能作起点的站 | 「接收」会让工作流往成果库里写，超出用户的决定；站点声明 `receive: false`，工作流把它放第一站，编辑器不在后面的空位里列它 |
+| 2026-10-04 | 工作流读一版的正文（常规取舍） | 成果库自己转写；调类型 owner 的预览 | 调 owner 的预览 | 预览协议加上 `workflow` 受众（只读、仍按 owner 声明的权限）；导入的文本直接用 |
+| 2026-10-04 | 合并 #220–#227 | CI 通过即合并（用户已授权） | 已合并 | #220 f7d7f1ec、#221 61b805a7、#222 3f7a7b00、#223 d69f4a27、#224 960acab7、#225 a9cd3f8c、#226 ebeca52c、#227 ec8429f9 |
+| 2026-10-04 | 成果要不要也作插件端口的输入（五.1 收尾，弹窗） | 不做（推荐）；做 | 做 | 10-03 的两个去处（交给助理 / Coding、工作流步骤）已合入，插件端口当时没问过。按用户决定做：插件在 manifest 声明能接收哪些成果类型作端口输入，宿主按声明把一版交过去；新增合同与门禁 |
+| 2026-10-07 | 固定过的对象移走后，成果库说「原对象已经删除」（逻辑复查，常规取舍） | 比较动作多答一个 `moved`（推荐）；沿用 `missing`，只在本项目里找；经放置服务找到新位置并带链接 | 多答 `moved`，不带链接 | 对象只是换了位置，说「已经删除」不实。owner 自己的表是全 Home 一张，能分清「在别处」与「已不存在」；成果库只提示「原对象已移到别处，这里仍保留第 N 版」，不给回到原对象的链接（它不在这个项目里）。带链接要先决定能不能从这个项目打开别处的对象，另行商定 |
+| 2026-10-07 | 固定过的对象移走又移回后，再固定拿回旧的一版（逻辑复查，常规取舍） | 下一次固定接着成果库里已有的最高版号（推荐）；移回时保留旧的版号与关联 | 接着最高版号，记录仍显示未固定 | 移走时记录清掉关联与版号是既定语义（旧版留在原项目的成果里），移回后不恢复关联；只修数版号：成果库里已有的各版不再被当作中断的那一次固定交回。只有旧版中断留下、没写来源修订号的单个版本仍按旧规则恢复 |
+| 2026-10-07 | 「被谁引用」也列提议的输入（逻辑复查，常规取舍） | 只列输入、交付物、提议的交付物；也列提议的输入（推荐） | 也列提议的输入 | 助理提议的输入在 Goal 页已显示为提议，成果库详情却把它算进「其他」，两边对不上；`artifacts.links` 多一个角色 `proposed_input`，标签「提议的输入」 |
+| 2026-10-07 | 个人成果归谁（逻辑复查 #16–#18，用户决定） | A 个人成果都归 Home 的人，生产的工作流、Agent、MCP 客户端记在 `created_by`（推荐）；B 个人按行为者分开；C 保持 owner＝生产者、只改报错 | A | 一个人的 Home 里，工作流、Agent 和 MCP 客户端是这个人的工具。以前它们先固定或导入，人就再也不能续写同一条线；`subject.read` 与插件 SDK 读又拒绝人读它们的成果，而 `read`、浏览、导出、搜索并不拒绝。做法：`registerVersion` 加独立的 `owner_actor_id`，固定与导入端口传本机的人；成果库模块认 Home 的人（`homeOwner`）：这个 Home 里个人成果的 owner 一律读作这个人，已存的、归在某个行为者名下的身份不迁移，人可以直接续写；`subject.read`、插件 SDK 读成果和固定的读端口不再比对 owner 与行为者；给个人成果写一个不是这个人的 owner 报 `artifact.owner_invalid`。`team_project` 的规则不变（共享的成果仍归共享它的行为者），过程项仍归生产它的插件，插件 SDK 读过程项仍比对行为者（决定只管个人成果）。`plugin dev` 的输出按 `created_by` 找出这次运行的成果，不按 owner。中断的固定（未完成的发布意图）仍只由发起它的行为者恢复 |
 
-**待决**：无（「没有项目时的全局设置」已答，见上表）。
+**待决**：无。10-04 问的「成果作插件端口的输入」见上表，在做（§6）。
 
 ## 2. 问题核实（main 1245da7f）
 
-| # | 结论 | 证据 |
-| --- | --- | --- |
-| 1 | 成立 | 交换数据类型 `files.snapshot.v1`、`files.collection.v1`、`diff.changeset.v1`、`git.result.v1`、`coding.changeset.v1` 定义在 `packages/contracts/src/modules/workspace-artifacts.ts`，并在 files 等插件的 manifest 里声明为 `artifacts.produces`（如 `plugins/native/files/src/manifest.ts:63`），与 Pages、问卷、数据表、PPT 的固定版本同一个库。助理工作「成果」与「放在哪里」的语义待在动线走查里补证据 |
-| 2 | 成立（待界面走查补证） | 可见类型：`io.molis.work.pages.document`、`ppt.deck`、`form.questionnaire`、`dataset.table`、`feed.capture`、`document`（导入）、`coding.report.v1`、`coding.changeset.v1`、`character.definition.v1`、`alchemist.research`、`goal.delivery`。`artifacts` 浏览只给 `DOCUMENT` 类型与宿主写死的 Coding 报告、变更做预览（`apps/local-host/src/artifact-native-plugin-http.ts:84`） |
-| 3 | 成立 | `goal.output` 只在读取方出现（`plugins/native/artifacts/src/actions.ts:85`、`goal-context.ts:23`），没有写入方；`goal.input` 由 `modules/goals/src/input-bindings.ts` 写，调用方是 Feed 提升到 Goal（`apps/local-host/src/feed-goal-promotion.ts`、`plugins/native/feed/src/goal-promotion.ts`）与 Goals 的输入动作；`io.molis.work.goal.delivery` 只在演示数据里 |
-| 4 | 成立 | Feed：`plugins/native/feed/src/out-rules.ts:235` 写 `io.molis.work.feed.capture`，manifest `artifacts: { produces: [] }`（`plugins/native/feed/src/manifest.ts:35`）。侧栏文件：`plugins/native/artifacts/src/actions.ts:111` 对所有记录写 `media_type: "text/markdown"`，而且交换数据也在这个列表里。类型显示名写死在 `plugins/native/artifacts/src/browser-ui.ts:10-14` |
-| 5 | 成立 | 两套导入：Artifacts 的 `/artifacts/import`（`plugins/native/artifacts/src/import-ui.ts`）与 Pages 的导入（`plugins/native/pages/src/actions.ts:81-84`、`ui.ts:72`）。英文名：`plugins/native/artifacts/src/manifest.ts:22`、`browser-ui.ts:177`、`apps/workbench/src/tab-workspace-ops.ts:41`、`artifact-ui.ts:134` |
-| 6 | 成立，且不止这些 | 见 §3 |
+| # | 结论 | 证据 | 处理结果 |
+| --- | --- | --- | --- |
+| 1 | 成立 | 交换数据类型 `files.snapshot.v1`、`files.collection.v1`、`diff.changeset.v1`、`git.result.v1`、`coding.changeset.v1` 定义在 `packages/contracts/src/modules/workspace-artifacts.ts`，并在 files 等插件的 manifest 里声明为 `artifacts.produces`（如 `plugins/native/files/src/manifest.ts:63`），与 Pages、问卷、数据表、PPT 的固定版本同一个库。助理工作「成果」与「放在哪里」的语义待在动线走查里补证据 | 交换数据搬出成果库，成为各插件的过程项（A2 [#201](https://github.com/molis-ai/molis-work/pull/201)）；成果只表示固定版本，带来源与修订号（A1 [#202](https://github.com/molis-ai/molis-work/pull/202)）；统一叫「成果」（A6 [#200](https://github.com/molis-ai/molis-work/pull/200)）。**未处理**：助理工作的「成果」仍是指向任意对象的关系、并且也叫「成果」；「固定版本」与「放在哪里」的复制、关联语义仍有重叠——见 §1 待决 |
+| 2 | 成立（待界面走查补证） | 可见类型：`io.molis.work.pages.document`、`ppt.deck`、`form.questionnaire`、`dataset.table`、`feed.capture`、`document`（导入）、`coding.report.v1`、`coding.changeset.v1`、`character.definition.v1`、`alchemist.research`、`goal.delivery`。`artifacts` 浏览只给 `DOCUMENT` 类型与宿主写死的 Coding 报告、变更做预览（`apps/local-host/src/artifact-native-plugin-http.ts:84`） | 每种可见类型由 owner 声明名称与预览（A4a [#204](https://github.com/molis-ai/molis-work/pull/204)）；被谁引用、原文已改（A4b-1 [#210](https://github.com/molis-ai/molis-work/pull/210)）；作为 Goal 的输入（A4b-2 [#212](https://github.com/molis-ai/molis-work/pull/212)）；侧栏走 owner 预览（A4b-3a [#213](https://github.com/molis-ai/molis-work/pull/213)）；从这一版继续（A4b-3b [#215](https://github.com/molis-ai/molis-work/pull/215)）；门禁（A7 [#209](https://github.com/molis-ai/molis-work/pull/209)）。作为工作流步骤的输入（[#228](https://github.com/molis-ai/molis-work/pull/228)，50f09b3a）、交给助理与 Coding（[#226](https://github.com/molis-ai/molis-work/pull/226)）。作为插件端口的输入：用户 10-04 定「做」，[#247](https://github.com/molis-ai/molis-work/pull/247) |
+| 3 | 成立 | `goal.output` 只在读取方出现（`plugins/native/artifacts/src/actions.ts:85`、`goal-context.ts:23`），没有写入方；`goal.input` 由 `modules/goals/src/input-bindings.ts` 写，调用方是 Feed 提升到 Goal（`apps/local-host/src/feed-goal-promotion.ts`、`plugins/native/feed/src/goal-promotion.ts`）与 Goals 的输入动作；`io.molis.work.goal.delivery` 只在演示数据里 | 收尾时交付成果库里的版本、写 `goal.output`（A5a [#205](https://github.com/molis-ai/molis-work/pull/205)）；当场固定 Goal 的资料并交付（A5b [#207](https://github.com/molis-ai/molis-work/pull/207)）；助理等只能提议、用户确认（A5c [#208](https://github.com/molis-ai/molis-work/pull/208)）；`goal.input` 指向成果版本（A4b-2 [#212](https://github.com/molis-ai/molis-work/pull/212)）；演示数据里的 `goal.delivery` 删除（[#205](https://github.com/molis-ai/molis-work/pull/205)） |
+| 4 | 成立 | Feed：`plugins/native/feed/src/out-rules.ts:235` 写 `io.molis.work.feed.capture`，manifest `artifacts: { produces: [] }`（`plugins/native/feed/src/manifest.ts:35`）。侧栏文件：`plugins/native/artifacts/src/actions.ts:111` 对所有记录写 `media_type: "text/markdown"`，而且交换数据也在这个列表里。类型显示名写死在 `plugins/native/artifacts/src/browser-ui.ts:10-14` | Feed 在 manifest 声明它写的捕获类型（A6 [#200](https://github.com/molis-ai/molis-work/pull/200)）；侧栏按真实媒体类型、过程项不进侧栏（A2 [#201](https://github.com/molis-ai/molis-work/pull/201)）；类型显示名由 owner 声明（A4a [#204](https://github.com/molis-ai/molis-work/pull/204)）；宿主按 manifest 拒绝未声明的写入（A7 [#209](https://github.com/molis-ai/molis-work/pull/209)） |
+| 5 | 成立 | 两套导入：Artifacts 的 `/artifacts/import`（`plugins/native/artifacts/src/import-ui.ts`）与 Pages 的导入（`plugins/native/pages/src/actions.ts:81-84`、`ui.ts:72`）。英文名：`plugins/native/artifacts/src/manifest.ts:22`、`browser-ui.ts:177`、`apps/workbench/src/tab-workspace-ops.ts:41`、`artifact-ui.ts:134` | 导入只在成果库，任何文件、保留原件（A3 [#203](https://github.com/molis-ai/molis-work/pull/203)）；用户 10-03 改为 Pages 也恢复自己的导入，结果是 Pages 文档、不进成果库（[#211](https://github.com/molis-ai/molis-work/pull/211)）；统一叫「成果」（A6 [#200](https://github.com/molis-ai/molis-work/pull/200)） |
+| 6 | 成立，且不止这些 | 见 §3 | 全部路由排查见 §3；壳子 S1–S7 处理，门禁 `tests/shell-page-gate.test.ts`（S7 [#196](https://github.com/molis-ai/molis-work/pull/196)） |
 
 ## 3. 独立页面与跳出工作台的排查清单
 
 排查方法：全仓源码里返回完整 HTML 文档（`<!doctype html>`、`<html>`、`renderWorkbenchDocument`）的地方、所有 `text/html` 响应、站内的新标签页链接（`target="_blank"`、`window.open`）。外部网站链接不在清单里，按例外处理。
 
-| # | 入口 | 现状 | 位置 | 初判 |
-| --- | --- | --- | --- | --- |
-| P1 | `/artifacts`、`/artifacts/<版本>` 直达或刷新 | 整页：自带侧栏、标题「Artifacts」与样式；只有带 `x-molis-work-fragment` 的请求才给片段 | `apps/local-host/src/artifact-native-plugin-http.ts:111`、`apps/workbench/src/artifact-ui.ts` | 并进工作台：直达打开工作台并定位到成果与版本；删整页渲染 |
-| P2 | `/artifacts/import` | 永远是整页，「导入文档」点下去离开工作台 | `artifact-native-plugin-http.ts:62`、`plugins/native/artifacts/src/import-ui.ts` | 取决于「导入归谁」 |
-| P3 | `/plugin-builder` | 旧的解释器创作台，整页 | `apps/local-host/src/plugin-builder-surface.ts:83` | 工作台入口已换成新创作台，疑似死路由，删 |
-| P4 | `/plugins/io.molis.work.generated.*` | 旧生成插件的独立页，自带「编辑新草稿」条 | `plugin-builder-surface.ts:90-95` | 同上，删 |
-| P5 | `/plugin-builder/studio` | 新创作台整页，工作台用 iframe 框起来 | `apps/local-host/src/plugin-builder/agent-surface.ts:371`、`plugin-builder-surface.ts:127` | 问用户 |
-| P6 | `/plugin-builder/studio/preview/<构建>` | 试用预览整页；「单独打开试用」新标签页 | `agent-surface.ts:372`、`plugins/native/plugin-builder/src/agent-studio.ts:249,265` | 问用户 |
-| P7 | `/plugins/<生成插件>`（已安装的 Agent 构建插件） | 整页，工作台舞台里用 iframe 框起来；「打开插件」「打开 vN」新标签页 | `agent-surface.ts:365,374`、`agent-studio.ts:204` | 问用户 |
-| P8 | `/api/alchemist/studio/legacy` | 「历史演示记录」新标签页 | `plugins/native/alchemist/src/client-views.ts:68` | 问用户（保留还是删） |
-| P9 | `renderPluginPageWorkspace`（页面型插件的独立工作区，自带品牌与侧边导航） | 公开出口，仓内没有生产调用方，只有测试 | `apps/workbench/src/plugin-page-workspace.ts`、`tests/plugin-page-workspace.test.ts` | 删（连同出口与测试） |
-| P10 | 全局设置 `/settings`、`/settings/<分区>`、`/settings/<插件>`、`/capabilities/*` | 整页，自带设置导航 | `apps/local-host/src/web-catalog.ts:204-375`、`apps/workbench/src/settings-renderer.ts:266` | 问用户：设置是否属于工作台的「设置」位置 |
-| P11 | 项目设置 `/projects/<id>/settings/*`、规划方法页 | 整页 | `apps/workbench/src/project-settings-pages.ts:87,143`、`apps/local-host/src/web-goals-read.ts:57`、`web-planning.ts` | 同 P10 |
-| P12 | `/`（项目选择）、`/onboarding` | 宿主的进入页（arrival 外壳，与工作台共用底栏） | `web-catalog.ts:400`、`web-onboarding.ts:145`、`apps/workbench/src/arrival/shell.ts` | 不是插件；拟列入例外，问用户 |
-| P13 | `/desktop/capsule` | 桌面菜单栏胶囊窗口 | `web-catalog.ts:177`、`apps/desktop/src/capsule-shell.ts` | 原生窗口，拟列入例外 |
-| P14 | `/__ui/catalog`、`/__ui/catalog/bar` | 开发用规格板 | `web-catalog.ts:186-201`、`apps/workbench/src/primitive-catalog.ts` | 开发工具，拟列入例外 |
-| P15 | `/projects/<id>/side/<插件>/<视图>` | 宿主排版的侧栏文档 | `apps/local-host/src/web-request.ts:187`、`apps/workbench/src/side-view-document.ts` | 用户已列为例外 |
-| P16 | 协作服务 `/continuity`、`/im` | 另一个进程（`server/`）的整页 | `server/src/http.ts:58-61`、`packages/im-ui/src/page.ts` | 问用户 |
-| P17 | 未知地址 | 项目里不存在的页面地址回一段 JSON 错误（`{"error":"页面或接口不存在"}`），不是工作台（排查时误写成「宿主 404 整页」；`web-request.ts:191` 那一处是侧栏文档自己的找不到提示，属 P15） | `apps/local-host/src/web-request.ts:538` | 页面地址打开工作台并提示找不到；接口仍回 JSON 404（S2） |
-| P18 | 站内新标签页：`/api/project-references/<引用>` | Artifacts 内联引用、Goal 历史附件在新标签页打开 | `plugins/native/artifacts/src/reference-ui.ts:46`、`plugins/native/goals/src/event-history-body.ts:169` | 打开的是项目文件的原文（`text/plain` 内联），与 P19 同类：随 S5 在工作台里预览 |
-| P19 | Shelf 打开文件（网页版） | 原生里交给系统打开；网页里 `window.open` 新标签页 | `plugins/native/shelf/src/client.ts:1005` | 问用户（算导出还是要在工作台预览） |
-| P20 | 导出与打印 | 问卷填写页导出、Pages 导出 HTML、Jelly 导出、PPT 打印 | `plugins/native/form/src/fillpage.ts`、`plugins/native/pages/src/client.ts:734`、`plugins/native/jelly/src/markdown.ts:95`、`plugins/native/ppt/src/client.ts:126` | 用户已列为例外 |
-
-| P21 | 插件与工作台里指向设置整页的链接 | 「去设置模型」「连接」等 30 多处 `href` 指向 `/settings/models`、`/settings/connectors`、`/capabilities/*` 等，点了离开工作台进 P10 的整页 | 如 `apps/workbench/src/**`、`plugins/native/*/src` 里的 `/settings/models` 9 处、`/settings/connectors` 5 处、`/capabilities/connections` 3 处 | 随 P10 的决定处理 |
-| P22 | 下载 | Cognia 素材下载、Experiments 导出、Artifacts 导出 JSON | `plugins/native/cognia/src/client.ts:70`、`plugins/native/experiments/src/client.ts:114`、`artifact-native-plugin-http.ts:73` | 下载文件，拟列入例外 |
+| # | 入口 | 现状 | 位置 | 初判 | 最终处理 |
+| --- | --- | --- | --- | --- | --- |
+| P1 | `/artifacts`、`/artifacts/<版本>` 直达或刷新 | 整页：自带侧栏、标题「Artifacts」与样式；只有带 `x-molis-work-fragment` 的请求才给片段 | `apps/local-host/src/artifact-native-plugin-http.ts:111`、`apps/workbench/src/artifact-ui.ts` | 并进工作台：直达打开工作台并定位到成果与版本；删整页渲染 | 并入：直达与刷新打开工作台并定位（S2 [#177](https://github.com/molis-ai/molis-work/pull/177)），整页删除 |
+| P2 | `/artifacts/import` | 永远是整页，「导入文档」点下去离开工作台 | `artifact-native-plugin-http.ts:62`、`plugins/native/artifacts/src/import-ui.ts` | 取决于「导入归谁」 | 删除：导入是成果库里的浮层（A3 [#203](https://github.com/molis-ai/molis-work/pull/203)） |
+| P3 | `/plugin-builder` | 旧的解释器创作台，整页 | `apps/local-host/src/plugin-builder-surface.ts:83` | 工作台入口已换成新创作台，疑似死路由，删 | 删除：旧创作台整套（S1b [#198](https://github.com/molis-ai/molis-work/pull/198)） |
+| P4 | `/plugins/io.molis.work.generated.*` | 旧生成插件的独立页，自带「编辑新草稿」条 | `plugin-builder-surface.ts:90-95` | 同上，删 | 删除：旧生成插件独立页（S1b [#198](https://github.com/molis-ai/molis-work/pull/198)） |
+| P5 | `/plugin-builder/studio` | 新创作台整页，工作台用 iframe 框起来 | `apps/local-host/src/plugin-builder/agent-surface.ts:371`、`plugin-builder-surface.ts:127` | 问用户 | 并入：创作台直接画在工作台舞台里（S4 [#197](https://github.com/molis-ai/molis-work/pull/197)） |
+| P6 | `/plugin-builder/studio/preview/<构建>` | 试用预览整页；「单独打开试用」新标签页 | `agent-surface.ts:372`、`plugins/native/plugin-builder/src/agent-studio.ts:249,265` | 问用户 | 并入：试用只在工作台的标签里，沙箱框列入例外「沙箱框里的文档」（S3 [#186](https://github.com/molis-ai/molis-work/pull/186)） |
+| P7 | `/plugins/<生成插件>`（已安装的 Agent 构建插件） | 整页，工作台舞台里用 iframe 框起来；「打开插件」「打开 vN」新标签页 | `agent-surface.ts:365,374`、`agent-studio.ts:204` | 问用户 | 并入：已安装生成插件在工作台里打开，不开新标签页；沙箱框同 P6 例外（S3 [#186](https://github.com/molis-ai/molis-work/pull/186)） |
+| P8 | `/api/alchemist/studio/legacy` | 「历史演示记录」新标签页 | `plugins/native/alchemist/src/client-views.ts:68` | 问用户（保留还是删） | 删除（S1 [#176](https://github.com/molis-ai/molis-work/pull/176)） |
+| P9 | `renderPluginPageWorkspace`（页面型插件的独立工作区，自带品牌与侧边导航） | 公开出口，仓内没有生产调用方，只有测试 | `apps/workbench/src/plugin-page-workspace.ts`、`tests/plugin-page-workspace.test.ts` | 删（连同出口与测试） | 删除，连同出口与测试（S1 [#176](https://github.com/molis-ai/molis-work/pull/176)） |
+| P10 | 全局设置 `/settings`、`/settings/<分区>`、`/settings/<插件>`、`/capabilities/*` | 整页，自带设置导航 | `apps/local-host/src/web-catalog.ts:204-375`、`apps/workbench/src/settings-renderer.ts:266` | 问用户：设置是否属于工作台的「设置」位置 | 并入：设置与能力在工作台的设置位置（S6 [#193](https://github.com/molis-ai/molis-work/pull/193)、S6b [#195](https://github.com/molis-ai/molis-work/pull/195)）；没有项目时的设置整页列入例外「进入页」 |
+| P11 | 项目设置 `/projects/<id>/settings/*`、规划方法页 | 整页 | `apps/workbench/src/project-settings-pages.ts:87,143`、`apps/local-host/src/web-goals-read.ts:57`、`web-planning.ts` | 同 P10 | 并入（S6 [#193](https://github.com/molis-ai/molis-work/pull/193)） |
+| P12 | `/`（项目选择）、`/onboarding` | 宿主的进入页（arrival 外壳，与工作台共用底栏） | `web-catalog.ts:400`、`web-onboarding.ts:145`、`apps/workbench/src/arrival/shell.ts` | 不是插件；拟列入例外，问用户 | 列入例外「进入页」：不是插件，宿主的项目选择与 Onboarding |
+| P13 | `/desktop/capsule` | 桌面菜单栏胶囊窗口 | `web-catalog.ts:177`、`apps/desktop/src/capsule-shell.ts` | 原生窗口，拟列入例外 | 列入例外：桌面菜单栏胶囊，原生窗口 |
+| P14 | `/__ui/catalog`、`/__ui/catalog/bar` | 开发用规格板 | `web-catalog.ts:186-201`、`apps/workbench/src/primitive-catalog.ts` | 开发工具，拟列入例外 | 列入例外：开发用规格板 |
+| P15 | `/projects/<id>/side/<插件>/<视图>` | 宿主排版的侧栏文档 | `apps/local-host/src/web-request.ts:187`、`apps/workbench/src/side-view-document.ts` | 用户已列为例外 | 列入例外：宿主排版的侧栏文档（用户已定） |
+| P16 | 协作服务 `/continuity`、`/im` | 另一个进程（`server/`）的整页 | `server/src/http.ts:58-61`、`packages/im-ui/src/page.ts` | 问用户 | 列入例外：给其他设备与成员用的协作服务，工作台里没有跳到它们的链接 |
+| P17 | 未知地址 | 项目里不存在的页面地址回一段 JSON 错误（`{"error":"页面或接口不存在"}`），不是工作台（排查时误写成「宿主 404 整页」；`web-request.ts:191` 那一处是侧栏文档自己的找不到提示，属 P15） | `apps/local-host/src/web-request.ts:538` | 页面地址打开工作台并提示找不到；接口仍回 JSON 404（S2） | 并入：未知页面地址打开工作台并说明找不到（S2 [#177](https://github.com/molis-ai/molis-work/pull/177)） |
+| P18 | 站内新标签页：`/api/project-references/<引用>` | Artifacts 内联引用、Goal 历史附件在新标签页打开 | `plugins/native/artifacts/src/reference-ui.ts:46`、`plugins/native/goals/src/event-history-body.ts:169` | 打开的是项目文件的原文（`text/plain` 内联），与 P19 同类：随 S5 在工作台里预览 | 并入：项目内引用在工作台里预览（S5 [#187](https://github.com/molis-ai/molis-work/pull/187)） |
+| P19 | Shelf 打开文件（网页版） | 原生里交给系统打开；网页里 `window.open` 新标签页 | `plugins/native/shelf/src/client.ts:1005` | 问用户（算导出还是要在工作台预览） | 并入：Shelf 网页版在工作台预览，浏览器不能显示的下载（S5 [#187](https://github.com/molis-ai/molis-work/pull/187)） |
+| P20 | 导出与打印 | 问卷填写页导出、Pages 导出 HTML、Jelly 导出、PPT 打印 | `plugins/native/form/src/fillpage.ts`、`plugins/native/pages/src/client.ts:734`、`plugins/native/jelly/src/markdown.ts:95`、`plugins/native/ppt/src/client.ts:126` | 用户已列为例外 | 列入例外：导出与打印（用户已定） |
+| P21 | 插件与工作台里指向设置整页的链接 | 「去设置模型」「连接」等 30 多处 `href` 指向 `/settings/models`、`/settings/connectors`、`/capabilities/*` 等，点了离开工作台进 P10 的整页 | 如 `apps/workbench/src/**`、`plugins/native/*/src` 里的 `/settings/models` 9 处、`/settings/connectors` 5 处、`/capabilities/connections` 3 处 | 随 P10 的决定处理 | 并入：这些链接在工作台里打开设置位置（S6 [#193](https://github.com/molis-ai/molis-work/pull/193)） |
+| P22 | 下载 | Cognia 素材下载、Experiments 导出、Artifacts 导出 JSON | `plugins/native/cognia/src/client.ts:70`、`plugins/native/experiments/src/client.ts:114`、`artifact-native-plugin-http.ts:73` | 下载文件，拟列入例外 | 列入例外：下载文件 |
 
 站内链接的统计口径：UI 源码里以 `/` 开头的 `href` 按路由归类（设置 30 余处、`/projects/`、`/goals/`、`/decisions` 属于工作台）。Feed 素材、Coding 与 Git 里的链接都是外部网址，按「外部链接」例外处理。
 
@@ -211,7 +231,7 @@
 - **类型由 owner 声明**：manifest 的 `artifacts.produces[]` 带 `title`（显示名）、`preview`（预览贡献）与可选的 `continue`（「从这一版继续」的动作）。成果库按声明显示，不再写死名称；没有预览的类型不允许声明为可见类型（门禁 A7）。
 - **交换数据**：`workspace-artifacts.ts` 里的文件快照、文件集合、变更集、Git 结果、Coding 变更集改名为「过程项」合同，由 Files、Diff、Git、Coding 各自存、各自读；它们之间经动作结果与端口传递，不再写成果库。
 - **引用关系**：`goal.output`、`goal.input`、助理工作结果、文档引用都指向成果引用 `{ artifact_id, version }`；成果库按这些关系显示「被谁引用」。
-- 身份字段随防腐第二步把 `board_id` 合并为 `project_id`。
+- 身份字段已随防腐第二步把 `board_id` 合并为 `project_id`。
 
 **A1 实施与草案的差异**
 
@@ -242,7 +262,7 @@
 - **在 Pages 继续**：Pages 能读的版本（Markdown、TXT、HTML、CSV、Word、ZIP）在详情里给「在 Pages 继续」：宿主把这一版交给 Pages 现有的文件解析，Pages 新建文档并在工作台打开；ZIP（如 Notion 导出）一次建多篇，打开第一篇。
 - **Pages 的导入入口删掉**：Pages 目录与空态里的「导入」按钮、导入浮层、脚本与样式都删了；它解析文件的能力（`import.preview`、`import` 动作与宿主的材料解析）保留，只作为「在 Pages 继续」的实现。
 
-### A4 每种可见类型的消费方（A4a、A4b-1、A4b-2、A4b-3a 已实施，A4b-3b 待做）
+### A4 每种可见类型的消费方（已实施）
 
 **A4a（本片）**
 
@@ -252,18 +272,16 @@
 
 **A4b-1（本片）**
 
-- 比较协议 `defineArtifactCompareAction`（`molis.artifacts.compare.request.v1` → `molis.artifacts.compare.v1`，答 `same`、`changed`、`missing`）与 `bindArtifactCompare`；Pages（标题、正文）、问卷（标题、说明、题目）、演示稿（标题、说明、配色、幻灯片）、数据表（标题、说明、列、行）各一个，manifest 的成果类型声明 `compare`。
+- 比较协议 `defineArtifactCompareAction`（`molis.artifacts.compare.request.v1` → `molis.artifacts.compare.v1`，答 `same`、`changed`、`moved`、`missing`）与 `bindArtifactCompare`；Pages（标题、正文）、问卷（标题、说明、题目）、演示稿（标题、说明、配色、幻灯片）、数据表（标题、说明、列、行）各一个，manifest 的成果类型声明 `compare`。
 - 成果库详情：原对象改过时提示「原对象之后改过了；这里仍是固定下来的这一版」，删除时提示「原对象已经删除」并不再给「打开原对象」。
-- 成果库详情加「被谁引用」：`artifacts.links` 读 ledger，列出把这一版作为输入、交付物、提议的交付物的 Goal（点开回 Goal），其余引用计数。
+- 成果库详情加「被谁引用」：`artifacts.links` 读 ledger，列出把这一版作为输入、交付物、提议的输入、提议的交付物的 Goal（点开回 Goal），其余引用计数。
 - 门禁：能当场固定的类型必须声明比较动作。
 
 **A4b-2（本片）**：成果库详情的「被谁引用」下加「作为 Goal 的输入」，选一个 Goal 就把这一版记为它的输入（`goal.input`）；Goal 页「交付物与输入」与「被谁引用」随之显示。Goals 新动作 `goals.artifact_inputs.add/remove/list`（HTTP `GET/POST /api/goals/:id/artifact-inputs`），与交付物共用同一套规则，包括助理等只能提议。
 
 **A4b-3a（本片）**：侧栏「文件」里的成果预览走类型 owner 的预览（`via: "owner"`），与成果库同一份；侧栏的 Markdown、CSV 渲染换成设计系统的同一组函数（页面脚本 `FILE_PREVIEW_CLIENT_SCRIPT`），侧栏表格样式改挂在共用的 `file-preview-table` 上。
 
-**A4b-3b（下一片）**
-
-- 其他类型的「从这一版继续」：由能接着做的插件在 manifest 里为成果类型声明 `continue`，替换宿主里专为 Pages 写的那条路由。
+**A4b-3b（本片）**：「从这一版继续」。协议 `defineArtifactContinueAction` 与 `bindArtifactContinue`；Pages（自己的文档，以及读得了的导入文件）、问卷、演示稿、数据表各一个，新建对象并带上这一版的内容，这一版和原对象都不变。成果库详情按声明给出「在 X 继续」，点了在工作台里打开新对象。Feed 捕获、角色、Coding 执行报告不提供，理由见 §1，名单在门禁里。
 
 ### A7 门禁（已实施）
 
@@ -302,8 +320,50 @@
 
 `goal.input` 的记下入口归 A4b「作为 Goal 的输入」。
 
+## 5b. 隔离 Home 走查（2026-10-03，桌面 1280 与 390）
+
+环境：隔离 Home（`MOLIS_WORK_HOME` 与 `MOLIS_WORK_SECRET_BACKEND=file` 指向会话临时目录），一个项目「成果走查」，启用全部项目插件并带演示 Goal；服务由 main 的构建（fbc21e03，含 #217）起在 4320，用应用内浏览器操作。
+
+| 步骤 | 结果 |
+| --- | --- |
+| Pages 新建文档、写正文、「存为固定版本」 | 得到 v1，列表标「固定版本 v1」；提示里的「打开」起初打开的是文档本身——已由 [#217](https://github.com/molis-ai/molis-work/pull/217) 修为打开成果库里的这一版 |
+| 改文档正文后打开 v1（直达链接） | 打开工作台的成果面并定位到 v1：「原对象之后改过了」、在 Pages 打开原对象、owner 预览显示 v1 当时的正文、在 Pages 继续、被谁引用、作为 Goal 的输入、类型与来源 |
+| 作为 Goal 的输入 → 选 V1 → 记为输入 | 「被谁引用」出现该 Goal（输入），点开在工作台打开 Goal；Goal 的「交付物与输入」显示「v1 · 输入」 |
+| Goal 收尾：完成要求 → 检查并收尾 | 收尾表单的「交付物」列出成果库的版本，勾选后提交：Goal 变为已完成，交付物记下；「交付物与输入」显示「v1 · 交付物」 |
+| 成果详情「在 Pages 继续」 | 在 Pages 新开一篇带 v1 正文的文档，原文档与 v1 不变 |
+| 成果库「导入」一个 Markdown 文件 | 浮层里导入，结果「查看这个版本」打开详情：导入时的说明、正文预览、在 Pages 继续、下载正文；列表按声明的名称分组（导入的文件、文档） |
+| 侧栏「文件」 | 项目成果、Pages 文档、工作区文件、置物架分组；成果的预览由 owner 给出（Markdown 标题与列表） |
+| Pages 自己的「导入」 | 浮层打开，样式正常（#211 恢复） |
+| 390 | 成果详情、导入浮层不横向溢出；窄屏下详情占满、列表在上一层 |
+
+**走查发现与处理**（同一 PR `fix/artifact-walkthrough-findings`，除第 1 条外）：
+
+1. 「存为固定版本」后的「打开」打开原对象；成果库不认不带项目前缀的版本地址，搜索、侧栏、提示都打不开版本——已修（#217）。
+2. 直达链接与「查看这个版本」打开的标签名是地址或链接文字——直达改为带上这一版的标题，导入结果带标题，成果面的链接优先用它。
+3. 「原文已改」没说是第几版——改为「原文已改，这里仍是第 N 版」「原对象已经删除，这里仍保留第 N 版」。
+4. 「被谁引用」里 Goal 名与角色挤在一起——加间距。
+5. Goal 页「交付物与输入」的卡片对 Pages 文档写「没有兼容插件」、类型显示 `document`——Goal 页按声明的成果类型读取并用 owner 声明的名称；可读时不再显示面向开发者的「已有兼容的类型声明」，改为「这是固定下来的一版」。
+6. 成果库的空状态仍写「推进 Goal 后提交成果」——改为指向「存为固定版本」与导入。
+7. 收尾表单的交付物在工作区侧栏里排成三行（复选框单独一行）——样式不再只挂在 Goal 文档容器下，复选框不再被表单的通用宽度拉满。
+8. 成果库导入浮层内容贴边，结果显示内部 ID——加内边距（压过设计系统对对话框的默认），结果显示标题。
+9. 侧栏把成果按类型 ID 分组——改为 owner 声明的名称。
+10. 侧栏「在插件中打开」对成果只打开成果面、不定位到版本——标签式打开的插件（成果库等）改为直接打开那一项。
+11. Goal 概览看不到交付了什么，要进「完成要求」才看得到——已改：「Goal 信息」里加「交付物 · N 份」，点开到「完成要求」（[#223](https://github.com/molis-ai/molis-work/pull/223)）。
+
+守住它们的用例：`tests/pin-toast-opens-version.e2e.test.ts`（#217）、`tests/artifact-walkthrough.e2e.test.ts`（1440、390：标题、侧栏分组与打开、Goal 卡片、导入浮层内边距）、`artifact-source-and-links` 与 `artifact-browser` 的「第 N 版」断言。
+
 ## 6. 进度
 
+- 2026-10-04（成果作插件端口的输入）：[#247](https://github.com/molis-ai/molis-work/pull/247)。
+  - 插件输入端口除了接另一个插件的输出，还可以固定读成果库里的一版。新表 `plugin_port_artifact_bindings`；只收成果库里、类型一致、仍可读、没归档的版本，过程项不收；一个端口只有一个来源。
+  - 成果详情加「交给插件作为输入」：列出运行中插件里接这个类型的输入端口（例如 Shelf 的 Coding 报告输入），显示「现在跟着 Coding」或「正在读这一版」，一个按钮改用这一版或改回宿主默认的来源。改输入的动作只给人用。
+  - 用例：`plugin-input-graph`、`plugin-durable-coordination`、`artifact-plugin-inputs-http`；第三批集成分支上相关用例与 27 个 Goal / 成果浏览器用例通过，全量在跑。
+- 2026-10-04（收尾）：
+  - #228 工作流从一版起步（50f09b3a）、#230 Goal 的输入合成一个入口（cd62835a）、#235 它的用例补充（428f435e）都已合入；顺带修了 Dock 用例的时序（#232，268325bd）。
+  - 场景 9：先确认 4207 没在写，把真实 Home 拷到会话临时目录，用当前 main、文件密钥后端打开走一遍。项目列表、项目首页、Goals、Coding（旧会话）、工作流与设置都打开，没有报错；拷贝已删。结果记在[防腐整理 §9.4 第 12 条](../repository-anti-corruption/spec.md)。
+  - 五.1 的补漏到此全部合入。另问了一项：成果要不要也作插件端口的输入，用户定「做」（§1），在做。
+- 2026-10-04：五.1 补漏按 10-03 的决定推进。已合入：#222「被谁引用 · 助理工作」、#223 Goal 信息里的交付物（F6）、#224 助理「产出」改名、#225 文档引用（`molis.artifacts.referrers`，Pages 识别正文里的版本链接）、#226 交给助理 / Coding、#227 直达链接打开的成果标签在助理里显示名字并能被「被谁引用」找到。在合并队列：#228 工作流从一版起步。在做：Goal 输入合成一个入口（分支 `feat/goal-inputs-one-entry`：`goals.artifact_inputs.pin`、Goal 页「输入」一张列表与「加输入…」、位置条「关联到 Goal…」同样问「跟着原文 / 固定这一版」）。用例：`artifact-assistant-works.e2e`、`artifact-handoff.e2e`、`artifact-source-and-links`（文档引用）、`workflows-plugin`（成果起步）、`goal-inputs-one-entry.e2e`、`goal-artifact-inputs`。main 自检的全量结果与两处修复（#220、#221）见[防腐整理 §9](../repository-anti-corruption/spec.md)。
+- 2026-10-03：A4b-3b 开 PR（分支 `feat/artifact-a4b3b-continue`），做法见上文「A4」A4b-3b。新增 `tests/artifact-continue.test.ts`（Pages、问卷、演示稿、数据表各固定一版再「继续」：新对象带上标题与内容、与原对象不同；未声明的插件被拒）、`tests/artifact-continue.e2e.test.ts`（1440、390：成果库详情点「在 Pages 继续」，在工作台里打开新文档，成果版本数不变）；`artifact-type-gate` 加「每种可见类型都能继续或在例外名单里」；A3 的「在 Pages 继续」用例改走新路由，原来对数量的断言换成在 Pages 列表里核对恰好新建了那一篇。整体构建后成果、四个 owner 插件、i18n、侧栏、目录与 MCP 等 104 个文件 566 条 565 通过；1 条 `ppt-actions.e2e`（390，PowerPoint 下载读到空文件）在 main 上同样偶发（3 次 2 次失败），是用例读下载的时机问题，单开 [#214](https://github.com/molis-ai/molis-work/pull/214) 修（等文件写完再读，断言不变，修后 4/4）；`alchemist-workbench.e2e` 有同样的读法，尚未见失败。健康门禁、边界检查通过；插件开发文档写明 `compare` 与 `continue`。
 - 2026-10-03：A4b-3a 开 PR（分支 `feat/artifact-a4b3-continue-and-side`），做法见上文「A4」A4b-3a。新增 `tests/side-files-artifacts.test.ts`：Pages 文档固定后，侧栏「文件」里的这一版由 Pages 预览（`via: "owner"`，Markdown 带标题与列表），列出的正是固定的那一版；页面脚本版渲染与服务端 `renderFilePreviewHtml` 对 Markdown、CSV、纯文本逐字相同，且不放过 `<b>`、`<script>`。整体构建后侧栏、成果、i18n、整页门禁、设计系统、搜索等 35 个文件 121/121；健康门禁通过。
 - 2026-10-03：A4b-2 开 PR（分支 `feat/artifact-a4b2-goal-inputs`），做法见上文「A4」A4b-2。新增 `tests/goal-artifact-inputs.test.ts`（Goal 目录、记为输入与重放、Goal 页「v2 · 输入」、成果库「被谁引用」、归档版本不给入口且后端拒绝、移除；助理只能提议输入、确认后提议退场、助理不能移除已确认的输入、输入不算交付物）与 `tests/artifact-goal-input.e2e.test.ts`（1440、390：在成果库详情选 Goal、记下后「被谁引用」出现该 Goal，页面不横向溢出）。A5c 的提议用例改为同时登记输入动作的定义（处理器工厂现在一并给出两类），断言不变。整体构建后 Goals、成果、i18n、MCP、目录、整页门禁等 133 个文件 475/475；健康门禁、边界检查通过。
 - 2026-10-03：Pages 恢复自己的导入入口（分支 `feat/pages-import-entry-back`，用户回来后的决定，见 §1）。新增 `tests/pages-import-entry.e2e.test.ts`（1440、390）：导入一个 Markdown 文件成为 Pages 文档并打开，成果库版本数不变，页面不横向溢出。整体构建后 Pages 导入、发布、动作、i18n、整页门禁 57/57，Pages 与目录、样式相关的其余 29 个文件 280/280；健康门禁通过。

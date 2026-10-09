@@ -47,9 +47,8 @@ for (const width of [1440, 390]) {
           const c = store.createToken({ serviceId: "model-api", displayName: `测试账号 ${id}`, token: `browser-fixture-key-${id}` });
           store.assertTarget(c.connection_id, "model-api", modelUrl); return c;
         });
-        catalog.models.upsert({ provider_id: id, display_name: id === "a" ? "原来的模型" : "备用模型", base_url: modelUrl,
+        catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: id, display_name: id === "a" ? "原来的模型" : "备用模型", base_url: modelUrl,
           api_format: "openai-chat-completions", models: [{ model_id: `${id}-model`, enabled: true }] });
-        catalog.models.selectConnection(id, connection.credential_ref!);
         if (id === "a") firstConnection = connection.connection_id;
       }
     } finally { catalog.close(); }

@@ -8,7 +8,8 @@ import {
   ArtifactsModule,
   canonicalArtifactJson,
   createArtifactsSchema,
-  migrateArtifactsSchema,
+  ARTIFACTS_SCHEMA_SQL,
+  PROCESS_ITEMS_SCHEMA_SQL,
   type ArtifactEventInput,
   type ArtifactsSqliteDatabase,
 } from "@molis-ai/molis-work-module-artifacts";
@@ -23,7 +24,7 @@ function createHarness() {
   db.pragma("foreign_keys = ON");
   db.exec(`
     CREATE TABLE boards (
-      board_id TEXT PRIMARY KEY,
+      project_id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       active_goal_id TEXT,
       created_at TEXT NOT NULL,
@@ -32,7 +33,7 @@ function createHarness() {
     CREATE TABLE events (
       seq INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id TEXT NOT NULL UNIQUE,
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       actor_id TEXT NOT NULL,
       type TEXT NOT NULL,
       object_type TEXT NOT NULL,
@@ -43,7 +44,7 @@ function createHarness() {
     );
   `);
   db.prepare(`
-    INSERT INTO boards (board_id, title, active_goal_id, created_at, updated_at)
+    INSERT INTO boards (project_id, title, active_goal_id, created_at, updated_at)
     VALUES ('board-artifacts', 'Artifacts', NULL, '2026-09-02T00:00:00.000Z', '2026-09-02T00:00:00.000Z')
   `).run();
   createArtifactsSchema(db as unknown as ArtifactsSqliteDatabase);
@@ -53,11 +54,11 @@ function createHarness() {
     now: () => `2026-09-02T00:00:${String(tick++).padStart(2, "0")}.000Z`,
     appendEvent: (event: ArtifactEventInput) => Number(db.prepare(`
       INSERT INTO events (
-        event_id, board_id, actor_id, type, object_type, object_id, reason, payload_json, at
+        event_id, project_id, actor_id, type, object_type, object_id, reason, payload_json, at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       event.eventId,
-      event.boardId,
+      event.projectId,
       event.actorId,
       event.type,
       event.objectType,
@@ -74,7 +75,7 @@ function registration(
   overrides: Partial<RegisterArtifactVersionInput> = {},
 ): RegisterArtifactVersionInput {
   return {
-    board_id: "board-artifacts",
+    project_id: "board-artifacts",
     artifact_id: "artifact-report",
     version: 1,
     actor_id: "user-a",
@@ -202,7 +203,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
 
     expectCode(
       () => module.commands.markUnavailable({
-        board_id: "board-artifacts",
+        project_id: "board-artifacts",
         artifact_id: "artifact-report",
         version: 3,
         actor_id: "user-b",
@@ -211,7 +212,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
       "artifact.not_owner",
     );
     const unavailable = module.commands.markUnavailable({
-      board_id: "board-artifacts",
+      project_id: "board-artifacts",
       artifact_id: "artifact-report",
       version: 3,
       actor_id: "user-a",
@@ -228,7 +229,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
     assert.equal(replayAfterAvailabilityChange.artifact.availability, "unavailable");
 
     const archived = module.commands.archiveVersion({
-      board_id: "board-artifacts",
+      project_id: "board-artifacts",
       artifact_id: "artifact-report",
       version: 1,
       actor_id: "user-a",
@@ -244,7 +245,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
   }
 });
 
-test("Artifact reference digest mismatch and schema migration are rollback-safe and idempotent", () => {
+test("Artifact reference digest mismatch is rollback-safe, and the owner schema creates only the current tables", () => {
   const { db, module } = createHarness();
   try {
     expectCode(
@@ -265,32 +266,27 @@ test("Artifact reference digest mismatch and schema migration are rollback-safe 
     db.close();
   }
 
-  const migrationDb = new Database(":memory:");
+  const schemaDb = new Database(":memory:");
   try {
-    migrationDb.exec(`
-      CREATE TABLE schema_migrations (migration_id INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+    schemaDb.exec(`
       CREATE TABLE boards (
-        board_id TEXT PRIMARY KEY,
+        project_id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
         active_goal_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
     `);
-    migrateArtifactsSchema(migrationDb as unknown as ArtifactsSqliteDatabase);
-    migrateArtifactsSchema(migrationDb as unknown as ArtifactsSqliteDatabase);
+    schemaDb.exec(ARTIFACTS_SCHEMA_SQL);
+    schemaDb.exec(PROCESS_ITEMS_SCHEMA_SQL);
     // The 成果库 (A1) and the process items store (A2); the pre-A1 tables are no longer created.
-    const tables = migrationDb.prepare(`
+    const tables = schemaDb.prepare(`
       SELECT name FROM sqlite_master
       WHERE type = 'table' AND name IN ('artifacts', 'artifact_versions', 'library_artifacts', 'library_artifact_versions', 'process_items', 'process_item_versions')
       ORDER BY name
     `).all().map((row) => row.name);
     assert.deepEqual(tables, ["library_artifact_versions", "library_artifacts", "process_item_versions", "process_items"]);
-    assert.equal(
-      migrationDb.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE migration_id = 31").get().count,
-      1,
-    );
   } finally {
-    migrationDb.close();
+    schemaDb.close();
   }
 });

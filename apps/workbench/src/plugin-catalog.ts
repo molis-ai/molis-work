@@ -3,7 +3,7 @@ import { PROJECT_PLUGIN_COMPANIONS } from "@molis-ai/molis-work-contracts/module
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
 export { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
 
@@ -292,6 +292,25 @@ export interface ArtifactTypeDeclaration {
   readonly pin: ActionDefinition | null;
   /** The owner's action that says whether a version still matches its work object (A4b). */
   readonly compare: ActionDefinition | null;
+}
+
+/** A plugin that can start new work from a 成果 type (「从这一版继续」, A4b), whether it owns the type or only reads it. */
+export interface ArtifactContinuer { readonly plugin_id: string; readonly plugin_title: string; readonly action: ActionDefinition }
+
+/** For each 成果 type, the built-in plugins that declare they can continue from it. */
+export function artifactContinuers(): ReadonlyMap<string, readonly ArtifactContinuer[]> {
+  const continuers = new Map<string, ArtifactContinuer[]>();
+  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const type of [...entry.manifest.artifacts.produces, ...entry.manifest.artifacts.consumes]) {
+    const declared = type.continue, action = declared ? entry.manifest.actions?.find(item => item.capability_id === declared.capability_id && item.version === declared.version) : undefined;
+    if (action) continuers.set(type.artifact_type_id, [...continuers.get(type.artifact_type_id) ?? [], { plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name, action }]);
+  }
+  return continuers;
+}
+
+/** The plugins that can say which of their objects link to a 成果 version (「被谁引用」, artifact-positioning 五.1). */
+export function artifactReferrerActions(): readonly ArtifactContinuer[] {
+  return BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.actions ?? []).filter(action => isArtifactReferrersAction(action.action))
+    .map(action => ({ plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name, action })));
 }
 
 /** Each declared 成果 type: display name, preview and pin actions and owner, from the built-in Manifests. */

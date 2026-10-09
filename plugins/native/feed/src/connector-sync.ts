@@ -11,18 +11,18 @@ import { toFeedPublicError } from "./application-errors.js";
 
 export class FeedConnectorSync {
   private readonly feed: FeedApplication;
-  constructor(private readonly ports: FeedConnectorSyncPorts, private readonly boardId: string) {
+  constructor(private readonly ports: FeedConnectorSyncPorts, private readonly projectId: string) {
     this.feed = ports.feed;
   }
   async sync(
     sourceId: string,
     input: FeedSourceSyncInput & { mode?: ConnectorSyncMode },
   ): Promise<FeedSourceSyncResult> {
-    const release = this.ports.acquireSync?.(this.boardId, sourceId);
+    const release = this.ports.acquireSync?.(this.projectId, sourceId);
     try { return await this.run(sourceId, input); } finally { release?.(); }
   }
   private async run(sourceId: string, input: FeedSourceSyncInput & { mode?: ConnectorSyncMode }): Promise<FeedSourceSyncResult> {
-    const source = this.feed.getSource(this.boardId, sourceId);
+    const source = this.feed.getSource(this.projectId, sourceId);
     if (!isAccountConnectorSyncKind(source.sync_kind)) {
       throw new FeedDomainError("这个来源不是账号连接器", "connector_wrong_sync_kind");
     }
@@ -40,16 +40,16 @@ export class FeedConnectorSync {
     } });
     await beforeEffect();
     const operationId = stableId("connector-operation", `${source.source_id}\u0000${key}\u0000${input.mode ?? "normal"}`);
-    const prior = this.feed.getSourceRunByOperationId(this.boardId, operationId);
+    const prior = this.feed.getSourceRunByOperationId(this.projectId, operationId);
     if (prior?.phase === "terminal") {
-      return { source: this.feed.getSource(this.boardId, sourceId), run: prior, created: 0, deduped: 0, replayed: true };
+      return { source: this.feed.getSource(this.projectId, sourceId), run: prior, created: 0, deduped: 0, replayed: true };
     }
     let listener!: FeedConnectorListener;
     let listenerResult: ListenerRunReceipt;
     try {
       listener = await this.ports.createListener(source, async (item, signal, occurredAt) => {
         await beforeEffect();
-        const latest = this.feed.getSource(this.boardId, source.source_id);
+        const latest = this.feed.getSource(this.projectId, source.source_id);
         this.feed.ingestItem({
           source: latest,
           externalId: `${latest.source_id}:${item.externalId}`,
@@ -78,7 +78,7 @@ export class FeedConnectorSync {
       const errorCode = error instanceof ListenerHostError ? error.code : safeConnectorErrorCode(error);
       await this.ports.reportCrash(source.source_id, errorCode);
       await beforeEffect();
-      const latest = this.feed.getSource(this.boardId, sourceId);
+      const latest = this.feed.getSource(this.projectId, sourceId);
       this.feed.upsertSource({
         ...latest,
         status: latest.enabled ? "error" : "paused",
@@ -86,7 +86,7 @@ export class FeedConnectorSync {
         updated_at: updatedAt,
       });
       this.ports.appendEvent(
-        this.boardId,
+        this.projectId,
         source.source_id,
         "feed_connector.sync_interrupted",
         `${source.name} 同步未取得终态，可安全重试`,
@@ -122,7 +122,7 @@ export class FeedConnectorSync {
           last_error_code: listenerResult.error_code,
           updated_at: completedAt,
         });
-        this.ports.appendEvent(this.boardId, source.source_id, "feed_connector.sync_failed", `${source.name} 同步失败：${message}`, {
+        this.ports.appendEvent(this.projectId, source.source_id, "feed_connector.sync_failed", `${source.name} 同步失败：${message}`, {
           failure,
           ...(action ? { action } : {}),
           ...(retryAfterAt ? { retry_after_at: retryAfterAt } : {}),
@@ -137,7 +137,7 @@ export class FeedConnectorSync {
     }
     const mode = connectorReceipt.mode === "fixture" ? "fixture" : "live";
     const cursor = listener.checkpoint().cursor;
-    const latest = this.feed.getSource(this.boardId, source.source_id);
+    const latest = this.feed.getSource(this.projectId, source.source_id);
     const durableSource = this.feed.upsertSource({
       ...latest,
       status: mode === "live" ? "active" : "error",
@@ -148,14 +148,14 @@ export class FeedConnectorSync {
       last_error_code: mode === "live" ? null : "fixture_not_live",
       updated_at: completedAt,
     });
-    this.ports.appendEvent(this.boardId, source.source_id, "feed_connector.sync_completed", `${source.name} 同步完成：新增 ${listenerResult.created_count}，去重 ${listenerResult.deduped_count}`, {
+    this.ports.appendEvent(this.projectId, source.source_id, "feed_connector.sync_completed", `${source.name} 同步完成：新增 ${listenerResult.created_count}，去重 ${listenerResult.deduped_count}`, {
       created: listenerResult.created_count,
       deduped: listenerResult.deduped_count,
     });
     if (mode === "live") this.resolveSourceFaults(source.source_id);
     return {
       source: durableSource,
-      run: this.feed.getSourceRunByOperationId(this.boardId, operationId)!,
+      run: this.feed.getSourceRunByOperationId(this.projectId, operationId)!,
       created: listenerResult.created_count,
       deduped: listenerResult.deduped_count,
       replayed: listenerResult.replayed,
@@ -171,7 +171,7 @@ export class FeedConnectorSync {
     const publicError = toFeedPublicError(new FeedDomainError(message, errorCode));
     if (publicError.retryable || !["auth", "configuration", "stale_cursor"].includes(publicError.category)) return;
     const stored = this.feed.createInboxEntry({
-      boardId: this.boardId,
+      projectId: this.projectId,
       subjectType: "source_fault",
       subjectId: source.source_id,
       reason: "source_fault",
@@ -185,18 +185,18 @@ export class FeedConnectorSync {
       at,
     });
     if (stored.entry.status === "done" || stored.entry.status === "dismissed") {
-      this.feed.setInboxEntryStatus(this.boardId, stored.entry.entry_id, "open", stored.entry.revision);
+      this.feed.setInboxEntryStatus(this.projectId, stored.entry.entry_id, "open", stored.entry.revision);
     }
   }
 
   private resolveSourceFaults(sourceId: string): void {
-    for (const entry of this.feed.listInboxEntries(this.boardId)) {
+    for (const entry of this.feed.listInboxEntries(this.projectId)) {
       if (
         entry.subject_type === "source_fault"
         && entry.subject_id === sourceId
         && (entry.status === "open" || entry.status === "in_progress")
       ) {
-        this.feed.setInboxEntryStatus(this.boardId, entry.entry_id, "done", entry.revision);
+        this.feed.setInboxEntryStatus(this.projectId, entry.entry_id, "done", entry.revision);
       }
     }
   }

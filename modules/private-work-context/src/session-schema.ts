@@ -1,13 +1,12 @@
 import path from "node:path";
 import type Database from "better-sqlite3";
 import type {
-  MolisWorkSessionGoalLink,
   MolisWorkSessionRecord,
 } from "./contract-aliases.js";
 import { MolisWorkSessionError } from "./errors.js";
 
 export const SESSION_REGISTRY_OWNER = "molis-work-session-registry-v1";
-export const SESSION_REGISTRY_SCHEMA_VERSION = 6;
+export const SESSION_REGISTRY_SCHEMA_VERSION = 7;
 
 function isOwnedSessionRegistry(owner: unknown): boolean {
   return owner === SESSION_REGISTRY_OWNER;
@@ -35,7 +34,7 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
           title TEXT,
           status TEXT NOT NULL CHECK (status IN ('discovered', 'active', 'closed')),
           provenance TEXT NOT NULL CHECK (provenance IN (
-            'molis_work_created', 'runtime_discovered', 'explicitly_linked', 'legacy_migrated'
+            'molis_work_created', 'runtime_discovered', 'explicitly_linked'
           )),
           metadata_json TEXT NOT NULL,
           created_at TEXT NOT NULL,
@@ -50,33 +49,20 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
           ON sessions(correlation_token) WHERE correlation_token IS NOT NULL;
         CREATE INDEX sessions_project_idx ON sessions(project_id, updated_at, session_id);
         CREATE INDEX sessions_workspace_idx ON sessions(workspace_id, updated_at, session_id);
-        CREATE TABLE session_goal_links (
-          link_id TEXT PRIMARY KEY,
-          session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
-          goal_id TEXT NOT NULL,
-          relation TEXT NOT NULL CHECK (relation IN ('current', 'history')),
-          linked_by TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          ended_at TEXT
-        );
-        CREATE UNIQUE INDEX session_goal_current_idx
-          ON session_goal_links(session_id) WHERE relation = 'current';
-        CREATE INDEX session_goal_history_idx
-          ON session_goal_links(session_id, created_at, link_id);
-        CREATE TABLE session_migration_receipts (
-          source_id TEXT PRIMARY KEY,
-          session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
-          source_fingerprint TEXT NOT NULL,
-          migrated_at TEXT NOT NULL
-        );
         ${sessionEventsSchema()}
         ${sessionHandoffsSchema()}
+        CREATE TABLE session_messages (
+        request_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, project_id TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL, session_id TEXT NOT NULL REFERENCES sessions(session_id),
+        target_json TEXT NOT NULL, content_ref TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('pending','uncertain','failed','accepted')),
+        attempt_count INTEGER NOT NULL DEFAULT 0, native_turn_id TEXT, error_code TEXT,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        UNIQUE(actor_id, project_id, idempotency_key)
+      );
       `);
       db.prepare("INSERT INTO session_meta (key, value) VALUES (?, ?)").run("owner", SESSION_REGISTRY_OWNER);
-      db.prepare("INSERT INTO session_meta (key, value) VALUES (?, ?)").run(
-        "schema_version",
-        "3",
-      );
+      db.prepare("INSERT INTO session_meta (key, value) VALUES (?, ?)").run("schema_version", String(SESSION_REGISTRY_SCHEMA_VERSION));
     })();
     return;
   }
@@ -89,162 +75,15 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
   const version = Number((db.prepare("SELECT value FROM session_meta WHERE key = 'schema_version'").get() as
     | { value?: unknown }
     | undefined)?.value);
-  if (version === 1 || version === 2) {
-    db.transaction(() => {
-      if (version === 1) db.exec(sessionEventsSchema());
-      db.exec(sessionHandoffsSchema());
-      db.prepare("UPDATE session_meta SET value = ? WHERE key = 'schema_version'")
-        .run("3");
-    })();
-  } else if (version !== 3 && version !== 4 && version !== 5 && version !== SESSION_REGISTRY_SCHEMA_VERSION) {
+  // Only the current schema is read: older registries are not upgraded in place (no compatibility path).
+  if (version !== SESSION_REGISTRY_SCHEMA_VERSION) {
     throw new MolisWorkSessionError(
       "session.registry_reader_too_old",
-      `Session Registry schema=${version}，当前 reader 支持 ${SESSION_REGISTRY_SCHEMA_VERSION}`,
+      `Session Registry schema=${version}，当前只读 ${SESSION_REGISTRY_SCHEMA_VERSION}`,
     );
   }
   db.exec(sessionEventsSchema());
   db.exec(sessionHandoffsSchema());
-  rebuildSessionProvenanceCheck(db);
-  rebuildSessionEventSourceCheck(db);
-}
-
-const SESSION_INDEXES = `
-  CREATE UNIQUE INDEX IF NOT EXISTS sessions_native_identity_idx
-    ON sessions(runtime_id, native_runtime_session_id)
-    WHERE native_runtime_session_id IS NOT NULL;
-  CREATE UNIQUE INDEX IF NOT EXISTS sessions_surface_idx
-    ON sessions(surface_id) WHERE surface_id IS NOT NULL;
-  CREATE UNIQUE INDEX IF NOT EXISTS sessions_correlation_idx
-    ON sessions(correlation_token) WHERE correlation_token IS NOT NULL;
-  CREATE INDEX IF NOT EXISTS sessions_project_idx ON sessions(project_id, updated_at, session_id);
-  CREATE INDEX IF NOT EXISTS sessions_workspace_idx ON sessions(workspace_id, updated_at, session_id);
-`;
-
-const SESSION_EVENT_INDEXES = `
-  CREATE INDEX IF NOT EXISTS session_events_timeline_idx
-    ON session_events(session_id, occurred_at, source_order, event_id);
-`;
-
-function rebuildSessionProvenanceCheck(db: Database.Database): void {
-  recoverRenamedTable(db, "sessions__prov_v2", "sessions", SESSION_INDEXES);
-  const sql = tableSql(db, "sessions");
-  if (!sql || sql.includes("'molis_work_created'")) return;
-  db.pragma("foreign_keys = OFF");
-  try {
-    db.transaction(() => {
-      db.exec("DROP TABLE IF EXISTS sessions__prov_v2");
-      db.exec(`
-        CREATE TABLE sessions__prov_v2 (
-          session_id TEXT PRIMARY KEY,
-          runtime_id TEXT NOT NULL,
-          native_runtime_session_id TEXT,
-          correlation_token TEXT,
-          correlation_expires_at TEXT,
-          surface_id TEXT,
-          project_id TEXT,
-          current_goal_id TEXT,
-          workspace_id TEXT,
-          workspace_path TEXT,
-          title TEXT,
-          status TEXT NOT NULL CHECK (status IN ('discovered', 'active', 'closed')),
-          provenance TEXT NOT NULL CHECK (provenance IN (
-            'molis_work_created', 'runtime_discovered', 'explicitly_linked', 'legacy_migrated'
-          )),
-          metadata_json TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-        INSERT INTO sessions__prov_v2 (
-          session_id, runtime_id, native_runtime_session_id, correlation_token,
-          correlation_expires_at, surface_id, project_id, current_goal_id,
-          workspace_id, workspace_path, title, status, provenance, metadata_json,
-          created_at, updated_at
-        )
-        SELECT
-          session_id, runtime_id, native_runtime_session_id, correlation_token,
-          correlation_expires_at, surface_id, project_id, current_goal_id,
-          workspace_id, workspace_path, title, status,
-          CASE provenance WHEN 'goalboard_created' THEN 'molis_work_created' ELSE provenance END,
-          metadata_json, created_at, updated_at
-        FROM sessions;
-        DROP TABLE sessions;
-        ALTER TABLE sessions__prov_v2 RENAME TO sessions;
-        ${SESSION_INDEXES}
-      `);
-    })();
-  } finally {
-    db.pragma("foreign_keys = ON");
-  }
-}
-
-function rebuildSessionEventSourceCheck(db: Database.Database): void {
-  recoverRenamedTable(db, "session_events__src_v2", "session_events", SESSION_EVENT_INDEXES);
-  const sql = tableSql(db, "session_events");
-  if (!sql || sql.includes("'molis_work_tui'")) return;
-  db.pragma("foreign_keys = OFF");
-  try {
-    db.transaction(() => {
-      db.exec("DROP TABLE IF EXISTS session_events__src_v2");
-      db.exec(`
-        CREATE TABLE session_events__src_v2 (
-          event_id TEXT PRIMARY KEY,
-          session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
-          source TEXT NOT NULL CHECK (source IN ('molis_work_tui', 'molis_work')),
-          kind TEXT NOT NULL CHECK (kind IN (
-            'user_message', 'runtime_message', 'tool', 'approval',
-            'status', 'artifact', 'terminal_output'
-          )),
-          source_id TEXT NOT NULL,
-          source_order INTEGER NOT NULL,
-          occurred_at TEXT NOT NULL,
-          content_ref TEXT NOT NULL,
-          metadata_json TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          UNIQUE(session_id, source, source_id)
-        );
-        INSERT INTO session_events__src_v2 (
-          event_id, session_id, source, kind, source_id, source_order,
-          occurred_at, content_ref, metadata_json, created_at
-        )
-        SELECT
-          event_id, session_id,
-          CASE source
-            WHEN 'goalboard_tui' THEN 'molis_work_tui'
-            WHEN 'molis_work_tui' THEN 'molis_work_tui'
-            ELSE 'molis_work'
-          END,
-          kind, source_id, source_order, occurred_at, content_ref, metadata_json, created_at
-        FROM session_events;
-        DROP TABLE session_events;
-        ALTER TABLE session_events__src_v2 RENAME TO session_events;
-        ${SESSION_EVENT_INDEXES}
-      `);
-    })();
-  } finally {
-    db.pragma("foreign_keys = ON");
-  }
-}
-
-function recoverRenamedTable(
-  db: Database.Database,
-  tempName: string,
-  finalName: string,
-  indexes: string,
-): void {
-  if (!tableSql(db, tempName)) return;
-  if (!tableSql(db, finalName)) {
-    db.exec(`ALTER TABLE ${tempName} RENAME TO ${finalName}; ${indexes}`);
-    return;
-  }
-  db.exec(`DROP TABLE IF EXISTS ${tempName}`);
-}
-
-function tableSql(db: Database.Database, name: string): string {
-  return String(
-    (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) as
-      | { sql?: string }
-      | undefined)?.sql ?? "",
-  );
 }
 
 function sessionEventsSchema(): string {
@@ -323,17 +162,6 @@ export function mapSession(row: Record<string, unknown>): MolisWorkSessionRecord
   };
 }
 
-export function mapGoalLink(row: Record<string, unknown>): MolisWorkSessionGoalLink {
-  return {
-    link_id: String(row.link_id),
-    session_id: String(row.session_id),
-    goal_id: String(row.goal_id),
-    relation: String(row.relation) as MolisWorkSessionGoalLink["relation"],
-    linked_by: String(row.linked_by),
-    created_at: String(row.created_at),
-    ended_at: row.ended_at == null ? null : String(row.ended_at),
-  };
-}
 
 export function parseMetadata(value: unknown): Record<string, unknown> {
   try {

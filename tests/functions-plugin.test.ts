@@ -19,25 +19,23 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { renderMolisWorkSettings, renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { renderSettingsDirectorySection } from "../apps/workbench/src/settings-directory.ts";
 import {
-  FUNCTIONS_CREDENTIAL_REF,
   INBOX_DISMISS_BEHAVIOR_ID,
   INBOX_DONE_BEHAVIOR_ID,
   INBOX_NEXT_SCENE_ID,
   SYSTEM_HOME_DOCK_FUNCTION_KEY,
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
-  functionFitsScene,
   choiceCriteriaFollowContext,
   type TypeSafeEvaluateResult,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   FunctionsError,
   createFunctionsService,
+  functionsActions,
   hashChoiceConfig,
   hashFunctionConfig,
   openFunctionsStore,
   readChoiceAnswer,
-  type FunctionsSecretPort,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
 import { FunctionsHttpRouteTable } from "../apps/local-host/src/functions-http/routes.ts";
@@ -55,15 +53,6 @@ const primitives = {
     .replaceAll('"', "&quot;"),
   text: (value: string) => value,
 };
-
-function memorySecrets(initial: Record<string, string> = {}): FunctionsSecretPort {
-  const map = new Map(Object.entries(initial));
-  return {
-    put(ref, value) { map.set(ref, value); },
-    get(ref) { return map.get(ref) ?? null; },
-    delete(ref) { map.delete(ref); },
-  };
-}
 
 function fixtureProvider(result: { choice?: string | null; noul?: number; score?: number } = { choice: "yes" }, calls: { count: number } = { count: 0 }): TypeSafeProvider {
   return {
@@ -216,7 +205,6 @@ test("custom Choice options survive an Inbox destination and bind through a scen
       urgent: INBOX_DONE_BEHAVIOR_ID,
       later: INBOX_DISMISS_BEHAVIOR_ID,
     });
-    assert.equal(functionFitsScene(mapped, INBOX_NEXT_SCENE_ID), true);
     const noul = store.create({ primitive: "noul", name: "材料够不够" });
     assert.equal(noul.scene_id, null);
     const noulMapped = store.updateDraft(noul.id, {
@@ -235,12 +223,11 @@ test("custom Choice options survive an Inbox destination and bind through a scen
 test("preview uses the injected provider once, stores last_preview, and does not retry", async () => {
   await withHome(async (home) => {
     const calls = { count: 0 };
-    const secrets = memorySecrets();
-    secrets.put(FUNCTIONS_CREDENTIAL_REF, "sk-test");
+    const credential = () => "sk-test";
     const store = openFunctionsStore(home);
     const service = createFunctionsService({
       store,
-      secrets,
+      credential,
       provider: fixtureProvider({ choice: "yes" }, calls),
     });
     try {
@@ -270,7 +257,7 @@ test("preview without a key is a configured-state, not a TypeSafe call", async (
     const calls = { count: 0 };
     const service = createFunctionsService({
       store: openFunctionsStore(home),
-      secrets: memorySecrets(),
+      credential: () => null,
       provider: fixtureProvider({ choice: "yes" }, calls),
     });
     const created = service.createChoice({ name: "urgent" });
@@ -288,10 +275,10 @@ test("preview without a key is a configured-state, not a TypeSafe call", async (
 
 test("changing instructions invalidates the previous preview", async () => {
   await withHome(async (home) => {
-    const secrets = memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" });
+    const credential = () => "sk-test";
     const service = createFunctionsService({
       store: openFunctionsStore(home),
-      secrets,
+      credential,
       provider: fixtureProvider(),
     });
     const created = service.createChoice({ name: "route" });
@@ -310,10 +297,10 @@ test("changing instructions invalidates the previous preview", async () => {
 
 test("TYPESAFE_API_KEY wins over the stored secret and settings JSON never includes the key", async () => {
   await withHome(async (home) => {
-    const secrets = memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-stored" });
+    const credential = () => "sk-stored";
     const service = createFunctionsService({
       store: openFunctionsStore(home),
-      secrets,
+      credential,
       env: { TYPESAFE_API_KEY: "sk-env" },
     });
     const status = service.settingsStatus();
@@ -332,7 +319,7 @@ test("route table lists, previews, publishes, and maps missing functions to 404"
   await withHome(async (home) => {
     const service = createFunctionsService({
       store: openFunctionsStore(home),
-      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
+      credential: () => "sk-test",
       provider: fixtureProvider({ choice: null }),
     });
     const routes = new FunctionsHttpRouteTable(createFunctionsRouteHandlers({ actions: registeredFunctionActions(service) }));
@@ -408,7 +395,7 @@ test("Functions client clears leftover preview text when switching records and h
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /subject_kinds: dest\?\.subject_kinds/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /selected = record;\s*records = records\.some/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/inbox\/judgment|\/api\/home\/dock-judgment/);
-  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.board_id \? " · " \+ row\.board_id/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.project_id \? " · " \+ row\.project_id/);
 });
 
 test("system judgment editor and connection settings render without plugin contributions", () => {
@@ -616,7 +603,7 @@ test("Noul preview stores probability without confidence, and publish pins the r
     const store = openFunctionsStore(home);
     const service = createFunctionsService({
       store,
-      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
+      credential: () => "sk-test",
       provider: fixtureProvider({ noul: 0.91 }),
     });
     const created = service.create({ primitive: "noul", name: "材料是否够" });
@@ -684,7 +671,7 @@ test("invoke uses published config once and does not overwrite last_preview", as
     const calls = { count: 0 };
     const service = createFunctionsService({
       store: openFunctionsStore(home),
-      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
+      credential: () => "sk-test",
       provider: fixtureProvider({ choice: "yes" }, calls),
     });
     const created = service.createChoice({ name: "急单" });
@@ -707,11 +694,11 @@ test("invoke uses published config once and does not overwrite last_preview", as
   });
 });
 
-test("HTTP invoke by key and MCP list hide drafts", async () => {
+test("HTTP invoke by key and the Functions actions hide drafts", async () => {
   await withHome(async (home) => {
     const service = createFunctionsService({
       store: openFunctionsStore(home),
-      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
+      credential: () => "sk-test",
       provider: fixtureProvider({ choice: "no" }),
     });
     const draft = service.createChoice({ name: "草稿" });
@@ -745,25 +732,22 @@ test("HTTP invoke by key and MCP list hide drafts", async () => {
     });
     assert.equal(invoked?.status, 200);
     assert.equal((invoked?.body as { data: { choice: string } }).data.choice, "no");
-    const { callLegacyFunctionsMcp } = await import("../apps/local-host/src/mcp-functions-tools.ts");
     const actionHost = new MolisWorkLocalHost({ homeDirectory: home, functions: {
-      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }), provider: fixtureProvider({ choice: "no" }), env: {},
+      credential: () => "sk-test", provider: fixtureProvider({ choice: "no" }), env: {},
     } });
     const actions = bindActionClient(actionHost.homeActionClient(), () => ({
       actor_id: "test-mcp", project_id: null, audience: "mcp", permissions: ["functions:invoke", "functions:manage"],
     }));
-    const listedMcp = JSON.parse(await callLegacyFunctionsMcp(actions, "molis_work_v1_functions_list", {})) as {
-      functions: Array<{ function_key: string }>;
-    };
+    const listedMcp = await actions.invoke(functionsActions.list, {}) as { functions: Array<{ function_key: string }> };
     assert.ok(listedMcp.functions.some((item) => item.function_key === live.function_key));
     assert.equal(listedMcp.functions.some((item) => item.function_key === draft.function_key), false);
     await assert.rejects(
-      () => callLegacyFunctionsMcp(actions, "molis_work_v1_functions_describe", { function_key: draft.function_key }),
+      () => actions.invoke(functionsActions.describe, { function_key: draft.function_key }),
       /函数不存在/,
     );
-    const invokedMcp = JSON.parse(await callLegacyFunctionsMcp(actions, "molis_work_v1_functions_invoke", {
+    const invokedMcp = await actions.invoke(functionsActions.invoke, {
       function_key: live.function_key, input: "MCP test",
-    })) as { status: string; data: { choice: string } };
+    }) as { status: string; data: { choice: string } };
     assert.equal(invokedMcp.status, "ok");
     assert.equal(invokedMcp.data.choice, "no");
     await actionHost.close();

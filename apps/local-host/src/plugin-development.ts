@@ -25,9 +25,10 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
     const rendered_ui = options.ui.list().filter(value => value.plugin_id === definition.manifest.plugin_id)
       .flatMap(value => (value.surfaces ?? []).map(surface => ({ contribution_id: value.contribution_id,
         surface: surface.surface_id, html: options.ui.render({ contribution_id: value.contribution_id, surface: surface.surface_id, model: null }) })));
-    result = { health, poll, rendered_ui, artifacts: options.artifacts.query.listArtifacts(options.board_id)
+    // A personal 成果 belongs to the Home's person, so the run's own versions are told apart by who produced them, not by owner.
+    result = { health, poll, rendered_ui, artifacts: options.artifacts.query.listArtifacts(options.project_id)
       .filter(value => value.producer_plugin_id === definition.manifest.plugin_id
-        && value.producer_binding_signature === definition.manifest.publisher.signature && value.owner_actor_id === options.actor_id) };
+        && value.producer_binding_signature === definition.manifest.publisher.signature && value.created_by === options.actor_id) };
   } finally {
     await runtime.uninstall(id, { retain_private_data: true });
   }

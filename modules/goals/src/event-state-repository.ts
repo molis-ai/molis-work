@@ -10,7 +10,6 @@ import type {
   GoalEventDecisionOption,
   GoalEventDecisionPurpose,
   GoalEventDecisionRequestView,
-  GoalEventImportedCompletion,
   GoalEventProgressSummaryView,
   GoalEventScope,
   GoalEventStateOwnerView,
@@ -30,23 +29,23 @@ const EMPTY_SCOPE: GoalEventScope = {
   action: null,
 };
 
-export function goalHasEventStateOwner(db: GoalsSqliteDatabase, boardId: string, goalId: string): boolean {
+export function goalHasEventStateOwner(db: GoalsSqliteDatabase, projectId: string, goalId: string): boolean {
   return Boolean(db.prepare(
-    "SELECT 1 FROM goal_event_state_owners WHERE board_id = ? AND goal_id = ? LIMIT 1",
-  ).get(boardId, goalId));
+    "SELECT 1 FROM goal_event_state_owners WHERE project_id = ? AND goal_id = ? LIMIT 1",
+  ).get(projectId, goalId));
 }
 
 export class GoalEventStateRepository {
   constructor(private readonly db: GoalsSqliteDatabase) {}
 
-  isOwner(boardId: string, goalId: string): boolean {
-    return goalHasEventStateOwner(this.db, boardId, goalId);
+  isOwner(projectId: string, goalId: string): boolean {
+    return goalHasEventStateOwner(this.db, projectId, goalId);
   }
 
-  readOwner(boardId: string, goalId: string): GoalEventStateOwnerView | null {
+  readOwner(projectId: string, goalId: string): GoalEventStateOwnerView | null {
     const row = this.db.prepare(
-      "SELECT * FROM goal_event_state_owners WHERE board_id = ? AND goal_id = ?",
-    ).get(boardId, goalId) as Row | undefined;
+      "SELECT * FROM goal_event_state_owners WHERE project_id = ? AND goal_id = ?",
+    ).get(projectId, goalId) as Row | undefined;
     if (!row) return null;
     return {
       kind: "event_work",
@@ -57,44 +56,44 @@ export class GoalEventStateRepository {
   }
 
   adoptOwner(input: {
-    boardId: string;
+    projectId: string;
     goalId: string;
     actorId: string;
-    source: "intent" | "configuration" | "continue" | "migration";
+    source: "intent" | "configuration" | "continue";
     at: string;
   }): void {
     this.db.prepare(`
       INSERT OR IGNORE INTO goal_event_state_owners (
-        board_id, goal_id, owner, source, adopted_at, adopted_by
+        project_id, goal_id, owner, source, adopted_at, adopted_by
       ) VALUES (?, ?, 'event_work', ?, ?, ?)
-    `).run(input.boardId, input.goalId, input.source, input.at, input.actorId);
+    `).run(input.projectId, input.goalId, input.source, input.at, input.actorId);
     this.db.prepare(`
-      INSERT OR IGNORE INTO goal_event_work_status (board_id, goal_id, work_status, updated_at)
+      INSERT OR IGNORE INTO goal_event_work_status (project_id, goal_id, work_status, updated_at)
       VALUES (?, ?, 'open', ?)
-    `).run(input.boardId, input.goalId, input.at);
+    `).run(input.projectId, input.goalId, input.at);
   }
 
-  workStatus(boardId: string, goalId: string): GoalEventWorkStatus {
+  workStatus(projectId: string, goalId: string): GoalEventWorkStatus {
     const row = this.db.prepare(
-      "SELECT work_status FROM goal_event_work_status WHERE board_id = ? AND goal_id = ?",
-    ).get(boardId, goalId) as Row | undefined;
+      "SELECT work_status FROM goal_event_work_status WHERE project_id = ? AND goal_id = ?",
+    ).get(projectId, goalId) as Row | undefined;
     return row ? rowText(row.work_status) as GoalEventWorkStatus : "open";
   }
 
-  setWorkStatus(boardId: string, goalId: string, status: GoalEventWorkStatus, at: string): void {
+  setWorkStatus(projectId: string, goalId: string, status: GoalEventWorkStatus, at: string): void {
     this.db.prepare(`
-      INSERT INTO goal_event_work_status (board_id, goal_id, work_status, updated_at)
+      INSERT INTO goal_event_work_status (project_id, goal_id, work_status, updated_at)
       VALUES (?, ?, ?, ?)
       ON CONFLICT(goal_id) DO UPDATE SET work_status = excluded.work_status, updated_at = excluded.updated_at
-    `).run(boardId, goalId, status, at);
+    `).run(projectId, goalId, status, at);
   }
 
-  latestAgreement(boardId: string, goalId: string): { version: number; outcome: string; actor_id: string; created_at: string } | null {
+  latestAgreement(projectId: string, goalId: string): { version: number; outcome: string; actor_id: string; created_at: string } | null {
     const row = this.db.prepare(`
       SELECT * FROM goal_event_agreements
-      WHERE board_id = ? AND goal_id = ?
+      WHERE project_id = ? AND goal_id = ?
       ORDER BY version DESC LIMIT 1
-    `).get(boardId, goalId) as Row | undefined;
+    `).get(projectId, goalId) as Row | undefined;
     if (!row) return null;
     return {
       version: Number(row.version),
@@ -105,7 +104,7 @@ export class GoalEventStateRepository {
   }
 
   insertAgreement(input: {
-    boardId: string;
+    projectId: string;
     goalId: string;
     version: number;
     outcome: string;
@@ -115,14 +114,14 @@ export class GoalEventStateRepository {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_agreements (
-        board_id, goal_id, version, outcome, actor_id, created_at, event_id
+        project_id, goal_id, version, outcome, actor_id, created_at, event_id
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(input.boardId, input.goalId, input.version, input.outcome, input.actorId, input.at, input.eventId);
+    `).run(input.projectId, input.goalId, input.version, input.outcome, input.actorId, input.at, input.eventId);
   }
 
   insertProgress(input: {
     summaryId: string;
-    boardId: string;
+    projectId: string;
     goalId: string;
     eventId: string;
     summary: string;
@@ -134,22 +133,22 @@ export class GoalEventStateRepository {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_progress_summaries (
-        summary_id, board_id, goal_id, event_id, summary_text, based_on_cursor,
+        summary_id, project_id, goal_id, event_id, summary_text, based_on_cursor,
         next_step, next_actor, actor_id, recorded_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      input.summaryId, input.boardId, input.goalId, input.eventId, input.summary,
+      input.summaryId, input.projectId, input.goalId, input.eventId, input.summary,
       input.basedOnCursor, input.nextStep, input.nextActor, input.actorId, input.at,
     );
   }
 
-  latestProgress(boardId: string, goalId: string): Omit<GoalEventProgressSummaryView, "stale" | "stale_because_cursor"> | null {
+  latestProgress(projectId: string, goalId: string): Omit<GoalEventProgressSummaryView, "stale" | "stale_because_cursor"> | null {
     const row = this.db.prepare(`
       SELECT s.* FROM goal_event_progress_summaries s
-      JOIN goal_work_events e ON e.event_id = s.event_id AND e.board_id = s.board_id AND e.goal_id = s.goal_id
-      WHERE s.board_id = ? AND s.goal_id = ?
+      JOIN goal_work_events e ON e.event_id = s.event_id AND e.project_id = s.project_id AND e.goal_id = s.goal_id
+      WHERE s.project_id = ? AND s.goal_id = ?
       ORDER BY e.journal_seq DESC LIMIT 1
-    `).get(boardId, goalId) as Row | undefined;
+    `).get(projectId, goalId) as Row | undefined;
     if (!row) return null;
     return {
       summary_id: rowText(row.summary_id),
@@ -165,7 +164,7 @@ export class GoalEventStateRepository {
 
   insertConcern(input: {
     concernId: string;
-    boardId: string;
+    projectId: string;
     goalId: string;
     eventId: string;
     title: string;
@@ -176,19 +175,19 @@ export class GoalEventStateRepository {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_concerns (
-        concern_id, board_id, goal_id, event_id, title, statement, scope_json,
+        concern_id, project_id, goal_id, event_id, title, statement, scope_json,
         blocks_closure, status, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
     `).run(
-      input.concernId, input.boardId, input.goalId, input.eventId, input.title, input.statement,
+      input.concernId, input.projectId, input.goalId, input.eventId, input.title, input.statement,
       sqliteJson(input.scope), input.blocksClosure ? 1 : 0, input.at, input.at,
     );
   }
 
-  getConcern(boardId: string, goalId: string, concernId: string): GoalEventConcernView | null {
+  getConcern(projectId: string, goalId: string, concernId: string): GoalEventConcernView | null {
     const row = this.db.prepare(
-      "SELECT * FROM goal_event_concerns WHERE concern_id = ? AND board_id = ? AND goal_id = ?",
-    ).get(concernId, boardId, goalId) as Row | undefined;
+      "SELECT * FROM goal_event_concerns WHERE concern_id = ? AND project_id = ? AND goal_id = ?",
+    ).get(concernId, projectId, goalId) as Row | undefined;
     return row ? mapConcern(row) : null;
   }
 
@@ -212,21 +211,21 @@ export class GoalEventStateRepository {
     );
   }
 
-  listConcerns(boardId: string, goalId: string): GoalEventConcernView[] {
+  listConcerns(projectId: string, goalId: string): GoalEventConcernView[] {
     return (this.db.prepare(`
-      SELECT * FROM goal_event_concerns WHERE board_id = ? AND goal_id = ?
+      SELECT * FROM goal_event_concerns WHERE project_id = ? AND goal_id = ?
       ORDER BY created_at ASC, concern_id ASC
-    `).all(boardId, goalId) as Row[]).map(mapConcern);
+    `).all(projectId, goalId) as Row[]).map(mapConcern);
   }
 
-  openBlockingConcerns(boardId: string, goalId: string): GoalEventConcernView[] {
-    return this.listConcerns(boardId, goalId).filter((concern) =>
+  openBlockingConcerns(projectId: string, goalId: string): GoalEventConcernView[] {
+    return this.listConcerns(projectId, goalId).filter((concern) =>
       concern.status === "open" && concern.blocks_closure);
   }
 
   insertDecisionRequest(input: {
     requestId: string;
-    boardId: string;
+    projectId: string;
     goalId: string;
     eventId: string;
     question: string;
@@ -239,21 +238,21 @@ export class GoalEventStateRepository {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_decision_requests (
-        request_id, board_id, goal_id, event_id, question, options_json, scope_json,
+        request_id, project_id, goal_id, event_id, question, options_json, scope_json,
         purpose, proposed_change_json, commitment_json, status, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
     `).run(
-      input.requestId, input.boardId, input.goalId, input.eventId, input.question,
+      input.requestId, input.projectId, input.goalId, input.eventId, input.question,
       sqliteJson(input.options), sqliteJson(input.scope), input.purpose,
       input.proposedChange == null ? null : sqliteJson(input.proposedChange),
       input.commitment == null ? null : sqliteJson(input.commitment), input.at,
     );
   }
 
-  getDecisionRequest(boardId: string, goalId: string, requestId: string): GoalEventDecisionRequestView | null {
+  getDecisionRequest(projectId: string, goalId: string, requestId: string): GoalEventDecisionRequestView | null {
     const row = this.db.prepare(
-      "SELECT * FROM goal_event_decision_requests WHERE request_id = ? AND board_id = ? AND goal_id = ?",
-    ).get(requestId, boardId, goalId) as Row | undefined;
+      "SELECT * FROM goal_event_decision_requests WHERE request_id = ? AND project_id = ? AND goal_id = ?",
+    ).get(requestId, projectId, goalId) as Row | undefined;
     return row ? mapDecisionRequest(row) : null;
   }
 
@@ -262,16 +261,16 @@ export class GoalEventStateRepository {
       .run(requestId);
   }
 
-  listDecisionRequests(boardId: string, goalId: string): GoalEventDecisionRequestView[] {
+  listDecisionRequests(projectId: string, goalId: string): GoalEventDecisionRequestView[] {
     return (this.db.prepare(`
-      SELECT * FROM goal_event_decision_requests WHERE board_id = ? AND goal_id = ?
+      SELECT * FROM goal_event_decision_requests WHERE project_id = ? AND goal_id = ?
       ORDER BY created_at ASC, request_id ASC
-    `).all(boardId, goalId) as Row[]).map(mapDecisionRequest);
+    `).all(projectId, goalId) as Row[]).map(mapDecisionRequest);
   }
 
   insertAppliedDecision(input: {
     decisionId: string;
-    boardId: string;
+    projectId: string;
     goalId: string;
     governanceDecisionId: string;
     requestId: string | null;
@@ -291,12 +290,12 @@ export class GoalEventStateRepository {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_applied_decisions (
-        decision_id, board_id, goal_id, governance_decision_id, request_id, event_id,
+        decision_id, project_id, goal_id, governance_decision_id, request_id, event_id,
         selected_option_id, conclusion, accepts_requirements, effects_json, scope_json,
         commitment_json, authorized_change_json, config_version, agreement_version, actor_id, authority_source, recorded_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      input.decisionId, input.boardId, input.goalId, input.governanceDecisionId, input.requestId,
+      input.decisionId, input.projectId, input.goalId, input.governanceDecisionId, input.requestId,
       input.eventId, input.selectedOptionId, input.conclusion, input.acceptsRequirements ? 1 : 0,
       sqliteJson(input.effects), sqliteJson(input.scope), sqliteJson(input.commitment),
       input.authorizedChange == null ? null : sqliteJson(input.authorizedChange),
@@ -304,33 +303,33 @@ export class GoalEventStateRepository {
     );
   }
 
-  getAppliedDecision(boardId: string, goalId: string, decisionId: string): GoalEventAppliedDecisionView | null {
+  getAppliedDecision(projectId: string, goalId: string, decisionId: string): GoalEventAppliedDecisionView | null {
     const row = this.db.prepare(`
       SELECT * FROM goal_event_applied_decisions
-      WHERE decision_id = ? AND board_id = ? AND goal_id = ?
-    `).get(decisionId, boardId, goalId) as Row | undefined;
+      WHERE decision_id = ? AND project_id = ? AND goal_id = ?
+    `).get(decisionId, projectId, goalId) as Row | undefined;
     return row ? mapAppliedDecision(row) : null;
   }
 
-  getAppliedDecisionByGovernanceId(boardId: string, goalId: string, governanceDecisionId: string): GoalEventAppliedDecisionView | null {
+  getAppliedDecisionByGovernanceId(projectId: string, goalId: string, governanceDecisionId: string): GoalEventAppliedDecisionView | null {
     const row = this.db.prepare(`
       SELECT * FROM goal_event_applied_decisions
-      WHERE governance_decision_id = ? AND board_id = ? AND goal_id = ?
-    `).get(governanceDecisionId, boardId, goalId) as Row | undefined;
+      WHERE governance_decision_id = ? AND project_id = ? AND goal_id = ?
+    `).get(governanceDecisionId, projectId, goalId) as Row | undefined;
     return row ? mapAppliedDecision(row) : null;
   }
 
-  listAppliedDecisions(boardId: string, goalId: string): GoalEventAppliedDecisionView[] {
+  listAppliedDecisions(projectId: string, goalId: string): GoalEventAppliedDecisionView[] {
     return (this.db.prepare(`
       SELECT d.* FROM goal_event_applied_decisions d
-      JOIN goal_work_events e ON e.event_id = d.event_id AND e.board_id = d.board_id AND e.goal_id = d.goal_id
-      WHERE d.board_id = ? AND d.goal_id = ?
+      JOIN goal_work_events e ON e.event_id = d.event_id AND e.project_id = d.project_id AND e.goal_id = d.goal_id
+      WHERE d.project_id = ? AND d.goal_id = ?
       ORDER BY e.journal_seq ASC, d.decision_id ASC
-    `).all(boardId, goalId) as Row[]).map(mapAppliedDecision);
+    `).all(projectId, goalId) as Row[]).map(mapAppliedDecision);
   }
 
   insertConclusions(input: {
-    boardId: string;
+    projectId: string;
     goalId: string;
     requirementIds: string[];
     decisionId: string;
@@ -341,23 +340,23 @@ export class GoalEventStateRepository {
   }): void {
     const insert = this.db.prepare(`
       INSERT INTO goal_event_requirement_conclusions (
-        board_id, goal_id, requirement_id, decision_id, actor_id, verdict, received_at, journal_seq
+        project_id, goal_id, requirement_id, decision_id, actor_id, verdict, received_at, journal_seq
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const requirementId of input.requirementIds) {
       insert.run(
-        input.boardId, input.goalId, requirementId, input.decisionId,
+        input.projectId, input.goalId, requirementId, input.decisionId,
         input.actorId, input.verdict, input.at, input.journalSeq,
       );
     }
   }
 
-  latestConclusions(boardId: string, goalId: string): Map<string, GoalEventUserConclusion> {
+  latestConclusions(projectId: string, goalId: string): Map<string, GoalEventUserConclusion> {
     const rows = this.db.prepare(`
       SELECT * FROM goal_event_requirement_conclusions
-      WHERE board_id = ? AND goal_id = ?
+      WHERE project_id = ? AND goal_id = ?
       ORDER BY journal_seq DESC, decision_id DESC
-    `).all(boardId, goalId) as Row[];
+    `).all(projectId, goalId) as Row[];
     const latest = new Map<string, GoalEventUserConclusion>();
     for (const row of rows) {
       const requirementId = rowText(row.requirement_id);
@@ -375,7 +374,7 @@ export class GoalEventStateRepository {
 
   insertClosure(input: {
     closureId: string;
-    boardId: string;
+    projectId: string;
     goalId: string;
     eventId: string;
     kind: "complete" | "cancel";
@@ -391,76 +390,52 @@ export class GoalEventStateRepository {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_closures (
-        closure_id, board_id, goal_id, event_id, kind, result, reason, completion_applied,
+        closure_id, project_id, goal_id, event_id, kind, result, reason, completion_applied,
         expected_config_version, expected_agreement_version, config_version, agreement_version,
         unmet_reasons_json, superseded, recorded_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
     `).run(
-      input.closureId, input.boardId, input.goalId, input.eventId, input.kind, input.result,
+      input.closureId, input.projectId, input.goalId, input.eventId, input.kind, input.result,
       input.reason, input.completionApplied ? 1 : 0, input.expectedConfigVersion,
       input.expectedAgreementVersion, input.configVersion, input.agreementVersion,
       sqliteJson(input.unmetReasons), input.at,
     );
   }
 
-  latestImportedCompletion(boardId: string, goalId: string): GoalEventImportedCompletion | null {
-    const row = this.db.prepare(`
-      SELECT payload_json, received_at FROM goal_work_events
-      WHERE board_id = ? AND goal_id = ? AND kind = 'system'
-        AND payload_json LIKE '%"legacy_completion_imported"%'
-      ORDER BY journal_seq DESC LIMIT 1
-    `).get(boardId, goalId) as Row | undefined;
-    if (!row) return null;
-    const payload = rowJson<Record<string, unknown>>(row.payload_json, {});
-    return {
-      source: "legacy_fulfillment",
-      imported_at: rowText(row.received_at),
-      label: "迁入的历史完成",
-      historical: {
-        journal_type: payload.journal_type == null ? null : String(payload.journal_type),
-        journal_seq: payload.journal_seq == null ? null : Number(payload.journal_seq),
-        journal_at: payload.journal_at == null ? null : String(payload.journal_at),
-        evidence_ids: Array.isArray(payload.evidence_ids) ? payload.evidence_ids.map(String) : [],
-        review_ids: Array.isArray(payload.review_ids) ? payload.review_ids.map(String) : [],
-        contract_accepted_at: payload.contract_accepted_at == null ? null : String(payload.contract_accepted_at),
-        contract_accepted_by: payload.contract_accepted_by == null ? null : String(payload.contract_accepted_by),
-      },
-    };
-  }
 
-  latestClosure(boardId: string, goalId: string): GoalEventClosureView | null {
+  latestClosure(projectId: string, goalId: string): GoalEventClosureView | null {
     const row = this.db.prepare(`
       SELECT c.* FROM goal_event_closures c
-      JOIN goal_work_events e ON e.event_id = c.event_id AND e.board_id = c.board_id AND e.goal_id = c.goal_id
-      WHERE c.board_id = ? AND c.goal_id = ?
+      JOIN goal_work_events e ON e.event_id = c.event_id AND e.project_id = c.project_id AND e.goal_id = c.goal_id
+      WHERE c.project_id = ? AND c.goal_id = ?
       ORDER BY e.journal_seq DESC LIMIT 1
-    `).get(boardId, goalId) as Row | undefined;
+    `).get(projectId, goalId) as Row | undefined;
     return row ? mapClosure(row) : null;
   }
 
-  currentAppliedClosure(boardId: string, goalId: string): GoalEventClosureView | null {
+  currentAppliedClosure(projectId: string, goalId: string): GoalEventClosureView | null {
     const row = this.db.prepare(`
       SELECT c.* FROM goal_event_closures c
-      JOIN goal_work_events e ON e.event_id = c.event_id AND e.board_id = c.board_id AND e.goal_id = c.goal_id
-      WHERE c.board_id = ? AND c.goal_id = ?
+      JOIN goal_work_events e ON e.event_id = c.event_id AND e.project_id = c.project_id AND e.goal_id = c.goal_id
+      WHERE c.project_id = ? AND c.goal_id = ?
         AND c.completion_applied = 1 AND c.superseded = 0
       ORDER BY e.journal_seq DESC LIMIT 1
-    `).get(boardId, goalId) as Row | undefined;
+    `).get(projectId, goalId) as Row | undefined;
     return row ? mapClosure(row) : null;
   }
 
-  closureByEventId(boardId: string, goalId: string, eventId: string): GoalEventClosureView | null {
+  closureByEventId(projectId: string, goalId: string, eventId: string): GoalEventClosureView | null {
     const row = this.db.prepare(`
-      SELECT * FROM goal_event_closures WHERE event_id = ? AND board_id = ? AND goal_id = ?
-    `).get(eventId, boardId, goalId) as Row | undefined;
+      SELECT * FROM goal_event_closures WHERE event_id = ? AND project_id = ? AND goal_id = ?
+    `).get(eventId, projectId, goalId) as Row | undefined;
     return row ? mapClosure(row) : null;
   }
 
-  supersedeAppliedClosures(boardId: string, goalId: string, reason: string): void {
+  supersedeAppliedClosures(projectId: string, goalId: string, reason: string): void {
     this.db.prepare(`
       UPDATE goal_event_closures SET superseded = 1, superseded_reason = ?
-      WHERE board_id = ? AND goal_id = ? AND completion_applied = 1 AND superseded = 0
-    `).run(reason, boardId, goalId);
+      WHERE project_id = ? AND goal_id = ? AND completion_applied = 1 AND superseded = 0
+    `).run(reason, projectId, goalId);
   }
 
   setFulfillment(goalId: string, state: "unmet" | "satisfied", at: string): void {

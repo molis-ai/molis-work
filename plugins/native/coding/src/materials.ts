@@ -50,7 +50,7 @@ function materialFrom(record: FixedVersionRecord | null, sessionTitle?: SessionT
   if (record.artifact_type_id === SHELF_TEXT_MATERIAL_TYPE) {
     if (record.producer_plugin_id !== "io.molis.work.shelf" || record.producer_binding_signature !== "official-shelf-binding") throw new Error("Shelf 材料来源不一致");
     const snapshot = parseShelfTextMaterial(record.payload);
-    if (record.artifact_id !== "shelf-material:" + record.board_id + ":" + snapshot.source.item_id) throw new Error("Shelf 材料身份不一致");
+    if (record.artifact_id !== "shelf-material:" + record.project_id + ":" + snapshot.source.item_id) throw new Error("Shelf 材料身份不一致");
     title = `Shelf / ${snapshot.title}`;
     text = snapshot.text;
   } else if (record.artifact_type_id === DIFF_CHANGESET_TYPE) {

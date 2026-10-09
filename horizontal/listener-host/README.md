@@ -14,13 +14,13 @@ ListenerHost.run 经 Connector 取得 Raw Event，再调用 Integration Adapter 
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | ListenerHost、迁移、checkpoint 和 Run 恢复 |
+| [src/index.ts](src/index.ts) | ListenerHost、表结构、checkpoint 和 Run 恢复 |
 
 可对照现有调用方 [apps/local-host/src/feed-application.ts](../../apps/local-host/src/feed-application.ts) 阅读装配方式。
 
 ## 接入与边界
 
-装配时须在 Sources 初始化后调用 migrateListenerHost；旧 Feed migration 编号不能证明 Listener 表已存在。Native Feed 负责来源调度用例，Host 管 timer 生命周期；通用 Scheduler 仍是未来设计。
+Listener Host 只拥有自己的表（`listener_instances`、`listener_deliveries`、`feed_source_runs`），按来源 id 指向来源，不对 Sources 的 `feed_sources` 加外键；一个来源的运行记录经 `deleteListenerSourceState` 显式清掉。旧 Feed migration 编号不能证明 Listener 表已存在。Native Feed 负责来源调度用例，Host 管 timer 生命周期；通用 Scheduler 仍是未来设计。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
@@ -33,10 +33,10 @@ pnpm --filter @molis-ai/molis-work-service-listener-host typecheck
 pnpm --filter @molis-ai/molis-work-service-listener-host build
 ```
 
-已有行为示例与回归：[feed-receive-chain.test.ts](../../tests/feed-receive-chain.test.ts)、[feed-upgrade.test.ts](../../tests/feed-upgrade.test.ts)。完成上述构建后运行：
+已有行为示例与回归：[feed-receive-chain.test.ts](../../tests/feed-receive-chain.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/feed-receive-chain.test.ts tests/feed-upgrade.test.ts
+node --import tsx --test --test-concurrency=1 tests/feed-receive-chain.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
@@ -50,7 +50,7 @@ node --import tsx --test --test-concurrency=1 tests/feed-receive-chain.test.ts t
 - 不变量：
   - 收到 Signals 回执之前不推进游标、不确认投递。
   - 同一来源的有效租约阻止重复消费；多次转换失败进入隔离。
-  - 终态重放不再调用 Provider；旧 Feed 迁移编号不能证明 Listener 表已存在。
+  - 终态重放不再调用 Provider。
 - 改动后必跑：`node scripts/run-tests.mjs tests/feed-receive-chain.test.ts tests/plugin-runtime-integration.test.ts`
 - 相关手册：[docs/horizontal/listener-host.md](../../docs/horizontal/listener-host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

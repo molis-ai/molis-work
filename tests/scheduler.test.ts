@@ -453,36 +453,9 @@ test("取消或停止后，迟到的执行结果不能把任务复活", async ()
   );
 });
 
-test("旧表没有执行身份列时会补上，并且超长执行仍不重叠", async () => {
+test("超长执行仍不重叠", async () => {
   const clock = { now: new Date("2026-09-22T00:00:00.000Z") };
   const db = new Database(":memory:");
-  db.exec(`
-    CREATE TABLE schedule_jobs (
-      job_id TEXT PRIMARY KEY,
-      plugin_id TEXT NOT NULL,
-      capability_id TEXT NOT NULL,
-      object_ref TEXT NOT NULL,
-      title TEXT NOT NULL,
-      recurrence_kind TEXT NOT NULL CHECK (recurrence_kind IN ('once', 'interval')),
-      interval_ms INTEGER,
-      next_due_at TEXT NOT NULL,
-      enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
-      lease_until TEXT,
-      last_wakeup_id TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      UNIQUE (plugin_id, capability_id, object_ref)
-    );
-    CREATE TABLE schedule_wakeups (
-      wakeup_id TEXT PRIMARY KEY,
-      job_id TEXT NOT NULL,
-      due_at TEXT NOT NULL,
-      started_at TEXT NOT NULL,
-      finished_at TEXT,
-      status TEXT NOT NULL CHECK (status IN ('ok', 'failed', 'plugin_unavailable')),
-      detail TEXT
-    );
-  `);
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   let started = 0;
@@ -492,13 +465,11 @@ test("旧表没有执行身份列时会补上，并且超长执行仍不重叠",
     await gate;
   });
   const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
-  const columns = db.prepare("PRAGMA table_info(schedule_jobs)").all() as Array<{ name: string }>;
-  assert.equal(columns.some((column) => column.name === "lease_token"), true);
   schedule.register({
     plugin_id: "io.molis.work.test.owner",
     capability_id: "test.wakeup",
-    object_ref: "source:legacy",
-    title: "旧表",
+    object_ref: "source:long-run",
+    title: "超长执行",
     due_at: clock.now.toISOString(),
     recurrence: { kind: "interval", interval_ms: MIN_SCHEDULE_INTERVAL_MS },
   });

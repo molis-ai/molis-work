@@ -117,14 +117,14 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const selector=host.mode==='preview'?'[data-studio-preview]':host.mode==='installed'?'[data-installed-plugin]':'[data-agent-studio]';
  const root=host.root?(host.root.matches?.(selector)?host.root:host.root.querySelector(selector)):document.querySelector(selector);
  if(!root)return;
- const page=host.page||{address:()=>new URL(location.href),replace:next=>history.replaceState(null,'',next)};const lifetime=host.mountPluginClient(root);if(!lifetime)return;
+ const page=host.page;const lifetime=host.mountPluginClient(root);if(!lifetime)return;
 
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const icon=n=>'<svg aria-hidden="true"><use href="#icon-'+n+'"/></svg>';
  const headers=m=>m==='GET'?{}:(globalThis.molisWorkControlHeaders?.()||{'content-type':'application/json'});
  async function api(path,method='GET',body,signal){
   const r=await lifetime.fetch(host.api(path),{method,signal,cache:'no-store',headers:headers(method),...(body===undefined?{}:{body:JSON.stringify(body)})});
-  const v=await r.json().catch(()=>({}));lifetime.assertCurrent(signal);if(!r.ok)throw Object.assign(new Error(v.error||'操作失败，内容已保留'),{status:r.status});return v;
+  const v=await r.json().catch(()=>({}));lifetime.assertCurrent(signal);if(!r.ok)throw Object.assign(new Error(v.error||'操作失败，内容已保留'),{status:r.status,code:v.code});return v;
  }
  let pending=0;globalThis.__molisPluginPending=0;
  const pluginCall=id=>async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{return (await api('/builds/'+id+'/call','POST',{componentId,binding,payload,...(host.acceptance?{acceptance:host.acceptance}:{})})).value}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
@@ -145,13 +145,12 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  }
  const $=s=>root.querySelector(s);
  const feed=$('[data-as-feed]'),input=$('[data-as-input]'),canvas=$('[data-as-canvas]'),scroll=$('[data-as-scroll]'),pluginRoot=$('[data-as-plugin]'),empty=$('[data-as-empty]');
- let state={builds:[],releases:[],models:[],model:null,components:[],selectionAvailable:false},current=null,versions=[],preview=null,tab='build',target=null,source=null,frame=0,busy=false,notice='',openSteps=null,rendered='',seenWired=new Set(),firstPaint=true;
+ let state={builds:[],models:[],model:null,components:[],selectionAvailable:false},current=null,versions=[],preview=null,tab='build',target=null,source=null,frame=0,busy=false,notice='',openSteps=null,rendered='',seenWired=new Set(),firstPaint=true;
  // The UI Agent's placements, paced so each one can be seen: a part waits in the queue, is taken from the spec board and set in place.
  let revealed=new Set(),queue=[],landing=null,picking=null,playing=false,playToken=0;
  // Capabilities being connected: shown ticked on the capability board only once the code agent has carried them in.
  let wiredCaps=new Set(),wires=[],wiring=null,wiringPlay=false;
  // Parts are UI catalog components; builds from before keep their old names, which map onto the catalog.
- const LEGACY={heading:'frame',text:'card',list:'directory',cards:'card',reader:'accordion',chat:'card',matrix:'table',notice:'alert'},catalogKind=k=>LEGACY[k]||k;
  const GROUPS=['版面','展示','录入','操作','浮层','反馈'];let catalogOpen='';
  // The capability board: what this plugin uses from the project's unified action directory, and the whole directory.
  const CAP_ICON={platform:'sparkles',plugin:'package',mcp:'network'},CAP_SOURCES=[['platform','平台'],['plugin','已安装插件'],['mcp','MCP 与连接器']];
@@ -163,7 +162,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  // A build stopped on a question for the person is waiting for them, not paused.
  const phaseOf=b=>!b.active&&(b.pendingPlugins?.length||b.pendingPart)?'等你决定':PHASE[b.phase]||b.phase;
  const AGENT={design:'主线设计',ui:'UI Agent',code:'代码 Agent',host:'宿主检查'};
- const componentName=kind=>(state.components.find(c=>c.kind===catalogKind(kind))||{}).name||kind;
+ const componentName=kind=>(state.components.find(c=>c.kind===kind)||{}).name||kind;
  const active=b=>!!b?.active;
  const EXAMPLES=[['读书笔记','记录读过的书、评分和一句话感受，按状态筛选'],['每日复盘','每天写下完成了什么、卡在哪里、明天最重要的一件事'],['小组报名表','收集报名人的姓名、联系方式和时间段，能看到已报名名单']];
  function selection(s){if(!s)return '';if(s.source==='jev')return '<span class="as-chip jev">Jev · '+s.candidates.length+' 选 1'+(s.elapsedMs!=null?' · '+s.elapsedMs+'ms':'')+'</span>';if(s.source==='design')return '<span class="as-chip rule">UI Agent</span>';if(s.source==='user')return '<span class="as-chip user">你选择</span>';return '<span class="as-chip rule">'+(s.candidates.length===1?'唯一合法':'规则选择')+'</span>';}
@@ -203,7 +202,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const covered=(next,approved)=>Object.entries(next||{}).every(([k,v])=>v.every(x=>(approved?.[k]||[]).includes(x)));
  function installHtml(b){const latest=versions[0],inst=installed(b);if(!latest)return '';
   if(!inst)return '<div class="as-install"><p class="as-small">v'+latest.version+' 已发布，安装后会出现在这个项目里，数据和试用分开保存。</p><div class="as-actions"><button type="button" class="as-button as-primary" data-as-install="'+latest.version+'">'+icon('download')+'安装到这个项目</button></div></div>';
-  const upgrade=latest.version>inst.version?'<button type="button" class="as-button" data-as-upgrade="'+latest.version+'">'+icon('refresh')+'升级到 v'+latest.version+'</button>':'';
+  const upgrade=latest.version>inst.version?'<button type="button" class="as-button" data-as-upgrade="'+latest.version+'">'+icon('refresh')+'升级到 v'+latest.version+(inst.state==='disabled'?'（仍保持停用）':'')+'</button>':'';
   return '<div class="as-install"><p class="as-small"><span class="as-chip ok">已安装 v'+inst.version+'</span>'+(inst.state==='running'?'':' <span class="as-chip bad">'+esc(inst.state)+'</span>')+'</p>'+(inst.error?'<p class="as-small" role="alert">'+esc(inst.error)+'</p>':'')+'<div class="as-actions"><a class="as-button as-primary" href="'+esc(host.plugin(inst.pluginId))+'" data-as-open-plugin="'+esc(b.id)+'">打开插件</a>'+upgrade+(inst.state==='disabled'?'<button type="button" class="as-button" data-as-install-enable>启用</button>':'')+'<button type="button" class="as-button" data-as-uninstall>'+icon('trash')+'卸载</button></div></div>';}
  // What an installation grants, grouped the way the person weighs it: its own data, what it reads (granted with the
  // installation), and what it changes outside itself (each listed).
@@ -279,8 +278,8 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  function renderBoard(){if(!lifetime.alive)return;
   const b=current,board=$('[data-as-board]'),panel=$('[data-as-catalog-panel]');board.hidden=!b?.design;if(board.hidden){tip.hidden=true;panel.hidden=true;return;}
   // Only what has landed counts as placed; a part still waiting its turn is not on the page yet.
-  const placed=b.nodes.filter(n=>revealed.has(n.id)),parts=new Map();for(const n of placed)parts.set(catalogKind(n.kind),(parts.get(catalogKind(n.kind))||0)+1);
-  const inside=usedSlots(),legal=new Set((b.pendingPart?.candidates||[]).map(catalogKind)),used=c=>parts.get(c.kind)||(c.use!=='part'&&inside.has(c.kind)?1:0);
+  const placed=b.nodes.filter(n=>revealed.has(n.id)),parts=new Map();for(const n of placed)parts.set(n.kind,(parts.get(n.kind)||0)+1);
+  const inside=usedSlots(),legal=new Set((b.pendingPart?.candidates||[])),used=c=>parts.get(c.kind)||(c.use!=='part'&&inside.has(c.kind)?1:0);
   const item=c=>{const n=used(c);return '<button type="button" class="as-part" data-kind="'+esc(c.kind)+'"'+(n?' data-used':'')+(c.use==='catalog'&&!n?' data-catalog':'')+(c.kind===picking?' data-picking':'')+(legal.has(c.kind)?' data-legal data-as-part="'+esc(c.kind)+'"':'')+' aria-label="'+esc(c.name+' '+c.catalog+'：'+c.description)+'">'+icon(c.icon||'frame')+'<b>'+esc(c.name)+'</b>'+(n?'<i class="as-part-check" aria-hidden="true">'+(n>1&&c.use==='part'?n:'✓')+'</i>':'')+'</button>';};
   const total=state.components.length,inUse=state.components.filter(used).length,caps=usedCapabilities(b),directory=(state.capabilities||[]).filter(c=>c.offered);
   const html='<span class="as-board-label">'+icon('frame')+'规格板<small>已放入 '+placed.length+'/'+b.design.parts.length+' · 用到 '+inUse+'/'+total+'</small></span>'+state.components.filter(c=>c.use==='part').map(item).join('')
@@ -294,7 +293,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   let body='';
   if(catalogOpen==='components')body='<p class="as-catalog-note">规格板就是 UI 目录（/__ui/catalog）：带 ✓ 的是这个插件正在用的，浅色的是目录里有、生成插件暂未用到的。</p>'+GROUPS.map(g=>{const list=state.components.filter(c=>c.group===g);return '<section><h4><span>'+g+'</span><span>'+list.filter(used).length+'/'+list.length+'</span></h4><div>'+list.map(item).join('')+'</div></section>';}).join('');
   if(catalogOpen==='capabilities'){const usedIds=new Set(caps.map(x=>x.c.id)),row=c=>'<div class="as-cap-row"'+(usedIds.has(c.id)?' data-used':'')+(c.offered===false?' data-off':'')+' title="'+esc(c.description||'')+'"><b>'+esc(c.title)+'</b><span class="as-chip">'+(c.effect==='read'?'读':c.effect==='write'?'写':'不可撤销')+'</span><small>'+esc(c.offered===false?c.reason||'':(c.source?.title||'')+' · '+c.id)+'</small></div>';
-   const all=(state.capabilities||[]).filter(c=>!c.legacy),off=all.filter(c=>c.offered===false);
+   const all=state.capabilities||[],off=all.filter(c=>c.offered===false);
    body='<p class="as-catalog-note">能力板就是项目的统一能力目录：读类随安装授予，写类安装时逐项授权、试用时用替身；不能撤销的不开放给插件。</p>'+CAP_SOURCES.map(([k,name])=>{const list=all.filter(c=>c.offered&&c.installed!==false&&c.source?.kind===k);return '<section><h4><span>'+name+'</span><span>'+list.length+'</span></h4><div class="as-cap-list">'+(list.map(row).join('')||'<small class="as-muted">暂无</small>')+'</div></section>';}).join('')
     +(()=>{const idle=all.filter(c=>c.offered&&c.installed===false);return idle.length?'<section><h4><span>未启用的插件（用到时会先问你）</span><span>'+idle.length+'</span></h4><div class="as-cap-list">'+idle.map(row).join('')+'</div></section>':'';})()
     +(off.length?'<section><h4><span>不开放给插件</span><span>'+off.length+'</span></h4><div class="as-cap-list">'+off.map(row).join('')+'</div></section>':'');}
@@ -305,7 +304,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  function showTip(button){
   if(button.dataset.cap){const cap=capabilityOf(button.dataset.cap),use=usedCapabilities(current).find(x=>x.c.id===cap.id);tip.innerHTML='<b>'+esc(cap.title)+' · '+esc(cap.source?.title||'平台')+'</b><p>'+esc(cap.description||'')+'</p><p>'+esc(cap.effect==='read'?'只读取':'会写入，安装时需要你授权；试用时用替身')+'</p>'+(use?'<ul>'+use.ops.map(o=>'<li>'+esc(o)+'</li>').join('')+'</ul>':'')+(()=>{const s=[...(current?.steps||[])].reverse().find(x=>x.agent==='design'&&x.action==='place'&&x.selection?.choice===cap.id)?.selection;return s&&s.candidates.length>1?'<p>'+selection(s)+' 从 '+s.candidates.map(capabilityTitle).map(esc).join('、')+' 中选定</p>':'';})();
    const area=canvas.getBoundingClientRect(),box=button.getBoundingClientRect();tip.style.left=Math.round(Math.max(8,Math.min(area.width-240,box.left-area.left+box.width/2-116)))+'px';tip.hidden=false;return;}
-  const c=state.components.find(x=>x.kind===button.dataset.kind);if(!c)return;const used=(current?.nodes||[]).filter(n=>catalogKind(n.kind)===c.kind&&revealed.has(n.id));
+  const c=state.components.find(x=>x.kind===button.dataset.kind);if(!c)return;const used=(current?.nodes||[]).filter(n=>n.kind===c.kind&&revealed.has(n.id));
   tip.innerHTML='<b>'+esc(c.name)+' · '+esc(c.catalog)+'</b><p>'+esc(c.description)+'</p><p>'+esc(c.use==='part'?'可以作为一个组件放进插件':c.use==='inside'?'在组件里面用：字段、筛选、状态、提示':'UI 目录里有，生成的插件暂未用到')+'</p>'+(used.length?'<ul>'+used.map(n=>'<li>'+esc(n.props.title||n.purpose)+'</li>').join('')+'</ul>':'')+(button.hasAttribute('data-legal')?'<p class="as-tip-legal">点一下，用它放入这个组件</p>':'');
   const area=canvas.getBoundingClientRect(),box=button.getBoundingClientRect();tip.style.left=Math.round(Math.max(8,Math.min(area.width-240,box.left-area.left+box.width/2-116)))+'px';tip.hidden=false;}
  let lastView='',comparePrevious=false;
@@ -360,7 +359,7 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
    const id=queue[0],node=current?.nodes.find(n=>n.id===id);if(!node){queue.shift();continue;}
    const name=componentName(node.kind),step=[...current.steps].reverse().find(s=>s.agent==='ui'&&s.target===id),by=step?.selection?.source==='jev'?' · Jev '+step.selection.candidates.length+' 选 1':step?.selection?.source==='user'?' · 你选的':'';
    // 1. Take the part from the spec board.
-   picking=catalogKind(node.kind);renderBoard();const part=$('[data-as-board] [data-kind="'+CSS.escape(picking)+'"]');
+   picking=node.kind;renderBoard();const part=$('[data-as-board] [data-kind="'+CSS.escape(picking)+'"]');
    if(part){part.scrollIntoView({block:'nearest',inline:'center'});aim(ui,part,'取出「'+name+'」'+by,'above');await wait(620);click(ui);await wait(240);}
    if(token!==playToken)break;
    // 2. Carry it to its place: the spot opens, framed, before the part shows.
@@ -420,27 +419,33 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
  async function run(work){if(busy||!lifetime.alive)return;busy=true;notice='';schedule();try{await work();}catch(e){notice=e.message;}finally{busy=false;schedule();}}
  async function act(action,extra={}){const v=await api('/builds/'+current.id+'/action','POST',{action,revision:current.revision,...extra});if(v.build)current=v.build;if(v.release){versions=(await api('/builds/'+current.id)).versions;notice='';}if(v.deleted){await refreshState();await open(null);}}
  lifetime.listen(root,'click',e=>{const el=e.target.closest('button,a');if(!el||!root.contains(el))return;
-  // Framed in the workbench, the plugin opens in place as a workbench stage rather than in a new window.
-  if(el.dataset.asOpenPlugin&&(host.openPlugin||parent!==window)){e.preventDefault();if(host.openPlugin)host.openPlugin('app-'+el.dataset.asOpenPlugin);else parent.postMessage({type:'molis-studio-open-plugin',surface:'app-'+el.dataset.asOpenPlugin},location.origin);return;}
-  if(el.matches('[data-as-model-setup]')){if(host.openSettings){e.preventDefault();host.openSettings('/settings/models');}else if(parent!==window){e.preventDefault();parent.postMessage({type:'molis-work:open-settings',href:'/settings/models'},location.origin);}return;}
+  // The plugin opens in place as a workbench stage rather than in a new window.
+  if(el.dataset.asOpenPlugin){e.preventDefault();host.openPlugin('app-'+el.dataset.asOpenPlugin);return;}
+  if(el.matches('[data-as-model-setup]')){e.preventDefault();host.openSettings('/settings/models');return;}
   if(el.dataset.asExample){input.value=el.dataset.asExample;input.focus();return;}
   if(el.dataset.asOpen){run(()=>open(el.dataset.asOpen));return;}
   if(el.hasAttribute('data-as-catalog')){const which=el.dataset.asCatalog||'components';catalogOpen=catalogOpen===which?'':which;tip.hidden=true;renderBoard();return;}
   if(el.dataset.asCandidate){preview=el.dataset.asCandidate;rendered='';schedule();return;}
   if(el.dataset.asChoose){run(()=>act('choose',{candidateId:el.dataset.asChoose}));return;}
   if(el.dataset.asPart){run(()=>act('part',{kind:el.dataset.asPart}));return;}
-  if(el.dataset.asAction){const a=el.dataset.asAction;if(a==='publish')run(()=>act('publish'));else run(()=>act(a));return;}
+  if(el.dataset.asAction){run(()=>act(el.dataset.asAction));return;}
   if(el.hasAttribute('data-as-compare')){comparePrevious=!comparePrevious;schedule();return;}
   if(el.dataset.asTab){tab=el.dataset.asTab;target=null;if(tab!=='build'){playToken++;playing=false;queue.forEach(id=>revealed.add(id));queue=[];landing=null;picking=null;wires.forEach(w=>wiredCaps.add(w.cap));wires=[];wiring=null;}schedule();return;}
   if(el.hasAttribute('data-as-untarget')){target=null;schedule();return;}
   if(el.dataset.asInstall){const v=versions.find(x=>x.version===Number(el.dataset.asInstall));consent('安装「'+(current.design?.title||'')+'」到这个项目',v?.permissions,'安装').then(ok=>{if(ok)run(async()=>{
-    // Secrets go to the host's sealed store first; the plugin will only ever name them.
-    for(const s of ok.secrets||[])await api('/secrets','POST',{pluginId:v.pluginId,...s});
-    await act('install',{version:v.version,grants:{consent:true}});await refreshState();});});return;}
+    // The secrets travel with the install: the host's sealed store keeps them only if the plugin is installed, and the plugin will only ever name them.
+    const install=extra=>act('install',{version:v.version,grants:{consent:true,secrets:ok.secrets||[],...extra}});
+    try{await install();}catch(e){
+     if(e.code!=='plugin_kept_data_incompatible')throw e;
+     // An uninstall kept this plugin's data, and this version cannot read it: install fresh only if the person lets it go.
+     const choice=await ask('安装「'+(current.design?.title||'')+'」','之前卸载时留下了这个插件的数据，但这个版本读不了它。要安装，只能放弃那些旧数据、全新开始；放弃后无法找回。',[['discard','放弃旧数据，全新安装',true],['cancel','取消']]);
+     if(choice!=='discard')return;
+     await install({discardKeptData:true});}
+    await refreshState();});});return;}
   if(el.dataset.asUpgrade){const v=versions.find(x=>x.version===Number(el.dataset.asUpgrade)),inst=installed(current);const go=()=>run(async()=>{await act('upgrade',{version:v.version,grants:{consent:true}});await refreshState();});
    if(covered(v?.permissions,inst?.effects))go();else consent('升级到 v'+v.version+' 需要新的权限',v?.permissions,'确认并升级').then(ok=>{if(ok)go();});return;}
   if(el.hasAttribute('data-as-install-enable')){const inst=installed(current);if(inst)run(async()=>{await act('enable',{version:inst.version});await refreshState();});return;}
-  if(el.hasAttribute('data-as-uninstall')){const inst=installed(current);if(!inst)return;ask('卸载「'+(current.design?.title||'')+'」','卸载后它会从这个项目里移除。它保存的数据可以留着，以后重新安装还能看到。',[['keep','卸载，保留数据',true],['drop','卸载并删除数据'],['cancel','取消']]).then(choice=>{if(choice==='keep'||choice==='drop')run(async()=>{await act('uninstall',{version:inst.version,grants:{keepData:choice==='keep'}});await refreshState();if(host.pluginRemoved)host.pluginRemoved('app-'+current.id);else if(parent!==window)parent.postMessage({type:'molis-studio-plugin-removed',surface:'app-'+current.id},location.origin);});});return;}
+  if(el.hasAttribute('data-as-uninstall')){const inst=installed(current);if(!inst)return;ask('卸载「'+(current.design?.title||'')+'」','卸载后它会从这个项目里移除。它保存的数据可以留着，以后重新安装还能看到。',[['keep','卸载，保留数据',true],['drop','卸载并删除数据'],['cancel','取消']]).then(choice=>{if(choice==='keep'||choice==='drop')run(async()=>{await act('uninstall',{version:inst.version,grants:{keepData:choice==='keep'}});await refreshState();host.pluginRemoved('app-'+current.id);});});return;}
   if(el.hasAttribute('data-as-remove')){ask('删除「'+(current.design?.title||current.title)+'」这个草稿？','构建目录和试用数据会一起删除，已发布并安装的插件不受影响。',[['remove','删除',true],['cancel','取消']]).then(choice=>{if(choice==='remove')run(()=>act('remove'));});return;}
   if(el.hasAttribute('data-as-new')){run(()=>open(null));input.focus();}
  });
@@ -489,7 +494,7 @@ export const AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const page={address:()=>{const here=new URL(location.origin+'/');try{const id=sessionStorage.getItem(KEY);if(id)here.searchParams.set('build',id);}catch{}return here;},
   replace:next=>{try{const id=next.searchParams.get('build');if(id)sessionStorage.setItem(KEY,id);else sessionStorage.removeItem(KEY);}catch{}}};
  (` + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + `)({mountPluginClient:host.mountPluginClient,root:host.root||document.querySelector('[data-work-surface="plugin-builder"]'),mode:'studio',
-  api:p=>host.route('/api/plugin-builder/studio')+p,preview:id=>host.route('/plugin-builder/studio/preview/')+id,plugin:id=>host.route('/plugins/')+id,
+  api:p=>host.route('/api/plugin-builder/studio')+p,plugin:id=>host.route('/plugins/')+id,
   components:` + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + `,page,openPlugin,pluginRemoved,
   openSettings:href=>document.dispatchEvent(new CustomEvent('molis-work:open-settings-path',{detail:{href}}))});
 }`;

@@ -80,9 +80,9 @@ export function createFeedCaptureSceneHandler(ports: FeedCaptureScenePorts): Act
   };
 }
 
-export function createFeedCaptureTrigger(options: { scenes: ActionSceneClient; context(): ActionCallContext; boardId: string }) {
-  return async (event: { board_id: string; item_id: string; rule_ids: string[] }, explicitCaller?: ActionCallContext): Promise<void> => {
-    if (event.board_id !== options.boardId) throw new ActionError("actions.scope_mismatch", "Feed 事件不属于当前项目");
+export function createFeedCaptureTrigger(options: { scenes: ActionSceneClient; context(): ActionCallContext; projectId: string }) {
+  return async (event: { project_id: string; item_id: string; rule_ids: string[] }, explicitCaller?: ActionCallContext): Promise<void> => {
+    if (event.project_id !== options.projectId) throw new ActionError("actions.scope_mismatch", "Feed 事件不属于当前项目");
     if (!event.rule_ids.length) return;
     const caller = explicitCaller ?? options.context();
     const usages = await options.scenes.usages(caller);

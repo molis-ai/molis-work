@@ -1,4 +1,5 @@
 import { withSceneConfigurationActions } from "./scene-configuration-actions.js";
+import { HomeLine } from "./home-line.js";
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type {
@@ -69,10 +70,9 @@ interface RuntimeEntry<Runtime> {
 function normalizeReference(reference: LocalHostProjectReference): LocalHostProjectReference {
   const normalized = {
     project_id: reference.project_id.trim(),
-    board_id: reference.board_id.trim(),
     storage_key: reference.storage_key.trim(),
   };
-  if (!normalized.project_id || !normalized.board_id || !normalized.storage_key) {
+  if (!normalized.project_id || !normalized.storage_key) {
     throw new LocalHostError("host.project_invalid", "Local Host Project reference 不能为空");
   }
   return normalized;
@@ -103,14 +103,13 @@ export class LocalHost<Runtime> {
     assertActive();
   }, settled: (caller, action, outcome) => this.options.actionSettled?.(caller, action, outcome) });
   private readonly invocationRuntimes = new WeakMap<ActionCallContext, Runtime>();
-  /** A restriction on legacy SDK adapters, independent of their existing action audience. */
+  /** Callers that reached a Host capability through a plugin SDK adapter; restricted independently of the action audience. */
   private readonly pluginCapabilityCallers = new WeakSet<ActionCallContext>();
-  private readonly executionScope = new AsyncLocalStorage<{ entry: RuntimeEntry<Runtime>; runtime: Runtime; active: boolean }>();
+  /** `holdsQueue`: the call sits on the project's line (or inside one that does); a concurrent call runs beside the line and holds nothing. */
+  private readonly executionScope = new AsyncLocalStorage<{ entry: RuntimeEntry<Runtime>; runtime: Runtime; active: boolean; holdsQueue: boolean }>();
   private readonly entries = new Map<string, RuntimeEntry<Runtime>>();
   private readonly closingKeys = new Set<string>();
-  private readonly homeScope = new AsyncLocalStorage<{ active: boolean }>();
-  private homeTail: Promise<void> = Promise.resolve();
-  private readonly concurrentHomeCalls = new Set<Promise<unknown>>();
+  private readonly homeLine = new HomeLine();
   private readonly globalActionDisposers = new Set<() => void>();
   private state: "running" | "closing" | "closed" = "running";
 
@@ -196,7 +195,8 @@ export class LocalHost<Runtime> {
     return this.projectActionViews(bound, this.actionService.inspect(bound));
   }
 
-  homeActionClient(): ActionClient {
+  /** `step`: composition-only. The calls a scene run makes are part of that run and take its place on the line. */
+  homeActionClient(step = false): ActionClient {
     const contextFor = (caller: ActionCallContext) => {
       this.assertRunning();
       if (caller.project_id) throw new ActionError("actions.scope_mismatch", "系统入口不能伪造项目上下文");
@@ -207,29 +207,12 @@ export class LocalHost<Runtime> {
       invoke: async (caller, capability, input) => {
         const context = contextFor(caller);
         const descriptor = this.capabilities.descriptor(capability);
-        return this.runHome(async () => {
+        return this.homeLine.run(async () => {
           await this.checkActionAvailability(context, capability);
           return this.actionService.invoke(context, capability, input);
-        }, descriptor?.action?.scheduling === "concurrent");
+        }, descriptor?.action?.scheduling === "concurrent" ? "concurrent" : step ? "step" : "serial");
       },
     };
-  }
-
-  private runHome<Result>(operation: () => Promise<Result>, concurrent = false): Promise<Result> {
-    const run = () => this.homeScope.run({ active: true }, async () => {
-      const scope = this.homeScope.getStore()!;
-      try { return await operation(); } finally { scope.active = false; }
-    });
-    if (this.homeScope.getStore()?.active) return run();
-    if (concurrent) {
-      const pending = run();
-      this.concurrentHomeCalls.add(pending);
-      void pending.then(() => this.concurrentHomeCalls.delete(pending), () => this.concurrentHomeCalls.delete(pending));
-      return pending;
-    }
-    const pending = this.homeTail.then(run);
-    this.homeTail = pending.then(() => undefined, () => undefined);
-    return pending;
   }
 
   sceneClient(reference?: LocalHostProjectReference): ActionSceneClient {
@@ -263,8 +246,8 @@ export class LocalHost<Runtime> {
       if (!scene.compatible) throw new ActionError("actions.scene_incompatible", scene.reason ?? "判断能力与场景不兼容");
     };
     const queue = <Result>(caller: ActionCallContext, id: string, version: number, event: unknown, operation: () => Promise<Result>) => project
-      ? this.enqueue(project, { capability_id: `scene.${id}`, version, operation: "command" }, event, caller, operation)
-      : this.runHome(operation);
+      ? this.enqueue(project, { capability_id: `scene.${id}`, version, operation: "command" }, event, caller, operation, true)
+      : this.homeLine.run(operation, "step");
     return {
       discoverScenes: async (caller, judgment) => scenes(await prepare(caller), judgment),
       usages: async (caller, judgment) => {
@@ -315,7 +298,7 @@ export class LocalHost<Runtime> {
         return queue(bound, scene.scene_id, scene.version, event, async () => {
           const binding = (await this.actionService.usages(bound)).find(use => use.binding_id === bindingId && use.scene_id === scene.scene_id && use.scene_version === scene.version);
           await check(bound, scene.scene_id, scene.version, binding?.function);
-          const client = project ? this.actionClient(project) : this.homeActionClient();
+          const client = project ? this.actionClient(project, true) : this.homeActionClient(true);
           return this.actionService.runScene(bound, scene, bindingId, event, {
             invoke: (context, fn, input) => client.invoke(context, fn, input),
             beforeConsume: async judgment => {
@@ -360,8 +343,8 @@ export class LocalHost<Runtime> {
     } };
   }
 
-  /** A transport passes its authenticated caller on each request; arguments carry no authority. */
-  actionClient(reference: LocalHostProjectReference): ActionClient {
+  /** A transport passes its authenticated caller on each request; arguments carry no authority. `step` as for `homeActionClient`. */
+  actionClient(reference: LocalHostProjectReference, step = false): ActionClient {
     const project = normalizeReference(reference);
     const callerFor = (caller: ActionCallContext) => {
       this.assertCompatibleReference(project);
@@ -379,7 +362,7 @@ export class LocalHost<Runtime> {
         await this.withRuntime(project, () => undefined);
         const descriptor = this.capabilities.descriptor(capability, bound.project_id);
         if (!descriptor) return Promise.reject(new ActionError("actions.missing", "能力未注册或版本已失效"));
-        return this.enqueue(project, descriptor, input, bound, () => this.actionService.invoke(bound, capability, input));
+        return this.enqueue(project, descriptor, input, bound, () => this.actionService.invoke(bound, capability, input), step);
       },
     };
   }
@@ -417,9 +400,11 @@ export class LocalHost<Runtime> {
     options?: HostCapabilityCallOptions,
   ): Promise<Output> {
     const beforeEffect = options?.before_effect, plugin = options?.plugin_caller;
-    if (plugin && (plugin.project_id !== reference.project_id || plugin.board_id !== reference.board_id)) throw new ActionError("actions.scope_mismatch", "插件调用不属于当前项目");
+    if (plugin && (plugin.project_id !== reference.project_id || plugin.project_id !== reference.project_id)) throw new ActionError("actions.scope_mismatch", "插件调用不属于当前项目");
     plugin?.assertActive();
-    const caller: ActionCallContext = { actor_id: plugin?.actor_id ?? "local-host", project_id: reference.project_id, audience: "user", permissions: [],
+    // A plugin reaches an action through this port as the plugin audience, as it would through the action client: an action
+    // not offered to plugins stays out of its reach.
+    const caller: ActionCallContext = { actor_id: plugin?.actor_id ?? "local-host", project_id: reference.project_id, audience: plugin ? "plugin" : "user", permissions: [],
       ...(options?.signal ? { signal: options.signal } : {}),
       ...(plugin ? { host_plugin: plugin, plugin_install_id: plugin.install_id } : {}),
       ...(beforeEffect ? { validate_authority: () => beforeEffect() } : {}) };
@@ -505,11 +490,12 @@ export class LocalHost<Runtime> {
     input: unknown,
     caller: ActionCallContext,
     execute: () => Promise<Output>,
+    step = false,
   ): Promise<Output> {
     const entry = this.ensureEntry(reference);
-    const run = async () => {
+    const run = async (holdsQueue: boolean) => {
       const runtime = await entry.runtime;
-      const scope = { entry, runtime, active: true };
+      const scope = { entry, runtime, active: true, holdsQueue };
       return this.executionScope.run(scope, async () => {
         this.invocationRuntimes.set(caller, runtime);
         let ticket: unknown;
@@ -534,24 +520,26 @@ export class LocalHost<Runtime> {
       const started = Date.now();
       const watch = setInterval(() => console.warn(`[local-host] ${capability.capability_id}@${capability.version} 已占用项目 ${reference.project_id} 的操作队列 ${Math.round((Date.now() - started) / 1000)} 秒`), HELD_IN_LINE_WARN_MS);
       watch.unref?.();
-      try { return await run(); } finally { clearInterval(watch); }
+      try { return await run(true); } finally { clearInterval(watch); }
     };
-    // A Plugin action may await another declared Host capability. Queueing it behind itself deadlocks.
+    // A Plugin action may await another declared Host capability. Queueing it behind itself deadlocks, so a call nested in
+    // one that holds the line runs on it. A concurrent call holds nothing: what it calls waits its turn like anything else,
+    // except a scene run (`step`), which is part of the call that triggered it and takes that call's place.
     const parent = this.executionScope.getStore();
-    if (parent?.active && parent.entry === entry) return run();
+    if (parent?.active && parent.entry === entry && (parent.holdsQueue || step)) return run(parent.holdsQueue);
     // Registered concurrent actions own their short transactions, a wait only observes (following a live round), and a
     // capability registered as concurrent touches no project state (a model draft): held in line, each would keep every
     // later operation of the project waiting until it answers. They run beside the queue; withRuntime keeps close
     // waiting. The registry still refuses a caller claiming "wait" for another operation, and concurrency is read from
     // the registered descriptor, never from the caller's.
     const registered = this.capabilities.descriptor(capability, capability.action_provider?.project_id);
-    if (capability.operation === "wait" || registered?.scheduling === "concurrent" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, run);
+    if (capability.operation === "wait" || registered?.scheduling === "concurrent" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, () => run(false));
     const operation = entry.operationTail.then(heldInLine);
     entry.operationTail = operation.then(() => undefined, () => undefined);
     return await operation;
   }
 
-  /** Compatibility composition port while legacy callers move to capabilities. */
+  /** Direct composition port for Host code that works inside one project's runtime. */
   async withRuntime<Result>(
     reference: LocalHostProjectReference,
     operation: (runtime: Runtime) => Result | Promise<Result>,
@@ -610,7 +598,7 @@ export class LocalHost<Runtime> {
     if (this.state === "closed") return;
     this.state = "closing";
     const keys = [...this.entries.keys()];
-    await Promise.all([this.homeTail, ...[...this.concurrentHomeCalls].map(call => call.then(() => undefined, () => undefined)), ...keys.map((key) => this.closeProject(key))]);
+    await Promise.all([this.homeLine.settled(), ...keys.map((key) => this.closeProject(key))]);
     for (const dispose of this.globalActionDisposers) dispose();
     this.state = "closed";
   }
@@ -661,7 +649,7 @@ export class LocalHost<Runtime> {
     current: LocalHostProjectReference,
     next: LocalHostProjectReference,
   ): void {
-    if (current.project_id !== next.project_id || current.board_id !== next.board_id) {
+    if (current.project_id !== next.project_id || current.project_id !== next.project_id) {
       throw new LocalHostError(
         "host.project_identity_conflict",
         `同一 storage_key 不能映射到不同 Project: ${current.project_id} / ${next.project_id}`,

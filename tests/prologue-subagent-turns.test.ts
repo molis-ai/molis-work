@@ -38,7 +38,7 @@ test("packed SDK: a subagent dispatched without maxTurns may take 20 turns", { t
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
   try {
     const host = new AgentHost({ reviews: queue }); host.register(adapter);
-    const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
+    const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Parent" });
     const handle = await host.start("prologue", { ...owner, session, directory, role_id: "coordinator", task: "Delegate one long read." },
       { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [root] });

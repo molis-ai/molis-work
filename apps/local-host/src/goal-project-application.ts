@@ -5,10 +5,6 @@ import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumptio
 import { ArtifactsModule, ProcessItemsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { builtinTypeDeclared } from "./declared-types.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { EvidenceVerificationModule, type EvidenceSqliteDatabase } from "@molis-ai/molis-work-module-evidence-verification";
-import type { EvidenceVerificationApplicationApi } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
-import { ExecutionModule, type ExecutionSqliteDatabase } from "@molis-ai/molis-work-module-execution";
-import type { ExecutionApplicationApi } from "@molis-ai/molis-work-contracts/modules/execution";
 import { GovernanceCollaborationModule, type GovernanceSqliteDatabase } from "@molis-ai/molis-work-module-governance-collaboration";
 import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import {
@@ -32,15 +28,12 @@ import {
   GoalEventApplication,
   GoalReadApplication,
   GoalDecisionAttentionSync,
-  projectGoalLifecycle,
 } from "@molis-ai/molis-work-plugin-goals";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { LocalProjectDatabase } from "./project-database.js";
-import type { BoardSnapshot } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRecord, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { ExecutionClaimRecord as ClaimRecord, ExecutionRunRecord as RunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
-export { projectGoalLifecycle } from "@molis-ai/molis-work-plugin-goals";
 export { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 
 export type GoalTreeProposalListQuery = import("@molis-ai/molis-work-plugin-goals").GoalTreeProposalListQuery;
@@ -60,11 +53,7 @@ export class GoalProjectApplication {
   readonly artifacts: ArtifactsApplicationApi;
   /** Exchange data plugins record for each other, kept out of the 成果库 (specs/artifact-positioning A2). */
   readonly processItems: ProcessItemsApplicationApi;
-  private readonly evidenceVerificationModule: EvidenceVerificationModule;
-  private readonly executionModule: ExecutionModule;
   private readonly goalsModule: GoalsModule;
-  readonly evidenceVerification: EvidenceVerificationApplicationApi;
-  readonly execution: ExecutionApplicationApi;
   readonly governance: GovernanceApplicationApi;
   readonly goals: GoalsApplicationApi;
   readonly goalEvents: GoalEventApplication;
@@ -89,6 +78,7 @@ export class GoalProjectApplication {
   ) {
     const artifactsModule = new ArtifactsModule({
       db: this.store.db as unknown as ArtifactsSqliteDatabase,
+      homeOwner: LOCAL_PERSON_ACTOR_ID,
       now: () => this.clock().toISOString(),
       errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
       appendEvent: (input) => this.store.appendEvent(input),
@@ -106,25 +96,12 @@ export class GoalProjectApplication {
       declared: builtinTypeDeclared,
     });
     this.processItems = { query: processItemsModule.query, commands: processItemsModule.commands };
-    this.executionModule = new ExecutionModule({
-      db: this.store.db as unknown as ExecutionSqliteDatabase,
-    });
-    this.execution = {
-      query: this.executionModule.query,
-    };
-    this.evidenceVerificationModule = new EvidenceVerificationModule({
-      db: this.store.db as unknown as EvidenceSqliteDatabase,
-    });
-    this.evidenceVerification = {
-      query: this.evidenceVerificationModule.query,
-    };
     const governanceModule = new GovernanceCollaborationModule({
       db: this.store.db as unknown as GovernanceSqliteDatabase,
       now: () => this.clock().toISOString(),
       errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
     });
     this.governance = {
-      clarification: governanceModule.clarification,
       provenance: governanceModule.provenance,
       query: governanceModule.query,
       records: governanceModule.records,
@@ -139,11 +116,7 @@ export class GoalProjectApplication {
     goalsModule = new GoalsModule(
       this.store.db as unknown as GoalsSqliteDatabase,
       {
-        validateRelationGraph: (boardId, input) => goalsModule.planning.validateRelationAddition(boardId, input),
-        blockingWork: (boardId, goalId, now) => ({
-          claim_ids: this.execution.query.activeClaimIdsForGoal(boardId, goalId, now),
-          run_ids: this.execution.query.activeRunIdsForGoal(boardId, goalId),
-        }),
+        validateRelationGraph: (projectId, input) => goalsModule.planning.validateRelationAddition(projectId, input),
       },
       {
         now: this.clock,
@@ -153,7 +126,6 @@ export class GoalProjectApplication {
     );
     this.goalsModule = goalsModule;
     this.goals = {
-      impacts: goalsModule.impacts,
       commands: goalsModule.commands,
       lifecycle: goalsModule.lifecycle,
       planning: goalsModule.planning,
@@ -177,8 +149,8 @@ export class GoalProjectApplication {
       eventSink: (event) => {
         this.store.appendEvent({
           eventId: `event-${randomUUID()}`,
-          boardId: event.project_id,
-          actorId: "web-user",
+          projectId: event.project_id,
+          actorId: LOCAL_PERSON_ACTOR_ID,
           objectType: "inbox_entry",
           objectId: event.entry_id,
           type: event.type,
@@ -190,9 +162,8 @@ export class GoalProjectApplication {
     });
     this.goalDecisionAttention = new GoalDecisionAttentionSync({
       attention,
-      listProposals: (boardId) => this.goalTree.listGoalTreeProposals({ board_id: boardId }).proposals,
-      goalExists: (boardId, goalId) => this.goalsModule.query.getGoal(boardId, goalId) !== null,
-      runGoalId: (boardId, runId) => this.store.snapshot(boardId).runs.find((run) => run.run_id === runId)?.goal_id ?? null,
+      listProposals: (projectId) => this.goalTree.listGoalTreeProposals({ project_id: projectId }).proposals,
+      goalExists: (projectId, goalId) => this.goalsModule.query.getGoal(projectId, goalId) !== null,
     });
     this.goalTreeSubmission = new GoalTreeSubmissionApplication({
       goals: { query: this.goalsModule.query, commands: this.goals.commands, planning: this.goals.planning },
@@ -200,7 +171,7 @@ export class GoalProjectApplication {
       errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
       attention: this.goalDecisionAttention,
     });
-    this.goalTreeInputs = new GoalTreeInputReader({ query: this.goalsModule.query, commands: this.goals.commands,
+    this.goalTreeInputs = new GoalTreeInputReader({ commands: this.goals.commands,
       errorFactory: (code, message) => new MolisWorkV1Error(code, message) });
     this.goalTreeFacts = new GoalTreeFactMaterializer(
       { commands: this.goals.commands, query: this.goalsModule.query },
@@ -223,9 +194,8 @@ export class GoalProjectApplication {
     });
     this.goalQueries = new GoalReadApplication(goalsModule.query, {
       now: () => this.clock(),
-      snapshot: (boardId) => this.store.snapshot(boardId),
-      goalTreeProposals: (boardId, rootGoalId) =>
-        this.goalTree.listGoalTreeProposals({ board_id: boardId, root_goal_id: rootGoalId }).proposals,
+      goalTreeProposals: (projectId, rootGoalId) =>
+        this.goalTree.listGoalTreeProposals({ project_id: projectId, root_goal_id: rootGoalId }).proposals,
     });
     this.goalTreeDecision = new GoalTreeDecisionApplication({
       goals: { ...this.goals, query: this.goalsModule.query }, governance: this.governance, query: this.goalTree,
@@ -243,45 +213,38 @@ export class GoalProjectApplication {
     });
   }
 
-  projectGoalLifecycle(
-    snapshot: Pick<BoardSnapshot, "claims" | "runs">,
-    goalId: string,
-  ): { claims: ClaimRecord[]; runs: RunRecord[] } {
-    return projectGoalLifecycle(snapshot, goalId);
-  }
-
   initializeBoard(input: {
-    board_id: string;
+    project_id: string;
     title: string;
     actor_id: string;
     idempotency_key: string;
-  }): { board_id: string; replayed: boolean; observed_event_cursor: number } {
+  }): { project_id: string; replayed: boolean; observed_event_cursor: number } {
     return this.goals.commands.initializeBoard(input);
   }
 
-  readProjectGuidance(boardId: string): ProjectGuidanceView {
-    return this.goalQueries.readProjectGuidance(boardId);
+  readProjectGuidance(projectId: string): ProjectGuidanceView {
+    return this.goalQueries.readProjectGuidance(projectId);
   }
 
   setActiveGoal(
-    boardId: string,
+    projectId: string,
     input: { goal_id: string; reason: string },
     write: ActorWrite,
   ): { active_goal_id: string; replayed: boolean; observed_event_cursor: number } {
-    return this.goals.commands.setActiveGoal(boardId, input, write);
+    return this.goals.commands.setActiveGoal(projectId, input, write);
   }
 
   /** A dedicated read path for a later trash UI/MCP; ordinary work lists exclude these Goals. */
-  listTrashedGoals(boardId: string): GoalRecord[] {
-    return this.goalQueries.listTrashedGoals(boardId);
+  listTrashedGoals(projectId: string): GoalRecord[] {
+    return this.goalQueries.listTrashedGoals(projectId);
   }
 
-  getResolvedGoalPolicy(input: { board_id: string; goal_id: string }) {
+  getResolvedGoalPolicy(input: { project_id: string; goal_id: string }) {
     return this.goalQueries.getResolvedGoalPolicy(input);
   }
 
-  readGoalContract(boardId: string, goalId: string) {
-    return this.goalQueries.readGoalContract(boardId, goalId);
+  readGoalContract(projectId: string, goalId: string) {
+    return this.goalQueries.readGoalContract(projectId, goalId);
   }
 }
 

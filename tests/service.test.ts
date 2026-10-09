@@ -25,7 +25,6 @@ async function fixture() {
   let healthCheckFailuresRemaining = 0;
   let healthCheckCount = 0;
   let endpointProcessId: number | null = 4242;
-  let legacyEndpointProcessId: number | null = null;
   let portInUse = false;
   let healthCheckHook: ((expectedProcessId: number | undefined, count: number) => void) | null = null;
   const healthCheckExpectedProcessIds: Array<number | undefined> = [];
@@ -45,9 +44,6 @@ async function fixture() {
         return false;
       }
       return expectedProcessId == null || expectedProcessId === endpointProcessId;
-    },
-    async legacyInstanceCheck(expectedProcessId: number) {
-      return expectedProcessId === legacyEndpointProcessId;
     },
     async portCheck() { return portInUse; },
     async runCommand(file, args) {
@@ -99,7 +95,6 @@ async function fixture() {
     setBootoutTransitionPrintCount: (value: number) => { bootoutTransitionPrintCount = value; },
     setHealthCheckFailures: (value: number) => { healthCheckFailuresRemaining = value; },
     setEndpointProcessId: (value: number | null) => { endpointProcessId = value; },
-    setLegacyEndpointProcessId: (value: number | null) => { legacyEndpointProcessId = value; },
     setPortInUse: (value: boolean) => { portInUse = value; },
     setHealthCheckHook: (value: typeof healthCheckHook) => { healthCheckHook = value; },
     healthCheckCount: () => healthCheckCount,
@@ -393,28 +388,6 @@ test("install rejects another process health response and rolls back only its ow
     assert.ok(item.healthCheckExpectedProcessIds.some((processId) => processId === 4242));
     assert.equal(await exists(item.manager.plistPath), false);
     assert.equal(await exists(item.manager.receiptPath), false);
-  } finally {
-    await rm(item.directory, { recursive: true, force: true });
-  }
-});
-
-test("legacy health without identity is owned only when the listener pid matches the LaunchAgent pid", async () => {
-  const item = await fixture();
-  try {
-    const install = await item.manager.prepare("install");
-    await item.manager.confirm({ plan_id: install.plan_id, decision: "confirmed" });
-    item.setEndpointProcessId(null);
-    item.setPortInUse(true);
-    item.setLegacyEndpointProcessId(4242);
-
-    const matching = await item.manager.detect();
-
-    assert.equal(matching.state, "running");
-    assert.equal(matching.running, true);
-
-    item.setLegacyEndpointProcessId(9999);
-    const mismatched = await item.manager.detect();
-    assert.equal(mismatched.state, "conflict");
   } finally {
     await rm(item.directory, { recursive: true, force: true });
   }

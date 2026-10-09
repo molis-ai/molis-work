@@ -85,7 +85,7 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
     if (turn === 1) return response("", { name: "session-send", input: { to: ids.G, kind: "request", body: "你先告诉我 Y", idempotencyKey: "h-ask", wait: true } });
     return response("H 结束。");
   });
-  const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
+  const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
   const authority = { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [root] };
   const queue = new AgentReviewQueue();
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.collab-handoff-test", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: queue,

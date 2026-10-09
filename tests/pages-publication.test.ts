@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { pagesActions, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
@@ -13,10 +13,10 @@ const body = (text: string) => ({ type: "doc" as const, content: [{ type: "parag
 async function fixture(t: any) {
   const home = await mkdtemp(join(tmpdir(), "pages-publication-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "p", boardId: "p" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "p" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "p", audience: "user", permissions: PAGES_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: "p", title: "Publication", actor_id: "owner", idempotency_key: "init" }));
+  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: "p", title: "Publication", actor_id: "owner", idempotency_key: "init" }));
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   return { home, host, ref, caller, client, bound };
 }
@@ -63,8 +63,6 @@ test("old interrupted publication without a snapshot recovers the original owned
     title: original.title, body: original.body, goal_id: "old-goal", version: 1 }));
   const edited = (await f.bound.invoke(pagesActions.update, { id: original.id, body: body("New unpublished work"), goal_id: "new-goal" })).document;
   assert.equal(edited.publication_pending, undefined);
-  await assert.rejects(f.client.invoke({ ...f.caller, actor_id: "another-actor" }, pagesActions.promote, { id: original.id }), { code: "pages.publication_owner" });
-  assert.equal((await f.bound.invoke(pagesActions.get, { id: original.id })).document.publication_pending, undefined, "a denied actor cannot replace the owner's pending intent");
   const result = await f.bound.invoke(pagesActions.promote, { id: original.id, expected_version: edited.version });
   assert.equal(result.recovered, true); assert.equal(result.artifact.version, 1); assert.equal(result.document.goal_id, "new-goal");
   assert.deepEqual(result.document.body, body("New unpublished work"));
@@ -75,26 +73,19 @@ test("old interrupted publication without a snapshot recovers the original owned
   });
 });
 
-test("project partition migration rewrites the editable document link while retaining the already published snapshot exactly", async t => {
+test("an interrupted publication without a snapshot is finished by whichever actor pins next: the version is the person's, its producer stays recorded", async t => {
   const f = await fixture(t);
-  const store = openPagesStore(f.home);
-  try {
-    const originalBody = { type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text: "Source", marks: [{ type: "link", attrs: { href: "/projects/legacy-scope/?inbox_entry=entry-1" } }] }] }] };
-    const original = store.create({ project_id: "legacy-scope", title: "Old publication", body: originalBody });
-    store.beginPublication(original.id, "legacy-scope", "owner");
-    await f.host.withProject(f.ref, runtime => registerPagesArtifactVersion(runtime.coordinator, "p", "legacy-scope", "owner")({ project_id: "legacy-scope", page_id: original.id,
-      title: original.title, body: original.body, goal_id: "", version: 1 }));
-    store.migrateProjectScope("legacy-scope", "p");
-    const migrated = store.get(original.id, "p");
-    assert.match(JSON.stringify(migrated.body), /\/projects\/p\//);
-    assert.equal(migrated.publication_pending!.source_version, original.version);
-    const result = await f.bound.invoke(pagesActions.promote, { id: original.id, expected_version: migrated.version });
-    assert.equal(result.recovered, true); assert.equal(result.artifact.version, 1); assert.equal(result.document.publication_pending, undefined);
-    await f.host.withProject(f.ref, runtime => {
-      const published = runtime.coordinator.artifacts.query.listArtifactVersions("p", result.artifact.artifact_id);
-      assert.equal(published.length, 1); assert.deepEqual((published[0]!.payload as any).body, originalBody);
-    });
-  } finally { store.close(); }
+  const original = (await f.bound.invoke(pagesActions.create, { title: "Before migration", body: body("Already published"), goal_id: "old-goal" })).document;
+  await f.host.withProject(f.ref, runtime => registerPagesArtifactVersion(runtime.coordinator, "p", "p", "owner")({ project_id: "p", page_id: original.id,
+    title: original.title, body: original.body, goal_id: "old-goal", version: 1 }));
+  const result = await f.client.invoke({ ...f.caller, actor_id: "another-actor" }, pagesActions.promote, { id: original.id });
+  assert.equal(result.recovered, true); assert.equal(result.artifact.version, 1);
+  await f.host.withProject(f.ref, runtime => {
+    const versions = runtime.coordinator.artifacts.query.listArtifactVersions("p", result.artifact.artifact_id);
+    assert.equal(versions.length, 1, "finishing it writes no second version");
+    assert.equal(versions[0]!.created_by, "owner", "who produced it stays recorded");
+    assert.equal(versions[0]!.owner_actor_id, LOCAL_PERSON_ACTOR_ID, "a pinned document belongs to the person, not to the actor that pinned it");
+  });
 });
 
 test("a conflicting immutable Artifact cannot replace the retained publication snapshot or attach itself to the draft", async t => {

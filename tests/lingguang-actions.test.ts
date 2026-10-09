@@ -17,7 +17,7 @@ async function fixture(run: (f: { home: string; host: MolisWorkLocalHost; caller
   ref: ReturnType<typeof molisWorkHostProjectReference> }) => Promise<void>, completeText: HostCompleteText | null = null) {
   const home = await mkdtemp(join(tmpdir(), "lingguang-actions-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "a", projectId: "a" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS };
   const client = host.actionClient(ref);
   try { await run({ home, host, caller, client, ref, bound: bindActionClient(client, () => caller) }); }
@@ -142,16 +142,13 @@ test("real HTTP canonical and legacy URLs share Host actions and reject project 
     };
     const path = `/projects/${project.project_id}/api/plugins/lingguang`;
     const { spark } = await http(path, { title: "Canonical", body: "Same data" });
-    assert.equal((await http(`/api/plugins/lingguang?project_id=${project.project_id}`)).sparks[0].id, spark.id);
-    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const bound = bindActionClient(host.actionClient(ref), () => ({ actor_id: "owner", project_id: project.project_id, audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS }));
     assert.equal((await bound.invoke(actions.get, { id: spark.id })).spark.body, "Same data");
     await http(`${path}?project_id=other`, { title: "Denied" }, 403);
     await http(path, { project_id: "other", title: "Denied" }, 403);
-    await http(`/api/plugins/lingguang?project_id=${project.project_id}`, { project_id: "other", title: "Denied" }, 403);
-    await http("/api/plugins/lingguang", { title: "Unbound" }, 400);
-    const invalid = await fetch(origin + "/api/plugins/lingguang?project_id=does-not-exist");
-    assert.notEqual(invalid.status, 200);
+    // Only the project's own URL reaches 灵光; there is no unscoped one that picks a project from the request.
+    assert.notEqual((await fetch(origin + `/api/plugins/lingguang?project_id=${project.project_id}`)).status, 200);
     const state = await http(`${path}/conversations`, { spark_ids: [spark.id] });
     await http(`${path}/conversations/${state.conversation.id}/messages`, { body: "No model" }, 400);
     assert.equal((await bound.invoke(actions.getConversation, { id: state.conversation.id })).messages.length, 0);

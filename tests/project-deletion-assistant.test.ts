@@ -1,0 +1,103 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { ASSISTANT_STORE_NAME, AssistantService, AssistantStore, LocalHost, assistantAuthority, purgeAssistantProject } from "@molis-ai/molis-work-app-local-host";
+
+const ACTOR = "local-person";
+
+/** The Assistant's library in a scratch Home, with a work in the project to delete, one in another project and a personal one. */
+async function assistantHome(t: { after(fn: () => Promise<void> | void): void }) {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-purge-"));
+  const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);
+  const store = new AssistantStore(db);
+  t.after(async () => { db.close(); await rm(home, { recursive: true, force: true }); });
+  const inProject = (projectId: string, title: string) => store.create({ actor_id: ACTOR, title, scope: { kind: "project", project_id: projectId }, origin: null,
+    project_ref: { project_id: projectId, storage_key: `/homes/${projectId}/molis-work.db` } });
+  const gone = inProject("project-gone", "要删除的工作"), archived = inProject("project-gone", "已归档的工作"), kept = inProject("project-kept", "留下的工作");
+  store.update(ACTOR, archived.work_id, null, { archived: true });
+  const personal = store.create({ actor_id: ACTOR, title: "个人工作", scope: { kind: "personal" }, origin: null });
+  for (const work of [gone, archived, kept, personal]) {
+    store.saveFollowUp(ACTOR, { followup_id: `fu-${work.work_id}`, work_id: work.work_id, label: "每周回看", text: "回看进度", repeat: "weekly", next_at: new Date(Date.now() + 86_400_000).toISOString(),
+      time_zone: "Asia/Shanghai", enabled: true, created_at: new Date().toISOString() });
+    store.saveJob(ACTOR, { key: `job-${work.work_id}`, job_id: "j1", work_id: work.work_id, title: "后台任务", state: "running", started_at: new Date().toISOString(),
+      status: { capability_id: "x.status", version: 1, provider_id: "x" }, input: "id", path: "state", done: ["done"], failed: ["failed"], checks: 0 });
+    store.raiseNotice(ACTOR, { kind: "result", work_id: work.work_id, work_title: work.title, text: "做完了" }, `notice-${work.work_id}`);
+    store.addRound(work.work_id, { run_id: `run-${work.work_id}`, text: "第一轮", materials: [], context: null, started_at: new Date().toISOString() });
+    store.relations.link({ work_id: work.work_id, project_id: work.project_ref?.project_id ?? null }, "origin", { kind: "pages.doc", id: `doc-${work.work_id}`, revision: "1" }, "从文稿开始");
+  }
+  return { home, db, store, gone, archived, kept, personal };
+}
+const rows = (db: ReturnType<typeof openHomeSqliteDatabase>, table: string) => Number((db.prepare(`SELECT COUNT(*) n FROM ${table}`).get() as { n: number }).n);
+
+test("deleting a project removes the Assistant's works that belong to it, archived ones too, and what hangs off them", async t => {
+  const { home, db, store, gone, archived, kept, personal } = await assistantHome(t);
+  const stopped: string[] = [], dropped: string[] = [];
+
+  const purged = await purgeAssistantProject(home, "project-gone", { stop: async id => { stopped.push(id); }, dropFollowUp: async id => { dropped.push(id); } });
+
+  assert.equal(purged, 2);
+  assert.deepEqual(store.list(ACTOR).map(work => work.title).sort(), ["个人工作", "留下的工作"]);
+  assert.deepEqual(store.list(ACTOR, { archived: true }), []);
+  for (const table of ["assistant_rounds", "assistant_followups", "assistant_jobs", "assistant_notices"]) assert.equal(rows(db, table), 2, `${table} keeps only the other two works'`);
+  assert.deepEqual(store.followUps(ACTOR).map(item => item.work_id).sort(), [kept.work_id, personal.work_id].sort());
+  assert.deepEqual(store.relations.forWork({ work_id: gone.work_id, project_id: "project-gone" }), [], "the relations it recorded are removed");
+  assert.deepEqual(store.relations.forWork({ work_id: archived.work_id, project_id: "project-gone" }), []);
+  assert.equal(store.relations.forWork({ work_id: kept.work_id, project_id: "project-kept" }).length, 1, "another project's relations stay");
+  assert.deepEqual(stopped.sort(), [gone.work_id, archived.work_id].sort(), "a running Assistant is asked to stop their rounds");
+  assert.deepEqual(dropped.sort(), [`fu-${gone.work_id}`, `fu-${archived.work_id}`].sort(), "and to cancel their timed follow-ups");
+
+  assert.equal(await purgeAssistantProject(home, "project-gone"), 0, "again: nothing left, and nothing needs the live service");
+});
+
+test("a Home without an Assistant library has nothing to clear and gets none", async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-purge-none-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  assert.equal(await purgeAssistantProject(home, "project-gone"), 0);
+  const { existsSync } = await import("node:fs");
+  assert.equal(existsSync(join(home, "assistant")), false);
+});
+
+function reply(text: string): Response {
+  const events: string[] = [];
+  const emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
+  emit("message_start", { message: { id: "m", type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
+  emit("content_block_start", { index: 0, content_block: { type: "text", text: "" } });
+  emit("content_block_delta", { index: 0, delta: { type: "text_delta", text } });
+  emit("content_block_stop", { index: 0 });
+  emit("message_delta", { delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
+  emit("message_stop", {});
+  return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
+}
+
+test("a running Assistant cancels the timed rounds the runtime queued for a deleted project's works", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-purge-live-"));
+  t.mock.method(globalThis, "fetch", async () => reply("好的。"));
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-purge-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);
+  const store = new AssistantStore(db);
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, ACTOR);
+  t.after(async () => { db.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
+  assert.equal(await service.attachSchedule(), true);
+  const sent = await service.send({ text: "帮我跟进今天的工作", request_id: "req-purge-1" }, { project_ref: { project_id: "project-gone", storage_key: "memory:project" } });
+  for (let i = 0; i < 300 && (await service.read(sent.work.work_id)).work.state !== "completed"; i++) await new Promise(resolve => setTimeout(resolve, 20));
+  const due = new Date(Date.now() + 3_600_000);
+  const followUp = await service.saveFollowUp({ work_id: sent.work.work_id, text: "汇总今天的进展", at: due.toISOString(), repeat: "daily", label: "每天汇总" });
+  const key = `fu-${followUp.followup_id}-${due.getTime()}`;
+  assert.equal(adapter.schedule!.find(key)?.state, "queued");
+
+  const purged = await purgeAssistantProject(home, "project-gone", { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.removeFollowUp(id); } });
+
+  assert.equal(purged, 1);
+  assert.deepEqual(service.followUps(), []);
+  assert.notEqual(adapter.schedule!.find(key)?.state, "queued", "the runtime no longer holds the timed round");
+  assert.equal((await service.list()).length, 0);
+});

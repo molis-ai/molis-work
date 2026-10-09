@@ -16,8 +16,11 @@ export const FORM_ARTIFACT_SCHEMA_VERSION = 1;
 export type FormQuestionType = "text" | "singleChoice" | "multiChoice" | "dropdown" | "rating" | "date";
 /** `published` is collecting responses on this computer (the name stays for stored data); `closed` stopped collecting. */
 export type FormStatus = "draft" | "published" | "closed";
-/** Where a response came from: the author trying the form, the fill page on this computer, or a returned answer file. */
-export type FormSubmissionSource = "preview" | "fill" | "file";
+/**
+ * Where a response came from: the author trying the form, the fill page on this computer, a returned answer file, or,
+ * for a call that is not a person at the Host's own page, the kind of caller that made it (the call's audience, never its input).
+ */
+export type FormSubmissionSource = "preview" | "fill" | "file" | "agent" | "mcp" | "workflow" | "plugin";
 
 export interface FormOption {
   readonly id: string;
@@ -56,7 +59,8 @@ export interface FormSubmissionRecord {
   readonly form_id: string;
   readonly answers: Readonly<Record<string, string>>;
   readonly submitted_at: string;
-  readonly form_version: number | null;
-  readonly questions: readonly FormQuestion[] | null;
-  readonly source?: FormSubmissionSource;
+  readonly form_version: number;
+  /** The questions as they were when this answer was given. */
+  readonly questions: readonly FormQuestion[];
+  readonly source: FormSubmissionSource;
 }

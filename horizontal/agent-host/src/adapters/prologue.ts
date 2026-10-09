@@ -428,7 +428,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此业务会话");
     }
     const session = await this.#runtime.sessions.create(input);
-    this.#sessions.set(session.ref.id, { title: input.title, workspace: input.workspace ?? "required", runs: [], owner: { board_id: input.board_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id } });
+    this.#sessions.set(session.ref.id, { title: input.title, workspace: input.workspace ?? "required", runs: [], owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id } });
     return { session_id: session.ref.id, runtime_id: PROLOGUE_RUNTIME_ID };
   }
 
@@ -805,7 +805,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     ref: AgentCommandOutputRef,
   ): Promise<AgentCommandOutput> {
     const record = await this.#loadSession(session.session_id);
-    if (ref.run_id && !record.runs.some(run => run.run_id === ref.run_id)) throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于所选会话");
+    if (!record.runs.some(run => run.run_id === ref.run_id)) throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于所选会话");
     if (!this.#runtime.readCommandOutput) throw new PrologueAdapterError("agent.capability_unavailable", "这个 Runtime 没有接通命令回执");
     return this.#runtime.readCommandOutput(session.session_id, ref);
   }

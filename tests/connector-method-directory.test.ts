@@ -61,7 +61,7 @@ test("all current Connector cards expose a method directory with safe official l
   assert.deepEqual(new Set(settingsCards.map((row) => row.connector_id)), new Set(HOST_CONNECTOR_DIRECTORY.map((row) => row.connector_id)));
   assert.ok(settingsCards.every((row) => row.method_options?.length), "settings endpoint cards must forward method options");
   const html = renderConnectorsSettings({
-    connectors: HOST_CONNECTOR_DIRECTORY.map((row) => ({ ...row, account_state: "disconnected" as const })),
+    connectors: HOST_CONNECTOR_DIRECTORY,
   }, { L: (value) => value, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
   const notionDetail = html.match(/data-connector-detail="notion"[\s\S]*?(?=<section class="settings-connector-detail"|<\/section>\s*<section class="settings-connector-subgroup")/)?.[0] ?? "";
   assert.match(notionDetail, /data-connector-method="mcp" data-method-support="in_app"/);
@@ -73,7 +73,7 @@ test("all current Connector cards expose a method directory with safe official l
 
 
 test("every displayed official method has an executable host adapter and configuration controls", () => {
-  const html = renderConnectorsSettings({ connectors: HOST_CONNECTOR_DIRECTORY.map(row => ({ ...row, account_state: "disconnected" as const })) }, { L: value => value, escapeHtml: value => String(value ?? ""), icon: () => "" });
+  const html = renderConnectorsSettings({ connectors: HOST_CONNECTOR_DIRECTORY }, { L: value => value, escapeHtml: value => String(value ?? ""), icon: () => "" });
   for (const service of HOST_CONNECTOR_DIRECTORY) {
     for (const method of service.method_options ?? []) {
       assert.notEqual(method.support, "external", `${service.connector_id}:${method.kind}`);
@@ -90,7 +90,7 @@ test("onboarding prefers ready account login and keeps developer configuration o
   const p = { L: (s: string) => s, escapeHtml: (v: unknown) => String(v ?? ""), icon: () => "" };
   for (const service of ["gmail", "notion", "github"]) {
     const entry = HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === service)!;
-    const ready = { ...entry, account_state: "disconnected" as const, gmail_oauth_configured: true, notion_oauth_configured: true, github_client_id_configured: true };
+    const ready = { ...entry, gmail_oauth_configured: true, notion_oauth_configured: true, github_client_id_configured: true };
     assert.equal(recommendedMethod(ready)?.kind, "oauth", service);
     const html = renderConnectorSetup(ready, p);
     assert.ok(html.includes(`data-account-login="${service}"`));
@@ -98,7 +98,7 @@ test("onboarding prefers ready account login and keeps developer configuration o
     const primary = html.split('<details class="settings-connector-alternatives">')[0]!;
     assert.doesNotMatch(primary, /<input[^>]* required/);
   }
-  const gmail = { ...HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === "gmail")!, account_state: "disconnected" as const, gmail_oauth_configured: false };
+  const gmail = { ...HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === "gmail")!, gmail_oauth_configured: false };
   const html = renderConnectorSetup(gmail, p);
   const main = html.split('<details class="settings-connector-alternatives">')[0]!;
   assert.match(main, /登录接入准备中/);
@@ -113,7 +113,7 @@ test("onboarding prefers ready account login and keeps developer configuration o
 });
 
 test("directory starts ready official login directly but keeps account management and unavailable services separate", () => {
-  const cards = HOST_CONNECTOR_DIRECTORY.map(row => ({ ...row, account_state: "disconnected" as const }));
+  const cards = HOST_CONNECTOR_DIRECTORY;
   const html = renderConnectorsSettings({ connectors: cards }, { L: s => s, escapeHtml: v => String(v ?? ""), icon: () => "" });
   for (const id of ["notion", "linear", "gitlab", "stripe"]) {
     assert.match(html, new RegExp(`data-connector-open="${id}" data-connector-direct="mcp"`));
@@ -133,7 +133,7 @@ test("directory starts ready official login directly but keeps account managemen
 
 test("composite credentials keep separate labeled inputs when adding and replacing an account", () => {
   const card = HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === "jira")!;
-  const html = renderConnectorsSettings({ connectors: [{ ...card, account_state: "connected" }], connector_connections: [{
+  const html = renderConnectorsSettings({ connectors: [{ ...card }], connector_connections: [{
     connection_id: "11111111-1111-4111-8111-111111111111", service_id: "jira", display_name: "工作 Jira", account_label: "me@example.com", auth_method: "token", source: "managed", state: "connected",
   }] }, { L: s => s, escapeHtml: v => String(v ?? ""), icon: () => "" });
   const replace = html.match(/<form data-connection-replace=[\s\S]*?<\/form>/)![0];

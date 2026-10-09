@@ -3,7 +3,7 @@ import type { AgentActionOffer, AgentDelegation, AgentMemoryTools } from "@molis
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
-import { ActionError, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import type { MolisWorkLocalHost } from "../project-host.js";
@@ -11,7 +11,7 @@ import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import type { StoredWork } from "./assistant-store.js";
 
 /** The Assistant acts for the local person; its calls are audited as the Assistant's, and its grants are its own. */
-export const ASSISTANT_ACTOR = "web-user";
+export const ASSISTANT_ACTOR = LOCAL_PERSON_ACTOR_ID;
 
 export const actionKey = (ref: Pick<ActionReference, "capability_id" | "version" | "provider_id">) => JSON.stringify([ref.capability_id, ref.version, ref.provider_id ?? ""]);
 
@@ -146,7 +146,7 @@ export async function assistantProjectPrompts(localHost: Pick<MolisWorkLocalHost
   const reference = work.project_ref;
   if (!reference) return [];
   let view: ProjectGuidanceView;
-  try { view = await localHost.client(reference).invoke(readProjectGuidanceCapability, { board_id: reference.board_id }); }
+  try { view = await localHost.client(reference).invoke(readProjectGuidanceCapability, { project_id: reference.project_id }); }
   catch { return []; }
   if (view.entries.length === 0) return [];
   return [{ prompt_id: "project-guidance", version: view.revisions.length, layer: "project", body: view.runtime_prompt_prefix }];

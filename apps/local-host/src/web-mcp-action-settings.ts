@@ -43,7 +43,7 @@ export async function handleMcpActionSettingsHttp(request: IncomingMessage, resp
       try { return catalog.getProject(projectId); }
       catch (error) { if (request.method === "GET" && (error as { code?: string }).code === "catalog.project_not_found") { scopeMissing = true; return null; } throw error; }
     }) : null;
-    const reference = project ? molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path }) : undefined;
+    const reference = project ? molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) : undefined;
     const caller: ActionCallContext = { actor_id: clientId, project_id: projectId, audience: actionClientAudience(clientId), permissions: [] };
     if (request.method === "GET") {
       const access = await readMcpActionAccess(homeDirectory, host, caller, reference, scopeMissing, preference);

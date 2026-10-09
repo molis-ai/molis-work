@@ -2,7 +2,7 @@ import { bindOwnerPluginAction, type ActionHandlerBinding } from "@molis-ai/moli
 import { gitActions, type GitSelected } from "./action-definitions.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { parseFilePath, readWorkspaceGitCapability, prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, GIT_RESULT_TYPE,
+import { parseFilePath, workspaceReadActions, prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, GIT_RESULT_TYPE,
   type GitOperation, type GitReviewedResult, type WorkspaceGitQuery, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { parsePorcelainStatus } from "./status.js";
 import { projectGit } from "./projection.js";
@@ -38,7 +38,6 @@ function gitOperation(value: unknown): GitOperation {
 export function gitActionHandlers(context: PluginStartContext, onReady: (ready: boolean) => void = () => {}): ActionHandlerBinding[] {
   const services = context.services!;
   const browsing = [projectSettingsCapabilities.browsingWorkspace];
-  const reading = [...browsing, readWorkspaceGitCapability];
   const reviewResults = [...browsing, readGitResultsCapability];
   let selectionSequence = 0;
   const workspace = async () => {
@@ -49,7 +48,7 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
   const read = async (query: WorkspaceGitQuery) => {
     const current = await workspace();
     if (current.workspace_id !== query.workspace_id) throw new Error("工作目录已改变，请刷新 Git");
-    const result = await services.capabilities!.invoke(readWorkspaceGitCapability, query);
+    const result = await services.actions!.invoke(workspaceReadActions.git, query);
     if ((await workspace()).workspace_id !== current.workspace_id) throw new Error("工作目录已改变，请刷新 Git");
     return { workspace: current, result };
   };
@@ -113,17 +112,17 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
       const current = await workspace(), value = await read({ workspace_id: current.workspace_id, kind: "summary" });
       if (value.result.outcome !== "summary") return { workspace: current, summary: null, message: "message" in value.result ? value.result.message : "Git 状态不可读" };
       return { workspace: current, summary: value.result, draft: commitDraft(value.result) };
-    }, reading),
+    }, browsing),
     bindOwnerPluginAction(context, gitActions.prSupport, async () => {
       const current = await workspace();
       return (await read({ workspace_id: current.workspace_id, kind: "pr-support" })).result;
-    }, reading),
+    }, browsing),
     // A file a merge or pull left conflicted, markers included, so the person can pick and edit before resolving.
     bindOwnerPluginAction(context, gitActions.conflict, async (input) => {
       const current = await workspace();
       if (!input || typeof input.path !== "string" || !input.path) throw new Error("请选择冲突文件");
       return (await read({ workspace_id: current.workspace_id, kind: "conflict", path: input.path })).result;
-    }, reading),
+    }, browsing),
     bindOwnerPluginAction(context, gitActions.operations, async () => {
       const current = await workspace();
       const operations = await services.capabilities!.invoke(readGitOperationsCapability, { workspace_id: current.workspace_id });
@@ -149,7 +148,7 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
       onReady(true);
       if (status.head.kind !== "unborn" && value.result.head_commit) status.head = { ...status.head, commit: value.result.head_commit };
       return { workspace: current, view: projectGit({ phase: "ready", status }), selected: selected?.workspace_id === current.workspace_id ? selected : null };
-    }, reading),
+    }, browsing),
     bindOwnerPluginAction(context, gitActions.selectDiff, async (input, beforeWrite) => {
       const sequence = ++selectionSequence;
       if (!input || !["index", "worktree"].includes(String(input.side)) || typeof input.workspace_id !== "string") throw new Error("差异参数无效");
@@ -168,6 +167,6 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
         revision: result.revision, reference: { artifact_id: published.artifact.artifact_id, version: published.artifact.version } };
       services.storage?.set("git-selection", JSON.stringify(selected));
       return { result, selected };
-    }, reading),
+    }, browsing),
   ];
 }

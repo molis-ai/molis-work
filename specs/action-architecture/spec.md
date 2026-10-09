@@ -727,7 +727,7 @@ Files/Git 的原九个路由现仅作参数转发，业务已移入插件动作�
 
 公共动作的 required_actions 继续检查同一调用者的权限与递归依赖。旧 typed Capability SDK 补充只读 availability 查询，仅检查 Manifest 已声明消费的能力，使用原 Host Kernel 注册表和当前项目身份，不运行 handler、不打开业务运行实例、不授予权限。无法提供检查的嵌入端明确返回不可检查，不能假定可用。
 
-Files/Git 在自己的 handler 绑定中声明实际使用的宿主依赖：浏览设置、文件/Git 读取、审阅准备和结果读取按动作分别检查。目录、实际调用及保存前的既有 checkpoint 共用这些状态；缺失依赖不能先读文件或发布 Artifact。此查询检查注册与同步就绪状态，不替代输入中的工作区授权、连接选择、异步项目策略或既有执行权限验证。Host 私有 typed capability 仍不成为公共 MCP 工具；公共化迁移继续保留在总清单。
+Files/Git 在自己的 handler 绑定中声明实际使用的宿主依赖：浏览设置、审阅准备和结果读取按动作分别检查；文件与 Git 的读取已是动作 `projects.workspace.files.read`、`projects.workspace.git.inspect`（2026-10-09，W2-09，原来的两个 typed id 已删），依赖它的动作写 `action.required_actions` 和 `workspace:read`，由内核按调用者检查，插件经 `capabilities.consumes` 和 `services.actions` 调用它（`docs/platform/PLUGIN-PLATFORM.md` 第 3 节）。目录、实际调用及保存前的既有 checkpoint 共用这些状态；缺失依赖不能先读文件或发布 Artifact。此查询检查注册与同步就绪状态，不替代输入中的工作区授权、连接选择、异步项目策略或既有执行权限验证。Host 私有 typed capability 仍不成为公共 MCP 工具；公共化迁移继续保留在总清单。
 ### 跨进程动作转发
 
 复用已有常驻 Web Host 作为执行方，增加通用的本机动作协议：发现与调用均按项目 ID 从原目录解析，不接收数据库路径、权限数组或任意 actor 覆盖。协议端点只接受经过本机 origin、control token 与一次性键校验的 POST，并校验预期 Home 身份和 Host 实例。客户端只连接数字 loopback 地址，禁止重定向和发送凭据到其他地址。

@@ -802,6 +802,7 @@ export class ShelfStore {
     return { item: publicItem(item), bytes: readFileSync(this.absolute(item)) };
   }
 
+  /** An untouched shelf gets 试用示例.pdf once: the first-use guide is intended, not demo data (W2-18 decision 12; see README). */
   private ensureSample(catalog: CatalogFile): CatalogFile {
     if (catalog.seeded_sample || catalog.items.length > 0) {
       return catalog;

@@ -1,4 +1,6 @@
 export const PPT_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of this owner's project data).
+  "PPT 演示稿": "PPT presentations",
   "大纲来自": "Outline from",
   "粘贴文字": "Paste text",
   "选一篇文档": "Pick a document",

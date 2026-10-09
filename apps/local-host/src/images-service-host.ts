@@ -1,8 +1,10 @@
 import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { inferenceServiceUnavailableReason, isDispatchRefusal } from "@molis-ai/molis-work-service-agent-host";
 import { resolve } from "node:path";
-import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { ImagesService, ImagesError, type ImageConnectionInput } from "@molis-ai/molis-work-plugin-images";
+import { existsSync } from "node:fs";
+import { homeSqlitePath, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
+import { ImagesService, ImagesError, imagesProjectData, type ImageConnectionInput } from "@molis-ai/molis-work-plugin-images";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { ConnectorConnectionError, withConnectorConnections } from "./connector-connection-store.js";
 
@@ -14,7 +16,12 @@ export class ImagesHostService {
   private readonly home: string;
   private entry?: SharedImages;
   private closed = false;
-  constructor(home: string) { this.home = resolve(home); }
+  constructor(home: string) {
+    this.home = resolve(home);
+    // Deleting a project stops what is still being generated for it before its jobs and pictures go.
+    projectDeletedHooksFor(this.home).register({ id: "images", label: imagesProjectData.label, alive: () => !this.closed,
+      clear: projectId => { if (existsSync(homeSqlitePath(this.home, "images"))) this.get().deleteProject(projectId); } });
+  }
   get(): ImagesService {
     if (this.closed) throw new ImagesError("images.closed", "图片服务已停止", 503);
     if (this.entry) return this.entry.service;

@@ -25,7 +25,7 @@ Home 里有 29 种 SQLite 文件：权威库 25 种（Home 级 22 种，按项�
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
 | `PRAGMA user_version`，经 `applySqliteBaseline` | 20 | 项目库（6）、Alchemist 工作室库、assistant（2）、memory（2）、placement、agent-definitions、connectors、context-onboarding、functions（3）、10 个个人插件库、server |
-| 自己的 meta 表 | 2 | `projects/catalog.db`（`catalog_meta`，21）、`sessions/sessions.db`（`session_meta`，7） |
+| 自己的 meta 表 | 2 | `projects/catalog.db`（`catalog_meta`，22）、`sessions/sessions.db`（`session_meta`，7） |
 | 自己读写 `user_version` | 1 | `characters/characters.sqlite`（1） |
 | 没有版本 | 2 | `plugins/experiments/private.sqlite`、`alchemist/projects/<id>/search.sqlite` |
 
@@ -39,11 +39,11 @@ Home 里有 29 种 SQLite 文件：权威库 25 种（Home 级 22 种，按项�
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:245-247` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 21（`apps/local-host/src/project-catalog-contract.ts:1`），不符拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。存各项目库的绝对路径（`modules/projects/src/project-service.ts:61`），只能恢复到原路径（`docs/installation.md` 离线备份一节） | purge（`installer/uninstall.ts:46`） |
+| `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:246-248` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 22（`apps/local-host/src/project-catalog-contract.ts:1`），不符拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。存各项目库的绝对路径（`modules/projects/src/project-service.ts:61`），只能恢复到原路径（`docs/installation.md` 离线备份一节） | purge（`installer/uninstall.ts:46`） |
 | `projects/<project_id>/molis-work.db`，旁边 `-wal`、`-shm` | 宿主；`apps/local-host/src/project-database.ts:21` 套基线，`apps/local-host/src/project-database-schema.ts:37` 拼 29 段建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · WAL · `user_version` = 6 | 必备份，连同 `-wal`、`-shm`，或先 `LocalSqliteStorage.checkpoint()` | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
-| `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:46`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:59`） | 目录 | 临时 | purge（在 `projects/` 内） |
-| `projects/.resetting-<project_id>-<uuid>/`、`projects/.reset-backup-<project_id>-<uuid>/` | `apps/local-host/src/demo-project-lifecycle.ts:73-74`：重置示例项目时的新库暂存目录，和被换下的旧库。成功后 `.reset-backup-*` 被删（`:104`），失败时尝试改回（`:96`）；改回也失败就抛 `AggregateError`，消息里写出两个路径（`:99`） | 目录 | 临时（进程在中途被杀时 `.reset-backup-*` 是示例项目的旧库，示例项目可重建） | purge（在 `projects/` 内） |
+| `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |
+| `projects/.resetting-<project_id>-<uuid>/`、`projects/.reset-backup-<project_id>-<uuid>/` | `apps/local-host/src/demo-project-lifecycle.ts:87-88`：重置示例项目时的新库暂存目录，和被换下的旧库。成功后 `.reset-backup-*` 被删（`:121`），失败时尝试改回（`:113`）；改回也失败就抛 `AggregateError`，消息里写出两个路径（`:116`） | 目录 | 临时（进程在中途被杀时 `.reset-backup-*` 是示例项目的旧库，示例项目可重建） | purge（在 `projects/` 内） |
 | `sessions/sessions.db` | `modules/private-work-context`；`src/session-registry.ts:72` 打开，`src/session-schema.ts` 建表（4.3） | SQLite 自带版本 · WAL · `session_meta.schema_version` = 7（`modules/private-work-context/src/session-schema.ts:9`） | 必备份，与 `sessions/content/` 同一时点 | purge（`installer/uninstall.ts:51`） |
 | `sessions/content/blobs/**` 与 `sessions/content/content.key` | `modules/private-work-context/src/content-store.ts:30-31`，由 `modules/private-work-context/src/session-registry.ts:79` 创建 | 加密文件（AES-256-GCM，每个 blob 封套 `v: 1`）；密钥是一个 32 字节文件 | blobs 必备份；`content.key` 是密钥：有 blob 而缺密钥时拒绝写入（`modules/private-work-context/src/content-store.ts:46`），不会换新密钥 | purge（`installer/uninstall.ts:51`，整个 `sessions/`） |
 
@@ -51,8 +51,8 @@ Home 里有 29 种 SQLite 文件：权威库 25 种（Home 级 22 种，按项�
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `assistant/assistant.db` | 宿主；`apps/local-host/src/assistant/assistant-http.ts:41` 打开，`apps/local-host/src/assistant/assistant-store.ts:18` 基线、`:158` 套用。基线末尾拼进 `modules/context-ledger` 的 `context_edges`（`:63`），所以这个库有 13 张表，其中一张不归宿主 | SQLite 带版本 · `user_version` = 2 | 必备份 | 否 |
-| `memory/memory.db` | `packages/storage/src/adapters/memory-ledger.ts:61-63`，基线 `:21` | SQLite 带版本 · WAL · 2 | 必备份。记忆的正文在 Prologue 条目里（即 `agent-runtime/`），账本只存修订、候选、使用回执等（`packages/storage/src/adapters/memory-ledger.ts:12-16`），两者取同一时点 | purge（`memory` 在 `PERSONAL_HOME_SQLITE_STORES`） |
+| `assistant/assistant.db` | 宿主；`apps/local-host/src/assistant/assistant-http.ts:43` 打开，`apps/local-host/src/assistant/assistant-store.ts:18` 基线、`:158` 套用。基线末尾拼进 `modules/context-ledger` 的 `context_edges`（`:63`），所以这个库有 13 张表，其中一张不归宿主 | SQLite 带版本 · `user_version` = 2 | 必备份 | 否 |
+| `memory/memory.db` | `packages/storage/src/adapters/memory-ledger.ts:62-64`，基线 `:22` | SQLite 带版本 · WAL · 2 | 必备份。记忆的正文在 Prologue 条目里（即 `agent-runtime/`），账本只存修订、候选、使用回执等（`packages/storage/src/adapters/memory-ledger.ts:13-17`），两者取同一时点 | purge（`memory` 在 `PERSONAL_HOME_SQLITE_STORES`） |
 | `placement/placement.db` | 宿主；`apps/local-host/src/placement-actions.ts:63-64` 打开，`:58` 基线 | SQLite 带版本 · 1 | 必备份 | 否 |
 | `agent-definitions/agent-definitions.db` | 宿主；`apps/local-host/src/agent-definitions/agent-definitions.ts:316` 打开，`:20` 基线、`:57` 套用 | SQLite 带版本 · 1 | 必备份（用户改过的提示词与历史） | 否 |
 | `connectors/connectors.db` | 5 张表的结构归 `horizontal/connector-host`（`src/connection-store.ts:51`、`src/protocol-store.ts:19`）；第 6 张 `connector_authorization_results`（授权回执）由宿主自己定义（`apps/local-host/src/connectors-store.ts:9-12`）；宿主 `:8` 组装、`:15` 打开 | SQLite 带版本 · 1 | 必备份。只存 `credential_ref`，凭据本体在 `feed/secrets.json` | purge |
@@ -64,13 +64,13 @@ Home 里有 29 种 SQLite 文件：权威库 25 种（Home 级 22 种，按项�
 
 ### 3.3 个人插件库（Home 级，`{home}/<名>/<名>.db`）
 
-路径由 `homeSqlitePath` 给出（`packages/storage/src/home-sqlite.ts:27`），目录权限 0700、文件 0600（`:31-42`）。备份都是必备份，卸载都是 purge（目录在 `PERSONAL_HOME_SQLITE_STORES`，`packages/storage/src/home-sqlite.ts:6-23`）。库里按 `project_id` 分区的行，删除项目时不清理（`docs/platform/STORAGE-AND-EXCHANGE.md:21`）。`lingguang/` 目录里除库以外还有 `imports/`、`models/`、`material-upload-*`，见 6.2。
+路径由 `homeSqlitePath` 给出（`packages/storage/src/home-sqlite.ts:27`），目录权限 0700、文件 0600（`:31-42`）。备份都是必备份，卸载都是 purge（目录在 `PERSONAL_HOME_SQLITE_STORES`，`packages/storage/src/home-sqlite.ts:6-23`）。库里按 `project_id` 分区的行，删除项目时由各 owner 清理（`docs/platform/STORAGE-AND-EXCHANGE.md:21`；各插件包的 `project-data.ts`，登记在 `apps/local-host/src/project-deleted-owners.ts`）。`lingguang/` 目录里除库以外还有 `imports/`、`models/`、`material-upload-*`，见 6.2。
 
 | 路径 | owner 与打开它的代码 | 版本 · 日志 | 表 |
 | --- | --- | --- | --- |
 | `images/images.db` | `plugins/native/images/src/store.ts:50`、`:57`，基线 `:17` | 1 · 回滚 | `connections`、`jobs` |
 | `pages/pages.db` | `plugins/native/pages/src/store.ts:463`，基线 `:433` | 1 · 回滚 | `pages`、`folders`、`page_generations`、`page_changes`、`page_imports` |
-| `form/form.db` | `plugins/native/form/src/store.ts:371`，基线 `:340` | 2 · 回滚 | `forms`、`submissions`、`form_copies` |
+| `form/form.db` | `plugins/native/form/src/store.ts:381`，基线 `:350` | 2 · 回滚 | `forms`、`submissions`、`form_copies` |
 | `dataset/dataset.db` | `plugins/native/dataset/src/store.ts:310`，基线 `:283` | 1 · 回滚 | `datasets`、`dataset_versions`、`dataset_receipts` |
 | `ppt/ppt.db` | `plugins/native/ppt/src/store.ts:239`，基线 `:218` | 1 · 回滚 | `presentations`、`presentation_copies` |
 | `lingguang/lingguang.db` | `plugins/native/lingguang/src/store.ts:282`，基线 `:246` | 1 · 回滚 | `sparks`、`conversations`、`spark_requests`、`messages` |
@@ -87,8 +87,8 @@ Home 里有 29 种 SQLite 文件：权威库 25 种（Home 级 22 种，按项�
 | --- | --- | --- | --- | --- |
 | `plugins/experiments/private.sqlite` | 宿主；`apps/local-host/src/experiments-native-plugin-http.ts:15`，表来自 `packages/plugin-runtime` 的 `PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL`（`plugin_private_values`） | SQLite 无版本 · WAL · 用 `CREATE TABLE IF NOT EXISTS` 建表，旧库、新库没有区别 | 必备份 | 否 |
 | `server/server.sqlite` | `server`；`server/src/database.ts:34-37` 打开，基线 `:29`；本机由 `apps/local-host/src/im-server.ts:13` 挂载（IM 实验线） | SQLite 带版本 · WAL · 1 | 必备份 | 否 |
-| `alchemist/projects/<编码后的 project_id>/studio.sqlite` | `plugins/native/alchemist`；路径 `apps/local-host/src/alchemist-service-host.ts:42`，建库 `src/studio/server/db/schema.ts:480`，基线 `:8` | SQLite 带版本 · WAL · 1 | 必备份 | purge（`alchemist` 在 `PERSONAL_HOME_SQLITE_STORES`，整个目录） |
-| `alchemist/projects/<编码后的 project_id>/search.sqlite` | 宿主；`apps/local-host/src/alchemist-search.ts:13-15`，表 `feed_runtime_blobs` 来自 `packages/storage` 的 `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | SQLite 无版本 · WAL | 必备份（研究报告引用的证据，重取要花外部请求）；只在用过搜索后才出现 | purge（同上） |
+| `alchemist/projects/<编码后的 project_id>/studio.sqlite` | `plugins/native/alchemist`；路径 `apps/local-host/src/alchemist-paths.ts:4`（`alchemistProjectDirectory`；`apps/local-host/src/alchemist-service-host.ts:49` 在其下拼 `studio.sqlite`），建库 `src/studio/server/db/schema.ts:480`，基线 `:8` | SQLite 带版本 · WAL · 1 | 必备份 | purge（`alchemist` 在 `PERSONAL_HOME_SQLITE_STORES`，整个目录） |
+| `alchemist/projects/<编码后的 project_id>/search.sqlite` | 宿主；`apps/local-host/src/alchemist-search.ts:14`（目录同样由 `apps/local-host/src/alchemist-paths.ts:4` 给出），表 `feed_runtime_blobs` 来自 `packages/storage` 的 `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | SQLite 无版本 · WAL | 必备份（研究报告引用的证据，重取要花外部请求）；只在用过搜索后才出现 | purge（同上） |
 
 工作室库的表（36 张）：`workspaces`、`workspace_actors`、`directions`、`exploration_runs`、`ideas`、`idea_cards`、`idea_versions`、`jobs`、`job_events`、`ui_context`、`activity_events`、`mvp_scope_versions`、`research_plans`、`lens_runs`、`evidence`、`lens_reports`、`claims`、`claim_evidence`、`decisions`、`source_settings`、`pulse_runs`、`source_fetches`、`supply_signals`、`pulse_reports`、`pulse_report_signals`、`opportunities`、`opportunity_signals`、`annotations`、`action_proposals`、`taste_rules`、`research_playbook_rules`、`memory_rule_applications`、`conversation_messages`、`runtime_settings`、`research_playbook_revisions`、`work_reuse_receipts`。其中 `conversation_messages`、`runtime_settings` 在 `src/studio/server/db/schema.ts:412`、`:424` 用带引号的标识符建表，按 `CREATE TABLE [a-z_]+` 扫描会漏掉它们。工作室库的 `workspaces` 与目录库的同名表、`jobs` 与 Images 的同名表是互不相干的表；炼金术士的表名（`workspaces`、`jobs`、`evidence`、`claims`）与平台库重名，因为每个项目一个独立的 `studio.sqlite`，不会冲突，`specs/repository-anti-corruption/spec.md` §9.5 第 9 条定为不改。
 
@@ -98,12 +98,12 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 一个 SQLite 文件里可以有多个 owner 的表。结构由宿主按 owner 导出的建表语句拼出；owner 导出，宿主只拼装。
 
-### 4.1 `projects/catalog.db`（v21）
+### 4.1 `projects/catalog.db`（v22）
 
 | owner | 表 |
 | --- | --- |
 | `packages/storage` | `catalog_meta`（`src/catalog-metadata.ts`） |
-| `modules/projects` | `projects`、`project_plugins`、`project_plugin_exclusions`、`project_events`、`project_deletions`、`workspaces`、`workspace_project_memberships`（`src/repository.ts`） |
+| `modules/projects` | `projects`、`project_plugins`、`project_plugin_exclusions`、`project_events`、`project_deletions`、`workspaces`、`workspace_project_memberships`（`src/repository.ts`），`project_deletion_steps`（`src/deletion-steps.ts`） |
 | `modules/private-work-context` | `runtime_context_bindings`、`runtime_context_binding_events`、`runtime_context_setup_requests`、`runtime_context_suggestion_rejections` |
 | `modules/goals` | `personal_planning_method_packs`（`src/planning/personal-methods.ts`） |
 | `modules/context-ledger` | `context_edges` |
@@ -176,16 +176,16 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `agent-runtime/records/<kind>/<id>.json` | Prologue SDK 的 `NodeStorage`（vendored 包 `@prologue/sdk`，文件 `node_modules/@prologue/sdk/dist/host/plugin/node-storage.js`），根目录由 `apps/local-host/src/system-agent-service.ts:47` 给出。`<kind>` 有 SDK 的（`dispatch`、`io.molis.work~runs`、`~sessions`、`~effects` 等）和宿主的 `molis-agent-index-<hash>`、`molis-git-review-<hash>`、`molis-project-work-<hash>`（`horizontal/agent-host/src/adapters/prologue-node.ts:530`、`:278`、`:582`） | JSON 文件，临时文件加 fsync 加原子改名；元数据明文，安全正文（若有）用 `storage.key` 加密 · 没有存储格式版本，只有每条记录乐观并发用的 `version` | 必备份（运行、会话、副作用回执、记忆条目都在这里），与 `storage.key` 同一时点 | 否 |
+| `agent-runtime/records/<kind>/<id>.json` | Prologue SDK 的 `NodeStorage`（vendored 包 `@prologue/sdk`，文件 `node_modules/@prologue/sdk/dist/host/plugin/node-storage.js`），根目录由 `apps/local-host/src/agent-runtime-paths.ts:4` 给出（`apps/local-host/src/system-agent-service.ts:48` 传给 Agent 服务）。`<kind>` 有 SDK 的（`dispatch`、`io.molis.work~runs`、`~sessions`、`~effects` 等）和宿主的 `molis-agent-index-<hash>`、`molis-git-review-<hash>`、`molis-project-work-<hash>`（`horizontal/agent-host/src/adapters/prologue-node.ts:530`、`:278`、`:582`） | JSON 文件，临时文件加 fsync 加原子改名；元数据明文，安全正文（若有）用 `storage.key` 加密 · 没有存储格式版本，只有每条记录乐观并发用的 `version` | 必备份（运行、会话、副作用回执、记忆条目都在这里），与 `storage.key` 同一时点 | 否 |
 | `agent-runtime/checkpoints/` | SDK（`node_modules/@prologue/sdk/dist/host/plugin/node.js:181`）：检查点索引，重启后还在 | JSON 文件 · 无版本 | 必备份（与 `records/` 同一时点） | 否 |
 | `agent-runtime/leases/` | SDK（`node_modules/@prologue/sdk/dist/host/plugin/node.js:174-177`）：持有者写成 `pid-<进程号>` | 目录 · 无版本 | 临时 | 否 |
 | `agent-runtime/storage.key` | SDK `node_modules/@prologue/sdk/dist/host/plugin/node-storage.js`（`KEY_FILE`，`:6`）：32 字节，首次以 `wx` 创建，0600 | 密钥文件 | 密钥：丢了 `records/` 里的加密正文读不出 | 否 |
 | `agent-runtime/image-intake/` | `horizontal/agent-host/src/adapters/prologue-node.ts:876` | 目录 | 临时 | 否 |
 | `git-operation-details.json`（Home 根目录） | `apps/local-host/src/agent-host-composition.ts:162`：Git 操作审查产生的细节文字，按审查键存 | JSON 文件 · 无版本 | 必备份，与 `agent-runtime/` 同一时点（`molis-git-review-*` 记录里只有回执） | 否 |
-| `feed/secrets.json` | `packages/storage/src/adapters/file-secret-store.ts:82`；`SecretStore` 的密文，含模型 API Key、连接器凭据、Feed 证据密钥（`apps/local-host/src/project-catalog.ts:178`、`apps/local-host/src/agent-connector-ports.ts:33`） | JSON，AES-256-GCM 封条 · 文件字段 `version` = 2（`packages/storage/src/adapters/file-secret-store.ts:60`），旧格式拒绝 | 密钥。主密钥在 macOS Keychain，不在 Home 里（第 8 节） | 否 |
+| `feed/secrets.json` | `packages/storage/src/adapters/file-secret-store.ts:82`；`SecretStore` 的密文，含模型 API Key、连接器凭据、Feed 证据密钥（`apps/local-host/src/project-catalog.ts:179`、`apps/local-host/src/agent-connector-ports.ts:33`） | JSON，AES-256-GCM 封条 · 文件字段 `version` = 2（`packages/storage/src/adapters/file-secret-store.ts:60`），旧格式拒绝 | 密钥。主密钥在 macOS Keychain，不在 Home 里（第 8 节） | 否 |
 | `feed/secrets.key` | `packages/storage/src/adapters/file-secret-store.ts:134`：没有 Keychain、没有 `MOLIS_WORK_ENCRYPTION_KEY` 时的安装密钥文件 | 密钥文件 · 0600 | 密钥；真实 Home 里不存在，用的是 Keychain | 否 |
 | `feed/evidence/blobs/**`、`feed/evidence-recovered-v2/blobs/**` | `packages/storage/src/adapters/evidence-content.ts:46-47`（恢复根目录是 `<根>-recovered-v2`，`:47`）：Feed 证据正文，引用形如 `molis-work-feed/sha256/<hash>` | 加密文件 · 无存储版本 | 必备份，但没有 `secrets.json` 加 Keychain 主密钥就读不出（密钥引用 `system:feed:evidence-content-key:v1`、`:v2`，`:15-16`） | 否 |
-| `alchemist/projects/<id>/search-content/`，及其 `-recovered-v2` | `apps/local-host/src/alchemist-search.ts:22`：同一个证据存储，根目录换了 | 加密文件 · 无存储版本 | 必备份，同上需要密钥 | purge（`alchemist` 目录） |
+| `alchemist/projects/<id>/search-content/`，及其 `-recovered-v2` | `apps/local-host/src/alchemist-search.ts:23`：同一个证据存储，根目录换了 | 加密文件 · 无存储版本 | 必备份，同上需要密钥 | purge（`alchemist` 目录） |
 
 ### 6.2 文件型状态
 
@@ -278,7 +278,7 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 
 | 条目 | 看到的 | 为什么说没有 owner |
 | --- | --- | --- |
-| `catalog.db`、`molis-work.db`（Home 根目录） | 各 0 字节，2026-09-17 | 目录库在 `projects/catalog.db`（`apps/local-host/src/project-catalog.ts:245`），项目库在 `projects/<id>/`。[推断] `molis-work.db` 来自相对当前目录的默认库路径 `.molis-work/molis-work.db`，在 `$HOME` 下运行时正好落在这里（`apps/cli/src/protocol.ts:3`）；根目录的 `catalog.db` 来源没有查清 |
+| `catalog.db`、`molis-work.db`（Home 根目录） | 各 0 字节，2026-09-17 | 目录库在 `projects/catalog.db`（`apps/local-host/src/project-catalog.ts:246`），项目库在 `projects/<id>/`。[推断] `molis-work.db` 来自相对当前目录的默认库路径 `.molis-work/molis-work.db`，在 `$HOME` 下运行时正好落在这里（`apps/cli/src/protocol.ts:3`）；根目录的 `catalog.db` 来源没有查清 |
 | `maintenance-3-replaced/` | 约 1.9 GB，2026-10-07；`home/`、`projects/`、`alchemist/`、`maintenance3-report.json`；`home/` 下有 `assistant`、`connectors`、`form`、`memory`、`config`、`sessions`、`feed`、`functions` 的副本 | 2026-10-07 真实 Home 维护留下的被换下的库，不是产品功能。它在 Home 里面，所以任何整份拷贝都会带上它，包括其中 `feed` 的副本 |
 | `agent-drafts/` | 空目录，2026-09-25 | 写它的代码在 `8074b30c`（2026-09-28）删除 |
 | `alchemist/alchemist.db` | 约 40 KB，2026-09-22 | 旧的 Alchemist 演示库，没有代码打开。`plugins/native/alchemist/README.md:17` 写着它被保留、可从“历史入口”只读导出，代码里没有这个入口 |

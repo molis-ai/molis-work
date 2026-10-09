@@ -32,5 +32,6 @@ node --import tsx --test --test-concurrency=1 tests/functions-system-capability.
   - 执行要在“能力 → 对外接入”授予该客户端 `functions.invoke`。
   - 模型返回后经 `before_result` 复查权限；取消或撤权后不保存判断历史、不返回成功。
   - 编辑器在 Workbench 的 `src/functions`，没有独立的 Functions 插件包。
-- 改动后必跑：`node scripts/run-tests.mjs tests/functions-authoring-actions.test.ts tests/functions-system-capability.test.ts tests/functions-draft-retention.test.ts`
+  - 项目被删除时由宿主按 `functionsProjectData`（`src/project-data.ts`：确认框里的标签与 `purgeFunctionsProject`；Functions 不是插件，宿主自己列它）调用清掉这个项目的场景绑定与判断记录；规则本身是本人的，保留；只读库文件，库不存在时不创建，重复运行没有副作用。
+- 改动后必跑：`node scripts/run-tests.mjs tests/functions-authoring-actions.test.ts tests/functions-system-capability.test.ts tests/functions-draft-retention.test.ts tests/project-deletion-owners.test.ts`
 - 相关手册：[specs/archive/functions-independent-authoring/spec.md](../../specs/archive/functions-independent-authoring/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

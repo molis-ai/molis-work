@@ -1,4 +1,4 @@
-export const CATALOG_SCHEMA_VERSION = 21;
+export const CATALOG_SCHEMA_VERSION = 22;
 export const CATALOG_OWNER = "molis-work-project-catalog-v1";
 
 export function isOwnedCatalogOwner(owner: string | null | undefined): boolean {
@@ -93,4 +93,9 @@ export interface ManageMolisWorkDemoProjectInput {
 export interface MolisWorkDemoProjectResult {
   status: "created" | "existing" | "reset";
   project: MolisWorkProjectRecord;
+  /**
+   * A rebuild only: the owners of project data whose service is another process's for good, so this process left the old
+   * demo's data with them (a CLI has no Agent runtime or search index; the running Molis Work clears them when it rebuilds).
+   */
+  owners_left?: string[];
 }

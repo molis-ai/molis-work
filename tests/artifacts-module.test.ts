@@ -17,7 +17,7 @@ import type {
   ArtifactJsonValue,
   RegisterArtifactVersionInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 function createHarness() {
   const db = new Database(":memory:");
@@ -48,6 +48,8 @@ function createHarness() {
     VALUES ('board-artifacts', 'Artifacts', NULL, '2026-09-02T00:00:00.000Z', '2026-09-02T00:00:00.000Z')
   `).run();
   createArtifactsSchema(db as unknown as ArtifactsSqliteDatabase);
+  const cursorOfJournal = eventCursorOf(db);
+  const cursorProjects: string[] = [];
   let tick = 0;
   const module = new ArtifactsModule({
     db: db as unknown as ArtifactsSqliteDatabase,
@@ -67,8 +69,12 @@ function createHarness() {
       JSON.stringify(event.payload),
       event.at,
     ).lastInsertRowid),
+    eventCursor: (projectId: string) => {
+      cursorProjects.push(projectId);
+      return cursorOfJournal(projectId);
+    },
   });
-  return { db, module };
+  return { db, module, cursorProjects };
 }
 
 function registration(
@@ -240,6 +246,58 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
       { artifact_id: "artifact-report", version: 1 },
       [{ artifact_type_id: "io.example.report", schema_version: 1 }],
     ).reason, "artifact_archived");
+  } finally {
+    db.close();
+  }
+});
+
+test("a replay reports the journal cursor the Host injected, for the project it was asked about", () => {
+  const { db, module, cursorProjects } = createHarness();
+  const unrelatedEvent = (name: string): number => Number(db.prepare(`
+    INSERT INTO events (event_id, project_id, actor_id, type, object_type, object_id, reason, payload_json, at)
+    VALUES (?, 'board-artifacts', 'user-a', 'unrelated.happened', 'unrelated', ?, 'another owner wrote this', '{}', '2026-09-02T01:00:00.000Z')
+  `).run(`event:unrelated:${name}`, name).lastInsertRowid);
+  try {
+    const input = registration();
+    const first = module.commands.registerVersion(input);
+    assert.equal(first.replayed, false);
+    assert.equal(cursorProjects.length, 0, "a first write reports the cursor appendEvent returned and reads none");
+
+    // Registration replay: another owner's event lands after the version; the replay answers with the journal's cursor now.
+    const afterRegistration = unrelatedEvent("after-registration");
+    assert.ok(afterRegistration > first.observed_event_cursor);
+    const registrationReplay = module.commands.registerVersion(input);
+    assert.equal(registrationReplay.replayed, true);
+    assert.equal(registrationReplay.observed_event_cursor, afterRegistration);
+    assert.deepEqual(cursorProjects, ["board-artifacts"]);
+
+    // Unavailable path: the first call appends its own event, the repeated one reports the injected cursor.
+    const unavailable = module.commands.markUnavailable({
+      project_id: "board-artifacts", artifact_id: "artifact-report", version: 1, actor_id: "user-a", reason: "blob missing",
+    });
+    assert.equal(unavailable.replayed, false);
+    assert.ok(unavailable.observed_event_cursor > afterRegistration);
+    const afterUnavailable = unrelatedEvent("after-unavailable");
+    const unavailableReplay = module.commands.markUnavailable({
+      project_id: "board-artifacts", artifact_id: "artifact-report", version: 1, actor_id: "user-a", reason: "blob missing",
+    });
+    assert.equal(unavailableReplay.replayed, true);
+    assert.equal(unavailableReplay.observed_event_cursor, afterUnavailable);
+    assert.deepEqual(cursorProjects, ["board-artifacts", "board-artifacts"]);
+
+    // Archived path, the same way.
+    const archived = module.commands.archiveVersion({
+      project_id: "board-artifacts", artifact_id: "artifact-report", version: 1, actor_id: "user-a",
+    });
+    assert.equal(archived.replayed, false);
+    assert.ok(archived.observed_event_cursor > afterUnavailable);
+    const afterArchive = unrelatedEvent("after-archive");
+    const archiveReplay = module.commands.archiveVersion({
+      project_id: "board-artifacts", artifact_id: "artifact-report", version: 1, actor_id: "user-a",
+    });
+    assert.equal(archiveReplay.replayed, true);
+    assert.equal(archiveReplay.observed_event_cursor, afterArchive);
+    assert.deepEqual(cursorProjects, ["board-artifacts", "board-artifacts", "board-artifacts"]);
   } finally {
     db.close();
   }

@@ -96,5 +96,6 @@ QA 工具只创建显式隔离目录和实际业务对象；`lose-next-response`
   - 页面按字段投影选中的目标，不返回完整约定、私人历史或 Home。
   - 手机只能记录进展、下一步和接手人，不提交用户决定、不启动 Agent、不自动完成 Goal；最终幂等归 Goal 业务事务。
   - 私人版本不原地改成共享；邀请前被选中的 Artifact 必须已是 `team_project` 版本。
+  - `mw_*`、`im_*` 表只由本包读写：宿主的 IM 挂载（`apps/local-host/src/im-server.ts`）与 `apps/server` 启动器用 `Identity`、`ContinuityService` 的方法（`roleOf`、`hasMember`、`memberAccess`、`projectOwner`、`closeProjectsExcept`），不写 SQL（`scripts/gates/table-owners.mjs`）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/cross-device-http.test.ts tests/cross-device-launcher.test.ts tests/cross-device-gateway.test.ts tests/im-domain.test.ts`
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

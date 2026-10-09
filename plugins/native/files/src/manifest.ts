@@ -13,7 +13,7 @@ import {
   FILE_TEXT_SELECTION_SCHEMA_VERSION,
   FILE_TEXT_SELECTION_TYPE,
   GIT_FILE_CHANGED_EVENT,
-  readWorkspaceFileCapability,
+  workspaceReadActions,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { FILES_UI_CONTRIBUTION_ID } from "./ui.js";
 
@@ -53,10 +53,11 @@ export const filesManifest: PluginManifest = {
     { permission: "artifact:read", required: true, reason: "读取绑定的工作目录引用" },
     { permission: "artifact:write", required: true, reason: "发布文件集合、文本快照与选区" },
     { permission: "storage:private", required: true, reason: "记住上次读到哪个文件及快照所属工作区" },
+    { permission: "workspace:read", required: true, reason: "读取项目已关联工作目录里的目录与文本，用于浏览、预览和固定快照" },
   ],
   capabilities: {
     provides: [],
-    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, readWorkspaceFileCapability.capability_id],
+    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, workspaceReadActions.file.capability_id],
   },
   actions: FILES_ACTIONS,
   artifacts: { produces: [], consumes: [] },

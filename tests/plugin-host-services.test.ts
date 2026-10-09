@@ -148,9 +148,9 @@ function harness(definitions: (register: Harness) => PluginDefinition[]): Harnes
   const store = new LocalProjectDatabase(file);
   const artifacts = new ArtifactsModule({
     db: store.db,
-    appendEvent: (event) => store.appendEvent(event),
+    appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId),
   });
-  const processItems = new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) });
+  const processItems = new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
 
   const invoked: string[] = [];
   const executor = new PluginHostExecutor({ actions: pluginActions(store, DEMO_PROJECT_ID),

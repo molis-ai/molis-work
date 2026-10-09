@@ -104,12 +104,10 @@ jobs:
       # Each gate rule is mutation-verified on a scratch repository: one violation added on a branch fails, and so does
       # the same branch after `--update` rewrote the baseline. The glob takes every tests/health-gates-*.test.ts, so a
       # new gate's test needs no edit here.
+      # The translation check (missing English fails, conflicts are frozen, stable keys are checked) is one of the gates
+      # above; its rules are verified the same way.
       - name: Health gates reject what they claim to
-        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts tests/package-inventory-gate.test.ts
-      # the same branch after `--update` rewrote the baseline. The translation check (missing English fails, conflicts are
-      # frozen, stable keys are checked) is one of the gates above; its rules are verified the same way.
-      - name: Health gates reject what they claim to
-        run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts tests/package-inventory-gate.test.ts tests/translation-check.test.ts
+        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts tests/package-inventory-gate.test.ts tests/translation-check.test.ts
 
       # One product version (docs/releases/POLICY.md): the root package, the Tauri shell and the two version strings in
       # code agree, workspace packages stay private 0.0.0, the current version has release notes and a CHANGELOG

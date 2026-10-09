@@ -1,0 +1,8 @@
+{
+  "note": "Briefs for `pnpm studio:replay smoke`: plain requests that need only the plugin's own storage, no other plugin and no network, so a run costs a few model calls per brief. Add more here; keep them free of anyone's private text.",
+  "briefs": [
+    { "id": "notes", "brief": "随手记笔记：写一句话保存，最新的在最上面，可以删除写错的那条。" },
+    { "id": "reading", "brief": "做一个阅读摘记插件：新建标题、正文和来源，搜索摘记，点开阅读全文，删除写错的记录。只在插件本地存储，不调用其他插件、模型或网络。" },
+    { "id": "expenses", "brief": "做一个日常收支记录插件：录入收入或支出金额、分类和备注，查看按类别汇总的总收入总支出，以及逐笔明细，删除错误记录。只用插件本地存储，不联网。" }
+  ]
+}

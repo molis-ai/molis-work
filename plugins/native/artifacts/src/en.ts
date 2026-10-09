@@ -165,4 +165,13 @@ export const ARTIFACT_EN: Record<string, string> = {
   "请先在设置中连接所选数据源。": "Connect the selected source in settings first.",
   "当前环境无法读取在线文档。": "This environment cannot read online documents.",
   "文档没有可导入的正文。请确认文档内容和当前应用的读取权限。": "The document has no content that can be imported. Check its content and the current app's read permissions.",
+  // plugins/native/artifacts/src/browser-ui.ts
+  "下载原文件": "Download original file",
+  "下载正文": "Download text",
+  // plugins/native/artifacts/src/import-ui.ts
+  "导入到成果": "Import into Results",
+  "导入的文件或文档会作为这个项目的一个成果保留下来；原文后续修改不会自动同步。": "An imported file or document is kept as a result of this project; later changes to the original aren't synced automatically.",
+  "账号连接": "Account connection",
+  "管理连接": "Manage connections",
+  "单个文件不超过 6 MB。": "Each file must be 6 MB or smaller.",
 };

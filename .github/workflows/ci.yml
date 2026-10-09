@@ -42,9 +42,45 @@ jobs:
       - name: Verify package contracts and boundaries
         run: pnpm workspace:verify
 
+      # Page resource budget (specs/repository-anti-corruption §4.8/§4.13, decision #17): every asset the host sends under
+      # /assets/ (the three stylesheets, the workbench client scripts, the Pages editor, the plugin client packs, the fonts)
+      # is frozen at its current size and may only fall. It is measured from the build the step above just made, so it must
+      # come after it. tooling/gates/page-assets.json is compared with the merge-base's copy (the one the health gates
+      # use): a PR cannot raise a number, add an asset or delete the entry of an asset the host still sends by editing that
+      # file, only by changing the gate, which is reviewed. The routes are read from web-assets.ts, and every path either
+      # budget names is also asked of the built host, so a refactor that hides a route from the reading cannot unmeasure it.
+      - name: Page asset budgets (against the merge-base)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          base="$(node scripts/ci-health-base.mjs)"
+          node scripts/gates/page-assets.mjs --base "$base"
+
+      # The budget rules are mutation-verified on a scratch repository and on a fake host build: a grown asset, a new asset,
+      # a raised budget, a slack left unlowered and a missing build each fail, and so does the laundering move after
+      # `--update` or after the budget file was raised by hand, and a route rewritten out of the gate's reading together
+      # with its deleted entry; a route spelled as a regular expression (other than the plugin pack pattern) or with escaped
+      # slashes is refused outright wherever the word `assets` sits in it (`[\/]assets`, `(assets)`), except that a regex
+      # which splits the word itself (`asset[s]`) is not seen: the header of the script and spec §5a list that limit.
+      # The last case runs the real gate on this build.
+      - name: Page asset budget rules reject what they claim to
+        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts
+
       # Numbers that may only go down: giant units (class lines and methods apart), tests reaching into package
+      # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers, empty catch
+      # blocks, `as unknown as` casts and old names (all per file), and a status line on every spec in specs/
+      # (specs/repository-anti-corruption §5a). And a list that never changes silently: the public API of the contracts
+      # package and the plugin SDK against the snapshots in tooling/gates/api (refreshed on purpose with `pnpm api:update`).
       # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers (per source
-      # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a).
+      # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a). The structure numbers
+      # (scripts/gates/, docs/system/PACKAGE-BOUNDARIES.md §6) fall too: contracts purity, the Host entry's `export *`, Module
+      # Repository/Store exports, typed HostCapabilityDefinition sites, plugin-named Host files, registerProvider lines,
+      # hybrid plugins, and the files that name a built-in plugin outside its package.
+      # file), conflicting translations (per Chinese key), and a status line on every spec in specs/
+      # (specs/repository-anti-corruption §5a). A translator call with no English fails outright, and so does a `*_EN` dictionary
+      # that the catalog built in apps/workbench/src/i18n/en.ts never reaches (scripts/gates/translations.mjs).
       # The head and the merge-base are both measured here by the same script and compared, so rewriting
       # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the
       # gate itself (script, limits.json, this step), which is reviewed. tooling/gates/giant-exceptions.json is no way around
@@ -63,9 +99,14 @@ jobs:
           node scripts/check-health-gates.mjs --base "$base"
 
       # Each gate rule is mutation-verified on a scratch repository: one violation added on a branch fails, and so does
-      # the same branch after `--update` rewrote the baseline.
+      # the same branch after `--update` rewrote the baseline. The glob takes every tests/health-gates-*.test.ts, so a
+      # new gate's test needs no edit here.
       - name: Health gates reject what they claim to
-        run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts tests/package-inventory-gate.test.ts
+        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts tests/package-inventory-gate.test.ts
+      # the same branch after `--update` rewrote the baseline. The translation check (missing English fails, conflicts are
+      # frozen, stable keys are checked) is one of the gates above; its rules are verified the same way.
+      - name: Health gates reject what they claim to
+        run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts tests/package-inventory-gate.test.ts tests/translation-check.test.ts
 
       # One product version (docs/releases/POLICY.md): the root package, the Tauri shell and the two version strings in
       # code agree, workspace packages stay private 0.0.0, the current version has release notes and a CHANGELOG
@@ -75,6 +116,12 @@ jobs:
         run: |
           node scripts/verify-release-versions.mjs
           node scripts/run-tests.mjs tests/verify-release-versions.test.ts
+
+      # The document and repository-shape rules run inside the health gates above (links, cited paths and ids, spec index,
+      # BACKLOG rows, root allow-list, .impeccable files, placeholder contract subpaths); scripts/gates/README.md lists them.
+      # Each one is broken once on a scratch repository here, and the gate must go red.
+      - name: Document gates reject what they claim to
+        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts
 
       # The tracked-.impeccable-files rule (scripts/gates/impeccable-files.mjs), mutation-verified the same way.
       - name: Health gate for tracked .impeccable files rejects growth
@@ -111,9 +158,34 @@ jobs:
       - name: Secret scan rules
         run: node scripts/run-tests.mjs tests/secret-scan.test.ts
 
+      # The Linux probe's own rules (the linux-probe job below only reports): browser files are left out and the rest marked
+      # darwin or live from their own source, every result is recorded as what it is, a process a test leaves behind is stopped,
+      # and a run that is cancelled or killed still leaves a report of what it had. Runs fake test files in a scratch directory;
+      # under a minute.
+      - name: Linux probe rules
+        run: node scripts/run-tests.mjs tests/ci-linux-probe.test.ts
+
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests
         run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test
+
+      # The studio's corpus of designer answers (a hand-written seed, 380 real answers exported on 2026-10-08 from a read-only copy of the user's Home
+      # and reviewed for personal data as specs/repository-anti-corruption/spec.md §1 decided, and 3 real first proposals) through the host's design checks
+      # (docs/platform/STUDIO-SKILL-REPLAY.md): what the baseline says was accepted is still accepted, and every entry it records,
+      # accepted or refused, is still in the corpus with the answer it had. Also against the baseline at the merge-base of HEAD and the commit scripts/ci-health-base.mjs prints
+      # (the base branch as merged, on a pull request), so rewriting the baseline file, or rewriting or deleting corpus entries,
+      # cannot hide a regression; every baseline row carries the digest of its answer, and `live` is accepted for the prompt
+      # example alone. Then the replay's own rules and the Cursor Skill links, each failing on a scratch copy that
+      # breaks it. The generation smoke needs a model and is run by hand on an isolated Home.
+      - name: Studio Skill replay
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          base="$(node scripts/ci-health-base.mjs)"
+          pnpm studio:replay --base "$base"
+          node scripts/run-tests.mjs tests/studio-replay.test.ts tests/cursor-skill-links.test.ts
 
   # No dependencies and no build: it reads git history only, so it starts at once and is cheap to keep on every change.
   secret-scan:
@@ -159,3 +231,54 @@ jobs:
           test "$PACKAGE_BOUNDARIES_RESULT" = "success"
           test "$SECRET_SCAN_RESULT" = "success"
           echo "Package boundary, Contract, typecheck, build, action contract and secret scan verification passed."
+
+  # Decision #14 (specs/repository-anti-corruption): which test files pass on Linux is not known yet (some touch macOS-only
+  # paths: Seatbelt, Keychain, launchctl, Swift helpers), so the non-browser suite runs here as an information job and does
+  # not decide anything.
+  # It is deliberately NOT in `verify`'s needs and `continue-on-error` keeps a red run from marking the workflow red; branch
+  # protection is untouched. scripts/ci-linux-probe.mjs runs the test files one at a time (one MOLIS_WORK_HOME each, two at a
+  # time, one retry for a failure), marks each file darwin / live / browser from its own source, and leaves report.json,
+  # pass.txt and summary.md (also in this run's summary). A test file that fails is a result, not an error of the job.
+  # This workflow cancels a run when a newer push to the same pull request or to main arrives (concurrency above), and a run
+  # of about 100 minutes meets that often. The probe rewrites its three files after every file and, on the SIGINT/SIGTERM a
+  # cancel or the time limit sends, stops the running tests and writes a final partial report (unfinished files are `not-run`,
+  # `endedBy` says why); the upload step below is `if: always()`, so a cancelled run still keeps what it had.
+  # After about two weeks of runs: quarantine the flaky files, keep the passing ones as tests/ci-product-subset.txt (W2-16),
+  # then add this job to `verify`'s needs and drop `continue-on-error`.
+  linux-probe:
+    name: Linux probe (not required)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    # The probe stops starting files after 85 minutes and still writes its report; this is the hard stop around it. Reaching it
+    # cancels the job like a newer push does, and the probe writes its partial report on that signal.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # The version is the root package.json "packageManager", the pin the other jobs use.
+      - name: Install pnpm
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The tests import the built workspace packages and dist/; a full build, as `pnpm test` does before the suite.
+      - name: Build
+        run: pnpm build
+
+      # `exec` makes the probe the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
+      - name: Run the non-browser test files and record which pass
+        run: exec node scripts/ci-linux-probe.mjs --expect-platform linux --out "$RUNNER_TEMP/linux-probe" --jobs 2 --timeout-seconds 600 --retries 1 --budget-minutes 85
+
+      - name: Keep the report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-probe
+          path: ${{ runner.temp }}/linux-probe
+          retention-days: 30
+          if-no-files-found: warn

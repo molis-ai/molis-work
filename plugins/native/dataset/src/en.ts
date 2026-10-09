@@ -80,7 +80,7 @@ export const DATASET_EN: Record<string, string> = {
   "已从文件导入 {count} 行": "Imported {count} rows from the file",
   "导入失败": "Import failed",
   "先建一张表，再加列和行。可以导入 CSV 文件或粘贴 CSV，也能存一版再回滚。": "Create a table, then add columns and rows. You can import a CSV file or paste CSV, and save a version to roll back to.",
-  "把当前表存成不会再变的一版，放进这个位置的成果": "Save the current table as a version that won't change, in this location's Artifacts",
+  "把当前表存成不会再变的一版，放进这个位置的成果（Artifacts）": "Save the current table as a version that won't change, in this location's Artifacts",
   "导入 CSV（会覆盖当前表）": "Import CSV (replaces the current table)",
   "导入粘贴的内容": "Import pasted content",
   "选择 CSV 文件…": "Choose CSV file…",

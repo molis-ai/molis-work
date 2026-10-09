@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
@@ -223,7 +223,13 @@ test("the report orders groups by size and equal sizes alphabetically, and --top
 });
 
 test("a baseline.json without the per-group record is an old shape for the quick check and ignored by --base", () => {
-  branch("old-baseline", () => put("tooling/gates/baseline.json", '{"giantUnits":0,"giant":{},"testInternalImports":0,"testImports":{},"vendoredPrologueSdk":0,"schemaPatches":0,"compatMarkerTotal":0,"compatMarkers":{},"impeccableFiles":6}\n'));
+  // The committed baseline is a full current one (the base commit wrote it with `--update`); only the key under test is taken out,
+  // so no other rule that reads the baseline (the keys sibling gates added) is the first to call it an old shape.
+  branch("old-baseline", () => {
+    const { impeccableGroups, ...withoutGroups } = JSON.parse(readFileSync(path.join(repo, "tooling/gates/baseline.json"), "utf8"));
+    assert.ok(impeccableGroups, "the base baseline has the per-group record");
+    put("tooling/gates/baseline.json", `${JSON.stringify(withoutGroups, null, 2)}\n`);
+  });
   const quick = gate();
   assert.equal(quick.code, 2, quick.out);
   assert.match(quick.out, /impeccableGroups is missing or has an old shape/);

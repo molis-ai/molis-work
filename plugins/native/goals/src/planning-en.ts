@@ -75,4 +75,13 @@ export const GOALS_PLANNING_EN: Record<string, string> = {
     "可以继续加入多套互补方法。加入后会建立该项目的独立版本，原方法和其他项目不变。": "Add as many complementary methods as the project needs. Each addition creates a project-specific version without changing the original method or other projects.",
     "这个分类里还没有可加入的方法。": "There are no methods to add in this category.",
     "这些项目方法仍然保留，但不会参与当前组合；打开后可以重新启用。": "These project methods are preserved but do not participate in the current composition. Open one to enable it again.",
+  // plugins/native/goals/src/planning-client.ts
+  "请填写至少一个规划步骤。": "Fill in at least one planning step.",
+  "请填写至少一个完整的拆分问题。": "Fill in at least one complete breakdown question.",
+  "请填写至少一条完整的依赖判断。": "Fill in at least one complete dependency judgment.",
+  // plugins/native/goals/src/planning-edit-ui.ts
+  "规划路径、拆分问题和依赖判断各填写至少一项；完成与纠偏及高级设置可选。": "Fill in at least one planning path, one breakdown question and one dependency judgment; completion and correction, and the advanced settings, are optional.",
+  // plugins/native/goals/src/planning-routes.ts
+  "找不到这个项目方法": "That project method wasn't found",
+  "找不到这套规划方法": "That planning method wasn't found",
 };

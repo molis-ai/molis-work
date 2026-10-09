@@ -143,6 +143,10 @@
 | 2026-10-08 | 创作台 Skill 回放用的真实设计答卷（W1-12，弹窗） | 从拷贝里只读导出、审过再提交（推荐）；只放本机不提交；隔离 Home 重新生成 | 从拷贝里只读导出、审过再提交 | 真实 Home 先 APFS 克隆到会话临时目录，只读打开拷贝（目录库里的绝对路径映射到拷贝）；导出需求原文与设计答卷；逐条审有没有个人信息，有就去掉；不读密钥 |
 | 2026-10-08 | 真实 Home 维护四的时机（目录库 v21 → v22，弹窗） | 合入后立刻做（推荐）；合入后先不做、等下次目录库改版一起；先维护再合入 | 合入后立刻做 | 与维护三同一做法：合入后一次窗口里停进程、整份备份、拷贝上演练、应用、重装安装版、主检出快进并构建；做完前主检出与安装版不更新；做完要重开各 Runtime 会话 |
 | 2026-10-08 | 以前删项目留在别的主人库里的孤儿数据（弹窗） | 顺带清掉（推荐）；不清 | 顺带清掉 | 维护四里先在拷贝上列出各库、各多少条给用户看，再在真库上删；整份备份里保留 |
+| 2026-10-08 | 「你说过」对应原话的哪一段（记忆修复第 7 轮，弹窗） | 必须是一整条消息（推荐）；一句或连续几句也算 | 必须是一整条消息 | 按句子仍会把「前一句被后一句推翻」记反（评审约 10 例）。记忆的文字等于本人一整条消息（只忽略大小写、全半角、引号样式、空白和句末一个句号）才记「你说过」，其余走建议、经本人认可后显示「你认可的」；宿主或页面代写的轮次（定时跟进、子任务、页面转交、浏览器交回、重做提示）不算本人原话 |
+| 2026-10-08 | 维护四找到的孤儿数据（弹窗，拷贝上演练后） | 删掉（推荐）；留着 | 删掉 | 唯一一份：9 月 27 日删掉的 project-0478192a 在判断规则库 `function_judgments` 里的 64 条；正式维护先在真库上只读重列，不一致就停下再问 |
+| 2026-10-08 | 没有主人会清的残留（弹窗） | 一起清掉（推荐）；只清文件；都留着 | 一起清掉 | 5 条从没建成项目的开项目引导、10 个项目目录里 9 月 11 日的旧 `goalboard.db-wal/-shm`、Home 根目录两个空的 4 KB 库文件；逐个核对没有进程在用、不是现行库的一部分后删，整份备份里保留 |
+| 2026-10-08 | 助理旧轮次补「不是本人打的字」标记（弹窗） | 补上（推荐）；不补 | 补上 | 维护四里一次性脚本只改助理库轮次内容的标记（定时跟进→宿主写的；页面转交、浏览器交回、重做提示→页面写的），先在拷贝上演练；不加兼容读取 |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -556,7 +560,7 @@
 
 列的口径：
 
-- 层：登记里的 `kind`（基础是 `foundation`，官方接入是 `integration-plugin`）。`server` 与 `packages/im-ui` 现在登记为基础包，但它们是在用、还会迭代的产品功能（右栏「讨论」页签，`apps/workbench/src/side-panel.ts:42`、`:115` 嵌入 `/im`），归类改成业务是 2026-10-08「右栏『讨论』页签与 IM 代码」一行已定的待办（PR #312）。
+- 层：登记里的 `kind`（基础是 `foundation`，官方接入是 `integration-plugin`）。`server` 与 `packages/im-ui` 是在用、还会迭代的产品功能（右栏「讨论」页签，`apps/workbench/src/side-panel.ts:42`、`:115` 嵌入 `/im`）。2026-10-08「右栏『讨论』页签与 IM 代码」一行把归类改成业务列为待办（PR #312）：`server` 已改登记为 `module`（本表标「模块」，结构门禁按 Module 规则查它）；`packages/im-ui` 是界面包、不拥有事实，仍登记为 `foundation`，要不要也改，等用户另定。
 - 源文件、行数：`<包>/src/` 下的 `.ts`、`.mts`，不含 `.d.ts`、测试、`dist`、`fixtures`；行数是按换行切开的段数，与巨大单元门禁（`scripts/check-health-gates.mjs`）同一口径。最大文件的路径相对 `src/`。
 - 公开入口：`package.json` 的 `exports` 条数。依赖内部包：`package.json` 的 `dependencies` 里 workspace 包的个数。被依赖：反方向的个数。
 - 状态、计划深度、审查：见 §5.2。
@@ -632,7 +636,7 @@
 | `plugins/official-integrations/rss` | 官方接入 | 6 | 1,246 | `catalog.ts` 540 | 2 | 2 | 2 | 在用 | 中 | 待审 |
 | `plugins/official-integrations/web-query` | 官方接入 | 1 | 55 | `index.ts` 55 | 1 | 2 | 0 | 非产品 | 浅 | 待审 |
 | `plugins/official-integrations/youtube` | 官方接入 | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
-| `server` | 基础 | 18 | 1,062 | `continuity/service.ts` 161 | 1 | 2 | 2 | 在用 | 中 | 待审 |
+| `server` | 模块 | 18 | 1,062 | `continuity/service.ts` 161 | 1 | 2 | 2 | 在用 | 中 | 待审 |
 | `tooling/plugin-cli` | 工具 | 8 | 332 | `sample-source.ts` 93 | 1 | 2 | 0 | 在用 | 浅 | 待审 |
 
 ### 5.2 状态、计划深度与审查
@@ -673,7 +677,7 @@
 | 门禁 | 机制 | 基线 | 突变验证 |
 | --- | --- | --- | --- |
 | 静态检查最小规则集 | ESLint（或 Biome）只开几条：无未用变量与导入、无空 catch（显式注释的除外）、无 `as unknown as`（现有处数进基线） | `tooling/gates/lint-baseline.json` | 新增一处空 catch |
-| 公开 API 快照 | 插件 SDK、contracts 各 subpath 的导出清单生成文件入库；导出一变就要显式更新快照，PR 里说明兼容影响 | `tooling/gates/api/*.txt` | 新增一个导出不更新快照 |
+| 公开 API 快照 | 插件 SDK、contracts 各 subpath 的导出（名字加签名，去注释）由编译器的声明输出生成、文件入库；源码和快照有任何不同就失败，要改用 `pnpm api:update` 有意刷新，PR 里说明兼容影响（`scripts/gates/api-snapshot.mjs`） | `tooling/gates/api/<包>/<subpath>.txt` | 新增一个导出不更新快照（`tests/health-gates-api-snapshot.test.ts`） |
 | 巨大单元只减不增 | 按 §4.5 阈值（文件 800 行、类 300 行或 25 个方法、函数 150 行）统计，超出的列名单 | `tooling/gates/giant-units.json`（开工时 37 个文件、43 个类、99 个函数） | 新增一个 160 行函数 |
 | 装配名单只减不增 | 已有 `tests/builtin-plugin-assembly-gate.test.ts`，接进 CI | 冻结名单 | 加回一个 `*-native-plugin-http.ts` |
 | 分层与依赖方向 | 已有 `pnpm boundary:check`，按 `PACKAGE-BOUNDARIES.md` 补上「向上依赖」与「插件互引」的统计 | 现有规则 | 插件 import 另一插件 |
@@ -681,8 +685,11 @@
 | vendored 包数量 | `vendor/prologue-sdk/*.tgz` 不超过 2 份 | #170 合入后 1 份 | 放回一份旧包 |
 | spec 状态句与根目录 | `specs/` 根目录每份都有状态句；只许在做的与现行规范 | 当前根目录 | 新建一份没有状态句的 spec |
 | 兼容逻辑不回流 | 源码不再出现 `ALTER TABLE`、`ensureSqliteColumn`、旧产品名与兼容标记（建库基线与允许名单除外） | 删兼容后为 0 | 加一处 `ALTER TABLE` |
+| 页面资源预算（§4.8，用户决定 #17） | 宿主 `apps/local-host/src/web-assets.ts` 里写成字符串字面量的每个 `/assets/` 路径（三份样式表、`molis-work-workbench.js` 与 `molis-work-capabilities.js` 两份脚本、Pages 编辑器、各插件客户端包、字体）向构建产物要内容，量发出去的字节数；预算文件（当前的与 merge-base 的）里读不到路由、宿主却还在发的路径照样量并按发现遗漏失败，所以删条目躲不掉；读不成整条字面量的写法（模板、拼接、前缀）、拿请求路径和非字面量比较、文件里除整条 `/assets/…` 字面量和插件包那一条已知正则以外还出现单词 `assets`（正则或带转义斜杠的写法：`\/assets\/`、`[\/]assets`、`(assets)`），退出 2；CI 在 `workspace:verify` 之后跑，预算文件与 merge-base 里的那份比，调大数字、加条目、删仍在发的条目都放不过；数字必须等于实测 | `tooling/gates/page-assets.json`（先冻结，只许变小；旧皮肤删完后再定真实上限） | 工作台样式表多一个字节；新增一个 `/assets/` 路由（含写成正则的，但把 `assets` 一词本身拆开的除外，见没覆盖的几项）；手改预算调大；把路由改成读不到的写法并删掉预算条目 |
 | 独立整页（artifact-positioning S7） | 除例外清单外没有路由返回完整 HTML；插件内容里不出现自带外壳；站内链接不跳出工作台 | [artifact-positioning §4](../artifact-positioning/spec.md) | 加一个返回整页的路由 |
 | 成果库声明（artifact-positioning A7） | manifest 声明与实际写入一致；可见类型必须有预览；交换数据不进用户可见列表 | 同上 | 写一个未声明的类型 |
+| 文档引用（W1-06） | 活文档（`archive/` 之外的 `.md`）没有断链（含标题锚点）；`skills/`、`AGENTS.md`、`docs/system/CALL-CHAINS.md` 引用的路径、`pnpm` 脚本与动作 id 存在；`specs/README.md` 索引与根目录分类一致；`specs/BACKLOG.md` 没有完成行 | 从 0 开始，没有基线；有意的例外在 `tooling/gates/doc-citation-exceptions.json`（带理由，不再需要就要删） | 加一处断链、引用一个不存在的 id、少列一份 spec、留一行已完成 |
+| 仓库形状（W1-06） | 根目录只放 `tooling/gates/root-allowlist.json` 里的名字；`.impeccable/` 入库文件按组只许减少；`contracts` 不许有只导出描述符且没人用的占位子路径 | 对照 merge-base 只许减少（开工时：根目录 3 个越界条目、1,104 个 `.impeccable` 文件、6 个占位子路径） | 根目录加一个文件、往评审组加一张图、加一个占位子路径 |
 
 **进度**：
 
@@ -690,7 +697,20 @@
 - 开工基线（main 2b138559）：巨大单元 182（文件 37、类 48、函数 97），测试内部引用 1016，vendored SDK 1，就地补表 115。
 - 突变验证四项都失败。
 - 实例：基线若从 98984bf7 起算，#171 会被拦下。它让 `events-primary.ts`、`navigation-feed.ts`、`craft-finish.ts` 三个超长文件又变长，并新增 2 处测试内部引用。
-- 静态检查规则集与公开 API 快照放下一批：要加 ESLint 依赖或生成 `.d.ts` 清单。
+- 公开 API 快照（W1-04，2026-10-08，分支 `chore/gates-api-snapshot`）：contracts 的 64 个 subpath 加插件 SDK 共 65 个文件，口径和刷新命令见 `tooling/gates/README.md`；每条声明各占一段（函数的每个重载、同名的类型与常量都在），导出提到、却没有任何 subpath 导出的声明（如 `GoalWorkEventBase`）列在辅助声明里；`pnpm health:check` 比较源码与快照，`--base` 时在日志里列出相对 merge-base 的 API 变化。同一片接上了空 catch（TypeScript 代码与浏览器脚本的模板字符串各记一项）、`as unknown as`（含测试）、旧名（`goalboard`、`board_id`，只数源码）三类按文件计数（浏览器脚本一项也只数源码），口径写在 `scripts/gates/source-counts.mjs` 开头。静态检查工具（W1-09）仍待做，它接进来后替换 TypeScript 代码这部分的计数。每条新规则的突变验证是 `tests/health-gates-source-counts.test.ts`、`tests/health-gates-api-snapshot.test.ts`。
+- 文档与仓库形状门禁（W1-06，`scripts/gates/`，说明见 [scripts/gates/README.md](../../scripts/gates/README.md)）：接进 `pnpm health:check`，突变用例在 `tests/doc-reference-gates.test.ts`（CI 单独一步）。开工时门禁量到 7 处断链，已改：`plugins/native/plugin-builder/DESIGN.md` 5 处指向 S1b 已删的文件、`specs/molis-work-architecture-reorganization/f2-validation.md` 2 处指向已删的 `docs/system/MIGRATION.md`，都改成不带链接的说明；Skill `elements.md` 里的 `functions.evaluate.v1` 是故意写的反例（`.v1` 后缀是 id 的一部分、不是版本，所以是另一个 id；代码里没有它），文字不改，写进 `tooling/gates/doc-citation-exceptions.json` 并带理由。哪些顶层文件夹算文档、哪些路径写法算引用，都从 `tooling/gates/root-allowlist.json` 取（`scripts/gates/allowlist.mjs` 的 `allowedRoots`），不另存名单；名单之外的根目录条目（`outputs/`、`.zcode/`）不查链接、不读引用（W1-23 移走）；`contracts` 的 6 个占位子路径由 W2-01 删，删完这条规则就是「一个也没有」。
+- 页面资源预算（W1-07）已做：`scripts/gates/page-assets.mjs`、`pnpm page-assets:check`，CI 在 `workspace:verify` 之后一步，规则用例 `tests/page-assets-budget.test.ts`（临时仓库 + 假宿主构建 + 本仓库真构建）。冻结时（`f876a503` 上的构建）量到 29 个文件、11,481,575 字节：工作台样式表 1,946,506、设置样式表 1,341,060、开场样式表 1,022,266、工作台脚本 1,414,769、Pages 编辑器 1,051,178、21 个插件客户端包（coding、files、git、diff、text-stats 各约 498 KB，合计 3,442,954）、两个字体。这是冻结值，不是目标，现行数字以 `tooling/gates/page-assets.json` 为准：旧皮肤删完后再定真实上限（`VISUAL_FOUNDATION_STYLES` 现在把五套旧皮肤拼进每个页面）。宿主不压缩这些响应，所以量的是原始字节。评审发现的洞已补：改写路由让读源码读不到、再删预算条目，原先 `--base` 全过；现在预算里的每个路径都向构建产物要一遍（`tests/page-assets-budget.test.ts` 的「discovery」几例，在假宿主构建上走完整的基线分支流程；同一手法在本仓库构建的临时副本上，修前 `--base` 通过、修后失败），读不成整条字面量的写法（模板、拼接、前缀），以及拿请求路径和非字面量比较，都退出 2。评审补的：`\/assets\/` 不是整条 `/assets/`，原先既不计入提及次数也躲过比较检查，新增一个按这种写法的路由会通过；先补成「认 `\/assets`、`assets\/`、`[/]assets` 相邻的写法」，复审用 `[\/]assets[\/]`、`(assets)` 绕过了，所以改成按单词认：把整条 `/assets/…` 字面量和插件包那一条已知正则（`/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.js$/`，id 来自已登记的工作台包）从代码里拿掉以后，文件里不许再剩单词 `assets`（注释不算），剩下的一律退出 2，不管它是正则、带转义斜杠的字符串还是别的用法。现在 `web-assets.ts` 里恰好 9 处这个词，1 处插件包正则、8 处字面量；以后在这个文件里为别的用途写 `assets`（比如导入 `./assets.js`）也会停下来，改写或教会脚本都行。
+
+页面资源预算没覆盖的几项（脚本头部写着同一份清单）：
+
+- 只读 `apps/local-host/src/web-assets.ts`：别的宿主文件里新增的 `/assets/` 路由看不到，不管怎么写。今天只有 `serveWorkbenchAsset` 回应 `/assets/`（`web-server.ts` 把请求交给它），所以现在成立；新增这类路由要靠评审。
+- 写法既读不出（拆成两段字符串拼接、`\x2f` 或 `\u002f` 转义、运行时拼出，或把 `assets` 一词本身拆开的正则，如 `asset[s]`、`a(?:ss)ets`，这些文本里不剩单词 `assets`）、又不在任何预算里的新增路由，只能靠评审 `web-assets.ts` 的改动；已在预算里的路径不受影响，照样向构建产物要。把这一项收紧要换成真正的解析（读出所有正则字面量再逐个判断）。
+- 比较检查认标识符 `pathname`，即 `web-assets.ts` 给请求路径起的名字：参数改了名、又拿别的文件导入的常量去比，看不到；常量声明在 `web-assets.ts` 里则读得到它的字面量。
+- 把字节从被量的资源挪进页面 HTML 里内联的 `<style>`、`<script>`（`side-view-document.ts` 已经这么做）不量；首屏 HTML 的大小与首屏时间要带数据的宿主，这个门禁没量。插件客户端代码从 `/assets/molis-work-plugins/` 搬走（迁到 Plugin Runtime）时，条目随之删除是允许的，那部分重量离开这个预算，要由 Runtime 一侧另算。
+- 终端客户端 `dist/web/pty-client.js`（根 `pnpm build:pty-client` 生成，CI 不跑）。
+- 只在 macOS 上量过；输出不随语言、时区、路径变，但 Linux CI 上的第一次运行才是核对。
+
+工作流上要知道：冻结按资源、等号严格，也没有像巨大单元那样的例外文件（用户决定 #17 就是这样写的），所以合入后，任何给 `workbench.css`、`workbench.js`、`settings.css`、`arrival.css` 或某个插件包多加一个字节的在途界面 PR 都会在 CI 里红，除非它在同一个资源里省回同样多；两个 PR 都压低同一个资源时会在 `page-assets.json` 的同一行冲突，合并后要重新 `--update --base origin/main`。
 
 CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.yml`）；以上门禁都以非浏览器用例或脚本形式加到 `architecture-boundaries` 作业里，时间预算 3 分钟以内。
 
@@ -1021,7 +1041,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
   - 演练：真实目录库的拷贝只差模型供应商表的列序和项目表上的一条约束；按列名搬进版本 20 的新库，655 行全部搬过，只丢恒空的那一列；新代码打开，18 个项目都在。
 - **第五批**（`integration/batch-10-04e` = 项目库基线分支（含 #253、#254、#255、Schedule）+ 记忆 + 目录库）：整体构建、`typecheck:all`、边界、健康门禁通过（就地补表 72 → 5）；相关用例全过（项目库 227 个里 8 个失败已修：其中 2 条只测迁移 36 导入规则的用例删掉，运行时的同类规则另有用例；目录与记忆 120 个里 1 个已修）。全量在跑。
   - [#257](https://github.com/molis-ai/molis-work/pull/257)：记忆第一版导入；[#258](https://github.com/molis-ai/molis-work/pull/258)：Schedule 旧导入。
-- 门禁第二批（§5a）：空 catch、`as unknown as`、旧产品名的计数，以及 contracts 与插件 SDK 的公开 API 快照，加进 `pnpm health:check`（分支 `chore/health-gates-lint-api`）。公开 API 会随前面的合同改动变化，等本批合入后再生成基线开 PR。
+- 门禁第二批（§5a）：空 catch、`as unknown as`、旧产品名的计数，以及 contracts 与插件 SDK 的公开 API 快照。最初的 WIP 分支 `chore/health-gates-lint-api` 只数名字、用正则数空 catch（137/141 处落在浏览器脚本的模板字符串里）；已由 W1-04 的 `chore/gates-api-snapshot` 取代：基于合并基点比对的门禁，快照含签名，空 catch 与双重断言按语法树数，口径见 `tooling/gates/README.md`。旧分支不再使用。
 - 「其他旧账号导入」已查（10-04）：**不全是兼容，不能直接删**。
   - `importLegacyAccounts`（`apps/local-host/src/web-connector-connections.ts`）每次列出连接时都会做几种「认领」：旧图片密钥、TypeSafe 的 `FUNCTIONS_CREDENTIAL_REF`、各连接器的 `connector:<id>:…`、模型目录的 `model-provider:<id>`，以及各项目来源里的凭据引用。认领后它们出现在设置的「连接」里。
   - 其中至少三种仍由现行流程写入：模型设置按 `model-provider:<id>` 存密钥（`model-provider-store.ts:96`）；Functions / Jev 仍直接读 `FUNCTIONS_CREDENTIAL_REF`（`functions-host.ts`、`experiments-executor.ts`）；Feed 的 GitHub、Gmail 来源注册仍写连接器凭据引用（`plugins/native/feed/src/connector-service.ts`、`connector-source-registration.ts`）。

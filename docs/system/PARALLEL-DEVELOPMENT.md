@@ -55,7 +55,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
    ```
 
 2. 只加自己的几行，写在自己的位置上。不顺手重排、重命名、换格式；那类改动单独一个 PR，不夹逻辑改动。
-3. 解冲突时两边的条目都要留，不整块取「我的」或「对方的」。解完重跑 `pnpm boundary:check` 和健康门禁。`tooling/gates/baseline.json` 冲突时不手工合并：合入 main 后重跑 `node scripts/check-health-gates.mjs --update --base origin/main`。CI 不读这份文件（`AGENTS.md`「构建与测试」）。
+3. 解冲突时两边的条目都要留，不整块取「我的」或「对方的」。解完重跑 `pnpm boundary:check` 和健康门禁。`tooling/gates/baseline.json` 冲突时不手工合并：合入 main 后重跑 `node scripts/check-health-gates.mjs --update --base origin/main`。CI 不读这份文件（`AGENTS.md`「构建与测试」）。`tooling/gates/api/` 下的快照冲突时同样不手工合并：合入 main 后重跑 `pnpm api:update`，再看 diff 里是否只剩自己的 API 变化。
 4. 两个 PR 动同一个枢纽：先准备好的先合；后一个合入 main 再重跑相关用例。
 5. 门禁脚本、`tooling/gates/`、`limits.json`、CI 工作流的改动单独一个 PR：它们是唯一能放宽数字的地方（`AGENTS.md` 的健康门禁一条）。这几处在 `.github/CODEOWNERS` 里只请求 @yijunw0212 评审；这是请求，不是强制（必需批准数是 0，见第 3 节）。放宽数字的 PR 在描述里写清放宽哪一项、为什么。
 
@@ -67,7 +67,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 - 合并前把分支同步到最新 main（spec §1，2026-10-03）。main 的分支保护（2026-10-08 用 `gh api repos/molis-ai/molis-work/branches/main/protection` 读到）：必需检查只有 `Verify`（对应 `.github/workflows/ci.yml` 的 `verify` 作业，它等 `architecture-boundaries` 和 `secret-scan` 两个作业都成功；改这个作业的名字就等于改保护规则），并且要求分支与 main 同步；必需的批准数是 0，没有开「必须由代码所有者批准」。
 - 不开合并队列，不强制评审（spec §1，2026-10-02）。`.github/CODEOWNERS` 只自动请求评审，不改分支保护；谁评审、评审哪些包见 `docs/SSOT-MATRIX.md` 的「归属」列。
 - PR 描述按 `.github/pull_request_template.md` 写，包括验证结果、基线比对、API 影响和基本合同检查。
-- 产品用例子集进 CI 的做法（用户 2026-10-08 定，spec §1「CI 产品子集是否挡合并」）：先作一个单独的作业，不挡合并，跑约两周；隔离掉不稳定的用例后并入 `Verify`，不改分支保护。怎么并入（比如让 `verify` 作业 `needs` 它）由路线图 W2-16 定。这个作业现在还没有：`ci.yml` 里只有 `architecture-boundaries`、`secret-scan` 和 `verify` 三个作业，全量产品用例在本机跑。
+- 产品用例子集进 CI 的做法（用户 2026-10-08 定，spec §1「CI 产品子集是否挡合并」）：先作一个单独的作业，不挡合并，跑约两周；隔离掉不稳定的用例后并入 `Verify`，不改分支保护。怎么并入（比如让 `verify` 作业 `needs` 它）由路线图 W2-16 定。第一步已经有了：`ci.yml` 的 `linux-probe` 作业（`continue-on-error`，不在 `verify` 的 `needs` 里）在 ubuntu 上把非浏览器用例逐个跑一遍，记下哪些通过，并给 macOS 专有和用真实模型的文件打标记（做法与产物见 [PACKAGE-BOUNDARIES.md](PACKAGE-BOUNDARIES.md)）；它的 `pass.txt` 是 W2-16 的 `tests/ci-product-subset.txt` 的底稿。`ci.yml` 现在有 `architecture-boundaries`、`secret-scan`、`linux-probe` 和 `verify` 四个作业，其中挡合并的只有前两个，经 `verify` 汇总；全量产品用例和浏览器用例仍在本机跑。
 
 ## 4. PR 体量
 
@@ -171,7 +171,7 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 - 读取兼容的合同流程：起点已定为第一个装到开发机之外的版本（用户 2026-10-08），日期到时写进 [合同变更流程](CONTRACT-CHANGES.md)；在那之前不留兼容期。
 - 挑相关用例的脚本：路线图 W2-17。
 - 测试并发隔离（每个测试文件一个 Home 和密钥库，非浏览器用例并发）：路线图 W5-12。在那之前全量约 76–78 分钟。
-- CI 里的产品用例子集、浏览器冒烟、隔离名单：路线图 W1-11、W2-16。是否挡合并已定（先不挡，约两周后并入 `Verify`，见第 3 节），作业还没有。
+- CI 里的产品用例子集、浏览器冒烟、隔离名单：非浏览器用例的 Linux 探针作业已有（路线图 W1-11，不挡合并，见第 3 节）；`tests/ci-product-subset.txt`、3–5 个浏览器冒烟、隔离名单（`tests/quarantine.json`）和并入 `Verify` 在路线图 W2-16，约两周的探针结果出来后做。
 - 远端已合入分支的清理与「合并后自动删除分支」：用户来做（见第 10 节），还没做。
 - 第 4 节的 PR 体量数字是建议；要改成门禁，先量再定。
 - 从零安装到跑起预览与测试的步骤和耗时（新成员上手）：还没写。

@@ -46,7 +46,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `retired` | 旧路径 caller 清零并删除或只留下有时限的兼容入口 |
 | `workspace-root + legacy-release` | Monorepo 根已能管理全部 package，但当前产品构建与发布仍由旧根 package 承担 |
 
-当前 71 个 package（6 app、11 foundation、13 module、8 horizontal、26 native plugin、6 integration plugin、1 tooling，按 `scripts/workspace-packages.mjs`，2026-10-07 核对）的描述符为 70 个 `partial`、1 个 `contract-only`（真实提供公共类型/Schema 的 Contracts）。另外 10 个仅含描述符的占位包已删除；下表保留未来目标路径并标为 `absent`，它们不参与构建或发布。`partial` 不表示依赖旧代码，也不声称未来契约全部实现。
+当前 71 个 package（6 app、10 foundation、14 module（`modules/*` 的 13 个加聊天与接续的 `server`）、8 horizontal、26 native plugin、6 integration plugin、1 tooling，按 `scripts/workspace-packages.mjs`，2026-10-07 核对）的描述符为 70 个 `partial`、1 个 `contract-only`（真实提供公共类型/Schema 的 Contracts）。另外 10 个仅含描述符的占位包已删除；下表保留未来目标路径并标为 `absent`，它们不参与构建或发布。`partial` 不表示依赖旧代码，也不声称未来契约全部实现。
 
 ## 3. Apps
 
@@ -75,7 +75,6 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `packages/test-kit` | 无业务判断的公共测试工具和 fake capability | F3 boundary policy；测试中的重复 harness 待迁移 | `partial` | F2、F3；后续测试基础设施 Goal | 平台包：@yijunw0212 |
 | `packages/im-ui` | 群聊（IM）页面、样式与浏览器控制器 | 由 Workbench 右栏「讨论」页签（`apps/workbench/src/side-panel.ts` 嵌入 `/im`）和 `apps/server` 的 IM 页面消费；不拥有消息事实。这是在用、还会迭代的功能，不是待删的实验（spec §1，2026-10-08「右栏『讨论』页签与 IM 代码」） | `partial` | `specs/archive/molis-work-im/spec.md` | 平台包：@yijunw0212 |
 | `packages/plugin-sandbox` | 生成插件的 macOS 沙箱进程与宿主通道 | 插件创作台生成的后端在独立沙箱进程里运行，只经宿主通道使用平台能力 | `partial` | `specs/archive/plugin-builder/work-items/agent-built-plugins/spec.md`（S0 执行底座）；整体路线见 `specs/archive/plugin-builder/work-items/studio-v3/spec.md` | 平台包：@yijunw0212 |
-| `server` | 共享身份、设备、项目访问、HTTP、SSE 与接续回执；聊天领域在 `src/im` | 右栏「讨论」页签的后端：本地宿主在 `/im` 挂载它的群聊（`apps/local-host/src/im-server.ts`），库是 Home 里的 `server/server.sqlite`；这是在用、还会迭代的功能（spec §1，2026-10-08「右栏『讨论』页签与 IM 代码」）。`apps/server` 是同一份实现的本地可部署启动器；所有业务读写调用现有 Action Host，不启动模型运行时。该决定要修的账目还没做完：宿主不再直接读它的表（`im-server.ts` 现在读 `mw_projects`、`mw_members`），包的归类改成业务包（此行暂在本节，`scripts/workspace-packages.mjs` 里仍记作 `foundation`） | `partial` | `specs/archive/molis-work-im/spec.md` | 平台包：@yijunw0212 |
 | `tooling/plugin-cli` | Plugin 作者的 validate、create、pack、identity、sign、verify 命令，以及经 Host 的本地开发验证 | `create` 默认生成 v2 Integration 插件；`pack` 生成显式文件列表的 JSON bundle；签名与验证用 Plugin Runtime 的公开包验证接口；`dev` 经注入的 `PluginCliHost` 使用真实 Local Host；由 `apps/desktop/launchers/cli/main.ts` 装配 | `partial` | DV3；入口表见 §8 | 工具：@yijunw0212 |
 
 `packages/contracts/modules`、`services`、`platform` 是同一个发布包的 subpath 分区，不是三个独立 npm package。
@@ -100,6 +99,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `modules/characters` | 个人 Character 草稿、修订与启用状态 | 按本人隔离编辑，确认修订后交给 Artifact 发布；不拥有执行和权限 | `partial` | `specs/coding-plugin/spec.md` §0 C12（产品接入中） | Module：@yijunw0212 |
 | `modules/functions` | 已发布判断函数与一次判断记录 | 函数库、来源/去向/映射、场景绑定、判断落库；TypeSafe 由 Host 注入 | `partial` | `specs/archive/functions-system-capability/spec.md`；`specs/archive/functions-product-authoring/spec.md`；`specs/archive/functions-independent-authoring/spec.md`；事件去向动作范围 `specs/archive/function-scene-action-scope/spec.md` | Module：@yijunw0212 |
 | `modules/governance-collaboration` | 当前用户决定、有限树提案／决定、provenance 与协作历史 | 当前可信用户来源、具体变更授权和决定事务；结构提案只含新建 Goal 与关系项；退役提案已删除（#263） | `partial` | EX3/EX4/AR2/DD1/DD2/Cutover；事件工作流收敛 | Module：@yijunw0212 |
+| `server` | 共享身份、设备、项目访问、HTTP、SSE 与接续回执；聊天领域在 `src/im` | 右栏「讨论」页签的后端：本地宿主在 `/im` 挂载它的群聊（`apps/local-host/src/im-server.ts`），库是 Home 里的 `server/server.sqlite`；这是在用、还会迭代的功能（spec §1，2026-10-08「右栏『讨论』页签与 IM 代码」）。`apps/server` 是同一份实现的本地可部署启动器；所有业务读写调用现有 Action Host，不启动模型运行时。包的归类已改成业务包（`scripts/workspace-packages.mjs` 里记作 `module`，按 Module 规则检查，包括 `moduleRepositoryExports` 不许它的入口导出 Repository 或 Store）；该决定要修的账目还没做完：宿主不再直接读它的表（`im-server.ts` 现在读 `mw_projects`、`mw_members`） | `partial` | `specs/archive/molis-work-im/spec.md` | Module：@yijunw0212 |
 | `modules/automation` | Trigger、Rule、Automation Run 与产生的 Action Request | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 
 每个 Module 的 API、事件和非职责见 [`docs/modules/`](modules/README.md)。Module 之间只通过公开 Capability Contract 调用，不导入彼此 implementation 或 Store。`modules/execution`（历史 Claim、Run）与 `modules/evidence-verification`（历史 Evidence）已于 2026-10-05 连同表、合同与展示删除（#268），事件工作流是唯一的工作协议；项目文件引用由 `apps/local-host/src/project-file-reference.ts` 读取当前工作区。

@@ -131,7 +131,7 @@ components:
 - 控件以墨色为主，装配与接通用具名角色及局部状态表达。
 - 示例、实时构建、预览记录和正式插件数据始终可区分。
 
-依据：[已批准视觉](../../../specs/archive/plugin-builder/ui/design/approved-comp.png)、[视觉基准](../../../specs/archive/plugin-builder/ui/design/视觉基准.md)、[迁入约束](../../../specs/archive/plugin-builder/work-items/prologue-runtime/visual-direction.md)、[当前任务与验证边界](../../../specs/archive/plugin-builder/work-items/prologue-runtime/spec.md)。实际值来自 [styles.ts](src/styles.ts)，交互来自 [ui.ts](src/ui.ts)、[client.ts](src/client.ts)、[record-client.ts](src/record-client.ts) 与 [visuals.ts](src/visuals.ts)。本记录以最终实现为准，不把参考稿尺寸当作已实现值。
+依据：[已批准视觉](../../../specs/archive/plugin-builder/ui/design/approved-comp.png)、[视觉基准](../../../specs/archive/plugin-builder/ui/design/视觉基准.md)、[迁入约束](../../../specs/archive/plugin-builder/work-items/prologue-runtime/visual-direction.md)、[当前任务与验证边界](../../../specs/archive/plugin-builder/work-items/prologue-runtime/spec.md)。实际值来自旧创作台的 `styles.ts`，交互来自 `ui.ts`、`client.ts`、`record-client.ts` 与 `visuals.ts`；这五个文件随旧创作台在 33a7c276（S1b）删除，要看原文从 Git 历史取。本记录以最终实现为准，不把参考稿尺寸当作已实现值。
 
 ## Colors
 

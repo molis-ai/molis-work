@@ -12,16 +12,16 @@ export const CODING_COMPOSER_MODEL_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const chosen=()=>{try{const [provider_id,model_id]=JSON.parse(models.value||'[]');return list.find(model=>model.provider_id===provider_id && model.model_id===model_id)||null;}catch{return null;}};
   const paint=()=>{
     const model=chosen();
-    effortWrap.hidden=!model?.reasoning_effort;if(effortWrap.hidden && effort.value)effort.value='';
-    effort.disabled=Boolean(live)||busy;
+    // The effort is fixed for a running round (the note says which); the picker is for the next one.
+    effortWrap.hidden=!model?.reasoning_effort || Boolean(live);
+    effort.disabled=busy;
     // A running round can be sent to another model from its next call; the one it already uses or asked for is no switch.
     const using=live?.model_switch?.now||live?.frozen?.model_id;
     swap.hidden=!live || !model || model.model_id===using || live.model_switch?.requested===model.model_id;
     swap.disabled=busy;
     swap.title=model?'从下一次模型调用起改用 '+model.label+'；已有结果、工具与授权不变，上下文整理仍用本轮开始时的模型':'';
     // What the round on show really uses: its start model, a switch taken or asked for, its effort and thinking.
-    const parts=round?[ '本轮：'+(round.model_switch?.now||round.frozen?.model_id||''),
-      ...(round.model_switch?.now?['（开始时 '+round.frozen.model_id+'）']:[]),
+    const parts=round?[ '本轮：'+(round.model_switch?.now?round.model_switch.now+'（开始时 '+round.frozen.model_id+'）':round.frozen?.model_id||''),
       ...(round.frozen?.reasoning_effort?['思考力度 '+EFFORT[round.frozen.reasoning_effort]]:[]),
       ...(round.frozen?.thinking?['思考开启']:[]),
       ...(round.model_switch?.requested?['已请求改用 '+round.model_switch.requested+'，下一次模型调用起生效']:[])]:[];
@@ -48,7 +48,7 @@ export const CODING_COMPOSER_MODEL_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   return {
     fill,
     /** The effort this round is started with, when the chosen model takes one and the person chose it. */
-    effort:()=>effortWrap.hidden || !effort.value ? {} : {reasoning_effort:effort.value},
+    effort:()=>chosen()?.reasoning_effort && effort.value ? {reasoning_effort:effort.value} : {},
     /** The session's saved start: the effort it was started with, where the model still takes one. */
     apply:(config)=>{effort.value=config?.reasoning_effort||'';paint();},
     /** Busy, and the round on show: the live one may be switched, and its settings are what the note says. */

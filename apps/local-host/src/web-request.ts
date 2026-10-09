@@ -242,7 +242,7 @@ export async function handleMolisWorkWebRequest(
               const healthy = new Set(catalog.models.health().filter((entry) => entry.status === "ready").map((entry) => entry.provider_id));
               return catalog.models.list().filter((entry) => healthy.has(entry.provider_id)).flatMap((provider) =>
                 provider.models.filter((model) => model.enabled).map((model) => ({ provider_id: provider.provider_id,
-                  model_id: model.model_id, label: `${provider.display_name} · ${model.display_name ?? model.model_id}` })));
+                  model_id: model.model_id, label: `${provider.display_name} · ${model.display_name ?? model.model_id}`, reasoning_effort: model.reasoning_effort === true })));
             }),
           },
         };

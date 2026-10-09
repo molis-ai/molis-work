@@ -48,7 +48,10 @@ export interface ArtifactsServiceOptions {
   kind?: VersionStoreKind;
   now?: () => string;
   errorFactory?: ArtifactsErrorFactory;
+  /** Appends one event to the project journal (the journal is storage's: this package keeps no SQL on it) and returns its number. */
   appendEvent: (input: ArtifactEventInput) => number;
+  /** The newest event number of the project's journal: what a write that changed nothing reports as `observed_event_cursor`. */
+  eventCursor: (projectId: string) => number;
   /**
    * Whether the producer declared this type for this store (specs/artifact-positioning A7): a problem to refuse the write
    * with, or null. The host answers from the Manifests it knows; without it every declared-or-not type is written.
@@ -145,7 +148,7 @@ export class ArtifactsService<
         }
         return {
           artifact: existing,
-          observed_event_cursor: this.repository.eventCursor(normalized.project_id),
+          observed_event_cursor: this.options.eventCursor(normalized.project_id),
           replayed: true,
         };
       }
@@ -214,7 +217,7 @@ export class ArtifactsService<
       if (artifact.availability === "unavailable") {
         return {
           artifact,
-          observed_event_cursor: this.repository.eventCursor(input.project_id),
+          observed_event_cursor: this.options.eventCursor(input.project_id),
           replayed: true,
         };
       }
@@ -245,7 +248,7 @@ export class ArtifactsService<
       if (artifact.lifecycle_state === "archived") {
         return {
           artifact,
-          observed_event_cursor: this.repository.eventCursor(input.project_id),
+          observed_event_cursor: this.options.eventCursor(input.project_id),
           replayed: true,
         };
       }

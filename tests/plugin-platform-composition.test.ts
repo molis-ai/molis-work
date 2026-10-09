@@ -152,9 +152,9 @@ function project(directory: string) {
   const store = new LocalProjectDatabase(file);
   const artifacts = new ArtifactsModule({
     db: store.db,
-    appendEvent: (event) => store.appendEvent(event),
+    appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId),
   });
-  const processItems = new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) });
+  const processItems = new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID),
     project_id: DEMO_PROJECT_ID,
     actor_id: "tester",
@@ -328,7 +328,7 @@ test('committed changes to a port\'s process item refresh existing inputs across
   const directory = mkdtempSync(join(tmpdir(), 'artifact-input-journal-'));
   const { store, platform, artifacts, processItems } = project(directory);
   const other = new LocalProjectDatabase(join(directory, 'board.db'));
-  const remote = new ProcessItemsModule({ db: other.db, appendEvent: event => other.appendEvent(event) });
+  const remote = new ProcessItemsModule({ db: other.db, appendEvent: event => other.appendEvent(event), eventCursor: projectId => other.eventCursor(projectId) });
   const recorder: Recorder = { received: [], delivered: [] };
   let outputs!: PluginOutputsClient;
   const contexts: PluginInputDeliveryContext[] = [];

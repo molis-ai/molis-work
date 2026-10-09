@@ -4,7 +4,7 @@
 
 ## 验证
 
-CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base）及其变异用例、Goal 边界与存储基线、启动器类型检查、动作与插件合同（`pnpm test:contracts`）、单一外壳与成果声明门禁、密钥扫描（推送前先跑 `pnpm secrets:check`）、炼金术士测试；另有一个不挡合并的 Linux 探针作业，只记录哪些非浏览器测试文件在 Linux 上通过，不是门禁（`docs/system/PACKAGE-BOUNDARIES.md`）。产品用例的全量回归在本机跑，写明结果；排时段、集成分支、基线比对的做法见 `docs/system/PARALLEL-DEVELOPMENT.md`：
+CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base）及其变异用例、Goal 边界与存储基线、启动器类型检查、动作与插件合同（`pnpm test:contracts`）、单一外壳与成果声明门禁、密钥扫描（推送前先跑 `pnpm secrets:check`）、炼金术士测试；另有两个暂不挡合并的作业：Linux 探针只记录哪些非浏览器测试文件在 Linux 上通过；产品子集（`tests/ci-product-subset.txt`，含 5 个浏览器冒烟）跑用户动线上的一部分产品用例，不稳定的文件记在 `tests/quarantine.json`（`docs/system/PACKAGE-BOUNDARIES.md`「产品子集作业」，约两周后并入 `Verify`）。产品用例的全量回归在本机跑，写明结果；排时段、集成分支、基线比对的做法见 `docs/system/PARALLEL-DEVELOPMENT.md`：
 
 - [ ] 改过 `*/src`、`scripts` 或 `package.json` 后已整体 `pnpm build`
 - [ ] 健康门禁对照 merge-base 通过：`node scripts/check-health-gates.mjs --base origin/main`（CI 也这样比，在 PR 里 `--update` 放不过变大的）；数字变小就用 `--update --base origin/main` 在本 PR 更新 `tooling/gates/baseline.json`

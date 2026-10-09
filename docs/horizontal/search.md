@@ -4,7 +4,7 @@
 
 **类别：** 平台产品服务（[系统架构 §3](../system/ARCHITECTURE.md)）。哪些来源进索引、查询只返回调用者能用的来源、打开前怎样核对，是跨插件的产品策略，放在这里；但搜索不拥有任何插件的业务事实，对象是否存在、正文是什么总向所有者读。位置暂不变动，仍在 `horizontal/search`。
 
-**提供：** 搜索来源发现（动作目录里按输入输出类型识别：索引来源是 `molis.search.entries.window.v1` 与 `molis.search.entries.page.v1`；按需查询的来源 `molis.search.query.request.v1` 与 `molis.search.query.hits.v1` 在产品里没有生产方，已定删除，见决定 19 与 [CALL-CHAINS §7](../system/CALL-CHAINS.md)）、可重建的本地全文索引（中日韩单字与双字、拉丁词前缀）、按集合版本与条目版本的增量同步、失败保留与重试、停用与卸载清理、按调用者权限过滤的查询、打开前的对象核对。系统动作 `search.query`、`search.open`、`search.status`、`search.rebuild`（提供方 `system.search`）。
+**提供：** 搜索来源发现（动作目录里按输入输出类型识别：来源是 `molis.search.entries.window.v1` 与 `molis.search.entries.page.v1`；没有“查询时再搜”的来源，那种按需查询的协议在产品里没有生产方，已按决定 19 删除，见 [CALL-CHAINS §7](../system/CALL-CHAINS.md)）、可重建的本地全文索引（中日韩单字与双字、拉丁词前缀）、按集合版本与条目版本的增量同步、失败保留与重试、停用与卸载清理、按调用者权限过滤的查询、打开前的对象核对。系统动作 `search.query`、`search.open`、`search.status`、`search.rebuild`（提供方 `system.search`）。
 
 **技术状态：** `{home}/search/search.db`：来源的集合版本、同步时间与错误；每个条目的版本、标题、允许持久化的摘要与正文、打开位置。全部可以删除后从各插件重建。
 

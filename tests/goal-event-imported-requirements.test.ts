@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkV1Error, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { materializeGoalEventHistory, type GoalEventHistoryKind } from "./goal-event-history-fixture.js";
 
 const BOARD = "goalboard-v1-demo";
@@ -196,7 +196,7 @@ test("still-valid same-scope complete approval satisfies imported policy after t
   }
 });
 
-test("real event closure stays distinct; explicit continue can reuse the same-scope approval", () => {
+test("real event closure stays distinct; after an explicit continue the old approval no longer counts and the close waits for a fresh nod", () => {
   const data = openHistory("approved-completed");
   try {
     const { app } = data;
@@ -230,17 +230,39 @@ test("real event closure stays distinct; explicit continue can reuse the same-sc
         supporting_event_ids: [note.event_id],
       });
     }
+    const versions = () => {
+      const state = app.goalEvents.readState(BOARD, "MIXED-OWNER");
+      return { expected_config_version: state.config.version, expected_agreement_version: state.agreement.version };
+    };
+    // The project asks for the person's nod before completing. The nod given before the Goal was continued belongs to the round
+    // that ended, so the close is held for that alone; the imported policy requirement keeps its conclusion.
+    const held = app.goalEvents.submitClosure({
+      project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "held-completed-approval", kind: "complete", result: "实际结果可读并已核对",
+      reason: "按迁入后的当前要求核对收尾", ...versions(),
+    });
+    assert.equal(held.completion_applied, false);
+    assert.deepEqual(held.unmet_reasons.map((reason) => reason.code), ["event_closure.human_approval_required"]);
+    const heldState = app.goalEvents.readState(BOARD, "MIXED-OWNER");
+    assert.equal(heldState.requirements.find((item) => item.requirement_id === "imported-policy:MIXED-OWNER")?.currently_satisfied, true);
+    assert.deepEqual(heldState.current_decisions.map((item) => item.decision_id), [original.decision_id]);
+
+    const fresh = app.goalEvents.recordTrustedDecision({
+      project_id: BOARD, goal_id: "MIXED-OWNER", idempotency_key: "fresh-nod-after-continue",
+      authority: hostEventDecisionAuthority("web", BOARD, "web-user", "fresh-nod-after-continue"),
+      conclusion: "补齐输入缺口后的结果我已再次核对，可以完成",
+      effects: [{ kind: "authorize_action", action: "complete" }],
+      scope: { action: "complete" },
+    });
     const closed = app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
-      idempotency_key: "reuse-completed-approval", kind: "complete", result: "实际结果可读并已核对",
-      reason: "按迁入后的当前要求核对收尾",
-      expected_config_version: app.goalEvents.readState(BOARD, "MIXED-OWNER").config.version,
-      expected_agreement_version: app.goalEvents.readState(BOARD, "MIXED-OWNER").agreement.version,
+      idempotency_key: "close-after-fresh-nod", kind: "complete", result: "实际结果可读并已核对",
+      reason: "按迁入后的当前要求核对收尾", ...versions(),
     });
     assert.equal(closed.completion_applied, true);
     assert.deepEqual(
       app.goalEvents.readState(BOARD, "MIXED-OWNER").current_decisions.map((item) => item.decision_id),
-      [original.decision_id],
+      [fresh.decision.decision_id],
     );
   } finally {
     close(data);

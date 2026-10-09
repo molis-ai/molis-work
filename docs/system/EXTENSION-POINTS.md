@@ -205,7 +205,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 **怎么加**：此前没有写。中文原文是 key，英文是词典（`apps/workbench/src/i18n.ts`）。现行做法：在 `i18n.ts` 里加语言值，并让 `isWebLocale`、`htmlLang`、`dateTimeLocale`、`listJoin` 认识它；在 `renderLocaleSwitch` 和设置页的语言开关里加一项；客户端 `L`（`clientI18nScript`）今天写死了 `MOLIS_WORK_EN` 和「非中文即英文」的判断，要一并改；给「现在」列出的 42 份词典各补一份同形的目标语言词典并在汇总处接入；跑 `tests/i18n.test.ts`。
 
-**现在：6 个代码文件 + 42 份词典。** 代码里 `"zh" | "en"` 字面量和两项开关在：`apps/workbench/src/i18n.ts`（`WebLocale`、`WEB_LOCALES`、`isWebLocale`、`htmlLang`、`dateTimeLocale`、`listJoin`、`renderLocaleSwitch`、客户端 `L`）、`apps/workbench/src/decision-center.ts`、`settings-appearance.ts`、`settings-directory.ts`、`settings-renderer.ts`、`plugins/native/goals/src/safety-ui-model.ts`。词典 42 份：工作台 14 份（`apps/workbench/src/i18n/` 下 12 份 `*-en.ts`，主词典也是汇总的 `apps/workbench/src/i18n/en.ts` 本身，加 `functions/en.ts`），插件 28 份（16 个插件各一份，加 Goals 的 12 份 `*-en.ts`），汇总处是 `apps/workbench/src/i18n/en.ts`。
+**现在：5 个代码文件 + 42 份词典。** 代码里 `"zh" | "en"` 字面量和两项开关在：`apps/workbench/src/i18n.ts`（`WebLocale`、`WEB_LOCALES`、`isWebLocale`、`htmlLang`、`dateTimeLocale`、`listJoin`、`renderLocaleSwitch`、客户端 `L`）、`settings-appearance.ts`、`settings-directory.ts`、`settings-renderer.ts`、`plugins/native/goals/src/safety-ui-model.ts`。词典 42 份：工作台 14 份（`apps/workbench/src/i18n/` 下 12 份 `*-en.ts`，主词典也是汇总的 `apps/workbench/src/i18n/en.ts` 本身，加 `functions/en.ts`），插件 28 份（16 个插件各一份，加 Goals 的 12 份 `*-en.ts`），汇总处是 `apps/workbench/src/i18n/en.ts`。
 
 **用户 2026-10-08 的决定（#16，`specs/repository-anti-corruption/spec.md` §1「界面翻译」，PR #312；用户没有选推荐的「中文作键」）：全部换成稳定键。** 约 164 个源文件改用稳定键（spec 该行给的数字），词典按所有者分，CI 查缺失、无用与冲突；第 5 波的「翻译按主人分」改成「稳定键」，并先做一个插件样板（W5-03）。换完以后键不再是中文原文，所以中文也要有自己的词典，加语言的做法随之变成：语言清单加一项，每个词典所有者各交一份该语言的词典；上面「怎么加」里客户端 `L` 写死的「非中文即英文」判断因此要改成按词典查。「怎么加」和「现在」写的是换成稳定键之前的做法和数字。
 
@@ -280,7 +280,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 - 执行规则里的动作：沿用现有受众（`ActionAudience`，`packages/contracts/src/platform/actions.ts`，目前是 `user | agent | workflow | mcp | plugin`），不新增受众（新增要改这个联合并复核所有按受众分支的位置）；无人在场执行的授权语义要在设计稿里单独定。
 - 补什么：X-6「领域事件订阅口」（读项目库事件流、按声明订阅）；插件部分靠 3.1 的四片加 X-1；Module 部分靠 3.10 的目标。**再推演：6，外加 2** = Module 4 + 插件 1 + 订阅口 1。
 
-**F6 调用诊断**（`packages/contracts/src/platform/observability.ts` 是占位；`docs/platform/CONTRACTS-AND-OPERATIONS.md` 写明 `packages/observability` 尚未创建；路线 W3-01 的调用编号）。
+**F6 调用诊断**（合同包里的 `platform/observability` 占位子路径已在 W2-01 删除；`docs/platform/CONTRACTS-AND-OPERATIONS.md` 写明 `packages/observability` 尚未创建；路线 W3-01 的调用编号）。
 
 - 现在（推演，约 12）：内核给每次调用编号（`packages/kernel/src/action-service.ts`、`packages/contracts/src/platform/actions.ts`）2；六类入口各自带出编号：Web（`apps/local-host/src/web-request.ts`）、MCP（`apps/mcp/src/action-tools.ts`）、助理（`apps/local-host/src/assistant/assistant-service.ts`）、Agent 工具（`horizontal/agent-host/src/adapters/prologue-action-gateway.ts`）、CLI（`apps/cli/src/command-dispatch.ts`）、调度（`apps/local-host/src/schedule-task-runner.ts`）6；调用记录 `apps/local-host/src/action-call-log.ts` 1；诊断界面 `apps/local-host/src/web-capabilities.ts`、`apps/workbench/src/capabilities.ts`、`apps/workbench/src/settings-agent-diagnostics.ts` 3。宿主里还有 60 处 `console.*` 在 10 个文件，没有统一日志器。
 - 补什么：W3-01（编号贯通）、W3-02（一个错误模型）、W5-13（结构化日志）。这些是一次性铺设，不是每个功能都付的成本。界面形态按用户 2026-10-08 的决定 #5（`specs/repository-anti-corruption/spec.md` §1「调用编号是否上界面」，PR #312）：错误详情里显示可复制的短编号，「设置 › 诊断」按编号列出最近的调用。**再推演：3**（面板、导出路由、登记一项）。

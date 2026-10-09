@@ -11,7 +11,7 @@ import { createMcpRuntimeContextHandlers, createMcpContextPresenter, dispatchMcp
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { MolisWorkProjectCatalogError } from "./project-catalog.js";
 import { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
-import { prepareLocalProjectStorage } from "./project-storage.js";
+import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { RuntimeSessionHost } from "./runtime-session.js";
 import { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import { runtimeContextHostFromEnvironment } from "./runtime-context.js";
@@ -254,14 +254,14 @@ export class LocalMcpServer {
     arguments_: Record<string, unknown>,
     runtimeConnection: MolisWorkRuntimeConnection | null,
   ): Promise<string> {
-    const storage = prepareLocalProjectStorage(
-      String(
-        this.audience === "runtime"
-          ? runtimeConnection!.databasePath
-          : arguments_.database_path ?? readProductEnv("DATABASE") ?? ".molis-work/molis-work.db",
-      ),
-      name === "molis_work_v1_initialize" ? "create" : "existing",
-    );
+    const location = this.audience === "runtime"
+      ? runtimeConnection!.databasePath
+      : namedDatabasePath(arguments_.database_path) ?? namedDatabasePath(readProductEnv("DATABASE"));
+    if (!location) {
+      throw new MolisWorkV1Error("store.path_required",
+        "管理入口需要明确的数据库路径：在参数 database_path 里给出，或设置环境变量 MOLIS_WORK_DATABASE。没有默认路径，不会按当前目录猜一个。");
+    }
+    const storage = prepareLocalProjectStorage(location, name === "molis_work_v1_initialize" ? "create" : "existing");
     const { databasePath } = storage;
     if (storage.status === "missing") {
       throw new MolisWorkV1Error("store.not_found", `Molis Work 数据库不存在: ${databasePath}`);

@@ -259,7 +259,7 @@ test("MCP agreement_change request keeps request-time commitment; later related 
     // This trusted user change is fixture setup; the management MCP below still proves stale approval rejection.
     await host.client(molisWorkHostProjectReference({ projectId: project_id, databasePath: project.database_path }))
       .invoke(setGoalEventAgreementCapability, {
-      project_id, goal_id, actor_id: "manager", actor_kind: "user", idempotency_key: "revise-stale-mcp",
+      project_id, goal_id, idempotency_key: "revise-stale-mcp",
       expected_config_version: beforeRevise.config.version,
       expected_agreement_version: beforeRevise.agreement.version,
       revise_requirements: [{ requirement_id: "r-five", statement: "真实购买并处理退货" }],

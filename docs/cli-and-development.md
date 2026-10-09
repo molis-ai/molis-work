@@ -27,7 +27,7 @@ init | snapshot | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 
-复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份；`goal-tree-propose`、`goal-tree-check` 与 `active-goal` 目前仍从参数 `actor_id` 取作者（`goal-tree-propose` 还从参数取 `submitted_session_id`），不是宿主注入的身份（已知差距）。
+复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init`、`goal-tree-check`、`active-goal` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份：`goal-tree-check` 的参数带了 `actor_id` 或 `actor_kind` 会被拒绝（`actions.input_invalid`），`active-goal` 不再读 JSON 里的 `actor_id`，旧脚本多写这个字段也不会被当成别人；`goal-tree-propose` 目前仍从参数 `actor_id` 取作者，还从参数取 `submitted_session_id`，不是宿主注入的身份（已知差距）。
 
 ## 项目结构
 

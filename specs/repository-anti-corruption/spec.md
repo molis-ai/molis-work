@@ -522,7 +522,20 @@
   7. Runtime 接入：三处客户端配置还是早先的 goalboard 条目（旧的 `GOALBOARD_*` 环境变量，新代码只认 `MOLIS_WORK_*`），新代码报「MCP 宿主没有提供 Runtime 标识」；用户弹窗定「备份后换成产品接入」：三份配置与三个 goal-advance 链接、三张 9 月 11 日的旧接入收据备份到 `~/molis-work-backups/2026-10-07-runtime-configs/`，删掉旧条目后用产品自己的 Runtime 接入（prepare→confirm）给 Claude Code、Codex、Grok Build 写入 `molis-work` 条目与技能；按配置启动的 MCP 能列出真实 Home 的项目。已开着的会话要重开才会用上。
   8. 主检出：另一会话 10-07 8:59–9:27 留下的 26 个文件改动与两个新 spec（用户弹窗定「本会话处理」）先存成补丁并提交到本地分支 `wip/main-checkout-2026-10-07`（4cb5e28f），主检出 fast-forward 到 main（d81b12cb）后把它重新放回为未提交改动（按改名三方合并，`boardId` 改为 `projectId`），构建通过，它改过的 16 个测试文件 73/73 通过。
 - 演练（rehearsal-1007、rehearsal-1007b，拷贝只读取自真实 Home）：两次结果相同；演练检查时一次误开了真实 Home 的一个项目库（目录库存的是绝对路径），版本不符被拒、文件未变，检查脚本已限定只开拷贝。
-- 真实 Home 维护四（目录库 v21 → v22）——**用户 2026-10-08 批准：合入后立刻做，顺带清掉以前删项目留下的孤儿数据**（§1）；做完之前主检出与安装版不更新。分支 `fix/project-deletion-owners` 给目录库加了一张表 `project_deletion_steps`（删除收据里每个数据所有者一步，`modules/projects/src/deletion-steps.ts:7`），`CATALOG_SCHEMA_VERSION` 因此从 21 升到 22（`apps/local-host/src/project-catalog-contract.ts:1`）。别的库的结构与版本都没变（项目库 v6、会话库 v7、Functions v3……）。真实 Home 的目录库是 v21（维护三之后），所以这个分支合入后它与代码对不上，两个方向都要处理：
+- 真实 Home 维护四已做（2026-10-09 09:30–10:10，用户 10-08 弹窗定「合入后立刻做」、孤儿数据与残留「一起清掉」、助理旧轮次「补上标记」；主检出改动用户定「都合回主检出」）：
+  1. 主检出：另一代理留下的 26 个文件改动（goal-closure-identity 修复）先移植到当前 main 并评审、全量回归（batch U）后经 #340 合入；原样另存本地分支 `wip/main-checkout-2026-10-09`（079898fa，含未跟踪的 spec）；主检出改回已提交状态后 fast-forward 到 main（53b62b0f）并整体构建；其余未跟踪文件（`.grok/`、两份 `docs/reviews/`、`plugins/native/jelly/native/`、`specs/ai-interaction-experience/`）原样保留；
+  2. 停掉连着真实 Home 的 7 个 MCP 进程（Claude Code、Codex、Grok 各会话，跑维护三装的构建），按 pid 精确停止；4173、4207、4208 都没在跑；之后 Home 下没有任何打开的文件；
+  3. 整份备份：APFS 克隆 `~/molis-work-backups/2026-10-09-before-maint4`（10 GB，1,331,146 个文件，库与 JSON 逐个比对一致）；
+  4. 只读清点真实 Home，与拷贝上的演练逐项相同：孤儿只有一个（9 月 27 日删掉的项目，`functions.function_judgments` 64 条），另有 5 条从没建成项目的开项目引导；
+  5. 目录库 v21 → v22（`catalog-maintenance-v22.sql`，一个事务）：结构与新建的 v22 逐项相同，原有 17 张表行数不变，完整性 ok，外键 0；
+  6. 用新代码打开：18 个项目、会话库与 17 个 Home 库都能开、版本都对（检查脚本按真实路径比对，`~/.goalboard` 是指向 Home 的符号链接）；
+  7. 清孤儿：用产品自己的删项目逐主人清，只有 Functions 删了 64 条；记忆与搜索按演练的办法手工核对，都是 0；17 个在用项目格子、2,827 行前后不变；
+  8. 残留（脚本先列后删）：5 条停在「选择」阶段、项目从没建成的开项目引导；15 个项目目录里改名前留下的 `goalboard.db-wal/-shm`（30 个文件，21 MB）；Home 根目录两个空库文件；完成了的那条引导保留；
+  9. 助理库里没有已存轮次，补标记无事可做（脚本干跑为 0）；
+  10. 用主检出的干净构建重装 Home 安装版（`releases/molis-work-0.2.0`，即 53b62b0f）；按会话的方式起安装版 MCP，能列出 18 个项目；
+  11. 按 10-08「核对后清理」：`maintenance-3-replaced`（1.9 GB）搬到 `~/molis-work-backups/2026-10-07-maintenance-3-replaced`；11 个旧的 `goalboard-*` 安装版核对无引用、无打开、整份备份里有后删除；Home 从 10 GB 减到 6.5 GB；
+  12. 用户要做的：重开 Claude Code、Codex、Grok 会话（旧 MCP 已停，新起的才是新构建）。
+- ~~真实 Home 维护四（目录库 v21 → v22）~~：见上一条，已做。原计划：真实 Home 维护四（目录库 v21 → v22）——**用户 2026-10-08 批准：合入后立刻做，顺带清掉以前删项目留下的孤儿数据**（§1）；做完之前主检出与安装版不更新。分支 `fix/project-deletion-owners` 给目录库加了一张表 `project_deletion_steps`（删除收据里每个数据所有者一步，`modules/projects/src/deletion-steps.ts:7`），`CATALOG_SCHEMA_VERSION` 因此从 21 升到 22（`apps/local-host/src/project-catalog-contract.ts:1`）。别的库的结构与版本都没变（项目库 v6、会话库 v7、Functions v3……）。真实 Home 的目录库是 v21（维护三之后），所以这个分支合入后它与代码对不上，两个方向都要处理：
   - **跑新代码的进程拒绝 v21**，什么都不写：`catalog.unsupported_schema`「项目目录数据库的版本是 21，这个版本只认 22，不就地升级」（`apps/local-host/src/catalog-schema.ts:32-42`）。主检出快进到新 main 并构建之后，4207 和主检出的命令行就打不开真实 Home；Home 安装版换成新 main 的构建后，新起的 MCP 也一样；都要等做完维护四；
   - **做完以后跑旧代码的进程拒绝 v22**：维护三用 e1cd4906 重装的 Home 安装版只认 21，遇到 v22 报 `catalog.reader_too_old`（`apps/local-host/src/project-catalog-contract.ts:51-68`），要用新 main 的干净构建重装；已开着的会话里的 MCP 同样报它，要重开会话（`docs/installation.md:76` 同一段说明）。
   - **做什么**：对 `projects/catalog.db` 跑 `tests/fixtures/catalog-maintenance-v22.sql`，一个事务：新建 `project_deletion_steps`，把 `catalog_meta.schema_version` 由 21 改为 22。库不是项目目录库、版本不是 21、表已存在，整个脚本回滚，什么都不改（用 `node:sqlite` 的 `exec` 或 `sqlite3 -bail` 跑，遇到第一个错就停；不加 `-bail` 的 sqlite3 出错后会接着往下跑并提交：在版本 20 的库上它建出了表、版本没动，试过）。

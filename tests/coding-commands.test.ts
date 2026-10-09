@@ -20,7 +20,7 @@ function platformFor(directory: string) {
   const store = new LocalProjectDatabase(file);
   const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID),
     project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db,
-    artifacts: new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }),
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });

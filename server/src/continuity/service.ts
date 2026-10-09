@@ -1,6 +1,6 @@
 import { ImError, clientId, textInput } from "../errors.js";
 import { transaction, type ServerDatabase } from "../database.js";
-import { Identity, type Role, type Session } from "../identity.js";
+import { Identity, type Member, type Role, type Session } from "../identity.js";
 import { ServerEvents } from "../events.js";
 import { ContinuityActions } from "./actions.js";
 import type { ActionFactory, ArtifactVersionRecord, BoundActions, GoalEventProgressResult, GoalEventStateView, GoalProjection, ProgressCommand, ProjectScope } from "./types.js";
@@ -32,6 +32,24 @@ export class ContinuityService {
       if (old && old.owner_id !== ownerId) throw new ImError("continuity.owner_conflict","项目已属于另一位成员",409);
       this.db.prepare("INSERT INTO mw_projects VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,scope_json=excluded.scope_json").run(scope.id,scope.title,ownerId,JSON.stringify(scope));
       this.db.prepare("INSERT OR IGNORE INTO mw_access VALUES (?,?,'owner')").run(scope.id,ownerId);
+    });
+  }
+  /** The member a registered project belongs to, or null when it is not registered. */
+  projectOwner(projectId: string): Member | null {
+    return this.db.prepare("SELECT m.id,m.display_name FROM mw_projects p JOIN mw_members m ON m.id=p.owner_id WHERE p.id=?").get(projectId) as Member | undefined ?? null;
+  }
+  /**
+   * Closes every registered project that is not in `allowed`: its members lose access and its open invitations stop working.
+   * The records and history stay, so listing a project again restores only its owner. Returns the ids it closed.
+   */
+  closeProjectsExcept(allowed: ReadonlySet<string>): string[] {
+    return transaction(this.db, () => {
+      const closed = (this.db.prepare("SELECT id FROM mw_projects").all() as {id:string}[]).map(project => project.id).filter(id => !allowed.has(id));
+      for (const id of closed) {
+        this.db.prepare("DELETE FROM mw_access WHERE project_id=?").run(id);
+        this.db.prepare("UPDATE mw_codes SET consumed=1 WHERE project_id=? AND kind='invite'").run(id);
+      }
+      return closed;
     });
   }
   scope(projectId: string): ProjectScope {

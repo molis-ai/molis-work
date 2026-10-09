@@ -55,6 +55,19 @@ test("a confirmed source becomes the Goal's input receipt, once, under the calle
       { ...input, source: { kind: "feed_item", id: "item-3" } }) as { binding: { binding_id: string } };
     assert.equal((await receipts("INPUT-GOAL")).find(item => item.binding_id === runtime.binding.binding_id)?.created_by, "runtime:confirmer:session");
 
+    // The receipt is strict on write: the digest is a sha256 of the form the owner computes, and the texts are bounded; nothing is written when one fails.
+    const kept = (await receipts("INPUT-GOAL")).length;
+    const refused = { code: "actions.input_invalid" };
+    for (const snapshot_digest of ["", "anything", "a".repeat(64), `sha256:${"a".repeat(63)}`, `sha256:${"a".repeat(65)}`, `sha256:${"A".repeat(64)}`, `sha256:${"g".repeat(64)}`, `sha256:${"a".repeat(64)}\n`, `md5:${"a".repeat(64)}`])
+      await assert.rejects(bound.invoke(goalsActions.inputsConfirm, { ...input, source: { kind: "feed_item", id: "item-bad-digest" }, snapshot_digest }), refused, `digest ${JSON.stringify(snapshot_digest)}`);
+    await assert.rejects(bound.invoke(goalsActions.inputsConfirm, { ...input, source: { kind: "feed_item", id: "item-bad-reason" }, reason: "" }), refused);
+    await assert.rejects(bound.invoke(goalsActions.inputsConfirm, { ...input, source: { kind: "feed_item", id: "item-long-reason" }, reason: "因".repeat(301) }), refused);
+    await assert.rejects(bound.invoke(goalsActions.inputsConfirm, { ...input, source: { kind: "feed_item", id: "item-long-name" }, name: "名".repeat(201) }), refused);
+    await assert.rejects(bound.invoke(goalsActions.inputsConfirm, { ...input, source: { kind: "feed_item", id: "i".repeat(201) } }), refused);
+    assert.equal((await receipts("INPUT-GOAL")).length, kept);
+    const longest = await bound.invoke(goalsActions.inputsConfirm, { ...input, source: { kind: "feed_item", id: "i".repeat(200) }, name: "名".repeat(200), reason: "因".repeat(300) });
+    assert.equal(longest.replayed, false);
+
     // A project that no longer has Goals refuses it like any other Goals action, and writes nothing.
     const before = (await receipts("INPUT-GOAL")).length;
     denied = true;

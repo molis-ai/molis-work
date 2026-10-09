@@ -25,7 +25,10 @@ export interface GoalConfirmedInput {
   state: "proposed" | "confirmed" | "inactive";
   created_at: string;
 }
-const confirmedSource = object({ kind: enumeration(["feed_item"]), id: identifier });
+const confirmedSource = object({ kind: enumeration(["feed_item"]), id: { ...identifier, maxLength: 200 } });
+/** What the owner of a source computes of it: `sha256:` and 64 lower-case hex digits; the reason is one bounded sentence like a deliverable's. */
+const snapshotDigest = { type: "string", pattern: "^sha256:[0-9a-f]{64}$" };
+const confirmReason = { ...identifier, maxLength: 300 };
 const confirmed = object({ binding_id: text, goal_id: text, source: confirmedSource, name: text, snapshot_digest: { type: ["string", "null"] },
   state: enumeration(["proposed", "confirmed", "inactive"]), created_at: text });
 /** How a confirmed source is kept in the Goal's input receipts: the receipt type, the prefix of the locator, the prefix of the receipt id. */
@@ -41,7 +44,7 @@ export const goalsInputActions = {
     object({ goal_id: identifier, subject, title: { ...identifier, maxLength: 200 } }), object({ binding: bound, replayed: boolean })),
   confirm: goalAction<{ goal_id: string; source: { kind: "feed_item"; id: string }; name: string; snapshot_digest: string; reason: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.confirm",
     "确认来源材料为目标的输入", "把一条来源材料（目前是 Feed 消息）按确认时内容的摘要记为目标的已确认输入；不复制、不移动原材料，重复确认返回原记录", "command",
-    object({ goal_id: identifier, source: confirmedSource, name: { ...identifier, maxLength: 200 }, snapshot_digest: identifier, reason: identifier }),
+    object({ goal_id: identifier, source: confirmedSource, name: { ...identifier, maxLength: 200 }, snapshot_digest: snapshotDigest, reason: confirmReason }),
     object({ binding: confirmed, replayed: boolean })),
   release: goalAction<{ goal_id: string; binding_id: string }, { released: boolean }>("goals.inputs.release",
     "移除目标的资料关联", "结束一条资料绑定；原对象不受影响，绑定记录保留为历史", "command",

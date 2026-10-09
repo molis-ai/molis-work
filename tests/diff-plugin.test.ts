@@ -13,6 +13,8 @@ import {
   diffManifest,
   parseUnifiedDiff,
   reconstructSides,
+  emptyDiff,
+  recoveryMessage,
   renderDiff,
   splitLines,
   textDiffRow,
@@ -246,4 +248,17 @@ test("折叠只收起远离改动的未改变行，行号按钮仍在原处可�
     review: { review_id: "w", before_text: "a\nb\nc\nd\ne\n", after_text: "a\nb\nc\nd\nE\n", decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
   assert.doesNotMatch(renderDiff({ view: tiny, route_prefix: "", primitives, fold_context: 3 }), /data-diff-unfold/, "少于四行不值得折叠");
+});
+
+test("没有可比的内容时是共用的空态块：标记、说了什么、下一步，而不是一行小字", () => {
+  const primitives = { escape: (value: unknown) => String(value), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
+  const waiting = renderDiff({ view: emptyDiff("snapshots"), route_prefix: "", primitives });
+  assert.match(waiting, /^<div class="mw-empty" data-phase="waiting" data-group="snapshots"><span class="mw-empty__mark"><svg data-icon="git-compare"><\/svg><\/span><strong>先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异<\/strong><\/div>/);
+  const gone = renderDiff({ view: emptyDiff("snapshots", "读不了这两份快照", "unavailable", recoveryMessage("snapshots")), route_prefix: "", primitives });
+  assert.match(gone, /<strong>读不了这两份快照<\/strong><p>回到文件阅读区，重新固定对比前和对比后<\/p>/);
+  assert.match(gone, /data-phase="unavailable"/);
+  // With context before it (here, two sides from different workspaces) the block stays under that context.
+  const mismatch = renderDiff({ view: { ...emptyDiff("snapshots", "这两份快照来自不同的工作目录，没法比", "unavailable"), mismatch: true }, route_prefix: "", primitives });
+  assert.match(mismatch, /^<section class="diff" data-phase="unavailable" data-group="snapshots"><ul class="diff-notices"><li>两侧来自不同的工作目录<\/li><\/ul><div class="mw-empty">/);
+  assert.doesNotMatch(waiting + gone + mismatch, /diff-empty|diff-recovery/);
 });

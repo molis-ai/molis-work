@@ -46,6 +46,13 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
   await click("[data-todo-quick-submit]");
   await waitFor("document.querySelector('[data-todo-note-text]').textContent.startsWith('已记下「给王总回电话」')");
   assert.match(String(await evaluate("document.querySelector('[data-todo-note-text]').textContent")), /即将到期/);
+  // V-3: the item landed in another view, so the note offers a way there; it is not offered for an item already in view.
+  assert.equal(await evaluate("!document.querySelector('[data-todo-note-view]').hidden && document.querySelector('[data-todo-note-view]').textContent"), "查看");
+  await click("[data-todo-note-view]");
+  await waitFor(`document.querySelector('[data-todo-view="upcoming"]').getAttribute('aria-pressed') === 'true' && document.querySelector('[data-todo-rows]').textContent.includes('给王总回电话')`);
+  assert.equal(await evaluate("document.querySelector('[data-todo-note-view]').hidden"), true, "taken, the offer goes away");
+  await click('[data-todo-view="today"]');
+  await waitFor(`document.querySelector('[data-todo-view="today"]').getAttribute('aria-pressed') === 'true'`);
   const call = byTitle("给王总回电话")!;
   assert.equal(call.due_date !== null && call.planned_date === null, true);
   assert.equal(call.placement, "unassigned", "项目里记下的默认暂未归类");

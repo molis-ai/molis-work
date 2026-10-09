@@ -17,6 +17,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const note = $("[data-todo-note]");
   const noteText = $("[data-todo-note-text]");
   const undoButton = $("[data-todo-undo]");
+  const viewButton = $("[data-todo-note-view]");
   const quick = $("[data-todo-quick]");
   const quickInput = $("[data-todo-quick-input]");
   const quickParts = $("[data-todo-quick-parts]");
@@ -70,6 +71,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   let linkPool = [];
   const picked = new Set();
   let undo = null;
+  let noteView = null;
   let noteTimer = 0;
   let saveTimer = 0;
   let saving = null;
@@ -169,7 +171,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     note.classList.toggle("is-error", Boolean(options.error));
     undo = options.undo || null;
     undoButton.hidden = !undo;
-    if (text && !options.error) noteTimer = setTimeout(() => { note.hidden = true; undo = null; }, options.undo ? 12000 : 4000);
+    noteView = options.view || null;
+    viewButton.hidden = !noteView;
+    if (text && !options.error) noteTimer = setTimeout(() => { note.hidden = true; undo = null; noteView = null; }, options.undo ? 12000 : 4000);
   };
   const showDetailNote = (text, error) => {
     detailNote.hidden = !text;
@@ -246,13 +250,14 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
     if (state.parts.some((part) => part.field === "remind_at")) quickParts.append(make("span", "todo-quick-hint", L("关着应用时不会按时提醒")));
   };
-  const viewNameFor = (item) => {
-    if (item.status === "waiting") return L("等待中");
-    if ((item.planned_date && item.planned_date <= today) || (item.due_date && item.due_date <= today) || item.status === "doing") return L("今天");
-    if (!item.planned_date && !item.due_date) return L("未安排");
-    if (item.due_date && dayDiff(item.due_date) <= 7) return L("即将到期");
-    return L("全部");
+  const viewKeyFor = (item) => {
+    if (item.status === "waiting") return "waiting";
+    if ((item.planned_date && item.planned_date <= today) || (item.due_date && item.due_date <= today) || item.status === "doing") return "today";
+    if (!item.planned_date && !item.due_date) return "unscheduled";
+    if (item.due_date && dayDiff(item.due_date) <= 7) return "upcoming";
+    return "all";
   };
+  const viewNameFor = (item) => workbench.querySelector('[data-todo-view="' + viewKeyFor(item) + '"]').dataset.todoViewLabel;
   const submitQuick = async () => {
     const state = quickState();
     if (!state || busy) return;
@@ -274,7 +279,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       await load();
       const shown = items.some((entry) => entry.id === payload.item.id);
       const where = shown ? "" : L("，在“{view}”里").replace("{view}", viewNameFor(payload.item));
-      showNote(L("已记下「{title}」").replace("{title}", payload.item.title) + where, { undo: { change_id: payload.change_id } });
+      showNote(L("已记下「{title}」").replace("{title}", payload.item.title) + where, { undo: { change_id: payload.change_id }, ...(shown ? {} : { view: { key: viewKeyFor(payload.item), id: payload.item.id } }) });
       arrive(rowsEl.querySelector('[data-todo-row="' + payload.item.id + '"]'));
     } catch (error) {
       showNote(error.message || L("没记下，请再试一次"), { error: true });
@@ -386,6 +391,8 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       const on = button.dataset.todoView === view;
       button.classList.toggle("is-current", on);
       button.setAttribute("aria-pressed", String(on));
+      // On a narrow screen the strip scrolls: the chosen view is never left half out of it.
+      if (on && !button.hidden) button.scrollIntoView({ inline: "nearest", block: "nearest" });
       const count = counts[button.dataset.todoView];
       button.textContent = button.dataset.todoViewLabel + (count && !["all", "closed"].includes(button.dataset.todoView) ? " " + count : "");
     });
@@ -411,6 +418,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         const on = button.dataset.todoView === view;
         button.classList.toggle("is-current", on);
         button.setAttribute("aria-pressed", String(on));
+        if (on && !button.hidden) button.scrollIntoView({ inline: "nearest", block: "nearest" });
       });
       void loadReminders().catch(() => {});
       return;
@@ -1023,6 +1031,14 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         placementChoice = button.dataset.todoQuickPlacementChoice;
         try { window.localStorage.setItem("molis.todo.quick-placement", placementChoice); } catch {}
         renderPlacementChoices(quickPlacement, quickDefaultPlacement(), "data-todo-quick-placement-choice");
+        return;
+      }
+      if (button.matches("[data-todo-note-view]") && noteView) {
+        const target = noteView;
+        noteView = null; viewButton.hidden = true;
+        view = target.key; picked.clear();
+        await load();
+        arrive(rowsEl.querySelector('[data-todo-row="' + target.id + '"]'));
         return;
       }
       if (button.matches("[data-todo-undo]") && undo) {

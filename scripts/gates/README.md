@@ -1,8 +1,8 @@
 # 文档引用与仓库形状门禁
 
-`pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录和 `.impeccable/` 只许变少，`contracts` 不许有占位子路径。设计来源：[specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
+`pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录和 `.impeccable/` 只许变少，`contracts` 不许有占位子路径，页面里的 DOM 事件都在合同里登记。设计来源：[specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
 
-入口只引入 `doc-gates.mjs` 这一个文件；每条规则一个模块，互不引用（共用的只有两个读取模块：Markdown 在 `markdown.mjs`，根目录允许名单在 `allowlist.mjs`）。哪些顶层文件夹算文档、哪些能起头一个被引用的路径，只有一份来源：`tooling/gates/root-allowlist.json`（`allowlist.mjs` 的 `allowedRoots` 读它）；往名单里加一个文件夹，它的 `.md` 链接和被引用的路径就自动被查，名单之外的（stray）两者都不查。
+入口引入三处：`doc-gates.mjs`（文档与仓库形状的规则都经它）、`dom-events.mjs`（页面事件，直接挂在入口的 `absolute()` 里，因为它读的是浏览器源码和一份合同，不属于文档类）和 `table-owners.mjs`（库与表的 owner，见下一节）；每条规则一个模块，互不引用（共用的只有两个读取模块：Markdown 在 `markdown.mjs`，根目录允许名单在 `allowlist.mjs`）。哪些顶层文件夹算文档、哪些能起头一个被引用的路径，只有一份来源：`tooling/gates/root-allowlist.json`（`allowlist.mjs` 的 `allowedRoots` 读它）；往名单里加一个文件夹，它的 `.md` 链接和被引用的路径就自动被查，名单之外的（stray）两者都不查。
 
 ## 两种规则
 
@@ -22,6 +22,7 @@
 | 根目录只放允许名单里的 | `root-entries.mjs` + `tooling/gates/root-allowlist.json` | `tracked files at the repository root outside the allow-list in <名>` | 放到合适的目录；确要放在根目录，把名字和理由写进允许名单。名单里的名字不在根目录了要删。名单之外的现存条目只许变少 |
 | `.impeccable/` 文件数只许减少 | `impeccable-files.mjs` | `tracked files under .impeccable in <组> n → m` | 评审截图默认写进被忽略的 `.impeccable/qa/review/`；原地覆盖已有图不改数量；删掉没有现行 spec、文档或测试引用的评审组 |
 | `contracts` 没有占位子路径 | `contract-placeholders.mjs` | `contract placeholder: descriptor-only, unused contracts subpath in ./<子路径>` | 占位子路径 = 源文件只导出一个 `ContractDescriptor` 常量，且仓内没有 import、也没有包的 `contract` 元数据指向它。没有基线，出现一个就失败（W2-01 已删掉原来的六个）。要用就放类型进去，不用就别加；`platform/kernel`、`platform/testing` 是描述符，但有包把它们声明为自己的合同入口，不算占位 |
+| 页面事件都登记了 | `dom-events.mjs` + `packages/contracts/src/platform/dom-events.ts` | `DOM events: <文件>:<行> dispatches "<名>", which is not registered` / `… listens to …` / `… is registered but no source dispatches or listens to it` / `… owned by "<主人>", but none of its files … it` | 新事件在合同的 `DOM_EVENTS` 里按名字顺序加一条，与发它的代码同一个改动，然后 `pnpm api:update`；名字写成字符串字面量（或「条件 ? 字面量 : 字面量」）。删了事件就删条目，主人的文件搬了就改 `PAGE_STATE_OWNERS`。不扫测试文件、`scripts/gates/`、夹具和构建产物。没有基线，直接挂在入口 `check-health-gates.mjs` 的 `absolute` 里（不经 `doc-gates.mjs`）；突变用例在 `tests/dom-events-contract.test.ts`（不在 `doc-reference-gates.test.ts`，CI 里单独一步）；`node scripts/gates/dom-events.mjs --report` 列出谁发谁听，并指出对不上的地方（那是线索不是失败，但真实代码里的每一条都要写进 UI Platform 的「现状与例外」，由同一个测试文件核对）。规则与登记含义见 [UI Platform](../../docs/platform/UI-PLATFORM.md#页面里的事件与状态归属) |
 
 ## 库与表的 owner（`table-owners.mjs`，W2-06）
 
@@ -56,10 +57,12 @@
 
 ## 怎么加一条规则
 
-1. 没有基线的检查：写 `scripts/gates/<名>.mjs`，导出 `(snapshot) => string[]`；`snapshot` 是 `{ files, read(file) }`（入库文件与读取函数）；在 `doc-gates.mjs` 的 `docGateProblems` 里加一行。
+1. 没有基线的检查：写 `scripts/gates/<名>.mjs`，导出 `(snapshot) => string[]`；`snapshot` 是 `{ files, read(file) }`（入库文件与读取函数）；在 `doc-gates.mjs` 的 `docGateProblems` 里加一行。不是文档类、要读合同或浏览器源码的检查（页面事件 `dom-events.mjs` 就是）自己挂在入口 `check-health-gates.mjs` 的 `absolute()` 里，入口只加一行引入和一处调用，规则与突变用例留在自己的模块和测试文件里，并在 `.github/workflows/ci.yml` 里给这个测试文件加一步（它不匹配 `tests/health-gates-*.test.ts`，也不在 `doc-reference-gates.test.ts` 里，不加这一步 CI 就不跑它的突变用例）。
 2. 只许减少的计数：模块导出一个规则对象（`id`、`baselineKey`、`totalKey`、`measure(snapshot)`、`grewWhat`、`grewHint`、`title`、`summary`），在 `doc-gates.mjs` 的 `docGateMetrics` 里加进去；merge-base 一侧读不到的文件在 `docGateInputs` 里登记。
 3. 在 `tests/doc-reference-gates.test.ts` 里加突变用例：干净的底子上加一处违规，`--base main` 要失败；计数类再确认 `--update --base main` 拒绝写入、本机改基线后 CI 的比法仍然失败。
 
 ## 验证
 
 `node scripts/run-tests.mjs tests/doc-reference-gates.test.ts`（CI 里单独一步跑）。每条规则在临时仓库里被故意违反一次，门禁必须变红；还有「合法写法不误报」与「变小时通过」的用例。
+
+页面事件门禁另有 `node scripts/run-tests.mjs tests/dom-events-contract.test.ts`（CI 里单独一步，步骤名「Page event gate rejects what it claims to」；它 import 构建出的 contracts，要在 `pnpm workspace:verify` 或 `pnpm build` 之后跑）：登记对照合同里已有的事件常量，门禁对照真实的树，每条规则都有突变用例（在内存里的真实树上或临时仓库里违反一次，必须变红），包括登记的形状（名字、载荷、含义、主人的字段、前缀）、扫哪些根目录和文件类型，以及构造函数与监听器带 TypeScript 类型实参的写法；报告在真实树上的每一条发现都写在 UI Platform 的「现状与例外」里（按事件名和文件名核对，新的死路或被主人以外的文件发的公告没人记录就会变红）。

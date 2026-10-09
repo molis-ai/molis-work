@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/assistant-island.js";
 
 // The bottom bar's client script is one template string: a single slip (a name declared twice, an unescaped newline)
@@ -30,4 +31,27 @@ test("every Send the bottom bar writes itself is marked as the page's; only the 
   for (const call of calls.filter(call => call !== "body")) assert.match(call, /written_by: "page"/, call.slice(0, 100));
   assert.match(script, /const body = \{[^\n]*\.\.\.\(byPage \? \{ written_by: "page" \} : \{\}\)/, "the composer marks a hand-over the person neither wrote nor changed");
   assert.match(script, /pageText = message\.text && input\.value\.trim\(\);/, "a hand-over with words is remembered as the page's until it is sent");
+});
+
+// A sentence the person reads is one translated text with its own punctuation: gluing a translated word to a Chinese colon
+// ("Viewing：Notes") puts a full-width colon in English. The object the bottom bar says it is looking at is such a sentence.
+test("what the bottom bar is looking at is one translated sentence, with the object's name as a parameter", () => {
+  assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /L\("正在看"\)/, "no word-plus-colon glue for the page's object");
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /L\("正在看：\{title\}", \{ title: name \}\)/);
+  assert.equal(L("正在看：{title}", { title: "需求说明" }), "正在看：需求说明");
+  assert.equal(runWithLocale("en", () => L("正在看：{title}", { title: "Notes" })), "Viewing: Notes", "English keeps its own colon");
+  // The short label on the materials button is the object's name, not the sentence with its prefix cut off by a pattern.
+  assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /replace\(\/\^正在看/);
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /clip\(lead\.name \|\| lead\.label, 16\)/);
+});
+
+// Where an object lives is named by the plugin catalog (the host passes the tab workspace's names, which hold the catalog and
+// the plugins installed at run time), not by whatever the plugin switcher's list shows in the page (specs/BACKLOG BL-086).
+test("a plugin's name in the bottom bar comes from the catalog, not from the plugin list in the page", async () => {
+  const body = ASSISTANT_ISLAND_FACTORY_SCRIPT.match(/const surfaceName = \(surface\) => [^\n]*\n/)?.[0] ?? "";
+  assert.match(body, /host\.pluginTitle/);
+  assert.doesNotMatch(body, /plugin-rail-items|querySelector/);
+  const { renderMolisWorkWorkbenchClientScript } = await import("./workbench-renderer-fixture.js");
+  assert.match(renderMolisWorkWorkbenchClientScript(), /pluginTitle: \(plugin\) => tabWorkspace\?\.pluginTitle\(plugin\)/);
+  assert.match(renderMolisWorkWorkbenchClientScript(), /pluginTitle: ops\.pluginTitle/);
 });

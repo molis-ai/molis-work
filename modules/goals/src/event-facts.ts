@@ -46,6 +46,7 @@ import { applyGoalEventAgreementChange, readCurrentGoalEventRequirements } from 
 import { mapReportEvent, mapStoredWorkEvent, mapTimelineItem } from "./event-facts-mapping.js";
 import type { GoalEventCompletionContext } from "./event-state-completion.js";
 import { GoalEventIntent } from "./event-intent.js";
+import { resolveGoalPolicy } from "./query.js";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
@@ -481,7 +482,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
       open_dependencies: openDependencies
         .filter((row) => row.fulfillment_state !== "satisfied")
         .map((row) => ({ goal_id: row.goal_id, title: row.title })),
-      human_approval_required: false,
+      human_approval_required: resolveGoalPolicy(this.context.repository.listActivePolicyBindings(projectId, goalId)).human_approval,
       blocking_risks: [],
     };
   }

@@ -4,6 +4,7 @@
 
 export type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionExecutionPolicy } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -20,15 +21,42 @@ export type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/acti
 export type { ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionUsage } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionUsagesInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ArtifactCompareInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ArtifactCompareResult } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ArtifactCompareState } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ArtifactContinueInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ArtifactContinueResult } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ArtifactLineHead } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ArtifactPinInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ArtifactPinResult } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ArtifactPreviewInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+export type { ArtifactReferrer } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ArtifactReferrersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ArtifactReferrersResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+export type { DueReminder } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { DueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ExecutionLifetime } from "@molis-ai/molis-work-contracts/platform/execution-lifetime";
 export type { ExecutionLifetimeOptions } from "@molis-ai/molis-work-contracts/platform/execution-lifetime";
 export { FILE_CONTENT_MAX_BYTES } from "@molis-ai/molis-work-contracts/platform/actions";
 export { FILE_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
+export { FRAGMENT_ANY_OBJECT } from "@molis-ai/molis-work-contracts/platform/actions";
+export { FRAGMENT_GRANULARITIES } from "@molis-ai/molis-work-contracts/platform/actions";
+export { FRAGMENT_INTENTS } from "@molis-ai/molis-work-contracts/platform/actions";
+export { FRAGMENT_ROLES } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FileEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FileSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { FragmentActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { FragmentApply } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { FragmentGranularity } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { FragmentIntent } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { FragmentOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { FragmentRole } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { FragmentTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEvent } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -57,9 +85,6 @@ export type { SearchEntriesInput } from "@molis-ai/molis-work-contracts/platform
 export type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { SearchQueryHit } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { SearchQueryInput } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { SearchQueryResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -67,10 +92,14 @@ export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+export { assertDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { assertHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function assertManifest(manifest: PluginManifest): void;
 
+export { bindArtifactCompare } from "@molis-ai/molis-work-contracts/platform/actions";
+export { bindArtifactContinue } from "@molis-ai/molis-work-contracts/platform/actions";
+export { bindArtifactPreview } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindFileEntriesHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindHomeObjectMoveHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindObjectCopyHandler } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -87,8 +116,15 @@ export declare function defineAction<Input, Output>(definition: ActionDefinition
 };
 
 export { defineActionUsagesAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineArtifactCompareAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineArtifactContinueAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineArtifactPinAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineArtifactReferrersAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineDueRemindersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFileContentAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFileEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineFragmentOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineHomeEventsAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineObjectCopyAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineObjectMoveAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -102,12 +138,15 @@ export declare function definePollingIntegrationPlugin(input: {
 }): PluginDefinition;
 
 export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
-export { defineSearchQueryAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileContentOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
+export { linkedArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
+export { linksToArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
+export { nextPinnedVersion } from "@molis-ai/molis-work-contracts/platform/actions";
+export { objectOrMissing } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const packageDescriptor: {
     readonly packageName: "@molis-ai/molis-work-plugin-sdk";
@@ -123,9 +162,12 @@ export declare const packageDescriptor: {
 export { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { referencesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+export { sameArtifactFields } from "@molis-ai/molis-work-contracts/platform/actions";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchRevisionOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchText } from "@molis-ai/molis-work-contracts/platform/actions";
 export { subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
+export { withinDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";

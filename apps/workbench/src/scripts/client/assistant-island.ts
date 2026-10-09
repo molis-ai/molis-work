@@ -1052,12 +1052,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     [/feed|inbox|mail/, "inbox"], [/workflow|schedule/, "workflow"], [/dataset|database/, "database"], [/artifact|package/, "package"], [/page|doc|note|form|ppt/, "note"]];
   const kindGlyph = (text) => { const key = String(text || "").toLowerCase(); const hit = KIND_GLYPH.find(([pattern]) => pattern.test(key)); return hit ? hit[1] : "file"; };
   const objectGlyph = (object) => kindGlyph((object.subject ? object.subject.kind : "") + " " + (object.open ? object.open.surface : ""));
-  /** The plugin's own name for where an object lives, as its entry in the plugin list says it. */
-  const surfaceName = (surface) => {
-    if (!surface) return "";
-    const entry = document.querySelector('.plugin-rail-items [data-plugin-id="' + surface + '"] > span');
-    return (entry && entry.textContent.trim()) || surface;
-  };
+  /** The plugin's own name for where an object lives: the catalog's name for it (the host asks the tab workspace, which holds
+   *  the catalog and the plugins installed at run time), never what one list in the page happens to show. */
+  const surfaceName = (surface) => surface ? L((host.pluginTitle && host.pluginTitle(surface)) || surface) : "";
   /** A glyph on a small tinted square; its tone says waiting on you, done, a suggestion, or not there. */
   const tile = (name, tone) => { const box = el("span", "assistant-glyph" + (tone ? " is-" + tone : "")); box.append(typeof name === "string" ? glyph(name) : name); return box; };
   /** An action. Primary and secondary ones look like buttons; a quiet one (stop, take back, cancel) shows on hover or focus. */
@@ -2113,9 +2110,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const items = [];
     const page = pageObject();
     if (page) {
-      const label = L("正在看") + "：" + (page.object.title || page.object.id);
-      if (page.included) items.push({ key: "object", label, auto: !joined.has(objectKey(page.object)), note: currentId && page.related ? L("这项工作的对象") : "" });
-      else items.push({ key: "object", label, optional: true });
+      // The page's object is named once; the sentence around it is the translation's own, so it keeps its own colon.
+      const name = page.object.title || page.object.id, label = L("正在看：{title}", { title: name });
+      if (page.included) items.push({ key: "object", label, name, auto: !joined.has(objectKey(page.object)), note: currentId && page.related ? L("这项工作的对象") : "" });
+      else items.push({ key: "object", label, name, optional: true });
     }
     if (page && page.included && context.unsaved && context.draft_text && !removed.has("draft")) items.push({ key: "draft", label: L("未保存的修改"), auto: true });
     if (page) relatedWorks(page.object).filter((row) => row.work_id !== currentId).slice(0, 2)
@@ -2138,7 +2136,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     materialsButton.hidden = !items.length;
     // Named, not counted: the first thing this message carries (what the page shows), and how many more.
     const lead = carried[0] || items[0];
-    if (materialsLabel) materialsLabel.textContent = lead ? clip(lead.label.replace(/^正在看：/, ""), 16) : "";
+    if (materialsLabel) materialsLabel.textContent = lead ? clip(lead.name || lead.label, 16) : "";
     if (materialsCount) materialsCount.textContent = carried.length > 1 ? "+" + (carried.length - 1) : "";
     materialsButton.toggleAttribute("data-optional", !carried.length);
     materialsButton.setAttribute("aria-label", L("本次发送带上的材料") + "：" + (carried.length ? carried.map((item) => item.label).join("、") : L("无")) + (carried.length < items.length ? "；" + L("另有正在看的对象未加入") : ""));

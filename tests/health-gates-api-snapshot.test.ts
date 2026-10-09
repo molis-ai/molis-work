@@ -375,7 +375,9 @@ test("the committed snapshots of this repository leave no mentioned declaration 
     }
   }
   const snapshots = walk(path.join(repoRoot, "tooling/gates/api")).filter((file) => file.endsWith(".txt")).map((file) => ({ file, text: readFileSync(file, "utf8") }));
-  assert.ok(snapshots.length > 60, "the snapshots are committed");
+  // One snapshot per contracts entry (the root and every subpath) plus the plugin SDK's own: tied to package.json, so a subpath that goes needs no edit here.
+  const contractsEntries = Object.keys(JSON.parse(readFileSync(path.join(repoRoot, "packages/contracts/package.json"), "utf8")).exports).length;
+  assert.ok(snapshots.length > contractsEntries, "the snapshots are committed");
   const DECLARATION = /^(?:export\s+)?(?:declare\s+)?(?:abstract\s+)?(?:const|let|var|function|class|interface|type|enum|namespace)\s+([A-Za-z_$][A-Za-z0-9_$]*)/gm;
   const carried = new Set(snapshots.flatMap(({ text }) => [...text.matchAll(DECLARATION)].map((match) => match[1])));
   const missing = snapshots.flatMap(({ file, text }) => {

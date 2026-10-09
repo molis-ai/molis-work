@@ -92,8 +92,6 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
             why: "把第一次表达的目标保存为可继续澄清的共同事实",
             business_logic: `${onboardingPlanningHint(input.intentFrame)} 先保存用户想看到的结果，再由用户和 Runtime 共同补全范围、拆分与验收，不把推断直接写成已确认目标树。`,
             priority: 50,
-            actor_id: LOCAL_PERSON_ACTOR_ID,
-            actor_kind: "user",
             idempotency_key: `onboarding-root-goal-${project.project_id}`,
             source_kind: "onboarding",
           })).goal;

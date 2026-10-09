@@ -27,7 +27,7 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
     const host = createMolisWorkLocalHost({ instanceId: "backup-source" });
     try {
       await host.client(reference).invoke(createGoalIntentCapability, {
-        project_id: project.project_id, actor_id: "user", actor_kind: "user", idempotency_key: "backup-goal",
+        project_id: project.project_id, idempotency_key: "backup-goal",
         goal_id: "retained-goal", title: "保留交接正文", outcome: "恢复后继续工作",
         why: "不能只恢复空壳", business_logic: "保留正文、关系、版本和历史", priority: 50,
       });

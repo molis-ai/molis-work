@@ -9,7 +9,7 @@
 ### 升级须知（需要动手）
 
 - **改名。** 产品名从 GoalBoard 改为 Molis Work（`9824f6e6`，2026-09-15；v0.2.0 的 tag 仍是旧名）。npm 包 `@adeptify/goalboard` 现在是 `@molis-ai/molis-work`；命令 `goalboard`、`goalboard-mcp`、`goalboard-web` 现在是 `molis-work`、`molis-work-mcp`、`molis-work-web`；默认 Home `~/.goalboard` 现在是 `~/.molis-work`；环境变量 `GOALBOARD_*` 现在是 `MOLIS_WORK_*`，代码不再认旧名；MCP 工具名前缀 `goalboard_v1_` 现在是 `molis_work_v1_`。按旧名写的 Runtime 接入配置不再有效（MCP 会报「MCP 宿主没有提供 Runtime 标识」），要用产品自己的 Runtime 接入流程重写（「设置 → AI 与执行工具」）。
-- **每个库只认一个当前版本，不就地升级。** 项目库、目录库、会话库和 Home 级的库各留一份当前建库代码加版本号，版本不符就拒绝打开（#255、#260、#261、#264、#265、#267；两个本来就没有版本的库和两个有特殊处理的见检查清单）；v0.2.0 里按序执行的数据库迁移链和 V3 导入已经删除。v0.2.0 的目录库是 10、会话库是 5，现在分别是 22 和 7；各库现行版本见 [CHECKLIST.md](CHECKLIST.md) 第 3 节。所以 v0.2.0 的 Home 不能直接用新版本打开，产品里也没有随发行的升级工具：要保留数据，发布者按检查清单第 4 节先备份、在副本上演练，再做一次性维护。
+- **每个库只认一个当前版本，不就地升级。** 项目库、目录库、会话库和 Home 级的库各留一份当前建库代码加版本号，版本不符就拒绝打开（#255、#260、#261、#264、#265、#267；有特殊处理的见检查清单）；v0.2.0 里按序执行的数据库迁移链和 V3 导入已经删除。v0.2.0 的目录库是 10、会话库是 5，现在分别是 22 和 7；各库现行版本见 [CHECKLIST.md](CHECKLIST.md) 第 3 节。所以 v0.2.0 的 Home 不能直接用新版本打开，产品里也没有随发行的升级工具：要保留数据，发布者按检查清单第 4 节先备份、在副本上演练，再做一次性维护。
 - **`board_id` 全部改为 `project_id`**（#287）：存储列、平台自己存的 JSON 键、索引名（项目库 v6、Functions v3、目录库 v21）、命令行参数 `--board-id` 改为 `--project-id`。Casebook 导出合同里的合同修订号保持 1，不改外部合同版本。
 - **MCP 只留一套工具**（#269）：连接工具加用户授权的动作工具。动作工具只在用户给这个客户端、这个范围逐项授权后出现，授权存在 `config/mcp-tools.json`（`version` 2；其他版本读成空，授权需要重新给）。工具清单见 [docs/mcp.md](../mcp.md)。Runtime 要加载新版 MCP 与 `goal-advance` Skill 并新开 Session。
 - **根包不再导出代码**（#262）：v0.2.0 的 0.1.x 根 SDK 已删，`@molis-ai/molis-work` 只提供命令和打包内容。
@@ -18,6 +18,8 @@
 - **内置插件一律跟宿主的构建**（#237 起，2026-10-08 补全）：随宿主发布的内置插件（监督器条目标 `bundled`）启动时，安装记录和宿主这个构建的清单只要有一点不同，Runtime 就把记录改成当前构建的清单，保留 `install_id` 与私有数据，也不再恢复旧发行物。不同包括版本更高（#237 起）、版本更低、版本相同而清单内容（摘要）变了；后两种以前 Runtime 不跟，已装的旧代码继续悄悄跑，旧发行物的存档不在时插件启动失败。授权按向上跟的规则收敛：新清单仍声明的保留，必需的补上（同版本改清单时新增的必需权限像新装一样自动授予），不再声明的去掉。为旧版本写的「可从旧版本升级」名单已删除；第三方与生成的插件不变，规则一字没改。0.3.0 的发布 PR 再把内置清单版本改成产品版本，见 [POLICY.md](POLICY.md) 第 7 节。
 
 - **目录库 v22：删除项目的所有者步骤**（`fix/project-deletion-owners`，PR 待开）。目录库多一张表 `project_deletion_steps`，版本由 21 升到 22。新构建拒绝 v21 的目录库（`catalog.unsupported_schema`），做完维护后只认 21 的旧构建又拒绝 v22（`catalog.reader_too_old`）。所以 v21 的 Home 要先做一次一次性维护：`tests/fixtures/catalog-maintenance-v22.sql`，一个事务，版本或表不符就整体回滚；流程与演练记录见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护四。
+- **命令行和管理 MCP 不再有默认数据库路径**（`fix/orphan-resources`，PR 待开）：以前不给路径就用按当前目录算的 `.molis-work/molis-work.db`，在 `$HOME` 下运行会在真实 Home 旁边悄悄建出一个多余的库。现在命令行的 `--db` 必须给（缺、空，或后面直接跟另一个参数，都在建任何文件之前报错），管理 MCP 的 `initialize`、`event_decide`、`goal_tree_decide` 必须给 `database_path` 或设置 `MOLIS_WORK_DATABASE`（否则 `store.path_required`）。依赖旧默认路径的脚本要显式写上路径；Web 服务找不到库时的提示也改为 `molis-work v1 init --db <路径>`。
+- **实验插件私有库和炼金术士搜索库有了版本 1**（`refactor/version-unversioned-stores`，PR 待开）。这两个库原来没有版本（`CREATE TABLE IF NOT EXISTS`），现在和别的库一样经 `applySqliteBaseline`：新建的带版本 1，有表没有版本的旧文件新构建拒绝打开（`storage.schema_version_mismatch`，只影响 Experiments 或该项目的炼金术士搜索，不影响宿主启动）。已有 `plugins/experiments/private.sqlite` 的 Home 要先做一次一次性维护再用新构建：`tests/fixtures/store-maintenance-experiments-private-v1.sql`（炼金术士搜索库对应 `store-maintenance-alchemist-search-v1.sql`）；它们只写 `PRAGMA user_version = 1`，不动表和行；窗口里的步骤由同目录的 `store-maintenance-run.sh`（先演练、再备份后盖章）和 `store-maintenance-verify-open.mjs` 承担，流程见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护五。只认旧代码的构建不看这个版本，所以先维护、后升级最稳：唯一的窗口是新构建在维护之前打不开实验库。
 
 ### 新增
 

@@ -1,4 +1,4 @@
-import type { GoalFactsView, ProjectGuidanceView, GoalsActorWrite, GoalsBoardRecord, PlanningMethodPack, ProjectGuidanceEntryRecord, GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalFactsView, ProjectGuidanceView, GoalsBoardRecord, PlanningMethodPack, ProjectGuidanceEntryRecord, GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 
@@ -37,5 +37,5 @@ export const setActiveGoalCapability = {
 } as HostCapabilityDefinition<{
   project_id: string;
   goal: { goal_id: string; reason: string };
-  write: GoalsActorWrite;
+  write: { idempotency_key: string };
 }, { active_goal_id: string; replayed: boolean; observed_event_cursor: number }>;

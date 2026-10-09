@@ -32,7 +32,7 @@
     },
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
     "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 187,
-    "function apps/local-host/src/project-capabilities.ts#registerProjectCapabilities": 270,
+    "function apps/local-host/src/project-capabilities.ts#registerProjectCapabilities": 240,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 293,
       "methods": 41
@@ -841,9 +841,9 @@
     "tests/workflow-content-actions.test.ts": 2,
     "tests/workflows-stop-and-token.test.ts": 1
   },
-  "oldNamesTotal": 39,
+  "oldNamesTotal": 27,
   "oldNames": {
-    "apps/local-host/src/project-capabilities.ts": 36,
+    "apps/local-host/src/project-capabilities.ts": 24,
     "packages/storage/src/adapters/file-secret-store.ts": 1,
     "plugins/native/goals/src/document-collection.ts": 1,
     "plugins/native/goals/src/goal-tree-materialization-order.ts": 1

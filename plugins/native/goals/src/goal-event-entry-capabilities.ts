@@ -4,6 +4,9 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { GoalEventApplication } from "./goal-event-application.js";
 
+/** Management writes take no caller identity. The host records the person on this machine. */
+type WithoutActor<T> = Omit<T, "actor_id" | "actor_kind">;
+
 export interface GoalEventEntryApi {
   createIntent: GoalEventApplication["createIntent"];
   listGoals: GoalEventApplication["listGoals"];
@@ -30,7 +33,7 @@ export const createGoalIntentCapability = {
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["createIntent"]>[0],
+  WithoutActor<Parameters<GoalEventEntryApi["createIntent"]>[0]>,
   ReturnType<GoalEventEntryApi["createIntent"]>
 >;
 
@@ -54,7 +57,7 @@ export const configureGoalEventsCapability = {
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["configure"]>[0],
+  WithoutActor<Parameters<GoalEventEntryApi["configure"]>[0]>,
   ReturnType<GoalEventEntryApi["configure"]>
 >;
 
@@ -63,7 +66,7 @@ export const reportGoalEventsCapability = {
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["report"]>[0],
+  WithoutActor<Parameters<GoalEventEntryApi["report"]>[0]>,
   ReturnType<GoalEventEntryApi["report"]>
 >;
 
@@ -112,15 +115,15 @@ export const readGoalEventCapability = {
 
 export function createGoalEventEntryClient(client: LocalHostProjectClient) {
   return {
-    createIntent: (input: Parameters<GoalEventEntryApi["createIntent"]>[0]) =>
+    createIntent: (input: WithoutActor<Parameters<GoalEventEntryApi["createIntent"]>[0]>) =>
       client.invoke(createGoalIntentCapability, input),
     listGoals: (input: Parameters<GoalEventEntryApi["listGoals"]>[0]) =>
       client.invoke(listGoalDirectoryCapability, input),
     readState: (projectId: string, goalId: string) =>
       client.invoke(readGoalEventStateCapability, { project_id: projectId, goal_id: goalId }),
-    configure: (input: Parameters<GoalEventEntryApi["configure"]>[0]) =>
+    configure: (input: WithoutActor<Parameters<GoalEventEntryApi["configure"]>[0]>) =>
       client.invoke(configureGoalEventsCapability, input),
-    report: (input: Parameters<GoalEventEntryApi["report"]>[0]) =>
+    report: (input: WithoutActor<Parameters<GoalEventEntryApi["report"]>[0]>) =>
       client.invoke(reportGoalEventsCapability, input),
     listEvents: (projectId: string, goalId: string, query?: { after_cursor?: number; limit?: number }) =>
       client.invoke(listGoalEventsCapability, { project_id: projectId, goal_id: goalId, ...query }),
@@ -130,23 +133,23 @@ export function createGoalEventEntryClient(client: LocalHostProjectClient) {
       client.invoke(listLatestGoalTimelineCapability, { project_id: projectId, goal_id: goalId, ...query }),
     readEvent: (projectId: string, goalId: string, eventId: string) =>
       client.invoke(readGoalEventCapability, { project_id: projectId, goal_id: goalId, event_id: eventId }),
-    recordProgress: (input: Parameters<GoalEventEntryApi["recordProgress"]>[0]) =>
+    recordProgress: (input: WithoutActor<Parameters<GoalEventEntryApi["recordProgress"]>[0]>) =>
       client.invoke(recordGoalProgressCapability, input),
-    applyConcern: (input: Parameters<GoalEventEntryApi["applyConcern"]>[0]) =>
+    applyConcern: (input: WithoutActor<Parameters<GoalEventEntryApi["applyConcern"]>[0]>) =>
       client.invoke(applyGoalConcernCapability, input),
-    requestDecision: (input: Parameters<GoalEventEntryApi["requestDecision"]>[0]) =>
+    requestDecision: (input: WithoutActor<Parameters<GoalEventEntryApi["requestDecision"]>[0]>) =>
       client.invoke(requestGoalDecisionCapability, input),
-    citeDecision: (input: Parameters<GoalEventEntryApi["citeDecision"]>[0]) =>
+    citeDecision: (input: WithoutActor<Parameters<GoalEventEntryApi["citeDecision"]>[0]>) =>
       client.invoke(citeGoalDecisionCapability, input),
     recordTrustedDecision: (input: Parameters<GoalEventEntryApi["recordTrustedDecision"]>[0]) =>
       client.invoke(recordGoalUserDecisionCapability, input),
-    setAgreement: (input: Parameters<GoalEventEntryApi["setAgreement"]>[0]) =>
+    setAgreement: (input: WithoutActor<Parameters<GoalEventEntryApi["setAgreement"]>[0]>) =>
       client.invoke(setGoalEventAgreementCapability, input),
-    submitClosure: (input: Parameters<GoalEventEntryApi["submitClosure"]>[0]) =>
+    submitClosure: (input: WithoutActor<Parameters<GoalEventEntryApi["submitClosure"]>[0]>) =>
       client.invoke(submitGoalEventClosureCapability, input),
-    resumeWork: (input: Parameters<GoalEventEntryApi["resumeWork"]>[0]) =>
+    resumeWork: (input: WithoutActor<Parameters<GoalEventEntryApi["resumeWork"]>[0]>) =>
       client.invoke(resumeGoalEventWorkCapability, input),
-    recordNote: (input: Parameters<GoalEventEntryApi["recordNote"]>[0]) =>
+    recordNote: (input: WithoutActor<Parameters<GoalEventEntryApi["recordNote"]>[0]>) =>
       client.invoke(recordGoalNoteCapability, input),
   };
 }
@@ -156,7 +159,7 @@ export const recordGoalProgressCapability = {
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["recordProgress"]>[0],
+  WithoutActor<Parameters<GoalEventEntryApi["recordProgress"]>[0]>,
   ReturnType<GoalEventEntryApi["recordProgress"]>
 >;
 
@@ -165,7 +168,7 @@ export const applyGoalConcernCapability = {
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["applyConcern"]>[0],
+  WithoutActor<Parameters<GoalEventEntryApi["applyConcern"]>[0]>,
   ReturnType<GoalEventEntryApi["applyConcern"]>
 >;
 
@@ -174,7 +177,7 @@ export const requestGoalDecisionCapability = {
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["requestDecision"]>[0],
+  WithoutActor<Parameters<GoalEventEntryApi["requestDecision"]>[0]>,
   ReturnType<GoalEventEntryApi["requestDecision"]>
 >;
 
@@ -183,7 +186,7 @@ export const citeGoalDecisionCapability = {
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["citeDecision"]>[0],
+  WithoutActor<Parameters<GoalEventEntryApi["citeDecision"]>[0]>,
   ReturnType<GoalEventEntryApi["citeDecision"]>
 >;
 
@@ -202,7 +205,7 @@ export const setGoalEventAgreementCapability = {
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["setAgreement"]>[0],
+  WithoutActor<Parameters<GoalEventEntryApi["setAgreement"]>[0]>,
   ReturnType<GoalEventEntryApi["setAgreement"]>
 >;
 
@@ -211,7 +214,7 @@ export const submitGoalEventClosureCapability = {
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["submitClosure"]>[0],
+  WithoutActor<Parameters<GoalEventEntryApi["submitClosure"]>[0]>,
   ReturnType<GoalEventEntryApi["submitClosure"]>
 >;
 
@@ -220,7 +223,7 @@ export const resumeGoalEventWorkCapability = {
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["resumeWork"]>[0],
+  WithoutActor<Parameters<GoalEventEntryApi["resumeWork"]>[0]>,
   ReturnType<GoalEventEntryApi["resumeWork"]>
 >;
 
@@ -229,6 +232,6 @@ export const recordGoalNoteCapability = {
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
-  Parameters<GoalEventEntryApi["recordNote"]>[0],
+  WithoutActor<Parameters<GoalEventEntryApi["recordNote"]>[0]>,
   ReturnType<GoalEventEntryApi["recordNote"]>
 >;

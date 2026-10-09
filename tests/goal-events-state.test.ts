@@ -2045,3 +2045,45 @@ test("an earlier superseded completion is not revived over the later effective o
     close(data);
   }
 });
+
+test("project human-approval policy blocks completion until a current user authorizes it", () => {
+  const data = fixture();
+  try {
+    data.app.goals.commands.saveProjectPolicy({
+      project_id: BOARD, actor_id: "user-1", user_confirmed: true,
+      policy: { human_approval: true }, idempotency_key: "policy-approval",
+    });
+    const created = data.app.goalEvents.createIntent({
+      project_id: BOARD, title: "需要你点头", outcome: "结果可以检查",
+      actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "intent-approval-policy",
+    });
+    const goalId = created.goal.goal_id;
+    configure(data.app, goalId, "cfg-approval-policy", {
+      new_requirements: [{ requirement_id: "approval-req", statement: "结果可以检查" }],
+    });
+    reportSupport(data.app, goalId, "rep-approval-policy", "approval-req");
+    const blocked = data.app.goalEvents.submitClosure({
+      project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-approval-policy", kind: "complete", result: "结果可以检查",
+      reason: "工作事实已经支持，但项目规则还要你点头", ...versions(data.app, goalId),
+    });
+    assert.equal(blocked.completion_applied, false);
+    assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "event_closure.human_approval_required"));
+    assert.equal(blocked.unmet_reasons.some((reason) => reason.code === "event_closure.human_decision_required"), false);
+    data.app.goalEvents.recordTrustedDecision({
+      project_id: BOARD, goal_id: goalId, idempotency_key: "allow-approval-policy",
+      authority: hostEventDecisionAuthority("management", BOARD, "review-user", "allow-approval-policy"),
+      conclusion: "我确认可以完成",
+      effects: [{ kind: "authorize_action", action: "complete" }],
+      scope: { action: "complete" },
+    });
+    const closed = data.app.goalEvents.submitClosure({
+      project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-approval-policy-allowed", kind: "complete", result: "结果可以检查",
+      reason: "你已经点头", ...versions(data.app, goalId),
+    });
+    assert.equal(closed.completion_applied, true);
+  } finally {
+    close(data);
+  }
+});

@@ -1,5 +1,6 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { renderSideBrowser } from "./side-panel-browser.js";
+import { renderSideComputer } from "./side-panel-computer.js";
 import { renderSideFiles } from "./side-panel-files.js";
 
 /**
@@ -35,12 +36,13 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
   return `<section class="side-panel" id="dock-window-im" role="region" aria-label="${L("侧栏")}" data-side-panel data-dock-window="im" hidden>
         <header class="side-panel-head">
           <div class="side-panel-tabs" role="tablist" aria-label="${L("侧栏内容")}" data-side-tabs>
-            ${projectTools ? tab("discussion", L("讨论"), "message") + tab("browser", L("浏览器"), "globe") + tab("files", L("文件"), "folder") : ""}${plugins.map(entry => tab(entry.id, entry.title, entry.icon, ` data-side-plugin="${escapeHtml(entry.key)}"`)).join("")}
+            ${projectTools ? tab("discussion", L("讨论"), "message") + tab("browser", L("浏览器"), "globe") + tab("computer", L("电脑"), "system") + tab("files", L("文件"), "folder") : ""}${plugins.map(entry => tab(entry.id, entry.title, entry.icon, ` data-side-plugin="${escapeHtml(entry.key)}"`)).join("")}
           </div>
           <button class="side-panel-close" type="button" data-side-close aria-label="${L("收起侧栏")}" title="${L("收起侧栏")}">${icon("x")}</button>
         </header>
         ${projectTools ? body("discussion", L("项目讨论"), `<iframe title="${L("群聊与 Thread")}" data-dock-frame="im"></iframe>`)
           + body("browser", L("浏览器"), renderSideBrowser(primitives), " data-side-browser")
+          + body("computer", L("电脑"), renderSideComputer(primitives), " data-side-computer")
           + body("files", L("文件"), renderSideFiles(primitives), " data-side-files") : ""}
         ${plugins.map(entry => body(entry.id, entry.title, `<iframe title="${escapeHtml(entry.title)}" data-side-frame></iframe>`, ` data-side-src="${escapeHtml(entry.src)}"`)).join("")}
       </section>`;

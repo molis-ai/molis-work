@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createCodingTimeline } from "@molis-ai/molis-work-plugin-coding";
+import { codingTimelineWords, createCodingTimeline } from "@molis-ai/molis-work-plugin-coding";
 import { ChromeHarness } from "./fixtures/plugin-builder-browser.js";
 
 interface Reading { summary: string; rows: string[]; footer: string }
@@ -16,7 +16,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     const page = await browser.page();
     // The factory is injected into the page by toString in production, so it runs here the same way.
     const result = await page.evaluate<Record<"waiting" | "running" | "done" | "stopped" | "failed", Reading>>(`(()=>{
-      const timeline=(${createCodingTimeline.toString()})();
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
       const block=document.createElement('section'),detail=document.createElement('details');detail.dataset.codingActivity='r:0';block.append(detail);document.body.append(block);
       const items=[{call_id:'a',name:'run-command',target:'ls -la',state:'started'},{call_id:'b',name:'grep',target:'completionRate',state:'started'}];
       const read=(run)=>{timeline.renderGroup(detail,run.activity,run,true);timeline.renderFooter(block,run,0);
@@ -42,7 +42,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.doesNotMatch(result.stopped.footer, /已停止.*已停止/, "只复述标题的停止原因不再重复一遍");
     assert.match(result.failed.footer, /模型请求超时/, "真正的失败原因保留");
     const thinking = await page.evaluate<{ live: string; done: string; rows: string[]; preview: string; body: string }>(`(()=>{
-      const timeline=(${createCodingTimeline.toString()})();
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
       const detail=document.createElement('details');detail.dataset.codingActivity='t:0';document.body.append(detail);
       const text=()=>detail.querySelector('summary').textContent.trim();
       const thought={call_id:'reasoning-2',name:'reasoning',target:'',state:'started',output:'先确认入口在哪里。\\n然后看会话校验。'};
@@ -56,7 +56,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.match(thinking.body, /然后看会话校验/);
     assert.deepEqual(thinking.rows, ["", ""], "思考完成不打勾，读取也没有退出码");
     const resume = await page.evaluate<Record<string, string>>(`(()=>{
-      const timeline=(${createCodingTimeline.toString()})();
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
       const card=(run,latest)=>{const block=document.createElement('section');document.body.append(block);timeline.renderFooter(block,{ref:{run_id:run.id},started_at:null,ended_at:null,activity:[],...run},0,latest);
         const b=block.querySelector('[data-coding-continue],[data-coding-recover-continue],[data-coding-nudge]');return (b?b.textContent.trim()+'|':'none|')+block.querySelector('header strong')?.textContent.trim()+'|'+block.querySelector('.coding-run-reason')?.textContent.trim();};
       return {
@@ -85,7 +85,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.match(resume.denied, /^从断点继续\|这一轮没有完成\|模型服务拒绝了凭据：/, "401 指向密钥");
     assert.match(resume.refused, /^从断点继续\|这一轮没有完成\|这一轮的授权已失效：.*没有发出任何内容.*\s*EFFECT_NOT_AUTHORIZED/, "发出前被拒不说成网络问题");
     const quiet = await page.evaluate<{ early: boolean; late: string; tool: boolean; heard: boolean }>(`(()=>{
-      const timeline=(${createCodingTimeline.toString()})();
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
       const block=document.createElement('section');document.body.append(block);
       const run={ref:{run_id:'q'},phase:'running',started_at:new Date(Date.now()-90000).toISOString(),ended_at:null,activity:[{call_id:'r',name:'reasoning',state:'started',output:'想一想',at:null}],turns:[]};
       timeline.renderFooter(block,run,0,true);
@@ -113,7 +113,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     // A restart leaves an interrupted round without an end time: its duration stops at the last recorded moment, so
     // redrawing the card later changes nothing and the 核对并继续 button under the pointer is not replaced.
     const cutOff = await page.evaluate<{ facts: string; same: boolean; kept: boolean; bare: string }>(`(async()=>{
-      const timeline=(${createCodingTimeline.toString()})();
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
       const block=document.createElement('section');document.body.append(block);
       const run={ref:{run_id:'r'},phase:'reconcile-required',stop_reason:'运行中断',started_at:'2026-09-25T10:00:00Z',ended_at:null,
         activity:[{call_id:'e1',name:'edit',target:'src/a.ts',state:'completed',at:'2026-09-25T10:01:05Z'}],turns:[{kind:'user',text:'改',at:'2026-09-25T10:00:00Z'}]};
@@ -133,7 +133,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     // "" (it only takes path/file_path/command/pattern/query from tool args), so matching retries by target would
     // be vacuous; matching by "any later completed board-report" is what the data actually supports.
     const retry = await page.evaluate<{ row: string; tone: string; summary: string }>(`(()=>{
-      const timeline=(${createCodingTimeline.toString()})();
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
       const detail=document.createElement('details');detail.dataset.codingActivity='r:retry';document.body.append(detail);
       const items=[
         {call_id:'br1',name:'board-report',target:'',state:'failed',output:'TASKBOARD_CONFLICT: stale version'},
@@ -147,7 +147,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.equal(retry.tone, "retry");
     assert.doesNotMatch(retry.summary, /未成功/, "重试不计入未成功,摘要里没有'项未成功'");
     const plain = await page.evaluate<{ row: string; tone: string; summary: string }>(`(()=>{
-      const timeline=(${createCodingTimeline.toString()})();
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
       const detail=document.createElement('details');detail.dataset.codingActivity='r:plain';document.body.append(detail);
       const items=[{call_id:'br3',name:'board-report',target:'',state:'failed',output:'some other error'}];
       timeline.renderGroup(detail,items,{ref:{run_id:'plain'},phase:'failed',activity:items},true);

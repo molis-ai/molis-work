@@ -204,7 +204,8 @@ describe("the records of this repository", () => {
   const file = (relative: string) => readFileSync(path.join(repoRoot, relative), "utf8");
   const json = (relative: string) => JSON.parse(file(relative));
   const folder = "vendor/prologue-sdk";
-  const current = "prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz";
+  // The package agent-host depends on: the in-flight one of specs/prologue-adoption until it is rebuilt from upstream main.
+  const current = "prologue-sdk-0.0.0-rc.1-molis-adoption.tgz";
 
   test("every vendored archive matches its .sha256 and provenance", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
@@ -214,15 +215,16 @@ describe("the records of this repository", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    assert.equal(provenance.source.commit, "9fc3b17386419625a36359b74fb4789c17a3adc8");
+    assert.equal(provenance.source.commit, "c4b9fde33df465b6f1798ef1c34de85c2b1904f0");
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
   });
 
-  test("only the patch the provenance names is left in vendor/prologue-sdk", () => {
-    const named = json(`${folder}/${current}.provenance.json`).alsoBuildableFrom?.patch?.file;
-    const patches = readdirSync(path.join(repoRoot, folder)).filter((name) => name.endsWith(".patch"));
-    assert.deepEqual(patches, named ? [named] : []);
+  test("only patches a package's provenance names are left in vendor/prologue-sdk", () => {
+    const entries = readdirSync(path.join(repoRoot, folder));
+    const named = entries.filter((name) => name.endsWith(".provenance.json"))
+      .map((name) => json(`${folder}/${name}`).alsoBuildableFrom?.patch?.file).filter((name): name is string => typeof name === "string");
+    assert.deepEqual(entries.filter((name) => name.endsWith(".patch")), [...new Set(named)].sort());
   });
 
   test("patch-history.json holds the 25 deleted patches and the 9 packages that never had one", () => {

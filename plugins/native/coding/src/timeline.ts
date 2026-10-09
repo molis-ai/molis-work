@@ -6,6 +6,8 @@
  * no imports, no closures over module scope. Everything it shows comes from the run projection; it never
  * infers success the projection does not state.
  */
+import type { codingTimelineWords } from "./timeline-words.js";
+
 /** Runs in the browser only; the plugin build has no DOM library, so elements are typed structurally. */
 type Element = any;
 declare const document: any;
@@ -40,38 +42,14 @@ export interface TimelineTurnChanges {
   files: Array<{ path: string; byte_length: number; digest: string; checkpoint_id: string }>;
 }
 
-export function createCodingTimeline() {
+/** The words and tables the timeline reads with (codingTimelineWords), passed in because the factory is injected alone. */
+export type TimelineWords = ReturnType<typeof codingTimelineWords>;
+
+export function createCodingTimeline(words: TimelineWords) {
   const TERMINAL = ["completed", "failed", "stopped", "cancelled", "reconcile-required"];
   const svg = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
   const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] as string));
-  const KIND: Record<string, { verb: string; icon: string; noun: string; unit: string }> = {
-    read: { verb: "读取", icon: "file", noun: "文件", unit: "个" },
-    "read-file": { verb: "读取", icon: "file", noun: "文件", unit: "个" },
-    edit: { verb: "修改", icon: "edit", noun: "文件", unit: "个" },
-    write: { verb: "写入", icon: "edit", noun: "文件", unit: "个" },
-    "run-command": { verb: "运行", icon: "terminal", noun: "命令", unit: "条" },
-    grep: { verb: "搜索", icon: "search", noun: "内容", unit: "次" },
-    search: { verb: "搜索", icon: "search", noun: "内容", unit: "次" },
-    glob: { verb: "查找", icon: "search", noun: "文件", unit: "次" },
-    list: { verb: "查看目录", icon: "folder", noun: "目录", unit: "个" },
-    "list-directory": { verb: "查看目录", icon: "folder", noun: "目录", unit: "个" },
-    "ask-user": { verb: "提问", icon: "question", noun: "问题", unit: "个" },
-    reasoning: { verb: "思考", icon: "sparkles", noun: "", unit: "" },
-    "dispatch-subagent": { verb: "派出子任务", icon: "workflow", noun: "子任务", unit: "个" },
-    "await-subagents": { verb: "等待子任务", icon: "clock", noun: "", unit: "" },
-    "steer-subagent": { verb: "补充子任务要求", icon: "workflow", noun: "次", unit: "" },
-    "board-read": { verb: "查看任务图", icon: "list", noun: "", unit: "" },
-    "board-report": { verb: "回报步骤", icon: "list", noun: "步骤", unit: "次" },
-    "start-command": { verb: "后台运行", icon: "terminal", noun: "命令", unit: "条" },
-    "command-output": { verb: "查看后台输出", icon: "terminal", noun: "次", unit: "" },
-    "command-stop": { verb: "停止后台命令", icon: "terminal", noun: "条", unit: "" },
-    "await-commands": { verb: "等待后台命令", icon: "clock", noun: "", unit: "" },
-    "session-send": { verb: "给其他会话发信", icon: "share", noun: "封", unit: "" },
-    "上下文整理": { verb: "整理上下文", icon: "clock", noun: "", unit: "次" },
-    "工具调用纠正": { verb: "纠正工具调用", icon: "circle-alert", noun: "", unit: "次" },
-    "sleep-wait": { verb: "等一会儿", icon: "clock", noun: "", unit: "次" },
-    "model-switch": { verb: "换模型", icon: "sparkles", noun: "", unit: "次" },
-  };
+  const { KIND, FAILURES, toolHint: hintFor } = words;
   const kindOf = (item: TimelineActivity) => KIND[item.name] ?? { verb: item.name, icon: "activity", noun: "操作", unit: "项" };
   /** A command's own exit code is a fact from its receipt; "passed" is never inferred beyond it. */
   const exitCode = (item: TimelineActivity): number | null => {
@@ -118,17 +96,8 @@ export function createCodingTimeline() {
     const all = text.replace(/\n$/, "").split("\n");
     return all.length <= limit ? { text: all.join("\n"), hidden: 0 } : { text: all.slice(0, limit).join("\n"), hidden: all.length - limit };
   };
-  /**
-   * What a runtime refusal on one tool call means, in words, above its raw output. Only codes whose meaning is fixed:
-   * the raw `CODE: message` stays below for the exact path, line and kind.
-   */
   const toolHint = (item: TimelineActivity): string => {
-    if (item.state !== "failed") return "";
-    const code = /^([A-Z][A-Z0-9_]+):/.exec((item.output ?? "").trim())?.[1];
-    const hint = code === "WORKSPACE_SECRET_DETECTED" ? "新写的内容里有像密钥的一段，没有写入，也没有生成待审修改。密钥不要放进项目文件：放在密钥库或环境变量里，让它改用引用。"
-      : code === "PATCH_BASE_CHANGED" || code === "WORKSPACE_NOT_OBSERVED" ? "文件在它读过之后又被改过，这次修改没有覆盖上去；它需要重新读取文件再改。"
-      : code === "COMMAND_DENIED" ? "这条命令没有运行：它的写法或点名要的额外访问不合规则。"
-      : "";
+    const hint = item.state === "failed" ? hintFor((item.output ?? "").trim()) : "";
     return hint ? `<p class="coding-tool-hint">${escape(hint)}</p>` : "";
   };
   const rowHtml = (item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
@@ -206,27 +175,6 @@ export function createCodingTimeline() {
    * A failure explained in the user's words, with what to do next. The original code stays visible so the
    * explanation never replaces the fact it explains.
    */
-  const FAILURES: Array<[RegExp, string, string]> = [
-    // The Host refused before sending (a Character disabled, a grant withdrawn): nothing reached the model.
-    [/EFFECT_NOT_AUTHORIZED/, "这一轮的授权已失效", "角色被停用或授权被收回，这一轮在发给模型前就停下了，没有发出任何内容。确认设置后再从断点继续。"],
-    // The model went silent or the connection dropped mid-answer: not a settings problem, and what was done is kept.
-    [/MODEL_NETWORK_FAILED.*(timeout|went quiet)/i, "模型服务长时间没有回应", "可能是网络不稳或服务繁忙；已完成的操作都保留着，从断点继续即可。反复出现时把任务拆小一些。"],
-    [/MODEL_NETWORK_FAILED.*(terminated|reset|hang up)/i, "和模型服务的连接中断了", "已完成的操作都保留着；网络恢复后从断点继续即可。"],
-    [/MODEL_NETWORK_FAILED|NETWORK_|ENOTFOUND|ECONN|ETIMEDOUT|DNS/i, "连不上模型服务", "检查网络或代理后，从断点继续即可。"],
-    [/TIMEOUT|超时/i, "请求超时", "稍后从断点继续；若反复超时，把任务拆小一些。"],
-    [/CREDENTIAL_/i, "模型凭据不可用或已过期", "到模型设置里重新检查凭据，再从断点继续。"],
-    [/MODEL_HTTP_ERROR.*(429|rate)|rate.?limit/i, "模型服务限流", "等一会儿再从断点继续。"],
-    [/MODEL_HTTP_ERROR.*\(5\d\d\)/i, "模型服务暂时出错", "这是服务方的问题，不是你的设置；已完成的操作都保留着，稍后从断点继续即可。"],
-    [/MODEL_HTTP_ERROR.*\((401|403)\)/i, "模型服务拒绝了凭据", "到模型设置里检查密钥和账号权限，再从断点继续。"],
-    [/MODEL_HTTP_ERROR|MODEL_NOT_FOUND|MODEL_PROTOCOL_UNSUPPORTED|MODEL_PARAM_UNSUPPORTED/i, "模型服务返回错误", "检查模型设置（地址、型号、协议）后再继续。"],
-    [/MODEL_CONTEXT_OVERFLOW|MODEL_REQUEST_TOO_LARGE|CONTEXT_BUDGET_EXCEEDED/i, "上下文超出模型上限", "从断点继续时会带上整理后的事实；也可以把任务拆小。"],
-    [/CONTEXT_COMPACTION_INVALID/i, "上下文整理失败", "已完成的操作都保留着；从断点继续时改用前面对话的摘要，不再整理原文。"],
-    [/AGENT_BUDGET_EXCEEDED|MODEL_BUDGET_EXCEEDED|RESOURCE_LIMIT_EXCEEDED/i, "达到这一轮的执行上限", "确认进度后从断点继续，会开启新的一轮额度。"],
-    [/too many tool turns/i, "用完了可用的执行轮次", "已完成的修改都保留着；重试时可以给更多轮次，或把任务拆小。"],
-    [/MODEL_RESPONSE_INVALID|MODEL_STRUCTURED_INVALID|MODEL_TOOL_NOT_DECLARED/i, "模型的回复格式不对", "通常是偶发的，从断点继续即可。"],
-    [/MODEL_REFUSED/i, "模型拒绝了这个请求", "换个说法或补充背景后再发。"],
-    [/MODEL_OUTPUT_TRUNCATED/i, "回答一直写不完", "已写出的部分和已完成的操作都保留着；从断点继续时让它分几次写，或把任务拆小。"],
-  ];
   const explainFailure = (reason: string) => {
     const match = FAILURES.find(([pattern]) => pattern.test(reason));
     return match ? { title: match[1], hint: match[2] } : null;
@@ -319,25 +267,5 @@ export function createCodingTimeline() {
       node.textContent = show ? `模型已 ${quiet} 秒没有新输出，可能在长时间思考，也可能网络不稳。一直没有回应时这一轮会自动结束，已完成的操作都保留，可以从断点继续。` : "";
     });
   }
-  /**
-   * What one turn really wrote, as the runtime counted it from its write receipts (never the model's own account): a
-   * row where it happened, the round's changes one click away, and — once the round has ended — a reviewed rewind to
-   * before each write. Rebuilt only when what it shows changes, so an open row stays open while the round goes on.
-   */
-  const renderTurnChanges = (node: Element, changes: TimelineTurnChanges, run: TimelineRun, rewindable: boolean) => {
-    const key = JSON.stringify([changes.files.map(file => [file.path, file.digest, file.checkpoint_id]), rewindable]);
-    node.className = "coding-turn-changes";
-    node.dataset.codingTurnChanges = `${run.ref.run_id}:${changes.turn}`;
-    if (node.dataset.key === key) return;
-    node.dataset.key = key;
-    const files = changes.files;
-    const names = files.slice(0, 3).map(file => file.path.split("/").at(-1)).join(" · ") + (files.length > 3 ? ` 等 ${files.length} 个` : "");
-    const open = node.querySelector("details")?.open ? " open" : "";
-    node.innerHTML = `<details${open}><summary><span class="coding-tool-icon">${svg("edit")}</span><span class="coding-tool-verb">本轮写入 ${files.length} 个文件</span><span class="coding-tool-preview">${escape(names)}</span></summary>`
-      + `<ul class="coding-turn-changes-files">${files.map(file => `<li><code>${escape(file.path)}</code><small title="${escape("写入后磁盘上内容的 SHA-256：" + file.digest)}">${file.byte_length} 字节</small>`
-        + (rewindable ? `<button type="button" class="mw-btn mw-btn--ghost" data-coding-rewind="${escape(file.checkpoint_id)}" aria-label="${escape("预览回退到写入 " + file.path + " 之前")}">预览回退</button>` : "") + "</li>").join("")}</ul>`
-      + `<p class="coding-turn-changes-note">按写入回执记下的实际修改，不是模型的说法。命令改动的文件不在这里。</p>`
-      + `<button type="button" class="mw-btn mw-btn--ghost" data-coding-change-open="${escape(run.ref.run_id)}">查看这一轮的变更</button></details>`;
-  };
-  return { renderGroup, renderFooter, renderTurnChanges, tick, explainFailure };
+  return { renderGroup, renderFooter, tick, explainFailure };
 }

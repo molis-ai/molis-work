@@ -9,14 +9,12 @@ import type { PrologueInferenceClient } from "../inference.js";
 import { prologueActionTools, agentActionToolName } from "./prologue-action-tools.js";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { BUILT_IN_ADAPTERS, DEFAULT_CONTEXT_WINDOW_TOKENS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, prepareSkillIntent, fillSkillBody, redactText, screenInbound, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
+import { BUILT_IN_ADAPTERS, DEFAULT_CONTEXT_WINDOW_TOKENS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
 /** Start refusals the runtime raises before it creates a run: validation and context packing. */
 // Codes the runtime raises before it creates a run: nothing ran, so the attempt is a settled refusal.
 const REFUSED_BEFORE_RUN = new Set(["AGENT_START_INVALID", "CONTEXT_BUDGET_EXCEEDED", "CONTEXT_SOURCE_MISSING", "CONTEXT_INBOUND_HELD", "EFFECT_RECONCILE_REQUIRED"]);
 import path from "node:path";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
 
 import {
@@ -29,16 +27,22 @@ import {
   type PrologueRunTiming,
 } from "./prologue.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
-import { createPrologueSubagents, verifySubagentStart, exactCharacterKey, type PrologueSubagentRoot } from "./prologue-subagents.js";
+import { createPrologueSubagents, subagentYieldGuard, verifySubagentStart, exactCharacterKey, type PrologueSubagentRoot } from "./prologue-subagents.js";
 import { createPrologueMcpLibrary, mcpConnectionId, type HostMcpConnection } from "./prologue-mcp.js";
 import { createPrologueCheckpoints, type PrologueRewindIntent } from "./prologue-checkpoints.js";
 import { createPrologueGitReviews, type PrologueGitReviewPort } from "./prologue-git.js";
 import { createPrologueCompactor } from "./prologue-compaction.js";
-import { createPrologueSkillLibrary } from "./prologue-methods.js";
+import { createPrologueSkillLibrary, inlineMethods } from "./prologue-methods.js";
 import { createPrologueTaskBoards, codingExecutionRules } from "./prologue-taskboard.js";
 import { createProjectWork, projectWorkDigest, workPaths } from "./prologue-project-work.js";
 import { createSessionMessages, MAX_BROADCAST } from "./prologue-messages.js";
 import { createPrologueWaits } from "./prologue-waits.js";
+import { createPrologueMemory } from "./prologue-memory.js";
+import { createPrologueDocuments } from "./prologue-documents.js";
+import { runModelParams } from "./prologue-run-params.js";
+export { THINKING_OUTPUT_TOKENS } from "./prologue-run-params.js";
+import { PrologueCredentialBridge } from "./prologue-credentials.js";
+export { PrologueCredentialBridge, type PrologueCredentialHost } from "./prologue-credentials.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentActionClient, AgentReviewReceipt, AgentRunRef, AgentRuntimeDiagnostics } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -119,15 +123,11 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
 // it must not silently cut a valid 20,000-character published Character.
 const MAX_COMPOSED_INSTRUCTION_CHARS = 64_000;
 /** Turns a subagent may take when its dispatch does not say; the user set it to 20. */
-/** Output limit per model call while thinking is on (the user's choice); only a ceiling, usage is what the model spends. */
-export const THINKING_OUTPUT_TOKENS = 32_768;
 export const SUBAGENT_DEFAULT_TURNS = 20;
 /** Turns a round started without a budget may take: the SDK's own default, unchanged. */
 const ROUND_DEFAULT_TURNS = 8;
 /** One model call's wait for its answer to start, and between its parts, when the round has no time budget. */
 export const MODEL_CALL_TIMEOUT_MS = 180_000;
-/** Images a model call can carry, as recognised from their bytes. */
-const IMAGE_MEDIA_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
 /**
  * Build the Prologue Runtime on the Node host.
@@ -168,8 +168,6 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   });
   // Timed work the runtime keeps across restarts. Its runner is attached here, once; the Host registers what each kind
   // does later, so a task that falls due while the Host is still starting waits for its runner instead of failing.
-  // The Host's private directory images are taken in from (authorized once, on first use).
-  let intakeRoot: Promise<{ path: string; ref: ExactRef<"authorized-root"> }> | undefined;
   const scheduleRunners = new Map<string, (task: import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduledTask) => Promise<void>>();
   const scheduledView = (task: import("@prologue/sdk").QueuedTask): import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduledTask => ({
     task_id: task.ref.id, key: task.key, session_id: task.sessionRef.id, kind: task.work.kind, payload: { ...task.work.payload },
@@ -244,15 +242,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   /** Per session, the capabilities the round now running has seen offered (so one gone later reads as taken away). */
   const gatewayKnown = new Map<string, Set<string>>();
   const gatewayHooks = new Set<string>();
-  /** Sessions whose subtask dispatch is checked for a yield the Host has not wired (one hook per session). */
-  const yieldHooks = new Set<string>();
+  const refuseYield = subagentYieldGuard(runtime);
   // Why each held ending was held, in order (the runtime's event does not say), and rounds that ended still only announcing.
   const heldLabels = new Map<string, Array<{ target: string; summary: string }>>();
   // Rounds that may change things: an ending that only announces the next step is held once per run.
   /** Per session, what the round now running really kept and forgot (only for sessions given memory tools). */
   const memoryRounds = new Map<string, { keep: number; forget: number; off: boolean; spoken: string; /** Given memory, but not the tool that keeps (or forgets): a work handed down by another work. */ without: { keep: boolean; forget: boolean } }>();
-  /** The exact Prologue references of the memories the Host chose for a run (set with the memory capability below). */
-  let memoryRefs: (pinned: readonly import("@molis-ai/molis-work-contracts/services/agent-host").AgentPinnedMemory[]) => Promise<import("@prologue/sdk").ExactRef<"memory">[]> = async () => [];
+  /** The platform memory port, and the exact Prologue references of the memories the Host chose for a run. */
+  const platformMemory = createPrologueMemory(runtime);
   // Suggestions this round really made, for the same check: a reply may not say a button is ready when none was.
   const offerRounds = new Map<string, { offered: number }>();
   // Calls this round finished without error, for the same check: a reply may not say something was saved when no change was.
@@ -866,151 +863,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       },
       release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
     },
-    documents: {
-      readImage: async resource => {
-        const ref = { kind: "resource" as const, id: resource.id, revision: resource.revision } as ExactRef<"resource">;
-        const handle = runtime.resources.inspect(ref);
-        if (!handle || handle.byteLength > 20 * 1024 * 1024) return null;
-        const bytes = new Uint8Array(handle.byteLength);
-        for (let offset = 0; offset < bytes.byteLength;) {
-          const chunk = await runtime.resources.readChunk(ref, offset, Math.min(64 * 1024, bytes.byteLength - offset));
-          if (!chunk.bytes.byteLength) return null;
-          bytes.set(chunk.bytes, offset); offset += chunk.bytes.byteLength;
-        }
-        return bytes;
-      },
-      intakeImage: async input => {
-        // The runtime takes files in only from an authorized directory: a private one of the Host's, emptied at once.
-        const dir = await (intakeRoot ??= (async () => {
-          const where = options.storageRoot ? path.join(options.storageRoot, "image-intake") : await mkdtemp(path.join(tmpdir(), "molis-image-intake-"));
-          await mkdir(where, { recursive: true, mode: 0o700 });
-          const canonical = await realpath(where);
-          return { path: canonical, ref: (await runtime.workspace.authorize({ path: canonical })).ref };
-        })());
-        const file = `${randomUUID()}.img`;
-        await writeFile(path.join(dir.path, file), input.bytes, { mode: 0o600 });
-        try {
-          const batch = runtime.beginIntake(dir.ref);
-          try {
-            const item = await batch.add(file, input.name.slice(0, 120) || "image");
-            if (!item.mediaType || !IMAGE_MEDIA_TYPES.includes(item.mediaType)) throw new PrologueAdapterError("agent.capability_unavailable", "只能带 PNG、JPEG、GIF 或 WebP 图片");
-            await batch.publish();
-            return { resource: { id: item.ref.id, revision: item.ref.revision }, media_type: item.mediaType, byte_length: item.byteLength };
-          } catch (error) { await batch.cancel(); throw error; }
-        } finally { await rm(path.join(dir.path, file), { force: true }); }
-      },
-      parse: async input => {
-        const stage = runtime.resources.stage({ mediaKind: "binary", byteLength: input.bytes.byteLength, label: input.name.slice(0, 120) || "attachment" });
-        let ref;
-        try { stage.write(input.bytes); ref = (await stage.publishDurable()).ref; }
-        catch (error) { stage.discard(); throw error; }
-        const parsed = await runtime.parseResource({ ref });
-        return { text: parsed.text, truncated: parsed.truncated, ...(parsed.pages !== undefined ? { pages: parsed.pages } : {}) };
-      },
-    },
-    memory: (() => {
-      type Entry = import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryEntry;
-      type Meta = import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryMeta;
-      type Candidate = import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryCandidateEntry;
-      type SdkMeta = import("@prologue/sdk").MemoryMeta;
-      // Molis names fields in snake case; Prologue keeps its own. Nothing else is translated.
-      const toSdk = (meta: Meta): SdkMeta => ({
-        ...(meta.kind !== undefined ? { kind: meta.kind } : {}), ...(meta.source !== undefined ? { source: meta.source } : {}), ...(meta.basis !== undefined ? { basis: meta.basis } : {}),
-        ...(meta.applies_when ? { appliesWhen: { ...(meta.applies_when.plugins ? { plugins: meta.applies_when.plugins } : {}), ...(meta.applies_when.object_kinds ? { objectKinds: meta.applies_when.object_kinds } : {}),
-          ...(meta.applies_when.goals ? { goals: meta.applies_when.goals } : {}), ...(meta.applies_when.task !== undefined ? { task: meta.applies_when.task } : {}),
-          ...(meta.applies_when.from_ms !== undefined ? { fromMs: meta.applies_when.from_ms } : {}), ...(meta.applies_when.until_ms !== undefined ? { untilMs: meta.applies_when.until_ms } : {}) } } : {}),
-        ...(meta.evidence ? { evidence: meta.evidence.map(one => ({ kind: one.kind, ...(one.text !== undefined ? { text: one.text } : {}), ...(one.ref !== undefined ? { ref: one.ref } : {}), ...(one.at_ms !== undefined ? { atMs: one.at_ms } : {}) })) } : {}),
-        ...(meta.expires_at_ms !== undefined ? { expiresAtMs: meta.expires_at_ms } : {}), ...(meta.approved_by ? { approvedBy: meta.approved_by } : {}),
-        ...(meta.namespace !== undefined ? { namespace: meta.namespace } : {}),
-      });
-      const fromSdk = (meta: SdkMeta): Meta => ({
-        ...(meta.kind !== undefined ? { kind: meta.kind } : {}), ...(meta.source !== undefined ? { source: meta.source } : {}), ...(meta.basis !== undefined ? { basis: meta.basis } : {}),
-        ...(meta.appliesWhen ? { applies_when: { ...(meta.appliesWhen.plugins ? { plugins: [...meta.appliesWhen.plugins] } : {}), ...(meta.appliesWhen.objectKinds ? { object_kinds: [...meta.appliesWhen.objectKinds] } : {}),
-          ...(meta.appliesWhen.goals ? { goals: [...meta.appliesWhen.goals] } : {}), ...(meta.appliesWhen.task !== undefined ? { task: meta.appliesWhen.task } : {}),
-          ...(meta.appliesWhen.fromMs !== undefined ? { from_ms: meta.appliesWhen.fromMs } : {}), ...(meta.appliesWhen.untilMs !== undefined ? { until_ms: meta.appliesWhen.untilMs } : {}) } } : {}),
-        ...(meta.evidence ? { evidence: meta.evidence.map(one => ({ kind: one.kind, ...(one.text !== undefined ? { text: one.text } : {}), ...(one.ref !== undefined ? { ref: one.ref } : {}), ...(one.atMs !== undefined ? { at_ms: one.atMs } : {}) })) } : {}),
-        ...(meta.expiresAtMs !== undefined ? { expires_at_ms: meta.expiresAtMs } : {}), ...(meta.approvedBy ? { approved_by: { ...meta.approvedBy } } : {}),
-        ...(meta.namespace !== undefined ? { namespace: meta.namespace } : {}),
-      });
-      const view = (entry: import("@prologue/sdk").MemoryEntry): Entry => ({ memory_id: entry.ref.id, scope: entry.scope as Entry["scope"], owner: entry.owner,
-        text: entry.text, origin: entry.origin, tags: [...entry.tags], version: entry.version, meta: fromSdk(entry.meta ?? {}),
-        ...(entry.paused ? { paused: { reason: entry.paused.reason, at_ms: entry.paused.atMs } } : {}), created_at_ms: entry.createdAtMs ?? 0, updated_at_ms: entry.updatedAtMs ?? 0 });
-      const candidateView = (item: import("@prologue/sdk").ScopedCandidate): Candidate => ({ candidate_id: item.ref.id, scope: item.scope as Candidate["scope"], owner: item.owner,
-        text: item.text, origin: item.origin, tags: [...item.tags], meta: fromSdk(item.meta), state: item.state, created_at_ms: item.createdAtMs,
-        ...(item.settledAtMs !== undefined ? { settled_at_ms: item.settledAtMs } : {}), ...(item.entry ? { memory_id: item.entry.id } : {}) });
-      const hydrated = new Set<string>();
-      const ready = async (scope: Entry["scope"], owner: string) => {
-        const key = `${scope}:${owner}`;
-        if (!hydrated.has(key)) { await runtime.memory.hydrate([{ scope, owner }]); await runtime.memoryCandidates.hydrate([{ scope, owner }]); hydrated.add(key); }
-      };
-      const find = async (scope: Entry["scope"], owner: string, id: string) => {
-        await ready(scope, owner);
-        const entry = runtime.memory.list({ scope, owner }).find(item => item.ref.id === id);
-        if (!entry) throw new PrologueAdapterError("agent.capability_unavailable", "这条记忆不存在或已删除");
-        return entry;
-      };
-      const candidate = async (scope: Entry["scope"], owner: string, id: string) => {
-        await ready(scope, owner);
-        const found = runtime.memoryCandidates.list({ scope, owner }).find(item => item.ref.id === id);
-        if (!found) throw new PrologueAdapterError("agent.capability_unavailable", "这条候选不存在");
-        return found.ref;
-      };
-      const capability: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryCapability = {
-        list: async (scope, owner) => { await ready(scope, owner); return runtime.memory.list({ scope, owner }).map(view); },
-        write: async input => { await ready(input.scope, input.owner); return view(await runtime.memory.write({ scope: input.scope, owner: input.owner, text: input.text, origin: input.origin,
-          ...(input.tags ? { tags: input.tags } : {}), ...(input.meta ? { meta: toSdk(input.meta) } : {}) })); },
-        update: async input => view(await runtime.memory.update((await find(input.scope, input.owner, input.memory_id)).ref, input.text)),
-        setMeta: async input => view(await runtime.memory.setMeta((await find(input.scope, input.owner, input.memory_id)).ref, toSdk(input.meta))),
-        pause: async input => view(await runtime.memory.pause((await find(input.scope, input.owner, input.memory_id)).ref, input.reason)),
-        resume: async input => view(await runtime.memory.resume((await find(input.scope, input.owner, input.memory_id)).ref)),
-        remove: async input => { await runtime.memory.purge((await find(input.scope, input.owner, input.memory_id)).ref); return true; },
-        recall: async input => { await ready(input.scope, input.owner);
-          const atMs = (await runtime.readClock()).wallTimeMs;
-          return runtime.memory.recall({ scope: input.scope, owner: input.owner, ...(input.keywords ? { keywords: input.keywords } : {}), ...(input.text !== undefined ? { text: input.text } : {}),
-            ...(input.kinds ? { kinds: input.kinds } : {}), atMs, ...(input.limit ? { limit: input.limit } : {}) }).hits.map(hit => ({ entry: view(hit.entry), score: hit.score })); },
-        screen: async text => {
-          const screened = screenInbound(text);
-          return { hold: screened.verdict === "hold", reasons: screened.reasons.map(reason => reason.rule), redacted: redactText(text) };
-        },
-        previewScope: async (scope, owner) => {
-          await ready(scope, owner);
-          const preview = runtime.memory.previewScope({ scope, owner });
-          return { count: preview.count, fingerprint: preview.fingerprint, memory_ids: preview.entries.map(entry => entry.ref.id) };
-        },
-        clearScope: async input => {
-          await ready(input.scope, input.owner);
-          // Refused (nothing removed) when the scope changed since the preview; then every one is purged, not only tombstoned.
-          const removed = await runtime.memory.removeScope({ scope: input.scope, owner: input.owner, fingerprint: input.fingerprint });
-          for (const ref of removed) await runtime.memory.purge(ref);
-          return removed.map(ref => ref.id);
-        },
-        candidates: {
-          propose: async input => { await ready(input.scope, input.owner); return candidateView(await runtime.memoryCandidates.propose({ scope: input.scope, owner: input.owner, text: input.text, origin: input.origin,
-            ...(input.tags ? { tags: input.tags } : {}), ...(input.meta ? { meta: toSdk(input.meta) } : {}) })); },
-          list: async (scope, owner) => { await ready(scope, owner); return runtime.memoryCandidates.list({ scope, owner }).map(candidateView); },
-          accept: async input => view(await runtime.memoryCandidates.accept(await candidate(input.scope, input.owner, input.candidate_id), {
-            ...(input.text !== undefined ? { text: input.text } : {}), ...(input.origin !== undefined ? { origin: input.origin } : {}), ...(input.meta ? { meta: toSdk(input.meta) } : {}) })),
-          promote: async input => view(await runtime.memoryCandidates.promote(await candidate(input.scope, input.owner, input.candidate_id), { policy: input.policy, version: input.version },
-            { ...(input.origin !== undefined ? { origin: input.origin } : {}), ...(input.meta ? { meta: toSdk(input.meta) } : {}) })),
-          settleInto: async input => view(await runtime.memoryCandidates.settleInto(await candidate(input.scope, input.owner, input.candidate_id),
-            (await find(input.scope, input.owner, input.memory_id)).ref, input.by)),
-          discard: async input => candidateView(await runtime.memoryCandidates.discard(await candidate(input.scope, input.owner, input.candidate_id))),
-          expire: async input => candidateView(await runtime.memoryCandidates.expire(await candidate(input.scope, input.owner, input.candidate_id))),
-          purge: async input => { await runtime.memoryCandidates.purge(await candidate(input.scope, input.owner, input.candidate_id)); },
-        },
-      };
-      memoryRefs = async pinned => {
-        const refs: import("@prologue/sdk").ExactRef<"memory">[] = [];
-        for (const pin of pinned) {
-          await ready(pin.scope, pin.owner);
-          const found = runtime.memory.list({ scope: pin.scope, owner: pin.owner }).find(entry => entry.ref.id === pin.memory_id);
-          // One deleted meanwhile is simply not there: the run is not given it.
-          if (found) refs.push(found.ref);
-        }
-        return refs;
-      };
-      return capability;
-    })(),
+    documents: createPrologueDocuments(runtime, options.storageRoot),
+    memory: platformMemory.capability,
     schedule: {
       claim: () => { const claim = runtime.queue.claim(); return { survives_window_close: claim.survivesWindowClose, why: claim.why }; },
       enqueue: async input => {
@@ -1219,20 +1073,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       if (bindActions && session) actionToolSessions.add(input.session_id);
       if (session === undefined) throw new Error("agent.session_unknown");
       const root = none || business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
-      // Long instructions travel as a resource reference, not inline in the profile.
-      const methods: string[] = [];
-      for (const definition of input.skills ?? []) {
-        const key = `${definition.skill_id}@${definition.version}`;
-        const manifest = { id: definition.skill_id, version: definition.version, label: definition.name,
-          shape: "bounded" as const, tools: definition.tools.map(prologueToolName), body: definition.body, humanInvocable: true };
-        let skill = registeredMethods.get(key);
-        if (skill && (skill.manifest.body !== manifest.body || skill.manifest.label !== manifest.label || JSON.stringify(skill.manifest.tools) !== JSON.stringify(manifest.tools))) throw new Error("方法同版本正文发生变化，请发布新版本");
-        if (!skill) { skill = runtime.skills.register(manifest); registeredMethods.set(key, skill); }
-        prepareSkillIntent({ registry: runtime.skills, skillRef: skill.ref, parameters: {}, mode: "inline",
-          parentTools: input.character.tools.map(prologueToolName), hostTools: input.character.tools.map(prologueToolName) });
-        const body = fillSkillBody({ body: skill.manifest.body!, parameters: {} });
-        methods.push(`用户为本轮选择的方法：${definition.name}（${key}）\n${body}`);
-      }
+      const methods = inlineMethods(runtime, registeredMethods, input.skills ?? [], input.character.tools.map(prologueToolName), prologueToolName);
       const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
       for (const material of input.text_materials ?? []) {
         const ref = await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material");
@@ -1258,15 +1099,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         const published = runtime.characters.publish(draft.ref);
         childRoles.set(exactCharacterKey(published.ref), role);
       }
-      // Handing the wake-up to subtasks (dispatch-subagent yield) restarts this session outside the Host's own start:
-      // no start record, no dispatch check, no review bridge. Until that is wired, a yield is refused before it runs.
-      if (childRoles.size && !yieldHooks.has(input.session_id)) {
-        yieldHooks.add(input.session_id);
-        runtime.hooks.register({ id: `molis-subagent-yield-${input.session_id}`, event: "tool-before", forSession: input.session_id, handler: async context =>
-          context.toolName === "dispatch-subagent" && (context.input as { yield?: unknown } | undefined)?.yield === true
-            ? { kind: "deny" as const, why: "this work cannot hand its wake-up to subtasks (yield). Dispatch without yield (background: true), then wait with await-subagents" }
-            : { kind: "allow" as const } });
-      }
+      if (childRoles.size) refuseYield(input.session_id);
       const childScope = childRoots.length
         ? "每个子任务必须选择一个不同的 workspace 标识：" + JSON.stringify(childRoots.map(root => ({ id: root.id, path: root.path }))) + "。主任务只读，不能直接修改主工作区。子任务只在自己的目录里执行，修改仍经过宿主审查。"
           + "核对子任务成果时，可以给 read、list、search 加 workspace 参数（上面的标识）只读查看对应目录；不加就是主工作区。你的查看不代替子任务自己的先读后改，也不能在这些目录里写入或运行命令。"
@@ -1327,7 +1160,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const tools = [...input.character.tools.map(prologueToolName), ...mcpTools, ...(actionTools?.names ?? []), ...surfaceTools];
       const runTools = [...new Set([...tools, ...[...childRoles.values()].flatMap(role => role.host_tools.map(prologueToolName))])];
       // The memories the Host chose for this run, as exact references (one deleted meanwhile is simply not given).
-      const pinnedMemory = input.memory?.pinned.length ? await memoryRefs(input.memory.pinned) : [];
+      const pinnedMemory = input.memory?.pinned.length ? await platformMemory.refsFor(input.memory.pinned) : [];
       const created = runtime.characters.create({
         // This is a projection of the frozen role, not a user-managed Character.
         // A project prompt may change without changing the package role version.
@@ -1364,14 +1197,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         });
         throw error;
       }
-      // One set of call parameters. Thinking is absent when off, so the request carries no thinking field at all. On,
-      // thinking and the answer share one output limit, and the SDK's default (4096) is spent on thinking before a plan
-      // or file is written: the raised ceiling replaces that default only. A budget the round was given always wins.
-      const outputBudget = input.provenance.frozen.budget?.max_output_tokens;
-      const params = {
-        ...(input.model.thinking ? { thinking: input.model.thinking } : {}),
-        ...(outputBudget !== undefined ? { maxOutputTokens: outputBudget } : input.model.thinking ? { maxOutputTokens: THINKING_OUTPUT_TOKENS } : {}),
-      };
+      const params = runModelParams(input.model, input.provenance.frozen.budget);
       const dispatchGuard = async () => {
         await input.beforeDispatch?.();
         if (!none && !business) {
@@ -1688,75 +1514,6 @@ interface SessionIndex {
   attempts: Array<PrologueStartInput["provenance"] & { action_tool_scope?: string; refused?: { code: string; at: string }; step_board?: ExactRef<"task-board">; task: string; subagent_errors?: Record<string, string>; subagent_roots?: PrologueSubagentRoot[]; subagent_roles?: Array<[string, NonNullable<PrologueStartInput["subagents"]>[number]]>; run_id?: string; stop_intent?: "stopped" | "cancelled"; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming }>;
   rewinds?: PrologueRewindIntent[];
   review_decisions?: Record<string, Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note"> & { requested_at?: string; expires_at?: string | null }>;
-}
-
-/** Prologue's own credential store, as much of it as this bridge needs. */
-export interface PrologueCredentialHost {
-  writeCredential(input: {
-    label: string;
-    secret: { plaintext: Uint8Array };
-  }): Promise<{ ref: ExactRef<"credential"> }>;
-}
-
-/**
- * Hands a key across from Molis Work's secret store to Prologue's.
- *
- * Each Run resolves the current secret so rotation and removal take effect.
- * Equal secrets share one in-flight exchange; only a digest is kept in memory.
- * The plaintext bytes are zeroed right after the handover — the string itself
- * cannot be scrubbed in JavaScript, but the buffer that reached Prologue can.
- */
-export class PrologueCredentialBridge {
-  readonly #host: PrologueCredentialHost;
-  readonly #resolve: PrologueNodeAdapterOptions["resolveCredential"];
-  readonly #exchanged = new Map<string, { digest: string; result: Promise<ExactRef<"credential">> }>();
-
-  constructor(input: {
-    host: PrologueCredentialHost;
-    resolve: PrologueNodeAdapterOptions["resolveCredential"];
-  }) {
-    this.#host = input.host;
-    this.#resolve = input.resolve;
-  }
-
-  async prologueRefFor(credentialRef: string, resolve = this.#resolve, signal?: AbortSignal): Promise<ExactRef<"credential">> {
-    if (resolve === undefined) {
-      throw new Error(
-        `没有配置凭据解析，${credentialRef} 在 Prologue 那边解析不了：`
-        + "两边的密钥库是分开的，密钥必须交接一次",
-      );
-    }
-    signal?.throwIfAborted();
-    const plaintext = await resolve(credentialRef);
-    signal?.throwIfAborted();
-    if (plaintext === null || plaintext.trim() === "") {
-      throw new Error(`密钥库里没有 ${credentialRef} 对应的密钥`);
-    }
-    const digest = createHash("sha256").update(plaintext).digest("hex");
-    const cached = this.#exchanged.get(credentialRef);
-    if (cached?.digest === digest) {
-      const ref = await cached.result;
-      signal?.throwIfAborted();
-      if (await resolve(credentialRef) !== plaintext) throw new Error("模型凭据在交接期间已改变");
-      signal?.throwIfAborted();
-      return ref;
-    }
-    const bytes = new TextEncoder().encode(plaintext);
-    const result = this.#host.writeCredential({ label: credentialRef, secret: { plaintext: bytes } })
-      .then((snapshot) => snapshot.ref)
-      .finally(() => bytes.fill(0));
-    this.#exchanged.set(credentialRef, { digest, result });
-    try {
-      const ref = await result;
-      signal?.throwIfAborted();
-      if (await resolve(credentialRef) !== plaintext) throw new Error("模型凭据在交接期间已改变");
-      signal?.throwIfAborted();
-      return ref;
-    } catch (error) {
-      if (this.#exchanged.get(credentialRef)?.result === result) this.#exchanged.delete(credentialRef);
-      throw error;
-    }
-  }
 }
 
 /** Translate the Host vocabulary at the SDK boundary; unknown tools fail before a Run. */

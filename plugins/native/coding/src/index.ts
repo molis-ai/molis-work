@@ -178,6 +178,8 @@ export {
   type WritersProjectionInput,
 } from "./writers.js";
 export { createCodingTimeline, type TimelineActivity, type TimelineRun } from "./timeline.js";
+export { codingTimelineWords } from "./timeline-words.js";
+export { createCodingTurnChanges } from "./turn-changes-client.js";
 export {
   STICK_THRESHOLD_PX,
   atBottom,

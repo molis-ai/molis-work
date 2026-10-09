@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type { MolisWorkSessionGoalLink } from "./contract-aliases.js";
 
-const scope = { kind: "personal", id: "private-work-context" } as const;
+/** The Ledger scope and the edge type that say which project a Session belongs to; the project's deletion reads them (project-data.ts). */
+export const SESSION_LEDGER_SCOPE = { kind: "personal", id: "private-work-context" } as const;
+export const SESSION_PROJECT_RELATION = "work.project";
+const scope = SESSION_LEDGER_SCOPE;
 const access = (actor = "module:private-work-context"): ContextAccess => ({ actor_id: actor, scope });
 const source = (sessionId: string): ObjectRef => ({ module: "private-work-context", id: sessionId, version: null, scope });
 const target = (module: "goals" | "projects", id: string, projectId: string | null, objectType?: string): ObjectRef =>

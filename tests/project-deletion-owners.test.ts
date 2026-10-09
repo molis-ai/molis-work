@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID, EN, L, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, EN, L, openWorkSessionRegistry, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
@@ -175,5 +175,90 @@ test("the delete dialog lists the library owners' data in the person's language"
     for (const label of scope) assert.ok(EN[label], `${label} has an English translation`);
     assert.equal(L("Pages 文稿与文件夹"), "Pages 文稿与文件夹");
     runWithLocale("en", () => assert.equal(L("Pages 文稿与文件夹"), "Pages documents and folders"));
+  });
+});
+
+/**
+ * What the Sessions registry keeps for one project, written the way the product writes it: a Session with an event, a
+ * handoff package and a message request, all of whose project, goal and workspace live as Ledger edges in the same file.
+ * Both projects also say the same sentence, which the content store keeps as one blob.
+ */
+async function seedSessions(home: string, projectId: string): Promise<{ sessionId: string; handoffId: string; messageId: string }> {
+  const registry = await openWorkSessionRegistry({ homeDirectory: home });
+  try {
+    const goal = `goal-${projectId}`;
+    const session = registry.createSession({ runtime_id: "codex", native_runtime_session_id: `native-${projectId}`, project_id: projectId, current_goal_id: goal,
+      title: `会话 ${projectId}`, user_confirmed: true, actor_id: "test-user" });
+    registry.appendEvent({ session_id: session.session_id, source: "molis_work", kind: "user_message", source_id: "event-own", content: `私密对话 ${projectId}` });
+    registry.appendEvent({ session_id: session.session_id, source: "molis_work", kind: "runtime_message", source_id: "event-shared", content: "两个项目说了同一句话" });
+    const handoff = registry.createHandoffDraft({ source_session_id: session.session_id, source_project_id: projectId, source_goal_id: goal,
+      target_runtime_id: "codex", target_project_id: projectId, content: `交接内容 ${projectId}`, actor_id: "test-user" });
+    const message = registry.messages.prepare({ session_id: session.session_id, expected_goal_id: goal, project_id: projectId, actor_id: "test-user",
+      idempotency_key: `message-${projectId}`, text: `私密消息 ${projectId}` });
+    return { sessionId: session.session_id, handoffId: handoff.package_id, messageId: message.request_id };
+  } finally { registry.close(); }
+}
+const blobs = (home: string): string[] => {
+  const root = join(home, "sessions", "content", "blobs");
+  return existsSync(root) ? readdirSync(root, { recursive: true, encoding: "utf8" }).filter(entry => entry.endsWith(".blob")) : [];
+};
+/** How much of one project the Sessions file holds: the Sessions, what hangs off them, and the Ledger edges that say whose they are. */
+function sessionRows(home: string, projectId: string, written: { sessionId: string; handoffId: string; messageId: string }): Record<string, number> {
+  const edges = (id: string) => count(home, "sessions", "SELECT COUNT(*) n FROM context_edges WHERE json_extract(source_json, '$.id') = ?", id);
+  return {
+    sessions: count(home, "sessions", "SELECT COUNT(*) n FROM sessions WHERE session_id = ?", written.sessionId),
+    events: count(home, "sessions", "SELECT COUNT(*) n FROM session_events WHERE session_id = ?", written.sessionId),
+    handoffs: count(home, "sessions", "SELECT COUNT(*) n FROM session_handoffs WHERE package_id = ?", written.handoffId),
+    messages: count(home, "sessions", "SELECT COUNT(*) n FROM session_messages WHERE request_id = ?", written.messageId),
+    sessionEdges: edges(written.sessionId),
+    handoffEdges: edges(written.handoffId),
+    // A Session moved to another project keeps the history of having been here; only the ones that belong here are counted.
+    projectEdges: count(home, "sessions", "SELECT COUNT(*) n FROM context_edges WHERE json_extract(target_json, '$.id') = ? AND json_extract(source_json, '$.id') = ?", projectId, written.sessionId),
+  };
+}
+
+test("deleting a project clears its Sessions with their events, handoffs, messages, Ledger edges and stored content, and leaves other projects' Sessions", async () => {
+  await withHome(async ({ home, catalog, gone, kept }) => {
+    const goneWritten = await seedSessions(home, gone), keptWritten = await seedSessions(home, kept);
+    const before = sessionRows(home, gone, goneWritten);
+    for (const [name, value] of Object.entries(before)) assert.ok(value > 0, `the fixture wrote ${name}`);
+    // A Session that was in the project and was moved to another one belongs to the other now, and a Session no project has stays.
+    const bystanders = await openWorkSessionRegistry({ homeDirectory: home });
+    let moved: string, unassigned: string;
+    try {
+      moved = bystanders.createSession({ runtime_id: "codex", native_runtime_session_id: "native-moved", project_id: gone, current_goal_id: "goal-moved", user_confirmed: true, actor_id: "test-user" }).session_id;
+      bystanders.updateAssociations({ session_id: moved, project_id: kept, current_goal_id: "goal-kept", user_confirmed: true, actor_id: "test-user" });
+      unassigned = bystanders.discoverSession({ runtime_id: "codex", native_runtime_session_id: "native-unassigned" }).session_id;
+    } finally { bystanders.close(); }
+    const blobsBefore = blobs(home).length;
+
+    const result = await catalog.deleteProject(deletion(gone));
+
+    assert.equal(result.deletion.cleanup_state, "complete");
+    assert.ok(result.deletion.owner_steps.some(step => step.owner_id === "sessions" && step.state === "complete"), "Sessions is recorded in the receipt as done");
+    const registry = await openWorkSessionRegistry({ homeDirectory: home });
+    try {
+      assert.deepEqual(registry.list({ project_id: gone }), [], "the project's Sessions are gone from the registry");
+      assert.deepEqual(registry.list({ project_id: kept }).map(session => session.session_id).sort(), [keptWritten.sessionId, moved].sort(), "another project's Sessions stay, the one moved there too");
+      assert.equal(registry.get(unassigned).project_id, null, "a Session that names no project stays");
+      assert.equal(registry.events(keptWritten.sessionId).length, 2);
+      assert.deepEqual(registry.events(keptWritten.sessionId).map(event => event.source_id).sort(), ["event-own", "event-shared"]);
+      assert.equal(registry.getHandoff(keptWritten.handoffId).target_project_id, kept);
+      assert.match(registry.messages.get(keptWritten.messageId).text ?? "", /私密消息/, "another project's message is still readable");
+    } finally { registry.close(); }
+    assert.deepEqual(sessionRows(home, gone, goneWritten), nothing(before));
+    assert.deepEqual(sessionRows(home, kept, keptWritten), before, "another project's rows and edges are untouched");
+    // Four contents were the project's own (event, handoff, message) or shared; only what no other row names is removed.
+    assert.equal(blobs(home).length, blobsBefore - 3, "the project's own contents are deleted, the sentence both projects said stays for the other");
+  });
+});
+
+test("clearing a project's Sessions twice changes nothing, and a Home without a Sessions file does not get one", async () => {
+  await withHome(async ({ home, catalog, gone }) => {
+    assert.equal(existsSync(join(home, "sessions", "sessions.db")), false, "nothing has made the registry yet");
+    const first = await catalog.deleteProject(deletion(gone));
+    assert.equal(first.deletion.cleanup_state, "complete");
+    assert.equal(existsSync(join(home, "sessions", "sessions.db")), false, "clearing a Home that never had Sessions does not create the file");
+    assert.equal(await projectDeletedHooksFor(home).clear("sessions", gone), true, "running the owner again finds nothing and succeeds");
   });
 });

@@ -1,6 +1,7 @@
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { functionsProjectData } from "@molis-ai/molis-work-module-functions";
+import { sessionsProjectData } from "@molis-ai/molis-work-module-private-work-context";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
@@ -49,7 +50,7 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
 /**
  * The owners of a project's data in the Home that are plain files, as the packages that keep them declare it: each
  * built-in plugin says on its catalog entry (`project_data`) what it keeps and how to clear it, and the Functions module,
- * which is no plugin, exports the same. The Host names none of them; a plugin added to the catalog with a declaration
+ * and the modules that are no plugin (Functions, the Sessions registry) export the same. The Host names none of them; a plugin added to the catalog with a declaration
  * is cleared by the next deletion. They run in the order the declarations ask (`order`, then catalog order), which is the
  * order the confirmation dialog lists them in.
  */
@@ -57,6 +58,7 @@ function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
   const declared: Array<{ id: string; data: ProjectDataDeclaration }> = [
     ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.project_data ? [{ id: entry.project_plugin_id, data: entry.project_data }] : []),
     { id: "functions", data: functionsProjectData },
+    { id: "sessions", data: sessionsProjectData },
   ];
   return declared.map((item, position) => ({ ...item, position }))
     .sort((a, b) => (a.data.order ?? Number.MAX_SAFE_INTEGER) - (b.data.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)

@@ -12,7 +12,7 @@ import { StreamableHTTPClientTransport, StreamableHTTPError } from "@modelcontex
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport, type StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { larkMcpLaunch } from "./lark-mcp-launch.js";
+import { larkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
@@ -122,6 +122,28 @@ interface ConnectorMcpHostOptions {
   stdioTransport?: (parameters: StdioServerParameters) => Transport;
 }
 
+/**
+ * Runs `run` against the Feishu/Lark MCP server, started as a child process for this use alone: the Host builds its launch
+ * (pinned package, only the variables it needs, an empty working directory of its own), and closes the child and removes
+ * that directory when the use ends, however it ends.
+ */
+async function runLarkMcpChild<T>(credentials: LarkMcpLaunchInput, use: Pick<ConnectorMcpHostOptions, "stdioTransport"> & { checkActive?: () => void; signal?: AbortSignal },
+  run: (client: Client) => Promise<T>): Promise<{ result: T }> {
+  const launch = larkMcpLaunch(credentials);
+  const client = new Client({ name: "molis-work", version: "0.2.0" }, { capabilities: {} });
+  const abort = () => { void client.close().catch(() => {}); };
+  try {
+    const parameters: StdioServerParameters = { command: launch.command, args: launch.args, env: launch.env, cwd: launch.cwd, stderr: "pipe" };
+    const transport = use.stdioTransport ? use.stdioTransport(parameters) : new StdioClientTransport(parameters);
+    use.signal?.addEventListener("abort", abort, { once: true });
+    await client.connect(transport, { timeout: 60_000, signal: use.signal });
+    use.checkActive?.();
+    const result = await run(client);
+    use.checkActive?.(); use.signal?.throwIfAborted();
+    return { result };
+  } finally { use.signal?.removeEventListener("abort", abort); await client.close().catch(() => {}); launch.cleanup(); }
+}
+
 /** Test-only endpoint injection keeps production HTTP input behind the official allowlist. */
 export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
   if ((options.testServers || options.stdioTransport) && process.env.NODE_ENV !== "test") throw new Error("MCP test endpoints require NODE_ENV=test");
@@ -219,17 +241,8 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     if (servers[config.serviceId]?.stdio) {
       const info = session.oauth.clientInformation() as OAuthClientInformationMixed | undefined;
       if (!info?.client_id || !info.client_secret) throw new McpConnectionError("configuration", "飞书 / Lark MCP 需要 App ID 与 App Secret");
-      const token = session.secrets.get("access");
-      const launch = larkMcpLaunch({ appId: info.client_id, appSecret: info.client_secret, domain: new URL(config.endpoint).origin, userAccessToken: token });
-      const client = new Client({ name: "molis-work", version: "0.2.0" }, { capabilities: {} });
-      const abort = () => { void client.close().catch(() => {}); };
-      try {
-        const parameters: StdioServerParameters = { command: launch.command, args: launch.args, env: launch.env, cwd: launch.cwd, stderr: "pipe" };
-        const transport = options.stdioTransport ? options.stdioTransport(parameters) : new StdioClientTransport(parameters);
-        signal?.addEventListener("abort", abort, { once: true });
-        await client.connect(transport, { timeout: 60_000, signal }); session.checkActive?.(); const result = await run(client); session.checkActive?.(); signal?.throwIfAborted(); return { result };
-      }
-      finally { signal?.removeEventListener("abort", abort); await client.close().catch(() => {}); launch.cleanup(); }
+      return runLarkMcpChild({ appId: info.client_id, appSecret: info.client_secret, domain: new URL(config.endpoint).origin, userAccessToken: session.secrets.get("access") },
+        { stdioTransport: options.stdioTransport, checkActive: session.checkActive, signal }, run);
     }
     const expires = Number(session.secrets.get("expires"));
     // Some official servers also expose anonymous tools. A user asking to link

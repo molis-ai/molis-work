@@ -111,6 +111,8 @@ export const GAP_EN: Record<string, string> = {
   "服务连接": "Service connections",
   "Molis Work 自己联网的去处（模型、搜索、订阅源、依赖下载等）逐类写在这一页：": "Everywhere Molis Work goes online by itself (models, search, feed sources, dependency downloads, ...) is listed, class by class, on this page: ",
   "Molis Work 会联网去哪里": "Where Molis Work connects to",
+  // The plugin studio renders this one sentence through L() (the rest of the studio is Chinese only), so its English is kept in the host catalog.
+  "构建检查的「打包」一步：插件声明了依赖包时，会把包名和版本发给 npm 官方仓库（registry.npmjs.org）下载，不发送你的内容。": "The build check's packaging step: when the plugin declares dependency packages, their names and versions are sent to the official npm registry (registry.npmjs.org) to download them. None of your content is sent.",
   "对外接入": "External access",
   "调用记录": "Call history",
   "能力服务": "Capability service",

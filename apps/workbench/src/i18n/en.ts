@@ -14,7 +14,6 @@ import { PPT_EN } from "@molis-ai/molis-work-plugin-ppt";
 import { LINGGUANG_EN } from "@molis-ai/molis-work-plugin-lingguang";
 import { TODO_EN } from "@molis-ai/molis-work-plugin-todo";
 import { ALCHEMIST_EN } from "@molis-ai/molis-work-plugin-alchemist";
-import { BUILDER_EN } from "@molis-ai/molis-work-plugin-builder";
 import { WORKFLOWS_EN } from "@molis-ai/molis-work-plugin-workflows";
 import { SCHEDULE_EN } from "@molis-ai/molis-work-plugin-schedule";
 import { GOALS_POLICY_EN, GOALS_SAFETY_EN } from "@molis-ai/molis-work-plugin-goals";
@@ -421,7 +420,6 @@ export const EN: Record<string, string> = {
   ...JELLY_EN,
   ...COGNIA_EN,
   ...ALCHEMIST_EN,
-  ...BUILDER_EN,
   ...WORKFLOWS_EN,
   ...SCHEDULE_EN,
   ...GOALS_POLICY_EN,

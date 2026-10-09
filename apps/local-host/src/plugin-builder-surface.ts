@@ -24,7 +24,7 @@ export function selectionPorts(homeDirectory?:string){
  * The workbench entry is the agent-built plugin studio, drawn in the plugin's own stage (specs/artifact-positioning S4):
  * no frame and no page of its own. Its client comes with the plugin's workbench pack and starts when the stage is opened;
  * only the generated plugin's trial and an installed plugin still run in sandboxed frames. The studio is Chinese only
- * except for the sentences that go through `L` (BUILDER_EN), which today is the note about what the build check sends to npm.
+ * except for the sentences that go through `L`, which today is the note about what the build check sends to npm (its English is in the workbench's gap-en.ts).
  */
 export async function builderWorkbenchPanel(_ports:CodingSurfacePorts):Promise<string>{
  return renderStudioStage(L);

@@ -32,6 +32,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - 新的内置插件只走 Plugin Runtime 装配（`apps/local-host/src/project-plugins.ts` 的监督器条目）：不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往 `apps/workbench/src/builtin-plugins.ts` 加构建期条目。现存的旧路径插件名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts`，只许减少。
 - 插件只提供内容，挂在工作台的位置（目录、主区、浮层、设置、侧栏）；不出自己的整页、不开第二个浏览器标签页。例外清单见 `specs/artifact-positioning/spec.md` §4，门禁 `tests/shell-page-gate.test.ts`（CI 里跑）。
 - 成果库只收人要留存、引用的固定版本与导入文件：类型在 manifest `artifacts.produces` 声明，带显示名与 owner 的预览动作；交给别的插件的数据是过程项（`process_items.produces`），不进成果库、侧栏文件和搜索。宿主按 manifest 拒绝未声明的写入；门禁 `tests/artifact-type-gate.test.ts`、`tests/artifact-declaration-gate.test.ts`（CI 里跑）。
+- 删除项目只有一份 Host 服务（`apps/local-host/src/project-deletion-service.ts` 的 `ProjectDeletionService`）：新的删除入口调它，操作者由入口给、不从请求参数读；现有入口与例外见 `docs/system/CALL-CHAINS.md` 链 2 步骤 7。
 - 页面里跨模块说话用 DOM `CustomEvent`，每个事件在 `packages/contracts/src/platform/dom-events.ts` 登记（名字、种类、页面状态的主人、发在哪里、载荷）：浏览器代码里名字写字符串字面量，与发它的代码同一个改动里登记；未登记的 `CustomEvent`、监听未登记的页面前缀名、登记了却没人发或听的条目，门禁 `scripts/gates/dom-events.mjs` 拦下（`pnpm health:check`，CI 里跑；`--report` 列出谁发谁听）。新增事件改合同，跑 `pnpm api:update`。
 - `vendor/prologue-sdk/` 只放当前使用的 Prologue 包（最多再加一份在途分支的）；换新包时删掉旧包，旧包从 Git 历史取。每个 vendored 的 tgz 旁边有 `.sha256` 和 `.provenance.json`，与 tgz 不符、或包换掉后记录还留着，`pnpm health:check` 拦下；当前包的上游提交与重建步骤见该目录 README，已删的历史补丁（大小、SHA-256、git blob、基线、来源）记在 `vendor/prologue-sdk/patch-history.json`。
 - 一张表只由建它的包读写：别的包要读写就调那个包导出的函数，不直接写 SQL；几个包有意共写的表登记在 `tooling/gates/table-owners.json`（带理由；门禁 `scripts/gates/table-owners.mjs`，CI 里跑）。

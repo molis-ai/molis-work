@@ -86,7 +86,7 @@ Both the CLI and Web "Settings → Projects" can create the same demo data. Prev
 "$HOME/.molis-work/bin/molis-work" demo remove --confirm
 ```
 
-This project is clearly marked `regenerable_demo` in the catalog, separate from `user` data. Re-creating opens the existing demo; resetting clears changes inside the demo; removal and normal uninstall only clean up the regenerable demo and never touch user projects. Repository development and screenshots can still use `examples/seed-demo.mts`, which calls the same classification and rebuild logic.
+This project is clearly marked `regenerable_demo` in the catalog, separate from `user` data. `demo remove --confirm` hands the removal to a running Molis Work, which refuses while a terminal in the demo project is still open (close it, then run the command again; if the resident service is not at `http://127.0.0.1:4173`, point the command at it with the `MOLIS_WORK_WEB_URL` environment variable); with Molis Work not running, the command removes it itself. Re-creating opens the existing demo; resetting clears changes inside the demo; removal and normal uninstall only clean up the regenerable demo and never touch user projects. Repository development and screenshots can still use `examples/seed-demo.mts`, which calls the same classification and rebuild logic.
 
 ## Starting Web: persistent or temporary
 

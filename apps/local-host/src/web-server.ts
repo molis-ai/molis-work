@@ -1,6 +1,8 @@
 import { createLocalImServer } from "./im-server.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
+import { handleProjectDeletionGatewayHttp } from "./project-deletion-gateway.js";
+import { webProjectDeletion } from "./project-deletion-service.js";
 import { closeExperiments } from "./experiments-native-plugin-http.js";
 import { loadCasebookConfiguration } from "./casebook/config.js";
 import { handleCasebookHttp } from "./casebook/http.js";
@@ -181,7 +183,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           }
           if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
-          if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog)) return;
+          if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog) || await handleProjectDeletionGatewayHttp(request, response, url, storageHome, webProjectDeletion(withCatalog, { isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }))) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
           await handleMolisWorkWebRequest(

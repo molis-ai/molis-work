@@ -272,14 +272,12 @@ describe("mcp server", () => {
 
       const bound = await call(runtime, "molis_work_v1_context_bind", {
         project_id: removable.project_id,
-        actor_id: "runtime-codex",
         user_confirmed: true,
       });
       assert.equal(bound.result.isError, false, bound.result.content[0]?.text);
       assert.equal(readConnection()?.projectId, removable.project_id);
 
       const deniedUnbind = await call(runtime, "molis_work_v1_context_unbind", {
-        actor_id: "runtime-codex",
         user_confirmed: false,
       });
       assert.equal(deniedUnbind.result.isError, true);
@@ -287,7 +285,6 @@ describe("mcp server", () => {
       assert.equal(readConnection()?.projectId, removable.project_id);
 
       const unbound = await call(runtime, "molis_work_v1_context_unbind", {
-        actor_id: "runtime-codex",
         user_confirmed: true,
       });
       assert.equal(unbound.result.isError, false, unbound.result.content[0]?.text);
@@ -302,7 +299,6 @@ describe("mcp server", () => {
 
       const rebound = await call(runtime, "molis_work_v1_context_bind", {
         project_id: removable.project_id,
-        actor_id: "runtime-codex",
         user_confirmed: true,
       });
       assert.equal(rebound.result.isError, false, rebound.result.content[0]?.text);
@@ -310,7 +306,6 @@ describe("mcp server", () => {
 
       const deniedDelete = await call(runtime, "molis_work_v1_project_delete", {
         project_id: removable.project_id,
-        actor_id: "runtime-codex",
         delete_confirmed: false,
         idempotency_key: "mcp-delete-current-project",
       });
@@ -320,7 +315,6 @@ describe("mcp server", () => {
 
       const deleted = await call(runtime, "molis_work_v1_project_delete", {
         project_id: removable.project_id,
-        actor_id: "runtime-codex",
         delete_confirmed: true,
         idempotency_key: "mcp-delete-current-project",
       });
@@ -338,7 +332,6 @@ describe("mcp server", () => {
 
       const replay = await call(runtime, "molis_work_v1_project_delete", {
         project_id: removable.project_id,
-        actor_id: "runtime-codex",
         delete_confirmed: true,
         idempotency_key: "mcp-delete-current-project",
       });
@@ -389,7 +382,6 @@ describe("mcp server", () => {
       assert.equal(unbound.result.isError, false, unbound.result.content[0]?.text);
       const defaultBound = await call(runtime, "molis_work_v1_context_bind", {
         project_id: first.project_id,
-        actor_id: "runtime-codex",
         user_confirmed: true,
       });
       assert.equal(defaultBound.result.isError, false, defaultBound.result.content[0]?.text);
@@ -409,7 +401,6 @@ describe("mcp server", () => {
 
       const explicitDefault = await call(restarted, "molis_work_v1_context_bind", {
         project_id: first.project_id,
-        actor_id: "runtime-codex",
         user_confirmed: true,
         binding_scope: "workspace_default",
       });
@@ -431,7 +422,6 @@ describe("mcp server", () => {
       const sessionB = { threadId: "codex-thread-b" };
       const override = await call(afterDefaultRestart, "molis_work_v1_context_bind", {
         project_id: second.project_id,
-        actor_id: "runtime-codex",
         user_confirmed: true,
         binding_scope: "session",
       }, sessionA);

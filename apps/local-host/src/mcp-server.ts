@@ -16,7 +16,9 @@ import { RuntimeSessionHost } from "./runtime-session.js";
 import { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import { runtimeContextHostFromEnvironment } from "./runtime-context.js";
 import { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
-import { runtimeSessionActor } from "./mcp-event-identity.js";
+import { runtimeConnectionIdentity, runtimeSessionActor } from "./mcp-event-identity.js";
+import { LocalProjectDeletionGatewayClient, type ProjectDeletionGatewayRequest } from "./project-deletion-gateway.js";
+import { ProjectDeletionService } from "./project-deletion-service.js";
 import { assembleMcpCatalog, findAssembledMcpTool, type AssembledMcpCatalog } from "./mcp-catalog.js";
 import { readProductEnv } from "@molis-ai/molis-work-storage";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -69,7 +71,10 @@ export class LocalMcpServer {
     this.contextTools = createMcpRuntimeContextHandlers({
       catalogs: { withCatalog: (homeDirectory, operation) => withMolisWorkProjectCatalog({ homeDirectory }, operation) },
       connection: this.connectionState,
+      createError: createPresentationError,
       requireHost: (context) => this.requireRuntimeContextHost(context),
+      actorFor: (host, context) => runtimeConnectionIdentity(host, context).actor_id,
+      deleteProject: (request, host, context) => this.deleteProject(request, host, context),
       presentResolution: createMcpContextPresenter({
         connection: this.connectionState,
         createError: createPresentationError,
@@ -102,6 +107,28 @@ export class LocalMcpServer {
       isMissingPanel: (error) => error instanceof MolisWorkProjectCatalogError && error.code === "catalog.panel_not_found",
     });
     this.runtimeSessions = new RuntimeSessionHost();
+  }
+
+  /**
+   * Deleting a project is the Host's one deletion service. With a resident Host to forward to, that Host runs it: the
+   * terminals and the project's runtime are its own. Without one there are neither, and this process deletes with the
+   * same service over what it has. Either way the actor is this call's MCP client and Session, not anything the Runtime said.
+   */
+  private async deleteProject(request: ProjectDeletionGatewayRequest, host: MolisWorkRuntimeContextHost, callContext: McpToolCallContext) {
+    const identity = runtimeConnectionIdentity(host, callContext);
+    const home = host.homeDirectory;
+    if (this.actionServiceUrl && home) {
+      const databasePath = await this.withCatalog({ homeDirectory: home }, catalog => catalog.listProjects().find(project => project.project_id === request.project_id.trim())?.database_path);
+      const forwarded = await new LocalProjectDeletionGatewayClient({ url: this.actionServiceUrl, homeDirectory: home, clientId: identity.client_id,
+        runtimeSessionId: identity.runtime_session_id }).delete(request, this.transportLifetime.signal);
+      if (forwarded) {
+        // This process may hold the project's runtime too (the v1 management tools open it); the resident Host has deleted it, so let go.
+        if (databasePath) await this.localHost.closeProject(databasePath);
+        return forwarded;
+      }
+    }
+    return new ProjectDeletionService(this.withCatalog, { isPanelAlive: () => false, releaseProject: async databasePath => { await this.localHost.closeProject(databasePath); } })
+      .deleteProject(home, { ...request, actor_id: identity.actor_id });
   }
 
   private currentActions() {

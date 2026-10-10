@@ -1,6 +1,7 @@
 import { appendFileSync, mkdirSync, readFileSync, renameSync, statSync, truncateSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { ActionCallContext, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { CallOutcome } from "@molis-ai/molis-work-kernel";
 
 /** One finished command: what ran, for whom, and how it ended. Inputs and results are never kept. */
 export interface ActionCallRecord {
@@ -30,6 +31,7 @@ const sameCall = (a: ActionCallRecord, b: ActionCallRecord) => a.capability_id =
 /**
  * A short local history of commands (writes), kept in the Home next to other local records.
  * Queries are not recorded: pages poll them constantly and they change nothing.
+ * Neither is a command turned away before its handler began (`refused`): it is settled, but nothing was done and nothing is written.
  */
 export class ActionCallLog {
   private readonly file: string;
@@ -38,9 +40,12 @@ export class ActionCallLog {
   private lines = -1;
   constructor(homeDirectory: string) { this.file = path.join(homeDirectory, RELATIVE_PATH); }
 
-  record(caller: ActionCallContext, action: ActionReference & { operation: string; title: string; provider_title: string },
-    outcome: { ok: true } | { ok: false; code?: string; message: string }): void {
+  record(caller: ActionCallContext, action: ActionReference & { operation: string; title: string; provider_title: string }, outcome: CallOutcome): void {
     if (action.operation !== "command") return;
+    // A call cancelled, revoked, disabled or otherwise refused before its handler began wrote nothing before refusals were settled, and the
+    // hard rule says cancelled, revoked and disabled calls write no record. Whether this diagnostic log is outside that rule is the
+    // user's to decide (apps/local-host/README.md); until then a refusal is told to the settled hook and stays out of the file.
+    if (!outcome.ok && outcome.refused) return;
     const row: ActionCallRecord = { at: new Date().toISOString(), capability_id: action.capability_id, version: action.version, provider_id: action.provider_id ?? "",
       provider_title: action.provider_title, title: action.title, actor_id: caller.actor_id, audience: caller.audience ?? "user", project_id: caller.project_id ?? null,
       ok: outcome.ok, ...(outcome.ok ? {} : { ...(outcome.code ? { code: outcome.code } : {}), message: outcome.message }) };

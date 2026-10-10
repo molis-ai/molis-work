@@ -16,7 +16,7 @@ const define = <Input, Output>(capability_id: string, title: string, description
  * An action that cannot work without reading the linked folder says so: it needs the one workspace read action, and the
  * callers of the action hold `workspace:read` for it (a declaration never grants what the dependency needs).
  */
-const readingFolder = <D extends ActionDefinition<any, any>>(definition: D): D => ({ ...definition, action: { ...definition.action,
+const readingFolder = <Input, Output>(definition: ActionDefinition<Input, Output>): ActionDefinition<Input, Output> => ({ ...definition, action: { ...definition.action,
   permissions: [...definition.action.permissions, "workspace:read"],
   required_actions: [{ capability_id: workspaceReadActions.file.capability_id, version: workspaceReadActions.file.version }] } });
 interface FileWorkspace { workspace_id: string; name: string; handle: string }

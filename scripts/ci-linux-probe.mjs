@@ -13,7 +13,7 @@
 //     --jobs <n>               files at once, each with its own MOLIS_WORK_HOME (default 1)
 //     --timeout-seconds <n>    per file attempt (default 600); a timeout is not retried
 //     --retries <n>            extra attempts for a file that failed; a later pass is `flaky` (default 1)
-//     --budget-minutes <n>     stop starting files after this long; the rest are `not-run` (default: no limit)
+//     --budget-minutes <n>     stop starting files after this long, and stop retrying; the rest are `not-run` (default: no limit)
 //     --expect-platform <p>    exit 2 before running anything unless process.platform is <p> (CI: linux)
 // The three files are written again after every file, so a run that is killed outright still leaves everything up to its last
 // file; SIGINT, SIGTERM and SIGHUP (what CI sends a run it cancels or whose job reached its time limit) stop the test processes

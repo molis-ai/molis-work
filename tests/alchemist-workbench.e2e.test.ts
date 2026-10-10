@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createLocalRuntime } from "../plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 
 // Seed through the production API; only the external model/search are explicit fixtures.
 async function seed(home: string, project: string) {
@@ -82,8 +83,26 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   assert.ok(exported);const archive=JSON.parse(exported.toString());assert.ok(JSON.stringify(archive).includes('先验证持续使用再投入'));assert.doesNotMatch(exported.toString(),/apiKey|api_key|secretReference/);
   const zip=await readFile(join(downloads,'alchemist-'+new Date().toISOString().slice(0,10)+'.zip'));assert.equal(zip.subarray(0,2).toString(),'PK');
 
+  // The GitHub source takes the account the person picks in the source settings; with none picked it is anonymous (W2-18 decision 7).
+  const fake=(name:string)=>`e2e-${name}-value`;
+  const github=withConnectorConnections(b.homeDirectory,store=>({usable:store.createToken({serviceId:"github",displayName:"GitHub · octo",token:fake("github"),accountLabel:"octo",authMethod:"token"}),
+    gone:store.disconnect(store.createToken({serviceId:"github",displayName:"GitHub · old",token:fake("old"),accountLabel:"old",authMethod:"oauth"}).connection_id)}));
   await click('[data-alc-collection="pulse"]');await click('[data-alc-action="sources"]');
-  const source=(await read('/pulse/sources')).sources[0];await visible('[data-alc-dialog] [name="'+source.sourceId+'"]');await click('[data-alc-dialog] [name="'+source.sourceId+'"]');await click('[data-alc-submit]');await includes('来源设置已保存。');assert.equal((await read('/pulse/sources')).sources[0].enabled,!source.enabled);await click('[data-alc-action="notice-close"]');
+  const source=(await read('/pulse/sources')).sources[0];await visible('[data-alc-dialog] [name="'+source.sourceId+'"]');
+  assert.deepEqual(await evaluate(`[...document.querySelector('[data-alc-dialog] [name="githubAccount"]').options].map(o=>[o.value,o.textContent,o.selected,o.disabled])`),
+    [['','匿名访问',true,false],[github.usable.connection_id,'GitHub · octo',false,false],[github.gone.connection_id,'GitHub · old · 连接不可用',false,true]],"anonymous is chosen, the connected account can be picked, a disconnected one cannot");
+  assert.equal(await evaluate(`document.querySelector('[data-alc-dialog]').textContent.includes(${text(fake('github'))})`),false,"the picker never shows a token");
+  await evaluate(`(()=>{const e=document.querySelector('[data-alc-dialog] [name="githubAccount"]');e.value=${text(github.usable.connection_id)};e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await click('[data-alc-dialog] [name="'+source.sourceId+'"]');await click('[data-alc-submit]');await includes('来源设置已保存。');assert.equal((await read('/pulse/sources')).sources[0].enabled,!source.enabled);
+  assert.equal((await read('/pulse/github')).selectedConnectionId,github.usable.connection_id,"the picked account is bound");
+  assert.equal(JSON.stringify(await read('/pulse/github')).includes(fake('github')),false);
+  await click('[data-alc-action="notice-close"]');
+  await click('[data-alc-action="sources"]');await waitFor(`!!document.querySelector('[data-alc-dialog] [name="githubAccount"]')`,12_000);
+  assert.equal(await evaluate(`document.querySelector('[data-alc-dialog] [name="githubAccount"]').value`),github.usable.connection_id,"the dialog shows the bound account when it is reopened");
+  assert.equal(await evaluate(`document.querySelector('[data-alc-dialog] [data-mw-select-label]').textContent`),"GitHub · octo","and so does the picker the select is shown as");
+  await evaluate(`(()=>{const e=document.querySelector('[data-alc-dialog] [name="githubAccount"]');e.value='';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await click('[data-alc-submit]');await includes('来源设置已保存。');
+  assert.equal((await read('/pulse/github')).selectedConnectionId,null,"choosing anonymous unbinds it");await click('[data-alc-action="notice-close"]');
   await visible('[data-alc-open="pulse"]');await click('[data-alc-open="pulse"]');await includes('可以探索的机会');await click('[data-alc-action="save-opportunity"]');await includes('已保存');await click('[data-alc-action="convert"]');await visible('[data-alc-action="explore"]');
   assert.equal((await read('/bootstrap')).directions.length,2);
   await click('[data-alc-action="new"]');await fill('description','浏览器验收缺模型也保存方向');await click('[data-alc-submit]');await includes('这次炼化未完成');

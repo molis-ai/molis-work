@@ -41,6 +41,7 @@ import { createStartPulseRunService } from "../services/start-pulse-run.js";
 import { WorkspaceExportService } from "../services/workspace-export.js";
 import { GitHubSource } from "../sources/github-source.js";
 import { SafePublicHttpClient } from "../sources/http-source-client.js";
+import type { AlchemistPulseGithubPort } from "../sources/pulse-github-port.js";
 import { ToolifySource } from "../sources/toolify-source.js";
 import { WatchaSource } from "../sources/watcha-source.js";
 
@@ -55,10 +56,11 @@ export interface LocalRuntimeOptions {
   jobLeaseMs?: number;
   pulseSourceMode?: "live" | "fixture";
   /**
-   * The token the market pulse's GitHub source sends, asked for at each request. The Host lends it from the Settings
-   * GitHub connection; without one (or without this option) the source searches anonymously. Never read from the environment.
+   * The Host's side of the market pulse's GitHub source: its transport (which adds the bound Settings GitHub account's
+   * credential outside this package) and the choice of that account. Without it the source searches anonymously and the
+   * account cannot be chosen. No credential is ever read from the environment.
    */
-  pulseGithubToken?: () => string | undefined;
+  pulseGithub?: AlchemistPulseGithubPort;
   localSecurity?: LocalSecurityOptions;
   /** Production Host supplies its trusted Kernel client; standalone Studio uses the same plugin operations. */
   actions?: AlchemistActionInvoker;
@@ -130,7 +132,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
       : [
           new ToolifySource(new SafePublicHttpClient(["www.toolify.ai"])),
           new WatchaSource(new SafePublicHttpClient(["watcha.cn"])),
-          new GitHubSource(new SafePublicHttpClient(["api.github.com"]), options.pulseGithubToken),
+          new GitHubSource(new SafePublicHttpClient(["api.github.com"], options.pulseGithub ? { fetch: options.pulseGithub.fetch } : {})),
         ];
   const handlers = createJobHandlers({
       explorations,
@@ -265,7 +267,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     calibrationMemory,
     runtimeSettings,
     workspaceExport,
-    workReuse,
+    workReuse, ...(options.pulseGithub ? { pulseGithub: options.pulseGithub } : {}),
     ...(options.localSecurity ? { localSecurity: options.localSecurity } : {}),
   };
   const actions = createAlchemistOperationExecutor(dependencies);

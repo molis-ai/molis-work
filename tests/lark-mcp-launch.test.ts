@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -94,19 +96,57 @@ test("the pinned package starts and lists its tools with only that environment",
   } finally { await client.close().catch(() => undefined); }
 });
 
-test("a .env file in the directory that programs share is not read by the child", { timeout: 60_000 }, async t => {
-  // The package calls dotenv.config(), which loads <cwd>/.env: a file there could add LARK_TOOLS (or a proxy, or a TLS switch) to the child.
-  const shared = mkdtempSync(join(tmpdir(), "lark-shared-tmp-"));
-  t.after(() => rmSync(shared, { recursive: true, force: true }));
-  writeFileSync(join(shared, ".env"), "LARK_TOOLS=im.v1.message.create\n");
-  withEnvironment(t, { TMPDIR: shared, LARK_TOOLS: undefined });
-  const launch = larkMcpLaunch({ ...credentials });
-  t.after(() => launch.cleanup());
-  const transport = new StdioClientTransport({ command: launch.command, args: launch.args, env: launch.env, cwd: launch.cwd, stderr: "pipe" });
+/**
+ * A loopback HTTP server that plays the proxy a stray `.env` could name. The package builds its HTTP client before it
+ * calls `dotenv.config()`, but looks the proxy up again for every request, so a `HTTP_PROXY` written into `<cwd>/.env`
+ * decides where the app secret is sent. (Its own `LARK_*` and `APP_*` settings are read before `dotenv.config()` runs,
+ * so a `.env` cannot change those.)
+ */
+async function recordingProxy(t: test.TestContext) {
+  const requests: string[] = [];
+  const server = createServer((request, response) => {
+    requests.push(`${request.method} ${request.url}`);
+    request.resume();
+    request.on("end", () => {
+      response.setHeader("content-type", "application/json");
+      response.end(String(request.url).includes("tenant_access_token")
+        ? JSON.stringify({ code: 0, msg: "ok", tenant_access_token: "t-fake", expire: 7200 }) : JSON.stringify({ code: 0, msg: "ok", data: {} }));
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  return { requests, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` };
+}
+
+/** Starts the pinned package in `cwd` with the launch's environment and makes one tool call; the call reaches the network only through a proxy. */
+async function callOneTool(launch: ReturnType<typeof larkMcpLaunch>, cwd: string) {
+  const transport = new StdioClientTransport({ command: launch.command, args: launch.args, env: launch.env, cwd, stderr: "pipe" });
   const client = new Client({ name: "molis-work-test", version: "0.0.0" }, { capabilities: {} });
   try {
     await client.connect(transport, { timeout: 45_000 });
-    const { tools } = await client.listTools();
-    assert.ok(tools.length > 10, `the tool list is the package's own (${tools.length} tools), not the one the shared .env asked for`);
+    await client.callTool({ name: "im_v1_chat_list", arguments: {} }, undefined, { timeout: 30_000 }).catch(() => undefined);
   } finally { await client.close().catch(() => undefined); }
+}
+
+test("a .env file in the directory that programs share cannot redirect the child's requests", { timeout: 120_000 }, async t => {
+  const proxy = await recordingProxy(t);
+  const shared = mkdtempSync(join(tmpdir(), "lark-shared-tmp-"));
+  t.after(() => rmSync(shared, { recursive: true, force: true }));
+  writeFileSync(join(shared, ".env"), `HTTP_PROXY=${proxy.url}\n`);
+  // An address that cannot resolve, so a request only arrives at the recording proxy if the package was told to use it. The machine running the test may have proxy settings of its own.
+  withEnvironment(t, { TMPDIR: shared, HTTP_PROXY: undefined, http_proxy: undefined, HTTPS_PROXY: undefined, https_proxy: undefined, ALL_PROXY: undefined, all_proxy: undefined, NO_PROXY: undefined, no_proxy: undefined });
+  const credentialsOnPlainHttp = { ...credentials, domain: "http://lark-dotenv-probe.invalid" };
+
+  // Control: the same child started in the directory that holds the .env does send its requests to that proxy. Without this the test could pass because the package stopped reading .env.
+  const control = larkMcpLaunch(credentialsOnPlainHttp);
+  t.after(() => control.cleanup());
+  await callOneTool(control, shared);
+  assert.ok(proxy.requests.some(line => line.includes("lark-dotenv-probe.invalid")), `the package honours <cwd>/.env (proxy saw: ${JSON.stringify(proxy.requests)})`);
+
+  // The launch's own working directory is the one that matters: with TMPDIR pointing at the shared directory, a launch that ran in the temp directory itself would pick that .env up.
+  proxy.requests.length = 0;
+  const launch = larkMcpLaunch(credentialsOnPlainHttp);
+  t.after(() => launch.cleanup());
+  await callOneTool(launch, launch.cwd);
+  assert.deepEqual(proxy.requests, [], "the child ran in its own empty directory, so the shared .env never named a proxy for the app secret to go through");
 });

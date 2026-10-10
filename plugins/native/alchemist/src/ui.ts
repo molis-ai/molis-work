@@ -18,7 +18,7 @@ export function renderAlchemistWorkbench({primitives:p}:AlchemistUiModel):string
       <nav class="alc-collections" aria-label="${t('炼金术集合')}">${[['directions','方向'],['ideas','已保留'],['pulse','市场脉搏'],['decisions','决策']].map(([id,label])=>`<button type="button" class="mw-btn mw-btn--ghost" data-alc-collection="${id}" aria-pressed="${id==='directions'}">${t(label!)}</button>`).join('')}</nav>
       <label class="alc-search">${icon('search')}<input class="mw-input" type="search" data-alc-search placeholder="${t('搜索当前集合')}" aria-label="${t('搜索当前集合')}"></label>
       <div data-alc-list-actions class="alc-list-actions"></div>
-      <p class="alc-muted alc-list-note" data-alc-pulse-note hidden>${t('采集会联网访问 Toolify、观猹和 GitHub，只读公开页面，不发送你的内容。GitHub 用「设置 › 服务连接」里最早添加、未断开的 GitHub 账号；没有就匿名访问，限额较低。')}</p>
+      <p class="alc-muted alc-list-note" data-alc-pulse-note hidden>${t('采集会联网访问 Toolify、观猹和 GitHub，只读公开页面，不发送你的内容。GitHub 只用你在「来源设置」里选的账号，没选就匿名访问，限额较低。')}</p>
       <div data-alc-rows><p class="alc-empty mw-loading">${t('正在读取…')}</p></div>
     </div>
     <section class="plugin-stage-workspace alc-workspace" data-alc-workspace hidden>
@@ -28,6 +28,7 @@ export function renderAlchemistWorkbench({primitives:p}:AlchemistUiModel):string
       </div>
     </section>
     <div class="alc-notice" data-alc-notice hidden role="status"><span></span>${btn('重试','reload')}${btn('关闭','notice-close')}</div>
+    <template data-alc-github><label class="alc-field">${t('GitHub 账号')}<select class="mw-select" name="githubAccount"><option value="">${t('匿名访问')}</option></select></label><p class="alc-muted">${t('GitHub 来源只用这里选的账号，令牌留在宿主里；不选就匿名访问，限额较低。账号在「设置 › 服务连接」里管理。')}</p></template>
     <dialog class="mw-dialog alc-dialog" data-alc-dialog aria-labelledby="alc-dialog-title"><form data-alc-form><header><h2 id="alc-dialog-title"></h2>${btn('关闭','close')}</header><div class="alc-dialog-body" data-alc-dialog-body></div><p role="alert" class="alc-error" data-alc-form-error hidden></p><footer>${btn('取消','close')}<button class="mw-btn mw-btn--primary" type="submit" data-alc-submit>${t('保存')}</button></footer></form></dialog>
   `});
 }

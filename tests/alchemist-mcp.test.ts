@@ -24,7 +24,10 @@ test("Alchemist standard MCP shares persisted business state across processes wi
   try {
     const writer = await connect("a"), reader = await connect("a", "read"), other = await connect("b");
     const tools = (await writer.listTools()).tools;
-    assert.deepEqual(tools.map(tool => tool.name).filter(name => name.startsWith("alchemist.")).sort(), alchemistManifest.actions!.map(action => `${action.capability_id}__v1`).sort());
+    // MCP offers the actions that name it as an audience; choosing which GitHub account the market pulse uses stays with the person (user only).
+    const offered = alchemistManifest.actions!.filter(action => action.action.audiences.includes("mcp")).map(action => `${action.capability_id}__v1`).sort();
+    assert.deepEqual(tools.map(tool => tool.name).filter(name => name.startsWith("alchemist.")).sort(), offered);
+    assert.deepEqual(alchemistManifest.actions!.filter(action => !action.action.audiences.includes("mcp")).map(action => action.capability_id).sort(), ["alchemist.pulse.github", "alchemist.pulse.github.configure"], "only the account choice is kept from MCP");
     const { direction } = await call(writer, "directions.create", { title: "外部 MCP 方向", description: "通过统一能力创建并跨进程读取方向" });
     assert.equal((await call(reader, "workspace.read")).directions[0].id, direction.id);
     assert.deepEqual((await call(other, "workspace.read")).directions, []);

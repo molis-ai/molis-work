@@ -37,9 +37,12 @@ export interface LarkMcpLaunch {
  * apps/local-host/package.json and pnpm-lock.yaml, run by the Host's own Node (no `npx`, so nothing is fetched or
  * updated at run time). The transport adds the MCP SDK's small safe default set (HOME, PATH, USER, ...); this adds the
  * app credentials and the network settings above, nothing else. The package calls `dotenv.config()`, which loads
- * `<working directory>/.env` and adds any variable it names to the child (`LARK_TOOLS`, a proxy, a TLS switch, ...), so
- * the working directory is a new empty directory for each launch (readable and writable by this user only), never a
- * directory that other programs share such as the temp directory itself.
+ * `<working directory>/.env` and adds every variable it names to the child's environment. The package reads its own
+ * `APP_*` and `LARK_*` settings before that call, so a `.env` cannot change those; but it looks the proxy up again for each
+ * request, so a `HTTP_PROXY` (or a TLS switch such as `NODE_TLS_REJECT_UNAUTHORIZED`) written there decides where the
+ * app secret and tenant token go. So the working directory is a new empty directory for each launch (readable and
+ * writable by this user only), never one that other programs share such as the temp directory itself
+ * (`tests/lark-mcp-launch.test.ts` shows both halves: the package honours a `.env` in its directory, and this one has none).
  */
 export function larkMcpLaunch(input: LarkMcpLaunchInput): LarkMcpLaunch {
   const entry = createRequire(import.meta.url).resolve("@larksuiteoapi/lark-mcp/dist/cli.js");

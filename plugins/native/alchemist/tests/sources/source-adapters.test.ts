@@ -1,9 +1,9 @@
 // @vitest-environment node
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { GitHubSource } from "../../src/studio/server/sources/github-source.js";
-import type { SourceHttpClient, SourceHttpResponse } from "../../src/studio/server/sources/http-source-client.js";
+import { SafePublicHttpClient, type SourceHttpClient, type SourceHttpResponse } from "../../src/studio/server/sources/http-source-client.js";
 import { ToolifySource } from "../../src/studio/server/sources/toolify-source.js";
 import { WatchaSource } from "../../src/studio/server/sources/watcha-source.js";
 
@@ -74,21 +74,42 @@ describe("Market Pulse source adapters", () => {
     });
   });
 
-  it("sends the GitHub token the Host resolves at each request, and no credential when there is none", async () => {
-    const authorizations: Array<string | undefined> = [];
-    let token: string | undefined = "first-token";
+  it("sends no credential of its own: the Host's transport is the only place a GitHub token is added", async () => {
+    const headersSeen: Array<Readonly<Record<string, string>> | undefined> = [];
     const source = new GitHubSource({
       async get(_url, options) {
-        authorizations.push(options?.headers?.authorization);
+        headersSeen.push(options?.headers);
         return response(fixture("github-repositories.json"), 200);
       },
-    }, () => token);
+    });
     await source.collect({ since: "2026-07-24T00:00:00.000Z", limit: 10 });
-    token = "rotated-token";
-    await source.collect({ since: "2026-07-24T00:00:00.000Z", limit: 10 });
-    token = undefined;
-    await source.collect({ since: "2026-07-24T00:00:00.000Z", limit: 10 });
-    expect(authorizations).toEqual(["Bearer first-token", "Bearer rotated-token", undefined]);
+    expect(headersSeen).toHaveLength(1);
+    expect(Object.keys(headersSeen[0] ?? {}).map(name => name.toLowerCase())).not.toContain("authorization");
+  });
+
+  it("sends its requests through the fetch the Host lends, handing it no credential and only for the hosts it allows", async () => {
+    const sent: Array<{ url: string; headers: Headers }> = [];
+    const lent = async (url: string, init: RequestInit): Promise<Response> => {
+      sent.push({ url, headers: new Headers(init.headers) });
+      if (sent.length === 1) return new Response(null, { status: 302, headers: { location: "https://api.github.com/search/repositories?page=2" } });
+      return new Response(fixture("github-repositories.json"), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    const client = new SafePublicHttpClient(["api.github.com"], { fetch: lent });
+    const result = await new GitHubSource(client).collect({ since: "2026-07-24T00:00:00.000Z", limit: 10 });
+    expect(result.status).toBe("completed");
+    expect(sent.map(request => request.url)).toEqual([expect.stringContaining("https://api.github.com/search/repositories?"), "https://api.github.com/search/repositories?page=2"]);
+    for (const request of sent) expect(request.headers.has("authorization"), "the plugin never builds an Authorization header").toBe(false);
+    // A redirect to another host is refused before it reaches the lent fetch, so a credential the Host adds can never follow it.
+    const elsewhere = new SafePublicHttpClient(["api.github.com"], { fetch: async () => new Response(null, { status: 302, headers: { location: "https://evil.example/steal" } }) });
+    await expect(elsewhere.get("https://api.github.com/search/repositories")).rejects.toMatchObject({ code: "SOURCE_URL_NOT_ALLOWED" });
+  });
+
+  it("holds no GitHub credential anywhere in its sources: nothing in the plugin names an Authorization header or a bearer token", () => {
+    const root = new URL("../../src/", import.meta.url);
+    const files = (directory: URL): URL[] => readdirSync(directory, { withFileTypes: true }).flatMap(entry =>
+      entry.isDirectory() ? files(new URL(`${entry.name}/`, directory)) : /\.ts$/u.test(entry.name) ? [new URL(entry.name, directory)] : []);
+    const offenders = files(root).filter(file => /authorization|bearer\s/iu.test(readFileSync(file, "utf8"))).map(file => file.pathname.split("/src/")[1]);
+    expect(offenders).toEqual([]);
   });
 
   it("does not turn malformed source output into an empty successful result", async () => {

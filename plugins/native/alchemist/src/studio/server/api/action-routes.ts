@@ -60,6 +60,8 @@ export function registerAlchemistActionRoutes(app: Hono, actions: AlchemistActio
   route("POST", "/memory/playbook/:id/disable", "playbookDisable", identity);
   route("GET", "/pulse/reports", "pulseReports", none);
   route("GET", "/pulse/sources", "pulseSources", none);
+  route("GET", "/pulse/github", "pulseGithub", none);
+  route("PUT", "/pulse/github", "pulseGithubSelect", body);
   route("PATCH", "/pulse/sources/:sourceId", "pulseSourceUpdate", c => body(c, { sourceId: c.req.param("sourceId") }));
   route("POST", "/pulse/runs", "pulseStart", c => body(c, {}, true), 202);
   route("POST", "/opportunities/:id/save", "opportunitySave", identity);

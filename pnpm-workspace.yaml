@@ -14,6 +14,11 @@ packages:
 # The installer flattens runtime dependencies by package name, and 5.2.1 keeps the 5.1 API.
 overrides:
   safe-buffer: 5.2.1
+  # @larksuiteoapi/lark-mcp -> proxy-agent -> pac-proxy-agent -> get-uri declares basic-ftp ^5.3.1, whose latest 5.x has the
+  # Client.list() quadratic-time parser flaw (GHSA-c475-qrg2-pj4r, fixed in 6.2.1, the oldest fixed release, published 2026-08-27). get-uri only reaches the FTP client for
+  # a PAC file served over ftp:, which the connector never configures; the override is for the audit, and the connector's
+  # tests (tests/lark-mcp-launch.test.ts, tests/connector-mcp.test.ts) start the real package with it.
+  basic-ftp: 6.2.1
 
 # Allow esbuild postinstall (required by tsx for pnpm molis-work / tests).
 allowBuilds:

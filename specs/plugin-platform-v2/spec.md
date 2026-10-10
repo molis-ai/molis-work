@@ -45,7 +45,7 @@ Goal 事件协议、Artifact 版本语义、Module 事实所有权、MCP 工具�
 4. **依赖解析与激活顺序**：能力依赖拓扑排序决定激活顺序；端口**不参与排序**——消费者懒激活、输入齐备才投递，所以两个插件互喂不同类型不构成环。环、缺必需能力、不可满足端口类型都给具名诊断，不静默降级。
 5. **单插件隔离**：一个插件启动失败或崩溃只影响自己，兄弟实例状态保留，可单独重启。
 6. **声明式装配**：视图（navigator/stage/inspector/settings）、命令、HTTP 路由全部从 manifest 生成；删除 `ui-composition` 逐个 register、`BUILTIN_PROJECT_PLUGIN_IDS` 写死与各插件 plugin-id 分支。
-7. **Agent Host**：新横向服务 `horizontal/agent-host`，统一 Agent 运行契约（角色、Prompt、Skill、MCP、子 Agent、检查点、Review、用量），两个 adapter：Prologue（主）与 CLI Runtime（辅）。
+7. **Agent Host**：新横向服务 `horizontal/agent-host`，统一 Agent 运行契约（角色、Prompt、Skill、MCP、子 Agent、检查点、Review、用量），两个 adapter：Prologue（主）与 CLI Runtime（辅）（辅 adapter 已于 2026-10 删除，现只有 Prologue，见 D5）。
 8. **存量全量迁移**：goals / feed / inbox / artifacts / sessions / shelf / work 七个内置插件迁到 v2 声明式装配。
 9. **Coding App 插件**：`modules/coding` + `plugins/native/coding`，把 FlyLeaf coding-agent 的业务语义搬过来，UI 按 Molis Work 现行设计体系重写。
 10. **脚手架与文档**：`molis-work plugin create --kind app` 生成可直接跑的 v2 插件；更新 `docs/platform/*` 与 `docs/SSOT-MATRIX.md`。
@@ -113,6 +113,8 @@ FlyLeaf 投递的是内存快照，重启只能靠 retain/restore 手工恢复�
 
 `horizontal/agent-host` 拥有 Agent 运行契约，不拥有模型、凭据或业务语义。
 
+**2026-10 更新（[反腐败整理 spec](../repository-anti-corruption/spec.md) §1 的 W2-18 决定 1）**：下面的 CLI Runtime adapter（`claude` 命令行）已删除，Prologue 是唯一的 adapter，外部 Agent 运行时按口径暂缓、要回来时另写需求；本文及 [coding-plugin](../coding-plugin/spec.md) 里其余提到「两个 adapter」「CLI adapter」的地方，都是删除之前的设计与记录，现行行为以本节这句和 `horizontal/agent-host/README.md` 为准。
+
 - **Prologue adapter（主）**：`@prologue/sdk/node` 的 `createNodeHost`。local-host 本来就是 Node single writer，Session/Run、审批 Review、Diff/命令/检查点、子 Agent、用量回执整条链可直接复用 FlyLeaf 已验证的语义。
 - **CLI Runtime adapter（辅）**：复用现有 `horizontal/runtime-host` 与 PTY，把 Claude Code / Codex 等 CLI 当 runtime。能力矩阵按能力申报（`supported | partial | unsupported`），产品按矩阵降级显示，不假装支持。
 
@@ -123,6 +125,8 @@ FlyLeaf 投递的是内存快照，重启只能靠 retain/restore 手工恢复�
 七个内置插件全部迁到 v2。`BUILTIN_PROJECT_PLUGIN_IDS` 字面量联合改为运行期插件注册表：项目插件启用表存 `plugin_id TEXT`，外键指向注册表，不再用 CHECK 约束。已有项目按现有启用集合原样迁移，不改用户可见的启用状态。
 
 ### D13 写权限必须经宿主审批，两个 adapter 各自如实申报（P6 实现时确认）
+
+2026-10 起只剩 Prologue adapter（见 D5）；下面「CLI adapter」一段是删除之前的记录，审批桥的语义对 Prologue 仍然有效。
 
 **审批桥**把 Prologue 的待批副作用摆到宿主 Review 队列：Prologue 停下来等，用户在宿主审查面决定，
 桥才回答 Prologue。关键语义由测试锁住——
@@ -219,7 +223,7 @@ v1 manifest 继续解析：`parsePluginManifest` 按 `schema_version` 分派，v
 ## 输入输出与依赖
 
 - 输入：现有 Plugin Runtime / Kernel / UI Host / Artifacts Module / Runtime Host；FlyLeaf `packages/core` 的 plugin / events / inputs / runtime / agent 语义；Prologue SDK Node Host。
-- 输出：v2 平台契约与实现、七个迁移后的内置插件、Agent Host 与两个 adapter、Coding Module 与插件、脚手架与文档。
+- 输出：v2 平台契约与实现、七个迁移后的内置插件、Agent Host 与两个 adapter（现只有 Prologue，见 D5）、Coding Module 与插件、脚手架与文档。
 - Host 装配 Module、事件表、输入图、HTTP 与 Agent Host；Workbench 只按声明组合 UI。
 
 ## 文件 / 模块边界
@@ -307,7 +311,7 @@ HTTP（项目前缀下）：
 | P3 | 事件流落库 + 输入图落库 | **已完成**：`tests/plugin-events.test.ts` 9 项、`tests/plugin-input-graph.test.ts` 9 项、`tests/plugin-durable-coordination.test.ts` 真实 SQLite 重启 1 项 |
 | P4 | 声明式装配：视图/命令/路由；删除硬编码分支 | **机制已完成**：`UiViewRegistry`、`PluginRouteRouter`、`tests/plugin-declarative-mounting.test.ts` 7 项。宿主接线与硬编码分支删除随 P5 逐个插件进行 |
 | P5 | 存量插件迁移 | **已完成声明化**：六个内置插件各自拥有 v2 Manifest；导航/设置由目录推导，`tests/plugin-declarative-mounting.test.ts` 断言与原写死列表逐项一致；`tests/project-plugin-registry.test.ts` 4 项覆盖注册表与迁移 |
-| P6 | Agent Host + Prologue adapter + CLI adapter | **已完成（未经真实模型端到端验证）**：宿主授权、审批桥、能力注册、两个 adapter 的只读执行。`tests/agent-host.test.ts` 15 项、`tests/prologue-approval-bridge.test.ts` 8 项、`tests/prologue-stream.test.ts` 10 项、`tests/cli-agent-adapter.test.ts` 11 项 |
+| P6 | Agent Host + Prologue adapter + CLI adapter | **已完成（未经真实模型端到端验证）**：宿主授权、审批桥、能力注册、两个 adapter 的只读执行。`tests/agent-host.test.ts` 15 项、`tests/prologue-approval-bridge.test.ts` 8 项、`tests/prologue-stream.test.ts` 10 项、`tests/cli-agent-adapter.test.ts` 11 项（CLI adapter 及其测试已于 2026-10 删除，见 D5） |
 | P7 | Coding App 插件 + 脚手架 + 文档 | **设计已确认（2026-09-19）**：[`specs/coding-plugin/design.md`](../coding-plugin/design.md) 的布局经 UI 稿评审定稿，见其 §14。右栏把运行预览与命令回执拉进首版，相应缺口已记进 §12。实施未开始 |
 
 每阶段结束跑 `pnpm typecheck:all` 与 `pnpm boundary:check`；不跨阶段合并证据。
@@ -321,7 +325,7 @@ HTTP（项目前缀下）：
 5. 声明依赖成环或缺必需能力 → 具名诊断，相关插件不激活，其余插件正常。
 6. 七个内置插件迁移后行为不变，已有项目启用集合不变。
 7. Coding 插件完成一次真实主链：读代码 → Diff → 批准 → 落盘回执 → 批准命令 → 结果回同一 Run → 结论 → 固定 Report Artifact；未批准时零写入。
-8. Agent Host 在 Prologue 与 CLI 两个 adapter 下都能报告能力矩阵；不支持的能力显示为真实不可用，不伪造成功。
+8. Agent Host 在 Prologue 与 CLI 两个 adapter 下都能报告能力矩阵；不支持的能力显示为真实不可用，不伪造成功。（2026-10 起只有 Prologue 一个 adapter，CLI 部分随它一起删除，见 D5。）
 9. `molis-work plugin create --kind app` 生成的插件在干净副本里可构建、可启用、可见。
 
 ## 验证
@@ -349,7 +353,7 @@ pnpm exec tsx --test --test-concurrency=1 \
 ## 假设与开放问题
 
 - Prologue SDK 以 `file:` 工作区依赖引入（与 FlyLeaf 同做法）还是先 vendor 一份，待 P6 开工前确认。
-- CLI adapter 首批只接 Claude Code 与 Codex；Grok 按需要再加。
+- CLI adapter 首批只接 Claude Code 与 Codex；Grok 按需要再加。（已删除，见 D5。）
 - 事件日志保留策略（按条数还是按天）留到 P3 定，默认不自动清理。
 - Coding 的 Writers / 多 worktree 协作在 FlyLeaf 侧标记为「未验收」，本期只搬已验收的单 writer 主链，多 writer 排到 Coding 第二期。
 - 插件市场的上架/审核流程不在本期；市场页只列本地注册表。

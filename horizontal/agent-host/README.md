@@ -58,7 +58,7 @@ Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插�
 
 ## 进一步阅读
 
-- [Plugin Platform v2 需求书](../../specs/plugin-platform-v2/spec.md) 的 D5
+- [Plugin Platform v2 需求书](../../specs/plugin-platform-v2/spec.md) 的 D5（命令行适配器已删除，现只有 Prologue；D5 开头有 2026-10 的更新说明）
 - [Coding 插件 UI 与交互设计](../../specs/coding-plugin/design.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 

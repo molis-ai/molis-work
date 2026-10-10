@@ -26,7 +26,6 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 
 - 插件不 import 另一个插件的实现；跨模块只走公开 Contract。能力注册一次，由共同目录供页面、工作流、Agent、MCP 使用，不另写名单或宿主分支。
 - 模型调用只经 `horizontal/agent-host`（唯一依赖 `@prologue/sdk` 的包）。一个 Home 只有一个执行进程；其他入口转发给常驻宿主。
-- 实验里的本地模型调用（`grok` 命令行、`laya` 检查点）是登记过的例外，不是第二条模型调用路径：例外要写进 `docs/system/CALL-CHAINS.md` §10.1，带理由和删除条件，新增例外先改那张表并经评审。
 - 等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后 `beforeEffect()` 再按读取时的版本提交。被取消、撤权、停用的调用不再写任何记录。
 - 合同读写都只认现行取值：存量数据由维护改成现行形状，读取时不兜底历史取值；新增兼容或迁移逻辑要先写进 `specs/repository-anti-corruption` 的保留机制并经用户确认。以后的读取兼容怎样做、从什么时候起算（第一个装到开发机之外的版本），见 `docs/system/CONTRACT-CHANGES.md`。
 - 可信身份（actor、项目、安装）从调用上下文来，不从输入读；密钥只给引用。

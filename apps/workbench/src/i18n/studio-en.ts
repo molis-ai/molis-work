@@ -4,7 +4,7 @@ import { PLUGIN_COMPONENTS_EN } from "@molis-ai/molis-work-design-system";
  * English for the plugin studio (plugins/native/plugin-builder); the Chinese text is the key. `{name}`-style placeholders stay
  * as written, and values never hold `"`, `<`, `>` or `&` (several land in attributes). The studio's own words only: what the
  * build record carries (the model's answers, the host's step labels and errors) and the capability directory's titles are
- * shown as written (specs/BACKLOG.md BL-123). The UI catalog's component names and descriptions come from the design system.
+ * shown as written (specs/BACKLOG.md BL-125). The UI catalog's component names and descriptions come from the design system.
  * The catalog keeps this dictionary, not the plugin: a plugin is registered by its own declaration, and the catalog does not
  * name the studio's package (the assembly gate counts the files that do).
  */

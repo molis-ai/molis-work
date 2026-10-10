@@ -1,5 +1,5 @@
 {
-  "giantUnits": 161,
+  "giantUnits": 160,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
     "file apps/local-host/src/assistant/assistant-service.ts": 2628,
@@ -182,10 +182,9 @@
     "function packages/im-ui/src/browser/controller.ts#startIm": 957,
     "function packages/im-ui/src/views.ts#createViews": 164,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 418,
+      "lines": 413,
       "methods": 15
     },
-    "function packages/kernel/src/action-service.ts#registerProvider": 155,
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
       "lines": 420,
       "methods": 23

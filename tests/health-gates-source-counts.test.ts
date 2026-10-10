@@ -8,8 +8,10 @@ import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
 import { countFile } from "../scripts/gates/source-counts.mjs";
 
-// specs/repository-anti-corruption §4.13/§4.16 (W1-04): per-file counts of empty catch blocks, `as unknown as` casts and old
-// names (goalboard, board_id), which may only fall. The definitions are written in scripts/gates/source-counts.mjs. Here
+// specs/repository-anti-corruption §4.13/§4.16 (W1-04): per-file counts of the old names (goalboard, board_id) and of empty
+// catch blocks inside browser programs written as string and template literals, which may only fall. The definitions are
+// written in scripts/gates/source-counts.mjs. (The empty catch blocks and `as unknown as` casts of real TypeScript code are
+// counted by the static checks since W1-09; tests/health-gates-lint.test.ts holds their definitions and mutations.) Here
 // each rule is mutation-verified on a scratch repository, in the style of tests/health-gates-merge-base.test.ts: one
 // violation added on a branch makes `--base main` fail, and `--update` (the laundering move) neither hides it nor is
 // accepted when it is given the merge-base. And what the definitions leave out is shown to pass.
@@ -28,29 +30,14 @@ const gate = (...args: string[]) => {
 };
 
 // The definitions, one snippet each. Everything the header of source-counts.mjs says is counted, and what it says is not.
-type Counts = { emptyCatches?: number; emptyCatchesInScripts?: number; unknownCasts?: number; oldNames?: number };
+type Counts = { emptyCatchesInScripts?: number; oldNames?: number };
 // The fourth element says whether the snippet is a source file (default: a test file).
 const definitions: Array<[string, string, Counts, boolean?]> = [
-  ["a bare catch", "try { f(); } catch {}", { emptyCatches: 1 }],
-  ["a catch with a binding and only whitespace", "try { f(); } catch (error) {\n\n}", { emptyCatches: 1 }],
-  ["a catch with a comment is a written-down decision", "try { f(); } catch { /* the file may not exist yet */ }", {}],
-  ["a catch with a line comment", "try { f(); } catch {\n  // the file may not exist yet\n}", {}],
-  ["a catch that does anything is handled", "try { f(); } catch (error) { void error; }", {}],
-  ["a promise's .catch callback is not a catch clause", "f().catch(() => {});", {}],
-  ["an empty finally is not a catch", "try { f(); } finally {}", {}],
-  ["catch {} written in a comment", "// try { f(); } catch {}\n", {}],
   ["an empty catch inside a template-literal browser script", "export const SCRIPT = `try { f(); } catch (e) {}\\n`;", { emptyCatchesInScripts: 1 }, true],
   ["an empty catch in the part of a template after an interpolation", "export const SCRIPT = `${a} try { f(); } catch {} ${b}`;", { emptyCatchesInScripts: 1 }, true],
   ["an empty catch in a string literal", "export const SCRIPT = 'try{f()}catch(_){}';", { emptyCatchesInScripts: 1 }, true],
   ["a commented catch in a template literal", "export const SCRIPT = `try { f(); } catch (e) { /* offline */ }`;", {}, true],
-  ["real code and a script in one file count apart", "try { f(); } catch {}\nexport const SCRIPT = `try { g(); } catch {}`;", { emptyCatches: 1, emptyCatchesInScripts: 1 }, true],
-  ["as unknown as", "const x = value as unknown as string;", { unknownCasts: 1 }],
-  ["a parenthesised double cast", "const x = (value as unknown) as string;", { unknownCasts: 1 }],
-  ["the angle-bracket double cast", "const x = <string><unknown>value;", { unknownCasts: 1 }],
-  ["two casts in one expression", "const x = (a as unknown as A) && (b as unknown as B);", { unknownCasts: 2 }],
-  ["a single cast to unknown", "const x = value as unknown;", {}],
-  ["as any as is another rule", "const x = value as any as string;", {}],
-  ["as unknown as in a string or comment", "const text = 'value as unknown as string'; // x as unknown as y\n", {}],
+  ["real code and a script in one file: only the script is counted here", "try { f(); } catch {}\nexport const SCRIPT = `try { g(); } catch {}`;", { emptyCatchesInScripts: 1 }, true],
   ["the old product name in any case", "const a = 'GoalBoard'; const b = 'goalboard-v1-demo'; const c = process.env.GOALBOARD_HOME;", { oldNames: 3 }, true],
   ["board_id in its spellings", "const a = x.board_id; const b = boardId; const c = existing_board_id; const d = listBoardId; const e = BOARD_ID; const f = boardIds;", { oldNames: 6 }, true],
   ["names that merely contain board", "const a = dashboard_id; const b = dashboardId; const c = keyboardId; const d = boardIdentity; const e = DASHBOARD_ID; const f = KEYBOARD_IDS;", {}, true],
@@ -62,7 +49,7 @@ const definitions: Array<[string, string, Counts, boolean?]> = [
 for (const [name, text, expected, inSource] of definitions) {
   test(`definition: ${name}`, () => {
     const found = countFile("snippet.ts", text, { inSource: inSource ?? false });
-    assert.deepEqual(found, { emptyCatches: 0, emptyCatchesInScripts: 0, unknownCasts: 0, oldNames: 0, ...expected });
+    assert.deepEqual(found, { emptyCatchesInScripts: 0, oldNames: 0, ...expected });
   });
 }
 
@@ -72,12 +59,9 @@ before(() => {
   put("tooling/gates/limits.json", JSON.stringify({ file: 400, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }, null, 2) + "\n");
   put("packages/alpha/src/index.ts", "export const alpha = 1;\n");
   // One of everything already exists in the base, so growth in a file that has a record is tested as well as in a new file.
-  put("packages/alpha/src/swallow.ts", "export const quiet = () => { try { run(); } catch {} };\ndeclare const run: () => void;\n");
   put("packages/alpha/src/script.ts", "export const SCRIPT = `try { send(); } catch (e) {}`;\n");
-  put("packages/alpha/src/cast.ts", "export const forced = (value: object) => value as unknown as string;\n");
   put("packages/alpha/src/named.ts", "export const old = 'GoalBoard';\n");
-  put("tests/old.test.ts", "export const forced = (value: object) => value as unknown as string;\ntry { throw 1; } catch {}\n");
-  // Not violations: a commented catch, a handled one, single casts, look-alike names.
+  // Not violations: look-alike names (and code the static checks, not these counts, look at).
   put("packages/alpha/src/clean.ts", [
     "export const a = () => { try { run(); } catch { /* the file may not exist yet */ } };",
     "export const b = () => { try { run(); } catch (error) { console.warn(error); } };",
@@ -100,24 +84,10 @@ const branch = (name: string, mutate: () => void) => {
 
 type Scenario = { name: string; mutate: () => void; expect: RegExp[] };
 const violations: Scenario[] = [
-  { name: "an empty catch in a new file", mutate: () => put("packages/alpha/src/new-swallow.ts", "export const f = () => { try { run(); } catch {} };\ndeclare const run: () => void;\n"),
-    expect: [/empty catch blocks in packages\/alpha\/src\/new-swallow\.ts 0 → 1/] },
-  { name: "a second empty catch in a file that has one", mutate: () => put("packages/alpha/src/swallow.ts", read("packages/alpha/src/swallow.ts") + "export const again = () => { try { run(); } catch (error) {\n} };\n"),
-    expect: [/empty catch blocks in packages\/alpha\/src\/swallow\.ts 1 → 2/] },
-  { name: "an empty catch in a new test file", mutate: () => put("tests/new.test.ts", "try { throw 1; } catch {}\n"), expect: [/empty catch blocks in tests\/new\.test\.ts 0 → 1/] },
-  { name: "an empty catch added to a test file that has one", mutate: () => put("tests/old.test.ts", read("tests/old.test.ts") + "try { throw 2; } catch {}\n"), expect: [/empty catch blocks in tests\/old\.test\.ts 1 → 2/] },
-  // The scan takes every .ts, .mts and .mjs file under tests/ at any depth, fixtures included (README of tooling/gates).
-  { name: "a double cast in a fixture under tests/", mutate: () => put("tests/fixtures/helper.ts", "export const f = (v: object) => v as unknown as number;\n"), expect: [/`as unknown as` casts in tests\/fixtures\/helper\.ts 0 → 1/] },
-  { name: "an empty catch in a .mjs file nested under tests/", mutate: () => put("tests/deep/nested/helper.mjs", "try { throw 1; } catch {}\n"), expect: [/empty catch blocks in tests\/deep\/nested\/helper\.mjs 0 → 1/] },
   { name: "an empty catch in a browser script", mutate: () => put("packages/alpha/src/script.ts", read("packages/alpha/src/script.ts") + "export const OTHER = `try { go(); } catch (_) {}`;\n"),
     expect: [/empty catch blocks in a browser script in packages\/alpha\/src\/script\.ts 1 → 2/] },
   { name: "an empty catch in a browser script of a new file", mutate: () => put("packages/alpha/src/script2.ts", "export const S = `try { go(); } catch {}`;\n"),
     expect: [/empty catch blocks in a browser script in packages\/alpha\/src\/script2\.ts 0 → 1/] },
-  { name: "a new `as unknown as`", mutate: () => put("packages/alpha/src/new-cast.ts", "export const f = (v: object) => v as unknown as number;\n"), expect: [/`as unknown as` casts in packages\/alpha\/src\/new-cast\.ts 0 → 1/] },
-  { name: "a parenthesised double cast in a file that has one", mutate: () => put("packages/alpha/src/cast.ts", read("packages/alpha/src/cast.ts") + "export const other = (v: object) => (v as unknown) as number;\n"),
-    expect: [/`as unknown as` casts in packages\/alpha\/src\/cast\.ts 1 → 2/] },
-  { name: "an angle-bracket double cast", mutate: () => put("packages/alpha/src/angle.ts", "export const f = (v: object) => <number><unknown>v;\n"), expect: [/`as unknown as` casts in packages\/alpha\/src\/angle\.ts 0 → 1/] },
-  { name: "a double cast in a test file", mutate: () => put("tests/old.test.ts", read("tests/old.test.ts") + "export const more = (v: object) => v as unknown as Date;\n"), expect: [/`as unknown as` casts in tests\/old\.test\.ts 1 → 2/] },
   { name: "the old product name in new code", mutate: () => put("packages/alpha/src/goalboard-home.ts", "export const home = process.env.GOALBOARD_HOME;\n"), expect: [/uses of an old name \(goalboard, board_id\) in packages\/alpha\/src\/goalboard-home\.ts 0 → 1/] },
   { name: "the old product name once more in a file that has it", mutate: () => put("packages/alpha/src/named.ts", read("packages/alpha/src/named.ts") + "export const more = 'goalboard';\n"), expect: [/in packages\/alpha\/src\/named\.ts 1 → 2/] },
   { name: "board_id in new code", mutate: () => put("packages/alpha/src/row.ts", "export interface Row { board_id: string }\n"), expect: [/in packages\/alpha\/src\/row\.ts 0 → 1/] },
@@ -166,9 +136,8 @@ test("what the definitions leave out passes against the merge-base", () => {
 
 test("changes that lower the counts, or only move them, pass against the merge-base", () => {
   branch("tidy", () => {
-    git("mv", "packages/alpha/src/swallow.ts", "packages/alpha/src/swallow-renamed.ts"); // a moved file keeps its record
-    git("mv", "packages/alpha/src/cast.ts", "packages/alpha/src/cast-renamed.ts");
-    put("packages/alpha/src/script.ts", "export const SCRIPT = `try { send(); } catch (e) { console.warn(e); }`;\n"); // one fewer
+    git("mv", "packages/alpha/src/script.ts", "packages/alpha/src/script-renamed.ts"); // a moved file keeps its record
+    put("packages/alpha/src/script-renamed.ts", "export const SCRIPT = `try { send(); } catch (e) { console.warn(e); }`;\n"); // one fewer
     put("packages/alpha/src/named.ts", "export const old = 'Molis Work';\n"); // one fewer
   });
   const run = gate("--base", "main");
@@ -180,13 +149,10 @@ test("changes that lower the counts, or only move them, pass against the merge-b
 test("the report lists each count per file, next to the merge-base's", () => {
   git("checkout", "-q", "-f", "main");
   const text = gate("--report", "--base", "main").out;
-  assert.match(text, /Empty catch blocks \(TypeScript code\): 2 in 2 files/);
   assert.match(text, /Empty catch blocks \(browser scripts in string and template literals\): 1 in 1 files/);
-  assert.match(text, /`as unknown as` casts: 2 in 2 files/);
   assert.match(text, /Old names \(goalboard, board_id\) in sources: 1 in 1 files/);
   const json = JSON.parse(gate("--report", "--json", "--base", "main").out);
-  assert.deepEqual(json.head.emptyCatches, { "packages/alpha/src/swallow.ts": 1, "tests/old.test.ts": 1 });
-  assert.deepEqual(json.head.unknownCasts, { "packages/alpha/src/cast.ts": 1, "tests/old.test.ts": 1 });
+  assert.deepEqual(json.head.emptyCatchesInScripts, { "packages/alpha/src/script.ts": 1 });
   assert.deepEqual(json.head.oldNames, { "packages/alpha/src/named.ts": 1 });
   assert.deepEqual(json.head, json.base);
 });

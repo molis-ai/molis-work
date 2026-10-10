@@ -33,11 +33,11 @@ allowBuilds:
   # Dependencies of @larksuiteoapi/lark-mcp (the Feishu/Lark MCP connector's child process). Its `mcp` mode takes the
   # token from the environment, but the package still loads keytar every time it starts (cli.js -> auth/store.js builds its
   # token store at import time, which asks keytar for an encryption key). Without the build that load fails inside the
-  # package's own try/catch: the child prints one `Failed to initialize encryption` warning on stderr and goes on, so the
-  # connector works. protobufjs's postinstall only prints a CLI hint. Neither build runs in this workspace; an npm-archive
-  # install does not read this file, runs keytar's own install script (prebuild-install, then node-gyp), and then every start
-  # of the child reads or creates a `lark-mcp` item in the OS keychain
-  # (specs/repository-anti-corruption/dependencies-and-sdk-plan.md section 3.5).
+  # package's own try/catch: the child prints two warnings on stderr (`Failed to initialize encryption` and
+  # `Failed to initialize`) and goes on, so the connector works. protobufjs's postinstall only prints a CLI hint. Neither
+  # build runs in this workspace; an npm-archive install does not read this file, runs keytar's own install script
+  # (prebuild-install, then node-gyp), and then every start of the child reads or creates a `lark-mcp` item in the OS
+  # keychain (specs/repository-anti-corruption/dependencies-and-sdk-plan.md section 3.5).
   keytar: false
   protobufjs: false
 

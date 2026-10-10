@@ -127,7 +127,7 @@ answers and validates every resulting address; it does not change production def
 - 负责：生成插件的 macOS 进程隔离与异步宿主中介（网络、存储、能力调用）。
 - 不负责：插件产品状态、模型执行、安装流程与构建门禁。
 - 公开入口：`@molis-ai/molis-work-plugin-sandbox`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin-sandbox`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-kernel`（共享执行生命周期）。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（共享执行生命周期）。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 沙箱不自带能力：宿主必须显式提供授予与已连接的服务，异步中介调用必须被等待。
   - 查询操作不能声明存储或成果写入、也不能发事件。

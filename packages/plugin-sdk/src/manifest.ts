@@ -1,9 +1,8 @@
-import { inspectAgentDeclaration, inspectMethodDeclarations } from "./plugin-agent.js";
-import { inspectActionDeclarations } from "./actions.js";
-import { inspectEventDeclarations } from "./plugin-events.js";
-import { inspectPortDeclarations } from "./plugin-wiring.js";
-import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "./ui.js";
-import type { PluginManifest } from "./plugin.js";
+import { inspectActionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
+import { inspectAgentDeclaration, inspectMethodDeclarations } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
+import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 
 export class PluginManifestError extends Error {
   constructor(
@@ -17,10 +16,6 @@ export class PluginManifestError extends Error {
     super(message);
     this.name = "PluginManifestError";
   }
-}
-
-export function canonicalPluginId(pluginId: string): string {
-  return pluginId;
 }
 
 const PLUGIN_ID = /^io\.molis\.work\.[a-z0-9][a-z0-9.-]*$/u;
@@ -117,8 +112,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
     assertV2Blocks(parsed, ui);
   }
 
-  const pluginId = canonicalPluginId(parsed.plugin_id);
-  return pluginId === parsed.plugin_id ? parsed : { ...parsed, plugin_id: pluginId };
+  return parsed;
 }
 
 function inspectUpgradeCompatibility(manifest: Record<string, unknown>): void {
@@ -400,9 +394,6 @@ function inspectPortPermissions(parsed: PluginManifest): string[] {
   }
   return problems;
 }
-
-/** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
-export const SURFACE_BROWSER_PERMISSION = "surface:browser";
 
 function isWebOrigin(value: unknown): boolean {
   if (typeof value !== "string") return false;

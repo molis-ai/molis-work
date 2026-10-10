@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { createExecutionLifetime } from '@molis-ai/molis-work-kernel';
+import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 import type { SandboxEffects, SandboxHostMessage, SandboxIdentity, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxWorkerMessage } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { SandboxBroker, type SandboxServices } from './broker.js';
 import { BoundedQueue, RateBudget } from './queue.js';

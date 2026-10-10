@@ -18,11 +18,26 @@ ActionService.registerProvider 注册同一提供方的合同、处理器与消�
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | CapabilityRegistry、错误与处理器类型 |
-| [src/call-scope.ts](src/call-scope.ts) | 调用编号的作用域：生成、沿用、随操作结束关闭；记下「这个编号下留了调用记录」 |
-| [src/action-settlement.ts](src/action-settlement.ts) | 一次调用的结算：补编号、描述被调的动作、告诉 `settled` 钩子它怎样结束 |
+| [src/index.ts](src/index.ts) | CapabilityRegistry、错误与处理器类型；包的唯一入口，同时转出核心与情境排序 |
+| [src/call-scope.ts](src/call-scope.ts) | 核心：调用编号的作用域：生成、沿用、随操作结束关闭；记下「这个编号下留了调用记录」 |
+| [src/action-settlement.ts](src/action-settlement.ts) | 核心：一次调用的结算：补编号、描述被调的动作、告诉 `settled` 钩子它怎样结束 |
+| [src/action-service.ts](src/action-service.ts) | 核心：`ActionService`（注册、发现、授权、调用、`beforeEffect`、场景） |
+| [src/action-schema.ts](src/action-schema.ts) | 核心：schema 编译与输入校验 |
+| [src/subject-offer-choices.ts](src/subject-offer-choices.ts) | 核心：从目录派生事项动作选项，供判断规则与场景引用的兼容检查用 |
+| [src/action-authorship.ts](src/action-authorship.ts) | 核心：`authorship: "session"` 的唯一检查点 |
+| [src/contextual.ts](src/contextual.ts) | 情境排序（平台产品服务，纯函数），见下一节 |
 
 可对照现有调用方 [apps/local-host/src/local-host.ts](../../apps/local-host/src/local-host.ts) 阅读装配方式。
+
+## 情境排序（平台产品服务）
+
+`src/contextual.ts` 不是内核核心，而是放在内核里的一项平台产品服务（[系统架构 §3](../../docs/system/ARCHITECTURE.md)「平台产品服务」，与记忆、放置、系统搜索同类）：用户在文档里选中一段内容、或手里拿着一个对象时，工作台选区条先给他看什么。它是纯函数：从一次授权目录快照派生候选（片段推荐与事项动作推荐，会写入的一律先确认，不可撤回的不推荐），按结构给规则分，拼出交给判断服务的材料和题面，读回判断的答案，排出前三个、强调、按意图分组的「更多」、「整篇」与助手出面的形式。它不持有任何业务事实，对象事实总向所有者读。
+
+为什么在这里：决定 N-03 选了「平台产品服务」这一类，代码位置不变。内核的核心（上面表格里除 `contextual.ts` 以外的文件）保留目录、分发、可用性、授权与场景兼容。宿主那一半在 `apps/local-host/src/contextual/`，负责 I/O：目录缓存、模型调用、记忆召回、取消、计时与凭据。
+
+它只给工作台自己的选区条用，没有登记成系统动作：HTTP 在 `apps/local-host/src/contextual/contextual-http.ts` 的 `/api/contextual/*`，准备输入与上报信号都经调用者自己的动作，判断只排序、不执行。这是 2026-10-10 的日常取舍，删除条件：助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作，HTTP 改为调这个动作（[spec 决策记录](../../specs/repository-anti-corruption/spec.md)）。
+
+边界由 `pnpm health:check` 的规则 K1–K5 守着（`scripts/gates/kernel-contextual.mjs`，见 [门禁说明](../../scripts/gates/README.md)）：核心不依赖情境排序；只有情境排序读合同的 `services/contextual`；它只读 `platform/actions`、`services/contextual`、`node:crypto` 与内核自己的文件；它无副作用、无模块级可变状态；从目录派生候选的代码不点名任何能力 id 或插件。
 
 ## 接入与边界
 
@@ -49,10 +64,10 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
 
 ## 开发要求
 
-- 负责：能力注册、发现、授予、动作服务调度（`ActionService`）、调用编号与结算，以及进程内执行生命周期。
-- 不负责：业务状态机、提供方实现、界面。
+- 负责：能力注册、发现、授予、动作服务调度（`ActionService`）、调用编号与结算、场景兼容与事项动作选项派生，以及按动作声明落实时限与取消（计时与取消的工具 `createExecutionLifetime` 来自 `@molis-ai/molis-work-plugin-sdk`，内核不转出）；另外承载平台产品服务「情境排序」（`src/contextual.ts`，纯函数：派生候选、规则打分、判断材料与题面、读回答案、陈列方案）。
+- 不负责：业务状态机、提供方实现、界面渲染、模型调用与凭据、记忆召回、缓存、计时与取消（这些在宿主 `apps/local-host/src/contextual/`）、任何插件或 Module 的业务事实。
 - 公开入口：`@molis-ai/molis-work-kernel`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/kernel`。
-- 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期）；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包，公开发布面（contracts、plugin-sdk）在最下层（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 目录从唯一的 `CapabilityRegistry` 派生，不另存名单。
   - 输入与结果按合同校验：查询与判断不合合同报 `actions.output_invalid`；已提交的写动作报 `actions.output_invalid_after_effect`。
@@ -64,8 +79,10 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
   - 调用编号只由宿主给：从调用上下文、此刻的作用域或新生成取，不从请求头、工具参数、`_meta`、业务输入或插件交来的字段读。它不是身份，处理器可以记录或返回它，不能凭它做任何决定。作用域随操作结束关闭，之后才触发的回调拿到新编号。
   - 一次调用只结算一次：动作的注册表条目只能经 `ActionService.invoke` / `invokeSync` 到达（宿主的 typed 口到动作也走 `invoke`），`execute` 只在进入处理器前标记「已开始」，不结算。源码里直接调用 `registry.invoke` / `capabilities.invoke` 的只剩 `ActionService` 自己，和宿主 typed 口对不带 `action` 的条目（它们由宿主自己结算）。
   - `admit` 是宿主的异步策略，在解析与授权复查之前跑；`invokeSync` 不跑它（事务里不能等），同步入口自己的检查用第四个参数传入，在结算范围内先跑，它的拒绝同样结算。
-- 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts tests/execution-lifetime.test.ts tests/action-authorship-dispatch.test.ts tests/action-call-id.test.ts`
-- 相关手册：[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+  - 核心代码不调用情境排序：核心文件不导入它，也不经入口转手导入它的名字（`pnpm health:check` 的 K1）。包入口同时转出两半，所以加载核心时情境排序也会被求值；它没有加载时副作用，只读 `contracts/platform/actions`、`contracts/services/contextual` 和 `node:crypto`（K2、K3）。
+  - 情境排序无 I/O、无计时器、无模块级可变状态，同样的输入得到同样的陈列（K4）。候选只从授权目录来，不点名插件或能力 id（K5）；陈列不删候选；答案里不在候选中的键一律丢掉，模型不能编出动作。会写入的先确认，不可撤回的不推荐。
+- 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts tests/execution-lifetime.test.ts tests/action-authorship-dispatch.test.ts tests/contextual-interaction.test.ts tests/contextual-fragment-offers.test.ts tests/contextual-dock-parity.test.ts tests/home-action-scenes.test.ts tests/health-gates-kernel-contextual.test.ts tests/action-call-id.test.ts`
+- 相关手册：[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)、[docs/system/ARCHITECTURE.md](../../docs/system/ARCHITECTURE.md)、[docs/horizontal/README.md](../../docs/horizontal/README.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
 
@@ -78,4 +95,4 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
-`createExecutionLifetime` 统一进程内取消、时限和同步周期监测。实现放在没有依赖的 `@molis-ai/molis-work-contracts/platform/execution-lifetime`，Kernel 与 Plugin SDK 都从那里转出同一份，公开的 Plugin SDK 因此不依赖私有的 Kernel。取消后停止监测，异步等待后调用 `assertActive()` 再进入原事务/版本校验；`dispose()` 在 finally 中释放资源并拒绝迟到回调。它不登记任务、不保存状态、不恢复或重试。Alchemist 用于租约续期，Images 用于持久取消检查及 180 秒时限。
+`createExecutionLifetime` 统一进程内取消、时限和同步周期监测。实现在 `@molis-ai/molis-work-plugin-sdk`（`src/execution-lifetime.ts`）：外部作者装的只有 contracts 与 SDK，工具放在这里，SDK 不必依赖私有的 Kernel；内核、宿主、调度服务、Shelf 模块和沙箱都直接从 SDK 取同一份，内核自己不再转出。取消后停止监测，异步等待后调用 `assertActive()` 再进入原事务/版本校验；`dispose()` 在 finally 中释放资源并拒绝迟到回调。它不登记任务、不保存状态、不恢复或重试。Alchemist 用于租约续期，Images 用于持久取消检查及 180 秒时限。

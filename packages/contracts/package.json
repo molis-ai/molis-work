@@ -110,10 +110,6 @@
       "types": "./dist/platform/errors.d.ts",
       "import": "./dist/platform/errors.js"
     },
-    "./platform/execution-lifetime": {
-      "types": "./dist/platform/execution-lifetime.d.ts",
-      "import": "./dist/platform/execution-lifetime.js"
-    },
     "./platform/kernel": {
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"

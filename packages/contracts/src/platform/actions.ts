@@ -52,6 +52,12 @@ export interface ActionCallContext {
   readonly audit_actor_id?: string;
   /** Stable session supplied by the authenticated Host; never a business input. */
   readonly runtime_session_id?: string;
+  /**
+   * Set by the trusted MCP adapter on an external Runtime client's call when the host gave it no stable Session.
+   * Dispatch refuses an action that declares `authorship: "session"` on such a context, however deeply the call is
+   * nested (a wrapper action, a workflow step). Never business input.
+   */
+  readonly runtime_session_missing?: true;
   /** Trusted audit classification; null when the trusted caller does not know it (not inferred). Never business input. */
   readonly actor_kind?: "user" | "runtime" | null;
   /** Authenticated user-operation provenance supplied only by a protected Host adapter.
@@ -107,7 +113,8 @@ export interface ActionMetadata {
   readonly plugin?: false;
   /** Provider owns transaction/conflict safety across awaits; Host still tracks lifetime. Default is serial. */
   readonly scheduling?: "concurrent";
-  /** `session`: a Runtime may call it only from a stable Session, which becomes the author of what it records. */
+  /** `session`: an external Runtime may call it only from a stable Session, which becomes the author of what it records;
+   * dispatch refuses a call whose context says the Session is missing (`runtime_session_missing`), nested or not. */
   readonly authorship?: "session";
   /** Declarative limits shared by every entry; cancellation uses signal + beforeEffect. */
   readonly execution?: ActionExecutionPolicy;

@@ -16,7 +16,7 @@ import { RuntimeSessionHost } from "./runtime-session.js";
 import { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import { runtimeContextHostFromEnvironment } from "./runtime-context.js";
 import { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
-import { runtimeConnectionIdentity, runtimeEventActor, runtimeSessionActor } from "./mcp-event-identity.js";
+import { runtimeConnectionIdentity, runtimeSessionActor } from "./mcp-event-identity.js";
 import { LocalProjectDeletionGatewayClient, type ProjectDeletionGatewayRequest } from "./project-deletion-gateway.js";
 import { ProjectDeletionService } from "./project-deletion-service.js";
 import { assembleMcpCatalog, findAssembledMcpTool, type AssembledMcpCatalog } from "./mcp-catalog.js";
@@ -148,12 +148,12 @@ export class LocalMcpServer {
     return bindActionClient(actions.service, () => actions.context);
   }
 
-  /** `sessionCall` names the Runtime Session a call is made in; it becomes the call's audit actor, and a write requires it. */
-  private async authorizedActions(sessionCall?: McpToolCallContext, requireSession = false) {
+  /** `sessionCall` names the Runtime Session a call is made in; it becomes the call's audit actor. A Runtime without one is marked on
+   * the context, and dispatch refuses the actions that declare `authorship: "session"` (see `authorizeMcpActions`). */
+  private async authorizedActions(sessionCall?: McpToolCallContext) {
     const connection = this.runtimeConnection;
     const current = this.currentActions();
-    const sessionActor = (call: McpToolCallContext) => requireSession
-      ? runtimeEventActor(this.runtimeContextHost, call).actor_id : runtimeSessionActor(this.runtimeContextHost, call) ?? undefined;
+    const sessionActor = (call: McpToolCallContext) => runtimeSessionActor(this.runtimeContextHost, call) ?? undefined;
     const auditActor = sessionCall ? sessionActor(sessionCall) : undefined;
     const runtimeSessionId = auditActor?.slice(current.context.actor_id.length + 1);
     if (auditActor) current.context = { ...current.context, audit_actor_id: auditActor, actor_kind: "runtime", runtime_session_id: runtimeSessionId };
@@ -242,10 +242,10 @@ export class LocalMcpServer {
     if (entry.source === "action") {
       if (this.runtimeConnection !== connection) throw new ActionError("mcp.context_changed", "客户端项目连接已变化，请重新发现能力");
       // Every Runtime call carries its Session when there is one (a receipt query finds the write it made); an action whose
-      // records are authored by a Session refuses a call without one.
+      // records are authored by a Session is refused at dispatch for a call without one, wrapped or not.
       // A Home action called from a bound project still runs in that project's context (e.g. a judgment records where it was asked).
       const runtimeCall = this.runtimeContextHost ? callContext : undefined;
-      const actions = await this.authorizedActions(runtimeCall, entry.action?.action.authorship === "session");
+      const actions = await this.authorizedActions(runtimeCall);
       const result = await actions.ports.callTool(name, arguments_, callContext);
       if (entry.action && this.runtimeConnection === connection && typeof result !== "string" && result.structuredContent) {
         await this.recordRuntimeSessionActivity(entry.action.capability_id, name, arguments_, result.structuredContent, callContext);

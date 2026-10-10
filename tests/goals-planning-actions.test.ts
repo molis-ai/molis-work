@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, personalPlanningActions, goalsEntryCapabilities, goalEntryCompositionCapabilities } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, personalPlanningActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ResolvedPlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -21,7 +21,7 @@ test("planning actions preserve complete methods, project versions, live policy 
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>
     blocked && action.capability_id.startsWith("goals.planning.")
       ? { available: false, code: "actions.plugin_disabled", reason: "规划已停用" } : { available: true } });
-  const actions = host.actionClient(ref), typed = host.client(ref);
+  const actions = host.actionClient(ref);
   const caller: ActionCallContext = { actor_id: "runtime:planner", project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] };
   const bound = bindActionClient(actions, () => caller);
   try {
@@ -41,27 +41,23 @@ test("planning actions preserve complete methods, project versions, live policy 
     assert.deepEqual(applied.method.event_types, source.event_types);
     assert.deepEqual(applied.method.default_requirements, source.default_requirements);
     const { scope: _scope, version: _version, created_at: _created, updated_at: _updated, overridden_scopes: _overrides, ...method } = source as ResolvedPlanningMethodPack;
-    const saved = await typed.invoke(goalsEntryCapabilities.planning.saveProjectMethod, [{ project_id: project.project_id,
-      user_confirmed: true, method: { ...method, enabled: false, instructions: "项目独立正文" } }]);
+    const saved = await bound.invoke(goalsActions.planningSave, { user_confirmed: true, method: { ...method, enabled: false, instructions: "项目独立正文" } });
     assert.equal(saved.method.version, source.version + 1);
-    const read = await typed.invoke(goalEntryCompositionCapabilities.readPlanningComposition, [project.project_id]);
+    const read = await bound.invoke(goalsActions.planningRead, {});
     assert.equal(read.methods.find(m => m.method_id === method_id)?.instructions, "项目独立正文");
     assert.equal(read.composition.method_pack_ids.includes(method_id), false);
-    await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.validateBoardGraph, ["another-board"]), { code: "actions.scope_mismatch" });
+    await assert.rejects(actions.invoke({ ...caller, project_id: "another-project" }, goalsActions.planningGraph, {}), { code: "actions.scope_mismatch" });
     await assert.rejects(actions.invoke({ ...caller, project_id: "another-project" }, goalsActions.planningRead, {}), { code: "actions.scope_mismatch" });
     await bound.invoke( goalsActions.create, { goal_id: "PLAN-GOAL", title: "规划影响", idempotency_key: "create" });
     const impact = await bound.invoke( goalsActions.planningImpact, { changed_goal_ids: ["PLAN-GOAL"] });
     assert.deepEqual(impact.changed_goal_ids, ["PLAN-GOAL"]);
-    assert.deepEqual(await typed.invoke(goalsEntryCapabilities.planning.analyzeChange, [project.project_id, ["PLAN-GOAL"]]), impact);
     const graph = await bound.invoke( goalsActions.planningGraph, {});
     assert.deepEqual(graph.issues, []);
-    assert.deepEqual(await typed.invoke(goalsEntryCapabilities.planning.validateBoardGraph, [project.project_id]), graph);
     blocked = true;
-    await assert.rejects(typed.invoke(goalEntryCompositionCapabilities.readPlanningComposition, [project.project_id]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.analyzeChange, [project.project_id, ["PLAN-GOAL"]]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.validateBoardGraph, [project.project_id]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.saveProjectMethod, [{ project_id: project.project_id,
-      user_confirmed: true, method }]), { code: "actions.plugin_disabled" });
+    await assert.rejects(bound.invoke(goalsActions.planningRead, {}), { code: "actions.plugin_disabled" });
+    await assert.rejects(bound.invoke(goalsActions.planningImpact, { changed_goal_ids: ["PLAN-GOAL"] }), { code: "actions.plugin_disabled" });
+    await assert.rejects(bound.invoke(goalsActions.planningGraph, {}), { code: "actions.plugin_disabled" });
+    await assert.rejects(bound.invoke(goalsActions.planningSave, { user_confirmed: true, method }), { code: "actions.plugin_disabled" });
     await host.close();
     const reopened = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     try {

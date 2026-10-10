@@ -6,7 +6,8 @@ import {tmpdir} from 'node:os';
 import {once} from 'node:events';
 import {randomBytes} from 'node:crypto';
 import {createMolisWorkLocalHost,molisWorkHostProjectReference,initializeBoardCapability,createGoalIntentCapability,MolisWorkCasebookIntegration} from '@molis-ai/molis-work-app-local-host';
-import {submitGoalEventClosureCapability,readGoalEventStateCapability} from '@molis-ai/molis-work-plugin-goals';
+import {goalsActions} from '@molis-ai/molis-work-plugin-goals';
+import {mcpRuntimeGoals} from './goal-management-caller.js';
 import {createMolisWorkWebServer} from '../apps/desktop/launchers/web/server.js';
 import {MolisWorkCasebookClient} from '../apps/local-host/src/casebook/client.js';
 import {PURPOSE,CONTEXT_PURPOSE,VERSION} from '../apps/local-host/src/casebook/contract.js';
@@ -20,13 +21,15 @@ async function fixture(t:test.TestContext){
  const action=(action:'join'|'pause'|'resume'|'remove',key=action)=>api.setInteractionAuthorization({project_ref:'board',purpose:PURPOSE,include_goal_context:true,action,actor_ref:'test-user',user_action_ref:'isolated-fixture',user_confirmed:true,idempotency_key:key});
  const read=async()=>{const auth=await api.readInteractionAuthorization({project_ref:'board',purpose:PURPOSE}) as {authorization_epoch:string};return api.readInteractionFacts({project_ref:'board',schema_version:VERSION,authorization_epoch:auth.authorization_epoch,after_cursor:0,limit:100});};
  const create=(id:string)=>client.invoke(createGoalIntentCapability,{project_id:'board',goal_id:id,title:'目标秘密标题',idempotency_key:'create-'+id});
- t.after(async()=>{await host.close();rmSync(dir,{recursive:true,force:true});});return {dir,host,ref,client,api,action,read,create};
+ // Event writes and reads are Goals actions; the observation records them when a Runtime reaches them through an MCP client.
+ const mcp=mcpRuntimeGoals(host.actionClient(ref),'board');
+ t.after(async()=>{await host.close();rmSync(dir,{recursive:true,force:true});});return {dir,host,ref,client,mcp,api,action,read,create};
 }
 test('current event capabilities record attempt/result/state and real refused closure without business text',async t=>{
  const f=await fixture(t);await f.create('before');await assert.rejects(f.read(),{code:'not_authorized'});await f.action('join');
  await f.create('work');
- const state=await f.client.invoke(readGoalEventStateCapability,{project_id:'board',goal_id:'work'});
- const result=await f.client.invoke(submitGoalEventClosureCapability,{project_id:'board',goal_id:'work',idempotency_key:'close',kind:'complete',reason:'秘密理由',expected_config_version:state.config.version,expected_agreement_version:state.agreement.version});
+ const state=await f.mcp.invoke(goalsActions.state,{goal_id:'work'});
+ const result=await f.mcp.invoke(goalsActions.close,{goal_id:'work',idempotency_key:'close',kind:'complete',reason:'秘密理由',expected_config_version:state.config.version,expected_agreement_version:state.agreement.version});
  assert.equal(result.completion_applied,false);assert.ok(result.unmet_reasons.length>0);
  const batch=await f.read();assert.equal(batch.schema_version,'2.0.0');assert.equal(batch.facts.length,6);assert.ok(conforms(batch));
  const fact=batch.facts.at(-1)!;assert.equal(fact.accepted,false);assert.equal(fact.outcome,'returned');
@@ -73,14 +76,13 @@ test('real Web creation uses shared actions and preserves the Web observation ch
  assert.equal(response.status,201);const batch=await f.read();assert.equal(batch.facts.length,2);assert.ok(batch.facts.every(x=>x.channel==='web.goal-events.v1'));assert.equal(f.host.status().projects.length,1);
 });
 
-test('typed report links selected requirements to owner-saved events, while reads do not claim new saves',async t=>{
- const {configureGoalEventsCapability,reportGoalEventsCapability,readGoalEventCapability}=await import('@molis-ai/molis-work-plugin-goals');
+test('a report links selected requirements to owner-saved events, while reads do not claim new saves',async t=>{
  const f=await fixture(t);await f.action('join');
  await f.client.invoke(createGoalIntentCapability,{project_id:'board',goal_id:'report',title:'报告目标',idempotency_key:'intent',requirements:[{requirement_id:'req',statement:'存在可验收结果'}]});
- await f.client.invoke(configureGoalEventsCapability,{project_id:'board',goal_id:'report',expected_version:0,idempotency_key:'cfg',types:[{type_id:'delivery',version:1,name:'交付',purpose:'记录交付',fields:[{field_id:'result',name:'结果',purpose:'说明',format:'longtext',required:true}]}]});
- const result=await f.client.invoke(reportGoalEventsCapability,{project_id:'board',goal_id:'report',idempotency_key:'report',events:[{type_id:'delivery',type_version:1,title:'私密报告',fields:{result:'私密结果'},judgments:[{requirement_id:'req',verdict:'supports'}]}]});
+ await f.mcp.invoke(goalsActions.configure,{goal_id:'report',expected_version:0,idempotency_key:'cfg',types:[{type_id:'delivery',version:1,name:'交付',purpose:'记录交付',fields:[{field_id:'result',name:'结果',purpose:'说明',format:'longtext',required:true}]}]});
+ const result=await f.mcp.invoke(goalsActions.report,{goal_id:'report',idempotency_key:'report',events:[{type_id:'delivery',type_version:1,title:'私密报告',fields:{result:'私密结果'},judgments:[{requirement_id:'req',verdict:'supports'}]}]});
  const saved=(await f.read()).facts.at(-1)!;assert.equal(saved.saved?.event_refs.length,1);assert.equal(saved.selection.requirement_refs.length,1);
- await f.client.invoke(readGoalEventCapability,{project_id:'board',goal_id:'report',event_id:result.events[0]!.event_id});
+ await f.mcp.invoke(goalsActions.event,{goal_id:'report',event_id:result.events[0]!.event_id});
  assert.equal((await f.read()).facts.at(-1)!.saved,null);
  assert.equal(JSON.stringify(await f.read()).includes('私密'),false);
 });

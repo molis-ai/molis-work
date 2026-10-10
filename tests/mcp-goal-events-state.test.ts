@@ -7,7 +7,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkLocalHost, snapshotBoardCapability, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error, setGoalEventAgreementCapability } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkV1Error, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { managementGoals } from "./goal-management-caller.js";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import type { GoalEventClosureResult, GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
 
@@ -257,9 +258,9 @@ test("MCP agreement_change request keeps request-time commitment; later related 
     // The management entry lists no Goals actions; it decides through its own tools only.
     await assert.rejects(management.callTool("molis_work_v1_action_goals.agreement.set__v1", { goal_id }), { code: "mcp.tool_unknown" });
     // This trusted user change is fixture setup; the management MCP below still proves stale approval rejection.
-    await host.client(molisWorkHostProjectReference({ projectId: project_id, databasePath: project.database_path }))
-      .invoke(setGoalEventAgreementCapability, {
-      project_id, goal_id, idempotency_key: "revise-stale-mcp",
+    await managementGoals(host.actionClient(molisWorkHostProjectReference({ projectId: project_id, databasePath: project.database_path })), project_id)
+      .invoke(goalsActions.agree, {
+      goal_id, idempotency_key: "revise-stale-mcp",
       expected_config_version: beforeRevise.config.version,
       expected_agreement_version: beforeRevise.agreement.version,
       revise_requirements: [{ requirement_id: "r-five", statement: "真实购买并处理退货" }],

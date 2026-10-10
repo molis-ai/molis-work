@@ -100,6 +100,8 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 typecheck/build
 
 `.github/workflows/ci.yml` 在 pull request 和 `main` push 上运行同一条 `workspace:verify`，并运行健康门禁（`health:check`）、页面资源预算（`page-assets:check`，宿主发出的样式表、脚本、插件客户端包与字体只许变小）、Goal 查询/存储边界、存储基线、发布资产、启动器类型检查、动作与插件合同、单一工作台外壳与成果门禁。全量产品测试仍在本地跑（见 PR 模板），但这些定向行为回归和 package 边界检查持续执行；用户动线上的一部分产品用例由下面的 `product-subset` 作业在 Linux 上跑。
 
+健康门禁里还有静态检查（Biome：空 `catch`、`as unknown as`、没处理的 promise、显式 `any`、`console`、`debugger`，按文件计数、只许减少，口径与按包开新规则见 `tooling/gates/README.md`「静态检查」）。非 TypeScript 的代码由两个作业查，都在 `Verify` 的 `needs` 里，不看数字、有告警就失败：`native-checks`（macOS：`apps/desktop` 的 `rustfmt --check` 与 `cargo clippy -D warnings`，Rust 版本固定；Swift 的 `swiftc -typecheck`，`jelly-whisper` 包的 `swift build` 暂不挡合并，见 BL-122）和 `shell-checks`（Linux：被跟踪的 `.sh` 的 `shellcheck`，被跟踪的 `.py` 能解析）。脚本是 `scripts/gates/native-checks.mjs`，规则的测试是 `tests/native-checks.test.mjs`。
+
 `ci.yml` 里另有一个不挡合并的 `linux-probe` 作业（依据 `specs/repository-anti-corruption` 决定 #14）：`continue-on-error: true`，不在 `Verify` 的 `needs` 里，分支保护不动。它在 ubuntu 上先 `pnpm build`，再用 `scripts/ci-linux-probe.mjs` 把 `tests/` 下的非浏览器测试文件逐个跑一遍，记下哪些在 Linux 上通过：
 
 - 每个文件经 `scripts/run-tests.mjs` 单独跑（环境和本地一样，每个文件一份新的 `MOLIS_WORK_HOME`），CI 里同时跑两个（`--jobs 2`）；失败的文件重跑一次（`--retries 1`），重跑通过的记为 `flaky`；每次尝试最多 10 分钟（`--timeout-seconds 600`），超时记 `timeout` 且不重跑；整体开始新文件的时间上限 85 分钟（`--budget-minutes 85`），剩下的记 `not-run`，作业本身硬上限 120 分钟（到点按取消处理，见下）。

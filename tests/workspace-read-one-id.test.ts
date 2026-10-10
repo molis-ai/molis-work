@@ -19,6 +19,13 @@ import type { PluginDefinition, PluginManifest, PluginStartContext } from "@moli
 import { DEMO_PROJECT_ID, HOST_PROVIDER_ID, LocalProjectDatabase, MolisWorkLocalHost, PluginHostExecutor, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
+/** The parts of the routes' JSON answers this test reads; a key a route does not send fails the assertion that reads it. */
+interface Reply {
+  project: { project_id: string }; workspaces: Array<{ workspace_id: string }>; sources: Array<{ id: string; plugin_id: string; kinds: Array<{ kind: string }> }>;
+  page: { entries: Array<{ title: string; subject: { id: string } }> }; content: { encoding: string; media_type: string; data: string };
+  result: { text: string; outcome: string }; view: { phase: string }; session: { session_id: string }; files: string[]; symbols: Array<{ name: string }>;
+}
+
 const readFile = workspaceReadActions.file, readGit = workspaceReadActions.git;
 const sideEntries = FILES_ACTIONS.find(definition => definition.capability_id === "files.side.entries")!;
 const sideContent = FILES_ACTIONS.find(definition => definition.capability_id === "files.side.content")!;
@@ -205,7 +212,7 @@ test("Files, Git and Coding read the linked folder through the one action in a r
   const request = async (url: string, method = "GET", body?: unknown) => {
     const response = await fetch(origin + url, { method, headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-    return { status: response.status, body: await response.json() as Record<string, any> };
+    return { status: response.status, body: await response.json() as Reply };
   };
   try {
     const created = await request("/api/settings/projects", "POST", { display_name: "读取同一个动作", user_confirmed: true });

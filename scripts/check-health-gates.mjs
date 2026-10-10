@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Repository health gates (specs/repository-anti-corruption §5a): numbers that may only go down, including the
-// anti-backflow count of compatibility markers per file (§4.1). The per-file counts of empty catches, `as unknown as`
-// casts and old names are defined in scripts/gates/source-counts.mjs. The public API of the contracts package and the
+// anti-backflow count of compatibility markers per file (§4.1). The per-file counts of old names and of empty catches in
+// browser scripts are defined in scripts/gates/source-counts.mjs, those of the static checks (Biome: empty catches, `as
+// unknown as` casts, floating promises, explicit `any`, console calls, debugger statements) in scripts/gates/lint.mjs. The public API of the contracts package and the
 // plugin SDK is not a number: it is compared with the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs) and
 // refreshed on purpose with `pnpm api:update`. tooling/gates/README.md lists what each file and counter means.
 //
@@ -43,6 +44,7 @@ import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
+import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
 const fail = (message) => { console.error(message); process.exit(2); };
@@ -127,7 +129,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => isStructureSource(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file);
+const needsText = (file) => isStructureSource(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -411,6 +413,9 @@ METRICS.push(...docGateMetrics({ perFile }));
 // 7. Translations (decision #16): missing English fails, conflicting translations are frozen, dead keys are reported. The rules live in scripts/gates/translations.mjs.
 METRICS.push(createTranslationMetric({ isSource, requireShape, isRecord }));
 METRICS.push(createImpeccableMetric({ perFile }));
+// 8. Static checks (W1-09): Biome with a minimal rule set, counted per file; the rules live in scripts/gates/lint.mjs.
+// The repository this script belongs to must have the configuration; another --root (the scratch repositories of the gate tests) may lack one.
+METRICS.push(...createLintMetrics({ root, required: isOwnRepository(root, import.meta.url), fail, perFile, rekey, rekeyFile, sumOf, requireShape }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 

@@ -4,6 +4,10 @@
 实现前需要据此另立实施 spec。平台侧依据 [`specs/plugin-platform-v2/spec.md`](../plugin-platform-v2/spec.md)，
 视觉依据 [`DESIGN.md`](../../DESIGN.md)。
 
+2026-10-10 注：本文是 2026-09 的设计稿，下文各处的「CLI adapter」「CLI Runtime」都是删除之前的设计；该适配器已于 2026-10
+删除（W2-18 决定 1），现在只有 Prologue 一个适配器（[plugin-platform-v2](../plugin-platform-v2/spec.md) D5）。§12 复用与缺口表里
+Goals 一行同日按 W2-08 改写。
+
 参考来源：FlyLeaf 仓库（本机 `~/code/flyleaf`）的 `specs/coding-app/design-brief.md` 与已跑通的
 `plugins/coding-agent`；执行语义参考 Prologue（本机 `~/code/prologue`）。两处都在本仓之外，链接不会解析，
 查阅需切到对应仓库。两者都只借鉴**工作方式**，不照搬布局，
@@ -300,7 +304,7 @@ agent       roles  reader / planner / builder / reviewer（对应四种用户意
 | Prologue adapter | 会话、Run 的启动/观察/控制、事件流投影、**审批桥已可挂载**（挂上才申报 `text-edit`） | `command` 的回执来源；真实模型端到端验证（需凭据）；产品装配尚未构造 Agent Host |
 | CLI adapter | 只读 Run 真实执行、`stream-json` 投影、停止、用量 | permission-prompt 工具，把 CLI 的询问转回宿主队列 |
 | Artifacts | 版本、类型、producer 身份、端口发布已接通 | ChangeSet / Report 两个 Artifact 类型定义 |
-| Goals | 事件协议、Goal 树，**16 个事件类 Capability 已注册** | 不用新增：Coding 在 Manifest 里声明消费即可 |
+| Goals | 事件协议、Goal 树（2026-09 写这张表时有 16 个事件类 Capability；它们没有生产调用方，已于 2026-10-09 W2-08 删除） | 不新增事件能力：Coding 写进展用 Goals 仍保留的 typed 入口 `goals.progress.record.v1` 与回执 `goals.progress.receipt.v1`，在 Manifest `capabilities.consumes` 里声明消费，便笺走动作 `goals.note`；W3-07 把这些 typed 入口改成 Goals 动作 |
 | Projects | 工作区目录与授权 | 面向插件的受限只读 Capability——**未注册** |
 | Sessions | 用户自己的交互终端 | 不借用：右栏终端页读的是 Agent Host 的命令回执，两者不是一回事 |
 | Agent Host 命令回执 | `readCommandOutput` 契约在，两个 adapter 都实现 | 暴露成 Capability；在审批接通前仍申报不支持 |

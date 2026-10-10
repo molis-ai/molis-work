@@ -111,6 +111,8 @@ before(() => {
   workspacePackage("packages/kernel", "@molis-ai/molis-work-kernel", [run("tests/kernel-readme.test.ts")]);
   workspacePackage("packages/contracts", "@molis-ai/molis-work-contracts", [run("tests/contracts-readme.test.ts")], { "./platform/plugin": { types: "./dist/platform/plugin.d.ts", import: "./dist/platform/plugin.js" } });
   put("packages/contracts/src/platform/plugin.ts", `export interface PluginContract { id: string }\n`);
+  workspacePackage("packages/plugin-sdk", "@molis-ai/molis-work-plugin-sdk", [run("tests/sdk-readme.test.ts")]);
+  put("packages/plugin-sdk/src/execution-lifetime.ts", `export function createLifetime() { return 1; }\n`);
   workspacePackage("packages/storage", "@molis-ai/molis-work-storage", [run("tests/storage-readme.test.ts")]);
   workspacePackage("modules/goals", "@molis-ai/molis-work-module-goals", [run("tests/goals-readme.test.ts")]);
   workspacePackage("apps/local-host", "@molis-ai/molis-work-app-local-host", [run("tests/host-readme.test.ts")]);
@@ -118,7 +120,7 @@ before(() => {
   put("apps/local-host/src/quiet.ts", `export function quietHelper() { return 2; }\n`);
   put("scripts/run-tests.mjs", `import { writeFileSync } from "node:fs";\nwriteFileSync(new URL("../ran.txt", import.meta.url), process.argv.slice(2).join("\\n"));\nprocess.exitCode = Number(process.env.FAKE_EXIT ?? 0);\n`);
   // Tests: each says what it reads, by import, by path, by name, or by a helper.
-  for (const name of ["alpha-readme", "nested-readme", "beta-readme", "gamma-readme", "delta-readme", "kernel-readme", "contracts-readme", "storage-readme", "goals-readme", "host-readme", "assistant-extra"]) put(`tests/${name}.test.ts`, `test("${name}", () => {});\n`);
+  for (const name of ["alpha-readme", "nested-readme", "beta-readme", "gamma-readme", "delta-readme", "kernel-readme", "contracts-readme", "sdk-readme", "storage-readme", "goals-readme", "host-readme", "assistant-extra"]) put(`tests/${name}.test.ts`, `test("${name}", () => {});\n`);
   put("tests/ui-flow.e2e.test.ts", `test("ui", () => {});\n`);
   put("tests/beta-ui.e2e.test.ts", `test("beta ui", () => {});\n`);
   put("plugins/native/beta/src/client.ts", `export const BETA_CLIENT = 1;\n`);
@@ -559,9 +561,10 @@ test("one plugin's source, a document, or two packages do not recommend the full
   assert.deepEqual(select(["plugins/native/alpha/README.md", "packages/contracts/README.md"]).full, [], "a README is not source");
 });
 
-test("shared core (contracts, kernel, a module) recommends the full suite", () => {
+test("shared core (contracts, kernel, plugin-sdk, a module) recommends the full suite", () => {
   assert.deepEqual(rulesOf(select(["packages/contracts/src/platform/plugin.ts"])), ["shared-core"]);
   assert.deepEqual(rulesOf(select(["packages/kernel/src/main.ts"])), ["shared-core"]);
+  assert.deepEqual(rulesOf(select(["packages/plugin-sdk/src/execution-lifetime.ts"])), ["shared-core"], "the SDK holds rules the Kernel and Plugin Runtime apply");
   assert.deepEqual(rulesOf(select(["modules/goals/src/main.ts"])), ["shared-core"]);
 });
 
@@ -1174,6 +1177,7 @@ test("in this repository: shared core recommends the full suite, a document alon
   const files = listFiles(realRoot), packages = discoverPackages(realRoot, files), index = buildTestIndex(realRoot, files, packages);
   assert.deepEqual(realAt("packages/contracts/src/platform/plugin.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("packages/kernel/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
+  assert.deepEqual(realAt("packages/plugin-sdk/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("apps/local-host/src/web-request.ts").full.map((entry: { rule: string }) => entry.rule), ["assembly"]);
   assert.deepEqual(realAt("docs/system/PARALLEL-DEVELOPMENT.md").full, []);
   assert.ok(index.tests.filter((entry: { kind: string }) => entry.kind === "browser").every((entry: { file: string; marks: string[] }) => entry.marks.includes("browser")));

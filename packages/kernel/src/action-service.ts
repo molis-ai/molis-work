@@ -8,7 +8,7 @@ import { CapabilityRegistry } from "./index.js";
 import { assertSessionAuthorship } from "./action-authorship.js";
 import { actionSchemaAccepts, compileActionSchema, createActionSchemaCompiler, validateActionValue } from "./action-schema.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
-import { createExecutionLifetime } from "@molis-ai/molis-work-contracts/platform/execution-lifetime";
+import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 
 interface RegisteredScene {
   definition: ActionSceneDefinition;

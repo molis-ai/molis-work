@@ -79,6 +79,25 @@ test("every refusal before a handler runs is settled once, with the id, and mark
   assert.equal(new Set(rows.map(row => row.call_id)).size, rows.length, "each operation has its own id");
 });
 
+test("a call stopped or revoked before its handler began is a refusal, and one stopped after the handler began is not", async () => {
+  const { rows, settled } = settlements();
+  const controller = new AbortController();
+  const running = variant("fixture.items.running");
+  let began = 0;
+  const service = new ActionService(undefined, { settled });
+  service.registerProvider({ provider, definitions: [add, running], handlers: [
+    { ...add, handle: (_context, input) => { began++; return input; } },
+    // The caller stops it while it runs: the handler was entered, so what it did may already have happened.
+    { ...running, handle: async (execution, input) => { began++; controller.abort(); await execution.beforeEffect(); return input; } },
+  ] });
+  await assert.rejects(service.invoke({ ...caller, signal: AbortSignal.abort() }, add, 1), { name: "AbortError" });
+  await assert.rejects(service.invoke({ ...caller, validate_authority: () => { throw new ActionError("fixture.revoked", "the grant ended"); } }, add, 2), { code: "fixture.revoked" });
+  assert.equal(began, 0, "neither reached a handler");
+  await assert.rejects(service.invoke({ ...caller, signal: controller.signal }, running, 3), { name: "AbortError" });
+  assert.equal(began, 1);
+  assert.deepEqual(rows.map(row => [row.capability_id, row.ok, row.refused]), [[add.capability_id, false, true], [add.capability_id, false, true], [running.capability_id, false, undefined]]);
+});
+
 test("a handler that fails is settled once and is not a refusal, whichever way it fails", async () => {
   const { rows, settled } = settlements();
   const service = new ActionService(undefined, { settled });

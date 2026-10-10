@@ -18,6 +18,8 @@ PluginRuntime 使用注入的 repository 和 executor；启动或恢复产生新
 | [src/repository.ts](src/repository.ts) | 安装状态持久化 |
 | [src/private-storage.ts](src/private-storage.ts) | 按安装隔离的数据 |
 | [src/package-verification.ts](src/package-verification.ts) | 包和签名验证 |
+| [src/runtime-rules.ts](src/runtime-rules.ts) | 清单校验、安装身份、必需授权检查这些不碰状态的规则 |
+| [src/memory-repository.ts](src/memory-repository.ts)、[src/native-executor.ts](src/native-executor.ts) | 内存里的安装记录；直接运行插件代码的执行器 |
 
 可对照现有调用方 [apps/local-host/src/plugin-development.ts](../../apps/local-host/src/plugin-development.ts) 阅读装配方式。
 

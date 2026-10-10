@@ -1,11 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { ResolvedModelSelection } from "@molis-ai/molis-work-service-agent-host";
-import {
-  modelProviderTemplate,
-  type ModelProviderRecord,
-} from "@molis-ai/molis-work-contracts/modules/model-providers";
+import type { ModelProviderRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import type { ModelProviderInput } from "./model-provider-store.js";
+import { modelProviderTemplate } from "./model-provider-templates.js";
 import { testConfiguredModel } from "./model-provider-test.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import { L } from "./web-locale.js";

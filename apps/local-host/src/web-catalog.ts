@@ -30,6 +30,7 @@ import { handleModelSettingsHttp } from "./web-model-settings.js";
 import { capabilitiesView } from "./web-capabilities.js";
 import type { CapabilitySection } from "@molis-ai/molis-work-app-workbench";
 import { modelProviderDraft } from "./model-provider-setup.js";
+import { modelTemplateChoices } from "./model-provider-templates.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -224,6 +225,7 @@ export async function handleLocalCatalogWebRequest(
       selected_connection_ids: Object.fromEntries(catalog.models.list().map((provider) => [provider.provider_id,
         modelConnections.find((connection) => withConnectorConnections(serverOptions.homeDirectory!, (store) => store.require(connection.connection_id).credential_ref === provider.credential_ref))?.connection_id ?? ""])),
       selected_provider_id: url.searchParams.get("provider"),
+      templates: modelTemplateChoices(),
       ...(draft ? { draft_provider: draft.provider, draft_template_id: draft.template_id } : {}),
     })) : undefined;
     const membership = await pluginMembership(contextProject?.project_id ?? null);

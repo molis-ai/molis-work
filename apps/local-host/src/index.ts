@@ -190,6 +190,7 @@ export {
   type ModelProviderStoreOptions,
   type ModelSecretPort,
 } from "./model-provider-store.js";
+export { MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "./model-provider-templates.js";
 export {
   composeAgentHost,
   workspaceRefFor,

@@ -164,7 +164,7 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 typecheck/build
 
 | 规则 | 查什么 | 为什么 |
 | --- | --- | --- |
-| K1 | 核心文件（`packages/kernel/src` 里不是 `contextual.ts` 或 `contextual/` 的文件）不导入、不转出、不动态加载情境排序，也不从别的核心文件取它转出的名字；唯一的允许是包入口用具名的 `export { … } from` 转出（`export *` 一律不许） | 核心保留目录、分发、可用性，不调用产品策略。包入口目前同时转出两半，所以加载核心时情境排序也会被求值，这条规则管的是代码依赖，不是加载顺序 |
+| K1 | 核心文件（`packages/kernel/src` 里不是 `contextual.ts` 或 `contextual/` 的文件）不导入、不转出、不动态加载情境排序，也不从别的核心文件取它转出的名字；包入口也不转出它：情境排序走自己的子入口 `@molis-ai/molis-work-kernel/contextual`（`export *` 一律不许） | 核心保留目录、分发、可用性，不调用产品策略；加载核心的导入闭包里没有情境排序 |
 | K2 | 内核里只有情境排序读 `contracts/services/*`，且只读 `services/contextual` | 把本文 §1 的规则落到内核，例外写在一处 |
 | K3 | 情境排序的包导入只能是 `contracts/platform/actions`、`contracts/services/contextual`、`node:crypto`；相对导入可指向内核里的任何文件，但不能出 `packages/kernel/src`，也不能指向 `index.ts` | 不读 storage、agent-host、其他 Node 内置模块：I/O 留在宿主 |
 | K4 | 情境排序按 `contracts-purity.mjs` 的口径数：副作用与模块级可变状态都是 0 | 同样输入同样陈列；缓存、计时、取消、模型调用留在宿主 |

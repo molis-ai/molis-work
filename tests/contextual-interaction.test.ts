@@ -8,9 +8,10 @@ import {
   FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, defineSubjectOffersAction, inspectActionDeclarations, type ActionReference, type ActionView, type FragmentOfferChoice, type FragmentOffersInput,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
+import { assertActionInput, subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 import {
-  assertActionInput, contextualCandidates, fragmentCandidates, judgedCandidates, subjectOfferChoiceKey, judgmentQuestions, judgmentState, MAX_JUDGED_CANDIDATES, planContextualLayout, readContextualJudgment, ruleScores,
-} from "@molis-ai/molis-work-kernel";
+  contextualCandidates, fragmentCandidates, judgedCandidates, judgmentQuestions, judgmentState, MAX_JUDGED_CANDIDATES, planContextualLayout, readContextualJudgment, ruleScores,
+} from "@molis-ai/molis-work-kernel/contextual";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { createContextualJudgmentService } from "../apps/local-host/src/contextual/judgment-service.js";
 import { handleContextualHttp, recallForJudgment, surfaceKinds } from "../apps/local-host/src/contextual/contextual-http.js";

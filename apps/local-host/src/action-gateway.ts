@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ActionError, type ActionClient, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
+import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 export const ACTION_GATEWAY_PATH = "/api/internal/action-service";
 export const actionGatewayHomeId = (home: string) => createHash("sha256").update(path.resolve(home)).digest("hex");
@@ -13,7 +14,7 @@ export class LocalActionGatewayClient implements ActionClient {
   private instance?: string;
   constructor(private readonly options: { url: string; homeDirectory: string; clientId: string; projectId: string | null; controlToken?: string; runtimeSessionId?: string }) {
     const url = new URL(options.url);
-    if (url.protocol !== "http:" || !["127.0.0.1", "[::1]"].includes(url.hostname) || url.username || url.password || url.search || url.hash || url.pathname !== "/") {
+    if (!isLoopbackHttpOrigin(url, { numeric: true })) {
       throw new ActionError("actions.transport_invalid", "系统动作连接必须是本机数字回环 HTTP 地址");
     }
     this.origin = url.origin;

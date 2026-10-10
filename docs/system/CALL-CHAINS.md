@@ -290,11 +290,10 @@
 
 | 偏离 | 在哪里 | 现状 | 怎么修 |
 | --- | --- | --- | --- |
-| 宿主直接读 IM 服务的表（越界读表，不是实验） | `apps/local-host/src/im-server.ts` 在 `POST /projects/<id>/api/im/connect` 里用 SQL 直接读 IM 服务库（`{home}/server/server.sqlite`）的 `mw_projects.owner_id` 和 `mw_members.display_name`；这两张表的 owner 是 `server/` 包（`@molis-ai/molis-work-server`）。`apps/server/src/main.ts` 的独立启动器同样直接读 | 右栏「讨论」页签和 IM 代码是在用、还会迭代的产品功能（决定 4）；错的只是三处账目：库没有登记进 Home 数据与备份表，宿主越过包直接读它的表，包被归成基础包而不是业务包 | 决定 4：宿主不再直接读它的表，改经 `server/` 包的公开入口取项目所有者和成员（W2-06，同时加跨主人 SQL 门禁）；`{home}/server/server.sqlite` 登记进 Home 数据与备份表、归类改成业务、SSOT 行同步（W2-12）；`apps/server` 独立启动器的去留随功能迭代另定 |
 | Goals 的 typed 桥 | `plugins/native/goals/src/board-entry-capabilities.ts`、`plugins/native/goals/src/goal-event-entry-capabilities.ts`、`plugins/native/goals/src/proposal-capabilities.ts`；调用方 CLI、管理 MCP、`apps/local-host/src/web-onboarding.ts` | CLI 和管理 MCP 仍从这里进；其余入口在产品里没有调用方。写入入口（事件写入、设当前目标、结构提案检查与决定）都声明 `host_only` 并记本机这个人：插件即使在 consumes 里列出也被拒绝 | N-12（决定 1）：无生产调用方的先删（W2-08），其余随管理入口改走动作（W3-07） |
 | Casebook 的 5 个 typed 能力与 HTTP | `apps/local-host/src/casebook/integration.ts`（`registerCasebookCapabilities` 登记 `io.molis.work.casebook.interaction-authorization`、`set-interaction-authorization`、`read-interaction-facts`、`read-goal-contexts`、`read-operation-receipts`），`apps/local-host/src/casebook/http.ts`（路径 `/casebook/v1/`） | 外部 Casebook 插件按这些 id 与路径对接，在控制令牌门之前有自己的回环检查（`apps/local-host/src/web-server.ts`） | N-12 与决定 8：改成同 id 的 `plugin` 受众动作，与外部 Casebook 插件一起发版（W3-08） |
 
-**登记之外**：页面渲染、静态资产、终端和浏览器 WebSocket、面板会话等传输层路由（`apps/local-host/src/web-server.ts`）不是「能力」，不进这两张表，但它们也不能绕开链 1 的步骤 2。IM 服务的路由（`/im`、`/projects/<id>/api/im/connect`）同样是「讨论」页签自己的传输层；它越界读表的问题在 10.2。
+**登记之外**：页面渲染、静态资产、终端和浏览器 WebSocket、面板会话等传输层路由（`apps/local-host/src/web-server.ts`）不是「能力」，不进这两张表，但它们也不能绕开链 1 的步骤 2。IM 服务的路由（`/im`、`/projects/<id>/api/im/connect`）同样是「讨论」页签自己的传输层（宿主不再直接读它的表，见 W2-06）。
 
 **还没有逐条盘点的只走 HTTP 的写入**：下面几组不是宿主设置，是各个功能自己的传输层，没有列进 10.1，也没有检查过它们是否应该是动作；不要把它们当作已经审过。是否登记、登记进哪一张表，还没有定。
 - 助理面板自己的路由：`/api/assistant/` 下除设置页用的几条以外的写入（发送、卡片、附件、通知处理 `notices`、取消跟进 `followups/remove`、记忆建议的认可与放弃 `memory-candidates/…`、工作里的操作），在 `apps/local-host/src/assistant/assistant-http.ts`。链 3 只写了发送这一条。

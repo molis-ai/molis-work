@@ -1,4 +1,5 @@
 import { GMAIL_OAUTH_CALLBACK_PATH, GMAIL_CLIENT_ID_REF, GMAIL_CLIENT_SECRET_REF, RESTART_HINT, type GmailOAuthPorts } from "./oauth-types.js";
+import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 export function createGmailOAuthConfiguration(ports: GmailOAuthPorts) {
   function defaultGmailRedirectUri(port?: string | number): string {
@@ -26,8 +27,7 @@ export function createGmailOAuthConfiguration(ports: GmailOAuthPorts) {
       );
     }
     const host = url.hostname.toLowerCase();
-    // URL.hostname strips brackets: http://[::1] → "::1"
-    if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
+    if (!isLoopbackHostname(host)) {
       throw new Error(
         `Gmail OAuth redirect must target loopback (127.0.0.1 / localhost), not ${host} — ${RESTART_HINT}`,
       );

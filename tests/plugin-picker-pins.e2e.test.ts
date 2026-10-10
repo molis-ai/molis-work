@@ -50,7 +50,7 @@ async function openPicker(t: TestContext, width = 1440, height = 900) {
   return { ...b, centre, hover, press, away, key, state, settled, stayed, dock, frames };
 }
 
-test("at rest an entry shows no buttons; looked at, it shows its two, and its text gives up the room", async t => {
+test("DOCK-03 at rest an entry shows no buttons; looked at, it shows its two, and its text gives up the room", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, hover, away } = b;
@@ -74,7 +74,7 @@ test("at rest an entry shows no buttons; looked at, it shows its two, and its te
   assert.equal((await probe()).ops, "0", "and takes them back when the look goes");
 });
 
-test("a kept plugin carries a small pin at rest; looked at, the buttons take its place", async t => {
+test("DOCK-03 a kept plugin carries a small pin at rest; looked at, the buttons take its place", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, hover, away, press, frames } = b;
@@ -89,7 +89,7 @@ test("a kept plugin carries a small pin at rest; looked at, the buttons take its
   assert.equal(await mark("goals"), 0, "looked at, the pin gives way to the buttons");
 });
 
-test("a plugin the project does not have is grey, opens nothing, and cannot be kept", async t => {
+test("DOCK-02 a plugin the project does not have is grey, opens nothing, and cannot be kept", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, press, state, centre, command, sessionId, frames } = b;
@@ -108,7 +108,7 @@ test("a plugin the project does not have is grey, opens nothing, and cannot be k
   void press;
 });
 
-test("the pin keeps a plugin in the Dock and out of it, and the choice survives a reload; Shelf's and 灵光's are fixed on", async t => {
+test("DOCK-04 the pin keeps a plugin in the Dock and out of it, and the choice survives a reload; Shelf's and 灵光's are fixed on", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { press, state, dock, evaluate, waitFor, navigate, command, sessionId, origin, projectId, frames } = b;
@@ -130,7 +130,7 @@ test("the pin keeps a plugin in the Dock and out of it, and the choice survives 
   await waitFor("Boolean(document.querySelector('[data-dock-pins] [data-dock-pin=\"form\"]'))");
 });
 
-test("adding a plugin changes the page in place: the entry wakes, the trash can replaces the plus, the plugin opens — and the page was not loaded again", async t => {
+test("DOCK-05 adding a plugin changes the page in place: the entry wakes, the trash can replaces the plus, the plugin opens — and the page was not loaded again", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, press, state, settled, stayed, waitFor, click } = b;
@@ -148,7 +148,7 @@ test("adding a plugin changes the page in place: the entry wakes, the trash can 
   assert.equal(await stayed(), true, "and still no reload");
 });
 
-test("removing asks once, then takes the plugin out in place; the pane showing it goes back and its Dock pin goes", async t => {
+test("DOCK-06 removing asks once, then takes the plugin out in place; the pane showing it goes back and its Dock pin goes", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, press, state, settled, stayed, waitFor, dock, click, frames } = b;
@@ -173,7 +173,7 @@ test("removing asks once, then takes the plugin out in place; the pane showing i
   await settled("pages");
 });
 
-test("the question is dropped when nothing follows: Escape, a press elsewhere, a few seconds", async t => {
+test("DOCK-06 the question is dropped when nothing follows: Escape, a press elsewhere, a few seconds", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, press, hover, state, key, waitFor } = b;
@@ -226,7 +226,7 @@ test("a plugin that brings a stage page gets it in place, and takes it away agai
   assert.equal(await stayed(), true, "still in place");
 });
 
-test("a plugin that cannot change in place still brings the page back once, with its state kept (the way out)", async t => {
+test("DOCK-08 a plugin that cannot change in place still brings the page back once, with its state kept (the way out)", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, press } = b;
@@ -244,7 +244,7 @@ test("a plugin that cannot change in place still brings the page back once, with
   assert.ok(back, "the page came back with the plugin in the project");
 });
 
-test("Feed comes in place: its pages fill, its source directory joins the directory and answers; and it goes again, and comes again", async t => {
+test("DOCK-08 Feed comes in place: its pages fill, its source directory joins the directory and answers; and it goes again, and comes again", async t => {
   const b = await openPicker(t);
   if (!b) return;
   // A project's Feed has no sources until some are added; two public ones for its directory to list, page and filter away.
@@ -316,7 +316,7 @@ test("Feed comes in place: its pages fill, its source directory joins the direct
   }
 });
 
-test("Coding comes in place: its page and its row in the settings list, which loads its settings; and it goes again", async t => {
+test("DOCK-08 Coding comes in place: its page and its row in the settings list, which loads its settings; and it goes again", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, press, settled, stayed, waitFor, click } = b;
@@ -346,7 +346,7 @@ test("Coding comes in place: its page and its row in the settings list, which lo
   assert.equal(await stayed(), true, "no reload at all");
 });
 
-test("the keyboard reaches the buttons: → into them, ← back, ↑ ↓ along the same kind; Enter on the trash can asks, Escape takes it back first", async t => {
+test("DOCK-10 the keyboard reaches the buttons: → into them, ← back, ↑ ↓ along the same kind; Enter on the trash can asks, Escape takes it back first", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, key, state, waitFor } = b;
@@ -370,7 +370,7 @@ test("the keyboard reaches the buttons: → into them, ← back, ↑ ↓ along t
   await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
 });
 
-test("the toggle shows a plus where the plugin is not in the project and a red trash can where it is; asking fills the can red", async t => {
+test("DOCK-05 DOCK-06 the toggle shows a plus where the plugin is not in the project and a red trash can where it is; asking fills the can red", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, hover, press } = b;
@@ -398,7 +398,7 @@ test("the toggle shows a plus where the plugin is not in the project and a red t
   assert.notEqual(core.colour, await token("--red", "color"), "the core cannot be removed, so it does not look removable");
 });
 
-test("the market and the studio are two buttons at the head of the switcher: with search, above the project's own entry; one opens its page and closes the list", async t => {
+test("DOCK-01 DOCK-13 the market and the studio are two buttons at the head of the switcher: with search, above the project's own entry; one opens its page and closes the list", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, click, waitFor, command, sessionId, frames } = b;
@@ -431,7 +431,7 @@ test("the market and the studio are two buttons at the head of the switcher: wit
   await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
 });
 
-test("the market, for this project, changes the page in place too, and the entry in the switcher agrees", async t => {
+test("DOCK-09 the market, for this project, changes the page in place too, and the entry in the switcher agrees", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, click, waitFor, stayed } = b;
@@ -445,7 +445,7 @@ test("the market, for this project, changes the page in place too, and the entry
   assert.equal(await evaluate("document.querySelector('[data-plugin-tile=\"schedule\"]').classList.contains('is-available')"), false, "the switcher's entry followed");
 });
 
-test("every state of the grid lays out cleanly: at rest, with an entry looked at, with a removal being asked; light and dark; wide, narrow, phone", { timeout: 300_000 }, async t => {
+test("DOCK-12 every state of the grid lays out cleanly: at rest, with an entry looked at, with a removal being asked; light and dark; wide, narrow, phone", { timeout: 300_000 }, async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { command, sessionId, evaluate, hover, press, away, frames } = b;

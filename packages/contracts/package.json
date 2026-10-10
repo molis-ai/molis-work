@@ -102,6 +102,10 @@
       "types": "./dist/platform/app-host.d.ts",
       "import": "./dist/platform/app-host.js"
     },
+    "./platform/dom-events": {
+      "types": "./dist/platform/dom-events.d.ts",
+      "import": "./dist/platform/dom-events.js"
+    },
     "./platform/errors": {
       "types": "./dist/platform/errors.d.ts",
       "import": "./dist/platform/errors.js"
@@ -113,6 +117,10 @@
     "./platform/kernel": {
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"
+    },
+    "./platform/loopback": {
+      "types": "./dist/platform/loopback.d.ts",
+      "import": "./dist/platform/loopback.js"
     },
     "./platform/package": {
       "types": "./dist/platform/package.d.ts",

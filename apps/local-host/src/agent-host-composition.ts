@@ -5,8 +5,6 @@ import { createExternalMcpDirectory } from "./external-mcp-actions.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
 import {
   AgentHost,
-  CliAgentAdapter,
-  createNodeCliProcessPort,
   createPrologueNodeAdapter,
   registerAgentHostCapabilities,
   type AgentStartAuthority,
@@ -22,7 +20,6 @@ import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
-import type { ModelProviderStore } from "./model-provider-store.js";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { prepareGitOperation } from "./git-operations.js";
 import { draftText } from "./model-draft.js";
@@ -57,10 +54,6 @@ export interface AgentHostCompositionOptions {
   /** Resolves the workspace a project is bound to, for directory authority. */
   workspacesFor?(projectId: string): readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
   workspaceFor(projectId: string): ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
-  /** Configured providers, used to decide whether a CLI Runtime has a model. */
-  models?: ModelProviderStore;
-  /** CLI executables to register. Absent ones are simply not registered. */
-  cliRuntimes?: ReadonlyArray<{ runtime_id: string; display_name: string; command: string }>;
   /** The owning server supplies storage and credential access for this Home. */
   prologue?: Omit<PrologueNodeAdapterOptions, "app">;
 }
@@ -84,10 +77,6 @@ export interface AgentHostComposition {
   dispose(): Promise<void>;
 }
 
-const DEFAULT_CLI_RUNTIMES = [
-  { runtime_id: "claude-code", display_name: "Claude Code", command: "claude" },
-] as const;
-
 /**
  * Build the Agent Host and register its Capabilities against `localHost`.
  *
@@ -96,18 +85,6 @@ const DEFAULT_CLI_RUNTIMES = [
  */
 export function composeAgentHost(options: AgentHostCompositionOptions): AgentHostComposition {
   const agentHost = new AgentHost(options.prompts ? { prompts: options.prompts } : {});
-
-  for (const runtime of options.cliRuntimes ?? DEFAULT_CLI_RUNTIMES) {
-    agentHost.register(new CliAgentAdapter({
-      runtime_id: runtime.runtime_id,
-      display_name: runtime.display_name,
-      command: runtime.command,
-      process: createNodeCliProcessPort(),
-      // The model is a Host fact. No configuration means no model, and the
-      // adapter reports that rather than picking one.
-      model: async () => options.models?.resolveConfiguration()?.model.model_id ?? null,
-    }));
-  }
 
   let prologue: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
   let ready: Promise<void> | undefined;

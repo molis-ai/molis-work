@@ -42,7 +42,7 @@ test("a schedule cancelled while waiting for the Home Runtime cannot create an A
   assert.deepEqual(opened, []);
 });
 
-test("装了 Claude Code 也按 Prologue 跑：不按 Runtime 名字排序挑第一个", async () => {
+test("先注册了别的 Runtime 也按 Prologue 跑：不按 Runtime id 排序挑第一个", async () => {
   const opened: string[] = [];
   const agentHost = new AgentHost();
   agentHost.register(fakeRuntime("claude-code", opened));
@@ -58,7 +58,7 @@ test("装了 Claude Code 也按 Prologue 跑：不按 Runtime 名字排序挑第
   assert.deepEqual(opened, ["prologue"]);
 });
 
-test("只有 CLI Runtime、没有 Prologue 时不退回 CLI", async () => {
+test("只有别的 Runtime、没有 Prologue 时不退回去用它，报需要 Prologue", async () => {
   const opened: string[] = [];
   const agentHost = new AgentHost();
   agentHost.register(fakeRuntime("claude-code", opened));

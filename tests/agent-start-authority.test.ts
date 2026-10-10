@@ -3,9 +3,8 @@ import test from "node:test";
 import { AgentHost } from "../horizontal/agent-host/src/index.js";
 import { registerAgentHostCapabilities } from "../horizontal/agent-host/src/capability-registration.js";
 import { PrologueAgentAdapter, type PrologueRuntimePort } from "../horizontal/agent-host/src/adapters/prologue.js";
-import { CliAgentAdapter } from "../horizontal/agent-host/src/adapters/cli-runtime.js";
 import { emptyCapabilityMatrix } from "../horizontal/agent-host/src/capabilities.js";
-import { agentHostCapabilities, type AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentRuntimeAdapter, type AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const owner = { project_id: "project", plugin_id: "unknown.plugin", install_id: "install", actor_id: "actor" };
 const directory = { canonical_path: "/authorized", realpath_verified: true as const };
@@ -31,14 +30,31 @@ test("typed Agent validation and execution use the same snapshot when a Plugin h
   assert.deepEqual(controlled, { session_id: "own-session", run_id: "own-run" });
 });
 
-for (const kind of ["prologue", "cli"] as const) test(`${kind} rechecks Host authority after delayed model selection without dispatching or creating a run`, async () => {
+/**
+ * A Runtime that is slow before it dispatches (here: choosing its model), written against the contract alone: what the Host hands
+ * `start` is a live check of the grant, so a Runtime that asks again after its own await sees a revocation made in between.
+ */
+function slowRuntime(select: () => Promise<string>, dispatch: () => never): AgentRuntimeAdapter {
+  const session: AgentSessionRef = { runtime_id: "fixture", session_id: "own-session" };
+  return { descriptor: { runtime_id: "fixture", display_name: "Fixture", provider_version: "1", capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported" } },
+    async health() { return { ok: true, status: "ready", message: "ready" }; },
+    async createSession() { return session; },
+    async readSession(ref) { return { session: ref, owner, title: "Owned", runs: [], latest_run: null }; },
+    async start(_request, execution) { await select(); await execution?.beforeStart?.(); return dispatch(); },
+    async read() { throw new Error("Not used by this fixture"); },
+    observe() { throw new Error("Not used by this fixture"); },
+    async control() { throw new Error("Not used by this fixture"); },
+    async readCommandOutput() { throw new Error("Not used by this fixture"); },
+  };
+}
+
+for (const kind of ["prologue", "fixture"] as const) test(`${kind} rechecks Host authority after delayed model selection without dispatching or creating a run`, async () => {
   const entered = deferred(), release = deferred(); let active = true, dispatched = 0;
   const select = async () => { entered.resolve(); await release.promise; return "fixture-model"; };
   const runtime: PrologueRuntimePort = { sessions: { async create() { return { ref: { id: "session" } }; } },
     async startAgentRun(input) { dispatched++; assert.equal(typeof input.beforeStart, "function"); throw new Error("authorized dispatch sentinel"); }, async shutdown() {} };
   const adapter = kind === "prologue" ? new PrologueAgentAdapter({ runtime, async modelConfiguration() { return { protocol: "anthropic-compatible", endpoint: "https://model.example/v1/messages", model: await select(), credential_ref: "fixture" }; } })
-    : new CliAgentAdapter({ runtime_id: "cli", display_name: "CLI", command: "fixture", model: select,
-      process: { async version() { return "1"; }, spawn() { dispatched++; throw new Error("authorized dispatch sentinel"); } } });
+    : slowRuntime(select, () => { dispatched++; throw new Error("authorized dispatch sentinel"); });
   const host = new AgentHost(); host.register(adapter);
   const session = await adapter.createSession({ ...owner, directory, title: "Owned" });
   const request = { ...owner, session, directory, task: "Read supplied context", role_id: "reader" };

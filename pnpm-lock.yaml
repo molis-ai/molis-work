@@ -851,6 +851,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
 
   packages/plugin-sandbox:
     dependencies:
@@ -1300,6 +1303,9 @@ importers:
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:../../packages/plugin-runtime
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
 
 packages:
 

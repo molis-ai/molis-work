@@ -9,7 +9,7 @@ import {
   type CodingChangeSet,
   type CodingDiagram,
 } from "@molis-ai/molis-work-plugin-coding";
-import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
 import { gitManifest } from "@molis-ai/molis-work-plugin-git";

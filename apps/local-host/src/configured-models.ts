@@ -6,6 +6,7 @@ import { ModelProviderStore, type ModelSecretPort } from "./model-provider-store
 import { assertOwnedCatalog } from "./catalog-schema.js";
 import { catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
+import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 export interface TextModelSelection { provider_id: string; model_id: string }
 export interface ConfiguredTextModel { provider: ModelProviderRecord; model: ModelRecord; connection_revision: string | null }
@@ -42,7 +43,7 @@ export function configuredModelChoices(home: string): { provider_id: string; mod
 export function validateTextModelUrl(address: string): string {
   let url: URL;
   try { url = new URL(address.trim()); } catch { throw new Error("模型地址无效"); }
-  const local = url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  const local = isLoopbackHttpUrl(url);
   if ((!local && url.protocol !== "https:") || url.username || url.password || url.search || url.hash) throw new Error("模型地址必须使用 HTTPS 或本机 HTTP，不能包含凭据、查询参数或片段");
   return url.toString().replace(/\/+$/u, "");
 }

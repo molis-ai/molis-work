@@ -1,11 +1,11 @@
 import type {CasebookHttpOptions} from './http.js';
+import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 /** Browser destination only; credentials and existing query parameters never enter the link. */
 export function normalizeCasebookUrl(value: unknown): string {
   if (typeof value !== 'string' || !value.length || value.length > 2048) throw new Error('invalid_casebook_url');
   const url = new URL(value);
-  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-  if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) || url.username || url.password || url.search || url.hash) {
+  if ((url.protocol !== 'https:' && !isLoopbackHttpUrl(url)) || url.username || url.password || url.search || url.hash) {
     throw new Error('invalid_casebook_url');
   }
   return url.href;

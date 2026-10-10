@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { isLoopbackHostname, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { L } from "./web-locale.js";
 
 /**
@@ -37,21 +38,32 @@ function isEventCommandReplayPath(pathname: string): boolean {
     || /(?:^|\/)api\/goal-tree-proposals\/[^/]+\/decision$/.test(pathname);
 }
 
-function localHostname(value: string): boolean {
-  const hostname = value.toLowerCase();
-  return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "[::1]" || hostname === "::1";
+/** The `host:port` the request was addressed to when that is this machine, else null (DNS rebinding; security invariant S-02). */
+export function requestHost(request: IncomingMessage): string | null {
+  return loopbackHost(request.headers.host);
 }
 
-export function requestHost(request: IncomingMessage): string | null {
-  const value = request.headers.host?.trim();
-  if (!value) return null;
-  try {
-    const parsed = new URL(`http://${value}`);
-    return localHostname(parsed.hostname) ? parsed.host : null;
-  } catch {
-    return null;
-  }
+/**
+ * What every request of the web host meets before any route (S-02, S-21). The answer is marked as one that no other origin's frame may show
+ * (clickjacking: the pages hold the control token, and the plugin Studio's pages set no CSP of their own, so the rule is made once, here);
+ * and a request not addressed to this machine by a loopback name is refused with 403 (DNS rebinding). Returns true when it has answered.
+ */
+export function refuseForeignRequest(request: IncomingMessage, response: ServerResponse, pathname: string): boolean {
+  response.setHeader("x-frame-options", "SAMEORIGIN");
+  if (requestHost(request)) return false;
+  sendLocalWebJson(response, 403, pathname.startsWith("/casebook/v1/") ? { code: "not_authorized" } : { error: L("本地控制请求校验失败") });
+  return true;
 }
+
+/**
+ * Mutations the control token guards: the API of the host and of a project. A state-changing request anywhere else is
+ * refused rather than left to a handler that forgot to ask for the token (S-03). The IM mount (`/im/…`) is the one other
+ * place that accepts a POST: it checks Host, Origin, Fetch Metadata and its own session itself (server/src/http.ts).
+ */
+function isGuardedMutationPath(pathname: string): boolean {
+  return pathname.startsWith("/api/") || /^\/projects\/[^/]+\/api(?:\/|$)/.test(pathname);
+}
+const SELF_GUARDED_MOUNT = /^\/im(?:\/|$)/;
 
 function controlTokenMatches(expected: string, actual: string | undefined): boolean {
   if (typeof actual !== "string") return false;
@@ -73,9 +85,11 @@ export function authorizeLocalWebRequest(
     return false;
   }
   if (!request.method || ["GET", "HEAD"].includes(request.method)) return true;
-  const isApiMutation = url.pathname.startsWith("/api/")
-    || /^\/projects\/[^/]+\/api(?:\/|$)/.test(url.pathname);
-  if (!isApiMutation) return true;
+  if (!isGuardedMutationPath(url.pathname)) {
+    if (SELF_GUARDED_MOUNT.test(url.pathname)) return true;
+    sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
+    return false;
+  }
   const originValue = request.headers.origin;
   let origin: URL;
   try {
@@ -85,7 +99,7 @@ export function authorizeLocalWebRequest(
     sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
     return false;
   }
-  if (origin.protocol !== "http:" || !localHostname(origin.hostname) || origin.host !== host) {
+  if (origin.protocol !== "http:" || !isLoopbackHostname(origin.hostname) || origin.host !== host) {
     sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
     return false;
   }

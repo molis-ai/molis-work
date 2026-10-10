@@ -7,6 +7,8 @@ import { build } from 'esbuild';
 import { ChromeHarness } from './fixtures/plugin-builder-browser.js';
 import { validatePluginComponentPlans, resolvePluginComponentCall, PLUGIN_COMPONENT_STYLES } from '../packages/design-system/src/plugin-components.js';
 import type { SandboxPluginContract } from '../packages/contracts/src/platform/plugin-sandbox.js';
+/** The acceptance driver, loaded when a test needs it (one reference to its source for the whole file). */
+const loadDriver = () => import('../apps/local-host/src/plugin-builder/browser.js');
 const contract: SandboxPluginContract = {
   version: 1, pluginId: 'test.components', revision: 'one', entities: [], acceptance: [],
   operations: [{ id: 'save', kind: 'command', input: { type: 'object', properties: { text: { type: 'string', maxLength: 100 }, enabled: { type: 'boolean' }, choice: { type: 'boolean', enum: [true, false] } }, required: ['text', 'enabled', 'choice'], additionalProperties: false }, output: { type: 'string' }, errors: [], effects: {}, examples: [{ input: { text: 'hello', enabled: false, choice: false }, output: 'saved' }] }],
@@ -210,7 +212,7 @@ test('the acceptance driver works through catalog overlays: a sheet form, choice
   const { existsSync } = await import('node:fs');
   if (!['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium'].some(path => existsSync(path)) && !process.env.MOLIS_WORK_BUILDER_BROWSER) { t.skip('Chrome is required'); return; }
   const { createServer } = await import('node:http');
-  const { runBuilderBrowserAcceptance } = await import('../apps/local-host/src/plugin-builder/browser.js');
+  const { runBuilderBrowserAcceptance } = await loadDriver();
   const tag = { type: 'string' as const, enum: ['设计', '阅读', '产品'], description: '标签' };
   const contract: SandboxPluginContract = { version: 1, pluginId: 'test.catalog', revision: 'one', entities: [], acceptance: [],
     operations: [
@@ -253,6 +255,18 @@ test('the acceptance driver works through catalog overlays: a sheet form, choice
     const result = await runBuilderBrowserAcceptance({ design: { acceptance }, nodes } as unknown as Parameters<typeof runBuilderBrowserAcceptance>[0], { url, signal: new AbortController().signal, reset: async () => {} });
     assert.deepEqual(result.cases.map(item => [item.id, item.passed, item.passed ? '' : item.detail]), [['add', true, ''], ['remove', true, ''], ['filter', true, '']]);
   } finally { server.close(); }
+});
+
+// Security invariant S-09 (docs/system/SECURITY-INVARIANTS.md): the acceptance browser asks the shared loopback check what counts as the host's own preview.
+test("the acceptance browser opens only the host's own preview: another host, another scheme and a look-alike name are refused before any navigation", { timeout: 120_000 }, async t => {
+  const { existsSync } = await import('node:fs');
+  if (!['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium'].some(path => existsSync(path)) && !process.env.MOLIS_WORK_BUILDER_BROWSER) { t.skip('Chrome is required'); return; }
+  const { runBuilderBrowserAcceptance } = await loadDriver();
+  // The driver reads nothing of a build before it navigates: it refuses the address first.
+  const build = { design: { acceptance: [] }, nodes: [] } as never;
+  for (const url of ['http://example.com/', 'https://127.0.0.1/', 'file:///etc/hosts', 'http://localhost.evil.example/', 'http://127.0.0.2/', 'http://0.0.0.0/']) {
+    await assert.rejects(runBuilderBrowserAcceptance(build, { url, signal: new AbortController().signal }), /界面验收只能打开宿主本机预览/, url);
+  }
 });
 
 test('real browser fills a sentence the design wrote around a result, and never shows the raw template', { timeout: 90_000 }, async t => {

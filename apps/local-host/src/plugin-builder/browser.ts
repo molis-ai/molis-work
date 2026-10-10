@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
 import { WebSocket } from 'ws';
+import { isLoopbackHttpUrl } from '@molis-ai/molis-work-contracts/platform/loopback';
 import type { AgentBuild, BrowserAcceptance } from '@molis-ai/molis-work-plugin-builder';
 
 /** Host-owned G7 driver. Contract steps never supply JavaScript, selectors, URLs or browser launch arguments. */
@@ -228,7 +229,7 @@ class BuilderBrowser {
     });
   }
   async evaluate<T = unknown>(expression: string): Promise<T> { const result = await this.command<{ result: { value: T }; exceptionDetails?: { text: string; exception?: { description: string } } }>('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text); return result.result.value; }
-  async navigate(url: string) { const parsed = new URL(url); if (parsed.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(parsed.hostname)) throw new Error('界面验收只能打开宿主本机预览'); await this.command('Page.navigate', { url }); }
+  async navigate(url: string) { const parsed = new URL(url); if (!isLoopbackHttpUrl(parsed)) throw new Error('界面验收只能打开宿主本机预览'); await this.command('Page.navigate', { url }); }
   async wait(expression: string) { await this.evaluate(`new Promise((resolve,reject)=>{const deadline=Date.now()+20000;function check(){try{if(${expression})return resolve(true)}catch(e){return reject(e)}if(Date.now()>deadline)return reject(Error('验收等待超时'));setTimeout(check,50)}check()})`); }
   async click(expression: string) {
     await this.wait(`!!(${expression})`);

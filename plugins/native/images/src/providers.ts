@@ -1,5 +1,6 @@
 import type { ImageApiFormat, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
 import { ImagesError } from "./error.js";
+import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 export interface ProviderImage { bytes: Buffer; mime: GeneratedImage["mime_type"] }
 export interface ImageProviderRequest {
@@ -15,7 +16,7 @@ export interface ImageProviderRequest {
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 export function isLocalImageEndpoint(url: string): boolean {
-  return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname);
+  return isLoopbackHostname(new URL(url).hostname);
 }
 
 export function normalizeImageBaseUrl(value: string): string {

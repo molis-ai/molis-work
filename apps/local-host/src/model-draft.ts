@@ -1,6 +1,6 @@
 import type { AgentDraftTextRequest, AgentDraftTextResult } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createExecutionLifetime } from "@molis-ai/molis-work-kernel";
+import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { reportedTokenTotal } from "@molis-ai/molis-work-service-agent-host";
 import { hostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";

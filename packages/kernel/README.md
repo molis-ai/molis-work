@@ -49,10 +49,10 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
 
 ## 开发要求
 
-- 负责：能力注册、发现、授予、动作服务调度（`ActionService`）、调用编号与结算，以及进程内执行生命周期。
+- 负责：能力注册、发现、授予、动作服务调度（`ActionService`）、调用编号与结算，以及按动作声明落实时限与取消（计时与取消的工具 `createExecutionLifetime` 来自 `@molis-ai/molis-work-plugin-sdk`，内核不转出）。
 - 不负责：业务状态机、提供方实现、界面。
 - 公开入口：`@molis-ai/molis-work-kernel`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/kernel`。
-- 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期）；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包，公开发布面（contracts、plugin-sdk）在最下层（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 目录从唯一的 `CapabilityRegistry` 派生，不另存名单。
   - 输入与结果按合同校验：查询与判断不合合同报 `actions.output_invalid`；已提交的写动作报 `actions.output_invalid_after_effect`。
@@ -78,4 +78,4 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
-`createExecutionLifetime` 统一进程内取消、时限和同步周期监测。实现放在没有依赖的 `@molis-ai/molis-work-contracts/platform/execution-lifetime`，Kernel 与 Plugin SDK 都从那里转出同一份，公开的 Plugin SDK 因此不依赖私有的 Kernel。取消后停止监测，异步等待后调用 `assertActive()` 再进入原事务/版本校验；`dispose()` 在 finally 中释放资源并拒绝迟到回调。它不登记任务、不保存状态、不恢复或重试。Alchemist 用于租约续期，Images 用于持久取消检查及 180 秒时限。
+`createExecutionLifetime` 统一进程内取消、时限和同步周期监测。实现在 `@molis-ai/molis-work-plugin-sdk`（`src/execution-lifetime.ts`）：外部作者装的只有 contracts 与 SDK，工具放在这里，SDK 不必依赖私有的 Kernel；内核、宿主、调度服务、Shelf 模块和沙箱都直接从 SDK 取同一份，内核自己不再转出。取消后停止监测，异步等待后调用 `assertActive()` 再进入原事务/版本校验；`dispose()` 在 finally 中释放资源并拒绝迟到回调。它不登记任务、不保存状态、不恢复或重试。Alchemist 用于租约续期，Images 用于持久取消检查及 180 秒时限。

@@ -38,8 +38,26 @@ export type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modul
 export type { DueReminder } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { ExecutionLifetime } from "@molis-ai/molis-work-contracts/platform/execution-lifetime";
-export type { ExecutionLifetimeOptions } from "@molis-ai/molis-work-contracts/platform/execution-lifetime";
+
+export interface ExecutionLifetime {
+    readonly signal: AbortSignal;
+    assertActive(): void;
+    wait<T>(work: PromiseLike<T>): Promise<T>;
+    dispose(): void;
+}
+
+export interface ExecutionLifetimeOptions {
+    signal?: AbortSignal;
+    timeout?: {
+        milliseconds: number;
+        reason: Error;
+    };
+    monitor?: {
+        intervalMs: number;
+        check(): void;
+    };
+}
+
 export { FILE_CONTENT_MAX_BYTES } from "@molis-ai/molis-work-contracts/platform/actions";
 export { FILE_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
 export { FRAGMENT_ANY_OBJECT } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -108,7 +126,8 @@ export { bindOwnerPluginAction } from "@molis-ai/molis-work-contracts/platform/a
 export { bindPluginActionRoute } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindSearchEntriesHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
-export { createExecutionLifetime } from "@molis-ai/molis-work-contracts/platform/execution-lifetime";
+
+export declare function createExecutionLifetime(options?: ExecutionLifetimeOptions): ExecutionLifetime;
 
 export declare function defineAction<Input, Output>(definition: ActionDefinition<Input, Output>, handle: (context: ActionExecutionContext, input: Input) => Output | Promise<Output>): {
     readonly definition: ActionDefinition<Input, Output>;

@@ -47,7 +47,6 @@
 | BL-021 | macOS 公开发布：是否申请 Developer ID 与公证 | [macos-desktop-release](archive/macos-desktop-release/spec.md) | 外部账号与费用 | 低 |
 | BL-022 | 多人协作项目里项目记忆的可见性；团队共享记忆 | [memory-system §3、§15](archive/memory-system/spec.md) | 等协作能力定型 | 低 |
 | BL-023 | Coding 会话的执行目录（项目偏好）与 Files/Git 浏览目录（项目设置）是否合成一个 | [coding-plugin/spec.md 第 0 节「仍未做到」](coding-plugin/spec.md) | 设计取舍 | 中 |
-| BL-125 | 没有模型或连接时，「要模型的动作」在目录里怎样告诉调用者。已做：对助理、MCP、工作流和插件（不含用户自己的页面）标成不可用并写明原因：`alchemist.reuse.assess`、`alchemist.conversation.send`、`alchemist.explorations.start`、`alchemist.research.start`、`images.jobs.start`。用户自己的页面不变。没做：`workflows.instances.continue`（只有下一站是 AI 整理才要模型，可用性声明看不到输入，标成不可用会把不要模型的交接也挡住）；`experiments.run`、`coding.runs.start`（只对用户开放，助理看不到，没有可告知的对象）。选项：（a）保持现状（推荐）；（b）用户自己的页面也事先拒绝，页面要跟着置灰并写原因，发送讨论不再先保存消息，启动炼化与研究不再记一条停下的运行，生图不再给所选服务连接的具体原因；（c）给可用性声明加上输入，让 `workflows.instances.continue` 只在下一站是 AI 整理且没有模型时不可用（改合同） | AI 入口清单 §7 第 4 项（W2-18 后续；清单把 `alchemist.pulse.start` 也算进去，但它用规则综合、不调模型，不在此列） | 事先拒绝用户自己的页面会改产品行为：这些页面现在是「先保存、再提示」；可用性声明的输入与合同属于合同变化 | 中 |
 
 ## 3. 助理、记忆与动态交互
 

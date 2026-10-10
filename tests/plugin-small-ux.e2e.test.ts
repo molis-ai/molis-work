@@ -190,6 +190,36 @@ test("Pages and 灵光: reloading with a blank item open takes it back, and the 
   await quietAfterTheReopen("[data-lingguang-note]", "[data-lingguang=workbench]");
 });
 
+test("Pages and 灵光: once a blank item is taken back on 「返回」 the surface stops naming it as the current object", { timeout: 120_000 }, async t => {
+  // The Assistant and the placement bar read this attribute, and so does the workbench when it decides whether a record is open.
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
+  const object = (surface: string) => evaluate(`JSON.parse(document.querySelector('${surface}').getAttribute('data-assistant-context') || 'null')?.object ?? null`);
+  await click("[data-plugin-strip] [data-plugin-id=pages]");
+  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
+  await click("[data-pages-new]");
+  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  assert.ok(await object("[data-pages=workbench]"), "named while it is open");
+  await click("[data-pages-back]");
+  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+  await waitFor("![...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
+  assert.equal(await object("[data-pages=workbench]"), null, "the document taken back is not the object in hand");
+
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
+  await click("[data-bar-resident=lingguang]");
+  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
+  await evaluate("document.querySelector('[data-lingguang-capture]').click()");
+  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
+  assert.ok(await object("[data-lingguang=workbench]"), "named while it is open");
+  await click("[data-lingguang-back]");
+  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'false' && document.querySelectorAll('[data-lingguang-id]').length === 0", 20_000);
+  assert.equal(await object("[data-lingguang=workbench]"), null);
+});
+
 test("灵光: 「记下第一条灵光」 left empty is thrown away when the person goes back, and one with words stays", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;

@@ -126,6 +126,8 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
     restore() { t.mock.timers.reset(); Object.assign(globalThis, { fetch: saved.fetch, document: saved.document, window: saved.window }); },
     editorOpen: () => parts.get("[data-pages-stage-workspace]")?.hidden === false,
     expanded: () => attributes.get("data-expanded"),
+    /** What the surface tells the Assistant and the placement bar it has in hand (null before the page has said anything). */
+    context: () => attributes.has("data-assistant-context") ? JSON.parse(attributes.get("data-assistant-context")!) as { plugin_id: string; object?: { kind: string; id: string; title: string } } : null,
   };
 }
 const existing = (id: string, title: string, body: unknown = EMPTY): Doc => ({ id, title, body, version: 4, goal_id: "", artifact_version: 0 });
@@ -417,4 +419,39 @@ test("a document whose last save failed is not taken back either: what the perso
     assert.equal(page.editorOpen(), true);
     assert.equal(page.store.has("N1"), true);
   } finally { page.restore(); }
+});
+
+test("once the editor is closed the surface stops naming the document as the current object: back, hidden, going away and a refused discard alike", async t => {
+  // The workbench reads this attribute to decide whether a record is already open (its Back and reload reopening), and the placement
+  // bar and the Assistant read it for the object in hand. A discarded document must not be named there, nor a kept one that is no
+  // longer open.
+  const page = await mounted(t, [existing("A", "周报", text("本周"))]);
+  try {
+    assert.equal(page.context()?.object, undefined, "nothing open yet");
+    await page.fire(click("[data-pages-new]"));
+    assert.equal(page.context()?.object?.id, "N1", "the open document is named while it is open");
+    await page.fire(click("[data-pages-back]"));
+    assert.equal(page.store.has("N1"), false);
+    assert.equal(page.context()?.object, undefined, "back to the list: the discarded document is not the object in hand");
+    assert.equal(page.context()?.plugin_id, "io.molis.work.pages", "the surface still says whose it is");
+    await page.fire(click("[data-pages-new]"));
+    assert.equal(page.context()?.object?.id, "N2");
+    page.lifetime.hideSurface(); await page.elapse(0);
+    assert.equal(page.store.has("N2"), false);
+    assert.equal(page.context()?.object, undefined, "hidden by the workbench");
+    page.lifetime.showSurface();
+    await page.fire(click("[data-pages-new]"));
+    assert.equal(page.context()?.object?.id, "N3");
+    page.lifetime.unload(); await page.elapse(0);
+    assert.equal(page.store.has("N3"), false);
+    assert.equal(page.context()?.object, undefined, "the page going away");
+  } finally { page.restore(); }
+  const refused = await mounted(t, [], { discard: () => json({ error: "改过了", code: "pages.conflict" }, 409) });
+  try {
+    await refused.fire(click("[data-pages-new]"));
+    assert.equal(refused.context()?.object?.id, "N1");
+    await refused.fire(click("[data-pages-back]"));
+    assert.equal(refused.store.has("N1"), true, "kept: it was changed elsewhere");
+    assert.equal(refused.context()?.object, undefined, "but it is not open here any more");
+  } finally { refused.restore(); }
 });

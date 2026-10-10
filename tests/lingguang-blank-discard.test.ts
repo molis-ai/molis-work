@@ -100,6 +100,8 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
     store, calls, fire, parts, part, lifetime,
     editorOpen: () => part("[data-lingguang-stage-workspace]").hidden === false,
     expanded: () => attributes.get("data-expanded"),
+    /** What the surface tells the Assistant and the placement bar it has in hand (null before the page has said anything). */
+    context: () => attributes.has("data-assistant-context") ? JSON.parse(attributes.get("data-assistant-context")!) as { plugin_id: string; object?: { kind: string; id: string } } : null,
     elapse: async () => { await flush(); },
     /** The person types in the title or the body; the autosave runs before they leave (the client saves first). */
     async write(next: { title?: string; body?: string }) {
@@ -330,4 +332,29 @@ test("when the page goes away, the blank spark is thrown away with a call that o
     assert.equal(refused.expanded(), "false");
     assert.equal(refused.part("[data-lingguang-note]").textContent, "", "and nothing is said about it");
   } finally { refused.restore(); }
+});
+
+test("once the editor is closed the surface stops naming the spark as the current object: back, hidden and going away alike", async () => {
+  // The workbench reads this attribute to decide whether a record is already open (its Back and reload reopening); the placement
+  // bar and the Assistant read it for the object in hand.
+  const page = await mounted([]);
+  try {
+    await page.fire(click("[data-lingguang-capture]"));
+    assert.equal(page.context()?.object?.id, "S1", "named while it is open");
+    await page.fire(click("[data-lingguang-back]"));
+    assert.equal(page.store.get("S1")?.status, "discarded");
+    assert.equal(page.context()?.object, undefined, "back to the list");
+    assert.equal(page.context()?.plugin_id, "io.molis.work.lingguang");
+    await page.fire(click("[data-lingguang-capture]"));
+    assert.equal(page.context()?.object?.id, "S2");
+    page.lifetime.hideSurface(); await page.elapse();
+    assert.equal(page.store.get("S2")?.status, "discarded");
+    assert.equal(page.context()?.object, undefined, "hidden by the workbench");
+    page.lifetime.showSurface();
+    await page.fire(click("[data-lingguang-capture]"));
+    assert.equal(page.context()?.object?.id, "S3");
+    page.lifetime.unload(); await page.elapse();
+    assert.equal(page.store.get("S3")?.status, "discarded");
+    assert.equal(page.context()?.object, undefined, "the page going away");
+  } finally { page.restore(); }
 });

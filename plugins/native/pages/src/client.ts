@@ -637,7 +637,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const closeEditor = () => {
     clearTimeout(saveTimer);
     selected = null;
-    reportFocus();
+    syncEditorChrome();
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
     closeMore();

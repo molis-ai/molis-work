@@ -81,13 +81,13 @@ export function renderScheduleWorkbench(model: ScheduleUiModel): string {
       ${operations.map(run => renderOperationDetail(run, p)).join("")}
       <div class="feed-detail-empty mw-empty" data-schedule-detail-empty>${p.icon("timer")}<h1>${p.text("选择一条定时任务")}</h1></div>
     </div>
-    ${renderCreateDialog(p)}
+    ${renderCreateDialog(model.route_prefix, p)}
     ${renderReminderRecoveryDialog(p)}
     ${renderOperationRecoveryDialog(p)}
   </section>`;
 }
 
-function renderCreateDialog(p: ScheduleUiPrimitives): string {
+function renderCreateDialog(routePrefix: string, p: ScheduleUiPrimitives): string {
   return `<dialog class="mw-dialog mw-dialog--form" data-schedule-create-dialog aria-labelledby="schedule-create-title">
     <form class="mw-form mw-dialog__shell" data-schedule-create-form>
       <header class="mw-form__header"><div><h2 id="schedule-create-title" data-schedule-form-title>${p.text("新建定时任务")}</h2><p>${p.text("到点后会在这条任务自己的对话里跑一轮，不会进现有 Coding 会话。")}</p></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-schedule-create-close aria-label="${p.text("关闭")}">${p.icon("x")}</button></header>
@@ -96,8 +96,8 @@ function renderCreateDialog(p: ScheduleUiPrimitives): string {
         <label class="mw-field"><span class="mw-field__label">${p.text("说明")}</span><textarea class="mw-textarea" name="instructions" rows="6" required maxlength="8000" placeholder="${p.text("到点后 Agent 会读这段说明，然后在这条对话里回复。")}"></textarea><small class="mw-field__hint">${p.text("默认只读。要改文件会进现有审核队列。")}</small></label>
         <label class="mw-field"><span class="mw-field__label">${p.text("每天")}</span><input class="mw-input" name="time" type="time" required value="09:00"><small class="mw-field__hint">${p.text("按这台电脑的本地时间。本地服务没开时闹钟不响。")}</small></label>
         <label class="mw-check-row"><input class="mw-check" type="checkbox" name="notify_important" checked><span>${p.text("重要更新时在列表标出来")}</span></label>
-        <p class="mw-alert mw-alert--warning" data-schedule-hint="model" role="status" hidden>${p.text("还没有配置文字模型：到点时 Agent 跑不起来。仍可以创建，稍后在“模型设置”里配置。")}</p>
-        <p class="mw-alert mw-alert--warning" data-schedule-hint="workspace" role="status" hidden>${p.text("这个项目还没有绑定工作区：到点时只读 Agent 无法启动。仍可以创建，稍后再绑定。")}</p>
+        <p class="mw-alert mw-alert--warning" data-schedule-hint="model" role="status" hidden>${p.text("还没有配置文字模型：到点时 Agent 跑不起来。仍可以创建，稍后再配置。")} <a href="/settings/models">${p.text("打开模型设置")}</a></p>
+        <p class="mw-alert mw-alert--warning" data-schedule-hint="workspace" role="status" hidden>${p.text("这个项目还没有绑定工作区：到点时只读 Agent 无法启动。仍可以创建，稍后再绑定。")} <a href="${p.escape(routePrefix)}/settings/workspaces">${p.text("打开工作目录设置")}</a></p>
         <p class="form-error" data-schedule-create-error role="alert" hidden></p>
       </div>
       <footer class="mw-form__footer">

@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
-import { createExecutionLifetime } from "@molis-ai/molis-work-kernel";
+import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import type { MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";
 import type {
   ShelfAdmitFolderInput,

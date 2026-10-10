@@ -2,7 +2,7 @@
 
 ## 安装代码的开发边界
 
-`pnpm build` 先清理各 workspace 包的生成目录，再根据声明的依赖顺序构建全部 71 个 workspace 包，最后生成根入口和 PTY bundle。`build:migrated-packages` 复用同一个 `workspace:build`，因此删除/移动源码后不会把旧 JS 带进 npm/DMG。只清生成目录，不清 node_modules 或用户数据。Plugin CLI 的稳定 bin 启动文件随源码存在，干净 `pnpm install --frozen-lockfile` 后构建即可使用 `pnpm exec molis-work-plugin --help`。包边界扫描覆盖 src、tooling 和 bin 中的 JavaScript/TypeScript 调用。
+`pnpm build` 先清理各 workspace 包的生成目录，再根据声明的依赖顺序构建全部 70 个 workspace 包，最后生成根入口和 PTY bundle。`build:migrated-packages` 复用同一个 `workspace:build`，因此删除/移动源码后不会把旧 JS 带进 npm/DMG。只清生成目录，不清 node_modules 或用户数据。Plugin CLI 的稳定 bin 启动文件随源码存在，干净 `pnpm install --frozen-lockfile` 后构建即可使用 `pnpm exec molis-work-plugin --help`。包边界扫描覆盖 src、tooling 和 bin 中的 JavaScript/TypeScript 调用。
 
 Desktop 发布脚本归 `apps/desktop/tooling/`，根 `pnpm desktop:*` 命令不变。它调用 Local Host 的 `createMolisWorkRuntimePayload` 生成自包含目录，不在孤立资源目录对 workspace:* manifest 再执行 npm install。失败不覆盖已有资源，vendor 来源、SBOM、许可证随 payload 和 Home 安装保留。
 
@@ -31,14 +31,14 @@ goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 
 ## 项目结构
 
-> 仓库是插件基座加多插件的 Monorepo：71 个 workspace 包里 70 个 `partial`、1 个 `contract-only`（contracts）；根包只装配产品启动器，不导出代码。真实状态和 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。
+> 仓库是插件基座加多插件的 Monorepo：70 个 workspace 包里 69 个 `partial`、1 个 `contract-only`（contracts）；根包只装配产品启动器，不导出代码。真实状态和 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。
 
 ```text
 apps/                        6 个产品入口与 composition root 边界
 packages/                    10 个 Foundation package（另有根目录 server/）；contracts 暴露 59 个公开 subpath
 modules/                     13 个业务事实 owner
 horizontal/                  8 个包：5 个横向运行服务，3 个平台产品服务（记忆、放置、搜索）
-plugins/                     26 个 Native Plugin 与 6 个官方 Integration Plugin
+plugins/                     25 个 Native Plugin 与 6 个官方 Integration Plugin
 packages/plugin-runtime/     FD3 本地 Plugin 生命周期参考实现
 packages/plugin-sdk/         FD3 Manifest 与 Integration Plugin 定义 API
 plugins/official-integrations/
@@ -55,7 +55,7 @@ modules/governance-collaboration/
                              当前用户决定、有限结构提案、来源与历史事实
 tooling/plugin-cli/          Plugin CLI 边界；真实开发工具由 DV3 实现
 scripts/workspace-packages.mjs
-                             71 包清单、manifest、入口、README 与 Contract 接线检查
+                             70 包清单、manifest、入口、README 与 Contract 接线检查
 apps/desktop/launchers/mcp/server.ts            MCP 启动入口；协议归 apps/mcp，装配归 Local Host
 apps/desktop/launchers/web/server.ts            Web 启动入口；HTTP/资源装配归 Local Host，页面归 Workbench/Native Plugin
 apps/desktop/               Desktop 平台与 Native adapter；旧 src/desktop 已删除
@@ -99,7 +99,7 @@ specs/molis-work-architecture-reorganization/spec.md
 
 ### 重组期间的开发规则
 
-- 根 `pnpm build` 先构建全部 71 个 workspace 包再编译启动器；`workspace:*` 只跑 workspace 包，`*:all` 同时跑两者。
+- 根 `pnpm build` 先构建全部 70 个 workspace 包再编译启动器；`workspace:*` 只跑 workspace 包，`*:all` 同时跑两者。
 - 新代码只能通过 public entrypoint 调用其他 owner；禁止 deep import、跨 Module Store 和 App 直写业务数据库。
 - `contract-only` 只表示边界存在，不得注册假 Provider、假 Store、UI 入口或伪成功 API。
 - 每个迁移切片同时更新目标 package README 和对应 Module/Service 文档。

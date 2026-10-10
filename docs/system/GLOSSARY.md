@@ -224,7 +224,7 @@
 
 ### 3.3 内置插件的名字对照
 
-规则上 `plugin_id` 是 `io.molis.work.<project_plugin_id>`，目录和包名与 `project_plugin_id` 相同，界面 UI 描述（`UiContributionDescriptor`）里的 `plugin_id` 与 Manifest 的相同。下表列出全部 26 个，凡不规则的在最后一栏写明（2026-10-08 核对每个插件的 Manifest 和 UI 描述）；表后第 1–4 条是跨插件的说明。
+规则上 `plugin_id` 是 `io.molis.work.<project_plugin_id>`，目录和包名与 `project_plugin_id` 相同，界面 UI 描述（`UiContributionDescriptor`）里的 `plugin_id` 与 Manifest 的相同。下表列出全部 25 个，凡不规则的在最后一栏写明（2026-10-08 核对每个插件的 Manifest 和 UI 描述）；表后第 1–4 条是跨插件的说明。
 
 | `project_plugin_id` | `manifest.name` | 界面显示名 | 不规则之处 |
 | --- | --- | --- | --- |

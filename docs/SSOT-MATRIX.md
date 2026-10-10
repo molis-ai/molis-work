@@ -46,7 +46,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `retired` | 旧路径 caller 清零并删除或只留下有时限的兼容入口 |
 | `workspace-root + legacy-release` | Monorepo 根已能管理全部 package，但当前产品构建与发布仍由旧根 package 承担 |
 
-当前 71 个 package（6 app、10 foundation、14 module（`modules/*` 的 13 个加聊天与接续的 `server`）、8 horizontal、26 native plugin、6 integration plugin、1 tooling，按 `scripts/workspace-packages.mjs`，2026-10-07 核对）的描述符为 70 个 `partial`、1 个 `contract-only`（真实提供公共类型/Schema 的 Contracts）。另外 10 个仅含描述符的占位包已删除；下表保留未来目标路径并标为 `absent`，它们不参与构建或发布。`partial` 不表示依赖旧代码，也不声称未来契约全部实现。
+当前 70 个 package（6 app、10 foundation、14 module（`modules/*` 的 13 个加聊天与接续的 `server`）、8 horizontal、25 native plugin、6 integration plugin、1 tooling，按 `scripts/workspace-packages.mjs`，2026-10-10 核对）的描述符为 69 个 `partial`、1 个 `contract-only`（真实提供公共类型/Schema 的 Contracts）。另外 10 个仅含描述符的占位包已删除；下表保留未来目标路径并标为 `absent`，它们不参与构建或发布。`partial` 不表示依赖旧代码，也不声称未来契约全部实现。
 
 ## 3. Apps
 
@@ -169,7 +169,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | 入口 | 当前 owner / 状态 | 交付边界 |
 | --- | --- | --- |
 | plugin CLI 与示例 | tooling/plugin-cli；examples/plugin-sample | 公开 SDK scaffold → validate/pack/sign → 本地安装 → Artifact/UI；样例不进生产 workspace |
-| workspace / npm | 根 scripts 调用 App-owned 构建与打包工具 | 全部 71 个 workspace 包由 `pnpm workspace:build` 拓扑构建；发布包包含必要内部 JS 和资产，消费者安装原生依赖；不独立发布私有包 |
+| workspace / npm | 根 scripts 调用 App-owned 构建与打包工具 | 全部 70 个 workspace 包由 `pnpm workspace:build` 拓扑构建；发布包包含必要内部 JS 和资产，消费者安装原生依赖；不独立发布私有包 |
 | CLI / MCP / Web bins | apps/desktop/launchers/cli/main.ts、apps/desktop/launchers/mcp/server.ts、apps/desktop/launchers/web/server.ts | 只保留启动环境/stdio/资源路径与公开 App 入口；无业务 SQL 或状态机 |
 | Desktop / Tauri | apps/desktop + apps/desktop/src-tauri | App/DMG/zip、bundle、ad-hoc codesign、本地安装/恢复；Developer ID、公证和公开发布不在本期验收承诺内 |
 | Runtime Skill | skills/goal-advance | 仅消费正式公开 Contract 与入口，不读取内部 Store |

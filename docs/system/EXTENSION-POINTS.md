@@ -122,7 +122,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 宿主里还有 5 个按插件写的 AI 适配文件：`alchemist-prologue.ts`、`cognia-prologue.ts`、`jelly-model.ts`、`shelf-ai.ts`、`typesafe-prologue.ts`。
 
-**目标：0 / 0 / 2。** W3-06 把模型做成 Runtime 插件服务（`services.model`，由 agent-host 支撑，带登记指令、concurrent 调度和 `beforeEffect`），不是新的 typed 宿主能力（2026-10-07「两套能力机制收敛」：typed 注册表只留作 Runtime 插件的宿主内服务通道，不许再加新项）。系统级调用保持 2：定义加登记是有意的显式登记，`tests/prompt-registration.test.ts` 会让没登记的调用失败。W5-11 用 `services.model` 取代 6 个适配文件。`methods` 随 W4-02 生效：Runtime 和已安装插件声明的方法由监督器和安装宿主在启动时登记、在停用、卸载、升级时收回，目标同内置插件（0 处宿主改动）。
+**目标：0 / 0 / 2。** W3-06 把模型做成 Runtime 插件服务（`services.model`，由 agent-host 支撑，带登记指令、concurrent 调度和 `beforeEffect`），不是新的 typed 宿主能力（2026-10-07「两套能力机制收敛」：typed 注册表只留作 Runtime 插件的宿主内服务通道，不许再加新项）。系统级调用保持 2：定义加登记是有意的显式登记，`tests/prompt-registration.test.ts` 会让没登记的调用失败。W5-11 用 `services.model` 取代 5 个适配文件。`methods` 随 W4-02 生效：Runtime 和已安装插件声明的方法由监督器和安装宿主在启动时登记、在停用、卸载、升级时收回，目标同内置插件（0 处宿主改动）。
 
 ### 3.5 动作与消费场景
 

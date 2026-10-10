@@ -2,7 +2,7 @@
 // decision #14). Static: it reads the test files and the fixtures they import under tests/, it never runs them.
 //
 //   browser  needs a browser (a `.e2e.test.` file, or one that reaches Chrome through its own code or a fixture). Not run:
-//            the probe is the non-browser suite; browser smokes are a later step (W2-16).
+//            the probe is the non-browser suite; the browser smokes are chosen by hand in tests/ci-product-subset.txt (W2-16).
 //   darwin   touches macOS-only paths or tools (platform guards, Seatbelt, Keychain, launchctl, Swift helpers, /Applications).
 //            Run, and marked: a failure here is read as "platform", a failure without the mark as "look at this first".
 //   live     reaches a real model or service when its opt-in is present (live-* files, MOLIS_WORK_LIVE_*, real-network opt-ins,

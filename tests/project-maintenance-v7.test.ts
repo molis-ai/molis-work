@@ -181,6 +181,9 @@ test("the maintenance stops and changes nothing unless the database is exactly a
     ["an extra table", "CREATE TABLE someone_elses_table (value TEXT)", /the tables are exactly the version 6 set/],
     ["a Casebook table already missing", "DROP TABLE casebook_interaction_actions", /the tables are exactly the version 6 set/],
     ["another table missing", "DROP TABLE project_browsing_settings", /the tables are exactly the version 6 set/],
+    // Same count of tables (78), one name that is not on the version 6 list: only the list of names can tell.
+    ["another table swapped for a differently named one", "DROP TABLE project_browsing_settings; CREATE TABLE project_browsing_settings_v2 (project_id TEXT PRIMARY KEY)", /the tables are exactly the version 6 set/],
+    ["another table renamed", "ALTER TABLE project_browsing_settings RENAME TO project_browsing_preferences", /the tables are exactly the version 6 set/],
     ["a Casebook table with another column", "ALTER TABLE casebook_interaction_audit_keys ADD COLUMN extra TEXT", /the Casebook tables have the version 6 columns/],
     ["a Casebook table with a renamed column", "ALTER TABLE casebook_interaction_actions RENAME COLUMN digest TO checksum", /the Casebook tables have the version 6 columns/],
     ["a view", "CREATE VIEW stray_view AS SELECT 1 AS one", /there is no view and no trigger/],

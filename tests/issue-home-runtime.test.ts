@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
+import { crc32 } from "node:zlib";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken, LocalActionGatewayClient } from "@molis-ai/molis-work-app-local-host";
@@ -17,6 +19,58 @@ import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runti
 
 const user: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: ["issues:read", "issues:write"] };
 const input = { title: "跨入口记录", type: "bug", description: "  点击后没有反馈\n再次点击才出现。\n" };
+
+// A valid PNG with a text chunk, large enough to exercise the real HTTP/MCP body path.
+function attachedPng() {
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==", "base64");
+  const data = Buffer.from("Comment\0" + "capture context ".repeat(20000)), chunk = Buffer.alloc(data.length + 12);
+  chunk.writeUInt32BE(data.length); chunk.write("tEXt",4); data.copy(chunk,8);
+  chunk.writeUInt32BE(crc32(chunk.subarray(4,-4)),chunk.length-4);
+  return {name:"screen.png",data_url:"data:image/png;base64,"+Buffer.concat([png.subarray(0,-12),chunk,png.subarray(-12)]).toString("base64")};
+}
+
+test("ISSUE-01 failed Home initialization preserves its database and only explicit concurrent retries recover it", async () => {
+  const home = await mkdtemp(join(tmpdir(), "issue-start-retry-"));
+  const directory = join(home, "plugin-runtime"), path = join(directory, "plugin-runtime.db");
+  await mkdir(directory);
+  const broken = new DatabaseSync(path); broken.exec("PRAGMA user_version=9"); broken.close();
+  const original = await readFile(path);
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), token = resolveWebControlToken({ homeDirectory: home });
+  const server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const origin = `http://127.0.0.1:${address.port}`;
+  const retry = (authorized = true) => fetch(`${origin}/api/plugins/${ISSUES_PLUGIN_ID}/retry`, { method: "POST",
+    headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(),
+      ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: "{}" });
+  try {
+    const page = await fetch(`${origin}/plugins/issues`);
+    assert.equal(page.status, 503); assert.match(await page.text(), /data-home-lifecycle="retry"/u);
+    assert.deepEqual(await readFile(path), original);
+    assert.equal((await retry(false)).status, 403);
+    assert.equal((await fetch(`${origin}/api/plugins/${ISSUES_PLUGIN_ID}/retry`)).status, 405);
+    const failedRetry = host.homePlugins!.retry();
+    assert.equal(host.homePlugins!.retry(), failedRetry, "concurrent retries share a failed attempt too");
+    await assert.rejects(failedRetry, { code: "storage.schema_version_mismatch" });
+    // Repair only the isolated fixture; the rejected original remains intact beside it.
+    await rename(path, join(directory, "rejected.db"));
+    await assert.rejects(host.homePlugins!.ready(), { code: "storage.schema_version_mismatch" });
+    assert.equal((await fetch(`${origin}/plugins/issues`)).status, 503, "ordinary reads do not silently restart");
+    const retries = await Promise.all(Array.from({ length: 4 }, () => retry()));
+    for (const response of retries) { assert.equal(response.status, 200, await response.clone().text()); await response.text(); }
+    assert.equal(host.homePlugins!.installations().length, 1);
+    const capabilities = await host.homeActionClient().discover(user);
+    assert.equal(capabilities.filter(action => action.capability_id.startsWith("issues.")).length, 8);
+    const saved = await host.homeActionClient().invoke(user, issuesActions.create, input) as Issue;
+    assert.deepEqual(await host.homeActionClient().invoke(user, issuesActions.read, { id: saved.id }), saved);
+    assert.deepEqual(await readFile(join(directory, "rejected.db")), original);
+    await host.close();
+    await assert.rejects(host.homePlugins!.retry(), { code: "actions.plugin_unavailable" });
+  } finally {
+    server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close(); await rm(home, { recursive: true, force: true });
+  }
+});
 
 test("ISSUE-01 ISSUE-05 owned web server close persists Home plugin shutdown before its callback", async () => {
   const home = await mkdtemp(join(tmpdir(), "issue-owned-close-"));
@@ -46,7 +100,7 @@ test("ISSUE-01 ISSUE-02 Home discovery starts once, crosses projects, persists, 
     const catalogs = await Promise.all(Array.from({ length: 4 }, () => host.homeActionClient().discover(user)));
     for (const catalog of catalogs) {
       const own = catalog.filter(view => view.capability_id.startsWith("issues."));
-      assert.equal(own.length, 5); assert.ok(own.every(view => view.availability.available && view.provider.provider_id === ISSUES_PLUGIN_ID && !view.provider.project_id));
+      assert.equal(own.length, 8); assert.ok(own.every(view => view.availability.available && view.provider.provider_id === ISSUES_PLUGIN_ID && !view.provider.project_id));
     }
     assert.equal(host.homePlugins!.installations().filter(row => row.plugin_id === ISSUES_PLUGIN_ID).length, 1);
     const installation = host.homePlugins!.installation(ISSUES_PLUGIN_ID)!;
@@ -99,7 +153,7 @@ test("ISSUE-02 ISSUE-04 revoked installation cannot commit a queued write or kee
   } finally { release.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("ISSUE-03 ISSUE-06 ISSUE-07 real HTTP and authorized MCP process share Home records without a project", { timeout: 90_000 }, async () => {
+test("ISSUE-03 ISSUE-06 ISSUE-07 ISSUE-09 real HTTP and authorized MCP process share Home records without a project", { timeout: 90_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "issue-entry-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const token = resolveWebControlToken({ homeDirectory: home });
   const server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token });
@@ -119,33 +173,44 @@ test("ISSUE-03 ISSUE-06 ISSUE-07 real HTTP and authorized MCP process share Home
     const page = await request("/plugins/issues"); assert.equal(page.status, 200); assert.match(await page.text(), /data-issues="workbench"/u);
     assert.equal((await withCatalog({ homeDirectory: home }, catalog => catalog.listProjects())).length, 0);
     assert.equal((await request(`/api/plugins/${ISSUES_PLUGIN_ID}/create`, input, false)).status, 403);
-    const response = await request(`/api/plugins/${ISSUES_PLUGIN_ID}/create`, input);
+    const image = attachedPng();
+    assert.ok(image.data_url.length > 256_000);
+    assert.equal((await request(`/api/plugins/${ISSUES_PLUGIN_ID}/create`, {...input,supplement:"removed"})).status,400);
+    assert.equal((await request(`/api/plugins/${ISSUES_PLUGIN_ID}/create`, {...input,images:[{...image,data_url:"https://example.com/x.png"}]})).status,400);
+    // S-03: authenticated Home input is bounded in bytes, including multibyte text.
+    assert.equal((await request(`/api/plugins/${ISSUES_PLUGIN_ID}/create`, {title:"界".repeat(4*1024*1024)})).status,413);
+    assert.equal((await request(`/api/plugins/${ISSUES_PLUGIN_ID}/list`)).status,200);
+    const response = await request(`/api/plugins/${ISSUES_PLUGIN_ID}/create`, {...input,images:[image]});
     assert.equal(response.status, 200, await response.clone().text());
     const saved = await response.json() as Issue;
+    assert.deepEqual(saved.images,[image]); assert.equal("supplement" in saved.context,false);
     assert.equal(saved.entered_via, "manual"); assert.equal(saved.context.page?.url, "/plugins/issues"); assert.equal(saved.context.page?.provenance, "client_reported");
+    const tooLargeDefault=await request("/api/settings/mcp/actions",{client_id:clientId,padding:"界".repeat(90000)});
+    assert.ok(tooLargeDefault.status>=400); assert.match(await tooLargeDefault.text(),/请求内容过大/u);
     const gateway = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId, projectId: null });
     const external: ActionCallContext = { actor_id: clientId, project_id: null, audience: "mcp", permissions: [] };
     assert.equal((await gateway.discover(external)).filter(view => view.capability_id.startsWith("issues.")).length, 0);
-    for (const action of Object.values(issuesActions)) {
-      const grant = await request("/api/settings/mcp/actions", { client_id: clientId, project_id: null, capability_id: action.capability_id, version: 1, provider_id: ISSUES_PLUGIN_ID, enabled: true });
+    for (const action of Object.values(issuesActions).filter(action => action.action.audiences.includes("mcp"))) {
+      const grant = await request("/api/settings/mcp/actions", { client_id: clientId, project_id: null, capability_id: action.capability_id, version: action.version, provider_id: ISSUES_PLUGIN_ID, enabled: true });
       assert.equal(grant.status, 200, await grant.clone().text());
     }
     await sdk.connect(transport);
     const name = (action: { capability_id: string; version: number }) => actionMcpToolName({ ...action, capability_id: `molis_work_v1_action_${action.capability_id}`, provider_id: ISSUES_PLUGIN_ID });
     assert.ok((await sdk.listTools()).tools.some(tool => tool.name === name(issuesActions.create)));
-    const created = await sdk.callTool({ name: name(issuesActions.create), arguments: { ...input, title: "MCP 录入" } });
+    const created = await sdk.callTool({ name: name(issuesActions.create), arguments: { ...input, title: "MCP 录入", images:[image] } });
     assert.equal(created.isError, false, JSON.stringify(created));
     const mcpIssue = await host.homeActionClient().invoke(user, issuesActions.read, { id: created.structuredContent?.id }) as Issue;
-    assert.deepEqual(created.structuredContent, mcpIssue);
+    assert.deepEqual(created.structuredContent, mcpIssue); assert.deepEqual(mcpIssue.images,[image]);
     assert.equal(mcpIssue.submitter_id, LOCAL_PERSON_ACTOR_ID); assert.equal(mcpIssue.entered_via, "mcp"); assert.equal(mcpIssue.context.page, null);
     const updated = await sdk.callTool({ name: name(issuesActions.update), arguments: { id: saved.id, expected_version: 1, title: "MCP 修改" } });
     assert.equal(updated.isError, false, JSON.stringify(updated));
     const read = await request(`/api/plugins/${ISSUES_PLUGIN_ID}/read?id=${saved.id}`);
-    assert.equal((await read.json()).title, "MCP 修改");
+    const after = await read.json() as Issue;
+    assert.equal(after.title, "MCP 修改"); assert.deepEqual(after.images,[image]);
     assert.equal((await request(`/api/plugins/${ISSUES_PLUGIN_ID}/update`, { id: saved.id, expected_version: 1, title: "过期页面" })).status, 409);
     const deleted = await sdk.callTool({ name: name(issuesActions.delete), arguments: { id: mcpIssue.id, expected_version: 1 } });
     assert.equal(deleted.isError, false, JSON.stringify(deleted));
-    await request("/api/settings/mcp/actions", { client_id: clientId, project_id: null, capability_id: "issues.create", version: 1, provider_id: ISSUES_PLUGIN_ID, enabled: false });
+    await request("/api/settings/mcp/actions", { client_id: clientId, project_id: null, capability_id: "issues.create", version: issuesActions.create.version, provider_id: ISSUES_PLUGIN_ID, enabled: false });
     assert.equal((await sdk.callTool({ name: name(issuesActions.create), arguments: input })).isError, true);
     const remaining = await request(`/api/plugins/${ISSUES_PLUGIN_ID}/list`);
     assert.equal((await remaining.json()).items.length, 1);

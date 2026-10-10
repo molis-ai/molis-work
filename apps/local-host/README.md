@@ -7,6 +7,8 @@
 
 `HomePluginHost` 是同一 Local Host 的个人插件装配，安装事实为 `{home}/plugin-runtime/plugin-runtime.db`。`HomePluginExecutor` 提供受安装授权和撤销约束的 `PluginDatabase`；连接技术在 storage，业务 SQL 在插件。公共 Home 页面与项目工作台读取运行 contribution，MCP 只转发；Home 数据不随项目删除。详见 [Home Runtime 合同](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。
 
+初始化失败后释放本次资源，普通 `ready()` 保留失败结果，不因页面查询自动重试。用户从错误页点击重试，经受保护的 `POST /api/plugins/<plugin_id>/retry` 调用 `HomePluginHost.retry()`；并发重试共用一次启动，故障库不重建、不迁移。清理失败或 Host 已关闭时不可重启；恢复后仍保留用户停用意图。
+
 Web 工厂自建 Host 时，`server.close(callback)` 在自有 Host 和目录连接关闭后才调用回调；调用方应等待它，再退出或清理 Home。传入的借用 Host 仍由嵌入者负责 `await host.close()`。
 
 ## 一次典型调用
@@ -140,3 +142,7 @@ Jelly 保留上传 SHA、历史路径和领域引用，只委托解析；onboard
 Catalog 的异步 `commit` 只接收同步 owner 提交体：沿用当前连接的锁等待时限，锁忙时将未开始的 `BEGIN IMMEDIATE` 等待让回事件循环，拿到锁后校验 schema/owner，且提交体只调用一次。正常语句的 busy timeout 始终恢复，事务不跨异步 IO；创建、删除和示例项目沿原文件准备/恢复流程在真正 Catalog 提交处使用此口。动作调用方在异步等待后通过 `beforeAcquire` 复核原 `beforeEffect`，取消/撤权不得提交。原同步 API 继续提供给其既有同步调用方，不允许直接把 async 业务回调塞进提交体。
 
 固定项目身份的创建使用请求独有的暂存目录；提升后的数据库可由并发或重启后的请求校验采用，目录提交重读已登记身份，失败不删除其正式数据库。示例重置在新数据初始化和最终目录事务成功后才清理旧备份；此前失败恢复旧目录，插件启用与重置记录一起提交。备份清理失败保留已成功的正式目录。
+
+Home 插件动作的 JSON 请求按 UTF-8 字节计数，上限 12 MiB，以容纳受插件校验的图文输入；超限返回 413，错误 JSON 返回 400。其他调用 `readLocalWebBody` 的入口保留 256,000 字节上限。越界后停止累积请求内容，仍保留现有 Host、Origin、令牌和一次性键校验。验证见 `tests/issue-home-runtime.test.ts` 的跨入口图文用例。
+
+Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 Issue 已有图文输入上限一致；图片仍由 Runtime 实际接收，并检查所选模型的视觉能力，不截断附件或用文字替代图片。

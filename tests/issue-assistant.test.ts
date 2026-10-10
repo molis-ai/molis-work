@@ -67,7 +67,7 @@ test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal
   };
   const send = async (text: string) => request<AssistantSendResult>("/api/assistant/send", { text, request_id: randomUUID(),
     context: { source: { surface: "issues", title: "Issue 页面" }, captured_at: new Date().toISOString() } });
-  const change = (capability_id: string, input: unknown) => reply({ name: "change-capability", input: { capability_id, version: 1, provider_id: ISSUES_PLUGIN_ID, input } });
+  const change = (capability_id: string, input: unknown) => reply({ name: "change-capability", input: { capability_id, version: capability_id === "issues.delete" ? 1 : 2, provider_id: ISSUES_PLUGIN_ID, input } });
   const input = { title: "按确认标题记录", type: "experience", description: "  我的原话\n第二行。\n" };
   const decide = (id: string, view: AssistantWorkView, decision: "approve" | "reject") => request(`/api/assistant/works/${id}/reviews/${view.reviews[0]!.review_id}`, { decision });
   try {
@@ -91,7 +91,7 @@ test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal
     await state(rejected.work.work_id, view => ["completed", "failed"].includes(view.work.state));
     assert.equal((await list()).items.length, 1, "refusing never creates the record");
 
-    replies.push(reply({ name: "read-capability", input: { capability_id: "issues.read", version: 1, provider_id: ISSUES_PLUGIN_ID, input: { id: saved.id } } }),
+    replies.push(reply({ name: "read-capability", input: { capability_id: "issues.read", version: 2, provider_id: ISSUES_PLUGIN_ID, input: { id: saved.id } } }),
       change("issues.update", { id: saved.id, expected_version: 1, title: "助理准备的修改" }), reply());
     const edit = await send("把刚才那条问题的标题改成助理准备的修改。");
     const stale = await state(edit.work.work_id, view => view.reviews.length > 0);
@@ -101,7 +101,7 @@ test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal
     assert.ok(ended.rounds.some(round => round.activity.some(action => action.capability_id === "issues.update" && action.state === "failed")));
     const actual = (await list()).items[0]!; assert.equal(actual.title, "页面已先修改"); assert.equal(actual.version, 2);
 
-    replies.push(reply({ name: "read-capability", input: { capability_id: "issues.read", version: 1, provider_id: ISSUES_PLUGIN_ID, input: { id: saved.id } } }),
+    replies.push(reply({ name: "read-capability", input: { capability_id: "issues.read", version: 2, provider_id: ISSUES_PLUGIN_ID, input: { id: saved.id } } }),
       change("issues.update", { id: saved.id, expected_version: 2, title: "核对后确认的标题" }), reply());
     const fresh = await send("重新读取后，把标题改成核对后确认的标题。");
     const freshReview = await state(fresh.work.work_id, view => view.reviews.length > 0);
@@ -111,7 +111,7 @@ test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal
     const updated = (await list()).items[0]!;
     assert.equal(updated.title, "核对后确认的标题"); assert.equal(updated.version, 3); assert.equal(updated.description, input.description);
 
-    replies.push(reply({ name: "read-capability", input: { capability_id: "issues.list", version: 1, provider_id: ISSUES_PLUGIN_ID, input: {} } }),
+    replies.push(reply({ name: "read-capability", input: { capability_id: "issues.list", version: 2, provider_id: ISSUES_PLUGIN_ID, input: {} } }),
       change("issues.delete", { id: saved.id, expected_version: 3 }), reply());
     const deletion = await send("查看列表，删除刚才核对过的那条问题。");
     const deleteReview = await state(deletion.work.work_id, view => view.reviews.length > 0);

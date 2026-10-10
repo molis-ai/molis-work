@@ -30,11 +30,27 @@ export class HomePluginHost {
   private platform?: HomePluginPlatform;
   private db?: ReturnType<typeof openBaselineHomeSqlite>;
   private closed = false;
+  private retryable = false;
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient; entries: readonly HomePluginEntry[] }) {}
 
   ready(): Promise<HomePluginPlatform> {
     if (this.closed) return Promise.reject(new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭"));
-    return this.opening ??= this.start();
+    return this.opening ??= this.open();
+  }
+  retry(): Promise<HomePluginPlatform> {
+    if (this.closed || !this.retryable) return this.ready();
+    return this.opening = this.open();
+  }
+  private async open(): Promise<HomePluginPlatform> {
+    this.retryable = false;
+    try { return await this.start(); }
+    catch (error) {
+      // A failed cleanup must not allow a second instance beside unreleased resources.
+      try { await this.release(); }
+      catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与清理失败"); }
+      this.retryable = true;
+      throw error;
+    }
   }
   installations(): PluginInstanceRecord[] { return this.platform?.runtime.list() ?? []; }
   installation(providerId: string): PluginInstanceRecord | null {
@@ -43,16 +59,23 @@ export class HomePluginHost {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    try { await this.opening; } catch { /* Startup failure was reported to its callers and released by open(). */ }
+    await this.release();
+  }
+  private async release(): Promise<void> {
     const failures: unknown[] = [];
     try {
-      const platform = await this.opening;
+      const platform = this.platform;
       for (const record of platform?.runtime.list() ?? []) {
         if (record.state === "running") {
           try { await platform!.runtime.stop(record.install_id, { preserve_enabled: true }); } catch (error) { failures.push(error); }
         }
         platform!.supervisor.revoke(record.plugin_id);
       }
-    } finally { this.db?.close(); }
+    } finally {
+      this.db?.close();
+      this.db = undefined; this.platform = undefined;
+    }
     if (failures.length) throw new AggregateError(failures, "Home 插件关闭失败");
   }
   private async start(): Promise<HomePluginPlatform> {

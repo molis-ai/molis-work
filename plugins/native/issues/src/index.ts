@@ -11,3 +11,5 @@ export * from "./plugin.js";
 export * from "./ui.js";
 export * from "./client.js";
 export * from "./methods.js";
+
+export { IssueCaptures, type IssueDraft, type IssueCapture } from "./capture.js";

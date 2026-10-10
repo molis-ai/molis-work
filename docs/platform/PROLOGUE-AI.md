@@ -222,3 +222,5 @@ Shelf 自动动作经 `shelf.jobs.generate` → `ShelfAiPorts` → Host 配置�
 Builder `images` 是宿主持有的 PNG 字节（最多 9 张、总共 12 MiB），经授权目录的 Prologue Intake 发布为资源，再作为 `start.attachments` 传入。同一 Home Runtime 负责模型、凭据、取消与协议发送；运行 JSON 不保存 base64。临时文件与图片资源在结束后清除/撤销。`resources.stage` 的 JS 字节不能替代 Host-backed Intake 附件。
 
 UI 复查只使用隔离验收数据，不截整个工作台；只使用当前选定且声明 `vision: true` 的模型，缺失或失败时不宣称视觉通过。
+
+Work 助理的 Agent 图文材料路径当前最多 6 张图，与 Issue 图文草稿上限一致，入口和适配器均独立检查；直接 inference 的原图上限仍是 30 张。图片不静默截断，不支持视觉的模型拒绝这轮请求。

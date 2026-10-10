@@ -1,6 +1,7 @@
 import { bindPluginActionRoute } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { issueActionHandlers, issuesActions } from "./actions.js";
+import type { IssueDraft } from "./capture.js";
 import { issuesManifest } from "./manifest.js";
 import { IssueStore, type IssueCreate, type IssueDelete, type IssueList, type IssueUpdate } from "./store.js";
 import { issuesUiContribution } from "./ui.js";
@@ -10,6 +11,8 @@ export function createIssuesPlugin(): PluginDefinition {
     if (!context.actor_id || !context.services?.database) throw new Error("Issue 需要个人 Home 与插件数据库服务");
     const store = new IssueStore(context.services.database, context.actor_id);
     return { kind: "app", actions: issueActionHandlers(store), views: [issuesUiContribution], routes: [
+      bindPluginActionRoute(context, issuesActions.prepare, request => request.body as IssueDraft),
+      bindPluginActionRoute(context, issuesActions.cancel, request => request.body as { draft_id: string }),
       bindPluginActionRoute(context, issuesActions.list, request => ({
         ...(request.query.type ? { type: request.query.type as IssueList["type"] } : {}),
         ...(request.query.limit ? { limit: Number(request.query.limit) } : {}),

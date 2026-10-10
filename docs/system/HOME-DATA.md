@@ -67,7 +67,7 @@
 
 | 路径 | owner 与打开它的代码 | 版本 · 日志 | 表 |
 | --- | --- | --- | --- |
-| `issues/issues.db` | Issue 业务 owner：`plugins/native/issues/src/store.ts`；Host 通过 `apps/local-host/src/plugin-database.ts` 打开 | 1 · WAL | `issues` |
+| `issues/issues.db` | Issue 业务 owner：`plugins/native/issues/src/store.ts`；Host 通过 `apps/local-host/src/plugin-database.ts` 打开 | 2 · WAL | `issues` |
 | `images/images.db` | `plugins/native/images/src/store.ts:50`、`:57`，基线 `:17` | 1 · 回滚 | `connections`、`jobs` |
 | `pages/pages.db` | `plugins/native/pages/src/store.ts:463`，基线 `:433` | 1 · 回滚 | `pages`、`folders`、`page_generations`、`page_changes`、`page_imports` |
 | `form/form.db` | `plugins/native/form/src/store.ts:381`，基线 `:350` | 2 · 回滚 | `forms`、`submissions`、`form_copies` |

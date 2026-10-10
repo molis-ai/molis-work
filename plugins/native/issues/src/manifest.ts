@@ -15,6 +15,8 @@ export const issuesManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: ISSUES_ACTIONS,
   methods: issuesMethods.map(({ body: _body, ...method }) => ({ ...method, tools: [...method.tools] })),
   routes: [
+    { route_id: "issues.prepare", method: "POST", path: "/prepare", permission: "issues:write" },
+    { route_id: "issues.cancel_capture", method: "POST", path: "/cancel-capture", permission: "issues:write" },
     { route_id: "issues.list", method: "GET", path: "/list", permission: "issues:read" },
     { route_id: "issues.read", method: "GET", path: "/read", permission: "issues:read" },
     { route_id: "issues.create", method: "POST", path: "/create", permission: "issues:write" },

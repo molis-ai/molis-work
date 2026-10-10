@@ -16,7 +16,19 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const entry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.runtime?.scope === "home"
     && (page ? entry.project_plugin_id === page[1] : entry.manifest.plugin_id === route?.[1]));
   if (!entry) return false;
-  const platform = await host.homePlugins.ready(), pluginId = entry.manifest.plugin_id;
+  const pluginId = entry.manifest.plugin_id, operation = route ? url.pathname.slice(`/api/plugins/${pluginId}/`.length) : "";
+  if (operation === "retry" && request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 重试启动" }); return true; }
+  let platform;
+  try { platform = await (operation === "retry" ? host.homePlugins.retry() : host.homePlugins.ready()); }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (page) {
+      response.writeHead(503, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
+      response.end(renderHomePluginPage(entry, null, message, controlToken, true));
+    } else sendLocalWebJson(response, 503, { error: message });
+    return true;
+  }
+  if (operation === "retry") { sendLocalWebJson(response, 200, { ready: true }); return true; }
   const install = host.homePlugins.installation(pluginId);
   if (page) {
     if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "请通过 GET 打开页面" }); return true; }
@@ -27,7 +39,6 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     response.end(renderHomePluginPage(entry, html, platform.supervisor.state(pluginId)?.message ?? null, controlToken));
     return true;
   }
-  const operation = url.pathname.slice(`/api/plugins/${pluginId}/`.length);
   if (["enable", "disable"].includes(operation)) {
     if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 更改插件状态" }); return true; }
     if (operation === "enable") {
@@ -46,7 +57,10 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const disconnected = () => { if (!response.writableEnded) abort.abort(); };
   request.once("aborted", disconnected); response.once("close", disconnected);
   try {
-    const body = ["GET", "HEAD"].includes(request.method ?? "GET") ? undefined : await readLocalWebBody(request);
+    // Bounded image-bearing Home actions; each plugin additionally validates its own input.
+    let body;
+    try { body = ["GET", "HEAD"].includes(request.method ?? "GET") ? undefined : await readLocalWebBody(request, 12 * 1024 * 1024); }
+    catch (error) { sendLocalWebJson(response, error instanceof RangeError ? 413 : 400, { error: error instanceof Error ? error.message : "请求读取失败" }); return true; }
     const caller = await localWebActionContext(host, undefined, []);
     const result = await router.dispatch({ method: request.method ?? "GET", pathname: url.pathname, query: Object.fromEntries(url.searchParams), body,
       actor_id: LOCAL_PERSON_ACTOR_ID, granted: caller.permissions,

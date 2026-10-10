@@ -66,6 +66,7 @@ test("没有模型时设置页给出一键模板；模板只预填地址、格�
     const empty = await html("");
     for (const template of MODEL_PROVIDER_TEMPLATES) assert.match(empty, new RegExp(`data-model-template="${template.template_id}"`), template.template_id);
     assert.equal((empty.match(/data-model-template=/g) ?? []).length, MODEL_PROVIDER_TEMPLATES.length, "每个模板一个按钮，没有别的");
+    for (const template of MODEL_PROVIDER_TEMPLATES) if (template.base_url !== "") assert.ok(!empty.includes(new URL(template.base_url).host), `${template.template_id}: 页面数据只带显示名，厂商地址留在宿主`);
     assert.match(empty, /data-model-add-provider/, "空状态下仍可以手填一个");
     assert.match(empty, /还没有配置供应商/);
     assert.ok(MODEL_PROVIDER_TEMPLATES.some((t) => t.api_format === "anthropic-messages") && MODEL_PROVIDER_TEMPLATES.some((t) => t.api_format === "openai-chat-completions"), "Prologue 支持的两种格式都有模板");

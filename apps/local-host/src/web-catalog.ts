@@ -29,8 +29,7 @@ import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/action
 import { handleModelSettingsHttp } from "./web-model-settings.js";
 import { capabilitiesView } from "./web-capabilities.js";
 import type { CapabilitySection } from "@molis-ai/molis-work-app-workbench";
-import { modelProviderDraft } from "./model-provider-setup.js";
-import { modelTemplateChoices } from "./model-provider-templates.js";
+import { modelTemplatePageData } from "./model-provider-setup.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -219,14 +218,12 @@ export async function handleLocalCatalogWebRequest(
     const runtimes = section === "runtimes" ? await runtimeIntegrations.detectAll() : [];
     const modelConnections = section === "models" && serverOptions.homeDirectory
       ? listConnectorConnectionViews(serverOptions.homeDirectory, "model-api") : [];
-    const draft = section === "models" && url.searchParams.get("new") === "1" ? modelProviderDraft(url.searchParams.get("template")) : null;
     const model_settings = section === "models" ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => ({
       providers: catalog.models.list(), health: catalog.models.health(), connections: modelConnections,
       selected_connection_ids: Object.fromEntries(catalog.models.list().map((provider) => [provider.provider_id,
         modelConnections.find((connection) => withConnectorConnections(serverOptions.homeDirectory!, (store) => store.require(connection.connection_id).credential_ref === provider.credential_ref))?.connection_id ?? ""])),
       selected_provider_id: url.searchParams.get("provider"),
-      templates: modelTemplateChoices(),
-      ...(draft ? { draft_provider: draft.provider, draft_template_id: draft.template_id } : {}),
+      ...modelTemplatePageData(url.searchParams),
     })) : undefined;
     const membership = await pluginMembership(contextProject?.project_id ?? null);
     response.writeHead(200, {

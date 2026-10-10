@@ -28,7 +28,6 @@ import { todoActionProvider } from "./todo-actions.js";
 import { lingguangActionProvider } from "./lingguang-actions.js";
 import { scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
-import { experimentsActionProvider } from "./experiments-actions.js";
 import { workflowsActionProvider } from "./workflows-actions.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
 import { ActionCallLog } from "./action-call-log.js";
@@ -236,7 +235,6 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(todoActionProvider(options.homeDirectory, options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(cogniaActionProvider(options.homeDirectory, this.homeActionClient(), options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(shelfActionProvider(options.homeDirectory));
-    if (options.homeDirectory) this.host.actionRegistry().registerProvider(experimentsActionProvider(options.homeDirectory, this.homeActionClient()));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(connectorAccountActionProvider(options.homeDirectory));
     if (options.homeDirectory) {
       // Remote MCP servers connected in 服务连接: what each last offered is back in the directory at start.

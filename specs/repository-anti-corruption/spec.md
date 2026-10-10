@@ -9,7 +9,7 @@
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。
-- **范围**：全仓 71 个 workspace 包（2026-10-08，`scripts/workspace-packages.mjs` 的 `WORKSPACE_PACKAGES`：`apps` 6、`horizontal` 8、`modules` 13、`packages` 10、`plugins/native` 26、`plugins/official-integrations` 6、`server` 1、`tooling/plugin-cli` 1）。开工时是 73 个，`modules/execution` 与 `modules/evidence-verification` 随 #268 删除。每个包都至少做一次结构审查，交出 §5 的包级清单。
+- **范围**：全仓 71 个 workspace 包（2026-10-08，`scripts/workspace-packages.mjs` 的 `WORKSPACE_PACKAGES`：`apps` 6、`horizontal` 8、`modules` 13、`packages` 10、`plugins/native` 26、`plugins/official-integrations` 6、`server` 1、`tooling/plugin-cli` 1）。开工时是 73 个，`modules/execution` 与 `modules/evidence-verification` 随 #268 删除；2026-10-10 实验插件删除（`plugins/native/experiments`）后是 70 个，`plugins/native` 25。每个包都至少做一次结构审查，交出 §5 的包级清单。
 - **在途的其他线**（开工前要重新核对）：`feature/side-shelf`、`feat/plugin-picker-pins`、`docs/archive-project-arrival-flow`、`feature/fix-project-management-freeze`（另一工作树）、Codex 工作树 `~/.codex/worktrees/d62d`。
 
 ## 1. 决策记录与待决事项
@@ -470,7 +470,7 @@
 一个隔离 Home（QA Home，跑过一轮场景）里 Molis 自己的库共 30 个：
 
 - 个人库 16 个：`{name}/{name}.db`，名单在 `packages/storage/src/home-sqlite.ts` 的 `PERSONAL_HOME_SQLITE_STORES`；
-- 其他 Home 级库：`projects/catalog.db`、`assistant/assistant.db`、`sessions/sessions.db`、`placement/placement.db`、`agent-definitions/agent-definitions.db`、`characters/characters.sqlite`、`agent-runtime/.molis-runtime-owner.db`、`plugins/experiments/private.sqlite`；
+- 其他 Home 级库：`projects/catalog.db`、`assistant/assistant.db`、`sessions/sessions.db`、`placement/placement.db`、`agent-definitions/agent-definitions.db`、`characters/characters.sqlite`、`agent-runtime/.molis-runtime-owner.db`；
 - 每个项目一个 `projects/<id>/molis-work.db`；炼金术士每个项目一个 `alchemist/projects/<id>/studio.sqlite`；
 - 锁库：`images` 的运行锁与 runner 库、`feed/secrets.lock.sqlite`。
 
@@ -618,7 +618,7 @@
 | 会话库 `sessions/sessions.db` | 7 | `session_meta.schema_version` |
 | Functions | 3 | `user_version` |
 | Form、记忆、助理 | 2 | `user_version` |
-| 连接、Agent 定义、引导、放置、炼金术士工作室、炼金术士搜索库、实验私有库、server、Cognia、Dataset、Images、Jelly、灵光、Pages、PPT、Todo、Workflows | 1 | `user_version` |
+| 连接、Agent 定义、引导、放置、炼金术士工作室、炼金术士搜索库、server、Cognia、Dataset、Images、Jelly、灵光、Pages、PPT、Todo、Workflows | 1 | `user_version` |
 
 **保留下来、不算兼容的机制**（门禁里剩的 17 处标记都在这几类里）：
 
@@ -633,7 +633,7 @@
 
 ## 5. 包级清单（§4.4）
 
-分三个 PR 交（W1-18）：第一个就是这一版，71 个 workspace 包的事实表，每行带状态和计划审查深度；第二个逐包深审「深」11 个和「中」43 个；第三个审「浅」17 个，并把未深入或无法验证的范围写进 §8。审完的包，把「主要文件及各自的变化原因、放错位置的类和方法、重复实现、建议的移动」写在 §5.2 之后，审查列由「待审」改为「已审」。每个包的 README 都有「开发要求」一节（公开入口、负责与不负责、依赖、不变量、必跑测试），71/71 过 `pnpm boundary:check`。
+分三个 PR 交（W1-18）：第一个就是这一版，71 个 workspace 包的事实表，每行带状态和计划审查深度；第二个逐包深审「深」11 个和「中」43 个；第三个审「浅」17 个，并把未深入或无法验证的范围写进 §8。审完的包，把「主要文件及各自的变化原因、放错位置的类和方法、重复实现、建议的移动」写在 §5.2 之后，审查列由「待审」改为「已审」。每个包的 README 都有「开发要求」一节（公开入口、负责与不负责、依赖、不变量、必跑测试），现在 70/70 过 `pnpm boundary:check`。
 
 ### 5.1 事实表
 
@@ -692,7 +692,6 @@
 | `plugins/native/cognia` | 内置插件 | 16 | 723 | `store.ts` 151 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
 | `plugins/native/dataset` | 内置插件 | 16 | 2,042 | `client.ts` 694 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
 | `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 待审 |
-| `plugins/native/experiments` | 内置插件 | 10 | 740 | `styles.ts` 164 | 1 | 1 | 2 | 构建期 | 浅 | 待审 |
 | `plugins/native/feed` | 内置插件 | 46 | 5,644 | `ui.ts` 698 | 1 | 2 | 3 | 构建期 | 中 | 待审 |
 | `plugins/native/files` | 内置插件 | 16 | 1,177 | `manifest.ts` 150 | 1 | 1 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/form` | 内置插件 | 17 | 2,545 | `client.ts` 930 | 1 | 3 | 2 | 构建期 | 中 | 待审 |
@@ -741,7 +740,7 @@
 
 **计划深度**按风险定（任务书 §0：深入程度按风险决定）。四个量各给分：源文件行数 ≥ 9,000 记 2 分、≥ 3,000 记 1 分；2026-09-08（Cutover）以来碰过这个包的非合并提交数 ≥ 100 记 2 分、≥ 40 记 1 分；被依赖数 ≥ 17 记 2 分、≥ 4 记 1 分；`tooling/gates/baseline.json` 里记在它名下的巨大单元数 ≥ 10 记 2 分、≥ 4 记 1 分。总分 ≥ 4 为「深」。另有两个包放在授权脊梁上，也列「深」：`packages/kernel`（`ActionService`：可信身份、`beforeEffect`、撤销后不再写，见 `AGENTS.md` 硬约束）和 `packages/plugin-runtime`（安装、grant、签名）；每个能力调用和每次插件安装都经过它们，体量小，出错的代价最大。其余有 ≥ 1,000 行源码、或有巨大单元、或被 ≥ 3 个包依赖的为「中」，再其余为「浅」。结果：深 11（`apps/local-host`、`apps/workbench`、`horizontal/agent-host`、`modules/goals`、`packages/contracts`、`packages/design-system`、`packages/kernel`、`packages/plugin-runtime`、`plugins/native/coding`、`plugins/native/goals`、`plugins/native/pages`）、中 43、浅 17。深度是计划，不是门禁：以后某个包越过阈值不会让门禁变红，审它的时候再按当时的数重定。
 
-**审查**：「待审」是还没做 §4.4 的结构审查，「已审」是做完并在 §5.2 之后写了逐包记录。现在 71 个包都是待审。
+**审查**：「待审」是还没做 §4.4 的结构审查，「已审」是做完并在 §5.2 之后写了逐包记录。现在 70 个包都是待审。
 
 ### 5.x 本轮补记的清单项（2026-10-03）
 
@@ -941,7 +940,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | §4.1 清除兼容逻辑 | 已完成（10-07）：兼容逻辑删到只剩下面保留的机制；每个库一份当前 schema、版本不符拒绝；真实 Home 维护三已做并逐库核对；防回流门禁在 CI（#283） | §4.1 末尾 |
 | §4.2 调用链文档 | 部分（W1-14 已做，#319）：[`docs/system/CALL-CHAINS.md`](../../docs/system/CALL-CHAINS.md) 八条链，每个环节写归谁、输入输出、身份与权限、失败时、事件与记录，§10 登记长期例外与已定要修的偏离；`specs/action-architecture/spec.md` §3 末尾的「基本合同复核」逐类核对了八类新合同（缺口 G1–G9，见 §3 N-04）。余：调用 id 贯通 W3-01；`/api/functions/by-key/*` 没有被调用链文档裁定（BL-081 ②）；§10 末尾列的一批只走 HTTP 的写入还没有逐条盘点 | roadmap §4.2、`docs/system/CALL-CHAINS.md` |
 | §4.3 分层与边界 | 部分：N-03 已按决定 #2 记为「平台产品服务」（#296），记忆与放置两页已补（`docs/horizontal/memory.md`、`placement.md`，#319），代码不搬；N-12 方案已定（决定 #1），删桥与单一 id 待做（W2-08、W2-09、W3-07）；N-04 的基本合同复核已做（缺口 G1–G9）；边界规则 W1-05（还没有合入 main） | §3 N-03、N-04、N-12 |
-| §4.4 包级清单 | 部分（W1-18 的第一个 PR 已做，#322）：事实表是 71 个包，带层、状态（在用 42、Runtime 7、构建期 19、非产品 3）与计划深度（深 11、中 43、浅 17），`scripts/gates/package-inventory.mjs` 在健康门禁里守表；逐包深审（深 11、中 43）与浅审（17）待做，审查列现在 71 个都是「待审」 | §5.1、§5.2 |
+| §4.4 包级清单 | 部分（W1-18 的第一个 PR 已做，#322）：事实表是 70 个包，带层、状态（在用 42、Runtime 7、构建期 18、非产品 3）与计划深度（深 11、中 43、浅 16），`scripts/gates/package-inventory.mjs` 在健康门禁里守表；逐包深审（深 11、中 43）与浅审（16）待做，审查列现在 70 个都是「待审」 | §5.1、§5.2 |
 | §4.5 巨大单元 | 部分（W1-19 已做，#320）：门禁对照合并基点，只减不增（164 个单元）；`docs/system/HUGE-CLASS-MIGRATION.md` 重写为每个单元一个判定（拆、归线、例外）和计划，2026-09 的迁移记录移入 `docs/archive/huge-class-migration-2026-09.md`；`tooling/gates/giant-exceptions.json` 登记 4 个必然很长的单元，由门禁校验、不放行新增。拆分待做：W4-05～W4-07、W5-09、W5-10 | `tooling/gates/baseline.json`、`docs/system/HUGE-CLASS-MIGRATION.md`、§3 N-08 |
 | §4.6 扩展点与插件平台 | 部分（W1-15 已做，#317）：[`docs/system/EXTENSION-POINTS.md`](../../docs/system/EXTENSION-POINTS.md)（15 个方向各写怎么加、现在要改的位置、目标，另有六个下一步功能的推演）、`RUNTIME-MIGRATION.md`（迁移计划与批准的构建期例外）、`THIRD-PARTY-PLUGINS.md`（安装方案，只是计划）；`LOCAL-HOST.md`、`PLUGIN-DEVELOPMENT.md` 的装配说法已改。余：`skills/molis-plugin-dev/host.md` 的必改步骤与 AGENTS.md 的说法未改（EXTENSION-POINTS §6，BL-119，W6-03）；装配名单冻结 19 个、未减少；迁移从 W4-04（Form）起 | `docs/system/EXTENSION-POINTS.md`、`tests/builtin-plugin-assembly-gate.test.ts`、§3 R-01 |
 | §4.7 多人并行 | 部分（W1-13 已做，#314；健康门禁对照合并基点 #293、密钥扫描进 CI #294 更早合入）：`docs/system/PARALLEL-DEVELOPMENT.md`（枢纽文件、排时段、集成分支、基线比对、Agent 锁、清理、PR 体量）、`docs/system/CONTRACT-CHANGES.md`（现在不留兼容期；读取兼容从第一个装到开发机之外的版本开始，日期未到）、`.github/CODEOWNERS` 与 SSOT 各表「归属」列（由 `scripts/package-owners.mjs` 生成，`pnpm boundary:check` 校验）、PR 模板新栏目、`AGENTS.md` 指针。待做：公开 API 快照 W1-04、动作合同快照 W2-15、挑相关用例脚本 W2-17、CI 产品子集 W1-11/W2-16、插件回放工具 W4-01、测试并发隔离 W5-12、Prologue SDK 合成负责人（W1-20 提名）、固定记录 main 最新全量数字的位置（`PARALLEL-DEVELOPMENT.md` 没有定义，归 W6-05）；CODEOWNERS 现在只路由包根目录，Coding、Jelly、Shelf 在宿主与外壳里的代码未路由 | §1、`docs/system/PARALLEL-DEVELOPMENT.md` |

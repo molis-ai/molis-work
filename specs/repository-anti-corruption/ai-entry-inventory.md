@@ -1,6 +1,6 @@
 # 生产 AI 入口清单与分类（W2-18，交付第 12 项）
 
-状态：清点与结论（2026-10-09，main `11878059`）；本文只读代码、不改代码。每一行都对着代码核过；核对用到的四种证据在 §0 写明，凡「读码」以外的都能照 §8 复现。
+状态：清点与结论（2026-10-09，main `11878059`）；本文只读代码、不改代码。2026-10-10 实验插件已删（spec §1）：涉及它的行已去掉，计数按差值扣减（动作 `experiments.run`），编号 JD-4、EX-1、EX-2 不重排。每一行都对着代码核过；核对用到的四种证据在 §0 写明，凡「读码」以外的都能照 §8 复现。
 
 任务要求：`docs/prompts/repository-anti-corruption.md` 交付第 12 项（下沉 Prologue、产品内共享、保留业务层和暂缓的能力及理由），以及 `docs/prompts/repository-systematic-review.md` §8（清点全部生产 AI 入口，核对真实调用链，不能只看 import）。路线上的位置见 [roadmap-2026-10-07.md](roadmap-2026-10-07.md) 的 W2-18 与「覆盖缺口」一节；进度与决定在 [spec.md](spec.md)。同一片的另外两份产出：[逐插件结论](plugin-conclusions.md)、[前端动线走查](frontend-flow-walk.md)。
 
@@ -30,14 +30,13 @@
 
 1. **没有供应商直连。** 对 `apps`、`packages`、`modules`、`horizontal`、`plugins`、`server`、`tooling` 的源码逐项搜了出站调用的各种写法（`fetch(`、`(x ?? fetch)(`、`globalThis.fetch`、`https.request`、`undici`、`new WebSocket(`、`createConnection(`、原生组件的模型下载）和各家 API 域名与名字（OpenAI、Anthropic、x.ai、MiniMax、Gemini、DashScope、DeepSeek、Moonshot、OpenRouter、Ollama、LM Studio 等）：服务端没有任何一处直接向模型厂商发请求。**模型、图片与判断服务之外，Molis Work 自己发起的出站网络共 13 类，都不是模型调用**，逐类写在 §3.10（每类的主机、触发、限制与代码位置）：（1）连接器；（2）RSS 与 YouTube 的白名单传输；（3）AnySearch 检索，有两条出站代码：3a 炼金术士的研究阶段用 Host 自带的 `anysearch-transport.ts`，主机名经第 10 类的公共 DNS 回退解析；3b Feed 的网页搜索来源用 vendored Search Evidence Layer 自带的钉死 HTTPS 宿主，只用系统 DNS，不经回退；（4）用户点名的网页与链接读取；（5）插件创作台里生成的插件的出站；（6）Casebook 参考客户端（仓库里没有生产代码用它）；（7）炼金术士市场脉搏自带的三个公开来源，其中 GitHub 来源的令牌直接读环境变量 `GITHUB_TOKEN`，不经连接器也不是密钥引用（[plugin-conclusions.md](plugin-conclusions.md) E-16）；（8）本机内部（回环地址）；（9）**插件创作台的构建检查替生成项目从 `registry.npmjs.org` 下载依赖包**；（10）**主机名的公共 DNS 回退，有两套实现：模型、图片、判断的端点与炼金术士研究所用 AnySearch，在设了代理变量且系统解析返回 198.18/15 假地址时，经 HTTPS 向 `dns.google`、`dns.alidns.com` 查询主机名；Jelly 读网页另有一份，系统解析的答案全是假地址时向 `dns.google` 查被读网页的主机名**；（11）**本机转写模型下载：用户明确允许时，Whisper 组件下载约 626 MB 的模型**；（12）**侧栏浏览器：本机启动的 Chrome 子进程，访问人或助理要打开的网页**；（13）**Feed「研究库」来源：Host 起 `git` 子进程向 `github.com/<owner>/<repo>.git` 浅拉取**。范围之外的也在 §3.10 末尾写明：用户在终端里运行的命令、审查队列批准后运行的命令与 `git push`、外部 Agent 自己的联网，都是用户的动作，不算 Molis Work 的出站。（这份清单被评审修正过四次：第一次扫描的命令把名字带 `client` 的文件排除了，漏了第 7 类；评审后又补了第 9、10 类，前者的写法 `(options.fetch ?? fetch)(url)` 不被原正则匹配，后者其实命中了原正则（`node-model-dns.ts:17`）却没有被归类；第 11、12 类不在 TypeScript 里（Swift 组件、Chrome 子进程），第 13 类是 `git` 子进程，都是扩大到子进程后补的。§8 的命令不排除任何文件，另有一条子进程扫描；第三次评审又指出第 3 类把 Feed 的网页搜索也写成走 `anysearch-transport.ts` 与公共 DNS 回退，实际只有炼金术士走那里，Feed 走 vendored SEL 自带的宿主：71 个文件只覆盖仓库自己的源码，当时只解开了 Prologue 的包，没有解开 SEL 与 intelligence-client，现在补上，见 §3.10 末段「vendored 包内部」。第四次评审指出 §8 的正则仍匹配不到 `.fetch(`、`fetcher(`、`fetchImpl(` 这类写法（被注入的取数函数、`lifetime.fetch(`），漏了 10 个文件：5 个是服务端或集成包里真实的出站代码（项目上手直读 Gmail、Jelly 的站点适配器、连接器的 API 授权、目录连接器的 HTTP 层、RSS 的 DNS 校验），4 个是浏览器页面脚本，1 个是进程内调用而不是出站；现在 §8 的扫描加宽到 81 个文件，逐个对到类，另加一遍按主机名字面量的扫描。补查时发现 Jelly 读网页自带一份公共 DNS 回退（第 10 类的第二套实现），并更正了第 4 类的目的地与限制，补上第 1 类的项目上手 Gmail。）`@prologue/sdk` 只被 `horizontal/agent-host` 的 21 个 `.ts` 文件导入（`git grep -l "@prologue/sdk" -- 'horizontal/**/*.ts'`；别处只有文档、包声明、工作区配置与测试提到它），与 AGENTS.md 硬约束一致。[已确认]
 2. **所有文字与图片模型调用都经同一个 Home 的 Prologue 推理端口。** 清单 45 行（§3），分成两条路：有界调用走 `hostCompleteText`/`hostTextGeneration`（宿主 `apps/local-host/src/host-complete-text.ts`）→ `resolvePrologueInference(home)` → agent-host 的 `createPrologueInference`；Agent 运行走 `AgentHost.start("prologue", …)`。两条路在派出前都带「复查授权、复查配置与凭据快照、可取消、有时限」，被取消或撤权的调用不写记录。[已确认，G+R]
-3. **等模型的动作 100% 声明并发调度并披露成本。** 目录里 38 个带模型、判断或生成权限的动作，其中 34 个声明了 `cost: "metered"`；这 34 个里只有 5 个是串行的（实验的 `experiments.run`、图片的 `images.jobs.start`、Alchemist 的三个 `*.start`），每个都是「立刻返回、后台执行」，并在 `SERIAL_BY_DESIGN` 里写了理由；门禁测试守着。其余 4 个（三个 `scenes.enable:*` 与 `images.jobs.cancel`）是配置或取消，不等模型。[已确认，G+P]
+3. **等模型的动作 100% 声明并发调度并披露成本。** 目录里 37 个带模型、判断或生成权限的动作，其中 33 个声明了 `cost: "metered"`；这 33 个里只有 4 个是串行的（图片的 `images.jobs.start`、Alchemist 的三个 `*.start`），每个都是「立刻返回、后台执行」，并在 `SERIAL_BY_DESIGN` 里写了理由；门禁测试守着。其余 4 个（三个 `scenes.enable:*` 与 `images.jobs.cancel`）是配置或取消，不等模型。[已确认，G+P]
 4. **指令文字全部登记，用户在「设置 › 提示词」里能看到和改。** `BUILTIN_INSTRUCTIONS` 由各插件的 `instructions` 加宿主自己的 5 条（项目上手 2、信息助手 1、记忆 2）合成；未登记表为空。[已确认，G+R]
-5. **绕过 `horizontal/agent-host` 的只有四类，全部属于「暂缓」口径**，其中一类用户看不见却默认注册、没有任何内置调用方：
-   - 实验里的本地 `grok` 命令行与 `laya` Python 检查点（`experiments-executor.ts`、`experiments-grok.ts`、`experiments-process.ts`）：`docs/system/CALL-CHAINS.md` §10.1 已登记为长期例外。
+5. **绕过 `horizontal/agent-host` 的只有三类，全部属于「暂缓」口径**，其中一类用户看不见却默认注册、没有任何内置调用方：
    - Shelf「对话」里的外部终端 Agent（探测 9 个命令行引擎，`modules/shelf/src/runtimes.ts`）、Sessions 的终端、角色的「用本机 Agent 运行」：用户自己的外部 Agent，经 PTY 终端使用，不是 Molis Work 向模型发请求。
    - 本机 OCR 与语音转写（`apps/local-host/native/materials` 的 Swift 组件，Vision 与 WhisperKit）。
    - agent-host 里的 `CliAgentAdapter`（`claude` 命令行，只读档）：**每个 Home 的 Agent Host 都会注册它**（`agent-host-composition.ts:87`、`:101`，生产只有 `system-agent-service.ts:34` 一处调用 `composeAgentHost` 且没传 `cliRuntimes`），但没有任何内置代码选它——Coding 写死 `runtime_id: "prologue"`（`plugins/native/coding/src/routes.ts:873`），助理 `RUNTIME = "prologue"`（`assistant-service.ts:30`），Schedule 只认 `PROLOGUE_RUNTIME_ID`（`schedule-task-runner.ts`）。[已确认]
-6. **§7 列了 12 项，其中要用户决定的有 6 项**（第 1、2、5、10、11、12 项）。最需要先拍板的是前两项：外部 CLI 运行时是否保留；实验的本地调用要不要进 AGENTS.md 的硬约束里留出例外条款。
+6. **§7 列了 12 项，其中要用户决定的有 5 项**（第 1、5、10、11、12 项）。最需要先拍板的是第 1 项：外部 CLI 运行时是否保留（第 2 项，实验的本地调用要不要进 AGENTS.md，随实验插件删除不再需要）。
 
 ## 2. 公共链：生产入口怎样到达 Prologue
 
@@ -65,7 +64,7 @@ Agent 运行
 
 - 一个 Home 只有一个推理端口：`bindPrologueInference` 对第二个不同的实例抛 `inference.home_in_use`（`prologue-inference-host.ts`）。
 - 凭据只给引用：`credential_ref` + `resolveCredential(ref)`，密钥不进插件、不进事件。
-- 默认模型没有「默认」设置项：`selectConfiguredTextModel` 取供应商列表里第一个「已启用、格式支持、地址合法、凭据可用」的供应商的第一个启用模型（`apps/local-host/src/configured-models.ts`），显式选择从不回退。助理、Pages、Form、Dataset、PPT、Todo、灵光、Workflows、Inbox 都吃这个默认；Jelly、Alchemist、Shelf、插件创作台、实验各有自己的选择入口；Cognia 用默认，但页面标明用的是哪一个（见 [plugin-conclusions.md](plugin-conclusions.md) §3 的横向比较）。
+- 默认模型没有「默认」设置项：`selectConfiguredTextModel` 取供应商列表里第一个「已启用、格式支持、地址合法、凭据可用」的供应商的第一个启用模型（`apps/local-host/src/configured-models.ts`），显式选择从不回退。助理、Pages、Form、Dataset、PPT、Todo、灵光、Workflows、Inbox 都吃这个默认；Jelly、Alchemist、Shelf、插件创作台各有自己的选择入口；Cognia 用默认，但页面标明用的是哪一个（见 [plugin-conclusions.md](plugin-conclusions.md) §3 的横向比较）。
 
 ## 3. 清单
 
@@ -125,10 +124,9 @@ Agent 运行
 | JD-1 | `functions.invoke`、`functions.authoring.preview`、`functions.published.*`（内置 3 条：Inbox 收件、首页下一步、Inbox 下一步） | Functions 服务；无连接时目录里写「请先连接判断服务」。[已确认，P] |
 | JD-2 | `inbox.judgment.evaluate`、`home.judgment.evaluate`、`feed.rules.evaluate`、`feed.rules.preview-judgment` | 经场景绑定调规则；`inbox.judgment.evaluate` 与 `home.judgment.evaluate` 没有绑定规则时不可用（`actions.binding_required`）；`feed.rules.*` 目录里可用、调用时才依赖规则。自动触发要用户先启用场景（`scenes.enable:*`，三项，权限里带 `model:invoke`）。[已确认，P] |
 | JD-3 | 情境判断（选区旁推荐动作） | `apps/local-host/src/contextual/contextual-http.ts` 的 `jevEvaluator`：直接调 `resolvePrologueInference(home).evaluateTypeSafe`，不经动作目录。无判断连接时返回空推荐。[已确认，R] |
-| JD-4 | 实验里的「Jev」参试者 | `experiments-executor.ts`，经 `createPrologueTypeSafeProvider`。[已确认，R] |
 | JD-5 | 插件创作台的设计选择 | `plugin-builder-surface.ts`，同上；Jev 不可用时沿用整页设计（`agent-workflow.ts` 的 fallback 步骤）。[已确认，R] |
 
-`TYPESAFE_API_KEY` 环境变量会盖过 Home 里选的判断连接（`functions-host.ts`、`contextual-http.ts:108`、`experiments-executor.ts:18`、`plugin-builder-surface.ts:11`）；Functions 设置页会显示「来自 TYPESAFE_API_KEY」（`apps/workbench/src/functions/en.ts`），但 `docs/` 里没有写这个变量。见 §7 第 6 项。[已确认]
+`TYPESAFE_API_KEY` 环境变量会盖过 Home 里选的判断连接（`functions-host.ts`、`contextual-http.ts:108`、`plugin-builder-surface.ts:11`）；Functions 设置页会显示「来自 TYPESAFE_API_KEY」（`apps/workbench/src/functions/en.ts`），但 `docs/` 里没有写这个变量。见 §7 第 6 项。[已确认]
 
 ### 3.5 图片
 
@@ -157,8 +155,6 @@ Agent 运行
 
 | ID | 入口 | 调用链 | 说明 |
 | --- | --- | --- | --- |
-| EX-1 | 实验的 `grok` 参试者 | `experiments-executor.ts` → `experiments-grok.ts`：用 `--cwd` 临时目录、`GROK_*` 环境关掉记忆、插件、MCP、网页搜索、子代理，执行前后核对会话记录证明隔离，实际模型不是 `grok-4.6` 就判无效 | 暂缓；`CALL-CHAINS.md` §10.1 已登记。绕过 agent-host，凭据是本机 `~/.grok` 登录，不经 Home 的凭据存储。[已确认] |
-| EX-2 | 实验的 `laya` 参试者 | `experiments-process.ts` 起 Python 子进程跑 `apps/local-host/tooling/experiments/laya-worker.py`，180 秒加载与推理上限，输出上限 1,000,000 字符 | 暂缓；只在设了 `MOLIS_LAYA_PYTHON`、检查点目录和固定 revision 后可用。[已确认] |
 | EX-3 | Shelf「对话」里的外部终端 Agent | `modules/shelf/src/runtimes.ts` 的 `SHELF_ENGINES`（grok、claude、gemini、opencode、cursor-agent、codex、kimi、codebuddy、qwen）与自定义运行时，只用 `spawnSync` 探测本机有哪些（`--help` 只在显式作业时探）；对话本身是 `plugins/native/shelf/src/terminal-client.ts` 接 `/pty` 的终端，用户和所选 Agent 在终端里说话 | 暂缓；模块里的注释写明「Manual terminal discovery. Automatic recipes use the independent AI port」，自动配方走 TX-12（Prologue），两者互相独立。[已确认] |
 | EX-4 | 角色的「用本机 Agent 运行」 | `plugins/native/characters`：`characters.launch` + 角色导入读 `~/.codex`、`~/.claude`、`~/.cursor`、`~/.grok` 等（只读扫描） | 暂缓。[已确认] |
 | EX-5 | Sessions 的终端与外部 Runtime 会话 | `plugins/native/work/src/terminal`、`horizontal/runtime-host/src/adapters/terminal-pty.ts` | 暂缓；用户在终端里自己运行的 Agent。[已确认] |
@@ -189,7 +185,7 @@ Agent 运行
 | 12 侧栏浏览器 | 人在侧栏浏览器里输入网址，或助理经 Prologue 的界面驱动在同一页上操作 | 任意 http(s) 站点；输入不是地址时落到 `https://www.bing.com/search?q=` | Host 启动的 Chrome 系浏览器（无头、Home 下独立的用户数据目录）；本服务自己的回环地址禁止加载（`forbiddenOrigins`）；助理的每次查看与动作由 Prologue 判断，站点按人允许或屏蔽的决定（`BrowserSiteDecisions`） | `apps/local-host/src/browser/browser-host.ts:41`、`:48-61`、`:146`；`web-server.ts:116-125` |
 | 13 研究库来源 | Feed 的「研究库」来源同步（手动或定时） | `https://github.com/<owner>/<repo>.git` 的 `main`，仓库名来自来源配置，需符合 `owner/repo` 的形状 | Host 起 `git` 子进程 `git fetch --depth=1` 到 Host 自己的裸仓库缓存（`{home}/cache/research-library/<哈希>`），不碰用户的检出；`GIT_TERMINAL_PROMPT=0`；120 秒、输出 16 MiB；只读 `sources.json`、`catalog.json` 和 `packages/<a>/<b>/` 下的 `manifest.json`、`research.json`、`report.md` | `apps/local-host/src/research-library-source.ts:20-27`；调用方 `feed-source-service.ts:11` |
 
-**不算在内的**（是用户的动作或外部 Agent 自己的联网，不是 Molis Work 向外发请求）：用户在终端面板里运行的东西与 Shelf「对话」里的外部 Agent（EX-3、EX-5）；经审查队列批准后宿主运行的命令（Coding 的写入与命令）和 Git 插件批准后的 `git push`、`git pull`、`gh pr create`（`git-operations.ts:165-212`）；实验的 `grok` 子进程（EX-1，它自己联网；`laya` 的环境里 `HF_HUB_OFFLINE` 是 1，`experiments-process.ts:27`）；agent-host 注册的 `claude` 命令行适配器（EX-6，没有调用方）；用户点击的外部链接（桌面壳 `external_links.rs` 交给系统浏览器）。
+**不算在内的**（是用户的动作或外部 Agent 自己的联网，不是 Molis Work 向外发请求）：用户在终端面板里运行的东西与 Shelf「对话」里的外部 Agent（EX-3、EX-5）；经审查队列批准后宿主运行的命令（Coding 的写入与命令）和 Git 插件批准后的 `git push`、`git pull`、`gh pr create`（`git-operations.ts:165-212`）；agent-host 注册的 `claude` 命令行适配器（EX-6，没有调用方）；用户点击的外部链接（桌面壳 `external_links.rs` 交给系统浏览器）。
 
 **vendored 包内部**（三个包各自解开 tgz 扫 `dist`；三个 tgz 的 sha256 都与同目录的 `.sha256` 一致）。**Prologue SDK**：宿主默认全拒出站（`host/plugin/node.js` 里 `allowance = DENY_ALL`），上面说的三条是 Molis Work 声明的全部。解开 vendored 的包（`vendor/prologue-sdk/…tgz`）后扫 `dist`，含联网代码的文件只有五个：节点宿主 `host/plugin/node.js`（模型请求，上面说的两个钩子就挂在它上面）；技能安装 `skill/core/install.js`、插件安装 `plugin/core/install.js`、来源摄取 `source/core/ingest.js` 都只调用调用方给的 `fetch` 端口，Molis Work 唯一给的端口是 `prologue-methods.ts:91` 读本地目录，不联网；MCP 授权 `mcp/plugin/oauth-node.js` 自带回调端口与令牌请求，agent-host 里没有任何一处引用 OAuth（外部 MCP 的授权走 Host 自己的 `connector-mcp.ts`，第 1 类）。[已确认，只扫了调用点，没有逐文件读语义]
 
@@ -203,16 +199,16 @@ Agent 运行
 
 | 项 | 分类 | 消费者 | 合同 | 依赖方向 | 迁移顺序 | 验证 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `hostCompleteText`/`hostTextGeneration`（模型目录选择、凭据快照、派出前复查、配置变化拒绝、错误翻译） | **共享**，不下沉：它依赖 Molis Work 自己的模型目录与密钥存储 | 约 17 个宿主绑定文件、Coding 起草、记忆、上手、信息助手、Alchemist、Shelf、生成插件 | `HostCompleteText`、`HostTextGeneration`（`apps/local-host/src/index.ts` 导出）；`PrologueTextResult`（agent-host） | 宿主 → agent-host → SDK；插件只拿函数 | 已定方向（路线 W3-06）：做成 Runtime 插件服务 `services.model`，由 agent-host 支撑，登记指令、并发调度、`beforeEffect`，不是 typed capability；之后 W5-11 删掉按插件写的 AI 适配文件（`alchemist-prologue`、`cognia-prologue`、`jelly-model`、`shelf-ai`、`experiments-grok`、`typesafe-prologue`） | `tests/host-inference-completion.test.ts`、`tests/prologue-inference-native.test.ts`、`tests/action-model-scheduling.test.ts` |
+| `hostCompleteText`/`hostTextGeneration`（模型目录选择、凭据快照、派出前复查、配置变化拒绝、错误翻译） | **共享**，不下沉：它依赖 Molis Work 自己的模型目录与密钥存储 | 约 17 个宿主绑定文件、Coding 起草、记忆、上手、信息助手、Alchemist、Shelf、生成插件 | `HostCompleteText`、`HostTextGeneration`（`apps/local-host/src/index.ts` 导出）；`PrologueTextResult`（agent-host） | 宿主 → agent-host → SDK；插件只拿函数 | 已定方向（路线 W3-06）：做成 Runtime 插件服务 `services.model`，由 agent-host 支撑，登记指令、并发调度、`beforeEffect`，不是 typed capability；之后 W5-11 删掉按插件写的 AI 适配文件（`alchemist-prologue`、`cognia-prologue`、`jelly-model`、`shelf-ai`、`typesafe-prologue`） | `tests/host-inference-completion.test.ts`、`tests/prologue-inference-native.test.ts`、`tests/action-model-scheduling.test.ts` |
 | 推理端口 `PrologueInferenceClient`（文字、图片、判断） | **已下沉**到 SDK，端口在 agent-host | 上一行的全部消费者 | `horizontal/agent-host/src/inference.ts` | agent-host → SDK | 已完成 | 同上，加 `tests/prologue-inference-images.test.ts` |
 | JSON 输出解码 | **已下沉**：SDK 的 `decodeJsonOutput`，agent-host 只再导出 | Jelly、Shelf、Alchemist | `decodePrologueJsonOutput` | 业务 → agent-host → SDK | 已完成 | `tests/alchemist-structured-output.test.ts`、`tests/jelly-model.test.ts` |
 | Agent 工具循环、审批队列、检查点、压缩、子代理 | **已下沉**：SDK；角色与提示词是业务 | 助理、Coding、Schedule、创作台 | `services/agent-host` 合同 | 宿主 → agent-host → SDK | 已完成；助理就地拆分后搬包是路线 W4/W5 的事（决定 #3） | `tests/agent-host*.test.ts`、`tests/prologue-*.test.ts` |
 | 动作网关工具（`find/read/change-capability` 等） | **共享**：适配器在 agent-host，目录、受众、权限语义来自业务 | 助理、Coding、其他 Agent | `prologue-action-gateway.ts` 导出的工具名与 `ActionView` | 业务目录 → 网关 → SDK 工具 | 不迁；§6 的描述与受众问题在目录那一侧修 | `tests/agent-action-tools-prologue.test.ts` |
 | 指令登记与用户覆盖（`InstructionPrompt`、`resolveModelPrompt`） | **保留**：产品身份与体验，设置页要给人看和改 | 全部入口 | `packages/contracts` 的 `platform/model-prompts` | 业务 → 合同 | 不迁 | `tests/prompt-registration.test.ts` |
 | 各插件的提示词正文与领域校验（Pages 命令、Todo 整理、Cognia 引用、Alchemist Zod、Jelly 计划校验、Shelf 配方） | **保留** | 各自插件 | 各插件的 `prompts.ts` 与动作合同 | 插件 → 合同 | 不迁 | 各插件 README 的必跑测试 |
-| 判断规则语义（Functions 模块：规则、绑定、历史） | **保留**；协议适配已在 SDK | Inbox、Feed、首页、实验、创作台 | `modules/functions` | 宿主 → 模块 → SDK | 不迁 | `tests/workflows-judgment-link.test.ts`、`tests/inbox-automatic-scenes.test.ts` |
+| 判断规则语义（Functions 模块：规则、绑定、历史） | **保留**；协议适配已在 SDK | Inbox、Feed、首页、创作台 | `modules/functions` | 宿主 → 模块 → SDK | 不迁 | `tests/workflows-judgment-link.test.ts`、`tests/inbox-automatic-scenes.test.ts` |
 | 本机 OCR 与语音转写 | **暂缓** | Shelf、Jelly | `material-native.ts` 的 `MaterialExtraction` | 宿主 → 原生进程 | 不动；只有「本机模型纳入 Prologue」的口径变了才议 | `tests/jelly-native-material.test.ts` |
-| 外部终端 Agent、实验的 grok/laya | **暂缓** | Shelf、实验、角色 | 无统一合同 | 宿主 → 子进程 | 不动 | `tests/experiments-*.test.ts`、`tests/shelf-*.test.ts` |
+| 外部终端 Agent | **暂缓** | Shelf、角色 | 无统一合同 | 宿主 → 子进程 | 不动 | `tests/shelf-*.test.ts` |
 
 ## 5. 旁路与绕过核查
 
@@ -237,7 +233,7 @@ Agent 运行
 - **输入输出合同齐全。** 537 个动作都有输出合同；没有一个缺失。
 - **描述质量。** 描述长度中位数 31 字，最短 6 字。`description` 与 `title` 完全相同的有 4 个，都是首页的判断动作（`home.judgment.evaluate`、`home.judgment.read`、`home.judgment.write`、`home.recommendations.read`，`apps/local-host/src/home-actions.ts` 的 `define` 把 `title` 同时写进 `description`）；少于 14 字且与标题不同的有 17 个（如 `pages.get`「读取当前项目的一篇文档」、`shelf.jobs.cancel`「取消运行中的处理任务」，信息够用但没写副作用与前置）。
 - **同名工具。** 16 组动作有相同的 `title`：每个插件的 `search.entries` 与 `subject.read` 同名（如 `pages.search.entries` 与 `pages.subject.read` 都叫「文档」），另有 `images.jobs.get` 与 `pages.generations.get` 都叫「读取生成任务」、`todo.batch.subject.read` 与 `todo.organize.list` 都叫「整理结果」、`todo` 的三个读取都叫「待办」。助理靠 `capability_id` 区分，但标题相同会让搜索结果里分不出哪个是搜、哪个是读。
-- **无模型时的可发现性不一致。** 目录里把「没有模型」标成不可用并写明原因的是 13 个动作（Pages 2、Inbox 1、PPT、Form、Dataset、Todo、灵光、Cognia 2、Jelly、Shelf、信息助手）；Alchemist 的 5 个、Workflows 的 `instances.continue`、实验的 `experiments.run`、`images.jobs.start`、`coding.runs.start` 在目录里可用，调用时才失败，助理会选它们、调用、拿到错误才知道。
+- **无模型时的可发现性不一致。** 目录里把「没有模型」标成不可用并写明原因的是 13 个动作（Pages 2、Inbox 1、PPT、Form、Dataset、Todo、灵光、Cognia 2、Jelly、Shelf、信息助手）；Alchemist 的 5 个、Workflows 的 `instances.continue`、`images.jobs.start`、`coding.runs.start` 在目录里可用，调用时才失败，助理会选它们、调用、拿到错误才知道。
 
 这几条不是缺陷清单里最重的，但它们是「AI 能否理解并选对」的直接证据，修起来也便宜（描述、标题、可用性声明），收进 §7 第 4 项。
 
@@ -246,9 +242,9 @@ Agent 运行
 按建议顺序。需要用户决定的标 **决定**，其余是我按日常取舍可以直接做的。
 
 1. **决定：agent-host 的 `CliAgentAdapter`（`claude` 命令行）。** 默认注册、没有内置调用方、只有测试用它，约 730 行（`cli-runtime.ts`、`cli-node-process.ts`、`cli-stream.ts`），在公开 API 快照里。选项：（a）删掉并把它从 agent-host 的公开入口移走，`pnpm api:update` 记录；（b）留着但不再默认注册，由将来「外部运行时」方案启用；（c）保持现状。**推荐 (a)**：用户口径是外部 Agent 运行时暂缓，现有代码没有人用，留着只会让「Runtime 列表」里多一个永远不被选中的选项，也算一条「不留旧执行器」的尾巴。（**W2-18 待决 1**，见 [spec.md](spec.md) §1。删除时要换夹具的 5 个测试文件：`agent-host.test.ts`、`agent-start-authority.test.ts`、`agent-workspace-none.test.ts`、`cli-agent-adapter.test.ts`、`cli-node-process.test.ts`。）
-2. **决定：实验里的 grok/laya 要不要进 AGENTS.md。** `CALL-CHAINS.md` §10.1 已登记为长期例外，但 AGENTS.md 的硬约束写的是「模型调用只经 `horizontal/agent-host`」，没有例外条款。选项：（a）AGENTS.md 加一条独立的短说明，指向 §10.1；（b）只在 CALL-CHAINS 登记（现状）；（c）把实验的本地调用也迁到 agent-host 的外部运行时适配器（和上一项一起做）。**推荐 (a)**，一行就够，且把「例外要有登记和删除条件」写成规则。本片按「只加一条、不改已有条」的约束没有动 AGENTS.md。（**W2-18 待决 2**，见 [spec.md](spec.md) §1。）
+2. **已不需要。** 实验插件（唯一的 `grok`/`laya` 本地调用方）已在 2026-10-10 删除，`docs/system/CALL-CHAINS.md` §10.1 的这条例外随之删除，AGENTS.md 不必为它加条款。（**W2-18 待决 2** 随之关闭，见 [spec.md](spec.md) §1。）
 3. **清理：Pages 的 `stub` 死字段与「未接模型」残留**（§5）。删 `PagesAiResult.stub`、输出合同里的 `stub` 属性、`editor-browser.ts` 的标签分支与 `actionItemsFromText` 的剥除正则；输出合同变了要 `pnpm api:update` 并在说明里写「`pages.ai` 的输出少了 `stub` 字段（本来恒为 false）」。
-4. **清理：工具描述与可用性。** 给 4 个首页判断动作写真正的描述；给 17 个短描述补上副作用与前置；`search.entries` 与 `subject.read` 的标题改成「搜索文档」「读取文档」这类动词开头的名字；给 Alchemist、`workflows.instances.continue`（按步骤是否 AI）、`experiments.run`、`images.jobs.start`、`coding.runs.start` 声明「没有模型或连接时不可用」的可用性，让助理在发现阶段就看到原因。改标题与描述属于合同文字变化，要刷新 API 快照与动作合同快照（W2-15）。
+4. **清理：工具描述与可用性。** 给 4 个首页判断动作写真正的描述；给 17 个短描述补上副作用与前置；`search.entries` 与 `subject.read` 的标题改成「搜索文档」「读取文档」这类动词开头的名字；给 Alchemist、`workflows.instances.continue`（按步骤是否 AI）、`images.jobs.start`、`coding.runs.start` 声明「没有模型或连接时不可用」的可用性，让助理在发现阶段就看到原因。改标题与描述属于合同文字变化，要刷新 API 快照与动作合同快照（W2-15）。
 5. **补：Schedule 创建时的就绪检查。** 创建与启用任务时现在不查 Prologue 与项目工作区，到点才失败（§3.1 AG-3）。建议创建对话框在没有模型或没有绑定工作区时就给提示，并保留创建（用户可能稍后配置）。属产品行为，先问；我倾向「提示但不挡」。（**W2-18 待决 3**，见 [spec.md](spec.md) §1。）
 6. **补：`TYPESAFE_API_KEY` 的说明与优先级。** 它盖过 Home 里选的连接，界面会写「来自 TYPESAFE_API_KEY」，文档没有。建议在 `docs/platform/PROLOGUE-AI.md` 第 147–148 行旁补一句，说明它与 `MINIMAX_API_KEY` 同属开发与实测变量、会盖过界面选择。
 7. **留意：宿主作业没有按次授权**（HJ-1、HJ-2）。记忆提炼与整理在模型调用前后只查项目还在不在，不像动作调用那样复查授权；写入由记忆服务的写入门兜底，目前没有已知的越权路径，所以不单独开片，写在这里让将来改记忆时记得。
@@ -280,7 +276,7 @@ Agent 运行
 
   **正则仍匹配不到的，以及各由谁兜底**：（1）先把 `fetch` 赋给别的名字再调用（`const f = fetch; f(url)`）：兜底是下一条按网址字面量的扫描，因为出站要有目的地；（2）目的地由配置、数据库或用户输入拼出来，源码里没有字面量（连接器目录的主机、用户填的 RSS 地址、用户点名的网页）：这类只能逐类核对，§3.10 的第 1、2、4 类就是按这个写的；（3）经子进程联网（`curl`、`git`、`npx`、`lark-cli`、浏览器）：兜底是下面的子进程扫描；（4）只转交注入的 `fetchImpl` 而自己不调用的接线文件（`github-connector.ts`、`catalog-connector.ts`、`notion-oauth.ts`、`artifact-document-import.ts`）：正则匹配不到它们是对的，出站调用在它们转交给的集成包里，已在名单内；（5）仓库根的 `scripts/` 是构建与打包脚本，不是产品运行时，不在扫描范围；（6）vendored 包内部不在扫描范围，另见下面「vendored 包的联网代码」。
 - **主机名字面量扫描**（2026-10-09，补查用，不是权威清单）：`git grep -noE "https?://[A-Za-z0-9._-]+(:[0-9]+)?" -- apps/local-host apps/mcp/src apps/cli/src apps/desktop/src modules horizontal 'packages/*/src' server/src plugins tooling ':!**/*.test.*' ':!apps/workbench' ':!**/*.md' ':!**/*.json' ':!**/*.svg'`，552 处。去掉连接器目录与集成包里的服务主机（第 1、2 类，`plugins/official-integrations/`、`connector-*.ts`、`host-connector-methods.ts`）后，逐个文件看了剩下的：属于已登记类的有模型设置占位与开发环境默认端点（`host-complete-text.ts`）、判断服务（`modules/functions/src/provider.ts`）、`search-evidence-runtime.ts`（3b）、`research-library-source.ts`（13）、`browser-host.ts`（12）、`build-dependencies.ts`（9）、`node-model-dns.ts` 与 `jelly-source-reader.ts`（10）、炼金术士脉搏三个来源（7）、`context-onboarding-sources.ts`（1）；本机回环地址（`web-server.ts`、`mcp-server.ts`、`launch.ts`、`pty-socket.ts` 等，第 8 类）；界面占位文字与示例链接（`example.com`、`import-ui.ts`、`feed/src/ui.ts` 等）；Shelf 各引擎的安装说明链接（`modules/shelf/src/runtimes.ts`，只展示给用户）；文档格式的命名空间、DTD 与 JSON Schema `$id`（`ppt/src/pptx.ts` 的 OpenXML、`web-service-platform.ts` 的 plist、`casebook/schema.ts`）；`demo-plugin-seed.ts` 里的示例数据。**唯一没有出现在原清单里的固定主机是 `api.bilibili.com`**（`jelly-source-providers.ts:148`、`:162`），已写进第 4 类。
-- **子进程扫描**（第 12、13 类和第 1 类里的命令行连接器是这样找到的）：`git grep -lE "child_process|node-pty|StdioClientTransport" -- apps/local-host apps/mcp/src apps/cli/src apps/desktop modules horizontal 'packages/*/src' server/src plugins tooling ':!**/*.test.*' ':!apps/workbench' ':!**/*.md'`，27 个文件：构建与打包脚本 3 个、依赖声明 2 个、本机操作（选目录的 `osascript`、`git-status.ts` 与 `workspace-git.ts` 只用 `status`/`rev-parse`/`ls-files`/`cat-file` 这类本地命令、`home-launcher.ts`、`home-release.ts` 的 `otool`、`launcher-validation.ts`、`web-service-platform.ts`）；联网的对到 §3.10：`browser-host.ts`（12）、`connector-cli.ts`、`feishu-cli.ts`、`connector-mcp.ts`（1）、`research-library-source.ts`（13）、`material-native.ts`（11）、`plugin-builder/browser.ts`（8）、`build-checks.ts` 与 `build-dependencies.ts`（沙箱里 `(deny network*)`）；属于「不算在内」的：`git-operations.ts`、`experiments-process.ts`、`cli-node-process.ts`、`codex-app-server.ts`、`terminal-pty.ts`、`modules/shelf/src/runtimes.ts`。
+- **子进程扫描**（第 12、13 类和第 1 类里的命令行连接器是这样找到的）：`git grep -lE "child_process|node-pty|StdioClientTransport" -- apps/local-host apps/mcp/src apps/cli/src apps/desktop modules horizontal 'packages/*/src' server/src plugins tooling ':!**/*.test.*' ':!apps/workbench' ':!**/*.md'`，26 个文件：构建与打包脚本 3 个、依赖声明 2 个、本机操作（选目录的 `osascript`、`git-status.ts` 与 `workspace-git.ts` 只用 `status`/`rev-parse`/`ls-files`/`cat-file` 这类本地命令、`home-launcher.ts`、`home-release.ts` 的 `otool`、`launcher-validation.ts`、`web-service-platform.ts`）；联网的对到 §3.10：`browser-host.ts`（12）、`connector-cli.ts`、`feishu-cli.ts`、`connector-mcp.ts`（1）、`research-library-source.ts`（13）、`material-native.ts`（11）、`plugin-builder/browser.ts`（8）、`build-checks.ts` 与 `build-dependencies.ts`（沙箱里 `(deny network*)`）；属于「不算在内」的：`git-operations.ts`、`cli-node-process.ts`、`codex-app-server.ts`、`terminal-pty.ts`、`modules/shelf/src/runtimes.ts`。
 - **SDK 导入者**：`git grep -l "@prologue/sdk" -- '*.ts' ':!tests' ':!vendor'`，只列出 `horizontal/agent-host` 的 21 个文件。三个 vendored 包（SDK、SEL、intelligence-client）自己的联网代码在解开 tgz 后扫 `dist` 得到，见 §3.10 末段与下面两条。
 - **vendored 包的联网代码**（SEL 与 intelligence-client；SDK 的做法同此）：在一个新的空目录里 `tar -xzf vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz -C <目录>`（intelligence-client 同法，各用各的目录），然后 `grep -rEl "node:https|node:http\b|node:net\b|node:dns|\bfetch\(|undici|WebSocket|child_process|node:tls|globalThis\.fetch|XMLHttpRequest" <目录>/package/dist --include='*.js'`：SEL 命中 `host/node/pinned-https-host.js` 与 `consumer/daemon.js` 两个，intelligence-client 0 个。仓库导入了哪些子路径：`git grep -hn "from \"@adeptify/search-evidence-layer[^\"]*\"" -- '*.ts' | sed -E 's/.*from "([^"]*)".*/\1/' | sort | uniq -c`（`.`、`/feeds`、`/host/node`、`/intent`、`/providers/anysearch`、`/providers/rss`，没有 `/consumer`）。
 - **Feed 网页搜索的 DNS 探针**（3b；第三次评审后补做，没有真联网）：在 SEL 的 `createNodePinnedSearchHost` 之前把本进程的 `dns.promises.lookup` 换成固定答案、`https.request` 换成只记录主机名就抛错的桩，再对 `api.anysearch.com` 做一次 `providers.doctor`，用同一份 `ANYSEARCH_PROFILE`。脚本（约 20 行，放在仓库外的临时目录，第一个参数是系统解析的答案，第二个是工作树根目录）：

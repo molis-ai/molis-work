@@ -1,6 +1,5 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
-  "实验": "Experiments",
   "后台任务": "Background tasks",
   "消息文本": "Message text",
   "发送消息": "Send message",

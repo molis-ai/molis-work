@@ -1,7 +1,7 @@
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ConnectorConnectionError, withConnectorConnections } from "./connector-connection-store.js";
 
-export type TypeSafeConsumer = "functions" | "experiments" | "plugin-builder";
+export type TypeSafeConsumer = "functions" | "plugin-builder";
 
 export function selectedTypeSafeConnection(home: string, consumer: TypeSafeConsumer) {
   return withConnectorConnections(home, (store) => store.binding("home", consumer, "typesafe"));

@@ -21,7 +21,7 @@ const HOST_METHODS: Readonly<Record<string, readonly ConnectorMethodOption[]>> =
   }],
   typesafe: [{
     kind: "token", support: "paste",
-    note: "TypeSafe API Key 用于 Functions 和 Experiments；账号需已获 TypeSafe API 访问权限。",
+    note: "TypeSafe API Key 用于 Functions；账号需已获 TypeSafe API 访问权限。",
     links: [link("TypeSafe Console · API Keys", "https://console.typesafe.ai/keys")],
   }],
   "image-api": [{

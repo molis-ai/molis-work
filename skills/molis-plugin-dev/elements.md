@@ -45,7 +45,7 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 
 ## 个人 vs 项目
 
-Host catalog（`apps/workbench/src/builtin-plugins.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。今天（`BUILTIN_PLUGIN_CATALOG`）：Cognia、插件创作台、Images、Jelly、Experiments、Shelf、灵光、Todo、Characters、Pages、Forms、Dataset、PPT、Alchemist、Workflows。
+Host catalog（`apps/workbench/src/builtin-plugins.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。今天（`BUILTIN_PLUGIN_CATALOG`）：Cognia、插件创作台、Images、Jelly、Shelf、灵光、Todo、Characters、Pages、Forms、Dataset、PPT、Alchemist、Workflows。
 
 其余按项目启用。必选输入口会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。Feed 启用会带上 Inbox（`PROJECT_PLUGIN_COMPANIONS`）。
 

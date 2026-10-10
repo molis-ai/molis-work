@@ -146,7 +146,6 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `plugins/native/images` | 个人生图与项目生成记录 | 见下文「图片生成插件」；生成经 Prologue | `partial` | `specs/archive/images-plugin/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/jelly` | 个人日历与笔记（收想法在灵光） | 见下文「Jelly 私人工作区」 | `partial` | `specs/archive/jelly-plugin/` | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `plugins/native/cognia` | 个人知识库（现行 native 版） | 见下文「Cognia 个人知识库」；Cognia 2（生成插件方向）需求书未实施 | `partial` | `specs/archive/cognia-plugin/spec.md`；`specs/archive/cognia-plugin/v2/spec.md` | 内置插件：@yijunw0212 |
-| `plugins/native/experiments` | 个人离线实验：多模型对比与复核 | Home 级；判断函数经系统 `functions.authoring.list` 以调用者授权读取 | `partial` | `specs/action-architecture/migration.md` Experiments 行 | 内置插件：@yijunw0212 |
 | `plugins/native/workflows` | 工作流程：内容站交接、模板转换、AI 整理、判断规则、动作步骤 | 站点与步骤从动作目录发现；交接幂等、中断复用原结果 | `partial` | `specs/action-architecture/spec.md` 工作流程节 | 内置插件：@yijunw0212 |
 | `plugins/native/plugin-builder` | 插件创作台：从一句需求生成插件 | 见下文「插件创作工作台」 | `partial` | `specs/archive/plugin-builder/work-items/studio-v3/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/official-integrations/catalog` | 连接器目录与文档导入 Provider | 目录条目、Notion 等 OAuth 与文档导入；账号检查经 `connectors.account.read` | `partial` | `specs/archive/connector-method-directory/spec.md` | 官方集成：@yijunw0212 |

@@ -75,7 +75,7 @@
 | Cognia（`cognia`） | 通 | 通 | 通 | 通：横幅 + 打开模型设置 | 部分 | 部分（1 格）§4.16 |
 | Shelf（`shelf`） | 通 | 部分：兼容入口 `shelf.jobs.run`、首次自动放示例 | 通 | 通：`shelf.no_model` | 通：材料交给 Coding | 部分（1 格）§4.17 |
 | Characters（`characters`） | 通 | 通 | 部分：要并进宿主设置（决定 #26） | 通 | 部分 | 部分（2 格）§4.18 |
-| 实验（`experiments`） | 部分：本地 grok/laya 要自己配 | 通 | 部分：库没有版本，卸载不清 | 通 | 缺：没有别的插件消费它的结果（个人研究工具，按设计） | 部分（3 格）§4.19 |
+| 实验（`experiments`，2026-10-10 已删） | 部分：本地 grok/laya 要自己配 | 通 | 部分：库没有版本，卸载不清 | 通 | 缺：没有别的插件消费它的结果（个人研究工具，按设计） | 部分（3 格）§4.19 |
 | 炼金术士（`alchemist`） | 通 | 部分：死的测试用运行时放在 `src`、README 数字过期 | 通 | 部分：失败后卡片露出原码 | 部分 | 部分（3 格）§4.20 |
 | Coding（`coding`） | 通 | 通 | 通 | 通 | 通 | 通 §4.21 |
 | Files（`files`） | 通 | 通 | 通 | 通：说明要绑定工作区 | 通 | 通 §4.22 |
@@ -307,7 +307,7 @@
 - **契约**：E-2。
 - **测试**：`tests/characters-actions.test.ts`、`characters-import-http.test.ts`、`characters-publication-http.test.ts`。
 
-### 4.19 实验（`plugins/native/experiments`）
+### 4.19 实验（`plugins/native/experiments`，2026-10-10 已删；下面是删除前 2026-10-09 的结论）
 
 - **定位**：构建期装配、个人级；Manifest 没有声明动作，页面走私有路由 `/api/plugins/experiments/…`，目录里的 15 个动作由宿主注册（`apps/local-host/src/experiments-actions.ts`，AGENTS.md 冻结名单里的旧路径插件）。
 - **闭环（部分）**：新建实验（判断任务、材料、参试者）→ 后台运行（`experiments.run`，metered）→ 比较判断与成本；参试者可以是 Jev（经 Prologue）、本机 `grok` 命令行、`laya` Python 检查点，后两者要自己配环境（AI 清单 EX-1、EX-2）。

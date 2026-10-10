@@ -34,7 +34,7 @@
 | Character | 个人拥有、可发布成固定版本的 AI 做事方式；是宿主设置里的一节，不是插件 | 角色（「我的角色」） | 角色（泛称）、Characters 插件 |
 | 项目（Project） | 唯一的工作边界与身份，`project_id` | 项目 | Board（指项目时） |
 | 目标资料库（Goals 根记录） | Goals 在每个项目库里的根记录，一个项目一条，不是项目本身 | 目标资料库（报错与动作「初始化目标资料库」） | Board（指它时） |
-| 讨论（项目讨论） | 右栏里一个项目的群聊与 Thread，在用并继续迭代的产品功能 | 讨论、项目讨论、群聊与 Thread | IM 实验、实验线（它不是实验，也不是 `experiments` 插件） |
+| 讨论（项目讨论） | 右栏里一个项目的群聊与 Thread，在用并继续迭代的产品功能 | 讨论、项目讨论、群聊与 Thread | IM 实验、实验线（它不是实验） |
 | 插件的名字 | `project_plugin_id`、`manifest.plugin_id`、`manifest.name`、界面显示名、目录与包名，五样各有用处 | 显示名中英文混用 | 见第 3 节 |
 | 翻译键 | 界面文字在词典里的稳定标识，标识概念和位置，不含措辞；措辞是词典的值 | 无（用户看不见） | 中文原文当键（现状，将被取代，见 2.7） |
 
@@ -168,7 +168,7 @@
 
 - 定义：右栏的「讨论」页签（页签名「讨论」，页内标题「项目讨论」，内嵌页标题「群聊与 Thread」）：一个项目里的群聊和内联 Thread。它是在用、会继续迭代的产品功能，不是实验，也不是待删的东西（2026-10-08 用户决定，`specs/repository-anti-corruption/spec.md` §1「右栏『讨论』页签与 IM 代码」）。
 - 代码：页签与内嵌框在 `apps/workbench/src/side-panel.ts:38,42`；服务端包 `server/`（`@molis-ai/molis-work-server`，Home 下的库 `server/server.sqlite`，表名前缀 `mw_`，`server/src/database.ts`）里的群聊域；界面包 `packages/im-ui`（`@molis-ai/molis-work-im-ui`）；合同子路径 `@molis-ai/molis-work-contracts/services/im`；宿主挂载在 `apps/local-host/src/im-server.ts`。`apps/server` 是同一服务的独立启动器，没有产品入口，去留随功能迭代另定。
-- 写法：文档写「讨论」或「项目讨论」，代码缩写是 IM。不再写「IM 实验」「实验线」。它不是 `experiments` 插件（界面叫「实验」），也不在内置插件清单里。
+- 写法：文档写「讨论」或「项目讨论」，代码缩写是 IM。不再写「IM 实验」「实验线」。它也不在内置插件清单里。
 - 重名：`im` 在工作台代码里同时是整个右栏的 dock 窗口 id（`apps/workbench/src/side-panel.ts:35` 的 `dock-window-im`、`apps/workbench/src/immersive-shell.ts` 的 `data-dock-toggle="im"`），不只指讨论页签，见 R-A10。
 - 同一决定里的三处账目修正不属于命名，列在这里避免误会：`server/server.sqlite` 已登记进 Home 数据与备份表（`docs/system/HOME-DATA.md` 3.4），`uninstall --purge-user-data` 也清除 `server/`（W2-12）；宿主不再直接读它的表（`apps/local-host/src/im-server.ts` 里读 `mw_projects`、`mw_members`，W2-06 未做）；`server` 的包类别已由基础包改成业务包（`scripts/workspace-packages.mjs:36` 标 `module`，按 Module 规则检查）；`packages/im-ui` 是界面包、不拥有事实，仍标 `foundation`（同文件第 37 行），是否改类另待决定。
 
@@ -220,7 +220,7 @@
 
 - 讲产品时先写界面显示名；要精确指代时写 `project_plugin_id`。路径、包名、`plugin_id` 只在讲代码或身份时写。
 - `manifest.name` 应与界面显示名一致，因为上面几处会把它直接显示出来。现在只有 `characters` 不一致（名称 Characters，界面「角色」）；它按 2.3 的决定并入宿主后这个差异随之消失。
-- 内置插件清单以 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 为准（现行代码共 26 个：项目插件 11 个，个人插件 15 个；Characters 按 2.3 的决定并入宿主后，是 25 个，个人插件 14 个）。官方集成的 `plugin_id` 是 `io.molis.work.integration.<连接器>`（`plugins/official-integrations/*/src/index.ts`）。
+- 内置插件清单以 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 为准（现行代码共 25 个：项目插件 11 个，个人插件 14 个；Characters 按 2.3 的决定并入宿主后，是 24 个，个人插件 13 个）。官方集成的 `plugin_id` 是 `io.molis.work.integration.<连接器>`（`plugins/official-integrations/*/src/index.ts`）。
 
 ### 3.3 内置插件的名字对照
 
@@ -243,7 +243,6 @@
 | `plugin-builder` | 插件创作工作台 | 插件创作工作台 | |
 | `images` | 图片 | 图片 | |
 | `jelly` | Jelly | Jelly | |
-| `experiments` | 实验 | 实验 | |
 | `shelf` | Shelf | Shelf | |
 | `lingguang` | 灵光 | 灵光 | |
 | `todo` | 待办 | 待办 | |
@@ -255,7 +254,7 @@
 | `alchemist` | 炼金术士 | 炼金术士 | |
 | `workflows` | 工作流程 | 工作流程 | Manifest 的 `plugin_id` 是 `io.molis.work.native.workflows`，比其他插件多一段 `.native.`（表后第 1 条） |
 
-中文界面里显示名中英文混用：17 个用英文（Goals、Sessions、Inbox、Feed、Schedule、Coding、Files、Git、Diff、Text stats、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT），9 个用中文（成果、插件创作工作台、图片、实验、灵光、待办、角色、炼金术士、工作流程）。Characters 已定为设置的一节而不是插件（2.3），并入宿主后清单是 25 个，个人插件 14 个。
+中文界面里显示名中英文混用：17 个用英文（Goals、Sessions、Inbox、Feed、Schedule、Coding、Files、Git、Diff、Text stats、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT），8 个用中文（成果、插件创作工作台、图片、灵光、待办、角色、炼金术士、工作流程）。Characters 已定为设置的一节而不是插件（2.3），并入宿主后清单是 24 个，个人插件 13 个。实验插件（`experiments`）2026-10-10 已删（`specs/repository-anti-corruption/spec.md` §1），不在清单里。
 
 表外的几处不规则：
 
@@ -359,8 +358,8 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 
 **U7　插件显示名中英混用，连接说明里又写英文 id**
 
-- 现状：见 3.3。连接设置的文案用英文 id 称呼插件：「Images」（`apps/local-host/src/connector-directory.ts`、`apps/workbench/src/settings-connector-guide.ts`），「Experiments」（同上，另有 `apps/local-host/src/host-connector-methods.ts`），而插件切换器里它们叫「图片」「实验」。`text-stats` 的两个标题大小写不同。`manifest.name` 也会进界面（3.1），目前只有 Characters 的名称与显示名不一致，它并入宿主后这条路径就没有不一致了。
-- 建议：连接说明里的插件名一律取界面显示名（「图片」「实验」「判断规则」）。显示名的中英混用本身不改，等用户另行决定统一语言。`Text Stats` 与 `Text stats` 统一为 `Text stats`。
+- 现状：见 3.3。连接设置的文案用英文 id 称呼插件：「Images」（`apps/local-host/src/connector-directory.ts`、`apps/workbench/src/settings-connector-guide.ts`），而插件切换器里它叫「图片」。`text-stats` 的两个标题大小写不同。`manifest.name` 也会进界面（3.1），目前只有 Characters 的名称与显示名不一致，它并入宿主后这条路径就没有不一致了。
+- 建议：连接说明里的插件名一律取界面显示名（「图片」「判断规则」）。显示名的中英混用本身不改，等用户另行决定统一语言。`Text Stats` 与 `Text stats` 统一为 `Text stats`。
 - 备选：统一所有显示名的语言（范围大，需另起一项）；保持现状。
 
 ## 5. 代码改名后续清单

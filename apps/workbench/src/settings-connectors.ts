@@ -101,7 +101,7 @@ function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly 
     if (active.some(row => row.auth_method === "oauth" || row.auth_method === "token")) {
       if (card.connector_id === "model-api") instructions.push({ text: "在模型设置中选择此连接，再选择模型并检查可用性。", label: "打开模型设置", href: "/settings/models" });
       else if (card.connector_id === "image-api") instructions.push({ text: "在项目 Images 中选择此连接，配置图像服务并尝试生成。", label: "选择项目，打开 Images", href: "/", plugin: "images" });
-      else if (card.connector_id === "typesafe") instructions.push({ text: "在 Functions 或 Experiments 中选择此账号。", label: "查看 Functions", href: "/capabilities/library" });
+      else if (card.connector_id === "typesafe") instructions.push({ text: "在 Functions 中选择此账号。", label: "查看 Functions", href: "/capabilities/library" });
       else if (card.feed_available) instructions.push({ text: "在项目 Feed 中添加来源并选择已连接的 API 账号与内容范围。", label: "选择项目，添加来源", href: "/", plugin: "feed" });
       else if (card.connector_id !== "mcp-bearer") instructions.push({ text: "可以在上方检查账号授权。此 API 连接暂不提供 Feed 同步。" });
     }

@@ -4,7 +4,6 @@ import { builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUD
 import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
 import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT, imagesProjectData } from "@molis-ai/molis-work-plugin-images";
 import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution } from "@molis-ai/molis-work-plugin-jelly";
-import { experimentsManifest, EXPERIMENTS_CLIENT_FACTORY_SCRIPT, EXPERIMENTS_STYLES, experimentsUiContribution } from "@molis-ai/molis-work-plugin-experiments";
 import { type ProjectDataDeclaration, type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
@@ -121,19 +120,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       stylesheet: JELLY_STYLES,
       clientFactory: JELLY_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-jelly-id]", idDataset: "jellyId" },
-    },
-  },
-  {
-    project_plugin_id: "experiments",
-    manifest: experimentsManifest,
-    personal: true,
-    summary: "同一任务，比较各模型的判断与成本。",
-    workbench: {
-      order: 4,
-      contributions: [experimentsUiContribution],
-      stylesheet: EXPERIMENTS_STYLES,
-      clientFactory: EXPERIMENTS_CLIENT_FACTORY_SCRIPT,
-      searchRow: { selector: "[data-exp-open]", idDataset: "expOpen" },
     },
   },
   {

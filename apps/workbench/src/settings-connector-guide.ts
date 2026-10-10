@@ -51,7 +51,7 @@ export function connectorPurpose(card: ConnectorSettingsCardView): string {
     gmail: "把邮件带进项目，整理工作往来与待办。当前只读取邮件。",
     "model-api": "为 Molis 和 Jelly 选择可用的文本模型。",
     "image-api": "在 Images 中使用自己的图像生成服务。",
-    typesafe: "让 Functions 和 Experiments 使用你的 TypeSafe 账号。",
+    typesafe: "让 Functions 使用你的 TypeSafe 账号。",
     "mcp-bearer": "保存远程工具服务的密钥，在 Coding 中选择使用。",
     loom: "通过 Atlassian Rovo 的官方工具访问已授权内容。",
     figma: "连接官方设计工具，供 Agent 读取和处理已授权的设计。",

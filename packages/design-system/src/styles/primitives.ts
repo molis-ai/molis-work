@@ -570,18 +570,18 @@ export const PRIMITIVE_STYLES = `
   .mw-collapsible summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; font-weight: var(--weight-control, 500); padding: 12px 0; }
   .mw-collapsible summary:hover { color: var(--ink); }
   /* One disclosure grammar: a rotating chevron instead of the OS triangle. Summaries that bring their own mark keep it. */
-  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .exp-add-model, .form-export-panel, .characters-location, .feed-task-extra, .artifact-raw, .coding-material, .coding-checkpoints) > summary:not(:has(svg)) {
+  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .form-export-panel, .characters-location, .feed-task-extra, .artifact-raw, .coding-material, .coding-checkpoints) > summary:not(:has(svg)) {
     display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer;
   }
-  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .exp-add-model, .form-export-panel, .characters-location, .feed-task-extra, .artifact-raw, .coding-material, .coding-checkpoints) > summary:not(:has(svg))::-webkit-details-marker { display: none; }
-  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .exp-add-model, .form-export-panel, .characters-location, .feed-task-extra, .artifact-raw, .coding-material, .coding-checkpoints) > summary:not(:has(svg))::before {
+  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .form-export-panel, .characters-location, .feed-task-extra, .artifact-raw, .coding-material, .coding-checkpoints) > summary:not(:has(svg))::-webkit-details-marker { display: none; }
+  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .form-export-panel, .characters-location, .feed-task-extra, .artifact-raw, .coding-material, .coding-checkpoints) > summary:not(:has(svg))::before {
     content: ""; flex: none; width: 12px; height: 12px; background-color: currentColor; opacity: .72;
     -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / 12px 12px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / 12px 12px no-repeat;
     transform: rotate(-90deg); transition: transform 250ms var(--ease-quint);
   }
-  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .exp-add-model, .form-export-panel, .characters-location, .feed-task-extra, .artifact-raw, .coding-material, .coding-checkpoints)[open] > summary:not(:has(svg))::before { transform: none; }
+  :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .form-export-panel, .characters-location, .feed-task-extra, .artifact-raw, .coding-material, .coding-checkpoints)[open] > summary:not(:has(svg))::before { transform: none; }
   @media (prefers-reduced-motion: reduce) {
-    :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .exp-add-model, .form-export-panel, .characters-location, .feed-task-extra, .artifact-raw, .coding-material, .coding-checkpoints) > summary::before { transition: none; }
+    :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .form-export-panel, .characters-location, .feed-task-extra, .artifact-raw, .coding-material, .coding-checkpoints) > summary::before { transition: none; }
   }
   .mw-collapsible__body { display: grid; gap: 12px; padding: 0 0 12px; }
   .mw-accordion { display: grid; gap: 4px; }

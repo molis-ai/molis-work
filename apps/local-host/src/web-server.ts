@@ -1,7 +1,6 @@
 import { createLocalImServer } from "./im-server.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
-import { closeExperiments } from "./experiments-native-plugin-http.js";
 import { loadCasebookConfiguration } from "./casebook/config.js";
 import { handleCasebookHttp } from "./casebook/http.js";
 import { resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -272,7 +271,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       im.close();
       void browsers?.close();
       unregisterSurfaces();
-      void closeExperiments(storageHome);
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
       if (ownsLocalHost) void localHost.close();

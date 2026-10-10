@@ -337,7 +337,6 @@ tests/diff-plugin.test.ts
 tests/document-import-providers.test.ts
 tests/draft-dialogue-boundaries.test.mjs
 tests/execution-lifetime.test.ts
-tests/experiments-plugin.test.ts
 tests/feishu-cli-status.test.ts
 tests/files-plugin.test.ts
 tests/functions-agent-references.test.ts

@@ -2028,7 +2028,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   });
   document.addEventListener("workbench-feed-task", (event) => {
     if (embedded) return;
-    const pane = ops.focused(state), tab = ops.activeTab(state);
+    const tab = ops.activeTab(state);
     if (tab?.plugin !== "feed") return;
     tab.feedTask = event.detail.taskId;
     const frame = panesEl.querySelector('iframe[data-pane-tab="' + tab.id + '"]');

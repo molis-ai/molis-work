@@ -33,6 +33,7 @@ icon("copy"); // 页面已注入 sprite 时也可以 <svg><use href="#icon-copy"
 | [src/visual-foundation.ts](src/visual-foundation.ts) | 主题/密度/分层样式入口 |
 | [src/styles/](src/styles) | 工作台、设置、标题栏等表面层 |
 | [src/styles/craft-finish.ts](src/styles/craft-finish.ts) | Soft Workbench 终层（模块名沿用）：珍珠灰桌面与连续白色工作面、底栏几何（Dock、统一对话栏、常驻与项目按钮）、抬升/圆角/动效 token、提示气泡、`molisCraft` 完成与落地时刻 |
+| [src/styles/touch-targets.ts](src/styles/touch-targets.ts) | 底栏的触控尺寸，跟在 craft-finish 后面：手机宽度或 `pointer: coarse` 的窗口里底栏与助理输入条是 44px 目标；挤满的助理输入条由岛标记 `data-crowded` 并分步让位（选择器、工作条的清除标记、材料与通知并入「+」菜单） |
 | [src/monogram.ts](src/monogram.ts) | 项目徽标：首字母 + 由项目 id 决定的色相 |
 
 ## 硬规则
@@ -84,6 +85,7 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home "$HOME
   - 键盘焦点只用 `--focus-stroke`；动效只用 `--dur-*`、`--motion-*`、`--ease-*`。
   - 进入工作台之前的页面用到的部件（`mw-wordmark`、`mw-caption`、`mw-steps`、`mw-goal-track`、`mw-bar-context`、`mw-bar-status`、`mw-file-kind/row/group`、`mw-brief`、按钮上的 `mw-btn__key`）在这里定义，规格板的「到达」一节各有标本；页面（`apps/workbench/src/arrival/`）只排版，不重画。打字与飞入动效是一段脚本（`ARRIVAL_MOTION_CLIENT_SCRIPT`），在减少动态效果与自动化下静止。
 - 改动后必跑：`node scripts/run-tests.mjs tests/coss-control-language.test.ts tests/visual-foundation.test.ts tests/arrival-components.test.ts`
+- 改到外壳控件的尺寸（底栏、标签条、助理输入与它旁边的小按钮）加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/touch-targets.e2e.test.ts`——触控尺寸按输入类型，不按宽度：`pointer: coarse` 的窗口（手机、横过来的手机、平板）与手机宽度的窗口，标签条与底栏的控件都是 44px 目标；只有精细指针、宽于 600px（标签条 760px）的桌面窗口在 [DESIGN.md](../../DESIGN.md) 「Focus and accessibility」写明范围的例外内保持原尺寸。挤满的助理输入条由岛标记 `data-crowded` 并分步让位（只在触控窗口；选择器、工作条的清除标记、材料与通知并入「+」菜单，每步只在上一步仍放不下时才做），不把任何按钮压到 44px 以下；岛量这一行时带着小按钮量（`data-measuring` 暂时撤掉手机打字时收起小按钮的规则），所以点进输入框又点开，步骤不变；手机底栏第二行的控件互相紧挨，才放得下 375px 的最宽一屏。
 - 相关手册：[DESIGN.md](../../DESIGN.md)、[specs/craft-finish/spec.md](../../specs/craft-finish/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

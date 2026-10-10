@@ -90,6 +90,6 @@ Coding 的进展回执查询也转入统一动作，保留原保存回执和重�
   - 回收站操作要用户明确确认；`goals.trash.set` 可恢复，因此声明为写而不是不可撤销，并且不进生成插件。
   - MCP 只经动作工具（逐客户端授权、常驻 Host）调用 Goals，不能指定数据库或自填作者、创建渠道。
   - 记本机这个人的 typed 管理写入入口（创建意图、用户决定、设当前目标、结构提案检查）声明 `host_only`，输入类型不含 `actor_id`、`actor_kind`；新增这类入口时同样声明，`tests/goal-management-identity.test.ts` 读取包的导出，漏掉标记的会失败。没有生产调用方的 typed 入口不保留：事件读写、项目说明与规划的写读、回收站、恢复目录、目标约定读取都只有动作（W2-08）；测试用管理调用者（`tests/goal-management-caller.ts`）调用动作。
-  - Feed 升格为 Goal 经 `goals.create`、`goals.inputs.confirm` 写 Goals，Feed 不写 Goals 的表；Goals 不在项目里时升格不可用。
+  - Feed 升格为 Goal 经 `goals.directory.read`、`goals.create`、`goals.inputs.confirm` 写 Goals（升格动作用 `required_actions` 声明了这三项，授权设置要一起授权），Feed 不写 Goals 的表；Goals 不在项目里时升格不可用，Feed 的入口也不再出现。
 - 改动后必跑：`node scripts/run-tests.mjs tests/goals-actions.test.ts tests/goals-command-actions.test.ts tests/goals-board-actions.test.ts tests/goal-event-create-flow.test.ts tests/goals-tree-actions.test.ts tests/goal-progress-plugin-identity.test.ts tests/goal-management-identity.test.ts tests/goals-input-confirm.test.ts tests/feed-goal-promotion.test.ts`
 - 相关手册：[docs/modules/goals.md](../../../docs/modules/goals.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[PRODUCT.md](../../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

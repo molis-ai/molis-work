@@ -10,8 +10,6 @@ import {
 import { feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 
 const PROMOTE = "molis_work_v1_action_feed.items.promote__v1";
@@ -30,10 +28,7 @@ async function fixture() {
   const item = createLocalFeedApplication(seed.db).ingestItem({ source, externalId: "mcp-promotion", title: "MCP promotion", summary: "s", body: "b",
     priority: "high", occurredAt: "2026-09-08T00:00:00.000Z", attention: false }).item;
   seed.close();
-  await grantGoalsMcp(host, homeDirectory, project);
-  const views = await host.inspectActions({ actor_id: CLIENT, project_id: project.project_id, audience: "mcp", permissions: [] }, reference);
-  await writeMcpActionGrant(homeDirectory, createMcpActionGrant(CLIENT, project.project_id,
-    views.find(view => view.capability_id === feedItemActions.promote.capability_id)!, true));
+  await grantGoalsMcp(host, homeDirectory, project, CLIENT, [feedItemActions.promote]);
   const server = (nativeRuntimeSessionId?: string) => new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173" },
     { homeDirectory, ...(nativeRuntimeSessionId ? { nativeRuntimeSessionId } : {}),
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false } }, host);

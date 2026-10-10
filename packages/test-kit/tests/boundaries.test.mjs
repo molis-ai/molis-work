@@ -670,3 +670,43 @@ test("a listed layer exception that no import or dependency uses is reported, so
   // Any iterable of observed edges works (the checker passes sets).
   assert.ok(!unusedLayerExceptions(new Set(["apps/server -> apps/desktop"])).includes("apps/server -> apps/desktop"));
 });
+
+// The Plugin SDK is what an author installs next to the contracts. Anything else it depends on would be missing on the author's
+// machine (it broke once: the SDK re-exported the private Kernel's lifetime helper, and the packed sample could not install), so
+// the SDK may depend on the contracts only. The same rule runs on declared dependencies in package.json
+// (scripts/check-package-boundaries.mjs evaluates those edges too).
+const sdkImporting = (target, specifier = target.name) => {
+  const { sdk } = layerPackages();
+  return {
+    importer: boundaryPackage(sdk.name, sdk.path, sdk.kind, [target.name]),
+    target,
+    specifier,
+    sourceFile: "packages/plugin-sdk/src/index.ts",
+  };
+};
+
+test("rejects the Plugin SDK importing the Kernel", () => {
+  const { kernel } = layerPackages();
+  assert.ok(violationCodes(sdkImporting(kernel)).has("public-sdk-private-dependency"));
+});
+
+test("rejects the Plugin SDK importing Plugin Runtime", () => {
+  const runtime = boundaryPackage("@molis-ai/molis-work-plugin-runtime", "packages/plugin-runtime", "foundation");
+  assert.ok(violationCodes(sdkImporting(runtime)).has("public-sdk-private-dependency"));
+});
+
+test("rejects the Plugin SDK importing the Local Host, whichever other rule also applies", () => {
+  const localHost = boundaryPackage("@molis-ai/molis-work-app-local-host", "apps/local-host", "app");
+  const codes = violationCodes(sdkImporting(localHost));
+  assert.ok(codes.has("public-sdk-private-dependency"));
+  assert.ok(codes.has("platform-reverse-dependency"));
+});
+
+test("allows the Plugin SDK importing the contracts through a subpath", () => {
+  const contracts = boundaryPackage("@molis-ai/molis-work-contracts", "packages/contracts", "foundation", [], [".", "./platform/plugin"]);
+  assert.deepEqual(evaluateImportBoundary(sdkImporting(contracts, `${contracts.name}/platform/plugin`)), []);
+  // Only the SDK is held to this: the Kernel and Plugin Runtime depend on the SDK and on each other's lower layers freely.
+  const { sdk, kernel } = layerPackages();
+  const kernelImportingSdk = { importer: boundaryPackage(kernel.name, kernel.path, kernel.kind, [sdk.name]), target: sdk, specifier: sdk.name, sourceFile: "packages/kernel/src/action-service.ts" };
+  assert.deepEqual(evaluateImportBoundary(kernelImportingSdk), []);
+});

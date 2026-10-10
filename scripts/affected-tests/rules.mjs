@@ -14,8 +14,13 @@ export const REPOSITORY_FOLDERS = [...PACKAGE_AREAS, "scripts", "skills", "docs"
 // "改共享核心 contracts、kernel、modules、local-host 的装配、workbench 外壳，改迁移或存储，改动跨三个以上包，删除整块旧代码，
 //  或合入后相关用例意外失败" (spec §1, 2026-10-03). The last cannot be seen from a diff; `--full` states it, and the end of a phase.
 export const FULL_REGRESSION = {
-  /** Whole packages that are shared core. `modules/` is every package under it. */
-  corePackages: ["packages/contracts", "packages/kernel"],
+  /**
+   * Whole packages that are shared core. `modules/` is every package under it. plugin-sdk joined on 2026-10-10 (spec §1, W3-03):
+   * it holds the runtime tools that authors and the platform share, the execution lifetime first and, as W3-03 moves them in PR by
+   * PR, the Manifest and declaration rules the Kernel and Plugin Runtime apply and the text comparison. The same list is in
+   * scripts/package-owners.mjs (SHARED_CORE) and docs/system/PARALLEL-DEVELOPMENT.md section 6.
+   */
+  corePackages: ["packages/contracts", "packages/kernel", "packages/plugin-sdk"],
   corePackagePrefixes: ["modules/"],
   /**
    * "local-host 的装配、workbench 外壳": 23 files, from three places (how each got on the list is checked against the READMEs by

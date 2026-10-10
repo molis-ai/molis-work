@@ -49,11 +49,13 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
 }
 
 /**
- * The owners of a project's data in the Home that are plain files, as the packages that keep them declare it: each
- * built-in plugin says on its catalog entry (`project_data`) what it keeps and how to clear it, and the Functions module,
- * and the modules that are no plugin (Functions, the Sessions registry) export the same. The Host names none of them; a plugin added to the catalog with a declaration
- * is cleared by the next deletion. They run in the order the declarations ask (`order`, then catalog order), which is the
- * order the confirmation dialog lists them in.
+ * The owners of a project's data in the Home that are plain files, as the packages that keep them declare it. Each
+ * built-in plugin says on its catalog entry (`project_data`) what it keeps and how to clear it, and those come from the
+ * catalog without the Host naming them: a plugin added to the catalog with a declaration is cleared by the next deletion.
+ * The two modules that are no plugin, Functions and the Sessions registry, export the same declaration, and the Host names
+ * them here. Sessions is marked `survivesRebuild` here because keeping it is the demo reset's rule, not the module's: the
+ * reset keeps the panels and Runtime bindings that name those Sessions. They run in the order the declarations ask
+ * (`order`, then catalog order), which is the order the confirmation dialog lists them in.
  */
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
   const declared: Array<{ id: string; data: ProjectDataDeclaration; survivesRebuild?: true }> = [

@@ -334,3 +334,58 @@ test("a Sessions purge cannot take a content block out from under an event that 
     } finally { mock.restoreAll(); registry.close(); }
   });
 });
+
+test("a Sessions purge commits the deleted rows before it removes any content block, and removes each block holding the write lock", async () => {
+  await withHome(async ({ home, gone, kept }) => {
+    const written = await seedSessions(home, gone);
+    await seedSessions(home, kept);
+    const removals: Array<{ rowsLeft: number; lockHeld: boolean }> = [];
+    const real = fs.rmSync;
+    mock.method(fs, "rmSync", ((target: fs.PathLike, options?: fs.RmOptions) => {
+      if (String(target).endsWith(".blob")) {
+        // A second connection of the registry's own SQLite library: it sees only what has been committed, and cannot take the write lock while another holds it.
+        const probe = new Database(join(home, "sessions", "sessions.db"), { timeout: 0 });
+        try {
+          const rowsLeft = Number((probe.prepare(`SELECT (SELECT COUNT(*) FROM sessions WHERE session_id = :id) + (SELECT COUNT(*) FROM session_events WHERE session_id = :id)
+            + (SELECT COUNT(*) FROM session_handoffs WHERE package_id = :handoff) + (SELECT COUNT(*) FROM session_messages WHERE request_id = :message) AS n`)
+            .get({ id: written.sessionId, handoff: written.handoffId, message: written.messageId }) as { n: number }).n);
+          let lockHeld = false;
+          try { probe.exec("BEGIN IMMEDIATE"); probe.exec("ROLLBACK"); } catch { lockHeld = true; }
+          removals.push({ rowsLeft, lockHeld });
+        } finally { probe.close(); }
+      }
+      return real(target, options);
+    }) as typeof fs.rmSync);
+    try { assert.equal(await projectDeletedHooksFor(home).clear("sessions", gone), true); } finally { mock.restoreAll(); }
+
+    assert.equal(removals.length, 3, "the project's own event, handoff and message contents are removed; the sentence both projects said stays");
+    for (const removal of removals) {
+      assert.equal(removal.rowsLeft, 0, "the rows are committed before the first block goes, so a commit that fails cannot leave rows whose content is gone");
+      assert.equal(removal.lockHeld, true, "a block is removed while the write lock is held, so no writer can name it between the check and the removal");
+    }
+  });
+});
+
+test("a content block that cannot be removed does not bring the deleted Sessions back, and the purge still removes the other blocks and says what failed", async () => {
+  await withHome(async ({ home, gone, kept }) => {
+    const goneWritten = await seedSessions(home, gone), keptWritten = await seedSessions(home, kept);
+    const before = sessionRows(home, gone, goneWritten);
+    const blobsBefore = blobs(home).length;
+    const real = fs.rmSync;
+    let attempts = 0;
+    mock.method(fs, "rmSync", ((target: fs.PathLike, options?: fs.RmOptions) => {
+      if (String(target).endsWith(".blob") && (attempts += 1) === 1) throw Object.assign(new Error("EACCES: permission denied, unlink"), { code: "EACCES" });
+      return real(target, options);
+    }) as typeof fs.rmSync);
+    try { await assert.rejects(projectDeletedHooksFor(home).clear("sessions", gone), /EACCES/, "the failure is reported, so the receipt keeps the step pending"); } finally { mock.restoreAll(); }
+
+    assert.deepEqual(sessionRows(home, gone, goneWritten), nothing(before), "the rows stay deleted: only a block no row names is left behind");
+    assert.equal(attempts, 3, "one block that will not go does not stop the others from being tried");
+    assert.equal(blobs(home).length, blobsBefore - 2, "the two blocks that could be removed are gone");
+    assert.deepEqual(sessionRows(home, kept, keptWritten), before, "another project's rows are untouched");
+    const registry = await openWorkSessionRegistry({ homeDirectory: home });
+    try { assert.match(registry.messages.get(keptWritten.messageId).text ?? "", /私密消息/, "and its content is still readable"); } finally { registry.close(); }
+    assert.equal(await projectDeletedHooksFor(home).clear("sessions", gone), true, "running the owner again succeeds");
+    assert.deepEqual(sessionRows(home, gone, goneWritten), nothing(before));
+  });
+});

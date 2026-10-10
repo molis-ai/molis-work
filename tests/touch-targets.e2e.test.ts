@@ -11,7 +11,9 @@ import { layoutFindings } from "./fixtures/layout-audit.js";
 // work with its chip and the chip's mark, the chips that come and go beside the input, and the crowd of them all) at the widths
 // where it is tight: 320, 360 and 390px phones and the 640, 667, 740 and 852px sideways phones. A line that cannot hold them at
 // 44px folds in steps (the choosers, then the work chip's mark, then the materials and the notice into the "+" menu); each
-// step is taken only when the one before it still overflowed, and nothing it folds is lost.
+// step is taken only when the one before it still overflowed, and nothing it folds is lost. The states are the ones the island can
+// show (a Character belongs to a work that is not Coding and the mode to one that is), the page object behind the materials chip is
+// a real one, and a tap into the input and away again (the phone hides the chips while typing) leaves the steps where they were.
 // A fine-pointer window of 1280px keeps the sizes the exception names and does not sink below its floor, also in a short window
 // and at 700px, where a crowded line squeezes its chips narrower but never shorter.
 
@@ -68,7 +70,20 @@ const showChips = (selectors: string[]) => `(() => {
     chip.hidden = false;
     if (/executor|character/.test(selector)) chip.setAttribute("data-chosen", "");
   }
-  for (const [selector, text] of Object.entries(words)) { const span = document.querySelector(selector); if (span && !span.closest("[hidden]")) span.textContent = text; }
+  const paged = !!document.querySelector("[data-test-page-object]");
+  for (const [selector, text] of Object.entries(words)) { const span = document.querySelector(selector); if (span && !span.closest("[hidden]") && !(paged && /materials/.test(selector))) span.textContent = text; }
+})()`;
+/** The page object behind the materials chip: the island names it on the chip itself (and repaints the chip from it whenever the input
+ * takes focus), so a state with materials has one and a state without has none. Its title is as long as the chip's words were forced to be. */
+const PAGE_TITLE = "本周需求说明文档";
+const lookAtPage = (on: boolean) => `(() => {
+  document.querySelectorAll("[data-test-page-object]").forEach(el => el.remove());
+  if (!${on}) return;
+  const page = document.createElement("div");
+  page.setAttribute("data-test-page-object", "");
+  page.style.cssText = "position:fixed;top:60px;left:10px;width:50px;height:20px";
+  document.body.append(page);
+  page.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: "todo", object: { kind: "todo_item", id: "touch-targets-page", title: ${JSON.stringify(PAGE_TITLE)} } }));
 })()`;
 const chipsShown = (selectors: string[]) => `${JSON.stringify(selectors)}.every(selector => document.querySelector(selector)?.hidden === false)`;
 
@@ -105,6 +120,17 @@ const LINE_FIT = `(() => {
     input: Math.round(document.querySelector("[data-assistant-input]").getBoundingClientRect().width * 10) / 10, parts };
 })()`;
 
+/** The mark on the "+" that points to what the island folded into its menu. */
+const DOT = `(() => { const style = getComputedStyle(document.querySelector("[data-assistant-attach]"), "::after"); return { content: style.content, background: style.backgroundColor, size: style.width + " " + style.height }; })()`;
+
+/** The line as a person sees it around typing: whether the chips the phone hides while the input has focus are on it, and where it ends. */
+const TYPING = `(() => {
+  const composer = document.querySelector("[data-assistant-composer]"), pill = composer.getBoundingClientRect(), send = document.querySelector("[data-assistant-send]").getBoundingClientRect();
+  return { stage: composer.dataset.crowded ?? "", fit: composer.dataset.fit ?? "", overflow: composer.scrollWidth - composer.clientWidth, sendRight: Math.round(send.right), pillRight: Math.round(pill.right),
+    focused: document.activeElement?.matches("[data-assistant-input]") === true,
+    chips: [...composer.querySelectorAll(".assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention")].filter(el => el.checkVisibility()).map(el => String(el.className).split(" ")[0]) };
+})()`;
+
 /** A finding that is about the strip or the bar (the page behind them has its own audits). */
 const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-resident|bar-chat|plugin-picker|navigator-project|navigator-directory|immersive-show|workbench-bar|bar-start|bar-end|tab-view-chip|tab-item|tab-strip|tab-add|tab-split|workspace-history/;
 
@@ -118,6 +144,8 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   const start = async () => {
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
     if (touch) await command("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 }, sessionId);
+    // A page nobody has focused answers `:focus` to nothing: the phone's typing rule needs a focused page to be seen at all.
+    await command("Emulation.setFocusEmulationEnabled", { enabled: true }, sessionId);
   };
   const open = async (width: number, height: number, path: string, ready: string) => {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: touch }, sessionId);
@@ -174,8 +202,9 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   /** The Assistant line with some chips shown: they are the ones the island shows beside the input in that state. A crowded line takes
    * chips off in steps (the island marks which), so what must be on it is `present` less what that step folds; what is folded is not lost:
    * the work chip's mark is the panel's own "new work", the choosers are in the side pane, the materials and the notice are in the "+" menu. */
-  const line = async (name: string, chips: string[], present: string[], floor: number, chipWidthFree = false) => {
+  const line = async (name: string, chips: string[], present: string[], floor: number, chipWidthFree = false, insidePill = true) => {
     if (present.includes("work chip")) await waitFor("document.querySelector('[data-assistant-target-wrap]')?.getClientRects().length > 0", 10_000);
+    await evaluate(lookAtPage(chips.includes("[data-assistant-materials]")));
     // The island repaints its chips when its first answers come back and would hide what was shown; show them again until they stay.
     let bar: Control[] = [];
     let kinds = new Set<string>();
@@ -195,12 +224,21 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     const small = (control: Control) => (chipWidthFree && LINE_KINDS.includes(control.kind) ? control.h : short(control)) < floor;
     assert.deepEqual(bar.filter(small).map(control => `${control.kind} 「${control.label}」 ${control.w}×${control.h}`), [], `${name}: no control of the bar is under ${floor}px`);
     assert.deepEqual(bar.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name}: every control is a known one`);
-    assert.ok(fit.overflow <= 1, `${name}: the line does not overflow its pill (by ${fit.overflow}px; ${JSON.stringify(fit)})`);
-    assert.deepEqual(fit.parts.filter(part => part.left < fit.left - 1 || part.right > fit.right + 1 || part.right > fit.vw).map(part => `${part.name} ${part.left}–${part.right}`), [],
-      `${name}: every part of the line is inside its pill (${fit.left}–${fit.right}) and the window (${fit.vw})`);
+    if (insidePill) {
+      assert.ok(fit.overflow <= 1, `${name}: the line does not overflow its pill (by ${fit.overflow}px; ${JSON.stringify(fit)})`);
+      assert.deepEqual(fit.parts.filter(part => part.left < fit.left - 1 || part.right > fit.right + 1 || part.right > fit.vw).map(part => `${part.name} ${part.left}–${part.right}`), [],
+        `${name}: every part of the line is inside its pill (${fit.left}–${fit.right}) and the window (${fit.vw})`);
+    }
     assert.ok(fit.input >= (floor >= 44 ? 44 : 28), `${name}: the input keeps its box (${fit.input}px)`);
     // Taking chips off is the last resort: the step the island took was needed, and with none taken the line fits as it is.
     if (fit.stage) assert.equal(await evaluate<boolean | null>(stepBefore), true, `${name}: one step less folded than "${fit.stage}" would run over the pill, so the fold was needed`);
+    // A dot on the "+" says the materials or the notice are in its menu: it is there when they are folded into it, and not otherwise.
+    const dot = await evaluate<{ content: string; background: string; size: string }>(DOT);
+    if (fit.stage === "chips" && fit.touchRules) {
+      assert.notEqual(dot.content, "none", `${name}: the "+" carries a dot while its menu holds the folded chips`);
+      assert.equal(dot.size, "8px 8px", `${name}: an 8px dot`);
+      assert.notEqual(dot.background, "rgba(0, 0, 0, 0)", `${name}: and it is painted, not an empty box`);
+    } else assert.equal(dot.content, "none", `${name}: the "+" has no dot while nothing is folded into it (stage "${fit.stage}")`);
     // What a crowded line folded into the "+" menu is there, as tall as a touch target, and opens the same list the chip did.
     const aside = present.filter(kind => ["materials chip", "attention chip"].includes(kind) && !expected.includes(kind));
     if (aside.length) {
@@ -211,6 +249,25 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
       assert.deepEqual(menu.heights.filter(height => height < 44), [], `${name}: and its rows are 44px on touch (${menu.heights})`);
     }
     return { fit, expected };
+  };
+
+  /** A tap into the input and away again, as a person does to type and dismiss the keyboard. The phone hides the chips while the input has
+   * focus and the focus repaints the materials chip; the line must come back as it was, the same steps and inside its pill (it is measured
+   * with its chips on it, whether or not typing hides them). */
+  const typeAndLeave = async (name: string, before: LineFit, phoneWidth: boolean) => {
+    type Typing = { stage: string; fit: string; overflow: number; sendRight: number; pillRight: number; focused: boolean; chips: string[] };
+    await evaluate(`document.querySelector("[data-assistant-input]").focus()`);
+    await settle();
+    const typing = await evaluate<Typing>(TYPING);
+    await evaluate(`document.querySelector("[data-assistant-input]").blur()`);
+    await settle();
+    const after = await evaluate<Typing>(TYPING);
+    assert.equal(typing.focused, true, `${name}: the input has focus while typing`);
+    if (phoneWidth) assert.deepEqual(typing.chips, [], `${name}: the phone hides the chips while the input has focus, so this is the case that used to lose the steps`);
+    assert.deepEqual([typing.stage, typing.fit], [before.stage, before.fit], `${name}: the steps do not depend on the input's focus (typing: ${JSON.stringify(typing)})`);
+    assert.deepEqual([after.stage, after.fit], [before.stage, before.fit], `${name}: after the input lets go the line has the steps it had (${JSON.stringify(after)})`);
+    assert.ok(after.overflow <= 1, `${name}: and it does not overflow its pill (by ${after.overflow}px)`);
+    assert.ok(after.sendRight <= after.pillRight + 1, `${name}: send ends inside the pill (${after.sendRight} of ${after.pillRight})`);
   };
 
   /** Opens what a button of the Assistant line opens, presses Escape in it, and says whether it closed and where focus went: back to the
@@ -233,14 +290,23 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     localStorage.setItem("molis.assistant.current", works[0].work_id);
   })()`);
 
-  return { start, open, short, settle, shellFindings, line, makeCurrentWork, escapeReturns, evaluate, waitFor };
+  /** The rows of the "+" menu, as a person who opens it sees them. */
+  const moreLabels = () => evaluate<string[]>(`(async () => {
+    const attach = document.querySelector("[data-assistant-attach]"), more = document.querySelector("[data-assistant-more]");
+    attach.click(); await new Promise((resolve) => setTimeout(resolve, 120));
+    const labels = [...more.querySelectorAll(".assistant-more-item")].map((row) => row.querySelector(".assistant-more-label").textContent);
+    attach.click();
+    return labels;
+  })()`);
+
+  return { start, open, short, settle, shellFindings, line, typeAndLeave, moreLabels, makeCurrentWork, escapeReturns, evaluate, waitFor };
 }
 
 const NEW_WORK = ["[data-assistant-executor]", "[data-assistant-materials]", "[data-assistant-attention]", "[data-assistant-mode]"];
 const NEW_WORK_KINDS = ["executor chip", "materials chip", "attention chip", "mode chip"];
-const WITH_WORK = ["[data-assistant-materials]", "[data-assistant-attention]", "[data-assistant-character]", "[data-assistant-mode]"];
-const WITH_WORK_KINDS = ["work chip", "work chip clear", "materials chip", "attention chip", "character chip", "mode chip"];
-const CROWD = ["[data-assistant-materials]", "[data-assistant-attention]", "[data-assistant-character]"];
+/** What a work's line can show at most: the island shows a Character only on a work that is not Coding and the mode only on a Coding one. */
+const WITH_CHARACTER = ["[data-assistant-materials]", "[data-assistant-attention]", "[data-assistant-character]"];
+const WITH_MODE = ["[data-assistant-materials]", "[data-assistant-attention]", "[data-assistant-mode]"];
 const BASE = ["work chip", "work chip clear", "materials chip", "attention chip"];
 /** The windows where a phone's Assistant line is tight: 320 and 360 are the narrow phones, 390 the common one, and 640, 667 and
  * 740 are phones held sideways (the Dock and residents trays leave the line 214, 241 and 314px), 852 the one that has room. */
@@ -249,8 +315,8 @@ const LINE_STATES = [
   ["a current work", [], ["work chip", "work chip clear"]],
   ["a current work with its materials and a notice", ["[data-assistant-materials]", "[data-assistant-attention]"], BASE],
   ["a Coding work", ["[data-assistant-mode]"], ["work chip", "work chip clear", "mode chip"]],
-  ["a work with materials, a notice and a Character", CROWD, [...BASE, "character chip"]],
-  ["the same with a Coding mode", [...CROWD, "[data-assistant-mode]"], [...BASE, "character chip", "mode chip"]],
+  ["a work with materials, a notice and a Character", WITH_CHARACTER, [...BASE, "character chip"]],
+  ["a Coding work with its materials and a notice", WITH_MODE, [...BASE, "mode chip"]],
 ] as const;
 
 for (const scheme of ["light", "dark"] as const) {
@@ -313,6 +379,7 @@ for (const scheme of ["light", "dark"] as const) {
       for (const [name, chips, kinds] of LINE_STATES) {
         const { fit } = await w.line(`${name} · ${width}`, [...chips], [...kinds], 44);
         stages[`${width} ${name}`] = fit.stage;
+        await w.typeAndLeave(`${name} · ${width}`, fit, width <= 600);
         // The bar's second row holds seven 44px targets (nine with a plugin's directory); that needs 350px, so the 320px window
         // is measured for the Assistant line only.
         if (width >= 350) assert.deepEqual(await w.shellFindings(), [], `${name} · ${width}: the bar lays out cleanly with 44px chips`);
@@ -323,17 +390,18 @@ for (const scheme of ["light", "dark"] as const) {
     // could keep. These are the stages the island reaches at 44px targets; a change here is a change in what a phone's line shows.
     assert.deepEqual(Object.fromEntries(Object.entries(stages).filter(([key]) => /^(390|360|667) /.test(key))), {
       "390 a current work": "", "390 a current work with its materials and a notice": "", "390 a Coding work": "",
-      "390 a work with materials, a notice and a Character": "choosers", "390 the same with a Coding mode": "choosers",
+      "390 a work with materials, a notice and a Character": "choosers", "390 a Coding work with its materials and a notice": "choosers",
       "360 a current work": "", "360 a current work with its materials and a notice": "mark", "360 a Coding work": "",
-      "360 a work with materials, a notice and a Character": "mark", "360 the same with a Coding mode": "mark",
+      "360 a work with materials, a notice and a Character": "mark", "360 a Coding work with its materials and a notice": "mark",
       "667 a current work": "", "667 a current work with its materials and a notice": "chips", "667 a Coding work": "choosers",
-      "667 a work with materials, a notice and a Character": "chips", "667 the same with a Coding mode": "chips",
+      "667 a work with materials, a notice and a Character": "chips", "667 a Coding work with its materials and a notice": "chips",
     }, "the steps the island takes at 390, 360 and 667px");
     assert.equal(stages["640 a current work"], "mark", "a bare current work in a 640×360 window folds the mark and nothing else");
 
-    // A tablet's line, with every chip.
+    // A tablet's line, with every chip a work can show.
     await w.open(1024, 768, "", "true");
-    await w.line("a work with every chip · 1024", WITH_WORK, WITH_WORK_KINDS, 44);
+    await w.line("a work with a Coding mode and every chip · 1024", WITH_MODE, [...BASE, "mode chip"], 44);
+    await w.line("a work with a Character and every chip · 1024", WITH_CHARACTER, [...BASE, "character chip"], 44);
     assert.deepEqual(await w.shellFindings(), [], "a work with every chip · 1024: the bar lays out cleanly");
   });
 
@@ -376,7 +444,8 @@ for (const scheme of ["light", "dark"] as const) {
     await w.makeCurrentWork();
     await w.open(1280, 800, "", "true");
     await w.line("a current work · 1280", [], ["work chip", "work chip clear"], floors.bar);
-    await w.line("a current work with every chip · 1280", WITH_WORK, WITH_WORK_KINDS, floors.bar);
+    await w.line("a Coding work with every chip · 1280", WITH_MODE, [...BASE, "mode chip"], floors.bar);
+    await w.line("a work with a Character and every chip · 1280", WITH_CHARACTER, [...BASE, "character chip"], floors.bar);
     const character = await w.escapeReturns("[data-assistant-character]", "[data-assistant-characters]");
     assert.deepEqual([character.opened, character.closed, character.focus], [true, true, true], `the Character · 1280: Escape closes its list and focus goes to the control that opened it, or the "+" (${JSON.stringify(character)})`);
     await w.open(1280, 500, "", "true");
@@ -388,6 +457,17 @@ for (const scheme of ["light", "dark"] as const) {
     for (const [name, chips, kinds] of LINE_STATES) {
       const { fit } = await w.line(`${name} · 700`, [...chips], [...kinds], floors.bar, true);
       assert.equal(fit.touchRules, false, "a fine-pointer window of 700px does not take the phone's rules");
+    }
+
+    // Just wider than a phone (620px, fine pointer) the line is not a touch window either: the island's steps are made for 44px targets
+    // and the stylesheet applies them only there, so the island takes none and puts nothing into the "+" menu while the chips are on the
+    // line, however crowded it is. (A crowded line this narrow still runs past its pill, as it did before this branch; not measured here.)
+    await w.open(620, 800, "", "true");
+    for (const [name, chips, kinds] of LINE_STATES) {
+      const { fit } = await w.line(`${name} · 620`, [...chips], [...kinds], floors.bar, true, false);
+      assert.equal(fit.touchRules, false, "a fine-pointer window of 620px does not take the phone's rules");
+      assert.equal(fit.stage, "", `${name} · 620: so the island marks no step`);
+      assert.deepEqual(await w.moreLabels(), ["添加文件或图片…", "引用项目里的内容", "用一个能力或方法"], `${name} · 620: and the "+" menu lists its usual rows, not the chips that are still on the line`);
     }
   });
 }

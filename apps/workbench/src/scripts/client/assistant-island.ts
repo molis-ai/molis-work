@@ -2748,20 +2748,20 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     items[(at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
   });
 
-  // The input keeps room to type, but the chips beside it come and go, so the composer measures itself, as the Dock does, and steps down:
-  // quiet parts narrow, unchanged choosers fold (panel closed), plugin and work chips narrow. Still over its edge it folds a step at a time,
-  // as far as it must (no chip under 44px): the choosers (the side pane has them), the work chip's mark, the materials and the notice ("+").
+  // The input keeps room to type, but the chips come and go, so the composer measures itself, as the Dock does, with its chips on it (typing
+  // hides them, the steps stay): quiet parts narrow, unchanged choosers fold, plugin and work chips narrow; with 44px targets, parts then leave a step at a time.
   const INPUT_ROOM = 120;
   let fitFrame = 0;
   const roomy = () => input.clientWidth >= INPUT_ROOM && composer.scrollWidth <= composer.clientWidth + 1;
   const fitComposer = () => {
     fitFrame = 0;
-    delete composer.dataset.fit; delete composer.dataset.crowded;
+    delete composer.dataset.fit; delete composer.dataset.crowded; composer.dataset.measuring = "";
     for (const level of ["tight", "folded", "narrow"]) {
       if (roomy()) break;
       composer.dataset.fit = level;
     }
-    for (const step of ["choosers", "mark", "chips"]) { if (composer.scrollWidth <= composer.clientWidth + 1) break; composer.dataset.crowded = step; }
+    if (matchMedia("(max-width: 600px), (pointer: coarse)").matches) for (const step of ["choosers", "mark", "chips"]) { if (composer.scrollWidth <= composer.clientWidth + 1) break; composer.dataset.crowded = step; }
+    delete composer.dataset.measuring;
   };
   const refit = () => { if (!fitFrame) fitFrame = requestAnimationFrame(fitComposer); };
   // The island's width is the bar's, never its chips'; the chips' own changes arrive as attributes and labels.

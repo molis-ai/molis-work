@@ -214,6 +214,11 @@ test("touch sizing goes by the input: 44px targets for phones and coarse pointer
   assert.match(touch, /\.bar-composer:is\(\[data-crowded="mark"\], \[data-crowded="chips"\]\) \.assistant-target\[data-mode="work"\] \{ min-width: 44px; \}/, "and the work chip then needs room for one button");
   assert.match(touch, /\.bar-composer\[data-crowded="chips"\] :is\(\.assistant-materials-button, \.assistant-attention\) \{ display: none; \}/, "and last the materials and the notice, which the \"+\" menu then lists");
   assert.match(touch, /\.assistant-more-item \{ min-height: 44px; \}/, "the rows of the \"+\" menu are 44px on touch");
+  assert.match(touch, /\.bar-composer\[data-crowded="chips"\]:has\(\.assistant-materials-button:not\(\[hidden\]\), \.assistant-attention:not\(\[hidden\]\)\) \.bar-composer-attach::after \{[^}]*content: ""; position: absolute;[^}]*width: 8px; height: 8px; border-radius: 50%; background: var\(--accent\);/, "and a dot on the \"+\" points to the folded chips");
+  // The phone hides the chips while the input has focus; the island measures the line with them on it (`data-measuring`), so the steps do not follow focus.
+  const typingRules = css.match(/\.bar-composer:has\(\.assistant-composer-input:focus\)[^{]*\{ display: none; \}/g) ?? [];
+  assert.equal(typingRules.length, 2, "the narrow column and the phone each hide the chips while typing");
+  assert.deepEqual(typingRules.filter(rule => !rule.includes(":not([data-measuring])")), [], "and neither applies while the island measures the line");
   assert.match(css, /@media \(pointer: coarse\) and \(max-height: 560px\) and \(min-width: 601px\) \{[^}]*--dock-h: 60px; --composer-h: 50px;/, "a coarse-pointer short window keeps 44px buttons and a full composer");
   assert.doesNotMatch(css, /@media \(max-width: 600px\) \{\s*:is\(body\.immersive-workbench[^{]*\) \{[^}]*--dock-btn: 44px;/, "the phone layout block no longer owns the 44px sizing");
   assert.match(css, /@media \(max-width: 760px\), \(pointer: coarse\) \{[^}]*\.tab-view-chip \{ height: 44px; \}/, "the location chip is 44px where the tabs are");
@@ -222,7 +227,7 @@ test("touch sizing goes by the input: 44px targets for phones and coarse pointer
   const design = readFileSync(join(process.cwd(), "DESIGN.md"), "utf8");
   assert.match(design, /\*\*Exception: the desktop window's chrome\.\*\*[^\n]*fine-pointer window[^\n]*touch sizing goes by the input, not by the width/, "DESIGN.md writes the exception for fine-pointer windows only");
   assert.match(design, /`data-crowded`/, "and says what a crowded line does");
-  assert.match(design, /\*\*Touch windows\.\*\*[^\n]*44px target[^\n]*\n\nThe Assistant line holds inside its pill from 320px/, "and where the touch rules hold");
+  assert.match(design, /\*\*Touch windows\.\*\*[^\n]*44px target[^\n]*\n\nIn a touch window the Assistant line holds inside its pill from 320px/, "and where the touch rules hold");
   assert.match(design, /tests\/touch-targets\.e2e\.test\.ts/, "and names the test that holds it");
   assert.doesNotMatch(design, /Known gap: the coarse-pointer bar/, "no coarse-pointer gap is left open");
 });

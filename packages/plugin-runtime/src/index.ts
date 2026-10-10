@@ -5,7 +5,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assertContributionMatchesManifest, PluginContributionError } from "./contribution.js";
 import { PluginRuntimeError } from "./errors.js";
 import { pluginManifestDigest } from "./identity.js";
-import { abandonRefusal, assertMutable, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow } from "./install-rules.js";
+import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
@@ -128,7 +128,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     deployment: PluginDeployment;
     grants?: string[];
     retain_private_data?: boolean;
-    /** Ships with the Host: an existing install is moved onto this build whatever its version (`recordToFollow`). */
+    /** Ships with the Host: an existing install is moved onto this build whatever its version (`recordToFollow`), and it holds every permission its Manifest declares whatever `grants` says (`bundledGrants`). */
     bundled?: boolean;
     /** The person agreed to drop the private data an uninstall kept, which this version cannot read; the Host deletes it. */
     discard_kept_data?: boolean;
@@ -192,7 +192,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       }
       return this.receipt("install", current, true);
     }
-    const grants = normalizeGrants(manifest, input.grants ?? []);
+    const grants = input.bundled === true ? bundledGrants(manifest) : normalizeGrants(manifest, input.grants ?? []);
     if (current && current.state !== "uninstalled") {
       if (
         current.version === manifest.version

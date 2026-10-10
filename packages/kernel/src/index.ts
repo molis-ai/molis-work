@@ -134,6 +134,10 @@ export class CapabilityRegistry<Context> {
     return this.entries.get(capabilityKey(reference))?.token;
   }
 
+  /**
+   * An action's entry is settled by the action service, which is the only way to it (`ActionService.invoke` and
+   * `invokeSync`); the Host's typed port calls this directly for entries that have no action, and settles those itself.
+   */
   async invoke<Input, Output>(
     context: Context,
     definition: HostCapabilityDefinition<Input, Output>,
@@ -165,3 +169,5 @@ export class CapabilityRegistry<Context> {
 
 export { ActionService, actionSceneCompatibilityReason } from "./action-service.js";
 export { assertActionInput, compileActionSchema } from "./action-schema.js";
+export { newCallId, shortCallId, currentCallId, withCallId, withCallIdSync, markCallRecorded, recordedCallId } from "./call-scope.js";
+export { bindCall, markStarted, refuseCall, settleCall, type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "./action-settlement.js";

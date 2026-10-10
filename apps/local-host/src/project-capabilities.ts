@@ -1,7 +1,7 @@
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { goalsActions, GOALS_PLUGIN_ID, managementEventDecisionAuthority, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, GOALS_PLUGIN_ID, managementEventDecisionAuthority, managementTreeAuthority, type GoalEventDecideEntryInput } from "@molis-ai/molis-work-plugin-goals";
 import { initializeBoardCapability, snapshotBoardCapability, goalTreeCapabilities, readProjectGuidanceCapability, setActiveGoalCapability,
   createGoalIntentCapability, recordGoalUserDecisionCapability } from "@molis-ai/molis-work-plugin-goals";
 import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
@@ -62,6 +62,19 @@ function managementPayload<Input extends { project_id: string }>(
   refusePayloadIdentity(input, alsoRefused);
   const { project_id: _board, ...payload } = input;
   return payload;
+}
+
+/**
+ * The event decision is the person's too, and the management door treats it like the structure decision: the Host builds who
+ * decides (the person on this machine, origin management) and refuses an identity in the arguments, in the authority too. The
+ * authority the caller sends only points at the conversation the decision came from.
+ */
+function managementEventDecision(runtime: MolisWorkProjectRuntime, input: GoalEventDecideEntryInput) {
+  const { authority: evidence, ...payload } = managementPayload(runtime, input);
+  const authority = managementEventDecisionAuthority(runtime.project_id, input.idempotency_key, evidence);
+  const { actor_id, actor_kind } = managementIdentity(runtime, input.idempotency_key);
+  return { payload, writer: { actor_id, actor_kind,
+    user_action: { source: "management" as const, conversation_ref: authority.conversation_ref, message_ref: authority.message_ref } } };
 }
 
 export function registerProjectCapabilities(
@@ -209,15 +222,9 @@ export function registerProjectCapabilities(
     const payload = managementPayload(runtime, input);
     return goalAction(runtime, goalsActions.create, { ...payload, source_kind: payload.source_kind ?? "web" }, managementIdentity(runtime, input.idempotency_key), invocation);
   });
-  // The event decision is the person's too, and the management door treats it like the structure decision above: the Host builds who
-  // decides (the person on this machine, origin management) and refuses an identity in the arguments, in the authority too. The
-  // authority the caller sends only points at the conversation the decision came from.
   host.register(recordGoalUserDecisionCapability, (runtime, input, invocation) => {
-    const { authority: evidence, ...payload } = managementPayload(runtime, input);
-    const authority = managementEventDecisionAuthority(runtime.project_id, input.idempotency_key, evidence);
-    const { actor_id, actor_kind } = managementIdentity(runtime, input.idempotency_key);
-    return goalAction(runtime, goalsActions.decide, payload, { actor_id, actor_kind,
-      user_action: { source: "management", conversation_ref: authority.conversation_ref, message_ref: authority.message_ref } }, invocation);
+    const { payload, writer } = managementEventDecision(runtime, input);
+    return goalAction(runtime, goalsActions.decide, payload, writer, invocation);
   });
   registerHostScheduleCapabilities(host, (runtime) => runtime.store.db);
 }

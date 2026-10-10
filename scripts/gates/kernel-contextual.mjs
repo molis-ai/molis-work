@@ -9,8 +9,10 @@
 //
 //   K1  The core does not depend on contextual ranking. No core file imports it, re-exports it or loads it dynamically, and no
 //       core file takes a contextual name from another core file that re-exports it (`import { planContextualLayout } from
-//       "./index.js"`). The one allowance is a re-export by name (`export { a, b } from "./contextual.js"`) in a file listed in
-//       `entryReexports` (the package entry, until it gets its own subpath); `export *` is never allowed, it lists no names.
+//       "./index.js"`). So the package entry does not re-export it: contextual ranking is reached through its own subpath,
+//       `@molis-ai/molis-work-kernel/contextual` (package.json exports), and loading the core loads none of it. The only
+//       allowance left is `ENTRY_REEXPORTS`, which is empty; a re-export by name (`export { a, b } from "./contextual.js"`) is
+//       the one form it could admit, `export *` never (it lists no names).
 //   K2  Only contextual ranking reads packages/contracts services/* and only services/contextual.
 //   K3  Contextual ranking reads two Contracts and node:crypto (CONTEXTUAL_PACKAGES) and files of the kernel; not the package
 //       entry (that would close a cycle with the re-export), not a file outside packages/kernel/src, nothing else (no
@@ -46,8 +48,11 @@ export const CONTEXTUAL_PACKAGES = new Set([
   "@molis-ai/molis-work-contracts/services/contextual",
   "node:crypto",
 ]);
-/** The core files allowed to re-export contextual names (by name): the package entry, until contextual ranking has its own subpath. */
-export const ENTRY_REEXPORTS = new Set(["packages/kernel/src/index.ts"]);
+/**
+ * The core files allowed to re-export contextual names by name. Empty: contextual ranking has its own subpath
+ * (`@molis-ai/molis-work-kernel/contextual`), so the package entry no longer re-exports it (W3-04, PR 2). It was the package entry until then.
+ */
+export const ENTRY_REEXPORTS = new Set();
 /** K5 reads these: contextual ranking and the core file that derives scene choices from the directory. */
 export const DIRECTORY_DERIVED = /^packages\/kernel\/src\/(?:contextual(?:\.ts|\/.+\.ts)|subject-offer-choices\.ts)$/;
 
@@ -151,7 +156,8 @@ function coreDependsOnContextual(kernel, { entryReexports }) {
         const namedExport = kind === "export" && node.exportClause && ts.isNamedExports(node.exportClause);
         if (namedExport && entryReexports.has(file)) continue;
         const why = kind !== "export" ? `loads contextual ranking (${kind})`
-          : !namedExport ? "re-exports contextual ranking with `export *` (that lists no names, so K1 cannot see which ones)" : "re-exports contextual ranking, and only a file listed in entryReexports may";
+          : !namedExport ? "re-exports contextual ranking with `export *` (that lists no names, so K1 cannot see which ones)"
+            : `re-exports contextual ranking${entryReexports.size ? ", and only a file listed in entryReexports may" : "; it has its own subpath (@molis-ai/molis-work-kernel/contextual) and no core file re-exports it"}`;
         problems.push(`${file}:${line} K1: the kernel core ${why}: "${specifier}"; the dependency runs from contextual ranking to the core, never back (packages/kernel/README.md, docs/system/PACKAGE-BOUNDARIES.md §2)`);
         continue;
       }
@@ -248,7 +254,7 @@ function namesNoCapability(kernel) {
 
 /**
  * Problems in the working tree; every one is a failure and there is no baseline. `snapshot` is { files, read } like the other
- * rules; `options.entryReexports` is for the gate's own test (the files that may re-export contextual names by name).
+ * rules; `options.entryReexports` is for the gate's own test (the files that may re-export contextual names by name; none by default).
  */
 export function kernelContextualProblems(snapshot, { entryReexports = ENTRY_REEXPORTS } = {}) {
   const kernel = readKernel(snapshot);

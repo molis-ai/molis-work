@@ -11,7 +11,7 @@
 import { writeFileSync } from "node:fs";
 import { EditorState, TextSelection } from "prosemirror-state";
 import type { SurfaceFocus, ContextualCandidate } from "@molis-ai/molis-work-contracts/services/contextual";
-import { fragmentCandidates, judgmentQuestions, judgmentState, planContextualLayout, readContextualJudgment } from "@molis-ai/molis-work-kernel";
+import { fragmentCandidates, judgmentQuestions, judgmentState, planContextualLayout, readContextualJudgment } from "@molis-ai/molis-work-kernel/contextual";
 import { nodeFromUnknown } from "../../plugins/native/pages/src/schema.js";
 import { pagesFocusPlugin, readPagesFocus } from "../../plugins/native/pages/src/focus.js";
 import { DOCUMENTS, MEMORY_STANDIN, sliceDirectory } from "./fixture.mjs";

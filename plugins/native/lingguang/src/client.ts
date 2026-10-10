@@ -10,8 +10,12 @@
  * Leaving also means the surface going away. When the workbench hides this page (another plugin, Home, Settings) the open blank
  * spark is saved, the editor closed and the spark taken back the same way, so what comes back is the list. When the page itself
  * is going away (reload, window closed) there is no time to read the Host's copy: the copy this page last saw decides, and the
- * call is sent with keepalive. A tab or window that is only hidden is not leaving. The scope's cleanups run in the same order
- * when the page goes away; `alive` tells the two apart, so the call is made once.
+ * call is sent with keepalive. Once it is decided to throw the spark away the editor is closed too: the workbench keeps the open
+ * record of a plugin's page to reopen after a reload and forgets it when the page reports it is back at its list (data-expanded
+ * false), and a record it still held would be asked for by id 1.5 s after the reload and answered 「这条灵光已丢掉或不存在」. A spark
+ * that stays (words on the screen or in the saved copy) keeps its editor and its record. A tab or window that is only hidden is
+ * not leaving. The scope's cleanups run in the same order when the page goes away; `alive` tells the two apart, so the call is
+ * made once.
  */
 export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
@@ -206,6 +210,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       const { spark } = unloading ? { spark: records.find((item) => item.id === id) } : await request("GET", "/api/plugins/lingguang/" + encodeURIComponent(id));
       if ((spark.body || "").trim() || (spark.title.trim() && spark.title !== given)) return;
+      if (unloading) closeWorkspace();
       await request("POST", "/api/plugins/lingguang/discard", { ids: [id] }, unloading);
       records = records.filter((item) => item.id !== id);
       renderList();

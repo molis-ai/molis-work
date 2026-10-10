@@ -8,9 +8,12 @@
  *
  * Leaving also means the surface going away. When the workbench hides this page (another plugin, Home, Settings) the editor is
  * closed and the blank document taken back the same way, so what comes back is the list. When the page itself is going away
- * (reload, window closed) the call is sent with keepalive and the editor is left as it is. A tab or window that is only hidden
- * is not leaving, and a document with a save pending is never taken back (blankLeaving). The scope's cleanups run in the same
- * order when the page goes away; `alive` tells the two apart, so the call is made once, with keepalive.
+ * (reload, window closed) the editor is closed too, and the call is sent with keepalive. Closing it matters: the workbench keeps
+ * the open record of a plugin's page to reopen after a reload and forgets it when the page reports it is back at its list
+ * (data-expanded false), and a record it still held would be asked for by id 1.5 s after the reload and answered 「找不到这篇文档」.
+ * A tab or window that is only hidden is not leaving, and a document with a save pending is never taken back (blankLeaving), so
+ * its record stays. The scope's cleanups run in the same order when the page goes away; `alive` tells the two apart, so the call
+ * is made once, with keepalive.
  */
 export const PAGES_BLANK_CLIENT_SCRIPT = String.raw`
   const fresh = new Map();
@@ -32,7 +35,7 @@ export const PAGES_BLANK_CLIENT_SCRIPT = String.raw`
   const leaveBlank = (unloading) => {
     const left = blankLeaving();
     if (!left) return;
-    if (!unloading) closeEditor();
+    closeEditor();
     void dropBlank(left, unloading);
   };
   const lifetime = host.mountPluginClient?.(workbench);

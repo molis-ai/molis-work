@@ -136,7 +136,7 @@ test("Pages and 灵光: a blank item is gone when the person switches to another
   assert.equal(await evaluate("document.querySelector('[data-lingguang=workbench]').dataset.expanded"), "false");
 });
 
-test("Pages and 灵光: reloading with a blank item open takes it back, and the page comes up as its list", { timeout: 120_000 }, async t => {
+test("Pages and 灵光: reloading with a blank item open takes it back, and the page comes up as its list, with nothing said about it", { timeout: 150_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory, reloadPage } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -144,25 +144,50 @@ test("Pages and 灵光: reloading with a blank item open takes it back, and the 
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
   const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
   const sparks = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
+  // The record the workbench reopens in a plugin's page after a reload (per device, in localStorage).
+  const remembered = (plugin: string) => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
+    .map(key => JSON.parse(localStorage.getItem(key) || '{}')[${JSON.stringify(plugin)}]).filter(Boolean)`);
+  // Before the reload the record is there to be reopened, so the checks after it are about something.
+  const waitRemembered = async (plugin: string) => {
+    const end = Date.now() + 8_000;
+    while (!(await remembered(plugin)).length) { if (Date.now() > end) assert.fail(`the workbench never remembered the open ${plugin} record`); await new Promise(resolve => setTimeout(resolve, 50)); }
+  };
+  // The workbench asks a plugin for a remembered record that is not among its rows 1.5 s after the page comes up; a plugin that
+  // cannot find it says so in its note. Past that point there must be no note.
+  const quietAfterTheReopen = async (noteSelector: string, surface: string) => {
+    await new Promise(resolve => setTimeout(resolve, 3_500));
+    assert.deepEqual(await evaluate(`[document.querySelector('${noteSelector}').hidden, document.querySelector('${noteSelector}').textContent, document.querySelector('${surface}').dataset.expanded]`),
+      [true, "", "false"], "no 「找不到」 note, and still the list");
+  };
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
   const before = titles();
   await click("[data-pages-new]");
   await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
   assert.equal(titles().length, before.length + 1, "made at once, as before");
+  await waitRemembered("pages");
   await reloadPage();
   await until(() => titles().length === before.length);
   await waitFor("document.querySelector('[data-pages=workbench]')", 20_000);
   assert.equal(await evaluate("[...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')"), false);
+  assert.deepEqual(await remembered("pages"), [], "the document is gone, so the workbench does not remember it to reopen");
+  await quietAfterTheReopen("[data-pages-note]", "[data-pages=workbench]");
 
+  // 灵光 the same way, on its own page (the reload comes back to where the person was).
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
   await click("[data-bar-resident=lingguang]");
   await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
   await evaluate("document.querySelector('[data-lingguang-capture]').click()");
   await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
   assert.equal(sparks().length, keptSparks + 1, "made at once, as before");
+  await waitRemembered("lingguang");
   await reloadPage();
   await until(() => sparks().length === keptSparks);
+  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
+  assert.deepEqual(await remembered("lingguang"), [], "the spark is gone, so the workbench does not remember it to reopen");
+  await quietAfterTheReopen("[data-lingguang-note]", "[data-lingguang=workbench]");
 });
 
 test("灵光: 「记下第一条灵光」 left empty is thrown away when the person goes back, and one with words stays", { timeout: 90_000 }, async t => {

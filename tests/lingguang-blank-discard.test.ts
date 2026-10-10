@@ -14,7 +14,7 @@ interface FakeNode {
   dataset: Record<string, string>; style: Record<string, string>; children: FakeNode[];
   listeners: Record<string, (event: unknown) => void | Promise<void>>;
   classList: { toggle(): void; add(): void; remove(): void };
-  setAttribute(): void; getAttribute(): null; append(...nodes: FakeNode[]): void; replaceChildren(...nodes: FakeNode[]): void;
+  setAttribute(name?: string, value?: string): void; getAttribute(): null; append(...nodes: FakeNode[]): void; replaceChildren(...nodes: FakeNode[]): void;
   querySelector(selector?: string): FakeNode | null; querySelectorAll(): FakeNode[]; closest(): null; contains(): boolean;
   focus(): void; select(): void; removeEventListener(): void; showModal(): void; close(): void;
   addEventListener(type: string, fn: (event: unknown) => void): void;
@@ -48,6 +48,9 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
   const saved = { fetch: globalThis.fetch, document: (globalThis as { document?: unknown }).document, window: (globalThis as { window?: unknown }).window,
     location: (globalThis as { location?: unknown }).location, molis: (globalThis as { molisWorkControlHeaders?: unknown }).molisWorkControlHeaders };
   const workbench = element();
+  // The workbench watches this attribute: a page that says it is back at its list is a record to forget.
+  const attributes = new Map<string, string>();
+  workbench.setAttribute = (name, value) => { attributes.set(String(name), String(value)); };
   const parts = new Map<string, FakeNode>();
   const part = (selector: string) => { let found = parts.get(selector); if (!found) { found = element(); parts.set(selector, found); } return found; };
   workbench.querySelector = (selector?: string) => part(selector ?? "");
@@ -96,6 +99,7 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
   return {
     store, calls, fire, parts, part, lifetime,
     editorOpen: () => part("[data-lingguang-stage-workspace]").hidden === false,
+    expanded: () => attributes.get("data-expanded"),
     elapse: async () => { await flush(); },
     /** The person types in the title or the body; the autosave runs before they leave (the client saves first). */
     async write(next: { title?: string; body?: string }) {
@@ -291,7 +295,10 @@ test("when the page goes away, the blank spark is thrown away with a call that o
     assert.deepEqual(page.discards().map(call => [call.body.ids, call.keepalive]), [[["S1"], true]]);
     assert.equal(page.calls.some(call => call.method === "GET" && call.path === "/api/plugins/lingguang/S1"), false, "no time to read the Host's copy first");
     assert.equal(page.store.get("S1")?.status, "discarded");
-    assert.equal(page.editorOpen(), true, "the page is going away anyway: nothing on it is redrawn");
+    // The workbench keeps the record open in a page so a reload reopens it, and forgets it when the page reports it is back at its
+    // list (data-expanded false). A reopen of a spark that was just thrown away would show 「这条灵光已丢掉或不存在」 on every reload.
+    assert.equal(page.editorOpen(), false);
+    assert.equal(page.expanded(), "false", "the editor is closed with the discard, so the workbench forgets the record to reopen");
   } finally { page.restore(); }
   // Words saved a moment ago and then cleared on screen: the copy last saved still has them, so it stays.
   const cleared = await mounted([]);
@@ -303,6 +310,8 @@ test("when the page goes away, the blank spark is thrown away with a call that o
     await cleared.write({ body: "" });
     cleared.lifetime.unload(); await cleared.elapse();
     assert.equal(cleared.discards().length, 0);
+    assert.equal(cleared.expanded(), "true", "nothing was thrown away, so the record stays to be reopened");
+    assert.equal(cleared.editorOpen(), true);
   } finally { cleared.restore(); }
   const written = await mounted([]);
   try {
@@ -310,5 +319,15 @@ test("when the page goes away, the blank spark is thrown away with a call that o
     await written.write({ body: "屏幕上有字" });
     written.lifetime.unload(); await written.elapse();
     assert.equal(written.discards().length, 0);
+    assert.equal(written.expanded(), "true");
   } finally { written.restore(); }
+  const refused = await mounted([], { discard: () => json({ error: "暂时丢不掉" }, 503) });
+  try {
+    await refused.fire(click("[data-lingguang-capture]"));
+    refused.lifetime.unload(); await refused.elapse();
+    assert.equal(refused.discards().length, 1);
+    assert.equal(refused.store.get("S1")?.status, "inbox", "refused: it stays, in the list the page comes back as");
+    assert.equal(refused.expanded(), "false");
+    assert.equal(refused.part("[data-lingguang-note]").textContent, "", "and nothing is said about it");
+  } finally { refused.restore(); }
 });

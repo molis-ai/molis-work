@@ -14,7 +14,7 @@ interface FakeNode {
   dataset: Record<string, string>; style: Record<string, string>; children: FakeNode[];
   listeners: Record<string, (event: unknown) => void | Promise<void>>;
   classList: { toggle(): void; add(): void; remove(): void };
-  setAttribute(): void; getAttribute(): null; append(...nodes: FakeNode[]): void; replaceChildren(...nodes: FakeNode[]): void;
+  setAttribute(name?: string, value?: string): void; getAttribute(): null; append(...nodes: FakeNode[]): void; replaceChildren(...nodes: FakeNode[]): void;
   querySelector(selector?: string): FakeNode | null; querySelectorAll(): FakeNode[]; closest(): null; contains(): boolean;
   focus(): void; select(): void; removeEventListener(): void; showModal(): void; close(): void;
   addEventListener(type: string, fn: (event: unknown) => void): void;
@@ -53,6 +53,9 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
   const saved = { fetch: globalThis.fetch, document: (globalThis as { document?: unknown }).document, window: (globalThis as { window?: unknown }).window };
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const workbench = element(), rows = element(), titleInput = element(), note = element();
+  // The workbench watches this attribute: a page that says it is back at its list is a record to forget.
+  const attributes = new Map<string, string>();
+  workbench.setAttribute = (name, value) => { attributes.set(String(name), String(value)); };
   const parts = new Map<string, FakeNode>([["[data-pages-rows]", rows], ["[data-pages-title]", titleInput], ["[data-pages-note]", note]]);
   workbench.querySelector = (selector?: string) => {
     const found = parts.get(selector ?? ""); if (found) return found;
@@ -122,6 +125,7 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
     discards: () => calls.filter(call => call.path.endsWith("/discard")),
     restore() { t.mock.timers.reset(); Object.assign(globalThis, { fetch: saved.fetch, document: saved.document, window: saved.window }); },
     editorOpen: () => parts.get("[data-pages-stage-workspace]")?.hidden === false,
+    expanded: () => attributes.get("data-expanded"),
   };
 }
 const existing = (id: string, title: string, body: unknown = EMPTY): Doc => ({ id, title, body, version: 4, goal_id: "", artifact_version: 0 });
@@ -356,7 +360,7 @@ test("a document with a save still pending is not taken back when the page is hi
   } finally { page.restore(); }
 });
 
-test("when the page goes away, the blank document is taken back with a call that outlives the page, and the editor is left alone", async t => {
+test("when the page goes away, the blank document is taken back with a call that outlives the page, and the page says it is back at its list", async t => {
   const page = await mounted(t, []);
   try {
     await page.fire(click("[data-pages-new]"));
@@ -365,7 +369,10 @@ test("when the page goes away, the blank document is taken back with a call that
     assert.equal(page.discards()[0]!.keepalive, true);
     assert.equal(page.discards()[0]!.body.expected_version, page.discards()[0]!.stored_version);
     assert.equal(page.store.size, 0);
-    assert.equal(page.editorOpen(), true, "the page is going away anyway: nothing on it is redrawn");
+    // The workbench keeps the record open in a page so a reload reopens it, and forgets it when the page reports it is back at its
+    // list (data-expanded false). A reopen of a document that was just taken back would show 「找不到这篇文档」 on every reload.
+    assert.equal(page.editorOpen(), false);
+    assert.equal(page.expanded(), "false", "the editor is closed with the discard, so the workbench forgets the record to reopen");
   } finally { page.restore(); }
   const written = await mounted(t, []);
   try {
@@ -373,6 +380,8 @@ test("when the page goes away, the blank document is taken back with a call that
     await written.write({ body: text("写了") });
     written.lifetime.unload(); await written.elapse(0);
     assert.equal(written.discards().length, 0, "words in it");
+    assert.equal(written.expanded(), "true", "nothing was taken back, so the record stays to be reopened");
+    assert.equal(written.editorOpen(), true);
   } finally { written.restore(); }
   const pending = await mounted(t, []);
   try {
@@ -381,7 +390,17 @@ test("when the page goes away, the blank document is taken back with a call that
     await pending.write({ body: EMPTY }, false);
     pending.lifetime.unload(); await pending.elapse(0);
     assert.equal(pending.discards().length, 0, "a save still pending");
+    assert.equal(pending.expanded(), "true");
   } finally { pending.restore(); }
+  const refused = await mounted(t, [], { discard: () => json({ error: "改过了", code: "pages.conflict" }, 409) });
+  try {
+    await refused.fire(click("[data-pages-new]"));
+    refused.lifetime.unload(); await refused.elapse(0);
+    assert.equal(refused.discards().length, 1);
+    assert.equal(refused.store.has("N1"), true, "refused: it stays, in the list the page comes back as");
+    assert.equal(refused.expanded(), "false");
+    assert.equal(refused.note.textContent, "", "and nothing is said about it");
+  } finally { refused.restore(); }
 });
 
 test("a document whose last save failed is not taken back either: what the person typed is still on screen, unsaved", async t => {

@@ -42,6 +42,8 @@ alchemist.opportunities.save	1	io.molis.work.alchemist	io.molis.work.alchemist	c
 alchemist.playbook.context	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	alchemist:read	alchemist-playbook	molis.subject-reference.v1	molis.subject-context.v1	56056e2eba4c	db343dd77f37	-
 alchemist.proposals.pending	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	f973399805c1	af857f89bac2	-
 alchemist.proposals.reject	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	8081d3eb3674	aeab45e1d609	-
+alchemist.pulse.github	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	user	alchemist:read	alchemist	-	-	f973399805c1	7e24d8c17838	-
+alchemist.pulse.github.configure	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	user	alchemist:read,alchemist:write	alchemist	-	-	49b69bb4d285	e40f92449db2	-
 alchemist.pulse.reports	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	f973399805c1	d8edecbada2c	-
 alchemist.pulse.sources	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	f973399805c1	45a4564ec976	-
 alchemist.pulse.sources.configure	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	7d8608445ba6	0f4522ac01b1	-

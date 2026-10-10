@@ -32,7 +32,7 @@
     },
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
     "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 187,
-    "function apps/local-host/src/project-capabilities.ts#registerProjectCapabilities": 152,
+    "function apps/local-host/src/project-capabilities.ts#registerProjectCapabilities": 156,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 293,
       "methods": 41
@@ -44,8 +44,8 @@
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 336,
     "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
-    "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 158,
-    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 441,
+    "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
+    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 436,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 327,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 241,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 238,

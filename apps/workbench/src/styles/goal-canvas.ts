@@ -157,6 +157,11 @@ export const GOAL_CANVAS_STYLES = `
     border-radius: 8px;
     overflow: visible;
   }
+  /* A phone has room for the title and its status: the progress, relations and creator columns step aside instead of running off the screen. */
+  @media (max-width: 760px) {
+    body.immersive-workbench .goal-stage-list .tree-entry { grid-template-columns: minmax(0, 1fr) auto; }
+    body.immersive-workbench .goal-stage-list .tree-entry > :is(.tree-progress, .tree-relations, .tree-created-meta) { display: none !important; }
+  }
   .goal-stage-list .tree-entry:hover { background: var(--nav-hover); }
   .goal-stage-list .tree-entry.is-selected { background: var(--nav-active); }
   body.immersive-workbench .goal-stage-list .tree-leading {

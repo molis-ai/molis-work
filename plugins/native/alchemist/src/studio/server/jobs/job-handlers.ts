@@ -13,7 +13,7 @@ import type { SqliteIdeaRepository } from "../db/idea-repository.js";
 import type { SqlitePulseRepository } from "../db/pulse-repository.js";
 import type { SqliteResearchRepository } from "../db/research-repository.js";
 import type { ExplorationCheckpoint } from "../runtime/fixture-ai-runtime.js";
-import type { ResearchExecutionRuntimePort } from "../runtime/fixture-research-runtime.js";
+import type { ResearchExecutionRuntimePort } from "../runtime/research-runtime-port.js";
 import type { PulseSynthesizerPort } from "../runtime/pulse-synthesizer.js";
 import {
   DISCOVERY_BRAINSTORM_JOB,

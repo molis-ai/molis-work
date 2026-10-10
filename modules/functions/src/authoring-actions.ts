@@ -50,7 +50,7 @@ export const functionAuthoringActions = {
   delete: define<Revision, { ok: true }>("delete", "删除判断草稿", "仅删除草稿；已发布规则和历史不可删除。", input(revision, ["id"]), { type: "object", properties: { ok: { const: true } }, required: ["ok"] }, true),
   addSample: define<Revision & { input: string; label?: string }, RecordResult>("sample.add", "添加试跑样本", "将输入保存到规则的样本列表。", input({ ...revision, input: text, label: text }, ["id", "input"]), recordResult, true),
   // Removes one trial sample from the draft rule; another can be added again.
-  removeSample: withActionEffect(define<Revision & { sample_id: string }, RecordResult>("sample.remove", "移除试跑样本", "从当前规则移除指定样本。", input({ ...revision, sample_id: id }, ["id", "sample_id"]), recordResult, true), "write", false),
+  removeSample: withActionEffect(define<Revision & { sample_id: string }, RecordResult>("sample.remove", "移除试跑样本", "从判断规则草稿的试跑样本里移除指定的一条；需带读取时的修订号，之后可以再添加。已发布的规则版本不受影响。", input({ ...revision, sample_id: id }, ["id", "sample_id"]), recordResult, true), "write", false),
 } as const;
 
 /** Contextual reads are composed by the Host from the same authorized action and scene clients. */

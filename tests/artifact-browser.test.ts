@@ -322,6 +322,9 @@ test("Artifact browser distinguishes no results, unselected versions and missing
   const empty=await (await surface("/artifacts")).text();
   assert.match(empty,/还没有项目成果/);
   assert.doesNotMatch(empty,/<h1>选择一个结果版本<\/h1>/);
+  // The way to get a first result is told where the empty list is, in the shared empty block, and only there (E-5).
+  assert.match(empty,/<div class="mw-empty" data-artifact-list-empty><span class="mw-empty__mark">[\s\S]*?<\/span><strong>还没有成果<\/strong><p>在 Pages、问卷、演示稿、数据表里「存为固定版本」/);
+  assert.equal(empty.split("固定下来的版本都在这里").length - 1, 1, "the explanation is written once");
   coordinator.artifacts.commands.registerVersion(registration());
   const unselected=await (await surface("/artifacts")).text();
   assert.match(unselected,/<h1>选择一个结果版本<\/h1>/);

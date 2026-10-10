@@ -54,7 +54,7 @@ Alchemist 的 `alchemist-prologue.ts` 复用同一模型目录与 `hostTextGener
 
 Alchemist 六类固定指令在 `src/prompts.ts` 登记为 `ALCHEMIST_INSTRUCTIONS`：方向生成、Copilot、研究交叉检查/综合、成果适用性和格式纠正。`systemPrompt` 接收 `InstructedPrompt`，研究维度作为 data，用户内容仍在 userPrompt；Host 在授权复查后解析当前 Home 的用户覆盖并记录使用。用户修改正文不改变领域校验或增加格式纠正次数；原预算/授权检查继续约束纠正调用。
 
-Jelly 的 Host `completeJson` 同样使用 SDK JSON 解码，插件继续核实证据块 ID、逐字引用、章节顺序与计划内容。每次分段摘要或合并都在派出前复查原 Action 的 `beforeEffect`，返回后和持久化前再复查；不把取消或撤权写成成功摘要。
+Jelly 的 Host `completeJson` 同样使用 SDK JSON 解码，插件继续核实计划内容（1 至 30 个动作，每项有标题）。现在 Jelly 只剩「拆解计划」一条登记指令，没有分段摘要或合并调用；拆解在派出前复查原 Action 的 `beforeEffect`，返回后再复查一次，不把取消或撤权写成成功拆解。
 
 生成插件的 `model.generate` 经公共 Action → `plugin-builder/model.ts` → `hostTextGeneration`，返回既有 `{ text }`。模型派出和结果复查继续调用原 Action 的 `beforeEffect`；取消信号来自当前沙箱调用。无需 Builder Agent、工作目录或另一份运行 JSON，旧私有记录保持原位。只有设计和编码继续使用 Builder Agent，其 Run 也通过 SDK `collectRun` 有界收集全部终态，原检查、活动和业务记录仍由构建模块拥有。
 
@@ -147,6 +147,7 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
   - `MINIMAX_API_KEY`：MiniMax。端点默认 `https://api.minimaxi.com/anthropic`，模型默认 `MiniMax-M3`；实测用 `appkey exec minimax` 注入。
   - `MOLIS_WORK_TEXT_API_KEY`：不指定供应商，必须同时给 `MOLIS_WORK_TEXT_BASE_URL` 与 `MOLIS_WORK_TEXT_MODEL`，缺一个就不配置（不会默认成 MiniMax）。
   - 两者都可选配 `MOLIS_WORK_TEXT_API_FORMAT`（`anthropic-messages`，默认；或 `openai-chat-completions`）。`MOLIS_WORK_TEXT_BASE_URL` 也能改 MiniMax 的端点。
+  - `TYPESAFE_API_KEY`：和上面两个同属开发与实测变量，但管的是 TypeSafe 判断（Functions 与 Jev 的规则、首页与 Inbox 的判断、实验里的 Jev 参试者、插件创作台的设计选择），不是文字模型。它不受「模型目录为空才生效」的限制：只要设了，判断一律用它，盖过设置里选的 TypeSafe 连接：Functions 设置页的状态行写「来自 TYPESAFE_API_KEY。」，页面上的连接选择仍然可以改、可以保存，但变量还设着时，保存下来的连接被忽略。
 - 第一次配置：设置里的「模型设置」在没有供应商时给一键模板（常用供应商加 Anthropic 与 OpenAI 两种通用格式，`MODEL_PROVIDER_TEMPLATES`），模板只预填地址、格式和长期不变的模型名（地址、格式和预填的模型名按供应商公开文档核对过，2026-10-09，国内端点为默认；国际端点目前要手填），密钥另填并只存成服务连接的引用。保存时若改变了到达供应商的方式，先用同一条 Prologue 路径做一次连通性检查：没通过什么都不保存，提示说明原因但不含密钥；通过后若这是第一个能用的模型，模型设置页向页面宣布 `molis-work:model-ready`：显示过「没有模型」的页面（助理的失败卡片、Cognia、Dataset、Form、PPT、Workflows、Alchemist、Jelly 的模型对话框、插件创作台；分栏窗格里的框架由外层转发）各自重读，不等刷新；若是本标签页里的页面把人带去设置的（普通链接或窗格的转发，不是设置按钮，也不是按地址在新标签打开），设置先关上，人回到那个页面并有一句提示，事件在那之后才发，页面在事件里看到的就是人眼前的样子（Jelly 的模型对话框只在自己在屏幕上时才重开，且只认第一次事件：对话框是模态的，开在被藏起来的页面里会让整页点不了；写法见 `skills/molis-prologue-ai/SKILL.md` 步骤 6）。同一个脚本还在同源的 `BroadcastChannel('molis-work:model-ready')` 上通知其他标签页（它不是 DOM 事件，登记表不收，记在 `molis-work:model-ready` 的说明里）：开始使用页里「连接文字模型」在新标签打开设置，第一个模型保存后，那一页（含还没有项目的首次使用，设置页是不带工作台的独立页面）自己重读模型并重画「已连接」，不用刷新、不用先点「已连接，继续整理」。桌面壳若把新标签交给系统浏览器，通道到不了，仍要点那个按钮。入口都是普通链接，页面不为某个入口单写返回逻辑。显示「没有模型」的新页面要听这个事件重读；只在加载时读一次会和提示矛盾。
 - 业务插件只拿 Host 注入的函数端口；Host 到 Agent Host 的输入才使用 `credential_ref` + `resolveCredential`。插件不拿凭据解析器或明文；日志、事件、错误和产物里不出现密钥。
 - 一次调用只带这次需要的材料，不隐式读整个项目；用户正文是数据不是指令。
@@ -216,7 +217,7 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 Coding 的后台 follower 按 activation 观察 Run，停止后取消等待并拒绝晚结果；Run 停止或待核对时发 `run-updated` 刷新提示。Git 从 Prologue Effect 与 dispatch 回执核对后的 ReviewQueue 新结果发 `operation-updated`，恢复历史保持静默。两者触发 Files/Git 重新读取现状，不声称一定改了文件，也不因通知失败重试原执行。
 
 
-Shelf 自动动作经 `shelf.jobs.generate` → `ShelfAiPorts` → Host 配置模型 → 同 Home Prologue。模型选择与人工终端 engine 独立；固定指令按 recipe/option 登记，用户 shortcut 作为数据，材料使用冻结副本。任务保存完整回执、真实 reportedModels 及 unknown 用量，JSON 只复用 SDK 解码，领域拒绝非对象和纯进度文本。不自动修复或重跑计费请求。`shelf.jobs.extract` 继续本机提取，不要求模型权限。旧 jobs.run 只做兼容分派，AI 分支仍须 model:invoke；新消费者用成本明确的独立 Action。
+Shelf 自动动作经 `shelf.jobs.generate` → `ShelfAiPorts` → Host 配置模型 → 同 Home Prologue。模型选择与人工终端 engine 独立；固定指令按 recipe/option 登记，用户 shortcut 作为数据，材料使用冻结副本。任务保存完整回执、真实 reportedModels 及 unknown 用量，JSON 只复用 SDK 解码，领域拒绝非对象和纯进度文本。不自动修复或重跑计费请求。`shelf.jobs.extract` 继续本机提取，不要求模型权限。没有兼容分派入口：`shelf.jobs.generate` 要 `model:invoke`、成本 metered，`shelf.jobs.extract` 不要模型、成本 none，调用方按需要选其一。
 
 ### Builder 的界面截图
 

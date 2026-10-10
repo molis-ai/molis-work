@@ -168,7 +168,7 @@ export interface PagesEditorMountOptions {
   translate?: (value: string) => string;
   pages?: () => readonly PagesListItem[];
   onOpenPage?: (id: string) => void;
-  runAi?: (input: { command: string; text: string; style?: string }) => Promise<{ text: string; stub?: boolean }>;
+  runAi?: (input: { command: string; text: string; style?: string }) => Promise<{ text: string }>;
   /**
    * Hands the selection to the resident Assistant: `suggest` puts it into the Assistant's input for the person to send;
    * `delegate` is the person asking, here and now, for the Assistant to take it on with the request they typed.
@@ -3326,11 +3326,11 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
 
   // The candidate goes to the range the person asked about, frozen when they asked; if that text changed while the
   // model was working, nothing is written anywhere (specs/archive/contextual-interaction §3.4, AC-C04/C05).
-  const showCandidate = (view: EditorView, command: string, result: { text: string; stub?: boolean }, token: string | null, mode: "replace" | "insert_after", okLabel?: string) => {
+  const showCandidate = (view: EditorView, command: string, result: { text: string }, token: string | null, mode: "replace" | "insert_after", okLabel?: string) => {
     pop.hidden = false;
     pop.replaceChildren();
     const lead = document.createElement("p");
-    lead.textContent = result.stub ? t(options.translate, "未接模型") : t(options.translate, "候选");
+    lead.textContent = t(options.translate, "候选");
     const area = document.createElement("textarea");
     area.className = "mw-input";
     area.rows = 8;

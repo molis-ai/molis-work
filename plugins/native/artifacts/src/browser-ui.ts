@@ -43,7 +43,7 @@ export interface ArtifactBrowserUiModel {
 function directory({ view, routePrefix, primitives: p, importForm, typeTitles }: ArtifactBrowserUiModel): string {
   // The one import entry (specs/artifact-positioning A3): a dialog in the workbench, never a page of its own.
   const importLink = importForm ? `<header class="plugin-stage-chrome artifact-stage-chrome"><button class="mw-btn mw-btn--ghost tree-create artifact-import-entry" type="button" data-artifact-import-open>${icon("plus")}<span>${p.text("导入")}</span></button>${renderArtifactImportDialog({ ...importForm, routePrefix, primitives: p })}</header>` : "";
-  if (!view.versions.length) return `${importLink}<p class="artifact-empty mw-empty">${p.text("还没有成果")}</p>`;
+  if (!view.versions.length) return `${importLink}<div class="mw-empty" data-artifact-list-empty><span class="mw-empty__mark">${icon("package")}</span><strong>${p.text("还没有成果")}</strong><p>${p.text("在 Pages、问卷、演示稿、数据表里「存为固定版本」，或在这里导入文件，固定下来的版本都在这里。")}</p></div>`;
   const groups = new Map<string, Array<(typeof view.versions)[number]>>();
   for (const artifact of view.versions) {
     const list = groups.get(artifact.artifact_type_id);
@@ -124,7 +124,6 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     <p>${p.text("关联的版本不可用或不存在。引用仍然保留，不会替换成最新版本。")}</p></article>`;
   if (!artifact) return `<section class="artifact-empty"${view.requested ? ' role="status"' : ""}>
     <h1>${p.text(view.requested ? "找不到这个成果版本" : view.versions.length ? "选择一个结果版本" : "还没有项目成果")}</h1>
-    ${!view.requested && !view.versions.length ? `<p>${p.text("在 Pages、问卷、演示稿、数据表里「存为固定版本」，或在这里导入文件，固定下来的版本都在这里。")}</p>` : ""}
     ${view.requested ? `<p>${p.text("它可能属于其他项目，或这个版本尚未发布。请返回列表选择；不会自动替换成最新版本。")}</p><a href="${p.escape(routePrefix + "/artifacts")}">${p.text("返回成果列表")}</a>` : ""}</section>`;
   const href = routePrefix + artifactVersionPath(artifact);
   const title = artifact.title;

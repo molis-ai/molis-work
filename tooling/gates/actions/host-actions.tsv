@@ -151,7 +151,6 @@ shelf.items.use-material	1	io.molis.work.shelf	command	operation	home	write	conc
 shelf.jobs.cancel	1	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	shelf:write	shelf_item	-	-	1fbe22fd55b0	8e9e8bface84	-
 shelf.jobs.extract	1	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	shelf:write	shelf_item	-	-	55152b48d3a8	540915ccfba3	fb3114bd6407
 shelf.jobs.generate	1	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	model:invoke,shelf:write	shelf_item	-	-	1eb8e14f7046	540915ccfba3	5e9da1767ea7
-shelf.jobs.run	1	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	shelf:write	shelf_item	-	-	3fa03ffbe2f5	540915ccfba3	28403225adb7
 shelf.material.preview	1	io.molis.work.shelf	query	query	project	read	-	user	shelf:read	shelf_item	-	-	e7b581b16414	e93fc94fd3d3	-
 shelf.material.save	1	io.molis.work.shelf	command	operation	project	write	-	user	artifact:write,shelf:read	shelf_item	-	-	33cc121c357d	758e75828c89	-
 shelf.sample.seed	1	io.molis.work.shelf	command	operation	home	write	concurrent	user	shelf:write	shelf_item	-	-	d746974fa9af	67ac7d2da11b	-

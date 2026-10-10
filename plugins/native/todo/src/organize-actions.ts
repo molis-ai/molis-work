@@ -62,7 +62,7 @@ export const todoOrganizeActions = {
     // Organizing only saves a result to confirm; taking it back puts that result away (nothing was added to Todo).
     { execution: { cost: "metered" }, scheduling: "concurrent", result_subject: { id: "batch.batch_id", revision: "batch.revision" }, result_view: { summary: "整理结果已保存，等你确认", title_pointer: "/batch/title" },
       undo: { capability_id: "todo.organize.close", version: 1, input: { id: "batch.batch_id" } } }),
-  list: define<{ status?: "open" | "all" }, { batches: TodoBatch[] }>("organize.list", "整理结果", "列出等你确认的整理结果（或全部最近的）", "query",
+  list: define<{ status?: "open" | "all" }, { batches: TodoBatch[] }>("organize.list", "列出整理结果", "列出等你确认的整理结果（或全部最近的）", "query",
     object({ status: choices([["open", "等你确认的"], ["all", "全部最近的"]], "列哪些") }, []), object({ batches: array(batch) }), READ),
   get: define<{ id: string }, { batch: TodoBatch }>("organize.get", "读取整理结果", "读取一份整理结果：候选、依据、与已有待办的关系、未列入的参考信息", "query",
     object({ id }), object({ batch }), READ),

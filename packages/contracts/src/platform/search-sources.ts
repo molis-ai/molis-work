@@ -66,7 +66,7 @@ const metadata = (kinds: readonly SearchSourceKind[], title: string, permissions
 /** One declaration per source: which kinds it lists and where they open. Discovery confers no authority. */
 export function defineSearchEntriesAction(capabilityId: string, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[],
   scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = SEARCH_SOURCE_AUDIENCES): ActionDefinition<SearchEntriesInput, SearchEntriesPage> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences),
+  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, `列出可搜索的${/^[A-Za-z]/.test(title) ? " " : ""}${title}`, permissions, scope, audiences),
     description: `按版本分页列出${title}的全部可搜索条目，供系统搜索建立与更新索引；不修改数据。`,
     input_type: SEARCH_ENTRIES_INPUT_TYPE, output_type: SEARCH_ENTRIES_OUTPUT_TYPE, input_schema: SEARCH_ENTRIES_INPUT_SCHEMA, output_schema: SEARCH_ENTRIES_OUTPUT_SCHEMA } };
 }

@@ -87,6 +87,12 @@ test("extract rolls back both source and new knowledge pages when any insert fai
   });
 });
 
+test("pages.ai declares the candidate text, the command and the style, and no placeholder flag", () => {
+  const output = actions.ai.action.output_schema as { properties: Record<string, unknown>; required?: string[] };
+  assert.deepEqual(Object.keys(output.properties).sort(), ["command", "style", "text"]);
+  assert.deepEqual([...(output.required ?? [])].sort(), ["command", "text"]);
+});
+
 for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "success"] as const) {
   test(`Pages AI ${mode} returns real candidates or rejects without writing a placeholder`, async () => {
     let enter!: () => void, release!: () => void;
@@ -106,10 +112,10 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
       const pending = client.invoke({ ...caller, signal: controller.signal }, actions.ai,
         { id: document.id, command: "rewrite", text: "Source selected text", expected_version: document.version });
       if (mode === "success") {
-        assert.deepEqual(await pending, { text: "Actual candidate", stub: false, command: "rewrite", style: undefined });
+        assert.deepEqual(await pending, { text: "Actual candidate", command: "rewrite", style: undefined });
         assert.match(prompts[0]!, /Source selected text/);
         const translated = await bound.invoke(actions.ai, { id: document.id, command: "translate_new", text: "Original" });
-        assert.equal(translated.stub, false); assert.equal(translated.text, "Actual candidate");
+        assert.equal("stub" in translated, false, "the result no longer carries the retired placeholder flag"); assert.equal(translated.text, "Actual candidate");
         assert.equal((await bound.invoke(actions.list, {})).documents.length, 1, "a candidate is returned, not saved as a document");
       } else {
         const rejection = assert.rejects(pending, mode === "missing" ? { code: "actions.connection_required" }

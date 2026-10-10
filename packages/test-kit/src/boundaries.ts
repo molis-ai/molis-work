@@ -29,6 +29,7 @@ export type BoundaryViolationCode =
   | "plugin-implementation-import"
   | "plugin-upward-dependency"
   | "production-test-kit-dependency"
+  | "public-sdk-private-dependency"
   | "relative-cross-owner"
   | "undeclared-workspace-dependency";
 
@@ -48,6 +49,7 @@ export interface BoundaryViolation {
 }
 
 const CONTRACTS_PACKAGE_NAME = "@molis-ai/molis-work-contracts";
+const PLUGIN_SDK_PACKAGE_NAME = "@molis-ai/molis-work-plugin-sdk";
 
 const DATABASE_IMPLEMENTATIONS = new Set([
   "better-sqlite3",
@@ -327,6 +329,18 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
         "production-test-kit-dependency",
         observation,
         "Production packages must not depend on the internal test-kit runtime",
+      ),
+    );
+  }
+
+  // The two packages an author installs are the contracts and the Plugin SDK; the SDK is the lowest layer that runs code, and
+  // every private package may depend on it, so it may depend on nothing private (docs/system/PACKAGE-BOUNDARIES.md §1).
+  if (importer.name === PLUGIN_SDK_PACKAGE_NAME && target.name !== CONTRACTS_PACKAGE_NAME) {
+    violations.push(
+      violation(
+        "public-sdk-private-dependency",
+        observation,
+        `${importer.name} must depend on ${CONTRACTS_PACKAGE_NAME} only: an author installs the contracts and the SDK, so ${target.name} would be missing`,
       ),
     );
   }

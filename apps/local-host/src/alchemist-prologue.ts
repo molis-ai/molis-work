@@ -1,7 +1,7 @@
 import { reportedTokenTotal, decodePrologueJsonOutput } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ALCHEMIST_PLUGIN_ID, type AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
-import { createExecutionLifetime } from "@molis-ai/molis-work-kernel";
+import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import { configuredModelChoices } from "./configured-models.js";
 import { hostTextGeneration, type HostTextOptions } from "./host-complete-text.js";
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";

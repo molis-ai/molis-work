@@ -16,6 +16,6 @@
 - [Memory](memory.md)：个人与项目记忆的开关、写入门、召回、候选、最近变动与撤销。
 - [Placement](placement.md)：对象放在哪里、谁能看到、和哪些工作有关，以及移动、复制、转成。
 
-情境排序（`packages/kernel/src/contextual.ts`）同属平台产品服务，位置不变，合同与边界见 [action-architecture §3 的复核小节](../../specs/action-architecture/spec.md)。
+情境排序（`packages/kernel/src/contextual.ts`）同属平台产品服务，位置不变，合同与边界见 [action-architecture §3 的复核小节](../../specs/action-architecture/spec.md)。它是纯函数，只给工作台的选区条用，不登记成系统动作：只有工作台的 HTTP 传输（`/api/contextual/*`），准备输入与上报信号都经调用者自己的动作，判断只排序、不执行；删除条件是助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作。与内核核心的边界见 [内核 README](../../packages/kernel/README.md)。
 
 完整逐包 Contract 见架构 Spec 第 21 节。Module 可直接通过 service capability contract 调用这些能力，不必把所有正常调用绕成事件。各服务在端到端调用里的位置见[调用链](../system/CALL-CHAINS.md)。

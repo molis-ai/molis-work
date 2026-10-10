@@ -205,7 +205,11 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (submit) { submit.disabled = busy; submit.textContent = L(busy ? "正在保存…" : editingTaskId ? "保存" : "创建"); }
   };
   const hints = workbench.querySelectorAll("[data-schedule-hint]");
-  const hint = (ready) => hints.forEach((node) => { node.hidden = !ready || ready[node.dataset.scheduleHint] !== false; });
+  const showHints = (ready) => hints.forEach((node) => { node.hidden = !ready || ready[node.dataset.scheduleHint] !== false; });
+  // The hints belong to one opening of the dialog: opening it again (new or edit) hides them and numbers the opening, so an
+  // answer still on its way from an earlier one is not shown in this one.
+  let hinting = 0;
+  const hint = () => { showHints(); return ++hinting; };
   workbench.querySelector("[data-schedule-new]")?.addEventListener("click", () => {
     if (creating) return;
     editingTaskId = "";
@@ -215,8 +219,8 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     setCreating(false);
     showError("");
     dialog?.showModal();
-    hint();
-    fetch(route("/api/schedule/readiness"), { cache: "no-store" }).then((response) => response.json()).then(hint).catch(() => undefined);
+    const opening = hint();
+    fetch(route("/api/schedule/readiness"), { cache: "no-store" }).then((response) => response.json()).then((ready) => { if (opening === hinting) showHints(ready); }).catch(() => undefined);
     form?.querySelector("[name=title]")?.focus();
   });
   workbench.querySelectorAll("[data-schedule-create-close]").forEach((button) => {

@@ -16,9 +16,11 @@ const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const POLL_MS = 400;
 
 /**
- * What the runner below needs when a task is due, asked ahead of time: a configured text model, and a verified workspace bound
- * to the project. The same facts the runner reads, from the same sources (the model catalog's metadata, never a credential; the
- * project's workspace). Creating a task never waits on this; the dialog uses it to say what is missing.
+ * What a due task needs, asked ahead of time so the create dialog can say what is missing: a configured text model, and a
+ * verified workspace bound to the project. The workspace is the runner's own check (the same source, the same verified path).
+ * The model is a stand-in: the runner checks that the Prologue runtime is registered and leaves the model to Prologue when the
+ * run starts, so this reads the model catalog's metadata (never a credential) to say whether a text model is set up, which is
+ * what the runner's own error asks the person to do. It is advice, not a guarantee. Creating a task never waits on it.
  */
 export async function scheduledTaskReadiness(options: {
   homeDirectory?: string;

@@ -44,7 +44,8 @@ const text = (value: string) => ({ type: "doc", content: [{ type: "paragraph", c
 interface Doc { id: string; title: string; body: unknown; version: number; goal_id: string; artifact_version: number }
 
 type EditorConfig = { doc: unknown; onChange: () => void; onCreateFromAi: (input: { title: string; text: string }) => Promise<void> };
-async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc: Doc, expected: number) => Response | null; template?: Partial<Doc>; update?: () => Response | null } = {}) {
+async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc: Doc, expected: number) => Response | null; template?: Partial<Doc>; update?: () => Response | null;
+  /** The real Host fills an empty title back in as 未命名文档; the default here keeps what was sent. */ normalizeTitle?: boolean } = {}) {
   const store = new Map<string, Doc>(initial.map(doc => [doc.id, doc]));
   const calls: Array<{ method: string; path: string; body: Record<string, unknown>; keepalive?: boolean; stored_version?: number }> = [];
   let editorBody: unknown = EMPTY, change: (() => void) | null = null, created = 0, config: EditorConfig | null = null;
@@ -95,7 +96,8 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
     }
     if (method === "POST") {
       const refusedUpdate = options.update?.(); if (refusedUpdate) return refusedUpdate;
-      const next = { ...current, title: String(body.title ?? current.title), body: body.body ?? current.body, version: current.version + 1 };
+      const sent = String(body.title ?? current.title);
+      const next = { ...current, title: options.normalizeTitle ? sent.trim() || "未命名文档" : sent, body: body.body ?? current.body, version: current.version + 1 };
       store.set(current.id, next);
       return json({ document: next });
     }
@@ -154,6 +156,30 @@ test("a new document the person wrote in is kept, and so is one that only has a 
     assert.equal(page.discards().length, 0);
     assert.deepEqual([...page.store.values()].map(doc => doc.title).sort(), ["只有标题", "未命名文档"].sort());
   } finally { page.restore(); }
+});
+
+test("a new document whose title the person cleared is blank if nothing is written, whether or not the Host fills the empty title back in", async t => {
+  // With the title left as it was sent, what is on screen when the person leaves is empty, which is not the title the Host gave it.
+  for (const normalizeTitle of [false, true]) {
+    const page = await mounted(t, [], { normalizeTitle });
+    try {
+      await page.fire(click("[data-pages-new]"));
+      await page.write({ title: "" });
+      assert.equal(page.titleInput.value, normalizeTitle ? "未命名文档" : "", "what the person is looking at");
+      await page.fire(click("[data-pages-back]"));
+      assert.equal(page.discards().length, 1, normalizeTitle ? "the Host's own empty title" : "an empty title");
+      assert.equal(page.store.size, 0);
+    } finally { page.restore(); }
+  }
+  const written = await mounted(t, []);
+  try {
+    await written.fire(click("[data-pages-new]"));
+    await written.write({ title: "" });
+    await written.write({ body: text("有字") });
+    await written.fire(click("[data-pages-back]"));
+    assert.equal(written.discards().length, 0, "a cleared title does not make a document with words blank");
+    assert.equal(written.store.size, 1);
+  } finally { written.restore(); }
 });
 
 test("a body that has anything other than empty paragraphs is not blank", async t => {

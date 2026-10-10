@@ -30,7 +30,7 @@
   - 保留原表与稳定 ID；旧 `stub` 历史标为本地记录。
   - 同一 `request_id` 只代表一次保存：重试同样的内容返回第一次保存的那条（人把它移到别的项目后也一样），换了内容拒绝（`lingguang.request_conflict`），不静默丢掉新内容。请求表结构不变：请求键是 id 加输入指纹。
   - 读取文件或链接只提取文字，不保存上传内容；留存的只有人记下的灵光。
-  - 「记下第一条灵光」仍立刻记一条，但离开时内容为空就丢掉（W2-18 决定 6，2026-10-09）：只对本页刚记的空白灵光（不含读文件/链接记下的、已有的空灵光），离开 = 返回列表、打开另一条、再记一条、工作台把本页藏起来（切到别的插件、回 Home、进设置），以及页面本身走掉（刷新、关窗口）；先向 Host 读一次这条，正文为空且标题没动（或为空）才经既有的 `lingguang.discard` 丢掉，不再问「丢掉这条？」；期间别处写进了字就保留；进了头脑风暴的灵光算在用，保留；读不到或丢不掉都不提示。工作台藏起本页时先存屏幕上的字、关掉编辑器，回来看到的是列表；页面走掉时来不及读 Host 的那一份，以本页最后见到的那一份为准，调用带 `keepalive`；只是浏览器标签或窗口被藏起来（`document.hidden`）不算离开。丢掉仍是软丢弃（记录保留为已丢弃）。生命周期用 Host 注入的 `mountPluginClient`。
+  - 「记下第一条灵光」仍立刻记一条，但离开时内容为空就丢掉（W2-18 决定 6，2026-10-09）：只对本页刚记的空白灵光（不含读文件/链接记下的、已有的空灵光），离开 = 返回列表、打开另一条、再记一条、工作台把本页藏起来（切到别的插件、回 Home、进设置），以及页面本身走掉（刷新、关窗口）；先向 Host 读一次这条，正文为空且标题没动（或为空）才经既有的 `lingguang.discard` 丢掉，不再问「丢掉这条？」；期间别处写进了字就保留；进了头脑风暴的灵光算在用，保留；读不到或丢不掉都不提示。工作台藏起本页时先存屏幕上的字、关掉编辑器，回来看到的是列表；页面走掉时来不及读 Host 的那一份，以本页最后见到的那一份为准，调用带 `keepalive`（这一种是尽力而为、有意留着的局限：助理或 MCP 在本页最后一次读到列表之后才写进这条的字，这一次会随它一起丢掉，仍是软丢弃、记录留着；堵上它要给 `lingguang.discard` 加版本校验，那是合同变化，没做）；只是浏览器标签或窗口被藏起来（`document.hidden`）不算离开。丢掉仍是软丢弃（记录保留为已丢弃）。生命周期用 Host 注入的 `mountPluginClient`。
   - 项目被删除时宿主按目录条目上的 `project_data`（`lingguangProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeLingguangProject`）调用清掉灵光、对话与消息，连同请求回执；只读库文件，库不存在时不创建，重复运行没有副作用。
 - 改动后必跑：`node scripts/run-tests.mjs tests/lingguang-actions.test.ts tests/lingguang-plugin.test.ts tests/lingguang-mcp.test.ts tests/project-deletion-owners.test.ts tests/lingguang-blank-discard.test.ts tests/plugin-client-served.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/plugin-small-ux.e2e.test.ts`

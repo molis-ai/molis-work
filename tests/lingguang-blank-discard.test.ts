@@ -240,6 +240,26 @@ test("hiding the page leaves alone a spark with words, one that was already ther
   } finally { elsewhere.restore(); }
 });
 
+test("words saved and then erased inside the save delay: the erasure is saved before the spark is judged, so it is blank and goes", async () => {
+  // The judgement reads the Host's copy. Closing the editor without saving first would throw away the erasure and judge the old words.
+  for (const leave of ["hide", "back"] as const) {
+    const page = await mounted([]);
+    try {
+      await page.fire(click("[data-lingguang-capture]"));
+      await page.write({ body: "存过的话" });
+      await page.fire(click("[data-lingguang-save-retry]"));
+      assert.equal(page.store.get("S1")?.body, "存过的话", "typed and saved");
+      await page.write({ body: "" });
+      assert.equal(page.store.get("S1")?.body, "存过的话", "erased on screen, its save still waiting out the delay");
+      if (leave === "hide") { page.lifetime.hideSurface(); await page.elapse(); } else await page.fire(click("[data-lingguang-back]"));
+      assert.equal(page.store.get("S1")?.body, "", `${leave}: the erasure was saved first`);
+      assert.deepEqual(page.discards().map(call => call.body.ids), [["S1"]], leave);
+      assert.equal(page.store.get("S1")?.status, "discarded", leave);
+      assert.equal(page.editorOpen(), false, leave);
+    } finally { page.restore(); }
+  }
+});
+
 test("a tab or window that is only hidden is not leaving", async () => {
   const page = await mounted([]);
   try {

@@ -18,7 +18,8 @@ import {
 import { directScheduleActions } from "./schedule-direct-actions.js";
 
 // W2-18 decision 3: creating a scheduled task without a model or a bound workspace shows a hint in the dialog and still
-// allows creation. The two things a due task needs are the ones the runner checks when it wakes up.
+// allows creation. The workspace is what the runner checks when it wakes up; the model is read from the model catalog as a
+// stand-in for the Prologue runtime the runner needs (the hint is advice, not a guarantee).
 
 const verified: ProjectWorkspaceRef = { workspace_id: "w1", canonical_path: "/tmp/schedule-readiness", realpath_verified: true, display_name: "readiness" };
 
@@ -47,7 +48,7 @@ async function configureModel(home: string): Promise<void> {
   } finally { catalog.close(); }
 }
 
-test("a due task needs a configured text model and a verified bound workspace, and the readiness probe reads exactly those", async () => withHome(async home => {
+test("the readiness probe answers whether a text model is configured and whether the project has a verified bound workspace", async () => withHome(async home => {
   assert.deepEqual(await scheduledTaskReadiness({ homeDirectory: home, projectId: "p" }), { model: false, workspace: false }, "nothing set up");
   assert.deepEqual(await scheduledTaskReadiness({ homeDirectory: home, projectId: "p", workspaceFor: () => verified }), { model: false, workspace: true });
   assert.deepEqual(await scheduledTaskReadiness({ homeDirectory: home, projectId: "p", workspaceFor: async () => ({ ...verified, realpath_verified: false }) }),
@@ -120,4 +121,99 @@ test("the create dialog carries two hidden hints, one per missing thing, and not
 
 test("the client reads readiness when the dialog opens, and a failed read stays silent (the behaviour itself is in plugin-small-ux.e2e.test.ts)", () => {
   assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /\/api\/schedule\/readiness[\s\S]{0,400}\.catch\(/);
+});
+
+// The dialog asks the Host each time it opens for a new task. The answer belongs to that opening: if the person has since closed the
+// dialog and opened an edit, or opened the new-task dialog again, an earlier answer that lands late must not speak for it.
+type Listener = (event: unknown) => void | Promise<void>;
+interface FakeNode {
+  hidden: boolean; open: boolean; value: string; textContent: string; checked: boolean; disabled: boolean; inert: boolean; scrollTop: number; tabIndex: number;
+  dataset: Record<string, string>; listeners: Record<string, Listener[]>;
+  classList: { toggle(): void; add(): void; remove(): void };
+  addEventListener(type: string, fn: Listener): void; removeEventListener(): void; setAttribute(): void; getAttribute(): null; reset(): void; focus(): void;
+  showModal(): void; close(): void; closest(): null; remove(): void; append(): void; replaceChildren(): void; reportValidity(): boolean;
+  querySelector(selector: string): FakeNode; querySelectorAll(selector: string): FakeNode[];
+}
+function fakeNode(dataset: Record<string, string> = {}): FakeNode {
+  const parts = new Map<string, FakeNode>();
+  const node: FakeNode = {
+    hidden: false, open: false, value: "", textContent: "", checked: false, disabled: false, inert: false, scrollTop: 0, tabIndex: 0, dataset, listeners: {},
+    classList: { toggle() {}, add() {}, remove() {} },
+    addEventListener(type, fn) { (node.listeners[type] ??= []).push(fn); }, removeEventListener() {}, setAttribute() {}, getAttribute() { return null; },
+    reset() {}, focus() {}, showModal() { node.open = true; }, close() { node.open = false; }, closest() { return null; }, remove() {}, append() {}, replaceChildren() {},
+    reportValidity: () => true,
+    querySelector(selector) { let found = parts.get(selector); if (!found) { found = fakeNode(); parts.set(selector, found); } return found; },
+    querySelectorAll() { return []; },
+  };
+  return node;
+}
+
+const flush = () => new Promise<void>(resolve => setImmediate(resolve));
+
+async function scheduleDialog() {
+  const workbench = fakeNode(), list = fakeNode();
+  const hints = new Map([["model", fakeNode({ scheduleHint: "model" })], ["workspace", fakeNode({ scheduleHint: "workspace" })]]);
+  for (const hint of hints.values()) hint.hidden = true;
+  workbench.querySelectorAll = selector => selector === "[data-schedule-hint]" ? [...hints.values()] : [];
+  const dialog = workbench.querySelector("[data-schedule-create-dialog]"), newButton = workbench.querySelector("[data-schedule-new]");
+  const asked: Array<(answer: { model: boolean; workspace: boolean }) => Promise<void>> = [];
+  const saved = { fetch: globalThis.fetch, document: (globalThis as { document?: unknown }).document, storage: Object.getOwnPropertyDescriptor(globalThis, "sessionStorage") };
+  Object.assign(globalThis, { document: { querySelector: (selector: string) => selector === "[data-schedule-workbench]" ? workbench : selector === "[data-schedule-list]" ? list : null } });
+  Object.defineProperty(globalThis, "sessionStorage", { value: { getItem: () => null, removeItem() {} }, configurable: true, writable: true });
+  globalThis.fetch = (async (url: string) => {
+    assert.match(String(url), /\/api\/schedule\/readiness$/);
+    return new Promise<Response>(resolve => {
+      asked.push(async answer => { resolve(new Response(JSON.stringify(answer), { status: 200, headers: { "content-type": "application/json" } })); await flush(); });
+    });
+  }) as typeof fetch;
+  const factory = Function(`return (${SCHEDULE_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; route: (path: string) => string }) => void;
+  factory({ translate: value => value, route: path => path });
+  const detail = fakeNode();
+  detail.querySelector("h1").textContent = "晨报";
+  detail.querySelector("[data-schedule-task-notify]").value = "true";
+  const edit = { dataset: { scheduleTaskEdit: "T1" }, closest: (selector: string) => selector === "[data-schedule-detail]" ? detail : null };
+  return {
+    asked, dialog,
+    shown: () => [...hints].filter(([, hint]) => !hint.hidden).map(([kind]) => kind),
+    openNew: async () => { await newButton.listeners.click![0]!({}); await flush(); },
+    openEdit: async () => { await workbench.listeners.click![0]!({ target: { closest: (selector: string) => selector === "[data-schedule-task-edit]" ? edit : null } }); await flush(); },
+    close: () => dialog.close(),
+    restore() {
+      globalThis.fetch = saved.fetch; Object.assign(globalThis, { document: saved.document });
+      if (saved.storage) Object.defineProperty(globalThis, "sessionStorage", saved.storage); else delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
+    },
+  };
+}
+test("a readiness answer that lands late does not speak for the edit dialog or for a later opening of the new-task dialog", async () => {
+  const page = await scheduleDialog();
+  try {
+    await page.openNew();
+    assert.equal(page.asked.length, 1, "asked when the new-task dialog opened");
+    assert.deepEqual(page.shown(), [], "nothing is claimed until the Host answers");
+    await page.asked[0]!({ model: false, workspace: false });
+    assert.deepEqual(page.shown(), ["model", "workspace"], "an answer for the opening that asked is shown");
+
+    // New, closed before the answer comes, then an edit: the edit dialog shows no hints, whatever lands.
+    page.close();
+    await page.openNew();
+    page.close();
+    await page.openEdit();
+    assert.equal(page.dialog.open, true);
+    assert.deepEqual(page.shown(), [], "an edit shows none");
+    await page.asked[1]!({ model: false, workspace: false });
+    assert.deepEqual(page.shown(), [], "and the new-task dialog's late answer does not unhide them");
+
+    // New, closed, new again: only the answer to the latest opening counts, in whatever order they arrive.
+    page.close();
+    await page.openNew();
+    page.close();
+    await page.openNew();
+    assert.equal(page.asked.length, 4);
+    await page.asked[2]!({ model: false, workspace: false });
+    assert.deepEqual(page.shown(), [], "an earlier opening's answer says nothing about this one");
+    await page.asked[3]!({ model: true, workspace: false });
+    assert.deepEqual(page.shown(), ["workspace"], "the latest opening's answer");
+    await page.asked[2]!({ model: false, workspace: true });
+    assert.deepEqual(page.shown(), ["workspace"], "and is not replaced by an older one that arrives after it");
+  } finally { page.restore(); }
 });

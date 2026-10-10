@@ -68,6 +68,10 @@ export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platfo
 export type { PlacementResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginArtifactPublishInput } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginDatabaseReader } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export declare class PluginDefinitionError extends Error {
@@ -78,6 +82,8 @@ export declare class PluginDefinitionError extends Error {
 export type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginUiClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";

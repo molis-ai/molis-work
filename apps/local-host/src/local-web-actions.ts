@@ -11,11 +11,13 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   const catalog = await host.inspectActions(base, reference);
   const installed = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list()) : [];
   const grants = new Map(installed.filter(row => row.state === "running").map(row => [row.install_id, row]));
+  for (const record of host.homePlugins?.installations() ?? []) if (record.state === "running") grants.set(record.plugin_id, record);
   const builtin = (permissions: readonly string[]) => permissions.every(permission => builtinPermissions.includes(permission));
   const accepted = catalog.filter(view => {
     if (builtin(view.action.permissions)) return true;
     const install = grants.get(view.provider.provider_id);
-    return !!reference && view.provider.project_id === reference.project_id && view.provider.kind === "plugin"
+    const scopeMatches = view.provider.project_id ? view.provider.project_id === reference?.project_id : view.action.scope === "home";
+    return scopeMatches && view.provider.kind === "plugin"
       && !!install && install.plugin_id === view.provider.plugin_id
       && view.action.permissions.every(permission => install.grants.includes(permission));
   });
@@ -38,8 +40,11 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
       if (original && builtin(original.action.permissions)) return;
       // Re-read the original grant owner directly, rather than rediscovering every provider on each nested call.
       // The common dispatcher separately checks current definitions, source lifetime and action availability.
-      const install = original && reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).get(original.provider.provider_id)) : null;
+      const install = original?.provider.project_id && reference
+        ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).get(original.provider.provider_id))
+        : original ? host.homePlugins?.installation(original.provider.provider_id) : null;
       if (!original || !install || install.state !== "running" || install.plugin_id !== original.provider.plugin_id
+        || install.installation_generation !== grants.get(original.provider.provider_id)?.installation_generation
         || !original.action.permissions.every(permission => install.grants.includes(permission))) {
         throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态");
       }

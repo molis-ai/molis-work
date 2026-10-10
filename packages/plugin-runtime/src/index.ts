@@ -7,6 +7,7 @@ import { PluginRuntimeError } from "./errors.js";
 import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
+import { createActivationContext } from "./activation-context.js";
 
 export { SqlitePluginPrivateStorage, PluginPrivateStorageError, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
@@ -136,7 +137,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     private readonly repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
     private readonly executor: PluginExecutor = new NativePluginExecutor(),
     private readonly options: { now?: () => Date; maxRecoveryAttempts?: number;
-      actions?: { registry: ActionRegistryPort; project_id?: string } } = {},
+      actions?: { registry: ActionRegistryPort; project_id?: string; home?: boolean } } = {},
   ) {}
 
   register(definition: PluginDefinition): void {
@@ -685,7 +686,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         const actions = this.options.actions;
         if (!actions) throw new PluginContributionError("plugin_contribution_unredeemed", "宿主未提供系统动作注册服务");
         this.actionDisposers.set(record.install_id, actions.registry.registerProvider(pluginActionProvider(manifest, contribution, record.install_id,
-          actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id) })));
+          actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id) }, actions.home ? manifest.plugin_id : record.install_id)));
       }
     } catch (error) {
       const live = this.liveContext(record.install_id);
@@ -743,25 +744,9 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {
     this.revokeContext(record.install_id);
-    let active = true;
-    const grants = Object.freeze([...record.grants]);
-    const context: PluginStartContext = {
-      install_id: record.install_id,
-      plugin_id: record.plugin_id,
-      // Services authenticate the executing implementation; the persisted
-      // install version stays unchanged until an explicit upgrade.
-      version: definition.manifest.version,
-      deployment: record.deployment,
-      grants,
-      requireGrant(permission) {
-        if (!active || !grants.includes(permission)) {
-          throw new PluginRuntimeError("plugin_grant_denied", `Plugin 没有 ${permission} grant`);
-        }
-      },
-    };
-    Object.freeze(context);
-    this.contexts.set(record.install_id, { context, revoke() { active = false; } });
-    return context;
+    const activation = createActivationContext(record, definition, this.options.actions?.home === true);
+    this.contexts.set(record.install_id, activation);
+    return activation.context;
   }
 
   private receipt(

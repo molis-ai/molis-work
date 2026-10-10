@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { LocalProjectDatabase, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 // Every plugin is content in the one workbench (specs/artifact-positioning §4, S7). Following every local link a seeded
@@ -38,7 +38,6 @@ const LIMIT = 600;
 
 async function seededHome(t: test.TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-page-gate-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   const project = await catalog.createProject({ display_name: "整页门禁", actor_id: "page-gate" });
   for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "page-gate" });
@@ -53,7 +52,10 @@ async function seededHome(t: test.TestContext) {
   store.close();
   const server = createMolisWorkWebServer({ homeDirectory: directory, controlToken: "page-gate-test-control-token-0123456789" });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
+  });
   const address = server.address();
   assert.ok(address && typeof address === "object");
   return { origin: `http://127.0.0.1:${address.port}`, prefix: `/projects/${project.project_id}` };
@@ -111,24 +113,27 @@ test("every local address a seeded workbench links to is the workbench, leads in
 
 test("the workbench is one page: plugin content brings no page shell of its own", async t => {
   const { origin, prefix } = await seededHome(t);
-  const html = (await open(origin, prefix + "/")).body;
-  assert.ok(isWorkbench(html));
-  // Plugin surfaces are fragments in the one document: one doctype, one html, one body; no chrome of a separate page.
-  assert.equal(html.match(/<!doctype html>/gi)?.length, 1);
-  assert.equal(html.match(/<html[\s>]/gi)?.length, 1);
-  assert.equal(html.match(/<body[\s>]/gi)?.length, 1);
-  assert.doesNotMatch(html, /class="[^"]*\b(?:project-preferences-chrome|settings-nav-back|artifact-shell|plugin-page-workspace)\b/);
-  // A local link opens in the workbench, never in a new browser tab.
-  const leaving = [...html.matchAll(/<a\b[^>]*>/g)].map(match => match[0])
-    .filter(tag => /\starget="_blank"/.test(tag) && /\shref="\/(?!\/)/.test(tag) && !/\sdownload[\s>=]/.test(tag));
-  assert.deepEqual(leaving, []);
+  const homePages = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home").map(entry => `/plugins/${entry.project_plugin_id}`);
+  for (const address of [prefix + "/", ...homePages]) {
+    const html = (await open(origin, address)).body;
+    assert.ok(isWorkbench(html), address);
+    // Project and Home entrypoints both mount fragments in one Host document.
+    assert.equal(html.match(/<!doctype html>/gi)?.length, 1, address);
+    assert.equal(html.match(/<html[\s>]/gi)?.length, 1, address);
+    assert.equal(html.match(/<body[\s>]/gi)?.length, 1, address);
+    assert.doesNotMatch(html, /class="[^"]*\b(?:project-preferences-chrome|settings-nav-back|artifact-shell|plugin-page-workspace)\b/);
+    const leaving = [...html.matchAll(/<a\b[^>]*>/g)].map(match => match[0])
+      .filter(tag => /\starget="_blank"/.test(tag) && /\shref="\/(?!\/)/.test(tag) && !/\sdownload[\s>=]/.test(tag));
+    assert.deepEqual(leaving, [], address);
+  }
 });
 
-// Every source file that produces a whole page, and which exception it serves. A new one is a new standalone page: it
-// needs a place on the exception list (specs/artifact-positioning §4) before it can be added here.
+// Host workbench entrypoints and every other whole-page producer. A standalone page still needs an exception in
+// specs/artifact-positioning §4; a Home workbench entrypoint is checked above under the same rules as a project.
 const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/document-shell.ts": "the workbench document itself",
   "apps/workbench/src/goals-page-renderer.ts": "the workbench",
+  "apps/workbench/src/home-plugin-page.ts": "Home workbench: Host document and UI lifetime, Runtime plugin content only",
   "apps/workbench/src/side-view-document.ts": "宿主排版的侧栏文档",
   "apps/local-host/src/web-request.ts": "宿主排版的侧栏文档：插件不在时侧栏框里的一句说明",
   "apps/workbench/src/arrival/shell.ts": "进入页",
@@ -151,6 +156,6 @@ test("only the listed source files produce a whole page", () => {
   const files = execFileSync("git", ["ls-files", "apps", "packages", "plugins", "horizontal", "modules", "server"], { encoding: "utf8" })
     .split("\n").filter(file => /\.(?:ts|mts)$/.test(file) && !/\/tests?\//.test(file));
   const producers = files.filter(file => /<!doctype html>|renderWorkbenchDocument\(|\bshell\.document\(|\bdocument: \(request: WorkbenchDocumentRenderRequest\)/i.test(readFileSync(file, "utf8")));
-  assert.deepEqual(producers.filter(file => !(file in PAGE_PRODUCERS)), [], "a new page producer needs an exception");
+  assert.deepEqual(producers.filter(file => !(file in PAGE_PRODUCERS)), [], "a new page producer needs a registered Host workbench entrypoint or a documented exception");
   assert.deepEqual(Object.keys(PAGE_PRODUCERS).filter(file => !producers.includes(file)), [], "a producer that is gone leaves the list");
 });

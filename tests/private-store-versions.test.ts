@@ -69,13 +69,14 @@ test("an unversioned Experiments store is refused untouched, and opens once it c
 test("the Experiments plugin reports the refusal to its caller and works in the same process once the store is stamped", { timeout: 60_000 }, async t => {
   const home = homeWith(t), path = unversionedExperiments(home);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, functions: { env: {} } });
-  t.after(() => host.close());
-  const user: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [...EXPERIMENTS_ACTION_PERMISSIONS] };
-  const experiments = bindActionClient(host.homeActionClient(), () => user);
-  await assert.rejects(experiments.invoke(experimentsActions.list, {}), /结构版本是 0/);
-  assert.equal(userVersion(path), 0, "listing does not stamp the store");
-  const stamp = rawDatabase(path, "PRAGMA user_version = 1"); stamp.close();
-  assert.deepEqual(await experiments.invoke(experimentsActions.list, {}), { experiments: [] });
+  try {
+    const user: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [...EXPERIMENTS_ACTION_PERMISSIONS] };
+    const experiments = bindActionClient(host.homeActionClient(), () => user);
+    await assert.rejects(experiments.invoke(experimentsActions.list, {}), /结构版本是 0/);
+    assert.equal(userVersion(path), 0, "listing does not stamp the store");
+    const stamp = rawDatabase(path, "PRAGMA user_version = 1"); stamp.close();
+    assert.deepEqual(await experiments.invoke(experimentsActions.list, {}), { experiments: [] });
+  } finally { await host.close(); }
 });
 
 test("an Alchemist project's search store is created at version 1 and reopens", async t => {

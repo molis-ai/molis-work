@@ -9,10 +9,10 @@ import { comparePluginVersions } from "@molis-ai/molis-work-contracts/platform/p
 
 import { buildEventContract, type PluginEventContract } from "./event-contract.js";
 import { pluginManifestDigest } from "./identity.js";
+import { persistReleaseArtifact } from "./supervisor-releases.js";
 import { defaultGrants, directlyUsable } from "./install-rules.js";
 import type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
 import {
-  createPluginRuntimeReleaseArtifact,
   type PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 import {
@@ -37,6 +37,8 @@ export interface PluginSupervisorEntry {
   deployment?: PluginDeployment;
   /** Defaults to every required permission the Manifest declares. */
   grants?: string[];
+  /** Host-persisted initial enablement. False registers the entry without activating it. */
+  enabled?: boolean;
   /**
    * Ships with the Host: on start the install record is moved onto this build whatever it holds (a higher or a lower version,
    * or the same version with another Manifest digest), and no stored release is restored for it. Every other entry keeps the
@@ -135,6 +137,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     for (const entry of entries) {
       const pluginId = entry.definition.manifest.plugin_id;
       this.#entries.set(pluginId, entry);
+      if (entry.enabled === false) this.revoke(pluginId);
       let active: PluginSupervisorEntry;
       try {
         active = await this.#resolveInstalledEntry(entry);
@@ -395,7 +398,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     this.#entries.set(pluginId, entry);
     this.#contracts.set(pluginId, candidateContract);
     try {
-      await this.#persistReleaseArtifact(entry);
+      await persistReleaseArtifact(entry, this.#releaseArtifacts);
       const receipt = rollbackCode ? await this.#runtime.rollback({ install_id: current.install_id, definition: entry.definition }) : await this.#runtime.upgrade({
         install_id: current.install_id,
         definition: entry.definition,
@@ -491,7 +494,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     if (!installed || !candidate.releaseArtifact) return candidate;
 
     if (directlyUsable(manifest, candidate.bundled === true, installed)) {
-      await this.#persistReleaseArtifact(candidate);
+      await persistReleaseArtifact(candidate, this.#releaseArtifacts);
       return candidate;
     }
 
@@ -530,19 +533,6 @@ export class PluginSupervisor implements PluginHostLifecycle {
     throw codedError("plugin_release_artifact_missing", `找不到 ${installed.version} 的可运行 Native 发行物；未启动不兼容的新版本`);
   }
 
-  async #persistReleaseArtifact(entry: PluginSupervisorEntry): Promise<void> {
-    if (!entry.releaseArtifact) return;
-    const repository = this.#releaseArtifacts;
-    if (!repository) {
-      throw codedError("plugin_release_store_unavailable", "Native 插件 Runtime 发行物存储未装配");
-    }
-    const manifest = entry.definition.manifest;
-    const digest = pluginManifestDigest(manifest);
-    if (repository.get(manifest.plugin_id, manifest.publisher.signature, manifest.version, digest)) return;
-    const source = await entry.releaseArtifact.capture();
-    repository.save(createPluginRuntimeReleaseArtifact(manifest, source));
-  }
-
   async #activate(pluginId: string): Promise<PluginSupervisorState> {
     if (this.#revoked.has(pluginId)) return this.#revokedState(pluginId);
     const entry = this.#activeEntries.get(pluginId);
@@ -555,7 +545,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     try {
       if (installId === null) {
         if (entry.definition.execution === "sandbox" && entry.grants === undefined) throw new Error("生成插件必须先确认安装权限，不能自动授予全部必需权限");
-        await this.#persistReleaseArtifact(entry);
+        await persistReleaseArtifact(entry, this.#releaseArtifacts);
         const grants = entry.grants ?? defaultGrants(manifest, this.#runtime.list());
         const installed = this.#runtime.install({
           definition: entry.definition,

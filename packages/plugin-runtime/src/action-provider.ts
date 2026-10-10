@@ -6,7 +6,7 @@ import type { PluginContribution, PluginInstanceRecord, PluginManifest } from "@
  * the install runs and holds the grants that action needs. `state` reads the install as it is at the moment of each call.
  */
 export function pluginActionProvider(manifest: PluginManifest, contribution: PluginContribution, installId: string, projectId: string | undefined,
-  state: { record(): PluginInstanceRecord | null; live(): boolean }): ActionProviderRegistration {
+  state: { record(): PluginInstanceRecord | null; live(): boolean }, providerId = installId): ActionProviderRegistration {
   const grantAvailability = (permissions: readonly string[], own?: (context: ActionCallContext) => ActionAvailability) =>
     (context: ActionCallContext): ActionAvailability => {
       const grants = state.record()?.grants ?? [];
@@ -14,7 +14,7 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
       return own?.(context) ?? { available: true };
     };
   return {
-    provider: { provider_id: installId, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",
+    provider: { provider_id: providerId, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",
       ...(projectId ? { project_id: projectId } : {}) },
     definitions: manifest.actions ?? [], handlers: (contribution.actions ?? []).map(h => ({ ...h,
       availability: grantAvailability(manifest.actions!.find(d => d.capability_id === h.capability_id && d.version === h.version)!.action.permissions, h.availability) })),

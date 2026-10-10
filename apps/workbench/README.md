@@ -16,6 +16,7 @@ Local Host 提供页面模型和操作端口；Workbench renderer 组合公共�
 | --- | --- |
 | [src/ui-composition.ts](src/ui-composition.ts) | UI 组合 |
 | [src/goals-page-renderer.ts](src/goals-page-renderer.ts) | 工作台整页装配（文件名沿用旧称） |
+| [src/home-plugin-page.ts](src/home-plugin-page.ts) | 无项目时的 Home 工作台；复用文档壳和 UI Host 生命周期，装配 Runtime 提供的内容片段 |
 | [src/scripts/client/initialization.ts](src/scripts/client/initialization.ts) | 客户端初始化与恢复 |
 | [src/browser-assets.ts](src/browser-assets.ts) | 浏览器资产入口 |
 

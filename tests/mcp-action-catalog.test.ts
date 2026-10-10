@@ -106,7 +106,11 @@ test("runtime named call of a management platform tool is authority_denied, not 
 
 test("a new MCP connection restores a bound session before freezing project-scoped tools", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-form-mcp-reconnect-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  const servers: MolisWorkServer[] = [];
+  t.after(async () => {
+    for (const server of servers) await server.close();
+    await rm(home, { recursive: true, force: true });
+  });
   const formList = hostActionToolName(formActions.list);
   const runtimeHost = {
     homeDirectory: home,
@@ -114,7 +118,7 @@ test("a new MCP connection restores a bound session before freezing project-scop
     webBaseUrl: "http://127.0.0.1:4173",
   };
   const first = new MolisWorkServer("runtime", null, runtimeHost);
-  t.after(() => first.close());
+  servers.push(first);
   assert.equal((await listToolNames(first)).includes(formList), false);
 
   const created = await first.handleMessage({
@@ -134,7 +138,7 @@ test("a new MCP connection restores a bound session before freezing project-scop
   await first.close();
   await grantActions(home, firstConnection, [formActions.list]);
   const second = new MolisWorkServer("runtime", null, runtimeHost);
-  t.after(() => second.close());
+  servers.push(second);
   const secondNames = await listToolNames(second);
   assert.ok(secondNames.includes(formList), secondNames.join(","));
 });

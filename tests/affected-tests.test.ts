@@ -1156,6 +1156,7 @@ test("in this repository, a change to a package selects every test its README li
 // The files whose change recommends the full suite as the assembly of local-host or the shell of the workbench, written out here so that
 // taking one off the list in rules.mjs fails this test (the rule's own list cannot check itself).
 const ASSEMBLY = [
+  "apps/local-host/src/home-plugins.ts", "apps/workbench/src/home-plugin-page.ts",
   "apps/local-host/src/project-host.ts", "apps/local-host/src/project-plugins.ts", "apps/local-host/src/local-host.ts", "apps/local-host/src/project-capabilities.ts",
   "apps/local-host/src/web-server.ts", "apps/local-host/src/web-request.ts", "apps/local-host/src/web-catalog.ts", "apps/local-host/src/mcp-server.ts",
   "apps/local-host/src/system-agent-service.ts", "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/workbench-renderer.ts",
@@ -1208,9 +1209,9 @@ test("every file a README table of local-host or workbench calls 装配 or 组�
 // client program scripts/client/plugin-workbench.ts was once credited to the workbench README, which names src/plugin-workbench.ts).
 /** The files a README names by file name, with the text of that README that names it (a link in a table, a code span in the prose, a link to the other package). */
 const NAMED_BY_README: { file: string; readme: string; text: string }[] = [
-  ...["project-host", "local-host", "project-capabilities", "web-server", "mcp-server", "system-agent-service", "goal-project-application"]
+  ...["project-host", "home-plugins", "local-host", "project-capabilities", "web-server", "mcp-server", "system-agent-service", "goal-project-application"]
     .map((name) => ({ file: `apps/local-host/src/${name}.ts`, readme: "apps/local-host", text: `[src/${name}.ts](src/${name}.ts)` })),
-  ...["ui-composition", "goals-page-renderer", "scripts/client/initialization", "browser-assets"]
+  ...["ui-composition", "goals-page-renderer", "home-plugin-page", "scripts/client/initialization", "browser-assets"]
     .map((name) => ({ file: `apps/workbench/src/${name}.ts`, readme: "apps/workbench", text: `[src/${name}.ts](src/${name}.ts)` })),
   ...["builtin-plugins", "plugin-catalog", "plugin-workbench"]
     .map((name) => ({ file: `apps/workbench/src/${name}.ts`, readme: "apps/workbench", text: `\`${name}.ts\`` })),
@@ -1250,7 +1251,7 @@ test("the assembly list is the README-named files, the hub-table files and the o
   assert.match(readFileSync(path.join(realRoot, "AGENTS.md"), "utf8"), /apps\/local-host\/src\/project-plugins\.ts/);
   // The account in section 6.1 and open point 1 of section 12 use these numbers.
   const named = NAMED_BY_README.length, hub = NOT_NAMED.hub.length, hosts = ASSEMBLY.filter((file) => file.startsWith("apps/local-host")).length;
-  assert.deepEqual([named, hub, NOT_NAMED.judgment.length, ASSEMBLY.length, hosts], [15, 7, 1, 23, 11]);
+  assert.deepEqual([named, hub, NOT_NAMED.judgment.length, ASSEMBLY.length, hosts], [17, 7, 1, 25, 12]);
   assert.ok(guide.includes(`共 ${ASSEMBLY.length} 个文件`), "section 6.1 gives the size of the list");
   assert.ok(guide.includes(`两个包 README 按文件名点到的 ${named} 个`), "section 6.1 gives the README-named count");
   assert.ok(guide.includes(`第 2 节枢纽表里把东西接在一起的 ${hub} 个`), "section 6.1 gives the hub-table count");

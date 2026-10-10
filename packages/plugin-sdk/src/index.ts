@@ -23,6 +23,7 @@ export type { ActionExecutionContext, ActionExecutionPolicy, ActionResultView, A
 export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
   PluginUiClient, PluginHostServices,
+  PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction, PluginDatabaseDeclaration, PluginSqlValue, PluginSqlRow,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 export type { UiContribution, UiContributionDescriptor, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";

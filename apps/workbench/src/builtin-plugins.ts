@@ -6,7 +6,8 @@ import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_
 import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution } from "@molis-ai/molis-work-plugin-jelly";
 import { experimentsManifest, EXPERIMENTS_CLIENT_FACTORY_SCRIPT, EXPERIMENTS_STYLES, experimentsUiContribution } from "@molis-ai/molis-work-plugin-experiments";
 import { type ProjectDataDeclaration, type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
-import { type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { type PluginManifest, type PluginDefinition, type PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { issuesManifest, issuesMethods, issuesUiContribution, createIssuesPlugin, ISSUES_DATABASE, ISSUES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-issues";
 import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
 import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_PROJECT_PLUGIN_ID, diffManifest } from "@molis-ai/molis-work-plugin-diff";
@@ -51,6 +52,9 @@ export interface BuiltinPluginEntry {
   readonly project_plugin_id: ProjectPluginId;
   readonly manifest: PluginManifest;
   readonly personal?: boolean;
+  /** Explicit Runtime activation; personal visibility alone never migrates an existing plugin. */
+  readonly runtime?: { readonly scope: "home"; readonly create: () => PluginDefinition; readonly database?: PluginDatabaseDeclaration;
+    readonly package_name: string; readonly factory_export: string };
   readonly summary?: string;
   /** Fixed model-call instructions, exported by this plugin and registered by the Host. */
   readonly instructions?: readonly InstructionPrompt[];
@@ -68,6 +72,12 @@ export interface BuiltinPluginEntry {
 
 /** Shared build composition for catalog and UI resources. */
 export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
+  {
+    project_plugin_id: "issues", manifest: issuesManifest, methods: issuesMethods, personal: true, summary: "记录、查看和整理自己的问题。",
+    runtime: { scope: "home", create: createIssuesPlugin, database: ISSUES_DATABASE, package_name: "@molis-ai/molis-work-plugin-issues", factory_export: "createIssuesPlugin" },
+    workbench: { order: 5, contributions: [issuesUiContribution], clientFactory: ISSUES_CLIENT_FACTORY_SCRIPT,
+      searchRow: { selector: "[data-issue-id]", idDataset: "issueId" } },
+  },
   {
     project_plugin_id: COGNIA_PROJECT_PLUGIN_ID,
     manifest: cogniaManifest,

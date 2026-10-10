@@ -45,7 +45,7 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, results?
   const services = context.services;
   const read = (ref: ArtifactReference) => {
     if (!results) throw new ActionError("shelf.unavailable", "项目成果接收尚未装配");
-    const record = services?.artifacts.read(ref);
+    const record = services?.artifacts?.read(ref);
     if (!record || record.lifecycle_state !== "active" || record.availability !== "available") throw new ActionError("shelf.unavailable", "原成果已归档、不可用或不存在");
     return results.preview(record);
   };
@@ -73,7 +73,8 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, results?
     }),
     bindOwnerPluginAction(context, shelfRuntimeActions.output, () => ({ reference: outputs().reference("material") })),
     bindOwnerPluginAction(context, shelfRuntimeActions.selectOutput, input => {
-      const record = services!.artifacts.read(input.reference);
+      if (!services?.artifacts) throw new ActionError("shelf.unavailable", "项目成果服务尚未连接");
+      const record = services.artifacts.read(input.reference);
       const material = parseShelfTextMaterial(record?.payload);
       if (input.reference.artifact_id !== "shelf-material:" + context.project_id + ":" + material.source.item_id) throw new ActionError("shelf.invalid", "Shelf 材料身份不一致");
       return { reference: outputs().select({ port: "material", reference: input.reference, expected_reference: input.expected_reference }) };

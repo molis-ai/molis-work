@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
@@ -32,6 +34,9 @@ const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map([
   ["text-stats", "@molis-ai/molis-work-plugin-text-stats"],
 ]);
 
+const HOME_RUNTIME_ENTRIES = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home");
+const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project_plugin_id));
+
 /** Frozen on 2026-09-30. Remove an id here once its plugin is started by the Runtime. */
 const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
   "alchemist", "artifacts", "cognia", "dataset", "experiments", "feed", "form", "goals", "images",
@@ -49,9 +54,9 @@ const NATIVE_PLUGIN_HTTP_FILES: ReadonlySet<string> = new Set([
 test("every built-in catalog entry is either Runtime-assembled or on the frozen build-time list", () => {
   const unknown = BUILTIN_PLUGIN_CATALOG
     .map(entry => entry.project_plugin_id)
-    .filter(id => !RUNTIME_ASSEMBLED.has(id) && !BUILD_TIME_ASSEMBLED.has(id));
+    .filter(id => !RUNTIME_ASSEMBLED.has(id) && !HOME_RUNTIME_IDS.has(id) && !BUILD_TIME_ASSEMBLED.has(id));
   assert.deepEqual(unknown, [],
-    `New built-in plugins must be started by the Plugin Runtime (add a supervisor entry in apps/local-host/src/project-plugins.ts and list the id in RUNTIME_ASSEMBLED). Not on the build-time list: ${unknown.join(", ")}`);
+    `New built-in plugins must be started by the Plugin Runtime (declare a Home Runtime factory, or add a project supervisor entry and list it in RUNTIME_ASSEMBLED). Not on the build-time list: ${unknown.join(", ")}`);
 });
 
 test("a plugin listed as Runtime-assembled really is started by the supervisor", async () => {
@@ -61,7 +66,7 @@ test("a plugin listed as Runtime-assembled really is started by the supervisor",
     assert.ok(catalogIds.has(id), `${id} is listed as Runtime-assembled but has no catalog entry`);
     assert.ok(source.includes(`"${packageName}"`), `${id} is listed as Runtime-assembled but project-plugins.ts does not start ${packageName}`);
   }
-  const overlap = [...RUNTIME_ASSEMBLED.keys()].filter(id => BUILD_TIME_ASSEMBLED.has(id));
+  const overlap = [...RUNTIME_ASSEMBLED.keys(), ...HOME_RUNTIME_IDS].filter(id => BUILD_TIME_ASSEMBLED.has(id));
   assert.deepEqual(overlap, [], "an id cannot be on both lists");
 });
 
@@ -90,7 +95,7 @@ const stemsOf = (id: string): string[] => [id, ...(id === "characters" ? ["chara
 
 test("the frozen lists name exactly what exists: no id, route file or Runtime plugin is missing or left behind", async () => {
   const catalogIds = new Set(BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id as string));
-  const listed = [...RUNTIME_ASSEMBLED.keys(), ...BUILD_TIME_ASSEMBLED];
+  const listed = [...RUNTIME_ASSEMBLED.keys(), ...HOME_RUNTIME_IDS, ...BUILD_TIME_ASSEMBLED];
   assert.deepEqual(listed.filter(id => !catalogIds.has(id)), [],
     "an id on the Runtime or build-time list has no catalog entry any more; delete it from the list (the lists match the disk exactly)");
 
@@ -134,4 +139,20 @@ test("Runtime plugins that the Host also assembles by hand are named, and no plu
   }).sort();
   assert.deepEqual(hybrid, [...HYBRID_RUNTIME_PLUGINS].sort(),
     `Runtime plugins with hand-written Host code. A new one joins nothing: put the code in the plugin package. One that is clean leaves HYBRID_RUNTIME_PLUGINS.`);
+});
+
+// A catalog declaration only counts as Runtime assembly when the real Home supervisor activates its exact factory.
+test("Home Runtime declarations resolve shipped factories and start once without a project", async () => {
+  const home = await mkdtemp(join(tmpdir(), "home-assembly-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  try {
+    const platform = await host.homePlugins!.ready();
+    for (const entry of HOME_RUNTIME_ENTRIES) {
+      const declaration = entry.runtime!;
+      const module = await import(declaration.package_name);
+      assert.equal(module[declaration.factory_export], declaration.create);
+      assert.deepEqual(declaration.create().manifest, entry.manifest);
+      assert.equal(platform.supervisor.state(entry.manifest.plugin_id)?.status, "running");
+      assert.equal(host.homePlugins!.installations().filter(row => row.plugin_id === entry.manifest.plugin_id).length, 1);
+    }
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

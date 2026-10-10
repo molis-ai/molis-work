@@ -195,7 +195,6 @@ test("Artifact empty, unavailable, archived and embedded views reflect Module st
 
 test("Artifact navigation and export retain the selected catalog Project", async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-projects-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   const alpha = await catalog.createProject({ display_name: "Alpha results", actor_id: "fixture-user" });
   const beta = await catalog.createProject({ display_name: "Beta results", actor_id: "fixture-user" });
@@ -207,7 +206,10 @@ test("Artifact navigation and export retain the selected catalog Project", async
   store.close();
   const server = createMolisWorkWebServer({ homeDirectory: directory, controlToken: "artifact-project-test-control-token-0123456789" });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
+  });
   const address = server.address();
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;

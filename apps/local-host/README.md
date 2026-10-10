@@ -4,6 +4,11 @@
 
 包名：`@molis-ai/molis-work-app-local-host`。工作区内部包，通过仓库构建和 Host 装配使用。
 
+
+`HomePluginHost` 是同一 Local Host 的个人插件装配，安装事实为 `{home}/plugin-runtime/plugin-runtime.db`。`HomePluginExecutor` 提供受安装授权和撤销约束的 `PluginDatabase`；连接技术在 storage，业务 SQL 在插件。公共 Home 页面与项目工作台读取运行 contribution，MCP 只转发；Home 数据不随项目删除。详见 [Home Runtime 合同](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。
+
+Web 工厂自建 Host 时，`server.close(callback)` 在自有 Host 和目录连接关闭后才调用回调；调用方应等待它，再退出或清理 Home。传入的借用 Host 仍由嵌入者负责 `await host.close()`。
+
 ## 一次典型调用
 
 createMolisWorkLocalHost 为项目创建运行实例与 Host Client；同一项目复用运行实例，capability 调用进入受控队列。project-host 负责连接生命周期，project-capabilities 绑定各 owner；GoalProjectApplication 组合跨 Module 用例。Web 工厂在入口统一解析显式 Home、MOLIS_WORK_HOME 和默认目录。
@@ -19,6 +24,7 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 | 文件 | 用途 |
 | --- | --- |
 | [src/project-host.ts](src/project-host.ts) | 项目运行实例装配 |
+| [src/home-plugins.ts](src/home-plugins.ts) | 个人 Home 插件 Runtime 装配与关闭 |
 | [src/system-agent-service.ts](src/system-agent-service.ts) | Host 拥有的 Agent/Git 装配与原模型、连接引用 |
 | [src/local-host.ts](src/local-host.ts) | Host Client 与调用生命周期 |
 | [src/project-capabilities.ts](src/project-capabilities.ts) | 能力绑定 |

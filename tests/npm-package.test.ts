@@ -99,7 +99,7 @@ test("the accepted npm-archive facts of the Feishu/Lark connector stay written i
   }
   const plan = await text("specs/repository-anti-corruption/dependencies-and-sdk-plan.md");
   const section = plan.slice(plan.indexOf("### 3.5 "), plan.indexOf("\n## 4. "));
-  assert.match(section, /结论（2026-10-10，用户弹窗答复：选（a）接受/);
+  assert.match(section, /结论（2026-10-10，用户答复：选（a）接受/);
   assert.match(section, /重新问用户的条件/);
   assert.match(plan, /^8\. ~~npm 归档上飞书\/Lark 连接器/m);
   const decision = (await text("specs/repository-anti-corruption/spec.md")).split("\n")

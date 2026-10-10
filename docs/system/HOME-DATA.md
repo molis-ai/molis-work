@@ -262,6 +262,9 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | 应用数据目录下的 `directory-access/bookmarks.json` | 没设 `MOLIS_WORK_HOME` 时的目录授权书签 | `apps/desktop/adapters/tauri/src/context_directories.rs:109-125` |
 | 用户授权的工作区目录 | 项目绑定的外部目录，不归 Molis Work 备份 | `docs/installation.md` 离线备份一节 |
 | 插件开发状态目录（调用时给定的 `state_directory`） | 标记文件 `.molis-work-plugin-development.json` 加 `development.db` | `apps/local-host/src/local-plugin-development.ts:10-20` |
+| macOS Keychain（其他系统是各自的系统凭据库），服务 `lark-mcp`，账户 `encryption-key` | 飞书/Lark MCP 连接器的包（`@larksuiteoapi/lark-mcp`）给自己的令牌存储文件加密用的 AES 密钥。**只在 `keytar` 已构建时才有，即 npm 归档路径**：装好后连接器每启动一次子进程就读这一项，没有就生成一个写进去，与是否保存登录无关。仓库检出、Home release、桌面安装包里 `keytar` 不构建，加载失败被包自己接住，不碰钥匙串。不受 `MOLIS_WORK_HOME` 约束，不联网，卸载不删。用户 2026-10-10 决定接受（`specs/repository-anti-corruption/spec.md` §1，说明在 `docs/installation.md`「npm 路径上的飞书/Lark 连接器」） | 读写在 `node_modules/@larksuiteoapi/lark-mcp/dist/auth/utils/storage-manager.js:74-78`，名字在 `dist/auth/config.js:6-7`；Molis Work 一侧只是用 `apps/local-host/src/lark-mcp-launch.ts` 起这个子进程 |
+| `~/Library/Application Support/lark-mcp-nodejs/`（其他系统是 `env-paths` 的用户数据目录） | 同一个包的数据目录。**同样只在 `keytar` 已构建时才建**（`keytar` 读写成功之后）。令牌存储文件 `storage.json` 只有该包自己的登录或保存令牌流程才会写，Molis Work 用环境变量传令牌，不触发，所以通常只有一个空目录。不受 `MOLIS_WORK_HOME` 约束，卸载不删 | `node_modules/@larksuiteoapi/lark-mcp/dist/auth/utils/storage-manager.js:87-91`，路径常量 `dist/utils/constants.js:10`、`dist/auth/config.js:8` |
+| `~/Library/Logs/lark-mcp-nodejs/`（其他系统是 `env-paths` 的用户日志目录） | 同一个包的日志目录，`lark-mcp-<日期>.log` 追加告警和错误，包自己只留最近 7 天的文件。**不限于 npm 路径、与 `keytar` 无关**：包一加载就建这个目录，仓库检出、Home release、桌面安装包和 npm 归档都一样；连接器子进程的环境里有 `HOME`，写的是用户真实的目录。不属于用户 2026-10-10 决定的那两件事，作为事实记在这里和 `docs/installation.md` 同一小节末尾。不受 `MOLIS_WORK_HOME` 约束，卸载不删 | `node_modules/@larksuiteoapi/lark-mcp/dist/utils/logger.js:21-25`（建目录）、`:26-49`（清 7 天前的）、`:97`（导入时就实例化），路径常量 `dist/utils/constants.js:10` |
 | 用户其他 Agent 的目录：`~/.claude`、`~/.codex`、`~/.cursor`、`~/.grok`、`~/.config` | 角色导入只读扫描，不写 | `apps/local-host/src/character-import-discovery.ts:86-100` |
 
 ## 9. 卸载覆盖
@@ -281,6 +284,7 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 - `config/` 里除安装清单、令牌、卸载收据以外的 JSON 都留下，所以 `config/` 非空，Home 目录本身不会被删。
 - `bin/` 里改名前的启动脚本不在清单里，其中 `bin/goalboard-mcp` 仍有在跑的进程用它，手工清理前要先核对（第 10 节）；改名前的 `releases/goalboard-*` 会被当成冲突（第 10 节）。
 - 代码会创建、但真实 Home 里还没有的 `runtime-integration-attempts/`，以及设了 `MOLIS_WORK_HOME` 时的 `directory-access/`，也不在清单里。
+- Home 之外的飞书/Lark 连接器状态（第 8 节的三行：钥匙串里的 `lark-mcp` 一项、`lark-mcp-nodejs` 数据目录、`lark-mcp-nodejs` 日志目录）：`uninstall`（含 `--purge-user-data`）只处理 Home 里的路径和安装器自有的程序文件，没有任何代码碰这三处，所以卸载之后它们都还在。日志目录在所有安装路径上都会有；钥匙串项和数据目录只在 npm 归档路径（`keytar` 已构建）上有。清理要用户自己动手，且先想清楚：钥匙串里的密钥是该包给它自己的令牌存储文件加密用的，删掉它会让该包用自己的登录流程存下的令牌读不出来，Molis Work 不依赖这个文件。
 
 ## 10. 真实 Home 的孤儿与残留（2026-10-07）
 

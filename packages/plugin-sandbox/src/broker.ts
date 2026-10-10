@@ -1,7 +1,7 @@
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertJson, SandboxError } from './schema.js';
 import { BoundedQueue, RateBudget } from './queue.js';
-import { createExecutionLifetime } from '@molis-ai/molis-work-kernel';
+import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 
 export interface SandboxServiceContext {
   readonly identity: Readonly<SandboxIdentity>; readonly signal: AbortSignal; readonly operationId: string;

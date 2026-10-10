@@ -39,6 +39,7 @@ const ROLE_BY_KIND = {
 const SHARED_CORE = new Set([
   "packages/contracts",
   "packages/kernel",
+  "packages/plugin-sdk", // W3-03: the execution lifetime and Manifest parsing now; the action, Agent and method declaration checks the Kernel applies at registration as B2 moves them in
   "apps/local-host", // the action service on the host side, and the composition root
   "apps/workbench", // the shell
   "horizontal/agent-host",

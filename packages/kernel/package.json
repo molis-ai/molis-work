@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1"
   },

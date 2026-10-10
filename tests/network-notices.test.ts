@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_EN, ALCHEMIST_STYLES, renderAlchemistWorkbench } from "@molis-ai/molis-work-plugin-alchemist";
+import { ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_EN, ALCHEMIST_STYLES, alchemistActions, renderAlchemistWorkbench } from "@molis-ai/molis-work-plugin-alchemist";
 import { builderUiContribution, renderAgentStudio, renderStudioStage } from "@molis-ai/molis-work-plugin-builder";
 import { createWorkbenchLocale } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -94,4 +95,20 @@ test("Settings links the docs page that lists every outbound class, in the inter
   const en = link(await (await fetch(`${origin}/settings/connectors`, { headers: { "accept-language": "en-US" } })).text());
   assert.equal(en?.[1], "https://github.com/molis-ai/molis-work/blob/main/docs/platform/NETWORK.en.md");
   assert.equal(en?.[2], "Where Molis Work connects to");
+});
+
+test("the network page's class 7 says that the assistant, MCP clients and workflows can start a pulse too, and that only the person picks the GitHub account", () => {
+  // The pulse carries the picked GitHub account's token, so the page that lists every trigger has to name every caller that can start one.
+  const pulse = alchemistActions.pulseStart.action.audiences;
+  for (const audience of ["user", "agent", "mcp", "workflow"] as const) assert.ok(pulse.includes(audience), `alchemist.pulse.start is offered to ${audience}`);
+  assert.deepEqual(alchemistActions.pulseGithubSelect.action.audiences, ["user"], "choosing the account is the person's alone");
+  const section = (file: string, heading: RegExp) => heading.exec(readFileSync(new URL(`../docs/platform/${file}`, import.meta.url), "utf8"))?.[1] ?? "";
+  const zh = section("NETWORK.md", /### 7\. [^\n]*\n([\s\S]*?)\n### 8\./u);
+  const en = section("NETWORK.en.md", /### 7\. [^\n]*\n([\s\S]*?)\n### 8\./u);
+  assert.match(zh, /alchemist\.pulse\.start/u);
+  assert.match(zh, /助理、MCP 客户端、工作流/u, "the Chinese page names the assistant, MCP clients and workflows as callers");
+  assert.match(zh, /限制的只是“选哪个账号”，不限制谁能启动采集/u);
+  assert.match(en, /alchemist\.pulse\.start/u);
+  assert.match(en, /the assistant, an MCP client or a workflow starts the same action/u, "the English page names the assistant, MCP clients and workflows as callers");
+  assert.match(en, /limit is on picking the account, not on starting a pulse/u);
 });

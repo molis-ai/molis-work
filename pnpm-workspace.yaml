@@ -14,10 +14,15 @@ packages:
 # The installer flattens runtime dependencies by package name, and 5.2.1 keeps the 5.1 API.
 overrides:
   safe-buffer: 5.2.1
-  # @larksuiteoapi/lark-mcp -> proxy-agent -> pac-proxy-agent -> get-uri declares basic-ftp ^5.3.1, whose latest 5.x has the
-  # Client.list() quadratic-time parser flaw (GHSA-c475-qrg2-pj4r, fixed in 6.2.1, the oldest fixed release, published 2026-08-27). get-uri only reaches the FTP client for
-  # a PAC file served over ftp:, which the connector never configures; the override is for the audit, and the connector's
-  # tests (tests/lark-mcp-launch.test.ts, tests/connector-mcp.test.ts) start the real package with it.
+  # @larksuiteoapi/lark-mcp -> proxy-agent -> pac-proxy-agent -> get-uri declares basic-ftp ^5.0.2, which resolves to 5.x, and
+  # even the latest 5.x has the Client.list() quadratic-time parser flaw (GHSA-c475-qrg2-pj4r, fixed in 6.2.1, the oldest fixed
+  # release, published 2026-08-27). get-uri only reaches the FTP client for a PAC file served over ftp:, which the connector
+  # never configures; the override is for the audit, and the connector's tests (tests/lark-mcp-launch.test.ts,
+  # tests/connector-mcp.test.ts) start the real package with it.
+  # Scope: this file only governs installs made from this workspace, that is the checkout and the Home release and the desktop
+  # payload copied from it. The npm archive (`pnpm package:npm`) lists lark-mcp as a registry dependency, and npm ignores the
+  # overrides of a package it installs as a dependency, so a consumer's `npm install <archive>.tgz` still gets basic-ftp 5.x
+  # (specs/repository-anti-corruption/dependencies-and-sdk-plan.md section 3.5).
   basic-ftp: 6.2.1
 
 # Allow esbuild postinstall (required by tsx for pnpm molis-work / tests).
@@ -27,7 +32,8 @@ allowBuilds:
   node-pty: true
   # Dependencies of @larksuiteoapi/lark-mcp (the Feishu/Lark MCP connector's child process). Its `mcp` mode takes the
   # token from the environment and loads keytar only on its own stored-login path, which Molis Work never uses;
-  # protobufjs's postinstall only prints a CLI hint. Neither build runs.
+  # protobufjs's postinstall only prints a CLI hint. Neither build runs in this workspace; an npm-archive install does not read
+  # this file and runs keytar's own install script (prebuild-install, then node-gyp).
   keytar: false
   protobufjs: false
 

@@ -24,7 +24,7 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 ## 安装边界
 
-开发者分发 npm 安装包时，先在仓库执行 `pnpm package:npm`，产物在 `release/npm/`。消费者在自己的目录运行 `npm install /absolute/adeptify-molis-work-版本.tgz`，然后使用 `npx --no-install molis-work --help` 或 `npx --no-install molis-work install`。npm 路径要求已有 Node 24+，会正常安装当前平台的原生依赖；不要使用 `--ignore-scripts`。它不依赖源码仓库，也不要求单独发布私有 workspace 子包。安装 npm 包本身不会启动服务或连接 Runtime；`molis-work install` 才写入下面说明的 Home。
+开发者分发 npm 安装包时，先在仓库执行 `pnpm package:npm`，产物在 `release/npm/`。消费者在自己的目录运行 `npm install /absolute/adeptify-molis-work-版本.tgz`，然后使用 `npx --no-install molis-work --help` 或 `npx --no-install molis-work install`。npm 路径要求已有 Node 24+，会正常安装当前平台的原生依赖；不要使用 `--ignore-scripts`；除了 `better-sqlite3`、`node-pty` 这类原生依赖，飞书/Lark MCP 连接器的依赖 `keytar` 也会在安装时运行自己的安装脚本（先下载预编译文件，下载不到再用 node-gyp 编译，两步都失败则 `npm install` 失败）。npm 不读仓库的 `pnpm-workspace.yaml`，所以仓库里对 `basic-ftp` 的版本覆盖不会出现在这条路径上（原因与可选做法见 [依赖与 SDK 方案](../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §3.5）。它不依赖源码仓库，也不要求单独发布私有 workspace 子包。安装 npm 包本身不会启动服务或连接 Runtime；`molis-work install` 才写入下面说明的 Home。
 
 `molis-work install` 只维护 `~/.molis-work`：版本化程序与共享 Skill、MCP/Web/CLI 启动入口、项目 DB 根目录、日志和安装清单。它不会创建或启动项目，不会写入用户项目，也不会修改任何 Runtime 的用户级配置。之后若要把 MCP 入口注册到某个 Runtime，必须走用户确认的 Runtime 集成流程。
 

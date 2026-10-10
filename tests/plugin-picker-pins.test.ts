@@ -28,7 +28,7 @@ function tileOf(html: string, id: string): { wrapper: string; entry: string; pin
   };
 }
 
-test("a plugin the project has opens and is in colour; one it does not have is grey and opens nothing — the same structure", () => {
+test("DOCK-02 a plugin the project has opens and is in colour; one it does not have is grey and opens nothing — the same structure", () => {
   const html = renderPluginRail(primitives, ["goals", "pages"], "");
   const have = tileOf(html, "pages"), lack = tileOf(html, "schedule");
   assert.doesNotMatch(have.wrapper, /is-available/);
@@ -44,7 +44,7 @@ test("a plugin the project has opens and is in colour; one it does not have is g
   }
 });
 
-test("every plugin the market offers is listed once, and the Dock has no second list", () => {
+test("DOCK-01 every plugin the market offers is listed once, and the Dock has no second list", () => {
   const html = renderPluginRail(primitives, ["goals"], "");
   for (const card of pluginMarketCards()) {
     if (card.id === "plugin-builder") continue;
@@ -55,7 +55,7 @@ test("every plugin the market offers is listed once, and the Dock has no second 
   assert.doesNotMatch(bar, /dock-settings|personal-sidebar-footer/, "and no list at the foot of the switcher");
 });
 
-test("the market and the plugin studio are two buttons at the head of the switcher, beside search and above the project's own entry", () => {
+test("DOCK-01 DOCK-13 the market and the plugin studio are two buttons at the head of the switcher, beside search and above the project's own entry", () => {
   const enabled = ["goals", "plugin-builder"];
   const bar = renderWorkbenchBar(primitives, { rail: renderPluginRail(primitives, enabled, ""), projectChrome: "", enabled });
   const head = bar.slice(bar.indexOf('<div class="plugin-picker-head">'), bar.indexOf('class="plugin-rail-items"'));
@@ -74,7 +74,7 @@ test("the market and the plugin studio are two buttons at the head of the switch
   assert.doesNotMatch(without, /data-plugin-id="plugin-builder"/);
 });
 
-test("the pin: grey while not kept, graphite while kept, out of reach until the plugin is in; Shelf's and 灵光's are fixed on", () => {
+test("DOCK-04 the pin: grey while not kept, graphite while kept, out of reach until the plugin is in; Shelf's and 灵光's are fixed on", () => {
   const html = renderPluginRail(primitives, ["goals", "pages", "shelf", "lingguang"], "");
   const kept = tileOf(html, "goals"), loose = tileOf(html, "pages"), grey = tileOf(html, "schedule");
   assert.ok(DOCK_DEFAULT_PINS.includes("goals") && !DOCK_DEFAULT_PINS.includes("pages"));
@@ -90,7 +90,7 @@ test("the pin: grey while not kept, graphite while kept, out of reach until the 
   }
 });
 
-test("one button, two states: a plus while the plugin is not in the project, a trash can once it is; Goals cannot be removed", () => {
+test("DOCK-05 DOCK-06 one button, two states: a plus while the plugin is not in the project, a trash can once it is; Goals cannot be removed", () => {
   const html = renderPluginRail(primitives, ["goals", "pages"], "");
   const have = tileOf(html, "pages"), lack = tileOf(html, "schedule"), core = tileOf(html, "goals");
   assert.match(have.toggle, /data-state="added"/); assert.match(have.toggle, /mw-btn--secondary/); assert.doesNotMatch(have.toggle, / disabled/);
@@ -100,7 +100,7 @@ test("one button, two states: a plus while the plugin is not in the project, a t
   for (const tile of [have, lack, core]) assert.match(tile.all, /<button[^>]*data-plugin-toggle[\s\S]*?<svg class="plugin-toggle-add"[^>]*><use href="#icon-plus"><\/use><\/svg><svg class="plugin-toggle-remove"[^>]*><use href="#icon-trash"><\/use><\/svg>/);
 });
 
-test("what adding adds along, and what removing takes with it, is written on the tile", () => {
+test("DOCK-06 what adding adds along, and what removing takes with it, is written on the tile", () => {
   // Text Stats comes with Files; Feed with Inbox (the Projects service applies both, and the other way round on removal).
   assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("text-stats"), ["files"]);
   const missing = renderPluginRail(primitives, ["goals"], "");
@@ -113,7 +113,7 @@ test("what adding adds along, and what removing takes with it, is written on the
   assert.doesNotMatch(tileOf(all, "text-stats").wrapper, /data-dependents|data-along/, "nothing depends on Text Stats, and it is already in");
 });
 
-test("no plugin brings the page back: the list of those that cannot change in place is empty, and the switcher carries it for the client", () => {
+test("DOCK-08 no plugin brings the page back: the list of those that cannot change in place is empty, and the switcher carries it for the client", () => {
   const html = renderPluginRail(primitives, ["goals"], "");
   assert.match(html, new RegExp(`<div class="plugin-rail-items" data-reload-plugins="${RELOAD_ON_MEMBERSHIP_IDS.join(" ")}">`));
   // Feed's source directory and Coding's settings row both attach and detach live (specs/plugin-picker-dock); a plugin that

@@ -5,6 +5,7 @@ import { Identity, type Session } from "./identity.js";
 import { ImError, textInput } from "./errors.js";
 import { ContinuityService, progressInput } from "./continuity/service.js";
 import { ServerEvents } from "./events.js";
+import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 export interface ImDomain {
   handleImRequest(input: {request:IncomingMessage;response:ServerResponse;url:URL;session:Session}): Promise<boolean>;
@@ -29,7 +30,7 @@ export async function body(request: IncomingMessage): Promise<Record<string,unkn
 export async function startServer(options: ServerOptions) {
   const {events} = options;
   const hostname = options.hostname ?? "127.0.0.1", port = options.port ?? 4187;
-  if (!["127.0.0.1","::1"].includes(hostname) && (!options.tls || !options.publicOrigin)) throw new ImError("server.https_required","局域网入口必须显式配置 HTTPS 证书和 publicOrigin");
+  if (!isLoopbackHostname(hostname,{numeric:true}) && (!options.tls || !options.publicOrigin)) throw new ImError("server.https_required","局域网入口必须显式配置 HTTPS 证书和 publicOrigin");
   if (options.publicOrigin && new URL(options.publicOrigin).origin !== options.publicOrigin) throw new ImError("server.invalid_origin","publicOrigin 必须是完整 origin，不带路径");
   if (options.publicOrigin && new URL(options.publicOrigin).protocol !== (options.tls ? "https:" : "http:")) throw new ImError("server.invalid_origin","publicOrigin 的协议必须与实际服务一致");
   let origin = options.publicOrigin ?? "";

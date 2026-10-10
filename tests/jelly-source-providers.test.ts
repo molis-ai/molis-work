@@ -5,6 +5,7 @@ import { gzipSync, brotliCompressSync, deflateSync } from "node:zlib";
 import { classifyJellySource, jellySourceEmbeddedJSON, jellyXiaohongshuNoteID, parseJellyXiaohongshu, parseJellyXiaoyuzhouAudio, readJellyMaterialSource, type JellySourceOptions } from "../apps/local-host/src/jelly-source-providers.js";
 import { fetchJellyPublicBytes, isJellyPublicAddress, readJellyPublicBody, resolveJellyPublicAddresses, validateJellyPublicURL, type JellyPublicResponse } from "../apps/local-host/src/jelly-source-reader.js";
 import { JellyMaterialError, type JellyMaterialExtraction } from "../apps/local-host/src/jelly-native-material.js";
+import { ADDRESSES_NEVER_PUBLIC, ADDRESSES_PUBLIC } from "./fixtures/public-address-policy.js";
 const page = (url: string, body: string, type = "text/html"): JellyPublicResponse => ({ data: Buffer.from(body), type, final_url: url, status: 200 });
 const material = (text: string): JellyMaterialExtraction => ({ text, file_name: "source.mp4", extractor: "test-extractor", pages: [{ number: 1, text, method: "test", confidence: null }], coverage: { status: "sufficient", processed_pages: 1, total_pages: 1, issues: [] } });
 const noteHTML = (id: string, note: Record<string, unknown>) => `<script>window.__INITIAL_STATE__=${JSON.stringify({ note: { noteDetailMap: { [id]: { note } } } })};</script>`;
@@ -101,4 +102,10 @@ test("generic public articles retain readable body while omitting executable/pag
 test("cancelled source never starts fetching", async () => {
   const controller = new AbortController(); controller.abort(); let calls = 0;
   await assert.rejects(readJellyMaterialSource("/unused", "https://example.com", { signal: controller.signal, async fetch() { calls++; throw new Error("should not fetch"); } })); assert.equal(calls, 0);
+});
+
+// Security invariant S-10 (docs/system/SECURITY-INVARIANTS.md): the same table every address policy is held to.
+test("the reader's address policy refuses every address of the shared table that is not public", () => {
+  for (const address of ADDRESSES_NEVER_PUBLIC) assert.equal(isJellyPublicAddress(address), false, address);
+  for (const address of ADDRESSES_PUBLIC) assert.equal(isJellyPublicAddress(address), true, address);
 });

@@ -7,6 +7,7 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { apiOAuthProvider, salesforceOrigin } from "./connector-api-oauth-providers.js";
 import { connectorProductAuth, connectorBrokerOrigin } from "./connector-product-auth.js";
 import { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
+import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 const CALLBACK = "/api/settings/connectors/methods/oauth/callback";
 interface OAuthConfiguration extends ConnectorProtocolConfiguration {
@@ -29,7 +30,7 @@ function object(value: unknown): Json { return value && typeof value === "object
 function text(value: unknown): string { return typeof value === "string" ? value : ""; }
 function localOrigin(raw: string): string {
   const url = new URL(raw);
-  if (url.protocol !== "http:" || !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) throw new ApiOAuthError("OAuth 必须从本机应用启动");
+  if (!isLoopbackHttpOrigin(url)) throw new ApiOAuthError("OAuth 必须从本机应用启动");
   return url.origin;
 }
 async function jsonRequest(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<Json> {

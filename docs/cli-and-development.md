@@ -35,7 +35,7 @@ goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 
 ```text
 apps/                        6 个产品入口与 composition root 边界
-packages/                    10 个 Foundation package（另有根目录 server/）；contracts 暴露 58 个公开 subpath
+packages/                    10 个 Foundation package（另有根目录 server/）；contracts 暴露 59 个公开 subpath
 modules/                     13 个业务事实 owner
 horizontal/                  8 个包：5 个横向运行服务，3 个平台产品服务（记忆、放置、搜索）
 plugins/                     26 个 Native Plugin 与 6 个官方 Integration Plugin

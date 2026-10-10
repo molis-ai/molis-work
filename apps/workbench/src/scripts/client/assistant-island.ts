@@ -2747,21 +2747,22 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     items[(at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
   });
 
-  // The input keeps room to type. The bar's middle is at most 660px and the chips beside the input come and go (a
-  // work, its materials, what needs a look, who does it), so the composer measures itself, as the Dock does, and
-  // steps down: first the quiet parts narrow, then the choosers nobody has changed fold while the panel is closed,
-  // and last the plugin and work chips narrow (an open panel's head carries the work's whole title). The input has a
-  // floor of its own, so a crowded composer shows as running over its edge as much as a narrow input.
+  // The input keeps room to type, but the chips beside it come and go, so the composer measures itself, as the Dock
+  // does, and steps down: quiet parts narrow, unchanged choosers fold (panel closed), plugin and work chips narrow
+  // (an open panel's head names the work).
+  // Still over its edge the line is crowded: the choosers go (the side pane has them), no chip shrinks under 44px.
   const INPUT_ROOM = 120;
   let fitFrame = 0;
   const roomy = () => input.clientWidth >= INPUT_ROOM && composer.scrollWidth <= composer.clientWidth + 1;
   const fitComposer = () => {
     fitFrame = 0;
     delete composer.dataset.fit;
+    delete composer.dataset.crowded;
     for (const level of ["tight", "folded", "narrow"]) {
-      if (roomy()) return;
+      if (roomy()) break;
       composer.dataset.fit = level;
     }
+    composer.toggleAttribute("data-crowded", composer.scrollWidth > composer.clientWidth + 1);
   };
   const refit = () => { if (!fitFrame) fitFrame = requestAnimationFrame(fitComposer); };
   // The island's width is the bar's, never its chips'; the chips' own changes arrive as attributes and labels.

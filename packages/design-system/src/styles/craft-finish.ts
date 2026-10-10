@@ -1,4 +1,5 @@
 import { MW_PLUGINS } from "../palette.js";
+import { TOUCH_TARGET_STYLES } from "./touch-targets.js";
 
 /** Soft Workbench finish: the last layer of every Molis Work page (module name kept from the craft pass).
  *
@@ -1320,7 +1321,7 @@ const CRAFT_BASE_STYLES = `
   /* A phone: two rows at the foot — the Assistant line first, then the Dock and the project. A plugin's own list
      opens in a drawer from a button just left of the project, only when that plugin has one. */
   @media (max-width: 600px) {
-    ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-h: 116px; --dock-btn: 44px; --composer-h: 50px; }
+    ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-h: 116px; --composer-h: 50px; }
     ${SHELL} .immersive-workspace,
     ${SHELL} .immersive-workspace.is-directory-collapsed,
     ${SHELL} .immersive-workspace.is-plugin-directory-empty { grid-template-rows: auto 0 0 minmax(0, 1fr) auto; }
@@ -1337,13 +1338,9 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .dock-pin.is-fixed { margin-right: 4px; }
     ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { right: -4px; }
     html ${SHELL} .workbench-bar :is(.bar-start, .bar-end) { gap: 0; }
-    ${SHELL} .bar-composer .assistant-composer-input { height: 44px; font-size: 16px; line-height: 44px; }
-    ${SHELL} .bar-composer [data-assistant-send] { width: 44px; height: 44px; min-height: 44px; }
-    ${ASSIST} .bar-composer .bar-composer-attach { justify-content: center; min-width: 44px; height: 44px; padding: 0; }
-    ${SHELL} .plugin-picker-trigger { justify-content: center; min-width: 44px; max-width: 132px; }
+    ${SHELL} .plugin-picker-trigger { max-width: 132px; }
     html ${SHELL} .immersive-workspace > .tree-pane,
     html ${SHELL} .immersive-sidebar-scrim:not([hidden]) { bottom: var(--dock-h); }
-    html ${SHELL} .workbench-bar .bar-end .navigator-project-selector { grid-template-columns: 44px; width: 44px; height: 44px; min-height: 44px; }
     html ${SHELL} .immersive-workspace:not(.is-plugin-directory-empty) .workbench-bar .bar-end .immersive-show-directory,
     html ${SHELL} .is-directory-drawer-open .workbench-bar .bar-end .navigator-directory-toggle {
       display: inline-grid !important; place-items: center; order: -1; width: var(--dock-btn); min-width: var(--dock-btn); height: var(--dock-btn); min-height: var(--dock-btn); padding: 0; border: 0; border-radius: 11px;
@@ -1362,10 +1359,6 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
     /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
-    ${SHELL} .bar-composer .assistant-target[data-mode="work"] { min-width: 88px; }
-    /* The line's chips are 44px targets too. */
-    ${ASSIST} :is(.assistant-target, .assistant-target-main, .assistant-target-clear, .assistant-executor, .assistant-materials-button, .assistant-attention) { height: 44px; }
-    ${SHELL} .bar-composer :is(.assistant-executor, .assistant-materials-button, .assistant-attention, .assistant-target-clear) { min-width: 44px; }
     ${SHELL} .bar-start .plugin-picker { max-width: none; padding-right: 0; }
     ${SHELL} .bar-start .plugin-picker-trigger { padding: 0 8px; }
     /* On a phone the Dock beside it already shows where you are: the switcher is the door to all plugins. */
@@ -1982,7 +1975,7 @@ const STILL_RESET = `
   html[data-craft-still] *, html[data-craft-still] *::before, html[data-craft-still] *::after { transition-duration: 0s !important; transition-delay: 0s !important; }
 `;
 
-export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + STILL_RESET;
+export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + TOUCH_TARGET_STYLES + STILL_RESET;
 
 /** Behaviour for the craft layer. Everything here is presentation: it never writes Goal state,
  * never moves focus and never cancels another handler. Without it the pages look the same, only

@@ -286,6 +286,96 @@ test("Pages and 灵光: going back with the workbench's own Back button or the p
   assert.equal(sparks().length, keptSparks + 1, "kept");
 });
 
+test("Pages and 灵光: the workbench's Back and Forward do not bring back a blank item that was taken back, and a reload comes up as the list", { timeout: 300_000 }, async t => {
+  // W2-18 decision 6 takes an empty item back without the person deleting anything, but the workbench's history still holds the step
+  // that names it. Stepping to that step makes the workbench ask the page for the item; the page does not have it, and the workbench's own
+  // name for it on a page that is still at its list is not "shown", so the quiet reopen forgets the record: nothing keeps asking for it.
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory, reloadPage } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
+  const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
+  const sparks = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
+  // The record the workbench reopens in a plugin's page after a reload (per device, in localStorage).
+  const remembered = (plugin: string) => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
+    .map(key => JSON.parse(localStorage.getItem(key) || '{}')[${JSON.stringify(plugin)}]).filter(Boolean)`);
+  const untilAsync = async (check: () => Promise<boolean>, what: string, ms = 20_000) => {
+    const end = Date.now() + ms;
+    while (!(await check())) { if (Date.now() > end) assert.fail(what); await new Promise(resolve => setTimeout(resolve, 100)); }
+  };
+  const expanded = (surface: string) => evaluate<string>(`document.querySelector('${surface}').dataset.expanded`);
+  // A page that is asked (1.5 s after it comes up) for a record it does not have says so in its note; past that, there is none.
+  const quietAfterTheReopen = async (noteSelector: string, surface: string) => {
+    await new Promise(resolve => setTimeout(resolve, 3_500));
+    assert.deepEqual(await evaluate(`[document.querySelector('${noteSelector}').hidden, document.querySelector('${noteSelector}').textContent, document.querySelector('${surface}').dataset.expanded]`),
+      [true, "", "false"], "no 「找不到」 note, and still the list");
+  };
+  // The record is written once the page is open on it; before the step to it, it must have been there to be forgotten.
+  const waitRemembered = (plugin: string) => untilAsync(async () => (await remembered(plugin)).length > 0, `the workbench never remembered the open ${plugin} record`, 8_000);
+  // The step that names the taken-back item: the workbench names it again, asks the page for it, and the quiet reopen (8 s) forgets it.
+  const stepToIt = async (plugin: string, surface: string, direction: "back" | "forward") => {
+    await click(`[data-workspace-history=${direction}]`);
+    assert.equal((await remembered(plugin)).length, 1, `${direction}: the step names the item again, so the workbench asks the page for it`);
+    await untilAsync(async () => (await remembered(plugin)).length === 0, `${plugin} ${direction}: the workbench still holds the taken-back item after the quiet reopen`);
+    assert.equal(await expanded(surface), "false", `${direction}: and the page stays at its list`);
+  };
+  const walk = async (plugin: string, surface: string, openBlank: () => Promise<void>, pageBack: string, count: () => number, kept: number) => {
+    const folded = () => waitFor(`document.querySelector('${surface}').dataset.expanded === 'false'`, 20_000);
+    // Taken back on the page's own 「返回」: the workbench's Back goes to the step that names it, and Forward is the list.
+    await openBlank();
+    assert.equal(count(), kept + 1, `${plugin}: made at once, as before`);
+    await waitRemembered(plugin);
+    await click(pageBack);
+    await folded();
+    await until(() => count() === kept);
+    await stepToIt(plugin, surface, "back");
+    assert.equal(count(), kept, `${plugin}: nothing came back`);
+    await click("[data-workspace-history=forward]");
+    await new Promise(resolve => setTimeout(resolve, 600));
+    assert.equal(await expanded(surface), "false", `${plugin}: Forward is the list as well`);
+    assert.deepEqual(await remembered(plugin), []);
+    // Taken back by the workbench's own Back: Forward is the step that names it.
+    await openBlank();
+    assert.equal(count(), kept + 1, `${plugin}: made at once, as before`);
+    await waitRemembered(plugin);
+    await click("[data-workspace-history=back]");
+    await folded();
+    await until(() => count() === kept);
+    await stepToIt(plugin, surface, "forward");
+    assert.equal(count(), kept, `${plugin}: nothing came back`);
+  };
+
+  await click("[data-plugin-strip] [data-plugin-id=pages]");
+  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
+  const before = titles();
+  await walk("pages", "[data-pages=workbench]", async () => {
+    await click("[data-pages-new]");
+    await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  }, "[data-pages-back]", () => titles().length, before.length);
+  await reloadPage();
+  await waitFor("document.querySelector('[data-pages=workbench]')", 20_000);
+  assert.deepEqual(await remembered("pages"), [], "a reload has nothing to reopen");
+  await quietAfterTheReopen("[data-pages-note]", "[data-pages=workbench]");
+  assert.deepEqual(titles(), before);
+
+  // 灵光 the same way.
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
+  await click("[data-bar-resident=lingguang]");
+  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
+  const keptSparks = sparks().length;
+  await walk("lingguang", "[data-lingguang=workbench]", async () => {
+    await evaluate("document.querySelector('[data-lingguang-capture]').click()");
+    await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
+  }, "[data-lingguang-back]", () => sparks().length, keptSparks);
+  await reloadPage();
+  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
+  assert.deepEqual(await remembered("lingguang"), [], "a reload has nothing to reopen");
+  await quietAfterTheReopen("[data-lingguang-note]", "[data-lingguang=workbench]");
+  assert.equal(sparks().length, keptSparks);
+});
+
 test("Pages: opening an imported document leaves the blank new document next to it, and the other documents stay", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;

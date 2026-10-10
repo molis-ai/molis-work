@@ -1,4 +1,5 @@
 import type { ContractDescriptor } from "./package.js";
+import type { ActionCallOrigin } from "./actions.js";
 export * from "./runtime-project-host.js";
 
 /** Async boundary for an existing, finite method API; does not add or dispatch operation names. */
@@ -144,7 +145,7 @@ export interface HostCapabilityCallOptions {
   /** SDK-enforced restriction, not caller authority; plugins cannot remove it through invocation options. */
   consumer?: "plugin";
 }
-export interface HostCapabilityInvocation {
+export interface HostCapabilityInvocation extends ActionCallOrigin {
   readonly signal?: AbortSignal;
   readonly plugin?: HostPluginCaller;
   readonly consumer?: "plugin";

@@ -144,7 +144,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
   - 包是 private，包名不等于已发布到 npm 的承诺。
   - 系统搜索的来源协议（`defineSearchEntriesAction`、`bindSearchEntriesHandler`）与 Host 用的是同一份合同，插件照此声明即可被搜到，不需要 Host 改名单。没有“查询时再搜”的来源（`defineSearchQueryAction` 已按决定 19 删除）。
   - 平台合同里给插件作者用的 `define…Action`、`bind…Handler`、`with…` 辅助函数都从这里导出：到期提醒、情境片段推荐、成果库的预览/固定/比较/继续/被引用、`withActionEffect`。新增一个辅助函数而没有导出，`tests/plugin-sdk-exports.test.ts` 会失败；确实不该给插件用的，在那个测试的 `NOT_FOR_PLUGINS` 里写明理由。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-DEVELOPMENT.md](../../docs/platform/PLUGIN-DEVELOPMENT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
@@ -197,7 +197,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 
 判断编辑器的 Agent 用途直接读取当前授权目录中带 `agent` 或 `mcp` audience 的能力，无须声明旧 MCP 名称或增加作者白名单。能力引用同时包含 ID、版本和提供方；Choice/Noul 的可选结果映射保存该引用，调用返回 `recommended_actions`。调用者仍须根据业务输入合同构造参数，再通过共同服务单独调用。推荐不执行、不授权；发布和判断前后检查来源与授权，失效引用保留。旧连接凭据本身不代表可调用能力，只有正式注册动作才进入目录。
 
-`defineAction` 的处理器接收 `ActionExecutionContext`。等待模型、网络或其他异步工作后，写入前调用 `await context.beforeEffect()`，再验证原对象版本。该检查由 dispatcher 创建，不能由业务输入提供；它覆盖取消、注册替换、生命周期与实时授权。嵌套调用保留外层检查时使用合同层 `retainActionAuthority(context, originReference, context.beforeEffect)`。
+`defineAction` 的处理器接收 `ActionExecutionContext`。等待模型、网络或其他异步工作后，写入前调用 `await context.beforeEffect()`，再验证原对象版本。该检查由 dispatcher 创建，不能由业务输入提供；它覆盖取消、注册替换、生命周期与实时授权。嵌套调用保留外层检查时使用合同层 `retainActionAuthority(context, originReference, context.beforeEffect)`。处理器拿到的上下文里还有 `context.call_id`：Host 给这次入口级操作的调用编号，嵌套调用沿用它。只用来写进日志或带进错误说明，方便把一份报告对到这次调用；它不是身份，不授予权限，不能当业务输入，也不能据它做任何判断，插件从请求里读到的 `call_id` 同样不可信。
 
 长任务可使用 `createExecutionLifetime({ signal, timeout, monitor })`。`monitor.check()` 必须同步，检查失败抛出原错误以取消本次执行。将返回的 signal 交给外部等待，返回后 `assertActive()`，再执行所属插件的事务/版本/授权检查；finally 调用 `dispose()`。取消或 shutdown 不应误记成普通业务失败。这个工具不替代幂等请求、持久 lease、执行身份和未知副作用的恢复决策。
 

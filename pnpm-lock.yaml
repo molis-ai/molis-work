@@ -165,6 +165,9 @@ importers:
       '@molis-ai/molis-work-plugin-schedule':
         specifier: workspace:*
         version: link:plugins/native/schedule
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:packages/plugin-sdk
       '@molis-ai/molis-work-plugin-shelf':
         specifier: workspace:*
         version: link:plugins/native/shelf
@@ -445,6 +448,9 @@ importers:
       '@molis-ai/molis-work-plugin-schedule':
         specifier: workspace:*
         version: link:../../plugins/native/schedule
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
       '@molis-ai/molis-work-plugin-shelf':
         specifier: workspace:*
         version: link:../../plugins/native/shelf
@@ -698,9 +704,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@molis-ai/molis-work-kernel':
+      '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
-        version: link:../../packages/kernel
+        version: link:../../packages/plugin-sdk
 
   horizontal/search:
     dependencies:
@@ -789,9 +795,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@molis-ai/molis-work-kernel':
+      '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
-        version: link:../../packages/kernel
+        version: link:../../packages/plugin-sdk
 
   modules/signals:
     dependencies:
@@ -830,6 +836,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -848,9 +857,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@molis-ai/molis-work-kernel':
+      '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
-        version: link:../kernel
+        version: link:../plugin-sdk
 
   packages/plugin-sdk:
     dependencies:

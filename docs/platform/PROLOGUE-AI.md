@@ -216,7 +216,7 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 Coding 的后台 follower 按 activation 观察 Run，停止后取消等待并拒绝晚结果；Run 停止或待核对时发 `run-updated` 刷新提示。Git 从 Prologue Effect 与 dispatch 回执核对后的 ReviewQueue 新结果发 `operation-updated`，恢复历史保持静默。两者触发 Files/Git 重新读取现状，不声称一定改了文件，也不因通知失败重试原执行。
 
 
-Shelf 自动动作经 `shelf.jobs.generate` → `ShelfAiPorts` → Host 配置模型 → 同 Home Prologue。模型选择与人工终端 engine 独立；固定指令按 recipe/option 登记，用户 shortcut 作为数据，材料使用冻结副本。任务保存完整回执、真实 reportedModels 及 unknown 用量，JSON 只复用 SDK 解码，领域拒绝非对象和纯进度文本。不自动修复或重跑计费请求。`shelf.jobs.extract` 继续本机提取，不要求模型权限。旧 jobs.run 只做兼容分派，AI 分支仍须 model:invoke；新消费者用成本明确的独立 Action。
+Shelf 自动动作经 `shelf.jobs.generate` → `ShelfAiPorts` → Host 配置模型 → 同 Home Prologue。模型选择与人工终端 engine 独立；固定指令按 recipe/option 登记，用户 shortcut 作为数据，材料使用冻结副本。任务保存完整回执、真实 reportedModels 及 unknown 用量，JSON 只复用 SDK 解码，领域拒绝非对象和纯进度文本。不自动修复或重跑计费请求。`shelf.jobs.extract` 继续本机提取，不要求模型权限。没有兼容分派入口：`shelf.jobs.generate` 要 `model:invoke`、成本 metered，`shelf.jobs.extract` 不要模型、成本 none，调用方按需要选其一。
 
 ### Builder 的界面截图
 

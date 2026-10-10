@@ -5,6 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionMcpToolName, createActionMcpPorts } from "@molis-ai/molis-work-app-mcp";
 import { ALCHEMIST_ACTION_PERMISSIONS, alchemistActions, type AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 import { IMAGES_ACTION_PERMISSIONS, imagesActions } from "@molis-ai/molis-work-plugin-images";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -50,7 +51,8 @@ async function fixture(t: test.TestContext, options: { alchemistAi?: boolean } =
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: model.providerId, display_name: model.providerId, base_url: model.origin + "/v1",
       api_format: "openai-chat-completions", prompt_cache: "off", models: [{ model_id: model.modelId, enabled: true }] });
   };
-  return { home, availability, project, personal, configureModel };
+  const mcp = () => createActionMcpPorts({ service: host.actionClient(ref), context: () => caller("a", "mcp"), serverInfo: { name: "declared", version: "0" } });
+  return { home, availability, project, personal, mcp, configureModel };
 }
 
 test("without a model the Assistant is told which Alchemist actions cannot run, and why, until a model is configured", async t => {
@@ -60,8 +62,24 @@ test("without a model the Assistant is told which Alchemist actions cannot run, 
     assert.ok(!before.available && before.code === "actions.connection_required" && /模型/.test(before.reason), `${action.capability_id}: ${JSON.stringify(before)}`);
   }
   await assert.rejects(f.project(AGENT).invoke(alchemistActions.reuseAssess, { intent: "x", references: [], methodIds: [] } as never), { code: "actions.connection_required" });
+  // Workflows and plugins are told the same; an MCP client does not see the tool at all, so a call by its name gets the "not listed" answer.
+  for (const audience of ["workflow", "plugin", "mcp"] as const) for (const action of NEEDS_MODEL) {
+    const state = await f.availability(action.capability_id, audience);
+    assert.ok(!state.available && state.code === "actions.connection_required", `${action.capability_id} for ${audience}`);
+  }
+  await assert.rejects(f.project("workflow").invoke(alchemistActions.researchStart, { idea_id: "x" } as never), { code: "actions.connection_required" });
+  const gone = await f.mcp();
+  const names = (await gone.tools).map(tool => tool.name);
+  for (const action of NEEDS_MODEL) {
+    const name = actionMcpToolName({ ...action, version: 1 });
+    assert.ok(!names.includes(name), `${name} is left out of tools/list`);
+    await assert.rejects(gone.callTool(name, {}), { code: "actions.mcp_unavailable" });
+  }
+  assert.ok(names.includes(actionMcpToolName({ ...alchemistActions.pulseStart, version: 1 })), "the market pulse needs no model and stays listed");
   f.configureModel();
   for (const action of NEEDS_MODEL) assert.deepEqual(await f.availability(action.capability_id, AGENT), { available: true }, action.capability_id);
+  const listed = (await f.mcp().tools).map(tool => tool.name);
+  for (const action of NEEDS_MODEL) assert.ok(listed.includes(actionMcpToolName({ ...action, version: 1 })), `${action.capability_id} comes back with a model`);
 });
 
 test("the person's own Alchemist page keeps its handling without a model: it can still send a message and start a run that is recorded as stopped", async t => {

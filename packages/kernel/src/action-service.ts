@@ -5,6 +5,7 @@ import {
   type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CapabilityRegistry } from "./index.js";
+import { assertSessionAuthorship } from "./action-authorship.js";
 import { actionSchemaAccepts, compileActionSchema, createActionSchemaCompiler, validateActionValue } from "./action-schema.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
 import { createExecutionLifetime } from "@molis-ai/molis-work-contracts/platform/execution-lifetime";
@@ -85,12 +86,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         const registeredDefinition = { ...definition, action_provider: provider };
         const callWindows = new Map<string, number[]>();
         const execute = (context: ActionCallContext, input: unknown) => {
-          context.signal?.throwIfAborted();
-          // The one place the Session rule is enforced: every call, wrapped or not, reaches its handler through here with its own context.
-          if (definition.action.authorship === "session" && context.runtime_session_missing) {
-            throw new ActionError("mcp.runtime_identity_missing",
-              "MCP 宿主没有稳定 Session 身份。请重新连接 Molis Work MCP，由宿主提供 runtime_id 以及稳定 Session（会话元数据、nativeRuntimeSessionId 或已声明的 stable_work_context_id）；不要在工具参数里填用户身份。");
-          }
+          context.signal?.throwIfAborted(); assertSessionAuthorship(definition.action, context);
           validateActionValue(validateInput, input, "input");
           const policy = definition.action.execution;
           if (policy?.max_calls_per_minute) {

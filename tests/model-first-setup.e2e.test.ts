@@ -57,7 +57,7 @@ test("no model → settings → template → a failing check saves nothing → a
   assert.deepEqual(await evaluate(`({ name: document.querySelector('[data-model-name]').value, format: document.querySelector('[data-model-api-format]').value,
     model: document.querySelector('[data-model-rows] [data-model-id]').value, key: document.querySelector('[data-model-api-key]').value,
     focus: document.activeElement?.hasAttribute('data-model-api-key'), chosen: document.querySelector('[data-model-template=deepseek]').getAttribute('aria-pressed') })`),
-  { name: "DeepSeek", format: "openai-chat-completions", model: "deepseek-chat", key: "", focus: true, chosen: "true" });
+  { name: "DeepSeek", format: "openai-chat-completions", model: "deepseek-flash", key: "", focus: true, chosen: "true" });
   await writeFile(new URL("2-template-chosen.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
 
   // 4. The stand-in plays the provider: point the template at it and offer a key it rejects.
@@ -104,7 +104,7 @@ test("no model → settings → template → a failing check saves nothing → a
   assert.deepEqual(saved.health.map(entry => entry.status), ["ready"]);
   assert.equal(standIn.requests.length, 2, "one check per save");
   assert.equal(standIn.requests[1]!.offeredKey, goodKey);
-  assert.equal(standIn.requests[1]!.model, "deepseek-chat");
+  assert.equal(standIn.requests[1]!.model, "deepseek-flash");
   await writeFile(new URL("4-back-on-the-page.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
 
   // 6. A later visit to the same settings is the ordinary page: the provider is listed, and saving a rename does not call the provider.

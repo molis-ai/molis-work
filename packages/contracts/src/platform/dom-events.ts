@@ -24,9 +24,10 @@ export const platformDomEventsContract = {
  * change that dispatches it.
  *
  * Not in scope: events created by the browser itself, `postMessage` types between the shell and its frames, the
- * `data-assistant-context` attribute, the `host` object handed to plugin client scripts, storage keys, direct calls
- * between the segments of the Workbench client, and state that no event announces. Those are other channels with no
- * registry yet.
+ * `data-assistant-context` attribute, the `host` object handed to plugin client scripts, storage keys, `BroadcastChannel`
+ * names (the one in use, `molis-work:model-ready`, carries a page event to the other tabs of the origin and is
+ * recorded under that event), direct calls between the segments of the Workbench client, and state that no event
+ * announces. Those are other channels with no registry yet.
  */
 
 /**
@@ -225,7 +226,7 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:model-ready", kind: "announcement", owner: "settings-directory", on: "document",
     detail: "none",
-    summary: "The model settings page saved the first provider that can run. Sent on the document and into every pane frame; each page that showed \"no model\" (the Assistant's failed card, Cognia, Dataset, Form, PPT, Workflows, Alchemist, Jelly's model dialog) reads it again.",
+    summary: "The model settings page saved the first provider that can run. Sent on the document and into every pane frame; each page that showed \"no model\" (the Assistant's failed card, Cognia, Dataset, Form, PPT, Workflows, Alchemist, Jelly's model dialog, the plugin builder studio) reads it again. The same script also posts it on a BroadcastChannel of the same name to the other tabs of the origin, which is how the onboarding page that opened the settings in a new tab learns of it; that channel is not a DOM event and has no entry of its own.",
   },
   {
     name: "molis-work:open-settings-path", kind: "request", owner: "settings-directory", on: "document",

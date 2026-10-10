@@ -70,12 +70,19 @@ test("没有模型时设置页给出一键模板；模板只预填地址、格�
     assert.match(empty, /data-model-add-provider/, "空状态下仍可以手填一个");
     assert.match(empty, /还没有配置供应商/);
     assert.ok(MODEL_PROVIDER_TEMPLATES.some((t) => t.api_format === "anthropic-messages") && MODEL_PROVIDER_TEMPLATES.some((t) => t.api_format === "openai-chat-completions"), "Prologue 支持的两种格式都有模板");
+    // 模板只写供应商现行文档列出的名字和地址：停用的名字在一键流程里要到保存时才被发现，太晚。
+    const retired = new Set(["deepseek-chat", "deepseek-reasoner"]);
+    for (const template of MODEL_PROVIDER_TEMPLATES) {
+      for (const id of template.model_ids) assert.ok(!retired.has(id), `${template.template_id}: ${id} 已被供应商停用`);
+      assert.match(template.base_url, /^(https:\/\/[^/]+(\/.*[^/])?)?$/, `${template.template_id}: https，末尾没有斜杠`);
+    }
+    assert.equal(modelProviderTemplate("minimax")?.base_url, "https://api.minimax.cn/anthropic", "MiniMax 国内端点按它自己现行文档写");
 
     const deepseek = await html("?new=1&template=deepseek");
     assert.match(deepseek, /data-model-base-url="deepseek-[0-9a-f]{8}"/, "模板每次换一个新 id，选两次不会覆盖已有的供应商");
     assert.match(deepseek, /value="https:\/\/api\.deepseek\.com"/);
     assert.match(deepseek, /value="openai-chat-completions" selected/);
-    assert.match(deepseek, /data-model-id value="deepseek-chat"/);
+    assert.match(deepseek, /data-model-id value="deepseek-flash"/);
     assert.match(deepseek, /aria-pressed="true"[^>]*data-model-template="deepseek"/, "选中的模板亮着");
     assert.equal((deepseek.match(/aria-pressed="true"[^>]*data-model-template=/g) ?? []).length, 1);
     assert.match(deepseek, /还差 API Key。/);

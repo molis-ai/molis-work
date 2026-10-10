@@ -87,7 +87,7 @@ export declare const DOM_EVENTS: readonly [{
     readonly owner: "settings-directory";
     readonly on: "document";
     readonly detail: "none";
-    readonly summary: "The model settings page saved the first provider that can run. Sent on the document and into every pane frame; each page that showed \"no model\" (the Assistant's failed card, Cognia, Dataset, Form, PPT, Workflows, Alchemist, Jelly's model dialog) reads it again.";
+    readonly summary: "The model settings page saved the first provider that can run. Sent on the document and into every pane frame; each page that showed \"no model\" (the Assistant's failed card, Cognia, Dataset, Form, PPT, Workflows, Alchemist, Jelly's model dialog, the plugin builder studio) reads it again. The same script also posts it on a BroadcastChannel of the same name to the other tabs of the origin, which is how the onboarding page that opened the settings in a new tab learns of it; that channel is not a DOM event and has no entry of its own.";
 }, {
     readonly name: "molis-work:open-settings-path";
     readonly kind: "request";

@@ -49,7 +49,8 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 - 外壳与 iframe 之间的 `postMessage`（`type` 如 `workbench-surface-focus`、`molis:side-open`、`molis:im-visibility`）；
 - `data-assistant-context` 属性：界面把自己的对象写在属性里，情境动作从那里读（常量 `ASSISTANT_CONTEXT_ATTRIBUTE`，在 `services/assistant` 合同里）；
 - 传给插件客户端脚本的 `host` 对象（`translate`、`mountPluginClient` 等宿主能力）；
-- 存储键（`localStorage` 等）和浏览器自己的事件。
+- 存储键（`localStorage` 等）和浏览器自己的事件；
+- 跨标签页的 `BroadcastChannel`：目前只有一条，名字 `molis-work:model-ready`，由模型设置脚本（`apps/workbench/src/scripts/settings-models.ts`）在第一个能用的模型出现时发，开始使用页（`apps/workbench/src/scripts/context-onboarding.ts`）收；它是同名页面事件 `molis-work:model-ready` 的跨标签延伸，说明记在那个事件的登记项里。
 
 工作台客户端的片段文件共用一个函数作用域，片段之间可以直接读变量、直接调函数，绕过事件。把登记和代码对照后，已知没有守住「别的模块不碰主人的状态」的有两处（文件都在 `apps/workbench/src/scripts/client/`）。它们不是批准的例外，是待清的差距，清的时候把状态收进主人的文件、改成发 request 或听 announcement：
 

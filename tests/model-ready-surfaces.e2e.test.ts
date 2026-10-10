@@ -112,3 +112,16 @@ test("jelly: its settings link leaves the modal dialog, and the model dialog com
   await waitFor("!/还没有可用模型/.test(document.querySelector('[data-jelly-model-status]').textContent) && document.querySelector('[data-jelly-provider]')", 10_000);
   assert.equal(await evaluate("document.querySelector('[data-jelly-model-status] a')"), null, "the pointer to the settings is gone");
 });
+
+test("plugin builder studio: the empty model list and the link to the settings are read again", { timeout: 90_000 }, async t => {
+  const browser = await open(t, "plugin-builder");
+  if (!browser) return;
+  const { evaluate, waitFor } = browser;
+  const studio = "document.querySelector('[data-work-surface=plugin-builder]')";
+  await waitFor(`${studio}.querySelector('[data-as-model-setup]') && !${studio}.querySelector('[data-as-model-setup]').hidden`, 15_000);
+  assert.equal(await evaluate(`${studio}.querySelector('[data-as-model]').options.length`), 1, "only the prompt to choose a model");
+  await firstModelIsReady(browser);
+  await waitFor(`${studio}.querySelector('[data-as-model-setup]').hidden`, 10_000);
+  assert.equal(await evaluate(`[...${studio}.querySelector('[data-as-model]').options].some(option => option.value.startsWith('surface-fixture'))`), true, "the new provider is offered");
+  assert.match(await evaluate<string>(`${studio}.querySelector('[data-as-model-note]').textContent`), /请选择构建使用的模型/, "the studio still asks the person to choose which model builds: the choice is theirs");
+});

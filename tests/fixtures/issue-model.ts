@@ -16,7 +16,7 @@ function reply(tool?: { name: string; input: unknown }, text = "请确认建议�
 }
 
 /** Model replies are scripted; the Assistant, vision intake, action directory and confirmation stay real. */
-export async function issueModel(t: TestContext, home: string, behavior: { replyText?: string } = {}) {
+export async function issueModel(t: TestContext, home: string, behavior: { replyText?: string; malformedCaptureOnce?: boolean } = {}) {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   const requests: unknown[] = [], rounds = new Map<string, number>();
   const model = createServer(async (request, response) => {
@@ -24,7 +24,12 @@ export async function issueModel(t: TestContext, home: string, behavior: { reply
     const body = JSON.parse(Buffer.concat(chunks).toString("utf8")); requests.push(body);
     const draft_id = JSON.stringify(body).match(/录入草稿 ([0-9a-f-]{36})/)?.[1] ?? "missing-draft";
     const turn = rounds.get(draft_id) ?? 0; rounds.set(draft_id, turn + 1);
-    const tool = turn === 0 ? { name: "find-capabilities", input: { query: "issues.capture" } } : turn === 1 ? {
+    // Replay the real MiniMax failure: business values outside input do not make a valid card.
+    const malformed = behavior.malformedCaptureOnce && turn === 1;
+    const tool = turn === 0 ? { name: "find-capabilities", input: { query: "issues.capture" } } : malformed ? {
+      name: "suggest-action", input: { title: "切换页面后输入内容丢失", summary: `保存到录入草稿 ${draft_id}：标题「切换页面后输入内容丢失」，类型 Bug。`,
+        capability_id: "issues.capture", version: 1, provider_id: "io.molis.work.issues", input: "", type: "bug", editable: ["title", "type"] },
+    } : turn === (behavior.malformedCaptureOnce ? 2 : 1) ? {
       name: "suggest-action", input: { title: "确认记录问题", summary: "切换页面后输入丢失，建议归为 Bug", capability_id: "issues.capture", version: 1,
         provider_id: "io.molis.work.issues", input: { draft_id, title: "切换页面后输入内容丢失", type: "bug" }, editable: ["title", "type"] },
     } : undefined;

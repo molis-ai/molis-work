@@ -1,4 +1,4 @@
-import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
+import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionClient, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -78,6 +78,18 @@ function parseCapability(args: Record<string, unknown>): CapabilityArgs {
     input: input === undefined ? (Object.keys(beside).length ? beside : undefined) : nested && Object.keys(beside).length ? { ...beside, ...input as Record<string, unknown> } : input };
 }
 
+/** Invalid arguments need the same current contract for a suggestion as for a dispatched capability. */
+function inputSchemaError(error: unknown, schema: ActionView["action"]["input_schema"]): never {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = (error as { code?: string })?.code;
+  if (code === "actions.input_invalid" || /输入不符合能力合同|input schema|does not match/i.test(message)) {
+    // Unknown Host exceptions are clipped to 240 characters by the SDK. Use its declared argument error so the
+    // current contract survives into the next model turn; carry no user values or arbitrary exception text.
+    throw createPrologueError("TOOL_ARGUMENTS_INVALID", `输入不符合能力合同。The input must be a JSON value matching this schema: ${JSON.stringify(schema).slice(0, 2000)}. For object schemas, put every required capability field inside input, not in the button title or summary. Correct the arguments before calling again; do not repeat the same invalid input.`);
+  }
+  throw error;
+}
+
 /**
  * The Host's action gateway as one SDK pack: three tools instead of one per action.
  *
@@ -131,12 +143,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       if (write && (local.signal.aborted || code === "actions.output_invalid_after_effect")) {
         throw new ActionError("actions.outcome_unknown", `"${view.provider.title} · ${view.action.title}" was sent but did not finish (${local.signal.aborted ? "it ran out of time or was stopped" : "its result was invalid"}); it may or may not have taken effect. Do not submit it again: first read the object back with ${GATEWAY_TOOLS.read} and tell the person what actually happened.`);
       }
-      // A contract mismatch is corrected in one step when the model sees the shape it must send.
-      const message = error instanceof Error ? error.message : String(error);
-      if (/输入不符合能力合同|input schema|does not match/i.test(message)) {
-        throw new ActionError((error as { code?: string }).code ?? "actions.input_invalid", `${message}. The input must be a JSON value matching this schema: ${JSON.stringify(schema).slice(0, 2000)}`);
-      }
-      throw error;
+      inputSchemaError(error, schema);
     } finally { clearTimeout(deadline); signal.removeEventListener("abort", follow); }
   };
   const executors: Record<string, ToolRunner> = {
@@ -167,10 +174,12 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       const editable = Array.isArray(args.editable) ? args.editable.filter((item): item is string => typeof item === "string").slice(0, 20) : undefined;
       const missing = Array.isArray(args.missing) ? args.missing.flatMap(item => item && typeof item === "object" && typeof (item as { field?: unknown }).field === "string" && typeof (item as { question?: unknown }).question === "string"
         ? [{ field: (item as { field: string }).field, question: (item as { question: string }).question.slice(0, 300) }] : []).slice(0, 10) : undefined;
-      const recorded = await gateway.client.offer!({ title: text(args.title, "title", 40), summary: text(args.summary, "summary", 600),
-        reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: normalizedInput(view, parsed.input),
-        ...(editable?.length ? { editable } : {}), ...(missing?.length ? { missing } : {}) });
-      return JSON.stringify({ offered: recorded.offer_id, note: "Shown to the person as a button; nothing has run. Do not call change-capability for the same thing unless they ask you to." });
+      try {
+        const recorded = await gateway.client.offer!({ title: text(args.title, "title", 40), summary: text(args.summary, "summary", 600),
+          reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: normalizedInput(view, parsed.input),
+          ...(editable?.length ? { editable } : {}), ...(missing?.length ? { missing } : {}) });
+        return JSON.stringify({ offered: recorded.offer_id, note: "Shown to the person as a button; nothing has run. Do not call change-capability for the same thing unless they ask you to." });
+      } catch (error) { inputSchemaError(error, view.action.input_schema); }
     }),
     ...delegationExecutors(gateway.client.delegate, guarded),
     ...memoryExecutors(gateway.client.memory, guarded),
@@ -200,7 +209,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     title: { type: "string", description: "The button's words, verb first, at most 40 characters, e.g. \"加入计划（3 项）\"." },
     summary: { type: "string", description: "What clicking does in the person's words: which object, which key values, dates with their day and time zone." },
     capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
-    input: { description: "The prepared input as a JSON value matching the capability's input_schema." },
+    input: { description: "The full prepared JSON value matching input_schema from find-capabilities. For an object schema, put every required capability field INSIDE this object, including any field named title; the button title and summary do not supply business fields. Never send an empty string in place of an object." },
     editable: { type: "array", items: { type: "string" }, description: "Top-level input fields the person may adjust before running it." },
     missing: { type: "array", items: { type: "object", properties: { field: { type: "string" }, question: { type: "string" } }, required: ["field", "question"] }, description: "Required fields you could not fill, each with the question to ask." },
   }, required: ["title", "summary", "capability_id", "version", "provider_id", "input"] };
@@ -254,7 +263,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   const all = tools.map(one => one.registration.name);
   const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (name !== GATEWAY_TOOLS.direct || (gateway.operate && gateway.client.direct)) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate)
     && memoryToolOffered(name, gateway.client.memory));
-  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.7", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
+  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.8", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names, known };

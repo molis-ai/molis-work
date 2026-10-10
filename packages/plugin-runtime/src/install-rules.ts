@@ -1,5 +1,5 @@
 import type { PluginDeployment, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { comparePluginVersions } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { PluginRuntimeError } from "./errors.js";
 import { pluginManifestDigest } from "./identity.js";
 

@@ -30,6 +30,10 @@ plugins
 platform packages
   → contracts/platform/*
   → lower-level platform packages only
+
+the published surface (contracts, plugin-sdk) is the lowest layer
+  → contracts depends on no workspace package
+  → plugin-sdk depends on contracts only (`public-sdk-private-dependency`); every other layer may use its runtime tools
 ```
 
 内核（`packages/kernel`）有两半：核心（目录、分发、可用性、授权、场景兼容）只读 `contracts/platform/*`；放在内核里的平台产品服务「情境排序」（`contextual.ts`，纯函数，N-03：位置不变）另可读 `contracts/services/contextual`，也只许这一份，由 `pnpm health:check` 的 K2 守着（§6）。平台包读 `contracts/services/*` 在内核之外还有三处（`packages/storage` 的记忆账本与搜索索引适配、`packages/im-ui`），不属于内核这条例外，记在 BL-123。
@@ -42,6 +46,7 @@ platform packages
 - Module 导入 Horizontal Service、App 或 Plugin（代码 import 与 `package.json` 依赖都查，`module-upward-dependency`）。
 - Plugin 导入另一个 Plugin implementation、Store 或未公开 UI 组件。
 - Plugin 导入 App、Horizontal Service 或 Module implementation（`plugin-upward-dependency`）。在册的唯一例外：`plugins/native/shelf → modules/shelf`（Shelf 仍用 Shelf Module 的配方与设置解析，是待还的债，不是先例）。Goals 插件曾声明却从未导入 `modules/goals`，该依赖已删。
+- Plugin SDK 导入或依赖 contracts 以外的任何工作区包（`public-sdk-private-dependency`，源码 import 与 `package.json` 依赖都查）。外部作者只装 contracts 与 SDK 两个包；SDK 依赖了私有包，打包后的示例就装不上（2026-09-30 出过一次）。所以作者和平台共用、会运行的工具放在 SDK 里，而不是私有的 kernel 或 plugin-runtime，平台各层从 SDK 取同一份。现在在 SDK 里的是执行生命周期（kernel、宿主、调度服务、Shelf 模块和沙箱从 SDK 取）和 Manifest 解析与版本比较（`parsePluginManifest` 等，Plugin Runtime 与命令行从 SDK 取）；动作、Agent、方法的声明检查（kernel 注册时用）和文本比较还在合同包，由 W3-03 的 B2、C 搬入，搬完之前这一段说的是方向，不是现状。
 - App 导入另一个 App，列出的启动器边之外都拒绝（`app-dependency-not-allowed`）：产品根的启动器 → desktop / local-host / mcp，desktop → local-host，local-host → cli / mcp / workbench，`apps/server` → desktop / local-host。
 - App Shell、CLI、MCP、Workbench 或 Desktop 直接写业务数据库。
 - Horizontal Service 或平台产品服务（记忆、放置、搜索、情境排序）拥有或决定 Goal、Signal、Action、Session 等插件或 Module 的业务事实。

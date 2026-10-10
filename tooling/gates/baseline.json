@@ -1,5 +1,5 @@
 {
-  "giantUnits": 161,
+  "giantUnits": 160,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
     "file apps/local-host/src/assistant/assistant-service.ts": 2628,
@@ -182,10 +182,9 @@
     "function packages/im-ui/src/browser/controller.ts#startIm": 957,
     "function packages/im-ui/src/views.ts#createViews": 164,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 418,
+      "lines": 413,
       "methods": 15
     },
-    "function packages/kernel/src/action-service.ts#registerProvider": 155,
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
       "lines": 420,
       "methods": 23
@@ -283,7 +282,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 957,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
   },
-  "testInternalImports": 966,
+  "testInternalImports": 965,
   "testImports": {
     "tests/action-before-effect.test.ts": 4,
     "tests/action-call-log.test.ts": 3,
@@ -413,7 +412,6 @@
     "tests/current-project-settings.test.ts": 1,
     "tests/dataset-actions.test.ts": 2,
     "tests/document-import-providers.test.ts": 3,
-    "tests/execution-lifetime.test.ts": 1,
     "tests/external-mcp-actions.test.ts": 7,
     "tests/external-mcp-dispatch.test.ts": 6,
     "tests/feed-assistant-context.test.ts": 1,
@@ -700,7 +698,7 @@
     "plugins/native/goals/src/document-collection.ts": 1,
     "plugins/native/goals/src/goal-tree-materialization-order.ts": 1
   },
-  "contractsPurityEntries": 32,
+  "contractsPurityEntries": 18,
   "contractsPurity": {
     "packages/contracts/src/modules/character-import.ts#long-fn:parseCharacterImportSnapshot": 49,
     "packages/contracts/src/modules/functions.ts#long-fn:suggestedAuthoringBehaviors": 29,
@@ -717,22 +715,8 @@
     "packages/contracts/src/platform/actions.ts#http-status": 2,
     "packages/contracts/src/platform/actions.ts#long-fn:bindOwnerPluginAction": 37,
     "packages/contracts/src/platform/actions.ts#long-fn:inspectActionDeclarations": 158,
-    "packages/contracts/src/platform/execution-lifetime.ts#effects": 7,
-    "packages/contracts/src/platform/execution-lifetime.ts#long-fn:createExecutionLifetime": 42,
     "packages/contracts/src/platform/file-sources.ts#long-fn:fileSourceDeclarationProblems": 23,
     "packages/contracts/src/platform/plugin-agent.ts#long-fn:inspectAgentDeclaration": 162,
-    "packages/contracts/src/platform/plugin-events.ts#long-fn:inspectEventDeclarations": 65,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:parsePluginManifest": 90,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectUpgradeCompatibility": 28,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:comparePluginVersions": 23,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:assertNoV2Blocks": 22,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:assertV2Blocks": 30,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectViewDeclarations": 28,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectCommandDeclarations": 32,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectRouteDeclarations": 33,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectRequirementDeclarations": 30,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectPortPermissions": 39,
-    "packages/contracts/src/platform/plugin-wiring.ts#long-fn:inspectPortDeclarations": 68,
     "packages/contracts/src/platform/search-sources.ts#long-fn:searchSourceDeclarationProblems": 22
   },
   "hostEntryExportStarTotal": 11,

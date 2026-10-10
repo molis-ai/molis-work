@@ -326,6 +326,19 @@ test("the resident Host answers a deletion that fails inside it with a 500 and t
   const unconfirmed = await post({ ...request, delete_confirmed: false });
   assert.equal(unconfirmed.status, 400);
   assert.equal(((await unconfirmed.json()) as { code: string }).code, "catalog.delete_confirmation_required");
+  // The receipt's actor is built from client_id, so the route accepts only a runtime's client and only the fields it names: a
+  // caller cannot choose the actor with another client id or with an actor_id of its own.
+  const notARuntime = await post({ ...request, client_id: "web-user" });
+  assert.equal(notARuntime.status, 400, "a client that is not a runtime cannot be the recorded actor");
+  assert.equal(((await notARuntime.json()) as { code: string }).code, "actions.input_invalid");
+  const ownActor = await post({ ...request, actor_id: "web-user" });
+  assert.equal(ownActor.status, 400, "an actor_id of the caller's own is refused, not recorded");
+  assert.equal(((await ownActor.json()) as { code: string }).code, "actions.input_invalid");
+  const blankSession = await post({ ...request, runtime_session_id: " " });
+  assert.equal(blankSession.status, 400, "a blank runtime session is not a session");
+  assert.equal(((await blankSession.json()) as { code: string }).code, "actions.input_invalid");
+  assert.equal(catalog.listProjectDeletions().length, 0, "none of the refusals deleted anything or recorded a receipt");
+  assert.equal(existsSync(project.database_path), true, "the project is still there");
 
   // The project's directory was taken away from under the catalog, so moving it aside fails inside the Host.
   await rm(dirname(project.database_path), { recursive: true, force: true });

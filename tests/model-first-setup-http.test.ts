@@ -173,7 +173,7 @@ test("保存时检查连接：没通过什么都不留；通过才保存，并�
   } finally { await standIn.close(); }
 });
 
-test("检查只在连接变了的时候做：改名、开关别的模型不联网；换了模型 ID 只试新的那个", async () => {
+test("检查只在到达供应商的方式变了的时候做：改名、关掉一个模型不联网；新加或重新打开一个模型只试那一个", async () => {
   const standIn = await startModelStandIn(goodKey);
   try {
     await withHost(async ({ save, providers }) => {
@@ -193,11 +193,23 @@ test("检查只在连接变了的时候做：改名、开关别的模型不联�
       assert.equal(standIn.requests[1]!.model, "model-b", "只试新加的那个");
       assert.equal(standIn.requests[1]!.offeredKey, goodKey, "没填新密钥时用已保存的那把");
 
+      // 开关一个模型：关掉不联网；再打开，它就是新启用的那个，只试它。
+      const twoModels = (second: boolean) => [{ model_id: "model-a", enabled: true }, { model_id: "model-b", enabled: second }];
+      const modelOff = await save("p", { ...base, api_key: undefined, models: twoModels(false) });
+      assert.equal(modelOff.status, 200, modelOff.text);
+      assert.equal(modelOff.json.checked, false, "关掉一个模型，不联网");
+      assert.equal(standIn.requests.length, 2);
+      const modelOn = await save("p", { ...base, api_key: undefined, models: twoModels(true) });
+      assert.equal(modelOn.status, 200, modelOn.text);
+      assert.equal(modelOn.json.checked, true, "重新打开一个模型，它是新启用的，要检查");
+      assert.equal(standIn.requests.length, 3);
+      assert.equal(standIn.requests[2]!.model, "model-b", "只试重新打开的那个");
+
       const off = await save("p", { ...base, api_key: undefined, enabled: false });
       assert.equal(off.json.checked, false, "关掉的供应商不检查");
       const on = await save("p", { ...base, api_key: undefined, enabled: true });
       assert.equal(on.json.checked, true, "重新打开等于重新开始用，要检查");
-      assert.equal(standIn.requests.length, 3);
+      assert.equal(standIn.requests.length, 4);
       assert.equal((await providers()).providers.length, 1);
     });
   } finally { await standIn.close(); }

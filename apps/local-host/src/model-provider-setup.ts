@@ -56,9 +56,10 @@ function assertSaveable(catalog: MolisWorkProjectCatalog, save: ModelProviderSav
 }
 
 /**
- * The selection to check before this save, or null when nothing about reaching the provider changed (a rename, a switch
- * flipped on one model) or the provider would not run anyway (turned off, or its models all off). Read-only: it pins no
- * address and creates nothing. A saved connection is only used for the address it was pinned to, as at the commit.
+ * The selection to check before this save, or null when nothing about reaching the provider changed (a rename, a model
+ * switched off) or the provider would not run anyway (turned off, or its models all off). A model switched on, added or
+ * turned back on, is a change: that model is the one tried. Read-only: it pins no address and creates nothing. A saved
+ * connection is only used for the address it was pinned to, as at the commit.
  */
 export function planConnectionCheck(catalog: MolisWorkProjectCatalog, home: string | undefined, save: ModelProviderSave): ResolvedModelSelection | null {
   const record = assertSaveable(catalog, save);

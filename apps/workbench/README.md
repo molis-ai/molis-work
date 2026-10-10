@@ -119,6 +119,8 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
   - 导航与区域从 Manifest 派生（`BUILTIN_PLUGIN_CATALOG`），不按插件名写分支。
+  - 目录条目可标 `developer: true`（Text Stats，平台的最小参考插件和测试依托）：只在 Host 开着开发者模式时进插件选择器和市场（`pluginMarketCards({ developerMode })`、`renderPluginRail`/`renderPluginMarket` 的 `developerMode`，由页面视图的 `developer_mode` 传入）；仍然登记、仍可安装，项目里已经添加的照常显示、可移除（W2-18 决定 5，2026-10-09）。开发者模式只是 Host 进程的启动开关（`MOLIS_WORK_DEVELOPER_MODE=1`），不是用户设置，设置里没有开关（用户 2026-10-09 已定，见 `apps/local-host/README.md`）。
+  - 目录条目的浏览器脚本发出去时，可经 `served` 去掉整行 `//` 注释、独占行的 `/* */` 注释和每行行首的缩进（页面资源预算只许减少；`/* */` 与代码共用一行的不动；脚本里有跨行字符串或模板时缩进是内容，不能用它）：作者在源码里保留注释和缩进，`tests/plugin-client-served.test.ts` 证明发出去的是同一段程序；用它的条目要进这个测试的名单。
   - 内置 build 只在 `builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 绑定一次 Manifest、目录信息、Agent 正文与 UI/静态资源。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；新的内置插件只走 Plugin Runtime 装配，但仍在同一目录登记一条（该测试要求每个 Runtime 装配的 id 都有目录条目），所以目录本身不是冻结名单；`plugin-catalog.ts` 和 `plugin-workbench.ts` 派生相应投影。资源 order 保持 CSS 与客户端初始化顺序，不改变 Manifest 的导航 order。公共动作发现与授权仍归 Kernel/Host。
   - 插件的 Agent 提示词与方法正文随目录条目的 `agent` 声明，Manifest 只写声明。
   - 界面文字走 i18n，新增中文文案同时补英文，缺英文、词典没并进 `EN` 由 `pnpm health:check` 拦下（CI 里也跑；做法与稳定键的迁移见上节「界面文字」）；控件只用 design-system，不引入系统弹窗或原生下拉。
@@ -126,7 +128,7 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
   - 浏览器端程序由 `src/scripts/client/*` 字符串片段拼成，类型检查看不到里面：改动后跑 `tests/client-script-undeclared.test.ts`，它检查拼接结果里没有未声明的名称（页面全局在测试里列白名单）；进入工作台之前的三段程序（选择页、引导、动效）也在其中。
   - 进入工作台之前的页面是一个框架（标题栏 · 舞台 · 常驻底栏，`arrival/shell.ts`）和一张样式表（`/assets/molis-work-arrival.css`，`styles/arrival.ts`）：页面之间是整页跳转，框架不动；控件与部件只用 design-system 的 `mw-*`，页面样式只排版，不另画一套。
   - 项目简介由 `composeProjectBrief` 从公开读口（Goals 目录与状态、Home 事项、长期背景）的结果决定，读不到的部分如实写「读不到」，不猜、不补示例数据；选择页不读任何项目的私有存储。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-declarative-mounting.test.ts tests/builtin-plugin-agent-texts.test.ts tests/builtin-manifests-contract.test.ts tests/builtin-plugin-composition.test.ts tests/workbench-ui-platform.test.ts tests/i18n.test.ts tests/client-script-undeclared.test.ts tests/assistant-island-script.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-declarative-mounting.test.ts tests/builtin-plugin-agent-texts.test.ts tests/builtin-manifests-contract.test.ts tests/builtin-plugin-composition.test.ts tests/workbench-ui-platform.test.ts tests/i18n.test.ts tests/client-script-undeclared.test.ts tests/assistant-island-script.test.ts tests/plugin-client-served.test.ts tests/plugin-list-developer-mode.test.ts tests/plugin-picker-pins.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/workbench-tab-workspace.e2e.test.ts`；改到分栏窗格与设置链接再加跑 `tests/cognia-embedded-settings.e2e.test.ts`（窗格里的设置链接只经窗格自己的一条转发到达外层，插件不另发消息）；改到进入工作台之前的页面再加跑 `tests/project-arrival-chooser.test.ts tests/project-brief.test.ts tests/project-arrival.e2e.test.ts tests/onboarding-journey.e2e.test.ts`（后两个检查每屏在各宽度、明暗下没有元素重叠、被裁、够不着）。
 - 相关手册：[DESIGN.md](../../DESIGN.md)、[specs/craft-finish/spec.md](../../specs/craft-finish/spec.md)、[docs/platform/UI-PLATFORM.md](../../docs/platform/UI-PLATFORM.md)、[skills/molis-plugin-dev/ui.md](../../skills/molis-plugin-dev/ui.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

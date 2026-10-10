@@ -1,3 +1,4 @@
+import { PAGES_BLANK_CLIENT_SCRIPT } from "./blank-client.js";
 import { PAGES_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
 
 /** Pages workbench client: library, autosave, ProseMirror host. */
@@ -65,11 +66,10 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!id) throw new Error(L("缺少项目"));
     return path + (path.includes("?") ? "&" : "?") + "project_id=" + encodeURIComponent(id);
   };
-  const request = async (method, path, body) => {
+  const request = async (method, path, body, more) => {
     const payloadBody = body === undefined ? undefined : { ...body, project_id: projectId() };
     const response = await fetch(route(withProject(path)), {
-      method,
-      headers: headers(),
+      method, headers: headers(), ...more,
       body: payloadBody === undefined || method === "GET" ? undefined : JSON.stringify(payloadBody),
     });
     const payload = await response.json().catch(() => ({}));
@@ -126,6 +126,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!needle) return records;
     return records.filter((record) => String(record.title || "").toLowerCase().includes(needle));
   };
+  const stop = (event) => { event.preventDefault(); event.stopPropagation(); };
   const closeMore = () => {
     if (!moreMenu || !moreButton) return;
     moreMenu.hidden = true;
@@ -600,9 +601,11 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     saveQueue = run.then(() => undefined, () => undefined);
     return run;
   };
+  ${PAGES_BLANK_CLIENT_SCRIPT}
   const fillEditor = (record) => {
     const switching = Boolean(selected && record && selected.id !== record.id);
     const leaving = switching ? draftOf() : null;
+    const left = switching ? blankLeaving() : null;
     const pending = Boolean(switching && (saveTimer || dirty));
     clearTimeout(saveTimer);
     saveTimer = 0;
@@ -629,11 +632,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (pending && leaving) {
       void enqueueSave(leaving).catch((error) => showNote(error.message || L("保存失败"), true));
     }
+    void dropBlank(left);
   };
   const closeEditor = () => {
     clearTimeout(saveTimer);
     selected = null;
-    reportFocus();
+    syncEditorChrome();
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
     closeMore();
@@ -709,7 +713,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   workbench.addEventListener("molis-work:select-item", (event) => {
     const id = event.detail?.itemId;
-    if (!id) { selectionSeq++; openingId = null; return; }
+    if (!id) { selectionSeq++; openingId = null; leaveOnFold(); return; }
     if (selected?.id === id) {
       revealEditor();
       return;
@@ -770,9 +774,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const createPage = async (body) => {
     if (selected && (saveTimer || dirty)) await persistCurrent();
+    const left = blankLeaving();
     const payload = await request("POST", "/api/plugins/pages", body || {});
+    if (!body || !(body.template_id || body.body || body.title)) fresh.set(payload.document.id, payload.document.title);
     await loadList();
     openCreated(payload.document);
+    void dropBlank(left);
     placed({ verb: "created", title: payload.document.title || L("无标题"), object: { kind: "pages_document", id: payload.document.id } });
     dirty = false;
     editVersion += 1;
@@ -893,29 +900,25 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   workbench.addEventListener("click", async (event) => {
     try {
       if (Date.now() < suppressFoldToggleUntil && event.target.closest("summary")) {
-        event.preventDefault();
-        event.stopPropagation();
+        stop(event);
         return;
       }
       if (event.target.closest("[data-pages-more]")) {
-        event.preventDefault();
-        event.stopPropagation();
+        stop(event);
         closeMove();
         closeCreate();
         toggleMore();
         return;
       }
       if (event.target.closest("[data-pages-create-more]")) {
-        event.preventDefault();
-        event.stopPropagation();
+        stop(event);
         closeMove();
         toggleCreate();
         return;
       }
       const moveTo = event.target.closest("[data-pages-move-to]");
       if (moveTo) {
-        event.preventDefault();
-        event.stopPropagation();
+        stop(event);
         const id = movingId;
         const folderId = moveTo.dataset.pagesMoveTo || "";
         closeMove();
@@ -924,8 +927,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       const move = event.target.closest("[data-pages-move]");
       if (move) {
-        event.preventDefault();
-        event.stopPropagation();
+        stop(event);
         closeMore();
         if (move.getAttribute("aria-expanded") === "true") closeMove();
         else openMove(move, move.dataset.pagesMove);
@@ -933,22 +935,19 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       const star = event.target.closest("[data-pages-star]");
       if (star) {
-        event.preventDefault();
-        event.stopPropagation();
+        stop(event);
         await toggleStar(star.dataset.pagesStar);
         return;
       }
       const folderNew = event.target.closest("[data-pages-folder-new]");
       if (folderNew) {
-        event.preventDefault();
-        event.stopPropagation();
+        stop(event);
         await createPage({ folder_id: folderNew.dataset.pagesFolderNew });
         return;
       }
       const folderRename = event.target.closest("[data-pages-folder-rename]");
       if (folderRename) {
-        event.preventDefault();
-        event.stopPropagation();
+        stop(event);
         const folder = folders.find((item) => item.id === folderRename.dataset.pagesFolderRename);
         if (!folder) return;
         const title = await askName(L("文件夹名称"), folder.title);
@@ -959,8 +958,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       const folderDelete = event.target.closest("[data-pages-folder-delete]");
       if (folderDelete) {
-        event.preventDefault();
-        event.stopPropagation();
+        stop(event);
         const ok = await ask(L("要删除这个文件夹吗？里面的文档会回到未分类。"), L("删除"));
         if (!ok) return;
         const id = folderDelete.dataset.pagesFolderDelete;
@@ -1022,7 +1020,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-pages-back]")) {
         await persistCurrent();
         dirty = false;
+        const left = blankLeaving();
         closeEditor();
+        await dropBlank(left);
         await loadList();
         return;
       }
@@ -1097,8 +1097,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     clearDrop();
     workbench.querySelectorAll(".pages-doc-row.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
     if (!fold || !event.dataTransfer) return;
-    event.preventDefault();
-    event.stopPropagation();
+    stop(event);
     suppressFoldToggleUntil = Date.now() + 400;
     const id = event.dataTransfer.getData("text/plain");
     void movePage(id, fold.dataset.folderId || "").catch((error) => showNote(error.message || L("保存失败"), true));

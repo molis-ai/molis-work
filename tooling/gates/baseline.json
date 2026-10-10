@@ -244,7 +244,7 @@
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
-    "file plugins/native/pages/src/client.ts": 1153,
+    "file plugins/native/pages/src/client.ts": 1152,
     "file plugins/native/pages/src/commands.ts": 2241,
     "file plugins/native/pages/src/editor-browser.ts": 4043,
     "function plugins/native/pages/src/editor-browser.ts#slashPlugin": 160,

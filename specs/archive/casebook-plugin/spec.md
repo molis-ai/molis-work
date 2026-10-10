@@ -1,5 +1,7 @@
 # Casebook：Molis Work RSI 插件的产品流程与前置能力
 
+> 归档（2026-10-10）：判定为**已作废**。用户 2026-10-10 决定删除 Casebook 及全部相关内容，插件以后重做（`specs/repository-anti-corruption` §1）；宿主里的子系统、通道、typed 能力与项目库的 5 张表已随删除 PR 一起移除，本文只留作历史。
+
 状态：现行规范（2026-10-01 合入后梳理确认）。外部 Casebook 插件对宿主前置能力的说明，docs/SSOT-MATRIX.md 引用。
 
 更新日期：2026-09-22（RSI 定位校准）。文档定位：Molis Work 仓库内的 Casebook 产品流程与宿主依赖概览，供各模块开发者了解正在推进的插件和接入要求。本文描述目标设计和有日期的能力基线，不是功能完成、任务指派或上线声明；详细实施与验收清单继续由 Casebook 仓库维护。旧基线不因本次文档更新成为当前运行结论。
@@ -176,7 +178,7 @@ RSI 增量仍落在以上分工：Casebook 负责效果比较、差错整理和�
 | 插件装配与宿主接线、公开事实出口、可信身份注入、团队权限与共享承载、Goal 交接 | `molis-ai/molis-work` 的对应 owner | 优先复用已有能力，仅补经过消费验证的缺口；不把 Casebook 分析器和 Backlog 业务复制进宿主。独立 Auth 的能力仍按其正式合同对接。 |
 | 面向 Molis Work 开发者的产品流程与前置依赖 | 本文 `specs/casebook-plugin/spec.md` | 让宿主各模块能找到消费方要求；不能在本文重新定义模块所有权或宣称尚未提供的 API 已可用。 |
 
-现有 [Plugin 开发说明](../../docs/platform/PLUGIN-DEVELOPMENT.md)已经给出仓库外作者项目通过 SDK 运行的路径，但该样例主要验证 polling Integration，**不能据此认定 Casebook 这种带页面和评审流程的插件已能完整安装和运行**。接入时仍需验证目标插件类型、UI / Host 调用、持久化、启停与发布方式；缺口按 H1–H4 处理，不用 iframe 包装旧站冒充完成。
+现有 [Plugin 开发说明](../../../docs/platform/PLUGIN-DEVELOPMENT.md)已经给出仓库外作者项目通过 SDK 运行的路径，但该样例主要验证 polling Integration，**不能据此认定 Casebook 这种带页面和评审流程的插件已能完整安装和运行**。接入时仍需验证目标插件类型、UI / Host 调用、持久化、启停与发布方式；缺口按 H1–H4 处理，不用 iframe 包装旧站冒充完成。
 
 日常改进的顺序是：在 Casebook 改能力并做定向验证，用明确版本的插件和 Molis Work 做真实联调；若失败来自宿主缺少公共能力，再在 Molis Work 对应模块补充并验证。最终验收必须从 Molis Work 登录、进入插件、提交与评审、Goal 交接一路走通，不能只验收旧独立页面。
 

@@ -106,9 +106,9 @@ test("the stdio MCP launcher's server deletes a project through its tool, leaves
   const call = async (name: string, args: Record<string, unknown>) => (await server.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }) as
     { result: { isError: boolean; content: Array<{ text: string }> } }).result;
 
-  const bound = await call("molis_work_v1_context_bind", { project_id: project.project_id, actor_id: "runtime-codex", user_confirmed: true });
+  const bound = await call("molis_work_v1_context_bind", { project_id: project.project_id, user_confirmed: true });
   assert.equal(bound.isError, false, bound.content[0]?.text);
-  const deleted = await call("molis_work_v1_project_delete", { project_id: project.project_id, actor_id: "runtime-codex", delete_confirmed: true, idempotency_key: "mcp-forwarding-delete" });
+  const deleted = await call("molis_work_v1_project_delete", { project_id: project.project_id, delete_confirmed: true, idempotency_key: "mcp-forwarding-delete" });
   assert.equal(deleted.isError, false, deleted.content[0]?.text);
 
   const receipt = (JSON.parse(deleted.content[0]!.text) as { deletion: { cleanup_state: string; owner_steps: Array<{ owner_id: string; state: string }> } }).deletion;

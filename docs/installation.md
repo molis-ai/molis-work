@@ -86,7 +86,7 @@ pnpm install:local
 "$HOME/.molis-work/bin/molis-work" demo remove --confirm
 ```
 
-这份项目在 catalog 中明确标记为 `regenerable_demo`，与 `user` 用户数据分开。重复创建会打开已有 demo；重建会清除 demo 内的改动；删除和普通卸载都只清理可再生 demo，不会碰用户项目。仓库开发和截图也可以继续使用 `examples/seed-demo.mts`，它调用的是同一套分类和重建逻辑。
+这份项目在 catalog 中明确标记为 `regenerable_demo`，与 `user` 用户数据分开。重复创建会打开已有 demo；重建会清除 demo 内的改动；删除和普通卸载都只清理可再生 demo，不会碰用户项目。`demo remove --confirm` 在 Molis Work 正在运行时交给它来删：示例项目里的终端还开着就拒绝，先关掉终端再运行（常驻服务不在 `http://127.0.0.1:4173` 时，用环境变量 `MOLIS_WORK_WEB_URL` 指定它的地址）；Molis Work 没有运行时，命令自己删。仓库开发和截图也可以继续使用 `examples/seed-demo.mts`，它调用的是同一套分类和重建逻辑。
 
 ## 启动 Web：常驻或临时
 

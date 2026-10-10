@@ -28,7 +28,10 @@ export interface LocalWebPlatform {
 
 export function createLocalWebComposition(platform: LocalWebPlatform) {
   // Shared controls draw select chevrons as inline data: SVG; images cannot run script.
-  const PAGE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'";
+  // frame-ancestors: only this origin may put a page of the host in a frame (the plugin side panels and the Studio are same-origin frames; the
+  // desktop shell loads the page as the window's own document). Another site cannot overlay the page that already holds the control token
+  // (clickjacking; security invariant S-21, docs/system/SECURITY-INVARIANTS.md).
+  const PAGE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'self'";
   const { withCatalog, isDesktopShellRequest } = platform;
   const workbenchRenderer: WorkbenchRenderer = createLocalHostWorkbenchRenderer(platform.desktopRenderer);
   const sessionProjectOperationsData = createSessionProjectOperations(platform.runtimeTitle);

@@ -1,5 +1,5 @@
 // What the probe leaves behind: report.json (every file with its mark and result), pass.txt (the files that passed, one per
-// line, the form tests/ci-product-subset.txt will take in W2-16) and summary.md (also appended to the job summary once, when
+// line, the form of tests/ci-product-subset.txt, which was drawn from it in W2-16) and summary.md (also appended to the job summary once, when
 // the run ends). The three are written again after every file and once more when the run is cut off by a signal, so a run that
 // CI cancels (a newer push, the job's time limit) still leaves the results it had; `meta.endedBy` says how the run ended.
 import { appendFileSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
@@ -10,15 +10,15 @@ export const STATUSES = ["pass", "flaky", "skipped", "fail", "timeout", "not-run
 export const totals = (results) => Object.fromEntries([["files", results.length], ...STATUSES.map((status) => [status, results.filter((entry) => entry.status === status).length])]);
 export const passed = (results) => results.filter((entry) => entry.status === "pass").map((entry) => entry.file).sort();
 
-const cell = (text) => String(text).replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
+export const cell = (text) => String(text).replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
 const CAUSE = /(?:[A-Za-z]*Error|ERR_[A-Z_]+)\b|Cannot find|timed out|expected|assert/;
-const reason = (entry) => {
+export const reason = (entry) => {
   const lines = (entry.detail ?? "").split("\n").map((line) => line.trim()).filter(Boolean);
   const line = lines.find((candidate) => !/^(?:at|throw) /.test(candidate) && CAUSE.test(candidate)) ?? lines[0] ?? "";
   return cell(line.length > 150 ? `${line.slice(0, 150)}…` : line);
 };
 const marks = (entry) => (entry.marks.length ? entry.marks.join(", ") : "none");
-const table = (entries, columns) => [
+export const table = (entries, columns) => [
   `| ${columns.map(([title]) => title).join(" | ")} |`,
   `| ${columns.map(() => "---").join(" | ")} |`,
   ...entries.map((entry) => `| ${columns.map(([, value]) => value(entry)).join(" | ")} |`),
@@ -27,7 +27,7 @@ const table = (entries, columns) => [
 const FILE = ["file", (entry) => `\`${entry.file}\``];
 const MARKS = ["marks", marks];
 const REASON = ["first failure", reason];
-const section = (title, entries, columns, note) => entries.length ? [`### ${title} (${entries.length})`, "", ...(note ? [note, ""] : []), table(entries, columns), ""] : [];
+export const section = (title, entries, columns, note) => entries.length ? [`### ${title} (${entries.length})`, "", ...(note ? [note, ""] : []), table(entries, columns), ""] : [];
 
 export function summaryMarkdown({ results, meta }) {
   const count = totals(results);
@@ -72,7 +72,7 @@ export function summaryMarkdown({ results, meta }) {
 
 // Each file is written whole under a temporary name and renamed over the old one, so a run killed in the middle of a write
 // leaves the previous complete report and not half of a new one.
-const replace = (file, text) => { writeFileSync(`${file}.tmp`, text); renameSync(`${file}.tmp`, file); };
+export const replace = (file, text) => { writeFileSync(`${file}.tmp`, text); renameSync(`${file}.tmp`, file); };
 
 // `jobSummary` appends the summary to the job summary of the CI run: once, at the end of the run, not after every file.
 export function writeReport(outDirectory, { results, meta }, { jobSummary = false } = {}) {

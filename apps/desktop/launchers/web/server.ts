@@ -49,8 +49,12 @@ if (isMain) {
     };
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);
+    // Loopback only (security invariant S-01). The line below names the address the socket really got, so a launcher that
+    // ever bound wider would say so, and tests/security-invariants-local-entry.test.ts reads it.
     server.listen(port, "127.0.0.1", () => {
-      console.log(`Molis Work Web: http://127.0.0.1:${port}`);
+      const bound = server.address();
+      const host = bound && typeof bound === "object" ? (bound.family === "IPv6" ? `[${bound.address}]` : bound.address) : "127.0.0.1";
+      console.log(`Molis Work Web: http://${host}:${bound && typeof bound === "object" ? bound.port : port}`);
       console.log("项目列表（网页不会修改 Runtime Session 绑定）");
     });
   }

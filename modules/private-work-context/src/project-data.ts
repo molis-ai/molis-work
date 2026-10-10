@@ -16,17 +16,19 @@ const ACTOR = "system:project-deleted";
 
 /**
  * The project is deleted: its Sessions go, with the events, handoff packages and message requests that hang off them and
- * the stored contents nothing else names. A Session belongs to a project by the Ledger edge it last has, which the
+ * the stored contents nothing names any more. A Session belongs to a project by the Ledger edge it last has, which the
  * Ledger answers (`sessionsOfProject`); their project, Goal and workspace edges and their handoffs' edges are unlinked
  * through the Ledger too, whose append-only history keeps the removed edges (ids only, no content). A handoff another
  * project's Session sent to this project stays with its source; the Session it was sent to is gone, so its destination is
  * emptied by the registry's own foreign key. Works on the registry's file, so any process on the Home can run it: it does
  * not create the file, refuses a file that is not this registry's or has another version, and running it again finds
- * nothing.
+ * nothing to delete.
  *
- * The rows go in one transaction and are committed first; the content blocks no row names any more are removed after
- * that, in a second write transaction (see `removeUnnamedContent`). A failure while removing blocks therefore leaves the
- * rows deleted and throws, and a failed commit leaves the blocks in place.
+ * The rows go in one transaction and are committed first. The content blocks no row names are removed after that, in a
+ * second write transaction (see `removeUnnamedContent`), which looks at every block on disk and not only at the ones this
+ * project's rows named: a block whose removal failed, or that the process died before removing, has no row left to be found
+ * by, and the run that retries must still collect it. A failed commit therefore leaves the blocks in place, and a failure
+ * while removing blocks leaves the rows deleted and throws, so the retry removes what is left.
  */
 export function purgeSessionsProject(homeDirectory: string, projectId: string, createLedger: SessionLedgerFactory): void {
   const sessionsDirectory = path.join(path.resolve(homeDirectory), "sessions");
@@ -39,23 +41,18 @@ export function purgeSessionsProject(homeDirectory: string, projectId: string, c
     if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_meta'").get() === undefined) return;
     validateSessionRegistryMeta(db);
     const ledger = createLedger(db);
-    const refs = db.transaction(() => deleteSessionRows(db, ledger, projectId)).immediate();
-    removeUnnamedContent(db, createSessionContentStore(path.join(sessionsDirectory, "content")), refs);
+    db.transaction(() => deleteSessionRows(db, ledger, projectId)).immediate();
+    removeUnnamedContent(db, createSessionContentStore(path.join(sessionsDirectory, "content")));
   } finally { db.close(); }
 }
 
-/** Unlinks and deletes the project's Sessions and what hangs off them; returns the content references those rows had. */
-function deleteSessionRows(db: Database.Database, ledger: ContextLedgerApi, projectId: string): string[] {
+/** Unlinks and deletes the project's Sessions and what hangs off them. */
+function deleteSessionRows(db: Database.Database, ledger: ContextLedgerApi, projectId: string): void {
   const at = new Date().toISOString();
   const associations = new SessionAssociationRepository(ledger);
   const sessionIds = associations.sessionsOfProject(projectId);
   const sessions = JSON.stringify(sessionIds);
   const handoffIds = (db.prepare(`SELECT package_id FROM session_handoffs WHERE source_session_id IN ${idsIn}`).all(sessions) as Array<{ package_id: string }>).map(row => row.package_id);
-  const refs = (db.prepare(`
-    SELECT content_ref FROM session_events WHERE session_id IN ${idsIn}
-    UNION SELECT content_ref FROM session_handoffs WHERE source_session_id IN ${idsIn}
-    UNION SELECT content_ref FROM session_messages WHERE session_id IN ${idsIn} OR project_id = ?
-  `).all(sessions, sessions, sessions, projectId) as Array<{ content_ref: string }>).map(row => row.content_ref);
 
   const handoffAssociations = new HandoffAssociationRepository(ledger);
   for (const packageId of handoffIds) handoffAssociations.release(packageId, ACTOR, at);
@@ -64,34 +61,40 @@ function deleteSessionRows(db: Database.Database, ledger: ContextLedgerApi, proj
   db.prepare(`DELETE FROM session_events WHERE session_id IN ${idsIn}`).run(sessions);
   db.prepare(`DELETE FROM session_handoffs WHERE source_session_id IN ${idsIn}`).run(sessions);
   db.prepare(`DELETE FROM sessions WHERE session_id IN ${idsIn}`).run(sessions);
-  return refs;
 }
 
 /**
- * Removes the blocks no row names, after the rows that named them have been committed. Content is addressed by its text, so
- * a block another row still names stays; and every writer stores its block inside the registry's write lock, so this runs in
- * a write transaction of its own and checks each block there, where nobody can name it between the check and the removal. The
- * rows are already gone, so removing a block cannot bring them back and a block that fails to go is only an unreferenced
- * file: the other blocks are still tried, and the failure is thrown after them. The retry that follows finds no rows to
- * name that block again, so it stays until its file can be removed some other way.
+ * Removes every block no row names, after the rows that named them have been committed. Content is addressed by its text, so
+ * a block another row still names stays. Every writer stores its block inside the registry's write lock, in the same
+ * transaction that inserts the row naming it, so this runs in a write transaction of its own: holding that lock, the rows it
+ * reads and the blocks it lists are one moment, and nobody can name a block between the check and the removal. A block no row
+ * names is garbage by construction (a writer whose transaction was rolled back, a block whose removal failed, one the process
+ * died before removing), whichever project it came from, and the next run collects it, so a retry converges even though the
+ * rows that named it are gone. The rows are already gone, so removing a block cannot bring them back: a block that fails to
+ * go is only an unreferenced file, the other blocks are still tried, and the failure is thrown after them.
  */
-function removeUnnamedContent(db: Database.Database, content: SessionContentStore, refs: string[]): void {
-  if (refs.length === 0) return;
-  const named = db.prepare(`
-    SELECT 1 FROM session_events WHERE content_ref = :ref
-    UNION ALL SELECT 1 FROM session_handoffs WHERE content_ref = :ref
-    UNION ALL SELECT 1 FROM session_messages WHERE content_ref = :ref LIMIT 1
-  `);
+function removeUnnamedContent(db: Database.Database, content: SessionContentStore): void {
   const failures = db.transaction(() => {
+    const named = namedContent(db);
     const failed: unknown[] = [];
-    for (const ref of refs) {
-      if (named.get({ ref }) !== undefined) continue;
+    for (const ref of content.list()) {
+      if (named.has(ref)) continue;
       try { content.remove(ref); } catch (error) { failed.push(error); }
     }
     return failed;
   }).immediate();
   if (failures.length === 1) throw failures[0];
   if (failures.length > 1) throw new AggregateError(failures, `${failures.length} session content blocks could not be removed`);
+}
+
+/** The content references the registry's rows name: every table with a `content_ref` column, so a table added later keeps its blocks. */
+function namedContent(db: Database.Database): Set<string> {
+  const tables = (db.prepare("SELECT m.name AS name FROM sqlite_master m JOIN pragma_table_info(m.name) p ON p.name = 'content_ref' WHERE m.type = 'table'").all() as Array<{ name: string }>).map(row => row.name);
+  const named = new Set<string>();
+  for (const table of tables) {
+    for (const ref of db.prepare(`SELECT DISTINCT content_ref FROM "${table.replaceAll('"', '""')}"`).pluck().all() as string[]) named.add(ref);
+  }
+  return named;
 }
 
 /**

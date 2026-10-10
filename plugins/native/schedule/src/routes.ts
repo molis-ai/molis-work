@@ -37,6 +37,7 @@ export interface SchedulePluginRouteBinding extends SchedulePluginRouteDefinitio
 export const SCHEDULE_NATIVE_PLUGIN_ROUTES = [
   route("schedule.list", "GET", /^\/api\/schedule$/u),
   route("schedule.workbench", "GET", /^\/api\/schedule\/workbench$/u),
+  route("schedule.readiness", "GET", /^\/api\/schedule\/readiness$/u),
   route("schedule.task.create", "POST", /^\/api\/schedule\/tasks$/u),
   route("schedule.task.update", "POST", /^\/api\/schedule\/tasks\/([^/]+)\/update$/u, ["task_id"]),
   route("schedule.task.archive", "POST", /^\/api\/schedule\/tasks\/([^/]+)\/archive$/u, ["task_id"]),

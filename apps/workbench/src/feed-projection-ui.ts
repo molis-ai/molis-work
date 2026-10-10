@@ -79,14 +79,14 @@ function renderFeedNativePluginSurface(
 function renderFeedNativePluginPersistedDetail(
   item: FeedItemRecord,
   routePrefix = "",
-  options: { entryId?: string; inboxActive?: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" } = {},
+  options: { entryId?: string; inboxActive?: boolean; promoteAvailable?: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" } = {},
 ): string {
   const model: PersistedFeedDetailModel = {
     route_prefix: routePrefix,
     entry_id: options.entryId ?? item.item_id,
     item: itemModel(item),
     inbox_entry: options.inboxEntry ?? null,
-    inbox_active: options.inboxActive ?? false,
+    inbox_active: options.inboxActive ?? false, promote_available: options.promoteAvailable,
     primitives: feedUiPrimitives,
   };
   return renderFeedContribution(options.surface === "frame-block" ? "frame-block" : "persisted-detail", model);

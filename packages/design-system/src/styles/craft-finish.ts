@@ -1,4 +1,5 @@
 import { MW_PLUGINS } from "../palette.js";
+import { TOUCH_TARGET_STYLES } from "./touch-targets.js";
 
 /** Soft Workbench finish: the last layer of every Molis Work page (module name kept from the craft pass).
  *
@@ -34,7 +35,7 @@ const STAGE_OPEN = `${STAGE_SHELL}[data-expanded="true"]`;
 const SESSIONS_LIST = "body.immersive-workbench .session-stage-shell:not([data-expanded=\"true\"])";
 
 /** Dialogs that open in the middle of the viewport. Edge sheets travel in from their edge instead. */
-const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog, dialog.pb-publish-dialog, dialog.pb-record-editor):not(.mw-sheet)";
+const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog):not(.mw-sheet)";
 
 /** Popovers and menus that drop from the control that opened them. */
 const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu, .tab-menu, .assistant-composer)";
@@ -144,6 +145,7 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} .tab-view-chip:active:not([aria-current="page"]) { transform: scale(.97); }
   ${PAGES} .tab-view-chip + .tab-view-divider { flex: none; width: 1px; height: 14px; margin: 0 4px 0 4px; background: var(--line-strong); align-self: center; }
   ${WORKBENCH} .tab-pane > .tab-strip .tab-view-chip { height: 24px; }
+  @media (max-width: 760px), (pointer: coarse) { ${WORKBENCH} :is(.tab-strip, .tab-pane > .tab-strip) .tab-view-chip { height: 44px; } }
   ${viewChipTints()}
 
   /* ─── Plugin rail: this project — where the work lives and its plugins; the account at the foot ── */
@@ -998,9 +1000,6 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-questionnaire legend { padding: 0; margin-bottom: 4px; font-weight: 500; }
   ${ASSIST} .assistant-fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 12px; }
   ${ASSIST} .assistant-fields dt { color: var(--muted); }
-  ${ASSIST} .assistant-diff { margin: 0; max-height: 280px; overflow: auto; padding: 8px 8px; border-radius: 6px; background: var(--wash); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
-  ${ASSIST} .assistant-diff .is-added { color: var(--hue-green-fill); }
-  ${ASSIST} .assistant-diff .is-removed { color: var(--danger); }
   ${ASSIST} .assistant-fields dd { margin: 0; max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
   ${ASSIST} .assistant-problem { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 12px; border-radius: 10px; background: var(--wash); }
   ${ASSIST} .assistant-problem p { margin: 0; }
@@ -1018,7 +1017,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-target[data-mode="work"] .assistant-target-main { color: var(--ink); padding-right: 4px; }
   ${ASSIST} .assistant-target-main:hover { color: var(--ink); }
   ${ASSIST} :is(.assistant-target-main, .assistant-target-clear):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; margin-right: 4px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+  ${ASSIST} .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
   ${ASSIST} .assistant-target-clear[hidden] { display: none; }
   ${ASSIST} .assistant-target-clear:hover { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} .assistant-target-clear svg { width: 12px; height: 12px; }
@@ -1304,7 +1303,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 40px; min-width: 40px; }
     /* While typing the input takes the column; focusing a chip keeps that chip on screen. */
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention) { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention) { display: none; }
   }
   /* A crowded composer at any width takes the same steps, as far as the island measures it needs (data-fit): the chips
      present — a work, its materials, what needs a look, who does it — would otherwise leave the input no room at all. */
@@ -1322,28 +1321,26 @@ const CRAFT_BASE_STYLES = `
   /* A phone: two rows at the foot — the Assistant line first, then the Dock and the project. A plugin's own list
      opens in a drawer from a button just left of the project, only when that plugin has one. */
   @media (max-width: 600px) {
-    ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-h: 116px; --dock-btn: 40px; --composer-h: 50px; }
+    ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-h: 116px; --composer-h: 50px; }
     ${SHELL} .immersive-workspace,
     ${SHELL} .immersive-workspace.is-directory-collapsed,
     ${SHELL} .immersive-workspace.is-plugin-directory-empty { grid-template-rows: auto 0 0 minmax(0, 1fr) auto; }
     ${SHELL} .workbench-bar {
-      z-index: 45; grid-row: 5; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 58px 50px; gap: 0 8px;
-      padding: 4px 12px max(8px, env(safe-area-inset-bottom));
+      z-index: 45; grid-row: 5; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 58px 50px; gap: 0 4px;
+      padding: 4px 8px max(8px, env(safe-area-inset-bottom));
     }
     ${SHELL} .bar-center { grid-column: 1 / -1; grid-row: 1; align-self: center; }
     ${SHELL} .bar-start { grid-column: 1; grid-row: 2; }
     html ${SHELL} .workbench-bar .bar-end { grid-column: 2; grid-row: 2; justify-self: end; }
-    /* 4px between the row's 40px targets, so the widest state (a plugin with a directory) still fits 390px. */
-    ${SHELL} .dock-pins { gap: 4px; margin-left: 8px; }
-    ${SHELL} .dock-pins::before { left: -5px; }
-    ${SHELL} .dock-pin.is-fixed { margin-right: 4px; }
-    ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { right: -4px; }
-    html ${SHELL} .workbench-bar :is(.bar-start, .bar-end) { gap: 4px; }
-    ${SHELL} .bar-composer .assistant-composer-input { font-size: 16px; }
+    /* The row's 44px targets touch, so the widest state (a plugin with a directory: eight targets) still fits 375px. */
+    ${SHELL} .dock-pins { gap: 0; margin-left: 0; }
+    ${SHELL} .dock-pins::before { left: -1px; }
+    ${SHELL} .dock-pin.is-fixed { margin-right: 0; }
+    ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { right: -1px; }
+    html ${SHELL} .workbench-bar :is(.bar-start, .bar-end, .bar-residents) { gap: 0; }
     ${SHELL} .plugin-picker-trigger { max-width: 132px; }
     html ${SHELL} .immersive-workspace > .tree-pane,
     html ${SHELL} .immersive-sidebar-scrim:not([hidden]) { bottom: var(--dock-h); }
-    html ${SHELL} .workbench-bar .bar-end .navigator-project-primary { gap: 4px; }
     html ${SHELL} .immersive-workspace:not(.is-plugin-directory-empty) .workbench-bar .bar-end .immersive-show-directory,
     html ${SHELL} .is-directory-drawer-open .workbench-bar .bar-end .navigator-directory-toggle {
       display: inline-grid !important; place-items: center; order: -1; width: var(--dock-btn); min-width: var(--dock-btn); height: var(--dock-btn); min-height: var(--dock-btn); padding: 0; border: 0; border-radius: 11px;
@@ -1362,8 +1359,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
     /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
-    ${ASSIST} .assistant-target { max-width: 30%; }
-    ${SHELL} .bar-start .plugin-picker { max-width: none; padding-right: 4px; }
+    ${SHELL} .bar-start .plugin-picker { max-width: none; padding-right: 0; }
     ${SHELL} .bar-start .plugin-picker-trigger { padding: 0 8px; }
     /* On a phone the Dock beside it already shows where you are: the switcher is the door to all plugins. */
     ${SHELL} .bar-start .plugin-picker-current, ${SHELL} .bar-start .plugin-picker-trigger > svg:last-child { display: none; }
@@ -1377,14 +1373,14 @@ const CRAFT_BASE_STYLES = `
     /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
     ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }
-    ${ASSIST} .assistant-executor { flex: 0 1 auto; min-width: 28px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+    ${ASSIST} .assistant-executor { flex: 0 1 auto; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
     ${ASSIST} .assistant-executor > svg { display: none; }
     /* One chooser beside the input: the Character appears while the panel is open (to choose) or once chosen (then it
        replaces the executor, which a Character implies); search steps aside while the panel is open. */
     ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
     ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
     /* Only while typing: focusing the switcher or a chip must keep it on screen. */
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention) { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention) { display: none; }
   }
 
   /* Prompt 与 Character settings: grouped by source, each prompt expandable to edit, the default beside the person's version. */
@@ -1639,7 +1635,7 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .plugin-stage-list .mw-empty__actions { gap: 8px; }
 
   /* ─── Lists and rows ───────────────────────────────────────────────────── */
-  ${WORKBENCH} :is(.tree-entry, .feed-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow, .inbox-stage-row, .session-stage-row) {
+  ${WORKBENCH} :is(.tree-entry, .feed-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow, .session-stage-row) {
     transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint);
   }
   ${WORKBENCH} .plugin-stage-list :is(.mw-dir-row, .tree-node):active:not(:disabled) { background: var(--nav-press); }
@@ -1655,7 +1651,7 @@ const CRAFT_BASE_STYLES = `
   @keyframes craft-landed { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
 
   /* Progress bars fill instead of appearing full. */
-  ${WORKBENCH} :is(.goal-progress-bar, .tree-progress, .mw-progress) > :is(i, span, .mw-progress__bar) { transition: transform 420ms var(--ease-quint); }
+  ${WORKBENCH} :is(.tree-progress, .mw-progress) > :is(i, span) { transition: transform 420ms var(--ease-quint); }
 
   /* ─── Goal canvas ──────────────────────────────────────────────────────── */
   /* The canvas is plain paper: nodes and their links are the only marks on it. */
@@ -1705,7 +1701,7 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .goal-node-toolbar .goal-node-back { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
   ${WORKBENCH} .goal-details-aside { background: var(--paper); box-shadow: inset 1px 0 0 var(--line); }
   ${WORKBENCH} .goal-details-toggle svg { transition: transform var(--dur-move) var(--ease-quint); }
-  ${WORKBENCH} .tui-empty, ${WORKBENCH} .goal-tui-empty { border-radius: var(--r-card); }
+  ${WORKBENCH} .tui-empty { border-radius: var(--r-card); }
 
   /* ─── Arrival ──────────────────────────────────────────────────────────── */
   /* A surface rises a few pixels as it appears. Surfaces restart this whenever they are shown. */
@@ -1854,13 +1850,10 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(-n+12) { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
   ${[...Array(12).keys()].map((index) => `${WORKBENCH} .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(${index + 1}) { animation-delay: ${index * 24}ms; }`).join("\n  ")}
 
-  /* ─── Settings documents ───────────────────────────────────────────────── */
-  ${PAGES} :is(.settings-card, .settings-group, .project-settings-card) { border-radius: var(--r-card); }
-
   /* ─── Drag and drop ────────────────────────────────────────────────────── */
   ${PAGES} [draggable="true"] { -webkit-user-drag: element; }
   ${PAGES} [data-craft-drag-source] { opacity: .45; transition: opacity 130ms var(--ease-quint); }
-  body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas], .tab-strip, [data-drop-target], .shelf-drop, .workflow-gap) {
+  body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas], .tab-strip, [data-drop-target], .shelf-drop) {
     transition: box-shadow var(--dur-move) var(--ease-quint), background-color var(--dur-move) var(--ease-quint);
   }
   body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas]) { background-color: color-mix(in srgb, var(--focus) 4%, var(--paper)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 18%, transparent); }
@@ -1982,7 +1975,7 @@ const STILL_RESET = `
   html[data-craft-still] *, html[data-craft-still] *::before, html[data-craft-still] *::after { transition-duration: 0s !important; transition-delay: 0s !important; }
 `;
 
-export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + STILL_RESET;
+export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + TOUCH_TARGET_STYLES + STILL_RESET;
 
 /** Behaviour for the craft layer. Everything here is presentation: it never writes Goal state,
  * never moves focus and never cancels another handler. Without it the pages look the same, only

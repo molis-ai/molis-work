@@ -25,8 +25,10 @@ Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个�
   - AI 提案只有用户确认后才写入日历或笔记。
   - 项目访问不自动授予个人内容或模型设置权限。
   - `delete_preview` 只保存确认凭证（显式声明为写），真正删除是另一个动作。
+  - 模型对话框里的「打开模型设置」链接先关掉对话框（它是模态的，留着会压在设置上）。`molis-work:model-ready` 上只有「去过设置」的标记还在、且 Jelly 此刻真在屏幕上（有盒子并且 `visibility` 是 visible：设置盖下面的页面保留盒子，只是不可见）才重开模型对话框，否则 `showModal()` 开在被藏起来的页面里，整页点不了；标记在第一次事件上就用掉，不留到以后。守住它的是 `tests/model-ready-surfaces.e2e.test.ts`（「界面改动加跑」里）。
   - 改一个对象的命令声明结果对象（`result_subject`），输出附带改后的这一个，可由该种类的 `subject.read` 读回：日程（事项，或重复系列整体）是 `jelly_item`（`item` 或 `series`），笔记是 `jelly_note`（`note`）。恢复让对象重新可读，结果就是这个对象。作用于多条或整个工作区的命令，以及归档与删除，仍是 `jelly_workspace`：读取动作把归档的对象当作不存在，结果刚记下就会显示为已不在。
 - 改动后必跑：`node scripts/run-tests.mjs tests/jelly-actions.test.ts tests/jelly-content.test.ts tests/jelly-mcp.test.ts tests/jelly-model.test.ts tests/jelly-plugin.test.ts tests/lingguang-material.test.ts`
+- 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 读取文件与网页（文字提取、图片识别、音视频转写）现在归灵光，经 Host 的 `materials` 契约执行。

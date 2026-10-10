@@ -105,6 +105,7 @@ export const ARRIVAL_EN: Record<string, string> = {
   "{n} 份正文已保存": "{n} texts saved",
   "{n} 项已跳过": "{n} skipped",
   "连接文字模型后，可以回来继续整理出摘要和待办。": "Connect a text model and come back to get a summary and todos.",
+  "文字模型已连接，可以继续整理出摘要和待办。": "The text model is connected. You can carry on to get a summary and todos.",
   "读入的材料": "Materials read",
   "原文暂存在本机": "Originals kept on this device",
   "{done} / {total} 份": "{done} / {total} files",

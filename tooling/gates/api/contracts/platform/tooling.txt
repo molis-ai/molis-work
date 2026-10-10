@@ -5,7 +5,6 @@
 export interface PluginDevelopmentInput {
     directory: string;
     project_id: string;
-    actor_id: string;
     grants: string[];
     allow_unsigned_development: true;
 }

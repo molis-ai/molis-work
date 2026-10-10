@@ -103,3 +103,71 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
     await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
   }
 });
+
+test("an action that writes through other actions is granted together with them: refused naming the missing grants, saved all or nothing when sent in one request", { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "mcp-action-settings-together-")), token = "mcp-action-grant-together-control-token";
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const created = await catalog.createProject({ display_name: "一起授权", actor_id: "test" });
+  if (!catalog.listProjectPlugins(created.project_id).includes("feed")) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "feed", actor_id: "test" });
+  const projectId = created.project_id;
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
+    const endpoint = `${origin}/api/settings/mcp/actions`;
+    const read = async (client: string) => (await fetch(`${endpoint}?client_id=${client}&project_id=${projectId}`)).json() as Promise<{ entries: Array<{ capability_id: string; version: number; provider_id: string; status: string }>; grants: unknown[] }>;
+    const send = (value: unknown, language = "zh") => fetch(endpoint, { method: "POST", body: JSON.stringify(value), headers: {
+      origin, "content-type": "application/json", "accept-language": language, "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token } });
+    const identity = async (client: string, capability: string) => {
+      const entry = (await read(client)).entries.find(row => row.capability_id === capability);
+      assert.ok(entry, `${capability} is in the catalog`);
+      return { capability_id: entry.capability_id, version: entry.version, provider_id: entry.provider_id };
+    };
+    const grant = (client: string, action: { capability_id: string; version: number; provider_id: string }, extra: Record<string, unknown> = {}) =>
+      ({ client_id: client, project_id: projectId, ...action, enabled: true, ...extra });
+    const dependencies = ["goals.directory.read", "goals.create", "goals.inputs.confirm"];
+
+    // Alone, the promotion cannot be saved, and the refusal names the grants it needs (in the language asked for).
+    const client = "runtime:together";
+    const promote = await identity(client, "feed.items.promote");
+    const alone = await send(grant(client, promote));
+    assert.equal(alone.status, 400);
+    const refused = await alone.json() as { code: string; error: string };
+    assert.equal(refused.code, "mcp.grant_requires");
+    assert.ok(dependencies.every(id => refused.error.includes(id)), refused.error);
+    assert.match(refused.error, /还要同时授权/);
+    const english = await (await send(grant(client, promote), "en")).json() as { error: string };
+    assert.match(english.error, /^This action also needs these actions granted with it: goals\.directory\.read, goals\.create, goals\.inputs\.confirm$/);
+    assert.deepEqual((await read(client)).grants, [], "nothing was saved");
+
+    // What is already granted is not named again.
+    for (const id of dependencies.slice(1)) assert.equal((await send(grant(client, await identity(client, id)))).status, 200);
+    const partly = await (await send(grant(client, promote))).json() as { error: string };
+    assert.ok(partly.error.includes("goals.directory.read") && !partly.error.includes("goals.create") && !partly.error.includes("goals.inputs.confirm"), partly.error);
+
+    // Sent together, the dependency and the action are checked as one set and saved as one.
+    assert.equal((await send(grant(client, promote, { with: [await identity(client, "goals.directory.read")] }))).status, 200);
+    const saved = await read(client);
+    assert.equal(saved.grants.length, 4);
+    assert.equal(saved.entries.find(row => row.capability_id === "feed.items.promote")?.status, "enabled");
+
+    const other = "runtime:all-at-once";
+    const all = await Promise.all(dependencies.map(id => identity(other, id)));
+    assert.equal((await send(grant(other, await identity(other, "feed.items.promote"), { with: all }))).status, 200);
+    assert.deepEqual((await read(other)).entries.filter(row => [...dependencies, "feed.items.promote"].includes(row.capability_id)).map(row => row.status), ["enabled", "enabled", "enabled", "enabled"]);
+
+    // A dependency that is not in the catalog saves nothing, and `with` is for granting only.
+    const third = "runtime:nothing-saved";
+    const missing = await send(grant(third, await identity(third, "feed.items.promote"), { with: [...all, { capability_id: "goals.no-such-action", version: 1, provider_id: all[0]!.provider_id }] }));
+    assert.equal(missing.status, 404);
+    assert.deepEqual((await read(third)).grants, []);
+    const revoking = await send({ ...grant(third, await identity(third, "feed.items.promote"), { with: all }), enabled: false });
+    assert.equal(revoking.status, 400);
+    assert.equal(((await revoking.json()) as { code: string }).code, "mcp.grant_invalid");
+    assert.deepEqual((await read(third)).grants, []);
+  } finally {
+    if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
+  }
+});

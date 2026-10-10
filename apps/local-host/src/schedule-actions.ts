@@ -4,16 +4,21 @@ import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { scheduleServiceFor } from "./schedule-runtime.js";
 import { hostScheduleReminders, hostScheduleReminderManagement } from "./schedule-reminders.js";
 import { hostScheduledOperationManagement } from "./schedule-operations.js";
+import { scheduledTaskReadiness } from "./schedule-task-runner.js";
 
-/** Tasks live in the project database; the same scheduler wrapper the tick loop uses registers their wakeups. */
-export function scheduleActionProvider(runtime: MolisWorkProjectRuntime): ActionProviderRegistration {
+/**
+ * Tasks live in the project database; the same scheduler wrapper the tick loop uses registers their wakeups.
+ * `readiness` is what the Host knows about running a due task (its Home and how it finds the project's workspace).
+ */
+export function scheduleActionProvider(runtime: MolisWorkProjectRuntime, readiness: Pick<Parameters<typeof scheduledTaskReadiness>[0], "homeDirectory" | "workspaceFor"> = {}): ActionProviderRegistration {
   const schedule = scheduleServiceFor(runtime.store.db);
   return {
     provider: { provider_id: scheduleManifest.plugin_id, plugin_id: scheduleManifest.plugin_id, title: scheduleManifest.name, kind: "plugin", project_id: runtime.project_id },
     definitions: scheduleManifest.actions!,
     handlers: createScheduleActionHandlers(runtime.project_id, createScheduleActionPorts({ db: runtime.store.db, schedule,
       operations: hostScheduledOperationManagement({ db: runtime.store.db, projectId: runtime.project_id, schedule }),
-      reminders: hostScheduleReminderManagement({ db: runtime.store.db, projectId: runtime.project_id, schedule }) })),
+      reminders: hostScheduleReminderManagement({ db: runtime.store.db, projectId: runtime.project_id, schedule }),
+      readiness: () => scheduledTaskReadiness({ ...readiness, projectId: runtime.project_id }) })),
   };
 }
 

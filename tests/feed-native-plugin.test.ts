@@ -330,6 +330,21 @@ test("Feed capture rule selector loads the shared directory instead of embedding
   assert.match(panel, /data-feed-rule-preview-run/);
 });
 
+test("the reader has no promotion button where promotion cannot run, and the other entries stay", () => {
+  const host = new UiHost();
+  host.register(feedUiContribution);
+  const render = (model: PersistedFeedDetailModel) => host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "persisted-detail", model });
+  assert.match(render({ ...persistedDetail(), promote_available: true }), /data-feed-action="promote"/);
+  assert.match(render(persistedDetail()), /data-feed-action="promote"/, "a model that says nothing keeps the button");
+  const hidden = render({ ...persistedDetail(), promote_available: false });
+  assert.doesNotMatch(hidden, /data-feed-action="promote"/);
+  for (const action of ["inbox", "save", "archive"]) assert.match(hidden, new RegExp(`data-feed-action="${action}"`));
+  // A rule suggesting promotion does not bring the button back.
+  const suggested = render({ ...persistedDetail({ suggested_behavior_ids: ["feed.promote"] }), promote_available: false });
+  assert.doesNotMatch(suggested, /data-feed-action="promote"/);
+  assert.match(suggested, /data-feed-action="inbox"[^>]*>手动加入 Inbox/);
+});
+
 test("Feed suggestions retain an explicit manual Inbox override", () => {
   const host = new UiHost();
   host.register(feedUiContribution);

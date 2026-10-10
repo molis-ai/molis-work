@@ -5,8 +5,8 @@ import { ALCHEMIST_FLOWS } from './client-flows.js';
  * Uses the same native Workbench client lifecycle and project routes as Pages.
  *
  * Comments live here, not in the script: the script is served to the page, byte for byte.
- * - What is on screen, for the Assistant: the direction or Idea being looked at, under the kinds system search uses. It is
- *   republished whenever the content redraws (every view sets the discussion context as it renders).
+ * - `shownContext` is what is on screen, for the Assistant: the direction or Idea being looked at, under the kinds system
+ *   search uses. It is republished whenever the content redraws (every view sets the discussion context as it renders).
  * - A run that stopped for want of a model says so once, with the way to settings (`noModel`): no status, no waiting label,
  *   no internal code. The direction card and the research card share it.
  */
@@ -40,6 +40,7 @@ export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   function setTitle(title){$('[data-alc-title]').textContent=title;}
 `+WORK_REUSE_CLIENT+ALCHEMIST_VIEWS+ALCHEMIST_FLOWS+String.raw`
   async function load(){const n=++loadSeq;const values=await Promise.all([api('/bootstrap'),api('/pulse/reports'),api('/decisions'),api('/settings/runtime')]);if(n!==loadSeq)return;[data,pulse,decisions,runtime]=values;loaded=true;renderList();schedule();}
+  document.addEventListener('molis-work:model-ready',()=>{if(loaded)load().then(()=>current&&open(current,false)).catch(e=>notice(e.message,true));});
   function closeDetail(){seq++;current=null;target=null;selection=null;side.hidden=true;sideMode='';root.dataset.expanded='false';$('[data-alc-workspace]').hidden=true;renderList();persist();lastRow?.isConnected&&lastRow.focus();}
   async function open(next,save=true){
     if(!next)return;const n=++seq;const changed=!sameCurrent(next);current={...next};detailSignature='';selection=null;if(changed){side.hidden=true;sideMode='';target=null;research=null;$('[data-alc-action=annotations]').hidden=true;content.scrollTop=0;}

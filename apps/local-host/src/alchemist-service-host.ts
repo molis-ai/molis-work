@@ -7,6 +7,7 @@ import { alchemistActions, alchemistManifest, createAlchemistActionHandlers, cre
   type AlchemistAiPort, type AlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
 import { createAlchemistProloguePort } from "./alchemist-prologue.js";
 import { createAlchemistSearchPort } from "./alchemist-search.js";
+import { alchemistPulseGithub } from "./alchemist-pulse-github.js";
 import { configuredModelChoices } from "./configured-models.js";
 
 export interface AlchemistHostOptions {
@@ -65,7 +66,7 @@ export class AlchemistHostService {
         return entry!.search.search(input);
       } });
       const runtime = createAlchemistStudioRuntime({ databasePath: join(alchemistProjectDirectory(this.home, projectId), "studio.sqlite"),
-        ai, pulseSourceMode: this.options.pulseSourceMode });
+        ai, pulseSourceMode: this.options.pulseSourceMode, pulseGithub: alchemistPulseGithub(this.home) });
       entry = { runtime, owners: new Set() }; studios.set(key, entry); runtime.start();
     }
     entry.owners.add(this); this.entries.set(key, entry);

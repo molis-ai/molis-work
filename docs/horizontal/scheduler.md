@@ -12,6 +12,8 @@
 
 通用插件提醒由官方 Schedule 拥有，通过公共 `reminders.add/cancel` 调用；Host 从可信调用上下文取得项目、插件和安装身份，插件输入不能指定这些身份。提醒与 job 同事务保存，到点由 Host 将 Inbox 投递和一次性消费同事务提交，无须打开 Studio。旧 Builder job 保留原 id、时间与收据，通过兼容唤醒读取迁入的 Schedule 记录；无法证明原安装归属则保留并暂停。
 
+对话任务能不能到点跑，创建前可以问 Schedule 的 `schedule.tasks.readiness`：Host 回答项目已核对的工作区（与到点执行的 runner 同一个核对）和是否配置了文字模型（读模型目录的元数据；runner 本身查的是 Prologue 运行时是否已登记，所以这一项是替身，不是保证）两样。创建不等它、也不被它拒绝，新建对话框只据此提示（W2-18 决定 3）。
+
 定时运行插件 operation 使用 Schedule 的 `schedules.add/cancel`（系统提供方 `schedule.operations`），Host 只装配当前安装执行入口和单向旧数据迁移。Schedule 保存排期意图及每次 occurrence，Scheduler 不保存业务输入。可信 Host 可以在注册唤醒时提供同步 `prepare`，它在 lease claim 的同一事务内保存 pending；不能 await 或派出外部工作，失败回滚整个 claim。处理器可返回明确的 failed/plugin_unavailable 技术收据。
 
 注册安装执行入口不会触发补跑。每次 tick 先核对共享 lease：未派出的 pending 可以用新 lease 等待执行；running 且 lease 已消失的任务转为 unknown，暂停后续排期。不能把未知结果当作普通失败重试。结果、Inbox 与 occurrence 终态同事务复查租约、安装世代和版本后提交；已提交结果即使还没写技术收据就退出，也不能重放。旧 Builder 队列完整迁移，没有 50 条丢弃上限；缺失定义的引用保留为不可执行历史。

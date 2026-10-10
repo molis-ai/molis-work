@@ -110,7 +110,7 @@ const inputProblems: Partial<Record<AlchemistOperationName, [string, string]>> =
   conversationSend: ["CONVERSATION_MESSAGE_INVALID", "消息或当前讨论上下文不完整。"], decisionCreate: ["DECISION_INVALID", "请选择决定并写下理由。"],
   annotationsList: ["ANNOTATION_QUERY_INVALID", "注释目标不完整。"], annotationCreate: ["ANNOTATION_INVALID", "请保留引用，并另行写下评论。"],
   playbookPropose: ["PLAYBOOK_PROPOSAL_INVALID", "方法变化、正反例和作用域需要由你明确填写。"], tasteCreate: ["TASTE_RULE_INVALID", "请完整写下偏好及其适用范围。"],
-  pulseSourceUpdate: ["PULSE_SOURCE_INVALID", "来源设置不完整。"], pulseStart: ["PULSE_RUN_INVALID", "脉搏运行参数不完整。"],
+  pulseSourceUpdate: ["PULSE_SOURCE_INVALID", "来源设置不完整。"], pulseGithubSelect: ["PULSE_GITHUB_INVALID", "请选择一个 GitHub 账号，或选择匿名访问。"], pulseStart: ["PULSE_RUN_INVALID", "脉搏运行参数不完整。"],
   directionCreate: ["DIRECTION_INPUT_INVALID", "请更完整地描述你想探索的方向。"], directionUpdate: ["DIRECTION_INPUT_INVALID", "方向内容无效。"], directionStatus: ["DIRECTION_INPUT_INVALID", "方向状态无效。"],
   researchPlan: ["RESEARCH_PLAN_INVALID", "研究计划参数不完整。"], researchStart: ["LENS_RUN_INVALID", "启动研究所需信息不完整。"],
   settingsUpdate: ["RUNTIME_SETTINGS_INVALID", "模型选择或调用上限不完整。"], workspaceExport: ["EXPORT_FORMAT_INVALID", "请选择 JSON 或 ZIP。"],

@@ -29,6 +29,7 @@ export function createScheduleRouteHandlers(options: ScheduleRouteHandlerPorts):
       await options.actions.invoke(scheduleActions.list, {});
       return { status: 200, html: await options.renderWorkbench() };
     },
+    "schedule.readiness": () => run(scheduleActions.readiness, {}),
     "schedule.job.enabled": ({ params, request }) => {
       const value = enabled(request.body);
       if (value === null) return { status: 400, body: { error: "请指定是否启用" } };

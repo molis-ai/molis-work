@@ -3,7 +3,6 @@
 //! leaves the history alone. Concealed and transient types are never recorded.
 
 use crate::shelf_http;
-use tauri::AppHandle;
 use objc2_app_kit::NSPasteboard;
 use objc2_foundation::{ns_string, NSArray, NSString};
 use std::path::PathBuf;
@@ -11,6 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
+use tauri::AppHandle;
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 /// macOS may hand a background app the change count but no content. Once that
@@ -33,12 +33,16 @@ pub fn install(app: AppHandle) {
         let mut seen = on_main(&app, current_change_count).unwrap_or(-1);
         loop {
             thread::sleep(POLL);
-            let Some(change) = on_main(&app, current_change_count) else { continue };
+            let Some(change) = on_main(&app, current_change_count) else {
+                continue;
+            };
             if change == seen {
                 continue;
             }
             seen = change;
-            let Some(Some(cargo)) = on_main(&app, read_pasteboard) else { continue };
+            let Some(Some(cargo)) = on_main(&app, read_pasteboard) else {
+                continue;
+            };
             take(cargo);
         }
     });
@@ -65,7 +69,11 @@ fn take(cargo: Cargo) {
         return;
     }
     let empty = cargo.files.is_empty()
-        && cargo.text.as_deref().map(str::trim).is_none_or(str::is_empty);
+        && cargo
+            .text
+            .as_deref()
+            .map(str::trim)
+            .is_none_or(str::is_empty);
     READABLE.store(!empty, Ordering::Relaxed);
     if empty {
         return;
@@ -80,7 +88,12 @@ fn take(cargo: Cargo) {
         }
         return;
     }
-    let Some(text) = cargo.text.as_deref().map(str::trim).filter(|value| !value.is_empty()) else {
+    let Some(text) = cargo
+        .text
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
         return;
     };
     if let Err(error) = shelf_http::record_clip(text, &cargo.types) {
@@ -98,54 +111,53 @@ fn is_concealed(types: &[String]) -> bool {
 }
 
 fn current_change_count() -> isize {
-    let Some(board) = general_board() else { return -1 };
-    unsafe { board.changeCount() }
+    let Some(board) = general_board() else {
+        return -1;
+    };
+    board.changeCount()
 }
 
 fn general_board() -> Option<objc2::rc::Retained<NSPasteboard>> {
-    Some(unsafe { NSPasteboard::generalPasteboard() })
+    Some(NSPasteboard::generalPasteboard())
 }
 
 fn read_pasteboard() -> Option<Cargo> {
     let board = general_board()?;
-    let types: Vec<String> = unsafe { board.types() }
+    let types: Vec<String> = board
+        .types()
         .map(|array| array.iter().map(|item| item.to_string()).collect())
         .unwrap_or_default();
     let mut files: Vec<PathBuf> = Vec::new();
-    unsafe {
-        if let Some(list) = board.propertyListForType(ns_string!("NSFilenamesPboardType")) {
-            if let Ok(array) = list.downcast::<NSArray>() {
-                for item in array.iter() {
-                    if let Some(name) = item.downcast_ref::<NSString>() {
-                        let path = PathBuf::from(name.to_string());
-                        if path.is_file() {
-                            files.push(path);
-                        }
+    if let Some(list) = board.propertyListForType(ns_string!("NSFilenamesPboardType")) {
+        if let Ok(array) = list.downcast::<NSArray>() {
+            for item in array.iter() {
+                if let Some(name) = item.downcast_ref::<NSString>() {
+                    let path = PathBuf::from(name.to_string());
+                    if path.is_file() {
+                        files.push(path);
                     }
                 }
             }
         }
-        if files.is_empty() {
-            if let Some(url) = board.stringForType(ns_string!("public.file-url")) {
-                if let Some(path) = path_from_file_url(&url.to_string()) {
-                    files.push(path);
-                }
+    }
+    if files.is_empty() {
+        if let Some(url) = board.stringForType(ns_string!("public.file-url")) {
+            if let Some(path) = path_from_file_url(&url.to_string()) {
+                files.push(path);
             }
         }
     }
     // `stringForType:` comes back empty for some writers, so read the bytes.
-    let text = unsafe {
-        board
-            .dataForType(ns_string!("public.utf8-plain-text"))
-            .or_else(|| board.dataForType(ns_string!("NSStringPboardType")))
-    }
-    .map(|data| String::from_utf8_lossy(data.to_vec().as_slice()).to_string())
-    .filter(|value| !value.is_empty())
-    .or_else(|| unsafe {
-        board
-            .stringForType(ns_string!("public.utf8-plain-text"))
-            .map(|value| value.to_string())
-    });
+    let text = board
+        .dataForType(ns_string!("public.utf8-plain-text"))
+        .or_else(|| board.dataForType(ns_string!("NSStringPboardType")))
+        .map(|data| String::from_utf8_lossy(data.to_vec().as_slice()).to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            board
+                .stringForType(ns_string!("public.utf8-plain-text"))
+                .map(|value| value.to_string())
+        });
     Some(Cargo { files, text, types })
 }
 
@@ -183,7 +195,10 @@ mod tests {
     #[test]
     fn password_managers_are_never_recorded() {
         assert!(is_concealed(&["org.nspasteboard.ConcealedType".into()]));
-        assert!(is_concealed(&["public.utf8-plain-text".into(), "org.nspasteboard.TransientType".into()]));
+        assert!(is_concealed(&[
+            "public.utf8-plain-text".into(),
+            "org.nspasteboard.TransientType".into()
+        ]));
         assert!(!is_concealed(&["public.utf8-plain-text".into()]));
     }
 

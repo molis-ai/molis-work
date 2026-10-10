@@ -8,6 +8,9 @@ import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, type MemoryRecal
 import { MolisWorkLocalHost, molisWorkHostProjectReference, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 
+/** What the server answers to tools/list and tools/call, as far as this test reads it. */
+interface McpResult { tools: Array<{ name: string }>; isError?: boolean; content: Array<{ text: string }> }
+
 // Decision 19 (specs/repository-anti-corruption, W2-03): the MCP audience of memory stays, and this is the use case that goes through the
 // person's grant (`config/mcp-tools.json`, which only the person's own settings write) the way a real external client meets it: nothing is
 // visible or callable before the grant, only `memory.recall` can be granted, what it reads follows the person's switches, and revoking the
@@ -30,7 +33,7 @@ test("an external MCP client reads memory only through the person's grant for me
     const server = new MolisWorkServer("runtime", { databasePath: reference.storage_key, projectId, webBaseUrl: "http://127.0.0.1:4173" },
       { homeDirectory: home, runtimeContext: { runtime_id: runtimeId, stable_work_context_id: `session-${runtimeId}`, host_declares_stable: true } }, host);
     servers.push(server);
-    const rpc = async (method: string, params: object) => ((await server.handleMessage({ jsonrpc: "2.0", id: 1, method, params }) as { result: any }).result);
+    const rpc = async (method: string, params: object) => ((await server.handleMessage({ jsonrpc: "2.0", id: 1, method, params }) as { result: McpResult }).result);
     return {
       tools: async () => (await rpc("tools/list", {})).tools.map((tool: { name: string }) => tool.name) as string[],
       call: (name: string, args: object) => rpc("tools/call", { name, arguments: args }),

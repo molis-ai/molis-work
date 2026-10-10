@@ -26,7 +26,6 @@ import { FEED_OUT_RULES_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-feed";
 import { SCHEDULE_REMINDERS_SCHEMA_SQL, SCHEDULE_TASKS_SCHEMA_SQL, SCHEDULED_OPERATIONS_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-schedule";
 import { CODING_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-coding";
 import { PROJECT_BROWSING_SETTINGS_SCHEMA_SQL } from "./project-browsing-settings.js";
-import { CASEBOOK_SCHEMA_SQL } from "./casebook/journal.js";
 
 /**
  * A project's database (`projects/<id>/molis-work.db`) as one current schema (repository-anti-corruption §4.1): every
@@ -35,7 +34,7 @@ import { CASEBOOK_SCHEMA_SQL } from "./casebook/journal.js";
  * when they open (`IF NOT EXISTS`), which is a no-op here; changing any of them means a new version.
  */
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: 6,
+  version: 7,
   schema: [
     GOAL_BOARDS_SCHEMA_SQL,
     GOALS_SCHEMA_SQL,
@@ -65,6 +64,5 @@ export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
     SCHEDULED_OPERATIONS_SCHEMA_SQL,
     CODING_SCHEMA_SQL,
     PROJECT_BROWSING_SETTINGS_SCHEMA_SQL,
-    CASEBOOK_SCHEMA_SQL,
   ].join("\n"),
 };

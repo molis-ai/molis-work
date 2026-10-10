@@ -7,8 +7,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, LocalMcpServer, MolisWorkCasebookIntegration, molisWorkHostProjectReference, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
-import { PURPOSE, VERSION } from "../apps/local-host/src/casebook/contract.js";
+import { MolisWorkLocalHost, LocalMcpServer, molisWorkHostProjectReference, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { createGoalIntentCapability, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
@@ -34,13 +33,6 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
   const context = { runtime_id: "legacy-goals", stable_work_context_id: session, host_declares_stable: true };
   const aliases = { create: "molis_work_v1_action_goals.create__v1", list: "molis_work_v1_action_goals.list__v1", note: "molis_work_v1_action_goals.note__v1", state: "molis_work_v1_action_goals.state.read__v1", events: "molis_work_v1_action_goals.events.list__v1", event: "molis_work_v1_action_goals.events.read__v1" };
   const sdk = new Client({ name: "not-the-authorized-client", version: "1" });
-  const casebook = new MolisWorkCasebookIntegration({ client: host.client(ref), verifyUserAction: () => true });
-  await casebook.setInteractionAuthorization({ project_ref: project.project_id, purpose: PURPOSE, action: "join", actor_ref: "fixture-user",
-    user_action_ref: "explicit-fixture-consent", user_confirmed: true, idempotency_key: "join" });
-  const authorization = await casebook.readInteractionAuthorization({ project_ref: project.project_id, purpose: PURPOSE }) as { authorization_epoch: string | null };
-  assert.ok(authorization.authorization_epoch);
-  const facts = async () => (await casebook.readInteractionFacts({ project_ref: project.project_id, schema_version: VERSION,
-    authorization_epoch: authorization.authorization_epoch!, after_cursor: 0, limit: 100 })).facts;
   let pending: Promise<Awaited<ReturnType<typeof sdk.callTool>>> | undefined;
   try {
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -60,7 +52,6 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     const noteInput = { goal_id: input.goal_id, body: "迁移前便笺", idempotency_key: "historical-note" };
     const noteBefore = await prior.invoke(goalsActions.note, noteInput);
     policies.length = 0;
-    assert.equal((await facts()).length, 4);
     const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
       fileURLToPath(new URL("../apps/desktop/launchers/mcp/server.ts", import.meta.url))], env: {
       ...Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)),
@@ -100,17 +91,12 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     assert.equal(policies.includes(auditActor), false);
     const listed = await call<{ goals: Array<{ goal_id: string }> }>(aliases.list, {});
     assert.ok(listed.goals.some(goal => goal.goal_id === input.goal_id));
-    const observations = await facts();
-    assert.equal(observations.length, 14, "each actual business invocation has one attempt and one resolved result");
-    assert.ok(observations.every(fact => fact.channel === "local-host.capability.v1"));
-    assert.equal(observations.filter(fact => fact.kind === "result" && fact.capability.endsWith(".note") && fact.saved?.event_refs.length === 1).length, 4);
     const state = await call<{ goal_id: string; intent: { title: string } }>(aliases.state, { goal_id: input.goal_id });
     assert.equal(state.goal_id, input.goal_id); assert.equal(state.intent.title, input.title);
     const eventPage = await call<{ events: Array<{ event_id: string }>; next_cursor: number | null }>(aliases.events, { goal_id: input.goal_id, limit: 1 });
     assert.equal(eventPage.events.length, 1); assert.ok(eventPage.next_cursor);
     const read = await call<typeof stored>(aliases.event, { goal_id: input.goal_id, event_id: note.event_id });
     assert.deepEqual(read, stored);
-    assert.equal((await facts()).length, 20, "three query actions are each observed exactly once");
     const configuredInput = { goal_id: input.goal_id, expected_version: 0, idempotency_key: "mcp-config", types: [{ type_id: "work", version: 1,
       name: "工作", purpose: "保留原文", fields: [{ field_id: "body", name: "正文", purpose: "历史", format: "text", required: true }] }] };
     const configured = await call<{ event_id: string; replayed: boolean }>("molis_work_v1_action_goals.events.configure__v1", configuredInput);
@@ -119,7 +105,6 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     const reported = await call<{ events: Array<{ actor_id: string; payload: { body: string } }>; replayed: boolean }>("molis_work_v1_action_goals.events.report__v1", reportInput);
     assert.equal(reported.events[0]?.actor_id, auditActor); assert.equal(reported.events[0]?.payload.body, "Session 作者保持");
     assert.deepEqual(await call("molis_work_v1_action_goals.events.report__v1", reportInput), { ...reported, replayed: true });
-    assert.equal((await facts()).filter(fact => fact.capability.endsWith(".report")).length, 4);
     const inspect = await openWorkSessionRegistry({ homeDirectory: home });
     try {
       assert.equal(inspect.get(sessionId).current_goal_id, input.goal_id);

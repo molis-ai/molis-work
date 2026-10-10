@@ -162,9 +162,9 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 
 所有内置插件都由 molis 发布、带官方签名；其中只有 Goals 是每个项目都带、工作台里不能移除的插件。Plugin 之间不依赖 implementation：能力经共同动作目录调用；人要留存、引用的固定版本进成果库（`artifacts.produces`），交给别的插件的数据是生产方自己的过程项（`process_items.produces`），经端口与动作交换；其余事实留在各自插件的库里。
 
-### 正在接入的独立插件
+### 已删除的接入
 
-- [Casebook：产品流程与宿主前置能力](../specs/casebook-plugin/spec.md)：系统疑点与成员主动反馈进入改进 Backlog，经模块主 R 评审、系统准备方案和人确认后，交接正式 Goal 并回验。插件业务与详细实施清单由独立的 `molis-ai/goalboard-casebook` 仓库维护；本文档入口便于宿主各模块查阅依赖，不新增 workspace package，也不表示插件已注册、团队协作已接通或功能已验收。
+- Casebook 已于 2026-10-10 按用户决定删除（宿主里的子系统、`/casebook/v1/` 通道、5 个 typed 能力、项目库的 5 张表），以后重做；当时的说明在 [`specs/archive/casebook-plugin/spec.md`](../specs/archive/casebook-plugin/spec.md)。
 
 ## 8. Tooling、入口和发布面
 

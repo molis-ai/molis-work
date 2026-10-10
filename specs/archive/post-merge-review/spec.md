@@ -659,7 +659,7 @@
 | spec | 判定 | 依据 | 去向 |
 | --- | --- | --- | --- |
 | action-architecture | 现行规范 | AGENTS.md 引 §3 基本合同；已合 main（#88/#94/#95） | [原位](../../action-architecture/spec.md)；BL-043、BL-081、BL-082 |
-| casebook-plugin | 现行规范 | docs/SSOT-MATRIX.md 引为外部 Casebook 插件的宿主前置能力说明 | [原位](../../casebook-plugin/spec.md) |
+| casebook-plugin | 现行规范 | docs/SSOT-MATRIX.md 引为外部 Casebook 插件的宿主前置能力说明 | [原位](../casebook-plugin/spec.md) |
 | coding-plugin | 现行规范 | Coding 的单一需求来源 | [原位](../../coding-plugin/spec.md)；BL-020、BL-023、BL-050、BL-051 |
 | craft-finish | 现行规范 | AGENTS.md 界面一栏引用 | [原位](../../craft-finish/spec.md) |
 | molis-work-architecture-reorganization | 现行规范 | 架构重组需求书，ARCHITECTURE/SSOT 引用 | [原位](../../molis-work-architecture-reorganization/spec.md)；BL-070 |

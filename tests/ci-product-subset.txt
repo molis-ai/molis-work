@@ -315,8 +315,6 @@ tests/arrival-components.test.ts
 tests/artifacts-module.test.ts
 tests/builtin-plugin-composition.test.ts
 tests/capsule.test.ts
-tests/casebook-recovery-details.test.ts
-tests/casebook-user-action.test.ts
 tests/catalog-connectors.test.ts
 tests/chrome-inner-scroll.test.ts
 tests/cli-protocol.test.ts

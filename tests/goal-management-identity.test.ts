@@ -8,33 +8,41 @@ import ts from "typescript";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import * as goalsPlugin from "@molis-ai/molis-work-plugin-goals";
-import { createGoalIntentCapability, configureGoalEventsCapability, reportGoalEventsCapability, recordGoalProgressCapability,
-  applyGoalConcernCapability, requestGoalDecisionCapability, citeGoalDecisionCapability, setGoalEventAgreementCapability,
-  submitGoalEventClosureCapability, resumeGoalEventWorkCapability, recordGoalNoteCapability, setActiveGoalCapability,
-  recordGoalUserDecisionCapability, readGoalEventStateCapability, goalTreeCapabilities, goalsActions,
+import { createGoalIntentCapability, setActiveGoalCapability, recordGoalUserDecisionCapability, goalTreeCapabilities, goalsActions,
   hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionMetadata, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostCapabilityDefinition, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { managementCaller, managementGoals } from "./goal-management-caller.js";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 
 const door = (name: string, capability: unknown, business: Record<string, unknown>) =>
   ({ name, capability: capability as HostCapabilityDefinition<unknown, unknown>, business });
 
-/** The eleven writes that take the project and the key plus their own business fields; the identity is looked at before those. */
-const managementDoors = (goal_id: string, cursor: number) => [
+/** The typed management writes that still have a caller in the product (the first-run setup creates the first Goal). */
+const managementDoors = () => [
   door("create intent", createGoalIntentCapability, { title: "目标" }),
-  door("configure", configureGoalEventsCapability, { goal_id, expected_version: 0 }),
-  door("report", reportGoalEventsCapability, { goal_id, events: [] }),
-  door("progress", recordGoalProgressCapability, { goal_id, based_on_cursor: cursor, summary: "进展" }),
-  door("concern", applyGoalConcernCapability, { goal_id, action: "open", title: "问题" }),
-  door("request decision", requestGoalDecisionCapability, { goal_id, question: "是否继续？" }),
-  door("cite decision", citeGoalDecisionCapability, { goal_id, decision_id: "d" }),
-  door("agreement", setGoalEventAgreementCapability, { goal_id }),
-  door("closure", submitGoalEventClosureCapability, { goal_id, kind: "complete", reason: "收尾" }),
-  door("resume", resumeGoalEventWorkCapability, { goal_id, reason: "继续" }),
-  door("note", recordGoalNoteCapability, { goal_id, body: "便笺" }),
+];
+
+/**
+ * The ten writes that used to have a typed management door of their own. They are registered actions now, and a management caller
+ * (the CLI, the management MCP) calls them like any other caller: the person on this machine is the writer. Each is shown with
+ * the business fields it needs; the identity is looked at on top of them.
+ */
+type FormerDoor = { name: string; definition: ActionReference & { readonly action: ActionMetadata };
+  call(client: BoundActionClient, input: object): Promise<unknown>; business: Record<string, unknown> };
+const formerDoors = (goal_id: string, cursor: number): FormerDoor[] => [
+  { name: "configure", definition: goalsActions.configure, call: (client, input) => client.invoke(goalsActions.configure, input as never), business: { goal_id, expected_version: 0, types: [] } },
+  { name: "report", definition: goalsActions.report, call: (client, input) => client.invoke(goalsActions.report, input as never), business: { goal_id, events: [] } },
+  { name: "progress", definition: goalsActions.progress, call: (client, input) => client.invoke(goalsActions.progress, input as never), business: { goal_id, based_on_cursor: cursor, summary: "进展" } },
+  { name: "concern", definition: goalsActions.concern, call: (client, input) => client.invoke(goalsActions.concern, input as never), business: { goal_id, action: "open", title: "问题" } },
+  { name: "request decision", definition: goalsActions.requestDecision, call: (client, input) => client.invoke(goalsActions.requestDecision, input as never), business: { goal_id, question: "是否继续？" } },
+  { name: "cite decision", definition: goalsActions.citeDecision, call: (client, input) => client.invoke(goalsActions.citeDecision, input as never), business: { goal_id, decision_id: "d" } },
+  { name: "agreement", definition: goalsActions.agree, call: (client, input) => client.invoke(goalsActions.agree, input as never), business: { goal_id } },
+  { name: "closure", definition: goalsActions.close, call: (client, input) => client.invoke(goalsActions.close, input as never), business: { goal_id, kind: "complete", reason: "收尾" } },
+  { name: "resume", definition: goalsActions.resume, call: (client, input) => client.invoke(goalsActions.resume, input as never), business: { goal_id, reason: "继续" } },
+  { name: "note", definition: goalsActions.note, call: (client, input) => client.invoke(goalsActions.note, input as never), business: { goal_id, body: "便笺" } },
 ];
 
 /** Every typed event write the Goals plugin exports, by export name: the commands under the event entry's id prefix. */
@@ -45,17 +53,20 @@ const typedEventWrites = () => Object.entries(goalsPlugin as Record<string, unkn
 });
 
 /**
- * The CLI and the typed Host client are the management door. It has no caller identity of its own, so it records the person on
- * this machine and refuses an actor_id or actor_kind carried in the arguments instead of trusting it
- * (specs/goal-closure-identity). The project is checked first: a foreign project stays a scope mismatch.
+ * The CLI and the management MCP are the management door. They have no caller identity of their own, so they record the person on
+ * this machine and refuse an actor_id or actor_kind carried in the arguments instead of trusting it (specs/goal-closure-identity).
+ * What is still typed (the first Goal of a project, the current Goal, the structure check, Coding's progress) keeps its door; every
+ * other write is a Goals action that a management caller calls as that person. The project is checked first: a foreign project
+ * stays a scope mismatch.
  */
 test("every management write records the person on this machine and refuses an identity in its arguments", async () => {
   const home = await mkdtemp(join(tmpdir(), "goal-management-identity-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Identity", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const typed = host.client(ref), project_id = project.project_id, goal_id = "IDENTITY-GOAL";
-  const cursor = async () => (await typed.invoke(readGoalEventStateCapability, { project_id, goal_id })).goal_event_cursor;
+  const typed = host.client(ref), actions = host.actionClient(ref), project_id = project.project_id, goal_id = "IDENTITY-GOAL";
+  const management = managementGoals(actions, project_id);
+  const cursor = async () => (await management.invoke(goalsActions.state, { goal_id })).goal_event_cursor;
   const event = (eventId: string) => host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project_id, goal_id, eventId));
   try {
     const intent = { project_id, goal_id, title: "管理入口", outcome: "记在本机这个人身上", idempotency_key: "create" };
@@ -63,15 +74,28 @@ test("every management write records the person on this machine and refuses an i
     assert.equal((await typed.invoke(createGoalIntentCapability, intent)).replayed, true, "the same key replays for the same person");
     const before = await cursor();
 
-    // Each door takes the project and the key and nothing about who writes. The business fields are left out on purpose: the
+    // Each typed door takes the project and the key and nothing about who writes. The business fields are left out on purpose: the
     // identity is refused before they are read, and a refused call writes nothing.
-    for (const { name, capability, business } of managementDoors(goal_id, before)) {
+    for (const { name, capability, business } of managementDoors()) {
       for (const identity of [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" }]) {
         await assert.rejects(typed.invoke(capability, { project_id, idempotency_key: `refused-${name}`, ...business, ...identity }),
           { code: "actions.input_invalid" }, `${name} refuses ${Object.keys(identity).join(" and ")}`);
       }
       await assert.rejects(typed.invoke(capability, { ...business, project_id: "foreign", idempotency_key: `foreign-${name}`, actor_id: "someone-else" }),
         { code: "actions.scope_mismatch" }, `${name}: a foreign project is a scope mismatch before the identity is looked at`);
+    }
+    // The ten writes that are actions now: the input is closed and names neither who writes nor which project (both come from the
+    // management caller's context), an identity in it is refused, and a context for a foreign project is a scope mismatch.
+    for (const { name, definition, call, business } of formerDoors(goal_id, before)) {
+      const schema = definition.action.input_schema as { additionalProperties?: boolean; properties?: Record<string, unknown> };
+      assert.equal(schema.additionalProperties, false, `${name}: the input is closed`);
+      assert.deepEqual(["actor_id", "actor_kind", "project_id"].filter(field => field in (schema.properties ?? {})), [], `${name}: its input does not name who writes`);
+      for (const identity of [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" }]) {
+        await assert.rejects(call(management, { idempotency_key: `refused-${name}`, ...business, ...identity }),
+          { code: "actions.input_invalid" }, `${name} refuses ${Object.keys(identity).join(" and ")}`);
+      }
+      await assert.rejects(actions.invoke(managementCaller("foreign", `foreign-${name}`), definition, { ...business, idempotency_key: `foreign-${name}` }),
+        { code: "actions.scope_mismatch" }, `${name}: a foreign project is a scope mismatch`);
     }
     // The current Goal and the tree check carry the project in a wrapper: a nested write, and a one-element argument list.
     const forgedActive = { goal: { goal_id, reason: "当前" }, write: { idempotency_key: "refused-active", actor_id: "someone-else" } };
@@ -88,15 +112,15 @@ test("every management write records the person on this machine and refuses an i
     assert.equal(await cursor(), before, "a refused call writes nothing");
 
     // Without an identity the writer is the person on this machine, and the same key replays for that person.
-    const note = { project_id, goal_id, body: "便笺", idempotency_key: "note" };
-    const noted = await typed.invoke(recordGoalNoteCapability, note);
+    const note = { goal_id, body: "便笺", idempotency_key: "note" };
+    const noted = await management.invoke(goalsActions.note, note);
     assert.equal(noted.recorded, true);
     const written = await event(noted.event_id);
     assert.equal(written.actor_id, LOCAL_PERSON_ACTOR_ID);
     assert.equal(written.actor_kind, "user");
-    assert.equal((await typed.invoke(recordGoalNoteCapability, note)).replayed, true);
-    const progress = { project_id, goal_id, based_on_cursor: await cursor(), summary: "进展", idempotency_key: "progress" };
-    assert.equal((await typed.invoke(recordGoalProgressCapability, progress)).progress_summary.actor_id, LOCAL_PERSON_ACTOR_ID);
+    assert.equal((await management.invoke(goalsActions.note, note)).replayed, true);
+    const progress = { goal_id, based_on_cursor: await cursor(), summary: "进展", idempotency_key: "progress" };
+    assert.equal((await management.invoke(goalsActions.progress, progress)).progress_summary.actor_id, LOCAL_PERSON_ACTOR_ID);
     const record = { goal_id, based_on_cursor: await cursor(), summary: "再一条进展", idempotency_key: "record" };
     const recorded = await typed.invoke(goalProgressCapabilities.record, record);
     assert.equal(recorded.progress_summary.actor_id, LOCAL_PERSON_ACTOR_ID);
@@ -106,8 +130,9 @@ test("every management write records the person on this machine and refuses an i
 
 /**
  * The management door records the person on this machine, so it has to stay out of a plugin's reach: a plugin that lists one of
- * these entries under capabilities.consumes would otherwise be recorded as that person. The entries are `host_only`. What a plugin
- * may still reach is a registered action, and that takes the identity from the call context.
+ * these entries under capabilities.consumes would otherwise be recorded as that person. The typed entries are `host_only`. What a
+ * plugin may still reach is a registered action, and that takes the identity from the call context; the actions behind the
+ * deleted typed doors say in their own audiences who may call them.
  */
 test("a plugin that lists a management entry under consumes is refused and is never recorded as the person on this machine", async () => {
   const home = await mkdtemp(join(tmpdir(), "goal-management-plugin-"));
@@ -115,7 +140,8 @@ test("a plugin that lists a management entry under consumes is refused and is ne
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const typed = host.client(ref), project_id = project.project_id, goal_id = "PLUGIN-GOAL";
-  const cursor = async () => (await typed.invoke(readGoalEventStateCapability, { project_id, goal_id })).goal_event_cursor;
+  const management = managementGoals(host.actionClient(ref), project_id);
+  const cursor = async () => (await management.invoke(goalsActions.state, { goal_id })).goal_event_cursor;
   const event = (eventId: string) => host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project_id, goal_id, eventId));
   // What the plugin executor binds around every call a plugin makes: the plugin consumer and the plugin's own call context.
   const asPlugin = (actor_id: string): HostCapabilityCallOptions => ({ consumer: "plugin", before_effect: async () => {},
@@ -125,7 +151,7 @@ test("a plugin that lists a management entry under consumes is refused and is ne
     await typed.invoke(createGoalIntentCapability, { project_id, goal_id, title: "插件", outcome: "不能冒充本机这个人", idempotency_key: "create" });
     const before = await cursor();
     const entries = [
-      ...managementDoors(goal_id, before).map(({ name, capability, business }) =>
+      ...managementDoors().map(({ name, capability, business }) =>
         ({ name, capability, input: { project_id, idempotency_key: `plugin-${name}`, ...business } as unknown })),
       { name: "set current goal", capability: setActiveGoalCapability as HostCapabilityDefinition<unknown, unknown>,
         input: { project_id, goal: { goal_id, reason: "当前" }, write: { idempotency_key: "plugin-active" } } as unknown },
@@ -133,10 +159,11 @@ test("a plugin that lists a management entry under consumes is refused and is ne
         input: [{ project_id, proposal_id: "p", idempotency_key: "plugin-check" }] as unknown },
     ];
     // The table is every typed event write the Goals plugin exports (the event decision aside: it takes the protected authority and
-    // was already host_only), and each of them carries the flag. A write added later without the flag fails here.
+    // was already host_only), and each of them carries the flag. A write added later without the flag fails here, and so does a
+    // typed event write that comes back after its action took its place.
     const exported = typedEventWrites().map(([, capability]) => capability);
     assert.deepEqual(exported.map(capability => capability.capability_id).sort(),
-      [...managementDoors(goal_id, before).map(({ capability }) => capability.capability_id), recordGoalUserDecisionCapability.capability_id].sort(),
+      [...managementDoors().map(({ capability }) => capability.capability_id), recordGoalUserDecisionCapability.capability_id].sort(),
       "add the new typed event write to managementDoors, and mark it host_only");
     assert.deepEqual(exported.filter(capability => capability.host_only !== true).map(capability => capability.capability_id), [],
       "a typed event write that a plugin can reach is recorded as the person on this machine");
@@ -154,12 +181,21 @@ test("a plugin that lists a management entry under consumes is refused and is ne
     }
     assert.equal(await cursor(), before, "a refused call writes nothing");
 
+    // A plugin that wants to write reaches the registered action, and the action takes who writes from the plugin's own call
+    // context: the same note is recorded under the plugin's identity, never the person's.
+    const pluginNote = await host.actionClient(ref).invoke({ actor_id: "plugin-person", audience: "plugin", project_id, permissions: ["goals:read", "goals:write"] },
+      goalsActions.note, { goal_id, body: "插件写的便笺", idempotency_key: "plugin-note" }) as { event_id: string };
+    assert.equal((await event(pluginNote.event_id)).actor_id, "plugin-person");
+
     // With valid arguments the refusal is the only thing between the plugin and a record under the person's name.
-    const note = { project_id, goal_id, body: "插件写的便笺", idempotency_key: "plugin-note" };
-    await assert.rejects(typed.invoke(recordGoalNoteCapability, note, asPlugin("plugin-person")), { code: "actions.host_only" });
-    assert.equal(await cursor(), before, "no record was left behind");
-    const noted = await typed.invoke(recordGoalNoteCapability, note);
-    assert.equal((await event(noted.event_id)).actor_id, LOCAL_PERSON_ACTOR_ID, "the same arguments from the Host's own client are recorded as the person");
+    const intent = { project_id, goal_id: "PLUGIN-SECOND", title: "再一个", idempotency_key: "plugin-intent" };
+    const second = () => host.withProject(ref, runtime => runtime.coordinator.goalQueries.getGoal(project_id, "PLUGIN-SECOND"));
+    await assert.rejects(typed.invoke(createGoalIntentCapability, intent, asPlugin("plugin-person")), { code: "actions.host_only" });
+    await assert.rejects(second(), { code: "goal.not_found" }, "no record was left behind");
+    await typed.invoke(createGoalIntentCapability, intent);
+    assert.equal((await second())?.goal_id, "PLUGIN-SECOND", "the same arguments from the Host's own client are recorded");
+    const noted = await management.invoke(goalsActions.note, { goal_id, body: "本机这个人写的便笺", idempotency_key: "note" });
+    assert.equal((await event(noted.event_id)).actor_id, LOCAL_PERSON_ACTOR_ID, "the same call from a management caller is recorded as the person");
 
     // What a plugin is meant to reach stays open: Goal progress takes the actor from the plugin's own call context.
     assert.equal(typed.availability(goalProgressCapabilities.record, { consumer: "plugin" }).available, true);
@@ -179,7 +215,7 @@ async function approvalProject(name: string) {
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: name, actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const typed = host.client(ref), project_id = project.project_id;
+  const typed = host.client(ref), project_id = project.project_id, management = managementGoals(host.actionClient(ref), project_id);
   const runtime = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:closer", audit_actor_id: "runtime:closer:session",
     actor_kind: "runtime", audience: "agent", project_id, permissions: ["goals:read", "goals:write"] }));
   const web = bindActionClient(host.actionClient(ref), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id,
@@ -201,7 +237,7 @@ async function approvalProject(name: string) {
     return { goal_id, kind: "complete" as const, result: "结果可以检查", reason: "试着完成", idempotency_key,
       expected_config_version: state.config.version, expected_agreement_version: state.agreement.version };
   };
-  return { host, ref, typed, project_id, runtime, web, requirement, supported, closeInput,
+  return { host, ref, typed, management, project_id, runtime, web, requirement, supported, closeInput,
     done: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
@@ -211,11 +247,11 @@ async function approvalProject(name: string) {
  * rule is a trusted user conclusion, and the door can record one as the person too.
  */
 test("under the project approval rule a close from the management door, the Web or a runtime is not the approval", async () => {
-  const { host, ref, typed, project_id, runtime, web, requirement, supported, closeInput, done } = await approvalProject("approval");
+  const { host, ref, typed, management, project_id, runtime, web, requirement, supported, closeInput, done } = await approvalProject("approval");
   const closers = {
     runtime: async (goal_id: string, key: string) => runtime.invoke(goalsActions.close, await closeInput(goal_id, key)),
     web: async (goal_id: string, key: string) => web.invoke(goalsActions.close, await closeInput(goal_id, key)),
-    management: async (goal_id: string, key: string) => typed.invoke(submitGoalEventClosureCapability, { project_id, ...await closeInput(goal_id, key) }),
+    management: async (goal_id: string, key: string) => management.invoke(goalsActions.close, await closeInput(goal_id, key)),
   };
   const APPROVAL_REQUIRED = "event_closure.human_approval_required";
   try {
@@ -387,7 +423,7 @@ type Free<Input> = [Extract<KeysOf<Input>, Identity>] extends [never] ? true : f
 test("the typed management entries are typed without an identity, so a caller that follows the types is not refused", { timeout: 180_000 }, () => {
   // Every typed event write by export name. The event decision names its person inside the protected authority on purpose.
   const writes = typedEventWrites().map(([name]) => name).filter(name => name !== "recordGoalUserDecisionCapability");
-  assert.ok(writes.length >= 11, `found ${writes.length} typed event writes; the eleven management writes at least should be enumerated`);
+  assert.deepEqual(writes, ["createGoalIntentCapability"], "the typed event writes that are left; every other write is an action");
   const source = `
 import type { HostCapabilityInput, LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ${writes.join(", ")}, setActiveGoalCapability, goalTreeCapabilities, createGoalProposalClients } from "@molis-ai/molis-work-plugin-goals";
@@ -412,4 +448,89 @@ export const nested: Free<[{ project_id: string; actor_kind: "user" }]> = true;
 export const clean: Free<{ project_id: string }> = true;
 `);
   assert.deepEqual(errors.map(error => error.split(":")[0]), ["line 5", "line 6"], errors.join("\n"));
+});
+
+
+const proposalEntry = (key: string, name = "child") => ({ summary: "拆一个子目标", idempotency_key: key, items: [{ item_id: `${name}-item`, kind: "goal" as const, operation: "create" as const,
+  payload: { goal_id: `${name}-goal`, title: "子目标", outcome: "结果" }, source_refs: ["runtime"], reason: "需要", confidence: 0.9 }] });
+
+/**
+ * Project guidance, a planning method and a structure proposal are written through the same management door as the event writes
+ * (the CLI and the typed Host client), so they follow the same rule: the person on this machine is recorded, and an identity in the
+ * arguments is refused instead of trusted. A Runtime writes them through the registered actions, which take the identity from the
+ * call context.
+ */
+test("a structure proposal written through the management door records the person on this machine", async () => {
+  const home = await mkdtemp(join(tmpdir(), "goal-management-entries-"));
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Entries", actor_id: "user" }));
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const typed = host.client(ref), project_id = project.project_id;
+  const runtime = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:writer", audit_actor_id: "runtime:writer:session", actor_kind: "runtime",
+    audience: "agent", project_id, permissions: ["goals:read", "goals:write"], runtime_session_id: "session" }));
+  const identities = [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" }];
+  try {
+    // Structure proposal submit.
+    const proposal = proposalEntry("proposal-submit");
+    for (const identity of [...identities, { submitted_session_id: "forged-session" }]) {
+      await assert.rejects(typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ project_id, ...proposal, ...identity }] as never), { code: "actions.input_invalid" }, `submit refuses ${Object.keys(identity).join(" and ")}`);
+    }
+    await assert.rejects(typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ ...proposal, project_id: "foreign", actor_id: "someone-else" }] as never), { code: "actions.scope_mismatch" });
+    assert.deepEqual((await runtime.invoke(goalsActions.treeRead, {})).proposals, [], "a refused call writes nothing");
+    const submitted = await typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ project_id, ...proposal }]);
+    assert.equal(submitted.proposal.submitted_by, LOCAL_PERSON_ACTOR_ID);
+    assert.equal(submitted.proposal.submitted_session_id, null, "the management door has no Runtime Session");
+    assert.equal(submitted.replayed, false);
+    assert.equal((await typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ project_id, ...proposal }])).replayed, true, "the same key replays for the same person");
+    // The Runtime's action with the same key is its own proposal under its own Session: no entry replays the other's.
+    const viaTree = await runtime.invoke(goalsActions.treeSubmit, proposalEntry("proposal-submit", "runtime"));
+    assert.equal(viaTree.replayed, false);
+    assert.equal(viaTree.proposal.submitted_by, "runtime:writer:session");
+    assert.equal(viaTree.proposal.submitted_session_id, "session");
+    assert.notEqual(viaTree.proposal.proposal_id, submitted.proposal.proposal_id);
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+/** These entries record the person on this machine, so a plugin that lists one must be refused rather than recorded as that person. */
+test("a plugin that lists structure submit under consumes is refused", async () => {
+  const home = await mkdtemp(join(tmpdir(), "goal-management-entries-plugin-"));
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "EntriesPlugin", actor_id: "user" }));
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const typed = host.client(ref), project_id = project.project_id;
+  const asPlugin = (actor_id: string): HostCapabilityCallOptions => ({ consumer: "plugin", before_effect: async () => {},
+    plugin_caller: { plugin_id: "io.molis.work.test.entry-writer", install_id: "install-1", actor_id, project_id,
+      declaration: { manifest: {} as HostPluginCaller["declaration"]["manifest"] }, assertActive: () => {} } });
+  const runtime = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:writer", project_id, audience: "agent", permissions: ["goals:read", "goals:write"] }));
+  try {
+    const entries = [
+      { name: "submit structure proposal", capability: goalTreeCapabilities.submitGoalTreeProposal as HostCapabilityDefinition<unknown, unknown>, input: [{ project_id, ...proposalEntry("plugin-submit") }] as unknown },
+    ];
+    assert.deepEqual(entries.filter(entry => entry.capability.host_only !== true).map(entry => entry.name), [], "every one of them is flagged host_only");
+    const manifest = { ...filesManifest, plugin_id: "io.molis.work.test.entry-writer", capabilities: { provides: [], consumes: entries.map(entry => entry.capability.capability_id) } };
+    const sdk = createPluginCapabilityClient(manifest, typed);
+    for (const { name, capability, input } of entries) {
+      const available = sdk.availability(capability);
+      assert.equal(available.available, false, `${name} is not available to a plugin`);
+      assert.equal(!available.available && available.code, "actions.host_only", name);
+      await assert.rejects(sdk.invoke(capability, input), { code: "actions.host_only" }, `${name}: through the plugin client`);
+      await assert.rejects(sdk.invoke({ ...capability, host_only: false }, input), { code: "actions.host_only" }, `${name}: through an unflagged copy`);
+      await assert.rejects(typed.invoke(capability, input, asPlugin("plugin-person")), { code: "actions.host_only" }, `${name}: with the plugin's own call context`);
+    }
+    assert.deepEqual((await runtime.invoke(goalsActions.treeRead, {})).proposals, []);
+    // Reading stays open to the Host's own client and to plugins that list it: only the writes carry the person's name.
+    assert.equal(goalTreeCapabilities.listGoalTreeProposals.host_only === true, false);
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("the typed structure-submit entry is typed without an identity", { timeout: 180_000 }, () => {
+  const source = `
+import type { HostCapabilityInput } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { goalTreeCapabilities } from "@molis-ai/molis-work-plugin-goals";
+${FREE_OF_IDENTITY}
+export const submitFree: Free<HostCapabilityInput<typeof goalTreeCapabilities.submitGoalTreeProposal>> = true;
+type SessionFree<Input> = Input extends readonly [infer First, ...unknown[]] ? ("submitted_session_id" extends keyof First ? false : true) : true;
+export const submitSessionFree: SessionFree<HostCapabilityInput<typeof goalTreeCapabilities.submitGoalTreeProposal>> = true;
+`;
+  assert.deepEqual(typeErrors(source), []);
 });

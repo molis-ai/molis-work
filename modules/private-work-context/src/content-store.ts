@@ -23,6 +23,8 @@ export interface SessionContentStore {
   write(content: string): { content_ref: string };
   read(contentRef: string): string;
   has(contentRef: string): boolean;
+  /** Deletes one blob (the owner calls this only for content no row names any more); a blob that is not there is not an error. */
+  remove(contentRef: string): void;
 }
 
 export function createSessionContentStore(rootDirectory: string): SessionContentStore {
@@ -105,6 +107,9 @@ export function createSessionContentStore(rootDirectory: string): SessionContent
       } catch {
         return false;
       }
+    },
+    remove(contentRef) {
+      fs.rmSync(blobPath(blobsRoot, contentRef), { force: true });
     },
   };
 }

@@ -30,10 +30,9 @@ export const CONTEXT_TOOLS: McpToolDefinition[] = [
       type: "object",
       properties: {
         project_id: V1_STRING,
-        actor_id: V1_STRING,
         user_confirmed: { type: "boolean", description: "当前对话中用户已明确拒绝这个候选项目" },
       },
-      required: ["project_id", "actor_id", "user_confirmed"],
+      required: ["project_id", "user_confirmed"],
     },
   },
   {
@@ -44,7 +43,6 @@ export const CONTEXT_TOOLS: McpToolDefinition[] = [
       type: "object",
       properties: {
         project_id: V1_STRING,
-        actor_id: V1_STRING,
         user_confirmed: { type: "boolean", description: "当前对话中用户已明确选择此项目" },
         rebind_confirmed: { type: "boolean", description: "已有绑定改到其他项目时，用户已明确确认切换" },
         binding_scope: {
@@ -53,7 +51,7 @@ export const CONTEXT_TOOLS: McpToolDefinition[] = [
           description: "session 只影响当前原生 Session；省略时工作目录关系仅作为候选",
         },
       },
-      required: ["project_id", "actor_id", "user_confirmed"],
+      required: ["project_id", "user_confirmed"],
     },
   },
   {
@@ -63,12 +61,11 @@ export const CONTEXT_TOOLS: McpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        actor_id: V1_STRING,
         user_confirmed: { type: "boolean", description: "当前对话中用户已明确要求解除当前工作入口的绑定" },
         binding_scope: { type: "string", enum: ["session", "workspace"] },
         project_id: { type: "string", description: "解除 workspace 关联时必填" },
       },
-      required: ["actor_id", "user_confirmed"],
+      required: ["user_confirmed"],
     },
   },
   {
@@ -79,7 +76,6 @@ export const CONTEXT_TOOLS: McpToolDefinition[] = [
       type: "object",
       properties: {
         display_name: V1_STRING,
-        actor_id: V1_STRING,
         user_confirmed: { type: "boolean", description: "当前对话中用户已明确要求创建这个项目" },
         rebind_confirmed: { type: "boolean", description: "已有绑定改到新项目时，用户已明确确认切换" },
         binding_scope: {
@@ -89,22 +85,21 @@ export const CONTEXT_TOOLS: McpToolDefinition[] = [
         },
         idempotency_key: V1_STRING,
       },
-      required: ["display_name", "actor_id", "user_confirmed", "idempotency_key"],
+      required: ["display_name", "user_confirmed", "idempotency_key"],
     },
   },
   {
     name: "molis_work_v1_project_delete",
     description:
-      "在当前对话获得独立删除确认后，删除一个 Molis Work 托管项目：移除它的 Session 绑定、工作目录关联和项目目录（含数据库），以及各插件为它保存的数据（文稿、问卷与回答、待办、记忆、助理工作等），并留下删除回执；同一请求键重试返回原回执；个人空间不能删除。回执逐项记录各数据所有者的清理：某一步（例如记忆：这个入口不运行 Agent 执行服务）未完成会保持 pending，由有该服务的进程（运行中的 Molis Work）接着做。",
+      "在当前对话获得独立删除确认后，删除一个 Molis Work 托管项目：移除它的 Session 绑定、工作目录关联和项目目录（含数据库），以及各插件为它保存的数据（文稿、问卷与回答、待办、记忆、助理工作等），并留下删除回执；同一请求键重试返回原回执；个人空间不能删除。项目里还有正在运行的终端时拒绝（code=catalog.project_terminal_live），先请用户关闭终端再删。Molis Work 正在运行时，删除由它执行并释放项目的运行环境。回执逐项记录各数据所有者的清理：某一步（例如记忆：这个入口不运行 Agent 执行服务）未完成会保持 pending，由有该服务的进程（运行中的 Molis Work）接着做。",
     inputSchema: {
       type: "object",
       properties: {
         project_id: V1_STRING,
-        actor_id: V1_STRING,
         delete_confirmed: { type: "boolean", description: "用户已在当前对话单独明确确认删除此项目及其数据库" },
         idempotency_key: V1_STRING,
       },
-      required: ["project_id", "actor_id", "delete_confirmed", "idempotency_key"],
+      required: ["project_id", "delete_confirmed", "idempotency_key"],
     },
   },
 ];

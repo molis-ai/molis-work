@@ -66,6 +66,13 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
     })();
     return;
   }
+  validateSessionRegistryMeta(db);
+  db.exec(sessionEventsSchema());
+  db.exec(sessionHandoffsSchema());
+}
+
+/** Refuses a database that is not this registry's, or that has another schema version; changes nothing. */
+export function validateSessionRegistryMeta(db: Database.Database): void {
   const owner = (db.prepare("SELECT value FROM session_meta WHERE key = 'owner'").get() as
     | { value?: unknown }
     | undefined)?.value;
@@ -82,8 +89,6 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
       `Session Registry schema=${version}，当前只读 ${SESSION_REGISTRY_SCHEMA_VERSION}`,
     );
   }
-  db.exec(sessionEventsSchema());
-  db.exec(sessionHandoffsSchema());
 }
 
 function sessionEventsSchema(): string {

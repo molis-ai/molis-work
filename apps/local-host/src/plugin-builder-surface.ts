@@ -3,6 +3,7 @@ import {FUNCTIONS_DEFAULT_MODEL,type FunctionRecord} from '@molis-ai/molis-work-
 import {typeSafeCredential,typeSafeConfiguration} from './typesafe-connection.js';
 import {renderStudioStage,type AgentBuilderPorts} from '@molis-ai/molis-work-plugin-builder';
 import type {CodingSurfacePorts} from './coding-surface.js';
+import {L} from './web-locale.js';
 /** The question the studio's designer asks Jev: pick one legal part for a function. */
 type ChoiceQuestion=Parameters<NonNullable<AgentBuilderPorts['choose']>>[0];
 /** The query a builder frame document is asked for with; without it the page is a direct visit and opens the workbench. */
@@ -22,8 +23,9 @@ export function selectionPorts(homeDirectory?:string){
 /**
  * The workbench entry is the agent-built plugin studio, drawn in the plugin's own stage (specs/artifact-positioning S4):
  * no frame and no page of its own. Its client comes with the plugin's workbench pack and starts when the stage is opened;
- * only the generated plugin's trial and an installed plugin still run in sandboxed frames.
+ * only the generated plugin's trial and an installed plugin still run in sandboxed frames. The studio is Chinese only
+ * except for the sentences that go through `L`, which today is the note about what the build check sends to npm (its English is in the workbench's gap-en.ts).
  */
 export async function builderWorkbenchPanel(_ports:CodingSurfacePorts):Promise<string>{
- return renderStudioStage();
+ return renderStudioStage(L);
 }

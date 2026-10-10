@@ -48,8 +48,8 @@ export function createHostScheduledTaskRunner(options: {
       control?.beforeEffect();
       await options.ready?.();
       control?.beforeEffect();
-      // Scheduled work runs on Prologue, the Home's model path. An installed CLI Runtime
-      // is never picked just because its id sorts first.
+      // Scheduled work runs on Prologue, the Home's model path. No other registered Runtime
+      // is picked just because its id sorts first.
       if (!options.agentHost.descriptors().some((descriptor) => descriptor.runtime_id === PROLOGUE_RUNTIME_ID)) {
         throw new Error("还没有可用的 Agent Runtime：到点执行需要 Prologue，请先配置文字模型");
       }

@@ -22,10 +22,8 @@ interface GitHubRepository {
 export class GitHubSource implements SourcePort {
   readonly sourceId = "github" as const;
 
-  constructor(
-    private readonly client: SourceHttpClient,
-    private readonly token?: string,
-  ) {}
+  /** Sends no credential of its own: the Host's transport adds the bound GitHub account's, outside this package. */
+  constructor(private readonly client: SourceHttpClient) {}
 
   async collect(input: SourceQuery, signal?: AbortSignal) {
     const since = input.since.slice(0, 10);
@@ -43,7 +41,6 @@ export class GitHubSource implements SourcePort {
         headers: {
           accept: "application/vnd.github+json",
           "x-github-api-version": "2026-03-10",
-          ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
         },
       });
     } catch (error) {

@@ -58,6 +58,7 @@ export { initializeProjectDatabase, readManagedBoard, validateManagedBoard } fro
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
 export { ManagedProjectDeletion, type ProjectDeletionCleanupPorts } from "./managed-project-deletion.js";
+export { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
 export { ProjectDeletedHooks, projectDeletedHooksFor, type ProjectDeletedOwner, type ProjectDeletedPort } from "./project-deleted-hooks.js";
 export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-lifecycle.js";
 export { exists } from "./project-file-paths.js";
@@ -89,6 +90,8 @@ export { createLocalFeedSourceService, listFeedSourceCatalog } from "./feed-sour
 export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
 
 export { withConnectorConnections } from "./connector-connection-store.js";
+export { alchemistPulseGithub } from "./alchemist-pulse-github.js";
+export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 export * from "./github-oauth.js";
 
 export * from "./gmail-oauth.js";
@@ -147,8 +150,7 @@ export { readMcpToolPreference } from "./mcp-settings-store.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
 export * from "./project-host.js";
-export { projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability, createGoalCapability, createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
-export type { CreateGoalCapabilityInput } from "@molis-ai/molis-work-plugin-goals";
+export { initializeBoardCapability, snapshotBoardCapability, createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
 export { runLocalPluginDevelopment } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { createLocalPanelHttp } from "./web-panel.js";

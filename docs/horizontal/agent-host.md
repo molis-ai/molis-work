@@ -43,10 +43,10 @@ Prologue Node 用 SDK 的 SkillRegistry、prepareSkillIntent、fillSkillBody 准
 | Adapter | 已接通 | 申报为不支持，以及为什么 |
 | --- | --- | --- |
 | Prologue | 会话、Run 的启动/观察/控制、事件流投影；Node 已挂宿主审查桥、固定命令提案与 SDK 持久回执读取 | 没有桥时不支持写入；命令还必须有回执读取端口。Node 装配已满足，两者缺一的装配仍拒绝命令。检查点、子代理等另按真实接通情况声明 |
-| CLI（Claude Code / Codex） | 只读任务真实执行、`stream-json` 投影、停止、用量 | `text-edit` / `command`：CLI 的审批发生在它自己的权限模型里，**不经过宿主 Review 队列**。报成支持等于放行一次没有记录批准的写入 |
 
 能力矩阵来自实际装配；未接通不能报成支持，已接通也不能继续沿用旧的不支持说明。
-要打开 CLI 的写入，需要一个 permission-prompt 工具把询问转回宿主队列。
+
+没有第二个 adapter：`claude` 命令行适配器（`CliAgentAdapter`）默认注册却没有内置调用方，2026-10 已删除，公开入口也不再导出它。外部 Agent 运行时按口径暂缓（[PROLOGUE-AI.md](../platform/PROLOGUE-AI.md) 开头）；将来要接，是新的适配器和新的评审，不是把旧的找回来。
 
 ## 项目 MCP 配置与执行
 
@@ -59,8 +59,8 @@ MCP 提案使用 SDK 持久的工具名和实际参数进入现有 Review 队列
 ## 从哪里读代码
 
 `horizontal/agent-host/src/index.ts`（注册与启动授权）、`src/reviews.ts`（Review 队列）、
-`src/adapters/`（两个 adapter 与投影）、`tests/agent-host.test.ts`、
-`tests/prologue-approval-bridge.test.ts`、`tests/prologue-stream.test.ts`、`tests/cli-agent-adapter.test.ts`。
+`src/adapters/`（Prologue adapter 与投影）、`tests/agent-host.test.ts`、
+`tests/prologue-approval-bridge.test.ts`、`tests/prologue-stream.test.ts`。
 
 ## 执行记录显示时间的恢复
 
@@ -75,7 +75,7 @@ Prologue 原事件账拥有正文、顺序、状态、结果和用量；只有 p
 
 插件已有的 `agent.compaction` 指定独立 Prompt 和阈值。Host 按声明版本取正文，排除执行角色的默认 Prompt 合成，覆盖调用方伪造内容；仅在实际支持该能力的适配器上冻结配置。Prologue Node 为每轮装配一次无工具的 SDK 模型选择器，使用同轮模型、端点和凭据，停止联动取消。只接受原文片段编号范围（含 JSON 包装内的转义换行；长单段最多 1024 个 Unicode 码点），复制原始字节交回 SDK；SDK 负责来源、当前指令、完整工具批次、缩短校验和原子替换。失败不提交部分结果、不重试副作用，原事件账不变。
 
-整理活动来自 SDK 事件，可回放；Host 不另存压缩正文。冻结信息展示 Prompt 版本及估计触发阈值，并非模型窗口上限。主 Run 用量目前不含独立整理请求，产品明确标注；不能拿该小计当总消耗。CLI 适配器未接本插件的原文选择机制，不宣称相同能力。
+整理活动来自 SDK 事件，可回放；Host 不另存压缩正文。冻结信息展示 Prompt 版本及估计触发阈值，并非模型窗口上限。主 Run 用量目前不含独立整理请求，产品明确标注；不能拿该小计当总消耗。
 
 ### 未开放工具的纠正活动（C9）
 

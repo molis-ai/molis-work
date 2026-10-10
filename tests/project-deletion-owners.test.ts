@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import fs, { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { mock } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID, EN, L, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, EN, L, openWorkSessionRegistry, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import Database from "better-sqlite3";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
@@ -175,5 +177,160 @@ test("the delete dialog lists the library owners' data in the person's language"
     for (const label of scope) assert.ok(EN[label], `${label} has an English translation`);
     assert.equal(L("Pages 文稿与文件夹"), "Pages 文稿与文件夹");
     runWithLocale("en", () => assert.equal(L("Pages 文稿与文件夹"), "Pages documents and folders"));
+  });
+});
+
+/**
+ * What the Sessions registry keeps for one project, written the way the product writes it: a Session with an event, a
+ * handoff package and a message request, all of whose project, goal and workspace live as Ledger edges in the same file.
+ * Both projects also say the same sentence, which the content store keeps as one blob.
+ */
+async function seedSessions(home: string, projectId: string): Promise<{ sessionId: string; handoffId: string; messageId: string }> {
+  const registry = await openWorkSessionRegistry({ homeDirectory: home });
+  try {
+    const goal = `goal-${projectId}`;
+    const session = registry.createSession({ runtime_id: "codex", native_runtime_session_id: `native-${projectId}`, project_id: projectId, current_goal_id: goal,
+      title: `会话 ${projectId}`, user_confirmed: true, actor_id: "test-user" });
+    registry.appendEvent({ session_id: session.session_id, source: "molis_work", kind: "user_message", source_id: "event-own", content: `私密对话 ${projectId}` });
+    registry.appendEvent({ session_id: session.session_id, source: "molis_work", kind: "runtime_message", source_id: "event-shared", content: "两个项目说了同一句话" });
+    const handoff = registry.createHandoffDraft({ source_session_id: session.session_id, source_project_id: projectId, source_goal_id: goal,
+      target_runtime_id: "codex", target_project_id: projectId, content: `交接内容 ${projectId}`, actor_id: "test-user" });
+    const message = registry.messages.prepare({ session_id: session.session_id, expected_goal_id: goal, project_id: projectId, actor_id: "test-user",
+      idempotency_key: `message-${projectId}`, text: `私密消息 ${projectId}` });
+    return { sessionId: session.session_id, handoffId: handoff.package_id, messageId: message.request_id };
+  } finally { registry.close(); }
+}
+const blobs = (home: string): string[] => {
+  const root = join(home, "sessions", "content", "blobs");
+  return existsSync(root) ? readdirSync(root, { recursive: true, encoding: "utf8" }).filter(entry => entry.endsWith(".blob")) : [];
+};
+/**
+ * How much of one project the Sessions file holds: the Sessions, what hangs off them, and the Ledger edges that say whose they are.
+ * The Ledger is append-only: unlinking an edge adds a removed revision and keeps the history (ids only), so "holds" counts the
+ * edges that are still active, the latest revision of each key.
+ */
+function sessionRows(home: string, projectId: string, written: { sessionId: string; handoffId: string; messageId: string }): Record<string, number> {
+  const active = "SELECT COUNT(*) n FROM context_edges e WHERE e.state = 'active' AND e.revision = (SELECT MAX(h.revision) FROM context_edges h WHERE h.scope_kind = e.scope_kind AND h.scope_id = e.scope_id AND h.edge_key = e.edge_key)";
+  const edges = (id: string) => count(home, "sessions", `${active} AND json_extract(e.source_json, '$.id') = ?`, id);
+  return {
+    sessions: count(home, "sessions", "SELECT COUNT(*) n FROM sessions WHERE session_id = ?", written.sessionId),
+    events: count(home, "sessions", "SELECT COUNT(*) n FROM session_events WHERE session_id = ?", written.sessionId),
+    handoffs: count(home, "sessions", "SELECT COUNT(*) n FROM session_handoffs WHERE package_id = ?", written.handoffId),
+    messages: count(home, "sessions", "SELECT COUNT(*) n FROM session_messages WHERE request_id = ?", written.messageId),
+    sessionEdges: edges(written.sessionId),
+    handoffEdges: edges(written.handoffId),
+    // A Session moved to another project keeps the history of having been here; only the ones that belong here are counted.
+    // (The moved Session's first project edge is a removed revision now, and stays in the Ledger's history.)
+    projectEdges: count(home, "sessions", `${active} AND json_extract(e.target_json, '$.id') = ? AND json_extract(e.source_json, '$.id') = ?`, projectId, written.sessionId),
+  };
+}
+
+test("deleting a project clears its Sessions with their events, handoffs, messages, Ledger edges and stored content, and leaves other projects' Sessions", async () => {
+  await withHome(async ({ home, catalog, gone, kept }) => {
+    const goneWritten = await seedSessions(home, gone), keptWritten = await seedSessions(home, kept);
+    const before = sessionRows(home, gone, goneWritten);
+    for (const [name, value] of Object.entries(before)) assert.ok(value > 0, `the fixture wrote ${name}`);
+    // A Session that was in the project and was moved to another one belongs to the other now, and a Session no project has stays.
+    const bystanders = await openWorkSessionRegistry({ homeDirectory: home });
+    let moved: string, unassigned: string;
+    try {
+      moved = bystanders.createSession({ runtime_id: "codex", native_runtime_session_id: "native-moved", project_id: gone, current_goal_id: "goal-moved", user_confirmed: true, actor_id: "test-user" }).session_id;
+      bystanders.updateAssociations({ session_id: moved, project_id: kept, current_goal_id: "goal-kept", user_confirmed: true, actor_id: "test-user" });
+      unassigned = bystanders.discoverSession({ runtime_id: "codex", native_runtime_session_id: "native-unassigned" }).session_id;
+    } finally { bystanders.close(); }
+    const blobsBefore = blobs(home).length;
+
+    const result = await catalog.deleteProject(deletion(gone));
+
+    assert.equal(result.deletion.cleanup_state, "complete");
+    assert.ok(result.deletion.owner_steps.some(step => step.owner_id === "sessions" && step.state === "complete"), "Sessions is recorded in the receipt as done");
+    const registry = await openWorkSessionRegistry({ homeDirectory: home });
+    try {
+      assert.deepEqual(registry.list({ project_id: gone }), [], "the project's Sessions are gone from the registry");
+      assert.deepEqual(registry.list({ project_id: kept }).map(session => session.session_id).sort(), [keptWritten.sessionId, moved].sort(), "another project's Sessions stay, the one moved there too");
+      assert.equal(registry.get(unassigned).project_id, null, "a Session that names no project stays");
+      assert.equal(registry.events(keptWritten.sessionId).length, 2);
+      assert.deepEqual(registry.events(keptWritten.sessionId).map(event => event.source_id).sort(), ["event-own", "event-shared"]);
+      assert.equal(registry.getHandoff(keptWritten.handoffId).target_project_id, kept);
+      assert.match(registry.messages.get(keptWritten.messageId).text ?? "", /私密消息/, "another project's message is still readable");
+    } finally { registry.close(); }
+    assert.deepEqual(sessionRows(home, gone, goneWritten), nothing(before));
+    assert.deepEqual(sessionRows(home, kept, keptWritten), before, "another project's rows and edges are untouched");
+    // Four contents were the project's own (event, handoff, message) or shared; only what no other row names is removed.
+    assert.equal(blobs(home).length, blobsBefore - 3, "the project's own contents are deleted, the sentence both projects said stays for the other");
+  });
+});
+
+test("clearing a project's Sessions twice changes nothing, and a Home without a Sessions file does not get one", async () => {
+  await withHome(async ({ home, catalog, gone }) => {
+    assert.equal(existsSync(join(home, "sessions", "sessions.db")), false, "nothing has made the registry yet");
+    const first = await catalog.deleteProject(deletion(gone));
+    assert.equal(first.deletion.cleanup_state, "complete");
+    assert.equal(existsSync(join(home, "sessions", "sessions.db")), false, "clearing a Home that never had Sessions does not create the file");
+    assert.equal(await projectDeletedHooksFor(home).clear("sessions", gone), true, "running the owner again finds nothing and succeeds");
+  });
+});
+
+test("rebuilding the demo keeps its Sessions, which its panels and Runtime bindings still point at; removing it clears them", async () => {
+  await withHome(async ({ home, catalog }) => {
+    const input = { actor_id: "test-user", user_confirmed: true };
+    await catalog.ensureDemoProject(input);
+    const written = await seedSessions(home, DEMO_PROJECT_ID);
+    const before = sessionRows(home, DEMO_PROJECT_ID, written);
+    for (const [name, value] of Object.entries(before)) assert.ok(value > 0, `the fixture wrote ${name}`);
+
+    await catalog.resetDemoProject(input);
+    assert.deepEqual(sessionRows(home, DEMO_PROJECT_ID, written), before, "the rebuilt demo keeps the Sessions and their Ledger edges");
+    const registry = await openWorkSessionRegistry({ homeDirectory: home });
+    try {
+      // What a live demo terminal or a Runtime bound to the demo goes on doing after the rebuild.
+      registry.appendEvent({ session_id: written.sessionId, source: "molis_work", kind: "runtime_message", source_id: "event-after-reset", content: "重建之后仍在记录" });
+      assert.deepEqual(registry.events(written.sessionId).map(event => event.source_id).sort(), ["event-after-reset", "event-own", "event-shared"]);
+    } finally { registry.close(); }
+
+    await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-sessions" });
+    assert.deepEqual(sessionRows(home, DEMO_PROJECT_ID, written), nothing(before), "removing the demo clears its Sessions with the other owners");
+
+    // Left by something that did not clear it: the demo made again with the same fixed id starts without them.
+    const left = await seedSessions(home, DEMO_PROJECT_ID);
+    assert.ok(sessionRows(home, DEMO_PROJECT_ID, left).sessions > 0);
+    await catalog.ensureDemoProject(input);
+    assert.deepEqual(sessionRows(home, DEMO_PROJECT_ID, left), nothing(before), "the demo made again starts without Sessions");
+  });
+});
+
+test("a Sessions purge cannot take a content block out from under an event that is being written", async () => {
+  await withHome(async ({ home, gone, kept }) => {
+    const shared = "两个项目说了同一句话";
+    await seedSessions(home, gone);
+    const blob = `${createHash("sha256").update(shared).digest("hex")}.blob`;
+    const registry = await openWorkSessionRegistry({ homeDirectory: home });
+    try {
+      const session = registry.createSession({ runtime_id: "codex", native_runtime_session_id: "native-late-writer", project_id: kept, current_goal_id: "goal-late", user_confirmed: true, actor_id: "test-user" });
+      // The moment between the writer having found the shared block already stored and verified (it has read it) and its row naming it: if nothing holds the
+      // registry's write lock then, a purge of the other project's Sessions gets in and sees the block named by nobody.
+      const window: { open: boolean | null; purge: Promise<boolean> | null } = { open: null, purge: null };
+      const real = fs.readFileSync;
+      mock.method(fs, "readFileSync", ((target: fs.PathOrFileDescriptor, options?: unknown) => {
+        const read = real(target, options as BufferEncoding);
+        if (window.open === null && String(target).endsWith(blob)) {
+          // The registry's own SQLite library, so that opening and closing this connection does not disturb its locks.
+          const probe = new Database(join(home, "sessions", "sessions.db"), { timeout: 0 });
+          try { probe.exec("BEGIN IMMEDIATE"); probe.exec("ROLLBACK"); window.open = true; } catch { window.open = false; } finally { probe.close(); }
+          if (window.open) window.purge = projectDeletedHooksFor(home).clear("sessions", gone);
+        }
+        return read;
+      }) as typeof fs.readFileSync);
+      let event: ReturnType<typeof registry.appendEvent>;
+      try { event = registry.appendEvent({ session_id: session.session_id, source: "molis_work", kind: "runtime_message", source_id: "event-late", content: shared }); }
+      finally { mock.restoreAll(); }
+      await window.purge;
+
+      assert.equal(window.open, false, "the block is written while the write lock is held, so a purge waits until the event names it");
+      assert.equal(event.content_available, true);
+      assert.equal(event.content, shared);
+      await projectDeletedHooksFor(home).clear("sessions", gone);
+      assert.equal(registry.events(session.session_id)[0]?.content, shared, "a purge that runs after the event keeps the block the event names");
+    } finally { mock.restoreAll(); registry.close(); }
   });
 });

@@ -82,7 +82,7 @@ export class DemoProjectLifecycle {
     // Refuse before anything is changed when an owner only has to wait (another process is using the Agent runtime right now:
     // a retry can clear it). An owner whose service is another process's for good (the CLI has no Agent runtime or search
     // index of its own) is left to the running Molis Work, and reported: a rebuild never waits for it.
-    await this.owners.ready({ leaveElsewhere: true });
+    await this.owners.ready({ leaveElsewhere: true, rebuild: true });
     const projectDirectory = managedProjectDirectory(this.projectsDirectory, project);
     const stagingDirectory = path.join(this.projectsDirectory, `.resetting-${project.project_id}-${randomUUID()}`);
     const backupDirectory = path.join(this.projectsDirectory, `.reset-backup-${project.project_id}-${randomUUID()}`);
@@ -100,8 +100,9 @@ export class DemoProjectLifecycle {
       previousMoved = true;
       await fs.rename(stagingDirectory, projectDirectory);
       resetPromoted = true;
-      // A rebuilt demo starts without what the owners kept for the old one, except what only a running Molis Work can clear.
-      left = await this.owners.clearAll(project.project_id, { leaveElsewhere: true });
+      // A rebuilt demo starts without what the owners kept for the old one, except what only a running Molis Work can clear
+      // and what stays valid for the project that stays: the Sessions its kept panels and Runtime bindings name.
+      left = await this.owners.clearAll(project.project_id, { leaveElsewhere: true, rebuild: true });
       await this.seedDemoExtras(project.project_id, project.database_path, actorId);
       updated = await this.commit(() => {
         enableDemoProjectPlugins(this.projects, project.project_id, actorId);

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AgentHost, type AgentStartAuthority } from "../horizontal/agent-host/src/index.js";
 import { PrologueAgentAdapter, type PrologueRuntimePort, type PrologueStartInput, type PrologueRestoredSession } from "../horizontal/agent-host/src/adapters/prologue.js";
-import { CliAgentAdapter } from "../horizontal/agent-host/src/adapters/cli-runtime.js";
 import { inspectAgentDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { AgentStartRequest, AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { importedCharacterInstructions } from "../horizontal/agent-host/src/character-import.js";
@@ -123,13 +122,7 @@ test("no workspace is an immutable declared role and session contract, never a c
   await assert.rejects(f.host.start("prologue", request, { ...authority, manifest: invalid }), /没有声明/);
 });
 
-test("CLI refuses an omitted directory and project-scoped imported Character text cannot escape its root", async () => {
-  let spawns = 0;
-  const cli = new CliAgentAdapter({ runtime_id: "cli", display_name: "CLI", command: "fixture", async model() { return "fixture"; },
-    process: { async version() { return "1"; }, spawn() { spawns++; throw new Error("Unexpected spawn"); } } });
-  await assert.rejects(cli.createSession({ ...owner, workspace: "none", role_id: "analyst", title: "Bad" }), /工作目录/);
-  await assert.rejects(cli.start({ ...owner, workspace: "none", role_id: "analyst", task: "Bad", session: { session_id: "any", runtime_id: "cli" } }), /工作目录/);
-  assert.equal(spawns, 0);
+test("project-scoped imported Character text cannot escape its root", () => {
   const character = { instructions: "Keep references", import_snapshot: { project_root: "/original", rules: [], skills: [] } } as never;
   assert.throws(() => importedCharacterInstructions(character, undefined, []), /原项目目录/);
   assert.match(importedCharacterInstructions({ ...character as object, import_snapshot: { rules: [], skills: [] } } as never, undefined, []), /Keep references/);

@@ -5,6 +5,12 @@ import type { McpActionGrant, McpToolPreference } from "./mcp-settings-store.js"
 /** Internal runtimes cannot be impersonated by external MCP runtime: identities. */
 export const actionClientAudience = (clientId: string) => clientId.startsWith("agent:") ? "agent" as const : "mcp" as const;
 
+/**
+ * An external Runtime (a Codex or Claude Code session) reaches the Host as `runtime:<id>`; it is the client that has a Session to name or lack.
+ * A cross-device member (`runtime:cross-device:<member>`, named by the continuity server) is not a Runtime session: the member id is its stable author.
+ */
+export const isExternalRuntimeClient = (clientId: string) => clientId.startsWith("runtime:") && !clientId.startsWith("runtime:cross-device:");
+
 export const hostActionToolName = (reference: ActionReference) => actionMcpToolName({ ...reference, capability_id: `molis_work_v1_action_${reference.capability_id}` });
 
 /** Only the local management owner calls this with a definition from Host inspection. */

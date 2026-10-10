@@ -205,6 +205,32 @@ test("the maintenance stops and changes nothing unless the database is exactly a
   assert.deepEqual(snapshot(stranger), before);
 });
 
+test("a failure after the tables are dropped and the version is set undoes all of it: one transaction, not a series of single steps", async t => {
+  // The refusals above all fail on the first statement (the precondition insert), before anything has changed, so they cannot
+  // tell a script that is one transaction from one that is not. This one fails on the last statement before COMMIT, after the
+  // five DROPs and the version change: only a transaction that is rolled back as a whole leaves the database as it was.
+  const at = MAINTENANCE.search(/(?:COMMIT;\s*)?$/);
+  assert.match(MAINTENANCE.slice(at), /^(?:COMMIT;\s*)?$/, "the script ends with its COMMIT");
+  const failing = `${MAINTENANCE.slice(0, at)}INSERT INTO maintenance_precondition VALUES (0, 0, 0, 0);\n${MAINTENANCE.slice(at)}`;
+  assert.ok(at > MAINTENANCE.lastIndexOf("DROP TABLE") && at > MAINTENANCE.indexOf("PRAGMA user_version = 7"), "the failing statement comes after every DROP and after the version change");
+
+  const { databasePath } = await realHomeBeforeMaintenance(await scratch(t));
+  const before = snapshot(databasePath);
+  assert.equal(before.version, 6);
+  assert.throws(() => withDatabase(databasePath, db => { db.exec(failing); }), /CHECK constraint failed/);
+
+  assert.equal(versionOf(databasePath), 6, "the version is back at 6");
+  withDatabase(databasePath, db => {
+    assert.deepEqual(tableNames(db).filter(name => name.startsWith("casebook_")), CASEBOOK_TABLES, "the five Casebook tables are back");
+    for (const name of CASEBOOK_TABLES) assert.equal((db.prepare(`SELECT COUNT(*) AS count FROM ${name}`).get() as { count: number }).count, 1, `${name} has its row`);
+  });
+  assert.deepEqual(snapshot(databasePath), before, "tables, indexes, rows and version are all as they were");
+  // And the script itself is not what fails: the same one without the failing statement goes through on a copy.
+  const { databasePath: other } = await realHomeBeforeMaintenance(await scratch(t));
+  runMaintenance(other);
+  assert.equal(versionOf(other), 7);
+});
+
 test("once a project database is at 7, a build that only knows 6 (the installed Home build) refuses it, so that build has to be replaced after the maintenance", async t => {
   const { databasePath } = await realHomeBeforeMaintenance(await scratch(t));
   runMaintenance(databasePath);

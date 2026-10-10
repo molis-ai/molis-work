@@ -4,7 +4,7 @@
 //   S-02  a foreign Host header (DNS rebinding) is refused, for every method and every route
 //   S-03  a mutation needs a same-origin Origin, the control token and a one-time operation key; a non-API mutation is refused
 //   S-04  the PTY and side-panel browser sockets refuse a foreign Origin, a foreign Host and an unauthenticated first message
-//   S-05  no channel answers before the control token: the retired Casebook path is refused like any other, and a leftover Casebook configuration is not read
+//   S-05  no channel answers before the control token (the self-guarded /im mount aside, S-03): the retired Casebook path is refused like any other, and a leftover Casebook configuration is not read
 //   S-06  the control token is long, random and owner-only
 //   S-21  no answer of the host can be shown in another origin's frame (clickjacking)
 // The tests import public entries only (tests/*.test.ts may not reach into package sources: pnpm health:check).
@@ -348,11 +348,12 @@ test("S-04 the names a browser may use for this machine (localhost, [::1]) reach
 
 // ---- S-05 ------------------------------------------------------------------------------------------------------
 
-test("S-05 no channel answers before the control token: the retired Casebook path is refused like any other, and a leftover Casebook configuration is not read", { timeout: 60_000 }, async t => {
+test("S-05 no channel answers before the control token (the self-guarded /im mount aside, S-03): the retired Casebook path is refused like any other, and a leftover Casebook configuration is not read", { timeout: 60_000 }, async t => {
   const credential = "casebook-service-token-for-project-one-0123456789";
   const bearer = { authorization: `Bearer ${credential}`, "content-type": "application/json" };
   const plain = await startHost(t);
   // The path the Casebook channel used to have answers like a path that never existed: 403 from the control-token gate, whatever the bearer.
+  // The one mount outside /api/ that is let through to check for itself is /im (its own Host, Origin, Fetch Metadata and session checks; S-03 tests it).
   const unknown = await send(plain, "POST", "/no-such-channel/v1/projects", bearer, "{}");
   assert.equal(unknown.status, 403, unknown.body);
   for (const path of ["/casebook/v1/projects", "/casebook/v1/project-one/facts"]) {

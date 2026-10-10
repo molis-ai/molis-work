@@ -2,6 +2,7 @@ import { conforms, projectDiscoverySchema, authorizationSchema, authorizationAct
 import { createHash } from 'node:crypto';
 import { CasebookError, CONTRACT, VERSION, type ReadRequest, type AuthorizationRequest, type Envelope, type PURPOSE, type CONTEXT_PURPOSE, type RECEIPTS_PURPOSE, type ContextRequest, type ContextEnvelope } from './contract.js';
 import {RECEIPTS_CONTRACT,RECEIPTS_VERSION,operationReceiptsSchema,connectionDiagnosticsSchema,type ReceiptReadRequest,type ReceiptEnvelope,type ConnectionDiagnostics} from './receipts-contract.js';
+import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 /** Network-only consumer: never imports the local host, filesystem, SQLite or a project snapshot. */
 export class MolisWorkCasebookClient {
@@ -9,7 +10,7 @@ export class MolisWorkCasebookClient {
   constructor(private options:{baseUrl:string;token:string;projectRef?:string;timeoutMs?:number}) {
     this.base=new URL(options.baseUrl);
     if(this.base.username || this.base.password || this.base.search || this.base.hash || this.base.pathname!=='/' ||
-       !((this.base.protocol==='http:' && ['localhost','127.0.0.1','[::1]'].includes(this.base.hostname)) || this.base.protocol==='https:'))
+       !(isLoopbackHttpUrl(this.base) || this.base.protocol==='https:'))
       throw new CasebookError('invalid_endpoint');
     if(options.token.length<32) throw new CasebookError('invalid_credential');
   }

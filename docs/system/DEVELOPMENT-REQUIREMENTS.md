@@ -17,6 +17,8 @@
 
 门禁在 `scripts/package-dev-requirements.mjs`，由 `pnpm boundary:check`（`pnpm workspace:verify` 与 CI 都会跑）调用。
 
+挑相关用例的脚本 `scripts/affected-tests.mjs`（[并行开发](PARALLEL-DEVELOPMENT.md)第 6.1 节）读这一节：「改动后必跑」一行里的测试路径总是选；「界面改动加跑」一行里 `再加跑` 之前的测试只在改动是界面时选；其余带测试路径的行（比如“助理逻辑验证”）和 `再加跑` 之后的条件部分只被列出，不被选。所以只想在某个区域改动时才跑的测试，写成单独一行或放在 `再加跑` 之后，不要塞进「改动后必跑」。
+
 ## 什么时候改这一节
 
 - 新建包：先写这一节，再写代码。负责与不负责写不出来，说明边界还没想清楚。

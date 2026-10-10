@@ -1,8 +1,8 @@
 # 文档引用与仓库形状门禁
 
-`pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录和 `.impeccable/` 只许变少，`contracts` 不许有占位子路径。设计来源：[specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
+`pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录和 `.impeccable/` 只许变少，`contracts` 不许有占位子路径，页面里的 DOM 事件都在合同里登记。设计来源：[specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
 
-入口只引入 `doc-gates.mjs` 这一个文件；每条规则一个模块，互不引用（共用的只有两个读取模块：Markdown 在 `markdown.mjs`，根目录允许名单在 `allowlist.mjs`）。哪些顶层文件夹算文档、哪些能起头一个被引用的路径，只有一份来源：`tooling/gates/root-allowlist.json`（`allowlist.mjs` 的 `allowedRoots` 读它）；往名单里加一个文件夹，它的 `.md` 链接和被引用的路径就自动被查，名单之外的（stray）两者都不查。
+入口引入三处：`doc-gates.mjs`（文档与仓库形状的规则都经它）、`dom-events.mjs`（页面事件，直接挂在入口的 `absolute()` 里，因为它读的是浏览器源码和一份合同，不属于文档类）和 `table-owners.mjs`（库与表的 owner，见下一节）；每条规则一个模块，互不引用（共用的只有两个读取模块：Markdown 在 `markdown.mjs`，根目录允许名单在 `allowlist.mjs`）。哪些顶层文件夹算文档、哪些能起头一个被引用的路径，只有一份来源：`tooling/gates/root-allowlist.json`（`allowlist.mjs` 的 `allowedRoots` 读它）；往名单里加一个文件夹，它的 `.md` 链接和被引用的路径就自动被查，名单之外的（stray）两者都不查。
 
 ## 两种规则
 
@@ -19,9 +19,11 @@
 | `skills/`、`AGENTS.md`、`docs/system/CALL-CHAINS.md` 引用的路径与动作 id 存在 | `doc-citations.mjs` | `bad citation: … points at …` / `… is not an id the code defines` | 改文档；确属有意（计划中的文件、插件工程内的相对路径）写进 `tooling/gates/doc-citation-exceptions.json`，带理由，不再需要时门禁会要求删掉 |
 | `specs/README.md` 索引与根目录分类 | `spec-index.mjs` | `spec index: …` | 根目录的 spec 目录都要在索引里出现一次：状态句以「状态：现行规范」开头的列在「现行规范」，其余在「在做的」；索引里不列归档的；`specs/` 根只放 `README.md`、`BACKLOG.md`、`archive/` 与 spec 目录 |
 | BACKLOG 没有完成行 | `backlog-rows.mjs` | `BACKLOG: … says it is done` | 做完就删行，在提交说明里写编号；编号不复用 |
+| 安全不变量文档里的测试存在 | `security-invariants.mjs` | `security invariants: docs/system/SECURITY-INVARIANTS.md:行: S-NN names …` | `docs/system/SECURITY-INVARIANTS.md` 的每一行（`\| S-NN \|`）至少点名一个测试；点名的测试文件存在、每一个「标题片段」（一个文件后可连写几个，每个都查）确在文件里；「CI 里跑」一列的文件被根 `package.json` 的 `test:security` / `test:contracts` 或 `ci.yml` 跑到；每个 `tests/security-invariants-*.test.ts` 都被某一行点名。改了测试名就改文档；新增不变量测试就加一行 |
 | 根目录只放允许名单里的 | `root-entries.mjs` + `tooling/gates/root-allowlist.json` | `tracked files at the repository root outside the allow-list in <名>` | 放到合适的目录；确要放在根目录，把名字和理由写进允许名单。名单里的名字不在根目录了要删。名单之外的现存条目只许变少 |
 | `.impeccable/` 文件数只许减少 | `impeccable-files.mjs` | `tracked files under .impeccable in <组> n → m` | 评审截图默认写进被忽略的 `.impeccable/qa/review/`；原地覆盖已有图不改数量；删掉没有现行 spec、文档或测试引用的评审组 |
 | `contracts` 没有占位子路径 | `contract-placeholders.mjs` | `contract placeholder: descriptor-only, unused contracts subpath in ./<子路径>` | 占位子路径 = 源文件只导出一个 `ContractDescriptor` 常量，且仓内没有 import、也没有包的 `contract` 元数据指向它。没有基线，出现一个就失败（W2-01 已删掉原来的六个）。要用就放类型进去，不用就别加；`platform/kernel`、`platform/testing` 是描述符，但有包把它们声明为自己的合同入口，不算占位 |
+| 页面事件都登记了 | `dom-events.mjs` + `packages/contracts/src/platform/dom-events.ts` | `DOM events: <文件>:<行> dispatches "<名>", which is not registered` / `… listens to …` / `… is registered but no source dispatches or listens to it` / `… owned by "<主人>", but none of its files … it` | 新事件在合同的 `DOM_EVENTS` 里按名字顺序加一条，与发它的代码同一个改动，然后 `pnpm api:update`；名字写成字符串字面量（或「条件 ? 字面量 : 字面量」）。删了事件就删条目，主人的文件搬了就改 `PAGE_STATE_OWNERS`。不扫测试文件、`scripts/gates/`、夹具和构建产物。没有基线，直接挂在入口 `check-health-gates.mjs` 的 `absolute` 里（不经 `doc-gates.mjs`）；突变用例在 `tests/dom-events-contract.test.ts`（不在 `doc-reference-gates.test.ts`，CI 里单独一步）；`node scripts/gates/dom-events.mjs --report` 列出谁发谁听，并指出对不上的地方（那是线索不是失败，但真实代码里的每一条都要写进 UI Platform 的「现状与例外」，由同一个测试文件核对）。规则与登记含义见 [UI Platform](../../docs/platform/UI-PLATFORM.md#页面里的事件与状态归属) |
 
 ## 库与表的 owner（`table-owners.mjs`，W2-06）
 
@@ -54,12 +56,31 @@
 - MCP 工具名只认 `molis_work_v1_action_<id>__v<N>` 这一种：`molis_work_v1_context_resolve` 这类上下文工具（例如 `skills/goal-advance/references/service-start.md` 里）不读，写错也不会被发现。
 - BACKLOG 完成行只认单元格被划线、或单元格以 已完成、已实现、已做完、已关闭、完成、done 开头：写成「已修复（#300）」「已合入 main」的行不会失败（「待你验收」一节的行本来就是做完了等试用，写「已合入 main」是正常的，按这类字样判会误报，所以不加进规则）。做完就删行是纪律，不是这条规则能全部兜住的。
 
+## 报告模式：spec 验收编号（还不是门禁）
+
+`node scripts/check-spec-coverage.mjs`（读取在 `spec-coverage.mjs`）：在做的 spec 的验收标准有没有编号，编号有没有测试引用。写法、`[人工]`、`~~` 作废和 `验收编号：不适用（理由）` 都在 [specs/README.md](../../specs/README.md) 的「验收编号」。默认是**报告模式**：打印结果，不管找到什么退出码都是 0（`--strict` 才在有问题时退出 1；参数写错、或 git 读不了仓库退出 2；`--root`、`--json` 见脚本开头）；CI 里这一步带 `continue-on-error`，所以它现在不会让任何构建变红。该仓库自己的内容让脚本崩溃，会被 `tests/health-gates-*.test.ts` 那一步里的「on this repository the report prints and exits 0」拦下。`pnpm health:check --report` 里有它的一行摘要。
+
+它会报的问题（`--strict` 会失败的就是这些）：
+
+| 问题 | 含义 |
+| --- | --- |
+| `unnumbered` | spec 有标题含「验收」的一节，却一个编号都没有，也没有写 `验收编号：不适用（理由）` |
+| `criterion-without-id` | 同一个标题下已有带编号的条目，另有列表项或表格行没有编号 |
+| `uncovered` | 编号没有被任何测试文件引用，也没有标 `[人工]` 或作废 |
+| `stale-reference` | 测试引用了 spec 里没有的编号（前缀是某份 spec 的），或已作废的编号 |
+| `duplicate-id`、`prefix-shared`、`prefix-mixed`、`reserved-prefix` | 编号定义了两次；一个前缀被两份 spec 用（已归档的算一份）；一份 spec 用了两个前缀；用了 `BL`、`PMR` |
+| `exempt-without-reason`、`exempt-but-numbered` | `验收编号：不适用` 没写理由；写了不适用却又定义了编号 |
+
+读法：在做的 spec 读 `specs/<目录>/spec.md`，已归档的读 `specs/archive/<目录>/spec.md`，但只当定义用（前缀继续被占着，编号继续算有人定义，老测试的引用不会变成「没人认」；不要求覆盖、不报它自己的缺口；两份归档 spec 之间的重号和串用前缀也不报，因为已经改不了）。读不到的：spec 目录里的其他文件；编号写在 spec 里别的节或正文里不算定义；测试里提到编号就算引用，不看提到的位置是不是真的在证明那一条；只认 `git ls-files` 里的文件，新文件要先 `git add`。验证：`node scripts/run-tests.mjs tests/health-gates-spec-coverage.test.ts`（每种问题在临时仓库里被故意造一次，报告模式仍退出 0、`--strict` 退出 1；读法的每条规则也各有一个删掉就失败的用例：哪些文件算测试（`fixtures/` 下的 `*.test.*` 也不算；`vendor/`、`node_modules/`、`dist/`、`.impeccable/`、`fixtures/` 在仓库根和嵌在任何一层都一样）、豁免只认前 12 行里行首的那一句、编号不能粘在更长的词上（左边的大小写字母、数字、`_`、`-`，右边的字母、数字、`-`；紧挨着中文不算粘）、`[人工]` 只认带两个括号的整个标记（正文里的「人工」二字不算）、列表标记 `-`、`*`、`+`、`1.`、`1)` 都读、归档 spec 留下什么、仓库路径带空格与非 ASCII 字符）。
+
 ## 怎么加一条规则
 
-1. 没有基线的检查：写 `scripts/gates/<名>.mjs`，导出 `(snapshot) => string[]`；`snapshot` 是 `{ files, read(file) }`（入库文件与读取函数）；在 `doc-gates.mjs` 的 `docGateProblems` 里加一行。
+1. 没有基线的检查：写 `scripts/gates/<名>.mjs`，导出 `(snapshot) => string[]`；`snapshot` 是 `{ files, read(file) }`（入库文件与读取函数）；在 `doc-gates.mjs` 的 `docGateProblems` 里加一行。不是文档类、要读合同或浏览器源码的检查（页面事件 `dom-events.mjs` 就是）自己挂在入口 `check-health-gates.mjs` 的 `absolute()` 里，入口只加一行引入和一处调用，规则与突变用例留在自己的模块和测试文件里，并在 `.github/workflows/ci.yml` 里给这个测试文件加一步（它不匹配 `tests/health-gates-*.test.ts`，也不在 `doc-reference-gates.test.ts` 里，不加这一步 CI 就不跑它的突变用例）。
 2. 只许减少的计数：模块导出一个规则对象（`id`、`baselineKey`、`totalKey`、`measure(snapshot)`、`grewWhat`、`grewHint`、`title`、`summary`），在 `doc-gates.mjs` 的 `docGateMetrics` 里加进去；merge-base 一侧读不到的文件在 `docGateInputs` 里登记。
 3. 在 `tests/doc-reference-gates.test.ts` 里加突变用例：干净的底子上加一处违规，`--base main` 要失败；计数类再确认 `--update --base main` 拒绝写入、本机改基线后 CI 的比法仍然失败。
 
 ## 验证
 
 `node scripts/run-tests.mjs tests/doc-reference-gates.test.ts`（CI 里单独一步跑）。每条规则在临时仓库里被故意违反一次，门禁必须变红；还有「合法写法不误报」与「变小时通过」的用例。
+
+页面事件门禁另有 `node scripts/run-tests.mjs tests/dom-events-contract.test.ts`（CI 里单独一步，步骤名「Page event gate rejects what it claims to」；它 import 构建出的 contracts，要在 `pnpm workspace:verify` 或 `pnpm build` 之后跑）：登记对照合同里已有的事件常量，门禁对照真实的树，每条规则都有突变用例（在内存里的真实树上或临时仓库里违反一次，必须变红），包括登记的形状（名字、载荷、含义、主人的字段、前缀）、扫哪些根目录和文件类型，以及构造函数与监听器带 TypeScript 类型实参的写法；报告在真实树上的每一条发现都写在 UI Platform 的「现状与例外」里（按事件名和文件名核对，新的死路或被主人以外的文件发的公告没人记录就会变红）。

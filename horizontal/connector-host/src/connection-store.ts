@@ -6,6 +6,7 @@ import type {
   ConnectorConnectionState,
   ConnectorConnectionView,
 } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 const SERVICE_ID = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)*$/u;
 const CONNECTION_ID = /^(?:[0-9a-f]{8}-[0-9a-f-]{27,}|external-[0-9a-f]{24})$/u;
@@ -142,7 +143,7 @@ export class ConnectorConnectionStore {
     this.require(connectionId, serviceId);
     let endpoint: URL;
     try { endpoint = new URL(address); } catch { throw new ConnectorConnectionError("invalid", "服务地址无效"); }
-    const localHttp = endpoint.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname);
+    const localHttp = isLoopbackHttpUrl(endpoint);
     if ((!localHttp && endpoint.protocol !== "https:") || endpoint.username || endpoint.password) {
       throw new ConnectorConnectionError("invalid", "服务地址必须使用 HTTPS 或本机 HTTP，且不能包含账号密码");
     }
@@ -183,7 +184,7 @@ export class ConnectorConnectionStore {
     const existing = this.get(input.connectionId);
     if (existing && (existing.service_id !== input.serviceId || existing.auth_method !== "mcp")) throw new ConnectorConnectionError("service_mismatch", "连接不属于这个 MCP 服务");
     const endpoint = new URL(input.endpoint);
-    if (endpoint.username || endpoint.password || endpoint.hash || (endpoint.protocol !== "https:" && !(endpoint.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname)))) throw new ConnectorConnectionError("invalid", "MCP 地址无效");
+    if (endpoint.username || endpoint.password || endpoint.hash || (endpoint.protocol !== "https:" && !isLoopbackHttpUrl(endpoint))) throw new ConnectorConnectionError("invalid", "MCP 地址无效");
     for (const ref of [input.credentialRef, input.refreshRef, input.expiresRef]) {
       if (ref && !ref.startsWith(`connector-protocol:${input.connectionId}:`)) throw new ConnectorConnectionError("invalid", "MCP 凭据引用无效");
     }

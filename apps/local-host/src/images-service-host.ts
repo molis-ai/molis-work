@@ -7,6 +7,7 @@ import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { ImagesService, ImagesError, imagesProjectData, type ImageConnectionInput } from "@molis-ai/molis-work-plugin-images";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { ConnectorConnectionError, withConnectorConnections } from "./connector-connection-store.js";
+import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 interface SharedImages { service: ImagesService; owners: Set<ImagesHostService>; closing?: Promise<void> }
 const services = new Map<string, SharedImages>();
@@ -71,7 +72,7 @@ export class ImagesHostService {
           const binding = store.binding("home", "images", connection.id);
           const selected = binding ? store.get(binding.connection_id) : null;
           const token = selected ? sealed(selected.credential_ref) : null;
-          const local = ["localhost", "127.0.0.1", "[::1]"].includes(new URL(connection.base_url).hostname);
+          const local = isLoopbackHostname(new URL(connection.base_url).hostname);
           const target = selected ? store.targetOrigin(selected.connection_id) : null;
           const available = selected
             ? selected.service_id === "image-api" && !selected.disconnected_at && !!token && (!target || target === new URL(connection.base_url).origin)

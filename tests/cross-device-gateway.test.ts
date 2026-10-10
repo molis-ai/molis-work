@@ -46,3 +46,12 @@ test("local administrator grants through the protected owner API and gateway kee
     await assert.rejects(first.client.invoke(first.caller,action('goals.progress.record'),{...input,idempotency_key:randomUUID()}));
   } finally {await new Promise<void>(resolve=>{web.closeAllConnections();web.close(()=>resolve());});await host.close();await rm(home,{recursive:true,force:true});}
 });
+
+// Security invariant S-09 (docs/system/SECURITY-INVARIANTS.md): the administrator command talks to a numeric loopback origin only,
+// and says no before it reads the control token file.
+test("the administrator command refuses everything but a numeric loopback origin before reading the token file", async () => {
+  for (const hostUrl of ["https://127.0.0.1:4173", "http://localhost:4173", "http://evil.example:4173", "http://127.0.0.1:4173/path", "http://127.0.0.1:4173/?x=1", "http://127.0.0.1:4173/#x",
+    "http://user:pass@127.0.0.1:4173", "http://0.0.0.0:4173", "http://[::ffff:127.0.0.1]:4173"]) {
+    await assert.rejects(configureMemberActions({ hostUrl, controlTokenFile: "/nonexistent/web-control-token", memberId: "m", projectId: "p", role: "viewer" }), /numeric loopback HTTP origin/, hostUrl);
+  }
+});

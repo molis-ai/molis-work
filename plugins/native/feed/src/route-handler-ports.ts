@@ -10,5 +10,6 @@ export interface FeedRouteHandlerPorts {
   hydrateSnapshot(snapshot: FeedSnapshot): FeedSnapshot | Promise<FeedSnapshot>;
   sourceCatalog(): FeedSourceCatalogView[];
   renderWorkbench(): string | Promise<string>;
-  renderDetail(item: FeedItemRecord, options: { entryId: string; inboxActive: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" }): string;
+  /** `promoteAvailable`: whether the promotion can run for this caller now; the reader shows its button only then. */
+  renderDetail(item: FeedItemRecord, options: { entryId: string; inboxActive: boolean; promoteAvailable: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" }): string;
 }

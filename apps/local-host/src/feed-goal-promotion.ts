@@ -19,8 +19,8 @@ export function feedGoalsThroughActions(actions: ActionClient, caller: ActionExe
       return item ? { goal_id: item.goal_id } : null;
     },
     create: async input => {
-      const { goal } = await nested.invoke(goalsActions.create, { ...input, ...(caller.audience === "user" ? { source_kind: "feed" as const } : {}) });
-      return { goal_id: goal.goal_id };
+      const { goal, replayed } = await nested.invoke(goalsActions.create, { ...input, ...(caller.audience === "user" ? { source_kind: "feed" as const } : {}) });
+      return { goal_id: goal.goal_id, replayed };
     },
     confirmInput: async ({ goal_id, item_id, name, snapshot_digest, reason }) => {
       await nested.invoke(goalsActions.inputsConfirm, { goal_id, source: { kind: "feed_item", id: item_id }, name, snapshot_digest, reason });

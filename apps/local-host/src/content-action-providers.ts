@@ -5,7 +5,7 @@ import type { FunctionsHostOptions } from "./functions-host.js";
 import { inboxContentActions } from "@molis-ai/molis-work-plugin-inbox";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ActionError, retainActionAuthority, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionSceneClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { feedManifest, feedQueryActions, readLinkedFeedContext, feedItemContext, FeedStoreError, createFeedQueryHandlers, createFeedCaptureTrigger, createFeedContentHandlers, createFeedItemHandlers, createFeedRuleHandlers, createFeedSourceHandlers, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
+import { feedManifest, feedItemActions, feedQueryActions, readLinkedFeedContext, feedItemContext, FeedStoreError, createFeedQueryHandlers, createFeedCaptureTrigger, createFeedContentHandlers, createFeedItemHandlers, createFeedRuleHandlers, createFeedSourceHandlers, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
 import { createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { createHomeJudgmentTrigger } from "./home-actions.js";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
@@ -63,6 +63,9 @@ export function nativeContentProviders(runtime: MolisWorkProjectRuntime, feed: F
         && (entry.status === "open" || entry.status === "in_progress")),
       // Without the action service there is no Goal service to ask: the promotion stays unavailable ("actions.connection_required").
       promote: client ? (input, caller) => createLocalFeedGoalPromotion(runtime.store.db, client, feed)(input, caller) : undefined,
+      // The offer follows the action: the directory says whether Goals can be written through for this caller (project enabled, granted).
+      promoteAvailable: client ? async caller => (await client.discover(caller)).some(view => view.capability_id === feedItemActions.promote.capability_id
+        && view.version === feedItemActions.promote.version && view.provider.plugin_id === feedManifest.plugin_id && view.availability.available) : undefined,
     }),
     ...(scenes ? createFeedSourceHandlers(runtime.project_id, {
       feed: () => feed,

@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSync 和 FeedSourceScheduler 处理来源同步用例。用户将条目推进为 Goal 时，promoteFeedItemToGoal 经 Host 提供的端口调用 Goals 的动作（`goals.create`、`goals.inputs.confirm`，以调用者自己的身份），再记下 Feed 自己的关联；Feed 不写 Goals 的数据，项目里没有 Goals 时升格不可用；持精确动作授权的客户端（MCP）要同时授权 `goals.directory.read`、`goals.create`、`goals.inputs.confirm`。Host 提供文件、凭据和网络适配。
+FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSync 和 FeedSourceScheduler 处理来源同步用例。用户将条目推进为 Goal 时，promoteFeedItemToGoal 经 Host 提供的端口调用 Goals 的动作（`goals.create`、`goals.inputs.confirm`，以调用者自己的身份），再记下 Feed 自己的关联；Feed 不写 Goals 的数据，项目里没有 Goals 时升格不可用，「升格为 Goal」的入口（`feed.items.offers` 的清单、阅读页的按钮）跟着升格动作的可用性走、不可用时不出现；持精确动作授权的客户端（MCP）要同时授权 `goals.directory.read`、`goals.create`、`goals.inputs.confirm`（在对外接入设置里先授权这三项再授权升格，或一次请求带 `with` 一起授权；只授权升格会被拒并点出缺哪几个），经 MCP 调用还须有稳定 Session（升格声明 `authorship: "session"`，Goal 与输入回执记在 Session 名下）。本人丢弃了升格中途失败留下的 Goal 之后，再升格会换同一版本的下一个幂等键另建一个，不会卡在被丢弃的那个上。Host 提供文件、凭据和网络适配。
 
 ## 从哪里读代码
 
@@ -78,7 +78,7 @@ node --import tsx --test --test-concurrency=1 tests/feed-native-plugin.test.ts t
   - 已忽略（归档）的 Item 只能先恢复：不能被加入 Inbox、不能重开它已关闭的条目，捕捉失败也不为它记条目。
   - 连同本地历史删除来源时，只删没有任何项目的 Material 或拉取收据引用的加密正文；数不清引用（有项目库读不出来）就一律保留。
   - 停用、改绑、内容变化或撤权后撤下建议，历史保留；外部内容是不可信输入。
-- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts tests/feed-inbox-lifecycle.test.ts tests/feed-local-history-delete.test.ts tests/feed-inbox-pages-loop.test.ts tests/local-web-actions.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts tests/feed-promote-mcp.test.ts tests/feed-promote-reader.test.ts tests/feed-native-plugin.test.ts tests/mcp-action-settings.test.ts tests/feed-inbox-lifecycle.test.ts tests/feed-local-history-delete.test.ts tests/feed-inbox-pages-loop.test.ts tests/local-web-actions.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/feed-capture.e2e.test.ts`
 - 相关手册：[docs/modules/feed.md](../../../docs/modules/feed.md)、[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

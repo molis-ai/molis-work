@@ -2,7 +2,6 @@ import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { goalsActions, GOALS_PLUGIN_ID, readGoalResumeFacts, readGoalContractCapability } from "@molis-ai/molis-work-plugin-goals";
-import { registerCasebookCapabilities } from './casebook/integration.js';
 import { projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability,
   goalsEntryCapabilities, goalEntryCompositionCapabilities,
   goalTreeCapabilities,
@@ -88,7 +87,6 @@ export function registerProjectCapabilities(
   host: LocalHost<MolisWorkProjectRuntime>,
   ports: ProjectCapabilityPorts = {},
 ): void {
-  registerCasebookCapabilities(host);
   const { workspaceFor } = ports;
   // goalAction uses only the identity this registration supplies. Management writes stamp the person on
   // this machine and refuse actor_id or actor_kind in the arguments. Guidance, planning save, and tree

@@ -50,7 +50,7 @@ Host 注入各 Module 的公开端口。`GoalEventApplication` 连接创建、�
 
 查询需要 `goals:read`，普通工作写入需要 `goals:write`；MCP 客户端须显式授权精确动作。输入不接受 project、actor 或权限，Host 从项目与调用上下文绑定。有幂等合同的写入沿用原事务及 idempotency key，各入口读写同一记录；记录便笺不代表完成目标或作出用户决定。输出合同包含完整类型定义、报告原文和历史状态字段。
 
-对应 typed Capability、Coding 目标目录/状态/进展、项目恢复目录与焦点查询、Web 创建/便笺/工作操作/状态/事件/历史及首页胶囊目录已经转调统一动作。MCP 只经动作工具（`molis_work_v1_action_goals.<动作>__v1`）调用 Goals，逐客户端授权、由常驻 Host 执行；旧的 30 个兼容名称已删除（#269），不再有通过名称指定数据库或自填作者的入口。Runtime 的写入保留可信 Runtime Session 作者及原幂等域，其他调用保留客户端作者；权限始终按客户端与项目判断。Casebook 的 Web 和 MCP 观察渠道各自保留，异步返回后只记一次结果，完整历史组合内部的查询不重复观察。可信调用者未记录 actor kind 时保持未知分类，不补写成用户身份。
+对应 typed Capability、Coding 目标目录/状态/进展、项目恢复目录与焦点查询、Web 创建/便笺/工作操作/状态/事件/历史及首页胶囊目录已经转调统一动作。MCP 只经动作工具（`molis_work_v1_action_goals.<动作>__v1`）调用 Goals，逐客户端授权、由常驻 Host 执行；旧的 30 个兼容名称已删除（#269），不再有通过名称指定数据库或自填作者的入口。Runtime 的写入保留可信 Runtime Session 作者及原幂等域，其他调用保留客户端作者；权限始终按客户端与项目判断。可信调用者未记录 actor kind 时保持未知分类，不补写成用户身份。
 
 Coding 的进展回执查询也转入统一动作，保留原保存回执和重启恢复行为。进展附带的成果来源是提交者的引用，不表示系统已验证成果内容，也不构成用户授权。
 
@@ -72,7 +72,7 @@ Coding 的进展回执查询也转入统一动作，保留原保存回执和重�
 
 `goals.tree.decide` 只接受 user audience、goals:decide 及受保护 Host 注入的用户和操作出处；`goalTreeCapabilities.decideGoalTreeProposal` 同样为 host_only，普通 MCP、模型、工作流和插件不能通过自填 authority 获得审批权。管理 `goal_tree_decide` 与 CLI `goal-tree-decide` 仅保留薄转发：`managementTreeAuthority` 固定本机这个人与 management 出处，调用方只能给对话出处和整组确认，带身份或出处就拒绝；宿主对 `decideGoalTreeProposal`、`recordGoalUserDecisionCapability` 再核一次。旧 Runtime 对话自报确认帮助器已删除，历史记录中的 runtime_dialogue 来源仍保留可读。
 
-动作工具提交的 submitted_session_id 从可信 ActionCallContext.runtime_session_id 注入，经过常驻服务网关保持；typed 调用也保留原会话与回执哈希。业务输入不能覆盖该字段。原始用户身份和整组提示由 user_action 提供，审计 Runtime 身份不能替代用户。Casebook 将新入口映射至原操作记录合同，Web 保留原渠道，单次调用只记录一组尝试和结果。
+动作工具提交的 submitted_session_id 从可信 ActionCallContext.runtime_session_id 注入，经过常驻服务网关保持；typed 调用也保留原会话与回执哈希。业务输入不能覆盖该字段。原始用户身份和整组提示由 user_action 提供，审计 Runtime 身份不能替代用户。
 
 关系和项目规则的 Web 写入、规则设置页、所选目标正文均消费共同动作；原领域事务、关系方向、规则合并及历史绑定保持不变。三项直接写入要求 user audience、goals:decide、Host 提供的真实用户与 web/management 出处，普通 MCP 无法授予这些权限。原 HTTP commands/query 端口和没有调用者的 Workbench/CLI/MCP GoalsApplicationApi 转发工厂已删除。整页目录的历史组合也通过集合动作读取。
 

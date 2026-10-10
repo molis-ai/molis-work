@@ -1,4 +1,4 @@
--- The project database baseline, version 4 (repository-anti-corruption §4.1): the schema a new project database gets.
+-- The project database baseline, version 7 (repository-anti-corruption §4.1): the schema a new project database gets.
 -- Generated from PROJECT_DATABASE_BASELINE; a change to any owner's tables means a new version and a new snapshot.
 CREATE TABLE acceptance_criteria (
     criterion_id TEXT PRIMARY KEY,
@@ -25,18 +25,6 @@ CREATE TABLE boards (
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-CREATE TABLE casebook_goal_contexts (
- board TEXT NOT NULL, interaction_epoch TEXT NOT NULL, context_epoch TEXT NOT NULL,
- operation_id TEXT NOT NULL, phase TEXT NOT NULL, body TEXT NOT NULL,
- PRIMARY KEY(board,interaction_epoch,context_epoch,operation_id,phase));
-CREATE TABLE casebook_interaction_actions (
- board TEXT NOT NULL, key TEXT NOT NULL, digest TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(board,key));
-CREATE TABLE casebook_interaction_audit_keys (board TEXT PRIMARY KEY, secret TEXT NOT NULL);
-CREATE TABLE casebook_interaction_facts (
- board TEXT NOT NULL, epoch TEXT NOT NULL, seq INTEGER NOT NULL, id TEXT NOT NULL UNIQUE, body TEXT NOT NULL,
- PRIMARY KEY(board,epoch,seq));
-CREATE TABLE casebook_interaction_scopes (
- board TEXT PRIMARY KEY, epoch TEXT NOT NULL, state TEXT NOT NULL, secret TEXT NOT NULL, since TEXT NOT NULL, pauses INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE coding_plan_drafts (
       project_id TEXT NOT NULL,
       session_id TEXT NOT NULL,

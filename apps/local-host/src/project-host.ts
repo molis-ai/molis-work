@@ -40,12 +40,9 @@ import { SystemFunctionsActions } from "./functions-actions.js";
 import type { FunctionsHostOptions } from "./functions-host.js";
 import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { ensureInstalledPlugins, releaseInstalledPlugins } from "./installed-plugin-host.js";
-import { InteractionObserver, goalActionObservation } from './casebook/observer.js';
 import path from "node:path";
-import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
-import { ProjectRecoveryError } from "./project-database.js";
 import { LocalHost, LocalHostError, type LocalHostOptions } from "./local-host.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { LocalProjectDatabase } from "./project-database.js";
@@ -70,7 +67,6 @@ export interface MolisWorkProjectRuntime {
   coordinator: GoalProjectApplication;
   /** Which project this runtime serves. Capabilities scope their answers to it. */
   project_id: string;
-  interactionObserver?: InteractionObserver;
 }
 
 export interface MolisWorkLocalHostOptions {
@@ -126,7 +122,6 @@ export class MolisWorkLocalHost {
   private readonly systemFunctions?: SystemFunctionsActions;
   private readonly images?: ImagesHostService;
   private readonly alchemist?: AlchemistHostService;
-  private readonly existingOnly = new Set<string>();
   private agents?: { home: string; service: AgentHostComposition };
   private closing?: Promise<void>;
   private readonly sessions: SessionRuntimeService;
@@ -150,25 +145,10 @@ export class MolisWorkLocalHost {
       actionProvidersChanged: provider => this.search?.providerChanged(provider),
       actionAvailability: options.actionAvailability,
       sceneAvailability: options.sceneAvailability,
-      observation: {
-        before: (runtime, reference, capability, input, caller) => {
-          runtime.interactionObserver ??= new InteractionObserver(runtime.store, runtime.coordinator, reference.project_id, reference.project_id);
-          const observed = caller.audience === "mcp" ? goalActionObservation(capability, input, reference.project_id, caller) : null;
-          if (observed) return runtime.interactionObserver.before(observed.capability, observed.input);
-          return runtime.interactionObserver.before(capability, input);
-        },
-        after: (runtime, ticket, result, threw) => runtime.interactionObserver?.after(ticket, result, threw),
-      },
       runtimeFactory: {
         open: (reference) => {
           options.onRuntimeOpen?.(reference);
-          const recovering = this.existingOnly.has(reference.storage_key);
-          if (recovering && !existsSync(reference.storage_key)) throw new ProjectRecoveryError("project_recovery_missing");
-          const store = new LocalProjectDatabase(reference.storage_key, { existingOnly: recovering });
-          if (recovering && !store.goalsQuery.getBoard(reference.project_id)) {
-            store.close();
-            throw new ProjectRecoveryError("project_recovery_board_missing");
-          }
+          const store = new LocalProjectDatabase(reference.storage_key);
           const personalMethods = options.planningMethods ?? (() => this.personalPlanningHome ? readPersonalPlanningMethodPacks(this.personalPlanningHome) : []);
           const coordinator = new GoalProjectApplication(
             store,
@@ -427,13 +407,6 @@ export class MolisWorkLocalHost {
     operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>,
   ): Promise<Result> {
     return this.host.withRuntime(reference, async runtime => { await this.prepareInstalledPlugins(reference, runtime); return operation(runtime); });
-  }
-
-  /** Only the configured owner calls this; never initialize, create or migrate a project. */
-  async restoreExistingProject(reference: LocalHostProjectReference): Promise<void> {
-    this.existingOnly.add(reference.storage_key);
-    try { await this.ensureProjectPluginActions(reference); await this.withProject(reference, () => undefined); }
-    finally { this.existingOnly.delete(reference.storage_key); }
   }
 
   closeProject(referenceOrStorageKey: LocalHostProjectReference | string): Promise<boolean> {

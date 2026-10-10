@@ -124,7 +124,7 @@ test('Host alone restores installed actions and scheduled operations, retains da
   let host = new MolisWorkLocalHost({ homeDirectory: home });
   const action = (operation: string) => ({ capability_id: exposedActionId(release, operation), version: 1, provider_id: 'plugin:' + release.pluginId });
   try {
-    await host.restoreExistingProject(ref);
+    await host.inspectActions(caller, ref);
     const client = host.actionClient(ref), discovered = await client.discover(caller);
     assert.equal(discovered.filter(view => view.capability_id.startsWith('generated.')).length, 3);
     assert.equal(await client.invoke(caller, action('read'), null), 'empty', 'null reaches the declared contract unchanged');
@@ -136,7 +136,7 @@ test('Host alone restores installed actions and scheduled operations, retains da
     try { assert.equal(new SqlitePluginRuntimeRepository(closed.db).get(fixture.install.install_id)?.state, 'installed', 'normal Host close preserves enabled intent'); }
     finally { closed.close(); }
     host = new MolisWorkLocalHost({ homeDirectory: home });
-    await host.restoreExistingProject(ref);
+    await host.inspectActions(caller, ref);
     assert.equal(await host.actionClient(ref).invoke(caller, action('read'), null), 'original data');
     await host.withProject(ref, async runtime => {
       await scheduleServiceFor(runtime.store.db).tick(new Date(at + 1000));

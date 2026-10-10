@@ -4,14 +4,14 @@
 //   S-02  a foreign Host header (DNS rebinding) is refused, for every method and every route
 //   S-03  a mutation needs a same-origin Origin, the control token and a one-time operation key; a non-API mutation is refused
 //   S-04  the PTY and side-panel browser sockets refuse a foreign Origin, a foreign Host and an unauthenticated first message
-//   S-05  the Casebook channel is POST-only, bearer-only, project-scoped and never browser-addressable
+//   S-05  no channel answers before the control token: the retired Casebook path is refused like any other, and a leftover Casebook configuration is not read
 //   S-06  the control token is long, random and owner-only
 //   S-21  no answer of the host can be shown in another origin's frame (clickjacking)
 // The tests import public entries only (tests/*.test.ts may not reach into package sources: pnpm health:check).
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm, stat, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, stat, mkdir, readFile, writeFile } from "node:fs/promises";
 import http from "node:http";
 import net, { type AddressInfo } from "node:net";
 import os from "node:os";
@@ -125,7 +125,7 @@ test("S-02 a Host header that is not a loopback name is refused for every method
   const host = await startHost(t);
   const foreign = ["evil.example", `evil.example:${host.port}`, `127.0.0.1.evil.example:${host.port}`, `localhost.evil.example:${host.port}`, `127.0.0.1@evil.example`, "0.0.0.0", `192.168.1.20:${host.port}`, "[::ffff:127.0.0.1]"];
   for (const method of ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]) {
-    for (const path of ["/", "/locale?lang=en", "/api/settings/projects", GATEWAY, "/assets/missing.css", "/casebook/v1/projects"]) {
+    for (const path of ["/", "/locale?lang=en", "/api/settings/projects", GATEWAY, "/assets/missing.css"]) {
       for (const name of foreign) {
         const answer = await send(host, method, path, { host: name, ...(method === "GET" || method === "HEAD" ? {} : good(host, { host: name })) });
         assert.equal(answer.status, 403, `${method} ${path} with Host: ${name} answered ${answer.status}`);
@@ -348,49 +348,29 @@ test("S-04 the names a browser may use for this machine (localhost, [::1]) reach
 
 // ---- S-05 ------------------------------------------------------------------------------------------------------
 
-test("S-05 the Casebook channel answers POST with a project bearer token only, never a browser request, a query or another project", { timeout: 60_000 }, async t => {
-  const grant = "casebook-service-token-for-project-one-0123456789";
-  const host = await startHost(t, { casebook: { grants: [{ token: grant, project_ref: "project-one" }] } });
-  const call = (method: string, path: string, headers: Record<string, string | undefined> = {}, body = "{}") => send(host, method, path, { "content-type": "application/json", ...headers }, body);
-  const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
-  // The two browser-shaped mistakes, and a request that is not a POST, are 400: the channel is for servers.
-  assert.equal((await call("GET", "/casebook/v1/projects", bearer(grant))).status, 400);
-  assert.equal((await call("POST", "/casebook/v1/projects", { ...bearer(grant), origin: host.origin })).status, 400, "a request carrying an Origin is a browser's");
-  assert.equal((await call("POST", "/casebook/v1/projects?x=1", bearer(grant))).status, 400);
-  assert.equal((await call("POST", "/casebook/v1/project-one/not-a-method", bearer(grant))).status, 400);
-  // Credentials: none, wrong, the control token (never accepted here), a prefix of the grant, the grant without "Bearer".
-  for (const [what, headers] of [["no credential", {}], ["a wrong bearer", bearer("w".repeat(grant.length))], ["the browser control token", bearer(TOKEN)], ["a prefix of the grant", bearer(grant.slice(0, -1))],
-    ["the grant without the scheme", { authorization: grant }], ["the control token in its own header", { "x-molis-work-control-token": TOKEN }]] as const) {
-    const answer = await call("POST", "/casebook/v1/projects", headers);
-    assert.equal(answer.status, 403, `${what}: ${answer.body}`);
-    assert.match(answer.body, /not_authorized/);
+test("S-05 no channel answers before the control token: the retired Casebook path is refused like any other, and a leftover Casebook configuration is not read", { timeout: 60_000 }, async t => {
+  const credential = "casebook-service-token-for-project-one-0123456789";
+  const bearer = { authorization: `Bearer ${credential}`, "content-type": "application/json" };
+  const plain = await startHost(t);
+  // The path the Casebook channel used to have answers like a path that never existed: 403 from the control-token gate, whatever the bearer.
+  const unknown = await send(plain, "POST", "/no-such-channel/v1/projects", bearer, "{}");
+  assert.equal(unknown.status, 403, unknown.body);
+  for (const path of ["/casebook/v1/projects", "/casebook/v1/project-one/facts"]) {
+    const answer = await send(plain, "POST", path, bearer, "{}");
+    assert.equal(answer.status, 403, `${path}: ${answer.body}`);
+    assert.equal(answer.body, unknown.body, `${path}: no answer of its own, not even a refusal code`);
   }
-  // A grant is for its own project: another project's methods are refused though the credential is valid.
-  const other = await call("POST", "/casebook/v1/project-two/facts", bearer(grant));
-  assert.equal(other.status, 403);
-  assert.match(other.body, /not_authorized/);
-  // The channel needs the loopback Host like everything else.
-  assert.equal((await call("POST", "/casebook/v1/projects", { ...bearer(grant), host: "evil.example" })).status, 403);
-  const bare = await new Promise<string>(resolve => {
-    const socket = net.connect({ host: "127.0.0.1", port: host.port }, () => socket.write(`POST /casebook/v1/projects HTTP/1.0\r\nauthorization: Bearer ${grant}\r\ncontent-length: 2\r\n\r\n{}`));
-    let data = ""; socket.on("data", chunk => { data += String(chunk); }); socket.on("close", () => resolve(data));
-  });
-  assert.match(bare.split("\r\n")[0] ?? "", /^HTTP\/1\.[01] 403\b/, "no Host at all");
-});
-
-test("S-05 without a Casebook configuration the channel does not exist, and a weak or shared credential never starts a host", { timeout: 60_000 }, async t => {
-  const host = await startHost(t);
-  const off = await send(host, "POST", "/casebook/v1/projects", { authorization: "Bearer anything-at-all-0123456789abcdefghij", "content-type": "application/json" }, "{}");
-  assert.equal(off.status, 404);
-  assert.match(off.body, /capability_unavailable/);
-  const dirs = [await mkdtemp(join(os.tmpdir(), "security-invariants-casebook-")), await mkdtemp(join(os.tmpdir(), "security-invariants-casebook-")), await mkdtemp(join(os.tmpdir(), "security-invariants-casebook-"))];
-  t.after(() => Promise.all(dirs.map(dir => rm(dir, { recursive: true, force: true }))));
-  assert.throws(() => createMolisWorkWebServer({ homeDirectory: dirs[0], controlToken: TOKEN, casebook: { grants: [{ token: TOKEN, project_ref: "p" }] } }), /Casebook requires a separate server-only credential/, "the browser control token is never a Casebook credential");
-  assert.throws(() => createMolisWorkWebServer({ homeDirectory: dirs[1], controlToken: TOKEN, casebook: { grants: [{ token: "too-short", project_ref: "p" }] } }), /Casebook requires a separate server-only credential/);
-  // A configuration file others can read is refused outright.
-  await mkdir(join(dirs[2], "config"), { recursive: true });
-  await writeFile(join(dirs[2], "config", "casebook.json"), JSON.stringify({ version: 1, grants: [{ token: "casebook-service-token-for-project-one-0123456789", project_ref: "p" }] }), { mode: 0o644 });
-  assert.throws(() => createMolisWorkWebServer({ homeDirectory: dirs[2], controlToken: TOKEN }), /invalid_casebook_configuration/, "a world-readable credential file");
+  // A file an earlier version read is only a file now: a world-readable one does not stop the host, opens no channel, and is left as it was.
+  const home = await mkdtemp(join(os.tmpdir(), "security-invariants-leftover-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  await mkdir(join(home, "config"), { recursive: true });
+  const leftover = JSON.stringify({ version: 1, grants: [{ token: credential, project_ref: "project-one" }] });
+  await writeFile(join(home, "config", "casebook.json"), leftover, { mode: 0o644 });
+  const started = await startHost(t, { homeDirectory: home });
+  const refused = await send(started, "POST", "/casebook/v1/projects", bearer, "{}");
+  assert.equal(refused.status, 403, refused.body);
+  assert.equal(refused.body, unknown.body);
+  assert.equal(await readFile(join(home, "config", "casebook.json"), "utf8"), leftover);
 });
 
 // ---- S-06 ------------------------------------------------------------------------------------------------------

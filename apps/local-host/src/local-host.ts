@@ -30,10 +30,6 @@ export interface LocalHostOptions<Runtime> {
   instanceId?: string;
   sceneAvailability?(context: ActionCallContext, scene: ActionSceneView): ActionAvailability | Promise<ActionAvailability>;
   actionAvailability?: ActionAvailabilityPolicy;
-  observation?: {
-    before(runtime: Runtime, reference: LocalHostProjectReference, capability: HostCapabilityDefinition, input: unknown, caller: ActionCallContext): unknown;
-    after(runtime: Runtime, ticket: unknown, result: unknown, threw: boolean): void;
-  };
   /** A provider was registered or withdrawn, with the project it was bound to. Observers must not throw. */
   actionProvidersChanged?(provider: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider): void;
   /** Every action handler that ran, with its caller and outcome; never its input or result. */
@@ -248,8 +244,8 @@ export class LocalHost<Runtime> {
       if (!availability.available) throw new ActionError(availability.code, availability.reason);
       if (!scene.compatible) throw new ActionError("actions.scene_incompatible", scene.reason ?? "判断能力与场景不兼容");
     };
-    const queue = <Result>(caller: ActionCallContext, id: string, version: number, event: unknown, operation: () => Promise<Result>) => project
-      ? this.enqueue(project, { capability_id: `scene.${id}`, version, operation: "command" }, event, caller, operation, true)
+    const queue = <Result>(caller: ActionCallContext, id: string, version: number, operation: () => Promise<Result>) => project
+      ? this.enqueue(project, { capability_id: `scene.${id}`, version, operation: "command" }, caller, operation, true)
       : this.homeLine.run(operation, "step");
     return {
       discoverScenes: async (caller, judgment) => scenes(await prepare(caller), judgment),
@@ -286,7 +282,7 @@ export class LocalHost<Runtime> {
       },
       bind: async (caller, binding, options) => {
         const bound = await prepare(caller);
-        await queue(bound, binding.scene_id, binding.scene_version, binding, async () => {
+        await queue(bound, binding.scene_id, binding.scene_version, async () => {
           await check(bound, binding.scene_id, binding.scene_version, binding.enabled ? binding.function : undefined, Boolean(options && !binding.enabled));
           if (binding.enabled) await this.checkActionAvailability(bound, binding.function);
           await this.actionService.bind(bound, binding, options ? { ...options, before_write: async () => {
@@ -298,7 +294,7 @@ export class LocalHost<Runtime> {
       },
       runScene: async (caller, scene, bindingId, event) => {
         const bound = await prepare(caller);
-        return queue(bound, scene.scene_id, scene.version, event, async () => {
+        return queue(bound, scene.scene_id, scene.version, async () => {
           const binding = (await this.actionService.usages(bound)).find(use => use.binding_id === bindingId && use.scene_id === scene.scene_id && use.scene_version === scene.version);
           await check(bound, scene.scene_id, scene.version, binding?.function);
           const client = project ? this.actionClient(project, true) : this.homeActionClient(true);
@@ -365,7 +361,7 @@ export class LocalHost<Runtime> {
         await this.withRuntime(project, () => undefined);
         const descriptor = this.capabilities.descriptor(capability, bound.project_id);
         if (!descriptor) return Promise.reject(new ActionError("actions.missing", "能力未注册或版本已失效"));
-        return this.enqueue(project, descriptor, input, bound, () => this.actionService.invoke(bound, capability, input), step);
+        return this.enqueue(project, descriptor, bound, () => this.actionService.invoke(bound, capability, input), step);
       },
     };
   }
@@ -415,7 +411,7 @@ export class LocalHost<Runtime> {
     // A typed identity may omit the activation scope; only the bound Host supplies it.
     const registered = this.capabilities.descriptor(capability, reference.project_id);
     const scoped = { ...capability, action_provider: registered?.action_provider };
-    return this.enqueue(reference, scoped, input, caller, () => this.capabilities.invoke<Input, Output>(caller, scoped, input));
+    return this.enqueue(reference, scoped, caller, () => this.capabilities.invoke<Input, Output>(caller, scoped, input));
   }
 
   private async discoverActions(caller: ActionCallContext): Promise<ActionView[]> {
@@ -490,7 +486,6 @@ export class LocalHost<Runtime> {
   private async enqueue<Output>(
     reference: LocalHostProjectReference,
     capability: HostCapabilityDefinition,
-    input: unknown,
     caller: ActionCallContext,
     execute: () => Promise<Output>,
     step = false,
@@ -501,20 +496,11 @@ export class LocalHost<Runtime> {
       const scope = { entry, runtime, active: true, holdsQueue };
       return this.executionScope.run(scope, async () => {
         this.invocationRuntimes.set(caller, runtime);
-        let ticket: unknown;
-        try { ticket = this.options.observation?.before(runtime, entry.reference, capability, input, caller); } catch { /* auxiliary observer only */ }
-        let result: Output;
         try {
           await this.checkActionAvailability(caller, capability);
-          result = await execute();
-        }
-        catch (error) {
-          try { this.options.observation?.after(runtime, ticket, error, true); } catch { /* preserve business error */ }
-          throw error;
+          return await execute();
         }
         finally { this.invocationRuntimes.delete(caller); scope.active = false; }
-        try { this.options.observation?.after(runtime, ticket, result, false); } catch { /* preserve business result */ }
-        return result;
       });
     };
     // Everything else of the project waits while a queued operation runs, so one that holds the line for long is named

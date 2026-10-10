@@ -253,7 +253,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 **F2 Coding 质量保证**（`specs/coding-quality-assurance/spec.md`：自检、交叉评审、对抗评审，设置放在 Coding，结论写回关联 Goal 的事件）。
 
-- 现在：2。一是 `apps/local-host/src/project-database-schema.ts`（评审结果若要建表，`CODING_SCHEMA_SQL` 来自 Coding 包，但基线总版本号 `version: 6` 在宿主文件里，改表要升版本）；二是 `apps/local-host/src/project-plugins.ts` 的 `codingPorts`（评审子运行需要的新端口）。设置页由 Coding 包自己的 `codingSettingsContribution` 提供，结论写回 Goal 走 Goals 的公开动作并在 Manifest `capabilities.consumes` 声明，提示词追加到 `CODING_INSTRUCTIONS`，都是包内。
+- 现在：2。一是 `apps/local-host/src/project-database-schema.ts`（评审结果若要建表，`CODING_SCHEMA_SQL` 来自 Coding 包，但基线总版本号 `version: 7` 在宿主文件里，改表要升版本）；二是 `apps/local-host/src/project-plugins.ts` 的 `codingPorts`（评审子运行需要的新端口）。设置页由 Coding 包自己的 `codingSettingsContribution` 提供，结论写回 Goal 走 Goals 的公开动作并在 Manifest `capabilities.consumes` 声明，提示词追加到 `CODING_INSTRUCTIONS`，都是包内。
 - 补什么：X-5 让项目库基线由各 owner 包声明的 SQL 汇总、版本由声明推出；端口走 W3-06 的平台服务。**再推演：0。**
 
 **F3 新的外部服务（自带 OAuth，GitHub、Gmail 形）**（来源：BL-060、BL-061）。

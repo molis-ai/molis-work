@@ -2748,8 +2748,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   });
 
   // The input keeps room to type, but the chips beside it come and go, so the composer measures itself, as the Dock
-  // does, and steps down: quiet parts narrow, unchanged choosers fold (panel closed), plugin and work chips narrow
-  // (an open panel's head names the work).
+  // does, and steps down: quiet parts narrow, unchanged choosers fold (panel closed), plugin and work chips narrow.
   // Still over its edge the line is crowded: the choosers go (the side pane has them), no chip shrinks under 44px.
   const INPUT_ROOM = 120;
   let fitFrame = 0;

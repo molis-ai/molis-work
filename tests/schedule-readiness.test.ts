@@ -107,7 +107,7 @@ test("the create dialog carries two hidden hints, one per missing thing, and not
   const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", jobs: [], tasks: [], primitives: p } });
   const dialog = html.slice(html.indexOf("data-schedule-create-dialog"), html.indexOf("</dialog>", html.indexOf("data-schedule-create-dialog")));
   for (const kind of ["model", "workspace"]) {
-    const hint = new RegExp(`<p[^>]*data-schedule-hint="${kind}"[^>]*>`).exec(dialog)?.[0];
+    const hint = new RegExp(`<div[^>]*data-schedule-hint="${kind}"[^>]*>`).exec(dialog)?.[0];
     assert.ok(hint, `a hint for ${kind}`);
     assert.match(hint, /\bhidden\b/, "shown only once the Host says it is missing");
     assert.match(hint, /role="status"/);
@@ -122,13 +122,18 @@ test("the create dialog carries two hidden hints, one per missing thing, and not
 test("each hint says where to fix it with a plain link: the model settings, and the project's workspace settings", () => {
   const p: ScheduleUiModel["primitives"] = { escape: String, icon: name => `<i data-icon="${name}"></i>`, text: value => value, formatDate: value => value };
   const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", jobs: [], tasks: [], primitives: p } });
-  const hint = (kind: string) => new RegExp(`<p[^>]*data-schedule-hint="${kind}"[^>]*>([\\s\\S]*?)</p>`).exec(html)?.[1] ?? "";
-  assert.match(hint("model"), /<a href="\/settings\/models">打开模型设置<\/a>/, "the model settings are global, so the link carries no project prefix");
-  assert.match(hint("workspace"), /<a href="\/projects\/p1\/settings\/workspaces">打开工作目录设置<\/a>/, "the workspace is bound in this project's settings");
+  const hint = (kind: string) => new RegExp(`<div[^>]*data-schedule-hint="${kind}"[^>]*>([\\s\\S]*?)</div>`).exec(html)?.[1] ?? "";
+  assert.match(hint("model"), /<a href="\/settings\/models"[^>]*>打开模型设置<\/a>/, "the model settings are global, so the link carries no project prefix");
+  assert.match(hint("workspace"), /<a href="\/projects\/p1\/settings\/workspaces"[^>]*>打开工作目录设置<\/a>/, "the workspace is bound in this project's settings");
   assert.doesNotMatch(hint("model"), /“模型设置”/, "the sentence no longer names a place the person cannot click");
-  // .mw-alert is a grid: a link that is a direct child of the paragraph would drop to its own row and stretch to the full width,
+  // .mw-alert is a grid: a link that is a direct child of the alert would drop to its own row and stretch to the full width,
   // so its hit area and focus ring would cover the line. The sentence and its link share one span, and the link keeps its own text's width.
-  for (const kind of ["model", "workspace"]) assert.match(hint(kind), /^<span>[^<]*<a [^>]*>[^<]*<\/a><\/span>$/, `${kind}: the sentence and its link are one grid item`);
+  // A <p> is no alert box either: its default margins add to the grid gap and push the two hints apart (the design system's alert is a div).
+  for (const kind of ["model", "workspace"]) {
+    assert.match(hint(kind), /^<span>[^<]*<a [^>]*>[^<]*<\/a><\/span>$/, `${kind}: the sentence and its link are one grid item`);
+    assert.match(hint(kind), /<a [^>]*style="white-space:nowrap"/, `${kind}: a narrow dialog moves the whole link to the next line instead of breaking its words`);
+  }
+  assert.doesNotMatch(html, /<p[^>]*data-schedule-hint/, "the hints are divs, like the design system's alert");
 });
 
 test("the client reads readiness when the dialog opens, and a failed read stays silent (the behaviour itself is in plugin-small-ux.e2e.test.ts)", () => {

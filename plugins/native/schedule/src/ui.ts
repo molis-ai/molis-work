@@ -96,8 +96,8 @@ function renderCreateDialog(routePrefix: string, p: ScheduleUiPrimitives): strin
         <label class="mw-field"><span class="mw-field__label">${p.text("说明")}</span><textarea class="mw-textarea" name="instructions" rows="6" required maxlength="8000" placeholder="${p.text("到点后 Agent 会读这段说明，然后在这条对话里回复。")}"></textarea><small class="mw-field__hint">${p.text("默认只读。要改文件会进现有审核队列。")}</small></label>
         <label class="mw-field"><span class="mw-field__label">${p.text("每天")}</span><input class="mw-input" name="time" type="time" required value="09:00"><small class="mw-field__hint">${p.text("按这台电脑的本地时间。本地服务没开时闹钟不响。")}</small></label>
         <label class="mw-check-row"><input class="mw-check" type="checkbox" name="notify_important" checked><span>${p.text("重要更新时在列表标出来")}</span></label>
-        <p class="mw-alert mw-alert--warning" data-schedule-hint="model" role="status" hidden><span>${p.text("还没有配置文字模型：到点时 Agent 跑不起来。仍可以创建，稍后再配置。")} <a href="/settings/models">${p.text("打开模型设置")}</a></span></p>
-        <p class="mw-alert mw-alert--warning" data-schedule-hint="workspace" role="status" hidden><span>${p.text("这个项目还没有绑定工作区：到点时只读 Agent 无法启动。仍可以创建，稍后再绑定。")} <a href="${p.escape(routePrefix)}/settings/workspaces">${p.text("打开工作目录设置")}</a></span></p>
+        <div class="mw-alert mw-alert--warning" data-schedule-hint="model" role="status" hidden><span>${p.text("还没有配置文字模型：到点时 Agent 跑不起来。仍可以创建，稍后再配置。")} <a href="/settings/models" style="white-space:nowrap">${p.text("打开模型设置")}</a></span></div>
+        <div class="mw-alert mw-alert--warning" data-schedule-hint="workspace" role="status" hidden><span>${p.text("这个项目还没有绑定工作区：到点时只读 Agent 无法启动。仍可以创建，稍后再绑定。")} <a href="${p.escape(routePrefix)}/settings/workspaces" style="white-space:nowrap">${p.text("打开工作目录设置")}</a></span></div>
         <p class="form-error" data-schedule-create-error role="alert" hidden></p>
       </div>
       <footer class="mw-form__footer">

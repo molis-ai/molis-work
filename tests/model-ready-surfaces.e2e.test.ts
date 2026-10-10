@@ -201,15 +201,18 @@ test("schedule: the new-task dialog's model hint goes when the first model is re
   assert.equal(await linkPath("model"), "/settings/models", "a plain link to the model settings");
   assert.equal(await linkPath("workspace"), `/projects/${projectId}/settings/workspaces`, "and to where this project's folder is bound");
   // The hint is a grid (.mw-alert): a link beside its sentence in the grid would drop to its own row and stretch to the full width,
-  // so its hit area and focus ring would cover the line. The link must be only its own words.
-  const linkBox = (kind: string) => evaluate<{ box: number; text: number; line: number }>(`(() => { const hint = document.querySelector('[data-schedule-hint=${kind}]'); const link = hint.querySelector('a');
+  // so its hit area and focus ring would cover the line. The link must be only its own words, and never broken across two lines.
+  const linkBox = (kind: string) => evaluate<{ box: number; text: number; line: number; fragments: number }>(`(() => { const hint = document.querySelector('[data-schedule-hint=${kind}]'); const link = hint.querySelector('a');
     const words = document.createRange(); words.selectNodeContents(link);
-    return { box: Math.round(link.getBoundingClientRect().width), text: Math.round(words.getBoundingClientRect().width), line: Math.round(hint.getBoundingClientRect().width) }; })()`);
+    return { box: Math.round(link.getBoundingClientRect().width), text: Math.round(words.getBoundingClientRect().width), line: Math.round(hint.getBoundingClientRect().width), fragments: words.getClientRects().length }; })()`);
   for (const kind of ["model", "workspace"]) {
-    const { box, text, line } = await linkBox(kind);
+    const { box, text, line, fragments } = await linkBox(kind);
     assert.ok(text > 0 && text < line / 2, `${kind}: the link text (${text}px) is a few words of the ${line}px hint`);
     assert.ok(Math.abs(box - text) <= 1, `${kind}: the link's box (${box}px) is its own text (${text}px), not the row`);
+    assert.equal(fragments, 1, `${kind}: the link is on one line, not broken in the middle of its words`);
   }
+  // Two hints one under the other sit a form-gap apart (12px): a paragraph's default margins would add 26px to it.
+  assert.ok(await evaluate<number>(`(() => { const top = document.querySelector('[data-schedule-hint=model]').getBoundingClientRect(), next = document.querySelector('[data-schedule-hint=workspace]').getBoundingClientRect(); return Math.round(next.top - top.bottom); })()`) <= 16, "the hints are a form-gap apart");
   // The model is set up somewhere else (another pane, another tab) while the dialog stays open.
   await firstModelIsReady(browser);
   await waitFor("document.querySelector('[data-schedule-hint=model]').hidden", 10_000);

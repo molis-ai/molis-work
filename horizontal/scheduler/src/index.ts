@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { createExecutionLifetime } from "@molis-ai/molis-work-kernel";
+import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";

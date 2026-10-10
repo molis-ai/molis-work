@@ -352,7 +352,6 @@ export const EN: Record<string, string> = {
   "日历与笔记，按天安排。": "Calendar and notes, planned by day.",
   "导入本地知识，带来源检索问答。": "Import local knowledge; search and ask with sources.",
   "定义 AI 做事方式，供任务选用。": "Define how an AI works, for tasks to pick.",
-  "同一任务，比较各模型的判断与成本。": "Compare models on one task: judgement and cost.",
   "写下方向，炼成可比较的卡再决定。": "Write a direction, refine it into comparable cards, then decide.",
   "和 Agent 一起写代码，留每轮记录。": "Write code with an Agent; every round is kept.",
   "导入本地知识，带着来源检索和问答。": "Import local knowledge, then search and ask with sources kept.",

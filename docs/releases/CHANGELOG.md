@@ -49,7 +49,7 @@
 
 - 类型化宿主能力 `projects.workspace.file.read.v1`、`projects.workspace.git.read.v1` 和合同里的 `readWorkspaceFileCapability`、`readWorkspaceGitCapability`（W2-09）：每个工作区读取只留动作 `projects.workspace.files.read`、`projects.workspace.git.inspect`。
 - 0.1.x 根 SDK（#262）；数据库迁移链与 V3 导入；其他已确认不再需要的兼容路径，源码里的兼容标记按文件计数、只许减少（#283、#285、#289）。
-- 实验插件（2026-10-10）：包 `@molis-ai/molis-work-plugin-experiments` 和它在宿主里的接线（15 个动作 `experiments.*`、`/api/experiments/*`、私有库打开代码与基线 `EXPERIMENTS_PRIVATE_BASELINE`）；本地 `grok` 命令行和 `laya` 检查点的调用（登记在 `docs/system/CALL-CHAINS.md` §10.1 的例外随之删除）、Python 工作进程 `apps/local-host/tooling/experiments/`、插件手册 `docs/experiments/`；目录条目、插件图标与调色、页面资源 `/assets/molis-work-plugins/experiments.js`。TypeSafe 连接现在只给 Functions 用。
+- 实验插件（2026-10-10）：包 `@molis-ai/molis-work-plugin-experiments` 和它在宿主里的接线（15 个动作 `experiments.*`、`/api/experiments/*`、私有库打开代码与基线 `EXPERIMENTS_PRIVATE_BASELINE`）；本地 `grok` 命令行和 `laya` 检查点的调用（登记在 `docs/system/CALL-CHAINS.md` §10.1 的例外随之删除）、Python 工作进程 `apps/local-host/tooling/experiments/`、插件手册 `docs/experiments/`；目录条目、插件图标与调色、页面资源 `/assets/molis-work-plugins/experiments.js`。TypeSafe 连接现在只给 Functions 用。合同 `@molis-ai/molis-work-contracts/modules/functions` 的 `TypeSafeEvaluateResult` 去掉可选字段 `usage`（只有实验插件读它；`@molis-ai/molis-work-module-functions` 的提供方不再解析 TypeSafe 响应里的 `usage`），Functions 自己的调用方不受影响。
 
 ### 开发流程
 

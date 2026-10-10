@@ -89,6 +89,9 @@ jobs:
       # The comparison commit: on a pull request, HEAD is the merge commit GitHub builds (refs/pull/N/merge), so it is the
       # merged result against the base branch as it was merged (HEAD^1); on a push to main it is the previous tip.
       # scripts/ci-health-base.mjs picks it and fetches it when the shallow checkout lacks it.
+      # The static checks (Biome: empty catch, `as unknown as`, floating promises, explicit `any`, console, debugger) are counted in
+      # the same run (scripts/gates/lint.mjs, W1-09), and the shape of biome.jsonc may only get stricter. They need Biome from the
+      # install above and nothing from the build.
       - name: Health gates (against the merge-base)
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -101,12 +104,10 @@ jobs:
       # Each gate rule is mutation-verified on a scratch repository: one violation added on a branch fails, and so does
       # the same branch after `--update` rewrote the baseline. The glob takes every tests/health-gates-*.test.ts, so a
       # new gate's test needs no edit here.
+      # The translation check (missing English fails, conflicts are frozen, stable keys are checked) is one of the gates
+      # above; its rules are verified the same way.
       - name: Health gates reject what they claim to
-        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts tests/package-inventory-gate.test.ts
-      # the same branch after `--update` rewrote the baseline. The translation check (missing English fails, conflicts are
-      # frozen, stable keys are checked) is one of the gates above; its rules are verified the same way.
-      - name: Health gates reject what they claim to
-        run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts tests/package-inventory-gate.test.ts tests/translation-check.test.ts
+        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts tests/package-inventory-gate.test.ts tests/translation-check.test.ts
 
       # One product version (docs/releases/POLICY.md): the root package, the Tauri shell and the two version strings in
       # code agree, workspace packages stay private 0.0.0, the current version has release notes and a CHANGELOG
@@ -255,22 +256,89 @@ jobs:
             node scripts/check-secrets.mjs
           fi
 
+  # Static checks for what is not TypeScript (specs/repository-anti-corruption W1-09, scripts/gates/native-checks.mjs): rustfmt and
+  # clippy with every warning an error, and a type check of the Swift. Needs macOS because the Rust crate is the macOS desktop
+  # shell. Nothing here installs Node dependencies: the script and its tests use Node alone. RUSTUP_TOOLCHAIN pins the Rust the
+  # code was cleaned against: clippy gains lints with every release, and `-D warnings` on "stable" would turn each release into a
+  # red build. Moving the pin is a deliberate change (clean the new warnings in the same PR).
+  native-checks:
+    name: Rust and Swift checks
+    runs-on: macos-latest
+    env:
+      RUSTUP_TOOLCHAIN: 1.96.0
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install 1.96.0 --profile minimal --component clippy --component rustfmt
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      # Each check is broken once on a scratch repository and must go red (the shell cases use a stand-in for shellcheck here).
+      - name: Native check rules reject what they claim to
+        run: node --test tests/native-checks.test.mjs
+
+      - name: rustfmt and clippy
+        run: node scripts/gates/native-checks.mjs rust
+
+      - name: Swift type check
+        run: node scripts/gates/native-checks.mjs swift
+
+      # The SwiftPM package (jelly-whisper) has swift-tools-version 6.2, which needs Xcode 26, and a cold build takes about seven
+      # minutes. It is reported but does not decide anything until a runner with that Swift is confirmed; then drop
+      # continue-on-error. Until then only the JellyMaterial.swift type check above blocks a merge, so a compile error in the
+      # package does not turn CI red. The follow-up is specs/BACKLOG.md BL-122.
+      - name: Swift package build (jelly-whisper, not required yet)
+        continue-on-error: true
+        run: node scripts/gates/native-checks.mjs swift --package
+
+  shell-checks:
+    name: Shell and Python checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # shellcheck ships on the GitHub ubuntu runners. Warnings and errors fail; style notes do not.
+      - name: shellcheck on every tracked shell script
+        run: node scripts/gates/native-checks.mjs shell
+
+      # The one Python worker (apps/local-host/tooling/experiments/laya-worker.py) has to parse; python3 is on the runner.
+      - name: Python files parse
+        run: node scripts/gates/native-checks.mjs python
+
+      - name: Shell and Python check rules reject what they claim to
+        run: node --test --test-name-pattern='^(shell|python):' tests/native-checks.test.mjs
+
   verify:
     name: Verify
-    needs: [architecture-boundaries, secret-scan]
+    needs: [architecture-boundaries, secret-scan, native-checks, shell-checks]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection.
-    # The full product suite runs locally; package boundaries, the contract subset and the secret scan run here.
+    # The full product suite runs locally; package boundaries, the contract subset, the secret scan and the Rust, Swift and shell checks run here.
     runs-on: ubuntu-latest
     steps:
       - name: Required package gate passed
         env:
           PACKAGE_BOUNDARIES_RESULT: ${{ needs.architecture-boundaries.result }}
           SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
+          NATIVE_CHECKS_RESULT: ${{ needs.native-checks.result }}
+          SHELL_CHECKS_RESULT: ${{ needs.shell-checks.result }}
         run: |
           test "$PACKAGE_BOUNDARIES_RESULT" = "success"
           test "$SECRET_SCAN_RESULT" = "success"
-          echo "Package boundary, Contract, typecheck, build, action contract and secret scan verification passed."
+          test "$NATIVE_CHECKS_RESULT" = "success"
+          test "$SHELL_CHECKS_RESULT" = "success"
+          echo "Package boundary, Contract, typecheck, build, action contract, secret scan, Rust, Swift and shell verification passed."
 
   # Decision #14 (specs/repository-anti-corruption): which test files pass on Linux is not known yet (some touch macOS-only
   # paths: Seatbelt, Keychain, launchctl, Swift helpers), so the non-browser suite runs here as an information job and does

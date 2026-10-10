@@ -206,7 +206,15 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan) -> Resu
                     path,
                     size: info.st_size.max(0) as u64,
                     modified_ms,
-                    identity: format!("{}:{}:{}:{}:{}:{}", info.st_dev, info.st_ino, info.st_mtime, info.st_mtime_nsec, info.st_ctime, info.st_ctime_nsec),
+                    identity: format!(
+                        "{}:{}:{}:{}:{}:{}",
+                        info.st_dev,
+                        info.st_ino,
+                        info.st_mtime,
+                        info.st_mtime_nsec,
+                        info.st_ctime,
+                        info.st_ctime_nsec
+                    ),
                 });
             }
             _ => output.skipped += 1,
@@ -290,8 +298,17 @@ fn read_one(directory: &File, expected: &FilePreview) -> Result<String, String> 
     if !before.is_file() || before.st_flags() & libc::UF_HIDDEN != 0 {
         return Err("只读取普通、非隐藏文件".into());
     }
-    let identity = format!("{}:{}:{}:{}:{}:{}", before.dev(), before.ino(), before.mtime(), before.mtime_nsec(), before.ctime(), before.ctime_nsec());
-    if identity != expected.identity || before.len() != expected.size
+    let identity = format!(
+        "{}:{}:{}:{}:{}:{}",
+        before.dev(),
+        before.ino(),
+        before.mtime(),
+        before.mtime_nsec(),
+        before.ctime(),
+        before.ctime_nsec()
+    );
+    if identity != expected.identity
+        || before.len() != expected.size
         || modified_ms(before.mtime(), before.mtime_nsec()) != expected.modified_ms
     {
         return Err("文件自预览后已改变，请刷新后重新选择".into());
@@ -486,8 +503,14 @@ mod tests {
         let replacement = fixture.0.join("replacement.txt");
         std::fs::write(&replacement, "after!").unwrap();
         let name = CString::new(replacement.to_str().unwrap()).unwrap();
-        let time = libc::timespec { tv_sec: original.mtime(), tv_nsec: original.mtime_nsec() };
-        assert_eq!(unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), [time, time].as_ptr(), 0) }, 0);
+        let time = libc::timespec {
+            tv_sec: original.mtime(),
+            tv_nsec: original.mtime_nsec(),
+        };
+        assert_eq!(
+            unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), [time, time].as_ptr(), 0) },
+            0
+        );
         std::fs::rename(replacement, &path).unwrap();
         let result = read(&fixture.root(), files).unwrap();
         assert!(result.files[0].data.is_none());

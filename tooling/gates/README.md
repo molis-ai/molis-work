@@ -19,15 +19,16 @@
 
 | 项（baseline.json 的键） | 口径 |
 | --- | --- |
-| `emptyCatches` | TypeScript 代码里的空 `catch`：块里既没有语句也没有注释，如 `catch {}`、`catch (error) { }`。块里写了注释的不算（那是写明了的取舍），有任何语句的也不算。不算 promise 的 `.catch(() => {})`（那是回调，不是 catch 子句）和 `finally`。在语法树里找，所以注释、字符串里的字样不算 |
+| `emptyCatches` | TypeScript 代码里的空 `catch`：块里既没有语句也没有注释，如 `catch {}`、`catch (error) { }`。块里写了注释的不算（那是写明了的取舍），有任何语句的也不算。不算 promise 的 `.catch(() => {})`（那是回调，不是 catch 子句）和 `finally`。**由静态检查数**（Biome 插件 `tooling/gates/lint/no-empty-catch.grit`，见下面「静态检查」），键和逐文件数字与 W1-04 的语法树计数一致 |
 | `emptyCatchesInScripts` | 同一个形状（`catch`、可选的 `( … )`、`{`、只有空白、`}`），在**源码**文件的**字符串和模板字符串**文本里找（测试里的字符串是夹具，不数）。宿主把浏览器程序（工作台、插件的 client 脚本）写成模板字符串，TypeScript 和 lint 都不看里面，普查找到的 141 处空 catch 里有 137 处在这里。**这类算在内**，单独一个计数：把脚本从模板字符串搬进真正的 TypeScript 时，数字从这一项挪到上一项 |
-| `unknownCasts` | 经 `unknown` 的双重断言：`value as unknown as T`、`(value as unknown) as T`、`<T><unknown>value`。单独的 `as unknown` 和 `as any as T` 不算。**含测试**（规格 §9.3 的 R-12 口径是含测试的） |
+| `unknownCasts` | 经 `unknown` 的双重断言：`value as unknown as T`、`(value as unknown) as T`、`<T><unknown>value`。单独的 `as unknown` 和 `as any as T` 不算。**含测试**（规格 §9.3 的 R-12 口径是含测试的）。**由静态检查数**（`tooling/gates/lint/no-double-cast.grit`），口径是 W1-04 的超集（见「静态检查」表里的混合写法），原有文件的逐文件数字相同；扫描范围比 W1-04 的语法树计数多了 `scripts/`（见「静态检查」的扫描范围），所以总数从 199 变成 202（`scripts/contextual-slice/client.ts` 2 处、`scripts/preview-contextual-interaction.mts` 1 处），其余文件的数字没变 |
 | `oldNames` | 只数源码，不数测试。旧产品名：单个词 `goalboard`，不分大小写（`GoalBoard`、`goalboard-v1-demo`、`GOALBOARD_HOME`）。旧 id 名：`board_id`、`boardId`、`BoardId`、`BOARD_ID`，含复数，可以是整个名字或长名字的结尾（`conflicting_board_id`、`existingBoardId`），不数别的词里的（`dashboard_id`、`dashboardId`、`DASHBOARD_ID`）。只数这两种写法：`goal-board`（连字符，目标看板视图的样式类和 CSS 容器名）不是旧名，不数；`GOAL_BOARDS_SCHEMA_SQL`（每个项目 `boards` 表的建表语句）也不数，但不是因为它是看板视图，而是它属于另一类「Board 当项目」的旧名（`getBoard`、`initializeBoard` 等，见 `docs/system/GLOSSARY.md` R-A1，改名在路线图 W5-14），这条规则看不到也不守它们。测试不数，因为测试要写出旧名来断言它被拒绝。**看不到的（已知限制，换回来不会被抓）**：连字符写法 `board-id`（#287 之前的 CLI 参数 `--board-id`），以及不在上述源码范围里的文件（JSON 示例、shell、Rust）；要覆盖得按文件类型各写一条规则，不是改正则能做到的。基线里现在保留的例外：派生密钥的盐 `goalboard-feed-secretstore-v1`（`packages/storage/src/adapters/file-secret-store.ts`，那里的注释写明改了字符串会让已有密文失效）、`plugins/native/goals/src` 里两处没用到的 `_boardId`（`document-collection.ts` 的解构改名、`goal-tree-materialization-order.ts` 的参数）。它们和别的计数一样，只能减少 |
+| `floatingPromises`、`explicitAny`、`consoleCalls`、`debuggerStatements`、`lintParseErrors`、`lintSuppressions`、`lintPolicy` | 静态检查新增的几项，见下面「静态检查」 |
 | `compatMarkers`、`testImports`、`giant` | 见 `AGENTS.md` 与 `scripts/check-health-gates.mjs` |
 
-扫描范围：`apps`、`horizontal`、`modules`、`packages`、`plugins`、`server`、`tooling` 下的 TypeScript 源码（不含测试、夹具、`dist`、`.d.ts`），加上 `tests/` 下任意深度的全部 `.ts`、`.mts`、`.mjs` 文件（含 `tests/fixtures/` 和各种测试辅助文件，与「测试引用包内部」用同一个判断 `isTestFile`）；`emptyCatchesInScripts` 与 `oldNames` 只数源码。定义的原文在 `scripts/gates/source-counts.mjs` 开头，那里是唯一的出处。
+扫描范围：`apps`、`horizontal`、`modules`、`packages`、`plugins`、`server`、`tooling` 下的 TypeScript 源码（不含测试、夹具、`dist`、`.d.ts`）；`emptyCatchesInScripts` 与 `oldNames` 只数源码。静态检查那几项的扫描范围更宽，见下面。定义的原文在 `scripts/gates/source-counts.mjs`（`emptyCatchesInScripts`、`oldNames`）和 `scripts/gates/lint.mjs`（其余）开头，那里是唯一的出处。
 
-加一项新的按文件计数：在 `scripts/gates/source-counts.mjs` 的 `SOURCE_COUNT_RULES` 里加一条（口径写在文件开头），在 `tests/health-gates-source-counts.test.ts` 里加定义用例和突变用例，然后 `node scripts/check-health-gates.mjs --update --base origin/main`。静态检查工具（W1-09）接进来后，TypeScript 代码这部分由它接管，`emptyCatchesInScripts` 留到浏览器脚本都打成包为止。
+加一项新的按文件计数：在 `scripts/gates/source-counts.mjs` 的 `SOURCE_COUNT_RULES` 里加一条（口径写在文件开头），在 `tests/health-gates-source-counts.test.ts` 里加定义用例和突变用例，然后 `node scripts/check-health-gates.mjs --update --base origin/main`。能用静态检查规则表达的（TypeScript 语法层面的东西）走下面的「静态检查」，不要再加正则；`emptyCatchesInScripts` 留到浏览器脚本都打成包为止。
 
 ## 公开 API 快照
 
@@ -87,3 +88,58 @@
 - 17 个已经不在：`alchemist.legacy.*` 3 个（6a6116d2，2026-10-02 删炼金术士历史演示记录）、`goals.board.import-v3`（c1d0b64a，2026-10-04，BL-083）、`jelly.inspiration.*`、`jelly.material.*`、`jelly.source.read` 共 13 个（faa85449，2026-10-01，Jelly 去掉灵感页，读取链接和文件改由灵光做）。
 - 52 个是新的：42 个 Manifest 声明的（成果库的预览、固定、比较、从这一版继续，Goals 的交付物与成果输入，Jelly 的内容来源动作，灵光的 `lingguang.material.read` 与 `lingguang.source.read`，Pages 的引用方，Todo 的项目搜索），3 个 `platform` 提供方的工作目录读取动作，7 个每个 Runtime 插件一份的 `sdk.artifacts.…record`。
 - 步骤一记的 12 个 MCP 默认工具这次没有对账（见上，不在快照里）。
+
+## 静态检查（Biome）
+
+W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 devDependency）；门禁是 `scripts/gates/lint.mjs`，随 `pnpm health:check` 跑，对照 merge-base，口径与上面的「按文件计数」完全一样：每个文件每条规则一个数，新文件从 0 开始，只许减少，PR 里改 `baseline.json`、`--update` 都放不过变大的。只做检查：不开格式化，也不整理 import，所以不会有整仓重排。
+
+**为什么是 Biome，不是 ESLint**：一个二进制，锁文件只多一个包（ESLint 要 eslint、typescript-eslint、解析器一整棵树）；整仓约 2 秒（ESLint 要类型信息的规则得先给七十多个 tsconfig 建程序，还要先 build）；merge-base 没有检出目录可以跑，Biome 能在一个只放被跟踪文件的临时目录里跑，两边用同一份配置量，ESLint 的类型感知规则做不到；仓库自己的两条规则用 GritQL 插件写（`tooling/gates/lint/`），不需要写 JS 插件。代价：没有浮动 promise 的类型检查器级别精度，见「看不到的」。
+
+| 键（baseline.json） | 规则 | 口径 | 关掉的地方 |
+| --- | --- | --- | --- |
+| `emptyCatches` | 插件 `molis/no-empty-catch` | 块里既没有语句也没有注释的 `catch` 子句。Biome 自带的 `noEmptyBlockStatements` 不用：它还报每个空函数（481 处对 4 处），是另一件事 | 无 |
+| `unknownCasts` | 插件 `molis/no-double-cast` | `x as unknown as T`、`(x as unknown) as T`（括号层数不限）、`<T><unknown>x`，也包括混合写法 `<T>(x as unknown)`、`(<unknown>x) as T`（W1-04 的语法树计数不数这两种，现有文件里一处也没有，所以那些文件的逐文件数字不变）；单独的 `as unknown`、`as any as T` 不算 | 无 |
+| `floatingPromises` | `nursery/noFloatingPromises` | 没有 `await`、没有返回、没有 `.catch`/`.then` 处理、也没写 `void` 的 promise。有意丢掉就写 `void` | 无 |
+| `explicitAny` | `suspicious/noExplicitAny` | 显式写出的 `any`（含 `as any`、`Array<any>`）；要用 `unknown` 再收窄 | 无 |
+| `consoleCalls` | `suspicious/noConsole` | `console.*` 调用（遗留的调试输出）。宿主里需要日志的地方以后走结构化日志（路线图 W5-13） | `scripts/**`、`apps/cli/**`、`apps/desktop/launchers/**`、`tooling/plugin-cli/**`、`server/tooling/**`：这些程序的工作就是往终端打印 |
+| `debuggerStatements` | `suspicious/noDebugger` | `debugger` 语句 | 无 |
+| `lintParseErrors` | Biome 的解析错误 | 有语法错误的文件（每个文件记 1，不管报了几处）。Biome 遇到语法错误会恢复并继续检查读得懂的部分，别的规则照样在这个文件上跑（`continuity-demo.mts` 就同时有一处解析错误和一处空 `catch` 记录）；但恢复可能跳过一段：没有结束的模板字符串会把后面整个文件吞成一个词，之后的内容什么规则都看不到。所以记数，不让它当作干净的文件通过。已知的限制：一个已经带着记录的有语法错误的文件，每个文件只记 1，所以它再多一处语法错误（比如没有结束的模板字符串，把后面的内容吞掉）数字不变、后面的内容也没人查；遇到这种文件要把它修好并从基线里去掉，不要在它上面继续写。现在有 `server/tooling/continuity-demo.mts`：`const` 里 `projectId` 声明了两次，是 `board_id` 改名时留下的坏演示脚本 | 无 |
+| `lintSuppressions` | `biome-ignore` 注释 | 压制规则的注释本身。每条规则都有不用压制的写法，所以压制也不许增加 | 无 |
+| `lintPolicy` | `biome.jsonc` 的形状 | 与 merge-base 的比较：见下面「规则集只许变严」 | |
+
+**扫描范围**：被 Git 跟踪的 `.ts`、`.mts`、`.mjs`，在 `apps`、`horizontal`、`modules`、`packages`、`plugins`、`server`、`tooling`、`tests`、`scripts`、`examples` 之下（不含 `.d.ts`、`dist`、`node_modules`）；`docs/` 里的原型和 `specs/archive/` 不是交付的代码，不查。门禁把这些文件和 `biome.jsonc`、插件文件拷进一个临时目录再跑 Biome，所以结果只取决于被跟踪的文件和锁定的 Biome 版本，在哪台机器、CI 里、merge-base 上都一样，不依赖 `node_modules` 或构建产物。
+
+**规则集只许变严**（`lintPolicy`）：头和 merge-base 都用头的 `biome.jsonc` 去量，所以规则一松，两边的数字一起“降”（有时到 0），数字本身看不出来，像是改善。因此配置要单独比：门禁把 `biome.jsonc` 读成一份摘要（哪条规则在哪里是 error、哪些目录把它关了、排除了哪些文件、检查范围的正向列表、有哪些插件），与 merge-base 的摘要比。去掉一条规则、改成 `warn`、给某个目录新关一条规则、在 `overrides` 里用 `linter.enabled: false` 给某个目录整个关掉检查（那一个设置就让该目录所有规则的数字归零，两边一起）、新加排除、把全局规则改成只对某个包生效、从 `files.includes` 里去掉一个目录的写法、给 `linter.includes` 加上限制或去掉里面的一项（检查到的文件变少）、删掉插件，都失败。换成更宽的写法也算“去掉了旧的”：保留旧的再加新的，或者改门禁。`files.includes` 的正向条目还必须正好是门禁拷进检查的那几个目录（`LINT_ROOTS`，一项不多一项不少；`!` 开头的排除不算），不然 `pnpm lint`（原地跑，查每一个正向条目）和门禁（只数 `LINT_ROOTS`）看到的文件不一样；多出来的条目或少一个都直接失败，不论 merge-base 怎么写。要新增一个代码目录，`LINT_ROOTS` 和 `files.includes` 一起改。
+
+**`overrides` 的先后顺序门禁不建模，所以拒绝顺序会起作用的写法**：Biome 按书写顺序应用 `overrides`，后面的覆盖前面的；而摘要里的集合是排好序的，同样两条 override 换个顺序，对比较来说是同一份配置。于是一个 PR 在已有的例外后面加一条更严的 override（比较认为是变严），下一个 PR 把两条换位，例外就复活了，两边的数字一起降，什么都看不出来。因此两条 override 对同一条规则（或对 `linter.enabled`）设不同的级别、而它们的目录可能重叠时，直接失败，不论 merge-base 怎么写。判断“可能重叠”很保守：只有两个目录的字面路径前缀分叉（`scripts/**` 与 `apps/cli/**`）才算不重叠；第一段带通配符或花括号（`**/x`、`{apps,packages}/**`）、没有 `includes`（整个树）、一个目录在另一个里面（`packages/**` 与 `packages/a/**`）都算重叠。要收紧一个例外，就把目录从那条例外的 `includes` 里去掉，不要在后面再加一条 `error`；同一条规则设两次同样的级别、或两条不同的规则不受影响。
+
+**门禁只认它读得懂的设置**：规则只写级别（`"error"`、`"off"` 或 `{ "level": … }`）。规则选项（`noConsole` 的 `options.allow` 列上所有方法就一个 `console` 也不数）、按语言的开关（`javascript.linter.enabled: false` 让 Biome 一条诊断也不出）、`domains`、`extends`、override 里的规则预设、插件的对象写法，以及其他没列出的设置，一律拒绝，不是忽略；要用其中一项，先改 `scripts/gates/lint.mjs` 的 `policyOf` 让门禁读懂并比较它。嵌套的 `biome.json[c]` 同样拒绝（门禁只读根配置）。`biome.jsonc` 里开了一条没有对应计数的规则也失败：先在 `LINT_RULES` 里加计数。插件文件（`tooling/gates/lint/*.grit`）的内容是计数的口径本身，和 `scripts/gates/*.mjs` 一样：改它就是改门禁，要过评审，`tests/health-gates-lint.test.ts` 的定义用例钉住它的行为。
+
+**工作树**：其他会话的工作树都在 `.claude/worktrees/` 下，每份带一个 `"root": true` 的 `biome.jsonc`。`vcs` 是关的，Biome 不读 `.gitignore`，在主检出里会走进去、发现第二份根配置，报 `Found a nested root configuration` 然后一个文件都不检查（`pnpm lint` 和编辑器扩展都这样）。所以 `files.includes` 里有 `"!!.claude"`（强制忽略，扫描器根本不进这个目录）。写成不带 `**/` 的锚定写法是有意的：`"!!**/.claude"` 也能解决主检出的问题，却会匹配到本身就在 `.claude/worktrees/` 下的检出路径里的 `.claude`，在工作树里跑 `pnpm lint` 就变成检查 0 个文件（Biome 2.5.14 实测）。`tests/health-gates-lint.test.ts` 在两处都真跑一遍 Biome。这个条目是 `biome.jsonc` 入库时带来的，所以不算「新排除」；以后再加排除仍然失败。
+
+**按包开一条新规则**：不要一次开全仓。先在 `LINT_RULES` 里加计数，再在 `biome.jsonc` 的 `overrides` 里只对一个包把它设成 `error`（`"includes": ["packages/storage/**"]`），该包现有的违规按文件冻结进基线（`--update --base origin/main`），之后每个包清理完或确认没有违规就加进来；全部包都开了之后把规则挪到 `linter.rules` 的顶层并删掉 override。反过来，要对某个目录关一条规则，是 `overrides` 里的一项，写明理由，并且是改门禁本身，要过评审。
+
+**看明细**：`pnpm health:check` 失败时会写出文件和行号。`pnpm lint` 直接跑 Biome（`biome lint --max-diagnostics=none`，在工作树里原地跑，列出每一处，含基线已接受的；Biome 默认只打印前 20 条，所以脚本里关掉了这个上限。基线里有已接受的违规，所以它的退出码不是 0；编辑器装 Biome 扩展读同一份 `biome.jsonc`），原地跑能看到临时目录里看不到的（见下）。加一条定义要同时改：`scripts/gates/lint.mjs`（`LINT_RULES`）、`biome.jsonc`、本节的表，并在 `tests/health-gates-lint.test.ts` 里加定义用例和突变用例。
+
+**看不到的**（已知限制，不是决定）：
+- `noFloatingPromises` 沿着文件之间的相对 import 找 promise，不会穿过包名：调用另一个 workspace 包导出的 async 函数没有被 await，临时目录里看不到（要先 build 出 `.d.ts`，门禁不依赖构建）。构建之后原地跑 `pnpm lint` 能多看到 1 处（`prologue-node.ts` 里 Prologue SDK 的方法，类型来自 `node_modules`），其余都在树里。Biome 的这条规则还在 nursery，版本固定，升级前先在 `tests/health-gates-lint.test.ts` 里看定义用例。
+- `async` 回调传给期望同步返回的位置（`noMisusedPromises`）不查：这个版本的 Biome 把 `if (pending) return pending` 这种“可能为空的 promise 缓存”也报成错误（27 处误报），没法用。
+- 浏览器脚本（写成模板字符串的客户端程序）Biome 看不到：那里的空 catch 仍由 `emptyCatchesInScripts` 数，其余规则没有对应物。
+- 没有检查未用变量与导入：`tsc` 的 `noUnusedLocals` 已经在每个包里查了；`tests/` 与 `scripts/` 不在任何 tsconfig 里，没有类型检查（路线图 §4.16 记了 798 处）。
+
+## Rust、Swift、shell 与 Python
+
+`scripts/gates/native-checks.mjs`（开头的注释是口径的出处）。这几项不是数字，没有基线：通过，或者失败，每个告警都算错误。CI 里 `native-checks` 任务（macOS）跑 Rust 和 Swift，`shell-checks` 任务（Linux）跑 shell 与 Python，两个都在 `Verify` 的 `needs` 里；本机 `node scripts/gates/native-checks.mjs rust|swift|shell|python`。
+
+| 检查 | 命令 | 范围与说明 |
+| --- | --- | --- |
+| Rust 格式 | `rustfmt --check` | 所有被跟踪的 `.rs`。`apps/desktop` 之外的 `.rs` 文件直接失败（不在检查范围里的代码不许悄悄加进来） |
+| Rust 静态检查 | `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings` | 要编译 crate，所以在 macOS 上跑。CI 用 `RUSTUP_TOOLCHAIN` 固定 Rust 版本（clippy 每个版本都会新增 lint，`-D warnings` 跟着“stable”走会让每次发布变红）；换版本是单独的改动，同一个 PR 里清掉新告警。本机用已装的版本，新版本可能多报 |
+| Swift 类型检查 | `swiftc -typecheck -parse-as-library -target <arch>-apple-macosx14.0 JellyMaterial.swift` | 原生素材提取器。每个被跟踪的 `.swift` 都要登记在脚本的 `SWIFT_UNITS`，否则失败 |
+| Swift 包构建 | `swift build --package-path apps/local-host/native/materials/whisper`（加 `--package`） | `jelly-whisper` 的 SwiftPM 包，`swift-tools-version: 6.2`（要 Xcode 26），冷编译约 7 分钟，要联网拉 `argmax-oss-swift`。CI 里先作为不挡合并的步骤跑（`continue-on-error`），所以现在挡合并的只有 `JellyMaterial.swift` 的类型检查，`jelly-whisper` 编译坏了不会让 CI 变红。收口记在待办 [BL-122](../../specs/BACKLOG.md)：确认有 Swift 6.2 的 runner（`macos-26` 或装 Xcode 26）后去掉 `continue-on-error` |
+| shell | `shellcheck --severity=warning` | 所有被跟踪的 `.sh`，和第一行是 sh/bash 的无后缀文件。告警和错误失败，风格提示不失败 |
+| Python | `python3 -I`，`ast.parse` | 被跟踪的 `.py`（现在只有 `apps/local-host/tooling/experiments/laya-worker.py`，实验执行器启动的工作进程）必须能解析；不写 `__pycache__`。只查语法，没有 linter |
+
+工具缺失是退出码 2，不是通过。规则本身在 `tests/native-checks.test.mjs`（纯 `node:test`，不需要装依赖）里各被故意违反一次；本机没有的工具对应的用例会跳过并说明（shell 用例另有一个替身 shellcheck，验证“交了哪些文件、严重度参数、失败的退出码”）。
+
+本机的 Rust 测试 `cargo test` 不在 CI 里：有两个测试用纳秒时间戳给临时目录命名，并行时偶尔撞名（`shelf_http`、`context_directory_files`）。

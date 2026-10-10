@@ -12,13 +12,13 @@ import { join, resolve } from "node:path";
 import { createAlchemistSearchPort, openExperimentsPrivateStore } from "@molis-ai/molis-work-app-local-host";
 
 const argument = process.argv[2];
-if (!argument) { console.error("usage: node store-maintenance-verify-open.mjs <home copy>"); process.exit(2); }
+if (!argument) { process.stderr.write("usage: node store-maintenance-verify-open.mjs <home copy>\n"); process.exit(2); }
 const home = realpathSync(resolve(argument));
 const realHome = (() => { try { return realpathSync(join(homedir(), ".molis-work")); } catch { return undefined; } })();
-if (home === realHome) { console.error(`${home} is the real Home: run this on a copy`); process.exit(2); }
+if (home === realHome) { process.stderr.write(`${home} is the real Home: run this on a copy\n`); process.exit(2); }
 
 let failed = false;
-const report = (label, outcome) => { console.log(`${label} -> ${outcome}`); };
+const report = (label, outcome) => { process.stdout.write(`${label} -> ${outcome}\n`); };
 async function attempt(label, open) {
   try { report(label, JSON.stringify(await open())); } catch (error) { failed = true; report(label, `REFUSED ${error.code ?? error.name}: ${String(error.message).slice(0, 160)}`); }
 }

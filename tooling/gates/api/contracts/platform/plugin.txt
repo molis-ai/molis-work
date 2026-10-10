@@ -293,6 +293,7 @@ export interface ActionCallContext {
     readonly actor_id: string;
     readonly audit_actor_id?: string;
     readonly runtime_session_id?: string;
+    readonly runtime_session_missing?: true;
     readonly actor_kind?: "user" | "runtime" | null;
     readonly user_action?: {
         readonly source: string;

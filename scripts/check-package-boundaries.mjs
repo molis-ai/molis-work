@@ -567,9 +567,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       if (!source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal read caller is missing goalQueries public usage`);
     } else {
       if (source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal reads must not bypass the Host Client`);
-      if (source.includes("client.invoke(readGoalContractCapability,")) {
-        errors.push(`${relativePath}: Goal Contract reads must use the shared Action client`);
-      }
       if (relativePath === "apps/cli/src/command-dispatch.ts" && !source.includes("client.invoke(snapshotBoardCapability,")) {
         errors.push(`${relativePath}: remaining CLI Goal reads must invoke the current public snapshot capability`);
       }
@@ -1190,7 +1187,6 @@ function checkRuntimeHostOwnership(repositoryRoot) {
 export function checkGoalQueryCapabilityAdapters(source) {
   const file = ts.createSourceFile("project-capabilities.ts", source, ts.ScriptTarget.Latest, true);
   const expected = new Map([
-    ["readGoalContractCapability", "contract"],
     ["snapshotBoardCapability", "snapshot"],
   ]);
   const registrations = new Map();

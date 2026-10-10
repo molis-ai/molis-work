@@ -5,6 +5,7 @@ import {
   type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CapabilityRegistry } from "./index.js";
+import { assertSessionAuthorship } from "./action-authorship.js";
 import { actionSchemaAccepts, compileActionSchema, createActionSchemaCompiler, validateActionValue } from "./action-schema.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
 import { createExecutionLifetime } from "@molis-ai/molis-work-contracts/platform/execution-lifetime";
@@ -85,7 +86,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         const registeredDefinition = { ...definition, action_provider: provider };
         const callWindows = new Map<string, number[]>();
         const execute = (context: ActionCallContext, input: unknown) => {
-          context.signal?.throwIfAborted();
+          context.signal?.throwIfAborted(); assertSessionAuthorship(definition.action, context);
           validateActionValue(validateInput, input, "input");
           const policy = definition.action.execution;
           if (policy?.max_calls_per_minute) {

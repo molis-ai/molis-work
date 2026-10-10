@@ -18,12 +18,6 @@ export interface GoalContractView extends GoalFactsView {
   goal_tree_proposals: GoalTreeProposalRecord[];
 }
 
-export const readGoalContractCapability = {
-  capability_id: "io.molis.work.local-host.goals.contract",
-  version: 1,
-  operation: "query",
-} as HostCapabilityDefinition<{ project_id: string; goal_id: string }, GoalContractView>;
-
 export const readProjectGuidanceCapability = {
   capability_id: "io.molis.work.local-host.project.guidance",
   version: 1,

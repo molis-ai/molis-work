@@ -4,7 +4,7 @@ Goals 保存 Goal 身份、当前结果约定、要求、工作事件和父子�
 
 ## 当前工作路径
 
-所有新建入口使用 `GoalEventApplication.createIntent`：网页新建、首次引导、Feed/Inbox 升格、Runtime 和已批准的树提案。普通笔记无需类型、规划模板或验收要求。类型配置、普通事实和进展可逐步补充；一批报告与其进展说明共同提交，任何非法事实都会使本批次回滚。
+所有新建入口使用 `GoalEventApplication.createIntent`：网页新建、首次引导、Feed/Inbox 升格（经 `goals.create` 动作，Feed 不直接写 Goals）、Runtime 和已批准的树提案。普通笔记无需类型、规划模板或验收要求。类型配置、普通事实和进展可逐步补充；一批报告与其进展说明共同提交，任何非法事实都会使本批次回滚。
 
 当前约定独立于历史 Draft/accepted 字段。要求可以新增、修订、退休；退休保留原要求和报告。`human_decision_required` 默认为 false，为 true 时必须有当前仍有效的可信用户验收。实质承诺变化须引用对具体变化的有效授权，不能通过改类型绑定或自填操作者绕过。
 

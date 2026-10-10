@@ -259,7 +259,7 @@ const { renderProjectPolicyDocument, renderPolicyEditor } = createWorkbenchGoals
 function renderPersistedFeedItemDetail(
   item: FeedItemRecord,
   routePrefix = "",
-  options: { entryId?: string; inboxActive?: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" } = {},
+  options: { entryId?: string; inboxActive?: boolean; promoteAvailable?: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" } = {},
 ): string {
   return renderFeedNativePluginPersistedDetail(item, routePrefix, options);
 }

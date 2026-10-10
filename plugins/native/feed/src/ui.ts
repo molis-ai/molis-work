@@ -146,6 +146,8 @@ export interface PersistedFeedDetailModel {
   readonly item: FeedUiItem;
   readonly inbox_entry: AttentionEntryRecord | null;
   readonly inbox_active: boolean;
+  /** Whether the promotion can run for this caller now; absent means it can. Without it the reader has no 「升格为 Goal」 button. */
+  readonly promote_available?: boolean;
   readonly primitives: FeedUiPrimitives;
 }
 
@@ -402,7 +404,7 @@ export function renderPersistedFeedItemDetail(model: PersistedFeedDetailModel, s
   const itemUrl = p.safeExternalHref(item.url);
   const body = p.richText(item.body || item.summary) || `<p>${p.text("这条消息没有可显示的正文。")}</p>`;
   const effectiveDisposition = item.disposition === "inbox" ? "feed" : item.disposition;
-  const actions = renderItemActions(item, model.inbox_active, p);
+  const actions = renderItemActions(item, model.inbox_active, model.promote_available !== false, p);
   const destination = destinationCopy(model.inbox_active ? "inbox" : effectiveDisposition, p);
   const materials = item.materials.length ? item.materials.map((material) => {
     const href = p.safeExternalHref(material.canonical_url);
@@ -601,13 +603,13 @@ function renderPrototypeSourceDetail(source: FeedUiSource, selected: boolean, mo
   </article>`;
 }
 
-function renderItemActions(item: FeedUiItem, inboxActive: boolean, p: FeedUiPrimitives): string {
+function renderItemActions(item: FeedUiItem, inboxActive: boolean, promoteAvailable: boolean, p: FeedUiPrimitives): string {
   if (item.disposition === "archived") {
     return `<button class="mw-btn mw-btn--secondary" type="button" data-feed-action="restore" data-feed-restore-target="feed" data-feed-item-id="${p.escape(item.item_id)}" data-feed-revision="${item.revision}">${p.text("恢复到 Feed")}</button>`;
   }
-  const shown = inboxActive
+  const shown = (inboxActive
     ? [...FEED_CAPTURE_DISPOSITION_IDS]
-    : visibleFeedDispositionIds(item.suggested_behavior_ids, true);
+    : visibleFeedDispositionIds(item.suggested_behavior_ids, true)).filter((id) => promoteAvailable || id !== FEED_PROMOTE_BEHAVIOR_ID);
   const manualAdmission = !inboxActive && !shown.includes(INBOX_ADMIT_BEHAVIOR_ID)
     ? `<button class="mw-btn mw-btn--secondary" type="button" data-feed-action="inbox" data-feed-item-id="${p.escape(item.item_id)}" data-feed-revision="${item.revision}">${p.text("手动加入 Inbox")}</button>` : "";
   return shown.map((id, index) => dispositionButton(item, id, index === 0, inboxActive, p)).join("") + manualAdmission;

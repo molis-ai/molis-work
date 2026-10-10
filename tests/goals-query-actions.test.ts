@@ -5,9 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, readGoalEventStateCapability, listGoalEventsCapability, listLatestGoalEventsCapability,
-  listLatestGoalTimelineCapability, readGoalEventCapability, projectResumeFactsCapability,
-  snapshotBoardCapability, readGoalContractCapability } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, readGoalResumeFacts, snapshotBoardCapability } from "@molis-ai/molis-work-plugin-goals";
 import { goalContextCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { bindActionClient, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materializeGoalEventHistory, goalEventHistoryKinds } from "./goal-event-history-fixture.js";
@@ -39,7 +37,6 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     assert.deepEqual(await typed.invoke(snapshotBoardCapability, { project_id }), snapshot);
     const contract = await actions.invoke(goalsActions.contract, { goal_id });
     assert.deepEqual(contract, await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(project_id, goal_id)));
-    assert.deepEqual(await typed.invoke(readGoalContractCapability, { project_id, goal_id }), contract);
     const checkReadBoundary = async <Input, Output>(action: ActionDefinition<Input, Output>, input: Input) => {
       await assert.rejects(actions.invoke(action, { ...input, actor_id: "forged" } as never), { code: "actions.input_invalid" });
       await assert.rejects(host.actionClient(ref).invoke({ actor_id: "reader", audience: "mcp", project_id: ref.project_id, permissions: [] }, action, input), { code: "actions.forbidden" });
@@ -51,7 +48,7 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     assert.equal(collection.goals[0]?.goal.goal_id, goal_id);
     await checkReadBoundary(goalsActions.collection, {});
     await assert.rejects(typed.invoke(snapshotBoardCapability, { project_id: "foreign" }), { code: "actions.scope_mismatch" });
-    await assert.rejects(typed.invoke(readGoalContractCapability, { project_id: "foreign", goal_id }), { code: "actions.scope_mismatch" });
+    await assert.rejects(host.actionClient(ref).invoke({ actor_id: "query-reader", audience: "user", project_id: "foreign", permissions: ["goals:read"] }, goalsActions.contract, { goal_id }), { code: "actions.scope_mismatch" });
     const document = await actions.invoke(goalsActions.document, { goal_id });
     assert.deepEqual(document.state, state);
     assert.equal(document.description.title, "保持原始记录");
@@ -63,19 +60,17 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     await assert.rejects(actions.invoke(goalsActions.document, { goal_id, project_id: "foreign" } as never), { code: "actions.input_invalid" });
     await assert.rejects(host.actionClient(ref).invoke({ actor_id: "query-reader", audience: "mcp", project_id: "foreign", permissions: ["goals:read"] },
       goalsActions.document, { goal_id }), { code: "actions.scope_mismatch" });
-    assert.deepEqual(await typed.invoke(readGoalEventStateCapability, { project_id, goal_id }), state);
     const coding = await typed.invoke(goalContextCapabilities.read, { goal_id });
     assert.equal(coding.goal.goal_id, goal_id); assert.equal(coding.state.goal_event_cursor, state.goal_event_cursor);
     const directory = await actions.invoke(goalsActions.directoryItem, { goal_id });
     assert.equal(directory?.title, state.intent.title);
     assert.equal(await actions.invoke(goalsActions.directoryItem, { goal_id: "MISSING" }), null);
-    const resumed = await typed.invoke(projectResumeFactsCapability, { project_id, focus_goal_ids: [goal_id] });
+    const resumed = await readGoalResumeFacts(actions, [goal_id]);
     assert.deepEqual(resumed.goals, [directory]);
     const ascending: string[] = [];
     let after_cursor: number | undefined;
     do {
       const page = await actions.invoke(goalsActions.events, { goal_id, limit: 2, ...(after_cursor === undefined ? {} : { after_cursor }) });
-      assert.deepEqual(await typed.invoke(listGoalEventsCapability, { project_id, goal_id, limit: 2, after_cursor }), page);
       assert.ok(page.events.length <= 2);
       ascending.push(...page.events.map(event => event.event_id));
       after_cursor = page.next_cursor ?? undefined;
@@ -86,19 +81,16 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     let before_cursor: number | undefined;
     do {
       const page = await actions.invoke(goalsActions.latestEvents, { goal_id, limit: 2, ...(before_cursor === undefined ? {} : { before_cursor }) });
-      assert.deepEqual(await typed.invoke(listLatestGoalEventsCapability, { project_id, goal_id, limit: 2, before_cursor }), page);
       descending.push(...page.events.map(event => event.event_id));
       before_cursor = page.next_cursor ?? undefined;
     } while (before_cursor !== undefined);
     assert.deepEqual(descending, ascending.toReversed());
     const timeline = await actions.invoke(goalsActions.timeline, { goal_id, limit: 2 });
     assert.deepEqual(timeline.items.map(item => item.event_id), noteIds.slice(-2).reverse());
-    assert.deepEqual(await typed.invoke(listLatestGoalTimelineCapability, { project_id, goal_id, limit: 2 }), timeline);
     const event_id = noteIds[3]!;
     const event = await actions.invoke(goalsActions.event, { goal_id, event_id });
     assert.equal(event.actor_id, "query-reader");
     assert.deepEqual(event.payload, { operation: "observation_note", body: "原文 3 <script>保留但转义</script>" });
-    assert.deepEqual(await typed.invoke(readGoalEventCapability, { project_id, goal_id, event_id }), event);
     const history = await actions.invoke(goalsActions.history, { goal_id, limit: 2 });
     assert.equal(history.items[0]?.item_id, event_id); assert.ok(history.next_cursor);
     const nextHistory = await actions.invoke(goalsActions.history, { goal_id, limit: 2, before_cursor: history.next_cursor });
@@ -112,19 +104,18 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     await assert.rejects(actions.invoke(goalsActions.event, { goal_id: "OTHER-GOAL", event_id }));
     await assert.rejects(actions.invoke(goalsActions.events, { goal_id, limit: 101 }), { code: "actions.input_invalid" });
     await assert.rejects(actions.invoke(goalsActions.state, { goal_id, project_id: "foreign" } as never), { code: "actions.input_invalid" });
-    await assert.rejects(typed.invoke(readGoalEventStateCapability, { goal_id, project_id: "foreign" }), { code: "actions.scope_mismatch" });
-    await assert.rejects(typed.invoke(projectResumeFactsCapability, { project_id: "foreign" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(host.actionClient(ref).invoke({ actor_id: "query-reader", audience: "user", project_id: "foreign", permissions: ["goals:read"] }, goalsActions.state, { goal_id }), { code: "actions.scope_mismatch" });
     denied = goalsActions.state.capability_id;
-    await assert.rejects(typed.invoke(readGoalEventStateCapability, { project_id, goal_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(actions.invoke(goalsActions.state, { goal_id }), { code: "actions.plugin_disabled" });
     await assert.rejects(typed.invoke(goalContextCapabilities.read, { goal_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.list.capability_id;
-    await assert.rejects(typed.invoke(projectResumeFactsCapability, { project_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(readGoalResumeFacts(actions, [goal_id]), { code: "actions.plugin_disabled" });
     denied = goalsActions.document.capability_id;
     await assert.rejects(actions.invoke(goalsActions.document, { goal_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.snapshot.capability_id;
     await assert.rejects(typed.invoke(snapshotBoardCapability, { project_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.contract.capability_id;
-    await assert.rejects(typed.invoke(readGoalContractCapability, { project_id, goal_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(actions.invoke(goalsActions.contract, { goal_id }), { code: "actions.plugin_disabled" });
     await assert.rejects(typed.invoke(goalContextCapabilities.read, { goal_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.collection.capability_id;
     await assert.rejects(actions.invoke(goalsActions.collection, {}), { code: "actions.plugin_disabled" });

@@ -5,30 +5,6 @@ import type { McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 /** The MCP client and, when the Runtime host declares one, the Session of the call: the actor a receipt names. */
 export const runtimeActorId = (clientId: string, runtimeSessionId: string | null): string => runtimeSessionId ? `${clientId}:${runtimeSessionId}` : clientId;
 
-export function runtimeEventActor(
-  host: MolisWorkRuntimeContextHost | null,
-  callContext: McpToolCallContext,
-): { actor_id: string; actor_kind: "runtime" } {
-  const runtimeId = host?.runtimeContext.runtime_id?.trim();
-  if (!host || !runtimeId) {
-    throw new MolisWorkV1Error(
-      "mcp.runtime_identity_missing",
-      "MCP 宿主没有可信 Runtime 身份。请重新连接 Molis Work MCP，由宿主提供 runtime_id 与稳定 Session；不要在工具参数里填用户身份。",
-    );
-  }
-  const sessionId = stableRuntimeSessionId(host, callContext);
-  if (!sessionId) {
-    throw new MolisWorkV1Error(
-      "mcp.runtime_identity_missing",
-      "MCP 宿主没有稳定 Session 身份。请重新连接 Molis Work MCP，由宿主提供 runtime_id 以及稳定 Session（会话元数据、nativeRuntimeSessionId 或已声明的 stable_work_context_id）；不要在工具参数里填用户身份。",
-    );
-  }
-  return {
-    actor_id: `runtime:${runtimeId}:${sessionId}`,
-    actor_kind: "runtime",
-  };
-}
-
 /** The Session a Runtime call is made in, as an audit actor; null when the host declares no stable Session. */
 export function runtimeSessionActor(host: MolisWorkRuntimeContextHost | null, callContext: McpToolCallContext): string | null {
   const runtimeId = host?.runtimeContext.runtime_id?.trim();

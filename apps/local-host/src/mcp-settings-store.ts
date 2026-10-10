@@ -88,9 +88,15 @@ export async function updateMcpToolPreference(homeDirectory: string, change: (cu
 }
 
 export async function writeMcpActionGrant(homeDirectory: string, grant: McpActionGrant): Promise<McpToolPreference> {
-  if (!isMcpActionGrant(grant)) throw new Error("动作授权无效");
-  const snapshot = structuredClone(grant);
+  return writeMcpActionGrants(homeDirectory, [grant]);
+}
+
+/** Several grants in one atomic write: an action and the actions it depends on are saved together or not at all. */
+export async function writeMcpActionGrants(homeDirectory: string, grants: readonly McpActionGrant[]): Promise<McpToolPreference> {
+  if (!grants.every(isMcpActionGrant)) throw new Error("动作授权无效");
+  const snapshots = grants.map(grant => structuredClone(grant));
+  const keys = new Set(snapshots.map(actionGrantKey));
   return updateMcpToolPreference(homeDirectory, current => ({ ...current,
-    action_grants: [...current.action_grants.filter(row => actionGrantKey(row) !== actionGrantKey(snapshot)), snapshot],
+    action_grants: [...current.action_grants.filter(row => !keys.has(actionGrantKey(row))), ...snapshots],
   }));
 }

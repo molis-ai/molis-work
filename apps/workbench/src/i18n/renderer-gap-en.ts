@@ -59,6 +59,8 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "内置 Agent 还需在任务中选择能力；Character 只能进一步限制范围。": "A built-in Agent also needs capabilities chosen in the task; a Character can only narrow the scope further.",
   "显示": "Show",
   "需要处理": "Needs attention",
+  // apps/local-host/src/web-mcp-action-settings.ts
+  "此能力还要同时授权：{actions}": "This action also needs these actions granted with it: {actions}",
   // apps/workbench/src/project-settings-folds.ts
   "本地数据位置": "Local data location",
   "打开工作台": "Open workbench",

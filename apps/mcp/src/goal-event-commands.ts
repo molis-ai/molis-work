@@ -1,5 +1,5 @@
 import type { RecordGoalUserDecisionInput } from "@molis-ai/molis-work-contracts/modules/goals";
-import { createGoalEventEntryClient, hostEventDecisionAuthority, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { recordGoalUserDecisionCapability, hostEventDecisionAuthority, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { McpPresentationErrorFactory } from "./goal-presentation.js";
@@ -13,7 +13,6 @@ export function createMcpGoalEventHandlers(
   audience: "runtime" | "management",
   createError: McpPresentationErrorFactory,
 ) {
-  const events = createGoalEventEntryClient(client);
   const rejectUnknown = (input: Record<string, unknown>) => {
     const unexpected = Object.keys(input).filter((key) => !allowed.has(key));
     if (unexpected.length) {
@@ -51,7 +50,7 @@ export function createMcpGoalEventHandlers(
         authorized_change: input.authorized_change as RecordGoalUserDecisionInput["authorized_change"],
         scope: input.scope as RecordGoalUserDecisionInput["scope"],
       };
-      return events.recordTrustedDecision(payload);
+      return client.invoke(recordGoalUserDecisionCapability, payload);
     },
   };
 }

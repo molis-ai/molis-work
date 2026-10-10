@@ -6,8 +6,9 @@ import { join } from "node:path";
 import test from "node:test";
 import { RuntimeProjectConnection } from "@molis-ai/molis-work-app-local-host";
 import { createMcpContextPresenter, createMcpRuntimeContextHandlers } from "@molis-ai/molis-work-app-mcp";
-import { readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
-import { createMolisWorkLocalHost, molisWorkHostProjectReference, projectResumeFactsCapability } from "@molis-ai/molis-work-app-local-host";
+import { readGoalResumeFacts, readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { type MolisWorkProjectCatalog, MolisWorkProjectCatalogError } from "@molis-ai/molis-work-app-local-host";
@@ -75,9 +76,11 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     assert.deepEqual(fixture.listRuntimeContextBindings(), before, "recovering the response does not create a second binding");
     assert.throws(() => scoped!.listProjects(), /closed|not open/);
     const localHost = createMolisWorkLocalHost();
-    const client = localHost.client(molisWorkHostProjectReference({
-      databasePath: project.database_path, projectId: project.project_id,
-    }));
+    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+    const client = localHost.client(reference);
+    // The resume reader the MCP server composes: the Goals directory through the connected client's own actions.
+    const actions = bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "runtime:context-entry", audience: "mcp" as const,
+      project_id: project.project_id, permissions: ["goals:read"] }));
     let failGuidance = true;
     const calls: string[] = [];
     const presentResolution = createMcpContextPresenter({
@@ -96,7 +99,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
       },
       readResumeFacts: () => {
         calls.push("resume");
-        return client.invoke(projectResumeFactsCapability, { project_id: project.project_id });
+        return readGoalResumeFacts(actions);
       },
     });
     const actual = createMcpRuntimeContextHandlers({

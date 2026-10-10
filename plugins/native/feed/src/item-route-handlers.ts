@@ -15,11 +15,15 @@ export function createFeedItemRouteHandlers(options: FeedRouteHandlerPorts): Rec
         && entry.subject_id === itemId
         && (entry.status === "open" || entry.status === "in_progress"),
       );
+      // The button follows the action behind it, as the offers do: where Goals cannot be written through, the reader does not show it.
+      const promoteAvailable = (await options.actions.discover()).some((view) => view.capability_id === feedItemActions.promote.capability_id
+        && view.version === feedItemActions.promote.version && view.availability.available);
       return {
         status: 200,
         html: options.renderDetail(item, {
           entryId: itemId,
           inboxActive,
+          promoteAvailable,
           inboxEntry: null,
           surface: request.query.get("surface") === "frame-block" ? "frame-block" : undefined,
         }),

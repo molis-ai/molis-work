@@ -4,12 +4,12 @@ import test from "node:test";
 import Database from "better-sqlite3";
 
 import {
-  parsePluginManifest,
   type PluginDefinition,
   type PluginInstanceRecord,
   type PluginManifest,
   type PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import {
   NativePluginExecutor,

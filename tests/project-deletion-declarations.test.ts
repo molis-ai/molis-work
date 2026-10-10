@@ -28,13 +28,13 @@ test("a plugin's project data is what its catalog entry declares, and the confir
     const owners = projectDeletedHooksFor(home).owners();
     // The ids are the receipt's stable names, so a change here orphans the steps of receipts that are still pending.
     assert.deepEqual(owners.map(owner => owner.id), [
-      "pages", "form", "dataset", "ppt", "workflows", "todo", "functions", "lingguang", "images",
+      "pages", "form", "dataset", "ppt", "workflows", "todo", "functions", "lingguang", "images", "sessions",
       "alchemist", "plugin-builder", "assistant", "memory", "search",
     ]);
     assert.deepEqual(owners.flatMap(owner => owner.label ? [owner.label] : []), [
       "Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "Dataset 数据表", "PPT 演示稿", "工作流程及其运行记录", "放在这个项目里的待办",
       "判断规则在这个项目里的场景绑定和判断记录", "灵光里的想法与对话", "图片生成记录和已生成的图片",
-      "炼金术士的研究空间", "插件创作台的构建、发布包和已保存的密钥", "助理在这个项目里的工作", "这个项目及其角色的记忆",
+      "这个项目里的会话记录与交接", "炼金术士的研究空间", "插件创作台的构建、发布包和已保存的密钥", "助理在这个项目里的工作", "这个项目及其角色的记忆",
     ]);
     const declared = catalog.filter(entry => entry.project_data);
     assert.deepEqual(declared.map(entry => entry.project_plugin_id).sort(), ["dataset", "form", "images", "lingguang", "pages", "ppt", "todo", "workflows"]);
@@ -64,8 +64,8 @@ test("declarations without an order run after every numbered one, in catalog ord
     await withFreshHome(async home => {
       const ids = projectDeletedHooksFor(home).owners().map(owner => owner.id);
       assert.equal(ids[0], "early");
-      const [a, b, images, alchemist] = [ids.indexOf("unordered-a"), ids.indexOf("unordered-b"), ids.indexOf("images"), ids.indexOf("alchemist")];
-      assert.ok(images < a && a < b && b < alchemist, `${ids.join(",")}`);
+      const [a, b, sessions, alchemist] = [ids.indexOf("unordered-a"), ids.indexOf("unordered-b"), ids.indexOf("sessions"), ids.indexOf("alchemist")];
+      assert.ok(sessions < a && a < b && b < alchemist, `${ids.join(",")}`);
     });
   } finally { catalog.splice(catalog.length - 3, 3); }
 });

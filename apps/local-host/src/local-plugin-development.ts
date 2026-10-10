@@ -25,6 +25,6 @@ export async function runLocalPluginDevelopment(input: {
   try {
     return await host.client(molisWorkHostProjectReference({ databasePath: join(directory, "development.db"), projectId }))
       .invoke(pluginDevelopmentCapability, { directory: input.directory, project_id: projectId,
-        actor_id: "local-plugin-developer", grants: input.grants, allow_unsigned_development: input.allow_unsigned_development });
+        grants: input.grants, allow_unsigned_development: input.allow_unsigned_development });
   } finally { await host.close(); }
 }

@@ -33,7 +33,7 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
   let modelCalls = 0;
   t.mock.method(globalThis, "fetch", async () => { modelCalls++; return cogniaModelResponse("Original owner result"); });
   const composition = composeAgentHost({ localHost: { registerCapability: local.register.bind(local), client: local.client.bind(local) } as any,
-    workspaceFor: () => ({ workspace_id: "workspace", canonical_path: home, realpath_verified: true }), cliRuntimes: [],
+    workspaceFor: () => ({ workspace_id: "workspace", canonical_path: home, realpath_verified: true }),
     prologue: { storageRoot: join(home, "runtime"), modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" } });
   const contexts: PluginStartContext[] = [], definitions: PluginDefinition[] = [];
   let stopWait: Promise<void> | undefined, stopEntered = () => {};

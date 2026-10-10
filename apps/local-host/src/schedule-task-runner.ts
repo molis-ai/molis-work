@@ -8,10 +8,31 @@ import {
   composeScheduledTaskPrompt,
   parseScheduledAgentReply,
   type ScheduledTaskRunner,
+  type ScheduleTaskReadiness,
 } from "@molis-ai/molis-work-plugin-schedule";
+import { configuredModelChoices } from "./configured-models.js";
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const POLL_MS = 400;
+
+/**
+ * What a due task needs, asked ahead of time so the create dialog can say what is missing: a configured text model, and a
+ * verified workspace bound to the project. The workspace is the runner's own check (the same source, the same verified path).
+ * The model is a stand-in: the runner checks that the Prologue runtime is registered and leaves the model to Prologue when the
+ * run starts, so this reads the model catalog's metadata (never a credential) to say whether a text model is set up, which is
+ * what the runner's own error asks the person to do. It is advice, not a guarantee. Creating a task never waits on it.
+ */
+export async function scheduledTaskReadiness(options: {
+  homeDirectory?: string;
+  projectId: string;
+  workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
+}): Promise<ScheduleTaskReadiness> {
+  const workspace = await options.workspaceFor?.(options.projectId);
+  return {
+    model: options.homeDirectory !== undefined && configuredModelChoices(options.homeDirectory).length > 0,
+    workspace: workspace?.realpath_verified === true,
+  };
+}
 
 export function createHostScheduledTaskRunner(options: {
   agentHost: AgentHost;
@@ -27,8 +48,8 @@ export function createHostScheduledTaskRunner(options: {
       control?.beforeEffect();
       await options.ready?.();
       control?.beforeEffect();
-      // Scheduled work runs on Prologue, the Home's model path. An installed CLI Runtime
-      // is never picked just because its id sorts first.
+      // Scheduled work runs on Prologue, the Home's model path. No other registered Runtime
+      // is picked just because its id sorts first.
       if (!options.agentHost.descriptors().some((descriptor) => descriptor.runtime_id === PROLOGUE_RUNTIME_ID)) {
         throw new Error("还没有可用的 Agent Runtime：到点执行需要 Prologue，请先配置文字模型");
       }

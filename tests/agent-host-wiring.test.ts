@@ -78,7 +78,7 @@ test("组合根把 Agent Host 接进宿主之后，插件经 Capability 够得�
   });
   try {
     const agentHost = new AgentHost();
-    agentHost.register(readOnlyAdapter("cli-readonly"));
+    agentHost.register(readOnlyAdapter("fixture-read-only"));
 
     // 这一步就是原先缺的那一环：生产装配调用注册入口
     registerAgentHostCapabilities(
@@ -92,16 +92,16 @@ test("组合根把 Agent Host 接进宿主之后，插件经 Capability 够得�
 
     const client = localHost.client(reference);
     const runtimes = await client.invoke(agentHostCapabilities.listRuntimes, []);
-    assert.deepEqual(runtimes.map((entry) => entry.runtime_id), ["cli-readonly"]);
+    assert.deepEqual(runtimes.map((entry) => entry.runtime_id), ["fixture-read-only"]);
 
     const roles = await client.invoke(agentHostCapabilities.availableRoles,
-      ["cli-readonly", "io.molis.work.coding"]);
+      ["fixture-read-only", "io.molis.work.coding"]);
     assert.deepEqual(roles, [{ role_id: "reader", available: true }]);
 
     // 命令回执仍然如实不可用——接线不等于接通
     await assert.rejects(
       () => client.invoke(agentHostCapabilities.readCommandOutput,
-        [{ session_id: "session-1", runtime_id: "cli-readonly" }, { call_id: "c1" }]),
+        [{ session_id: "session-1", runtime_id: "fixture-read-only" }, { call_id: "c1" }]),
       (error: unknown) => (error as { code?: string }).code === "agent.capability_unavailable",
     );
 

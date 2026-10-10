@@ -214,9 +214,10 @@ export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | 
   return entryFor(projectPluginId)?.manifest;
 }
 
-export function pluginMarketCards(): readonly PluginMarketCard[] {
+/** What a person can pick from. Plugins marked `developer` (Text Stats) appear only when the Host is in developer mode. */
+export function pluginMarketCards(options: { readonly developerMode?: boolean } = {}): readonly PluginMarketCard[] {
   return BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
-    if (!entry.summary) return [];
+    if (!entry.summary || (entry.developer && !options.developerMode)) return [];
     // A plugin whose page lives only in settings (角色) is part of the settings, not something a project adds or
     // removes: it stays out of the market (decision 2026-10-01, specs/post-merge-review §9).
     const views = entry.manifest.ui?.views ?? [];

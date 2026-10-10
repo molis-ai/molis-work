@@ -1,6 +1,6 @@
 /** Layout only: controls, colours and focus treatments remain Design System owned. */
 export const MODEL_SETTINGS_STYLES = `
-.model-settings-head,.model-settings-actions,.model-provider-detail-head,.model-list-head,.model-row,.model-key-row { display:flex; align-items:center; gap:8px; }
+.model-settings-head,.model-settings-actions,.model-provider-detail-head,.model-list-head,.model-row { display:flex; align-items:center; gap:8px; }
 .model-settings-head,.model-list-head { justify-content:space-between; }
 .model-settings-actions { flex-wrap:wrap; }
 .model-settings-panes { display:grid; grid-template-columns:minmax(140px,200px) minmax(0,1fr); gap:32px; margin-top:24px; }
@@ -20,9 +20,9 @@ export const MODEL_SETTINGS_STYLES = `
 .model-field { display:grid; gap:8px; margin:24px 0; }
 .model-field label { color:var(--ink-soft); font-size:12px; }
 .model-field .mw-input,.model-field .mw-select { width:100%; min-width:0; }
-.model-key-row .mw-input { flex:1; }
 .model-field-note,.model-field-hint,.model-settings-actions span,[data-model-status] { font-size:12px; color:var(--muted); line-height:1.6; }
 [data-model-status] { min-height:20px; }
+[data-model-status][data-failed]{color:var(--red)}
 .model-row { margin:12px 0; }
 .model-row-id { flex:1; min-width:0; }
 .model-list { margin:32px 0; }

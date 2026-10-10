@@ -4,7 +4,7 @@ import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-des
  * itself, rendered by the host component renderer from the frozen component tree. Everything shown is derived
  * from the build record the host pushes; nothing here advances a build or fakes progress.
  */
-export function renderAgentStudio(): string {
+export function renderAgentStudio(text: (zh: string, values?: Record<string, string | number>) => string = zh => zh): string {
   return '<section class="as-shell" data-agent-studio>'
     + '<header class="as-top"><div class="as-top-actions"><label class="as-select"><span class="as-sr">我的插件</span><select data-as-builds aria-label="我的插件"></select></label>'
     + '<button class="as-icon" type="button" data-as-new aria-label="新建插件" title="新建插件"><svg aria-hidden="true"><use href="#icon-plus"/></svg></button>'
@@ -14,7 +14,9 @@ export function renderAgentStudio(): string {
     + '<label class="as-select" data-as-edit-label hidden><span>修改范围</span><select data-as-edit-mode aria-label="修改范围"><option value="message">功能与界面</option><option value="visual">只调整界面</option></select></label>'
     + '<form class="as-composer" data-as-composer><div class="as-target" data-as-target hidden></div><textarea data-as-input rows="2" maxlength="48000" aria-label="描述或修改"></textarea>'
     + '<button class="as-send" type="submit" aria-label="发送" title="发送"><svg aria-hidden="true"><use href="#icon-send"/></svg></button></form>'
-    + '<p class="as-model-note" data-as-model-note></p></aside>'
+    + '<p class="as-model-note" data-as-model-note></p>'
+    // The build check's packaging step downloads the dependencies a generated plugin declares from the npm registry (W2-18 decision 14).
+    + '<p class="as-model-note" data-as-network-note>' + text('构建检查的「打包」一步：插件声明了依赖包时，会把包名和版本发给 npm 官方仓库（registry.npmjs.org）下载，不发送你的内容。') + '</p></aside>'
     + '<main class="as-right"><header class="as-canvas-head"><div class="as-title"><h1 data-as-title>新插件</h1><span class="as-phase" data-as-phase></span></div>'
     + '<div class="as-segment" role="tablist" aria-label="画布模式"><button type="button" role="tab" data-as-tab="build" aria-selected="true">构建</button><button type="button" role="tab" data-as-tab="try" aria-selected="false">试用</button></div>'
     + '<div class="as-head-actions" data-as-head-actions></div></header>'
@@ -111,9 +113,17 @@ html:has(.as-preview-page),body:has(.as-preview-page){margin:0;background:var(--
 @media (prefers-reduced-motion:reduce){.as-shell *{animation:none!important;transition:none!important}}
 `;
 
-/** Browser client; a string so the host can inline it. Receives the host's routes and the component renderer. */
+/**
+ * Browser client; a string so the host can inline it. Receives the host's routes and the component renderer.
+ *
+ * Notes on the script below. They are kept here rather than inside it because the script is served as it stands: a
+ * comment inside it is bytes the browser downloads and never runs.
+ *
+ * - `selector`: In the workbench the studio is drawn in the plugin's stage (host.root); the preview and an installed plugin run in frames.
+ * - `globalThis.__molisPluginRead`: Diagnoses the actual rendered query, including selection and filters, without issuing another request.
+ * - `host.mode === 'installed'`: An installed plugin: the same renderer; every call goes to the plugin's own sandboxed process through the host.
+ */
 export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
- // In the workbench the studio is drawn in the plugin's stage (host.root); the preview and an installed plugin run in frames.
  const selector=host.mode==='preview'?'[data-studio-preview]':host.mode==='installed'?'[data-installed-plugin]':'[data-agent-studio]';
  const root=host.root?(host.root.matches?.(selector)?host.root:host.root.querySelector(selector)):document.querySelector(selector);
  if(!root)return;
@@ -131,13 +141,11 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  if(host.mode==='preview'){
   const readings=new Map(),plugin=host.components({root,call:pluginCall(host.build),onRead:(id,result)=>readings.set(id,result)});
   lifetime.own(()=>plugin.destroy());
-  // Diagnose the actual rendered query, including selection and filters, without issuing another request.
   globalThis.__molisPluginRead=async componentId=>{const result=readings.get(componentId);if(!result)throw new Error('当前组件尚未读取');if('error'in result)throw new Error(result.error);return structuredClone(result.value)};
   api('/builds/'+host.build).then(async({build})=>{if(!build.design)throw new Error('这个草稿还没有确定方案');await plugin.update({contract:build.design.contract,nodes:build.nodes,connected:build.connected,presentation:build.design.presentation});if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
   return;
  }
  if(host.mode==='installed'){
-  // An installed plugin: the same renderer; every call goes to the plugin's own sandboxed process through the host.
   if(parent!==window)root.dataset.framed='';
   const call=async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{const r=await lifetime.fetch(host.call,{method:'POST',cache:'no-store',headers:headers('POST'),body:JSON.stringify({componentId,binding,payload})});const v=await r.json().catch(()=>({}));lifetime.assertCurrent();if(!r.ok)throw new Error(v.error||'操作失败，输入已保留');return v.value;}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
   const plugin=host.components({root,call});lifetime.own(()=>plugin.destroy());plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
@@ -452,6 +460,7 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
  lifetime.listen(feed,'click',e=>{const summary=e.target.closest?.('[data-as-steps] > summary');if(summary)openSteps=!summary.parentElement.open;});
  lifetime.listen($('[data-as-builds]'),'change',e=>run(()=>open(e.target.value||null)));
  lifetime.listen($('[data-as-model]'),'change',e=>{const[provider_id,model_id]=e.target.value.split('\n');if(!provider_id)return;run(async()=>{await api('/settings','POST',{provider_id,model_id});await refreshState();});});
+ lifetime.listen(document,'molis-work:model-ready',()=>{if(lifetime.visible)void refreshState(viewSignal).then(schedule).catch(backgroundError);});
  lifetime.listen(input,'keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('[data-as-composer]').requestSubmit();}});
  lifetime.listen($('[data-as-composer]'),'submit',e=>{e.preventDefault();const text=input.value.trim();if(!text||busy)return;
   const go=fresh=>run(async()=>{

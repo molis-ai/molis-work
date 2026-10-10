@@ -48,8 +48,8 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
       goal_id: "draft", body: "用户确认以后才能创建子目标", idempotency_key: "source-note",
     }));
     assert.equal(replayNote.replayed, true);
-    const proposed = await cli<ReturnType<GoalTreeApplicationApi["submitGoalTreeProposal"]>>("goal-tree-propose", {
-      project_id: projectId, actor_id: "runtime:chain:session", root_goal_id: "draft",
+    const proposeInput = {
+      project_id: projectId, root_goal_id: "draft",
       summary: "新增一个仍需补全要求的子目标", idempotency_key: "propose",
       items: [{
         item_id: "child", kind: "goal", operation: "create",
@@ -62,7 +62,17 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
         source_refs: ["conversation://proposal-chain"], reason: "明确父子关系", confidence: 1,
         affected_objects: [{ object_type: "goal", object_id: "child" }, { object_type: "goal", object_id: "draft" }],
       }],
-    });
+    };
+    // The CLI submits as the person on this machine; an identity or Runtime Session named in the arguments is refused, not recorded.
+    for (const identity of [{ actor_id: "runtime:chain:session" }, { submitted_session_id: "forged-session" }]) {
+      await assert.rejects(
+        () => runV1Cli(["goal-tree-propose", "--db", databasePath, "--json", JSON.stringify({ ...proposeInput, ...identity })], { localHost: host }),
+        (error: unknown) => (error as { code?: string }).code === "actions.input_invalid",
+      );
+    }
+    const proposed = await cli<ReturnType<GoalTreeApplicationApi["submitGoalTreeProposal"]>>("goal-tree-propose", proposeInput);
+    assert.equal(proposed.proposal.submitted_by, LOCAL_PERSON_ACTOR_ID);
+    assert.equal(proposed.proposal.submitted_session_id, null);
     assert.equal((await snapshot()).goals.some((goal) => goal.goal_id === "child"), false);
     const listed = JSON.parse((await runtime.callTool("molis_work_v1_action_goals.tree.read__v1", {
       proposal_id: proposed.proposal.proposal_id,

@@ -6,6 +6,8 @@ import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
  * Every fact shown here comes from the Host (`/api/assistant`): a work's state is its real run's state, a question is
  * the run's own pending question, a confirmation is the Host's review of the exact effect. The page only decides where
  * the next Send goes, and never sends anything the person did not send.
+ *
+ * Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `namedObject`: A name in 「…」 that this work knows (one of its objects) opens where it lives: the answer points at the thing itself. `list items`: A model sometimes drops the space after a list's dash on one line (“-30 分钟” among “- 60 分钟”): beside a real item, it is one too. `ownStop`: A round the runtime stopped on its own (a guard, a breaker) says why in its own words; one the person stopped says so. `notices`: What needs the person first; news about a work (done, a result, new material) folds below — it also shows on the work. `reminder open`: A reminder opens its item where it lives: here when it is this page's project, otherwise on its own project's page. `pane switcher`: Split into panes, the switcher names each one: the page being worked on is the focused pane, not all of them run together. `delegated Send`: A delegated Send reuses its message id, so the same message twice starts one work. Its words are the page's: pageText marks them. `retried Send`: A Send whose outcome is unknown (the connection dropped) is retried with the same id, so the Host starts nothing twice. `project`: The project the next new work belongs to. The project list changes it as the person looks from one project to another. `searchKey`: Search opens with ⌘K (Ctrl K elsewhere); a touch screen has no key to name.
  */
 export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const L = host.translate;
@@ -35,9 +37,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const targetClear = island.querySelector("[data-assistant-target-clear]");
   const newButton = island.querySelector("[data-assistant-new]");
   if (!composer || !input || !send || !thread || !target) return null;
-  // The project the next new work belongs to. The project list changes it as the person looks from one project to another.
   let project = host.project && host.project.id ? host.project : null;
-  // Search opens with ⌘K (Ctrl K elsewhere); a touch screen has no key to name.
   const searchKey = () => !document.querySelector("[data-global-search-open], [data-global-search-dialog]") || (window.matchMedia && window.matchMedia("(hover: none)").matches) ? ""
     : /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
   const BT = String.fromCharCode(96);
@@ -189,7 +189,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   });
   const codingHere = () => Boolean(project && document.querySelector('.plugin-rail-items [data-plugin-id="coding"]'));
   let pollTimer = 0, draftTimer = 0, draftWrite = Promise.resolve();
-  // A Send whose outcome is unknown (the connection dropped) is retried with the same id, so the Host starts nothing twice.
   let unsettled = null;
 
   const api = async (path, method, body) => {
@@ -197,7 +196,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     try {
       response = await fetch(host.route("/api/assistant" + path), { method: method || "GET", headers: host.headers(),
         body: body === undefined ? undefined : JSON.stringify(body) });
-    } catch (error) {
+    } catch {
       const failure = new Error(L("连接中断，结果未知；再次发送不会重复提交"));
       failure.unknown = true;
       throw failure;
@@ -431,7 +430,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const node = el("a", "assistant-link", label); node.href = href; node.target = "_blank"; node.rel = "noopener noreferrer";
     return node;
   };
-  // A name in 「…」 that this work knows (one of its objects) opens where it lives: the answer points at the thing itself.
   const namedObject = (text) => {
     const name = text.slice(1, -1);
     const object = view && view.objects ? view.objects.find((one) => one.title === name && one.open) : null;
@@ -494,7 +492,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const rich = (text) => {
     const root = el("div", "assistant-rich");
     const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
-    // A model sometimes drops the space after a list's dash on one line (“-30 分钟” among “- 60 分钟”): beside a real item, it is one too.
     lines.forEach((line, at) => {
       const loose = /^(\s*)([-•])([^\s\-•].*)$/.exec(line);
       if (loose && [lines[at - 1], lines[at + 1]].some((near) => near !== undefined && new RegExp("^\\s*\\" + loose[2] + "\\s+\\S").test(near))) lines[at] = loose[1] + loose[2] + " " + loose[3];
@@ -972,7 +969,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const status = keyed(node, "data-entry", "status", () => el("p", "assistant-round-status"));
     const phase = round.phase;
     status.dataset.phase = phase;
-    // A round the runtime stopped on its own (a guard, a breaker) says why in its own words; one the person stopped says so.
     const ownStop = round.stop_reason && round.stop_reason !== "已停止" ? round.stop_reason : "";
     setText(status, phase === "running" || phase === "starting" || phase === "compacting" ? L("正在处理…")
       : phase === "failed" ? L("这一轮没有完成") + (round.stop_reason ? "：" + round.stop_reason : "")
@@ -1802,7 +1798,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         box.append(check);
       }
       if (shown.action) {
-        if (/模型/.test(shown.action)) { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); link.href = "/settings/models"; box.append(link); }
+        if (/模型/.test(shown.action)) { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); link.href = "/settings/models"; link.addEventListener("click", (event) => { if (!event.metaKey && !event.ctrlKey) setPanel(false); }); box.append(link); }
         // A work's own cap is raised right here, in its usage box; the daily cap lives in the Assistant's settings.
         else if (/这项工作的上限/.test(shown.action) && usageBox) {
           const raise = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); raise.type = "button";
@@ -1921,7 +1917,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const focused = noticesPop.contains(document.activeElement) ? document.activeElement : null;
     const focusKey = focused ? [focused.dataset.noticeId, focused.dataset.noticeAction] : null;
     noticesPop.replaceChildren(el("p", "assistant-popover-title", L("等你处理")));
-    // What needs the person first; news about a work (done, a result, new material) folds below — it also shows on the work.
     const open = notices.filter((notice) => !notice.held && URGENT.has(notice.kind)), news = notices.filter((notice) => !notice.held && !URGENT.has(notice.kind)), held = notices.filter((notice) => notice.held);
     const row = (notice) => {
       const item = el("div", "assistant-notice");
@@ -1933,7 +1928,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       go.setAttribute("aria-label", L("打开") + "：" + notice.text);
       go.addEventListener("click", async () => {
         setNotices(false);
-        // A reminder opens its item where it lives: here when it is this page's project, otherwise on its own project's page.
         if (notice.open) {
           void settleNotice({ notice_id: notice.notice_id }, "seen");
           const where = notice.open.project_id || "personal", here = project ? project.id : "personal";
@@ -2018,6 +2012,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     await loadNotices();
   };
   attentionButton?.addEventListener("click", () => setNotices(noticesPop.hidden));
+  document.addEventListener("molis-work:model-ready", () => { if (problem && /模型/.test(problem.action || "")) { problem = null; render(); } });
   document.addEventListener("molis-work:plugin-events-waiting", (event) => { pluginWaiting = Number(event.detail?.pending) || 0; paintAttention(); });
   setInterval(() => { if (!document.hidden) void loadNotices(); }, 20000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) void loadNotices(); });
@@ -2389,21 +2384,21 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   }
   input.addEventListener("focus", () => { paintMaterials(); if (!String(input.value || "").trim() && !busy) setStarters(true); });
   input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; setStarters(false); }, 0));
+  // What opens from the island, and the button focus returns to.
+  const popovers = () => [[worksNav, setWorks, worksToggle], [morePop, setMore, attach], [materialsList, setMaterials, materialsButton], [executorsPop, setExecutors, executorButton], [modesPop, setModes, modeButton], [charactersPop, setCharacters, characterButton], [noticesPop, setNotices, attentionButton]];
   document.addEventListener("pointerdown", (event) => {
     if (event.target?.nodeType !== 1 || island.contains(event.target)) return;
-    setStarters(false); if (worksNav && !worksNav.hidden) setWorks(false); if (morePop && !morePop.hidden) setMore(false); if (materialsList && !materialsList.hidden) setMaterials(false); if (executorsPop && !executorsPop.hidden) setExecutors(false); if (modesPop && !modesPop.hidden) setModes(false); if (charactersPop && !charactersPop.hidden) setCharacters(false); if (noticesPop && !noticesPop.hidden) setNotices(false);
+    setStarters(false); for (const [pop, close] of popovers()) if (pop && !pop.hidden) close(false);
   });
   island.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    if (worksNav && !worksNav.hidden) { event.preventDefault(); event.stopPropagation(); setWorks(false); worksToggle?.focus(); return; }
-    if (panel && !panel.hidden && !spacious() && drawerOpen) { event.preventDefault(); event.stopPropagation(); drawerOpen = false; paintLayout(); sideToggle?.focus(); return; }
-    if (morePop && !morePop.hidden) { event.preventDefault(); event.stopPropagation(); setMore(false); attach?.focus(); return; }
-    if (materialsList && !materialsList.hidden) { event.preventDefault(); event.stopPropagation(); setMaterials(false); materialsButton?.focus(); return; }
-    if (startersPop && !startersPop.hidden) { event.preventDefault(); event.stopPropagation(); setStarters(false); }
-    if (executorsPop && !executorsPop.hidden) { event.preventDefault(); event.stopPropagation(); setExecutors(false); executorButton?.focus(); }
-    if (modesPop && !modesPop.hidden) { event.preventDefault(); event.stopPropagation(); setModes(false); modeButton?.focus(); }
-    if (charactersPop && !charactersPop.hidden) { event.preventDefault(); event.stopPropagation(); setCharacters(false); characterButton?.focus(); }
-    if (noticesPop && !noticesPop.hidden) { event.preventDefault(); event.stopPropagation(); setNotices(false); attentionButton?.focus(); }
+    const stop = () => { event.preventDefault(); event.stopPropagation(); }, put = ([pop, close, button]) => pop && !pop.hidden && (stop(), close(false), (visible(button) ? button : attach)?.focus(), true);
+    const [worksOpen, moreOpen, materialsOpen, ...choosers] = popovers();
+    if (put(worksOpen)) return;
+    if (panel && !panel.hidden && !spacious() && drawerOpen) { stop(); drawerOpen = false; paintLayout(); sideToggle?.focus(); return; }
+    if (put(moreOpen) || put(materialsOpen)) return;
+    if (startersPop && !startersPop.hidden) { stop(); setStarters(false); }
+    choosers.forEach(put);
   }, true);
   /* Files the person adds: text is read here and sent as their own material; what cannot be read is said plainly. */
   const readBase64 = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
@@ -2461,7 +2456,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const paintMore = () => {
     if (!morePop) return;
-    const rows = [moreItem(L("添加文件或图片…"), L("也可以拖入、粘贴"), () => { setMore(false); fileInput?.click(); }),
+    const rows = [...(composer.dataset.crowded === "chips" ? [materialsButton, attentionButton] : []).filter((button) => button && !button.hidden).map((button) => moreItem(button.title, button.textContent.trim(), () => { setMore(false); button.click(); })),
+      moreItem(L("添加文件或图片…"), L("也可以拖入、粘贴"), () => { setMore(false); fileInput?.click(); }),
       moreItem(L("引用项目里的内容"), "@", () => { setMore(false); insertTrigger("@"); }),
       moreItem(L("用一个能力或方法"), "/", () => { setMore(false); insertTrigger("/"); })];
     morePop.replaceChildren(...rows);
@@ -2512,7 +2508,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const current = document.querySelector("[data-plugin-picker-current]");
     const active = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]");
     const surface = (context && context.plugin_id) || (active && active.dataset.pluginId) || "home";
-    // Split into panes, the switcher names each one: the page being worked on is the focused pane, not all of them run together.
     const named = current ? current.querySelector(".plugin-picker-chip.is-focused") || current.querySelector(".plugin-picker-chip") || current : null;
     const title = (context && context.surface_title) || (named ? named.textContent.trim() : "");
     const result = { source: Object.assign({ surface }, context && context.plugin_id ? { plugin_id: context.plugin_id } : {}, title ? { title } : {}), captured_at: new Date().toISOString() };
@@ -2542,7 +2537,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   /* ─── What plugin pages tell the Assistant (spec 8.3): by purpose, never by wording ───────────────────────── */
   const offerBar = island.querySelector("[data-assistant-offer]");
   const heard = new Set();
-  // A delegated Send reuses its message id, so the same message twice starts one work. Its words are the page's: pageText marks them.
   let requestOverride = null, pageText = null;
   const tidyMessage = (raw) => {
     if (!raw || typeof raw !== "object" || typeof raw.message_id !== "string" || !raw.message_id || raw.message_id.length > 120) return null;
@@ -2747,21 +2741,20 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     items[(at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
   });
 
-  // The input keeps room to type. The bar's middle is at most 660px and the chips beside the input come and go (a
-  // work, its materials, what needs a look, who does it), so the composer measures itself, as the Dock does, and
-  // steps down: first the quiet parts narrow, then the choosers nobody has changed fold while the panel is closed,
-  // and last the plugin and work chips narrow (an open panel's head carries the work's whole title). The input has a
-  // floor of its own, so a crowded composer shows as running over its edge as much as a narrow input.
+  // The input keeps room to type, but the chips come and go, so the composer measures itself, as the Dock does, with its chips on it (typing
+  // hides them, the steps stay): quiet parts narrow, unchanged choosers fold, plugin and work chips narrow; with 44px targets, parts then leave a step at a time.
   const INPUT_ROOM = 120;
   let fitFrame = 0;
   const roomy = () => input.clientWidth >= INPUT_ROOM && composer.scrollWidth <= composer.clientWidth + 1;
   const fitComposer = () => {
     fitFrame = 0;
-    delete composer.dataset.fit;
+    delete composer.dataset.fit; delete composer.dataset.crowded; composer.dataset.measuring = "";
     for (const level of ["tight", "folded", "narrow"]) {
-      if (roomy()) return;
+      if (roomy()) break;
       composer.dataset.fit = level;
     }
+    if (matchMedia("(max-width: 600px), (pointer: coarse)").matches) for (const step of ["choosers", "mark", "chips"]) { if (composer.scrollWidth <= composer.clientWidth + 1) break; composer.dataset.crowded = step; }
+    delete composer.dataset.measuring;
   };
   const refit = () => { if (!fitFrame) fitFrame = requestAnimationFrame(fitComposer); };
   // The island's width is the bar's, never its chips'; the chips' own changes arrive as attributes and labels.

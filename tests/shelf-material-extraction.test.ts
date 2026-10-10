@@ -37,7 +37,7 @@ for (const stop of ["cancel", "revoke", "withdraw", "copy-change", "job-cancel"]
       assert.match(item.preview_text!, /Preserve the original PDF/);
       const store = openShelfStore(home), copy = join(home, "shelf", item.relative_path), before = store.snapshot().results;
       paused = true;
-      pending = service.invoke(context, a.runJob, { recipe: "extract_text", item_id: item.item_id });
+      pending = service.invoke(context, a.extract, { recipe: "extract_text", item_id: item.item_id });
       const code = stop === "cancel" ? undefined : stop === "revoke" ? "actions.permission_denied" : stop === "withdraw" ? "actions.provider_changed" : stop === "copy-change" ? "shelf.hash_changed" : "shelf.cancelled";
       rejected = assert.rejects(pending, code ? { code } : { name: "AbortError" });
       await entered.promise;
@@ -60,7 +60,7 @@ for (const stop of ["cancel", "revoke", "withdraw", "copy-change", "job-cancel"]
       allowed = true; paused = false;
       if (stop === "withdraw") dispose = service.registerProvider(registration);
       const fresh = await service.invoke(caller, a.admit, { filename: "fresh.pdf", bytes_base64: pdf.toString("base64") });
-      const result = await service.invoke(caller, a.runJob, { recipe: "extract_text", item_id: fresh.item.item_id });
+      const result = await service.invoke(caller, a.extract, { recipe: "extract_text", item_id: fresh.item.item_id });
       assert.equal(result.job.status, "succeeded"); assert.match(result.result!.preview_text!, /Preserve the original PDF/);
     } finally {
       controller.abort(); release.resolve(); await Promise.allSettled([...(pending ? [pending] : []), ...(rejected ? [rejected] : [])]);

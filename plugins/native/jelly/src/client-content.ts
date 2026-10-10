@@ -90,7 +90,6 @@ export const JELLY_CONTENT_CLIENT_SCRIPT = String.raw`
   };
   const createNote=async()=>{const before=new Set(state.notes.map((entry)=>entry.id));await command({type:'note.create',title:'',category_id:filterCategory||'uncategorized',blocks:[newBlock()]});archived=false;const record=state.notes.find((entry)=>!before.has(entry.id));if(record){view='notes';await renderView();openRecord('note',record.id);$('[data-jelly-record-title]').focus();}};
   const focusBlock=(id,end=true)=>{const element=$('[data-jelly-block-text="'+CSS.escape(id)+'"]');if(!element)return;element.focus();const range=document.createRange();range.selectNodeContents(element);range.collapse(!end);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);focusedBlock=id;};
-  const remountBlocks=(focusId)=>{draftBlocks=collectBlocks();$('[data-jelly-blocks]').innerHTML=draftBlocks.map(blockHtml).join('');if(focusId)focusBlock(focusId);};
   const insertBlock=(afterId,kind='paragraph',text='')=>{draftBlocks=collectBlocks();const block=newBlock(kind,text);const index=draftBlocks.findIndex((entry)=>entry.id===afterId);draftBlocks.splice(index<0?draftBlocks.length:index+1,0,block);$('[data-jelly-blocks]').innerHTML=draftBlocks.map(blockHtml).join('');focusBlock(block.id,false);queueSave();};
   const selectedBlock=()=>draftBlocks.find((entry)=>entry.id===focusedBlock)||draftBlocks.at(-1);
   documentEl.addEventListener('input',(event)=>{if(event.target.closest('[data-jelly-record-title],[data-jelly-block-text]'))queueSave();});

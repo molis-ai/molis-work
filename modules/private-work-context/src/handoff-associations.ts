@@ -20,6 +20,11 @@ export class HandoffAssociationRepository {
       target_project_id: project.id, target_workspace_id: workspace?.id ?? null };
   }
 
+  /** Unlinks a package from its source Goal, target project and workspace; the Ledger keeps the history of the removed edges (ids only). */
+  release(packageId: string, actor: string, at: string): void {
+    for (const key of ["goal", "project", "workspace"]) this.ledger.commands.remove(access(actor), `handoff.${key}:${packageId}`, "work.handoff_released", at);
+  }
+
   recordSource(packageId: string, projectId: string, goalId: string, version: number | null, actor: string, at: string): void {
     this.ledger.commands.put(access(actor), { key: `handoff.goal:${packageId}`, type: "handoff.goal", source: source(packageId),
       target: { module: "goals", id: goalId, version, scope, project_id: projectId },

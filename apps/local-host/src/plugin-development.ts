@@ -3,6 +3,9 @@ import type { PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/pla
 import { loadDevelopmentPlugin, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
 
+/** Who the development run acts as: the Host fixes it for this door, so a caller's arguments never name it. */
+export const PLUGIN_DEVELOPMENT_ACTOR_ID = "local-plugin-developer";
+
 /** Public developer fixture, with the same real owner ports used by the application Host. */
 export async function runPluginDevelopment(input: PluginDevelopmentInput, options: PluginHostExecutorOptions & {
   repository: PluginRuntimeRepository;

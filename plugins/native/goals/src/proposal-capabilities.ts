@@ -4,9 +4,13 @@ import type { GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-con
 import type { GoalTreeApplicationApi, GoalTreeEntryApi } from "./goal-tree-contract.js";
 
 export const goalTreeCapabilities = {
+  /**
+   * Management entries only (the CLI, the typed client), like the check below: the host records the person on this machine, so a
+   * plugin that lists this under capabilities.consumes is refused. A Runtime submits through the `goals.tree.submit` action.
+   */
   submitGoalTreeProposal: {
-    capability_id: "io.molis.work.goals.submit-goal-tree-proposal", version: 1, operation: "command",
-  } as MethodCapability<GoalTreeApplicationApi["submitGoalTreeProposal"]>,
+    capability_id: "io.molis.work.goals.submit-goal-tree-proposal", version: 1, operation: "command", host_only: true,
+  } as MethodCapability<GoalTreeEntryApi["submitGoalTreeProposal"]>,
   listGoalTreeProposals: {
     capability_id: "io.molis.work.goals.list-goal-tree-proposals", version: 1, operation: "query",
   } as MethodCapability<GoalTreeApplicationApi["listGoalTreeProposals"]>,
@@ -19,13 +23,14 @@ export const goalTreeCapabilities = {
   } as MethodCapability<GoalTreeEntryApi["checkGoalTreeProposal"]>,
   decideGoalTreeProposal: {
     capability_id: "io.molis.work.goals.decide-goal-tree-proposal", version: 1, operation: "command", host_only: true,
-  } as MethodCapability<GoalTreeApplicationApi["decideGoalTreeProposal"]>,
+  } as MethodCapability<GoalTreeEntryApi["decideGoalTreeProposal"]>,
 };
 
 /**
- * The management entries (CLI, management MCP) decide as the person on this machine. The caller may point at the conversation
- * the decision came from and say the whole proposal was shown; who decides, and through which entry, is fixed here, refused when
- * the caller names it, and checked again by the host (repository-anti-corruption §9.5 #6).
+ * The Host builds the authority of a structure decision taken at a management entry (the CLI, the management MCP, the typed
+ * client): the person on this machine, origin management. The caller may point at the conversation the decision came from and
+ * say the whole proposal was shown; who decides, and through which entry, is fixed here and refused when the caller names it
+ * (repository-anti-corruption §9.5 #6).
  */
 export function managementTreeAuthority(projectId: string, idempotencyKey: string, evidence?: unknown): GoalTreeProposalDecisionAuthority {
   const given = (evidence && typeof evidence === "object" ? evidence : {}) as Record<string, unknown>;

@@ -84,15 +84,15 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     assert.deepEqual(await withCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings()), bindingsBefore);
     assert.equal(await host.withProject(ref, r => r.store.eventCursor(project.project_id)), cursorBefore, "read-only recovery never claims work or rewrites project facts");
     result = await contextCall("molis_work_v1_context_bind", { project_id: second.project_id,
-      actor_id: "user", user_confirmed: true, rebind_confirmed: true });
+      user_confirmed: true, rebind_confirmed: true });
     assert.equal(result.connection.project_id, second.project_id); assert.equal(result.resume, null);
     assert.doesNotMatch(JSON.stringify(result), /CONTEXT-SECRET|Authorized goal content/);
-    result = await contextCall("molis_work_v1_context_create_and_bind", { display_name: "New ungranted project", actor_id: "user",
+    result = await contextCall("molis_work_v1_context_create_and_bind", { display_name: "New ungranted project",
       user_confirmed: true, rebind_confirmed: true, idempotency_key: "new-context-project" });
     assert.equal(result.status, "bound"); assert.notEqual(result.connection.project_id, project.project_id);
     assert.equal(result.project_guidance, null); assert.equal(result.resume, null); assert.ok(result.resume_error);
     await contextCall("molis_work_v1_context_bind", { project_id: project.project_id,
-      actor_id: "user", user_confirmed: true, rebind_confirmed: true });
+      user_confirmed: true, rebind_confirmed: true });
     await grant(goalsActions.guidanceRead.capability_id, true);
     await new Promise<void>(resolve => server.close(() => resolve()));
     result = await resolve();

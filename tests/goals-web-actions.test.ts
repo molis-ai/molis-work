@@ -5,12 +5,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, MolisWorkCasebookIntegration, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { InteractionJournal } from "../apps/local-host/src/casebook/journal.js";
-import { PURPOSE, VERSION } from "../apps/local-host/src/casebook/contract.js";
 
-test("Web Goals use shared actions and record resolved results exactly once across async policy and replay", { timeout: 60_000 }, async () => {
+test("Web Goals use shared actions and store a result exactly once across async policy and replay", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-web-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Web Goals", actor_id: "user" }));
   const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
@@ -28,14 +26,9 @@ test("Web Goals use shared actions and record resolved results exactly once acro
     }
     return { available: true };
   } });
-  const casebook = new MolisWorkCasebookIntegration({ client: host.client(reference), verifyUserAction: () => true });
-  await casebook.setInteractionAuthorization({ project_ref: project.project_id, purpose: PURPOSE, action: "join",
-    actor_ref: "fixture-owner", user_action_ref: "isolated-fixture", user_confirmed: true, idempotency_key: "join" });
-  const facts = () => host.withProject(reference, runtime => {
-    const journal = new InteractionJournal(runtime.store.db, project.project_id, project.project_id);
-    const epoch = journal.authorization().authorization_epoch; assert.ok(epoch);
-    return journal.read({ project_ref: project.project_id, schema_version: VERSION, authorization_epoch: epoch, after_cursor: 0, limit: 100 }).facts;
-  });
+  // What the business side has stored so far: a call that is still waiting at the policy checkpoint has stored nothing.
+  const storedCount = (matches: (payload: Record<string, unknown>) => boolean) => host.withProject(reference, async runtime =>
+    (await runtime.coordinator.goalEvents.listEvents(project.project_id, "WEB-ACTION-GOAL")).events.filter(event => matches({ ...event.payload })).length);
   const token = "goals-web-actions-control-token-0123456789";
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   try {
@@ -48,61 +41,45 @@ test("Web Goals use shared actions and record resolved results exactly once acro
     });
     const input = { title: "网页真实目标", goal_id: "WEB-ACTION-GOAL", idempotency_key: "web-create" };
     assert.equal((await request("/api/goals", input, false)).status, 403);
-    assert.equal((await facts()).length, 0);
     let response = await request("/api/goals", input);
     assert.equal(response.status, 201, await response.clone().text());
     const created = await response.json() as { goal: { goal_id: string }; goal_path: string; replayed: boolean };
     assert.equal(created.goal.goal_id, input.goal_id);
     assert.equal(created.goal_path, `/projects/${project.project_id}/goals/${input.goal_id}`);
-    const batch = await facts();
-    assert.equal(batch.length, 2); assert.ok(batch.every(fact => fact.channel === "web.goal-events.v1"));
-    assert.equal(batch[1]!.outcome, "returned"); assert.ok(batch[1]!.saved?.goal_ref);
     const notePath = `/api/goals/${input.goal_id}/event-note`;
     const noteInput = { note: "便笺原文不能丢", idempotency_key: "web-note" };
     const entered = new Promise<void>(resolve => { enter = resolve; });
     gate = new Promise<void>(resolve => { release = resolve; });
     pending = request(notePath, noteInput);
     await Promise.race([entered, pending.then(() => { throw new Error("HTTP returned before the action policy checkpoint"); })]);
-    const waiting = (await facts()).filter(fact => fact.capability.endsWith(".note"));
-    assert.equal(waiting.length, 1, "a pending Promise must not be recorded as a completed result");
-    assert.equal(waiting[0]!.kind, "attempt"); assert.equal(waiting[0]!.outcome, "pending");
+    assert.equal(await storedCount(payload => payload.operation === "observation_note"), 0, "a call waiting at the policy checkpoint has stored nothing");
     release!(); response = await pending; pending = undefined; gate = undefined;
     assert.equal(response.status, 200, await response.clone().text());
     const recorded = await response.json() as { event_id: string; recorded: boolean; replayed: boolean };
     assert.equal(recorded.recorded, true); assert.equal(recorded.replayed, false); assert.ok(recorded.event_id);
-    let notes = (await facts()).filter(fact => fact.capability.endsWith(".note"));
-    assert.equal(notes.length, 2); assert.equal(notes[1]!.saved?.event_refs.length, 1);
-    assert.equal(notes[1]!.outcome, "returned"); assert.equal(notes[0]!.operation_id, notes[1]!.operation_id);
+    assert.equal(await storedCount(payload => payload.operation === "observation_note"), 1);
     const stored = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, recorded.event_id));
     assert.equal((stored.payload as { body: string }).body, noteInput.note);
     assert.equal(stored.actor_id, "web-user"); assert.equal(stored.actor_kind, "user");
     response = await request(notePath, noteInput);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { ...recorded, replayed: true });
-    notes = (await facts()).filter(fact => fact.capability.endsWith(".note"));
-    assert.equal(notes.length, 4); assert.equal(notes[3]!.replayed, true);
+    assert.equal(await storedCount(payload => payload.operation === "observation_note"), 1, "a replay stores nothing again");
     response = await request("/api/capsule");
     assert.equal(response.status, 200, await response.clone().text());
     const capsule = await response.json() as { tabs: Array<{ items: Array<{ goal_id: string; goal_title: string }> }> };
     assert.ok(capsule.tabs.flatMap(tab => tab.items).some(goal => goal.goal_id === input.goal_id && goal.goal_title === input.title));
     assert.ok(seen.includes("goals.create") && seen.includes("goals.note") && seen.includes("goals.list"), "all three Web consumers must reach the shared action policy");
-    const reads = (await facts()).filter(fact => fact.capability.endsWith(".list-goals"));
-    assert.equal(reads.length, 2); assert.equal(reads[1]!.saved, null);
     const queries = [
-      ["goals.state.read", `/api/goals/${input.goal_id}/event-state`, "read-state"],
-      ["goals.events.read", `/api/goals/${input.goal_id}/events/${recorded.event_id}`, "read"],
-      ["goals.history.list", `/api/goals/${input.goal_id}/event-timeline?limit=999`, "timeline"],
-      ["goals.history.read", `/api/goals/${input.goal_id}/history/${recorded.event_id}`, "read"],
+      ["goals.state.read", `/api/goals/${input.goal_id}/event-state`],
+      ["goals.events.read", `/api/goals/${input.goal_id}/events/${recorded.event_id}`],
+      ["goals.history.list", `/api/goals/${input.goal_id}/event-timeline?limit=999`],
+      ["goals.history.read", `/api/goals/${input.goal_id}/history/${recorded.event_id}`],
     ] as const;
-    for (const [capability, path, observedSuffix] of queries) {
-      const before = (await facts()).length;
+    for (const [capability, path] of queries) {
       const result = await request(path);
       assert.equal(result.status, 200, await result.clone().text());
       assert.ok(seen.includes(capability), `${capability} must use shared action policy`);
-      const added = (await facts()).slice(before);
-      assert.equal(added.length, 2, "composite history reads must not duplicate internal observations");
-      assert.ok(added.every(fact => fact.channel === "web.goal-events.v1" && fact.capability.endsWith(`.${observedSuffix}`)));
-      assert.equal(added[1]!.outcome, "returned"); assert.equal(added[1]!.saved, null);
       deniedQueries.add(capability);
       const deniedRead = await request(path);
       assert.equal(deniedRead.status, 400);
@@ -123,14 +100,12 @@ test("Web Goals use shared actions and record resolved results exactly once acro
     pending = request(`/api/goals/${input.goal_id}/event-report`, { idempotency_key: "web-report", events: [{ type_id: "work", type_version: 1,
       title: "网页报告", fields: { body: "实际报告原文" } }] });
     await Promise.race([reportEntered, pending.then(() => { throw new Error("Report returned before policy checkpoint"); })]);
-    const reportsWhilePending = (await facts()).filter(fact => fact.capability.endsWith(".report"));
-    assert.equal(reportsWhilePending.length, 1); assert.equal(reportsWhilePending[0]!.outcome, "pending");
+    assert.equal(await storedCount(payload => payload.body === "实际报告原文"), 0, "a report waiting at the policy checkpoint has stored nothing");
     release!(); response = await pending; pending = undefined; gate = undefined; gateAction = "goals.note";
     assert.equal(response.status, 200, await response.clone().text());
     const reported = await response.json() as { events: Array<{ actor_id: string; payload: { body: string } }> };
     assert.equal(reported.events[0]?.actor_id, "web-user"); assert.equal(reported.events[0]?.payload.body, "实际报告原文");
-    const reports = (await facts()).filter(fact => fact.capability.endsWith(".report"));
-    assert.equal(reports.length, 2); assert.equal(reports[1]!.saved?.event_refs.length, 1); assert.equal(reports[1]!.outcome, "returned");
+    assert.equal(await storedCount(payload => payload.body === "实际报告原文"), 1);
     const decisionPath = `/api/goals/${input.goal_id}/event-decision`;
     const decisionInput = { idempotency_key: "web-decision", conclusion: "用户明确允许发布", effects: [{ kind: "authorize_action", action: "publish" }], scope: { action: "publish" } };
     assert.equal((await request(decisionPath, decisionInput, false)).status, 403);
@@ -140,28 +115,23 @@ test("Web Goals use shared actions and record resolved results exactly once acro
     gate = new Promise<void>(resolve => { release = resolve; });
     pending = request(decisionPath, decisionInput);
     await Promise.race([decisionEntered, pending.then(() => { throw new Error("Decision bypassed shared policy"); })]);
-    let decisions = (await facts()).filter(fact => fact.capability.endsWith(".decide"));
-    assert.equal(decisions.length, 1); assert.equal(decisions[0]!.outcome, "pending");
+    assert.equal(await storedCount(payload => payload.operation === "user_decision"), 0, "a decision waiting at the policy checkpoint has stored nothing");
     release!(); response = await pending; pending = undefined; gate = undefined;
     assert.equal(response.status, 200, await response.clone().text());
     const decision = await response.json() as { event_id: string; replayed: boolean; decision: { actor_id: string; authority_source: string } };
     assert.equal(decision.decision.actor_id, "web-user"); assert.equal(decision.decision.authority_source, "web");
     assert.equal(decision.replayed, false);
-    decisions = (await facts()).filter(fact => fact.capability.endsWith(".decide"));
-    assert.equal(decisions.length, 2); assert.equal(decisions[1]!.outcome, "returned"); assert.equal(decisions[1]!.saved?.event_refs.length, 1);
+    assert.equal(await storedCount(payload => payload.operation === "user_decision"), 1);
     response = await request(decisionPath, decisionInput);
     assert.equal(response.status, 200, await response.clone().text());
     assert.deepEqual(await response.json(), { ...decision, replayed: true });
-    decisions = (await facts()).filter(fact => fact.capability.endsWith(".decide"));
-    assert.equal(decisions.length, 4); assert.equal(decisions[3]!.replayed, true);
+    assert.equal(await storedCount(payload => payload.operation === "user_decision"), 1, "a replay stores nothing again");
     const decisionDeniedEntered = new Promise<void>(resolve => { enter = resolve; });
     gate = new Promise<void>(resolve => { release = resolve; });
     pending = request(decisionPath, { ...decisionInput, idempotency_key: "disabled-decision" });
     await Promise.race([decisionDeniedEntered, pending.then(() => { throw new Error("Decision bypassed policy wait"); })]);
     deniedQueries.add(gateAction); release!(); response = await pending; pending = undefined; gate = undefined; gateAction = "goals.note";
     assert.equal(response.status, 400);
-    decisions = (await facts()).filter(fact => fact.capability.endsWith(".decide"));
-    assert.equal(decisions.length, 6); assert.equal(decisions[5]!.outcome, "threw"); assert.equal(decisions[5]!.saved, null);
     const deniedEntered = new Promise<void>(resolve => { enter = resolve; });
     gate = new Promise<void>(resolve => { release = resolve; });
     pending = request(notePath, { note: "等待中停用，不应保存", idempotency_key: "denied-note" });
@@ -169,8 +139,6 @@ test("Web Goals use shared actions and record resolved results exactly once acro
     denied = true; release!(); response = await pending; pending = undefined; gate = undefined;
     assert.equal(response.status, 400);
     assert.equal((await response.json() as { code: string }).code, "actions.plugin_disabled");
-    notes = (await facts()).filter(fact => fact.capability.endsWith(".note"));
-    assert.equal(notes.length, 6); assert.equal(notes[5]!.outcome, "threw"); assert.equal(notes[5]!.saved, null);
     const events = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 1);
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "user_decision").length, 1);

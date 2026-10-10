@@ -306,7 +306,7 @@ export interface AgentHostApi {
 
 export type AgentHostCapabilityId = (typeof agentHostCapabilities)[keyof typeof agentHostCapabilities]["capability_id"];
 
-export type AgentHostErrorCode = "agent.runtime_unknown" | "agent.runtime_duplicate" | "agent.runtime_missing" | "agent.capability_unavailable" | "agent.role_not_declared" | "agent.role_not_frozen" | "agent.role_execution_exceeded" | "agent.directory_unauthorized" | "agent.model_not_configured" | "agent.session_unknown" | "agent.session_busy" | "agent.run_unknown" | "agent.review_unknown" | "agent.review_already_decided" | "agent.review_expired" | "agent.review_not_approved" | "agent.pending_unknown" | "agent.pending_not_open";
+export type AgentHostErrorCode = "agent.runtime_unknown" | "agent.runtime_duplicate" | "agent.capability_unavailable" | "agent.role_not_declared" | "agent.role_not_frozen" | "agent.role_execution_exceeded" | "agent.directory_unauthorized" | "agent.model_not_configured" | "agent.session_unknown" | "agent.session_busy" | "agent.run_unknown" | "agent.review_unknown" | "agent.review_already_decided" | "agent.review_expired" | "agent.review_not_approved" | "agent.pending_unknown" | "agent.pending_not_open";
 
 export interface AgentImageMaterial {
     material_id: string;
@@ -1016,7 +1016,7 @@ export interface AgentRuntimeHealth {
     action?: string;
 }
 
-export type AgentRuntimeHealthStatus = "ready" | "needs_setup" | "unavailable";
+export type AgentRuntimeHealthStatus = "ready" | "needs_setup";
 
 export interface AgentScheduleCapability {
     claim(): {

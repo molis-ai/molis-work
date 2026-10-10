@@ -423,7 +423,6 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         assert.equal(unresolved.context.workspace.canonical_path, await realpath(directory));
         const bound = await firstMcp.call("molis_work_v1_context_bind", {
           project_id: created.project.project_id,
-          actor_id: "runtime-codex",
           user_confirmed: true,
         }) as { connection: { project_id: string } };
         assert.equal(bound.connection.project_id, created.project.project_id);

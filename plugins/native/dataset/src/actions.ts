@@ -34,7 +34,7 @@ export const datasetActions = {
   artifactContinue: defineArtifactContinueAction("dataset.artifacts.continue", "数据表", write),
   list: define<Record<string, never>, { datasets: DatasetRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "数据表列表", "读取当前项目数据表及当前 AI 加列可用性", "query", object({}), object({ datasets: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { dataset: DatasetRecord }>("get", "读取数据表", "读取当前项目表格的完整列、行、版本及发布状态", "query", object({ id }), changed),
-  create: define<{ title?: string }, { dataset: DatasetRecord }>("create", "新建数据表", "创建当前项目的草稿数据表", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
+  create: define<{ title?: string }, { dataset: DatasetRecord }>("create", "新建数据表", "在当前项目新建一张草稿数据表（可带标题）并返回它；只创建草稿，不会固定成成果版本。填内容用「修改数据表」", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
   update: define<Edit, { dataset: DatasetRecord }>("update", "修改数据表", "替换指定字段；携带读取版本以避免覆盖其他编辑", "command", object({ ...identity, title: { ...text, maxLength: 80 }, description: { ...text, maxLength: 2000 }, columns: { ...array(object(columnFields, [])), maxItems: 40 }, rows: { ...array(object(rowFields, [])), maxItems: 2000 } }, ["id"]), changed),
   delete: define<Identity, { ok: true }>("delete", "删除数据表", "删除表及全部本机版本；未完成的发布需先恢复", "command", object(identity, ["id"]), object({ ok: { const: true } })),
   generate: define<Identity & { prompt: string }, { dataset: DatasetRecord }>("columns.add", "按列名加列", "本地追加文本列，以输入作为列名；不调用模型", "command", object({ ...identity, prompt: { ...text, maxLength: 80 } }, ["id", "prompt"]), changed),

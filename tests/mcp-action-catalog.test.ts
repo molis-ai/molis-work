@@ -123,7 +123,7 @@ test("a new MCP connection restores a bound session before freezing project-scop
     method: "tools/call",
     params: {
       name: "molis_work_v1_context_create_and_bind",
-      arguments: { display_name: "闸门重连", actor_id: "user", user_confirmed: true, binding_scope: "session", idempotency_key: "form-mcp-reconnect-1" },
+      arguments: { display_name: "闸门重连", user_confirmed: true, binding_scope: "session", idempotency_key: "form-mcp-reconnect-1" },
     },
   }) as { result: { isError: boolean; content: Array<{ text: string }> } };
   assert.equal(created.result.isError, false, created.result.content[0]?.text);

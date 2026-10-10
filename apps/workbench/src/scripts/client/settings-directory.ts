@@ -1,4 +1,30 @@
-/** Global and project settings: directory holds categories; exclusive work surfaces hold the document. */
+/**
+ * Global and project settings: directory holds categories; exclusive work surfaces hold the document.
+ *
+ * Notes on the behaviour below. They are kept here rather than inside the script because the script is served to every
+ * page as it stands: a comment inside it is bytes the browser downloads and never runs.
+ *
+ * - `pageOf`: Where a loaded page was opened from. Pages that keep their state in the address (the open rule, a filter) read and update this; the cover remembers it, so a reload comes back to it.
+ * - `ensureCapabilityScripts`: 能力's pages (the rules editor, MCP access, the Functions connection) bring scripts the workbench loads when first needed.
+ * - `bindEmbed`: Pages whose script reads where it was opened from (a Character's prompts, the diagnostics anchor) get the address the cover loaded, not the workbench's.
+ * - `showNode`: A plugin's own surface shown as a settings page (角色) goes back where it lives, still bound.
+ * - `loadSection (local sections)`: A section a plugin already renders in this page (角色) is shown as it is, with its state.
+ * - `loadSection (nested pages)`: A page inside the section (one method's detail) is kept only until the section itself is asked for.
+ * - `loadSection (failure)`: The reason and a way to try again, where the section would be.
+ * - `bindGlobal`: A plugin that renders its settings page into this workbench marks it; that page is shown in place.
+ * - `globalSectionFromPath (能力)`: 能力: its four pages, and the rules editor inside the library.
+ * - `globalSectionFromPath (projects)`: Every project on this machine: reached from its links (onboarding, a page with no project), not listed as a category.
+ * - `reopen`: History and the bar reopen a settings cover on the section it last showed. A place is "<section>" or "<section> <address>" (a nested page such as one role's prompts).
+ * - `openGlobalSettingsFromUrl`: A project page draws root links under its own prefix; a global page named there is still the global page.
+ * - `openGlobalSettingsFromUrl (moved pages)`: MCP, connectors and Functions moved to 能力; their old settings addresses open the 能力 page.
+ * - `molis-work:model-ready` (models): When the model settings page reports the first model that can run, this announces it on the document and into every pane frame, and each page re-reads what it showed about models (the plugin builder studio among them). When a page of this tab sent the person to the settings (a link or a pane's relay, not the gear, not an address opened on load), the cover closes over that page first and a toast says so, and only then is the event sent, so a page that reacts (Jelly reopening its model dialog) finds itself as the person sees it; a settings page opened directly (a new tab from onboarding) stays where it is. The model settings script also posts the same name on a BroadcastChannel, so the onboarding page that opened the tab reads the model again without a reload; that part runs even on the standalone settings page of a person with no project, where this file is not loaded.
+ * - `molis-work:open-settings-section`: A plugin whose page lives in settings (角色) is opened there, from search, a link or an old tab.
+ * - `?settings=`: “?settings=<section>” on the workbench address opens that settings page once the workbench has landed.
+ * - `?settingsPath=`: “?settingsPath=<address>” is a settings page that was opened directly; the server sent it here to open in place.
+ * - `link clicks`: A page that holds its own link back (a planning editor while it saves) keeps the person where they are.
+ * - `GET forms`: A page's own filters (能力's scope and search) are GET forms: they load the filtered page in place, not a new page.
+ * - `leave`: A section whose row went with its plugin (Coding's): its cached page is dropped, and a list that was showing it goes back to its first.
+ */
 export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const { translate: L, setDirectory, setExclusive, hideDirectory } = host;
   const projectId = host.projectId || (() => {
@@ -7,8 +33,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   })();
   const projectPrefix = projectId ? "/projects/" + encodeURIComponent(projectId) : "";
   const CAPABILITY_SECTIONS = ["library", "connections", "access", "history"];
-  // Where a loaded page was opened from. Pages that keep their state in the address (the open rule, a filter) read and
-  // update this; the cover remembers it, so a reload comes back to it.
   const pageOf = (root) => ({
     address: () => new URL(root.dataset.settingsSource || location.href, location.origin),
     replace: (next) => {
@@ -18,7 +42,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (kind && root.dataset.settingsPanel) host.noteCover?.(kind, root.dataset.settingsPanel + " " + path);
     },
   });
-  // 能力's pages (the rules editor, MCP access, the Functions connection) bring scripts the workbench loads when first needed.
   let capabilityScripts = null;
   const ensureCapabilityScripts = (html) => !/data-functions=|data-mcp-access|data-functions-settings/.test(html) ? Promise.resolve()
     : capabilityScripts ||= new Promise((resolve, reject) => {
@@ -28,10 +51,16 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       script.onerror = () => { capabilityScripts = null; script.remove(); reject(new Error(L("无法加载设置"))); };
       document.head.append(script);
     });
+  let sentFromPage = false;
+  const modelReady = () => {
+    const back = sentFromPage && host.closeCover?.();
+    sentFromPage = false;
+    const frames = [...document.querySelectorAll("iframe[data-pane-tab]")].map((frame) => frame.contentDocument);
+    [document, ...frames].forEach((doc) => doc?.dispatchEvent(new CustomEvent("molis-work:model-ready")));
+    if (back) host.showToast?.(L("模型已连接，可以继续了。"));
+  };
   const bindEmbed = (root) => {
     const page = pageOf(root);
-    // Pages whose script reads where it was opened from (a Character's prompts, the diagnostics anchor) get the
-    // address the cover loaded, not the workbench's.
     globalThis.molisWorkBindPromptSettings?.(root, { search: root.dataset.settingsSearch || "", hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindAssistantSettings?.(root);
     globalThis.molisWorkBindMemorySettings?.(root);
@@ -43,6 +72,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindPlanningSettings?.(root);
     globalThis.molisWorkBindPlanningAdoption?.(root);
     globalThis.molisWorkBindShelfSettings?.(root);
+    globalThis.molisWorkBindModelSettings?.(root, { ready: modelReady });
     globalThis.molisWorkBindConnectorsSettings?.(root, page);
     globalThis.molisWorkBindMcpAccess?.(root, page);
     globalThis.molisWorkBindFunctionsRules?.(root, page);
@@ -80,7 +110,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (node.ownerDocument !== document) document.adoptNode(node);
       [...body.children].forEach((child) => {
         if (child === node) return;
-        // A plugin's own surface shown as a settings page (角色) goes back where it lives, still bound.
         if (child.matches("[data-work-surface]") && pool) { child.hidden = true; pool.append(child); }
         else child.remove();
       });
@@ -122,7 +151,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const loadSection = async (section, fetchPath) => {
       if (!body) return;
       host.noteCover?.(options.kind, section + (fetchPath ? " " + fetchPath : ""));
-      // A section a plugin already renders in this page (角色) is shown as it is, with its state.
       const local = options.local?.(section);
       if (local) {
         loading = null;
@@ -131,7 +159,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         markNav(section);
         return;
       }
-      // A page inside the section (one method's detail) is kept only until the section itself is asked for.
       if (!fetchPath && caches.get(section)?.dataset.settingsAddress) caches.delete(section);
       if (!fetchPath && caches.has(section)) {
         loading = null;
@@ -160,7 +187,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         if (loading !== request) return;
         loadFromHtml(section, html, fetchPath);
       } catch (error) {
-        // The reason and a way to try again, where the section would be.
         const failed = document.createElement("div");
         failed.className = "mw-empty mw-empty--error";
         failed.dataset.settingsLoading = "1";
@@ -195,7 +221,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         const path = (CAPABILITY_SECTIONS.includes(section) ? "/capabilities/" : "/settings/") + section;
         return projectId ? path + "?project=" + encodeURIComponent(projectId) : path;
       },
-      // A plugin that renders its settings page into this workbench marks it; that page is shown in place.
       local: (section) => document.querySelector('[data-settings-page="' + CSS.escape(section) + '"]'),
     },
   );
@@ -227,11 +252,9 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const globalSectionFromPath = (pathname) => {
     if (pathname.startsWith("/settings/planning")) return "planning";
     if (pathname.startsWith("/settings/runtimes")) return "runtimes";
-    // 能力: its four pages, and the rules editor inside the library.
     const capability = /^\\/capabilities(?:\\/([^/?#]+))?/.exec(pathname);
     if (capability) return CAPABILITY_SECTIONS.includes(capability[1]) ? capability[1] : "library";
     if (pathname.startsWith("/settings/diagnostics")) return "diagnostics";
-    // Every project on this machine: reached from its links (onboarding, a page with no project), not listed as a category.
     if (pathname.startsWith("/settings/projects")) return "projects";
     if (pathname.startsWith("/settings/appearance") || pathname === "/settings") return "appearance";
     const slug = pathname.replace(/^\\/settings\\//, "").split("/")[0];
@@ -241,6 +264,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     return known.includes(slug) ? slug : "";
   };
   const openShell = (kind, section, fetchPath) => {
+    sentFromPage = false;
     setDirectory?.(kind, true, true);
     setExclusive?.(kind);
     if (kind === "project-settings") {
@@ -252,8 +276,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     }
   };
   const openProjectSettings = (section, fetchPath) => openShell("project-settings", section, fetchPath);
-  // History and the bar reopen a settings cover on the section it last showed.
-  // A place is "<section>" or "<section> <address>" (a nested page such as one role's prompts).
   const reopen = (kind, panel, fallback) => (place) => {
     const [section, ...address] = String(place || "").split(" ");
     const fetchPath = address.join(" ");
@@ -273,15 +295,13 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     openProjectSettings(projectSection, nested ? url.pathname + url.search : undefined);
     return true;
   };
-  const openGlobalSettingsFromUrl = (href) => {
+  const openGlobalSettingsFromUrl = (href, fromPage) => {
     const url = new URL(href, location.origin);
     if (url.origin !== location.origin) return false;
-    // A project page draws root links under its own prefix; a global page named there is still the global page.
     const global = (path) => /^\\/(settings\\/|capabilities(\\/|$))/.test(path);
     const unprefixed = projectPrefix && url.pathname.startsWith(projectPrefix + "/") ? url.pathname.slice(projectPrefix.length) : "";
     let pathname = global(unprefixed) ? unprefixed : url.pathname;
     if (!global(pathname)) return false;
-    // MCP, connectors and Functions moved to 能力; their old settings addresses open the 能力 page.
     if (pathname === "/settings/mcp") pathname = "/capabilities/access";
     else if (pathname === "/settings/connectors" || pathname === "/settings/functions") {
       if (pathname === "/settings/functions") url.searchParams.set("connector", "typesafe");
@@ -293,6 +313,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       globalSettings ||= bindGlobal();
       if (!section || !globalSettings) return false;
     }
+    if (fromPage !== undefined) sentFromPage = fromPage && section === "models";
     setDirectory?.("settings", true, true);
     setExclusive?.("settings");
     if (section === "appearance" && pathname === "/settings/appearance") {
@@ -305,16 +326,14 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   };
   document.addEventListener("molis-work:open-settings-path", (event) => {
     const href = event.detail?.href || "";
-    if (!openProjectSettingsFromUrl(href)) openGlobalSettingsFromUrl(href);
+    if (!openProjectSettingsFromUrl(href)) openGlobalSettingsFromUrl(href, true);
   });
   const knownGlobalSection = (section) => [...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
     .some((row) => row.dataset.settingsSection === section);
-  // A plugin whose page lives in settings (角色) is opened there, from search, a link or an old tab.
   document.addEventListener("molis-work:open-settings-section", (event) => {
     const section = event.detail?.section;
     if (typeof section === "string" && knownGlobalSection(section)) openShell("settings", section);
   });
-  // “?settings=<section>” on the workbench address opens that settings page once the workbench has landed.
   const requestedSection = new URLSearchParams(location.search).get("settings");
   if (requestedSection) setTimeout(() => {
     const address = new URL(location.href);
@@ -322,14 +341,13 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     history.replaceState(history.state, "", address);
     if (knownGlobalSection(requestedSection)) openShell("settings", requestedSection);
   }, 0);
-  // “?settingsPath=<address>” is a settings page that was opened directly; the server sent it here to open in place.
   const requestedPath = new URLSearchParams(location.search).get("settingsPath");
   if (requestedPath) setTimeout(() => {
     const address = new URL(location.href);
     address.searchParams.delete("settingsPath");
     history.replaceState(history.state, "", address);
     const asked = new URL(requestedPath, location.origin);
-    if (openProjectSettingsFromUrl(asked.href) || openGlobalSettingsFromUrl(asked.href)) return;
+    if (openProjectSettingsFromUrl(asked.href) || openGlobalSettingsFromUrl(asked.href, false)) return;
     openShell("settings", "appearance");
   }, 0);
   document.addEventListener("click", (event) => {
@@ -346,7 +364,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       return;
     }
     const link = event.target.closest("a[href]");
-    // A page that holds its own link back (a planning editor while it saves) keeps the person where they are.
     if (!link || modifiedClick(event) || event.defaultPrevented) return;
     const url = new URL(link.href, location.origin);
     if (url.origin !== location.origin) return;
@@ -355,11 +372,11 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       event.preventDefault();
       return;
     }
-    if (openGlobalSettingsFromUrl(link.href)) {
+    const inSettingsShell = link.closest("[data-work-surface=settings], [data-work-surface=project-settings], [data-directory-panel=settings], [data-directory-panel=project-settings]");
+    if (openGlobalSettingsFromUrl(link.href, !inSettingsShell)) {
       event.preventDefault();
       return;
     }
-    const inSettingsShell = link.closest("[data-work-surface=settings], [data-work-surface=project-settings], [data-directory-panel=settings], [data-directory-panel=project-settings]");
     if (!inSettingsShell) return;
     if ((link.hasAttribute("data-settings-return-workbench") || link.matches(".settings-nav-back")) && url.pathname === projectPrefix + "/") {
       event.preventDefault();
@@ -367,7 +384,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       return;
     }
   });
-  // A page's own filters (能力's scope and search) are GET forms: they load the filtered page in place, not a new page.
   document.addEventListener("submit", (event) => {
     const form = event.target;
     if (event.defaultPrevented || !form.closest?.("[data-work-surface=settings], [data-work-surface=project-settings]")) return;
@@ -376,7 +392,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     url.search = new URLSearchParams([...new FormData(form, event.submitter)].map(([key, value]) => [key, String(value)])).toString();
     if (openProjectSettingsFromUrl(url.href) || openGlobalSettingsFromUrl(url.href)) event.preventDefault();
   });
-  // A section whose row went with its plugin (Coding's): its cached page is dropped, and a list that was showing it goes back to its first.
   const leave = (section) => {
     for (const [panel, first] of [[globalSettings, "appearance"], [projectSettings, "general"]]) {
       if (!panel) continue;

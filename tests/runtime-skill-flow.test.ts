@@ -37,13 +37,16 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
   try {
     assert.equal((await call<{ status: string }>("context_resolve", {})).status, "unbound");
     const connected = await call<{ connection: { project_id: string }; status: string }>("context_create_and_bind", {
-      display_name: "协议验证项目", actor_id: "skill-runtime", user_confirmed: true, idempotency_key: "create-project",
+      display_name: "协议验证项目", user_confirmed: true, idempotency_key: "create-project",
     });
     assert.equal(connected.status, "bound");
     assert.ok(connected.connection.project_id);
     const permissionsCatalog = await openMolisWorkProjectCatalog({ homeDirectory: host.homeDirectory });
-    try { await grantGoalsMcp(null, host.homeDirectory, permissionsCatalog.getProject(connected.connection.project_id)); }
-    finally { permissionsCatalog.close(); }
+    try {
+      // The connection tools take no actor: the Host records the MCP client and the Runtime Session of the call.
+      assert.deepEqual(permissionsCatalog.listRuntimeContextBindingEvents(host.runtimeContext).map((event) => [event.type, event.actor_id]), [["context.bound", "runtime:codex:skill-session"]]);
+      await grantGoalsMcp(null, host.homeDirectory, permissionsCatalog.getProject(connected.connection.project_id));
+    } finally { permissionsCatalog.close(); }
     const created = await call<{ goal: { goal_id: string }; replayed: boolean }>("goals.create", {
       goal_id: "skill-goal", title: "交付一份可读取的结果说明", outcome: "用户可以读取完整说明",
       idempotency_key: "start",

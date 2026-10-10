@@ -18,6 +18,14 @@ test("npm staging packs workspace assets without host binaries or modifying the 
     await createMolisWorkNpmPackageDirectory({ sourceDirectory: source, destinationDirectory: output });
     assert.deepEqual(await readFile(path.join(source, "package.json")), manifestBefore);
     const published = await readFile(path.join(output, "package.json"));
+    // The Feishu/Lark connector's package travels as a registry dependency at the exact version Local Host pins. The workspace's
+    // `overrides` and `allowBuilds` (pnpm-workspace.yaml) do not: the archive has no `overrides` field, and npm would ignore one
+    // in an installed dependency, which docs/installation.md and dependencies-and-sdk-plan.md section 3.5 say in words.
+    const manifest = JSON.parse(published.toString("utf8")) as { dependencies: Record<string, string> };
+    const pinned = (JSON.parse(await readFile(path.join(source, "apps/local-host/package.json"), "utf8")) as { dependencies: Record<string, string> }).dependencies["@larksuiteoapi/lark-mcp"];
+    assert.match(pinned ?? "", /^\d+\.\d+\.\d+$/);
+    assert.equal(manifest.dependencies["@larksuiteoapi/lark-mcp"], pinned);
+    assert.equal("overrides" in manifest, false);
     await assert.rejects(createMolisWorkNpmPackageDirectory({ sourceDirectory: source, destinationDirectory: output }), /输出已存在/);
     assert.deepEqual(await readFile(path.join(output, "package.json")), published);
     const { stdout } = await exec("npm", ["pack", "--ignore-scripts", "--json", "--cache", path.join(temporary, "cache")], { cwd: output, maxBuffer: 8 * 1024 * 1024 });

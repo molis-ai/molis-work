@@ -6,6 +6,7 @@
  */
 import { WORKFLOW_GAP_PICKER_SCRIPT } from "./gap-picker-client.js";
 
+// Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `publishContext`: The workflow on screen, for the Assistant and the placement bar: a run is shown under the workflow it belongs to. `step search`: Many plugins offer steps: a search narrows the list by name, plugin or description; the current choice always stays. `readinessHtml`: One line says whether the link is connected; when a model is what is missing, it also says where to set one up. `run view motion`: A step that just changed state says so once: the check lands, the dot arrives, the line fills downward. `action step`: An action step has no page of its own: it shows what it was given and what the action returned. `judgment handoff`: A judgment that held the content back says what it decided; a person ending the run needs no reason. `run conflict`: A conflict or an action whose result is now unconfirmed: load what was recorded so the page shows the real state. `gap drag`: Drag a plugin (or a station) into a gap. Hovering a station picks the gap on the nearer side.
 export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const root = document.querySelector('[data-workflows=workbench]');
   if (!root) return;
@@ -153,6 +154,11 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       renderList();
     } catch (error) { listEl.innerHTML = '<p class="wf-error">' + esc(error.message) + '</p>'; }
   }
+  document.addEventListener('molis-work:model-ready', () => api('').then((result) => {
+    state.ai = result.ai_available; renderList();
+    if (root.dataset.wfMode === 'instance') renderInstance(); else if (root.dataset.wfMode === 'workflow') renderWorkflow();
+    if (state.openLink !== null) refreshReadiness(state.openLink);
+  }).catch((error) => toast(error.message, 'error')));
   let navigationRevision = 0;
   async function openWorkflow(id, { keepInstance = false, revision = ++navigationRevision } = {}) {
     const result = await api('/' + id);
@@ -175,7 +181,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }
   const memoryKey = () => 'molis-workflows:' + host.route('/');
   const remember = () => { try { sessionStorage.setItem(memoryKey(), JSON.stringify({ workflow: state.workflow?.workflow_id || null, instance: state.instance?.instance_id || null, step: state.step })); } catch {} };
-  // The workflow on screen, for the Assistant and the placement bar: a run is shown under the workflow it belongs to.
   const publishContext = () => {
     const context = { plugin_id: "io.molis.work.native.workflows", surface_title: L('工作流程') };
     const mode = root.dataset.wfMode;
@@ -574,7 +579,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     // A saved step whose action went away stays visible as what it was, so nothing silently changes.
     if (draft.ref && state.actionSteps && !stepChoice(draft)) rows.unshift({ ref: draft.ref, title: draft.title, group: draft.group || '', fields: [], available: false, reason: '已不可用' });
     const choice = rows.find(row => refKey(row.ref) === refKey(draft.ref));
-    // Many plugins offer steps: a search narrows the list by name, plugin or description; the current choice always stays.
     const query = (state.stepQuery || '').trim().toLowerCase();
     const visible = query ? rows.filter(row => row === choice || [row.title, row.group, row.description || ''].join(' ').toLowerCase().includes(query)) : rows;
     const groups = [...new Set(visible.map(row => row.group))];
@@ -687,7 +691,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const back = pop.querySelector('[data-wf-return-button]');
     if (back) back.disabled = !ready.ready;
   }
-  // One line says whether the link is connected; when a model is what is missing, it also says where to set one up.
   function readinessHtml(ready) {
     if (ready.ready) return ico('check') + '<span>' + tx('已接上') + '</span>';
     const fix = ready.reason === '还没有可用的文字模型' ? ' <a href="/settings/models">' + tx('打开模型设置') + '</a>' : '';
@@ -827,7 +830,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     vchain.innerHTML = vchainHtml(run, index);
     const steps = run.steps.map((_, i) => stepState(run, i));
     const links = run.chain.links.map((_, i) => linkState(run, i));
-    // A step that just changed state says so once: the check lands, the dot arrives, the line fills downward.
     if (lastRun.steps && !calm()) {
       steps.forEach((value, i) => { if (lastRun.steps[i] !== value) vchain.querySelector('[data-wf-step="' + i + '"]')?.classList.add('is-changed'); });
       links.forEach((value, i) => { if (lastRun.links[i] !== value) vchain.querySelector('[data-wf-vlink="' + i + '"]')?.classList.add('is-changed'); });
@@ -851,7 +853,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
    * A new step's plugin fades in over the previous one once it has loaded; the first one shows a quiet skeleton.
    */
   function syncFrame(slot, step, station) {
-    // An action step has no page of its own: it shows what it was given and what the action returned.
     if (station?.action) {
       const key = 'action:' + (step.item ? step.item.item_id : 'pending') + ':' + (step.result === undefined ? '' : 'done');
       if (slot.dataset.src === key) return;
@@ -934,7 +935,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     }
     if (run.status !== 'active' || index !== run.current) {
       if (run.status === 'stopped' && index === run.current) {
-        // A judgment that held the content back says what it decided; a person ending the run needs no reason.
         if (run.stopped && run.stopped.from === index) return '<p class="wf-handoff__note is-held">' + ico('pause') + '<span>' + esc(L(run.stopped.reason)) + (run.stopped.verdict ? ' · ' + esc(verdictText(run.stopped.verdict)) : '') + '</span></p>';
         return '<p class="wf-handoff__note">' + ico('pause') + '<span>' + tx('这一次在这里结束了，后面的站没有继续。') + '</span></p>';
       }
@@ -991,7 +991,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       refreshFlowQuietly();
     } catch (error) {
       toast(error.message, 'error');
-      // A conflict or an action whose result is now unconfirmed: load what was recorded so the page shows the real state.
       if (error.status === 409 || run.chain.stations[index + 1]?.action) { state.busy = null; await openInstance(run.instance_id).catch(() => undefined); }
     }
     state.busy = null; remember(); renderInstance();
@@ -1289,7 +1288,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     finally { submit.removeAttribute('data-loading'); submit.querySelector('.mw-spinner')?.remove(); }
   });
 
-  // Drag a plugin (or a station) into a gap. Hovering a station picks the gap on the nearer side.
   let dragging = null; let dropGap = null; let dragSource = null;
   const gapElement = (gap) => view.querySelector('[data-wf-chain] [data-wf-gap="' + gap + '"]');
   const setDrop = (gap) => {

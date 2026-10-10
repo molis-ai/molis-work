@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  FEED_STYLES,
   FEED_UI_CONTRIBUTION_ID,
   FeedPluginRouteTable,
   createFeedRouteHandlers,
@@ -11,6 +12,7 @@ import {
   type PersistedFeedDetailModel,
 } from "@molis-ai/molis-work-plugin-feed";
 import { UiContributionError, UiHost } from "@molis-ai/molis-work-ui-host";
+import { createWorkbenchFeedProjectionRenderer, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 
 const primitives: FeedUiModel["primitives"] = {
   escape: (value) => String(value ?? "")
@@ -39,7 +41,6 @@ function model(overrides: Partial<FeedUiModel> = {}): FeedUiModel {
     source_catalog: [],
     connector_auth: { github: { bound: false }, gmail: { bound: false } },
     primitives,
-    demo: false,
     active: true,
     ...overrides,
   };
@@ -66,7 +67,6 @@ function source(overrides: Partial<FeedUiModel["sources"][number]> = {}): FeedUi
     last_error_code: null,
     imported_at: "2026-09-17T00:00:00.000Z",
     updated_at: "2026-09-17T00:00:00.000Z",
-    prototype: false,
     item_count: 0,
     ui_kind: "rss",
     type_label: "RSS / Atom",
@@ -330,6 +330,21 @@ test("Feed capture rule selector loads the shared directory instead of embedding
   assert.match(panel, /data-feed-rule-preview-run/);
 });
 
+test("the reader has no promotion button where promotion cannot run, and the other entries stay", () => {
+  const host = new UiHost();
+  host.register(feedUiContribution);
+  const render = (model: PersistedFeedDetailModel) => host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "persisted-detail", model });
+  assert.match(render({ ...persistedDetail(), promote_available: true }), /data-feed-action="promote"/);
+  assert.match(render(persistedDetail()), /data-feed-action="promote"/, "a model that says nothing keeps the button");
+  const hidden = render({ ...persistedDetail(), promote_available: false });
+  assert.doesNotMatch(hidden, /data-feed-action="promote"/);
+  for (const action of ["inbox", "save", "archive"]) assert.match(hidden, new RegExp(`data-feed-action="${action}"`));
+  // A rule suggesting promotion does not bring the button back.
+  const suggested = render({ ...persistedDetail({ suggested_behavior_ids: ["feed.promote"] }), promote_available: false });
+  assert.doesNotMatch(suggested, /data-feed-action="promote"/);
+  assert.match(suggested, /data-feed-action="inbox"[^>]*>手动加入 Inbox/);
+});
+
 test("Feed suggestions retain an explicit manual Inbox override", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
@@ -452,116 +467,84 @@ test("Feed stage list is one timeline and the source menu keeps each source's co
   assert.match(workbench, /data-feed-filter-trigger/);
 });
 
-test("Feed demo data keeps page-local actions and never calls real Source APIs", () => {
-  const demoItem: FeedUiModel["entries"][number] = {
-    entry_id: "prototype-feed-one",
-    item_id: "prototype-feed-one",
-    inbox_entry: null,
-    preset: "feed",
-    provider: "github",
-    kind_label: "Feed Item · 演示",
-    source_label: "GitHub · demo",
-    disposition: "inbox",
-    title: "Demo review request",
-    summary: "Demo only",
-    updated_at: "2026-08-30T14:18:00+08:00",
-    read: false,
-    attention_rank: 0,
-    prototype: { reason: "Demo reason", next_action: "Demo action", relation: "Source → Feed" },
-    item: {
-      project_id: "project-test",
-      item_id: "prototype-feed-one",
-      source_id: "prototype-source-github",
-      signal_id: null,
-      signal_revision: null,
-      item_type: "feed",
-      kind: "github_notification",
-      title: "Demo review request",
-      summary: "Demo only",
-      body: "Demo body",
-      source_kind: "github",
-      source_label: "GitHub · demo",
-      external_id: "prototype-feed-one",
-      url: null,
-      origin_status: "prototype",
-      priority: "normal",
-      tags: ["演示数据"],
-      author: "demo",
-      disposition: "inbox",
-      linked_goal_id: null,
-      read_at: null,
-      revision: 1,
-      source_created_at: "2026-08-30T14:18:00+08:00",
-      source_updated_at: "2026-08-30T14:18:00+08:00",
-      imported_at: "2026-08-30T14:18:00+08:00",
-      updated_at: "2026-08-30T14:18:00+08:00",
-      materials: [],
-    },
-  };
-  const demoSource: FeedUiModel["sources"][number] = {
-    project_id: "project-test",
-    source_id: "prototype-source-github",
-    kind: "github",
-    definition_id: null,
-    sync_kind: "manual",
-    name: "GitHub · demo",
-    description: "Demo source",
-    status: "active",
-    enabled: true,
-    origin: "molis_work",
-    config: { scope: "review requests" },
-    schedule: { mode: "interval", enabled: true, interval_minutes: 30, next_pull_at: null },
-    connection_ref: null,
-    account_label: "demo",
-    last_sync_at: null,
-    last_outcome: null,
-    last_error_code: null,
-    imported_at: "2026-08-30T14:18:00+08:00",
-    updated_at: "2026-08-30T14:18:00+08:00",
-    prototype: true,
-    item_count: 1,
-    ui_kind: "github",
-    type_label: "GitHub",
-    status_kind: "active",
-    status_label: "运行正常",
-    last_fetch_label: "演示记录",
-    next_fetch_label: "演示计划",
-    schedule_label: "每 30 分钟",
-    scope_label: "review requests",
-    scope_options: [],
-    configured_endpoint: "github.com/demo",
-    protocol_status: null,
-    home_url: null,
-    editable_endpoint: false,
-    messages: ["Demo review request"],
-    runs: [],
-  };
+test("Feed draws only what its model holds: an inbox-bound entry keeps the stage's row anatomy, and nothing of the old demo is left", () => {
+  const entry = { ...itemEntry({ entry_id: "entry-inbox", source_id: "source-a", title: "Review request", provider: "github", source_label: "GitHub · design" }), disposition: "inbox" };
   const host = new UiHost();
   host.register(feedUiContribution);
-  const demoModel = model({ entries: [demoItem], sources: [demoSource], demo: true });
-  const directory = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "directory", model: demoModel });
-  const detail = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "workbench", model: demoModel });
-  const source = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "source-workbench", model: demoModel });
-  assert.doesNotMatch(directory, /data-feed-entry-prototype="true"|data-prototype-feed-empty-state/);
-  assert.match(detail, /data-feed-entry-prototype="true"/);
-  assert.match(detail, /data-feed-entry-task="prototype-source-github"/);
+  const real = model({ entries: [entry], sources: [source({ source_id: "source-a", name: "GitHub · design", ui_kind: "github" })] });
+  const detail = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "workbench", model: real });
+  const sourceStage = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "source-workbench", model: real });
+  assert.match(detail, /data-feed-entry-task="source-a"/);
+  assert.match(detail, /data-feed-entry-persisted="true"/);
   assert.match(detail, /class="feed-stage-entry directory-list-row"/);
   assert.match(detail, /class="feed-stage-leading"/);
   assert.match(detail, /mw-status mw-status--attention mw-status--plain feed-entry-status/);
   assert.match(detail, /已加入 Inbox/);
   assert.doesNotMatch(detail, /feed-entry-chevron|feed-entry-origin|feed-stage-entry-copy/);
   assert.doesNotMatch(detail, /class="feed-list-item/);
-  assert.doesNotMatch(detail, /data-prototype-feed-empty-state/);
-  assert.match(detail, /data-prototype-feed-action="inbox"/);
-  assert.match(detail, /data-feed-task="prototype-source-github"/);
-  assert.match(detail, /data-icon="check"|data-icon="alert"|href="#icon-check"|href="#icon-alert"/);
+  assert.match(detail, /data-feed-task="source-a"/);
   assert.match(detail, /data-feed-task="all"/);
   assert.doesNotMatch(detail, /mw-dir-row--nested/);
-  assert.match(source, /data-prototype-source-sync="prototype-source-github"/);
-  assert.match(source, /data-prototype-config-save/);
-  assert.match(source, /data-prototype-schedule-save/);
-  assert.doesNotMatch(source, /data-source-runtime-action/);
-  assert.doesNotMatch(source, /data-real-source-id/);
+  // The old page-local demo (fake GitHub, Gmail and RSS sources and messages whose buttons only changed the page) is gone.
+  assert.doesNotMatch(detail + sourceStage, /data-prototype|data-feed-entry-prototype|feed-detail--prototype|prototype-honesty-note|演示|模拟/);
+  assert.match(sourceStage, /data-real-source-id="source-a"/);
+});
+
+test("A demo project whose Feed holds nothing is given no invented sources or messages (E-3)", () => {
+  const { buildFeedNativePluginModel } = createWorkbenchFeedProjectionRenderer({ L: text => text, dateTimeLocale: () => "zh-CN" });
+  const view = { route_prefix: "/projects/demo", demo: true, snapshot: { board: { project_id: "demo" } },
+    feed: { feed_items: [], sources: [], runs: [], out_rules: [] } } as Partial<MolisWorkWebView> as MolisWorkWebView;
+  const built = buildFeedNativePluginModel(view, "feed");
+  assert.deepEqual(built.entries, []);
+  assert.deepEqual(built.sources, []);
+  assert.equal("demo" in built, false, "the model has no demo flag for the plugin to draw a prototype from");
+});
+
+/** Top-level rules of a stylesheet, descending into conditional at-rules; keyframes and font faces are kept whole. */
+function cssRules(css: string): Array<{ prelude: string; body: string }> {
+  const source = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules: Array<{ prelude: string; body: string }> = [];
+  let start = 0;
+  for (let at = 0; at < source.length; at += 1) {
+    if (source[at] === ";") { start = at + 1; continue; }
+    if (source[at] !== "{") continue;
+    let depth = 1;
+    let end = at + 1;
+    for (; end < source.length && depth > 0; end += 1) depth += source[end] === "{" ? 1 : source[end] === "}" ? -1 : 0;
+    const prelude = source.slice(start, at).trim();
+    const body = source.slice(at + 1, end - 1);
+    rules.push({ prelude, body });
+    if (/^@(media|container|supports|layer)\b/.test(prelude)) rules.push(...cssRules(body));
+    at = end - 1;
+    start = end;
+  }
+  return rules;
+}
+
+test("The Feed stylesheet keeps every rule whole: no selector list runs into the next rule, and the reader keeps its own block", () => {
+  const rules = cssRules(FEED_STYLES);
+  for (const { prelude } of rules) {
+    assert.doesNotMatch(prelude, /,\s*$/, `a selector list ends in a comma and swallowed the next rule: ${prelude.slice(-80)}`);
+    if (!prelude.startsWith("@")) assert.doesNotMatch(prelude, /@\w/, `a selector swallowed an at-rule: ${prelude.slice(-80)}`);
+  }
+  const reading = rules.filter(({ prelude }) => /\.feed-stage-item-detail \.feed-detail$/.test(prelude));
+  assert.equal(reading.length, 1, "the reader's own .feed-detail block");
+  assert.match(reading[0].body, /max-width:\s*700px/);
+  assert.match(reading[0].body, /animation:\s*feed-reading-in\b/);
+  assert.ok(rules.some(({ prelude }) => prelude === "@keyframes feed-reading-in"), "the keyframes the reader animates with");
+});
+
+test("Feed with nothing to show says so: no sources, or a source with no messages, never fabricated rows", () => {
+  const host = new UiHost();
+  host.register(feedUiContribution);
+  const none = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "workbench", model: model() });
+  assert.match(none, /<strong data-feed-empty-title>还没有来源<\/strong>/);
+  assert.equal(none.match(/data-feed-entry-id=/g)?.length ?? 0, 0);
+  assert.equal(none.match(/data-feed-task="/g)?.length ?? 0, 1, "only the “all” row, no invented sources");
+  const quiet = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "workbench", model: model({ sources: [source()] }) });
+  assert.match(quiet, /<strong data-feed-empty-title>还没有消息，拉取后会出现在这里<\/strong>/);
+  assert.equal(quiet.match(/data-feed-entry-id=/g)?.length ?? 0, 0);
+  assert.doesNotMatch(none + quiet, /data-prototype|adeptify|Latent Space/);
 });
 
 test("Feed Plugin route table owns matching while the Host supplies handlers", async () => {

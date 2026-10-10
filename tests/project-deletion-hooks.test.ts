@@ -202,6 +202,28 @@ test("the fixed-id demo is cleared by every owner when it is made again after a 
   });
 });
 
+test("an owner whose data stays valid for a project that stays is left alone by a rebuild, and cleared by a deletion and by the demo made again", async () => {
+  await withHome(async ({ home, catalog }) => {
+    const input = { actor_id: "test-user", user_confirmed: true };
+    const plain = recorder("test-plain"), kept = recorder("test-kept");
+    const checked: string[] = [];
+    kept.owner = { ...kept.owner, survivesRebuild: true, check() { checked.push("kept"); } };
+    const disposers = [projectDeletedHooksFor(home).register(plain.owner), projectDeletedHooksFor(home).register(kept.owner)];
+    try {
+      await catalog.ensureDemoProject(input);
+      await catalog.resetDemoProject(input);
+      assert.deepEqual([plain.calls, kept.calls, checked], [[DEMO_PROJECT_ID], [], []], "a rebuild neither asks nor clears the owner that survives it, and does not report it as left");
+
+      await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-kept" });
+      assert.deepEqual(kept.calls, [DEMO_PROJECT_ID], "a deletion clears it like the others");
+      await catalog.ensureDemoProject(input);
+      assert.deepEqual(kept.calls, [DEMO_PROJECT_ID, DEMO_PROJECT_ID], "so does the demo made again with the same id after a deletion");
+      assert.equal(await projectDeletedHooksFor(home).clearAll(DEMO_PROJECT_ID, { rebuild: true }).then(left => left.length), 0);
+      assert.equal(kept.calls.length, 2);
+    } finally { for (const dispose of disposers) dispose(); }
+  });
+});
+
 test("a fixed-id demo whose earlier deletion has no owner steps (a receipt from before them) is cleared by every owner before it is made again", async () => {
   await withHome(async ({ home, catalog }) => {
     const input = { actor_id: "test-user", user_confirmed: true };

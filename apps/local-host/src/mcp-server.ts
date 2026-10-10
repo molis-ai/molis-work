@@ -16,7 +16,9 @@ import { RuntimeSessionHost } from "./runtime-session.js";
 import { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import { runtimeContextHostFromEnvironment } from "./runtime-context.js";
 import { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
-import { runtimeEventActor, runtimeSessionActor } from "./mcp-event-identity.js";
+import { runtimeConnectionIdentity, runtimeSessionActor } from "./mcp-event-identity.js";
+import { LocalProjectDeletionGatewayClient, type ProjectDeletionGatewayRequest } from "./project-deletion-gateway.js";
+import { ProjectDeletionService } from "./project-deletion-service.js";
 import { assembleMcpCatalog, findAssembledMcpTool, type AssembledMcpCatalog } from "./mcp-catalog.js";
 import { readProductEnv } from "@molis-ai/molis-work-storage";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -69,7 +71,10 @@ export class LocalMcpServer {
     this.contextTools = createMcpRuntimeContextHandlers({
       catalogs: { withCatalog: (homeDirectory, operation) => withMolisWorkProjectCatalog({ homeDirectory }, operation) },
       connection: this.connectionState,
+      createError: createPresentationError,
       requireHost: (context) => this.requireRuntimeContextHost(context),
+      actorFor: (host, context) => runtimeConnectionIdentity(host, context).actor_id,
+      deleteProject: (request, host, context) => this.deleteProject(request, host, context),
       presentResolution: createMcpContextPresenter({
         connection: this.connectionState,
         createError: createPresentationError,
@@ -104,6 +109,28 @@ export class LocalMcpServer {
     this.runtimeSessions = new RuntimeSessionHost();
   }
 
+  /**
+   * Deleting a project is the Host's one deletion service. With a resident Host to forward to, that Host runs it: the
+   * terminals and the project's runtime are its own. Without one there are neither, and this process deletes with the
+   * same service over what it has. Either way the actor is this call's MCP client and Session, not anything the Runtime said.
+   */
+  private async deleteProject(request: ProjectDeletionGatewayRequest, host: MolisWorkRuntimeContextHost, callContext: McpToolCallContext) {
+    const identity = runtimeConnectionIdentity(host, callContext);
+    const home = host.homeDirectory;
+    if (this.actionServiceUrl && home) {
+      const databasePath = await this.withCatalog({ homeDirectory: home }, catalog => catalog.listProjects().find(project => project.project_id === request.project_id.trim())?.database_path);
+      const forwarded = await new LocalProjectDeletionGatewayClient({ url: this.actionServiceUrl, homeDirectory: home, clientId: identity.client_id,
+        runtimeSessionId: identity.runtime_session_id }).delete(request, this.transportLifetime.signal);
+      if (forwarded) {
+        // This process may hold the project's runtime too (the v1 management tools open it); the resident Host has deleted it, so let go.
+        if (databasePath) await this.localHost.closeProject(databasePath);
+        return forwarded;
+      }
+    }
+    return new ProjectDeletionService(this.withCatalog, { isPanelAlive: () => false, releaseProject: async databasePath => { await this.localHost.closeProject(databasePath); } })
+      .deleteProject(home, { ...request, actor_id: identity.actor_id });
+  }
+
   private currentActions() {
     const connection = this.runtimeConnection;
     const reference = connection ? molisWorkHostProjectReference(connection) : null;
@@ -121,12 +148,12 @@ export class LocalMcpServer {
     return bindActionClient(actions.service, () => actions.context);
   }
 
-  /** `sessionCall` names the Runtime Session a call is made in; it becomes the call's audit actor, and a write requires it. */
-  private async authorizedActions(sessionCall?: McpToolCallContext, requireSession = false) {
+  /** `sessionCall` names the Runtime Session a call is made in; it becomes the call's audit actor. A Runtime without one is marked on
+   * the context, and dispatch refuses the actions that declare `authorship: "session"` (see `authorizeMcpActions`). */
+  private async authorizedActions(sessionCall?: McpToolCallContext) {
     const connection = this.runtimeConnection;
     const current = this.currentActions();
-    const sessionActor = (call: McpToolCallContext) => requireSession
-      ? runtimeEventActor(this.runtimeContextHost, call).actor_id : runtimeSessionActor(this.runtimeContextHost, call) ?? undefined;
+    const sessionActor = (call: McpToolCallContext) => runtimeSessionActor(this.runtimeContextHost, call) ?? undefined;
     const auditActor = sessionCall ? sessionActor(sessionCall) : undefined;
     const runtimeSessionId = auditActor?.slice(current.context.actor_id.length + 1);
     if (auditActor) current.context = { ...current.context, audit_actor_id: auditActor, actor_kind: "runtime", runtime_session_id: runtimeSessionId };
@@ -215,10 +242,10 @@ export class LocalMcpServer {
     if (entry.source === "action") {
       if (this.runtimeConnection !== connection) throw new ActionError("mcp.context_changed", "客户端项目连接已变化，请重新发现能力");
       // Every Runtime call carries its Session when there is one (a receipt query finds the write it made); an action whose
-      // records are authored by a Session refuses a call without one.
+      // records are authored by a Session is refused at dispatch for a call without one, wrapped or not.
       // A Home action called from a bound project still runs in that project's context (e.g. a judgment records where it was asked).
       const runtimeCall = this.runtimeContextHost ? callContext : undefined;
-      const actions = await this.authorizedActions(runtimeCall, entry.action?.action.authorship === "session");
+      const actions = await this.authorizedActions(runtimeCall);
       const result = await actions.ports.callTool(name, arguments_, callContext);
       if (entry.action && this.runtimeConnection === connection && typeof result !== "string" && result.structuredContent) {
         await this.recordRuntimeSessionActivity(entry.action.capability_id, name, arguments_, result.structuredContent, callContext);

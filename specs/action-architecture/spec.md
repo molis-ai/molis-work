@@ -368,7 +368,7 @@ Agent 根据任务上下文选用可用工具；对已纳入动作体系的操�
 - **后台任务回报**：`ActionMetadata.background_job`，唯一生产方是炼金术士（`plugins/native/alchemist/src/studio/shared/contracts/actions.ts`），消费方是助理的 `watchJob`、`checkJob`，按 15 秒起翻倍、最长 5 分钟的间隔读状态查询，6 小时未结束记为 `unknown`。状态查询是否存在不在注册时查（G2）；跟踪途中提供方停用或撤权时，读状态抛错就当这次没读到，继续按间隔重试，6 小时后记为 `unknown`，没有用例（C7 部分）。用例 `tests/assistant-business-gateway.test.ts`。
 - **到期提醒**：`packages/contracts/src/platform/due-reminders.ts`，注册时要求 Home 范围、只读查询、输入输出规范 schema 相同（C2、C3 满足）。唯一生产方是 Todo 的 `todo.reminders.window`，消费方是 `AssistantService.sweepReminders`，每分钟问一次、每个提醒只告知一次。`defineDueRemindersAction` 和它的辅助函数已从插件 SDK 导出（G1，W2-03）；`docs/platform/PLUGIN-DEVELOPMENT.md` 原先举例「日程的提前提醒」，读起来像有第二个生产方，代码里没有，已改成只有 Todo 在用（G5，W2-03）。用例 `tests/assistant-reminders.test.ts` 不涉及停用或撤权。
 - **效果**：`ActionMetadata.effect` 与 `actionEffect`：声明优先，没声明就按能力 id 里是否含 delete、trash、purge、remove 等词推断（`IRREVERSIBLE_ID`）。推断决定一个动作是否对生成插件开放（`actionReachesAudience`：声明了 `plugin` 受众，或对 `agent` 开放且没有 `plugin: false`，撤不回的除外），也是情境推荐、能力网关（读与写分开的工具）、助理免确认资格的依据，所以只减少暴露、不扩大权限（C4）。名字推断对 `delete_preview` 这类会误判，要用 `withActionEffect` 显式声明，它已从插件 SDK 导出（G1，W2-03）。
-- **作者**：`authorship: "session"` 由 Goals 的命令声明（`plugins/native/goals/src/action-contract.ts`），含义是 Runtime 只能在稳定 Session 里调用，Session 成为所写记录的作者。检查只在 MCP 入口做（`apps/local-host/src/mcp-server.ts` 在动作带该声明时要求稳定会话，否则 `mcp.runtime_identity_missing`）；内核和其他入口不看这个字段，助理用 `audit_actor_id: assistant:<work_id>` 自带作者。这个会话 id 来自 MCP 调用的 `_meta`，只做审计作者，不是身份或权限，而 C4 现在的措辞是「`_meta` 不提供身份」，需要写明这一点（G8）。同一条合同在不同入口得到不同的拒绝，C8 判为缺（G9）。用例只在 `tests/mcp-goal-events.test.ts` 里覆盖了 MCP 一侧。
+- **作者**：`authorship: "session"` 由 Goals 的命令声明（`plugins/native/goals/src/action-contract.ts`），含义是 Runtime 只能在稳定 Session 里调用，Session 成为所写记录的作者。检查只管 MCP 来的外部 Runtime：`authorizeMcpActions` 发现客户端没有稳定会话，就在调用上下文里标出 `runtime_session_missing`，动作服务在派发处拒绝（`mcp.runtime_identity_missing`），直接调用与经包装动作发起的嵌套调用一样；助理和其他入口不看这个标记，助理用 `audit_actor_id: assistant:<work_id>` 自带作者。这个会话 id 来自 MCP 调用的 `_meta`，只做审计作者，不是身份或权限，而 C4 现在的措辞是「`_meta` 不提供身份」，需要写明这一点（G8）。同一条合同在不同入口得到不同的拒绝，C8 判为缺（G9）。用例只在 `tests/mcp-goal-events.test.ts` 里覆盖了 MCP 一侧。
 
 **缺口与去向**
 
@@ -382,7 +382,7 @@ Agent 根据任务上下文选用可用工具；对已纳入动作体系的操�
 | G6 | `result_subject` 未声明时按输出形状推断 | 建议随 W3-05 评估：要么全部显式声明，要么记为已知推断 |
 | G7 | 插件开发 Skill 没写撤销、后台任务、到期提醒、片段推荐、页面操作卡 | 与 W1-12 的回放工具一起补；Skill 的改动在全量回归之外做 |
 | G8 | 基本合同对 `_meta` 的措辞要补上「只给审计作者」 | 本节落地后改「基本合同」那一句 |
-| G9 | `authorship` 只在 MCP 入口检查 | 建议并入 W3-01（调用标识）：把检查移进内核，或登记成入口规则；合同有变化，先问用户 |
+| G9 | `authorship` 只在 MCP 入口检查 | 建议并入 W3-01（调用标识）：把检查移进内核，或登记成入口规则；合同有变化，先问用户。W2-08 已把 MCP 无会话客户端的拒绝移到动作服务派发处（嵌套调用也拒），助理与内置 Agent 仍不检查，2026-10-10 决定保持这一点、写清含义 |
 
 **文档同步**：「生命周期与配置有效性」一节里「没有模型目录配置的旧环境/文本密钥入口可作为兼容来源」一句已与「不留兼容」的口径不符，归 W1-02 改写，这里不动。
 

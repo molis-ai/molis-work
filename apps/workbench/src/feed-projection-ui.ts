@@ -34,10 +34,6 @@ function buildFeedNativePluginModel(
   active = false,
 ): FeedUiModel {
   const sources = view.feed.sources.map((source) => sourceModel(source, view));
-  if (view.demo) {
-    const presentKinds = new Set(sources.map((source) => source.ui_kind));
-    sources.push(...demoSourceModels(view.snapshot.board.project_id).filter((source) => !presentKinds.has(source.ui_kind)));
-  }
   return {
     route_prefix: view.route_prefix,
     preset,
@@ -63,7 +59,6 @@ function buildFeedNativePluginModel(
       judgment: rule.judgment,
     })),
     primitives: feedUiPrimitives,
-    demo: view.demo,
     active,
   };
 }
@@ -84,14 +79,14 @@ function renderFeedNativePluginSurface(
 function renderFeedNativePluginPersistedDetail(
   item: FeedItemRecord,
   routePrefix = "",
-  options: { entryId?: string; inboxActive?: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" } = {},
+  options: { entryId?: string; inboxActive?: boolean; promoteAvailable?: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" } = {},
 ): string {
   const model: PersistedFeedDetailModel = {
     route_prefix: routePrefix,
     entry_id: options.entryId ?? item.item_id,
     item: itemModel(item),
     inbox_entry: options.inboxEntry ?? null,
-    inbox_active: options.inboxActive ?? false,
+    inbox_active: options.inboxActive ?? false, promote_available: options.promoteAvailable,
     primitives: feedUiPrimitives,
   };
   return renderFeedContribution(options.surface === "frame-block" ? "frame-block" : "persisted-detail", model);
@@ -115,87 +110,7 @@ function feedEntries(view: MolisWorkWebView): FeedUiEntry[] {
       read: Boolean(item.read_at),
       attention_rank: 0,
     })),
-    ...(view.demo && view.feed.feed_items.length === 0 ? demoFeedEntries(view) : []),
   ];
-}
-
-function demoFeedEntries(view: MolisWorkWebView): FeedUiEntry[] {
-  const projectId = view.snapshot.board.project_id;
-  const createItem = (
-    id: string,
-    itemType: FeedItemType,
-    kind: string,
-    sourceId: string,
-    sourceLabel: string,
-    title: string,
-    summary: string,
-    body: string,
-    updatedAt: string,
-    tags: string[],
-  ): FeedItemRecord => ({
-    project_id: projectId,
-    item_id: id,
-    source_id: sourceId,
-    item_type: itemType,
-    kind,
-    title,
-    summary,
-    body,
-    source_kind: sourceId.includes("github") ? "github" : sourceId.includes("gmail") ? "gmail" : sourceId.includes("rss") ? "rss" : "molis-work",
-    source_label: sourceLabel,
-    external_id: id,
-    url: null,
-    origin_status: "prototype",
-    priority: "normal",
-    tags,
-    author: sourceId.includes("gmail") ? "Mina · Product Partner" : sourceId.includes("github") ? "adeptify/molis-work" : "Latent Space",
-    disposition: "inbox",
-    linked_goal_id: null,
-    read_at: null,
-    revision: 1,
-    source_created_at: updatedAt,
-    source_updated_at: updatedAt,
-    imported_at: updatedAt,
-    updated_at: updatedAt,
-    materials: [],
-  });
-  const examples = [
-    {
-      item: createItem("prototype-feed-github", "feed", "github_notification", "prototype-source-github", "GitHub · adeptify", "PR #418 请求你确认 FeedItem 与 InboxEntry 的边界", "新的 review request，涉及来源消息如何进入待处理引用。", "PR 更新了信息流对象关系：来源负责接入与拉取，Feed 保存完整消息，Inbox 只保留需要人工介入的引用。请重点检查重复入箱与处理完成后的追溯行为。", "2026-08-30T14:18:00+08:00", ["GitHub", "Review request", "演示数据"]),
-      reason: "这是一条来源消息，默认只属于 Feed；只有你明确加入后才进入 Inbox。",
-      nextAction: "阅读后决定加入 Inbox、保存为资料、升格 Goal 或忽略。",
-      relation: "来源 GitHub · adeptify → Feed Item",
-    },
-    {
-      item: createItem("prototype-feed-gmail", "feed", "gmail_message", "prototype-source-gmail", "Gmail · product@adeptify.ai", "设计伙伴反馈：Inbox 不应成为第二个 Feed", "邮件建议先解释进入原因，再给出下一步，不要重复完整正文。", "Mina 走完当前版本后认为 Feed 和 Inbox 的视觉很像。她建议 Inbox 只展示需要决定、回复或修复的事项，并保留回到原消息的路径。", "2026-08-30T13:42:00+08:00", ["Gmail", "用户反馈", "演示数据"]),
-      reason: "这封邮件只是新消息，目前还没有明确要求你介入。",
-      nextAction: "先阅读；若需要跟进，再加入 Inbox。",
-      relation: "来源 Gmail · product@adeptify.ai → Feed Item",
-    },
-    {
-      item: createItem("prototype-feed-rss", "feed", "rss_entry", "prototype-source-rss", "RSS · Latent Space", "Designing calm inboxes for agentic products", "一篇讨论 agent 产品如何区分事件流与注意力队列的文章。", "文章提出：事件流应该完整、可追溯，注意力队列则必须有进入理由、负责人和退出条件。这个模式与 Molis Work 当前的信息流重构高度相关。", "2026-08-30T12:25:00+08:00", ["RSS", "产品设计", "演示数据"]),
-      reason: "公开来源内容进入完整事实流，不自动占用你的注意力。",
-      nextAction: "保存为资料，或在确认要行动时升格为 Goal。",
-      relation: "来源 RSS · Latent Space → Feed Item",
-    },
-  ];
-  return examples.map(({ item, reason, nextAction, relation }) => ({
-    entry_id: item.item_id,
-    item_id: item.item_id,
-    inbox_entry: null,
-    item: itemModel(item),
-    preset: "feed",
-    provider: provider(item),
-    kind_label: L("Feed Item · 演示"),
-    source_label: item.source_label,
-    disposition: item.disposition === "inbox" ? "feed" : item.disposition,
-    title: item.title,
-    summary: item.summary,
-    updated_at: item.source_updated_at,
-    read: false,
-    attention_rank: 0,
-    prototype: { reason, next_action: nextAction, relation },
-  }));
 }
 
 function itemModel(item: FeedItemRecord): FeedUiItem {
@@ -278,7 +193,6 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSo
     last_error_code: source.last_error_code,
     imported_at: source.imported_at,
     updated_at: source.updated_at,
-    prototype: false,
     item_count: source.item_count,
     ui_kind: uiKind,
     type_label: source.kind === "research_library" ? L("共享研究库") : uiKind === "github" ? "GitHub" : uiKind === "gmail" ? "Gmail" : uiKind === "rss" ? "RSS / Atom" : uiKind === "connector" ? source.name : L("其他来源"),
@@ -314,62 +228,6 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSo
       completed_at: run.completed_at,
     })),
   };
-}
-
-function demoSourceModels(projectId: string): FeedUiSource[] {
-  const now = new Date().toISOString();
-  const create = (
-    id: string,
-    kind: FeedUiSource["ui_kind"],
-    name: string,
-    description: string,
-    accountLabel: string,
-    statusKind: FeedUiSource["status_kind"],
-    messages: readonly string[],
-    intervalMinutes: number,
-  ): FeedUiSource => ({
-    project_id: projectId,
-    source_id: id,
-    kind: kind === "rss" ? "rss" : kind,
-    definition_id: null,
-    sync_kind: "manual",
-    name,
-    description,
-    status: statusKind === "paused" ? "paused" : statusKind === "attention" ? "error" : "active",
-    enabled: true,
-    origin: "molis_work",
-    config: { scope: kind === "gmail" ? "label:product OR label:partner" : L("新消息与更新") },
-    schedule: { mode: "interval", enabled: true, interval_minutes: intervalMinutes, next_pull_at: null },
-    connection_ref: null,
-    account_label: accountLabel,
-    last_sync_at: null,
-    last_outcome: null,
-    last_error_code: statusKind === "attention" ? "fixture_not_live" : null,
-    imported_at: now,
-    updated_at: now,
-    prototype: true,
-    item_count: messages.length,
-    ui_kind: kind,
-    type_label: kind === "github" ? "GitHub" : kind === "gmail" ? "Gmail" : "RSS / Atom",
-    status_kind: statusKind,
-    status_label: statusKind === "attention" ? L("需重新授权") : statusKind === "syncing" ? L("正在拉取") : L("运行正常"),
-    last_fetch_label: L("演示记录"),
-    next_fetch_label: L("演示计划"),
-    schedule_label: L("每 {count} 分钟", { count: intervalMinutes }),
-    scope_label: kind === "gmail" ? "label:product OR label:partner" : L("新消息与更新"),
-    scope_options: kind === "gmail" ? GMAIL_SCOPE_PRESETS.map((preset) => ({ value: preset.value, label: L(preset.label) })) : [],
-    configured_endpoint: kind === "github" ? "github.com/adeptify/*" : kind === "gmail" ? "gmail.googleapis.com · 只读" : "latent.space/feed",
-    protocol_status: kind === "rss" ? L("ETag 条件请求已启用") : null,
-    home_url: kind === "rss" ? "https://www.latent.space/" : null,
-    editable_endpoint: false,
-    messages,
-    runs: [],
-  });
-  return [
-    create("prototype-source-github", "github", "GitHub · adeptify", L("读取分配给你的 PR、Issue 与 Review 请求。"), "yijunwang · adeptify", "active", ["PR #418 请求确认 FeedItem 与 InboxEntry 的边界"], 30),
-    create("prototype-source-gmail", "gmail", "Gmail · product@adeptify.ai", L("只读取需要关注的产品反馈与合作邮件。"), "product@adeptify.ai", "attention", ["设计伙伴反馈：Inbox 不应成为第二个 Feed"], 60),
-    create("prototype-source-rss", "rss", "RSS · Latent Space", L("跟踪 agent 产品、模型与工具设计的新文章。"), L("公开来源"), "syncing", ["Designing calm inboxes for agentic products"], 360),
-  ];
 }
 
 function sourceStatusLabel(status: FeedSourceRecord["status"]): string {

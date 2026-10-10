@@ -9,6 +9,7 @@ import test from "node:test";
 import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { snapshotBoardCapability, molisWorkHostProjectReference, createMolisWorkLocalHost, LocalProjectDatabase, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis-work-contracts/modules/goals";
 
@@ -308,7 +309,7 @@ test("missing stable Session identity rejects event writes with no Goal or event
       () => mcp!.callTool("molis_work_v1_action_goals.create__v1", {
         title: "不应写入", idempotency_key: "missing-session",
       }),
-      (error: unknown) => error instanceof MolisWorkV1Error
+      (error: unknown) => error instanceof ActionError
         && error.code === "mcp.runtime_identity_missing"
         && /稳定 Session/.test(error.message),
     );

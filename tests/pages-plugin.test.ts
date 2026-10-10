@@ -5372,7 +5372,7 @@ test("AI 缺模型拒绝，配置模型返回候选，Promote 经统一动作发
       query: projectQuery(),
       body: projectBody({ command: "outline", text: "先写目标再写范围" }),
     });
-    assert.equal((ai?.body as { stub: boolean }).stub, false);
+    assert.equal("stub" in (ai?.body as object), false);
     assert.equal((ai?.body as { text: string }).text, "先写目标，再写范围。");
     store.close();
   });

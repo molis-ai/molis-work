@@ -27,6 +27,16 @@ export class SessionAssociationRepository {
     };
   }
 
+  /** The Sessions that belong to a project: the ones whose project edge is this project's. */
+  sessionsOfProject(projectId: string): string[] {
+    return this.ledger.query.list(access(), { type: "work.project", target: target("projects", projectId, projectId, "project") }).map(edge => edge.source.id);
+  }
+
+  /** Unlinks a Session from its project, Goal and workspace. The Ledger keeps the append-only history of the edges it removes (ids only). */
+  release(sessionId: string, actor: string, at: string): void {
+    this.set(sessionId, { project_id: null, current_goal_id: null, workspace_id: null }, actor, at);
+  }
+
   history(sessionId: string): MolisWorkSessionGoalLink[] {
     return this.ledger.query.list(access(), { type: "work.goal", source: source(sessionId), include_removed: true })
       .map((latest): MolisWorkSessionGoalLink => {

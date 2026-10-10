@@ -83,6 +83,12 @@ export function createWorkspaceOperations(d: ApiDependencies) {
     playbookDisable: (input: AlchemistOperationInput<"playbookDisable">) => ({ rule: d.memory.updatePlaybookStatus(input.id, "disabled", d.clock.now()) }),
     pulseReports: () => ({ latestRun: d.pulse.getLatestRun(), reports: d.pulse.listReports().map(report => ({ report, opportunities: d.pulse.listOpportunities(report.id), signals: d.pulse.listSignals(report.runId) })) }),
     pulseSources: () => ({ sources: d.pulse.listSourceSettings() }),
+    pulseGithub: () => d.pulseGithub?.read() ?? { accounts: [], selectedConnectionId: null },
+    pulseGithubSelect: (input: AlchemistOperationInput<"pulseGithubSelect">) => {
+      if (!d.pulseGithub) throw new AlchemistOperationError("PULSE_GITHUB_UNAVAILABLE", "这里不能选择 GitHub 账号。");
+      d.pulseGithub.select(input.connectionId);
+      return { selectedConnectionId: d.pulseGithub.read().selectedConnectionId };
+    },
     pulseSourceUpdate: (input: AlchemistOperationInput<"pulseSourceUpdate">) => ({ source: d.pulse.updateSourceSetting(input.sourceId, input.enabled, d.clock.now()) }),
     pulseStart: (input: AlchemistOperationInput<"pulseStart">) => ({ run: d.startPulseRun(input) }),
     opportunitySave: (input: AlchemistOperationInput<"opportunitySave">) => ({ opportunity: d.opportunityActions.saveForLater(input.id), destination: { surface: "pulse", collection: "saved_for_later" } }),

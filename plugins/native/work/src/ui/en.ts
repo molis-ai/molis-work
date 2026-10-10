@@ -1,5 +1,7 @@
 /** Work-owned terminal strings. Workbench composes them into its existing locale runtime. */
 export const WORK_EN: Record<string, string> = {
+  // Said by the delete-project dialog (the label of the Sessions registry's project data).
+  "这个项目里的会话记录与交接": "Session records and handoffs of this project",
   "推进这个 Goal": "Advance this Goal",
   "复制命令": "Copy command",
   "命令已复制到剪贴板": "Command copied to the clipboard",
@@ -69,6 +71,7 @@ export const WORK_EN: Record<string, string> = {
   "Sessions 列表": "Sessions list",
   "没有匹配结果": "No matching results",
   "这个项目还没有 Session": "This project has no Session yet",
+  "启动一条新的工作会话，或关联已有的 Runtime 会话。": "Start a new working Session, or link an existing Runtime Session.",
   "共": "Total",
   "条": "items",
   "按需读取最近执行": "Load recent execution on demand",

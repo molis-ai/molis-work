@@ -16,6 +16,7 @@ export {
 export {
   SESSION_REGISTRY_OWNER,
 } from "./session-schema.js";
+export { purgeSessionsProject, sessionsProjectData, type SessionLedgerFactory } from "./project-data.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-private-work-context",

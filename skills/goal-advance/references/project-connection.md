@@ -12,9 +12,9 @@ Use this reference for project selection, binding, switching, connection errors,
 
 An exact realpath-verified workspace with one project membership can recover a connection read-only. This does not create a Session binding. Multiple, conflicting or unverified matches still need a choice. A repository name, directory, database path or mere project mention is not selection authority.
 
-Once the user selects an existing project, call molis_work_v1_context_bind with its returned project_id, the current Runtime actor_id and user_confirmed=true. Connection tools retain their explicit identity fields; the ordinary Goal-tool omission rule does not apply to them.
+Once the user selects an existing project, call molis_work_v1_context_bind with its returned project_id and user_confirmed=true. The connection tools take no actor_id: the Host records this MCP client and the Session of the call, and a call that sends actor_id (or any other identity field) is refused with mcp.unexpected_field and changes nothing.
 
-For a new project, state its display name and the create-and-bind effect, then call context_create_and_bind with display_name, actor_id, user_confirmed=true and idempotency_key when that precise operation is authorized. A clear current request or answer already authorizing that name and operation is sufficient; do not ask again. If either the name or creation intent remains ambiguous, clarify only that gap.
+For a new project, state its display name and the create-and-bind effect, then call context_create_and_bind with display_name, user_confirmed=true and idempotency_key when that precise operation is authorized. A clear current request or answer already authorizing that name and operation is sufficient; do not ask again. If either the name or creation intent remains ambiguous, clarify only that gap.
 
 Use rebind_confirmed=true only when the user authorized switching an existing binding. An explicit instruction to switch already supplies that authority; an unrelated approval does not.
 
@@ -41,7 +41,8 @@ Continue from an available new or forked Session with a compatible reader; ask f
 - context_reject_suggestion records an explicitly rejected candidate when the Host has stable Session identity. With no stable identity, do not claim the rejection was persisted.
 - context_unbind disconnects this Session while preserving the project. With binding_scope=workspace and project_id, it removes that one workspace association.
 - project_delete permanently removes the named managed project, its database and bindings, and the data plugins keep for it (documents, forms and their answers, todos, memories, Assistant works and the like). Use delete_confirmed=true only with explicit authority for that deletion. The personal space cannot be deleted; report a refusal or the returned deletion receipt literally.
-- A pending cleanup receipt is unfinished (for example the project's memories: this entry does not run the Agent runtime, so a running Molis Work finishes that step). Retry only the same operation and key; while Molis Work is not running, the step stays pending.
+- While one of the project's terminals is running, a running Molis Work refuses the deletion (code catalog.project_terminal_live). Tell the user to close the terminal first, then retry the same operation and key; do not try to close it yourself.
+- A pending cleanup receipt is unfinished. When Molis Work is running it deletes and finishes every step itself; when it is not, this entry deletes alone and the project's memories (kept in the Agent runtime, which this entry does not run) stay pending until a running Molis Work finishes them. Retry only the same operation and key; while Molis Work is not running, the step stays pending.
 
 Use the user's existing authorization for the precise effect. Choosing another project, rejecting a suggestion, disconnecting and deleting are not interchangeable. Show user-facing project names; keep internal IDs and paths out of ordinary explanations.
 

@@ -5,6 +5,7 @@ import { JELLY_MATERIAL_CLIENT_SCRIPT } from "./client-material.js";
 import { JELLY_PLAN_CLIENT_SCRIPT } from "./client-plan.js";
 
 /** A single browser owner keeps calendar, notes and linked task blocks coherent. */
+// Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `category colours`: Stored category colours: these hex values identify a saved choice and must match existing data; the swatches draw from tokens. `molis:assistant-effect`: The Assistant changed Jelly: read the workspace again. An open note or idea with unsaved edits keeps them; saving then reports the conflict instead of overwriting. `molis-work:select-item`: Opened by id (search, the side panel, an Assistant result): the object may be newer than this page, so read the workspace again and show that item, note or idea where it lives.
 export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const root = document.querySelector('[data-jelly="workbench"]');
   if (!root) return;
@@ -25,7 +26,6 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const clockLabel = (minutes) => minutes === null || minutes === undefined ? '' : String(Math.floor(minutes/60)).padStart(2,'0') + ':' + String(minutes%60).padStart(2,'0');
   const parseClock = (value) => value ? Number(value.slice(0,2))*60+Number(value.slice(3,5)) : null;
   const tones = ['blue','green','amber','red','purple','teal','gray'];
-  // Stored category colours: these hex values identify a saved choice and must match existing data; the swatches draw from tokens.
   const toneColors={blue:'#5E6AD2',green:'#2D7A5A',amber:'#8A5C18',red:'#B03D45',purple:'#8B5CF6',teal:'#3D6F78',gray:'#737882'};
   const categoryTone = (category) => tones.find((tone)=>toneColors[tone].toLowerCase()===String(category?.color).toLowerCase())||'blue';
   const category = (id) => state?.categories.find((entry) => entry.id === id);
@@ -155,8 +155,6 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     await flushEditor();const source=JSON.parse(await file.text());const {preview}=await request('POST','/api/jelly/preview',{kind:'import',source});
     openGeneric('导入工作区','<p class="jelly-muted">'+tx('合并导入前先检查数量与影响。原工作区会保留备份；重复导入不会重复创建。')+'</p><pre class="jelly-muted">'+esc(JSON.stringify(preview.counts,null,2))+'</pre>'+(preview.warnings||[]).map((line)=>'<p class="jelly-muted">'+esc(line)+'</p>').join(''),'确认导入',async()=>{await command({type:'workspace.import',source,confirmation_token:preview.confirmation_token});closeWorkspace();await loadList();showNote(L('导入完成'));});
   }));
-  // The Assistant changed Jelly: read the workspace again. An open note or idea with unsaved edits keeps them; saving
-  // then reports the conflict instead of overwriting.
   window.addEventListener('molis:assistant-effect',(event)=>{
     const capability=event.detail&&event.detail.capability_id;
     if(typeof capability!=='string'||capability.indexOf('jelly.')!==0)return;
@@ -167,8 +165,6 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if(recordFor(selected.kind,selected.id))openRecord(selected.kind,selected.id);else closeWorkspace();
     });
   });
-  // Opened by id (search, the side panel, an Assistant result): the object may be newer than this page, so read the
-  // workspace again and show that item, note or idea where it lives.
   root.addEventListener('molis-work:select-item',(event)=>{
     const id=event.detail&&event.detail.itemId;
     if(typeof id!=='string'||!id)return;

@@ -10,8 +10,6 @@ export * from "./proposal-client.js";
 export * from "./proposal-ui.js";
 export * from "./proposal-ui-model.js";
 export * from "./board-entry-capabilities.js";
-export * from "./entry-composition-capabilities.js";
-export * from "./goals-entry-capabilities.js";
 export * from "./goal-event-application.js";
 export * from "./goal-event-entry-capabilities.js";
 export * from "./proposal-capabilities.js";

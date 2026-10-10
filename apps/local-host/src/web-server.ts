@@ -1,8 +1,8 @@
 import { createLocalImServer } from "./im-server.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
-import { loadCasebookConfiguration } from "./casebook/config.js";
-import { handleCasebookHttp } from "./casebook/http.js";
+import { handleProjectDeletionGatewayHttp } from "./project-deletion-gateway.js";
+import { webProjectDeletion } from "./project-deletion-service.js";
 import { resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import fs from "node:fs";
 import http from "node:http";
@@ -19,7 +19,7 @@ import type { MolisWorkWebViewCache } from "./web-view.js";
 import { seedDemoBoard } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
-import { fixtureWebBoardOptions, resolveWebRequest } from "./web-routing.js";
+import { fixtureWebBoardOptions } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
 import { handleMolisWorkWebRequest } from "./web-request.js";
@@ -90,10 +90,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const ownsLocalHost = !serverOptions.localHost;
     const agents = ensureSystemAgentService(localHost, storageHome, withCatalog);
     const controlToken = resolveWebControlToken(serverOptions);
-    serverOptions.casebook ??= loadCasebookConfiguration(storageHome,serverOptions.casebookConfigPath,[controlToken]);
-    if ([...(serverOptions.casebook?.grants ?? []), ...(serverOptions.casebook?.catalogConnections ?? [])].some(g => g.token === controlToken || g.token.length < 32)) {
-      throw new Error('Casebook requires a separate server-only credential');
-    }
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
     const feedSchedulers = new Map<string, FeedSchedulerRuntime>();
@@ -139,8 +135,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
-        // Every route (locale switch and Casebook included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
-        if (refuseForeignRequest(request, response, url.pathname)) return;
+        // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
+        if (refuseForeignRequest(request, response)) return;
         if (request.method === "GET" && url.pathname === "/locale") {
           const requested = url.searchParams.get("lang");
           const nextLocale = isWebLocale(requested)
@@ -164,10 +160,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           ? capsuleLocale
           : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
         await runWithLocale(locale, async () => {
-          if (url.pathname.startsWith('/casebook/v1/')) {
-            if (await handleCasebookHttp(request,response,url,serverOptions.casebook,localHost,
-              pathname => resolveWebRequest(serverOptions,pathname,composition.withCatalog))) return;
-          }
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {
             const ready = server.listening && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
@@ -180,7 +172,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           }
           if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
-          if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog)) return;
+          if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog) || await handleProjectDeletionGatewayHttp(request, response, url, storageHome, webProjectDeletion(withCatalog, { isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }))) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
           await handleMolisWorkWebRequest(

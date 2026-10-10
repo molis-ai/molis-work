@@ -1,10 +1,14 @@
 import { ActionError, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalsPlanningApi, PlanningMethodPack, ResolvedPlanningMethodPack, SaveProjectPlanningMethodInput } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GoalEntryCompositionApi } from "./entry-composition-capabilities.js";
 import { goalAction, goalActor } from "./action-contract.js";
 import { identifier, count, boolean, object, array } from "./event-action-schemas.js";
 import { planningMethodInputSchema, planningMethodSchema, planningMethodSummarySchema, planningCompositionSchema, planningImpactSchema, planningGraphIssueSchema, planningSavedSchema } from "./planning-action-schemas.js";
 
+/** What `goals.planning.read` returns: the methods in effect for the project and the composition the project enabled. */
+export interface GoalPlanningComposition {
+  methods: ReturnType<GoalsPlanningApi["effectiveMethods"]>;
+  composition: ReturnType<GoalsPlanningApi["projectComposition"]>;
+}
 type SaveInput = Omit<SaveProjectPlanningMethodInput, "project_id" | "actor_id">;
 type Saved = ReturnType<GoalsPlanningApi["saveProjectMethod"]>;
 type ApplyInput = { method_id: string; user_confirmed: boolean };
@@ -14,10 +18,10 @@ export interface GoalsPlanningActionPorts {
   baseMethods(): readonly PlanningMethodPack[];
 }
 export const goalsPlanningActions = {
-  planningCatalog: goalAction<Record<string, never>, { methods: Omit<PlanningMethodPack, "instructions">[]; composition: ReturnType<GoalEntryCompositionApi["readPlanningComposition"]>["composition"] }>(
+  planningCatalog: goalAction<Record<string, never>, { methods: Omit<PlanningMethodPack, "instructions">[]; composition: GoalPlanningComposition["composition"] }>(
     "goals.planning.catalog", "列出项目规划方法", "只读列出当前项目可用的规划方法（不含正文）与已启用的项目组合；需要正文时按 method_ids 读取", "query",
     object({}), object({ methods: array(planningMethodSummarySchema), composition: planningCompositionSchema })),
-  planningRead: goalAction<{ method_ids?: string[] }, ReturnType<GoalEntryCompositionApi["readPlanningComposition"]>>("goals.planning.read", "读取项目规划方法", "读取当前项目可用的完整规划方法及已启用的项目组合；项目覆盖个人，个人覆盖内置方法", "query",
+  planningRead: goalAction<{ method_ids?: string[] }, GoalPlanningComposition>("goals.planning.read", "读取项目规划方法", "读取当前项目可用的完整规划方法及已启用的项目组合；项目覆盖个人，个人覆盖内置方法", "query",
     object({ method_ids: array(identifier) }, []), object({ methods: array(planningMethodSchema), composition: planningCompositionSchema })),
   planningSave: goalAction<SaveInput, Saved>("goals.planning.save", "保存项目规划方法", "用户明确确认后保存项目方法或覆盖；影响后续规划，保留完整正文、事件类型和默认要求。重复保存会生成新版本", "command",
     object({ method: planningMethodInputSchema, user_confirmed: boolean }), planningSavedSchema),

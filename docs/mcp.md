@@ -30,7 +30,7 @@ MOLIS_WORK_MCP_AUDIENCE="runtime" \
 - 用户在当前对话明确要求新建一个命名项目后，Skill 调用 `molis_work_v1_context_create_and_bind` 并传入 `user_confirmed=true`、项目名称和幂等键。它只在 `~/.molis-work` 创建项目 DB 并绑定；失败不会留下孤儿项目。
 - 用户要求查看项目时，Skill 调用 `molis_work_v1_context_list_projects`；它不暴露数据库路径，也不改变当前连接。
 - 用户明确要求仅解绑当前工作入口时，Skill 调用 `molis_work_v1_context_unbind` 并传入 `user_confirmed=true`。它不删除项目、DB 或其他 Runtime 的绑定。
-- 删除项目及其 DB 是另一项单独确认：用户明确点名项目并确认删除后，Skill 调用 `molis_work_v1_project_delete` 并传入 `delete_confirmed=true` 和幂等键。成功后返回删除收据（含各插件数据所有者的清理步骤，未完成的步骤用同一个幂等键重试），Runtime 不能继续使用旧连接。各插件为这个项目保存的数据（文稿、问卷与回答、待办、记忆、助理工作等）一并删除；记忆放在运行中的 Molis Work 的 Agent 执行服务里，stdio MCP 进程只把动作转发给常驻的 Molis Work、不运行它，所以 Home 里有 Agent 运行环境时这一步留在收据里（pending），由运行中的 Molis Work 接着清理（它启动时和运行中每分钟做一次），收据完成之前不能把它当作已经删净；Molis Work 没有运行时，用同一个幂等键重试也只会得到同样的 pending。
+- 删除项目及其 DB 是另一项单独确认：用户明确点名项目并确认删除后，Skill 调用 `molis_work_v1_project_delete` 并传入 `delete_confirmed=true` 和幂等键。成功后返回删除收据（含各插件数据所有者的清理步骤，未完成的步骤用同一个幂等键重试），Runtime 不能继续使用旧连接。各插件为这个项目保存的数据（文稿、问卷与回答、待办、记忆、助理工作等）一并删除。Molis Work 正在运行时，stdio MCP 把删除交给它执行（项目的终端和运行环境都在它那里）：项目里还有正在运行的终端时拒绝（`catalog.project_terminal_live`，请用户先关闭终端，再用同一个幂等键重试），否则它先释放项目的运行环境再删除，记忆一步也由它当场完成。Molis Work 没有运行时，MCP 进程自己删除（此时没有终端可检查）：记忆放在 Agent 执行服务里，MCP 进程不运行它，所以 Home 里有 Agent 运行环境时这一步留在收据里（pending），由之后运行的 Molis Work 接着清理（它启动时和运行中每分钟做一次），收据完成之前不能把它当作已经删净；Molis Work 没有运行时，用同一个幂等键重试也只会得到同样的 pending。
 
 Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的前置条件。浏览页面不会绑定 Runtime；项目设置管理 Session 关联与 workspace membership，不保存目录默认项目。项目创建、Runtime 配置、解除关联与删除仍各有自己的授权。
 
@@ -38,7 +38,7 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 
 `molis-work-mcp` 只有两类工具：
 
-- **连接工具**（平台工具，名称以 `molis_work_v1_` 开头）：`context_resolve`、`context_list_projects`、`context_reject_suggestion`、`context_bind`、`context_unbind`、`context_create_and_bind`、`project_delete`。
+- **连接工具**（平台工具，名称以 `molis_work_v1_` 开头）：`context_resolve`、`context_list_projects`、`context_reject_suggestion`、`context_bind`、`context_unbind`、`context_create_and_bind`、`project_delete`。连接工具不收 `actor_id`：宿主记录这次调用的 MCP 客户端与 Runtime 会话（`runtime:<runtime_id>:<会话>`；宿主没有声明稳定会话时只记 `runtime:<runtime_id>`），参数里带了身份字段会被 `mcp.unexpected_field` 拒绝，什么也不写。
 - **动作工具**：系统同一能力注册表里的每个动作，名称是 `molis_work_v1_action_<动作>__v<版本>`，例如 `molis_work_v1_action_goals.list__v1`。Goals、判断规则和各插件的能力都只经这一种方式对外。
 
 动作工具只在用户为这个客户端、这个范围（全局或某个项目）逐项授权后出现。在「能力 → 对外接入」选择客户端和范围，可按名称或来源搜索、查看所需权限并逐项授权或撤销。授权准确绑定能力版本与提供方；发现和每次实际执行都检查最新授权，撤销后原连接的下一次调用也会被拒绝；客户端自己的工具列表可能需要刷新。项目绑定本身不授予任何动作。
@@ -59,7 +59,7 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 
 最短工作路径是 `goals.create` → `goals.note`，无需类型或规划。需要结构化结果时用 `goals.events.configure` / `goals.events.report`。报告可以含多个事实和进展，整批有效才保存，回执给出当前状态、差距和游标。
 
-用户的决定只在受保护的 Web 界面或受信管理入口写入，不属于 Runtime。Runtime 可以提交具体变化、请求或引用已保存的有效决定，不能自填用户身份、确认文本或会话字段批准自己。受信管理入口使用 `MOLIS_WORK_MCP_AUDIENCE=management`，额外有平台工具 `initialize`、`event_decide`、`goal_tree_decide`；身份由宿主定为本机这个人（`web-user`）。这三个工具指向项目库时必须给出路径：参数 `database_path`，或环境变量 `MOLIS_WORK_DATABASE`；两者都没有就报 `store.path_required`，没有按当前目录猜的默认路径。
+用户的决定只在受保护的 Web 界面或受信管理入口写入，不属于 Runtime。Runtime 可以提交具体变化、请求或引用已保存的有效决定，不能自填用户身份、确认文本或会话字段批准自己。受信管理入口使用 `MOLIS_WORK_MCP_AUDIENCE=management`，额外有平台工具 `initialize`、`event_decide`、`goal_tree_decide`；身份由宿主定为本机这个人（`web-user`），这三个工具的参数里没有身份字段：`event_decide` 带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 被拒绝（`mcp.unexpected_field`），`goal_tree_decide` 同样被拒绝（`actions.input_invalid`），它的 `authority` 只写对话出处 `conversation_ref`、`message_ref`（以及整组确认），在 `authority` 里带身份或出处（`actor_id`、`actor_kind`、`authority_source`）被拒绝（`goal_tree_proposal.authority_source_invalid`）；`initialize` 只取 `project_id`、`title`、`idempotency_key`，其余参数不读、不当作身份，也不报错。这三个工具指向项目库时必须给出路径：参数 `database_path`，或环境变量 `MOLIS_WORK_DATABASE`；两者都没有就报 `store.path_required`，没有按当前目录猜的默认路径。
 
 服务不可用时报告失败，不切换数据库、改 URL 或使用 CLI 兜底。`mcp.context_refresh_required` 仅要求只读 `context_resolve`：返回 bound 后用原 idempotency_key 原样重试；未绑定则按项目选择流程处理。
 

@@ -1,0 +1,106 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import {
+  LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, createMolisWorkLocalHost, molisWorkHostProjectReference, snapshotBoardCapability,
+} from "@molis-ai/molis-work-app-local-host";
+import { feedItemActions } from "@molis-ai/molis-work-plugin-feed";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
+
+const PROMOTE = "molis_work_v1_action_feed.items.promote__v1";
+const CLIENT = "runtime:codex";
+
+const PREPARE = "molis_work_v1_action_home.actions.prepare__v1";
+const EXECUTE = "molis_work_v1_action_home.actions.execute__v1";
+const refusedWithoutSession = (error: unknown) => error instanceof ActionError && error.code === "mcp.runtime_identity_missing" && /稳定 Session/.test(error.message);
+
+/** A project with one Feed item, every Goals action granted to the client, and the promotion and the Home's offers granted besides. */
+async function fixture() {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-promote-mcp-"));
+  const homeDirectory = join(directory, "home");
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const host = createMolisWorkLocalHost({ homeDirectory });
+  const project = await catalog.createProject({ display_name: "升格", actor_id: "user" });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  const seed = new LocalProjectDatabase(project.database_path);
+  const source = createLocalFeedSourceService(seed.db, project.project_id).register({ kind: "web_query", query: "Review external input" }).source;
+  const item = createLocalFeedApplication(seed.db).ingestItem({ source, externalId: "mcp-promotion", title: "MCP promotion", summary: "s", body: "b",
+    priority: "high", occurredAt: "2026-09-08T00:00:00.000Z", attention: false }).item;
+  seed.close();
+  await grantGoalsMcp(host, homeDirectory, project, CLIENT, [feedItemActions.promote, feedItemActions.offers, { capability_id: "home.actions.prepare" }, { capability_id: "home.actions.execute" }]);
+  const server = (nativeRuntimeSessionId?: string) => new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173" },
+    { homeDirectory, ...(nativeRuntimeSessionId ? { nativeRuntimeSessionId } : {}),
+      runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false } }, host);
+  const written = async () => ({
+    goals: (await host.client(reference).invoke(snapshotBoardCapability, { project_id: project.project_id })).goals.length,
+    ...(await host.withProject(reference, runtime => {
+      const row = createLocalFeedApplication(runtime.store.db).getItem(project.project_id, item.item_id);
+      return { receipts: runtime.coordinator.goalInputs.list(project.project_id).length, item: { linked_goal_id: row.linked_goal_id, revision: row.revision, disposition: row.disposition } };
+    })),
+  });
+  return { item, reference, host, server, written,
+    done: async () => { await host.close(); catalog.close(); rmSync(directory, { recursive: true, force: true }); } };
+}
+
+test("a Runtime without a stable Session cannot write Goals' session-authored records through the promotion", async () => {
+  const f = await fixture();
+  const before = await f.written();
+  const mcp = f.server();
+  try {
+    await assert.rejects(mcp.callTool(PROMOTE, { item_id: f.item.item_id, expected_revision: f.item.revision }),
+      refusedWithoutSession);
+    assert.deepEqual(await f.written(), before, "no Goal, no input receipt, and the item is untouched");
+  } finally { await mcp.close(); await f.done(); }
+});
+
+test("with a stable Session the promotion runs and the Goal and its input are the Session's", async () => {
+  const f = await fixture();
+  const mcp = f.server("native-session");
+  try {
+    const promoted = JSON.parse(await mcp.callTool(PROMOTE, { item_id: f.item.item_id, expected_revision: f.item.revision })) as { goal_id: string; created: boolean };
+    assert.equal(promoted.created, true);
+    const state = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id: promoted.goal_id })) as { intent: { source_kind: string } };
+    assert.equal(state.intent.source_kind, "runtime");
+    const receipts = await f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(runtime.project_id).filter(receipt => receipt.goal_id === promoted.goal_id));
+    assert.deepEqual(receipts.map(receipt => [receipt.created_by, receipt.state]), [[`${CLIENT}:native-session`, "proposed"]], "an MCP client proposes the input; the person accepts it in Goals");
+    assert.equal((await f.written()).item.linked_goal_id, promoted.goal_id);
+  } finally { await mcp.close(); await f.done(); }
+});
+
+/** The Home's offers run the offered action as the client: the preparation shows 「升格为 Goal」, the execution is the promotion. */
+async function offeredPromotion(mcp: MolisWorkServer, itemId: string) {
+  const subject = { kind: "feed_item", id: itemId };
+  const prepared = JSON.parse(await mcp.callTool(PREPARE, { subject, request_id: "prepare" })) as { offers: Array<{ offer_id: string; availability: unknown }> };
+  const offer = prepared.offers.find(candidate => candidate.offer_id === "feed.promote");
+  assert.ok(offer, "the promotion is offered, so the execution below really runs it");
+  const { availability: _availability, ...chosen } = offer;
+  return { subject, chosen };
+}
+
+test("a Runtime without a stable Session cannot reach the promotion through the Home's offer either", async () => {
+  const f = await fixture();
+  const before = await f.written();
+  const mcp = f.server();
+  try {
+    const { subject, chosen } = await offeredPromotion(mcp, f.item.item_id);
+    await assert.rejects(mcp.callTool(EXECUTE, { subject, request_id: "execute", offer: chosen }), refusedWithoutSession);
+    assert.deepEqual(await f.written(), before, "no Goal, no input receipt, and the item is untouched");
+  } finally { await mcp.close(); await f.done(); }
+});
+
+test("with a stable Session the Home's offer promotes under that Session", async () => {
+  const f = await fixture();
+  const mcp = f.server("native-session");
+  try {
+    const { subject, chosen } = await offeredPromotion(mcp, f.item.item_id);
+    const executed = JSON.parse(await mcp.callTool(EXECUTE, { subject, request_id: "execute", offer: chosen })) as { result: { goal_id: string } };
+    const receipts = await f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(runtime.project_id).filter(receipt => receipt.goal_id === executed.result.goal_id));
+    assert.deepEqual(receipts.map(receipt => [receipt.created_by, receipt.state]), [[`${CLIENT}:native-session`, "proposed"]], "an MCP client proposes the input; the person accepts it in Goals");
+    assert.equal((await f.written()).item.linked_goal_id, executed.result.goal_id);
+  } finally { await mcp.close(); await f.done(); }
+});

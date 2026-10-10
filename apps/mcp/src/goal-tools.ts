@@ -26,7 +26,6 @@ export const V1_TOOLS: McpToolDefinition[] = [
       properties: {
         ...goalsActions.treeDecide.action.input_schema.properties as Record<string, unknown>,
         ...V1_COMMON,
-        runtime_actor_id: V1_STRING,
         // Who decides is the person on this machine; the caller only points at where the decision came from.
         authority: {
           type: "object",

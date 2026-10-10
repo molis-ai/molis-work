@@ -16,6 +16,11 @@ import { createCapabilitiesRenderer } from "./capabilities.js";
 import { renderMcpAccess } from "./mcp-access.js";
 import { renderFunctionsWorkbench } from "./functions/ui.js";
 import { FUNCTIONS_SYSTEM_CLIENT_SCRIPT } from "./functions/bootstrap.js";
+/** The docs page that lists every outbound network class (docs/platform/NETWORK.md), per interface language. */
+const NETWORK_DOC_HREF = {
+  zh: "https://github.com/molis-ai/molis-work/blob/main/docs/platform/NETWORK.md",
+  en: "https://github.com/molis-ai/molis-work/blob/main/docs/platform/NETWORK.en.md",
+} as const;
 export interface SettingsRenderPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
@@ -242,7 +247,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
         : view.section === "mcp"
           ? renderMcpSettings(view, desktopShell)
           : view.section === "connectors"
-            ? renderConnectorsSettings(view, { L, escapeHtml, icon })
+            ? renderConnectorsSettings(view, { L, escapeHtml, icon, networkDocHref: NETWORK_DOC_HREF[currentLocale() === "en" ? "en" : "zh"] })
           : view.section === "projects"
           ? renderProjectSettings(view, desktopShell)
           : view.section === "diagnostics"

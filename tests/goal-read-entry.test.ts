@@ -6,8 +6,9 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   createGoalIntentCapability,
-  readGoalEventStateCapability,
+  goalsActions,
 } from "@molis-ai/molis-work-plugin-goals";
+import { managementGoals } from "./goal-management-caller.js";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, initializeBoardCapability, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -74,7 +75,7 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
     await assert.rejects(runtime.callTool("molis_work_v1_action_goals.active.set__v1", { ...active, legacy_note: "unregistered field" }));
     await assert.rejects(runtime.callTool("molis_work_v1_action_goals.active.set__v1", { ...active, project_id: "foreign" }));
     assert.deepEqual(await snapshot(), afterMcp);
-    const publicState = await client.invoke(readGoalEventStateCapability, { project_id: projectId, goal_id: "working" });
+    const publicState = await managementGoals(host.actionClient(reference), projectId).invoke(goalsActions.state, { goal_id: "working" });
     const mcpState = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id: "working" })) as GoalEventStateView;
     assert.equal(publicState.work_status, "open");
     assert.equal(mcpState.work_status, publicState.work_status);

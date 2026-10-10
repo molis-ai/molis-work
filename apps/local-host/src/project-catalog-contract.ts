@@ -23,6 +23,7 @@ export class MolisWorkProjectCatalogError extends Error {
       | "catalog.database_invalid"
       | "catalog.project_storage_invalid"
       | "catalog.delete_confirmation_required"
+      | "catalog.project_terminal_live"
       | "catalog.deletion_idempotency_conflict"
       | "catalog.demo_confirmation_required"
       | "catalog.demo_not_found"

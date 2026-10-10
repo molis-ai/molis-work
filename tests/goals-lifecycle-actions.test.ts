@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, setActiveGoalCapability, trashedGoalsCapability } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, setActiveGoalCapability } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -44,7 +44,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     await assert.rejects(bound.invoke(goalsActions.trash, { ...trash, actor_id: "user" } as never), { code: "actions.input_invalid" });
     await assert.rejects(client.invoke({ ...caller, permissions: ["goals:read"] }, goalsActions.trash, trash), { code: "actions.forbidden" });
     await assert.rejects(client.invoke({ ...caller, project_id: "foreign" }, goalsActions.active, active), { code: "actions.scope_mismatch" });
-    await assert.rejects(typed.invoke(trashedGoalsCapability, { project_id: "foreign" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(client.invoke({ ...caller, project_id: "foreign" }, goalsActions.trashed, {}), { code: "actions.scope_mismatch" });
     await assert.rejects(bound.invoke(goalsActions.archive, { goal_id: "left", archived: true, reason: "Not complete", idempotency_key: "archive-unfinished" }));
     assert.deepEqual(await snapshot(), before);
 
@@ -61,7 +61,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     assert.equal(oldTrash.active_goal_cleared, true);
     assert.deepEqual(oldTrash.deactivated_relation_ids, [relation.relation_id]);
     assert.equal((await snapshot()).board.active_goal_id, null);
-    const trashed = await typed.invoke(trashedGoalsCapability, { project_id: project.project_id });
+    const trashed = await bound.invoke(goalsActions.trashed, {});
     assert.deepEqual(trashed.goals, [oldTrash.goal]);
     const trashedDocument = await bound.invoke(goalsActions.document, { goal_id: "left" });
     assert.ok(trashedDocument.timeline.items.some(item => item.event_id === note.event_id));
@@ -94,7 +94,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     denied.add(goalsActions.active.capability_id); denied.add(goalsActions.trash.capability_id); denied.add(goalsActions.trashed.capability_id);
     await assert.rejects(typed.invoke(setActiveGoalCapability, { project_id: project.project_id, goal: active, write: { idempotency_key: "denied" } }), { code: "actions.plugin_disabled" });
     await assert.rejects(bound.invoke(goalsActions.trash, { ...trash, idempotency_key: "denied" }), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(trashedGoalsCapability, { project_id: project.project_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(bound.invoke(goalsActions.trashed, {}), { code: "actions.plugin_disabled" });
     const final = await snapshot();
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });

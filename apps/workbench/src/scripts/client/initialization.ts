@@ -144,6 +144,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       noteCover: (kind, place) => tabWorkspace?.noteCover?.(kind, place),
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
       hideDirectory: () => immersiveNavigation?.hideDirectory(),
+      showToast,
       projectId: state.project?.project_id || "",
     });
     bindGoalCreateEvents();

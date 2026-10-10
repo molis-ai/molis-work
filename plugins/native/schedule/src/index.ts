@@ -33,6 +33,7 @@ export {
   scheduleActions,
   type ScheduleActionPorts,
   type ScheduleTaskInput,
+  type ScheduleTaskReadiness,
 } from "./actions.js";
 export { SCHEDULE_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { SCHEDULE_EN } from "./en.js";

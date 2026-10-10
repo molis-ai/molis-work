@@ -202,7 +202,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
       if (!railItem(id)) continue;
       next.push(have.get(id) || makePin(id, id === 'home', dockPainted));
     }
-    for (const [id, pin] of have) if (!next.includes(pin)) {
+    for (const [, pin] of have) if (!next.includes(pin)) {
       pin.classList.add('is-leaving'); pin.setAttribute('aria-hidden', 'true'); pin.tabIndex = -1;
       setTimeout(() => pin.remove(), 260);
     }
@@ -276,8 +276,9 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     markKept(row, on);
     paintDock();
   });
-  // The bar's width is the window's; watching it (not the Dock itself) keeps folding from feeding back into itself.
-  if (pins && 'ResizeObserver' in window) new ResizeObserver(() => fit()).observe(dock);
+  // The bar's width is the window's; watching it (not the Dock itself) keeps folding from feeding back into itself. The right
+  // group too: a directory button joins it after the first fit.
+  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(() => fit()); for (const node of [dock, dock.querySelector('.bar-end')]) if (node) watcher.observe(node); }
 
   const searchKey = dock.querySelector('.plugin-picker-search kbd');
   if (searchKey && !/Mac|iPhone|iPad/.test(navigator.platform)) searchKey.textContent = 'Ctrl K';

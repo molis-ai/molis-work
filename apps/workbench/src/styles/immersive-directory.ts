@@ -186,8 +186,7 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .feed-list-empty strong { font-size: 13px; font-weight: var(--weight-control, 500); color: var(--ink); }
   body.immersive-workbench .feed-list-empty .mw-btn { min-height: 36px; }
   body.immersive-workbench .feed-stage-item-detail { padding: 16px clamp(12px, 3cqi, 32px) 24px; background: var(--paper); border-radius: 10px; margin-block: 8px 16px; }
-  body.immersive-workbench .feed-stage-item-detail .feed-detail,
-  body.immersive-workbench .feed-stage-item-detail .feed-detail--prototype {
+  body.immersive-workbench .feed-stage-item-detail .feed-detail {
     width: 100%; max-width: 76ch; margin: 0 auto; padding: 8px 4px 12px; border-radius: 0; background: transparent; box-shadow: none;
   }
   body.immersive-workbench .feed-stage-item-detail .feed-detail-header h1 {
@@ -278,7 +277,6 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .feed-materials ul { padding: 0 12px; }
   body.immersive-workbench .feed-materials li strong { font-size: 12px; font-weight: var(--weight-control, 500); }
   body.immersive-workbench .feed-materials li :is(small,p) { font-size: 11px; line-height: 1.6; }
-  body.immersive-workbench .feed-stage-item-detail .prototype-honesty-note { margin-top: 16px; font-size: 11px; line-height: 1.6; color: var(--muted); }
   @keyframes feed-reader-reveal { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) {
     body.immersive-workbench .feed-stage-item-detail { animation: none; }

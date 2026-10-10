@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { PERSONAL_PLUGIN_IDS, railEntries } from "@molis-ai/molis-work-app-workbench";
-import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { GoalProjectApplication, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";

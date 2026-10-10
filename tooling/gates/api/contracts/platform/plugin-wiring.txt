@@ -216,8 +216,6 @@ export interface PluginWiringView {
     plugins: PluginWiringPluginView[];
 }
 
-export declare function inspectPortDeclarations(ports: PluginPortsDeclaration | undefined): string[];
-
 export declare function isValidPortName(value: unknown): value is string;
 
 export declare const platformPluginWiringContract: {

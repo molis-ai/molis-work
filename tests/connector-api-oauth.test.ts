@@ -12,6 +12,7 @@ import { withConnectorConnections } from "../apps/local-host/src/connector-conne
 import { createCatalogProvider, catalogWhoami } from "../plugins/official-integrations/catalog/src/provider.ts";
 import { handleConnectorApiMethodsHttp } from "../apps/local-host/src/web-connector-api-methods.ts";
 import { handleConnectorConnectionsHttp } from "../apps/local-host/src/web-connector-connections.ts";
+import { alchemistPulseGithub } from "@molis-ai/molis-work-app-local-host";
 
 const origin = "http://localhost:19358";
 const home = () => mkdtempSync(join(tmpdir(), "molis-api-oauth-"));
@@ -227,4 +228,82 @@ test("disconnect cancels an API preview already waiting on the provider", async 
     release();
     await assert.rejects(pending, /连接已改变/u);
   } finally { globalThis.fetch = originalFetch; release?.(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+// W2-18 decision 7: the market pulse sends the token of the GitHub account the person bound, resolved the way every other API reader resolves it.
+const GITHUB_TOKEN_ENDPOINT = "https://github.com/login/oauth/access_token";
+const GITHUB_SEARCH = "https://api.github.com/search/repositories?q=AI";
+/** A GitHub account connected through the API OAuth flow, with whatever token the authorization returned. */
+async function connectGithubOAuth(directory: string, tokens: Record<string, unknown>) {
+  const started = await startApiOAuth(directory, { serviceId: "github", displayName: "GitHub · app", clientId: "github-app", clientSecret: "github-secret", origin });
+  await completeApiOAuth(directory, callback(started.authorization_url), (async (url: unknown) => {
+    if (String(url) === GITHUB_TOKEN_ENDPOINT) return json(tokens);
+    assert.equal(String(url), "https://api.github.com/user");
+    return json({ login: "octo", id: 7 });
+  }) as typeof fetch);
+  return started.connection_id;
+}
+function githubNetwork(t: test.TestContext, refresh: () => Response) {
+  const refreshes: URLSearchParams[] = [], sent: Array<string | null> = [];
+  t.mock.method(globalThis, "fetch", async (input: string | URL, init?: RequestInit) => {
+    if (String(input) === GITHUB_TOKEN_ENDPOINT) { refreshes.push(new URLSearchParams(String(init?.body))); return refresh(); }
+    assert.equal(String(input), GITHUB_SEARCH);
+    sent.push(new Headers(init?.headers).get("authorization"));
+    return json({ items: [] });
+  });
+  return { refreshes, sent };
+}
+
+test("the market pulse renews an expired OAuth access token before it sends one, and only one renewal serves the requests after it", async t => {
+  const directory = home();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const id = await connectGithubOAuth(directory, { access_token: "stale-access", refresh_token: "refresh-1", expires_in: 28_800 });
+  // The access token expired an hour ago (a GitHub App user token lives 8 hours).
+  connectorProtocolSecrets(directory, id).put("expires", String(Date.now() - 3_600_000));
+  const { refreshes, sent } = githubNetwork(t, () => json({ access_token: "fresh-access", refresh_token: "refresh-2", expires_in: 28_800 }));
+
+  const port = alchemistPulseGithub(directory);
+  assert.equal(port.read().accounts[0]?.state, "connected", "Settings shows the account as connected");
+  port.select(id);
+  await port.fetch(GITHUB_SEARCH, {});
+  assert.deepEqual(sent, ["Bearer fresh-access"], "an expired token is never sent: GitHub would answer 401 to it");
+  assert.equal(refreshes.length, 1);
+  assert.equal(refreshes[0]!.get("grant_type"), "refresh_token");
+  assert.equal(refreshes[0]!.get("refresh_token"), "refresh-1");
+  assert.equal(refreshes[0]!.get("client_id"), "github-app", "the renewal uses the app this account was authorized with");
+
+  await port.fetch(GITHUB_SEARCH, {});
+  assert.deepEqual(sent, ["Bearer fresh-access", "Bearer fresh-access"]);
+  assert.equal(refreshes.length, 1, "the renewed token is not expired, so it is not renewed again");
+  assert.equal(connectorProtocolSecrets(directory, id).get("oauth"), "refresh-2", "the rotated refresh token is kept for next time");
+});
+
+test("the market pulse goes anonymous, never with the stale token, when an OAuth account's token cannot be renewed", async t => {
+  const directory = home();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const renewable = await connectGithubOAuth(directory, { access_token: "stale-access", refresh_token: "refresh-1", expires_in: 28_800 });
+  const expiredForGood = await connectGithubOAuth(directory, { access_token: "stale-access-b", expires_in: 28_800 });
+  for (const id of [renewable, expiredForGood]) connectorProtocolSecrets(directory, id).put("expires", String(Date.now() - 3_600_000));
+  const { refreshes, sent } = githubNetwork(t, () => json({ error: "bad_refresh_token" }, 400));
+  const port = alchemistPulseGithub(directory);
+
+  port.select(renewable);
+  await port.fetch(GITHUB_SEARCH, {});
+  assert.equal(refreshes.length, 1, "the renewal was tried");
+  port.select(expiredForGood);
+  await port.fetch(GITHUB_SEARCH, {});
+  assert.equal(refreshes.length, 1, "no refresh token: nothing to try");
+  assert.deepEqual(sent, [null, null], "the search went out without a credential both times");
+});
+
+test("the market pulse sends an OAuth token that does not expire as it is", async t => {
+  const directory = home();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const id = await connectGithubOAuth(directory, { access_token: "permanent-access" });
+  const { refreshes, sent } = githubNetwork(t, () => json({}, 500));
+  const port = alchemistPulseGithub(directory);
+  port.select(id);
+  await port.fetch(GITHUB_SEARCH, {});
+  assert.deepEqual(sent, ["Bearer permanent-access"]);
+  assert.equal(refreshes.length, 0);
 });

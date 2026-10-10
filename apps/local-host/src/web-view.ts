@@ -4,6 +4,7 @@ import { feedQueryActions, type FeedSnapshot } from "@molis-ai/molis-work-plugin
 import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { currentLocale } from "./web-locale.js";
+import { developerMode } from "./developer-mode.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
@@ -84,7 +85,9 @@ export async function cachedMolisWorkWebView(
   ]);
   return { ...base, feed: { ...(feed ?? emptyFeed()), inbox_entries: [...(inbox?.entries ?? [])] },
     feed_source_catalog: feed ? listFeedSourceCatalog() : [], feed_connector_auth: connections,
-    schedule_jobs: schedule?.jobs ?? [], schedule_tasks: schedule?.tasks ?? [], schedule_operations: schedule?.operations ?? [] };
+    schedule_jobs: schedule?.jobs ?? [], schedule_tasks: schedule?.tasks ?? [], schedule_operations: schedule?.operations ?? [],
+    // Read per request, like the plugin state above, never kept behind the Goals cursor.
+    developer_mode: developerMode() };
 }
 
 export async function withSelectedEventDocument(

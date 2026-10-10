@@ -55,3 +55,12 @@ test("a plugin's name in the bottom bar comes from the catalog, not from the plu
   assert.match(renderMolisWorkWorkbenchClientScript(), /pluginTitle: \(plugin\) => tabWorkspace\?\.pluginTitle\(plugin\)/);
   assert.match(renderMolisWorkWorkbenchClientScript(), /pluginTitle: ops\.pluginTitle/);
 });
+
+// The line is measured with its chips on it, whether or not the phone's typing rule is hiding them, so a tap into the input and away
+// leaves the steps where they were; and the steps that take parts off the line are made only where the stylesheet applies them
+// (44px targets), never in a fine-pointer window, where a folded chip would still be on the line. tests/touch-targets.e2e.test.ts measures both.
+test("the bottom bar measures its line with its chips on it and folds parts off only in touch windows", () => {
+  const fit = ASSISTANT_ISLAND_FACTORY_SCRIPT.match(/const fitComposer = \(\) => \{[\s\S]*?\n  \};/)?.[0] ?? "";
+  assert.match(fit, /composer\.dataset\.measuring = "";[\s\S]*dataset\.crowded = step;[\s\S]*delete composer\.dataset\.measuring;/, "the typing rule is off from the first measurement to the last");
+  assert.match(fit, /if \(matchMedia\("\(max-width: 600px\), \(pointer: coarse\)"\)\.matches\) for \(const step of \["choosers", "mark", "chips"\]\)/, "and the steps are the touch rules'");
+});

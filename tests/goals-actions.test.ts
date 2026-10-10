@@ -8,7 +8,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, hostEventDecisionAuthority, createGoalIntentCapability, listGoalDirectoryCapability, recordGoalNoteCapability } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, hostEventDecisionAuthority, createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
 import type { ResolvedPlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalContextCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -16,8 +16,9 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { DEFAULT_GOAL_POLICY, BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-module-goals";
+import { managementCaller, managementGoals } from "./goal-management-caller.js";
 
-test("Goals actions keep the runtime author; the typed management door records the local person and refuses a supplied actor", async () => {
+test("Goals actions keep the runtime author; the management caller and the first-run door record the local person and refuse a supplied actor", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Goals", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
@@ -30,7 +31,7 @@ test("Goals actions keep the runtime author; the typed management door records t
     return { available: true };
   } });
   const caller: ActionCallContext = { actor_id: "runtime:actions", project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] };
-  const actions = host.actionClient(ref), typed = host.client(ref);
+  const actions = host.actionClient(ref), typed = host.client(ref), management = managementGoals(actions, project.project_id);
   const bound = bindActionClient(actions, () => caller);
   try {
     const input = { title: "通过同一动作", goal_id: "ACTION-GOAL", outcome: "用户能看到结果", idempotency_key: "create-one", source_kind: "runtime" as const };
@@ -47,7 +48,7 @@ test("Goals actions keep the runtime author; the typed management door records t
     assert.deepEqual(await actions.invoke(caller, goalsActions.note, note), { ...recorded, replayed: true });
     await assert.rejects(actions.invoke(caller, goalsActions.note, { ...note, body: "不同内容" }));
     await assert.rejects(actions.invoke(caller, goalsActions.note, { ...note, project_id: "other-board" } as never), { code: "actions.input_invalid" });
-    await assert.rejects(typed.invoke(recordGoalNoteCapability, { ...note, project_id: "other-board" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(actions.invoke(managementCaller("other-board", note.idempotency_key), goalsActions.note, note), { code: "actions.scope_mismatch" });
     await assert.rejects(actions.invoke({ ...caller, project_id: "other-project" }, goalsActions.note, note), { code: "actions.scope_mismatch" });
     const event = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, recorded.event_id));
     assert.equal(event.actor_id, caller.actor_id);
@@ -61,7 +62,6 @@ test("Goals actions keep the runtime author; the typed management door records t
     const page = await bound.invoke(goalsActions.list, { limit: 1 });
     assert.equal(page.goals.length, 1);
     assert.ok(page.next_cursor, "two goals must produce a real pagination cursor");
-    assert.deepEqual(await typed.invoke(listGoalDirectoryCapability, { project_id: project.project_id, limit: 1 }), page);
     const all = await typed.invoke(goalContextCapabilities.list, {});
     assert.ok(all.goals.some(goal => goal.goal_id === input.goal_id && goal.work_status === "open"));
     const next = await bound.invoke(goalsActions.list, { limit: 1, after_cursor: page.next_cursor });
@@ -71,7 +71,7 @@ test("Goals actions keep the runtime author; the typed management door records t
     const typedCreated = await typed.invoke(createGoalIntentCapability, typedInput);
     assert.equal(typedCreated.replayed, false);
     assert.equal((await typed.invoke(createGoalIntentCapability, typedInput)).replayed, true);
-    const typedNote = await typed.invoke(recordGoalNoteCapability, { goal_id: "TYPED-GOAL", body: "管理入口便笺", idempotency_key: "typed-note", project_id: project.project_id });
+    const typedNote = await management.invoke(goalsActions.note, { goal_id: "TYPED-GOAL", body: "管理入口便笺", idempotency_key: "typed-note" });
     const typedEvent = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, "TYPED-GOAL", typedNote.event_id));
     assert.equal(typedEvent.actor_id, LOCAL_PERSON_ACTOR_ID);
     assert.equal(typedEvent.actor_kind, "user");

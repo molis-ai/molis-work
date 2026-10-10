@@ -17,7 +17,7 @@ test("Goal read guard covers actual root callers and rejects restored Policy and
 test("typed Goal read adapters return the shared Action result, not a direct owner read", () => {
   const source = readFileSync(new URL("../apps/local-host/src/project-capabilities.ts", import.meta.url), "utf8");
   assert.deepEqual(checkGoalQueryCapabilityAdapters(source), []);
-  for (const action of ["contract", "snapshot"]) {
+  for (const action of ["snapshot"]) {
     const direct = source.replace(`return goalAction(runtime, goalsActions.${action},`, `return runtime.goalQueries.${action}(`);
     assert.notEqual(direct, source);
     assert.match(checkGoalQueryCapabilityAdapters(direct).join("\n"), new RegExp(`goalsActions\\.${action}`));

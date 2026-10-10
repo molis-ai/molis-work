@@ -190,3 +190,44 @@ test("product HTML no longer uses retired control class names", () => {
   assert.deepEqual(hits, []);
 });
 
+
+// Soft Workbench (DESIGN.md → Focus and accessibility): touch sizing goes by the input, not the width. A phone or any coarse
+// pointer has 44px targets in the bar and the title strip; a fine-pointer window keeps one written, scoped exception.
+// tests/touch-targets.e2e.test.ts measures the real shell; this keeps the declarations and the written exception in step
+// without a browser.
+test("touch sizing goes by the input: 44px targets for phones and coarse pointers, the desktop bar keeps its sizes, DESIGN.md writes the exception", () => {
+  const css = renderMolisWorkWorkbenchStylesheet();
+  assert.match(css, /--dock-btn: 38px;/, "the desktop bar keeps its 38px Dock buttons");
+  const touch = css.match(/@media \(max-width: 600px\), \(pointer: coarse\) \{\s*:is\(body\.immersive-workbench[^{]*\) \{ --dock-btn: 44px; \}[\s\S]*?\n  \}\n/)?.[0] ?? "";
+  assert.ok(touch, "a phone's width or a coarse pointer makes the Dock, resident, discussion and directory buttons 44px");
+  assert.match(touch, /\[data-assistant-send\] \{ width: 44px; height: 44px; min-height: 44px; \}/, "send is 44px on touch");
+  assert.match(touch, /\.bar-composer \.bar-composer-attach \{[^}]*min-width: 44px; height: 44px;/, "attach is 44px on touch");
+  assert.match(touch, /\.bar-composer \.assistant-composer-input \{ height: 44px;/, "the input is 44px tall on touch");
+  assert.match(touch, /\.navigator-project-selector \{ grid-template-columns: 44px; width: 44px; height: 44px; min-height: 44px; \}/, "the project mark is 44px on touch");
+  assert.match(touch, /\.plugin-picker-trigger \{[^}]*min-width: 44px;/, "the plugin switcher is 44px wide on touch");
+  assert.match(touch, /\.assistant-target-main, \.assistant-target-clear, \.assistant-executor, \.assistant-materials-button, \.assistant-attention\) \{ height: 44px; \}/, "the Assistant line's chips are 44px tall on touch");
+  assert.match(touch, /\.bar-composer :is\(\.assistant-executor, \.assistant-materials-button, \.assistant-attention, \.assistant-target-clear\) \{ min-width: 44px; \}/, "and 44px wide: no chip is squeezed under it");
+  assert.match(touch, /\.bar-composer\[data-fit="narrow"\] \.assistant-executor:not\(\[data-chosen\]\) \{ min-width: 44px; \}/, "a narrowed line does not squeeze the choosers nobody changed to a sliver either");
+  assert.match(touch, /\.bar-composer \.assistant-target\[data-mode="work"\] \{ min-width: 88px; \}/, "and the work chip keeps room for both its buttons");
+  assert.match(touch, /\.bar-composer\[data-crowded\] :is\(\[data-assistant-character\], \[data-assistant-executor\], \[data-assistant-mode\]\) \{ display: none; \}/, "a crowded line lets the choosers go instead of overflowing its pill");
+  assert.match(touch, /\.bar-composer:is\(\[data-crowded="mark"\], \[data-crowded="chips"\]\) \.assistant-target-clear \{ display: none; \}/, "a line still over its edge then lets the work chip's mark go");
+  assert.match(touch, /\.bar-composer:is\(\[data-crowded="mark"\], \[data-crowded="chips"\]\) \.assistant-target\[data-mode="work"\] \{ min-width: 44px; \}/, "and the work chip then needs room for one button");
+  assert.match(touch, /\.bar-composer\[data-crowded="chips"\] :is\(\.assistant-materials-button, \.assistant-attention\) \{ display: none; \}/, "and last the materials and the notice, which the \"+\" menu then lists");
+  assert.match(touch, /\.assistant-more-item \{ min-height: 44px; \}/, "the rows of the \"+\" menu are 44px on touch");
+  assert.match(touch, /\.bar-composer\[data-crowded="chips"\]:has\(\.assistant-materials-button:not\(\[hidden\]\), \.assistant-attention:not\(\[hidden\]\)\) \.bar-composer-attach::after \{[^}]*content: ""; position: absolute;[^}]*width: 8px; height: 8px; border-radius: 50%; background: var\(--accent\);/, "and a dot on the \"+\" points to the folded chips");
+  // The phone hides the chips while the input has focus; the island measures the line with them on it (`data-measuring`), so the steps do not follow focus.
+  const typingRules = css.match(/\.bar-composer:has\(\.assistant-composer-input:focus\)[^{]*\{ display: none; \}/g) ?? [];
+  assert.equal(typingRules.length, 2, "the narrow column and the phone each hide the chips while typing");
+  assert.deepEqual(typingRules.filter(rule => !rule.includes(":not([data-measuring])")), [], "and neither applies while the island measures the line");
+  assert.match(css, /@media \(pointer: coarse\) and \(max-height: 560px\) and \(min-width: 601px\) \{[^}]*--dock-h: 60px; --composer-h: 50px;/, "a coarse-pointer short window keeps 44px buttons and a full composer");
+  assert.doesNotMatch(css, /@media \(max-width: 600px\) \{\s*:is\(body\.immersive-workbench[^{]*\) \{[^}]*--dock-btn: 44px;/, "the phone layout block no longer owns the 44px sizing");
+  assert.match(css, /@media \(max-width: 760px\), \(pointer: coarse\) \{[^}]*\.tab-view-chip \{ height: 44px; \}/, "the location chip is 44px where the tabs are");
+  assert.match(css, /@media \(max-width: 760px\), \(pointer: coarse\) \{\s*body\.immersive-workbench \.tab-view-chip-close \{ width: 44px; height: 44px; \}/, "and so is its close mark");
+  assert.match(css, /\.assistant-target-clear \{[^}]*width: 28px; height: 28px;/, "the mark that starts a new work is 28px on a desktop bar, the bar's floor");
+  const design = readFileSync(join(process.cwd(), "DESIGN.md"), "utf8");
+  assert.match(design, /\*\*Exception: the desktop window's chrome\.\*\*[^\n]*fine-pointer window[^\n]*touch sizing goes by the input, not by the width/, "DESIGN.md writes the exception for fine-pointer windows only");
+  assert.match(design, /`data-crowded`/, "and says what a crowded line does");
+  assert.match(design, /\*\*Touch windows\.\*\*[^\n]*44px target[^\n]*\n\nIn a touch window the Assistant line holds inside its pill from 320px/, "and where the touch rules hold");
+  assert.match(design, /tests\/touch-targets\.e2e\.test\.ts/, "and names the test that holds it");
+  assert.doesNotMatch(design, /Known gap: the coarse-pointer bar/, "no coarse-pointer gap is left open");
+});

@@ -43,8 +43,12 @@ test("tree actions preserve proposals, protected authority, atomic materializati
       project_id: project.project_id, actor_id: caller.audit_actor_id!, submitted_session_id: caller.runtime_session_id }));
     assert.equal(old.proposal.submitted_session_id, "session");
     assert.deepEqual(await bound.invoke(goalsActions.treeSubmit, input), { ...old, replayed: true });
-    assert.deepEqual(await typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ ...input, project_id: project.project_id,
-      actor_id: caller.audit_actor_id!, submitted_session_id: "session" }]), { ...old, replayed: true });
+    // The typed door is the management door: it records the person on this machine and refuses the Runtime's identity and Session,
+    // so it never replays the Runtime's proposal, and nothing is written by the refused call.
+    for (const identity of [{ actor_id: caller.audit_actor_id! }, { submitted_session_id: "session" }]) {
+      await assert.rejects(typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ ...input, project_id: project.project_id, ...identity }] as never), { code: "actions.input_invalid" });
+    }
+    assert.deepEqual(await bound.invoke(goalsActions.treeRead, { proposal_id: old.proposal.proposal_id }).then(read => read.proposals.map(item => item.proposal_id)), [old.proposal.proposal_id]);
     await assert.rejects(bound.invoke(goalsActions.treeSubmit, { ...input, summary: "Changed request" }));
     const proposal_id = old.proposal.proposal_id;
     const check = { proposal_id, idempotency_key: "check" };
@@ -81,10 +85,12 @@ test("tree actions preserve proposals, protected authority, atomic materializati
       capabilities: { provides: [], consumes: [goalTreeCapabilities.decideGoalTreeProposal.capability_id] } }, typed);
     assert.equal(plugin.availability(goalTreeCapabilities.decideGoalTreeProposal).available, false);
     await assert.rejects(plugin.invoke({ ...goalTreeCapabilities.decideGoalTreeProposal, host_only: false },
-      [{ ...decision, project_id: project.project_id, authority }], { consumer: undefined }), { code: "actions.host_only" });
-    // The host capability belongs to the management entry, which decides as the person on this machine (§9.5 #6).
-    for (const forged of [{ ...authority, actor_id: "another-person" }, { ...authority, authority_source: "web" as const }]) {
-      await assert.rejects(typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [{ ...decision, project_id: project.project_id, authority: forged }]),
+      [{ ...decision, project_id: project.project_id, authority: { conversation_ref: authority.conversation_ref, message_ref: authority.message_ref } }], { consumer: undefined }), { code: "actions.host_only" });
+    // The host capability belongs to the management entry, which decides as the person on this machine (§9.5 #6): the authority it
+    // takes only points at the conversation, and an identity or origin in it is refused.
+    const evidence = { conversation_ref: authority.conversation_ref, message_ref: authority.message_ref, whole_confirmation_prompted: true };
+    for (const forged of [{ ...authority, actor_id: "another-person" }, { ...authority, authority_source: "web" as const }, { ...evidence, actor_kind: "runtime" }, authority]) {
+      await assert.rejects(typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [{ ...decision, project_id: project.project_id, authority: forged } as never]),
         { code: "goal_tree_proposal.authority_source_invalid" });
     }
     const before = await snapshot();
@@ -93,7 +99,7 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     await assert.rejects(client.invoke(trusted, goalsActions.treeDecide, decision), /injected tree decision failure/);
     assert.deepEqual(await snapshot(), before, "failed decision rolls back materialized Goals, relations and audits");
     await host.withProject(ref, r => r.store.db.exec("DROP TRIGGER reject_tree_decision"));
-    const approved = await typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [{ ...decision, project_id: project.project_id, authority }]);
+    const approved = await typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [{ ...decision, project_id: project.project_id, authority: evidence }]);
     assert.deepEqual(approved.applied_item_ids, ["original-parent", "original-child", "original-relation"]);
     assert.equal(approved.proposal.decisions[0]?.actor_id, trusted.actor_id);
     assert.deepEqual(await client.invoke(trusted, goalsActions.treeDecide, decision), { ...approved, replayed: true });
@@ -116,9 +122,9 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     assert.ok(after.relations.some(r => r.from_goal_id === "original-child" && r.to_goal_id === "original-parent" && r.state === "active"));
     for (const definition of [goalsActions.treeSubmit, goalsActions.treeRead, goalsActions.treeCheck, goalsActions.treeDecide]) denied.add(definition.capability_id);
     await assert.rejects(typed.invoke(goalTreeCapabilities.listGoalTreeProposals, [{ project_id: project.project_id }]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ ...proposalInput("denied"), project_id: project.project_id, actor_id: "user" }]), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ ...proposalInput("denied"), project_id: project.project_id }]), { code: "actions.plugin_disabled" });
     await assert.rejects(typed.invoke(goalTreeCapabilities.checkGoalTreeProposal, [{ ...check, project_id: project.project_id }]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [{ ...decision, project_id: project.project_id, authority }]), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [{ ...decision, project_id: project.project_id, authority: evidence }]), { code: "actions.plugin_disabled" });
     assert.deepEqual(await snapshot(), after);
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });

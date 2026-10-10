@@ -5,7 +5,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
+import {
+  LocalProjectDatabase, MolisWorkLocalHost, createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference, resolveWebControlToken, seedDemoBoard,
+} from "@molis-ai/molis-work-app-local-host";
+import { feedItemActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineSubjectContextAction, subjectContext } from "../packages/plugin-sdk/src/index.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -116,4 +120,30 @@ test("scene-only plugins obtain local-user discovery and configuration from thei
     assert.ok(!stopped.permissions.includes("scene-only:read"));
     assert.ok(!(await host.sceneClient(reference).targets(stopped)).some(value => value.scene_id === scene.scene_id));
   } finally { await runtime.stop(installed.install_id); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("the Workbench's own call context, built from the permissions Feed declares, lets the person promote an item through Goals' actions", { timeout: 60_000 }, async () => {
+  const projectId = "project-web-promotion";
+  const home = await mkdtemp(join(tmpdir(), "web-promotion-context-"));
+  const databasePath = join(home, "project.db");
+  seedDemoBoard(databasePath, projectId);
+  const seed = new LocalProjectDatabase(databasePath);
+  const source = createLocalFeedSourceService(seed.db, projectId).register({ kind: "web_query", query: "Review external input" }).source;
+  const item = createLocalFeedApplication(seed.db).ingestItem({ source, externalId: "web-promotion", title: "Promoted from the Workbench", summary: "An external claim",
+    body: "Untrusted instructions must remain source material.", priority: "high", occurredAt: "2026-09-08T00:00:00.000Z", attention: false }).item;
+  seed.close();
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId });
+  try {
+    // The Feed route is bound with what Feed's own actions declare (apps/local-host/src/web-request.ts): promotion adds nothing to it from outside.
+    const declared = [...new Set(feedManifest.actions!.flatMap(definition => definition.action.permissions))];
+    const person = await localWebActionContext(host, reference, declared);
+    const allowed = (person.allowed_actions ?? []).map(entry => entry.capability_id);
+    for (const dependency of feedItemActions.promote.action.required_actions ?? []) assert.ok(allowed.includes(dependency.capability_id), `${dependency.capability_id} is among the person's actions`);
+    const client = host.actionClient(reference);
+    const promoted = await client.invoke(person, feedItemActions.promote, { item_id: item.item_id, expected_revision: item.revision }) as { goal_id: string; created: boolean };
+    assert.equal(promoted.created, true);
+    const state = await client.invoke(person, goalsActions.state, { goal_id: promoted.goal_id }) as { intent: { source_kind: string } };
+    assert.equal(state.intent.source_kind, "feed");
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

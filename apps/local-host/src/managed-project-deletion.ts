@@ -27,12 +27,7 @@ export class ManagedProjectDeletion {
   async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
     const projectId = this.validation.requiredProjectId(input.project_id);
     const actorId = this.validation.requiredActorId(input.actor_id);
-    if (input.delete_confirmed !== true) {
-      throw new MolisWorkProjectCatalogError(
-        "catalog.delete_confirmation_required",
-        "删除 Molis Work 项目及其数据库需要当前对话中的单独明确确认",
-      );
-    }
+    requireDeletionConfirmed(input.delete_confirmed);
     const idempotencyKey = requiredDeletionIdempotencyKey(input.idempotency_key);
     const requestFingerprint = JSON.stringify({ project_id: projectId, delete_confirmed: true });
     const replay = this.projects.lifecycle.findDeletion(actorId, idempotencyKey);
@@ -165,7 +160,17 @@ export class ManagedProjectDeletion {
   }
 }
 
-function requiredDeletionIdempotencyKey(value: string): string {
+/** What every door checks before it touches anything of the project: the person's separate, explicit confirmation. */
+export function requireDeletionConfirmed(confirmed: boolean): void {
+  if (confirmed !== true) {
+    throw new MolisWorkProjectCatalogError(
+      "catalog.delete_confirmation_required",
+      "删除 Molis Work 项目及其数据库需要当前对话中的单独明确确认",
+    );
+  }
+}
+
+export function requiredDeletionIdempotencyKey(value: string): string {
   const key = value.trim();
   if (!key) {
     throw new MolisWorkProjectCatalogError(

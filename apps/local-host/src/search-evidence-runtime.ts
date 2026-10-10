@@ -2,9 +2,7 @@ import { createSearchRuntime, type SearchRuntime } from "@adeptify/search-eviden
 import type { SearchIntentRouteResolverV1 } from "@adeptify/search-evidence-layer/intent";
 import {
   createPortBackedNodeSearchHost,
-  createNodePinnedSearchHost,
   type SearchHostContentPort,
-  type SearchTransportProfileInput,
   type SearchHostTransportPort,
 } from "@adeptify/search-evidence-layer/host/node";
 import { createAnySearchProvider } from "@adeptify/search-evidence-layer/providers/anysearch";
@@ -14,6 +12,7 @@ import {
 } from "@molis-ai/molis-work-storage";
 import { createIntelligenceCollectAdapter, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";
 import { createWebQueryRouteResolver } from "./search-query-routes.js";
+import { ANYSEARCH_TRANSPORT_PROFILE_ID, createAnySearchTransport } from "./anysearch-transport.js";
 
 const APP_ID = "molis-work";
 const APP_VERSION = "0.2.0";
@@ -24,26 +23,12 @@ export interface SearchEvidenceRuntime {
   shutdown(): Promise<void>;
 }
 
-const ANYSEARCH_PROFILE: SearchTransportProfileInput = {
-  schema: "search-transport-profile-v1",
-  id: "anysearch-mcp-v1",
-  providerId: "anysearch",
-  protocol: "https",
-  origin: "https://api.anysearch.com",
-  pathname: "/mcp",
-  method: "POST",
-  rpcProtocol: "jsonrpc-2.0-tools-call",
-  authMode: "optional-bearer",
-  redirectPolicy: "reject-all",
-  requestByteLimit: 65_536,
-  responseByteLimit: 1_048_576,
-};
-
 /** Host composition over SEL. An optional source contributes its own routes and provider runtime. */
 export function createSearchEvidenceRuntime(options: {
   db: SqliteDatabase;
   secretStore?: SecretStore;
   content?: EvidenceContentStore;
+  /** Test seam. Production never passes it: the one way to reach AnySearch is `anysearch-transport.ts`. */
   queryTransport?: SearchHostTransportPort;
   /** Lifecycle ownership is transferred to this composition. */
   source?: { runtime: SearchRuntime; routeResolver: SearchIntentRouteResolverV1 };
@@ -54,10 +39,8 @@ export function createSearchEvidenceRuntime(options: {
   const secretStore = options.secretStore ?? createFileSecretStore();
   const content = options.content ?? createEvidenceContentStore({ secretStore });
   const hostContent = createSearchContentPort(content);
-  const queryHost = options.queryTransport ? createPortBackedNodeSearchHost({
-    appId: APP_ID, transport: options.queryTransport, content: hostContent,
-  }) : createNodePinnedSearchHost({
-    appId: APP_ID, transportProfiles: [ANYSEARCH_PROFILE], content: hostContent,
+  const queryHost = createPortBackedNodeSearchHost({
+    appId: APP_ID, transport: options.queryTransport ?? createAnySearchTransport(), content: hostContent,
   });
   const queryRuntime = createAnySearchRuntime(queryHost.host);
   const source = options.source;
@@ -103,7 +86,7 @@ function createAnySearchRuntime(
       {
         revision: 1,
         provider: createAnySearchProvider(),
-        transportProfileId: ANYSEARCH_PROFILE.id,
+        transportProfileId: ANYSEARCH_TRANSPORT_PROFILE_ID,
       },
     ],
   });

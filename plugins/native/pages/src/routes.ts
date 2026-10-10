@@ -43,6 +43,7 @@ export const PAGES_NATIVE_PLUGIN_ROUTES = [
   route("pages.get", "GET", /^\/api\/pages\/([^/]+)$/u, ["id"]),
   route("pages.update", "POST", /^\/api\/pages\/([^/]+)$/u, ["id"]),
   route("pages.delete", "POST", /^\/api\/pages\/([^/]+)\/delete$/u, ["id"]),
+  route("pages.discard", "POST", /^\/api\/pages\/([^/]+)\/discard$/u, ["id"]),
 ] as const satisfies readonly PagesPluginRouteDefinition[];
 
 export class PagesPluginRouteTable {

@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { CONTEXTUAL_PACKAGES, kernelContextualProblems } from "../scripts/gates/kernel-contextual.mjs";
+import { CONTEXTUAL_PACKAGES, ENTRY_REEXPORTS, kernelContextualProblems } from "../scripts/gates/kernel-contextual.mjs";
 
 // specs/repository-anti-corruption N-04 (W3-04), decision N-03: packages/kernel has a core (directory, dispatch, availability,
 // grants, scene compatibility) and one platform product service, contextual ranking (contextual.ts), which stays in the kernel
@@ -32,20 +32,28 @@ const snapshot = (changes: Changes = {}) => {
 const prepend = (file: string, text: string): Changes => ({ [file]: `${text}\n${real[file]}` });
 const append = (file: string, text: string): Changes => ({ [file]: `${real[file]}\n${text}` });
 const problems = (changes: Changes = {}, options?: { entryReexports: Set<string> }) => kernelContextualProblems(snapshot(changes), options) as string[];
-const NO_ENTRY = { entryReexports: new Set<string>() };
-// An entry that re-exports a contextual name, whatever the real one does today: the allowance for it is given explicitly.
+// An entry that re-exports a contextual name, as the package entry did before contextual ranking got its own subpath. Nothing is allowed
+// to by default (ENTRY_REEXPORTS is empty); the allowance is given explicitly where a test needs the file to be a re-exporter.
 const ENTRY_WITH_NAME: Changes = { [INDEX]: `export { planContextualLayout } from "./contextual.js";\n${real[INDEX]}` };
 const ALLOW_INDEX = { entryReexports: new Set([INDEX]) };
 const failsWith = (found: string[], pattern: RegExp) => assert.ok(found.some((message) => pattern.test(message)), `expected a problem matching ${pattern}, got:\n${found.join("\n") || "(none)"}`);
 
 test("the kernel as it is has no problem: the core does not depend on contextual ranking, which is pure, reads two Contracts and names no capability", () => {
   assert.deepEqual(problems(), []);
+  assert.equal(ENTRY_REEXPORTS.size, 0, "no core file is allowed to re-export contextual ranking");
+});
+test("the package entry does not load contextual ranking: it has its own subpath, and the root entry re-exports none of it", () => {
+  assert.ok(!/contextual/.test(real[INDEX]!), "index.ts names contextual ranking");
+  const manifest = JSON.parse(readFileSync(path.join(kernelDirectory, "../package.json"), "utf8")) as { exports: Record<string, { types: string; import: string }> };
+  assert.deepEqual(Object.keys(manifest.exports), [".", "./contextual"]);
+  assert.deepEqual(manifest.exports["./contextual"], { types: "./dist/contextual.d.ts", import: "./dist/contextual.js" });
 });
 
 // ---- K1: the core does not depend on contextual ranking ---------------------------------------------------------------------
-test("K1: the package entry may re-export contextual names by name, and nothing else may: with no allowance the entry's re-export is reported", () => {
-  assert.deepEqual(problems(ENTRY_WITH_NAME, ALLOW_INDEX), []);
-  failsWith(problems(ENTRY_WITH_NAME, NO_ENTRY), /index\.ts:1 K1: the kernel core re-exports contextual ranking, and only a file listed in entryReexports may: "\.\/contextual\.js"/);
+test("K1: no core file re-exports contextual ranking, not even the package entry: the entry's re-export is reported, and only an explicit allowance admits one by name", () => {
+  failsWith(problems(ENTRY_WITH_NAME), /index\.ts:1 K1: the kernel core re-exports contextual ranking; it has its own subpath \(@molis-ai\/molis-work-kernel\/contextual\) and no core file re-exports it: "\.\/contextual\.js"/);
+  assert.deepEqual(problems(ENTRY_WITH_NAME, ALLOW_INDEX), [], "the allowance is the only way a by-name re-export passes");
+  failsWith(problems(ENTRY_WITH_NAME, { entryReexports: new Set([SERVICE]) }), /index\.ts:1 K1: .*only a file listed in entryReexports may/);
 });
 test("K1: a core file that imports contextual ranking is reported, in every way of importing it", () => {
   failsWith(problems(prepend(SERVICE, 'import { planContextualLayout } from "./contextual.js";')), /action-service\.ts:1 K1: the kernel core loads contextual ranking \(import\): "\.\/contextual\.js"/);
@@ -63,7 +71,7 @@ test("K1: taking a contextual name from a core file that re-exports it is the sa
   failsWith(problems({ ...ENTRY_WITH_NAME, ...append(OFFERS, 'export { planContextualLayout } from "./index.js";') }, ALLOW_INDEX), /subject-offer-choices\.ts:\d+ K1: .*takes "planContextualLayout" from index\.ts/);
   failsWith(problems({ ...ENTRY_WITH_NAME, ...append(OFFERS, 'export * from "./index.js";') }, ALLOW_INDEX), /subject-offer-choices\.ts:\d+ K1: .*takes the whole of index\.ts/);
   // The names the core really takes from the entry (CapabilityRegistry) are not contextual and stay free.
-  assert.deepEqual(problems(ENTRY_WITH_NAME, ALLOW_INDEX), []);
+  assert.deepEqual(problems(prepend(SERVICE, 'import { CapabilityRegistry as Registry } from "./index.js";')), []);
 });
 test("K1: `export *` of contextual ranking is never allowed, not even by the entry, because it lists no names", () => {
   failsWith(problems({ [INDEX]: `${real[INDEX]}\nexport * from "./contextual.js";\n` }, ALLOW_INDEX), /index\.ts:\d+ K1: the kernel core re-exports contextual ranking with `export \*`/);
@@ -143,10 +151,9 @@ test("splitting contextual.ts into a contextual/ directory passes, and the rules
     [CONTEXTUAL]: null,
     [`${KERNEL}contextual/candidates.ts`]: 'import { subjectOfferChoices } from "../subject-offer-choices.js";\nimport { actionEffect } from "@molis-ai/molis-work-contracts/platform/actions";\nexport const candidates = () => [subjectOfferChoices, actionEffect];\n',
     [`${KERNEL}contextual/policy.ts`]: 'import { candidates } from "./candidates.js";\nimport { createHash } from "node:crypto";\nexport const policy = () => [candidates, createHash];\n',
-    [INDEX]: real[INDEX]!.replace(/export \{\n  CONTEXTUAL_THRESHOLDS[\s\S]*?\} from "\.\/contextual\.js";\n/, 'export { policy } from "./contextual/policy.js";\n'),
   };
-  assert.notEqual(split[INDEX], real[INDEX], "the sample must replace the entry's re-export");
   assert.deepEqual(problems(split), []);
+  failsWith(problems({ ...split, [INDEX]: `${real[INDEX]}\nexport { policy } from "./contextual/policy.js";\n` }), /index\.ts:\d+ K1: .*re-exports contextual ranking.*"\.\/contextual\/policy\.js"/);
   failsWith(problems({ ...split, ...prepend(SERVICE, 'import { policy } from "./contextual/policy.js";') }), /action-service\.ts:1 K1: .*loads contextual ranking \(import\): "\.\/contextual\/policy\.js"/);
   failsWith(problems({ ...split, ...prepend(`${KERNEL}contextual/policy.ts`, 'import { readFileSync } from "node:fs";') }), /contextual\/policy\.ts:1 K3: .*"node:fs"/);
   failsWith(problems({ ...split, ...append(`${KERNEL}contextual/candidates.ts`, "let seen = 0;") }), /contextual\/candidates\.ts K4: .*mutable state/);
@@ -180,7 +187,7 @@ before(() => {
   git("init", "-q", "-b", "main");
   put("tooling/gates/limits.json", JSON.stringify({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }, null, 2) + "\n");
   put("packages/kernel/package.json", JSON.stringify({ name: "@fx/kernel" }, null, 2) + "\n");
-  put(INDEX, 'export class CapabilityRegistry {}\nexport { planContextualLayout } from "./contextual.js";\n');
+  put(INDEX, "export class CapabilityRegistry {}\n");
   put(SERVICE, 'import { CapabilityRegistry } from "./index.js";\nexport const registry = () => new CapabilityRegistry();\n');
   put(OFFERS, 'import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";\nexport const refuse = () => new ActionError("actions.offer_invalid", "no");\n');
   put(CONTEXTUAL, 'import { createHash } from "node:crypto";\nexport const planContextualLayout = (text: string) => createHash("sha256").update(text).digest("hex");\n');
@@ -209,4 +216,10 @@ test("health:check fails when contextual ranking reads a timer or a capability i
   assert.match(run.out, /packages\/kernel\/src\/contextual\.ts K4: contextual ranking is pure/);
   branch("contextual-clean", () => undefined);
   assert.equal(gate("--base", "main").code, 0);
+});
+test("health:check fails when the package entry re-exports contextual ranking again", () => {
+  branch("entry-reexports-contextual", () => put(INDEX, 'export class CapabilityRegistry {}\nexport { planContextualLayout } from "./contextual.js";\n'));
+  const run = gate("--base", "main");
+  assert.equal(run.code, 1, run.out);
+  assert.match(run.out, /packages\/kernel\/src\/index\.ts:2 K1: the kernel core re-exports contextual ranking; it has its own subpath/);
 });

@@ -12,16 +12,16 @@ ActionService.registerProvider 注册同一提供方的合同、处理器与消�
 
 ## 从哪里读代码
 
-公开入口是 [src/index.ts](src/index.ts)。生产调用使用包名或 package.json 声明的子路径；下列链接用于定位实现，不是深层导入示例。
+公开入口有两个：根入口 [src/index.ts](src/index.ts) 和情境排序的子入口 [src/contextual.ts](src/contextual.ts)（`@molis-ai/molis-work-kernel/contextual`）。生产调用使用包名或 package.json 声明的子路径；下列链接用于定位实现，不是深层导入示例。
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | CapabilityRegistry、错误与处理器类型；包的唯一入口，同时转出核心与情境排序 |
+| [src/index.ts](src/index.ts) | CapabilityRegistry、错误与处理器类型；包的根入口，转出核心，不转出情境排序 |
 | [src/action-service.ts](src/action-service.ts) | 核心：`ActionService`（注册、发现、授权、调用、`beforeEffect`、场景） |
 | [src/action-schema.ts](src/action-schema.ts) | 核心：schema 编译与输入校验 |
 | [src/subject-offer-choices.ts](src/subject-offer-choices.ts) | 核心：从目录派生事项动作选项，供判断规则与场景引用的兼容检查用 |
 | [src/action-authorship.ts](src/action-authorship.ts) | 核心：`authorship: "session"` 的唯一检查点 |
-| [src/contextual.ts](src/contextual.ts) | 情境排序（平台产品服务，纯函数），见下一节 |
+| [src/contextual.ts](src/contextual.ts) | 情境排序（平台产品服务，纯函数），子入口 `@molis-ai/molis-work-kernel/contextual`，见下一节 |
 
 可对照现有调用方 [apps/local-host/src/local-host.ts](../../apps/local-host/src/local-host.ts) 阅读装配方式。
 
@@ -33,7 +33,7 @@ ActionService.registerProvider 注册同一提供方的合同、处理器与消�
 
 它只给工作台自己的选区条用，没有登记成系统动作：HTTP 在 `apps/local-host/src/contextual/contextual-http.ts` 的 `/api/contextual/*`，准备输入与上报信号都经调用者自己的动作，判断只排序、不执行。这是 2026-10-10 的日常取舍，删除条件：助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作，HTTP 改为调这个动作（[spec 决策记录](../../specs/repository-anti-corruption/spec.md)）。
 
-边界由 `pnpm health:check` 的规则 K1–K5 守着（`scripts/gates/kernel-contextual.mjs`，见 [门禁说明](../../scripts/gates/README.md)）：核心不依赖情境排序；只有情境排序读合同的 `services/contextual`；它只读 `platform/actions`、`services/contextual`、`node:crypto` 与内核自己的文件；它无副作用、无模块级可变状态；从目录派生候选的代码不点名任何能力 id 或插件。
+用的人从子入口取：`import { planContextualLayout } from "@molis-ai/molis-work-kernel/contextual"`；根入口不再转出它，所以只用核心的人加载不到它。边界由 `pnpm health:check` 的规则 K1–K5 守着（`scripts/gates/kernel-contextual.mjs`，见 [门禁说明](../../scripts/gates/README.md)）：核心不依赖情境排序；只有情境排序读合同的 `services/contextual`；它只读 `platform/actions`、`services/contextual`、`node:crypto` 与内核自己的文件；它无副作用、无模块级可变状态；从目录派生候选的代码不点名任何能力 id 或插件。
 
 ## 接入与边界
 
@@ -62,7 +62,7 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
 
 - 负责：能力注册、发现、授予、动作服务调度（`ActionService`）、场景兼容与事项动作选项派生，以及进程内执行生命周期；另外承载平台产品服务「情境排序」（`src/contextual.ts`，纯函数：派生候选、规则打分、判断材料与题面、读回答案、陈列方案）。
 - 不负责：业务状态机、提供方实现、界面渲染、模型调用与凭据、记忆召回、缓存、计时与取消（这些在宿主 `apps/local-host/src/contextual/`）、任何插件或 Module 的业务事实。
-- 公开入口：`@molis-ai/molis-work-kernel`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/kernel`。
+- 公开入口：`@molis-ai/molis-work-kernel`（`src/index.ts`）与情境排序的子入口 `@molis-ai/molis-work-kernel/contextual`（`src/contextual.ts`），都经 `dist` 导出，不深入 `src/` 导入；合同 `@molis-ai/molis-work-contracts/platform/kernel`。
 - 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 目录从唯一的 `CapabilityRegistry` 派生，不另存名单。
@@ -72,9 +72,9 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
   - `invokeSync` 只接受显式声明 `execution: "sync"` 的处理器，不等待 Promise，不能借它绕过异步策略。
   - 声明了 `authorship: "session"` 的动作，在派发处拒绝调用上下文带 `runtime_session_missing`（可信的 MCP 适配器给没有稳定 Session 的外部 Runtime 标上）的调用，直接调用和包装动作（首页事项动作、工作流步骤）发起的嵌套调用一样，只在这一处检查（`mcp.runtime_identity_missing`）。
   - 调用记录只写谁调了什么、怎样结束，不写输入与结果；业务校验与事务留在处理器里。
-  - 核心代码不调用情境排序：核心文件不导入它，也不经入口转手导入它的名字（`pnpm health:check` 的 K1）。包入口同时转出两半，所以加载核心时情境排序也会被求值；它没有加载时副作用，只读 `contracts/platform/actions`、`contracts/services/contextual` 和 `node:crypto`（K2、K3）。
+  - 核心代码不调用情境排序：核心文件不导入它，也不经入口转手导入它的名字（`pnpm health:check` 的 K1）。根入口不转出它，情境排序走子入口 `@molis-ai/molis-work-kernel/contextual`，所以核心的导入闭包里没有情境排序。它只读 `contracts/platform/actions`、`contracts/services/contextual` 和 `node:crypto`（K2、K3）。
   - 情境排序无 I/O、无计时器、无模块级可变状态，同样的输入得到同样的陈列（K4）。候选只从授权目录来，不点名插件或能力 id（K5）；陈列不删候选；答案里不在候选中的键一律丢掉，模型不能编出动作。会写入的先确认，不可撤回的不推荐。
-- 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts tests/execution-lifetime.test.ts tests/action-authorship-dispatch.test.ts tests/contextual-interaction.test.ts tests/contextual-fragment-offers.test.ts tests/contextual-dock-parity.test.ts tests/home-action-scenes.test.ts tests/health-gates-kernel-contextual.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts tests/execution-lifetime.test.ts tests/action-authorship-dispatch.test.ts tests/contextual-interaction.test.ts tests/contextual-fragment-offers.test.ts tests/contextual-dock-parity.test.ts tests/home-action-scenes.test.ts tests/health-gates-kernel-contextual.test.ts tests/security-invariants-injection.test.ts`
 - 相关手册：[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)、[docs/system/ARCHITECTURE.md](../../docs/system/ARCHITECTURE.md)、[docs/horizontal/README.md](../../docs/horizontal/README.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

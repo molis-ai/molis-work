@@ -5,10 +5,6 @@ import type {
 export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetimeOptions } from "@molis-ai/molis-work-contracts/platform/execution-lifetime";
 import { ActionError, requireSynchronous, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 export { subjectOfferChoices, subjectOfferChoiceKey, judgmentRecommendationKeys, subjectOfferCompatibilityReason, type SubjectOfferChoiceView } from "./subject-offer-choices.js";
-export {
-  CONTEXTUAL_THRESHOLDS, fragmentCandidateKey, fragmentCandidates, contextualCandidates, intentPriors, ruleScores, judgmentState, judgmentQuestions,
-  readContextualJudgment, planContextualLayout, contextualDigest, judgedCandidates, MAX_JUDGED_CANDIDATES, type JudgmentStateExtras, type PlanInput,
-} from "./contextual.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-kernel",

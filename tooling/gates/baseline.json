@@ -170,7 +170,7 @@
     "function modules/shelf/src/store.ts#runJob": 199,
     "function packages/contracts/src/platform/actions.ts#inspectActionDeclarations": 158,
     "function packages/contracts/src/platform/plugin-agent.ts#inspectAgentDeclaration": 162,
-    "file packages/contracts/src/services/agent-host.ts": 1734,
+    "file packages/contracts/src/services/agent-host.ts": 1733,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 947,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,

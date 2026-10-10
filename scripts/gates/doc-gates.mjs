@@ -11,6 +11,7 @@ import { backlogProblems } from "./backlog-rows.mjs";
 import { contractPlaceholderProblems } from "./contract-placeholders.mjs";
 import { countMetric } from "./count-metric.mjs";
 import { ROOT_ALLOWLIST, rootAllowlistProblems, rootStrays } from "./root-entries.mjs";
+import { securityInvariantProblems } from "./security-invariants.mjs";
 import { specIndexProblems } from "./spec-index.mjs";
 
 const tagged = (tag, problems) => problems.map((problem) => `${tag}: ${problem}`);
@@ -24,6 +25,7 @@ export function docGateProblems(snapshot) {
     ...tagged("BACKLOG", backlogProblems(snapshot)),
     ...tagged("root allow-list", rootAllowlistProblems(snapshot)),
     ...tagged("contract placeholder", contractPlaceholderProblems(snapshot)),
+    ...tagged("security invariants", securityInvariantProblems(snapshot)),
   ];
 }
 

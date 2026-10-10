@@ -118,6 +118,10 @@
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"
     },
+    "./platform/loopback": {
+      "types": "./dist/platform/loopback.d.ts",
+      "import": "./dist/platform/loopback.js"
+    },
     "./platform/package": {
       "types": "./dist/platform/package.d.ts",
       "import": "./dist/platform/package.js"

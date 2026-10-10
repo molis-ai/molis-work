@@ -3,6 +3,7 @@ import { createPrologueError, redactMcpError, type ExactRef, type Runtime, type 
 import { realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import type { AgentMcpSourceRef, AgentMcpLibrary, AgentMcpServerInput, AgentMcpServerView, AgentMcpToolDescriptor, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 export type HostMcpConnection = string | { credentialRef?: string; revision: string } | null;
 const KIND = "molis-mcp";
@@ -19,7 +20,7 @@ function text(value: unknown, label: string, max = 4096) {
 function endpoint(value: unknown) {
   const url = new URL(text(value, "MCP 地址"));
   if (url.username || url.password || url.hash || [...url.searchParams.keys()].some(key => /^(auth|authorization|password|secret|token|access_token|refresh_token|api[_-]?key)$/i.test(key))) throw new Error("地址不能包含凭据；请使用独立认证字段");
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))) throw new Error("外部 MCP 使用 HTTPS；HTTP 仅用于本机回环地址");
+  if (url.protocol !== "https:" && !isLoopbackHttpUrl(url)) throw new Error("外部 MCP 使用 HTTPS；HTTP 仅用于本机回环地址");
   return url.toString();
 }
 

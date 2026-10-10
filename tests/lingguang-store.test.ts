@@ -63,3 +63,31 @@ test("a delivery retried after the person moved its spark returns that spark; a 
   assert.throws(() => store.duplicate(delivered.id, "E", "C", "copy-req"), { code: "lingguang.request_conflict" }, "another source under the same request is another copy");
   assert.equal(store.list("C").length + store.list("A").length, 0);
 });
+
+// A discard can say which copy of the spark it was decided on (expected_updated_at, the guard update has), so words another
+// writer put in after that copy was read are not thrown away with the spark. (Findings 4 and 16 of the batch B compliance check.)
+test("a discard that names the copy it was decided on is refused once the spark has changed, and takes nothing else in the batch", t => {
+  const store = fixture(t);
+  const blank = store.create({ project_id: "P" }), other = store.create({ project_id: "P", body: "another idea" });
+  const read = blank.updated_at;
+  const written = store.update(blank.id, { body: "written meanwhile by the Assistant" }, "P");
+  assert.notEqual(written.updated_at, read);
+  assert.throws(() => store.discard([blank.id], "P", { [blank.id]: read }), { code: "lingguang.conflict" });
+  assert.throws(() => store.discard([other.id, blank.id], "P", { [other.id]: other.updated_at, [blank.id]: read }), { code: "lingguang.conflict" });
+  assert.deepEqual(store.list("P").map(spark => [spark.id, spark.status, spark.body]).sort(), [[blank.id, "inbox", "written meanwhile by the Assistant"], [other.id, "inbox", "another idea"]].sort(),
+    "the changed spark stays, and so does the one that had not changed: the batch is all or nothing");
+  store.discard([blank.id], "P", { [blank.id]: written.updated_at });
+  assert.deepEqual(store.list("P").map(spark => spark.id), [other.id], "the copy that is current goes");
+});
+
+test("a discard without a named copy goes as before, one already discarded is not a conflict, and a copy named for another id is refused", t => {
+  const store = fixture(t);
+  const a = store.create({ project_id: "P", body: "a" }), b = store.create({ project_id: "P", body: "b" });
+  store.update(a.id, { body: "a, edited" }, "P");
+  store.discard([a.id], "P");
+  assert.equal(store.get(a.id, "P").status, "discarded");
+  store.discard([a.id], "P", { [a.id]: a.updated_at });
+  assert.throws(() => store.discard([b.id], "P", { [a.id]: a.updated_at }), { code: "lingguang.invalid" });
+  assert.equal(store.get(b.id, "P").status, "inbox");
+  assert.throws(() => store.discard([a.id, b.id], "Q", { [b.id]: b.updated_at }), { code: "lingguang.not_found" }, "the project still bounds it");
+});

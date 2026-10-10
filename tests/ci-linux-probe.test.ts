@@ -412,6 +412,10 @@ test("on this repository: no browser file is run, known darwin and live files ar
   // Fixtures are imported with a .js name for the .ts file (295 of the 297 imports of tests/fixtures when this was written). The files
   // below reach Chrome only through such an import, and so does every other file that calls the fixture which launches it.
   assert.ok(marks("tests/goal-relation-http.test.ts")?.includes("browser"), "a file that reaches Chrome through a fixture imported as ./fixtures/x.js is a browser file");
+  // The test-kit driver names none of the words a file used to carry when it spawned Chrome itself (W2-11): its package name marks the file.
+  const usingKit = readdirSync(path.join(repo, "tests")).filter((name) => /\.test\.(ts|mjs)$/.test(name) && readFileSync(path.join(repo, "tests", name), "utf8").includes(KIT_BROWSER));
+  assert.ok(usingKit.length > 0, "some test files import the test-kit browser driver");
+  assert.deepEqual(usingKit.filter((name) => !marks(`tests/${name}`)?.includes("browser")), [], "every file that imports the test-kit browser driver is a browser file");
   const launching = readdirSync(path.join(repo, "tests")).filter((name) => /\.test\.(ts|mjs)$/.test(name) && /\bopenGoalBrowser\s*\(/.test(readFileSync(path.join(repo, "tests", name), "utf8")));
   assert.ok(launching.length > 0, "some test files call openGoalBrowser");
   assert.deepEqual(launching.filter((name) => !marks(`tests/${name}`)?.includes("browser")), [], "every file that opens the goal browser is a browser file");

@@ -6,7 +6,8 @@
 -- is dropped with them; the full backup taken before the run keeps it.
 --
 -- Run it with every Molis Work process of the Home stopped and after a full backup, on each project database file
--- (projects/<id>/molis-work.db of every project in projects/catalog.db, the personal space included) and on no other file:
+-- (projects/<id>/molis-work.db of every project in projects/catalog.db, the personal space included, and any project
+-- database on disk that the catalog does not list; the preconditions refuse anything that is not a v6 project database):
 --   node:sqlite  db.exec(<this file>)    (the same SQLite as the product)    or    sqlite3 -bail <database> < this file
 -- The statements stop at the first error. The transaction is then still open and is rolled back when the connection
 -- closes, so either the whole script ran or nothing changed. Do not run it in the sqlite3 shell without -bail: the shell

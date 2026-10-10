@@ -178,7 +178,7 @@ RSI 增量仍落在以上分工：Casebook 负责效果比较、差错整理和�
 | 插件装配与宿主接线、公开事实出口、可信身份注入、团队权限与共享承载、Goal 交接 | `molis-ai/molis-work` 的对应 owner | 优先复用已有能力，仅补经过消费验证的缺口；不把 Casebook 分析器和 Backlog 业务复制进宿主。独立 Auth 的能力仍按其正式合同对接。 |
 | 面向 Molis Work 开发者的产品流程与前置依赖 | 本文 `specs/casebook-plugin/spec.md` | 让宿主各模块能找到消费方要求；不能在本文重新定义模块所有权或宣称尚未提供的 API 已可用。 |
 
-现有 [Plugin 开发说明](../../docs/platform/PLUGIN-DEVELOPMENT.md)已经给出仓库外作者项目通过 SDK 运行的路径，但该样例主要验证 polling Integration，**不能据此认定 Casebook 这种带页面和评审流程的插件已能完整安装和运行**。接入时仍需验证目标插件类型、UI / Host 调用、持久化、启停与发布方式；缺口按 H1–H4 处理，不用 iframe 包装旧站冒充完成。
+现有 [Plugin 开发说明](../../../docs/platform/PLUGIN-DEVELOPMENT.md)已经给出仓库外作者项目通过 SDK 运行的路径，但该样例主要验证 polling Integration，**不能据此认定 Casebook 这种带页面和评审流程的插件已能完整安装和运行**。接入时仍需验证目标插件类型、UI / Host 调用、持久化、启停与发布方式；缺口按 H1–H4 处理，不用 iframe 包装旧站冒充完成。
 
 日常改进的顺序是：在 Casebook 改能力并做定向验证，用明确版本的插件和 Molis Work 做真实联调；若失败来自宿主缺少公共能力，再在 Molis Work 对应模块补充并验证。最终验收必须从 Molis Work 登录、进入插件、提交与评审、Goal 交接一路走通，不能只验收旧独立页面。
 

@@ -126,6 +126,9 @@ test("each hint says where to fix it with a plain link: the model settings, and 
   assert.match(hint("model"), /<a href="\/settings\/models">打开模型设置<\/a>/, "the model settings are global, so the link carries no project prefix");
   assert.match(hint("workspace"), /<a href="\/projects\/p1\/settings\/workspaces">打开工作目录设置<\/a>/, "the workspace is bound in this project's settings");
   assert.doesNotMatch(hint("model"), /“模型设置”/, "the sentence no longer names a place the person cannot click");
+  // .mw-alert is a grid: a link that is a direct child of the paragraph would drop to its own row and stretch to the full width,
+  // so its hit area and focus ring would cover the line. The sentence and its link share one span, and the link keeps its own text's width.
+  for (const kind of ["model", "workspace"]) assert.match(hint(kind), /^<span>[^<]*<a [^>]*>[^<]*<\/a><\/span>$/, `${kind}: the sentence and its link are one grid item`);
 });
 
 test("the client reads readiness when the dialog opens, and a failed read stays silent (the behaviour itself is in plugin-small-ux.e2e.test.ts)", () => {

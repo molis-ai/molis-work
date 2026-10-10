@@ -95,6 +95,12 @@ export declare class PluginDefinitionError extends Error {
 
 export type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+export declare class PluginManifestError extends Error {
+    readonly code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid";
+    constructor(code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid", message: string);
+}
+
 export type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginUiClient } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -126,6 +132,8 @@ export { bindOwnerPluginAction } from "@molis-ai/molis-work-contracts/platform/a
 export { bindPluginActionRoute } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindSearchEntriesHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function comparePluginVersions(left: string, right: string): number;
 
 export declare function createExecutionLifetime(options?: ExecutionLifetimeOptions): ExecutionLifetime;
 
@@ -178,7 +186,8 @@ export declare const packageDescriptor: {
     readonly capabilities: readonly ["plugin.define.v1", "integration.polling.v1"];
 };
 
-export { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+export declare function parsePluginManifest(input: unknown): PluginManifest;
+
 export { referencesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 export { sameArtifactFields } from "@molis-ai/molis-work-contracts/platform/actions";

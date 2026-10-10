@@ -47,7 +47,7 @@
 | 项 | 说明 |
 | --- | --- |
 | 怎么判 | 按目录认文件：`packages/kernel/src/contextual.ts` 和 `packages/kernel/src/contextual/**/*.ts` 是情境排序，`packages/kernel/src` 里的其他 `.ts` 是核心。五条规则，用 TypeScript 语法树读（`import`、`import type`、`export … from`、动态 `import()`、`require()`、`import x = require()`、`import("x").T`），不用正则读代码 |
-| K1 | 核心不依赖情境排序：核心文件不导入、不转出、不动态加载情境排序，也不从别的核心文件取它转出的名字（例如 `import { planContextualLayout } from "./index.js"`：核心已经导入包入口，入口转出了情境排序，这样取是绕了一圈的同一个依赖）。唯一的允许是包入口用具名的 `export { … } from` 转出（`ENTRY_REEXPORTS`）；`export *` 一律不许，它列不出名字，上一句就查不了。给情境排序一个自己的子入口、根入口不再转出之后，这个名单是空的 |
+| K1 | 核心不依赖情境排序：核心文件不导入、不转出、不动态加载情境排序，也不从别的核心文件取它转出的名字（例如 `import { planContextualLayout } from "./index.js"`：核心已经导入包入口，入口转出了情境排序，这样取是绕了一圈的同一个依赖）。所以包入口不转出情境排序：它走自己的子入口 `@molis-ai/molis-work-kernel/contextual`（`package.json` 的 `exports`），加载核心不会带上它。`ENTRY_REEXPORTS`（核心里允许用具名的 `export { … } from` 转出情境排序的文件）是空的；`export *` 一律不许，它列不出名字，上一句就查不了 |
 | K2 | 内核里只有情境排序读 `@molis-ai/molis-work-contracts/services/*`，且只读 `services/contextual`（PACKAGE-BOUNDARIES §1 的规则落到内核） |
 | K3 | 情境排序的包导入只能出自 `CONTEXTUAL_PACKAGES`（两份合同：`platform/actions`、`services/contextual`，加做摘要的 `node:crypto`）。相对导入可以指向内核里的任何文件（核心文件或情境排序自己的目录），但不能出 `packages/kernel/src`，也不能指向 `index.ts`（那会和入口转出形成环）。参数不是字符串字面量的动态导入也报 |
 | K4 | 纯：对每个情境排序文件跑 `contracts-purity.mjs` 的 `purityOf`，`effects`（定时器、时钟、随机数、`process`、全局对象）与 `mutable-state` 都是 0。缓存、计时、取消、模型调用留在 `apps/local-host/src/contextual/` |

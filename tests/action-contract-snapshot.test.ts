@@ -18,7 +18,32 @@ import { assertThrowawayHome, collectHost, loadProduct, withIsolatedHome } from 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const script = path.join(root, "scripts/gates/action-contract-snapshot.mjs");
 
-interface Product { manifests: any[]; effectOf: (meta: any, id: string) => string; hostViews: any[]; hostScenes: any[] }
+/**
+ * The decoded Manifests and Host directories these cases copy and rewrite. Each type lists what the cases read and
+ * change by name, and leaves the rest of a declaration as `unknown` (a mutation may add a field the contract does not have yet).
+ */
+interface Schema { type?: string; properties?: Record<string, unknown>; [key: string]: unknown }
+interface Choice { title: string; hint?: string; [key: string]: unknown }
+interface ActionMeta {
+  title: string; description: string; kind: string; scope: string; effect?: string; scheduling?: string; authorship?: string; audiences: string[]; permissions: string[];
+  subject_kinds: string[]; input_type?: string; input_schema: Schema; output_schema?: Schema; result_view?: { summary: string; [key: string]: unknown };
+  subject_offer_choices?: Choice[]; fragment_offer_choices?: Choice[]; required_actions?: unknown[]; undo?: Record<string, unknown>;
+  background_job?: { done: string[]; [key: string]: unknown }; search_source?: { kinds: string[]; [key: string]: unknown }; execution?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+interface Action { capability_id: string; version: number; operation: string; action: ActionMeta; [key: string]: unknown }
+interface SceneDefinition {
+  scene_id: string; version: number; title: string; description: string; trigger: string; scope: string; subject_kinds: string[]; permissions: string[];
+  configuration_permissions?: string[]; input_schema: Schema; result_schema?: Schema; event_schema?: Schema; recommendation_source?: string;
+  recommendation_labels?: Record<string, string>; [key: string]: unknown;
+}
+interface Manifest { plugin_id: string; actions: Action[]; action_scenes: SceneDefinition[] }
+interface Provider { provider_id?: string; plugin_id?: string; [key: string]: unknown }
+interface HostView { capability_id: string; version: number; operation: string; provider: Provider; action: ActionMeta; [key: string]: unknown }
+interface HostScene { definition: SceneDefinition; provider: Provider; [key: string]: unknown }
+/** A row of a snapshot file as `buildAll` returns it. */
+interface Row { key: string; cells: Record<string, string> }
+interface Product { manifests: Manifest[]; effectOf: (meta: ActionMeta, id: string) => string; hostViews: HostView[]; hostScenes: HostScene[] }
 let product: Product;
 before(async () => { product = await loadProduct(); }, { timeout: 180_000 });
 
@@ -26,16 +51,16 @@ const copyOfManifests = () => product.manifests.map((manifest) => ({ plugin_id: 
   actions: structuredClone(manifest.actions ?? []), action_scenes: structuredClone(manifest.action_scenes ?? []) }));
 const copyOfViews = () => structuredClone(product.hostViews);
 const copyOfScenes = () => structuredClone(product.hostScenes);
-const allActions = (manifests: any[]) => manifests.flatMap((manifest) => manifest.actions as any[]);
-const find = (actions: any[], predicate: (definition: any) => boolean, what: string) => {
+const allActions = (manifests: Manifest[]) => manifests.flatMap((manifest) => manifest.actions);
+const find = <Item>(actions: Item[], predicate: (definition: Item) => unknown, what: string): Item => {
   const found = actions.find(predicate);
   assert.ok(found, `the Manifests hold no action with ${what}; the mutation below needs one (pick another or add the case)`);
   return found;
 };
 /** The problems the Manifest layer reports for these Manifests against the committed files. */
-const manifestProblems = (manifests: any[]) => checkActionSnapshots({ root, manifests, effectOf: product.effectOf }).problems.join("\n");
+const manifestProblems = (manifests: Manifest[]) => checkActionSnapshots({ root, manifests, effectOf: product.effectOf }).problems.join("\n");
 /** The problems the whole product (Manifests and the Host's directories) reports against the committed files. */
-const productProblems = (hostViews: any[], manifests = product.manifests, hostScenes = product.hostScenes) => checkActionSnapshots({ root, manifests, effectOf: product.effectOf, hostViews, hostScenes }).problems.join("\n");
+const productProblems = (hostViews: HostView[], manifests = product.manifests, hostScenes = product.hostScenes) => checkActionSnapshots({ root, manifests, effectOf: product.effectOf, hostViews, hostScenes }).problems.join("\n");
 
 const scratch: string[] = [];
 const scratchRoot = (...files: string[]) => {
@@ -55,10 +80,10 @@ test("the committed snapshot is what the built-in Manifests and the Host's actio
 test("every action and scene a built-in Manifest declares has a row, and every row has a Manifest", () => {
   const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes });
   assert.deepEqual(built.problems, []);
-  const declaredActions = product.manifests.flatMap((manifest) => (manifest.actions ?? []).map((definition: any) => `${definition.capability_id}@${definition.version} ${manifest.plugin_id}`));
-  assert.deepEqual(built.actions.map((row: any) => `${row.key} ${row.cells.provider}`).sort(), declaredActions.sort());
-  const declaredScenes = product.manifests.flatMap((manifest) => (manifest.action_scenes ?? []).map((scene: any) => `${scene.scene_id}@${scene.version} ${manifest.plugin_id}`));
-  assert.deepEqual(built.scenes.map((row: any) => `${row.key} ${row.cells.provider}`).sort(), declaredScenes.sort());
+  const declaredActions = product.manifests.flatMap((manifest) => (manifest.actions ?? []).map((definition) => `${definition.capability_id}@${definition.version} ${manifest.plugin_id}`));
+  assert.deepEqual(built.actions.map((row) => `${row.key} ${row.cells.provider}`).sort(), declaredActions.sort());
+  const declaredScenes = product.manifests.flatMap((manifest) => (manifest.action_scenes ?? []).map((scene) => `${scene.scene_id}@${scene.version} ${manifest.plugin_id}`));
+  assert.deepEqual(built.scenes.map((row) => `${row.key} ${row.cells.provider}`).sort(), declaredScenes.sort());
   assert.ok(declaredActions.length > 400 && declaredScenes.length >= 2, "the built-in Manifests were not read");
   for (const row of [...built.actions, ...built.scenes]) assert.match(row.cells.registered_provider, /^[^-,\s][^,\s]*$/, `${row.key}: the provider id the Host registers it under is not recorded`);
   // The committed files are the same rows, read back from disk.
@@ -71,10 +96,10 @@ test("every action and scene a built-in Manifest declares has a row, and every r
 
 test("the Host layer lists the providers no Manifest carries, and no Manifest provider hides in it", () => {
   const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes });
-  const providers = new Set(built.host.map((row: any) => row.cells.provider));
+  const providers = new Set(built.host.map((row: Row) => row.cells.provider));
   assert.ok([...providers].some((provider: string) => provider.startsWith("system.")), "the system.* providers are missing from the Host layer");
   assert.ok([...providers].some((provider: string) => provider.startsWith("sdk.artifacts.plugin-install-")), "the Runtime SDK services are missing from the Host layer");
-  const manifestKeys = new Set(built.actions.map((row: any) => `${row.key} ${row.cells.provider}`));
+  const manifestKeys = new Set(built.actions.map((row) => `${row.key} ${row.cells.provider}`));
   for (const row of built.host) assert.ok(!manifestKeys.has(`${row.cells.capability_id}@${row.cells.version} ${row.cells.provider}`), `${row.key} is both a Manifest row and a Host row`);
 });
 
@@ -125,11 +150,11 @@ test("prose and presentation edits do not change the snapshot", () => {
     definition.action.audiences = [...definition.action.audiences].reverse();
     definition.action.permissions = [...definition.action.permissions].reverse();
   }
-  find(actions, (definition) => definition.action.result_view, "a result_view").action.result_view.summary += " reworded";
+  find(actions, (definition) => definition.action.result_view, "a result_view").action.result_view!.summary += " reworded";
   const subjectOffer = find(actions, (definition) => definition.action.subject_offer_choices?.length, "subject offer choices");
-  subjectOffer.action.subject_offer_choices = subjectOffer.action.subject_offer_choices.map((choice: any) => ({ ...choice, title: `${choice.title} (reworded)` }));
+  subjectOffer.action.subject_offer_choices = subjectOffer.action.subject_offer_choices!.map((choice) => ({ ...choice, title: `${choice.title} (reworded)` }));
   const fragmentOffer = find(actions, (definition) => definition.action.fragment_offer_choices?.length, "fragment offer choices");
-  fragmentOffer.action.fragment_offer_choices = fragmentOffer.action.fragment_offer_choices.map((choice: any) => ({ ...choice, title: `${choice.title} (reworded)`, hint: `${choice.hint} (reworded)` }));
+  fragmentOffer.action.fragment_offer_choices = fragmentOffer.action.fragment_offer_choices!.map((choice) => ({ ...choice, title: `${choice.title} (reworded)`, hint: `${choice.hint} (reworded)` }));
   for (const scene of manifests.flatMap((manifest) => manifest.action_scenes)) {
     scene.title += " (reworded)"; scene.description += " More."; scene.trigger += " (reworded)";
     if (scene.recommendation_labels) scene.recommendation_labels = Object.fromEntries(Object.keys(scene.recommendation_labels).map((key) => [key, `${key}!`]));
@@ -138,7 +163,7 @@ test("prose and presentation edits do not change the snapshot", () => {
 });
 
 test("who may call an action, and how, is in the snapshot: permissions, audiences, kind, scope, scheduling, effect, semantic types, subjects, provider", () => {
-  const cases: Array<[string, (manifests: any[]) => any, string]> = [
+  const cases: Array<[string, (manifests: Manifest[]) => Action, string]> = [
     ["permissions", (manifests) => { const a = find(allActions(manifests), (d) => d.action.permissions.length, "a permission"); a.action.permissions = [...a.action.permissions, "mutation:extra"]; return a; }, "permissions"],
     ["audiences", (manifests) => { const a = find(allActions(manifests), (d) => !d.action.audiences.includes("plugin"), "an action not offered to plugins"); a.action.audiences = [...a.action.audiences, "plugin"]; return a; }, "audiences"],
     ["kind", (manifests) => { const a = find(allActions(manifests), (d) => d.action.kind === "operation", "an operation"); a.action.kind = "judgment"; return a; }, "kind"],
@@ -155,8 +180,8 @@ test("who may call an action, and how, is in the snapshot: permissions, audience
   }
   // Semantic types and subject kinds are part of the shape.
   for (const [name, mutate, column] of [
-    ["input_type", (manifests: any[]) => { const a = find(allActions(manifests), (d) => d.action.input_type, "an input_type"); a.action.input_type += ".mutated"; return a; }, "input_type"],
-    ["subjects", (manifests: any[]) => { const a = find(allActions(manifests), (d) => d.action.subject_kinds.length, "a subject kind"); a.action.subject_kinds = [...a.action.subject_kinds, "mutation"]; return a; }, "subjects"],
+    ["input_type", (manifests: Manifest[]) => { const a = find(allActions(manifests), (d) => d.action.input_type, "an input_type"); a.action.input_type += ".mutated"; return a; }, "input_type"],
+    ["subjects", (manifests: Manifest[]) => { const a = find(allActions(manifests), (d) => d.action.subject_kinds.length, "a subject kind"); a.action.subject_kinds = [...a.action.subject_kinds, "mutation"]; return a; }, "subjects"],
   ] as const) {
     const manifests = copyOfManifests();
     const target = mutate(manifests);
@@ -167,11 +192,11 @@ test("who may call an action, and how, is in the snapshot: permissions, audience
 });
 
 test("the rest of the declaration is covered by the traits hash, including fields added to the metadata later", () => {
-  const cases: Array<[string, (action: any) => boolean, (action: any) => void]> = [
-    ["required_actions", (a) => a.required_actions?.length, (a) => { a.required_actions = [...a.required_actions, { capability_id: "mutation.extra", version: 1 }]; }],
+  const cases: Array<[string, (action: ActionMeta) => unknown, (action: ActionMeta) => void]> = [
+    ["required_actions", (a) => a.required_actions?.length, (a) => { a.required_actions = [...a.required_actions!, { capability_id: "mutation.extra", version: 1 }]; }],
     ["undo", (a) => a.undo, (a) => { a.undo = { ...a.undo, version: 9 }; }],
-    ["background_job", (a) => a.background_job, (a) => { a.background_job = { ...a.background_job, done: [...a.background_job.done, "mutated"] }; }],
-    ["search_source", (a) => a.search_source, (a) => { a.search_source = { ...a.search_source, kinds: [...a.search_source.kinds, "mutated"] }; }],
+    ["background_job", (a) => a.background_job, (a) => { a.background_job = { ...a.background_job, done: [...a.background_job!.done, "mutated"] }; }],
+    ["search_source", (a) => a.search_source, (a) => { a.search_source = { ...a.search_source, kinds: [...a.search_source!.kinds, "mutated"] }; }],
     ["execution", (a) => a.execution, (a) => { a.execution = { ...a.execution, mutated: true }; }],
     ["authorship", (a) => a.authorship, (a) => { delete a.authorship; }],
     ["a field that does not exist yet", () => true, (a) => { a.future_contract_field = { anything: [1, 2] }; }],
@@ -193,8 +218,8 @@ test("a version bump, a new action, a removed action and a moved action are each
   const added = structuredClone(first.actions[1]);
   added.capability_id = "mutation.brand.new";
   first.actions.push(added);
-  const removed = second.actions.pop();
-  const moved = third.actions.shift();
+  const removed = second.actions.pop()!;
+  const moved = third.actions.shift()!;
   first.actions.push(moved);
   const problems = manifestProblems(manifests);
   assert.match(problems, new RegExp(`${bumped.capability_id.replaceAll(".", "\\.")}: v1 -> v2`), "a version bump is a move to a new version");
@@ -260,33 +285,33 @@ test("a registration the Host gains, loses or changes is named under host-action
   const added = productProblems([...copyOfViews(), hostView()]);
   assert.match(added, /host-actions\.tsv: [\s\S]*host-registered action[s]? added:[\s\S]*mutation\.host\.read@1 via system\.mutation/);
 
-  const lost = productProblems(copyOfViews().filter((view: any) => view.provider.provider_id !== "system.search"));
+  const lost = productProblems(copyOfViews().filter((view) => view.provider.provider_id !== "system.search"));
   assert.match(lost, /host-registered action[s]? removed[^]*search\./);
 
   const views = copyOfViews();
   const system = find(views, (view) => view.provider.provider_id === "system.memory" && view.action.input_schema?.properties, "a system.memory action with an input schema");
-  for (const view of views.filter((candidate: any) => candidate.capability_id === system.capability_id && candidate.provider.provider_id === system.provider.provider_id)) {
+  for (const view of views.filter((candidate) => candidate.capability_id === system.capability_id && candidate.provider.provider_id === system.provider.provider_id)) {
     view.action.input_schema = { ...view.action.input_schema, properties: { ...view.action.input_schema.properties, added_by_mutation: { type: "string" } } };
   }
   const changed = productProblems(views);
   assert.match(changed, /changed shape under the SAME version/);
   assert.match(changed, new RegExp(`${system.capability_id.replaceAll(".", "\\.")}@1 via system\\.memory: input`));
 
-  const moved = copyOfViews().map((view: any) => (view.provider.provider_id === "system.placement" ? { ...view, provider: { provider_id: "system.placement-two" } } : view));
+  const moved = copyOfViews().map((view) => (view.provider.provider_id === "system.placement" ? { ...view, provider: { provider_id: "system.placement-two" } } : view));
   const movedProblems = productProblems(moved);
   assert.match(movedProblems, /host-registered action[s]? added:[^]*via system\.placement-two/, "the provider is part of a Host row's identity");
   assert.match(movedProblems, /host-registered action[s]? removed[^]*via system\.placement\b/);
 });
 
 test("the Host must register what each Manifest declares, and the plugin's registration must be the Manifest's declaration", () => {
-  const unregistered = productProblems(copyOfViews().filter((view: any) => !(view.provider.plugin_id && view.capability_id === product.manifests[0].actions[0].capability_id)));
+  const unregistered = productProblems(copyOfViews().filter((view) => !(view.provider.plugin_id && view.capability_id === product.manifests[0].actions[0].capability_id)));
   assert.match(unregistered, new RegExp(`${product.manifests[0].actions[0].capability_id.replaceAll(".", "\\.")}@1: ${product.manifests[0].plugin_id.replaceAll(".", "\\.")} declares it but the Host registers it under no provider`));
 
   const differing = copyOfViews();
-  const declared = new Set(product.manifests.flatMap((manifest) => (manifest.actions ?? []).map((definition: any) => `${definition.capability_id}@${definition.version} ${manifest.plugin_id}`)));
+  const declared = new Set(product.manifests.flatMap((manifest) => (manifest.actions ?? []).map((definition) => `${definition.capability_id}@${definition.version} ${manifest.plugin_id}`)));
   const own = find(differing, (view) => declared.has(`${view.capability_id}@${view.version} ${view.provider.plugin_id}`) && view.action.input_schema?.properties, "a Manifest action registered by its plugin, with an input schema");
   own.action = { ...own.action, input_schema: { ...own.action.input_schema, properties: { ...own.action.input_schema.properties, only_in_the_host: { type: "string" } } } };
-  assert.match(productProblems(differing), new RegExp(`${own.capability_id.replaceAll(".", "\\.")}@1: the Host registers it under ${own.provider.plugin_id.replaceAll(".", "\\.")} with a declaration other than the Manifest's \\(input differ\\)`));
+  assert.match(productProblems(differing), new RegExp(`${own.capability_id.replaceAll(".", "\\.")}@1: the Host registers it under ${own.provider.plugin_id!.replaceAll(".", "\\.")} with a declaration other than the Manifest's \\(input differ\\)`));
 
   const split = [...copyOfViews(), hostView(), hostView({ action: { ...hostView().action, permissions: ["mutation:other"] } })];
   assert.match(productProblems(split), /mutation\.host\.read@1 via system\.mutation: registered with two different declarations \(permissions differ/);
@@ -294,21 +319,21 @@ test("the Host must register what each Manifest declares, and the plugin's regis
 
 test("a capability a Manifest declares and a Home-level provider also registers is one Host row of its own", () => {
   const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes });
-  const both = built.host.filter((row: any) => built.actions.some((declared: any) => declared.key === `${row.cells.capability_id}@${row.cells.version}`));
+  const both = built.host.filter((row: Row) => built.actions.some((declared: Row) => declared.key === `${row.cells.capability_id}@${row.cells.version}`));
   assert.ok(both.length >= 1, "the Goals personal planning actions are registered under io.molis.work.goals.home as well as declared by the Goals Manifest");
-  for (const row of both) assert.notEqual(row.cells.provider, built.actions.find((declared: any) => declared.key === `${row.cells.capability_id}@${row.cells.version}`).cells.provider);
+  for (const row of both) assert.notEqual(row.cells.provider, built.actions.find((declared: Row) => declared.key === `${row.cells.capability_id}@${row.cells.version}`)!.cells.provider);
 });
 
 // ---- the consumer scenes the Host registers without a Manifest --------------------------------------------------------
 // The home dock (`home.dock@1`, provider `system.home`) is registered by the Host's home provider, not by a plugin Manifest. A judgment
 // binding pins a scene by scene_id@version and its provider id, so it is a contract like an action. It asks for home:read, which no
 // Manifest scene asks for, so a scene caller built from the Manifest scenes' permissions alone never listed it.
-const hostSceneRows = () => buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes }).hostScenes as any[];
-const homeDock = (scenes: any[]) => find(scenes, (scene) => scene.definition.scene_id === "home.dock", "the home dock scene");
+const hostSceneRows = () => buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes }).hostScenes;
+const homeDock = (scenes: HostScene[]) => find(scenes, (scene) => scene.definition.scene_id === "home.dock", "the home dock scene");
 
 test("the scene the Host's own home provider registers is a row of host-scenes.tsv, with the declaration in the code", async () => {
   const rows = hostSceneRows();
-  assert.deepEqual(rows.map((row) => row.key), ["home.dock@1 via system.home"], "the Host registers one scene that no Manifest declares");
+  assert.deepEqual(rows.map((row: Row) => row.key), ["home.dock@1 via system.home"], "the Host registers one scene that no Manifest declares");
   // The row is the code's declaration, read from the built module the Host runs (not from the Host's directory).
   const { homeDockScene } = await import(new URL("../apps/local-host/dist/home-actions.js", import.meta.url).href);
   const [row] = rows;
@@ -317,14 +342,14 @@ test("the scene the Host's own home provider registers is a row of host-scenes.t
   assert.equal(row.cells.permissions, [...homeDockScene.permissions].sort().join(","));
   assert.equal(row.cells.configuration_permissions, [...homeDockScene.configuration_permissions].sort().join(","));
   assert.ok(homeDockScene.permissions.includes("home:read"), "the permission that kept the scene out of the first snapshot");
-  const manifestScenePermissions = new Set(product.manifests.flatMap((manifest) => (manifest.action_scenes ?? []).flatMap((scene: any) => [...scene.permissions, ...(scene.configuration_permissions ?? [])])));
+  const manifestScenePermissions = new Set(product.manifests.flatMap((manifest) => (manifest.action_scenes ?? []).flatMap((scene) => [...scene.permissions, ...(scene.configuration_permissions ?? [])])));
   assert.ok(!manifestScenePermissions.has("home:read"), "no Manifest scene asks for home:read: the Manifest scenes' permissions do not reach this scene");
-  assert.ok(product.hostScenes.some((scene: any) => scene.definition.scene_id === "home.dock" && scene.provider.provider_id === "system.home"), "the Host's scene directory lists it");
+  assert.ok(product.hostScenes.some((scene) => scene.definition.scene_id === "home.dock" && scene.provider.provider_id === "system.home"), "the Host's scene directory lists it");
 });
 
 test("a Host scene that changes shape under its version, moves, is added or lost is named under host-scenes.tsv", () => {
-  const named = (scenes: any[]) => productProblems(copyOfViews(), product.manifests, scenes);
-  const everywhere = (scenes: any[], change: (scene: any) => void) => { for (const scene of scenes.filter((candidate) => candidate.definition.scene_id === "home.dock")) change(scene); return scenes; };
+  const named = (scenes: HostScene[]) => productProblems(copyOfViews(), product.manifests, scenes);
+  const everywhere = (scenes: HostScene[], change: (scene: HostScene) => void) => { for (const scene of scenes.filter((candidate) => candidate.definition.scene_id === "home.dock")) change(scene); return scenes; };
 
   const shaped = named(everywhere(copyOfScenes(), (scene) => { scene.definition.input_schema = { ...scene.definition.input_schema, properties: { ...scene.definition.input_schema.properties, added_by_mutation: { type: "string" } } }; }));
   assert.match(shaped, /tooling\/gates\/actions\/host-scenes\.tsv: [\s\S]*host-registered scene[s]? changed shape under the SAME version[^\n]*\n\s+home\.dock@1 via system\.home: input\b/);
@@ -348,11 +373,11 @@ test("a Host scene that changes shape under its version, moves, is added or lost
   assert.doesNotMatch(bumped, /SAME version/);
 
   // The provider is part of the row's identity: the old pair is removed and the new one added, both named.
-  const renamed = named(copyOfScenes().map((scene: any) => (scene.definition.scene_id === "home.dock" ? { ...scene, provider: { ...scene.provider, provider_id: "system.home-two" } } : scene)));
+  const renamed = named(copyOfScenes().map((scene) => (scene.definition.scene_id === "home.dock" ? { ...scene, provider: { ...scene.provider, provider_id: "system.home-two" } } : scene)));
   assert.match(renamed, /host-registered scene[s]? added:[^]*home\.dock@1 via system\.home-two/);
   assert.match(renamed, /host-registered scene[s]? removed[^]*home\.dock@1 via system\.home\b/);
 
-  assert.match(named(copyOfScenes().filter((scene: any) => scene.definition.scene_id !== "home.dock")), /host-registered scene[s]? removed[^]*home\.dock@1 via system\.home/, "a lost scene breaks the bindings that pin it");
+  assert.match(named(copyOfScenes().filter((scene) => scene.definition.scene_id !== "home.dock")), /host-registered scene[s]? removed[^]*home\.dock@1 via system\.home/, "a lost scene breaks the bindings that pin it");
   const added = copyOfScenes();
   added.push(everywhere([structuredClone(homeDock(added))], (scene) => { scene.definition.scene_id = "mutation.brand.new"; scene.provider = { provider_id: "system.mutation" }; })[0]);
   assert.match(named(added), /host-registered scene[s]? added:[^]*mutation\.brand\.new@1 via system\.mutation/);
@@ -365,7 +390,7 @@ test("a Host scene that changes shape under its version, moves, is added or lost
 });
 
 test("a Host scene is refused when it has no provider id, two declarations, or a declaration that is not plain data", () => {
-  const named = (scenes: any[]) => productProblems(copyOfViews(), product.manifests, scenes);
+  const named = (scenes: HostScene[]) => productProblems(copyOfViews(), product.manifests, scenes);
   const nameless = copyOfScenes();
   homeDock(nameless).provider = { plugin_id: "io.molis.work.home" };
   assert.match(named(nameless), /scene home\.dock@1: a registration of it names no provider id/);
@@ -384,7 +409,7 @@ test("a Host scene is refused when it has no provider id, two declarations, or a
 
   // A Manifest scene registered by the Host's own provider as well is a Host row of its own and does not hide the plugin's.
   const both = copyOfScenes();
-  both.push({ ...structuredClone(both.find((scene: any) => scene.definition.scene_id === "feed.capture")), provider: { provider_id: "system.feed-copy" } });
+  both.push({ ...structuredClone(both.find((scene) => scene.definition.scene_id === "feed.capture")!), provider: { provider_id: "system.feed-copy" } });
   assert.match(named(both), /host-registered scene[s]? added:[^]*feed\.capture@1 via system\.feed-copy/);
   assert.doesNotMatch(named(both), /(?:^|\n)tooling\/gates\/actions\/scenes\.tsv:/, "the plugin's own registration is unchanged");
 });
@@ -392,17 +417,17 @@ test("a Host scene is refused when it has no provider id, two declarations, or a
 // ---- the provider id the Host registers an action under ---------------------------------------------------------------
 // A persisted reference holds the registered provider id (workflow steps: provider_id; allowed_actions; Feed and Inbox scene
 // references), and the kernel throws actions.provider_changed when it differs. So the id is part of the contract of every action.
-const declaredKeys = (plugin: string) => new Set(product.manifests.find((manifest) => manifest.plugin_id === plugin).actions.map((definition: any) => `${definition.capability_id}@${definition.version}`));
+const declaredKeys = (plugin: string) => new Set(product.manifests.find((manifest) => manifest.plugin_id === plugin)!.actions.map((definition) => `${definition.capability_id}@${definition.version}`));
 /** The views, with the Manifest actions of `plugin` registered by the plugin under `providerId`. */
-const registeredUnder = (views: any[], plugin: string, providerId: string) => {
+const registeredUnder = (views: HostView[], plugin: string, providerId: string) => {
   const declared = declaredKeys(plugin);
-  return views.map((view: any) => (view.provider.plugin_id === plugin && declared.has(`${view.capability_id}@${view.version}`) ? { ...view, provider: { ...view.provider, provider_id: providerId } } : view));
+  return views.map((view) => (view.provider.plugin_id === plugin && declared.has(`${view.capability_id}@${view.version}`) ? { ...view, provider: { ...view.provider, provider_id: providerId } } : view));
 };
 const committedRegistration = (plugin: string) => {
   const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes });
-  const ids = new Set(built.actions.filter((row: any) => row.cells.provider === plugin).map((row: any) => row.cells.registered_provider));
+  const ids = new Set(built.actions.filter((row) => row.cells.provider === plugin).map((row) => row.cells.registered_provider));
   assert.equal(ids.size, 1, `${plugin} is registered under one provider id`);
-  return { id: [...ids][0] as string, count: built.actions.filter((row: any) => row.cells.provider === plugin).length };
+  return { id: [...ids][0] as string, count: built.actions.filter((row) => row.cells.provider === plugin).length };
 };
 
 test("an action the Host registers under another provider id is named, action by action: a rename, and a move between assemblies", () => {
@@ -435,18 +460,18 @@ test("an action registered under two provider ids, or under none, or a scene lik
   assert.match(productProblems(views), new RegExp(`${target.replaceAll(".", "\\.")}: the Host registers it under 2 provider ids \\(io\\.molis\\.work\\.todo, io\\.molis\\.work\\.todo-second\\)`));
   const nameless = copyOfViews();
   const unnamed = find(nameless, (candidate) => candidate.provider.plugin_id === "io.molis.work.todo", "a todo action");
-  unnamed.provider = { plugin_id: "io.molis.work.todo" } as any;
+  unnamed.provider = { plugin_id: "io.molis.work.todo" };
   assert.match(productProblems(nameless), /names no provider id/);
 });
 
 test("a consumer scene is registered under a provider id too, and a change of it is named under scenes.tsv", () => {
-  const feedScene = () => copyOfScenes().find((scene: any) => scene.definition.scene_id === "feed.capture");
-  const renamed = copyOfScenes().map((scene: any) => (scene.definition.scene_id === "feed.capture" ? { ...scene, provider: { ...scene.provider, provider_id: "io.molis.work.feed-two" } } : scene));
+  const feedScene = () => copyOfScenes().find((scene) => scene.definition.scene_id === "feed.capture")!;
+  const renamed = copyOfScenes().map((scene) => (scene.definition.scene_id === "feed.capture" ? { ...scene, provider: { ...scene.provider, provider_id: "io.molis.work.feed-two" } } : scene));
   const problems = productProblems(copyOfViews(), product.manifests, renamed);
   assert.match(problems, /tooling\/gates\/actions\/scenes\.tsv: [\s\S]*scene registered under another provider id/);
   assert.match(problems, /feed\.capture@1: io\.molis\.work\.feed -> io\.molis\.work\.feed-two\n/);
   assert.doesNotMatch(problems, /inbox\.next/, "only the scene that moved is named");
-  assert.match(productProblems(copyOfViews(), product.manifests, copyOfScenes().filter((scene: any) => scene.definition.scene_id !== "inbox.next")), /scene inbox\.next@1: io\.molis\.work\.inbox declares it but the Host registers it under no provider at all/);
+  assert.match(productProblems(copyOfViews(), product.manifests, copyOfScenes().filter((scene) => scene.definition.scene_id !== "inbox.next")), /scene inbox\.next@1: io\.molis\.work\.inbox declares it but the Host registers it under no provider at all/);
   assert.match(productProblems(copyOfViews(), product.manifests, [...copyOfScenes(), { ...feedScene(), provider: { ...feedScene().provider, provider_id: "io.molis.work.feed-two" } }]), /scene feed\.capture@1: the Host registers it under 2 provider ids/);
   assert.match(productProblems(copyOfViews(), product.manifests, []), /scene feed\.capture@1: .* no provider at all/, "a Host that lists no scene is not a pass");
 });

@@ -89,6 +89,9 @@ jobs:
       # The comparison commit: on a pull request, HEAD is the merge commit GitHub builds (refs/pull/N/merge), so it is the
       # merged result against the base branch as it was merged (HEAD^1); on a push to main it is the previous tip.
       # scripts/ci-health-base.mjs picks it and fetches it when the shallow checkout lacks it.
+      # The static checks (Biome: empty catch, `as unknown as`, floating promises, explicit `any`, console, debugger) are counted in
+      # the same run (scripts/gates/lint.mjs, W1-09), and the shape of biome.jsonc may only get stricter. They need Biome from the
+      # install above and nothing from the build.
       - name: Health gates (against the merge-base)
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -101,12 +104,10 @@ jobs:
       # Each gate rule is mutation-verified on a scratch repository: one violation added on a branch fails, and so does
       # the same branch after `--update` rewrote the baseline. The glob takes every tests/health-gates-*.test.ts, so a
       # new gate's test needs no edit here.
+      # The translation check (missing English fails, conflicts are frozen, stable keys are checked) is one of the gates
+      # above; its rules are verified the same way.
       - name: Health gates reject what they claim to
-        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts tests/package-inventory-gate.test.ts
-      # the same branch after `--update` rewrote the baseline. The translation check (missing English fails, conflicts are
-      # frozen, stable keys are checked) is one of the gates above; its rules are verified the same way.
-      - name: Health gates reject what they claim to
-        run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts tests/package-inventory-gate.test.ts tests/translation-check.test.ts
+        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts tests/package-inventory-gate.test.ts tests/translation-check.test.ts
 
       # One product version (docs/releases/POLICY.md): the root package, the Tauri shell and the two version strings in
       # code agree, workspace packages stay private 0.0.0, the current version has release notes and a CHANGELOG
@@ -198,6 +199,13 @@ jobs:
       - name: Linux probe rules
         run: node scripts/run-tests.mjs tests/ci-linux-probe.test.ts
 
+      # The product subset's own rules (the product-subset job below runs the list): the list and the quarantine file are judged by
+      # the same module the health gates use, a quarantine that has run out counts the file again, a file whose tests all skip fails,
+      # a file that is not reached before the time budget fails, a flaky pass is told apart from a pass, and a run that is cancelled
+      # or killed still leaves a report. Runs fake test files in a scratch directory; under two minutes.
+      - name: Product subset rules
+        run: node scripts/run-tests.mjs tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts
+
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests
         run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test
@@ -248,22 +256,89 @@ jobs:
             node scripts/check-secrets.mjs
           fi
 
+  # Static checks for what is not TypeScript (specs/repository-anti-corruption W1-09, scripts/gates/native-checks.mjs): rustfmt and
+  # clippy with every warning an error, and a type check of the Swift. Needs macOS because the Rust crate is the macOS desktop
+  # shell. Nothing here installs Node dependencies: the script and its tests use Node alone. RUSTUP_TOOLCHAIN pins the Rust the
+  # code was cleaned against: clippy gains lints with every release, and `-D warnings` on "stable" would turn each release into a
+  # red build. Moving the pin is a deliberate change (clean the new warnings in the same PR).
+  native-checks:
+    name: Rust and Swift checks
+    runs-on: macos-latest
+    env:
+      RUSTUP_TOOLCHAIN: 1.96.0
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install 1.96.0 --profile minimal --component clippy --component rustfmt
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      # Each check is broken once on a scratch repository and must go red (the shell cases use a stand-in for shellcheck here).
+      - name: Native check rules reject what they claim to
+        run: node --test tests/native-checks.test.mjs
+
+      - name: rustfmt and clippy
+        run: node scripts/gates/native-checks.mjs rust
+
+      - name: Swift type check
+        run: node scripts/gates/native-checks.mjs swift
+
+      # The SwiftPM package (jelly-whisper) has swift-tools-version 6.2, which needs Xcode 26, and a cold build takes about seven
+      # minutes. It is reported but does not decide anything until a runner with that Swift is confirmed; then drop
+      # continue-on-error. Until then only the JellyMaterial.swift type check above blocks a merge, so a compile error in the
+      # package does not turn CI red. The follow-up is specs/BACKLOG.md BL-122.
+      - name: Swift package build (jelly-whisper, not required yet)
+        continue-on-error: true
+        run: node scripts/gates/native-checks.mjs swift --package
+
+  shell-checks:
+    name: Shell and Python checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # shellcheck ships on the GitHub ubuntu runners. Warnings and errors fail; style notes do not.
+      - name: shellcheck on every tracked shell script
+        run: node scripts/gates/native-checks.mjs shell
+
+      # The one Python worker (apps/local-host/tooling/experiments/laya-worker.py) has to parse; python3 is on the runner.
+      - name: Python files parse
+        run: node scripts/gates/native-checks.mjs python
+
+      - name: Shell and Python check rules reject what they claim to
+        run: node --test --test-name-pattern='^(shell|python):' tests/native-checks.test.mjs
+
   verify:
     name: Verify
-    needs: [architecture-boundaries, secret-scan]
+    needs: [architecture-boundaries, secret-scan, native-checks, shell-checks]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection.
-    # The full product suite runs locally; package boundaries, the contract subset and the secret scan run here.
+    # The full product suite runs locally; package boundaries, the contract subset, the secret scan and the Rust, Swift and shell checks run here.
     runs-on: ubuntu-latest
     steps:
       - name: Required package gate passed
         env:
           PACKAGE_BOUNDARIES_RESULT: ${{ needs.architecture-boundaries.result }}
           SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
+          NATIVE_CHECKS_RESULT: ${{ needs.native-checks.result }}
+          SHELL_CHECKS_RESULT: ${{ needs.shell-checks.result }}
         run: |
           test "$PACKAGE_BOUNDARIES_RESULT" = "success"
           test "$SECRET_SCAN_RESULT" = "success"
-          echo "Package boundary, Contract, typecheck, build, action contract and secret scan verification passed."
+          test "$NATIVE_CHECKS_RESULT" = "success"
+          test "$SHELL_CHECKS_RESULT" = "success"
+          echo "Package boundary, Contract, typecheck, build, action contract, secret scan, Rust, Swift and shell verification passed."
 
   # Decision #14 (specs/repository-anti-corruption): which test files pass on Linux is not known yet (some touch macOS-only
   # paths: Seatbelt, Keychain, launchctl, Swift helpers), so the non-browser suite runs here as an information job and does
@@ -276,8 +351,8 @@ jobs:
   # of about 100 minutes meets that often. The probe rewrites its three files after every file and, on the SIGINT/SIGTERM a
   # cancel or the time limit sends, stops the running tests and writes a final partial report (unfinished files are `not-run`,
   # `endedBy` says why); the upload step below is `if: always()`, so a cancelled run still keeps what it had.
-  # After about two weeks of runs: quarantine the flaky files, keep the passing ones as tests/ci-product-subset.txt (W2-16),
-  # then add this job to `verify`'s needs and drop `continue-on-error`.
+  # The probe stays an information job (about 50 minutes for every non-browser file is too long to wait for). What its first run
+  # showed became tests/ci-product-subset.txt (W2-16), run by the `product-subset` job below, which is the one that joins Verify.
   linux-probe:
     name: Linux probe (not required)
     runs-on: ubuntu-latest
@@ -313,5 +388,69 @@ jobs:
         with:
           name: linux-probe
           path: ${{ runner.temp }}/linux-probe
+          retention-days: 30
+          if-no-files-found: warn
+
+  # Decision #14 (specs/repository-anti-corruption), step 2 of W2-16: the user-flow part of the product suite runs in CI. The files are
+  # listed in tests/ci-product-subset.txt (fast files that passed on Linux in the probe above, the main flow of each product area, the
+  # i18n test and 5 browser smokes); the flaky ones are in tests/quarantine.json, each with an owner and an end date.
+  # For about two weeks from its first run on main it is an information job like the probe: NOT in `verify`'s needs,
+  # `continue-on-error` keeps a red run from marking the workflow red, branch protection is untouched. At the end of that time, with the
+  # flaky files quarantined: add `product-subset` to `verify`'s needs (and its result to the two lines of the final step), drop
+  # `continue-on-error`, take "(not required yet)" out of the name, and change the one test in tests/ci-product-subset.test.ts that
+  # pins this state (the first of its two ci.yml cases). Joining Verify keeps the required check `Verify` as it is, so the repository
+  # settings are not touched.
+  # Time: the job is meant to stay about as long as `architecture-boundaries` (about 20 minutes), so it never lengthens the check:
+  # install and build about 2 minutes, the browser smokes within 8, the other files within 15, and the job is stopped at 35. No attempt
+  # (a first run or a retry) starts after its budget, so the worst case is 2 + 8 + a 4 minute smoke attempt + 15 + a 4 minute attempt = 33
+  # minutes, inside the 35 (tests/ci-product-subset.test.ts works this out from the arguments below).
+  # The runner stops starting files when a budget is used up and fails the run for the files it did not reach; the summary shows how
+  # much of each budget was used and which files are slowest. This workflow cancels a run when a newer push arrives; the runner
+  # writes its report on that signal, and the upload below is `if: always()`.
+  product-subset:
+    name: Product subset (not required yet)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # The version is the root package.json "packageManager", the pin the other jobs use.
+      - name: Install pnpm
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The tests import the built workspace packages and dist/; the same full build the probe makes.
+      - name: Build
+        run: pnpm build
+
+      # The browser smokes drive the Chrome that the ubuntu image has (tests/fixtures/goal-browser.ts also looks at /usr/bin/google-chrome
+      # on its own). The wrapper adds --no-sandbox, which a runner whose kernel restricts unprivileged user namespaces needs; the pages
+      # are the ones the tests serve from localhost. Without a Chrome the smokes would skip, and a skipped smoke fails the run.
+      - name: Chrome for the browser smokes
+        run: |
+          chrome="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$chrome" || { echo "no Chrome on this runner"; exit 1; }
+          "$chrome" --version
+          printf '#!/bin/sh\nexec "%s" --no-sandbox "$@"\n' "$chrome" > "$RUNNER_TEMP/chrome-ci"
+          chmod +x "$RUNNER_TEMP/chrome-ci"
+          echo "MOLIS_WORK_TEST_CHROME=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
+
+      # `exec` makes the runner the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
+      - name: Run the product subset
+        run: exec node scripts/ci-product-subset.mjs --expect-platform linux --out "$RUNNER_TEMP/product-subset" --jobs 2 --timeout-seconds 180 --browser-timeout-seconds 240 --retries 1 --budget-minutes 15 --browser-budget-minutes 8
+
+      - name: Keep the report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-subset
+          path: ${{ runner.temp }}/product-subset
           retention-days: 30
           if-no-files-found: warn

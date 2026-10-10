@@ -6,7 +6,7 @@ import test from "node:test";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
-import { contextualCandidates } from "@molis-ai/molis-work-kernel";
+import { contextualCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
 import type { FunctionsHostOptions } from "../apps/local-host/src/functions-host.js";
 import { homeActions, HOME_ACTION_PERMISSIONS } from "../apps/local-host/src/home-actions.js";

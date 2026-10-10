@@ -126,6 +126,27 @@ jobs:
       - name: Document gates reject what they claim to
         run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts
 
+      # The page-event rule (scripts/gates/dom-events.mjs, also run inside the health gates above on the real tree): its own
+      # mutation cases. A CustomEvent or listener under an unregistered name, in any constructor spelling (including
+      # TypeScript type arguments), an unreadable name, a stale entry, an owner that holds nothing, and every field of the
+      # registry in packages/contracts/src/platform/dom-events.ts each fail it; the registry is also checked against the event
+      # constants the other contracts name. It imports the built contracts, so it runs after the build in workspace:verify.
+      - name: Page event gate rejects what it claims to
+        run: node scripts/run-tests.mjs tests/dom-events-contract.test.ts
+
+      # Spec acceptance ids (specs/README.md 「验收编号」, specs/repository-anti-corruption §4.8, W2-14): which criteria of the
+      # specs in progress carry an id, and which of those ids a test cites. Report only: the script exits 0 whatever it finds,
+      # and `continue-on-error` keeps this step from turning the build red even if the script were to crash (a crash on this
+      # repository's own content is still caught by the blocking `tests/health-gates-*.test.ts` step above, which runs
+      # the case "on this repository the report prints and exits 0"). Once the specs in
+      # progress are numbered and the report lists no problem, add `--strict` and drop `continue-on-error`. Each problem
+      # kind and each rule for reading the files (what is a test file, where an exemption counts, what is a citation, what an
+      # archived spec keeps) has a case in tests/health-gates-spec-coverage.test.ts that fails without it; the
+      # `tests/health-gates-*.test.ts` glob above already runs that file.
+      - name: Spec acceptance ids (report only)
+        continue-on-error: true
+        run: node scripts/check-spec-coverage.mjs
+
       # The tracked-.impeccable-files rule (scripts/gates/impeccable-files.mjs), mutation-verified the same way.
       - name: Health gate for tracked .impeccable files rejects growth
         run: node scripts/run-tests.mjs tests/health-gates-impeccable.test.ts
@@ -149,6 +170,18 @@ jobs:
       - name: Action and plugin contracts
         run: pnpm test:contracts
 
+      # Security invariants (docs/system/SECURITY-INVARIANTS.md; specs/repository-anti-corruption §4.18): each one has a test that asserts the
+      # refusal itself: a foreign Host, Origin, token or key; a socket without the token; a Casebook credential that is weak or shared; an
+      # address that is not public; a path that leaves its directory; a secret that comes back out; a hostile text that is not data; a desktop
+      # capability that widens. The real web host and the real launcher are started on loopback; the Seatbelt sandbox cases need macOS and
+      # run locally (the document lists which). The table's own rule (every row names tests that exist) runs in the health gates above.
+      # Not blocking yet (decision #14: product tests do not block a merge until about two weeks of linux-probe runs and quarantine, W2-16):
+      # the set includes product tests, and the six security-invariants-* files had never run on Linux when they were added. A red step shows
+      # on the step; the job, and so Verify, stays green. Drop `continue-on-error` when the probe has shown these files green for two weeks.
+      - name: Security invariants
+        continue-on-error: true
+        run: pnpm test:security
+
       - name: One workbench shell (no standalone pages)
         run: node scripts/run-tests.mjs tests/shell-page-gate.test.ts
 
@@ -167,6 +200,13 @@ jobs:
       # under a minute.
       - name: Linux probe rules
         run: node scripts/run-tests.mjs tests/ci-linux-probe.test.ts
+
+      # The product subset's own rules (the product-subset job below runs the list): the list and the quarantine file are judged by
+      # the same module the health gates use, a quarantine that has run out counts the file again, a file whose tests all skip fails,
+      # a file that is not reached before the time budget fails, a flaky pass is told apart from a pass, and a run that is cancelled
+      # or killed still leaves a report. Runs fake test files in a scratch directory; under two minutes.
+      - name: Product subset rules
+        run: node scripts/run-tests.mjs tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts
 
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests
@@ -313,8 +353,8 @@ jobs:
   # of about 100 minutes meets that often. The probe rewrites its three files after every file and, on the SIGINT/SIGTERM a
   # cancel or the time limit sends, stops the running tests and writes a final partial report (unfinished files are `not-run`,
   # `endedBy` says why); the upload step below is `if: always()`, so a cancelled run still keeps what it had.
-  # After about two weeks of runs: quarantine the flaky files, keep the passing ones as tests/ci-product-subset.txt (W2-16),
-  # then add this job to `verify`'s needs and drop `continue-on-error`.
+  # The probe stays an information job (about 50 minutes for every non-browser file is too long to wait for). What its first run
+  # showed became tests/ci-product-subset.txt (W2-16), run by the `product-subset` job below, which is the one that joins Verify.
   linux-probe:
     name: Linux probe (not required)
     runs-on: ubuntu-latest
@@ -350,5 +390,69 @@ jobs:
         with:
           name: linux-probe
           path: ${{ runner.temp }}/linux-probe
+          retention-days: 30
+          if-no-files-found: warn
+
+  # Decision #14 (specs/repository-anti-corruption), step 2 of W2-16: the user-flow part of the product suite runs in CI. The files are
+  # listed in tests/ci-product-subset.txt (fast files that passed on Linux in the probe above, the main flow of each product area, the
+  # i18n test and 5 browser smokes); the flaky ones are in tests/quarantine.json, each with an owner and an end date.
+  # For about two weeks from its first run on main it is an information job like the probe: NOT in `verify`'s needs,
+  # `continue-on-error` keeps a red run from marking the workflow red, branch protection is untouched. At the end of that time, with the
+  # flaky files quarantined: add `product-subset` to `verify`'s needs (and its result to the two lines of the final step), drop
+  # `continue-on-error`, take "(not required yet)" out of the name, and change the one test in tests/ci-product-subset.test.ts that
+  # pins this state (the first of its two ci.yml cases). Joining Verify keeps the required check `Verify` as it is, so the repository
+  # settings are not touched.
+  # Time: the job is meant to stay about as long as `architecture-boundaries` (about 20 minutes), so it never lengthens the check:
+  # install and build about 2 minutes, the browser smokes within 8, the other files within 15, and the job is stopped at 35. No attempt
+  # (a first run or a retry) starts after its budget, so the worst case is 2 + 8 + a 4 minute smoke attempt + 15 + a 4 minute attempt = 33
+  # minutes, inside the 35 (tests/ci-product-subset.test.ts works this out from the arguments below).
+  # The runner stops starting files when a budget is used up and fails the run for the files it did not reach; the summary shows how
+  # much of each budget was used and which files are slowest. This workflow cancels a run when a newer push arrives; the runner
+  # writes its report on that signal, and the upload below is `if: always()`.
+  product-subset:
+    name: Product subset (not required yet)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # The version is the root package.json "packageManager", the pin the other jobs use.
+      - name: Install pnpm
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The tests import the built workspace packages and dist/; the same full build the probe makes.
+      - name: Build
+        run: pnpm build
+
+      # The browser smokes drive the Chrome that the ubuntu image has (tests/fixtures/goal-browser.ts also looks at /usr/bin/google-chrome
+      # on its own). The wrapper adds --no-sandbox, which a runner whose kernel restricts unprivileged user namespaces needs; the pages
+      # are the ones the tests serve from localhost. Without a Chrome the smokes would skip, and a skipped smoke fails the run.
+      - name: Chrome for the browser smokes
+        run: |
+          chrome="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$chrome" || { echo "no Chrome on this runner"; exit 1; }
+          "$chrome" --version
+          printf '#!/bin/sh\nexec "%s" --no-sandbox "$@"\n' "$chrome" > "$RUNNER_TEMP/chrome-ci"
+          chmod +x "$RUNNER_TEMP/chrome-ci"
+          echo "MOLIS_WORK_TEST_CHROME=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
+
+      # `exec` makes the runner the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
+      - name: Run the product subset
+        run: exec node scripts/ci-product-subset.mjs --expect-platform linux --out "$RUNNER_TEMP/product-subset" --jobs 2 --timeout-seconds 180 --browser-timeout-seconds 240 --retries 1 --budget-minutes 15 --browser-budget-minutes 8
+
+      - name: Keep the report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-subset
+          path: ${{ runner.temp }}/product-subset
           retention-days: 30
           if-no-files-found: warn

@@ -5,6 +5,8 @@ import {
   type EvidenceContentStore, type SqliteDatabase,
 } from "@molis-ai/molis-work-storage";
 import { receiptContentRefs, type FeedSourceHistory } from "@molis-ai/molis-work-plugin-feed";
+import { listFeedMaterialContentRefs } from "@molis-ai/molis-work-module-feed";
+import { listListenerRunReceipts } from "@molis-ai/molis-work-service-listener-host";
 import { forgetIntelligenceOperations } from "./search-intelligence-client.js";
 
 /**
@@ -66,14 +68,10 @@ function projectDatabaseFiles(): string[] {
 
 function addContentReferences(db: Pick<SqliteDatabase, "prepare">, into: Set<string>): void {
   const hasTable = (name: string) => db.prepare("SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) !== undefined;
-  if (hasTable("feed_materials")) {
-    for (const row of db.prepare("SELECT DISTINCT content_ref FROM feed_materials WHERE content_ref IS NOT NULL").all() as Array<{ content_ref: string }>) {
-      into.add(row.content_ref);
-    }
-  }
+  // Each table is read by its owner (the Feed module's materials, the Listener Host's run ledger); a project database that never
+  // held them has neither table, and the system catalog says so.
+  if (hasTable("feed_materials")) for (const ref of listFeedMaterialContentRefs(db)) into.add(ref);
   if (hasTable("feed_source_runs")) {
-    for (const row of db.prepare("SELECT receipt_json FROM feed_source_runs WHERE receipt_json IS NOT NULL").all() as Array<{ receipt_json: string }>) {
-      for (const ref of receiptContentRefs(JSON.parse(row.receipt_json))) into.add(ref);
-    }
+    for (const receipt of listListenerRunReceipts(db)) for (const ref of receiptContentRefs(receipt)) into.add(ref);
   }
 }

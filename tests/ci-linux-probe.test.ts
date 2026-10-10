@@ -412,9 +412,8 @@ test("on this repository: no browser file is run, known darwin and live files ar
   assert.deepEqual(launching.filter((name) => !marks(`tests/${name}`)?.includes("browser")), [], "every file that opens the goal browser is a browser file");
 });
 
-// Decision #14: the probe informs and does not block, and its own rules are checked by the blocking job. Until the decision is
-// carried out (about two weeks of runs, then the probe joins Verify) these lines of .github/workflows/ci.yml must stay as they are;
-// carrying it out means changing this test in the same pull request.
+// Decision #14: the probe informs and does not block, and its own rules are checked by the blocking job. It stays that way when the
+// product subset it led to joins Verify (tests/ci-product-subset.test.ts holds the same lines for that job).
 const workflow = readFileSync(fileURLToPath(new URL("../.github/workflows/ci.yml", import.meta.url)), "utf8");
 const jobBlock = (name: string) => {
   const lines = workflow.split("\n");

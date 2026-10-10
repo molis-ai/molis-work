@@ -1050,10 +1050,10 @@ mod tests {
         assert!(validated_molis_work_path("https://example.com/projects/project-a").is_err());
         assert!(validated_molis_work_path("//example.com/projects/project-a").is_err());
         let url =
-            desktop_molis_work_url("/projects/project-a/decisions#decision-goal-goal-a").unwrap();
+            desktop_molis_work_url("/projects/project-a/goals/goal-a#goal-document-pane").unwrap();
         assert_eq!(
             url.as_str(),
-            "http://127.0.0.1:4173/projects/project-a/decisions?desktop=1#decision-goal-goal-a"
+            "http://127.0.0.1:4173/projects/project-a/goals/goal-a?desktop=1#goal-document-pane"
         );
     }
 

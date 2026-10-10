@@ -163,8 +163,14 @@ test("gateway never retries an uncertain invocation or follows a credential-bear
 });
 
 test("gateway rejects non-loopback destinations before reading a credential or making a request", () => {
-  for (const url of ["https://127.0.0.1", "http://localhost:4173", "http://example.invalid", "http://127.0.0.1/path", "http://user:pass@127.0.0.1"]) {
-    assert.throws(() => new LocalActionGatewayClient({ url, homeDirectory: "/unused", clientId: "fixture", projectId: null }), { code: "actions.transport_invalid" });
+  for (const url of ["https://127.0.0.1", "http://localhost:4173", "http://example.invalid", "http://127.0.0.1/path", "http://user:pass@127.0.0.1",
+    // security invariant S-09: a query string or fragment, other spellings of "this machine" and look-alike names are refused as well
+    "http://127.0.0.1:4173/?x=1", "http://127.0.0.1:4173/#x", "http://user@127.0.0.1:4173", "http://0.0.0.0:4173", "http://[::]:4173", "http://[::ffff:127.0.0.1]:4173", "http://127.0.0.1.evil.example:4173",
+    "http://localhost.:4173", "ws://127.0.0.1:4173", "ftp://127.0.0.1"]) {
+    assert.throws(() => new LocalActionGatewayClient({ url, homeDirectory: "/unused", clientId: "fixture", projectId: null }), { code: "actions.transport_invalid" }, url);
+  }
+  for (const url of ["http://127.0.0.1:4173", "http://127.0.0.1:4173/", "http://[::1]:4173"]) {
+    assert.doesNotThrow(() => new LocalActionGatewayClient({ url, homeDirectory: "/unused", clientId: "fixture", projectId: null }), url);
   }
 });
 

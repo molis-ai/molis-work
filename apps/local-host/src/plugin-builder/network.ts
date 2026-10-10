@@ -15,7 +15,7 @@ import { lookup as dnsLookup, type LookupAddress } from 'node:dns';
 import { request as httpsRequest, type Agent } from 'node:https';
 import { isIP } from 'node:net';
 import type { SandboxIdentity, SandboxNetworkResponse } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import { SandboxError, isPublicAddress, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 
 const TIMEOUT_MS = 15_000, MAX_BODY = 1024 * 1024, MAX_REQUEST_BODY = 256 * 1024;
 /** Headers the host sets or forbids; a plugin cannot choose them. */
@@ -24,24 +24,16 @@ const RESERVED = new Set(['host', 'connection', 'content-length', 'transfer-enco
 const VISIBLE = ['content-type', 'content-language', 'etag', 'last-modified', 'location', 'retry-after', 'cache-control', 'date'];
 export const NETWORK_STAND_IN: SandboxNetworkResponse = { status: 200, headers: { 'content-type': 'text/plain; charset=utf-8', 'x-molis-stand-in': '1' }, body: '' };
 
-/** Loopback, private, link-local, shared, multicast and reserved ranges, in both families. */
+/**
+ * Loopback, private, link-local, shared, multicast and reserved ranges, in both families: the sandbox proxy's own policy
+ * (IPv6 only inside 2000::/3, so every mapped, embedded and transition spelling of a private address is refused), with one
+ * exception.
+ */
 export function publicAddress(address: string): boolean {
-  const family = isIP(address);
-  if (family === 4) {
-    const [a, b] = address.split('.').map(Number) as [number, number];
-    // 198.18.0.0/15 stays reachable (the user's decision, 2026-09-27): a proxy in fake-IP mode (Clash, Surge, Stash)
-    // answers every name from it and connects by that name; without such a proxy nothing is routed there. Plugins
-    // reach sites only by an approved name, never by an address they write themselves.
-    return !(a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)
-      || (a === 192 && b === 168) || (a === 192 && b === 0));
-  }
-  if (family === 6) {
-    const lower = address.toLowerCase();
-    const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
-    if (mapped) return publicAddress(mapped[1]!);
-    return !(lower === '::' || lower === '::1' || /^f[cd]/.test(lower) || /^fe[89ab]/.test(lower) || /^ff/.test(lower) || lower.startsWith('64:ff9b:') || lower.startsWith('2001:db8'));
-  }
-  return false;
+  // 198.18.0.0/15 stays reachable (the user's decision, 2026-09-27): a proxy in fake-IP mode (Clash, Surge, Stash)
+  // answers every name from it and connects by that name; without such a proxy nothing is routed there. Plugins
+  // reach sites only by an approved name, never by an address they write themselves.
+  return isPublicAddress(address) || (isIP(address) === 4 && /^198\.1[89]\./.test(address));
 }
 
 type Lookup = (hostname: string, callback: (error: Error | null, addresses: LookupAddress[]) => void) => void;

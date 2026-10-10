@@ -27,14 +27,14 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
     const host = createMolisWorkLocalHost({ instanceId: "backup-source" });
     try {
       await host.client(reference).invoke(createGoalIntentCapability, {
-        project_id: project.project_id, actor_id: "user", actor_kind: "user", idempotency_key: "backup-goal",
+        project_id: project.project_id, idempotency_key: "backup-goal",
         goal_id: "retained-goal", title: "保留交接正文", outcome: "恢复后继续工作",
         why: "不能只恢复空壳", business_logic: "保留正文、关系、版本和历史", priority: 50,
       });
     } finally { await host.close(); }
 
     const source = new LocalProjectDatabase(project.database_path);
-    const artifacts = new ArtifactsModule({ db: source.db, appendEvent: event => source.appendEvent(event) });
+    const artifacts = new ArtifactsModule({ db: source.db, appendEvent: event => source.appendEvent(event), eventCursor: projectId => source.eventCursor(projectId) });
     try {
       for (const version of [1, 2]) artifacts.commands.registerVersion({ ...pinnedArtifact(`第${version}版报告`, { kind: "item", id: "report" }, String(version)),
         project_id: project.project_id, artifact_id: "report", version, actor_id: "user",
@@ -71,7 +71,7 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
     } finally { await restoredHost.close(); }
     const restored = new LocalProjectDatabase(project.database_path);
     try {
-      const reader = new ArtifactsModule({ db: restored.db, appendEvent: event => restored.appendEvent(event) });
+      const reader = new ArtifactsModule({ db: restored.db, appendEvent: event => restored.appendEvent(event), eventCursor: projectId => restored.eventCursor(projectId) });
       assert.deepEqual(reader.query.listArtifactVersions(project.project_id, "report").map(item => item.version).sort(), [1, 2]);
       for (const version of [1, 2]) assert.deepEqual(
         reader.query.getArtifactVersion(project.project_id, { artifact_id: "report", version })?.payload,

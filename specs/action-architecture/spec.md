@@ -366,19 +366,19 @@ Agent 根据任务上下文选用可用工具；对已纳入动作体系的操�
 - **情境判断与布局**：`packages/kernel/src/contextual.ts` 含候选过滤、意图先验、规则打分、判断状态文字和布局（`CONTEXTUAL_THRESHOLDS`、`intentPriors`、`ruleScores`、`judgmentState`、`planContextualLayout`），唯一消费方是 `apps/local-host/src/contextual/`。它不引入插件名单，Home 的规则与底栏用同一份候选（`tests/contextual-dock-parity.test.ts`）。判断本身由宿主内的评估器经 TypeSafe 连接和 Prologue 完成，不是注册的判断能力加消费场景（C2 部分）；这是系统自用的排序，不会进用户的判断函数库，需要时另起一项。按 N-03，情境排序属平台产品服务、代码位置不变；内核 README 写着「不负责：业务状态机、提供方实现、界面」，与这里的内容不符，要改 README 而不是搬代码（G4）。
 - **撤销声明**：`ActionMetadata.undo`，注册时要求是命令、不是不可撤回、路径格式正确。生产方是 Pages（两处）、Todo（单项与批量、整理）、灵光的 `lingguang.create`；消费方只有助理：`directEligible`（`apps/local-host/src/assistant/assistant-authority.ts`）要求撤销命令此刻在同一提供方可用、人没设成每次确认，`AssistantService.undo` 以人的身份执行。撤销目标是否存在、是否同一提供方，注册时不查（G2）；记忆自己的撤销是 `memory.changes.undo` 这条独立的动作，不是 `undo` 声明。用例 `tests/assistant-undo.test.ts`；插件开发 Skill 没写（G7）。
 - **后台任务回报**：`ActionMetadata.background_job`，唯一生产方是炼金术士（`plugins/native/alchemist/src/studio/shared/contracts/actions.ts`），消费方是助理的 `watchJob`、`checkJob`，按 15 秒起翻倍、最长 5 分钟的间隔读状态查询，6 小时未结束记为 `unknown`。状态查询是否存在不在注册时查（G2）；跟踪途中提供方停用或撤权时，读状态抛错就当这次没读到，继续按间隔重试，6 小时后记为 `unknown`，没有用例（C7 部分）。用例 `tests/assistant-business-gateway.test.ts`。
-- **到期提醒**：`packages/contracts/src/platform/due-reminders.ts`，注册时要求 Home 范围、只读查询、输入输出规范 schema 相同（C2、C3 满足）。唯一生产方是 Todo 的 `todo.reminders.window`，消费方是 `AssistantService.sweepReminders`，每分钟问一次、每个提醒只告知一次。`defineDueRemindersAction` 没导出到插件 SDK（G1）；`docs/platform/PLUGIN-DEVELOPMENT.md` 举例「日程的提前提醒」，读起来像有第二个生产方，但代码里没有（G5）。用例 `tests/assistant-reminders.test.ts` 不涉及停用或撤权。
-- **效果**：`ActionMetadata.effect` 与 `actionEffect`：声明优先，没声明就按能力 id 里是否含 delete、trash、purge、remove 等词推断（`IRREVERSIBLE_ID`）。推断决定一个动作是否对生成插件开放（`actionReachesAudience`：声明了 `plugin` 受众，或对 `agent` 开放且没有 `plugin: false`，撤不回的除外），也是情境推荐、能力网关（读与写分开的工具）、助理免确认资格的依据，所以只减少暴露、不扩大权限（C4）。名字推断对 `delete_preview` 这类会误判，要用 `withActionEffect` 显式声明，但它没从插件 SDK 导出（G1）。
+- **到期提醒**：`packages/contracts/src/platform/due-reminders.ts`，注册时要求 Home 范围、只读查询、输入输出规范 schema 相同（C2、C3 满足）。唯一生产方是 Todo 的 `todo.reminders.window`，消费方是 `AssistantService.sweepReminders`，每分钟问一次、每个提醒只告知一次。`defineDueRemindersAction` 和它的辅助函数已从插件 SDK 导出（G1，W2-03）；`docs/platform/PLUGIN-DEVELOPMENT.md` 原先举例「日程的提前提醒」，读起来像有第二个生产方，代码里没有，已改成只有 Todo 在用（G5，W2-03）。用例 `tests/assistant-reminders.test.ts` 不涉及停用或撤权。
+- **效果**：`ActionMetadata.effect` 与 `actionEffect`：声明优先，没声明就按能力 id 里是否含 delete、trash、purge、remove 等词推断（`IRREVERSIBLE_ID`）。推断决定一个动作是否对生成插件开放（`actionReachesAudience`：声明了 `plugin` 受众，或对 `agent` 开放且没有 `plugin: false`，撤不回的除外），也是情境推荐、能力网关（读与写分开的工具）、助理免确认资格的依据，所以只减少暴露、不扩大权限（C4）。名字推断对 `delete_preview` 这类会误判，要用 `withActionEffect` 显式声明，它已从插件 SDK 导出（G1，W2-03）。
 - **作者**：`authorship: "session"` 由 Goals 的命令声明（`plugins/native/goals/src/action-contract.ts`），含义是 Runtime 只能在稳定 Session 里调用，Session 成为所写记录的作者。检查只在 MCP 入口做（`apps/local-host/src/mcp-server.ts` 在动作带该声明时要求稳定会话，否则 `mcp.runtime_identity_missing`）；内核和其他入口不看这个字段，助理用 `audit_actor_id: assistant:<work_id>` 自带作者。这个会话 id 来自 MCP 调用的 `_meta`，只做审计作者，不是身份或权限，而 C4 现在的措辞是「`_meta` 不提供身份」，需要写明这一点（G8）。同一条合同在不同入口得到不同的拒绝，C8 判为缺（G9）。用例只在 `tests/mcp-goal-events.test.ts` 里覆盖了 MCP 一侧。
 
 **缺口与去向**
 
 | 编号 | 缺口 | 去向 |
 | --- | --- | --- |
-| G1 | 插件 SDK 缺 `defineFragmentOffersAction`、`defineDueRemindersAction`、`withActionEffect`，以及成果库的 `defineArtifactPreviewAction`、`defineArtifactPinAction`、`defineArtifactCompareAction`、`defineArtifactContinueAction`、`defineArtifactReferrersAction` | W2-03 |
+| G1 | 插件 SDK 缺 `defineFragmentOffersAction`、`defineDueRemindersAction`、`withActionEffect`，以及成果库的 `defineArtifactPreviewAction`、`defineArtifactPinAction`、`defineArtifactCompareAction`、`defineArtifactContinueAction`、`defineArtifactReferrersAction` | 已补（W2-03）：这些和它们的绑定、判断辅助函数都从插件 SDK 导出，`tests/plugin-sdk-exports.test.ts` 保证以后合同里新增的 `define…`/`bind…`/`with…` 辅助函数要么导出、要么写明不给插件用的理由。上面逐类核对的评级是补之前的结果，下次复核时重评 |
 | G2 | 注册时不做交叉校验：撤销目标、后台任务状态查询、片段和事项选项的目标动作 | W3-05 |
 | G3 | 对象上下文接受两种历史输出形状 | 建议作为兼容清单的新项：确认没有生产方后删除，同步改用例 |
 | G4 | 情境排序与布局放在内核，内核 README 没写；按 N-03 代码不搬 | 改内核 README 与边界规则；W3-04 原本是搬出内核，按 N-03 要重估 |
-| G5 | 手册举例「日程的提前提醒」，读起来像有第二个生产方，代码里只有 Todo 一个 | W2-03 |
+| G5 | 手册举例「日程的提前提醒」，读起来像有第二个生产方，代码里只有 Todo 一个 | 已改（W2-03）：手册只说今天 Todo 在用 |
 | G6 | `result_subject` 未声明时按输出形状推断 | 建议随 W3-05 评估：要么全部显式声明，要么记为已知推断 |
 | G7 | 插件开发 Skill 没写撤销、后台任务、到期提醒、片段推荐、页面操作卡 | 与 W1-12 的回放工具一起补；Skill 的改动在全量回归之外做 |
 | G8 | 基本合同对 `_meta` 的措辞要补上「只给审计作者」 | 本节落地后改「基本合同」那一句 |
@@ -727,7 +727,7 @@ Files/Git 的原九个路由现仅作参数转发，业务已移入插件动作�
 
 公共动作的 required_actions 继续检查同一调用者的权限与递归依赖。旧 typed Capability SDK 补充只读 availability 查询，仅检查 Manifest 已声明消费的能力，使用原 Host Kernel 注册表和当前项目身份，不运行 handler、不打开业务运行实例、不授予权限。无法提供检查的嵌入端明确返回不可检查，不能假定可用。
 
-Files/Git 在自己的 handler 绑定中声明实际使用的宿主依赖：浏览设置、文件/Git 读取、审阅准备和结果读取按动作分别检查。目录、实际调用及保存前的既有 checkpoint 共用这些状态；缺失依赖不能先读文件或发布 Artifact。此查询检查注册与同步就绪状态，不替代输入中的工作区授权、连接选择、异步项目策略或既有执行权限验证。Host 私有 typed capability 仍不成为公共 MCP 工具；公共化迁移继续保留在总清单。
+Files/Git 在自己的 handler 绑定中声明实际使用的宿主依赖：浏览设置、审阅准备和结果读取按动作分别检查；文件与 Git 的读取已是动作 `projects.workspace.files.read`、`projects.workspace.git.inspect`（2026-10-09，W2-09，原来的两个 typed id 已删），依赖它的动作写 `action.required_actions` 和 `workspace:read`，由内核按调用者检查，插件经 `capabilities.consumes` 和 `services.actions` 调用它（`docs/platform/PLUGIN-PLATFORM.md` 第 3 节）。目录、实际调用及保存前的既有 checkpoint 共用这些状态；缺失依赖不能先读文件或发布 Artifact。此查询检查注册与同步就绪状态，不替代输入中的工作区授权、连接选择、异步项目策略或既有执行权限验证。Host 私有 typed capability 仍不成为公共 MCP 工具；公共化迁移继续保留在总清单。
 ### 跨进程动作转发
 
 复用已有常驻 Web Host 作为执行方，增加通用的本机动作协议：发现与调用均按项目 ID 从原目录解析，不接收数据库路径、权限数组或任意 actor 覆盖。协议端点只接受经过本机 origin、control token 与一次性键校验的 POST，并校验预期 Home 身份和 Host 实例。客户端只连接数字 loopback 地址，禁止重定向和发送凭据到其他地址。

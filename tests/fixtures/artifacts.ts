@@ -1,3 +1,5 @@
+import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
+
 /**
  * The fields every 成果 is written with (specs/artifact-positioning A1): where the version came from, its title and its
  * media type. Test registrations spread this next to their payload.
@@ -10,4 +12,13 @@ export function pinnedArtifact(title: string, subject: { kind: string; id: strin
 export function titleOf(content: { kind: string; payload?: unknown } | undefined, fallback: string): string {
   const payload = content?.kind === "inline" ? content.payload as { title?: unknown } | null : null;
   return typeof payload?.title === "string" && payload.title.trim() ? payload.title.trim().split(/\r?\n/u, 1)[0]! : fallback;
+}
+
+/**
+ * The journal cursor of an in-memory test database whose `events` table has `seq` and `project_id`: the same answer the
+ * Host gets from storage, which owns the table (a module takes it as the `eventCursor` option, it keeps no SQL on it).
+ */
+export function eventCursorOf(db: ConstructorParameters<typeof LocalSqliteJournal>[0]): (projectId: string) => number {
+  const journal = new LocalSqliteJournal(db);
+  return (projectId) => journal.eventCursor(projectId);
 }

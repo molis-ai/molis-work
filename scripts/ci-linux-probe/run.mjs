@@ -86,19 +86,23 @@ const record = (entry, attempt, attempts) => {
 };
 
 // A file that fails is run again, up to `retries` times: a pass on a later attempt is `flaky`, not `pass`. A file whose first
-// attempt timed out is not run again.
-export async function runFile(root, entry, { timeoutMs, retries }) {
+// attempt timed out is not run again. A retry that runs no test (every test skipped) did not confirm anything, so the file stays
+// failed, with the first failure as its detail. No attempt starts after `deadline` (the time budget of the caller): a file that
+// fails with the budget used up is not retried, so a file started just before the end takes one attempt's time, not several.
+export async function runFile(root, entry, { timeoutMs, retries, deadline = Infinity }) {
   let attempt = await runOnce(root, entry.file, timeoutMs);
   let attempts = 1;
   const first = record(entry, attempt, attempts);
   if (first.status !== "fail") return first;
-  while (attempts <= retries) {
+  let last = first;
+  while (attempts <= retries && Date.now() < deadline) {
     attempt = await runOnce(root, entry.file, timeoutMs);
     attempts += 1;
-    const again = record(entry, attempt, attempts);
-    if (again.status === "pass" || again.status === "skipped") return { ...again, status: "flaky", detail: first.detail };
+    last = record(entry, attempt, attempts);
+    if (last.status === "pass") return { ...last, status: "flaky", detail: first.detail };
   }
-  return record(entry, attempt, attempts);
+  if (last.status === "skipped") return { ...last, status: "fail", detail: `${first.detail}\n(the retry ran no test, so it did not confirm a pass)` };
+  return attempts <= retries ? { ...last, detail: `${last.detail}\n(not retried again: the time budget was used up)` } : last;
 }
 
 // Starts files in order, `jobs` at a time, and stops starting new ones when the time budget has run out; those are `not-run`.
@@ -113,7 +117,7 @@ export async function runAll(root, entries, { jobs, timeoutMs, retries, deadline
       if (Date.now() >= deadline) results[index] = { file: entry.file, status: "not-run", marks: entry.marks, detail: "the time budget was used up before this file started" };
       else {
         onStart?.(entry);
-        results[index] = await runFile(root, entry, { timeoutMs, retries });
+        results[index] = await runFile(root, entry, { timeoutMs, retries, deadline });
       }
       onDone?.(results[index]);
     }

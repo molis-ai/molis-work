@@ -10,8 +10,8 @@ import { fileURLToPath } from "node:url";
 // specs/repository-anti-corruption §4.12–§4.14 (W1-06): the documentation and repository-shape gates of `pnpm health:check`
 // (scripts/gates/README.md). Each rule is mutation-verified here on a small scratch repository, the way
 // tests/health-gates-merge-base.test.ts does the numeric ones: the base is clean, one violation is added on a branch, and
-// `--base main` must fail with the rule's message. For the counts that may only fall (root strays, .impeccable files,
-// placeholder contract subpaths) the laundering move, rewriting the committed baseline in the same branch, must not help.
+// `--base main` must fail with the rule's message. For the counts that may only fall (root strays, .impeccable files)
+// the laundering move, rewriting the committed baseline in the same branch, must not help.
 const script = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import.meta.url));
 const apiScript = fileURLToPath(new URL("../scripts/gates/api-snapshot.mjs", import.meta.url));
 let repo = "";
@@ -111,11 +111,11 @@ before(() => {
   put("specs/BACKLOG.md", lines("# 统一待办清单", "", "## 1. 待你验收", "", "| 编号 | 事项 | 类型 |", "| --- | --- | --- |", "| BL-001 | 试用首页 | 待你验收 |", "",
     "## 2. 未实现", "", "| 编号 | 事项 | 类型 |", "| --- | --- | --- |", "| BL-002 | 做一件事 | 未实现 |"));
 
-  put("packages/contracts/package.json", contractsManifest(["platform/real", "platform/used", "platform/wired", "platform/idle"]));
+  put("packages/contracts/package.json", contractsManifest(["platform/real", "platform/used", "platform/wired"]));
   put("packages/contracts/src/index.ts", "export {};\n");
   put("packages/contracts/src/platform/real.ts", lines('import type { ContractDescriptor } from "./package.js";', "export interface Real { id: string }",
     'export const realContract = { contractId: "io.molis.work.platform.real.v1", kind: "platform", schemaVersion: 1, maturity: "partial", ssot: "docs/guide.md" } as const satisfies ContractDescriptor;'));
-  for (const name of ["used", "wired", "idle"]) put(`packages/contracts/src/platform/${name}.ts`, descriptor(name));
+  for (const name of ["used", "wired"]) put(`packages/contracts/src/platform/${name}.ts`, descriptor(name));
   put("apps/host/src/use.ts", lines('import { usedContract } from "@molis-ai/molis-work-contracts/platform/used";', "export const used = usedContract;"));
   put("packages/kernel/package.json", JSON.stringify({ name: "@molis-ai/molis-work-kernel", "molis-work": { contract: "@molis-ai/molis-work-contracts/platform/wired" } }) + "\n");
 
@@ -278,12 +278,18 @@ const violations: Scenario[] = [
     put(".impeccable/review/set-a/9.png", "9");
   }, expect: [/in \.impeccable\/review\/set-a 2 → 3/] },
 
-  // ---- placeholder contract subpaths (ratchet) ----
-  { kind: "ratchet", name: "a new descriptor-only, unused contracts subpath", mutate: () => {
-    put("packages/contracts/package.json", contractsManifest(["platform/real", "platform/used", "platform/wired", "platform/idle", "platform/fresh"]));
+  // ---- placeholder contract subpaths (no baseline: the six that existed went in W2-01) ----
+  { kind: "absolute", name: "a new descriptor-only, unused contracts subpath", mutate: () => {
+    put("packages/contracts/package.json", contractsManifest(["platform/real", "platform/used", "platform/wired", "platform/fresh"]));
     put("packages/contracts/src/platform/fresh.ts", descriptor("fresh"));
     refreshApiSnapshots();
-  }, expect: [/descriptor-only, unused contracts subpath in \.\/platform\/fresh 0 → 1/] },
+  }, expect: [/contract placeholder: descriptor-only, unused contracts subpath in \.\/platform\/fresh;/] },
+  { kind: "absolute", name: "a descriptor-only subpath that lost its last importer", mutate: () => {
+    put("apps/host/src/use.ts", "export const used = 1;\n");
+  }, expect: [/contract placeholder: .* in \.\/platform\/used;/] },
+  { kind: "absolute", name: "a descriptor-only subpath that no package declares as its contract any more", mutate: () => {
+    put("packages/kernel/package.json", JSON.stringify({ name: "@molis-ai/molis-work-kernel" }) + "\n");
+  }, expect: [/contract placeholder: .* in \.\/platform\/wired;/] },
 ];
 
 for (const scenario of violations) {
@@ -320,21 +326,18 @@ test("the clean base passes: archive/ links, fenced and inline code, globs, plac
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
   // The summary lists the counts of every gate in the order the gates are registered, so each count is matched on its own.
-  for (const count of [/2 root strays/, /6 \.impeccable files/, /1 placeholder contract subpaths/]) assert.match(run.out, count);
+  for (const count of [/2 root strays/, /6 \.impeccable files/]) assert.match(run.out, count);
   assert.equal(gate().code, 0, "and so does the quick check against the committed baseline");
 });
 
 test("changes that shrink things pass against the merge-base, and say what got smaller", () => {
   branch("tidy", () => {
     git("rm", "-q", "-r", "leftover.md", "outputs", ".impeccable/review/set-b/1.png");
-    git("rm", "-q", "packages/contracts/src/platform/idle.ts");
-    put("packages/contracts/package.json", contractsManifest(["platform/real", "platform/used", "platform/wired"]));
-    refreshApiSnapshots();
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
-  for (const count of [/0 root strays/, /5 \.impeccable files/, /0 placeholder contract subpaths/]) assert.match(run.out, count);
-  assert.match(run.out, /Lower than the merge-base: rootStrays, contractPlaceholders, impeccable;/);
+  for (const count of [/0 root strays/, /5 \.impeccable files/]) assert.match(run.out, count);
+  assert.match(run.out, /Lower than the merge-base: rootStrays, impeccable;/);
   assert.equal(gate("--update", "--base", "main").code, 0);
 });
 
@@ -431,7 +434,6 @@ test("--report lists the document problems and the new counts", () => {
   const text = gate("--report").out;
   assert.match(text, /Root entries outside the allow-list \(tracked files\): 4 in 2 root entries\n  count  entry/);
   assert.match(text, /Tracked \.impeccable files: 6 in 5 groups\n  count  group/);
-  assert.match(text, /Placeholder subpaths in @molis-ai\/molis-work-contracts: 1 in 1 subpaths\n  count  subpath/);
   assert.match(text, /Document references: 1 problems\n- broken link: docs\/guide\.md:\d+: link missing\.md/);
 });
 

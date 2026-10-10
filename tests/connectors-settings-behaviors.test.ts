@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
   githubIntegrationManifest,
   githubWhoami,

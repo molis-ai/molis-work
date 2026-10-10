@@ -2,7 +2,7 @@
 
 `pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录和 `.impeccable/` 只许变少，`contracts` 不许有占位子路径，页面里的 DOM 事件都在合同里登记。设计来源：[specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
 
-入口引入三处：`doc-gates.mjs`（文档与仓库形状的规则都经它）、`dom-events.mjs`（页面事件，直接挂在入口的 `absolute()` 里，因为它读的是浏览器源码和一份合同，不属于文档类）和 `table-owners.mjs`（库与表的 owner，见下一节）；每条规则一个模块，互不引用（共用的只有两个读取模块：Markdown 在 `markdown.mjs`，根目录允许名单在 `allowlist.mjs`）。哪些顶层文件夹算文档、哪些能起头一个被引用的路径，只有一份来源：`tooling/gates/root-allowlist.json`（`allowlist.mjs` 的 `allowedRoots` 读它）；往名单里加一个文件夹，它的 `.md` 链接和被引用的路径就自动被查，名单之外的（stray）两者都不查。
+入口引入四处：`doc-gates.mjs`（文档与仓库形状的规则都经它）、`dom-events.mjs`（页面事件，直接挂在入口的 `absolute()` 里，因为它读的是浏览器源码和一份合同，不属于文档类）、`table-owners.mjs`（库与表的 owner，见下一节）和 `kernel-contextual.mjs`（内核的两半，见再下一节）；每条规则一个模块，互不引用（共用的只有两个读取模块：Markdown 在 `markdown.mjs`，根目录允许名单在 `allowlist.mjs`）。哪些顶层文件夹算文档、哪些能起头一个被引用的路径，只有一份来源：`tooling/gates/root-allowlist.json`（`allowlist.mjs` 的 `allowedRoots` 读它）；往名单里加一个文件夹，它的 `.md` 链接和被引用的路径就自动被查，名单之外的（stray）两者都不查。
 
 ## 两种规则
 
@@ -39,6 +39,24 @@
 | 读不到的（已知限制） | 表名不是字面量的 SQL（`FROM ${table}`：Artifacts 的 Repository 从选项取表名，助理清理项目时遍历一个表名数组）、字符串拼接出来的 SQL、非 TypeScript 文件里的 SQL、`PRAGMA table_info(<表>)` 这类读结构的语句 |
 
 加一条允许：改 `tooling/gates/table-owners.json`，评审时要说清为什么 owner 的函数接不住。今天 `events` 和 `idempotency_records` 在 `shared` 里的理由是依赖方向：`modules/goals` 和 `modules/governance-collaboration` 只依赖 contracts、没法 import storage 的日志函数（`LocalSqliteJournal` 与模块的事务在同一条连接上，事务不是障碍）；去掉它们的办法是宿主注入日志端口，Artifacts 已经这样做了，登记随后删掉。验证：`node scripts/run-tests.mjs tests/health-gates-table-owners.test.ts`（每种写法在临时仓库里被违反一次，门禁必须变红；注释、小写、测试、夹具、动态表名与自己的表必须不变红）。
+
+## 内核的两半（`kernel-contextual.mjs`，W3-04）
+
+`packages/kernel` 有两半：**核心**（目录、分发、可用性、授权、场景兼容：`index.ts`、`action-service.ts`、`action-schema.ts`、`subject-offer-choices.ts`、`action-authorship.ts`）和放在内核里的平台产品服务**情境排序**（`contextual.ts`，将来可以是 `contextual/` 目录；纯函数，决定 N-03：位置不变）。入口 `scripts/check-health-gates.mjs` 单独引入 `kernel-contextual.mjs`，在工作树上量，没有基线，出现一处就失败（和上面「问题」同一类）。
+
+| 项 | 说明 |
+| --- | --- |
+| 怎么判 | 按目录认文件：`packages/kernel/src/contextual.ts` 和 `packages/kernel/src/contextual/**/*.ts` 是情境排序，`packages/kernel/src` 里的其他 `.ts` 是核心。五条规则，用 TypeScript 语法树读（`import`、`import type`、`export … from`、动态 `import()`、`require()`、`import x = require()`、`import("x").T`），不用正则读代码 |
+| K1 | 核心不依赖情境排序：核心文件不导入、不转出、不动态加载情境排序，也不从别的核心文件取它转出的名字（例如 `import { planContextualLayout } from "./index.js"`：核心已经导入包入口，入口转出了情境排序，这样取是绕了一圈的同一个依赖）。唯一的允许是包入口用具名的 `export { … } from` 转出（`ENTRY_REEXPORTS`）；`export *` 一律不许，它列不出名字，上一句就查不了。给情境排序一个自己的子入口、根入口不再转出之后，这个名单是空的 |
+| K2 | 内核里只有情境排序读 `@molis-ai/molis-work-contracts/services/*`，且只读 `services/contextual`（PACKAGE-BOUNDARIES §1 的规则落到内核） |
+| K3 | 情境排序的包导入只能出自 `CONTEXTUAL_PACKAGES`（两份合同：`platform/actions`、`services/contextual`，加做摘要的 `node:crypto`）。相对导入可以指向内核里的任何文件（核心文件或情境排序自己的目录），但不能出 `packages/kernel/src`，也不能指向 `index.ts`（那会和入口转出形成环）。参数不是字符串字面量的动态导入也报 |
+| K4 | 纯：对每个情境排序文件跑 `contracts-purity.mjs` 的 `purityOf`，`effects`（定时器、时钟、随机数、`process`、全局对象）与 `mutable-state` 都是 0。缓存、计时、取消、模型调用留在 `apps/local-host/src/contextual/` |
+| K5 | 情境排序和 `subject-offer-choices.ts`（从目录派生的文件）里没有这几种字符串字面量（含无替换的模板字符串，和模板开头去掉末尾那个点之后）：形如能力 id 的小写带点字符串（`"pages.discard"`、`"memory.recall"`）、以 `io.molis.work.` 开头的、`@molis-ai/molis-work-plugin-` 包名。豁免只有两处位置：`new ActionError(…)` 的第一个参数，和对象里 `code:` 的值（内核自己的错误码）；模块路径与类型位置的字面量不算。基本合同 C1「注册一次」的**部分**守卫：候选只从目录来，不点名插件、不按能力 id 开分支 |
+| 失败时说什么 | `<文件>:<行> K1: the kernel core loads contextual ranking (import): "./contextual.js"; …`、`K2: the kernel reads …`、`K3: contextual ranking reads …`、`<文件> K4: contextual ranking is pure but has …`、`<文件>:<行> K5: "pages.discard" looks like a capability id …` |
+| 怎么办 | K1：核心要用的东西，从定义它的核心文件取；两半都要的，放进核心文件，情境排序去导入。K2、K3：新的合同子路径或包要在评审里加进 `CONTEXTUAL_PACKAGES`（改门禁本身要过门禁负责人的评审）；I/O 留在宿主。K4：缓存、计时挪到宿主。K5：点名能力 id 的逻辑不属于从目录派生的代码，改成读目录里的声明 |
+| 读不到的（已知限制） | 拼出来的能力 id（`"pages" + ".discard"`）、不带点的前缀比较（`startsWith("pages")`）、从合同包导入的能力 id 常量；没有类型检查器：别名、变量里的模块名、通过全局对象的依赖；核心里参数不是字面量的动态导入（情境排序里的会报）；经一串 K1 没点名的转出链取到的名字（链上的每一环自己就是 K1 的命中）。名叫 `contextual-*.ts`、不在 `contextual/` 目录里的文件按核心算，所以拆文件请进目录 |
+
+W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块里加表项，或改名为 `platform-product-services.mjs`。验证：`node scripts/run-tests.mjs tests/health-gates-kernel-contextual.test.ts`（真实的内核没有问题；每条规则在内存里的内核源码上被违反一次，必须报出对应的规则编号；拆成 `contextual/` 目录、情境排序导入新的核心文件、核心自己的错误码与定时器不能变红；入口里的接线在临时仓库里验证，`--base main` 要失败，改 `baseline.json` 没用）。该测试文件名落在 CI「Health gates reject what they claim to」那一步的 `tests/health-gates-*.test.ts` 里，不用改 `ci.yml`。
 
 ## 引用怎么写，门禁才认
 

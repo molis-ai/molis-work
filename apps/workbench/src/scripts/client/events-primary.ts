@@ -376,7 +376,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         modal?.setAttribute("aria-busy", "true");
         modal?.querySelectorAll("[data-feed-sources-close], [data-feed-setup-back]").forEach(button => { button.disabled = true; });
         detail.inert = true;
-        showPrototypeStatus(detail, L("正在保存来源配置…"));
+        showSourceStatus(detail, L("正在保存来源配置…"));
         try {
           const saved = await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId), "PATCH", {
             name: readField("name") === detail.querySelector('[data-source-config-field="name"]')?.defaultValue ? undefined : readField("name"),
@@ -392,7 +392,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             if (field.tagName === "SELECT") [...field.options].forEach(option => option.defaultSelected = option.selected);
             else field.defaultValue = field.value;
           });
-          showPrototypeStatus(detail, L("来源资料已保存。"));
+          showSourceStatus(detail, L("来源资料已保存。"));
           if (await refreshFeedStage()) {
             if (saved.source?.source_id && saved.source.source_id !== sourceId) {
               modal?.removeAttribute("aria-busy");
@@ -402,7 +402,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             showToast(L("来源资料已保存。"));
           }
         } catch (error) {
-          showPrototypeStatus(detail, error.message || L("来源配置保存失败，请检查后重试。"));
+          showSourceStatus(detail, error.message || L("来源配置保存失败，请检查后重试。"));
         } finally {
           modal?.removeAttribute("aria-busy");
           modal?.querySelectorAll("[data-feed-sources-close], [data-feed-setup-back]").forEach(button => { button.disabled = false; });
@@ -419,12 +419,12 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         const enabled = Boolean(detail?.querySelector("[data-source-schedule-enabled]")?.checked);
         const intervalMinutes = Number(detail?.querySelector("[data-source-schedule-interval]")?.value || 60);
         sourceScheduleSave.disabled = true;
-        showPrototypeStatus(sourceScheduleSave, L("正在保存拉取计划…"));
+        showSourceStatus(sourceScheduleSave, L("正在保存拉取计划…"));
         try {
           await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId) + "/schedule", "PUT", mode === "manual"
             ? { mode: "manual" }
             : { mode: "interval", enabled, interval_minutes: intervalMinutes });
-          showPrototypeStatus(sourceScheduleSave, mode === "manual"
+          showSourceStatus(sourceScheduleSave, mode === "manual"
             ? L("已改为仅手动拉取。")
             : enabled ? L("定时拉取已保存；本地服务会在到期后执行。") : L("定时拉取已暂停。"));
           detail.querySelectorAll("[data-source-schedule-mode], [data-source-schedule-interval], [data-source-schedule-enabled]").forEach(field => {
@@ -434,7 +434,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           });
           sourceScheduleSave.disabled = false;
         } catch (error) {
-          showPrototypeStatus(sourceScheduleSave, error.message || L("拉取计划保存失败，请检查后重试。"));
+          showSourceStatus(sourceScheduleSave, error.message || L("拉取计划保存失败，请检查后重试。"));
           sourceScheduleSave.disabled = false;
         }
         return;
@@ -450,7 +450,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         const sourceId = sourceRuntimeAction.dataset.sourceId;
         const action = sourceRuntimeAction.dataset.sourceRuntimeAction;
         sourceRuntimeAction.disabled = true;
-        showPrototypeStatus(sourceRuntimeAction, action === "sync" ? L("正在拉取；失败不会被写成成功…") : L("正在更新来源状态…"));
+        showSourceStatus(sourceRuntimeAction, action === "sync" ? L("正在拉取；失败不会被写成成功…") : L("正在更新来源状态…"));
         try {
           const body = action === "sync"
             ? { idempotency_key: globalThis.crypto?.randomUUID?.() || (Date.now().toString(36) + "-source-sync") }
@@ -464,11 +464,11 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
                 : L("拉取完成：新增 {created}，去重 {deduped}", { created: result.created || 0, deduped: result.deduped || 0 })
             : action === "pause" ? L("来源已暂停；消息与历史仍保留。")
               : action === "resume" ? L("来源已恢复。") : L("账号已断开，后续不会再拉取。")
-          showPrototypeStatus(sourceRuntimeAction, message);
+          showSourceStatus(sourceRuntimeAction, message);
           await refreshFeedStage();
           sourceRuntimeAction.disabled = false;
         } catch (error) {
-          showPrototypeStatus(sourceRuntimeAction, error.message || L("来源操作失败，请按提示处理后重试。"));
+          showSourceStatus(sourceRuntimeAction, error.message || L("来源操作失败，请按提示处理后重试。"));
           sourceRuntimeAction.disabled = false;
         }
         return;
@@ -482,154 +482,16 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           : L("确认删除这个来源并停止拉取？已有消息和运行历史会保留。 ");
         if (!globalThis.confirm(warning)) return;
         sourceDelete.disabled = true;
-        showPrototypeStatus(sourceDelete, L("正在删除来源…"));
+        showSourceStatus(sourceDelete, L("正在删除来源…"));
         try {
           await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId), "DELETE", { history_decision: historyDecision });
-          showPrototypeStatus(sourceDelete, historyDecision === "delete_local_history" ? L("来源与本地历史已删除。") : L("来源已删除，历史已保留。"));
+          showSourceStatus(sourceDelete, historyDecision === "delete_local_history" ? L("来源与本地历史已删除。") : L("来源已删除，历史已保留。"));
           setFeedAddOpen(false);
           await refreshFeedStage();
         } catch (error) {
-          showPrototypeStatus(sourceDelete, error.message || L("删除来源失败，请重试。"));
+          showSourceStatus(sourceDelete, error.message || L("删除来源失败，请重试。"));
           sourceDelete.disabled = false;
         }
-        return;
-      }
-      const prototypeConfigSave = target.closest("[data-prototype-config-save]");
-      if (prototypeConfigSave) {
-        showPrototypeStatus(prototypeConfigSave, L("演示配置已保存到当前页面；刷新后恢复，不会写入真实来源。"));
-        return;
-      }
-      const prototypeScheduleSave = target.closest("[data-prototype-schedule-save]");
-      if (prototypeScheduleSave) {
-        const sheet = prototypeScheduleSave.closest(".source-schedule-sheet");
-        const enabled = sheet?.querySelector("[data-prototype-schedule-enabled]")?.checked;
-        const frequency = sheet?.querySelector("[data-prototype-schedule-frequency]")?.value || L("当前频率");
-        showPrototypeStatus(prototypeScheduleSave, enabled
-          ? L("模拟计划已保存：{frequency}。浏览器关闭后不会继续运行。", { frequency })
-          : L("模拟计划已暂停。真实后台调度未启动。"));
-        return;
-      }
-      const prototypeScheduleEnabled = target.closest("[data-prototype-schedule-enabled]");
-      if (prototypeScheduleEnabled) {
-        const label = prototypeScheduleEnabled.closest("label")?.querySelector("span");
-        if (label) label.textContent = prototypeScheduleEnabled.checked ? L("已开启") : L("已暂停");
-        return;
-      }
-      const prototypeSourceSync = target.closest("[data-prototype-source-sync]");
-      if (prototypeSourceSync) {
-        const sourceId = prototypeSourceSync.dataset.prototypeSourceSync;
-        const detail = prototypeSourceSync.closest("[data-source-detail]");
-        const health = detail?.querySelector("[data-source-health-label]");
-        const row = sourceList?.querySelector('[data-source-entry-id="' + CSS.escape(sourceId) + '"]');
-        const rowState = row?.querySelector(".source-list-state");
-        const original = prototypeSourceSync.innerHTML;
-        prototypeSourceSync.disabled = true;
-        prototypeSourceSync.setAttribute("aria-busy", "true");
-        prototypeSourceSync.innerHTML = L("模拟拉取中…");
-        if (health) health.textContent = L("正在拉取");
-        if (rowState) rowState.textContent = L("正在拉取");
-        if (row) row.dataset.sourceStatus = "syncing";
-        globalThis.setTimeout(() => {
-          prototypeSourceSync.disabled = false;
-          prototypeSourceSync.removeAttribute("aria-busy");
-          prototypeSourceSync.innerHTML = original;
-          if (health) health.textContent = L("运行正常");
-          if (rowState) rowState.textContent = L("运行正常");
-          if (row) row.dataset.sourceStatus = "active";
-          showPrototypeStatus(prototypeSourceSync, L("模拟拉取完成：新增 3，去重 8；没有访问真实外部服务。"));
-        }, 850);
-        return;
-      }
-      const openPrototypeSource = target.closest("[data-open-prototype-source]");
-      if (openPrototypeSource) {
-        const requestedSource = openPrototypeSource.dataset.openPrototypeSource;
-        const fallbackSource = document.querySelector('[data-feed-task="' + CSS.escape(requestedSource) + '"]')
-          ? requestedSource
-          : document.querySelector('[data-source-kind="' + CSS.escape(openPrototypeSource.dataset.openSourceKind || "") + '"]')?.dataset.feedTask || document.querySelector('[data-source-kind="' + CSS.escape(openPrototypeSource.dataset.openSourceKind || "") + '"]')?.dataset.sourceEntryId;
-        setDesktopDirectory("feed", true, false, openPrototypeSource);
-        if (!openDirectorySurface("feed", undefined, undefined, event)) setDesktopWorkSurface("feed", true, false);
-        setFeedTask(fallbackSource || requestedSource || "all");
-        return;
-      }
-      const prototypeFeedAction = target.closest("[data-prototype-feed-action]");
-      if (prototypeFeedAction) {
-        const detail = prototypeFeedAction.closest("[data-prototype-feed-detail]");
-        const destination = detail?.querySelector("[data-prototype-destination]");
-        const action = prototypeFeedAction.dataset.prototypeFeedAction;
-        const labels = {
-          inbox: [L("已进入 Inbox"), L("Inbox 只保存需处理引用；原消息仍在 Feed")],
-          save: [L("已保存为资料"), L("当前页面演示状态，不写入数据库")],
-          promote: [L("演示：未真正创建 Goal"), L("真实消息可在详情里升格为 Goal")],
-          ignore: [L("已忽略"), L("消息仍可从 Feed 历史追溯")],
-        }[action] || [L("演示状态已更新"), L("没有发生真实写入")];
-        if (destination) {
-          const strong = destination.querySelector("strong");
-          const small = destination.querySelector("small");
-          if (strong) strong.textContent = labels[0];
-          if (small) small.textContent = labels[1];
-          destination.dataset.destinationState = action;
-        }
-        showPrototypeStatus(prototypeFeedAction, labels[0] + "。" + labels[1] + "。");
-        if (action === "ignore") {
-          const wrap = prototypeFeedAction.closest("[data-feed-item-wrap]");
-          const row = wrap?.querySelector("[data-feed-entry-id]") || prototypeFeedAction.closest("[data-feed-entry-id]");
-          if (row) row.dataset.feedEntryStatus = "archived";
-          filterFeedItems(false);
-        }
-        if (action === "inbox") {
-          prototypeFeedAction.disabled = true;
-          prototypeFeedAction.textContent = L("已加入 Inbox");
-        }
-        return;
-      }
-      const prototypeInboxComplete = target.closest("[data-prototype-inbox-complete]");
-      if (prototypeInboxComplete) {
-        const itemId = prototypeInboxComplete.dataset.prototypeItemId;
-        const row = feedList?.querySelector('[data-feed-entry-id="' + CSS.escape(itemId) + '"]');
-        if (row) row.dataset.feedEntryStatus = "archived";
-        const detail = prototypeInboxComplete.closest("[data-prototype-feed-detail]");
-        if (detail) detail.hidden = true;
-        setFeedDetailPlaceholder(L("这件事已处理完成"), L("它已退出默认 Inbox；原 Feed Item、来源或 Goal 仍可追溯。"));
-        filterFeedItems(false);
-        showToast(L("已完成 · 仅本页演示"));
-        return;
-      }
-      const prototypeInboxDefer = target.closest("[data-prototype-inbox-defer]");
-      if (prototypeInboxDefer) {
-        showPrototypeStatus(prototypeInboxDefer, L("仍保留在 Inbox；稍后处理不会改变进入原因。"));
-        return;
-      }
-      if (target.closest("[data-prototype-feed-empty-state]")) {
-        feedList?.querySelectorAll("[data-feed-entry-id]").forEach((row) => {
-          if (row.dataset.feedEntryType === activeFeedPreset) {
-            const wrap = row.closest("[data-feed-item-wrap]") || row;
-            wrap.hidden = true;
-          }
-        });
-        feedWorkbench?.querySelectorAll("[data-feed-detail]").forEach((detail) => { detail.hidden = true; });
-        if (feedEmpty) {
-          feedEmpty.dataset.prototypeEmptyPreview = "true";
-          feedEmpty.hidden = false;
-          const title = feedEmpty.querySelector("[data-feed-empty-title]");
-          const restore = feedEmpty.querySelector("[data-prototype-feed-restore]");
-          const clear = feedEmpty.querySelector("[data-feed-clear-filters]");
-          const sources = feedEmpty.querySelector("[data-feed-empty-sources]");
-          if (title) title.textContent = L("暂时没有新消息");
-          if (restore) restore.hidden = false;
-          if (clear) clear.hidden = true;
-          if (sources) sources.hidden = true;
-        }
-        if (feedResultCount) feedResultCount.textContent = L("0 个 Item");
-        setFeedDetailPlaceholder(L("Feed 暂无新消息"), "");
-        return;
-      }
-      if (target.closest("[data-prototype-feed-restore]")) {
-        if (feedEmpty) delete feedEmpty.dataset.prototypeEmptyPreview;
-        const restore = feedEmpty?.querySelector("[data-prototype-feed-restore]");
-        const sources = feedEmpty?.querySelector("[data-feed-empty-sources]");
-        if (restore) restore.hidden = true;
-        if (sources) sources.hidden = false;
-        filterFeedItems(false);
         return;
       }
       const feedView = target.closest("button[data-feed-view]");

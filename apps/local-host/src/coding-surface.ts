@@ -230,7 +230,8 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
       primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) },
     });
     if (content?.view && pluginId === TEXT_STATS_PLUGIN_ID) content.html = renderTextStats({
-      view: content.view as TextStatsView, primitives: { escape: value => escapeHtml(String(value)) },
+      view: content.view as TextStatsView,
+      primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) },
     });
   }
   if (pluginId !== CODING_PLUGIN_ID) {
@@ -451,8 +452,11 @@ export async function codingCompanionStages(ports: CodingSurfacePorts, enabled: 
       const result = id === "files" ? renderFilesBrowserResult() : renderGitBrowserResult();
       body = `<div class="companion-layout">${renderSidebar({className:"companion-directory",header:openWorkspace,body:directory})}<div class="companion-result">${renderEmpty({className:"companion-empty",icon:id === "files" ? "file" : "git-branch",title:id === "files" ? "打开文件，开始阅读" : "查看工作区的改动",body:id === "files" ? "从目录选择文件，阅读内容、保存选区，或固定两份快照进行对比。" : "从目录选择一项改动，查看读取时的固定差异，再决定是否暂存。"})}${result}</div></div>`;
     } else {
-      body = `<div class="companion-reader mw-frame" data-slot="frame"><header class="mw-frame__header"><div class="mw-frame__heading"><h2>${id === "diff" ? "Diff" : "文本统计"}</h2></div><button class="mw-btn mw-btn--ghost" type="button" data-companion-refresh><span class="mw-spinner" hidden></span>刷新</button><button class="mw-btn mw-btn--ghost" type="button" data-companion-open="${enabled.includes("files") ? "files" : "market"}">${enabled.includes("files") ? "打开 Files" : "到插件市场添加 Files"}</button></header><div class="mw-frame__panel"><p>${id === "diff" ? "在 Files 中分别固定对比前与对比后快照，查看两份内容的差异。" : "统计 Files 中固定为对比前的文本快照。重新固定后更新，磁盘变化不会改写已保存的内容。"}</p><p data-companion-status role="status"></p><div data-companion-content></div></div></div>`;
+      // Diff and Text Stats are plugin pages: the stage draws their heading and one sentence, the actions sit at the right,
+      // and the plugin's own content (or its empty block) fills the column.
+      const files = enabled.includes("files");
+      body = `<div class="plugin-stage-list" data-companion-list><header class="plugin-stage-chrome"><button class="mw-btn mw-btn--ghost" type="button" data-companion-refresh>${icon("refresh")}<span class="mw-spinner" hidden></span><span>刷新</span></button><button class="mw-btn mw-btn--ghost" type="button" data-companion-open="${files ? "files" : "market"}">${icon("file")}<span>${files ? "打开 Files" : "到插件市场添加 Files"}</span></button></header><p data-companion-status role="status"></p><div data-companion-content></div></div>`;
     }
-    return renderPluginStageShell({ surface: id, label: id === "text-stats" ? "Text Stats" : id[0]!.toUpperCase() + id.slice(1), dataset: "coding-companion", extraAttrs: `data-companion="${id}"`, body: `<div class="companion-surface mw-layout-primitives">${body}</div>` });
+    return renderPluginStageShell({ surface: id, label: id === "text-stats" ? "Text Stats" : id[0]!.toUpperCase() + id.slice(1), dataset: "coding-companion", extraAttrs: `data-companion="${id}"`, body: id === "files" || id === "git" ? `<div class="companion-surface mw-layout-primitives">${body}</div>` : body });
   });
 }

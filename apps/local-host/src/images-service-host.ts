@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { homeSqlitePath, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { ImagesService, ImagesError, imagesProjectData, type ImageConnectionInput } from "@molis-ai/molis-work-plugin-images";
+import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { ConnectorConnectionError, withConnectorConnections } from "./connector-connection-store.js";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
@@ -85,6 +86,20 @@ export class ImagesHostService {
     }
     shared.owners.add(this); this.entry = shared;
     return shared.service;
+  }
+  /**
+   * Whether an image can be generated now: some saved service has what it needs (a local address, or a chosen connection that is
+   * still connected). A Home that never saved one has no store yet, and asking must not create it. Once images.db exists the first
+   * answer opens the shared service like any first use (its start-up recovers interrupted jobs and reclaims runner files, which write);
+   * later answers reuse it and only read.
+   */
+  startAvailability(): ActionAvailability {
+    const none = (reason: string): ActionAvailability => ({ available: false, code: "actions.connection_required", reason });
+    const missing = none("还没有可用的生图服务：请先在图片页添加，并为远程服务选择一条带密钥的服务连接。");
+    if (this.closed) return none("图片服务已停止。");
+    if (!this.entry && !existsSync(homeSqlitePath(this.home, "images"))) return missing;
+    try { return this.get().listConnections().some(connection => connection.available ?? connection.has_key) ? { available: true } : missing; }
+    catch (error) { return none(error instanceof Error ? error.message : "图片服务不可用。"); }
   }
   authConnections(): ConnectorConnectionView[] {
     return withConnectorConnections(this.home, store => store.list("image-api").map(row => {

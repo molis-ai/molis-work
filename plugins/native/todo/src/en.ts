@@ -12,6 +12,7 @@ export const TODO_EN: Readonly<Record<string, string>> = {
   "放在": "Put in",
   "记下": "Add",
   "撤销": "Undo",
+  "查看": "View",
   "批量处理": "Batch changes",
   "完成": "Complete",
   "推后一天": "Push back a day",

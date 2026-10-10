@@ -59,7 +59,7 @@ test("the personal Shelf is a Home action provider; clipboard, settings and loca
     assert.equal(read.result.structuredContent.text, "会议纪要：周五前定稿");
 
     // Without a configured model the automatic action refuses before creating a job.
-    await assert.rejects(bound.invoke(a.runJob, { recipe: "summarize", item_id: item.item_id }), (error: { code?: string }) => (error.code ?? "").startsWith("shelf."));
+    await assert.rejects(bound.invoke(a.generate, { recipe: "summarize", item_id: item.item_id }), (error: { code?: string }) => (error.code ?? "").startsWith("shelf."));
     await bound.invoke(a.hide, { item_id: item.item_id });
     assert.ok(!(await bound.invoke(a.list, {})).materials.some(row => row.item_id === item.item_id));
 

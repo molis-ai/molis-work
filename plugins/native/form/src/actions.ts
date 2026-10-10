@@ -39,7 +39,7 @@ export const formActions = {
   artifactContinue: defineArtifactContinueAction("form.artifacts.continue", "问卷", write),
   list: define<Record<string, never>, { forms: FormRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "问卷列表", "读取当前项目问卷和 AI 加题可用性", "query", object({}), object({ forms: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { form: FormRecord }>("get", "读取问卷", "读取题目、选项、状态、版本和发布状态", "query", object({ id }), changed),
-  create: define<{ title?: string }, { form: FormRecord }>("create", "新建问卷", "创建当前项目的草稿问卷", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
+  create: define<{ title?: string }, { form: FormRecord }>("create", "新建问卷", "在当前项目新建一份草稿问卷（可带标题）并返回它；只创建草稿，不会固定成成果版本。添加题目用「编辑问卷」", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
   update: define<Edit, { form: FormRecord }>("update", "编辑问卷", "替换指定字段或题目列表；提交读取版本以避免覆盖其他编辑", "command", object({ ...identity, title: { ...text, maxLength: 80 }, description: { ...text, maxLength: 2000 }, questions: { ...array(questionInput), maxItems: 40 } }, ["id"]), changed),
   publish: define<Identity, { form: FormRecord }>("publish", "开始收集答卷", "开始在这台电脑上收集答卷：本机填写页可以提交，也可以导出填写页文件发给别人，对方生成的答卷文件导回结果；收集中才接受助理、MCP、流程和插件的提交与答卷文件导入；不会生成外网链接，也不发布成果", "command", object(identity, ["id"]), changed),
   delete: define<Identity, { ok: true }>("delete", "删除问卷", "原子删除问卷和答卷；未完成的成果发布需先恢复", "command", object(identity, ["id"]), object({ ok: { const: true } })),

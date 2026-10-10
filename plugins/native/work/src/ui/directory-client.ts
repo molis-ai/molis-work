@@ -84,7 +84,7 @@ export const WORK_DIRECTORY_CLIENT = `
     const empty = directory.querySelector("[data-operation-empty]");
     if (empty) {
       empty.hidden = visible.length > 0;
-      empty.querySelector("button")?.toggleAttribute("hidden", visible.length > 0);
+      empty.querySelector("[data-operation-clear]")?.toggleAttribute("hidden", visible.length > 0);
     }
     const count = directory.querySelector("[data-operation-count]");
     if (count) count.textContent = String(visible.length);

@@ -117,7 +117,7 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
       : "";
     return `<div class="session-stage-list" data-session-stage-list tabindex="0" aria-label="${L("Sessions 列表")}">
       <div data-operation-list="sessions">${body}</div>
-      <div class="project-record-empty mw-empty" data-operation-empty="sessions"${hasData ? " hidden" : ""}><strong>${hasData ? L("没有匹配结果") : L("这个项目还没有 Session")}</strong><button class="mw-btn mw-btn--link" type="button" data-operation-clear="sessions"${hasData ? "" : " hidden"}>${L("清除筛选")}</button></div>
+      <div class="${hasData ? "project-record-empty " : ""}mw-empty" data-operation-empty="sessions"${hasData ? " hidden" : ""}>${hasData ? `<strong>${L("没有匹配结果")}</strong><button class="mw-btn mw-btn--link" type="button" data-operation-clear="sessions">${L("清除筛选")}</button>` : `<span class="mw-empty__mark">${icon("terminal")}</span><strong>${L("这个项目还没有 Session")}</strong><p>${L("启动一条新的工作会话，或关联已有的 Runtime 会话。")}</p><button class="mw-btn mw-btn--secondary" type="button" data-open-session-add>${icon("plus")}${L("新建 Session")}</button>`}</div>
     </div>`;
   }
 

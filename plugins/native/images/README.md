@@ -31,9 +31,10 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
   - 失败、超时或重启不自动再次调用；「停止等待」只停本机请求，不保证厂商停止计费。
   - 所选账号失效时保留选择并显示原因，不自动换账号；生成期间授权改变不保存过期结果。
   - 同一 Home 只有一个执行进程；另一个进程报 `images.runtime_unavailable` 并说明原因。
+  - `images.jobs.start` 在目录里对助理、MCP、工作流和插件随服务状态可用：没有一条能用的生图服务（本机地址，或已选择且仍连着的服务连接）就标成不可用并写明原因，MCP 的工具列表里也就没有它；用户自己的页面不受影响，仍得到所选服务连接的具体原因。宿主 `ImagesHostService.startAvailability()` 在库文件 `images.db` 不存在时直接回答，问目录不会创建图片库；库文件一旦存在，第一次问目录（助理、MCP、工作流、插件的发现）就会打开图片库，并让图片服务一直开着（打开时取运行锁、收尾被中断的任务、清理遗留文件，这几步会写库）；之后每次问目录复用这个已打开的服务，只逐条查已保存的服务连接（每条一次服务连接库的读取），所以这个检查本身不能写数据，要足够便宜。同一请求的重放在服务连接撤掉之后，对这些调用者也按不可用拒绝，不再返回原任务。
   - `images/runners/` 里每个进程的锁文件（`<uuid>.db` 与它的 `-journal`）不留孤儿：正常关闭时两个都没了（SQLite 关锁连接时删 journal，`releaseLocks` 删 `.db`）；启动时（`reclaimRunnerFiles`）扫整个目录，凡能加上独占锁的遗留文件连同 journal 一起清掉。别的进程持有的、30 秒内新建的（可能是还没加锁的新进程）和名字不是 `<uuid>.db` 的不动。
   - 项目被删除时清掉这个项目的任务记录和 `images/assets` 里的图片文件：无运行中的服务时按目录条目上的 `project_data`（`imagesProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeImagesProject`），运行中的服务则用它的 `deleteProject`（先中止还在生成的任务，标签同一份）。
-- 改动后必跑：`node scripts/run-tests.mjs tests/images-actions.test.ts tests/images-service.test.ts tests/images-providers.test.ts tests/images-concurrency.test.ts tests/images-mcp.test.ts tests/project-deletion-owners.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/images-actions.test.ts tests/images-service.test.ts tests/images-providers.test.ts tests/images-concurrency.test.ts tests/images-mcp.test.ts tests/project-deletion-owners.test.ts tests/model-unavailable-declarations.test.ts`
 - 相关手册：[docs/platform/PROLOGUE-AI.md](../../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 客户端资源由 Host 注入的 UI 生命周期管理：隐藏停止进度轮询，再次显示刷新；卸载取消本机请求并释放监听、定时器和观察器。服务端任务保持原有取消与恢复语义。

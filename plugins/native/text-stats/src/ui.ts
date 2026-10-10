@@ -10,7 +10,11 @@ export const TEXT_STATS_UI_CONTRIBUTION_ID = "io.molis.work.native.text-stats.ui
 
 export interface TextStatsUiPrimitives {
   escape(value: unknown): string;
+  icon(name: string): string;
 }
+
+/** What the page says while it has nothing to count, beside the reason in the view. */
+const WAITING_DETAIL = "统计 Files 中固定为对比前的文本快照。重新固定后更新，磁盘变化不会改写已保存的内容。";
 
 export interface TextStatsUiModel {
   readonly view: TextStatsView;
@@ -37,14 +41,14 @@ export const textStatsUiContribution: UiContribution<TextStatsUiModel> = {
 };
 
 export function renderTextStats(model: TextStatsUiModel): string {
-  const { escape } = model.primitives;
+  const { escape, icon } = model.primitives;
   const view = model.view;
   if (view.phase !== "ready" || view.source === undefined) {
-    const recovery = view.recovery === undefined
-      ? ""
-      : `<span class="stats-recovery">${escape(view.recovery)}</span>`;
-    return `<section class="text-stats" data-phase="${escape(view.phase)}">`
-      + `<p class="stats-notice">${escape(view.message)}${recovery}</p></section>`;
+    // The shared empty block: the plugin's glyph, what is missing, and what to do about it.
+    const detail = view.recovery ?? (view.phase === "waiting" ? WAITING_DETAIL : undefined);
+    // The block is the page's whole content, so the stage centres it like any plugin's empty list.
+    return `<div class="mw-empty" data-phase="${escape(view.phase)}"><span class="mw-empty__mark">${icon("hash")}</span><strong>${escape(view.message)}</strong>`
+      + `${detail === undefined ? "" : `<p>${escape(detail)}</p>`}</div>`;
   }
   // The source line is not decoration: two numbers that disagree are only
   // explainable if you can see which version each was counted from.

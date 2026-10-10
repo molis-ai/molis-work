@@ -2,9 +2,13 @@ import { WORK_REUSE_CLIENT } from "./work-reuse/client.js";
 import { ALCHEMIST_VIEWS } from './client-views.js';
 import { ALCHEMIST_FLOWS } from './client-flows.js';
 /**
- * Uses the same native Workbench client lifecycle and project routes as Pages. `shownContext` is what is on screen, for
- * the Assistant: the direction or Idea being looked at, under the kinds system search uses; it is republished whenever
- * the content redraws (every view sets the discussion context as it renders). Comments stay here, outside the served string.
+ * Uses the same native Workbench client lifecycle and project routes as Pages.
+ *
+ * Comments live here, not in the script: the script is served to the page, byte for byte.
+ * - `shownContext` is what is on screen, for the Assistant: the direction or Idea being looked at, under the kinds system
+ *   search uses. It is republished whenever the content redraws (every view sets the discussion context as it renders).
+ * - A run that stopped for want of a model says so once, with the way to settings (`noModel`): no status, no waiting label,
+ *   no internal code. The direction card and the research card share it.
  */
 export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const root=document.querySelector('[data-alchemist=workbench]');if(!root)return;
@@ -17,6 +21,7 @@ export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const headers=()=>typeof molisWorkControlHeaders==='function'?molisWorkControlHeaders():{'content-type':'application/json'};
   async function api(path,body,method){const response=await fetch(base+path,{method:method||(body===undefined?'GET':'POST'),headers:headers(),...(body===undefined?{}:{body:JSON.stringify(body)})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.message||result.error||L('炼金术士请求失败'));return result;}
   const modelSettingsLink=()=>'<a class="mw-btn mw-btn--ghost" href="/settings/models">'+tx('打开模型设置')+'</a>';
+  const noModelRun=run=>/RUNTIME_(NOT_CONFIGURED|MODEL_UNAVAILABLE)/.test(run?.errorCode),noModel=()=>runtime.configured?'':'<div class="alc-warning">'+tx('还没有可用模型。连接模型后再试，已有的内容不会丢失。')+' '+modelSettingsLink()+'</div>';
   const notice=(text,retry=false)=>{const el=$('[data-alc-notice]');el.hidden=!text;el.querySelector('[data-alc-action=reload]').hidden=!retry;el.querySelector('span').textContent=text||'';};
   const formError=text=>{const el=$('[data-alc-form-error]');el.hidden=!text;el.textContent=text||'';};
   const active=status=>['queued','running'].includes(status);

@@ -22,10 +22,10 @@ function renderList(){
   el.querySelectorAll('details[data-alc-group]').forEach(d=>{if(folded.has(d.dataset.alcGroup))d.open=false;});$('[data-alchemist=directory]').scrollTop=scroll;
 }
 function renderDirection(d){
-  const runs=data.explorations.filter(e=>e.directionId===d.id),run=runs[0];context={kind:'direction',directionId:d.id,label:d.title};target=null;
-  setTitle(d.title); content.innerHTML=paragraphs(d.description)+(run?'<div class="alc-progress">'+status(run.status)+'<span>'+esc(run.runtimeLabel)+'</span></div>':'')+(run?.errorCode?'<p class="alc-warning">'+tx('这次炼化未完成，方向已保存。检查模型后可重新炼化。')+' '+esc(run.errorCode)+'</p>':'')+(run?.understanding?section('对方向的理解',run.understanding.summary)+section('待验证',run.understanding.unknowns):'')+
+  const runs=data.explorations.filter(e=>e.directionId===d.id),run=runs[0],ok=!noModelRun(run);context={kind:'direction',directionId:d.id,label:d.title};target=null;
+  setTitle(d.title); content.innerHTML=paragraphs(d.description)+(run&&ok?'<div class="alc-progress">'+status(run.status)+'<span>'+esc(run.runtimeLabel)+'</span></div>':'')+(run?.errorCode&&ok?'<p class="alc-warning">'+tx('这次炼化未完成，方向已保存。检查模型后可重新炼化。')+' '+esc(run.errorCode)+'</p>':'')+(run?.understanding?section('对方向的理解',run.understanding.summary)+section('待验证',run.understanding.unknowns):'')+
     runs.map((r,index)=>'<section><h3>'+tx(index?'此前的候选':'候选想法')+' · '+r.cards.length+'</h3><div class="alc-candidates">'+r.cards.map(c=>'<article class="alc-candidate"><h3>'+esc(c.title)+'</h3>'+status(c.status)+paragraphs(c.highlight)+section('给谁',c.targetUser)+section('机制',c.mechanism)+'<div class="alc-actions">'+button(c.status==='kept'?'查看已保留想法':'查看详情','card',false,'data-id="'+esc(c.id)+'"')+'</div></article>').join('')+'</div></section>').join('');
-  if(!runtime.configured)content.insertAdjacentHTML('afterbegin','<div class="alc-warning">'+tx('还没有可用模型。连接模型后再炼化，已写的方向不会丢失。')+' '+modelSettingsLink()+'</div>');
+  content.insertAdjacentHTML('afterbegin',noModel());
   footer.innerHTML=d.status==='archived'?button('恢复方向','restore-direction'):button(run?'重新炼化':'开始炼化','explore',true,active(run?.status)?'disabled':'')+button('编辑方向','edit-direction')+button('归档方向','archive-direction')+button('讨论这个方向','chat');
 }
 function renderBrief(m){
@@ -38,12 +38,12 @@ const ideaTabs=panel=>'<nav class="alc-tabs" aria-label="'+tx('想法详情')+'"
 const evidence=(e,label)=>'<blockquote class="alc-evidence"><a href="'+safeUrl(e.url)+'" target="_blank" rel="noopener noreferrer">'+esc(e.title)+'</a><small> · '+tx(label)+'</small>'+paragraphs(e.excerpt)+'</blockquote>';
 function renderResearch(workspace){
   research=workspace;const key=current.panel==='market'?'market_space':'build_cost',lens=workspace.lenses[key],report=lens.report;context.panel=current.panel;target=report?{kind:'lens_report',objectId:report.id,revision:report.revision}:null;
-  const labels={planning:'规划',collecting:'收集',cross_checking:'交叉验证',synthesizing:'综合结论'};
-  content.innerHTML=ideaTabs(current.panel)+'<div class="alc-progress">'+Object.entries(labels).map(([id,label])=>'<span aria-current="'+(lens.run?.stage===id?'step':'false')+'">'+tx(label)+'</span>').join('')+status(lens.status)+'</div>'+
-    (lens.run?.errorCode?'<p class="alc-warning">'+tx('研究未完成。已取得的材料保留，可重新确认计划再试。')+' '+esc(lens.run.errorCode)+'</p>':'')+
+  const labels={planning:'规划',collecting:'收集',cross_checking:'交叉验证',synthesizing:'综合结论'},stopped=noModelRun(lens.run),cited=(ids,label)=>ids.map(id=>lens.evidence?.find(e=>e.id===id)).filter(Boolean).map(e=>evidence(e,label)).join('');
+  content.innerHTML=ideaTabs(current.panel)+(stopped?'':'<div class="alc-progress">'+Object.entries(labels).map(([id,label])=>'<span aria-current="'+(lens.run?.stage===id?'step':'false')+'">'+tx(label)+'</span>').join('')+status(lens.status)+'</div>')+
+    (stopped?noModel():lens.run?.errorCode?'<p class="alc-warning">'+tx('研究未完成。已取得的材料保留，可重新确认计划再试。')+' '+esc(lens.run.errorCode)+'</p>':'')+
     (report&&lens.status!=='completed'&&lens.status!=='partial'?'<p class="alc-muted">'+tx('下方保留上一份报告，本次研究尚未生成新结论。')+'</p>':'')+
     (lens.status==='partial'?'<p class="alc-warning">'+tx('预算范围内只完成了部分研究。补充研究后才能正式决策。')+'</p>':'')+
-    (report?section('研究摘要',report.summary,'summary')+report.judgments.map(c=>'<section class="alc-claim" data-alc-block="'+esc(c.id)+'"><h3>'+tx(c.label)+status(c.status)+'</h3>'+paragraphs(c.conclusion)+paragraphs(c.rationale)+c.supportingEvidenceIds.map(id=>lens.evidence?.find(e=>e.id===id)).filter(Boolean).map(e=>evidence(e,'支持来源')).join('')+c.counterEvidenceIds.map(id=>lens.evidence?.find(e=>e.id===id)).filter(Boolean).map(e=>evidence(e,'反向来源')).join('')+section('仍然未知',c.unknowns)+section('什么会改变判断',c.changeConditions)+'</section>').join(''):empty(active(lens.status)?'正在研究，可以离开此页，稍后回来查看。':'先确认研究范围、模型和调用预算，再开始。'));
+    (report?section('研究摘要',report.summary,'summary')+report.judgments.map(c=>'<section class="alc-claim" data-alc-block="'+esc(c.id)+'"><h3>'+tx(c.label)+status(c.status)+'</h3>'+paragraphs(c.conclusion)+paragraphs(c.rationale)+cited(c.supportingEvidenceIds,'支持来源')+cited(c.counterEvidenceIds,'反向来源')+section('仍然未知',c.unknowns)+section('什么会改变判断',c.changeConditions)+'</section>').join(''):empty(active(lens.status)?'正在研究，可以离开此页，稍后回来查看。':'先确认研究范围、模型和调用预算，再开始。'));
   if(lens.evidence?.length)content.insertAdjacentHTML('beforeend','<details><summary>'+tx('全部来源')+' · '+lens.evidence.length+'</summary>'+lens.evidence.map(e=>evidence(e,'已采集')).join('')+'</details>');
   footer.innerHTML=active(lens.status)?button('停止研究','cancel',false,'data-job="'+esc(lens.run?.jobId)+'"'):button(report?'重新研究':'开始研究','plan',true);
   if(lens.status==='planned'&&lens.plan)footer.innerHTML+=button('继续已确认计划','resume-plan');

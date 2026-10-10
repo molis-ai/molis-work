@@ -199,7 +199,6 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   body[data-desktop-shell="true"] .source-runtime-actions summary:hover { color: var(--blue-dark); }
   body[data-desktop-shell="true"] .source-now .mw-btn svg,
   body[data-desktop-shell="true"] .source-message-list header .mw-btn svg { width: 12px; height: 12px; }
-  body[data-desktop-shell="true"] .source-now [data-prototype-action-status],
   body[data-desktop-shell="true"] .source-now [data-source-action-status] { grid-column: 1 / -1; margin: 0; color: var(--blue-dark); font-size: 11px; }
   body[data-desktop-shell="true"] .source-runtime-actions { margin-top: 24px; padding-top: 16px; border-top: 1px solid color-mix(in srgb, var(--line) 64%, transparent); display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
   body[data-desktop-shell="true"] .source-runtime-actions details { position: relative; }
@@ -271,9 +270,6 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   body[data-desktop-shell="true"] .source-panel-empty svg { width: 20px; height: 20px; stroke-width: 1.6; }
   body[data-desktop-shell="true"] .source-panel-empty strong { color: var(--ink-soft); font-size: 11px; }
   body[data-desktop-shell="true"] .source-panel-empty p { margin: 0; font-size: 12px; }
-  body[data-desktop-shell="true"] .prototype-honesty-note { max-width: 74ch; margin: 32px 0 0; color: var(--faint); display: flex; align-items: flex-start; gap: 8px; font-size: 11px; line-height: 1.55; }
-  body[data-desktop-shell="true"] .prototype-honesty-note svg { width: 12px; height: 12px; margin-top: 1px; flex: 0 0 auto; }
-  body[data-desktop-shell="true"] .source-honesty-note { max-width: 720px; }
 
   body[data-desktop-shell="true"] .feed-list-item.is-selected {
     color: var(--ink);
@@ -417,9 +413,6 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   body[data-desktop-shell="true"] .inbox-attention-context .inbox-attention-next { order: -1; padding: 0 0 16px; }
   body[data-desktop-shell="true"] .inbox-attention-context .inbox-attention-next dt { color: var(--blue-dark); font-weight: var(--weight-control, 500); }
   body[data-desktop-shell="true"] .inbox-attention-context .inbox-attention-next dd { color: var(--ink); font-size: 13px; font-weight: 400; line-height: 1.5; }
-  body[data-desktop-shell="true"] .feed-detail--prototype .feed-action-status { color: var(--blue-dark); }
-  body[data-desktop-shell="true"] .feed-detail--prototype .feed-detail-tags { max-width: 74ch; margin-top: 16px; display: flex; flex-wrap: wrap; gap: 4px; }
-  body[data-desktop-shell="true"] .feed-detail--prototype .feed-detail-tags span { padding: 4px 8px; border-radius: 7px; color: var(--muted); background: color-mix(in srgb, var(--rail) 58%, transparent); font-size: 11px; }
 
 `;
 

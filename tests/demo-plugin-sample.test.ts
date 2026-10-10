@@ -120,7 +120,10 @@ test("seedDemoBoard fixtures stay empty of plugin samples", async () => {
     } finally {
       store.close();
     }
-    assert.match(feedHtml(databasePath), /prototype-feed-github/);
+    // E-3: the Feed draws no demo rows for a project without items; the empty Feed says so instead of showing invented ones.
+    const empty = feedHtml(databasePath);
+    assert.doesNotMatch(empty, /prototype-feed-github|data-feed-entry-id=/);
+    assert.match(empty, /data-feed-empty-title/);
   });
 });
 

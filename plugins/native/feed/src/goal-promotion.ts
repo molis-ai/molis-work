@@ -20,7 +20,8 @@ export interface FeedGoalPromotionGoals {
     priority: number;
     idempotency_key: string;
   }): Promise<{ goal_id: string; replayed: boolean }>;
-  /** The item, as its content digest says it was, confirmed as an input of the Goal. Repeating it returns the receipt already there. */
+  /** The item, as its content digest says it was, taken as an input of the Goal: Goals records it confirmed when the person asked and
+   * proposed for anyone else. Repeating it returns the receipt already there. */
   confirmInput(input: { goal_id: string; item_id: string; name: string; snapshot_digest: string; reason: string }): Promise<void>;
 }
 
@@ -31,6 +32,8 @@ export interface FeedGoalPromotionPorts {
   transaction<T>(operation: () => T): T;
   /** Awaited before Feed writes: the call may have been withdrawn while Goals was working. */
   beforeEffect(): Promise<void>;
+  /** Whether the person asked (not an assistant, Agent, workflow or MCP client): what the input receipt's reason may say the user did. */
+  by_person: boolean;
 }
 export interface FeedGoalPromotionInput {
   projectId: string;
@@ -92,7 +95,8 @@ export async function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input
   }
   const goalId = created.goal_id;
   await goals.confirmInput({ goal_id: goalId, item_id: item.item_id, name: `${itemTypeLabel} 输入`,
-    snapshot_digest: `sha256:${createHash("sha256").update(feedItemContext(item)).digest("hex")}`, reason: `用户从 ${itemTypeLabel} 创建 Goal 时确认该输入` });
+    snapshot_digest: `sha256:${createHash("sha256").update(feedItemContext(item)).digest("hex")}`,
+    reason: ports.by_person ? `用户从 ${itemTypeLabel} 创建 Goal 时确认该输入` : `从 ${itemTypeLabel} 创建 Goal 时提议该输入，待用户确认` });
   await ports.beforeEffect();
   return ports.transaction(() => {
     read(item.revision);

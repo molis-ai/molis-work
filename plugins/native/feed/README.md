@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSync 和 FeedSourceScheduler 处理来源同步用例。用户将条目推进为 Goal 时，promoteFeedItemToGoal 经 Host 提供的端口调用 Goals 的动作（`goals.create`、`goals.inputs.confirm`，以调用者自己的身份），再记下 Feed 自己的关联；Feed 不写 Goals 的数据，项目里没有 Goals 时升格不可用，「升格为 Goal」的入口（`feed.items.offers` 的清单、阅读页的按钮）跟着升格动作的可用性走、不可用时不出现；持精确动作授权的客户端（MCP）要同时授权 `goals.directory.read`、`goals.create`、`goals.inputs.confirm`（在对外接入设置里先授权这三项再授权升格，或一次请求带 `with` 一起授权；只授权升格会被拒并点出缺哪几个），经 MCP 调用还须有稳定 Session（升格声明 `authorship: "session"`，Goal 与输入回执记在 Session 名下）。本人丢弃了升格中途失败留下的 Goal 之后，再升格会换同一版本的下一个幂等键另建一个，不会卡在被丢弃的那个上。Host 提供文件、凭据和网络适配。
+FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSync 和 FeedSourceScheduler 处理来源同步用例。用户将条目推进为 Goal 时，promoteFeedItemToGoal 经 Host 提供的端口调用 Goals 的动作（`goals.create`、`goals.inputs.confirm`，以调用者自己的身份），再记下 Feed 自己的关联；Feed 不写 Goals 的数据，项目里没有 Goals 时升格不可用，「升格为 Goal」的入口（`feed.items.offers` 的清单、阅读页的按钮）跟着升格动作的可用性走、不可用时不出现；持精确动作授权的客户端（MCP）要同时授权 `goals.directory.read`、`goals.create`、`goals.inputs.confirm`（在对外接入设置里先授权这三项再授权升格，或一次请求带 `with` 一起授权；只授权升格会被拒并点出缺哪几个），经 MCP 调用还须有稳定 Session（升格声明 `authorship: "session"`，Goal 与输入回执记在 Session 名下；没有稳定 Session 的客户端经 `home.actions.execute` 这类包装动作也到不了它，动作服务在派发处拒绝）。升格出的输入只有本人升格时记为已确认，助理、Agent、工作流和外部工具升格只记为待确认，回执的理由也不写成用户确认。本人丢弃了升格中途失败留下的 Goal 之后，再升格会换同一版本的下一个幂等键另建一个，不会卡在被丢弃的那个上。Host 提供文件、凭据和网络适配。
 
 ## 从哪里读代码
 

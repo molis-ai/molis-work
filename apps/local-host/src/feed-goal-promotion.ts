@@ -9,7 +9,8 @@ import { hydrateFeedItemContent } from "./feed-content.js";
  * Feed's promotion asks Goals through Goals' own actions, called as the promoting caller: the Goal and its input belong to that
  * caller's identity, and a project without Goals refuses the calls like any other. The creation channel is a fact about who asked
  * (`goals.create` lets only the person name one), so the item names `feed` only when the person promoted it; a Runtime's
- * promotion is recorded as the Runtime's.
+ * promotion is recorded as the Runtime's. Likewise the input is taken as confirmed only when the person promoted; Goals records every
+ * other caller's as a proposal, and the receipt's reason does not say the user confirmed it.
  */
 export function feedGoalsThroughActions(actions: ActionClient, caller: ActionExecutionContext): FeedGoalPromotionGoals {
   const nested = bindActionClient(actions, () => retainActionAuthority(caller, { ...feedItemActions.promote, provider_id: FEED_PLUGIN_ID }));
@@ -35,5 +36,6 @@ export function createLocalFeedGoalPromotion(db: SqliteDatabase, actions: Action
     feed, goals: feedGoalsThroughActions(actions, caller), hydrateItem: hydrateFeedItemContent,
     transaction: <T>(operation: () => T): T => db.transaction(operation).immediate(),
     beforeEffect: () => caller.beforeEffect(),
+    by_person: caller.audience === "user",
   }, input);
 }

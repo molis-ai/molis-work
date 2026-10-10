@@ -55,6 +55,17 @@ test("a confirmed source becomes the Goal's input receipt, once, under the calle
       { ...input, source: { kind: "feed_item", id: "item-3" } }) as { binding: { binding_id: string } };
     assert.equal((await receipts("INPUT-GOAL")).find(item => item.binding_id === runtime.binding.binding_id)?.created_by, "runtime:confirmer:session");
 
+    // Only the person's call records the input confirmed; the assistant, an Agent, a workflow and an MCP client propose it for the person to accept.
+    assert.equal(first.binding.state, "confirmed");
+    const asRuntime = { actor_id: "runtime:confirmer", audit_actor_id: "runtime:confirmer:session", runtime_session_id: "session", actor_kind: "runtime" as const,
+      project_id: project.project_id, permissions: ["goals:read", "goals:write"] };
+    const proposals = await Promise.all((["agent", "workflow", "mcp"] as const).map(async audience =>
+      (await actions.invoke({ ...asRuntime, audience }, goalsActions.inputsConfirm, { ...input, source: { kind: "feed_item", id: `item-by-${audience}` } }) as { binding: { binding_id: string; state: string } }).binding));
+    assert.deepEqual(proposals.map(binding => binding.state), ["proposed", "proposed", "proposed"]);
+    assert.deepEqual((await receipts("INPUT-GOAL")).filter(item => item.source_ref.startsWith("feed-item:item-by-")).map(item => [item.state, item.created_by]),
+      [["proposed", "runtime:confirmer:session"], ["proposed", "runtime:confirmer:session"], ["proposed", "runtime:confirmer:session"]]);
+    assert.equal((await receipts("INPUT-GOAL")).find(item => item.binding_id === runtime.binding.binding_id)?.state, "proposed", "the Agent's earlier call proposed too");
+
     // The receipt is strict on write: the digest is a sha256 of the form the owner computes, and the texts are bounded; nothing is written when one fails.
     const kept = (await receipts("INPUT-GOAL")).length;
     const refused = { code: "actions.input_invalid" };

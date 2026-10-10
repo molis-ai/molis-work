@@ -15,7 +15,8 @@ export interface GoalBoundObject {
 const subject = object({ kind: identifier, id: identifier });
 const bound = object({ binding_id: text, goal_id: text, subject, title: text, state: enumeration(["proposed", "confirmed", "inactive"]), created_at: text });
 
-/** A source the person confirmed as an input of a Goal as it was then: the receipt holds the digest of what was confirmed, not a live link. */
+/** A source taken as an input of a Goal as it was then: the receipt holds the digest of what was confirmed, not a live link. Only the person's
+ * call records it `confirmed`; every other caller (assistant, agent, workflow, MCP client) records it `proposed`, for the person to accept. */
 export interface GoalConfirmedInput {
   binding_id: string;
   goal_id: string;
@@ -43,7 +44,7 @@ export const goalsInputActions = {
     "把资料关联到目标", "把一份资料（文档、演示稿、问卷、数据表、Shelf 材料等）记为目标的绑定资料；不复制、不移动原对象，重复关联返回原记录", "command",
     object({ goal_id: identifier, subject, title: { ...identifier, maxLength: 200 } }), object({ binding: bound, replayed: boolean })),
   confirm: goalAction<{ goal_id: string; source: { kind: "feed_item"; id: string }; name: string; snapshot_digest: string; reason: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.confirm",
-    "确认来源材料为目标的输入", "把一条来源材料（目前是 Feed 消息）按确认时内容的摘要记为目标的已确认输入；不复制、不移动原材料，重复确认返回原记录", "command",
+    "确认来源材料为目标的输入", "把一条来源材料（目前是 Feed 消息）按确认时内容的摘要记为目标的输入；用户调用记为已确认，助理、Agent、工作流和外部工具调用只记为待确认，等用户认可；不复制、不移动原材料，重复确认返回原记录", "command",
     object({ goal_id: identifier, source: confirmedSource, name: { ...identifier, maxLength: 200 }, snapshot_digest: snapshotDigest, reason: confirmReason }),
     object({ binding: confirmed, replayed: boolean })),
   release: goalAction<{ goal_id: string; binding_id: string }, { released: boolean }>("goals.inputs.release",
@@ -91,8 +92,10 @@ export function createGoalsInputActionHandlers(projectId: string, inputs: Pick<G
       const existing = inputs.list(projectId).find(record => record.goal_id === value.goal_id && record.source_type === kept.source_type
         && record.source_ref === locator && record.state !== "inactive");
       if (existing) return { binding: view(existing), replayed: true };
+      // The person decides what a Goal took as input; everyone else proposes (the same line the Goal's deliverables and artifact inputs draw).
       const record: GoalInputBindingRecord = { binding_id: `${kept.receipt}${crypto.randomUUID()}`, project_id: projectId, goal_id: value.goal_id,
-        input_name: value.name.slice(0, 200), source_type: kept.source_type, source_ref: locator, snapshot_digest: value.snapshot_digest, state: "confirmed",
+        input_name: value.name.slice(0, 200), source_type: kept.source_type, source_ref: locator, snapshot_digest: value.snapshot_digest,
+        state: caller.audience === "user" ? "confirmed" : "proposed",
         reason: value.reason, created_by: goalActor(caller).actor_id, created_at: new Date().toISOString() };
       inputs.register(record);
       return { binding: view(record), replayed: false };

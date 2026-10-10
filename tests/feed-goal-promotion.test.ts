@@ -60,6 +60,7 @@ test("Feed promotion makes the Goal and binds the item through Goals' actions, l
     const bindings = await receipts(first.goal_id);
     assert.deepEqual(bindings.map(receipt => [receipt.source_type, receipt.source_ref, receipt.state, receipt.created_by, receipt.input_name]),
       [["feed_item", `feed-item:${item!.item_id}`, "confirmed", "web-user", "Feed Item 输入"]]);
+    assert.equal(bindings[0]!.reason, "用户从 Feed Item 创建 Goal 时确认该输入");
     assert.match(bindings[0]!.snapshot_digest ?? "", /^sha256:[0-9a-f]{64}$/);
     assert.equal((await f.person.invoke(goalsActions.state, { goal_id: first.goal_id })).intent.source_kind, "feed");
     assert.equal((await goals()).length, before + 1);
@@ -229,7 +230,7 @@ test("promotion walks the keys of the item's revision past every Goal that can n
       create: async ({ idempotency_key }) => { keys.push(idempotency_key); return keys.length < 3 ? { goal_id: `goal-gone-${keys.length}`, replayed: true } : { goal_id: "goal-live", replayed: false }; },
       confirmInput: async ({ goal_id }) => { keys.push(`confirm:${goal_id}`); },
     };
-    const ports = { feed, goals, hydrateItem: (row: typeof item) => row, transaction: <T>(operation: () => T) => store.db.transaction(operation).immediate(), beforeEffect: async () => {} };
+    const ports = { feed, goals, hydrateItem: (row: typeof item) => row, transaction: <T>(operation: () => T) => store.db.transaction(operation).immediate(), beforeEffect: async () => {}, by_person: true };
     const promoted = await promoteFeedItemToGoal(ports, { projectId: PROJECT, routePrefix: "", itemId: item.item_id, startProcessing: false, expectedRevision: item.revision });
     assert.deepEqual(keys, [base, `${base}-2`, `${base}-3`, "confirm:goal-live"]);
     assert.deepEqual([promoted.goal_id, promoted.created], ["goal-live", true]);
@@ -261,7 +262,7 @@ test("a call withdrawn while Goals worked writes nothing of Feed's: neither the 
     };
     const withdrawn = new Error("call_withdrawn");
     const ports = { feed, goals, hydrateItem: (row: ReturnType<typeof ingest>) => row, transaction: <T>(operation: () => T) => store.db.transaction(operation).immediate(),
-      beforeEffect: async (): Promise<void> => { calls.push("beforeEffect"); throw withdrawn; } };
+      beforeEffect: async (): Promise<void> => { calls.push("beforeEffect"); throw withdrawn; }, by_person: true };
 
     const fresh = ingest("withdrawn-new");
     await assert.rejects(promoteFeedItemToGoal(ports, { projectId: PROJECT, routePrefix: "", itemId: fresh.item_id, startProcessing: true, expectedRevision: fresh.revision }), withdrawn);
@@ -307,6 +308,26 @@ test("only the person names the creation channel: a Runtime's promotion is recor
   } finally { await f.done(); }
 });
 
+test("only the person's promotion confirms the input: an assistant, Agent, workflow or MCP client's leaves it proposed, and says so", async () => {
+  const f = fixture(["Person", "Agent", "Workflow", "MCP"]);
+  const callers: Array<[string, ActionCallContext]> = [["person", f.personContext], ["agent", f.runtimeContext],
+    ["workflow", { ...f.runtimeContext, audience: "workflow" }], ["mcp", { ...f.runtimeContext, audience: "mcp" }]];
+  try {
+    const receipts = await Promise.all(callers.map(async ([, caller], index) => {
+      const item = f.items[index]!;
+      const promoted = await f.client.invoke(caller, feedItemActions.promote, { item_id: item.item_id, expected_revision: item.revision }) as { goal_id: string };
+      const owned = await f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(PROJECT).filter(receipt => receipt.goal_id === promoted.goal_id));
+      return owned.map(receipt => [receipt.state, receipt.created_by, receipt.reason]);
+    }));
+    assert.deepEqual(callers.map(([name], index) => [name, receipts[index]]), [
+      ["person", [["confirmed", "web-user", "用户从 Feed Item 创建 Goal 时确认该输入"]]],
+      ["agent", [["proposed", "runtime:promoter:session", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
+      ["workflow", [["proposed", "runtime:promoter:session", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
+      ["mcp", [["proposed", "runtime:promoter:session", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
+    ]);
+  } finally { await f.done(); }
+});
+
 test("promotion uses the caller's own grants: a client allowed only the promotion does not reach Goals through it", async () => {
   const f = fixture(["Granted promotion"]);
   const [item] = f.items;
@@ -344,7 +365,7 @@ test("an item that changed while Goals worked is refused and Feed writes nothing
       create: async () => { calls.push("create"); return { goal_id: "goal-made", replayed: false }; },
       confirmInput: async () => { calls.push("confirm"); feed.setDisposition(PROJECT, item.item_id, "saved", item.revision); },
     };
-    const ports = { feed, goals, hydrateItem: (row: typeof item) => row, transaction: <T>(operation: () => T) => store.db.transaction(operation).immediate(), beforeEffect: async () => {} };
+    const ports = { feed, goals, hydrateItem: (row: typeof item) => row, transaction: <T>(operation: () => T) => store.db.transaction(operation).immediate(), beforeEffect: async () => {}, by_person: true };
     await assert.rejects(promoteFeedItemToGoal(ports, { projectId: PROJECT, routePrefix: "", itemId: item.item_id, startProcessing: false, expectedRevision: item.revision }),
       (error: unknown) => error instanceof FeedStoreError && error.code === "feed_revision_conflict");
     assert.deepEqual(calls, ["create", "confirm"]);

@@ -9,7 +9,9 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 function printDemoHelp(): void {
   console.log(`molis-work demo <create|reset|remove> [--home PATH] [--confirm] [--json]
 
-不带 --confirm 只显示将发生什么；demo 明确标记为可重建数据，不会与用户项目混淆。`);
+不带 --confirm 只显示将发生什么；demo 明确标记为可重建数据，不会与用户项目混淆。
+
+remove --confirm 在 Molis Work 正在运行时交给它来删（示例项目里的终端还开着就拒绝）；常驻服务不在 http://127.0.0.1:4173 时，用环境变量 MOLIS_WORK_WEB_URL 指定它的地址。没有运行中的服务时，命令自己删。`);
 }
 
 function printUninstallHelp(): void {

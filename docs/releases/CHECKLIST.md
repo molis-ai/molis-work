@@ -49,16 +49,16 @@
 | Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/store.ts#TODO_STORE_BASELINE` | 拒绝 |
 | Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/store.ts#WORKFLOWS_STORE_BASELINE` | 拒绝 |
 | 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝 |
-| server（IM 实验线） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝 |
+| server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝 |
 | 角色 | `characters/characters.sqlite` | 1 | `user_version`（自己读写） | `modules/characters/src/open.ts#PRAGMA user_version` | 只拒绝更高的版本 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 2 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
 | 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 2 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出 |
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 2 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 读成空，所有 MCP 动作授权失效 |
-| 实验插件私有库 | `plugins/experiments/private.sqlite` | 无 | 没有版本，`CREATE TABLE IF NOT EXISTS` 建表 | `apps/local-host/src/experiments-native-plugin-http.ts` | 不检查 |
-| 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 无 | 没有版本，`CREATE TABLE IF NOT EXISTS` 建表 | `apps/local-host/src/alchemist-search.ts` | 不检查 |
+| 实验插件私有库 | `plugins/experiments/private.sqlite` | 1 | `user_version` | `apps/local-host/src/experiments-private-store.ts#EXPERIMENTS_PRIVATE_BASELINE` | 拒绝 |
+| 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝 |
 
 - 「拒绝」是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本，版本相同照常打开，其他一律报错，带路径、找到的版本和期望的版本，不就地升级。目录库与会话库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`、`modules/private-work-context/src/session-schema.ts`）。
-- 两个「无」的库没有版本，旧库和新库没有区别；路线图 W2-05 在拷贝上演练、再给真实 Home 的这两个库标上版本 1（实验库一项是用户 2026-10-08 的决定），那时这两行改成数字和基线常量。「无」的行只核对定义处那一个文件里没有版本标记；它们的建表语句来自别处的常量（`PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL`、`LOCAL_OPAQUE_BLOB_SCHEMA_SQL`），脚本不看。
+- 实验插件私有库和炼金术士搜索缓存原来没有版本（`CREATE TABLE IF NOT EXISTS`，旧库和新库没有区别），路线图 W2-05（用户 2026-10-08 决定 #21）给它们各一份基线，版本 1。新建的文件带版本；已经存在的旧文件有表没有版本，新构建拒绝打开，所以真实 Home 的实验库要先盖版本 1：一次性维护 `tests/fixtures/store-maintenance-experiments-private-v1.sql`（炼金术士搜索库对应 `store-maintenance-alchemist-search-v1.sql`，对每个 `search.sqlite` 各跑一次；2026-10-08 的真实 Home 里没有这种文件），每份一个事务，库不是未盖版本且与基线逐项一致就整体回滚，只写 `PRAGMA user_version = 1`、不动任何表和行。窗口里用同目录的 `store-maintenance-run.sh` 跑（先演练再 `--apply`，会先整份备份），`store-maintenance-verify-open.mjs` 用新构建打开盖过的拷贝；逐步命令与演练记录见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护五。`tests/store-version-maintenance.test.ts` 是它们的演练（连脚本一起跑），真实 Home 做完后这个用例、两份 SQL 和两个脚本一起删。「无」只留给没有任何版本标记的库，现在这张表里没有；表里的行由 `verify-release-versions.mjs` 对着基线常量核对。
 - 每次发布把这张表和上个版本的对比写进发布说明的「兼容与升级」，标出变了的行。上个版本没有这张表时，用 `git show <上个 tag>:<定义处文件>` 逐行取旧值。
 
 ## 4. 真实 Home 的处理

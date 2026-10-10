@@ -1,7 +1,7 @@
 import type { HostMethodCapability as MethodCapability, LocalHostProjectClient, AsyncApplicationMethods } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
+import type { GoalTreeApplicationApi, GoalTreeEntryApi } from "./goal-tree-contract.js";
 
 export const goalTreeCapabilities = {
   submitGoalTreeProposal: {
@@ -10,9 +10,13 @@ export const goalTreeCapabilities = {
   listGoalTreeProposals: {
     capability_id: "io.molis.work.goals.list-goal-tree-proposals", version: 1, operation: "query",
   } as MethodCapability<GoalTreeApplicationApi["listGoalTreeProposals"]>,
+  /**
+   * Management entries only (the CLI, the typed client): the host records the person on this machine, so a plugin that lists this
+   * under capabilities.consumes is refused and cannot be recorded as that person.
+   */
   checkGoalTreeProposal: {
-    capability_id: "io.molis.work.goals.check-goal-tree-proposal", version: 1, operation: "command",
-  } as MethodCapability<GoalTreeApplicationApi["checkGoalTreeProposal"]>,
+    capability_id: "io.molis.work.goals.check-goal-tree-proposal", version: 1, operation: "command", host_only: true,
+  } as MethodCapability<GoalTreeEntryApi["checkGoalTreeProposal"]>,
   decideGoalTreeProposal: {
     capability_id: "io.molis.work.goals.decide-goal-tree-proposal", version: 1, operation: "command", host_only: true,
   } as MethodCapability<GoalTreeApplicationApi["decideGoalTreeProposal"]>,
@@ -37,7 +41,7 @@ export function managementTreeAuthority(projectId: string, idempotencyKey: strin
 }
 
 export function createGoalProposalClients(client: LocalHostProjectClient): {
-  goalTree: AsyncApplicationMethods<GoalTreeApplicationApi>;
+  goalTree: AsyncApplicationMethods<GoalTreeEntryApi>;
 } {
   return {
     goalTree: {

@@ -59,7 +59,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const toast = document.querySelector("[data-toast]");
     const archiveView = document.body.dataset.boardView === "archive";
     const trashView = document.body.dataset.boardView === "trash";
-    const decisionView = document.body.dataset.boardView === "decisions";
     const collectionView = archiveView || trashView;
     const documentCollection = trashView ? "trash" : archiveView ? "archive" : "current";
     const routePrefix = document.body.dataset.routePrefix || "";
@@ -126,21 +125,14 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const localPathname = () => routePrefix && location.pathname.startsWith(routePrefix)
       ? location.pathname.slice(routePrefix.length) || "/"
       : location.pathname;
-    const decisionFeedEntryFromHash = () => {
-      const prefix = "#decision-goal-";
-      if (!decisionView || !location.hash.startsWith(prefix)) return "";
-      return "decision:" + decodeURIComponent(location.hash.slice(prefix.length));
-    };
     const visibleGoals = (source = state) => trashView ? source.trashed_goals : archiveView ? source.archived_goals : source.goals;
     const goalUiStorageKey = "molis-work-ui:" + (state.project?.project_id || state.snapshot.board.project_id);
     const currentGoalUiStorageKey = goalUiStorageKey + ":current";
-    const storageKey = decisionView
-      ? goalUiStorageKey + ":inbox"
-      : trashView
-        ? goalUiStorageKey + ":trash"
-        : archiveView
-          ? goalUiStorageKey + ":archive"
-          : currentGoalUiStorageKey;
+    const storageKey = trashView
+      ? goalUiStorageKey + ":trash"
+      : archiveView
+        ? goalUiStorageKey + ":archive"
+        : currentGoalUiStorageKey;
     const goalMoveReceiptKey = "molis-work-goal-move-receipt:" + (state.project?.project_id || state.snapshot.board.project_id);
     const desktopNavigationStateVersion = 4;
     let immersiveNavigation = null;
@@ -150,7 +142,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let pluginWorkbench = null;
     let globalSearchPalette = null;
     let desktopDirectoryOrigin = null;
-    let activeDesktopSurface = document.body.dataset.desktopSurface || (decisionView ? "inbox" : "goal");
+    let activeDesktopSurface = document.body.dataset.desktopSurface || "goal";
     let activeFeedPreset = feedDirectory?.dataset.feedPreset || "feed";
     let selectedFeedItem = feedList?.querySelector("[data-feed-entry-id].is-selected")?.dataset.feedEntryId || "";
     let selectedSource = sourceList?.querySelector("[data-source-entry-id].is-selected")?.dataset.sourceEntryId || "";
@@ -173,11 +165,9 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     };
     let desktopSurfaceScroll = {};
     let goalWorkspaceMode = "graph";
-    let selected = decisionView ? "" : document.querySelector("[data-goal-view]:not([hidden])")?.dataset.goalView || (collectionView ? "" : state.active_goal_id) || "";
-    if (!decisionView) {
-      const initialHistoryState = history.state && typeof history.state === "object" ? history.state : {};
-      history.replaceState({ ...initialHistoryState, goalId: selected }, "", location.href);
-    }
+    let selected = document.querySelector("[data-goal-view]:not([hidden])")?.dataset.goalView || (collectionView ? "" : state.active_goal_id) || "";
+    const initialHistoryState = history.state && typeof history.state === "object" ? history.state : {};
+    history.replaceState({ ...initialHistoryState, goalId: selected }, "", location.href);
     let toastTimer;
     let syncing = false;
     let deferredClients = null;

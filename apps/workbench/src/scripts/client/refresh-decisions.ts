@@ -6,7 +6,7 @@ import { GOALS_REFRESH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin
 /** AP3 Workbench client segment: refresh-decisions. */
 export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       setMobileView(restoredMobileView);
-      if (hashTargetId && (activeDesktopSurface === "goal" || decisionView)) void revealDeepLinkFromId(hashTargetId);
+      if (hashTargetId && activeDesktopSurface === "goal") void revealDeepLinkFromId(hashTargetId);
     };
 
     saveUiState = () => {
@@ -60,7 +60,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
 
     const { selectGoal, handleGoalPopState, handleGoalHashChange } =
       (${GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT})({
-        decisionView, trashView, archiveView, documentPane,
+        trashView, archiveView, documentPane,
         getSelected: () => selected, getActiveGoalId: () => state.active_goal_id,
         navigateToGoal: (goalId) => location.assign(globalThis.molisWorkNavigationUrl(route("/goals/" + encodeURIComponent(goalId)))),
         applySelection, loadGoalDocument,
@@ -139,19 +139,17 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         const refreshGoalId = selected;
         const pageBase = goalPageBase();
         const collectionPath = trashView ? "/trash" : archiveView ? "/archive" : "/";
-        const pagePath = decisionView
-          ? route("/decisions")
-          : refreshGoalId
-            ? pageBase + encodeURIComponent(refreshGoalId)
-            : route(collectionPath);
+        const pagePath = refreshGoalId
+          ? pageBase + encodeURIComponent(refreshGoalId)
+          : route(collectionPath);
         const compactRefreshPath = route("/api/board/refresh?view=" + documentCollection +
           (refreshGoalId ? "&goal_id=" + encodeURIComponent(refreshGoalId) : ""));
         const refreshGeneration = documentReplaceGeneration;
-        let pageResponse = await boardLifetime.fetch(decisionView ? pagePath : compactRefreshPath, { cache: "no-store", signal });
-        if (!pageResponse.ok && !decisionView) {
+        let pageResponse = await boardLifetime.fetch(compactRefreshPath, { cache: "no-store", signal });
+        if (!pageResponse.ok) {
           pageResponse = await boardLifetime.fetch(pagePath, { cache: "no-store", signal });
         }
-        if (!pageResponse.ok && !decisionView) {
+        if (!pageResponse.ok) {
           pageResponse = await boardLifetime.fetch(route(collectionPath), { cache: "no-store", signal });
         }
         if (!pageResponse.ok) throw new Error("无法更新 Goal 页面");
@@ -164,38 +162,8 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         const nextStateNode = parsed.querySelector("#molis-work-data");
         if (!nextStateNode) throw new Error("页面状态不完整");
         const nextState = JSON.parse(nextStateNode.textContent);
-        if (!decisionView && refreshGeneration !== documentReplaceGeneration) {
+        if (refreshGeneration !== documentReplaceGeneration) {
           scheduleDeferredRefresh();
-          return;
-        }
-        if (decisionView) {
-          const nextInboxList = parsed.querySelector("[data-inbox-list]");
-          const nextWorkspace = parsed.querySelector("[data-inbox-stage-workspace]");
-          const workspace = document.querySelector("[data-inbox-stage-workspace]");
-          const nextInboxDetailEmpty = nextWorkspace?.querySelector("[data-inbox-detail-empty]");
-          const inboxDetailEmpty = workspace?.querySelector("[data-inbox-detail-empty]");
-          if (!inboxList || !workspace || !inboxDetailEmpty || !nextInboxList || !nextWorkspace || !nextInboxDetailEmpty) {
-            throw new Error("Inbox 页面数据不完整");
-          }
-          const scrollTop = window.scrollY;
-          const selectedInboxId = inboxList.querySelector("[data-inbox-row].is-selected")?.dataset.inboxEntryId || "";
-          inboxList.replaceChildren(...nextInboxList.childNodes);
-          workspace.querySelectorAll("[data-inbox-detail]").forEach((detail) => detail.remove());
-          [...nextWorkspace.querySelectorAll("[data-inbox-detail]")]
-            .forEach((detail) => workspace.insertBefore(detail, inboxDetailEmpty));
-          inboxDetailEmpty.innerHTML = nextInboxDetailEmpty.innerHTML;
-          inboxDetailEmpty.hidden = nextInboxDetailEmpty.hidden;
-          state = nextState;
-          projectHome?.sync();
-          document.querySelector("#molis-work-data").textContent = JSON.stringify(nextState).replaceAll("<", "\\u003c");
-          const inboxFilter = inboxDirectory?.dataset.inboxCurrentFilter || "active";
-          setInboxFilter(inboxFilter, false);
-          if (selectedInboxId && inboxList.querySelector('[data-inbox-entry-id="' + CSS.escape(selectedInboxId) + '"]')) {
-            selectInboxEntry(selectedInboxId, false);
-          } else {
-            collapseInboxStage();
-          }
-          window.scrollTo({ top: scrollTop, behavior: "instant" });
           return;
         }
         const goalRefresh = prepareGoalRefresh(parsed, {
@@ -232,7 +200,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
           }
         };
         goalRefresh.apply(() => {
-          for (const selector of ["[data-decisions-link]", "[data-archive-link]", "[data-trash-link]"]) {
+          for (const selector of ["[data-archive-link]", "[data-trash-link]"]) {
             replaceNavLink(document.querySelector(selector), parsed.querySelector(selector));
           }
         });
@@ -240,7 +208,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         projectHome?.sync();
         document.querySelector("#molis-work-data").textContent = JSON.stringify(state).replaceAll("<", "\\u003c");
         selected = goalRefresh.nextSelected;
-        if (!decisionView && selected) applySelection(selected, false);
+        if (selected) applySelection(selected, false);
         applyUiState(ui);
         updateAllRelationFormPreviews();
         bindGoalEventDocument();
@@ -260,22 +228,15 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     };
 
     const decisionReceiptContext = (decisionForm) => {
-      const ownerLink = decisionForm.closest(".decision-goal-group")?.querySelector("a.decision-owner-link");
       const goalDocument = decisionForm.closest("[data-goal-event-document]");
-      const goalTitle = ownerLink?.querySelector("strong")?.textContent?.trim()
-        || goalDocument?.querySelector("h1")?.textContent?.trim()
-        || "";
+      const goalTitle = goalDocument?.querySelector("h1")?.textContent?.trim() || "";
       const goalId = goalDocument?.dataset.goalView || "";
-      return {
-        goalTitle,
-        goalHref: ownerLink?.getAttribute("href") || (goalId ? route("/goals/" + encodeURIComponent(goalId)) : ""),
-      };
+      return { goalTitle, goalHref: goalId ? route("/goals/" + encodeURIComponent(goalId)) : "" };
     };
 
     const showDecisionReceipt = (message, context) => {
       const receiptHost = document.querySelector("[data-goal-decision-panel]")
         || document.querySelector("[data-goal-event-document]")
-        || document.querySelector("[data-decision-center]")
         || feedWorkbench?.querySelector('[data-feed-detail]:not([hidden])');
       if (!receiptHost) {
         showToast(message);
@@ -300,7 +261,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         link.textContent = context.goalTitle ? L("返回「{title}」", { title: context.goalTitle }) : L("返回 Goal");
         receipt.append(link);
       }
-      const receiptAnchor = receiptHost.querySelector(".decision-center-header, .feed-detail-header, .goal-workspace-hero");
+      const receiptAnchor = receiptHost.querySelector(".feed-detail-header, .goal-workspace-hero");
       if (receiptAnchor) receiptAnchor.after(receipt);
       else receiptHost.prepend(receipt);
       receipt.focus({ preventScroll: true });

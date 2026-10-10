@@ -11,13 +11,13 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import { goalsActions, hostEventDecisionAuthority, createGoalIntentCapability, listGoalDirectoryCapability, recordGoalNoteCapability } from "@molis-ai/molis-work-plugin-goals";
 import type { ResolvedPlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalContextCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
-import { bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { DEFAULT_GOAL_POLICY, BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-module-goals";
 
-test("Goals public actions and typed consumers share records, idempotency, audit identity and live policy", async () => {
+test("Goals actions keep the runtime author; the typed management door records the local person and refuses a supplied actor", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Goals", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
@@ -39,22 +39,21 @@ test("Goals public actions and typed consumers share records, idempotency, audit
     const created = await bound.invoke(goalsActions.create, input);
     assert.equal(created.goal.goal_id, input.goal_id);
     assert.equal(created.completion_effect, false);
-    const replay = await typed.invoke(createGoalIntentCapability, { ...input, project_id: project.project_id, actor_id: caller.actor_id, actor_kind: "runtime" });
-    assert.equal(replay.replayed, true);
-    assert.equal(replay.observed_event_cursor, created.observed_event_cursor);
+    assert.equal((await bound.invoke(goalsActions.create, input)).replayed, true);
+    await assert.rejects(typed.invoke(createGoalIntentCapability, { ...input, project_id: project.project_id, actor_id: caller.actor_id, actor_kind: "runtime" }), { code: "actions.input_invalid" });
     const note = { goal_id: input.goal_id, body: "这句话必须到指定目标", idempotency_key: "note-one" };
-    const recorded = await typed.invoke(recordGoalNoteCapability, { ...note, project_id: project.project_id, actor_id: caller.actor_id, actor_kind: "runtime" });
+    const recorded = await bound.invoke(goalsActions.note, note);
     assert.equal(recorded.recorded, true);
     assert.deepEqual(await actions.invoke(caller, goalsActions.note, note), { ...recorded, replayed: true });
     await assert.rejects(actions.invoke(caller, goalsActions.note, { ...note, body: "不同内容" }));
     await assert.rejects(actions.invoke(caller, goalsActions.note, { ...note, project_id: "other-board" } as never), { code: "actions.input_invalid" });
-    await assert.rejects(typed.invoke(recordGoalNoteCapability, { ...note, project_id: "other-board", actor_id: "user" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(typed.invoke(recordGoalNoteCapability, { ...note, project_id: "other-board" }), { code: "actions.scope_mismatch" });
     await assert.rejects(actions.invoke({ ...caller, project_id: "other-project" }, goalsActions.note, note), { code: "actions.scope_mismatch" });
     const event = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, recorded.event_id));
     assert.equal(event.actor_id, caller.actor_id);
     assert.equal(event.actor_kind, "runtime");
     assert.equal((event.payload as { body: string }).body, note.body);
-    const legacy = await typed.invoke(recordGoalNoteCapability, { ...note, body: "旧内部身份", idempotency_key: "legacy-note", project_id: project.project_id, actor_id: "legacy-owner" });
+    const legacy = await actions.invoke({ actor_id: "legacy-owner", actor_kind: null, audience: "agent", project_id: project.project_id, permissions: ["goals:read", "goals:write"] }, goalsActions.note, { ...note, body: "旧内部身份", idempotency_key: "legacy-note" });
     const oldEvent = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, legacy.event_id));
     assert.equal(oldEvent.actor_kind, null, "unclassified legacy identity must not be rewritten as a user decision");
     assert.equal(oldEvent.actor_id, "legacy-owner");
@@ -68,9 +67,17 @@ test("Goals public actions and typed consumers share records, idempotency, audit
     const next = await bound.invoke(goalsActions.list, { limit: 1, after_cursor: page.next_cursor });
     assert.equal(next.goals.length, 1);
     assert.ok(next.goals.every(goal => goal.goal_id !== page.goals[0]!.goal_id));
+    const typedInput = { title: "管理入口目标", goal_id: "TYPED-GOAL", outcome: "记在本机这个人身上", idempotency_key: "create-typed", project_id: project.project_id };
+    const typedCreated = await typed.invoke(createGoalIntentCapability, typedInput);
+    assert.equal(typedCreated.replayed, false);
+    assert.equal((await typed.invoke(createGoalIntentCapability, typedInput)).replayed, true);
+    const typedNote = await typed.invoke(recordGoalNoteCapability, { goal_id: "TYPED-GOAL", body: "管理入口便笺", idempotency_key: "typed-note", project_id: project.project_id });
+    const typedEvent = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, "TYPED-GOAL", typedNote.event_id));
+    assert.equal(typedEvent.actor_id, LOCAL_PERSON_ACTOR_ID);
+    assert.equal(typedEvent.actor_kind, "user");
     blocked = true;
     const before = creates;
-    await assert.rejects(typed.invoke(createGoalIntentCapability, { ...input, goal_id: "DENIED", idempotency_key: "denied", project_id: project.project_id, actor_id: "user" }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(createGoalIntentCapability, { ...input, goal_id: "DENIED", idempotency_key: "denied", project_id: project.project_id }), { code: "actions.plugin_disabled" });
     assert.ok(creates > before, "the old typed entry must reach the shared action policy");
     await assert.rejects(host.withProject(ref, runtime => runtime.coordinator.goalQueries.getGoal(project.project_id, "DENIED")), { code: "goal.not_found" });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }

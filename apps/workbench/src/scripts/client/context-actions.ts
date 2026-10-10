@@ -476,23 +476,16 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
   };
   // The card carries the exact action and its complete input; the Assistant checks it against what it may use in that
   // work and runs it only when the person clicks. The person's click here places it (POST /api/assistant/cards) and the
-  // panel opens on that work. Where the route is missing, the same card goes as a page message (a plain suggestion).
+  // panel opens on that work.
   const suggestCard = async (focus, candidate, offer) => {
     const material = { title: L("选中的内容") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) };
     const summary = offer.summary || candidate.hint;
-    const message_id = requestId();
     const source = { surface: focus.plugin_id, title: focus.object.title || "" };
     const card = { title: candidate.title, summary, reference: offer.action, input: offer.input,
       ...(offer.editable ? { editable: offer.editable } : {}), ...(offer.missing ? { missing: offer.missing } : {}),
       source_object: focus.object, materials: [material] };
-    try {
-      const placed = await post("/api/assistant/cards", { message_id, source, card });
-      openAssistant({ work_id: placed.work_id });
-    } catch (error) {
-      if (!(error && (error.status === 404 || error.status === 405))) throw error;
-      window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
-        message_id, purpose: "suggest", source, object: focus.object, text: candidate.title + "：" + summary, materials: [material], card } }));
-    }
+    const placed = await post("/api/assistant/cards", { message_id: requestId(), source, card });
+    openAssistant({ work_id: placed.work_id });
   };
   // The split pane's page did not take the choice: same as here, a card, else the words and the material.
   const unhandled = (contextId, key, detail) => {

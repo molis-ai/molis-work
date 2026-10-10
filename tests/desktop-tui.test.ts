@@ -555,10 +555,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     });
     const workbenchAssets = `<style>${renderMolisWorkWorkbenchStylesheet()}</style><script>${renderMolisWorkWorkbenchClientScript()}</script>`;
     const browser = `${renderMolisWorkWeb(view)}${workbenchAssets}`;
-    const desktop = `${renderMolisWorkWeb(view, undefined, false, false, false, "", true)}${workbenchAssets}`;
+    const desktop = `${renderMolisWorkWeb(view, undefined, false, false, "", true)}${workbenchAssets}`;
     const directGoal = renderMolisWorkWeb(view, view.goals[0]!.goal.goal_id);
-    const decisions = renderMolisWorkWeb(view, undefined, false, true);
-    const desktopDecisions = renderMolisWorkWeb(view, undefined, false, true, false, "", true);
     const browserMarkup = browser.slice(0, browser.indexOf("<style>"));
     assert.match(browser, /class="tui-pane"/);
     assert.match(browser, /推进这个 Goal/);
@@ -643,16 +641,12 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(browser, /class="navigator-project-primary"/);
     assert.doesNotMatch(browser, /class="navigator-project-meta"|class="web-project-switcher"/);
     assert.doesNotMatch(browser, /class="personal-sidebar"|class="desktop-project-context"/);
-    assert.doesNotMatch(decisions, /class="tui-pane"|推进这个 Goal|复制命令|pty-client\.js|data-mobile-target="tui"/);
-    assert.match(desktopDecisions, /data-document-pane/);
-    assert.match(desktopDecisions, /data-desktop-directory="root"/);
-    assert.match(desktopDecisions, /data-desktop-surface="inbox"/);
-    assert.doesNotMatch(desktopDecisions, /data-directory-open="inbox"/);
-    assert.match(desktopDecisions, /data-inbox-directory/);
-    assert.match(desktopDecisions, /data-inbox-workbench/);
-    assert.doesNotMatch(desktopDecisions, /data-feed-entry-id="decision:/);
-    assert.doesNotMatch(desktopDecisions, /data-feed-detail="decision:/);
-    assert.match(desktopDecisions, /Inbox · Molis Work/);
+    assert.match(desktop, /data-document-pane/);
+    assert.match(desktop, /data-desktop-directory="root"/);
+    assert.match(desktop, /data-inbox-directory/);
+    assert.match(desktop, /data-inbox-workbench/);
+    assert.doesNotMatch(desktop, /data-feed-entry-id="decision:/);
+    assert.doesNotMatch(desktop, /data-feed-detail="decision:/);
     assert.match(browser, /data-directory-show/);
     assert.match(browser, /aria-controls="goal-tui-pane"/);
     assert.match(browser, /data-tui-kind="claude-code"/);
@@ -812,7 +806,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /data-container-tabs/);
     assert.match(desktop, /molis-work-tab-workspace:/);
     assert.doesNotMatch(desktop, /molis-work-work-tabs:|goalboard-work-tabs:/);
-    assert.match(desktop, /goalUiStorageKey \+ ":inbox"/);
+    assert.doesNotMatch(desktop, /goalUiStorageKey \+ ":inbox"/, "the Goal-era decisions page, which had its own saved state, is gone");
     assert.match(desktop, /const desktopNavigationStateVersion = 4/);
     assert.match(desktop, /navigationVersion: desktopNavigationStateVersion/);
     assert.match(desktop, /const setDesktopWorkSurface = \(surface, persist = true, restoreScroll = true\) =>/);
@@ -1527,7 +1521,6 @@ test("TUI menu greys out runtimes whose CLI is missing", () => {
     const withMissing = renderMolisWorkWeb(
       view,
       undefined,
-      false,
       false,
       false,
       "",

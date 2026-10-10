@@ -172,5 +172,5 @@ export type {
   ProjectsSqliteDatabase,
   StoredProjectDeletion,
 };
-export { inspectProjectCatalogForUninstall } from "./installation-inspection.js";
+export { listCatalogProjectsForUninstall } from "./installation-inspection.js";
 export { listProjectDatabasePaths } from "./database-paths.js";

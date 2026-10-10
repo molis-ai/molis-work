@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { openServerDatabase, Identity, ServerEvents, ContinuityService, createServerRequestHandler, createImDomain } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
+import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 /** Only the IM surface is mounted here; the shared server owns identity and transport. */
 export function createLocalImServer(homeDirectory: string, projectFor?: (id: string) => Promise<{ id: string; title: string } | null>) {
@@ -36,7 +37,7 @@ export function createLocalImServer(homeDirectory: string, projectFor?: (id: str
       let origin: string;
       try {
         const address = new URL(`http://${host ?? ""}`), listening = new URL(listeningOrigin);
-        if (!host || host !== address.host || !["127.0.0.1", "localhost", "[::1]"].includes(address.hostname)
+        if (!host || host !== address.host || !isLoopbackHostname(address.hostname)
           || (address.port || "80") !== (listening.port || "80")) throw new Error("host mismatch");
         origin = address.origin;
       } catch {
@@ -53,13 +54,12 @@ export function createLocalImServer(homeDirectory: string, projectFor?: (id: str
           const project = await projectFor(decodeURIComponent(connect[1]!));
           if (!project) throw new Error('找不到此项目');
           let session = current.identity.session(request);
-          const stored = current.storage.db.prepare('SELECT owner_id FROM mw_projects WHERE id=?').get(project.id) as {owner_id: string} | undefined;
+          const stored = current.continuity.projectOwner(project.id);
           // Possession of the host control token authorizes this local operator.
           // The persisted project owner is the authority; no browser-supplied ID/name is accepted.
           if (!session?.member_id && stored) {
-            const owner = current.storage.db.prepare('SELECT display_name FROM mw_members WHERE id=?').get(stored.owner_id) as {display_name: string};
-            const {code} = current.identity.code('bootstrap', stored.owner_id);
-            session = current.identity.connect({code, display_name: owner.display_name, device_label: '本机工作台'}, request, response, false);
+            const {code} = current.identity.code('bootstrap', stored.id);
+            session = current.identity.connect({code, display_name: stored.display_name, device_label: '本机工作台'}, request, response, false);
           }
           if (session?.member_id) {
             const member = current.identity.requireMember(session);

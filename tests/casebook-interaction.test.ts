@@ -17,7 +17,7 @@ async function fixture(t:test.TestContext){
  const request=(action:AuthorizationRequest['action'],key:string):AuthorizationRequest=>{const r={project_ref:'board',purpose:PURPOSE,action,include_goal_context:true as const,actor_ref:'github:1',user_confirmed:true as const,idempotency_key:key};return{...r,user_action_ref:sign(r)};};
  const auth=async()=>await api.readInteractionAuthorization({project_ref:'board',purpose:PURPOSE}) as {authorization_epoch:string;state:string};
  const read=async()=>api.readInteractionFacts({project_ref:'board',schema_version:VERSION,authorization_epoch:(await auth()).authorization_epoch,after_cursor:0,limit:100});
- const create=(id:string,title='目标')=>client.invoke(createGoalIntentCapability,{project_id:'board',goal_id:id,title,actor_id:'user',idempotency_key:'create-'+id});
+ const create=(id:string,title='目标')=>client.invoke(createGoalIntentCapability,{project_id:'board',goal_id:id,title,idempotency_key:'create-'+id});
  t.after(async()=>{await host.close();rmSync(dir,{recursive:true,force:true});});return{dir,host,ref,client,api,request,auth,read,create};
 }
 test('signed dual-purpose authorization replays remain durable across restart and cannot undo newer intent',async t=>{

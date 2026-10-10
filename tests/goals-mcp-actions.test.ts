@@ -13,6 +13,7 @@ import { createGoalIntentCapability, goalsActions, recordGoalNoteCapability } fr
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 
 test("Goals MCP action tools use client grants and the shared Host, and record the Session as author with replayable receipts", { timeout: 60_000 }, async () => {
@@ -50,15 +51,14 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     const sessionId = registry.explicitlyLinkSession({ runtime_id: context.runtime_id, native_runtime_session_id: session,
       actor_id: "user", user_confirmed: true, project_id: project.project_id }).session_id;
     registry.close();
-    // Records the same Session wrote earlier through the Host, not adapter output used as its own oracle.
+    // The Session history MCP must replay is written through the action client. The typed door is the local person.
     const input = { goal_id: "HISTORICAL-GOAL", title: "迁移前目标", outcome: "保留回执", idempotency_key: "historical-create" };
-    const createdBefore = await host.client(ref).invoke(createGoalIntentCapability, {
-      ...input, project_id: project.project_id, actor_id: auditActor, actor_kind: "runtime", source_kind: "runtime",
-    });
+    const sessionCaller = { actor_id: clientId, audit_actor_id: auditActor, actor_kind: "runtime" as const, runtime_session_id: session,
+      audience: "mcp" as const, project_id: project.project_id, permissions: ["goals:read", "goals:write"] };
+    const prior = bindActionClient(host.actionClient(ref), () => sessionCaller);
+    const createdBefore = await prior.invoke(goalsActions.create, input);
     const noteInput = { goal_id: input.goal_id, body: "迁移前便笺", idempotency_key: "historical-note" };
-    const noteBefore = await host.client(ref).invoke(recordGoalNoteCapability, {
-      ...noteInput, project_id: project.project_id, actor_id: auditActor, actor_kind: "runtime",
-    });
+    const noteBefore = await prior.invoke(goalsActions.note, noteInput);
     policies.length = 0;
     assert.equal((await facts()).length, 4);
     const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",

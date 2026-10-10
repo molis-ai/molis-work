@@ -18,7 +18,7 @@ export async function fixture(options: { ai?: AlchemistAiPort; description?: str
   db.exec("CREATE TABLE events (seq INTEGER PRIMARY KEY, project_id TEXT NOT NULL)");
   createArtifactsSchema(db); createContextLedgerSchema(db);
   let event = 0, denied = false, badOutput = false, linkFailure = false, writeAllowed = true;
-  const artifacts = new ArtifactsModule({ db, appendEvent: input => { db.prepare("INSERT INTO events VALUES (?,?)").run(++event,input.projectId); return event; }, now: () => "2026-08-01T00:00:00.000Z" });
+  const artifacts = new ArtifactsModule({ db, appendEvent: input => { db.prepare("INSERT INTO events VALUES (?,?)").run(++event,input.projectId); return event; }, eventCursor: () => event, now: () => "2026-08-01T00:00:00.000Z" });
   const ledger = createContextLedger(db, { authorize: () => !denied });
   const scope = { kind: "personal" as const, id: "actor-local" }, access = { actor_id: "actor-local", scope };
   const requests: Parameters<AlchemistAiPort["generate"]>[0][] = [];

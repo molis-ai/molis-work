@@ -1,4 +1,4 @@
-import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
 
 export const DECLARATION_PLUGIN_ID = "io.molis.work.declaration-rules";
 

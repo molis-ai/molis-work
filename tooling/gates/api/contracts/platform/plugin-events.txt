@@ -192,8 +192,6 @@ export declare const RESERVED_EVENT_NAMESPACES: readonly ["molis.", "host."];
 
 export declare function eventTypeKey(eventTypeId: string, typeVersion: number): string;
 
-export declare function inspectEventDeclarations(pluginId: string, events: PluginEventsDeclaration | undefined): string[];
-
 export declare function isReservedEventType(eventTypeId: string): boolean;
 
 export declare function isValidEventTypeId(value: unknown): value is string;

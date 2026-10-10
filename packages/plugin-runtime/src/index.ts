@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { comparePluginVersions, parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { comparePluginVersions, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { assertContributionMatchesManifest, PluginContributionError } from "./contribution.js";

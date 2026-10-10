@@ -10,7 +10,7 @@ import {
   DUE_REMINDERS_INPUT_TYPE, FILE_ENTRIES_INPUT_TYPE, FRAGMENT_OFFERS_INPUT_TYPE, HOME_EVENTS_INPUT_TYPE, PLACEMENT_MOVE_INPUT_TYPE,
   SEARCH_ENTRIES_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_REFERENCE_TYPE, inspectActionDeclarations,
 } from "@molis-ai/molis-work-contracts/platform/actions";
-import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 const KEY = "example.read@1";

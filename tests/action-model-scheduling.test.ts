@@ -11,7 +11,6 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local
  * Exceptions are listed with the reason they may stay serial.
  */
 const SERIAL_BY_DESIGN: Record<string, string> = {
-  "experiments.run@1": "starts a background run and returns at once",
   "images.jobs.start@1": "persists a background image job and returns running",
   "alchemist.explorations.start@1": "enqueues an exploration; the worker owns its lifetime",
   "alchemist.pulse.start@1": "enqueues a market pulse; the worker owns its lifetime",

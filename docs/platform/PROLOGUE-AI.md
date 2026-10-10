@@ -2,7 +2,7 @@
 
 状态：2026-09-27 按 main（8b609527）之后的代码整理，示例与文件位置均为实际代码。执行时的步骤清单在 Skill：[`skills/molis-prologue-ai/SKILL.md`](../../skills/molis-prologue-ai/SKILL.md)；本文解释架构、调用链和为什么。插件的通用写法仍以 [`skills/molis-plugin-dev/`](../../skills/molis-plugin-dev/SKILL.md) 为准。
 
-用户口径（不要扩大）：「AI 能力都用 Prologue」指**模型调用经过同一 Home 的 Prologue Runtime**，不是把模型搬到本地、也不是让 Prologue 管所有进程。Jelly 本机 OCR/Whisper、实验台本地模型、外部 CLI Runtime 暂不纳入。
+用户口径（不要扩大）：「AI 能力都用 Prologue」指**模型调用经过同一 Home 的 Prologue Runtime**，不是把模型搬到本地、也不是让 Prologue 管所有进程。Jelly 本机 OCR/Whisper、外部 CLI Runtime 暂不纳入。
 
 ## 1. 谁负责什么
 
@@ -85,7 +85,7 @@ Coding 页面 → plugins/native/coding/src/routes.ts
 
 **动作定义**：写明 `model:invoke` 权限；等模型的动作一律 `scheduling: "concurrent"`，否则它会占住整个项目的串行队列（门禁 `tests/action-model-scheduling.test.ts`）。
 
-提供方还应在 `action.execution` 声明实际时限、费用类别和必要调用频率；这些事实经同一目录到达插件、Agent、Workflow 与 MCP，Kernel 执行明确声明的限额。生成插件的 `model.generate` 声明 120 秒、metered、每身份每分钟 20 次。Agent 的工具入口可以设置更短的上限。Native 的直接生成与 Coding/Images/Alchemist/Experiments 的后台启动都由提供方声明 metered，表示可能消耗计量额度；读取历史、配置和取消不因此标为收费。后台启动的 Action 返回后，任务自己的预算、取消和恢复继续有效，不能把整个任务时长填成处理器时限。计费未知保持 unknown，Action 超时不等于外部请求未执行，也不授权自动重试。完整字段语义见 [插件开发手册](./PLUGIN-DEVELOPMENT.md)。
+提供方还应在 `action.execution` 声明实际时限、费用类别和必要调用频率；这些事实经同一目录到达插件、Agent、Workflow 与 MCP，Kernel 执行明确声明的限额。生成插件的 `model.generate` 声明 120 秒、metered、每身份每分钟 20 次。Agent 的工具入口可以设置更短的上限。Native 的直接生成与 Coding/Images/Alchemist 的后台启动都由提供方声明 metered，表示可能消耗计量额度；读取历史、配置和取消不因此标为收费。后台启动的 Action 返回后，任务自己的预算、取消和恢复继续有效，不能把整个任务时长填成处理器时限。计费未知保持 unknown，Action 超时不等于外部请求未执行，也不授权自动重试。完整字段语义见 [插件开发手册](./PLUGIN-DEVELOPMENT.md)。
 
 ```ts
 message: define("conversation.message", "继续灵光对话", "结合所选灵光和历史生成回复；需要文字模型，失败保留原会话且不生成占位回复", "command",
@@ -147,7 +147,7 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
   - `MINIMAX_API_KEY`：MiniMax。端点默认 `https://api.minimaxi.com/anthropic`，模型默认 `MiniMax-M3`；实测用 `appkey exec minimax` 注入。
   - `MOLIS_WORK_TEXT_API_KEY`：不指定供应商，必须同时给 `MOLIS_WORK_TEXT_BASE_URL` 与 `MOLIS_WORK_TEXT_MODEL`，缺一个就不配置（不会默认成 MiniMax）。
   - 两者都可选配 `MOLIS_WORK_TEXT_API_FORMAT`（`anthropic-messages`，默认；或 `openai-chat-completions`）。`MOLIS_WORK_TEXT_BASE_URL` 也能改 MiniMax 的端点。
-  - `TYPESAFE_API_KEY`：和上面两个同属开发与实测变量，但管的是 TypeSafe 判断（Functions 与 Jev 的规则、首页与 Inbox 的判断、实验里的 Jev 参试者、插件创作台的设计选择），不是文字模型。它不受「模型目录为空才生效」的限制：只要设了，判断一律用它，盖过设置里选的 TypeSafe 连接：Functions 设置页的状态行写「来自 TYPESAFE_API_KEY。」，页面上的连接选择仍然可以改、可以保存，但变量还设着时，保存下来的连接被忽略。
+  - `TYPESAFE_API_KEY`：和上面两个同属开发与实测变量，但管的是 TypeSafe 判断（Functions 与 Jev 的规则、首页与 Inbox 的判断、插件创作台的设计选择），不是文字模型。它不受「模型目录为空才生效」的限制：只要设了，判断一律用它，盖过设置里选的 TypeSafe 连接：Functions 设置页的状态行写「来自 TYPESAFE_API_KEY。」，页面上的连接选择仍然可以改、可以保存，但变量还设着时，保存下来的连接被忽略。
 - 第一次配置：设置里的「模型设置」在没有供应商时给一键模板（常用供应商加 Anthropic 与 OpenAI 两种通用格式，`MODEL_PROVIDER_TEMPLATES`），模板只预填地址、格式和长期不变的模型名（地址、格式和预填的模型名按供应商公开文档核对过，2026-10-09，国内端点为默认；国际端点目前要手填），密钥另填并只存成服务连接的引用。保存时若改变了到达供应商的方式，先用同一条 Prologue 路径做一次连通性检查：没通过什么都不保存，提示说明原因但不含密钥；通过后若这是第一个能用的模型，模型设置页向页面宣布 `molis-work:model-ready`：显示过「没有模型」的页面（助理的失败卡片、Cognia、Dataset、Form、PPT、Workflows、Alchemist、Jelly 的模型对话框、插件创作台；分栏窗格里的框架由外层转发）各自重读，不等刷新；若是本标签页里的页面把人带去设置的（普通链接或窗格的转发，不是设置按钮，也不是按地址在新标签打开），设置先关上，人回到那个页面并有一句提示，事件在那之后才发，页面在事件里看到的就是人眼前的样子（Jelly 的模型对话框只在自己在屏幕上时才重开，且只认第一次事件：对话框是模态的，开在被藏起来的页面里会让整页点不了；写法见 `skills/molis-prologue-ai/SKILL.md` 步骤 6）。同一个脚本还在同源的 `BroadcastChannel('molis-work:model-ready')` 上通知其他标签页（它不是 DOM 事件，登记表不收，记在 `molis-work:model-ready` 的说明里）：开始使用页里「连接文字模型」在新标签打开设置，第一个模型保存后，那一页（含还没有项目的首次使用，设置页是不带工作台的独立页面）自己重读模型并重画「已连接」，不用刷新、不用先点「已连接，继续整理」。桌面壳若把新标签交给系统浏览器，通道到不了，仍要点那个按钮。入口都是普通链接，页面不为某个入口单写返回逻辑。显示「没有模型」的新页面要听这个事件重读；只在加载时读一次会和提示矛盾。
 - 业务插件只拿 Host 注入的函数端口；Host 到 Agent Host 的输入才使用 `credential_ref` + `resolveCredential`。插件不拿凭据解析器或明文；日志、事件、错误和产物里不出现密钥。
 - 一次调用只带这次需要的材料，不隐式读整个项目；用户正文是数据不是指令。

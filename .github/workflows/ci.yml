@@ -312,7 +312,7 @@ jobs:
       - name: shellcheck on every tracked shell script
         run: node scripts/gates/native-checks.mjs shell
 
-      # The one Python worker (apps/local-host/tooling/experiments/laya-worker.py) has to parse; python3 is on the runner.
+      # Every tracked Python file has to parse (none today); python3 is on the runner.
       - name: Python files parse
         run: node scripts/gates/native-checks.mjs python
 

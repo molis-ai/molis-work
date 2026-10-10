@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Static checks for the code that is not TypeScript (specs/repository-anti-corruption §4.16, slice W1-09): the Rust of the
-// desktop shell, the Swift of the native material extractors, the shell scripts and the one Python worker. The TypeScript is checked by the health
+// desktop shell, the Swift of the native material extractors, the shell scripts and any Python file. The TypeScript is checked by the health
 // gates (scripts/gates/lint.mjs). These checks are not numbers: they pass or they fail, and every warning is an error, so
 // there is no baseline. The tools are the ones the language ships with.
 //

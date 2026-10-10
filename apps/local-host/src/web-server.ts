@@ -3,7 +3,6 @@ import { projectActionAvailability } from "./project-action-availability.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
 import { handleProjectDeletionGatewayHttp } from "./project-deletion-gateway.js";
 import { webProjectDeletion } from "./project-deletion-service.js";
-import { closeExperiments } from "./experiments-native-plugin-http.js";
 import { resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import fs from "node:fs";
 import http from "node:http";
@@ -264,7 +263,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       im.close();
       void browsers?.close();
       unregisterSurfaces();
-      void closeExperiments(storageHome);
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
       if (ownsLocalHost) void localHost.close();

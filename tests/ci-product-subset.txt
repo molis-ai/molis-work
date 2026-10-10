@@ -317,9 +317,6 @@ tests/builtin-plugin-composition.test.ts
 tests/capsule.test.ts
 tests/catalog-connectors.test.ts
 tests/chrome-inner-scroll.test.ts
-tests/cli-agent-adapter.test.ts
-tests/cli-command-receipts.test.ts
-tests/cli-node-process.test.ts
 tests/cli-protocol.test.ts
 tests/codex-transport.test.ts
 tests/cognia-ai.test.ts

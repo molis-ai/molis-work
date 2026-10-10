@@ -49,7 +49,8 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 - 外壳与 iframe 之间的 `postMessage`（`type` 如 `workbench-surface-focus`、`molis:side-open`、`molis:im-visibility`）；
 - `data-assistant-context` 属性：界面把自己的对象写在属性里，情境动作从那里读（常量 `ASSISTANT_CONTEXT_ATTRIBUTE`，在 `services/assistant` 合同里）；
 - 传给插件客户端脚本的 `host` 对象（`translate`、`mountPluginClient` 等宿主能力）；
-- 存储键（`localStorage` 等）和浏览器自己的事件。
+- 存储键（`localStorage` 等）和浏览器自己的事件；
+- 跨标签页的 `BroadcastChannel`：目前只有一条，名字 `molis-work:model-ready`，由模型设置脚本（`apps/workbench/src/scripts/settings-models.ts`）在第一个能用的模型出现时发，开始使用页（`apps/workbench/src/scripts/context-onboarding.ts`）收；它是同名页面事件 `molis-work:model-ready` 的跨标签延伸，说明记在那个事件的登记项里。
 
 工作台客户端的片段文件共用一个函数作用域，片段之间可以直接读变量、直接调函数，绕过事件。把登记和代码对照后，已知没有守住「别的模块不碰主人的状态」的有两处（文件都在 `apps/workbench/src/scripts/client/`）。它们不是批准的例外，是待清的差距，清的时候把状态收进主人的文件、改成发 request 或听 announcement：
 
@@ -102,6 +103,6 @@ Planning contribution 通过显式 renderPage 原语使用原设置页外框，�
 
 ### 原生客户端生命周期
 
-UI Host 的 `UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT` 由 Workbench 或独立页面实例化，提供 `mountPluginClient(root)`。它拥有挂载去重、文档/祖先 hidden 变化、卸载取消与资源清理；不拥有插件状态。Images、Coding 及子面板、Files/Git 伴随面板和独立 Diff/Text Stats、Host 审查视图、Builder 两套界面、Shelf 及结果面板已接入。同源 iframe 还观察父页面的隐藏与移除。API、隐藏/卸载差异及异步响应检查见 [UI Host README](../../packages/ui-host/README.md#浏览器生命周期)。浏览器回归覆盖真实请求中止、SSE 断开重连、隐藏轮询停止及同一 DOM 重新挂载。
+UI Host 的 `UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT` 由 Workbench 或独立页面实例化，提供 `mountPluginClient(root)`。它拥有挂载去重、文档/祖先 hidden 变化、卸载取消与资源清理；不拥有插件状态。Images、Coding 及子面板、Files/Git 伴随面板和独立 Diff/Text Stats、Host 审查视图、Builder 两套界面、Shelf 及结果面板已接入，Pages 与灵光在离开时收回空白项这一处也用它（`whenVisible` 与 `own`）。同源 iframe 还观察父页面的隐藏与移除。API、隐藏/卸载差异及异步响应检查见 [UI Host README](../../packages/ui-host/README.md#浏览器生命周期)。浏览器回归覆盖真实请求中止、SSE 断开重连、隐藏轮询停止及同一 DOM 重新挂载。
 
 轻量刷新提示可用 `scope.watchRevision(read, refresh)`：可见时每两秒查询 revision，首次进入、变化及断线恢复后重新读取事实，隐藏/卸载清理。`refresh` 在业务交互忙碌时返回 false，保留未消费 revision 待下次读取。Host 按项目提供当前运行插件的 `/api/plugins/<id>/view-revision`，进程更换 epoch；只含不透明 revision，不包含事件正文或授权。Files/Git 已实际接入，固定 Artifact 差异仍保留原版本。

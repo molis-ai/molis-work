@@ -30,7 +30,6 @@ export interface PagesAiRequest {
 
 export interface PagesAiResult {
   readonly text: string;
-  readonly stub: boolean;
   readonly command: string;
   readonly style?: string;
 }
@@ -74,7 +73,7 @@ export async function runPagesAi(
     if (request.command === "rewrite" && request.style === "concise" && output.length >= text.length) {
       throw Object.assign(new Error("这次改写没有比原文更短，没有采用；可以再试一次"), { code: "pages.invalid" });
     }
-    return { text: output, stub: false, command: request.command, style: request.style };
+    return { text: output, command: request.command, style: request.style };
   }
   throw Object.assign(new Error("请先配置文字模型，再使用写作助手"), { code: "actions.connection_required" });
 }
@@ -82,6 +81,6 @@ export async function runPagesAi(
 export function actionItemsFromText(text: string): string[] {
   return text
     .split(/\n+/)
-    .map((line) => line.replace(/^\s*(?:[-*]|【未接模型[^\n]*】|\d+[.)])\s*/u, "").trim())
-    .filter((line) => line && !line.startsWith("【未接模型"));
+    .map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/u, "").trim())
+    .filter(Boolean);
 }

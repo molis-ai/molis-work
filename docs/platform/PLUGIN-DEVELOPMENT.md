@@ -87,7 +87,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 这些是公开 Contract，不向作者开放 Store、SQL 或其他模块内部路径。缺权限、停用的旧上下文和未声明的类型/界面贡献都会被实际 owner 拒绝。本样例不请求网络、不自动 Team 分享；分享仍是用户明确选择的业务操作。
 
-嵌入式测试使用 `@molis-ai/molis-work-app-local-host` 的公共 `runPluginDevelopment(input, options)`：输入是已授权的源码目录、项目/用户、grants；options 注入真实 Artifact owner、UiHost、Plugin Runtime repository、私有存储工厂，以及 `actions: { registry, client, project_id }`。registry/client 必须来自同一 Host：分别使用 `host.actionRegistry(reference)` 和 `host.syncActionClient(reference)`；项目已打开后才可同步调用。独立测试可显式共享一个 ActionService，不在生产创建临时注册表兜底。它与应用命令使用同一安装/运行/卸载实现，返回 `PluginDevelopmentResult`，不要求导入仓库测试文件。数据库装配属于应用 Host，不属于 SDK 或 CLI。CLI 的 `PluginCliHost.runDevelopment` 是具名的注入接口，不是任意方法总线。
+嵌入式测试使用 `@molis-ai/molis-work-app-local-host` 的公共 `runPluginDevelopment(input, options)`：输入是已授权的源码目录、项目、grants（`PluginDevelopmentInput` 没有操作者字段）；options 注入操作者 `actor_id`（嵌入的调用方自己传：这个函数既不固定它，也不读 `input` 里的身份）、真实 Artifact owner、UiHost、Plugin Runtime repository、私有存储工厂，以及 `actions: { registry, client, project_id }`。registry/client 必须来自同一 Host：分别使用 `host.actionRegistry(reference)` 和 `host.syncActionClient(reference)`；项目已打开后才可同步调用。独立测试可显式共享一个 ActionService，不在生产创建临时注册表兜底。它与应用命令使用同一安装/运行/卸载实现，返回 `PluginDevelopmentResult`，不要求导入仓库测试文件。数据库装配属于应用 Host，不属于 SDK 或 CLI。CLI 的 `PluginCliHost.runDevelopment` 是具名的注入接口，不是任意方法总线。命令行的开发入口（`runLocalPluginDevelopment`）走的是另一扇门，Host 能力 `pluginDevelopmentCapability`：它声明 `host_only`（插件在 consumes 里列出也会被拒绝），操作者由 Host 固定为 `local-plugin-developer`，参数里带 `actor_id`、`actor_kind` 或 `audit_actor_id` 被拒绝（`actions.input_invalid`），项目必须是客户端打开的那个。
 
 ## 当前项目设置
 
@@ -256,7 +256,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 例如调用收费文字模型的能力声明 `execution: { timeout_ms: 120000, cost: "metered", max_calls_per_minute: 20 }`。声明不代替 `scheduling: "concurrent"`、权限或模型服务自己的预算。超时停止本机等待并中止传给处理器的 signal，外部副作用可能已经发生，不自动重试；每次异步等待后仍须调用 `beforeEffect()` 才能提交。同步阻塞代码无法靠 JavaScript 定时器抢占。Agent 可以使用更严格的入口时限；生成插件的 sandbox 依据共同目录选择时限和慢操作通道，费用未知不能显示成免费。老生成物只转换历史输入输出，模型和提醒执行仍走当前 ActionService。
 
-记录要算在某个 Runtime 会话名下的写入动作声明 `authorship: "session"`（Goals 的写入都是）：经 MCP 调用时宿主要求客户端给出稳定会话，否则拒绝，并把 `runtime:<客户端>:<会话>` 作为审计作者传进 `caller.audit_actor_id`。没有声明的动作，客户端有会话时同样带上，没有也照常执行。
+记录要算在某个 Runtime 会话名下的写入动作声明 `authorship: "session"`（Goals 的写入都是）：经 MCP 调用时宿主要求客户端给出稳定会话，否则拒绝（动作服务在派发处检查，经包装动作发起的嵌套调用同样被拒），并把 `runtime:<客户端>:<会话>` 作为审计作者传进 `caller.audit_actor_id`。没有声明的动作，客户端有会话时同样带上，没有也照常执行。
 
 生成式公开动作的费用是可能收费的声明，不是实际用量或预算。其沙箱 operation 时限从排队头开始，lane 频率按安装计数；公共 Action 时限从处理器开始、频率按调用者与安装计数。两者含义不同，不能直接复制沙箱限额到公共动作。实际依赖仍逐次受提供方的授权、时限和频率约束。
 

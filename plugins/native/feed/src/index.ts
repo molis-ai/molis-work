@@ -72,7 +72,7 @@ export type { ConnectorAuthStatus } from "./connector-auth-status.js";
 
 export { FeedSourceScheduler, type FeedSourceSchedulerDispatch, type FeedSourceSchedulerResult } from "./source-scheduler.js";
 
-export { promoteFeedItemToGoal, type FeedGoalPromotionPorts, type FeedGoalPromotionInput } from "./goal-promotion.js";
+export { promoteFeedItemToGoal, type FeedGoalPromotionPorts, type FeedGoalPromotionGoals, type FeedGoalPromotionInput } from "./goal-promotion.js";
 
 export { createFeedRouteHandlers } from "./route-handlers.js";
 export { feedRouteErrorResponse } from "./route-error.js";

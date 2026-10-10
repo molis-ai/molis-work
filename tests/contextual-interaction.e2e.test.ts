@@ -184,3 +184,27 @@ test("P2: a word is looked up in the search palette; a write goes to the Assista
   await click("[data-assistant-context-actions] [data-more]");
   await waitFor("[...document.querySelectorAll('.context-actions-menu button')].some(button => button.textContent.startsWith('拆成目标步骤'))", 5000);
 });
+
+test("contextual actions: a command that cannot run keeps its name on one line and gives the reason beneath it (E-10)", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  const setup = openPagesStore(homeDirectory);
+  const page = (() => { try { return setup.create({ project_id: projectId!, title: "草稿", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { setup.close(); } })();
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
+  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  await evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+    const text = editor.querySelectorAll('p')[1].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, 10);
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
+  await waitFor("document.querySelectorAll('[data-assistant-context-actions] .context-action[data-key]').length > 0", 8000);
+  await click("[data-assistant-context-actions] [data-more]");
+  await waitFor("document.querySelectorAll('.context-actions-menu button[disabled]').length >= 3", 8000);
+  const rows = await evaluate<Array<{ label: string; labelHeight: number; lineHeight: number; reasonBelowLabel: boolean }>>(`[...document.querySelectorAll('.context-actions-menu button[disabled]')].map(button => {
+    const label = button.querySelector('span'), reason = button.querySelector('small'), box = label.getBoundingClientRect();
+    return { label: label.textContent, labelHeight: box.height, lineHeight: parseFloat(getComputedStyle(label).lineHeight) || box.height, reasonBelowLabel: reason.getBoundingClientRect().top >= box.bottom - 1 }; })`);
+  for (const row of rows) {
+    assert.ok(row.labelHeight < row.lineHeight * 1.5, `${row.label} is squeezed onto ${Math.round(row.labelHeight / row.lineHeight)} lines`);
+    assert.equal(row.reasonBelowLabel, true, `${row.label}: the reason sits under the name`);
+  }
+});

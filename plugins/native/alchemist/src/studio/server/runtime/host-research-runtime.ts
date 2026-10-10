@@ -3,7 +3,7 @@ import { ALCHEMIST_SYNTHESIS, ALCHEMIST_CROSS_CHECK } from "../../../prompts.js"
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { Claim, Evidence, LensReport } from "../../domain/research/report.js";
-import type { ResearchExecutionRuntimePort, RuntimeInput } from "./fixture-research-runtime.js";
+import type { ResearchExecutionRuntimePort, RuntimeInput } from "./research-runtime-port.js";
 import { composeModelDispatchGuards, generateWithHost, type AlchemistAiPort } from "./host-port.js";
 
 const marketLabels = ["需求强度", "付出意愿", "竞争压力", "切入缝隙", "触达与时机"] as const;

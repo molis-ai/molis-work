@@ -21,10 +21,16 @@ export class SourceHttpError extends Error {
   }
 }
 
+/**
+ * How a request leaves the process. The Host may lend its own, to add a credential after the request has left this
+ * package: nothing here ever holds one.
+ */
+export type SourceFetch = (url: string, init: RequestInit) => Promise<Response>;
+
 export class SafePublicHttpClient implements SourceHttpClient {
   constructor(
     private readonly allowedHosts: readonly string[],
-    private readonly options: { timeoutMs?: number; maxBytes?: number; userAgent?: string } = {},
+    private readonly options: { timeoutMs?: number; maxBytes?: number; userAgent?: string; fetch?: SourceFetch } = {},
   ) {}
 
   async get(
@@ -37,7 +43,7 @@ export class SafePublicHttpClient implements SourceHttpClient {
     for (let redirect = 0; redirect <= 3; redirect += 1) {
       let response: Response;
       try {
-        response = await fetch(current, {
+        response = await (this.options.fetch ?? fetch)(current, {
           method: "GET",
           redirect: "manual",
           signal,

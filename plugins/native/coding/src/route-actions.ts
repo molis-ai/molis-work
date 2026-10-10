@@ -44,7 +44,7 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
     toInput: request => fromRequest(request, ["window", "known", "earlier"]), toRequest: input => ({ method: "GET", params: params(input), query: query(input, ["window", "known", "earlier"]), body: {} }) },
   "coding.update-session": { definition: define("sessions.update", "修改编码会话", "改名、归档，或保存草稿、材料、方法、角色、预算等本会话设置", "command", open(session), ["storage:private"], LOCAL),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "PATCH", params: params(input), query: {}, body: without(input, "session_id") }) },
-  "coding.read-runs": { definition: define("runs.list", "编码会话的轮次", "分页读取会话更早的执行轮次", "query",
+  "coding.read-runs": { definition: define("runs.list", "编码会话的轮次", "分页读取一个编码会话里更早的执行轮次（用 before 往前翻，每页最多 50 条）；只读，不改变会话", "query",
       closed({ ...session, before: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: 50 } }, ["session_id"]), ["artifact:read"], READS),
     toInput: request => fromRequest(request, ["before", "limit"]), toRequest: input => ({ method: "GET", params: params(input), query: query(input, ["before", "limit"]), body: {} }) },
   // A long session may first have the round's own model write a digest of its earlier rounds: that wait runs beside the project's queue.
@@ -61,7 +61,7 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
     toRequest: input => ({ method: "GET", params: params(input), query: input.fixed ? { fixed: "1" } : {} as Record<string, string>, body: {} }) },
   "coding.save-report": { definition: define("reports.save", "保存执行报告", "把已结束的一轮保存为固定版本报告；重复保存返回原版本", "command", closed(round), ["artifact:read", "artifact:write"], LOCAL),
     toInput: request => fromRequest(request), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: {} }) },
-  "coding.reports": { definition: define("reports.list", "执行报告目录", "列出本项目已保存的固定报告", "query", closed({}), ["artifact:read"], READS),
+  "coding.reports": { definition: define("reports.list", "执行报告目录", "列出本项目已保存的固定执行报告（每份是某个会话某一轮的结果）；只读。还没有固定版本的某一轮不在这里，用「读取执行报告」预览", "query", closed({}), ["artifact:read"], READS),
     toInput: () => ({}), toRequest: () => ({ method: "GET", params: {}, query: {}, body: {} }) },
   "coding.artifacts": { definition: define("artifacts.list", "编码成果目录", "列出本项目已保存的报告与变更", "query", closed({}), ["artifact:read"], READS),
     toInput: () => ({}), toRequest: () => ({ method: "GET", params: {}, query: {}, body: {} }) },

@@ -78,7 +78,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
         <div data-todo-reminder-rows></div>
       </section>
       <p class="todo-summary" data-todo-summary aria-live="polite"></p>
-      <p class="todo-note" data-todo-note role="status" aria-live="polite" hidden><span data-todo-note-text></span><button class="mw-btn mw-btn--link" type="button" data-todo-undo hidden>${p.text("撤销")}</button></p>
+      <p class="todo-note" data-todo-note role="status" aria-live="polite" hidden><span data-todo-note-text></span><button class="mw-btn mw-btn--link" type="button" data-todo-note-view hidden>${p.text("查看")}</button><button class="mw-btn mw-btn--link" type="button" data-todo-undo hidden>${p.text("撤销")}</button></p>
       <div class="todo-loading" data-todo-loading>
         <span class="mw-skeleton"></span><span class="mw-skeleton"></span><span class="mw-skeleton"></span>
       </div>

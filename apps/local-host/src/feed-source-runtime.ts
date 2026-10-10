@@ -1,6 +1,6 @@
 import { createAllowlistedRssTransport } from "@molis-ai/molis-work-integration-rss/host";
 import { createSearchRuntime } from "@adeptify/search-evidence-layer";
-import { createPortBackedNodeSearchHost, type SearchHostTransportPort } from "@adeptify/search-evidence-layer/host/node";
+import { createPortBackedNodeSearchHost } from "@adeptify/search-evidence-layer/host/node";
 import { createRssProvider } from "@adeptify/search-evidence-layer/providers/rss";
 import {
   createEvidenceContentStore, createFileSecretStore,
@@ -34,8 +34,6 @@ export function createFeedSourceRuntime(options: {
   secretStore?: SecretStore;
   content?: EvidenceContentStore;
   sourceCursor?: unknown;
-  /** Composition-owned query transport; the normal Feed path remains pinned by SEL. */
-  queryTransport?: SearchHostTransportPort;
 }): FeedSourceRuntime {
   const secretStore = options.secretStore ?? createFileSecretStore();
   const store = options.content ?? createEvidenceContentStore({ secretStore });
@@ -67,7 +65,7 @@ export function createFeedSourceRuntime(options: {
     providers: [{ revision: 1, provider: createRssProvider({ appId: APP_ID }), transportProfileId: "molis-work-rss-allowlist-v1" }],
   });
   const shared = createSearchEvidenceRuntime({
-    db: options.db, secretStore, content, queryTransport: options.queryTransport,
+    db: options.db, secretStore, content,
     source: {
       runtime: rssRuntime,
       routeResolver: createFeedExactRouteResolver({

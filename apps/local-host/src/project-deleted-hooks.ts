@@ -19,6 +19,13 @@ export interface ProjectDeletedOwner {
   readonly label: string | null;
   /** Owners run in ascending order of this (default 0), those with the same value in registration order. */
   readonly priority?: number;
+  /**
+   * True when what this owner keeps for the project stays valid while the project stays in the catalog under the same id:
+   * the demo's reset keeps its panels and Runtime bindings, and the Sessions they name (a live terminal goes on recording
+   * into its Session). Such an owner is left alone by `clearAll(…, { rebuild: true })`; a deletion, and the fixed-id demo made
+   * again after one, clear it like the others.
+   */
+  readonly survivesRebuild?: boolean;
   /** False once the service that registered this owner has been closed; such an owner is dropped, not run. */
   alive?(): boolean;
   /**
@@ -49,15 +56,17 @@ export interface ProjectDeletedPort {
    * `leaveElsewhere`, an owner whose service is another process's for good is not named: only owners that merely have to
    * wait (the service is in use right now, so a retry here can succeed) refuse.
    */
-  ready(options?: { leaveElsewhere?: boolean }): Promise<void>;
+  ready(options?: { leaveElsewhere?: boolean; rebuild?: boolean }): Promise<void>;
   /**
    * Runs every owner for a project id that is not in the catalog, or that stays in it under the same id (the demo's
    * rebuild); collects every failure. Each owner is checked first (`ready`), so a call that cannot clear a part refuses
    * before clearing any. With `skipDeferred`, an owner that cannot clear here is left out instead: for a project id
    * whose earlier deletion already ran that owner. With `leaveElsewhere`, only an owner whose service is another
-   * process's for good is left out. Returns the owners left out; the caller says so.
+   * process's for good is left out. With `rebuild`, the project stays in the catalog with its panels and bindings (the
+   * demo's reset): owners that declare `survivesRebuild` are neither asked nor cleared, and are not among those left out.
+   * Returns the owners left out; the caller says so.
    */
-  clearAll(projectId: string, options?: { skipDeferred?: boolean; leaveElsewhere?: boolean }): Promise<string[]>;
+  clearAll(projectId: string, options?: { skipDeferred?: boolean; leaveElsewhere?: boolean; rebuild?: boolean }): Promise<string[]>;
 }
 
 /**
@@ -80,6 +89,11 @@ export class ProjectDeletedHooks implements ProjectDeletedPort {
     };
   }
 
+  /** The owners a call clears: all of them, or without those whose data stays valid for a project that stays (`rebuild`). */
+  private owned(rebuild: boolean | undefined): ReadonlyArray<ProjectDeletedOwner> {
+    return rebuild ? this.owners().filter(owner => owner.survivesRebuild !== true) : this.owners();
+  }
+
   owners(): ReadonlyArray<ProjectDeletedOwner> {
     for (const [id, stack] of this.stacks) {
       for (let at = stack.length - 1; at >= 0; at -= 1) if (stack[at]!.alive?.() === false) stack.splice(at, 1);
@@ -98,10 +112,10 @@ export class ProjectDeletedHooks implements ProjectDeletedPort {
     return true;
   }
 
-  async ready(options: { leaveElsewhere?: boolean } = {}): Promise<void> {
+  async ready(options: { leaveElsewhere?: boolean; rebuild?: boolean } = {}): Promise<void> {
     const waiting: string[] = [];
     let elsewhere = true;
-    for (const owner of this.owners()) {
+    for (const owner of this.owned(options.rebuild)) {
       try { await owner.check?.(); }
       catch (error) {
         if (!(error instanceof ProjectDeletedDeferred)) throw error;
@@ -113,10 +127,10 @@ export class ProjectDeletedHooks implements ProjectDeletedPort {
     if (waiting.length) throw new ProjectDeletedDeferred(waiting.join("；"), elsewhere);
   }
 
-  async clearAll(projectId: string, options: { skipDeferred?: boolean; leaveElsewhere?: boolean } = {}): Promise<string[]> {
-    if (!options.skipDeferred) await this.ready({ leaveElsewhere: options.leaveElsewhere });
+  async clearAll(projectId: string, options: { skipDeferred?: boolean; leaveElsewhere?: boolean; rebuild?: boolean } = {}): Promise<string[]> {
+    if (!options.skipDeferred) await this.ready({ leaveElsewhere: options.leaveElsewhere, rebuild: options.rebuild });
     const failures: Error[] = [], left: string[] = [];
-    for (const owner of this.owners()) {
+    for (const owner of this.owned(options.rebuild)) {
       try {
         await owner.check?.();
         await owner.clear(projectId);

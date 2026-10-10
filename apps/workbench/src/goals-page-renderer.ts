@@ -32,6 +32,8 @@ export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extend
   plugin_stages?: readonly string[];
   /** Rail entries for plugins installed at run time; each has a stage in plugin_stages. */
   plugin_rail?: readonly { surface: string; label: string }[];
+  /** The Host runs in developer mode: the plugin list also offers what is otherwise kept out of it (Text Stats). */
+  developer_mode?: boolean;
   project: ProjectOperationsProject | null;
   projects: ProjectOperationsProject[];
   route_prefix: string;
@@ -247,7 +249,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       ${renderImmersiveHeader(primitives, desktopShell)}
       ${renderWorkbenchBar(primitives, {
         enabled: enabledPlugins,
-        rail: renderPluginRail(primitives, enabledPlugins, "", "", view.plugin_rail),
+        rail: renderPluginRail(primitives, enabledPlugins, "", "", view.plugin_rail, { developerMode: view.developer_mode }),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives))),
         sideTabs: sideEntries(enabledPlugins).map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title,
           icon: (side.icon ?? "package") as PageIcon, src: `${view.route_prefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` })),
@@ -306,7 +308,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="成果" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
-            <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives)}</section>
+            <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode })}</section>
             ${settingsSurfaces}
             ${(view.plugin_stages ?? []).map(defer).join("")}
           </div>

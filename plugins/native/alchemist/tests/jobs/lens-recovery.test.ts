@@ -11,10 +11,8 @@ import { createJobHandlers } from "../../src/studio/server/jobs/job-handlers.js"
 import { LocalWorker } from "../../src/studio/server/jobs/local-worker.js";
 import { SqliteJobRunner } from "../../src/studio/server/jobs/sqlite-job-runner.js";
 import { FixtureAiRuntimeAdapter } from "../../src/studio/server/runtime/fixture-ai-runtime.js";
-import {
-  FixtureResearchRuntimeAdapter,
-  type LensExecutionCheckpoint,
-} from "../../src/studio/server/runtime/fixture-research-runtime.js";
+import type { LensExecutionCheckpoint } from "../../src/studio/server/runtime/research-runtime-port.js";
+import { FixtureResearchRuntimeAdapter } from "../fixtures/fixture-research-runtime.js";
 import { createStartLensRunService } from "../../src/studio/server/services/start-lens-run.js";
 import { seedResearchIdea } from "../db/helpers/seed-research-idea.js";
 import { createTempDatabase } from "../db/helpers/temp-database.js";

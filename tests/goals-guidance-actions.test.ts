@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, goalsEntryCapabilities, readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { randomUUID } from "node:crypto";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -38,7 +38,7 @@ test("guidance actions and typed consumers preserve original receipts, revisions
     await assert.rejects(bound.invoke(goalsActions.guidanceAdd, { ...input, content: "不同请求" }));
     const update = { guidance_id: legacy.entry.guidance_id, action: "edit" as const, kind: "constraint" as const, content: "导出前由用户明确确认。",
       source_refs: ["project://new-requirements"], reason: "准确说明导出边界", confirmation_summary: "用户确认修改", user_confirmed: true, idempotency_key: "edit" };
-    const edited = await typed.invoke(goalsEntryCapabilities.commands.updateProjectGuidance, [{ ...update, project_id: project.project_id, actor_id: caller.actor_id }]);
+    const edited = await bound.invoke(goalsActions.guidanceUpdate, update);
     assert.equal(edited.entry.revision, 2); assert.equal(edited.entry.updated_by, caller.actor_id);
     assert.deepEqual(await bound.invoke(goalsActions.guidanceUpdate, update), { ...edited, replayed: true });
     const afterEdit = await typed.invoke(readProjectGuidanceCapability, { project_id: project.project_id });
@@ -56,8 +56,8 @@ test("guidance actions and typed consumers preserve original receipts, revisions
     assert.equal(restored.entries[0]?.revision, 4); assert.equal(restored.revisions.length, 4);
     blocked = true;
     await assert.rejects(typed.invoke(readProjectGuidanceCapability, { project_id: project.project_id }), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalsEntryCapabilities.commands.addProjectGuidance, [{ ...input, project_id: project.project_id, actor_id: caller.actor_id, idempotency_key: "denied" }]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalsEntryCapabilities.commands.updateProjectGuidance, [{ ...update, project_id: project.project_id, actor_id: caller.actor_id, idempotency_key: "denied" }]), { code: "actions.plugin_disabled" });
+    await assert.rejects(bound.invoke(goalsActions.guidanceAdd, { ...input, idempotency_key: "denied" }), { code: "actions.plugin_disabled" });
+    await assert.rejects(bound.invoke(goalsActions.guidanceUpdate, { ...update, idempotency_key: "denied" }), { code: "actions.plugin_disabled" });
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     try { assert.deepEqual(await restarted.client(ref).invoke(readProjectGuidanceCapability, { project_id: project.project_id }), restored); }

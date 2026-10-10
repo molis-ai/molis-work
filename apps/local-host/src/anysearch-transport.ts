@@ -5,6 +5,8 @@ import { SearchError, type SearchProviderExecutionResponse } from "@adeptify/sea
 import type { SearchHostTransportCall, SearchHostTransportPort } from "@adeptify/search-evidence-layer/host/node";
 import { resolveModelHostname } from "@molis-ai/molis-work-service-agent-host";
 
+/** The binding id the search runtime gives AnySearch's provider; the transport accepts only calls bound to it. */
+export const ANYSEARCH_TRANSPORT_PROFILE_ID = "anysearch-mcp-v1";
 const HOST = "api.anysearch.com";
 const MAX_REQUEST = 65_536, MAX_RESPONSE = 1_048_576;
 // Match SEL's public-address boundary. IPv4-mapped IPv6 is rejected rather
@@ -26,7 +28,12 @@ function tooLarge(): SearchError {
   return new SearchError({ code: "content_too_large", retryable: false, sideEffectState: "none", recoveryAction: "none" });
 }
 
-/** Public SEL Host port, restricted to one anonymous AnySearch HTTPS endpoint. */
+/**
+ * The one way Molis Work reaches AnySearch (Feed's web search and Alchemist's research both use it): a public SEL Host
+ * port restricted to one anonymous HTTPS endpoint. The host name is resolved by `resolveModelHostname`, so a fake-IP
+ * proxy setup (system answer in 198.18.0.0/15 with a proxy variable set) is verified over public DNS; every address is
+ * still checked to be public and the socket's peer must be the pinned address.
+ */
 export function createAnySearchTransport(): SearchHostTransportPort {
   const shutdown = new AbortController();
   const active = new Set<Promise<unknown>>();
@@ -49,7 +56,7 @@ export function createAnySearchTransport(): SearchHostTransportPort {
 async function execute(call: SearchHostTransportCall, signal: AbortSignal, sockets: Set<Promise<void>>): Promise<SearchProviderExecutionResponse> {
   signal.throwIfAborted();
   if (call.appId !== "molis-work" || call.binding.providerId !== "anysearch" || call.request.providerId !== "anysearch"
-    || call.binding.transportProfileId !== "anysearch-mcp-v1" || call.binding.credentialRef !== undefined
+    || call.binding.transportProfileId !== ANYSEARCH_TRANSPORT_PROFILE_ID || call.binding.credentialRef !== undefined
     || !["doctor", "search", "batch_search", "extract"].includes(call.request.operation)) throw unavailable();
   const body = Buffer.from(JSON.stringify(call.request.body), "utf8");
   if (body.byteLength > MAX_REQUEST) throw tooLarge();

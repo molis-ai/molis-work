@@ -24,6 +24,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | 13 个业务事实 Module（另有 4 个尚未建包的未来 owner；插件自有的库见 §7） | [`docs/modules/`](modules/README.md) |
 | 8 个 `horizontal/` 包：5 个横向运行服务，3 个平台产品服务（记忆、放置、搜索） | [`docs/horizontal/`](horizontal/README.md)（Memory、Placement 的边界见各自包 README） |
 | Plugin、存储、交换、UI 等平台机制 | [`docs/platform/`](platform/README.md) |
+| Molis Work 自己联网去哪里（出站网络逐类登记：主机、触发、发出去什么、限制） | [`docs/platform/NETWORK.md`](platform/NETWORK.md)（[English](platform/NETWORK.en.md)）；设置页「服务连接」链到它；到 AnySearch 的出站只有 `apps/local-host/src/anysearch-transport.ts` 一条 |
 | 新插件先写什么、怎么接到产品 | [`skills/molis-plugin-dev/SKILL.md`](../skills/molis-plugin-dev/SKILL.md)（Host/CLI/接入分文件）；命令与录取四问仍是 [`docs/platform/PLUGIN-DEVELOPMENT.md`](platform/PLUGIN-DEVELOPMENT.md) |
 | 新增一个插件、服务集成、设置分区、界面语言、操作系统平台等要改哪里、目标几处；内置插件迁到 Plugin Runtime 的计划；第三方插件的安装方案 | [`docs/system/EXTENSION-POINTS.md`](system/EXTENSION-POINTS.md)、[`docs/system/RUNTIME-MIGRATION.md`](system/RUNTIME-MIGRATION.md)、[`docs/system/THIRD-PARTY-PLUGINS.md`](system/THIRD-PARTY-PLUGINS.md) |
 | 某次实现具体改什么、如何验收 | 对应 `specs/<task>/spec.md` 或已接受 Goal Contract |
@@ -112,7 +113,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `horizontal/listener-host` | cursor、lease、重试、Raw Event 到 Signal Draft 投递 | Listener 技术 lease/cursor/去重/接收回执；Host 管 timer 生命周期 | `partial` | FD1/FD3/Cutover | 横向服务：@yijunw0212 |
 | `horizontal/scheduler` | Durable one-shot wakeup | sqlite job/lease/收据；Web timer 与 Feed timer 并行；once/interval 由 Schedule 插件拥有 | `partial` | `specs/archive/schedule-plugin/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/runtime-host` | Runtime 启动、恢复、中断、stream 与技术 Receipt | Runtime router、Codex app-server 与 PTY server host 已迁；浏览器 transport/reconnect 由 Work 消费 | `partial` | WK2 已迁 Host/Adapter；WK3 已迁产品编排 | 横向服务：@yijunw0212 |
-| `horizontal/agent-host` | Agent Runtime 注册、能力矩阵、启动授权与副作用 Review 队列 | Prologue 为主执行引擎（文字/结构化/图片/判断推理、Agent 轮次、外部 MCP、任务板、子代理、检查点、后台命令与等待），CLI Runtime 为辅；同一 Home 只有一个执行归属（`.molis-runtime-owner.db` 锁）；审查队列；唯一直接依赖 `@prologue/sdk` 的包 | `partial` | Plugin Platform v2；`docs/platform/PROLOGUE-AI.md` | 共享核心：@yijunw0212、@jingxusandra-gif |
+| `horizontal/agent-host` | Agent Runtime 注册、能力矩阵、启动授权与副作用 Review 队列 | Prologue 为主执行引擎（文字/结构化/图片/判断推理、Agent 轮次、外部 MCP、任务板、子代理、检查点、后台命令与等待），没有第二个执行引擎（`claude` 命令行适配器已于 2026-10 删除，外部 Agent 运行时按口径暂缓）；同一 Home 只有一个执行归属（`.molis-runtime-owner.db` 锁）；审查队列；唯一直接依赖 `@prologue/sdk` 的包 | `partial` | Plugin Platform v2；`docs/platform/PROLOGUE-AI.md` | 共享核心：@yijunw0212、@jingxusandra-gif |
 | `horizontal/search` | 系统搜索：经动作目录发现插件的搜索来源、维护可重建索引、按调用者权限聚合结果 | `SearchService`；系统动作 `search.query/open/status/rebuild` 由 Host 装配；索引持久化在 storage 适配；不读插件私有库 | `partial` | `specs/archive/system-search/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/memory` | 平台记忆：个人与项目记忆的开关与策略、确定性写入门、召回编排、候选、最近变动与撤销、界面信号计数 | `MemoryService`；系统动作 `memory.*` 由 Host 装配；正文、版本、删除与隔离在 Prologue Memory（经 Agent Host）；旁表在 storage 适配；不调用模型 | `partial` | `specs/archive/memory-system/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/placement` | 放在哪里：对象的位置、访问范围、关联（用于项目、Goal 资料、来自/复制自）与移动后的位置索引 | `PlacementService`；系统动作 `placement.describe/spaces/related/locate/link/unlink/move/copy/convert/goals/goal.bind/create` 由 Host 装配；关系写 Home 级 Context Ledger（`placement.db`）；对象事实总向所有者读；移动/复制经插件放置协议 | `partial` | `specs/archive/work-placement/spec.md` | 横向服务：@yijunw0212 |

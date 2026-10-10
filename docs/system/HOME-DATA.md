@@ -148,7 +148,9 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 
 ### 4.3 `sessions/sessions.db`（v7）
 
-`session_meta`、`sessions`、`session_messages`、`session_events`、`session_handoffs` 归 `modules/private-work-context`（`src/session-schema.ts`）；`context_edges` 归 `modules/context-ledger`，由 `apps/local-host/src/session-registry.ts:10` 注入。
+`session_meta`、`sessions`、`session_messages`、`session_events`、`session_handoffs` 归 `modules/private-work-context`（`src/session-schema.ts`）；`context_edges` 归 `modules/context-ledger`，由 `apps/local-host/src/session-registry.ts` 的 `createSessionLedger` 注入（`openWorkSessionRegistry` 与删除项目时 Sessions 所有者的清理都用它；行号不写，用符号名定位）。
+
+项目被删除时这个库里属于它的 Session 由 `modules/private-work-context` 自己清（`src/project-data.ts` 的 `sessionsProjectData`，回执里的所有者 id 是 `sessions`）：Session 靠 Ledger 边 `work.project` 属于项目（由 Ledger 的查询找出），一次事务经 Ledger 取消这些 Session 与交接包的关联边（Ledger 只追加：取消的边作为历史留在 `context_edges`，只有 id，没有内容），删这些 Session 的事件、交接、消息请求，再删没有别的行引用的 `sessions/content/blobs/` 内容块；别的项目的 Session、移到别处的 Session 不动，库不存在时不创建。示例项目的「重建」（`demo reset`）不清它们：重建保留项目的面板与 Runtime 绑定，它们指着的 Session 跟着留下（所有者声明 `survivesRebuild`，`apps/local-host/src/project-deleted-hooks.ts`）；删除示例项目、以及删除后用同一个固定 id 重新创建时才清。
 
 ### 4.4 `placement/placement.db`、`assistant/assistant.db`、`server/server.sqlite`
 

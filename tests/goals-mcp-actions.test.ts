@@ -8,7 +8,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, LocalMcpServer, molisWorkHostProjectReference, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
-import { createGoalIntentCapability, goalsActions, recordGoalNoteCapability } from "@molis-ai/molis-work-plugin-goals";
+import { createGoalIntentCapability, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";

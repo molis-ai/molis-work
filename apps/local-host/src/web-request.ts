@@ -78,6 +78,7 @@ import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { resolveWebRequest } from "./web-routing.js";
 import { handleLocalCatalogWebRequest } from "./web-catalog.js";
+import { webProjectDeletionPorts } from "./project-deletion-service.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
 import { inspectGitIndex } from "./workspace-git-index.js";
 import { isPluginEventManagementPath } from "./plugin-event-http.js";
@@ -140,14 +141,9 @@ export async function handleMolisWorkWebRequest(
       localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady,
       projectTitle: async projectId => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
     })) return;
-    await handleLocalCatalogWebRequest(request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, resolved.projects, composition, {
-      isPanelAlive: (panelId) => ptyHost.alive(panelId),
-      releaseProject: async (databasePath) => {
-        feedSchedulers.delete(databasePath);
-        webViewCache.delete(databasePath);
-        await localHost.closeProject(databasePath);
-      },
-    }, async () => { await agentReady(); return agentHost.descriptors(); });
+    await handleLocalCatalogWebRequest(request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, resolved.projects, composition,
+      webProjectDeletionPorts({ isPanelAlive: panelId => ptyHost.alive(panelId), feedSchedulers, webViewCache, localHost }),
+      async () => { await agentReady(); return agentHost.descriptors(); });
     return;
   }
       if (resolved.kind === "project_not_found") {

@@ -11,13 +11,27 @@ import {
 } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { initializeBoardCapability, goalsEntryCapabilities } from "@molis-ai/molis-work-plugin-goals";
+import { initializeBoardCapability, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { managementGoals } from "./goal-management-caller.js";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
+import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 /** 产品装配真的构造了 Agent Host，插件经 Capability 够得到它。 */
 
 const CODING = "io.molis.work.coding";
+/** A test-only Runtime that, like any Runtime without a Host approval bridge, can read but not write or run commands. */
+const READ_ONLY = "fixture-read-only";
+
+function readOnlyRuntime(runtimeId: string): AgentRuntimeAdapter {
+  const unused = async (): Promise<never> => { throw new Error("Not used by this fixture"); };
+  return {
+    descriptor: { runtime_id: runtimeId, display_name: "Read-only fixture", provider_version: "1", capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported" } },
+    async health() { return { ok: true, status: "ready", message: "ready" }; },
+    createSession: unused, readSession: unused, start: unused, read: unused, control: unused, readCommandOutput: unused,
+    observe() { throw new Error("Not used by this fixture"); },
+  };
+}
 
 async function fixture(workspace: ProjectWorkspaceRef | null) {
   const directory = await mkdtemp(join(tmpdir(), "agent-composition-"));
@@ -26,11 +40,8 @@ async function fixture(workspace: ProjectWorkspaceRef | null) {
     databasePath: join(directory, "project.db"),
     projectId: "project-a",
   });
-  const composition = composeAgentHost({
-    localHost,
-    workspaceFor: () => workspace,
-    cliRuntimes: [{ runtime_id: "claude-code", display_name: "Claude Code", command: "claude" }],
-  });
+  const composition = composeAgentHost({ localHost, workspaceFor: () => workspace });
+  composition.agentHost.register(readOnlyRuntime(READ_ONLY));
   return { directory, localHost, reference, composition, client: localHost.client(reference) };
 }
 
@@ -52,7 +63,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
     return { available: true };
   } });
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: "board" });
-  const composition = composeAgentHost({ localHost, cliRuntimes: [], workspaceFor: () => ({ workspace_id: "w", canonical_path: directory, realpath_verified: true, display_name: "workspace" }) });
+  const composition = composeAgentHost({ localHost, workspaceFor: () => ({ workspace_id: "w", canonical_path: directory, realpath_verified: true, display_name: "workspace" }) });
   const captured: AgentStartRequest[] = [];
   composition.agentHost.register({
     descriptor: { runtime_id: "probe", display_name: "Probe", provider_version: "1", capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported" } },
@@ -74,15 +85,16 @@ test("Agent Host loads current guidance through actions and freezes each real re
   const client = localHost.client(reference);
   try {
     await client.invoke(initializeBoardCapability, { project_id: "board", title: "Guidance", idempotency_key: "init" });
-    const added = await client.invoke(goalsEntryCapabilities.commands.addProjectGuidance, [{ project_id: "board", actor_id: "user", kind: "constraint",
-      content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" }]);
+    const management = managementGoals(localHost.actionClient(reference), "board");
+    const added = await management.invoke(goalsActions.guidanceAdd, { kind: "constraint",
+      content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
     const request: AgentStartRequest = { project_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user", session: { runtime_id: "probe", session_id: "s" },
       task: "读取项目", role_id: "reader", directory: { canonical_path: directory, realpath_verified: true } };
     await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
     const first = captured[0]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!;
     assert.match(first.body, /保留源文件/); assert.equal(first.version, 1);
-    await client.invoke(goalsEntryCapabilities.commands.updateProjectGuidance, [{ project_id: "board", actor_id: "user", guidance_id: added.entry.guidance_id,
-      action: "edit", kind: "constraint", content: "保留源文件和备份。", reason: "补充边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "edit" }]);
+    await management.invoke(goalsActions.guidanceUpdate, { guidance_id: added.entry.guidance_id,
+      action: "edit", kind: "constraint", content: "保留源文件和备份。", reason: "补充边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "edit" });
     await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
     const second = captured[1]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!;
     assert.match(second.body, /保留源文件和备份/); assert.equal(second.version, 2);
@@ -94,12 +106,28 @@ test("Agent Host loads current guidance through actions and freezes each real re
   } finally { await composition.dispose(); await localHost.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
+test("装配不带任何默认 Runtime：命令行 Runtime 已删除，没给 Prologue 时运行时列表为空", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "agent-composition-empty-"));
+  const localHost = new MolisWorkLocalHost();
+  const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: "project-a" });
+  const composition = composeAgentHost({ localHost, workspaceFor: () => null });
+  try {
+    assert.deepEqual(composition.agentHost.descriptors(), [], "a Host registers only what its owner supplied");
+    assert.deepEqual(await localHost.client(reference).invoke(agentHostCapabilities.listRuntimes, []), []);
+  } finally {
+    await composition.dispose();
+    await localHost.closeProject(reference);
+    await localHost.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("装配之后，运行时列表经 Capability 就能拿到", async () => {
   const item = await fixture(null);
   try {
     const runtimes = await item.client.invoke(agentHostCapabilities.listRuntimes, []);
-    assert.deepEqual(runtimes.map((entry) => entry.runtime_id), ["claude-code"]);
-    // CLI 只读：写入与命令如实报不支持
+    assert.deepEqual(runtimes.map((entry) => entry.runtime_id), [READ_ONLY]);
+    // 没有接宿主审批的 Runtime 只读：写入与命令如实报不支持
     assert.equal(runtimes[0]?.capabilities["text-edit"], "unsupported");
     assert.equal(runtimes[0]?.capabilities.command, "unsupported");
   } finally {
@@ -111,11 +139,11 @@ test("Coding 的角色从它自己的 Manifest 解析；只读的可用，会写
   const item = await fixture(null);
   try {
     const roles = await item.client.invoke(agentHostCapabilities.availableRoles,
-      ["claude-code", CODING]);
+      [READ_ONLY, CODING]);
     const reader = roles.find((role) => role.role_id === "reader");
     const writer = roles.find((role) => role.role_id === "writer");
     assert.equal(reader?.available, true);
-    assert.equal(writer?.available, false, "CLI 没接宿主审批，会写的角色就该不可用");
+    assert.equal(writer?.available, false, "Runtime 没接宿主审批，会写的角色就该不可用");
     assert.match(writer?.reason ?? "", /text-edit/);
   } finally {
     await close(item);
@@ -126,7 +154,7 @@ test("没有声明 Agent 的插件，一个角色都拿不到", async () => {
   const item = await fixture(null);
   try {
     assert.deepEqual(
-      await item.client.invoke(agentHostCapabilities.availableRoles, ["claude-code", "io.molis.work.feed"]),
+      await item.client.invoke(agentHostCapabilities.availableRoles, [READ_ONLY, "io.molis.work.feed"]),
       [], "没声明就是没有，不是给个默认角色");
   } finally {
     await close(item);
@@ -138,7 +166,7 @@ test("项目没绑定工作区时，建会话就被目录那道闸拦住", async
   const item = await fixture(null);
   try {
     await assert.rejects(
-      () => item.client.invoke(agentHostCapabilities.createSession, ["claude-code", {
+      () => item.client.invoke(agentHostCapabilities.createSession, [READ_ONLY, {
         plugin_id: CODING, project_id: "project-a", install_id: "coding", actor_id: "user", title: "看看代码",
         directory: { canonical_path: "/tmp/anywhere", realpath_verified: true },
       }]),
@@ -156,7 +184,7 @@ test("插件不能拿一个宿主没授权的目录开会话", async () => {
   });
   try {
     await assert.rejects(
-      () => item.client.invoke(agentHostCapabilities.createSession, ["claude-code", {
+      () => item.client.invoke(agentHostCapabilities.createSession, [READ_ONLY, {
         plugin_id: CODING, project_id: "project-a", install_id: "coding", actor_id: "user", title: "看看代码",
         directory: { canonical_path: "/somewhere/else", realpath_verified: true },
       }]),

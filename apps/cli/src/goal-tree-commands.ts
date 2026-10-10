@@ -1,5 +1,5 @@
 import type { AsyncApplicationMethods } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { managementTreeAuthority, type GoalTreeEntryApi } from "@molis-ai/molis-work-plugin-goals";
+import type { GoalTreeEntryApi } from "@molis-ai/molis-work-plugin-goals";
 
 /** Wire conversion only; the application retains validation and transaction ownership. */
 export function createCliGoalTreeHandlers(application: GoalTreeEntryApi | AsyncApplicationMethods<GoalTreeEntryApi>) {
@@ -10,8 +10,9 @@ export function createCliGoalTreeHandlers(application: GoalTreeEntryApi | AsyncA
       application.listGoalTreeProposals(input as unknown as Parameters<GoalTreeEntryApi["listGoalTreeProposals"]>[0]),
     "goal-tree-check": async (input: Record<string, unknown>) =>
       application.checkGoalTreeProposal(input as unknown as Parameters<GoalTreeEntryApi["checkGoalTreeProposal"]>[0]),
-    // The CLI decides as the person on this machine; an identity in the payload is not read.
-    "goal-tree-decide": async ({ authority, ...input }: Record<string, unknown>) =>
-      application.decideGoalTreeProposal({ ...input, authority: managementTreeAuthority(String(input.project_id), String(input.idempotency_key), authority) } as unknown as Parameters<GoalTreeEntryApi["decideGoalTreeProposal"]>[0]),
+    // The CLI decides as the person on this machine: the Host builds the authority from the conversation the payload points at and
+    // refuses an identity in it.
+    "goal-tree-decide": async (input: Record<string, unknown>) =>
+      application.decideGoalTreeProposal(input as unknown as Parameters<GoalTreeEntryApi["decideGoalTreeProposal"]>[0]),
   };
 }

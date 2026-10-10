@@ -34,7 +34,7 @@ export const imagesActions={
 };
 export const IMAGES_ACTION_PERMISSIONS=[...new Set(Object.values(imagesActions).flatMap(d=>d.action.permissions))];
 export interface ImagesActionPorts { service():ImagesService; authConnections():ConnectorConnectionView[]; validateConnection(input:ImageConnectionInput):void;
-  /** Whether a generation can start now for this caller (a service that can be used exists); absent means always. Must not open the store just to answer. */
+  /** Whether a generation can start now for this caller (a service that can be used exists); absent means always. It must not create the store; once images.db exists it may open it (the first answer starts the shared service, whose start-up writes), and every answer after that only reads. */
   startAvailability?(caller:ActionCallContext):ActionAvailability }
 export function createImagesActionHandlers(ports:ImagesActionPorts):ActionHandlerBinding[]{
   const project=(caller:ActionCallContext)=>{if(!caller.project_id)throw new ActionError("actions.project_required","请选择项目");return caller.project_id;};

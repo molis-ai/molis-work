@@ -232,3 +232,43 @@ test("Organizing results wait in Todo: the person ticks, edits, adds and ignores
   await waitFor("document.querySelector('[data-todo-review]').textContent.includes('没有等你确认的整理结果')");
   assert.equal(items().length, 2);
 });
+
+// Frontend flow walk V-4: the tab strip scrolls sideways to keep the chosen view in sight, and only the strip. Opening one organize
+// result by its id puts that batch at the top of the review list; revealing the tab must not scroll the list back up over it.
+test("390px: opening an organize result by id keeps that batch in view", { timeout: 120_000 }, async t => {
+  const answer = JSON.stringify({
+    candidates: [
+      { ref: "c1", kind: "request", title: "发送新版方案", why: "张总要求周五前收到", owner: { who: "你", stated: true }, due: { date: null, time: null, phrase: null },
+        evidence: [{ material: 1, excerpt: "请周五前发新版方案" }] },
+      { ref: "c2", kind: "waiting", title: "等待小李确认预算", why: "预算要小李确认", owner: { who: "小李", stated: true }, due: { date: null, phrase: null },
+        waiting: { who: "小李", what: "确认预算" }, evidence: [{ material: 1, excerpt: "预算等小李确认" }] },
+      { ref: "c3", kind: "suggestion", title: "今天催小李确认预算", why: "预算确认影响周五交付", owner: { who: "你", stated: false }, due: { date: null, phrase: null },
+        evidence: [{ material: 1, excerpt: "预算等小李确认" }] },
+    ],
+    reference_only: [],
+  });
+  const browser = await openGoalBrowser(t, true, undefined, async () => answer);
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, localHost } = browser;
+  for (const name of ["张总", "李主管", "赵经理", "陈老师", "周女士"]) {
+    await localHost.homeActionClient().invoke({ actor_id: "assistant", project_id: null, audience: "agent", permissions: [...TODO_ACTION_PERMISSIONS] }, todoOrganizeActions.extract,
+      { title: `整理：${name}的邮件`, materials: [{ title: `${name}：新版方案`, text: `${name}：请周五前发新版方案，预算等小李确认。` }] });
+  }
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 700, deviceScaleFactor: 1, mobile: true }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-id=todo]')");
+  if (await evaluate("document.body.dataset.desktopSurface") !== "todo") await click("[data-plugin-strip] [data-plugin-id=todo]");
+  await waitFor("!document.querySelector('[data-todo-view=review]').hidden");
+  await click("[data-todo-view=review]");
+  await waitFor("document.querySelectorAll('[data-todo-batch-review]').length === 5");
+  const last = String(await evaluate("[...document.querySelectorAll('[data-todo-batch-review]')].pop().dataset.todoBatchReview"));
+  // The result named by the Assistant or by search: Todo reloads the review list and brings that batch to the top.
+  await evaluate(`(() => { document.querySelector('[data-todo=workbench]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: 'batch:${last}' } })); })()`);
+  await waitFor(`document.querySelector('[data-todo-batch-review="${last}"]')?.classList.contains('is-arriving')`);
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  const seen = await evaluate<{ scrolled: number; gap: number; below: number }>(`(() => { const list = document.querySelector('[data-todo=directory]'), box = list.getBoundingClientRect(),
+    top = document.querySelector('[data-todo-batch-review="${last}"]').getBoundingClientRect().top; return { scrolled: list.scrollTop, gap: Math.round(top - box.top), below: Math.round(box.bottom - top) }; })()`);
+  assert.ok(seen.scrolled > 0, `the list was scrolled down to the batch: ${JSON.stringify(seen)}`);
+  assert.ok(seen.gap >= -1 && seen.below > 120, `the batch sits at the top of what the person sees, not scrolled away again: ${JSON.stringify(seen)}`);
+});

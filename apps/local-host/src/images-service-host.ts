@@ -89,7 +89,9 @@ export class ImagesHostService {
   }
   /**
    * Whether an image can be generated now: some saved service has what it needs (a local address, or a chosen connection that is
-   * still connected). A Home that never saved one has no store yet, and asking must not create it.
+   * still connected). A Home that never saved one has no store yet, and asking must not create it. Once images.db exists the first
+   * answer opens the shared service like any first use (its start-up recovers interrupted jobs and reclaims runner files, which write);
+   * later answers reuse it and only read.
    */
   startAvailability(): ActionAvailability {
     const none = (reason: string): ActionAvailability => ({ available: false, code: "actions.connection_required", reason });

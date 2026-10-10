@@ -1,7 +1,9 @@
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parseTodoQuickText } from "./quick-parse.js";
 
-/** Todo workbench client: views, quick entry, inline completion, batch changes, the detail editor and undo. */
+/** Todo workbench client: views, quick entry, inline completion, batch changes, the detail editor and undo.
+ * `markView` scrolls only the narrow view-tab strip, sideways: `scrollIntoView` would scroll the list as well and put an organize result opened by its id back off the screen (tests/todo.e2e.test.ts, tests/narrow-lists.e2e.test.ts).
+ * `todoObject` and `todoMaterial`: the resident Assistant hears about a todo through its page message (spec 8.3 of the Assistant), with the todo as the object and its details as material; handing over needs a real click here, anything else is only offered to the person. (The script is served as written and its bytes are budgeted in tooling/gates/page-assets.json, so a comment that belongs to no single line lives here.) */
 export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const workbench = document.querySelector("[data-todo=workbench]");
@@ -103,14 +105,12 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     return payload;
   };
   const markView = (button) => { const on = button.dataset.todoView === view; button.classList.toggle("is-current", on); button.setAttribute("aria-pressed", String(on));
-    if (on && !button.hidden) button.scrollIntoView({ inline: "nearest", block: "nearest" }); }; // a narrow strip scrolls: the chosen view is never left half out of it
+    if (on && !button.hidden) { const bar = button.parentElement, a = bar.getBoundingClientRect(), b = button.getBoundingClientRect(); bar.scrollLeft += b.left < a.left ? b.left - a.left : Math.max(0, b.right - a.right); } };
   const batchOf = (id) => batches.find((entry) => entry.candidates.some((candidate) => candidate.candidate_id === id)), candidateIn = (batch, id) => batch.candidates.find((candidate) => candidate.candidate_id === id);
   const watchWorks = () => { const asked = selected; watchWorksUntil = Date.now() + 60000; setTimeout(() => { if (selected && selected.id === asked.id) void loadWorks(asked); }, 1500); };
   const todoPath = (id, tail = "") => "/api/todo/" + encodeURIComponent(id) + tail;
   const post = (item, tail, body) => request("POST", todoPath(item.id, tail), { ...body, expected_revision: item.revision });
   const undoOf = (payload) => payload.change_id ? { change_id: payload.change_id } : null;
-  // The resident Assistant hears about a todo through its page message (spec 8.3 of the Assistant): the todo as the
-  // object, its details as material. Handing over needs a real click here; anything else is only offered to the person.
   const todoObject = (item) => ({ kind: "todo_item", id: item.id, title: item.title, version: item.revision });
   const todoMaterial = (item) => ({
     title: L("待办") + "「" + item.title + "」",
@@ -392,9 +392,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     summary.textContent = summaryText();
     summary.hidden = !summary.textContent;
     workbench.querySelectorAll("[data-todo-view]").forEach((button) => {
-      markView(button);
       const count = counts[button.dataset.todoView];
       button.textContent = button.dataset.todoViewLabel + (count && !["all", "closed"].includes(button.dataset.todoView) ? " " + count : "");
+      markView(button);
     });
     scopeButton.setAttribute("aria-pressed", String(everything));
     scopeButton.classList.toggle("is-current", everything);

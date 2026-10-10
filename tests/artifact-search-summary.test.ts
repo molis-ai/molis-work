@@ -4,6 +4,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ArtifactVersionRecord, ArtifactsApplicationApi, ArtifactsQueryApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ArtifactsModule, createArtifactsSchema } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactsActions, artifactsManifest, createArtifactActionHandlers } from "@molis-ai/molis-work-plugin-artifacts";
@@ -24,10 +25,16 @@ function fixture() {
     appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid) });
   const ledger = createContextLedger(db, { authorize: () => true });
   const actions = new ActionService();
+  // What a later build of the allow-list would read out of a version that is stored the same way: the stored record is rewritten on its way
+  // to the source (same version, same digest), as the source itself is the only thing that changes between builds.
+  let rewrite: ((record: ArtifactVersionRecord) => ArtifactVersionRecord) | null = null;
+  const query: ArtifactsQueryApi = Object.assign(Object.create(artifacts.query), {
+    listArtifacts: (project: string) => artifacts.query.listArtifacts(project).map(record => rewrite ? rewrite(record) : record) });
+  const port: ArtifactsApplicationApi = { query, commands: artifacts.commands };
   actions.registerProvider({
     provider: { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: projectId },
     definitions: artifactsManifest.actions!,
-    handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, importSources: () => ({}),
+    handlers: createArtifactActionHandlers({ projectId, artifacts: port, ledger: ledger.query, importSources: () => ({}),
       importDocument: async () => { throw new Error("read-only fixture"); }, openProjectReference: async () => { throw new Error("must not fetch a file"); } }),
   });
   const publish = (artifactId: string, title: string, artifactTypeId: string, payload: unknown) => artifacts.commands.registerVersion({
@@ -37,7 +44,8 @@ function fixture() {
   }).artifact;
   const summaries = async () => (await actions.invoke(person, artifactsActions.searchEntries, { cursor: null, limit: 50 })).entries
     .map(entry => ({ title: entry.title, summary: entry.summary }));
-  return { publish, summaries, close: () => db.close() };
+  const entries = async () => (await actions.invoke(person, artifactsActions.searchEntries, { cursor: null, limit: 50 })).entries;
+  return { publish, summaries, entries, readAs: (next: typeof rewrite) => { rewrite = next; }, close: () => db.close() };
 }
 
 test("a pinned document's search summary is its text, not its document id, goal id or node types", async t => {
@@ -125,4 +133,19 @@ test("a questionnaire keeps its questions and option labels searchable, not ques
   const [entry] = await f.summaries();
   for (const wanted of ["下季度改进依据", "你最看重哪方面", "响应速度"]) assert.match(entry!.summary, new RegExp(wanted));
   assert.doesNotMatch(entry!.summary, /q-41|o-1|single_choice/);
+});
+
+// The index skips an entry whose revision is unchanged (horizontal/search), so the revision has to cover everything the entry makes searchable,
+// the summary included: when the way a summary is read out of a version changes, an entry indexed before the change is read again. Without that
+// an index built before E-4 keeps the id-first summaries until each artifact gets a new version or somebody rebuilds the index by hand.
+test("an entry's revision covers its summary: the same stored version read out differently is a new revision", async t => {
+  const f = fixture(); t.after(f.close);
+  f.publish("doc-r", "周报", "io.molis.work.pages.document", { title: "周报", page_id: "8a4cf60-5069-4cf5-aab8-a313f6f607ae", body: "本周完成了接口联调" });
+  const [before] = await f.entries();
+  const [again] = await f.entries();
+  assert.equal(again!.revision, before!.revision, "an unchanged version keeps its revision, so it is not read again on every sync");
+  f.readAs(record => ({ ...record, payload: { title: "周报", page_id: "8a4cf60-5069-4cf5-aab8-a313f6f607ae", body: "本周完成了接口联调，下周继续" } }));
+  const [after] = await f.entries();
+  assert.notEqual(after!.summary, before!.summary);
+  assert.notEqual(after!.revision, before!.revision, "the summary changed, the version and its digest did not: the revision still has to change");
 });

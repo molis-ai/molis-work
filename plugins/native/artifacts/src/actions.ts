@@ -1,4 +1,4 @@
-import { ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, bindArtifactPreview, defineArtifactPreviewAction, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, bindArtifactPreview, defineArtifactPreviewAction, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchRevisionOf, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactConsumerType, ArtifactReference, ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
@@ -164,9 +164,13 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         const current = latest.get(record.artifact_id);
         if (!current || record.version > current.version) latest.set(record.artifact_id, record);
       }
-      return [...latest.values()].map((record): SearchEntry => ({ subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
-        revision: `${record.version}:${record.content_digest}`, title: record.title, summary: payloadText(record.payload, searchText(record.title)).join("\n").slice(0, 4000),
-        updated_at: record.created_at, content: "summary", open: { surface: "artifacts", id: artifactVersionPath(record) } }));
+      return [...latest.values()].map((record): SearchEntry => {
+        const summary = payloadText(record.payload, searchText(record.title)).join("\n").slice(0, 4000);
+        // The summary is searched text read out of the payload by rules this build owns, so the revision covers it: an index made by an
+        // earlier build, with other rules, reads the entry again instead of keeping its old summary until the next version.
+        return { subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) }, revision: searchRevisionOf([`${record.version}:${record.content_digest}`, summary]),
+          title: record.title, summary, updated_at: record.created_at, content: "summary", open: { surface: "artifacts", id: artifactVersionPath(record) } };
+      });
     }),
     bindFileEntriesHandler(artifactsActions.fileEntries, () => {
       const latest = new Map<string, ArtifactVersionRecord>();

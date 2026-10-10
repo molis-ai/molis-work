@@ -67,7 +67,7 @@ export interface AgentRuntimeDescriptor {
   capabilities: AgentRuntimeCapabilityMatrix;
 }
 
-export type AgentRuntimeHealthStatus = "ready" | "needs_setup" | "unavailable";
+export type AgentRuntimeHealthStatus = "ready" | "needs_setup";
 
 export interface AgentRuntimeHealth {
   ok: boolean;
@@ -1401,7 +1401,6 @@ export type AgentHostErrorCode =
   // Runtime registry
   | "agent.runtime_unknown"
   | "agent.runtime_duplicate"
-  | "agent.runtime_missing"
   // Start authority: the three gates, plus what the adapter needs before it runs
   | "agent.capability_unavailable"
   | "agent.role_not_declared"

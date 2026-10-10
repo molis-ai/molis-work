@@ -1,7 +1,7 @@
 {
   "giantUnits": 162,
   "giant": {
-    "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 261,
+    "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
     "file apps/local-host/src/assistant/assistant-service.ts": 2628,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
       "lines": 2069,
@@ -170,7 +170,7 @@
     "function modules/shelf/src/store.ts#runJob": 199,
     "function packages/contracts/src/platform/actions.ts#inspectActionDeclarations": 158,
     "function packages/contracts/src/platform/plugin-agent.ts#inspectAgentDeclaration": 162,
-    "file packages/contracts/src/services/agent-host.ts": 1734,
+    "file packages/contracts/src/services/agent-host.ts": 1733,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 947,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
@@ -284,7 +284,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 957,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
   },
-  "testInternalImports": 994,
+  "testInternalImports": 992,
   "testImports": {
     "tests/action-before-effect.test.ts": 4,
     "tests/action-call-log.test.ts": 3,
@@ -312,9 +312,9 @@
     "tests/agent-built-plugins-workflow.test.ts": 9,
     "tests/agent-definitions.test.ts": 7,
     "tests/agent-plugin-identity.test.ts": 4,
-    "tests/agent-start-authority.test.ts": 5,
+    "tests/agent-start-authority.test.ts": 4,
     "tests/agent-studio.e2e.test.ts": 5,
-    "tests/agent-workspace-none.test.ts": 4,
+    "tests/agent-workspace-none.test.ts": 3,
     "tests/alchemist-host-lifecycle.test.ts": 1,
     "tests/alchemist-host.test.ts": 11,
     "tests/alchemist-runtime.test.ts": 2,

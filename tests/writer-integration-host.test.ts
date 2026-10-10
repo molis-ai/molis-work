@@ -28,7 +28,7 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   return parentCalls===1?response("dispatch-subagent",{instruction:"CHILD_TASK read and update note.txt",tools:["read","search","context-remaining","write","edit","run-command"],workspace:"child",character,idempotencyKey:"child",background:false}):parentOutcome === "failed" ? new Response(JSON.stringify({type:"error",error:{type:"invalid_request_error",message:"fixture parent cannot finish its report"}}),{status:400,headers:{"content-type":"application/json"}}):response();
  });
  const localHost=new MolisWorkLocalHost(),reference=molisWorkHostProjectReference({databasePath:path.join(home,"board.db"),projectId: "board"}),client=localHost.client(reference);
- const make=()=>composeAgentHost({localHost,homeDirectory:home,workspaceFor:()=>grants[0]!,workspacesFor:()=>grants,cliRuntimes:[],prologue:{storageRoot:path.join(home,"sdk"),modelConfiguration:async()=>({protocol:"anthropic-compatible",endpoint:"https://1.1.1.1/v1/messages",model:"fixture",credential_ref:"fixture"}),resolveCredential:()=>"test-only"}});
+ const make=()=>composeAgentHost({localHost,homeDirectory:home,workspaceFor:()=>grants[0]!,workspacesFor:()=>grants,prologue:{storageRoot:path.join(home,"sdk"),modelConfiguration:async()=>({protocol:"anthropic-compatible",endpoint:"https://1.1.1.1/v1/messages",model:"fixture",credential_ref:"fixture"}),resolveCredential:()=>"test-only"}});
  let composition=make();await composition.ready;
  try{
   const adapter=composition.agentHost.adapter("prologue"),owner={project_id:"board",plugin_id:"io.molis.work.coding",install_id:"fixture",actor_id:"user"},directory={canonical_path:root,realpath_verified:true};

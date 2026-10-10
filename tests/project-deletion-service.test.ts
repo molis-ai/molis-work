@@ -139,10 +139,24 @@ test("the MCP tool asks the resident Host: a live terminal stops it (409), and o
   const project = await catalog.createProject({ display_name: "有终端的项目", actor_id: "test-user" });
   const { localHost, origin, closeTerminal } = await residentHostWithTerminal(t, home, project.project_id, directory, catalog);
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  // The stdio MCP process is another process: it has its own Host instance (its own table of open runtimes) and only the
+  // resident Host's address. Both open the project, so each runtime's release is told apart from the other's. This
+  // process can bind only one Agent service per Home, and the resident Host has it, so the MCP's Host is built without
+  // a Home: a separate table of runtimes is all this test needs from it.
+  const mcpHost = createMolisWorkLocalHost({});
+  t.after(() => mcpHost.close());
+  const isOpen = (host: { status(): { projects: Array<{ project_id: string }> } }) => host.status().projects.some(row => row.project_id === project.project_id);
   await localHost.withProject(reference, () => undefined);
-  assert.equal(localHost.status().projects.some(row => row.project_id === project.project_id), true, "the resident Host has the project's runtime open");
-  // The stdio MCP process: its own Home and the resident Host's address, so deleting is the resident Host's to do.
-  const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", null, runtimeHost(home), localHost, origin);
+  await mcpHost.withProject(reference, () => undefined);
+  // The Host also closes a deleted project's runtime afterwards (the "project-runtime" owner of the deletion hooks), so
+  // "the runtime is gone" would hold without the service's own release. What the service adds is the order: it lets go
+  // before the project's directory moves. Each close the resident Host is asked for records whether the project was still there.
+  const residentCloses: boolean[] = [];
+  const closeResidentRuntime = localHost.closeProject.bind(localHost);
+  localHost.closeProject = target => { residentCloses.push(existsSync(project.database_path)); return closeResidentRuntime(target); };
+  assert.equal(isOpen(localHost), true, "the resident Host has the project's runtime open");
+  assert.equal(isOpen(mcpHost), true, "the MCP process has the project's runtime open too");
+  const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", null, runtimeHost(home), mcpHost, origin);
   t.after(() => mcp.close());
   const request = { project_id: project.project_id, delete_confirmed: true, idempotency_key: "mcp-live-terminal-delete" };
 
@@ -151,7 +165,9 @@ test("the MCP tool asks the resident Host: a live terminal stops it (409), and o
   assert.match(blocked.content[0]?.text ?? "", /关闭.*终端/);
   assert.match(blocked.content[0]?.text ?? "", /catalog\.project_terminal_live/);
   assert.equal(existsSync(project.database_path), true);
-  assert.equal(localHost.status().projects.some(row => row.project_id === project.project_id), true, "a refused deletion leaves the runtime open");
+  assert.equal(isOpen(localHost), true, "a refused deletion leaves the resident Host's runtime open");
+  assert.deepEqual(residentCloses, [], "a refused deletion does not ask the resident Host to close anything");
+  assert.equal(isOpen(mcpHost), true, "a refused deletion leaves the MCP process's runtime open");
   assert.equal(catalog.listProjectDeletions().length, 0);
 
   await closeTerminal();
@@ -161,7 +177,9 @@ test("the MCP tool asks the resident Host: a live terminal stops it (409), and o
   assert.equal(receipt.replayed, false);
   assert.equal(receipt.deletion.actor_id, "runtime:codex:deletion-service-session", "the actor is the MCP client and the Runtime Session of the call");
   assert.equal(existsSync(project.database_path), false);
-  assert.equal(localHost.status().projects.some(row => row.project_id === project.project_id), false, "the resident Host let go of the runtime");
+  assert.equal(isOpen(localHost), false, "the resident Host let go of its runtime");
+  assert.equal(residentCloses[0], true, "the resident Host's service let go of the runtime while the project's directory was still in place");
+  assert.equal(isOpen(mcpHost), false, "the MCP process let go of its own runtime after the Host deleted");
   assert.deepEqual(catalog.listDesktopPanels(project.project_id), []);
 
   const replay = await callTool(mcp, "molis_work_v1_project_delete", request);

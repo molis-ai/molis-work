@@ -72,7 +72,7 @@ Coding 的进展回执查询也转入统一动作，保留原保存回执和重�
 
 `goals.tree.decide` 只接受 user audience、goals:decide 及受保护 Host 注入的用户和操作出处；`goalTreeCapabilities.decideGoalTreeProposal` 同样为 host_only，普通 MCP、模型、工作流和插件不能通过自填 authority 获得审批权。管理 `goal_tree_decide` 与 CLI `goal-tree-decide` 仅保留薄转发，把调用方给的对话出处和整组确认原样交给 `decideGoalTreeProposal`；宿主在这个入口里调 `managementTreeAuthority` 造出完整的 authority（本机这个人、management 出处），调用方的 `authority`（类型 `GoalTreeDecideEvidence`）只能写 `conversation_ref`、`message_ref`、`whole_confirmation_prompted`、`prompted_proposal_id`，带 `actor_id`、`actor_kind` 或 `authority_source` 就拒绝（`goal_tree_proposal.authority_source_invalid`）；`recordGoalUserDecisionCapability`（事件决定）仍收完整 authority，由宿主核对它就是本机这个人。旧 Runtime 对话自报确认帮助器已删除，历史记录中的 runtime_dialogue 来源仍保留可读。
 
-动作工具提交的 submitted_session_id 从可信 ActionCallContext.runtime_session_id 注入，经过常驻服务网关保持；typed 调用也保留原会话与回执哈希。业务输入不能覆盖该字段。原始用户身份和整组提示由 user_action 提供，审计 Runtime 身份不能替代用户。Casebook 将新入口映射至原操作记录合同，Web 保留原渠道，单次调用只记录一组尝试和结果。
+动作工具提交的 submitted_session_id 从可信 ActionCallContext.runtime_session_id 注入，经过常驻服务网关保持；typed 的结构提案提交（管理入口）背后没有 Runtime 会话，不带这个字段（带了就返回 `actions.input_invalid`），提案里记 `submitted_session_id: null`，只有动作路径才注入 Runtime 会话。业务输入不能覆盖该字段。原始用户身份和整组提示由 user_action 提供，审计 Runtime 身份不能替代用户。Casebook 将新入口映射至原操作记录合同，Web 保留原渠道，单次调用只记录一组尝试和结果。
 
 关系和项目规则的 Web 写入、规则设置页、所选目标正文均消费共同动作；原领域事务、关系方向、规则合并及历史绑定保持不变。三项直接写入要求 user audience、goals:decide、Host 提供的真实用户与 web/management 出处，普通 MCP 无法授予这些权限。原 HTTP commands/query 端口和没有调用者的 Workbench/CLI/MCP GoalsApplicationApi 转发工厂已删除。整页目录的历史组合也通过集合动作读取。
 

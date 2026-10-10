@@ -1,7 +1,11 @@
 import { WORK_REUSE_CLIENT } from "./work-reuse/client.js";
 import { ALCHEMIST_VIEWS } from './client-views.js';
 import { ALCHEMIST_FLOWS } from './client-flows.js';
-/** Uses the same native Workbench client lifecycle and project routes as Pages. */
+/**
+ * Uses the same native Workbench client lifecycle and project routes as Pages. `shownContext` is what is on screen, for
+ * the Assistant: the direction or Idea being looked at, under the kinds system search uses; it is republished whenever
+ * the content redraws (every view sets the discussion context as it renders). Comments stay here, outside the served string.
+ */
 export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const root=document.querySelector('[data-alchemist=workbench]');if(!root)return;
   const L=host.translate, $=s=>root.querySelector(s), enc=encodeURIComponent;
@@ -17,9 +21,7 @@ export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const formError=text=>{const el=$('[data-alc-form-error]');el.hidden=!text;el.textContent=text||'';};
   const active=status=>['queued','running'].includes(status);
   let data={directions:[],explorations:[],ideas:[]},pulse={reports:[]},decisions={cases:[],activities:[],log:[]},runtime={models:[],configured:false},memory={taste:[],playbook:[]};
-  let collection='directions',showArchived=false,current=null,model=null,research=null,decision=null,pulseBundle=null,context={kind:'surface',label:L('方向'),surface:'ideas'},target=null,selection=null,sideMode='',onSubmit=null,formBusy=false,returnFocus=null,seq=0,loadSeq=0,loaded=false,pollTimer,detailSignature='',lastRow=null;
-  // What is on screen, for the Assistant: the direction or Idea being looked at, under the kinds system search uses. It is
-  // republished whenever the content redraws (every view sets the discussion context above as it renders).
+  let collection='directions',showArchived=false,current=null,model=null,research=null,decision=null,context={kind:'surface',label:L('方向'),surface:'ideas'},target=null,selection=null,sideMode='',onSubmit=null,formBusy=false,returnFocus=null,seq=0,loadSeq=0,loaded=false,pollTimer,detailSignature='',lastRow=null;
   let shownContext='';
   const publishContext=()=>{const c={plugin_id:'io.molis.work.alchemist',surface_title:L('炼金术士')};
     if(context.kind==='direction'&&context.directionId)c.object={kind:'alchemist-direction',id:context.directionId,title:context.label||''};

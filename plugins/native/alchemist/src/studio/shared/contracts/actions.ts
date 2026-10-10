@@ -71,6 +71,7 @@ const decisionWorkspace = object({ ideaId: id, ideaVersion: version, currentVers
   materials: object({ market_space: decisionMaterial, build_cost: decisionMaterial }), decision: decisionSummary.optional() });
 const activity = object({ id, workspaceId: id, kind: text, targetKind: text, targetId: id, payload: z.record(text, z.unknown()), createdAt: text });
 const sourceId = pulseSourceParamsSchema.shape.sourceId;
+const pulseGithubAccount = object({ connectionId: id, displayName: text, accountLabel: text.nullable(), state: z.enum(["connected", "disconnected", "reauth_required"]) });
 const pulseSource = object({ sourceId, label: text, enabled: z.boolean(), homepageUrl: text, capability: text, limitation: text, updatedAt: text });
 const pulseRun = object({ id, workspaceId: id, status: runStatusSchema, stage: lensRunSchema.shape.stage, sourceIds: z.array(sourceId), runtimeLabel: text, jobId: id,
   errorCode: text.optional(), createdAt: text, updatedAt: text });
@@ -86,11 +87,14 @@ const supplySignal = object({ id, sourceId, title: text, url: text, summary: tex
 const followedJob = (id: string) => ({ status: { capability_id: "alchemist.runs.events", version: 1 }, id, input: "id", state: "status",
   done: ["completed", "partial"], failed: ["failed", "cancelled", "interrupted"] });
 
+/** Choosing which account's credential a source uses stays with the person at this computer, like the other plugins' connection pickers. */
+const personalOnly = new Set(["pulse.github", "pulse.github.configure"]);
+
 function operation<I extends z.ZodType, O extends z.ZodType>(name: string, title: string, description: string, kind: "query" | "command", input: I, output: O,
   extraPermissions: readonly string[] = [], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent", job?: ReturnType<typeof followedJob>) {
   const definition: ActionDefinition<z.input<I>, z.output<O>> = {
     capability_id: `alchemist.${name}`, version: 1, operation: kind,
-    action: { title, description, ...(execution ? { execution } : {}), kind: kind === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
+    action: { title, description, ...(execution ? { execution } : {}), kind: kind === "query" ? "query" : "operation", scope: "project", audiences: personalOnly.has(name) ? ["user"] : ["user", "workflow", "agent", "mcp"],
       subject_kinds: ["alchemist"], permissions: ["alchemist:read", ...(kind === "command" ? ["alchemist:write"] : []), ...extraPermissions],
       input_schema: z.toJSONSchema(input, { target: "draft-7", io: "input" }),
       // Studio results are objects, including card/message unions; MCP can return the same shape without an envelope.
@@ -161,6 +165,10 @@ export const alchemistOperations = {
   pulseReports: operation("pulse.reports", "读取市场脉搏", "读取来源信号、报告、机会与最近运行状态，保留覆盖缺口", "query", empty,
     object({ latestRun: pulseRun.optional(), reports: z.array(object({ report: pulseReport, opportunities: z.array(opportunity), signals: z.array(supplySignal) })) })),
   pulseSources: operation("pulse.sources", "读取市场来源", "读取来源启用状态、能力和局限", "query", empty, object({ sources: z.array(pulseSource) })),
+  pulseGithub: operation("pulse.github", "读取市场脉搏的 GitHub 账号", "读取可选的 GitHub 账号连接和当前选中的那一个；只返回连接信息，不返回令牌", "query", empty,
+    object({ accounts: z.array(pulseGithubAccount), selectedConnectionId: id.nullable() })),
+  pulseGithubSelect: operation("pulse.github.configure", "选择市场脉搏的 GitHub 账号", "选择 GitHub 来源使用「设置 › 服务连接」里的哪个账号；null 表示匿名访问。令牌留在宿主，不交给炼金术士", "command",
+    object({ connectionId: id.nullable() }), object({ selectedConnectionId: id.nullable() })),
   pulseSourceUpdate: operation("pulse.sources.configure", "设置市场来源", "启用或停用已有市场来源", "command", object({ sourceId, enabled: z.boolean() }), object({ source: pulseSource })),
   pulseStart: operation("pulse.start", "运行市场脉搏", "从已启用来源抓取真实信号并生成报告，返回后台任务", "command", startPulseRunRequestSchema, object({ run: pulseRun }), ["alchemist:collect"], { cost: "metered" }),
   opportunitySave: operation("opportunities.save", "暂存市场机会", "将新机会加入稍后查看，并返回真实位置", "command", identity,

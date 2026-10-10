@@ -34,6 +34,7 @@
     "node-pty": "^1.1.0",
     "@adeptify/intelligence-client": "file:../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz",
     "@adeptify/search-evidence-layer": "file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
+    "@larksuiteoapi/lark-mcp": "0.5.1",
     "@modelcontextprotocol/sdk": "^1.30.1",
     "@molis-ai/molis-work-app-cli": "workspace:*",
     "@molis-ai/molis-work-app-mcp": "workspace:*",

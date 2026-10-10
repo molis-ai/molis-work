@@ -16,6 +16,7 @@ import { larkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
+import { isLoopbackHttpOrigin, isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 export interface McpServerConfiguration {
   endpoint: string;
@@ -104,7 +105,7 @@ interface McpToolRequestOptions extends McpRequestOptions {
 function callbackOrigin(raw: string): string {
   let url: URL;
   try { url = new URL(raw); } catch { throw new McpConnectionError("configuration", "本机回调地址无效"); }
-  if (url.protocol !== "http:" || !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+  if (!isLoopbackHttpOrigin(url)) {
     throw new McpConnectionError("configuration", "授权回调必须使用本机 HTTP 地址");
   }
   return url.origin;
@@ -164,7 +165,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     const expected = new URL(server.endpoint);
     const endpoint = new URL(requested || server.endpoint);
     if ((server.endpointPattern ? !server.endpointPattern.test(endpoint.href) : endpoint.href !== expected.href) || endpoint.username || endpoint.password || endpoint.hash) throw new McpConnectionError("configuration", "MCP 地址必须匹配所选服务的官方地址；租户 ID 和 server name 需替换成实际值");
-    const local = endpoint.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname);
+    const local = isLoopbackHttpUrl(endpoint);
     if (endpoint.protocol !== "https:" && !(local && (options.testServers || serviceId === "figma"))) throw new McpConnectionError("configuration", "远程 MCP 必须使用 HTTPS");
     return endpoint.href;
   }

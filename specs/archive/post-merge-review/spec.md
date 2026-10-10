@@ -601,7 +601,7 @@
 ### 7.2 能力快照
 
 - **文件**：[capability-snapshot.tsv](capability-snapshot.tsv)，共 663 个动作。每行写明版本、提供方、类型、调度方式，以及 Home 与项目两种范围下，user、agent、workflow、plugin、mcp 五类受众各自能不能在目录里看到它。另外还记了 MCP runtime 入口默认的 12 个工具。
-- **生成方式**：[capability-snapshot.mts](capability-snapshot.mts) 在一个临时 Home 里进程内装配 Host，用演示项目调用 `inspectActions`。运行：
+- **生成方式**：原来由 `capability-snapshot.mts` 在一个临时 Home 里进程内装配 Host，用演示项目调用 `inspectActions`。该脚本已随路线图 W2-15 删除（它引用的演示项目在 #287 之后不存在，已经跑不起来），由仓库内的动作合同快照门禁取代，口径与首次对账见 `tooling/gates/README.md`「动作合同快照」；旧脚本可从 Git 历史取。当时的运行方式：
 
   ```bash
   node --import tsx specs/post-merge-review/capability-snapshot.mts <检出目录> <输出.json>
@@ -954,7 +954,7 @@
 | vendored SDK 积了 3 份未用 tgz，README 说法过期 | `vendor/prologue-sdk/` | PMR-06 | 删旧包要用户同意 |
 | 死脚本 | `scripts/personal-assistant-public-sources.mts` | PMR-09 | 删除 |
 | 左侧插件栏标记是否已成死代码 | `immersive-shell.ts` 的 `plugin-rail-items` | BL-086 | 核对后删除 |
-| 能力快照脚本 | [capability-snapshot.mts](capability-snapshot.mts) | §7.2 | 改成仓库内的 API 快照门禁 |
+| 能力快照脚本 | `capability-snapshot.mts`（已删，由 `tooling/gates/actions/` 的动作合同快照门禁取代，路线图 W2-15） | §7.2 | 改成仓库内的动作合同快照门禁 |
 | 插件有两套 id：页面上下文与搜索用包 id（`io.molis.work.todo`），路由、面与左栏用短 id（`todo`） | PMR-31：助理「起点」查名字时对不上，露出包 id（#162 只修了显示） | PMR-31 | 给出统一的插件身份映射，界面取名只走它 |
 | 助理面板取插件名靠左栏标记 `.plugin-rail-items` | `assistant-island.ts` 的 `surfaceName()` | PMR-31、BL-086 | 删左栏前先换成统一的插件名查找 |
 | 单次模型请求沿用 Prologue 默认 60 秒 | 创作台已在 #163 按角色设定；助理（`prologue-node.ts`）、Coding 等仍用默认 | PMR-33 | 在 Agent Host 统一按场景设定单次请求时限，并写进 Prologue AI 手册 |

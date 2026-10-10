@@ -27,6 +27,7 @@ import type { PluginPlatformOptions } from '../plugin-platform.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
 import { capabilityLimits, latestCapability, slowOperations, type CapabilityImplementations, type Lane } from './capabilities.js';
 import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, standIn, type CatalogCapability, type ProjectActions } from './catalog.js';
+import { loopbackHost } from '@molis-ai/molis-work-contracts/platform/loopback';
 
 export interface AgentStudioModel { provider_id: string; model_id: string; label: string }
 export interface AgentStudioOptions {
@@ -401,8 +402,8 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     }
     const studio = await ensureStudio(options), workflow = studio.workflow;
     // The server may build `url` on a fixed base without the port; the Host header says where this page was served.
-    const served = request.headers.host;
-    if (served && /^(127\.0\.0\.1|localhost|\[::1\]):\d{1,5}$/.test(served)) studio.origin = 'http://' + served;
+    const served = loopbackHost(request.headers.host);
+    if (served && /:\d{1,5}$/.test(served)) studio.origin = 'http://' + served;
     else if (url.port) studio.origin = url.origin;
     const factories = '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')(),api:p=>' + literal(prefix + '/api/plugin-builder/studio') + '+p,plugin:id=>' + literal(prefix + '/plugins/') + '+id,components:' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT;
     if (preview && method === 'GET') {

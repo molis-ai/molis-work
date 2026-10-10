@@ -214,26 +214,47 @@ const ACTIVITY_HINTS: Partial<Record<SurfaceFocus["activity"], string>> = {
 };
 
 /**
+ * The words of the two questions, the part the person may read and change in 设置 › 提示词. `next` is two paragraphs: the program puts its
+ * own opening before the first and the hint for what the person is doing (a word, a step just ticked…) at the first blank line, and a `next`
+ * with no blank line gets the hint after it. What stays in code, whatever the wording says: the opening, the hint, the option keys, the five
+ * forms of the Assistant, and the declaration that the material is not instruction (in `judgmentState`).
+ */
+export interface JudgmentWording {
+  readonly next: string;
+  readonly surface: string;
+}
+
+/** What the questions said before the wording could be edited, word for word (the registered default in 设置 › 提示词 is this). */
+export const DEFAULT_JUDGMENT_WORDING: JudgmentWording = {
+  next: [
+    "先看内容本身是什么：观点或判断（需要检验或推敲）、事实或数据（可以作为依据）、计划或步骤（需要落地跟踪）、风险、进展、用户原话、结论、术语，或者是正在写的草稿。",
+    "再结合所在位置和当前目标，从选项里选出他此刻最可能要做的一件事。不要只看选区的长短。",
+  ].join("\n\n"),
+  surface: "助手应该以什么形式参与？如果用户只是在浏览、或者动作已经很明确，选 none。",
+};
+
+/** The first blank line splits `next` into what comes before the hint and what comes after it. */
+function splitNext(next: string): { before: string; after: string } {
+  const blank = /\n[ \t\r]*\n\s*/.exec(next);
+  return blank ? { before: next.slice(0, blank.index).trim(), after: next.slice(blank.index + blank[0].length).trim() } : { before: next.trim(), after: "" };
+}
+
+/**
  * One request, two questions (spec §5.2, settled by the §5.4 evaluation): what to do next, and whether the Assistant
  * should take part in some form. The model first reads what the passage is; the layout derives intents from `next`.
  */
-export function judgmentQuestions(candidates: readonly ContextualCandidate[], focus?: SurfaceFocus): Record<string, unknown> {
+export function judgmentQuestions(candidates: readonly ContextualCandidate[], focus?: SurfaceFocus, wording: JudgmentWording = DEFAULT_JUDGMENT_WORDING): Record<string, unknown> {
   const available = judgedCandidates(candidates, focus);
   const many = (focus?.targets.length ?? 1) > 1;
   const hint = focus ? (focus.granularity === "word" ? "他只选中了一个词：更可能想弄清它的意思或查证它。" : ACTIVITY_HINTS[focus.activity] ?? "") : "";
+  const { before, after } = splitNext(wording.next);
   return {
     next: {
       type: "choice",
-      instructions: [
-        `用户在文档里${many ? "选中了几段内容" : "选中了一段内容"}，想对它做一件事。先看内容本身是什么：`,
-        "观点或判断（需要检验或推敲）、事实或数据（可以作为依据）、计划或步骤（需要落地跟踪）、风险、进展、用户原话、结论、术语，或者是正在写的草稿。",
-        hint,
-        "再结合所在位置和当前目标，从选项里选出他此刻最可能要做的一件事。不要只看选区的长短。",
-      ].join(""),
+      instructions: [`用户在文档里${many ? "选中了几段内容" : "选中了一段内容"}，想对它做一件事。`, before, hint, after].join(""),
       criteria: Object.fromEntries(available.map(candidate => [candidate.key, `${candidate.title}（${candidate.provider_title}）：${candidate.hint}`])),
     },
-    surface: { type: "choice", instructions: "助手应该以什么形式参与？如果用户只是在浏览、或者动作已经很明确，选 none。",
-      criteria: { ...SURFACE_CRITERIA } },
+    surface: { type: "choice", instructions: wording.surface.trim(), criteria: { ...SURFACE_CRITERIA } },
   };
 }
 

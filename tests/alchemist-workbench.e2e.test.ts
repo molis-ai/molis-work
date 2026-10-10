@@ -97,7 +97,9 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   assert.equal((await read('/pulse/github')).selectedConnectionId,github.usable.connection_id,"the picked account is bound");
   assert.equal(JSON.stringify(await read('/pulse/github')).includes(fake('github')),false);
   await click('[data-alc-action="notice-close"]');
-  await click('[data-alc-action="sources"]');await waitFor(`!!document.querySelector('[data-alc-dialog] [name="githubAccount"]')`,12_000);
+  await click('[data-alc-action="sources"]');
+  // The dialog body of the first visit stays in the closed dialog: wait for the dialog to be open again with its freshly built picker, or the next lines would read and edit the old one.
+  await waitFor(`document.querySelector('[data-alc-dialog]')?.open === true && !!document.querySelector('[data-alc-dialog] [name="githubAccount"]') && !!document.querySelector('[data-alc-dialog] [data-mw-select-label]')`,12_000);
   assert.equal(await evaluate(`document.querySelector('[data-alc-dialog] [name="githubAccount"]').value`),github.usable.connection_id,"the dialog shows the bound account when it is reopened");
   assert.equal(await evaluate(`document.querySelector('[data-alc-dialog] [data-mw-select-label]').textContent`),"GitHub · octo","and so does the picker the select is shown as");
   await evaluate(`(()=>{const e=document.querySelector('[data-alc-dialog] [name="githubAccount"]');e.value='';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);

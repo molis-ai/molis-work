@@ -1,4 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { resolveApiConnection } from "./connector-access.js";
 import { ConnectorConnectionError, withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
 
 /** The one binding the market pulse has: a Home-level choice, kept in the connection registry like Images' and TypeSafe's. */
@@ -14,19 +15,20 @@ function toGithubApi(url: string): boolean {
 }
 
 /**
- * The token of the GitHub account bound to the pulse, read at each request so a renewed, replaced or disconnected token
- * applies to the next one. Only a connection the person explicitly bound counts: a GitHub account connected for Coding or
- * Feed is not used until it is chosen here. When nothing is bound, the bound account is disconnected or its secret cannot
- * be read, or the registry cannot be read, the pulse searches anonymously (a lower rate limit) rather than failing or
- * trying another account. The process environment is never consulted.
+ * The token of the GitHub account bound to the pulse, resolved at each request through the same account-bound resolver
+ * the other API readers use (`resolveApiConnection`): a token connection gives its stored token, and an OAuth connection
+ * whose access token has expired is renewed with its refresh token first, so an account Settings shows as connected does
+ * not get a 401 from GitHub. A renewed, replaced or disconnected token applies to the next request. Only a connection the
+ * person explicitly bound counts: a GitHub account connected for Coding or Feed is not used until it is chosen here. When
+ * nothing is bound, the bound account is disconnected, its secret cannot be read or renewed, or the registry cannot be
+ * read, the pulse searches anonymously (a lower rate limit) rather than failing or trying another account. The process
+ * environment is never consulted.
  */
-function boundToken(home: string): string | undefined {
+async function boundToken(home: string): Promise<string | undefined> {
   try {
-    return withConnectorConnections(home, store => {
-      const bound = store.binding(SCOPE, CONSUMER, SLOT);
-      if (!bound || !lendsToken(bound)) return undefined;
-      try { return store.resolveToken(bound.connection_id, "github"); } catch { return undefined; }
-    });
+    const bound = withConnectorConnections(home, store => store.binding(SCOPE, CONSUMER, SLOT));
+    if (!bound || !lendsToken(bound)) return undefined;
+    return (await resolveApiConnection(home, bound.connection_id, "github")).token || undefined;
   } catch { return undefined; }
 }
 
@@ -61,8 +63,8 @@ function select(home: string, connectionId: string | null): void {
  */
 export function alchemistPulseGithub(home: string) {
   return {
-    fetch: (url: string, init: RequestInit): Promise<Response> => {
-      const token = toGithubApi(url) ? boundToken(home) : undefined;
+    fetch: async (url: string, init: RequestInit): Promise<Response> => {
+      const token = toGithubApi(url) ? await boundToken(home) : undefined;
       if (!token) return fetch(url, init);
       const headers = new Headers(init.headers);
       headers.set("authorization", `Bearer ${token}`);

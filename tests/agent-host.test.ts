@@ -16,11 +16,7 @@ import {
   AgentHostError,
   AgentReviewError,
   AgentReviewQueue,
-  CliAgentAdapter,
-  CliAgentError,
   emptyCapabilityMatrix,
-  type CliProcessEvent,
-  type CliProcessPort,
 } from "@molis-ai/molis-work-service-agent-host";
 
 const BOARD = "board-agent";
@@ -99,7 +95,7 @@ function adapterFor(input: {
       input.onCancel?.();
     },
     async readCommandOutput(_session, ref) {
-      // Mirrors both real adapters: a Runtime whose command execution is not
+      // Mirrors the real adapter: a Runtime whose command execution is not
       // wired to the approval queue reports unavailable, never an empty
       // transcript that would read as "the command produced nothing".
       if (capabilities.command !== "supported") {
@@ -201,14 +197,14 @@ function prologueRig() {
 test("a Runtime reports what it really supports, and roles it cannot carry say so", () => {
   const host = new AgentHost();
   host.register(adapterFor({ runtimeId: "prologue", supported: ["text-edit", "command"] }));
-  host.register(adapterFor({ runtimeId: "cli-readonly" }));
+  host.register(adapterFor({ runtimeId: "fixture-read-only" }));
 
-  assert.deepEqual(host.descriptors().map((entry) => entry.runtime_id), ["cli-readonly", "prologue"]);
+  assert.deepEqual(host.descriptors().map((entry) => entry.runtime_id), ["fixture-read-only", "prologue"]);
   assert.deepEqual(host.availableRoles("prologue", manifest), [
     { role_id: "reader", available: true },
     { role_id: "builder", available: true },
   ]);
-  const degraded = host.availableRoles("cli-readonly", manifest);
+  const degraded = host.availableRoles("fixture-read-only", manifest);
   assert.deepEqual(degraded[0], { role_id: "reader", available: true });
   assert.equal(degraded[1]?.available, false);
   assert.match(degraded[1]?.reason ?? "", /不支持 text-edit、command/u);
@@ -225,14 +221,14 @@ test("a role the Plugin never declared cannot start", async () => {
 
 test("a writing role is refused on a Runtime that cannot write", async () => {
   const host = new AgentHost();
-  host.register(adapterFor({ runtimeId: "cli-readonly" }));
+  host.register(adapterFor({ runtimeId: "fixture-read-only" }));
   await assert.rejects(
-    () => host.start("cli-readonly", startRequest("builder", "cli-readonly"), authority),
+    () => host.start("fixture-read-only", startRequest("builder", "fixture-read-only"), authority),
     (error: unknown) => error instanceof AgentHostError
       && error.code === "agent.capability_unavailable",
   );
   // The read-only role on the same Runtime still works.
-  const handle = await host.start("cli-readonly", startRequest("reader", "cli-readonly"), authority);
+  const handle = await host.start("fixture-read-only", startRequest("reader", "fixture-read-only"), authority);
   assert.equal(handle.frozen.execution, "read-only");
 });
 
@@ -547,7 +543,7 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
 
   const host = new AgentHost();
   host.register(adapterFor({ runtimeId: "prologue", supported: ["text-edit", "command"] }));
-  host.register(adapterFor({ runtimeId: "cli-readonly" }));
+  host.register(adapterFor({ runtimeId: "fixture-read-only" }));
 
   interface Context { project_id: string }
   const registry = new CapabilityRegistry<Context>();
@@ -561,13 +557,13 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
   assert.deepEqual(
     (await registry.invoke(context, agentHostCapabilities.listRuntimes, []))
       .map((entry) => entry.runtime_id),
-    ["cli-readonly", "prologue"],
+    ["fixture-read-only", "prologue"],
   );
   assert.deepEqual(
-    await registry.invoke(context, agentHostCapabilities.availableRoles, ["cli-readonly", PLUGIN]),
+    await registry.invoke(context, agentHostCapabilities.availableRoles, ["fixture-read-only", PLUGIN]),
     [
       { role_id: "reader", available: true },
-      { role_id: "builder", available: false, reason: "cli-readonly 不支持 text-edit、command" },
+      { role_id: "builder", available: false, reason: "fixture-read-only 不支持 text-edit、command" },
     ],
   );
 
@@ -598,8 +594,8 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
 
   await assert.rejects(
     () => registry.invoke(context, agentHostCapabilities.startRun, [
-      "cli-readonly",
-      { ...startRequest("builder"), session: { session_id: "session-1", runtime_id: "cli-readonly" } },
+      "fixture-read-only",
+      { ...startRequest("builder"), session: { session_id: "session-1", runtime_id: "fixture-read-only" } },
     ]),
     (error: unknown) => error instanceof AgentHostError
       && error.code === "agent.capability_unavailable",
@@ -612,7 +608,7 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
   // nothing".
   await assert.rejects(
     () => registry.invoke(context, agentHostCapabilities.readCommandOutput, [
-      { session_id: "s-1", runtime_id: "cli-readonly" },
+      { session_id: "s-1", runtime_id: "fixture-read-only" },
       { call_id: "c-1" },
     ]),
     (error: unknown) => error instanceof Error
@@ -735,184 +731,3 @@ test("Host resolves compaction separately from role prompts and rejects missing 
   await assert.rejects(host.start("compact", request, { ...granted, prompts: granted.prompts.map(p => ({ ...p, version: 1 })) }), /对应版本/);
   lie = true; await assert.rejects(host.start("compact", request, granted), /已取消/);
 });
-function scriptedCli(command = "claude") {
-  const spawns: Array<{ command: string; args: string[]; emit: (event: CliProcessEvent) => void; killed: boolean }> = [];
-  const port: CliProcessPort = {
-    spawn(input) {
-      const spawn = { command: input.command, args: input.args, emit: input.onEvent, killed: false };
-      spawns.push(spawn);
-      return {
-        done: Promise.resolve(),
-        kill() {
-          spawn.killed = true;
-        },
-      };
-    },
-    async available() {
-      return true;
-    },
-  };
-  return { command, port, spawns };
-}
-
-function cliAdapter(script: ReturnType<typeof scriptedCli>, runtimeId = "claude-code") {
-  return new CliAgentAdapter({
-    runtime_id: runtimeId,
-    display_name: runtimeId,
-    command: script.command,
-    process: script.port,
-    model: async () => "claude-opus-5",
-    now: () => new Date("2026-09-19T00:00:00.000Z"),
-  });
-}
-
-async function cliSession(adapter: CliAgentAdapter, title: string) {
-  return adapter.createSession({
-    project_id: BOARD,
-    plugin_id: PLUGIN,
-    install_id: "install-1",
-    actor_id: "tester",
-    directory: { canonical_path: DIRECTORY, realpath_verified: true },
-    title,
-  });
-}
-
-function cliRequest(
-  session: Awaited<ReturnType<CliAgentAdapter["createSession"]>>,
-  task: string,
-): AgentStartRequest {
-  return {
-    session,
-    project_id: BOARD,
-    plugin_id: PLUGIN,
-    install_id: "install-1",
-    actor_id: "tester",
-    task,
-    role_id: "reader",
-    role: {
-      role_id: "reader",
-      version: 1,
-      execution: "read-only",
-      prompts: [{ prompt_id: "reader", version: 1, body: "你只读代码。" }],
-      host_tools: [],
-    },
-    directory: { canonical_path: DIRECTORY, realpath_verified: true },
-  };
-}
-
-function resumeArgument(args: string[]): string | undefined {
-  const index = args.indexOf("--resume");
-  return index < 0 ? undefined : args[index + 1];
-}
-
-test("the same CLI session resumes the provider id the first process actually returned", async () => {
-  const script = scriptedCli();
-  const adapter = cliAdapter(script);
-  assert.equal(adapter.descriptor.capabilities["session.resume"], "supported");
-  const session = await cliSession(adapter, "第一会话");
-  const first = await adapter.start(cliRequest(session, "先看登录"));
-  assert.equal(resumeArgument(script.spawns[0]!.args), undefined);
-
-  script.spawns[0]!.emit({
-    kind: "line",
-    line: JSON.stringify({ type: "system", session_id: "real-provider-session-1" }),
-  });
-  script.spawns[0]!.emit({
-    kind: "line",
-    line: JSON.stringify({ type: "result", subtype: "success", result: "看过了" }),
-  });
-  script.spawns[0]!.emit({ kind: "exit", code: 0 });
-  assert.equal((await adapter.read(first.ref)).phase, "completed");
-
-  await adapter.start(cliRequest(session, "继续上一轮"));
-  assert.equal(resumeArgument(script.spawns[1]!.args), "real-provider-session-1");
-  assert.notEqual(resumeArgument(script.spawns[1]!.args), session.session_id);
-
-  const other = await cliSession(adapter, "另一会话");
-  await adapter.start(cliRequest(other, "别的任务"));
-  script.spawns[2]!.emit({
-    kind: "line",
-    line: JSON.stringify({ type: "system", session_id: "real-provider-session-2" }),
-  });
-  script.spawns[2]!.emit({
-    kind: "line",
-    line: JSON.stringify({ type: "result", subtype: "success", result: "另一条" }),
-  });
-  script.spawns[2]!.emit({ kind: "exit", code: 0 });
-  await adapter.start(cliRequest(other, "继续另一条"));
-  await adapter.start(cliRequest(session, "再回到第一条"));
-  assert.equal(resumeArgument(script.spawns[3]!.args), "real-provider-session-2");
-  assert.equal(resumeArgument(script.spawns[4]!.args), "real-provider-session-1");
-
-  const codex = scriptedCli("codex");
-  const otherRuntime = cliAdapter(codex, "codex");
-  const foreign = await cliSession(otherRuntime, "另一个运行时");
-  await otherRuntime.start(cliRequest(foreign, "没有带过来的会话"));
-  assert.equal(resumeArgument(codex.spawns[0]!.args), undefined);
-  assert.equal(codex.spawns[0]!.args.includes("real-provider-session-1"), false);
-});
-
-test("a CLI run with no provider id is not reported as resumed", async () => {
-  const script = scriptedCli();
-  const adapter = cliAdapter(script);
-  const session = await cliSession(adapter, "没有 id");
-  await adapter.start(cliRequest(session, "第一轮"));
-  script.spawns[0]!.emit({
-    kind: "line",
-    line: JSON.stringify({ type: "result", subtype: "success", result: "没有会话 id" }),
-  });
-  script.spawns[0]!.emit({ kind: "exit", code: 0 });
-  await adapter.start(cliRequest(session, "第二轮"));
-  assert.equal(resumeArgument(script.spawns[1]!.args), undefined);
-  assert.equal(script.spawns[1]!.args.includes(session.session_id), false);
-  assert.equal(script.spawns[1]!.args.includes("--resume"), false);
-});
-
-test("CLI failure, cancel, and a new adapter keep the existing run contract", async () => {
-  const script = scriptedCli();
-  const adapter = cliAdapter(script);
-  const session = await cliSession(adapter, "失败");
-  const failed = await adapter.start(cliRequest(session, "会失败"));
-  script.spawns[0]!.emit({
-    kind: "line",
-    line: JSON.stringify({ type: "system", session_id: "provider-after-failure" }),
-  });
-  script.spawns[0]!.emit({ kind: "exit", code: null });
-  assert.equal((await adapter.read(failed.ref)).phase, "failed");
-  script.spawns[0]!.emit({
-    kind: "line",
-    line: JSON.stringify({ type: "result", subtype: "success", result: "迟到的成功" }),
-  });
-  assert.equal((await adapter.read(failed.ref)).phase, "failed");
-  const continued = await adapter.start(cliRequest(session, "失败后继续"));
-  assert.equal(resumeArgument(script.spawns[1]!.args), "provider-after-failure");
-  assert.equal((await adapter.read(failed.ref)).phase, "failed");
-
-  const cancelled = await adapter.start(cliRequest(session, "取消这一轮"));
-  await adapter.control(cancelled.ref, { kind: "cancel" });
-  script.spawns[2]!.emit({ kind: "exit", code: 1 });
-  script.spawns[2]!.emit({
-    kind: "line",
-    line: JSON.stringify({ type: "result", subtype: "success", result: "不该复活" }),
-  });
-  assert.equal((await adapter.read(cancelled.ref)).phase, "cancelled");
-  assert.equal((await adapter.read(continued.ref)).phase, "running");
-
-  await assert.rejects(
-    () => adapter.control(cancelled.ref, { kind: "pause" }),
-    (error: unknown) => error instanceof CliAgentError
-      && error.code === "agent.capability_unavailable",
-  );
-
-  const restarted = cliAdapter(scriptedCli());
-  const fresh = await cliSession(restarted, "重启后的新进程");
-  const restartedScript = scriptedCli();
-  const restartedAdapter = cliAdapter(restartedScript);
-  const restartedSession = await cliSession(restartedAdapter, "重启后");
-  await restartedAdapter.start(cliRequest(restartedSession, "没有旧 id"));
-  assert.equal(resumeArgument(restartedScript.spawns[0]!.args), undefined);
-  assert.equal(restartedScript.spawns[0]!.args.includes("provider-after-failure"), false);
-  await assert.rejects(
-    () => restartedAdapter.start(cliRequest(fresh, "串到另一个适配器")),
-    (error: unknown) => error instanceof CliAgentError && error.code === "agent.session_unknown",
-  );});

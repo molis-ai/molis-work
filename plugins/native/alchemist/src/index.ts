@@ -18,6 +18,8 @@ export { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID, alchemistManifest } f
 export { createLocalRuntime as createAlchemistStudioRuntime } from "./studio/server/bootstrap/local-runtime.js";
 export type { LocalRuntime as AlchemistStudioRuntime } from "./studio/server/bootstrap/local-runtime.js";
 export type { AlchemistAiPort } from "./studio/server/runtime/host-port.js";
+export type { AlchemistPulseGithubAccount, AlchemistPulseGithubPort } from "./studio/server/sources/pulse-github-port.js";
+export type { SourceFetch as AlchemistSourceFetch } from "./studio/server/sources/http-source-client.js";
 export { alchemistActions, ALCHEMIST_ACTION_PERMISSIONS } from "./studio/shared/contracts/actions.js";
 export { createAlchemistActionHandlers, AlchemistOperationError } from "./studio/server/services/action-operations.js";
 export type { AlchemistActionInvoker } from "./studio/server/services/action-operations.js";

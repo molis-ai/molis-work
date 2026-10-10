@@ -70,17 +70,6 @@ export type {
   PrologueStreamState,
   PrologueUsageReceipt,
 } from "./adapters/prologue-stream.js";
-export { CliAgentAdapter, CliAgentError } from "./adapters/cli-runtime.js";
-export type {
-  CliAgentAdapterOptions,
-  CliProcessEvent,
-  CliProcessHandle,
-  CliProcessPort,
-} from "./adapters/cli-runtime.js";
-export {
-  CLI_RECEIPT_MAX_BYTES, applyCliStreamLine, emptyStreamState } from "./adapters/cli-stream.js";
-export type { CliStreamState } from "./adapters/cli-stream.js";
-export { createNodeCliProcessPort } from "./adapters/cli-node-process.js";
 export type {
   MirrorPendingInput,
   ProloguePending,

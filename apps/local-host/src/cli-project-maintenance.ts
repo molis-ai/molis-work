@@ -1,12 +1,17 @@
 import { cliFlagValue as flag } from "@molis-ai/molis-work-app-cli";
+import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createLocalUninstallService } from "./local-uninstall.js";
 import type { MolisWorkUninstallPlan } from "./installer/uninstall-contract.js";
+import { resolveConfiguredHome } from "./product-home.js";
+import { DEFAULT_RESIDENT_HOST_URL, RESIDENT_HOST_URL_ENV, postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 function printDemoHelp(): void {
   console.log(`molis-work demo <create|reset|remove> [--home PATH] [--confirm] [--json]
 
-不带 --confirm 只显示将发生什么；demo 明确标记为可重建数据，不会与用户项目混淆。`);
+不带 --confirm 只显示将发生什么；demo 明确标记为可重建数据，不会与用户项目混淆。
+
+remove --confirm 在 Molis Work 正在运行时交给它来删（示例项目里的终端还开着就拒绝）；常驻服务不在 http://127.0.0.1:4173 时，用环境变量 MOLIS_WORK_WEB_URL 指定它的地址。没有运行中的服务时，命令自己删。`);
 }
 
 function printUninstallHelp(): void {
@@ -31,6 +36,43 @@ function randomId(): string {
 }
 
 
+/** What the command prints after create, reset or remove; `result` is null when there was no demo to remove. */
+function printDemoResult(action: string, result: object | null, json: boolean): void {
+  if (json) { console.log(JSON.stringify(result, null, 2)); return; }
+  console.log(action === "remove" ? "可重建 demo 已删除；用户项目未修改" : `demo ${action === "create" ? "已创建或打开" : "已重置"}`);
+  // Memory and the search index belong to a running Molis Work: what this command could not clear waits for it (a
+  // removal keeps it in the receipt for the Host to finish) or stays as it was (a rebuild has no receipt).
+  const waiting = result && "deletion" in result ? (result as ProjectDeletionResult).deletion.owner_steps.filter(step => step.state !== "complete").map(step => step.owner_id) : [];
+  if (waiting.length) console.log(`还有数据要由运行中的 Molis Work 清理（${waiting.join("、")}）；Molis Work 运行时会接着做，做完之前不能再创建 demo。`);
+  const left = result && "owners_left" in result ? (result.owners_left as string[] | undefined) ?? [] : [];
+  if (left.length) console.log(`demo 在 ${left.join("、")} 里的数据由运行中的 Molis Work 保管，这个命令没有清；要连它们一起清，在 Molis Work 里打开这个项目的设置，点「重建 demo」。`);
+}
+
+/**
+ * Removing the demo is the Host's project-deletion service when this Home has a resident Host that answers: the project's
+ * terminals and runtime are that Host's, so it checks the terminals, lets go of the runtime and records the person on this
+ * machine, the same as the settings page's "delete the demo" it is asked through. The address is `MOLIS_WORK_WEB_URL` (the
+ * variable the Runtime's launcher reads) or the default one. Null when no Host answers (no control token in the Home, or
+ * nothing listens): there is nothing to ask, and the command deletes in its own process. A Host that answers and refuses
+ * stops the command, whatever the reason; it does not delete behind that Host's back.
+ */
+async function removeDemoThroughResidentHost(withCatalog: LocalWebCatalogRunner, homeDirectory: string | undefined): Promise<ProjectDeletionResult | null> {
+  const demo = await withCatalog({ homeDirectory }, catalog => catalog.listProjects().find(project => project.data_class === "regenerable_demo"));
+  if (!demo) return null;
+  const address = process.env[RESIDENT_HOST_URL_ENV]?.trim() || DEFAULT_RESIDENT_HOST_URL;
+  const answer = await postToResidentHost({ origin: residentHostOrigin(address), homeDirectory: homeDirectory ?? resolveConfiguredHome(),
+    path: "/api/settings/demo", body: { action: "remove", user_confirmed: true },
+    retryHint: "先运行不带 --confirm 的 molis-work demo remove，看示例项目还在不在" });
+  if (!answer) return null;
+  if (!answer.ok) {
+    const reason = typeof answer.body.error === "string" ? answer.body.error : `HTTP ${answer.status}`;
+    throw new Error(`${address} 上的常驻服务没有删除示例项目：${reason}（如果这个 Home 的常驻服务在别的地址，用环境变量 ${RESIDENT_HOST_URL_ENV} 指定）`);
+  }
+  const { deletion, replayed } = answer.body as { deletion?: ProjectDeletionResult["deletion"]; replayed?: unknown };
+  if (!deletion || typeof deletion !== "object" || typeof replayed !== "boolean") throw new Error(`${address} 上的常驻服务的删除回执无效`);
+  return { deletion, replayed };
+}
+
 export async function runLocalDemoCli(args: string[], withMolisWorkProjectCatalog: LocalWebCatalogRunner): Promise<number> {
   if (args.includes("--help") || args.includes("-h") || !args[1]) {
     printDemoHelp();
@@ -39,6 +81,10 @@ export async function runLocalDemoCli(args: string[], withMolisWorkProjectCatalo
   const action = args[1];
   if (!["create", "reset", "remove"].includes(action)) throw new Error(`未知 demo 操作: ${action}`);
   const homeDirectory = flag(args, "--home");
+  if (action === "remove" && args.includes("--confirm")) {
+    const forwarded = await removeDemoThroughResidentHost(withMolisWorkProjectCatalog, homeDirectory);
+    if (forwarded) { printDemoResult(action, forwarded, args.includes("--json")); return 0; }
+  }
   return await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
     const demo = catalog.listProjects().find((project) => project.data_class === "regenerable_demo") ?? null;
     if (!args.includes("--confirm")) {
@@ -68,16 +114,7 @@ export async function runLocalDemoCli(args: string[], withMolisWorkProjectCatalo
               idempotency_key: `demo-remove-${randomId()}`,
             })
           : null;
-    if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
-    else {
-      console.log(action === "remove" ? "可重建 demo 已删除；用户项目未修改" : `demo ${action === "create" ? "已创建或打开" : "已重置"}`);
-      // Memory and the search index belong to a running Molis Work: what this command could not clear waits for it (a
-      // removal keeps it in the receipt for the Host to finish) or stays as it was (a rebuild has no receipt).
-      const waiting = result && "deletion" in result ? result.deletion.owner_steps.filter(step => step.state !== "complete").map(step => step.owner_id) : [];
-      if (waiting.length) console.log(`还有数据要由运行中的 Molis Work 清理（${waiting.join("、")}）；Molis Work 运行时会接着做，做完之前不能再创建 demo。`);
-      const left = result && "owners_left" in result ? result.owners_left ?? [] : [];
-      if (left.length) console.log(`demo 在 ${left.join("、")} 里的数据由运行中的 Molis Work 保管，这个命令没有清；要连它们一起清，在 Molis Work 里打开这个项目的设置，点「重建 demo」。`);
-    }
+    printDemoResult(action, result, args.includes("--json"));
     return result == null ? 1 : 0;
   });
 }

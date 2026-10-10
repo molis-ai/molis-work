@@ -30,8 +30,8 @@ import type {
 } from "./plugin-wiring.js";
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
 
-export { parsePluginManifest, PluginManifestError, canonicalPluginId, comparePluginVersions, SURFACE_BROWSER_PERMISSION } from "./plugin-manifest.js";
-import { SURFACE_BROWSER_PERMISSION } from "./plugin-manifest.js";
+/** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
+export const SURFACE_BROWSER_PERMISSION = "surface:browser";
 export type { PluginArtifactClient, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput } from "./plugin-artifacts.js";
 export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner } from "./plugin-package.js";
 export * from "./plugin-events.js";

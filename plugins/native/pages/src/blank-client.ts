@@ -14,6 +14,14 @@
  * A tab or window that is only hidden is not leaving, and a document with a save pending is never taken back (blankLeaving), so
  * its record stays. The scope's cleanups run in the same order when the page goes away; `alive` tells the two apart, so the call
  * is made once, with keepalive.
+ *
+ * The workbench's own ways back to the list (its Back button, ⌘[, the mouse back button, the plugin's name on the tab strip) say
+ * "no item" with a select-item event and then fold the page without asking it to close the editor (leaveOnFold, called from the
+ * client's select-item handler): once the fold is done, the blank document is left like any other. An event with no item that is
+ * not followed by a fold (a tab of the page shown without an item) leaves it open.
+ *
+ * Opening an imported document from the import dialog leaves the blank one open next to it as well (blankLeaving is read before the
+ * imported document becomes the selected one).
  */
 export const PAGES_BLANK_CLIENT_SCRIPT = String.raw`
   const fresh = new Map();
@@ -38,6 +46,7 @@ export const PAGES_BLANK_CLIENT_SCRIPT = String.raw`
     closeEditor();
     void dropBlank(left, unloading);
   };
+  const leaveOnFold = () => queueMicrotask(() => { if (workbench.getAttribute("data-expanded") === "false") leaveBlank(); });
   const lifetime = host.mountPluginClient?.(workbench);
   lifetime?.whenVisible(() => () => { if (lifetime.alive && !document.hidden) leaveBlank(); });
   lifetime?.own(() => leaveBlank(true));

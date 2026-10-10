@@ -16,6 +16,10 @@
  * that stays (words on the screen or in the saved copy) keeps its editor and its record. A tab or window that is only hidden is
  * not leaving. The scope's cleanups run in the same order when the page goes away; `alive` tells the two apart, so the call is
  * made once.
+ *
+ * The workbench's own ways back to the list (its Back button, ⌘[, the mouse back button, the plugin's name on the tab strip) say
+ * "no item" with a select-item event and then fold the page without asking it to close the editor (leaveOnFold): once the fold is
+ * done, the blank spark is left like any other. An event with no item that is not followed by a fold leaves it open.
  */
 export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
@@ -226,6 +230,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     await dropBlank(id, unloading);
   };
+  const leaveOnFold = () => queueMicrotask(() => { if (workbench.getAttribute("data-expanded") === "false") void leaveBlank().catch(() => {}); });
   const fillEditor = (record) => {
     const left = selected && selected.id !== record.id ? selected.id : "";
     selected = record;
@@ -667,7 +672,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     // The plugin shown without an item (the workbench also says so while a page loads): nothing new to open, and a
     // spark asked for by link that is still loading is not cancelled by it.
     const itemId = event.detail?.itemId || null;
-    if (!itemId) return;
+    if (!itemId) { leaveOnFold(); return; }
     wantedId = itemId;
     wantedByLink = true;
     if (records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));

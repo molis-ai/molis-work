@@ -56,11 +56,21 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
   // The workbench watches this attribute: a page that says it is back at its list is a record to forget.
   const attributes = new Map<string, string>();
   workbench.setAttribute = (name, value) => { attributes.set(String(name), String(value)); };
+  (workbench as { getAttribute(name?: string): string | null }).getAttribute = name => attributes.get(String(name)) ?? null;
   const parts = new Map<string, FakeNode>([["[data-pages-rows]", rows], ["[data-pages-title]", titleInput], ["[data-pages-note]", note]]);
   workbench.querySelector = (selector?: string) => {
     const found = parts.get(selector ?? ""); if (found) return found;
     const made = element(); parts.set(selector ?? "", made); return made;
   };
+  // The import dialog: its parts are the same nodes each time, so a test can reach the buttons the client listens on.
+  const dialog = element(), dialogParts = new Map<string, FakeNode>(), importButton = element(), importedChecks = [element()];
+  Object.assign(importedChecks[0]!, { checked: true, value: "doc-1" });
+  dialog.querySelector = (selector?: string) => {
+    let found = dialogParts.get(selector ?? ""); if (!found) { found = element(); dialogParts.set(selector ?? "", found); } return found;
+  };
+  dialogParts.set("[data-pages-import-documents]", Object.assign(element(), { querySelectorAll: () => importedChecks }));
+  parts.set("[data-pages-import-dialog]", dialog);
+  (workbench as { querySelectorAll(selector?: string): FakeNode[] }).querySelectorAll = selector => selector === "[data-pages-import]" ? [importButton] : [];
   Object.assign(globalThis, {
     document: { querySelector: (selector: string) => selector === "[data-pages=workbench]" ? workbench : null, createElement: () => element(),
       addEventListener() {}, activeElement: null, hidden: false, body: { dataset: { routePrefix: "" } } },
@@ -85,6 +95,12 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
         ...(body.template_id ? options.template : {}) };
       store.set(doc.id, doc);
       return json({ document: doc });
+    }
+    if (parsed.pathname === "/api/plugins/pages/import") {
+      created += 1;
+      const doc: Doc = { id: `I${created}`, title: "导入的笔记", body: text("导入的正文"), version: 1, goal_id: "", artifact_version: 0 };
+      store.set(doc.id, doc);
+      return json({ documents: [doc] });
     }
     const [, id, action] = /^\/api\/plugins\/pages\/([^/]+)(?:\/(.+))?$/.exec(parsed.pathname) ?? [];
     const current = store.get(decodeURIComponent(id ?? ""));
@@ -122,6 +138,21 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
       await flush();
     },
     elapse: async (ms: number) => { t.mock.timers.tick(ms); await flush(); },
+    /** The workbench shows the page without an item (its Back button, the plugin's name on the tab strip, a tab that is not an item); `fold` is whether it then folds the page to its list, as applyPluginDefault does. */
+    async workbenchSelectsNothing(fold: boolean) {
+      workbench.listeners["molis-work:select-item"]!({ detail: { itemId: null } });
+      if (fold) workbench.setAttribute("data-expanded", "false");
+      await flush();
+    },
+    /** Through the import dialog, as a person does it: 「导入」, 「导入所选文档」, then 「打开」 on the finished import. */
+    async importAndOpen() {
+      await importButton.listeners.click!({});
+      await flush();
+      await dialogParts.get("[data-pages-import-submit]")!.listeners.click!({});
+      await flush();
+      await dialogParts.get("[data-pages-import-open]")!.listeners.click!({});
+      await flush();
+    },
     discards: () => calls.filter(call => call.path.endsWith("/discard")),
     restore() { t.mock.timers.reset(); Object.assign(globalThis, { fetch: saved.fetch, document: saved.document, window: saved.window }); },
     editorOpen: () => parts.get("[data-pages-stage-workspace]")?.hidden === false,
@@ -453,5 +484,122 @@ test("once the editor is closed the surface stops naming the document as the cur
     await refused.fire(click("[data-pages-back]"));
     assert.equal(refused.store.has("N1"), true, "kept: it was changed elsewhere");
     assert.equal(refused.context()?.object, undefined, "but it is not open here any more");
+  } finally { refused.restore(); }
+});
+
+test("the workbench's own ways back to the list (its Back button, the plugin's name on the tab strip) also leave the blank document", async t => {
+  // It says "no item" with a select-item event and then folds the page (data-expanded false, the editor hidden) without asking the
+  // plugin to close its editor; the plugin was left with a blank document selected behind the list.
+  const page = await mounted(t, [existing("A", "周报", text("本周"))]);
+  try {
+    await page.fire(click("[data-pages-new]"));
+    assert.equal(page.context()?.object?.id, "N1");
+    await page.workbenchSelectsNothing(true);
+    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/pages/N1/discard"]);
+    assert.equal(page.discards()[0]!.body.expected_version, page.discards()[0]!.stored_version, "at the version the Host holds");
+    assert.deepEqual([...page.store.keys()], ["A"], "nothing is left behind, and not in the list either");
+    assert.equal(page.editorOpen(), false);
+    assert.equal(page.expanded(), "false");
+    assert.equal(page.context()?.object, undefined, "and the discarded document is not the object in hand");
+    assert.equal(page.note.textContent, "");
+    await page.workbenchSelectsNothing(true);
+    assert.equal(page.discards().length, 1, "saying it again takes nothing more");
+  } finally { page.restore(); }
+});
+
+test("the workbench saying 「no item」 without folding the page (a tab of the page shown without an item) leaves the blank document where it is", async t => {
+  const page = await mounted(t, []);
+  try {
+    await page.fire(click("[data-pages-new]"));
+    await page.workbenchSelectsNothing(false);
+    assert.equal(page.discards().length, 0);
+    assert.equal(page.editorOpen(), true);
+    assert.equal(page.expanded(), "true");
+    assert.equal(page.store.size, 1);
+  } finally { page.restore(); }
+});
+
+test("when the workbench folds the page, a document with words, a save still pending, or one that already existed is not taken back", async t => {
+  const written = await mounted(t, []);
+  try {
+    await written.fire(click("[data-pages-new]"));
+    await written.write({ body: text("写了一句") });
+    await written.workbenchSelectsNothing(true);
+    assert.equal(written.discards().length, 0);
+    assert.equal(written.store.size, 1);
+  } finally { written.restore(); }
+  const pending = await mounted(t, []);
+  try {
+    await pending.fire(click("[data-pages-new]"));
+    await pending.write({ body: text("一") }, false);
+    await pending.write({ body: EMPTY }, false);
+    await pending.workbenchSelectsNothing(true);
+    assert.equal(pending.discards().length, 0, "the save and the discard would race");
+    await pending.elapse(400);
+    assert.equal(pending.store.has("N1"), true);
+    assert.equal(pending.note.textContent, "");
+  } finally { pending.restore(); }
+  const old = await mounted(t, [existing("OLD", "未命名文档")]);
+  try {
+    await old.fire(click("button[data-page-id]", { pageId: "OLD" }));
+    await old.workbenchSelectsNothing(true);
+    assert.equal(old.discards().length, 0);
+    assert.equal(old.store.has("OLD"), true);
+  } finally { old.restore(); }
+  const refused = await mounted(t, [], { discard: () => json({ error: "改过了", code: "pages.conflict" }, 409) });
+  try {
+    await refused.fire(click("[data-pages-new]"));
+    await refused.workbenchSelectsNothing(true);
+    assert.equal(refused.discards().length, 1);
+    assert.equal(refused.store.has("N1"), true, "refused: it stays");
+    assert.equal(refused.editorOpen(), false);
+    assert.equal(refused.context()?.object, undefined);
+    assert.equal(refused.note.textContent, "");
+  } finally { refused.restore(); }
+});
+
+test("opening an imported document from the import dialog leaves the blank new document next to it, and only that one", async t => {
+  // The imported document becomes the selected one before the editor is filled, so the editor never sees a switch from the blank one.
+  const page = await mounted(t, [existing("A", "周报", text("本周"))]);
+  try {
+    await page.fire(click("[data-pages-new]"));
+    assert.deepEqual([...page.store.keys()].sort(), ["A", "N1"]);
+    await page.importAndOpen();
+    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/pages/N1/discard"]);
+    assert.equal(page.discards()[0]!.body.expected_version, page.discards()[0]!.stored_version);
+    assert.deepEqual([...page.store.keys()].sort(), ["A", "I2"], "the imported document and the existing one remain");
+    assert.deepEqual(page.editor(), text("导入的正文"), "the imported document is the one open");
+    assert.equal(page.context()?.object?.id, "I2");
+    assert.equal(page.note.textContent, "");
+    await page.fire(click("[data-pages-back]"));
+    assert.equal(page.discards().length, 1, "going back from the imported document takes nothing: it was not made blank here");
+    assert.equal(page.store.has("I2"), true);
+  } finally { page.restore(); }
+});
+
+test("opening an imported document leaves alone a new document with words in it, and an existing document that is open", async t => {
+  const written = await mounted(t, []);
+  try {
+    await written.fire(click("[data-pages-new]"));
+    await written.write({ body: text("先写了一句") });
+    await written.importAndOpen();
+    assert.equal(written.discards().length, 0);
+    assert.deepEqual([...written.store.keys()].sort(), ["I2", "N1"]);
+  } finally { written.restore(); }
+  const old = await mounted(t, [existing("OLD", "未命名文档")]);
+  try {
+    await old.fire(click("button[data-page-id]", { pageId: "OLD" }));
+    await old.importAndOpen();
+    assert.equal(old.discards().length, 0);
+    assert.deepEqual([...old.store.keys()].sort(), ["I1", "OLD"]);
+  } finally { old.restore(); }
+  const refused = await mounted(t, [], { discard: () => json({ error: "改过了", code: "pages.conflict" }, 409) });
+  try {
+    await refused.fire(click("[data-pages-new]"));
+    await refused.importAndOpen();
+    assert.equal(refused.discards().length, 1);
+    assert.equal(refused.store.has("N1"), true, "refused: it stays");
+    assert.deepEqual(refused.editor(), text("导入的正文"), "and the imported document is still the one open");
+    assert.equal(refused.note.textContent, "");
   } finally { refused.restore(); }
 });

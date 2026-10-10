@@ -220,6 +220,106 @@ test("Pages and 灵光: once a blank item is taken back on 「返回」 the surf
   assert.equal(await object("[data-lingguang=workbench]"), null);
 });
 
+test("Pages and 灵光: going back with the workbench's own Back button or the plugin's name on the tab strip takes a blank item back too", { timeout: 150_000 }, async t => {
+  // The workbench says "no item" and folds the page itself, without the plugin's own 「返回」: the plugin used to be left with the
+  // blank item selected behind the list, and it was only taken back at the next leave.
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
+  const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
+  const sparks = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
+  const object = (surface: string) => evaluate(`JSON.parse(document.querySelector('${surface}').getAttribute('data-assistant-context') || 'null')?.object ?? null`);
+  const openBlankPage = async () => {
+    await click("[data-pages-new]");
+    await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  };
+  const openBlankSpark = async () => {
+    await evaluate("document.querySelector('[data-lingguang-capture]').click()");
+    await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
+  };
+  await click("[data-plugin-strip] [data-plugin-id=pages]");
+  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
+  const before = titles();
+  for (const [how, leave] of [["the titlebar Back button", () => click("[data-workspace-history=back]")], ["the plugin's name on the tab strip", () => click("[data-tab-view=pages]")]] as const) {
+    await openBlankPage();
+    assert.equal(titles().length, before.length + 1, `made at once, as before (${how})`);
+    assert.ok(await object("[data-pages=workbench]"), "named while it is open");
+    await leave();
+    await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+    await until(() => titles().length === before.length);
+    assert.deepEqual(titles(), before, `nothing was left behind (${how})`);
+    await waitFor("![...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
+    assert.equal(await object("[data-pages=workbench]"), null, "and the document taken back is not the object in hand");
+  }
+  // One that was written in stays through the same Back.
+  await openBlankPage();
+  await click("[data-pages-editor] .ProseMirror");
+  await command("Input.insertText", { text: "写了一句" }, sessionId);
+  await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 20_000);
+  await click("[data-workspace-history=back]");
+  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+  await new Promise(resolve => setTimeout(resolve, 600));
+  assert.equal(titles().length, before.length + 1, "kept");
+
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
+  await click("[data-bar-resident=lingguang]");
+  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
+  const keptSparks = sparks().length;
+  for (const [how, leave] of [["the titlebar Back button", () => click("[data-workspace-history=back]")], ["the plugin's name on the tab strip", () => click("[data-tab-view=lingguang]")]] as const) {
+    await openBlankSpark();
+    assert.equal(sparks().length, keptSparks + 1, `made at once, as before (${how})`);
+    assert.ok(await object("[data-lingguang=workbench]"), "named while it is open");
+    await leave();
+    await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'false'", 20_000);
+    await until(() => sparks().length === keptSparks);
+    await waitFor("document.querySelectorAll('[data-lingguang-id]').length === " + keptSparks, 20_000);
+    assert.equal(await object("[data-lingguang=workbench]"), null);
+  }
+  await openBlankSpark();
+  await evaluate(`(() => { const body = document.querySelector('[data-lingguang-body]'); body.value = '一句话'; body.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
+  await click("[data-workspace-history=back]");
+  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'false'", 20_000);
+  await new Promise(resolve => setTimeout(resolve, 1_200));
+  assert.equal(sparks().length, keptSparks + 1, "kept");
+});
+
+test("Pages: opening an imported document leaves the blank new document next to it, and the other documents stay", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
+  const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title).sort(); } finally { store.close(); } };
+  await click("[data-plugin-strip] [data-plugin-id=pages]");
+  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
+  const before = titles();
+  await click("[data-pages-new]");
+  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  assert.equal(titles().length, before.length + 1, "made at once, as before");
+  // The import button stays in the list header while the editor is open.
+  await click("[data-pages-import]");
+  await waitFor("document.querySelector('[data-pages-import-dialog]').open", 20_000);
+  await evaluate(`(() => { const input = document.querySelector('[data-pages-import-files]'); const transfer = new DataTransfer();
+    transfer.items.add(new File(['# 导入的笔记\\n\\n导入的正文'], 'note.md', { type: 'text/markdown' })); input.files = transfer.files;
+    input.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  await waitFor("!document.querySelector('[data-pages-import-submit]').disabled", 20_000);
+  await click("[data-pages-import-submit]");
+  await waitFor("!document.querySelector('[data-pages-import-open]').hidden", 20_000);
+  await click("[data-pages-import-open]");
+  await waitFor("document.querySelector('[data-pages-title]').value === '导入的笔记'", 20_000);
+  await until(() => !titles().includes("未命名文档"));
+  assert.deepEqual(titles(), [...before, "导入的笔记"].sort(), "the blank document is gone and the imported one is there");
+  await waitFor("![...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
+  // Going back from the imported document takes nothing: it was not made blank here.
+  await click("[data-pages-back]");
+  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+  await new Promise(resolve => setTimeout(resolve, 600));
+  assert.deepEqual(titles(), [...before, "导入的笔记"].sort());
+});
+
 test("灵光: 「记下第一条灵光」 left empty is thrown away when the person goes back, and one with words stays", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;

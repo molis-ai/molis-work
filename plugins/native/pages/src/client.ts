@@ -713,7 +713,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   workbench.addEventListener("molis-work:select-item", (event) => {
     const id = event.detail?.itemId;
-    if (!id) { selectionSeq++; openingId = null; return; }
+    if (!id) { selectionSeq++; openingId = null; leaveOnFold(); return; }
     if (selected?.id === id) {
       revealEditor();
       return;

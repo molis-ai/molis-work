@@ -51,6 +51,7 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
   // The workbench watches this attribute: a page that says it is back at its list is a record to forget.
   const attributes = new Map<string, string>();
   workbench.setAttribute = (name, value) => { attributes.set(String(name), String(value)); };
+  (workbench as { getAttribute(name?: string): string | null }).getAttribute = name => attributes.get(String(name)) ?? null;
   const parts = new Map<string, FakeNode>();
   const part = (selector: string) => { let found = parts.get(selector); if (!found) { found = element(); parts.set(selector, found); } return found; };
   workbench.querySelector = (selector?: string) => part(selector ?? "");
@@ -103,6 +104,12 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
     /** What the surface tells the Assistant and the placement bar it has in hand (null before the page has said anything). */
     context: () => attributes.has("data-assistant-context") ? JSON.parse(attributes.get("data-assistant-context")!) as { plugin_id: string; object?: { kind: string; id: string } } : null,
     elapse: async () => { await flush(); },
+    /** The workbench shows the page without an item (its Back button, the plugin's name on the tab strip, a tab that is not an item); `fold` is whether it then folds the page to its list, as applyPluginDefault does. */
+    async workbenchSelectsNothing(fold: boolean) {
+      workbench.listeners["molis-work:select-item"]!({ detail: { itemId: null } });
+      if (fold) workbench.setAttribute("data-expanded", "false");
+      await flush();
+    },
     /** The person types in the title or the body; the autosave runs before they leave (the client saves first). */
     async write(next: { title?: string; body?: string }) {
       if (next.title !== undefined) part("[data-lingguang-title]").value = next.title;
@@ -357,4 +364,77 @@ test("once the editor is closed the surface stops naming the spark as the curren
     assert.equal(page.store.get("S3")?.status, "discarded");
     assert.equal(page.context()?.object, undefined, "the page going away");
   } finally { page.restore(); }
+});
+
+test("the workbench's own ways back to the list (its Back button, the plugin's name on the tab strip) also leave the blank spark", async () => {
+  // It says "no item" with a select-item event and then folds the page (data-expanded false, the editor hidden) without asking the
+  // plugin to close its editor; the plugin was left with a blank spark selected behind the list.
+  const page = await mounted([spark("OLD", "想法", "有内容")]);
+  try {
+    await page.fire(click("[data-lingguang-capture]"));
+    assert.equal(page.context()?.object?.id, "S1");
+    await page.workbenchSelectsNothing(true);
+    assert.deepEqual(page.discards().map(call => call.body.ids), [["S1"]]);
+    assert.equal(page.store.get("S1")?.status, "discarded");
+    assert.equal(page.store.get("OLD")?.status, "inbox");
+    assert.equal(page.editorOpen(), false);
+    assert.equal(page.expanded(), "false");
+    assert.equal(page.context()?.object, undefined, "and the spark thrown away is not the object in hand");
+    assert.equal(page.part("[data-lingguang-note]").textContent, "");
+    await page.workbenchSelectsNothing(true);
+    assert.equal(page.discards().length, 1, "saying it again takes nothing more");
+  } finally { page.restore(); }
+});
+
+test("the workbench saying 「no item」 without folding the page leaves the blank spark where it is", async () => {
+  const page = await mounted([]);
+  try {
+    await page.fire(click("[data-lingguang-capture]"));
+    await page.workbenchSelectsNothing(false);
+    assert.equal(page.discards().length, 0);
+    assert.equal(page.editorOpen(), true);
+    assert.equal(page.expanded(), "true");
+    assert.equal(page.store.get("S1")?.status, "inbox");
+  } finally { page.restore(); }
+});
+
+test("when the workbench folds the page, a spark with words, one that was already there, one written to elsewhere, one in a brainstorm and a refused discard all stay", async () => {
+  const written = await mounted([]);
+  try {
+    await written.fire(click("[data-lingguang-capture]"));
+    await written.write({ body: "刚冒出来的想法" });
+    await written.workbenchSelectsNothing(true);
+    assert.equal(written.discards().length, 0);
+    assert.equal(written.store.get("S1")?.status, "inbox");
+  } finally { written.restore(); }
+  const old = await mounted([spark("OLD", "")]);
+  try {
+    await old.fire(click("[data-lingguang-id]", { lingguangId: "OLD" }));
+    await old.workbenchSelectsNothing(true);
+    assert.equal(old.discards().length, 0);
+  } finally { old.restore(); }
+  const elsewhere = await mounted([], { onGet: current => ({ ...current, body: "助理刚替你记了一句" }) });
+  try {
+    await elsewhere.fire(click("[data-lingguang-capture]"));
+    await elsewhere.workbenchSelectsNothing(true);
+    assert.equal(elsewhere.discards().length, 0);
+    assert.equal(elsewhere.store.get("S1")?.status, "inbox");
+  } finally { elsewhere.restore(); }
+  const brainstorm = await mounted([]);
+  try {
+    await brainstorm.fire(click("[data-lingguang-capture]"));
+    await brainstorm.fire(click(BRAINSTORM));
+    await brainstorm.workbenchSelectsNothing(true);
+    assert.equal(brainstorm.discards().length, 0);
+    assert.equal(brainstorm.store.get("S1")?.status, "inbox");
+  } finally { brainstorm.restore(); }
+  const refused = await mounted([], { discard: () => json({ error: "暂时丢不掉" }, 503) });
+  try {
+    await refused.fire(click("[data-lingguang-capture]"));
+    await refused.workbenchSelectsNothing(true);
+    assert.equal(refused.discards().length, 1);
+    assert.equal(refused.store.get("S1")?.status, "inbox");
+    assert.equal(refused.editorOpen(), false);
+    assert.equal(refused.part("[data-lingguang-note]").textContent, "");
+  } finally { refused.restore(); }
 });

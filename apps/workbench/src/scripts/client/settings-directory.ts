@@ -17,7 +17,7 @@
  * - `reopen`: History and the bar reopen a settings cover on the section it last showed. A place is "<section>" or "<section> <address>" (a nested page such as one role's prompts).
  * - `openGlobalSettingsFromUrl`: A project page draws root links under its own prefix; a global page named there is still the global page.
  * - `openGlobalSettingsFromUrl (moved pages)`: MCP, connectors and Functions moved to 能力; their old settings addresses open the 能力 page.
- * - `molis-work:model-ready` (models): When the model settings page reports the first model that can run, this announces it on the document and into every pane frame, and each page re-reads what it showed about models (the plugin builder studio among them). When a page of this tab sent the person to the settings (a link or a pane's relay, not the gear, not an address opened on load), the cover also closes over that page and a toast says so; a settings page opened directly (a new tab from onboarding) stays where it is. The model settings script also posts the same name on a BroadcastChannel, so the onboarding page that opened the tab reads the model again without a reload; that part runs even on the standalone settings page of a person with no project, where this file is not loaded.
+ * - `molis-work:model-ready` (models): When the model settings page reports the first model that can run, this announces it on the document and into every pane frame, and each page re-reads what it showed about models (the plugin builder studio among them). When a page of this tab sent the person to the settings (a link or a pane's relay, not the gear, not an address opened on load), the cover closes over that page first and a toast says so, and only then is the event sent, so a page that reacts (Jelly reopening its model dialog) finds itself as the person sees it; a settings page opened directly (a new tab from onboarding) stays where it is. The model settings script also posts the same name on a BroadcastChannel, so the onboarding page that opened the tab reads the model again without a reload; that part runs even on the standalone settings page of a person with no project, where this file is not loaded.
  * - `molis-work:open-settings-section`: A plugin whose page lives in settings (角色) is opened there, from search, a link or an old tab.
  * - `?settings=`: “?settings=<section>” on the workbench address opens that settings page once the workbench has landed.
  * - `?settingsPath=`: “?settingsPath=<address>” is a settings page that was opened directly; the server sent it here to open in place.
@@ -53,11 +53,11 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     });
   let sentFromPage = false;
   const modelReady = () => {
+    const back = sentFromPage && host.closeCover?.();
+    sentFromPage = false;
     const frames = [...document.querySelectorAll("iframe[data-pane-tab]")].map((frame) => frame.contentDocument);
     [document, ...frames].forEach((doc) => doc?.dispatchEvent(new CustomEvent("molis-work:model-ready")));
-    if (!sentFromPage) return;
-    sentFromPage = false;
-    if (host.closeCover?.()) host.showToast?.(L("模型已连接，可以继续了。"));
+    if (back) host.showToast?.(L("模型已连接，可以继续了。"));
   };
   const bindEmbed = (root) => {
     const page = pageOf(root);

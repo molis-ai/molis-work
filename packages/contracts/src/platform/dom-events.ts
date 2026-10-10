@@ -226,7 +226,7 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:model-ready", kind: "announcement", owner: "settings-directory", on: "document",
     detail: "none",
-    summary: "The model settings page saved the first provider that can run. Sent on the document and into every pane frame; each page that showed \"no model\" (the Assistant's failed card, Cognia, Dataset, Form, PPT, Workflows, Alchemist, Jelly's model dialog, the plugin builder studio) reads it again. The same script also posts it on a BroadcastChannel of the same name to the other tabs of the origin, which is how the onboarding page that opened the settings in a new tab learns of it; that channel is not a DOM event and has no entry of its own.",
+    summary: "The model settings page saved the first provider that can run. Sent on the document and into every pane frame, after the settings have closed over the page that sent the person (when one did), so a page that reacts finds itself as the person sees it; each page that showed \"no model\" (the Assistant's failed card, Cognia, Dataset, Form, PPT, Workflows, Alchemist, Jelly's model dialog, the plugin builder studio) reads it again. The same script also posts it on a BroadcastChannel of the same name to the other tabs of the origin, which is how the onboarding page that opened the settings in a new tab learns of it; that channel is not a DOM event and has no entry of its own.",
   },
   {
     name: "molis-work:open-settings-path", kind: "request", owner: "settings-directory", on: "document",

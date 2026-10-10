@@ -113,6 +113,73 @@ test("jelly: its settings link leaves the modal dialog, and the model dialog com
   assert.equal(await evaluate("document.querySelector('[data-jelly-model-status] a')"), null, "the pointer to the settings is gone");
 });
 
+test("jelly: a settings visit that ended without saving does not bring its dialog back behind another page", { timeout: 120_000 }, async t => {
+  const standIn = await startModelStandIn(standInKey);
+  t.after(() => standIn.close());
+  const browser = await open(t, "jelly");
+  if (!browser) return;
+  const { evaluate, waitFor, click } = browser;
+  await waitFor("document.querySelector('[data-jelly-more]')", 15_000);
+  await click("[data-jelly-more]");
+  await click("[data-jelly-model]");
+  await waitFor("/还没有可用模型/.test(document.querySelector('[data-jelly-model-status]')?.textContent || '')", 10_000);
+  await evaluate("document.querySelector('[data-jelly-model-status] a').click()");
+  await waitFor("document.body.dataset.desktopSurface === 'settings'", 10_000);
+  // The person closes the settings without saving and goes on to another page; Jelly has nothing left to come back to.
+  await click("[data-cover-close]");
+  await waitFor("document.body.dataset.desktopSurface === 'jelly'", 10_000);
+  await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=cognia]').click()");
+  const link = "document.querySelector('[data-cognia-action=model-settings]')";
+  await waitFor(`document.body.dataset.desktopSurface === 'cognia' && ${link} && !${link}.hidden`, 15_000);
+  // That page sends the person to the settings, and the first model is saved there.
+  await evaluate(`${link}.click()`);
+  await waitFor("document.body.dataset.desktopSurface === 'settings'", 10_000);
+  await saveFirstModel(browser, standIn.baseUrl);
+  await waitFor(`document.body.dataset.desktopSurface === 'cognia' && ${link}.hidden`, 15_000);
+  // Jelly would read the settings and open its dialog within a moment of the announcement: give it that moment.
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  const page = await evaluate<{ jellyDialog: boolean; modal: number; target: string | null; size: number }>(`(() => {
+    const button = document.querySelector('[data-cognia-action=import]'), box = button.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return { jellyDialog: document.querySelector('[data-jelly-dialog]').open, modal: document.querySelectorAll(':modal').length,
+      target: hit?.closest('[data-cognia-action]')?.dataset.cogniaAction ?? hit?.tagName ?? null, size: box.width * box.height }; })()`);
+  assert.ok(page.size > 0, "Cognia's import button is on the page");
+  assert.deepEqual({ jellyDialog: page.jellyDialog, modal: page.modal, target: page.target }, { jellyDialog: false, modal: 0, target: "import" },
+    "no modal dialog is open anywhere, and the page under the person's pointer answers it");
+  // Back on Jelly, a later announcement finds nothing waiting: the visit to the settings that Jelly started is over.
+  await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=jelly]').click()");
+  await waitFor("document.body.dataset.desktopSurface === 'jelly'", 10_000);
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:model-ready'))");
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  assert.equal(await evaluate("document.querySelector('[data-jelly-dialog]').open"), false, "the first announcement used up what Jelly was waiting for");
+});
+
+test("jelly: settings opened some other way stay as they are when the first model is saved, with no dialog over them", { timeout: 120_000 }, async t => {
+  const standIn = await startModelStandIn(standInKey);
+  t.after(() => standIn.close());
+  const browser = await open(t, "jelly");
+  if (!browser) return;
+  const { evaluate, waitFor, click } = browser;
+  await waitFor("document.querySelector('[data-jelly-more]')", 15_000);
+  await click("[data-jelly-more]");
+  await click("[data-jelly-model]");
+  await waitFor("/还没有可用模型/.test(document.querySelector('[data-jelly-model-status]')?.textContent || '')", 10_000);
+  await evaluate("document.querySelector('[data-jelly-model-status] a').click()");
+  await waitFor("document.body.dataset.desktopSurface === 'settings'", 10_000);
+  await click("[data-cover-close]");
+  await waitFor("document.body.dataset.desktopSurface === 'jelly'", 10_000);
+  // Back on Jelly, the person opens the settings on their own (the menu, not a link on a page) and saves there.
+  await evaluate("document.querySelector('[data-directory-open=settings]').click()");
+  await waitFor("document.body.dataset.desktopSurface === 'settings'", 10_000);
+  await evaluate("document.querySelector('[data-directory-panel=settings] [data-settings-section=models]').click()");
+  await saveFirstModel(browser, standIn.baseUrl);
+  await waitFor("/连接检查通过/.test(document.querySelector('[data-model-status]')?.textContent || '')", 15_000);
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  assert.deepEqual(await evaluate(`({ surface: document.body.dataset.desktopSurface, jellyDialog: document.querySelector('[data-jelly-dialog]').open,
+    modal: document.querySelectorAll(':modal').length, toast: document.querySelector('[data-toast]')?.textContent || '' })`),
+  { surface: "settings", jellyDialog: false, modal: 0, toast: "" }, "no page sent the person: the settings stay, nothing opens over them");
+});
+
 test("plugin builder studio: the empty model list and the link to the settings are read again", { timeout: 90_000 }, async t => {
   const browser = await open(t, "plugin-builder");
   if (!browser) return;

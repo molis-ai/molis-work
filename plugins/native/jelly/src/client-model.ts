@@ -31,5 +31,5 @@ export const JELLY_MODEL_CLIENT_SCRIPT = String.raw`
     };
     genericCleanup=()=>{dialogBody.onclick=null;};paint();
   };
-  document.addEventListener('molis-work:model-ready',()=>{if(leftForSettings)void run(openModelSettings);});
+  document.addEventListener('molis-work:model-ready',()=>{const back=leftForSettings;leftForSettings=false;if(back&&root.getClientRects().length&&getComputedStyle(root).visibility==='visible')void run(openModelSettings);});
 `;

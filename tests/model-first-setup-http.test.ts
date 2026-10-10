@@ -77,6 +77,10 @@ test("没有模型时设置页给出一键模板；模板只预填地址、格�
       assert.match(template.base_url, /^(https:\/\/[^/]+(\/.*[^/])?)?$/, `${template.template_id}: https，末尾没有斜杠`);
     }
     assert.equal(modelProviderTemplate("minimax")?.base_url, "https://api.minimax.cn/anthropic", "MiniMax 国内端点按它自己现行文档写");
+    // 预填的模型名只有供应商文档当作现行名字列出的才留（2026-10-09 核对）：通义千问的文档只把 qwen-plus 当示例和系列名，
+    // 现行列表是带版本号的名字，所以那一行留空让人填。新增一个预填名要先对照文档，再改这张表。
+    assert.deepEqual(Object.fromEntries(MODEL_PROVIDER_TEMPLATES.filter((t) => t.model_ids.length > 0).map((t) => [t.template_id, [...t.model_ids]])),
+      { deepseek: ["deepseek-flash"], minimax: ["MiniMax-M3"] });
 
     const deepseek = await html("?new=1&template=deepseek");
     assert.match(deepseek, /data-model-base-url="deepseek-[0-9a-f]{8}"/, "模板每次换一个新 id，选两次不会覆盖已有的供应商");

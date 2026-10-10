@@ -89,16 +89,23 @@ export interface ModelProviderTemplate {
  * Anthropic-compatible and OpenAI-compatible are exactly the two shapes Prologue's adapters carry.
  *
  * Every address, format and prefilled model name below was read off the provider's own public documentation
- * (2026-10-09), with the mainland-China endpoint where the provider has one. A model name is prefilled only where the
- * documentation lists it as current; a provider's retired names (DeepSeek's `deepseek-chat`) are not. Checked again
- * whenever a template changes, because a name that moved is told to the person at save, not to us.
+ * (2026-10-09, again 2026-10-10), with the mainland-China endpoint where the provider has one. A model name is
+ * prefilled only where the documentation lists it as current; a provider's retired names (DeepSeek's `deepseek-chat`)
+ * are not, and neither is a name the documentation only uses as an example or a family (Qwen's `qwen-plus`: its current
+ * list is the versioned names). Checked again whenever a template changes, because a name that moved is told to the
+ * person at save, not to us.
+ *
+ * Qwen's address is the shared one that the documentation says still works. It now recommends a per-workspace address
+ * (`https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`) that needs an id only the person has, so a
+ * template cannot fill it; they can paste it over the Base URL. International addresses differ per provider (and a key
+ * only works in its own region), so they are not offered here: the person types them.
  */
 export const MODEL_PROVIDER_TEMPLATES: readonly ModelProviderTemplate[] = [
   { template_id: "anthropic", display_name: "Anthropic", base_url: "https://api.anthropic.com", api_format: "anthropic-messages", model_ids: [] },
   { template_id: "openai", display_name: "OpenAI", base_url: "https://api.openai.com/v1", api_format: "openai-chat-completions", model_ids: [] },
   { template_id: "deepseek", display_name: "DeepSeek", base_url: "https://api.deepseek.com", api_format: "openai-chat-completions", model_ids: ["deepseek-flash"] },
   { template_id: "minimax", display_name: "MiniMax", base_url: "https://api.minimax.cn/anthropic", api_format: "anthropic-messages", model_ids: ["MiniMax-M3"] },
-  { template_id: "qwen", display_name: "通义千问（阿里云）", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", api_format: "openai-chat-completions", model_ids: ["qwen-plus"] },
+  { template_id: "qwen", display_name: "通义千问（阿里云）", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", api_format: "openai-chat-completions", model_ids: [] },
   { template_id: "kimi", display_name: "Kimi（月之暗面）", base_url: "https://api.moonshot.cn/v1", api_format: "openai-chat-completions", model_ids: [] },
   { template_id: "glm", display_name: "GLM（智谱）", base_url: "https://open.bigmodel.cn/api/paas/v4", api_format: "openai-chat-completions", model_ids: [] },
   { template_id: "openrouter", display_name: "OpenRouter", base_url: "https://openrouter.ai/api/v1", api_format: "openai-chat-completions", model_ids: [] },

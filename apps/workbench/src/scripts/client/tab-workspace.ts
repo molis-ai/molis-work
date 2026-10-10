@@ -1258,11 +1258,11 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     let observer = null, timer = null, asked = null, done = false, clicks = 0, lastClick = 0;
     const finish = () => { done = true; observer?.disconnect(); clearTimeout(timer); clearTimeout(asked); frame?.removeEventListener('load', watch); if (cancelRecordJump === finish) cancelRecordJump = null; };
     const surfaceIn = (doc) => doc?.querySelector('[data-work-surface="' + plugin + '"]') || null;
-    // The plugin says it has the record open (its current object), however it got there. A name the workbench wrote counts only while the page is open: at its list (an empty item taken back) it shows nothing.
+    // The plugin says it has the record open (its current object), however it got there. On the quiet reopen a name the workbench wrote counts only while the page is open: at its list (an empty item taken back) it shows nothing.
     const showsIt = (doc) => {
       const node = surfaceIn(doc);
       const holder = node && (node.hasAttribute('data-assistant-context') ? node : node.querySelector('[data-assistant-context]'));
-      try { const context = JSON.parse(holder?.getAttribute('data-assistant-context') || '{}'); return Boolean(context.object && context.object.id === itemId && (context.named_by !== 'workbench' || node.getAttribute('data-expanded') !== 'false')); } catch { return false; }
+      try { const context = JSON.parse(holder?.getAttribute('data-assistant-context') || '{}'); return Boolean(context.object && context.object.id === itemId && (context.named_by !== 'workbench' || !quiet || node.getAttribute('data-expanded') !== 'false')); } catch { return false; }
     };
     const check = () => {
       if (done) return;
@@ -1295,7 +1295,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     timer = setTimeout(() => {
       const stillCurrent = current(); const opened = showsIt(frame ? frame.contentDocument : document); finish();
       if (opened) return;
-      if (quiet) forgetRecord(plugin);
+      if (quiet && openRecords[plugin] === itemId) forgetRecord(plugin);
       else if (stillCurrent) showToast?.(L('未能打开这条内容，请重试或从列表中选择。'), true);
     }, quiet ? 8000 : 10000);
     frame?.addEventListener('load', watch); watch();

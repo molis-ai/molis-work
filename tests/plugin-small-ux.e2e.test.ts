@@ -376,6 +376,73 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
   assert.equal(sparks().length, keptSparks);
 });
 
+test("Pages: a document opened while the workbench is still looking for a taken-back one keeps its place, and a reload reopens it", { timeout: 180_000 }, async t => {
+  // After the workbench's Back to the step that names a taken-back document, the quiet reopen stays alive for 8 s. It forgets only the record
+  // it was looking for: a document the person opens meanwhile is remembered all the same.
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory, reloadPage } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
+  await click("[data-plugin-strip] [data-plugin-id=pages]");
+  await waitFor(`document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]') && ${CLIENTS_READY}`, 20_000);
+  const ids = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.id); } finally { store.close(); } };
+  const remembered = () => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
+    .map(key => JSON.parse(localStorage.getItem(key) || '{}').pages).filter(Boolean)`);
+  const untilRemembered = async (count: number, what: string) => {
+    const end = Date.now() + 8_000;
+    while ((await remembered()).length !== count) { if (Date.now() > end) assert.fail(what); await new Promise(resolve => setTimeout(resolve, 100)); }
+  };
+  const before = ids();
+  const open = "document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')";
+  await click("[data-pages-new]");
+  await waitFor(open, 20_000);
+  await untilRemembered(1, "the workbench never remembered the open document");
+  const [takenBack] = await remembered();
+  await click("[data-pages-back]");
+  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+  await until(() => ids().length === before.length);
+  // The workbench's Back names the taken-back document again, and its quiet reopen starts looking for it.
+  await click("[data-workspace-history=back]");
+  const stepped = Date.now();
+  assert.deepEqual(await remembered(), [takenBack], "the step names the taken-back document");
+  // A document is opened and written in meanwhile.
+  await click("[data-pages-new]");
+  await waitFor(open, 20_000);
+  await click("[data-pages-editor] .ProseMirror");
+  await command("Input.insertText", { text: "找的时候新写的" }, sessionId);
+  await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 20_000);
+  const written = ids().find(id => !before.includes(id))!;
+  assert.ok(written && written !== takenBack, "a new document, kept because it was written in");
+  await untilRemembered(1, "the new document was not remembered");
+  assert.deepEqual(await remembered(), [written], "its record replaces the taken-back one");
+  // Past the quiet reopen's 8 s (and its margin), the search for the other document ends, and it must not end this one.
+  while (Date.now() - stepped < 11_000) await new Promise(resolve => setTimeout(resolve, 100));
+  assert.deepEqual(await remembered(), [written], "the quiet reopen forgot the taken-back record, not this one");
+  assert.equal(await evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "true", "and the editor is still open");
+  await reloadPage();
+  await waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('找的时候新写的')`, 30_000);
+});
+
+test("a link to a record that opens inside a plugin's own list (Todo's batch review) ends without the error toast", { timeout: 90_000 }, async t => {
+  // The review opens in the list page and leaves it at data-expanded=false; the workbench names the object for the Assistant. For a link,
+  // that name says the plugin has it open. Only the quiet reopen after a reload holds a workbench name to an expanded page.
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  const { navigate, command, sessionId, origin, projectId, evaluate, waitFor } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo&openRecord=batch:x` }, sessionId));
+  await waitFor("document.querySelector('[data-toast]') && document.querySelector('[data-work-surface=todo]')", 20_000);
+  await evaluate(`window.toasts = []; new MutationObserver(() => window.toasts.push(document.querySelector('[data-toast]').textContent))
+    .observe(document.querySelector('[data-toast]'), { childList: true, characterData: true, subtree: true })`);
+  const surface = `document.querySelector('[data-work-surface=todo]')`;
+  await waitFor(`(() => { const holder = ${surface}.querySelector('[data-assistant-context]') || ${surface}; try { const context = JSON.parse(holder.getAttribute('data-assistant-context') || '{}');
+    return context.object?.id === 'batch:x' && context.named_by === 'workbench'; } catch { return false; } })()`, 20_000);
+  assert.equal(await evaluate(`${surface}.dataset.expanded`), "false", "the review is in the list page, which stays folded");
+  // The workbench waits 10 s for a plugin to say it has the record.
+  await new Promise(resolve => setTimeout(resolve, 12_000));
+  assert.deepEqual(await evaluate("window.toasts"), [], "no 「未能打开这条内容」");
+});
+
 test("Pages: opening an imported document leaves the blank new document next to it, and the other documents stay", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;

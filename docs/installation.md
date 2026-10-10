@@ -24,7 +24,14 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 ## 安装边界
 
-开发者分发 npm 安装包时，先在仓库执行 `pnpm package:npm`，产物在 `release/npm/`。消费者在自己的目录运行 `npm install /absolute/adeptify-molis-work-版本.tgz`，然后使用 `npx --no-install molis-work --help` 或 `npx --no-install molis-work install`。npm 路径要求已有 Node 24+，会正常安装当前平台的原生依赖；不要使用 `--ignore-scripts`；除了 `better-sqlite3`、`node-pty` 这类原生依赖，飞书/Lark MCP 连接器的依赖 `keytar` 也会在安装时运行自己的安装脚本（先下载预编译文件，下载不到再用 node-gyp 编译，两步都失败则 `npm install` 失败）；按该包的代码，装好之后连接器每次启动这个 MCP 子进程都会读写系统凭据库（macOS 的登录钥匙串）里服务名为 `lark-mcp` 的一项，这是该包自己的行为，不在 Molis Work 的 Home 里（原因见 [依赖与 SDK 方案](../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §3.5）。npm 不读仓库的 `pnpm-workspace.yaml`，所以仓库里对 `basic-ftp` 的版本覆盖不会出现在这条路径上（原因与可选做法见 [依赖与 SDK 方案](../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §3.5）。它不依赖源码仓库，也不要求单独发布私有 workspace 子包。安装 npm 包本身不会启动服务或连接 Runtime；`molis-work install` 才写入下面说明的 Home。
+开发者分发 npm 安装包时，先在仓库执行 `pnpm package:npm`，产物在 `release/npm/`。消费者在自己的目录运行 `npm install /absolute/adeptify-molis-work-版本.tgz`，然后使用 `npx --no-install molis-work --help` 或 `npx --no-install molis-work install`。npm 路径要求已有 Node 24+，会正常安装当前平台的原生依赖；不要使用 `--ignore-scripts`。飞书/Lark MCP 连接器的包 `@larksuiteoapi/lark-mcp` 在归档里是固定版本的注册表依赖，由 `npm install` 从注册表取，随之有两件已知的事，用户 2026-10-10 决定接受并如实写明（见下一节）。它不依赖源码仓库，也不要求单独发布私有 workspace 子包。安装 npm 包本身不会启动服务或连接 Runtime；`molis-work install` 才写入下面说明的 Home。
+
+### npm 路径上的飞书/Lark 连接器：两件已知并接受的事
+
+用户 2026-10-10 的决定：接受这两件事，写进安装说明和发布前检查，npm 路径照旧。归档的 `package.json` 不写 `overrides`，也不把 `@larksuiteoapi/lark-mcp` 的依赖树放进 `bundledDependencies`（决定记录见 [spec.md](../specs/repository-anti-corruption/spec.md) §1，来龙去脉见 [依赖与 SDK 方案](../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §3.5）。这两件事只在这条 npm 归档路径上存在。
+
+- **`basic-ftp` 的高危公告没有修，但只在一种配置下才会走到。** 连接器的包经 `proxy-agent`、`pac-proxy-agent`、`get-uri` 带进 `basic-ftp`，`npm install` 装出来的是 5.x（现在是 5.3.1），带公告 GHSA-c475-qrg2-pj4r（`Client.list()` 的解析器耗时随输入呈二次方增长，6.2.1 起修复）。仓库的 `pnpm-workspace.yaml` 把它覆盖到 6.2.1，但 npm 不读这个文件，也不认被装进来的依赖里写的 `overrides`，所以 6.2.1 只在仓库检出、从它复制出去的 Home release 与桌面安装包里，npm 归档里没有。这个 FTP 客户端只有在代理被配置成指向 FTP 上的 PAC 文件（代理环境变量 `HTTPS_PROXY` 一类写成 `pac+ftp://…`）时才会用到；连接器自己不设置这种代理，它只把你已经设置的代理变量传给子进程。没有这种配置，就走不到这个缺陷。
+- **`keytar` 在 Home 之外留下一项钥匙串和一个数据目录。** `keytar` 是 `lark-mcp` 的普通（不是可选）依赖，也是原生模块：`npm install` 时它运行自己的安装脚本（先下载预编译文件，默认来自 GitHub 发布页；下载不到再用 node-gyp 编译，需要编译工具链），两步都失败则整个 `npm install` 失败，即使你不用飞书/Lark 连接器。按该包 0.5.1 的代码（没有在构建出 `keytar` 的机器上实测），装好之后连接器每启动一次这个 MCP 子进程，该包都会读系统凭据库里服务名 `lark-mcp`、账户名 `encryption-key` 的一项（macOS 是登录钥匙串），没有就生成一个加密密钥写进去，并建出它的数据目录（macOS 是 `~/Library/Application Support/lark-mcp-nodejs`，其他系统在各自的用户数据目录下）。这是该包自己的行为，与是否保存登录无关；Molis Work 用环境变量传令牌，不会往那个目录写令牌文件。这些读写都在 Molis Work 的 Home 之外，不受 `MOLIS_WORK_HOME` 约束，也不联网，所以删除 Home 不会带走它们。仓库检出里 `keytar` 不构建（`pnpm-workspace.yaml` 的 `allowBuilds`），该包加载它失败后自己接住，不碰钥匙串；从仓库复制出去的 Home release 与桌面安装包带的是同一份未构建的依赖。
 
 `molis-work install` 只维护 `~/.molis-work`：版本化程序与共享 Skill、MCP/Web/CLI 启动入口、项目 DB 根目录、日志和安装清单。它不会创建或启动项目，不会写入用户项目，也不会修改任何 Runtime 的用户级配置。之后若要把 MCP 入口注册到某个 Runtime，必须走用户确认的 Runtime 集成流程。
 

@@ -21,11 +21,13 @@ test("npm staging packs workspace assets without host binaries or modifying the 
     // The Feishu/Lark connector's package travels as a registry dependency at the exact version Local Host pins. The workspace's
     // `overrides` and `allowBuilds` (pnpm-workspace.yaml) do not: the archive has no `overrides` field, and npm would ignore one
     // in an installed dependency, which docs/installation.md and dependencies-and-sdk-plan.md section 3.5 say in words.
-    const manifest = JSON.parse(published.toString("utf8")) as { dependencies: Record<string, string> };
+    const manifest = JSON.parse(published.toString("utf8")) as { dependencies: Record<string, string>; bundledDependencies?: string[] };
     const pinned = (JSON.parse(await readFile(path.join(source, "apps/local-host/package.json"), "utf8")) as { dependencies: Record<string, string> }).dependencies["@larksuiteoapi/lark-mcp"];
     assert.match(pinned ?? "", /^\d+\.\d+\.\d+$/);
     assert.equal(manifest.dependencies["@larksuiteoapi/lark-mcp"], pinned);
     assert.equal("overrides" in manifest, false);
+    // User decision 2026-10-10: the connector's dependency tree is accepted as npm installs it, not bundled into the archive.
+    assert.equal((manifest.bundledDependencies ?? []).includes("@larksuiteoapi/lark-mcp"), false);
     await assert.rejects(createMolisWorkNpmPackageDirectory({ sourceDirectory: source, destinationDirectory: output }), /输出已存在/);
     assert.deepEqual(await readFile(path.join(output, "package.json")), published);
     const { stdout } = await exec("npm", ["pack", "--ignore-scripts", "--json", "--cache", path.join(temporary, "cache")], { cwd: output, maxBuffer: 8 * 1024 * 1024 });
@@ -46,6 +48,8 @@ test("npm staging packs workspace assets without host binaries or modifying the 
     assert.ok(files.has("vendor/prologue-sdk/README.md"));
     assert.ok(files.has("node_modules/@prologue/sdk/package.json"));
     assert.ok(packed.bundled.includes("@prologue/sdk"));
+    assert.equal(packed.bundled.includes("@larksuiteoapi/lark-mcp"), false);
+    assert.equal([...files].some(file => file.startsWith("node_modules/@larksuiteoapi/")), false);
     assert.equal([...files].some(file => file.startsWith("vendor/prologue-sdk/") && file.endsWith(".tgz")), false);
     const desktopPrefix = "node_modules/@molis-ai/molis-work-app-desktop/";
     assert.ok(files.has(`${desktopPrefix}dist/index.js`));
@@ -69,4 +73,36 @@ test("npm staging packs workspace assets without host binaries or modifying the 
       }
     }
   } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+// User decision 2026-10-10 (specs/repository-anti-corruption/spec.md section 1): the npm archive keeps the Feishu/Lark connector as a
+// registry dependency, and the two things that brings are accepted as long as they are written down where a consumer and a release
+// manager read them. This test does not install the archive (that needs the registry and native prebuilds, which no run can repeat);
+// it keeps the words, and the pinned version they were written for, from drifting away from the archive.
+test("the accepted npm-archive facts of the Feishu/Lark connector stay written in the install notes, the checklist and the decision records", async () => {
+  const text = (file: string) => readFile(path.join(process.cwd(), file), "utf8");
+  const pinned = (JSON.parse(await text("apps/local-host/package.json")) as { dependencies: Record<string, string> }).dependencies["@larksuiteoapi/lark-mcp"];
+  assert.match(pinned ?? "", /^\d+\.\d+\.\d+$/);
+  for (const file of ["docs/installation.md", "docs/installation.en.md"]) {
+    const notes = await text(file);
+    for (const fact of [
+      pinned!, // a new connector version has to be re-read against the notes before the pin moves
+      "GHSA-c475-qrg2-pj4r", "basic-ftp", "pac+ftp://", // the advisory and the only configuration that reaches it
+      "keytar", "encryption-key", "lark-mcp-nodejs", "MOLIS_WORK_HOME", // the keychain item and the data directory outside the Home
+      "overrides", "bundledDependencies", // what the archive deliberately does not carry
+    ]) assert.ok(notes.includes(fact), `${file} must mention ${fact}`);
+  }
+  const releaseLine = (await text("docs/releases/CHECKLIST.md")).split("\n").find(line => line.includes("GHSA-c475-qrg2-pj4r"));
+  assert.ok(releaseLine?.startsWith("- [ ] "), "the release checklist needs one open line for the npm archive");
+  for (const fact of ["basic-ftp", "keytar", "lark-mcp-nodejs", "overrides", "bundledDependencies", "npm view @larksuiteoapi/lark-mcp version"]) {
+    assert.ok(releaseLine!.includes(fact), `the release checklist line must mention ${fact}`);
+  }
+  const plan = await text("specs/repository-anti-corruption/dependencies-and-sdk-plan.md");
+  const section = plan.slice(plan.indexOf("### 3.5 "), plan.indexOf("\n## 4. "));
+  assert.match(section, /结论（2026-10-10，用户弹窗答复：选（a）接受/);
+  assert.match(section, /重新问用户的条件/);
+  assert.match(plan, /^8\. ~~npm 归档上飞书\/Lark 连接器/m);
+  const decision = (await text("specs/repository-anti-corruption/spec.md")).split("\n")
+    .find(line => line.startsWith("| 2026-10-10 |") && line.includes("GHSA-c475-qrg2-pj4r"));
+  assert.ok(decision?.includes("keytar") && decision.includes("接受"), "spec.md section 1 needs the decision row");
 });

@@ -4,7 +4,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/contextual";
 import {
   contextualDigest, contextualCandidates, judgmentQuestions, judgmentState, planContextualLayout, readContextualJudgment,
-} from "@molis-ai/molis-work-kernel";
+} from "@molis-ai/molis-work-kernel/contextual";
 
 /**
  * Host side of context-driven interaction (specs/archive/contextual-interaction §4, §5, §8). Candidates come from the caller's

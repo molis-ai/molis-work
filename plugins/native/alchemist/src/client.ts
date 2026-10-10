@@ -35,6 +35,7 @@ export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   function setTitle(title){$('[data-alc-title]').textContent=title;}
 `+WORK_REUSE_CLIENT+ALCHEMIST_VIEWS+ALCHEMIST_FLOWS+String.raw`
   async function load(){const n=++loadSeq;const values=await Promise.all([api('/bootstrap'),api('/pulse/reports'),api('/decisions'),api('/settings/runtime')]);if(n!==loadSeq)return;[data,pulse,decisions,runtime]=values;loaded=true;renderList();schedule();}
+  document.addEventListener('molis-work:model-ready',()=>{if(loaded)load().then(()=>current&&open(current,false)).catch(e=>notice(e.message,true));});
   function closeDetail(){seq++;current=null;target=null;selection=null;side.hidden=true;sideMode='';root.dataset.expanded='false';$('[data-alc-workspace]').hidden=true;renderList();persist();lastRow?.isConnected&&lastRow.focus();}
   async function open(next,save=true){
     if(!next)return;const n=++seq;const changed=!sameCurrent(next);current={...next};detailSignature='';selection=null;if(changed){side.hidden=true;sideMode='';target=null;research=null;$('[data-alc-action=annotations]').hidden=true;content.scrollTop=0;}

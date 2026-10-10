@@ -24,9 +24,10 @@ export const platformDomEventsContract = {
  * change that dispatches it.
  *
  * Not in scope: events created by the browser itself, `postMessage` types between the shell and its frames, the
- * `data-assistant-context` attribute, the `host` object handed to plugin client scripts, storage keys, direct calls
- * between the segments of the Workbench client, and state that no event announces. Those are other channels with no
- * registry yet.
+ * `data-assistant-context` attribute, the `host` object handed to plugin client scripts, storage keys, `BroadcastChannel`
+ * names (the one in use, `molis-work:model-ready`, carries a page event to the other tabs of the origin and is
+ * recorded under that event), direct calls between the segments of the Workbench client, and state that no event
+ * announces. Those are other channels with no registry yet.
  */
 
 /**
@@ -162,7 +163,7 @@ export interface DomEventDeclaration {
 }
 
 /**
- * Every page event, in name order: 46 names at the time of listing, 45 of them created with `new CustomEvent` (89 dispatch
+ * Every page event, in name order: 47 names at the time of listing, 46 of them created with `new CustomEvent` (90 dispatch
  * sites) and one, `molis:side-toggle`, only listened to so far. Who dispatches and who listens is not written down here:
  * `node scripts/gates/dom-events.mjs --report` computes both from the source, so it cannot go stale.
  */
@@ -221,6 +222,11 @@ export const DOM_EVENTS = [
     name: "molis-work:goal-panel-presence", kind: "announcement", owner: "goals-event-document", on: "element", bubbles: true,
     detail: "none",
     summary: "A Goal event panel is present in the document; the shell re-reads whether to offer the panel layout.",
+  },
+  {
+    name: "molis-work:model-ready", kind: "announcement", owner: "settings-directory", on: "document",
+    detail: "none",
+    summary: "The model settings page saved the first provider that can run. Sent on the document and into every pane frame, after the settings have closed over the page that sent the person (when one did), so a page that reacts finds itself as the person sees it; each page that showed \"no model\" (the Assistant's failed card, Cognia, Dataset, Form, PPT, Workflows, Alchemist, Jelly's model dialog, the plugin builder studio) reads it again. The same script also posts it on a BroadcastChannel of the same name to the other tabs of the origin, which is how the onboarding page that opened the settings in a new tab learns of it; that channel is not a DOM event and has no entry of its own.",
   },
   {
     name: "molis-work:open-settings-path", kind: "request", owner: "settings-directory", on: "document",

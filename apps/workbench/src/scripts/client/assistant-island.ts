@@ -6,6 +6,8 @@ import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
  * Every fact shown here comes from the Host (`/api/assistant`): a work's state is its real run's state, a question is
  * the run's own pending question, a confirmation is the Host's review of the exact effect. The page only decides where
  * the next Send goes, and never sends anything the person did not send.
+ *
+ * Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `namedObject`: A name in 「…」 that this work knows (one of its objects) opens where it lives: the answer points at the thing itself. `list items`: A model sometimes drops the space after a list's dash on one line (“-30 分钟” among “- 60 分钟”): beside a real item, it is one too. `ownStop`: A round the runtime stopped on its own (a guard, a breaker) says why in its own words; one the person stopped says so. `notices`: What needs the person first; news about a work (done, a result, new material) folds below — it also shows on the work. `reminder open`: A reminder opens its item where it lives: here when it is this page's project, otherwise on its own project's page. `pane switcher`: Split into panes, the switcher names each one: the page being worked on is the focused pane, not all of them run together. `delegated Send`: A delegated Send reuses its message id, so the same message twice starts one work. Its words are the page's: pageText marks them. `retried Send`: A Send whose outcome is unknown (the connection dropped) is retried with the same id, so the Host starts nothing twice. `project`: The project the next new work belongs to. The project list changes it as the person looks from one project to another. `searchKey`: Search opens with ⌘K (Ctrl K elsewhere); a touch screen has no key to name.
  */
 export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const L = host.translate;
@@ -35,9 +37,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const targetClear = island.querySelector("[data-assistant-target-clear]");
   const newButton = island.querySelector("[data-assistant-new]");
   if (!composer || !input || !send || !thread || !target) return null;
-  // The project the next new work belongs to. The project list changes it as the person looks from one project to another.
   let project = host.project && host.project.id ? host.project : null;
-  // Search opens with ⌘K (Ctrl K elsewhere); a touch screen has no key to name.
   const searchKey = () => !document.querySelector("[data-global-search-open], [data-global-search-dialog]") || (window.matchMedia && window.matchMedia("(hover: none)").matches) ? ""
     : /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
   const BT = String.fromCharCode(96);
@@ -189,7 +189,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   });
   const codingHere = () => Boolean(project && document.querySelector('.plugin-rail-items [data-plugin-id="coding"]'));
   let pollTimer = 0, draftTimer = 0, draftWrite = Promise.resolve();
-  // A Send whose outcome is unknown (the connection dropped) is retried with the same id, so the Host starts nothing twice.
   let unsettled = null;
 
   const api = async (path, method, body) => {
@@ -431,7 +430,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const node = el("a", "assistant-link", label); node.href = href; node.target = "_blank"; node.rel = "noopener noreferrer";
     return node;
   };
-  // A name in 「…」 that this work knows (one of its objects) opens where it lives: the answer points at the thing itself.
   const namedObject = (text) => {
     const name = text.slice(1, -1);
     const object = view && view.objects ? view.objects.find((one) => one.title === name && one.open) : null;
@@ -494,7 +492,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const rich = (text) => {
     const root = el("div", "assistant-rich");
     const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
-    // A model sometimes drops the space after a list's dash on one line (“-30 分钟” among “- 60 分钟”): beside a real item, it is one too.
     lines.forEach((line, at) => {
       const loose = /^(\s*)([-•])([^\s\-•].*)$/.exec(line);
       if (loose && [lines[at - 1], lines[at + 1]].some((near) => near !== undefined && new RegExp("^\\s*\\" + loose[2] + "\\s+\\S").test(near))) lines[at] = loose[1] + loose[2] + " " + loose[3];
@@ -972,7 +969,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const status = keyed(node, "data-entry", "status", () => el("p", "assistant-round-status"));
     const phase = round.phase;
     status.dataset.phase = phase;
-    // A round the runtime stopped on its own (a guard, a breaker) says why in its own words; one the person stopped says so.
     const ownStop = round.stop_reason && round.stop_reason !== "已停止" ? round.stop_reason : "";
     setText(status, phase === "running" || phase === "starting" || phase === "compacting" ? L("正在处理…")
       : phase === "failed" ? L("这一轮没有完成") + (round.stop_reason ? "：" + round.stop_reason : "")
@@ -1802,7 +1798,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         box.append(check);
       }
       if (shown.action) {
-        if (/模型/.test(shown.action)) { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); link.href = "/settings/models"; box.append(link); }
+        if (/模型/.test(shown.action)) { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); link.href = "/settings/models"; link.addEventListener("click", (event) => { if (!event.metaKey && !event.ctrlKey) setPanel(false); }); box.append(link); }
         // A work's own cap is raised right here, in its usage box; the daily cap lives in the Assistant's settings.
         else if (/这项工作的上限/.test(shown.action) && usageBox) {
           const raise = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); raise.type = "button";
@@ -1921,7 +1917,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const focused = noticesPop.contains(document.activeElement) ? document.activeElement : null;
     const focusKey = focused ? [focused.dataset.noticeId, focused.dataset.noticeAction] : null;
     noticesPop.replaceChildren(el("p", "assistant-popover-title", L("等你处理")));
-    // What needs the person first; news about a work (done, a result, new material) folds below — it also shows on the work.
     const open = notices.filter((notice) => !notice.held && URGENT.has(notice.kind)), news = notices.filter((notice) => !notice.held && !URGENT.has(notice.kind)), held = notices.filter((notice) => notice.held);
     const row = (notice) => {
       const item = el("div", "assistant-notice");
@@ -1933,7 +1928,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       go.setAttribute("aria-label", L("打开") + "：" + notice.text);
       go.addEventListener("click", async () => {
         setNotices(false);
-        // A reminder opens its item where it lives: here when it is this page's project, otherwise on its own project's page.
         if (notice.open) {
           void settleNotice({ notice_id: notice.notice_id }, "seen");
           const where = notice.open.project_id || "personal", here = project ? project.id : "personal";
@@ -2018,6 +2012,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     await loadNotices();
   };
   attentionButton?.addEventListener("click", () => setNotices(noticesPop.hidden));
+  document.addEventListener("molis-work:model-ready", () => { if (problem && /模型/.test(problem.action || "")) { problem = null; render(); } });
   document.addEventListener("molis-work:plugin-events-waiting", (event) => { pluginWaiting = Number(event.detail?.pending) || 0; paintAttention(); });
   setInterval(() => { if (!document.hidden) void loadNotices(); }, 20000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) void loadNotices(); });
@@ -2513,7 +2508,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const current = document.querySelector("[data-plugin-picker-current]");
     const active = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]");
     const surface = (context && context.plugin_id) || (active && active.dataset.pluginId) || "home";
-    // Split into panes, the switcher names each one: the page being worked on is the focused pane, not all of them run together.
     const named = current ? current.querySelector(".plugin-picker-chip.is-focused") || current.querySelector(".plugin-picker-chip") || current : null;
     const title = (context && context.surface_title) || (named ? named.textContent.trim() : "");
     const result = { source: Object.assign({ surface }, context && context.plugin_id ? { plugin_id: context.plugin_id } : {}, title ? { title } : {}), captured_at: new Date().toISOString() };
@@ -2543,7 +2537,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   /* ─── What plugin pages tell the Assistant (spec 8.3): by purpose, never by wording ───────────────────────── */
   const offerBar = island.querySelector("[data-assistant-offer]");
   const heard = new Set();
-  // A delegated Send reuses its message id, so the same message twice starts one work. Its words are the page's: pageText marks them.
   let requestOverride = null, pageText = null;
   const tidyMessage = (raw) => {
     if (!raw || typeof raw !== "object" || typeof raw.message_id !== "string" || !raw.message_id || raw.message_id.length > 120) return null;

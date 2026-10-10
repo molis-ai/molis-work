@@ -1,4 +1,14 @@
-/** AP3 Workbench client segment: bootstrap. */
+/**
+ * AP3 Workbench client segment: bootstrap.
+ *
+ * Notes on the script below. They are kept here rather than inside it because the script is served as it stands: a
+ * comment inside it is bytes the browser downloads and never runs.
+ *
+ * - `feedDirectory … feedSourceProgress`: Feed's pages and its source directory are wired from these variables. The
+ *   pages are in the page whether or not the project has Feed (they fill when it does) and the source directory only
+ *   while it does, so they are found again when Feed comes or goes (adoptFeed); what was bound to a container stays
+ *   bound, its contents are what change.
+ */
 export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let state = JSON.parse(document.querySelector("#molis-work-data").textContent);
     const workspace = document.querySelector("[data-workspace]");
@@ -15,9 +25,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const desktopDirectoryPanels = [...document.querySelectorAll("[data-directory-panel]")];
     const desktopWorkSurfaces = [...document.querySelectorAll("[data-work-surface]")];
     const projectMenus = [...document.querySelectorAll("[data-project-menu]")];
-    // Feed's pages and its source directory are wired from these. The pages are in the page whether or not the project has Feed
-    // (they fill when it does) and the source directory only while it does, so they are found again when Feed comes or goes
-    // (adoptFeed); what was bound to a container stays bound, its contents are what change.
     let feedDirectory, feedWorkbench, feedList, feedSearch, feedFilterTrigger, feedFilterPanel, feedFilterBadge, feedFilterSummary, feedFilterReset,
       feedSourceFilter, feedTypeFilter, feedTimeFilter, feedStatusFilter, feedSort, feedResultCount, feedEmpty, feedDetailEmpty,
       sourceDirectory, sourceWorkbench, sourceList, sourceSearch, sourceResultCount, sourceEmpty, feedSourcesDialog, feedSourceError, feedSourceProgress;

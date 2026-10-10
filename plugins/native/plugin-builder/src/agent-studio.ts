@@ -113,9 +113,17 @@ html:has(.as-preview-page),body:has(.as-preview-page){margin:0;background:var(--
 @media (prefers-reduced-motion:reduce){.as-shell *{animation:none!important;transition:none!important}}
 `;
 
-/** Browser client; a string so the host can inline it. Receives the host's routes and the component renderer. */
+/**
+ * Browser client; a string so the host can inline it. Receives the host's routes and the component renderer.
+ *
+ * Notes on the script below. They are kept here rather than inside it because the script is served as it stands: a
+ * comment inside it is bytes the browser downloads and never runs.
+ *
+ * - `selector`: In the workbench the studio is drawn in the plugin's stage (host.root); the preview and an installed plugin run in frames.
+ * - `globalThis.__molisPluginRead`: Diagnoses the actual rendered query, including selection and filters, without issuing another request.
+ * - `host.mode === 'installed'`: An installed plugin: the same renderer; every call goes to the plugin's own sandboxed process through the host.
+ */
 export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
- // In the workbench the studio is drawn in the plugin's stage (host.root); the preview and an installed plugin run in frames.
  const selector=host.mode==='preview'?'[data-studio-preview]':host.mode==='installed'?'[data-installed-plugin]':'[data-agent-studio]';
  const root=host.root?(host.root.matches?.(selector)?host.root:host.root.querySelector(selector)):document.querySelector(selector);
  if(!root)return;
@@ -133,13 +141,11 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  if(host.mode==='preview'){
   const readings=new Map(),plugin=host.components({root,call:pluginCall(host.build),onRead:(id,result)=>readings.set(id,result)});
   lifetime.own(()=>plugin.destroy());
-  // Diagnose the actual rendered query, including selection and filters, without issuing another request.
   globalThis.__molisPluginRead=async componentId=>{const result=readings.get(componentId);if(!result)throw new Error('当前组件尚未读取');if('error'in result)throw new Error(result.error);return structuredClone(result.value)};
   api('/builds/'+host.build).then(async({build})=>{if(!build.design)throw new Error('这个草稿还没有确定方案');await plugin.update({contract:build.design.contract,nodes:build.nodes,connected:build.connected,presentation:build.design.presentation});if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
   return;
  }
  if(host.mode==='installed'){
-  // An installed plugin: the same renderer; every call goes to the plugin's own sandboxed process through the host.
   if(parent!==window)root.dataset.framed='';
   const call=async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{const r=await lifetime.fetch(host.call,{method:'POST',cache:'no-store',headers:headers('POST'),body:JSON.stringify({componentId,binding,payload})});const v=await r.json().catch(()=>({}));lifetime.assertCurrent();if(!r.ok)throw new Error(v.error||'操作失败，输入已保留');return v.value;}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
   const plugin=host.components({root,call});lifetime.own(()=>plugin.destroy());plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
@@ -454,6 +460,7 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
  lifetime.listen(feed,'click',e=>{const summary=e.target.closest?.('[data-as-steps] > summary');if(summary)openSteps=!summary.parentElement.open;});
  lifetime.listen($('[data-as-builds]'),'change',e=>run(()=>open(e.target.value||null)));
  lifetime.listen($('[data-as-model]'),'change',e=>{const[provider_id,model_id]=e.target.value.split('\n');if(!provider_id)return;run(async()=>{await api('/settings','POST',{provider_id,model_id});await refreshState();});});
+ lifetime.listen(document,'molis-work:model-ready',()=>{if(lifetime.visible)void refreshState(viewSignal).then(schedule).catch(backgroundError);});
  lifetime.listen(input,'keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('[data-as-composer]').requestSubmit();}});
  lifetime.listen($('[data-as-composer]'),'submit',e=>{e.preventDefault();const text=input.value.trim();if(!text||busy)return;
   const go=fresh=>run(async()=>{

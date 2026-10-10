@@ -1,6 +1,7 @@
 /** Dataset workbench client: columns, rows, CSV, versions. */
 import { mergeDatasetDraftRows } from "./row-merge.js";
 
+// Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `fixedCell`: A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name. `molis:placement-changed`: Moved or copied from the placement bar: this list changed; a table moved away is no longer here to edit.
 export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   const mergeDatasetDraftRows = ${mergeDatasetDraftRows.toString()};
   const { translate: L } = host;
@@ -56,7 +57,6 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     const sameYear = date.getFullYear() === new Date().getFullYear();
     return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
   };
-  // A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name.
   const fixedCell = (record) => {
     const node = document.createElement("span");
     node.className = "mw-status mw-status--plain feed-entry-status";
@@ -661,13 +661,13 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     } catch (error) { showNote(error.message || L("导入失败"), true); }
     finally { event.target.value = ""; }
   });
-  // Moved or copied from the placement bar: this list changed; a table moved away is no longer here to edit.
   window.addEventListener("molis:placement-changed", (event) => {
     const detail = event.detail || {};
     if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("dataset")) return;
     if (detail.mode === "move" && detail.from && selected && selected.id === detail.from.id) closeEditor();
     void loadList().catch((error) => showNote(error.message, true));
   });
+  document.addEventListener("molis-work:model-ready", () => void loadList().catch((error) => showNote(error.message, true)));
   window.addEventListener("beforeunload", (event) => {
     if (selected && (saveError || editRevision > savedRevision)) {
       event.preventDefault();

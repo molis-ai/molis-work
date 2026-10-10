@@ -1332,12 +1332,12 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .bar-center { grid-column: 1 / -1; grid-row: 1; align-self: center; }
     ${SHELL} .bar-start { grid-column: 1; grid-row: 2; }
     html ${SHELL} .workbench-bar .bar-end { grid-column: 2; grid-row: 2; justify-self: end; }
-    /* The row's 44px targets touch, so the widest state (a plugin with a directory) still fits 390px. */
-    ${SHELL} .dock-pins { gap: 0; margin-left: 4px; }
-    ${SHELL} .dock-pins::before { left: -3px; }
-    ${SHELL} .dock-pin.is-fixed { margin-right: 4px; }
-    ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { right: -4px; }
-    html ${SHELL} .workbench-bar :is(.bar-start, .bar-end) { gap: 0; }
+    /* The row's 44px targets touch, so the widest state (a plugin with a directory: eight targets) still fits 375px. */
+    ${SHELL} .dock-pins { gap: 0; margin-left: 0; }
+    ${SHELL} .dock-pins::before { left: -1px; }
+    ${SHELL} .dock-pin.is-fixed { margin-right: 0; }
+    ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { right: -1px; }
+    html ${SHELL} .workbench-bar :is(.bar-start, .bar-end, .bar-residents) { gap: 0; }
     ${SHELL} .plugin-picker-trigger { max-width: 132px; }
     html ${SHELL} .immersive-workspace > .tree-pane,
     html ${SHELL} .immersive-sidebar-scrim:not([hidden]) { bottom: var(--dock-h); }

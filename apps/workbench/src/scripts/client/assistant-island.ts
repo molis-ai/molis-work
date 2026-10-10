@@ -197,7 +197,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     try {
       response = await fetch(host.route("/api/assistant" + path), { method: method || "GET", headers: host.headers(),
         body: body === undefined ? undefined : JSON.stringify(body) });
-    } catch (error) {
+    } catch {
       const failure = new Error(L("连接中断，结果未知；再次发送不会重复提交"));
       failure.unknown = true;
       throw failure;
@@ -2389,21 +2389,23 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   }
   input.addEventListener("focus", () => { paintMaterials(); if (!String(input.value || "").trim() && !busy) setStarters(true); });
   input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; setStarters(false); }, 0));
+  // What opens from the island, and the button focus returns to.
+  const popovers = () => [[worksNav, setWorks, worksToggle], [morePop, setMore, attach], [materialsList, setMaterials, materialsButton], [executorsPop, setExecutors, executorButton],
+    [modesPop, setModes, modeButton], [charactersPop, setCharacters, characterButton], [noticesPop, setNotices, attentionButton]];
   document.addEventListener("pointerdown", (event) => {
     if (event.target?.nodeType !== 1 || island.contains(event.target)) return;
-    setStarters(false); if (worksNav && !worksNav.hidden) setWorks(false); if (morePop && !morePop.hidden) setMore(false); if (materialsList && !materialsList.hidden) setMaterials(false); if (executorsPop && !executorsPop.hidden) setExecutors(false); if (modesPop && !modesPop.hidden) setModes(false); if (charactersPop && !charactersPop.hidden) setCharacters(false); if (noticesPop && !noticesPop.hidden) setNotices(false);
+    setStarters(false); for (const [pop, close] of popovers()) if (pop && !pop.hidden) close(false);
   });
   island.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    if (worksNav && !worksNav.hidden) { event.preventDefault(); event.stopPropagation(); setWorks(false); worksToggle?.focus(); return; }
-    if (panel && !panel.hidden && !spacious() && drawerOpen) { event.preventDefault(); event.stopPropagation(); drawerOpen = false; paintLayout(); sideToggle?.focus(); return; }
-    if (morePop && !morePop.hidden) { event.preventDefault(); event.stopPropagation(); setMore(false); attach?.focus(); return; }
-    if (materialsList && !materialsList.hidden) { event.preventDefault(); event.stopPropagation(); setMaterials(false); materialsButton?.focus(); return; }
-    if (startersPop && !startersPop.hidden) { event.preventDefault(); event.stopPropagation(); setStarters(false); }
-    if (executorsPop && !executorsPop.hidden) { event.preventDefault(); event.stopPropagation(); setExecutors(false); executorButton?.focus(); }
-    if (modesPop && !modesPop.hidden) { event.preventDefault(); event.stopPropagation(); setModes(false); modeButton?.focus(); }
-    if (charactersPop && !charactersPop.hidden) { event.preventDefault(); event.stopPropagation(); setCharacters(false); characterButton?.focus(); }
-    if (noticesPop && !noticesPop.hidden) { event.preventDefault(); event.stopPropagation(); setNotices(false); attentionButton?.focus(); }
+    const stop = () => { event.preventDefault(); event.stopPropagation(); };
+    const put = ([pop, close, button]) => pop && !pop.hidden && (stop(), close(false), (visible(button) ? button : attach)?.focus(), true);
+    const [worksOpen, moreOpen, materialsOpen, ...choosers] = popovers();
+    if (put(worksOpen)) return;
+    if (panel && !panel.hidden && !spacious() && drawerOpen) { stop(); drawerOpen = false; paintLayout(); sideToggle?.focus(); return; }
+    if (put(moreOpen) || put(materialsOpen)) return;
+    if (startersPop && !startersPop.hidden) { stop(); setStarters(false); }
+    choosers.forEach(put);
   }, true);
   /* Files the person adds: text is read here and sent as their own material; what cannot be read is said plainly. */
   const readBase64 = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
@@ -2461,7 +2463,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const paintMore = () => {
     if (!morePop) return;
-    const rows = [moreItem(L("添加文件或图片…"), L("也可以拖入、粘贴"), () => { setMore(false); fileInput?.click(); }),
+    const aside = composer.dataset.crowded === "chips" ? [materialsButton, attentionButton].filter((button) => button && !button.hidden) : [];
+    const rows = [...aside.map((button) => moreItem(button.title, button.textContent.trim(), () => { setMore(false); button.click(); })),
+      moreItem(L("添加文件或图片…"), L("也可以拖入、粘贴"), () => { setMore(false); fileInput?.click(); }),
       moreItem(L("引用项目里的内容"), "@", () => { setMore(false); insertTrigger("@"); }),
       moreItem(L("用一个能力或方法"), "/", () => { setMore(false); insertTrigger("/"); })];
     morePop.replaceChildren(...rows);
@@ -2749,7 +2753,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
 
   // The input keeps room to type, but the chips beside it come and go, so the composer measures itself, as the Dock
   // does, and steps down: quiet parts narrow, unchanged choosers fold (panel closed), plugin and work chips narrow.
-  // Still over its edge the line is crowded: the choosers go (the side pane has them), no chip shrinks under 44px.
+  // Still over its edge it folds a step at a time, as far as it must (no chip under 44px): the choosers (the side pane
+  // has them), the work chip's mark (the panel starts new works too), the materials and the notice (the "+" lists them).
   const INPUT_ROOM = 120;
   let fitFrame = 0;
   const roomy = () => input.clientWidth >= INPUT_ROOM && composer.scrollWidth <= composer.clientWidth + 1;
@@ -2761,7 +2766,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (roomy()) break;
       composer.dataset.fit = level;
     }
-    composer.toggleAttribute("data-crowded", composer.scrollWidth > composer.clientWidth + 1);
+    for (const step of ["choosers", "mark", "chips"]) {
+      if (composer.scrollWidth <= composer.clientWidth + 1) break;
+      composer.dataset.crowded = step;
+    }
   };
   const refit = () => { if (!fitFrame) fitFrame = requestAnimationFrame(fitComposer); };
   // The island's width is the bar's, never its chips'; the chips' own changes arrive as attributes and labels.

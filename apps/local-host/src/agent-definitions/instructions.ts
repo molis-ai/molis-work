@@ -23,6 +23,14 @@ export function registeredInstructionBody(homeDirectory: string | undefined, ins
   return agentDefinitionsFor(homeDirectory, builtinRegistrations).instruction(instruction.owner_id, instruction.prompt_id, caller).body;
 }
 
+/**
+ * The revision of the person's own version of a registered instruction, or null while the default is in force. A read of the register:
+ * it records no use, so it can be asked as often as a cached answer needs to know whether the person has changed the text since.
+ */
+export function registeredInstructionRevision(homeDirectory: string, instruction: InstructionPrompt): number | null {
+  return agentDefinitionsFor(homeDirectory, builtinRegistrations).prompt(`${instruction.owner_id}/${instruction.prompt_id}`).user?.revision ?? null;
+}
+
 /** A Host text model that takes registered instructions, over one that takes plain text. */
 export function withRegisteredPrompts<O>(homeDirectory: string | undefined, caller: string, complete: (prompt: string, options: O) => Promise<string>):
   (prompt: ModelPromptInput, options: O) => Promise<string> {

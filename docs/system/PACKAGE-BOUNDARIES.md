@@ -36,6 +36,8 @@ the published surface (contracts, plugin-sdk) is the lowest layer
   → plugin-sdk depends on contracts only (`public-sdk-private-dependency`); every other layer may use its runtime tools
 ```
 
+内核（`packages/kernel`）有两半：核心（目录、分发、可用性、授权、场景兼容）只读 `contracts/platform/*`；放在内核里的平台产品服务「情境排序」（`contextual.ts`，纯函数，N-03：位置不变）另可读 `contracts/services/contextual`，也只许这一份，由 `pnpm health:check` 的 K2 守着（§6）。平台包读 `contracts/services/*` 在内核之外还有三处（`packages/storage` 的记忆账本与搜索索引适配、`packages/im-ui`），不属于内核这条例外，记在 BL-123。
+
 `server/`（身份、设备、接续回执与群聊领域）按 Module 规则检查，不算平台包：它有自己的业务事实（2026-10-08 决定第 4 项）。分类以 `scripts/workspace-packages.mjs` 的 `kind` 为准。
 
 ## 2. 强制禁止
@@ -48,6 +50,7 @@ the published surface (contracts, plugin-sdk) is the lowest layer
 - App 导入另一个 App，列出的启动器边之外都拒绝（`app-dependency-not-allowed`）：产品根的启动器 → desktop / local-host / mcp，desktop → local-host，local-host → cli / mcp / workbench，`apps/server` → desktop / local-host。
 - App Shell、CLI、MCP、Workbench 或 Desktop 直接写业务数据库。
 - Horizontal Service 或平台产品服务（记忆、放置、搜索、情境排序）拥有或决定 Goal、Signal、Action、Session 等插件或 Module 的业务事实。
+- 内核核心调用情境排序（核心文件导入它，或经入口转手导入它的名字）；情境排序做 I/O、持有模块级可变状态，或在代码里点名插件或能力 id（`pnpm health:check` 的 K1–K5，§6）。
 - Server Core 导入 Plugin payload schema 或完整 Local Module 状态机。
 - `packages/contracts` 依赖 App、Module implementation、Plugin implementation、数据库或网络客户端。
 - 通过 deep import 绕过 package public entrypoint。
@@ -156,6 +159,18 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 typecheck/build
 - `contractsPurity`：看不到经别名写入的字面量（`const alias = cache; alias.x = 1`）、交给别的函数去写（`fill(cache)`）、被别的文件导入后写入；函数里只要声明了与模块级字面量同名的局部，整个函数跳过这项检查；类的静态字段和闭包里的状态（`const counter = makeCounter()`）；经对象取的全局（`window.setTimeout`、`self.fetch`）；名字不像状态码的变量里的字面状态码（`const code = 404`）。
 - `moduleRepositoryExports`：别名声明和把命名空间包进对象，见上表该行。
 - `pluginOutsideMentions` 数的是包名字符串出现在多少个文件里；用相对路径指到另一个插件源码的 import 不在其内（那条路径由 `pnpm boundary:check` 的 import 规则管）。
+
+内核的两半（`scripts/gates/kernel-contextual.mjs`，W3-04，测试 `tests/health-gates-kernel-contextual.test.ts`）不是数字，而是没有基线的规则，出现一处就失败，和 `tableOwnerProblems`、`domEventProblems` 同类：
+
+| 规则 | 查什么 | 为什么 |
+| --- | --- | --- |
+| K1 | 核心文件（`packages/kernel/src` 里不是 `contextual.ts` 或 `contextual/` 的文件）不导入、不转出、不动态加载情境排序，也不从别的核心文件取它转出的名字；唯一的允许是包入口用具名的 `export { … } from` 转出（`export *` 一律不许） | 核心保留目录、分发、可用性，不调用产品策略。包入口目前同时转出两半，所以加载核心时情境排序也会被求值，这条规则管的是代码依赖，不是加载顺序 |
+| K2 | 内核里只有情境排序读 `contracts/services/*`，且只读 `services/contextual` | 把本文 §1 的规则落到内核，例外写在一处 |
+| K3 | 情境排序的包导入只能是 `contracts/platform/actions`、`contracts/services/contextual`、`node:crypto`；相对导入可指向内核里的任何文件，但不能出 `packages/kernel/src`，也不能指向 `index.ts` | 不读 storage、agent-host、其他 Node 内置模块：I/O 留在宿主 |
+| K4 | 情境排序按 `contracts-purity.mjs` 的口径数：副作用与模块级可变状态都是 0 | 同样输入同样陈列；缓存、计时、取消、模型调用留在宿主 |
+| K5 | 情境排序和 `subject-offer-choices.ts` 里没有形如能力 id 的小写带点字符串、以 `io.molis.work.` 开头的字符串和插件包名；只豁免内核自己的错误码（`new ActionError(…)` 的第一个参数、`code:` 的值） | 基本合同 C1「注册一次」的**部分**守卫：候选只从目录来 |
+
+按目录认文件：把 `contextual.ts` 拆成 `contextual/*.ts` 不用改规则；新增的核心文件情境排序可以直接导入。看不到的：拼出来的能力 id（`"pages" + ".discard"`）、不带点的前缀比较、从合同包导入的能力 id 常量、动态拼出的模块名（核心里的不报，情境排序里的会报）、不经 import 的依赖。新的合同子路径要加进 `CONTEXTUAL_PACKAGES`，那是一次有意的评审。
 
 typed 条目的新增、Repository 导出的新增、宿主入口的变宽、合同包里新副作用的出现、层间例外的新增，都不是加数字能放过的事：改动门禁本身要过评审。
 

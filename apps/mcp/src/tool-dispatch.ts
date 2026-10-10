@@ -1,4 +1,4 @@
-import { initializeBoardCapability, goalTreeCapabilities, managementTreeAuthority, type GoalTreeDecideEntryInput } from "@molis-ai/molis-work-plugin-goals";
+import { initializeBoardCapability, goalTreeCapabilities, type GoalTreeDecideEntryInput } from "@molis-ai/molis-work-plugin-goals";
 import { createMcpGoalEventHandlers } from "./goal-event-commands.js";
 import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { McpPresentationErrorFactory } from "./goal-presentation.js";
@@ -39,9 +39,9 @@ export async function dispatchMcpProjectTool(
             "Runtime 不能写入 Goal Tree 决定。请让用户在 Web 或管理入口批准已保存的提案。",
           );
         }
-        const { database_path: _database, web_base_url: _url, authority, ...input } = arguments_;
-        const decision = { ...input, authority: managementTreeAuthority(String(input.project_id), String(input.idempotency_key), authority) };
-        result = await client.invoke(goalTreeCapabilities.decideGoalTreeProposal, [decision as unknown as GoalTreeDecideEntryInput]);
+        // The decision is the person's: the Host builds who decides from the conversation the call points at and refuses an identity.
+        const { database_path: _database, web_base_url: _url, ...input } = arguments_;
+        result = await client.invoke(goalTreeCapabilities.decideGoalTreeProposal, [input as unknown as GoalTreeDecideEntryInput]);
         break;
       }
       default:

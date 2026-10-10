@@ -109,7 +109,7 @@ test('stored decision comparison belongs to its commitment version; proposal suc
  const batch=await f.read();const d=batch.receipts.at(-1).decision;
  assert.equal(d.config_version,decision.decision.config_version);assert.equal(d.agreement_version,decision.decision.agreement_version);assert.match(d.commitment_comparison,/^[a-f0-9]{64}$/);
  const submitted=await f.client.invoke(goalTreeCapabilities.submitGoalTreeProposal,[{project_id:'board',idempotency_key:'proposal',summary:'机密',items:[{item_id:'new',kind:'goal',operation:'create',payload:{title:'机密子目标',outcome:'结果',goal_id:'child'},source_refs:['runtime'],reason:'需要',confidence:0.9}]}]);
- const confirmed=await f.client.invoke(goalTreeCapabilities.decideGoalTreeProposal,[{project_id:'board',proposal_id:submitted.proposal.proposal_id,authority:{...hostEventDecisionAuthority('management','board',LOCAL_PERSON_ACTOR_ID,'proposal-authority'),whole_confirmation_prompted:true},confirm_all_pending:true,reason:'同意',idempotency_key:'confirm'}]);
+ const confirmed=await f.client.invoke(goalTreeCapabilities.decideGoalTreeProposal,[{project_id:'board',proposal_id:submitted.proposal.proposal_id,authority:{conversation_ref:'management:board',message_ref:'proposal-authority',whole_confirmation_prompted:true},confirm_all_pending:true,reason:'同意',idempotency_key:'confirm'}]);
  const after=await f.read(),last=after.receipts.at(-1);assert.ok(last.saved.proposal_ref);assert.equal(last.saved.proposal_version,confirmed.proposal.version);assert.equal(last.saved.proposal_state,confirmed.proposal.state);assert.equal(last.saved.applied_item_refs.length,1);assert.equal(JSON.stringify(after).includes('机密'),false);
 });
 

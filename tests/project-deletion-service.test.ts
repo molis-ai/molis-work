@@ -10,7 +10,7 @@ import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { WebSocket } from "ws";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, ProjectDeletionService, createMolisWorkLocalHost, molisWorkHostProjectReference, type ProjectDeletionPorts } from "@molis-ai/molis-work-app-local-host";
@@ -404,4 +404,51 @@ test("the CLI's demo remove does not delete behind the back of a Host that refus
   assert.match(refused.stderr, /MOLIS_WORK_WEB_URL/, "it says how to point the command at the right Host");
   assert.equal(existsSync(demo.database_path), true, "the demo is still there");
   assert.equal(catalog.listProjectDeletions().length, 0);
+});
+
+// ---- How each door hears a refusal: documented in CALL-CHAINS chain 2 step 7 -----------------------------------------------
+
+test("a Host of another Home refuses the MCP tool at the control-token gate without a code, which the client reports as a transport denial before any deletion request, and nothing is deleted", { timeout: 60_000 }, async t => {
+  const { directory, home, catalog } = await scratchHome(t);
+  const project = await catalog.createProject({ display_name: "别的 Home 的服务", actor_id: "test-user" });
+  const localHost = createMolisWorkLocalHost({ homeDirectory: home });
+  t.after(() => localHost.close());
+  const other = await residentHost(t, join(directory, "elsewhere"));
+  t.after(other.stop);
+  await leaveTokenBehind(home);
+  const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", null, runtimeHost(home), localHost, other.origin);
+  t.after(() => mcp.close());
+
+  const refused = await callTool(mcp, "molis_work_v1_project_delete", { project_id: project.project_id, delete_confirmed: true, idempotency_key: "mcp-other-home" });
+  assert.equal(refused.isError, true, refused.content[0]?.text);
+  // The call meets the gate while the MCP lists its tools (the action gateway's client), so it never reaches the deletion request.
+  assert.match(refused.content[0]?.text ?? "", /"code":"actions\.transport_denied"/, "the gate's 403 has no code of its own");
+  assert.match(refused.content[0]?.text ?? "", /本地控制请求校验失败/);
+  assert.doesNotMatch(refused.content[0]?.text ?? "", /home_mismatch/, "that code is only reached by a Host whose token matches");
+  assert.equal(existsSync(project.database_path), true);
+  assert.equal(catalog.listProjectDeletions().length, 0, "the MCP process did not go on to delete in its own process");
+});
+
+test("the settings route gives only a live terminal its own code and status; any other failure of the demo removal is a 400 with the message and no code, and the CLI prints that message", { timeout: 120_000 }, async t => {
+  const { home, catalog } = await scratchHome(t);
+  const demo = (await catalog.ensureDemoProject({ actor_id: "test-user", user_confirmed: true })).project;
+  const { origin, token, stop } = await residentHost(t, home);
+  t.after(stop);
+  // The demo's directory was taken away from under the catalog, so moving it aside fails inside the Host.
+  await rm(dirname(demo.database_path), { recursive: true, force: true });
+  const remove = () => fetch(`${origin}/api/settings/demo`, { method: "POST",
+    headers: { "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": `demo-remove-failure-${randomUUID()}` },
+    body: JSON.stringify({ action: "remove", user_confirmed: true }) });
+
+  const failed = await remove();
+  const body = await failed.json() as { error?: string; code?: string };
+  assert.equal(failed.status, 400, JSON.stringify(body));
+  assert.match(body.error ?? "", /ENOENT/, "the message names what failed");
+  assert.equal(Object.hasOwn(body, "code"), false, "the settings route carries a code only for a live terminal");
+
+  const refused = await demoRemoveCli(home, origin);
+  assert.notEqual(refused.status, 0, refused.stdout);
+  assert.match(refused.stderr, /ENOENT/, "the CLI prints the message the Host gave");
+  assert.doesNotMatch(refused.stderr, /project_deletion\.failed|catalog\.[a-z_]+/, "and no code");
+  assert.equal(catalog.listProjectDeletions().length, 0, "the CLI did not go on to delete in its own process");
 });

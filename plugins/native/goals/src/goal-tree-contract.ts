@@ -2,7 +2,7 @@ import type { GoalTreeProposalDecisionResult as StoredGoalTreeDecisionResult } f
 export type { GoalTreeSemanticReview } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalTreeProposalCheckResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 export type { GoalTreeProposalCheckResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import type { GoalTreeProposalRecord, GoalTreeProposalSubmitInput, GoalTreeProposalCheckInput, GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalRecord, GoalTreeProposalSubmitInput, GoalTreeProposalCheckInput, GoalTreeProposalDecideInput, GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 export interface GoalTreeProposalListQuery {
   project_id: string;
@@ -39,11 +39,19 @@ export type GoalTreeCheckEntryInput = Omit<GoalTreeProposalCheckInput, "actor_id
 export type GoalTreeSubmitEntryInput = Omit<GoalTreeProposalSubmitInput, "actor_id" | "submitted_session_id">;
 
 /**
- * What the Host entry takes to decide a proposal. The person on this machine decides and no Runtime relays the decision at this
- * door, so `runtime_actor_id` is not taken from the arguments (a Runtime's audit author comes from the call context of its own
- * action). The `authority` points at the conversation the decision came from; the Host checks that it names the person.
+ * The conversation a management decision came from, and whether the whole proposal was shown. It does not say who decides or
+ * through which door: the Host builds the authority (the person on this machine, origin management) and refuses an `actor_id`,
+ * `actor_kind` or `authority_source` carried here (`managementTreeAuthority`). Without it the decision points at the management
+ * door itself.
  */
-export type GoalTreeDecideEntryInput = Omit<GoalTreeProposalDecideInput, "runtime_actor_id">;
+export type GoalTreeDecideEvidence = Partial<Pick<GoalTreeProposalDecisionAuthority, "conversation_ref" | "message_ref" | "whole_confirmation_prompted" | "prompted_proposal_id">>;
+
+/**
+ * What the Host entry takes to decide a proposal. The person on this machine decides and no Runtime relays the decision at this
+ * door, so neither `runtime_actor_id` nor an identity inside `authority` is taken from the arguments (a Runtime's audit author
+ * comes from the call context of its own action).
+ */
+export type GoalTreeDecideEntryInput = Omit<GoalTreeProposalDecideInput, "runtime_actor_id" | "authority"> & { authority?: GoalTreeDecideEvidence };
 
 /** The proposal API as the Host entries offer it: the domain API, except that checking, submitting and deciding take no identity. */
 export type GoalTreeEntryApi = Omit<GoalTreeApplicationApi, "checkGoalTreeProposal" | "submitGoalTreeProposal" | "decideGoalTreeProposal"> & {

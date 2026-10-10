@@ -1,7 +1,7 @@
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { goalsActions, GOALS_PLUGIN_ID, readGoalResumeFacts, readGoalContractCapability } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, GOALS_PLUGIN_ID, readGoalResumeFacts, readGoalContractCapability, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { registerCasebookCapabilities } from './casebook/integration.js';
 import { projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability,
   goalsEntryCapabilities, goalEntryCompositionCapabilities,
@@ -216,11 +216,12 @@ export function registerProjectCapabilities(
   });
   host.register(goalTreeCapabilities.checkGoalTreeProposal, (runtime, [input], invocation) =>
     goalAction(runtime, goalsActions.treeCheck, managementPayload(runtime, input), managementIdentity(runtime, input.idempotency_key), invocation));
-  // The decision is the person's, taken at the management door: the Host fixes who decides, and the arguments hold no Runtime
-  // either (no Runtime relays a decision at this door). The authority only points at the conversation the decision came from.
+  // The decision is the person's, taken at the management door: the Host builds who decides (the person on this machine, origin
+  // management) and refuses an identity in the arguments, in the authority too. No Runtime relays a decision at this door. The
+  // authority the caller sends only points at the conversation the decision came from.
   host.register(goalTreeCapabilities.decideGoalTreeProposal, (runtime, [input], invocation) => {
-    const { authority, ...payload } = managementPayload(runtime, input, ["audit_actor_id", "runtime_actor_id"]);
-    requireLocalPerson(authority, "goal_tree_proposal.authority_source_invalid");
+    const { authority: evidence, ...payload } = managementPayload(runtime, input, ["audit_actor_id", "runtime_actor_id"]);
+    const authority = managementTreeAuthority(runtime.project_id, input.idempotency_key, evidence);
     const { actor_id, actor_kind } = managementIdentity(runtime, input.idempotency_key);
     return goalAction(runtime, goalsActions.treeDecide, payload, { actor_id, actor_kind, user_action: { source: "management",
       conversation_ref: authority.conversation_ref, message_ref: authority.message_ref,

@@ -70,7 +70,7 @@ Coding 的进展回执查询也转入统一动作，保留原保存回执和重�
 
 目标树的 typed、CLI、Web 审批与管理 `goal_tree_decide` 共用四个动作，原 Submission/Query/Check/Decision owner 保留幂等、事务、基线冲突及修订语义。新输入只允许 goal/create、relation/create|deactivate；part_of 为子目标到父目标，depends_on 为消费目标到前置目标。修订条目须使用新的稳定 item_id，修订后的提案仍需审批。schema 位于插件，不另维护 MCP 业务 schema。
 
-`goals.tree.decide` 只接受 user audience、goals:decide 及受保护 Host 注入的用户和操作出处；`goalTreeCapabilities.decideGoalTreeProposal` 同样为 host_only，普通 MCP、模型、工作流和插件不能通过自填 authority 获得审批权。管理 `goal_tree_decide` 与 CLI `goal-tree-decide` 仅保留薄转发：`managementTreeAuthority` 固定本机这个人与 management 出处，调用方只能给对话出处和整组确认，带身份或出处就拒绝；宿主对 `decideGoalTreeProposal`、`recordGoalUserDecisionCapability` 再核一次。旧 Runtime 对话自报确认帮助器已删除，历史记录中的 runtime_dialogue 来源仍保留可读。
+`goals.tree.decide` 只接受 user audience、goals:decide 及受保护 Host 注入的用户和操作出处；`goalTreeCapabilities.decideGoalTreeProposal` 同样为 host_only，普通 MCP、模型、工作流和插件不能通过自填 authority 获得审批权。管理 `goal_tree_decide` 与 CLI `goal-tree-decide` 仅保留薄转发，把调用方给的对话出处和整组确认原样交给 `decideGoalTreeProposal`；宿主在这个入口里调 `managementTreeAuthority` 造出完整的 authority（本机这个人、management 出处），调用方的 `authority`（类型 `GoalTreeDecideEvidence`）只能写 `conversation_ref`、`message_ref`、`whole_confirmation_prompted`、`prompted_proposal_id`，带 `actor_id`、`actor_kind` 或 `authority_source` 就拒绝（`goal_tree_proposal.authority_source_invalid`）；`recordGoalUserDecisionCapability`（事件决定）仍收完整 authority，由宿主核对它就是本机这个人。旧 Runtime 对话自报确认帮助器已删除，历史记录中的 runtime_dialogue 来源仍保留可读。
 
 动作工具提交的 submitted_session_id 从可信 ActionCallContext.runtime_session_id 注入，经过常驻服务网关保持；typed 调用也保留原会话与回执哈希。业务输入不能覆盖该字段。原始用户身份和整组提示由 user_action 提供，审计 Runtime 身份不能替代用户。Casebook 将新入口映射至原操作记录合同，Web 保留原渠道，单次调用只记录一组尝试和结果。
 
@@ -89,6 +89,6 @@ Coding 的进展回执查询也转入统一动作，保留原保存回执和重�
   - CLI、管理 MCP 与 typed 入口薄转发同一动作；有幂等合同的写入沿用原事务与幂等键。
   - 回收站操作要用户明确确认；`goals.trash.set` 可恢复，因此声明为写而不是不可撤销，并且不进生成插件。
   - MCP 只经动作工具（逐客户端授权、常驻 Host）调用 Goals，不能指定数据库或自填作者、创建渠道。
-  - 记本机这个人的 typed 管理写入入口（事件写入、设当前目标、结构提案提交、检查与决定、项目长期说明的新增与修改、项目规划方法的保存）声明 `host_only`，输入类型不含 `actor_id`、`actor_kind`（结构提案决定的输入也不含 `runtime_actor_id`：决定是本机这个人作的，这扇门后没有 Runtime 转交，`authority` 只指向对话出处）；新增这类入口时同样声明。`tests/goal-management-identity.test.ts` 读取包的导出，漏掉标记的事件写入会失败；长期说明、方法保存和结构提案提交在同一个文件里按名字逐项核对，新增的入口要加进那张表。
+  - 记本机这个人的 typed 管理写入入口（事件写入、设当前目标、结构提案提交、检查与决定、项目长期说明的新增与修改、项目规划方法的保存）声明 `host_only`，输入类型不含 `actor_id`、`actor_kind`（结构提案决定的输入也不含 `runtime_actor_id`：决定是本机这个人作的，这扇门后没有 Runtime 转交；它的 `authority` 是 `GoalTreeDecideEvidence`，只指向对话出处，不含 `actor_id`、`actor_kind`、`authority_source`，`tests/management-door-identity.test.ts` 的类型用例核对这一点）；新增这类入口时同样声明。`tests/goal-management-identity.test.ts` 读取包的导出，漏掉标记的事件写入会失败；长期说明、方法保存和结构提案提交在同一个文件里按名字逐项核对，新增的入口要加进那张表。
 - 改动后必跑：`node scripts/run-tests.mjs tests/goals-actions.test.ts tests/goals-command-actions.test.ts tests/goals-board-actions.test.ts tests/goal-event-create-flow.test.ts tests/goals-tree-actions.test.ts tests/goal-progress-plugin-identity.test.ts tests/goal-management-identity.test.ts tests/goals-guidance-actions.test.ts tests/goals-planning-actions.test.ts tests/proposal-entry-chain.test.ts tests/management-door-identity.test.ts`
 - 相关手册：[docs/modules/goals.md](../../../docs/modules/goals.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[PRODUCT.md](../../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

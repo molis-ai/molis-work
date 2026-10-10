@@ -32,7 +32,7 @@
     },
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
     "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 187,
-    "function apps/local-host/src/project-capabilities.ts#registerProjectCapabilities": 234,
+    "function apps/local-host/src/project-capabilities.ts#registerProjectCapabilities": 235,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 293,
       "methods": 41

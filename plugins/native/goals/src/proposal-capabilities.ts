@@ -27,9 +27,10 @@ export const goalTreeCapabilities = {
 };
 
 /**
- * The management entries (CLI, management MCP) decide as the person on this machine. The caller may point at the conversation
- * the decision came from and say the whole proposal was shown; who decides, and through which entry, is fixed here, refused when
- * the caller names it, and checked again by the host (repository-anti-corruption §9.5 #6).
+ * The Host builds the authority of a structure decision taken at a management entry (the CLI, the management MCP, the typed
+ * client): the person on this machine, origin management. The caller may point at the conversation the decision came from and
+ * say the whole proposal was shown; who decides, and through which entry, is fixed here and refused when the caller names it
+ * (repository-anti-corruption §9.5 #6).
  */
 export function managementTreeAuthority(projectId: string, idempotencyKey: string, evidence?: unknown): GoalTreeProposalDecisionAuthority {
   const given = (evidence && typeof evidence === "object" ? evidence : {}) as Record<string, unknown>;

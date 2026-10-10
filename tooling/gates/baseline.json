@@ -698,7 +698,7 @@
     "plugins/native/goals/src/document-collection.ts": 1,
     "plugins/native/goals/src/goal-tree-materialization-order.ts": 1
   },
-  "contractsPurityEntries": 30,
+  "contractsPurityEntries": 18,
   "contractsPurity": {
     "packages/contracts/src/modules/character-import.ts#long-fn:parseCharacterImportSnapshot": 49,
     "packages/contracts/src/modules/functions.ts#long-fn:suggestedAuthoringBehaviors": 29,
@@ -717,18 +717,6 @@
     "packages/contracts/src/platform/actions.ts#long-fn:inspectActionDeclarations": 158,
     "packages/contracts/src/platform/file-sources.ts#long-fn:fileSourceDeclarationProblems": 23,
     "packages/contracts/src/platform/plugin-agent.ts#long-fn:inspectAgentDeclaration": 162,
-    "packages/contracts/src/platform/plugin-events.ts#long-fn:inspectEventDeclarations": 65,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:parsePluginManifest": 90,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectUpgradeCompatibility": 28,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:comparePluginVersions": 23,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:assertNoV2Blocks": 22,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:assertV2Blocks": 30,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectViewDeclarations": 28,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectCommandDeclarations": 32,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectRouteDeclarations": 33,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectRequirementDeclarations": 30,
-    "packages/contracts/src/platform/plugin-manifest.ts#long-fn:inspectPortPermissions": 39,
-    "packages/contracts/src/platform/plugin-wiring.ts#long-fn:inspectPortDeclarations": 68,
     "packages/contracts/src/platform/search-sources.ts#long-fn:searchSourceDeclarationProblems": 22
   },
   "hostEntryExportStarTotal": 11,

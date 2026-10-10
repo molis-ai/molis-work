@@ -1,5 +1,5 @@
 import { createHash, createPublicKey, type KeyObject, verify } from "node:crypto";
-import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPackageBundle, PluginPackagePayload, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export class PluginPackageError extends Error {

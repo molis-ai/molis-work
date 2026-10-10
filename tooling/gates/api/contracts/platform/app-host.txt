@@ -107,7 +107,7 @@ export interface HostCapabilityDescriptor {
 
 export type HostCapabilityInput<Capability> = Capability extends HostCapabilityDefinition<infer Input, unknown> ? Input : never;
 
-export interface HostCapabilityInvocation {
+export interface HostCapabilityInvocation extends ActionCallOrigin {
     readonly signal?: AbortSignal;
     readonly plugin?: HostPluginCaller;
     readonly consumer?: "plugin";

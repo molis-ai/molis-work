@@ -20,6 +20,8 @@
 | 动作（Action） | 一项已注册、带版本和输入输出合同的可调用操作；所有入口调用同一份 | 能力（另有处写「动作」，见 U1） | 能力、函数、工具（指目录条目时） |
 | 动作目录 | 动作服务按调用者算出的、当下可发现的动作清单 | 能力库 | 共同目录、能力目录、能力板、动作库 |
 | 动作服务 | 注册、发现、授权、调用动作的共用服务 | 能力服务 | 统一动作服务（全称，可用） |
+| 调用编号（call id） | 宿主给一次入口级操作的编号，贯穿它引起的每次动作与宿主能力调用，只用于诊断，不是身份 | 诊断编号（英文 Diagnostic ID；2026-10-10 用户已批准，界面里随 W3-01 后续的 PR 出现） | 调用 id、trace id、请求编号；一次性键（`x-molis-work-idempotency-key` 防重放，不是它） |
+| 调用记录 | Home 里近期调用的诊断记录：谁调了什么、怎样结束，不写输入与结果 | 调用记录 | 动作调用日志（`docs/system/SECURITY-INVARIANTS.md` S-12 的写法） |
 | 宿主能力（typed capability） | 注册表里不带 `action` 的条目，只作宿主内的服务通道 | 无 | 裸写的「能力」「Capability」 |
 | 判断规则 | 已发布、版本不可变的判断：给一段内容，返回选择、是非概率或分数 | 判断规则 | 判断函数、Function、Functions |
 | 消费场景 | 插件或系统里真正使用判断结果的位置 | 用途、消费场景 | 判断场景、去向、消费入口 |
@@ -65,10 +67,24 @@
 - 代码：`ActionService`（`packages/kernel/src/action-service.ts`：`registerProvider`、`discover`、`invoke`、`discoverScenes`、`bind`）；宿主侧的装配在 `apps/local-host/src/local-host.ts`。
 - 两个都叫「网关」的东西要分开写：**动作网关**是本机回环 HTTP 转发（`/api/internal/action-service`，`apps/local-host/src/action-gateway.ts`），让 stdio MCP 这类非常驻进程调用常驻宿主的动作服务；**Agent 动作工具**是发给内置 Agent 一轮的工具（`find-capabilities`、`read-capability`、`change-capability`、`suggest-action`、`change-reversible`，`horizontal/agent-host/src/adapters/prologue-action-gateway.ts` 里的 `GATEWAY_TOOLS`），用来找、读、调用动作。
 
+**调用编号（call id）**
+
+- 定义：宿主给一次入口级操作的编号：页面上的一次请求、MCP 的一次 `tools/call`、助理或 Agent 的一轮、一条命令行命令、一次定时触发。这次操作引起的所有动作调用与宿主能力调用共用它，所以一份报告能对到这次操作走过的每一步。字段是 `ActionCallContext.call_id`（合同类型 `ActionCallOrigin`，`packages/contracts/src/platform/actions.ts`），格式是 UUID，给人看的短形式取前 8 位。
+- 它不是身份，也不授予权限：只由宿主给，从调用上下文、此刻打开的作用域或新生成取，不从请求头、MCP 参数、`_meta`、业务输入或插件交来的字段读；处理器可以记录或返回它，不能凭它做判断。
+- 代码：作用域在 `packages/kernel/src/call-scope.ts`，结算在 `packages/kernel/src/action-settlement.ts`；宿主 typed 口的结算在 `apps/local-host/src/typed-call-settlement.ts`。调用记录的行带编号、响应头与错误体带编号、助理与 Agent 每一轮的冻结记录带编号，是 W3-01 后续的 PR。
+- 界面用名：「诊断编号」（英文 Diagnostic ID），2026-10-10 用户批准（`specs/repository-anti-corruption/spec.md` §1）。文档写「调用编号」，只有讲界面时写「诊断编号」。
+- 不是：一次性键 `x-molis-work-idempotency-key`（HTTP 入口防重放，不往下传）；也不是 `runtime_session_id`（Runtime 会话）或 Agent 的 `run_id`。
+
+**调用记录**
+
+- 定义：Home 里 `logs/action-calls.jsonl` 的近期记录（`ActionCallLog`，`apps/local-host/src/action-call-log.ts`）：谁在哪个项目调了哪个能力、怎样结束（错误码与前 200 字），不写输入与结果。界面在「能力 › 调用记录」。
+- 现状：只记命令。失败的读取、被拒绝的调用，以及每一行的诊断编号，是 W3-01 后续的 PR。
+
 **宿主能力（typed capability）与 Capability**
 
 - 定义：`HostCapabilityDescriptor` / `HostCapabilityDefinition`（`packages/contracts/src/platform/app-host.ts`）是注册表条目的类型，有 `capability_id`、`version`、`operation`（`query`、`command`、`wait`）。动作是带 `action` 元数据的 capability（`ActionDefinition extends HostCapabilityDefinition`）；不带 `action` 的叫宿主能力，经 `LocalHost.invoke()` 调用。`ActionService.discover` 只列带 `action` 的条目，所以宿主能力不进动作目录。
 - 现状：`LocalHost.register()`（`apps/local-host/src/local-host.ts`）里，带 `action` 的交给 `ActionService.registerProvider`，不带的进 `CapabilityRegistry`（`packages/kernel/src/index.ts`）。Manifest 的 `capabilities.provides` / `consumes` 列的是宿主能力 id，插件只能调用自己声明消费的（`packages/plugin-runtime/src/services.ts`）；动作写在 Manifest 的 `actions`。
+- 调用：`LocalHost.invoke()` 对带 `action` 的条目改走 `ActionService.invoke`（宿主策略、授权复查、输入输出合同、一次结算都与动作客户端相同）；不带 `action` 的宿主能力由宿主自己结算一次，结算带 `path: "typed"`，来源写「Molis Work」，标题是能力 id（`apps/local-host/src/typed-call-settlement.ts`）。
 - 方向（2026-10-07 用户决定，`specs/repository-anti-corruption/spec.md` §1「两套能力机制收敛」）：对外的只走动作；宿主能力只留作 Runtime 插件的宿主内服务通道（`agent.*`、`schedule` 等），不再新增。收敛还没完成。
 - 写法：文档写「动作」；只有讲注册表类型时写 capability；讲宿主内通道写「宿主能力」。`docs/system/ARCHITECTURE.md` §4 与 `docs/platform/PLUGIN-PLATFORM.md` §3 里的 Capability 指宿主能力这一层。
 

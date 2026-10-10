@@ -29,7 +29,7 @@ export function renderHomePluginPage(entry: BuiltinPluginEntry, html: string | n
     <main class="home-plugin-main">${html ?? `<div class="mw-empty" role="alert"><h1>${name} 暂不可用</h1><p>${escapeHtml(message ?? "插件已停用")}</p></div>`}</main>
     <p role="status" data-home-status hidden></p>
     <dialog class="mw-dialog home-model-settings" data-home-model-settings aria-labelledby="home-model-title">
-      <div class="mw-dialog__shell mw-form"><header class="mw-form__header"><h2 id="home-model-title">模型设置</h2><button class="mw-btn mw-btn--ghost" type="button" data-home-model-close autofocus>关闭</button></header>
+      <div class="mw-dialog__shell mw-form"><header class="mw-form__header"><h2 id="home-model-title">模型设置</h2><button class="mw-btn mw-btn--ghost" type="button" data-home-model-back hidden>返回模型设置</button><button class="mw-btn mw-btn--ghost" type="button" data-home-model-close autofocus>关闭</button></header>
         <div class="mw-form__body"><p role="status" data-home-model-status></p><button class="mw-btn mw-btn--secondary" type="button" data-home-model-retry hidden>重试</button><div data-home-model-content></div></div>
       </div>
     </dialog>

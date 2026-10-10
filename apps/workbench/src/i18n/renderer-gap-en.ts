@@ -1,7 +1,7 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
-  "正在加载模型设置…": "Loading model settings…",
-  "模型设置加载失败，问题草稿仍保留。请重试。": "Model settings could not load. Your issue draft is preserved. Please retry.",
+  "正在加载…": "Loading…",
+  "设置加载失败，当前输入已保留，请重试。": "Settings could not load. Your input is preserved. Please retry.",
   "图片无法读取，请重新选择有效的图片。": "The image could not be read. Choose a valid image.",
   "尚未生成确认卡，描述和图片已保留。": "No confirmation card yet. Your description and images are preserved.",
   "整理连接中断，草稿仍保留。请重试或手动填写。": "The Assistant connection was interrupted. Your draft is preserved. Retry or enter the details manually.",

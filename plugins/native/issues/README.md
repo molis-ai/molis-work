@@ -4,6 +4,8 @@
 
 包名：`@molis-ai/molis-work-plugin-issues`。本地开发中的内置 Runtime 插件，不代表已经发布或完成用户验收。
 
+本地使用方法与验收路径见 [V0 试用说明](../../../specs/issue-home-v0/试用说明.md)。
+
 ## 归属与接入
 
 - 插件 ID `io.molis.work.issues`，Home provider 同名，安装 ID 另行保存。

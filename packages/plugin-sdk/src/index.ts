@@ -11,14 +11,14 @@ export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platfo
 export { defineActionUsagesAction, referencesAction, type ActionUsage, type ActionUsagesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOffersInput, SubjectActionOffer, SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineHomeEventsAction, withinHomeEventWindow, assertHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
-/** System search: list what your plugin can find (by version), read it through your subject reader, or search on demand. */
-export { defineSearchEntriesAction, defineSearchQueryAction, bindSearchEntriesHandler, searchEntriesPage, searchText, searchRevisionOf, SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
+/** System search: list what your plugin can find (by version) and read it through your subject reader. */
+export { defineSearchEntriesAction, bindSearchEntriesHandler, searchEntriesPage, searchText, searchRevisionOf, SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFileEntriesAction, defineFileContentAction, bindFileEntriesHandler, fileEntriesPage, fileContentOf, FILE_SOURCE_AUDIENCES, FILE_CONTENT_MAX_BYTES } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FileEntry, FileContent, FileSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { SearchEntry, SearchEntriesInput, SearchEntriesPage, SearchQueryInput, SearchQueryHit, SearchQueryResult, SearchOpenTarget, SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { SearchEntry, SearchEntriesInput, SearchEntriesPage, SearchOpenTarget, SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEventWindow, HomeEvent, HomeEventCollection, HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionSubject, ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { ActionExecutionPolicy, ActionResultView, ActionResultPresentation, ActionDefinition, ActionCallContext, ActionHandlerBinding, ActionSceneDefinition, ActionSceneHandlerBinding,
+export type { ActionExecutionContext, ActionExecutionPolicy, ActionResultView, ActionResultPresentation, ActionDefinition, ActionCallContext, ActionHandlerBinding, ActionSceneDefinition, ActionSceneHandlerBinding,
   ActionSceneReference, ActionSceneBinding, ActionSceneTargetDefinition, ActionSceneTarget, ActionSceneConfigureOptions, ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
@@ -179,3 +179,37 @@ export { defineWorkflowContentActions, bindWorkflowContentHandlers } from "@moli
 export {
   defineObjectMoveAction, defineObjectCopyAction, bindObjectMoveHandler, bindHomeObjectMoveHandler, bindObjectCopyHandler, PERSONAL_SPACE_PROJECT_ID, type PlacementResult,
 } from "@molis-ai/molis-work-contracts/platform/actions";
+
+/**
+ * Reminders the person set in your plugin (a time on a to-do): the Host asks, about once a minute, which fall due in a window
+ * and tells each one once; you keep no timer. Home scope, read-only.
+ */
+export { defineDueRemindersAction, assertDueReminderWindow, withinDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { DueReminderWindow, DueReminder, DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+
+/**
+ * Fragment offers: what your plugin can do with a selected word, range or blocks. Declare the finite choices statically and
+ * prepare each one's complete input on request; preparing never writes and the chosen action runs only when the person clicks it.
+ */
+export { defineFragmentOffersAction, FRAGMENT_ANY_OBJECT, FRAGMENT_INTENTS, FRAGMENT_GRANULARITIES, FRAGMENT_ROLES } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { FragmentOffersInput, FragmentActionOffer, FragmentOfferChoice, FragmentTarget, FragmentGranularity, FragmentRole, FragmentIntent, FragmentApply } from "@molis-ai/molis-work-contracts/platform/actions";
+
+/**
+ * 成果库 helpers for a type your plugin produces (declared in the manifest's `artifacts.produces`): preview a version as a file,
+ * pin the current object as a new version (`nextPinnedVersion` numbers it), compare a version with its object, start new work
+ * from a version, and list your objects that link to one.
+ */
+export {
+  defineArtifactPreviewAction, bindArtifactPreview,
+  defineArtifactPinAction, nextPinnedVersion,
+  defineArtifactCompareAction, bindArtifactCompare, sameArtifactFields, objectOrMissing,
+  defineArtifactContinueAction, bindArtifactContinue,
+  defineArtifactReferrersAction, linkedArtifactVersion, linksToArtifactVersion,
+} from "@molis-ai/molis-work-contracts/platform/actions";
+export type {
+  ArtifactPreviewInput, ArtifactPinInput, ArtifactPinResult, ArtifactLineHead, ArtifactCompareInput, ArtifactCompareResult, ArtifactCompareState,
+  ArtifactContinueInput, ArtifactContinueResult, ArtifactReferrersInput, ArtifactReferrer, ArtifactReferrersResult,
+} from "@molis-ai/molis-work-contracts/platform/actions";
+
+/** Say what an action really does where its id would be misread (a `delete_preview` deletes nothing); `plugin: false` keeps it from generated plugins. */
+export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";

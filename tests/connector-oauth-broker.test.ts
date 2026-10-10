@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { createOAuthBroker, type BrokerEnv } from "../apps/local-host/cloudflare/worker.ts";
 import { startApiOAuth, completeApiOAuth, resolveApiOAuthToken } from "../apps/local-host/src/connector-api-oauth.ts";
 import { connectorProtocolSecrets } from "../apps/local-host/src/connector-protocol-store.ts";
@@ -158,4 +159,20 @@ test("broker rejects HTTP 200 provider error envelopes even if they contain a to
     assert.equal(response.status, 400);
     assert.doesNotMatch(await response.text(), /invalid-access|20001|server-only-secret/);
   }
+});
+
+// Security invariant S-09 (docs/system/SECURITY-INVARIANTS.md): the Worker is deployed on its own and imports nothing from the workspace, so its
+// return-address check is a copy of the shared loopback check (packages/contracts platform/loopback). This is what keeps the two the same.
+test("the broker takes a return address on exactly the hosts the shared loopback check calls this machine, and on no other", async () => {
+  const f = setup();
+  const hosts = ["127.0.0.1", "localhost", "[::1]", "LOCALHOST", "127.0.0.2", "0.0.0.0", "localhost.", "localhost.evil.example", "127.0.0.1.evil.example", "[::ffff:127.0.0.1]", "[::2]", "evil.example", "192.168.1.5", "10.0.0.1"];
+  let accepted = 0;
+  for (const host of hosts) {
+    const expected = isLoopbackHostname(new URL(`http://${host}`).hostname);
+    const response = await f.request("/start", { service_id: "asana", return_uri: `http://${host}:4257/api/settings/connectors/methods/oauth/callback`, state: localState, code_challenge: challenge });
+    assert.equal(response.status === 200, expected, `${host}: broker answered ${response.status}`);
+    if (!expected) assert.equal(response.status, 400, host);
+    if (expected) accepted++;
+  }
+  assert.ok(accepted >= 3 && accepted < hosts.length, "the sweep has both kinds of host");
 });

@@ -5,13 +5,13 @@ import { mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readWorkspaceFileCapability, workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
 import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 
-test("project folders are readable through directory actions by the person and by exactly granted clients, while plugins keep their own capability", { timeout: 60_000 }, async () => {
+test("project folders are readable through one action id by the person and by exactly granted clients", { timeout: 60_000 }, async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), "workspace-read-actions-")));
   const home = join(root, "home"), folder = join(root, "repository");
   await mkdir(join(folder, "docs"), { recursive: true }); await mkdir(home, { recursive: true });
@@ -30,7 +30,11 @@ test("project folders are readable through directory actions by the person and b
     const git = directory.find(row => row.capability_id === workspaceReadActions.git.capability_id)!;
     assert.ok(file && git, "both reads are in the project directory");
     assert.ok(file.action.audiences.includes("mcp") && file.action.audiences.includes("agent"));
-    assert.ok(!directory.some(row => row.capability_id === readWorkspaceFileCapability.capability_id), "the plugin-facing capability stays out of the directory");
+    // One id per read: the directory holds each exactly once, and the retired plugin-facing ids are registered nowhere.
+    assert.equal(directory.filter(row => row.capability_id === file.capability_id).length, 1);
+    assert.equal(directory.filter(row => row.capability_id === git.capability_id).length, 1);
+    const registered = host.status().capabilities.map(row => row.capability_id);
+    for (const retired of ["projects.workspace.file.read.v1", "projects.workspace.git.read.v1"]) assert.ok(!registered.includes(retired), `${retired} is retired`);
 
     const listed = await client.invoke(user, file, { workspace_id: workspace.workspace_id, path: ["docs"], kind: "directory" }) as { outcome: string; entries: Array<{ name: string }> };
     assert.equal(listed.outcome, "directory"); assert.deepEqual(listed.entries.map(entry => entry.name), ["plan.md"]);
@@ -56,9 +60,9 @@ test("project folders are readable through directory actions by the person and b
     await assert.rejects(granted.service.invoke(granted.context, { capability_id: git.capability_id, version: git.version, provider_id: git.provider.provider_id },
       { workspace_id: workspace.workspace_id, kind: "summary" }), "a grant for file reads does not open Git");
 
-    // Plugins keep calling the Host capability through their own client, unchanged.
-    const viaPlugin = await host.client(reference).invoke(readWorkspaceFileCapability, { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" });
-    assert.equal(viaPlugin.outcome, "text");
+    // The Host's own typed client has no second door to the same read.
+    await assert.rejects(host.client(reference).invoke({ capability_id: "projects.workspace.file.read.v1", version: 1, operation: "query" },
+      { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" }), { code: "kernel.capability_missing" });
   } finally {
     await host.close();
     await rm(root, { recursive: true, force: true });

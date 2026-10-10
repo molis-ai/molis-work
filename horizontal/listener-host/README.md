@@ -51,6 +51,7 @@ node --import tsx --test --test-concurrency=1 tests/feed-receive-chain.test.ts
   - 收到 Signals 回执之前不推进游标、不确认投递。
   - 同一来源的有效租约阻止重复消费；多次转换失败进入隔离。
   - 终态重放不再调用 Provider。
+  - 运行账本 `feed_source_runs` 只由本包读写；宿主扫回执里的正文引用用 `listListenerRunReceipts`，读不出的回执抛错、不当作没有引用（否则会误删仍被引用的正文）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/feed-receive-chain.test.ts tests/plugin-runtime-integration.test.ts`
 - 相关手册：[docs/horizontal/listener-host.md](../../docs/horizontal/listener-host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

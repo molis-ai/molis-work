@@ -18,7 +18,7 @@ import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/plat
 import { projectsCapabilities, projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { goalContextCapabilities, goalProgressCapabilities, type GoalProgressActor } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { readWorkspaceFileCapability, readWorkspaceGitCapability, workspaceReadActions, type WorkspaceFileQuery, type WorkspaceGitQuery, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { workspaceReadActions, type WorkspaceFileQuery, type WorkspaceGitQuery, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { readConflictFile, readGitSummary, readPullRequestSupport } from "./git-operations.js";
 import { readWorkspaceGit } from "./workspace-git.js";
 import { readWorkspaceFile } from "./workspace-files.js";
@@ -104,7 +104,7 @@ export function registerProjectCapabilities(
       validate_authority: () => invocation.beforeEffect(),
     })).invoke({ ...definition, provider_id: GOALS_PLUGIN_ID }, Object.fromEntries(Object.entries(input as object).filter(([, value]) => value !== undefined)) as Input);
   };
-  const checkGoalBoard = (runtime: MolisWorkProjectRuntime, projectId: string) => {
+  const requireRuntimeProject = (runtime: MolisWorkProjectRuntime, projectId: string) => {
     if (projectId !== runtime.project_id) throw new ActionError("actions.scope_mismatch", "目标请求不属于当前项目");
   };
   host.register(goalProgressCapabilities.record, (runtime, input, invocation) => {
@@ -140,14 +140,14 @@ export function registerProjectCapabilities(
     if (!(await current()).some(item => item.workspace_id === query.workspace_id && item.realpath_verified && item.canonical_path === accepted?.canonical_path)) return { outcome: "denied", message: "工作区授权已变化，请重新读取" };
     return result;
   };
-  const readFile = async (runtime: MolisWorkProjectRuntime, query: WorkspaceFileQuery) => {
+  const readFile = async (runtime: MolisWorkProjectRuntime, query: WorkspaceFileQuery, invocation: HostCapabilityInvocation) => {
+    // A whole file (an image, a PDF) is for the preview of a plugin the Host runs: told by the Host-confirmed plugin identity (`consumer`), not by audience.
+    if (query.kind === "bytes" && invocation.consumer !== "plugin") throw new ActionError("actions.forbidden", "整份文件只供宿主运行的插件预览，请读取目录或文本");
     const selected = ports.workspacesFor ? await ports.workspacesFor(runtime.project_id) : [await workspaceFor!(runtime.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
     return readWorkspaceFile(query, selected);
   };
   if (ports.workspacesFor || workspaceFor) {
-    // Plugins that consume the Host capabilities keep them; everyone else reads through the same handlers as directory actions.
-    host.register(readWorkspaceGitCapability, readGit);
-    host.register(readWorkspaceFileCapability, readFile);
+    // One id per read, for every caller: the Files, Git and Coding plugins call these two actions as the plugin audience.
     host.register(workspaceReadActions.git, readGit);
     host.register(workspaceReadActions.file, readFile);
   }
@@ -186,43 +186,43 @@ export function registerProjectCapabilities(
       privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
   });
   host.register(goalsEntryCapabilities.commands.addProjectGuidance, (runtime, [input], invocation) => {
-    const { project_id, actor_id, ...payload } = input; checkGoalBoard(runtime, project_id);
+    const { project_id, actor_id, ...payload } = input; requireRuntimeProject(runtime, project_id);
     return goalAction(runtime, goalsActions.guidanceAdd, payload, { actor_id }, invocation);
   });
   host.register(goalsEntryCapabilities.commands.updateProjectGuidance, (runtime, [input], invocation) => {
-    const { project_id, actor_id, ...payload } = input; checkGoalBoard(runtime, project_id);
+    const { project_id, actor_id, ...payload } = input; requireRuntimeProject(runtime, project_id);
     return goalAction(runtime, goalsActions.guidanceUpdate, payload, { actor_id }, invocation);
   });
   host.register(goalsEntryCapabilities.planning.saveProjectMethod, (runtime, [input], invocation) => {
     const { project_id, actor_id, ...payload } = input;
-    checkGoalBoard(runtime, project_id);
+    requireRuntimeProject(runtime, project_id);
     return goalAction(runtime, goalsActions.planningSave, payload, { actor_id }, invocation);
   });
   host.register(goalsEntryCapabilities.planning.analyzeChange, (runtime, [projectId, changedGoalIds], invocation) => {
-    checkGoalBoard(runtime, projectId);
+    requireRuntimeProject(runtime, projectId);
     return goalAction(runtime, goalsActions.planningImpact, { changed_goal_ids: [...changedGoalIds] }, { actor_id: "local-host" }, invocation);
   });
   host.register(goalsEntryCapabilities.planning.validateBoardGraph, (runtime, [projectId], invocation) => {
-    checkGoalBoard(runtime, projectId);
+    requireRuntimeProject(runtime, projectId);
     return goalAction(runtime, goalsActions.planningGraph, {}, { actor_id: "local-host" }, invocation);
   });
   host.register(goalEntryCompositionCapabilities.readPlanningComposition, (runtime, [projectId], invocation) => {
-    checkGoalBoard(runtime, projectId);
+    requireRuntimeProject(runtime, projectId);
     return goalAction(runtime, goalsActions.planningRead, {}, { actor_id: "local-host" }, invocation);
   });
   host.register(goalTreeCapabilities.submitGoalTreeProposal, (runtime, [input], invocation) => {
     const { project_id, actor_id, submitted_session_id, ...payload } = input;
-    checkGoalBoard(runtime, project_id);
+    requireRuntimeProject(runtime, project_id);
     return goalAction(runtime, goalsActions.treeSubmit, payload, { actor_id, runtime_session_id: submitted_session_id }, invocation);
   });
   host.register(goalTreeCapabilities.listGoalTreeProposals, (runtime, [{ project_id, ...query }], invocation) => {
-    checkGoalBoard(runtime, project_id);
+    requireRuntimeProject(runtime, project_id);
     return goalAction(runtime, goalsActions.treeRead, query, { actor_id: "local-host" }, invocation);
   });
   host.register(goalTreeCapabilities.checkGoalTreeProposal, (runtime, [input], invocation) =>
     goalAction(runtime, goalsActions.treeCheck, managementPayload(runtime, input), managementIdentity(runtime, input.idempotency_key), invocation));
   host.register(goalTreeCapabilities.decideGoalTreeProposal, (runtime, [{ project_id, authority, runtime_actor_id, ...input }], invocation) => {
-    checkGoalBoard(runtime, project_id);
+    requireRuntimeProject(runtime, project_id);
     requireLocalPerson(authority, "goal_tree_proposal.authority_source_invalid");
     return goalAction(runtime, goalsActions.treeDecide, input, { actor_id: authority.actor_id, actor_kind: authority.actor_kind,
       audit_actor_id: runtime_actor_id ?? undefined, user_action: { source: authority.authority_source,
@@ -230,32 +230,32 @@ export function registerProjectCapabilities(
         whole_confirmation_prompted: authority.whole_confirmation_prompted, prompted_subject_id: authority.prompted_proposal_id } }, invocation);
   });
   host.register(readProjectGuidanceCapability, (runtime, input, invocation) => {
-    checkGoalBoard(runtime, input.project_id);
+    requireRuntimeProject(runtime, input.project_id);
     return goalAction(runtime, goalsActions.guidanceRead, {}, { actor_id: "local-host" }, invocation);
   });
   host.register(setActiveGoalCapability, (runtime, input, invocation) => {
-    checkGoalBoard(runtime, input.project_id);
+    requireRuntimeProject(runtime, input.project_id);
     refusePayloadIdentity(input.write);
     return goalAction(runtime, goalsActions.active, { ...input.goal, idempotency_key: input.write.idempotency_key }, managementIdentity(runtime, input.write.idempotency_key), invocation);
   });
   host.register(initializeBoardCapability, (runtime, { project_id, ...input }, invocation) => {
-    checkGoalBoard(runtime, project_id);
+    requireRuntimeProject(runtime, project_id);
     return goalAction(runtime, goalsActions.initialize, input, managementIdentity(runtime, input.idempotency_key), invocation);
   });
   host.register(snapshotBoardCapability, (runtime, input, invocation) => {
-    checkGoalBoard(runtime, input.project_id);
+    requireRuntimeProject(runtime, input.project_id);
     return goalAction(runtime, goalsActions.snapshot, {}, { actor_id: "local-host" }, invocation);
   });
   host.register(readGoalContractCapability, (runtime, input, invocation) => {
-    checkGoalBoard(runtime, input.project_id);
+    requireRuntimeProject(runtime, input.project_id);
     return goalAction(runtime, goalsActions.contract, { goal_id: input.goal_id }, { actor_id: "local-host" }, invocation);
   });
   host.register(projectResumeFactsCapability, async (runtime, input, invocation) => {
-    checkGoalBoard(runtime, input.project_id);
+    requireRuntimeProject(runtime, input.project_id);
     return readGoalResumeFacts({ invoke: (definition, query) => goalAction(runtime, definition, query, { actor_id: "local-host" }, invocation) }, input.focus_goal_ids);
   });
   host.register(trashedGoalsCapability, (runtime, input, invocation) => {
-    checkGoalBoard(runtime, input.project_id);
+    requireRuntimeProject(runtime, input.project_id);
     return goalAction(runtime, goalsActions.trashed, {}, { actor_id: "local-host" }, invocation);
   });
   host.register(createGoalIntentCapability, (runtime, input, invocation) => {
@@ -264,12 +264,12 @@ export function registerProjectCapabilities(
   });
   host.register(listGoalDirectoryCapability, (runtime, input, invocation) => {
     const { project_id, ...query } = input;
-    checkGoalBoard(runtime, project_id);
+    requireRuntimeProject(runtime, project_id);
     return goalAction(runtime, goalsActions.list, query, { actor_id: "local-host" }, invocation);
   });
   host.register(readGoalEventStateCapability, (runtime, input, invocation) => {
     const { project_id, ...query } = input;
-    checkGoalBoard(runtime, project_id);
+    requireRuntimeProject(runtime, project_id);
     return goalAction(runtime, goalsActions.state, query, { actor_id: "local-host" }, invocation);
   });
   host.register(configureGoalEventsCapability, (runtime, input, invocation) =>
@@ -278,22 +278,22 @@ export function registerProjectCapabilities(
     goalAction(runtime, goalsActions.report, managementPayload(runtime, input), managementIdentity(runtime, input.idempotency_key), invocation));
   host.register(listGoalEventsCapability, (runtime, input, invocation) => {
     const { project_id, ...query } = input;
-    checkGoalBoard(runtime, project_id);
+    requireRuntimeProject(runtime, project_id);
     return goalAction(runtime, goalsActions.events, query, { actor_id: "local-host" }, invocation);
   });
   host.register(listLatestGoalEventsCapability, (runtime, input, invocation) => {
     const { project_id, ...query } = input;
-    checkGoalBoard(runtime, project_id);
+    requireRuntimeProject(runtime, project_id);
     return goalAction(runtime, goalsActions.latestEvents, query, { actor_id: "local-host" }, invocation);
   });
   host.register(listLatestGoalTimelineCapability, (runtime, input, invocation) => {
     const { project_id, ...query } = input;
-    checkGoalBoard(runtime, project_id);
+    requireRuntimeProject(runtime, project_id);
     return goalAction(runtime, goalsActions.timeline, query, { actor_id: "local-host" }, invocation);
   });
   host.register(readGoalEventCapability, (runtime, input, invocation) => {
     const { project_id, ...query } = input;
-    checkGoalBoard(runtime, project_id);
+    requireRuntimeProject(runtime, project_id);
     return goalAction(runtime, goalsActions.event, query, { actor_id: "local-host" }, invocation);
   });
   host.register(recordGoalProgressCapability, (runtime, input, invocation) =>
@@ -306,7 +306,7 @@ export function registerProjectCapabilities(
     goalAction(runtime, goalsActions.citeDecision, managementPayload(runtime, input), managementIdentity(runtime, input.idempotency_key), invocation));
   host.register(recordGoalUserDecisionCapability, (runtime, input, invocation) => {
     const { project_id, authority, ...payload } = input;
-    checkGoalBoard(runtime, project_id);
+    requireRuntimeProject(runtime, project_id);
     if (!authority) throw new ActionError("event_decision.untrusted_actor", "用户决定需要受保护入口提供出处");
     requireLocalPerson(authority, "event_decision.untrusted_actor");
     return goalAction(runtime, goalsActions.decide, payload, { actor_id: authority.actor_id, actor_kind: authority.actor_kind,

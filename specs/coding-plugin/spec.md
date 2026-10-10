@@ -2125,7 +2125,7 @@ Git 子进程清除继承的仓库重定向，禁用 fsmonitor、untrackedCache 
 
 已接通的场景：在 Coding「文件」面选择已授权的仓库，读取真实分支、已暂存/未暂存/冲突列表，点击文件在右栏查看固定差异；已暂存比较 HEAD 与暂存区，未暂存比较暂存区与磁盘。沿用 Git 输出 Artifact、Diff 比较和共享结果栏，未新建版本库或审批系统。
 
-- 宿主通过 `projects.workspace.git.read.v1` 执行 Git，读前读后核对项目授权与仓库根；子目录授权不能扩大成父仓库读取。使用参数数组与 literal pathspec，保留 Unicode、BOM 和 CRLF；检测二进制、256 KiB 超限、冲突、符号链接、未初始化/无提交/游离 HEAD、读取期间变更并明确反馈。禁止继承 Git 路径覆盖、状态写回 index、fsmonitor 和 clean/process 过滤器执行；本块没有 Git 写操作。
+- 宿主通过动作 `projects.workspace.git.inspect` 执行 Git（原来的 typed `projects.workspace.git.read.v1` 已在 2026-10-09 删除，W2-09），读前读后核对项目授权与仓库根；子目录授权不能扩大成父仓库读取。使用参数数组与 literal pathspec，保留 Unicode、BOM 和 CRLF；检测二进制、256 KiB 超限、冲突、符号链接、未初始化/无提交/游离 HEAD、读取期间变更并明确反馈。禁止继承 Git 路径覆盖、状态写回 index、fsmonitor 和 clean/process 过滤器执行；本块没有 Git 写操作。
 - 插件读取真实仓库后才报告 ready，不再以“绑定目录”冒充仓库状态。默认图增加 Git.changeset → Diff.git_changeset；Files 快照组继续独立。固定差异发布版本、来源指纹和最后查看引用持久保存；切换或刷新后旧版本不会被磁盘变化改写，较迟响应不能覆盖新选择。
 - **产品实操**：正式 4198 页面选择独立 `git-review-fixture` 仓库；已暂存 cart.mjs 展示 quantity 校验，未暂存 cart.mjs 只展示后续说明注释，两个范围没有混淆。重启后通过「上次查看的固定差异」重新打开 v2；公开 Git 状态与 Diff 固定版本投影和重启前一致，证据 `c10-git-{state,diff}-{before,after}-restart.json`。深浅主题检查后恢复深色；修正了外层 header 规则挤压 Diff 标题的问题。夹具准备通过命令完成，仅用于代表 Git 状态，不能据此宣称产品 Git 写操作或 MiniMax Git 操作已验证。
 - **工程验证（初次接通）**：44 项聚焦检查通过，覆盖真实 Git 仓库与正式 HTTP、权限/路径拒绝、状态层次、精确内容、固定 Artifact 跨重启、项目隔离，以及读取不改 index/不执行仓库辅助命令。build、boundary、workspace:typecheck 通过；全量 1479 项：1417 通过、57 个基线同名失败、5 跳过，零新增失败，并非全绿（`c10-git-final-regression.json` / `molis-git-all5.log`）。77 张测试 PNG 已恢复运行前字节。

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -16,6 +16,7 @@ import {
   snapshotBoardCapability,
 } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 
 test("Local Host discovers one runtime and serializes typed capabilities", async () => {
@@ -237,4 +238,20 @@ test("legacy entrypoints no longer construct independent business stores", async
   const composition = await readFile(new URL("../apps/local-host/src/project-host.ts", import.meta.url), "utf8");
   assert.match(composition, /new LocalProjectDatabase\(/u);
   assert.match(composition, /new GoalProjectApplication\(/u);
+});
+
+test("a page asked of a database that does not exist names the database the CLI must be given to create it", async t => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-missing-database-"));
+  const databasePath = join(directory, "absent", "project.db");
+  const server = createMolisWorkWebServer({ databasePath, projectId: "absent", homeDirectory: directory, controlToken: "missing-database-control-token-0123456789" });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); rmSync(directory, { recursive: true, force: true }); });
+  const response = await fetch(`http://127.0.0.1:${address.port}/goals`);
+  assert.equal(response.status, 404);
+  // `molis-work v1 init` has no default database, so the hint carries the --db it needs.
+  const text = await response.text();
+  assert.ok(text.includes(`molis-work v1 init --db ${databasePath}`), text);
+  assert.equal(existsSync(databasePath), false, "asking for a page does not create the database");
 });

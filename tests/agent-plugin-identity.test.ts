@@ -28,7 +28,7 @@ async function terminal(adapter: any, ref: any): Promise<AgentRunView> {
 test("real Plugin executor binds unknown Agent declarations and rejects forged owner/options and foreign sessions", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "plugin-agent-identity-"));
   const project = { project_id: "board", storage_key: join(home, "project.sqlite") };
-  const store = new LocalProjectDatabase(project.storage_key), artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const store = new LocalProjectDatabase(project.storage_key), artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const local = new LocalHost({ runtimeFactory: { open: () => ({ project_id: project.project_id, store, coordinator: { artifacts } }), close: () => {} } });
   let modelCalls = 0;
   t.mock.method(globalThis, "fetch", async () => { modelCalls++; return cogniaModelResponse("Original owner result"); });

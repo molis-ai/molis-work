@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { CatalogLiveError, NotionOAuthError, notionAuthorizationUrl, notionOAuthToken, type NotionOAuthTokens } from "@molis-ai/molis-work-integration-catalog";
 import { createFileSecretStore, readProductEnv, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { oauthConnectionRefs } from "./connector-oauth-targets.js";
+import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 const PREFIX = "connector:notion:";
 const PENDING_REF = `${PREFIX}oauth:pending`;
@@ -37,7 +38,7 @@ function credentials() {
 }
 
 function assertLoopback(url: URL): void {
-  if (url.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)
+  if (!isLoopbackHttpUrl(url)
     || url.pathname !== CALLBACK_PATH || url.username || url.password || url.search || url.hash) {
     throw new Error("Notion 回调必须是本机连接器地址");
   }

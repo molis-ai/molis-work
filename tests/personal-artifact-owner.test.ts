@@ -11,7 +11,7 @@ import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactsActions, artifactsManifest, createArtifactActionHandlers, importArtifactDocument } from "@molis-ai/molis-work-plugin-artifacts";
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 // Who a personal 成果 belongs to (specs/artifact-positioning, 2026-10-07): in a Home it is the person, whoever produced it.
 // The producing workflow, Agent or MCP client is provenance in `created_by`.
@@ -25,7 +25,7 @@ function harness() {
   createArtifactsSchema(db as unknown as ArtifactsSqliteDatabase);
   createProcessItemsSchema(db as unknown as ArtifactsSqliteDatabase);
   const append = (event: { projectId: string }) => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid);
-  const open = (homeOwner?: string) => new ArtifactsModule({ db: db as unknown as ArtifactsSqliteDatabase, appendEvent: append, ...(homeOwner ? { homeOwner } : {}) });
+  const open = (homeOwner?: string) => new ArtifactsModule({ db: db as unknown as ArtifactsSqliteDatabase, appendEvent: append, eventCursor: eventCursorOf(db), ...(homeOwner ? { homeOwner } : {}) });
   const registration = (actor: string, version: number, extra: Partial<RegisterArtifactVersionInput> = {}): RegisterArtifactVersionInput => ({
     project_id: "p", actor_id: actor, artifact_id: "report", version, artifact_type_id: "io.example.report", schema_version: 1, producer,
     content: { kind: "inline", payload: { text: `version ${version} by ${actor}` } }, ...pinnedArtifact("Report"), ...extra });
@@ -92,7 +92,7 @@ test("the team-shared rule is unchanged: a shared 成果 stays with the actor th
   assert.deepEqual([shared.artifact.scope, shared.artifact.owner_actor_id, shared.artifact.created_by], ["team_project", "agent", "agent"]);
   assert.equal(codeOf(() => artifacts.commands.registerVersion(h.registration("workflow", 2, { artifact_id: "shared", scope: "team_project", team_share_authorized: true }))), "artifact.not_owner");
 
-  const items = new ProcessItemsModule({ db: h.db as unknown as ArtifactsSqliteDatabase, appendEvent: event => Number(h.db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid) });
+  const items = new ProcessItemsModule({ db: h.db as unknown as ArtifactsSqliteDatabase, appendEvent: event => Number(h.db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid), eventCursor: eventCursorOf(h.db) });
   const { origin: _origin, title: _title, media_type: _mediaType, ...item } = h.registration("shelf", 1, { artifact_id: "item", artifact_type_id: "io.example.item" });
   assert.equal(items.commands.registerVersion(item).artifact.owner_actor_id, "shelf", "an exchange item belongs to the plugin that produced it");
   assert.equal(codeOf(() => items.commands.registerVersion({ ...item, actor_id: person, version: 2 })), "artifact.not_owner");

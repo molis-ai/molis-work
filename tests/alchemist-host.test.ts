@@ -21,6 +21,7 @@ import { createAlchemistSearchPort } from "../apps/local-host/src/alchemist-sear
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
 import { createAnySearchTransport } from "../apps/local-host/src/anysearch-transport.js";
+import { ADDRESSES_NEVER_PUBLIC, ADDRESSES_PUBLIC } from "./fixtures/public-address-policy.js";
 import { authorizeLocalWebRequest, type LocalMutationState } from "../apps/local-host/src/web-http.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ensureSystemAgentService } from "../apps/local-host/src/system-agent-service.js";
@@ -325,6 +326,28 @@ test("Alchemist search abort before TLS completion sends no body and shutdown wa
   } finally {
     releaseClose.resolve(); await transport.shutdown!(); t.mock.restoreAll(); syncBuiltinESMExports();
   }
+});
+
+// Security invariant S-10 (docs/system/SECURITY-INVARIANTS.md): the same table every address policy is held to.
+test("the AnySearch transport opens no connection to an address of the shared table that is not public, alone or among public answers", { timeout: 30_000 }, async t => {
+  let requests = 0, answers: Array<{ address: string; family: number }> = [];
+  t.mock.method(dns, "lookup", async () => answers);
+  t.mock.method(https, "request", () => { requests++; throw new Error("no connection may be opened"); });
+  syncBuiltinESMExports();
+  const transport = createAnySearchTransport();
+  const call = { appId: "molis-work", binding: { providerId: "anysearch", providerVersion: "mcp-v1_1", bindingRevision: 1,
+    transportProfileId: "anysearch-mcp-v1", transportProfileFingerprint: "sha256:explicit-test-binding" },
+    request: { providerId: "anysearch", operation: "search" as const, body: { query: "public evidence" } }, signal: new AbortController().signal };
+  const family = (address: string) => address.includes(":") ? 6 : 4;
+  try {
+    for (const address of ADDRESSES_NEVER_PUBLIC) {
+      answers = [{ address, family: family(address) }];
+      await assert.rejects(transport.execute(call), /provider_unavailable/, address);
+      answers = [{ address: ADDRESSES_PUBLIC[0]!, family: 4 }, { address, family: family(address) }];
+      await assert.rejects(transport.execute(call), /provider_unavailable/, `${address} among a public answer`);
+    }
+    assert.equal(requests, 0);
+  } finally { await transport.shutdown!(); t.mock.restoreAll(); syncBuiltinESMExports(); }
 });
 
 function cancellableInput(signal: AbortSignal) {

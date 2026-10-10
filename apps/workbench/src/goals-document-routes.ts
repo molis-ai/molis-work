@@ -17,7 +17,6 @@ export interface WorkbenchGoalPageSelection {
   goalId: string | undefined;
   archiveView: boolean;
   trashView: boolean;
-  decisionView: boolean;
 }
 
 /** Page composition only; the Host retains scoped reads and the asynchronous Project operations provider. */
@@ -26,18 +25,16 @@ export async function renderWorkbenchGoalsPageRequest<TView extends GoalsPageCol
   render: (view: TView, selection: WorkbenchGoalPageSelection) => string | Promise<string>,
 ): Promise<HtmlResult | null> {
   if (method !== "GET") return null;
-  // Decision is a separate Workbench owner, not a Goals Plugin route.
-  const decisionView = pathname === "/decisions";
   const parsed = resolveGoalsPageRoute(pathname);
-  if (parsed && "error" in parsed) return parsed;
-  if (!parsed && !decisionView) return null;
+  if (!parsed) return null;
+  if ("error" in parsed) return parsed;
   const view = await readView();
-  const resolved = parsed ? resolveGoalsPageCollection(parsed.route, view) : { route: { collection: "current" as const } };
+  const resolved = resolveGoalsPageCollection(parsed.route, view);
   if ("error" in resolved) return resolved;
   return { status: 200, html: await render(view, {
     goalId: "goal_id" in resolved.route ? resolved.route.goal_id : undefined,
     archiveView: resolved.route.collection === "archive",
-    trashView: resolved.route.collection === "trash", decisionView,
+    trashView: resolved.route.collection === "trash",
   }) };
 }
 

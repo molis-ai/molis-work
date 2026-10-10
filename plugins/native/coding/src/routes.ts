@@ -23,7 +23,7 @@ import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./histo
 import { asAttachment, delegationViewOf, isDelegation } from "./delegation-view.js";
 import { OPEN_WAIT, appData, holdReason, waitViewOf, wakeBodyOf } from "./waits.js";
 import { DELEGATION_ENDED, MAX_DELEGATION_HOPS } from "./cooperation.js";
-import { attachMentions, readWorkspaceFileCapability, symbolsIn, workspaceFileIndex } from "./mentions.js";
+import { attachMentions, symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint, summaryCache } from "./session-window.js";
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
 import { CODING_CHANGESET_TYPE } from "./artifacts.js";
@@ -427,7 +427,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
     if (plan && directory.canonical_path !== plan.source.workspace_path) throw new Error("计划属于原工作区，请选择原工作区或重新规划，不能在另一目录执行");
     // Files named with @ travel with the task, as they read at this moment.
-    task = (await attachMentions(query => api!.invoke(readWorkspaceFileCapability, query), workspace.workspace_id, task)).task;
+    task = (await attachMentions(workspaceFileReader(context), workspace.workspace_id, task)).task;
     const subagent_workspaces: AgentSubagentWorkspace[] = [];
     if (role === "writers") {
   const assignments = codingWriterAssignments(body.writer_assignments, true);
@@ -1072,7 +1072,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
             : "此会话的执行记录暂时无法读取，不能将未知结果当作已完成。原会话与草稿已保留，请稍后重试。" };
       }
     }),
-    // The files a person can name with @: read through the Host's read-only capability, briefly remembered.
+    // The files a person can name with @: read through the Host's read-only workspace file action, briefly remembered.
     route("coding.files", async (request, api, execution) => {
       selected(request, execution);
       const workspaceId = text(request.query?.workspace_id, "工作区", 200);
@@ -1080,18 +1080,18 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       if (!workspaces.some(entry => entry.workspace_id === workspaceId && entry.realpath_verified)) throw new Error("请先为这个项目选择已授权的工作区目录");
       const held = fileIndexes.get(workspaceId);
       if (held && Date.now() - held.at < 30_000) return await held.value;
-      const value = workspaceFileIndex(query => api!.invoke(readWorkspaceFileCapability, query), workspaceId);
+      const value = workspaceFileIndex(workspaceFileReader(context), workspaceId);
       fileIndexes.set(workspaceId, { at: Date.now(), value });
       try { return await value; } catch (error) { fileIndexes.delete(workspaceId); throw error; }
     }),
-    // The definitions in one file a person can name as "@path#name", read through the same read-only capability.
+    // The definitions in one file a person can name as "@path#name", read through the same read-only action.
     route("coding.symbols", async (request, api, execution) => {
       selected(request, execution);
       const workspaceId = text(request.query?.workspace_id, "工作区", 200), path = text(request.query?.path, "文件", 1000);
       const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
       if (!workspaces.some(entry => entry.workspace_id === workspaceId && entry.realpath_verified)) throw new Error("请先为这个项目选择已授权的工作区目录");
       if (path.split("/").includes("..")) throw new Error("文件路径无效");
-      const file = await api!.invoke(readWorkspaceFileCapability, { workspace_id: workspaceId, path: path.split("/").filter(Boolean), kind: "text" });
+      const file = await workspaceFileReader(context)({ workspace_id: workspaceId, path: path.split("/").filter(Boolean), kind: "text" });
       return { path, symbols: file.outcome === "text" ? symbolsIn(path, file.text) : [], ...(file.outcome === "text" ? {} : { unreadable: file.outcome }) };
     }),
     // A live round, as it happens: answers as soon as it changes from what the page holds (or after the wait).

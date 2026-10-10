@@ -85,7 +85,7 @@ node scripts/run-tests.mjs tests/goal-events-state.test.ts tests/goals-actions.t
 - 插件够得到管理入口。这些 typed 入口原先不是 `host_only`，`createPluginCapabilityClient` 放行 Manifest 的 `consumes` 里列出的任何能力，宿主又对每个调用方都记本机这个人，所以列出一项的插件，调用会被记成 `web-user`、`user`、出处 management。仓库里没有插件列出过它们，但这条路是通的，且比改动前更像冒充。处理：十一项事件写入、`setActiveGoalCapability`、`goalTreeCapabilities.checkGoalTreeProposal` 声明 `host_only`，沿用事件用户决定、结构提案决定、初始化已有的做法，不另写插件名单；宿主的入口和 Host 自己的客户端（CLI、管理 MCP、Web 创建入口）调用不受影响。没有选「给插件它调用上下文里的身份」：这些入口是管理入口，没有为插件开放的理由，插件要写进展已有 `goals.progress.record.v1`。
 - 结构提案检查的类型与宿主不一致。`GoalTreeProposalCheckInput` 仍要求 `actor_id`，按类型写的调用必被拒绝；只有 CLI 在用，它传原始 JSON 所以没暴露。处理：在 Goals 插件里把管理入口的输入类型分出来（`GoalTreeCheckEntryInput`，`GoalTreeEntryApi`），`goalTreeCapabilities.checkGoalTreeProposal` 与 `createGoalProposalClients().goalTree` 改用它；领域输入、动作处理函数和 contracts 的公开 API 快照都不动。CLI 的 `createCliGoalTreeHandlers` 改收 `GoalTreeEntryApi`。
 
-没有动的：项目引导的新增与修改、规划保存、结构提案提交（本规格「不做」）仍把参数里的 `actor_id` 当作者，插件在 Manifest 里列出它们仍能调用；它们不是记本机这个人的管理入口，要不要同样挡住，另行决定。`createGoalCapability` 有定义和导出，但宿主没有注册，调用不到。
+没有动的：项目引导的新增与修改、规划保存、结构提案提交（本规格「不做」）仍把参数里的 `actor_id` 当作者，插件在 Manifest 里列出它们仍能调用；它们不是记本机这个人的管理入口，要不要同样挡住，另行决定。（这是本规格当时的状态。其后 W2-07 已把这几项挡住：项目引导的新增与修改、规划保存、结构提案提交也声明 `host_only`，记本机这个人，参数里带 `actor_id` 就拒绝，结构提案提交的输入类型是 `GoalTreeSubmitEntryInput`，见 `plugins/native/goals/README.md` 与 `docs/platform/LOCAL-HOST.md`。）`createGoalCapability` 有定义和导出，但宿主没有注册，调用不到。
 
 验证补充：最初写成的两项新测试在改动前的实现（c042bd0d）上失败，失败信息分别是「入口对插件可用」（插件以 `web-user`、`user` 写进了一条便笺）和「检查入口要求 `actor_id`」。最终的整份测试文件在干净的 origin/main（230b1653）上四项失败三项：管理入口的前两项在第一次不带身份的调用上就被 `actions.unauthenticated` 拒绝，类型检查十三项入口全都还带身份；第四项是检查本身的自检，不依赖仓库行为。枚举护栏另用损坏构建产物的办法验证过：去掉一项入口的标记，或加一项没登记的新写入，测试各自失败，并说明该怎么做。
 

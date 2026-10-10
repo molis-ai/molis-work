@@ -58,6 +58,7 @@ export { initializeProjectDatabase, readManagedBoard, validateManagedBoard } fro
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
 export { ManagedProjectDeletion, type ProjectDeletionCleanupPorts } from "./managed-project-deletion.js";
+export { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
 export { ProjectDeletedHooks, projectDeletedHooksFor, type ProjectDeletedOwner, type ProjectDeletedPort } from "./project-deleted-hooks.js";
 export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-lifecycle.js";
 export { exists } from "./project-file-paths.js";

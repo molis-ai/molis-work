@@ -34,7 +34,7 @@ UI Host 不解释 Goal、Feed 或 Artifact 状态。Plugin 客户端的注册释
 
 请求通过 `scope.fetch` 传递卸载信号；读完 response body 后必须 `scope.assertCurrent(signal)`，再修改状态。可见性查询使用 `whenVisible` 的 signal，写命令保持挂载 signal，离开页面不代表取消服务端任务，更不允许自动重试。SSE 在 `whenVisible` 的 cleanup 里关闭，恢复时先读取服务端状态。产品错误提示和幂等键仍由插件拥有。
 
-已接入 Images、Coding 及子面板、Files/Git 伴随面板和独立 Diff/Text Stats、Host 审查视图、Builder 创作台/Studio 及其记录组件、Shelf 及结果面板。同源 iframe 同时观察外层页面的隐藏和移除，避免父视图已离开、内部订阅仍保留。
+已接入 Images、Coding 及子面板、Files/Git 伴随面板和独立 Diff/Text Stats、Host 审查视图、Builder 创作台/Studio 及其记录组件、Shelf 及结果面板。Pages 与灵光只用 `whenVisible`（本页被藏起来）和 `own`（页面走掉）在离开时收回空白项，其余仍是各自的旧写法；那两处的清理要看 `scope.alive` 区分「藏起来」和「走掉」，只是标签页或窗口被藏起来（`document.hidden`）不算离开。同源 iframe 同时观察外层页面的隐藏和移除，避免父视图已离开、内部订阅仍保留。
 
 ## 本地开发
 

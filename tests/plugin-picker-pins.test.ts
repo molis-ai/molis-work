@@ -103,7 +103,8 @@ test("DOCK-05 DOCK-06 one button, two states: a plus while the plugin is not in 
 test("DOCK-06 what adding adds along, and what removing takes with it, is written on the tile", () => {
   // Text Stats comes with Files; Feed with Inbox (the Projects service applies both, and the other way round on removal).
   assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("text-stats"), ["files"]);
-  const missing = renderPluginRail(primitives, ["goals"], "");
+  // Text Stats is offered to add only in developer mode (W2-18 decision 5); a project that has it shows it in either.
+  const missing = renderPluginRail(primitives, ["goals"], "", "", [], { developerMode: true });
   assert.match(tileOf(missing, "text-stats").wrapper, /data-along="Files"/);
   assert.match(tileOf(missing, "text-stats").toggle, /添加会同时添加：Files/);
   assert.match(tileOf(missing, "feed").wrapper, /data-along="Inbox"/);

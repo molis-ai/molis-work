@@ -104,6 +104,12 @@ test("a plugin's page keeps what was open in it across switches and a reload", {
   await evaluate("[...document.querySelectorAll('[data-work-surface=lingguang] button')].find(button => button.getClientRects().length && button.textContent.includes('记下'))?.click()");
   await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && !!document.querySelector('[data-lingguang-id]')");
   const noteId = await evaluate<string>("document.querySelector('[data-work-surface=lingguang] [data-lingguang-id]').dataset.lingguangId");
+  // A note left with nothing written is thrown away when the page goes (W2-18 decision 6): these are notes with words in them.
+  const write = async (text: string) => {
+    await evaluate(`(() => { const body = document.querySelector('[data-work-surface=lingguang] [data-lingguang-body]'); body.value = ${JSON.stringify(text)}; body.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
+    await waitFor("document.querySelector('[data-work-surface=lingguang] [data-lingguang-save-status]').textContent === '已保存'");
+  };
+  await write("第一条灵光");
   await evaluate(`document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${noteId}"]').click()`);
   await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true'");
   await click('[data-dock-pin="goals"]');
@@ -124,6 +130,7 @@ test("a plugin's page keeps what was open in it across switches and a reload", {
   const opened = (id: string) => `document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${id}"]')?.matches('.is-selected, [aria-selected="true"]')`;
   const newId = await evaluate<string>(`[...document.querySelectorAll('[data-work-surface=lingguang] [data-lingguang-id]')].find(row => row.matches('.is-selected, [aria-selected="true"]'))?.dataset.lingguangId`);
   assert.ok(newId && newId !== noteId, "the new note is the chosen row");
+  await write("第二条灵光");
   await evaluate(`document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${noteId}"]').click()`);
   await waitFor(opened(noteId));
   await click("[data-workspace-history=back]");

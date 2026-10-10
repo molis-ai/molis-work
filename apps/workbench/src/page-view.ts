@@ -36,6 +36,8 @@ export interface MolisWorkWebView {
   schedule_jobs?: readonly ScheduleJobView[];
   schedule_tasks?: readonly ScheduleConversationTaskView[];
   schedule_operations?: import("@molis-ai/molis-work-plugin-schedule").ScheduleUiModel["operations"];
+  /** The Host runs in developer mode: the plugin list also offers what is otherwise kept out of it (Text Stats). */
+  developer_mode?: boolean;
   /** Live authorized status from the Inbox scene owner. */
   inbox_judgment?: import("@molis-ai/molis-work-plugin-inbox").InboxJudgmentSummary;
 }

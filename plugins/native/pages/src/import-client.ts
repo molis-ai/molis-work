@@ -1,4 +1,4 @@
-/** Runs inside the Pages client factory and shares its editor/list helpers. */
+/** Runs inside the Pages client factory and shares its editor/list helpers (and blankLeaving / dropBlank from blank-client.ts). */
 export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
   const importDialog = workbench.querySelector("[data-pages-import-dialog]");
   const importFilesInput = importDialog.querySelector("[data-pages-import-files]");
@@ -173,7 +173,7 @@ export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
     if (projectId() !== importProject || routePrefix() !== importPrefix) {
       importMessage(L("项目已切换，请在目标项目重新打开导入。"), true); return;
     }
-    if (importFinished[0]) { importDialog.close(); openCreated(importFinished[0]); }
+    if (importFinished[0]) { importDialog.close(); const left = blankLeaving(); openCreated(importFinished[0]); void dropBlank(left); }
   });
 `;
 

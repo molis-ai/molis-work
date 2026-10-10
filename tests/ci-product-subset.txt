@@ -315,8 +315,6 @@ tests/arrival-components.test.ts
 tests/artifacts-module.test.ts
 tests/builtin-plugin-composition.test.ts
 tests/capsule.test.ts
-tests/casebook-recovery-details.test.ts
-tests/casebook-user-action.test.ts
 tests/catalog-connectors.test.ts
 tests/chrome-inner-scroll.test.ts
 tests/cli-protocol.test.ts
@@ -334,7 +332,6 @@ tests/diff-plugin.test.ts
 tests/document-import-providers.test.ts
 tests/draft-dialogue-boundaries.test.mjs
 tests/execution-lifetime.test.ts
-tests/experiments-plugin.test.ts
 tests/feishu-cli-status.test.ts
 tests/files-plugin.test.ts
 tests/functions-agent-references.test.ts

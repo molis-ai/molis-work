@@ -53,7 +53,7 @@
 | --- | --- |
 | `actions/actions.tsv` | 内置 Manifest（工作台的 `BUILTIN_PLUGIN_CATALOG`）声明的每个动作，一行一个 `capability_id@version`。`provider` 列是 Manifest 的 `plugin_id`；`registered_provider` 列是宿主登记这个动作用的提供方 id（从宿主的动作目录读出） |
 | `actions/scenes.tsv` | 它们声明的消费场景（`action_scenes`），一行一个 `scene_id@version`，同样有 `provider` 与 `registered_provider` 两列 |
-| `actions/host-actions.tsv` | 所有内置插件在一个项目里启用时，宿主登记着、却没有任何内置 Manifest 声明的动作：`system.*` 提供方、每个 Runtime 插件的 SDK 服务、写在代码里而不在自己 Manifest 里的插件动作（Shelf 的 27 个、Experiments 的 15 个）和由场景派生的开关动作（Feed、Inbox 各 3 个 `scenes.*`）。一行一个 `capability_id@version via 提供方`；提供方列是宿主登记用的 id |
+| `actions/host-actions.tsv` | 所有内置插件在一个项目里启用时，宿主登记着、却没有任何内置 Manifest 声明的动作：`system.*` 提供方、每个 Runtime 插件的 SDK 服务、写在代码里而不在自己 Manifest 里的插件动作（Shelf 的 27 个）和由场景派生的开关动作（Feed、Inbox 各 3 个 `scenes.*`）。一行一个 `capability_id@version via 提供方`；提供方列是宿主登记用的 id |
 | `actions/host-scenes.tsv` | 宿主登记着、却没有任何内置 Manifest 声明的消费场景：现在只有首页的 `home.dock@1`（提供方 `system.home`，由 `apps/local-host/src/home-actions.ts` 里的首页提供方登记）。一行一个 `scene_id@version via 提供方`，列与 `scenes.tsv` 相同、没有 `registered_provider`（`provider` 列本身就是宿主登记用的 id）。绑定存下这个场景的 `scene_id`、`version` 和提供方 id，内核重新绑定时比对提供方（`actions.provider_changed`），规则的适用范围也按它认 |
 
 **一行写什么。** 可读列：`capability_id`、`version`、`provider`、`registered_provider`（只在 `actions.tsv` 与 `scenes.tsv`）、`operation`、`kind`、`scope`、`effect`（声明的，或像 `actionEffect` 那样从 id 推断：删除类 id 不可撤销）、`scheduling`、`audiences`、`permissions`、`subjects`（主体种类）都排了序，顺序不是合同；`input_type`、`output_type` 是工作流程按它匹配的语义类型。哈希列（sha256 前 12 位）：`input`、`output` 是 JSON Schema 的规范形（键排序、数组顺序保留）的哈希，**先去掉 `title`、`description`、`$comment`、`examples` 这些注解**，因为改一个标签或一句帮助不是改形状；`const`、`default`、`enum` 下面的值是数据，原样算进去，名叫 `title` 的属性是属性不是注解。`traits` 是动作声明里其余的结构化部分（依赖的动作、撤销、后台任务、搜索与文件来源、执行策略、署名、工作流内容，以及以后加进动作元数据的任何新字段）去掉文字与呈现（`title`、`description`、`result_view`、受理选项的 `title` 与 `hint`）后的哈希。`-` 表示没有。
@@ -81,7 +81,7 @@
 - 场景目录只列给持有场景所要权限的调用者（内核 `sceneVisible`：场景的 `permissions` 全持有，或持有它的 `configuration_permissions` 且有可配置的目标）。列场景用的调用者持有三处权限的并集：本机用户持有的（`LOCAL_OWNER_PERMISSIONS`）、宿主列出的每个动作所要的、每个 Manifest 场景所要的。只取 Manifest 场景所要的不够：首页的 `home.dock@1` 要 `home:read`，没有一个 Manifest 场景要它。没盖到的：某个场景若要这三处都没有的权限，没有人能在目录里看到它，快照也就看不到。`tests/action-contract-snapshot.test.ts` 把 `home.dock@1` 的权限和代码里的 `homeDockScene` 对着核，宿主场景目录不再列它时会红。
 - `traits` 只去掉已知的文字类字段（受理选项的 `title`、`hint`）：以后在别处加的说明性字段会让哈希变，刷新即可。这是多报，不会漏报。
 
-**首次入库（2026-10-09，main `11878059`）与步骤一快照的对账。** 步骤一的 `specs/archive/post-merge-review/capability-snapshot.tsv` 有 663 个动作（main `62cbc14d`，空 Home 加演示项目）。现在 Manifest 层 544 个动作与 2 个场景（26 份内置 Manifest 里 24 份有动作；plugin-builder 与 experiments 的 Manifest 没有动作声明），宿主层 156 行动作和 1 个场景（`home.dock@1`，步骤一的快照没有记场景），动作按 `capability_id@version` 去重后共 698 个。对账（动作 id 为键）：
+**首次入库（2026-10-09，main `11878059`）与步骤一快照的对账。** 步骤一的 `specs/archive/post-merge-review/capability-snapshot.tsv` 有 663 个动作（main `62cbc14d`，空 Home 加演示项目）。入库时 Manifest 层 544 个动作与 2 个场景（26 份内置 Manifest 里 24 份有动作；plugin-builder 与实验插件的 Manifest 没有动作声明），宿主层 156 行动作和 1 个场景（`home.dock@1`，步骤一的快照没有记场景），动作按 `capability_id@version` 去重后共 698 个。2026-10-10 删实验插件后内置 Manifest 是 25 份（有动作的仍是 24 份、544 个动作不变），宿主层少了它的 15 行动作（现为 141 行）；下面的对账是入库时的记录，没有重算。对账（动作 id 为键）：
 
 - 663 个里 646 个现在仍登记着，`kind` 一个没变；4 个的调度改成了 `concurrent`（`coding.runs.start`、`feed.content.receive`、`feed.items.inbox`、`inbox.content.receive`）。
 - 646 个里 62 个提供方列不同，都是表示不同，不是变化：60 个是 Runtime 装配的 7 个插件（Characters 17、Coding 18、Git 10、Files 6、Shelf 5、Diff 2、Text Stats 2），步骤一写的是宿主登记用的 `plugin-install-…`，用 `sha256(plugin_id, publisher.signature)` 算出来逐个相同，本快照的 `provider` 列写 `plugin_id`，宿主登记用的 id 在 `registered_provider` 列；2 个是上面说的 `goals.planning.personal.*`。`actions.tsv` 里和步骤一重合的 502 个动作，`registered_provider` 与步骤一的提供方列逐个相同。
@@ -138,7 +138,7 @@ W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 
 | Swift 类型检查 | `swiftc -typecheck -parse-as-library -target <arch>-apple-macosx14.0 JellyMaterial.swift` | 原生素材提取器。每个被跟踪的 `.swift` 都要登记在脚本的 `SWIFT_UNITS`，否则失败 |
 | Swift 包构建 | `swift build --package-path apps/local-host/native/materials/whisper`（加 `--package`） | `jelly-whisper` 的 SwiftPM 包，`swift-tools-version: 6.2`（要 Xcode 26），冷编译约 7 分钟，要联网拉 `argmax-oss-swift`。CI 里先作为不挡合并的步骤跑（`continue-on-error`），所以现在挡合并的只有 `JellyMaterial.swift` 的类型检查，`jelly-whisper` 编译坏了不会让 CI 变红。收口记在待办 [BL-122](../../specs/BACKLOG.md)：确认有 Swift 6.2 的 runner（`macos-26` 或装 Xcode 26）后去掉 `continue-on-error` |
 | shell | `shellcheck --severity=warning` | 所有被跟踪的 `.sh`，和第一行是 sh/bash 的无后缀文件。告警和错误失败，风格提示不失败 |
-| Python | `python3 -I`，`ast.parse` | 被跟踪的 `.py`（现在只有 `apps/local-host/tooling/experiments/laya-worker.py`，实验执行器启动的工作进程）必须能解析；不写 `__pycache__`。只查语法，没有 linter |
+| Python | `python3 -I`，`ast.parse` | 被跟踪的 `.py`（现在没有；实验插件的工作进程 2026-10-10 随插件删除）必须能解析；不写 `__pycache__`。只查语法，没有 linter |
 
 工具缺失是退出码 2，不是通过。规则本身在 `tests/native-checks.test.mjs`（纯 `node:test`，不需要装依赖）里各被故意违反一次；本机没有的工具对应的用例会跳过并说明（shell 用例另有一个替身 shellcheck，验证“交了哪些文件、严重度参数、失败的退出码”）。
 

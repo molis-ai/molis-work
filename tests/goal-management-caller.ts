@@ -27,8 +27,7 @@ export function managementGoals(client: ActionClient, projectId: string): BoundA
 }
 
 /**
- * A Runtime reaching Goals through an MCP client, the entry the Casebook observation translates action calls from: the Runtime's
- * Session is the audit author, and every write is made under it.
+ * A Runtime reaching Goals through an MCP client: the Runtime's Session is the audit author, and every write is made under it.
  */
 export function mcpRuntimeCaller(projectId: string, actorId = "runtime:client", session = "session"): ActionCallContext {
   return {

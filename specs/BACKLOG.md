@@ -92,7 +92,6 @@
 | BL-051 | Coding：子任务预算（现在只显示用量）；重试在真实运行中未触发过；派出子任务的标识格式在 SDK 工具参数里加约束 | [coding-plugin/spec.md 第 0 节](coding-plugin/spec.md) | 部分实现 | 见原文各块「还没做 / 未验证」 | Prologue SDK | 低 | 未分配 |
 | BL-052 | Characters：五家原生 Agent（含 Cursor、OpenCode）真实启动、规则与技能加载、取消与失败实操 | [characters-local-agent-import](archive/characters-local-agent-import/spec.md) | 部分实现 | 本机缺 CLI，且 AI 验证限定走 Prologue | 本机安装对应 CLI | 低 | 未分配 |
 | BL-053 | Shelf：轮盘纸面与字色对齐 DropAgent；面板内 Esc/⌘V/⌘C/⌫ 快捷键 | [shelf-drop-wheel-craft](archive/shelf-drop-wheel-craft/spec.md)、[shelf-plugin](archive/shelf-plugin/spec.md) | 部分实现 | 留后续切片 | 无 | 低 | 未分配 |
-| BL-054 | Casebook：规划导出服务与官方 Showcase 接收发布（授权事实与回执接口已有） | [casebook-integration-v1](archive/casebook-integration-v1/spec.md) | 未实现 | V1 合同输入，未排期 | Casebook 仓库 | 低 | 未分配 |
 | BL-055 | 插件创作台：真实 Jev 选择的质量与延迟；生成插件自定义代码的运行边界（当前进程内执行器不是任意代码沙箱）；跨项目共享草稿 | [plugin-builder §10](archive/plugin-builder/spec.md) | 已知缺口 | 待实证 | 无 | 中 | 未分配 |
 | BL-056 | 规划方法：更多行业按单文件扩充 | [planning-method-markdown-catalog](archive/planning-method-markdown-catalog/spec.md) | 明确后续做 | 首批只为验证机制 | 无 | 低 | 未分配 |
 | BL-057 | Cognia：LLM Wiki 专有格式（当前按通用 Markdown Wiki 接入） | [cognia-plugin](archive/cognia-plugin/spec.md) | 明确后续做 | 用户未指定实现 | 无 | 低 | 未分配 |

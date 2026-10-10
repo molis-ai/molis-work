@@ -167,7 +167,7 @@
 | P19 | Shelf 打开文件（网页版） | 原生里交给系统打开；网页里 `window.open` 新标签页 | `plugins/native/shelf/src/client.ts:1005` | 问用户（算导出还是要在工作台预览） | 并入：Shelf 网页版在工作台预览，浏览器不能显示的下载（S5 [#187](https://github.com/molis-ai/molis-work/pull/187)） |
 | P20 | 导出与打印 | 问卷填写页导出、Pages 导出 HTML、Jelly 导出、PPT 打印 | `plugins/native/form/src/fillpage.ts`、`plugins/native/pages/src/client.ts:734`、`plugins/native/jelly/src/markdown.ts:95`、`plugins/native/ppt/src/client.ts:126` | 用户已列为例外 | 列入例外：导出与打印（用户已定） |
 | P21 | 插件与工作台里指向设置整页的链接 | 「去设置模型」「连接」等 30 多处 `href` 指向 `/settings/models`、`/settings/connectors`、`/capabilities/*` 等，点了离开工作台进 P10 的整页 | 如 `apps/workbench/src/**`、`plugins/native/*/src` 里的 `/settings/models` 9 处、`/settings/connectors` 5 处、`/capabilities/connections` 3 处 | 随 P10 的决定处理 | 并入：这些链接在工作台里打开设置位置（S6 [#193](https://github.com/molis-ai/molis-work/pull/193)） |
-| P22 | 下载 | Cognia 素材下载、Experiments 导出、Artifacts 导出 JSON | `plugins/native/cognia/src/client.ts:70`、`plugins/native/experiments/src/client.ts:114`、`artifact-native-plugin-http.ts:73` | 下载文件，拟列入例外 | 列入例外：下载文件 |
+| P22 | 下载 | Cognia 素材下载、Artifacts 导出 JSON | `plugins/native/cognia/src/client.ts:70`、`artifact-native-plugin-http.ts:73` | 下载文件，拟列入例外 | 列入例外：下载文件 |
 
 站内链接的统计口径：UI 源码里以 `/` 开头的 `href` 按路由归类（设置 30 余处、`/projects/`、`/goals/`、`/decisions` 属于工作台）。Feed 素材、Coding 与 Git 里的链接都是外部网址，按「外部链接」例外处理。
 
@@ -181,7 +181,7 @@
 | 桌面菜单栏胶囊 | `/desktop/capsule` | 原生小窗，不是浏览器页面 |
 | 开发规格板 | `/__ui/catalog`、`/__ui/catalog/bar` | 只给开发者 |
 | 宿主排版的侧栏文档 | `/projects/<id>/side/<插件>/<视图>` | 用户在任务里列为例外 |
-| 导出、打印与下载 | 问卷填写页导出、Pages 与 Jelly 导出、PPT 打印、Cognia 素材下载、Experiments 与成果导出 | 给别人用或存到本机的文件 |
+| 导出、打印与下载 | 问卷填写页导出、Pages 与 Jelly 导出、PPT 打印、Cognia 素材下载、成果导出 | 给别人用或存到本机的文件 |
 | 沙箱框里的文档 | 试用预览、已安装的生成插件 | 生成代码要隔离；只在工作台的标签或舞台里打开，框内不带品牌、返回链接或自带导航 |
 | 协作服务 | `/continuity`、`/im`（独立部署的 `server/`） | 给其他设备与成员用 |
 | 外部链接 | 外部网站 | 侧栏浏览器或新标签页 |

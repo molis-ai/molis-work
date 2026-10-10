@@ -34,11 +34,12 @@
 //                       descriptor literal (`capability_id` and `operation` or a spread, no `action`), whatever its receiver's
 //                       type.
 // Each may only fall; a file with no record starts at 0, so a new typed definition, a new registration point and a new file
-// that registers or declares one all fail. The runtime count (708 descriptors, 609 actions, 99 typed without action) is the
-// same list seen from the registry.
+// that registers or declares one all fail. The runtime count (706 descriptors, 612 actions, 94 typed without action on a
+// throwaway Home with one project, 2026-10-10; the five Casebook ones that made it 99 were deleted that day) is the same list
+// seen from the registry.
 //
 // A literal that merely has the shape of a descriptor is counted too, because the cast is what a new author would leave out:
-// today two of them are not registrations (a queue key in local-host.ts and an event projection in casebook/observer.ts).
+// today one of them is not a registration (a queue key in local-host.ts).
 //
 // What it does not see (there is no type checker behind it; review does):
 //   - a CALL of an existing typed capability, `client.invoke(existingDefinition, input)`, `host.invoke(…)`: the gate counts

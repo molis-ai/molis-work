@@ -36,7 +36,6 @@ import { inboxActions, INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger } fr
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { handleAgentStudioHttp } from "./plugin-builder/agent-surface.js";
-import { observedWebGoalsActions } from './casebook/web-observer.js';
 import { bindGoalsWebActions } from "./goals-actions.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -74,7 +73,6 @@ import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js
 import { SCHEDULE_ACTION_PERMISSIONS, SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
 import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
-import { EXPERIMENTS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-experiments";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { resolveWebRequest } from "./web-routing.js";
@@ -207,8 +205,7 @@ export async function handleMolisWorkWebRequest(
         };
         // Home shows and runs what any plugin offers the person here: native plugins by their manifests, Runtime plugins by their installed grants.
         const homeActions = bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
-        const goalActions = observedWebGoalsActions(runtime, hostReference,
-          bindGoalsWebActions(localHost.actionClient(hostReference), hostReference));
+        const goalActions = bindGoalsWebActions(localHost.actionClient(hostReference), hostReference);
         if (url.pathname === "/api/project-settings/workspaces" && options.project && ["GET", "POST"].includes(request.method ?? "")) {
           const workspaces = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
             catalog => catalog.listWorkspaceDirectory(options.project!.project_id).map(projectWorkspaceRef));
@@ -430,7 +427,6 @@ export async function handleMolisWorkWebRequest(
             alchemist: { projectId: hostReference.project_id, routePrefix: options.routePrefix ?? "",
               actions: { invoke: async (definition, input, signal) => await localHost.actionClient(hostReference).invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id,
                 audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS, signal }, definition, input) as never } },
-            experiments: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [...EXPERIMENTS_ACTION_PERMISSIONS] })),
             shelf: {
               actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS })),
               project: { title: options.project?.display_name ?? options.projectId,

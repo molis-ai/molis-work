@@ -31,7 +31,7 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要加�
 
 `BUILD_TIME_ASSEMBLED` 里的旧插件仍是手写接线：Host 里的 `registerProvider(...)`（`project-host.ts`）、`apps/local-host/src/<id>-native-plugin-http.ts` 和 `builtin-plugins.ts` 条目。只有改这些旧插件时才看这一段，新插件不照抄。
 
-- 手写 HTTP 文件：实现 `<id>-native-plugin-http.ts`。其中 Experiments、Alchemist 再挂进 `personal-native-plugin-http.ts` 的 handler 列表；Pages、灵光、Feed、Inbox、Schedule 等由 `web-request.ts` 直接调用各自的 `handle<X>NativePluginHttp`。
+- 手写 HTTP 文件：实现 `<id>-native-plugin-http.ts`。其中 Alchemist 再挂进 `personal-native-plugin-http.ts` 的 handler 列表；Pages、灵光、Feed、Inbox、Schedule 等由 `web-request.ts` 直接调用各自的 `handle<X>NativePluginHttp`。
 - Shelf 不属于这一份：它已由监督器启动（在 `RUNTIME_ASSEMBLED`，不在 `BUILD_TIME_ASSEMBLED`），只是还留着冻结的 `shelf-native-plugin-http.ts`（`/api/shelf`，同样挂在 `personal-native-plugin-http.ts`），新插件不照抄。
 - `project_id` 同样由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 

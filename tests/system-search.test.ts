@@ -290,7 +290,7 @@ test("the wording of a reader's refusal never decides that an object was deleted
 
 test("whatever error the reader throws, only the owner's listing decides between deleted and unavailable", async t => {
   const f = await fixture(t);
-  // A plugin's own "not found" is a plain Error with no code at all (the Experiments reader), and a listed object can fail with any other error.
+  // A plugin's own "not found" is a plain Error with no code at all (a plugin's reader), and a listed object can fail with any other error.
   const notes = source([
     { id: "plain", title: "实验 普通", body: "正文", version: 1 },
     { id: "coded", title: "实验 带码", body: "正文", version: 1 },
@@ -307,7 +307,7 @@ test("whatever error the reader throws, only the owner's listing decides between
   notes.notes.delete("plain");
   assert.equal((await open("plain")).state, "missing", "a plain Error from the reader still ends with the owner's listing, which no longer has it");
   // The same with an error code nobody here knows.
-  notes.absent = () => Object.assign(new Error("没有这个实验"), { code: "experiments.gone" });
+  notes.absent = () => Object.assign(new Error("没有这个实验"), { code: "notes.gone" });
   notes.notes.delete("coded");
   assert.equal((await open("coded")).state, "missing");
   assert.deepEqual(ids(await ask(f, owner("a"), "实验")), ["kept"], "both deletions left the index; the listed one stayed");

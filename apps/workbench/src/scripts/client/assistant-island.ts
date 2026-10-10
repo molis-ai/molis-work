@@ -2390,16 +2390,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   input.addEventListener("focus", () => { paintMaterials(); if (!String(input.value || "").trim() && !busy) setStarters(true); });
   input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; setStarters(false); }, 0));
   // What opens from the island, and the button focus returns to.
-  const popovers = () => [[worksNav, setWorks, worksToggle], [morePop, setMore, attach], [materialsList, setMaterials, materialsButton], [executorsPop, setExecutors, executorButton],
-    [modesPop, setModes, modeButton], [charactersPop, setCharacters, characterButton], [noticesPop, setNotices, attentionButton]];
+  const popovers = () => [[worksNav, setWorks, worksToggle], [morePop, setMore, attach], [materialsList, setMaterials, materialsButton], [executorsPop, setExecutors, executorButton], [modesPop, setModes, modeButton], [charactersPop, setCharacters, characterButton], [noticesPop, setNotices, attentionButton]];
   document.addEventListener("pointerdown", (event) => {
     if (event.target?.nodeType !== 1 || island.contains(event.target)) return;
     setStarters(false); for (const [pop, close] of popovers()) if (pop && !pop.hidden) close(false);
   });
   island.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    const stop = () => { event.preventDefault(); event.stopPropagation(); };
-    const put = ([pop, close, button]) => pop && !pop.hidden && (stop(), close(false), (visible(button) ? button : attach)?.focus(), true);
+    const stop = () => { event.preventDefault(); event.stopPropagation(); }, put = ([pop, close, button]) => pop && !pop.hidden && (stop(), close(false), (visible(button) ? button : attach)?.focus(), true);
     const [worksOpen, moreOpen, materialsOpen, ...choosers] = popovers();
     if (put(worksOpen)) return;
     if (panel && !panel.hidden && !spacious() && drawerOpen) { stop(); drawerOpen = false; paintLayout(); sideToggle?.focus(); return; }
@@ -2463,8 +2461,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const paintMore = () => {
     if (!morePop) return;
-    const aside = composer.dataset.crowded === "chips" ? [materialsButton, attentionButton].filter((button) => button && !button.hidden) : [];
-    const rows = [...aside.map((button) => moreItem(button.title, button.textContent.trim(), () => { setMore(false); button.click(); })),
+    const rows = [...(composer.dataset.crowded === "chips" ? [materialsButton, attentionButton] : []).filter((button) => button && !button.hidden).map((button) => moreItem(button.title, button.textContent.trim(), () => { setMore(false); button.click(); })),
       moreItem(L("添加文件或图片…"), L("也可以拖入、粘贴"), () => { setMore(false); fileInput?.click(); }),
       moreItem(L("引用项目里的内容"), "@", () => { setMore(false); insertTrigger("@"); }),
       moreItem(L("用一个能力或方法"), "/", () => { setMore(false); insertTrigger("/"); })];
@@ -2751,25 +2748,20 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     items[(at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
   });
 
-  // The input keeps room to type, but the chips beside it come and go, so the composer measures itself, as the Dock
-  // does, and steps down: quiet parts narrow, unchanged choosers fold (panel closed), plugin and work chips narrow.
-  // Still over its edge it folds a step at a time, as far as it must (no chip under 44px): the choosers (the side pane
-  // has them), the work chip's mark (the panel starts new works too), the materials and the notice (the "+" lists them).
+  // The input keeps room to type, but the chips beside it come and go, so the composer measures itself, as the Dock does, and steps down:
+  // quiet parts narrow, unchanged choosers fold (panel closed), plugin and work chips narrow. Still over its edge it folds a step at a time,
+  // as far as it must (no chip under 44px): the choosers (the side pane has them), the work chip's mark, the materials and the notice ("+").
   const INPUT_ROOM = 120;
   let fitFrame = 0;
   const roomy = () => input.clientWidth >= INPUT_ROOM && composer.scrollWidth <= composer.clientWidth + 1;
   const fitComposer = () => {
     fitFrame = 0;
-    delete composer.dataset.fit;
-    delete composer.dataset.crowded;
+    delete composer.dataset.fit; delete composer.dataset.crowded;
     for (const level of ["tight", "folded", "narrow"]) {
       if (roomy()) break;
       composer.dataset.fit = level;
     }
-    for (const step of ["choosers", "mark", "chips"]) {
-      if (composer.scrollWidth <= composer.clientWidth + 1) break;
-      composer.dataset.crowded = step;
-    }
+    for (const step of ["choosers", "mark", "chips"]) { if (composer.scrollWidth <= composer.clientWidth + 1) break; composer.dataset.crowded = step; }
   };
   const refit = () => { if (!fitFrame) fitFrame = requestAnimationFrame(fitComposer); };
   // The island's width is the bar's, never its chips'; the chips' own changes arrive as attributes and labels.

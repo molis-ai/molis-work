@@ -34,12 +34,19 @@ test("the Chrome locator tries MOLIS_WORK_TEST_CHROME first, then the fixed plac
 
 /** A stand-in for Chrome: reports its flags, then behaves as FAKE_CHROME_MODE says. */
 const FAKE_CHROME = `#!/usr/bin/env node
+import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
 writeFileSync(process.env.FAKE_CHROME_REPORT, JSON.stringify({ args: process.argv.slice(2), pid: process.pid }));
 const mode = process.env.FAKE_CHROME_MODE;
 if (mode === "exit") { process.stderr.write("first line\\nbad flag: --nonsense\\n"); process.exitCode = 1; }
 else {
   process.on("SIGTERM", () => { if (mode !== "ignore-term") process.exit(0); });
+  if (mode === "helper-holds-stderr") {
+    // Chrome's helper processes can inherit its stderr and outlive it: the pipe stays open for seconds after the main process is gone.
+    const helper = spawn(process.execPath, ["-e", "setTimeout(() => {}, 4000)"], { detached: true, stdio: ["ignore", "ignore", "inherit"] });
+    helper.unref();
+    writeFileSync(process.env.FAKE_CHROME_REPORT, JSON.stringify({ args: process.argv.slice(2), pid: process.pid, helperPid: helper.pid }));
+  }
   process.stderr.write("noise before the address\\nDevTools listening on ws://127.0.0.1:9/devtools/browser/fake\\n");
   setInterval(() => {}, 1000);
 }
@@ -120,6 +127,25 @@ test("closing a Chrome that obeys SIGTERM does not wait for the forced stop", as
     const started = Date.now();
     await chrome.close();
     assert.ok(Date.now() - started < 900);
+  });
+});
+
+test("closing waits for the main process to exit, not for its stderr to close: a helper that keeps the pipe open does not delay it", async () => {
+  await withFakeChrome("helper-holds-stderr", async ({ directory, executable, report }) => {
+    const chrome = await launchHeadlessChrome({ executable, profileDirectory: join(directory, "profile") });
+    const { pid, helperPid } = await report();
+    assert.ok(Number.isInteger(helperPid) && alive(helperPid), "the helper holds the pipe");
+    try {
+      const started = Date.now();
+      await chrome.close();
+      const elapsed = Date.now() - started;
+      // Waiting for the pipe would take the helper's full four seconds.
+      assert.ok(elapsed < 900, `close() took ${elapsed} ms`);
+      assert.equal(alive(pid), false);
+      assert.ok(alive(helperPid), "the helper outlives close() and still holds the pipe");
+    } finally {
+      try { process.kill(helperPid, "SIGKILL"); } catch { /* it has already ended */ }
+    }
   });
 });
 

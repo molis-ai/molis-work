@@ -394,7 +394,7 @@
 
 | 项 | 结论 | 证据 | 归属 |
 | --- | --- | --- | --- |
-| 浏览器用例的固定时限对负载敏感 | 仍然成立 [已确认] | `tests/fixtures/goal-browser.ts:116` 的 `waitFor(expression, timeoutMs = 4000)`（W2-11 a 把启动与 DevTools 连接搬到 `packages/test-kit` 的 `/browser`，这一条时限与诊断留在夹具里，行号随之变）；130 个测试文件定义或调用 `waitFor` | W2-16（时限改为等真实条件，稳定的部分进 CI 子集） |
+| 浏览器用例的固定时限对负载敏感 | 仍然成立 [已确认] | `tests/fixtures/goal-browser.ts` 里 `waitFor(expression, timeoutMs = 4000)`（W2-11 a 把启动与 DevTools 连接搬到 `packages/test-kit` 的 `/browser`，这一条时限与诊断留在夹具里；按函数名引用，行号会随夹具的其他改动移动）；130 个测试文件定义或调用 `waitFor` | W2-16（时限改为等真实条件，稳定的部分进 CI 子集） |
 | 测试依赖 `fs.watch` 收到其他进程的文件事件 | 不再成立 [已确认] | 全仓 `fs.watch`、`watchFile` 0 处；#143 修的那一处改成轮询（`tests/feed-research-authority.test.ts:52` 的注释） | — |
 | 全量回归两小时以上，并行会话互相干扰 | 部分 [已确认] | 全量 76–78 分钟 [引用]；`scripts/run-tests.mjs` 仍串行；#250 让全量也跑 `.mjs` 用例 | W2-17（受影响用例挑选）、W5-12（隔离与并发） |
 | 页面在浏览器窗格隐藏时不启动（`lifetime.whenVisible`），自动化验收会误判 | 未做 [已确认] | 验收脚本没有先确认 `document.visibilityState`（`tests/` 里 0 处） | 补记：并入 W1-12（回放工具先确认可见性） |

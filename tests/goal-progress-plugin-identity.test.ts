@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalHost, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, MolisWorkLocalHost, molisWorkHostProjectReference, type LocalHostOptions } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -53,7 +53,11 @@ test("the Goal progress capabilities take a plugin's identity from its call cont
 });
 
 test("a plugin reaches an action through the typed port as the plugin audience, so an action not offered to plugins stays out of its reach", async () => {
-  const host = new LocalHost<object>({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const settled: Array<[string, boolean, string | undefined, true | undefined]> = [];
+  const actionSettled: NonNullable<LocalHostOptions<object>["actionSettled"]> = (_caller, action, outcome) => {
+    settled.push([action.title, outcome.ok, outcome.ok ? undefined : outcome.code, outcome.ok ? undefined : outcome.refused]);
+  };
+  const host = new LocalHost<object>({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled });
   const reference = { project_id: "p1", storage_key: "memory:p1" };
   let deletes = 0;
   const remove = { capability_id: "fixture.items.delete", version: 1, operation: "command" as const, action: { title: "Delete", description: "Delete an item permanently", kind: "operation" as const,
@@ -67,8 +71,11 @@ test("a plugin reaches an action through the typed port as the plugin audience, 
     await assert.rejects(host.actionClient(reference).invoke({ actor_id: "plugin-x", project_id: "p1", audience: "plugin", permissions: [] }, remove, {}), { code: "actions.forbidden" });
     await assert.rejects(host.client(reference).invoke(remove as never, {}, asPlugin), { code: "actions.forbidden" });
     assert.equal(deletes, 0);
+    assert.deepEqual(settled, [["Delete", false, "actions.forbidden", true], ["Delete", false, "actions.forbidden", true]],
+      "each refusal is settled once, by the action service, and never entered the handler");
     assert.deepEqual(await host.client(reference).invoke(offered as never, {}, asPlugin), { items: [] }, "an action offered to plugins is still reachable");
     assert.deepEqual(await host.client(reference).invoke(remove as never, {}), { ok: true }, "the Host's own typed callers are unchanged");
     assert.equal(deletes, 1);
+    assert.deepEqual(settled.slice(2), [["List", true, undefined, undefined], ["Delete", true, undefined, undefined]]);
   } finally { await host.close(); }
 });

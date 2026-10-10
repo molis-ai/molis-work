@@ -15,9 +15,9 @@ import {
   YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, isYouTubePublicFeedUrl,
 } from "@molis-ai/molis-work-integration-youtube";
 import { createSearchContentPort, createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./search-evidence-runtime.js";
+import { PRODUCT_VERSION } from "./product-version.js";
 
 const APP_ID = "molis-work";
-const APP_VERSION = "0.2.0";
 
 type FetchPort = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -52,7 +52,7 @@ export function createFeedSourceRuntime(options: {
     appId: APP_ID,
     transport: createAllowlistedRssTransport(listFeedUrls(), options.fetch ?? globalThis.fetch, {
       isPublicChannelFeed: isYouTubePublicFeedUrl,
-      userAgent: `Molis Work/${APP_VERSION} (+local feed ingest)`,
+      userAgent: `Molis Work/${PRODUCT_VERSION} (+local feed ingest)`,
       allowCustomPublicFeeds: true,
       conditional: { etag: httpState.etag, lastModified: httpState.last_modified },
       onReceipt(receipt) { publicFeedReceipt = receipt; },
@@ -60,7 +60,7 @@ export function createFeedSourceRuntime(options: {
     content: createSearchContentPort(content),
   });
   const rssRuntime = createSearchRuntime({
-    app: { id: APP_ID, version: APP_VERSION, dataCompatibilityVersion: 1 },
+    app: { id: APP_ID, version: PRODUCT_VERSION, dataCompatibilityVersion: 1 },
     host: rssHost.host,
     providers: [{ revision: 1, provider: createRssProvider({ appId: APP_ID }), transportProfileId: "molis-work-rss-allowlist-v1" }],
   });

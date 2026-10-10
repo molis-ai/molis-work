@@ -16,7 +16,7 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 | --- | --- | --- | --- |
 | 根包 | `package.json` | 产品版本的唯一来源 | 脚本以它为准 |
 | 桌面端、Tauri | `apps/desktop/src-tauri/tauri.conf.json`、`Cargo.toml`、`Cargo.lock` 里的 `molis-work-desktop` | 等于产品版本 | 脚本 |
-| 写在代码里的两处 | `apps/local-host/src/feed-source-runtime.ts` 的 `APP_VERSION`（Feed 的 User-Agent 与 `app.version`）、`horizontal/runtime-host/src/adapters/codex-app-server.ts` 的 `clientInfo.version` | 等于产品版本 | 脚本 |
+| 写在代码里的一处 | `apps/local-host/src/product-version.ts` 的 `PRODUCT_VERSION`。宿主报出产品版本的每个地方都从它取，不另写一份：Feed 的 User-Agent 与它和搜索运行时交给搜索证据层的 `app.version`、MCP 客户端（`connector-mcp.ts` 的两处 `Client`）的版本、Codex 会话传输的 `clientInfo.version`（`horizontal/runtime-host` 不持有版本，宿主在 `session-runtime-resources.ts` 以 `clientVersion` 选项传入）。新增要报出产品版本的地方，导入这个常量，不在脚本里再加一条载体 | 等于产品版本 | 脚本 |
 | 发布说明与 CHANGELOG | `docs/releases/v<版本>.md`、`docs/releases/CHANGELOG.md` 里的 `[<版本>]` 一节 | 当前产品版本两者都有；CHANGELOG 第一节永远是 `[Unreleased]` | 脚本 |
 | 工作区包 | 每个 `pnpm-workspace.yaml` 列出的包 | 私有，版本固定 0.0.0；它们不单独发布，随产品一起构建 | 脚本 |
 | 内置插件 Manifest | `plugins/native/*/src/manifest.ts` 的 `version` | **目标**：等于产品版本（用户 2026-10-04 定「内置插件随宿主升级」，2026-10-08 定版本跟宿主）。**现状**：各自独立，从 1.0.0 到 1.50.0（Coding）不等，约定是改了清单就升它自己的版本，但没有机制保证：main 上自 2026-09-26 起，这 7 个插件的清单摘要在版本不变时变了至少 24 次（到 `8118e617`，第 7.3 节）。重置排在路线图的 W5-15（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）。Runtime 一侧已经不挡这一步：用户 2026-10-08 选了做法 A，内置插件（监督器条目标 `bundled`）不论清单版本比安装记录高、低，还是同版本改了内容，启动时都把记录改成当前构建的清单（第 7 节，实现见第 7.8 节），所以重置不会让已装过的 Home 停在旧代码上。还没做的：0.3.0 的发布 PR 把 7 份清单的 `version` 改成产品版本，并把「等于产品版本」这一行加进脚本 | 重置前没有 |

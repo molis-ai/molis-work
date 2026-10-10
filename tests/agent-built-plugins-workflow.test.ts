@@ -1,16 +1,21 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
-import type { BuilderAgentRecord, BuilderAgentRequest } from '../packages/contracts/src/services/agent-host.js';
-import type { BuildCheckResult } from '../packages/contracts/src/platform/plugin-builder.js';
+import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-work-contracts/services/agent-host';
+import type { BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import { assertContract } from '../packages/plugin-sandbox/dist/index.js';
 import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts } from '../plugins/native/plugin-builder/src/index.js';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/src/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/src/agent-definitions/builtin-registrations.js';
-import { builderInstructions, builderPrompts } from '../apps/local-host/src/plugin-builder/agent-surface.js';
+import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/src/plugin-builder/agent-surface.js';
+import { releaseInstalledPlugins } from '../apps/local-host/src/installed-plugin-host.js';
+import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { builderSkill } from '../apps/local-host/src/plugin-builder/skill.js';
 import { acceptExperience } from '../plugins/native/plugin-builder/src/agent-experience.js';
 
@@ -1089,4 +1094,57 @@ test('the host reads the studio\'s two questions from the register: the default 
     assert.equal(definitions.uses(keys[1]!)[0]?.user_revision, 1, 'and the use says it ran the person\'s version');
     assert.equal(instruction(BUILDER_CHOOSE_CAPABILITY), CAPABILITY_WORDS, 'the other question is still the default');
   } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+/**
+ * The workflow tests give the workflow its ports by hand and the register test calls `builderInstructions` directly, so
+ * neither sees whether the studio the host builds hands that reader to the workflow. This runs the real surface
+ * (`handleAgentStudioHttp`): only the models are stand-ins, and the person's edit is made in the register first.
+ */
+test('through the studio surface: the studio asks Jev the question the person saved in 设置 › 提示词, not the shipped one', { timeout: 120_000 }, async () => {
+  const home = mkdtempSync(join(tmpdir(), 'builder-surface-')), databasePath = join(home, 'project.db');
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath), fixture = agentStudioFixture(0), asked: string[] = [];
+  const edited = '只看这一页的版面和相邻的零件，不管数据。';
+  const saved = agentDefinitionsFor(home, builtinRegistrations).save('io.molis.work.plugin-builder/choose.component', edited, null, 'web-user');
+  assert.deepEqual([saved.effective, saved.body], ['user', edited], 'the person\'s edit is in the register');
+  // The code Agent is held idle until the build is stopped (it may start after that, so an already aborted signal ends it at once):
+  // nothing is written or checked, and this ends as soon as the first question has been put.
+  const idleCoder = { close: async () => undefined, records: async () => [], run: (request: BuilderAgentRequest) => new Promise<BuilderAgentRecord>((_, reject) => {
+    const stopped = () => reject(request.signal?.reason ?? new Error('stopped'));
+    if (!request.signal || request.signal.aborted) stopped(); else request.signal.addEventListener('abort', stopped, { once: true });
+  }) };
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, models: fixture.models, generate: fixture.generate,
+    agents: async (build: AgentBuild, purpose: 'design' | 'code') => purpose === 'code' ? idleCoder : fixture.agents(build),
+    choice: { selectionAvailable: () => true, async choose(question: { instructions: string; candidates: readonly { key: string }[] }) { asked.push(question.instructions); return fixture.choice.choose(question); } } };
+  const server = createServer((request, response) => {
+    void handleAgentStudioHttp(request, response, new URL(request.url ?? '/', 'http://localhost'), options, 'control-token').then(handled => { if (!handled) { response.writeHead(404); response.end(); } });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + (server.address() as AddressInfo).port + '/api/plugin-builder/studio';
+  const send = async <T>(method: string, path: string, body?: unknown) => {
+    const response = await fetch(origin + path, { method, headers: { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    assert.ok(response.ok, method + ' ' + path + ' → ' + response.status + ' ' + await response.clone().text());
+    return await response.json() as T;
+  };
+  const read = async (id: string) => (await send<{ build: AgentBuild }>('GET', '/builds/' + id)).build;
+  const until = async (id: string, done: (build: AgentBuild) => boolean) => {
+    for (let waited = 0; waited < 60_000; waited += 25) { const build = await read(id); if (done(build) || build.phase === 'failed') return build; await new Promise(resolve => setTimeout(resolve, 25)); }
+    throw new Error('the studio did not reach the state in time');
+  };
+  try {
+    const created = (await send<{ build: AgentBuild }>('POST', '/builds', { brief: '做一个随手记笔记的插件' })).build;
+    let build = await until(created.id, value => value.phase === 'choosing');
+    assert.equal(build.phase, 'choosing', build.error ?? '');
+    await send('POST', '/builds/' + created.id + '/action', { action: 'choose', revision: build.revision, candidateId: 'board' });
+    await until(created.id, () => asked.length > 0);
+    assert.ok(asked.length > 0, 'the studio put a question to Jev');
+    assert.equal(asked[0], edited, 'it asked the person\'s text, which only the studio\'s ports can bring from the register');
+    assert.ok(!asked.includes(COMPONENT_WORDS), 'and not the shipped sentence');
+  } finally {
+    await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID);
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    store.close(); rmSync(home, { recursive: true, force: true });
+  }
 });

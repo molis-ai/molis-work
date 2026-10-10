@@ -283,7 +283,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 957,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
   },
-  "testInternalImports": 964,
+  "testInternalImports": 963,
   "testImports": {
     "tests/action-before-effect.test.ts": 4,
     "tests/action-call-log.test.ts": 3,
@@ -308,7 +308,7 @@
     "tests/agent-built-plugins-network.test.ts": 2,
     "tests/agent-built-plugins-reminders.test.ts": 7,
     "tests/agent-built-plugins-workbench.test.ts": 1,
-    "tests/agent-built-plugins-workflow.test.ts": 9,
+    "tests/agent-built-plugins-workflow.test.ts": 8,
     "tests/agent-definitions.test.ts": 5,
     "tests/agent-plugin-identity.test.ts": 4,
     "tests/agent-start-authority.test.ts": 4,

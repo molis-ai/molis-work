@@ -83,16 +83,16 @@ before(() => {
   put("apps/local-host/src/one-native-plugin-http.ts", "export const handleOne = () => 1;\n");
   put("apps/local-host/src/search-actions.ts", "export const searchProvider = () => ({});\n"); // not a plugin's name
   put("apps/local-host/src/local-host.ts", "import type { HostCapabilityDefinition } from '../../../packages/contracts/src/platform/app-host.js';\nexport class LocalHost {\n  register(definition: HostCapabilityDefinition, handler: (runtime: unknown, input: unknown) => unknown) { return [definition, handler]; }\n  registerCapability(definition: HostCapabilityDefinition) { return this.register(definition, () => 1); }\n}\nexport const make = (host: LocalHost, definition: HostCapabilityDefinition) => host.registerCapability(definition);\n");
-  // The Casebook shape: a factory that mints descriptors, and registrations through a `LocalHost` parameter.
-  put("apps/local-host/src/casebook/integration.ts", [
+  // A factory that mints descriptors, and registrations through a `LocalHost` parameter.
+  put("apps/local-host/src/registrar/integration.ts", [
     "import type { HostCapabilityDefinition } from '../../../../packages/contracts/src/platform/app-host.js';",
     "import type { LocalHost } from '../local-host.js';",
     "const capability = (name: string, operation: 'query' | 'command'): HostCapabilityDefinition<unknown, unknown> => ({",
-    "  capability_id: `io.example.casebook.${name}`, version: 1, operation,",
+    "  capability_id: `io.example.registrar.${name}`, version: 1, operation,",
     "});",
     "const read = capability('read', 'query');",
     "const write = capability('write', 'command');",
-    "export function registerCasebookCapabilities(host: LocalHost): void {",
+    "export function registerFixtureCapabilities(host: LocalHost): void {",
     "  host.register(read, (_runtime, input) => input);",
     "  host.register(write, (_runtime, input) => input);",
     "}",
@@ -250,10 +250,10 @@ const violations: Scenario[] = [
   }, expect: [/typed Host capability type-refs in plugins\/native\/two\/src\/barrel-user\.ts 0 → 1/, /typed Host capability without-action in plugins\/native\/two\/src\/barrel-user\.ts 0 → 1/] },
   { name: "a descriptor literal that is not cast to anything", mutate: () => put("plugins/native/two/src/plain.ts", 'export const plain = { capability_id: "io.example.two.plain", version: 1, operation: "query" };\n'),
     expect: [/typed Host capability without-action in plugins\/native\/two\/src\/plain\.ts 0 → 1/] },
-  { name: "a descriptor minted by the Casebook factory and registered through a LocalHost parameter", launder: true, mutate: () => {
-    const file = "apps/local-host/src/casebook/integration.ts";
+  { name: "a descriptor minted by a factory and registered through a LocalHost parameter", launder: true, mutate: () => {
+    const file = "apps/local-host/src/registrar/integration.ts";
     put(file, read(file).replace("  host.register(write, (_runtime, input) => input);\n", "  host.register(write, (_runtime, input) => input);\n  const shadow = capability('shadow', 'query');\n  host.register(shadow, (_runtime, input) => input);\n"));
-  }, expect: [/typed Host capability register-calls in apps\/local-host\/src\/casebook\/integration\.ts 2 → 3/] },
+  }, expect: [/typed Host capability register-calls in apps\/local-host\/src\/registrar\/integration\.ts 2 → 3/] },
   { name: "a registration through a LocalHost property of a class", mutate: () => put("apps/local-host/src/wiring-class.ts", 'import type { LocalHost } from "./local-host.js";\nexport class Wiring {\n  constructor(private readonly host: LocalHost) {}\n  wire(definition: never) { return this.host.register(definition, () => 1); }\n}\n'),
     expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-class\.ts 0 → 1/] },
   { name: "a registration through a LocalHost held in an options interface", mutate: () => put("apps/local-host/src/wiring-options.ts", 'import type { LocalHost } from "./local-host.js";\ninterface Options { localHost: LocalHost }\nexport const wire = (options: Options, definition: never) => options.localHost.register(definition, () => 1);\n'),
@@ -345,9 +345,9 @@ const violations: Scenario[] = [
 
   // Found by the reviewer of the third version: other spellings of the same registration, each verified on a scratch clone.
   { name: "a registration written as host[\"register\"] in a file that already has records", launder: true, mutate: () => {
-    const file = "apps/local-host/src/casebook/integration.ts";
+    const file = "apps/local-host/src/registrar/integration.ts";
     put(file, read(file).replace("  host.register(write, (_runtime, input) => input);\n", "  host.register(write, (_runtime, input) => input);\n  host[\"register\"]({ ...read, capability_id: String(Date.now()) }, (_runtime, input) => input);\n"));
-  }, expect: [/typed Host capability register-calls in apps\/local-host\/src\/casebook\/integration\.ts 2 → 3/] },
+  }, expect: [/typed Host capability register-calls in apps\/local-host\/src\/registrar\/integration\.ts 2 → 3/] },
   { name: "a registrar bound to a name and called through it", mutate: () => put("apps/local-host/src/wiring-bind.ts", [
     "import type { LocalHost } from './local-host.js';",
     "export const wire = (host: LocalHost, definition: never) => {",
@@ -604,7 +604,7 @@ test("the report flags hybrid plugins (Characters with its decision) and prints 
   assert.deepEqual(base.head.layerExceptions, { "lists#declared": 1, "app-import#. -> apps/desktop": 1, "app-import#apps/desktop -> apps/local-host": 1, "plugin-module-import#plugins/native/one -> modules/alpha": 1 });
   assert.equal(base.head.typedCapabilities["plugins/native/one/src/entry-capabilities.ts#type-refs"], 1, "the alias, imported under another name, is a typed reference");
   assert.equal(base.head.typedCapabilities["plugins/native/one/src/entry-capabilities.ts#without-action"], 1);
-  assert.equal(base.head.typedCapabilities["apps/local-host/src/casebook/integration.ts#register-calls"], 2, "registrations on a LocalHost parameter are counted");
+  assert.equal(base.head.typedCapabilities["apps/local-host/src/registrar/integration.ts#register-calls"], 2, "registrations on a LocalHost parameter are counted");
   assert.equal(base.head.typedCapabilities["horizontal/agent-host/src/capability-registration.ts#register-calls"], 2, "the registrar call inside the helper and the call of the helper");
   assert.equal(base.head.typedCapabilities["horizontal/agent-host/src/capability-registration.ts#without-action"], 1);
   assert.deepEqual(base.head.contractsPurity, { "packages/contracts/src/platform/lifetime.ts#effects": 1, "packages/contracts/src/platform/validator.ts#long-fn:inspectThing": 22 });

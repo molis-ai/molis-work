@@ -21,7 +21,6 @@
 - [coding-plugin](coding-plugin/spec.md)：Coding 的单一需求来源，下一阶段见 [next-requirements.md](coding-plugin/next-requirements.md)。
 - [craft-finish](craft-finish/spec.md)：界面设计规范。
 - [ui-craft-floor](ui-craft-floor/spec.md)：界面工艺底线。
-- [casebook-plugin](casebook-plugin/spec.md)：外部 Casebook 插件对宿主前置能力的说明。
 
 ## 还没做的事
 
@@ -59,4 +58,5 @@
 
 - 2026-10-01：全量梳理根目录 193 份 spec。7 份确认为现行规范；186 份归档（已实现 104、已被取代 70、部分实现 8、已作废 4），剩余事项抽进 BACKLOG。逐份判定与依据见 [合入后审查 §8](archive/post-merge-review/spec.md#8-spec-梳理)。
 - 2026-10-02：`home-one-screen` 归档（已实现，只差用户试用，BL-111；负责会话确认）。#150 带进根目录的两份归档：`performance-preserving-fixes`（部分实现，BL-109）、`project-management-freeze`（诊断记录，BL-110）。同时把仓库里 109 处指向本机路径（`/tmp`、`/Users/…`、`node_modules`）的链接改成仓库内相对链接；仓库外的只写成路径文本。
+- 2026-10-10：`casebook-plugin` 归档（已作废；用户决定删除 Casebook，插件以后重做，防腐整理 §1）。
 - 此前两批（158 份）按开头状态句与代码核对归档。

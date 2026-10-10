@@ -1,6 +1,6 @@
 // Security invariant S-12 (docs/system/SECURITY-INVARIANTS.md): a secret is handed to the host once and afterwards exists only as a
 // reference. The sweep plants distinctive secrets through the real web host (a pasted connector token, a model provider's key, a
-// rotated token, a Casebook credential) and then looks everywhere a value could surface:
+// rotated token) and then looks everywhere a value could surface:
 //   - the answer to the request that planted it, and the answer to every read surface of the host
 //   - what the host printed (stdout, stderr, console)
 //   - the action error a secret-bearing input raises, and the call log the commands that received it are recorded in (a finished one and a
@@ -25,7 +25,6 @@ const SECRETS = {
   connector: "Zq7vK-conn-7f3c91d2e8b44a10aa",
   rotated: "Zq7vK-rotd-5b21c0d9a7e34f66bb",
   provider: "Zq7vK-prov-9e08d4a1c3f2477acc",
-  casebook: "Zq7vK-casebook-credential-4d6e8f0a1b2c3d4e5f",
   actionInput: "Zq7vK-action-1a2b3c4d5e6f7a8b",
 } as const;
 
@@ -90,7 +89,7 @@ test("S-12 a secret handed to the host once never comes back: not in an answer, 
   const output = captureOutput(t);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(() => host.close());
-  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: CONTROL, localHost: host, casebook: { grants: [{ token: SECRETS.casebook, project_ref: "sweep-project" }] } });
+  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: CONTROL, localHost: host });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const port = (server.address() as AddressInfo).port;
   t.after(async () => {

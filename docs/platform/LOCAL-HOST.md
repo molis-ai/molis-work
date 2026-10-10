@@ -67,7 +67,7 @@ AP2 保证一个 Local Host 实例内，每个 Project storage key 只有一份 
 | `connector-*`、`<服务>-oauth.ts`、`<服务>-connector.ts` | 服务连接、凭据、OAuth 与连接器驱动 |
 | `agent-*`、`system-agent-service.ts`、`prologue-inference-host.ts`、`host-complete-text.ts`、`configured-models.ts` | Agent Host 装配、Home 推理绑定、模型选择 |
 | `web-*` | Web 入口：请求路由、页面视图投影、设置页 |
-| `installer/`、`casebook/`、`plugin-builder/`、`functions-http/` | 自成体系的子系统 |
+| `installer/`、`plugin-builder/`、`functions-http/` | 自成体系的子系统 |
 
 新文件按上表归入前缀。新插件的业务逻辑和路由在它自己的包里（HTTP 由 Manifest 声明），宿主里不新建 `<插件>-actions.ts`、`<插件>-native-plugin-http.ts`；今天仍要写在宿主和工作台里的接线（监督器条目、舞台渲染、名单）逐项列在 [扩展点清单](../system/EXTENSION-POINTS.md)，目标是由声明产生。
 

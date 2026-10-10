@@ -59,7 +59,7 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 
 最短工作路径是 `goals.create` → `goals.note`，无需类型或规划。需要结构化结果时用 `goals.events.configure` / `goals.events.report`。报告可以含多个事实和进展，整批有效才保存，回执给出当前状态、差距和游标。
 
-用户的决定只在受保护的 Web 界面或受信管理入口写入，不属于 Runtime。Runtime 可以提交具体变化、请求或引用已保存的有效决定，不能自填用户身份、确认文本或会话字段批准自己。受信管理入口使用 `MOLIS_WORK_MCP_AUDIENCE=management`，额外有平台工具 `initialize`、`event_decide`、`goal_tree_decide`；身份由宿主定为本机这个人（`web-user`）。这三个工具指向项目库时必须给出路径：参数 `database_path`，或环境变量 `MOLIS_WORK_DATABASE`；两者都没有就报 `store.path_required`，没有按当前目录猜的默认路径。
+用户的决定只在受保护的 Web 界面或受信管理入口写入，不属于 Runtime。Runtime 可以提交具体变化、请求或引用已保存的有效决定，不能自填用户身份、确认文本或会话字段批准自己。受信管理入口使用 `MOLIS_WORK_MCP_AUDIENCE=management`，额外有平台工具 `initialize`、`event_decide`、`goal_tree_decide`；身份由宿主定为本机这个人（`web-user`），这三个工具的参数里没有身份字段，带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 被拒绝（`goal_tree_decide` 的 `authority` 只写对话出处 `conversation_ref`、`message_ref`）。这三个工具指向项目库时必须给出路径：参数 `database_path`，或环境变量 `MOLIS_WORK_DATABASE`；两者都没有就报 `store.path_required`，没有按当前目录猜的默认路径。
 
 服务不可用时报告失败，不切换数据库、改 URL 或使用 CLI 兜底。`mcp.context_refresh_required` 仅要求只读 `context_resolve`：返回 bound 后用原 idempotency_key 原样重试；未绑定则按项目选择流程处理。
 

@@ -24,7 +24,7 @@ import { readWorkspaceGit } from "./workspace-git.js";
 import { readWorkspaceFile } from "./workspace-files.js";
 import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { runPluginDevelopment } from "./plugin-development.js";
+import { PLUGIN_DEVELOPMENT_ACTOR_ID, runPluginDevelopment } from "./plugin-development.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { registerHostScheduleCapabilities } from "./schedule-runtime.js";
@@ -175,11 +175,14 @@ export function registerProjectCapabilities(
     });
   }
   host.register(pluginDevelopmentCapability, async (runtime, input) => {
-    runtime.coordinator.initializeBoard({ project_id: input.project_id, title: "Plugin Development",
-      actor_id: input.actor_id, idempotency_key: "plugin-development-board" });
+    // The development run is the Host's own door: it acts as the actor the Host fixes, in the project the client opened.
+    requireRuntimeProject(runtime, input.project_id);
+    refusePayloadIdentity(input, ["audit_actor_id"]);
+    runtime.coordinator.initializeBoard({ project_id: runtime.project_id, title: "Plugin Development",
+      actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID, idempotency_key: "plugin-development-board" });
     const privateStorage = new SqlitePluginPrivateStorage(runtime.store.db);
     const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
-    return runPluginDevelopment(input, { project_id: input.project_id, actor_id: input.actor_id,
+    return runPluginDevelopment(input, { project_id: runtime.project_id, actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID,
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: runtime.project_id },
       artifacts: runtime.coordinator.artifacts, processItems: runtime.coordinator.processItems, ui: new UiHost(),
       repository: new SqlitePluginRuntimeRepository(runtime.store.db),
@@ -213,13 +216,15 @@ export function registerProjectCapabilities(
   });
   host.register(goalTreeCapabilities.checkGoalTreeProposal, (runtime, [input], invocation) =>
     goalAction(runtime, goalsActions.treeCheck, managementPayload(runtime, input), managementIdentity(runtime, input.idempotency_key), invocation));
-  host.register(goalTreeCapabilities.decideGoalTreeProposal, (runtime, [{ project_id, authority, runtime_actor_id, ...input }], invocation) => {
-    requireRuntimeProject(runtime, project_id);
+  // The decision is the person's, taken at the management door: the Host fixes who decides, and the arguments hold no Runtime
+  // either (no Runtime relays a decision at this door). The authority only points at the conversation the decision came from.
+  host.register(goalTreeCapabilities.decideGoalTreeProposal, (runtime, [input], invocation) => {
+    const { authority, ...payload } = managementPayload(runtime, input, ["audit_actor_id", "runtime_actor_id"]);
     requireLocalPerson(authority, "goal_tree_proposal.authority_source_invalid");
-    return goalAction(runtime, goalsActions.treeDecide, input, { actor_id: authority.actor_id, actor_kind: authority.actor_kind,
-      audit_actor_id: runtime_actor_id ?? undefined, user_action: { source: authority.authority_source,
-        conversation_ref: authority.conversation_ref, message_ref: authority.message_ref,
-        whole_confirmation_prompted: authority.whole_confirmation_prompted, prompted_subject_id: authority.prompted_proposal_id } }, invocation);
+    const { actor_id, actor_kind } = managementIdentity(runtime, input.idempotency_key);
+    return goalAction(runtime, goalsActions.treeDecide, payload, { actor_id, actor_kind, user_action: { source: "management",
+      conversation_ref: authority.conversation_ref, message_ref: authority.message_ref,
+      whole_confirmation_prompted: authority.whole_confirmation_prompted, prompted_subject_id: authority.prompted_proposal_id } }, invocation);
   });
   host.register(readProjectGuidanceCapability, (runtime, input, invocation) => {
     requireRuntimeProject(runtime, input.project_id);

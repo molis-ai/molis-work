@@ -1,15 +1,12 @@
-import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import path from "node:path";
 import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionGatewayHomeId } from "./action-gateway.js";
 import { runtimeActorId } from "./mcp-event-identity.js";
 import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
 import type { ProjectDeletionService } from "./project-deletion-service.js";
+import { postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
-import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
 
 /**
  * How a process that only forwards (the stdio MCP) deletes a project: the resident Host has the project's terminals and
@@ -27,39 +24,23 @@ export interface ProjectDeletionGatewayRequest {
 export class LocalProjectDeletionGatewayClient {
   private readonly origin: string;
   constructor(private readonly options: { url: string; homeDirectory: string; clientId: string; runtimeSessionId: string | null }) {
-    const url = new URL(options.url);
-    if (url.protocol !== "http:" || !["127.0.0.1", "[::1]"].includes(url.hostname) || url.username || url.password || url.search || url.hash || url.pathname !== "/") {
-      throw new ActionError("actions.transport_invalid", "系统动作连接必须是本机数字回环 HTTP 地址");
-    }
-    this.origin = url.origin;
+    this.origin = residentHostOrigin(options.url);
   }
 
   /**
-   * The resident Host's receipt, or null when no Host answers at the address: the Home has no control token yet or nothing
-   * listens, so there are no terminals or runtime to ask about and the caller deletes in its own process. A connection
-   * that breaks after the request left is not that: the answer is unknown, and asking again with the same key is safe.
+   * The resident Host's receipt, or null when no Host answers at the address (the caller then deletes in its own process:
+   * there are no terminals or runtime to ask about). A failure the Host reports is thrown with the code and message it gave.
    */
   async delete(input: ProjectDeletionGatewayRequest, signal?: AbortSignal): Promise<ProjectDeletionResult | null> {
-    let token: string;
-    try { token = (await readFile(path.join(this.options.homeDirectory, WEB_CONTROL_TOKEN_RELATIVE_PATH), "utf8")).trim(); }
-    catch { return null; }
-    const body = JSON.stringify({ ...input, home_id: actionGatewayHomeId(this.options.homeDirectory), client_id: this.options.clientId,
-      ...(this.options.runtimeSessionId === null ? {} : { runtime_session_id: this.options.runtimeSessionId }) });
-    let response: Response;
-    try {
-      response = await fetch(this.origin + PROJECT_DELETION_GATEWAY_PATH, { method: "POST", redirect: "error", signal,
-        headers: { origin: this.origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, body });
-    } catch (error) {
-      if (signal?.aborted) throw signal.reason;
-      if ((error as { cause?: { code?: string } }).cause?.code === "ECONNREFUSED") return null;
-      throw new ActionError("actions.delivery_unknown", "常驻服务的连接中断，删除结果尚未确定；用同一个幂等键再请求一次即可核对，不会重复删除");
-    }
-    let reply: Record<string, unknown>;
-    try { reply = await response.json() as Record<string, unknown>; }
-    catch { throw new ActionError("actions.delivery_unknown", "未收到完整的常驻服务响应，删除结果尚未确定；用同一个幂等键再请求一次即可核对"); }
-    if (!response.ok) throw new ActionError(typeof reply.code === "string" ? reply.code : "actions.transport_denied", typeof reply.error === "string" ? reply.error : "常驻服务拒绝了这次删除");
-    if (!isProjectDeletionResult(reply)) throw new ActionError("actions.transport_invalid", "常驻服务的删除回执无效");
-    return reply;
+    const answer = await postToResidentHost({ origin: this.origin, homeDirectory: this.options.homeDirectory, path: PROJECT_DELETION_GATEWAY_PATH, signal,
+      retryHint: "用同一个幂等键再请求一次即可核对，不会重复删除",
+      body: { ...input, home_id: actionGatewayHomeId(this.options.homeDirectory), client_id: this.options.clientId,
+        ...(this.options.runtimeSessionId === null ? {} : { runtime_session_id: this.options.runtimeSessionId }) } });
+    if (!answer) return null;
+    const { body } = answer;
+    if (!answer.ok) throw new ActionError(typeof body.code === "string" ? body.code : "actions.transport_denied", typeof body.error === "string" ? body.error : "常驻服务拒绝了这次删除");
+    if (!isProjectDeletionResult(body)) throw new ActionError("actions.transport_invalid", "常驻服务的删除回执无效");
+    return body;
   }
 }
 
@@ -89,11 +70,25 @@ export async function handleProjectDeletionGatewayHttp(request: IncomingMessage,
       actor_id: runtimeActorId(body.client_id, typeof body.runtime_session_id === "string" ? body.runtime_session_id : null) });
     sendJson(response, 200, result);
   } catch (error) {
-    const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "actions.transport_failed";
-    sendJson(response, code === "catalog.project_terminal_live" ? 409 : code === "actions.input_invalid" ? 400 : error instanceof MolisWorkProjectCatalogError ? 400 : 403,
-      { code, error: error instanceof Error ? error.message : "删除项目失败" });
+    const failure = deletionFailure(error);
+    sendJson(response, failure.status, { code: failure.code, error: error instanceof Error ? error.message : "删除项目失败" });
   }
   return true;
+}
+
+/**
+ * How the Host answers a deletion that did not happen. The failure keeps the code it has (the catalog's and the actions' codes
+ * are namespaced); one without a namespaced code, such as a file system error, is the deletion's own failure. Only the cases
+ * the caller can act on have their own status: a live terminal conflicts (409), a request that cannot be a deletion is
+ * malformed (400), a Host of another Home refuses (403); anything else went wrong inside the Host (500).
+ */
+function deletionFailure(error: unknown): { code: string; status: number } {
+  const own = error instanceof Error && "code" in error && typeof error.code === "string" && /^[a-z_]+\.[a-z_]+/.test(error.code) ? error.code : null;
+  const code = own ?? "project_deletion.failed";
+  if (code === "catalog.project_terminal_live") return { code, status: 409 };
+  if (code === "actions.home_mismatch") return { code, status: 403 };
+  if (code === "actions.input_invalid" || error instanceof MolisWorkProjectCatalogError) return { code, status: 400 };
+  return { code, status: 500 };
 }
 
 function readGatewayBody(request: IncomingMessage): Promise<Record<string, unknown>> {

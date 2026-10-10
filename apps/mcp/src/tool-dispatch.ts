@@ -1,7 +1,6 @@
-import { initializeBoardCapability, goalTreeCapabilities, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { initializeBoardCapability, goalTreeCapabilities, managementTreeAuthority, type GoalTreeDecideEntryInput } from "@molis-ai/molis-work-plugin-goals";
 import { createMcpGoalEventHandlers } from "./goal-event-commands.js";
 import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { McpPresentationErrorFactory } from "./goal-presentation.js";
 
 export interface McpToolDispatchPorts {
@@ -42,7 +41,7 @@ export async function dispatchMcpProjectTool(
         }
         const { database_path: _database, web_base_url: _url, authority, ...input } = arguments_;
         const decision = { ...input, authority: managementTreeAuthority(String(input.project_id), String(input.idempotency_key), authority) };
-        result = await client.invoke(goalTreeCapabilities.decideGoalTreeProposal, [decision as unknown as GoalTreeProposalDecideInput]);
+        result = await client.invoke(goalTreeCapabilities.decideGoalTreeProposal, [decision as unknown as GoalTreeDecideEntryInput]);
         break;
       }
       default:

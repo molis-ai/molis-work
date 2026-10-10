@@ -38,8 +38,16 @@ export type GoalTreeCheckEntryInput = Omit<GoalTreeProposalCheckInput, "actor_id
  */
 export type GoalTreeSubmitEntryInput = Omit<GoalTreeProposalSubmitInput, "actor_id" | "submitted_session_id">;
 
-/** The proposal API as the Host entries offer it: the domain API, except that checking and submitting take no identity. */
-export type GoalTreeEntryApi = Omit<GoalTreeApplicationApi, "checkGoalTreeProposal" | "submitGoalTreeProposal"> & {
+/**
+ * What the Host entry takes to decide a proposal. The person on this machine decides and no Runtime relays the decision at this
+ * door, so `runtime_actor_id` is not taken from the arguments (a Runtime's audit author comes from the call context of its own
+ * action). The `authority` points at the conversation the decision came from; the Host checks that it names the person.
+ */
+export type GoalTreeDecideEntryInput = Omit<GoalTreeProposalDecideInput, "runtime_actor_id">;
+
+/** The proposal API as the Host entries offer it: the domain API, except that checking, submitting and deciding take no identity. */
+export type GoalTreeEntryApi = Omit<GoalTreeApplicationApi, "checkGoalTreeProposal" | "submitGoalTreeProposal" | "decideGoalTreeProposal"> & {
   checkGoalTreeProposal(input: GoalTreeCheckEntryInput): GoalTreeProposalCheckResult;
   submitGoalTreeProposal(input: GoalTreeSubmitEntryInput): ReturnType<GoalTreeApplicationApi["submitGoalTreeProposal"]>;
+  decideGoalTreeProposal(input: GoalTreeDecideEntryInput): GoalTreeProposalDecisionResult;
 };

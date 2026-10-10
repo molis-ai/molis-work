@@ -27,7 +27,9 @@ init | snapshot | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 
-每条命令都要用 `--db PATH` 指明项目数据库；没有默认路径，没给（缺值、空白，或 `--db` 后紧跟另一个 `--` 旗标）就报错，不会按当前目录猜一个库（`init` 也一样，数据库在 `PATH` 处创建）。相对路径按你写的那个，相对当前目录解析。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init`、`goal-tree-propose`、`goal-tree-check`、`active-goal` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份：`goal-tree-propose` 和 `goal-tree-check` 的参数带了 `actor_id` 或 `actor_kind` 会被拒绝（`actions.input_invalid`），`goal-tree-propose` 的 `submitted_session_id` 也一样（这扇门背后没有 Runtime 会话），`active-goal` 不再读 JSON 里的 `actor_id`，旧脚本多写这个字段也不会被当成别人。
+每条命令都要用 `--db PATH` 指明项目数据库；没有默认路径，没给（缺值、空白，或 `--db` 后紧跟另一个 `--` 旗标）就报错，不会按当前目录猜一个库（`init` 也一样，数据库在 `PATH` 处创建）。相对路径按你写的那个，相对当前目录解析。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init`、`goal-tree-propose`、`goal-tree-check`、`active-goal` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份：`goal-tree-propose` 和 `goal-tree-check` 的参数带了 `actor_id` 或 `actor_kind` 会被拒绝（`actions.input_invalid`），`goal-tree-propose` 的 `submitted_session_id` 也一样（这扇门背后没有 Runtime 会话），`goal-tree-decide` 的参数带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 同样被拒绝（决定是本机这个人作的，没有 Runtime 转交；`authority` 只写 `conversation_ref`、`message_ref` 这类出处），`active-goal` 不再读 JSON 里的 `actor_id`，旧脚本多写这个字段也不会被当成别人。
+
+`molis-work demo remove --confirm` 先问这个 Home 的常驻服务：常驻服务应答时，由它的删除服务来删（项目里的终端还开着就拒绝，和设置页一样；删除记在本机这个人名下），地址取环境变量 `MOLIS_WORK_WEB_URL`，没有就是 `http://127.0.0.1:4173`。Home 里没有控制令牌、或那个地址没人应答，命令才在自己的进程里删；应答的是别的 Home 的服务、或终端还开着，命令报错退出，示例项目原样保留。`molis-work uninstall` 先停掉常驻服务，再在自己的进程里清示例项目。
 
 ## 项目结构
 

@@ -2,7 +2,7 @@
 
 [中文](NETWORK.md)
 
-Molis Work is a local-first workbench: your goals, notes and files live on your own computer. This page lists the network requests Molis Work makes **itself**: which features go online, to which site, what is sent, and what limits apply. There are 14 classes (class 0 is the model; the other 13 are not model calls).
+Molis Work is a local-first workbench: your goals, notes and files live on your own computer. This page lists the network requests Molis Work makes **itself**: which features go online, to which site, what is sent, and what limits apply. There are 13 classes (class 0 is the model; the other 12 are not model calls; the former class 6, the Casebook reference client, was deleted with Casebook, and the other numbers stay).
 
 Commands you run in the terminal panel, commands the host runs after you approve them (such as `git push`), external agents you start yourself, and external links you click are your own actions and are not covered here.
 
@@ -18,7 +18,6 @@ Commands you run in the terminal panel, commands the host runs after you approve
 | 3 | Web search (AnySearch) | `api.anysearch.com` | The search words and the page addresses to extract |
 | 4 | Pages and links you name | The addresses you give | Ordinary read requests, without your credentials |
 | 5 | Plugins made in the plugin studio | The sites the plugin declared and you approved | The plugin's own requests |
-| 6 | Casebook reference client | No product feature uses it | — |
 | 7 | Alchemist market pulse | Toolify, Watcha (观猹), GitHub | Public pages and search requests; GitHub carries a token only when you have picked one of the GitHub accounts in Service connections for it |
 | 8 | On this machine | Loopback addresses | Never leaves your computer |
 | 9 | Plugin studio build check | `registry.npmjs.org` | **Dependency package names and versions** |
@@ -76,10 +75,6 @@ All three exist so that the product still works in unusual environments. Only a 
 - **When:** you try or install a plugin made in the studio and it goes online while running.
 - **Where to:** the hosts that plugin declared and you approved.
 - **Limits:** https only, default port, no credentials in the address; every address actually connected to must be public (the placeholder address range is accepted like an ordinary network, an established development-machine decision); redirects are not followed; 15 seconds, 1 MiB response, 256 KiB request. Checks and acceptance run offline, and manual trials are read-only (GET, HEAD).
-
-### 6. Casebook reference client
-
-No product feature instantiates it; only tests do. It is a reference implementation for external Casebook consumers.
 
 ### 7. Alchemist market pulse
 

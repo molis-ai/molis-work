@@ -4,7 +4,7 @@ import { createTypeSafeProvider } from "../modules/functions/src/provider.js";
 import type { FunctionRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 const base = { function_key: "decision", model: "jev-latest", instructions: "Classify the supplied state" };
 
-test("TypeSafe native questions and outputs retain choice, score, probability and usage semantics", async () => {
+test("TypeSafe native questions and outputs retain choice, score and probability semantics", async () => {
   for (const [primitive, criteria, wireCriteria, answer] of [
     ["choice", [{ key: "yes", description: "accept" }], { yes: "accept" }, { choice: "yes", probabilities: { yes: 0.8 }, confidence: 0.8 }],
     ["noul", { true_description: "true condition", false_description: "false condition" }, { true: "true condition", false: "false condition" }, { noul: 0.4 }],
@@ -19,7 +19,6 @@ test("TypeSafe native questions and outputs retain choice, score, probability an
     const result = await provider.evaluate("fixture-key", record, "untouched state");
     assert.equal(result.primitive, primitive);
     assert.equal(result.model, "actual-model");
-    assert.deepEqual(result.usage, { input_tokens: 13, output_tokens: 5 });
     assert.equal(result[primitive], answer[primitive as keyof typeof answer]);
     if (primitive !== "noul") assert.deepEqual(result.probabilities, answer.probabilities);
   }

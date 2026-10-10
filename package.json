@@ -110,7 +110,6 @@
     "@molis-ai/molis-work-plugin-cognia": "workspace:*",
     "@molis-ai/molis-work-plugin-dataset": "workspace:*",
     "@molis-ai/molis-work-plugin-diff": "workspace:*",
-    "@molis-ai/molis-work-plugin-experiments": "workspace:*",
     "@molis-ai/molis-work-plugin-feed": "workspace:*",
     "@molis-ai/molis-work-plugin-files": "workspace:*",
     "@molis-ai/molis-work-plugin-form": "workspace:*",

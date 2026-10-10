@@ -38,23 +38,23 @@
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 355,
+      "lines": 354,
       "methods": 24
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 336,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 335,
     "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 158,
-    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 441,
-    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 327,
-    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 241,
-    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 238,
+    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 440,
+    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 326,
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 240,
+    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 237,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 401,
     "file apps/workbench/src/functions/client.ts": 1299,
-    "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 226,
-    "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 190,
-    "file apps/workbench/src/i18n/en.ts": 3368,
+    "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 224,
+    "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 188,
+    "file apps/workbench/src/i18n/en.ts": 3367,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 355,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2811,
@@ -62,7 +62,7 @@
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 1023,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 2049,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 235,
-    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 461,
+    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 460,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
     "function horizontal/agent-host/src/adapters/prologue-action-gateway.ts#prologueActionGateway": 174,
@@ -284,7 +284,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 957,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
   },
-  "testInternalImports": 994,
+  "testInternalImports": 987,
   "testImports": {
     "tests/action-before-effect.test.ts": 4,
     "tests/action-call-log.test.ts": 3,
@@ -421,9 +421,6 @@
     "tests/dataset-actions.test.ts": 2,
     "tests/document-import-providers.test.ts": 3,
     "tests/execution-lifetime.test.ts": 1,
-    "tests/experiments-actions.test.ts": 2,
-    "tests/experiments-http.test.ts": 3,
-    "tests/experiments-plugin.test.ts": 2,
     "tests/external-mcp-actions.test.ts": 7,
     "tests/external-mcp-dispatch.test.ts": 6,
     "tests/feed-assistant-context.test.ts": 1,
@@ -840,7 +837,7 @@
     "plugins/native/goals/src/proposal-capabilities.ts#type-refs": 4,
     "plugins/native/goals/src/proposal-capabilities.ts#without-action": 4
   },
-  "hostPluginFilesTotal": 34,
+  "hostPluginFilesTotal": 32,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -849,8 +846,6 @@
     "apps/local-host/src/cognia-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/dataset-actions.ts#actions": 1,
     "apps/local-host/src/dataset-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/experiments-actions.ts#actions": 1,
-    "apps/local-host/src/experiments-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/feed-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/form-actions.ts#actions": 1,
     "apps/local-host/src/form-native-plugin-http.ts#native-plugin-http": 1,
@@ -877,7 +872,7 @@
     "apps/local-host/src/workflows-actions.ts#actions": 1,
     "apps/local-host/src/workflows-native-plugin-http.ts#native-plugin-http": 1
   },
-  "registerProviderSitesTotal": 41,
+  "registerProviderSitesTotal": 40,
   "registerProviderSites": {
     "apps/local-host/src/assistant/assistant-rule-actions.ts#register-provider": 1,
     "apps/local-host/src/connector-mcp-actions.ts#register-provider": 1,
@@ -890,7 +885,7 @@
     "apps/local-host/src/placement-actions.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/catalog.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/exposed-actions.ts#register-provider": 1,
-    "apps/local-host/src/project-host.ts#register-provider": 26,
+    "apps/local-host/src/project-host.ts#register-provider": 25,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
   "hybridPluginsTotal": 17,
@@ -901,7 +896,7 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 2
   },
-  "pluginOutsideMentionsTotal": 438,
+  "pluginOutsideMentionsTotal": 425,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -910,7 +905,6 @@
     "cognia#outside-files": 14,
     "dataset#outside-files": 12,
     "diff#outside-files": 8,
-    "experiments#outside-files": 13,
     "feed#outside-files": 41,
     "files#outside-files": 11,
     "form#outside-files": 12,
@@ -1299,11 +1293,8 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 555,
+  "explicitAnyTotal": 545,
   "explicitAny": {
-    "apps/local-host/src/experiments-grok.ts": 7,
-    "apps/local-host/src/experiments-native-plugin-http.ts": 1,
-    "apps/local-host/src/experiments-process.ts": 2,
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
     "packages/contracts/src/platform/actions.ts": 2,

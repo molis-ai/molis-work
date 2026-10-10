@@ -2,7 +2,7 @@
 
 ## Installer ownership during development
 
-`pnpm build` cleans generated workspace outputs, then builds all 71 workspace packages in declared dependency order before the root entrypoints and PTY bundle. `build:migrated-packages` reuses `workspace:build`: deleted or moved sources must not leave stale JavaScript in npm/DMG artifacts. This removes generated dist only, not node_modules or user data. The Plugin CLI launcher exists in source, so a clean frozen-lockfile install followed by build makes `pnpm exec molis-work-plugin --help` available. Boundary checks cover JavaScript/TypeScript under src, tooling and bin.
+`pnpm build` cleans generated workspace outputs, then builds all 70 workspace packages in declared dependency order before the root entrypoints and PTY bundle. `build:migrated-packages` reuses `workspace:build`: deleted or moved sources must not leave stale JavaScript in npm/DMG artifacts. This removes generated dist only, not node_modules or user data. The Plugin CLI launcher exists in source, so a clean frozen-lockfile install followed by build makes `pnpm exec molis-work-plugin --help` available. Boundary checks cover JavaScript/TypeScript under src, tooling and bin.
 
 Desktop release scripts belong to `apps/desktop/tooling/`; root `pnpm desktop:*` commands are unchanged. They call Local Host's `createMolisWorkRuntimePayload` instead of running npm install against an isolated workspace:* manifest. Failed preparation preserves old resources; vendor provenance, SBOM and license assets survive both payload generation and Home installation.
 
@@ -31,14 +31,14 @@ Every command needs `--db PATH` to name the project database. There is no defaul
 
 ## Project structure
 
-> The repository is a plugin base plus many plugins in one monorepo: of 71 workspace packages, 70 are `partial` and one (contracts) is `contract-only`; the root package only assembles the product launchers and exports no code. See the [Architecture SSOT](SSOT-MATRIX.md) for status and ownership.
+> The repository is a plugin base plus many plugins in one monorepo: of 70 workspace packages, 69 are `partial` and one (contracts) is `contract-only`; the root package only assembles the product launchers and exports no code. See the [Architecture SSOT](SSOT-MATRIX.md) for status and ownership.
 
 ```text
 apps/                        Six product-entry and composition-root boundaries
 packages/                    Ten foundation packages (plus the root server/); contracts exposes 59 public subpaths
 modules/                     Thirteen business-fact owners
 horizontal/                  Eight packages: five horizontal runtime services and three platform product services (Memory, Placement, Search)
-plugins/                     26 native plugins and six official integration plugins
+plugins/                     25 native plugins and six official integration plugins
 packages/plugin-runtime/     FD3 local Plugin lifecycle reference implementation
 packages/plugin-sdk/         FD3 Manifest and Integration Plugin definition API
 plugins/official-integrations/
@@ -55,7 +55,7 @@ modules/governance-collaboration/
                              Current user decisions, finite structure proposals, provenance, and history
 tooling/plugin-cli/          Plugin CLI boundary; DV3 implements the real developer tool
 scripts/workspace-packages.mjs
-                             Inventory (71 packages), manifest, entrypoint, README, and Contract wiring check
+                             Inventory (70 packages), manifest, entrypoint, README, and Contract wiring check
 apps/desktop/launchers/mcp/server.ts            MCP launcher; protocol in apps/mcp, composition in Local Host
 apps/desktop/launchers/web/server.ts            Web launcher; Host owns HTTP/resources, Workbench/Native Plugins own pages
 apps/desktop/               Desktop platform and native adapters; old src/desktop removed
@@ -97,7 +97,7 @@ specs/molis-work-architecture-reorganization/spec.md
 
 ### Development rules during the reorganization
 
-- Root `pnpm build` builds all 71 workspace packages and then compiles the launchers; `workspace:*` commands run only the workspace packages, and `*:all` commands run both.
+- Root `pnpm build` builds all 70 workspace packages and then compiles the launchers; `workspace:*` commands run only the workspace packages, and `*:all` commands run both.
 - Cross-owner calls use public entrypoints only; deep imports, cross-Module Store access, and App database writes are forbidden.
 - `contract-only` means a real boundary without a fake provider, store, UI entry, or success response.
 - Every migration slice updates its package README and the affected Module/Service document.

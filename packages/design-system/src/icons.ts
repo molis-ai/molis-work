@@ -265,7 +265,7 @@ export const PLUGIN_ICON = {
   home: "home", goals: "target", sessions: "terminal", inbox: "inbox", feed: "rss", schedule: "timer",
   workflows: "workflow", pages: "note", form: "clipboard", dataset: "database", ppt: "presentation",
   artifacts: "package", images: "image", jelly: "calendar", cognia: "book", shelf: "library", lingguang: "idea",
-  coding: "code", characters: "user", experiments: "flask", alchemist: "zap", "plugin-builder": "wand", market: "grid",
+  coding: "code", characters: "user", alchemist: "zap", "plugin-builder": "wand", market: "grid",
   files: "folder-tree", git: "git-branch", diff: "git-compare", "text-stats": "hash",
 } as const satisfies Record<string, MolisWorkIcon>;
 

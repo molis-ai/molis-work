@@ -1,6 +1,6 @@
 # 逐插件的实现、契约、接入与体验结论（W2-18，交付第 10 项）
 
-状态：结论（2026-10-09，main `11878059`）；本文只读代码、不改代码。26 个内置插件和 6 个官方接入逐个对着代码核过，核对用到的证据在 §0 写明，能复现的方法在 §9。
+状态：结论（2026-10-09，main `11878059`）；本文只读代码、不改代码。2026-10-10 用户定删除实验插件（与 Casebook），它的那一行与 §4.19 标了「已删」，下文的计数仍是 10-09 的。26 个内置插件和 6 个官方接入逐个对着代码核过，核对用到的证据在 §0 写明，能复现的方法在 §9。
 
 任务要求：`docs/prompts/repository-anti-corruption.md` 交付第 10 项（逐插件的实现、契约、接入与体验结论），以及 `docs/prompts/repository-systematic-review.md` §6（用户任务闭环；占位与半实现；生命周期；空数据、首次使用、无模型；横向比较；组合场景；平台接点）。路线上的位置见 [roadmap-2026-10-07.md](roadmap-2026-10-07.md) 的 W2-18 与「覆盖缺口」；进度与决定在 [spec.md](spec.md)。同一片的另外两份产出：[AI 入口清单](ai-entry-inventory.md)、[前端动线走查](frontend-flow-walk.md)（截图编号写作「截图 NN」，指那份文档里的图）。包级的结构审查（职责、变化原因、放错位置）是 §4.4 的另一片（W1-18 后续），不在这里。**§6 的十条检查并没有全部逐插件做完**：哪些做了、哪些只做了一部分、哪些没做，逐条列在 §0.1；没做的写在 §8「没有核的」，并交给 [spec.md](spec.md) §10 的遗留。
 
@@ -75,7 +75,7 @@
 | Cognia（`cognia`） | 通 | 通 | 通 | 通：横幅 + 打开模型设置 | 部分 | 部分（1 格）§4.16 |
 | Shelf（`shelf`） | 通 | 部分：兼容入口 `shelf.jobs.run`、首次自动放示例 | 通 | 通：`shelf.no_model` | 通：材料交给 Coding | 部分（1 格）§4.17 |
 | Characters（`characters`） | 通 | 通 | 部分：要并进宿主设置（决定 #26） | 通 | 部分 | 部分（2 格）§4.18 |
-| 实验（`experiments`） | 部分：本地 grok/laya 要自己配 | 通 | 部分：库没有版本，卸载不清 | 通 | 缺：没有别的插件消费它的结果（个人研究工具，按设计） | 部分（3 格）§4.19 |
+| 实验（`experiments`，2026-10-10 已删） | 部分：本地 grok/laya 要自己配 | 通 | 部分：库没有版本，卸载不清 | 通 | 缺：没有别的插件消费它的结果（个人研究工具，按设计） | 部分（3 格）§4.19 |
 | 炼金术士（`alchemist`） | 通 | 部分：死的测试用运行时放在 `src`、README 数字过期 | 通 | 部分：失败后卡片露出原码 | 部分 | 部分（3 格）§4.20 |
 | Coding（`coding`） | 通 | 通 | 通 | 通 | 通 | 通 §4.21 |
 | Files（`files`） | 通 | 通 | 通 | 通：说明要绑定工作区 | 通 | 通 §4.22 |
@@ -307,7 +307,7 @@
 - **契约**：E-2。
 - **测试**：`tests/characters-actions.test.ts`、`characters-import-http.test.ts`、`characters-publication-http.test.ts`。
 
-### 4.19 实验（`plugins/native/experiments`）
+### 4.19 实验（`plugins/native/experiments`，2026-10-10 已删；下面是删除前 2026-10-09 的结论）
 
 - **定位**：构建期装配、个人级；Manifest 没有声明动作，页面走私有路由 `/api/plugins/experiments/…`，目录里的 15 个动作由宿主注册（`apps/local-host/src/experiments-actions.ts`，AGENTS.md 冻结名单里的旧路径插件）。
 - **闭环（部分）**：新建实验（判断任务、材料、参试者）→ 后台运行（`experiments.run`，metered）→ 比较判断与成本；参试者可以是 Jev（经 Prologue）、本机 `grok` 命令行、`laya` Python 检查点，后两者要自己配环境（AI 清单 EX-1、EX-2）。

@@ -39,9 +39,6 @@ coverage/
 .impeccable/config.local.json
 .impeccable/questions/
 
-# Isolated local experiment preview, Python environment and private results
-.experiments-runtime/
-
 # Local test homes, previews and misplaced homes from unexpanded paths
 .tmp/
 /${userHome}/

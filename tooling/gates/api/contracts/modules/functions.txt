@@ -258,10 +258,6 @@ export declare const SYSTEM_INBOX_NEXT_FUNCTION_KEY = "system_pick_inbox_next";
 export type ScoreCriteria = readonly string[];
 
 export interface TypeSafeEvaluateResult {
-    readonly usage?: {
-        readonly input_tokens: number | null;
-        readonly output_tokens: number | null;
-    };
     readonly primitive: FunctionsPrimitive;
     readonly choice: string | null;
     readonly noul: number | null;

@@ -85,7 +85,7 @@ const RAIL_TOOL_GROUPS: ReadonlyArray<readonly [label: string, ids: readonly str
   ["推进", ["schedule", "workflows"]],
   ["写与做", ["pages", "form", "dataset", "ppt", "images", "artifacts"]],
   ["个人", ["todo", "jelly", "cognia", "shelf"]],
-  ["研究", ["experiments", "alchemist"]],
+  ["研究", ["alchemist"]],
   ["编码", ["coding"]],
 ];
 const RAIL_HOME_HINT = "今天的工作、当天的事件和回到手边的入口。";

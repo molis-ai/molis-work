@@ -29,8 +29,8 @@ const CONNECTOR_DIRECTORY_BASE: readonly ConnectorDirectoryEntry[] = [
   },
   {
     connector_id: "typesafe", title: "TypeSafe", availability: "live", auth_kind: "token", group_id: "work",
-    summary: "Functions 和 Experiments 共用这里保存的账号连接。",
-    token_label: "TypeSafe API Key", capabilities: capabilities("Functions", "Experiments", { inbound: true, outbound: true }),
+    summary: "Functions 使用这里保存的账号连接。",
+    token_label: "TypeSafe API Key", capabilities: capabilities("Functions 调用", "Functions 账号选择", { inbound: true, outbound: true }),
   },
   {
     connector_id: "image-api", title: "图像模型 API", availability: "live", auth_kind: "token", group_id: "design",

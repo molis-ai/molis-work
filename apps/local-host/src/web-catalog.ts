@@ -44,7 +44,6 @@ import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-w
 import { findPluginSettingsNavItem, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
 import { SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
-import { EXPERIMENTS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-experiments";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
 import { CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-characters";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest, listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
@@ -151,7 +150,6 @@ export async function handleLocalCatalogWebRequest(
     bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS, ...transport })))) return;
   if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, {
     shelf: { actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS })) },
-    experiments: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [...EXPERIMENTS_ACTION_PERMISSIONS] })),
   })) return;
   if (await handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken)) return;
   if (request.method === "GET" && url.pathname === "/desktop/capsule") {

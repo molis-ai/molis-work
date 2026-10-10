@@ -34,7 +34,7 @@ const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map([
 
 /** Frozen on 2026-09-30. Remove an id here once its plugin is started by the Runtime. */
 const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
-  "alchemist", "artifacts", "cognia", "dataset", "experiments", "feed", "form", "goals", "images",
+  "alchemist", "artifacts", "cognia", "dataset", "feed", "form", "goals", "images",
   "inbox", "jelly", "lingguang", "pages", "plugin-builder", "ppt", "schedule", "sessions", "workflows",
   // PR #98 (system assistant) adds Todo on the build-time path; listed so it can land, then migrate.
   "todo",
@@ -42,7 +42,7 @@ const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
 
 /** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today, plus Todo from PR #98. */
 const NATIVE_PLUGIN_HTTP_FILES: ReadonlySet<string> = new Set([
-  "alchemist", "artifact", "cognia", "dataset", "experiments", "feed", "form", "images", "inbox", "jelly",
+  "alchemist", "artifact", "cognia", "dataset", "feed", "form", "images", "inbox", "jelly",
   "lingguang", "pages", "personal", "ppt", "schedule", "shelf", "todo", "workflows",
 ]);
 

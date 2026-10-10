@@ -81,7 +81,6 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderInboxNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
   renderScheduleNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
   renderShelfNativePluginSurface(surface: "directory" | "workbench"): string;
-  renderExperimentsContribution(): string;
   renderImagesNativePluginSurface(): string;
   renderPagesNativePluginSurface(surface: "directory" | "workbench"): string;
   renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
@@ -113,7 +112,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderTodoNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderTodoNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -266,7 +265,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           todo: "",
           alchemist: "",
           workflows: "",
-          experiments: "",
           pages: "",
           form: "",
           dataset: "",
@@ -291,7 +289,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderInboxNativePluginSurface(view, "workbench")}
             ${defer(renderScheduleNativePluginSurface(view, "workbench"))}
             ${defer(renderShelfNativePluginSurface("workbench"))}
-            ${defer(renderExperimentsContribution())}
             ${defer(renderImagesNativePluginSurface())}
             ${defer(renderPagesNativePluginSurface("workbench"))}
             ${defer(renderFormNativePluginSurface("workbench"))}

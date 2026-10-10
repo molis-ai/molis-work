@@ -54,11 +54,10 @@
 | 搜索索引（可重建的派生库） | `search/search.db` | 2 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
 | 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 2 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出 |
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 2 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 读成空，所有 MCP 动作授权失效 |
-| 实验插件私有库 | `plugins/experiments/private.sqlite` | 1 | `user_version` | `apps/local-host/src/experiments-private-store.ts#EXPERIMENTS_PRIVATE_BASELINE` | 拒绝 |
 | 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝 |
 
 - 「拒绝」是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本，版本相同照常打开，其他一律报错，带路径、找到的版本和期望的版本，不就地升级。目录库与会话库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`、`modules/private-work-context/src/session-schema.ts`）。
-- 实验插件私有库和炼金术士搜索缓存原来没有版本（`CREATE TABLE IF NOT EXISTS`，旧库和新库没有区别），路线图 W2-05（用户 2026-10-08 决定 #21）给它们各一份基线，版本 1。新建的文件带版本；已经存在的旧文件有表没有版本，新构建拒绝打开，所以真实 Home 的实验库要先盖版本 1：一次性维护 `tests/fixtures/store-maintenance-experiments-private-v1.sql`（炼金术士搜索库对应 `store-maintenance-alchemist-search-v1.sql`，对每个 `search.sqlite` 各跑一次；2026-10-08 的真实 Home 里没有这种文件），每份一个事务，库不是未盖版本且与基线逐项一致就整体回滚，只写 `PRAGMA user_version = 1`、不动任何表和行。窗口里用同目录的 `store-maintenance-run.sh` 跑（先演练再 `--apply`，会先整份备份），`store-maintenance-verify-open.mjs` 用新构建打开盖过的拷贝；逐步命令与演练记录见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护五。真实 Home 已于 2026-10-09 做完（维护五：`plugins/experiments/private.sqlite` 盖到 1，备份 `~/molis-work-backups/2026-10-09-before-maint5-r2`），这两份 SQL、两个脚本和演练用例 `tests/store-version-maintenance.test.ts` 随后删除；别的 Home 若还有未盖版本的文件，从 Git 历史取（`git show bccdcee17:tests/fixtures/store-maintenance-run.sh` 等）。「无」只留给没有任何版本标记的库，现在这张表里没有；表里的行由 `verify-release-versions.mjs` 对着基线常量核对。
+- （实验插件已在 2026-10-10 删除，它的私有库不在上表里，Home 里残留的目录由第 4.3a 节的维护六移出；下面是维护五当时的写法，作为历史保留。）实验插件私有库和炼金术士搜索缓存原来没有版本（`CREATE TABLE IF NOT EXISTS`，旧库和新库没有区别），路线图 W2-05（用户 2026-10-08 决定 #21）给它们各一份基线，版本 1。新建的文件带版本；已经存在的旧文件有表没有版本，新构建拒绝打开，所以真实 Home 的实验库要先盖版本 1：一次性维护 `tests/fixtures/store-maintenance-experiments-private-v1.sql`（炼金术士搜索库对应 `store-maintenance-alchemist-search-v1.sql`，对每个 `search.sqlite` 各跑一次；2026-10-08 的真实 Home 里没有这种文件），每份一个事务，库不是未盖版本且与基线逐项一致就整体回滚，只写 `PRAGMA user_version = 1`、不动任何表和行。窗口里用同目录的 `store-maintenance-run.sh` 跑（先演练再 `--apply`，会先整份备份），`store-maintenance-verify-open.mjs` 用新构建打开盖过的拷贝；逐步命令与演练记录见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护五。真实 Home 已于 2026-10-09 做完（维护五：`plugins/experiments/private.sqlite` 盖到 1，备份 `~/molis-work-backups/2026-10-09-before-maint5-r2`），这两份 SQL、两个脚本和演练用例 `tests/store-version-maintenance.test.ts` 随后删除；别的 Home 若还有未盖版本的文件，从 Git 历史取（`git show bccdcee17:tests/fixtures/store-maintenance-run.sh` 等）。「无」只留给没有任何版本标记的库，现在这张表里没有；表里的行由 `verify-release-versions.mjs` 对着基线常量核对。
 - 每次发布把这张表和上个版本的对比写进发布说明的「兼容与升级」，标出变了的行。上个版本没有这张表时，用 `git show <上个 tag>:<定义处文件>` 逐行取旧值。
 
 ## 4. 真实 Home 的处理
@@ -88,6 +87,17 @@
 - [ ] 副本上逐库核对：结构与当前基线逐项相同（表、列顺序、索引、外键、CHECK，`packages/storage/src/sqlite-baseline.ts` 的 `describeSqliteSchema`），版本等于第 3 节的数，`PRAGMA integrity_check` 为 `ok`，`PRAGMA foreign_key_check` 没有行，行数与搬之前一致。
 - [ ] 演练通过后，在真库上按同一份流程做：被换下的原库不删，也不留在 Home 里，搬到 `~/molis-work-backups` 下（用户 2026-10-08 的决定，「真实 Home 的残留物」一行），建议目录名 `<日期>-replaced-by-<事项>/`、权限 700（维护三留下的 `maintenance-3-replaced/` 就是 700）；2026-10-07 维护三留在 Home 里的 `~/.molis-work/maintenance-3-replaced/` 在 4.5 的一次性清理里按同一规则搬走。密钥文件（如 `feed/secrets.json`）不读值：要改就只按键名改，原文件先原样备份（2026-10-07 的做法，`specs/repository-anti-corruption/spec.md` §1）。
 - [ ] 维护流程和演练记录（日期、副本、每库行数与核对结果）写进发布说明的「兼容与升级」或对应 spec。流程里用到的一次性脚本要么入库，要么在记录里写清它的输入输出，不让「怎么做的」只留在会话里。
+
+### 4.3a 删掉的插件留下的数据（维护六）
+
+插件从产品里删掉后，已有 Home 里它的文件和别处的行不会自己消失，新构建也不再读它们。发布前看 [CHANGELOG.md](CHANGELOG.md)「升级须知」里有没有「插件删除」的条目；有，就在装新构建（第 4.4 节）之前按条目做。流程同 4.3：先在备份的拷贝上数、演练，再经用户同意在真库上做；移出的东西搬到 `~/molis-work-backups`（目录权限 700），不直接删。
+
+实验插件（`io.molis.work.experiments`，2026-10-10 用户决定删除；决定要求「删掉的 PR 合入后立刻维护」）：
+
+- [ ] 把 `{home}/plugins/experiments/`（`private.sqlite` 与 `-wal`、`-shm`）整个搬到 `~/molis-work-backups/<日期>-removed-experiments/`；`{home}/plugins/` 空了就一并移除。记下搬走的文件和大小。新构建不会重建这个目录。
+- [ ] 在备份拷贝上只读数它留在别处的残留，把数字报给用户，经同意再清（决定里点名的只有上一项的目录，下面是同一个插件留下的东西）：`connectors/connectors.db` 的 `connector_bindings` 里 `scope_id = 'home' AND plugin_id = 'experiments' AND slot_id = 'typesafe'`（连接本身留着，Functions 在用）；`projects/catalog.db` 的 `project_plugins`、`project_plugin_exclusions` 里 `plugin_id = 'experiments'`（项目隐藏过它）；`config/mcp-tools.json` 里属于实验提供方的 `action_grants`（`experiments.list`、`experiments.results`、`experiments.search.entries`、`experiments.subject.read` 对 MCP 可见过）；`workflows/workflows.db` 里动作是 `experiments.*` 的步骤（只报告，不改写，那个步骤以后会解析失败）；助理库与放置库（`placement/placement.db` 的 `context_edges`）里主体类型是 `experiment` 的关联，以及助理能力设置里点名 `experiments.*` 的项；`search/search.db` 是派生库，若其中来源是实验的条目没有随启动被丢掉，就重建它。`logs/action-calls.jsonl` 里的旧行是历史，留着。
+- [ ] 清完以后在拷贝上用新构建打开一次，工作台和插件切换器里没有「实验」；浏览器里存过的 `experiments` 页签或固定项不会让工作台报错（在隔离 Home 里验过：工作台正常打开，旧页签留在标签栏里，关掉即可；页签与固定项存在各浏览器的 `localStorage` 里，不属于 Home，不用处理）。
+- [ ] 第 4.5 节核对 `config/mcp-tools.json` 的授权条数时，期望值要扣掉被清掉的实验授权条数。
 
 ### 4.4 装新构建
 

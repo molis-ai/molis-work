@@ -27,9 +27,9 @@ Molis Work 是本地优先的插件基座加多插件工作平台。
 <!-- 2026-10-07 按代码现状改写（用户更正：产品是插件基座加多插件，Goals 是其中一个内置插件）。只写已从代码核实的事实。 -->
 
 - **一个 Home，一个常驻宿主。** `~/.molis-work` 下只有一个执行进程，管项目数据库、插件、动作目录和 AI 运行时。浏览器和 macOS App 打开同一个 loopback 工作台；CLI 与 MCP 入口不自己执行，转发给常驻宿主。
-- **项目按插件组织。** 内置 26 个，以 `apps/workbench/src/plugin-catalog.ts` 为准，分两类：
+- **项目按插件组织。** 内置 25 个，以 `apps/workbench/src/plugin-catalog.ts` 为准，分两类：
   - 项目插件 11 个，在项目里添加或移除：Goals（每个项目都带、工作台里不能移除，拥有 Goal 的事实）、Sessions（回到会话）、Inbox、Feed、Schedule、成果（Artifacts），以及 Coding 一族（Coding、Files、Git、Diff、Text stats）。
-  - 个人插件 15 个，对每个项目都开着，项目可以隐藏：Cognia、插件创作工作台、图片、Jelly、实验、Shelf、灵光、待办、角色、Pages、Forms、Dataset、PPT、炼金术士、工作流程。
+  - 个人插件 14 个，对每个项目都开着，项目可以隐藏：Cognia、插件创作工作台、图片、Jelly、Shelf、灵光、待办、角色、Pages、Forms、Dataset、PPT、炼金术士、工作流程。
 - **每项事实一个主人。** Goal、关系和工作状态归 Goals，可信用户决定归 Governance，Session 与交接归 Sessions，来源配置归来源（Sources）、信息流条目归 Feed、需要用户介入的事项归 Inbox，固定版本的成果归成果库；个人插件各管自己的内容（日历与笔记归 Jelly，待办归待办插件，知识库归 Cognia，文档归 Pages，演示稿归 PPT，等等），内容放在 Home 级的库里。其他插件不复制这些事实；完整归属与成熟度以 `docs/SSOT-MATRIX.md` 为准。
 - **能力注册一次，到处可用。** 插件把查询和操作登记到共同动作目录；页面、工作流、Agent 和外部 MCP 客户端从同一目录发现并调用，权限按调用方和每个 MCP 客户端的授予裁决，执行过的调用留下记录。被取消或撤权的调用不再产生任何写入。
 - **AI 经同一运行时。** 文字、结构化判断、图片与 Agent 运行都经 Home 的 Prologue Runtime；模型、凭据与预算在同一处设置。Agent 的副作用进入审查队列，由人决定。

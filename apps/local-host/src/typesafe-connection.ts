@@ -1,7 +1,7 @@
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ConnectorConnectionError, withConnectorConnections } from "./connector-connection-store.js";
 
-/** The TypeSafe connection is bound once per Home, under the Functions plugin; every caller reads that one binding. */
+/** The binding is stored once per Home under the plugin-slot id `functions`, which the judgment-rules service (modules/functions) reads; every caller uses that one binding. */
 const CONSUMER = "functions";
 
 export function selectedTypeSafeConnection(home: string) {
@@ -17,7 +17,7 @@ export function unbindTypeSafeConnection(home: string): void {
   withConnectorConnections(home, (store) => store.unbind("home", CONSUMER, "typesafe"));
 }
 
-/** The key of the TypeSafe connection bound for Functions; null when none is bound or it is unusable. */
+/** The key of the TypeSafe connection bound for the judgment-rules service; null when none is bound or it is unusable. */
 export function typeSafeCredential(home: string): string | null {
   const selected = selectedTypeSafeConnection(home);
   if (!selected) return null;

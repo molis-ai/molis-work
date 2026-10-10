@@ -6,15 +6,24 @@ import { configuredModelChoices } from "./configured-models.js";
 import { hostTextGeneration, type HostTextOptions } from "./host-complete-text.js";
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 
+/**
+ * The models Alchemist can run in this Home, read from metadata without decrypting a credential. The port offers exactly these
+ * (`listModels`) and generates only with one of them, and the Host's availability answer (`AlchemistHostService`) is whether
+ * there is one, so "can Alchemist run a model now" has one answer.
+ */
+export function alchemistModelChoices(homeDirectory: string) {
+  return configuredModelChoices(homeDirectory).map(model => ({
+    ...model, id: encodeURIComponent(model.provider_id) + "/" + encodeURIComponent(model.model_id),
+  }));
+}
+
 /** Business validation and correction stay in Alchemist; model binding is shared with other Host consumers. */
 export function createAlchemistProloguePort(options: {
   homeDirectory: string;
   search: AlchemistAiPort["search"];
   resolveInference?: HostTextOptions["resolveInference"];
 }): AlchemistAiPort {
-  const choices = () => configuredModelChoices(options.homeDirectory).map(model => ({
-    ...model, id: encodeURIComponent(model.provider_id) + "/" + encodeURIComponent(model.model_id),
-  }));
+  const choices = () => alchemistModelChoices(options.homeDirectory);
   return {
     async listModels() {
       return choices().map(model => ({ id: model.id, label: model.label, runtimeLabel: "Prologue", costVisibility: "unobservable" as const }));

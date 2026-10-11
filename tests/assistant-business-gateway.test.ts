@@ -11,10 +11,9 @@ import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { managementGoals } from "./goal-management-caller.js";
 import { watchSettlements } from "./fixtures/settlements.js";
-import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
+import { AssistantStore, type StoredWork } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/src/assistant/assistant-authority.js";
-import type { StoredWork } from "../apps/local-host/src/assistant/assistant-store.js";
 import { gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/src/adapters/prologue-action-gateway.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {

@@ -5,7 +5,7 @@ import type {
   PluginManifest,
   PluginRuntimeApi,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { comparePluginVersions } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 
 import { buildEventContract, type PluginEventContract } from "./event-contract.js";
 import { pluginManifestDigest } from "./identity.js";
@@ -35,12 +35,13 @@ export interface PluginSupervisorEntry {
   /** Latest Host-provided definition; kept as the manual upgrade candidate. */
   definition: PluginDefinition;
   deployment?: PluginDeployment;
-  /** Defaults to every required permission the Manifest declares. */
+  /** Defaults to every required permission the Manifest declares. A `bundled` entry does not use it: it holds every permission the Manifest declares. */
   grants?: string[];
   /**
    * Ships with the Host: on start the install record is moved onto this build whatever it holds (a higher or a lower version,
-   * or the same version with another Manifest digest), and no stored release is restored for it. Every other entry keeps the
-   * rules that need a person's confirmation or a declared upgrade source (docs/releases/POLICY.md section 7).
+   * or the same version with another Manifest digest, or this build with fewer permissions), it holds every permission the
+   * Manifest declares whatever `grants` says, and no stored release is restored for it. Every other entry keeps the rules that
+   * need a person's confirmation or a declared upgrade source (docs/releases/POLICY.md section 7).
    */
   bundled?: boolean;
   /** Trusted Host adapter for retaining and restoring this Native factory. */

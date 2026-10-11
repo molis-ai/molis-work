@@ -1,6 +1,7 @@
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { handlePagesNativePluginHttp } from "../apps/local-host/src/pages-native-plugin-http.js";
 import type { PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
@@ -29,7 +30,7 @@ import {
 import { GoalProjectApplication } from "../apps/local-host/src/goal-project-application.js";
 import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
 import { MolisWorkV1Error as ContractsError } from "@molis-ai/molis-work-contracts/platform/errors";
-import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
 import { FunctionsError, openFunctionsStore } from "@molis-ai/molis-work-module-functions";
@@ -504,7 +505,7 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async () => {
     const host = new MolisWorkLocalHost({ homeDirectory: home });
     const caller = { actor_id: "runtime:codex", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
     const views = await host.inspectActions(caller, molisWorkHostProjectReference({ projectId: project.project_id, databasePath }));
-    const createName = hostActionToolName(pagesActions.create), promoteName = hostActionToolName(pagesActions.promote);
+    const createName = molisWorkActionToolName(pagesActions.create), promoteName = molisWorkActionToolName(pagesActions.promote);
     for (const action of [pagesActions.create, pagesActions.promote]) {
       const view = views.find(view => view.capability_id === action.capability_id)!;
       await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, caller.project_id, view, true));

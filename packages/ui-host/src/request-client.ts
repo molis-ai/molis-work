@@ -119,9 +119,12 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
 /**
  * What a person sees of a failure, and the button that copies its diagnostic ID. The ID is the first eight characters of the
  * call's ID (the Host's `shortCallId`); the button carries the whole ID, which is what the diagnostics page looks up.
- * A toast with an ID stays about eight seconds and is held while it is pointed at or has focus; one timer per target. A
- * refused copy shows the whole ID on the button, so it can be copied by hand. The click handler listens while the event goes
- * down (capture), so a dialog or panel that stops a click on its way up cannot take the button away.
+ * A toast with an ID stays about eight seconds and is held while it is pointed at or has focus; one timer per target. The
+ * hold does not wait for a `focusout` from a node that is removed (an engine may send none, and the desktop shell's WebKit
+ * is one that might not): the toast holds only its text and its button, so putting a new message on it drops the focus hold,
+ * and a message with no button, which takes no pointer, drops the pointer hold. A refused copy shows the whole ID on the
+ * button, so it can be copied by hand. The click handler listens while the event goes down (capture), so a dialog or panel
+ * that stops a click on its way up cannot take the button away.
  */
 export function createUiFailureView(ports: UiFailureViewPorts): UiFailureView & { install(doc: UiViewDocument): void } {
   const named = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
@@ -173,8 +176,10 @@ export function createUiFailureView(ports: UiFailureViewPorts): UiFailureView & 
   };
   const toast = (target: UiToastTarget, error: unknown, fallback?: string, options?: UiToastOptions): void => {
     const state = toasts.get(target) ?? watch(target);
+    state.focused = false;
     state.button = place(target, error, fallback);
     state.pausable = state.button !== null;
+    if (!state.pausable) state.pointed = false;
     state.live = true;
     state.ms = state.pausable ? 8000 : (options?.ms ?? 2600);
     target.classList.add("is-error");

@@ -231,7 +231,7 @@ class FakeNode {
   readonly listeners = new Map<string, Array<() => void>>();
   readonly classList = { add: (name: string) => { this.classes.add(name); }, remove: (name: string) => { this.classes.delete(name); } };
   get textContent(): string { return this.own + this.children.map(child => child.textContent).join(""); }
-  set textContent(value: string | null) { this.own = value ?? ""; this.children = []; }
+  set textContent(value: string | null) { this.own = value ?? ""; for (const child of this.children) child.parent = null; this.children = []; }
   append(node: FakeNode) { node.parent = this; this.children.push(node); }
   remove() { if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null; }
   setAttribute(name: string, value: string) { this.attributes.set(name, value); }
@@ -380,6 +380,45 @@ test("toast(): an error without an ID keeps the page's own time and is never hel
   assert.ok(toast.classes.has("is-visible"), "without a time from the page, the default is a little longer");
   clock.tick(200);
   assert.ok(!toast.classes.has("is-visible"));
+});
+
+test("toast(): a focus hold ends with the focused button even when the engine sends no focusout for a removed node", () => {
+  // FakeNode, like Firefox and WebKit, sends no focusout when a node that has focus is removed (a new message replaces the
+  // toast's button). The next toast with an ID must still go away by itself.
+  const { ports, clock } = viewPorts();
+  const view = createUiFailureView(ports);
+  const toast = new FakeNode();
+  view.toast(toast, failureWithId("第一次"), "兜底");
+  const first = toast.button!;
+  toast.fire("focusin");
+  clock.tick(60_000);
+  assert.ok(toast.classes.has("is-visible"), "focus on the button holds the toast");
+  view.toast(toast, failureWithId("第二次"), "兜底");
+  assert.notEqual(toast.button, first, "the old button is gone, and with it the focus");
+  assert.equal(first.parent, null);
+  clock.tick(7900);
+  assert.ok(toast.classes.has("is-visible"), "the new message gets its full eight seconds");
+  clock.tick(200);
+  assert.ok(!toast.classes.has("is-visible"), "and is then dismissed, not held by a focus that is no longer there");
+  assert.equal(toast.children.length, 0);
+});
+
+test("toast(): a pointer hold ends when the toast stops taking the pointer, and does not hold the next toast", () => {
+  const { ports, clock } = viewPorts();
+  const view = createUiFailureView(ports);
+  const toast = new FakeNode();
+  view.toast(toast, failureWithId("第一次"), "兜底");
+  toast.fire("mouseenter");
+  clock.tick(60_000);
+  assert.ok(toast.classes.has("is-visible"), "a pointer on it holds it");
+  // A message without a button turns pointer events off; the engine sends no mouseleave for that.
+  view.toast(toast, new Error("没有保存"), "兜底", { ms: 2000 });
+  assert.equal(toast.style.pointerEvents, "");
+  clock.tick(2100);
+  assert.ok(!toast.classes.has("is-visible"));
+  view.toast(toast, failureWithId("第二次"), "兜底");
+  clock.tick(8100);
+  assert.ok(!toast.classes.has("is-visible"), "the pointer that left long ago does not hold the new toast");
 });
 
 test("toast(): each target has one timer, so a later message restarts the time instead of being cut short by the earlier one", () => {

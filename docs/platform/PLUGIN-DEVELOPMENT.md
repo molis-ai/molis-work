@@ -142,6 +142,18 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 
 当前范围：Home、Inbox、Feed 的绑定与真实触发已进入共同场景；工作流交接保留原调用者并按交付键幂等。规则编辑器与 Agent 的可选能力都从动作目录派生；Manifest 不再有 `behaviors`、`function_scenes`、`judgment_subjects` 或 `mcp_exports`，对外只有按客户端授权的动作工具。
 
+## 错误：码、kind 与状态
+
+一个错误是一个码、一句消息，可选一个 kind 和 details，用 `ActionError` 抛出（从 SDK 导出）。
+
+- **码**是 `<主人>.<原因>`，主人的名字开头：Todo 的是 `todo.not_found`、`todo.conflict`。`actions.` 是平台自己的，插件不能用来声明自己的码；一个码只属于一个主人，不借别人的开头。码是小写单词用点连起来，需要成组时主人后面再接一段（`goals.event.version_conflict`）。
+- **kind** 说这是哪一种失败，状态只由它推出：`invalid` 400、`forbidden` 403、`not_found` 404、`conflict` 409、`too_large` 413、`rate_limited` 429、`cancelled` 499、`internal` 500、`upstream` 502、`unavailable` 503、`timeout` 504。插件不写状态表，路由里也不要为某个码特判状态。
+- **声明**：插件用 `defineErrorCodes(prefix, { 原因: kind })` 把自己的码一次声明好，之后抛 `notesErrors.not_found("找不到这条笔记")`；需要带给调用者的数据放第二个参数 `details`，这是主人数据唯一的位置。声明时检查前缀写法合规且不是 `actions`、原因是单词、kind 是已知的，也不允许重新声明平台已有的码；哪个包可以用哪个主人名，由之后的错误码主人表核对（W3-02 的门禁片，现在还没有，先按「主人名就是你的插件 id」写）。
+- **平台的码**（`actions.missing`、`actions.plugin_disabled`、`actions.scope_mismatch` 等）在合同的 `ACTION_ERROR_KINDS` 里一码一行，已经有 kind，直接 `new ActionError("actions.missing", "…")`。
+- **没有 kind 的错误**：带我们格式的码（`<主人>.<原因>`）但没人给 kind，按调用者的错误处理，400；没有码、码不是我们的格式（例如系统错误码 `ENOENT`），或根本不是 Error，按内部失败处理，500，响应体的码是 `actions.execution_failed`。调用者写错了才会遇到的情形要先给它一个自己的码（kind `invalid`），别靠 500。
+- **响应体**统一是 `{ error, code, details? }`；`error` 是消息。Host 的入口默认就这样答：插件的路由表不用写 `mapError`，让错误抛出来即可（还没迁的内置插件仍带自己的映射函数，逐个去掉）。读不出请求体也是同样的错误：`actions.input_invalid`（400）、`actions.input_too_large`（413）。
+- **页面和调用方按 `code` 判断**（例如 `todo.conflict` 提示重新读取），不按 HTTP 状态；`actionErrorFromResponse(status, body)` 把响应还原成同样的错误。读错误一律按形状（有 `code` 和 `message`），不用 `instanceof`：Runtime 包和创作台页面里可能有另一份 `ActionError`。
+
 ## 连续工作：对象上下文、版本前提与助理
 
 同一件工作会在底栏助理、插件页面和用户手动操作之间交替进行。插件的对象、版本和删除状态由插件自己拥有；工作与对象的关系由助理写进 Context Ledger；运行与确认归 Agent Host。插件不另存“助理做过什么”，也不复制正文。完整约定、样例与验证见 [molis-plugin-dev · continuity.md](../../skills/molis-plugin-dev/continuity.md)，要点：

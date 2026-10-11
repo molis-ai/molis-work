@@ -217,3 +217,30 @@ test("a route with no mapper answers through the SDK: 400 for a body that is not
     assert.deepEqual([tooLarge.status, tooLarge.body.code, tooLarge.body.error], [413, "actions.input_too_large", "请求内容过大"]);
   } finally { await server.close(); }
 });
+
+// W3-02-A: Todo has no error mapper of its own. The Host's edge reads the failure's kind (SDK `actionHttpStatus`), so the platform's codes
+// answer what the platform table says everywhere, and Todo's own codes keep the status they always had.
+test("Todo's HTTP edge answers a failure with the status of its kind: the platform codes follow the table, todo.* keep their statuses", async () => {
+  const failing = (failure: unknown): (() => BoundActionClient) => () => ({ discover: async () => [], invoke: async () => { throw failure; } });
+  const cases: Array<[string, unknown, number, string]> = [
+    ["the plugin is not enabled here", new ActionError("actions.plugin_disabled", "此项目未启用该插件"), 403, "actions.plugin_disabled"],
+    ["the action is gone", new ActionError("actions.missing", "原动作尚未注册"), 404, "actions.missing"],
+    ["another project", new ActionError("actions.scope_mismatch", "调用者与项目不一致"), 403, "actions.scope_mismatch"],
+    ["not allowed", new ActionError("actions.forbidden", "没有权限"), 403, "actions.forbidden"],
+    ["no model configured", new ActionError("actions.connection_required", "请先配置可用的文字模型"), 503, "actions.connection_required"],
+    ["bad input", new ActionError("actions.input_invalid", "输入不合规"), 400, "actions.input_invalid"],
+    ["todo.not_found", todoErrors.not_found("找不到这件待办"), 404, "todo.not_found"],
+    ["todo.conflict", todoErrors.conflict("已在别处修改，请重新读取后再改"), 409, "todo.conflict"],
+    ["todo.forbidden", todoErrors.forbidden("重要标记只能由你自己设置"), 403, "todo.forbidden"],
+    ["todo.invalid", todoErrors.invalid("请写下要做什么"), 400, "todo.invalid"],
+    ["a failure with no code is not the caller's mistake", new Error("boom"), 500, "actions.execution_failed"],
+  ];
+  for (const [name, failure, status, code] of cases) {
+    const server = await serveNativeHttp((request, response, url) => handleTodoNativePluginHttp(request, response, url, failing(failure)));
+    try {
+      const answer = await server.post("/api/todo", JSON.stringify({ title: "写周报" }));
+      assert.deepEqual([answer.status, answer.body.code], [status, code], name);
+      assert.equal(typeof answer.body.error, "string", name);
+    } finally { await server.close(); }
+  }
+});

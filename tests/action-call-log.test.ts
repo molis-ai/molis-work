@@ -138,6 +138,27 @@ test("a command cancelled, revoked or disabled before its handler started leaves
   }
 });
 
+test("the reason a refusal gives is kept, cut to two hundred characters, and what was asked with is not", { timeout: 60_000 }, async () => {
+  const home = mkdtempSync(join(tmpdir(), "action-call-log-reason-"));
+  const dbPath = join(home, "project.db");
+  seedDemoBoard(dbPath, PROJECT);
+  const reason = "服务暂停：" + "原因".repeat(250) + "尾巴";
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: () => ({ available: false, code: "test.paused", reason }) });
+  const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
+  const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: NATIVE_CONTENT_PERMISSIONS };
+  try {
+    const secret = "只在输入里出现的口令";
+    await assert.rejects(host.actionClient(reference).invoke(caller, s.register, { kind: "web_query", query: secret, name: "口令测试" }), { code: "test.paused" });
+    const [row] = host.callLog!.list(PROJECT);
+    assert.equal(row!.refused, true);
+    assert.equal(row!.message, reason.slice(0, 200), "the reason is what the page shows as why nothing was done; only its first two hundred characters are kept");
+    assert.ok(!readFileSync(join(home, "logs/action-calls.jsonl"), "utf8").includes(secret));
+  } finally {
+    await host.close();
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test("a refusal the caller was looking for leaves no row, and another code, a failed handler, or the same refusal outside the scope does", () => logOf("expected", async (_home, log) => {
   const notEnabled = refusal("actions.plugin_disabled", "此项目未启用该插件");
   await expectingRefusal(["actions.plugin_disabled"], async () => {

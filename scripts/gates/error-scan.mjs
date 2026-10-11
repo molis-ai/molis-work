@@ -24,8 +24,12 @@
 // WHAT IT DOES NOT SEE (a known limit, not a decision). The biggest group is a code written as a property: `code: "plugin_revoked"` in a
 // result object, a response body or `Object.assign(new Error(), { code })`, and a constructor that takes an options object
 // (`new SearchError({ code: "provider_unavailable", … })`); at W3-02-B that is about 300 literals in about 100 files (some of them keyboard
-// codes, not errors), so the counts reaching zero does not mean every code is renamed. Besides: a code that is not a literal (a
-// variable, a template with a substitution, a helper that builds `prefix + "." + reason`), a factory under another name
+// codes, not errors), so the counts reaching zero does not mean every code is renamed. Two more groups of the same kind: a code
+// handed to one of the four factories that has no dot (LOOKS_LIKE_CODE below asks for a dot, so exactly the wrong shapes are not
+// read: 49 sites in 2 files, the `fail("REUSE_…", …)` of plugins/native/alchemist/src/work-reuse/service.ts and the
+// `fail("invalid_url", …)` of plugins/official-integrations/catalog/src/document-import.ts, each a local `fail` that throws its own
+// error), and a class field `code = "…"` (only the constructor parameter named `code` is read: 4 literals in 4 files). Besides: a code
+// that is not a literal (a variable, a template with a substitution, a helper that builds `prefix + "." + reason`), a factory under another name
 // (`requireCognia(…)`), an error class whose name does not end in `Error`, a base class that is not declared in the repository, two
 // classes of one name with different constructors (the first one with a `code` parameter wins), a status chosen from `error.kind` or
 // `error.status` (`kind` and `status` are too common as property names to mean "an error" here), a status written into a table that

@@ -296,7 +296,7 @@ test('studio: a request becomes a working, published plugin that the person can 
  */
 test('studio in English: its controls, labels, phases and boards are English', { timeout: 120_000, skip: process.platform !== 'darwin' }, async t => {
   const home = await mkdtemp(join(tmpdir(), 'molis-studio-english-'));
-  const browser = await ChromeHarness.start(join(home, 'chrome'));
+  const browser = await openStudioChrome(join(home, 'chrome'));
   if (!browser) { await rm(home, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();

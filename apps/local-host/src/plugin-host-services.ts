@@ -39,10 +39,11 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   try {
     const manifest = definition.manifest;
     const pluginCaller = hostPluginCaller(options, definition, context, assertActive);
+    const providerId = options.providerFor?.(definition, context.install_id) ?? context.install_id;
     const artifactService = createPluginArtifactClient({ api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions,
       project_id: options.project_id, actor_id: options.actor_id });
     disposeArtifacts = artifactService.dispose;
-    const hosted = hostedContext(options, manifest, context, { pluginCaller, artifactService, ui, assertActive, isActive: () => active });
+    const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active });
     return { context: hosted, revoke: () => { active = false; }, dispose };
   } catch (error) {
     dispose();
@@ -70,7 +71,7 @@ function hostPluginCaller(options: PluginHostExecutorOptions, definition: Plugin
  * of its own still reaches a Host action it consumes. Without either there is nothing to call.
  */
 function ownActionClient(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, assertActive: () => void,
-  pluginCaller: HostPluginCaller): BoundActionClient | undefined {
+  pluginCaller: HostPluginCaller, providerId: string): BoundActionClient | undefined {
   const consumed = new Set(manifest.capabilities.consumes);
   const required = (manifest.actions ?? []).flatMap(action => action.action.required_actions ?? [])
     .map(reference => ({ capability_id: reference.capability_id, version: reference.version, provider_id: reference.provider_id ?? HOST_PROVIDER_ID }));
@@ -80,7 +81,7 @@ function ownActionClient(options: PluginHostExecutorOptions, manifest: PluginMan
     return {
       actor_id: options.actor_id, project_id: options.actions.project_id,
       audience: "user", permissions: context.grants,
-      allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: context.install_id })), ...required],
+      allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: providerId })), ...required],
       validate_authority: reference => {
         assertActive();
         const action = manifest.actions?.find(item => sameAction(item, reference));
@@ -107,7 +108,7 @@ function ownActionClient(options: PluginHostExecutorOptions, manifest: PluginMan
   };
   const ownActions = bindActionClient(options.actions.client, actionCaller);
   return !manifest.actions?.length && consumed.size === 0 ? undefined : {
-    discover: async () => (await ownActions.discover()).filter(view => view.provider.provider_id === context.install_id),
+    discover: async () => (await ownActions.discover()).filter(view => view.provider.plugin_install_id === context.install_id),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => {
       if ((manifest.actions ?? []).some(action => sameAction(action, definition))) return ownActions.invoke(definition, input);
       if (!consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项宿主动作");
@@ -118,6 +119,8 @@ function ownActionClient(options: PluginHostExecutorOptions, manifest: PluginMan
 
 interface SessionParts {
   readonly pluginCaller: HostPluginCaller;
+  /** What the Plugin's actions are registered under (`PluginHostExecutorOptions.providerFor`). */
+  readonly providerId: string;
   readonly artifactService: ArtifactService;
   readonly ui: PluginUi;
   readonly assertActive: () => void;
@@ -126,8 +129,8 @@ interface SessionParts {
 
 /** The context the Plugin's `start` receives: its identity plus the services below. */
 function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, parts: SessionParts): PluginStartContext {
-  const { pluginCaller, artifactService, ui, assertActive } = parts;
-  const actions = ownActionClient(options, manifest, context, assertActive, pluginCaller);
+  const { pluginCaller, providerId, artifactService, ui, assertActive } = parts;
+  const actions = ownActionClient(options, manifest, context, assertActive, pluginCaller, providerId);
   const wiring = options.wiring;
   return Object.freeze({ ...context,
     project_id: options.project_id,

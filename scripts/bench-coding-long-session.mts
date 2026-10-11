@@ -20,7 +20,7 @@ process.env.MOLIS_WORK_SECRET_BACKEND = "file";
 const { openMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
 const { PROJECT_SCOPED_PLUGIN_IDS } = await import("@molis-ai/molis-work-app-workbench");
 const { createMolisWorkWebServer } = await import("../apps/desktop/launchers/web/server.js");
-const { ChromeHarness } = await import("../tests/fixtures/plugin-builder-browser.js");
+const { openStudioChrome } = await import("../tests/fixtures/plugin-builder-browser.js");
 
 const ROUNDS = Number(process.env.ROUNDS ?? 300), PORT = Number(process.env.PORT ?? 0), token = "bench-control-token-" + randomUUID();
 const log = (...values: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...values);
@@ -141,7 +141,7 @@ if (process.env.SERVER_PROFILE) {
 
 if (process.env.NO_BROWSER) { log("server kept running at", `${projectPath}/?surface=coding`, "token", token); await new Promise(() => {}); }
 // And what the page does with it: first paint of the session, DOM size, scrolling from the bottom to the top.
-const browser = await ChromeHarness.start(await mkdtemp(join(tmpdir(), "molis-long-session-chrome-")));
+const browser = await openStudioChrome(await mkdtemp(join(tmpdir(), "molis-long-session-chrome-")));
 if (!browser) throw new Error("Chrome is required");
 const page = await browser.page();
 await page.command("Page.enable"); await page.command("Network.enable");

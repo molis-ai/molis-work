@@ -9,11 +9,11 @@ import { PLUGIN_COMPONENT_STYLES, VISUAL_FOUNDATION_STYLES } from '@molis-ai/mol
 import { AGENT_STUDIO_CLIENT_FACTORY_SCRIPT } from '../plugins/native/plugin-builder/src/agent-studio.js';
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
 import { runBuilderBrowserAcceptance } from '../apps/local-host/src/plugin-builder/browser.js';
-import { ChromeHarness } from './fixtures/plugin-builder-browser.js';
+import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
 import { readingContract, readingNodes, readingSamples } from './fixtures/plugin-composition.js';
 
 test('Builder diagnoses accepted reads with current selection, without another call or a stale response', { timeout: 60_000 }, async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'molis-builder-diagnostics-')), browser = await ChromeHarness.start(directory);
+  const directory = await mkdtemp(join(tmpdir(), 'molis-builder-diagnostics-')), browser = await openStudioChrome(directory);
   assert.ok(browser, 'Chrome is required');
   const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
   const notes = readingNodes.find(node => node.id === 'notes')!;

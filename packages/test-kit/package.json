@@ -2,7 +2,7 @@
   "name": "@molis-ai/molis-work-test-kit",
   "version": "0.0.0",
   "private": true,
-  "description": "Deterministic clocks, fake capabilities, temporary storage, and Contract harnesses.",
+  "description": "Business-neutral test helpers: package import boundary rules and a headless Chrome/CDP launcher and driver.",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "import": "./dist/browser/index.js"
     }
   },
   "files": [

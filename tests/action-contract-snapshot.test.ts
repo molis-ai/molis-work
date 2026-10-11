@@ -439,14 +439,16 @@ test("an action the Host registers under another provider id is named, action by
   assert.match(renamed, new RegExp(`${todo.count} actions registered under another provider id`));
   for (const key of declaredKeys("io.molis.work.todo")) assert.match(renamed, new RegExp(`${key.replaceAll(".", "\\.")}: io\\.molis\\.work\\.todo -> todo\n`), `${key}: the new provider id was not named`);
   assert.doesNotMatch(renamed, /SAME version|who may call it/, "the provider id is its own list, not a change of shape");
-  // A plugin assembled by the Runtime, registered under the id derived from its signature, moved to its own id: the direction
-  // AGENTS.md asks of the native plugins in the other way round.
+  // A plugin the Runtime assembles registers under its own plugin_id, as the native ones do (user decision 2026-10-10, W3-06 Q1): the
+  // id derived from its signature is what the Runtime gives every other plugin, and it is not what a persisted reference holds for
+  // a built-in one. So a built-in plugin registered under it, as the Host not naming it `bundled` would, is named action by action.
   const shelf = committedRegistration("io.molis.work.shelf");
-  assert.match(shelf.id, /^plugin-install-[0-9a-f]{32}$/);
-  const moved = productProblems(registeredUnder(copyOfViews(), "io.molis.work.shelf", "io.molis.work.shelf"));
+  assert.equal(shelf.id, "io.molis.work.shelf");
+  const installId = `plugin-install-${"b".repeat(32)}`;
+  const moved = productProblems(registeredUnder(copyOfViews(), "io.molis.work.shelf", installId));
   assert.match(moved, new RegExp(`${shelf.count} actions registered under another provider id`));
-  assert.match(moved, new RegExp(`shelf\\.[a-z_.]+@1: ${shelf.id} -> io\\.molis\\.work\\.shelf\n`));
-  // And the other way: a native plugin that becomes a Runtime plugin keeps its plugin_id and gains a plugin-install-… id.
+  assert.match(moved, new RegExp(`shelf\\.[a-z_.]+@1: io\\.molis\\.work\\.shelf -> ${installId}\n`));
+  // And a native plugin registered under an installation id: the same, in the other plugin.
   const migrated = productProblems(registeredUnder(copyOfViews(), "io.molis.work.todo", `plugin-install-${"a".repeat(32)}`));
   assert.match(migrated, new RegExp(`${todo.count} actions registered under another provider id`));
   assert.match(migrated, /io\.molis\.work\.todo -> plugin-install-a{32}/);

@@ -76,7 +76,7 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
   - `invokeSync` 只接受显式声明 `execution: "sync"` 的处理器，不等待 Promise，不能借它绕过异步策略。
   - 声明了 `authorship: "session"` 的动作，在派发处拒绝调用上下文带 `runtime_session_missing`（可信的 MCP 适配器给没有稳定 Session 的外部 Runtime 标上）的调用，直接调用和包装动作（首页事项动作、工作流步骤）发起的嵌套调用一样，只在这一处检查（`mcp.runtime_identity_missing`）。
   - 调用记录只写谁调了什么、怎样结束，不写输入与结果；业务校验与事务留在处理器里。
-  - 调用方可以声明哪些拒绝码是它要的答案（`expectingRefusal`，在 `src/call-scope.ts`；作用域随异步调用传下去）：页面找项目可能没有的插件的区域，「未启用」就是答案，宿主不为这样的拒绝留调用记录行。只对作用域内、调用方自己那一次、处理器之前的、码在声明里的拒绝生效：进入处理器时清空（`startHandler` 经 `insideHandler`，动作的 `execute` 与宿主 typed 口各进一次），所以处理器再调的、它派出去还在跑的，被拒了照常记；别的拒绝和作用域之外的同一个拒绝也照常记（`tests/action-call-log.test.ts`）。
+  - 调用方可以声明哪些拒绝码是它要的答案（`expectingRefusal`，在 `src/call-scope.ts`；作用域随异步调用传下去）：页面找项目可能没有的插件的区域，「未启用」就是答案，宿主不为这样的拒绝留调用记录行。只对作用域内、调用方自己那一次、处理器之前的、码在声明里的拒绝生效：进入处理器时清空（`startHandler` 经 `insideHandler`，动作的 `execute` 与宿主 typed 口各进一次），所以处理器再调的、它派出去还在跑的，被拒了照常记；声明也有终点：它像 `CallScope` 的 `open` 一样，在 `run` 结束（返回、抛出、拒绝）时关闭，所以调用结束后才触发的计时器、流、子进程、插件平台启动里的同一个拒绝照常记；别的拒绝和作用域之外的同一个拒绝也照常记（`tests/action-call-log.test.ts`）。
   - 调用编号只由宿主给：从调用上下文、此刻的作用域或新生成取，不从请求头、工具参数、`_meta`、业务输入或插件交来的字段读。它不是身份，处理器可以记录或返回它，不能凭它做任何决定。作用域随操作结束关闭，之后才触发的回调拿到新编号。
   - 一次调用只结算一次：动作的注册表条目只能经 `ActionService.invoke` / `invokeSync` 到达（宿主的 typed 口到动作也走 `invoke`），`execute` 只经 `startHandler` 进入处理器（标记「已开始」、清空免记拒绝的声明），不结算。源码里直接调用 `registry.invoke` / `capabilities.invoke` 的只剩 `ActionService` 自己，和宿主 typed 口对不带 `action` 的条目（它们由宿主自己结算）。
   - `admit` 是宿主的异步策略，在解析与授权复查之前跑；`invokeSync` 不跑它（事务里不能等），同步入口自己的检查用第四个参数传入，在结算范围内先跑，它的拒绝同样结算。

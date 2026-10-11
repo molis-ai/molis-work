@@ -31,6 +31,7 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 | [src/goal-project-application.ts](src/goal-project-application.ts) | 跨 Module 应用组合 |
 | [src/plugin-host-services.ts](src/plugin-host-services.ts) | 一个插件启动时宿主交给它的身份和服务（动作、私人存储、成果、事件、输入输出）；`PluginHostExecutor` 只管启停 |
 | [src/project-plugin-ports.ts](src/project-plugin-ports.ts) | 项目里内置插件和已安装插件用到的端口（`MolisWorkLocalHost` 的两个入口转到这里） |
+| [src/home-side.ts](src/home-side.ts) | 宿主与它的 Home 的登记：宿主构造时绑定（`bindHomeSide`，Agent 服务照旧在这里装配）、关闭时撤下；项目的插件平台启动时从这里读本宿主的模型注入和测试夹具，`PluginPlatformOptions.home` 的值（`pluginHomeFor`）也由它给 |
 
 可对照现有调用方 [apps/desktop/src/web-host.ts](../desktop/src/web-host.ts) 阅读装配方式。
 
@@ -77,6 +78,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
   - Runtime 插件的动作提供方编号（用户 2026-10-10，W3-06 C）：`createPluginPlatform` 只把宿主自己启动名单里标 `bundled` 的定义对象（项目插件装配里交给监督器的 7 个条目）登记在 `plugin_id` 之下，其余一律 `install_id`；`PluginHostExecutor`（`providerFor`）和 `PluginRuntime`（`actions.providerId`）用同一条规则，插件自己的动作客户端靠登记上的 `plugin_install_id` 找回自己的动作。`localWebActionContext` 的授权也按 `plugin_install_id` 认安装，不按 `provider_id`：构建期的同名提供方（Shelf 的 Home 级与项目级）没有 `plugin_install_id`，借不到 Runtime 实例的授权。
+  - 插件平台的 Home 与夹具（W3-06 D0）：`createPluginPlatform` 的 `home` 必填，给进程内的 Home（`pluginHomeFor`，宿主的模型注入在调用时读、不在启动时拷）或明说 `null`（生成插件的平台、没有 Home 的测试）；测试不做类型检查，所以不给也在运行时拒绝。一份启动名单里同一个 `plugin_id` 只能出现一次（监督器按 id 收一条，后来的会悄悄顶掉先来的）。`MolisWorkLocalHostOptions.pluginFixtures` 只给测试和探针用，生产装配不传：夹具在每个项目的插件平台里与内置插件一起启动，但不是 `bundled`（按安装编号登记）、不能沙箱执行，按 Home 登记、宿主关闭即撤；与内置插件同名或本身不合规时，这个项目的插件平台不启动，不悄悄少一个。一个 Home 同一时间只有一个打开的宿主（Agent 服务只绑一次推理），所以登记一个 Home 一条。
   - 一个 Home 只有一个执行进程（`agent-runtime/.molis-runtime-owner.db` 锁）；其他入口经 `LocalActionGatewayClient` 转发，连接丢失不退回本地执行。
   - 开发者模式（`developer-mode.ts`）是 Host 进程的开关：以 `MOLIS_WORK_DEVELOPER_MODE=1` 启动才开，每次组装页面视图时读（`developer_mode`），不是用户设置、不改任何插件的行为；它只让插件列表多出目录里标了 `developer` 的条目（Text Stats）。**已定（用户 2026-10-09，W2-18 决定 5 的第二轮）：** 开发者模式只由 Host 启动变量打开，设置里没有开关，也不另加别的开法；桌面应用的用户不会看到 Text Stats，这是有意的。要改这一条先问用户。
   - 定时任务就绪（`scheduledTaskReadiness`，在 `schedule-task-runner.ts`）答两样：项目的已核对工作区（与到点的 runner 同一个来源、同一个核对）和是否配置了文字模型（`configuredModelChoices` 读模型目录的元数据、不解密；runner 本身查的是 Prologue 运行时是否已登记，所以模型这一项是替身，提示不是保证）；Schedule 的动作提供方把它作为 `readiness` 端口交给插件，创建任务从不等它。

@@ -13,9 +13,10 @@ import {
 } from "@molis-ai/molis-work-plugin-schedule";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { projectActionAvailability } from "../apps/local-host/src/project-action-availability.js";
+import { projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { scheduleServiceFor } from "../apps/local-host/src/schedule-runtime.js";
-import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 
 test("Schedule tasks register as project actions shared by HTTP, Host callers and production MCP", { timeout: 120_000 }, async () => {
@@ -88,18 +89,18 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     await sdk.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
       fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, "scheduler", project.database_path], stderr: "pipe" }));
     const tools = (await sdk.listTools()).tools.map(tool => tool.name);
-    assert.ok(tools.includes(hostActionToolName(s.createTask)));
-    assert.ok(!tools.includes(hostActionToolName(s.archiveTask)), "ungranted actions are not exported");
-    assert.ok(!tools.includes(hostActionToolName(s.recoverReminder)), "ordinary Schedule grants do not implicitly expose installation recovery to MCP");
-    assert.ok(!tools.includes(hostActionToolName(s.recoverOperation)), "operation retry/skip requires its own explicit MCP grant");
-    const external = await sdk.callTool({ name: hostActionToolName(s.createTask),
+    assert.ok(tools.includes(molisWorkActionToolName(s.createTask)));
+    assert.ok(!tools.includes(molisWorkActionToolName(s.archiveTask)), "ungranted actions are not exported");
+    assert.ok(!tools.includes(molisWorkActionToolName(s.recoverReminder)), "ordinary Schedule grants do not implicitly expose installation recovery to MCP");
+    assert.ok(!tools.includes(molisWorkActionToolName(s.recoverOperation)), "operation retry/skip requires its own explicit MCP grant");
+    const external = await sdk.callTool({ name: molisWorkActionToolName(s.createTask),
       arguments: { title: "周报", instructions: "汇总本周进展", time: "18:00", notify_important: false }, _meta: { project_id: "other" } });
     assert.equal(external.isError, false, JSON.stringify(external));
     const externalTask = (external.structuredContent as { task: ScheduleConversationTaskView }).task;
     const listed = await bound.invoke(s.list, {});
     assert.deepEqual(listed.tasks.map(row => row.task_id).sort(), [task.task_id, externalTask.task_id].sort());
     assert.equal(listed.tasks.find(row => row.task_id === externalTask.task_id)?.clock_label, "18:00");
-    assert.equal((await sdk.callTool({ name: hostActionToolName(s.archiveTask), arguments: { task_id: task.task_id } })).isError, true);
+    assert.equal((await sdk.callTool({ name: molisWorkActionToolName(s.archiveTask), arguments: { task_id: task.task_id } })).isError, true);
 
     assert.deepEqual(await bound.invoke(s.archiveTask, { task_id: externalTask.task_id }), { archived: true });
     assert.equal(await job(externalTask.job_id!), null, "archiving cancels the pending wakeup");

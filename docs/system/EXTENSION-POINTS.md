@@ -128,7 +128,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 **怎么加**：Manifest 声明 `actions`，在 `start()` 返回处理器（Runtime 插件）；构建期插件的处理器由包里的 `create<X>ActionHandlers` 生成，宿主文件只注入端口（如 `apps/local-host/src/form-actions.ts`，`definitions: formManifest.actions!`）。合同：`specs/action-architecture/spec.md` §3；写法：`skills/molis-plugin-dev/capabilities.md`；消费场景：`skills/molis-plugin-dev/host.md`「接到统一判断场景」。
 
-**现在：0。** 权限集合由动作自己推出（例如 `TODO_ACTION_PERMISSIONS` 是 `TODO_ACTIONS.flatMap(...)`），页面、工作流、Agent、外部 MCP 从同一个目录发现（MCP 工具名 `molis_work_v1_action_<动作>__v<版本>`，`apps/local-host/src/mcp-action-grants.ts`），场景不再改宿主白名单。**目标：0，已达到。** 这个方向是其他方向的参照。
+**现在：0。** 权限集合由动作自己推出（例如 `TODO_ACTION_PERMISSIONS` 是 `TODO_ACTIONS.flatMap(...)`），页面、工作流、Agent、外部 MCP 从同一个目录发现（MCP 工具名 `molis_work_v1_action_<动作>__v<版本>`，`apps/mcp/src/action-tools.ts`），场景不再改宿主白名单。**目标：0，已达到。** 这个方向是其他方向的参照。
 
 ### 3.6 设置分区
 

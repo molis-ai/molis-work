@@ -30,7 +30,7 @@ import {
 import { GoalProjectApplication } from "../apps/local-host/src/goal-project-application.js";
 import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
 import { MolisWorkV1Error as ContractsError } from "@molis-ai/molis-work-contracts/platform/errors";
-import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
 import { FunctionsError, openFunctionsStore } from "@molis-ai/molis-work-module-functions";

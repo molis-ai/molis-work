@@ -5,6 +5,7 @@
 ## dv3 boundary audit
 
 - Manifest JSON/版本/声明校验归 Contracts `platform/plugin-manifest.ts`；SDK `assertManifest` 转调并保留原错误类，CLI 不维护第二套规则。
+- **2026-10-10 更新（防腐 W3-03，推翻上一条的前半句）**：校验是会运行的代码，合同包只放类型与 Schema，所以 Manifest JSON 与版本校验现在归 `packages/plugin-sdk/src/manifest.ts`（端口与事件检查在同目录的 `wiring-declarations.ts`），`platform/plugin-manifest.ts` 已删；动作、Agent、方法的声明检查（`inspectActionDeclarations` 等）在 W3-03 的 B2 之前仍在合同包，`parsePluginManifest` 从那里取，B2 搬进 SDK 的同一处。「只有一套规则」这一点保留：SDK、Plugin Runtime、命令行都从 SDK 取同一份 `parsePluginManifest`，没有第二套；内核注册动作时用的声明检查在 B2 之后也由 SDK 提供。外部作者只装 contracts 与 SDK，所以放在 SDK 而不是私有的 Runtime（见 `specs/repository-anti-corruption/spec.md` §1）。
 - SDK 只依赖公开 Contracts；Plugin 作者只用 SDK 和 `context.services`。存储属于 Plugin Runtime，Artifact client 属于官方 Artifacts Plugin，UI client 属于 UI Host。SDK 不持有 Store 或 SQL。
 - 签名与包内容校验归 Runtime，CLI 仅处理显式文件输入输出；公钥绑定校验和整个 payload 签名没有复制到 SDK/CLI。
 - development fixture 属于 Local Host。根 CLI → Plugin CLI 的具名 runner → root Local Host capability → public `runPluginDevelopment` → Runtime/Artifacts/UI owners。原 Store/Coordinator 仍只在已有 root composition 装配，不新增另一处。

@@ -8,7 +8,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { alchemistActions as a } from "@molis-ai/molis-work-plugin-alchemist";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 
 test("production MCP reads persisted scoped grants on every list/call, shares real Alchemist data and preserves revocation after restart", { timeout: 40_000 }, async () => {
@@ -34,7 +35,7 @@ test("production MCP reads persisted scoped grants on every list/call, shares re
       try { return (await client.listTools()).tools.map(tool => tool.name); }
       catch (error) { throw new Error(`${String(error)}\n${diagnostics.get(client)?.() ?? ""}`); }
     };
-    const createName = hostActionToolName(a.directionCreate), bootstrapName = hostActionToolName(a.bootstrap);
+    const createName = molisWorkActionToolName(a.directionCreate), bootstrapName = molisWorkActionToolName(a.bootstrap);
     assert.equal((await names(alpha)).includes(createName), false);
     const createGrant = createMcpActionGrant("runtime:alpha", "a", definition(a.directionCreate.capability_id), true);
     await writeMcpActionGrant(home, createGrant);

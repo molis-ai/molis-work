@@ -6,11 +6,12 @@ import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 
-// specs/repository-anti-corruption W2-10 (PR-0): the test-imports tool (scripts/test-imports.mjs, scripts/test-imports/). A test
-// process that loads a package from its source (../P/src) and from its build (the package name, ../P/dist) holds two copies of it.
-// The tool finds those processes and rewrites the imports so a package is reached from one place. As in
-// tests/health-gates-source-counts.test.ts, it runs as the command it is, on small scratch repositories, so nothing here imports a
-// package or the scripts: this file starts at 0 internal imports.
+// specs/repository-anti-corruption W2-10 (PR-0): the test-imports tool (scripts/test-imports.mjs, scripts/test-imports/) and the
+// interim health-gate metric built on its graph (scripts/gates/test-import-splits.mjs). A test process that loads a package from its
+// source (../P/src) and from its build (the package name, ../P/dist) holds two copies of it. The tool finds those processes and
+// rewrites the imports so a package is reached from one place; the metric lets no test file split more packages than it does at the
+// merge-base. As in tests/health-gates-source-counts.test.ts, the tool and the gate run as the commands they are, on small scratch
+// repositories, so nothing here imports a package or the scripts: this file starts at 0 internal imports.
 const tool = fileURLToPath(new URL("../scripts/test-imports.mjs", import.meta.url));
 const gateScript = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import.meta.url));
 const made: string[] = [];
@@ -286,4 +287,136 @@ test("--ref reads a commit, not the working tree; bad usage is exit 2", () => {
   assert.equal(run(dir, "--write", "--ref", "HEAD").code, 2);
   assert.equal(run(dir, "--nope").code, 2);
   assert.equal(run(dir, "--check", "--write").code, 2);
+});
+
+// ---- the health gate: per test file, the packages its process loads twice may only fall ----------------------------------
+
+// Every test file here has the same internal references at the merge-base and on the branch in the scenarios that matter, so the
+// older test-imports gate stays quiet and only the one under test can fail.
+type Scenario = { name: string; mutate: (dir: string) => void; expect: RegExp[] };
+const gateBase = (): Record<string, string> => ({
+  "tooling/gates/limits.json": json({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }),
+  ...alpha({}, []),
+  ...library("@fx/beta", "packages/beta"),
+  "packages/beta/src/index.ts": lines("export const beta = 1;"),
+  "packages/beta/src/internal.ts": lines("export const betaInternal = 2;"),
+  "tests/clean.test.ts": lines('import { Thing } from "@fx/alpha";', "export const used = Thing;"),
+  // An old split, recorded in the base: it may stay, it may not grow.
+  "tests/split.test.ts": lines('import { Thing } from "@fx/alpha";', 'import { hidden } from "../packages/alpha/src/hidden.ts";', 'import { beta } from "@fx/beta";', 'import { betaInternal } from "../packages/beta/dist/internal.js";', "export const used = [Thing, hidden, beta, betaInternal];"),
+  // Not splits, each for its own reason.
+  "tests/type-only.test.ts": lines('import { Thing } from "@fx/alpha";', 'import type { ThingShape } from "../packages/alpha/src/thing.ts";', "export const used: ThingShape = new Thing();"),
+  "tests/twin.test.ts": lines('import { Thing } from "@fx/alpha";', 'import { hidden } from "../packages/alpha/dist/hidden.js";', "export const used = [Thing, hidden];"),
+  "tests/source-only.test.ts": lines('import { hidden } from "../packages/alpha/src/hidden.ts";', 'import { helper } from "../packages/alpha/src/util.ts";', "export const used = [hidden, helper];"),
+  "tests/fixtures/spawned.ts": lines('import { hidden } from "../../packages/alpha/src/hidden.ts";', 'import { Thing } from "@fx/alpha";', "export const used = [hidden, Thing];"),
+  "tests/spawns.test.ts": lines('import { spawnSync } from "node:child_process";', 'import { Thing } from "@fx/alpha";', 'export const used = [spawnSync, Thing, "tests/fixtures/spawned.ts"];'),
+  // Material for the scenarios: a helper read by a test, a test next to a package whose build is read, a dynamic import.
+  "tests/fixtures/shared.ts": lines('import { Thing } from "@fx/alpha";', 'import { hidden } from "../../packages/alpha/dist/hidden.js";', "export const shared = [Thing, hidden];"),
+  "tests/uses-shared.test.ts": lines('import { shared } from "./fixtures/shared.ts";', "export const used = shared;"),
+  "tests/through-beta.test.ts": lines('import { beta } from "@fx/beta";', 'import { hidden } from "../packages/alpha/src/hidden.ts";', "export const used = [beta, hidden];"),
+  "tests/dynamic.test.ts": lines('import { Thing } from "@fx/alpha";', 'const loaded = await import("../packages/alpha/dist/hidden.js");', "export const used = [Thing, loaded];"),
+});
+const gate = (dir: string, ...args: string[]) => {
+  const result = spawnSync(process.execPath, [gateScript, "--root", dir, ...args], { encoding: "utf8" });
+  return { code: result.status, out: `${result.stdout}${result.stderr}` };
+};
+const commit = (dir: string, message: string) => { git(dir, "add", "-A"); git(dir, "commit", "-q", "--allow-empty", "-m", message); };
+const repoForGate = () => {
+  const dir = scratch(gateBase());
+  git(dir, "add", "-A");
+  assert.equal(gate(dir, "--update").code, 0);
+  commit(dir, "base");
+  return dir;
+};
+const branch = (dir: string, name: string, mutate: (dir: string) => void) => {
+  git(dir, "checkout", "-q", "-f", "main");
+  git(dir, "clean", "-fdq");
+  git(dir, "checkout", "-q", "-B", name);
+  mutate(dir);
+  commit(dir, name);
+};
+const swap = (dir: string, file: string, from: string, to: string) => { const body = read(dir, file); assert.ok(body.includes(from), `${file} has ${from}`); put(dir, file, body.replace(from, to)); };
+
+const violations: Scenario[] = [
+  { name: "a test that reads packages from source gaining an import by package name",
+    mutate: (dir) => put(dir, "tests/source-only.test.ts", `import { Thing } from "@fx/alpha";\n${read(dir, "tests/source-only.test.ts")}`),
+    expect: [/in tests\/source-only\.test\.ts 0 → 1/, /Now split: @fx\/alpha: source via tests\/source-only\.test\.ts:2 \.\.\/packages\/alpha\/src\/hidden\.ts; build via tests\/source-only\.test\.ts:1 @fx\/alpha/] },
+  { name: "a test that already splits one package splitting a second",
+    mutate: (dir) => swap(dir, "tests/split.test.ts", "packages/beta/dist/internal.js", "packages/beta/src/internal.ts"),
+    expect: [/in tests\/split\.test\.ts 1 → 2/] },
+  { name: "a helper that makes the tests reading it split",
+    mutate: (dir) => swap(dir, "tests/fixtures/shared.ts", "packages/alpha/dist/hidden.js", "packages/alpha/src/hidden.ts"),
+    expect: [/in tests\/uses-shared\.test\.ts 0 → 1/] },
+  { name: "a package whose build reads the package that a test reads from source",
+    mutate: (dir) => put(dir, "packages/beta/src/index.ts", lines('export { Thing as BetaThing } from "@fx/alpha";', "export const beta = 1;")),
+    expect: [/in tests\/through-beta\.test\.ts 0 → 1/, /build via tests\/through-beta\.test\.ts:1 @fx\/beta → packages\/beta\/src\/index\.ts:1 @fx\/alpha/] },
+  { name: "a dynamic import in a test next to a static import by name",
+    mutate: (dir) => swap(dir, "tests/dynamic.test.ts", "packages/alpha/dist/hidden.js", "packages/alpha/src/hidden.ts"),
+    expect: [/in tests\/dynamic\.test\.ts 0 → 1/] },
+  { name: "the built twin replaced by the source next to the package name",
+    mutate: (dir) => swap(dir, "tests/twin.test.ts", "packages/alpha/dist/hidden.js", "packages/alpha/src/hidden.ts"),
+    expect: [/in tests\/twin\.test\.ts 0 → 1/] },
+  { name: "a new test that reads a package from source and by name",
+    mutate: (dir) => put(dir, "tests/new.test.ts", lines('import { Thing } from "@fx/alpha";', 'import { hidden } from "../packages/alpha/src/hidden.ts";', "export const used = [Thing, hidden];")),
+    expect: [/in tests\/new\.test\.ts 0 → 1/, /Now split: @fx\/alpha: source via tests\/new\.test\.ts:2/] },
+];
+// The base repository is built once; a scenario is a branch off main, so each one costs a commit and a gate run.
+let gateRepo = "";
+const gateMain = () => { if (!gateRepo) gateRepo = repoForGate(); return gateRepo; };
+for (const scenario of violations) {
+  test(`gate: ${scenario.name} fails against the merge-base`, () => {
+    const dir = gateMain();
+    branch(dir, "violation", scenario.mutate);
+    const caught = gate(dir, "--base", "main");
+    assert.equal(caught.code, 1, caught.out);
+    for (const pattern of scenario.expect) assert.match(caught.out, pattern);
+  });
+}
+
+test("gate: --update does not hide a new split, neither with the merge-base nor by rewriting the committed baseline", () => {
+  const dir = gateMain();
+  branch(dir, "laundering", violations[0].mutate);
+  const refused = gate(dir, "--update", "--base", "main");
+  assert.equal(refused.code, 1, refused.out);
+  assert.match(refused.out, /Baseline not written/);
+  assert.equal(git(dir, "status", "--porcelain"), "", "a refused --update leaves baseline.json alone");
+  assert.equal(gate(dir, "--update").code, 0);
+  commit(dir, "update baseline");
+  assert.equal(gate(dir).code, 0, "the local check against the committed baseline is satisfied by the rewrite");
+  const still = gate(dir, "--base", "main");
+  assert.equal(still.code, 1, still.out);
+  for (const pattern of violations[0].expect) assert.match(still.out, pattern);
+});
+
+test("gate: only the process that reads a package from both places is counted at the merge-base", () => {
+  const dir = gateMain();
+  git(dir, "checkout", "-q", "-f", "main");
+  // Type-only imports load nothing; the built twin and the package name are one copy; source alone is one copy; a fixture that no test
+  // imports is another process. Of the fifteen tests, one splits: split.test.ts.
+  const report = gate(dir, "--report", "--base", "main");
+  assert.match(report.out, /Packages test processes load from both source and build \(per test file\): 1 in 1 files/);
+  assert.deepEqual(JSON.parse(gate(dir, "--report", "--json", "--base", "main").out).head.testImportSplits, { "tests/split.test.ts": 1 });
+  branch(dir, "harmless", () => { for (const file of ["tests/type-only.test.ts", "tests/twin.test.ts", "tests/source-only.test.ts", "tests/fixtures/spawned.ts"]) put(dir, file, `${read(dir, file)}// touched\n`); });
+  const run1 = gate(dir, "--base", "main");
+  assert.equal(run1.code, 0, run1.out);
+  assert.doesNotMatch(run1.out, /Lower than the merge-base: [^.]*testImportSplits/);
+});
+
+test("gate: removing a split lowers the number, and moving a split test keeps its record", () => {
+  const dir = gateMain();
+  branch(dir, "tidy", () => swap(dir, "tests/split.test.ts", 'import { hidden } from "../packages/alpha/src/hidden.ts";', 'import type { hidden } from "../packages/alpha/src/hidden.ts";'));
+  const lowered = gate(dir, "--base", "main");
+  assert.equal(lowered.code, 0, lowered.out);
+  assert.match(lowered.out, /Lower than the merge-base: [^.]*testImportSplits/);
+  assert.equal(gate(dir, "--update", "--base", "main").code, 0, "lowering the baseline with the merge-base given is accepted");
+
+  branch(dir, "moved", () => git(dir, "mv", "tests/split.test.ts", "tests/split-renamed.test.ts"));
+  const moved = gate(dir, "--base", "main");
+  assert.equal(moved.code, 0, moved.out);
+});
+
+test("gate: a repository with no tests has nothing to measure", () => {
+  const dir = scratch({ "tooling/gates/limits.json": json({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }), ...alpha({}, []) });
+  git(dir, "add", "-A");
+  assert.equal(gate(dir, "--update").code, 0);
+  assert.deepEqual(JSON.parse(read(dir, "tooling/gates/baseline.json")).testImportSplits, {});
 });

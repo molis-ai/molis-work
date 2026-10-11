@@ -395,4 +395,6 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "每条最多 6 张截图": "Up to 6 screenshots per issue",
   "正在读取截图…": "Reading screenshots…",
   "截图合计不能超过 8 MiB": "Screenshots cannot exceed 8 MiB in total",
+  "上次没有完成，点开继续": "Not finished last time. Open it to continue",
+  "（截图要重新添加）": " (add the screenshots again)",
 };

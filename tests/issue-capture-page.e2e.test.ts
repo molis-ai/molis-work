@@ -133,3 +133,28 @@ test("ISSUE-37 a person who confirms every save gets a prefilled editor, and the
   assert.equal((await v.list()).items.length, 1);
   assert.equal((await v.assistant()).works.filter(view => ["waiting-review", "running"].includes(view.work.state)).length, 0);
 });
+
+test("ISSUE-37 an unfinished capture survives leaving the page and saves once from where it was left", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  await issueModel(t, b.homeDirectory, { unavailable: true });
+  const v = issueView(b);
+  await v.viewport(1440); await v.go("/");
+  await v.chord(); await v.composerFocused();
+  await v.type("离开页面前没整理完的一条"); await v.paste(); await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1");
+  await v.send();
+  await v.until("$('[data-state=attention]')?.textContent.includes('模型暂时不可用')", 30_000);
+  // A full navigation: the words come back with the page that opens next; the picture has to be added again.
+  await v.go(`/projects/${b.projectId}/?desktop=1`);
+  await v.chord(); await v.composerFocused();
+  await v.until("$('[data-state=attention]')?.textContent.includes('上次没有完成，点开继续（截图要重新添加）')");
+  assert.equal(await b.evaluate(`document.querySelector('[data-side-plugin-open]').dataset.sideBusy`), "attention");
+  await v.press("[data-state=attention]");
+  assert.equal(await v.ask("$('[data-issue-editor] [name=description]').value"), "离开页面前没整理完的一条");
+  await v.type("离开页面后补记"); await v.press("[data-issue-editor] [data-type=bug]"); await v.press("[data-issue-save]");
+  await v.until("$('[data-issue-detail]').hidden && !$('[data-state]')");
+  const { items } = await v.list();
+  assert.equal(items.length, 1); assert.equal(items[0]!.title, "离开页面后补记");
+  assert.equal(await b.evaluate("localStorage.getItem('molis:issue-unsent')"), "[]", "nothing unfinished is left on the device");
+  assert.equal((await v.assistant()).notices.length, 0, "the failed capture's work was filed away once it was settled here");
+});
+

@@ -84,7 +84,7 @@ export const ISSUES_STYLES = `
 .issues-home>*,.issues-page>*{max-width:720px;margin-inline:auto}
 .issues-composer{border:1px solid var(--line-strong);border-radius:12px;padding:10px 10px 8px 12px;background:var(--paper);transition:border-color var(--dur-hover) var(--ease-quint),box-shadow var(--dur-hover) var(--ease-quint)}
 .issues-composer:focus-within,.issues-composer.is-drop{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
-.issues textarea{display:block;width:100%;resize:none;overflow:hidden;font:inherit;font-size:14px;line-height:1.65;color:var(--ink);background:transparent}
+.issues textarea{display:block;width:100%;resize:none;overflow:hidden;font:inherit;font-size:15px;line-height:1.65;color:var(--ink);background:transparent}
 .issues-composer textarea{border:0!important;outline:0!important;box-shadow:none!important;border-radius:0;padding:0;min-height:69px}
 .issues-bar{display:flex;align-items:center;gap:6px;margin-top:6px}
 .issues-tip{flex:1;min-width:0;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -114,7 +114,7 @@ export const ISSUES_STYLES = `
 .issues-detail-bar{display:flex;align-items:center;gap:4px;padding:8px 8px 0}.issues-detail-bar>span{flex:1}
 .issues-detail-bar svg{width:16px;height:16px}
 .issues h1{font-size:17px;line-height:1.45;font-weight:var(--weight-title);letter-spacing:-.01em;margin:6px auto 12px;overflow-wrap:anywhere}
-.issues-prose{font-size:14px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
+.issues-prose{font-size:15px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
 [data-issue-source]{margin-top:20px;padding-top:12px;border-top:1px solid var(--line)}
 .issues-editor{display:grid;gap:12px}.issues-editor .mw-toggle-group{justify-self:start}
 .issues-editor textarea{min-height:120px}

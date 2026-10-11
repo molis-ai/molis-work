@@ -58,6 +58,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     // The shell marks this tool while a capture is on its way or needs the person, also when the panel is closed.
     const status = pending.some(item => item.state === 'attention') ? 'attention' : pending.length ? 'busy' : '';
     if (status !== reported) { reported = status; host.status?.(status); }
+    remember();
     list.removeAttribute('aria-busy');
     list.innerHTML = pending.map(item => row(item.id, excerpt(item), item.state === 'organizing' ? L('整理中…') : item.note, item.state)).join('')
       + rows.map(issue => row(issue.id, issue.title, [L(kinds[issue.type]), when(issue.created_at), issue.image_count ? issue.image_count + L(' 张截图') : ''].filter(Boolean).join(' · '))).join('')
@@ -67,7 +68,8 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   const load = async (more = false) => {
     const epoch = ++listEpoch, result = await api('list' + (more && next ? '?cursor=' + encodeURIComponent(JSON.stringify(next)) : ''));
     if (epoch !== listEpoch) return;
-    rows = more ? [...rows, ...result.items] : result.items; next = result.next_cursor; render();
+    rows = more ? [...rows, ...result.items] : result.items; next = result.next_cursor;
+    pending = pending.filter(item => !item.restored || !rows.some(row => row.id === item.id)); render();
   };
   const refresh = () => load().catch(error => {
     if (error.name === 'AbortError') return;

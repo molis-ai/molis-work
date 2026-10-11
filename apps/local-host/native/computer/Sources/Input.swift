@@ -72,11 +72,42 @@ final class Input {
         return false
     }
 
+    /// Terminals, editors and remote desktops: the helper refuses typing even if a caller skips the driver's check.
+    private static let lookOnlyIds: Set<String> = [
+        "com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable", "dev.warp.Warp", "com.mitchellh.ghostty", "org.alacritty",
+        "io.alacritty", "net.kovidgoyal.kitty", "com.github.wez.wezterm", "co.zeit.hyper", "org.tabby", "com.termius-dmg.mac",
+        "com.microsoft.VSCode", "com.microsoft.VSCodeInsiders", "com.vscodium", "com.todesktop.230313mzl4w4u92", "com.exafunction.windsurf",
+        "dev.zed.Zed", "dev.zed.Zed-Preview", "com.apple.dt.Xcode", "com.google.android.studio", "com.sublimetext.4", "com.sublimetext.3",
+        "com.panic.Nova", "org.vim.MacVim", "org.gnu.Emacs", "com.qvacua.VimR",
+        "com.apple.ScriptEditor2", "com.apple.Automator", "com.apple.shortcuts",
+        "com.apple.ScreenSharing", "com.teamviewer.TeamViewer", "com.philandro.anydesk", "com.netease.uuremote", "com.microsoft.rdc.macos",
+        "com.edovia.jumpdesktop.mac", "com.parallels.desktop.console", "com.vmware.fusion", "com.utmapp.UTM",
+    ]
+    private static let lookOnlyName = try! NSRegularExpression(pattern: "terminal|终端|iterm|ghostty|alacritty|wezterm|visual studio|xcode|intellij|pycharm|webstorm|goland|clion|rubymine|phpstorm|datagrip|android studio|vscodium|\\bvim\\b|emacs|remote desktop|远程|screen sharing|屏幕共享|teamviewer|anydesk|parallels|vmware", options: [.caseInsensitive])
+
+    private func refuseLookOnly(_ pid: pid_t) throws {
+        guard let app = NSRunningApplication(processIdentifier: pid) else { return }
+        let id = app.bundleIdentifier ?? ""
+        let name = app.localizedName ?? ""
+        let named = Input.lookOnlyName.firstMatch(in: name, range: NSRange(location: 0, length: (name as NSString).length)) != nil
+        if Input.lookOnlyIds.contains(id) || id.hasPrefix("com.jetbrains.") || named {
+            let label = name.isEmpty ? id : name
+            throw HelperError("input.look_only", "「\(label)」只能看和点：助理不能在这里输入或按键（命令走 Coding）")
+        }
+    }
+
     /// The point must be on the target app: the topmost window there is its own, and so is the element there.
+    /// A window that shows Molis Work is the Assistant's own confirm, whichever app drew it.
     private func land(_ point: CGPoint, _ pid: pid_t) throws {
         let probe = Observe.probe(point)
         let window = probe["window"] as? [String: Any] ?? [:]
         let element = probe["element"] as? [String: Any] ?? [:]
+        let title = (element["window_title"] as? String) ?? ""
+        let windowTitle = (window["title"] as? String) ?? ""
+        let ownerName = (window["owner"] as? String) ?? ""
+        if title.contains("Molis Work") || windowTitle.contains("Molis Work") || ownerName.contains("Molis Work") {
+            throw HelperError("landing.covered", "落点在显示着 Molis Work 的窗口上：助理不能操作自己的确认卡")
+        }
         let owner = window["pid"] as? Int ?? 0
         if owner != Int(pid) {
             let name = (window["owner"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "别的程序"
@@ -210,6 +241,7 @@ final class Input {
             throw HelperError("key.unknown", main.count > 1 ? "一次只按一个键（可以加 Cmd、Shift 等修饰键）" : "认不出按键「\(parts.joined(separator: "+"))」")
         }
         return try perform {
+            try refuseLookOnly(pid)
             try activate(pid)
             // A character keyed into a password field is a password typed by the Assistant.
             if Input.printable.contains(main[0]) && !flags.contains(.maskCommand) && !flags.contains(.maskControl),
@@ -233,6 +265,7 @@ final class Input {
         let pid = try params.int32("pid")
         let body = try params.string("text")
         return try perform {
+            try refuseLookOnly(pid)
             try activate(pid)
             let app = AX.app(pid)
             guard let focused = AX.element(app, kAXFocusedUIElementAttribute) else { throw HelperError("field.none", "目标应用里没有获得焦点的输入位置：先点一下要输入的地方") }
@@ -300,6 +333,7 @@ final class Input {
         let pid = try params.int32("pid")
         guard let path = params.optionalStrings("path"), !path.isEmpty else { throw HelperError("helper.bad_params", "path is required") }
         return try perform {
+            try refuseLookOnly(pid)
             try activate(pid)
             guard let bar = AX.element(AX.app(pid), kAXMenuBarAttribute) else { throw HelperError("menu.none", "这个应用没有菜单栏") }
             var items = AX.elements(bar, kAXChildrenAttribute)

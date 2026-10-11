@@ -227,6 +227,7 @@ export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { prologueMemoryBackend } from "./memory/memory-host.js";
 export { ComputerRecords } from "./computer/computer-records.js";
 export { ComputerDriver, Refused, type DeskContext } from "./computer/computer-driver.js";
+export { HelperError } from "./computer/helper-connection.js";
 export {
   COMPUTER_RECORD_SOURCE_ID,
   computerRecordFileSource,

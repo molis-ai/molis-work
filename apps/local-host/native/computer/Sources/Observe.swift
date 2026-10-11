@@ -158,6 +158,7 @@ enum Observe {
                     "layer": (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0,
                     "alpha": (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1,
                     "owner": info[kCGWindowOwnerName as String] as? String ?? "",
+                    "title": info[kCGWindowName as String] as? String ?? "",
                     "frame": rectArray(frame), "rect": frame]
         }
     }
@@ -267,10 +268,13 @@ enum Observe {
     }
 
     /// Only the target app's windows, cropped to `rect` (global points); other apps' windows are not in the image even
-    /// where they overlap it. Password fields are painted over before the bytes leave this process.
+    /// where they overlap it. A password field in that crop never leaves this process: the capture is refused.
     static func screenshot(pid: pid_t, rect: CGRect, scale: Double) throws -> [String: Any] {
         guard CGPreflightScreenCaptureAccess() else { throw HelperError("permission.screen_recording", "没有屏幕录制权限") }
         guard rect.width >= 1, rect.height >= 1, scale > 0, scale <= 2 else { throw HelperError("helper.bad_params", "截图范围不对") }
+        if secureRects(pid: pid).contains(where: { $0.intersects(rect) }) {
+            throw HelperError("capture.password", "截图会带出没有涂黑的密码框")
+        }
         let content: SCShareableContent = try waitFor { try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) }
         guard let target = content.applications.first(where: { $0.processID == pid }) else { throw HelperError("app.gone", "应用已经退出或没有窗口在屏幕上") }
         let center = CGPoint(x: rect.midX, y: rect.midY)
@@ -290,6 +294,7 @@ enum Observe {
         let image: CGImage = try waitFor { try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration) }
         let captured = local.offsetBy(dx: display.frame.minX, dy: display.frame.minY)
         let masks = secureRects(pid: pid).filter { $0.intersects(captured) }
+        if !masks.isEmpty { throw HelperError("capture.password", "截图会带出没有涂黑的密码框") }
         let width = image.width, height = image.height
         guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
                                       space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
@@ -309,7 +314,7 @@ enum Observe {
             throw HelperError("helper.failed", "cannot encode")
         }
         return ["png": png.base64EncodedString(), "rect": rectArray(captured), "width": width, "height": height,
-                "masked": masks.count, "display": rectArray(display.frame)]
+                "included_pids": [Int(pid)], "password_fields": masks.count, "masked": masks.count, "display": rectArray(display.frame)]
     }
 
     /// What sits at a global point right now: the topmost window there, and the accessibility element there.

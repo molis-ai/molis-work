@@ -122,11 +122,11 @@
 
 | # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 声明与校验 | `packages/contracts/src/platform/plugin-manifest.ts`（`parsePluginManifest`，含 `inspectActionDeclarations` 与 `inspectMethodDeclarations`）；`PluginRuntime`（`packages/plugin-runtime/src/index.ts`）的 `validateManifest` | Manifest → 通过或拒绝 | 实际 grant 不能超过 Manifest 声明上限，缺必需 grant 拒绝 | `plugin_manifest_invalid`；`plugin_grant_denied`；`plugin_entrypoint_missing` | 无 |
+| 1 | 声明与校验 | `packages/plugin-sdk/src/manifest.ts`（`parsePluginManifest`，调用合同包里的 `inspectActionDeclarations` 与 `inspectMethodDeclarations`；端口与事件检查在同目录的 `wiring-declarations.ts`）；`PluginRuntime`（`packages/plugin-runtime/src/index.ts`）调用的 `validateManifest`（`packages/plugin-runtime/src/runtime-rules.ts`，里面用 SDK 的 `parsePluginManifest`） | Manifest → 通过或拒绝 | 实际 grant 不能超过 Manifest 声明上限，缺必需 grant 拒绝 | `plugin_manifest_invalid`；`plugin_grant_denied`；`plugin_entrypoint_missing` | 无 |
 | 2 | 依赖解析 | `packages/plugin-runtime/src/resolution.ts`（`resolvePluginActivation`）、`PluginSupervisor.start`（`packages/plugin-runtime/src/supervisor.ts`） | 一批 Manifest → 激活顺序，依赖不满足的标 blocked | 依赖只表达契约：能力、端口输入、点名来源的事件订阅 | 状态 `blocked`（带具名诊断）；事件契约与校验器不一致的插件不启动，不影响其他插件 | 内存里的监督状态 |
 | 3 | 安装记录 | `PluginRuntime.install`，记录存项目库的 `plugin_runtime_installs` 表（`SqlitePluginRuntimeRepository`） | 定义 + 部署环境 + grant → 安装记录（`installed`） | 同一插件 id + 版本 + 签名只能对应一份 Manifest；已有安装不能被重复 install 悄悄改部署环境或 grant；内置随 Host 的插件（`bundled`）跟 Host 版本走 | `plugin_definition_conflict`；`plugin_upgrade_required`；`plugin_state_invalid` | 安装记录；Native 发行物存进项目库，内置插件（`bundled`）启动时跟当前构建、不从这里恢复旧版，只有不带 `bundled` 的条目靠它在重启后恢复精确旧版，Schedule 提醒还按安装记录的版本与摘要读它取插件显示名 |
 | 4 | 启动与兑现 | `PluginRuntime.start` → `PluginHostExecutor.start`（`apps/local-host/src/plugin-executor.ts`）→ `assertContributionMatchesManifest`（`packages/plugin-runtime/src/contribution.ts`） | 插件 `start(context)` → contribution（视图、路由、动作处理器） | 上下文里的服务按 Manifest 声明才出现；动作客户端只能调用本插件声明的动作 | 声明了没兑现，或兑现了没声明：`plugin_contribution_unredeemed`，启动失败并撤权；入口抛错：`plugin_executor_failed`，记为 `crashed` | 状态 `running`；连续失败达上限（默认 3 次）进入 `quarantined`，需人显式解除 |
-| 5 | 注册动作 | `PluginRuntime.redeem` → `pluginActionProvider`（`packages/plugin-runtime/src/action-provider.ts`）→ `LocalHost.actionRegistry` | Manifest 的动作和场景 → 动作提供方 | 每个动作的可用性随安装记录实时读：未运行 `actions.plugin_unavailable`，缺授权 `actions.plugin_permission`；注册表再检查一次声明形状 | `actions.definition_invalid`；`actions.unredeemed`；`kernel.capability_duplicate` | 提供方变化通知搜索（`SearchHost.providerChanged`），下次查询重新核对该来源 |
+| 5 | 注册动作 | `PluginRuntime.redeem` → `pluginActionProvider`（`packages/plugin-runtime/src/action-provider.ts`）→ `LocalHost.actionRegistry` | Manifest 的动作和场景 → 动作提供方 | 每个动作的可用性随安装记录实时读：未运行 `actions.plugin_unavailable`，缺授权 `actions.plugin_permission`；注册表再检查一次声明形状。登记的提供方：随宿主发布的插件（`bundled`）是 `plugin_id`，其余是 `install_id`，都带 `plugin_install_id`（用户 2026-10-10，W3-06 C） | `actions.definition_invalid`；`actions.unredeemed`；`kernel.capability_duplicate` | 提供方变化通知搜索（`SearchHost.providerChanged`），下次查询重新核对该来源 |
 | 6 | 目录与发现 | `LocalHost.inspectActions`；页面 `localWebActionContext`；MCP `ensureCatalog` | 调用者上下文 → 看得到的动作及可用性 | 目录条目包含「暂不可用」及原因，执行时重新校验 | — | 无；MCP 每次 tools/list 重新读 |
 | 7 | 路由与界面 | `PluginRouteRouter`（`packages/plugin-runtime/src/routes.ts`）；`handleCodingPluginHttp` | `/api/plugins/<插件 id>/…` → 已声明的路由 | 路径统一在这个前缀下，未声明的到不了插件；未启用 `plugin_not_enabled`（404），未运行 `plugin_unavailable`（503） | `plugin_route_unbound`（500，插件自身的错） | 界面版本号 `viewRevision`（`/api/plugins/<插件 id>/view-revision`）在插件通知宿主视图变了时递增（`invalidateView`，例如工作目录或 Git 工作区变化），页面据此刷新 |
 | 8 | 停用 | 内置：`PluginSupervisor.revoke` + `PluginRuntime.stop`；生成插件：`lifecycle` 的 `disable` 分支 | → 状态 `disabled` | 先撤销调用授权，再等插件自己的清理 | 清理失败：`plugin_executor_failed`，记为 `crashed` | `revoke` 取消启用世代，排队的事件按世代丢弃，`PluginHostExecutor.stop` 撤销事件客户端；动作提供方注销，通知搜索重新核对；生成插件另把对外暴露的动作撤下、提示词登记标为停用 |
@@ -183,7 +183,7 @@
 
 ## 7. 链 6：搜索、@ 引用与放置
 
-来源声明 → 索引 → 对象读取器 → 权限 → 打开位置。三个服务（搜索、放置，以及下一链的记忆）按 [系统架构 §3](ARCHITECTURE.md) 属于「平台产品服务」：可以持有跨插件策略和自己的机制记录，不拥有业务事实，对象事实总向所有者读。
+来源声明 → 索引 → 对象读取器 → 权限 → 打开位置。三个服务（搜索、放置，以及下一链的记忆）按 [系统架构 §3](ARCHITECTURE.md) 属于「平台产品服务」：可以持有跨插件策略和自己的机制记录，不拥有业务事实，对象事实总向所有者读。第四项「情境排序」（`packages/kernel/src/contextual.ts`）不在这条链上：它只给工作台的选区条用，只有工作台的 HTTP 传输（`/api/contextual/*`），准备输入与上报信号经调用者自己的动作，判断只排序、不执行，不登记成系统动作（2026-10-10 的日常取舍；删除条件：助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作）。
 
 | # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -251,7 +251,7 @@
 
 - 升级只覆盖程序本体；数据库不随升级迁移，版本不符就拒绝。在有真实用户之前，开发用的 Home 由一次性脚本升级或重建（`specs/repository-anti-corruption/spec.md` §4.1）。
 - 步骤 8 的 CLI 是第二个进程内宿主，不转发给常驻服务；与「一个 Home 只有一个执行进程」的约束并存，登记在 §10。`demo remove --confirm` 是其中转发的一个：有这个 Home 的常驻 Host 应答时交给它的删除服务（链 2 步骤 7），没有才在自己的进程里删。
-- 插件本身的升级是链 4 的第 10 行。随 Host 带来的 Runtime 内置插件（监督器条目标 `bundled`）在 Host 启动时把安装记录改成 Host 带来的构建的清单（版本更高、更低或同版本改了内容都一样，不恢复旧发行物），保留新 Manifest 仍声明的 grant 并补上必需的；其余的升级要在插件市场确认（`PluginSupervisor.upgradeCandidates`，它不列内置插件）。
+- 插件本身的升级是链 4 的第 10 行。随 Host 带来的 Runtime 内置插件（监督器条目标 `bundled`）在 Host 启动时把安装记录改成 Host 带来的构建的清单（版本更高、更低或同版本改了内容都一样，不恢复旧发行物），授予新 Manifest 声明的全部权限（必需的和可选的，不再声明的去掉）；其余的升级要在插件市场确认（`PluginSupervisor.upgradeCandidates`，它不列内置插件）。
 - `installMolisWorkHome` 不清理旧版本的发行目录；新版本只是另起 `{home}/releases/<版本>` 并改写启动器。
 - 已定（决定 20）：新增离线快照命令（先让常驻宿主暂停，再拍带清单和版本核对的一致快照），「卸载并清除数据」覆盖库登记表里登记的所有库。这是目标：今天 `molis-work` 的子命令里没有快照命令（`apps/cli/src/dispatch.ts`），步骤 10 的清除按目录与项目数确认。
 - 已定（决定 11，只写计划）：第三方插件用 `molis-work plugin install <bundle>` 在本地安装，首次安装确认并记住发布者密钥，在独立进程的沙箱里运行。今天 `molis-work plugin` 只有 `validate`、`create`、`pack`、`identity`、`sign`、`verify`、`dev`（`tooling/plugin-cli/src/cli.ts`），没有 `install`。

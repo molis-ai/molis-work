@@ -430,7 +430,7 @@ jobs:
       - name: Build
         run: pnpm build
 
-      # The browser smokes drive the Chrome that the ubuntu image has (tests/fixtures/goal-browser.ts also looks at /usr/bin/google-chrome
+      # The browser smokes drive the Chrome that the ubuntu image has (the tests' own Chrome locator also looks at /usr/bin/google-chrome
       # on its own). The wrapper adds --no-sandbox, which a runner whose kernel restricts unprivileged user namespaces needs; the pages
       # are the ones the tests serve from localhost. Without a Chrome the smokes would skip, and a skipped smoke fails the run.
       - name: Chrome for the browser smokes

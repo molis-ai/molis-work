@@ -150,6 +150,7 @@ export { readMcpToolPreference } from "./mcp-settings-store.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
 export * from "./project-host.js";
+export { projectActionAvailability } from "./project-action-availability.js";
 export { initializeBoardCapability, snapshotBoardCapability, createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
 export { runLocalPluginDevelopment } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
@@ -190,6 +191,7 @@ export {
   type ModelProviderStoreOptions,
   type ModelSecretPort,
 } from "./model-provider-store.js";
+export { MINIMAX_ANTHROPIC_BASE_URL, MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "./model-provider-templates.js";
 export {
   composeAgentHost,
   workspaceRefFor,

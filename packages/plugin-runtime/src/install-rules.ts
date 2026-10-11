@@ -1,5 +1,5 @@
 import type { PluginDeployment, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { comparePluginVersions } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { PluginRuntimeError } from "./errors.js";
 import { pluginManifestDigest } from "./identity.js";
 
@@ -20,9 +20,22 @@ export function keptDataRefusal(previous: PluginInstanceRecord | null, manifest:
 }
 
 /**
- * What a start asks for when its entry names no grants: every required permission, or what the existing installation
- * already holds when that still covers them. A permission that became optional in a bundled follow stays granted, and
- * the next start of the same build replays it instead of looking like a silent grant change.
+ * What a plugin that ships with the Host (`bundled`) holds: every permission its Manifest declares, required or not, once each
+ * (user decision 2026-10-10, docs/releases/POLICY.md section 7.8). "Optional" only says the plugin still works in part without
+ * one, and nothing lets the person switch a built-in permission off one at a time. It is the one answer for a first install
+ * (`PluginRuntime.install`), for a record moved onto the build (`followBundledBuild`) and for a record that lacks one of them
+ * (`recordToFollow`), whatever grants a caller names: a first install that honoured a narrower list would be widened by the next
+ * start, and the start after that would meet a repeated install whose own list differs from the record and refuse it.
+ */
+export function bundledGrants(manifest: PluginManifest): string[] {
+  return normalizeGrants(manifest, manifest.permissions.map(permission => permission.permission));
+}
+
+/**
+ * What a start asks for when its entry names no grants, for a plugin that does not ship with the Host (one that does holds
+ * `bundledGrants`, which no entry changes): every required permission, or what the existing installation already holds when
+ * that still covers them. A permission that became optional in an upgrade stays granted, and the next start of the same build
+ * replays it instead of looking like a silent grant change.
  */
 export function defaultGrants(manifest: PluginManifest, installs: readonly PluginInstanceRecord[]): string[] {
   const required = manifest.permissions.filter(permission => permission.required).map(permission => permission.permission);
@@ -70,26 +83,26 @@ export function normalizeGrants(manifest: PluginManifest, requested: string[]): 
 /**
  * The record a bundled plugin's build is to be moved onto, or null. A plugin that ships with the Host runs the Host's build
  * whatever its install record holds (2026-10-04 for a higher version, 2026-10-08 for a lower one and for the same version with
- * another Manifest digest; docs/releases/POLICY.md section 7). Null when the plugin is not bundled, has no installation (an
- * uninstalled row is installed afresh, under the kept-data rule), or its record already is the build.
+ * another Manifest digest; docs/releases/POLICY.md section 7), and holds every permission that build declares (2026-10-10), so
+ * a record of this very build that lacks one is moved too. Null when the plugin is not bundled, has no installation (an
+ * uninstalled row is installed afresh, under the kept-data rule), or its record already is the build with all its permissions.
  */
 export function recordToFollow(current: PluginInstanceRecord | null, manifest: PluginManifest, digest: string, bundled: boolean): PluginInstanceRecord | null {
-  return bundled && current && current.state !== "uninstalled" && (current.version !== manifest.version || current.manifest_digest !== digest) ? current : null;
+  return bundled && current && current.state !== "uninstalled"
+    && (current.version !== manifest.version || current.manifest_digest !== digest || bundledGrants(manifest).some(permission => !current.grants.includes(permission))) ? current : null;
 }
 
 /**
  * The record moved onto the build's Manifest. It stays the same installation: install_id, installation generation, state,
  * install time and the retained-data choice are untouched, so private data stays attached; the deployment cannot change.
- * Grants converge the way a fresh install would reach them from what the person holds: the ones the new Manifest still
- * declares stay, the ones it requires are added (granted without asking, as in a fresh install), the ones it no longer
- * declares go. This is the same whether the build is newer, older or the same version.
+ * The grants are every permission the new Manifest declares, as a fresh install of a bundled plugin would hold them
+ * (`bundledGrants`): what it no longer declares goes, what it declares is added, whatever the record held before. This is
+ * the same whether the build is newer, older or the same version.
  */
 export function followBundledBuild(current: PluginInstanceRecord, deployment: PluginDeployment, manifest: PluginManifest, digest: string, entrypoint: string, at: string): PluginInstanceRecord {
   if (current.deployment !== deployment) throw new PluginRuntimeError("plugin_state_invalid", "已有安装不能通过启动改变部署环境");
-  const declared = new Set(manifest.permissions.map(permission => permission.permission));
-  const required = manifest.permissions.filter(permission => permission.required).map(permission => permission.permission);
   return { ...current, version: manifest.version, publisher_id: manifest.publisher.publisher_id, manifest_digest: digest, selected_entrypoint: entrypoint,
-    grants: normalizeGrants(manifest, [...current.grants.filter(permission => declared.has(permission)), ...required]), updated_at: at };
+    grants: bundledGrants(manifest), updated_at: at };
 }
 
 /**

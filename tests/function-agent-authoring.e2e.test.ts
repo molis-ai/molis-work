@@ -10,7 +10,8 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/src/functions-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { functionAuthoringActions, functionContextActions, functionsActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
-import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
@@ -108,7 +109,7 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
     external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId, databasePath: browser.databasePath, webBaseUrl: origin },
       { homeDirectory: homeDirectory, runtimeContext: { runtime_id: "agent-notes", stable_work_context_id: null, host_declares_stable: false } }, localHost);
     let request = 0;
-    const call = (definition: ActionDefinition, input: unknown) => external!.handleMessage({ id: ++request, method: "tools/call", params: { name: hostActionToolName(definition), arguments: input } }) as Promise<any>;
+    const call = (definition: ActionDefinition, input: unknown) => external!.handleMessage({ id: ++request, method: "tools/call", params: { name: molisWorkActionToolName(definition), arguments: input } }) as Promise<any>;
     const result = async (definition: ActionDefinition, input: unknown) => {
       const reply = await call(definition, input); assert.equal(reply.result.isError, false, JSON.stringify(reply)); return reply.result.structuredContent;
     };

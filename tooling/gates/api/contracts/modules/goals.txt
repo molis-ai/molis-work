@@ -992,6 +992,7 @@ export interface GoalInputBindingsApi {
     list(projectId: string): GoalInputBindingRecord[];
     register(input: GoalInputBindingRecord): void;
     deactivate?(projectId: string, bindingId: string): boolean;
+    accept?(projectId: string, bindingId: string): boolean;
 }
 
 export type GoalIntentSourceKind = (typeof goalIntentSourceKinds)[number];

@@ -15,6 +15,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   const here = () => document.body.dataset.projectId || null;
   const hereTitle = () => here() === "personal" ? L("个人空间") : (host.projectTitle ? L("项目「{name}」", { name: host.projectTitle }) : L("当前项目"));
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined && text !== null) value.textContent = text; if (className) value.className = className; return value; };
+  const ghost = (text) => { const value = node("button", text, "mw-btn mw-btn--ghost mw-btn--sm"); value.type = "button"; return value; };
   const api = async (path, body) => {
     const response = await fetch(route("/api/placement/" + path), body === undefined ? { headers: headers() } : { method: "POST", headers: headers(), body: JSON.stringify(body) });
     const value = await response.json().catch(() => ({}));
@@ -276,20 +277,20 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       row.append(node("span", link.label));
       const target = link.target;
       if (target.kind === "object" && target.state === "ok" && target.location) {
-        const open = node("button", L("打开"), "mw-btn mw-btn--ghost mw-btn--sm"); open.type = "button";
+        const open = ghost(L("打开"));
         open.onclick = async () => { closePanel(); const other = await describe(target.object, true); openObject(other.open, other.title); };
         row.append(open);
       } else if (target.kind === "project") {
-        const go = node("button", L("去项目"), "mw-btn mw-btn--ghost mw-btn--sm"); go.type = "button";
+        const go = ghost(L("去项目"));
         go.onclick = () => { location.assign("/projects/" + encodeURIComponent(target.project_id) + "/"); };
         row.append(go);
       } else if (target.kind === "goal" && target.goal_id && (target.project_id || null) === here()) {
-        const open = node("button", L("打开"), "mw-btn mw-btn--ghost mw-btn--sm"); open.type = "button";
+        const open = ghost(L("打开"));
         open.onclick = () => { closePanel(); openItem("goals", target.goal_id, target.title); };
         row.append(open);
       }
       if (link.removable && link.key) {
-        const remove = node("button", L("移除关联"), "mw-btn mw-btn--ghost mw-btn--sm"); remove.type = "button";
+        const remove = ghost(L("移除关联"));
         remove.onclick = async () => {
           try {
             await api("unlink", { key: link.key }); invalidate(); closePanel(); repaint();
@@ -491,10 +492,10 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
           : description.state === "missing" ? L("原对象已删除") : (description.reason || L("暂时读不到"));
         row.classList.toggle("is-gone", description.state !== "ok");
         if (description.state === "ok" && description.open) {
-          const open = node("button", L("打开"), "mw-btn mw-btn--ghost mw-btn--sm"); open.type = "button";
+          const open = ghost(L("打开"));
           open.onclick = () => openObject(description.open, description.title); actions.append(open);
         }
-        const remove = node("button", description.state === "ok" ? L("移除关联") : L("清理"), "mw-btn mw-btn--ghost mw-btn--sm"); remove.type = "button";
+        const remove = ghost(description.state === "ok" ? L("移除关联") : L("清理"));
         remove.onclick = async () => {
           try {
             await api("unlink", { key: JSON.stringify(["goal", here(), row.dataset.goalId, row.dataset.placementBinding]) });
@@ -509,14 +510,17 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   document.addEventListener("click", (event) => {
     const add = event.target.closest && event.target.closest("[data-goal-input-add]");
     if (add && here()) { event.preventDefault(); void addGoalInput(add.dataset.goalId); }
-    // A fixed input leaves the Goal; the version itself stays in the 成果库.
-    const remove = event.target.closest && event.target.closest("[data-goal-input-remove]");
-    if (remove && here()) {
-      event.preventDefault(); remove.disabled = true;
-      fetch(route("/api/goals/" + encodeURIComponent(remove.dataset.goalId) + "/artifact-inputs"), { method: "POST", headers: { ...headers(), "content-type": "application/json" },
-        body: JSON.stringify({ reference: JSON.parse(remove.dataset.artifactReference), used: false }) })
-        .then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || L("暂时处理不了，请稍后重试")); remove.closest("article")?.remove(); })
-        .catch((error) => { remove.disabled = false; card(L("没能移除"), error.message, [], "error"); });
+    // An input leaves the Goal, or a proposed one is accepted; the button carries the request and the words for a failure.
+    const act = event.target.closest && event.target.closest("[data-goal-input-post]");
+    if (act && here()) {
+      event.preventDefault(); act.disabled = true;
+      fetch(route(act.dataset.goalInputPost), { method: "POST", headers: { ...headers(), "content-type": "application/json" }, body: act.dataset.goalInputBody })
+        .then(async (response) => {
+          if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || L("暂时处理不了，请稍后重试"));
+          const row = act.closest("article"), done = act.dataset.goalInputDone;
+          if (done) { row.querySelector("[data-goal-input-state]").textContent = done; act.parentNode.remove(); } else row.remove();
+        })
+        .catch((error) => { act.disabled = false; card(act.dataset.goalInputFail, error.message, [], "error"); });
     }
   });
   document.addEventListener("click", async (event) => {
@@ -574,12 +578,12 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       text.append(node("small", source));
       const actions = node("span", undefined, "placement-related-actions");
       if (item.state === "ok" && item.open) {
-        const open = node("button", L("打开"), "mw-btn mw-btn--ghost mw-btn--sm"); open.type = "button"; open.dataset.placementOpen = item.object.id;
+        const open = ghost(L("打开")); open.dataset.placementOpen = item.object.id;
         open.onclick = () => openObject(item.open, item.title); actions.append(open);
       } else {
         actions.append(node("span", item.state === "missing" ? L("原对象已删除") : L("暂时读不到"), "mw-status mw-status--" + (item.state === "missing" ? "blocked" : "attention")));
       }
-      const remove = node("button", item.state === "ok" ? L("移除关联") : L("清理"), "mw-btn mw-btn--ghost mw-btn--sm"); remove.type = "button";
+      const remove = ghost(item.state === "ok" ? L("移除关联") : L("清理"));
       remove.onclick = async () => {
         try { await api("unlink", { key: item.key }); row.remove(); if (!box.querySelector(".placement-related-row")) box.hidden = true;
           card(item.state === "ok" ? L("已移除关联") : L("已清理这条关联"), L("只去掉了关系记录；对象本身不受影响。"), [], "done"); }

@@ -51,6 +51,7 @@ export const goalsActions = {
   ...goalsEventActions,
   inputsBind: goalsInputActions.bind,
   inputsConfirm: goalsInputActions.confirm,
+  inputsAccept: goalsInputActions.accept,
   inputsRelease: goalsInputActions.release,
   inputsList: goalsInputActions.list,
   deliverablesAdd: goalsDeliverableActions.add,

@@ -106,6 +106,8 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 | 共享核心（contracts、kernel、plugin-sdk、modules、local-host 的装配、workbench 外壳）、迁移或存储、改动跨三个以上包、删除整块旧代码、或合入后相关用例意外失败 | 全量：`node scripts/run-tests.mjs`。不带参数时含 `tests/*.test.mjs`（跑全量约 76–78 分钟，spec §9.5 各批记录） |
 | 每个阶段收尾 | 全量一次，作为阶段证据 |
 
+测试与包的引用：一个测试进程既读包的 `src` 又读它的构建（包名、`dist`）就加载了两份，`instanceof`、模块级缓存和 `AsyncLocalStorage` 会对不上。改了包的出口、搬了名字或 rebase 之后，`node scripts/test-imports.mjs --check` 列出这样的测试，`--report` 按规则出重写计划（公开的名字走包入口，其余走 `dist` 里的同一个模块），`--write` 落地。
+
 不变的底线：每个 PR 的 CI 必须通过；跑测试前先整体构建；构建与浏览器用例串行；不跳过、不放宽、不删除断言；失败先分清产品回归、预期变化、测试缺陷、环境与时序，并用干净的基线工作树比对（下面第 8 节）。
 
 ### 6.1 用脚本挑：`scripts/affected-tests.mjs`

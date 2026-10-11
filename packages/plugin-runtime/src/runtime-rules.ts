@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PluginRuntimeError } from "./errors.js";
 

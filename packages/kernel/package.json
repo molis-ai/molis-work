@@ -2,7 +2,7 @@
   "name": "@molis-ai/molis-work-kernel",
   "version": "0.0.0",
   "private": true,
-  "description": "Capability registration, selection, grants, and lifecycle skeleton.",
+  "description": "Capability registration, discovery, grants, ActionService dispatch and scene compatibility; also hosts the contextual-ranking platform product service (pure functions).",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./contextual": {
+      "types": "./dist/contextual.d.ts",
+      "import": "./dist/contextual.js"
     }
   },
   "files": [
@@ -26,6 +30,7 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1"
   },

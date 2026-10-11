@@ -4,11 +4,13 @@ import {
   type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort,
   type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistry } from "./index.js";
 import { assertSessionAuthorship } from "./action-authorship.js";
+import { bindCall, describeCall, markStarted, settleCall, settleCallSync, type CallContext, type CallSettled } from "./action-settlement.js";
 import { actionSchemaAccepts, compileActionSchema, createActionSchemaCompiler, validateActionValue } from "./action-schema.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
-import { createExecutionLifetime } from "@molis-ai/molis-work-contracts/platform/execution-lifetime";
+import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 
 interface RegisteredScene {
   definition: ActionSceneDefinition;
@@ -32,9 +34,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   constructor(readonly registry = new CapabilityRegistry<ActionCallContext>(),
     private readonly effects: {
       beforeEffect?(context: ActionCallContext, reference: ActionReference): void | Promise<void>;
-      /** After a handler ran: which action, for whom, and whether it succeeded. Never the input or result. */
-      settled?(context: ActionCallContext, action: ActionReference & { operation: string; title: string; provider_title: string },
-        outcome: { ok: true } | { ok: false; code?: string; message: string }): void;
+      /** Host policy, before anything is resolved or dispatched. Asynchronous, so a synchronous call is never offered to it. */
+      admit?(context: CallContext, reference: ActionReference): void | Promise<void>;
+      /** When a call is over, once, refusals included: which action, for whom, and how it ended. Never the input or result. */
+      settled?: CallSettled;
     } = {}) {}
 
   registerProvider(registration: ActionProviderRegistration): () => void {
@@ -130,25 +133,17 @@ export class ActionService implements ActionClient, ActionRegistryPort {
             }
             return value;
           };
-          // Only what was called, by whom and how it ended is reported; input and result never leave the call.
-          const settled = (error?: unknown) => {
-            try {
-              this.effects.settled?.(context, { ...reference, operation: definition.operation, title: definition.action.title, provider_title: provider.title },
-                error === undefined ? { ok: true } : { ok: false, code: (error as { code?: unknown })?.code === undefined ? undefined : String((error as { code?: unknown }).code),
-                  message: (error instanceof Error ? error.message : String(error)).slice(0, 200) });
-            } catch { /* A failed record never changes the call. */ }
-          };
+          // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
           try {
+            markStarted(context);
             const result = handler.handle(execution, input);
             if (handler.execution === "sync") {
-              try { const value = checked(requireSynchronous(result)); settled(); return value; }
-              catch (error) { settled(error); throw error; }
+              try { return checked(requireSynchronous(result)); }
               finally { executing = false; lifetime?.dispose(); }
             }
             const pending = Promise.resolve(result);
-            return (lifetime ? lifetime.wait(pending) : pending).then(checked).then(value => { settled(); return value; }, error => { settled(error); throw error; })
-              .finally(() => { executing = false; lifetime?.dispose(); });
-          } catch (error) { executing = false; lifetime?.dispose(); settled(error); throw error; }
+            return (lifetime ? lifetime.wait(pending) : pending).then(checked).finally(() => { executing = false; lifetime?.dispose(); });
+          } catch (error) { executing = false; lifetime?.dispose(); throw error; }
         };
         disposers.push(this.registry.register(registeredDefinition, execute,
           { availability, synchronous: handler.execution === "sync" }));
@@ -217,30 +212,32 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     });
   }
 
+  /** Every way in is settled once, whether the handler ran or the call was turned away: host policy, lookup, authority, contract, rate limit. */
   async invoke(context: ActionCallContext, reference: ActionReference, input: unknown): Promise<unknown> {
-    const definition = this.actionDefinition(context, reference);
-    if (!definition) throw new ActionError("actions.missing", "能力未注册或版本已失效");
-    if (reference.provider_id && definition.action_provider?.provider_id !== reference.provider_id) {
-      throw new ActionError("actions.provider_changed", "能力提供方已变化，原引用不能自动替换");
-    }
-    if (context.validate_authority) {
-      const registration = this.registry.registrationToken(definition);
-      await context.validate_authority({ ...reference, provider_id: definition.action_provider?.provider_id });
-      if (registration !== this.registry.registrationToken(definition)) throw new ActionError("actions.provider_changed", "授权检查期间能力已重新加载，请重新执行");
-    }
-    return this.registry.invoke(context, definition, input);
+    let resolved: HostCapabilityDescriptor | undefined;
+    return settleCall(this.effects.settled, bindCall(context), call => describeCall(this.registry, call, reference, resolved), async call => {
+      await this.effects.admit?.(call, reference);
+      const definition = resolved = requireDefinition(this.actionDefinition(call, reference), reference);
+      if (call.validate_authority) {
+        const registration = this.registry.registrationToken(definition);
+        await call.validate_authority({ ...reference, provider_id: definition.action_provider?.provider_id });
+        if (registration !== this.registry.registrationToken(definition)) throw new ActionError("actions.provider_changed", "授权检查期间能力已重新加载，请重新执行");
+      }
+      return this.registry.invoke(call, definition, input);
+    });
   }
 
-  invokeSync(context: ActionCallContext, reference: ActionReference, input: unknown): unknown {
-    const definition = this.actionDefinition(context, reference);
-    if (!definition) throw new ActionError("actions.missing", "能力未注册或版本已失效");
-    if (reference.provider_id && definition.action_provider?.provider_id !== reference.provider_id) {
-      throw new ActionError("actions.provider_changed", "能力提供方已变化，原引用不能自动替换");
-    }
-    const registration = this.registry.registrationToken(definition);
-    requireSynchronous(context.validate_authority?.({ ...reference, provider_id: definition.action_provider?.provider_id }), "授权检查需要异步调用");
-    if (registration !== this.registry.registrationToken(definition)) throw new ActionError("actions.provider_changed", "授权检查期间能力已重新加载，请重新执行");
-    return this.registry.invokeSync(context, definition, input);
+  /** `entryCheck`: the caller's own synchronous checks, made inside the settled call so that what they refuse is settled too. */
+  invokeSync(context: ActionCallContext, reference: ActionReference, input: unknown, entryCheck?: () => void): unknown {
+    let resolved: HostCapabilityDescriptor | undefined;
+    return settleCallSync(this.effects.settled, bindCall(context), call => describeCall(this.registry, call, reference, resolved), call => {
+      entryCheck?.();
+      const definition = resolved = requireDefinition(this.actionDefinition(call, reference), reference);
+      const registration = this.registry.registrationToken(definition);
+      requireSynchronous(call.validate_authority?.({ ...reference, provider_id: definition.action_provider?.provider_id }), "授权检查需要异步调用");
+      if (registration !== this.registry.registrationToken(definition)) throw new ActionError("actions.provider_changed", "授权检查期间能力已重新加载，请重新执行");
+      return this.registry.invokeSync(call, definition, input);
+    });
   }
 
   discoverScenes(context: ActionCallContext, judgment?: ActionReference): ActionSceneView[] {
@@ -471,6 +468,14 @@ export function actionSceneCompatibilityReason(scene: ActionSceneDefinition, fn?
   if (!fn.action.output_schema || !actionSchemaAccepts(scene.result_schema, fn.action.output_schema)) return "函数结果不能满足场景合同";
   if (scene.recommendation_source === "subject-offers") return subjectOfferCompatibilityReason(fn, directory);
   return undefined;
+}
+/** The definition a reference names, or why it names none. */
+function requireDefinition(definition: HostCapabilityDescriptor | undefined, reference: ActionReference): HostCapabilityDescriptor {
+  if (!definition) throw new ActionError("actions.missing", "能力未注册或版本已失效");
+  if (reference.provider_id && definition.action_provider?.provider_id !== reference.provider_id) {
+    throw new ActionError("actions.provider_changed", "能力提供方已变化，原引用不能自动替换");
+  }
+  return definition;
 }
 function assertAvailable(value: ActionAvailability): void { if (!value.available) throw new ActionError(value.code, value.reason); }
 function unavailable(code: string, reason: string): ActionAvailability { return { available: false, code, reason }; }

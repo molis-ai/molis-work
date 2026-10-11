@@ -5,7 +5,7 @@ import type {
   PluginManifest,
   PluginRuntimeApi,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { comparePluginVersions } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 
 import { buildEventContract, type PluginEventContract } from "./event-contract.js";
 import { pluginManifestDigest } from "./identity.js";

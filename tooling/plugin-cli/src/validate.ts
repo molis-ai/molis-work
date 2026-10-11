@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /** Read data only. Validation must never import or execute a Plugin entrypoint. */

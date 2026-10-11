@@ -1259,7 +1259,7 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .navigator-project-menu-popover { padding: 8px; border-radius: 14px; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover > span { padding: 4px 12px 4px; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item, .navigator-personal > .personal-account) {
-    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; min-height: var(--menu-row, 34px);
+    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; height: var(--menu-row, 34px); min-height: var(--menu-row, 34px);
     margin: 0; padding: 0 12px; border: 0; border-radius: 8px; box-shadow: none; background: transparent;
     color: var(--ink); font: inherit; font-size: 13px; font-weight: 400; line-height: 1; text-align: left; text-decoration: none;
   }

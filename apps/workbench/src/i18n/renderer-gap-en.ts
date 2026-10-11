@@ -5,6 +5,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "图片无法读取，请重新选择有效的图片。": "The image could not be read. Choose a valid image.",
   "尚未生成确认卡，描述和图片已保留。": "No confirmation card yet. Your description and images are preserved.",
   "整理连接中断，草稿仍保留。请重试或手动填写。": "The Assistant connection was interrupted. Your draft is preserved. Retry or enter the details manually.",
+  "已是最新版本": "This is the latest version.",
   "已是最新版本，当前草稿已保留。": "This is the latest version. Your current draft is preserved.",
   "用一句话概括问题": "Summarize the issue in one sentence",
   "助理会建议标题和类型，确认后保存。": "Assistant suggests a title and type. Confirm to save.",

@@ -110,7 +110,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     note(L('正在读取问题…'));
     const issue = await request('read?id=' + encodeURIComponent(id));
     if (epoch !== readEpoch) return;
-    if (selected?.id===id && issue.version===selected.version) { note(L('已是最新版本，当前草稿已保留。')); return; }
+    if (selected?.id===id && issue.version===selected.version) { note(L('已是最新版本'+(editing?'，当前草稿已保留。':''))); return; }
     if (selected?.id === id && assistant) await release();
     if (selected?.id === id && dirty) {
       compare(issue); note(L('请先核对最新内容与草稿。')); $('comparison').scrollIntoView({block:'nearest'}); return;

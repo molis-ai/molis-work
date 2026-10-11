@@ -7,12 +7,12 @@ import { join } from "node:path";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { IMAGES_CLIENT_FACTORY_SCRIPT, imagesUiContribution } from "@molis-ai/molis-work-plugin-images";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
-import { ChromeHarness } from "./fixtures/plugin-builder-browser.js";
+import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 
 async function chrome(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "ui-lifetime-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { t.skip("Chrome is unavailable"); return null; }
   t.after(() => browser.close());
   return browser.page();

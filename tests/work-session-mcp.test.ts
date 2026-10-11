@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workActions, WORK_ACTION_PERMISSIONS, type WorkSessionDirectory, type PublicSessionContent } from "@molis-ai/molis-work-plugin-work";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -15,8 +15,8 @@ import { DesktopPanelService } from "../apps/desktop/src/panels.js";
 import { createDesktopPanelTables, SqliteDesktopPanelRepository } from "../apps/desktop/src/adapters/sqlite-panels.js";
 import { MolisWorkProjectCatalog } from "../apps/local-host/src/project-catalog.js";
 import type { LocalWebCatalogRunner } from "../apps/local-host/src/web-project-settings.js";
-import { projectActionAvailability } from "../apps/local-host/src/project-action-availability.js";
-import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 
 test("formal MCP and Web share Session directory/content/resume and borrowed Host survives Web shutdown", { timeout: 60_000 }, async () => {
@@ -60,7 +60,7 @@ test("formal MCP and Web share Session directory/content/resume and borrowed Hos
     }, stderr: "pipe" });
     let stderr = ""; transport.stderr?.on("data", chunk => { stderr += String(chunk); });
     await sdk.connect(transport).catch(error => { throw new Error(String(error) + stderr); });
-    assert.equal((await sdk.listTools()).tools.some(tool => tool.name === hostActionToolName(workActions.directory)), false);
+    assert.equal((await sdk.listTools()).tools.some(tool => tool.name === molisWorkActionToolName(workActions.directory)), false);
     const directory = await host.inspectActions({ actor_id: clientId, project_id: project.project_id, audience: "mcp", permissions: [] }, reference);
     // Archiving and re-associating carry the person's confirmation and stay with the local user.
     for (const local of [workActions.archive, workActions.associations]) assert.ok(!directory.some(view => view.capability_id === local.capability_id));
@@ -68,9 +68,9 @@ test("formal MCP and Web share Session directory/content/resume and borrowed Hos
       const view = directory.find(view => view.capability_id === action.capability_id)!; assert.ok(view);
       await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, view, true));
     }
-    assert.ok((await sdk.listTools()).tools.some(tool => tool.name === hostActionToolName(workActions.directory)));
+    assert.ok((await sdk.listTools()).tools.some(tool => tool.name === molisWorkActionToolName(workActions.directory)));
     const call = async (action: { capability_id: string; version: number }, input: Record<string, unknown>) => {
-      const result = await sdk.callTool({ name: hostActionToolName(action), arguments: input });
+      const result = await sdk.callTool({ name: molisWorkActionToolName(action), arguments: input });
       assert.notEqual(result.isError, true, JSON.stringify(result));
       return JSON.parse((result.content as Array<{ text: string }>)[0]!.text);
     };
@@ -86,7 +86,7 @@ test("formal MCP and Web share Session directory/content/resume and borrowed Hos
     assert.deepEqual(await web.json(), content);
     assert.equal(content.events[0]!.content, "ONE-OWNER-CONTENT");
     assert.equal((await call(workActions.resume, { session_id: session.session_id })).status, "ok");
-    assert.equal((await sdk.callTool({ name: hostActionToolName(workActions.content), arguments: { session_id: other.session_id } })).isError, true);
+    assert.equal((await sdk.callTool({ name: molisWorkActionToolName(workActions.content), arguments: { session_id: other.session_id } })).isError, true);
     assert.ok(!requests.some(value => value.includes("foreign-thread"))); assert.ok(requests.includes("thread/resume:exact-native-thread"));
     const messageInput = { session_id: session.session_id, expected_goal_id: null, idempotency_key: "formal-message", text: "MCP-REAL-DELIVERY" };
     const sent = await call(workActions.messageSend, messageInput);
@@ -108,13 +108,13 @@ test("formal MCP and Web share Session directory/content/resume and borrowed Hos
     assert.equal((await webSend("http-message-conflict", "changed content")).status, 409);
     const webReceipt = await fetch(`${prefix}/api/session-messages/${webSent.request_id}`); assert.equal(webReceipt.status, 200);
     assert.equal((await webReceipt.json() as { state: string }).state, "accepted");
-    assert.equal((await sdk.callTool({ name: hostActionToolName(workActions.messageRead), arguments: { request_id: webSent.request_id } })).isError, true, "MCP cannot read another actor's private request");
+    assert.equal((await sdk.callTool({ name: molisWorkActionToolName(workActions.messageRead), arguments: { request_id: webSent.request_id } })).isError, true, "MCP cannot read another actor's private request");
     assert.equal(requests.filter(request => request === "turn/start:exact-native-thread").length, 2);
     const grant = directory.find(view => view.capability_id === workActions.content.capability_id)!;
     await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, grant, false));
-    assert.equal((await sdk.callTool({ name: hostActionToolName(workActions.content), arguments: { session_id: session.session_id } })).isError, true);
+    assert.equal((await sdk.callTool({ name: molisWorkActionToolName(workActions.content), arguments: { session_id: session.session_id } })).isError, true);
     await withCatalog({ homeDirectory: home }, catalog => catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "sessions", actor_id: "owner" }));
-    assert.equal((await sdk.callTool({ name: hostActionToolName(workActions.directory), arguments: {} })).isError, true);
+    assert.equal((await sdk.callTool({ name: molisWorkActionToolName(workActions.directory), arguments: {} })).isError, true);
     const disabledPage = await fetch(`${prefix}/`); assert.equal(disabledPage.status, 200);
     assert.ok(!(await disabledPage.text()).includes("共享目录中的会话"));
     await withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "sessions", actor_id: "owner" }));

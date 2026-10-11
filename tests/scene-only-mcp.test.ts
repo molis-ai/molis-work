@@ -10,7 +10,7 @@ import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-wo
 import { ActionError, sceneConfigurationActions, type ActionDefinition, type ActionSceneBinding, type ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import { definePlugin } from "../packages/plugin-sdk/src/index.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 
 test("scene-only plugin receives exact MCP configuration grants through existing settings and updates its original storage", { timeout: 90_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "scene-only-mcp-")), token = "scene-only-mcp-configuration-control-token";
@@ -88,7 +88,7 @@ test("scene-only plugin receives exact MCP configuration grants through existing
       databasePath: project.database_path, webBaseUrl: origin }, { homeDirectory: home,
       runtimeContext: { runtime_id: "scene-only", stable_work_context_id: null, host_declares_stable: false } }, host);
     let request = 0;
-    const call = async (definition: ActionDefinition, input: unknown) => external!.handleMessage({ id: ++request, method: "tools/call", params: { name: hostActionToolName(definition), arguments: input } }) as Promise<any>;
+    const call = async (definition: ActionDefinition, input: unknown) => external!.handleMessage({ id: ++request, method: "tools/call", params: { name: molisWorkActionToolName(definition), arguments: input } }) as Promise<any>;
     const target = async () => {
       const reply = await call(management.targets, {}); assert.equal(reply.result.isError, false, JSON.stringify(reply));
       return reply.result.structuredContent.targets[0] as ActionSceneTarget;

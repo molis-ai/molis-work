@@ -14,7 +14,8 @@ import { personalPlanningActions } from "@molis-ai/molis-work-plugin-goals";
 import { BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-module-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { resolveWebControlToken } from "../apps/local-host/src/web-control-token.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { createWebCatalogAccess } from "../apps/local-host/src/web-catalog-access.js";
@@ -142,7 +143,7 @@ test("Home Web and official unbound MCP consume the same planning actions and li
     }
     const caller: ActionCallContext = { actor_id: "runtime:personal-planning", project_id: null, audience: "mcp", permissions: [] };
     const view = (await host.inspectActions(caller)).find(v => v.capability_id === personalPlanningActions.list.capability_id)!;
-    const name = hostActionToolName(view);
+    const name = molisWorkActionToolName(view);
     const env = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined));
     await sdk.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("../apps/desktop/launchers/mcp/server.ts", import.meta.url))],
       env: { ...env, MOLIS_WORK_HOME: home, MOLIS_WORK_WEB_URL: origin, MOLIS_WORK_RUNTIME_ID: "personal-planning", MOLIS_WORK_WORK_CONTEXT_ID: "", MOLIS_WORK_WORK_CONTEXT_STABLE: "false" }, stderr: "pipe" }));
@@ -158,7 +159,7 @@ test("Home Web and official unbound MCP consume the same planning actions and li
     assert.equal((await post("Changed while MCP is connected")).status, 200);
     const changed = (await read()).methods.find(m => m.method_id === input.method.method_id)!;
     assert.equal(changed.name, "Changed while MCP is connected"); assert.equal(changed.version, first.version + 1);
-    assert.equal((await sdk.callTool({ name: hostActionToolName(personalPlanningActions.save), arguments: { ...input, user_action: user.user_action } })).isError, true);
+    assert.equal((await sdk.callTool({ name: molisWorkActionToolName(personalPlanningActions.save), arguments: { ...input, user_action: user.user_action } })).isError, true);
     await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, null, view, false));
     assert.equal((await sdk.listTools()).tools.some(t => t.name === name), false);
     assert.equal((await sdk.callTool({ name, arguments: {} })).isError, true);

@@ -199,6 +199,12 @@ export interface ActionProvider {
   /** A project activation cannot accidentally service another project's calls. */
   readonly project_id?: string;
   readonly plugin_id?: string;
+  /**
+   * Set only by the Plugin Runtime's registration: the installation whose grants this provider's availability reads. A plugin
+   * that ships with the Host registers under its `plugin_id` (its Host-assembled providers share that id), every other plugin
+   * under its installation id, so `provider_id` alone does not say which installation a registration belongs to.
+   */
+  readonly plugin_install_id?: string;
 }
 
 export type ActionAvailability = { readonly available: true } | {
@@ -452,12 +458,12 @@ export function bindOwnerPluginAction<Input, Output>(
     if (!owner.available) throw new ActionError(owner.code, owner.reason);
     const beforeWrite = async () => {
       caller.signal?.throwIfAborted();
-      const reference = { capability_id: definition.capability_id, version: definition.version, provider_id: context.install_id };
-      await caller.validate_authority?.(reference);
       if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
-      const current = (await context.services.actions.discover()).find(row => row.capability_id === reference.capability_id
-        && row.version === reference.version && row.provider.provider_id === reference.provider_id);
+      // The plugin's own registration of this action: the provider id it carries is the plugin id for a plugin that ships with the Host.
+      const current = (await context.services.actions.discover()).find(row => row.capability_id === definition.capability_id
+        && row.version === definition.version && row.provider.plugin_install_id === context.install_id);
       if (!current) throw new ActionError("actions.missing", "原插件动作已撤下，不能继续保存");
+      await caller.validate_authority?.({ capability_id: definition.capability_id, version: definition.version, provider_id: current.provider.provider_id });
       if (!current.availability.available) throw new ActionError(current.availability.code, current.availability.reason);
       for (const permission of definition.action.permissions) context.requireGrant(permission);
       caller.signal?.throwIfAborted();

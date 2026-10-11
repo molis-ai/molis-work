@@ -8,12 +8,12 @@ import { randomUUID } from "node:crypto";
 import http from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { isRuntimeContextMcpTool } from "@molis-ai/molis-work-app-mcp";
+import { isRuntimeContextMcpTool, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { LocalActionGatewayClient, ACTION_GATEWAY_PATH, actionGatewayHomeId } from "../apps/local-host/src/action-gateway.js";
-import { hostActionToolName, createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -62,7 +62,7 @@ test("official MCP process uses the shared Host registry and durable writes with
   const rows = () => host.withProject(reference, runtime => runtime.store.db.prepare("SELECT actor, text FROM gateway_notes").all());
   try {
     await sdk.connect(transport).catch(error => { throw new Error(String(error) + errors); });
-    const name = hostActionToolName(save);
+    const name = molisWorkActionToolName(save);
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), false);
     const view = (await host.inspectActions(caller, reference)).find(view => view.capability_id === save.capability_id)!;
     const grant = createMcpActionGrant(caller.actor_id, caller.project_id, view, true);
@@ -286,7 +286,7 @@ test("production stdio keeps context tools usable without a running system servi
     assert.ok(tools.every(tool => isRuntimeContextMcpTool(tool.name)));
     const result = await sdk.callTool({ name: "molis_work_v1_context_resolve", arguments: {} });
     assert.notEqual(result.isError, true, JSON.stringify(result));
-    const unavailable = await sdk.callTool({ name: hostActionToolName(save), arguments: { text: "offline" } });
+    const unavailable = await sdk.callTool({ name: molisWorkActionToolName(save), arguments: { text: "offline" } });
     assert.equal(unavailable.isError, true);
     assert.match(JSON.stringify(unavailable), /actions.service_unavailable/);
   } finally { await sdk.close(); await rm(home, { recursive: true, force: true }); }

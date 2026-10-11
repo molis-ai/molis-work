@@ -26,7 +26,7 @@ const projectId = arg("--board") ?? "molis-work-v1-demo";
 // The judgment runs on the named Home's TypeSafe connection; the key stays in this process's memory, never printed.
 const jevFrom = arg("--jev-from");
 if (jevFrom) {
-  const key = typeSafeCredential(path.resolve(jevFrom), "functions");
+  const key = typeSafeCredential(path.resolve(jevFrom));
   if (!key) throw new Error("--jev-from 指定的 Home 没有可用的 TypeSafe 连接");
   process.env.TYPESAFE_API_KEY = key;
 }

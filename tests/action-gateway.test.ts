@@ -8,12 +8,12 @@ import { randomUUID } from "node:crypto";
 import http from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { isRuntimeContextMcpTool } from "@molis-ai/molis-work-app-mcp";
+import { isRuntimeContextMcpTool, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { LocalActionGatewayClient, ACTION_GATEWAY_PATH, actionGatewayHomeId } from "../apps/local-host/src/action-gateway.js";
-import { hostActionToolName, createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -62,7 +62,7 @@ test("official MCP process uses the shared Host registry and durable writes with
   const rows = () => host.withProject(reference, runtime => runtime.store.db.prepare("SELECT actor, text FROM gateway_notes").all());
   try {
     await sdk.connect(transport).catch(error => { throw new Error(String(error) + errors); });
-    const name = hostActionToolName(save);
+    const name = molisWorkActionToolName(save);
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), false);
     const view = (await host.inspectActions(caller, reference)).find(view => view.capability_id === save.capability_id)!;
     const grant = createMcpActionGrant(caller.actor_id, caller.project_id, view, true);
@@ -162,6 +162,102 @@ test("gateway never retries an uncertain invocation or follows a credential-bear
   } finally { await Promise.all([server, target].map(server => new Promise<void>(resolve => server.close(() => resolve())))); }
 });
 
+/** A service of the gateway's shape on a loopback port, answering as `mode` says; it records what each request carried. */
+async function fixtureService() {
+  const seen: Array<{ method?: string; url?: string; headers: http.IncomingHttpHeaders; body: Record<string, unknown> }> = [];
+  const state: { mode: "ok" | "garbled" | "array" } = { mode: "ok" };
+  const server = http.createServer(async (request, response) => {
+    const chunks = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const body = JSON.parse(Buffer.concat(chunks).toString());
+    seen.push({ method: request.method, url: request.url, headers: request.headers, body });
+    if (state.mode === "garbled") { response.end("<html>not the system service</html>"); return; }
+    response.setHeader("content-type", "application/json");
+    if (state.mode === "array") { response.end("[]"); return; }
+    response.end(JSON.stringify(body.operation === "discover" ? { instance_id: "one", actions: [] } : { instance_id: "one", result: { saved: 1 } }));
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const origin = `http://127.0.0.1:${address.port}`;
+  const stop = async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); };
+  const client = new LocalActionGatewayClient({ url: origin, homeDirectory: "/fixture", controlToken: "fixture-token", clientId: "fixture", projectId: null });
+  const caller: ActionCallContext = { actor_id: "fixture", project_id: null, audience: "mcp", permissions: [] };
+  return { seen, state, origin, stop, client, caller };
+}
+
+test("gateway sends every call as the one request to the resident Host: its origin, the Home's token, a fresh one-time key", { timeout: 15_000 }, async () => {
+  const { seen, origin, stop, client, caller } = await fixtureService();
+  try {
+    await client.discover(caller);
+    assert.deepEqual(await client.invoke(caller, save, { text: "a" }), { saved: 1 });
+    await client.invoke(caller, save, { text: "b" });
+    assert.equal(seen.length, 3);
+    for (const request of seen) {
+      assert.equal(request.method, "POST"); assert.equal(request.url, ACTION_GATEWAY_PATH);
+      assert.equal(request.headers.origin, origin, "the request is the Host's own origin");
+      assert.equal(request.headers["x-molis-work-control-token"], "fixture-token");
+      assert.equal(request.headers["content-type"], "application/json");
+      assert.equal(request.body.home_id, actionGatewayHomeId("/fixture"));
+    }
+    assert.equal(new Set(seen.map(request => request.headers["x-molis-work-idempotency-key"])).size, 3, "a fresh one-time key for every request");
+  } finally { await stop(); }
+});
+
+test("gateway: a reply that never completes leaves an invocation unknown, and a discovery (which changes nothing) with no service to use", { timeout: 15_000 }, async () => {
+  const { state, stop, client, caller } = await fixtureService();
+  try {
+    await client.discover(caller);
+    state.mode = "garbled";
+    await assert.rejects(client.discover(caller), { code: "actions.service_unavailable" });
+    await assert.rejects(client.invoke(caller, save, { text: "c" }), { code: "actions.delivery_unknown", message: /请核对原结果，不会自动重试/ });
+  } finally { await stop(); }
+});
+
+test("gateway: an answer that is not a JSON object leaves an invocation unknown, as one that never completes does", { timeout: 15_000 }, async () => {
+  const { state, stop, client, caller } = await fixtureService();
+  try {
+    await client.discover(caller);
+    state.mode = "array";
+    await assert.rejects(client.invoke(caller, save, { text: "d" }), { code: "actions.delivery_unknown", message: /请核对原结果，不会自动重试/ });
+    await assert.rejects(client.discover(caller), { code: "actions.service_unavailable" });
+  } finally { await stop(); }
+});
+
+test("gateway: an input that cannot be serialized was never sent, so it is the caller's error and not an uncertain delivery", { timeout: 15_000 }, async () => {
+  const { seen, stop, client, caller } = await fixtureService();
+  try {
+    await client.discover(caller);
+    const before = seen.length;
+    const circular: Record<string, unknown> = {}; circular.self = circular;
+    const unserializable: Array<[string, unknown]> = [["a cycle", circular], ["a BigInt", { n: 10n }], ["a toJSON that throws", { toJSON() { throw new Error("toJSON refused"); } }]];
+    for (const [what, input] of unserializable) {
+      await assert.rejects(client.invoke(caller, save, input), (error: unknown) => {
+        assert.ok(error instanceof Error, what);
+        assert.equal((error as { code?: string }).code, undefined, `${what} is the serializer's own error, not a code that says the call may have run`);
+        return true;
+      }, what);
+    }
+    assert.equal(seen.length, before, "nothing was sent");
+    assert.deepEqual(await client.invoke(caller, save, { text: "after" }), { saved: 1 }, "the next call goes out as usual");
+  } finally { await stop(); }
+});
+
+test("gateway: no control token in the Home sends nothing, and a service that is gone was not delivered to, for an invocation too", { timeout: 15_000 }, async () => {
+  const { seen, origin, stop, client, caller } = await fixtureService();
+  const home = await mkdtemp(join(tmpdir(), "action-gateway-request-"));
+  try {
+    await client.discover(caller);
+    const tokenless = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId: "fixture", projectId: null });
+    const before = seen.length;
+    await assert.rejects(tokenless.discover(caller), { code: "actions.service_unavailable" });
+    assert.equal(seen.length, before, "nothing was sent");
+
+    // Nothing listens any more: the connection is refused before the request leaves, so the invocation was not delivered.
+    await stop();
+    await assert.rejects(client.discover(caller), { code: "actions.service_unavailable" });
+    await assert.rejects(client.invoke(caller, save, { text: "e" }), { code: "actions.service_unavailable" });
+  } finally { await stop(); await rm(home, { recursive: true, force: true }); }
+});
+
 test("gateway rejects non-loopback destinations before reading a credential or making a request", () => {
   for (const url of ["https://127.0.0.1", "http://localhost:4173", "http://example.invalid", "http://127.0.0.1/path", "http://user:pass@127.0.0.1",
     // security invariant S-09: a query string or fragment, other spellings of "this machine" and look-alike names are refused as well
@@ -190,7 +286,7 @@ test("production stdio keeps context tools usable without a running system servi
     assert.ok(tools.every(tool => isRuntimeContextMcpTool(tool.name)));
     const result = await sdk.callTool({ name: "molis_work_v1_context_resolve", arguments: {} });
     assert.notEqual(result.isError, true, JSON.stringify(result));
-    const unavailable = await sdk.callTool({ name: hostActionToolName(save), arguments: { text: "offline" } });
+    const unavailable = await sdk.callTool({ name: molisWorkActionToolName(save), arguments: { text: "offline" } });
     assert.equal(unavailable.isError, true);
     assert.match(JSON.stringify(unavailable), /actions.service_unavailable/);
   } finally { await sdk.close(); await rm(home, { recursive: true, force: true }); }

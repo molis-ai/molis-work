@@ -20,6 +20,7 @@ import { selectTests } from "../scripts/ci-linux-probe/select.mjs";
 const w = (...parts: string[]) => parts.join("");
 const CHROME = w("google", "-chrome");
 const DEBUG_PORT = w("remote-debugging", "-port");
+const KIT_BROWSER = w("molis-work-test-kit", "/browser");
 const DARWIN = w("dar", "win");
 const SANDBOX = w("sandbox", "-exec");
 const LAUNCHD = w("launch", "ctl");
@@ -69,6 +70,10 @@ before(() => {
   put("tests/browser-fixture.test.ts", spec(`import { launch } from "./fixtures/launcher.js";\ntest("uses a launcher", () => assert.ok(launch));`));
   put("tests/fixtures/launcher.ts", `import { helper } from "./deeper";\nexport const launch = helper;\n`);
   put("tests/fixtures/deeper.ts", `export const helper = ["--${DEBUG_PORT}=0"];\n`);
+  // The test-kit's Chrome driver: a file that imports it, or a fixture it imports, reaches Chrome with none of the words above.
+  put("tests/kit-direct.test.ts", spec(`import { locateTestChrome } from "@molis-ai/${KIT_BROWSER}";\ntest("locates Chrome", () => assert.ok(locateTestChrome));`));
+  put("tests/kit-fixture.test.ts", spec(`import { driver } from "./fixtures/kit-driver.js";\ntest("uses a driver", () => assert.ok(driver));`));
+  put("tests/fixtures/kit-driver.ts", `import { ChromeHarness } from "@molis-ai/${KIT_BROWSER}";\nexport const driver = ChromeHarness;\n`);
   put("tests/clean-fixture.test.ts", spec(`import { value } from "./fixtures/clean";\ntest("fixture without a browser", () => assert.equal(value, 1));`));
   put("tests/fixtures/clean.ts", `export const value = 1;\n`);
   // darwin: a platform guard, a macOS tool named in the text; one of them also fails, which the report keeps apart.
@@ -116,16 +121,16 @@ const section = (title: string) => summary.split("### ").find((part) => part.sta
 
 test("a probe with failing test files still finishes with exit 0 and says what it did", () => {
   assert.equal(run.code, 0, run.text);
-  assert.match(run.text, /\d+ test files: \d+ to run, 3 excluded \(browser\)/);
+  assert.match(run.text, /\d+ test files: \d+ to run, 5 excluded \(browser\)/);
   const report = JSON.parse(readFileSync(path.join(out, "report.json"), "utf8"));
   assert.equal(report.platform, process.platform);
   assert.equal(report.probe, "ci-linux-probe");
   assert.equal(report.files.length, files.size);
-  assert.equal(report.totals.excluded, 3);
+  assert.equal(report.totals.excluded, 5);
 });
 
-test("browser files are not run and are told apart by name, by text and by a fixture they import", () => {
-  for (const name of ["shell.e2e.test.ts", "browser-text.test.ts", "browser-fixture.test.ts"]) {
+test("browser files are not run and are told apart by name, by text, by a fixture they import and by the test-kit driver", () => {
+  for (const name of ["shell.e2e.test.ts", "browser-text.test.ts", "browser-fixture.test.ts", "kit-direct.test.ts", "kit-fixture.test.ts"]) {
     assert.equal(entry(name).status, "excluded", name);
     assert.deepEqual(entry(name).marks, ["browser"], name);
     assert.equal(entry(name).tests, undefined, `${name} was run`);
@@ -407,6 +412,10 @@ test("on this repository: no browser file is run, known darwin and live files ar
   // Fixtures are imported with a .js name for the .ts file (295 of the 297 imports of tests/fixtures when this was written). The files
   // below reach Chrome only through such an import, and so does every other file that calls the fixture which launches it.
   assert.ok(marks("tests/goal-relation-http.test.ts")?.includes("browser"), "a file that reaches Chrome through a fixture imported as ./fixtures/x.js is a browser file");
+  // The test-kit driver names none of the words a file used to carry when it spawned Chrome itself (W2-11): its package name marks the file.
+  const usingKit = readdirSync(path.join(repo, "tests")).filter((name) => /\.test\.(ts|mjs)$/.test(name) && readFileSync(path.join(repo, "tests", name), "utf8").includes(KIT_BROWSER));
+  assert.ok(usingKit.length > 0, "some test files import the test-kit browser driver");
+  assert.deepEqual(usingKit.filter((name) => !marks(`tests/${name}`)?.includes("browser")), [], "every file that imports the test-kit browser driver is a browser file");
   const launching = readdirSync(path.join(repo, "tests")).filter((name) => /\.test\.(ts|mjs)$/.test(name) && /\bopenGoalBrowser\s*\(/.test(readFileSync(path.join(repo, "tests", name), "utf8")));
   assert.ok(launching.length > 0, "some test files call openGoalBrowser");
   assert.deepEqual(launching.filter((name) => !marks(`tests/${name}`)?.includes("browser")), [], "every file that opens the goal browser is a browser file");

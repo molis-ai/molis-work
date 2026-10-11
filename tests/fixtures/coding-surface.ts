@@ -11,7 +11,7 @@ export function codingFixtureRoutes(context: PluginStartContext, ports: CodingEx
   const surface = codingSurface(context, ports);
   fixture.services.actions = {
     discover: async () => surface.actions.map(handler => ({ capability_id: handler.capability_id, version: handler.version,
-      provider: { provider_id: fixture.install_id }, availability: { available: true } })),
+      provider: { provider_id: fixture.install_id, plugin_install_id: fixture.install_id }, availability: { available: true } })),
     invoke: async (definition: { capability_id: string; version: number }, input: unknown) => {
       const handler = surface.actions.find(row => row.capability_id === definition.capability_id && row.version === definition.version)!;
       return handler.handle({ actor_id: fixture.actor_id as string, project_id: "fixture", audience: "user", permissions: [], beforeEffect: async () => {} }, input);

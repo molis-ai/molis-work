@@ -11,6 +11,7 @@ import {
 import { feedItemActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { definePlugin, defineSubjectContextAction, subjectContext } from "../packages/plugin-sdk/src/index.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
@@ -120,6 +121,73 @@ test("scene-only plugins obtain local-user discovery and configuration from thei
     assert.ok(!stopped.permissions.includes("scene-only:read"));
     assert.ok(!(await host.sceneClient(reference).targets(stopped)).some(value => value.scene_id === scene.scene_id));
   } finally { await runtime.stop(installed.install_id); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("a Runtime plugin registered under its plugin_id gets its local-user grants from the installation its registration names, and a Host-assembled provider with the same id gets none", async () => {
+  const home = await mkdtemp(join(tmpdir(), "shared-provider-id-"));
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "同名提供方", actor_id: "owner" }));
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const pluginId = "io.molis.work.example.shared-id";
+  const shape = { scope: "project" as const, audiences: ["user" as const], permissions: ["shared:read"], subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } };
+  const pluginRead: ActionDefinition<Record<string, never>, string> = { capability_id: "shared.plugin-read", version: 1, operation: "query", action: { ...shape, title: "插件读取", description: "插件自己的动作", kind: "query" } };
+  const hostRead: ActionDefinition<Record<string, never>, string> = { capability_id: "shared.host-read", version: 1, operation: "query", action: { ...shape, title: "宿主读取", description: "宿主另外登记的、同名提供方的动作", kind: "query" } };
+  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "同名提供方", kind: "app",
+    publisher: { publisher_id: "example", signature: "shared-id" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [{ permission: "shared:read", required: false, reason: "读取" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
+    ui: { contributions: [] }, actions: [pluginRead] }, async start() { return { kind: "app", actions: [{ ...pluginRead, handle: () => "plugin" }] }; } });
+  const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
+  // The Host's rule for a plugin that ships with it: the plugin id, where an installation id would otherwise be.
+  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
+  // What the Host assembles by hand for the same plugin (Shelf has such providers), under the same id and with no installation behind it.
+  const withdrawHost = host.actionRegistry(reference).registerProvider({ provider: { provider_id: pluginId, plugin_id: pluginId, title: "宿主", kind: "plugin", project_id: reference.project_id },
+    definitions: [hostRead], handlers: [{ ...hostRead, handle: () => "host" }] });
+  const installId = runtime.install({ definition: plugin, deployment: "local", grants: ["shared:read"] }).install.install_id;
+  await runtime.start(installId);
+  try {
+    const caller = await localWebActionContext(host, reference, []);
+    const offered = (caller.allowed_actions ?? []).map(entry => `${entry.capability_id}@${entry.provider_id}`);
+    assert.ok(offered.includes(`shared.plugin-read@${pluginId}`), "the plugin's action is accepted, under its plugin id");
+    assert.ok(!offered.some(entry => entry.startsWith("shared.host-read")), "the Host-assembled provider borrows no installation just because its id is the plugin id");
+    assert.ok(caller.permissions.includes("shared:read"));
+    assert.equal(await host.actionClient(reference).invoke(caller, pluginRead, {}), "plugin");
+    await assert.rejects(host.actionClient(reference).invoke(caller, hostRead, {}), { code: "actions.forbidden" });
+    await assert.rejects(async () => caller.validate_authority!({ ...hostRead, provider_id: pluginId }), { code: "actions.forbidden" });
+    await caller.validate_authority!({ ...pluginRead, provider_id: pluginId });
+    await runtime.stop(installId);
+    await assert.rejects(async () => caller.validate_authority!({ ...pluginRead, provider_id: pluginId }), { code: "actions.forbidden" });
+    const stopped = (await localWebActionContext(host, reference, [])).allowed_actions ?? [];
+    assert.ok(!stopped.some(entry => entry.capability_id === pluginRead.capability_id), "a stopped plugin's action is no longer the person's");
+  } finally { withdrawHost(); await runtime.stop(installId).catch(() => undefined); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("a scene-only plugin registered under its plugin_id obtains local-user discovery and configuration from the installation its registration names", async () => {
+  const home = await mkdtemp(join(tmpdir(), "scene-only-plugin-id-"));
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "仅消费场景", actor_id: "owner" }));
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const scene = { scene_id: "scene-id.review", version: 1, title: "审核位置", description: "插件自有消费场景", trigger: "提交审核", scope: "project" as const,
+    permissions: ["scene-id:read"], configuration_permissions: ["scene-id:configure"], subject_kinds: [],
+    input_schema: { type: "object", properties: {} }, result_schema: { type: "object", properties: {} } };
+  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.scene-id", version: "1.0.0", name: "仅消费场景",
+    kind: "app", publisher: { publisher_id: "example", signature: "scene-id" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [...scene.permissions, ...scene.configuration_permissions].map(permission => ({ permission, required: false, reason: "原消费场景授权" })),
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [], action_scenes: [scene] },
+    async start() { return { kind: "app", action_scenes: [{ ...scene,
+      targets: () => [{ binding_id: "original-slot", title: "原审核位置", revision: null }], bindings: () => [], bind: () => {}, consume: () => ({}) }] }; } });
+  const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
+  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
+  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
+  await runtime.start(installed.install_id);
+  try {
+    const caller = await localWebActionContext(host, reference, []);
+    assert.ok(caller.permissions.includes("scene-id:read")); assert.ok(caller.permissions.includes("scene-id:configure"));
+    const target = (await host.sceneClient(reference).targets(caller)).find(value => value.scene_id === scene.scene_id)!;
+    assert.equal(target.provider_id, plugin.manifest.plugin_id, "the scene is registered under the plugin id");
+    assert.equal(target.configuration_availability.available, true);
+    await runtime.stop(installed.install_id);
+    assert.ok(!(await localWebActionContext(host, reference, [])).permissions.includes("scene-id:read"));
+  } finally { await runtime.stop(installed.install_id).catch(() => undefined); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("the Workbench's own call context, built from the permissions Feed declares, lets the person promote an item through Goals' actions", { timeout: 60_000 }, async () => {

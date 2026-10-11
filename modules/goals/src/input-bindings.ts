@@ -57,6 +57,11 @@ export class GoalInputBindings implements GoalInputBindingsApi {
     return Number(result.changes) > 0;
   }
 
+  accept(projectId: string, bindingId: string): boolean {
+    const result = this.db.prepare("UPDATE input_bindings SET state = 'confirmed' WHERE project_id = ? AND binding_id = ? AND state = 'proposed'").run(projectId, bindingId);
+    return Number(result.changes) > 0;
+  }
+
   private access(projectId: string, actorId = "module:goals"): ContextAccess {
     return { actor_id: actorId, scope: { kind: "personal", id: projectId } };
   }

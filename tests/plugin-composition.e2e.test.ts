@@ -5,11 +5,11 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { build } from 'esbuild';
 import { VISUAL_FOUNDATION_STYLES, renderIconSprite, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-design-system';
-import { ChromeHarness } from './fixtures/plugin-builder-browser.js';
+import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
 import { readingContract, readingNodes, readingPresentation, readingSamples } from './fixtures/plugin-composition.js';
 
 test('composed reading plugin retains input, opens and returns from details, survives failures and layout changes', { timeout: 90_000 }, async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'molis-composition-')), browser = await ChromeHarness.start(directory);
+  const directory = await mkdtemp(join(tmpdir(), 'molis-composition-')), browser = await openStudioChrome(directory);
   assert.ok(browser, 'Chrome is required');
   const evidence = resolve('.impeccable/qa/review/plugin-composition'); await mkdir(evidence, { recursive: true });
   try {
@@ -73,7 +73,7 @@ test('visual inspection detects real viewport overflow and a covered action on t
 });
 
 test('directory previews preserve full reading, overlay renaming preserves drafts, and reduced-motion feedback expires', { timeout: 60_000 }, async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'molis-reading-controls-')), browser = await ChromeHarness.start(directory);
+  const directory = await mkdtemp(join(tmpdir(), 'molis-reading-controls-')), browser = await openStudioChrome(directory);
   assert.ok(browser, 'Chrome is required');
   const evidence = resolve('.impeccable/qa/review/plugin-composition/controls-fixture'); await mkdir(evidence, { recursive: true });
   try {

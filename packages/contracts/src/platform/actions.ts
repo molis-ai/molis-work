@@ -1,6 +1,8 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 export * from "./action-execution.js";
+import { ActionError } from "./action-errors.js";
+export * from "./action-errors.js";
 import { validActionExecutionPolicy, type ActionExecutionPolicy } from "./action-execution.js";
 import { validActionResultView, type ActionResultView } from "./action-result.js";
 import { SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT } from "./action-subjects.js";
@@ -482,13 +484,6 @@ export function actionPermissionDeclarations(definitions: readonly ActionDefinit
   const known = new Set(declared.map(item => item.permission));
   return [...new Set(definitions.flatMap(definition => definition.action.permissions))].filter(permission => !known.has(permission))
     .map(permission => ({ permission, required: false, reason }));
-}
-
-export class ActionError extends Error {
-  constructor(readonly code: string, message: string) {
-    super(message);
-    this.name = "ActionError";
-  }
 }
 
 /** Cheap manifest shape validation; the execution owner compiles JSON Schemas. */

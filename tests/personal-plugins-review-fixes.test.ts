@@ -1,6 +1,7 @@
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { handlePagesNativePluginHttp } from "../apps/local-host/src/pages-native-plugin-http.js";
 import type { PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
@@ -105,7 +106,7 @@ async function listenDispatcher(
 }
 
 test("purge 名单覆盖全部个人 home 库与讨论库 server/", () => {
-  assert.deepEqual([...PERSONAL_HOME_SQLITE_STORES], ["images", "pages", "form", "dataset", "ppt", "lingguang", "todo", "jelly", "cognia", "alchemist", "workflows", "functions", "connectors", "context-onboarding", "search", "memory", "server"]);
+  assert.deepEqual([...PERSONAL_HOME_SQLITE_STORES], ["issues", "plugin-runtime", "images", "pages", "form", "dataset", "ppt", "lingguang", "todo", "jelly", "cognia", "alchemist", "workflows", "functions", "connectors", "context-onboarding", "search", "memory", "server"]);
 });
 
 test("uninstall --purge 会把已有的个人库目录列入删除并真正删掉", async () => {
@@ -504,7 +505,7 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async () => {
     const host = new MolisWorkLocalHost({ homeDirectory: home });
     const caller = { actor_id: "runtime:codex", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
     const views = await host.inspectActions(caller, molisWorkHostProjectReference({ projectId: project.project_id, databasePath }));
-    const createName = hostActionToolName(pagesActions.create), promoteName = hostActionToolName(pagesActions.promote);
+    const createName = molisWorkActionToolName(pagesActions.create), promoteName = molisWorkActionToolName(pagesActions.promote);
     for (const action of [pagesActions.create, pagesActions.promote]) {
       const view = views.find(view => view.capability_id === action.capability_id)!;
       await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, caller.project_id, view, true));

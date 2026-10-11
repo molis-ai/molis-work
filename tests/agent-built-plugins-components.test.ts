@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
-import { ChromeHarness } from './fixtures/plugin-builder-browser.js';
+import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
 import { validatePluginComponentPlans, resolvePluginComponentCall, PLUGIN_COMPONENT_STYLES } from '../packages/design-system/src/plugin-components.js';
 import type { SandboxPluginContract } from '../packages/contracts/src/platform/plugin-sandbox.js';
 /** The acceptance driver, loaded when a test needs it (one reference to its source for the whole file). */
@@ -24,7 +24,7 @@ test('component contracts reject unsupported bindings and resolve selected sourc
 });
 test('real browser retains forms and focus, refreshes changed schemas, preserves failed input and submits false booleans', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
@@ -50,7 +50,7 @@ test('real browser retains forms and focus, refreshes changed schemas, preserves
 });
 test('real browser puts an action on each record it acts on, follows the view order and hides a single page switcher', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const records: SandboxPluginContract = {
     version: 1, pluginId: 'test.records', revision: 'one', entities: [], acceptance: [],
@@ -81,7 +81,7 @@ test('real browser puts an action on each record it acts on, follows the view or
 });
 test('real browser shows a model answer\'s emphasis without ever treating it as markup', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const records: SandboxPluginContract = { version: 1, pluginId: 'test.prose', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'answers.list', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: {}, examples: [] }],
@@ -100,7 +100,7 @@ test('real browser shows a model answer\'s emphasis without ever treating it as 
 
 test('real browser: a table chosen for a titled list still shows the title, named from the contract', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const books: SandboxPluginContract = { version: 1, pluginId: 'test.titles', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'books.list', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string', description: '书名' }, author: { type: 'string' } } } }, errors: [], effects: {}, examples: [] }],
@@ -118,7 +118,7 @@ test('real browser: a table chosen for a titled list still shows the title, name
 
 test('real browser: an error an earlier read left goes away once a read succeeds', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const contract: SandboxPluginContract = { version: 1, pluginId: 'test.retry', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'notes.list', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: {}, examples: [] }],
@@ -137,7 +137,7 @@ test('real browser: an error an earlier read left goes away once a read succeeds
 
 test('real browser shows a total and its breakdown as labelled figures, named from the contract', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const contract: SandboxPluginContract = { version: 1, pluginId: 'test.summary', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'summary.read', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false },
@@ -162,7 +162,7 @@ test('real browser shows a total and its breakdown as labelled figures, named fr
 
 test('real browser filters a collection by its read\'s own fields: 全部 first, re-read on every change', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const books: SandboxPluginContract = { version: 1, pluginId: 'test.books', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'books.list', kind: 'query', input: { type: 'object', properties: { status: { type: 'string', enum: ['想读', '在读', '读完'], description: '状态' }, keyword: { type: 'string', description: '书名包含' } }, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: {}, examples: [] }],
@@ -188,7 +188,7 @@ test('real browser filters a collection by its read\'s own fields: 全部 first,
 
 test('real browser shows a field in the column\'s own words, and a plain boolean as 是/否, in tables and lists alike', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const habits: SandboxPluginContract = { version: 1, pluginId: 'test.habits', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'habits.list', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: {}, examples: [] }],
@@ -271,7 +271,7 @@ test("the acceptance browser opens only the host's own preview: another host, an
 
 test('real browser fills a sentence the design wrote around a result, and never shows the raw template', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const contract: SandboxPluginContract = { version: 1, pluginId: 'test.water', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'water.today', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'object', properties: { count: { type: 'integer' } } }, errors: [], effects: {}, examples: [] }],

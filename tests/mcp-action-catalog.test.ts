@@ -1,7 +1,7 @@
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { MolisWorkRuntimeConnection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ActionDefinition, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MCP_TOOLS, RUNTIME_MCP_TOOLS } from "@molis-ai/molis-work-app-mcp";
+import { MCP_TOOLS, RUNTIME_MCP_TOOLS, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { functionsActions } from "@molis-ai/molis-work-module-functions";
 import { formActions, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
@@ -14,7 +14,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { assembleMcpCatalog } from "../apps/local-host/src/mcp-catalog.ts";
-import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 
 const reference = (view: ActionView) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
@@ -64,23 +64,23 @@ test("the management decision tool names no actor: the host decides as the perso
 
 test("assembleMcpCatalog lists exactly the granted actions that are available now", () => {
   const actions = [...functionViews, ...creativeViews];
-  const none = assembleMcpCatalog({ audience: "runtime", actions, actionToolName: hostActionToolName });
+  const none = assembleMcpCatalog({ audience: "runtime", actions, actionToolName: molisWorkActionToolName });
   assert.deepEqual(names(none), RUNTIME_MCP_TOOLS.map(tool => tool.name), "no grant, no action tool");
   const invoke = functionViews.find(view => view.capability_id === functionsActions.invoke.capability_id)!;
   const formList = creativeViews.find(view => view.capability_id === formActions.list.capability_id)!;
-  const granted = assembleMcpCatalog({ audience: "runtime", actions, actionToolName: hostActionToolName,
+  const granted = assembleMcpCatalog({ audience: "runtime", actions, actionToolName: molisWorkActionToolName,
     authorized_actions: [reference(invoke), reference(formList)] });
   assert.deepEqual(names(granted).filter(name => name.startsWith("molis_work_v1_action_")).sort(),
-    [hostActionToolName(invoke), hostActionToolName(formList)].sort());
-  assert.equal(granted.entries.find(entry => entry.definition.name === hostActionToolName(formList))?.action?.provider.plugin_id, formManifest.plugin_id);
-  for (const view of actions) assert.ok(granted.known_names.has(hostActionToolName(view)), "every discovered action is a known name");
+    [molisWorkActionToolName(invoke), molisWorkActionToolName(formList)].sort());
+  assert.equal(granted.entries.find(entry => entry.definition.name === molisWorkActionToolName(formList))?.action?.provider.plugin_id, formManifest.plugin_id);
+  for (const view of actions) assert.ok(granted.known_names.has(molisWorkActionToolName(view)), "every discovered action is a known name");
   assert.equal(names(granted).includes("molis_work_v1_event_decide"), false, "a Runtime never lists a management tool");
   assert.ok(granted.known_names.has("molis_work_v1_event_decide"));
 
-  const offline = assembleMcpCatalog({ audience: "runtime", actionToolName: hostActionToolName, authorized_actions: [reference(invoke)],
+  const offline = assembleMcpCatalog({ audience: "runtime", actionToolName: molisWorkActionToolName, authorized_actions: [reference(invoke)],
     actions: [{ ...invoke, availability: { available: false, code: "offline", reason: "offline" } }] });
-  assert.equal(names(offline).includes(hostActionToolName(invoke)), false, "an unavailable action is not listed even when granted");
-  assert.ok(offline.known_names.has(hostActionToolName(invoke)));
+  assert.equal(names(offline).includes(molisWorkActionToolName(invoke)), false, "an unavailable action is not listed even when granted");
+  assert.ok(offline.known_names.has(molisWorkActionToolName(invoke)));
 });
 
 test("Pages Forms Dataset PPT actions take no identity fields: the project comes from the connection", () => {
@@ -106,15 +106,19 @@ test("runtime named call of a management platform tool is authority_denied, not 
 
 test("a new MCP connection restores a bound session before freezing project-scoped tools", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-form-mcp-reconnect-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
-  const formList = hostActionToolName(formActions.list);
+  const servers: MolisWorkServer[] = [];
+  t.after(async () => {
+    for (const server of servers) await server.close();
+    await rm(home, { recursive: true, force: true });
+  });
+  const formList = molisWorkActionToolName(formActions.list);
   const runtimeHost = {
     homeDirectory: home,
     runtimeContext: { runtime_id: "codex", stable_work_context_id: "form-reconnect", host_declares_stable: true },
     webBaseUrl: "http://127.0.0.1:4173",
   };
   const first = new MolisWorkServer("runtime", null, runtimeHost);
-  t.after(() => first.close());
+  servers.push(first);
   assert.equal((await listToolNames(first)).includes(formList), false);
 
   const created = await first.handleMessage({
@@ -134,7 +138,7 @@ test("a new MCP connection restores a bound session before freezing project-scop
   await first.close();
   await grantActions(home, firstConnection, [formActions.list]);
   const second = new MolisWorkServer("runtime", null, runtimeHost);
-  t.after(() => second.close());
+  servers.push(second);
   const secondNames = await listToolNames(second);
   assert.ok(secondNames.includes(formList), secondNames.join(","));
 });

@@ -58,6 +58,8 @@ export interface ActionCallOrigin {
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
+  /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
+  readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;
   /** Stable session supplied by the authenticated Host; never a business input. */
@@ -199,6 +201,12 @@ export interface ActionProvider {
   /** A project activation cannot accidentally service another project's calls. */
   readonly project_id?: string;
   readonly plugin_id?: string;
+  /**
+   * Set only by the Plugin Runtime's registration: the installation whose grants this provider's availability reads. A plugin
+   * that ships with the Host registers under its `plugin_id` (its Host-assembled providers share that id), every other plugin
+   * under its installation id, so `provider_id` alone does not say which installation a registration belongs to.
+   */
+  readonly plugin_install_id?: string;
 }
 
 export type ActionAvailability = { readonly available: true } | {
@@ -389,13 +397,16 @@ export function requireSynchronous<T>(value: T, message = "此操作需要异步
 /** An entrypoint binds its authenticated context once; callers supply only business input. */
 export interface BoundActionClient {
   discover(): Promise<readonly ActionView[]>;
-  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input): Promise<Output>;
+  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">): Promise<Output>;
 }
 
 export function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient {
   return { discover: async () => client.discover(context()),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) =>
-      await client.invoke(context(), definition, input) as Output };
+    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">) => {
+      const caller = context();
+      return await client.invoke(control ? { ...caller, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
+        validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); } } : caller, definition, input) as Output;
+    } };
 }
 
 /** Keep the originating operation's transport authority when it calls a nested action or scene.
@@ -422,10 +433,10 @@ export function bindPluginActionRoute<Input, Output>(
     try {
       if (!context.actor_id || request.actor_id !== context.actor_id) throw new ActionError("actions.forbidden", "调用者与当前插件入口不一致");
       if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
-      return { status: 200, body: await context.services.actions.invoke(definition, input(request)) };
+      return { status: 200, body: await context.services.actions.invoke(definition, input(request), request.execution) };
     } catch (error) {
       const code = error instanceof ActionError ? error.code : undefined;
-      const status = ["actions.forbidden", "actions.owner_mismatch"].includes(code ?? "") ? 403 : code === "actions.missing" ? 404 : code === "actions.unredeemed" ? 503 : 400;
+      const status = ["actions.forbidden", "actions.owner_mismatch"].includes(code ?? "") ? 403 : code === "actions.missing" ? 404 : code === "actions.conflict" ? 409 : code === "actions.unredeemed" ? 503 : 400;
       return { status, body: { error: error instanceof Error ? error.message : String(error), ...(code ? { code } : {}) } };
     }
   } };
@@ -452,12 +463,12 @@ export function bindOwnerPluginAction<Input, Output>(
     if (!owner.available) throw new ActionError(owner.code, owner.reason);
     const beforeWrite = async () => {
       caller.signal?.throwIfAborted();
-      const reference = { capability_id: definition.capability_id, version: definition.version, provider_id: context.install_id };
-      await caller.validate_authority?.(reference);
       if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
-      const current = (await context.services.actions.discover()).find(row => row.capability_id === reference.capability_id
-        && row.version === reference.version && row.provider.provider_id === reference.provider_id);
+      // The plugin's own registration of this action: the provider id it carries is the plugin id for a plugin that ships with the Host.
+      const current = (await context.services.actions.discover()).find(row => row.capability_id === definition.capability_id
+        && row.version === definition.version && row.provider.plugin_install_id === context.install_id);
       if (!current) throw new ActionError("actions.missing", "原插件动作已撤下，不能继续保存");
+      await caller.validate_authority?.({ capability_id: definition.capability_id, version: definition.version, provider_id: current.provider.provider_id });
       if (!current.availability.available) throw new ActionError(current.availability.code, current.availability.reason);
       for (const permission of definition.action.permissions) context.requireGrant(permission);
       caller.signal?.throwIfAborted();

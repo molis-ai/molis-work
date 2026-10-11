@@ -89,7 +89,14 @@ export interface PluginPlatform {
 
 export function createPluginPlatform(options: PluginPlatformOptions): PluginPlatform {
   if (options.journal && options.journal.db !== options.db) throw new Error("插件 journal 必须使用当前项目连接");
+  // A plugin that ships with the Host registers its actions under its plugin_id; every other plugin under its installation id
+  // (user decision 2026-10-10, W3-06 Q1). "Ships with the Host" is the Host's own start list saying `bundled` about a definition
+  // object, not anything a plugin declares or its record holds, so a developed or generated plugin that names a built-in
+  // plugin_id gets no more than an installation id.
+  const bundled = new WeakSet<PluginDefinition>();
+  const providerFor = (definition: PluginDefinition, installId: string) => bundled.has(definition) ? definition.manifest.plugin_id : installId;
   const executor = new PluginHostExecutor({
+    providerFor,
     project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,
@@ -101,7 +108,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     restorePrivateData: options.restorePrivateData,
   });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(options.db), executor,
-    { actions: options.actions });
+    { actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
     hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY],
@@ -169,6 +176,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
     rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
     async start(entries) {
+      for (const entry of entries) if (entry.bundled) bundled.add(entry.definition);
       const report = await supervisor.start(entries);
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();

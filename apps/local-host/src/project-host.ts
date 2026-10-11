@@ -1,4 +1,3 @@
-import { observeGitOperations } from "./git-operation-notifications.js";
 import { informationActionProvider } from "./information-actions.js";
 import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
 import { homeActionProvider } from "./home-actions.js";
@@ -38,7 +37,8 @@ import { createLocalFeedApplication } from "./feed-application.js";
 import { SystemFunctionsActions } from "./functions-actions.js";
 import type { FunctionsHostOptions } from "./functions-host.js";
 import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
-import { ensureInstalledPlugins, releaseInstalledPlugins } from "./installed-plugin-host.js";
+import { releaseInstalledPlugins } from "./installed-plugin-host.js";
+import { ensureProjectPluginActions, prepareInstalledPlugins } from "./project-plugin-ports.js";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
@@ -46,12 +46,11 @@ import { LocalHost, LocalHostError, type LocalHostOptions } from "./local-host.j
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { registerProjectCapabilities } from "./project-capabilities.js";
-import { ensureProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
-import { configuredModelChoices } from "./configured-models.js";
+import { releaseProjectPlugins } from "./project-plugins.js";
 import type { HostCapabilityDefinition, LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionSceneClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActionProvider } from "./inbox-actions.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
@@ -344,30 +343,12 @@ export class MolisWorkLocalHost {
     await this.host.withRuntime(reference, runtime => this.prepareInstalledPlugins(reference, runtime));
   }
 
-  private async prepareInstalledPlugins(reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {
-    if (!this.options.homeDirectory) return;
-    const installed = await ensureInstalledPlugins({ store: runtime.store, projectId: runtime.project_id, homeDirectory: this.options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
-      routePrefix: this.options.projectRoutePrefix?.(reference.project_id) ?? `/projects/${encodeURIComponent(reference.project_id)}`,
-      capabilities: this.host.client(reference),
-      actions: { registry: this.host.actionRegistry(reference), client: { ...this.host.actionClient(reference), ...this.host.syncActionClient(reference) }, project_id: reference.project_id,
-        // This internal directory is already in a prepared Host; recursing through the public entry would wait on itself.
-        inspect: caller => this.host.inspectActions(caller, reference) } });
-    await installed.refreshPublicActions();
+  private prepareInstalledPlugins(reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {
+    return prepareInstalledPlugins({ host: this.host, options: this.options, agents: () => this.agents?.service }, reference, runtime);
   }
 
   private ensureProjectPluginActions(reference: LocalHostProjectReference): Promise<unknown> {
-    return this.host.withRuntime(reference, runtime => ensureProjectPlugins({
-      store: runtime.store, projectId: runtime.project_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: this.options.homeDirectory,
-      goalTitle: id => runtime.coordinator.goalQueries.getGoal(runtime.project_id, id)?.title,
-      capabilities: this.host.client(reference),
-      actions: { registry: this.host.actionRegistry(reference), client: { ...this.host.actionClient(reference), ...this.host.syncActionClient(reference) }, project_id: reference.project_id },
-      characterWorkspaces: async () => this.options.workspacesFor ? await this.options.workspacesFor(reference.project_id)
-        : this.options.workspaceFor ? [await this.options.workspaceFor(reference.project_id)].filter((value): value is ProjectWorkspaceRef => !!value) : [],
-      ...(this.agents ? { observeGitOperations: listener => observeGitOperations(this.agents!.service.agentHost.reviews, runtime.project_id, listener) } : {}),
-      // Headless callers reach Coding's actions through the Host's own Agent service; page adapters may still attach theirs.
-      ...(this.agents && this.options.homeDirectory ? { execution: { ready: () => this.agents!.service.ready,
-        models: async () => configuredModelChoices(this.options.homeDirectory!) } } : {}),
-    }));
+    return ensureProjectPluginActions({ host: this.host, options: this.options, agents: () => this.agents?.service }, reference);
   }
 
   private withSystemActions(client: ActionClient): ActionClient {

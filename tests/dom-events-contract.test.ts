@@ -78,6 +78,28 @@ test("the report lists each registered event with who sends and who hears it", (
   assert.ok(formatDomEventReport(report).some((line: string) => line.startsWith("molis:side-open")));
 });
 
+// The registry header says who listens is computed by the report and never written into an entry. An entry that lists its
+// consumers by name is a second list, and it is wrong as soon as one more plugin page listens. Three listening plugins named in
+// one summary is a list; one plugin named in passing (an owner, a sender) is not.
+const listenersNamedInSummaries = (snapshot: Snapshot) => {
+  const report = domEventReport(snapshot);
+  return (report.events as Array<{ name: string; summary: string; listeners: Array<{ file: string }> }>).flatMap((event) => {
+    const plugins = new Set(event.listeners.map((site) => /^plugins\/native\/([^/]+)\//.exec(site.file)?.[1]).filter((id): id is string => Boolean(id)));
+    const named = [...plugins].filter((id) => new RegExp(`\\b${id.replace(/-/g, "[ -]")}\\b`, "i").test(event.summary));
+    return named.length >= 3 ? [`${event.name} names its listeners: ${named.join(", ")}`] : [];
+  });
+};
+
+test("an entry does not list the plugin pages that listen to it: the report computes that", () => {
+  assert.deepEqual(listenersNamedInSummaries(tree), []);
+  // The list `molis-work:model-ready` carried before it was cut: eight listening plugins written into the summary.
+  const listed = withRegistry(/each page that showed \\"no model\\" reads its model state again \(listeners: `node scripts\/gates\/dom-events\.mjs --report`\)/,
+    'each page that showed \\"no model\\" (the Assistant\'s failed card, Cognia, Dataset, Form, PPT, Workflows, Alchemist, Jelly\'s model dialog, the plugin builder studio) reads it again');
+  const found = listenersNamedInSummaries(listed);
+  assert.equal(found.length, 1, found.join("\n"));
+  assert.match(found[0], /^molis-work:model-ready names its listeners: .*cognia.*jelly/);
+});
+
 test("an unregistered CustomEvent name fails, however the constructor is written", () => {
   for (const make of [
     'new CustomEvent("molis:brand-new")',

@@ -69,8 +69,11 @@ test("the personal Shelf is a Home action provider; clipboard, settings and loca
     const project = molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID });
     const owner: ActionCallContext = { actor_id: "web-user", project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private", "shelf:read"] };
     const scoped = (await host.actionClient(project).discover(owner)).filter(row => row.provider.plugin_id === "io.molis.work.shelf" && row.action.scope === "project");
-    assert.deepEqual(scoped.filter(row => row.provider.provider_id === "io.molis.work.shelf").map(row => row.capability_id).sort(), SHELF_PROJECT_ACTIONS.map(row => row.capability_id).sort());
-    const runtime = scoped.filter(row => row.provider.provider_id !== "io.molis.work.shelf");
+    // The Host-assembled providers and the Runtime instance of the Shelf register under the same provider id, the plugin id (user decision
+    // 2026-10-10, W3-06 Q1); only the Runtime's registration names an installation.
+    assert.deepEqual(scoped.filter(row => row.provider.plugin_install_id === undefined).map(row => row.capability_id).sort(), SHELF_PROJECT_ACTIONS.map(row => row.capability_id).sort());
+    const runtime = scoped.filter(row => row.provider.plugin_install_id !== undefined);
+    assert.ok(runtime.every(row => row.provider.provider_id === "io.molis.work.shelf"));
     assert.deepEqual(runtime.map(row => row.capability_id).sort(), SHELF_RUNTIME_ACTIONS.map(row => row.capability_id).sort());
     assert.ok(runtime.every(row => row.availability.available));
     assert.deepEqual(await host.actionClient(project).invoke(owner, runtime.find(row => row.capability_id === "shelf.material-output.read")!, {}), { reference: null });

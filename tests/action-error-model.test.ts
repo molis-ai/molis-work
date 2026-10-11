@@ -208,8 +208,10 @@ test("Todo declares its codes with defineErrorCodes: every one is todo.<reason> 
 // The dispatcher: the body is read inside the try, a body that cannot be read is an ordinary coded error, and a mapper is optional.
 const never: BoundActionClient = { discover: async () => [], invoke: async () => { throw new Error("the route must not run"); } };
 
-test("a body that is too large or not JSON reaches a remaining mapper as a coded error and still answers 400", async () => {
-  // Workflows keeps its own mapper until its owner slice; its default for a platform code is 400, so nothing changes for its callers.
+test("a body that is too large or not JSON reaches a route that still has its own mapper as a coded error, and the mapper's 400 default answers it", async () => {
+  // Workflows keeps its own mapper until its owner slice. On origin/main the body was read outside the dispatcher's try, so this failure escaped to
+  // the Host's last-resort catch and answered 500 with no code; now it reaches the mapper as a coded error, and the mapper's default for a platform
+  // code is 400. So the answer for this route changes from 500 to 400.
   const server = await serveNativeHttp((request, response, url) => handleWorkflowsNativePluginHttp(request, response, url, { actions: never }));
   try {
     const notJson = await server.post("/api/workflows/instances", "{not json");

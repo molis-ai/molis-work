@@ -1,5 +1,7 @@
-import { ActionError, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, fileContentOf,
-  type ActionDefinition, type ActionHandlerBinding, type FileEntry, type FileContentInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { ActionError, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, fileContentOf, FILE_ENTRIES_PAGE_LIMIT, LOCAL_PERSON_ACTOR_ID,
+  type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type FileEntry, type FileContentInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { writeNativePluginJsonResponse } from "../native-plugin-http.js";
 import { ComputerRecords, type ComputerRecord } from "./computer-records.js";
 
 /**
@@ -10,6 +12,16 @@ import { ComputerRecords, type ComputerRecord } from "./computer-records.js";
  */
 export const COMPUTER_RECORD_KIND = "computer_record";
 export const COMPUTER_PROVIDER_ID = "io.molis.work.computer";
+/**
+ * The id the 文件 tab sees once this source is folded into the Assistant's provider.
+ * Kept as a literal so this file does not import the Assistant (that file already imports this one).
+ */
+export const COMPUTER_RECORD_SOURCE_ID = "io.molis.work.assistant.rules|computer.records.entries|1";
+
+/** Records whose `project_id` is exactly the caller's project. No project selected lists only records with none. */
+export function recordsOwnedBy(records: readonly ComputerRecord[], projectId: string | null): ComputerRecord[] {
+  return records.filter(record => record.project_id === projectId);
+}
 
 const kinds = [{ kind: COMPUTER_RECORD_KIND, title: "电脑操作记录", surface: "computer" }];
 
@@ -57,7 +69,7 @@ function renderMarkdown(record: ComputerRecord): string {
  */
 export function computerRecordFileSource(homeDirectory: string): { definitions: ActionDefinition[]; handlers: ActionHandlerBinding[] } {
   const records = new ComputerRecords(homeDirectory);
-  const entries = (): FileEntry[] => records.list().map(record => ({
+  const entries = (caller: ActionCallContext): FileEntry[] => recordsOwnedBy(records.list(), caller.project_id).map(record => ({
     subject: { kind: COMPUTER_RECORD_KIND, id: record.id },
     revision: record.ended_at ?? record.started_at,
     title: titleOf(record),
@@ -69,12 +81,43 @@ export function computerRecordFileSource(homeDirectory: string): { definitions: 
   }));
   const handlers: ActionHandlerBinding[] = [
     bindFileEntriesHandler(computerRecordActions.entries, entries),
-    { capability_id: computerRecordActions.content.capability_id, version: 1, handle: async (_caller, input) => {
+    { capability_id: computerRecordActions.content.capability_id, version: 1, handle: async (caller, input) => {
       const subject = (input as FileContentInput).subject;
       const record = records.get(subject.id);
-      if (!record) throw new ActionError("files.not_found", "这份电脑操作记录不在了");
+      if (!record || record.project_id !== caller.project_id) throw new ActionError("files.not_found", "这份电脑操作记录不在了");
       return fileContentOf({ subject, revision: record.ended_at ?? record.started_at, title: titleOf(record), media_type: "text/markdown", text: renderMarkdown(record) });
     } },
   ];
   return { definitions: Object.values(computerRecordActions), handlers };
+}
+
+/** The project list has no project, so the 文件 tab reads computer records that were never filed under one. */
+export async function handleUnscopedComputerFiles(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string): Promise<boolean> {
+  const route = /^\/api\/side\/files\/(sources|entries|content)$/u.exec(url.pathname)?.[1];
+  if (!route) return false;
+  const json = (status: number, body: unknown) => writeNativePluginJsonResponse(response, { status, body });
+  if (request.method !== "GET") { json(405, { error: "不支持这个请求" }); return true; }
+  const source = computerRecordFileSource(homeDirectory);
+  const caller: ActionExecutionContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [], beforeEffect: async () => {} };
+  const described = { id: COMPUTER_RECORD_SOURCE_ID, plugin_id: "io.molis.work.assistant.rules", title: "电脑操作记录", kinds };
+  try {
+    if (route === "sources") { json(200, { sources: [described] }); return true; }
+    if (url.searchParams.get("source") !== COMPUTER_RECORD_SOURCE_ID) { json(404, { error: "这个文件来源已经不在了（插件可能已停用）" }); return true; }
+    const entries = source.handlers.find(handler => handler.capability_id === computerRecordActions.entries.capability_id);
+    const read = source.handlers.find(handler => handler.capability_id === computerRecordActions.content.capability_id);
+    if (route === "entries") {
+      const page = await entries!.handle(caller, { cursor: url.searchParams.get("cursor") || null, limit: FILE_ENTRIES_PAGE_LIMIT });
+      json(200, { page });
+      return true;
+    }
+    const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
+    if (kind !== COMPUTER_RECORD_KIND || !id) { json(400, { error: "没有说明要预览哪个文件" }); return true; }
+    const content = await read!.handle(caller, { subject: { kind, id } });
+    json(200, { content, via: "content" });
+    return true;
+  } catch (error) {
+    const code = (error as { code?: string }).code ?? "";
+    json(/not_found$/u.test(code) ? 404 : 409, { error: error instanceof Error ? error.message : String(error), code });
+    return true;
+  }
 }

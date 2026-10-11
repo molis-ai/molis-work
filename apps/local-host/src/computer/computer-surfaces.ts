@@ -20,6 +20,17 @@ export interface ComputerSurfaceProvider {
 }
 
 const providers = new WeakMap<object, ComputerSurfaceProvider>();
+const holders = new WeakMap<object, () => { sessionId: string; projectId: string | null; lastInjectAt: number | null } | null>();
+
+/** The desk that holds the computer, so a confirm opened from another project still resolves for that round. */
+export function registerComputerHolder(owner: object, read: () => { sessionId: string; projectId: string | null; lastInjectAt: number | null } | null): () => void {
+  holders.set(owner, read);
+  return () => { if (holders.get(owner) === read) holders.delete(owner); };
+}
+
+export function computerHolderFor(owner: object): (() => { sessionId: string; projectId: string | null; lastInjectAt: number | null } | null) | undefined {
+  return holders.get(owner);
+}
 
 export function registerComputerSurfaces(owner: object, provider: ComputerSurfaceProvider): () => void {
   providers.set(owner, provider);
@@ -62,10 +73,11 @@ export function installComputerDesk(localHost: object, homeDirectory: string): I
   const helper = new HelperConnection({ appPath: resolveComputerHelperApp() });
   const desk = new ComputerDesk({ helper, settings, records });
   const unregisterSurfaces = registerComputerSurfaces(localHost, computerSurfaceProvider(desk, () => settings.enabled));
+  const unregisterHolder = registerComputerHolder(localHost, () => desk.holding());
   // Screenshots in records hold screen content: cleared after the retention period, swept hourly.
   const sweep = setInterval(() => { try { records.sweep(); } catch { /* a failed sweep retries next hour */ } }, 60 * 60 * 1000);
   sweep.unref();
-  const dispose = () => { unregisterSurfaces(); clearInterval(sweep); desk.close(); void helper.close(); };
+  const dispose = () => { unregisterSurfaces(); unregisterHolder(); clearInterval(sweep); desk.close(); void helper.close(); };
   return {
     desk,
     handleHttp: (request, response, url) => handleComputerHttp(request, response, url, { settings, helper, desk, records }),

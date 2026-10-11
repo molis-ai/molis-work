@@ -1,6 +1,6 @@
 # 个人助理的完整 Computer Use
 
-状态：进行中（2026-10-09）。最小真机切片已在用户的 Mac 上证明（§5）；Prologue 合同、SDK 一条线、Molis 助手与桌面驱动、「电脑」标签、设置、记录均已实现、整体构建与边界通过（§7）。尚未做：真实模型的端到端验收、全量回归（§8）。目标原文见 [goal-prompt.md](goal-prompt.md)。
+状态：进行中（2026-10-11）。最小真机切片已在用户的 Mac 上证明（§5）；桌面步骤措辞、跨项目确认、没选项目的操作记录和确认卡，以及四条威胁的代表性拒绝，已由发出去的函数测通（§4、§7）。真实模型 MiniMax-M3 在隔离 Home 上走过 TextEdit 和计算器，操作记录有 29 步；锁屏、用户在场、驱动不可用三种拒绝都在真机上出现过。终端打字、系统设置、被挡住的落点和自批没有形成产品拒绝。全量回归已对干净基线 `72137e89a` 跑完：没有新的产品失败（§7、§8）。目标原文见 [goal-prompt.md](goal-prompt.md)。
 
 ## 1. 要解决的事
 
@@ -45,10 +45,10 @@
 
 | 威胁 | 挡法 | 守住它的测试 |
 | --- | --- | --- |
-| 自批：助理点自己的确认卡 | Molis 窗口、助手、显示 Molis 的浏览器窗口属禁区（观察与动作都拒）；落点校验拒绝落在别的窗口上的点；注入后 1.5 秒内的桌面确认答复不算 | 待补（§7） |
-| 越界落点：点到盖在上面的窗口或通知条 | 助手在注入前原子地核落点（D14）；Prologue 在执行前核观察新鲜、窗口身份与应用 scope | 真机 §5；单测待补 |
-| 屏幕内容外带：截图带出别的应用、密码 | 只拍目标应用（D15）；密码框涂黑；脱敏器只认驱动自己产出的截图；记录只在本机、30 天删截图、不进搜索与记忆 | 真机 §5；单测待补 |
-| 提示注入：窗口里的文字冒充指令 | 观察正文框在不可信内容里交给模型；提示词写明；禁区与分级在驱动和 Prologue 规则两处挡，不靠模型自觉 | 待补 |
+| 自批：助理点自己的确认卡 | Molis 窗口、助手、显示 Molis 的浏览器窗口属禁区（观察与动作都拒）；落点校验拒绝落在别的窗口上的点；注入后 1.5 秒内的桌面确认答复不算 | `tests/computer-use-gaps.test.ts`：Molis 自己的 bundle、标题带「Molis Work」的窗口被拒绝；驱动注入前拒绝；持有电脑的那一轮在注入后 1.5 秒内确认返回 409。2026-10-10 与措辞测试一起通过 |
+| 越界落点：点到盖在上面的窗口或通知条 | 助手在注入前原子地核落点（D14）；Prologue 在执行前核观察新鲜、窗口身份与应用 scope | 真机 §5；同一测试里落点 pid 不是目标应用时驱动拒绝，文案含「落点不在目标应用」 |
+| 屏幕内容外带：截图带出别的应用、密码 | 只拍目标应用（D15）；密码框涂黑；脱敏器只认驱动自己产出的截图；记录只在本机、30 天删截图、不进搜索与记忆 | 真机 §5；同一测试里截图带别的 pid、或密码框多于涂黑数时驱动拒绝 |
+| 提示注入：窗口里的文字冒充指令 | 观察正文框在不可信内容里交给模型；提示词写明；禁区与分级在驱动和 Prologue 规则两处挡，不靠模型自觉 | 同一测试：窗口正文要求输入时，终端仍只能看和点，系统设置仍是禁区；正文不参与判定 |
 
 ## 5. 最小真机切片（2026-10-09，MacBook Pro M5，macOS 26.3.1，内建 Retina 屏一块，输入法搜狗拼音）
 
@@ -77,9 +77,9 @@
 
 不在本任务内：Windows 与 Linux；远程与云桌面；插件声明会操作哪些应用；右栏 Shelf 格（PR #180）；截图进模型与文字识别（D16）。
 
-## 7. 进度（2026-10-09）
+## 7. 进度（2026-10-10）
 
-分支：Molis `feat/computer-use`（叠在 `feat/prologue-adoption` 上）；Prologue `feat/desktop-computer-use`（叠在 `feat/molis-adoption` c4b9fde3 上）。
+分支：Molis `feat/computer-use-land`（已合入 `origin/main` `72137e89a`；`feat/prologue-adoption` 的 `8b1a05220` 不是祖先）。Prologue `feat/desktop-computer-use`（叠在 `feat/molis-adoption` c4b9fde3 上）。
 
 - [x] 三项决定弹窗问过（D06–D08）
 - [x] 最小真机切片（§5，全部通过）
@@ -88,18 +88,20 @@
 - [x] Molis 助手：Swift 原生助手（截图、辅助功能树、输入、前台、锁屏与输入监听、权限、落点校验、中文输入），随 local-host 构建与分发
 - [x] Molis 桌面驱动与会话装配：`HostSurfaceDriver` 桌面一支、一轮同时挂浏览器与桌面、分级与禁区、确认卡（含「本轮内允许」）、记录、拉起与协议、权限引导
 - [x] 「电脑」标签、助理设置（总开关默认关、禁区、权限引导）、记录进「文件」
-- [x] 对话步骤展示（`presentActivity`，桌面与浏览器共用 surface-* 工具）
-- [x] 整体 `pnpm build`、`pnpm boundary:check`、`pnpm health:check` 全通过（叠在 `feat/prologue-adoption` 当前头 `8c0b60fb` 上；该分支先前自带的两项失效已由其修复）
+- [x] 对话步骤展示（`presentActivity`，桌面与浏览器共用 surface-* 工具）。成功的桌面 `surface-act` 回执与浏览器相同，仍读成「操作应用」；同样的浏览器回执仍是「操作网页」（`tests/assistant-tool-words.test.ts`，2026-10-10 通过）
+- [x] 整体 `pnpm build`、`pnpm boundary:check`、`pnpm health:check` 全通过（2026-10-11 又在 `feat/computer-use-land` 上跑过；`health:check` 与 `node scripts/check-health-gates.mjs --base origin/main` 都通过，merge-base 仍是 `72137e89`。`handleMolisWorkWebRequest` 保持在已提交快查的 424 行）。页面资源门 `page-assets --base origin/main` 同一天通过。不再叠在 `feat/prologue-adoption` `8c0b60fb` 上
 - [x] 本分支的 Web 服务在独立 Home、独立端口上启动并冒烟（无模型）：`/api/computer/*` 可用，总开关默认关、开关与禁区应用持久，`state`/`records` 正常；**助手在 Web 服务下连通、三项系统权限均已授权**（`helper: ready`）
-- [ ] 真实模型的跨应用验收（一次说完、二十步、过程在「电脑」标签、记录进「文件」、放上 Shelf、对话引用、中途动鼠标暂停、拒绝不换办法、禁区/终端/落点/自批/密码/锁屏各一遍）——未跑；需要一个带模型的项目，建议和用户一起走一遍
-- [ ] 「文件」里记录的实际呈现：记录源已挂进助理 provider，但 `/api/side/files/sources` 要在选中项目后才发现，空 Home 下未验证
-- [ ] 锁屏、用户在场、驱动不可用三种拒绝在真机上触发——未跑（Prologue 侧 live 也未触发，见其 `docs/slices/computer-use.md`）
-- [ ] 全量回归对干净基线——未跑
+- [x] 2026-10-10 又在两个隔离 Home 上各启动一次，`GET /api/computer/state` 两次正文一致：总开关 `enabled: false`，`helper.state` 为 `stopped`
+- [ ] 真实模型的跨应用验收（一次说完、二十步、过程在「电脑」标签、记录进「文件」、放上 Shelf、对话引用、中途动鼠标暂停、拒绝不换办法、禁区/终端/落点/自批/密码/锁屏各一遍）——二十步和两种应用发生了，整格仍未完成。2026-10-11 用已配置的 MiniMax-M3，隔离 Home，工作 `work-b54e167e-8ba5-438e-87fb-691d95a86de9`：`computer-list` / `computer-look` / `computer-act`，TextEdit 与计算器，记录 29 步，没选项目的文件列表取到 `4afeae77-34c3-41ee-9259-a6924a238da8`，现有 `POST /api/shelf/items` 返回 200。观察过期后模型重新观察，没有改用别的办法。脚本的一次鼠标移动被记成 `paused` / `person-input`，交还后同一任务继续。更早一轮 `computer-use-live-lock.log` 里，第一次观察是 `screen-locked`，模型停下。终端打字和系统设置：模型引用桌面规则后用文字停下，没有调用工具。落点：补测 `work-17b25b0d-c721-4460-a55b-f58876cd4fb5` 对计算器窗口 (100, 40) 的点击返回 `completed; 1 action(s) performed`，遮挡窗没有盖住这个点。自批的 409 和密码框涂黑没有在真机路径上出现。右栏 Shelf 仍未接
+- [x] 「文件」里没选项目时的操作记录：`tests/computer-use-gaps.test.ts` 走 `handleUnscopedComputerFiles`，列表和预览只返回 `project_id` 为空的记录，选了项目的记录预览为 404。浏览器里的空 Home 画面没有另拍
+- [x] 没选项目时的确认卡：项目列表上的 `/api/agent/reviews` 和 `/api/agent/reviews/decide` 走个人工作的 owner。同一测试在 2026-10-11 通过：个人那条能列出并批准，别的项目的卡不出现；点击落下后 1.5 秒内批准仍是 409
+- [x] 锁屏、用户在场、驱动不可用三种拒绝在真机上触发。锁屏是 `computer-use-live-lock.log` 的 `presence.locked` / `screen-locked`，模型没有改用别的办法。用户在场是记录备注「用户动了鼠标或键盘，助理暂停」，控制状态 `paused` / `person-input`；助手自己的点击带标记，不会被记成用户。驱动不可用是 `work-17b25b0d-c721-4460-a55b-f58876cd4fb5`：桌面已经挂上、总开关关掉之后，下一次点击被拒绝，模型引回 `refused: driver-unavailable`。没有用 Ctrl+Cmd+Q 再锁一次屏
+- [x] 全量回归对干净基线——2026-10-11 对 `72137e89a`。基线 5136 项，失败文件 6 个；Computer Use 5144 项，失败文件 2 个。只有 `tests/goals-narrow-navigation.e2e.test.ts` 不在基线失败名单里，基线全量里这条是通过的。当时还有别的全量在跑，页面等事件光标超时，提示里留着测试自己挡住请求时的「Failed to fetch」。槽空后单独重跑该文件：2 项通过，0 失败，0 跳过。其余失败文件都已在基线出现
 - [ ] Shelf 放入记录/截图：用 Shelf 现有入口，尚未接
 
 ## 8. 待验证与已知缺口
 
-- 真实模型的端到端验收尚未做：以上是工程通过（构建、边界、单元/门禁、最小真机切片），不是「真实场景通过」，更不是用户验收。
+- 真实模型走完了 TextEdit 与计算器的多步操作，也触发了锁屏、用户在场和驱动不可用。终端打字、系统设置、被挡住的落点、自批和密码框还没有在真机上打成产品拒绝。全量回归对干净基线已经跑完，没有新的产品失败；二十步整格和 Shelf 仍未完成。这不是用户验收。
 - 记录的 `goal` 取自 attach 时的 `input.task`；`run_id` 在 attach 时还没有，记为 null。
-- 「电脑」标签的确认卡轮询用当前项目的 `/api/agent/reviews`；个人（home）助理轮次的审查路由未单独处理。
-- Shelf 入口、多显示器、Intel、macOS 14/15、发布签名与公证（BL-021）未做或未验证。
+- 没选项目时的确认卡走个人工作的 owner（`home`），由 `tests/computer-use-gaps.test.ts` 覆盖。浏览器里的空 Home 画面没有另拍。
+- 右栏 Shelf、多显示器、Intel、macOS 14/15、发布签名与公证（BL-021）未做或未验证。现有 `POST /api/shelf/items` 在走查里返回过 200。

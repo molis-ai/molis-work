@@ -220,10 +220,12 @@ describe("the records of this repository", () => {
     assert.equal(provenance.source.dirty, false);
   });
 
-  test("only the patch the provenance names is left in vendor/prologue-sdk", () => {
-    const named = json(`${folder}/${current}.provenance.json`).alsoBuildableFrom?.patch?.file;
-    const patches = readdirSync(path.join(repoRoot, folder)).filter((name) => name.endsWith(".patch"));
-    assert.deepEqual(patches, named ? [named] : []);
+  test("only a patch a vendored provenance still names is left in vendor/prologue-sdk", () => {
+    // The current package was built without a patch. An older package may still name one it has not been told to delete.
+    const named = readdirSync(path.join(repoRoot, folder)).filter((name) => name.endsWith(".provenance.json"))
+      .map((name) => json(`${folder}/${name}`).alsoBuildableFrom?.patch?.file).filter((file): file is string => typeof file === "string").sort();
+    const patches = readdirSync(path.join(repoRoot, folder)).filter((name) => name.endsWith(".patch")).sort();
+    assert.deepEqual(patches, named);
   });
 
   test("patch-history.json holds the 25 deleted patches and the 9 packages that never had one", () => {

@@ -25,7 +25,8 @@ export interface SurfaceSiteDecision { readonly scope: string; readonly decision
 
 /** Actions a site the person allowed runs without asking. Sending or saving a file always asks. */
 export const SITE_ALLOWED_ACTIONS = ["pointer", "key", "text", "navigate"] as const;
-const ASKED_ACTIONS = [...SITE_ALLOWED_ACTIONS, "upload", "download"] as const;
+// Desktop-only actions are asked too. An unnamed surface action is denied, so switching apps never reached a confirm card.
+const ASKED_ACTIONS = [...SITE_ALLOWED_ACTIONS, "upload", "download", "scroll", "drag", "hover", "app", "menu"] as const;
 
 export const SURFACE_TOOL_NAMES: readonly string[] = APP_MODE_SURFACE_TOOLS;
 
@@ -316,3 +317,35 @@ export const DESKTOP_GUIDANCE = [
   "- 用户对某一步选「不允许」，这件事就不做，也不要换个办法再做。用户一动鼠标键盘，你会被暂停，要等用户交还后先重新观察。",
   "- 终端、开发工具这类只能看和点，不能输入或按键（命令走 Coding）；系统设置、钥匙串、密码和支付类应用连看都不看。",
 ].join("\n");
+
+const DESKTOP_VERBS: Record<string, string> = {
+  pointer: "点击", key: "按键", text: "输入文字", scroll: "滚动", drag: "拖动", hover: "悬停", menu: "选择菜单", wait: "等待",
+  app: "打开或切换应用", upload: "把本机文件交给应用", download: "从应用取出文件到本机",
+};
+
+/** The approval card for one desktop action. Reversible actions inside an app may be allowed for the rest of the round. */
+export async function desktopActionCard(
+  surfaces: Pick<PrologueSurfaces, "describeDesktop" | "describeApp"> | undefined,
+  sessionId: string, action: string, scope: string, label: string, typed: string | undefined, proposalKind: string,
+): Promise<{ kind: "tool-operation"; tool: "surface-act"; summary: string; fields: Array<{ label: string; value: string }>; round_allow?: { app: string; label: string } }> {
+  const detail = surfaces ? await surfaces.describeDesktop(sessionId, action, label, typed) : label;
+  const appName = surfaces ? await surfaces.describeApp(sessionId, scope).catch(() => scope) : scope;
+  const reversible = proposalKind !== "mutate-external" && action !== "app";
+  return { kind: "tool-operation", tool: "surface-act", summary: `在「${appName}」${DESKTOP_VERBS[action] ?? action}`,
+    fields: [{ label: "应用", value: appName }, { label: "动作", value: DESKTOP_VERBS[action] ?? action }, { label: "详情", value: detail },
+      ...(action === "upload" || action === "download" ? [{ label: "注意", value: "这会在这台电脑和应用之间传文件，确认前请核对是哪个文件" }] : [])],
+    ...(reversible ? { round_allow: { app: scope, label: appName } } : {}) };
+}
+
+/** Binds "allow in this app for the rest of the round" to the run of one live desktop approval. */
+export function allowDesktopAppForRound<S extends { what: string; surface?: string; scope?: string }>(
+  surfaces: Pick<PrologueSurfaces, "allowAppForRound"> | undefined,
+  effect: { proposal: { subject: S } } | undefined | false,
+  run: ExactRef<"run"> | undefined,
+): void {
+  const subject = effect ? effect.proposal.subject : undefined;
+  if (!surfaces || !run || !subject || subject.what !== "surface" || subject.surface !== "desktop" || !subject.scope) {
+    throw new Error("只有桌面应用的待审操作可以设为「本轮内允许在这个应用里操作」");
+  }
+  surfaces.allowAppForRound(run, subject.scope);
+}

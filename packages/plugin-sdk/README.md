@@ -4,6 +4,12 @@
 
 包名：`@molis-ai/molis-work-plugin-sdk`。工作区内部包，通过仓库构建和 Host 装配使用。
 
+## Home 插件服务
+
+SDK 导出 `PluginDatabaseDeclaration`、`PluginDatabase`、读事务接口和 SQL 值类型。可信 Home 目录声明当前库基线，Host 绑定路径和安装授权；业务查询归插件，写入使用 `database.transaction(caller.beforeEffect, tx => …)`，事务回调不能异步。Home 激活的 `context.provider_id` 是插件 ID，`install_id` 仍是安装身份。
+
+`services.artifacts` 是可选的：Home 没有项目成果服务，项目插件使用前应明确要求。HTTP 转动作时 `bindPluginActionRoute` 保留取消、授权复查与带来源的页面上下文，版本冲突返回 409。详见 [Home Runtime 合同](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。
+
 ## 一次典型调用
 
 definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组合成 Connector Driver 与 Raw Event → Signal Adapter。Host 通过 context.services 提供私人存储、Artifact 和 UI 客户端，作者不需要访问数据库。

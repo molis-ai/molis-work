@@ -4,7 +4,7 @@
 
 - 基线是 origin/main `15c20920`（2026-10-07）。每一行都由代码推出，并写出打开它的代码位置；代码改了，对应行跟着改，行号会漂移。
 - 第 10 节的真实 Home 清单只用 `ls`、`stat`、`find`、`du` 看了名字、大小和日期，没有打开任何库或数据文件，也没有读任何密钥文件。所以真实库当前盖的是哪个版本，没有核对。只有一处例外，是为了回答旧启动脚本还有没有人在用：读了启动脚本 `bin/goalboard-mcp` 本身（约 1 KB，不含密钥），用 `grep -o` 只取出 Runtime 配置里含 `molis-work` 或 `goalboard` 的路径，用 `ps` 看了在跑的进程的命令行。
-- 还没有的：Home 存储的统一登记（`PERSONAL_HOME_SQLITE_STORES` 只列了 17 项，见第 9 节）、产品里的备份命令、检查“每个库都登记、都有版本”的门禁。这些落地之前，本表是唯一的清单；不要假设有别的清单在替它兜底。
+- 还没有的：Home 存储的统一登记（`PERSONAL_HOME_SQLITE_STORES` 只列了 19 项，见第 9 节）、产品里的备份命令、检查“每个库都登记、都有版本”的门禁。这些落地之前，本表是唯一的清单；不要假设有别的清单在替它兜底。
 
 ## 1. 怎么读
 
@@ -20,11 +20,11 @@
 
 ## 2. 总览
 
-Home 里有 28 种 SQLite 文件：权威库 24 种（Home 级 21 种，按项目 3 种）、派生库 1 种、锁库 3 种。24 种权威库按版本方案分：
+Home 里有 30 种 SQLite 文件：权威库 26 种（Home 级 23 种，按项目 3 种）、派生库 1 种、锁库 3 种。26 种权威库按版本方案分：
 
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
-| `PRAGMA user_version`，经 `applySqliteBaseline` | 21 | 项目库（7）、Alchemist 工作室库与搜索库、assistant（2）、memory（2）、placement、agent-definitions、connectors、context-onboarding、functions（3）、10 个个人插件库、server |
+| `PRAGMA user_version`，经 `applySqliteBaseline` | 23 | 项目库（7）、Alchemist 工作室库与搜索库、assistant（2）、memory（2）、placement、agent-definitions、connectors、context-onboarding、functions（3）、11 个个人插件库、Home Runtime 安装库、server |
 | 自己的 meta 表 | 2 | `projects/catalog.db`（`catalog_meta`，22）、`sessions/sessions.db`（`session_meta`，7） |
 | 自己读写 `user_version` | 1 | `characters/characters.sqlite`（1） |
 
@@ -67,6 +67,7 @@ Home 里有 28 种 SQLite 文件：权威库 24 种（Home 级 21 种，按项�
 
 | 路径 | owner 与打开它的代码 | 版本 · 日志 | 表 |
 | --- | --- | --- | --- |
+| `issues/issues.db` | Issue 业务 owner：`plugins/native/issues/src/store.ts`；Host 通过 `apps/local-host/src/plugin-database.ts` 打开 | 2 · WAL | `issues` |
 | `images/images.db` | `plugins/native/images/src/store.ts:50`、`:57`，基线 `:17` | 1 · 回滚 | `connections`、`jobs` |
 | `pages/pages.db` | `plugins/native/pages/src/store.ts:463`，基线 `:433` | 1 · 回滚 | `pages`、`folders`、`page_generations`、`page_changes`、`page_imports` |
 | `form/form.db` | `plugins/native/form/src/store.ts:381`，基线 `:350` | 2 · 回滚 | `forms`、`submissions`、`form_copies` |
@@ -78,12 +79,15 @@ Home 里有 28 种 SQLite 文件：权威库 24 种（Home 级 21 种，按项�
 | `cognia/cognia.db` | `plugins/native/cognia/src/store.ts:146-148`，基线 `:136` | 1 · WAL | `cognia_domains`、`cognia_sources`、`cognia_materials`、`cognia_versions`、`cognia_previews`、`cognia_drafts` |
 | `workflows/workflows.db` | `plugins/native/workflows/src/store.ts:195-197`，基线 `:166` | 1 · WAL | `workflows`、`instances` |
 
-`tests/home-store-baselines.test.ts` 把这些基线（以及 3.2 里的 assistant、memory、functions、placement、agent-definitions、connectors、context-onboarding）和 `tests/fixtures/home-store-schemas/` 下取自存量库的结构夹具比对。2026-10-04 真实 Home 的 17 个库用一次性工具盖了版本 1，工具已删（取自 Git 历史 `scripts/stamp-store-baselines.mjs`）；炼金术士搜索库的夹具是 `alchemist-search.sql`（上一版建库语句生成，真实 Home 没有这种文件）。
+Issue 与 Home Runtime 为新库，无历史盖版本；当前基线与保存重启见 `tests/issue-home.test.ts`、`tests/issue-home-runtime.test.ts`。以下是已有库的基线来源：
+
+`tests/home-store-baselines.test.ts` 把已有库的基线（以及 3.2 里的 assistant、memory、functions、placement、agent-definitions、connectors、context-onboarding）和 `tests/fixtures/home-store-schemas/` 下取自存量库的结构夹具比对。2026-10-04 真实 Home 的 17 个库用一次性工具盖了版本 1，工具已删（取自 Git 历史 `scripts/stamp-store-baselines.mjs`）；炼金术士搜索库的夹具是 `alchemist-search.sql`（上一版建库语句生成，真实 Home 没有这种文件）。
 
 ### 3.4 其他按 Home 与按项目的库
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
+| `plugin-runtime/plugin-runtime.db` | 平台 Home Runtime；`apps/local-host/src/home-plugins.ts`，schema 由 `packages/plugin-runtime` 提供 | SQLite 当前基线 1 · 回滚 | 必备份 | purge |
 | `server/server.sqlite` | `server`；`server/src/database.ts:34-37` 打开，基线 `:29`；本机由 `apps/local-host/src/im-server.ts:13` 挂载。右栏「讨论」页签的群聊与 Thread 存在这里（在用、还会迭代的功能，`specs/repository-anti-corruption/spec.md` §1，2026-10-08「右栏『讨论』页签与 IM 代码」） | SQLite 带版本 · WAL · 1 | 必备份（第 7 节 E 组，连同 `-wal`、`-shm`，或先 `LocalSqliteStorage.checkpoint()`），备份副本按密钥对待。库里有聊天正文、成员显示名，也有明文的房间邀请令牌：`im_rooms.invite_token`（`server/src/im/schema.ts:7`，`randomBytes(24)` 生成，`server/src/im/writes.ts:51`、`:75`）是非项目群的加入凭据，拿到它的人可以经 `POST /im/api/join` 加入这个群（`server/src/im/index.ts:50-51`）；重置邀请的结果 `{token, url}` 经 `mutation()` 连同提交回执写进 `im_receipts.result_json`（`server/src/im/writes.ts:39-40`），重置后旧令牌失效但仍留在回执里。项目群的 `invite_token` 是 `randomUUID()`，加入时被拒绝（`server/src/im/writes.ts:61`），不能当凭据用。登录会话 `mw_sessions.token_hash` 和一次性代码 `mw_codes.hash` 只存哈希。归组不变：D 组要求同一时点，是因为引用和密文分在两个文件里，而邀请令牌和它能打开的群在同一个文件里，不存在配对问题；它只需要和 `runtime-config-backups/` 一样不进共享位置与日志 | purge（`server` 在 `PERSONAL_HOME_SQLITE_STORES`，整个目录；普通卸载保留） |
 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | `plugins/native/alchemist`；路径 `apps/local-host/src/alchemist-paths.ts:4`（`alchemistProjectDirectory`；`apps/local-host/src/alchemist-service-host.ts:49` 在其下拼 `studio.sqlite`），建库 `src/studio/server/db/schema.ts:480`，基线 `:8` | SQLite 带版本 · WAL · 1 | 必备份 | purge（`alchemist` 在 `PERSONAL_HOME_SQLITE_STORES`，整个目录） |
 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 宿主；`apps/local-host/src/alchemist-search.ts`（`createAlchemistSearchPort`，基线 `ALCHEMIST_SEARCH_BASELINE`；目录同样由 `apps/local-host/src/alchemist-paths.ts:4` 给出），表 `feed_runtime_blobs` 来自 `packages/storage` 的 `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | SQLite 带版本 · WAL · 1（W2-05） | 必备份（研究报告引用的证据，重取要花外部请求）；只在用过搜索后才出现 | purge（同上） |
@@ -269,12 +273,12 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 
 ## 9. 卸载覆盖
 
-`uninstall --purge-user-data` 删除的路径（`installer/uninstall.ts:44-56`）：`projects/`、`backups/`、`logs/`、`sessions/`、`shelf/`、`runtime-config-backups/`、`runtime-integrations/`，以及 `PERSONAL_HOME_SQLITE_STORES` 的 17 个目录：`images`、`pages`、`form`、`dataset`、`ppt`、`lingguang`、`todo`、`jelly`、`cognia`、`alchemist`、`workflows`、`functions`、`connectors`、`context-onboarding`、`search`、`memory`、`server`（`packages/storage/src/home-sqlite.ts:6-24`）。普通与 purge 都会删安装器自有的程序文件：当前 3 个启动脚本、`config/installation.json`、有效的 `config/web-control-token`、带当前安装器标记的 `releases/*`（`installer/uninstall-files.ts:15-48`）。清完后只有 `config/`、`bin/`、`releases/`、Home 本身是空目录时才会删（`installer/uninstall.ts:192-197`）。
+`uninstall --purge-user-data` 删除的路径（`installer/uninstall.ts:44-56`）：`projects/`、`backups/`、`logs/`、`sessions/`、`shelf/`、`runtime-config-backups/`、`runtime-integrations/`，以及 `PERSONAL_HOME_SQLITE_STORES` 的 19 个目录：`issues`、`plugin-runtime`、`images`、`pages`、`form`、`dataset`、`ppt`、`lingguang`、`todo`、`jelly`、`cognia`、`alchemist`、`workflows`、`functions`、`connectors`、`context-onboarding`、`search`、`memory`、`server`（`packages/storage/src/home-sqlite.ts:6-24`）。普通与 purge 都会删安装器自有的程序文件：当前 3 个启动脚本、`config/installation.json`、有效的 `config/web-control-token`、带当前安装器标记的 `releases/*`（`installer/uninstall-files.ts:15-48`）。清完后只有 `config/`、`bin/`、`releases/`、Home 本身是空目录时才会删（`installer/uninstall.ts:192-197`）。
 
 测试覆盖到哪里：
 
 - `tests/uninstall.test.ts:115-166` 的 purge 用例不遍历 `PERSONAL_HOME_SQLITE_STORES`，在 `:121`、`:132` 写死 10 个目录（`images`、`jelly`、`pages`、`form`、`dataset`、`ppt`、`lingguang`、`todo`、`alchemist`、`functions`），另放一份 `server/server.sqlite` 加 `-wal`、`-shm`。它断言：这 10 个目录、`server/` 和 `runtime-config-backups/` 在 purge 计划里；确认数不对时被拒绝、项目库文件和讨论库还在；确认后讨论库没了、状态是 `purged`、Home 目录整个没了（`projects/` 的删除只靠这一句间接证明）。同文件 `:41-83` 的普通卸载用例断言 `server/` 不在计划里、确认后讨论库还在。`cognia`、`workflows`、`connectors`、`context-onboarding`、`search`、`memory` 六个库在这个文件里没有任何断言；`sessions/`、`shelf/`、`logs/`、`backups/`、`runtime-integrations/` 也没有用例往里放内容再断言被删。
-- 全部 17 个目录由另一个文件盖到：`tests/personal-plugins-review-fixes.test.ts:107-154` 用 `deepEqual` 钉死清单的 17 个名字（`:108`），再遍历它们，断言每个目录在 purge 计划里、确认后 `<名>.db` 被删。
+- 全部 19 个目录由另一个文件盖到：`tests/personal-plugins-review-fixes.test.ts:107-154` 用 `deepEqual` 钉死清单的 19 个名字（`:108`），再遍历它们，断言每个目录在 purge 计划里、确认后 `<名>.db` 被删。
 - 讨论库的登记另有一条用例：`tests/im-local-project.test.ts:71` 起的用例启动本机的讨论挂载（`apps/local-host/src/im-server.ts`），断言它在 Home 里只写出 `server/server.sqlite`，且 `server` 在 `PERSONAL_HOME_SQLITE_STORES` 里；挂载以后改写到别的目录，这条用例会红。
 
 purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）：
@@ -316,7 +320,7 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 - 没有备份命令和快照；第 7 节的同一时点组没有工具保证（W5-16）。
 - 目录库存项目库的绝对路径（W5-17）。
 - `purge` 漏 11 个一级条目（`server/` 已由 W2-12 补进，见第 9 节），旧 `goalboard-*` 的 release 与启动脚本卸载不认，而 `bin/goalboard-mcp` 还有进程在用（W4-11 的清除范围决策）。
-- purge 的用例清单是写死的：`tests/uninstall.test.ts` 只盖 17 个里的 11 个（写死的 10 个加 `server`），其余 6 个只在 `tests/personal-plugins-review-fixes.test.ts` 的遍历用例里盖到；`sessions/`、`shelf/`、`logs/`、`backups/`、`runtime-integrations/` 的清除没有用例。W4-11 的统一登记落地后，用例应读登记，而不是各写一份名单。
+- purge 的用例清单是写死的：`tests/uninstall.test.ts` 只盖 19 个里的 11 个（写死的 10 个加 `server`），其余 8 个只在 `tests/personal-plugins-review-fixes.test.ts` 的遍历用例里盖到；`sessions/`、`shelf/`、`logs/`、`backups/`、`runtime-integrations/` 的清除没有用例。W4-11 的统一登记落地后，用例应读登记，而不是各写一份名单。
 - 结构由宿主文件定义的库（assistant、placement、agent-definitions、context-onboarding、connectors、项目库的几段）按“库归 owner 包”看是错放，处理在 W3-06 与 W5-01。
 
 维护：新增、改名或删除 Home 里任何库或文件的改动，同一个 PR 里改本表对应的行（路径、owner、版本、备份类、卸载覆盖）；提高某个库的基线版本时同时改“现行版本”和 `tests/home-store-baselines.test.ts`。这张表目前没有门禁，是否漏登靠评审。统一登记落地后，本表改成登记的说明，并由登记校验。

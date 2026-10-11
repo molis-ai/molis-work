@@ -38,22 +38,22 @@
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 313,
+      "lines": 310,
       "methods": 23
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 332,
     "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
-    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 434,
+    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 424,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 325,
-    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 232,
-    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 229,
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 231,
+    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 228,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 259,
     "file apps/workbench/src/functions/client.ts": 1299,
-    "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 224,
-    "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 188,
+    "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 223,
+    "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 187,
     "file apps/workbench/src/i18n/en.ts": 3324,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 355,
@@ -64,13 +64,13 @@
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 460,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
-    "function horizontal/agent-host/src/adapters/prologue-action-gateway.ts#prologueActionGateway": 174,
+    "function horizontal/agent-host/src/adapters/prologue-action-gateway.ts#prologueActionGateway": 171,
     "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
     "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 188,
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 170,
-    "file horizontal/agent-host/src/adapters/prologue-node.ts": 1764,
-    "function horizontal/agent-host/src/adapters/prologue-node.ts#initializePrologueNodeAdapter": 1436,
+    "file horizontal/agent-host/src/adapters/prologue-node.ts": 1760,
+    "function horizontal/agent-host/src/adapters/prologue-node.ts#initializePrologueNodeAdapter": 1431,
     "function horizontal/agent-host/src/adapters/prologue-node.ts#startAgentRun": 418,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 304,
     "function horizontal/agent-host/src/adapters/prologue-taskboard.ts#createPrologueTaskBoards": 220,
@@ -190,12 +190,12 @@
       "methods": 23
     },
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
-      "lines": 660,
+      "lines": 644,
       "methods": 30
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
-      "lines": 585,
-      "methods": 31
+      "lines": 573,
+      "methods": 30
     },
     "class packages/plugin-runtime/src/wiring.ts#PluginInputGraph": {
       "lines": 497,
@@ -852,7 +852,7 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 2
   },
-  "pluginOutsideMentionsTotal": 424,
+  "pluginOutsideMentionsTotal": 428,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -868,6 +868,7 @@
     "goals#outside-files": 63,
     "images#outside-files": 12,
     "inbox#outside-files": 17,
+    "issues#outside-files": 4,
     "jelly#outside-files": 12,
     "lingguang#outside-files": 11,
     "pages#outside-files": 20,

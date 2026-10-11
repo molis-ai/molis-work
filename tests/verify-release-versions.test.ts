@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -57,8 +57,7 @@ const buildFixture = () => {
   put("apps/desktop/src-tauri/tauri.conf.json", JSON.stringify({ productName: "Molis Work", version: VERSION }));
   put("apps/desktop/src-tauri/Cargo.toml", `[package]\nname = "molis-work-desktop"\nversion = "${VERSION}"\n\n[dependencies]\nserde = { version = "1" }\n\n[dependencies.other]\nversion = "7"\n`);
   put("apps/desktop/src-tauri/Cargo.lock", `[[package]]\nname = "other"\nversion = "7.0.0"\n\n[[package]]\nname = "molis-work-desktop"\nversion = "${VERSION}"\ndependencies = [\n "other",\n]\n`);
-  put("apps/local-host/src/feed-source-runtime.ts", `const APP_VERSION = "${VERSION}";\n`);
-  put("horizontal/runtime-host/src/adapters/codex-app-server.ts", `const info = { clientInfo: { name: "molis-work-session-browser", title: "Molis Work", version: "${VERSION}" } };\n`);
+  put("apps/local-host/src/product-version.ts", `export const PRODUCT_VERSION = "${VERSION}";\n`);
   put(`docs/releases/v${VERSION}.md`, "# notes\n");
   put("docs/releases/CHANGELOG.md", `# Changelog\n\n## [Unreleased]\n\n## [${VERSION}] - 2026-01-01\n\n## [1.2.2] - 2025-12-01\n`);
   put("docs/releases/CHECKLIST.md", `# Checklist\n\n## 3. 各库版本表\n\n${TABLE}\n\n- trailing text that is not a table row\n\n## 4. Other\n\n| not | the | table |\n| --- | --- | --- |\n| x | y | z |\n`);
@@ -99,14 +98,28 @@ test("every place that carries the product version must equal it", () => {
     ["apps/desktop/src-tauri/tauri.conf.json", `"version":"${VERSION}"`, '"version":"9.9.9"'],
     ["apps/desktop/src-tauri/Cargo.toml", `version = "${VERSION}"`, 'version = "9.9.9"'],
     ["apps/desktop/src-tauri/Cargo.lock", `name = "molis-work-desktop"\nversion = "${VERSION}"`, 'name = "molis-work-desktop"\nversion = "9.9.9"'],
-    ["apps/local-host/src/feed-source-runtime.ts", `"${VERSION}"`, '"9.9.9"'],
-    ["horizontal/runtime-host/src/adapters/codex-app-server.ts", `version: "${VERSION}"`, 'version: "9.9.9"'],
+    ["apps/local-host/src/product-version.ts", `PRODUCT_VERSION = "${VERSION}"`, 'PRODUCT_VERSION = "9.9.9"'],
   ];
   for (const [file, from, to] of carriers) {
     buildFixture();
     edit(file, from, to);
     failsWith(run(), file, `9.9.9, but package.json is ${VERSION}`);
   }
+});
+
+// The Host's code announces the product version in several places (Feed's User-Agent and app version, the search runtime's app
+// version, the MCP client version, the Codex transport's client version). They all import PRODUCT_VERSION, so the release check
+// reads one line; a literal beside it would be a carrier the check does not know. Scoped to the two source trees that announce the
+// Host's identity, so another package's own "1.0.0" is not mistaken for the product version.
+test("this repository: the Host's code spells the product version only in product-version.ts", () => {
+  const version = (JSON.parse(readFileSync(path.join(repository, "package.json"), "utf8")) as { version: string }).version;
+  const quoted = new RegExp(`["'\`]${version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'\`]`);
+  const walk = (directory: string): string[] => readdirSync(path.join(repository, directory), { withFileTypes: true }).flatMap(entry =>
+    entry.isDirectory() ? (entry.name === "node_modules" || entry.name === "dist" ? [] : walk(`${directory}/${entry.name}`))
+      : /\.[cm]?[tj]s$/.test(entry.name) ? [`${directory}/${entry.name}`] : []);
+  const spelled = ["apps/local-host/src", "horizontal/runtime-host/src"].flatMap(walk)
+    .filter(file => file !== "apps/local-host/src/product-version.ts" && quoted.test(readFileSync(path.join(repository, file), "utf8")));
+  assert.deepEqual(spelled, [], `these files spell out ${version}; import PRODUCT_VERSION from apps/local-host/src/product-version.ts (or take the version as an option from the Host) so the release check has one line to read`);
 });
 
 test("a carrier that cannot be read counts as a mismatch, not as a pass", () => {

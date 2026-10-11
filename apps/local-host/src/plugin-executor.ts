@@ -15,6 +15,12 @@ export interface PluginHostExecutorOptions {
     /** Composition-only metadata of the whole directory (what the Plugin Builder's catalog is made from). */
     inspect?(caller: import("@molis-ai/molis-work-contracts/platform/actions").ActionCallContext): Promise<readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]> };
   ui: UiHostApi;
+  /**
+   * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its
+   * plugin_id). Without it, or for a definition it does not name, the installation id. Whatever registers the Plugin's actions
+   * (the Runtime's `actions.providerId`) has to give the same answer: this is how the Plugin's own client finds them.
+   */
+  providerFor?(definition: PluginDefinition, installId: string): string;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;

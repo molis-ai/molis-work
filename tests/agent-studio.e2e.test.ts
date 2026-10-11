@@ -7,7 +7,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { ChromeHarness } from './fixtures/plugin-builder-browser.js';
+import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { STUDIO_HARNESS_PATH, studioHarnessPage } from '../scripts/agent-studio-harness.mjs';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
@@ -22,7 +22,7 @@ import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } f
  */
 test('studio: a request becomes a working, published plugin that the person can use', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
   const home = await mkdtemp(join(tmpdir(), 'molis-studio-e2e-'));
-  const browser = await ChromeHarness.start(join(home, 'chrome'));
+  const browser = await openStudioChrome(join(home, 'chrome'));
   if (!browser) { await rm(home, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
   const databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();

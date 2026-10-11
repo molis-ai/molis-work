@@ -1,4 +1,5 @@
-import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { assembleMcpCatalog } from "../apps/local-host/src/mcp-catalog.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -66,7 +67,7 @@ test("Cognia action tools run as Home actions without project binding and disapp
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const owner = bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS }));
   const server = new MolisWorkServer("runtime", null, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: "cognia-mcp-test", host_declares_stable: true }, webBaseUrl: "http://127.0.0.1:4173" });
-  const name = hostActionToolName(cogniaActions.search), readName = hostActionToolName(cogniaActions.read);
+  const name = molisWorkActionToolName(cogniaActions.search), readName = molisWorkActionToolName(cogniaActions.read);
   const list = async () => (await server.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }) as any).result.tools.map((tool: { name: string }) => tool.name);
   const call = async (tool: string, args: object) => (await server.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: tool, arguments: args } }) as any).result;
   try {

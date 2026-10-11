@@ -13,7 +13,8 @@ import { imagesActions } from "@molis-ai/molis-work-plugin-images";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../apps/local-host/src/web-control-token.js";
 
@@ -77,7 +78,7 @@ test("Images Web and the standard MCP launcher share live jobs through the resid
       return { client, transport };
     };
     const mcp = async (client: Client, action: ActionDefinition, args: Record<string, unknown> = {}) => {
-      const result = await client.callTool({ name: hostActionToolName(action), arguments: args });
+      const result = await client.callTool({ name: molisWorkActionToolName(action), arguments: args });
       assert.equal(result.isError, false, JSON.stringify(result)); return result.structuredContent as any;
     };
 
@@ -106,7 +107,7 @@ test("Images Web and the standard MCP launcher share live jobs through the resid
     const remoteJob = (await mcp(client, imagesActions.start, input("remote-cancel"))).job;
     await until(() => requests.has("web-owner") && requests.has("remote-cancel"));
     assert.equal((await http("POST", "/jobs", input("over-limit"), 429)).code, "images.busy");
-    const denied = await client.callTool({ name: hostActionToolName(imagesActions.start), arguments: input("over-limit") });
+    const denied = await client.callTool({ name: molisWorkActionToolName(imagesActions.start), arguments: input("over-limit") });
     assert.equal(denied.isError, true); assert.equal(counts.has("over-limit"), false);
     await http("POST", `/jobs/${remoteJob.id}/cancel`, {});
     await until(() => aborted.has("remote-cancel"));

@@ -1,12 +1,14 @@
 import { ISSUES_STYLES } from "./ui.js";
 import { ISSUE_ASSISTANT_CLIENT_SCRIPT } from "./assistant-client.js";
 import { ISSUE_IMAGES_CLIENT_SCRIPT } from "./image-client.js";
+import { ISSUE_TABS_CLIENT_SCRIPT } from "./tabs-client.js";
 
-export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
+export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host) {
   const root = host.root || document.querySelector('[data-issues="workbench"]');
   if (!root) return;
   const scope = host.mountPluginClient(root); if (!scope) return;
   root.dataset.ready = 'true';
+  ${ISSUE_TABS_CLIENT_SCRIPT}
   const style = document.createElement('style'); style.textContent = ${JSON.stringify(ISSUES_STYLES)}; root.appendChild(style);
   scope.own(() => { style.remove(); delete root.dataset.ready; });
   const L = host.translate || ((text) => text), $ = key => root.querySelector('[data-issue-'+key+']');
@@ -144,8 +146,9 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       const saved = assistant?.card ? await saveCard() : await request(selected ? 'update' : 'create', {...data, ...(selected ? {id:selected.id,expected_version:selected.version} : {})});
       fill(saved); $('edit').focus();
       await refreshAfter('已保存');
+      host.onSaved?.(saved);
     } catch (error) { if (error.status === 409 && selected) { await release(); await open(selected.id); } else throw error; }
-    finally { busy = false; form.inert = false; $('save').disabled = false; }
+    finally { busy = false; form.inert = false; $('save').disabled = false; mode(); }
   }); });
   scope.listen(root, 'click', (event) => run(async () => {
     const button = event.target.closest('button'); if (!button || busy || imageBusy) return;
@@ -160,7 +163,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (is('remove') && !viewing() && !assistant) { images = images.filter((_,index) => index !== Number(button.dataset.issueRemove)); renderImages(); edited(); $('pick').focus(); return; }
     if (is('preview')) { preview(button.querySelector('img')); return; }
     if (is('zoom')) { zoom($('image-dialog').dataset.zoom!=='true'); return; }
-    if (is('new')) { if (await mayLeave()) { ++readEpoch; fill(null); description.focus(); } }
+    if (is('new') || is('again')) { if(host.onNew) host.onNew(); else if (await mayLeave()) { ++readEpoch; fill(null); description.focus(); } }
     else if (button.dataset.issueId) await open(button.dataset.issueId);
     else if (is('back')) { if (await mayLeave()) { ++readEpoch; selected = null; dirty = false; workspace.hidden = true; root.dataset.expanded = 'false'; mode(); $('new').focus(); } }
     else if (is('refresh')) { await load(); note(L('列表已刷新')); }
@@ -181,9 +184,13 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   scope.listen(root, 'molis-work:select-item', (event) => { if (typeof event.detail?.itemId === 'string') run(() => open(event.detail.itemId)); });
   scope.listen(window, 'beforeunload', (event) => { if (dirty && hasChanges()) { event.preventDefault(); event.returnValue = ''; } });
   workspace.hidden = true; root.dataset.expanded = 'false'; note('');
-  if (host.side) fill(null);
+  if (host.capture) fill(null);
   scope.whenVisible(signal => {
     viewSignal = signal; run(load); if(assistant?.work) run(poll);
     return scope.listen(window, 'molis:assistant-effect', event => { if (event.detail?.capability_id?.startsWith('issues.')) run(load); }, {signal});
   });
+  return { reset: () => fill(null), show: issue => {
+    if(busy || imageBusy || assistant || dirty && hasChanges()) return false;
+    fill(issue); note(L('已保存')); scope.frame(() => $('edit').focus()); return true;
+  } };
 }`;

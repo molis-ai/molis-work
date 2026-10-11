@@ -8,7 +8,10 @@ export const ISSUE_ASSISTANT_CLIENT_SCRIPT = String.raw`
     const confirming = Boolean(assistant?.card), fieldsVisible = Boolean(selected || manual || confirming), readonly = viewing();
     $('view').hidden=!readonly; $('inputs').hidden=readonly; $('inputs').disabled=readonly; $('assistant-tools').hidden=readonly;
     $('edit').hidden=!readonly; $('delete').hidden=!readonly; $('cancel-edit').hidden=!selected || readonly;
-    $('actions').hidden=readonly; $('assistant-help').hidden=Boolean(readonly || manual || selected || assistant);
+    $('actions').hidden=readonly && !host.onNew && !host.capture; $('again').hidden=!readonly || !host.onNew && !host.capture;
+    $('workspace').querySelector('header').hidden=Boolean(host.capture && !selected);
+    $('back').hidden=Boolean(host.capture);
+    $('assistant-help').hidden=Boolean(readonly || manual || selected || assistant);
     $('heading').textContent=L(!selected ? '记录问题' : readonly ? '问题详情' : '编辑问题');
     for (const field of ['title','type']) { const input=form.elements[field]; input.closest('label').hidden=!fieldsVisible; input.required=fieldsVisible; input.disabled=Boolean(assistant && !confirming); }
     $('organize').hidden = readonly || Boolean(manual || assistant);

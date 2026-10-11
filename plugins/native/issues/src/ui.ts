@@ -54,6 +54,7 @@ export function renderIssuesWorkbench(): string {
             <a href="/settings/models" data-issue-model-settings hidden>模型设置</a></div>
           <p class="issues-note" role="status" data-issue-note hidden></p>
           <div class="issues-tools" data-issue-actions>
+            <button class="mw-btn mw-btn--primary" type="button" data-issue-again hidden>再记一条</button>
             <button class="mw-btn mw-btn--primary" type="submit" data-issue-save hidden>保存问题</button>
             <button class="mw-btn mw-btn--primary" type="button" data-issue-organize>交给助理整理</button>
             <button class="mw-btn mw-btn--primary" type="button" data-issue-retry hidden>重试整理</button>
@@ -75,6 +76,10 @@ export function renderIssuesWorkbench(): string {
 }
 export const ISSUES_STYLES = `
 [data-issues="workbench"] [hidden]{display:none!important}.issues-assistant-note:empty{display:none}
+.issues-tabs{display:flex;flex-direction:column;flex:1;min-width:0}
+.issues-tabs-bar{display:flex;gap:4px;padding:12px 16px;border-bottom:1px solid var(--line);flex:none}
+.issues-tabs-bar button{flex:1}.issues-tabs-bar [aria-selected="true"]{background:var(--nav-active);color:var(--ink);font-weight:var(--weight-control)}
+.issues-tabs>[role="tabpanel"]{position:relative;flex:1;min-height:0;width:100%}
 .issues-intro{color:var(--muted);margin:0 0 20px}
 .issues-editor{width:100%;flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .issues-scroll{flex:1;overflow:auto;min-height:0;padding:32px max(24px,calc((100% - 48rem)/2)) 24px;scrollbar-gutter:stable}

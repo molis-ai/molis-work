@@ -37,7 +37,7 @@ export const ISSUE_IMAGES_CLIENT_SCRIPT = String.raw`
     if (viewing() || busy || imageBusy || assistant) return;
     imageBusy = true; $('save').disabled = true; $('pick').disabled = true; mode();
     note(L('正在准备图片…'));
-    const signal = viewSignal;
+    const signal = host.capture || host.onNew ? scope.signal : viewSignal;
     try { await work(signal); }
     catch (error) { if (!signal?.aborted && scope.alive) note(error.message || L('图片读取失败，请重新选择。'),true); }
     finally { imageBusy = false; $('save').disabled = false; $('pick').disabled = false; mode(); }

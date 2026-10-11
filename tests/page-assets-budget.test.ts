@@ -573,7 +573,7 @@ test("this repository's build is within the committed page asset budget, which h
 // ISSUE-06: admitting one measured plugin resource must not become a general new-resource or growth exemption.
 test("Issue first asset has its own exact ceiling; increases and other plugin paths still fail", () => {
   const asset = "/assets/molis-work-plugins/issues.js";
-  branch("issue-first-asset", () => { sizes[asset] = 21500; putBudget(sizes); });
+  branch("issue-first-asset", () => { sizes[asset] = 24000; putBudget(sizes); });
   assert.equal(gate("--base", "main").code, 0);
   assert.equal(gate("--update", "--base", "main").code, 0);
   sizes[asset]++; putBudget(sizes);
@@ -586,6 +586,6 @@ test("Issue first asset has its own exact ceiling; increases and other plugin pa
   assert.equal(gate("--update", "--base", "issue-established").code, 1);
   branch("another-new-plugin", () => { sizes["/assets/molis-work-plugins/unreviewed.js"] = 10; putBudget(sizes); });
   assert.equal(gate("--base", "main").code, 1);
-  branch("existing-asset-still-frozen", () => { sizes[asset] = 21500; sizes["/assets/a.css"]++; putBudget(sizes); });
+  branch("existing-asset-still-frozen", () => { sizes[asset] = 24000; sizes["/assets/a.css"]++; putBudget(sizes); });
   assert.equal(gate("--base", "main").code, 1);
 });

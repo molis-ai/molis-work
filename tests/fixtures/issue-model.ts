@@ -16,7 +16,7 @@ function reply(tool?: { name: string; input: unknown }, text = "请确认建议�
 }
 
 /** Model replies are scripted; the Assistant, vision intake, action directory and confirmation stay real. */
-export async function issueModel(t: TestContext, home: string, behavior: { replyText?: string; malformedCaptureOnce?: boolean } = {}) {
+export async function issueModel(t: TestContext, home: string, behavior: { replyText?: string; malformedCaptureOnce?: boolean; firstReply?: Promise<void> } = {}) {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   const requests: unknown[] = [], rounds = new Map<string, number>();
   const model = createServer(async (request, response) => {
@@ -24,6 +24,7 @@ export async function issueModel(t: TestContext, home: string, behavior: { reply
     const body = JSON.parse(Buffer.concat(chunks).toString("utf8")); requests.push(body);
     const draft_id = JSON.stringify(body).match(/录入草稿 ([0-9a-f-]{36})/)?.[1] ?? "missing-draft";
     const turn = rounds.get(draft_id) ?? 0; rounds.set(draft_id, turn + 1);
+    if(turn === 0) await behavior.firstReply;
     // Replay the real MiniMax failure: business values outside input do not make a valid card.
     const malformed = behavior.malformedCaptureOnce && turn === 1;
     const tool = turn === 0 ? { name: "find-capabilities", input: { query: "issues.capture" } } : malformed ? {

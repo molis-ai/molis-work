@@ -195,21 +195,42 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     sendRaw({type:action});
   };
   // Put the current round's record on the Shelf through its existing admit endpoint (specs/computer-use §5): the goal,
-  // the result and a short step summary as a text item. Screenshots stay in the record; the person keeps the record as
-  // a 成果 separately.
-  const putOnShelf=async()=>{
-    const id=state?.record_id;if(!id)return;
+  // the result and a short step summary as text, plus the latest screenshot as a png. The record itself stays the 成果.
+  const putComputerRecordOnShelf=async(env)=>{
+    const id=env.state?.record_id;if(!id)return;
+    let itemId='';
+    const drop=async()=>{
+      if(!itemId)return;
+      const once=()=>env.fetch('/api/shelf/items/'+encodeURIComponent(itemId)+'/delete',{method:'POST',headers:{...env.headers(),'content-type':'application/json'},body:'{}'});
+      const gone=await once().catch(()=>null);
+      if(!gone||!gone.ok)await once().catch(()=>{});
+    };
     try{
-      const response=await fetch(routePrefix+'/api/computer/records/'+encodeURIComponent(id),{headers:{accept:'application/json'}});
+      const response=await env.fetch(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id),{headers:{accept:'application/json'}});
       const record=(await response.json()).record;if(!record)throw 0;
-      const outcome=record.outcome==='completed'?L('完成'):record.outcome==='failed'?L('失败'):record.outcome==='stopped'?L('已停止'):L('进行中');
-      const lines=[record.goal?L('目标：{goal}',{goal:record.goal}):'',L('结果：{outcome}',{outcome}),record.conclusion||'',
-        '',L('步骤（{n} 步）：',{n:record.steps.length}),...record.steps.slice(-40).map(step=>'- '+(step.app?('『'+step.app.name+'』'):'')+step.summary)].filter(Boolean);
-      const title=(record.goal?record.goal.slice(0,40):L('电脑操作'))+'（'+new Date(record.started_at).toLocaleString()+'）';
-      const shelf=await fetch('/api/shelf/items',{method:'POST',headers:{...headers(),'content-type':'application/json','x-molis-work-idempotency-key':'cu-shelf-'+id+'-'+Date.now()},body:JSON.stringify({title,text:lines.join('\n')})});
-      say(shelf.ok?L('已放进 Shelf。'):L('没能放进 Shelf。'));
-    }catch{say(L('没能放进 Shelf。'));}
+      const outcome=record.outcome==='completed'?env.L('完成'):record.outcome==='failed'?env.L('失败'):record.outcome==='stopped'?env.L('已停止'):env.L('进行中');
+      const lines=[record.goal?env.L('目标：{goal}',{goal:record.goal}):'',env.L('结果：{outcome}',{outcome}),record.conclusion||'',
+        '',env.L('步骤（{n} 步）：',{n:record.steps.length}),...record.steps.slice(-40).map(step=>'- '+(step.app?('『'+step.app.name+'』'):'')+step.summary)].filter(Boolean);
+      const title=(record.goal?record.goal.slice(0,40):env.L('电脑操作'))+'（'+new Date(record.started_at).toLocaleString()+'）';
+      const shelf=await env.fetch('/api/shelf/items',{method:'POST',headers:{...env.headers(),'content-type':'application/json','x-molis-work-idempotency-key':'cu-shelf-'+id+'-'+env.now},body:JSON.stringify({title,text:lines.join('\n')})});
+      if(!shelf.ok){env.say(env.L('没能放进 Shelf。'));return;}
+      const admitted=await shelf.json();
+      itemId=(admitted&&admitted.item&&admitted.item.item_id)||'';
+      if(!itemId){env.say(env.L('没能放进 Shelf。'));return;}
+      const shot=[...record.steps].reverse().find(step=>step.shot)?.shot;
+      if(!shot){env.say(env.L('已放进 Shelf。'));return;}
+      const bytes=await env.fetch(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id)+'/'+shot);
+      if(!bytes.ok){await drop();env.say(env.L('没能放进 Shelf。'));return;}
+      const raw=new Uint8Array(await bytes.arrayBuffer());let binary='';
+      for(let i=0;i<raw.length;i+=8192)binary+=String.fromCharCode(...raw.subarray(i,i+8192));
+      const image=await env.fetch('/api/shelf/items',{method:'POST',headers:{...env.headers(),'content-type':'application/json','x-molis-work-idempotency-key':'cu-shelf-shot-'+id+'-'+shot},body:JSON.stringify({filename:shot,mime:'image/png',bytes_base64:btoa(binary)})});
+      let picture=image.ok;
+      if(!picture&&image.status===409){const body=await image.json().catch(()=>null);picture=!!body&&body.code!=='request.in_flight';}
+      if(!picture){await drop();env.say(env.L('没能放进 Shelf。'));return;}
+      env.say(env.L('已放进 Shelf。'));
+    }catch{await drop();env.say(env.L('没能放进 Shelf。'));}
   };
+  const putOnShelf=()=>putComputerRecordOnShelf({fetch,routePrefix,headers,say,L,state,now:Date.now()});
   root.addEventListener('click',event=>{
     const review=event.target.closest('[data-computer-review]');
     if(review){if(review.dataset.computerReview==='approve')decide('approve');else if(review.dataset.computerReview==='approve-round')decide('approve','app-this-round');else decide('reject');return;}

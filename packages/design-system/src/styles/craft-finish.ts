@@ -45,7 +45,7 @@ function viewChipTints(): string {
 }
 
 const CRAFT_BASE_STYLES = `
-  /* ─── Tokens ───────────────────────────────────────────────────────────── */
+  /* ─── Tokens ─── */
   :root,
   ${PAGES} {
     --r-tag: 6px; --r-row: 10px; --r-control: 8px; --r-card: 12px; --r-sheet: 14px; --r-dialog: 16px; --r-composer: 15px;
@@ -79,7 +79,7 @@ const CRAFT_BASE_STYLES = `
   :where(${PAGES}) ::placeholder { color: var(--faint); opacity: 1; }
   :where(${PAGES}) :is(input, textarea):-webkit-autofill { -webkit-text-fill-color: var(--ink); box-shadow: inset 0 0 0 40px var(--paper); }
 
-  /* ─── Desk and sheet ───────────────────────────────────────────────────── */
+  /* ─── Desk and sheet ─── */
   ${WORKBENCH} .immersive-workspace { background: var(--desk); }
   ${SHELL} .immersive-titlebar { background: var(--desk); box-shadow: none; }
   ${SHELL} .plugin-stack { background: var(--desk); border-right: 0; }
@@ -264,7 +264,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .plugin-rail { overflow: visible; }
   }
 
-  /* ─── Bottom bar: the Dock, the resident Assistant, the project ────────────── */
+  /* ─── Bottom bar: the Dock, the resident Assistant, the project ─── */
   /* No global sidebar: the work spans the window and the resident bar under it holds the way around.
      Controls sit straight on the desk; only the composer and the current Dock item are raised. */
   ${SHELL} { --dock-h: 76px; --dock-btn: 38px; --composer-h: 50px; }
@@ -1466,7 +1466,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .tree-resizer::after { transition: opacity var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint); }
   ${SHELL} .tree-resizer:is(:hover, :focus-visible, .is-dragging, [data-dragging])::after { background: var(--focus); opacity: .7; }
 
-  /* ─── Controls ─────────────────────────────────────────────────────────── */
+  /* ─── Controls ─── */
   ${PAGES} .mw-btn {
     transition:
       background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint),
@@ -1523,7 +1523,7 @@ const CRAFT_BASE_STYLES = `
   /* Disclosure chevrons turn on the same curve everywhere. */
   ${PAGES} :is(.mw-disclosure, details > summary) > svg:is(:first-child, :last-child) { transition: transform var(--dur-move) var(--ease-quint); }
 
-  /* ─── Overlays ─────────────────────────────────────────────────────────── */
+  /* ─── Overlays ─── */
   ${PAGES} ${CENTRED_DIALOG}[open] { animation: craft-dialog-in 250ms var(--ease-quint); }
   ${PAGES} ${CENTRED_DIALOG}[open]::backdrop { animation: craft-fade-in 250ms var(--ease-quint); }
   /* Creating a Goal is writing: two borderless lines; focus draws a pen line under the one you are on. */
@@ -1631,7 +1631,7 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(.mw-btn, .mw-empty__actions), ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > .mw-btn { margin: 24px 0 0; justify-content: center; }
   ${WORKBENCH} .plugin-stage-list .mw-empty__actions { gap: 8px; }
 
-  /* ─── Lists and rows ───────────────────────────────────────────────────── */
+  /* ─── Lists and rows ─── */
   ${WORKBENCH} :is(.tree-entry, .feed-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow, .session-stage-row) {
     transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint);
   }
@@ -1650,7 +1650,7 @@ const CRAFT_BASE_STYLES = `
   /* Progress bars fill instead of appearing full. */
   ${WORKBENCH} :is(.tree-progress, .mw-progress) > :is(i, span) { transition: transform 420ms var(--ease-quint); }
 
-  /* ─── Goal canvas ──────────────────────────────────────────────────────── */
+  /* ─── Goal canvas ─── */
   /* The canvas is plain paper: nodes and their links are the only marks on it. */
   ${WORKBENCH} :is(.goal-canvas-viewport, .goal-frame-canvas) { background-color: var(--paper); background-image: none; }
   ${WORKBENCH} .momentum-map.graph-stage { background: var(--paper); }
@@ -1686,7 +1686,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .immersive-workspace:has(.is-editing-goal) > .workbench-bar { display: none; }
   }
 
-  /* ─── Board ────────────────────────────────────────────────────────────── */
+  /* ─── Board ─── */
   ${WORKBENCH} [data-kanban-card] {
     border-radius: 10px; box-shadow: none; border-color: var(--line);
     transition: border-color var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint);
@@ -1694,13 +1694,13 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} [data-kanban-card]:hover { border-color: var(--line-strong); }
   ${WORKBENCH} [data-kanban-card]:is(.is-selected, [aria-current="true"], [aria-selected="true"]) { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
 
-  /* ─── Goal work area ───────────────────────────────────────────────────── */
+  /* ─── Goal work area ─── */
   ${WORKBENCH} .goal-node-toolbar .goal-node-back { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
   ${WORKBENCH} .goal-details-aside { background: var(--paper); box-shadow: inset 1px 0 0 var(--line); }
   ${WORKBENCH} .goal-details-toggle svg { transition: transform var(--dur-move) var(--ease-quint); }
   ${WORKBENCH} .tui-empty { border-radius: var(--r-card); }
 
-  /* ─── Arrival ──────────────────────────────────────────────────────────── */
+  /* ─── Arrival ─── */
   /* A surface rises a few pixels as it appears. Surfaces restart this whenever they are shown. */
   ${WORKBENCH} .tab-pane-body > [data-work-surface]:not([hidden]),
   ${WORKBENCH} .tab-workspace-exclusive > :not([hidden]) {
@@ -1723,7 +1723,7 @@ const CRAFT_BASE_STYLES = `
   @keyframes craft-rail-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
   @keyframes craft-sheet-open { from { opacity: 0; transform: translateY(10px) scale(.994); } to { opacity: 1; transform: none; } }
 
-  /* ─── Home ─────────────────────────────────────────────────────────────── */
+  /* ─── Home ─── */
   /* The page owns its layout in project-home.ts; this layer adds only the arrival cascade and the press tone. */
   ${WORKBENCH} .immersive-home .home-erow:active { background: var(--nav-press); }
   /* Arrival plays once per surface (\`is-arriving\`, set on its first reveal); showing Home again does not replay it. */
@@ -1830,7 +1830,7 @@ const CRAFT_BASE_STYLES = `
     ${STAGE_LIST} .feed-stage-entry { height: auto; min-height: 48px; grid-template-rows: auto; }
   }
 
-  /* ─── Plugin market ────────────────────────────────────────────────────── */
+  /* ─── Plugin market ─── */
   ${WORKBENCH} .plugin-market-body .mw-card {
     border-color: var(--line); box-shadow: none; border-radius: var(--r-card);
     transition: border-color var(--dur-hover) var(--ease-quint);
@@ -1847,7 +1847,7 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(-n+12) { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
   ${[...Array(12).keys()].map((index) => `${WORKBENCH} .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(${index + 1}) { animation-delay: ${index * 24}ms; }`).join("\n  ")}
 
-  /* ─── Drag and drop ────────────────────────────────────────────────────── */
+  /* ─── Drag and drop ─── */
   ${PAGES} [draggable="true"] { -webkit-user-drag: element; }
   ${PAGES} [data-craft-drag-source] { opacity: .45; transition: opacity 130ms var(--ease-quint); }
   body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas], .tab-strip, [data-drop-target], .shelf-drop) {
@@ -1856,7 +1856,7 @@ const CRAFT_BASE_STYLES = `
   body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas]) { background-color: color-mix(in srgb, var(--focus) 4%, var(--paper)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 18%, transparent); }
   body[data-craft-dragging] :is([data-drop-target], .tab-strip):hover { background-color: color-mix(in srgb, var(--focus) 6%, transparent); }
 
-  /* ─── A Goal that just finished ────────────────────────────────────────── */
+  /* ─── A Goal that just finished ─── */
   .craft-burst { position: fixed; z-index: 2147482000; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
   .craft-burst i {
     position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 2px; background: var(--c, var(--celebrate-a));
@@ -1878,7 +1878,7 @@ const CRAFT_BASE_STYLES = `
   @keyframes craft-done { 0% { transform: scale(.8); } 45% { transform: scale(1.12); } 100% { transform: none; } }
   @keyframes craft-done-mark { 0% { transform: rotate(-30deg) scale(.4); } 60% { transform: rotate(8deg) scale(1.2); } 100% { transform: none; } }
 
-  /* ─── Catalog specimens for this layer ─────────────────────────────────── */
+  /* ─── Catalog specimens for this layer ─── */
   .mw-catalog .mw-craft-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
   .mw-catalog .mw-craft-lift, .mw-catalog .mw-craft-radius {
     display: grid; gap: 4px; align-content: end; width: 132px; height: 84px; padding: 12px 12px; background: var(--paper); border-radius: var(--r-card);
@@ -1945,7 +1945,7 @@ const CRAFT_BASE_STYLES = `
   .mw-catalog .mw-motion-pages > section { padding: 16px; border-radius: 12px; background: var(--surface-soft); font-size: 13px; }
   .mw-catalog .mw-motion-pages > section:not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint) both; }
 
-  /* ─── Reduced motion: nothing here moves ───────────────────────────────── */
+  /* ─── Reduced motion: nothing here moves ─── */
   @media (prefers-reduced-motion: reduce) {
     /* State still changes and focus still moves; only the movement goes. Transitions stop too, not just animations:
        a 0s duration (not 1ms) so a new size or position is there the moment the state changes. */

@@ -20,7 +20,14 @@
  * 项目首页; the switcher lists the rest.
  *
  * The opened Assistant panel's tab bar is a row of 44px targets on touch too: the work's tab with its close mark, "new work", "all
- * works", the details and minimize, side by side without a gap (it is 50px tall; a 320px panel still leaves the tab a title). */
+ * works", the details and minimize, side by side without a gap (it is 50px tall; a 320px panel still leaves the tab a title).
+ *
+ * So is the rest of the panel. One rule covers every button, summary, link and field inside it (the list of all works, the details
+ * of a work, and what a conversation holds), so a control the island makes later needs no entry here; a select is drawn as a picker
+ * whose button is the target. Two things sit inside a sentence and cannot be boxes: a link is as wide as its words and its padding
+ * (above and below, taking no line room) makes it 44px tall, and an object chip keeps its look while an invisible area around it
+ * (44px tall, at least 44px wide) answers to a finger. tests/touch-targets.e2e.test.ts reads the kinds of control from the script
+ * the page runs and measures each. */
 const SHELL = ":is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage)";
 const ASSIST = "body.immersive-workbench:not([data-pane-embedded])";
 
@@ -43,10 +50,15 @@ export const TOUCH_TARGET_STYLES = `
     ${SHELL} .bar-composer[data-crowded="chips"]:has(.assistant-materials-button:not([hidden]), .assistant-attention:not([hidden])) .bar-composer-attach::after {
       content: ""; position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); pointer-events: none;
     }
-    ${SHELL} :is(.assistant-popover, .assistant-offer, .plugin-picker-popover, .dock-overflow, .navigator-project-menu-popover, .assistant-tabbar) :is(button, summary, a[href]) { min-width: 44px; min-height: 44px; }
+    ${SHELL} :is(.assistant-popover, .assistant-offer, .plugin-picker-popover, .dock-overflow, .navigator-project-menu-popover, .assistant-panel) :is(button:not(.assistant-inline-object), summary, a[href]:not(.assistant-link), input:not([type=checkbox], [type=radio]), select, textarea) { min-width: 44px; min-height: 44px; }
     .plugin-picker-popover { --tile-yield: 104px; }
     ${ASSIST} .assistant-tabbar { height: 50px; gap: 0; }
     ${ASSIST} :is(.assistant-tab, .assistant-tab-new) { height: 44px; margin-bottom: 0; }
+    ${ASSIST} .assistant-works { top: 52px; }
+    ${ASSIST} :is(.assistant-choice-row, .assistant-code-head) { min-height: 44px; }
+    ${ASSIST} .assistant-link { padding-block: 15px; }
+    ${ASSIST} .assistant-inline-object { position: relative; min-width: 44px; justify-content: center; }
+    ${ASSIST} .assistant-inline-object::after { content: ""; position: absolute; inset: -12px -2px; }
   }
   @media (max-width: 374px) { ${SHELL} .workbench-bar { column-gap: 0; padding-inline: 0; } ${SHELL} .bar-center { margin-inline: 8px; } }
   @media (pointer: coarse) and (min-width: 601px) { @container assistant-bar (max-width: 460px) { ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 44px; min-width: 44px; } } }

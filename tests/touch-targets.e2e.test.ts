@@ -268,6 +268,71 @@ const PANEL_HEADER = `(async () => {
   return out;
 })()`;
 
+/** The body of the opened Assistant panel: what the panel really shows with a current work (the details pane with its blocks and the list
+ * of all works), and every kind of control the island can put into a thread or the details of a work. The latter are read from the script
+ * the page runs (each `el("button", "assistant-…")`) and put into the thread one each, because the states that make a person's work
+ * produce them (a reply with code, a link, a question, an approval, a step list, a usage budget) need a model. A control is a target by
+ * its box, except what sits inside a sentence: a link is as wide as its words and its box is 44px tall; an object chip's box is the chip,
+ * and what is 44px is the area that answers to a finger (read by hit testing above and below it). */
+type BodyControl = { cls: string; w: number; h: number; hit?: boolean };
+type PanelBody = { real: Record<string, BodyControl[]>; made: BodyControl[]; kinds: number; overflow: number };
+const PANEL_BODY = `(async () => {
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  document.querySelector(".assistant-target-main")?.click(); await wait(800);
+  const panel = document.querySelector("[data-assistant-panel]");
+  const sizes = (root) => [...root.querySelectorAll("button, summary, a[href], input, select, textarea, [role=tab]")]
+    .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[data-test-made]"))
+    .map(el => { const b = el.getBoundingClientRect(); return { cls: el.tagName.toLowerCase() + "." + String(el.className).split(" ").join("."), w: Math.round(b.width), h: Math.round(b.height) }; })
+    .filter(item => item.w >= 2 && item.h >= 2);
+  const real = {};
+  if (panel.dataset.side !== "open") panel.querySelector("[data-assistant-side-toggle]").click();
+  await wait(500);
+  real["the details"] = sizes(panel.querySelector("[data-assistant-side]"));
+  panel.querySelector("[data-assistant-works-toggle]").click(); await wait(300);
+  real["all works"] = sizes(panel.querySelector("[data-assistant-works]"));
+  panel.querySelector("[data-assistant-works-toggle]").click(); await wait(200);
+  const source = [...document.scripts].find(script => /molis-work-workbench\\.js/.test(script.src));
+  const text = source ? await fetch(source.src).then(response => response.text()) : "";
+  const kinds = new Map();
+  for (const match of text.matchAll(/\\bel\\("(button|summary|a|input|select|textarea|label)", "((?:assistant|mw)-[^"]*)"/g)) kinds.set(match[1] + "." + match[2], [match[1], match[2]]);
+  const thread = panel.querySelector(".assistant-thread");
+  if (panel.dataset.side === "open" && panel.dataset.layout === "drawer") panel.querySelector("[data-assistant-side-toggle]").click();
+  await wait(300);
+  // The panel's own markup holds controls that the island shows only in some states of a work (pause, resume and stop, in the details and
+  // on the strip above the thread; the next step; the jump to what waits). They are shown here, with a word in them, and put back.
+  const waiting = [...panel.querySelectorAll("[data-assistant-strip], [data-assistant-control], [data-assistant-next], [data-assistant-strip-next], [data-assistant-jump]")];
+  const hiddenBefore = waiting.map(el => [el.hidden, el.textContent]);
+  waiting.forEach(el => { el.hidden = false; if (!el.textContent.trim()) el.textContent = "文字"; });
+  await wait(200);
+  real["what a work shows when it runs"] = sizes(panel).filter(item => /assistant-control|assistant-next|assistant-jump|mw-btn/.test(item.cls));
+  waiting.forEach((el, index) => { el.hidden = hiddenBefore[index][0]; el.textContent = hiddenBefore[index][1]; });
+  const holder = document.createElement("div"); holder.className = "assistant-rich"; holder.setAttribute("data-test-made", "");
+  const made = [];
+  for (const [tag, classes] of kinds.values()) {
+    const row = document.createElement("p"); row.style.cssText = "margin:0 0 12px;position:relative";
+    let control;
+    if (tag === "label") { control = document.createElement("label"); control.className = classes; const box = document.createElement("input"); box.type = "radio"; control.append(box, document.createTextNode("一个选项")); }
+    else { control = document.createElement(tag); control.className = classes; if (tag === "a") { control.href = "https://example.com"; control.textContent = "链接"; } else if (tag === "select") control.append(new Option("一个选项")); else if (tag !== "input" && tag !== "textarea") control.textContent = "文字"; }
+    if (/assistant-link|assistant-inline-object/.test(classes)) row.append("前面的话 ", control, " 后面的话"); else row.append(control);
+    holder.append(row); made.push([tag, classes, control]);
+  }
+  thread.append(holder); thread.scrollTop = 0; await wait(200);
+  const out = made.map(([tag, classes, drawn]) => {
+    // A select is drawn as a picker: the button that opens it is the target (the native select is hidden).
+    const control = drawn.closest(".mw-select-picker")?.querySelector(".mw-select-picker__trigger") ?? drawn;
+    control.scrollIntoView({ block: "center", behavior: "instant" }); const b = control.getBoundingClientRect();
+    const seen = [];
+    const hits = (y) => { const at = document.elementFromPoint(b.left + b.width / 2, y); seen.push(at ? at.tagName.toLowerCase() + "." + String(at.className).split(" ")[0] : "nothing"); return !!at && (at === control || control.contains(at)); };
+    const inline = /assistant-inline-object/.test(classes);
+    const hit = inline ? [hits(b.top + b.height / 2 - 21), hits(b.top + b.height / 2 + 21)].every(Boolean) : undefined;
+    return { cls: tag + "." + classes.split(" ").join(".") + (hit === false ? " (hit " + seen.join(" / ") + ")" : ""), w: Math.round(b.width), h: Math.round(b.height), hit };
+  });
+  const result = { real, made: out, kinds: kinds.size, overflow: thread.scrollWidth - thread.clientWidth };
+  holder.remove();
+  panel.querySelector("[data-assistant-panel-close]").click(); await wait(200);
+  return result;
+})()`;
+
 /** A finding that is about the strip or the bar (the page behind them has its own audits). */
 const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-resident|bar-chat|plugin-picker|navigator-project|navigator-directory|immersive-show|workbench-bar|bar-start|bar-end|tab-view-chip|tab-item|tab-strip|tab-add|tab-split|workspace-history/;
 
@@ -448,6 +513,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   /** The menus the strip opens (open plugin, layout, a tab, a tab group) and the opened Assistant panel's tab bar. */
   const stripMenus = () => evaluate<Record<string, StripMenu>>(STRIP_MENUS);
   const panelHeader = () => evaluate<PanelHeader>(PANEL_HEADER);
+  const panelBody = () => evaluate<PanelBody>(PANEL_BODY);
 
   /** The heights of the `mw-menu` items on the specimen board, which shows the menu as the plugin pages use it. */
   const menuRows = async (width: number, height: number) => {
@@ -458,7 +524,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     return evaluate<number[]>(`[...document.querySelectorAll(".mw-menu .mw-menu__item")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).map(el => Math.round(el.getBoundingClientRect().height))`);
   };
 
-  return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, stripMenus, panelHeader, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, escapeReturns, evaluate, waitFor };
+  return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, stripMenus, panelHeader, panelBody, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, escapeReturns, evaluate, waitFor };
 }
 
 const NEW_WORK = ["[data-assistant-executor]", "[data-assistant-materials]", "[data-assistant-attention]", "[data-assistant-mode]"];
@@ -599,6 +665,24 @@ for (const scheme of ["light", "dark"] as const) {
       assert.deepEqual(header.controls.filter(control => !control.inside).map(control => control.label), [], `panel header · ${width}: and none leaves the panel`);
       assert.ok(header.title >= 40, `panel header · ${width}: the work's tab keeps room for a title (${header.title}px)`);
     }
+    // The opened panel's body is 44px too: the details of the work (its blocks, actions and the hint to add a file), the list of all works,
+    // and each kind of control the island can put into a thread or into the details of a work. A kind this test has not seen the
+    // island create cannot slip in: they are read from the script the page runs.
+    for (const [width, height] of [[320, 568], [360, 740], [390, 844], [852, 393], [1024, 768]] as const) {
+      await w.open(width, height, "", "true");
+      const body = await w.panelBody();
+      assert.ok(body.kinds >= 30, `panel body · ${width}: the island's controls were read from the page's script (${body.kinds} kinds)`);
+      assert.ok(body.made.length === body.kinds, `panel body · ${width}: and each was put into the thread`);
+      for (const [place, kinds] of [["the details", ["assistant-block-head", "assistant-side-action"]], ["all works", ["assistant-works-item"]], ["what a work shows when it runs", ["assistant-control", "assistant-jump"]]] as const) {
+        assert.ok(kinds.every(kind => body.real[place].some(item => item.cls.includes(kind))), `panel body · ${width}: ${place} shows what this test measures (${JSON.stringify(body.real[place])})`);
+        assert.deepEqual(body.real[place].filter(item => Math.min(item.w, item.h) < 44).map(item => `${item.cls} ${item.w}×${item.h}`), [], `panel body · ${width}: every control in ${place} is a 44px target`);
+      }
+      const inSentence = (item: BodyControl) => /assistant-link|assistant-inline-object/.test(item.cls);
+      assert.deepEqual(body.made.filter(item => !inSentence(item) && Math.min(item.w, item.h) < 44).map(item => `${item.cls} ${item.w}×${item.h}`), [], `panel body · ${width}: every kind of control the island makes is a 44px target`);
+      assert.deepEqual(body.made.filter(item => /assistant-link/.test(item.cls) && item.h < 44).map(item => `${item.cls} ${item.w}×${item.h}`), [], `panel body · ${width}: a link in a sentence is 44px tall (as wide as its words)`);
+      assert.deepEqual(body.made.filter(item => /assistant-inline-object/.test(item.cls) && !(item.hit && item.w >= 44)).map(item => `${item.cls} ${item.w}×${item.h}`), [], `panel body · ${width}: an object chip in a sentence answers to a finger 44px above and below it`);
+      assert.ok(body.overflow <= 1, `panel body · ${width}: and they do not push the thread sideways (${body.overflow}px)`);
+    }
     const stages: Record<string, string> = {};
     for (const [width, height] of LINE_WINDOWS) {
       await w.open(width, height, "", "true");
@@ -696,6 +780,12 @@ for (const scheme of ["light", "dark"] as const) {
     await w.line("a work with a Character and every chip · 1280", WITH_CHARACTER, [...BASE, "character chip"], floors.bar);
     const character = await w.escapeReturns("[data-assistant-character]", "[data-assistant-characters]");
     assert.deepEqual([character.opened, character.closed, character.focus], [true, true, true], `the Character · 1280: Escape closes its list and focus goes to the control that opened it, or the "+" (${JSON.stringify(character)})`);
+    // The opened panel's body is where the touch rules end: with a fine pointer its details and conversation controls keep the denser
+    // sizes they have on a desktop (the 22–28px ones are the known gap BL-125), and what is long or wide enough to read is not stretched.
+    const panel = await w.panelBody();
+    assert.deepEqual(panel.real["the details"].filter(item => /assistant-side-action/.test(item.cls) && item.h >= 44).map(item => `${item.cls} ${item.w}×${item.h}`), [], "1280: the panel's details keep their desktop sizes with a fine pointer");
+    assert.deepEqual(panel.made.filter(item => /assistant-(copy|segment|side-action|code-copy)\b/.test(item.cls) && item.h >= 44).map(item => `${item.cls} ${item.w}×${item.h}`), [], "1280: and so do the conversation's own small buttons");
+    assert.ok(panel.real["all works"].filter(item => /assistant-works-new/.test(item.cls)).every(item => item.h < 44), "1280: the list of all works keeps its desktop rows (the one-line row is not 44px)");
     await w.open(1280, 500, "", "true");
     await w.line("a current work · short window 1280×500", [], ["work chip", "work chip clear"], floors.bar);
 

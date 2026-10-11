@@ -1,14 +1,11 @@
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
-import { once } from "node:events";
-import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Socket } from "node:net";
 import type { TestContext } from "node:test";
-import { WebSocket } from "ws";
+import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { DEMO_PROJECT_ID, seedDemoBoard, MolisWorkLocalHost, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { projectActionAvailability } from "../../apps/local-host/dist/project-action-availability.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -20,15 +17,12 @@ import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/serve
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
   runtimeSessionTransport?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["runtimeSessionTransport"],
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"]) {
-  const chrome = [process.env.MOLIS_WORK_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"]
-    .find((path): path is string => Boolean(path && existsSync(path)));
+  const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goals-browser-"));
   let store: LocalProjectDatabase | undefined;
   let localHost: MolisWorkLocalHost | undefined;
-  let child: ChildProcess | undefined;
-  let socket: WebSocket | undefined;
+  let harness: ChromeHarness | undefined;
   let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
   const connections = new Set<Socket>();
   t.after(async () => {
@@ -42,19 +36,9 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       } catch (error) { failures.push(error); }
       finally { clearTimeout(timer); }
     };
-    socket?.terminate();
-    await cleanup("Chrome exit", async () => {
-      if (!child || child.exitCode !== null || child.signalCode !== null) return;
-      // Chrome helpers can inherit stderr after the main browser exits. Waiting for
-      // `close` then blocks server cleanup even though the debugger is already gone.
-      const exited = once(child, "exit");
-      child.kill("SIGTERM");
-      const force = setTimeout(() => child?.kill("SIGKILL"), 1_000);
-      try { await exited; }
-      finally { clearTimeout(force); }
-    });
-    // Also release the pipe when Chrome had already exited or exit itself timed out.
-    child?.stderr?.destroy();
+    // The harness waits for Chrome's `exit` (never `close`: helpers can inherit stderr), forces it after a second
+    // and releases the pipe.
+    await cleanup("Chrome exit", async () => { await harness?.close(); });
     await cleanup("HTTP server", async () => {
       if (!server?.listening) return;
       const closed = new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
@@ -105,46 +89,11 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     connections.add(connection);
     connection.once("close", () => connections.delete(connection));
   });
-  child = spawn(chrome, ["--headless=new", "--lang=zh-CN", "--accept-lang=zh-CN", "--disable-gpu", "--disable-background-networking",
-    "--disable-component-update", "--disable-extensions", "--disable-background-timer-throttling",
-    "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows", "--no-first-run", "--no-default-browser-check",
-    "--remote-debugging-port=0", `--user-data-dir=${join(directory, "chrome-profile")}`, "about:blank"],
-  { stdio: ["ignore", "ignore", "pipe"] });
-  const debuggerUrl = await new Promise<string>((resolve, reject) => {
-    let stderr = "";
-    const timer = setTimeout(() => reject(new Error("Chrome debugger did not start")), 8_000);
-    child!.once("error", (error) => { clearTimeout(timer); reject(error); });
-    child!.stderr!.on("data", (chunk) => {
-      stderr += String(chunk);
-      const url = stderr.match(/DevTools listening on (ws:\/\/\S+)/)?.[1];
-      if (url) { clearTimeout(timer); resolve(url); }
-    });
-    child!.once("exit", () => { clearTimeout(timer); reject(new Error(`Chrome exited before debugger start: ${stderr.slice(-700)}`)); });
-  });
-  socket = new WebSocket(debuggerUrl);
-  await once(socket, "open");
-  let nextId = 0;
-  let pageLoaded: (() => void) | undefined;
-  const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
-  socket.on("message", (raw) => {
-    const response = JSON.parse(String(raw));
-    // Hidden plugin frames and optional external assets must not block interaction with an initialized page.
-    // Feature tests below still wait for the state they operate on (loaded rows, saved results, etc.).
-    if (response.method === "Page.domContentEventFired") pageLoaded?.();
-    const entry = pending.get(response.id);
-    if (!entry) return;
-    clearTimeout(entry.timer);
-    pending.delete(response.id);
-    if (response.error) entry.reject(new Error(JSON.stringify(response.error)));
-    else entry.resolve(response.result);
-  });
-  t.after(() => { for (const entry of pending.values()) clearTimeout(entry.timer); });
-  function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : 5_000): Promise<T> {
-    const id = ++nextId;
-    return new Promise((resolve, reject) => {
-      pending.set(id, { resolve: (value) => resolve(value as T), reject, timer: setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}${typeof params.expression === "string" ? " · " + params.expression.slice(0, 320) : ""}`)); }, timeoutMs) });
-      socket!.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
-    });
+  const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 5_000 });
+  harness = browser;
+  /** A page load may take far longer than any other command. */
+  function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : undefined): Promise<T> {
+    return browser.command<T>(method, params, sessionId, timeoutMs);
   }
   await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -230,9 +179,12 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   async function navigate(action: () => Promise<unknown>) {
     const timeoutError = new Error("Navigation did not finish");
     let timer: ReturnType<typeof setTimeout>;
+    let stopListening = () => {};
+    // Hidden plugin frames and optional external assets must not block interaction with an initialized page.
+    // Feature tests below still wait for the state they operate on (loaded rows, saved results, etc.).
     const loaded = new Promise<void>((resolve, reject) => {
       timer = setTimeout(() => reject(timeoutError), 30_000);
-      pageLoaded = () => resolve();
+      stopListening = browser.on("Page.domContentEventFired", () => resolve());
     });
     try {
       await Promise.all([loaded, action()]);
@@ -247,7 +199,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       throw error;
     } finally {
       clearTimeout(timer!);
-      pageLoaded = undefined;
+      stopListening();
     }
   }
   const reloadPage = () => navigate(() => command("Page.reload", { ignoreCache: true }, sessionId));

@@ -8,8 +8,8 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { alchemistActions as a } from "@molis-ai/molis-work-plugin-alchemist";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
-import { readMcpToolPreference } from "../apps/local-host/src/mcp-settings-store.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
+import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 const artifacts = `${REVIEW_EVIDENCE}/action-service/mcp-access`;
@@ -68,7 +68,7 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
     assert.equal(await evaluate("document.querySelector('[data-mcp-access-result]').hidden"), false);
   }
   const alpha = await connect("ui-alpha"), beta = await connect("ui-beta");
-  const createName = hostActionToolName(a.directionCreate);
+  const createName = molisWorkActionToolName(a.directionCreate);
   assert.equal((await alpha.listTools()).tools.some(tool => tool.name === createName), false);
   await grant(a.directionCreate.capability_id, true);
   assert.equal(await status(a.directionCreate.capability_id), "enabled");
@@ -123,7 +123,7 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   await visit("?client=runtime:ui-alpha"); await search("functions.list");
   assert.equal(await status("functions.list"), "public");
   await grant("functions.list", false); assert.equal(await status("functions.list"), "disabled");
-  const queryName = hostActionToolName({ capability_id: "functions.list", version: 1 });
+  const queryName = molisWorkActionToolName({ capability_id: "functions.list", version: 1 });
   assert.equal((await alpha.listTools()).tools.some(tool => tool.name === queryName), false);
   assert.equal((await beta.listTools()).tools.some(tool => tool.name === queryName), true);
   await grant("functions.list", true); assert.equal(await status("functions.list"), "enabled");

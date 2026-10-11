@@ -14,14 +14,16 @@ const NAVIGATION = { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" 
 
 async function server(t: test.TestContext, projectCount: number) {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-settings-direct-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   const projects = [];
   for (let index = 0; index < projectCount; index++) projects.push(await catalog.createProject({ display_name: `设置直达 ${index + 1}`, actor_id: "fixture-user" }));
   catalog.close();
   const web = createMolisWorkWebServer({ homeDirectory: directory, controlToken: "settings-direct-test-control-token-0123456789" });
   await new Promise<void>((resolve) => web.listen(0, "127.0.0.1", resolve));
-  t.after(() => new Promise<void>((resolve, reject) => web.close((error) => error ? reject(error) : resolve())));
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) => web.close((error) => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
+  });
   const address = web.address();
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;

@@ -200,6 +200,37 @@ test("a SqliteBaseline the table does not list fails", () => {
   assert.equal(run().code, 0);
 });
 
+test("a plugin-owned database declaration has a listed literal baseline with the same version", () => {
+  const table = readFileSync(path.join(root, "docs/releases/CHECKLIST.md"), "utf8");
+  const listed = table.replace(TABLE, TABLE + "\n| Plugin | `plugin/plugin.db` | 1 | `user_version` | `apps/alpha/src/plugin.ts#PLUGIN_DB` | 拒绝 |");
+  for (const source of [
+    "const PLUGIN_DB: PluginDatabaseDeclaration = { version: 1, schema: `` };",
+    "const PLUGIN_DB = { version: 1, schema: `` } satisfies PluginDatabaseDeclaration;",
+    "const PLUGIN_DB = { version: 1, schema: `` } as PluginDatabaseDeclaration;",
+  ]) {
+    put("docs/releases/CHECKLIST.md", table); put("apps/alpha/src/plugin.ts", source);
+    failsWith(run(), "apps/alpha/src/plugin.ts#PLUGIN_DB is a SqliteBaseline the 各库版本表 does not list");
+    put("docs/releases/CHECKLIST.md", listed); assert.equal(run().code, 0, run().out);
+    put("apps/alpha/src/plugin.ts", source.replace("version: 1", "version: 2"));
+    failsWith(run(), "the table says 1", "says 2");
+    put("apps/alpha/src/plugin.ts", source.replace("version: 1", "version: dynamic"));
+    failsWith(run(), "has no PLUGIN_DB with a version");
+  }
+});
+
+test("only the typed Host connection bridge forwards a plugin declaration; other baseline calls remain checked", () => {
+  put("apps/local-host/package.json", JSON.stringify({ name: "host", version: "0.0.0", private: true }));
+  const bridge = "export function openPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: unknown) { return openBaselineHomeSqlite(home, declaration.store_name, declaration); }";
+  put("apps/local-host/src/plugin-database.ts", bridge); assert.equal(run().code, 0, run().out);
+  put("apps/alpha/src/bridge.ts", bridge);
+  failsWith(run(), "apps/alpha/src/bridge.ts: openBaselineHomeSqlite is called with declaration");
+  rmSyncFile("apps/alpha/src/bridge.ts");
+  put("apps/local-host/src/plugin-database.ts", bridge + "\nopenBaselineHomeSqlite(home, 'other', { version: 1, schema: `` });");
+  failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with an inline baseline");
+  put("apps/local-host/src/plugin-database.ts", bridge.replace("declaration: PluginDatabaseDeclaration", "declaration: unknown"));
+  failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
+});
+
 test("a baseline declared with satisfies or as, or handed over inline, cannot hide from the table", () => {
   put("apps/alpha/src/more.ts", "export const MORE_BASELINE = { version: 1, schema: `` } satisfies SqliteBaseline;\n");
   failsWith(run(), "apps/alpha/src/more.ts#MORE_BASELINE is a SqliteBaseline the 各库版本表 does not list");

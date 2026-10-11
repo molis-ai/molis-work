@@ -59,8 +59,10 @@ test("the source settings carry the GitHub account picker: its markup comes with
   assert.match(template, /<select class="mw-select" name="githubAccount"><option value="">匿名访问<\/option><\/select>/u, "anonymous is always the first choice");
   const hint = /<p class="alc-muted">([^<]*)<\/p>/u.exec(template)?.[1] ?? "";
   assert.match(hint, /令牌留在宿主里/u, "it says the token stays in the host");
+  assert.match(hint, /所有项目共用/u, "and that the choice is the Home's, shared by every project, not this project's");
   for (const zh of ["GitHub 账号", "匿名访问", hint]) assert.ok(ALCHEMIST_EN[zh], `${zh.slice(0, 12)} has English`);
   assert.match(ALCHEMIST_EN[hint] ?? "", /token stays in the host.*anonymously/u);
+  assert.match(ALCHEMIST_EN[hint] ?? "", /Every project shares this choice/u);
   assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /api\('\/pulse\/github'\)/u, "the accounts are read through the action");
   assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /api\('\/pulse\/github',\{connectionId:account\},'PUT'\)/u, "and the choice is saved through the action, null meaning anonymous");
 });
@@ -108,7 +110,9 @@ test("the network page's class 7 says that the assistant, MCP clients and workfl
   assert.match(zh, /alchemist\.pulse\.start/u);
   assert.match(zh, /助理、MCP 客户端、工作流/u, "the Chinese page names the assistant, MCP clients and workflows as callers");
   assert.match(zh, /限制的只是“选哪个账号”，不限制谁能启动采集/u);
+  assert.match(zh, /整个 Home 共用[\s\S]*所有项目共用/u, "the choice is the Home's: the dialog's wording is on the page");
   assert.match(en, /alchemist\.pulse\.start/u);
   assert.match(en, /the assistant, an MCP client or a workflow starts the same action/u, "the English page names the assistant, MCP clients and workflows as callers");
   assert.match(en, /limit is on picking the account, not on starting a pulse/u);
+  assert.match(en, /shared by the whole Home[\s\S]*Every project shares this choice/u, "the choice is the Home's: the dialog's wording is on the page");
 });

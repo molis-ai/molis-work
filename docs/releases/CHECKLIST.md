@@ -19,12 +19,15 @@
 - [ ] `node scripts/check-health-gates.mjs --base origin/main` 通过。
 - [ ] 构建安装包：`pnpm desktop:build:macos`（先跑版本核对，产物在 `release/macos/`，附 SHA256）。公开发行需要 Developer ID 签名与 Apple 公证，缺凭据时 tag 构建会失败（`.github/workflows/release-macos.yml`）；没有公证的本机构建不叫公开发行包。
 - [ ] 安装器：源码与 `dist` 不一致会停止（`apps/local-host/src/installer/fingerprint.ts`）；所以发布构建前整体 `pnpm build`，不复用旧的 `dist`。
+- [ ] 发 npm 归档（`pnpm package:npm` 的产物对外发出）时，飞书/Lark 连接器带来的两件已接受的事要如实写出（用户 2026-10-10 决定：接受，两件事写进安装说明和这份清单，不加 `overrides`，不打包依赖树；`specs/repository-anti-corruption/spec.md` §1、`dependencies-and-sdk-plan.md` §3.5）。（1）`docs/installation.md` 与 `docs/installation.en.md` 的「npm 路径上的飞书/Lark 连接器」一节还成立，发布说明的「兼容与升级」写同样两条：归档里的 `basic-ftp` 是带高危公告 GHSA-c475-qrg2-pj4r 的 5.x（只有用户自己把代理配成指向 FTP 上的 PAC 文件才会走到）；`keytar` 的安装脚本要联网或编译工具链，装好后连接器每次启动都读写钥匙串里服务名 `lark-mcp` 的一项并建 `lark-mcp-nodejs` 数据目录，都在 Home 之外（Home 之外的状态清单见 [HOME-DATA.md](../system/HOME-DATA.md) 第 8 节；该包的日志目录 `~/Library/Logs/lark-mcp-nodejs/` 不限于 npm 路径，安装说明同一小节末尾也写了）。（2）决定的前提还在：`npm view @larksuiteoapi/lark-mcp version` 仍是归档里固定的版本（有新版本就看它的依赖有没有升到 `basic-ftp` 6.2.1 以上），归档的 `package.json` 没有 `overrides`，`bundledDependencies` 里没有 `@larksuiteoapi/lark-mcp` 及其依赖树（里面本来有工作区包，不算），连接器没有改成别的接法；前提变了就重新弹窗问，不沿用这条决定。`node scripts/run-tests.mjs tests/npm-package.test.ts` 把（1）（2）里能机器核对的部分固定下来。
 
 ## 3. 各库版本表
 
 每个库只认一个当前版本，不符时的处理在最后一列。表里有两类东西：Home 里的 SQLite 库，和两个版本不符就让全部凭据或授权失效的 JSON 文件（`feed/secrets.json` 拒绝读取，`config/mcp-tools.json` 读成空）。其他带版本字段的小 JSON 文件（`shelf/catalog.json`、`browser/sites.json`、`jelly/preferences.json`、`config/` 下的各个文件，包括 `config/installation.json`）不在表里：它们的版本见 [docs/system/HOME-DATA.md](../system/HOME-DATA.md) 第 6 节的「种类 · 版本」列，版本不符时各自怎样没有逐个核对过，改其中任何一个的版本，就在发布说明的「兼容与升级」里写明。每个库的 owner、表、备份与卸载规则也在 HOME-DATA.md。位置都相对 Home（默认 `~/.molis-work`，`MOLIS_WORK_HOME` 可改）。
 
 `scripts/verify-release-versions.mjs` 对照代码核对这张表，下面几种情况 CI 会失败：某行的版本和定义处的代码不一致；定义处不存在；包的 `src/` 里有一个 `SqliteBaseline` 常量（`const X: SqliteBaseline = {…}`、`const X = {…} satisfies SqliteBaseline`、`… as SqliteBaseline` 三种写法都算）没有列进表，或者它的版本不是对象里写成数字的 `version: N`（引用别的常量，脚本读不出来）；`applySqliteBaseline`、`openBaselineHomeSqlite` 收到的不是一个已声明的常量（内联对象不行）；标「无」的库的定义处文件加上了版本标记。它找不到的是完全不经 `applySqliteBaseline` 的新库（比如又一个只靠 `CREATE TABLE IF NOT EXISTS` 的库）和表以外的 JSON 文件，这类只能靠 HOME-DATA.md 的清单和评审发现。
+
+插件自有库的 `PluginDatabaseDeclaration` 也按同一规则检查：必须具名、写出数字版本并列入下表。可信 Host 的连接服务仅转发这份声明；这一个类型化转发调用被单独识别，其余内联或未声明基线仍拒绝。
 
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
@@ -33,6 +36,8 @@
 | 会话库 | `sessions/sessions.db` | 7 | `session_meta.schema_version` | `modules/private-work-context/src/session-schema.ts#SESSION_REGISTRY_SCHEMA_VERSION` | 拒绝 |
 | Functions | `functions/functions.db` | 3 | `user_version` | `modules/functions/src/store.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
 | 助理 | `assistant/assistant.db` | 2 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
+| Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 1 | `user_version` | `apps/local-host/src/home-plugins.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
+| Issue | `issues/issues.db` | 2 | `user_version` | `plugins/native/issues/src/store.ts#ISSUES_DATABASE` | 拒绝 |
 | 记忆 | `memory/memory.db` | 2 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 拒绝 |
 | Form | `form/form.db` | 2 | `user_version` | `plugins/native/form/src/store.ts#FORM_STORE_BASELINE` | 拒绝 |
 | 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 拒绝 |
@@ -94,6 +99,13 @@
   - [x] **移出实验插件（`io.molis.work.experiments`）的目录。** 把 `{home}/plugins/experiments/`（`private.sqlite` 与 `-wal`、`-shm`，里面是实验和多模型对比结果）整个搬到 `~/molis-work-backups/<日期>-removed-experiments/`；`{home}/plugins/` 空了就一并移除。记下搬走的文件和大小。新构建不会重建这个目录。
   - [x] **只读数实验插件留在别处的残留行，把数字报给用户，经同意再清**（真实 Home：连接绑定 1、项目隐藏记录 1、项目事件 3；用户 2026-10-10 定「连历史事件一起清」，5 条都删了）（决定里点名的只有上一项的目录，下面是同一个插件留下的东西；在备份拷贝上数，不碰真库）：`connectors/connectors.db` 的 `connector_bindings` 里 `scope_id = 'home' AND plugin_id = 'experiments' AND slot_id = 'typesafe'`（连接本身留着，Functions 在用）；`projects/catalog.db` 的 `project_plugins`、`project_plugin_exclusions` 里 `plugin_id = 'experiments'`（项目隐藏过它）；`config/mcp-tools.json` 里属于实验提供方的 `action_grants`（`experiments.list`、`experiments.results`、`experiments.search.entries`、`experiments.subject.read` 对 MCP 可见过）；`workflows/workflows.db` 里动作是 `experiments.*` 的步骤（只报告，不改写，那个步骤以后会解析失败）；助理库与放置库（`placement/placement.db` 的 `context_edges`）里主体类型是 `experiment` 的关联，以及助理能力设置里点名 `experiments.*` 的项；`search/search.db` 是派生库，若其中来源是实验的条目没有随启动被丢掉，就重建它。`logs/action-calls.jsonl` 里的旧行是历史，留着。
   - [ ] **做完核对。** 在拷贝上用新构建打开一次，工作台和插件切换器里没有「实验」；浏览器里存过的 `experiments` 页签或固定项不会让工作台报错（在隔离 Home 里验过：工作台正常打开，旧页签留在标签栏里，关掉即可；页签与固定项存在各浏览器的 `localStorage` 里，不属于 Home，不用处理）。第 4.5 节核对 `config/mcp-tools.json` 的授权条数时，期望值要扣掉被清掉的实验授权条数。
+
+- [ ] **本发布要做的一次性维护：维护七**（已在 Plugin Runtime 上的 7 个内置插件，能力的来源编号由安装编号改成插件名；用户 2026-10-10 的决定「内置插件一律用插件名」，W3-06 C，`specs/repository-anti-corruption/spec.md` §1）。Characters、Shelf、Coding、Files、Diff、Git、Text Stats 原来以 `plugin-install-<哈希>` 登记动作，新构建改用 `io.molis.work.coding` 这样的插件名（Shelf 的手写提供方本来就是这个名字）。凡是按来源编号精确认动作的存量记录，新构建里都对不上；动作 id 和版本没变。工具是 `tests/fixtures/provider-identity-maintenance.mjs`，演练用例是 `tests/provider-identity-maintenance.test.ts`：`list` 只读、不接受真实 Home 路径；`rewrite` 先把所有库读一遍、有问题就一个字都不写，再每个库一个事务、JSON 文件原子替换，写完再读一遍；真实 Home 要带 `--maintenance-window`（用户批准了窗口），并且 4173、4207、4208 端口和这些库都没人占着。它只改 `provider_id` 恰好是这 7 个旧编号的字段；目录库里存的项目路径指向真实 Home，工具不用它找库，只扫 Home 里的 `projects/*/molis-work.db`，也不跟符号链接，不进 `releases/`，不打开 `feed/secrets.json`。做完以后这两份文件删除，要用从 Git 历史取。
+  - [ ] **先列，给用户看。** 整份离线备份（第 4.2 节），把备份再拷一份作演练副本，在副本上跑 `node tests/fixtures/provider-identity-maintenance.mjs list --home <副本>`，把输出贴进发布 PR。输出分五类会改的：`mcp-grants`（`config/mcp-tools.json` 的逐客户端授权）、`workflow-steps`（`workflows/workflows.db` 的流程定义与运行里存的步骤）、`character-drafts`（`characters/characters.sqlite` 的角色草稿里选好的能力）、`coding-selections`（每个项目库里 Coding 会话选好的能力）、`assistant-*`（助理库里的待确认卡片、可撤销操作、后台任务，以及「对助理关掉的能力」和「每次都要确认」两项设置）；另有四类只列不改：`FIXED`（项目成果库里已发布的角色版本，是固定版本，工具不改）、`derived`（搜索索引，会自己对账重建）、`history`（`logs/action-calls.jsonl` 的调用记录，是历史，留着，不用决定）、`UNCLASSIFIED`（SQLite 库的其他文本列，和 Home 里所有 `*.json`、`*.jsonl` 文件，凡是工具的规则不认识的旧编号；要逐条看，决定改还是留；`releases/`、符号链接和 `feed/secrets.json` 不看）。**还有一类 `NOT READ`，是工具看不见的**：带加密正文的记录（Prologue 的 `agent-runtime/records/<kind>/<id>.json`；Coding 会话索引 `molis-agent-index-*` 里每一轮冻结的能力引用就在加密正文里）按目录数条数，大于 64 MiB 的 JSON 文件点名。里面有没有旧编号，工具说不出，它也不改变退出码，下一条是为它而设的。`list` 和 `rewrite` 的退出码 3 就是「还有只列不改的东西」，不是失败。`UNCLASSIFIED` 的片段是旧编号前后各约 40 个字符，贴进发布 PR 之前看一眼，涉及私人内容的删掉。
+  - [ ] **进窗口前，没有轮次停在等批准或暂停上。** 工具看不见加密的运行记录（上一条的 `NOT READ`）：一轮在窗口前冻结了旧编号、窗口后才恢复，它对这 7 个插件动作的调用报 `actions.missing`（原来的能力找不到，因为它按旧编号找），要重新开一轮才用新编号。所以停 Host 之前，先在产品里把等批准的轮次批准或拒绝，把暂停的取消或让它跑完；已经结束的轮次里冻结的旧编号是历史，不用管。
+  - [ ] **在副本上改，核对。** `rewrite --home <副本>` 后再 `list`，五类可改的都是 0；`config/mcp-tools.json` 的授权条数不变（新旧编号撞成同一条的，工具拒绝并一个字都不写，第 4.5 节的授权条数核对是第二道）；对副本用新构建打开一次，设置里的 MCP 授权页、工作流、角色页能正常显示，已选能力没有「原能力已变化」。副本上的演练记录（日期、各类条数、核对结果）写进发布说明的「兼容与升级」。
+  - [ ] **经用户同意后在真库上做，并交代两件用户要自己做的事。** 真库上跑 `rewrite --home ~/.molis-work --maintenance-window`，把输出的各类条数报给用户。`FIXED` 的已发布角色版本不能改（固定版本），指向旧编号的那些版本里选好的能力按新编号对不上：用户在「设置 › 角色」把对应草稿（工具已改好）重新发布一次，旧版本留着不删。助理的待确认卡片、可撤销操作、后台任务本来也会失效，这一步一并改了，不用重新准备。
+  - [ ] **不做的后果**（写在这里是因为过去的维护都是因为没做才发现的）：MCP 客户端的授权读成「没有这个动作」，外部工具里这 7 个插件的工具消失，要逐个重新授权；工作流里这些步骤报 `actions.provider_changed`；角色草稿里选好的能力显示「原能力已变化」；Coding 会话里选好的能力丢掉；用户对助理关掉的这些能力悄悄变回开着；窗口前冻结了旧编号、窗口后才恢复的 Agent 轮次，调这 7 个插件的动作报 `actions.missing`。
 
 ### 4.4 装新构建
 

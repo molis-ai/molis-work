@@ -7,13 +7,13 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import {
   LocalProjectDatabase, MolisWorkLocalHost, createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference, seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
-import { FEED_PLUGIN_ID, FeedPluginRouteTable, FeedStoreError, createFeedRouteHandlers, feedItemActions, feedManifest, feedQueryActions, promoteFeedItemToGoal, type FeedGoalPromotionGoals } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_PLUGIN_ID, FeedPluginRouteTable, FeedStoreError, createFeedRouteHandlers, feedItemActions, feedManifest, feedQueryActions, promoteFeedItemToGoal, promoteOffered, type FeedGoalPromotionGoals } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 
 const PROJECT = "project-feed-promotion";
 
 /** A project with one Feed item per title, a Host over it, and the callers the promotion is tried through. */
-function fixture(titles: string[], options: { disableGoals?: () => boolean } = {}) {
+function fixture(titles: string[], options: { disableGoals?: () => boolean; disableFeed?: () => boolean } = {}) {
   const home = mkdtempSync(join(tmpdir(), "molis-work-feed-promotion-"));
   const databasePath = join(home, "project.db");
   seedDemoBoard(databasePath, PROJECT);
@@ -26,7 +26,8 @@ function fixture(titles: string[], options: { disableGoals?: () => boolean } = {
   seed.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
     actionAvailability: (_caller, view) => options.disableGoals?.() && view.provider.plugin_id === GOALS_PLUGIN_ID
-      ? { available: false, code: "actions.plugin_disabled", reason: "Goals 已从项目移除" } : { available: true } });
+      ? { available: false, code: "actions.plugin_disabled", reason: "Goals 已从项目移除" }
+      : options.disableFeed?.() && view.provider.plugin_id === FEED_PLUGIN_ID ? { available: false, code: "actions.plugin_disabled", reason: "Feed 已从项目移除" } : { available: true } });
   const reference = molisWorkHostProjectReference({ databasePath, projectId: PROJECT });
   const permissions = [...new Set([...feedManifest.permissions.map(entry => entry.permission), "goals:read", "goals:write"])];
   const person: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions };
@@ -213,6 +214,65 @@ test("a leftover Goal the person has discarded is not taken up again: promoting 
   } finally { await f.done(); }
 });
 
+/** Runs `then` once, at the moment the Host has recorded that `capabilityId` ran, which is while the promotion awaits its next Goals call. */
+function afterGoalsCall(f: ReturnType<typeof fixture>, capabilityId: string, then: () => void): void {
+  const log = f.host.callLog!;
+  const record = log.record.bind(log);
+  log.record = (caller, action, outcome) => {
+    record(caller, action, outcome);
+    if (action.capability_id !== capabilityId) return;
+    log.record = record;
+    then();
+  };
+}
+
+test("a promotion whose Feed action is withdrawn while Goals worked starts no further write in Goals: no Goal, no input receipt", async () => {
+  let withdrawn = false;
+  const f = fixture(["Review external input"], { disableFeed: () => withdrawn });
+  const [item] = f.items;
+  try {
+    const receipts = () => f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(PROJECT));
+    const liveGoals = async () => (await f.person.invoke(goalsActions.list, { limit: 100 })).goals.filter(goal => goal.title.startsWith("处理 Feed Item"));
+    // The item's Goal was discarded, so the next promotion first reads the directory and then, finding nothing, writes a new Goal.
+    const first = await f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision });
+    await f.person.invoke(goalsActions.trash, { goal_id: first.goal_id, trashed: true, reason: "Discard before promoting again", user_confirmed: true, idempotency_key: "discard-before-promoting" });
+    const current = (await f.person.invoke(feedQueryActions.item, { item_id: item!.item_id })).item;
+    const receiptsBefore = await receipts();
+    assert.deepEqual(await liveGoals(), []);
+
+    afterGoalsCall(f, goalsActions.directoryItem.capability_id, () => { withdrawn = true; });
+    await assert.rejects(f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: current.revision }), { code: "actions.plugin_disabled" });
+    assert.equal(withdrawn, true, "Feed was withdrawn while the call was running");
+    withdrawn = false;
+    assert.deepEqual(await liveGoals(), [], "the withdrawn call wrote no Goal");
+    assert.deepEqual(await receipts(), receiptsBefore, "and no input receipt");
+    const after = (await f.person.invoke(feedQueryActions.item, { item_id: item!.item_id })).item;
+    assert.deepEqual([after.linked_goal_id, after.revision], [first.goal_id, current.revision], "nor did Feed touch the item");
+  } finally { await f.done(); }
+});
+
+test("a promotion whose Feed action is withdrawn after Goals made the Goal writes no input receipt for it, and the retry finishes with the same Goal", async () => {
+  let withdrawn = false;
+  const f = fixture(["Review external input"], { disableFeed: () => withdrawn });
+  const [item] = f.items;
+  try {
+    const receipts = () => f.host.withProject(f.reference, runtime => runtime.coordinator.goalInputs.list(PROJECT));
+    const liveGoals = async () => (await f.person.invoke(goalsActions.list, { limit: 100 })).goals.filter(goal => goal.title.startsWith("处理 Feed Item"));
+    afterGoalsCall(f, goalsActions.create.capability_id, () => { withdrawn = true; });
+    await assert.rejects(f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision }), { code: "actions.plugin_disabled" });
+    withdrawn = false;
+    const [leftover] = await liveGoals();
+    assert.ok(leftover, "the Goal Goals had already made is kept, as a failed step leaves it");
+    assert.deepEqual(await receipts(), [], "but the input was not confirmed after Feed was withdrawn");
+    assert.equal((await f.person.invoke(feedQueryActions.item, { item_id: item!.item_id })).item.linked_goal_id, null);
+
+    const retried = await f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision });
+    assert.equal(retried.goal_id, leftover.goal_id, "the same key finds the Goal again");
+    assert.equal((await liveGoals()).length, 1);
+    assert.equal((await receipts()).length, 1);
+  } finally { await f.done(); }
+});
+
 test("promotion walks the keys of the item's revision past every Goal that can no longer take work", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-work-feed-promotion-keys-"));
   const databasePath = join(home, "project.db");
@@ -293,6 +353,20 @@ test("the reader's promotion button follows the promote action: shown while Goal
     removed = false;
     await detail();
     assert.deepEqual(rendered, [true, false, true]);
+  } finally { await f.done(); }
+});
+
+test("whether the promotion is offered is one predicate for the offers and the reader: Feed's own action at this version, runnable, and nothing else", async () => {
+  const f = fixture(["Review external input"]);
+  try {
+    const views = await f.host.inspectActions(f.personContext, f.reference);
+    const promote = views.find(view => view.capability_id === feedItemActions.promote.capability_id)!;
+    const rest = views.filter(view => view !== promote);
+    assert.equal(promoteOffered(views), true, "the directory of a project with Goals offers it");
+    assert.equal(promoteOffered(rest), false, "a listing without the action does not");
+    assert.equal(promoteOffered([...rest, { ...promote, provider: { ...promote.provider, plugin_id: GOALS_PLUGIN_ID } }]), false, "an action of another plugin under the same id is not Feed's promotion");
+    assert.equal(promoteOffered([...rest, { ...promote, version: promote.version + 1 }]), false, "another version is not the promotion Feed's offers point at");
+    assert.equal(promoteOffered([...rest, { ...promote, availability: { available: false, code: "actions.plugin_disabled", reason: "Goals 已从项目移除" } }]), false, "an action that cannot run is not offered");
   } finally { await f.done(); }
 });
 

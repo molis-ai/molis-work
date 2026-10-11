@@ -312,17 +312,16 @@ export class MolisWorkLocalHost {
     return this.host.client(reference);
   }
 
-  actionClient(reference: LocalHostProjectReference): ActionClient {
+  /** `preparePlugins: false` is for Host callers of what the project registers when it opens (Goals): it starts no Runtime plugin and restores no external MCP first. */
+  actionClient(reference: LocalHostProjectReference, preparePlugins = true): ActionClient {
     const client = this.withSystemActions(this.host.actionClient(reference));
-    return {
+    return !preparePlugins ? client : {
       discover: async caller => { await this.prepareProjectPlugins(reference, caller); return client.discover(caller); },
       invoke: async (caller, action, input) => { await this.prepareProjectPlugins(reference, caller); return client.invoke(caller, action, input); },
     };
   }
 
-  syncActionClient(reference: LocalHostProjectReference) {
-    return this.host.syncActionClient(reference);
-  }
+  syncActionClient(reference: LocalHostProjectReference) { return this.host.syncActionClient(reference); }
 
   homeActionClient(): ActionClient {
     return this.withSystemActions(this.host.homeActionClient());

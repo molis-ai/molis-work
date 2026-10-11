@@ -23,7 +23,7 @@
 
 | 入口 | actor 与受众 | 权限从哪来 | 排队 | 错误怎样呈现 |
 | --- | --- | --- | --- | --- |
-| 页面（本机 HTTP） | `web-user`（`LOCAL_PERSON_ACTOR_ID`），`user` | 该页面的内置权限集，加上本项目运行中 Runtime 插件的已授 grant（`localWebActionContext`） | 项目串行队列 | JSON `{ error, code? }`，HTTP 状态由各插件自己的 `*RouteErrorResponse` 决定（14 份） |
+| 页面（本机 HTTP） | `web-user`（`LOCAL_PERSON_ACTOR_ID`），`user` | 该页面的内置权限集，加上本项目运行中 Runtime 插件的已授 grant（`localWebActionContext`） | 项目串行队列 | JSON。入口不传 `mapError` 时，Host 的分发器（`apps/local-host/src/native-plugin-http.ts`）按错误的 kind 给 HTTP 状态，响应体是 `{ error, code, details? }`（Todo 已是这样）；还有 13 个入口各带一份 `*RouteErrorResponse`，状态和响应体（`{ error, code? }`）由它定，按 W3-02 的后续片逐个去掉；读不出请求体的失败带码（`actions.input_invalid`、`actions.input_too_large`），由入口的 `mapError`（有的话）或 SDK 回答 |
 | 外部 Runtime（MCP） | `runtime:<runtime_id>`（无 Runtime 标识时 `local-mcp`），`mcp`；会话作审计作者 | 每个客户端、每个项目、每个动作的显式授权（`{home}/config/mcp-tools.json`） | 同上，经常驻 Host | 文本 `错误: …` 加 `{"code":…}`，`isError: true` |
 | 助理 | `web-user`，`agent`；`audit_actor_id` 为 `assistant:<work_id>` | 本工作范围内对 `agent` 开放、且人没关掉的动作 | 同上 | 工具结果里的文字；对界面是 `AssistantError`（`assistant.*`） |
 | Agent（Coding、定时任务、Character） | 同一 `agent` 受众 | Manifest 角色的精确 `action_tools` 或能力网关 | 同上 | 工具结果 |

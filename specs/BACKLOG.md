@@ -127,6 +127,7 @@
 | BL-072 | 构建期装配的 Native 插件不在版本化升级与恢复内 | [plugin-upgrades](archive/plugin-upgrades/spec.md) | 已知缺口 | 随插件装配统一解决 | BL-080 | 中 | 第二步 |
 | BL-108 | Runtime 的 MCP 启动器找不到自己 Home 的服务时：①写进 Codex 等配置的环境只有 Home、受众、Runtime，没有 Web 地址，启动器一律去 127.0.0.1:4173，常驻服务不在 4173（如开发用的 4207）就连不上；②4173 上若是另一个 Home 的服务（例如开发时用临时 Home，而 4173 是真实 Home 的常驻服务），发现能力被拒（403），启动器在 tools/list 时抛错退出，Runtime 只看到 MCP 起不来 | [post-merge-review §6.1](archive/post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02) | 已知缺口 | ①要改 Runtime 配置合同（加地址，或让启动器从 Home 读服务地址），属合同变化；②被拒时回 JSON-RPC 错误、说明「4173 上不是这个 Home 的服务」，而不是退出进程 | 无 | 中 | 未分配 |
 | BL-110 | 管理项目导航卡死：桌面 Coding 页点「管理项目」后停在原项目。网页与 desktop=1 路径都没复现，原生 WebView 路径没有现场 | [project-management-freeze](archive/project-management-freeze/spec.md) | 已知缺口 | 现场没有复现，要用户再遇到时记下项目与操作 | 无 | 低 | 未分配 |
+| BL-126 | 维护六收尾核对：①新构建打开 v7 项目库——在安装版里绑定一个项目并读它的 Goal 数，与维护前一致（或在项目库拷贝上用新构建打开一次，看工作台和插件切换器里没有「实验」、没有 `storage.schema_version_mismatch`）；②重装之后逐库只读核对（v7、无 Casebook 表、`integrity_check`、行数）；③重装之前起的会话里的 MCP 仍是只认 v6 的旧代码，重连或重开会话。2026-10-10 只做了重装和列出 18 个项目（只读目录库），这一半没做 | [repository-anti-corruption §4.1 维护六](repository-anti-corruption/spec.md)、[CHECKLIST 第 4.3 节「做完核对」](../docs/releases/CHECKLIST.md) | 部分实现 | 绑定项目、重连会话都会动真实 Home 与用户的会话，按检查清单 4.1 先得到用户同意 | 无 | 中 | 协调会话 |
 
 ## 8. 交给第二步（防腐整理）
 

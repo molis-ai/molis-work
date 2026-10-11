@@ -37,7 +37,7 @@ export const SIDE_COMPUTER_STYLES = String.raw`
 .side-computer{position:relative;display:flex;flex-direction:column;flex:1;min-height:0}
 .side-computer-view{position:relative;flex:1;min-height:0;display:grid;place-items:center;background:var(--sunken,#111);overflow:hidden}
 .side-computer-view canvas{max-width:100%;max-height:100%;object-fit:contain;image-rendering:auto}
-.side-computer-marker{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:2px solid var(--accent,#4c8dff);background:color-mix(in srgb,var(--accent,#4c8dff) 25%,transparent);pointer-events:none;animation:side-computer-ping var(--dur-move,.4s) var(--ease-quint,ease-out)}
+.side-computer-marker{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:2px solid var(--accent,#4c8dff);background:color-mix(in srgb,var(--accent,#4c8dff) 25%,transparent);pointer-events:none;animation:side-computer-ping var(--dur-move) var(--ease-quint)}
 @keyframes side-computer-ping{from{transform:scale(1.8);opacity:0}to{transform:scale(1);opacity:1}}
 @media (prefers-reduced-motion: reduce){.side-computer-marker{animation:none}}
 .side-computer-cover{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;background:var(--paper);color:var(--muted)}

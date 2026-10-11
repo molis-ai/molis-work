@@ -72,7 +72,7 @@
     "file horizontal/agent-host/src/adapters/prologue-node.ts": 1760,
     "function horizontal/agent-host/src/adapters/prologue-node.ts#initializePrologueNodeAdapter": 1431,
     "function horizontal/agent-host/src/adapters/prologue-node.ts#startAgentRun": 418,
-    "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 304,
+    "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 278,
     "function horizontal/agent-host/src/adapters/prologue-taskboard.ts#createPrologueTaskBoards": 220,
     "file horizontal/agent-host/src/adapters/prologue.ts": 1026,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
@@ -169,7 +169,7 @@
     "function modules/shelf/src/store.ts#runJob": 199,
     "function packages/contracts/src/platform/actions.ts#inspectActionDeclarations": 158,
     "function packages/contracts/src/platform/plugin-agent.ts#inspectAgentDeclaration": 162,
-    "file packages/contracts/src/services/agent-host.ts": 1733,
+    "file packages/contracts/src/services/agent-host.ts": 1732,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 947,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
@@ -619,7 +619,7 @@
     "tests/workspace-production-events.test.ts": 3,
     "tests/workspace-read-actions.test.ts": 4
   },
-  "vendoredPrologueSdk": 1,
+  "vendoredPrologueSdk": 2,
   "schemaPatches": 0,
   "compatMarkerTotal": 9,
   "compatMarkers": {

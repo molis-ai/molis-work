@@ -264,10 +264,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       im.close();
       void browserHost.current()?.close();
       unregisterSurfaces();
-      unregisterComputer();
-      clearInterval(computerSweep);
-      computerDesk.close();
-      void helperConnection.close();
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
     });

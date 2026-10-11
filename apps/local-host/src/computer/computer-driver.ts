@@ -4,9 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal, HostSurfaceRefusalError } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import type { ComputerActivity } from "@molis-ai/molis-work-contracts/services/computer";
-import { LOOK_AND_CLICK_ACTIONS, showsMolis, tierOf, type AppTierVerdict } from "./app-tiers.js";
+import { tierOf, type AppTierVerdict } from "./app-tiers.js";
+import { refuseCapture, refuseDespiteWindowText, refuseLanding, refuseSelfApproval, type LandingProbe } from "./computer-policy.js";
 import type { ComputerRecords } from "./computer-records.js";
-import type { ComputerSettings } from "./computer-settings.js";
 import { HelperError, type HelperConnection } from "./helper-connection.js";
 
 /** The scope before any app is targeted: Prologue's `DESKTOP_NO_APP_SCOPE`, which no app rule matches. */
@@ -117,8 +117,10 @@ function downloadDestination(to: readonly string[]): string {
 
 /** What the desk shares with its driver: the helper, the settings, the lease's target, and recording the live view. */
 export interface DeskContext {
-  readonly helper: HelperConnection;
-  readonly settings: ComputerSettings;
+  readonly helper: Pick<HelperConnection, "call">;
+  readonly settings: { forbiddenIds(): readonly string[] };
+  /** An action reached the screen. The desk times it so a confirm on this round cannot be that click. */
+  noteInjected(): void;
   target(): Target | null;
   setTarget(target: Target | null): void;
   takeovers(): number;
@@ -197,14 +199,16 @@ export class ComputerDriver {
     return [state.bundle_id, state.pid, window?.window_id ?? 0, (window?.frame ?? []).join(","), window?.title ?? "", this.ctx.takeovers()].join("\u0000");
   }
 
-  private forbidCheck(state: AppState): void {
-    const verdict = tierOf({ bundle_id: state.bundle_id, name: state.name }, this.ctx.settings.forbiddenIds());
-    if (verdict.tier === "forbidden") throw new Error(`禁区：${verdict.reason}`);
-    if (showsMolis(state.window?.title ?? "")) throw new Error("禁区：这个窗口显示着 Molis Work，助理不能操作自己的确认卡");
+  private forbidCheck(state: AppState, action?: string): void {
+    const title = state.window?.title ?? "";
+    const why = refuseDespiteWindowText({ app: { bundle_id: state.bundle_id, name: state.name }, windowTitle: title, windowText: title, ...(action ? { action } : {}), userForbidden: this.ctx.settings.forbiddenIds() });
+    if (why) throw new Error(why);
   }
 
   private async screenshot(state: AppState): Promise<Buffer> {
-    const shot = await this.ctx.helper.call<{ png: string }>("observe.screenshot", { pid: state.pid, rect: state.window!.frame, scale: 1 });
+    const shot = await this.ctx.helper.call<{ png: string; included_pids?: number[]; password_fields?: number; masked?: number }>("observe.screenshot", { pid: state.pid, rect: state.window!.frame, scale: 1 });
+    const why = refuseCapture({ targetPid: state.pid, includedPids: shot.included_pids, passwordFields: shot.password_fields, coveredFields: shot.masked });
+    if (why) throw new Refused("outside-target", why);
     const png = Buffer.from(shot.png, "base64");
     this.ctx.emitFrame(png);
     return png;
@@ -247,7 +251,7 @@ export class ComputerDriver {
     const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 });
     const text = renderTree(state, tree);
     // The words go to the model; the person's record and the tab get the picture of the same moment.
-    const png = await this.screenshot(state).catch(() => undefined);
+    const png = await this.screenshot(state).catch(error => { if (error instanceof Refused) throw error; return undefined; });
     this.ctx.recordStep({ kind: "look", app: this.appRef(), summary: `查看「${target.name}」的窗口（${state.window.title || "无标题"}）` }, png);
     return new TextEncoder().encode(text);
   }
@@ -262,15 +266,12 @@ export class ComputerDriver {
 
   private async perform(action: HostSurfaceAction, sessionId: string | null): Promise<void> {
     await this.ctx.ready(sessionId);
-    if (action.what === "app") return this.switchApp(action.app);
+    if (action.what === "app") { await this.switchApp(action.app); this.ctx.noteInjected(); return; }
     if (action.what === "navigate") throw new Error("桌面应用没有网址可打开；网页上的事用侧栏浏览器");
     const target = this.ctx.target();
     if (!target) throw new Error("还没有选定应用：先用 app 动作打开或切到一个应用");
     const state = await this.appState();
-    this.forbidCheck(state);
-    if (target.verdict.tier === "look-and-click" && !LOOK_AND_CLICK_ACTIONS.has(action.what)) {
-      throw new Error(`「${target.name}」只能看和点：助理不能在这里输入或按键（命令走 Coding）`);
-    }
+    this.forbidCheck(state, action.what);
     if (!state.window) throw new Error(`「${target.name}」现在没有打开的窗口`);
     const [ox, oy] = state.window.frame;
     const at = (x: number, y: number): [number, number] => [ox + x, oy + y];
@@ -284,6 +285,7 @@ export class ComputerDriver {
         ...(this.ctx.activity()?.point ? { point: this.ctx.activity()!.point! } : {}) });
       throw this.translate(error);
     }
+    this.ctx.noteInjected();
     // The step and the picture after it, for the person's tab and the record.
     let png: Uint8Array | undefined;
     try { png = await this.freshFrame(); } catch { /* a missing picture does not undo the step */ }
@@ -359,7 +361,8 @@ export class ComputerDriver {
     const known = running.apps.find(app => app.bundle_id === bundleId) ?? installed.apps.find(app => app.bundle_id === bundleId);
     if (!known) throw new Error(`这台电脑上没有应用「${bundleId}」：先观察一次，看正在运行的应用列表`);
     const verdict = tierOf(known, this.ctx.settings.forbiddenIds());
-    if (verdict.tier === "forbidden") throw new Error(`禁区：${verdict.reason}`);
+    const blocked = refuseSelfApproval(known, "", this.ctx.settings.forbiddenIds());
+    if (blocked) throw new Error(blocked);
     await this.settled();
     this.ctx.mark(`打开或切到「${known.name}」`, null);
     let state: AppState;
@@ -375,8 +378,9 @@ export class ComputerDriver {
 
   /** The point is on the target app and not on a window that shows Molis Work. The helper checks again at the last moment. */
   private async landsOnTarget(point: [number, number]): Promise<void> {
-    const probe = await this.ctx.helper.call<{ window: { pid?: number; owner?: string }; element?: { pid: number; window_title: string } }>("probe.point", { point });
-    if (probe.element && showsMolis(probe.element.window_title)) throw new Refused("outside-target", "落点在显示着 Molis Work 的窗口上：助理不能操作自己的确认卡");
+    const probe = await this.ctx.helper.call<LandingProbe>("probe.point", { point });
+    const why = refuseLanding(probe, this.ctx.target()?.pid ?? -1);
+    if (why) throw new Refused("outside-target", why);
   }
 
   private async describePoint(x: number, y: number): Promise<string> {

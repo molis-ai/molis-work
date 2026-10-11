@@ -40,6 +40,8 @@ export class ComputerDesk implements DeskContext {
   private readonly frameListeners = new Set<(png: Buffer) => void>();
   private allowedThisRound: { session_id: string; apps: Set<string> } | null = null;
   private context: { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string } | null = null;
+  /** When the last action reached the screen. Null until one does, so a confirm with nothing injected is the person's. */
+  private lastInjectAt: number | null = null;
   private readonly unsubscribe: () => void;
   private readonly surfaceDriver: ComputerDriver;
 
@@ -63,6 +65,7 @@ export class ComputerDesk implements DeskContext {
   masked = (bytes: Uint8Array): boolean => this.produced.includes(createHash("sha256").update(bytes).digest("hex"));
   pendingPersonMove = (): boolean => Date.now() - this.lastPersonMove < ComputerDriver.settleMs;
   recordStep = (step: Parameters<ComputerRecords["step"]>[1], png?: Uint8Array): void => { if (this.lease?.record_id) this.options.records.step(this.lease.record_id, step, png); };
+  noteInjected = (): void => { this.lastInjectAt = Date.now(); };
 
   mark = (summary: string, point: { x: number; y: number } | null): void => {
     if (this.mode !== "assistant") return;
@@ -149,6 +152,7 @@ export class ComputerDesk implements DeskContext {
       this.options.records.finish(record.id, { outcome: outcome?.outcome ?? "completed", conclusion: outcome?.conclusion ?? "", unfinished });
     }
     this.lease = null;
+    this.lastInjectAt = null;
     this.targetApp = null;
     this.activityNow = null;
     this.allowedThisRound = null;
@@ -160,6 +164,13 @@ export class ComputerDesk implements DeskContext {
   /** The round about to use the computer names its goal and ids, so the record the desk starts on first look names them. */
   describeRound(sessionId: string, context: { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string }): void {
     if (!this.lease || this.lease.session_id !== sessionId) this.context = context;
+  }
+
+  /** The round holding the computer, including the project its record was started for. Null when the computer is free. */
+  holding(): { sessionId: string; projectId: string | null; lastInjectAt: number | null } | null {
+    if (!this.lease) return null;
+    const record = this.lease.record_id ? this.options.records.get(this.lease.record_id) : null;
+    return { sessionId: this.lease.session_id, projectId: record?.project_id ?? null, lastInjectAt: this.lastInjectAt };
   }
 
   /** The run id arrives after attach; fold it into the round's context so the record names it (until the lease is taken). */
@@ -195,6 +206,7 @@ export class ComputerDesk implements DeskContext {
     if (sessionId && (!this.lease || this.lease.session_id !== sessionId)) {
       const record = this.options.records.start({ session_id: sessionId, run_id: this.context?.run_id ?? null, project_id: this.context?.project_id ?? null, goal: this.context?.goal ?? "" });
       this.lease = { session_id: sessionId, record_id: record.id };
+      this.lastInjectAt = null;
       this.context = null;
       this.targetApp = null;
       this.mode = "assistant";

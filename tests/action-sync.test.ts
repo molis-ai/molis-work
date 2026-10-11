@@ -88,3 +88,16 @@ test("sync SDK dispatch cannot enter public actions or skip an asynchronous depe
     assert.equal(await host.actionClient(reference).invoke({ ...caller, audience: "user" }, shared, 1), 1);
   } finally { await host.close(); }
 });
+
+test("a refused synchronous call is settled once, as not executed, with the call's id", () => {
+  const rows: Array<[string, string | undefined, boolean | undefined, string]> = [];
+  const service = new ActionService(undefined, { settled: (call, action, outcome) => {
+    rows.push([action.capability_id, outcome.ok ? undefined : outcome.code, outcome.ok ? undefined : outcome.refused, call.call_id]);
+  } });
+  service.registerProvider({ provider, definitions: [definition], handlers: [{ ...definition, execution: "sync", handle: (_context, input) => input }] });
+  assert.throws(() => service.invokeSync({ ...caller, validate_authority: async () => { throw new Error("revoked"); } }, definition, 1), errorCode("actions.async_required"));
+  assert.throws(() => service.invokeSync({ ...caller, call_id: "operation-7" }, definition, 0), errorCode("actions.input_invalid"));
+  assert.deepEqual(rows.map(row => row.slice(0, 3)), [[definition.capability_id, "actions.async_required", true], [definition.capability_id, "actions.input_invalid", true]]);
+  assert.match(rows[0]![3], /^[0-9a-f-]{36}$/u);
+  assert.equal(rows[1]![3], "operation-7");
+});

@@ -4,8 +4,10 @@ import type { PluginContribution, PluginInstanceRecord, PluginManifest } from "@
 /**
  * What a running Plugin offers the action service: the actions and scenes its Manifest declares, each available only while
  * the install runs and holds the grants that action needs. `state` reads the install as it is at the moment of each call.
+ * `providerId` is the id the registration carries: the installation id unless the Host says otherwise (a plugin that ships
+ * with the Host registers under its plugin_id); `plugin_install_id` always names the installation whose grants it reads.
  */
-export function pluginActionProvider(manifest: PluginManifest, contribution: PluginContribution, installId: string, projectId: string | undefined,
+export function pluginActionProvider(manifest: PluginManifest, contribution: PluginContribution, installId: string, providerId: string, projectId: string | undefined,
   state: { record(): PluginInstanceRecord | null; live(): boolean }): ActionProviderRegistration {
   const grantAvailability = (permissions: readonly string[], own?: (context: ActionCallContext) => ActionAvailability) =>
     (context: ActionCallContext): ActionAvailability => {
@@ -14,7 +16,7 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
       return own?.(context) ?? { available: true };
     };
   return {
-    provider: { provider_id: installId, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",
+    provider: { provider_id: providerId, plugin_install_id: installId, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",
       ...(projectId ? { project_id: projectId } : {}) },
     definitions: manifest.actions ?? [], handlers: (contribution.actions ?? []).map(h => ({ ...h,
       availability: grantAvailability(manifest.actions!.find(d => d.capability_id === h.capability_id && d.version === h.version)!.action.permissions, h.availability) })),

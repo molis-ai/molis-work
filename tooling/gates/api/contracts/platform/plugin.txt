@@ -289,7 +289,7 @@ export type ActionAvailability = {
     readonly reason: string;
 };
 
-export interface ActionCallContext {
+export interface ActionCallContext extends ActionCallOrigin {
     readonly actor_id: string;
     readonly audit_actor_id?: string;
     readonly runtime_session_id?: string;
@@ -320,6 +320,10 @@ export interface ActionCallContext {
         readonly scene_id: string;
         readonly binding_id: string;
     };
+}
+
+export interface ActionCallOrigin {
+    readonly call_id?: string;
 }
 
 export interface ActionClient {
@@ -413,6 +417,7 @@ export interface ActionProvider {
     readonly kind: "system" | "plugin" | "mcp";
     readonly project_id?: string;
     readonly plugin_id?: string;
+    readonly plugin_install_id?: string;
 }
 
 export interface ActionProviderRegistration {
@@ -2638,11 +2643,6 @@ export interface PluginManifest {
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
 }
 
-export declare class PluginManifestError extends Error {
-    readonly code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid";
-    constructor(code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid", message: string);
-}
-
 export interface PluginOutputPublishInput {
     port: string;
     content: ArtifactContentInput;
@@ -3682,10 +3682,6 @@ export declare function browserSiteDeclarations(manifest: {
     readonly permissions: readonly PluginPermissionDeclaration[];
 }): readonly string[];
 
-export declare function canonicalPluginId(pluginId: string): string;
-
-export declare function comparePluginVersions(left: string, right: string): number;
-
 export declare function defineActionUsagesAction(capabilityId: string, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<ActionUsagesInput, {
     usages: ActionUsage[];
 }>;
@@ -3755,11 +3751,7 @@ export declare function inspectActionDeclarations(definitions: unknown, scenes: 
 
 export declare function inspectAgentDeclaration(agent: AgentManifest | undefined, declaredInputPorts: readonly string[]): string[];
 
-export declare function inspectEventDeclarations(pluginId: string, events: PluginEventsDeclaration | undefined): string[];
-
 export declare function inspectMethodDeclarations(methods: unknown): string[];
-
-export declare function inspectPortDeclarations(ports: PluginPortsDeclaration | undefined): string[];
 
 export declare function isArtifactCompareAction(action: {
     input_type?: string;
@@ -3840,8 +3832,6 @@ export declare function orderPromptsByLayer<T extends {
 export declare function ownsEventType(pluginId: string, eventTypeId: string): boolean;
 
 export declare function parseExactActionReferences(value: unknown): ExactActionReference[];
-
-export declare function parsePluginManifest(input: unknown): PluginManifest;
 
 export declare function pinActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<ArtifactPinResult>;
 

@@ -418,7 +418,7 @@ lingguang.conversation.get	1	io.molis.work.lingguang	io.molis.work.lingguang	que
 lingguang.conversation.message	1	io.molis.work.lingguang	io.molis.work.lingguang	command	operation	project	write	concurrent	agent,mcp,user,workflow	lingguang:read,lingguang:write,model:invoke	lingguang_spark	-	-	1144007b8c95	ec03007ce56f	613063238287
 lingguang.conversation.open	1	io.molis.work.lingguang	io.molis.work.lingguang	command	operation	project	write	-	agent,mcp,user,workflow	lingguang:read,lingguang:write	lingguang_spark	-	-	9ed2037c1b64	ec03007ce56f	-
 lingguang.create	1	io.molis.work.lingguang	io.molis.work.lingguang	command	operation	project	write	-	agent,mcp,user,workflow	lingguang:write	lingguang_spark	-	-	f8f599890bd6	f34da2f39d89	61ff63e15a49
-lingguang.discard	1	io.molis.work.lingguang	io.molis.work.lingguang	command	operation	project	write	-	agent,mcp,user,workflow	lingguang:write	lingguang_spark	-	-	6dd454466a12	7606656fb550	-
+lingguang.discard	1	io.molis.work.lingguang	io.molis.work.lingguang	command	operation	project	write	-	agent,mcp,user,workflow	lingguang:write	lingguang_spark	-	-	49000febec44	7606656fb550	-
 lingguang.fragment.offers	1	io.molis.work.lingguang	io.molis.work.lingguang	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	lingguang:read	molis.any-object	molis.fragment-offers.input.v1	molis.fragment-offers.output.v1	0dbe645dfc7a	1e3af5170ce2	04347e3e8c86
 lingguang.get	1	io.molis.work.lingguang	io.molis.work.lingguang	query	query	project	read	-	agent,mcp,user,workflow	lingguang:read	lingguang_spark	-	-	edf9aab1fda6	f34da2f39d89	-
 lingguang.list	1	io.molis.work.lingguang	io.molis.work.lingguang	query	query	project	read	-	agent,mcp,user,workflow	lingguang:read	lingguang_spark	-	-	d746974fa9af	7784f0bee209	-

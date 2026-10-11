@@ -131,6 +131,7 @@ export {
   formatContext,
   renderModelSettingsDocument,
   type ModelSettingsModel,
+  type ModelTemplateChoice,
   type ModelSettingsPrimitives,
 } from "./settings-models.js";
 export { BUILTIN_PLUGIN_AGENTS, artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration, type ArtifactContinuer } from "./plugin-catalog.js";

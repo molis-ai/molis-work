@@ -21,12 +21,16 @@
 // (prefix.reason) and the first argument of a call to one of the error factories the Goals modules use (`error`, `errorFactory`,
 // `createError`, `fail`, with a message as the second argument and a dotted word as the first; `console.error` and loggers are not).
 //
-// WHAT IT DOES NOT SEE (a known limit, not a decision). A code that is not a literal (a variable, a template with a substitution, a
-// helper that builds `prefix + "." + reason`), a factory under another name (`requireCognia(…)`), an error class whose name does not
-// end in `Error`, a base class that is not declared in the repository, two classes of one name with different constructors (the
-// first one with a `code` parameter wins), a status chosen from `error.kind` or `error.status` (`kind` and `status` are too common as
-// property names to mean "an error" here), a status written into a table that is not keyed by a string code, a number kept in a
-// variable first (`const notFound = 404`). Browser programs inside template literals are not code to the parser.
+// WHAT IT DOES NOT SEE (a known limit, not a decision). The biggest group is a code written as a property: `code: "plugin_revoked"` in a
+// result object, a response body or `Object.assign(new Error(), { code })`, and a constructor that takes an options object
+// (`new SearchError({ code: "provider_unavailable", … })`); at W3-02-B that is about 300 literals in about 100 files (some of them keyboard
+// codes, not errors), so the counts reaching zero does not mean every code is renamed. Besides: a code that is not a literal (a
+// variable, a template with a substitution, a helper that builds `prefix + "." + reason`), a factory under another name
+// (`requireCognia(…)`), an error class whose name does not end in `Error`, a base class that is not declared in the repository, two
+// classes of one name with different constructors (the first one with a `code` parameter wins), a status chosen from `error.kind` or
+// `error.status` (`kind` and `status` are too common as property names to mean "an error" here), a status written into a table that
+// is not keyed by a string code, a number kept in a variable first (`const notFound = 404`). Browser programs inside template
+// literals are not code to the parser.
 import ts from "typescript";
 
 /** Lower-case words joined by dots, the owner first. Same expression as ACTION_ERROR_CODE (action-errors.ts); a test keeps them equal. */

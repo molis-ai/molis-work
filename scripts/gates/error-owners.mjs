@@ -23,7 +23,7 @@
 // that is not a plain word, the name `actions`, no reason, a path that matches no tracked file, one path under two owners, two owners
 // whose paths tie on one file, a platform row whose prefix is not listed, and a listed prefix without a row.
 //
-// WHAT IT DOES NOT SEE: the same as scripts/gates/error-scan.mjs (a code that is not a literal, a factory under another name).
+// WHAT IT DOES NOT SEE: the same as scripts/gates/error-scan.mjs (a code written as a `code:` property, a code that is not a literal, a factory under another name).
 import ts from "typescript";
 
 export const ERROR_OWNERS_FILE = "tooling/gates/error-owners.json";

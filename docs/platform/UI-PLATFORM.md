@@ -106,3 +106,17 @@ Planning contribution 通过显式 renderPage 原语使用原设置页外框，�
 UI Host 的 `UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT` 由 Workbench 或独立页面实例化，提供 `mountPluginClient(root)`。它拥有挂载去重、文档/祖先 hidden 变化、卸载取消与资源清理；不拥有插件状态。Images、Coding 及子面板、Files/Git 伴随面板和独立 Diff/Text Stats、Host 审查视图、Builder 两套界面、Shelf 及结果面板已接入，Pages 与灵光在离开时收回空白项这一处也用它（`whenVisible` 与 `own`）。同源 iframe 还观察父页面的隐藏与移除。API、隐藏/卸载差异及异步响应检查见 [UI Host README](../../packages/ui-host/README.md#浏览器生命周期)。浏览器回归覆盖真实请求中止、SSE 断开重连、隐藏轮询停止及同一 DOM 重新挂载。
 
 轻量刷新提示可用 `scope.watchRevision(read, refresh)`：可见时每两秒查询 revision，首次进入、变化及断线恢复后重新读取事实，隐藏/卸载清理。`refresh` 在业务交互忙碌时返回 false，保留未消费 revision 待下次读取。Host 按项目提供当前运行插件的 `/api/plugins/<id>/view-revision`，进程更换 epoch；只含不透明 revision，不包含事件正文或授权。Files/Git 已实际接入，固定 Artifact 差异仍保留原版本。
+
+### 浏览器请求
+
+页面向宿主发请求只有一个助手：ui-host 的 `UI_REQUEST_CLIENT_SCRIPT`（`packages/ui-host/src/request-client.ts`），每页装一次，挂成 `globalThis.molisWorkRequest`；类型在合同 `@molis-ai/molis-work-contracts/platform/ui`（`UiRequest`）。插件客户端从 W5-04 起经宿主给的 `host.request` 用同一个，不再各写 `fetch` 包装。规则：
+
+- **只发本页同源。** 地址先按页面的 origin 解析再检查，发出去的就是检查过的那一个；别的源、别的端口、协议相对地址、`data:` 和 `javascript:` 一律以 `ui_host.cross_origin` 拒绝，一次请求也不发（安全不变量 S-03 的浏览器一侧）。
+- **头由助手定。** 变更带控制令牌、一次性键和 JSON 类型，读取什么都不带；调用方的 `headers` 盖不掉这三个。同一件事要重发时给同一个 `key`（宿主据此不重复执行），不给就每次新生成。每个请求都是 `cache: "no-store"`。
+- **不自动重试。** 失败、没有回答都只发一次，要不要再试由人决定。
+- **失败是带字段的 `Error`**（不是子类）：`message`、`code`（服务端的码；浏览器自己判定的以 `ui_host.` 开头）、`status`（没有回答是 0）、`callId`、`body`（原始回答）。错误体只认 `{ error, code?, call_id? }` 这一种形状。
+- **没有回答时不显示浏览器英文原话。** 读取报 `ui_host.unreachable`「连不上 Molis Work 服务，请稍后重试」；写入报 `ui_host.outcome_unknown`「不知道这次操作有没有完成，请刷新后核对」，页面保留已填内容、不替人重发。已有自己重发设计的界面（助理输入框用同一 `request_id`、Goal 表单复用键）保持原样。
+- **诊断编号只在查得到时出现。** 助手只读错误体里的 `call_id`，不读响应头；宿主只在这次调用在调用记录里留下了行时才往错误体写它，所以界面上出现的编号，在「设置 › 诊断」里一定查得到。管理类写入和入口的安全拒绝不进调用记录，没有编号。`show(目标, 错误, 兜底)` 把消息写进错误区域，有编号时加一个「诊断编号 xxxxxxxx」按钮（点一下复制完整编号）；`toast(...)` 是同样的错误吐司，带编号的停约 8 秒，指着或聚焦时不消失。
+- **谁拥有什么。** 键、头、错误形状、编号按钮归助手；错误文案、放在页面哪里、要不要保留输入仍归各界面。
+
+`molisWorkControlHeaders()` 留着，是同一助手只给头的入口，供还没迁的调用方使用（删除条件见 [UI Host README](../../packages/ui-host/README.md#浏览器请求)）。进度：W3-10-1a 已把助手装到不进 `/assets/` 的内联页面（设置、项目设置、引导、新建项目旅程、选择页、侧栏独立页、创作台页）；工作台主程序的请求（W3-10-1b 起）和插件客户端（W5-04）还在用各自的包装。

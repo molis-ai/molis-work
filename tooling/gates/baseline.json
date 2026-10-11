@@ -41,7 +41,7 @@
       "lines": 312,
       "methods": 23
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 333,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 332,
     "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,

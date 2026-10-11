@@ -51,7 +51,7 @@ export const TOUCH_TARGET_STYLES = `
       content: ""; position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); pointer-events: none;
     }
     ${SHELL} :is(.assistant-popover, .assistant-offer, .plugin-picker-popover, .dock-overflow, .navigator-project-menu-popover, .assistant-panel) :is(button:not(.assistant-inline-object), summary, a[href]:not(.assistant-link), input:not([type=checkbox], [type=radio]), select, textarea) { min-width: 44px; min-height: 44px; }
-    .plugin-picker-popover { --tile-yield: 104px; }
+    .plugin-picker-popover { --ops-btn: 44px; }
     ${ASSIST} .assistant-tabbar { height: 50px; gap: 0; }
     ${ASSIST} :is(.assistant-tab, .assistant-tab-new) { height: 44px; margin-bottom: 0; }
     ${ASSIST} .assistant-works { top: 52px; }

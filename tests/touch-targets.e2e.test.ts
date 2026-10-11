@@ -227,7 +227,8 @@ const TYPING = `(() => {
 /** The menus the strip opens, as a person opens them: the "+" of the strip (open a plugin), the layout button, a right-click on a tab (it makes
  * a group, so that the group's own menu has a label to open from). `rows` are the menu's rows (their size is the menu's), the rest are what sits
  * in them: the name input and the colour swatches of a group. */
-type StripMenu = { shown: boolean; missing: string[]; rows: number[]; parts: Array<{ label: string; w: number; h: number }> };
+type SwitcherOps = { floor: number; tileHeight: number; textRoom: number; buttons: Array<{ label: string; w: number; h: number; shown: boolean; inside: boolean }> };
+type StripMenu = { shown: boolean; missing: string[]; rows: number[]; parts: Array<{ label: string; w: number; h: number; dot?: number }> };
 const STRIP_MENUS = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const tabMenu = document.querySelector("[data-workspace-tab-menu]"), layout = document.querySelector("[data-workspace-layout]");
@@ -235,7 +236,10 @@ const STRIP_MENUS = `(async () => {
   const read = (menu, present) => {
     const shown = menu.matches(":popover-open");
     const controls = shown ? [...menu.querySelectorAll("button, summary, a[href], input")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) : [];
-    const size = (el) => { const box = el.getBoundingClientRect(); return { label: el.dataset.tabMenuAction || el.dataset.layoutSplit || el.dataset.layoutAction || el.tagName.toLowerCase(), w: Math.round(box.width), h: Math.round(box.height) }; };
+    // A colour swatch is a target with a dot drawn inside it (::before): the dot is what a person sees, the box is what answers to a finger.
+    const size = (el) => { const box = el.getBoundingClientRect(), swatch = (el.dataset.tabMenuAction || "").startsWith("color-");
+      return { label: el.dataset.tabMenuAction || el.dataset.layoutSplit || el.dataset.layoutAction || el.tagName.toLowerCase(), w: Math.round(box.width), h: Math.round(box.height),
+        dot: swatch ? Math.round(parseFloat(getComputedStyle(el, "::before").width)) : undefined }; };
     const isRow = (el) => el.matches("[data-layout-split], [data-layout-action], [data-tab-menu-action]:not([data-tab-menu-action^=color-])");
     return { shown, missing: present.filter(selector => !controls.some(el => el.matches(selector))), rows: controls.filter(isRow).map(el => Math.round(el.getBoundingClientRect().height)), parts: controls.filter(el => !isRow(el)).map(size) };
   };
@@ -510,6 +514,37 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     await settle();
     return evaluate<Record<string, { shown: boolean; missing: string[]; small: Array<{ cls: string; label: string; w: number; h: number }> } | null>>(popoversScript(floor));
   };
+  /** The switcher's pin and add buttons, as a person with a mouse meets them: they show while a tile is looked at, so the real pointer is put on a
+   * tile and what shows is measured, with the room the tile's text gives up for them. */
+  const switcherOps = async () => {
+    await evaluate(`(async () => { document.querySelector("[data-plugin-picker-toggle]").click(); await new Promise(resolve => setTimeout(resolve, 400)); })()`);
+    const out: Record<string, SwitcherOps | null> = {};
+    // The add button of a plugin the project lacks is the same element in its other state (the tile's class and the glyph shown), so one tile with a
+    // usable pin and toggle stands for both; the seeded project has every plugin, and Goals' toggle is disabled and dimmed.
+    for (const [kind, selector] of [["a plugin the project has", ".plugin-rail-tile:has(> .plugin-rail-ops):not([data-plugin-tile=goals])"]] as const) {
+      const point = await evaluate<{ x: number; y: number } | null>(`(() => {
+        const tile = document.querySelector(${JSON.stringify(".plugin-picker-popover " + selector)}); if (!tile) return null;
+        tile.scrollIntoView({ block: "center", behavior: "instant" });
+        const box = tile.querySelector(":scope > .plugin-rail-item").getBoundingClientRect(); return { x: box.left + box.width / 3, y: box.top + box.height / 2 };
+      })()`);
+      if (!point) { out[kind] = null; continue; }
+      await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y }, sessionId);
+      await evaluate(`new Promise(resolve => setTimeout(resolve, 500))`);
+      out[kind] = await evaluate<SwitcherOps>(`(() => {
+        const tile = document.elementFromPoint(${point.x}, ${point.y})?.closest(".plugin-rail-tile"), popover = document.querySelector(".plugin-picker-popover");
+        const item = tile.querySelector(":scope > .plugin-rail-item"), ops = tile.querySelector(":scope > .plugin-rail-ops"), box = tile.getBoundingClientRect();
+        const itemBox = item.getBoundingClientRect(), opsBox = ops.getBoundingClientRect();
+        return { floor: parseFloat(getComputedStyle(popover).getPropertyValue("--control-h")), tileHeight: Math.round(box.height),
+          buttons: [...ops.querySelectorAll(":scope > button")].map(button => { const b = button.getBoundingClientRect();
+            return { label: button.hasAttribute("data-dock-choice") ? "pin" : "add or remove", w: Math.round(b.width), h: Math.round(b.height), shown: parseFloat(getComputedStyle(button).opacity) > 0 && getComputedStyle(button).transform === "none",
+              inside: b.top >= box.top - 0.5 && b.bottom <= box.bottom + 0.5 && b.right <= box.right + 0.5 }; }),
+          textRoom: Math.round((opsBox.left - (itemBox.right - parseFloat(getComputedStyle(item).paddingRight))) * 10) / 10 };
+      })()`);
+    }
+    await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 }, sessionId);
+    await evaluate(`document.querySelector("[data-plugin-picker-toggle]").click()`);
+    return out;
+  };
   /** The menus the strip opens (open plugin, layout, a tab, a tab group) and the opened Assistant panel's tab bar. */
   const stripMenus = () => evaluate<Record<string, StripMenu>>(STRIP_MENUS);
   const panelHeader = () => evaluate<PanelHeader>(PANEL_HEADER);
@@ -524,7 +559,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     return evaluate<number[]>(`[...document.querySelectorAll(".mw-menu .mw-menu__item")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).map(el => Math.round(el.getBoundingClientRect().height))`);
   };
 
-  return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, stripMenus, panelHeader, panelBody, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, escapeReturns, evaluate, waitFor };
+  return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, switcherOps, stripMenus, panelHeader, panelBody, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, escapeReturns, evaluate, waitFor };
 }
 
 const NEW_WORK = ["[data-assistant-executor]", "[data-assistant-materials]", "[data-assistant-attention]", "[data-assistant-mode]"];
@@ -635,6 +670,7 @@ for (const scheme of ["light", "dark"] as const) {
         assert.deepEqual(report.parts.filter(part => Math.min(part.w, part.h) < 44).map(part => `${part.label} ${part.w}×${part.h}`), [], `${name} · ${width}: and what sits in ${menu} is a 44px target`);
       }
       assert.ok(menus["a tab group's menu"].parts.filter(part => part.label.startsWith("color-")).length >= 8, `${name} · ${width}: the group's menu offers its colours`);
+      assert.deepEqual([...new Set(menus["a tab group's menu"].parts.filter(part => part.label.startsWith("color-")).map(part => part.dot))], [18], `${name} · ${width}: and each is drawn as an 18px dot inside its target`);
     }
 
     // A menu a plugin page opens (the specimen board shows `mw-menu` as the pages use it) has 44px items on a phone and on a tablet.
@@ -750,12 +786,31 @@ for (const scheme of ["light", "dark"] as const) {
       assert.deepEqual(report.small.map(item => `${item.cls} 「${item.label}」 ${item.w}×${item.h}`), [], `1280: every control in ${list} is at least 32px`);
     }
 
+    // The switcher's pin and add buttons are there only while a tile is looked at, so the lists above did not measure them: put the mouse on a
+    // tile. They are the floor's size (--control-h: 32px), fit inside the row, and the row's text leaves them their room.
+    await w.open(1280, 800, "", "true");
+    const ops = await w.switcherOps();
+    for (const [kind, report] of Object.entries(ops)) {
+      assert.ok(report, `1280: the switcher lists ${kind}`);
+      assert.equal(report.floor, 32, "1280: standard density, whose floor is 32px");
+      assert.equal(report.buttons.length, 2, `1280: ${kind} shows a pin and an add or remove button`);
+      assert.deepEqual(report.buttons.filter(button => !button.shown).map(button => button.label), [], `1280: ${kind}: both show while the mouse is on its row`);
+      assert.deepEqual(report.buttons.filter(button => Math.min(button.w, button.h) < report.floor).map(button => `${button.label} ${button.w}×${button.h}`), [], `1280: ${kind}: each is at least the ${report.floor}px floor`);
+      assert.deepEqual(report.buttons.filter(button => !button.inside).map(button => button.label), [], `1280: ${kind}: and sits inside its row (${report.tileHeight}px tall)`);
+      assert.ok(report.textRoom >= 0, `1280: ${kind}: the row's text ends before the buttons begin (${report.textRoom}px)`);
+    }
+
     // The strip's own menus keep the rows they have on a desktop window (34px and up, short of 44px), the name input and the swatches included.
     await w.open(1280, 800, "?openPlugin=todo", "!!document.querySelector('.tab-view-chip') && !!document.querySelector('.tab-item-trigger')");
     for (const [menu, report] of Object.entries(await w.stripMenus())) {
       assert.equal(report.shown, true, `1280: ${menu} opens`);
       assert.deepEqual(report.rows.filter(row => row < 34 || row >= 44), [], `1280: the rows of ${menu} stay a desktop menu's rows, 34px at least and short of the 44px of touch (${report.rows})`);
-      assert.deepEqual(report.parts.filter(part => part.label.startsWith("color-")).map(part => part.w), report.parts.filter(part => part.label.startsWith("color-")).map(() => 18), `1280: the group's swatches stay 18px dots`);
+      // A colour swatch is a 32px target (the desktop floor) with the same 18px dot drawn inside it: the dot is not the target.
+      const swatches = report.parts.filter(part => part.label.startsWith("color-"));
+      assert.deepEqual(swatches.filter(part => Math.min(part.w, part.h) < 32 || Math.max(part.w, part.h) >= 44).map(part => `${part.label} ${part.w}×${part.h}`), [], `1280: the group's swatches are 32px targets, short of the 44px of touch`);
+      assert.equal(swatches.length >= 8, menu === "a tab group's menu", `1280: ${menu}: only a group's menu offers colours, and it offers them all`);
+      assert.deepEqual([...new Set(swatches.map(part => part.dot))], swatches.length ? [18] : [], `1280: ${menu}: drawn as 18px dots`);
+      assert.deepEqual(report.parts.filter(part => !part.label.startsWith("color-") && Math.min(part.w, part.h) < 32).map(part => `${part.label} ${part.w}×${part.h}`), [], `1280: and nothing else a strip menu holds is under 32px`);
     }
 
     // A short window: DESIGN.md writes the Dock, resident and switcher buttons as 34px there, and the floors still hold.

@@ -33,7 +33,10 @@ test("The project button holds settings and the account, and opens settings in t
       assert.ok(Math.abs(metrics.avatar.y+metrics.avatar.height/2-metrics.icon.y-metrics.icon.height/2)<1,width+theme+": avatar centered vertically");
       assert.ok(metrics.popover.x>=0 && metrics.popover.right<=width && metrics.popover.y>=0,width+theme+": the menu stays on screen");
       assert.ok(metrics.popover.bottom<=metrics.button.y,width+theme+": the menu opens above the button, never over it");
-      assert.ok(metrics.account.height>=30 && metrics.account.height<=36,width+theme+": the account is one menu row like the others "+metrics.account.height);
+      // The project menu's rows are menu rows: 30–36px on a desktop, 44px targets at phone width (W2-18 decision 10, DESIGN.md
+      // "Focus and accessibility": what the bar opens is 44px on a phone or with a coarse pointer).
+      const [low,high]=width<=600?[44,44]:[30,36];
+      assert.ok(metrics.account.height>=low && metrics.account.height<=high,width+theme+": the account is one menu row like the others ("+low+"–"+high+"px) "+metrics.account.height);
       const shot=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
       await writeFile(new URL("footer-"+width+"-"+theme+".png",directory),Buffer.from(shot.data,"base64"));
       await evaluate("document.querySelector('.bar-end [data-project-menu]').open=false");

@@ -49,7 +49,7 @@ const FACTORIES = new Set([
  */
 const TYPESAFE_CALLERS: Readonly<Record<string, string>> = {
   "apps/local-host/src/functions-host.ts": "判断规则的题面是用户自己写的规则正文（数据），不是固定文字",
-  "apps/local-host/src/plugin-builder-surface.ts": "创作台挑零件的两句说明由工作流给出，按 W3-04 登记到创作台名下（下一个 PR 接上）",
+  "apps/local-host/src/plugin-builder-surface.ts": "创作台挑零件的两句说明（选能力、选组件）登记在创作台名下，由工作流经 instruction 端口取用户改过的文字后交给它，这里只转发",
 };
 
 /** Resolve an owner from its declaration, including a plugin's single Manifest constant. */
@@ -133,6 +133,8 @@ test("a Host file that asks the judgment service through the TypeSafe provider f
 const WORDING_HISTORY: Readonly<Record<string, ReadonlyArray<readonly [number, string]>>> = {
   "system:contextual/contextual.next": [[1, "96f7580dc4cc2f98"]],
   "system:contextual/contextual.surface": [[1, "7df658138dab2107"]],
+  "io.molis.work.plugin-builder/choose.capability": [[1, "9d814fb0b2f16a3b"]],
+  "io.molis.work.plugin-builder/choose.component": [[1, "30528fb1319325ba"]],
 };
 const fingerprint = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 16);
 
@@ -147,6 +149,15 @@ test("a registered judgment wording's version moves with its default text", () =
     history.forEach((row, index) => { if (index) assert.ok(row[0] > history[index - 1]![0], `${key}: versions rise from row to row`); });
     assert.equal(new Set(history.map(row => row[1])).size, history.length, `${key}: a version that does not change the text`);
   }
-  const everyWording = [...bodies.keys()].filter(key => key.startsWith("system:contextual/"));
+  const everyWording = [...bodies.keys()].filter(key => key.startsWith("system:contextual/") || key.startsWith("io.molis.work.plugin-builder/choose."));
   assert.deepEqual(everyWording.sort(), Object.keys(WORDING_HISTORY).sort(), "a new judgment wording starts its own history");
+});
+
+test("Plugin Builder's two questions to the judgment service are registered where the person can edit them, and the workflow asks for them instead of carrying the words", () => {
+  const known = registered();
+  for (const id of ["choose.capability", "choose.component"]) assert.ok(known.has(`io.molis.work.plugin-builder/${id}`), id);
+  const workflow = read("plugins/native/plugin-builder/src/agent-workflow.ts");
+  assert.doesNotMatch(workflow, /只从合法候选中选最适合这项功能的一个能力|结合整页布局与相邻部件，从合法候选中选择组件/, "工作流要经 instruction 端口取得登记后的文字，不再写死这两句");
+  assert.match(workflow, /instructionText\(this\.ports, BUILDER_CHOOSE_CAPABILITY\)/);
+  assert.match(workflow, /instructionText\(this\.ports, BUILDER_CHOOSE_COMPONENT\)/);
 });

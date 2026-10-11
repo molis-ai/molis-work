@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
@@ -41,6 +41,7 @@ const owners = (extra: Record<string, unknown> = {}) => ({
   sdk: { paths: ["packages/plugin-sdk/"], reason: REASON },
   ...extra,
 });
+const ownersExcept = (...names: string[]) => Object.fromEntries(Object.entries(owners()).filter(([name]) => !names.includes(name)));
 const tableText = (table: Record<string, unknown> = {}) => JSON.stringify({ note: "fixture", platform: { prefixes: ["actions", "placement"], reason: REASON }, owners: owners(), ...table }, null, 2) + "\n";
 const TABLE = "tooling/gates/error-owners.json";
 const KINDS = "packages/contracts/src/platform/action-errors.ts";
@@ -120,7 +121,7 @@ const branch = (name: string, mutate: () => void) => {
   commit(name);
 };
 
-type Scenario = { name: string; mutate: () => void; expect: RegExp[]; launder?: boolean };
+type Scenario = { name: string; mutate: () => void; expect: RegExp[]; absent?: RegExp[]; launder?: boolean };
 const IMPORT_ACTION = 'import { ActionError } from "../../../packages/contracts/src/platform/action-errors.js";\n';
 const IMPORT_ALPHA = 'import { AlphaError, MessageFirstError } from "./errors.js";\n';
 const violations: Scenario[] = [
@@ -136,6 +137,7 @@ const violations: Scenario[] = [
     put("modules/alpha/src/copy.ts", "export class ActionError extends Error {}\n");
   }, expect: [/Error subclasses in packages\/contracts\/src\/platform\/action-errors\.ts 0 → 1 \(line 6: SecondError extends Error\)/, /Error subclasses in modules\/alpha\/src\/copy\.ts 0 → 1/] },
   { name: "another subclass in a file that already has one", mutate: () => append("modules/alpha/src/legacy.ts", "export class SecondError extends Error {}\n"), expect: [/Error subclasses in modules\/alpha\/src\/legacy\.ts 1 → 2/] },
+  { name: "a class in a fixtures directory of production code (the structure gates read those too)", mutate: () => put("modules/alpha/src/fixtures/hidden.ts", "export class HiddenError extends Error {}\n"), expect: [/Error subclasses in modules\/alpha\/src\/fixtures\/hidden\.ts 0 → 1/] },
 
   // ---- errorCodeShape ---------------------------------------------------------------------------------------------------------
   { name: "an upper-case code", launder: true, mutate: () => put("modules/alpha/src/shape1.ts", `${IMPORT_ALPHA}export const x = () => new AlphaError("BAD_CODE", "坏");\n`),
@@ -208,6 +210,17 @@ const violations: Scenario[] = [
     expect: [/error owner table: modules\/alpha\/src\/service\.ts was the alpha owner's at the merge-base and is the gamma owner's now/] },
   { name: "a directory handed from one owner to another", mutate: () => put(TABLE, tableText({ owners: { ...owners(), alpha: { paths: ["modules/beta/"], reason: REASON }, beta: { paths: ["modules/alpha/", "apps/local-host/src/beta-*"], reason: REASON } } })),
     expect: [/error owner table: modules\/alpha\/src\/service\.ts was the alpha owner's at the merge-base and is the beta owner's now/] },
+  // Taking an owner away is as loose as giving another: the counts are measured with the working tree's table on both sides, so a file that
+  // is nobody's now counts every code of its own on both sides and no number grows. Only the comparison of the tables sees it.
+  { name: "an owner's entry is taken out of the table, so its files that are still there have none", launder: true, mutate: () => put(TABLE, tableText({ owners: ownersExcept("beta") })),
+    expect: [/error owner table: modules\/beta\/src\/index\.ts was the beta owner's at the merge-base and has no owner now/, /error owner table: apps\/local-host\/src\/beta-edge\.ts was the beta owner's at the merge-base and is the host owner's now/,
+      /; an owner is fixed once it is given, and taking it away \(an entry removed, a path narrowed\) is as loose as giving another/],
+    absent: [/error codes that do not start with their owner's name in modules\/beta\/src\/index\.ts/] },
+  { name: "a path is narrowed out of an owner's entry, so the files it matched have none", mutate: () => put(TABLE, tableText({ owners: owners({ alpha: { paths: ["modules/alpha/src/errors.ts"], reason: REASON } }) })),
+    expect: [/error owner table: modules\/alpha\/src\/service\.ts was the alpha owner's at the merge-base and has no owner now/, /error owner table: modules\/alpha\/src\/legacy\.ts was the alpha owner's at the merge-base and has no owner now/],
+    absent: [/error owner table: modules\/alpha\/src\/errors\.ts/, /error codes that do not start with their owner's name in modules\/alpha\/src\/service\.ts/] },
+  { name: "the glob of an entry is taken out, so a Host file falls back to the Host's directory", mutate: () => put(TABLE, tableText({ owners: owners({ beta: { paths: ["modules/beta/"], reason: REASON } }) })),
+    expect: [/error owner table: apps\/local-host\/src\/beta-edge\.ts was the beta owner's at the merge-base and is the host owner's now/], absent: [/modules\/beta\/src\/index\.ts/] },
   { name: "a new platform prefix", mutate: () => {
     put(TABLE, tableText({ platform: { prefixes: ["actions", "placement", "alpha"], reason: REASON } }));
     put(KINDS, read(KINDS).replace('"placement.same_location": "invalid",', '"placement.same_location": "invalid", "alpha.not_found": "not_found",'));
@@ -220,6 +233,7 @@ for (const scenario of violations) {
     const caught = gate("--base", "main");
     assert.equal(caught.code, 1, caught.out);
     for (const pattern of scenario.expect) assert.match(caught.out, pattern);
+    for (const pattern of scenario.absent ?? []) assert.doesNotMatch(caught.out, pattern);
     if (!scenario.launder) return;
 
     // The laundering move: lift the committed baseline to the head's numbers in the same branch.
@@ -263,6 +277,8 @@ test("what the rules must not flag stays green against the merge-base", () => {
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
+  assert.match(run.out, /\d+ error subclasses, \d+ badly shaped error codes, \d+ error status decisions, \d+ error codes without their owner's name, \d+ error owners/);
+  assert.doesNotMatch(run.out, /errorOwnerTable|Lower than/, "the table is not a number that can fall, and nothing here fell");
 });
 
 test("changes that shrink or only move things pass against the merge-base, and --update lowers the baseline", () => {
@@ -282,6 +298,41 @@ test("changes that shrink or only move things pass against the merge-base, and -
   assert.equal(run.code, 0, run.out);
   assert.match(run.out, /Lower than the merge-base: .*errorSubclasses.*errorCodeShape.*errorStatusDecisions.*errorCodeOwner/);
   assert.equal(gate("--update", "--base", "main").code, 0, "lowering the baseline with the merge-base given is accepted");
+});
+
+test("an entry that leaves with its files, and a file that moves out of its owner's reach, are not a loosening of the table", () => {
+  branch("leaves", () => {
+    // beta has no file left, so its entry goes with them (a path that matches no file would have to go anyway).
+    git("rm", "-q", "modules/beta/src/index.ts", "apps/local-host/src/beta-edge.ts");
+    put(TABLE, tableText({ owners: ownersExcept("beta") }));
+    // A file that moves to a place nobody owns is judged by its own counts (it has no code of its own here), not by the comparison of the tables.
+    mkdirSync(path.join(repo, "tooling/other"), { recursive: true });
+    git("mv", "modules/alpha/src/errors.ts", "tooling/other/errors.ts");
+  });
+  const run = gate("--base", "main");
+  assert.equal(run.code, 0, run.out);
+  assert.doesNotMatch(run.out, /error owner table/);
+  const report = JSON.parse(gate("--report", "--json", "--base", "main").out);
+  assert.ok(report.head.errorOwnerTable.assignment.unowned.includes("tooling/other/errors.ts"), "the moved file is nobody's now");
+  assert.equal(report.head.errorOwnerTable.assignment.files["modules/alpha/src/errors.ts"], undefined);
+  assert.equal(report.base.errorOwnerTable.assignment.files["modules/alpha/src/errors.ts"], "alpha");
+});
+
+test("giving a file that nobody owned an owner of its own changes no number: the table is the same on both sides of the count", () => {
+  git("checkout", "-q", "-f", "main");
+  git("clean", "-fdq");
+  git("checkout", "-q", "-B", "stray-base");
+  put("tooling/other/src/stray.ts", `${IMPORT_ACTION.replace("../../../", "../../../../")}export const stray = () => new ActionError("other.stray", "无主");\n`);
+  commit("a file nobody owns, with a code of its own");
+  git("checkout", "-q", "-B", "stray-head");
+  put(TABLE, tableText({ owners: owners({ other: { paths: ["tooling/other/"], reason: REASON } }) }));
+  commit("give it an owner");
+  const run = gate("--base", "stray-base");
+  assert.equal(run.code, 0, run.out);
+  assert.doesNotMatch(run.out, /Lower than the merge-base: .*errorCodeOwner/, "the count did not fall: the old side is measured with the new table as well");
+  const report = JSON.parse(gate("--report", "--json", "--base", "stray-base").out);
+  assert.deepEqual(report.head.errorCodeOwner, report.base.errorCodeOwner);
+  assert.deepEqual(report.head.errorCodeOwner, { "modules/alpha/src/legacy.ts": 1 });
 });
 
 test("the change that introduces the table passes against a merge-base that does not have it, and from then on it is compared", () => {
@@ -324,10 +375,57 @@ test("the report prints the four numbers and the table", () => {
   assert.equal(report.head.errorOwnerTable.assignment.files["apps/local-host/src/beta-edge.ts"], "beta");
   assert.equal(report.head.errorOwnerTable.assignment.files["apps/local-host/src/host.ts"], "host");
   assert.deepEqual(report.head.errorOwnerTable.assignment.prefixes, ["actions", "placement"]);
+  assert.deepEqual(report.head.errorOwnerTable.assignment.unowned, ["packages/contracts/src/platform/action-errors.ts"], "the source files nobody owns are listed");
   const text = gate("--report", "--base", "main").out;
   assert.match(text, /Error subclasses: 4 in 2 files/);
   assert.match(text, /Error codes that do not start with their owner's name: 1 in 1 files/);
-  assert.match(text, /Error owner table \(tooling\/gates\/error-owners\.json\): 6 owners over/);
+  assert.match(text, /Error owner table \(tooling\/gates\/error-owners\.json\): 6 owners over \d+ source files \(1 more that nobody owns\), platform prefixes actions, placement/);
+});
+
+test("the baseline holds the four counts with their totals, and nothing of the table", () => {
+  git("checkout", "-q", "-f", "main");
+  git("clean", "-fdq");
+  const baseline = JSON.parse(read("tooling/gates/baseline.json"));
+  assert.deepEqual([baseline.errorSubclassTotal, baseline.errorCodeShapeTotal, baseline.errorStatusDecisionTotal, baseline.errorCodeOwnerTotal], [4, 1, 2, 1]);
+  assert.deepEqual(baseline.errorSubclasses, { "modules/alpha/src/errors.ts": 3, "modules/alpha/src/legacy.ts": 1 });
+  assert.deepEqual(baseline.errorCodeShape, { "modules/alpha/src/legacy.ts": 1 });
+  assert.deepEqual(baseline.errorStatusDecisions, { "modules/alpha/src/legacy.ts": 2 });
+  assert.deepEqual(baseline.errorCodeOwner, { "modules/alpha/src/legacy.ts": 1 });
+  assert.deepEqual(Object.keys(baseline).filter((key) => /^error/.test(key)).sort(), ["errorCodeOwner", "errorCodeOwnerTotal", "errorCodeShape", "errorCodeShapeTotal", "errorStatusDecisionTotal", "errorStatusDecisions", "errorSubclassTotal", "errorSubclasses"]);
+});
+
+// The table is required of the repository the script belongs to, and only of it: the scratch repositories above have none and are left alone.
+// Only running the entry from a copy of the repository layout shows that it asks (a `required: false` in the entry keeps every other case green).
+test("the entry run from a copy of the repository layout fails when the owner table is missing and passes when it is there", () => {
+  const checkout = fileURLToPath(new URL("..", import.meta.url));
+  const own = mkdtempSync(path.join(tmpdir(), "molis-error-gates-own-"));
+  const at = (...args: string[]) => execFileSync("git", ["-c", "commit.gpgsign=false", "-c", "user.name=gates", "-c", "user.email=gates@example.invalid", ...args], { cwd: own, encoding: "utf8", stdio: "pipe" });
+  try {
+    at("init", "-q", "-b", "main");
+    cpSync(path.join(checkout, "scripts"), path.join(own, "scripts"), { recursive: true });
+    // Two files switch on checks that need the specs of this repository: the layout is the script's own, not the documents'.
+    rmSync(path.join(own, "scripts/workspace-packages.mjs")); rmSync(path.join(own, "scripts/gates/README.md"));
+    symlinkSync(path.join(checkout, "node_modules"), path.join(own, "node_modules"), "dir");
+    writeFileSync(path.join(own, ".gitignore"), "node_modules\n");
+    mkdirSync(path.join(own, "tooling/gates/lint"), { recursive: true });
+    writeFileSync(path.join(own, "tooling/gates/limits.json"), JSON.stringify({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }, null, 2) + "\n");
+    for (const file of ["biome.jsonc", "tooling/gates/lint/no-empty-catch.grit", "tooling/gates/lint/no-double-cast.grit"]) copyFileSync(path.join(checkout, file), path.join(own, file));
+    mkdirSync(path.join(own, "packages/a/src"), { recursive: true });
+    writeFileSync(path.join(own, "packages/a/src/index.ts"), "export const a = 1;\n");
+    at("add", "-A"); at("commit", "-q", "-m", "the layout without an owner table");
+    const entry = path.join(own, "scripts/check-health-gates.mjs");
+    const run = (...args: string[]) => { const done = spawnSync(process.execPath, [entry, ...args], { cwd: own, encoding: "utf8" }); return { code: done.status, out: `${done.stdout}${done.stderr}` }; };
+    assert.equal(run("--update").code, 0, "writing a baseline does not judge");
+    const missing = run();
+    assert.equal(missing.code, 1, missing.out);
+    assert.match(missing.out, /error owner table: tooling\/gates\/error-owners\.json is missing/);
+    assert.doesNotMatch(missing.out, /biome\.jsonc is missing/, "the rest of the layout is in order");
+    writeFileSync(path.join(own, TABLE), JSON.stringify({ platform: { prefixes: ["actions"], reason: REASON }, owners: {} }, null, 2) + "\n");
+    at("add", "-A"); at("commit", "-q", "-m", "with the table");
+    assert.equal(run("--update").code, 0);
+    const present = run();
+    assert.equal(present.code, 0, present.out);
+  } finally { rmSync(own, { recursive: true, force: true }); }
 });
 
 // ---- the definitions, on this repository and against the contracts ---------------------------------------------------------------

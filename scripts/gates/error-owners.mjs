@@ -17,11 +17,15 @@
 // counts. A bare word (`timeout`), an UPPER_CASE code and `plugin_grant_denied` all count: their first word is not an owner's name. The
 // counts are measured with the working tree's table on both sides of the comparison, so changing the table cannot make a number fall.
 //
-// THE TABLE ONLY GETS STRICTER. Compared with the merge-base's table (errorOwnerTable): a file that had an owner there and has another
-// now fails (a move of the file is not that: the count of the moved file says what changed), and a new platform prefix fails. A new owner
-// for new files, a new path for files nobody owned, and stale entries leaving are free. The table's own rules have no baseline: a name
-// that is not a plain word, the name `actions`, no reason, a path that matches no tracked file, one path under two owners, two owners
-// whose paths tie on one file, a platform row whose prefix is not listed, and a listed prefix without a row.
+// THE TABLE ONLY GETS STRICTER. Compared with the merge-base's table (errorOwnerTable), file by file over the source files that are still
+// there: a file that had an owner there and has another now fails, and so does a file that had an owner there and has none now (an entry
+// taken out of the table, or a path narrowed, so that files still in the repository are nobody's: the count cannot show it, because it is
+// measured with the working tree's table on both sides, so every code in such a file counts on both and nothing grows). A moved file is
+// not that: the count of the moved file says what changed. A new platform prefix fails too. Free: a new owner for new files, a new path
+// for files nobody owned, and an entry that leaves because its files are gone (deleted or moved; an entry whose path matches no tracked
+// file has to leave, see below). The table's own rules have no baseline: a name that is not a plain word, the name `actions`, no reason, a
+// path that matches no tracked file, one path under two owners, two owners whose paths tie on one file, a platform row whose prefix is not
+// listed, and a listed prefix without a row.
 //
 // WHAT IT DOES NOT SEE: the same as scripts/gates/error-scan.mjs (a code written as a `code:` property, a dotless code passed to a factory, a class field `code = "…"`,
 // a code that is not a literal, a factory under another name).
@@ -178,21 +182,29 @@ export function measureOwners(snapshot, sites, table) {
   return { counts, details };
 }
 
-/** The assignment a snapshot's table makes: { files: { file: owner }, prefixes: [...] }, for the comparison with the merge-base. */
+/**
+ * The assignment a snapshot's table makes, for the comparison with the merge-base: { files: { file: owner }, unowned: [file], prefixes }.
+ * `unowned` lists the source files that are there and that nobody owns: without it a file that lost its owner could not be told from one
+ * that was deleted.
+ */
 export function ownerAssignment(snapshot, isSource) {
   const { table } = readOwnerTable(snapshot);
   if (!table) return null;
   const { ownerOf } = ownerLookup(table);
-  const files = {};
+  const files = {}, unowned = [];
   for (const file of snapshot.files) {
     if (!isSource(file)) continue;
     const owner = ownerOf(file);
     if (owner !== undefined) files[file] = owner;
+    else unowned.push(file);
   }
-  return { files, prefixes: [...table.platform.prefixes].sort() };
+  return { files, unowned, prefixes: [...table.platform.prefixes].sort() };
 }
 
-/** What got looser from the merge-base's table (`ref`) to the head's: a file that changed owner (not a moved file), a new platform prefix. */
+/**
+ * What got looser from the merge-base's table (`ref`) to the head's: a file that changed owner (not a moved file), a file that had an owner
+ * and is still there with none (its entry or path is gone from the table; a deleted or moved file is not that), a new platform prefix.
+ */
 export function looserOwnership(head, ref, renames) {
   if (!head || !ref) return [];
   const out = [];
@@ -201,6 +213,9 @@ export function looserOwnership(head, ref, renames) {
     const was = ref.files[file];
     if (was !== undefined && was !== owner && !moved.has(file)) out.push(`${file} was the ${was} owner's at the merge-base and is the ${owner} owner's now`);
   }
+  // A moved file is not here: its old path is gone from `head.unowned`, and its new path was not in `ref.files`.
+  const nobodys = new Set(head.unowned);
+  for (const [file, was] of Object.entries(ref.files)) if (nobodys.has(file)) out.push(`${file} was the ${was} owner's at the merge-base and has no owner now`);
   for (const prefix of head.prefixes) if (!ref.prefixes.includes(prefix)) out.push(`"${prefix}" is a platform prefix now, so anyone may raise codes that start with it`);
   return out;
 }

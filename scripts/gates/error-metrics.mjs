@@ -76,9 +76,9 @@ export function createErrorMetrics({ root, required, isSource, perFile, rekey, r
     fromBaseline: () => null,
     absolute: (value) => value.problems.map((problem) => `error owner table: ${problem}`),
     grew: (head, ref, { renames }) => looserOwnership(head.assignment, ref?.assignment, renames).map((what) =>
-      `error owner table: ${what}; an owner is fixed once it is given (the count of that owner's codes is measured with it); correct a wrong assignment in a reviewed change to the gate, not in a feature PR`),
+      `error owner table: ${what}; an owner is fixed once it is given, and taking it away (an entry removed, a path narrowed) is as loose as giving another (the count of that owner's codes is measured with the table, so a change of the table cannot show in it); correct a wrong assignment in a reviewed change to the gate, not in a feature PR`),
     lowered: () => false,
-    lines: (head) => [`Error owner table (${ERROR_OWNERS_FILE}): ${head.assignment ? `${new Set(Object.values(head.assignment.files)).size} owners over ${Object.keys(head.assignment.files).length} source files, platform prefixes ${head.assignment.prefixes.join(", ")}` : "no table"}${head.problems.length ? `, ${head.problems.length} problems` : ""}`],
+    lines: (head) => [`Error owner table (${ERROR_OWNERS_FILE}): ${head.assignment ? `${new Set(Object.values(head.assignment.files)).size} owners over ${Object.keys(head.assignment.files).length} source files (${head.assignment.unowned.length} more that nobody owns), platform prefixes ${head.assignment.prefixes.join(", ")}` : "no table"}${head.problems.length ? `, ${head.problems.length} problems` : ""}`],
     summary: (value) => `${value.assignment ? new Set(Object.values(value.assignment.files)).size : 0} error owners`,
   });
   return metrics;

@@ -43,7 +43,7 @@ export interface UiViewElement extends UiFailureTarget {
 
 export interface UiViewDocument {
   readonly documentElement: { readonly dataset: Record<string, string | undefined> };
-  addEventListener(type: "click", listener: (event: { readonly target: unknown }) => void): void;
+  addEventListener(type: "click", listener: (event: { readonly target: unknown }) => void, capture: boolean): void;
 }
 
 export interface UiFailureViewPorts {
@@ -120,7 +120,8 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
  * What a person sees of a failure, and the button that copies its diagnostic ID. The ID is the first eight characters of the
  * call's ID (the Host's `shortCallId`); the button carries the whole ID, which is what the diagnostics page looks up.
  * A toast with an ID stays about eight seconds and is held while it is pointed at or has focus; one timer per target. A
- * refused copy shows the whole ID on the button, so it can be copied by hand.
+ * refused copy shows the whole ID on the button, so it can be copied by hand. The click handler listens while the event goes
+ * down (capture), so a dialog or panel that stops a click on its way up cannot take the button away.
  */
 export function createUiFailureView(ports: UiFailureViewPorts): UiFailureView & { install(doc: UiViewDocument): void } {
   const named = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
@@ -192,7 +193,7 @@ export function createUiFailureView(ports: UiFailureViewPorts): UiFailureView & 
       if (!button || !id) return;
       const flash = (shown: string) => { button.textContent = shown; ports.setTimeout(() => { button.textContent = label(id); }, 1500); };
       ports.copy(id).then(() => flash(ports.translate("已复制")), () => flash(ports.translate("复制失败") + " " + id));
-    });
+    }, true);
   };
 
   return { text, show: (target, error, fallback) => { place(target, error, fallback); }, toast, install };

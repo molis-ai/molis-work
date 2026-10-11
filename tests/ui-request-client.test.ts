@@ -303,8 +303,10 @@ test("install() copies the whole ID on a click, says so for a moment, and is ins
   const { ports, clock, copied } = viewPorts();
   const view = createUiFailureView(ports);
   const clicks: Array<(event: { target: unknown }) => void> = [];
-  const doc = { documentElement: { dataset: {} as Record<string, string | undefined> }, addEventListener: (_type: string, listener: (event: { target: unknown }) => void) => { clicks.push(listener); } };
+  const captures: boolean[] = [];
+  const doc = { documentElement: { dataset: {} as Record<string, string | undefined> }, addEventListener: (_type: string, listener: (event: { target: unknown }) => void, capture: boolean) => { clicks.push(listener); captures.push(capture); } };
   view.install(doc);
+  assert.deepEqual(captures, [true], "the handler listens on the way down, so a panel that stops a click on its way up cannot take the button away");
   view.install(doc);
   assert.equal(clicks.length, 1, "a second program on the same document installs nothing more");
   const secondView = createUiFailureView(ports);

@@ -29,6 +29,8 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 | [src/mcp-catalog.ts](src/mcp-catalog.ts) | 平台工具 + 已授权动作合成目录 |
 | [src/project-deletion-service.ts](src/project-deletion-service.ts)、[src/project-deletion-gateway.ts](src/project-deletion-gateway.ts) | 删除项目的一份 Host 服务（网页设置页与 MCP 共用）和 stdio MCP 转给常驻 Host 的内部通道；[src/resident-host-request.ts](src/resident-host-request.ts) 是转给常驻 Host 的那一次 POST（MCP 的删除通道与命令行的 `demo remove` 共用）|
 | [src/goal-project-application.ts](src/goal-project-application.ts) | 跨 Module 应用组合 |
+| [src/plugin-host-services.ts](src/plugin-host-services.ts) | 一个插件启动时宿主交给它的身份和服务（动作、私人存储、成果、事件、输入输出）；`PluginHostExecutor` 只管启停 |
+| [src/project-plugin-ports.ts](src/project-plugin-ports.ts) | 项目里内置插件和已安装插件用到的端口（`MolisWorkLocalHost` 的两个入口转到这里） |
 
 可对照现有调用方 [apps/desktop/src/web-host.ts](../desktop/src/web-host.ts) 阅读装配方式。
 

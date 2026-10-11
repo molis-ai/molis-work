@@ -147,7 +147,7 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 同一件工作会在底栏助理、插件页面和用户手动操作之间交替进行。插件的对象、版本和删除状态由插件自己拥有；工作与对象的关系由助理写进 Context Ledger；运行与确认归 Agent Host。插件不另存“助理做过什么”，也不复制正文。完整约定、样例与验证见 [molis-plugin-dev · continuity.md](../../skills/molis-plugin-dev/continuity.md)，要点：
 
 - 每种展示的对象提供 `defineSubjectContextAction("<plugin>.subject.read", "<kind>", …)`，返回当前正文、所有者版本 `revision`、关联 Goal、会话与 `open: { surface, id }`；不存在时抛 `<plugin>.not_found`。个人范围的对象传第五个参数 `"home"`。
-- 修改类动作只声明一种 `subject_kinds`，用 `result_subject` 指出输出里的对象标识与新版本，例如 `{ id: "document.id", revision: "document.version" }`；两个位置都要在本动作的 `output_schema` 里写出来，写错、或没有输出合同，注册时就被拒绝（规则见后面“指向别的动作”一条）。修改已有对象接受 `expected_version`（或 `expected_revision`）。助理修改已有对象必须带读取时的版本，否则在确认前被拒。
+- 修改类动作只声明一种 `subject_kinds`，用 `result_subject` 指出输出里的对象标识与新版本，例如 `{ id: "document.id", revision: "document.version" }`；必须写成对象，两个位置都要在本动作的 `output_schema` 里写出来，写成字符串等别的形状、写错位置、或没有输出合同，注册时就被拒绝（规则见后面“指向别的动作”一条）。修改已有对象接受 `expected_version`（或 `expected_revision`）。助理修改已有对象必须带读取时的版本，否则在确认前被拒。
 - 没写 `result_subject` 时，助理按下面的明文规则认结果对象，只对“恰好涉及一种对象”的修改动作生效（涉及多种对象或不涉及对象的动作，以及查询和导航，不记结果对象）：输出本身是带字符串 `id` 的对象，就用它；否则输出的顶层字段里恰好有一个带字符串 `id` 的对象，就用那一个（有两个或没有，则这一步没有结果对象）；版本取该对象的 `version`，没有就取 `revision`（数字或非空字符串）；输出里认不出，就看输入：输入本身带字符串 `id`，就用它，没有版本。这是兜底，平台不检查它猜得对不对；会写东西的动作最好显式写 `result_subject`。
 - 插件根元素维护 `data-assistant-context`（当前对象、版本、未保存状态与草稿、起步建议）；这只是屏幕说明，发送时才成为材料，不写记录、不授权。
 - 监听 `molis:assistant-effect` 并在没有未保存修改时重读；用户在页面上改变了助理可能展示的对象时发 `molis:assistant-surface-changed`。

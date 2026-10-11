@@ -149,7 +149,7 @@ export interface ActionMetadata {
   readonly required_actions?: readonly ActionReference[];
   /**
    * Where a command's output names the object it created or changed: dot paths to its id and new revision, e.g.
-   * `{ id: "document.id", revision: "document.version" }`. The object's kind is the action's single subject kind. Both paths must be
+   * `{ id: "document.id", revision: "document.version" }`. The object's kind is the action's single subject kind. Written, it is an object, and both paths must be
    * in this action's `output_schema` (checked at registration). Callers that keep relations to results (the Assistant's work) use it;
    * undeclared, `actionResultSubject` reads the result by the rule written in its comment.
    */

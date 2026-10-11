@@ -117,7 +117,7 @@ Runtime 管理的首方 Native 插件会把其工厂实现打成单文件模块�
 5. **调用与授权**：消费方经 `ActionClient.invoke`，权限按它自己的调用上下文核对。
 6. **执行与返回**：处理器执行，结果按输出 schema 校验。
 
-停用、卸载、升级、撤权时，动作提供方被注销或标为不可用，消费方下次发现就看不到它。注册和 Manifest 解析时，除逐个动作的形状外，还按同一次注册检查被引用的动作：撤销命令、后台任务状态查询、片段与事项选项的目标都要在同一次注册里、种类与范围对，输入输出里被指的字段和位置要在合同里写出来；声明了的 `result_subject` 位置也要在输出合同里（`inspectActionCrossReferences`，`packages/plugin-sdk/src/action-cross-references.ts`，W3-05）。跨提供方的引用用 `required_actions`，使用时按调用者核对；谁能用目标（受众、权限、效果）也留到使用时。
+停用、卸载、升级、撤权时，动作提供方被注销或标为不可用，消费方下次发现就看不到它。注册和 Manifest 解析时，除逐个动作的形状外，还按同一次注册检查被引用的动作：撤销命令、后台任务状态查询、片段与事项选项的目标都要在同一次注册里、种类与范围对，输入输出里被指的字段和位置要在合同里写出来；声明了的 `result_subject` 要写成对象、位置也要在输出合同里（`inspectActionCrossReferences`，`packages/plugin-sdk/src/action-cross-references.ts`，W3-05）。跨提供方的引用用 `required_actions`，使用时按调用者核对；谁能用目标（受众、权限、效果）也留到使用时。
 
 ### 台账
 

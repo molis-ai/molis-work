@@ -51,7 +51,7 @@
 - 声明不授予权限。`permissions` 只写需要什么；实际授权来自安装授权，以及「对外接入」里逐个客户端（外部 MCP 客户端和内置 Agent 都算一个客户端）授予的 `action_grants`（`docs/modules/actions.md`）。
 - 提供方（`ActionProvider`）是 `system`、`plugin` 或 `mcp`（接入的外部 MCP 服务）。「提供方」只指这个；模型厂商叫「供应商」。
 - 代码：`ActionDefinition`、`ActionMetadata`、`ActionReference`（`packages/contracts/src/platform/actions.ts`）；插件在 Manifest 的 `actions` 里声明。
-- MCP 工具是动作在 MCP 客户端上的呈现，工具名由动作身份派生，通常是 `molis_work_v1_action_<capability_id>__v<version>`（`apps/mcp/src/action-tools.ts`、`apps/local-host/src/mcp-action-grants.ts`）。它不是另一种对象。
+- MCP 工具是动作在 MCP 客户端上的呈现，工具名由动作身份派生，通常是 `molis_work_v1_action_<capability_id>__v<version>`（`apps/mcp/src/action-tools.ts` 的 `molisWorkActionToolName`，前缀常量 `MOLIS_WORK_ACTION_TOOL_PREFIX` 也在那里）。它不是另一种对象。
 - 取舍：文档和代码写「动作」。以 `Action` 开头的类型名出现在 283 个源码文件里，spec 与架构文档也这么写；「能力」在代码里是注册表条目那一层（capability，见下），界面则把动作叫「能力」（第 4 节 U1）。
 - 不是：页面上的按钮。按钮是在某个对象上推荐出来的动作（见推荐选项）。
 

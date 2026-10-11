@@ -19,7 +19,7 @@ export const TEST_FILE = /\.test\.(ts|mjs)$/;
 export const RULES = {
   browser: {
     name: /\.e2e\.test\.[a-z]+$/,
-    text: /Google Chrome|google-chrome|chromium|remote-debugging-port|locateBrowser|MOLIS_WORK_TEST_CHROME|MOLIS_WORK_BROWSER_PATH|MOLIS_WORK_BUILDER_BROWSER/,
+    text: /Google Chrome|google-chrome|chromium|remote-debugging-port|locateBrowser|MOLIS_WORK_TEST_CHROME|MOLIS_WORK_BROWSER_PATH|MOLIS_WORK_BUILDER_BROWSER|molis-work-test-kit\/browser/,
   },
   darwin: {
     text: /["'`]darwin["'`]|sandbox-exec|Seatbelt|\/usr\/bin\/security|[Kk]eychain|launchctl|osascript|\bswiftc\b|\.app\/Contents|\/Applications\/|\bpbcopy\b|\bpbpaste\b|LaunchAgents/,

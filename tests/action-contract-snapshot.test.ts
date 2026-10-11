@@ -134,8 +134,8 @@ test("a changed input or output schema under the same version is named as such",
   other.action.output_schema = { ...other.action.output_schema, type: "array" };
   const problems = manifestProblems(manifests);
   assert.match(problems, /changed shape under the SAME version/);
-  assert.match(problems, new RegExp(`${target.capability_id.replaceAll(".", "\\.")}@1: input`));
-  assert.match(problems, new RegExp(`${other.capability_id.replaceAll(".", "\\.")}@1: output`));
+  assert.match(problems, new RegExp(`${target.capability_id.replaceAll(".", "\\.")}@${target.version}: input`));
+  assert.match(problems, new RegExp(`${other.capability_id.replaceAll(".", "\\.")}@${other.version}: output`));
   assert.match(problems, /pnpm actions:update/);
 });
 
@@ -176,7 +176,7 @@ test("who may call an action, and how, is in the snapshot: permissions, audience
     const manifests = copyOfManifests();
     const target = mutate(manifests);
     const problems = manifestProblems(manifests);
-    assert.match(problems, new RegExp(`${target.capability_id.replaceAll(".", "\\.")}@1:.*${column}`), `${name}: the change was not named`);
+    assert.match(problems, new RegExp(`${target.capability_id.replaceAll(".", "\\.")}@${target.version}:.*${column}`), `${name}: the change was not named`);
   }
   // Semantic types and subject kinds are part of the shape.
   for (const [name, mutate, column] of [
@@ -187,7 +187,7 @@ test("who may call an action, and how, is in the snapshot: permissions, audience
     const target = mutate(manifests);
     const problems = manifestProblems(manifests);
     assert.match(problems, /changed shape under the SAME version/, `${name} is a change of shape`);
-    assert.match(problems, new RegExp(`${target.capability_id.replaceAll(".", "\\.")}@1:.*${column}`));
+    assert.match(problems, new RegExp(`${target.capability_id.replaceAll(".", "\\.")}@${target.version}:.*${column}`));
   }
 });
 
@@ -206,7 +206,7 @@ test("the rest of the declaration is covered by the traits hash, including field
     const target = find(allActions(manifests), (d) => applies(d.action), name);
     mutate(target.action);
     const problems = manifestProblems(manifests);
-    assert.match(problems, new RegExp(`${target.capability_id.replaceAll(".", "\\.")}@1:.*traits`), `${name}: not seen`);
+    assert.match(problems, new RegExp(`${target.capability_id.replaceAll(".", "\\.")}@${target.version}:.*traits`), `${name}: not seen`);
   }
 });
 
@@ -214,7 +214,8 @@ test("a version bump, a new action, a removed action and a moved action are each
   const manifests = copyOfManifests();
   const [first, second, third] = manifests.filter((manifest) => manifest.actions.length > 2);
   const bumped = first.actions[0];
-  bumped.version = 2;
+  const previousVersion = bumped.version;
+  bumped.version += 1;
   const added = structuredClone(first.actions[1]);
   added.capability_id = "mutation.brand.new";
   first.actions.push(added);
@@ -222,17 +223,17 @@ test("a version bump, a new action, a removed action and a moved action are each
   const moved = third.actions.shift()!;
   first.actions.push(moved);
   const problems = manifestProblems(manifests);
-  assert.match(problems, new RegExp(`${bumped.capability_id.replaceAll(".", "\\.")}: v1 -> v2`), "a version bump is a move to a new version");
-  assert.match(problems, /action[s]? added:[\s\S]*mutation\.brand\.new@1/);
-  assert.match(problems, new RegExp(`action[s]? removed[^]*${removed.capability_id.replaceAll(".", "\\.")}@1`));
-  assert.match(problems, new RegExp(`${moved.capability_id.replaceAll(".", "\\.")}@1: provider ${third.plugin_id.replaceAll(".", "\\.")} -> ${first.plugin_id.replaceAll(".", "\\.")}`));
+  assert.match(problems, new RegExp(`${bumped.capability_id.replaceAll(".", "\\.")}: v${previousVersion} -> v${bumped.version}`), "a version bump is a move to a new version");
+  assert.match(problems, new RegExp(`action[s]? added:[\\s\\S]*mutation\\.brand\\.new@${added.version}`));
+  assert.match(problems, new RegExp(`action[s]? removed[^]*${removed.capability_id.replaceAll(".", "\\.")}@${removed.version}`));
+  assert.match(problems, new RegExp(`${moved.capability_id.replaceAll(".", "\\.")}@${moved.version}: provider ${third.plugin_id.replaceAll(".", "\\.")} -> ${first.plugin_id.replaceAll(".", "\\.")}`));
   assert.doesNotMatch(problems, /SAME version/, "none of these changed a shape under a version");
 });
 
 test("the same capability declared twice, or a declaration that is not plain data, is refused with its name", () => {
   const twice = copyOfManifests();
   twice[1].actions.push(structuredClone(twice[0].actions[0]));
-  assert.match(manifestProblems(twice), new RegExp(`${twice[0].actions[0].capability_id.replaceAll(".", "\\.")}@1 is declared twice`));
+  assert.match(manifestProblems(twice), new RegExp(`${twice[0].actions[0].capability_id.replaceAll(".", "\\.")}@${twice[0].actions[0].version} is declared twice`));
   const loose = copyOfManifests();
   const target = loose[0].actions[0];
   target.action.input_schema = { ...target.action.input_schema, pattern: () => true };
@@ -305,13 +306,13 @@ test("a registration the Host gains, loses or changes is named under host-action
 
 test("the Host must register what each Manifest declares, and the plugin's registration must be the Manifest's declaration", () => {
   const unregistered = productProblems(copyOfViews().filter((view) => !(view.provider.plugin_id && view.capability_id === product.manifests[0].actions[0].capability_id)));
-  assert.match(unregistered, new RegExp(`${product.manifests[0].actions[0].capability_id.replaceAll(".", "\\.")}@1: ${product.manifests[0].plugin_id.replaceAll(".", "\\.")} declares it but the Host registers it under no provider`));
+  assert.match(unregistered, new RegExp(`${product.manifests[0].actions[0].capability_id.replaceAll(".", "\\.")}@${product.manifests[0].actions[0].version}: ${product.manifests[0].plugin_id.replaceAll(".", "\\.")} declares it but the Host registers it under no provider`));
 
   const differing = copyOfViews();
   const declared = new Set(product.manifests.flatMap((manifest) => (manifest.actions ?? []).map((definition) => `${definition.capability_id}@${definition.version} ${manifest.plugin_id}`)));
   const own = find(differing, (view) => declared.has(`${view.capability_id}@${view.version} ${view.provider.plugin_id}`) && view.action.input_schema?.properties, "a Manifest action registered by its plugin, with an input schema");
   own.action = { ...own.action, input_schema: { ...own.action.input_schema, properties: { ...own.action.input_schema.properties, only_in_the_host: { type: "string" } } } };
-  assert.match(productProblems(differing), new RegExp(`${own.capability_id.replaceAll(".", "\\.")}@1: the Host registers it under ${own.provider.plugin_id!.replaceAll(".", "\\.")} with a declaration other than the Manifest's \\(input differ\\)`));
+  assert.match(productProblems(differing), new RegExp(`${own.capability_id.replaceAll(".", "\\.")}@${own.version}: the Host registers it under ${own.provider.plugin_id!.replaceAll(".", "\\.")} with a declaration other than the Manifest's \\(input differ\\)`));
 
   const split = [...copyOfViews(), hostView(), hostView({ action: { ...hostView().action, permissions: ["mutation:other"] } })];
   assert.match(productProblems(split), /mutation\.host\.read@1 via system\.mutation: registered with two different declarations \(permissions differ/);
@@ -439,14 +440,16 @@ test("an action the Host registers under another provider id is named, action by
   assert.match(renamed, new RegExp(`${todo.count} actions registered under another provider id`));
   for (const key of declaredKeys("io.molis.work.todo")) assert.match(renamed, new RegExp(`${key.replaceAll(".", "\\.")}: io\\.molis\\.work\\.todo -> todo\n`), `${key}: the new provider id was not named`);
   assert.doesNotMatch(renamed, /SAME version|who may call it/, "the provider id is its own list, not a change of shape");
-  // A plugin assembled by the Runtime, registered under the id derived from its signature, moved to its own id: the direction
-  // AGENTS.md asks of the native plugins in the other way round.
+  // A plugin the Runtime assembles registers under its own plugin_id, as the native ones do (user decision 2026-10-10, W3-06 Q1): the
+  // id derived from its signature is what the Runtime gives every other plugin, and it is not what a persisted reference holds for
+  // a built-in one. So a built-in plugin registered under it, as the Host not naming it `bundled` would, is named action by action.
   const shelf = committedRegistration("io.molis.work.shelf");
-  assert.match(shelf.id, /^plugin-install-[0-9a-f]{32}$/);
-  const moved = productProblems(registeredUnder(copyOfViews(), "io.molis.work.shelf", "io.molis.work.shelf"));
+  assert.equal(shelf.id, "io.molis.work.shelf");
+  const installId = `plugin-install-${"b".repeat(32)}`;
+  const moved = productProblems(registeredUnder(copyOfViews(), "io.molis.work.shelf", installId));
   assert.match(moved, new RegExp(`${shelf.count} actions registered under another provider id`));
-  assert.match(moved, new RegExp(`shelf\\.[a-z_.]+@1: ${shelf.id} -> io\\.molis\\.work\\.shelf\n`));
-  // And the other way: a native plugin that becomes a Runtime plugin keeps its plugin_id and gains a plugin-install-… id.
+  assert.match(moved, new RegExp(`shelf\\.[a-z_.]+@1: io\\.molis\\.work\\.shelf -> ${installId}\n`));
+  // And a native plugin registered under an installation id: the same, in the other plugin.
   const migrated = productProblems(registeredUnder(copyOfViews(), "io.molis.work.todo", `plugin-install-${"a".repeat(32)}`));
   assert.match(migrated, new RegExp(`${todo.count} actions registered under another provider id`));
   assert.match(migrated, /io\.molis\.work\.todo -> plugin-install-a{32}/);

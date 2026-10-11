@@ -28,7 +28,7 @@ export function renderAlchemistWorkbench({primitives:p}:AlchemistUiModel):string
       </div>
     </section>
     <div class="alc-notice" data-alc-notice hidden role="status"><span></span>${btn('重试','reload')}${btn('关闭','notice-close')}</div>
-    <template data-alc-github><label class="alc-field">${t('GitHub 账号')}<select class="mw-select" name="githubAccount"><option value="">${t('匿名访问')}</option></select></label><p class="alc-muted">${t('GitHub 来源只用这里选的账号，令牌留在宿主里；不选就匿名访问，限额较低。账号在「设置 › 服务连接」里管理。')}</p></template>
+    <template data-alc-github><label class="alc-field">${t('GitHub 账号')}<select class="mw-select" name="githubAccount"><option value="">${t('匿名访问')}</option></select></label><p class="alc-muted">${t('所有项目共用这个选择。GitHub 来源只用这里选的账号，令牌留在宿主里；不选就匿名访问，限额较低。账号在「设置 › 服务连接」里管理。')}</p></template>
     <dialog class="mw-dialog alc-dialog" data-alc-dialog aria-labelledby="alc-dialog-title"><form data-alc-form><header><h2 id="alc-dialog-title"></h2>${btn('关闭','close')}</header><div class="alc-dialog-body" data-alc-dialog-body></div><p role="alert" class="alc-error" data-alc-form-error hidden></p><footer>${btn('取消','close')}<button class="mw-btn mw-btn--primary" type="submit" data-alc-submit>${t('保存')}</button></footer></form></dialog>
   `});
 }

@@ -39,7 +39,7 @@ export function diffActionHandlers(context: PluginStartContext): ActionHandlerBi
 function readState(context: PluginStartContext, input: DiffStateInput): DiffView {
   if (input.reference) {
     try {
-      const record = context.services?.artifacts.read(input.reference);
+      const record = context.services?.artifacts?.read(input.reference);
       if (!record || ![DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE].includes(record.artifact_type_id) || record.schema_version !== 1
         || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("固定差异不可用");
       if (record.artifact_type_id === CODING_CHANGESET_TYPE) return compareRunChangeSet({ content: parseCodingChangeSet(record.payload),

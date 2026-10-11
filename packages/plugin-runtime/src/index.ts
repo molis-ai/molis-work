@@ -5,11 +5,12 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assertContributionMatchesManifest, PluginContributionError } from "./contribution.js";
 import { PluginRuntimeError } from "./errors.js";
 import { pluginManifestDigest } from "./identity.js";
-import { abandonRefusal, assertMutable, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow } from "./install-rules.js";
+import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
 import { assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, safeErrorCode, safeErrorMessage, sameStrings, validateManifest } from "./runtime-rules.js";
+import { createActivationContext } from "./activation-context.js";
 
 export { SqlitePluginPrivateStorage, PluginPrivateStorageError, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
@@ -110,7 +111,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     private readonly repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
     private readonly executor: PluginExecutor = new NativePluginExecutor(),
     private readonly options: { now?: () => Date; maxRecoveryAttempts?: number;
-      actions?: { registry: ActionRegistryPort; project_id?: string } } = {},
+      actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string } } = {},
   ) {}
 
   register(definition: PluginDefinition): void {
@@ -128,7 +129,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     deployment: PluginDeployment;
     grants?: string[];
     retain_private_data?: boolean;
-    /** Ships with the Host: an existing install is moved onto this build whatever its version (`recordToFollow`). */
+    /** Ships with the Host: an existing install is moved onto this build whatever its version (`recordToFollow`), and it holds every permission its Manifest declares whatever `grants` says (`bundledGrants`). */
     bundled?: boolean;
     /** The person agreed to drop the private data an uninstall kept, which this version cannot read; the Host deletes it. */
     discard_kept_data?: boolean;
@@ -192,7 +193,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       }
       return this.receipt("install", current, true);
     }
-    const grants = normalizeGrants(manifest, input.grants ?? []);
+    const grants = input.bundled === true ? bundledGrants(manifest) : normalizeGrants(manifest, input.grants ?? []);
     if (current && current.state !== "uninstalled") {
       if (
         current.version === manifest.version
@@ -659,7 +660,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         const actions = this.options.actions;
         if (!actions) throw new PluginContributionError("plugin_contribution_unredeemed", "宿主未提供系统动作注册服务");
         this.actionDisposers.set(record.install_id, actions.registry.registerProvider(pluginActionProvider(manifest, contribution, record.install_id,
-          actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id) })));
+          actions.providerId?.(record, definition) ?? record.install_id, actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id) })));
       }
     } catch (error) {
       const live = this.liveContext(record.install_id);
@@ -717,25 +718,9 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {
     this.revokeContext(record.install_id);
-    let active = true;
-    const grants = Object.freeze([...record.grants]);
-    const context: PluginStartContext = {
-      install_id: record.install_id,
-      plugin_id: record.plugin_id,
-      // Services authenticate the executing implementation; the persisted
-      // install version stays unchanged until an explicit upgrade.
-      version: definition.manifest.version,
-      deployment: record.deployment,
-      grants,
-      requireGrant(permission) {
-        if (!active || !grants.includes(permission)) {
-          throw new PluginRuntimeError("plugin_grant_denied", `Plugin 没有 ${permission} grant`);
-        }
-      },
-    };
-    Object.freeze(context);
-    this.contexts.set(record.install_id, { context, revoke() { active = false; } });
-    return context;
+    const activation = createActivationContext(record, definition, this.options.actions?.providerId?.(record, definition) ?? record.install_id);
+    this.contexts.set(record.install_id, activation);
+    return activation.context;
   }
 
   private receipt(

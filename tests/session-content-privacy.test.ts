@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import { createSessionContentStore, MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 
 test("Session event bodies are encrypted and sensitive metadata is not persisted", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-privacy-"));
@@ -49,3 +49,22 @@ test("Session event bodies are encrypted and sensitive metadata is not persisted
   await rm(directory, { recursive: true, force: true });
 });
 import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+
+test("the content store lists the blocks it holds, and only those", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-list-"));
+  try {
+    const store = createSessionContentStore(directory);
+    assert.deepEqual(store.list(), [], "nothing is stored yet, and there is no blobs directory to read");
+    const first = store.write("第一块").content_ref, second = store.write("第二块").content_ref;
+    assert.deepEqual(store.list().sort(), [first, second].sort());
+    // Files that are not a block's own (a name that is no digest, a block under the wrong directory) are never listed, so they are never removed as one.
+    const digest = first.split("/").pop()!;
+    fs.mkdirSync(path.join(directory, "blobs", "zz"), { recursive: true });
+    fs.writeFileSync(path.join(directory, "blobs", "zz", "not-a-block.blob"), "x");
+    fs.writeFileSync(path.join(directory, "blobs", "zz", `${digest}.blob`), "x");
+    fs.writeFileSync(path.join(directory, "blobs", digest.slice(0, 2), "notes.txt"), "x");
+    assert.deepEqual(store.list().sort(), [first, second].sort());
+    store.remove(first);
+    assert.deepEqual(store.list(), [second], "a removed block is not listed any more");
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});

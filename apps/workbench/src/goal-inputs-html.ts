@@ -1,7 +1,8 @@
 /**
  * A Goal's inputs in one place (specs/artifact-positioning 五.1, 「合成一种入口」): materials it follows as they change
  * (bound work objects) and versions it fixed (成果 taken as input), one list and one 「加输入」. New materials can still be
- * created straight into the project; plugin objects are filled in by the placement client from their owners.
+ * created straight into the project; plugin objects are filled in by the placement client from their owners. A source an assistant,
+ * an Agent, a workflow or an MCP client only proposed reads 「待确认」 and carries 「认可」 and 「移除」: the person decides it here.
  */
 export interface GoalInputsItem {
   readonly goal: { readonly goal_id: string };
@@ -22,6 +23,7 @@ const CREATE = [["pages", "文档"], ["ppt", "演示稿"], ["form", "问卷"], [
 
 export function renderGoalInputsHtml(item: GoalInputsItem, { L, escapeHtml, renderReference }: GoalInputsPrimitives): string {
   const goalId = escapeHtml(item.goal.goal_id);
+  const goalRoute = escapeHtml(`/api/goals/${encodeURIComponent(item.goal.goal_id)}`);
   const follows = `<span class="goal-input-mode" data-goal-input-mode="live">${L("跟着原文")}</span>`;
   const live = item.input_bindings.filter((binding) => binding.state !== "inactive").map((binding) => {
     if (binding.source_type === "plugin_object") {
@@ -30,13 +32,17 @@ export function renderGoalInputsHtml(item: GoalInputsItem, { L, escapeHtml, rend
       if (!subject) return "";
       return `<article class="placement-goal-material" data-placement-material data-placement-kind="${escapeHtml(subject[0])}" data-placement-id="${escapeHtml(subject[1])}" data-placement-binding="${escapeHtml(binding.binding_id)}" data-goal-id="${goalId}"><div><strong>${escapeHtml(binding.input_name)}</strong>${follows}<small data-placement-material-state>${escapeHtml(L("正在读取…"))}</small></div><span class="placement-goal-material-actions"></span></article>`;
     }
-    return `<article>${renderReference(binding.source_ref, binding.input_name)}<small>${escapeHtml(binding.state)} · ${escapeHtml(binding.reason)}${binding.snapshot_digest ? ` · ${escapeHtml(binding.snapshot_digest)}` : ""}</small></article>`;
+    // The buttons carry what they ask of the Goal's own route and what to say when it fails; one client handler serves them (placement.ts).
+    const decide = (action: "accept" | "remove", label: string, fail: string, done = "") => `<button type="button" class="mw-btn mw-btn--${action === "accept" ? "secondary" : "ghost"} mw-btn--sm" data-goal-input-${action === "accept" ? "accept" : "release"} data-goal-input-post="${goalRoute}/inputs" data-goal-input-body="${escapeHtml(JSON.stringify({ binding_id: binding.binding_id, action }))}" data-goal-input-fail="${escapeHtml(fail)}"${done ? ` data-goal-input-done="${escapeHtml(done)}"` : ""}>${escapeHtml(label)}</button>`;
+    const pending = binding.source_type === "feed_item" && binding.state === "proposed";
+    const stated = { proposed: L("待确认"), confirmed: L("已确认") }[binding.state] ?? binding.state;
+    return `<article class="placement-goal-material" data-goal-input-binding="${escapeHtml(binding.binding_id)}"><div>${renderReference(binding.source_ref, binding.input_name)}<span class="goal-input-mode" data-goal-input-state="${escapeHtml(binding.state)}">${escapeHtml(stated)}</span><small>${escapeHtml(binding.reason)}${binding.snapshot_digest ? ` · ${escapeHtml(binding.snapshot_digest)}` : ""}</small></div>${pending ? `<span class="placement-goal-material-actions">${decide("accept", L("认可这条输入"), L("没能认可"), L("已确认"))}${decide("remove", L("移除"), L("没能移除"))}</span>` : ""}</article>`;
   });
   const fixed = (item.artifact_inputs ?? []).map((input) => {
     const path = `/artifacts/${encodeURIComponent(input.artifact_id)}/versions/${input.version}`;
     // The reference stays when the version cannot be read; it is never swapped for a later one.
     const note = { available: "", unavailable: L("这一版现在不可用"), archived: L("这一版已归档"), missing: L("找不到这一版") }[input.state];
-    return `<article class="placement-goal-material goal-input-fixed" data-goal-input-fixed><div><a href="#" data-workbench-item-plugin="artifacts" data-workbench-item-id="${escapeHtml(path)}" data-workbench-item-title="${escapeHtml(input.title)}"><strong>${escapeHtml(input.title)}</strong></a><span class="goal-input-mode" data-goal-input-mode="fixed">${escapeHtml(L("固定的第 {version} 版", { version: input.version }))}</span>${note ? `<small>${escapeHtml([note, input.reason].filter(Boolean).join(" · "))}</small>` : ""}</div><span class="placement-goal-material-actions"><button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-goal-input-remove data-goal-id="${goalId}" data-artifact-reference="${escapeHtml(JSON.stringify({ artifact_id: input.artifact_id, version: input.version }))}">${L("移除")}</button></span></article>`;
+    return `<article class="placement-goal-material goal-input-fixed" data-goal-input-fixed><div><a href="#" data-workbench-item-plugin="artifacts" data-workbench-item-id="${escapeHtml(path)}" data-workbench-item-title="${escapeHtml(input.title)}"><strong>${escapeHtml(input.title)}</strong></a><span class="goal-input-mode" data-goal-input-mode="fixed">${escapeHtml(L("固定的第 {version} 版", { version: input.version }))}</span>${note ? `<small>${escapeHtml([note, input.reason].filter(Boolean).join(" · "))}</small>` : ""}</div><span class="placement-goal-material-actions"><button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-goal-input-remove data-goal-input-post="${goalRoute}/artifact-inputs" data-goal-input-body="${escapeHtml(JSON.stringify({ reference: { artifact_id: input.artifact_id, version: input.version }, used: false }))}" data-goal-input-fail="${escapeHtml(L("没能移除"))}">${L("移除")}</button></span></article>`;
   });
   const rows = [...live, ...fixed].join("");
   const create = CREATE.map(([station, label]) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${station}" data-goal-id="${goalId}">${escapeHtml(L(label))}</button>`).join("");

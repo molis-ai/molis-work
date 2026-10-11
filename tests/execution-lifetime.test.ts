@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createExecutionLifetime } from "../packages/plugin-sdk/src/index.js";
+import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 
 test("execution lifetime fences late work after local cancellation and stops lease renewal", t => {
   t.mock.timers.enable({ apis: ["setInterval"] });

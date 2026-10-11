@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-调用方按领域子路径导入，例如 @molis-ai/molis-work-contracts/modules/goals 或 /platform/plugin。Plugin Manifest 的 parsePluginManifest 在此定义，SDK 和工具共享解析规则；具体命令执行交给对应 owner。
+调用方按领域子路径导入，例如 @molis-ai/molis-work-contracts/modules/goals 或 /platform/plugin。Plugin Manifest 的类型在此定义；解析（`parsePluginManifest`）会运行代码，由 `@molis-ai/molis-work-plugin-sdk` 持有，SDK、运行时和命令行共用同一份；动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，内核注册时用）暂时还在这里，W3-03 的 B2 搬走；具体命令执行交给对应 owner。
 
 ## 从哪里读代码
 
@@ -46,7 +46,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 
 ## 开发要求
 
-- 负责：Module、Service、Platform 的公开合同子路径：类型、schema 与解析规则。
+- 负责：Module、Service、Platform 的公开合同子路径：类型、schema 与负载解析规则（Manifest 的解析与版本比较在 plugin-sdk，不在这里；动作、Agent、方法的声明检查暂时还在这里，B2 搬走）。
 - 不负责：业务实现、数据库、网络客户端、App 或插件实现。
 - 公开入口：`@molis-ai/molis-work-contracts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/package`。
 - 依赖：不依赖任何工作区包，也不依赖 App、业务实现、数据库或网络客户端（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 2 节）；所有包都依赖它。
@@ -55,7 +55,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
   - 结果合同读写都只认现行取值：存量数据由维护改成现行形状，schema 里不留历史取值。
   - 动作的 `effect` 按 id 推断会误判时用 `withActionEffect` 显式声明（比如 `delete_preview` 只存确认凭证）。
   - 改合同同时更新生产方、消费方、Skill 与手册，不留只有一边认识的字段。
-- 改动后必跑：`node scripts/run-tests.mjs tests/action-schema-compiler.test.ts tests/action-plugin-audience.test.ts tests/plugin-manifest-v2.test.ts tests/action-read-compatibility.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/action-schema-compiler.test.ts tests/action-plugin-audience.test.ts tests/plugin-manifest-v2.test.ts tests/plugin-declaration-rules.test.ts tests/action-read-compatibility.test.ts tests/runtime-provider-identity.test.ts tests/plugin-capability-availability.test.ts`
 - 相关手册：[docs/platform/CONTRACTS-AND-OPERATIONS.md](../../docs/platform/CONTRACTS-AND-OPERATIONS.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/system/PACKAGE-BOUNDARIES.md](../../docs/system/PACKAGE-BOUNDARIES.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

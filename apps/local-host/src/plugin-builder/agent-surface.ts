@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../agent-definitions/builtin-registrations.js';
+import { registeredInstructionBody } from '../agent-definitions/instructions.js';
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -117,6 +118,14 @@ export function builderPrompts(home: string): NonNullable<AgentBuilderPorts['pro
     const resolved = agentDefinitionsFor(home, builtinRegistrations).effective(BUILDER_PLUGIN_ID, { prompt_id: `builder-${name}`, version: builderPromptVersion(name), layer: "role", body: shipped.text });
     return resolved.user_revision === undefined ? shipped : { version: `${shipped.version}+user.${resolved.user_revision}`, text: resolved.body };
   };
+}
+
+/**
+ * The two questions the studio puts to Jev (`choose.capability`, `choose.component`) as the person left them in 设置 › 提示词. Each
+ * read is a recorded use, and the workflow reads one only when it really asks.
+ */
+export function builderInstructions(home: string): NonNullable<AgentBuilderPorts['instruction']> {
+  return prompt => registeredInstructionBody(home, prompt, 'plugin-builder');
 }
 
 async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
@@ -245,7 +254,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       }),
       validateContract: contract => assertContract(contract),
       skill: stage => builderSkill(stage),
-      prompt: builderPrompts(home),
+      prompt: builderPrompts(home), instruction: builderInstructions(home),
       async prepareBuild(previous, design, manifest) {
         const directory = join(studio.root, 'builds', previous.id, design.contract.revision);
         await rm(directory, { recursive: true, force: true }); await rm(settledFor(directory), { recursive: true, force: true }); await mkdir(dirname(directory), { recursive: true, mode: 0o700 });

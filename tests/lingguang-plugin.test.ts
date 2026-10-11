@@ -11,7 +11,7 @@ import {
   pluginMarketCards,
   railEntries,
 } from "@molis-ai/molis-work-app-workbench";
-import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
   LINGGUANG_CLIENT_FACTORY_SCRIPT,
   LINGGUANG_PROJECT_PLUGIN_ID,

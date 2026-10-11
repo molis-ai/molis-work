@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // when one is neither exported by the SDK nor listed below with the reason it is not.
 const platform = fileURLToPath(new URL("../packages/contracts/src/platform", import.meta.url));
 
-// The SDK is loaded through the entry its package.json declares, as a plugin would get it (the repository root does not depend on it).
+// The SDK is loaded through the entry its package.json declares (the built file), as a plugin would get it, not from its source.
 const sdkDirectory = fileURLToPath(new URL("../packages/plugin-sdk/", import.meta.url));
 const sdkEntry = (JSON.parse(readFileSync(join(sdkDirectory, "package.json"), "utf8")) as { exports: { ".": { import: string } } }).exports["."].import;
 type Declaration = { capability_id: string; operation: string; action: { scope: string; audiences: string[]; effect?: string; plugin?: false } };

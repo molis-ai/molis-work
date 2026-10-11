@@ -23,7 +23,7 @@ import { renderPersonalMenuItems, renderPluginRailAccountFooter } from "../apps/
 import { PAGES_STYLES } from "../plugins/native/pages/src/styles.js";
 import { preparePagesFragmentOffers } from "../plugins/native/pages/src/fragment-offers.js";
 import { createContextualJudgmentService, type ContextualEvaluation } from "../apps/local-host/src/contextual/judgment-service.js";
-import { fragmentCandidates } from "@molis-ai/molis-work-kernel";
+import { fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { DOCUMENTS, GOAL, MEMORY_STANDIN, PROVIDERS, sliceDirectory, type SliceDocument } from "./contextual-slice/fixture.mjs";
 import { AUTHORED_REPLAY, findReplay, type ReplayAnswer } from "./contextual-slice/replay.mjs";

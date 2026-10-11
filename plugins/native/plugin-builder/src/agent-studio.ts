@@ -133,6 +133,8 @@ html:has(.as-preview-page),body:has(.as-preview-page){margin:0;background:var(--
  * - `L`: The workbench's translator (`host.translate`); the frames get none and show the Chinese text. Every sentence the studio itself writes goes through it, with `{name}`
  *   placeholders for the parts that vary (`STUDIO_EN` has the English). What the build record carries is shown as written: the model's answers, the host's step labels,
  *   errors and notes, the capability directory's titles. `GROUPS`, `c.name` and `c.description` are the UI catalog's own words, translated through `PLUGIN_COMPONENTS_EN`.
+ * - `S`: What a failed request shows: a message the studio's routes send as it is (`STUDIO_EN` has the ones a person reaches by asking), or its opening sentence up to "："
+ *   followed by the detail as the host wrote it (the publish check's problems); any other message is shown as written.
  * - `queue`, `landing`, `picking`, `play`: The UI Agent's placements, paced so each one can be seen: a part waits in the queue, is taken from the spec board, carried to its
  *   place (the spot opens, framed, before the part shows), lands and the spec board ticks it off. A part being landed has left the queue but is not revealed yet; an update
  *   arriving meanwhile must not queue it again. Opening a build, or trying it, shows everything at once.
@@ -166,7 +168,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const root=host.root?(host.root.matches?.(selector)?host.root:host.root.querySelector(selector)):document.querySelector(selector);
  if(!root)return;
  const page=host.page;const lifetime=host.mountPluginClient(root);if(!lifetime)return;
- const L=host.translate||((s,v)=>v?s.replace(/\{(\w+)\}/g,(m,k)=>v[k]):s),Q=n=>L('「{name}」',{name:n});
+ const L=host.translate||((s,v)=>v?s.replace(/\{(\w+)\}/g,(m,k)=>v[k]):s),Q=n=>L('「{name}」',{name:n}),S=m=>{const t=L(m),i=m.indexOf('：')+1;if(t!==m||!i)return t;const h=L(m.slice(0,i));return h===m.slice(0,i)?t:h+m.slice(i)};
 
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const icon=n=>'<svg aria-hidden="true"><use href="#icon-'+n+'"/></svg>';
@@ -424,7 +426,7 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
   const s=$('[data-as-status]'),b=current;s.innerHTML='<span>'+(!b?'':active(b)?L(b.active.stage==='design'?'主线设计正在工作':'UI Agent 与代码 Agent 正在协作'):b.phase==='ready'?L('全部功能已接通，可以试用和发布'):b.phase==='clarifying'?L('等你回答问题'):b.phase==='choosing'?L('等你选择方案'):b.pendingPart?L('等你选择组件'):b.pendingPlugins?.length?L('等你决定要不要启用插件'):PHASE[b.phase]||'')+'</span><span>'+(b?.connected.length?L('已接通 {done}/{total} 项功能 · 输入会保留',{done:b.connected.length,total:b.design?.contract.operations.length||0}):'')+'</span>';}
  function schedule(){if(frame||!lifetime.visible)return;const paint=()=>{frame=0;renderAll();};frame=lifetime.frame(paint);}
  let viewSignal,opening=0,initialized=false;
- const backgroundError=e=>{if(lifetime.alive&&!viewSignal?.aborted){notice=L(e.message);schedule();}};
+ const backgroundError=e=>{if(lifetime.alive&&!viewSignal?.aborted){notice=S(e.message);schedule();}};
  function renderBuilds(){const select=$('[data-as-builds]');select.innerHTML='<option value="">'+(state.builds.length?L('我的插件（{n}）',{n:state.builds.length}):L('还没有插件'))+'</option>'+state.builds.map(b=>'<option value="'+esc(b.id)+'"'+(b.id===current?.id?' selected':'')+'>'+esc(b.design?.title||b.title)+' · '+esc(phaseOf(b))+'</option>').join('');
   const model=$('[data-as-model]');model.innerHTML=(state.model?'':'<option value="">'+L('选择模型')+'</option>')+state.models.map(m=>'<option value="'+esc(m.provider_id+'\n'+m.model_id)+'"'+(m.provider_id===state.model?.provider_id&&m.model_id===state.model?.model_id?' selected':'')+'>'+esc(m.label.endsWith(m.model_id)&&m.label!==m.model_id?m.model_id+' · '+m.label.slice(0,-m.model_id.length).replace(/\s*·\s*$/,''):m.label)+'</option>').join('');
   const setup=$('[data-as-model-setup]');if(setup)setup.hidden=state.models.length>0;}
@@ -435,7 +437,7 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
   if(!id){current=null;versions=[];subscribe(null);page.replace(withBuild(null));schedule();return;}
   const v=await api('/builds/'+id,'GET',undefined,signal);if(ticket!==opening)return;current=v.build;versions=v.versions;current.nodes.forEach(n=>revealed.add(n.id));usedCapabilities(current).forEach(x=>{if(x.done)wiredCaps.add(x.c.id);});subscribe(id);page.replace(withBuild(id));renderBuilds();schedule();}
  async function refreshState(signal){state=await api('/state','GET',undefined,signal);renderBuilds();}
- async function run(work){if(busy||!lifetime.alive)return;busy=true;notice='';schedule();try{await work();}catch(e){notice=L(e.message);}finally{busy=false;schedule();}}
+ async function run(work){if(busy||!lifetime.alive)return;busy=true;notice='';schedule();try{await work();}catch(e){notice=S(e.message);}finally{busy=false;schedule();}}
  async function act(action,extra={}){const v=await api('/builds/'+current.id+'/action','POST',{action,revision:current.revision,...extra});if(v.build)current=v.build;if(v.release){versions=(await api('/builds/'+current.id)).versions;notice='';}if(v.deleted){await refreshState();await open(null);}}
  lifetime.listen(root,'click',e=>{const el=e.target.closest('button,a');if(!el||!root.contains(el))return;
   if(el.dataset.asOpenPlugin){e.preventDefault();host.openPlugin('app-'+el.dataset.asOpenPlugin);return;}

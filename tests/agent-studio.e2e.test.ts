@@ -353,6 +353,21 @@ test('studio in English: its controls, labels, phases and boards are English', {
     assert.match(await page.evaluate<string>(`document.querySelector('.as-candidate .as-meta').innerText`), /Features: \d+[\s\S]*UI parts: \d+[\s\S]*Pages: \d+/u);
     assert.match(await page.evaluate<string>(`getComputedStyle(document.querySelector('[data-component-id="notes"]'),'::before').content`), /Not connected yet/, 'a part still to be wired says so in English');
 
+    // A request that fails shows the server's message in English when the dictionary has it: as a whole, or its opening sentence
+    // followed by the detail as the host wrote it; any other message is shown as written. (The fetch is answered here; the
+    // messages themselves are the ones the routes throw, checked against the source in tests/studio-english.test.ts.)
+    await page.evaluate(`(()=>{const real=window.fetch;window.__fail=null;window.fetch=(input,init)=>window.__fail&&init?.method==='POST'&&/\\/action$/.test(String(input))?Promise.resolve(new Response(JSON.stringify({error:window.__fail}),{status:400,headers:{'content-type':'application/json'}})):real(input,init);})()`);
+    for (const [error, shown] of [
+      ['草稿已改变，请刷新', 'The draft has changed. Refresh and try again.'],
+      ['发布前请先修好调用模型的写法：src/plugin.ts:12 model.generate names no prompt', 'Fix how the plugin calls the model before publishing: src/plugin.ts:12 model.generate names no prompt'],
+      ['一句宿主还没有英文的话：细节', '一句宿主还没有英文的话：细节'],
+    ] as const) {
+      await page.evaluate(`window.__fail=${JSON.stringify(error)}`);
+      await page.click('[data-as-choose]');
+      await page.wait(`document.querySelector('.as-error p')?.textContent===${JSON.stringify(shown)}`);
+    }
+    await page.evaluate(`window.__fail=null`);
+
     // Once a proposal is chosen the design arrives and the spec board and the capability board open.
     await page.click('[data-as-choose]');
     await page.wait(`document.querySelector('[data-as-board]:not([hidden]) .as-board-label')`);

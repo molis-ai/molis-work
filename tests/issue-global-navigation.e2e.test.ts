@@ -43,6 +43,47 @@ async function besidePage(b: Browser, width: number, name: string) {
   assert.deepEqual(result, { visible: true, separate: true, clickable: true, fits: true }, `${name}, ${width}, ${JSON.stringify({main,panel})}`);
 }
 
+test("ISSUE-34 clarification and confirmation survive list tabs and folding without a new run", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  const behavior: Parameters<typeof issueModel>[2] = { question: "free-text" };
+  const { requests } = await issueModel(t, b.homeDirectory, behavior);
+  await b.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, b.sessionId);
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?desktop=1` }, b.sessionId));
+  await b.click(entry); await b.waitFor(ready);
+  // A wide side panel still has one page; desktop master/detail styles must not reserve a hidden list column.
+  await b.evaluate("document.body.style.setProperty('--side-panel-width','800px')");
+  await b.waitFor(inside("document.documentElement.clientWidth > 760"));
+  const bounds = await b.evaluate<{left:number;width:number;panelWidth:number}>(inside("(() => { const box=pane.querySelector('[data-issue-workspace]').getBoundingClientRect(); return {left:box.left,width:box.width,panelWidth:document.documentElement.clientWidth}; })()"));
+  assert.ok(bounds.left < 2 && bounds.width > bounds.panelWidth - 2, `wide capture must fill its panel: ${JSON.stringify(bounds)}`);
+  await clickInside(b, '[name=description]'); await b.command('Input.insertText', { text: '111' }, b.sessionId);
+  await clickInside(b, '[data-issue-organize]');
+  await b.waitFor(inside("pane.querySelector('[data-issue-revise]').textContent==='补充描述'"), 15000);
+  const prompt = await b.evaluate(inside("pane.querySelector('[data-issue-assistant-note]').textContent"));
+  await clickInside(b, '#issue-tab-1');
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-workspace]').hidden")), true);
+  await b.click('[data-side-close]'); await b.waitFor("document.querySelector('[data-side-panel]').hidden"); await b.click(entry);
+  assert.equal(await b.evaluate(inside("document.querySelector('[aria-selected=true]').textContent")), 'Issue列表');
+  await clickInside(b, '#issue-tab-0');
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-assistant-note]').textContent")), prompt);
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-retry]').hidden")), true);
+  assert.equal(requests.length, 2);
+  await clickInside(b, '[data-issue-revise]');
+  await b.waitFor(inside("!pane.querySelector('[name=description]').readOnly"));
+  assert.equal(await b.evaluate(inside("pane.querySelector('[name=description]').value")), '111');
+  await b.command('Input.insertText', { text: '；点保存没反应' }, b.sessionId);
+  behavior.question = undefined;
+  await clickInside(b, '[data-issue-organize]');
+  await b.waitFor(inside("pane.querySelector('[data-issue-save]').textContent==='确认并保存'"), 15000);
+  const title = await b.evaluate(inside("pane.querySelector('[name=title]').value"));
+  await clickInside(b, '#issue-tab-1'); await clickInside(b, '#issue-tab-0');
+  await b.click('[data-side-close]'); await b.waitFor("document.querySelector('[data-side-panel]').hidden"); await b.click(entry);
+  assert.equal(await b.evaluate(inside("document.querySelector('[aria-selected=true]').textContent")), '记录Issue');
+  assert.equal(await b.evaluate(inside("pane.querySelector('[name=title]').value")), title);
+  assert.equal(await b.evaluate(inside("pane.querySelector('[name=description]').value")), '111；点保存没反应');
+  assert.equal(await b.evaluate("fetch('/api/plugins/io.molis.work.issues/list').then(r=>r.json()).then(r=>r.items.length)"), 0);
+  await clickInside(b, '[data-issue-revise]');
+});
+
 test("ISSUE-31 ISSUE-32 no-project Home opens capture beside the current page, retaining the draft when closed", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, "empty"); if (!b) return;
   await b.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, b.sessionId);

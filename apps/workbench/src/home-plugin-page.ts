@@ -18,9 +18,9 @@ export function renderHomePluginPage(entry: BuiltinPluginEntry, html: string | n
     .home-plugin-main>.plugin-stage-shell{position:relative;flex:1;min-width:0;height:100%;--tree-width:320px}
     .home-plugin-main>.plugin-stage-shell[data-expanded="false"]{display:block}
     [data-home-side] .home-plugin-main{margin:0;border-radius:0}
-    [data-home-side] .plugin-stage-shell[data-expanded="true"]{display:block}
+    body.immersive-workbench[data-home-side] .plugin-stage-shell[data-expanded="true"]{display:block}
     [data-home-side] .plugin-stage-shell[data-expanded="true"] .plugin-stage-list{display:none!important}
-    [data-home-side] .plugin-stage-workspace{position:absolute;inset:0;display:flex;flex-direction:column}
+    body.immersive-workbench[data-home-side] .plugin-stage-shell[data-expanded="true"] .plugin-stage-workspace{position:absolute;inset:0;display:flex;flex-direction:column}
     body.home-plugin-page dialog.home-model-settings{width:min(960px,calc(100vw - 32px));max-height:calc(100dvh - 32px)}
     .home-model-settings .mw-dialog__shell{max-height:calc(100dvh - 36px)}
     .home-model-settings .mw-form__header{display:flex;align-items:center;justify-content:space-between;gap:16px}

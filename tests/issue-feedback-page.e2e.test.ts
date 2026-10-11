@@ -71,9 +71,9 @@ test("ISSUE-27 Home type menus support click, cancellation and keyboard selectio
   assert.equal(db.prepare("SELECT count(*) AS n FROM issues").get()!.n, 0);
 });
 
-test("ISSUE-20 validation clears; a text-only Assistant reply preserves the draft and offers direct retry or manual recovery", { timeout: 120_000 }, async t => {
+test("ISSUE-20 ISSUE-34 validation clears; unstructured assistant text is not a clarification signal or a user-facing error", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
-  const behavior = { replyText: "请补充点击哪个按钮后出现空白。<b>没有保存</b>" };
+  const behavior = { replyText: "我重写一下回复，去掉内部标识。请补充点击哪个按钮后出现空白。<b>没有保存</b>" };
   await issueModel(t, b.homeDirectory, behavior);
   const { origin, command, sessionId, navigate, evaluate, click, waitFor } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -91,13 +91,15 @@ test("ISSUE-20 validation clears; a text-only Assistant reply preserves the draf
   await command("Network.enable", {}, sessionId);
   await command("Network.setBlockedURLs", { urls: [`${origin}/api/plugins/io.molis.work.issues/prepare`] }, sessionId);
   await click("[data-issue-organize]");
-  await waitFor("document.querySelector('[data-issue-assistant-note]').textContent.includes('连接中断')");
+  await waitFor("document.querySelector('[data-issue-assistant-note]').textContent.includes('检查模型设置或连接')");
   assert.equal(await evaluate("document.querySelector('[data-issue-assistant-note]').textContent.includes('结果未知')"), false);
   assert.equal(count(), 0);
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await click("[data-issue-revise]");
   await click("[data-issue-organize]");
-  await waitFor("document.querySelector('[data-issue-assistant-note]').textContent.includes('请补充点击哪个按钮')", 15000);
+  await waitFor("document.querySelector('[data-issue-assistant-note]').textContent.includes('未获得有效整理结果')", 15000);
+  assert.equal(await evaluate("document.querySelector('[data-issue-assistant-note]').textContent.includes('重写')"), false);
+  assert.equal(await evaluate("document.querySelector('[data-issue-assistant-note]').textContent.includes('请补充')"), false, 'Only awaiting_input, never reply keywords, selects clarification');
   assert.equal(await evaluate("document.querySelector('[data-issue-assistant-note] b')"), null, "Assistant text must not become HTML");
   assert.equal(await evaluate("document.querySelector('[name=description]').value"), "点击详情按钮后页面空白");
   assert.equal(count(), 0);

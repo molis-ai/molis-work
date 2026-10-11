@@ -3,7 +3,7 @@ export const ISSUE_ASSISTANT_CLIENT_SCRIPT = String.raw`
   let assistant = null, manual = false, pollTimer;
   const assistantApi = (path, body, signal) => request('/api/assistant'+path, body, signal);
   const assistantNote = (message, error=false) => { $('assistant-note').textContent=message; $('assistant-note').classList.toggle('is-error',error); };
-  const failed = (held,message) => { if(assistant!==held) return; held.failed=true; assistantNote(L('整理未完成，输入已保留。')+'\n'+message,true); mode(); };
+  const failed = (held,message=L('整理失败，输入已保留。请检查模型设置或连接后重试。')) => { if(assistant!==held) return; held.failed=true; assistantNote(message,true); mode(); };
   const mode = () => {
     const confirming = Boolean(assistant?.card), fieldsVisible = Boolean(selected || manual || confirming), readonly = viewing();
     $('view').hidden=!readonly; $('inputs').hidden=readonly; $('inputs').disabled=readonly; $('assistant-tools').hidden=readonly;
@@ -17,10 +17,11 @@ export const ISSUE_ASSISTANT_CLIENT_SCRIPT = String.raw`
     $('organize').hidden = readonly || Boolean(manual || assistant);
     $('organize').textContent=L(selected ? '让助理重新整理' : '交给助理整理');
     $('organize').classList.toggle('mw-btn--primary',!selected); $('organize').classList.toggle('mw-btn--secondary',Boolean(selected));
-    $('retry').hidden=!assistant?.failed; $('manual').hidden=readonly || manual || Boolean((selected || assistant) && !assistant?.failed);
+    $('retry').hidden=!assistant?.failed; $('manual').hidden=readonly || manual || Boolean((selected || assistant) && !assistant?.failed && !assistant?.question);
     $('manual').textContent=L(selected?'继续手动编辑':'手动填写标题和类型');
     $('revise').hidden=readonly || !assistant && !manual;
-    $('revise').textContent=L(assistant?.uncertain ? '核对保存结果' : assistant && !confirming && !assistant.failed ? '停止整理' : manual ? '返回助理整理' : '修改描述和图片');
+    $('revise').textContent=L(assistant?.question ? '补充描述' : assistant?.uncertain ? '核对保存结果' : assistant && !confirming && !assistant.failed ? '停止整理' : manual ? '返回助理整理' : '修改描述和图片');
+    $('revise').className='mw-btn mw-btn--'+(assistant?.question?'primary':'ghost');
     $('save').hidden = readonly || !fieldsVisible || Boolean(assistant && !confirming);
     $('save').textContent = L(confirming ? '确认并保存' : selected ? '保存修改' : '保存问题');
     description.readOnly=Boolean(assistant); $('organize').disabled = busy || imageBusy;
@@ -31,7 +32,7 @@ export const ISSUE_ASSISTANT_CLIENT_SCRIPT = String.raw`
     fitDescription();
   };
   const uncertain = held => { if(assistant===held) { held.card=null; held.uncertain=true; assistantNote(''); mode(); } };
-  const incomplete = L('未获得标题和类型，请重试。');
+  const incomplete = L('未获得有效整理结果，请重新整理或手动填写。');
   const release = async () => {
     const held=assistant; if(!held) return;
     const result=held.receipt ??= await request('cancel-capture',{draft_id:held.id});
@@ -43,22 +44,24 @@ export const ISSUE_ASSISTANT_CLIENT_SCRIPT = String.raw`
     return result.saved_id;
   };
   const poll = async () => {
-    const held=assistant; if(!held?.work || held.card || held.failed || held.uncertain || !scope.visible) return;
+    const held=assistant; if(!held?.work || held.card || held.failed || held.question || held.uncertain || !scope.visible) return;
     try {
       const view=await assistantApi('/works/'+held.work,undefined,viewSignal);
       if(assistant!==held) return;
       const card=view.cards.find(card=>card.capability_id==='issues.capture' && card.status==='ready' && card.fields.some(field=>field.key==='draft_id' && field.value===held.id));
       if(card) {
         const title=card.fields.find(field=>field.key==='title'), type=card.fields.find(field=>field.key==='type');
-        if(!title?.editable || !type?.editable || !title.value.trim() || !kind[type.raw || type.value]) throw new Error(incomplete);
+        if(!title?.editable || !type?.editable || !title.value.trim() || !kind[type.raw || type.value]) return failed(held,incomplete);
         held.card=card; form.elements.title.value=title.value; form.elements.type.value=type.raw || type.value;
         edited(); assistantNote(L('请核对标题和类型，确认后保存。')); mode(); form.elements.type.closest('label').scrollIntoView({block:'nearest'}); form.elements.title.focus({preventScroll:true}); return;
       }
-      const round=view.rounds.at(-1), question=round?.awaiting_input?.[0];
-      if(view.problem || question || !['running','idle'].includes(view.work.state)) throw new Error(view.problem?.message || question?.prompt || round?.turns.findLast(turn=>turn.kind==='assistant' && turn.text.trim())?.text || incomplete);
-      if(Date.now()-held.started>120000) throw new Error(L('整理超时，请重试或继续编辑。'));
+      const question=view.rounds.at(-1)?.awaiting_input?.find(item=>item.answerable!==false);
+      if(question) { held.question=question; assistantNote(L('还需要一点具体信息：')+(question.questions?.[0]?.prompt || question.prompt)); mode(); return; }
+      if(view.problem || view.work.state==='failed') return failed(held);
+      if(!['running','idle'].includes(view.work.state)) return failed(held,incomplete);
+      if(Date.now()-held.started>120000) return failed(held,L('整理超时，输入已保留。请重试或手动填写。'));
       pollTimer=scope.timeout(()=>run(poll),1000);
-    } catch(error) { if(!viewSignal?.aborted) failed(held,error.message); }
+    } catch { if(!viewSignal?.aborted) failed(held); }
   };
   const organize = async () => {
     if(viewing() || busy || imageBusy || assistant) return;
@@ -74,7 +77,7 @@ export const ISSUE_ASSISTANT_CLIENT_SCRIPT = String.raw`
         text:'请按 Issue 方法整理录入草稿 '+held.id+'，以本次描述生成标题与类型，图片仅辅助理解。给我可编辑的确认建议卡，先不要保存。\n本次问题描述：\n'+(description.value.length<=19000 ? description.value : '见附带的“问题描述”全文材料。'),materials,
         context:{source:{surface:'issues',title:'Issue'},captured_at:new Date().toISOString()}});
       held.work=result.work.work_id; await poll();
-    } catch(error) { failed(held,error.message); }
+    } catch { failed(held); }
     finally { busy=false; mode(); }
   };
   const readSaved = async id => {

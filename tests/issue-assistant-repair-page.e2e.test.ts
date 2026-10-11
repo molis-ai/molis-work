@@ -21,8 +21,13 @@ test("ISSUE-25 a malformed suggestion receives its contract and is corrected in 
   await click("[data-issue-organize]");
   await waitFor("!document.querySelector('[data-issue-save]').hidden && document.querySelector('[data-issue-save]').textContent==='确认并保存'", 15000);
   const turns = requests.filter(request => (request as { tools?: Array<{ name: string }> }).tools?.some(tool => tool.name === "suggest-action")) as Array<{
+    tools: Array<{ name: string; input_schema: { properties: { input: { type: string[] } } } }>;
     messages: Array<{ role: string; content: Array<{ type: string; content?: string }> }>;
   }>;
+  for (const name of ["suggest-action", "read-capability", "change-capability"]) {
+    assert.deepEqual(turns[0]!.tools.find(tool => tool.name === name)!.input_schema.properties.input.type,
+      ["object", "array", "string", "number", "boolean", "null"], "the wire contract explicitly describes JSON values instead of leaving input untyped");
+  }
   const corrected = turns[2]!;
   const error = corrected.messages.flatMap(message => Array.isArray(message.content) ? message.content : []).filter(block => block.type === "tool_result").at(-1);
   assert.ok(error, "The next model round must see the invalid suggestion's error");

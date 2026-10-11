@@ -201,7 +201,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   };
   const capability = { type: "object", properties: {
     capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
-    input: { description: "The capability's input as a JSON value (an object, not a string of JSON), shaped exactly by the input_schema find-capabilities returned; {} when that schema declares no properties." },
+    input: { type: ["object", "array", "string", "number", "boolean", "null"], description: "The capability's input as a JSON value (an object, not a string of JSON), shaped exactly by the input_schema find-capabilities returned; {} when that schema declares no properties." },
   }, required: ["capability_id", "version", "provider_id"] };
   const tool = (name: string, description: string, parameters: Record<string, unknown>, effectKind: "safe-read" | "mutate-external") => ({ executor: name,
     registration: { name, version: "1", description, parameters, effectKind, gate: "broker" as const, timeoutMs, idempotency: "none" as const } });
@@ -209,7 +209,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     title: { type: "string", description: "The button's words, verb first, at most 40 characters, e.g. \"加入计划（3 项）\"." },
     summary: { type: "string", description: "What clicking does in the person's words: which object, which key values, dates with their day and time zone." },
     capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
-    input: { description: "The full prepared JSON value matching input_schema from find-capabilities. For an object schema, put every required capability field INSIDE this object, including any field named title; the button title and summary do not supply business fields. Never send an empty string in place of an object." },
+    input: { type: ["object", "array", "string", "number", "boolean", "null"], description: "The full prepared JSON value matching input_schema from find-capabilities. For an object schema, put every required capability field INSIDE this object, including any field named title; the button title and summary do not supply business fields. Never send an empty string in place of an object." },
     editable: { type: "array", items: { type: "string" }, description: "Top-level input fields the person may adjust before running it." },
     missing: { type: "array", items: { type: "object", properties: { field: { type: "string" }, question: { type: "string" } }, required: ["field", "question"] }, description: "Required fields you could not fill, each with the question to ask." },
   }, required: ["title", "summary", "capability_id", "version", "provider_id", "input"] };

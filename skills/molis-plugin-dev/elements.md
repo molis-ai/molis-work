@@ -23,7 +23,7 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 - Runtime 检查目标 Manifest 保留全部旧 grant 和必需权限，不会自动授予新权限。相同身份的普通安装仍要求指纹一致；同版本不同 Manifest 只有明确兼容声明才可用于继续运行，存储的版本与指纹保持不变。
 - `validateUpgrade` 收到旧安装记录和受限上下文；只有目标 Manifest 声明且旧安装已授予的 `storage:private.get` 可用，不暴露其他服务。校验失败时旧安装记录、grant 和存储仍留在原位。
 
-内置插件（监督器条目 `bundled: true`）不用这些声明：它随宿主版本升级，安装记录跟着提升，保留新 Manifest 仍声明的 grant，并补上它必需的权限。
+内置插件（监督器条目 `bundled: true`）不用这些声明：它随宿主版本升级，安装记录跟着提升，并拿到新 Manifest 声明的全部权限（必需的和可选的都给，不再声明的去掉），所以内置插件的权限不能逐项关掉。
 
 完整流程和 Manifest 片段见[本地 Plugin 开发·版本升级](../../docs/platform/PLUGIN-DEVELOPMENT.md#插件版本升级)。
 

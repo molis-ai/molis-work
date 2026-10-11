@@ -47,6 +47,7 @@
 | BL-021 | macOS 公开发布：是否申请 Developer ID 与公证 | [macos-desktop-release](archive/macos-desktop-release/spec.md) | 外部账号与费用 | 低 |
 | BL-022 | 多人协作项目里项目记忆的可见性；团队共享记忆 | [memory-system §3、§15](archive/memory-system/spec.md) | 等协作能力定型 | 低 |
 | BL-023 | Coding 会话的执行目录（项目偏好）与 Files/Git 浏览目录（项目设置）是否合成一个 | [coding-plugin/spec.md 第 0 节「仍未做到」](coding-plugin/spec.md) | 设计取舍 | 中 |
+| BL-128 | 引用声明之间的语义一致性：W3-05 的注册检查只查存在、种类、范围和位置（`inspectActionCrossReferences`），下面四条没有收进去，今天都由使用端兜底，且没有内置声明触犯。①撤销的来源动作按能力 id 被推断为撤不回时，`undo` 的形状检查只看声明的 `effect`，不拦；②撤销命令的受众：助理免确认（`apps/local-host/src/assistant/assistant-authority.ts` 的 `directEligible`）要求撤销命令此刻在提供给 Agent 的目录里可用，只写 `user` 受众不够，注册时不查；③片段选项的目标会写入或不可撤回：内核把 `apply` 改写成 `record`、把不可撤回的标为不可用（`packages/kernel/src/contextual.ts` 的 `fragmentCandidates`），注册时不查 `apply` 与目标效果是否一致；④声明了 `result_subject` 的动作涉及的事项种类不是恰好一个：`actionResultSubject` 直接忽略。要不要把其中几条收紧成注册时的拒绝，会改变哪些声明能被接受 | [action-architecture §3 末尾 G2](action-architecture/spec.md)、W3-05 | 属于合同语义，路线行只写“存在、操作对” | 低 |
 
 ## 3. 助理、记忆与动态交互
 
@@ -127,6 +128,8 @@
 | BL-072 | 构建期装配的 Native 插件不在版本化升级与恢复内 | [plugin-upgrades](archive/plugin-upgrades/spec.md) | 已知缺口 | 随插件装配统一解决 | BL-080 | 中 | 第二步 |
 | BL-108 | Runtime 的 MCP 启动器找不到自己 Home 的服务时：①写进 Codex 等配置的环境只有 Home、受众、Runtime，没有 Web 地址，启动器一律去 127.0.0.1:4173，常驻服务不在 4173（如开发用的 4207）就连不上；②4173 上若是另一个 Home 的服务（例如开发时用临时 Home，而 4173 是真实 Home 的常驻服务），发现能力被拒（403），启动器在 tools/list 时抛错退出，Runtime 只看到 MCP 起不来 | [post-merge-review §6.1](archive/post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02) | 已知缺口 | ①要改 Runtime 配置合同（加地址，或让启动器从 Home 读服务地址），属合同变化；②被拒时回 JSON-RPC 错误、说明「4173 上不是这个 Home 的服务」，而不是退出进程 | 无 | 中 | 未分配 |
 | BL-110 | 管理项目导航卡死：桌面 Coding 页点「管理项目」后停在原项目。网页与 desktop=1 路径都没复现，原生 WebView 路径没有现场 | [project-management-freeze](archive/project-management-freeze/spec.md) | 已知缺口 | 现场没有复现，要用户再遇到时记下项目与操作 | 无 | 低 | 未分配 |
+| BL-129 | 首页事项动作不区分撤不回的目标：情境条把效果为撤不回的事项选项标为不可用（`packages/kernel/src/contextual.ts` 的 `subjectCandidates`），首页的事项动作（`apps/local-host/src/home-offer-actions.ts`）没有这个判断。今天没有这样的生产方（Feed、Inbox 的事项选项目标都可撤回），等真有了再定首页怎么处理 | W3-05 的使用端核对 | 已知缺口 | 没有生产方，先不做 | 无 | 低 | 未分配 |
+| BL-130 | 插件开发 Skill 补写注册时的引用规则：撤销、后台任务、片段与事项推荐的选项、结果对象（`result_subject` 与未声明时的明文推断规则）；规则已写在 `docs/platform/PLUGIN-DEVELOPMENT.md`，`skills/molis-plugin-dev/` 还没有，生成插件和第三方作者看不到。随 W6-03 做，用 W1-12 的回放工具验证；Skill 的改动在全量回归之外做 | [action-architecture §3 末尾 G7](action-architecture/spec.md) | 明确后续做 | W3-05 不改 `skills/` | W1-12、W6-03 | 中 | 未分配 |
 
 ## 8. 交给第二步（防腐整理）
 

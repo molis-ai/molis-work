@@ -44,7 +44,7 @@ test("removing a dependency during a real nested Host call blocks the caller's s
   const started = new Promise<void>(resolve => { entered = resolve; });
   const waiting = new Promise<void>(resolve => { release = resolve; });
   const remove = host.register(definition, async () => { entered(); await waiting; return 3; });
-  host.actionRegistry(project).registerProvider({ provider: { provider_id: context.install_id, title: "Fixture", kind: "plugin" }, definitions: [action],
+  host.actionRegistry(project).registerProvider({ provider: { provider_id: context.install_id, plugin_install_id: context.install_id, title: "Fixture", kind: "plugin" }, definitions: [action],
     handlers: [bindOwnerPluginAction(context, action, async (_input, beforeWrite) => {
       await capabilities.invoke(definition, {}); await beforeWrite(); return ++writes;
     }, [definition])] });
@@ -73,7 +73,7 @@ test("a plugin query does not discover every action on each read; a command stil
   const shape = { scope: "project" as const, audiences: ["user" as const], permissions: [], subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "number" } };
   const read: ActionDefinition<Record<string, never>, number> = { capability_id: "example.read", version: 1, operation: "query", action: { title: "Read", description: "Read a value", kind: "query", ...shape } };
   const save: ActionDefinition<Record<string, never>, number> = { capability_id: "example.save", version: 1, operation: "command", action: { title: "Save", description: "Write a value", kind: "operation", ...shape } };
-  host.actionRegistry(project).registerProvider({ provider: { provider_id: context.install_id, title: "Fixture", kind: "plugin" }, definitions: [read, save],
+  host.actionRegistry(project).registerProvider({ provider: { provider_id: context.install_id, plugin_install_id: context.install_id, title: "Fixture", kind: "plugin" }, definitions: [read, save],
     handlers: [bindOwnerPluginAction(context, read, () => 7), bindOwnerPluginAction(context, save, () => 8)] });
   try {
     for (let i = 0; i < 3; i++) assert.equal(await actions.invoke(read, {}), 7);

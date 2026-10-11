@@ -37,7 +37,7 @@ Every command needs `--db PATH` to name the project database. There is no defaul
 
 ```text
 apps/                        Six product-entry and composition-root boundaries
-packages/                    Ten foundation packages (plus the root server/); contracts exposes 59 public subpaths
+packages/                    Ten foundation packages (plus the root server/); contracts exposes 58 public subpaths
 modules/                     Thirteen business-fact owners
 horizontal/                  Eight packages: five horizontal runtime services and three platform product services (Memory, Placement, Search)
 plugins/                     25 native plugins and six official integration plugins

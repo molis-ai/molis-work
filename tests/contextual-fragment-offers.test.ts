@@ -9,7 +9,7 @@ import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { lingguangActions } from "@molis-ai/molis-work-plugin-lingguang";
 import { bindActionClient, type ActionCallContext, type ActionDefinition, type FragmentActionOffer, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
-import { fragmentCandidates } from "@molis-ai/molis-work-kernel";
+import { fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { planSteps } from "../plugins/native/goals/src/fragment-offers.js";
 
 /**

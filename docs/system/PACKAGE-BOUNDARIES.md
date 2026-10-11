@@ -30,7 +30,13 @@ plugins
 platform packages
   → contracts/platform/*
   → lower-level platform packages only
+
+the published surface (contracts, plugin-sdk) is the lowest layer
+  → contracts depends on no workspace package
+  → plugin-sdk depends on contracts only (`public-sdk-private-dependency`); every other layer may use its runtime tools
 ```
+
+内核（`packages/kernel`）有两半：核心（目录、分发、可用性、授权、场景兼容）只读 `contracts/platform/*`；放在内核里的平台产品服务「情境排序」（`contextual.ts`，纯函数，N-03：位置不变）另可读 `contracts/services/contextual`，也只许这一份，由 `pnpm health:check` 的 K2 守着（§6）。平台包读 `contracts/services/*` 在内核之外还有三处（`packages/storage` 的记忆账本与搜索索引适配、`packages/im-ui`），不属于内核这条例外，记在 BL-123。
 
 `server/`（身份、设备、接续回执与群聊领域）按 Module 规则检查，不算平台包：它有自己的业务事实（2026-10-08 决定第 4 项）。分类以 `scripts/workspace-packages.mjs` 的 `kind` 为准。
 
@@ -40,9 +46,11 @@ platform packages
 - Module 导入 Horizontal Service、App 或 Plugin（代码 import 与 `package.json` 依赖都查，`module-upward-dependency`）。
 - Plugin 导入另一个 Plugin implementation、Store 或未公开 UI 组件。
 - Plugin 导入 App、Horizontal Service 或 Module implementation（`plugin-upward-dependency`）。在册的唯一例外：`plugins/native/shelf → modules/shelf`（Shelf 仍用 Shelf Module 的配方与设置解析，是待还的债，不是先例）。Goals 插件曾声明却从未导入 `modules/goals`，该依赖已删。
+- Plugin SDK 导入或依赖 contracts 以外的任何工作区包（`public-sdk-private-dependency`，源码 import 与 `package.json` 依赖都查）。外部作者只装 contracts 与 SDK 两个包；SDK 依赖了私有包，打包后的示例就装不上（2026-09-30 出过一次）。所以作者和平台共用、会运行的工具放在 SDK 里，而不是私有的 kernel 或 plugin-runtime，平台各层从 SDK 取同一份。现在在 SDK 里的是执行生命周期（kernel、宿主、调度服务、Shelf 模块和沙箱从 SDK 取）和 Manifest 解析与版本比较（`parsePluginManifest` 等，Plugin Runtime 与命令行从 SDK 取）；动作、Agent、方法的声明检查（kernel 注册时用）和文本比较还在合同包，由 W3-03 的 B2、C 搬入，搬完之前这一段说的是方向，不是现状。
 - App 导入另一个 App，列出的启动器边之外都拒绝（`app-dependency-not-allowed`）：产品根的启动器 → desktop / local-host / mcp，desktop → local-host，local-host → cli / mcp / workbench，`apps/server` → desktop / local-host。
 - App Shell、CLI、MCP、Workbench 或 Desktop 直接写业务数据库。
 - Horizontal Service 或平台产品服务（记忆、放置、搜索、情境排序）拥有或决定 Goal、Signal、Action、Session 等插件或 Module 的业务事实。
+- 内核核心调用情境排序（核心文件导入它，或经入口转手导入它的名字）；情境排序做 I/O、持有模块级可变状态，或在代码里点名插件或能力 id（`pnpm health:check` 的 K1–K5，§6）。
 - Server Core 导入 Plugin payload schema 或完整 Local Module 状态机。
 - `packages/contracts` 依赖 App、Module implementation、Plugin implementation、数据库或网络客户端。
 - 通过 deep import 绕过 package public entrypoint。
@@ -105,7 +113,7 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 typecheck/build
 `ci.yml` 里另有一个不挡合并的 `linux-probe` 作业（依据 `specs/repository-anti-corruption` 决定 #14）：`continue-on-error: true`，不在 `Verify` 的 `needs` 里，分支保护不动。它在 ubuntu 上先 `pnpm build`，再用 `scripts/ci-linux-probe.mjs` 把 `tests/` 下的非浏览器测试文件逐个跑一遍，记下哪些在 Linux 上通过：
 
 - 每个文件经 `scripts/run-tests.mjs` 单独跑（环境和本地一样，每个文件一份新的 `MOLIS_WORK_HOME`），CI 里同时跑两个（`--jobs 2`）；失败的文件重跑一次（`--retries 1`），重跑通过的记为 `flaky`；每次尝试最多 10 分钟（`--timeout-seconds 600`），超时记 `timeout` 且不重跑；整体开始新文件的时间上限 85 分钟（`--budget-minutes 85`），剩下的记 `not-run`，作业本身硬上限 120 分钟（到点按取消处理，见下）。
-- 每个文件按自己的源码（连同它引用的 `tests/` 下的辅助文件：沿着相对路径的 import 一路跟下去，测试里写的 `./fixtures/x.js` 指的是 `x.ts`，也跟）打标记。这是读文本的静态规则，看不到 `tests/` 以外的文件、拼出来的路径、测试起的子进程里发生的事，所以标记是线索不是证明。规则在 `scripts/ci-linux-probe/select.mjs`：`browser` 是文件名带 `.e2e.test.`，或出现 Chrome 的路径、调试端口（不跑，记 `excluded`）；`darwin` 是平台判断、Seatbelt、Keychain、launchctl、Swift 助手、`/Applications/` 这类 macOS 专有的路径与工具（照跑并标出，失败时先当作平台差异读）；`live` 是文件名带 `live`，或用 `MOLIS_WORK_LIVE_*` 这类真实模型、真实网络的开关（探针不把这些开关传给测试，所以文件里的 live 测试会跳过）。整个文件只有 live 测试的（如 `tests/prologue-node-live.test.ts`）记 `skipped`，不算通过；文件里还有别的测试在跑的（如 `tests/plugin-sandbox-network.test.ts`、`tests/agent-built-plugins-dependencies.test.ts`），没失败就是 `pass`，跳过的个数记在 `report.json` 的 `skipped`，摘要里列在「Passed with some tests skipped」下，仍进 `pass.txt`（通过的只是在 Linux 上真正跑到的那一部分）。
+- 每个文件按自己的源码（连同它引用的 `tests/` 下的辅助文件：沿着相对路径的 import 一路跟下去，测试里写的 `./fixtures/x.js` 指的是 `x.ts`，也跟）打标记。这是读文本的静态规则，看不到 `tests/` 以外的文件、拼出来的路径、测试起的子进程里发生的事，所以标记是线索不是证明。规则在 `scripts/ci-linux-probe/select.mjs`：`browser` 是文件名带 `.e2e.test.`，或出现 Chrome 的路径、调试端口，或引用 test-kit 的浏览器子路径 `@molis-ai/molis-work-test-kit/browser`（不跑，记 `excluded`）；`darwin` 是平台判断、Seatbelt、Keychain、launchctl、Swift 助手、`/Applications/` 这类 macOS 专有的路径与工具（照跑并标出，失败时先当作平台差异读）；`live` 是文件名带 `live`，或用 `MOLIS_WORK_LIVE_*` 这类真实模型、真实网络的开关（探针不把这些开关传给测试，所以文件里的 live 测试会跳过）。整个文件只有 live 测试的（如 `tests/prologue-node-live.test.ts`）记 `skipped`，不算通过；文件里还有别的测试在跑的（如 `tests/plugin-sandbox-network.test.ts`、`tests/agent-built-plugins-dependencies.test.ts`），没失败就是 `pass`，跳过的个数记在 `report.json` 的 `skipped`，摘要里列在「Passed with some tests skipped」下，仍进 `pass.txt`（通过的只是在 Linux 上真正跑到的那一部分）。
 - 结果：`pass`（至少一个测试体跑过且没有失败，文件里跳过的测试只计数）、`flaky`、`skipped`（整个文件没有测试体运行）、`fail`、`timeout`、`not-run`（没有结果：时间上限用完、或这次运行被取消时还没出结果，包括当时正在跑的那个）、`excluded`。测试文件失败是数据，探针照常以 0 退出；退出 2 只表示探针自己跑不了（参数错、没选中文件、平台不是 `--expect-platform`）；被信号取消时退出 128 加信号号，部分报告已经写好。
 - 写出三个文件，作为名为 `linux-probe` 的产物保留 30 天（上传步骤是 `if: always()`），摘要在运行结束时附到作业摘要里一次：`report.json`（每个文件的标记、计数、耗时、尝试次数和失败信息节选，`endedBy` 记这次怎么结束）、`pass.txt`（通过的文件，一行一个，将成为 W2-16 的 `tests/ci-product-subset.txt` 的底稿）、`summary.md`（没有 darwin 或 live 标记却失败的文件列在最前，那些先看）。
 - 被取消也有结果。`ci.yml` 的 `concurrency` 是 `cancel-in-progress: true`（同一个 PR 或 `main` 上有更新的推送，正在跑的 CI 就被取消），作业到 `timeout-minutes` 也被停掉，约 100 分钟的运行常遇到这种事。所以三个文件在每个文件跑完后都重写一次（先写临时文件再改名，被杀在写的当口留下的是上一份完整的）；收到 SIGINT、SIGTERM、SIGHUP（取消和超时发的就是这些）时，探针先停掉正在跑的测试进程，写一份部分报告并附到作业摘要，再以 128 加信号号退出（130、143、129）；没出结果的文件记 `not-run`，`endedBy` 写信号名，摘要最上面写明「Incomplete」。被 `kill -9` 这类拦不住的方式杀掉时，留下最后一次逐文件报告（`endedBy: "running"`），没有作业摘要。部分报告只覆盖已跑到的文件（顺序固定，按文件名）；要完整的一份，等一次没被取消的运行，或手动触发（`workflow_dispatch`，选 `main` 以外的分支：并发组按分支，`main` 上的合并取消不到它）。
@@ -128,7 +136,7 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 typecheck/build
 
 门禁由两层组成：
 
-- `packages/test-kit` 提供纯规则：输入“谁在 import 谁”，返回具体违规；不读取数据库，也不复制业务判断。例外名单 `APP_IMPORT_ALLOWLIST`、`PLUGIN_MODULE_IMPORT_ALLOWLIST`（`packages/test-kit/src/boundaries.ts`）按包路径记边，只许减少，`packages/test-kit/tests/boundaries.test.mjs` 把它们逐项钉死；`unusedLayerExceptions` 找出名单里没有被用到的边。
+- `packages/test-kit` 的根入口提供纯规则：输入“谁在 import 谁”，返回具体违规；不读取数据库，也不复制业务判断。子路径 `/browser` 是与业务无关的无头 Chrome 驱动（找 Chrome、启动与关闭、DevTools 命令、页内等待与点击），只用 Node 内置的 `WebSocket` 与 `node:child_process` 等内置模块；产品选择器与产品诊断留在 `tests/fixtures/`（`goal-browser.ts`、`plugin-builder-browser.ts`），在它之上加。例外名单 `APP_IMPORT_ALLOWLIST`、`PLUGIN_MODULE_IMPORT_ALLOWLIST`（`packages/test-kit/src/boundaries.ts`）按包路径记边，只许减少，`packages/test-kit/tests/boundaries.test.mjs` 把它们逐项钉死；`unusedLayerExceptions` 找出名单里没有被用到的边。
 - `scripts/check-package-boundaries.mjs` 读取 workspace manifest 与源码 import，把实际仓库信息交给纯规则，并检查依赖环和 Contract/README 清单。它记下每个 import 和 manifest 依赖实际有的边，名单里列了而仓库里没有任何 import 或依赖用到的边会报 `layer-exception-unused`：一条已经不存在的边不会留在名单里等着悄悄回来。
 
 结构数字另由 `pnpm health:check` 对照 merge-base 只许减少（模块在 `scripts/gates/`，测试 `tests/health-gates-structure.test.ts`，规则与取数口径见各模块文件头）：
@@ -151,6 +159,18 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 typecheck/build
 - `contractsPurity`：看不到经别名写入的字面量（`const alias = cache; alias.x = 1`）、交给别的函数去写（`fill(cache)`）、被别的文件导入后写入；函数里只要声明了与模块级字面量同名的局部，整个函数跳过这项检查；类的静态字段和闭包里的状态（`const counter = makeCounter()`）；经对象取的全局（`window.setTimeout`、`self.fetch`）；名字不像状态码的变量里的字面状态码（`const code = 404`）。
 - `moduleRepositoryExports`：别名声明和把命名空间包进对象，见上表该行。
 - `pluginOutsideMentions` 数的是包名字符串出现在多少个文件里；用相对路径指到另一个插件源码的 import 不在其内（那条路径由 `pnpm boundary:check` 的 import 规则管）。
+
+内核的两半（`scripts/gates/kernel-contextual.mjs`，W3-04，测试 `tests/health-gates-kernel-contextual.test.ts`）不是数字，而是没有基线的规则，出现一处就失败，和 `tableOwnerProblems`、`domEventProblems` 同类：
+
+| 规则 | 查什么 | 为什么 |
+| --- | --- | --- |
+| K1 | 核心文件（`packages/kernel/src` 里不是 `contextual.ts` 或 `contextual/` 的文件）不导入、不转出、不动态加载情境排序，也不从别的核心文件取它转出的名字；包入口也不转出它：情境排序走自己的子入口 `@molis-ai/molis-work-kernel/contextual`（`export *` 一律不许） | 核心保留目录、分发、可用性，不调用产品策略；加载核心的导入闭包里没有情境排序 |
+| K2 | 内核里只有情境排序读 `contracts/services/*`，且只读 `services/contextual` | 把本文 §1 的规则落到内核，例外写在一处 |
+| K3 | 情境排序的包导入只能是 `contracts/platform/actions`、`contracts/services/contextual`、`node:crypto`；相对导入可指向内核里的任何文件，但不能出 `packages/kernel/src`，也不能指向 `index.ts` | 不读 storage、agent-host、其他 Node 内置模块：I/O 留在宿主 |
+| K4 | 情境排序按 `contracts-purity.mjs` 的口径数：副作用与模块级可变状态都是 0 | 同样输入同样陈列；缓存、计时、取消、模型调用留在宿主 |
+| K5 | 情境排序和 `subject-offer-choices.ts` 里没有形如能力 id 的小写带点字符串、以 `io.molis.work.` 开头的字符串和插件包名；只豁免内核自己的错误码（`new ActionError(…)` 的第一个参数、`code:` 的值） | 基本合同 C1「注册一次」的**部分**守卫：候选只从目录来 |
+
+按目录认文件：把 `contextual.ts` 拆成 `contextual/*.ts` 不用改规则；新增的核心文件情境排序可以直接导入。看不到的：拼出来的能力 id（`"pages" + ".discard"`）、不带点的前缀比较、从合同包导入的能力 id 常量、动态拼出的模块名（核心里的不报，情境排序里的会报）、不经 import 的依赖。新的合同子路径要加进 `CONTEXTUAL_PACKAGES`，那是一次有意的评审。
 
 typed 条目的新增、Repository 导出的新增、宿主入口的变宽、合同包里新副作用的出现、层间例外的新增，都不是加数字能放过的事：改动门禁本身要过评审。
 

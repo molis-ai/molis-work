@@ -1,7 +1,7 @@
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { AgentPromptRegistration, AgentRoleRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { COGNIA_EVIDENCE_PROMPT, INFORMATION_PLANNER, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./system-prompts.js";
-import { BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-builder";
+import { COGNIA_EVIDENCE_PROMPT, CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, INFORMATION_PLANNER, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./system-prompts.js";
+import { BUILDER_CHOICE_INSTRUCTIONS, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-builder";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
 /**
@@ -11,6 +11,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
  */
 export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [
   ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.instructions ?? []), ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER, MEMORY_EXTRACT, MEMORY_TIDY,
+  CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, ...BUILDER_CHOICE_INSTRUCTIONS,
 ];
 
 /**
@@ -44,4 +45,4 @@ export const UNREGISTERED_MODEL_CALLS: ReadonlyArray<{ owner_id: string; title: 
 export const UNUSED_MANIFEST_AGENTS: ReadonlySet<string> = new Set([BUILDER_PLUGIN_ID]);
 
 /** The Host's own modules that call a model directly, by the owner id their instructions use. */
-export const SYSTEM_INSTRUCTION_SOURCES: Readonly<Record<string, string>> = { "system:onboarding": "项目上手", "system:information": "信息助手", "system:memory": "记忆" };
+export const SYSTEM_INSTRUCTION_SOURCES: Readonly<Record<string, string>> = { "system:onboarding": "项目上手", "system:information": "信息助手", "system:memory": "记忆", "system:contextual": "选区推荐" };

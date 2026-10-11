@@ -3,8 +3,8 @@ import type {
   ContextualCandidate, ContextualJudgeRequest, ContextualJudgeResponse, ContextualJudgment, SurfaceFocus,
 } from "@molis-ai/molis-work-contracts/services/contextual";
 import {
-  contextualDigest, contextualCandidates, judgmentQuestions, judgmentState, planContextualLayout, readContextualJudgment,
-} from "@molis-ai/molis-work-kernel";
+  contextualDigest, contextualCandidates, judgmentQuestions, judgmentState, planContextualLayout, readContextualJudgment, type JudgmentWording,
+} from "@molis-ai/molis-work-kernel/contextual";
 
 /**
  * Host side of context-driven interaction (specs/archive/contextual-interaction §4, §5, §8). Candidates come from the caller's
@@ -30,6 +30,11 @@ export interface ContextualJudgmentPorts<Caller> {
   recall?(focus: SurfaceFocus, caller: Caller, signal: AbortSignal): Promise<{ state: "ok" | "off"; items: readonly { kind: string; text: string }[] }>;
   /** Redact secrets and mark instruction-shaped text before anything leaves the machine. */
   screen?(text: string): { text: string; notes: readonly string[] };
+  /**
+   * The wording of the two questions as the person left it in 设置 › 提示词. `revision()` is a cheap read that changes when they save or restore
+   * it; the service checks it on every judgment and reads `text()` only when it really asks Jev. Absent means the kernel's default wording.
+   */
+  readonly wording?: { revision(): string; text(): JudgmentWording };
   now?(): number;
   /** Upper bound for one judgment; the bar never waits on it (spec §8). */
   readonly timeoutMs?: number;
@@ -52,7 +57,7 @@ const CACHE_LIMIT = 64;
 
 export function createContextualJudgmentService<Caller>(ports: ContextualJudgmentPorts<Caller>): ContextualJudgmentService<Caller> {
   const pending = new Map<string, AbortController>();
-  const cache = new Map<string, { judgment: ContextualJudgment; candidates: readonly ContextualCandidate[]; digest: string; screened: readonly string[] }>();
+  const cache = new Map<string, { judgment: ContextualJudgment; candidates: readonly ContextualCandidate[]; digest: string; screened: readonly string[]; wording: string }>();
   const now = ports.now ?? Date.now;
 
   const respond = (request: ContextualJudgeRequest, candidates: readonly ContextualCandidate[], judgment: ContextualJudgment | null,
@@ -80,8 +85,10 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
       try {
         const candidates = contextualCandidates(await ports.directory(caller), request.focus);
         if (!candidates.some(item => item.available)) return respond(request, candidates, null, { digest: null, screened: [], fallback: "no_candidates" });
+        // A judgment asked under other words is not this one's answer: the person may have edited the questions since.
+        const wording = ports.wording?.revision() ?? "";
         const cached = cache.get(cacheKey(request));
-        if (cached && JSON.stringify(cached.candidates.map(item => [item.key, item.available])) === JSON.stringify(candidates.map(item => [item.key, item.available]))) {
+        if (cached && cached.wording === wording && JSON.stringify(cached.candidates.map(item => [item.key, item.available])) === JSON.stringify(candidates.map(item => [item.key, item.available]))) {
           return respond(request, candidates, cached.judgment, { digest: cached.digest, screened: cached.screened });
         }
         if (!ports.evaluate || ports.configured?.() === false) return respond(request, candidates, null, { digest: null, screened: [], fallback: "unconfigured" });
@@ -107,7 +114,7 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
         const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(ports.timeoutMs ?? 30_000)]);
         let evaluation: ContextualEvaluation;
         try {
-          evaluation = await ports.evaluate({ state: cleaned.text, questions: judgmentQuestions(candidates, request.focus), signal });
+          evaluation = await ports.evaluate({ state: cleaned.text, questions: judgmentQuestions(candidates, request.focus, ports.wording?.text()), signal });
         } catch {
           const fallback: Fallback = controller.signal.aborted ? "aborted" : signal.aborted ? "timeout" : "failed";
           return respond(request, candidates, null, { digest, screened, fallback });
@@ -115,7 +122,7 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
         if (controller.signal.aborted) return respond(request, candidates, null, { digest, screened, fallback: "aborted" });
         const judgment = readContextualJudgment(evaluation.body, candidates, evaluation.basis, now() - started, evaluation.model);
         if (!Object.keys(judgment.next).length) return respond(request, candidates, null, { digest, screened, fallback: "failed" });
-        cache.set(cacheKey(request), { judgment, candidates, digest, screened });
+        cache.set(cacheKey(request), { judgment, candidates, digest, screened, wording });
         while (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value!);
         return respond(request, candidates, judgment, { digest, screened });
       } finally {

@@ -377,7 +377,7 @@ Agent 根据任务上下文选用可用工具；对已纳入动作体系的操�
 | G1 | 插件 SDK 缺 `defineFragmentOffersAction`、`defineDueRemindersAction`、`withActionEffect`，以及成果库的 `defineArtifactPreviewAction`、`defineArtifactPinAction`、`defineArtifactCompareAction`、`defineArtifactContinueAction`、`defineArtifactReferrersAction` | 已补（W2-03）：这些和它们的绑定、判断辅助函数都从插件 SDK 导出，`tests/plugin-sdk-exports.test.ts` 保证以后合同里新增的 `define…`/`bind…`/`with…` 辅助函数要么导出、要么写明不给插件用的理由。上面逐类核对的评级是补之前的结果，下次复核时重评 |
 | G2 | 注册时不做交叉校验：撤销目标、后台任务状态查询、片段和事项选项的目标动作 | W3-05 |
 | G3 | 对象上下文接受两种历史输出形状 | 建议作为兼容清单的新项：确认没有生产方后删除，同步改用例 |
-| G4 | 情境排序与布局放在内核，内核 README 没写；按 N-03 代码不搬 | 改内核 README 与边界规则；W3-04 原本是搬出内核，按 N-03 要重估。**已做（W3-04 第一个 PR）**：README、规则 K1–K5、账目；情境排序的子入口与安全不变量 S-13 在第二个 PR |
+| G4 | 情境排序与布局放在内核，内核 README 没写；按 N-03 代码不搬 | 改内核 README 与边界规则；W3-04 原本是搬出内核，按 N-03 要重估。**已做（W3-04 第一个 PR）**：README、规则 K1–K5、账目；情境排序的子入口与安全不变量 S-13 的缺口在第二个 PR 也做了 |
 | G5 | 手册举例「日程的提前提醒」，读起来像有第二个生产方，代码里只有 Todo 一个 | 已改（W2-03）：手册只说今天 Todo 在用 |
 | G6 | `result_subject` 未声明时按输出形状推断 | 建议随 W3-05 评估：要么全部显式声明，要么记为已知推断 |
 | G7 | 插件开发 Skill 没写撤销、后台任务、到期提醒、片段推荐、页面操作卡 | 与 W1-12 的回放工具一起补；Skill 的改动在全量回归之外做 |

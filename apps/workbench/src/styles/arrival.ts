@@ -31,11 +31,11 @@ export const ARRIVAL_STYLES = String.raw`
   /* A sheet or pane that scrolls takes the keyboard's focus when it has nothing to focus inside; its ring sits inside, where the stage's edge cannot cut it. */
   body.arrival-page :is(.stage-sheet, .stage-side)[tabindex="0"]:focus-visible { outline-offset: -2px; }
 
-  /* ───────── Titlebar ───────── */
+  /* Titlebar */
   .arrival-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); }
   .arrival-brand > svg { width: 20px; height: 20px; stroke-width: 1.6; }
   .arrival-spacer { flex: 1; min-width: 0; }
-  /* The caption belongs to the chooser; any other screen rests it and gives its place back. */
+  /* Only the chooser shows the caption. */
   .arrival:not([data-screen="chooser"]) .arrival-titlebar .mw-caption { opacity: 0; visibility: hidden; pointer-events: none; }
   .arrival[data-screen="chooser"] .arrival-titlebar .mw-caption { transition-delay: 0s; }
   .arrival-tools { display: flex; align-items: center; gap: 2px; }
@@ -312,5 +312,6 @@ export const ARRIVAL_STYLES = String.raw`
   @media (prefers-reduced-motion: reduce) {
     .arrival *, .arrival *::before, .arrival *::after { animation-duration: .01ms; animation-iteration-count: 1; transition-duration: .01ms; }
   }
+  @media(max-width:360px){.arrival-brand .mw-wordmark{display:none}}
   ${BACKGROUND_TASKS_MENU_STYLES}
 `;

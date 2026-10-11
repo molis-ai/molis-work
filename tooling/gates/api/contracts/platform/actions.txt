@@ -289,6 +289,11 @@ export type ActionAvailability = {
 
 export interface ActionCallContext extends ActionCallOrigin {
     readonly actor_id: string;
+    readonly page_context?: {
+        readonly url: string | null;
+        readonly title: string | null;
+        readonly provenance: "host_snapshot" | "client_reported";
+    };
     readonly audit_actor_id?: string;
     readonly runtime_session_id?: string;
     readonly runtime_session_missing?: true;
@@ -415,6 +420,7 @@ export interface ActionProvider {
     readonly kind: "system" | "plugin" | "mcp";
     readonly project_id?: string;
     readonly plugin_id?: string;
+    readonly plugin_install_id?: string;
 }
 
 export interface ActionProviderRegistration {
@@ -673,7 +679,7 @@ export interface ArtifactReferrersResult {
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";

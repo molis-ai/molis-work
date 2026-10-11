@@ -51,7 +51,8 @@ export const lingguangActions = {
     object({ ...fields, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ spark }), write), { capability_id: "lingguang.discard", version: 1, input: { ids: ["spark.id"] } }),
   update: define<{ id: string; title?: string; body?: string; expected_updated_at?: string }, { spark: LingguangSpark }>("update", "修改灵光", "修改当前项目灵光；提供读取时的 updated_at 可防止覆盖其他编辑", "command",
     object({ id, ...fields, expected_updated_at: text }, ["id"]), object({ spark }), write),
-  discard: define<{ ids: string[] }, { ok: true }>("discard", "丢弃灵光", "全部对象校验通过后将所选灵光移出列表，保留原数据", "command", object({ ids }), object({ ok: { const: true } }), write),
+  discard: define<{ ids: string[]; expected_updated_at?: Record<string, string> }, { ok: true }>("discard", "丢弃灵光", "全部对象校验通过后将所选灵光移出列表，保留原数据；按灵光 id 提供读取时的 updated_at 可防止丢掉别处刚写了字的那条，其中任何一条已变化则整批不丢",
+    "command", object({ ids, expected_updated_at: { type: "object", additionalProperties: text } }, ["ids"]), object({ ok: { const: true } }), write),
   openConversation: define<{ spark_ids: string[] }, LingguangConversationState>("conversation.open", "打开灵光对话", "为所选灵光打开或恢复原有对话与历史，不调用模型", "command", object({ spark_ids: ids }), conversationState, [...read, ...write]),
   getConversation: define<{ id: string }, LingguangConversationState>("conversation.get", "读取灵光对话", "读取当前项目的一场对话、关联灵光和历史消息", "query", object({ id }), conversationState, read),
   message: define<{ id: string; body: string }, LingguangConversationState>("conversation.message", "继续灵光对话", "结合所选灵光和历史生成回复；需要文字模型，失败保留原会话且不生成占位回复", "command",
@@ -113,7 +114,7 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
     bind(lingguangActions.readSource, async (input, caller) => keptMaterial(await ports.readSource!(input, caller)), () => reading(ports.readSource)),
     bind(lingguangActions.create, (input, caller) => ports.withStore(store => ({ spark: store.create({ ...input, project_id: project(caller) }) }))),
     bind(lingguangActions.update, (input, caller) => ports.withStore(store => ({ spark: store.update(input.id, input, project(caller)) }))),
-    bind(lingguangActions.discard, (input, caller) => ports.withStore(store => { store.discard(input.ids, project(caller)); return { ok: true }; })),
+    bind(lingguangActions.discard, (input, caller) => ports.withStore(store => { store.discard(input.ids, project(caller), input.expected_updated_at); return { ok: true }; })),
     bind(lingguangActions.openConversation, (input, caller) => ports.withStore(store => store.openConversation(input.spark_ids, project(caller)))),
     bind(lingguangActions.getConversation, (input, caller) => ports.withStore(store => store.conversation(input.id, project(caller)))),
     bind(lingguangActions.message, async (input, caller) => {

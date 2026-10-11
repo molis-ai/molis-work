@@ -1,16 +1,21 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
-import type { BuilderAgentRecord, BuilderAgentRequest } from '../packages/contracts/src/services/agent-host.js';
-import type { BuildCheckResult } from '../packages/contracts/src/platform/plugin-builder.js';
+import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-work-contracts/services/agent-host';
+import type { BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import { assertContract } from '../packages/plugin-sandbox/dist/index.js';
-import { AgentBuilderWorkflow, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts } from '../plugins/native/plugin-builder/src/index.js';
+import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts } from '../plugins/native/plugin-builder/src/index.js';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/src/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/src/agent-definitions/builtin-registrations.js';
-import { builderPrompts } from '../apps/local-host/src/plugin-builder/agent-surface.js';
+import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/src/plugin-builder/agent-surface.js';
+import { releaseInstalledPlugins } from '../apps/local-host/src/installed-plugin-host.js';
+import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { builderSkill } from '../apps/local-host/src/plugin-builder/skill.js';
 import { acceptExperience } from '../plugins/native/plugin-builder/src/agent-experience.js';
 
@@ -63,11 +68,11 @@ function finding(change = '调整密度', screenshot = 'sample') {
   return { scope: 'presentation', screenshot, pageId: 'home', partId: 'notes', evidence: '正文排列过密', impact: '难以连续阅读', property: 'appearance.density', change };
 }
 
-interface Harness { ports: AgentBuilderPorts; requests: BuilderAgentRequest[]; implemented: Set<string>; choices: number }
+interface Harness { ports: AgentBuilderPorts; requests: BuilderAgentRequest[]; implemented: Set<string>; choices: number; /** The instructions of each question Jev was asked. */ asked: string[] }
 /** Designer answers are played back in order; the code agent "implements" the operation it is given. */
 function harness(designerAnswers: string[], options: { jev?: string | Error } = {}): Harness {
   const requests: BuilderAgentRequest[] = [], implemented = new Set<string>();
-  const state: Harness = { ports: undefined as unknown as AgentBuilderPorts, requests, implemented, choices: 0 };
+  const state: Harness = { ports: undefined as unknown as AgentBuilderPorts, requests, implemented, choices: 0, asked: [] };
   const record = (request: BuilderAgentRequest, output: string): BuilderAgentRecord => ({ id: crypto.randomUUID(), role: request.role, promptVersion: request.promptVersion,
     contractRevision: request.contractRevision, instruction: request.instruction, input: request.task, output, configuredModel: 'configured', reportedModels: ['reported'],
     phase: 'completed', startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), activity: [], usage: [] });
@@ -92,6 +97,7 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
     call: async () => [], resetPreview: async () => {},
     choose: async question => {
       state.choices++;
+      state.asked.push(question.instructions);
       if (options.jev instanceof Error) throw options.jev;
       // The scripted pick where it is a candidate; otherwise the last legal one.
       const pick = options.jev && question.candidates.some(candidate => candidate.key === options.jev) ? options.jev : question.candidates.at(-1)!.key;
@@ -104,6 +110,10 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
   };
   return state;
 }
+
+/** What the workflow said to Jev before the two sentences were registered, word for word. */
+const CAPABILITY_WORDS = '只从合法候选中选最适合这项功能的一个能力；同样合适时选已经启用的、主线设计原本选的。';
+const COMPONENT_WORDS = '结合整页布局与相邻部件，从合法候选中选择组件。优先保留界面设计的偏好，不破坏主次与交互，不改变属性或合同。';
 
 async function until(workflow: AgentBuilderWorkflow, id: string, done: (build: AgentBuild) => boolean, timeoutMs = 5_000): Promise<AgentBuild> {
   const started = Date.now();
@@ -146,6 +156,7 @@ test('designer answer wrapped in reasoning and broken JSON goes back once with t
     assert.equal(collection?.selection?.source, 'jev', 'several legal collection components: Jev chose');
     assert.equal(build.steps.find(step => step.target === 'title' && step.action === 'place')?.selection?.source, 'rule', 'a single legal component is a rule choice');
     assert.equal(h.choices, 2, 'Jev is only asked when there is a real choice: the form and the list, not the frame');
+    assert.deepEqual(h.asked, [COMPONENT_WORDS, COMPONENT_WORDS], 'both questions use the registered default, which reads as the workflow always said it');
     assert.deepEqual([...build.connected].sort(), ['notes.add', 'notes.list']);
     assert.equal(build.checks.global?.passed, true);
     assert.equal(build.browserResult?.passed, true);
@@ -502,6 +513,8 @@ test('capabilities are settled before the full design: Jev picks among the provi
     assert.deepEqual(pick?.selection?.candidates, ['goals.note', 'goals.progress.record'], 'only same-provider, same-kind, close alternatives; archiving is not one');
     assert.equal(pick?.selection?.source, 'jev'); assert.equal(pick?.selection?.choice, 'goals.progress.record');
     assert.match(pick?.detail ?? '', /原本选的是 goals\.note/);
+    assert.equal(h.asked[0], CAPABILITY_WORDS, 'the capability question comes first and uses the registered default, which reads as the workflow always said it');
+    assert.ok(h.asked.length > 1 && h.asked.slice(1).every(words => words === COMPONENT_WORDS), 'the parts that follow are asked the component question');
     const detailTask = h.requests.filter(request => request.role === 'designer').map(request => JSON.parse(request.task)).find(task => task.mode === 'detail');
     assert.deepEqual(detailTask.proposal.operations[1].effects, { capabilities: ['goals.progress.record'] }, 'the full design is told the settled capability');
     assert.ok(detailTask.capabilities.some((entry: { id: string }) => entry.id === 'goals.progress.record'), 'and sees it in full');
@@ -1031,4 +1044,107 @@ test('a missing enum choice in acceptance goes to design, preserving the impleme
     assert.match(JSON.parse(revision.task).request, /枚举不一致/);
     assert.deepEqual(state.design!.acceptance[0]!.steps[2], { action: 'fill', componentId: 'notes', field: 'status', value: 'pending' });
   } finally { await workflow.close(); }
+});
+
+test('the two questions the studio asks Jev are the registered defaults word for word, and what the host gives for them is what is asked', async () => {
+  assert.equal(BUILDER_CHOOSE_CAPABILITY.body, CAPABILITY_WORDS);
+  assert.equal(BUILDER_CHOOSE_COMPONENT.body, COMPONENT_WORDS);
+  assert.deepEqual([BUILDER_CHOOSE_CAPABILITY.owner_id, BUILDER_CHOOSE_CAPABILITY.prompt_id, BUILDER_CHOOSE_COMPONENT.owner_id, BUILDER_CHOOSE_COMPONENT.prompt_id],
+    ['io.molis.work.plugin-builder', 'choose.capability', 'io.molis.work.plugin-builder', 'choose.component']);
+  const edited = (prompt: { prompt_id: string }) => '用户改过：' + prompt.prompt_id;
+  // The capability question, settled before the full design.
+  const capability = harness([proposalsUsing('goals.note'), detailUsing('快记', 'goals.progress.record')], { jev: 'goals.progress.record' });
+  capability.ports.catalog = async () => GOALS_CATALOG;
+  capability.ports.instruction = edited;
+  const first = new AgentBuilderWorkflow(memoryStorage(), capability.ports);
+  try {
+    const created = first.create('做一个周报，给目标写本周进展');
+    const build = await until(first, created.id, value => value.phase === 'choosing' || value.phase === 'failed');
+    await first.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    const ready = await until(first, created.id, value => value.phase === 'ready' || value.phase === 'failed');
+    assert.equal(ready.phase, 'ready', ready.error ?? '');
+    assert.ok(capability.asked.includes('用户改过：choose.capability'), capability.asked.join(' | '));
+    assert.ok(!capability.asked.includes(CAPABILITY_WORDS), 'the shipped sentence is not asked once the host gives the person\'s');
+  } finally { await first.close(); }
+  // The component question, for each part with more than one legal component.
+  const component = harness(['<think>先想想用户要什么</think>{"candidates":[{"id":"quick",', '<think>修正</think>\n' + PROPOSALS, detail('笔记板')]);
+  component.ports.instruction = edited;
+  const second = new AgentBuilderWorkflow(memoryStorage(), component.ports);
+  try {
+    const created = second.create('做一个随手记笔记的插件');
+    let build = await until(second, created.id, value => value.phase === 'choosing' || value.phase === 'failed');
+    build = await second.action(created.id, { action: 'choose', revision: build.revision, candidateId: 'board' }) as AgentBuild;
+    build = await until(second, created.id, value => value.phase === 'ready' || value.phase === 'failed');
+    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.deepEqual(component.asked, ['用户改过：choose.component', '用户改过：choose.component']);
+  } finally { await second.close(); }
+});
+
+test('the host reads the studio\'s two questions from the register: the default until the person edits one, their text after, and each read is a recorded use', () => {
+  const home = mkdtempSync(join(tmpdir(), 'builder-choice-'));
+  try {
+    const definitions = agentDefinitionsFor(home, builtinRegistrations);
+    const instruction = builderInstructions(home);
+    const keys = ['io.molis.work.plugin-builder/choose.capability', 'io.molis.work.plugin-builder/choose.component'];
+    for (const key of keys) { const view = definitions.prompt(key); assert.equal(view.kind, 'instruction'); assert.equal(view.source.title, '插件创作工作台'); }
+    assert.equal(instruction(BUILDER_CHOOSE_CAPABILITY), CAPABILITY_WORDS);
+    assert.equal(definitions.uses(keys[0]!)[0]?.caller, 'plugin-builder', 'the question that was read is a recorded use');
+    definitions.save(keys[1]!, '只看布局。', null, 'web-user');
+    assert.equal(instruction(BUILDER_CHOOSE_COMPONENT), '只看布局。');
+    assert.equal(definitions.uses(keys[1]!)[0]?.user_revision, 1, 'and the use says it ran the person\'s version');
+    assert.equal(instruction(BUILDER_CHOOSE_CAPABILITY), CAPABILITY_WORDS, 'the other question is still the default');
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+/**
+ * The workflow tests give the workflow its ports by hand and the register test calls `builderInstructions` directly, so
+ * neither sees whether the studio the host builds hands that reader to the workflow. This runs the real surface
+ * (`handleAgentStudioHttp`): only the models are stand-ins, and the person's edit is made in the register first.
+ */
+test('through the studio surface: the studio asks Jev the question the person saved in 设置 › 提示词, not the shipped one', { timeout: 120_000 }, async () => {
+  const home = mkdtempSync(join(tmpdir(), 'builder-surface-')), databasePath = join(home, 'project.db');
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath), fixture = agentStudioFixture(0), asked: string[] = [];
+  const edited = '只看这一页的版面和相邻的零件，不管数据。';
+  const saved = agentDefinitionsFor(home, builtinRegistrations).save('io.molis.work.plugin-builder/choose.component', edited, null, 'web-user');
+  assert.deepEqual([saved.effective, saved.body], ['user', edited], 'the person\'s edit is in the register');
+  // The code Agent is held idle until the build is stopped (it may start after that, so an already aborted signal ends it at once):
+  // nothing is written or checked, and this ends as soon as the first question has been put.
+  const idleCoder = { close: async () => undefined, records: async () => [], run: (request: BuilderAgentRequest) => new Promise<BuilderAgentRecord>((_, reject) => {
+    const stopped = () => reject(request.signal?.reason ?? new Error('stopped'));
+    if (!request.signal || request.signal.aborted) stopped(); else request.signal.addEventListener('abort', stopped, { once: true });
+  }) };
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, models: fixture.models, generate: fixture.generate,
+    agents: async (build: AgentBuild, purpose: 'design' | 'code') => purpose === 'code' ? idleCoder : fixture.agents(build),
+    choice: { selectionAvailable: () => true, async choose(question: { instructions: string; candidates: readonly { key: string }[] }) { asked.push(question.instructions); return fixture.choice.choose(question); } } };
+  const server = createServer((request, response) => {
+    void handleAgentStudioHttp(request, response, new URL(request.url ?? '/', 'http://localhost'), options, 'control-token').then(handled => { if (!handled) { response.writeHead(404); response.end(); } });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + (server.address() as AddressInfo).port + '/api/plugin-builder/studio';
+  const send = async <T>(method: string, path: string, body?: unknown) => {
+    const response = await fetch(origin + path, { method, headers: { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    assert.ok(response.ok, method + ' ' + path + ' → ' + response.status + ' ' + await response.clone().text());
+    return await response.json() as T;
+  };
+  const read = async (id: string) => (await send<{ build: AgentBuild }>('GET', '/builds/' + id)).build;
+  const until = async (id: string, done: (build: AgentBuild) => boolean) => {
+    for (let waited = 0; waited < 60_000; waited += 25) { const build = await read(id); if (done(build) || build.phase === 'failed') return build; await new Promise(resolve => setTimeout(resolve, 25)); }
+    throw new Error('the studio did not reach the state in time');
+  };
+  try {
+    const created = (await send<{ build: AgentBuild }>('POST', '/builds', { brief: '做一个随手记笔记的插件' })).build;
+    let build = await until(created.id, value => value.phase === 'choosing');
+    assert.equal(build.phase, 'choosing', build.error ?? '');
+    await send('POST', '/builds/' + created.id + '/action', { action: 'choose', revision: build.revision, candidateId: 'board' });
+    await until(created.id, () => asked.length > 0);
+    assert.ok(asked.length > 0, 'the studio put a question to Jev');
+    assert.equal(asked[0], edited, 'it asked the person\'s text, which only the studio\'s ports can bring from the register');
+    assert.ok(!asked.includes(COMPONENT_WORDS), 'and not the shipped sentence');
+  } finally {
+    await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID);
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    store.close(); rmSync(home, { recursive: true, force: true });
+  }
 });

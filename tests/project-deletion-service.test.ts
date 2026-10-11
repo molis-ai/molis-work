@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve as resolvePath } from "node:path";
-import test, { type TestContext } from "node:test";
+import test, { after, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { WebSocket } from "ws";
@@ -25,11 +25,16 @@ type Catalog = Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
 const TOKEN = "project-deletion-service-test-0123456789";
 const deletion = (id: string, key = `delete-${id}`) => ({ project_id: id, actor_id: "test-user", delete_confirmed: true, idempotency_key: key });
 
+// File teardown runs after the per-test sockets, MCP clients and resident Hosts have closed.
+const scratchDirectories: string[] = [];
+after(async () => { for (const directory of scratchDirectories) await rm(directory, { recursive: true, force: true }); });
+
 async function scratchHome(t: TestContext): Promise<{ directory: string; home: string; catalog: Catalog }> {
   const directory = await mkdtemp(join(tmpdir(), "molis-project-deletion-service-"));
   const home = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  t.after(async () => { catalog.close(); await rm(directory, { recursive: true, force: true }); });
+  scratchDirectories.push(directory);
+  t.after(() => catalog.close());
   return { directory, home, catalog };
 }
 function recordingPorts(alive: (panelId: string) => boolean = () => false): ProjectDeletionPorts & { released: string[]; asked: string[] } {

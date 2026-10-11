@@ -19,7 +19,7 @@ export {
   isRuntimeContextMcpTool,
 } from "./tool-catalog.js";
 export type { McpProtocolPorts, McpToolCallContext, McpToolDefinition, McpToolResult } from "./protocol.js";
-export { createActionMcpPorts, actionMcpToolName, actionMcpToolDefinition } from "./action-tools.js";
+export { createActionMcpPorts, actionMcpToolName, actionMcpToolDefinition, molisWorkActionToolName, MOLIS_WORK_ACTION_TOOL_PREFIX } from "./action-tools.js";
 export { serveMcpStdio } from "./stdio.js";
 
 export const packageDescriptor = {

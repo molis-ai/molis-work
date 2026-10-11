@@ -82,6 +82,7 @@ function normalizeReference(reference: LocalHostProjectReference): LocalHostProj
  */
 function snapshotCaller(caller: ActionCallContext): ActionCallContext {
   return { ...caller, permissions: [...caller.permissions],
+    ...(caller.page_context ? { page_context: { ...caller.page_context } } : {}),
     ...(caller.user_action ? { user_action: { ...caller.user_action } } : {}),
     ...(caller.allowed_capability_ids ? { allowed_capability_ids: [...caller.allowed_capability_ids] } : {}),
     ...(caller.allowed_actions ? { allowed_actions: caller.allowed_actions.map(ref => ({ ...ref })) } : {}),

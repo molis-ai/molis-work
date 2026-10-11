@@ -19,14 +19,15 @@ const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const CHECKLIST = "docs/releases/CHECKLIST.md";
 const CHANGELOG = "docs/releases/CHANGELOG.md";
 
-// Everything besides the root package.json that must carry exactly the product version. The two strings in code are the
-// User-Agent/app version Feed sends and the client version the Codex session browser announces.
+// Everything besides the root package.json that must carry exactly the product version. The only place in code that spells
+// it out is PRODUCT_VERSION in the Host: Feed's User-Agent and the app version it and the search runtime hand to the Search
+// Evidence Layer, the MCP client version, and the client version the Codex session transport announces all take it from there.
+// A new place in code that announces the product version imports that constant; it is not another entry here.
 const CARRIERS = [
   { file: "apps/desktop/src-tauri/tauri.conf.json", label: "apps/desktop/src-tauri/tauri.conf.json", pick: text => JSON.parse(text).version },
   { file: "apps/desktop/src-tauri/Cargo.toml", label: "apps/desktop/src-tauri/Cargo.toml", pick: text => text.match(/^\[package\][^[]*?^version = "([^"]+)"$/ms)?.[1] },
   { file: "apps/desktop/src-tauri/Cargo.lock", label: "apps/desktop/src-tauri/Cargo.lock#molis-work-desktop", pick: text => text.match(/\[\[package\]\]\nname = "molis-work-desktop"\nversion = "([^"]+)"/)?.[1] },
-  { file: "apps/local-host/src/feed-source-runtime.ts", label: "apps/local-host/src/feed-source-runtime.ts#APP_VERSION", pick: text => text.match(/^const APP_VERSION = "([^"]+)";$/m)?.[1] },
-  { file: "horizontal/runtime-host/src/adapters/codex-app-server.ts", label: "horizontal/runtime-host/src/adapters/codex-app-server.ts#clientInfo.version", pick: text => text.match(/clientInfo: \{ name: "molis-work-session-browser", title: "Molis Work", version: "([^"]+)" \}/)?.[1] },
+  { file: "apps/local-host/src/product-version.ts", label: "apps/local-host/src/product-version.ts#PRODUCT_VERSION", pick: text => text.match(/^export const PRODUCT_VERSION = "([^"]+)";$/m)?.[1] },
 ];
 
 // ---- command line ---------------------------------------------------------------------------------------------------
@@ -188,13 +189,12 @@ function objectVersion(object) {
   return null;
 }
 
-// A baseline is `const NAME: SqliteBaseline = {…}`, `const NAME = {…} satisfies SqliteBaseline` or `… as SqliteBaseline`. The names
-// declared in one source text: each is a database the table has to list.
+// PluginDatabaseDeclaration carries the same version/schema baseline through the Host-owned connection service.
+// Both types, including satisfies/as spellings, name databases the table has to list.
 function baselineNames(text) {
   const names = new Set();
-  if (!text.includes("SqliteBaseline")) return [];
-  for (const match of text.matchAll(/\bconst\s+(\w+)\s*:\s*SqliteBaseline\s*=/g)) names.add(match[1]);
-  for (const match of text.matchAll(/\b(?:satisfies|as)\s+SqliteBaseline\b/g)) {
+  for (const match of text.matchAll(/\bconst\s+(\w+)\s*:\s*(?:SqliteBaseline|PluginDatabaseDeclaration)\s*=/g)) names.add(match[1]);
+  for (const match of text.matchAll(/\b(?:satisfies|as)\s+(?:SqliteBaseline|PluginDatabaseDeclaration)\b/g)) {
     const owner = [...text.slice(0, match.index).matchAll(/\bconst\s+(\w+)\s*=/g)].pop()?.[1];
     if (owner !== undefined) names.add(owner);
   }
@@ -204,7 +204,7 @@ function baselineNames(text) {
 // The version of the baseline constant `name` in `text`, whichever of the three spellings declares it: the `version:` number
 // of its object literal. null when the constant is not an object literal with a literal version.
 function baselineVersion(text, name) {
-  const declaration = new RegExp(`\\bconst\\s+${escapeRegExp(name)}\\s*(?::\\s*SqliteBaseline\\s*)?=\\s*\\{`).exec(text);
+  const declaration = new RegExp(`\\bconst\\s+${escapeRegExp(name)}\\s*(?::\\s*(?:SqliteBaseline|PluginDatabaseDeclaration)\\s*)?=\\s*\\{`).exec(text);
   if (declaration === null) return null;
   const open = declaration.index + declaration[0].length - 1;
   const close = closingBracket(text, open);
@@ -214,7 +214,7 @@ function baselineVersion(text, name) {
 // What the code says about one table row: its version, "无" when the file carries no version marker at all, or null when
 // the declared definition cannot be found.
 function codeVersion(source, name) {
-  if (name === undefined) return /SqliteBaseline|user_version|schema_version/.test(source) ? null : "无";
+  if (name === undefined) return /SqliteBaseline|PluginDatabaseDeclaration|user_version|schema_version/.test(source) ? null : "无";
   if (name === "PRAGMA user_version") return source.match(/PRAGMA user_version = (\d+)/)?.[1] ?? null;
   return baselineVersion(source, name) ?? source.match(new RegExp(`\\bconst\\s+${escapeRegExp(name)}\\s*=\\s*"?(\\d+)"?\\s*;`))?.[1] ?? null;
 }
@@ -269,7 +269,13 @@ function checkBaselineCalls(directories, declaredNames) {
       if (file === "packages/storage/src/sqlite-baseline.ts") continue;
       const text = readFileSync(path.join(root, file), "utf8");
       for (const match of text.matchAll(/(?<!function\s)\b(applySqliteBaseline|openBaselineHomeSqlite)\s*\(/g)) {
-        const baseline = callArguments(text, match.index + match[0].length - 1)[2];
+        const args = callArguments(text, match.index + match[0].length - 1);
+        const baseline = args[2];
+        // This one typed Host bridge forwards the trusted declaration. Its declarations are counted above;
+        // no other file, inline argument, or different call in this file is exempt from named-baseline checks.
+        if (file === "apps/local-host/src/plugin-database.ts" && match[1] === "openBaselineHomeSqlite"
+          && args.join(",") === "home,declaration.store_name,declaration"
+          && /function openPluginDatabase\(home: string, declaration: PluginDatabaseDeclaration,/.test(text)) continue;
         const unnamed = `declare the baseline as a named constant so the 各库版本表 can list it`;
         if (baseline === undefined) problem(`${file}: ${match[1]} is called without a baseline`);
         else if (!/^\w+$/.test(baseline)) problem(`${file}: ${match[1]} is called with an inline baseline; ${unnamed}`);

@@ -19,7 +19,7 @@ export function renderIssuesWorkbench(): string {
     </div>
     <div class="plugin-stage-workspace" data-issue-workspace hidden>
       <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-issue-back aria-label="返回问题列表">${icon("chevron-right")}</button>
-        <span data-issue-heading>记录问题</span><button class="mw-btn mw-btn--ghost" type="button" data-issue-reread hidden>重新读取</button>
+        <span data-issue-heading>记录问题</span><button class="mw-btn mw-btn--ghost" type="button" data-issue-reread hidden>刷新详情</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-issue-edit hidden>编辑</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-issue-delete hidden>删除</button></header>
       <form class="issues-editor mw-form" data-issue-form>

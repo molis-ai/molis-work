@@ -36,6 +36,7 @@ const KINDS: Record<string, string> = {
   ".tab-item-close": "tab close",
   ".tab-add-button": "open plugin",
   ".tab-split-button": "layout",
+  "[data-home-plugin-open]": "home tool",
   ".tab-view-chip": "location chip",
   ".tab-view-chip-close": "cover close",
   ".assistant-target-main": "work chip",

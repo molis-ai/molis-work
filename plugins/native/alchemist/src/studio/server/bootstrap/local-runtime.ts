@@ -56,11 +56,11 @@ export interface LocalRuntimeOptions {
   jobLeaseMs?: number;
   pulseSourceMode?: "live" | "fixture";
   /**
-   * The Host's side of the market pulse's GitHub source: its transport (which adds the bound Settings GitHub account's
-   * credential outside this package) and the choice of that account. Without it the source searches anonymously and the
-   * account cannot be chosen. No credential is ever read from the environment.
+   * The Host's transport for the market pulse's GitHub source: it adds the bound Settings GitHub account's credential outside
+   * this package. Without it the source searches anonymously. No credential is ever read from the environment. Which account
+   * is bound is the Home's choice, read and written through `createAlchemistActionHandlers`, not through a project's studio.
    */
-  pulseGithub?: AlchemistPulseGithubPort;
+  pulseGithub?: Pick<AlchemistPulseGithubPort, "fetch">;
   localSecurity?: LocalSecurityOptions;
   /** Production Host supplies its trusted Kernel client; standalone Studio uses the same plugin operations. */
   actions?: AlchemistActionInvoker;
@@ -267,7 +267,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     calibrationMemory,
     runtimeSettings,
     workspaceExport,
-    workReuse, ...(options.pulseGithub ? { pulseGithub: options.pulseGithub } : {}),
+    workReuse,
     ...(options.localSecurity ? { localSecurity: options.localSecurity } : {}),
   };
   const actions = createAlchemistOperationExecutor(dependencies);

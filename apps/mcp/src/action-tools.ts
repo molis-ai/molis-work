@@ -11,6 +11,14 @@ export function actionMcpToolName(reference: ActionReference): string {
   return `${raw.replace(/[^a-zA-Z0-9_.-]/gu, "_").slice(0, 110)}_${suffix}`;
 }
 
+/** Every action tool carries this prefix; the platform's own tools (`molis_work_v1_context_*`, `molis_work_v1_project_delete`) do not. */
+export const MOLIS_WORK_ACTION_TOOL_PREFIX = "molis_work_v1_action_";
+
+/** The tool name an MCP client sees for an action: `molis_work_v1_action_<capability_id>__v<version>` (docs/mcp.md). */
+export function molisWorkActionToolName(reference: ActionReference): string {
+  return actionMcpToolName({ ...reference, capability_id: `${MOLIS_WORK_ACTION_TOOL_PREFIX}${reference.capability_id}` });
+}
+
 function objectSchema(schema: ActionSchema | undefined): boolean { return schema?.type === "object"; }
 
 /** Nested resource identity preserves local $refs when a scalar/array needs an MCP object envelope. */

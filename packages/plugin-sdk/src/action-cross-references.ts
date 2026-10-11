@@ -113,8 +113,8 @@ function subjectTargetProblems(source: Declared, group: Group): string[] {
   return optionsOf(source, group, "subject_offer_choices").flatMap(({ offerId, ref, target, subjectKinds }) => {
     const prefix = `能力 ${source.key} 的事项选项 ${offerId} 的目标动作 ${ref}`;
     if (!target || target.action.scope !== source.action.scope) return [`${prefix} 不在同一提供方的声明里，或范围不同`];
-    const wanted = subjectKinds ?? source.action.subject_kinds;
-    return handlesKinds(target, wanted) ? [] : [`${prefix} 不支持声明的事项类型`];
+    const offered = offeredKinds(subjectKinds, source.action.subject_kinds);
+    return offered === undefined || handlesKinds(target, offered) ? [] : [`${prefix} 不支持声明的事项类型`];
   });
 }
 
@@ -127,11 +127,17 @@ function optionsOf(source: Declared, group: Group, field: string): Option[] {
   });
 }
 
+/** The kinds an option is offered for: its query's, or its own when they are some of the query's. Nothing when they are not a list the shape check accepts. */
+function offeredKinds(own: unknown, queryKinds: unknown): readonly string[] | undefined {
+  if (!Array.isArray(queryKinds) || !queryKinds.every(isText)) return undefined;
+  if (own === undefined) return queryKinds;
+  return Array.isArray(own) && own.length > 0 && own.every(kind => queryKinds.includes(kind)) ? own : undefined;
+}
+
 /** A target that names no subject kinds handles any; otherwise it handles each kind the option is offered for. */
-function handlesKinds(target: Declared, wanted: unknown): boolean {
+function handlesKinds(target: Declared, offered: readonly string[]): boolean {
   const handled = target.action.subject_kinds;
-  if (!Array.isArray(handled) || !Array.isArray(wanted)) return true;
-  return handled.length === 0 || wanted.every(kind => handled.includes(kind));
+  return !Array.isArray(handled) || handled.length === 0 || offered.every(kind => handled.includes(kind));
 }
 
 // ---- the result object ------------------------------------------------------------------------------------------------------

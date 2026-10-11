@@ -415,9 +415,11 @@ test("background work a round or a card starts is followed through the plugin's 
   let state = "running";
   const start: ActionDefinition = { capability_id: "fixture.jobs.start", version: 1, operation: "command", action: { title: "Start research", description: "Start a research run in the background", kind: "operation", scope: "project",
     audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { topic: { type: "string", title: "主题" } }, required: ["topic"], additionalProperties: false },
+    output_schema: { type: "object", properties: { run: { type: "object", properties: { jobId: { type: "string" } } } } },
     background_job: { status: { capability_id: "fixture.jobs.status", version: 1 }, id: "run.jobId", input: "id", state: "status", done: ["completed"], failed: ["failed"] } } };
   const status: ActionDefinition = { capability_id: "fixture.jobs.status", version: 1, operation: "query", action: { title: "Job status", description: "Read a research run's status", kind: "query", scope: "project",
-    audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false } } };
+    audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false },
+    output_schema: { type: "object", properties: { status: { type: "string" } } } } };
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "市场" } } }),
     () => reply(undefined, "已开始研究，后台进行中。"),
@@ -466,9 +468,11 @@ test("running a card whose action starts a background job follows that job once,
   let state = "running";
   const start: ActionDefinition = { capability_id: "fixture.jobs.start", version: 1, operation: "command", action: { title: "Start research", description: "Start a research run in the background", kind: "operation", scope: "project",
     audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { topic: { type: "string", title: "主题" } }, required: ["topic"], additionalProperties: false },
+    output_schema: { type: "object", properties: { run: { type: "object", properties: { jobId: { type: "string" } } } } },
     background_job: { status: { capability_id: "fixture.jobs.status", version: 1 }, id: "run.jobId", input: "id", state: "status", done: ["completed"], failed: ["failed"] } } };
   const status: ActionDefinition = { capability_id: "fixture.jobs.status", version: 1, operation: "query", action: { title: "Job status", description: "Read a research run's status", kind: "query", scope: "project",
-    audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false } } };
+    audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false },
+    output_schema: { type: "object", properties: { status: { type: "string" } } } } };
   const f = await fixture(t, [
     () => reply({ name: "suggest-action", input: { title: "研究一次", summary: "开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }),
     () => reply(undefined, "给了一个按钮。"),

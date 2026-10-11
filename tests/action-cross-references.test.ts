@@ -3,14 +3,19 @@
 // is held to what it points at: the target is in the same registration, is the kind of action the pointer needs, is in the same
 // scope, and the places named inside an input or an output are in the schema. Each rule has a group that passes and a group that
 // breaks only that rule; what an author is told is written out in full, so a rule that is dropped or reworded fails here.
-// The last test sweeps every bundled Manifest.
+// The tests after the rule table show where the pass runs: a registration with the Kernel, and a Manifest when it is parsed, which is
+// also how a plugin is installed and defined. The last test sweeps every bundled Manifest.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import {
-  FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, defineSubjectOffersAction, type FragmentOfferChoice, type SubjectOfferChoice,
+  ActionError, FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, defineSubjectOffersAction,
+  type ActionDefinition, type FragmentOfferChoice, type SubjectOfferChoice,
 } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inspectActionCrossReferences } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { inspectActionCrossReferences, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import { PluginRuntime, PluginRuntimeError } from "@molis-ai/molis-work-plugin-runtime";
+import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 type Part = Record<string, unknown>;
 
@@ -45,6 +50,8 @@ test("an undo names another command of the same registration, fills its inputs f
   assert.deepEqual(problems(add(), remove()), []);
   const many = defined("notes.remove-many", "command", { input_schema: { type: "object", properties: { ids: { type: "array", items: ID } }, required: ["ids"] } });
   assert.deepEqual(problems(add({ undo: undo({ capability_id: "notes.remove-many", input: { ids: ["note.id"] } }) }), many), [], "a one-item list wraps the value");
+  assert.deepEqual(problems(add({ undo: undo({ capability_id: "notes.remove-many", input: { ids: ["note.key"] } }) }), many),
+    ["能力 notes.add@1 的撤销输入位置 note.key 不在本次输出的合同里"], "the path inside the list is the one looked up");
   assert.deepEqual(problems(add({ undo: undo({ input: { note_id: "note.id", reason: "note.version" } }) }), remove({ input_schema: { ...REMOVE_INPUT, properties: { note_id: ID, reason: ID } } })), [],
     "an input the undo command takes but does not need may be filled");
 });
@@ -66,6 +73,18 @@ test("an undo fills exactly the inputs its command takes: no field it does not t
     ["能力 notes.add@1 的撤销输入缺少 notes.remove@1 的必填输入 version"]);
   assert.deepEqual(problems(add({ undo: undo({ input: { note_id: "note.id" } }) }), remove({ input_schema: { type: "object" } })),
     ["能力 notes.add@1 的撤销输入字段 note_id 不是 notes.remove@1 的输入"], "an input that is not described is not an input");
+});
+
+test("the inputs an undo command takes and requires are read through its schema's branches: a branch's own requirement is no one's", () => {
+  const branches = (required: boolean) => remove({ input_schema: { anyOf: [{ properties: { note_id: ID }, ...(required ? { required: ["note_id"] } : {}) }, { properties: { other: ID }, required: ["other"] }] } });
+  assert.deepEqual(problems(add(), branches(true)), [], "a field of one branch is an input, and what only a branch requires is not required of every value");
+  assert.deepEqual(problems(add({ undo: undo({ input: { other: "note.id" } }) }), branches(false)), []);
+  const together = remove({ input_schema: { type: "object", allOf: [{ properties: { note_id: ID, reason: ID }, required: ["note_id", "reason"] }] } });
+  assert.deepEqual(problems(add(), together), ["能力 notes.add@1 的撤销输入缺少 notes.remove@1 的必填输入 reason"], "what every branch of an allOf requires is required");
+  const referenced = remove({ input_schema: { $ref: "#/definitions/input", definitions: { input: REMOVE_INPUT } } });
+  assert.deepEqual(problems(add(), referenced), []);
+  assert.deepEqual(problems(add({ undo: undo({ input: { extra: "note.id" } }) }), referenced),
+    ["能力 notes.add@1 的撤销输入字段 extra 不是 notes.remove@1 的输入", "能力 notes.add@1 的撤销输入缺少 notes.remove@1 的必填输入 note_id"], "a reference is followed for both properties and requirements");
 });
 
 test("an undo reads its inputs from places the change's output declares", () => {
@@ -132,6 +151,14 @@ test("a subject option offered for fewer kinds than its query is held to those k
     ["能力 notes.offers@1 的事项选项 open 的目标动作 notes.open@1 不支持声明的事项类型"]);
 });
 
+test("a subject option offered for kinds its query does not have is the shape check's to report, not reported again here", () => {
+  const open = defined("notes.open", "command", { subject_kinds: ["page"] });
+  assert.deepEqual(problems(subjects({ ...subjectChoice, subject_kinds: ["undeclared-kind"] }), open), []);
+  assert.deepEqual(problems(subjects({ ...subjectChoice, subject_kinds: [] }), open), []);
+  assert.deepEqual(problems(subjects({ ...subjectChoice, subject_kinds: "note" as never }), open), []);
+  assert.deepEqual(problems(defined("notes.offers", "query", { subject_kinds: "note", subject_offer_choices: [subjectChoice] }), open), []);
+});
+
 // ---- the result object --------------------------------------------------------------------------------------------------------
 
 const subject = (resultSubject: unknown, over: Part = {}) => defined("notes.save", "command", { output_schema: NOTE_OUTPUT, result_subject: resultSubject, ...over });
@@ -158,9 +185,15 @@ test("a path is found through properties, branches and references inside the sch
   assert.deepEqual(found({ type: "object", properties: { note: { anyOf: [{ $ref: "#/$defs/note" }] } }, $defs: { note } }), []);
   assert.deepEqual(found({ $ref: "#/definitions/root", definitions: { root: { type: "object", properties: { note } } } }), []);
   assert.deepEqual(found({ type: "object", properties: { note: { $ref: "#/properties/other" }, other: note } }), [], "a pointer into the schema's own properties");
+  assert.deepEqual(found({ type: "object", properties: { id: ID, note: { $ref: "#" } } }), [], "a schema that contains itself");
+  assert.deepEqual(found({ type: "object", properties: { note: { $ref: "#/definitions/wrapper/properties/note" } }, definitions: { wrapper: { properties: { note } } } }), [], "a pointer of several steps");
+  assert.deepEqual(found({ type: "object", properties: { note: { $ref: "#/definitions/a~1b" } }, definitions: { "a/b": note } }), [], "~1 is a slash in a pointer");
+  assert.deepEqual(found({ type: "object", properties: { note: { $ref: "#/definitions/a~0b" } }, definitions: { "a~b": note } }), [], "~0 is a tilde");
+  assert.deepEqual(found({ type: "object", properties: { note: { $ref: "#/definitions/a%20b" } }, definitions: { "a b": note } }), [], "a pointer in a URI is percent-decoded");
   const missing = ["能力 notes.save@1 的结果对象位置 note.id 不在输出合同里"];
   assert.deepEqual(found({ type: "object", properties: { note: { $ref: "other.json#/note" } } }), missing, "another document is not followed");
   assert.deepEqual(found({ type: "object", properties: { note: { $ref: "#/definitions/absent" } } }), missing);
+  assert.deepEqual(found({ type: "object", properties: { note: { $ref: "#/definitions/%zz" } } }), missing, "a pointer that cannot be decoded names nothing");
   assert.deepEqual(found({ type: "object", patternProperties: { "^n": note } }), missing);
   assert.deepEqual(found({ type: "object", additionalProperties: note }), missing);
   assert.deepEqual(found({ type: "object", properties: { note: { type: "string" } } }), missing, "a leaf has no fields");
@@ -203,6 +236,54 @@ test("problems come in the order of the definitions, then undo, job, fragment op
     "能力 notes.add@1 的撤销命令 notes.remove@1 不在同一提供方的声明里",
   ]);
   assert.deepEqual(problems(add(), remove(), add({ undo: undo({ capability_id: "notes.gone" }) })), [], "a repeat is the shape check's to report");
+});
+
+// ---- where the pass runs ------------------------------------------------------------------------------------------------------
+
+const provider = { provider_id: "notes", title: "Notes", kind: "plugin" as const };
+/** Registers the definitions with a Kernel the way a provider does, handlers that do nothing; returns what the Kernel says. */
+function registered(...definitions: Part[]): ActionError | undefined {
+  const typed = definitions as ActionDefinition[];
+  try { new ActionService().registerProvider({ provider, definitions: typed, handlers: typed.map(definition => ({ ...definition, handle: () => ({}) })) }); return undefined; }
+  catch (error) { if (error instanceof ActionError) return error; throw error; }
+}
+
+test("the Kernel refuses a registration whose references do not hold, with the problems found", () => {
+  assert.equal(registered(add(), remove()), undefined);
+  assert.equal(registered(start(), status()), undefined);
+  const refused = (...definitions: Part[]) => { const error = registered(...definitions); assert.equal(error?.code, "actions.definition_invalid"); return error!.message; };
+  assert.equal(refused(add()), "能力 notes.add@1 的撤销命令 notes.remove@1 不在同一提供方的声明里");
+  assert.equal(refused(add(), remove({ scope: "home" })), "能力 notes.add@1 的撤销命令 notes.remove@1 不是同一范围的命令");
+  assert.equal(refused(add({ output_schema: undefined }), remove()), "能力 notes.add@1 的撤销输入位置 note.id 不在本次输出的合同里");
+  assert.equal(refused(start()), "能力 jobs.start@1 的后台任务状态查询 jobs.status@1 不在同一提供方的声明里，或不是同一范围的查询");
+  assert.equal(refused(fragments(fragmentChoice)), "能力 notes.fragments@1 的片段选项 make 的目标动作 notes.make@1 不在同一提供方的声明里，或范围不同");
+  assert.equal(refused(subjects(subjectChoice)), "能力 notes.offers@1 的事项选项 open 的目标动作 notes.open@1 不在同一提供方的声明里，或范围不同");
+  assert.equal(refused(subject({ id: "note.key" })), "能力 notes.save@1 的结果对象位置 note.key 不在输出合同里");
+});
+
+test("the Kernel reports a shape problem and a reference problem together, shape first, and a shape problem alone when the definition is incomplete", () => {
+  const untitled = defined("notes.untitled", "command", { title: "" });
+  assert.equal(registered(untitled)?.message, "能力 notes.untitled@1 的输入输出、权限或展示定义不完整");
+  assert.equal(registered(untitled, add())?.message, "能力 notes.untitled@1 的输入输出、权限或展示定义不完整；能力 notes.add@1 的撤销命令 notes.remove@1 不在同一提供方的声明里");
+  assert.equal(registered(add({ undo: undo({ input: { note_id: "not a path" } }) }), remove())?.message, "能力 notes.add@1 的撤销声明必须是可撤回的命令，并写明同一提供方的撤销命令与其输入在本次输出里的位置");
+});
+
+test("a Manifest whose references do not hold is not a Manifest: parsing it names the problems, and a group that holds parses", () => {
+  assert.equal(manifestProblems(declarationManifest({ actions: [add(), remove()] })), "");
+  assert.equal(manifestProblems(declarationManifest({ actions: [add()] })), "能力 notes.add@1 的撤销命令 notes.remove@1 不在同一提供方的声明里");
+  assert.equal(manifestProblems(declarationManifest({ actions: [start(), status({ output_schema: undefined })] })),
+    "能力 jobs.start@1 的状态位置 status 不在 jobs.status@1 的输出合同里");
+  assert.equal(manifestProblems(declarationManifest({ actions: [defined("notes.untitled", "command", { title: "" }), add()] })),
+    "能力 notes.untitled@1 的输入输出、权限或展示定义不完整；能力 notes.add@1 的撤销命令 notes.remove@1 不在同一提供方的声明里");
+  assert.throws(() => parsePluginManifest(declarationManifest({ actions: [add()] })), (error: unknown) => error instanceof PluginManifestError && error.code === "plugin_declaration_invalid");
+});
+
+test("the Plugin Runtime does not install a plugin whose Manifest has a reference that does not hold", () => {
+  const definition = (...actions: Part[]) => ({ manifest: declarationManifest({ actions }) as never, start: async () => ({ kind: "app" as const, actions: [] }) });
+  const runtime = new PluginRuntime();
+  assert.doesNotThrow(() => runtime.install({ definition: definition(add(), remove()), deployment: "local", grants: [] }));
+  assert.throws(() => new PluginRuntime().install({ definition: definition(add()), deployment: "local", grants: [] }),
+    (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin_manifest_invalid" && /撤销命令 notes\.remove@1 不在同一提供方的声明里/.test(error.message));
 });
 
 // ---- the bundled Manifests ----------------------------------------------------------------------------------------------------

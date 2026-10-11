@@ -43,6 +43,7 @@ test("ISSUE-14 / ISSUE-17 description leads the request, six images and full lon
   assert.equal(db.prepare("SELECT count(*) AS n FROM issues").get()!.n, 0);
   assert.equal(await evaluate("document.querySelector('[name=title]').value"), "切换页面后输入内容丢失");
   assert.equal(await evaluate("document.querySelector('[name=type]').value"), "bug");
+  assert.equal(await evaluate("(()=>{const field=document.querySelector('[name=type]').closest('label').getBoundingClientRect(),scroll=document.querySelector('[data-issue-scroll]').getBoundingClientRect();return field.top>=scroll.top && field.bottom<=scroll.bottom})()"), true, "The confirmation type must scroll into view even when its native select is hidden by the shared picker");
   assert.equal(await evaluate("document.querySelector('[name=description]').value"), description);
   // ISSUE-24: the immutable capture still lets the person inspect their screenshots.
   assert.equal(await evaluate("document.querySelector('[name=description]').readOnly && document.querySelector('[data-issue-pick]').disabled && [...document.querySelectorAll('[data-issue-remove]')].every(b=>b.disabled)"), true);
@@ -52,6 +53,11 @@ test("ISSUE-14 / ISSUE-17 description leads the request, six images and full lon
   await waitFor("document.querySelector('[data-home-model-settings] [data-model-name]')");
   assert.equal(await evaluate("document.querySelector('[data-home-model-settings]').getBoundingClientRect().width>800"), true);
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-model-api-format]')).backgroundRepeat"), "no-repeat");
+  assert.equal(await evaluate("document.querySelector('[data-model-api-format]').hidden"), true);
+  await click("[data-model-api-format] + [data-mw-select-trigger]");
+  await waitFor("document.querySelector('[data-model-api-format]').parentElement.querySelector('[role=listbox]').matches(':popover-open')");
+  for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  assert.equal(await evaluate("document.querySelector('[data-home-model-settings]').open && !document.querySelector('[data-model-api-format]').parentElement.querySelector('[role=listbox]').matches(':popover-open')"), true, "Escape closes only the nested menu and leaves model settings open");
   const providerName = await evaluate("document.querySelector('[data-model-name]').value");
   await evaluate("document.querySelector('[data-model-name]').value='尚未保存的供应商名称';document.querySelector('[data-model-name]').dispatchEvent(new Event('input',{bubbles:true}))");
   assert.equal(await evaluate("document.querySelector('[data-model-status]').textContent"), "有未保存的修改", "Use the real Work settings binding");
@@ -101,8 +107,8 @@ test("ISSUE-14 / ISSUE-17 description leads the request, six images and full lon
   const nextRequest = requests.length;
   await click("[data-issue-new]"); await click("[name=description]"); await command("Input.insertText", { text: longDescription }, sessionId);
   await click("[data-issue-organize]"); await waitFor("document.querySelector('[data-issue-save]').textContent==='确认并保存'");
-  const confirmGeometry = await evaluate("['[name=title]','[name=type]','[data-issue-scroll]'].map(selector=>{const e=document.querySelector(selector),r=e.getBoundingClientRect();return {selector,top:r.top,bottom:r.bottom,scroll:e.scrollTop}})");
-  assert.equal(await evaluate("['title','type'].every(name=>{const r=document.querySelector('[name='+name+']').getBoundingClientRect(),s=document.querySelector('[data-issue-scroll]').getBoundingClientRect();return r.top>=s.top && r.bottom<=s.bottom})"),true,JSON.stringify(confirmGeometry));
+  const confirmGeometry = await evaluate("['[name=title]','[data-issue-inputs] [data-mw-select-trigger]','[data-issue-scroll]'].map(selector=>{const e=document.querySelector(selector),r=e.getBoundingClientRect();return {selector,top:r.top,bottom:r.bottom,scroll:e.scrollTop}})");
+  assert.equal(await evaluate("['[name=title]','[data-issue-inputs] [data-mw-select-trigger]'].every(selector=>{const r=document.querySelector(selector).getBoundingClientRect(),s=document.querySelector('[data-issue-scroll]').getBoundingClientRect();return r.height>0 && r.top>=s.top && r.bottom<=s.bottom})"),true,JSON.stringify(confirmGeometry));
   const longRequest = captureRequest(requests.slice(nextRequest));
   assert.ok(draftMessage(longRequest).includes("问题描述”全文材料"));
   assert.ok(draftMessage(longRequest).length < 20_000);

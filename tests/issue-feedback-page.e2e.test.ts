@@ -2,8 +2,74 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
+import { writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
+
+test("ISSUE-27 image imports reject a mismatched file type before accepting the draft", { timeout: 60_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
+  const { origin, command, sessionId, navigate, evaluate, click, waitFor, homeDirectory } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
+  await waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready==='true'");
+  await click("[data-issue-new]"); await click("[name=description]");
+  await command("Input.insertText", { text: "格式不匹配时保留描述和已加入的图片" }, sessionId);
+  const fixtures = await evaluate<string[]>("(()=>{const c=document.createElement('canvas');c.width=64;c.height=32;c.getContext('2d').fillRect(0,0,64,32);return ['png','jpeg','webp'].map(type=>c.toDataURL('image/'+type))})()");
+  const files = await Promise.all(fixtures.map(async (data, index) => {
+    const file = join(homeDirectory, ['有效.png', '有效.jpg', '有效.webp'][index]!);
+    await writeFile(file, Buffer.from(data.split(',')[1]!, 'base64')); return file;
+  }));
+  const { root } = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
+  const { nodeId } = await command<{ nodeId: number }>("DOM.querySelector", { nodeId: root.nodeId, selector: "[data-issue-files]" }, sessionId);
+  await command("DOM.setFileInputFiles", { nodeId, files }, sessionId);
+  await waitFor("document.querySelectorAll('[data-issue-images] img').length===3 && !document.querySelector('[data-issue-pick]').disabled");
+  const original = await evaluate("[...document.querySelectorAll('[data-issue-images] img')].map(i=>i.src)");
+  const wrong = join(homeDirectory, "实际是JPEG.png");
+  await writeFile(wrong, Buffer.from(fixtures[1]!.split(',')[1]!, 'base64'));
+  await command("DOM.setFileInputFiles", { nodeId, files: [wrong] }, sessionId);
+  await waitFor("!document.querySelector('[data-issue-pick]').disabled");
+  assert.match(await evaluate<string>("document.querySelector('[data-issue-note]').textContent"), /图片无法读取/u);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-issue-images] img')].map(i=>i.src)"), original);
+  assert.equal(await evaluate("document.querySelector('[name=description]').value"), "格式不匹配时保留描述和已加入的图片");
+  await click("[data-issue-remove]");
+  assert.equal(await evaluate("document.activeElement.matches('[data-issue-pick]')"), true, "Removing a thumbnail must leave keyboard focus on an available editor action");
+  assert.equal(await evaluate("document.querySelectorAll('[data-issue-images] img').length"), 2);
+  const db = new DatabaseSync(join(homeDirectory, "issues", "issues.db"), { readOnly: true });
+  try { assert.equal(db.prepare("SELECT count(*) AS n FROM issues").get()!.n, 0); } finally { db.close(); }
+});
+
+test("ISSUE-27 Home type menus support click, cancellation and keyboard selection; delete returns focus", { timeout: 60_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
+  const { origin, command, sessionId, navigate, evaluate, click, waitFor, homeDirectory } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
+  await waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready==='true'");
+  await click("[data-issue-new]"); await click("[data-issue-manual]");
+  assert.equal(await evaluate("document.querySelector('[name=type]').hidden"), true, "Home must mount the existing Work select menu instead of the OS picker");
+  const trigger = "[data-issue-inputs] [data-mw-select-trigger]";
+  await click(trigger); await waitFor("document.querySelector('.mw-select-picker__menu').matches(':popover-open')");
+  await click("[name=description]"); await waitFor("!document.querySelector('.mw-select-picker__menu').matches(':popover-open')");
+  assert.equal(await evaluate("document.querySelector('[name=type]').value"), "");
+  await click(trigger);
+  for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("!document.querySelector('.mw-select-picker__menu').matches(':popover-open')");
+  assert.equal(await evaluate(`document.activeElement.matches('${trigger}')`), true);
+  await click(trigger); await click('[data-mw-select-option][data-value="experience"]');
+  assert.equal(await evaluate("document.querySelector('[name=type]').value"), "experience");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "End", code: "End", windowsVirtualKeyCode: 35 }, sessionId);
+  for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, ...(type === "keyDown" ? { text: "\r", unmodifiedText: "\r" } : {}) }, sessionId);
+  await waitFor("document.querySelector('[name=type]').value==='feature'");
+  await click("[name=title]"); await command("Input.insertText", { text: "验收类型选择" }, sessionId);
+  await click("[name=description]"); await command("Input.insertText", { text: "选择功能需求并保存" }, sessionId);
+  await click("[data-issue-save]"); await waitFor("!document.querySelector('[data-issue-view]').hidden");
+  const db = new DatabaseSync(join(homeDirectory, "issues", "issues.db"), { readOnly: true }); t.after(() => db.close());
+  assert.equal(db.prepare("SELECT type FROM issues").get()!.type, "feature");
+  await click("[data-issue-delete]"); await click("[data-issue-dialog-ok]");
+  await waitFor("document.querySelector('[data-issue-list-note]').textContent==='已删除'");
+  assert.equal(await evaluate("document.activeElement.matches('[data-issue-new]')"), true);
+  assert.equal(db.prepare("SELECT count(*) AS n FROM issues").get()!.n, 0);
+});
 
 test("ISSUE-20 validation clears; a text-only Assistant reply preserves the draft and offers direct retry or manual recovery", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;

@@ -1,4 +1,4 @@
-import { escapeHtml, renderIconSprite, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, renderIconSprite, SELECT_MENU_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { CONTROL_CLIENT_SCRIPT } from "./scripts/control.js";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { renderWorkbenchDocument } from "./document-shell.js";
@@ -41,5 +41,5 @@ export function renderHomePluginPage(entry: BuiltinPluginEntry, html: string | n
       try{const response=await fetch('/api/plugins/${encodeURIComponent(entry.manifest.plugin_id)}/'+button.dataset.homeLifecycle,{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:'{}'});
         const body=await response.json();if(!response.ok)throw new Error(body.error||'插件状态未能更改');location.reload();
       }catch(error){const note=document.querySelector('[data-home-status]');note.textContent=error.message;note.hidden=false;button.disabled=false;}
-    });${HOME_MODEL_SETTINGS_CLIENT_SCRIPT}</script>` });
+    });${SELECT_MENU_CLIENT_SCRIPT}${HOME_MODEL_SETTINGS_CLIENT_SCRIPT}</script>` });
 }

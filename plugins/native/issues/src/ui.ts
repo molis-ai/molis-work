@@ -82,8 +82,8 @@ export const ISSUES_STYLES = `
 .issues-fields{border:0;padding:0;margin:0;min-width:0;display:grid;gap:24px}.issues-prose{font-size:15px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:24px}
 [data-issue-view] h2{font-size:24px;line-height:1.4;font-weight:var(--weight-title);letter-spacing:-.02em;overflow-wrap:anywhere;margin:8px 0 12px}
 .issues-kind{font-size:12px;color:var(--muted);margin:0}
-[data-issues="workbench"] .mw-field{display:flex;flex-direction:column;gap:8px;font-weight:var(--weight-control)}
-[data-issues="workbench"] .mw-field :is(input,select,textarea){font-weight:var(--weight-body);scroll-margin-block:8px}
+[data-issues="workbench"] .mw-field{display:flex;flex-direction:column;gap:8px;font-weight:var(--weight-control);scroll-margin-block:8px}
+[data-issues="workbench"] .mw-field :is(input,select,textarea){font-weight:var(--weight-body)}
 [data-issues="workbench"] .mw-select{background-repeat:no-repeat;background-position:right 8px center;background-size:14px 14px}
 .issues-meta{color:var(--muted);font-size:12px;font-weight:var(--weight-body);line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
 .issues-note{font-size:13px;line-height:1.6;margin:0 0 8px;color:var(--ink)}

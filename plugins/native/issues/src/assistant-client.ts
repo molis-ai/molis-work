@@ -45,7 +45,7 @@ export const ISSUE_ASSISTANT_CLIENT_SCRIPT = String.raw`
         const title=card.fields.find(field=>field.key==='title'), type=card.fields.find(field=>field.key==='type');
         if(!title?.editable || !type?.editable || !title.value.trim() || !kind[type.raw || type.value]) throw new Error(L('助理没有返回可确认的标题和类型，请重新整理。'));
         held.card=card; form.elements.title.value=title.value; form.elements.type.value=type.raw || type.value;
-        edited(); assistantNote(L('助理已整理，请核对标题和类型。确认后才会保存。')); mode(); form.elements.type.scrollIntoView({block:'nearest'}); form.elements.title.focus({preventScroll:true}); return;
+        edited(); assistantNote(L('助理已整理，请核对标题和类型。确认后才会保存。')); mode(); form.elements.type.closest('label').scrollIntoView({block:'nearest'}); form.elements.title.focus({preventScroll:true}); return;
       }
       const round=view.rounds.at(-1), question=round?.awaiting_input?.[0];
       if(view.problem || question || !['running','idle'].includes(view.work.state)) throw new Error(view.problem?.message || question?.prompt || round?.turns.findLast(turn=>turn.kind==='assistant' && turn.text.trim())?.text || L('助理没有返回可确认的标题和类型，请重新整理。'));

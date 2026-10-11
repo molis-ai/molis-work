@@ -8,7 +8,12 @@ export const ISSUE_IMAGES_CLIENT_SCRIPT = String.raw`
   const imageInput = async file => {
     if (!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size > 20*1024*1024) throw new Error(L('请选择 20 MiB 以内的 PNG、JPEG 或 WebP 图片。'));
     let bitmap;
-    try { bitmap=await createImageBitmap(file); } catch { throw new Error(L('图片无法读取，请重新选择有效的图片。')); }
+    try {
+      // Browsers can decode a mislabeled file, but its declared MIME must also match the saved image contract.
+      const prefix = [...new Uint8Array(await file.slice(0,3).arrayBuffer())].join(',');
+      if (prefix !== {'image/png':'137,80,78','image/jpeg':'255,216,255','image/webp':'82,73,70'}[file.type]) throw new Error();
+      bitmap=await createImageBitmap(file);
+    } catch { throw new Error(L('图片无法读取，请重新选择有效的图片。')); }
     try {
       if (bitmap.width * bitmap.height > 64000000) throw new Error(L('图片尺寸过大，请裁剪后添加。'));
       let blob = file;

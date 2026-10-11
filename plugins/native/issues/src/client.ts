@@ -150,7 +150,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (is('manual')) { await release(); manual=true; note(''); mode(); form.elements.title.focus(); return; }
     if (is('revise')) { await release(); manual=false; note(''); mode(); description.focus(); return; }
     if (is('pick')) { picker.click(); return; }
-    if (is('remove') && !viewing() && !assistant) { images = images.filter((_,index) => index !== Number(button.dataset.issueRemove)); renderImages(); edited(); return; }
+    if (is('remove') && !viewing() && !assistant) { images = images.filter((_,index) => index !== Number(button.dataset.issueRemove)); renderImages(); edited(); $('pick').focus(); return; }
     if (is('preview')) { preview(button.querySelector('img')); return; }
     if (is('zoom')) { zoom($('image-dialog').dataset.zoom!=='true'); return; }
     if (is('new')) { if (await mayLeave()) { ++readEpoch; fill(null); description.focus(); } }
@@ -166,7 +166,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (!await confirm('删除这条问题？',target.title+'\n\n'+L('删除后无法在 Issue 中恢复。'),'删除问题',true) || selected !== target) return;
       busy = true; form.inert = true;
       try { await request('delete',{id:target.id,expected_version:target.version}); selected = null; dirty = false; ++readEpoch;
-        workspace.hidden = true; root.dataset.expanded = 'false'; await load(); note(L('已删除')); }
+        workspace.hidden = true; root.dataset.expanded = 'false'; await load(); note(L('已删除')); $('new').focus(); }
       finally { busy = false; form.inert = false; }
     }
   }));

@@ -7,7 +7,7 @@ import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost, ensureSystemAgentService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
@@ -36,7 +36,7 @@ test("an action client asked not to prepare the project calls Goals without star
     assert.ok(listed.has(GOALS_PLUGIN_ID), "Goals is registered when the project opens, so it needs no preparation");
     assert.deepEqual(RUNTIME_PLUGINS.filter(plugin => listed.has(plugin)), [], "no Runtime plugin was started by listing the actions");
     await managementGoals(bare, "unprepared").invoke(goalsActions.initialize, { title: "未准备", idempotency_key: "init" });
-    assert.deepEqual((await bare.invoke(caller, goalsActions.snapshot, {})).goals, [], "the calls reached Goals");
+    assert.deepEqual((await bindActionClient(bare, () => caller).invoke(goalsActions.snapshot, {})).goals, [], "the calls reached Goals");
     const after = await providers(bare);
     assert.deepEqual(RUNTIME_PLUGINS.filter(plugin => after.has(plugin)), [], "and still started no Runtime plugin");
 
@@ -67,8 +67,8 @@ test("the first-run Goal is made by the Goals action, as the person, and leaves 
     assert.deepEqual(settled.filter(row => row.path === "typed"), [], "no typed capability was called for the Goal");
     assert.deepEqual(settled.filter(row => row.capability_id === goalsActions.create.capability_id).map(row => [row.operation, row.ok]), [["command", true]]);
 
-    const goal = (await host.actionClient(molisWorkHostProjectReference({ databasePath: (await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId))).database_path, projectId }), false)
-      .invoke(personCaller(projectId), goalsActions.snapshot, {})).goals.find(item => item.goal_id === created.goal_id);
+    const reference = molisWorkHostProjectReference({ databasePath: (await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId))).database_path, projectId });
+    const goal = (await bindActionClient(host.actionClient(reference, false), () => personCaller(projectId)).invoke(goalsActions.snapshot, {})).goals.find(item => item.goal_id === created.goal_id);
     assert.equal(goal?.outcome, "让第一次使用的人建立可以继续澄清的目标");
     assert.equal(goal?.definition_state, "draft");
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }
@@ -98,7 +98,7 @@ test("a Run reads the project guidance through the Goals action, once, whether o
       return { ref: { run_id: `r${captured.length}`, session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution,
         model_id: "probe", prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: promptLayerOf(prompt) })),
         host_tools: [...role.host_tools], skills: [], mcp_tools: [], mcp_sources: [], text_materials: [], budget: null,
-        ...(request.workspace === "none" ? { workspace: "none" as const } : { directory: request.directory }) } };
+        directory: request.directory! } };
     },
   });
   const request: AgentStartRequest = { project_id: "guided", plugin_id: "io.molis.work.coding", install_id: "coding", actor_id: "user", session: { runtime_id: "probe", session_id: "s" },

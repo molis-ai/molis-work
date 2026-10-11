@@ -39,7 +39,7 @@
 
 | # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 页面发请求 | `apps/workbench/src/scripts/control.ts`（`molisWorkControlHeaders`）；各插件客户端自带 `fetch` 包装 | 用户操作 → JSON 请求；头带 `x-molis-work-control-token`（取自页面 meta）和每次新生成的 `x-molis-work-idempotency-key` | 页面只带控制令牌，不带身份 | 读 `body.error` 显示；没有共用的请求客户端，也不显示调用标识 | 无 |
+| 1 | 页面发请求 | 共用请求助手 `packages/ui-host/src/request-client.ts`（`UI_REQUEST_CLIENT_SCRIPT` 装出 `molisWorkRequest` 与只给头的 `molisWorkControlHeaders`），W3-10-1a 起装在设置、项目设置、引导、选择页、侧栏独立页和创作台页；工作台主程序仍用 `apps/workbench/src/scripts/control.ts` 的旧头函数和各自的 `fetch` 包装，各插件客户端自带包装（W3-10-1b 起、W5-04 迁） | 用户操作 → JSON 请求；头带 `x-molis-work-control-token`（取自页面 meta）和每次新生成的 `x-molis-work-idempotency-key`。助手只发往本页同源，一律 `no-store`，只发一次不重试 | 页面只带控制令牌，不带身份 | 助手把失败变成带 `code`、`status`、`callId`（只读错误体里的 `call_id`）、`body` 的 `Error`，没有回答时读请求报 `ui_host.unreachable`、写请求报 `ui_host.outcome_unknown`；还没迁的页面读 `body.error` 显示，不显示调用标识 | 无 |
 | 2 | 本机入口与防重放 | `apps/local-host/src/web-server.ts` → `authorizeLocalWebRequest`（`apps/local-host/src/web-http.ts`） | 请求 → 放行或拒绝 | Host 必须是回环地址；写 API 还要求 Origin 与 Host 一致、令牌常量时间比对相等、一次性键 8 到 200 位 | 403「本地控制请求校验失败」；400 缺键；409 `request.in_flight`；409「这次操作已经提交」 | 进程内键表（上限 4096 条），成功后记 complete；Goal 事件命令路径允许同键重放 |
 | 3 | 项目解析 | `apps/local-host/src/web-routing.ts`（`resolveWebRequest`）、`apps/local-host/src/web-request.ts` | 路径 → 项目引用（`project_id` 加库路径） | 项目目录库（catalog） | 404「找不到这个 Molis Work 项目」；库文件不存在 404 | 无 |
 | 4 | 路由分发 | `apps/local-host/src/web-request.ts` 依次尝试各个 handle…Http 处理函数；旧路径插件走 `apps/local-host/src/` 下各自的 native-plugin-http 文件（例如 `apps/local-host/src/workflows-native-plugin-http.ts`），Runtime 插件走 `apps/local-host/src/coding-surface.ts` 的 `handleCodingPluginHttp` 和 `PluginRouteRouter` | URL → 命中的路由表 | 项目由 Host 按路径绑定，query 和 body 不能覆盖 | 没命中就落到下一个处理器；Runtime 插件在本项目未启用时 404 `plugin_not_enabled` | 无 |
@@ -49,13 +49,13 @@
 | 8 | 动作服务 | `packages/kernel/src/action-service.ts`（`ActionService.invoke`）→ `packages/kernel/src/index.ts`（`CapabilityRegistry.invoke`） | 能力引用加输入 → 校验后的结果 | 可见性检查：受众、权限、`allowed_actions`、项目一致；`required_actions` 依赖也要可用；输入按 JSON Schema 校验 | `actions.missing`；`actions.provider_changed`；`actions.forbidden`；`actions.project_required`；`actions.input_invalid`；`actions.rate_limited`；`actions.timeout` | 无 |
 | 9 | 处理器、领域、存储 | 插件或模块，例如 `plugins/native/todo/src/actions.ts` 的 `createTodoActionHandlers` | 输入 → 领域结果；写入在 owner 自己的库里 | 处理器自己再判断范围，例如 Todo 只让人自己的页面跨项目读（`todoAccess`）；异步等待后、写入前 `await beforeEffect()` | owner 自己的错误码，例如 `todo.not_found`、`todo.conflict`；已写入后输出不合合同报 `actions.output_invalid_after_effect` | 由 owner 决定：多数把领域事件写进库里的事件日志（例如成果库经 `LocalProjectDatabase.appendEvent`）；Todo 在输出里给 `change_id`，供撤销 |
 | 10 | 结算 | `apps/local-host/src/project-host.ts`（`actionSettled`）→ `ActionCallLog` | 一次调用的结局 → 一行记录 | 无 | 记录失败不改变调用结果 | `{home}/logs/action-calls.jsonl`：谁、哪个能力、成功与否、错误码与前 200 字；处理器之前就被拒的调用不写；连续相同结局（10 分钟内）合并；文件超过 2000 行时只保留最近 1000 行；成功的命令还会通知搜索「这个提供方的内容变了」 |
-| 11 | 响应与刷新 | 插件客户端脚本；`webViewCache`（`apps/local-host/src/web-view.ts`） | JSON → 页面更新 | — | 页面显示 `error` | 普通写入没有服务端推送：页面靠响应、标签页重新可见和轮询刷新；服务端渲染的视图在相关写入后清缓存 |
+| 11 | 响应与刷新 | 插件客户端脚本；`webViewCache`（`apps/local-host/src/web-view.ts`） | JSON → 页面更新 | — | 页面显示 `error`；改用助手的页面用它的 `show`、`toast` 显示，错误体有 `call_id`（宿主只在调用记录里查得到时才写）就多一个「诊断编号」按钮，点一下复制完整编号 | 普通写入没有服务端推送：页面靠响应、标签页重新可见和轮询刷新；服务端渲染的视图在相关写入后清缓存 |
 
 **守住它的用例**：`tests/local-web-actions.test.ts`、`tests/local-host-actions.test.ts`、`tests/web-home-isolation.test.ts`。
 
 **现状与缺口**
 
-- 调用编号只在内核和宿主 typed 口里有，入口按操作给号、调用记录与响应带号、界面显示，见 §1 第 5 条（W3-01 的后续片）；14 份各自的错误映射对同一个错误码给出不同状态，例如 `actions.plugin_disabled` 在 `plugins/native/feed/src/route-error.ts` 里是 403，在 Todo 与 Pages 里是 400（W3-02）；浏览器端没有共用请求客户端（W3-10）。
+- 调用编号只在内核和宿主 typed 口里有，入口按操作给号、调用记录与响应带号、界面显示，见 §1 第 5 条（W3-01 的后续片）；14 份各自的错误映射对同一个错误码给出不同状态，例如 `actions.plugin_disabled` 在 `plugins/native/feed/src/route-error.ts` 里是 403，在 Todo 与 Pages 里是 400（W3-02）；浏览器端的共用请求助手已经在 ui-host（W3-10-1a），目前只装在不进 `/assets/` 的内联页面上，工作台主程序和插件客户端的请求还没迁到它（W3-10-1b 起、W5-04）。
 - 步骤 4 是手写的前缀链；改成注册表是 W5-07。新的内置插件只走 Plugin Runtime，不再新增这类文件。
 - 不经 `ActionService` 的 typed 能力（`LocalHost.register` 的非动作分支）不校验 schema；它们的调用由宿主结算一次（带 `path: "typed"`），其中处理器进入了的命令进调用记录；边界见 §10。
 - [系统架构 §4](ARCHITECTURE.md) 写的「owner 提交后经 Durable Outbox 发布事件」是目标，不是现状（[BL-070](../../specs/BACKLOG.md)）：现在各 owner 在自己的事务里写自己的事件日志，没有统一的发布通道，消费方靠读 owner 的动作或轮询。

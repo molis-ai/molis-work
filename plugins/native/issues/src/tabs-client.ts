@@ -21,10 +21,11 @@ export const ISSUE_TABS_CLIENT_SCRIPT = String.raw`
     const capture = mountIssues({...host,root:panels[0],side:false,capture:true,onSaved:issue=>{
       if(!panels[0].hidden && history.show(issue)) { capture.reset(); select(1); }
     }});
-    scope.listen(tabs,'click',event => { const index=buttons.indexOf(event.target.closest('button')); if(index>=0) select(index); });
+    const enter = index => { if(index===1) history.list(); select(index); };
+    scope.listen(tabs,'click',event => { const index=buttons.indexOf(event.target.closest('button')); if(index>=0) enter(index); });
     scope.listen(tabs,'keydown',event => {
       const index=buttons.indexOf(event.target); if(index<0 || !['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
-      event.preventDefault(); const next=event.key==='Home'?0:event.key==='End'?1:1-index; select(next); buttons[next].focus();
+      event.preventDefault(); const next=event.key==='Home'?0:event.key==='End'?1:1-index; enter(next); buttons[next].focus();
     });
     return;
   }

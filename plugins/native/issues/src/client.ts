@@ -112,7 +112,12 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     }
     $('comparison').hidden = false;
   };
+  const toList = () => { ++readEpoch; workspace.hidden=true; root.dataset.expanded='false'; };
   const open = async (id) => {
+    if (selected?.id===id && workspace.hidden) {
+      workspace.hidden=false; root.dataset.expanded='true'; mode();
+      if(editing || assistant || busy || imageBusy) return;
+    }
     if (imageBusy) return;
     if (selected?.id !== id && !await mayLeave()) return;
     const epoch = ++readEpoch, revision = editRevision;
@@ -144,14 +149,16 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     busy = true; form.inert = true; note(''); ++readEpoch; $('save').disabled = true;
     try {
       const saved = assistant?.card ? await saveCard() : await request(selected ? 'update' : 'create', {...data, ...(selected ? {id:selected.id,expected_version:selected.version} : {})});
-      fill(saved); $('edit').focus();
+      const hidden=workspace.hidden; fill(saved); if(hidden) toList(); else $('edit').focus();
       await refreshAfter('已保存');
       host.onSaved?.(saved);
     } catch (error) { if (error.status === 409 && selected) { await release(); await open(selected.id); } else throw error; }
     finally { busy = false; form.inert = false; $('save').disabled = false; mode(); }
   }); });
   scope.listen(root, 'click', (event) => run(async () => {
-    const button = event.target.closest('button'); if (!button || busy || imageBusy) return;
+    const button = event.target.closest('button'); if (!button) return;
+    if (button.dataset.issueId) { if(!busy && !imageBusy || workspace.hidden && selected?.id===button.dataset.issueId) await open(button.dataset.issueId); return; }
+    if (busy || imageBusy) return;
     const is = key => button.hasAttribute('data-issue-'+key);
     if (is('edit') && viewing()) { editing=true; note(''); mode(); description.focus(); return; }
     if (is('cancel-edit') && selected) { await release(); fill(comparison || selected); $('edit').focus(); return; }
@@ -164,7 +171,6 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     if (is('preview')) { preview(button.querySelector('img')); return; }
     if (is('zoom')) { zoom($('image-dialog').dataset.zoom!=='true'); return; }
     if (is('new') || is('again')) { if(host.onNew) host.onNew(); else if (await mayLeave()) { ++readEpoch; fill(null); description.focus(); } }
-    else if (button.dataset.issueId) await open(button.dataset.issueId);
     else if (is('back')) { if (await mayLeave()) { ++readEpoch; selected = null; dirty = false; workspace.hidden = true; root.dataset.expanded = 'false'; mode(); $('new').focus(); } }
     else if (is('refresh')) { await load(); note(L('列表已刷新')); }
     else if (is('more')) await load(true);
@@ -176,9 +182,9 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
       if (!await confirm('删除这条问题？',target.title+'\n\n'+L('删除后无法在 Issue 中恢复。'),'删除问题',true) || selected !== target) return;
       busy = true; form.inert = true;
       try { await request('delete',{id:target.id,expected_version:target.version}); selected = null; dirty = false; ++readEpoch;
-        workspace.hidden = true; root.dataset.expanded = 'false';
-        await refreshAfter('已删除'); $('new').focus(); }
-      finally { busy = false; form.inert = false; }
+        if(host.capture) fill(null); else toList();
+        await refreshAfter('已删除'); (host.capture ? description : $('new')).focus(); }
+      finally { busy = false; form.inert = false; mode(); }
     }
   }));
   scope.listen(root, 'molis-work:select-item', (event) => { if (typeof event.detail?.itemId === 'string') run(() => open(event.detail.itemId)); });
@@ -189,7 +195,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     viewSignal = signal; run(load); if(assistant?.work) run(poll);
     return scope.listen(window, 'molis:assistant-effect', event => { if (event.detail?.capability_id?.startsWith('issues.')) run(load); }, {signal});
   });
-  return { reset: () => fill(null), show: issue => {
+  return { list: toList, reset: () => fill(null), show: issue => {
     if(busy || imageBusy || assistant || dirty && hasChanges()) return false;
     fill(issue); note(L('已保存')); scope.frame(() => $('edit').focus()); return true;
   } };

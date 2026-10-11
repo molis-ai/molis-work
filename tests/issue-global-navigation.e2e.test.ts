@@ -13,13 +13,17 @@ type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
 // Real pointer input into the embedded document, with hit testing in both documents.
 async function clickInside(b: Browser, selector: string) {
+  await b.waitFor(inside(`(() => { const el=pane.querySelector(${JSON.stringify(selector)}) || document.querySelector(${JSON.stringify(selector)}); return el && el.getClientRects().length && !el.closest('[hidden],[inert]') && !el.disabled; })()`));
   const point = await b.evaluate<{ x: number; y: number; hit: boolean }>(`(() => {
     const frame = document.querySelector(${JSON.stringify(frame)}), inner = frame.contentDocument;
     const button = inner.querySelector('[role=tabpanel]:not([hidden])')?.querySelector(${JSON.stringify(selector)}) || inner.querySelector(${JSON.stringify(selector)}); button.scrollIntoView({block:'nearest'});
-    const box = button.getBoundingClientRect(), outer = frame.getBoundingClientRect(), x = box.left + box.width/2, y = box.top + box.height/2;
-    return {x:outer.left+x,y:outer.top+y,hit:button.contains(inner.elementFromPoint(x,y)) && document.elementFromPoint(outer.left+x,outer.top+y)===frame};
+    const box = button.getBoundingClientRect(), outer = frame.getBoundingClientRect(), x = box.left + box.width/2;
+    const top=Math.max(0,box.top), bottom=Math.min(inner.documentElement.clientHeight,box.bottom);
+    // Auto-growing descriptions can exceed the viewport; click their visible portion.
+    const y=[(top+bottom)/2,top+12,bottom-12].find(y=>y>=box.top && y<=box.bottom && button.contains(inner.elementFromPoint(x,y)) && document.elementFromPoint(outer.left+x,outer.top+y)===frame);
+    return {x:outer.left+x,y:outer.top+(y??0),hit:y!==undefined};
   })()`);
-  assert.equal(point.hit, true, `${selector} must be visible and clickable in the side panel`);
+  assert.equal(point.hit, true, `${selector} must be visible and clickable in the side panel: ${JSON.stringify(point)}`);
   for (const type of ["mousePressed", "mouseReleased"]) await b.command("Input.dispatchMouseEvent", { type, x: point.x, y: point.y, button: "left", clickCount: 1 }, b.sessionId);
 }
 
@@ -107,7 +111,7 @@ test("ISSUE-31 ISSUE-32 no-project Home opens capture beside the current page, r
   assert.doesNotMatch(disabled, /data-issues="workbench"/);
 });
 
-test("ISSUE-31 ISSUE-32 project stays usable beside capture; image, draft and Assistant card survive panel switching until one confirmed save", { timeout: 90_000 }, async t => {
+test("ISSUE-31 ISSUE-32 ISSUE-33 project stays usable beside capture; list entry and retained drafts remain distinct", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
   let reply!: () => void;
   const firstReply = new Promise<void>(resolve => { reply=resolve; }); t.after(() => reply());
@@ -142,6 +146,8 @@ test("ISSUE-31 ISSUE-32 project stays usable beside capture; image, draft and As
   assert.equal(await b.evaluate(inside("pane.querySelector('[name=description]').value")), description);
   assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-images] img').src")), image);
   await clickInside(b, '#issue-tab-1');
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-workspace]').hidden")), true, 'the list tab opens the list, not the last detail');
+  await clickInside(b, `[data-issue-id="${previous.id}"]`);
   assert.equal(await b.evaluate(inside("pane.querySelector('[name=description]').value")), oldDraft);
   await b.click('[data-side-close]'); await b.waitFor("document.querySelector('[data-side-panel]').hidden"); await b.click(entry);
   assert.equal(await b.evaluate(inside("pane.querySelector('[name=description]').value")), oldDraft);
@@ -157,7 +163,8 @@ test("ISSUE-31 ISSUE-32 project stays usable beside capture; image, draft and As
   await clickInside(b, '[data-issue-organize]');
   await b.waitFor(inside("pane.querySelector('[data-issue-assistant-note]').textContent.includes('正在整理')"));
   await clickInside(b, '#issue-tab-1');
-  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-view-title]').textContent")), '已有问题');
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-workspace]').hidden")), true);
+  assert.match(await b.evaluate<string>(inside("pane.querySelector('[data-issue-list]').textContent")), /已有问题/);
   reply();
   await b.waitFor("fetch('/api/plugins/io.molis.work.issues/list').then(r=>r.json()).then(r=>r.items.length===1)");
   await clickInside(b, '#issue-tab-0');
@@ -177,7 +184,7 @@ test("ISSUE-31 ISSUE-32 project stays usable beside capture; image, draft and As
   assert.equal(requests.length, count, "reopening does not start another Assistant request");
   await clickInside(b, '[data-issue-save]');
   await b.waitFor(inside("!pane.querySelector('[data-issue-view]').hidden && pane.querySelector('[data-issue-note]').textContent==='已保存'"));
-  const saved = await b.evaluate<Array<{ description: string; version: number; images: Array<{data_url: string}> }>>("(async()=>{const {items}=await fetch('/api/plugins/io.molis.work.issues/list').then(r=>r.json());return Promise.all(items.map(i=>fetch('/api/plugins/io.molis.work.issues/read?id='+i.id).then(r=>r.json())));})()");
+  const saved = await b.evaluate<Array<{ id: string; description: string; version: number; images: Array<{data_url: string}> }>>("(async()=>{const {items}=await fetch('/api/plugins/io.molis.work.issues/list').then(r=>r.json());return Promise.all(items.map(i=>fetch('/api/plugins/io.molis.work.issues/read?id='+i.id).then(r=>r.json())));})()");
   assert.equal(saved.length, 2); const recorded=saved.find(issue=>issue.description===description)!;
   assert.equal(recorded.version, 1); assert.equal(recorded.images[0]!.data_url, image);
   assert.equal(await b.evaluate(inside("document.querySelector('[aria-selected=true]').textContent")), 'Issue列表');
@@ -186,6 +193,7 @@ test("ISSUE-31 ISSUE-32 project stays usable beside capture; image, draft and As
   assert.equal(await b.evaluate(inside("pane.querySelectorAll('[data-issue-images] img').length")), 0);
   assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-organize]').disabled")), false, 'the next capture is immediately usable');
   await clickInside(b, '#issue-tab-1');
+  await clickInside(b, `[data-issue-id="${recorded.id}"]`);
   await clickInside(b, '[data-issue-edit]'); await clickInside(b, '[name=description]'); await b.command("Input.insertText", { text: "；未保存编辑" }, b.sessionId);
   const draft = await b.evaluate(inside("pane.querySelector('[name=description]').value"));
   await b.click('[data-side-tab="files"]'); await b.click(entry);
@@ -224,8 +232,126 @@ test("ISSUE-32 a late save receipt neither changes the active tab nor overwrites
   assert.equal(await b.evaluate(inside("pane.querySelector('[name=description]').value")),draft);
   const stored=await b.evaluate<Array<{title:string;description:string}>>(`fetch('/api/plugins/io.molis.work.issues/list').then(r=>r.json()).then(r=>Promise.all(r.items.map(i=>fetch('/api/plugins/io.molis.work.issues/read?id='+i.id).then(r=>r.json()))))`);
   assert.deepEqual(stored.map(i=>[i.title,i.description]).sort(),[['原有问题','原有描述'],['新问题标题','新问题原文']].sort());
-  await clickInside(b,'#issue-tab-0'); await clickInside(b,'[data-issue-again]');
+  await clickInside(b,'#issue-tab-0');
+  await clickInside(b,'[data-issue-delete]'); await clickInside(b,'[data-issue-dialog-ok]');
+  await b.waitFor(inside("!pane.querySelector('[data-issue-workspace]').hidden && pane.querySelector('[name=description]').value==='' && !pane.querySelector('form').inert") );
   assert.equal(await b.evaluate(inside("pane.querySelector('[name=description]').value")), '');
   assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-organize]').disabled")), false);
-  await clickInside(b,'#issue-tab-1'); assert.equal(await b.evaluate(inside("pane.querySelector('[name=description]').value")),draft);
+  assert.deepEqual((await b.evaluate<{items:Array<{id:string}>}>("fetch('/api/plugins/io.molis.work.issues/list').then(r=>r.json())")).items.map(i=>i.id),[old.id]);
+  await clickInside(b,'#issue-tab-1');
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-workspace]').hidden")),true);
+  await clickInside(b,`[data-issue-id="${old.id}"]`);
+  assert.equal(await b.evaluate(inside("pane.querySelector('[name=description]').value")),draft);
+});
+
+test("ISSUE-33 returning to the list retains edits and ignores late detail navigation", {timeout:60_000}, async t => {
+  const b=await openGoalBrowser(t,'user'); if(!b)return;
+  await b.command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]},b.sessionId);
+  await b.navigate(()=>b.command('Page.navigate',{url:`${b.origin}/projects/${b.projectId}/?desktop=1`},b.sessionId));
+  await b.click(entry); await b.waitFor(ready);
+  const records=await b.evaluate<Array<{id:string}>>(`Promise.all(['甲','乙'].map(name=>fetch('/api/plugins/io.molis.work.issues/create',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({title:name,type:'bug',description:name+'原文'})}).then(r=>r.json())))`);
+  const first=records[0]!.id, second=records[1]!.id;
+  await clickInside(b,'#issue-tab-1'); await clickInside(b,'[data-issue-refresh]');
+  await b.waitFor(inside(`pane.querySelector('[data-issue-id="${first}"]')`));
+  await clickInside(b,`[data-issue-id="${first}"]`); await b.waitFor(inside("!pane.querySelector('[data-issue-view]').hidden"));
+  await clickInside(b,'[data-issue-edit]'); await clickInside(b,'[name=description]'); await b.command('Input.insertText',{text:'；保留的修改'},b.sessionId);
+  const draft=await b.evaluate(inside("pane.querySelector('[name=description]').value"));
+  await clickInside(b,'#issue-tab-1');
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-workspace]').hidden")),true);
+  await clickInside(b,`[data-issue-id="${second}"]`); await b.waitFor(inside("pane.querySelector('[data-issue-dialog]').open"));
+  await clickInside(b,'[value=cancel]');
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-workspace]').hidden")),true);
+  await clickInside(b,`[data-issue-id="${first}"]`);
+  assert.equal(await b.evaluate(inside("pane.querySelector('[name=description]').value")),draft);
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-view]').hidden")),true);
+  await b.evaluate(inside(`(() => {
+    const view=document.defaultView, fetch=view.fetch.bind(view);
+    view.fetch=async(...args)=>{const response=await fetch(...args);if(String(args[0]).endsWith('/update'))await new Promise(resolve=>{view.releaseUpdate=resolve;});return response;};
+  })()`));
+  await clickInside(b,'[data-issue-save]'); await b.waitFor(inside("Boolean(document.defaultView.releaseUpdate)"));
+  await clickInside(b,'#issue-tab-1'); await b.evaluate(inside('document.defaultView.releaseUpdate()'));
+  await b.waitFor(inside("!pane.querySelector('form').inert"));
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-workspace]').hidden")),true,'a late save must not reopen details');
+  const stored=await b.evaluate<{description:string;version:number}>(`fetch('/api/plugins/io.molis.work.issues/read?id=${first}').then(r=>r.json())`);
+  assert.equal(stored.description,draft); assert.equal(stored.version,2);
+  await clickInside(b,`[data-issue-id="${first}"]`); await b.waitFor(inside("!pane.querySelector('[data-issue-view]').hidden"));
+  await b.click('[data-side-close]'); await b.click(entry);
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-workspace]').hidden")),false,'collapse still restores the detail position');
+  await clickInside(b,'#issue-tab-1');
+  await b.evaluate(inside(`(() => {
+    const view=document.defaultView, fetch=view.fetch.bind(view); let delayed=false;
+    view.fetch=async(...args)=>{const response=await fetch(...args);if(!delayed && String(args[0]).includes('/read?id=${second}')) {delayed=true;await new Promise(resolve=>{view.releaseRead=resolve;});}return response;};
+  })()`));
+  await clickInside(b,`[data-issue-id="${second}"]`); await b.waitFor(inside('Boolean(document.defaultView.releaseRead)'));
+  await clickInside(b,'#issue-tab-1'); await b.evaluate(inside('document.defaultView.releaseRead()'));
+  await clickInside(b,'#issue-tab-0'); await clickInside(b,'#issue-tab-1');
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-workspace]').hidden")),true);
+  await clickInside(b,`[data-issue-id="${second}"]`); await b.waitFor(inside("pane.querySelector('[data-issue-view-title]').textContent==='乙' && !pane.querySelector('[data-issue-workspace]').hidden"));
+});
+
+test("ISSUE-33 side-panel journey keeps validation, images, failure recovery, edit, conflict and deletion behavior", {timeout:120_000}, async t => {
+  const b=await openGoalBrowser(t,'user',undefined,null); if(!b)return;
+  await issueModel(t,b.homeDirectory);
+  await b.command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]},b.sessionId);
+  await b.navigate(()=>b.command('Page.navigate',{url:`${b.origin}/projects/${b.projectId}/?desktop=1`},b.sessionId));
+  await b.click(entry); await b.waitFor(ready);
+  const api=<T>(path:string,body?:unknown)=>b.evaluate<T>(`fetch('/api/plugins/io.molis.work.issues/'+${JSON.stringify(path)},{method:${JSON.stringify(body===undefined?'GET':'POST')},headers:molisWorkControlHeaders(),${body===undefined?'':`body:JSON.stringify(${JSON.stringify(body)})`}}).then(async r=>{if(!r.ok)throw Error(await r.text());return r.json()})`);
+  const input=async(selector:string,value:string)=>{await clickInside(b,selector);await b.command('Input.dispatchKeyEvent',{type:'keyDown',key:'a',code:'KeyA',modifiers:4,commands:['selectAll']},b.sessionId);await b.command('Input.insertText',{text:value},b.sessionId);};
+  await clickInside(b,'[data-issue-organize]'); await b.waitFor(inside("pane.querySelector('[data-issue-note]').textContent.includes('请描述')"));
+  const original='侧栏自检原文\n'+('长描述用于核对输入区、图片和固定操作栏。\n'.repeat(20));
+  await input('[name=description]',original);
+  await b.evaluate(inside(`(() => {const dt=new DataTransfer();dt.items.add(new File([new Uint8Array([0,1,2])],'损坏.png',{type:'image/png'}));pane.querySelector('[data-issue-drop]').dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt}));})()`));
+  await b.waitFor(inside("pane.querySelector('[data-issue-note]').textContent.includes('图片无法读取')"));
+  const image=await b.evaluate<string>(inside(`(() => {
+    const c=document.createElement('canvas');c.width=1200;c.height=800;c.getContext('2d').fillRect(0,0,1200,800);const data=c.toDataURL(),dt=new DataTransfer();
+    for(let i=0;i<6;i++)dt.items.add(new File([Uint8Array.from(atob(data.split(',')[1]),x=>x.charCodeAt(0))],i+'.png',{type:'image/png'}));
+    pane.querySelector('[data-issue-drop]').dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt}));return data;
+  })()`));
+  await b.waitFor(inside("pane.querySelectorAll('[data-issue-images] img').length===6 && !pane.querySelector('[data-issue-organize]').disabled"));
+  await clickInside(b,'[data-issue-preview]'); await b.waitFor(inside("pane.querySelector('[data-issue-image-dialog]').open"));
+  await clickInside(b,'[data-issue-zoom]'); assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-image-dialog]').dataset.zoom")),'true');
+  for(const type of ['keyDown','keyUp'])await b.command('Input.dispatchKeyEvent',{type,key:'Escape',code:'Escape',windowsVirtualKeyCode:27},b.sessionId);
+  await b.waitFor(inside("!pane.querySelector('[data-issue-image-dialog]').open"));
+  assert.equal(await b.evaluate("document.querySelector('[data-side-panel]').hidden"),false,'Escape closes only the image preview');
+  await clickInside(b,'[data-issue-remove]'); assert.equal(await b.evaluate(inside("pane.querySelectorAll('[data-issue-images] img').length")),5);
+  await b.command('Network.enable',{},b.sessionId); await b.command('Network.setBlockedURLs',{urls:[b.origin+'/api/plugins/io.molis.work.issues/prepare']},b.sessionId);
+  await clickInside(b,'[data-issue-organize]'); await b.waitFor(inside("!pane.querySelector('[data-issue-retry]').hidden"));
+  assert.equal((await api<{items:unknown[]}>('list')).items.length,0);
+  await clickInside(b,'#issue-tab-1'); await clickInside(b,'#issue-tab-0');
+  assert.equal(await b.evaluate(inside("pane.querySelector('[name=description]').value")),original);
+  await b.command('Network.setBlockedURLs',{urls:[]},b.sessionId);
+  await clickInside(b,'[data-issue-manual]'); await input('[name=title]','侧栏手动录入');
+  await clickInside(b,'[data-issue-save]'); assert.equal((await api<{items:unknown[]}>('list')).items.length,0,'type is required');
+  await clickInside(b,'[name=type] + [data-mw-select-trigger]'); await clickInside(b,'[data-mw-select-option][data-value="experience"]');
+  await clickInside(b,'[data-issue-save]'); await b.waitFor(inside("!pane.querySelector('[data-issue-view]').hidden && pane.querySelector('[data-issue-note]').textContent==='已保存'"));
+  const {items}=await api<{items:Array<{id:string}>}>('list'); assert.equal(items.length,1); const id=items[0]!.id;
+  const saved=await api<{version:number;description:string;images:Array<{data_url:string}>}>('read?id='+id);
+  assert.equal(saved.description,original); assert.equal(saved.images.length,5); assert.equal(saved.images[0]!.data_url,image);
+  await clickInside(b,'[data-issue-reread]'); await b.waitFor(inside("pane.querySelector('[data-issue-note]').textContent==='已是最新版本'"));
+  await clickInside(b,'[data-issue-edit]'); await input('[name=description]','取消的编辑'); await clickInside(b,'[data-issue-remove]');
+  await clickInside(b,'#issue-tab-1'); await clickInside(b,`[data-issue-id="${id}"]`); await clickInside(b,'[data-issue-cancel-edit]');
+  assert.deepEqual(await api('read?id='+id),saved,'cancel restores the view without persisting any field or image change');
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-view-description]').textContent")),original);
+  assert.equal(await b.evaluate(inside("pane.querySelectorAll('[data-issue-view-images] img').length")),5);
+  await clickInside(b,'[data-issue-edit]'); await input('[name=description]','保留自己的修改');
+  await api('update',{id,expected_version:saved.version,title:'另一个入口修改的标题'});
+  await clickInside(b,'[data-issue-reread]'); await b.waitFor(inside("!pane.querySelector('[data-issue-comparison]').hidden"));
+  await clickInside(b,'[data-issue-keep]'); await clickInside(b,'[data-issue-save]');
+  await b.waitFor(inside("!pane.querySelector('[data-issue-view]').hidden"));
+  const updated=await api<{title:string;description:string;version:number}>('read?id='+id);
+  assert.equal(updated.title,'另一个入口修改的标题'); assert.equal(updated.description,'保留自己的修改'); assert.equal(updated.version,3);
+  await clickInside(b,'[data-issue-edit]'); await clickInside(b,'[data-issue-organize]');
+  await b.waitFor(inside("pane.querySelector('[data-issue-save]').textContent==='确认并保存'"),20000);
+  const suggested=await b.evaluate(inside("pane.querySelector('[name=title]').value"));
+  await clickInside(b,'#issue-tab-1'); await clickInside(b,`[data-issue-id="${id}"]`);
+  assert.equal(await b.evaluate(inside("pane.querySelector('[name=title]').value")),suggested);
+  assert.equal(await b.evaluate(inside("pane.querySelector('[data-issue-save]').textContent")),'确认并保存');
+  await clickInside(b,'[data-issue-cancel-edit]'); assert.deepEqual(await api('read?id='+id),updated);
+  await clickInside(b,'[data-issue-delete]'); await b.waitFor(inside("pane.querySelector('[data-issue-dialog]').open")); await clickInside(b,'[value=cancel]');
+  assert.equal((await api<{items:unknown[]}>('list')).items.length,1);
+  await clickInside(b,'[data-issue-delete]'); await clickInside(b,'[data-issue-dialog-ok]');
+  await b.waitFor(inside("pane.querySelector('[data-issue-list-note]').textContent==='已删除'"));
+  assert.equal((await api<{items:unknown[]}>('list')).items.length,0);
+  assert.match(await b.evaluate<string>(inside("pane.querySelector('[data-issue-list]').textContent")),/还没有问题记录/);
+  await clickInside(b,'[data-issue-new]'); assert.equal(await b.evaluate(inside("pane.querySelector('[name=description]').value")),'');
 });

@@ -3,7 +3,7 @@ import { BUILTIN_PLUGIN_WORKBENCH } from "../../plugin-workbench.js";
 /** Loading is UI-only. Visible surfaces keep their original client and Host lifetime. */
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
-  const packs = ${JSON.stringify(BUILTIN_PLUGIN_WORKBENCH.filter(pack => pack.clientFactory).map(pack => ({ id: pack.project_plugin_id, assets: pack.clientAssets ?? [] })))};
+  const packs = ${JSON.stringify(BUILTIN_PLUGIN_WORKBENCH.filter(pack => pack.clientFactory).map(pack => pack.clientAssets?.length ? [pack.project_plugin_id, pack.clientAssets] : [pack.project_plugin_id]))}.map(([id, assets = []]) => ({ id, assets }));
   const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap();
   const scope = host.scope;
   const load = url => {

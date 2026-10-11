@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { actionMcpToolName, createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
+import { actionMcpToolName, createActionMcpPorts, handleMcpMessage, molisWorkActionToolName, MOLIS_WORK_ACTION_TOOL_PREFIX } from "@molis-ai/molis-work-app-mcp";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const context: ActionCallContext = { actor_id: "alice", project_id: "p", audience: "user", permissions: ["read"] };
@@ -50,4 +50,20 @@ test("MCP names are stable, distinguish normalized identities and detect custom 
     handlers: [definition, second].map(d => ({ ...d, handle: () => [] })) });
   const ports = createActionMcpPorts({ service, context: () => context, serverInfo: { name: "actions", version: "1" }, toolName: () => "collision" });
   await assert.rejects(async () => ports.tools, /名称重复/u);
+});
+
+test("the public action tool name is molis_work_v1_action_<action>__v<version>, with the long-name rule of every MCP tool name", () => {
+  // The example in docs/mcp.md.
+  assert.equal(molisWorkActionToolName({ capability_id: "goals.list", version: 1 }), "molis_work_v1_action_goals.list__v1");
+  assert.equal(MOLIS_WORK_ACTION_TOOL_PREFIX, "molis_work_v1_action_");
+  // The prefix is part of the identity that is normalized and capped, so a long action id still gives a legal, stable, distinct name.
+  const long = { capability_id: "x".repeat(150), version: 2 };
+  assert.ok(molisWorkActionToolName(long).length <= 128);
+  assert.match(molisWorkActionToolName(long), /^molis_work_v1_action_x+_[0-9a-f]{16}$/u);
+  assert.equal(molisWorkActionToolName(long), molisWorkActionToolName({ ...long }));
+  assert.notEqual(molisWorkActionToolName({ capability_id: "test:a", version: 1 }), molisWorkActionToolName({ capability_id: "test_a", version: 1 }));
+  // The name that a client asks for is the one the generic rule gives to the prefixed id, and differs from the unprefixed tool name.
+  const reference = { capability_id: "test:words", version: 2 };
+  assert.equal(molisWorkActionToolName(reference), actionMcpToolName({ ...reference, capability_id: "molis_work_v1_action_test:words" }));
+  assert.notEqual(molisWorkActionToolName(reference), actionMcpToolName(reference));
 });

@@ -9,7 +9,7 @@ import { renderFilesBrowserDirectory, renderFilesBrowserResult } from "@molis-ai
 import { renderGitBrowserDirectory, renderGitBrowserResult } from "@molis-ai/molis-work-plugin-git";
 import { CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/coding-companions.js";
 import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/agent-review.js";
-import { ChromeHarness } from "./fixtures/plugin-builder-browser.js";
+import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 async function until(predicate: () => boolean) {
@@ -18,14 +18,14 @@ async function until(predicate: () => boolean) {
 }
 async function fixture(t: TestContext, markup: string, script: string, reply: (path: string) => unknown) {
   const directory = await mkdtemp(join(tmpdir(), "companion-lifecycle-"));
-  let browser: ChromeHarness | null = null;
+  let browser: Awaited<ReturnType<typeof openStudioChrome>> = null;
   let server: ReturnType<typeof createServer> | undefined;
   t.after(async () => {
     server?.closeAllConnections();server?.close();
     try { await browser?.close(); }
     finally { await rm(directory, { recursive: true, force: true }); }
   });
-  browser = await ChromeHarness.start(directory);
+  browser = await openStudioChrome(directory);
   if (!browser) { t.skip("Chrome is unavailable"); return null; }
   const requests: string[] = [], aborted: string[] = [], blocked = new Set<string>(), pending = new Map<string, ServerResponse[]>();
   server = createServer((request, response) => {

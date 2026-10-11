@@ -24,7 +24,6 @@ import type { OpportunityActions } from "../services/opportunity-actions.js";
 import type { StartLensRun } from "../services/start-lens-run.js";
 import type { StartPulseRun } from "../services/start-pulse-run.js";
 import type { WorkspaceExportService } from "../services/workspace-export.js";
-import type { AlchemistPulseGithubPort } from "../sources/pulse-github-port.js";
 
 import type { WorkReuseService } from "../../../work-reuse/service.js";
 
@@ -60,7 +59,5 @@ export interface ApiDependencies {
   calibrationMemory: ReturnType<typeof createCalibrationMemoryService>;
   runtimeSettings: RuntimeSelector;
   workspaceExport: WorkspaceExportService;
-  /** Absent when no Host lends one: the pulse then searches GitHub anonymously and no account can be chosen. */
-  pulseGithub?: AlchemistPulseGithubPort;
   localSecurity?: LocalSecurityOptions;
 }

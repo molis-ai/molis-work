@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-根 apps/desktop/launchers/mcp/server.ts 处理进程入口；Host 管理项目连接和调用身份。本包提供 MCP 协议（handleMcpMessage）、平台工具目录（连接工具与受信管理入口的工具）、连接工具与管理工具的分发，以及把动作目录里每个动作变成 MCP 工具的适配（`createActionMcpPorts`，名称 `molis_work_v1_action_<动作>__v<版本>`）。Goals 与各插件的能力都经动作工具对外。
+根 apps/desktop/launchers/mcp/server.ts 处理进程入口；Host 管理项目连接和调用身份。本包提供 MCP 协议（handleMcpMessage）、平台工具目录（连接工具与受信管理入口的工具）、连接工具与管理工具的分发，以及把动作目录里每个动作变成 MCP 工具的适配（`createActionMcpPorts`；名称 `molis_work_v1_action_<动作>__v<版本>` 由 `molisWorkActionToolName` 给出，产品代码里前缀只在这里出现）。Goals 与各插件的能力都经动作工具对外。
 
 ## 从哪里读代码
 

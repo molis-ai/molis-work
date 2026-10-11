@@ -5,13 +5,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
-import { ChromeHarness } from "./fixtures/plugin-builder-browser.js";
+import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 
 // The TaskBoard reads like the Goal list: rounds, their steps and subagents nested, each with its state, progress,
 // prerequisites, time and the Agent doing it. Rounds continuing one step graph are one task.
 test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；前置、验收、执行者和子代理都看得见", { timeout: 30000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), "coding-taskboard-"));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
@@ -67,7 +67,7 @@ test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；�
 // can take a step on, hand it back, record the result of their own step, or add a step for themselves.
 test("TaskBoard：每一步显示负责人（本会话/子任务/你/没人认领），可以认领、交回、标记自己那一步的结果", { timeout: 30000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), "coding-taskboard-owner-"));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
@@ -129,7 +129,7 @@ test("TaskBoard：每一步显示负责人（本会话/子任务/你/没人认�
 // controls. It draws only while its face is on show, says what to do without a session, and its rows navigate.
 test("TaskBoard 大纲：左栏用同一棵树画紧凑的行；没有会话时说明去哪里选；点一行就是导航", { timeout: 30000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), "coding-taskboard-outline-"));
-  const browser = await ChromeHarness.start(directory);
+  const browser = await openStudioChrome(directory);
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();

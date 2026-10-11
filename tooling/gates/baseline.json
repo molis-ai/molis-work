@@ -1,5 +1,5 @@
 {
-  "giantUnits": 159,
+  "giantUnits": 157,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
     "file apps/local-host/src/assistant/assistant-service.ts": 2628,
@@ -167,8 +167,6 @@
       "methods": 35
     },
     "function modules/shelf/src/store.ts#runJob": 199,
-    "function packages/contracts/src/platform/actions.ts#inspectActionDeclarations": 158,
-    "function packages/contracts/src/platform/plugin-agent.ts#inspectAgentDeclaration": 162,
     "file packages/contracts/src/services/agent-host.ts": 1733,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 947,
@@ -691,7 +689,7 @@
     "plugins/native/goals/src/document-collection.ts": 1,
     "plugins/native/goals/src/goal-tree-materialization-order.ts": 1
   },
-  "contractsPurityEntries": 18,
+  "contractsPurityEntries": 13,
   "contractsPurity": {
     "packages/contracts/src/modules/character-import.ts#long-fn:parseCharacterImportSnapshot": 49,
     "packages/contracts/src/modules/functions.ts#long-fn:suggestedAuthoringBehaviors": 29,
@@ -704,13 +702,8 @@
     "packages/contracts/src/modules/workspace-text-diff.ts#long-fn:compareTexts": 45,
     "packages/contracts/src/modules/workspace-text-diff.ts#long-fn:diffMiddle": 63,
     "packages/contracts/src/modules/workspace-text-diff.ts#long-fn:alignSplitRows": 25,
-    "packages/contracts/src/platform/action-fragments.ts#long-fn:fragmentOfferDeclarationProblems": 31,
     "packages/contracts/src/platform/actions.ts#http-status": 2,
-    "packages/contracts/src/platform/actions.ts#long-fn:bindOwnerPluginAction": 37,
-    "packages/contracts/src/platform/actions.ts#long-fn:inspectActionDeclarations": 158,
-    "packages/contracts/src/platform/file-sources.ts#long-fn:fileSourceDeclarationProblems": 23,
-    "packages/contracts/src/platform/plugin-agent.ts#long-fn:inspectAgentDeclaration": 162,
-    "packages/contracts/src/platform/search-sources.ts#long-fn:searchSourceDeclarationProblems": 22
+    "packages/contracts/src/platform/actions.ts#long-fn:bindOwnerPluginAction": 37
   },
   "hostEntryExportStarTotal": 11,
   "hostEntryExportStar": {

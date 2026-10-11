@@ -90,7 +90,7 @@ test("launching reads the debugger address from stderr and passes the standard f
 
 test("the standard flags the README lists are exactly the ones the launcher passes", async () => {
   const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
-  const line = readme.split("\n").find((entry) => entry.trimStart().startsWith("- 标准启动参数只有这一套"));
+  const line = readme.split("\n").find((entry) => entry.trimStart().startsWith("- 经 `launchHeadlessChrome`"));
   assert.ok(line, "the README states the standard launch flags");
   const listed = [...line.matchAll(/`(--[a-z0-9-]+(?:=[^`]*)?)`/g)].map((match) => match[1]);
   await withFakeChrome("ready", async ({ directory, executable, report }) => {

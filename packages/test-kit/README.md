@@ -19,7 +19,7 @@
 | [src/boundaries.ts](src/boundaries.ts) | 导入边界与依赖环规则（含层与层之间的方向：Module 不向上依赖 Horizontal、Plugin、App；Plugin 不依赖 App、Horizontal、Module 实现包（合同包不算）；App 之间只有登记的边；例外名单按包路径记，只许减少，`unusedLayerExceptions` 找出仓库里已经没有的边） |
 | [src/index.ts](src/index.ts) | 公开检查 API |
 | [src/browser/locate.ts](src/browser/locate.ts) | `locateTestChrome`：环境变量与固定位置的查找顺序 |
-| [src/browser/launch.ts](src/browser/launch.ts) | `launchHeadlessChrome`：标准启动参数、读调试地址、等 `exit` 的关闭（超时 SIGKILL） |
+| [src/browser/launch.ts](src/browser/launch.ts) | `launchHeadlessChrome`：标准启动参数（全部列在下面「开发要求」的不变量里）、读调试地址、等 `exit` 的关闭（超时 SIGKILL） |
 | [src/browser/cdp.ts](src/browser/cdp.ts) | `ChromeHarness`：命令、持续监听与一次性事件、超时信息 |
 | [src/browser/page.ts](src/browser/page.ts) | `ChromePage`：页内等待、点击、填写、视口、截图 |
 | [tests](tests) | 规则回归 |
@@ -63,6 +63,7 @@ pnpm boundary:test
   - 新增边界规则同时提供允许与拒绝案例，不靠检查固定文件数量。
   - 浏览器驱动的每个超时与诊断都是参数；用例原来的时限和失败信息靠参数保留，不在这里改默认值来迁就某个用例。
   - 关闭只等主进程的 `exit`，不等 `close`（Chrome 的辅助进程会继承 stderr，等 `close` 可能不返回）。
+  - 标准启动参数只有这一套，所有用例的浏览器都带它（`STANDARD_ARGS`，包自己的测试核对这一行与代码一致）：`--headless=new`、`--lang=zh-CN`、`--accept-lang=zh-CN`、`--disable-gpu`、`--disable-background-networking`、`--disable-component-update`、`--disable-extensions`、`--disable-background-timer-throttling`、`--disable-renderer-backgrounding`、`--disable-backgrounding-occluded-windows`、`--no-first-run`、`--no-default-browser-check`、`--remote-debugging-port=0`，另加每次启动一个新的用户数据目录。其中 `throttling`、`renderer-backgrounding`、`backgrounding-occluded-windows` 三个参数让后台或被遮挡的页面不降频、不降优先级，所以每个用例的页面都按前台节奏跑。`extraArgs` 排在标准参数之后，只能追加、去不掉其中任何一个；某个用例要别的参数就放进 `extraArgs`，不要为它另写启动器。改这一套等于改所有用 `/browser` 的用例的运行条件，要重跑「改动后必跑」里的浏览器用例。
   - 不依赖任何包以外的运行库；不 import 宿主、模块、横向服务或插件。
   - 本包自己的测试用 `pnpm --filter @molis-ai/molis-work-test-kit test`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/import-boundary-template.test.ts tests/workbench-registration-boundaries.test.mjs tests/health-gates-structure.test.ts tests/ci-linux-probe.test.ts`，和包自己的 `pnpm --filter @molis-ai/molis-work-test-kit test`（例外名单的条目另由健康门禁对照 merge-base 只许减少）；改了 `/browser` 的，再加跑（需要本机 Chrome，在排好的浏览器时段里）`tests/ci-product-subset.txt` 里的 5 个浏览器冒烟、`tests/artifact-clipboard.e2e.test.ts`、`tests/shelf-client-boundaries.e2e.test.ts`、`tests/functions-draft-retention.test.ts`、`tests/agent-studio.e2e.test.ts`

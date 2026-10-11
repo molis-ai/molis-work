@@ -88,6 +88,21 @@ test("launching reads the debugger address from stderr and passes the standard f
   });
 });
 
+test("the standard flags the README lists are exactly the ones the launcher passes", async () => {
+  const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
+  const line = readme.split("\n").find((entry) => entry.trimStart().startsWith("- 标准启动参数只有这一套"));
+  assert.ok(line, "the README states the standard launch flags");
+  const listed = [...line.matchAll(/`(--[a-z0-9-]+(?:=[^`]*)?)`/g)].map((match) => match[1]);
+  await withFakeChrome("ready", async ({ directory, executable, report }) => {
+    const chrome = await launchHeadlessChrome({ executable, profileDirectory: join(directory, "profile") });
+    try {
+      const { args } = await report();
+      const passed = args.filter((arg) => !arg.startsWith("--user-data-dir=") && arg !== "about:blank");
+      assert.deepEqual([...listed].sort(), [...passed].sort());
+    } finally { await chrome.close(); }
+  });
+});
+
 test("a Chrome that exits before announcing the debugger rejects with the tail of its stderr", async () => {
   await withFakeChrome("exit", async ({ directory, executable }) => {
     await assert.rejects(launchHeadlessChrome({ executable, profileDirectory: join(directory, "profile") }),

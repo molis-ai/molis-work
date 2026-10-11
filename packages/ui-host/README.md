@@ -79,7 +79,7 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
   - 注册与渲染协议不等于任意 HTML 或脚本获得隔离执行。
   - 插件客户端的注册释放由 Host 生命周期负责；不解释 Goal、Feed、Artifact 状态。
   - 请求助手只发本页同源，令牌不随它发到别的源；不自动重试；诊断编号只取错误体的 `call_id`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host-executor.test.ts tests/plugin-declarative-mounting.test.ts tests/ui-client-lifecycle.e2e.test.ts tests/ui-request-client.test.ts tests/security-invariants-browser-request.test.ts tests/client-script-undeclared.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host-executor.test.ts tests/plugin-declarative-mounting.test.ts tests/ui-client-lifecycle.e2e.test.ts tests/ui-request-client.test.ts tests/security-invariants-browser-request.test.ts tests/client-script-undeclared.test.ts tests/ui-request-client-pages.test.ts tests/ui-request-client.e2e.test.ts`
 - 相关手册：[docs/platform/UI-PLATFORM.md](../../docs/platform/UI-PLATFORM.md)、[skills/molis-plugin-dev/ui.md](../../skills/molis-plugin-dev/ui.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

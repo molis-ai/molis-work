@@ -31,6 +31,8 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const fields = ['title','type','description'], values = () => ({...Object.fromEntries(fields.map(key => [key,form.elements[key].value])),images});
   const content = issue => ({...Object.fromEntries(fields.map(key => [key,issue?.[key] || ''])),images:issue?.images || []});
   const changes = () => Object.fromEntries(Object.entries(values()).filter(([key,value]) => JSON.stringify(value) !== JSON.stringify(content(selected)[key])));
+  const hasChanges = () => Object.keys(changes()).length>0;
+  const unknownResult = L('结果未知，请刷新列表，勿重复提交。');
   const note = (message, error = false) => {
     if (!scope.alive) return;
     scope.clearTimeout(noticeTimer);
@@ -46,7 +48,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         headers:globalThis.molisWorkControlHeaders(), ...(body === undefined ? {} : {body:JSON.stringify(body)})});
       result = await response.json(); scope.assertCurrent(signal);
     } catch (error) { if (scope.signal.aborted || signal?.aborted) throw error;
-      throw new Error(L(body === undefined ? '读取失败，请稍后重试。' : /^(create|update|delete)$|\/cards\/[^/]+\/run$/.test(path) ? '未能确认提交结果，请先刷新列表核对，避免重复提交。' : '整理连接中断，草稿仍保留。请重试或手动填写。')); }
+      throw new Error(body !== undefined && /^(create|update|delete)$|\/cards\/[^/]+\/run$/.test(path) ? unknownResult : L(body === undefined ? '读取失败，请稍后重试。' : '连接中断，请稍后重试。')); }
     if (!response.ok) throw Object.assign(new Error(result.error || L('操作失败，请重试')), {status:response.status});
     return result;
   };
@@ -65,6 +67,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     dialog.returnValue = ''; scope.listen(dialog, 'close', () => { resolve(dialog.returnValue === 'confirm'); cancel(); }, {once:true}); dialog.showModal();
   });
   const mayLeave = async () => {
+    dirty = dirty && hasChanges();
     if(busy || imageBusy || dirty && !await confirm('放弃未保存的修改？','当前输入还没有保存。你可以取消并继续编辑。','放弃修改')) return false;
     await release(); return true;
   };
@@ -78,6 +81,10 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       : '<div class="mw-empty"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><h2>'+L('还没有问题记录')+'</h2><p>'+L('点击「记录问题」，记下你遇到的问题。')+'</p></div>';
     list.scrollTop = scroll; $('more').hidden = !next;
   };
+  const refreshAfter = async message => {
+    try { if(scope.visible) await load(); note(L(message)); }
+    catch { note(L(message+'，列表刷新失败，请重试。'),true); }
+  };
   const meta = (issue) => {
     $('meta').textContent = issue ? L('提交人：我')+' · '+L('录入时间：')+new Date(issue.context.recorded_at).toLocaleString() : '';
     $('meta').title = issue ? L('最近修改：')+new Date(issue.updated_at).toLocaleString() : '';
@@ -87,7 +94,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const data = {...content(issue),...patch};
     for (const field of fields) form.elements[field].value = data[field];
     images = data.images; renderImages();
-    dirty = Object.keys(changes()).length > 0;
+    dirty = hasChanges();
     $('view-title').textContent = issue?.title || ''; $('view-type').textContent = L(kind[issue?.type] || '');
     $('view-description').textContent = issue?.description || ''; $('view-images').innerHTML = imageMarkup(issue?.images || []);
     $('reread').hidden = !issue;
@@ -110,12 +117,12 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     note(L('正在读取问题…'));
     const issue = await request('read?id=' + encodeURIComponent(id));
     if (epoch !== readEpoch) return;
-    if (selected?.id===id && issue.version===selected.version) { note(L('已是最新版本'+(editing?'，当前草稿已保留。':''))); return; }
+    if (selected?.id===id && issue.version===selected.version) { dirty=hasChanges(); note(L('已是最新版本'+(dirty?'，当前草稿已保留。':''))); return; }
     if (selected?.id === id && assistant) await release();
     if (selected?.id === id && dirty) {
       compare(issue); note(L('请先核对最新内容与草稿。')); $('comparison').scrollIntoView({block:'nearest'}); return;
     }
-    if (revision !== editRevision) { note(L('读取期间输入已变化，已保留当前草稿。')); return; }
+    if (revision !== editRevision) { note(L('读取时输入已变化，已保留草稿。')); return; }
     fill(issue);
   };
   const edited = event => {
@@ -136,19 +143,19 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     try {
       const saved = assistant?.card ? await saveCard() : await request(selected ? 'update' : 'create', {...data, ...(selected ? {id:selected.id,expected_version:selected.version} : {})});
       fill(saved); $('edit').focus();
-      try { if (scope.visible) await load(); note(L('已保存')); } catch { note(L('问题已保存，列表刷新失败，请稍后刷新列表。'), true); }
+      await refreshAfter('已保存');
     } catch (error) { if (error.status === 409 && selected) { await release(); await open(selected.id); } else throw error; }
     finally { busy = false; form.inert = false; $('save').disabled = false; }
   }); });
   scope.listen(root, 'click', (event) => run(async () => {
     const button = event.target.closest('button'); if (!button || busy || imageBusy) return;
     const is = key => button.hasAttribute('data-issue-'+key);
-    if (is('edit') && viewing()) { editing=true; mode(); description.focus(); return; }
+    if (is('edit') && viewing()) { editing=true; note(''); mode(); description.focus(); return; }
     if (is('cancel-edit') && selected) { await release(); fill(comparison || selected); $('edit').focus(); return; }
     if (is('organize')) { await organize(); return; }
     if (is('retry')) { await release(); await organize(); return; }
-    if (is('manual')) { await release(); manual=true; note(''); mode(); form.elements.title.focus(); return; }
-    if (is('revise')) { await release(); manual=false; note(''); mode(); description.focus(); return; }
+    if (is('manual')) { if(await release()) return; manual=true; note(''); mode(); form.elements.title.focus(); return; }
+    if (is('revise')) { if(await release()) return; manual=false; note(''); mode(); description.focus(); return; }
     if (is('pick')) { picker.click(); return; }
     if (is('remove') && !viewing() && !assistant) { images = images.filter((_,index) => index !== Number(button.dataset.issueRemove)); renderImages(); edited(); $('pick').focus(); return; }
     if (is('preview')) { preview(button.querySelector('img')); return; }
@@ -156,7 +163,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (is('new')) { if (await mayLeave()) { ++readEpoch; fill(null); description.focus(); } }
     else if (button.dataset.issueId) await open(button.dataset.issueId);
     else if (is('back')) { if (await mayLeave()) { ++readEpoch; selected = null; dirty = false; workspace.hidden = true; root.dataset.expanded = 'false'; mode(); $('new').focus(); } }
-    else if (is('refresh')) await load();
+    else if (is('refresh')) { await load(); note(L('列表已刷新')); }
     else if (is('more')) await load(true);
     else if (is('reread') && selected) await open(selected.id);
     else if (is('keep') && comparison) { const patch = changes(); ++readEpoch; fill(comparison,patch,true); note(L('已保留你的修改，请核对后保存。')); }
@@ -166,12 +173,13 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (!await confirm('删除这条问题？',target.title+'\n\n'+L('删除后无法在 Issue 中恢复。'),'删除问题',true) || selected !== target) return;
       busy = true; form.inert = true;
       try { await request('delete',{id:target.id,expected_version:target.version}); selected = null; dirty = false; ++readEpoch;
-        workspace.hidden = true; root.dataset.expanded = 'false'; await load(); note(L('已删除')); $('new').focus(); }
+        workspace.hidden = true; root.dataset.expanded = 'false';
+        await refreshAfter('已删除'); $('new').focus(); }
       finally { busy = false; form.inert = false; }
     }
   }));
   scope.listen(root, 'molis-work:select-item', (event) => { if (typeof event.detail?.itemId === 'string') run(() => open(event.detail.itemId)); });
-  scope.listen(window, 'beforeunload', (event) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
+  scope.listen(window, 'beforeunload', (event) => { if (dirty && hasChanges()) { event.preventDefault(); event.returnValue = ''; } });
   workspace.hidden = true; root.dataset.expanded = 'false'; note('');
   scope.whenVisible(signal => {
     viewSignal = signal; run(load); if(assistant?.work) run(poll);

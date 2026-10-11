@@ -65,9 +65,11 @@ test("ISSUE-19 optional Assistant reorganization updates the same issue only on 
   await click("[data-issue-edit]"); await enterDescription(); await organize();
   // An existing row is not a receipt proving that a failed confirmation saved it.
   await evaluate("window.issueEditFetch=fetch;window.fetch=(url,options)=>String(url).includes('/cards/')&&String(url).endsWith('/run')?Promise.reject(new Error('test offline')):issueEditFetch(url,options)");
-  await click("[data-issue-save]"); await waitFor("document.querySelector('[data-issue-note]').textContent.includes('未能确认提交结果')");
+  await click("[data-issue-save]"); await waitFor("document.querySelector('[data-issue-note]').textContent.includes('结果未知')");
   assert.equal(await evaluate("document.querySelector('[data-issue-view]').hidden"), true); assert.deepEqual(row(), before);
   assert.equal(await evaluate("document.querySelector('[name=description]').value"), description);
+  assert.equal(await evaluate("document.querySelector('[data-issue-assistant-note]').textContent"), "", "Unknown writes must clear the old confirmation guidance");
+  assert.equal(await evaluate("document.querySelector('[data-issue-revise]').textContent"), "核对保存结果");
   await evaluate("window.fetch=issueEditFetch"); await click("[data-issue-revise]"); await organize();
   await evaluate("document.querySelector('[name=title]').value='编辑后确认的标题';document.querySelector('[name=title]').dispatchEvent(new Event('input',{bubbles:true}))");
   await click("[data-issue-save]"); await waitFor("!document.querySelector('[data-issue-view]').hidden && document.querySelector('[data-issue-view-title]').textContent==='编辑后确认的标题'");

@@ -91,8 +91,8 @@ test("ISSUE-20 validation clears; a text-only Assistant reply preserves the draf
   await command("Network.enable", {}, sessionId);
   await command("Network.setBlockedURLs", { urls: [`${origin}/api/plugins/io.molis.work.issues/prepare`] }, sessionId);
   await click("[data-issue-organize]");
-  await waitFor("document.querySelector('[data-issue-assistant-note]').textContent.includes('整理连接中断')");
-  assert.equal(await evaluate("document.querySelector('[data-issue-assistant-note]').textContent.includes('提交结果')"), false);
+  await waitFor("document.querySelector('[data-issue-assistant-note]').textContent.includes('连接中断')");
+  assert.equal(await evaluate("document.querySelector('[data-issue-assistant-note]').textContent.includes('结果未知')"), false);
   assert.equal(count(), 0);
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await click("[data-issue-revise]");
@@ -116,6 +116,18 @@ test("ISSUE-20 validation clears; a text-only Assistant reply preserves the draf
   await click("[data-issue-save]"); await waitFor("!document.querySelector('[data-issue-view]').hidden");
   assert.equal(count(), 1);
   assert.equal(db.prepare("SELECT description FROM issues").get()!.description, "点击详情按钮后页面空白");
+  // ISSUE-28: an existing issue already has a title and type; recovery resumes editing.
+  behavior.replyText = "暂时无法整理，请检查问题描述。";
+  await click("[data-issue-edit]"); await click("[data-issue-organize]");
+  await waitFor("!document.querySelector('[data-issue-retry]').hidden", 15000);
+  assert.equal(await evaluate("document.querySelector('[data-issue-manual]').textContent"), "继续手动编辑");
+  await click("[data-issue-manual]");
+  await waitFor("document.querySelector('[data-issue-assistant-note]').textContent===''");
+  assert.equal(await evaluate("document.querySelector('[data-issue-assistant-note]').textContent"), "");
+  assert.equal(await evaluate("document.querySelector('[data-issue-save]').textContent"), "保存修改");
+  await click("[data-issue-cancel-edit]");
+  assert.equal(count(), 1);
+  assert.equal(db.prepare("SELECT version FROM issues").get()!.version, 1);
 });
 
 test("ISSUE-21 / ISSUE-22 long drafts keep actions visible, same-version rereads preserve edits, and images fit or zoom", { timeout: 60_000 }, async t => {
@@ -134,6 +146,8 @@ test("ISSUE-21 / ISSUE-22 long drafts keep actions visible, same-version rereads
   await click("[data-issue-reread]"); await waitFor("document.querySelector('[data-issue-note]').textContent.includes('已是最新版本')");
   assert.equal(await evaluate("document.querySelector('[data-issue-note]').textContent"), "已是最新版本", "Viewing an issue must not imply that an editing draft exists");
   await click("[data-issue-edit]");
+  assert.equal(await evaluate("document.querySelector('[data-issue-note]').hidden"), true, "Entering edit mode clears feedback from viewing");
+  await click("[data-issue-reread]"); await waitFor("document.querySelector('[data-issue-note]').textContent==='已是最新版本'");
   await evaluate("document.querySelector('[name=title]').value='当前本地草稿';document.querySelector('[name=title]').dispatchEvent(new Event('input',{bubbles:true}))");
   const visibleActions = () => evaluate("['save','cancel-edit'].every(key=>{const r=document.querySelector('[data-issue-'+key+']').getBoundingClientRect();return r.height>=32 && r.top>=0 && r.bottom<=innerHeight})");
   assert.equal(await visibleActions(), true);
@@ -141,6 +155,13 @@ test("ISSUE-21 / ISSUE-22 long drafts keep actions visible, same-version rereads
   assert.equal(await evaluate("document.querySelector('[data-issue-note]').textContent"), "已是最新版本，当前草稿已保留。", "Refreshing an edit keeps both the draft and its preservation feedback");
   assert.equal(await evaluate("document.querySelector('[data-issue-comparison]').hidden && document.querySelector('[name=title]').value==='当前本地草稿'"), true);
   assert.equal(await evaluate("[...document.querySelectorAll('[data-issue-actions] .mw-btn--primary')].filter(el=>!el.hidden).length"), 1);
+  // ISSUE-28: reverting input is a clean edit, not a preserved unsaved draft.
+  await evaluate("document.querySelector('[name=title]').value='保存入口应一直可见';document.querySelector('[name=title]').dispatchEvent(new Event('input',{bubbles:true}))");
+  await click("[data-issue-reread]"); await waitFor("document.querySelector('[data-issue-note]').textContent==='已是最新版本'");
+  await click("[data-issue-back]"); await waitFor("document.querySelector('[data-issue-workspace]').hidden");
+  assert.equal(await evaluate("document.querySelector('[data-issue-dialog]').open"), false, "Leaving a reverted draft needs no discard warning");
+  await click(`[data-issue-id="${id}"]`); await waitFor("!document.querySelector('[data-issue-view]').hidden");
+  await click("[data-issue-edit]");
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   assert.equal(await visibleActions(), true);
   await click("[data-issue-cancel-edit]"); await waitFor("!document.querySelector('[data-issue-view]').hidden");

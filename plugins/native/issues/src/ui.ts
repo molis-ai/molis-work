@@ -27,7 +27,7 @@ export function renderIssuesWorkbench(): string {
         <section data-issue-view hidden><p class="issues-kind" data-issue-view-type></p><h2 data-issue-view-title></h2><p class="issues-meta" data-issue-meta></p><div class="issues-prose" data-issue-view-description></div><div class="issues-images" data-issue-view-images></div></section>
         <fieldset class="issues-fields" data-issue-inputs>
         <section class="issues-comparison" data-issue-comparison aria-label="核对最新内容与草稿" hidden>
-          <h3>核对最新内容与草稿</h3><p>选择后继续编辑，点击保存才会提交。</p>
+          <h3>核对最新内容与草稿</h3><p>保留修改后继续编辑，放弃草稿则查看最新内容。</p>
           <div class="issues-compare-grid"><strong>最新内容</strong><strong>我的草稿</strong>
           ${[["title", "标题"], ["type", "问题类型"], ["description", "问题描述"], ["images", "图片"]].map(([field, label]) =>
             `<div><b>${label}</b><pre data-issue-latest="${field}"></pre></div><div><b>${label}</b><pre data-issue-draft="${field}"></pre></div>`).join("")}</div>
@@ -56,7 +56,7 @@ export function renderIssuesWorkbench(): string {
             <button class="mw-btn mw-btn--primary" type="submit" data-issue-save hidden>保存问题</button>
             <button class="mw-btn mw-btn--primary" type="button" data-issue-organize>交给助理整理</button>
             <button class="mw-btn mw-btn--primary" type="button" data-issue-retry hidden>重试整理</button>
-            <button class="mw-btn mw-btn--ghost" type="button" data-issue-revise hidden>修改描述</button>
+            <button class="mw-btn mw-btn--ghost" type="button" data-issue-revise hidden>修改描述和图片</button>
             <button class="mw-btn mw-btn--ghost" type="button" data-issue-manual>手动填写标题和类型</button>
             <button class="mw-btn mw-btn--ghost" type="button" data-issue-cancel-edit hidden>取消编辑</button>
           </div>

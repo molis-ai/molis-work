@@ -103,7 +103,7 @@ export class IssueStore {
       const current = this.read(input.id, db);
       const result = db.run("UPDATE issues SET title=?,type=?,description=?,images_json=?,updated_at=?,version=version+1 WHERE id=? AND submitter_id=? AND version=?",
         [input.title ?? current.title, input.type ?? current.type, input.description ?? current.description, JSON.stringify(input.images ?? current.images), new Date().toISOString(), input.id, this.owner, input.expected_version]);
-      if (Number(result.changes) !== 1) throw new ActionError("actions.conflict", "这条问题已被其他窗口修改，请保留草稿并重新读取后核对");
+      if (Number(result.changes) !== 1) throw new ActionError("actions.conflict", "这条问题已被其他窗口修改，请保留草稿并刷新详情核对");
       return this.read(input.id, db);
     });
   }
@@ -112,7 +112,7 @@ export class IssueStore {
     return this.db.transaction(caller.beforeEffect, db => {
       this.read(input.id, db);
       if (Number(db.run("DELETE FROM issues WHERE id=? AND submitter_id=? AND version=?", [input.id, this.owner, input.expected_version]).changes) !== 1) {
-        throw new ActionError("actions.conflict", "这条问题已被修改，请重新读取后确认删除");
+        throw new ActionError("actions.conflict", "这条问题已被修改，请刷新详情后再确认删除");
       }
       return { id: input.id, deleted: true };
     });

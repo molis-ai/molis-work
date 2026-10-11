@@ -24,7 +24,7 @@ export class IssueCaptures {
       if (JSON.stringify(held.input) !== JSON.stringify(input)) throw new ActionError("actions.conflict", "这份草稿已经变化，请重新整理");
       return { draft_id: input.draft_id };
     }
-    if (input.target && this.store.read(input.target.id).version !== input.target.expected_version) throw new ActionError("actions.conflict", "这条问题已被修改，请重新读取后核对");
+    if (input.target && this.store.read(input.target.id).version !== input.target.expected_version) throw new ActionError("actions.conflict", "这条问题已被修改，请刷新详情后核对");
     if ([...this.drafts.values()].filter(draft => !draft.saved).length >= 8) throw new ActionError("actions.input_invalid", "待确认的问题过多，请先确认或取消已有草稿");
     this.drafts.set(input.draft_id, { input: structuredClone(input), expires: Date.now() + lifetime });
     return { draft_id: input.draft_id };

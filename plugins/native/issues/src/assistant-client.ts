@@ -3,7 +3,7 @@ export const ISSUE_ASSISTANT_CLIENT_SCRIPT = String.raw`
   let assistant = null, manual = false, pollTimer;
   const assistantApi = (path, body, signal) => request('/api/assistant'+path, body, signal);
   const assistantNote = (message, error=false) => { $('assistant-note').textContent=message; $('assistant-note').classList.toggle('is-error',error); };
-  const failed = (held,message) => { if(assistant!==held) return; held.failed=true; assistantNote(L('尚未生成确认卡，描述和图片已保留。')+'\n'+message,true); mode(); };
+  const failed = (held,message) => { if(assistant!==held) return; held.failed=true; assistantNote(L('整理未完成，输入已保留。')+'\n'+message,true); mode(); };
   const mode = () => {
     const confirming = Boolean(assistant?.card), fieldsVisible = Boolean(selected || manual || confirming), readonly = viewing();
     $('view').hidden=!readonly; $('inputs').hidden=readonly; $('inputs').disabled=readonly; $('assistant-tools').hidden=readonly;
@@ -14,9 +14,10 @@ export const ISSUE_ASSISTANT_CLIENT_SCRIPT = String.raw`
     $('organize').hidden = readonly || Boolean(manual || assistant);
     $('organize').textContent=L(selected ? '让助理重新整理' : '交给助理整理');
     $('organize').classList.toggle('mw-btn--primary',!selected); $('organize').classList.toggle('mw-btn--secondary',Boolean(selected));
-    $('retry').hidden=!assistant?.failed; $('manual').hidden=readonly || manual || Boolean(assistant && !assistant.failed) || Boolean(selected && !assistant?.failed);
+    $('retry').hidden=!assistant?.failed; $('manual').hidden=readonly || manual || Boolean((selected || assistant) && !assistant?.failed);
+    $('manual').textContent=L(selected?'继续手动编辑':'手动填写标题和类型');
     $('revise').hidden=readonly || !assistant && !manual;
-    $('revise').textContent=L(assistant && !confirming && !assistant.failed && !assistant.uncertain ? '停止整理' : manual ? '改用助理整理' : '修改描述');
+    $('revise').textContent=L(assistant?.uncertain ? '核对保存结果' : assistant && !confirming && !assistant.failed ? '停止整理' : manual ? '返回助理整理' : '修改描述和图片');
     $('save').hidden = readonly || !fieldsVisible || Boolean(assistant && !confirming);
     $('save').textContent = L(confirming ? '确认并保存' : selected ? '保存修改' : '保存问题');
     description.readOnly=Boolean(assistant); $('organize').disabled = busy || imageBusy;
@@ -26,14 +27,17 @@ export const ISSUE_ASSISTANT_CLIENT_SCRIPT = String.raw`
     for(const row of list.querySelectorAll('[data-issue-id]')) row.setAttribute('aria-current',String(row.dataset.issueId===selected?.id));
     fitDescription();
   };
+  const uncertain = held => { if(assistant===held) { held.card=null; held.uncertain=true; assistantNote(''); mode(); } };
+  const incomplete = L('未获得标题和类型，请重试。');
   const release = async () => {
     const held=assistant; if(!held) return;
-    const result=await request('cancel-capture',{draft_id:held.id});
-    scope.clearTimeout(pollTimer); assistant=null;
+    const result=held.receipt ??= await request('cancel-capture',{draft_id:held.id});
+    scope.clearTimeout(pollTimer);
     if(held.work && held.card) void assistantApi('/works/'+held.work+'/cards/'+held.card.card_id+'/dismiss',{}).catch(()=>{ /* Revoked drafts cannot execute even if the card is unavailable. */ });
     if(held.work) void assistantApi('/works/'+held.work+'/control',{kind:'stop'}).catch(()=>{ /* The draft is already revoked; an ended work needs no stop. */ });
-    if(result.saved_id) { fill(await request('read?id='+encodeURIComponent(result.saved_id))); await load(); }
-    assistantNote(''); mode();
+    if(result.saved_id) { uncertain(held); fill(await readSaved(result.saved_id)); await refreshAfter('已保存'); }
+    else { assistant=null; assistantNote(''); mode(); }
+    return result.saved_id;
   };
   const poll = async () => {
     const held=assistant; if(!held?.work || held.card || held.failed || held.uncertain || !scope.visible) return;
@@ -43,20 +47,20 @@ export const ISSUE_ASSISTANT_CLIENT_SCRIPT = String.raw`
       const card=view.cards.find(card=>card.capability_id==='issues.capture' && card.status==='ready' && card.fields.some(field=>field.key==='draft_id' && field.value===held.id));
       if(card) {
         const title=card.fields.find(field=>field.key==='title'), type=card.fields.find(field=>field.key==='type');
-        if(!title?.editable || !type?.editable || !title.value.trim() || !kind[type.raw || type.value]) throw new Error(L('助理没有返回可确认的标题和类型，请重新整理。'));
+        if(!title?.editable || !type?.editable || !title.value.trim() || !kind[type.raw || type.value]) throw new Error(incomplete);
         held.card=card; form.elements.title.value=title.value; form.elements.type.value=type.raw || type.value;
-        edited(); assistantNote(L('助理已整理，请核对标题和类型。确认后才会保存。')); mode(); form.elements.type.closest('label').scrollIntoView({block:'nearest'}); form.elements.title.focus({preventScroll:true}); return;
+        edited(); assistantNote(L('请核对标题和类型，确认后保存。')); mode(); form.elements.type.closest('label').scrollIntoView({block:'nearest'}); form.elements.title.focus({preventScroll:true}); return;
       }
       const round=view.rounds.at(-1), question=round?.awaiting_input?.[0];
-      if(view.problem || question || !['running','idle'].includes(view.work.state)) throw new Error(view.problem?.message || question?.prompt || round?.turns.findLast(turn=>turn.kind==='assistant' && turn.text.trim())?.text || L('助理没有返回可确认的标题和类型，请重新整理。'));
-      if(Date.now()-held.started>120000) throw new Error(L('助理暂未完成，可以返回修改后重试。'));
+      if(view.problem || question || !['running','idle'].includes(view.work.state)) throw new Error(view.problem?.message || question?.prompt || round?.turns.findLast(turn=>turn.kind==='assistant' && turn.text.trim())?.text || incomplete);
+      if(Date.now()-held.started>120000) throw new Error(L('整理超时，请重试或继续编辑。'));
       pollTimer=scope.timeout(()=>run(poll),1000);
     } catch(error) { if(!viewSignal?.aborted) failed(held,error.message); }
   };
   const organize = async () => {
     if(viewing() || busy || imageBusy || assistant) return;
     if(!description.value.trim() && !images.length) { note(L('请描述问题或添加图片'),true); return; }
-    note(''); busy=true; assistant={id:crypto.randomUUID(),started:Date.now(),...(selected ? {target:{id:selected.id,expected_version:selected.version}} : {})}; mode(); assistantNote(L('助理正在根据描述和图片整理…'));
+    note(''); busy=true; assistant={id:crypto.randomUUID(),started:Date.now(),...(selected ? {target:{id:selected.id,expected_version:selected.version}} : {})}; mode(); assistantNote(L('助理正在整理问题…'));
     const held=assistant;
     try {
       await request('prepare',{draft_id:held.id,description:description.value,images,...(held.target ? {target:held.target} : {})});
@@ -70,12 +74,23 @@ export const ISSUE_ASSISTANT_CLIENT_SCRIPT = String.raw`
     } catch(error) { failed(held,error.message); }
     finally { busy=false; mode(); }
   };
+  const readSaved = async id => {
+    dirty=false;
+    try { return await request('read?id='+encodeURIComponent(id)); }
+    catch { throw new Error(L('已保存，详情读取失败。请刷新列表查看。')); }
+  };
   const saveCard = async () => {
-    const held=assistant, card=held?.card; if(!card) return null;
-    let result;
-    try { result=await assistantApi('/works/'+held.work+'/cards/'+card.card_id+'/run',{revision:card.revision,values:{title:form.elements.title.value,type:form.elements.type.value}}); }
-    catch(error) { if(!held.target) { try { const saved=await request('read?id='+encodeURIComponent(held.id)); assistant=null; assistantNote(''); return saved; } catch { /* A new draft ID is the only safe create receipt. Existing records do not prove an update succeeded. */ } } held.card=null; held.uncertain=true; assistantNote(''); mode(); throw error; }
-    if(result.status!=='done') { held.card=null; mode(); if(held.target) { await release(); compare(await request('read?id='+encodeURIComponent(held.target.id))); } throw new Error(result.outcome || L('未能确认提交结果，请先刷新列表核对，避免重复提交。')); }
-    const saved=await request('read?id='+encodeURIComponent(held.target?.id || held.id)); assistant=null; assistantNote(''); return saved;
+    const held=assistant, card=held.card;
+    let committed=false;
+    try {
+      const result=await assistantApi('/works/'+held.work+'/cards/'+card.card_id+'/run',{revision:card.revision,values:{title:form.elements.title.value,type:form.elements.type.value}});
+      if(result.status!=='done') { if(held.target) { await release(); compare(await request('read?id='+encodeURIComponent(held.target.id))); } throw new Error(result.outcome || unknownResult); }
+      committed=true;
+      return await readSaved(held.target?.id || held.id);
+    } catch(error) {
+      if(!committed && !held.target) { try { return await request('read?id='+encodeURIComponent(held.id)); } catch { /* A new draft ID is the only safe create receipt. Existing records do not prove an update succeeded. */ } }
+      uncertain(held);
+      throw error;
+    }
   };
 `;

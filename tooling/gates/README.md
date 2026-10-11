@@ -12,6 +12,7 @@
 | `actions/*.tsv` | 内置 Manifest 声明的动作与消费场景、宿主另外登记的动作与消费场景的合同快照（提供方、宿主登记用的提供方 id、谁能调、输入输出 schema 的哈希） | `pnpm actions:update`（见「动作合同快照」） |
 | `secret-allowlist.txt` | 密钥扫描的已知测试值 | 人，过评审 |
 | `table-owners.json` | `shared`：几个包有意共用的表（今天是 `events`、`idempotency_records`）的 owner、用到它的包、理由；`same_name`：两个包各建一张的同名表（今天是 `workspaces`、`jobs`，不同库）的包与理由；其余的表只许 owner 包读写（`scripts/gates/table-owners.mjs`，说明在 `scripts/gates/README.md`） | 人，过评审；门禁两头核对，登记的包不再用就要删 |
+| `error-owners.json` | 错误码的主人表：`platform.prefixes`（平台自己的前缀，今天是 `actions`、`placement`、`search`、`files`）和 `owners.<名字>`（主人名、它名下的目录、glob 或文件、理由）。每个错误码以所在文件的主人名开头，平台码（`ACTION_ERROR_KINDS` 里有行的）除外；`plugins/native/<目录>/` 下的文件不用登记，主人就是目录名（连字符变下划线）。表自己的规则没有基线，表只许变严（`scripts/gates/error-owners.mjs`，口径见下面「错误模型」） | 人，过评审；新增一个包或区域要先加一条 |
 
 ## 按文件计数、只许减少的项
 
@@ -24,11 +25,29 @@
 | `unknownCasts` | 经 `unknown` 的双重断言：`value as unknown as T`、`(value as unknown) as T`、`<T><unknown>value`。单独的 `as unknown` 和 `as any as T` 不算。**含测试**（规格 §9.3 的 R-12 口径是含测试的）。**由静态检查数**（`tooling/gates/lint/no-double-cast.grit`），口径是 W1-04 的超集（见「静态检查」表里的混合写法），原有文件的逐文件数字相同；扫描范围比 W1-04 的语法树计数多了 `scripts/`（见「静态检查」的扫描范围），所以总数从 199 变成 202（`scripts/contextual-slice/client.ts` 2 处、`scripts/preview-contextual-interaction.mts` 1 处），其余文件的数字没变 |
 | `oldNames` | 只数源码，不数测试。旧产品名：单个词 `goalboard`，不分大小写（`GoalBoard`、`goalboard-v1-demo`、`GOALBOARD_HOME`）。旧 id 名：`board_id`、`boardId`、`BoardId`、`BOARD_ID`，含复数，可以是整个名字或长名字的结尾（`conflicting_board_id`、`existingBoardId`），不数别的词里的（`dashboard_id`、`dashboardId`、`DASHBOARD_ID`）。只数这两种写法：`goal-board`（连字符，目标看板视图的样式类和 CSS 容器名）不是旧名，不数；`GOAL_BOARDS_SCHEMA_SQL`（每个项目 `boards` 表的建表语句）也不数，但不是因为它是看板视图，而是它属于另一类「Board 当项目」的旧名（`getBoard`、`initializeBoard` 等，见 `docs/system/GLOSSARY.md` R-A1，改名在路线图 W5-14），这条规则看不到也不守它们。测试不数，因为测试要写出旧名来断言它被拒绝。**看不到的（已知限制，换回来不会被抓）**：连字符写法 `board-id`（#287 之前的 CLI 参数 `--board-id`），以及不在上述源码范围里的文件（JSON 示例、shell、Rust）；要覆盖得按文件类型各写一条规则，不是改正则能做到的。基线里现在保留的例外：派生密钥的盐 `goalboard-feed-secretstore-v1`（`packages/storage/src/adapters/file-secret-store.ts`，那里的注释写明改了字符串会让已有密文失效）、`plugins/native/goals/src` 里两处没用到的 `_boardId`（`document-collection.ts` 的解构改名、`goal-tree-materialization-order.ts` 的参数）。它们和别的计数一样，只能减少 |
 | `floatingPromises`、`explicitAny`、`consoleCalls`、`debuggerStatements`、`lintParseErrors`、`lintSuppressions`、`lintPolicy` | 静态检查新增的几项，见下面「静态检查」 |
+| `errorSubclasses`、`errorCodeShape`、`errorStatusDecisions`、`errorCodeOwner` | 错误模型的四项，见下面「错误模型」；`errorOwnerTable` 是错误码主人表本身（不进 `baseline.json`） |
 | `compatMarkers`、`testImports`、`giant` | 见 `AGENTS.md` 与 `scripts/check-health-gates.mjs` |
 
 扫描范围：`apps`、`horizontal`、`modules`、`packages`、`plugins`、`server`、`tooling` 下的 TypeScript 源码（不含测试、夹具、`dist`、`.d.ts`）；`emptyCatchesInScripts` 与 `oldNames` 只数源码。静态检查那几项的扫描范围更宽，见下面。定义的原文在 `scripts/gates/source-counts.mjs`（`emptyCatchesInScripts`、`oldNames`）和 `scripts/gates/lint.mjs`（其余）开头，那里是唯一的出处。
 
 加一项新的按文件计数：在 `scripts/gates/source-counts.mjs` 的 `SOURCE_COUNT_RULES` 里加一条（口径写在文件开头），在 `tests/health-gates-source-counts.test.ts` 里加定义用例和突变用例，然后 `node scripts/check-health-gates.mjs --update --base origin/main`。能用静态检查规则表达的（TypeScript 语法层面的东西）走下面的「静态检查」，不要再加正则；`emptyCatchesInScripts` 留到浏览器脚本都打成包为止。
+
+## 错误模型（`scripts/gates/error-scan.mjs`、`error-owners.mjs`、`error-metrics.mjs`，W3-02-B）
+
+一个错误是代码、说明，可选的类别（kind）和细节；代码是 `<主人>.<原因>`，主人名在前（用户 2026-10-10 的决定），状态由类别在插件 SDK 的 `packages/plugin-sdk/src/errors.ts` 里一处推出。四项都按文件计数、只许减少，新文件从 0 开始，对照 merge-base 比；失败信息带行号（`line 12: "goal.not_found" in work's file`）。
+
+| 项 | 数什么 | 怎么办 |
+| --- | --- | --- |
+| `errorSubclasses` | `class X extends …Error`：类声明或类表达式，基类名以 `Error` 结尾（`Error`、`TypeError`、`ActionError`、`errors.PluginError`）。合同里 `ActionError` 自己（`packages/contracts/src/platform/action-errors.ts`）是模型的基类，不数 | 主人的失败是一张代码表：用 SDK 的 `defineErrorCodes` 声明，抛 `ActionError`（带 kind），不另写类 |
+| `errorCodeShape` | 代码字面量不是「小写词用点连接」：和合同的 `ACTION_ERROR_CODE` 是同一个表达式（`tests/health-gates-errors.test.ts` 钉住两者相等）。代码从错误类的构造函数里读：参数叫 `code` 的位置（`new FeedDomainError(message, code)` 的代码在第二个），没有构造函数的类取基类的；另有 `defineErrorCodes("前缀", { 原因: kind })` 拼出的 `前缀.原因`，和错误工厂调用（`error`、`errorFactory`、`createError`、`fail`，第二个参数是说明、第一个是点连接的词；`console.error` 与 `logger` 不算）的第一个参数 | 写成 `<主人>.<原因>`，小写，不含空格和连字符 |
+| `errorStatusDecisions` | 由「对错误的判断」选出的 400–599 数字：`error.code === "x" ? 404 : 400`、`if (error instanceof NotFound) return 404`、`switch (error.code) { case …: return 409 }`、`a && 404`，以及经变量取得的判断（`const conflict = /stale/.test(code); … conflict ? 409 : 400`，跟两层）；还有以字符串代码为键的状态表（`{ "todo.not_found": 404 }`）。判断指：`instanceof …Error`、`error instanceof 任何类`、读 `code`/`errorCode`/`error_code`。数字要在放状态的位置：返回值、属性或变量的值、赋值、`sendJson`/`respond`/`writeHead`/`status` 这类应答调用的参数、`new …Error(…)` 的参数；比较里的数字（`response.status === 404`）、数组里的、负数、`slice(0, 500)` 的不数。`packages/plugin-sdk/src/errors.ts`（类别到状态的唯一一处）不数 | 给错误一个 kind，让 SDK 的 `actionHttpStatus` / `actionErrorResponse` 选状态 |
+| `errorCodeOwner` | 代码的第一个词不是所在文件的主人名，且不是平台码（`ACTION_ERROR_KINDS` 里有行）。没有主人的文件里除平台码外的任何代码都算。裸词（`timeout`）、全大写、`plugin_grant_denied` 的第一个词都不是主人名，都算 | 代码以主人名开头：`goals.event.not_found`，不是 `event_report.not_found`；新的包或区域先在 `error-owners.json` 加一条 |
+
+**主人表**（`tooling/gates/error-owners.json`）：`owners.<名字>.paths` 是目录（以 `/` 结尾）、一个路径段内的 glob（`apps/local-host/src/jelly-*`，`*` 不跨 `/`）或单个文件；最具体的赢：文件 > glob > 目录，同类里更长的赢。`plugins/native/<目录>/` 下的文件不用登记，主人是目录名（`text-stats` → `text_stats`），表里可以写更长的路径盖过它；`apps/local-host/src/` 兜底归 `host`。`errorCodeOwner` 用工作树里的表量当前树和 merge-base **两边**，所以改表不会让数字变小。表自己的规则没有基线，出现一处就失败：不是合法的 JSON 或形状；主人名不是一个小写词、叫 `actions`、没有至少 20 个字符的理由；一个路径在两个主人名下，或不匹配任何被跟踪的文件；两个主人对同一个文件有同样具体的路径；`ACTION_ERROR_KINDS` 里有行的前缀不在 `platform.prefixes` 里（主人的码用 `defineErrorCodes` 声明，不进平台表），或 `platform.prefixes` 里的前缀没有行。**表只许变严**（对照 merge-base 的表，指标 `errorOwnerTable`）：一个文件在 merge-base 的表里有主人、现在换了主人（文件改名搬家不算，由它的 `errorCodeOwner` 数字说话）失败，新增平台前缀失败；给新文件加主人、给没人要的文件加路径、删掉过期条目是自由的。更正一个给错的主人，走对门禁本身的评审改动，不在功能 PR 里。
+
+**读不到的（已知限制，不是决定）**：不是字面量的代码（变量、带替换的模板字符串、`prefix + "." + reason`）；别名下的错误工厂（`requireCognia(…)`）；名字不以 `Error` 结尾的错误类；基类不在仓库里声明的类；两个同名的类构造函数不同（取有 `code` 参数的第一个）；经 `error.kind` 或 `error.status` 选出的状态（`kind`、`status` 作为属性名太常见，不能当作「错误」）；先放进变量的数字（`const notFound = 404`）；模板字符串里的浏览器程序。Goals 的错误工厂注入（`errorFactory(code, …)` 的 `code` 是变量）在 PR-I 换成 `defineErrorCodes` 声明之前看不到。
+
+**第一天的数字**（对 `origin/main`）：`errorSubclasses` 108、`errorCodeShape` 543（82 个文件）、`errorStatusDecisions` 222（56 个文件）、`errorCodeOwner` 1162（181 个文件）。改名 PR（W3-02 R1–R6、J1–J7）每改一处就让后两项变小；W3-02 全部做完，两项都归零，那时才可以把它们换成没有基线的规则。
 
 ## 公开 API 快照
 

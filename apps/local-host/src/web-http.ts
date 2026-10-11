@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isLoopbackHostname, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { L } from "./web-locale.js";
+import { withRecordedCallId } from "./call-id-response.js";
 
 /**
  * A person's own navigation to a top-level page (address bar, link, refresh, history), as the browser reports it. A page's
@@ -21,11 +22,13 @@ export function requestHeader(request: IncomingMessage, name: string): string | 
 }
 
 export function sendLocalWebJson(response: ServerResponse, status: number, value: unknown): void {
+  const answer = withRecordedCallId(status, value);
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
+    ...answer.headers,
   });
-  response.end(JSON.stringify(value));
+  response.end(JSON.stringify(answer.body));
 }
 
 export type LocalMutationState = "in_flight" | "complete";

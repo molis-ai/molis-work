@@ -51,7 +51,7 @@ import { handleGoalsWebHttp, goalsActions } from "@molis-ai/molis-work-plugin-go
 import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import type { SessionRuntimeResources } from "./web-session.js";
-import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
+import { cachedMolisWorkWebView, feedPull, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
 import { handleSideFilesHttp } from "./side-files-http.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { createLocalFeedApplication } from "./feed-application.js";
@@ -271,7 +271,7 @@ export async function handleMolisWorkWebRequest(
         if (!feedSchedulers.has(options.databasePath)) {
         const feed = createLocalFeedApplication(store.db, feedOptions);
         feed.recoverInterruptedSourceRuns(options.projectId);
-        const scheduler = { tick: () => lookingForArea(() => homeActions.invoke(feedSourceActions.tick, {})) };
+        const scheduler = { tick: () => feedPull(() => homeActions.invoke(feedSourceActions.tick, {})) };
         const schedule = scheduleServiceFor(store.db);
         bindScheduledTaskRunner(store.db, createHostScheduledTaskRunner({
           agentHost,

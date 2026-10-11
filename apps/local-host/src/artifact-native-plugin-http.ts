@@ -200,8 +200,7 @@ export function createLocalArtifactHttp() {
         return true;
       }
       if (!(error instanceof ArtifactBrowserError)) throw error;
-      response.writeHead(error.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-      response.end(JSON.stringify({ error: L(error.message) }));
+      sendLocalWebJson(response, error.status, { error: L(error.message) });
       return true;
     }
   };

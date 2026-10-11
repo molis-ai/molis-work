@@ -1,5 +1,5 @@
 import { FEED_PLUGIN_ID } from "./identity.js";
-import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
+import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionView, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedApplication } from "./application.js";
 import { FeedStoreError } from "./application-errors.js";
@@ -46,6 +46,12 @@ export const feedItemActions = {
     ["feed:read", "feed:write", "goals:read", "goals:write"], { required_actions: GOALS_ACTIONS_FOR_PROMOTION, authorship: "session" }),
 } as const;
 export const FEED_ITEM_ACTIONS: readonly ActionDefinition[] = Object.values(feedItemActions);
+
+/** Whether a directory listing offers Feed's promotion as runnable now. The offers and the reader's button both ask this one question. */
+export function promoteOffered(views: readonly ActionView[]): boolean {
+  return views.some(view => view.capability_id === feedItemActions.promote.capability_id && view.version === feedItemActions.promote.version
+    && view.provider.plugin_id === FEED_PLUGIN_ID && view.availability.available);
+}
 
 export interface FeedItemActionPorts {
   inboxActive(itemId: string): boolean;

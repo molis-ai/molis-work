@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
-import { once } from "node:events";
-import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { WebSocket } from "ws";
+import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -14,24 +11,16 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 
 // This checks the real browser clipboard, not the automation tool's virtual clipboard.
 test("migrated result reference copies exact text and handles denied clipboard permission without changing facts", { timeout: 30_000 }, async (t) => {
-  const chrome = [process.env.MOLIS_WORK_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"]
-    .find((path): path is string => Boolean(path && existsSync(path)));
+  const chrome = locateTestChrome();
   if (!chrome) return t.skip("Chrome is required for actual clipboard E2E");
   const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-clipboard-"));
   const databasePath = join(directory, "fixture.db");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
-  let child: ChildProcess | undefined;
-  let socket: WebSocket | undefined;
+  let harness: ChromeHarness | undefined;
   let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
   t.after(async () => {
-    socket?.close();
-    if (child && child.exitCode === null && child.signalCode === null) {
-      const closed = once(child, "close");
-      child.kill("SIGTERM");
-      await closed;
-    }
+    await harness?.close();
     if (server?.listening) await new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve()));
     store.close();
     await rm(directory, { recursive: true, force: true });
@@ -43,42 +32,9 @@ test("migrated result reference copies exact text and handles denied clipboard p
     reason: "fixture", created_by: "fixture-user", created_at: new Date().toISOString() });
   server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory,
     controlToken: "artifact-clipboard-test-control-token-0123456789" });
-  child = spawn(chrome, ["--headless=new", "--lang=zh-CN", "--accept-lang=zh-CN", "--disable-gpu", "--disable-background-networking",
-    "--disable-component-update", "--disable-extensions", "--no-first-run", "--no-default-browser-check",
-    "--remote-debugging-port=0", `--user-data-dir=${join(directory, "chrome-profile")}`, "about:blank"],
-  { stdio: ["ignore", "ignore", "pipe"] });
-  const debuggerUrl = await new Promise<string>((resolve, reject) => {
-    let stderr = "";
-    const timer = setTimeout(() => reject(new Error("Chrome debugger did not start")), 8_000);
-    child!.once("error", (error) => { clearTimeout(timer); reject(error); });
-    child!.stderr!.on("data", (chunk) => {
-      stderr += String(chunk);
-      const url = stderr.match(/DevTools listening on (ws:\/\/\S+)/)?.[1];
-      if (url) { clearTimeout(timer); resolve(url); }
-    });
-    child!.once("exit", () => { clearTimeout(timer); reject(new Error(`Chrome exited before debugger start: ${stderr.slice(-700)}`)); });
-  });
-  socket = new WebSocket(debuggerUrl);
-  await once(socket, "open");
-  let nextId = 0;
-  const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
-  socket.on("message", (raw) => {
-    const response = JSON.parse(String(raw));
-    const entry = pending.get(response.id);
-    if (!entry) return;
-    clearTimeout(entry.timer);
-    pending.delete(response.id);
-    if (response.error) entry.reject(new Error(JSON.stringify(response.error)));
-    else entry.resolve(response.result);
-  });
-  t.after(() => { for (const entry of pending.values()) clearTimeout(entry.timer); });
-  function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<T> {
-    const id = ++nextId;
-    return new Promise((resolve, reject) => {
-      pending.set(id, { resolve: (value) => resolve(value as T), reject, timer: setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}`)); }, 5_000) });
-      socket!.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
-    });
-  }
+  harness = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 5_000 });
+  const browser = harness;
+  const command = <T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string) => browser.command<T>(method, params, sessionId);
   await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   assert.ok(address && typeof address === "object");

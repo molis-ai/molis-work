@@ -18,6 +18,8 @@ export interface GoalInputBindingsApi {
   register(input: GoalInputBindingRecord): void;
   /** Ends a binding; the receipt stays in history as `inactive`. Returns false when it was already inactive. */
   deactivate?(projectId: string, bindingId: string): boolean;
+  /** The person accepts an input that was only proposed: `proposed` becomes `confirmed`. Returns false when the binding is not `proposed`. */
+  accept?(projectId: string, bindingId: string): boolean;
 }
 
 /** A Plugin object bound to a Goal (source_type `plugin_object`): the owner's subject kind and id, in the Goal's project. */

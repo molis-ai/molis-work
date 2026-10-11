@@ -1,6 +1,8 @@
 /**
- * In-process cancellation, time limit and ownership monitoring for one execution. It has no dependencies, so the Kernel
- * and the public Plugin SDK both hand out this one implementation without the SDK depending on the private Kernel.
+ * In-process cancellation, time limit and ownership monitoring for one execution. It has no dependencies. It lives in
+ * the public Plugin SDK, the one package an author installs besides the contracts, so the SDK hands it to authors
+ * without depending on a private package, and the Kernel, the Host and every other package that needs a time limit or
+ * a cancellable wait import this one implementation from the SDK.
  */
 export interface ExecutionLifetimeOptions {
   signal?: AbortSignal;

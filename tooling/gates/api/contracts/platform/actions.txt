@@ -287,7 +287,7 @@ export type ActionAvailability = {
     readonly reason: string;
 };
 
-export interface ActionCallContext {
+export interface ActionCallContext extends ActionCallOrigin {
     readonly actor_id: string;
     readonly audit_actor_id?: string;
     readonly runtime_session_id?: string;
@@ -318,6 +318,10 @@ export interface ActionCallContext {
         readonly scene_id: string;
         readonly binding_id: string;
     };
+}
+
+export interface ActionCallOrigin {
+    readonly call_id?: string;
 }
 
 export interface ActionClient {

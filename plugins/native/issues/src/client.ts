@@ -181,6 +181,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   scope.listen(root, 'molis-work:select-item', (event) => { if (typeof event.detail?.itemId === 'string') run(() => open(event.detail.itemId)); });
   scope.listen(window, 'beforeunload', (event) => { if (dirty && hasChanges()) { event.preventDefault(); event.returnValue = ''; } });
   workspace.hidden = true; root.dataset.expanded = 'false'; note('');
+  if (host.side) fill(null);
   scope.whenVisible(signal => {
     viewSignal = signal; run(load); if(assistant?.work) run(poll);
     return scope.listen(window, 'molis:assistant-effect', event => { if (event.detail?.capability_id?.startsWith('issues.')) run(load); }, {signal});

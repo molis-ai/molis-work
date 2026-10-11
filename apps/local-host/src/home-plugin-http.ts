@@ -16,6 +16,9 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const entry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.runtime?.scope === "home"
     && (page ? entry.project_plugin_id === page[1] : entry.manifest.plugin_id === route?.[1]));
   if (!entry) return false;
+  const side = page ? url.searchParams.get("side") : null;
+  const sideView = side ? entry.manifest.ui?.views?.find(view => view.slot === "side" && view.view_id === side) : undefined;
+  if (side !== null && !sideView) { sendLocalWebJson(response, 404, { error: "插件没有这个侧栏入口" }); return true; }
   const pluginId = entry.manifest.plugin_id, operation = route ? url.pathname.slice(`/api/plugins/${pluginId}/`.length) : "";
   if (operation === "retry" && request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 重试启动" }); return true; }
   let platform;
@@ -24,7 +27,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     const message = error instanceof Error ? error.message : String(error);
     if (page) {
       response.writeHead(503, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
-      response.end(renderHomePluginPage(entry, null, message, controlToken, true));
+      response.end(renderHomePluginPage(entry, null, message, controlToken, true, Boolean(sideView)));
     } else sendLocalWebJson(response, 503, { error: message });
     return true;
   }
@@ -33,10 +36,13 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   if (page) {
     if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "请通过 GET 打开页面" }); return true; }
     const contribution = install?.state === "running" ? platform.runtime.contribution(install.install_id) : null;
-    const view = contribution?.kind === "app" ? contribution.views?.find(view => view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;
-    const html = view?.render({ contribution_id: view.descriptor.contribution_id, surface: "workbench", model: null }) ?? null;
+    const slot = sideView ? "workbench.side" : "workbench.main";
+    const view = contribution?.kind === "app" ? contribution.views?.find(view => (!sideView || view.descriptor.contribution_id === sideView.contribution_id)
+      && view.descriptor.surfaces?.some(surface => surface.target_slot_id === slot)) : undefined;
+    const surface = view?.descriptor.surfaces?.find(surface => surface.target_slot_id === slot);
+    const html = view && surface ? view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: null }) : null;
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
-    response.end(renderHomePluginPage(entry, html, platform.supervisor.state(pluginId)?.message ?? null, controlToken));
+    response.end(renderHomePluginPage(entry, html, platform.supervisor.state(pluginId)?.message ?? null, controlToken, false, Boolean(sideView)));
     return true;
   }
   if (["enable", "disable"].includes(operation)) {

@@ -107,6 +107,8 @@ Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留�
 
 公共页面 `/plugins/<短名>` 在没有项目时也能打开；项目工作台挂同一运行实例的 contribution。Manifest 路由在 `/api/plugins/<plugin_id>/` 转调公共动作，经过统一 Host / Origin / token 检查。插件页面的启用与停用是显式操作；停用跨重启保留，正常 Host 退出只释放运行实例并保留启用意图。外部 MCP 仍须逐客户端逐动作授权，安装插件不等于授权外部客户端。
 
+Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbench.side` surface。Host 用 `/plugins/<短名>?side=<view_id>` 渲染正在运行的 contribution，拒绝未声明的视图；客户端收到 `side: true`。首页及项目右上角的 Home 工具由目录声明派生，在既有侧栏打开该文档，保留主页面。侧栏按需加载，收起及切换标签不销毁文档；插件自行决定初次展示什么内容，位置和宽度仍归 Host。Home 侧栏不要求创建或授权一个假项目。
+
 新增包、SDK 类型、公开 API 与动作快照、Home 库归属及 purge 清单须同步维护。资源按插件自己的客户端包加载；新增资源需要独立预算审阅，不能抬高既有资源上限。实现与验收见 [Issue V0](../../specs/issue-home-v0/spec.md)。
 
 ## 当前项目设置

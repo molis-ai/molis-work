@@ -6,6 +6,8 @@
 
 本地使用方法与验收路径见 [V0 试用说明](../../../specs/issue-home-v0/试用说明.md)。
 
+首页及项目右上角的 Issue 在 Host 侧栏打开 `capture` 视图，初次打开直接录入图文，主页面保留。侧栏隐藏或切换标签不销毁表单，返回问题列表可查看及编辑记录；完整舞台入口仍然存在。侧栏位置与宽度归 Host，不保存跨页面草稿。相关回归：`tests/issue-global-navigation.e2e.test.ts`。
+
 ## 归属与接入
 
 - 插件 ID `io.molis.work.issues`，Home provider 同名，安装 ID 另行保存。

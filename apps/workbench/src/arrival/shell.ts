@@ -1,5 +1,6 @@
 import { renderCaption, renderWordmark, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
-import { renderHomePluginNavigation } from "../home-plugin-navigation.js";
+import { homePluginSideTabs, renderHomePluginNavigation } from "../home-plugin-navigation.js";
+import { renderSidePanel, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
 
 /**
  * The frame every arrival screen shares: a titlebar, a stage and the resident bottom bar on the desk. A screen is
@@ -80,6 +81,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   }
 
   function document(options: ArrivalDocumentOptions): string {
+    const side = options.titlebar.includes("data-side-plugin-open") ? renderSidePanel(p, homePluginSideTabs(), false) : "";
     return `<!doctype html>
 <html lang="${p.htmlLang()}">
 <head>
@@ -89,16 +91,18 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   <title>${escapeHtml(options.title)}</title>
   <script>${p.themeBootstrapScript}</script>
   <link rel="stylesheet" href="/assets/molis-work-arrival.css">
+  ${side ? `<style>${SIDE_PANEL_STYLES}body.immersive-workbench.arrival-page{--desktop-titlebar-height:var(--arrival-titlebar-h)}</style>` : ""}
 </head>
 <body class="arrival-page immersive-workbench" data-arrival="${options.screen}"${options.desktopShell ? ' data-native-desktop="true"' : ""}${options.bodyAttrs ?? ""}>
   ${p.renderIconSprite()}
-  <div class="arrival" data-screen="${options.screen}">
+  <div class="arrival" data-workspace data-screen="${options.screen}">
     ${options.titlebar}
     ${options.stage}
     ${options.bar}
+    ${side}
   </div>
   ${options.after ?? ""}
-  <script>${options.scripts}</script>
+  <script>${options.scripts}${side ? SIDE_PANEL_SCRIPT : ""}</script>
 </body>
 </html>`;
   }

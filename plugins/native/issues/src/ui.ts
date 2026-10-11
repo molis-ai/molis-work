@@ -4,7 +4,8 @@ import { ISSUES_PLUGIN_ID, ISSUES_UI_CONTRIBUTION_ID } from "./manifest.js";
 
 export const issuesUiContribution: UiContribution<unknown> = {
   descriptor: { contribution_id: ISSUES_UI_CONTRIBUTION_ID, plugin_id: ISSUES_PLUGIN_ID, kind: "primary-page", navigation_id: "issues", label: "Issue",
-    surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] },
+    surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
+      { surface_id: "capture", target_slot_id: "workbench.side", format: "declarative-html" }], slots: [] },
   render: () => renderIssuesWorkbench(),
 };
 export function renderIssuesWorkbench(): string {
@@ -93,7 +94,6 @@ export const ISSUES_STYLES = `
 [data-issues="workbench"] .issues-row[aria-current="true"]{background:var(--nav-hover);box-shadow:inset 2px 0 var(--ink)}
 .issues-row-title{flex:1;min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-weight:var(--weight-control);overflow-wrap:anywhere}
 .issues-row-meta{color:var(--muted);font-size:12px;white-space:nowrap}
-[data-issues="workbench"] [data-issue-save]{align-self:flex-start}
 .issues-comparison{border:1px solid var(--line-strong);padding:16px;border-radius:8px}
 .issues-compare-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}
 .issues-compare-grid pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:10rem;overflow:auto;font:inherit;margin:4px 0}

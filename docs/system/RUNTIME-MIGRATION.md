@@ -159,7 +159,7 @@ Characters 并进宿主（第 5.4 节）是第 4 波的另一片，不在这条�
 2. 改：`apps/workbench/src/ui-composition.ts`、`renderer.ts`、`goals-page-renderer.ts` 里 Form 的挂载（`FORM_SURFACE_SLOTS`、`renderFormContribution`、`renderFormNativePluginSurface`）改为 Runtime 视图；`creative-artifacts.ts` 里 Form 的成果发布与读取端口（`registerFormArtifactVersion`、`readFormArtifactVersion`）换成 `services.artifacts`，还是保留为宿主端口，由样板设计定。
 3. 加：包里 `plugin.ts`（`createFormPlugin`，`start()` 兑现 Manifest 的每条视图、路由、动作）；`project-plugins.ts` 的监督器条目（`bundled: true`），放在每个项目一个的实例里（2.2 的放置规则）；`tests/builtin-plugin-assembly-gate.test.ts` 里从 `BUILD_TIME_ASSEMBLED` 和 `NATIVE_PLUGIN_HTTP_FILES` 移到 `RUNTIME_ASSEMBLED`。
 4. 保持：`plugin_id`、`{home}/form/form.db` 的位置与结构、界面外观、动作 id 与版本。不碰真实 Home 的数据。
-5. 开工前要已经定下的：授权规则（4.2，Form 的 `model:invoke` 是可选权限，不定就会让 Form 的 AI 动作全部不可用）、「项目已删」步骤的送达方式（Form 的表带 `project_id`）。
+5. 授权规则与提供方身份已定（用户 2026-10-10，4.2，W3-06 B、C）：Form 的条目标 `bundled: true`，所以 `model:invoke` 虽是可选权限，也随清单声明的全部权限一起授予，Form 的 AI 动作不会因此不可用；动作登记在 `plugin_id` 之下。开工前仍要定下的只有「项目已删」步骤的送达方式（Form 的表带 `project_id`）。
 
 验收：Form 的现有用例全过；`tests/builtin-plugin-assembly-gate.test.ts` 的名单缩短；浏览器里把问卷创建、填写、看结果走一遍；W4-01 的探针夹具对 Form 同样成立（安装、发现、调用、升级、停用、卸载）；`model:invoke` 的动作在迁移后仍可用；删除一个有问卷的项目后，Form 的该项目数据被清掉。
 
@@ -167,7 +167,7 @@ Characters 并进宿主（第 5.4 节）是第 4 波的另一片，不在这条�
 
 **Todo 是第二个迁移，排在 Form 之后、其余各族之前**（2026-10-07 决定）。W5-01 的描述把「Dataset/PPT/Pages」列在「Todo」前面，只是那条描述的列举顺序，不改这个决定。
 
-Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用到 Home 级实例、Home 库服务、`services.model`（`todo-actions.ts` 注入 `completeText`）。迁之前要先回答 4.2 的提供方身份和授权规则：Todo 的 `todo:write` 是 `required: false`，不处理，迁移后所有写动作不可用。它的表带可空的 `project_id`，「项目已删」步骤只清带项目的条目，个人待办留下。
+Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用到 Home 级实例、Home 库服务、`services.model`（`todo-actions.ts` 注入 `completeText`）。提供方身份和授权规则已定（用户 2026-10-10，4.2，W3-06 B、C）：Todo 迁来时条目标 `bundled: true`，`todo:write` 虽是 `required: false`，也随清单声明的全部权限一起授予，写动作不会因此不可用；动作登记在 `plugin_id` 之下。它的表带可空的 `project_id`，「项目已删」步骤只清带项目的条目，个人待办留下。
 
 ### 5.3 其余各族（W5-01，一个 PR 一族）
 
@@ -175,7 +175,7 @@ Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用
 
 1. 文档创作族：Dataset、PPT、Pages。与 Form 同形，样板之后最稳。
 2. 个人族：Jelly、Cognia、灵光、Images。其中 Jelly、Cognia、Images 依赖 Home 级实例；灵光按 2.2 的放置规则是每个项目一个。Images 有长驻的 `ImagesHostService`，有一处额外适配。
-3. 流程族：Schedule、Workflows、Inbox。Schedule 的提醒和定时操作与宿主调度器相连，Workflows 要通过动作目录调其他插件，Inbox 与 Feed 有判断场景绑定；碰到 4.2 的项目库表问题。Inbox 和 Workflows 还在代码里写死了自己的 `provider_id`，Inbox 还钉着 Pages（4.2 第 3 类后果）：如果 4.2 不选「保持 `plugin_id`」，这一族里 Inbox 的钉死处要在第 1 组的 Pages 迁移之前或同一个 PR 里改掉，顺序要跟着调。
+3. 流程族：Schedule、Workflows、Inbox。Schedule 的提醒和定时操作与宿主调度器相连，Workflows 要通过动作目录调其他插件，Inbox 与 Feed 有判断场景绑定；碰到 4.2 的项目库表问题。Inbox 和 Workflows 还在代码里写死了自己的 `provider_id`，Inbox 还钉着 Pages（4.2 第 3 类后果）：4.2 已定内置插件保持 `plugin_id`（用户 2026-10-10，W3-06 C），这些钉死处不用改，迁 Pages 也不会让 Inbox 的动作不可用，迁移顺序不受它牵制。
 4. Feed：被 29 个宿主文件 import，来源、信号、连接器、Inbox 都和它相连，单独写计划再迁。
 5. 混合插件收拢：Shelf（删 `shelf-native-plugin-http.ts`、`personal-native-plugin-http.ts`、两处 `registerProvider`）。
 6. Alchemist：最后迁，它有自己的宿主服务和每项目工作室库。
@@ -205,7 +205,7 @@ Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用
 5. 目录条目（`builtin-plugins.ts`）保留。**这一条偏离任务书**：`docs/prompts/repository-anti-corruption.md` §4.6 写的是迁一个就删掉对应的宿主 `<插件>-actions.ts`、`<插件>-native-plugin-http.ts` 和工作台目录条目。保留的原因：Runtime 装配的插件同样有目录条目，门禁的第二项断言要求它们有；目录条目还带着 Manifest 里没有的工作台字段（`summary`、`personal`、样式、客户端工厂、`searchRow`、`instructions`、`agent`、`methods` 的正文）。手写的目录条目由 W5-02 改成从各包的声明生成，到那时它就没了，意图与任务书一致，只是晚于单个迁移 PR。待用户确认（第 10 节第 9 项）。工作台里这个插件的挂载改为 Runtime 视图。
 6. 客户端请求改到 `/api/plugins/<plugin_id>/…`。
 7. 门禁名单：从 `BUILD_TIME_ASSEMBLED`、`NATIVE_PLUGIN_HTTP_FILES` 移走，加进 `RUNTIME_ASSEMBLED`。
-8. 提供方身份、授权规则（动作用到的每一项权限在迁移后仍然授予）、`kind` 按 4.2 的结论办。**迁移前先清点写死的 `provider_id`**：跑 4.2 提供方身份第 3 类后果里的清点命令，凡指向被迁插件的行（它自己的、别的插件钉着它的）都要在这个 PR 里有交代：4.2 选保持 `plugin_id` 的，这些行不变，PR 描述里写明；选别的，这些行都要改，并加用例证明迁移后仍然走通（例如迁 Pages 后 Inbox 的 `inbox.pages.generate` 仍可用，迁 Feed 后 Feed 的嵌套调用仍过得了入口的权限核对）。
+8. 提供方身份与授权规则已定（用户 2026-10-10，4.2，W3-06 B、C）：条目标 `bundled: true`，动作登记在 `plugin_id` 之下，清单声明的每一项权限（必需的和可选的）在迁移后都授予；`kind` 按 4.2 授权第 3 点办。**迁移前先清点写死的 `provider_id`**：跑 4.2 提供方身份第 3 类后果里的清点命令，凡指向被迁插件的行（它自己的、别的插件钉着它的）都要在这个 PR 里有交代：提供方身份保持 `plugin_id`，这些行不变，PR 描述里写明；被别的插件钉着的动作，加用例证明迁移后仍然走通（例如迁 Pages 后 Inbox 的 `inbox.pages.generate` 仍可用，迁 Feed 后 Feed 的嵌套调用仍过得了入口的权限核对）。
 9. `methods`：插件有 `methods` 的，W4-02 之后加一个用例，停用后方法不再登记。
 10. **「项目已删」步骤**：2.2 的表里标「有」的插件，按 4.2 末项定下的送达方式保持这一步可用，并加用例：删除一个有该插件数据的项目后，这个项目的数据没了、别的项目的还在；插件被停用时也成立；这一步失败后重试成功。
 11. 跑受影响用例；浏览器里走一遍主路径；W6-02 之后再加生命周期用例（升级、停用、卸载）。
@@ -215,7 +215,7 @@ Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用
 
 - **数据不动**：库仍在 `{home}/<id>/<id>.db`，由平台库服务打开，表和版本号不变（2026-10-07 决定的主要好处就是这个）。迁移不触发任何真实 Home 维护。
 - **安装记录是新的**：监督器首次启动一个迁来的插件时，会新建安装记录，并授予清单声明的全部权限，必需的和可选的一样（迁来的插件是 `bundled`，`PluginRuntime.install` 带 `bundled` 时用 `bundledGrants`；用户 2026-10-10 的决定，[POLICY.md](../releases/POLICY.md) 第 7.8 节）。项目里启用了哪些插件记在项目目录里（`packages/contracts/src/modules/projects.ts` 的 `plugins` 列表），迁移不应改变这份记录。
-- **会变的是引用**：见 4.2 的提供方身份。如果选择改写存量引用，那是对真实 Home 的数据操作，必须先问用户，先备份、在拷贝上演练、逐项核对；而且改写只覆盖存储里的引用（MCP 授权、工作流步骤、判断规则的场景提供方），代码里写死的 `provider_id` 要另外改，改写数据不能让它们恢复。
+- **引用不变（已定）**：4.2 的提供方身份已定内置插件保持 `plugin_id`（用户 2026-10-10，W3-06 C），迁来的插件存量的 MCP 授权、工作流步骤、判断规则的场景提供方和代码里写死的 `provider_id` 都不用改写。要改写存量引用的只有已在 Runtime 上的 7 个插件（维护七，[CHECKLIST.md](../releases/CHECKLIST.md) 第 4.3 节）：那是对真实 Home 的数据操作，必须先问用户，先备份、在拷贝上演练、逐项核对。
 - **删除项目的路径会变**：迁移不改变「项目已删」步骤清什么，但改变它怎么被调用（4.2 末项）。迁移之后第一次在真实 Home 上删项目会走新路径，所以每一族迁完，要在 Home 的拷贝上演练一次：删一个有各插件数据的项目，核对删除收据里每个插件一步，再逐库核对数据没了、别的项目的还在。
 - **Characters 的安装记录**：并进宿主时删掉各项目库里的 `io.molis.work.characters` 安装记录（5.4 第 6 点），那是对真实 Home 的项目库删行，按同样的流程做，不在迁移 PR 里顺手做。
 - 迁移完成后，`uninstall --purge` 列表（`PERSONAL_HOME_SQLITE_STORES`）不变。Runtime 插件卸载时「删除私有存储」今天指 `services.storage`（项目库里的键值）；W3-06 的库服务要保证卸载迁来的插件不删除 `{home}/<id>/<id>.db`，保留与否仍按 `uninstall --purge` 的现有规则。

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, type ActionAvailability, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { recordedCallId, withCallId, type CallContext } from "@molis-ai/molis-work-kernel";
+import { expectingRefusal, recordedCallId, withCallId, type CallContext } from "@molis-ai/molis-work-kernel";
 import { feedQueryActions as q, feedSourceActions as s } from "@molis-ai/molis-work-plugin-feed";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
@@ -138,6 +138,22 @@ test("a command cancelled, revoked or disabled before its handler started leaves
   }
 });
 
+test("a refusal the caller was looking for leaves no row, and another code, a failed handler, or the same refusal outside the scope does", () => logOf("expected", async (_home, log) => {
+  const notEnabled = refusal("actions.plugin_disabled", "此项目未启用该插件");
+  await expectingRefusal(["actions.plugin_disabled"], async () => {
+    log.record(callBy(), action("page.area", "query"), notEnabled);
+    // The scope goes with the asynchronous work started inside it, a command is covered as a read is, and none of them is shown a number.
+    await new Promise<void>(resolve => setImmediate(resolve));
+    const timer = callBy();
+    await withCallId(timer.call_id, async () => { log.record(timer, action("page.timer"), notEnabled); assert.equal(recordedCallId(), undefined, "no row, so no number to show"); });
+    log.record(callBy(), action("page.other", "query"), refusal("actions.forbidden", "无权"));
+    log.record(callBy(), action("page.handler"), { ok: false, code: "actions.plugin_disabled", message: "处理器自己报的，它已经开始" });
+  });
+  log.record(callBy(), action("person.named", "query"), notEnabled);
+  assert.deepEqual(log.list(null).reverse().map(row => [row.capability_id, row.code, row.refused === true]),
+    [["page.other", "actions.forbidden", true], ["page.handler", "actions.plugin_disabled", false], ["person.named", "actions.plugin_disabled", true]]);
+}));
+
 test("a read is recorded only when it failed, a wait never, and a row says which kind of call it was", () => logOf("operations", (_home, log) => {
   log.record(callBy(), action("r.ok", "query"), { ok: true });
   log.record(callBy(), action("r.failed", "query"), { ok: false, code: "r.failed", message: "读取失败" });
@@ -157,7 +173,7 @@ test("a call through the Host's typed port is a row of its own kind, named for t
 }));
 
 test("a client trying many ids that do not exist leaves one row, with the last twenty of them and of the operations", () => logOf("missing", (home, log) => {
-  const calls = Array.from({ length: 500 }, (_, i) => callBy(null, { actor_id: "mcp-client", audience: "mcp" }));
+  const calls = Array.from({ length: 500 }, () => callBy(null, { actor_id: "mcp-client", audience: "mcp" }));
   calls.forEach((call, i) => log.record(call, action(`guess.nothing_${i}`, "unknown"), refusal("actions.missing", `没有能力 guess.nothing_${i}`)));
   log.record(callBy(null, { actor_id: "someone-else", audience: "mcp" }), action("guess.nothing_0", "unknown"), refusal("actions.missing", "没有能力 guess.nothing_0"));
   const rows = log.list(null);

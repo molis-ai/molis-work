@@ -15,6 +15,8 @@ interface CallScope {
 }
 
 const scopes = new AsyncLocalStorage<CallScope>();
+/** The refusal codes the running code is looking for as its answer. */
+const expected = new AsyncLocalStorage<readonly string[]>();
 
 export const newCallId = (): string => randomUUID();
 /** What a person is shown and copies; looking one up takes six or more leading characters. */
@@ -39,6 +41,17 @@ export const recordedCallId = (): string | undefined => {
   const scope = openScope();
   return scope?.recorded ? scope.id : undefined;
 };
+
+/**
+ * Run calls whose refusal with one of these codes is the answer the caller is looking for, not a failure: a page that looks for an
+ * optional area its project does not have is told "not enabled" and leaves the area out. Nobody asked for that call and nobody will
+ * look for it, so the Host keeps no row about such a refusal. Any other refusal, and any refusal of a call made outside this scope,
+ * is recorded as usual.
+ */
+export const expectingRefusal = <R>(codes: readonly string[], run: () => R): R => expected.run(codes, run);
+
+/** Whether the running code is looking for a refusal with this code (`expectingRefusal`). */
+export const refusalExpected = (code: string | undefined): boolean => code !== undefined && (expected.getStore()?.includes(code) ?? false);
 
 /** Run as part of the operation `id`: the open scope of the same number is shared, any other number opens a scope that closes with `run`. */
 export async function withCallId<T>(id: string, run: () => Promise<T> | T): Promise<T> {

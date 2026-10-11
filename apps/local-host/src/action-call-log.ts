@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync, renameSync, statSync, truncateSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { currentCallId, markCallRecorded, type CallContext, type CallDescription, type CallOutcome } from "@molis-ai/molis-work-kernel";
+import { currentCallId, markCallRecorded, refusalExpected, type CallContext, type CallDescription, type CallOutcome } from "@molis-ai/molis-work-kernel";
 
 /**
  * One finished call as the diagnostic log keeps it: what was called, for whom, how it ended, and the number of the operation it was part of.
@@ -100,7 +100,8 @@ export class ActionCallLog {
 
   record(caller: CallContext, action: CallDescription, outcome: CallOutcome): void {
     const operation = recordedOperation(action.operation, outcome);
-    if (!operation) return;
+    // A refusal that a page was looking for (an optional area its project does not have) is its answer, not something a person will look up.
+    if (!operation || !outcome.ok && outcome.refused && refusalExpected(outcome.code)) return;
     this.write({ at: new Date().toISOString(), call_id: caller.call_id, operation, capability_id: action.capability_id, version: action.version, provider_id: action.provider_id ?? "",
       provider_title: action.provider_title, title: action.title, actor_id: caller.actor_id, audience: caller.audience ?? "user", project_id: caller.project_id ?? null,
       ok: outcome.ok, ...(outcome.ok ? {} : { ...(outcome.code ? { code: outcome.code } : {}), message: outcome.message, ...(outcome.refused ? { refused: true as const } : {}) }),

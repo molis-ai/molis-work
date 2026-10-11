@@ -19,7 +19,7 @@ interface Declared {
   readonly operation: unknown;
   readonly action: Record<string, unknown>;
 }
-type Group = ReadonlyMap<string, Declared>;
+type DeclaredGroup = ReadonlyMap<string, Declared>;
 type Pointer = Record<string, unknown> & { readonly capability_id: string; readonly version: number };
 /** One option of a fragment or subject query, read far enough to say which action it points at. */
 interface Option { readonly offerId: string; readonly ref: string; readonly target: Declared | undefined; readonly subjectKinds: unknown }
@@ -36,7 +36,7 @@ export function inspectActionCrossReferences(definitions: unknown): string[] {
   ]);
 }
 
-function declaredGroup(definitions: unknown): Group {
+function declaredGroup(definitions: unknown): DeclaredGroup {
   const group = new Map<string, Declared>();
   for (const raw of Array.isArray(definitions) ? definitions : []) {
     if (!isObject(raw) || !isId(raw.capability_id) || !isVersion(raw.version) || !isObject(raw.action)) continue;
@@ -48,7 +48,7 @@ function declaredGroup(definitions: unknown): Group {
 
 // ---- undo -------------------------------------------------------------------------------------------------------------------
 
-function undoProblems(source: Declared, group: Group): string[] {
+function undoProblems(source: Declared, group: DeclaredGroup): string[] {
   const undo = source.action.undo;
   if (source.operation !== "command" || !isObject(undo) || !isPointer(undo) || !isObject(undo.input)) return [];
   const fields = Object.entries(undo.input).map(([field, value]) => ({ field, path: outputPath(value) }));
@@ -85,7 +85,7 @@ function outputPath(value: unknown): string | undefined {
 
 // ---- background jobs --------------------------------------------------------------------------------------------------------
 
-function backgroundJobProblems(source: Declared, group: Group): string[] {
+function backgroundJobProblems(source: Declared, group: DeclaredGroup): string[] {
   const job = source.action.background_job;
   if (source.operation !== "command" || !isObject(job) || !isObject(job.status) || !isPointer(job.status)) return [];
   const { id, input, state } = job;
@@ -104,13 +104,13 @@ function backgroundJobProblems(source: Declared, group: Group): string[] {
 
 // ---- the actions fragment and subject options point at ----------------------------------------------------------------------
 
-function fragmentTargetProblems(source: Declared, group: Group): string[] {
+function fragmentTargetProblems(source: Declared, group: DeclaredGroup): string[] {
   return optionsOf(source, group, "fragment_offer_choices").flatMap(({ offerId, ref, target }) =>
     target?.action.scope === source.action.scope ? [] : [`能力 ${source.key} 的片段选项 ${offerId} 的目标动作 ${ref} 不在同一提供方的声明里，或范围不同`]);
 }
 
 /** Each option's target is in the group and in the source's scope, and handles the subject kinds the option is offered for. */
-function subjectTargetProblems(source: Declared, group: Group): string[] {
+function subjectTargetProblems(source: Declared, group: DeclaredGroup): string[] {
   return optionsOf(source, group, "subject_offer_choices").flatMap(({ offerId, ref, target, subjectKinds }) => {
     const prefix = `能力 ${source.key} 的事项选项 ${offerId} 的目标动作 ${ref}`;
     if (!target || target.action.scope !== source.action.scope) return [`${prefix} 不在同一提供方的声明里，或范围不同`];
@@ -119,7 +119,7 @@ function subjectTargetProblems(source: Declared, group: Group): string[] {
   });
 }
 
-function optionsOf(source: Declared, group: Group, field: string): Option[] {
+function optionsOf(source: Declared, group: DeclaredGroup, field: string): Option[] {
   const choices = source.action[field];
   return (Array.isArray(choices) ? choices : []).flatMap((choice: unknown) => {
     if (!isObject(choice) || !isText(choice.offer_id) || !isObject(choice.action) || !isPointer(choice.action)) return [];

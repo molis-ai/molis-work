@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 
-import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { HostCapabilityDefinition, HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   MIN_SCHEDULE_INTERVAL_MS,
@@ -10,6 +10,7 @@ import {
   scheduleCapabilities,
   type ScheduleJobRecord,
   type ScheduleRecurrence,
+  type SchedulePluginRegisterInput,
   type ScheduleRegisterInput,
   type ScheduleTickResult,
   type ScheduleWakeupInput,
@@ -174,10 +175,6 @@ export function scheduleFingerprint(db: ScheduleSqliteDatabase): string {
     "SELECT COUNT(*) AS n, COALESCE(MAX(finished_at), '') AS updated FROM schedule_wakeups",
   ).get() as { n: number; updated: string };
   return JSON.stringify({ jobs, wakeups });
-}
-
-export function bindScheduleCaller<T extends { plugin_id?: string }>(pluginId: string, input: T): T {
-  return { ...input, plugin_id: pluginId };
 }
 
 export function createScheduleService(db: ScheduleSqliteDatabase, options: ScheduleServiceOptions) {
@@ -468,21 +465,54 @@ export type ScheduleService = ReturnType<typeof createScheduleService>;
 export interface ScheduleCapabilityRegistrar<Context> {
   register<Input, Output>(
     definition: HostCapabilityDefinition<Input, Output>,
-    handler: (context: Context, input: Input) => Output | Promise<Output>,
+    handler: (context: Context, input: Input, invocation: HostCapabilityInvocation) => Output | Promise<Output>,
   ): () => void;
 }
 
+/**
+ * The typed `schedule.*` channel is for Runtime plugins, and the Scheduler owns the rule for whose jobs a call touches:
+ * the calling plugin's, read from the trusted invocation. Nothing in the input names an owner, so no input shape
+ * (array, string, a smuggled `plugin_id`) changes it; a call without a plugin identity, or from a stopped installation,
+ * is refused. The handlers below do not await, so the check holds through the write.
+ */
 export function registerScheduleCapabilities<Context>(
   registrar: ScheduleCapabilityRegistrar<Context>,
   serviceFor: (context: Context) => ScheduleService,
 ): void {
-  registrar.register(scheduleCapabilities.register, (_context, input) => serviceFor(_context).register(input));
-  registrar.register(scheduleCapabilities.cancel, (_context, input) =>
-    serviceFor(_context).cancel(input.job_id, input.plugin_id));
-  registrar.register(scheduleCapabilities.setEnabled, (_context, input) =>
-    serviceFor(_context).setEnabled(input.job_id, input.enabled, input.plugin_id));
-  registrar.register(scheduleCapabilities.list, (_context, input) =>
-    ({ jobs: serviceFor(_context).list(input.plugin_id) }));
+  registrar.register(scheduleCapabilities.register, (context, input, invocation) => {
+    const owner = callingPluginId(invocation);
+    return serviceFor(context).register({ ...inputRecord<SchedulePluginRegisterInput>(input), plugin_id: owner });
+  });
+  registrar.register(scheduleCapabilities.cancel, (context, input, invocation) => {
+    const owner = callingPluginId(invocation);
+    return serviceFor(context).cancel(jobIdOf(input), owner);
+  });
+  registrar.register(scheduleCapabilities.setEnabled, (context, input, invocation) => {
+    const owner = callingPluginId(invocation);
+    const { job_id, enabled } = inputRecord<{ job_id?: unknown; enabled?: unknown }>(input);
+    if (typeof job_id !== "string" || typeof enabled !== "boolean") throw new ScheduleError("schedule_job_invalid", "输入无效");
+    return serviceFor(context).setEnabled(job_id, enabled, owner);
+  });
+  registrar.register(scheduleCapabilities.list, (context, _input, invocation) =>
+    ({ jobs: serviceFor(context).list(callingPluginId(invocation)) }));
+}
+
+function callingPluginId(invocation: HostCapabilityInvocation | undefined): string {
+  const plugin = invocation?.plugin;
+  if (!plugin || typeof plugin.plugin_id !== "string" || plugin.plugin_id === "") throw new ScheduleError("schedule_job_invalid", "插件身份无效");
+  plugin.assertActive();
+  return plugin.plugin_id;
+}
+
+function inputRecord<T extends object>(input: unknown): T {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) throw new ScheduleError("schedule_job_invalid", "输入无效");
+  return input as T;
+}
+
+function jobIdOf(input: unknown): string {
+  const { job_id } = inputRecord<{ job_id?: unknown }>(input);
+  if (typeof job_id !== "string") throw new ScheduleError("schedule_job_invalid", "输入无效");
+  return job_id;
 }
 
 function wakeupKey(pluginId: string, capabilityId: string): string {

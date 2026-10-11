@@ -11,7 +11,7 @@ import { writeFileSync } from "node:fs";
 import type { ActionDefinition, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { searchActions } from "@molis-ai/molis-work-contracts/services/search";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
-import { fragmentCandidates, judgmentQuestions, judgmentState, planContextualLayout, readContextualJudgment } from "@molis-ai/molis-work-kernel";
+import { fragmentCandidates, judgmentQuestions, judgmentState, planContextualLayout, readContextualJudgment } from "@molis-ai/molis-work-kernel/contextual";
 import { pagesActions } from "../../plugins/native/pages/src/actions.js";
 import { goalsFragmentOffersAction } from "../../plugins/native/goals/src/fragment-offers.js";
 import { lingguangActions } from "../../plugins/native/lingguang/src/actions.js";

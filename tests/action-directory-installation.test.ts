@@ -4,8 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { projectActionAvailability } from "../apps/local-host/dist/project-action-availability.js";
+import { LocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 test("directory reads installation once, while invocation and later discovery use current installation", async () => {

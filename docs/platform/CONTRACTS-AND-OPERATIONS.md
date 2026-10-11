@@ -14,7 +14,7 @@
 
 ## Test Kit
 
-`packages/test-kit` 目前只提供包边界规则（`boundaries.ts`）；deterministic clock、fake capability 等测试工具仍在各测试里，尚未迁入。业务 fixture 和业务结论留在对应 Module/Plugin，防止 Test Kit 变成共享业务实现。
+`packages/test-kit` 目前提供两类与业务无关的东西：包边界规则（`boundaries.ts`，根入口）和无头 Chrome 的启动与 DevTools 驱动（子路径 `/browser`：找 Chrome、启动与关闭、命令、页内等待、点击、填写）；deterministic clock、fake capability 等测试工具仍在各测试里，尚未迁入。宿主、授权与项目的装配要 import 宿主，包边界规则不允许 Test Kit 这样做，所以留在 `tests/fixtures/`。业务 fixture 和业务结论留在对应 Module/Plugin，防止 Test Kit 变成共享业务实现。
 
 ## 门禁
 

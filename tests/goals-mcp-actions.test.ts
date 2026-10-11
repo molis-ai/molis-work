@@ -10,7 +10,8 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, LocalMcpServer, molisWorkHostProjectReference, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { createGoalIntentCapability, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
@@ -122,16 +123,16 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, noteView, false));
     release!(); assert.equal((await pending).isError, true); pending = undefined; gate = undefined;
     const afterRevoke = await names();
-    assert.equal(afterRevoke.includes(aliases.note), false); assert.equal(afterRevoke.includes(hostActionToolName(goalsActions.note)), false);
+    assert.equal(afterRevoke.includes(aliases.note), false); assert.equal(afterRevoke.includes(molisWorkActionToolName(goalsActions.note)), false);
     const events = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 2);
     const stateView = (await host.inspectActions(caller, ref)).find(view => view.capability_id === goalsActions.state.capability_id)!;
     await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, stateView, false));
     const withoutState = await names();
     assert.equal(withoutState.includes(aliases.state), false);
-    assert.equal(withoutState.includes(hostActionToolName(goalsActions.state)), false);
+    assert.equal(withoutState.includes(molisWorkActionToolName(goalsActions.state)), false);
     assert.equal((await sdk.callTool({ name: aliases.state, arguments: { goal_id: input.goal_id } })).isError, true);
-    assert.equal((await sdk.callTool({ name: hostActionToolName(goalsActions.state), arguments: { goal_id: input.goal_id } })).isError, true);
+    assert.equal((await sdk.callTool({ name: molisWorkActionToolName(goalsActions.state), arguments: { goal_id: input.goal_id } })).isError, true);
     assert.ok(withoutState.includes(aliases.event), "revoking state does not revoke a separately granted event query");
     // In production these are separate processes on the same resident service; in one process they share its Host (one Runtime owner per Home).
     const other = new LocalMcpServer(withCatalog, "runtime", { projectId: project.project_id, databasePath: project.database_path,

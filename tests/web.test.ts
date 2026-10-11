@@ -4,12 +4,13 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { Script } from "node:vm";
+import { locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -77,13 +78,7 @@ let cachedGoalTreeBrowserLayout: Promise<GoalTreeBrowserLayout | null> | undefin
 
 function readGoalTreeBrowserLayout(): Promise<GoalTreeBrowserLayout | null> {
   if (cachedGoalTreeBrowserLayout !== undefined) return cachedGoalTreeBrowserLayout;
-  const browser = [
-    process.env.MOLIS_WORK_TEST_CHROME,
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-  ].find((candidate): candidate is string => Boolean(candidate && existsSync(candidate)));
+  const browser = locateTestChrome();
   if (!browser) {
     cachedGoalTreeBrowserLayout = Promise.resolve(null);
     return cachedGoalTreeBrowserLayout;
@@ -218,13 +213,7 @@ function readGoalTreeBrowserLayout(): Promise<GoalTreeBrowserLayout | null> {
 function readDesktopWorkTabBrowserLayout(
   openTabs: string[],
 ): Promise<DesktopWorkTabBrowserLayout | null> {
-  const browser = [
-    process.env.MOLIS_WORK_TEST_CHROME,
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-  ].find((candidate): candidate is string => Boolean(candidate && existsSync(candidate)));
+  const browser = locateTestChrome();
   if (!browser) return Promise.resolve(null);
 
   const directory = mkdtempSync(join(tmpdir(), "molis-work-work-tabs-layout-"));

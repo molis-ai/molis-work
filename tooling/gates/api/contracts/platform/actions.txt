@@ -415,6 +415,7 @@ export interface ActionProvider {
     readonly kind: "system" | "plugin" | "mcp";
     readonly project_id?: string;
     readonly plugin_id?: string;
+    readonly plugin_install_id?: string;
 }
 
 export interface ActionProviderRegistration {

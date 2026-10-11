@@ -13,7 +13,7 @@ import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/mol
 import type { CodingSessionRecord, CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
 import type { AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { CODING_REPORT_TYPE } from "./artifacts.js";
+import { codingArtifacts, CODING_REPORT_TYPE } from "./artifacts.js";
 import { codingReportPreview, codingReportPublication, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
@@ -647,7 +647,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     roundReport(selected(request, execution), text(request.params.runId, "执行引用"), api!, save, request.query?.fixed === "1"));
   /** A round's report: the fixed version when there is one; built from the round and, when asked, fixed now. */
   const roundReport = async (record: CodingSessionRecord, runId: string, api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, save: boolean, fixedOnly = false) => {
-    const artifacts = context.services!.artifacts;
+    const artifacts = codingArtifacts(context);
     const existing = readCodingExecutionReport(artifacts, record.session_id, runId);
     if (existing) return existing;
     if (fixedOnly) throw new Error("原固定报告当前不可读，不能用执行中的新信息重新拼接替代");
@@ -678,7 +678,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   };
   const reportOutput = (write: boolean) => route(write ? "coding.select-report-output" : "coding.report-output", async (request, _api, execution) => {
     const session = selected(request, execution);
-    const saved = readCodingExecutionReport(context.services!.artifacts, session.session_id, text(request.params.runId, "执行引用"));
+    const saved = readCodingExecutionReport(codingArtifacts(context), session.session_id, text(request.params.runId, "执行引用"));
     if (!saved) throw new Error("请先保存固定报告，再选择报告输出");
     const outputs = context.services!.outputs!;
     if (write) {
@@ -692,7 +692,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   const reportProgress = (write: boolean) => route(write ? "coding.record-report-progress" : "coding.report-progress", async (request, api, execution) => {
     const session = selected(request, execution);
     const runId = text(request.params.runId, "执行引用");
-    const saved = readCodingExecutionReport(context.services!.artifacts, session.session_id, runId);
+    const saved = readCodingExecutionReport(codingArtifacts(context), session.session_id, runId);
     if (!saved) throw new Error("请先保存这轮固定报告，再记录 Goal 进展");
     const { report, reference } = saved;
     if (!report.goal || report.goal_source_error) throw new Error("这份报告没有可确认的原目标，不能改用会话后来选择的目标记录进展");
@@ -724,7 +724,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     route("coding.prepare-writer-directory", async (request, api) => api!.invoke(writerDirectoryCapabilities.prepare, { workspace_id: text(request.params.workspaceId, "主工作区"), operation_id: text(bodyOf(request).operation_id, "操作标识", 80) })),
     ...[false, true].map(save => route(save ? "coding.save-changeset" : "coding.read-changeset", async (request, api, execution) => {
       const record = selected(request, execution), runId = text(request.params.runId, "执行引用");
-      const artifacts = context.services!.artifacts;
+      const artifacts = codingArtifacts(context);
       const existing = readCodingChangeSet(artifacts, record.session_id, runId);
       if (existing) return { ...existing, output: context.services!.outputs!.reference("changeset") };
       if (request.query?.fixed === "1") throw new Error("原固定变更不可读，不能替换成当前工作区");
@@ -744,7 +744,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       return { change, reference, saved_at: result.artifact.created_at, output: context.services!.outputs!.reference("changeset") };
     })),
     route("coding.changeset-output", async (request, _api, execution) => {
-      const record = selected(request, execution), saved = readCodingChangeSet(context.services!.artifacts, record.session_id, text(request.params.runId, "执行引用"));
+      const record = selected(request, execution), saved = readCodingChangeSet(codingArtifacts(context), record.session_id, text(request.params.runId, "执行引用"));
       if (!saved) throw new Error("请先保存固定变更");
       const body = bodyOf(request), expected = body.expected_reference === null ? null : materialSelection([body.expected_reference])[0]!;
       context.services!.outputs!.select({ port: "changeset", reference: saved.reference, expected_reference: expected });
@@ -752,7 +752,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     }),
     route("coding.changeset-feedback", async (request, _api, execution) => {
       const record = selected(request, execution), runId = text(request.params.runId, "执行引用");
-      const saved = readCodingChangeSet(context.services!.artifacts, record.session_id, runId);
+      const saved = readCodingChangeSet(codingArtifacts(context), record.session_id, runId);
       if (!saved) throw new Error("请先保存固定变更，再填写行级意见");
       return { task: codingChangeFeedback(saved.change, bodyOf(request).comments), reference: saved.reference };
     }),
@@ -787,7 +787,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     route("coding.reports", async (_request, _api, execution) => {
       if (!execution.reportReferences) throw new Error("报告目录尚未装配");
       const reports = execution.reportReferences().flatMap(reference => {
-        const value = codingReportPreview(context.services!.artifacts.read(reference));
+        const value = codingReportPreview(codingArtifacts(context).read(reference));
         if (!value) return [];
         const { body_markdown: _body, ...entry } = value;
         return [entry];
@@ -797,7 +797,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     route("coding.artifacts", async (_request, _api, execution) => {
       if (!execution.reportReferences || !execution.changeSetReferences) throw new Error("成果目录尚未装配");
       const artifacts = [...execution.reportReferences(), ...execution.changeSetReferences()].flatMap(reference => {
-        const record = context.services!.artifacts.read(reference);
+        const record = codingArtifacts(context).read(reference);
         const report = codingReportPreview(record);
         if (report) { const { body_markdown: _body, ...entry } = report; return [{ ...entry, kind: "report", file_count: 0 }]; }
         const saved = codingChangeSetPreview(record);
@@ -923,7 +923,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       if (draft.confirmed) return { plan: draft };
       const reference = planReference(record.session_id, draft.revision), fixed = { ...draft, confirmed: reference };
       planMaterial(fixed);
-      const artifacts = context.services!.artifacts;
+      const artifacts = codingArtifacts(context);
       if (!artifacts.read(reference)) context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_PLAN_TYPE, schema_version: 1,
         content: { kind: "inline", payload: JSON.parse(JSON.stringify(fixed)) },
         metadata: { title: fixed.content.title, session_id: record.session_id, run_id: fixed.source.run_id } });
@@ -1227,7 +1227,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       if (view.deliveries.some(delivery => delivery.state === "sent")) throw new Error("上一次交付还在等发起的会话决定");
       let artifact, title;
       if (kind === "report") { const saved = await roundReport(record, runId, api!, true); if (!saved.reference) throw new Error("这一轮的报告没有固定下来"); artifact = saved.reference; title = saved.report.title; }
-      else { const saved = readCodingChangeSet(context.services!.artifacts, record.session_id, runId); if (!saved) throw new Error("请先固定这一轮的变更，再交付"); artifact = saved.reference; title = "固定变更"; }
+      else { const saved = readCodingChangeSet(codingArtifacts(context), record.session_id, runId); if (!saved) throw new Error("请先固定这一轮的变更，再交付"); artifact = saved.reference; title = "固定变更"; }
       const reply = await api!.invoke(agent.sendPeopleMessage, [record.runtime_id, { from_session: mine, to_session: letter.from_session, kind: "reply", in_reply_to: letter.message_id,
         body: JSON.stringify({ kind, run_id: runId, title, note }), attachments: [asAttachment(artifact)], ttl_ms: DELEGATION_TTL_MS }]);
       await api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, reply.message_id, "deliver", {}]);

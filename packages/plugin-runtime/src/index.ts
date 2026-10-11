@@ -10,6 +10,7 @@ import { pluginActionProvider } from "./action-provider.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
 import { assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, safeErrorCode, safeErrorMessage, sameStrings, validateManifest } from "./runtime-rules.js";
+import { createActivationContext } from "./activation-context.js";
 
 export { SqlitePluginPrivateStorage, PluginPrivateStorageError, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
@@ -717,25 +718,9 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {
     this.revokeContext(record.install_id);
-    let active = true;
-    const grants = Object.freeze([...record.grants]);
-    const context: PluginStartContext = {
-      install_id: record.install_id,
-      plugin_id: record.plugin_id,
-      // Services authenticate the executing implementation; the persisted
-      // install version stays unchanged until an explicit upgrade.
-      version: definition.manifest.version,
-      deployment: record.deployment,
-      grants,
-      requireGrant(permission) {
-        if (!active || !grants.includes(permission)) {
-          throw new PluginRuntimeError("plugin_grant_denied", `Plugin 没有 ${permission} grant`);
-        }
-      },
-    };
-    Object.freeze(context);
-    this.contexts.set(record.install_id, { context, revoke() { active = false; } });
-    return context;
+    const activation = createActivationContext(record, definition, this.options.actions?.providerId?.(record, definition) ?? record.install_id);
+    this.contexts.set(record.install_id, activation);
+    return activation.context;
   }
 
   private receipt(

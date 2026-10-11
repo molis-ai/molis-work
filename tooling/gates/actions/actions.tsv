@@ -349,6 +349,14 @@ inbox.pages.generate	1	io.molis.work.inbox	io.molis.work.inbox	command	operation
 inbox.pages.results	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	-	agent,mcp,user,workflow	inbox:read,pages:read	inbox_entry	-	-	99334726611c	7372f0635008	1f00eb723ad7
 inbox.search.entries	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	inbox:read	inbox_entry	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	eb24cea3731b
 inbox.subject.read	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	inbox:read	inbox_entry	molis.subject-reference.v1	molis.subject-context.v1	56056e2eba4c	db343dd77f37	-
+issues.cancel_capture	1	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	user	issues:write	issue	-	-	7b7bf2a96001	98b02298419d	-
+issues.capture	1	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	agent,mcp,user	issues:write	issue	-	-	57d130a9b71c	3efd82b4a94d	-
+issues.create	2	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	agent,mcp,user	issues:write	issue	-	-	202c33ef4769	3efd82b4a94d	-
+issues.delete	1	io.molis.work.issues	io.molis.work.issues	command	operation	home	irreversible	-	agent,mcp,user	issues:write	issue	-	-	ca2d54172d1d	1580894171b8	-
+issues.list	2	io.molis.work.issues	io.molis.work.issues	query	query	home	read	-	agent,mcp,user	issues:read	issue	-	-	3473b05aac08	52277529e05a	-
+issues.prepare	2	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	user	issues:write	issue	-	-	b610bbb04d09	7b7bf2a96001	-
+issues.read	2	io.molis.work.issues	io.molis.work.issues	query	query	home	read	-	agent,mcp,user	issues:read	issue	-	-	9f23bf271216	3efd82b4a94d	-
+issues.update	2	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	agent,mcp,user	issues:write	issue	-	-	8b3cda5211a5	3efd82b4a94d	-
 jelly.calendar.list	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,mcp,user,workflow	jelly:read	jelly_workspace	-	-	f46e1e6ef6be	87511b1e26fc	-
 jelly.calendar.progress	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,mcp,user,workflow	jelly:read	jelly_workspace	-	-	bb854a0acb45	7fcdf44fcce1	-
 jelly.category.create	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	d920d4689196	19c72840481e	-

@@ -4,8 +4,9 @@ import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ActionError, bindActionClient, type ActionAvailability, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { ActionError, bindActionClient, type ActionAvailability, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { LocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { expectingRefusal, recordedCallId, withCallId, type CallContext } from "@molis-ai/molis-work-kernel";
 import { feedQueryActions as q, feedSourceActions as s } from "@molis-ai/molis-work-plugin-feed";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
@@ -173,6 +174,66 @@ test("a refusal the caller was looking for leaves no row, and another code, a fa
   log.record(callBy(), action("person.named", "query"), notEnabled);
   assert.deepEqual(log.list(null).reverse().map(row => [row.capability_id, row.code, row.refused === true]),
     [["page.other", "actions.forbidden", true], ["page.handler", "actions.plugin_disabled", false], ["person.named", "actions.plugin_disabled", true]]);
+}));
+
+/** A command of a made-up plugin, and the Host's own policy: the plugins named in `closed` are "not enabled" in this project. */
+const areaAction = (capability_id: string): ActionDefinition<Record<string, never>, string> => ({ capability_id, version: 1, operation: "command",
+  action: { title: capability_id, description: "fixture", kind: "operation", scope: "project", audiences: ["user"], permissions: [], subject_kinds: [],
+    input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema: { type: "string" } } });
+
+test("a refusal the page looked for is exempt, but what the handler it started then calls is not: a nested refusal with the same code, in awaited work, work left running, and a typed handler, is a row", { timeout: 60_000 }, () => logOf("nested", async (_home, log) => {
+  const project = { project_id: "nested", storage_key: "memory:nested" };
+  const caller: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] };
+  const [probe, outer, awaited, detached, typedInner] = ["probe", "outer", "awaited", "detached", "typed_inner"].map(name => areaAction(`fixture.area.${name}`));
+  const typedOuter: HostCapabilityDefinition<Record<string, never>, string> = { capability_id: "fixture.area.typed_outer", version: 1, operation: "command" };
+  const closed = new Set([probe, awaited, detached, typedInner].map(definition => definition!.capability_id));
+  const notEnabled = { code: "actions.plugin_disabled" };
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled: (call, described, outcome) => log.record(call, described, outcome),
+    actionAvailability: (_context, view) => closed.has(view.capability_id) ? { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" } : { available: true } });
+  const client = host.actionClient(project);
+  let leftRunning: Promise<unknown> = Promise.resolve();
+  host.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture", title: "Fixture", kind: "system" }, definitions: [probe!, outer!, awaited!, detached!, typedInner!], handlers: [
+    ...[probe!, awaited!, detached!, typedInner!].map(definition => ({ ...definition, handle: () => "never runs" })),
+    { ...outer!, handle: async () => {
+      await assert.rejects(client.invoke(caller, awaited!, {}), notEnabled);
+      // Work the handler starts and leaves running belongs to the handler as well.
+      leftRunning = (async () => { await new Promise<void>(resolve => setImmediate(resolve)); await assert.rejects(client.invoke(caller, detached!, {}), notEnabled); })();
+      return "outer done";
+    } },
+  ] });
+  host.register(typedOuter, async () => { await assert.rejects(client.invoke(caller, typedInner!, {}), notEnabled); return "typed done"; });
+  try {
+    await expectingRefusal(["actions.plugin_disabled"], async () => {
+      await assert.rejects(client.invoke(caller, probe!, {}), notEnabled);
+      assert.equal(await client.invoke(caller, outer!, {}), "outer done");
+      assert.equal(await host.client(project).invoke(typedOuter, {}), "typed done");
+    });
+    await leftRunning;
+    assert.deepEqual(log.list(project.project_id).map(row => [row.capability_id, row.ok, row.refused === true]).sort(([a], [b]) => String(a).localeCompare(String(b))), [
+      [awaited!.capability_id, false, true], [detached!.capability_id, false, true], [outer!.capability_id, true, false], [typedInner!.capability_id, false, true], [typedOuter.capability_id, true, false],
+    ], "the probe's own refusal is the answer it looked for and leaves nothing; everything its callee did is recorded as usual");
+  } finally { await host.close(); }
+}));
+
+test("a contract failure keeps the fact and not the fields: a record keyed by what a person typed does not reach the call log through the field path", { timeout: 60_000 }, () => logOf("fields", async (home, log) => {
+  const project = { project_id: "fields", storage_key: "memory:fields" };
+  const caller: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] };
+  const label = "客户张三的备注";
+  const tags = areaAction("fixture.area.tags");
+  const keyed = { ...tags, action: { ...tags.action, input_schema: { type: "object", additionalProperties: { type: "integer" } } } };
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled: (call, described, outcome) => log.record(call, described, outcome) });
+  host.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture", title: "Fixture", kind: "system" }, definitions: [keyed], handlers: [{ ...keyed, handle: () => "never runs" }] });
+  try {
+    // The caller made the call and is told which field did not fit; the record is read by someone else later.
+    await assert.rejects(host.actionClient(project).invoke(caller, keyed, { [label]: "不是整数" } as never), error => {
+      assert.equal((error as ActionError).code, "actions.input_invalid");
+      assert.ok((error as ActionError).message.includes(label), "the caller keeps the whole message");
+      return true;
+    });
+    const [row] = log.list(project.project_id);
+    assert.deepEqual([row!.refused, row!.code, row!.message], [true, "actions.input_invalid", "输入不符合能力合同"]);
+    assert.ok(!readFileSync(join(home, "logs/action-calls.jsonl"), "utf8").includes(label), "the field name is the input's, and the input is never written");
+  } finally { await host.close(); }
 }));
 
 test("a read is recorded only when it failed, a wait never, and a row says which kind of call it was", () => logOf("operations", (_home, log) => {

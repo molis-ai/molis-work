@@ -53,6 +53,12 @@ const sameCall = (a: ActionCallRecord, b: ActionCallRecord) => a.actor_id === b.
   && a.ok === b.ok && a.code === b.code && a.refused === b.refused && a.path === b.path
   && (unknownId(a) && unknownId(b) || a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id && a.operation === b.operation && a.message === b.message);
 const lastDistinct = (ids: readonly string[], id: string) => [...ids.filter(other => other !== id), id].slice(-FOLDED);
+/**
+ * What the log keeps of the text a failure gave. A contract failure lists the fields that did not fit (`/客户 type`), and for a record keyed by what
+ * a person typed those names are the input's, which is never kept: only that the contract was not met stays.
+ */
+const reasonOf = (outcome: Extract<CallOutcome, { ok: false }>): string =>
+  /^actions\.(input|output)_invalid/.test(outcome.code ?? "") ? outcome.message.split("：")[0]! : outcome.message;
 const ranCommand = (row: ActionCallRecord) => row.operation === "command" && row.refused !== true;
 
 /** Which kind of row a call leaves, if any: every command; a read (or a call to an id nobody has) only when it failed; a wait never. */
@@ -104,7 +110,7 @@ export class ActionCallLog {
     if (!operation || !outcome.ok && outcome.refused && refusalExpected(outcome.code)) return;
     this.write({ at: new Date().toISOString(), call_id: caller.call_id, operation, capability_id: action.capability_id, version: action.version, provider_id: action.provider_id ?? "",
       provider_title: action.provider_title, title: action.title, actor_id: caller.actor_id, audience: caller.audience ?? "user", project_id: caller.project_id ?? null,
-      ok: outcome.ok, ...(outcome.ok ? {} : { ...(outcome.code ? { code: outcome.code } : {}), message: outcome.message, ...(outcome.refused ? { refused: true as const } : {}) }),
+      ok: outcome.ok, ...(outcome.ok ? {} : { ...(outcome.code ? { code: outcome.code } : {}), message: reasonOf(outcome), ...(outcome.refused ? { refused: true as const } : {}) }),
       ...(action.path ? { path: action.path } : {}) });
     // Only now that the row is in the file may the operation that is waiting for its answer show its number to a person.
     if (currentCallId() === caller.call_id) markCallRecorded();

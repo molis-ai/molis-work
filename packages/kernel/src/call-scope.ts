@@ -50,6 +50,12 @@ export const recordedCallId = (): string | undefined => {
  */
 export const expectingRefusal = <R>(codes: readonly string[], run: () => R): R => expected.run(codes, run);
 
+/**
+ * Run a handler. What a caller expected (`expectingRefusal`) was the answer to its own call, a refusal before the handler began; it does not
+ * reach what the handler calls, or what the handler starts and leaves running, whose refusals are recorded as any other.
+ */
+export const insideHandler = <R>(run: () => R): R => expected.run([], run);
+
 /** Whether the running code is looking for a refusal with this code (`expectingRefusal`). */
 export const refusalExpected = (code: string | undefined): boolean => code !== undefined && (expected.getStore()?.includes(code) ?? false);
 

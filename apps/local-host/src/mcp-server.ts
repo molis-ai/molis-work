@@ -6,7 +6,7 @@ import { goalsActions, readGoalResumeFacts } from "@molis-ai/molis-work-plugin-g
 import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { createMcpRuntimeContextHandlers, createMcpContextPresenter, dispatchMcpProjectTool, handleMcpMessage,
   mcpRuntimeSessionActivity, MCP_SERVER_INFO as SERVER_INFO,
-  createActionMcpPorts, isRuntimeContextMcpTool,
+  createActionMcpPorts, isRuntimeContextMcpTool, molisWorkActionToolName,
   type McpToolResult, type McpToolCallContext, type McpPresentationErrorFactory } from "@molis-ai/molis-work-app-mcp";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { MolisWorkProjectCatalogError } from "./project-catalog.js";
@@ -22,7 +22,6 @@ import { ProjectDeletionService } from "./project-deletion-service.js";
 import { assembleMcpCatalog, findAssembledMcpTool, type AssembledMcpCatalog } from "./mcp-catalog.js";
 import { readProductEnv } from "@molis-ai/molis-work-storage";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
-import { hostActionToolName } from "./mcp-action-grants.js";
 import { LocalActionGatewayClient } from "./action-gateway.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
 
@@ -172,12 +171,12 @@ export class LocalMcpServer {
         validate_authority: checkContext,
       };
       return { service, context,
-        ports: createActionMcpPorts({ service, context: () => context, serverInfo: SERVER_INFO, toolName: hostActionToolName }) };
+        ports: createActionMcpPorts({ service, context: () => context, serverInfo: SERVER_INFO, toolName: molisWorkActionToolName }) };
     }
     const reference = this.runtimeConnection ? molisWorkHostProjectReference(this.runtimeConnection) : undefined;
     const { context } = await authorizeMcpActions(this.localHost, current.context, home, reference, checkContext);
     return { ...current, context,
-      ports: createActionMcpPorts({ service: current.service, context: () => context, serverInfo: SERVER_INFO, toolName: hostActionToolName }) };
+      ports: createActionMcpPorts({ service: current.service, context: () => context, serverInfo: SERVER_INFO, toolName: molisWorkActionToolName }) };
   }
 
   private async ensureCatalog(): Promise<AssembledMcpCatalog & { actionServiceError?: ActionError }> {
@@ -194,7 +193,7 @@ export class LocalMcpServer {
     const catalog = assembleMcpCatalog({
       audience: this.audience,
       actions: discovered,
-      actionToolName: hostActionToolName,
+      actionToolName: molisWorkActionToolName,
       authorized_actions: this.actionServiceUrl ? discovered.map(view => ({ capability_id: view.capability_id,
         version: view.version, provider_id: view.provider.provider_id })) : actions.context.allowed_actions,
     });

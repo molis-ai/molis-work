@@ -14,10 +14,10 @@
 1. **身份只来自调用上下文。** 每个入口先造一个 `ActionCallContext`（`packages/contracts/src/platform/actions.ts`）：`actor_id`、`project_id`、`audience`、`permissions`、可选的 `allowed_actions`、`validate_authority`、`signal`。页面参数、MCP 参数、模型输出都不能填这些字段。`_meta` 里的 Runtime 会话 id 只用来做审计作者（`audit_actor_id`），不是权限。
 2. **能力只有一条执行路径。** 页面、MCP、助理、Agent、工作流、插件 SDK 都经 `ActionClient.invoke`，到 `ActionService`（`packages/kernel/src/action-service.ts`）→ `CapabilityRegistry` → 处理器。入口只在「谁在调、看得到哪些、怎样呈现结果」上不同。例外集中登记在 §10。
 3. **等待模型或外部服务的动作声明 `scheduling: "concurrent"`，写入前调 `beforeEffect()`。** 它复查注册实例、可用性、授权、权限和取消；调用结束后再调就抛 `actions.expired`。
-4. **每次调用恰好结算一次；调用记录只写「谁调了什么、怎样结束」，不写输入和结果。** 结算在 `ActionService.invoke` 与 `invokeSync`（`packages/kernel/src/action-settlement.ts`）：处理器的结果或失败，以及处理器之前的每一种拒绝（缺失、提供方变化、无权、输入不合、限流、宿主策略、同步入口自己的检查），都交给宿主的 `actionSettled` 钩子，拒绝带「处理器没跑」的标记。宿主 typed 口对带 `action` 的条目走同一处，不带 `action` 的宿主能力由宿主自己结算一次（`apps/local-host/src/typed-call-settlement.ts`，带 `path: "typed"`）。调用记录（`apps/local-host/src/action-call-log.ts`）现在仍只收命令（`operation === "command"`），而且只收处理器已经进入的：被拒的调用（含处理器之前就被取消、撤权、停用的）被结算、不写调用记录，直到用户确认「被取消、撤权、停用的调用不再写任何记录」的范围（W3-01 的 B 片）；宿主自己的 typed 命令从此进来；查询和失败的读取不进。
-5. **每次调用有一个调用编号（`call_id`），但入口、调用记录和响应还没带它。** 内核给没带编号的调用补上：沿用此刻打开的作用域里的编号，没有就新生成（`packages/kernel/src/call-scope.ts`）；动作处理器和宿主能力处理器拿到的上下文里一定有，嵌套调用共用。各入口还没有为一次操作打开作用域，所以现在每个顶层调用各有一个编号；一次性键 `x-molis-work-idempotency-key` 只在 HTTP 入口防重放、不往下传，它不是调用编号。调用记录里的行没有编号，界面上的报错因此仍追不到具体环节。
+4. **每次调用恰好结算一次；调用记录只写「谁调了什么、怎样结束」，不写输入和结果。** 结算在 `ActionService.invoke` 与 `invokeSync`（`packages/kernel/src/action-settlement.ts`）：处理器的结果或失败，以及处理器之前的每一种拒绝（缺失、提供方变化、无权、输入不合、限流、宿主策略、同步入口自己的检查），都交给宿主的 `actionSettled` 钩子，拒绝带「处理器没跑」的标记。宿主 typed 口对带 `action` 的条目走同一处，不带 `action` 的宿主能力由宿主自己结算一次（`apps/local-host/src/typed-call-settlement.ts`，带 `path: "typed"`）。调用记录（`apps/local-host/src/action-call-log.ts`）每个命令记一行（含宿主自己的 typed 命令），读取只在失败时记，`wait` 不记；被拒的调用（含处理器之前就被取消、撤权、停用的）也记一行，界面写「未执行」。硬规则「被取消、撤权、停用的调用不再写任何业务记录」只管业务数据；这一行是诊断行，只记谁、什么动作、结果与错误码，不记输入与结果（用户 2026-10-10 决定，W3-01 B）。
+5. **每次调用有一个调用编号（`call_id`），调用记录的行带它，但入口和响应还没带。** 内核给没带编号的调用补上：沿用此刻打开的作用域里的编号，没有就新生成（`packages/kernel/src/call-scope.ts`）；动作处理器和宿主能力处理器拿到的上下文里一定有，嵌套调用共用。各入口还没有为一次操作打开作用域，所以现在每个顶层调用各有一个编号；一次性键 `x-molis-work-idempotency-key` 只在 HTTP 入口防重放、不往下传，它不是调用编号。调用记录里的每一行带编号（合并的行另存最近 20 个，按六个字符起的前缀找得到）；写下一行后内核的作用域记下「这个编号留了行」（`markCallRecorded`，`recordedCallId`），入口只给查得到的编号。入口和响应还没带它，界面上的报错因此仍追不到具体环节。
    - **目标（决定 5）**：Host 给每次调用一个编号，贯穿各入口与调用记录（W3-01）；界面报错的详情里显示它的短形式，叫「诊断编号」，可以一键复制；「设置 › 诊断」按诊断编号列出最近的调用。
-   - **今天**：「设置 › 诊断」（`apps/workbench/src/settings-renderer.ts` 的诊断页）只有本体安装状态、提示词与角色登记、助理与执行服务的账目、启动入口和常驻服务，不列调用。最近的命令调用在「能力」页的「调用记录」（`apps/workbench/src/capabilities.ts`，数据来自 `ActionCallLog`），每行没有编号，查询不记。
+   - **今天**：「设置 › 诊断」（`apps/workbench/src/settings-renderer.ts` 的诊断页）只有本体安装状态、提示词与角色登记、助理与执行服务的账目、启动入口和常驻服务，不列调用。最近的调用在「能力」页的「调用记录」（`apps/workbench/src/capabilities.ts`，数据来自 `ActionCallLog`）：命令、失败的读取和标为「未执行」的被拒调用；页面上还不显示编号。
 
 ### 入口对照
 
@@ -48,16 +48,16 @@
 | 7 | 项目运行环境与排队 | `apps/local-host/src/project-host.ts`（`MolisWorkLocalHost.actionClient`：每次发现或调用先 `prepareProjectPlugins`，保证本项目的 Runtime 插件和已安装的生成插件已启动）→ `apps/local-host/src/local-host.ts`（`LocalHost.actionClient`，内部 `enqueue`） | → 打开项目运行环境，排进队列执行 | 调用者的 `project_id` 必须等于所选项目；进入动作服务时先做宿主层可用性检查（`admit`，仍在队列与项目运行环境里）：项目是否启用该插件（`apps/local-host/src/project-action-availability.ts`）、`required_actions` 依赖、`required_scene` 的绑定 | `actions.scope_mismatch`；`actions.host_closed`；`actions.plugin_disabled` | 同一项目的命令串行排队；声明 `concurrent` 的动作和 `wait` 在队列旁执行；占住队列超过 20 秒，日志点名该能力（不含输入） |
 | 8 | 动作服务 | `packages/kernel/src/action-service.ts`（`ActionService.invoke`）→ `packages/kernel/src/index.ts`（`CapabilityRegistry.invoke`） | 能力引用加输入 → 校验后的结果 | 可见性检查：受众、权限、`allowed_actions`、项目一致；`required_actions` 依赖也要可用；输入按 JSON Schema 校验 | `actions.missing`；`actions.provider_changed`；`actions.forbidden`；`actions.project_required`；`actions.input_invalid`；`actions.rate_limited`；`actions.timeout` | 无 |
 | 9 | 处理器、领域、存储 | 插件或模块，例如 `plugins/native/todo/src/actions.ts` 的 `createTodoActionHandlers` | 输入 → 领域结果；写入在 owner 自己的库里 | 处理器自己再判断范围，例如 Todo 只让人自己的页面跨项目读（`todoAccess`）；异步等待后、写入前 `await beforeEffect()` | owner 自己的错误码，例如 `todo.not_found`、`todo.conflict`；已写入后输出不合合同报 `actions.output_invalid_after_effect` | 由 owner 决定：多数把领域事件写进库里的事件日志（例如成果库经 `LocalProjectDatabase.appendEvent`）；Todo 在输出里给 `change_id`，供撤销 |
-| 10 | 结算 | `apps/local-host/src/project-host.ts`（`actionSettled`）→ `ActionCallLog` | 一次调用的结局 → 一行记录 | 无 | 记录失败不改变调用结果 | `{home}/logs/action-calls.jsonl`：谁、哪个能力、成功与否、错误码与前 200 字；处理器之前就被拒的调用不写；连续相同结局（10 分钟内）合并；文件超过 2000 行时只保留最近 1000 行；成功的命令还会通知搜索「这个提供方的内容变了」 |
+| 10 | 结算 | `apps/local-host/src/project-host.ts`（`actionSettled`）→ `ActionCallLog` | 一次调用的结局 → 一行记录 | 无 | 记录失败不改变调用结果 | `{home}/logs/action-calls.jsonl`：谁、哪个能力、成功与否、错误码与前 200 字、这次操作的编号；每个命令一行，读取只在失败时一行，处理器之前就被拒的调用一行（标 `refused`，界面写「未执行」）；连续相同结局（10 分钟内）合并，只和最后一行合并；文件超过 2000 行时按类整理（执行过的命令最近 1000 行，其余最近 200 行），没有编号的旧行不读、整理时去掉；成功的命令还会通知搜索「这个提供方的内容变了」 |
 | 11 | 响应与刷新 | 插件客户端脚本；`webViewCache`（`apps/local-host/src/web-view.ts`） | JSON → 页面更新 | — | 页面显示 `error` | 普通写入没有服务端推送：页面靠响应、标签页重新可见和轮询刷新；服务端渲染的视图在相关写入后清缓存 |
 
 **守住它的用例**：`tests/local-web-actions.test.ts`、`tests/local-host-actions.test.ts`、`tests/web-home-isolation.test.ts`。
 
 **现状与缺口**
 
-- 调用编号只在内核和宿主 typed 口里有，入口按操作给号、调用记录与响应带号、界面显示，见 §1 第 5 条（W3-01 的后续片）；14 份各自的错误映射对同一个错误码给出不同状态，例如 `actions.plugin_disabled` 在 `plugins/native/feed/src/route-error.ts` 里是 403，在 Todo 与 Pages 里是 400（W3-02）；浏览器端没有共用请求客户端（W3-10）。
+- 调用编号在内核、宿主 typed 口和调用记录的行里有；入口按操作给号、响应带号、界面显示，见 §1 第 5 条（W3-01 的后续片）；14 份各自的错误映射对同一个错误码给出不同状态，例如 `actions.plugin_disabled` 在 `plugins/native/feed/src/route-error.ts` 里是 403，在 Todo 与 Pages 里是 400（W3-02）；浏览器端没有共用请求客户端（W3-10）。
 - 步骤 4 是手写的前缀链；改成注册表是 W5-07。新的内置插件只走 Plugin Runtime，不再新增这类文件。
-- 不经 `ActionService` 的 typed 能力（`LocalHost.register` 的非动作分支）不校验 schema；它们的调用由宿主结算一次（带 `path: "typed"`），其中处理器进入了的命令进调用记录；边界见 §10。
+- 不经 `ActionService` 的 typed 能力（`LocalHost.register` 的非动作分支）不校验 schema；它们的调用由宿主结算一次（带 `path: "typed"`），其中的命令进调用记录（读取只在失败时）；边界见 §10。
 - [系统架构 §4](ARCHITECTURE.md) 写的「owner 提交后经 Durable Outbox 发布事件」是目标，不是现状（[BL-070](../../specs/BACKLOG.md)）：现在各 owner 在自己的事务里写自己的事件日志，没有统一的发布通道，消费方靠读 owner 的动作或轮询。
 
 ## 3. 链 2：外部 Runtime 经 MCP → 逐客户端授权 → 同一条业务路径

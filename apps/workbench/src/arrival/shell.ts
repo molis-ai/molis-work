@@ -1,4 +1,5 @@
 import { renderCaption, renderWordmark, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { renderHomePluginNavigation } from "../home-plugin-navigation.js";
 
 /**
  * The frame every arrival screen shares: a titlebar, a stage and the resident bottom bar on the desk. A screen is
@@ -63,7 +64,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
     const background = `<span class="arrival-bg"><button class="mw-btn mw-btn--ghost mw-btn--md background-tasks-button" data-slot="button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-slot="button-label">${L("后台任务")}</span></button><span data-background-tasks-count hidden>0</span></span>`;
     const theme = options.theme
       ? `<span class="arrival-theme"><button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" id="cx-theme" aria-label="${L("切换主题")}">${icon("switch")}<span data-slot="button-label">${L("切换主题")}</span></button></span>` : "";
-    const global = options.tools === false ? "" : `<span class="arrival-global">${background}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}</span>`;
+    const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path))}${background}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}</span>`;
     return `<nav class="arrival-tools" aria-label="${L("全局")}">${theme}${global}</nav>`;
   }
 

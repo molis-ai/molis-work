@@ -12,7 +12,6 @@ import { renderAssistantDock } from "../assistant-dock.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../scripts/client/assistant-island.js";
 import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "../scripts/client/background-tasks.js";
 import { CONTROL_CLIENT_SCRIPT } from "../browser-assets.js";
-import { BUILTIN_PLUGIN_CATALOG } from "../builtin-plugins.js";
 import { createArrivalShell, type ArrivalPrimitives } from "./shell.js";
 import { createBriefTime, createWorkbenchProjectBriefRenderer } from "./project-brief.js";
 import { CHOOSER_CLIENT_SCRIPT } from "./chooser-client.js";
@@ -90,8 +89,7 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
       <label class="mw-input-group chooser-search">${icon("search")}<input class="mw-input" id="chooser-q" type="search" placeholder="${L("搜索项目")}" aria-label="${L("搜索项目")}" autocomplete="off" spellcheck="false" aria-controls="chooser-dir"><span class="chooser-search__key">${renderKbd("⌘K")}</span></label>
       <div class="chooser-dir" id="chooser-dir" role="listbox" aria-label="${L("个人空间与项目")}">${rows}</div>
       <p class="chooser-none" data-chooser-none hidden role="status">${L("没有匹配的项目")}</p>
-      <p class="chooser-foot">${icon("folder")}<span>${L("项目和文档保存在这台电脑。")}</span></p>
-      <nav aria-label="${L("个人工具")}">${BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home").map(entry => `<a class="mw-btn mw-btn--ghost" href="${href(`/plugins/${encodeURIComponent(entry.project_plugin_id)}`)}">${escapeHtml(entry.manifest.name)}</a>`).join("")}</nav>`;
+      <p class="chooser-foot">${icon("folder")}<span>${L("项目和文档保存在这台电脑。")}</span></p>`;
 
     // The right-hand sheet starts with what is known (the name); the brief arrives from the Host a moment after.
     const detail = projects.length || selected !== PERSONAL

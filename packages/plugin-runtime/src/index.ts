@@ -1,5 +1,5 @@
-import { createHash, randomUUID } from "node:crypto";
-import { comparePluginVersions, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { randomUUID } from "node:crypto";
+import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { assertContributionMatchesManifest, PluginContributionError } from "./contribution.js";
@@ -7,6 +7,9 @@ import { PluginRuntimeError } from "./errors.js";
 import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
+import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
+import { NativePluginExecutor } from "./native-executor.js";
+import { assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, safeErrorCode, safeErrorMessage, sameStrings, validateManifest } from "./runtime-rules.js";
 
 export { SqlitePluginPrivateStorage, PluginPrivateStorageError, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
@@ -23,6 +26,8 @@ export type {
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 export { PluginRuntimeError } from "./errors.js";
+export { MemoryPluginRuntimeRepository } from "./memory-repository.js";
+export { NativePluginExecutor } from "./native-executor.js";
 export { pluginManifestDigest } from "./identity.js";
 export { loadDevelopmentPlugin } from "./development-loader.js";
 export { assertContributionMatchesManifest, PluginContributionError, viewContributionId } from "./contribution.js";
@@ -73,7 +78,6 @@ import type {
   PluginExecutor,
   PluginInstanceRecord,
   PluginLifecycleReceipt,
-  PluginManifest,
   PluginRuntimeApi,
   PluginRuntimeRepository,
   PluginStartContext,
@@ -91,36 +95,6 @@ export const packageDescriptor = {
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["plugin.lifecycle.v1", "plugin.grants.v1", "plugin.recovery.v1"],
 } as const;
-
-export class MemoryPluginRuntimeRepository implements PluginRuntimeRepository {
-  private readonly records = new Map<string, PluginInstanceRecord>();
-
-  get(installId: string): PluginInstanceRecord | null {
-    const record = this.records.get(installId);
-    return record ? cloneRecord(record) : null;
-  }
-
-  list(): PluginInstanceRecord[] {
-    return [...this.records.values()]
-      .map(cloneRecord)
-      .sort((left, right) => left.installed_at.localeCompare(right.installed_at)
-        || left.install_id.localeCompare(right.install_id));
-  }
-
-  save(record: PluginInstanceRecord): void {
-    this.records.set(record.install_id, cloneRecord(record));
-  }
-}
-
-export class NativePluginExecutor implements PluginExecutor {
-  async start(definition: PluginDefinition, context: PluginStartContext) {
-    return { contribution: await definition.start(context) };
-  }
-
-  async stop(definition: PluginDefinition, context: PluginStartContext): Promise<void> {
-    await definition.stop?.(context);
-  }
-}
 
 export class PluginRuntime implements PluginRuntimeApi {
   private readonly definitions = new Map<string, PluginDefinition>();
@@ -781,71 +755,6 @@ export class PluginRuntime implements PluginRuntimeApi {
   private now(): string {
     return (this.options.now?.() ?? new Date()).toISOString();
   }
-}
-
-function validateManifest(manifest: PluginManifest): void {
-  if (
-    (manifest.schema_version !== 1 && manifest.schema_version !== 2)
-    || manifest.host_api_version !== manifest.schema_version
-    || !manifest.plugin_id.trim()
-    || !manifest.version.trim()
-    || !manifest.publisher.publisher_id.trim()
-    || !manifest.publisher.signature.trim()
-  ) {
-    throw new PluginRuntimeError("plugin_manifest_invalid", "Plugin Manifest 身份、签名或 Host API 不合法");
-  }
-  try {
-    parsePluginManifest(manifest);
-  } catch (error) {
-    throw new PluginRuntimeError("plugin_manifest_invalid", error instanceof Error ? error.message : "Plugin Manifest 不合法");
-  }
-}
-
-function safeErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message.trim() ? error.message : "数据无法读取";
-}
-
-function assertRequiredGrants(manifest: PluginManifest, grants: readonly string[]): void {
-  const missing = manifest.permissions
-    .filter((permission) => permission.required && !grants.includes(permission.permission))
-    .map((permission) => permission.permission);
-  if (missing.length > 0) {
-    throw new PluginRuntimeError("plugin_grant_denied", `Plugin 缺少必需 grant：${missing.join(", ")}`);
-  }
-}
-
-function installIdentity(manifest: PluginManifest): string {
-  return `plugin-install-${createHash("sha256")
-    .update(`${manifest.plugin_id}\u0000${manifest.publisher.signature}`)
-    .digest("hex")
-    .slice(0, 32)}`;
-}
-
-function definitionKey(manifest: PluginManifest | PluginInstanceRecord): string {
-  const signature = "publisher" in manifest
-    ? manifest.publisher.signature
-    : manifest.publisher_signature;
-  return `${manifest.plugin_id}\u0000${manifest.version}\u0000${signature}`;
-}
-
-function normalizeErrorCode(value: string): string {
-  return /^[a-z][a-z0-9_]{1,63}$/u.test(value) ? value : "plugin_process_crashed";
-}
-
-function safeErrorCode(error: unknown): string {
-  if (error && typeof error === "object" && "code" in error) {
-    const code = (error as { code?: unknown }).code;
-    if (typeof code === "string") return normalizeErrorCode(code);
-  }
-  return "plugin_executor_failed";
-}
-
-function sameStrings(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-function cloneRecord(record: PluginInstanceRecord): PluginInstanceRecord {
-  return { ...record, grants: [...record.grants] };
 }
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;

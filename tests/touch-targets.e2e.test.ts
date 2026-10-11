@@ -836,7 +836,7 @@ for (const scheme of ["light", "dark"] as const) {
     const character = await w.escapeReturns("[data-assistant-character]", "[data-assistant-characters]");
     assert.deepEqual([character.opened, character.closed, character.focus], [true, true, true], `the Character · 1280: Escape closes its list and focus goes to the control that opened it, or the "+" (${JSON.stringify(character)})`);
     // The opened panel's body is where the touch rules end: with a fine pointer its details and conversation controls keep the denser
-    // sizes they have on a desktop (the 22–28px ones are the known gap BL-125), and what is long or wide enough to read is not stretched.
+    // sizes they have on a desktop (the 22–28px ones are the known gap BL-127), and what is long or wide enough to read is not stretched.
     const panel = await w.panelBody();
     assert.deepEqual(panel.real["the details"].filter(item => /assistant-side-action/.test(item.cls) && item.h >= 44).map(item => `${item.cls} ${item.w}×${item.h}`), [], "1280: the panel's details keep their desktop sizes with a fine pointer");
     assert.deepEqual(panel.made.filter(item => /assistant-(copy|segment|side-action|code-copy)\b/.test(item.cls) && item.h >= 44).map(item => `${item.cls} ${item.w}×${item.h}`), [], "1280: and so do the conversation's own small buttons");

@@ -3,10 +3,8 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { PluginHostExecutor } from "../apps/local-host/src/plugin-executor.js";
-import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
-import { registerHostScheduleCapabilities, registerHostWakeup, scheduleServiceFor } from "../apps/local-host/src/schedule-runtime.js";
+import { LocalHost, LocalProjectDatabase, PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
+import { PluginWakeupIndex, createScheduleService, registerScheduleCapabilities } from "@molis-ai/molis-work-service-scheduler";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -26,8 +24,10 @@ test("real Plugin executor: schedule.* belongs to the calling plugin whatever th
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const local = new LocalHost({ runtimeFactory: { open: () => ({ project_id: project.project_id, store, coordinator: { artifacts } }), close: () => {} } });
-  registerHostScheduleCapabilities(local, runtime => runtime.store.db);
-  const wakeups = [registerHostWakeup(A, job.capability_id, async () => undefined), registerHostWakeup(B, job.capability_id, async () => undefined)];
+  // The Scheduler's own handlers on the Host's registry, as the Host composes them (apps/local-host/src/schedule-runtime.ts).
+  const wakeupIndex = new PluginWakeupIndex(), service = createScheduleService(store.db, { wakeupIndex });
+  registerScheduleCapabilities({ register: local.register.bind(local) }, () => service);
+  for (const plugin of [A, B]) wakeupIndex.register(plugin, job.capability_id, async () => undefined);
   const contexts: PluginStartContext[] = [];
   const make = (plugin_id: string): PluginDefinition => ({ manifest: { schema_version: 2, host_api_version: 2, plugin_id, version: "1.0.0", name: "Reminder", kind: "app",
     publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -42,7 +42,6 @@ test("real Plugin executor: schedule.* belongs to the calling plugin whatever th
   try {
     await runtime.start(first.install_id); await runtime.start(second.install_id);
     const ownA = contexts[0]!.services!.capabilities!, ownB = contexts[1]!.services!.capabilities!;
-    const service = scheduleServiceFor(store.db);
     const owners = () => service.list().map(item => `${item.plugin_id}:${item.object_ref}`).sort();
     const idsOf = (jobs: ScheduleJobRecord[]) => jobs.map(item => item.object_ref).sort();
 
@@ -91,7 +90,6 @@ test("real Plugin executor: schedule.* belongs to the calling plugin whatever th
     await assert.rejects(ownB.invoke(schedule.cancel, { job_id: mineB.job_id }), /已停止/);
     assert.deepEqual(owners(), [`${B}:two`]);
   } finally {
-    for (const dispose of wakeups) dispose();
     await runtime.stop(first.install_id).catch(() => {}); await runtime.stop(second.install_id).catch(() => {});
     await local.close(); store.close(); await rm(home, { recursive: true, force: true });
   }

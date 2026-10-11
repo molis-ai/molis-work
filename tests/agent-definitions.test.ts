@@ -1,17 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
+import { AssistantService, AssistantStore, LocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
-import { AgentDefinitions, agentRegistration } from "../apps/local-host/src/agent-definitions/agent-definitions.js";
-import { builtinAgents } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
-import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
+import { DEFAULT_JUDGMENT_WORDING, fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
+import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
+import { AgentDefinitions, agentDefinitionsFor, agentRegistration } from "../apps/local-host/src/agent-definitions/agent-definitions.js";
+import { builtinAgents, builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
+import { handleContextualHttp, judgmentWording, judgmentWordingRevision } from "../apps/local-host/src/contextual/contextual-http.js";
+import { bindPrologueInference } from "../apps/local-host/src/prologue-inference-host.js";
 import { ASSISTANT_PROMPTS } from "../apps/local-host/src/assistant/assistant-agent.js";
 
 const BASE_VERSION = ASSISTANT_PROMPTS.find(prompt => prompt.prompt_id === "assistant-base")!.version;
@@ -41,6 +46,108 @@ test("every built-in Agent is registered: its prompts named for the roles that u
   for (const role of roles) for (const key of role.prompt_keys) assert.ok(keys.has(key), `${role.key} → ${key}`);
   // Every built-in Agent owner is present.
   assert.deepEqual([...new Set(prompts.map(prompt => prompt.owner_id))].sort(), builtinAgents().map(agent => agent.owner_id).sort());
+});
+
+const NEXT_KEY = "system:contextual/contextual.next", SURFACE_KEY = "system:contextual/contextual.surface";
+
+test("the two questions of the selection bar are listed under 选区推荐 with their default text, and what the person leaves in them is read back without recording a use", async t => {
+  const home = await mkdtemp(join(tmpdir(), "agent-definitions-wording-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const definitions = agentDefinitionsFor(home, builtinRegistrations);
+  const next = definitions.prompt(NEXT_KEY), surface = definitions.prompt(SURFACE_KEY);
+  for (const view of [next, surface]) {
+    assert.deepEqual(view.source, { kind: "system", module: "contextual", title: "选区推荐" });
+    assert.equal(view.kind, "instruction");
+    assert.equal(view.effective, "default");
+    assert.deepEqual(view.used_by, ["选区旁推荐"]);
+  }
+  assert.equal(next.body, DEFAULT_JUDGMENT_WORDING.next);
+  assert.equal(surface.body, DEFAULT_JUDGMENT_WORDING.surface);
+  assert.deepEqual([next.title, surface.title], ["选区推荐：下一步", "选区推荐：助手要不要出面"]);
+
+  assert.equal(judgmentWordingRevision(home), "-.-", "the default is in force");
+  assert.deepEqual(definitions.uses(NEXT_KEY), [], "reading the revision records no use");
+  assert.deepEqual(judgmentWording(home), DEFAULT_JUDGMENT_WORDING);
+  assert.equal(definitions.uses(NEXT_KEY).length, 1, "reading the text records one use");
+  assert.equal(definitions.uses(NEXT_KEY)[0]!.caller, "contextual.judgment");
+
+  definitions.save(NEXT_KEY, "只看内容。\n\n选一个。", null, "web-user");
+  assert.equal(judgmentWordingRevision(home), "1.-");
+  assert.equal(definitions.uses(NEXT_KEY).length, 1, "and still none for the revision");
+  assert.deepEqual(judgmentWording(home), { next: "只看内容。\n\n选一个。", surface: DEFAULT_JUDGMENT_WORDING.surface });
+  assert.equal(definitions.uses(NEXT_KEY).length, 2);
+  definitions.save(SURFACE_KEY, "要不要出面？", null, "web-user");
+  assert.equal(judgmentWordingRevision(home), "1.1");
+  definitions.reset(NEXT_KEY, 1, "web-user");
+  assert.equal(judgmentWordingRevision(home), "-.1", "restoring the default clears the person's revision of that question only");
+});
+
+// A pane with a page open and a selection in it: the candidates are Pages' own writing choices.
+const pagesProvider = { provider_id: "io.molis.work.pages", title: "Pages" } as ActionView["provider"];
+const pagesView = (capability_id: string, extra: Partial<ActionView["action"]> = {}): ActionView => ({
+  capability_id, version: 1, provider_id: pagesProvider.provider_id, operation: extra.fragment_offer_choices ? "query" : "command", provider: pagesProvider, availability: { available: true },
+  action: { title: capability_id, description: capability_id, kind: "query", scope: "project", audiences: ["user"], permissions: [], subject_kinds: ["doc"], input_schema: { type: "object" }, ...extra } as ActionView["action"],
+});
+const selection = (): SurfaceFocus => ({ context_id: "ctx-wording", plugin_id: "io.molis.work.pages", activity: "selecting", granularity: "range",
+  object: { kind: "pages_document", id: "d1", version: 3, title: "计划" }, targets: [{ kind: "text_range", role: "paragraph", text: "我们认为主因是上手困难。" }] });
+
+const FROZEN_FIRST = "先看内容本身是什么：观点或判断（需要检验或推敲）、事实或数据（可以作为依据）、计划或步骤（需要落地跟踪）、风险、进展、用户原话、结论、术语，或者是正在写的草稿。";
+const FROZEN_SECOND = "再结合所在位置和当前目标，从选项里选出他此刻最可能要做的一件事。不要只看选区的长短。";
+const instructionsOf = (questions: Record<string, unknown>, which: "next" | "surface") => (questions[which] as { instructions: string }).instructions;
+
+test("over HTTP: what the person saved in 设置 › 提示词 for the selection bar is what Jev is asked, the default is asked before, and a restored default again", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "contextual-wording-"));
+  const previousKey = process.env.TYPESAFE_API_KEY;
+  process.env.TYPESAFE_API_KEY = "fixture-typesafe-key";
+  const views = [pagesView("pages.fragment.offers", { ...pagesActions.fragmentOffers.action }), pagesView("pages.ai")];
+  const candidates: readonly ContextualCandidate[] = fragmentCandidates(views, selection());
+  const counter = candidates.find(item => item.offer_id === "counter")!;
+  const asked: Record<string, unknown>[] = [];
+  const unexpected = async (): Promise<never> => { throw new Error("unexpected model call"); };
+  const inference: PrologueInferenceClient = { completeText: unexpected, completeTextResult: unexpected, generateImages: unexpected,
+    evaluateTypeSafe: async input => { asked.push(input.questions); return { answers: { next: { choice: counter.key, probabilities: { [counter.key]: 0.6 }, confidence: 0.7 }, surface: { choice: "none" } } }; } };
+  const unbind = bindPrologueInference(home, inference);
+  const actions = { discover: async () => views, invoke: async () => ({ offers: [] }) };
+  const server = createServer((request, response) => {
+    void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { homeDirectory: home, scope: "wording-home", actions: () => actions })
+      .then(handled => { if (!handled) { response.statusCode = 404; response.end(); } });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => {
+    server.close(); unbind();
+    if (previousKey === undefined) delete process.env.TYPESAFE_API_KEY; else process.env.TYPESAFE_API_KEY = previousKey;
+    await rm(home, { recursive: true, force: true });
+  });
+  const judge = async () => {
+    const response = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/contextual/judge`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pane_id: "main", focus: selection() }) });
+    return { status: response.status, body: await response.json() as { plan: { basis: string }; receipt: unknown } };
+  };
+  const definitions = agentDefinitionsFor(home, builtinRegistrations);
+  const opening = "用户在文档里选中了一段内容，想对它做一件事。";
+
+  const first = await judge();
+  assert.equal(first.status, 200);
+  assert.equal(first.body.plan.basis, "judgment", JSON.stringify(first.body.receipt));
+  assert.equal(instructionsOf(asked[0]!, "next"), opening + FROZEN_FIRST + FROZEN_SECOND, "before any edit the questions read as they always did");
+  assert.equal(instructionsOf(asked[0]!, "surface"), DEFAULT_JUDGMENT_WORDING.surface);
+  assert.equal(definitions.uses(NEXT_KEY).length, 1, "the question that was really asked records one use");
+  await judge();
+  assert.equal(asked.length, 1, "the same context is not asked again");
+  assert.equal(definitions.uses(NEXT_KEY).length, 1, "and a cached judgment records no use");
+
+  const saved = definitions.save(NEXT_KEY, "只看这段话。\n\n选一个。", null, "web-user");
+  definitions.save(SURFACE_KEY, "要不要出面？", null, "web-user");
+  const changed = await judge();
+  assert.equal(changed.body.plan.basis, "judgment");
+  assert.equal(asked.length, 2, "an edit in settings takes effect on the next judgment");
+  assert.equal(instructionsOf(asked[1]!, "next"), opening + "只看这段话。选一个。");
+  assert.equal(instructionsOf(asked[1]!, "surface"), "要不要出面？");
+  assert.equal(definitions.uses(NEXT_KEY).at(0)?.user_revision, saved.user!.revision, "the use says it ran the person's version");
+
+  definitions.reset(NEXT_KEY, saved.user!.revision, "web-user");
+  await judge();
+  assert.equal(instructionsOf(asked[2]!, "next"), opening + FROZEN_FIRST + FROZEN_SECOND, "restoring the default takes effect too");
 });
 
 test("the person's edit is kept apart from the default: saved, conflict-checked, restorable, and flagged when the default moves on", () => {

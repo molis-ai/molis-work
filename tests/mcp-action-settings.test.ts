@@ -8,7 +8,7 @@ import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
+import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { readMcpToolPreference, writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 
 test("local management discovers an unknown plugin, authorizes its exact contract and can revoke a missing provider without granting from supplied permissions", { timeout: 30_000 }, async () => {
@@ -64,7 +64,7 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
       databasePath: project.database_path, webBaseUrl: origin }, { homeDirectory: home,
       runtimeContext: { runtime_id: "external", stable_work_context_id: null, host_declares_stable: false } }, host);
     const reply = await external.handleMessage({ id: 1, method: "tools/call", params: {
-      name: hostActionToolName(definition), arguments: { payload: "a legitimate plugin field" },
+      name: molisWorkActionToolName(definition), arguments: { payload: "a legitimate plugin field" },
     } }) as any;
     assert.equal(reply.result.isError, false, JSON.stringify(reply));
     assert.deepEqual(reply.result.structuredContent, { result: 1 });

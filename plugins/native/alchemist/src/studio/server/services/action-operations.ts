@@ -1,6 +1,7 @@
-import { ActionError, searchEntriesPage, searchText, type SearchEntry, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, searchEntriesPage, searchText, type SearchEntry, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ApiDependencies } from "../api/dependencies.js";
-import { alchemistOperations, type AlchemistOperationInput, type AlchemistOperationName } from "../../shared/contracts/actions.js";
+import { ALCHEMIST_GENERATE_PERMISSION, alchemistOperations, type AlchemistHomeOperationName, type AlchemistOperationInput, type AlchemistOperationName } from "../../shared/contracts/actions.js";
+import type { AlchemistPulseGithubPort } from "../sources/pulse-github-port.js";
 import { deriveDirectionTitle } from "../../shared/contracts/direction.js";
 import { IdeaActionError } from "./idea-card-actions.js";
 import { ResearchPlanError } from "./create-research-plan.js";
@@ -17,7 +18,8 @@ export interface AlchemistActionInvoker {
   invoke<I, O>(definition: ActionDefinition<I, O>, input: I, signal?: AbortSignal): Promise<O>;
 }
 
-type Implementations = { [K in AlchemistOperationName]: (input: AlchemistOperationInput<K>, signal?: AbortSignal) => unknown | Promise<unknown> };
+/** What a project's studio implements: every operation but the Home's, which the Host serves from its own ports (`createAlchemistActionHandlers`). */
+type Implementations = { [K in Exclude<AlchemistOperationName, AlchemistHomeOperationName>]: (input: AlchemistOperationInput<K>, signal?: AbortSignal) => unknown | Promise<unknown> };
 
 /** Business implementation stays beside the original repositories and services, without HTTP request emulation. */
 function implementations(d: ApiDependencies): Implementations {
@@ -110,7 +112,7 @@ const inputProblems: Partial<Record<AlchemistOperationName, [string, string]>> =
   conversationSend: ["CONVERSATION_MESSAGE_INVALID", "消息或当前讨论上下文不完整。"], decisionCreate: ["DECISION_INVALID", "请选择决定并写下理由。"],
   annotationsList: ["ANNOTATION_QUERY_INVALID", "注释目标不完整。"], annotationCreate: ["ANNOTATION_INVALID", "请保留引用，并另行写下评论。"],
   playbookPropose: ["PLAYBOOK_PROPOSAL_INVALID", "方法变化、正反例和作用域需要由你明确填写。"], tasteCreate: ["TASTE_RULE_INVALID", "请完整写下偏好及其适用范围。"],
-  pulseSourceUpdate: ["PULSE_SOURCE_INVALID", "来源设置不完整。"], pulseGithubSelect: ["PULSE_GITHUB_INVALID", "请选择一个 GitHub 账号，或选择匿名访问。"], pulseStart: ["PULSE_RUN_INVALID", "脉搏运行参数不完整。"],
+  pulseSourceUpdate: ["PULSE_SOURCE_INVALID", "来源设置不完整。"], pulseStart: ["PULSE_RUN_INVALID", "脉搏运行参数不完整。"],
   directionCreate: ["DIRECTION_INPUT_INVALID", "请更完整地描述你想探索的方向。"], directionUpdate: ["DIRECTION_INPUT_INVALID", "方向内容无效。"], directionStatus: ["DIRECTION_INPUT_INVALID", "方向状态无效。"],
   researchPlan: ["RESEARCH_PLAN_INVALID", "研究计划参数不完整。"], researchStart: ["LENS_RUN_INVALID", "启动研究所需信息不完整。"],
   settingsUpdate: ["RUNTIME_SETTINGS_INVALID", "模型选择或调用上限不完整。"], workspaceExport: ["EXPORT_FORMAT_INVALID", "请选择 JSON 或 ZIP。"],
@@ -143,7 +145,8 @@ function businessError(error: unknown): never {
 
 export function createAlchemistOperationExecutor(dependencies: ApiDependencies): AlchemistActionInvoker {
   const handlers = implementations(dependencies);
-  const byId = new Map(Object.entries(alchemistOperations).map(([name, operation]) => [operation.definition.capability_id, { name: name as AlchemistOperationName, ...operation }]));
+  const byId = new Map(Object.entries(alchemistOperations).filter(([, operation]) => operation.definition.action.scope !== "home")
+    .map(([name, operation]) => [operation.definition.capability_id, { name: name as Exclude<AlchemistOperationName, AlchemistHomeOperationName>, ...operation }]));
   return {
     async invoke<I, O>(definition: ActionDefinition<I, O>, input: I, signal?: AbortSignal): Promise<O> {
       signal?.throwIfAborted();
@@ -172,12 +175,49 @@ const workspaceProblems: Record<string, string> = {
   IDEA_NOT_FOUND: "没有找到这个 Idea。", TASTE_RULE_NOT_FOUND: "没有找到这条 Taste。", PLAYBOOK_RULE_NOT_FOUND: "没有找到这条校准规则。", PULSE_SOURCE_NOT_FOUND: "没有找到这个市场来源。",
 };
 
-/** Host resolves the project runtime from trusted caller context; discovery never opens the database. */
-export function createAlchemistActionHandlers(resolve: (caller: ActionCallContext) => AlchemistActionInvoker | Promise<AlchemistActionInvoker>): ActionHandlerBinding[] {
-  return Object.values(alchemistOperations).map(({ definition }) => ({ capability_id: definition.capability_id, version: definition.version,
-    async handle(caller, input) {
-      if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目。");
-      return (await resolve(caller)).invoke(definition as ActionDefinition, input, caller.signal);
+/** What the Host lends the actions beyond the project's studio. */
+export interface AlchemistActionPorts {
+  /** The project's studio for the caller, resolved from trusted caller context; discovery never opens the database. */
+  resolve(caller: ActionCallContext): AlchemistActionInvoker | Promise<AlchemistActionInvoker>;
+  /**
+   * Whether a model can run now, for a caller who is not the person at the page. The plugin binds it to the actions that declare
+   * `ALCHEMIST_GENERATE_PERMISSION`, and the person's own page is never held back by it: a message sent without a model is still saved, and a
+   * stopped exploration or research run is still recorded, so the card tells the person how to go on. Absent: the actions are not judged.
+   */
+  modelAvailability?(): ActionAvailability;
+  /** The Home's GitHub account choice for the market pulse, read and written without a project. Absent: no account can be chosen. */
+  pulseGithub?: Pick<AlchemistPulseGithubPort, "read" | "select">;
+}
+
+/** The Home's operations: one binding for every project, served without opening a studio. */
+function homeImplementations(ports: AlchemistActionPorts): { [K in AlchemistHomeOperationName]: (input: AlchemistOperationInput<K>) => unknown } {
+  return {
+    pulseGithub: () => ports.pulseGithub?.read() ?? { accounts: [], selectedConnectionId: null },
+    pulseGithubSelect: input => {
+      if (!ports.pulseGithub) throw new AlchemistOperationError("PULSE_GITHUB_UNAVAILABLE", "这里不能选择 GitHub 账号。");
+      ports.pulseGithub.select(input.connectionId);
+      return { selectedConnectionId: ports.pulseGithub.read().selectedConnectionId };
     },
-  }));
+  };
+}
+
+export function createAlchemistActionHandlers(ports: AlchemistActionPorts): ActionHandlerBinding[] {
+  const home = homeImplementations(ports) as Record<string, ((input: unknown) => unknown) | undefined>;
+  const modelAvailability = ports.modelAvailability?.bind(ports);
+  return Object.entries(alchemistOperations).map(([name, { definition }]): ActionHandlerBinding => {
+    const base = { capability_id: definition.capability_id, version: definition.version };
+    if (definition.action.scope === "home") {
+      const run = home[name];
+      if (!run) throw new Error(`The Home operation ${definition.capability_id} has no implementation.`);
+      return { ...base, async handle(_caller, input) { return run(input); } };
+    }
+    const handler: ActionHandlerBinding = { ...base,
+      async handle(caller, input) {
+        if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目。");
+        return (await ports.resolve(caller)).invoke(definition as ActionDefinition, input, caller.signal);
+      },
+    };
+    return modelAvailability && definition.action.permissions.includes(ALCHEMIST_GENERATE_PERMISSION)
+      ? { ...handler, availability: caller => caller.audience === "user" ? { available: true } : modelAvailability() } : handler;
+  });
 }

@@ -1,6 +1,5 @@
-import { projectActionAvailability } from "../../apps/local-host/src/project-action-availability.js";
 import { join } from "node:path";
-import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { serveMcpStdio } from "@molis-ai/molis-work-app-mcp";
 const [home, project, client, databasePath] = process.argv.slice(2);

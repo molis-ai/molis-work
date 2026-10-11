@@ -1,5 +1,5 @@
 import type { MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
-import { createExecutionLifetime } from "@molis-ai/molis-work-kernel";
+import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import { extractMaterial } from "./material-extraction.js";
 import { MaterialExtractionError } from "./material-text.js";
 

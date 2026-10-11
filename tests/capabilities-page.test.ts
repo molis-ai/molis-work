@@ -70,6 +70,12 @@ test("system capability pages derive unknown capabilities, bindings, lifecycle a
     assert.equal((await fetch(`${base}/capabilities/library?project=missing`)).status, 404, "unknown scope must not silently show Home");
     enabled = false;
     assert.match(await read(selected), /测试服务已断开/);
+    // A call turned away because the service is disconnected is in the call history, marked as not run (not as failed), with its reason.
+    await assert.rejects(host.actionClient(reference).invoke(caller, definition, {}));
+    const turnedAway = await read(`/capabilities/history?project=${project.project_id}`);
+    assert.match(turnedAway, /<span class="is-unavailable">未执行<\/span>/);
+    assert.match(turnedAway, /未执行的原因：[^<]*测试服务已断开/);
+    assert.doesNotMatch(turnedAway, /<span class="is-unavailable">失败<\/span>/);
     enabled = true;
     assert.doesNotMatch(await read(selected), /测试服务已断开/);
     stop();

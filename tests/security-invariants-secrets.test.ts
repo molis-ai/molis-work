@@ -3,8 +3,8 @@
 // rotated token) and then looks everywhere a value could surface:
 //   - the answer to the request that planted it, and the answer to every read surface of the host
 //   - what the host printed (stdout, stderr, console)
-//   - the action error a secret-bearing input raises, and the call log the commands that received it are recorded in (a finished one and a
-//     failed one are produced on purpose, so the log has records to sweep)
+//   - the action error a secret-bearing input raises, and the call log the calls that received it are recorded in (a finished command, a failed
+//     one, one turned away before its handler and a read that failed are produced on purpose, so the log has records to sweep)
 //   - every file of the Home, whatever its format (SQLite files and their journals, JSON, logs, the secret store itself)
 // The control token is not a secret in this sense: the host hands it to the page it serves (to loopback Hosts only, S-02).
 import assert from "node:assert/strict";
@@ -130,10 +130,13 @@ test("S-12 a secret handed to the host once never comes back: not in an answer, 
   const refused = command("save", { count: { type: "integer" } });
   const finished = command("finish", { note: { type: "string" } });
   const failing = command("fail", { note: { type: "string" } });
-  host.actionRegistry().registerProvider({ provider: { provider_id: "sweep", title: "Sweep", kind: "plugin", plugin_id: "io.molis.work.example.sweep" }, definitions: [refused, finished, failing], handlers: [
+  const failingRead = { ...command("read", { note: { type: "string" } }), operation: "query" as const };
+  failingRead.action = { ...failingRead.action, kind: "query" };
+  host.actionRegistry().registerProvider({ provider: { provider_id: "sweep", title: "Sweep", kind: "plugin", plugin_id: "io.molis.work.example.sweep" }, definitions: [refused, finished, failing, failingRead], handlers: [
     { ...refused, handle: async () => ({}) },
     { ...finished, handle: async (_context, input) => ({ echoed: String(input.note) }) },
     { ...failing, handle: async () => { throw new Error("the sweep handler refuses this one"); } },
+    { ...failingRead, handle: async () => { throw new Error("the sweep read fails"); } },
   ] });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: ["sweep:write"] };
   const failure = await host.homeActionClient().invoke(caller, refused, { count: SECRETS.actionInput } as never).then(() => null, (error: Error) => error);
@@ -144,14 +147,21 @@ test("S-12 a secret handed to the host once never comes back: not in an answer, 
   const handlerFailure = await host.homeActionClient().invoke(caller, failing, { note: SECRETS.actionInput }).then(() => null, (error: Error) => error);
   assert.ok(handlerFailure, "the failing handler's call failed");
   assert.deepEqual(leaks(`${handlerFailure.message} ${JSON.stringify(handlerFailure)}`), [], "a handler's error carries no input value");
+  const readFailure = await host.homeActionClient().invoke(caller, failingRead, { note: SECRETS.actionInput }).then(() => null, (error: Error) => error);
+  assert.ok(readFailure, "the failing read failed");
+  assert.deepEqual(leaks(`${readFailure.message} ${JSON.stringify(readFailure)}`), [], "a read's error carries no input value");
   // The records are there (the sweep looked at something) and hold neither value.
   const records = host.callLog!.list(null);
   assert.ok(records.some(record => record.capability_id === finished.capability_id && record.ok), `the finished command is in the call log: ${JSON.stringify(records)}`);
   assert.ok(records.some(record => record.capability_id === failing.capability_id && !record.ok && record.message), `the failed command is in the call log: ${JSON.stringify(records)}`);
+  assert.ok(records.some(record => record.capability_id === refused.capability_id && record.refused === true && record.code === "actions.input_invalid"), `the command turned away before its handler is in the call log, as not run: ${JSON.stringify(records)}`);
+  assert.ok(records.some(record => record.capability_id === failingRead.capability_id && record.operation === "query" && !record.ok), `the read that failed is in the call log: ${JSON.stringify(records)}`);
   const callLogFile = join(home, "logs", "action-calls.jsonl");
   const callLogText = await readFile(callLogFile, "utf8");
   assert.match(callLogText, /unknown\.sweep\.finish/);
   assert.match(callLogText, /unknown\.sweep\.fail/);
+  assert.match(callLogText, /unknown\.sweep\.save/);
+  assert.match(callLogText, /unknown\.sweep\.read/);
   assert.deepEqual(leaks(callLogText), [], "the call log keeps what ran and how it ended, not what it was given or what it returned");
 
   // 4. The Home, file by file (the secret store included: it holds ciphertext, so even it holds no value in the clear).

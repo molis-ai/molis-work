@@ -130,6 +130,8 @@ export const PLACEMENT_EN: Record<string, string> = {
   "或为这个 Goal 新建": "or create for this goal",
   "还没有输入。": "No inputs yet.",
   "没能移除": "Couldn't remove it",
+  "认可这条输入": "Accept this input",
+  "没能认可": "Couldn't accept it",
   "这一版现在不可用": "This version is unavailable",
   "这一版已归档": "This version is archived",
   "找不到这一版": "This version can't be found",

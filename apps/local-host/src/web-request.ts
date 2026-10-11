@@ -294,7 +294,7 @@ export async function handleMolisWorkWebRequest(
         let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions);
         const feedActions = bindLocalWebActions(localHost, hostReference, ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"]);
         try {
-          const [{ rules }, { recommendations }] = await lookingForArea(() => Promise.all([feedActions.invoke(feedRuleActions.list, {}), feedActions.invoke(feedRuleActions.recommendations, {})]));
+          const [{ rules }, { recommendations }] = await Promise.all([lookingForArea(() => feedActions.invoke(feedRuleActions.list, {})), lookingForArea(() => feedActions.invoke(feedRuleActions.recommendations, {}))]);
           view = { ...view, feed: { ...view.feed, out_rules: rules, feed_items: view.feed.feed_items.map(item => ({ ...item,
             suggested_behavior_ids: recommendations.find(result => result.item_id === item.item_id)?.suggested_behavior_ids ?? [] })) } };
         } catch (error) {
@@ -302,7 +302,7 @@ export async function handleMolisWorkWebRequest(
         }
         const inboxActionsClient = bindLocalWebActions(localHost, hostReference, INBOX_ACTION_PERMISSIONS);
         try {
-          const [state, { judgments }] = await lookingForArea(() => Promise.all([inboxActionsClient.invoke(inboxActions.readJudgment, {}), inboxActionsClient.invoke(inboxActions.recommendations, {})]));
+          const [state, { judgments }] = await Promise.all([lookingForArea(() => inboxActionsClient.invoke(inboxActions.readJudgment, {})), lookingForArea(() => inboxActionsClient.invoke(inboxActions.recommendations, {}))]);
           const byEntry = new Map(judgments.map(judgment => [judgment.subject.id, judgment]));
           view = { ...view, inbox_judgment: state.summary, feed: { ...view.feed,
             inbox_entries: view.feed.inbox_entries.map(entry => { const judgment = byEntry.get(entry.entry_id) ?? null;

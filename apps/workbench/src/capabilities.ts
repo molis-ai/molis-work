@@ -18,7 +18,7 @@ export interface CapabilitiesView {
   reported_usages?: readonly { usage_id: string; title: string; detail?: string; enabled: boolean; href?: string; reporter: string }[];
   usage_issues?: readonly string[];
   history?: readonly JudgmentRecord[];
-  /** Recent calls in this scope: what was called, for whom, how it ended (`refused`: turned away, so it did not run). No inputs are kept. */
+  /** Recent calls in this scope: what was called, for whom, how it ended (`refused`: turned away, so it did not run). No inputs are kept; a message only for a command that ran and failed. */
   calls?: readonly { at: string; capability_id: string; version: number; provider_title: string; title: string; actor_id: string; audience: string; ok: boolean; code?: string; message?: string; refused?: true; count?: number; last_at?: string }[];
   query: string;
   kind: string;
@@ -82,11 +82,11 @@ export function createCapabilitiesRenderer(p: SettingsRenderPrimitives, model: C
     const calls = model.calls ?? [];
     const callList = calls.length ? `<div class="capability-history">${calls.map(row => `<article><header><strong>${e(row.title)}</strong><span${row.ok ? "" : ' class="is-unavailable"'}>${L(row.refused ? "未执行" : row.ok ? "成功" : "失败")}</span></header>`
       + `<p>${e(row.provider_title)} · ${L(CALLER[row.audience] ?? row.audience)}${row.audience === "mcp" || row.audience === "plugin" ? ` · ${e(row.actor_id)}` : ""} · <code>${e(row.capability_id)}@${row.version}</code></p>`
-      + `<time datetime="${e(row.last_at ?? row.at)}">${e(row.last_at ?? row.at)}</time>${row.count && row.count > 1 ? `<p>${L("连续 {count} 次相同结果，最早 {at}", { count: row.count, at: row.at })}</p>` : ""}${row.ok ? "" : `<p>${L(row.refused ? "未执行的原因" : "失败原因")}：${e(row.message ?? row.code ?? "")}</p>`}</article>`).join("")}</div>`
+      + `<time datetime="${e(row.last_at ?? row.at)}">${e(row.last_at ?? row.at)}</time>${row.count && row.count > 1 ? `<p>${L("连续 {count} 次相同结果，最早 {at}", { count: row.count, at: row.at })}</p>` : ""}${row.ok || !(row.message ?? row.code) ? "" : `<p>${L(row.message ? "失败原因" : "错误码")}：${e(row.message ?? row.code ?? "")}</p>`}</article>`).join("")}</div>`
       : `<div class="settings-empty"><strong>${L("当前范围还没有执行过的操作")}</strong><span>${L("通过界面、首页、工作流程、Agent 或 MCP 执行操作后，会显示在这里。")}</span></div>`;
     const judgments = model.history?.length ? `<div class="capability-history">${model.history.map(row => `<article><header><strong>${e(row.function_key)} · v${row.function_version}</strong><span>${e(row.outcome)}</span></header><p>${e(row.scene_id ?? L("直接调用"))} · ${e(row.subject.id)}</p><time datetime="${e(row.created_at)}">${e(row.created_at)}</time>${row.error_code ? `<p>${L("失败原因")}：${e(row.error_code)}</p>` : ""}${row.suggested_behavior_ids.length ? `<p>${L("建议")}：${e(row.suggested_behavior_ids.join(", "))}</p>` : ""}</article>`).join("")}</div>`
       : `<div class="settings-empty"><strong>${L("当前范围没有判断记录")}</strong><span>${L("规则执行并保存结果后，会显示在这里。")}</span></div>`;
-    return `<section class="settings-document"><header class="settings-heading"><h1>${L("调用记录")}</h1><p>${L("最近执行的操作和已保存的判断。只记录谁在何时调用了什么、结果如何；不保存输入与返回内容，失败时保留错误说明。读取只在失败时记录；被拒绝而没有执行的操作也会记下，标为“未执行”。")}</p>${scopeForm()}</header>`
+    return `<section class="settings-document"><header class="settings-heading"><h1>${L("调用记录")}</h1><p>${L("最近执行的操作和已保存的判断。只记录谁在何时调用了什么、结果如何；不保存输入与返回内容，执行后失败的操作保留错误说明。读取失败和被拒绝而没有执行的操作（标为“未执行”）也会记下，只记错误码。")}</p>${scopeForm()}</header>`
       + `<section><h2>${L("操作")}</h2>${callList}</section><section><h2>${L("判断记录")}</h2>${judgments}</section></section>`;
   }
   return { navigation, library, history };

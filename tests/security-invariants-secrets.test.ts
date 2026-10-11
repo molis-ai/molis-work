@@ -154,8 +154,8 @@ test("S-12 a secret handed to the host once never comes back: not in an answer, 
   const records = host.callLog!.list(null);
   assert.ok(records.some(record => record.capability_id === finished.capability_id && record.ok), `the finished command is in the call log: ${JSON.stringify(records)}`);
   assert.ok(records.some(record => record.capability_id === failing.capability_id && !record.ok && record.message), `the failed command is in the call log: ${JSON.stringify(records)}`);
-  assert.ok(records.some(record => record.capability_id === refused.capability_id && record.refused === true && record.code === "actions.input_invalid"), `the command turned away before its handler is in the call log, as not run: ${JSON.stringify(records)}`);
-  assert.ok(records.some(record => record.capability_id === failingRead.capability_id && record.operation === "query" && !record.ok), `the read that failed is in the call log: ${JSON.stringify(records)}`);
+  assert.ok(records.some(record => record.capability_id === refused.capability_id && record.refused === true && record.code === "actions.input_invalid" && record.message === undefined), `the command turned away before its handler is in the call log, as not run, with its error code and no message: ${JSON.stringify(records)}`);
+  assert.ok(records.some(record => record.capability_id === failingRead.capability_id && record.operation === "query" && !record.ok && record.message === undefined), `the read that failed is in the call log, with no message: ${JSON.stringify(records)}`);
   const callLogFile = join(home, "logs", "action-calls.jsonl");
   const callLogText = await readFile(callLogFile, "utf8");
   assert.match(callLogText, /unknown\.sweep\.finish/);

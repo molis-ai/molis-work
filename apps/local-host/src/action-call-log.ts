@@ -22,8 +22,9 @@ export interface ActionCallRecord {
   project_id: string | null;
   ok: boolean;
   code?: string;
+  /** Only a command that ran and failed keeps a line of what went wrong. A refused call or a failed read keeps the error code and nothing that was said. */
   message?: string;
-  /** Turned away before its handler began (shown as 「未执行」): nothing was done, and the row only says who asked for what and why not. */
+  /** Turned away before its handler began (shown as 「未执行」): nothing was done, and the row only says who asked for what, that it ended so, and the error code. */
   refused?: true;
   /** Called through the Host's typed port, with no action behind it. */
   path?: "typed";
@@ -54,8 +55,9 @@ const sameCall = (a: ActionCallRecord, b: ActionCallRecord) => a.actor_id === b.
   && (unknownId(a) && unknownId(b) || a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id && a.operation === b.operation && a.message === b.message);
 const lastDistinct = (ids: readonly string[], id: string) => [...ids.filter(other => other !== id), id].slice(-FOLDED);
 /**
- * What the log keeps of the text a failure gave. A contract failure lists the fields that did not fit (`/客户 type`), and for a record keyed by what
- * a person typed those names are the input's, which is never kept: only that the contract was not met stays.
+ * What the log keeps of the text a failed command gave (the only row that keeps one; a refused call and a failed read keep their code alone).
+ * A contract failure lists the fields that did not fit (`/客户 type`), and for a record keyed by what a person typed those names are the input's
+ * or the result's, which is never kept: only that the contract was not met stays. This holds for every message with these codes, whoever wrote it.
  */
 const reasonOf = (outcome: Extract<CallOutcome, { ok: false }>): string =>
   /^actions\.(input|output)_invalid/.test(outcome.code ?? "") ? outcome.message.split("：")[0]! : outcome.message;
@@ -93,9 +95,10 @@ function fold(last: ActionCallRecord, row: ActionCallRecord): ActionCallRecord {
 
 /**
  * A short local history of calls, kept in the Home next to other local records: every command, and a read only when it failed.
- * A command turned away before its handler began (`refused`) leaves a row too, marked as not run: a person who is told "no" will look for why.
- * That row is a diagnostic, not a business record. It names who asked, for what, how it ended and the error code, never the input or a result,
- * so the rule that a cancelled, revoked or disabled call writes no business record is not touched by it.
+ * A call turned away before its handler began (`refused`) leaves a row too, marked as not run: a person who is told "no" will look for why.
+ * That row is a diagnostic, not a business record. It names who asked, for what, how it ended and the error code, and keeps no content: not the
+ * input, not a result, not what the provider said. A failed read is kept the same way. Only a command that ran and failed keeps a line of
+ * what went wrong, as it did before. So the rule that a cancelled, revoked or disabled call writes no business record is not touched by it.
  */
 export class ActionCallLog {
   private readonly file: string;
@@ -110,7 +113,8 @@ export class ActionCallLog {
     if (!operation || !outcome.ok && outcome.refused && refusalExpected(outcome.code)) return;
     this.write({ at: new Date().toISOString(), call_id: caller.call_id, operation, capability_id: action.capability_id, version: action.version, provider_id: action.provider_id ?? "",
       provider_title: action.provider_title, title: action.title, actor_id: caller.actor_id, audience: caller.audience ?? "user", project_id: caller.project_id ?? null,
-      ok: outcome.ok, ...(outcome.ok ? {} : { ...(outcome.code ? { code: outcome.code } : {}), message: reasonOf(outcome), ...(outcome.refused ? { refused: true as const } : {}) }),
+      ok: outcome.ok, ...(outcome.ok ? {} : { ...(outcome.code ? { code: outcome.code } : {}), ...(outcome.refused ? { refused: true as const } : {}),
+        ...(operation === "command" && !outcome.refused ? { message: reasonOf(outcome) } : {}) }),
       ...(action.path ? { path: action.path } : {}) });
     // Only now that the row is in the file may the operation that is waiting for its answer show its number to a person.
     if (currentCallId() === caller.call_id) markCallRecorded();

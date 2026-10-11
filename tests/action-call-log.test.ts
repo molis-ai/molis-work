@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -7,7 +8,7 @@ import { join } from "node:path";
 import { ActionError, bindActionClient, type ActionAvailability, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { LocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { expectingRefusal, recordedCallId, withCallId, type CallContext } from "@molis-ai/molis-work-kernel";
+import { expectingRefusal, recordedCallId, refusalExpected, withCallId, type CallContext } from "@molis-ai/molis-work-kernel";
 import { feedQueryActions as q, feedSourceActions as s } from "@molis-ai/molis-work-plugin-feed";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
@@ -139,26 +140,44 @@ test("a command cancelled, revoked or disabled before its handler started leaves
   }
 });
 
-test("the reason a refusal gives is kept, cut to two hundred characters, and what was asked with is not", { timeout: 60_000 }, async () => {
+test("a 「未执行」 row keeps who, what, the outcome and the error code and no content: not the reason the provider gave, not what was asked with", { timeout: 60_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "action-call-log-reason-"));
   const dbPath = join(home, "project.db");
   seedDemoBoard(dbPath, PROJECT);
-  const reason = "服务暂停：" + "原因".repeat(250) + "尾巴";
+  const reason = "服务暂停：客户张三的备注";
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: () => ({ available: false, code: "test.paused", reason }) });
   const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: NATIVE_CONTENT_PERMISSIONS };
   try {
     const secret = "只在输入里出现的口令";
-    await assert.rejects(host.actionClient(reference).invoke(caller, s.register, { kind: "web_query", query: secret, name: "口令测试" }), { code: "test.paused" });
+    // The caller is told why; the record is not.
+    await assert.rejects(host.actionClient(reference).invoke(caller, s.register, { kind: "web_query", query: secret, name: "口令测试" }), { code: "test.paused", message: reason });
     const [row] = host.callLog!.list(PROJECT);
-    assert.equal(row!.refused, true);
-    assert.equal(row!.message, reason.slice(0, 200), "the reason is what the page shows as why nothing was done; only its first two hundred characters are kept");
-    assert.ok(!readFileSync(join(home, "logs/action-calls.jsonl"), "utf8").includes(secret));
+    assert.deepEqual([row!.refused, row!.ok, row!.code, row!.actor_id, row!.capability_id], [true, false, "test.paused", "web-user", s.register.capability_id]);
+    assert.equal(row!.message, undefined, "a refused row stores no message");
+    const text = readFileSync(join(home, "logs/action-calls.jsonl"), "utf8");
+    assert.ok(!("message" in JSON.parse(text.trim().split("\n").at(-1)!)), "…not even as an empty field");
+    assert.ok(!text.includes("客户张三") && !text.includes(secret), "neither what the provider said nor what was asked with is written");
   } finally {
     await host.close();
     rmSync(home, { recursive: true, force: true });
   }
 });
+
+test("only a command that ran and failed keeps a message, as before; a refused row and a failed read keep the error code and nothing that was said", () => logOf("message", (_home, log) => {
+  const said = "出错了：客户张三的备注";
+  log.record(callBy(), action("m.refused"), refusal("m.refused", said));
+  log.record(callBy(), action("m.read", "query"), { ok: false, code: "m.read", message: said });
+  log.record(callBy(), action("m.unknown", "unknown"), refusal("actions.missing", said));
+  log.record(callBy(), action("m.command"), { ok: false, code: "m.command", message: said });
+  const byId = new Map(log.list(null).map(row => [row.capability_id, row]));
+  assert.equal(byId.get("m.command")!.message, said, "a failed command keeps its message, as it did before");
+  for (const id of ["m.refused", "m.read", "m.unknown"]) {
+    const row = byId.get(id)!;
+    assert.equal(row.message, undefined, `${id} stores no message`);
+    assert.ok(row.code, `${id} keeps its error code`);
+  }
+}));
 
 test("a refusal the caller was looking for leaves no row, and another code, a failed handler, or the same refusal outside the scope does", () => logOf("expected", async (_home, log) => {
   const notEnabled = refusal("actions.plugin_disabled", "此项目未启用该插件");
@@ -175,6 +194,40 @@ test("a refusal the caller was looking for leaves no row, and another code, a fa
   assert.deepEqual(log.list(null).reverse().map(row => [row.capability_id, row.code, row.refused === true]),
     [["page.other", "actions.forbidden", true], ["page.handler", "actions.plugin_disabled", false], ["person.named", "actions.plugin_disabled", true]]);
 }));
+
+test("the exemption ends with the page's own call: a timer, a detached promise and a child process started inside the scope that finish after it are refused calls and are recorded", { timeout: 60_000 }, () => logOf("ends", async (_home, log) => {
+  const notEnabled = refusal("actions.plugin_disabled", "此项目未启用该插件");
+  const code = "actions.plugin_disabled";
+  const late: Promise<void>[] = [], lookingFor: [string, boolean][] = [];
+  const later = (name: string, start: (record: () => void) => void) => late.push(new Promise<void>(resolve => start(() => {
+    lookingFor.push([name, refusalExpected(code)]);
+    log.record(callBy(), action(`late.${name}`), notEnabled);
+    resolve();
+  })));
+  await expectingRefusal([code], async () => {
+    assert.equal(refusalExpected(code), true, "while the page's call is pending the refusal is its answer");
+    log.record(callBy(), action("page.probe", "query"), notEnabled);
+    later("timer", record => { setTimeout(record, 30); });
+    later("detached", record => { void new Promise(resolve => setTimeout(resolve, 30)).then(record); });
+    later("child", record => { spawn(process.execPath, ["-e", ""], { stdio: "ignore" }).on("close", record); });
+  });
+  assert.equal(refusalExpected(code), false);
+  await Promise.all(late);
+  assert.deepEqual(lookingFor.map(([, expected]) => expected), [false, false, false], "the page's call is over, so nothing it left running is looking for the refusal");
+  assert.deepEqual(log.list(null).map(row => [row.capability_id, row.refused === true]).sort(([a], [b]) => String(a).localeCompare(String(b))),
+    [["late.child", true], ["late.detached", true], ["late.timer", true]], "the probe left nothing; everything that finished after the scope is a row");
+}));
+
+test("the exemption also ends when the page's call returns without waiting or throws", async () => {
+  const code = "actions.plugin_disabled";
+  const seen: boolean[] = [];
+  const after = () => new Promise<void>(resolve => setTimeout(() => { seen.push(refusalExpected(code)); resolve(); }, 5));
+  expectingRefusal([code], () => { void after(); return 1; });
+  assert.throws(() => expectingRefusal([code], () => { void after(); throw new Error("sync"); }), { message: "sync" });
+  await assert.rejects(expectingRefusal([code], async () => { void after(); throw new Error("async"); }), { message: "async" });
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.deepEqual(seen, [false, false, false]);
+});
 
 /** A command of a made-up plugin, and the Host's own policy: the plugins named in `closed` are "not enabled" in this project. */
 const areaAction = (capability_id: string): ActionDefinition<Record<string, never>, string> => ({ capability_id, version: 1, operation: "command",
@@ -221,8 +274,11 @@ test("a contract failure keeps the fact and not the fields: a record keyed by wh
   const label = "客户张三的备注";
   const tags = areaAction("fixture.area.tags");
   const keyed = { ...tags, action: { ...tags.action, input_schema: { type: "object", additionalProperties: { type: "integer" } } } };
+  const returned = areaAction("fixture.area.returned");
+  const keyedResult = { ...returned, action: { ...returned.action, output_schema: { type: "object", additionalProperties: { type: "integer" } } } };
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled: (call, described, outcome) => log.record(call, described, outcome) });
-  host.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture", title: "Fixture", kind: "system" }, definitions: [keyed], handlers: [{ ...keyed, handle: () => "never runs" }] });
+  host.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture", title: "Fixture", kind: "system" }, definitions: [keyed, keyedResult],
+    handlers: [{ ...keyed, handle: () => "never runs" }, { ...keyedResult, handle: () => ({ [label]: "不是整数" }) as never }] });
   try {
     // The caller made the call and is told which field did not fit; the record is read by someone else later.
     await assert.rejects(host.actionClient(project).invoke(caller, keyed, { [label]: "不是整数" } as never), error => {
@@ -230,8 +286,16 @@ test("a contract failure keeps the fact and not the fields: a record keyed by wh
       assert.ok((error as ActionError).message.includes(label), "the caller keeps the whole message");
       return true;
     });
-    const [row] = log.list(project.project_id);
-    assert.deepEqual([row!.refused, row!.code, row!.message], [true, "actions.input_invalid", "输入不符合能力合同"]);
+    // A command that ran and returned something the contract does not allow is a failed row, which keeps its message: cut before the field path.
+    await assert.rejects(host.actionClient(project).invoke(caller, keyedResult, {}), error => {
+      assert.equal((error as ActionError).code, "actions.output_invalid_after_effect");
+      assert.ok((error as ActionError).message.includes(label), "the caller keeps the whole message");
+      return true;
+    });
+    const rows = new Map(log.list(project.project_id).map(row => [row.capability_id, row]));
+    const refused = rows.get(keyed.capability_id)!, ran = rows.get(keyedResult.capability_id)!;
+    assert.deepEqual([refused.refused, refused.code, refused.message], [true, "actions.input_invalid", undefined], "a refused row has no message at all");
+    assert.deepEqual([ran.refused, ran.code, ran.message], [undefined, "actions.output_invalid_after_effect", "操作已执行，但结果不符合能力合同"]);
     assert.ok(!readFileSync(join(home, "logs/action-calls.jsonl"), "utf8").includes(label), "the field name is the input's, and the input is never written");
   } finally { await host.close(); }
 }));

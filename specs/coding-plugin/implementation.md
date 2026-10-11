@@ -56,7 +56,7 @@ C1 → C2 → C3 → C4 → C5 不是偏好，是依赖：
 - **写回 Goal 事件不需要新能力**。Coding 写进展走 Goals 仍保留的 typed 入口 `goals.progress.record.v1`
   （连同回执查询 `goals.progress.receipt.v1`），在 Manifest 的 `capabilities.consumes` 里声明消费；调用时身份取自
   调用上下文，不取参数（`tests/goal-progress-plugin-identity.test.ts`）。这条路到 W3-07 把它改成动作前保持不变。
-  便笺走 `goals.note`，它是 Goals 动作里向插件开放的写入（Goals 向插件开放的动作只有 `goals.list`、`goals.note`、
+  便笺若要写，走 `goals.note`，它是 Goals 动作里向插件开放的写入（Coding 现在没有调用它；Goals 向插件开放的动作只有 `goals.list`、`goals.note`、
   `goals.subject.read`、`goals.search.entries`、`goals.fragment.offers`）；`goals.events.report`、`goals.progress.record`
   等其他 Goals 事件写入动作没有 `plugin` 受众，插件够不到，不是 Coding 的路。当年写在这里的 16 个 typed 事件能力
   （`io.molis.work.goals.events.*`：`recordGoalNoteCapability`、`reportGoalEventsCapability`、

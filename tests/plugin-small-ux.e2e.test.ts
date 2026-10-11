@@ -16,6 +16,10 @@ const until = async (check: () => boolean, ms = 8_000) => {
 const CLIENTS_READY = `!document.querySelector('[data-ui-client-state="loading"]')
   && ![...document.querySelectorAll('[data-deferred-surface]')].some(surface => !surface.closest('[hidden]') && surface.dataset.uiClientState !== 'failed')`;
 
+// Every text the page's toast shows from now on (a reload drops the watcher, so install it again after one). A quiet reopen never says it failed.
+const WATCH_TOASTS = `window.toasts = []; new MutationObserver(() => window.toasts.push(document.querySelector('[data-toast]').textContent))
+  .observe(document.querySelector('[data-toast]'), { childList: true, characterData: true, subtree: true })`;
+
 test("Schedule's new-task dialog says what a due task still needs, and creating is still possible", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor } = b;
@@ -305,6 +309,7 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
     while (!(await check())) { if (Date.now() > end) assert.fail(what); await new Promise(resolve => setTimeout(resolve, 100)); }
   };
   const expanded = (surface: string) => evaluate<string>(`document.querySelector('${surface}').dataset.expanded`);
+  const noToast = async (what: string) => assert.deepEqual(await evaluate("window.toasts"), [], `${what}: the quiet reopen never toasts 「未能打开这条内容」`);
   // A page that is asked (1.5 s after it comes up) for a record it does not have says so in its note; past that, there is none.
   const quietAfterTheReopen = async (noteSelector: string, surface: string) => {
     await new Promise(resolve => setTimeout(resolve, 3_500));
@@ -347,12 +352,14 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
   };
 
   await click("[data-plugin-strip] [data-plugin-id=pages]");
-  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
+  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]') && document.querySelector('[data-toast]')", 20_000);
+  await evaluate(WATCH_TOASTS);
   const before = titles();
   await walk("pages", "[data-pages=workbench]", async () => {
     await click("[data-pages-new]");
     await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
   }, "[data-pages-back]", () => titles().length, before.length);
+  await noToast("pages");
   await reloadPage();
   await waitFor("document.querySelector('[data-pages=workbench]')", 20_000);
   assert.deepEqual(await remembered("pages"), [], "a reload has nothing to reopen");
@@ -365,10 +372,12 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
   await click("[data-bar-resident=lingguang]");
   await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
+  await evaluate(WATCH_TOASTS);
   await walk("lingguang", "[data-lingguang=workbench]", async () => {
     await evaluate("document.querySelector('[data-lingguang-capture]').click()");
     await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
   }, "[data-lingguang-back]", () => sparks().length, keptSparks);
+  await noToast("lingguang");
   await reloadPage();
   await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   assert.deepEqual(await remembered("lingguang"), [], "a reload has nothing to reopen");
@@ -385,7 +394,7 @@ test("Pages: a document opened while the workbench is still looking for a taken-
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
   await click("[data-plugin-strip] [data-plugin-id=pages]");
-  await waitFor(`document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]') && ${CLIENTS_READY}`, 20_000);
+  await waitFor(`document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]') && document.querySelector('[data-toast]') && ${CLIENTS_READY}`, 20_000);
   const ids = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.id); } finally { store.close(); } };
   const remembered = () => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}').pages).filter(Boolean)`);
@@ -403,6 +412,7 @@ test("Pages: a document opened while the workbench is still looking for a taken-
   await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
   await until(() => ids().length === before.length);
   // The workbench's Back names the taken-back document again, and its quiet reopen starts looking for it.
+  await evaluate(WATCH_TOASTS);
   await click("[data-workspace-history=back]");
   const stepped = Date.now();
   assert.deepEqual(await remembered(), [takenBack], "the step names the taken-back document");
@@ -420,8 +430,43 @@ test("Pages: a document opened while the workbench is still looking for a taken-
   while (Date.now() - stepped < 11_000) await new Promise(resolve => setTimeout(resolve, 100));
   assert.deepEqual(await remembered(), [written], "the quiet reopen forgot the taken-back record, not this one");
   assert.equal(await evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "true", "and the editor is still open");
+  assert.deepEqual(await evaluate("window.toasts"), [], "the search for the other document ended without 「未能打开这条内容」");
   await reloadPage();
   await waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('找的时候新写的')`, 30_000);
+});
+
+test("Pages: Back and then Forward at once, while the workbench is still looking for a taken-back document, ends at the list without an error", { timeout: 120_000 }, async t => {
+  // Forward is the list: it drops the record the quiet reopen was looking for, but its 8 s still run out. They end without forgetting
+  // anything else and without saying that the document could not be opened.
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
+  await click("[data-plugin-strip] [data-plugin-id=pages]");
+  await waitFor(`document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]') && document.querySelector('[data-toast]') && ${CLIENTS_READY}`, 20_000);
+  const count = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).length; } finally { store.close(); } };
+  const remembered = () => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
+    .map(key => JSON.parse(localStorage.getItem(key) || '{}').pages).filter(Boolean)`);
+  const before = count();
+  await click("[data-pages-new]");
+  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  const end = Date.now() + 8_000;
+  while ((await remembered()).length !== 1) { if (Date.now() > end) assert.fail("the workbench never remembered the open document"); await new Promise(resolve => setTimeout(resolve, 100)); }
+  await click("[data-pages-back]");
+  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+  await until(() => count() === before);
+  await evaluate(WATCH_TOASTS);
+  await click("[data-workspace-history=back]");
+  const stepped = Date.now();
+  assert.equal((await remembered()).length, 1, "the step names the taken-back document, and the workbench starts looking for it");
+  await click("[data-workspace-history=forward]");
+  // Past the quiet reopen's 8 s and its margin.
+  while (Date.now() - stepped < 11_000) await new Promise(resolve => setTimeout(resolve, 100));
+  assert.deepEqual(await remembered(), [], "nothing is left to reopen");
+  assert.deepEqual(await evaluate("window.toasts"), [], "and no 「未能打开这条内容」");
+  assert.equal(await evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "false", "the page is at its list");
+  assert.equal(count(), before, "nothing came back");
 });
 
 test("a link to a record that opens inside a plugin's own list (Todo's batch review) ends without the error toast", { timeout: 90_000 }, async t => {
@@ -432,8 +477,7 @@ test("a link to a record that opens inside a plugin's own list (Todo's batch rev
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo&openRecord=batch:x` }, sessionId));
   await waitFor("document.querySelector('[data-toast]') && document.querySelector('[data-work-surface=todo]')", 20_000);
-  await evaluate(`window.toasts = []; new MutationObserver(() => window.toasts.push(document.querySelector('[data-toast]').textContent))
-    .observe(document.querySelector('[data-toast]'), { childList: true, characterData: true, subtree: true })`);
+  await evaluate(WATCH_TOASTS);
   const surface = `document.querySelector('[data-work-surface=todo]')`;
   await waitFor(`(() => { const holder = ${surface}.querySelector('[data-assistant-context]') || ${surface}; try { const context = JSON.parse(holder.getAttribute('data-assistant-context') || '{}');
     return context.object?.id === 'batch:x' && context.named_by === 'workbench'; } catch { return false; } })()`, 20_000);

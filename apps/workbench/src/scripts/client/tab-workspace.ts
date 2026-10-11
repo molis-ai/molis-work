@@ -1258,7 +1258,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     let observer = null, timer = null, asked = null, done = false, clicks = 0, lastClick = 0;
     const finish = () => { done = true; observer?.disconnect(); clearTimeout(timer); clearTimeout(asked); frame?.removeEventListener('load', watch); if (cancelRecordJump === finish) cancelRecordJump = null; };
     const surfaceIn = (doc) => doc?.querySelector('[data-work-surface="' + plugin + '"]') || null;
-    // The plugin says it has the record open (its current object), however it got there. On the quiet reopen a name the workbench wrote counts only while the page is open: at its list (an empty item taken back) it shows nothing.
+    // The plugin says it has the record open (its current object), however it got there; on a quiet reopen the workbench's own name counts only while the page is open.
     const showsIt = (doc) => {
       const node = surfaceIn(doc);
       const holder = node && (node.hasAttribute('data-assistant-context') ? node : node.querySelector('[data-assistant-context]'));
@@ -1295,7 +1295,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     timer = setTimeout(() => {
       const stillCurrent = current(); const opened = showsIt(frame ? frame.contentDocument : document); finish();
       if (opened) return;
-      if (quiet && openRecords[plugin] === itemId) forgetRecord(plugin);
+      if (quiet) { if (openRecords[plugin] === itemId) forgetRecord(plugin); } // quiet: no error, and only the record it looked for is forgotten
       else if (stillCurrent) showToast?.(L('未能打开这条内容，请重试或从列表中选择。'), true);
     }, quiet ? 8000 : 10000);
     frame?.addEventListener('load', watch); watch();

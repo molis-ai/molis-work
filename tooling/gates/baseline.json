@@ -1492,7 +1492,7 @@
     "orderDependent": [],
     "nested": []
   },
-  "testImportSplitsTotal": 224,
+  "testImportSplitsTotal": 225,
   "testImportSplits": {
     "tests/action-before-effect.test.ts": 1,
     "tests/action-call-log.test.ts": 1,
@@ -1577,6 +1577,7 @@
     "tests/feed-source-actions.test.ts": 1,
     "tests/feed-sync-authority.test.ts": 1,
     "tests/feed-sync-concurrency.test.ts": 1,
+    "tests/fixtures/action-mcp-server.ts": 1,
     "tests/function-agent-authoring.e2e.test.ts": 2,
     "tests/function-scene-authoring.e2e.test.ts": 2,
     "tests/functions-authoring-actions.test.ts": 1,

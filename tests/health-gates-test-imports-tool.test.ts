@@ -289,7 +289,7 @@ test("--ref reads a commit, not the working tree; bad usage is exit 2", () => {
   assert.equal(run(dir, "--check", "--write").code, 2);
 });
 
-// ---- the health gate: per test file, the packages its process loads twice may only fall ----------------------------------
+// ---- the health gate: per test file and spawned fixture, the packages its process loads twice may only fall ----------------------------------
 
 // Every test file here has the same internal references at the merge-base and on the branch in the scenarios that matter, so the
 // older test-imports gate stays quiet and only the one under test can fail.
@@ -308,7 +308,9 @@ const gateBase = (): Record<string, string> => ({
   "tests/twin.test.ts": lines('import { Thing } from "@fx/alpha";', 'import { hidden } from "../packages/alpha/dist/hidden.js";', "export const used = [Thing, hidden];"),
   "tests/source-only.test.ts": lines('import { hidden } from "../packages/alpha/src/hidden.ts";', 'import { helper } from "../packages/alpha/src/util.ts";', "export const used = [hidden, helper];"),
   "tests/fixtures/spawned.ts": lines('import { hidden } from "../../packages/alpha/src/hidden.ts";', 'import { Thing } from "@fx/alpha";', "export const used = [hidden, Thing];"),
-  "tests/spawns.test.ts": lines('import { spawnSync } from "node:child_process";', 'import { Thing } from "@fx/alpha";', 'export const used = [spawnSync, Thing, "tests/fixtures/spawned.ts"];'),
+  "tests/spawns.test.ts": lines('import { spawnSync } from "node:child_process";', 'import { Thing } from "@fx/alpha";', 'export const used = [spawnSync, Thing, "tests/fixtures/spawned.ts", "tests/fixtures/clean-child.ts"];'),
+  // Spawned fixtures: no test imports them, each is a process of its own. spawned.ts is an old split, recorded in the base; clean-child.ts is not.
+  "tests/fixtures/clean-child.ts": lines('import { Thing } from "@fx/alpha";', 'import { hidden } from "../../packages/alpha/dist/hidden.js";', "export const used = [Thing, hidden];"),
   // Material for the scenarios: a helper read by a test, a test next to a package whose build is read, a dynamic import.
   "tests/fixtures/shared.ts": lines('import { Thing } from "@fx/alpha";', 'import { hidden } from "../../packages/alpha/dist/hidden.js";', "export const shared = [Thing, hidden];"),
   "tests/uses-shared.test.ts": lines('import { shared } from "./fixtures/shared.ts";', "export const used = shared;"),
@@ -358,6 +360,16 @@ const violations: Scenario[] = [
   { name: "a new test that reads a package from source and by name",
     mutate: (dir) => put(dir, "tests/new.test.ts", lines('import { Thing } from "@fx/alpha";', 'import { hidden } from "../packages/alpha/src/hidden.ts";', "export const used = [Thing, hidden];")),
     expect: [/in tests\/new\.test\.ts 0 → 1/, /Now split: @fx\/alpha: source via tests\/new\.test\.ts:2/] },
+  // A tests/ file that no test imports is a process of its own when a test spawns it: it is counted under its own path.
+  { name: "a new spawned fixture that starts split",
+    mutate: (dir) => put(dir, "tests/fixtures/new-child.ts", lines('import { Thing } from "@fx/alpha";', 'import { hidden } from "../../packages/alpha/src/hidden.ts";', "export const used = [Thing, hidden];")),
+    expect: [/packages one test process loads from both source[^\n]* in tests\/fixtures\/new-child\.ts 0 → 1/, /Now split: @fx\/alpha: source via tests\/fixtures\/new-child\.ts:2/] },
+  { name: "a spawned fixture with one copy gaining a second",
+    mutate: (dir) => put(dir, "tests/fixtures/clean-child.ts", `import { helper } from "../../packages/alpha/src/util.ts";\n${read(dir, "tests/fixtures/clean-child.ts")}`),
+    expect: [/packages one test process loads from both source[^\n]* in tests\/fixtures\/clean-child\.ts 0 → 1/, /Now split: @fx\/alpha: source via tests\/fixtures\/clean-child\.ts:1/] },
+  { name: "a spawned fixture that already splits one package splitting a second",
+    mutate: (dir) => put(dir, "tests/fixtures/spawned.ts", `import { beta } from "@fx/beta";\nimport { betaInternal } from "../../packages/beta/src/internal.ts";\n${read(dir, "tests/fixtures/spawned.ts")}`),
+    expect: [/packages one test process loads from both source[^\n]* in tests\/fixtures\/spawned\.ts 1 → 2/, /Now split: [^\n]*@fx\/beta: source via tests\/fixtures\/spawned\.ts:2/] },
 ];
 // The base repository is built once; a scenario is a branch off main, so each one costs a commit and a gate run.
 let gateRepo = "";
@@ -390,12 +402,13 @@ test("gate: --update does not hide a new split, neither with the merge-base nor 
 test("gate: only the process that reads a package from both places is counted at the merge-base", () => {
   const dir = gateMain();
   git(dir, "checkout", "-q", "-f", "main");
-  // Type-only imports load nothing; the built twin and the package name are one copy; source alone is one copy; a fixture that no test
-  // imports is another process. Of the fifteen tests, one splits: split.test.ts.
+  // Type-only imports load nothing; the built twin and the package name are one copy; source alone is one copy. A fixture that no test
+  // imports is a process of its own, counted under its own path. Two of them split: tests/split.test.ts and tests/fixtures/spawned.ts
+  // (clean-child.ts has one copy).
   const report = gate(dir, "--report", "--base", "main");
-  assert.match(report.out, /Packages test processes load from both source and build \(per test file\): 1 in 1 files/);
-  assert.deepEqual(JSON.parse(gate(dir, "--report", "--json", "--base", "main").out).head.testImportSplits, { "tests/split.test.ts": 1 });
-  branch(dir, "harmless", () => { for (const file of ["tests/type-only.test.ts", "tests/twin.test.ts", "tests/source-only.test.ts", "tests/fixtures/spawned.ts"]) put(dir, file, `${read(dir, file)}// touched\n`); });
+  assert.match(report.out, /Packages test processes load from both source and build \(per test file or spawned fixture\): 2 in 2 files/);
+  assert.deepEqual(JSON.parse(gate(dir, "--report", "--json", "--base", "main").out).head.testImportSplits, { "tests/fixtures/spawned.ts": 1, "tests/split.test.ts": 1 });
+  branch(dir, "harmless", () => { for (const file of ["tests/type-only.test.ts", "tests/twin.test.ts", "tests/source-only.test.ts", "tests/fixtures/spawned.ts", "tests/fixtures/clean-child.ts"]) put(dir, file, `${read(dir, file)}// touched\n`); });
   const run1 = gate(dir, "--base", "main");
   assert.equal(run1.code, 0, run1.out);
   assert.doesNotMatch(run1.out, /Lower than the merge-base: [^.]*testImportSplits/);
@@ -412,6 +425,31 @@ test("gate: removing a split lowers the number, and moving a split test keeps it
   branch(dir, "moved", () => git(dir, "mv", "tests/split.test.ts", "tests/split-renamed.test.ts"));
   const moved = gate(dir, "--base", "main");
   assert.equal(moved.code, 0, moved.out);
+});
+
+test("gate: fixing a spawned fixture lowers the number, and a fixture a test starts to import is measured through that test", () => {
+  const dir = gateMain();
+  branch(dir, "fixture-tidy", () => swap(dir, "tests/fixtures/spawned.ts", "packages/alpha/src/hidden.ts", "packages/alpha/dist/hidden.js"));
+  const lowered = gate(dir, "--base", "main");
+  assert.equal(lowered.code, 0, lowered.out);
+  assert.match(lowered.out, /Lower than the merge-base: [^.]*testImportSplits/);
+  assert.deepEqual(JSON.parse(gate(dir, "--report", "--json", "--base", "main").out).head.testImportSplits, { "tests/split.test.ts": 1 });
+
+  // The same split, now read by a test: the fixture is no longer a process of its own, the test that reads it is split in its place.
+  branch(dir, "fixture-imported", () => put(dir, "tests/clean.test.ts", `import "./fixtures/spawned.ts";\n${read(dir, "tests/clean.test.ts")}`));
+  const taken = gate(dir, "--base", "main");
+  assert.equal(taken.code, 1, taken.out);
+  assert.match(taken.out, /packages one test process loads from both source[^\n]* in tests\/clean\.test\.ts 0 → 1/);
+});
+
+test("--check --json counts the spawned fixtures that split with the tests, and names them under entries", () => {
+  const dir = gateMain();
+  git(dir, "checkout", "-q", "-f", "main");
+  const found = JSON.parse(run(dir, "--check", "--json").out) as { splits: Record<string, number>; entries: string[] };
+  assert.equal(found.splits["tests/fixtures/spawned.ts"], 1);
+  assert.equal(found.splits["tests/split.test.ts"], 1);
+  assert.deepEqual(found.entries, ["tests/fixtures/spawned.ts"]);
+  assert.equal(found.splits["tests/fixtures/clean-child.ts"], undefined);
 });
 
 test("gate: a repository with no tests has nothing to measure", () => {

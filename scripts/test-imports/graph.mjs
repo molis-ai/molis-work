@@ -8,7 +8,9 @@
 // Every package builds with `tsc` from src/ to dist/ with the same layout, so a build module is followed by reading its src twin:
 // ./dist/x.js is read as src/x.ts. Declarations that load nothing at run time (`import type`, `export type`, every element
 // `type`) are skipped. Package code's import() and require() are not followed (they load lazily); a test's own are. A child
-// process (fork, spawn) is a separate process and is not joined. Not seen: computed specifiers, createRequire.
+// process (fork, spawn) is a separate process and is not joined: a tests/ file that no test reads statically (a spawned fixture) is
+// analysed as a process of its own ("entry"). Not seen: computed specifiers, createRequire, which file a test spawns (a fixture
+// that a test also imports is measured as part of that test's process, not as the child).
 import path from "node:path";
 import ts from "typescript";
 import { parseImports } from "./parse.mjs";
@@ -196,5 +198,8 @@ export function createGraph(snapshot, parseCache = new Map()) {
   return { packages, known, ownerOf, classify, importsOf, resolveFile, distOf, entryOf, entriesOf, analyze, chains, read: snapshot.read, files: snapshot.files };
 }
 
-/** { test file: number of packages it loads both ways }, only the processes that split (what the health gate counts). */
-export const splitCounts = (results) => Object.fromEntries(results.filter((result) => result.kind === "test" && result.splits.length).map((result) => [result.file, result.splits.length]));
+/**
+ * { file: number of packages its process loads both ways }, only the processes that split (what the health gate counts): the
+ * tests/*.test.* files, and the tests/ files no test reads, which are the ones a test spawns (`kind: "entry"`, keyed by their own path).
+ */
+export const splitCounts = (results) => Object.fromEntries(results.filter((result) => result.splits.length).map((result) => [result.file, result.splits.length]).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));

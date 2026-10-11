@@ -4,7 +4,7 @@
 // instanceof, module-level caches and AsyncLocalStorage. This tool finds those processes and rewrites the imports so that every
 // package is reached from one place, public names through the package's entry. The graph and the rules are in
 // scripts/test-imports/ (header of graph.mjs and plan.mjs); scripts/gates/test-import-splits.mjs holds the health gate on the
-// same graph, which lets no test file load more packages twice than it does at the merge-base.
+// same graph, which lets no test file, and no fixture a test spawns, load more packages twice than it does at the merge-base.
 //
 //   node scripts/test-imports.mjs --check [--chains]       list the split processes (exit 1 if any); --chains also prints how
 //   node scripts/test-imports.mjs [--report] [<file>…]     the plan, per specifier: file:line, rule, old → new, names; with file

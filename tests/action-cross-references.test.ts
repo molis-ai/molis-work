@@ -13,7 +13,7 @@ import {
   type ActionDefinition, type FragmentOfferChoice, type SubjectOfferChoice,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { inspectActionCrossReferences, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import { inspectActionCrossReferences, inspectActionDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
 import { PluginRuntime, PluginRuntimeError } from "@molis-ai/molis-work-plugin-runtime";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
@@ -174,6 +174,14 @@ test("a result object is read from places the output declares", () => {
   assert.deepEqual(problems(subject({ id: "note.id", revision: 3 })), ["能力 notes.save@1 的结果对象位置必须写成输出里的路径"]);
 });
 
+test("a result object that is not an object is refused, whatever it is: nothing else reports it, and at use the string would stop the Assistant after the change was made", () => {
+  const notAnObject = "能力 notes.save@1 的结果对象声明必须是对象，写明 id（可加 revision）在输出里的路径";
+  for (const declared of ["note.id", "", true, false, 0, 3, ["note.id"], []]) assert.deepEqual(problems(subject(declared)), [notAnObject], JSON.stringify(declared));
+  for (const absent of [undefined, null]) assert.deepEqual(problems(subject(absent)), [], `${absent}: not declared`);
+  assert.deepEqual(problems(subject("note.id", { output_schema: undefined })), [notAnObject], "an output the declaration could not be found in does not add a second problem");
+  assert.deepEqual(problems(subject("note.id", { title: "" })), [notAnObject], "it is reported with the body incomplete too: the shape check reports the body, not this");
+});
+
 test("a path is found through properties, branches and references inside the schema, and only there", () => {
   const found = (schema: unknown) => problems(subject({ id: "note.id" }, { output_schema: schema }));
   const note = { type: "object", properties: { id: ID } };
@@ -215,9 +223,11 @@ test("a definition or a reference that is incomplete is skipped, never reported 
     start({ background_job: job({ status: "jobs.status" }) }), start({ background_job: job({ id: 7 }) }), start({ background_job: job({ input: "not a path" }) }),
     start({ background_job: job({ state: undefined }) }), { ...start(), operation: "query" },
     defined("notes.offers", "query", { fragment_offer_choices: "all", subject_offer_choices: [null, 5, {}, { offer_id: "x" }, { offer_id: "x", action: {} }, { offer_id: "x", action: { capability_id: "a" } }, { action: { capability_id: "a", version: 1 } }] }),
-    defined("notes.save", "command", { result_subject: "note.id" }), defined("notes.save", "command", { result_subject: null }),
   ];
-  for (const definition of incomplete) assert.deepEqual(problems(definition), [], JSON.stringify(definition));
+  for (const definition of incomplete) {
+    assert.deepEqual(problems(definition), [], JSON.stringify(definition));
+    assert.notDeepEqual(inspectActionDeclarations([definition], undefined), [], `the shape check reports it: ${JSON.stringify(definition)}`);
+  }
 });
 
 test("problems come in the order of the definitions, then undo, job, fragment options, subject options, result object; the first of a repeated definition counts", () => {
@@ -259,6 +269,7 @@ test("the Kernel refuses a registration whose references do not hold, with the p
   assert.equal(refused(fragments(fragmentChoice)), "能力 notes.fragments@1 的片段选项 make 的目标动作 notes.make@1 不在同一提供方的声明里，或范围不同");
   assert.equal(refused(subjects(subjectChoice)), "能力 notes.offers@1 的事项选项 open 的目标动作 notes.open@1 不在同一提供方的声明里，或范围不同");
   assert.equal(refused(subject({ id: "note.key" })), "能力 notes.save@1 的结果对象位置 note.key 不在输出合同里");
+  assert.equal(refused(subject("note.id")), "能力 notes.save@1 的结果对象声明必须是对象，写明 id（可加 revision）在输出里的路径");
 });
 
 test("the Kernel reports a shape problem and a reference problem together, shape first, and a shape problem alone when the definition is incomplete", () => {
@@ -275,6 +286,7 @@ test("a Manifest whose references do not hold is not a Manifest: parsing it name
     "能力 jobs.start@1 的状态位置 status 不在 jobs.status@1 的输出合同里");
   assert.equal(manifestProblems(declarationManifest({ actions: [defined("notes.untitled", "command", { title: "" }), add()] })),
     "能力 notes.untitled@1 的输入输出、权限或展示定义不完整；能力 notes.add@1 的撤销命令 notes.remove@1 不在同一提供方的声明里");
+  assert.equal(manifestProblems(declarationManifest({ actions: [subject("note.id")] })), "能力 notes.save@1 的结果对象声明必须是对象，写明 id（可加 revision）在输出里的路径");
   assert.throws(() => parsePluginManifest(declarationManifest({ actions: [add()] })), (error: unknown) => error instanceof PluginManifestError && error.code === "plugin_declaration_invalid");
 });
 

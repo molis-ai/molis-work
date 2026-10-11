@@ -10,7 +10,8 @@ import { schemaFields, schemaPathExists } from "./schema-paths.js";
 //
 // This is a separate pass from `inspectActionDeclarations`, which reads one definition at a time. A definition or a reference that
 // is incomplete (`inspectActionDeclarations` reports that) is skipped, never reported twice. Problems come in the order of the
-// definitions, then undo, background job, fragment options, subject options, result object.
+// definitions, then undo, background job, fragment options, subject options, result object. The one thing read here that the shape
+// check does not read at all is `result_subject`, so a value of it that is not an object is reported here.
 
 /** A definition complete enough to be pointed at or to point: its identity, its operation, and its action body. */
 interface Declared {
@@ -142,10 +143,14 @@ function handlesKinds(target: Declared, offered: readonly string[]): boolean {
 
 // ---- the result object ------------------------------------------------------------------------------------------------------
 
-/** The places `result_subject` names (the object's id, and its revision when written) are in the output the action declares. */
+/**
+ * The places `result_subject` names (the object's id, and its revision when written) are in the output the action declares. Declared
+ * at all, it is an object: the shape check does not read it, and a string would stop the Assistant after the change was made.
+ */
 function resultSubjectProblems(source: Declared): string[] {
   const declared = source.action.result_subject;
-  if (!isObject(declared)) return [];
+  if (declared === undefined || declared === null) return [];
+  if (!isObject(declared)) return [`能力 ${source.key} 的结果对象声明必须是对象，写明 id（可加 revision）在输出里的路径`];
   const positions = declared.revision === undefined ? [declared.id] : [declared.id, declared.revision];
   return positions.flatMap(position => {
     if (typeof position !== "string") return [`能力 ${source.key} 的结果对象位置必须写成输出里的路径`];

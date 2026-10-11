@@ -1,3 +1,4 @@
+import { codingArtifacts } from "./artifacts.js";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { parseCharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
@@ -40,6 +41,6 @@ export function savedCharacterSkills(context: PluginStartContext, sessionId: str
 }
 export function characterTitle(context: PluginStartContext, reference: ArtifactReference | null): string | null {
   if (!reference) return null;
-  try { return parseCharacterContent(context.services!.artifacts.read(reference)?.payload).title; }
+  try { return parseCharacterContent(codingArtifacts(context).read(reference)?.payload).title; }
   catch { return "原角色版本暂不可读"; }
 }

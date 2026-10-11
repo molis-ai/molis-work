@@ -12,7 +12,7 @@
 
 模型目录复用 Host 元数据查询，发现时不解密凭据；实际生成通过共享 `hostTextGeneration` 绑定同一 Home Runtime。宿主管理模型配置失效、取消、时限和授权复查；Host 使用 SDK 公共 JSON 解码并返回可区分的语法结果，插件继续拥有研究提示词、Zod 领域验证和显式预算内的一次格式纠正。
 
-公开研究通过宿主 Search Evidence Layer 收集实际 URL 和摘要；市场脉搏保留 Toolify、Watcha、GitHub 来源，界面在市场脉搏列表里写明采集会联网访问这三个站点；GitHub 来源只带用户在「来源设置」里选定的那个「设置 › 服务连接」GitHub 账号的令牌，没选就匿名访问（限额较低），不读环境变量；令牌不交给插件：宿主经 `pulseGithub.fetch` 在请求发往 `api.github.com` 时加上请求头（`SafePublicHttpClient` 的 `fetch` 选项，插件自己不建这个头，`source-adapters.test.ts` 扫源码保证），`pulseGithub.read/select` 只列账号与选择（动作 `alchemist.pulse.github`、`alchemist.pulse.github.configure`，只有 user 受众，绑定记在连接登记表 `home/alchemist/pulse-github`）；界面上的说明与 `docs/platform/NETWORK.md` 第 7 类写的是同一条规则。单次 Lens 的本地计划不消费 AI 调用，执行阶段的搜索、交叉判断和综合计入确认的调用预算。一次搜索计为一个业务调用，包含一次搜索供应商请求和最多三个页面的提取；不是底层 HTTP 请求数。预算不足会产生部分报告，不能作为完整双 Lens 决策依据。供应商费用不可观测，不把调用数换算为金额。
+公开研究通过宿主 Search Evidence Layer 收集实际 URL 和摘要；市场脉搏保留 Toolify、Watcha、GitHub 来源，界面在市场脉搏列表里写明采集会联网访问这三个站点；GitHub 来源只带用户在「来源设置」里选定的那个「设置 › 服务连接」GitHub 账号的令牌，没选就匿名访问（限额较低），不读环境变量；令牌不交给插件：宿主经 `pulseGithub.fetch` 在请求发往 `api.github.com` 时加上请求头（`SafePublicHttpClient` 的 `fetch` 选项，插件自己不建这个头，`source-adapters.test.ts` 扫源码保证），`pulseGithub.read/select` 只列账号与选择（动作 `alchemist.pulse.github`、`alchemist.pulse.github.configure`：只有 user 受众，声明在 Home 作用域（`scope: "home"`），权限是自己的 `alchemist:connections:read/write`，和 Images 的 `connections.*` 一样；绑定记在连接登记表 `home/alchemist/pulse-github`，是整个 Home 共用的一条，在任一项目里选的账号所有项目都用，来源设置对话框也写明「所有项目共用」；这两个动作由 `createAlchemistActionHandlers` 的 `pulseGithub` 端口直接服务，不需要项目、不打开任何项目的工作室）；界面上的说明与 `docs/platform/NETWORK.md` 第 7 类写的是同一条规则。单次 Lens 的本地计划不消费 AI 调用，执行阶段的搜索、交叉判断和综合计入确认的调用预算。一次搜索计为一个业务调用，包含一次搜索供应商请求和最多三个页面的提取；不是底层 HTTP 请求数。预算不足会产生部分报告，不能作为完整双 Lens 决策依据。供应商费用不可观测，不把调用数换算为金额。
 
 数据按项目存于 `{home}/alchemist/projects/<encoded projectId>/studio.sqlite`。安全检查点可恢复；外部请求已发出但无法确认结果时，任务标记中断，由用户重新研究，避免后台重复消费。停止会中断当前请求并阻止后续阶段。已完成的报告可重新研究，过程中保留上一份报告；新任务失败或取消不会显示成研究完成。
 
@@ -34,14 +34,15 @@ AI 固定指令统一定义于 `src/prompts.ts`，由共同目录登记 `ALCHEMI
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 未配置模型时保留输入并提示，不生成演示卡。方向卡与研究卡上因缺模型而停下的炼化或研究只说一次「还没有可用模型」并带「打开模型设置」（模型之后配好了就不再说），不显示状态、等待标签或内部错误码。
-  - 没有模型时，`alchemist.reuse.assess`、`alchemist.conversation.send`、`alchemist.explorations.start`、`alchemist.research.start` 在目录里对助理、MCP、工作流和插件标成不可用，原因是缺模型（`AlchemistHostService`）：工作流和插件调用得到 `actions.connection_required`，助理搜能力时不列出，MCP 的 `tools/list` 不列出这四个工具、按名调用得到 `actions.mcp_unavailable`，配好模型后它们回来；用户自己的页面不受影响，这是用户 2026-10-09 定下的做法：发送讨论先保存消息，启动炼化与启动研究记一条停下的运行，卡片再指向模型设置。`alchemist.pulse.start` 用规则综合、不调模型，不声明。`tests/model-unavailable-declarations.test.ts` 钉着现在的划分。
+  - 哪些动作要模型由插件自己声明：凡声明了 `alchemist:generate` 权限（`ALCHEMIST_GENERATE_PERMISSION`）的动作，`createAlchemistActionHandlers` 都为它绑上可用性判断，「用户本人的页面一律可用」这条规则也在这里；宿主（`AlchemistHostService`）不留动作清单，只经 `modelAvailability` 端口回答「这个 Home 有没有炼金术士能跑的模型」，答案来自 Prologue 端口 `listModels` 提供的同一份列表（`alchemistModelChoices`），所以「能不能跑」只有一个答案。炼金术士的端口不认开发用环境变量里的密钥，因此只在那一种开发模式下，这个答案可能与其他插件宿主侧的 `hostCompleteText` 不同；真实 Home 里两者一致。新增一个调模型的动作，只要声明这个权限就受同一判断；`tests/model-unavailable-declarations.test.ts` 按声明遍历，不抄动作清单。
+  - 没有模型时，`alchemist.reuse.assess`、`alchemist.conversation.send`、`alchemist.explorations.start`、`alchemist.research.start` 在目录里对助理、MCP、工作流和插件标成不可用，原因是缺模型：工作流和插件调用得到 `actions.connection_required`，助理搜能力时不列出，MCP 的 `tools/list` 不列出这四个工具、按名调用得到 `actions.mcp_unavailable`，配好模型后它们回来；用户自己的页面不受影响，这是用户 2026-10-09 定下的做法：发送讨论先保存消息，启动炼化与启动研究记一条停下的运行，卡片再指向模型设置。`alchemist.pulse.start` 用规则综合、不调模型，不声明。`tests/model-unavailable-declarations.test.ts` 钉着现在的划分。
   - 研究阶段的端口类型在 `src/studio/server/runtime/research-runtime-port.ts`；会写 `fixture://research/…` 假证据的 `FixtureResearchRuntimeAdapter` 只在 `tests/fixtures/`，生产代码不导入它。
   - 预算不足产生部分报告，不能当作完整的双 Lens 依据；费用不可观测时不把调用数换算成金额。
   - 执行中的任务持续续租；任务状态与事件同事务保存。
   - 可信调用者身份保留到对象、任务与 Prologue 会话；对话发送与复用适用性判断声明 `scheduling: "concurrent"`，等模型不占项目串行队列。
   - 包内还有 vitest 用例：`pnpm --filter @molis-ai/molis-work-plugin-alchemist test`。
   - 项目被删除时宿主关闭并移出该项目的工作室（含 worker 与搜索库），再删除 `alchemist/projects/<项目>` 目录，同 id 的项目重建后从空开始。
-- 改动后必跑：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host.test.ts tests/alchemist-host-lifecycle.test.ts tests/alchemist-runtime.test.ts tests/alchemist-mcp.test.ts tests/project-deletion-studios.test.ts tests/alchemist-pulse-github.test.ts tests/model-unavailable-declarations.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host.test.ts tests/alchemist-host-lifecycle.test.ts tests/alchemist-runtime.test.ts tests/alchemist-mcp.test.ts tests/project-deletion-studios.test.ts tests/alchemist-pulse-github.test.ts tests/model-unavailable-declarations.test.ts tests/network-notices.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[specs/archive/alchemist-plugin/spec.md](../../../specs/archive/alchemist-plugin/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

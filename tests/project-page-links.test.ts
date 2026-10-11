@@ -10,14 +10,16 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 // the page carries has to open something: a global page kept its own address, not one under the project.
 test("every same-origin link on a project page opens, including Plugins' links to global settings", { timeout: 120_000 }, async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-project-links-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   const project = await catalog.createProject({ display_name: "Links", actor_id: "fixture-user" });
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "fixture-user" });
   catalog.close();
   const server = createMolisWorkWebServer({ homeDirectory: directory, controlToken: "project-links-test-control-token-0123456789" });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await rm(directory, { recursive: true, force: true });
+  });
   const address = server.address();
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;

@@ -1,7 +1,7 @@
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { goalsActions, GOALS_PLUGIN_ID, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, GOALS_PLUGIN_ID, managementEventDecisionAuthority, managementTreeAuthority, type GoalEventDecideEntryInput } from "@molis-ai/molis-work-plugin-goals";
 import { initializeBoardCapability, snapshotBoardCapability, goalTreeCapabilities, readProjectGuidanceCapability, setActiveGoalCapability,
   createGoalIntentCapability, recordGoalUserDecisionCapability } from "@molis-ai/molis-work-plugin-goals";
 import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
@@ -23,17 +23,6 @@ export interface ProjectCapabilityPorts {
   /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
   workspacesFor?: (projectId: string) => readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
   workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
-}
-
-/**
- * Only the management entries (the CLI and the management MCP) reach the board and decision capabilities, and they act as the
- * person on this machine: the host fixes that identity and refuses any other carried in the arguments
- * (repository-anti-corruption §9.5 #6; trusted identity comes from the call context, never from input).
- */
-function requireLocalPerson(authority: { actor_id: string; actor_kind: string; authority_source: string }, code: string): void {
-  if (authority.actor_id !== LOCAL_PERSON_ACTOR_ID || authority.actor_kind !== "user" || authority.authority_source !== "management") {
-    throw new ActionError(code, "管理入口以本机这个人的身份决定，不接受参数里的身份或出处");
-  }
 }
 
 /**
@@ -75,13 +64,26 @@ function managementPayload<Input extends { project_id: string }>(
   return payload;
 }
 
+/**
+ * The event decision is the person's too, and the management door treats it like the structure decision: the Host builds who
+ * decides (the person on this machine, origin management) and refuses an identity in the arguments, in the authority too. The
+ * authority the caller sends only points at the conversation the decision came from.
+ */
+function managementEventDecision(runtime: MolisWorkProjectRuntime, input: GoalEventDecideEntryInput) {
+  const { authority: evidence, ...payload } = managementPayload(runtime, input);
+  const authority = managementEventDecisionAuthority(runtime.project_id, input.idempotency_key, evidence);
+  const { actor_id, actor_kind } = managementIdentity(runtime, input.idempotency_key);
+  return { payload, writer: { actor_id, actor_kind,
+    user_action: { source: "management" as const, conversation_ref: authority.conversation_ref, message_ref: authority.message_ref } } };
+}
+
 export function registerProjectCapabilities(
   host: LocalHost<MolisWorkProjectRuntime>,
   ports: ProjectCapabilityPorts = {},
 ): void {
   const { workspaceFor } = ports;
   // goalAction uses only the identity this registration supplies. Management writes (structure submit and check, the tree
-  // decision, the active goal, initialize, create) stamp the person on this machine and refuse actor_id or actor_kind in the
+  // and event decisions, the active goal, initialize, create) stamp the person on this machine and refuse actor_id or actor_kind in the
   // arguments. What stays here has a caller in the product (the CLI, the management MCP, the first-run setup, Agent Host's
   // guidance read, Coding); the rest of Goals is reached through its actions.
   const goalAction = <Input, Output>(runtime: MolisWorkProjectRuntime, definition: ActionDefinition<Input, Output>,
@@ -221,12 +223,8 @@ export function registerProjectCapabilities(
     return goalAction(runtime, goalsActions.create, { ...payload, source_kind: payload.source_kind ?? "web" }, managementIdentity(runtime, input.idempotency_key), invocation);
   });
   host.register(recordGoalUserDecisionCapability, (runtime, input, invocation) => {
-    const { project_id, authority, ...payload } = input;
-    requireRuntimeProject(runtime, project_id);
-    if (!authority) throw new ActionError("event_decision.untrusted_actor", "用户决定需要受保护入口提供出处");
-    requireLocalPerson(authority, "event_decision.untrusted_actor");
-    return goalAction(runtime, goalsActions.decide, payload, { actor_id: authority.actor_id, actor_kind: authority.actor_kind,
-      user_action: { source: authority.authority_source, conversation_ref: authority.conversation_ref, message_ref: authority.message_ref } }, invocation);
+    const { payload, writer } = managementEventDecision(runtime, input);
+    return goalAction(runtime, goalsActions.decide, payload, writer, invocation);
   });
   registerHostScheduleCapabilities(host, (runtime) => runtime.store.db);
 }

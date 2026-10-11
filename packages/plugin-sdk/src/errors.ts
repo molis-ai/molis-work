@@ -38,22 +38,27 @@ interface CodedFailure {
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** A failure that carries a code and a message, whichever class made it. */
+/** A code of ours: `<owner>.<reason>`. A system or driver code (`ENOENT`, `ERR_SQLITE_ERROR`) is not, whoever raised it. */
+const isModelCode = (code: unknown): code is string => typeof code === "string" && ACTION_ERROR_CODE.test(code);
+
+/** A failure that carries a code of ours and a message, whichever class made it. Anything else is read as having no code at all, so its kind,
+ * its body code and its details cannot disagree about whether the failure is ours. */
 function codedFailure(error: unknown): CodedFailure | undefined {
   if (typeof error !== "object" || error === null) return undefined;
   const { code, message } = error as Record<string, unknown>;
-  return typeof code === "string" && code !== "" && typeof message === "string" ? error as CodedFailure : undefined;
+  return isModelCode(code) && typeof message === "string" ? error as CodedFailure : undefined;
 }
 
 /**
  * What sort of failure this is: the failure's own kind, else what the platform table says its code is. A code of ours
  * (`<owner>.<reason>`) that nobody classified is a caller's mistake; anything else (no code, a system error code, a thrown string) is internal.
+ * A failure of the second kind answers with the code `actions.execution_failed` and its message; its own code and details are not passed on.
  */
 export function actionErrorKind(error: unknown): ActionErrorKind {
   const failure = codedFailure(error);
   if (!failure) return "internal";
   if (isActionErrorKind(failure.kind)) return failure.kind;
-  return platformErrorKind(failure.code) ?? (ACTION_ERROR_CODE.test(failure.code) ? "invalid" : "internal");
+  return platformErrorKind(failure.code) ?? "invalid";
 }
 
 export function actionHttpStatus(error: unknown): number {
@@ -78,7 +83,7 @@ export function actionErrorResponse(error: unknown, options: ActionErrorBodyOpti
 export function actionErrorFromResponse(status: number, body: unknown): ActionError {
   const answer = isRecord(body) ? body : {};
   const kind = STATUS_KIND.get(status) ?? (status >= 400 && status < 500 ? "invalid" : "internal");
-  const code = typeof answer.code === "string" && answer.code !== "" ? answer.code : FALLBACK_CODE;
+  const code = isModelCode(answer.code) ? answer.code : FALLBACK_CODE;
   const message = typeof answer.error === "string" && answer.error !== "" ? answer.error : FALLBACK_MESSAGE;
   return new ActionError(code, message, { kind, ...(isRecord(answer.details) ? { details: answer.details } : {}) });
 }

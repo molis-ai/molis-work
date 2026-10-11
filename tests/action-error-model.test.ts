@@ -66,6 +66,14 @@ test("an error with no code of ours is an internal failure, and so is anything t
   assert.equal(actionErrorKind(undefined), "internal");
   assert.equal(actionErrorKind(Object.assign(new Error("no such file"), { code: "ENOENT" })), "internal", "a system error code is not one of our codes");
   assert.deepEqual(actionErrorResponse(new Error("boom")), { status: 500, body: { error: "boom", code: "actions.execution_failed" } });
+  // The body never carries a code that is not ours either: a system or driver code is neither the answer's code nor its details.
+  for (const foreignCode of ["ENOENT", "ERR_SQLITE_ERROR", "Todo.not_found", "todo", "todo."]) {
+    const foreign = Object.assign(new Error("no such file, open /x/y"), { code: foreignCode, details: { path: "/x/y" } });
+    assert.deepEqual(actionErrorResponse(foreign), { status: 500, body: { error: "no such file, open /x/y", code: "actions.execution_failed" } }, foreignCode);
+  }
+  // A foreign code with a kind of its own is still not a code of ours: status, code and details agree on one answer.
+  assert.deepEqual(actionErrorResponse(new ActionError("ENOENT", "no such file", { kind: "not_found", details: { path: "/x/y" } })),
+    { status: 500, body: { error: "no such file", code: "actions.execution_failed" } });
   assert.deepEqual(actionErrorResponse("boom"), { status: 500, body: { error: "能力执行失败", code: "actions.execution_failed" } });
   assert.deepEqual(actionErrorResponse(null), { status: 500, body: { error: "能力执行失败", code: "actions.execution_failed" } });
 });
@@ -108,6 +116,8 @@ test("a response round-trips into the same code, kind and details", () => {
   assert.equal(actionErrorFromResponse(401, { error: "未登录", code: "owner.auth" }).kind, "invalid");
   assert.equal(actionErrorFromResponse(418, {}).kind, "invalid");
   assert.equal(actionErrorFromResponse(520, "<html>").kind, "internal");
+  // A body whose code is not ours is read as no code, the same way the edge writes it.
+  assert.equal(actionErrorFromResponse(500, { error: "x", code: "ENOENT" }).code, "actions.execution_failed");
   const bare = actionErrorFromResponse(502, null);
   assert.deepEqual([bare.code, bare.message, bare.kind], ["actions.execution_failed", "能力执行失败", "upstream"]);
 });
@@ -137,6 +147,7 @@ test("every platform code the sources raise has a row in ACTION_ERROR_KINDS, and
   const used = (code: string) => [...sources.values()].some(text => text.includes(`"${code}"`) || text.includes(`'${code}'`));
   assert.deepEqual([...rows].filter(code => !used(code)).sort(), [], "a row is a code that exists: delete the row of a code no source raises any more");
   for (const kind of Object.values(ACTION_ERROR_KINDS)) assert.ok(kind in STATUS, kind);
+  for (const code of rows) assert.match(code, ACTION_ERROR_CODE, "a platform code is written in the one format a code has");
 });
 
 test("the table puts the platform codes where the roadmap and the old mappers put them", () => {
@@ -234,6 +245,8 @@ test("Todo's HTTP edge answers a failure with the status of its kind: the platfo
     ["todo.forbidden", todoErrors.forbidden("重要标记只能由你自己设置"), 403, "todo.forbidden"],
     ["todo.invalid", todoErrors.invalid("请写下要做什么"), 400, "todo.invalid"],
     ["a failure with no code is not the caller's mistake", new Error("boom"), 500, "actions.execution_failed"],
+    ["a system error code is not passed on as the answer's code", Object.assign(new Error("ENOENT: no such file, open /x/y"), { code: "ENOENT" }), 500, "actions.execution_failed"],
+    ["nor is a database driver's", Object.assign(new Error("disk I/O error"), { code: "ERR_SQLITE_ERROR" }), 500, "actions.execution_failed"],
   ];
   for (const [name, failure, status, code] of cases) {
     const server = await serveNativeHttp((request, response, url) => handleTodoNativePluginHttp(request, response, url, failing(failure)));

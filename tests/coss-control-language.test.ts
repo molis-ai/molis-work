@@ -198,7 +198,7 @@ test("product HTML no longer uses retired control class names", () => {
 test("touch sizing goes by the input: 44px targets for phones and coarse pointers, the desktop bar keeps its sizes, DESIGN.md writes the exception", () => {
   const css = renderMolisWorkWorkbenchStylesheet();
   assert.match(css, /--dock-btn: 38px;/, "the desktop bar keeps its 38px Dock buttons");
-  const touch = css.match(/@media \(max-width: 600px\), \(pointer: coarse\) \{\s*:is\(body\.immersive-workbench[^{]*\) \{ --dock-btn: 44px; \}[\s\S]*?\n  \}\n/)?.[0] ?? "";
+  const touch = css.match(/@media \(max-width: 600px\), \(pointer: coarse\) \{\s*:is\(body\.immersive-workbench[^{]*\) \{ --dock-btn: 44px; --menu-row: 44px; \}[\s\S]*?\n  \}\n/)?.[0] ?? "";
   assert.ok(touch, "a phone's width or a coarse pointer makes the Dock, resident, discussion and directory buttons 44px");
   assert.match(touch, /\[data-assistant-send\] \{ width: 44px; height: 44px; min-height: 44px; \}/, "send is 44px on touch");
   assert.match(touch, /\.bar-composer \.bar-composer-attach \{[^}]*min-width: 44px; height: 44px;/, "attach is 44px on touch");
@@ -213,12 +213,16 @@ test("touch sizing goes by the input: 44px targets for phones and coarse pointer
   assert.match(touch, /\.bar-composer:is\(\[data-crowded="mark"\], \[data-crowded="chips"\]\) \.assistant-target-clear \{ display: none; \}/, "a line still over its edge then lets the work chip's mark go");
   assert.match(touch, /\.bar-composer:is\(\[data-crowded="mark"\], \[data-crowded="chips"\]\) \.assistant-target\[data-mode="work"\] \{ min-width: 44px; \}/, "and the work chip then needs room for one button");
   assert.match(touch, /\.bar-composer\[data-crowded="chips"\] :is\(\.assistant-materials-button, \.assistant-attention\) \{ display: none; \}/, "and last the materials and the notice, which the \"+\" menu then lists");
-  assert.match(touch, /\.assistant-more-item \{ min-height: 44px; \}/, "the rows of the \"+\" menu are 44px on touch");
+  assert.match(touch, /\) :is\(\.assistant-popover, \.assistant-offer, \.plugin-picker-popover, \.dock-overflow, \.navigator-project-menu-popover, \.assistant-tabbar\) :is\(button, summary, a\[href\]\) \{ min-width: 44px; min-height: 44px; \}/, "what the bar opens (the \"+\" menu's rows, the choosers, the notices, the switcher's buttons, the Dock's list, the project menu, the panel's tab bar) is 44px on touch");
+  assert.match(touch, /\.plugin-picker-popover \{ --tile-yield: 104px; \}/, "and the switcher's rows keep room for two 44px buttons");
+  assert.match(touch, /\.assistant-tabbar \{ height: 50px; gap: 0; \}\s*body\.immersive-workbench:not\(\[data-pane-embedded\]\) :is\(\.assistant-tab, \.assistant-tab-new\) \{ height: 44px; margin-bottom: 0; \}/, "and the panel's tab bar holds its 44px targets: a 50px bar, 44px tabs and a new-work button that sits on the bar's floor");
+  assert.match(css, /@media\(max-width:760px\),\(pointer:coarse\) \{\s*\.workspace-layout-menu button, \.workspace-tab-menu input \{ min-height:44px; \}\s*\.workspace-tab-menu-colors button \{ width:44px; height:44px; padding:13px; background-clip:content-box; \}/, "the strip's menus (the layout and tab rows, a group's name field and its colour swatches, drawn small inside their target) are 44px where the strip is");
   assert.match(touch, /\.bar-composer\[data-crowded="chips"\]:has\(\.assistant-materials-button:not\(\[hidden\]\), \.assistant-attention:not\(\[hidden\]\)\) \.bar-composer-attach::after \{[^}]*content: ""; position: absolute;[^}]*width: 8px; height: 8px; border-radius: 50%; background: var\(--accent\);/, "and a dot on the \"+\" points to the folded chips");
   // The phone hides the chips while the input has focus; the island measures the line with them on it (`data-measuring`), so the steps do not follow focus.
   const typingRules = css.match(/\.bar-composer:has\(\.assistant-composer-input:focus\)[^{]*\{ display: none; \}/g) ?? [];
   assert.equal(typingRules.length, 2, "the narrow column and the phone each hide the chips while typing");
   assert.deepEqual(typingRules.filter(rule => !rule.includes(":not([data-measuring])")), [], "and neither applies while the island measures the line");
+  assert.match(css, /@media \(max-width: 374px\) \{ [^\n]*\.workbench-bar \{ column-gap: 0; padding-inline: 0; \} [^\n]*\.bar-center \{ margin-inline: 8px; \} \}/, "below 375px (eight 44px targets and the bar's padding) the bar's gap and side padding give way, so the phone's second row fits 360 and 320px and the Assistant line above it keeps its place");
   assert.match(css, /@media \(pointer: coarse\) and \(max-height: 560px\) and \(min-width: 601px\) \{[^}]*--dock-h: 60px; --composer-h: 50px;/, "a coarse-pointer short window keeps 44px buttons and a full composer");
   assert.doesNotMatch(css, /@media \(max-width: 600px\) \{\s*:is\(body\.immersive-workbench[^{]*\) \{[^}]*--dock-btn: 44px;/, "the phone layout block no longer owns the 44px sizing");
   assert.match(css, /@media \(max-width: 760px\), \(pointer: coarse\) \{[^}]*\.tab-view-chip \{ height: 44px; \}/, "the location chip is 44px where the tabs are");

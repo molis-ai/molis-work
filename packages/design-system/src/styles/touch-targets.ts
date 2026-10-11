@@ -2,13 +2,31 @@
  *
  * It goes by the input, not by the width: a phone, or any window whose pointer is coarse (a tablet, a phone held sideways), has
  * 44px targets in the bar. A fine-pointer window wider than 600px keeps the sizes the exception in DESIGN.md names. The phone's
- * two-row layout stays in craft-finish.ts, which is by width. */
+ * two-row layout stays in craft-finish.ts, which is by width.
+ *
+ * A line still over its edge once every quiet part has narrowed is crowded, and the island (data-crowded) takes parts off in
+ * steps, none squeezed under 44px: the choosers go (the side pane has who does it, the Character and the mode), then the work
+ * chip's mark (the panel's tab bar starts a new work too), then the materials and the notice, which the "+" lists in a row of
+ * their own and which a dot on it points to.
+ *
+ * What the bar opens is a 44px target too: a button, a summary or a link in the Assistant's lists and offer, the plugin
+ * switcher (its pin and add buttons, and the room its rows leave them), the Dock's "+N" list and the project menu. Wider than
+ * a phone, a narrow Assistant column keeps an input that is a 44px target too.
+ *
+ * The phone's second row is an exact sum of 44px targets that touch: seven need 308px and the eighth (a directory button) 352px,
+ * 356px with the tray's own 4px, and the bar's 2 × 8px padding and 4px column gap on top of that (375px for eight). Narrower than
+ * 375px the gap and the side padding give way (the row reaches the window's edge; the Assistant line above it keeps its place):
+ * eight fit from 356px and seven from 312px. Narrower than eight, the Dock drops its "+N" (navigation-presentation.ts) and keeps
+ * 项目首页; the switcher lists the rest.
+ *
+ * The opened Assistant panel's tab bar is a row of 44px targets on touch too: the work's tab with its close mark, "new work", "all
+ * works", the details and minimize, side by side without a gap (it is 50px tall; a 320px panel still leaves the tab a title). */
 const SHELL = ":is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage)";
 const ASSIST = "body.immersive-workbench:not([data-pane-embedded])";
 
 export const TOUCH_TARGET_STYLES = `
   @media (max-width: 600px), (pointer: coarse) {
-    ${SHELL} { --dock-btn: 44px; }
+    ${SHELL} { --dock-btn: 44px; --menu-row: 44px; }
     ${SHELL} .bar-composer .assistant-composer-input { height: 44px; font-size: 16px; line-height: 44px; }
     ${SHELL} .bar-composer [data-assistant-send] { width: 44px; height: 44px; min-height: 44px; }
     ${SHELL} .bar-composer .bar-composer-attach { position: relative; justify-content: center; min-width: 44px; height: 44px; padding: 0; }
@@ -18,10 +36,6 @@ export const TOUCH_TARGET_STYLES = `
     ${SHELL} .bar-composer :is(.assistant-executor, .assistant-materials-button, .assistant-attention, .assistant-target-clear) { min-width: 44px; }
     ${SHELL} .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) { min-width: 44px; }
     ${SHELL} .bar-composer .assistant-target[data-mode="work"] { min-width: 88px; }
-    /* A line still over its edge once every quiet part has narrowed is crowded, and the island (data-crowded) takes parts off in
-       steps, none squeezed under 44px: the choosers go (the side pane has who does it, the Character and the mode), then the work
-       chip's mark (the panel's tab bar starts a new work too), then the materials and the notice, which the "+" lists in a row of
-       their own and which a dot on it points to. */
     ${SHELL} .bar-composer[data-crowded] :is([data-assistant-character], [data-assistant-executor], [data-assistant-mode]) { display: none; }
     ${SHELL} .bar-composer:is([data-crowded="mark"], [data-crowded="chips"]) .assistant-target-clear { display: none; }
     ${SHELL} .bar-composer:is([data-crowded="mark"], [data-crowded="chips"]) .assistant-target[data-mode="work"] { min-width: 44px; }
@@ -29,9 +43,12 @@ export const TOUCH_TARGET_STYLES = `
     ${SHELL} .bar-composer[data-crowded="chips"]:has(.assistant-materials-button:not([hidden]), .assistant-attention:not([hidden])) .bar-composer-attach::after {
       content: ""; position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); pointer-events: none;
     }
-    ${ASSIST} .assistant-more-item { min-height: 44px; }
+    ${SHELL} :is(.assistant-popover, .assistant-offer, .plugin-picker-popover, .dock-overflow, .navigator-project-menu-popover, .assistant-tabbar) :is(button, summary, a[href]) { min-width: 44px; min-height: 44px; }
+    .plugin-picker-popover { --tile-yield: 104px; }
+    ${ASSIST} .assistant-tabbar { height: 50px; gap: 0; }
+    ${ASSIST} :is(.assistant-tab, .assistant-tab-new) { height: 44px; margin-bottom: 0; }
   }
-  /* Wider than a phone, the narrow Assistant column keeps an input that is a 44px target too. */
+  @media (max-width: 374px) { ${SHELL} .workbench-bar { column-gap: 0; padding-inline: 0; } ${SHELL} .bar-center { margin-inline: 8px; } }
   @media (pointer: coarse) and (min-width: 601px) { @container assistant-bar (max-width: 460px) { ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 44px; min-width: 44px; } } }
   @media (pointer: coarse) and (max-height: 560px) and (min-width: 601px) { ${SHELL} { --dock-h: 60px; --composer-h: 50px; } }
 `;

@@ -521,7 +521,7 @@ const CRAFT_BASE_STYLES = `
   }
   html ${SHELL} .workbench-bar .plugin-picker-head .plugin-picker-search { flex: 1 1 200px; width: auto; min-width: 0; margin: 0; }
   html ${SHELL} .workbench-bar .plugin-picker-extend { flex: 0 1 auto; display: flex; gap: 6px; min-width: 0; }
-  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 auto; justify-content: flex-start; gap: 8px; height: 34px; min-height: 34px; padding: 0 12px; border-radius: 9px; font-size: 13px; white-space: nowrap; }
+  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 auto; justify-content: flex-start; gap: 8px; height: var(--menu-row, 34px); min-height: var(--menu-row, 34px); padding: 0 12px; border-radius: 9px; font-size: 13px; white-space: nowrap; }
   html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn svg { width: 15px; height: 15px; color: var(--ink-soft); }
   html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn[aria-current] { background: var(--nav-active); box-shadow: inset 0 0 0 1px var(--line-strong); }
   html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn[aria-current] svg { color: var(--ink); }
@@ -1164,7 +1164,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-notices { left: auto; right: 0; gap: 8px; }
   ${ASSIST} .assistant-notice { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 8px; background: var(--nav-hover); }
   ${ASSIST} .assistant-notice-text { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
-  ${ASSIST} .assistant-notices-held > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 4px 2px; }
+  ${ASSIST} .assistant-notices-held > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 7px 2px; }
   ${ASSIST} .assistant-notices-held > .assistant-notice { margin-top: 6px; }
   ${ASSIST} .assistant-popover-title { margin: 0 0 4px; padding: 0 8px; font-size: 11px; color: var(--faint); }
   ${ASSIST} .assistant-material { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 7px; }
@@ -1177,7 +1177,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-material-thumb { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; background: var(--nav-hover); }
   ${ASSIST} .assistant-composer[data-dropping] { outline: 2px dashed var(--accent, var(--ink)); outline-offset: 2px; }
   ${ASSIST} .assistant-material-origin { font-size: 11px; color: var(--faint); white-space: nowrap; }
-  ${ASSIST} .assistant-material-remove { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+  ${ASSIST} .assistant-material-remove { width: var(--control-h, 32px); height: var(--control-h, 32px); padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
   ${ASSIST} .assistant-material-remove:hover { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} .assistant-starter { width: 100%; padding: 8px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer; }
   ${ASSIST} .assistant-starter:hover { background: var(--nav-hover); color: var(--ink); }
@@ -1256,7 +1256,7 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .navigator-project-menu-popover { padding: 8px; border-radius: 14px; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover > span { padding: 4px 12px 4px; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item, .navigator-personal > .personal-account) {
-    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; height: 34px; min-height: 34px;
+    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; min-height: var(--menu-row, 34px);
     margin: 0; padding: 0 12px; border: 0; border-radius: 8px; box-shadow: none; background: transparent;
     color: var(--ink); font: inherit; font-size: 13px; font-weight: 400; line-height: 1; text-align: left; text-decoration: none;
   }
@@ -1318,8 +1318,8 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) .assistant-target { min-width: 56px; }
     ${SHELL} .bar-composer[data-fit="narrow"] .assistant-target { max-width: 96px; }
   }
-  /* A phone: two rows at the foot — the Assistant line first, then the Dock and the project. A plugin's own list
-     opens in a drawer from a button just left of the project, only when that plugin has one. */
+  /* A phone: two rows at the foot, the Assistant line first, then the Dock and the project (a plugin's own list opens
+     in a drawer from the button left of the project). */
   @media (max-width: 600px) {
     ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-h: 116px; --composer-h: 50px; }
     ${SHELL} .immersive-workspace,
@@ -1332,7 +1332,6 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .bar-center { grid-column: 1 / -1; grid-row: 1; align-self: center; }
     ${SHELL} .bar-start { grid-column: 1; grid-row: 2; }
     html ${SHELL} .workbench-bar .bar-end { grid-column: 2; grid-row: 2; justify-self: end; }
-    /* The row's 44px targets touch, so the widest state (a plugin with a directory: eight targets) still fits 375px. */
     ${SHELL} .dock-pins { gap: 0; margin-left: 0; }
     ${SHELL} .dock-pins::before { left: -1px; }
     ${SHELL} .dock-pin.is-fixed { margin-right: 0; }
@@ -1354,7 +1353,7 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items { grid-template-columns: minmax(0, 1fr); }
     html ${SHELL} .workbench-bar .plugin-picker-head .plugin-picker-search { flex-basis: 100%; height: 44px; }
     html ${SHELL} .workbench-bar .plugin-picker-extend { flex: 1 1 100%; }
-    html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 0; justify-content: center; height: 44px; min-height: 44px; }
+    html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 0; justify-content: center; }
     ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; height: min(70dvh, 560px); }
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
@@ -1371,12 +1370,10 @@ const CRAFT_BASE_STYLES = `
     ${ASSIST} .assistant-tabs { flex: 1 1 auto; }
     ${ASSIST} .assistant-tab[data-current] { flex: 1 1 auto; width: auto; }
     /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
-    ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }
     ${ASSIST} .assistant-executor { flex: 0 1 auto; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
     ${ASSIST} .assistant-executor > svg { display: none; }
-    /* One chooser beside the input: the Character appears while the panel is open (to choose) or once chosen (then it
-       replaces the executor, which a Character implies); search steps aside while the panel is open. */
+    /* One chooser beside the input: the Character shows while the panel is open or once chosen, and then replaces the executor. */
     ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
     ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
     /* Only while typing: focusing the switcher or a chip must keep it on screen. */

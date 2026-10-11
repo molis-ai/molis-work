@@ -144,10 +144,7 @@ export const TAB_WORKSPACE_STYLES = `
   @media (prefers-reduced-motion: reduce) { body.immersive-workbench :is(.tab-item, .tab-sash, .tab-sash-handle, .tab-group-label svg) { transition: none; } body.immersive-workbench .tab-workspace-panes[data-split-drop-preview]::after { animation: none; } }
   @media (max-width: 760px), (pointer: coarse) {
     body.immersive-workbench .tab-strip { padding-block: 0; align-items: center; }
-    body.immersive-workbench .tab-group, body.immersive-workbench .tab-item, body.immersive-workbench [data-tab-reorder-slot] { height: 44px; }
     body.immersive-workbench .tab-item { padding-right: 0; }
-    body.immersive-workbench .tab-item-close, body.immersive-workbench .tab-split-button, body.immersive-workbench .tab-add-button { width: 44px; height: 44px; }
-    body.immersive-workbench .tab-item[data-pinned] { width: 44px; min-width: 44px; max-width: 44px; }
     body.immersive-workbench .tab-group .tab-group-label { min-width: 44px; min-height: 44px; margin-block: 0; }
   }
 
@@ -220,5 +217,8 @@ export const TAB_WORKSPACE_STYLES = `
   .workspace-tab-menu-colors { display:flex; flex-wrap:wrap; gap:8px; padding:4px 12px 12px; }
   .workspace-tab-menu-colors button { width:18px; min-width:18px; min-height:18px; height:18px; padding:0; border-radius:50%; background:var(--group-color); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent); }
   .workspace-tab-menu-colors button[aria-current] { box-shadow:inset 0 0 0 2px var(--ink); }
-  @media(max-width:760px) { .workspace-layout-menu button { min-height:44px; } }
+  @media(max-width:760px),(pointer:coarse) {
+    .workspace-layout-menu button, .workspace-tab-menu input { min-height:44px; }
+    .workspace-tab-menu-colors button { width:44px; height:44px; padding:13px; background-clip:content-box; }
+  }
 `;

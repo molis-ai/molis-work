@@ -120,6 +120,99 @@ const LINE_FIT = `(() => {
     input: Math.round(document.querySelector("[data-assistant-input]").getBoundingClientRect().width * 10) / 10, parts };
 })()`;
 
+/** The phone bar's second row (the switcher and the Dock at the start; the residents, a directory button and the project at the end),
+ * as boxes in a line: no target may sit on its neighbour and none may leave the window. It is the row of 44px targets that touch
+ * one another, so the room it needs is an exact sum of them. */
+const ROW_FIT = `(() => {
+  const vw = document.documentElement.clientWidth;
+  const boxes = [...document.querySelectorAll(".workbench-bar :is(.bar-start, .bar-end) :is(button, summary, input, [role=tab], a[href])")]
+    .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[hidden], [inert], .plugin-picker-popover, [data-dock-overflow], .navigator-project-menu-popover"))
+    .map(el => ({ name: el.getAttribute("aria-label") || el.textContent.trim().slice(0, 12), box: el.getBoundingClientRect() }))
+    .filter(item => item.box.width >= 2)
+    .sort((a, b) => a.box.left - b.box.left);
+  let overlap = 0, where = "";
+  for (let index = 1; index < boxes.length; index++) {
+    const over = boxes[index - 1].box.right - boxes[index].box.left;
+    if (over > overlap) { overlap = over; where = boxes[index - 1].name + " / " + boxes[index].name; }
+  }
+  const outside = boxes.length ? Math.max(0, -boxes[0].box.left, boxes[boxes.length - 1].box.right - vw) : 0;
+  return { count: boxes.length, vw, overlap: Math.round(overlap * 10) / 10, where, outside: Math.round(outside * 10) / 10, width: boxes.reduce((sum, item) => sum + item.box.width, 0) };
+})()`;
+
+/** What the Dock folded and where it went: into its "+N" button's list while that button has room on the row, otherwise into the switcher,
+ * which lists every plugin of the project (the kept ones too). 项目首页 is on the Dock either way; nothing the Dock takes off may be lost. */
+const DOCK_FOLD = `(async () => {
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const pins = [...document.querySelectorAll("[data-dock-pins] [data-dock-pin]")];
+  const hidden = pins.filter(pin => pin.hidden).map(pin => pin.dataset.dockPin).sort();
+  const more = document.querySelector("[data-dock-more]");
+  const shown = !!more?.isConnected && more.checkVisibility();
+  let listed = [];
+  if (shown) {
+    more.click(); await wait(200);
+    listed = [...document.querySelectorAll("[data-dock-overflow] [data-dock-pin]")].map(row => row.dataset.dockPin).sort();
+    more.click(); await wait(100);
+  }
+  const toggle = document.querySelector("[data-plugin-picker-toggle]");
+  toggle.click(); await wait(250);
+  const reachable = hidden.filter(id => document.querySelector('[data-plugin-picker-popover] [data-plugin-id="' + id + '"]')).sort();
+  toggle.click(); await wait(100);
+  return { hidden, listed, reachable, more: shown, home: pins.some(pin => pin.dataset.dockPin === "home" && !pin.hidden) };
+})()`;
+
+/** Every popover the bar opens, with the controls inside it that are shorter or narrower than 44px. The notices are the island's own rows,
+ * fed by an answer to its read of them; the materials list has a page object behind it. `present` names what must be in the list, so a
+ * list that did not open (or lost its buttons) cannot pass by having nothing to measure. */
+const POPOVER_CONTENTS: Array<[string, string, string, string[]]> = [
+  ["the + menu", "[data-assistant-attach]", "[data-assistant-more]", [".assistant-more-item"]],
+  ["who does it", "[data-assistant-executor]", "[data-assistant-executors]", [".assistant-starter"]],
+  ["the mode", "[data-assistant-mode]", "[data-assistant-modes]", [".assistant-starter"]],
+  ["the Character", "[data-assistant-character]", "[data-assistant-characters]", [".assistant-starter"]],
+  ["the materials", "[data-assistant-materials]", "[data-assistant-materials-list]", [".assistant-material-remove"]],
+  ["the notices", "[data-assistant-attention]", "[data-assistant-notices]", ["[data-notice-action=open]", "[data-notice-action=dismiss]", "summary"]],
+  ["the plugin switcher", "[data-plugin-picker-toggle]", "[data-plugin-picker-popover]", ["[data-dock-choice]", "[data-plugin-toggle]"]],
+  ["the project menu", ".navigator-project-selector", ".navigator-project-menu-popover", [".navigator-project-option", ".navigator-project-manage"]],
+  ["the Dock's list", "[data-dock-more]", "[data-dock-overflow]", [".dock-overflow-item"]],
+  ["a suggestion", "", "[data-assistant-offer]", [".mw-btn"]],
+];
+/** What a list holds for a touch pointer that a fine pointer shows only under the cursor or on focus. */
+const HOVER_ONLY = ["[data-dock-choice]", "[data-plugin-toggle]"];
+const popoversScript = (floor: number) => `(async () => {
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const notices = [
+    { notice_id: "t1", kind: "needs-decision", text: "需要你决定发布时间", work_id: "w1" },
+    { notice_id: "t2", kind: "reminder", text: "下午三点的评审", work_id: "w2", open: { surface: "todo", id: "x", title: "评审" } },
+    { notice_id: "t3", kind: "finished", text: "整理待办已完成", work_id: "w3" },
+    { notice_id: "t4", kind: "finished", text: "一条被规则压下的结果", work_id: "w4", held: { reason: "安静时段" } },
+  ];
+  const real = window.fetch;
+  window.fetch = (input, init) => /\\/api\\/assistant\\/notices/.test(String(input?.url ?? input)) && !(init && init.method && init.method !== "GET")
+    ? Promise.resolve(new Response(JSON.stringify({ notices }), { status: 200, headers: { "content-type": "application/json" } })) : real(input, init);
+  document.dispatchEvent(new Event("visibilitychange"));
+  await wait(400);
+  const out = {};
+  for (const [name, button, popover, present] of ${JSON.stringify(POPOVER_CONTENTS)}) {
+    // A suggestion has no button: a plugin's page hands one over and it waits above the bar.
+    const opener = button ? document.querySelector(button) : { isConnected: true, click() {}, hidden: false };
+    if (!opener || !opener.isConnected) { out[name] = null; continue; }
+    opener.hidden = false;
+    if (button) opener.click();
+    else window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: { message_id: "touch-offer", purpose: "suggest", source: { surface: "todo", title: "待办" }, text: "整理本周的待办" } }));
+    await wait(300);
+    const pop = document.querySelector(popover);
+    const shown = !!pop && !pop.hidden && pop.checkVisibility();
+    const controls = shown ? [...pop.querySelectorAll("button, summary, a[href], input, select, textarea, [role=menuitem], [role=option]")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) : [];
+    out[name] = {
+      shown, missing: present.filter(selector => !controls.some(el => el.matches(selector))),
+      small: controls.map(el => { const box = el.getBoundingClientRect(); return { cls: String(el.className).split(" ")[0] || el.tagName.toLowerCase(), label: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 16), w: Math.round(box.width), h: Math.round(box.height) }; }).filter(item => Math.min(item.w, item.h) < ${floor}),
+    };
+    if (!pop.hidden && button) opener.click();
+    await wait(120);
+  }
+  window.fetch = real;
+  return out;
+})()`;
+
 /** The mark on the "+" that points to what the island folded into its menu. */
 const DOT = `(() => { const style = getComputedStyle(document.querySelector("[data-assistant-attach]"), "::after"); return { content: style.content, background: style.backgroundColor, size: style.width + " " + style.height }; })()`;
 
@@ -129,6 +222,50 @@ const TYPING = `(() => {
   return { stage: composer.dataset.crowded ?? "", fit: composer.dataset.fit ?? "", overflow: composer.scrollWidth - composer.clientWidth, sendRight: Math.round(send.right), pillRight: Math.round(pill.right),
     focused: document.activeElement?.matches("[data-assistant-input]") === true,
     chips: [...composer.querySelectorAll(".assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention")].filter(el => el.checkVisibility()).map(el => String(el.className).split(" ")[0]) };
+})()`;
+
+/** The menus the strip opens, as a person opens them: the "+" of the strip (open a plugin), the layout button, a right-click on a tab (it makes
+ * a group, so that the group's own menu has a label to open from). `rows` are the menu's rows (their size is the menu's), the rest are what sits
+ * in them: the name input and the colour swatches of a group. */
+type StripMenu = { shown: boolean; missing: string[]; rows: number[]; parts: Array<{ label: string; w: number; h: number }> };
+const STRIP_MENUS = `(async () => {
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const tabMenu = document.querySelector("[data-workspace-tab-menu]"), layout = document.querySelector("[data-workspace-layout]");
+  const close = async () => { for (const menu of [tabMenu, layout]) if (menu.matches(":popover-open")) menu.hidePopover(); await wait(100); };
+  const read = (menu, present) => {
+    const shown = menu.matches(":popover-open");
+    const controls = shown ? [...menu.querySelectorAll("button, summary, a[href], input")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) : [];
+    const size = (el) => { const box = el.getBoundingClientRect(); return { label: el.dataset.tabMenuAction || el.dataset.layoutSplit || el.dataset.layoutAction || el.tagName.toLowerCase(), w: Math.round(box.width), h: Math.round(box.height) }; };
+    const isRow = (el) => el.matches("[data-layout-split], [data-layout-action], [data-tab-menu-action]:not([data-tab-menu-action^=color-])");
+    return { shown, missing: present.filter(selector => !controls.some(el => el.matches(selector))), rows: controls.filter(isRow).map(el => Math.round(el.getBoundingClientRect().height)), parts: controls.filter(el => !isRow(el)).map(size) };
+  };
+  const out = {};
+  document.querySelector(".tab-add-button").click(); await wait(300);
+  out["the open-plugin menu"] = read(tabMenu, ["[data-tab-menu-action=open-home]"]); await close();
+  document.querySelector(".tab-split-button").click(); await wait(300);
+  out["the layout menu"] = read(layout, ["[data-layout-split=right]", "[data-layout-action=equal]"]); await close();
+  document.querySelector(".tab-item-trigger").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })); await wait(300);
+  out["a tab's menu"] = read(tabMenu, ["[data-tab-menu-action=pin]", "[data-tab-menu-action=new-group]", "[data-tab-menu-action=close]"]);
+  tabMenu.querySelector("[data-tab-menu-action=new-group]")?.click(); await wait(300); await close();
+  document.querySelector("[data-tab-group-toggle]")?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })); await wait(300);
+  out["a tab group's menu"] = read(tabMenu, ["input", "[data-tab-menu-action^=color-]", "[data-tab-menu-action=ungroup]"]); await close();
+  return out;
+})()`;
+
+/** The tab bar of the opened Assistant panel, opened from the work's chip (a current work is the state that has one). */
+type PanelHeader = { shown: boolean; height: number; title: number; controls: Array<{ label: string; w: number; h: number; inside: boolean }> };
+const PANEL_HEADER = `(async () => {
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  document.querySelector(".assistant-target-main")?.click(); await wait(800);
+  const panel = document.querySelector("[data-assistant-panel]"), bar = panel.querySelector(".assistant-tabbar"), box = panel.getBoundingClientRect();
+  const controls = [...bar.querySelectorAll("button, [role=tab]")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).map(el => {
+    const b = el.getBoundingClientRect();
+    return { label: el.getAttribute("aria-label") || String(el.className).split(" ")[0], w: Math.round(b.width), h: Math.round(b.height), inside: b.left >= box.left - 1 && b.right <= box.right + 1 };
+  });
+  const title = panel.querySelector(".assistant-tab[data-current] .assistant-tab-title");
+  const out = { shown: !panel.hidden, height: Math.round(bar.getBoundingClientRect().height), title: title ? Math.round(title.clientWidth) : 0, controls };
+  panel.querySelector("[data-assistant-panel-close]").click(); await wait(200);
+  return out;
 })()`;
 
 /** A finding that is about the strip or the bar (the page behind them has its own audits). */
@@ -299,7 +436,29 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     return labels;
   })()`);
 
-  return { start, open, short, settle, shellFindings, line, typeAndLeave, moreLabels, makeCurrentWork, escapeReturns, evaluate, waitFor };
+  /** The bar's second row against the window, and the Dock's fold against its list: what a window of this width shows must fit and be reachable. */
+  const rowFit = () => evaluate<{ count: number; vw: number; overlap: number; where: string; outside: number; width: number }>(ROW_FIT);
+  const dockFold = () => evaluate<{ hidden: string[]; listed: string[]; reachable: string[]; more: boolean; home: boolean }>(DOCK_FOLD);
+  /** Opens every popover of the bar (the page has a page object behind the materials chip) and reports what is in each and which controls are under 44px. */
+  const popovers = async (floor: number) => {
+    await evaluate(lookAtPage(true));
+    await settle();
+    return evaluate<Record<string, { shown: boolean; missing: string[]; small: Array<{ cls: string; label: string; w: number; h: number }> } | null>>(popoversScript(floor));
+  };
+  /** The menus the strip opens (open plugin, layout, a tab, a tab group) and the opened Assistant panel's tab bar. */
+  const stripMenus = () => evaluate<Record<string, StripMenu>>(STRIP_MENUS);
+  const panelHeader = () => evaluate<PanelHeader>(PANEL_HEADER);
+
+  /** The heights of the `mw-menu` items on the specimen board, which shows the menu as the plugin pages use it. */
+  const menuRows = async (width: number, height: number) => {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: touch }, sessionId);
+    await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog` }, sessionId));
+    await waitFor("document.querySelectorAll('.mw-menu__item').length > 0", 20_000);
+    await settle();
+    return evaluate<number[]>(`[...document.querySelectorAll(".mw-menu .mw-menu__item")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).map(el => Math.round(el.getBoundingClientRect().height))`);
+  };
+
+  return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, stripMenus, panelHeader, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, escapeReturns, evaluate, waitFor };
 }
 
 const NEW_WORK = ["[data-assistant-executor]", "[data-assistant-materials]", "[data-assistant-attention]", "[data-assistant-mode]"];
@@ -320,7 +479,7 @@ const LINE_STATES = [
 ] as const;
 
 for (const scheme of ["light", "dark"] as const) {
-  test(`touch windows: the shell's controls are 44px and the Assistant line stays inside its pill · ${scheme}`, { timeout: 420_000 }, async t => {
+  test(`touch windows: the shell's controls are 44px and the Assistant line stays inside its pill · ${scheme}`, { timeout: 600_000 }, async t => {
     const browser = await openGoalBrowser(t, "seeded");
     if (!browser) return;
     const w = windowsOf(browser, scheme, true);
@@ -328,20 +487,38 @@ for (const scheme of ["light", "dark"] as const) {
 
     // A phone. Three screens carry every control: the project's home, a plugin's page (its location chip), and the project's
     // settings (a cover chip with its close mark, and the directory toggle: the widest the bar gets, eight 44px targets in its
-    // second row). 390 and 375px hold all three; 350px, the narrowest the second row holds, holds the two without a directory.
+    // second row). The row's targets touch one another, so it is an exact sum: eight need 375px as they are. Narrower than 375px
+    // the bar's column gap and side padding give way, which holds eight from 356px and seven from 312px; below that a window
+    // neither overlaps the targets, shrinks one nor pushes one off the edge: the Dock drops its "+N" button and keeps 项目首页
+    // (a decision of the Dock's round four), and the switcher lists what the Dock dropped. 390, 375 and 360px keep the "+N";
+    // 350 and 320px are the windows that cannot.
     const seen = new Set<string>();
     const HOME = ["home", "", "true"] as const, PLUGIN = ["a plugin's page", "?openPlugin=todo", "!!document.querySelector('.tab-view-chip')"] as const;
     const SETTINGS = ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"] as const;
-    for (const [width, height, screens] of [[390, 844, [HOME, PLUGIN, SETTINGS]], [375, 667, [HOME, PLUGIN, SETTINGS]], [350, 640, [HOME, PLUGIN]]] as const) {
-      for (const [name, path, ready] of screens) {
+    const moreShown: Record<string, boolean> = {};
+    for (const [width, height] of [[390, 844], [375, 667], [360, 740], [350, 640], [320, 568]] as const) {
+      for (const [name, path, ready] of [HOME, PLUGIN, SETTINGS]) {
         const controls = await w.open(width, height, path, ready);
         for (const control of controls) seen.add(control.kind);
         assert.deepEqual(controls.filter(control => w.short(control) < 44).map(control => `${control.kind} 「${control.label}」 ${control.w}×${control.h}`), [],
           `${name} · ${width}: every control of the strip and the bar is a 44px target`);
         assert.deepEqual(controls.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name} · ${width}: a control this test does not know is a control nobody measured`);
+        const row = await w.rowFit();
+        assert.ok(row.overlap <= 0.5, `${name} · ${width}: no target of the second row sits on its neighbour (${row.overlap}px at ${row.where}; ${JSON.stringify(row)})`);
+        assert.equal(row.outside, 0, `${name} · ${width}: and none leaves the window (${JSON.stringify(row)})`);
         assert.deepEqual(await w.shellFindings(), [], `${name} · ${width}: the bar and the strip lay out cleanly with 44px targets`);
+        // 项目首页 never folds, and what the Dock takes off the row is not lost: it is in the "+N" list, or, when that button has no room,
+        // in the switcher.
+        const dock = await w.dockFold();
+        assert.equal(dock.home, true, `${name} · ${width}: 项目首页 stays on the Dock`);
+        if (dock.more) assert.deepEqual(dock.listed, dock.hidden, `${name} · ${width}: every Dock button the row folded is in the "+N" list (${JSON.stringify(dock)})`);
+        else assert.deepEqual(dock.reachable, dock.hidden, `${name} · ${width}: with no "+N" button, every Dock button the row dropped is in the switcher's list (${JSON.stringify(dock)})`);
+        moreShown[`${width} ${name}`] = dock.more;
       }
     }
+    for (const width of [390, 375, 360]) assert.equal(moreShown[`${width} the project's settings`], true, `${width}px holds the widest row with 项目首页 and the "+N" button`);
+    for (const width of [350, 320]) assert.equal(moreShown[`${width} the project's settings`], false, `${width}px cannot hold 项目首页 and the "+N" button beside the directory button: the "+N" gives way, 项目首页 does not`);
+    assert.equal(moreShown["320 home"], true, "without the directory button the row holds the \"+N\" button even at 320px");
     assert.deepEqual(Object.values(KINDS).filter(kind => !LINE_KINDS.includes(kind) && !seen.has(kind)), [], "the three screens showed every kind of control, so none went unmeasured");
 
     // The Assistant line stays a 44px input with room to type, and its attach and send keep their size while typing.
@@ -363,6 +540,44 @@ for (const scheme of ["light", "dark"] as const) {
       }
     }
 
+    // What the bar opens is a 44px target too: the lists of the Assistant's line (the "+" menu, who does it, the mode, the Character,
+    // the materials with their remove buttons, the notices with their buttons), the plugin switcher with its pin and add buttons,
+    // the Dock's "+N" list and the project menu. The folding steps above send people into these lists, so a row that is smaller
+    // than a finger is a step that does not work.
+    for (const [name, width, height] of [["a phone", 390, 844], ["a narrow phone", 360, 740], ["a tablet", 1024, 768]] as const) {
+      await w.open(width, height, "", "true");
+      const lists = await w.popovers(44);
+      for (const [list] of POPOVER_CONTENTS) {
+        const report = lists[list];
+        if (report === null && list === "the Dock's list") continue; // a window that holds every pin has no "+N"
+        assert.ok(report, `${name} · ${width}: ${list} has a button that opens it`);
+        assert.equal(report.shown, true, `${name} · ${width}: ${list} opens`);
+        assert.deepEqual(report.missing, [], `${name} · ${width}: ${list} holds the controls this test measures`);
+        assert.deepEqual(report.small.map(item => `${item.cls} 「${item.label}」 ${item.w}×${item.h}`), [], `${name} · ${width}: every control in ${list} is a 44px target`);
+      }
+    }
+
+    // The strip's own menus (open a plugin, the layout, a tab, a tab group) are lists too: their rows, the group's name input and its colour
+    // swatches are 44px targets on a phone and on a tablet, the swatches drawn small inside their target.
+    for (const [name, width, height] of [["a phone", 390, 844], ["a narrow phone", 360, 740], ["a tablet", 1024, 768]] as const) {
+      await w.open(width, height, "?openPlugin=todo", "!!document.querySelector('.tab-view-chip') && !!document.querySelector('.tab-item-trigger')");
+      const menus = await w.stripMenus();
+      for (const [menu, report] of Object.entries(menus)) {
+        assert.equal(report.shown, true, `${name} · ${width}: ${menu} opens`);
+        assert.deepEqual(report.missing, [], `${name} · ${width}: ${menu} holds the controls this test measures`);
+        assert.deepEqual(report.rows.filter(row => row < 44), [], `${name} · ${width}: every row of ${menu} is 44px tall (${report.rows})`);
+        assert.deepEqual(report.parts.filter(part => Math.min(part.w, part.h) < 44).map(part => `${part.label} ${part.w}×${part.h}`), [], `${name} · ${width}: and what sits in ${menu} is a 44px target`);
+      }
+      assert.ok(menus["a tab group's menu"].parts.filter(part => part.label.startsWith("color-")).length >= 8, `${name} · ${width}: the group's menu offers its colours`);
+    }
+
+    // A menu a plugin page opens (the specimen board shows `mw-menu` as the pages use it) has 44px items on a phone and on a tablet.
+    for (const [width, height] of [[390, 844], [1024, 768]] as const) {
+      const rows = await w.menuRows(width, height);
+      assert.ok(rows.length > 0, `the specimen board shows menu items at ${width}`);
+      assert.deepEqual(rows.filter(row => row < 44), [], `mw-menu items are 44px tall at ${width} (${rows})`);
+    }
+
     // The Assistant line in the states the seeded project does not start in. The chips of a state are the ones the island shows
     // beside the input then (it hides them otherwise); what is measured is their box on the real bar. A new work whose carrier
     // was chosen, with the chips that wait beside the input, comes first; then a current work, whose chip stands in front of the
@@ -373,6 +588,17 @@ for (const scheme of ["light", "dark"] as const) {
       assert.deepEqual(await w.shellFindings(), [], `a new work · ${width}: the bar lays out cleanly with 44px chips`);
     }
     await w.makeCurrentWork();
+    // The opened Assistant panel's tab bar (the work's tab and its close mark, new work, all works, details, minimize) is a row of 44px
+    // targets that stays inside the panel and leaves the tab a title, at the phones' widths, held sideways and on a tablet.
+    for (const [width, height] of [[320, 568], [360, 740], [390, 844], [852, 393], [1024, 768]] as const) {
+      await w.open(width, height, "", "true");
+      const header = await w.panelHeader();
+      assert.equal(header.shown, true, `the panel opens from the work's chip at ${width}`);
+      assert.ok(header.controls.length >= 5, `the panel's tab bar has its tab, close mark and four buttons at ${width} (${JSON.stringify(header.controls)})`);
+      assert.deepEqual(header.controls.filter(control => Math.min(control.w, control.h) < 44).map(control => `${control.label} ${control.w}×${control.h}`), [], `panel header · ${width}: every control is a 44px target`);
+      assert.deepEqual(header.controls.filter(control => !control.inside).map(control => control.label), [], `panel header · ${width}: and none leaves the panel`);
+      assert.ok(header.title >= 40, `panel header · ${width}: the work's tab keeps room for a title (${header.title}px)`);
+    }
     const stages: Record<string, string> = {};
     for (const [width, height] of LINE_WINDOWS) {
       await w.open(width, height, "", "true");
@@ -380,9 +606,7 @@ for (const scheme of ["light", "dark"] as const) {
         const { fit } = await w.line(`${name} · ${width}`, [...chips], [...kinds], 44);
         stages[`${width} ${name}`] = fit.stage;
         await w.typeAndLeave(`${name} · ${width}`, fit, width <= 600);
-        // The bar's second row holds seven 44px targets (nine with a plugin's directory); that needs 350px, so the 320px window
-        // is measured for the Assistant line only.
-        if (width >= 350) assert.deepEqual(await w.shellFindings(), [], `${name} · ${width}: the bar lays out cleanly with 44px chips`);
+        assert.deepEqual(await w.shellFindings(), [], `${name} · ${width}: the bar lays out cleanly with 44px chips`);
         assert.ok(fit.input >= (width <= 600 ? 64 : 44), `${name} · ${width}: the input keeps its floor beside the chips (${fit.input}px)`);
       }
     }
@@ -424,6 +648,30 @@ for (const scheme of ["light", "dark"] as const) {
       const input = controls.find(control => control.kind === "assistant input");
       assert.ok(input && input.h <= 32, "the desktop Assistant line stays the 28px line the exception describes, not a phone's 44px");
       assert.ok(controls.some(control => w.short(control) < 44), `${name} · 1280: the desktop chrome is denser than 44px, as the exception says`);
+    }
+
+    // What a plugin page's menu holds is 34px on a desktop window, as DESIGN.md writes it.
+    assert.deepEqual([...new Set(await w.menuRows(1280, 800))], [34], "mw-menu items keep their 34px with a fine pointer");
+
+    // What the bar opens keeps the desktop floor too (32px, 28px compact): nothing in its lists is smaller, the materials' remove mark included.
+    await w.open(1280, 800, "", "true");
+    const lists = await w.popovers(32);
+    for (const [list] of POPOVER_CONTENTS) {
+      const report = lists[list];
+      if (report === null && list === "the Dock's list") continue; // a window that holds every pin has no "+N"
+      assert.ok(report, `1280: ${list} has a button that opens it`);
+      assert.equal(report.shown, true, `1280: ${list} opens`);
+      // A fine pointer shows the switcher's pin and add buttons on hover and focus only, so a list at rest does not hold them.
+      assert.deepEqual(report.missing.filter(selector => !HOVER_ONLY.includes(selector)), [], `1280: ${list} holds the controls this test measures`);
+      assert.deepEqual(report.small.map(item => `${item.cls} 「${item.label}」 ${item.w}×${item.h}`), [], `1280: every control in ${list} is at least 32px`);
+    }
+
+    // The strip's own menus keep the rows they have on a desktop window (34px and up, short of 44px), the name input and the swatches included.
+    await w.open(1280, 800, "?openPlugin=todo", "!!document.querySelector('.tab-view-chip') && !!document.querySelector('.tab-item-trigger')");
+    for (const [menu, report] of Object.entries(await w.stripMenus())) {
+      assert.equal(report.shown, true, `1280: ${menu} opens`);
+      assert.deepEqual(report.rows.filter(row => row < 34 || row >= 44), [], `1280: the rows of ${menu} stay a desktop menu's rows, 34px at least and short of the 44px of touch (${report.rows})`);
+      assert.deepEqual(report.parts.filter(part => part.label.startsWith("color-")).map(part => part.w), report.parts.filter(part => part.label.startsWith("color-")).map(() => 18), `1280: the group's swatches stay 18px dots`);
     }
 
     // A short window: DESIGN.md writes the Dock, resident and switcher buttons as 34px there, and the floors still hold.

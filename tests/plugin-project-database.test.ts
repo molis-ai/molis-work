@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -203,6 +203,34 @@ test("a start list that declares a library wrongly does not start at all, and no
     for (const name of [LIBRARY, "unlisted", "Dataset", "a", "data", ...HOST_LIBRARIES, ...HOST_DIRECTORIES]) {
       assert.equal(existsSync(join(directory, name)), false, `${name}: nothing was made`);
     }
+  }));
+
+test("a library at another version is refused when its plugin starts and left as it was; the other plugins on the list still start, and the same version opens again with its rows",
+  withDirectory(async directory => {
+    const item = platformIn(directory), declared = probe(), beside = probe({ name: "besideprobe" });
+    try {
+      mkdirSync(join(directory, LIBRARY));
+      const older = new DatabaseSync(libraryFile(directory, LIBRARY));
+      older.exec("CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL); INSERT INTO notes (text) VALUES ('older'); PRAGMA user_version = 7;");
+      older.close();
+      const report = await item.platform.start([{ definition: declared.definition, bundled: true, database: DECLARATION }, { definition: beside.definition, bundled: true }]);
+      assert.deepEqual(report.running, [beside.id]);
+      assert.deepEqual(report.failed.map(entry => entry.plugin_id), [declared.id]);
+      assert.equal(declared.started.length, 0, "the plugin was never given the chance to start without its library");
+      assert.equal(inspect(directory, LIBRARY, db => (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version), 7, "nothing was upgraded in place");
+      assert.deepEqual(rows(directory, LIBRARY), ["older"]);
+    } finally { item.store.close(); }
+
+    const first = platformIn(directory), kept = probe({ name: "keepprobe" });
+    try {
+      await first.platform.start([{ definition: kept.definition, bundled: true, database: { ...DECLARATION, store_name: "todo" } }]);
+      await noteInto(kept.database(), "kept");
+    } finally { first.store.close(); }
+    const second = platformIn(directory), same = probe({ name: "keepprobe" });
+    try {
+      await second.platform.start([{ definition: same.definition, bundled: true, database: { ...DECLARATION, store_name: "todo" } }]);
+      assert.deepEqual(plain(same.database().all("SELECT text FROM notes")), [{ text: "kept" }], "the same version opens the library again with its rows");
+    } finally { second.store.close(); }
   }));
 
 test("a library is the plugin's only while the plugin runs: after stop, after a restart (for the handle kept from before) and after uninstall every call is refused, the stop hook cannot write once the stop has begun, and the library stays when the plugin goes",

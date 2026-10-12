@@ -4,7 +4,7 @@ import { mkdir, access } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { readResearchLibrary } from "@molis-ai/molis-work-integration-github";
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { createFeedSourceSyncGuard, type FeedApplication, type FeedSourceRecord, type FeedSourceRunRecord, type FeedSourceSyncResult, type FeedSourceSyncInput } from "@molis-ai/molis-work-plugin-feed";
 
 const exec = promisify(execFile);
@@ -43,16 +43,16 @@ export function syncResearchLibrarySource(
   input: FeedSourceSyncInput,
 ): Promise<FeedSourceSyncResult> {
   if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$/.test(input.idempotencyKey)) {
-    throw new FeedDomainError("同步需要 8–128 位幂等键", "feed_source_idempotency_required");
+    throw feedErrors.source_idempotency_required("同步需要 8–128 位幂等键");
   }
   if (!source.enabled || source.status === "paused" || source.status === "disconnected") {
-    throw new FeedDomainError("来源已暂停，请先恢复", "feed_source_paused");
+    throw feedErrors.source_paused("来源已暂停，请先恢复");
   }
   const key = `${home}:${source.project_id}:${source.source_id}`;
   const beforeEffect = createFeedSourceSyncGuard(feed, source, input);
   const active = running.get(key);
   if (active) {
-    if (active.idempotencyKey !== input.idempotencyKey) throw new FeedDomainError("该来源正在拉取，请稍后重试", "feed_source_sync_interrupted");
+    if (active.idempotencyKey !== input.idempotencyKey) throw feedErrors.source_sync_interrupted("该来源正在拉取，请稍后重试");
     return active.promise.then(async result => { await beforeEffect(); return result; });
   }
   const promise = sync();
@@ -124,7 +124,7 @@ export function syncResearchLibrarySource(
       feed.upsertSource({ ...latest, status: latest.enabled ? "error" : "paused", last_error_code: "research_library_sync_failed", updated_at: completed });
       // Git errors can contain credential-bearing URLs from a helper; never return raw stderr.
       const message = error instanceof Error && !('stderr' in error) ? error.message : "无法读取 GitHub 研究库，请检查本机 Git 登录与仓库权限后重试";
-      throw new FeedDomainError(message, "feed_source_sync_interrupted");
+      throw feedErrors.source_sync_interrupted(message);
     }
   }
 }

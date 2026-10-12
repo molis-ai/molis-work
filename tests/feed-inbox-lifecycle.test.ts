@@ -102,7 +102,7 @@ test("a person's edit during a failing scheduled pull still refuses the bookkeep
       await createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now)
         .sync(candidate.source_id, { idempotencyKey: key, beforeEffect: authority.beforeEffect }), () => now);
     now = new Date("2026-08-30T09:15:00.000Z");
-    await assert.rejects(() => scheduler.tick(now), (error: { code?: string }) => error.code === "feed_source_changed");
+    await assert.rejects(() => scheduler.tick(now), (error: { code?: string }) => error.code === "feed.source_changed");
     const schedule = service.feed.getSource(DEMO_PROJECT_ID, source.source_id).schedule;
     assert.equal(schedule.mode === "interval" ? schedule.next_pull_at : null, "2026-08-30T09:15:00.000Z", "the slot stays due for the new settings");
   });

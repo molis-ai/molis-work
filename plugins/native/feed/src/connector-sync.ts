@@ -1,5 +1,5 @@
 import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { ListenerHostError, type ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord } from "./projection.js";
@@ -24,13 +24,13 @@ export class FeedConnectorSync {
   private async run(sourceId: string, input: FeedSourceSyncInput & { mode?: ConnectorSyncMode }): Promise<FeedSourceSyncResult> {
     const source = this.feed.getSource(this.projectId, sourceId);
     if (!isAccountConnectorSyncKind(source.sync_kind)) {
-      throw new FeedDomainError("这个来源不是账号连接器", "connector_wrong_sync_kind");
+      throw feedErrors.connector_wrong_sync_kind("这个来源不是账号连接器");
     }
     if (source.status === "disconnected") {
-      throw new FeedDomainError("连接已断开，请重新授权后再同步", "connector_needs_auth");
+      throw feedErrors.connector_needs_auth("连接已断开，请重新授权后再同步");
     }
     if (!source.enabled || source.status === "paused") {
-      throw new FeedDomainError("来源已暂停，请先恢复", "feed_source_paused");
+      throw feedErrors.source_paused("来源已暂停，请先恢复");
     }
     const key = normalizeIdempotencyKey(input.idempotencyKey);
     const connectionAuthority = this.ports.connectionAuthority?.(source);
@@ -92,7 +92,7 @@ export class FeedConnectorSync {
         `${source.name} 同步未取得终态，可安全重试`,
         { operation_id: operationId, error_code: errorCode },
       );
-      throw new FeedDomainError("连接器同步未取得可信终态，本次没有写成成功；可稍后安全重试。", "feed_source_sync_interrupted");
+      throw feedErrors.source_sync_interrupted("连接器同步未取得可信终态，本次没有写成成功；可稍后安全重试。");
     }
     await beforeEffect();
     const completedAt = new Date().toISOString();
@@ -133,7 +133,7 @@ export class FeedConnectorSync {
         : action ? `${message} — ${action}` : message;
       this.recordActionableSourceFault(source, listenerResult.error_code!, publicMessage, completedAt);
       await this.feed.flushPendingJudgments();
-      throw new FeedDomainError(publicMessage, listenerResult.error_code!);
+      throw feedErrors.connector_failed(publicMessage, { error_code: listenerResult.error_code! });
     }
     const mode = connectorReceipt.mode === "fixture" ? "fixture" : "live";
     const cursor = listener.checkpoint().cursor;
@@ -168,7 +168,7 @@ export class FeedConnectorSync {
     message: string,
     at: string,
   ): void {
-    const publicError = toFeedPublicError(new FeedDomainError(message, errorCode));
+    const publicError = toFeedPublicError({ code: errorCode, message });
     if (publicError.retryable || !["auth", "configuration", "stale_cursor"].includes(publicError.category)) return;
     const stored = this.feed.createInboxEntry({
       projectId: this.projectId,

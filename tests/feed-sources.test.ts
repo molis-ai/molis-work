@@ -14,7 +14,7 @@ import { createLocalFeedSourceScheduler } from "@molis-ai/molis-work-app-local-h
 import { createFeedSourceRuntime, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
 import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
 import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-app-local-host";
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -112,7 +112,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
         BEGIN SELECT RAISE(ABORT, 'injected source commit failure'); END;`);
       await assert.rejects(
         service.sync(rollbackSource.source_id, { idempotencyKey: "source-rollback-0001" }),
-        (error: unknown) => error instanceof FeedDomainError && error.code === "feed_source_sync_interrupted",
+        (error: unknown) => error instanceof ActionError && error.code === "feed.source_sync_interrupted",
       );
       const afterFailure = service.feed.getSource(DEMO_PROJECT_ID, rollbackSource.source_id);
       assert.equal(afterFailure.item_count, 0);
@@ -134,7 +134,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
       service.setEnabled(firstRegistration.source.source_id, false);
       await assert.rejects(
         service.sync(firstRegistration.source.source_id, { idempotencyKey: "source-sync-test-0002" }),
-        (error: unknown) => error instanceof FeedDomainError && error.code === "feed_source_paused",
+        (error: unknown) => error instanceof ActionError && error.code === "feed.source_paused",
       );
     } finally {
       store.close();
@@ -154,12 +154,12 @@ test("custom RSS registration rejects private and catalog-shadowing URLs before 
       const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
       assert.throws(
         () => service.register({ kind: "custom_rss", feed_url: "http://127.0.0.1/feed.xml" }),
-        FeedDomainError,
+        { code: "feed.custom_rss_url_invalid" },
       );
       const catalog = listFeedSourceCatalog()[0]!;
       assert.throws(
         () => service.register({ kind: "custom_rss", feed_url: catalog.feed_url }),
-        (error: unknown) => error instanceof FeedDomainError && error.code === "feed_source_use_catalog",
+        (error: unknown) => error instanceof ActionError && error.code === "feed.source_use_catalog",
       );
       const custom = service.register({
         kind: "custom_rss",
@@ -183,7 +183,7 @@ test("custom RSS registration rejects private and catalog-shadowing URLs before 
       assert.deepEqual(edited.cursor, {}, "editing the feed URL clears validators tied to the old address");
       assert.throws(
         () => service.update(custom.source_id, { feed_url: catalog.feed_url }),
-        (error: unknown) => error instanceof FeedDomainError && error.code === "feed_source_use_catalog",
+        (error: unknown) => error instanceof ActionError && error.code === "feed.source_use_catalog",
       );
     } finally {
       store.close();
@@ -305,7 +305,7 @@ test("RSS transient failures preserve history and become actionable only after t
       for (let attempt = 1; attempt <= 3; attempt += 1) {
         await assert.rejects(
           service.sync(source.source_id, { idempotencyKey: `rss-recovery-000${attempt}` }),
-          (error: unknown) => error instanceof FeedDomainError && error.code === "feed_source_sync_interrupted",
+          (error: unknown) => error instanceof ActionError && error.code === "feed.source_sync_interrupted",
         );
         const current = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
         assert.equal(readRssHttpState(current.cursor).consecutive_failures, attempt);
@@ -554,8 +554,8 @@ test("Gmail source configuration accepts only incrementally enforceable range pr
       assert.equal(configured.config.scope, "is:starred");
       assert.throws(
         () => sourceService.update(gmail.source_id, { scope: "from:someone@example.com" }),
-        (error: unknown) => error instanceof FeedDomainError
-          && error.code === "feed_source_invalid_configuration",
+        (error: unknown) => error instanceof ActionError
+          && error.code === "feed.source_invalid_configuration",
       );
     } finally {
       store.close();

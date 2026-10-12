@@ -1,4 +1,4 @@
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { sourceDeletedAt } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord } from "./projection.js";
@@ -41,12 +41,12 @@ export function createFeedSourceSyncGuard(
       await authority.beforeEffect?.();
       authority.signal?.throwIfAborted();
       const current = feed.getSource(source.project_id, source.source_id);
-      if (sourceDeletedAt(current)) throw new FeedDomainError("来源已删除，本次拉取结果未提交", "feed_source_not_found");
+      if (sourceDeletedAt(current)) throw feedErrors.source_not_found("来源已删除，本次拉取结果未提交");
       if (!current.enabled || current.status === "paused" || current.status === "disconnected") {
-        throw new FeedDomainError("来源已暂停或断开，本次拉取结果未提交", "feed_source_paused");
+        throw feedErrors.source_paused("来源已暂停或断开，本次拉取结果未提交");
       }
-      if (configuration(current) !== original) throw new FeedDomainError("来源配置已变化，请按新配置重新拉取", "feed_source_configuration_changed");
-      if (revision(current) !== originalRevision) throw new FeedDomainError("拉取期间来源已变化，请按当前设置重试", "feed_source_changed");
+      if (configuration(current) !== original) throw feedErrors.source_configuration_changed("来源配置已变化，请按新配置重新拉取");
+      if (revision(current) !== originalRevision) throw feedErrors.source_changed("拉取期间来源已变化，请按当前设置重试");
     } catch (error) { refused = true; refusal = error; throw error; }
   };
   return Object.defineProperty(guard, "refused", { get: () => refused }) as FeedSourceSyncGuard;

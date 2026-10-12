@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { assertClockTime, formatClockTime } from "./calendar.js";
-import { ScheduleTaskError } from "./task-error.js";
+import { scheduleErrors } from "./error.js";
 
 type Statement = {
   all(...params: unknown[]): unknown[];
@@ -189,7 +189,7 @@ export function setScheduleConversationTaskEnabled(
   now = () => new Date(),
 ): ScheduleConversationTaskRecord {
   const task = mustGet(db, taskId);
-  if (task.archived) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
+  if (task.archived) throw scheduleErrors.task_not_found("定时任务不存在");
   db.prepare("UPDATE schedule_conversation_tasks SET enabled = ?, updated_at = ? WHERE task_id = ?")
     .run(enabled ? 1 : 0, now().toISOString(), task.task_id);
   return mustGet(db, task.task_id);
@@ -202,7 +202,7 @@ export function updateScheduleConversationTask(
   now = () => new Date(),
 ): ScheduleConversationTaskRecord {
   const task = mustGet(db, taskId);
-  if (task.archived) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
+  if (task.archived) throw scheduleErrors.task_not_found("定时任务不存在");
   const title = normalizeTitle(input.title);
   const instructions = normalizeInstructions(input.instructions);
   assertClockTime(input.hour, input.minute);
@@ -214,7 +214,7 @@ export function updateScheduleConversationTask(
 
 export function archiveScheduleConversationTask(db: ScheduleTaskDatabase, taskId: string, now = () => new Date()): void {
   const task = mustGet(db, taskId);
-  if (task.archived) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
+  if (task.archived) throw scheduleErrors.task_not_found("定时任务不存在");
   db.prepare("UPDATE schedule_conversation_tasks SET archived = 1, enabled = 0, updated_at = ? WHERE task_id = ?")
     .run(now().toISOString(), taskId);
 }
@@ -245,7 +245,7 @@ export function appendScheduleConversationTurn(
   const task = mustGet(db, input.task_id);
   const clock = now().toISOString();
   const text = input.text.trim();
-  if (!text) throw new ScheduleTaskError("schedule_task_invalid", "对话内容不能为空");
+  if (!text) throw scheduleErrors.task_invalid("对话内容不能为空");
   const turnId = `scturn_${randomUUID()}`;
   const important = input.important === true ? 1 : 0;
   const unread = input.mark_unread === true ? 1 : 0;
@@ -280,7 +280,7 @@ export function toScheduleConversationTaskView(
 
 function mustGet(db: ScheduleTaskDatabase, taskId: string): ScheduleConversationTaskRecord {
   const task = getScheduleConversationTask(db, taskId);
-  if (!task) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
+  if (!task) throw scheduleErrors.task_not_found("定时任务不存在");
   return task;
 }
 
@@ -321,7 +321,7 @@ function toTurn(row: TurnRow): ScheduleConversationTurnRecord {
 function normalizeTitle(value: string): string {
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > 80) {
-    throw new ScheduleTaskError("schedule_task_invalid", "请填写 1 到 80 字的标题");
+    throw scheduleErrors.task_invalid("请填写 1 到 80 字的标题");
   }
   return trimmed;
 }
@@ -329,7 +329,7 @@ function normalizeTitle(value: string): string {
 function normalizeInstructions(value: string): string {
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > 8_000) {
-    throw new ScheduleTaskError("schedule_task_invalid", "请填写 Agent 到点要做的说明");
+    throw scheduleErrors.task_invalid("请填写 Agent 到点要做的说明");
   }
   return trimmed;
 }

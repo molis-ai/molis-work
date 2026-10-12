@@ -553,6 +553,10 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     errors.push(`${goalReadApplicationPath}: compatibility composition must not own Goal persistence or bypass Goals Query`);
   }
   errors.push(...checkGoalReadOwnerSql(read("apps/local-host/src/feed-application.ts")).map(error => `apps/local-host/src/feed-application.ts: ${error}`));
+  errors.push(...checkGoalsTypedHostCallers(["apps", "horizontal", "modules", "packages", "plugins"]
+    .flatMap(directory => filesUnder(path.join(repositoryRoot, directory), file => /\.(?:ts|tsx|mts)$/u.test(file) && !/[\\/](?:tests?|__tests__)[\\/]/u.test(file)))
+    .map(file => ({ path: path.relative(repositoryRoot, file).split(path.sep).join("/"), source: fs.readFileSync(file, "utf8") }))
+    .filter(({ source }) => /createGoalIntentCapability|readProjectGuidanceCapability/u.test(source))));
   errors.push(...checkGoalQueryCapabilityAdapters(read("apps/local-host/src/project-capabilities.ts"))
     .map(error => `apps/local-host/src/project-capabilities.ts: ${error}`));
   for (const relativePath of ["apps/local-host/src/web-request.ts", "apps/mcp/src/tool-dispatch.ts", "apps/cli/src/command-dispatch.ts"]) {
@@ -1215,6 +1219,30 @@ export function checkGoalQueryCapabilityAdapters(source) {
       || call.arguments[1]?.getText(file) !== `goalsActions.${action}`) {
       errors.push(`${name} must forward its result through goalsActions.${action} via goalAction`);
     }
+  }
+  return errors;
+}
+
+/**
+ * The typed first-run and guidance entries of Goals have no Host caller left: the first-run Goal and the project guidance read call
+ * Goals' own actions (`bindGoalsWebActions`, `readProjectGuidance`). Only the Goals package that defines them, the Host's project
+ * capabilities that still register them and the entry that re-exports them may name them, until the bridges are removed.
+ * `files` are `{ path, source }` pairs of production code; a comment or a string is not a caller.
+ */
+export function checkGoalsTypedHostCallers(files) {
+  const typed = new Set(["createGoalIntentCapability", "readProjectGuidanceCapability"]);
+  const allowed = new Set(["apps/local-host/src/project-capabilities.ts", "apps/local-host/src/index.ts"]);
+  const errors = [];
+  for (const { path: relativePath, source } of files) {
+    if (relativePath.startsWith("plugins/native/goals/") || allowed.has(relativePath)) continue;
+    const file = ts.createSourceFile(relativePath, source, ts.ScriptTarget.Latest, true);
+    const named = new Set();
+    const visit = node => {
+      if (ts.isIdentifier(node) && typed.has(node.text)) named.add(node.text);
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
+    for (const name of named) errors.push(`${relativePath}: ${name} is a typed entry nothing in the Host calls; call Goals' action (bindGoalsWebActions, readProjectGuidance)`);
   }
   return errors;
 }

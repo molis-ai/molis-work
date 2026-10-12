@@ -246,7 +246,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const surfaceFocus = () => {
     if (!focusNow || !selected || unshowable) return null;
     const goal = goals.find((item) => item.id === selected.goal_id);
+    const rect = editor && editor.screen ? editor.screen() : null;
     return { context_id: "pages:" + selected.id + ":" + focusNow.local_id, plugin_id: "io.molis.work.pages",
+      ...(rect ? { screen: { rect } } : {}),
       activity: focusNow.activity, granularity: focusNow.granularity,
       object: { kind: "pages_document", id: selected.id, version: selected.version, title: titleInput.value || selected.title },
       targets: focusNow.targets, surroundings: focusNow.surroundings,
@@ -255,11 +257,18 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   // Several documents picked in the list (⌘ or Ctrl + click): they are in hand together, to compare or combine.
   // Nothing is written in place for them, so the bar hands their actions to the Assistant as cards.
   const picked = new Set();
+  // Where the picked rows are on screen, for the toolbar to sit under them.
+  const pickedRect = () => {
+    const boxes = [...rowsEl.querySelectorAll(".pages-doc-row[data-page-id]")].filter((row) => picked.has(row.dataset.pageId)).map((row) => row.getBoundingClientRect());
+    return boxes.length ? { left: Math.min(...boxes.map((box) => box.left)), right: Math.max(...boxes.map((box) => box.right)),
+      top: Math.min(...boxes.map((box) => box.top)), bottom: Math.max(...boxes.map((box) => box.bottom)) } : null;
+  };
   const objectsFocus = () => {
     const chosen = records.filter((record) => picked.has(record.id));
     if (chosen.length < 2) return null;
+    const rect = pickedRect();
     return { context_id: "pages-objects:" + chosen.map((record) => record.id + "@" + record.version).sort().join(","),
-      plugin_id: "io.molis.work.pages", activity: "selecting", granularity: "objects",
+      plugin_id: "io.molis.work.pages", activity: "selecting", granularity: "objects", ...(rect ? { screen: { rect, placement: "below" } } : {}),
       object: { kind: "pages_document", id: chosen[0].id, version: chosen[0].version, title: chosen[0].title },
       targets: chosen.slice(0, 8).map((record) => {
         const text = (record.title + "\\n" + docText(record.body)).slice(0, 1500);
@@ -281,11 +290,14 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     reportFocus();
   };
   workbench.addEventListener("keydown", (event) => { if (event.key === "Escape" && picked.size) clearPicked(); });
+  document.addEventListener?.("scroll", () => { if (picked.size) reportFocus(); }, true);
+  const placeOf = (detail) => (detail ? detail.context_id + (detail.screen ? Object.values(detail.screen.rect).map(Math.round).join() : "") : "");
   const reportFocus = () => {
     const detail = objectsFocus() || surfaceFocus();
-    if ((detail ? detail.context_id : null) === (focusShown ? focusShown.context_id : null)) return;
+    if (placeOf(detail) === placeOf(focusShown)) return;
     focusShown = detail;
     workbench.dispatchEvent?.(new CustomEvent("molis:surface-focus", { bubbles: true, detail }));
+    if (detail) publishTools();
   };
   // The person chose one of this document's actions in the bar: run it on the range they had in hand when it was
   // ranked, through the writing popup, so the result is a candidate they accept before anything is written. A
@@ -308,31 +320,26 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return { command: input.command, style: typeof input.style === "string" ? input.style : undefined, text: typeof input.text === "string" ? input.text : undefined };
       } });
   });
-  // The writing menu lists exactly what the context row shows for what is in hand (specs/archive/contextual-interaction
-  // §6.4.1): the row publishes its plan; a choice in the menu goes back to the row like a click there.
-  let menuPlan = null;
-  const menuWatchers = new Set();
-  document.addEventListener?.("molis:assistant-context-actions", (event) => {
-    if (!event.detail || !event.detail.plan) return;
-    menuPlan = event.detail.plan;
-    [...menuWatchers].forEach((listener) => listener());
+  // The editor's tools for what is in hand, as data for the context toolbar; again whenever one switches on or off.
+  let toolsKey = "";
+  let toolsQueued = false;
+  const publishTools = () => {
+    if (!editor || !editor.tools || !focusShown || focusShown.granularity === "objects") return;
+    const groups = editor.tools();
+    const key = focusShown.context_id + JSON.stringify(groups);
+    if (key === toolsKey) return;
+    toolsKey = key;
+    workbench.dispatchEvent(new CustomEvent("molis:context-tools", { bubbles: true, detail: { context_id: focusShown.context_id, groups } }));
+  };
+  const queueTools = () => {
+    if (toolsQueued) return;
+    toolsQueued = true;
+    window.setTimeout(() => { toolsQueued = false; publishTools(); }, 0);
+  };
+  workbench.addEventListener("molis:context-tool-invoke", (event) => {
+    const chosen = event.detail;
+    if (editor && chosen && focusShown && chosen.context_id === focusShown.context_id) editor.runTool(chosen.id);
   });
-  const menuActions = () => {
-    if (!menuPlan || !focusShown || menuPlan.context_id !== focusShown.context_id) return null;
-    const byKey = new Map(menuPlan.candidates.map((candidate) => [candidate.key, candidate]));
-    const item = (key) => {
-      const candidate = byKey.get(key);
-      return candidate && candidate.available ? { key, title: candidate.title, hint: candidate.hint, emphasis: menuPlan.emphasis === key,
-        ...(candidate.source && candidate.source.provider_id !== "io.molis.work.pages" ? { kind: candidate.provider_title } : {}) } : null;
-    };
-    const groups = [{ title: "", items: menuPlan.primary.map(item).filter(Boolean) },
-      ...menuPlan.more.map((group) => ({ title: group.title, items: group.keys.map(item).filter(Boolean) }))];
-    return { groups: groups.filter((group) => group.items.length) };
-  };
-  const chooseMenuAction = (key) => {
-    if (!focusShown) return;
-    document.dispatchEvent?.(new CustomEvent("molis:assistant-context-action-choose", { detail: { context_id: focusShown.context_id, key } }));
-  };
   const syncEditorChrome = () => {
     publishContext();
     reportFocus();
@@ -511,9 +518,14 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       doc: body,
       onChange: () => { if (!filling) queueSave(); },
       onFocus: (focus) => { focusNow = focus; reportFocus(); },
-      menuActions,
-      watchMenuActions: (listener) => { menuWatchers.add(listener); return () => menuWatchers.delete(listener); },
-      chooseMenuAction,
+      onTools: queueTools,
+      onScreen: reportFocus,
+      openPanel: (panel) => {
+        if (!focusShown && panel.node) return false;
+        const event = new CustomEvent("molis:context-panel-open", { bubbles: true, cancelable: true, detail: { context_id: focusShown ? focusShown.context_id : "", ...panel } });
+        workbench.dispatchEvent(event);
+        return event.defaultPrevented;
+      },
       translate: L,
       pages: () => records.map((item) => ({ id: item.id, title: item.title })),
       onOpenPage: (id) => {
@@ -529,15 +541,6 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         const result = await request("POST", pageUrl(id, "/ai"), { ...input, expected_version: selected.version });
         if (!selected || selected.id !== id || editVersion !== revision) throw new Error(L("文档已改变，请重新生成"));
         return result;
-      },
-      // Selected text to the resident Assistant, as a suggestion or as the person's own request (spec 8.3).
-      askAssistant: (input) => {
-        if (!selected) return;
-        window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
-          message_id: crypto.randomUUID(), purpose: input.mode, source: { surface: "pages", title: "Pages" },
-          object: { kind: "pages_document", id: selected.id, title: selected.title, version: selected.version },
-          text: input.request, materials: input.selection.trim() ? [{ title: L("选中的文字") + " · " + selected.title, text: input.selection }] : [],
-        } }));
       },
       onCreateFromAi: async (input) => {
         const content = String(input.text || "").split(/\\n{2,}/).map((part) => (
@@ -643,7 +646,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     closeMore();
     closeCreate();
     closeMove();
-    workbench.querySelectorAll(".pages-format-bar, .pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu, .pages-block-ghost, .pages-drop-line").forEach((node) => { node.hidden = true; });
+    workbench.querySelectorAll(".pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu, .pages-block-ghost, .pages-drop-line").forEach((node) => { node.hidden = true; });
   };
   const loadList = async () => {
     const seq = ++listSeq;

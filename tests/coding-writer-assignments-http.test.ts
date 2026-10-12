@@ -66,7 +66,10 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
     assert.equal((await request("", "PATCH", { configuration: { ...configuration, writer_assignments: [] } })).status, 200);
     assert.deepEqual(starts[0], frozen, "saving the next draft cannot rewrite an accepted start");
     assert.equal((await start(assignments, { intent: "discuss" })).status, 400);
-    assert.equal((await start(assignments, { task: "长".repeat(99_999) })).status, 400);
+    // Stay below the HTTP byte limit so this exercises the composed task's character limit.
+    const tooLong = await start(assignments, { task: "x".repeat(99_999) });
+    assert.equal(tooLong.status, 400);
+    assert.match(JSON.stringify(tooLong.body), /总任务与分工合计超过 100000 字符/u);
     assert.equal(starts.length, 1);
     assert.equal((await request("", "PATCH", { configuration: { ...configuration, writer_assignments: [{ workspace_id: "writer-a", task: "" }] } })).status, 200, "incomplete drafts are retained without starting");
     await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);

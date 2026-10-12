@@ -1,3 +1,4 @@
+import { codingArtifacts } from "./artifacts.js";
 import { createHash } from "node:crypto";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { goalContextCapabilities, type GoalContextSnapshot } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -40,7 +41,7 @@ export function savedGoalContext(context: PluginStartContext, sessionId: string)
   return readGoalContext(context, reference);
 }
 function readGoalSnapshot(context: PluginStartContext, reference: ArtifactReference) {
-  const record = context.services!.artifacts.read(reference);
+  const record = codingArtifacts(context).read(reference);
   if (!record || record.artifact_type_id !== CODING_GOAL_CONTEXT_TYPE || record.schema_version !== 1
     || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("固定目标版本不可读，请重新关联；历史执行不会被替换");
   const snapshot = record.payload as unknown as GoalContextSnapshot;
@@ -53,7 +54,7 @@ function readGoalContext(context: PluginStartContext, reference: ArtifactReferen
 }
 export function saveGoalContext(context: PluginStartContext, sessionId: string, value: Awaited<ReturnType<typeof currentGoalContext>>) {
   const { snapshot, reference } = value;
-  const previous = context.services!.artifacts.read(reference);
+  const previous = codingArtifacts(context).read(reference);
   if (previous) readGoalContext(context, reference);
   else context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_GOAL_CONTEXT_TYPE, schema_version: 1,
     content: { kind: "inline", payload: JSON.parse(JSON.stringify(snapshot)) },

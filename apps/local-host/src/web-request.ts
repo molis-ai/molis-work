@@ -75,13 +75,14 @@ import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js
 import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
-import { resolveWebRequest } from "./web-routing.js";
+import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleLocalCatalogWebRequest } from "./web-catalog.js";
 import { webProjectDeletionPorts } from "./project-deletion-service.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
 import { inspectGitIndex } from "./workspace-git-index.js";
 import { isPluginEventManagementPath } from "./plugin-event-http.js";
 import { handleCodingPluginHttp, type CodingSurfacePorts } from "./coding-surface.js";
+import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
 
 export async function handleMolisWorkWebRequest(
   request: IncomingMessage,
@@ -103,6 +104,7 @@ export async function handleMolisWorkWebRequest(
   workspaceFor: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>,
 ): Promise<void> {
   const { PAGE_CSP, handleSessions, handleDesktopPanelApi, goalsReadHttp, planningHttp, desktopRuntimeAvailability, servePtyClient, workbenchRenderer, buildCapsuleSnapshot, handleArtifactNativePluginHttp, isDesktopShellRequest } = composition;
+  if (await handleHomePluginHttp(request, response, url, localHost, controlToken, PAGE_CSP)) return;
   // The personal space always exists for the person; it is made the first time anyone opens it.
   if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath) {
     await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.ensurePersonalSpace());
@@ -117,18 +119,7 @@ export async function handleMolisWorkWebRequest(
     response.end(workbenchRenderer.renderMolisWorkProjectIndex([], controlToken, isDesktopShellRequest(request, url), { now: new Date().toISOString(), last_project_id: null, opened: {}, load_error: true }));
     return;
   }
-  if (request.method === "GET" && resolved.kind !== "project_not_found"
-    && (resolved.kind === "board" ? resolved.pathname === "/" : url.pathname === "/")
-    && (url.searchParams.get("openPlugin") === "functions" || url.searchParams.get("panePlugin") === "functions")) {
-    const next = new URL("/capabilities/rules", url.origin);
-    if (resolved.kind === "board" && resolved.options.project) next.searchParams.set("project", resolved.options.project.project_id);
-    const rule = url.searchParams.get("openItem") ?? url.searchParams.get("paneItem");
-    if (rule) next.searchParams.set("rule", rule);
-    if (url.searchParams.get("desktop") === "1") next.searchParams.set("desktop", "1");
-    response.writeHead(302, { location: next.pathname + next.search, "cache-control": "no-store" });
-    response.end();
-    return;
-  }
+  if (redirectFunctionsPage(request.method, response, url, resolved)) return;
   // Every registered prompt and role, and the person's edits of them: one register per Home, whichever page asks.
   if (serverOptions.homeDirectory && url.pathname.startsWith("/api/agent-definitions/")
     && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
@@ -310,7 +301,7 @@ export async function handleMolisWorkWebRequest(
         } catch (error) {
           if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.not_found"].includes(String(error.code)))) throw error;
         }
-        return view;
+        return { ...view, plugin_stages: await renderHomePluginStages(localHost.homePlugins) };
       };
       {
         const projectSessionWorkspaceMatch = url.pathname.match(/^\/(sessions|workspaces)$/);

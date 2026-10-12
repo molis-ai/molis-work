@@ -69,14 +69,14 @@
     "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 188,
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 170,
-    "file horizontal/agent-host/src/adapters/prologue-node.ts": 1760,
-    "function horizontal/agent-host/src/adapters/prologue-node.ts#initializePrologueNodeAdapter": 1431,
-    "function horizontal/agent-host/src/adapters/prologue-node.ts#startAgentRun": 418,
-    "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 304,
+    "file horizontal/agent-host/src/adapters/prologue-node.ts": 1551,
+    "function horizontal/agent-host/src/adapters/prologue-node.ts#initializePrologueNodeAdapter": 1280,
+    "function horizontal/agent-host/src/adapters/prologue-node.ts#startAgentRun": 404,
+    "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 238,
     "function horizontal/agent-host/src/adapters/prologue-taskboard.ts#createPrologueTaskBoards": 220,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 1026,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 1025,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 658,
+      "lines": 656,
       "methods": 18
     },
     "function horizontal/agent-host/src/adapters/prologue.ts#(module) callback 1": 187,
@@ -167,7 +167,7 @@
       "methods": 35
     },
     "function modules/shelf/src/store.ts#runJob": 199,
-    "file packages/contracts/src/services/agent-host.ts": 1733,
+    "file packages/contracts/src/services/agent-host.ts": 1639,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 947,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
@@ -217,7 +217,7 @@
     "file plugins/native/coding/src/routes.ts": 1556,
     "function plugins/native/coding/src/routes.ts#codingRouteBindings": 1348,
     "file plugins/native/coding/src/styles.ts": 851,
-    "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 263,
+    "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 186,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
       "lines": 122,

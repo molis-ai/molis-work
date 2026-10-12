@@ -65,10 +65,6 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-target { color:var(--ink); }
 .agent-review-meta { color:var(--muted); margin:4px 0 0; }
 .agent-review-concurrent { margin:8px 0 0; padding:8px 8px; border-radius:6px; color:var(--ink); background:color-mix(in srgb, var(--amber) 14%, transparent); }
-.agent-review-grants { margin:8px 0 0; padding:8px 12px; border-radius:6px; color:var(--ink); background:color-mix(in srgb, var(--amber) 14%, transparent); }
-.agent-review-grants p { margin:0; }
-.agent-review-grants ul { margin:4px 0 0; padding:0; list-style:none; display:grid; gap:4px; }
-.agent-review-grants code { font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); word-break:break-all; }
 .agent-review-background { margin:8px 0 0; padding:8px 8px; border-radius:6px; color:var(--ink); background:color-mix(in srgb, var(--accent) 10%, transparent); }
 .agent-review-warning { margin:8px 0 0; padding:8px 12px; border-radius:6px; color:var(--text); background:color-mix(in srgb,var(--amber,#b7791f) 14%,transparent); font-size:13px; }
 .agent-review-command { white-space:pre-wrap !important; word-break:break-word; font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); color:var(--ink); }
@@ -301,7 +297,7 @@ function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives)
         <pre class="agent-review-command"><span class="agent-review-prompt" aria-hidden="true">$</span> ${p.escape([document.command, ...document.args].map(shellWord).join(" "))}</pre>
         ${leakedMarkup([document.command, ...document.args].join(" ")) ? `<p class="agent-review-warning" role="note">${p.escape("命令里混有像工具调用标记的文本（例如 </arg…>、<item>），多半是模型输出出错；这样的命令通常无法正常运行，建议拒绝并说明。")}</p>` : ""}
         <p class="agent-review-meta">${p.escape(`在 ${document.cwd === "." ? "工作区根目录" : document.cwd} 运行 · ${document.escalate === undefined ? "执行范围未提供" : document.escalate ? "请求在沙箱外执行" : document.grants ? "超出宿主执行边界，另要下面这些" : "在宿主执行边界内"}`)}</p>
-        ${document.grants ? `<div class="agent-review-grants" role="note" data-agent-review-grants><p>${p.escape("这条命令还点名要（只批这一次，不会记住）：")}</p><ul>${document.grants.paths.map(grant => `<li><span class="agent-review-tag">${p.escape(grant.access === "write" ? "读写" : "读取")}</span> <code>${p.escape(grant.path)}</code></li>`).join("")}${document.grants.network ? `<li><span class="agent-review-tag">${p.escape("联网")}</span> ${p.escape("这条命令要访问网络")}</li>` : ""}</ul><p class="agent-review-meta">${p.escape("本机没有系统级隔离：批准后命令照常运行，这里列的是它要求的范围，不是被限制在内的范围。")}</p></div>` : ""}
+        ${document.grants ? `<p class="agent-review-concurrent" role="note" data-agent-review-grants>${p.escape("这条命令还点名要（只批这一次，不会记住）：")}${document.grants.paths.map(grant => `<br><span class="agent-review-tag">${p.escape(grant.access === "write" ? "读写" : "读取")}</span> <code>${p.escape(grant.path)}</code>`).join("")}${document.grants.network ? `<br><span class="agent-review-tag">${p.escape("联网")}</span> ${p.escape("这条命令要访问网络")}` : ""}<br>${p.escape("本机没有系统级隔离：批准后命令照常运行，这里列的是它要求的范围，不是被限制在内的范围。")}</p>` : ""}
         ${document.background ? `<p class="agent-review-background" role="note">${p.escape(document.outlives_run ? "后台运行：不等它结束，这一轮结束后也继续跑，直到它自己结束或被停止；可以在会话的后台命令里随时停掉。" : "后台运行：不等它结束；这一轮结束时会一起停掉。")}</p>` : ""}
         <details class="agent-review-bounds" data-review-detail="bounds"><summary>${p.escape("执行边界")}</summary><dl>
           ${document.workspace_path ? `<dt>${p.escape("所属工作区")}</dt><dd>${p.escape(document.workspace_path)}</dd>` : ""}

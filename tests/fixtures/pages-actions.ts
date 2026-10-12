@@ -1,4 +1,4 @@
-import { preparePagesFileImport } from "../../apps/local-host/src/pages-import.js";
+import { preparePagesFileImport } from "../../apps/local-host/dist/pages-import.js";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pagesManifest, createPagesActionHandlers, createPagesContentHandlers, PAGES_ACTION_PERMISSIONS,

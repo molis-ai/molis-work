@@ -119,7 +119,9 @@ function process(file: string, options: {
       ...baseManifest(PROJECTS),
       // Ports imply these declarations; the Manifest validator refuses a Plugin without them.
       permissions: [{ permission: "artifact:write", required: true, reason: "发布当前项目" }],
-      artifacts: { produces: [{ artifact_type_id: PROJECT_TYPE, schema_version: 1 }], consumes: [] },
+      // Port values are process items: exchange data kept out of the 成果库 (artifact-positioning A2).
+      artifacts: { produces: [], consumes: [] },
+      process_items: { produces: [{ artifact_type_id: PROJECT_TYPE, schema_version: 1 }], consumes: [] },
       ports: {
         inputs: [],
         outputs: [{ port: "project", artifact_type_id: PROJECT_TYPE, schema_version: 1 }],
@@ -144,7 +146,8 @@ function process(file: string, options: {
     manifest: {
       ...baseManifest(CODING),
       permissions: [{ permission: "artifact:read", required: true, reason: "读取当前项目" }],
-      artifacts: { produces: [], consumes: [{ artifact_type_id: PROJECT_TYPE, schema_version: 1 }] },
+      artifacts: { produces: [], consumes: [] },
+      process_items: { produces: [], consumes: [{ artifact_type_id: PROJECT_TYPE, schema_version: 1 }] },
       ports: {
         inputs: [{ port: "project", artifact_type_id: PROJECT_TYPE, schema_version: 1 }],
         outputs: [],

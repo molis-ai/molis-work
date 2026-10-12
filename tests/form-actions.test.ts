@@ -203,7 +203,7 @@ test("the store itself refuses every source but the trial fill while a form is n
   const draft = store.create({ project_id: "p", title: "F" });
   const form = store.update(draft.id, { questions: [{ id: "q", title: "Q?" }], expected_version: draft.version }, "p");
   const sources = ["fill", "agent", "mcp", "workflow", "plugin"] as const;
-  const refused = (what: string) => { for (const source of sources) assert.throws(() => store.submit(form.id, { q: "x" }, "p", { source }), { name: "FormError", code: "form.closed" }, `${source} on a ${what} form`); };
+  const refused = (what: string) => { for (const source of sources) assert.throws(() => store.submit(form.id, { q: "x" }, "p", { source }), { name: "ActionError", code: "form.closed", kind: "conflict" }, `${source} on a ${what} form`); };
 
   refused("draft");
   assert.equal(store.submit(form.id, { q: "a" }, "p", { source: "preview" }).source, "preview");
@@ -277,7 +277,7 @@ test("the store itself refuses an answer-file import from anyone but the person 
   const draft = store.create({ project_id: "p", title: "F" });
   const form = store.update(draft.id, { questions: [{ id: "q", title: "Q?" }], expected_version: draft.version }, "p");
   const outside = ["agent", "mcp", "workflow", "plugin"] as const;
-  const refused = (phase: string) => { for (const source of outside) assert.throws(() => store.importAnswers(form.id, [answerFile(form, `${phase}-${source}-0001`, source)], "p", { source }), { name: "FormError", code: "form.closed" }, `${source} on a ${phase} form`); };
+  const refused = (phase: string) => { for (const source of outside) assert.throws(() => store.importAnswers(form.id, [answerFile(form, `${phase}-${source}-0001`, source)], "p", { source }), { name: "ActionError", code: "form.closed", kind: "conflict" }, `${source} on a ${phase} form`); };
 
   refused("draft");
   assert.equal(store.importAnswers(form.id, [answerFile(form, "person-0001", "a")], "p", { source: "preview" }).imported, 1);

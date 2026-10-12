@@ -45,7 +45,12 @@
     "produces": [
       {
         "artifact_type_id": "io.molis.work.example.note",
-        "schema_version": 1
+        "schema_version": 1,
+        "title": "Sample result",
+        "preview": {
+          "capability_id": "io.molis.work.example.notes.results.preview",
+          "version": 1
+        }
       }
     ],
     "consumes": [
@@ -247,6 +252,105 @@
         "result_view": {
           "summary": "Sample result saved",
           "title_pointer": "/payload/title"
+        }
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.results.preview",
+      "version": 1,
+      "operation": "query",
+      "action": {
+        "title": "Preview a sample result",
+        "description": "Show one saved version of a sample result as readable text; changes nothing.",
+        "kind": "query",
+        "scope": "project",
+        "scheduling": "concurrent",
+        "audiences": [
+          "user",
+          "workflow"
+        ],
+        "plugin": false,
+        "permissions": [
+          "artifact:read"
+        ],
+        "subject_kinds": [
+          "artifact"
+        ],
+        "input_type": "molis.artifacts.preview.request.v1",
+        "output_type": "molis.artifacts.preview.v1",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "artifact": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "artifact"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "media_type": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 200,
+              "pattern": "^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$"
+            },
+            "encoding": {
+              "enum": [
+                "utf8",
+                "base64"
+              ]
+            },
+            "data": {
+              "type": "string",
+              "maxLength": 11184815
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "subject",
+            "revision",
+            "title",
+            "media_type",
+            "encoding",
+            "data",
+            "truncated"
+          ],
+          "additionalProperties": false
         }
       }
     }

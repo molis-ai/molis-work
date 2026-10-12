@@ -316,6 +316,8 @@ Figures on main: ≈283 touched files (≈277 after #385); 196 split processes.
 - Dependencies: A; FB `blank-discard-guards`.
 - Gates: assets (pages.js shrinks); `createWorkflowsActionHandlers` (a giant) only shrinks.
 - Size M (~30 files).
+- **Status change the design did not list (found in review, recorded here):** the publishable plugins (Pages, PPT, Dataset, Form) say "no publisher in this environment" with an availability object whose code is the owner's (`pages|ppt|dataset|form.unavailable`). `ActionAvailability` has no kind, and the kernel's `assertAvailable` (`kernel/src/action-service.ts`) raises it as an `ActionError` with the code and no kind, so the route answers 400 where the deleted mappers gave 409. The code and the message are the same and nothing is written; no client reads that status. D leaves it at 400 and pins all four plugins in `tests/document-plugins-error-model.test.ts` (and Pages in `personal-plugins-review-fixes`). The coordinator accepts this 400 until G1 (or A) carries it, or says otherwise.
+- **Follow-up, for G1 (recommended) or A:** `ActionAvailability` gains an optional `kind`; `assertAvailable` and `unavailable()` pass it to the `ActionError`; the four `publishable` objects say `kind: "conflict"`; `pnpm api:update`; the four pins in `document-plugins-error-model` and the Pages case change from 400 to 409 in the same PR. Until then a plugin that needs a status for an unavailable capability uses a platform code (`actions.connection_required` is 503).
 
 **W3-02-E: Feed, Inbox, Schedule.**
 - Error classes become declarations. Non-persisted snake codes are renamed; persisted run codes wait for J3.
@@ -336,6 +338,7 @@ Figures on main: ≈283 touched files (≈277 after #385); 196 split processes.
 **W3-02-G1: platform action surfaces, synonyms and fallbacks.**
 - **Changes:** gateway server and client; `project-deletion-gateway.ts:87`; `resident-host-request.ts`; home-dock, search, placement and contextual HTTP; synonym sites (`web-panel.ts:78,103`, `web-request.ts:301,311`, `web-view.ts:33`, Alchemist two lines, artifacts and Inbox one line each, `memory-host.ts:340`).
 - Dependencies: A, W3-01 C (and D for the gateway); FB `resident-host-transport`, `typesafe-consumer-narrow`, `alchemist`.
+- **Also (from W3-02-D, see its section):** `ActionAvailability` gains an optional `kind` and `assertAvailable` passes it on, so `pages|ppt|dataset|form.unavailable` answer 409 again.
 - Gates: the `ACTION_ERROR_KINDS` snapshot shrinks. Size M (~25 files).
 
 **W3-02-G2: host pages and catalog.**

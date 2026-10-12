@@ -19,20 +19,6 @@ export {
   type ChangeSetSource,
 } from "./changeset.js";
 export {
-  DIFF_STEP_BUDGET,
-  alignSplitRows,
-  compareTexts,
-  joinLines,
-  reconstructSides,
-  splitLines,
-  textDiffRow,
-  type DiffLine,
-  type DiffOp,
-  type SplitPair,
-  type TextDiff,
-  type TextDiffRow,
-} from "./text-diff.js";
-export {
   UnifiedDiffError,
   countChangedLines,
   hunkRows,

@@ -719,7 +719,6 @@ export interface CodingChangeSet {
   coverage?: "text-reviews";
 }
 
-export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts, textDiffRow, alignSplitRows } from "./workspace-text-diff.js";
 export type { DiffLine, DiffOp, TextDiff, TextDiffRow, SplitPair } from "./workspace-text-diff.js";
 
 export function parseCodingChangeSet(value: unknown): CodingChangeSet {

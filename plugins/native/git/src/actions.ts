@@ -1,4 +1,5 @@
-import { bindOwnerPluginAction, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { gitActions, type GitSelected } from "./action-definitions.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -6,6 +7,7 @@ import { parseFilePath, workspaceReadActions, prepareGitIndexCapability, prepare
   type GitOperation, type GitReviewedResult, type WorkspaceGitQuery, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { parsePorcelainStatus } from "./status.js";
 import { projectGit } from "./projection.js";
+import { gitErrors } from "./errors.js";
 
 const STATUS_WORD: Record<string, string> = { A: "新增", M: "修改", D: "删除", R: "重命名", C: "复制", T: "类型变化" };
 /** A starting point the person edits: a title from what is staged and one line per file. Never sent on its own. */
@@ -20,7 +22,7 @@ export function commitDraft(summary: WorkspaceGitSummary): string {
 /** Only the shapes the Host accepts go on; everything else is refused here first. */
 function gitOperation(value: unknown): GitOperation {
   const input = value as Record<string, unknown> | null;
-  const text = (key: string, max: number) => { const found = input?.[key]; if (typeof found !== "string" || found.length > max) throw new Error("Git 操作参数无效"); return found; };
+  const text = (key: string, max: number) => { const found = input?.[key]; if (typeof found !== "string" || found.length > max) throw gitErrors.invalid("Git 操作参数无效"); return found; };
   switch (input?.action) {
     case "commit": return { action: "commit", message: text("message", 5_000) };
     case "branch-create": return { action: "branch-create", name: text("name", 200), checkout: input.checkout === true };
@@ -31,7 +33,7 @@ function gitOperation(value: unknown): GitOperation {
     case "pull": return { action: "pull" };
     case "resolve": return { action: "resolve", path: text("path", 1000), content: text("content", 1024 * 1024) };
     case "merge-abort": return { action: "merge-abort" };
-    default: throw new Error("不支持的 Git 操作");
+    default: throw gitErrors.invalid("不支持的 Git 操作");
   }
 }
 
@@ -42,14 +44,14 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
   let selectionSequence = 0;
   const workspace = async () => {
     const selected = await services?.capabilities?.invoke(projectSettingsCapabilities.browsingWorkspace, []);
-    if (!selected) throw new Error("请在项目设置的工作目录中选择可用浏览目录");
+    if (!selected) throw gitErrors.invalid("请在项目设置的工作目录中选择可用浏览目录");
     return { workspace_id: selected.workspace_id, name: selected.display_name, handle: selected.workspace_id };
   };
   const read = async (query: WorkspaceGitQuery) => {
     const current = await workspace();
-    if (current.workspace_id !== query.workspace_id) throw new Error("工作目录已改变，请刷新 Git");
+    if (current.workspace_id !== query.workspace_id) throw gitErrors.invalid("工作目录已改变，请刷新 Git");
     const result = await services.actions!.invoke(workspaceReadActions.git, query);
-    if ((await workspace()).workspace_id !== current.workspace_id) throw new Error("工作目录已改变，请刷新 Git");
+    if ((await workspace()).workspace_id !== current.workspace_id) throw gitErrors.invalid("工作目录已改变，请刷新 Git");
     return { workspace: current, result };
   };
   const savedResults = () => {
@@ -60,16 +62,16 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
   const results = async () => {
     const current = await workspace();
     const items = await services.capabilities!.invoke(readGitResultsCapability, { workspace_id: current.workspace_id });
-    if ((await workspace()).workspace_id !== current.workspace_id) throw new Error("工作目录已改变，请重新读取结果");
+    if ((await workspace()).workspace_id !== current.workspace_id) throw gitErrors.invalid("工作目录已改变，请重新读取结果");
     return { workspace: current, items };
   };
   const readSaved = (result: GitReviewedResult) => {
     const reference = savedResults()[key(result)];
     if (!reference) return null;
     const artifact = services.outputs!.read(reference);
-    if (!artifact || artifact.artifact_type_id !== GIT_RESULT_TYPE || artifact.schema_version !== 1) throw new Error("原固定结果已不可读取；不会重新生成或覆盖");
+    if (!artifact || artifact.artifact_type_id !== GIT_RESULT_TYPE || artifact.schema_version !== 1) throw gitErrors.invalid("原固定结果已不可读取；不会重新生成或覆盖");
     const payload = artifact.payload as unknown as GitReviewedResult;
-    if (payload.workspace_id !== result.workspace_id || payload.operation_id !== result.operation_id || payload.review?.review_id !== result.review.review_id) throw new Error("固定结果与原操作不匹配");
+    if (payload.workspace_id !== result.workspace_id || payload.operation_id !== result.operation_id || payload.review?.review_id !== result.review.review_id) throw gitErrors.invalid("固定结果与原操作不匹配");
     return { reference, result: payload, saved_at: artifact.created_at };
   };
   return [
@@ -82,9 +84,9 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
     }, reviewResults),
     bindOwnerPluginAction(context, gitActions.saveResult, async (input, beforeWrite) => {
       const value = await results();
-      if (!input || input.workspace_id !== value.workspace.workspace_id || typeof input.review_id !== "string") throw new Error("结果保存请求无效或工作区已切换");
+      if (!input || input.workspace_id !== value.workspace.workspace_id || typeof input.review_id !== "string") throw gitErrors.invalid("结果保存请求无效或工作区已切换");
       const result = value.items.find(item => item.review.review_id === input.review_id);
-      if (!result) throw new Error("原操作尚未结束、结果仍未知，或不属于当前工作区，不能保存确定结果");
+      if (!result) throw gitErrors.invalid("原操作尚未结束、结果仍未知，或不属于当前工作区，不能保存确定结果");
       const existing = readSaved(result);
       if (existing) return existing;
       await beforeWrite();
@@ -100,7 +102,7 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
     bindOwnerPluginAction(context, gitActions.prepareIndex, async (input, beforeWrite) => {
       const current = await workspace();
       if (!input || input.workspace_id !== current.workspace_id || !["stage", "unstage"].includes(String(input.action))
-        || typeof input.revision !== "string" || typeof input.operation_id !== "string") throw new Error("暂存请求无效或工作区已切换");
+        || typeof input.revision !== "string" || typeof input.operation_id !== "string") throw gitErrors.invalid("暂存请求无效或工作区已切换");
       await beforeWrite();
       const result = await services.capabilities!.invoke(prepareGitIndexCapability, { workspace_id: current.workspace_id, path: parseFilePath(input.path),
         action: input.action as "stage" | "unstage", revision: input.revision, operation_id: input.operation_id }, { before_effect: beforeWrite });
@@ -120,18 +122,18 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
     // A file a merge or pull left conflicted, markers included, so the person can pick and edit before resolving.
     bindOwnerPluginAction(context, gitActions.conflict, async (input) => {
       const current = await workspace();
-      if (!input || typeof input.path !== "string" || !input.path) throw new Error("请选择冲突文件");
+      if (!input || typeof input.path !== "string" || !input.path) throw gitErrors.invalid("请选择冲突文件");
       return (await read({ workspace_id: current.workspace_id, kind: "conflict", path: input.path })).result;
     }, browsing),
     bindOwnerPluginAction(context, gitActions.operations, async () => {
       const current = await workspace();
       const operations = await services.capabilities!.invoke(readGitOperationsCapability, { workspace_id: current.workspace_id });
-      if ((await workspace()).workspace_id !== current.workspace_id) throw new Error("工作目录已改变，请重新读取操作记录");
+      if ((await workspace()).workspace_id !== current.workspace_id) throw gitErrors.invalid("工作目录已改变，请重新读取操作记录");
       return { workspace: current, operations };
     }, [...browsing, readGitOperationsCapability]),
     bindOwnerPluginAction(context, gitActions.prepareOperation, async (input, beforeWrite) => {
       const current = await workspace();
-      if (!input || input.workspace_id !== current.workspace_id || typeof input.revision !== "string" || typeof input.operation_id !== "string") throw new Error("Git 操作请求无效或工作区已切换");
+      if (!input || input.workspace_id !== current.workspace_id || typeof input.revision !== "string" || typeof input.operation_id !== "string") throw gitErrors.invalid("Git 操作请求无效或工作区已切换");
       const operation = gitOperation(input.operation);
       await beforeWrite();
       return services.capabilities!.invoke(prepareGitOperationCapability, { workspace_id: current.workspace_id, operation_id: input.operation_id, revision: input.revision, operation },
@@ -151,12 +153,12 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
     }, browsing),
     bindOwnerPluginAction(context, gitActions.selectDiff, async (input, beforeWrite) => {
       const sequence = ++selectionSequence;
-      if (!input || !["index", "worktree"].includes(String(input.side)) || typeof input.workspace_id !== "string") throw new Error("差异参数无效");
+      if (!input || !["index", "worktree"].includes(String(input.side)) || typeof input.workspace_id !== "string") throw gitErrors.invalid("差异参数无效");
       const path = parseFilePath(input.path);
       const { workspace: current, result } = await read({ kind: "diff", workspace_id: input.workspace_id, path, side: input.side as "index" | "worktree" });
       if (result.outcome !== "diff") return { result };
       await beforeWrite();
-      if (sequence !== selectionSequence) throw new Error("已切换到另一处差异");
+      if (sequence !== selectionSequence) throw gitErrors.invalid("已切换到另一处差异");
       const published = services.outputs!.publish({ port: "changeset", content: { kind: "inline", payload: {
         workspace: { workspace_id: current.workspace_id, name: current.name }, path,
         before_exists: result.before_exists, after_exists: result.after_exists, before: result.before, after: result.after,

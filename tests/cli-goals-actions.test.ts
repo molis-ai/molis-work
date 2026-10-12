@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { mock } from "node:test";
 
 import { MolisWorkLocalHost, molisWorkHostProjectReference, runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
@@ -54,16 +54,14 @@ async function setup() {
   const host = new WatchedHost({ homeDirectory: home, completeText: null });
   const databasePath = join(home, "cli", "project.db");
   const reference = molisWorkHostProjectReference({ databasePath, projectId: PROJECT });
-  const lines: string[] = [];
   /** Runs one command and returns what it printed, as JSON. */
-  const cli = async (operation: string, input: object = { project_id: PROJECT }, ...extra: string[]): Promise<any> => {
-    const original = console.log;
-    lines.length = 0;
-    console.log = (...values: unknown[]) => { lines.push(values.map(String).join(" ")); };
+  const cli = async <Printed = unknown>(operation: string, input: object = { project_id: PROJECT }, ...extra: string[]): Promise<Printed> => {
+    const lines: string[] = [];
+    const printing = mock.method(console, "log", (...values: unknown[]) => { lines.push(values.map(String).join(" ")); });
     try {
       assert.equal(await runV1Cli([operation, "--db", databasePath, "--json", JSON.stringify(input), ...extra], { localHost: host }), 0);
-      return JSON.parse(lines.at(-1)!);
-    } finally { console.log = original; }
+      return JSON.parse(lines.at(-1)!) as Printed;
+    } finally { printing.mock.restore(); }
   };
   const person = managementGoals(host.actionClient(reference, false), PROJECT);
   return { home, host, reference, cli, person, calls: watchCalls(host),
@@ -73,6 +71,8 @@ async function setup() {
 const proposal = (key: string) => ({ project_id: PROJECT, root_goal_id: "root", summary: "新增一个子目标", idempotency_key: key,
   items: [{ item_id: "child", kind: "goal", operation: "create", payload: { goal_id: "child", title: "子目标", outcome: "结果" },
     source_refs: ["conversation://cli"], reason: "需要", confidence: 1, affected_objects: [{ object_type: "goal", object_id: "child" }] }] });
+interface Proposed { proposal: { proposal_id: string } }
+interface Listed { proposals: Array<{ decisions: Array<{ actor_id: string; authority_source: string; conversation_ref: string; message_ref: string }> }> }
 const evidence = { conversation_ref: "conversation://cli", message_ref: "message://confirm" };
 
 test("each CLI command is one Goals action call as the person on this machine: one row, its own call number, no typed capability beside it", async () => {
@@ -91,8 +91,8 @@ test("each CLI command is one Goals action call as the person on this machine: o
     await person.invoke(goalsActions.create, { goal_id: "root", title: "根目标", outcome: "可以由命令行继续", idempotency_key: "root" });
     await run("snapshot", goalsActions.snapshot.capability_id);
     await run("active-goal", goalsActions.active.capability_id, { project_id: PROJECT, goal_id: "root", reason: "当前工作", idempotency_key: "active" });
-    const proposed = await run("goal-tree-propose", goalsActions.treeSubmit.capability_id, proposal("propose"));
-    const proposalId = proposed.proposal.proposal_id as string;
+    const proposed = await run("goal-tree-propose", goalsActions.treeSubmit.capability_id, proposal("propose")) as Proposed;
+    const proposalId = proposed.proposal.proposal_id;
     await run("goal-tree-read", goalsActions.treeRead.capability_id, { project_id: PROJECT, proposal_id: proposalId });
     await run("goal-tree-check", goalsActions.treeCheck.capability_id, { project_id: PROJECT, proposal_id: proposalId, idempotency_key: "check" });
     await run("goal-tree-decide", goalsActions.treeDecide.capability_id, { project_id: PROJECT, proposal_id: proposalId, decisions: [{ item_id: "child", decision: "confirm" }],
@@ -130,30 +130,30 @@ test("the CLI acts as the caller the management test helper builds, and keeps th
     await cli("active-goal", { project_id: PROJECT, goal_id: "root", reason: "当前工作", idempotency_key: "active" });
     assert.deepEqual(host.managed(goalsActions.active.capability_id).map(pick), [pick(managementCaller(PROJECT, "active"))], "active-goal: as the helper");
 
-    const proposed = await cli("goal-tree-propose", proposal("propose"));
-    const proposalId = proposed.proposal.proposal_id as string;
+    const proposed = await cli<Proposed>("goal-tree-propose", proposal("propose"));
+    const proposalId = proposed.proposal.proposal_id;
     host.callers.length = 0;
     await cli("goal-tree-decide", { project_id: PROJECT, proposal_id: proposalId, reason: "确认", idempotency_key: "decide",
       confirm_all_pending: true, authority: { ...evidence, whole_confirmation_prompted: true, prompted_proposal_id: proposalId } });
     assert.deepEqual(host.managed(goalsActions.treeDecide.capability_id).map(caller => pick(caller).user_action), [{ source: "management", ...evidence,
       whole_confirmation_prompted: true, prompted_subject_id: proposalId }], "a decision points at the conversation it came from, and says the whole proposal was shown");
 
-    const [decided] = (await cli("goal-tree-read", { project_id: PROJECT, proposal_id: proposalId })).proposals[0].decisions;
-    assert.deepEqual([decided.actor_id, decided.authority_source, decided.conversation_ref, decided.message_ref], [LOCAL_PERSON_ACTOR_ID, "management", evidence.conversation_ref, evidence.message_ref]);
+    const [decided] = (await cli<Listed>("goal-tree-read", { project_id: PROJECT, proposal_id: proposalId })).proposals[0]!.decisions;
+    assert.deepEqual([decided!.actor_id, decided!.authority_source, decided!.conversation_ref, decided!.message_ref], [LOCAL_PERSON_ACTOR_ID, "management", evidence.conversation_ref, evidence.message_ref]);
 
     // Without evidence the decision points at the management entry itself, in the format it has always recorded.
-    const second = (await cli("goal-tree-propose", { ...proposal("propose-2"), items: [{ ...proposal("x").items[0], item_id: "other", payload: { goal_id: "other", title: "另一个", outcome: "结果" },
-      affected_objects: [{ object_type: "goal", object_id: "other" }] }] })).proposal.proposal_id as string;
+    const second = (await cli<Proposed>("goal-tree-propose", { ...proposal("propose-2"), items: [{ ...proposal("x").items[0], item_id: "other", payload: { goal_id: "other", title: "另一个", outcome: "结果" },
+      affected_objects: [{ object_type: "goal", object_id: "other" }] }] })).proposal.proposal_id;
     await cli("goal-tree-decide", { project_id: PROJECT, proposal_id: second, decisions: [{ item_id: "other", decision: "confirm" }], reason: "确认", idempotency_key: "decide-2" });
-    const [stored] = (await cli("goal-tree-read", { project_id: PROJECT, proposal_id: second })).proposals[0].decisions;
-    assert.deepEqual([stored.actor_id, stored.authority_source, stored.conversation_ref, stored.message_ref], [LOCAL_PERSON_ACTOR_ID, "management", `management:${PROJECT}`, "management-tree-decision:decide-2"]);
+    const [stored] = (await cli<Listed>("goal-tree-read", { project_id: PROJECT, proposal_id: second })).proposals[0]!.decisions;
+    assert.deepEqual([stored!.actor_id, stored!.authority_source, stored!.conversation_ref, stored!.message_ref], [LOCAL_PERSON_ACTOR_ID, "management", `management:${PROJECT}`, "management-tree-decision:decide-2"]);
   } finally { await done(); }
 });
 
 test("the CLI keeps its wire: the payload's project must be the bound one, init picks its fields, and identity is refused with the same codes", async () => {
   const { cli, person, done } = await setup();
   try {
-    const first = await cli("init", { project_id: PROJECT, title: "命令行", idempotency_key: "init", actor_id: "someone-else", extra: "ignored" });
+    const first = await cli<{ project_id: string }>("init", { project_id: PROJECT, title: "命令行", idempotency_key: "init", actor_id: "someone-else", extra: "ignored" });
     assert.equal(first.project_id, PROJECT);
     await person.invoke(goalsActions.create, { goal_id: "root", title: "根目标", outcome: "可以由命令行继续", idempotency_key: "root" });
     const before = await cli("snapshot");
@@ -167,8 +167,8 @@ test("the CLI keeps its wire: the payload's project must be the bound one, init 
     }
     assert.deepEqual(await cli("snapshot"), before, "a refused command writes nothing");
 
-    const proposed = await cli("goal-tree-propose", proposal("propose"));
-    const proposalId = proposed.proposal.proposal_id as string;
+    const proposed = await cli<Proposed>("goal-tree-propose", proposal("propose"));
+    const proposalId = proposed.proposal.proposal_id;
     for (const identity of [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { submitted_session_id: "forged-session" }, { unknown_field: 1 }]) {
       await assert.rejects(cli("goal-tree-propose", { ...proposal("forged"), ...identity }), { code: "actions.input_invalid" }, `propose refuses ${Object.keys(identity)}`);
       await assert.rejects(cli("goal-tree-read", { project_id: PROJECT, ...identity }), { code: "actions.input_invalid" }, `read refuses ${Object.keys(identity)}`);
@@ -181,6 +181,6 @@ test("the CLI keeps its wire: the payload's project must be the bound one, init 
     for (const named of [{ actor_id: "someone-else" }, { authority_source: "web" }, { actor_kind: "runtime" }]) {
       await assert.rejects(cli("goal-tree-decide", { ...decide, authority: { ...evidence, ...named } }), { code: "goal_tree_proposal.authority_source_invalid" }, `decide refuses ${Object.keys(named)} in the authority`);
     }
-    assert.deepEqual((await cli("goal-tree-read", { project_id: PROJECT, proposal_id: proposalId })).proposals[0].decisions, [], "nothing was decided");
+    assert.deepEqual((await cli<Listed>("goal-tree-read", { project_id: PROJECT, proposal_id: proposalId })).proposals[0]!.decisions, [], "nothing was decided");
   } finally { await done(); }
 });

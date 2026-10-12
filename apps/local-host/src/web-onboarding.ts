@@ -2,7 +2,8 @@ import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-co
 import { createContextOnboardingHttp } from "./web-context-onboarding.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { bindGoalsWebActions } from "./goals-actions.js";
 import { onboardingPlanningHint } from "@molis-ai/molis-work-app-workbench";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { molisWorkOnboardingStatus, dismissMolisWorkOnboarding, completeMolisWorkOnboarding } from "./onboarding.js";
@@ -76,17 +77,14 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
           });
           const projectPath = `/projects/${encodeURIComponent(project.project_id)}/`;
           partialProjectPath = projectPath;
-          const hostClient = localHost.client(molisWorkHostProjectReference({
-            databasePath: project.database_path,
-            projectId: project.project_id,
-          }));
+          const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
           const title = input.outcome
             .replace(/^我想(?:要)?\s*/u, "")
             .replace(/\s+/gu, " ")
             .trim()
             .slice(0, 120) || input.projectName;
-          const createdGoal = (await hostClient.invoke(createGoalIntentCapability, {
-            project_id: project.project_id,
+          // The Web person's Goals call, behind this route's origin, control-token and key checks; it starts none of the project's plugins.
+          const createdGoal = (await bindGoalsWebActions(localHost.actionClient(reference, false), reference).invoke(goalsActions.create, {
             title,
             outcome: input.outcome,
             why: "把第一次表达的目标保存为可继续澄清的共同事实",

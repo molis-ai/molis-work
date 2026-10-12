@@ -2,23 +2,25 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  DIFF_STEP_BUDGET,
   UnifiedDiffError,
-  alignSplitRows,
   compareChangeSet,
   compareRunChangeSet,
   compareSnapshots,
-  compareTexts,
   countChangedLines,
   diffManifest,
   parseUnifiedDiff,
-  reconstructSides,
   emptyDiff,
   recoveryMessage,
   renderDiff,
+} from "@molis-ai/molis-work-plugin-diff";
+import {
+  DIFF_STEP_BUDGET,
+  alignSplitRows,
+  compareTexts,
+  reconstructSides,
   splitLines,
   textDiffRow,
-} from "@molis-ai/molis-work-plugin-diff";
+} from "@molis-ai/molis-work-plugin-sdk";
 
 const WS = { workspace_id: "ws-1", name: "项目" };
 

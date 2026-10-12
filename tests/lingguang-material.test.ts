@@ -44,7 +44,9 @@ test("reading a file streams its progress and text; nothing is kept until the pe
   assert.deepEqual(readdirSync(join(f.home, "lingguang")).filter(name => !name.startsWith("lingguang.db")), []);
   assert.equal(existsSync(join(f.home, "jelly", "imports")), false);
   const refused = (await lines(await post(f.base, "/api/lingguang/material?stream=1", { file_name: "bad.exe", data_base64: "AA==" }))).at(-1)!;
-  assert.equal(refused.type, "error"); assert.equal(refused.status, 400, "a file type nobody reads is a request that cannot be done: 415 has no kind"); assert.equal(refused.code, "jelly.material.unsupported");
+  // The error event is written by the SDK from the failure's kind. The file reader's refusals have kinds since W3-02-F: 415 misdescribes who failed and has none, so a
+  // file type nobody reads is a request the person can change (400), and its code stays.
+  assert.equal(refused.type, "error"); assert.equal(refused.status, 400); assert.equal(refused.code, "jelly.material.unsupported");
   // Without streaming the same action answers as plain JSON; a reading route is not mistaken for a spark id.
   const plain = await post(f.base, "/api/lingguang/material", { file_name: "短.md", data_base64: Buffer.from("# 标题\n正文").toString("base64") });
   assert.equal(plain.status, 200); assert.match((await plain.json() as { text: string }).text, /正文/);

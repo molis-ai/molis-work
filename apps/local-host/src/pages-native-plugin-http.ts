@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { PagesPluginRouteTable, createPagesRouteHandlers, pagesRouteErrorResponse,
+import { PagesPluginRouteTable, createPagesRouteHandlers,
   type PagesRoutePorts, type PagesPluginRouteRequest } from "@molis-ai/molis-work-plugin-pages";
-import { dispatchNativePluginJsonHttp, writeNativePluginJsonResponse } from "./native-plugin-http.js";
+import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { withRewrittenPluginApi } from "./native-plugin-api.js";
 
 export async function handlePagesNativePluginHttp(request: IncomingMessage, response: ServerResponse, url: URL,
@@ -14,9 +14,5 @@ export async function handlePagesNativePluginHttp(request: IncomingMessage, resp
       const bound = typeof ports === "function" ? await ports(input) : ports;
       return new PagesPluginRouteTable(createPagesRouteHandlers(bound)).handle(input);
     },
-    mapError: pagesRouteErrorResponse,
-  }).catch((error: unknown) => {
-    writeNativePluginJsonResponse(response, pagesRouteErrorResponse(error));
-    return true;
   });
 }

@@ -11,19 +11,12 @@ import type { FragmentApply, FragmentGranularity, FragmentIntent, FragmentTarget
  * `null` (nothing in hand). The row watches that element: once it is out of sight, what was in hand there is void.
  */
 export const SURFACE_FOCUS_EVENT = "molis:surface-focus";
-/** Agreed with the bar owner (spec §6.3): the Host's ranked actions for the current context (document event, `{ context_id, plan }`). */
-export const CONTEXT_ACTIONS_EVENT = "molis:assistant-context-actions";
 /**
  * Window event, cancelable: the person chose `key` for `context_id`. The surface that owns the context takes it by
  * calling `preventDefault()`, then `prepare()` for the provider's complete input, and shows a preview before writing.
  * Nobody taking it means no page here can run it; the Assistant then gets the words and the material, unsent.
  */
 export const CONTEXT_ACTION_CHOSEN_EVENT = "molis:assistant-context-action-chosen";
-/**
- * Document event from a surface that shows the same plan in its own menu (Pages' writing menu): `{ context_id, key }`.
- * The row handles it exactly as a click on itself — signals, cards, and handing the choice back to the page.
- */
-export const CONTEXT_ACTION_CHOOSE_EVENT = "molis:assistant-context-action-choose";
 
 /** `detail` of `CONTEXT_ACTION_CHOSEN_EVENT`. */
 export interface ContextActionChosen {

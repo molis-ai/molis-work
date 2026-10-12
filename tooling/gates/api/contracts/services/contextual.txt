@@ -11,10 +11,6 @@ export declare const CONTEXTUAL_DRAFT_LIMITS: {
     readonly kept: 10000;
 };
 
-export declare const CONTEXT_ACTIONS_EVENT = "molis:assistant-context-actions";
-
-export declare const CONTEXT_ACTION_CHOOSE_EVENT = "molis:assistant-context-action-choose";
-
 export declare const CONTEXT_ACTION_CHOSEN_EVENT = "molis:assistant-context-action-chosen";
 
 export declare const CONTEXT_TOOL_LIMITS: {

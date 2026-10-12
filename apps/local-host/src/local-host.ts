@@ -10,7 +10,9 @@ import type {
   LocalHostProjectReference,
   LocalHostStatus,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionService, CapabilityRegistry, judgmentRecommendationKeys, subjectOfferChoices, subjectOfferCompatibilityReason } from "@molis-ai/molis-work-kernel";
+import { ActionService, CapabilityRegistry, bindCall, judgmentRecommendationKeys, markStarted, refuseCall, subjectOfferChoices, subjectOfferCompatibilityReason,
+  type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "@molis-ai/molis-work-kernel";
+import { settleTyped } from "./typed-call-settlement.js";
 import { sceneConfigurationActions, ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
   type ActionRegistryPort, type ActionProviderRegistration, type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -32,9 +34,8 @@ export interface LocalHostOptions<Runtime> {
   actionAvailability?: ActionAvailabilityPolicy;
   /** A provider was registered or withdrawn, with the project it was bound to. Observers must not throw. */
   actionProvidersChanged?(provider: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider): void;
-  /** Every action handler that ran, with its caller and outcome; never its input or result. */
-  actionSettled?(caller: ActionCallContext, action: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference & { operation: string; title: string; provider_title: string },
-    outcome: { ok: true } | { ok: false; code?: string; message: string }): void;
+  /** Every call, once, as it ended (a handler's result or failure, or a refusal before any handler), with its caller and the operation's call id; never its input or result. */
+  actionSettled?(caller: CallContext, action: CallDescription, outcome: CallOutcome): void;
 }
 
 /** How long one queued project operation may hold everything else of the project before the log names it. */
@@ -81,6 +82,7 @@ function normalizeReference(reference: LocalHostProjectReference): LocalHostProj
  */
 function snapshotCaller(caller: ActionCallContext): ActionCallContext {
   return { ...caller, permissions: [...caller.permissions],
+    ...(caller.page_context ? { page_context: { ...caller.page_context } } : {}),
     ...(caller.user_action ? { user_action: { ...caller.user_action } } : {}),
     ...(caller.allowed_capability_ids ? { allowed_capability_ids: [...caller.allowed_capability_ids] } : {}),
     ...(caller.allowed_actions ? { allowed_actions: caller.allowed_actions.map(ref => ({ ...ref })) } : {}),
@@ -93,6 +95,7 @@ export const HOST_PROVIDER_ID = "platform";
 export class LocalHost<Runtime> {
   readonly instanceId: string;
   readonly capabilities = new CapabilityRegistry<ActionCallContext>();
+  private readonly settled: CallSettled = (caller, action, outcome) => this.options.actionSettled?.(caller, action, outcome);
   private readonly actionService = new ActionService(this.capabilities, { beforeEffect: async (caller, reference) => {
     const assertActive = () => {
       if (this.state !== "running" || this.executionScope.getStore()?.entry.state === "closing") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
@@ -100,7 +103,7 @@ export class LocalHost<Runtime> {
     assertActive();
     await this.checkActionAvailability(caller, reference);
     assertActive();
-  }, settled: (caller, action, outcome) => this.options.actionSettled?.(caller, action, outcome) });
+  }, admit: (caller, reference) => this.checkActionAvailability(caller, reference), settled: this.settled });
   private readonly invocationRuntimes = new WeakMap<ActionCallContext, Runtime>();
   /** Callers that reached a Host capability through a plugin SDK adapter; restricted independently of the action audience. */
   private readonly pluginCapabilityCallers = new WeakSet<ActionCallContext>();
@@ -124,8 +127,9 @@ export class LocalHost<Runtime> {
     const invoke = (caller: ActionCallContext, input: Input) => {
       if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
       const token = this.capabilities.registrationToken(definition);
+      markStarted(caller);
       return handler(this.invocationRuntimes.get(caller)!, input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin } : {}),
-        ...(this.pluginCapabilityCallers.has(caller) ? { consumer: "plugin" as const } : {}), beforeEffect: async () => {
+        ...(this.pluginCapabilityCallers.has(caller) ? { consumer: "plugin" as const } : {}), call_id: caller.call_id, beforeEffect: async () => {
         caller.signal?.throwIfAborted();
         if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
         await caller.validate_authority?.({ ...definition, provider_id: definition.action_provider?.provider_id ?? HOST_PROVIDER_ID });
@@ -145,7 +149,7 @@ export class LocalHost<Runtime> {
         // bound to this Host's active project scope, rather than the caller object's identity.
         const scope = this.executionScope.getStore();
         if (!scope?.active || scope.entry.reference.project_id !== caller.project_id) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
-        return handler(scope.runtime, input as Input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin, consumer: "plugin" as const } : {}), beforeEffect: caller.beforeEffect });
+        return handler(scope.runtime, input as Input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin, consumer: "plugin" as const } : {}), call_id: caller.call_id, beforeEffect: caller.beforeEffect });
       } }],
     });
     const hostOnly = definition.host_only === true;
@@ -206,10 +210,7 @@ export class LocalHost<Runtime> {
       invoke: async (caller, capability, input) => {
         const context = contextFor(caller);
         const descriptor = this.capabilities.descriptor(capability);
-        return this.homeLine.run(async () => {
-          await this.checkActionAvailability(context, capability);
-          return this.actionService.invoke(context, capability, input);
-        }, descriptor?.action?.scheduling === "concurrent" ? "concurrent" : step ? "step" : "serial");
+        return this.homeLine.run(() => this.actionService.invoke(context, capability, input), descriptor?.action?.scheduling === "concurrent" ? "concurrent" : step ? "step" : "serial");
       },
     };
   }
@@ -337,8 +338,7 @@ export class LocalHost<Runtime> {
         if (action.action.required_scene) throw new ActionError("actions.async_required", "消费场景绑定需要异步检查");
         for (const dependency of action.action.required_actions ?? []) check(dependency, new Set(ancestors).add(key));
       };
-      check(capability);
-      return this.actionService.invokeSync(bound, capability, input);
+      return this.actionService.invokeSync(bound, capability, input, () => check(capability));
     } };
   }
 
@@ -360,7 +360,7 @@ export class LocalHost<Runtime> {
         const bound = callerFor(caller);
         await this.withRuntime(project, () => undefined);
         const descriptor = this.capabilities.descriptor(capability, bound.project_id);
-        if (!descriptor) return Promise.reject(new ActionError("actions.missing", "能力未注册或版本已失效"));
+        if (!descriptor) return refuseCall(this.settled, bound, capability, new ActionError("actions.missing", "能力未注册或版本已失效"));
         return this.enqueue(project, descriptor, bound, () => this.actionService.invoke(bound, capability, input), step);
       },
     };
@@ -403,15 +403,18 @@ export class LocalHost<Runtime> {
     plugin?.assertActive();
     // A plugin reaches an action through this port as the plugin audience, as it would through the action client: an action
     // not offered to plugins stays out of its reach.
-    const caller: ActionCallContext = { actor_id: plugin?.actor_id ?? "local-host", project_id: reference.project_id, audience: plugin ? "plugin" : "user", permissions: [],
+    const caller = bindCall({ actor_id: plugin?.actor_id ?? "local-host", project_id: reference.project_id, audience: plugin ? "plugin" : "user", permissions: [],
       ...(options?.signal ? { signal: options.signal } : {}),
       ...(plugin ? { host_plugin: plugin, plugin_install_id: plugin.install_id } : {}),
-      ...(beforeEffect ? { validate_authority: () => beforeEffect() } : {}) };
+      ...(beforeEffect ? { validate_authority: () => beforeEffect() } : {}) });
     if (options?.consumer === "plugin") this.pluginCapabilityCallers.add(caller);
     // A typed identity may omit the activation scope; only the bound Host supplies it.
     const registered = this.capabilities.descriptor(capability, reference.project_id);
     const scoped = { ...capability, action_provider: registered?.action_provider };
-    return this.enqueue(reference, scoped, caller, () => this.capabilities.invoke<Input, Output>(caller, scoped, input));
+    // An action is called as the action service calls it (host policy, authority, contract, one settlement); an entry with no action is settled here.
+    return this.enqueue(reference, scoped, caller, registered?.action && registered.operation === capability.operation
+      ? () => this.actionService.invoke(caller, { capability_id: capability.capability_id, version: capability.version }, input) as Promise<Output>
+      : () => settleTyped(this.settled, caller, scoped, () => this.capabilities.invoke<Input, Output>(caller, scoped, input)));
   }
 
   private async discoverActions(caller: ActionCallContext): Promise<ActionView[]> {
@@ -497,7 +500,6 @@ export class LocalHost<Runtime> {
       return this.executionScope.run(scope, async () => {
         this.invocationRuntimes.set(caller, runtime);
         try {
-          await this.checkActionAvailability(caller, capability);
           return await execute();
         }
         finally { this.invocationRuntimes.delete(caller); scope.active = false; }

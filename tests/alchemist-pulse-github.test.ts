@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
+import { existsSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
 import { MolisWorkLocalHost, alchemistPulseGithub, molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -12,9 +13,13 @@ import { alchemistFixture, controlledAlchemistAi } from "./fixtures/alchemist-ac
 // W2-18 decision 7: the market pulse's GitHub source uses a Settings GitHub connection the person bound to it, and
 // searches anonymously when none is bound. The plugin never receives the token: the Host adds the header.
 
-async function home(t: test.TestContext) {
+// Keep each Home until all per-test Host shutdown hooks have finished writing lifecycle state.
+const scratchDirectories: string[] = [];
+after(async () => { for (const directory of scratchDirectories) await rm(directory, { recursive: true, force: true }); });
+
+async function home() {
   const directory = await mkdtemp(join(tmpdir(), "alchemist-pulse-github-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
+  scratchDirectories.push(directory);
   return directory;
 }
 function environment(t: test.TestContext, values: Record<string, string>) {
@@ -37,7 +42,7 @@ function recordNetwork(t: test.TestContext) {
 const GITHUB_SEARCH = "https://api.github.com/search/repositories?q=AI";
 
 test("nothing is bound: the pulse sends no credential, whatever GitHub accounts the Home has and whatever the environment says", async t => {
-  const directory = await home(t);
+  const directory = await home();
   environment(t, { GITHUB_TOKEN: "environment-token", MOLIS_WORK_GITHUB_TOKEN: "other-environment-token" });
   connect(directory, "for-coding-or-feed", "coding-feed-token");
   withConnectorConnections(directory, store => store.createToken({ serviceId: "github", displayName: "GitHub · device", token: "device-token", accountLabel: "device", authMethod: "oauth" }));
@@ -51,7 +56,7 @@ test("nothing is bound: the pulse sends no credential, whatever GitHub accounts 
 });
 
 test("a bound account lends its token to api.github.com and to nothing else, and a renewed, replaced or disconnected token applies to the next request", async t => {
-  const directory = await home(t);
+  const directory = await home();
   const first = connect(directory, "first", "first-token");
   const second = connect(directory, "second", "second-token", "oauth");
   const sent = recordNetwork(t);
@@ -86,7 +91,7 @@ test("a bound account lends its token to api.github.com and to nothing else, and
 });
 
 test("the picker lists only token and OAuth GitHub accounts with their state, never a credential, and refuses anything the Host cannot send a token for", async t => {
-  const directory = await home(t);
+  const directory = await home();
   const usable = connect(directory, "usable", "usable-token-value");
   const gone = connect(directory, "gone", "gone-token-value", "oauth");
   const other = withConnectorConnections(directory, store => {
@@ -118,7 +123,7 @@ test("the picker lists only token and OAuth GitHub accounts with their state, ne
 });
 
 test("choosing the account is the person's: an agent or MCP caller cannot, and the plugin alone (no Host port) has no accounts to choose", async t => {
-  const directory = await home(t);
+  const directory = await home();
   const f = alchemistFixture(directory);
   t.after(() => f.close());
   assert.deepEqual(await f.bound.invoke(a.pulseGithub, {}), { accounts: [], selectedConnectionId: null });
@@ -130,8 +135,49 @@ test("choosing the account is the person's: an agent or MCP caller cannot, and t
   await assert.rejects(f.service.invoke({ ...f.caller, permissions: ["alchemist:read"] }, a.pulseGithubSelect, { connectionId: null }), { code: "actions.forbidden" });
 });
 
+// The account is chosen once for the Home: it is a binding in the connection registry under the Home scope, like Images' and
+// TypeSafe's, so the actions that read and write it are declared at Home scope and are served without opening any project's studio.
+test("choosing the pulse's GitHub account is declared as a Home-level choice, with its own permissions", () => {
+  for (const action of [a.pulseGithub, a.pulseGithubSelect]) {
+    assert.equal(action.action.scope, "home", `${action.capability_id} reaches every project of the Home`);
+    assert.deepEqual(action.action.audiences, ["user"]);
+  }
+  assert.deepEqual(a.pulseGithub.action.permissions, ["alchemist:connections:read"]);
+  assert.deepEqual(a.pulseGithubSelect.action.permissions, ["alchemist:connections:write"]);
+  for (const action of [a.pulseSources, a.pulseSourceUpdate, a.pulseReports, a.pulseStart]) assert.equal(action.action.scope, "project", `${action.capability_id} stays with the project's own signals`);
+});
+
+test("the choice is one binding for the Home: made from one project it is what every project, and the Home itself, reads; no studio is opened for it", async t => {
+  const directory = await home();
+  const host = new MolisWorkLocalHost({ homeDirectory: directory });
+  t.after(() => host.close());
+  const account = connect(directory, "octo", "home-wide-token");
+  const refs = ["project-a", "project-b"].map(id => molisWorkHostProjectReference({ databasePath: join(directory, `${id}.sqlite`), projectId: id }));
+  const person = (project_id: string | null, permissions: readonly string[] = ALCHEMIST_ACTION_PERMISSIONS): ActionCallContext =>
+    ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id, audience: "user", permissions: [...permissions] });
+  const inProject = (index: number) => bindActionClient(host.actionClient(refs[index]!), () => person(refs[index]!.project_id));
+  const atHome = bindActionClient(host.homeActionClient(), () => person(null));
+
+  assert.deepEqual(await atHome.invoke(a.pulseGithub, {}), { accounts: [{ connectionId: account.connection_id, displayName: "GitHub · octo", accountLabel: "octo", state: "connected" }], selectedConnectionId: null },
+    "the Home reads the accounts without a project");
+  assert.deepEqual(await atHome.invoke(a.pulseGithubSelect, { connectionId: account.connection_id }), { selectedConnectionId: account.connection_id });
+  assert.equal(withConnectorConnections(directory, store => store.binding("home", "alchemist", "pulse-github"))?.connection_id, account.connection_id, "the binding is in the Home scope");
+  for (const index of [0, 1]) assert.equal((await inProject(index).invoke(a.pulseGithub, {})).selectedConnectionId, account.connection_id, `project ${index} sees the Home's choice`);
+  assert.deepEqual(await inProject(1).invoke(a.pulseGithubSelect, { connectionId: null }), { selectedConnectionId: null });
+  for (const client of [atHome, inProject(0)]) assert.equal((await client.invoke(a.pulseGithub, {})).selectedConnectionId, null, "a choice made in one project is the choice everywhere");
+  assert.equal(existsSync(join(directory, "alchemist")), false, "reading and choosing the account opened no project's studio");
+
+  // Its permissions are its own: reading and writing a project's research does not let a caller change the Home's credential choice.
+  const projectOnly = bindActionClient(host.actionClient(refs[0]!), () => person(refs[0]!.project_id, ["alchemist:read", "alchemist:write", "alchemist:generate", "alchemist:collect"]));
+  await assert.rejects(projectOnly.invoke(a.pulseGithub, {}), { code: "actions.forbidden" });
+  await assert.rejects(projectOnly.invoke(a.pulseGithubSelect, { connectionId: null }), { code: "actions.forbidden" });
+  const reader = bindActionClient(host.homeActionClient(), () => person(null, ["alchemist:connections:read"]));
+  assert.equal((await reader.invoke(a.pulseGithub, {})).selectedConnectionId, null);
+  await assert.rejects(reader.invoke(a.pulseGithubSelect, { connectionId: account.connection_id }), { code: "actions.forbidden" });
+});
+
 test("a live market pulse: the person picks the account through the actions, the Host adds its token on the way to api.github.com, and the plugin never sees it", { timeout: 90_000 }, async t => {
-  const directory = await home(t);
+  const directory = await home();
   environment(t, { GITHUB_TOKEN: "environment-token" });
   const { ai } = controlledAlchemistAi();
   const ref = molisWorkHostProjectReference({ databasePath: join(directory, "project.sqlite"), projectId: "project-a" });

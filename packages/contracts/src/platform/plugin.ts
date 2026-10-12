@@ -30,14 +30,15 @@ import type {
 } from "./plugin-wiring.js";
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
 
-export { parsePluginManifest, PluginManifestError, canonicalPluginId, comparePluginVersions, SURFACE_BROWSER_PERMISSION } from "./plugin-manifest.js";
-import { SURFACE_BROWSER_PERMISSION } from "./plugin-manifest.js";
+/** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
+export const SURFACE_BROWSER_PERMISSION = "surface:browser";
 export type { PluginArtifactClient, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput } from "./plugin-artifacts.js";
 export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner } from "./plugin-package.js";
 export * from "./plugin-events.js";
 export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
 export * from "./actions.js";
+export * from "./plugin-database.js";
 
 /** Opaque, personal installation data. The author owns serialization, not storage paths or SQL. */
 export interface PluginPrivateStorage {
@@ -74,7 +75,10 @@ export interface PluginHostServices {
   readonly actions?: import("./actions.js").BoundActionClient;
   /** Present only when the Manifest declares private storage. Actual grant is checked on each operation. */
   readonly storage?: PluginPrivateStorage;
-  readonly artifacts: PluginArtifactClient;
+  /** Plugin-owned SQLite, only for trusted Host entries declaring a database. */
+  readonly database?: import("./plugin-database.js").PluginDatabase;
+  /** Project artifact services are absent from Home activations. */
+  readonly artifacts?: PluginArtifactClient;
   /** Present when the Manifest declares `process_items.produces`. */
   readonly processItems?: PluginProcessItemClient;
   readonly ui: PluginUiClient;
@@ -289,7 +293,7 @@ export interface PluginRouteRequest {
   execution?: PluginExecutionControl;
 }
 
-export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect">;
+export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context">;
 
 export interface PluginRouteResponse {
   status: number;
@@ -339,6 +343,8 @@ export type PluginContribution = PluginIntegrationContribution | PluginAppContri
 
 export interface PluginStartContext {
   install_id: string;
+  /** Trusted action identity; Home built-ins use plugin_id, project installs use install_id. */
+  readonly provider_id?: string;
   plugin_id: string;
   /** Executing implementation version; a compatible implementation may be newer than the persisted install. */
   version: string;
@@ -358,7 +364,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

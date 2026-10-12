@@ -111,6 +111,8 @@ before(() => {
   workspacePackage("packages/kernel", "@molis-ai/molis-work-kernel", [run("tests/kernel-readme.test.ts")]);
   workspacePackage("packages/contracts", "@molis-ai/molis-work-contracts", [run("tests/contracts-readme.test.ts")], { "./platform/plugin": { types: "./dist/platform/plugin.d.ts", import: "./dist/platform/plugin.js" } });
   put("packages/contracts/src/platform/plugin.ts", `export interface PluginContract { id: string }\n`);
+  workspacePackage("packages/plugin-sdk", "@molis-ai/molis-work-plugin-sdk", [run("tests/sdk-readme.test.ts")]);
+  put("packages/plugin-sdk/src/execution-lifetime.ts", `export function createLifetime() { return 1; }\n`);
   workspacePackage("packages/storage", "@molis-ai/molis-work-storage", [run("tests/storage-readme.test.ts")]);
   workspacePackage("modules/goals", "@molis-ai/molis-work-module-goals", [run("tests/goals-readme.test.ts")]);
   workspacePackage("apps/local-host", "@molis-ai/molis-work-app-local-host", [run("tests/host-readme.test.ts")]);
@@ -118,7 +120,7 @@ before(() => {
   put("apps/local-host/src/quiet.ts", `export function quietHelper() { return 2; }\n`);
   put("scripts/run-tests.mjs", `import { writeFileSync } from "node:fs";\nwriteFileSync(new URL("../ran.txt", import.meta.url), process.argv.slice(2).join("\\n"));\nprocess.exitCode = Number(process.env.FAKE_EXIT ?? 0);\n`);
   // Tests: each says what it reads, by import, by path, by name, or by a helper.
-  for (const name of ["alpha-readme", "nested-readme", "beta-readme", "gamma-readme", "delta-readme", "kernel-readme", "contracts-readme", "storage-readme", "goals-readme", "host-readme", "assistant-extra"]) put(`tests/${name}.test.ts`, `test("${name}", () => {});\n`);
+  for (const name of ["alpha-readme", "nested-readme", "beta-readme", "gamma-readme", "delta-readme", "kernel-readme", "contracts-readme", "sdk-readme", "storage-readme", "goals-readme", "host-readme", "assistant-extra"]) put(`tests/${name}.test.ts`, `test("${name}", () => {});\n`);
   put("tests/ui-flow.e2e.test.ts", `test("ui", () => {});\n`);
   put("tests/beta-ui.e2e.test.ts", `test("beta ui", () => {});\n`);
   put("plugins/native/beta/src/client.ts", `export const BETA_CLIENT = 1;\n`);
@@ -559,9 +561,10 @@ test("one plugin's source, a document, or two packages do not recommend the full
   assert.deepEqual(select(["plugins/native/alpha/README.md", "packages/contracts/README.md"]).full, [], "a README is not source");
 });
 
-test("shared core (contracts, kernel, a module) recommends the full suite", () => {
+test("shared core (contracts, kernel, plugin-sdk, a module) recommends the full suite", () => {
   assert.deepEqual(rulesOf(select(["packages/contracts/src/platform/plugin.ts"])), ["shared-core"]);
   assert.deepEqual(rulesOf(select(["packages/kernel/src/main.ts"])), ["shared-core"]);
+  assert.deepEqual(rulesOf(select(["packages/plugin-sdk/src/execution-lifetime.ts"])), ["shared-core"], "the SDK holds rules the Kernel and Plugin Runtime apply");
   assert.deepEqual(rulesOf(select(["modules/goals/src/main.ts"])), ["shared-core"]);
 });
 
@@ -1156,6 +1159,7 @@ test("in this repository, a change to a package selects every test its README li
 // The files whose change recommends the full suite as the assembly of local-host or the shell of the workbench, written out here so that
 // taking one off the list in rules.mjs fails this test (the rule's own list cannot check itself).
 const ASSEMBLY = [
+  "apps/local-host/src/home-plugins.ts", "apps/workbench/src/home-plugin-page.ts",
   "apps/local-host/src/project-host.ts", "apps/local-host/src/project-plugins.ts", "apps/local-host/src/local-host.ts", "apps/local-host/src/project-capabilities.ts",
   "apps/local-host/src/web-server.ts", "apps/local-host/src/web-request.ts", "apps/local-host/src/web-catalog.ts", "apps/local-host/src/mcp-server.ts",
   "apps/local-host/src/system-agent-service.ts", "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/workbench-renderer.ts",
@@ -1174,6 +1178,7 @@ test("in this repository: shared core recommends the full suite, a document alon
   const files = listFiles(realRoot), packages = discoverPackages(realRoot, files), index = buildTestIndex(realRoot, files, packages);
   assert.deepEqual(realAt("packages/contracts/src/platform/plugin.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("packages/kernel/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
+  assert.deepEqual(realAt("packages/plugin-sdk/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("apps/local-host/src/web-request.ts").full.map((entry: { rule: string }) => entry.rule), ["assembly"]);
   assert.deepEqual(realAt("docs/system/PARALLEL-DEVELOPMENT.md").full, []);
   assert.ok(index.tests.filter((entry: { kind: string }) => entry.kind === "browser").every((entry: { file: string; marks: string[] }) => entry.marks.includes("browser")));
@@ -1208,9 +1213,9 @@ test("every file a README table of local-host or workbench calls 装配 or 组�
 // client program scripts/client/plugin-workbench.ts was once credited to the workbench README, which names src/plugin-workbench.ts).
 /** The files a README names by file name, with the text of that README that names it (a link in a table, a code span in the prose, a link to the other package). */
 const NAMED_BY_README: { file: string; readme: string; text: string }[] = [
-  ...["project-host", "local-host", "project-capabilities", "web-server", "mcp-server", "system-agent-service", "goal-project-application"]
+  ...["project-host", "home-plugins", "local-host", "project-capabilities", "web-server", "mcp-server", "system-agent-service", "goal-project-application"]
     .map((name) => ({ file: `apps/local-host/src/${name}.ts`, readme: "apps/local-host", text: `[src/${name}.ts](src/${name}.ts)` })),
-  ...["ui-composition", "goals-page-renderer", "scripts/client/initialization", "browser-assets"]
+  ...["ui-composition", "goals-page-renderer", "home-plugin-page", "scripts/client/initialization", "browser-assets"]
     .map((name) => ({ file: `apps/workbench/src/${name}.ts`, readme: "apps/workbench", text: `[src/${name}.ts](src/${name}.ts)` })),
   ...["builtin-plugins", "plugin-catalog", "plugin-workbench"]
     .map((name) => ({ file: `apps/workbench/src/${name}.ts`, readme: "apps/workbench", text: `\`${name}.ts\`` })),
@@ -1250,7 +1255,7 @@ test("the assembly list is the README-named files, the hub-table files and the o
   assert.match(readFileSync(path.join(realRoot, "AGENTS.md"), "utf8"), /apps\/local-host\/src\/project-plugins\.ts/);
   // The account in section 6.1 and open point 1 of section 12 use these numbers.
   const named = NAMED_BY_README.length, hub = NOT_NAMED.hub.length, hosts = ASSEMBLY.filter((file) => file.startsWith("apps/local-host")).length;
-  assert.deepEqual([named, hub, NOT_NAMED.judgment.length, ASSEMBLY.length, hosts], [15, 7, 1, 23, 11]);
+  assert.deepEqual([named, hub, NOT_NAMED.judgment.length, ASSEMBLY.length, hosts], [17, 7, 1, 25, 12]);
   assert.ok(guide.includes(`共 ${ASSEMBLY.length} 个文件`), "section 6.1 gives the size of the list");
   assert.ok(guide.includes(`两个包 README 按文件名点到的 ${named} 个`), "section 6.1 gives the README-named count");
   assert.ok(guide.includes(`第 2 节枢纽表里把东西接在一起的 ${hub} 个`), "section 6.1 gives the hub-table count");

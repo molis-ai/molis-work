@@ -9,7 +9,7 @@ import test from "node:test";
 import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService,
-  createLocalFeedConnectorSync, createLocalFeedSourceScheduler, listFeedSourceCatalog, scheduleServiceFor, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
+  createLocalFeedConnectorSync, createLocalFeedSourceScheduler, listFeedSourceCatalog, scheduleServiceFor, projectActionAvailability, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
 import { createScheduleReminders, getScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -19,7 +19,6 @@ import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-c
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/src/functions-host.js";
-import { projectActionAvailability } from "../apps/local-host/src/project-action-availability.js";
 import { createWorkflowContentPorts } from "@molis-ai/molis-work-plugin-workflows";
 
 test("HTTP admission, ingestion, workflow and scheduler events use the saved Inbox scene without a second judgment path", { timeout: 25_000 }, async () => {

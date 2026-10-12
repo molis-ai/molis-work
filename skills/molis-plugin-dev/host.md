@@ -10,6 +10,14 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要加�
 
 包：`@molis-ai/molis-work-plugin-<id>`。`pnpm-workspace` 已含 `plugins/**`。还要登记依赖，否则 workbench / local-host 解析不到。
 
+### 个人 Home 插件
+
+个人数据跨项目一致、无项目也可用时，目录条目声明 `runtime: { scope: "home", create, package_name, factory_export, database? }`。Host 统一装配 Home Supervisor、安装授权、SQLite 与路由；不要在 `project-plugins.ts` 再启动它。实际例子是 `plugins/native/issues`；合同、关闭、取消与持久化约束见 [开发手册的 Home Runtime 部分](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。
+
+`personal: true` 不等于已经迁到 Home Runtime。业务库与 SQL 归插件，连接来自 `context.services.database`；写入必须 `transaction(caller.beforeEffect, tx => …)`，回调同步。Home 不提供项目 artifacts、端口和事件，不能用假项目补齐。provider ID 用插件 ID，安装记录和 generation 仍约束执行；MCP 保留自己的 caller，不伪装成 owner。
+
+下面的目录、资源、英文和公开包登记仍适用；第 3 步只给实际导入者登记依赖（Home 的可信工厂来自 Workbench 目录，不必给 Local Host 增加插件专属 import），第 6、7 步的项目监督器名单由 Home 声明和实际启动测试代替。第 8 步使用通用 Home 页面与运行实例 contribution；不再添加插件专属 Host 渲染函数。
+
 ### 必改（插件切换里能看见、点得动）
 
 1. **合同类型**（有私人记录时）：`packages/contracts/src/modules/<id>.ts`，并在 `packages/contracts/package.json` 加 `./modules/<id>` export。
@@ -174,7 +182,7 @@ Shelf 的 PDF 预览和 OCR 同样复用公共提取口。语言放在 `ocrLangu
 
 网页捕获使用 MaterialWebsiteReader，Host 负责受限网络与同一 HTML 提取，插件保留材料命名、链接和内容组织。传递 signal / beforeDispatch，每次跳转复核派出，返回后 beforeEffect，再同步校验原对象版本后写入；不要在更早的异步检查中校验完版本便视为永久有效。Shelf 与 Artifacts 是现有消费者。失败保留链接是业务选择，取消/撤权不能被 catch 后当普通失败保存。
 
-HTML 解析也通过既有 Host worker 生命周期执行，不能让主线程同步解析绕过网络超时。网页复用 Kernel 执行生命周期，把异步派出检查、网络和解析包含在同一取消/时限内；Artifacts 的异步 HTML 导入保留原文和自身容量合同，提交前再检查取消和权限。
+HTML 解析也通过既有 Host worker 生命周期执行，不能让主线程同步解析绕过网络超时。网页复用 SDK 的执行生命周期（`createExecutionLifetime`），把异步派出检查、网络和解析包含在同一取消/时限内；Artifacts 的异步 HTML 导入保留原文和自身容量合同，提交前再检查取消和权限。
 
 导入等待网络或 worker 的动作显式声明 concurrent。端口保留 ActionExecutionContext 的 beforeEffect，不能只把 actor / validate_authority 传下去再自己查启用状态；完整检查还包含注册世代、当前权限、宿主生命周期与取消。
 

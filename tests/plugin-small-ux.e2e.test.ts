@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -319,6 +319,53 @@ test("Pages: opening an imported document leaves the blank new document next to 
   await new Promise(resolve => setTimeout(resolve, 600));
   assert.deepEqual(titles(), [...before, "导入的笔记"].sort());
 });
+
+// A 「新建文档」 the person has starred, tied to a Goal or saved as a fixed version is not untouched any more, however empty the editor
+// looks: pages.discard is the undo of a create and the Host refuses it once the document is past the version its own saves left it at.
+async function blankDocumentGivenSomethingStays(t: TestContext, change: "star" | "goal" | "version") {
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
+  await click("[data-plugin-strip] [data-plugin-id=pages]");
+  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
+  const documents = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!); } finally { store.close(); } };
+  const known = new Set(documents().map(page => page.id));
+  // How the Host answered the page's discard: the page says nothing about a refused tidy-up, so this is where it shows.
+  await evaluate(`window.discardAnswers = []; { const realFetch = window.fetch;
+    window.fetch = (url, options) => { const answer = realFetch(url, options);
+      if (String(url).includes('/discard')) answer.then(response => window.discardAnswers.push(response.status), () => window.discardAnswers.push(0));
+      return answer; }; } true`);
+  await click("[data-pages-new]");
+  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  const made = () => documents().find(page => !known.has(page.id));
+  assert.ok(made(), "made at once, as before");
+  if (change === "star") {
+    await click("[data-pages-star-editor]");
+    await until(() => made()?.starred === true);
+  } else if (change === "goal") {
+    await click("[data-pages-more]");
+    await waitFor("document.querySelector('[data-pages-goal]').options.length > 1", 20_000);
+    await evaluate(`{ const select = document.querySelector('[data-pages-goal]'); select.value = [...select.options].find(option => option.value).value;
+      select.dispatchEvent(new Event('change', { bubbles: true })); }`);
+    await until(() => Boolean(made()?.goal_id));
+  } else {
+    await click("[data-pages-promote][data-pages-artifact-bar]");
+    await until(() => (made()?.artifact_version ?? 0) > 0);
+  }
+  const id = made()!.id;
+  await click("[data-pages-back]");
+  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false' && window.discardAnswers.length === 1", 20_000);
+  assert.equal(await evaluate("window.discardAnswers[0]"), 409, "the page asked and the Host refused");
+  assert.ok(documents().some(page => page.id === id), "the document is still there");
+  await waitFor("[...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
+  assert.equal(await evaluate("document.querySelector('[data-pages-note]')?.hidden !== false"), true, "and nothing was said about it");
+}
+
+test("Pages: a blank 「新建文档」 the person starred stays when they go back", { timeout: 90_000 }, t => blankDocumentGivenSomethingStays(t, "star"));
+test("Pages: a blank 「新建文档」 the person tied to a Goal stays when they go back", { timeout: 90_000 }, t => blankDocumentGivenSomethingStays(t, "goal"));
+test("Pages: a blank 「新建文档」 the person saved as a fixed version stays when they go back", { timeout: 90_000 }, t => blankDocumentGivenSomethingStays(t, "version"));
 
 test("灵光: 「记下第一条灵光」 left empty is thrown away when the person goes back, and one with words stays", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;

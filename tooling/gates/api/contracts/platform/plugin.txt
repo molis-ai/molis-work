@@ -289,8 +289,13 @@ export type ActionAvailability = {
     readonly reason: string;
 };
 
-export interface ActionCallContext {
+export interface ActionCallContext extends ActionCallOrigin {
     readonly actor_id: string;
+    readonly page_context?: {
+        readonly url: string | null;
+        readonly title: string | null;
+        readonly provenance: "host_snapshot" | "client_reported";
+    };
     readonly audit_actor_id?: string;
     readonly runtime_session_id?: string;
     readonly runtime_session_missing?: true;
@@ -320,6 +325,10 @@ export interface ActionCallContext {
         readonly scene_id: string;
         readonly binding_id: string;
     };
+}
+
+export interface ActionCallOrigin {
+    readonly call_id?: string;
 }
 
 export interface ActionClient {
@@ -413,6 +422,7 @@ export interface ActionProvider {
     readonly kind: "system" | "plugin" | "mcp";
     readonly project_id?: string;
     readonly plugin_id?: string;
+    readonly plugin_install_id?: string;
 }
 
 export interface ActionProviderRegistration {
@@ -756,7 +766,7 @@ export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
@@ -2215,6 +2225,29 @@ export type PluginCommandInput = PluginCommandInputOf<"current"> | PluginCommand
 
 export type PluginContribution = PluginIntegrationContribution | PluginAppContribution;
 
+export interface PluginDatabase extends PluginDatabaseReader {
+    transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginDatabaseTransaction) => T): Promise<T>;
+}
+
+export interface PluginDatabaseDeclaration {
+    readonly store_name: string;
+    readonly version: number;
+    readonly schema: string;
+    readonly read_permission: string;
+    readonly write_permission: string;
+}
+
+export interface PluginDatabaseReader {
+    get(sql: string, parameters?: readonly PluginSqlValue[]): PluginSqlRow | null;
+    all(sql: string, parameters?: readonly PluginSqlValue[]): PluginSqlRow[];
+}
+
+export interface PluginDatabaseTransaction extends PluginDatabaseReader {
+    run(sql: string, parameters?: readonly PluginSqlValue[]): {
+        changes: number | bigint;
+    };
+}
+
 export interface PluginDefinition {
     manifest: PluginManifest;
     execution?: "host" | "sandbox";
@@ -2424,7 +2457,7 @@ export interface PluginEventsRepository {
     deleteCursors(projectId: string, subscriberPluginId: string): void;
 }
 
-export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect">;
+export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context">;
 
 export interface PluginExecutor {
     start(definition: PluginDefinition, context: PluginStartContext): Promise<PluginExecutorHandle>;
@@ -2441,7 +2474,8 @@ export interface PluginExecutorHandle {
 export interface PluginHostServices {
     readonly actions?: import("@molis-ai/molis-work-contracts/platform/actions").BoundActionClient;
     readonly storage?: PluginPrivateStorage;
-    readonly artifacts: PluginArtifactClient;
+    readonly database?: import("platform/plugin-database").PluginDatabase;
+    readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;
     readonly ui: PluginUiClient;
     readonly events?: PluginEventsClient;
@@ -2636,11 +2670,6 @@ export interface PluginManifest {
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
-}
-
-export declare class PluginManifestError extends Error {
-    readonly code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid";
-    constructor(code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid", message: string);
 }
 
 export interface PluginOutputPublishInput {
@@ -2852,8 +2881,13 @@ export interface PluginRuntimeRepository {
     save(record: PluginInstanceRecord): void;
 }
 
+export type PluginSqlRow = Record<string, PluginSqlValue>;
+
+export type PluginSqlValue = string | number | bigint | Uint8Array | null;
+
 export interface PluginStartContext {
     install_id: string;
+    readonly provider_id?: string;
     plugin_id: string;
     version: string;
     deployment: PluginDeployment;
@@ -2876,7 +2910,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -3682,10 +3716,6 @@ export declare function browserSiteDeclarations(manifest: {
     readonly permissions: readonly PluginPermissionDeclaration[];
 }): readonly string[];
 
-export declare function canonicalPluginId(pluginId: string): string;
-
-export declare function comparePluginVersions(left: string, right: string): number;
-
 export declare function defineActionUsagesAction(capabilityId: string, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<ActionUsagesInput, {
     usages: ActionUsage[];
 }>;
@@ -3755,11 +3785,7 @@ export declare function inspectActionDeclarations(definitions: unknown, scenes: 
 
 export declare function inspectAgentDeclaration(agent: AgentManifest | undefined, declaredInputPorts: readonly string[]): string[];
 
-export declare function inspectEventDeclarations(pluginId: string, events: PluginEventsDeclaration | undefined): string[];
-
 export declare function inspectMethodDeclarations(methods: unknown): string[];
-
-export declare function inspectPortDeclarations(ports: PluginPortsDeclaration | undefined): string[];
 
 export declare function isArtifactCompareAction(action: {
     input_type?: string;
@@ -3840,8 +3866,6 @@ export declare function orderPromptsByLayer<T extends {
 export declare function ownsEventType(pluginId: string, eventTypeId: string): boolean;
 
 export declare function parseExactActionReferences(value: unknown): ExactActionReference[];
-
-export declare function parsePluginManifest(input: unknown): PluginManifest;
 
 export declare function pinActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<ArtifactPinResult>;
 

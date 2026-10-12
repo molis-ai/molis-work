@@ -6,6 +6,7 @@ export * from './workbench.js';
 export * from './agent-model.js';
 export * from './agent-store.js';
 export * from './agent-prompts.js';
+export * from './choice-prompts.js';
 export * from './agent-validation.js';
 export * from './agent-workflow.js';
 export * from './agent-studio.js';

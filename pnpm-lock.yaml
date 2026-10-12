@@ -144,6 +144,9 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:plugins/native/inbox
+      '@molis-ai/molis-work-plugin-issues':
+        specifier: workspace:*
+        version: link:plugins/native/issues
       '@molis-ai/molis-work-plugin-jelly':
         specifier: workspace:*
         version: link:plugins/native/jelly
@@ -165,6 +168,9 @@ importers:
       '@molis-ai/molis-work-plugin-schedule':
         specifier: workspace:*
         version: link:plugins/native/schedule
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:packages/plugin-sdk
       '@molis-ai/molis-work-plugin-shelf':
         specifier: workspace:*
         version: link:plugins/native/shelf
@@ -445,6 +451,9 @@ importers:
       '@molis-ai/molis-work-plugin-schedule':
         specifier: workspace:*
         version: link:../../plugins/native/schedule
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
       '@molis-ai/molis-work-plugin-shelf':
         specifier: workspace:*
         version: link:../../plugins/native/shelf
@@ -614,6 +623,9 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
+      '@molis-ai/molis-work-plugin-issues':
+        specifier: workspace:*
+        version: link:../../plugins/native/issues
       '@molis-ai/molis-work-plugin-jelly':
         specifier: workspace:*
         version: link:../../plugins/native/jelly
@@ -698,9 +710,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@molis-ai/molis-work-kernel':
+      '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
-        version: link:../../packages/kernel
+        version: link:../../packages/plugin-sdk
 
   horizontal/search:
     dependencies:
@@ -789,9 +801,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@molis-ai/molis-work-kernel':
+      '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
-        version: link:../../packages/kernel
+        version: link:../../packages/plugin-sdk
 
   modules/signals:
     dependencies:
@@ -830,6 +842,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -842,15 +857,18 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
 
   packages/plugin-sandbox:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@molis-ai/molis-work-kernel':
+      '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
-        version: link:../kernel
+        version: link:../plugin-sdk
 
   packages/plugin-sdk:
     dependencies:
@@ -1045,6 +1063,15 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+
+  plugins/native/issues:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
 
   plugins/native/jelly:
     dependencies:
@@ -1291,6 +1318,9 @@ importers:
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:../../packages/plugin-runtime
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
 
 packages:
 

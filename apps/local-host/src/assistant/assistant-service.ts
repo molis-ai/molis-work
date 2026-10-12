@@ -31,9 +31,9 @@ import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 const RUNTIME = "prologue";
 const MAX_TEXT = 20_000;
 const MAX_MATERIALS = 20;
-const MAX_MATERIAL_TEXT = 60_000;
+const MAX_MATERIAL_TEXT = 100_000;
 /** Images per Send and per image, within what the model providers take. */
-const MAX_IMAGES = 4;
+const MAX_IMAGES = 6;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 /** Enough for a real piece of business work with its lookups; a round never runs unbounded. */
 const ROUND_TURNS = 24;

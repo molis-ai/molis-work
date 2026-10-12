@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetimeOptions } from "@molis-ai/molis-work-contracts/platform/execution-lifetime";
-import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetimeOptions } from "./execution-lifetime.js";
+import { parsePluginManifest, PluginManifestError } from "./manifest.js";
 
-export { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { parsePluginManifest, PluginManifestError, comparePluginVersions } from "./manifest.js";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineAction } from "./actions.js";
 export { bindPluginActionRoute, bindOwnerPluginAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -23,6 +23,7 @@ export type { ActionExecutionContext, ActionExecutionPolicy, ActionResultView, A
 export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
   PluginUiClient, PluginHostServices,
+  PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction, PluginDatabaseDeclaration, PluginSqlValue, PluginSqlRow,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 export type { UiContribution, UiContributionDescriptor, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";

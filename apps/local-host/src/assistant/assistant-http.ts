@@ -82,7 +82,10 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), service.delegation(work),
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
-      view => service.noteDispatched(work, view)),
+      view => service.noteDispatched(work, view), () => {
+        const snapshot = store.rounds(work.work_id).at(-1)?.context;
+        return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
+      }),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
       memory: task => service.memoryForRound(work, task),

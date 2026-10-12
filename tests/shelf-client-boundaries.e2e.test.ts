@@ -1,14 +1,11 @@
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
-import { once } from "node:events";
-import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { WebSocket } from "ws";
+import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { ShelfStore } from "../modules/shelf/src/store.js";
 import { SHELF_CLIENT_FACTORY_SCRIPT } from "../plugins/native/shelf/src/client.js";
 import { createShelfRouteHandlers } from "../plugins/native/shelf/src/route-handlers.js";
@@ -27,8 +24,7 @@ class FixtureShelfStore extends ShelfStore {
 }
 
 async function openShelfBrowser(t: TestContext) {
-  const chrome = [process.env.MOLIS_WORK_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"]
-    .find((path): path is string => Boolean(path && existsSync(path)));
+  const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Shelf boundary E2E"); return null; }
   const home = await mkdtemp(join(tmpdir(), "shelf-client-boundaries-"));
   const shelf = new FixtureShelfStore(join(home, "shelf"), { disabled: true });
@@ -74,17 +70,9 @@ async function openShelfBrowser(t: TestContext) {
       response.writeHead(failure.status, { "content-type": "application/json" }); response.end(JSON.stringify(failure.body));
     }
   });
-  let child: ChildProcess | undefined, socket: WebSocket | undefined;
-  const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
+  let harness: ChromeHarness | undefined;
   t.after(async () => {
-    socket?.terminate();
-    for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(new Error("Fixture closed")); }
-    if (child && child.exitCode === null && child.signalCode === null) {
-      const closed = once(child, "close");
-      child.kill("SIGTERM");
-      const force = setTimeout(() => child?.kill("SIGKILL"), 3000);
-      try { await closed; } finally { clearTimeout(force); }
-    }
+    await harness?.close();
     server.closeAllConnections();
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await rm(home, { recursive: true, force: true });
@@ -92,34 +80,9 @@ async function openShelfBrowser(t: TestContext) {
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
-  child = spawn(chrome, ["--headless=new", "--lang=zh-CN", "--accept-lang=zh-CN", "--disable-gpu", "--disable-background-networking", "--disable-extensions", "--no-first-run", "--no-default-browser-check", "--remote-debugging-port=0", `--user-data-dir=${join(home, "chrome")}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
-  const debuggerUrl = await new Promise<string>((resolve, reject) => {
-    let output = "";
-    const timeout = setTimeout(() => reject(new Error("Chrome debugger startup timed out")), 20_000);
-    child!.once("error", error => { clearTimeout(timeout); reject(error); });
-    child!.stderr!.on("data", chunk => {
-      output += String(chunk);
-      const url = output.match(/DevTools listening on (ws:\/\/\S+)/)?.[1];
-      if (url) { clearTimeout(timeout); resolve(url); }
-    });
-    child!.once("exit", () => { clearTimeout(timeout); reject(new Error(`Chrome exited: ${output.slice(-400)}`)); });
-  });
-  socket = new WebSocket(debuggerUrl);
-  await once(socket, "open");
-  let nextId = 0;
-  socket.on("message", raw => {
-    const value = JSON.parse(String(raw)), entry = pending.get(value.id);
-    if (!entry) return;
-    clearTimeout(entry.timer); pending.delete(value.id);
-    if (value.error) entry.reject(new Error(JSON.stringify(value.error))); else entry.resolve(value.result);
-  });
-  const command = <T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<T> => {
-    const id = ++nextId;
-    return new Promise((resolve, reject) => {
-      pending.set(id, { resolve: value => resolve(value as T), reject, timer: setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}`)); }, 20_000) });
-      socket!.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
-    });
-  };
+  const browser = await ChromeHarness.start(home, { executable: chrome, startTimeoutMs: 20_000 });
+  harness = browser;
+  const command = <T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string) => browser.command<T>(method, params, sessionId);
   const target = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId: target.targetId, flatten: true });
   await command("Page.enable", {}, sessionId);

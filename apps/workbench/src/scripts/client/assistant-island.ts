@@ -2716,8 +2716,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (currentId) await refresh(); else render();
     } finally { busy = false; syncSend(); schedule(); }
   });
-
   /* ─── Head controls ────────────────────────────────────────────────────── */
+  island.querySelector("[data-assistant-panel-close]")?.addEventListener("click", () => setPanel(false));
   island.querySelectorAll("[data-assistant-control]").forEach((button) => button.addEventListener("click", async () => {
     if (!currentId) return;
     button.disabled = true;

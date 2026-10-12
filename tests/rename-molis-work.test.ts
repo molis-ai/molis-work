@@ -10,7 +10,7 @@ import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { isPlatformMcpTool } from "@molis-ai/molis-work-app-mcp";
-import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
 import {
   PROJECT_DATABASE_FILENAME,
   readProductEnv,

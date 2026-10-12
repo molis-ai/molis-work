@@ -9,8 +9,9 @@ import { inflateRawSync } from "node:zlib";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import {
   ActionError, bindHomeObjectMoveHandler, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction,
-  defineSubjectContextAction, defineWorkflowContentActions, inspectActionDeclarations, subjectContext, type ActionCallContext,
+  defineSubjectContextAction, defineWorkflowContentActions, subjectContext, type ActionCallContext,
 } from "@molis-ai/molis-work-contracts/platform/actions";
+import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 import { PlacementService, PLACEMENT_LEDGER_ACCESS } from "@molis-ai/molis-work-service-placement";
 import { pagesManifest, openPagesStore } from "@molis-ai/molis-work-plugin-pages";

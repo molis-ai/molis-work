@@ -15,6 +15,13 @@ interface CallScope {
 }
 
 const scopes = new AsyncLocalStorage<CallScope>();
+/** The refusal codes the running code is looking for as its answer, for as long as the call that is looking is pending. */
+interface Expectation {
+  readonly codes: readonly string[];
+  /** Closed when the call that is looking has settled; a timer, a stream or a detached promise it left behind is no longer part of it. */
+  open: boolean;
+}
+const expected = new AsyncLocalStorage<Expectation | undefined>();
 
 export const newCallId = (): string => randomUUID();
 /** What a person is shown and copies; looking one up takes six or more leading characters. */
@@ -38,6 +45,37 @@ export function markCallRecorded(): void {
 export const recordedCallId = (): string | undefined => {
   const scope = openScope();
   return scope?.recorded ? scope.id : undefined;
+};
+
+/**
+ * Run calls whose refusal with one of these codes is the answer the caller is looking for, not a failure: a page that looks for an
+ * optional area its project does not have is told "not enabled" and leaves the area out. Nobody asked for that call and nobody will
+ * look for it, so the Host keeps no row about such a refusal. Any other refusal, and any refusal of a call made outside this scope,
+ * is recorded as usual.
+ * The answer is only wanted while the call that looks is pending: the scope closes when `run` settles (returns, throws or rejects), so
+ * whatever the call started and left behind (a timer, a stream, a child process, a plugin start) is refused and recorded as any other.
+ */
+export const expectingRefusal = <R>(codes: readonly string[], run: () => R): R => {
+  const expectation: Expectation = { codes, open: true };
+  const close = (): void => { expectation.open = false; };
+  let result: R;
+  try { result = expected.run(expectation, run); }
+  catch (error) { close(); throw error; }
+  if (typeof (result as { then?: unknown } | null | undefined)?.then === "function") void (result as PromiseLike<unknown>).then(close, close);
+  else close();
+  return result;
+};
+
+/**
+ * Run a handler. What a caller expected (`expectingRefusal`) was the answer to its own call, a refusal before the handler began; it does not
+ * reach what the handler calls, or what the handler starts and leaves running, whose refusals are recorded as any other.
+ */
+export const insideHandler = <R>(run: () => R): R => expected.run(undefined, run);
+
+/** Whether the running code is looking for a refusal with this code (`expectingRefusal`), and the call that looks is still pending. */
+export const refusalExpected = (code: string | undefined): boolean => {
+  const expectation = expected.getStore();
+  return code !== undefined && expectation?.open === true && expectation.codes.includes(code);
 };
 
 /** Run as part of the operation `id`: the open scope of the same number is shared, any other number opens a scope that closes with `run`. */

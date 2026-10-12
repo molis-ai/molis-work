@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
 import { existsSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -13,9 +13,13 @@ import { alchemistFixture, controlledAlchemistAi } from "./fixtures/alchemist-ac
 // W2-18 decision 7: the market pulse's GitHub source uses a Settings GitHub connection the person bound to it, and
 // searches anonymously when none is bound. The plugin never receives the token: the Host adds the header.
 
-async function home(t: test.TestContext) {
+// Keep each Home until all per-test Host shutdown hooks have finished writing lifecycle state.
+const scratchDirectories: string[] = [];
+after(async () => { for (const directory of scratchDirectories) await rm(directory, { recursive: true, force: true }); });
+
+async function home() {
   const directory = await mkdtemp(join(tmpdir(), "alchemist-pulse-github-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
+  scratchDirectories.push(directory);
   return directory;
 }
 function environment(t: test.TestContext, values: Record<string, string>) {
@@ -38,7 +42,7 @@ function recordNetwork(t: test.TestContext) {
 const GITHUB_SEARCH = "https://api.github.com/search/repositories?q=AI";
 
 test("nothing is bound: the pulse sends no credential, whatever GitHub accounts the Home has and whatever the environment says", async t => {
-  const directory = await home(t);
+  const directory = await home();
   environment(t, { GITHUB_TOKEN: "environment-token", MOLIS_WORK_GITHUB_TOKEN: "other-environment-token" });
   connect(directory, "for-coding-or-feed", "coding-feed-token");
   withConnectorConnections(directory, store => store.createToken({ serviceId: "github", displayName: "GitHub · device", token: "device-token", accountLabel: "device", authMethod: "oauth" }));
@@ -52,7 +56,7 @@ test("nothing is bound: the pulse sends no credential, whatever GitHub accounts 
 });
 
 test("a bound account lends its token to api.github.com and to nothing else, and a renewed, replaced or disconnected token applies to the next request", async t => {
-  const directory = await home(t);
+  const directory = await home();
   const first = connect(directory, "first", "first-token");
   const second = connect(directory, "second", "second-token", "oauth");
   const sent = recordNetwork(t);
@@ -87,7 +91,7 @@ test("a bound account lends its token to api.github.com and to nothing else, and
 });
 
 test("the picker lists only token and OAuth GitHub accounts with their state, never a credential, and refuses anything the Host cannot send a token for", async t => {
-  const directory = await home(t);
+  const directory = await home();
   const usable = connect(directory, "usable", "usable-token-value");
   const gone = connect(directory, "gone", "gone-token-value", "oauth");
   const other = withConnectorConnections(directory, store => {
@@ -119,7 +123,7 @@ test("the picker lists only token and OAuth GitHub accounts with their state, ne
 });
 
 test("choosing the account is the person's: an agent or MCP caller cannot, and the plugin alone (no Host port) has no accounts to choose", async t => {
-  const directory = await home(t);
+  const directory = await home();
   const f = alchemistFixture(directory);
   t.after(() => f.close());
   assert.deepEqual(await f.bound.invoke(a.pulseGithub, {}), { accounts: [], selectedConnectionId: null });
@@ -144,7 +148,7 @@ test("choosing the pulse's GitHub account is declared as a Home-level choice, wi
 });
 
 test("the choice is one binding for the Home: made from one project it is what every project, and the Home itself, reads; no studio is opened for it", async t => {
-  const directory = await home(t);
+  const directory = await home();
   const host = new MolisWorkLocalHost({ homeDirectory: directory });
   t.after(() => host.close());
   const account = connect(directory, "octo", "home-wide-token");
@@ -173,7 +177,7 @@ test("the choice is one binding for the Home: made from one project it is what e
 });
 
 test("a live market pulse: the person picks the account through the actions, the Host adds its token on the way to api.github.com, and the plugin never sees it", { timeout: 90_000 }, async t => {
-  const directory = await home(t);
+  const directory = await home();
   environment(t, { GITHUB_TOKEN: "environment-token" });
   const { ai } = controlledAlchemistAi();
   const ref = molisWorkHostProjectReference({ databasePath: join(directory, "project.sqlite"), projectId: "project-a" });

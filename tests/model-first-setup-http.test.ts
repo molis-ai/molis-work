@@ -5,10 +5,9 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { MINIMAX_ANTHROPIC_BASE_URL, MODEL_PROVIDER_TEMPLATES, hostCompleteText, modelProviderTemplate, withConnectorConnections, type HostTextOptions } from "@molis-ai/molis-work-app-local-host";
 
 /**
  * First-time model setup, through the production routes: the templates the settings page offers, and the one connectivity
@@ -67,6 +66,7 @@ test("没有模型时设置页给出一键模板；模板只预填地址、格�
     const empty = await html("");
     for (const template of MODEL_PROVIDER_TEMPLATES) assert.match(empty, new RegExp(`data-model-template="${template.template_id}"`), template.template_id);
     assert.equal((empty.match(/data-model-template=/g) ?? []).length, MODEL_PROVIDER_TEMPLATES.length, "每个模板一个按钮，没有别的");
+    for (const template of MODEL_PROVIDER_TEMPLATES) if (template.base_url !== "") assert.ok(!empty.includes(new URL(template.base_url).host), `${template.template_id}: 页面数据只带显示名，厂商地址留在宿主`);
     assert.match(empty, /data-model-add-provider/, "空状态下仍可以手填一个");
     assert.match(empty, /还没有配置供应商/);
     assert.ok(MODEL_PROVIDER_TEMPLATES.some((t) => t.api_format === "anthropic-messages") && MODEL_PROVIDER_TEMPLATES.some((t) => t.api_format === "openai-chat-completions"), "Prologue 支持的两种格式都有模板");
@@ -111,6 +111,34 @@ test("没有模型时设置页给出一键模板；模板只预填地址、格�
     assert.match(english, /address, format and model are filled in\. Still needed: API key\./);
     assert.match(english, /Start from a common provider/);
   });
+});
+
+test("MiniMax 在设置页的模板和开发环境的默认是同一个国内地址", async () => {
+  await withHost(async ({ html }) => {
+    const page = await html("?new=1&template=minimax");
+    const templateAddress = /value="([^"]*)" data-model-base-url="minimax-[0-9a-f]{8}"/.exec(page)?.[1];
+    assert.ok(templateAddress, "the MiniMax template pre-fills an address");
+    type Resolver = NonNullable<HostTextOptions["resolveInference"]>;
+    const seen: string[] = [];
+    const resolveInference: Resolver = async () => ({ completeTextResult: async (input: { endpoint: string; model: string }) => {
+      seen.push(input.endpoint);
+      return { value: "ok", configuredModel: input.model, state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 }, reportedModels: [], usage: [] };
+    } }) as Awaited<ReturnType<Resolver>>;
+    const complete = hostCompleteText({ env: { MINIMAX_API_KEY: "dev-environment-fixture-key" }, resolveInference });
+    assert.ok(complete, "MINIMAX_API_KEY alone configures MiniMax for development");
+    assert.equal(await complete("prompt"), "ok");
+    assert.deepEqual(seen, [`${templateAddress}/v1/messages`], "one address for MiniMax, whether the person starts from the template or a developer sets the environment key");
+  });
+});
+
+test("联网说明（NETWORK.md 与 NETWORK.en.md）写的开发默认地址就是代码读的那个常量", async () => {
+  // 这两页是给人看的“会联网去哪里”清单；MINIMAX_API_KEY 的开发默认是其中一条，地址变了文字要跟着变。
+  for (const file of ["NETWORK.md", "NETWORK.en.md"]) {
+    const text = await readFile(new URL(`../docs/platform/${file}`, import.meta.url), "utf8");
+    const line = text.split("\n").find((candidate) => candidate.includes("MINIMAX_API_KEY"));
+    assert.ok(line, `${file} 写了 MINIMAX_API_KEY 这条开发路径`);
+    assert.ok(line.includes(MINIMAX_ANTHROPIC_BASE_URL), `${file}：开发默认地址要写成 ${MINIMAX_ANTHROPIC_BASE_URL}，设置页模板和环境变量路径读的是同一个常量`);
+  }
 });
 
 test("每个模板都是一份存得下的供应商配置", async () => {

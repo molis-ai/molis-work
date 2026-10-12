@@ -70,6 +70,10 @@ test("studio HTTP keeps project isolation, authorized writes, persisted cards, e
     assert.equal(page.status, 404);
     assert.equal((await fetch(`${origin}/projects/a/api/alchemist/studio/assets/app.js`)).status, 404);
     const mismatch = await fetch(`${origin}/projects/a/api/alchemist/studio?project_id=b`); assert.equal(mismatch.status, 400);
+    // A body that is not JSON is a coded error of the platform (W3-02-A); on origin/main this edge answered 400 with its own `alchemist.request_failed`.
+    const notJson = await fetch(`${origin}/projects/a/api/alchemist/studio/api/v1/directions`, { method: "POST", body: "{not json",
+      headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() } });
+    assert.deepEqual([notJson.status, (await notJson.json() as { code: string }).code], [400, "actions.input_invalid"]);
     const created = await request("a", "/directions", { description: "让创始人用访谈原句复核自己的产品假设" });
     assert.equal(created.status, 201, JSON.stringify(created.body)); const directionId = created.body.direction.id;
     const started = await request("a", `/directions/${directionId}/explorations`, {});

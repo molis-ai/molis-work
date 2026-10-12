@@ -18,7 +18,7 @@ test("an environment key configures a model only with its own endpoint and model
   const seen: Array<{ endpoint: string; model: string }> = [];
   const minimax = hostCompleteText({ env: { MINIMAX_API_KEY: "fixture-key" }, resolveInference: resolver(async input => { seen.push({ endpoint: input.endpoint, model: input.model }); return "ok"; }) })!;
   assert.equal(await minimax("prompt"), "ok");
-  assert.deepEqual(seen, [{ endpoint: "https://api.minimaxi.com/anthropic/v1/messages", model: "MiniMax-M3" }]);
+  assert.deepEqual(seen, [{ endpoint: "https://api.minimax.cn/anthropic/v1/messages", model: "MiniMax-M3" }]);
 });
 
 test("legacy environment models do not imply vision or initialize inference for original images", async () => {

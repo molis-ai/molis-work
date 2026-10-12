@@ -9,6 +9,7 @@ import { ActionError, bindActionClient, defineWorkflowContentActions, type Actio
 import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 /**
  * A wrapper action reaches other actions with the client's authority. The Session rule holds there too: a Runtime without a
@@ -50,12 +51,14 @@ async function fixture() {
   const { workflow } = await person.invoke(w.create, { title: "署名笔记流程", chain: { stations: [{ plugin: "authored-notes" },
     { plugin: "action", action: { ref: step.ref, title: step.title, group: step.group, mapping: { title: { from: "title" } } } }],
     links: [{ kind: "function", title_template: "", body_template: "{正文}", instructions: "" }] } });
-  await grantGoalsMcp(host, homeDirectory, project, CLIENT, [...definitions, w.start]);
+  // The station's actions are registered on this Host, which is bound to this Home: it serves the access settings the grants go through.
+  const served = await serveTestHost(null, { home: homeDirectory, host });
+  await grantGoalsMcp(served, project, CLIENT, [...definitions, w.start]);
   const server = (nativeRuntimeSessionId?: string) => new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173" },
     { homeDirectory, ...(nativeRuntimeSessionId ? { nativeRuntimeSessionId } : {}),
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false } }, host);
   return { workflow, authors, server, person,
-    done: async () => { await host.close(); catalog.close(); rmSync(directory, { recursive: true, force: true }); } };
+    done: async () => { await served.close(); await host.close(); catalog.close(); rmSync(directory, { recursive: true, force: true }); } };
 }
 
 test("a Runtime without a stable Session cannot start a workflow whose first station creates session-authored content", async () => {

@@ -5,13 +5,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
-import { LocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference, initializeBoardCapability } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { LocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 test("MCP Goal directory cannot be split by a queued competing Goal write, and an MCP trash is recorded under the Session", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-entry-consistency-"));
-  const databasePath = join(directory, "project.db");
-  const projectId = "combined-entry";
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
+  // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
+  const project = await catalog.createProject({ display_name: "组合入口", actor_id: "user" });
+  const { database_path: databasePath, project_id: projectId } = project;
   const host = createMolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
   const client = host.client(reference);
@@ -20,13 +24,14 @@ test("MCP Goal directory cannot be split by a queued competing Goal write, and a
     runtimeContext: { runtime_id: "entry", stable_work_context_id: "session", host_declares_stable: true },
   };
   const mcp = new MolisWorkServer("runtime", { databasePath, projectId, webBaseUrl: "http://127.0.0.1:4173" }, runtimeHost, host);
+  // The MCP server below binds this Host to the Home, and a Home has one Host: the same Host serves the access settings the grant goes through.
+  const served = await serveTestHost(null, { home: directory, host });
   const makeIntent = (goalId: string) => ({
     project_id: projectId, idempotency_key: `create-${goalId}`,
     goal_id: goalId, title: goalId, outcome: "一致的入口结果",
   });
   let competingWrite: Promise<unknown> | undefined;
   try {
-    await client.invoke(initializeBoardCapability, { project_id: projectId, title: "组合入口", idempotency_key: "init" });
     await client.invoke(createGoalIntentCapability, makeIntent("first"));
     await host.withProject(reference, ({ coordinator }) => {
       const original = coordinator.goalEvents.listGoals.bind(coordinator.goalEvents);
@@ -40,7 +45,7 @@ test("MCP Goal directory cannot be split by a queued competing Goal write, and a
         return result;
       };
     });
-    await grantGoalsMcp(host, directory, { project_id: projectId, database_path: databasePath }, "runtime:entry");
+    await grantGoalsMcp(served, project, "runtime:entry");
     const listed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.list__v1", { limit: 100 }));
     await competingWrite;
     assert.deepEqual(listed.goals.map((item: { goal_id: string }) => item.goal_id), ["first"]);
@@ -61,7 +66,7 @@ test("MCP Goal directory cannot be split by a queued competing Goal write, and a
     });
   } finally {
     await competingWrite;
-    await mcp.close(); await host.close();
+    await mcp.close(); await served.close(); await host.close(); catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

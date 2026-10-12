@@ -35,7 +35,7 @@ test("Runtime state tools record progress and close without applying user identi
   let management: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "状态闭环", actor_id: "user" });
-    await grantGoalsMcp(host, homeDirectory, project);
+    await grantGoalsMcp(homeDirectory, project);
     const runtimeHost = {
       homeDirectory,
       runtimeContext: {
@@ -169,7 +169,7 @@ test("Runtime agree unknown field and omitted close version are rejected with no
   let runtime: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "未知字段", actor_id: "user" });
-    await grantGoalsMcp(host, homeDirectory, project);
+    await grantGoalsMcp(homeDirectory, project);
     runtime = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
       projectId: project.project_id,
@@ -220,7 +220,7 @@ test("MCP agreement_change request keeps request-time commitment; later related 
   let management: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "过期请求", actor_id: "user" });
-    await grantGoalsMcp(host, homeDirectory, project);
+    await grantGoalsMcp(homeDirectory, project);
     const connection = {
       databasePath: project.database_path,
       projectId: project.project_id,

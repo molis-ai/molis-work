@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { FeedApplication } from "./application.js";
 import { feedItemContext, type FeedItemRecord } from "./projection.js";
-import { FeedStoreError } from "./application-errors.js";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 
 /**
  * What Feed asks of Goals when a person promotes an item. The Host answers by calling Goals' own actions with the caller's
@@ -56,10 +56,10 @@ export async function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input
   const read = (revision: number | undefined) => {
     const item = ports.hydrateItem(feed.getItem(input.projectId, itemId));
     if (revision != null && revision !== item.revision) {
-      throw new FeedStoreError("feed_revision_conflict", "这条 Item 已经变化，请刷新后重试");
+      throw feedErrors.revision_conflict("这条 Item 已经变化，请刷新后重试");
     }
     if (item.disposition === "archived") {
-      throw new FeedStoreError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
+      throw feedErrors.invalid_transition("请先恢复这条已忽略的 Feed Item");
     }
     return item;
   };

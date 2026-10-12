@@ -1,6 +1,5 @@
-import { ActionError, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
-import { FeedStoreError } from "./application-errors.js";
 import type { ConnectorAuthStatus } from "./connector-auth-status.js";
 import type { FeedItemRecord, FeedSnapshot } from "./projection.js";
 
@@ -46,10 +45,7 @@ export function createFeedQueryHandlers(feed: FeedApplication, projectId: string
 }): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
-    handle: async (caller, input) => {
-      try { return await run(input as I, caller); }
-      catch (error) { throw error instanceof FeedStoreError ? new ActionError(error.code, error.message) : error; }
-    },
+    handle: async (caller, input) => await run(input as I, caller),
   });
   return [
     bind(feedQueryActions.linkedContext, (input, caller) => ports.linkedContext(input, caller)),

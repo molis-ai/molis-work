@@ -119,3 +119,15 @@ export function readJudgeRequest(body: Record<string, unknown>): Omit<Contextual
       ? { previous: { context_id: String((body.previous as Record<string, unknown>).context_id).slice(0, 240), primary: strings((body.previous as Record<string, unknown>).primary, 8) } } : {}),
   };
 }
+
+/** The creation entry a sentence on a plugin's own page names: the action that creates, and which of its entries. */
+export function readEntry(body: Record<string, unknown>): { readonly capability_id: string; readonly version: number; readonly provider_id?: string; readonly intake_id: string } {
+  const raw = body.action;
+  if (!raw || typeof raw !== "object") throw invalid("action");
+  const reference = raw as Record<string, unknown>;
+  const version = reference.version;
+  if (typeof version !== "number" || !Number.isSafeInteger(version) || version < 1) throw invalid("action.version");
+  return { capability_id: readString(reference.capability_id, "action.capability_id", 200), version,
+    ...(reference.provider_id !== undefined ? { provider_id: readString(reference.provider_id, "action.provider_id", 200) } : {}),
+    intake_id: readString(body.intake_id, "intake_id", 40) };
+}

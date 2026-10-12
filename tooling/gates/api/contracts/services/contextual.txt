@@ -6,6 +6,11 @@ export declare const ASSISTANT_FORMS: readonly AssistantForm[];
 
 export type AssistantForm = "none" | "suggest" | "options" | "preview" | "compare";
 
+export declare const CONTEXTUAL_DRAFT_LIMITS: {
+    readonly said: 600;
+    readonly kept: 10000;
+};
+
 export declare const CONTEXT_ACTIONS_EVENT = "molis:assistant-context-actions";
 
 export declare const CONTEXT_ACTION_CHOOSE_EVENT = "molis:assistant-context-action-choose";
@@ -89,6 +94,27 @@ export interface ContextualCandidate {
     readonly scope?: "object";
     readonly origin?: "subject" | "intake" | "attach";
     readonly position?: SurfaceLandingPosition;
+}
+
+export interface ContextualDraft {
+    readonly key?: string;
+    readonly intake_id: string;
+    readonly title: string;
+    readonly action: ContextualCandidate["action"];
+    readonly provider_title: string;
+    readonly input: Readonly<Record<string, unknown>>;
+    readonly basis: "prepared" | "model" | "rules";
+    readonly missing: readonly string[];
+    readonly editable: readonly string[];
+    readonly summary?: string;
+    readonly kept: string;
+    readonly said?: string;
+    readonly fallback?: {
+        readonly reason: "unconfigured" | "failed" | "invalid";
+        readonly message: string;
+    };
+    readonly notes: readonly string[];
+    readonly model?: string;
 }
 
 export interface ContextualJudgeRequest {

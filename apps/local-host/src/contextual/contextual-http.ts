@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
-import { ActionError, type ActionReference, type ActionView, type FragmentActionOffer, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionReference, type ActionView, type FragmentActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FUNCTIONS_DEFAULT_MODEL } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { ContextualJudgeRequest, SurfaceFocus, SurfaceLanding } from "@molis-ai/molis-work-contracts/services/contextual";
 import { contextualCandidates, type JudgmentWording } from "@molis-ai/molis-work-kernel/contextual";
@@ -8,11 +8,14 @@ import { TYPESAFE_SYSTEMONE_URL } from "@molis-ai/molis-work-module-functions";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { registeredInstructionBody, registeredInstructionRevision } from "../agent-definitions/instructions.js";
 import { CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE } from "../agent-definitions/system-prompts.js";
+import { draftPorts } from "../drafting/draft-wiring.js";
 import { resolvePrologueInference } from "../prologue-inference-host.js";
 import { typeSafeConfiguration, typeSafeCredential } from "../typesafe-connection.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "../web-http.js";
+import { chosenCandidate } from "./contextual-choice.js";
+import { draftRequest } from "./contextual-draft.js";
 import { contextualErrors, invalid, readJudgeRequest, readString } from "./contextual-request.js";
-import { prepareSubjectOffer, sameReference } from "./contextual-service.js";
+import { fragmentOffersInput, prepareSubjectOffer, sameReference } from "./contextual-service.js";
 import { createContextualJudgmentService, type ContextualJudgmentService } from "./judgment-service.js";
 
 /**
@@ -142,6 +145,14 @@ function jevEvaluator(home: string): NonNullable<Parameters<typeof createContext
   };
 }
 
+/** Runs `work` with a signal that fires when the page stopped waiting for the answer (the person moved on). */
+async function whileWaited<T>(response: ServerResponse, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const aborted = new AbortController();
+  const stop = () => { if (!response.writableFinished) aborted.abort(); };
+  response.once("close", stop);
+  try { return await work(aborted.signal); } finally { response.off("close", stop); }
+}
+
 export async function handleContextualHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: ContextualHttpPorts): Promise<boolean> {
   // Which object kind each surface opens, from the plugins' own search-source declarations: when a surface opens an
   // item but does not name it itself, the workbench names it. Only a surface that opens exactly one kind is listed.
@@ -151,13 +162,19 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     catch { sendJson(response, 500, { code: "contextual.failed", error: "暂时处理不了，请稍后重试" }); }
     return true;
   }
-  const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare|signal)$/u.exec(url.pathname);
+  const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare|signal|draft)$/u.exec(url.pathname);
   if (!match) return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
   const route = match[1]!;
   const service = serviceFor(ports.homeDirectory);
   try {
     const body = await readBody(request);
+    // A draft is asked by a pane that has something in hand, or by a plugin's own page with a sentence: it needs no pane of its own.
+    if (route === "draft") {
+      const actions = ports.actions();
+      sendJson(response, 200, await whileWaited(response, async signal => draftRequest(body, await actions.discover(), { actions, ports: draftPorts(ports.homeDirectory), signal })));
+      return true;
+    }
     const pane = `${ports.scope}\u0000${readString(body.pane_id, "pane_id", 80)}`;
     if (route === "cancel") { service.cancel(pane); sendJson(response, 200, { ok: true }); return true; }
     const caller: Caller = { scope: ports.scope, actions: ports.actions() };
@@ -165,10 +182,7 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     if (route === "candidates") { sendJson(response, 200, await service.candidates(judgeRequest, caller)); return true; }
     if (route === "judge") {
       // The page gave up on this context (the person moved on): stop waiting on the model for it.
-      const aborted = new AbortController();
-      const stop = () => { if (!response.writableFinished) aborted.abort(); };
-      response.once("close", stop);
-      try { sendJson(response, 200, await service.judge(judgeRequest, caller, aborted.signal)); } finally { response.off("close", stop); }
+      sendJson(response, 200, await whileWaited(response, signal => service.judge(judgeRequest, caller, signal)));
       return true;
     }
     if (route === "signal") {
@@ -191,10 +205,8 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
  * writes nothing; the offer must still be a candidate of this context and name the same action it did when judged.
  */
 async function prepare(focus: SurfaceFocus, landing: SurfaceLanding | undefined, key: string, requestId: string, caller: Caller) {
-  const candidate = contextualCandidates(await caller.actions.discover(), focus, landing).find(item => item.key === key);
-  if (!candidate) throw contextualErrors.stale("这个动作已不在当前内容的候选里，请重新选择");
-  if (!candidate.available) throw contextualErrors.unavailable(candidate.reason ?? "这个动作现在不可用");
-  // A destination is not prepared by an offers query that the provider answers: the person's passage is drafted into its input.
+  const candidate = chosenCandidate(await caller.actions.discover(), focus, landing, key);
+  // A destination is not prepared by an offers query that the provider answers: the person's passage is drafted into its input (`/api/contextual/draft`).
   if (candidate.origin === "intake" || candidate.origin === "attach") throw contextualErrors.not_drafted("这个去处的参数要由起草服务准备，这里还不能直接准备");
   // One of the object's subject offers: prepared exactly as the Home / Dock prepares it, by the query that declared it.
   if (candidate.origin === "subject") {
@@ -208,14 +220,7 @@ async function prepare(focus: SurfaceFocus, landing: SurfaceLanding | undefined,
   }
   // A whole-object action (整篇) is prepared for the object itself: the provider reads its own current content.
   const whole = candidate.scope === "object" || focus.granularity === "object";
-  const { object } = focus;
-  const input: FragmentOffersInput = { request_id: requestId, fragment: { object,
-    granularity: whole ? "object" : focus.granularity as FragmentOffersInput["fragment"]["granularity"],
-    // The fragment contract takes at most eight parts: the ones the person selected first.
-    targets: whole ? [{ kind: "object", role: "object", ref: object, text: (focus.granularity === "object" ? focus.targets[0]?.text : undefined) || object.title || object.id }]
-      : focus.targets.slice(0, 8).map(({ kind, role, ref, text, truncated }) => ({ kind, ...(role ? { role } : {}), ...(ref ? { ref } : {}), text, ...(truncated ? { truncated } : {}) })),
-    ...(focus.surroundings?.heading_path.length ? { heading_path: focus.surroundings.heading_path } : {}),
-    ...(focus.goal ? { goal: { id: focus.goal.id, title: focus.goal.title } } : {}) } };
+  const input = fragmentOffersInput(focus, requestId, whole);
   const { offers } = await caller.actions.invoke(candidate.source, input) as { offers: readonly FragmentActionOffer[] };
   const offer = offers.find(item => item.offer_id === candidate.offer_id);
   if (!offer || offer.action.capability_id !== candidate.action.capability_id || offer.action.version !== candidate.action.version

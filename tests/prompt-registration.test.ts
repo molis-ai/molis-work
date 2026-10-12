@@ -150,6 +150,7 @@ test("a Host file that asks the judgment service through the TypeSafe provider f
 const WORDING_HISTORY: Readonly<Record<string, ReadonlyArray<readonly [number, string]>>> = {
   "system:contextual/contextual.next": [[1, "96f7580dc4cc2f98"]],
   "system:contextual/contextual.surface": [[1, "7df658138dab2107"]],
+  "system:contextual/contextual.draft": [[1, "4b887167a46f0e24"]],
   "io.molis.work.plugin-builder/choose.capability": [[1, "9d814fb0b2f16a3b"]],
   "io.molis.work.plugin-builder/choose.component": [[1, "30528fb1319325ba"]],
 };

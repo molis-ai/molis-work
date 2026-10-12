@@ -1298,15 +1298,17 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 
 **W2-10 后续窗口的只读测量。** 10-12 在保留的 I4 整合树 bdc23ab9d 运行现有 codemod 报告（未写源码）：875 个内部引用、173 个混源进程；当前计划可转换 268 个文件、没有阻塞组，内部引用预计降低 355、混源归零。改变目标的动态导入/require 有 14 处，正式改写前再以当时 main 生成并逐项对照基线，不把这份报告当成已经完成的迁移。
 
-**I5 的组合收口。** 隔离树已合第四批与第五批、独立 IME 和有界清理修复，按当前 main ba6f5232 保留双方文档；最终 head 8bac4a4ea 已对齐 main 56033f06d，整体构建、门禁、类型检查通过；4 个浏览器文件 16/16。16 普通文件首轮 135 条：134 通过、1 失败，为 Agent 编号用例的授权夹具签名未同步；该消费者修复归第五 d，经真实 HTTP 项目/授权和 Host 唯一 Agent 服务，固定 294bb2385 复核无 Blocker/P1、全文件 9/9。针对新的 CI 疑点 runtime-integration 另已通过 13/13；包含旧重复服务装配失败的整段日志不计作全绿。13:59 主协调持浏览器与构建排他锁启动独立全量（i5-full-01.log），固定 8bac4a4ea 的源码/脚本/包与 Skill 冻结直到退出：6,051 条，6,039 通过、3 失败、9 跳过、0 取消，约 103 分 44 秒，退出码 1。不能称全绿；完整 footer 与静默定向重跑确认下述三个失败点。首个失败已由独立只读复核与主协调核实为 action-error-model 的 Functions 大请求体旧 mapper 默认 400 断言：G2 已移除 mapper，实际 SDK 出口按既定 too_large kind 回答 413；生产无效 JSON 仍为 400。修复归 G2，其原分支已保存 687ac9c91，仅同步现行 Functions 消费者与过渡标题、413 预期；主协调核对与冻结树的差异只为标题/注释和超限状态，输入/code/message/invalid JSON/never 动作不变。冻结树不改，修复后运行验证待做。W3-02-F-INTEGRATION：C 的 SDK 路由绑定器和严格 ActionError 外来拒绝与 Shelf 的工厂同时保留，Coding 校验仍归 coding.shelf_material_invalid；组合修复 0ad07f8a3 补回五处工厂并新增真实 Host executor→Shelf action→SDK route 的伪造外来 code/kind/call_id 拒绝。845656157 仅把指纹冲突的旧 400 预期对齐已接受 kind=conflict 的 409，其他 400 拒绝断言保留。固定源码窄复核无 Blocker/P1，最终组合运行证据未出，分别归第五 F，不把各分片通过相加冒称新全量。
+**I5 的组合收口。** 隔离树已合第四批与第五批、独立 IME 和有界清理修复，按当前 main ba6f5232 保留双方文档；最终 head 8bac4a4ea 已对齐 main 56033f06d，整体构建、门禁、类型检查通过；4 个浏览器文件 16/16。16 普通文件首轮 135 条：134 通过、1 失败，为 Agent 编号用例的授权夹具签名未同步；该消费者修复归第五 d，经真实 HTTP 项目/授权和 Host 唯一 Agent 服务，固定 294bb2385 复核无 Blocker/P1、全文件 9/9。针对新的 CI 疑点 runtime-integration 另已通过 13/13；包含旧重复服务装配失败的整段日志不计作全绿。13:59 主协调持浏览器与构建排他锁启动独立全量（i5-full-01.log），固定 8bac4a4ea 的源码/脚本/包与 Skill 冻结直到退出：6,051 条，6,039 通过、3 失败、9 跳过、0 取消，约 103 分 44 秒，退出码 1。不能称全绿；完整 footer 与静默定向重跑确认下述三个失败点。首个失败已由独立只读复核与主协调核实为 action-error-model 的 Functions 大请求体旧 mapper 默认 400 断言：G2 已移除 mapper，实际 SDK 出口按既定 too_large kind 回答 413；生产无效 JSON 仍为 400。修复归 G2，其原分支已保存 687ac9c91，仅同步现行 Functions 消费者与过渡标题、413 预期；主协调核对与冻结树的差异只为标题/注释和超限状态，输入/code/message/invalid JSON/never 动作不变。全量期间冻结树未改；全量及基线对照结束后，三项 test-only 修复在 2a1912250 的同组复验 23/23 通过，见下。W3-02-F-INTEGRATION：C 的 SDK 路由绑定器和严格 ActionError 外来拒绝与 Shelf 的工厂同时保留，Coding 校验仍归 coding.shelf_material_invalid；组合修复 0ad07f8a3 补回五处工厂并新增真实 Host executor→Shelf action→SDK route 的伪造外来 code/kind/call_id 拒绝。845656157 仅把指纹冲突的旧 400 预期对齐已接受 kind=conflict 的 409，其他 400 拒绝断言保留。固定源码窄复核无 Blocker/P1，最终组合运行证据未出，分别归第五 F，不把各分片通过相加冒称新全量。
 
-**I5 第二条失败的核对。** global-ui-interaction 的窄屏设置迟到响应用例失败（约7.9秒）。固定源码的旧 hook只匹配相对 /settings/runtimes，现请求助手发送 target.href；两方核对确认该 hook无法拦截实际请求，loading请求身份保护仍在。完整 footer 确认为第108行等待 settingsResponseReady 超时；同固定 I5 重跑仍失败，干净 acede 的真实原文件通过，验证了迁移后的旧 hook 缺陷；修复后验证尚待做。W3-10-1B-INTERLEAVE-01：按实际URL的pathname匹配同一路由，保留真实fetch回应、持有→切回appearance→释放的交错、两帧等待、所有panel/选中/drawer/inert断言与60秒上限；修复归1b，冻结树仍不改。
+**I5 第二条失败的核对。** global-ui-interaction 的窄屏设置迟到响应用例失败（约7.9秒）。固定源码的旧 hook只匹配相对 /settings/runtimes，现请求助手发送 target.href；两方核对确认该 hook无法拦截实际请求，loading请求身份保护仍在。完整 footer 确认为第108行等待 settingsResponseReady 超时；同固定 I5 重跑仍失败，干净 acede 的真实原文件通过，验证了迁移后的旧 hook 缺陷；修复后同组 23/23 已通过。W3-10-1B-INTERLEAVE-01：按实际URL的pathname匹配同一路由，保留真实fetch回应、持有→切回appearance→释放的交错、两帧等待、所有panel/选中/drawer/inert断言与60秒上限；修复归1b，冻结树仍不改。
 
 **I5 第三条失败已定位为既有测试交错缺口。** issue-page 的 ISSUE-10 原生拖放/离开记录图像导入用例失败（约1.29秒），同文件其余四条通过；它不属于此前issue-capture-page的16/16。与acede相比，此测试、Issue client/image/capture、fixture与lifecycle未变，相关生产差异仅插件改用SDK binder。“正在读取截图…”早于文件头异步读取，完整 footer 确认第152行 window.issueFinish is not a function；静默 I5 与干净 acede 都在同一行、同一 TypeError 复现。应先确认实际解码 barrier 已进入，再取消/离开并释放；不改变生产保护、原生文件/拖放、断言或时限。
 
 **W3-02-G2-BODY-01。** Functions 经真实 HTTP 拒绝同一超限请求为 413 / actions.input_too_large / 请求内容过大，无效 JSON 为 400 / actions.input_invalid / 请求不是有效 JSON；两者均在业务 handler 前拒绝，动作不执行。仅按已接受 kind 合同同步旧断言、标题和注释，不放宽大小、输入、错误体或时限。
 
 **I5 三文件静默对照。** 用同一命令 `node scripts/./run-tests.mjs tests/action-error-model.test.ts tests/global-ui-interaction.e2e.test.ts tests/issue-page.e2e.test.ts` 顺序测试已构建的固定 I5 8bac4a4ea 与干净 acede03e2：I5 为 23 条/20 通过/3 失败，acede 为 23/22/1；均无跳过/取消。acede 的唯一失败是同一 issueFinish TypeError，Functions 400 与相对设置 hook 在旧基线通过。故三项分别为按已接受 kind 同步的过渡断言、请求迁移后的旧拦截方式、既有测试 barrier 缺口；修复后还需同组实跑，不将已定位当通过。**I5-ISSUE-INTERLEAVE-01**：真实 FileList/PNG 拖放仍加入两张，旧编辑记录的导入确认已在解码等待后取消并离开，再释放；DOM 及持久化图片均为空，原时间上限保留。
+
+**I5 修复后的验证。** 固定 2a1912250 相对 8bac 只有三个测试文件 +8/-6，没有 src/scripts/package/skills 变化；分别为 G2 77700a330、1b 21ce9d473 与独立 Issue barrier 2a1912250。主协调核对实际 diff 后，用原已构建生产代码再次持安静锁运行上述三个文件，23/23 通过、0 失败/跳过/取消，约28秒，退出码0（i5-failures-fixed-01.log）。原生拖放的两张图片、离开后 DOM/持久化为空、真实设置迟到响应、精确413及无效JSON400均仍被断言；不是新的单次全量全绿。全量9个跳过为既有 live账号/真实网络与MiniMax需凭据、以及本机缺shellcheck两条，未宣称其行为已验证；必需CI的Shell/Python检查另有通过证据。
 
 **继续执行。** I4 的失败核对和当前定向复验已完成，接下来把原整合修复归回对应分片、构建和门禁验证、CI 全过后逐片合入；第五批的 W3-10-1b 修复及整合随后收口。B/C 剩余片沿 `wave3-batchB-plan.md`，每批合入后做系统要求合规复查，再执行路线图第 4–6 波。维护八先用拷贝列出和演练，真实 Home 写入等用户决定；不清理其他会话的工作树、分支或备份。
 
@@ -1363,7 +1365,7 @@ W3-10-5 复用现有 SOURCE_COUNT_RULES 与逐文件 merge-base 比较，不另�
 | W3-02-G3-03 | 真实助理失败仍持久化原文草稿并返回同一 publicWork，work/action放在details，island同片读failure.code与failure.data=details；保留修复按钮、原request_id与恢复流程，不读取旧顶层work/action。浏览器证明失败后草稿、同一work及修复按钮实际可用。 |
 | W3-02-G3-04 | 应用重启后失效的图片句柄经真实读取入口回答404 / assistant.expired（原410），kind=not_found；保留重新添加文案及业务资料记录，不伪造调用编号。 |
 
-API与相关契约快照同步，整体构建、定向真实入口及浏览器回归完成后进入下一次协调整合全量；巨大单元和页面资源只降。当前只有源代码核对与方案，尚无本片运行通过或已实现的结论。
+API与相关契约快照同步，整体构建、定向真实入口及浏览器回归完成后进入下一次协调整合全量；巨大单元和页面资源只降。2026-10-12 G1 的网关/删除/availability 子块已保存 source-only 4b08716d0，23文件+191/-54，独立只读未发现必须处理的Blocker/P1；仍未构建/运行/API刷新。原 G1 的 HomeDock、search、placement、contextual 与平台同义码收口尚未覆盖，不把此子块称作整个G1完成；G3仍为方案。
 
 ### 10.5 Goals 管理入口的接续验收（W3-07-PR-4/5）
 

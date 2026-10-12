@@ -4,6 +4,11 @@
 
 ## 在做的
 
+- [context-program](context-program/spec.md)：情境动作完整总纲与分期；W0 原型代码已落地，实操未验。
+- [context-toolbar](context-toolbar/spec.md)：选区/对象浮条、面板槽、能力家族及存量接入；完整需求保留。
+- [quick-create](quick-create/spec.md)：推荐创建、一句话新建、追加/批量与工作流；完整需求保留。
+- [side-shelf](side-shelf/spec.md)：右栏、Shelf、落点、拖放与助理接入；完整需求保留。
+
 - [goal-closure-identity](goal-closure-identity/spec.md)：完成前的「必须你点头」接到真实检查（授权和接受要求都只对当时的约定和那一轮工作有效）；管理入口固定记本机这个人；决策工具 schema 不再要求 `actor_id`；这些 typed 入口插件够不到（`host_only`）。
 - [plugin-picker-dock](plugin-picker-dock/spec.md)：插件切换器里「常驻 Dock」与「装没装」合成一张网格，悬停才出现的两个图标按钮，添加与移除不刷新页面。
 - [repository-anti-corruption](repository-anti-corruption/spec.md)：系统性代码与架构防腐整理（防腐收尾第二步）。

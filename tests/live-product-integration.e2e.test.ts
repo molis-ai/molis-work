@@ -37,7 +37,7 @@ test('Live public RSS uses production fetch, deduplicates, and opens retained co
 test('Live Codex adapter creates, executes, reads, and links one isolated Session', {skip:!live,timeout:120000}, async t => {
   const b=await openGoalBrowser(t,true);if(!b)return;
   const cwd=await mkdtemp(join(tmpdir(),'molis-live-runtime-'));
-  const transport=new CodexAppServerTransport({requestTimeoutMs:15000});
+  const transport=new CodexAppServerTransport({clientVersion:'0.0.0-live-test',requestTimeoutMs:15000});
   const adapter=new CodexRuntimeSessionAdapter(transport);
   let threadId='';
   try {

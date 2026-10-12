@@ -3,51 +3,49 @@ import { rm } from "node:fs/promises";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { ActionError, type ActionAvailability, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { alchemistActions, alchemistManifest, createAlchemistActionHandlers, createAlchemistStudioRuntime,
+import { alchemistManifest, createAlchemistActionHandlers, createAlchemistStudioRuntime,
   type AlchemistAiPort, type AlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
-import { createAlchemistProloguePort } from "./alchemist-prologue.js";
+import { alchemistModelChoices, createAlchemistProloguePort } from "./alchemist-prologue.js";
 import { createAlchemistSearchPort } from "./alchemist-search.js";
 import { alchemistPulseGithub } from "./alchemist-pulse-github.js";
-import { configuredModelChoices } from "./configured-models.js";
 
 export interface AlchemistHostOptions {
   /** Explicit embedding/test boundary. Production uses the configured Prologue and search owners. */
   ai?: (projectId: string) => AlchemistAiPort;
   pulseSourceMode?: "live" | "fixture";
 }
-/**
- * The actions that need a model, so the directory can say so before anyone calls. It says so to the Assistant, MCP clients,
- * workflows and plugins, not to the person at the page: a message sent without a model is still saved, and an exploration or a
- * research run is still recorded as stopped, so the card tells the person how to continue (see the Alchemist README, 不变量).
- */
-const NEEDS_MODEL: ReadonlySet<string> = new Set([alchemistActions.reuseAssess, alchemistActions.conversationSend,
-  alchemistActions.explorationStart, alchemistActions.researchStart].map(action => action.capability_id));
 interface SharedStudio { runtime: AlchemistStudioRuntime; search?: ReturnType<typeof createAlchemistSearchPort>; owners: Set<AlchemistHostService>; closing?: Promise<void> }
 const studios = new Map<string, SharedStudio>();
 
 /** The original project Studio is shared by Host owners, independent of page requests. */
 export class AlchemistHostService {
   private readonly home: string;
+  /** The Home's GitHub account choice for the market pulse, and the transport that carries its token to api.github.com. */
+  private readonly pulseGithub: ReturnType<typeof alchemistPulseGithub>;
   private readonly entries = new Map<string, SharedStudio>();
   private closed = false;
   constructor(home: string, private readonly options: AlchemistHostOptions = {}) {
     this.home = resolve(home);
+    this.pulseGithub = alchemistPulseGithub(this.home);
     // Deleting a project closes its studio here (a running worker would keep writing to a database about to go) before its directory goes.
     projectDeletedHooksFor(this.home).register({ id: "alchemist", label: "炼金术士的研究空间", alive: () => !this.closed, clear: projectId => this.deleteProject(projectId) });
   }
   provider(): ActionProviderRegistration {
     return { provider: { provider_id: alchemistManifest.plugin_id, plugin_id: alchemistManifest.plugin_id, title: alchemistManifest.name, kind: "plugin" },
-      definitions: alchemistManifest.actions!, handlers: [
-        ...createAlchemistActionHandlers(caller => this.get(caller).actionsFor(caller.actor_id)).map(handler => NEEDS_MODEL.has(handler.capability_id) ? { ...handler, availability: (caller: ActionCallContext) => caller.audience === "user" ? { available: true as const } : this.modelAvailability() } : handler),
-      ] };
+      definitions: alchemistManifest.actions!, handlers: createAlchemistActionHandlers({
+        resolve: caller => this.get(caller).actionsFor(caller.actor_id),
+        // Which actions need a model, and that the person's own page is never held back, is the plugin's; the Host says whether the Home has a model.
+        modelAvailability: () => this.modelAvailability(),
+        pulseGithub: this.pulseGithub,
+      }) };
   }
   /**
-   * Whether the Home has a model Alchemist could use, without opening a studio. An embedding that brings its own model port
-   * (`options.ai`) is not judged by the Home's settings: only the default Prologue port reads them.
+   * Whether the Home has a model Alchemist could use, without opening a studio: the list the Prologue port offers is not empty. An
+   * embedding that brings its own model port (`options.ai`) is not judged by the Home's settings: only the default port reads them.
    */
   private modelAvailability(): ActionAvailability {
     if (this.options.ai) return { available: true };
-    try { if (configuredModelChoices(this.home).length) return { available: true }; }
+    try { if (alchemistModelChoices(this.home).length) return { available: true }; }
     catch { return { available: false, code: "actions.connection_required", reason: "模型配置无法读取，请到模型设置检查。" }; }
     return { available: false, code: "actions.connection_required", reason: "没有可用模型，请先在 Molis Work 的模型设置中启用模型并配置凭据。" };
   }
@@ -66,7 +64,7 @@ export class AlchemistHostService {
         return entry!.search.search(input);
       } });
       const runtime = createAlchemistStudioRuntime({ databasePath: join(alchemistProjectDirectory(this.home, projectId), "studio.sqlite"),
-        ai, pulseSourceMode: this.options.pulseSourceMode, pulseGithub: alchemistPulseGithub(this.home) });
+        ai, pulseSourceMode: this.options.pulseSourceMode, pulseGithub: this.pulseGithub });
       entry = { runtime, owners: new Set() }; studios.set(key, entry); runtime.start();
     }
     entry.owners.add(this); this.entries.set(key, entry);

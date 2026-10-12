@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { CapabilityRegistry } from "@molis-ai/molis-work-kernel";
+import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   MIN_SCHEDULE_INTERVAL_MS,
   ScheduleError,
@@ -13,8 +13,8 @@ import {
 } from "@molis-ai/molis-work-contracts/services/scheduler";
 import {
   PluginWakeupIndex,
-  bindScheduleCaller,
   createScheduleService,
+  registerScheduleCapabilities,
 } from "@molis-ai/molis-work-service-scheduler";
 
 function service(clock: { now: Date }, calls: Array<Record<string, string>> = []) {
@@ -273,23 +273,83 @@ test("暂停后不再叫醒，恢复后按下次时间继续", async () => {
   assert.equal(calls.length, 1);
 });
 
-test("插件 Capability 调用会覆盖 plugin_id 为调用方", async () => {
-  const clock = { now: new Date("2026-09-20T03:00:00.000Z") };
+// The owner of a typed schedule.* call is the plugin on the trusted invocation. The Host's generic port knows no
+// capability by name, so the Scheduler's handlers are where this rule lives and where it is proven.
+type ScheduleHandler = (context: unknown, input: unknown, invocation?: HostCapabilityInvocation) => unknown;
+function scheduleChannel(clock: { now: Date }, plugins: string[] = ["io.molis.work.caller", "io.molis.work.other"]) {
   const { schedule, wakeupIndex } = service(clock);
-  wakeupIndex.register("io.molis.work.caller", "test.wakeup", async () => undefined);
-  const registry = new CapabilityRegistry<typeof schedule>();
-  registry.register(scheduleCapabilities.register, (_context, input) => _context.register(input));
-  const stamped = bindScheduleCaller("io.molis.work.caller", {
-    plugin_id: "io.molis.work.test.owner",
-    capability_id: "test.wakeup",
-    object_ref: "owned-by-caller",
-    title: "不能挂别人名下",
-    due_at: "2026-09-20T03:00:00.000Z",
+  for (const plugin of plugins) wakeupIndex.register(plugin, "test.wakeup", async () => undefined);
+  const handlers = new Map<string, ScheduleHandler>();
+  registerScheduleCapabilities({ register(definition, handler) {
+    handlers.set(definition.capability_id, handler as ScheduleHandler);
+    return () => { handlers.delete(definition.capability_id); };
+  } }, () => schedule);
+  const as = (pluginId: string, active: () => void = () => {}): HostCapabilityInvocation => ({
+    consumer: "plugin", beforeEffect: async () => {},
+    plugin: { plugin_id: pluginId, install_id: `install-${pluginId}`, actor_id: "web-user", project_id: "board", declaration: {} as never, assertActive: active },
   });
-  const job = await registry.invoke(schedule, scheduleCapabilities.register, stamped);
+  const call = (definition: { capability_id: string }, input: unknown, invocation?: HostCapabilityInvocation) =>
+    handlers.get(definition.capability_id)!(undefined, input, invocation);
+  return { schedule, call, as };
+}
+const registration = { capability_id: "test.wakeup", object_ref: "owned-by-caller", title: "不能挂别人名下", due_at: "2026-09-20T03:00:00.000Z" };
+
+test("schedule.register from a plugin is owned by the invocation's plugin, whatever plugin_id the input names", async () => {
+  const { schedule, call, as } = scheduleChannel({ now: new Date("2026-09-20T03:00:00.000Z") });
+  const job = call(scheduleCapabilities.register, { ...registration, plugin_id: "io.molis.work.other" }, as("io.molis.work.caller")) as { plugin_id: string };
   assert.equal(job.plugin_id, "io.molis.work.caller");
-  assert.equal(schedule.list("io.molis.work.test.owner").length, 0);
+  assert.equal(schedule.list("io.molis.work.other").length, 0);
   assert.equal(schedule.list("io.molis.work.caller").length, 1);
+});
+
+test("schedule.cancel, setEnabled and list reach only the invocation's plugin's jobs, even when the input names another plugin", async () => {
+  const { schedule, call, as } = scheduleChannel({ now: new Date("2026-09-20T03:00:00.000Z") });
+  const mine = call(scheduleCapabilities.register, registration, as("io.molis.work.caller")) as { job_id: string };
+  const theirs = call(scheduleCapabilities.register, { ...registration, object_ref: "theirs" }, as("io.molis.work.other")) as { job_id: string };
+  const intruder = as("io.molis.work.other");
+  const refused = { code: "schedule_job_not_found" };
+  assert.throws(() => call(scheduleCapabilities.cancel, { job_id: mine.job_id, plugin_id: "io.molis.work.caller" }, intruder), refused);
+  assert.throws(() => call(scheduleCapabilities.setEnabled, { job_id: mine.job_id, plugin_id: "io.molis.work.caller", enabled: false }, intruder), refused);
+  assert.equal(schedule.get(mine.job_id)?.enabled, true);
+  assert.deepEqual((call(scheduleCapabilities.list, { plugin_id: "io.molis.work.caller" }, intruder) as { jobs: Array<{ job_id: string }> }).jobs.map(job => job.job_id), [theirs.job_id]);
+  assert.deepEqual(call(scheduleCapabilities.cancel, { job_id: theirs.job_id }, intruder), { cancelled: true });
+  assert.equal(schedule.get(theirs.job_id), null);
+  assert.equal(schedule.list().length, 1);
+});
+
+test("no input shape moves a schedule.* call off the invocation's plugin", async () => {
+  const { schedule, call, as } = scheduleChannel({ now: new Date("2026-09-20T03:00:00.000Z") });
+  const mine = call(scheduleCapabilities.register, registration, as("io.molis.work.caller")) as { job_id: string };
+  const intruder = as("io.molis.work.other");
+  const asArray = Object.assign([], { job_id: mine.job_id, enabled: false });
+  const asFunction = Object.assign(() => undefined, { job_id: mine.job_id, enabled: false });
+  for (const input of [[], "x", 7, null, undefined, asArray, asFunction]) {
+    assert.deepEqual((call(scheduleCapabilities.list, input, intruder) as { jobs: unknown[] }).jobs, [], `list ${String(input)}`);
+    for (const definition of [scheduleCapabilities.cancel, scheduleCapabilities.setEnabled, scheduleCapabilities.register]) {
+      assert.throws(() => call(definition, input, intruder), { code: "schedule_job_invalid" }, `${definition.capability_id} ${String(input)}`);
+    }
+  }
+  assert.equal(schedule.get(mine.job_id)?.enabled, true);
+  assert.equal(schedule.list().length, 1);
+});
+
+test("a schedule.* call with no plugin identity, or from a stopped installation, writes and reads nothing", async () => {
+  const { schedule, call, as } = scheduleChannel({ now: new Date("2026-09-20T03:00:00.000Z") });
+  const mine = call(scheduleCapabilities.register, registration, as("io.molis.work.caller")) as { job_id: string };
+  const stopped = as("io.molis.work.caller", () => { throw new Error("此插件实例已停止"); });
+  const hostOnly: Array<HostCapabilityInvocation | undefined> = [undefined, { beforeEffect: async () => {} }, { consumer: "plugin", beforeEffect: async () => {} }];
+  for (const invocation of hostOnly) {
+    assert.throws(() => call(scheduleCapabilities.register, { ...registration, plugin_id: "io.molis.work.caller", object_ref: "second" }, invocation), { code: "schedule_job_invalid" });
+    assert.throws(() => call(scheduleCapabilities.cancel, { job_id: mine.job_id, plugin_id: "io.molis.work.caller" }, invocation), { code: "schedule_job_invalid" });
+    assert.throws(() => call(scheduleCapabilities.setEnabled, { job_id: mine.job_id, plugin_id: "io.molis.work.caller", enabled: false }, invocation), { code: "schedule_job_invalid" });
+    assert.throws(() => call(scheduleCapabilities.list, { plugin_id: "io.molis.work.caller" }, invocation), { code: "schedule_job_invalid" });
+  }
+  assert.throws(() => call(scheduleCapabilities.register, { ...registration, object_ref: "second" }, stopped), /已停止/);
+  assert.throws(() => call(scheduleCapabilities.cancel, { job_id: mine.job_id }, stopped), /已停止/);
+  assert.throws(() => call(scheduleCapabilities.setEnabled, { job_id: mine.job_id, enabled: false }, stopped), /已停止/);
+  assert.throws(() => call(scheduleCapabilities.list, {}, stopped), /已停止/);
+  assert.equal(schedule.list().length, 1);
+  assert.equal(schedule.get(mine.job_id)?.enabled, true);
 });
 
 interface LeaseRow {

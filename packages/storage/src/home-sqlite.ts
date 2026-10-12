@@ -4,6 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 
 /** Home directories that hold user data in SQLite (a personal `{name}/{name}.db`, `server/server.sqlite`, ...). Uninstall --purge must cover these. */
 export const PERSONAL_HOME_SQLITE_STORES = [
+  "issues",
+  "plugin-runtime",
   "images",
   "pages",
   "form",
@@ -42,3 +44,8 @@ export function openHomeSqliteDatabase(homeDirectory: string, storeName: string)
   return db;
 }
 
+
+/** A second connection for query services. SQLite itself rejects writes and does not create missing files. */
+export function openReadOnlyHomeSqlite(homeDirectory: string, storeName: string): DatabaseSync {
+  return new DatabaseSync(homeSqlitePath(homeDirectory, storeName), { readOnly: true });
+}

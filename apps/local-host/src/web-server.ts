@@ -34,6 +34,7 @@ import { createWebCatalogAccess } from "./web-catalog-access.js";
 import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import { awaitWebServerShutdown } from "./web-server-close.js";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
@@ -204,8 +205,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     }));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
-    const closeServer = server.close.bind(server);
-    server.close = (callback) => { im.stop(); void browsers?.close(); return closeServer(callback); };
+    awaitWebServerShutdown(server, () => { im.stop(); void browsers?.close(); }, async () => {
+      if (ownsLocalHost) { try { await localHost.close(); } finally { await catalogAccess?.close(); } }
+    });
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
     pty.host = attachMolisWorkPtySocket(server, controlToken, {
       onData(panelId, sessionId, data) {
@@ -265,8 +267,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       unregisterSurfaces();
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
-      if (ownsLocalHost) void localHost.close();
-      if (ownsLocalHost) void catalogAccess?.close();
     });
     if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, serverOptions.deletionSweepMs);
     return server;

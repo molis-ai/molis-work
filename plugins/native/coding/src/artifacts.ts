@@ -117,3 +117,9 @@ export function inspectDiagram(diagram: CodingDiagram): CodingDiagramError[] {
   }
   return errors;
 }
+
+/** Coding consumes project artifacts; a Home activation must fail explicitly instead of borrowing a project. */
+export function codingArtifacts(context: import("@molis-ai/molis-work-contracts/platform/plugin").PluginStartContext) {
+  if (!context.services?.artifacts) throw new Error("Coding 需要项目成果服务");
+  return context.services.artifacts;
+}

@@ -36,9 +36,11 @@ const refusal = (name: keyof typeof CODES) => ({ code: CODES[name][0], kind: COD
 type Behavior = (run: { model: PluginModelClient; caller: ActionExecutionContext }) => Promise<unknown>;
 interface ProbeOptions {
   name?: string;
-  /** The whole plugin id, for the one test that needs an id the catalog knows. */
+  /** The whole plugin id, for the tests that need an id the catalog knows. */
   pluginId?: string;
   version?: string;
+  /** The publisher signature, which with the plugin id makes the installation: two signatures are two installations of one plugin. */
+  signature?: string;
   /** false: the Manifest asks for no model at all. */
   declares?: boolean;
   /** true: model:invoke is a required permission, so a plain start grants it. */
@@ -67,7 +69,7 @@ function probe(options: ProbeOptions = {}) {
   const started: Array<PluginHostServices | undefined> = [], preflight: Array<PluginUpgradeContext["services"]> = [];
   const attempts: { atStart?: unknown } = {};
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version, name: pluginId, kind: "app",
-    publisher: { publisher_id: "molis", signature: `probe-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    publisher: { publisher_id: "molis", signature: options.signature ?? `probe-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: declares ? [{ permission: MODEL_INVOKE, required, reason: "让模型把材料压成一句话" }] : [], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [ask, serial, plain],
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
@@ -452,6 +454,45 @@ test("instructions a definition carries are registered while it runs and only th
       assert.deepEqual(doubled.failed.map(entry => entry.plugin_id), [shadow.id]);
       assert.equal(shadow.started.length, 0);
     } finally { wrong.store.close(); duplicate.store.close(); }
+  }));
+
+test("an owner the catalog registers anything for is refused instructions from a definition, not only one whose instructions the catalog registers: an owner with Agent roles or methods and no instructions keeps them", { timeout: 60_000 },
+  withDirectory(async directory => {
+    // Registering a second source for such an owner would make the Host's register show the definition's row instead of the catalog's:
+    // the roles and methods the catalog gave it would disappear from the person's settings and from other Agents while it runs.
+    // The catalog has Schedule's and the assistant's Agent roles and Issues' method, none of them with an instruction.
+    for (const owner of ["io.molis.work.schedule", "io.molis.work.assistant", "io.molis.work.issues"]) {
+      const item = platformIn(directory), shadow = probe({ pluginId: owner });
+      try {
+        const refused = await item.platform.start([{ definition: shadow.definition, ...GRANTED }]);
+        assert.deepEqual(refused.running, [], `${owner} has roles or methods from the catalog: instructions for it come from the catalog's entry`);
+        assert.deepEqual(refused.failed.map(entry => entry.plugin_id), [owner]);
+        assert.equal(shadow.started.length, 0, "the plugin never started");
+      } finally { item.store.close(); }
+    }
+  }));
+
+test("an owner's own registration is not the catalog's: two installations of one plugin (two signatures) run together, each with its instructions, and the last one out withdraws them", { timeout: 60_000 },
+  withDirectory(async directory => {
+    const model = standIn(), first = platformIn(directory, { current: model.complete }), second = platformIn(directory, { current: model.complete });
+    const one = probe({ signature: "signed-by-one" }), other = probe({ signature: "signed-by-other" });
+    try {
+      assert.deepEqual((await first.platform.start([{ definition: one.definition, ...GRANTED }])).running, [one.id]);
+      assert.deepEqual((await second.platform.start([{ definition: other.definition, ...GRANTED }])).running, [other.id],
+        "the first installation's registration of the owner is its own, and no reason to refuse the second");
+      assert.deepEqual(await first.invoke(one.ask), { text: "摘要结果" });
+      assert.deepEqual(await second.invoke(other.ask), { text: "摘要结果" });
+      // One installation stops: the other's instructions are still registered.
+      await first.platform.runtime.stop(first.installId(one.id));
+      assert.deepEqual(await second.invoke(other.ask), { text: "摘要结果" });
+      // The last one stops: nothing of the plugin's is registered any more.
+      await second.platform.runtime.stop(second.installId(other.id));
+      const bare = probe({ signature: "signed-by-one", instructions: () => [] }), third = platformIn(directory, { current: model.complete });
+      try {
+        await third.platform.start([{ definition: bare.definition, ...GRANTED }]);
+        await assert.rejects(third.invoke(bare.ask), refusal("instruction_refused"));
+      } finally { third.store.close(); }
+    } finally { first.store.close(); second.store.close(); }
   }));
 
 test("through the Host's text path: a Host given no model reaches the configured one by hostTextGeneration (agent-host's Prologue inference), and the answer carries what the provider reported",

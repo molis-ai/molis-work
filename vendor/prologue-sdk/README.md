@@ -6,43 +6,41 @@
 
 - 当前包 `prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
-- `patch-history.json`：已删除的 26 份历史补丁和 10 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
+- `patch-history.json`：已删除的 26 份历史补丁和 11 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。
 
 另外两个 vendored 包各自带 `.sha256`、`.provenance.json` 和 `sbom.cdx.json`：[intelligence-client](../intelligence-client/)、[search-evidence-layer](../search-evidence-layer/)。这三个包的 tgz 按决定（2026-10-08，[spec](../../specs/repository-anti-corruption/spec.md) §1「Prologue SDK 收敛与私有包」）将来改从私有 registry 或 release 附件取，不再放进公开仓库；registry 就绪前仍留在仓库里（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §5）。`pnpm health:check` 限制本目录的 tgz 份数（`tooling/gates/limits.json` 的 `vendoredPrologueSdk`），并由 `scripts/gates/vendored-provenance.mjs` 核对三个包的 tgz 与各自的 `.sha256`、`.provenance.json` 相符、`alsoBuildableFrom` 点名的补丁在目录里且字节数、SHA-256 相符、`patch-history.json` 的格式对、已删的补丁没有回到目录里（只核对形状，不去 Git 里重算 `gitBlob` 的字节数与 SHA-256，见 [REPOSITORY-HYGIENE](../../docs/system/REPOSITORY-HYGIENE.md)）；`tests/vendor-provenance.test.ts` 给门禁的每一条检查各造一个违例，方法与限度也在那份文档里。
 
-## 当前依赖：adoption-receipts-fields（2026-10-12，A0 采用修正 + 输入回执第一刀 + 带类型的问卷）
+## 当前依赖：adoption-receipts-handling（2026-10-12，在 PR #4 的包之上加输入回执第二、三刀）
 
-`prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz`（1,076,425 字节），SHA-256 `646afefbd4225bfe8bf50892403962fa3e12711f1c45035cfb739e3b9bc8d34f`。
+`prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz`（1,102,754 字节），SHA-256 `c474ee431a0c9594cbea60b339f966231b241f924c0651fef0eebf39f2e6339c`。
 
-**来源**：上游 `molis-ai/prologue` main 上的合并提交 `55b0c85aed4a0cd9296a58180f99e31a419a9608` 的 `packages/sdk`，不加补丁，`dirty: false`。它是 PR #4（`feature/molis-adoption-receipts-fields`，head `a13bf067`）的合并提交（2026-10-12T06:34:51Z），父提交是 `69ccfa94` 与 `a13bf067`，树与 `a13bf067` 的树相同。provenance 的 `mergedUpstream` 记 PR、head、合并时间与核对时的 main 头。三条线合成一个包，采用、输入回执、跨插件 AI 交互三条消费线共用：
+**来源**：上游 `molis-ai/prologue` 提交 `87e063e88b15b19ab98a0da1e8a7cd2aa3d76c32` 的 `packages/sdk`，不加补丁，`dirty: false`。分支 `feature/molis-adoption-s2-s3`，Prologue PR #5；**PR 合入 main 之前它还不在上游 main 里**，合入后从 main 上的合并提交重建、核对字节，provenance 补 `mergedUpstream`。这一份 = 上一份（main 上的 `55b0c85a`，A0 采用修正 + 输入回执第一刀 + 带类型的问卷）加：
 
-- `c4b9fde3`：微压缩只收能再读的观察，改世界的回执不换成「需要就再调」；独占写主人重开时清死去主人的写声明；让出后的续跑可以交给 App（Molis 不启用，正式派发入口拒绝 yield）。
-- `4acfb445`：输入回执第一刀——`steer` 有身份、可撤回，回复留进历史才记「读到」，`projectInputReceipts` 从 Run 账推回执。
-- `69ccfa94`（经 `edb8ec86` 并入的上游 main）：符号链接 cwd 越根与非终态导入两处硬边界。
-- `a06ae62e`（经 `8db0d7d6` 并入）：AskUser 带类型的题与 `validateQuestionnaireAnswer`；不配 `config.tool.askUserQuestionTypes` 时 `ask-user` 逐字不变。
-- `a13bf067` 只改 `docs/slices`；从 `55b0c85a`、`a13bf067`、`8db0d7d6` 三个归档打出的包逐字节相同。
+- 输入回执第二刀（`b77adb41`）：没读到的补充进会话级持久排队，获准才带进下一跑；SDK 叫醒的子任务续跑一律不带；续聊历史里没读到的补充只剩 `input-unread` 说明。
+- 输入回执第三刀（`88612378`）：系统工具 `acknowledge-inputs`（处理说明）、`unacknowledged-input` 有界提醒、`config.agent.inputReminders`；`37427d09` 修一处压缩时编号说明被当成「必须记住的指示」交给摘要器的回归。
+- 对 `55b0c85a` 的 diff 只有这几项；`87e063e8` 对 `37427d09` 的合并不改任何文件内容。
 
 包的依赖与上一份相同（`@tauri-apps/api` 2.11.1），锁文件只换路径与 integrity。
 
-**重建**（2026-10-12 在 macOS x64、Node 24.21.0、pnpm 11.9.0 上实际跑过三次，`8db0d7d6`、`a13bf067` 与上游 main 上的 `55b0c85a` 三份归档打出同一个 SHA-256；上游根 `package.json` 钉的是 Node 24.14.0，换版本 pnpm 只警告）：
+**重建**（2026-10-12 在 macOS x64、Node 24.21.0、pnpm 11.9.0 上从 `87e063e8` 的 `git archive` 打出；上游根 `package.json` 钉的是 Node 24.14.0，换版本 pnpm 只警告）：
 
 ```bash
-git -C <prologue 克隆> archive 55b0c85aed4a0cd9296a58180f99e31a419a9608 | tar -x -C <空目录>
+git -C <prologue 克隆> archive 87e063e88b15b19ab98a0da1e8a7cd2aa3d76c32 | tar -x -C <空目录>
 cd <空目录>
 pnpm install --frozen-lockfile --ignore-scripts --offline
 pnpm --filter @prologue/sdk build
-cd packages/sdk && pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz
-shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz   # 与 .sha256 一致
+cd packages/sdk && pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz
+shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz   # 与 .sha256 一致
 ```
 
-**验证**（SDK 侧，Molis 默认包路径的结果记在采用 spec §6）：
+**验证**（SDK 侧；Molis 默认包路径的结果记在采用 spec §6）：
 
-- 合成树两份 `tsc`、SDK build 通过；SDK 全量 330 个文件 323 通过、6 跳过，3670 条通过、21 条跳过（缺 Key / 环境）；唯一失败是 `agent-budget.live` 的墙钟用例在 `--maxWorkers=4` 下的时序，单独复跑 3/3 通过。合入问卷前的 `edb8ec86` 同样跑过一遍全量（3659 通过，唯一失败是 `host-storage-full.live` 的 ram disk 弹出在负载下超时，单独复跑 2/2 通过）。
-- 包装进只有 `package.json` 的空目录（`pnpm install --offline --ignore-scripts`），只经公开入口：S1-10 消费者（真实回环 HTTP、Node Host、去重、撤回、读到调用引用、磁盘回放）通过；`validateQuestionnaireAnswer` 有效答案零问题、坏日期 / 非整数 / 种类不在名单各报原因。
+- 两份 `tsc`、SDK build 通过；SDK 全量 334 个文件 326 通过 / 6 跳过，3707 条通过 / 21 跳过 / 2 条失败（`agent-budget.live` 的墙钟用例与 `app-mode-surfaces.live` 的「审批久于观察期」用例在 `--maxWorkers=4` 下的时序；两个文件单独连跑三次 17/17 通过）。
+- 包装进只有 `package.json` 的空目录（`pnpm install --offline --ignore-scripts`），只经公开入口：S1（`steer-receipts-consumer`）、S2（`input-queue-consumer`）、S3（`input-handling-consumer`）三份消费者脚本与带类型问卷校验都通过。
 - 未跑：真实 Provider（本机无 Key）。
 
-上一份包 dirty 候选 `prologue-sdk-a0-s1.tgz`（2026-10-11，`c4b9fde3` 加未提交的输入回执差异，`dirty: true`）只在采用分支上提交过，已删除，记在 `patch-history.json` 的 `packagesWithoutPatch`，按 `gitBlob` 取回。
+上一份包 `prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz`（1,076,425 字节，SHA-256 `646afefb…`，来源 main 上的 `55b0c85a`，PR #4）已删除，记在 `patch-history.json` 的 `packagesWithoutPatch`，按 `gitBlob` 取回。更早的 dirty 候选 `prologue-sdk-a0-s1.tgz` 同样记在那里。
 
 ## 上一份正式依赖：side-panel-memory（2026-09-30，平台侧栏的界面控制 + 平台记忆；2026-10-12 换掉）
 
@@ -88,8 +86,8 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 26 份补丁（合计 2,791,897 字节）是历史包的重建材料。重建当前包用不着它们（当前包不加任何补丁），按决定从树里删掉；Git 历史不改写。记录在 [`patch-history.json`](patch-history.json)：
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
-- `packagesWithoutPatch`：10 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含 2026-10-12 换掉的 dirty 候选 a0-s1；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：记录里写到的每个 Prologue 提交（20 个）都是上游 main 头的祖先（2026-10-08 逐个用 `git merge-base --is-ancestor` 对 `4f7110fe` 核对；2026-10-12 加的 `c4b9fde3` 随 PR #4 进了 main，对 `55b0c85a` 同样成立）。`21cdfbf8`、`d4a2f41b` 是 Molis 仓库的提交，不是 Prologue 的。
+- `packagesWithoutPatch`：11 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
+- `upstream`：记录里写到的每个 Prologue 提交（21 个）都是上游 main 头的祖先（2026-10-08 逐个用 `git merge-base --is-ancestor` 对 `4f7110fe` 核对；2026-10-12 加的 `c4b9fde3` 随 PR #4 进了 main，对 `55b0c85a` 同样成立）。`21cdfbf8`、`d4a2f41b` 是 Molis 仓库的提交，不是 Prologue 的。
 
 怎么取回并核对：
 

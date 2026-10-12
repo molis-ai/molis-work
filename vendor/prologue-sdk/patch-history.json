@@ -22,6 +22,7 @@
       "4b6cd9bcf772f2b73185d8858a3ab4c7c52aa962",
       "4d5f874d37287eb2cd87c10a5837013d922555f0",
       "52c49cf5095e67cd62f4db9e9c1d515afa68ddd8",
+      "55b0c85aed4a0cd9296a58180f99e31a419a9608",
       "6f530d5a818e0f7aecfb6322c5bfe22dbe7552ea",
       "8d590818e32534880984f9e84e1efd005caa105a",
       "93bbe1db280540361bf9f24be9e82589e8818e5c",
@@ -585,6 +586,14 @@
       "gitBlob": "0c42199184bc49a0cb35a8b37bf31825308b1bec",
       "commit": "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
       "description": "A0 交接时的 dirty 候选（2026-10-11 打包，provenance 记 dirty:true）：`c4b9fde3` 加当时未提交的输入回执第一刀差异，只在采用分支 `feature/handoff-prologue-adoption` 上提交过（2a361f41），从未是 main 的依赖。那份差异随后提交为 Prologue `4acfb4459c21f96179490197f18a437c54503cb3`；正式包换成从具名提交重建的 adoption-receipts-fields，本包不能从任何具名提交逐字节重建。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz",
+      "bytes": 1076425,
+      "sha256": "646afefbd4225bfe8bf50892403962fa3e12711f1c45035cfb739e3b9bc8d34f",
+      "gitBlob": "f25ca5f4d66b0e1d8279e9f8867b52023571ad16",
+      "commit": "55b0c85aed4a0cd9296a58180f99e31a419a9608",
+      "description": "提交 `55b0c85a`（Prologue PR #4 合入 main 的合并提交；树与 PR head `a13bf067` 相同，两者与 `8db0d7d6` 打出逐字节相同的包）。A0 采用修正 + 输入回执第一刀 + 带类型的问卷，2026-10-12 正式依赖，同日被加入第二、三刀的 adoption-receipts-handling 换掉。"
     }
   ],
   "notes": [

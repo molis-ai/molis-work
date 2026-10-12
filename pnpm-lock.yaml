@@ -672,8 +672,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -1674,8 +1674,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz':
-    resolution: {integrity: sha512-Bnu4cfFfgpcO5vsWl3CLFbbw5xsMiyqKoMF/2ZEhcaEv+xT2ttoGgdMljjX5s252deegRj1cyl+i4xKj6MGrog==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz':
+    resolution: {integrity: sha512-01zieD0uIIQI6pFqsxBXCuThaqwbS8EFhTXBD6yzbZaWWh0JV2BVRVsDTeqSvDLO8F+RO6yhXvVy8zxExM0XHA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':
@@ -3397,7 +3397,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

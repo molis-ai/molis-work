@@ -467,7 +467,7 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     // It ended still only saying what it would do, after its one continuation: nothing was done.
     "只说未做": "ended-on-promise" };
   return activity.flatMap(item => {
-    if (item.name === "reasoning" || item.name === "context-remaining") return [];
+    if (item.name === "reasoning" || item.name === "context-remaining" || item.name === "acknowledge-inputs") return [];
     const verb = verbs[item.name] ?? item.name;
     const named = titles?.get(item.target);
     const target = (verb === "read" || verb === "change" || verb === "suggest") && named ? `${named.provider} · ${named.title}` : item.target;

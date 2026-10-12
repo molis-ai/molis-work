@@ -21,7 +21,7 @@
 | [src/boundaries.ts](src/boundaries.ts) | 导入边界与依赖环规则（含层与层之间的方向：Module 不向上依赖 Horizontal、Plugin、App；Plugin 不依赖 App、Horizontal、Module 实现包（合同包不算）；App 之间只有登记的边；例外名单按包路径记，只许减少，`unusedLayerExceptions` 找出仓库里已经没有的边） |
 | [src/index.ts](src/index.ts) | 公开检查 API |
 | [src/browser/locate.ts](src/browser/locate.ts) | `locateTestChrome`：环境变量与固定位置的查找顺序 |
-| [src/browser/launch.ts](src/browser/launch.ts) | `launchHeadlessChrome`：标准启动参数、读调试地址、等 `exit` 的关闭（超时 SIGKILL） |
+| [src/browser/launch.ts](src/browser/launch.ts) | `launchHeadlessChrome`：标准启动参数（全部列在下面「开发要求」的不变量里）、读调试地址、等 `exit` 的关闭（超时 SIGKILL） |
 | [src/browser/cdp.ts](src/browser/cdp.ts) | `ChromeHarness`：命令、持续监听与一次性事件、超时信息 |
 | [src/browser/page.ts](src/browser/page.ts) | `ChromePage`：页内等待、点击、填写、视口、截图 |
 | [src/local-host-http/client.ts](src/local-host-http/client.ts) | `LocalHostHttpClient`、`LocalHostHttpError`：闸门要的请求头、被拒绝的状态与代码 |
@@ -68,6 +68,7 @@ pnpm boundary:test
   - 新增边界规则同时提供允许与拒绝案例，不靠检查固定文件数量。
   - 浏览器驱动的每个超时与诊断都是参数；用例原来的时限和失败信息靠参数保留，不在这里改默认值来迁就某个用例。
   - 关闭只等主进程的 `exit`，不等 `close`（Chrome 的辅助进程会继承 stderr，等 `close` 可能不返回）。
+  - 经 `launchHeadlessChrome`（`ChromeHarness.start` 也走它）启动的浏览器，标准启动参数只有这一套，每一个都带（`STANDARD_ARGS`，包自己的测试核对这一行与代码一致）：`--headless=new`、`--lang=zh-CN`、`--accept-lang=zh-CN`、`--disable-gpu`、`--disable-background-networking`、`--disable-component-update`、`--disable-extensions`、`--disable-background-timer-throttling`、`--disable-renderer-backgrounding`、`--disable-backgrounding-occluded-windows`、`--no-first-run`、`--no-default-browser-check`、`--remote-debugging-port=0`，另加每次启动一个新的用户数据目录。其中 `throttling`、`renderer-backgrounding`、`backgrounding-occluded-windows` 三个参数让后台或被遮挡的页面不降频、不降优先级，所以经它启动的页面按前台节奏跑。不经它的浏览器（自己 `spawn` Chrome 直接取页面 DOM 的用例、产品的内置浏览器）另有各自的参数，不在这一套之内。`extraArgs` 排在标准参数之后，只能追加、去不掉其中任何一个；某个用例要别的参数就放进 `extraArgs`，不要为它另写启动器。改这一套等于改所有用 `/browser` 的用例的运行条件，要重跑「改动后必跑」里的浏览器用例。
   - 本机 Host HTTP 的授权与项目调用只走 Host 自己的设置接口，不提供写授权文件的捷径，也不替 Host 判断：被拒绝的授权原样抛出（状态、代码、Host 的话），`grantMcpActions` 只加上是哪一项。路由串各自写着主人文件（`web-mcp-action-settings.ts`、`web-project-settings.ts`），路由改名会在每个授权用例里以 404 出现。
   - 一组授权的顺序只由声明决定（`required_actions`、`required_scene`），有环就在发出前抛错；用例漏掉的依赖不替它补，Host 会以 `mcp.grant_requires` 拒绝，用例自己把依赖列进去。
   - 不依赖任何包以外的运行库；不 import 宿主、模块、横向服务或插件。

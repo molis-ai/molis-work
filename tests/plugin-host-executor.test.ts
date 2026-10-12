@@ -15,6 +15,7 @@ import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-h
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { artifactPreview } from "./fixtures/artifact-preview.js";
 
 test("an unknown Runtime plugin cannot turn a Host-only adapter into user authority through consumes", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-host-only-plugin-"));
@@ -68,7 +69,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const ui = new UiHost();
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: "author",
-    artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }));
+    artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }), { actions: pluginActions(store, DEMO_PROJECT_ID) });
   let failStart = false;
   let failStop = false;
   const contexts: PluginStartContext[] = [];
@@ -77,10 +78,13 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
   } });
   const id = "io.molis.work.example.hosted";
+  // The 成果 type the plugin pins is named and has a preview of its own (specs/artifact-positioning A1/A7).
+  const preview = artifactPreview(id);
   const definition: PluginDefinition = { manifest: { ...base.manifest, plugin_id: id,
     permissions: [...base.manifest.permissions, ...["storage:private", "artifact:write", "artifact:read", "ui:register"]
       .map(permission => ({ permission, required: true, reason: "Hosted sample" }))],
-    artifacts: { produces: [{ artifact_type_id: "example.note", schema_version: 1 }],
+    actions: [...(base.manifest.actions ?? []), preview.definition],
+    artifacts: { produces: [preview.type],
       consumes: [{ artifact_type_id: "example.note", schema_version: 1 }] }, ui: { contributions: ["example.notes"] } },
     async start(context) {
       contexts.push(context);
@@ -94,7 +98,8 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
       services.storage!.set("visits", String(count));
       services.artifacts.publish({ artifact_id: "hosted-note", version: count, artifact_type_id: "example.note",
         schema_version: 1, content: { kind: "inline", payload: { visits: count } }, ...pinnedArtifact("Visits", { kind: "counter", id: "visits" }, String(count)) });
-      return base.start(context);
+      const contribution = await base.start(context);
+      return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
     }, async stop(context) { assert.ok(context.services); if (failStop) throw new Error("stop failed"); } };
   try {
     const installation = runtime.install({ definition, deployment: "local",
@@ -156,13 +161,15 @@ test("compatible Host execution and crash recovery use the implementation versio
   const contexts: PluginStartContext[] = [];
   let failStart = false;
   const base = createGithubIntegrationPlugin({ provider: { type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; }, async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; } } });
+  const preview = artifactPreview(base.manifest.plugin_id);
   const make = (version: string): PluginDefinition => ({
     ...base,
     manifest: { ...base.manifest, version,
       ...(version === "2.0.0" ? { upgrade_compatibility: { compatible_from_versions: ["1.0.0"] } } : {}),
       permissions: [...base.manifest.permissions, ...["storage:private", "artifact:write", "artifact:read", "ui:register"]
         .map(permission => ({ permission, required: true, reason: "Compatible Host fixture" }))],
-      artifacts: { produces: [{ artifact_type_id: "example.note", schema_version: 1 }],
+      actions: [...(base.manifest.actions ?? []), preview.definition],
+      artifacts: { produces: [preview.type],
         consumes: [{ artifact_type_id: "example.note", schema_version: 1 }] },
       ui: { contributions: ["example.compatible"] } },
     async start(context) {
@@ -176,16 +183,17 @@ test("compatible Host execution and crash recovery use the implementation versio
         render: () => `<p>${version}</p>` });
       context.services!.artifacts.publish({ artifact_id: "compatible-note", version: count,
         artifact_type_id: "example.note", schema_version: 1, content: { kind: "inline", payload: { count } }, ...pinnedArtifact("Count", { kind: "counter", id: "count" }, String(count)) });
-      return base.start(context);
+      const contribution = await base.start(context);
+      return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
     },
   });
   try {
-    const first = new PluginRuntime(repository, executor());
+    const first = new PluginRuntime(repository, executor(), { actions: pluginActions(store, DEMO_PROJECT_ID) });
     const old = make("1.0.0");
     const installed = first.install({ definition: old, deployment: "local", grants: old.manifest.permissions.map(p => p.permission) }).install;
     await first.start(installed.install_id);
     await first.stop(installed.install_id);
-    const runtime = new PluginRuntime(repository, executor());
+    const runtime = new PluginRuntime(repository, executor(), { actions: pluginActions(store, DEMO_PROJECT_ID) });
     const next = make("2.0.0");
     runtime.install({ definition: next, deployment: "local", grants: installed.grants });
     await runtime.start(installed.install_id);

@@ -36,7 +36,9 @@ function v2Manifest(): Record<string, unknown> {
       { permission: "agent:run", required: true, reason: "执行编码任务" },
     ],
     capabilities: { provides: [], consumes: ["projects.read.v1"] },
-    artifacts: {
+    artifacts: { produces: [], consumes: [] },
+    // Port values are process items: exchange data kept out of the 成果库 (artifact-positioning A2).
+    process_items: {
       produces: [{ artifact_type_id: "coding.change-set", schema_version: 1 }],
       consumes: [
         { artifact_type_id: "projects.project", schema_version: 1 },
@@ -250,13 +252,13 @@ test("ports must agree with the Artifact permissions and declarations they rely 
   }, "必须声明 artifact:read 权限");
 
   rejects((manifest) => {
-    const artifacts = manifest.artifacts as { produces: unknown[] };
-    artifacts.produces = [];
+    const processItems = manifest.process_items as { produces: unknown[] };
+    processItems.produces = [];
   }, "没有列入 artifacts.produces");
 
   rejects((manifest) => {
-    const artifacts = manifest.artifacts as { consumes: unknown[] };
-    artifacts.consumes = [];
+    const processItems = manifest.process_items as { consumes: unknown[] };
+    processItems.consumes = [];
   }, "没有列入 artifacts.consumes");
 });
 

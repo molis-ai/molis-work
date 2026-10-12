@@ -1,4 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { withRecordedCallId } from "./call-id-response.js";
 
 export interface NativePluginJsonResult {
   readonly status: number;
@@ -22,13 +25,13 @@ export function readNativePluginJsonBody(
     request.setEncoding("utf8");
     request.on("data", (chunk) => {
       body += chunk;
-      if (body.length > maxBytes) reject(new Error("请求内容过大"));
+      if (body.length > maxBytes) reject(new ActionError("actions.input_too_large", "请求内容过大"));
     });
     request.on("end", () => {
       try {
         resolve(body ? JSON.parse(body) as Record<string, unknown> : {});
       } catch {
-        reject(new Error("请求不是有效 JSON"));
+        reject(new ActionError("actions.input_invalid", "请求不是有效 JSON"));
       }
     });
     request.on("error", reject);
@@ -36,12 +39,14 @@ export function readNativePluginJsonBody(
 }
 
 export function writeNativePluginJsonResponse(response: ServerResponse, result: NativePluginJsonResult): void {
+  const answer = withRecordedCallId(result.status, result.body ?? {});
   response.writeHead(result.status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
     ...result.headers,
+    ...answer.headers,
   });
-  response.end(JSON.stringify(result.body ?? {}));
+  response.end(JSON.stringify(answer.body));
 }
 
 export async function dispatchNativePluginJsonHttp(
@@ -57,16 +62,17 @@ export async function dispatchNativePluginJsonHttp(
       query: URLSearchParams;
       body: Record<string, unknown>;
     }): Promise<NativePluginJsonResult | null>;
-    mapError(error: unknown): NativePluginJsonResult;
+    /** Omit it and the failure answers through the SDK: the status of its kind and { error, code, details? } (`actionErrorResponse`). */
+    mapError?(error: unknown): NativePluginJsonResult;
     write?(response: ServerResponse, result: NativePluginJsonResult): void;
   },
 ): Promise<boolean> {
   if (!matchesNativePluginPrefix(url.pathname, options.prefix)) return false;
   const method = request.method;
   if (method !== "GET" && method !== "POST") return false;
-  const body = method === "GET" ? {} : await readNativePluginJsonBody(request, options.maxBodyBytes);
   const write = options.write ?? writeNativePluginJsonResponse;
   try {
+    const body = method === "GET" ? {} : await readNativePluginJsonBody(request, options.maxBodyBytes);
     const result = await options.handle({
       method,
       pathname: url.pathname,
@@ -77,7 +83,7 @@ export async function dispatchNativePluginJsonHttp(
     write(response, result);
     return true;
   } catch (error) {
-    write(response, options.mapError(error));
+    write(response, options.mapError?.(error) ?? actionErrorResponse(error));
     return true;
   }
 }

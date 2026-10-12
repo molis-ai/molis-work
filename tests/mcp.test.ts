@@ -1,5 +1,5 @@
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { CATALOG_SCHEMA_VERSION, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -156,7 +156,7 @@ describe("mcp server", () => {
       for (const named of [{}, { database_path: "" }, { database_path: "  " }, { database_path: 5 }]) {
         await assert.rejects(
           () => management.callTool("molis_work_v1_initialize", { project_id: "no-default", title: "无默认库", idempotency_key: "k", ...named }),
-          (error: unknown) => error instanceof MolisWorkV1Error && error.code === "store.path_required",
+          (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.path_required",
           JSON.stringify(named),
         );
       }
@@ -166,13 +166,54 @@ describe("mcp server", () => {
       process.env.MOLIS_WORK_DATABASE = named;
       await assert.rejects(
         () => management.callTool("molis_work_v1_goal_tree_decide", { project_id: "no-default" }),
-        (error: unknown) => error instanceof MolisWorkV1Error && error.code === "store.not_found" && error.message.includes(named),
+        (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.not_found" && error.message.includes(named),
       );
       assert.deepEqual(fs.readdirSync(directory), []);
     } finally {
       process.chdir(previousCwd);
       if (previousDatabase === undefined) delete process.env.MOLIS_WORK_DATABASE; else process.env.MOLIS_WORK_DATABASE = previousDatabase;
       await management.close();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("a management call takes its database from database_path before MOLIS_WORK_DATABASE", async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-argument-over-environment-"));
+    const previousDatabase = process.env.MOLIS_WORK_DATABASE;
+    const fromEnvironment = path.join(directory, "from-environment.db");
+    const fromArgument = path.join(directory, "from-argument.db");
+    process.env.MOLIS_WORK_DATABASE = fromEnvironment;
+    const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
+    const management = new MolisWorkServer("management", null, null, host);
+    try {
+      const created = JSON.parse(await management.callTool("molis_work_v1_initialize",
+        { database_path: fromArgument, project_id: "project/argument-first", title: "参数优先", idempotency_key: "argument-first" })) as { project_id: string; replayed: boolean };
+      assert.deepEqual([created.project_id, created.replayed], ["project/argument-first", false]);
+      assert.equal(fs.existsSync(fromArgument), true, "the named database was created");
+      assert.equal(fs.existsSync(fromEnvironment), false, "the environment variable's path was left alone");
+    } finally {
+      if (previousDatabase === undefined) delete process.env.MOLIS_WORK_DATABASE; else process.env.MOLIS_WORK_DATABASE = previousDatabase;
+      await management.close();
+      await host.close();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("a management call that names no project_id runs as database:<path>, and a later name for the same database conflicts with it", async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-database-project-"));
+    const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
+    const management = new MolisWorkServer("management", null, null, host);
+    try {
+      const project = await withMolisWorkProjectCatalog({ homeDirectory: directory }, catalog => catalog.createProject({ display_name: "没有项目号", actor_id: "user" }));
+      // goal_tree_decide reads no project_id of its own: only the scope the call runs in is in play.
+      await assert.rejects(() => management.callTool("molis_work_v1_goal_tree_decide", { database_path: project.database_path }),
+        { code: "actions.scope_mismatch" });
+      await assert.rejects(() => management.callTool("molis_work_v1_goal_tree_decide", { database_path: project.database_path, project_id: project.project_id }),
+        (error: unknown) => (error as { code?: string }).code === "host.project_identity_conflict"
+          && (error as Error).message.includes(`database:${path.resolve(project.database_path)}`));
+    } finally {
+      await management.close();
+      await host.close();
       fs.rmSync(directory, { recursive: true, force: true });
     }
   });

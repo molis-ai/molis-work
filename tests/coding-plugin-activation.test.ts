@@ -39,6 +39,7 @@ function project(directory: string) {
     artifacts,
     processItems,
     ui: new UiHost(),
+    home: null,
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
   return { store, platform };

@@ -7,6 +7,7 @@ import type { LocalProjectDatabase } from "./project-database.js";
 import type { LocalFeedApplicationOptions } from "./feed-application.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { writeNativePluginJsonResponse } from "./native-plugin-http.js";
 
 export interface FeedNativePluginHttpOptions {
   readonly actions: BoundActionClient;
@@ -84,8 +85,7 @@ function writeResponse(response: ServerResponse, result: FeedPluginRouteResponse
     response.end(result.html);
     return;
   }
-  response.writeHead(result.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...result.headers });
-  response.end(JSON.stringify(result.body ?? {}));
+  writeNativePluginJsonResponse(response, result);
 }
 
 function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {

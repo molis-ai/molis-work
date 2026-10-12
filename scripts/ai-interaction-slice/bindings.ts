@@ -1,11 +1,12 @@
-import { references, timeLimits, type DemoState } from "./model.ts";
-import { appendDraft, edit, editWhen, finishComposition, setDraft } from "./state.ts";
+import { references, type DemoState } from "./model.ts";
+import { appendDraft, edit, editWhen, setDraft } from "./state.ts";
 import { adoptSteps, setInteraction, stepLive, type RecommendationState } from "./recommendation.ts";
 import { atEnd, find } from "./dom.ts";
-import { mountCalendars } from "./calendar.ts";
+import { createInteractionClient, type InteractionClient, type InteractionClientHost } from "../../packages/design-system/src/interaction-client.ts";
 
 type TextField = "notes" | "minutes" | "date";
 const textFields = new Set<string>(["notes", "minutes", "date"]);
+type Change = Parameters<NonNullable<InteractionClientHost["onChange"]>>[0];
 /** What a scene's event handlers need from its controller. */
 export interface SceneContext {
   root: HTMLElement;
@@ -21,67 +22,54 @@ export interface SceneContext {
   openTools(open: boolean, focus?: boolean): void;
   wide(): boolean;
 }
+const picked = (value: Change["value"]): string[] => Array.isArray(value) ? value : typeof value === "object" && "picked" in value ? value.picked : [];
+/** What the shared questionnaire client reports becomes an edit of the draft; the rules stay in state. */
+function applyChange(state: DemoState, { field, part, value }: Change): void {
+  if (field === "format") edit(state, "format", picked(value).map(Number));
+  else if (field === "topics") edit(state, "topics", picked(value).map(Number));
+  else if (field === "when" && (part === "date" || part === "time") && typeof value === "object" && "date" in value) editWhen(state, part, value[part]);
+  else if (field === "references") {
+    const ids = picked(value), kept = state.values.references.filter(ref => ids.includes(ref.id));
+    edit(state, "references", [...kept, ...references.filter(ref => ids.includes(ref.id) && !kept.some(item => item.id === ref.id)).map(ref => ({ ...ref }))]);
+  } else if (textFields.has(field) && typeof value === "string") edit(state, field as TextField, value);
+}
 /** Wires one scene's DOM to its state. Handlers only translate events; the rules live in state, execution and recommendation. */
-export function bindScene(context: SceneContext): void {
+export function bindScene(context: SceneContext): InteractionClient {
   const { root, state, recommendation, composer, thread, tools, refresh, action, begin, land, openTools, wide } = context;
   root.addEventListener("submit", event => {
     event.preventDefault();
     const form = event.target as HTMLElement;
-    if (form.matches("[data-ix-form]")) { begin(); return; }
+    if (form.matches("[data-ix-form]")) return;
     if (recommendation.composing) return;
     setDraft(state, composer.value);
     if (appendDraft(state)) { composer.value = ""; refresh(); land(root.querySelector('[data-ix-field="notes"]')); return; }
     if (state.draft.trim() && !["expired", "replaced", "cancelled"].includes(state.question)) state.notice = "这是演示：新消息不会发给模型。可以用对话里的卡片或输入框旁的下一步继续。";
     refresh();
   });
-  root.addEventListener("click", event => {
-    if (!(event.target instanceof Element)) return;
-    const button = event.target.closest<HTMLButtonElement>("button");
-    if (!button || button.disabled) return;
-    const step = button.closest<HTMLButtonElement>("[data-ix-step]");
-    if (step) {
-      const shown = recommendation.shown[Number(step.dataset.ixStep)];
+  const client = createInteractionClient(root, {
+    onChange: change => { applyChange(state, change); refresh(); },
+    onAction: id => action(id),
+    onSubmit: begin,
+    onStep: index => {
+      const shown = recommendation.shown[index];
       if (!shown || !stepLive(recommendation, shown)) return;
       action(shown.action);
       adoptSteps(recommendation);
       refresh();
-      return;
-    }
-    const named = button.dataset.ixAction ?? button.dataset.action;
-    if (named) { action(named); return; }
-    if (button.dataset.ixStepBy) {
-      const current = Number(state.values.minutes);
-      if (Number.isInteger(current)) edit(state, "minutes", String(Math.min(timeLimits.maxMinutes, Math.max(timeLimits.minMinutes, current + Number(button.dataset.ixStepBy)))));
-      else find(root, '[data-ix-value="minutes"]').focus();
-    }
-    const name = button.dataset.ixOption === undefined ? undefined : button.closest<HTMLElement>("[data-ix-field]")?.dataset.ixField;
-    if (name === "format" || name === "topics") {
-      const index = Number(button.dataset.ixOption);
-      edit(state, name, name === "format" ? [index] : state.values.topics.includes(index) ? state.values.topics.filter(value => value !== index) : [...state.values.topics, index]);
-    }
-    if (button.dataset.ixReference !== undefined) {
-      const ref = references.find(candidate => candidate.id === button.dataset.ixReference);
-      if (ref) edit(state, "references", state.values.references.some(value => value.id === ref.id) ? state.values.references.filter(value => value.id !== ref.id) : [...state.values.references, { ...ref }]);
-    }
-    refresh();
+    },
+  });
+  // The demo's own buttons (`data-action`) are not part of the questionnaire.
+  root.addEventListener("click", event => {
+    if (!(event.target instanceof Element)) return;
+    const button = event.target.closest<HTMLButtonElement>("button[data-action]");
+    if (button && !button.disabled) action(button.dataset.action!);
   });
   root.addEventListener("input", event => {
     const input = event.target;
     if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return;
-    if (input.hasAttribute("data-composer")) setDraft(state, input.value);
-    else if (input.dataset.ixPart === "date" || input.dataset.ixPart === "time") editWhen(state, input.dataset.ixPart, input.value);
-    else if (input.dataset.ixValue && textFields.has(input.dataset.ixValue)) edit(state, input.dataset.ixValue as TextField, input.value);
+    if (!input.hasAttribute("data-composer")) return;
+    setDraft(state, input.value);
     refresh();
-  });
-  // In the questionnaire, Enter moves on instead of answering early; ⌘/Ctrl+Enter answers (DESIGN.md Dialogs).
-  find(root, "[data-ix-form]").addEventListener("keydown", event => {
-    const key = event as KeyboardEvent;
-    if (key.key !== "Enter" || key.isComposing || recommendation.composing) return;
-    if (key.metaKey || key.ctrlKey) { event.preventDefault(); begin(); return; }
-    if (!(key.target instanceof HTMLInputElement)) return;
-    event.preventDefault();
-    const order = [...root.querySelectorAll<HTMLElement>("[data-ix-form] [data-ix-focus], [data-ix-form] [data-ix-part=time]")];
-    order[order.indexOf(key.target) + 1]?.focus();
   });
   composer.addEventListener("keydown", event => {
     const key = event as KeyboardEvent;
@@ -91,7 +79,6 @@ export function bindScene(context: SceneContext): void {
     }
   });
   composer.addEventListener("focus", () => { if (root.dataset.panel === "closed") { root.dataset.panel = "open"; refresh(); } });
-  mountCalendars(root, input => input.dispatchEvent(new Event("input", { bubbles: true })));
   const row = find(root, "[data-composer-row]");
   const interaction = (kind: "focused" | "hovered" | "composing", value: boolean) => { setInteraction(recommendation, kind, value); refresh(); };
   row.addEventListener("focusin", () => interaction("focused", true));
@@ -100,13 +87,9 @@ export function bindScene(context: SceneContext): void {
   row.addEventListener("mouseleave", () => interaction("hovered", false));
   root.addEventListener("compositionstart", () => interaction("composing", true));
   root.addEventListener("compositionend", event => {
+    // The questionnaire's own fields report at the end of a composition through the client; the composer keeps its words here.
     const input = event.target;
-    // Keep the final composition text even if the question expired while the person was still composing.
-    if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
-      if (input.hasAttribute("data-composer")) setDraft(state, input.value);
-      else if (input.dataset.ixPart === "date" || input.dataset.ixPart === "time") editWhen(state, input.dataset.ixPart, input.value);
-      else if (input.dataset.ixValue && textFields.has(input.dataset.ixValue)) finishComposition(state, input.dataset.ixValue as TextField, input.value);
-    }
+    if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) { if (input.hasAttribute("data-composer")) setDraft(state, input.value); }
     interaction("composing", false);
   });
   root.addEventListener("focusout", () => queueMicrotask(refresh));
@@ -118,4 +101,5 @@ export function bindScene(context: SceneContext): void {
     thread.scrollTo({ top: thread.scrollHeight });
     find(root, "[data-jump]").hidden = true;
   });
+  return client;
 }

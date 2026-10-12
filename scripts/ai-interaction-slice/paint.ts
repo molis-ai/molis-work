@@ -2,6 +2,7 @@ import { formats, labels, topics, fieldOrder, timeLimits, type DemoState, type V
 import { draftable, editable } from "./state.ts";
 import { attr, find, show, text, disable } from "./dom.ts";
 import { nextSteps, offerSteps, stepLive, type RecommendationState } from "./recommendation.ts";
+import type { InteractionClient } from "../../packages/design-system/src/interaction-client.ts";
 
 type Tone = "waiting" | "progress" | "done" | "failed" | "quiet";
 const questionBadge: Record<DemoState["question"], [string, Tone]> = {
@@ -25,12 +26,6 @@ const executionMessages: Record<DemoState["execution"], string> = {
   unknown: "连接在执行途中断开，结果未知。先核对，不会自动再执行一次。",
   stale: "作用对象已改版，这组参数不能再执行。按新版本重新准备上面的问题。",
 };
-const weekdays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-function weekday(value: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
-  const day = new Date(`${value}T12:00:00Z`);
-  return Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== value ? "" : weekdays[day.getUTCDay()]!;
-}
 function badge(element: HTMLElement, [label, tone]: [string, Tone]): void {
   if (element.textContent !== label) element.textContent = label;
   attr(element, "data-tone", tone);
@@ -54,37 +49,21 @@ function list(element: HTMLElement, pairs: Array<[string, string]>): void {
   }));
   element.dataset.signature = signature;
 }
-/** Fields are never re-rendered: only values nobody is typing into are written back, so a refresh keeps a draft. */
-function paintFields(root: HTMLElement, state: DemoState, recommendation: RecommendationState): void {
-  const write = (input: HTMLInputElement | HTMLTextAreaElement, value: string) => {
-    if (document.activeElement !== input && input.value !== value) input.value = value;
-  };
-  for (const name of ["notes", "minutes", "date"] as const) write(find(root, `[data-ix-value="${name}"]`), state.values[name]);
-  write(find(root, '[data-ix-part="date"]'), state.whenParts.date);
-  write(find(root, '[data-ix-part="time"]'), state.whenParts.time);
+/** Fields are never re-rendered: the shared client writes back only values nobody is typing into, so a refresh keeps a draft. */
+function paintFields(root: HTMLElement, state: DemoState, recommendation: RecommendationState, client: InteractionClient): void {
+  const { values } = state;
+  client.write({
+    notes: values.notes, minutes: values.minutes, date: values.date, when: { ...state.whenParts },
+    format: values.format.map(String), topics: values.topics.map(String), references: values.references.map(ref => ref.id),
+  });
   const composer = find<HTMLInputElement | HTMLTextAreaElement>(root, "[data-composer]");
-  if (!recommendation.composing) write(composer, state.draft);
-  root.querySelectorAll<HTMLElement>("[data-ix-date]").forEach(field => text(field, "[data-ix-weekday]", weekday(find<HTMLInputElement>(field, "input").value)));
+  if (!recommendation.composing && document.activeElement !== composer && composer.value !== state.draft) composer.value = state.draft;
   // Only submitting fixes the fields; an invalidated question keeps its draft editable but cannot be answered.
   find<HTMLFieldSetElement>(root, "[data-ix-fields]").disabled = !draftable(state) && !recommendation.composing;
-  for (const name of ["format", "topics"] as const) {
-    root.querySelectorAll<HTMLButtonElement>(`[data-ix-field="${name}"] [data-ix-option]`).forEach(button => {
-      // A single pick is a radio (aria-checked); several picks are toggle buttons (aria-pressed).
-      attr(button, button.hasAttribute("aria-checked") ? "aria-checked" : "aria-pressed", String(state.values[name].includes(Number(button.dataset.ixOption))));
-    });
-  }
   const chosen = state.values.references;
-  root.querySelectorAll<HTMLButtonElement>("[data-ix-reference]").forEach(button => {
-    attr(button, "aria-pressed", String(chosen.some(ref => ref.id === button.dataset.ixReference)));
-  });
   text(root, '[data-ix-field="references"] .mw-ix-hint', `从可用材料里选 1–${timeLimits.maxReferences} 份 · 已选 ${chosen.length}`);
-  for (const name of fieldOrder) {
-    const box = find(root, `[data-ix-field="${name}"]`);
-    text(box, "[data-ix-error]", state.errors[name] ?? "");
-    show(box, "[data-ix-error]", Boolean(state.errors[name]));
-    show(box, "[data-ix-refreshed]", state.refreshed.includes(name));
-    box.querySelectorAll("input,textarea,[role=group]").forEach(control => attr(control, "aria-invalid", String(Boolean(state.errors[name]))));
-  }
+  client.showErrors(state.errors as Record<string, string>);
+  for (const name of fieldOrder) show(find(root, `[data-ix-field="${name}"]`), "[data-ix-refreshed]", state.refreshed.includes(name));
   show(root, "[data-ix-notice]", state.conflict !== null);
   text(root, "[data-ix-notice-text]", `补充里写了「时长 ${state.conflict ?? ""} 分钟」，字段里是 ${state.values.minutes} 分钟。用哪个？`);
 }
@@ -205,8 +184,8 @@ function paintSteps(root: HTMLElement, state: DemoState, recommendation: Recomme
   const composer = find<HTMLInputElement | HTMLTextAreaElement>(root, "[data-composer]");
   attr(composer, "placeholder", composerOpen ? "补充要求，回车放进问卷…" : state.question === "received" ? "继续说，或用旁边的下一步…" : "补充这一轮的要求…");
 }
-export function paint(root: HTMLElement, state: DemoState, recommendation: RecommendationState): void {
-  paintFields(root, state, recommendation);
+export function paint(root: HTMLElement, state: DemoState, recommendation: RecommendationState, client: InteractionClient | undefined): void {
+  if (client) paintFields(root, state, recommendation, client);
   paintQuestion(root, state);
   paintOperation(root, state);
   paintWork(root, state);

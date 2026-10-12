@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { stripTypeScriptTypes } from "node:module";
 import { renderPreview } from "./render.ts";
 
-const modules = ["client", "controller", "bindings", "dom", "paint", "calendar", "model", "state", "validation", "execution", "recommendation"];
+const modules = ["client", "controller", "bindings", "dom", "paint", "model", "state", "validation", "execution", "recommendation"];
 /** Creates only an in-memory, read-only preview server. Caller explicitly starts/stops it. */
 export async function createPreviewServer() {
   const content = new Map<string, { type: string; body: string }>();
@@ -12,6 +12,9 @@ export async function createPreviewServer() {
     const source = await readFile(new URL(`./${name}.ts`, import.meta.url), "utf8");
     content.set(`/slice/${name}.ts`, { type: "text/javascript; charset=utf-8", body: stripTypeScriptTypes(source) });
   }
+  // The design system's own shared client, served as the module the preview imports (`/packages/design-system/src/…`).
+  const shared = await readFile(new URL("../../packages/design-system/src/interaction-client.ts", import.meta.url), "utf8");
+  content.set("/packages/design-system/src/interaction-client.ts", { type: "text/javascript; charset=utf-8", body: stripTypeScriptTypes(shared) });
   return createServer((request, response) => {
     if (request.method !== "GET" && request.method !== "HEAD") { response.writeHead(405); response.end(); return; }
     const route = (request.url ?? "/").split("?")[0]!;

@@ -17,13 +17,6 @@ export function attr(element: Element, name: string, value: string | null): void
   if (value === null) element.removeAttribute(name);
   else if (element.getAttribute(name) !== value) element.setAttribute(name, value);
 }
-/** Focus the control a field's error points at, then make sure it is in view of its own scroller. */
-export function focusField(root: HTMLElement, name: string): void {
-  const field = find(root, `[data-ix-field="${name}"]`);
-  const target = field.querySelector<HTMLElement>("[data-ix-focus]") ?? find(field, "input,textarea,button,[tabindex]");
-  target.focus({ preventScroll: true });
-  target.scrollIntoView({ block: "nearest" });
-}
 /** True when the scroller sits at (or within a line of) its end. */
 export function atEnd(scroller: HTMLElement): boolean {
   return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 48;

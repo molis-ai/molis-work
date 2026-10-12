@@ -2,9 +2,10 @@ import { createDemo, fieldOrder, type Layout, type Outcome } from "./model.ts";
 import { backgroundUpdate, beginAnswer, cancelAnswer, invalidate, reopen, resolveConflict, settleAnswer } from "./state.ts";
 import { beginExecution, continueDraft, preparePreview, reconcile, settleExecution } from "./execution.ts";
 import { createRecommendation } from "./recommendation.ts";
-import { atEnd, find, focusField, show } from "./dom.ts";
+import { atEnd, find, show } from "./dom.ts";
 import { bindScene } from "./bindings.ts";
 import { paint } from "./paint.ts";
+import type { InteractionClient } from "../../packages/design-system/src/interaction-client.ts";
 
 const wide = () => matchMedia("(min-width: 1281px)").matches;
 
@@ -16,6 +17,7 @@ export function mountScene(root: HTMLElement, layout: Layout, updateCounters: ()
   const tools = root.querySelector<HTMLElement>("[data-tools]");
   let nextOutcome: Outcome = "done";
   let answerFails = false;
+  let client!: InteractionClient;
   if (tools) {
     tools.dataset.tools = wide() ? "open" : "closed";
     // Crossing the breakpoint resets the column: side by side when there is room, an overlay only on request.
@@ -37,7 +39,7 @@ export function mountScene(root: HTMLElement, layout: Layout, updateCounters: ()
     clearTimeout(noticeTimer);
     noticeTimer = window.setTimeout(() => root.querySelectorAll<HTMLElement>("[data-notice]").forEach(line => { line.hidden = true; }), 6000);
   }
-  const refresh = () => { paint(root, state, recommendation); paintFrame(); settleNotice(); updateCounters(); };
+  const refresh = () => { paint(root, state, recommendation, client); paintFrame(); settleNotice(); updateCounters(); };
   /** New content arrived below: follow it only when the person was already at the end, otherwise offer a way down. */
   function arrived(target: HTMLElement, focusTarget: boolean): void {
     const following = atEnd(thread) || focusTarget;
@@ -59,7 +61,7 @@ export function mountScene(root: HTMLElement, layout: Layout, updateCounters: ()
     refresh();
     if (ticket === null) {
       const first = fieldOrder.find(name => state.errors[name]);
-      if (first) focusField(root, first);
+      if (first) client.focusField(first);
       return;
     }
     const fail = answerFails;
@@ -90,7 +92,7 @@ export function mountScene(root: HTMLElement, layout: Layout, updateCounters: ()
     preview.focus({ preventScroll: true });
     preview.scrollIntoView({ block: "nearest" });
   };
-  const firstField = () => { refresh(); focusField(root, "format"); };
+  const firstField = () => { refresh(); client.focusField("format"); };
   const openTools = (open: boolean, focus = false) => {
     if (!tools) return;
     tools.dataset.tools = open ? "open" : "closed";
@@ -102,7 +104,7 @@ export function mountScene(root: HTMLElement, layout: Layout, updateCounters: ()
   function action(name: string): void {
     switch (name) {
       case "close": state.questionClosed = true; break;
-      case "open": state.questionClosed = false; refresh(); focusField(root, "format"); return;
+      case "open": state.questionClosed = false; refresh(); client.focusField("format"); return;
       case "cancel": case "cancel-pending": cancelAnswer(state); break;
       case "reopen": case "revise": if (reopen(state)) { firstField(); return; } break;
       case "adopt": resolveConflict(state, true); refresh(); land(root.querySelector('[data-ix-field="minutes"]')); return;
@@ -127,7 +129,7 @@ export function mountScene(root: HTMLElement, layout: Layout, updateCounters: ()
     }
     refresh();
   }
-  bindScene({ root, state, recommendation, composer, thread, tools, refresh, action, begin, land, openTools, wide });
+  client = bindScene({ root, state, recommendation, composer, thread, tools, refresh, action, begin, land, openTools, wide });
   show(root, "[data-ix-result-details]", false);
   refresh();
   return {

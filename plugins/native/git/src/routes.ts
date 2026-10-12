@@ -1,5 +1,6 @@
 import type { PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { gitActions } from "./action-definitions.js";
 
 type InputOf<T> = T extends ActionDefinition<infer Input, unknown> ? Input : never;

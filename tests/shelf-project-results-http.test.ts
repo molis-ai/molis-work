@@ -25,6 +25,8 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   const address=server.address(); assert.ok(address && typeof address!=='string'); let origin=`http://127.0.0.1:${address.port}`;
   t.after(async()=>{ await new Promise<void>(resolve=>server.close(()=>resolve())); await releaseCodingSurface(store,projectId); store.close(); rmSync(home,{recursive:true,force:true}); });
   const request=async(path:string,body?:unknown,authorized=true)=>{const response=await fetch(origin+prefix+path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{origin,'content-type':'application/json','x-molis-work-idempotency-key':randomUUID(),...(authorized?{'x-molis-work-control-token':token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});return {status:response.status,body:await response.json()};};
+  // A request the artifact and output services refuse is the caller's mistake: 400, and the body names the owner's code (the route answers by kind, not by message).
+  const refused=(response:{status:number;body:{code?:string}},code:string)=>assert.deepEqual([response.status,response.body.code],[400,code],JSON.stringify(response.body));
   const reference={artifact_id:'coding-report:session-original:run-original',version:1};
   const input={...pinnedArtifact('已固定的原报告'),project_id:projectId,actor_id:'web-user',...reference,artifact_type_id:'coding.report.v1',schema_version:1,
     producer:{plugin_id:'io.molis.work.coding',plugin_version:'1.20.0',binding_signature:'official-coding-binding'},
@@ -38,7 +40,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   assert.equal(shelf.snapshot().materials.length,before,'reading candidates does not admit copies');
   const confirmation={reference,expected_fingerprint:preview.body.fingerprint,text:'forged body',source:{artifact_id:'forged'}};
   assert.equal((await request(path,confirmation,false)).status,403);
-  assert.equal((await request(path,{...confirmation,expected_fingerprint:'stale'})).status,400);
+  refused(await request(path,{...confirmation,expected_fingerprint:'stale'}),'shelf.conflict');
   const received=await request(path,confirmation); assert.equal(received.status,200,JSON.stringify(received.body));
   const item=received.body.item; assert.deepEqual(item.artifact_source.reference,reference);
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),preview.body.text);
@@ -65,20 +67,20 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   app.artifacts.commands.registerVersion({...input,artifact_id:'coding-report:forged:run-original'});
   app.artifacts.commands.registerVersion({...input,version:2});
   assert.equal((await request(base+'/project-results')).body.results.length,1);
-  assert.equal((await request(path+'?artifact_id='+encodeURIComponent(reference.artifact_id)+'&version=2')).status,400);
-  assert.equal((await request(path+'?artifact_id=unknown&version=1')).status,400);
+  refused(await request(path+'?artifact_id='+encodeURIComponent(reference.artifact_id)+'&version=2'),'coding.shelf_material_invalid');
+  refused(await request(path+'?artifact_id=unknown&version=1'),'shelf.unavailable');
   app.initializeBoard({project_id:'foreign',title:'Other',actor_id:'web-user',idempotency_key:'other'});
   const foreign={...input,project_id:'foreign',artifact_id:'coding-report:foreign:run-original',content:{kind:'inline' as const,payload:{...input.content.payload,source:{session_id:'foreign'}}}};
   app.artifacts.commands.registerVersion(foreign);
-  assert.equal((await request(path+'?artifact_id='+encodeURIComponent(foreign.artifact_id)+'&version=1')).status,400);
+  refused(await request(path+'?artifact_id='+encodeURIComponent(foreign.artifact_id)+'&version=1'),'shelf.unavailable');
   const unavailable={...input,artifact_id:'coding-report:unavailable:run-original',content:{kind:'inline' as const,payload:{...input.content.payload,source:{session_id:'unavailable'}}}};
   app.artifacts.commands.registerVersion(unavailable);
   const priorUnavailable=await request(path+'?artifact_id='+encodeURIComponent(unavailable.artifact_id)+'&version=1');assert.equal(priorUnavailable.status,200);
   app.artifacts.commands.markUnavailable({project_id:projectId,actor_id:'web-user',artifact_id:unavailable.artifact_id,version:1,reason:'原正文失效'});
-  assert.equal((await request(path,{reference:{artifact_id:unavailable.artifact_id,version:1},expected_fingerprint:priorUnavailable.body.fingerprint})).status,400);
+  refused(await request(path,{reference:{artifact_id:unavailable.artifact_id,version:1},expected_fingerprint:priorUnavailable.body.fingerprint}),'shelf.invalid');
   assert.equal(shelf.snapshot().materials.length,before+1);
   app.artifacts.commands.archiveVersion({project_id:projectId,actor_id:'web-user',...reference});
-  assert.equal((await read()).status,400); assert.equal((await request(path,confirmation)).status,400);
+  refused(await read(),'shelf.invalid'); refused(await request(path,confirmation),'shelf.invalid');
   assert.equal((await request(base+'/project-results')).body.results.length,0);
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),'只改 Shelf 副本，来源保持。','source archival does not rewrite the independent copy');
 });

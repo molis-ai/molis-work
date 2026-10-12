@@ -1,9 +1,10 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
 import { Parser } from "htmlparser2";
 import { marked } from "marked";
 import { safePagesLanguage } from "./code-language.js";
 import { parsePagesBody } from "./document.js";
-import { PagesError } from "./error.js";
+import { pagesErrors } from "./error.js";
 import { safePagesHref } from "./link.js";
 import { pagesSchema } from "./schema.js";
 
@@ -61,7 +62,7 @@ export function convertImportContent(input: { name: string; format: PagesImportF
     document.check();
     return { title: title.slice(0, 80) || "导入的文档", body: parsePagesBody(document.toJSON()), warnings: [...warnings] };
   } catch (error) {
-    if (error instanceof PagesError) throw error;
+    if (error instanceof ActionError) throw error;
     throw invalid("文档结构无法转换为可编辑的 Pages 正文");
   }
 }
@@ -331,7 +332,7 @@ function fileTitle(name: string): string {
   return filename.replace(/\.(?:md|markdown|html?|txt|csv|docx)$/iu, "")
     .replace(/[ _-]+(?:[a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/iu, "").trim();
 }
-function invalid(message: string): PagesError { return new PagesError("pages.invalid", message); }
+function invalid(message: string): ActionError { return pagesErrors.invalid(message); }
 /** Decode labels only; URL validation and link marks always use the original target. */
 function displayPath(target: string): string {
   try { return decodeURIComponent(target); } catch { return target; }

@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { writeNativePluginJsonResponse } from "./native-plugin-http.js";
 import {
   InboxPluginRouteTable,
   createInboxRouteHandlers,
@@ -61,10 +62,5 @@ function writeResponse(response: ServerResponse, result: InboxPluginRouteRespons
     response.end(result.html);
     return;
   }
-  response.writeHead(result.status, {
-    "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store",
-    ...result.headers,
-  });
-  response.end(JSON.stringify(result.body ?? {}));
+  writeNativePluginJsonResponse(response, result);
 }

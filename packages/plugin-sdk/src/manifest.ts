@@ -1,5 +1,6 @@
 import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
+import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations } from "./action-declarations.js";
 import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
@@ -194,7 +195,7 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
 
 function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): void {
   const problems: string[] = [];
-  problems.push(...inspectActionDeclarations(parsed.actions, parsed.action_scenes));
+  problems.push(...inspectActionDeclarations(parsed.actions, parsed.action_scenes), ...inspectActionCrossReferences(parsed.actions));
   const declaredPermissions = new Set(parsed.permissions.map(p => p.permission));
   for (const action of Array.isArray(parsed.actions) ? parsed.actions : []) {
     for (const permission of Array.isArray(action?.action?.permissions) ? action.action.permissions : []) {

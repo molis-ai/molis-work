@@ -112,7 +112,8 @@ import { calloutIconFor, PAGES_CALLOUT_ICONS, safePagesCalloutTone } from "./cal
 import { highlightRanges } from "./code-highlight.js";
 import { PAGES_CODE_LANGUAGES, safePagesLanguage } from "./code-language.js";
 import { findHits, replaceAllFindHits, replaceFindHit, stepFindHit } from "./find.js";
-import { placeFloating, rowGapAt, scrollChildIntoView, scrollShouldFollow, type FloatingAnchor } from "./floating.js";
+import { followScroll, pinAt, placeOverlay } from "@molis-ai/molis-work-design-system/floating";
+import { rowGapAt, scrollChildIntoView } from "./floating.js";
 import { markdownLooksStructured, nodesForSpanPaste, pasteMarkdown, pastePlain, pasteUrl } from "./paste-markdown.js";
 import { nodesToMarkdown } from "./to-markdown.js";
 import { pasteHtml, type PasteLeaf } from "./paste-html.js";
@@ -310,50 +311,6 @@ function overlayRoot(): HTMLElement {
   return document.querySelector("[data-pages-stage-workspace]")
     ?? document.querySelector("[data-pages=workbench]")
     ?? document.body;
-}
-
-/**
- * Put a fixed overlay at viewport coordinates. Inside the workbench a pane can itself be the box fixed positioning is
- * measured from (it would shift the overlay by the pane's offset onto the text it belongs above): measure where it
- * landed and correct by the difference. The element must be shown when this runs.
- */
-function pinAt(el: HTMLElement, left: number, top: number): void {
-  el.style.left = left + "px";
-  el.style.top = top + "px";
-  const box = el.getBoundingClientRect();
-  const dx = Math.round(box.left - left), dy = Math.round(box.top - top);
-  if (dx || dy) { el.style.left = left - dx + "px"; el.style.top = top - dy + "px"; }
-}
-
-function placeOverlay(el: HTMLElement, anchor: FloatingAnchor, mode: "below" | "above" | "beside"): void {
-  const stage = el.closest("[data-pages-stage-workspace]")?.getBoundingClientRect();
-  const left = Math.max(0, stage?.left ?? 0);
-  const top = Math.max(0, stage?.top ?? 0);
-  const width = Math.min(window.innerWidth, stage?.right ?? window.innerWidth) - left;
-  const height = Math.min(window.innerHeight, stage?.bottom ?? window.innerHeight) - top;
-  // Fit the stage, but never grow past the overlay's own CSS cap (the slash menu stays a compact scroller).
-  el.style.maxWidth = ""; el.style.maxHeight = "";
-  const declared = getComputedStyle(el);
-  const cap = (value: string) => { const px = parseFloat(value); return Number.isFinite(px) ? px : Infinity; };
-  el.style.maxWidth = Math.max(0, Math.min(width - 16, cap(declared.maxWidth))) + "px";
-  el.style.maxHeight = Math.max(0, Math.min(height - 16, cap(declared.maxHeight))) + "px";
-  const box = el.getBoundingClientRect();
-  const spot = placeFloating(
-    { left: anchor.left - left, right: anchor.right - left, top: anchor.top - top, bottom: anchor.bottom - top },
-    { width: box.width, height: box.height },
-    { width, height },
-    mode,
-  );
-  pinAt(el, left + spot.left, top + spot.top);
-}
-
-function followScroll(panel: Element, run: () => void): () => void {
-  const onScroll = (event: Event) => {
-    if (!scrollShouldFollow(event.target, panel)) return;
-    run();
-  };
-  document.addEventListener("scroll", onScroll, true);
-  return () => document.removeEventListener("scroll", onScroll, true);
 }
 
 function keepSelectedVisible(menu: HTMLElement): void {

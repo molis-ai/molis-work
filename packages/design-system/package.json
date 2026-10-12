@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./floating": {
+      "types": "./dist/floating.d.ts",
+      "import": "./dist/floating.js"
     }
   },
   "files": [

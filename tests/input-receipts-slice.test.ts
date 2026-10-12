@@ -48,6 +48,13 @@ test("RCPT-R0-08 the recordings say where they came from, and the page says it i
   assert.doesNotMatch(titlebar, /已生效/);
 });
 
+test("RCPT-R0-08 a bare tool name is never shown to the person: the statement reads as the AI's own words under its input", () => {
+  for (const [flavor, rec] of both) for (const one of rec.scenes) for (const cp of one.checkpoints) {
+    const html = stage(rec, { ...U.toScene(rec, U.initial(rec, flavor, "light"), one.id, cp.id), expanded: rowsAt(rec, one.id, cp.id).map(row => `${row.receipt.steerId}@${String(row.run)}`) });
+    assert.doesNotMatch(html, /acknowledge-inputs/, `${flavor} ${one.id}/${cp.id}`);
+  }
+});
+
 test("RCPT-R0-02 no state without a fact: every recorded receipt is backed by the events before it (checked independently of the projection)", () => {
   for (const [flavor, rec] of both) for (const one of rec.scenes) for (const [runIndex, run] of one.runs.entries()) {
     for (const projection of run.projections) {

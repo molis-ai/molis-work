@@ -24,7 +24,7 @@ function threadRow(row: ThreadRow, ctx: PartContext, lastEnd: boolean): string {
   switch (row.kind) {
     case "task": return `<article class="rc-turn rc-turn--you"><div class="rc-bubble rc-bubble--task"><header><span>你</span>${row.atMs === undefined ? "" : `<time>${clock(row.atMs)}</time>`}</header><p>${esc(row.text)}</p></div></article>`;
     case "assistant": return `<article class="rc-turn"><div class="rc-bubble rc-bubble--ai"><header><span>${esc(assistantName(ui))}</span></header><p>${esc(row.text)}</p></div></article>`;
-    case "ack-call": return `<p class="rc-call">${icon("sparkles")}<span>${esc(assistantName(ui))}说明了 ${String(row.count)} 条输入怎么处理<small>系统工具 acknowledge-inputs · 它自己的声明，不是执行记录</small></span></p>`;
+    case "ack-call": return `<p class="rc-call">${icon("sparkles")}<span>${esc(assistantName(ui))}说明了 ${String(row.count)} 条输入怎么处理<small>它自己的声明，不是执行记录</small></span></p>`;
     case "question": return `<section class="rc-question" aria-label="${esc(assistantName(ui))}在等你回答"><h4>${icon("question")}${esc(row.why)}</h4><p>${esc(row.prompt)}</p><div class="rc-options">${row.options.map(one => button({ label: one, variant: "secondary", action: "answer", disabled: row.answered || !ctx.offer.answer, title: row.answered || ctx.offer.answer ? undefined : "预览按录好的顺序走：先放那句补充，再回答" })).join("")}</div>${row.answered ? '<p class="rc-note">已回答。</p>' : '<p class="rc-note">回答之后，你刚补充的那句才会被 AI 读到。</p>'}</section>`;
     case "host": return hostNote(row);
     case "recovered": return `<p class="rc-call">${icon("history")}<span>${esc(row.note)}</span></p>`;

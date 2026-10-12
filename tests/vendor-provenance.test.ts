@@ -214,8 +214,9 @@ describe("the records of this repository", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    assert.equal(provenance.source.commit, "87e063e88b15b19ab98a0da1e8a7cd2aa3d76c32");
-    assert.equal(provenance.source.mergedUpstream, null, "set when Prologue PR #5 is merged");
+    assert.equal(provenance.source.commit, "f5ef12e6085c2865133b732ebc8ec235142685e1");
+    assert.equal(provenance.source.mergedUpstream.branch, "main");
+    assert.equal(provenance.source.mergedUpstream.pullRequest, 5);
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
   });

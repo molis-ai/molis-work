@@ -10,8 +10,8 @@
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
     "checkedOn": "2026-10-12",
-    "mainHead": "55b0c85aed4a0cd9296a58180f99e31a419a9608",
-    "statement": "下面 commitsChecked 里的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；2026-10-08 核对 4f7110fe；2026-10-12 PR #4 合并后上游 main 头是 55b0c85a，`c4b9fde3` 随 a13bf067 进入 main，复核同样成立）。远端特性分支已不能当定位点，所以按提交号定位，不按分支名。",
+    "mainHead": "f5ef12e6085c2865133b732ebc8ec235142685e1",
+    "statement": "下面 commitsChecked 里的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；2026-10-08 核对 4f7110fe；2026-10-12 PR #4、#5 合并后上游 main 头是 f5ef12e6，`c4b9fde3` 随 a13bf067 进入 main，复核同样成立）。远端特性分支已不能当定位点，所以按提交号定位，不按分支名。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",

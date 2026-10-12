@@ -15,7 +15,7 @@
 
 `prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz`（1,102,754 字节），SHA-256 `c474ee431a0c9594cbea60b339f966231b241f924c0651fef0eebf39f2e6339c`。
 
-**来源**：上游 `molis-ai/prologue` 提交 `87e063e88b15b19ab98a0da1e8a7cd2aa3d76c32` 的 `packages/sdk`，不加补丁，`dirty: false`。分支 `feature/molis-adoption-s2-s3`，Prologue PR #5；**PR 合入 main 之前它还不在上游 main 里**，合入后从 main 上的合并提交重建、核对字节，provenance 补 `mergedUpstream`。这一份 = 上一份（main 上的 `55b0c85a`，A0 采用修正 + 输入回执第一刀 + 带类型的问卷）加：
+**来源**：上游 `molis-ai/prologue` main 上的合并提交 `f5ef12e6085c2865133b732ebc8ec235142685e1` 的 `packages/sdk`，不加补丁，`dirty: false`。它是 PR #5（`feature/molis-adoption-s2-s3`，head `87e063e8`）的合并提交（2026-10-12T13:25:15Z），父提交是 `55b0c85a` 与 `87e063e8`，树与 `87e063e8` 的树相同。provenance 的 `mergedUpstream` 记 PR、head、合并时间与核对时的 main 头。这一份 = 上一份（main 上的 `55b0c85a`，A0 采用修正 + 输入回执第一刀 + 带类型的问卷）加：
 
 - 输入回执第二刀（`b77adb41`）：没读到的补充进会话级持久排队，获准才带进下一跑；SDK 叫醒的子任务续跑一律不带；续聊历史里没读到的补充只剩 `input-unread` 说明。
 - 输入回执第三刀（`88612378`）：系统工具 `acknowledge-inputs`（处理说明）、`unacknowledged-input` 有界提醒、`config.agent.inputReminders`；`37427d09` 修一处压缩时编号说明被当成「必须记住的指示」交给摘要器的回归。
@@ -23,10 +23,10 @@
 
 包的依赖与上一份相同（`@tauri-apps/api` 2.11.1），锁文件只换路径与 integrity。
 
-**重建**（2026-10-12 在 macOS x64、Node 24.21.0、pnpm 11.9.0 上从 `87e063e8` 的 `git archive` 打出；上游根 `package.json` 钉的是 Node 24.14.0，换版本 pnpm 只警告）：
+**重建**（2026-10-12 在 macOS x64、Node 24.21.0、pnpm 11.9.0 上，`87e063e8` 与上游 main 上的 `f5ef12e6` 两份 `git archive` 打出同一个 SHA-256；上游根 `package.json` 钉的是 Node 24.14.0，换版本 pnpm 只警告）：
 
 ```bash
-git -C <prologue 克隆> archive 87e063e88b15b19ab98a0da1e8a7cd2aa3d76c32 | tar -x -C <空目录>
+git -C <prologue 克隆> archive f5ef12e6085c2865133b732ebc8ec235142685e1 | tar -x -C <空目录>
 cd <空目录>
 pnpm install --frozen-lockfile --ignore-scripts --offline
 pnpm --filter @prologue/sdk build
@@ -87,7 +87,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
 - `packagesWithoutPatch`：11 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：记录里写到的每个 Prologue 提交（21 个）都是上游 main 头的祖先（2026-10-08 逐个用 `git merge-base --is-ancestor` 对 `4f7110fe` 核对；2026-10-12 加的 `c4b9fde3` 随 PR #4 进了 main，对 `55b0c85a` 同样成立）。`21cdfbf8`、`d4a2f41b` 是 Molis 仓库的提交，不是 Prologue 的。
+- `upstream`：记录里写到的每个 Prologue 提交（21 个）都是上游 main 头的祖先（2026-10-08 逐个用 `git merge-base --is-ancestor` 对 `4f7110fe` 核对；2026-10-12 加的 `c4b9fde3` 随 PR #4 进了 main，对 `55b0c85a` 与 `f5ef12e6` 同样成立）。`21cdfbf8`、`d4a2f41b` 是 Molis 仓库的提交，不是 Prologue 的。
 
 怎么取回并核对：
 

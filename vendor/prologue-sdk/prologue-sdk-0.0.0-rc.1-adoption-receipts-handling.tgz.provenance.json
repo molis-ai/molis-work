@@ -9,7 +9,7 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/prologue.git",
     "path": "packages/sdk",
-    "commit": "87e063e88b15b19ab98a0da1e8a7cd2aa3d76c32",
+    "commit": "f5ef12e6085c2865133b732ebc8ec235142685e1",
     "composition": [
       {
         "commit": "55b0c85aed4a0cd9296a58180f99e31a419a9608",
@@ -28,7 +28,14 @@
         "summary": "S3 fix: input-number notes are not handed to the summarizer as must-remember instructions"
       }
     ],
-    "mergedUpstream": null,
+    "mergedUpstream": {
+      "branch": "main",
+      "pullRequest": 5,
+      "pullRequestHead": "87e063e88b15b19ab98a0da1e8a7cd2aa3d76c32",
+      "mergedAt": "2026-10-12T13:25:15Z",
+      "checkedHead": "f5ef12e6085c2865133b732ebc8ec235142685e1",
+      "checkedOn": "2026-10-12"
+    },
     "dirty": false,
     "dirtyPaths": [],
     "patches": []
@@ -45,11 +52,14 @@
     "platform": "darwin",
     "architecture": "x64",
     "steps": [
-      "git archive 87e063e88b15b19ab98a0da1e8a7cd2aa3d76c32 | tar -x -C <dir>",
+      "git archive f5ef12e6085c2865133b732ebc8ec235142685e1 | tar -x -C <dir>",
       "pnpm install --frozen-lockfile --ignore-scripts --offline",
       "pnpm --filter @prologue/sdk build",
       "cd packages/sdk && pnpm pack --out <absolute path>/prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz"
     ],
-    "packedOn": "2026-10-12"
+    "packedOn": "2026-10-12",
+    "reproducedFrom": "f5ef12e6085c2865133b732ebc8ec235142685e1",
+    "reproducedByteIdentical": true,
+    "note": "Upstream package.json pins Node 24.14.0; this build ran on 24.21.0 (pnpm warns, does not fail). The merge commit's tree equals PR head 87e063e8's tree (49c1824f); both archives packed to the same bytes (SHA-256 c474ee43..., 2026-10-12)."
   }
 }

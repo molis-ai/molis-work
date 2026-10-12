@@ -539,6 +539,7 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 
 - 2026-10-09：建工作树与分支；核对 Molis（助理、Coding、插件入口、设计与门禁约束）与 Prologue（`ask-user`、等待账本、MCP 征求）现状，结果见 §14；方案见 §15；待决见 §16。
 - 2026-10-11：I0 独立组合预览写成并交接（§19、§20）。
+- 2026-10-12（I1）：共享浏览器行为模块写成并在真浏览器验证（§19.2）；#423 的审查修改完成。
 - 2026-10-12（规划）：#423 之后的切片与 PR 序列、事实主人、跨线待定与 R4 推荐写进 §17.1；D7–D10 记入 §16。
 - 2026-10-12（P2 第一刀）：共享部件进设计系统与组件板，I0 预览改用它们（§19.2）。
 - 2026-10-12：分支 `feature/handoff-ai-interaction` 合入 origin/main `02ceba8c`；I0 预览在内置浏览器里逐条走查，按实物重做布局、信息层级、操作路径与状态反馈（§19.1）。三级证据：工程通过见 §19.1「证据」；真实产品实操——不适用（预览不连 Home，只有开发者原型走查）；用户本人验收——未开始。
@@ -680,6 +681,10 @@ node scripts/run-tests.mjs tests/ai-interaction-slice.e2e.test.ts
 - 单选问询的输入框上方选项胶囊。
 
 **AC-17 的证据（2026-10-12）**：`tests/interaction-components.test.ts`、`tests/interaction-sdk-mapping.test.ts` 与 primitives、arrival-components、workbench-ui-platform、I0 单测共 66/66；I0 e2e 改用这些部件后 10/10（持 browser 锁）；组件板区块在隔离宿主上目视通过（浅色、桌面宽度）。深色与窄屏的组件板样张尚未逐张看。
+
+**#423 的审查修改（2026-10-12）**：id 与 scope 只在写进属性的那一处转义一次（带引号或 `&` 的 id 不再破坏属性、label 的 `for` 与控件 id 一致）；单选组是 `radiogroup`/`radio`（`aria-checked`），多选保持切换按钮（`aria-pressed`）；`aria-describedby` 只指向存在的说明；日历对话框名称由调用方给；去掉未渲染的 `other.selected`；组件板每个样张有自己的 id。受影响的 6 个浏览器用例（agent-studio、functions-draft-retention、plugin-builder-diagnostics、plugin-composition、select-menu-interaction、ui-client-lifecycle）14/14 通过。
+
+**I1 共享浏览器行为（分支 `feature/interaction-shared-behaviour`，2026-10-12）**：设计系统新增 `interaction-client.ts`：`createInteractionClient(root, host)` 读写字段（按 `data-ix-*` 钩子）、选项与对象切换、单选箭头键与单一 Tab 停靠、步进器上下界、日历弹层、回车跳项与 ⌘/Ctrl+回车提交、组合输入期间不报变化、逐字段错误；不存值，写入不夺走正在输入的字段。三个不依赖 import 的函数（109/108/137 行），`INTERACTION_CLIENT_SCRIPT` 是它们拼成的脚本表达式。组件板第一张问卷样张可操作。证据：`tests/interaction-client.e2e.test.ts` 在真浏览器里 9 个子用例通过（组合输入用合成事件，不能代替真实输入法）；相关单测 30/30。预览（#410）改用这个模块，等 I1 合入后做。
 
 **AC-17**（P2）：设计系统提供问卷、选项组、操作卡、下一步与输入框标记的共享部件，只收展示参数、调用方文字全部转义、六种题型都有不依赖系统控件的输入方式、每个字段有稳定的错误位；组件板有区块并进入目录；样式只用令牌、不进共享页面样式表；I0 预览用这些部件跑通全部路径。
 

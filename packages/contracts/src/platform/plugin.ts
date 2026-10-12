@@ -29,6 +29,8 @@ import type {
   PluginUpstreamUnavailableReason,
 } from "./plugin-wiring.js";
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
+import type { InstructionPrompt } from "./model-prompts.js";
+import type { PluginModelClient } from "./plugin-model.js";
 
 /** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
 export const SURFACE_BROWSER_PERMISSION = "surface:browser";
@@ -39,6 +41,7 @@ export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-database.js";
+export * from "./plugin-model.js";
 
 /** Opaque, personal installation data. The author owns serialization, not storage paths or SQL. */
 export interface PluginPrivateStorage {
@@ -77,6 +80,8 @@ export interface PluginHostServices {
   readonly storage?: PluginPrivateStorage;
   /** Plugin-owned SQLite, only for trusted Host entries declaring a database. */
   readonly database?: import("./plugin-database.js").PluginDatabase;
+  /** The Host's text model, for a plugin the Host runs itself that declares `model:invoke`; usable only from its own concurrent actions that declare it. */
+  readonly model?: PluginModelClient;
   /** Project artifact services are absent from Home activations. */
   readonly artifacts?: PluginArtifactClient;
   /** Present when the Manifest declares `process_items.produces`. */
@@ -364,7 +369,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "model"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };
@@ -379,6 +384,12 @@ export interface PluginDefinition {
   agent_prompts?: readonly AgentPromptText[];
   /** v2: Skill bodies for the Agent block. */
   agent_skills?: readonly AgentSkillDefinition[];
+  /**
+   * The instructions this plugin sends the model through `services.model`, registered while it runs so the person sees and edits
+   * them in “Prompt 与 Character”. Each is the plugin's own (`owner_id` is its plugin id). For a plugin that has no catalog entry:
+   * the instructions of one that does are declared on that entry, and an owner has them in one place only.
+   */
+  instructions?: readonly InstructionPrompt[];
   start(context: PluginStartContext): Promise<PluginContribution>;
   stop?(context: PluginStartContext): Promise<void>;
   health?(context: PluginStartContext): Promise<{ ok: boolean; message: string }>;

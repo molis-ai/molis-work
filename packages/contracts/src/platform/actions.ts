@@ -1,30 +1,27 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 export * from "./action-execution.js";
-import { validActionExecutionPolicy, type ActionExecutionPolicy } from "./action-execution.js";
-import { validActionResultView, type ActionResultView } from "./action-result.js";
-import { SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT } from "./action-subjects.js";
-import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_OFFERS_INPUT_SCHEMA, SUBJECT_OFFERS_OUTPUT_SCHEMA, type SubjectOfferChoice } from "./action-offers.js";
-import { HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_WINDOW_SCHEMA, HOME_EVENT_COLLECTION_SCHEMA } from "./home-events.js";
+import { ActionError } from "./action-errors.js";
+export * from "./action-errors.js";
+import type { ActionExecutionPolicy } from "./action-execution.js";
+import type { ActionResultView } from "./action-result.js";
+import type { SubjectOfferChoice } from "./action-offers.js";
 export * from "./home-events.js";
-import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, DUE_REMINDER_WINDOW_SCHEMA, DUE_REMINDER_COLLECTION_SCHEMA } from "./due-reminders.js";
 export * from "./due-reminders.js";
 export * from "./action-offers.js";
 export * from "./action-usages.js";
 export * from "./action-subjects.js";
 import type { HostCapabilityDefinition } from "./app-host.js";
 import type { WorkflowContentStation } from "./workflow-content.js";
-import { WORKFLOW_CONTENT_SCHEMAS } from "./workflow-content.js";
 export * from "./workflow-content.js";
-import { searchSourceDeclarationProblems, type SearchSourceDeclaration } from "./search-sources.js";
+import type { SearchSourceDeclaration } from "./search-sources.js";
 export * from "./search-sources.js";
-import { fragmentOfferDeclarationProblems, type FragmentOfferChoice } from "./action-fragments.js";
+import type { FragmentOfferChoice } from "./action-fragments.js";
 export * from "./action-fragments.js";
-import { fileSourceDeclarationProblems, type FileSourceDeclaration } from "./file-sources.js";
+import type { FileSourceDeclaration } from "./file-sources.js";
 export * from "./file-sources.js";
 export * from "./artifact-pins.js";
 export * from "./local-person.js";
-import { placementDeclarationProblems } from "./placement.js";
 export * from "./placement.js";
 
 /** JSON Schema is preserved at the boundary; providers must not invent output guarantees. */
@@ -125,8 +122,9 @@ export interface ActionMetadata {
   readonly plugin?: false;
   /** Provider owns transaction/conflict safety across awaits; Host still tracks lifetime. Default is serial. */
   readonly scheduling?: "concurrent";
-  /** `session`: an external Runtime may call it only from a stable Session, which becomes the author of what it records;
-   * dispatch refuses a call whose context says the Session is missing (`runtime_session_missing`), nested or not. */
+  /** `session`: an external AI tool (a Runtime reached through MCP) may call it only from a stable Session, which becomes the author of what it records;
+   * dispatch refuses a call whose context says the Session is missing (`runtime_session_missing`), nested or not. Only that entry is asked: for the
+   * Assistant and the built-in Agents the Host records the author itself (`audit_actor_id`), and on a page the author is the person (decided 2026-10-10). */
   readonly authorship?: "session";
   /** Declarative limits shared by every entry; cancellation uses signal + beforeEffect. */
   readonly execution?: ActionExecutionPolicy;
@@ -145,9 +143,9 @@ export interface ActionMetadata {
   readonly search_source?: SearchSourceDeclaration;
   /** A side panel file source: the file kinds it lists (or previews) and where each opens (specs/archive/side-panel §3.3). */
   readonly file_source?: FileSourceDeclaration;
-  /** Optional rule choices owned by this subject-offer query; targets belong to the same provider. */
+  /** Optional rule choices owned by this subject-offer query; each target is declared in the same registration, in the same scope, and handles the option's subject kinds. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
-  /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); targets belong to the same provider. */
+  /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); each target is declared in the same registration and scope. */
   readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
   /** A trigger action needs an enabled compatible binding in this consumer scene. */
   readonly required_scene?: { readonly scene_id: string; readonly version: number };
@@ -156,14 +154,15 @@ export interface ActionMetadata {
   readonly required_actions?: readonly ActionReference[];
   /**
    * Where a command's output names the object it created or changed: dot paths to its id and new revision, e.g.
-   * `{ id: "document.id", revision: "document.version" }`. The object's kind is the action's single subject kind.
-   * Callers that keep relations to results (the Assistant's work) use it; undeclared, see `actionResultSubject`.
+   * `{ id: "document.id", revision: "document.version" }`. The object's kind is the action's single subject kind. Written, it is an object, and both paths must be
+   * in this action's `output_schema` (checked at registration). Callers that keep relations to results (the Assistant's work) use it;
+   * undeclared, `actionResultSubject` reads the result by the rule written in its comment.
    */
   readonly result_subject?: { readonly id: string; readonly revision?: string };
   /**
    * A command that starts background work (a research run, a generation job): how a caller follows it to its end.
-   * `id` is the dot path to the job id in this command's output; the `status` query of the same provider takes it in
-   * its `input` field and reports the state at the dot path `state`; `done` and `failed` list the final states.
+   * `id` is the dot path to the job id in this command's output; the `status` query, declared in the same registration and scope,
+   * takes it in its `input` field and reports the state at the dot path `state` (all three paths are checked against the schemas); `done` and `failed` list the final states.
    * The Assistant uses it to watch a job it started and tell the person when it ends (the convention for long work).
    */
   readonly background_job?: {
@@ -175,7 +174,7 @@ export interface ActionMetadata {
     readonly failed: readonly string[];
   };
   /**
-   * How this change is taken back: another command of the same provider, with its input read from this command's
+   * How this change is taken back: another command declared in the same registration and scope, with its input read from this command's
    * output (a path such as "spark.id"; a one-item array wraps the value in an array, e.g. ["spark.id"]). A change that
    * declares it may run without a confirmation when the person asked for exactly this effect (they can set it back to
    * confirm each time), and the work then offers “撤销”. Never on an irreversible change.
@@ -489,184 +488,10 @@ export function actionPermissionDeclarations(definitions: readonly ActionDefinit
     .map(permission => ({ permission, required: false, reason }));
 }
 
-export class ActionError extends Error {
-  constructor(readonly code: string, message: string) {
-    super(message);
-    this.name = "ActionError";
-  }
-}
-
-/** Cheap manifest shape validation; the execution owner compiles JSON Schemas. */
-export function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[] {
-  const problems: string[] = [];
-  if (definitions !== undefined) {
-    if (!Array.isArray(definitions)) problems.push("actions 必须是数组");
-    else {
-      const seen = new Set<string>();
-      for (const raw of definitions) {
-        if (!object(raw) || !id(raw.capability_id) || !version(raw.version)) { problems.push("能力需要有效身份和版本"); continue; }
-        const key = `${raw.capability_id}@${raw.version}`;
-        if (seen.has(key)) problems.push(`能力重复：${key}`);
-        seen.add(key);
-        const a = raw.action;
-        if (!object(a) || !text(a.title) || !text(a.description)
-          || !["query", "judgment", "operation", "navigation"].includes(String(a.kind))
-          || !["home", "project"].includes(String(a.scope)) || (a.scheduling !== undefined && a.scheduling !== "concurrent") || (a.authorship !== undefined && a.authorship !== "session") || !strings(a.permissions) || !strings(a.subject_kinds)
-          || !strings(a.audiences) || a.audiences.length === 0
-          || !a.audiences.every(v => ["user", "agent", "workflow", "mcp", "plugin"].includes(v))
-          || (a.effect !== undefined && !["read", "write", "irreversible"].includes(String(a.effect))) || (a.plugin !== undefined && a.plugin !== false)
-          || !object(a.input_schema) || (a.output_schema !== undefined && !object(a.output_schema))) {
-          problems.push(`能力 ${key} 的输入输出、权限或展示定义不完整`);
-          continue;
-        }
-        if (a.result_scene !== undefined && (!object(a.result_scene) || !id(a.result_scene.scene_id) || !version(a.result_scene.version) || !text(a.result_scene.provider_id))) {
-          problems.push(`能力 ${key} 的结果场景引用无效`);
-        }
-        if (a.result_view !== undefined && !validActionResultView(a.result_view)) {
-          problems.push(`能力 ${key} 的结果展示定义无效`);
-        }
-        if (a.execution !== undefined && !validActionExecutionPolicy(a.execution)) {
-          problems.push(`能力 ${key} 的执行策略无效`);
-        }
-        if (a.required_scene !== undefined && (!object(a.required_scene) || !id(a.required_scene.scene_id) || !version(a.required_scene.version))) {
-          problems.push(`能力 ${key} 的消费场景依赖无效`);
-        }
-        if (a.required_actions !== undefined && (!Array.isArray(a.required_actions)
-          || a.required_actions.some(ref => !object(ref) || !id(ref.capability_id) || !version(ref.version)
-            || (ref.provider_id !== undefined && !id(ref.provider_id))))) {
-          problems.push(`能力 ${key} 的能力依赖无效`);
-        }
-        if (a.output_type === SUBJECT_CONTEXT_TYPE || a.input_type === SUBJECT_REFERENCE_TYPE) {
-          if (raw.operation !== "query" || (a.scope !== "project" && a.scope !== "home") || a.kind !== "query" || !a.subject_kinds.length
-            || a.input_type !== SUBJECT_REFERENCE_TYPE || a.output_type !== SUBJECT_CONTEXT_TYPE
-            || canonicalSchema(a.input_schema) !== canonicalSchema(SUBJECT_CONTEXT_INPUT_SCHEMA)
-            || ![SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN].some(schema => canonicalSchema(a.output_schema) === canonicalSchema(schema))) {
-            problems.push(`能力 ${key} 没有兑现对象上下文协议 v1 的输入输出合同`);
-          }
-        }
-        if (a.input_type === SUBJECT_OFFERS_INPUT_TYPE || a.output_type === SUBJECT_OFFERS_OUTPUT_TYPE) {
-          if (raw.operation !== "query" || a.kind !== "query" || a.scope !== "project" || !a.subject_kinds.length
-            || a.input_type !== SUBJECT_OFFERS_INPUT_TYPE || a.output_type !== SUBJECT_OFFERS_OUTPUT_TYPE
-            || canonicalSchema(a.input_schema) !== canonicalSchema(SUBJECT_OFFERS_INPUT_SCHEMA)
-            || canonicalSchema(a.output_schema) !== canonicalSchema(SUBJECT_OFFERS_OUTPUT_SCHEMA)) {
-            problems.push(`能力 ${key} 没有兑现事项动作协议 v1 的输入输出合同`);
-          }
-        }
-        if (a.subject_offer_choices !== undefined) {
-          const choices = a.subject_offer_choices;
-          const subjectKinds = a.subject_kinds;
-          if (a.input_type !== SUBJECT_OFFERS_INPUT_TYPE || a.output_type !== SUBJECT_OFFERS_OUTPUT_TYPE || !Array.isArray(choices)
-            || choices.some(choice => !object(choice) || !id(choice.offer_id) || !text(choice.title) || choice.title.length > 120
-              || !object(choice.action) || !id(choice.action.capability_id) || !version(choice.action.version) || choice.action.provider_id !== undefined
-              || (choice.subject_kinds !== undefined && (!Array.isArray(choice.subject_kinds) || !choice.subject_kinds.length
-                || choice.subject_kinds.some(kind => !subjectKinds.includes(kind)) || new Set(choice.subject_kinds).size !== choice.subject_kinds.length)))
-            || new Set(choices.map(choice => choice.offer_id)).size !== choices.length) {
-            problems.push(`能力 ${key} 的事项推荐选项必须有唯一标识、名称及本提供方的目标动作版本`);
-          }
-        }
-        if (a.input_type === HOME_EVENTS_INPUT_TYPE || a.output_type === HOME_EVENTS_OUTPUT_TYPE) {
-          if (raw.operation !== "query" || a.kind !== "query" || a.scope !== "project" || !a.subject_kinds.length
-            || a.input_type !== HOME_EVENTS_INPUT_TYPE || a.output_type !== HOME_EVENTS_OUTPUT_TYPE
-            || canonicalSchema(a.input_schema) !== canonicalSchema(HOME_EVENT_WINDOW_SCHEMA)
-            || canonicalSchema(a.output_schema) !== canonicalSchema(HOME_EVENT_COLLECTION_SCHEMA)) {
-            problems.push(`${key} 首页事件查询必须使用完整规范合同`);
-          }
-        }
-        if (a.input_type === DUE_REMINDERS_INPUT_TYPE || a.output_type === DUE_REMINDERS_OUTPUT_TYPE) {
-          if (raw.operation !== "query" || a.kind !== "query" || a.scope !== "home"
-            || a.input_type !== DUE_REMINDERS_INPUT_TYPE || a.output_type !== DUE_REMINDERS_OUTPUT_TYPE
-            || canonicalSchema(a.input_schema) !== canonicalSchema(DUE_REMINDER_WINDOW_SCHEMA)
-            || canonicalSchema(a.output_schema) !== canonicalSchema(DUE_REMINDER_COLLECTION_SCHEMA)) {
-            problems.push(`${key} 到期提醒查询必须是 Home 范围、使用完整规范合同`);
-          }
-        }
-        if (a.background_job !== undefined) {
-          const job = a.background_job;
-          const path = (value: unknown) => typeof value === "string" && /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(value);
-          const states = (value: unknown) => Array.isArray(value) && value.length > 0 && value.every(item => typeof item === "string" && item.length > 0);
-          if (raw.operation !== "command" || !object(job) || !object(job.status) || !id(job.status.capability_id) || !version(job.status.version)
-            || !path(job.id) || !path(job.input) || !path(job.state) || !states(job.done) || !states(job.failed)) {
-            problems.push(`能力 ${key} 的后台任务声明必须是命令，并写明状态查询、任务标识与状态的位置和结束状态`);
-          }
-        }
-        if (a.undo !== undefined) {
-          const undo = a.undo;
-          const path = (value: unknown) => typeof value === "string" && /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(value);
-          const fields = object(undo) && object(undo.input) ? Object.entries(undo.input) : [];
-          if (raw.operation !== "command" || a.effect === "irreversible" || !object(undo) || !id(undo.capability_id) || !version(undo.version) || !fields.length
-            || fields.some(([, value]) => !(path(value) || (Array.isArray(value) && value.length === 1 && path(value[0]))))) {
-            problems.push(`能力 ${key} 的撤销声明必须是可撤回的命令，并写明同一提供方的撤销命令与其输入在本次输出里的位置`);
-          }
-        }
-        problems.push(...searchSourceDeclarationProblems(key, a, raw.operation, canonicalSchema));
-        problems.push(...fragmentOfferDeclarationProblems(key, a, raw.operation, canonicalSchema));
-        problems.push(...fileSourceDeclarationProblems(key, a, raw.operation, canonicalSchema));
-        problems.push(...placementDeclarationProblems(key, a, raw.operation, canonicalSchema));
-        if (a.workflow_content !== undefined) {
-          const w = a.workflow_content;
-          if (!object(w) || !/^[a-z][a-z0-9-]{1,40}$/.test(String(w.id)) || !text(w.title) || !text(w.icon)
-            || w.protocol !== 1 || !["list", "read", "receive", "create"].includes(String(w.role)) || (w.receives !== undefined && (w.receives !== false || w.role === "receive"))) {
-            problems.push(`能力 ${key} 的工作流内容合同无效`);
-          } else {
-            const role = w.role as WorkflowContentStation["role"];
-            const schemas = WORKFLOW_CONTENT_SCHEMAS[role];
-            if (a.scope !== "project" || !a.audiences.includes("workflow")
-              || a.input_type !== `molis.workflow.content.${role}.input.v1` || a.output_type !== `molis.workflow.content.${role}.output.v1`
-              || canonicalSchema(a.input_schema) !== canonicalSchema(schemas.input)
-              || canonicalSchema(a.output_schema) !== canonicalSchema(schemas.output)
-              || raw.operation !== (role === "list" || role === "read" ? "query" : "command")) {
-              problems.push(`能力 ${key} 没有兑现工作流内容协议 v1 的输入输出合同`);
-            }
-          }
-        }
-        if (raw.operation !== (a.kind === "query" || a.kind === "navigation" ? "query" : "command")) {
-          problems.push(`能力 ${key} 的 operation 与 kind 不一致`);
-        }
-      }
-    }
-  }
-  if (scenes !== undefined) {
-    if (!Array.isArray(scenes)) problems.push("action_scenes 必须是数组");
-    else {
-      const seen = new Set<string>();
-      for (const s of scenes) {
-        if (!object(s) || !id(s.scene_id) || !version(s.version)) { problems.push("消费场景需要有效身份和版本"); continue; }
-        if (s.event_schema !== undefined && !object(s.event_schema)) problems.push(`消费场景 ${s.scene_id} 的事件合同无效`);
-        if (s.recommendation_source !== undefined && (s.recommendation_source !== "subject-offers" || s.result_type !== "molis.behavior-recommendation.v1")) {
-          problems.push(`消费场景 ${s.scene_id} 的推荐来源合同无效`);
-        }
-        if (s.recommendation_labels !== undefined) {
-          const schema = s.result_schema as { properties?: { suggested_behavior_ids?: { items?: { enum?: unknown } } } } | undefined;
-          const keys = schema?.properties?.suggested_behavior_ids?.items?.enum;
-          if (!object(s.recommendation_labels) || s.result_type !== "molis.behavior-recommendation.v1" || s.recommendation_source !== undefined || !Array.isArray(keys)
-            || Object.entries(s.recommendation_labels).some(([key, value]) => !keys.includes(key) || !text(value))) {
-            problems.push(`消费场景 ${s.scene_id} 的推荐名称必须对应结果合同中的选项`);
-          }
-        }
-        const key = `${s.scene_id}@${s.version}`;
-        if (seen.has(key)) problems.push(`消费场景重复：${key}`);
-        seen.add(key);
-        if (!text(s.title) || !text(s.description) || !text(s.trigger) || !["home", "project"].includes(String(s.scope))
-          || !strings(s.permissions) || (s.configuration_permissions !== undefined && !strings(s.configuration_permissions)) || !strings(s.subject_kinds) || !object(s.input_schema) || !object(s.result_schema)) {
-          problems.push(`消费场景 ${key} 的触发、输入输出或权限定义不完整`);
-        }
-      }
-    }
-  }
-  return problems;
-}
-
-function canonicalSchema(value: unknown): string {
-  const sort = (entry: unknown): unknown => Array.isArray(entry) ? entry.map(sort)
-    : object(entry) ? Object.fromEntries(Object.keys(entry).sort().map(key => [key, sort(entry[key])])) : entry;
-  return JSON.stringify(sort(value));
-}
-
 function object(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }
 function text(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0; }
 function id(v: unknown): v is string { return text(v) && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(v); }
 function version(v: unknown): v is number { return typeof v === "number" && Number.isSafeInteger(v) && v > 0; }
-function strings(v: unknown): v is string[] { return Array.isArray(v) && v.every(text); }
 
 /** Exact selections do not grant permission; the action service checks live authority. */
 export type ExactActionReference = ActionReference & { readonly provider_id: string };

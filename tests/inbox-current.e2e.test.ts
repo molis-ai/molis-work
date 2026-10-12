@@ -50,7 +50,9 @@ test("Inbox shows and runs an installed plugin judgment, then withdraws advice w
     assert.match(await evaluate<string>("document.querySelector('.inbox-next-config').innerText"), /插件判断：核对研究/);
     assert.equal(await evaluate("document.querySelector('.inbox-next-config [data-inbox-evaluate]').disabled"), false);
     await click('.inbox-next-config [data-inbox-evaluate]');
-    await waitFor("document.querySelector('[data-inbox-evaluate-status]')?.textContent.includes('已更新')");
+    // The click runs the judgment and then re-renders the whole Inbox stage in the Host: about two seconds of one thread on a quiet machine
+    // (a board refresh that lands in the same window adds about four), so the default four seconds is no budget when the machine is busy.
+    await waitFor("document.querySelector('[data-inbox-evaluate-status]')?.textContent.includes('已更新')", 15_000);
     assert.ok(inputs.some(input => input.includes("研究原文需要人工确认")));
     const history = withFunctionsService(homeDirectory, service => service.listJudgments().filter(record => record.scene_id === inboxNextScene.scene_id && record.subject.id === entry.entry_id));
     assert.equal(history.length, 1); assert.ok(history[0]!.scene_provenance);

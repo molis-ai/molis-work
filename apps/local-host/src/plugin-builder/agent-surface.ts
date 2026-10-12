@@ -23,7 +23,7 @@ import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
 import { buildManifest, canonical, createBuildProject, readBuildFile } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
 import { runBuilderBrowserAcceptance, inspectBuilderPresentation } from './browser.js';
-import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from '@molis-ai/molis-work-ui-host';
 import type { PluginPlatformOptions } from '../plugin-platform.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
 import { capabilityLimits, latestCapability, slowOperations, type CapabilityImplementations, type Lane } from './capabilities.js';
@@ -339,9 +339,9 @@ function publicRelease<T extends { directory?: string; bundlePath?: string; pack
 const literal = (value: unknown) => JSON.stringify(value).replaceAll('<', '\\u003c');
 function page(title: string, body: string, script: string, controlToken: string) {
   // Plugins are drawn with the UI catalog's components, so the page carries the product's own stylesheet, theme and select menu.
-  return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escapeHtml(title)
+  return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="molis-work-control-token" content="' + escapeHtml(controlToken) + '"><title>' + escapeHtml(title)
     + '</title><script>' + THEME_BOOTSTRAP_SCRIPT + '</script><link rel="stylesheet" href="/assets/molis-work-settings.css"><style>html,body{margin:0}.icon-sprite{position:absolute;width:0;height:0;overflow:hidden}' + SELECT_MENU_STYLES + PLUGIN_COMPONENT_STYLES + AGENT_STUDIO_STYLES + '</style></head><body>' + renderIconSprite() + body
-    + '<script>globalThis.molisWorkControlHeaders=()=>({"content-type":"application/json","x-molis-work-control-token":' + literal(controlToken) + ',"x-molis-work-idempotency-key":crypto.randomUUID()});' + script + '</script><script>' + SELECT_MENU_CLIENT_SCRIPT + '</script></body></html>';
+    + '<script>' + UI_REQUEST_CLIENT_SCRIPT + script + '</script><script>' + SELECT_MENU_CLIENT_SCRIPT + '</script></body></html>';
 }
 function html(response: ServerResponse, body: string) {
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); response.end(body);

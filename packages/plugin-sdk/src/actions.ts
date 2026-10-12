@@ -1,4 +1,5 @@
-import { inspectActionDeclarations, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionExecutionContext, ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { inspectActionDeclarations } from "./action-declarations.js";
 
 /** One author definition generates both manifest data and the runtime binding. */
 export function defineAction<Input, Output>(

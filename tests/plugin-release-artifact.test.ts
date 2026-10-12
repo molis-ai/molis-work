@@ -26,11 +26,12 @@ import { nativePluginReleaseArtifact } from "../apps/local-host/src/native-plugi
 const PLUGIN_ID = "io.molis.work.release-fixture";
 const SIGNATURE = "release-fixture-publisher";
 
-// Permissions the fixtures declare: two required ones, a second one a build may drop, one that stays optional, and one for private storage.
+// Permissions the fixtures declare: two required ones, an optional one a build may drop, one that stays optional, one only a newer build declares, and one for private storage.
 const READ = { permission: "artifact:read", required: true, reason: "读取绑定的文本快照" } as const;
 const WRITE = { permission: "artifact:write", required: true, reason: "写入结果" } as const;
 const KEPT = { permission: "feature:kept", required: false, reason: "两个构建都声明的可选能力" } as const;
 const RETIRED = { permission: "feature:retired", required: false, reason: "只有旧构建声明的可选能力" } as const;
+const NEWER = { permission: "feature:newer", required: false, reason: "只有新构建声明的可选能力" } as const;
 const NOTE = { permission: "storage:private", required: true, reason: "保存一条私人记录" } as const;
 
 test("SQLite release artifacts restore an installed Native version after Host restart and keep updates manual", async () => {
@@ -271,26 +272,28 @@ test("a bundled plugin follows the build in both directions, and the stored rele
   }
 });
 
-// The grants a followed record ends with, in every direction: what the person holds and the new Manifest still declares stays,
-// what it requires is added, what it no longer declares goes (the rule the upward follow has had since 2026-10-04).
+// The grants a followed record ends with, in every direction: every permission the new Manifest declares, required or optional,
+// and none it no longer declares (user decision 2026-10-10, docs/releases/POLICY.md section 7.8; `bundledGrants`). NEWER is an
+// optional permission the installed build never declared, so the list is the declared set and not what the record held plus
+// what the new build requires. tests/bundled-plugin-grants.test.ts has the rule's other cases (first install, narrowed grants).
 for (const [target, installedVersion, hostVersion] of [["a higher version", "0.2.0", "0.3.0"], ["a lower version", "1.44.0", "0.3.0"], ["the same version with another Manifest", "0.3.0", "0.3.0"]] as const) {
-  test(`a bundled follow to ${target} converges the grants: kept when still declared, added when required, dropped when no longer declared`, async () => {
+  test(`a bundled follow to ${target} ends holding every permission the new Manifest declares, and none it no longer declares`, async () => {
     const db = new Database(":memory:");
     try {
       const started: string[] = [], held: string[][] = [];
       const record = (context: PluginStartContext) => { held.push([...context.grants]); };
       const installed = definition(installedVersion, started, undefined, undefined, { permissions: [READ, KEPT, RETIRED], onStart: record });
-      const host = definition(hostVersion, started, undefined, undefined, { permissions: [READ, WRITE, KEPT], onStart: record });
+      const host = definition(hostVersion, started, undefined, undefined, { permissions: [READ, WRITE, KEPT, NEWER], onStart: record });
       assert.notEqual(pluginManifestDigest(installed.manifest), pluginManifestDigest(host.manifest));
-      const restart = await installThenRestart(db, installed, host, { bundled: true, storedRelease: true, grants: ["artifact:read", "feature:kept", "feature:retired"] });
-      const converged = ["artifact:read", "artifact:write", "feature:kept"];
+      const restart = await installThenRestart(db, installed, host, { bundled: true, storedRelease: true });
+      const converged = ["artifact:read", "artifact:write", "feature:kept", "feature:newer"];
 
-      assert.deepEqual(restart.before.grants, ["artifact:read", "feature:kept", "feature:retired"], "what the person held before");
+      assert.deepEqual(restart.before.grants, ["artifact:read", "feature:kept", "feature:retired"], "what the installed build declares");
       assert.deepEqual(restart.report.running, [PLUGIN_ID]);
       assert.deepEqual(restart.runtime.get(restart.installId).grants, converged);
       assert.deepEqual(held.at(-1), converged, "the code that runs holds exactly those");
 
-      const again = await startProcess(db, definition(hostVersion, started, undefined, undefined, { permissions: [READ, WRITE, KEPT], onStart: record }), { bundled: true, archive: [] });
+      const again = await startProcess(db, definition(hostVersion, started, undefined, undefined, { permissions: [READ, WRITE, KEPT, NEWER], onStart: record }), { bundled: true, archive: [] });
       assert.deepEqual(again.report.failed, [], "the next start of the same build is not a silent grant change");
       assert.deepEqual(again.report.running, [PLUGIN_ID]);
       assert.deepEqual(again.runtime.get(restart.installId).grants, converged);
@@ -313,7 +316,7 @@ test("a bundled plugin whose new Manifest asks for another required permission i
     }
   };
   const upward = await outcome("0.4.0");
-  assert.deepEqual(upward, { running: [PLUGIN_ID], failed: [], grants: ["artifact:read", "artifact:write"] }, "the upward rule grants what the new Manifest requires, as a fresh install would");
+  assert.deepEqual(upward, { running: [PLUGIN_ID], failed: [], grants: ["artifact:read", "artifact:write"] }, "a bundled follow grants what the new Manifest declares, as a fresh install would");
   assert.deepEqual(await outcome("0.3.0", { compatible_from_versions: ["0.3.0"] }), upward, "a same-version declaration changes nothing for a bundled plugin");
   assert.deepEqual(await outcome("0.3.0"), upward);
 });
@@ -605,7 +608,7 @@ interface HostProcess {
  * one entry the build carries. `archive` is every definition an earlier process stored a release of, which `restore` can return.
  */
 async function startProcess(db: Database.Database, candidate: PluginDefinition,
-  options: { bundled: boolean; archive: PluginDefinition[]; grants?: string[] }): Promise<HostProcess> {
+  options: { bundled: boolean; archive: PluginDefinition[] }): Promise<HostProcess> {
   const restored: string[] = [];
   const label = (definition: PluginDefinition) => `native-${definition.manifest.version}-${pluginManifestDigest(definition.manifest).slice(0, 8)}`;
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
@@ -613,7 +616,6 @@ async function startProcess(db: Database.Database, candidate: PluginDefinition,
   const report = await supervisor.start([{
     definition: candidate,
     ...(options.bundled ? { bundled: true } : {}),
-    ...(options.grants ? { grants: options.grants } : {}),
     releaseArtifact: {
       capture: () => label(candidate),
       restore: source => {
@@ -635,11 +637,11 @@ interface Restart extends HostProcess {
 
 /**
  * A Host process starts `installed` and shuts down normally; the next process starts `candidate` over the same database.
- * `storedRelease: false` is a database whose stored releases are gone, `grants` what the first install is given.
+ * `storedRelease: false` is a database whose stored releases are gone.
  */
 async function installThenRestart(db: Database.Database, installed: PluginDefinition, candidate: PluginDefinition,
-  options: { bundled: boolean; storedRelease: boolean; grants?: string[] }): Promise<Restart> {
-  const first = await startProcess(db, installed, { bundled: options.bundled, archive: [], ...(options.grants ? { grants: options.grants } : {}) });
+  options: { bundled: boolean; storedRelease: boolean }): Promise<Restart> {
+  const first = await startProcess(db, installed, { bundled: options.bundled, archive: [] });
   const installId = first.supervisor.state(PLUGIN_ID)?.install_id;
   assert.ok(installId, "the first process installed and started the plugin");
   await first.runtime.stop(installId, { preserve_enabled: true });

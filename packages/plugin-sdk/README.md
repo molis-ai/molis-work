@@ -26,6 +26,10 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 
 嵌入其他插件的界面时，在 `ui.embedded_plugins` 声明其完整 Plugin ID。已启用父插件和其传递嵌入关系共用目录可用性规则，移除最后一个父入口后子能力也变为不可用；单独启用子插件仍有效。声明只表明使用关系，不安装新导航项、不授予调用权限，也不猜缺失插件。不要在 Host 再维护嵌入白名单。当前内置项目组合已使用该声明；第三方加载、通用场景和全部旧路由迁移仍以总迁移清单为准。
 
+## 错误：一个模型
+
+一个错误是一个码、一句消息，可选一个 kind 和 details。码说明它是谁的：`<主人>.<原因>`，主人的名字开头（`actions.` 是平台自己的，插件不能用）；kind 说明它是哪一种失败（`invalid`、`forbidden`、`not_found`、`conflict`、`too_large`、`rate_limited`、`cancelled`、`internal`、`upstream`、`unavailable`、`timeout`）；HTTP 状态只由 kind 推出，插件不自带状态表。插件用 `defineErrorCodes("notes", { not_found: "not_found", stale: "conflict" })` 把自己的码一次声明好，抛 `notesErrors.not_found("找不到这条笔记")`；平台自己的码（`actions.missing`、`actions.plugin_disabled` 等）在合同的 `ACTION_ERROR_KINDS` 里一码一行，已经有 kind。`actionHttpStatus`、`actionErrorBody`、`actionErrorResponse` 给出状态和统一的响应体 `{ error, code, details? }`（今天只有 Host 的 Native 插件 HTTP 分发器不传 `mapError` 时这样答；本包导出的 `bindPluginActionRoute`（实现还在合同包里，带自己的状态表）与 Runtime 路由器还没换，W3-02-C 才换，见 [Plugin 开发 · 错误](../../docs/platform/PLUGIN-DEVELOPMENT.md#错误码kind-与状态)）；`actionErrorFromResponse` 把响应还原成同样的错误。错误一律按形状读（有 `code` 和 `message`），不用 `instanceof`：Runtime 包和创作台页面里可能有另一份 `ActionError`。有码但没人给 kind 的错误按调用者的错误处理（400），没有我们的码的错误（没有码、码不是 `<主人>.<原因>` 的写法如 `ENOENT`、不是 Error）按内部失败处理（500），响应体的码是 `actions.execution_failed`，原来的码与 details 不带出去。
+
 ## 从哪里读代码
 
 公开入口是 [src/index.ts](src/index.ts)。生产调用使用包名或 package.json 声明的子路径；下列链接用于定位实现，不是深层导入示例。
@@ -38,7 +42,7 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 
 ## 接入与边界
 
-SDK 不包含 Runtime 或业务 Store。Manifest 解析与版本比较是 SDK 自己的规则（`src/manifest.ts`）：`parsePluginManifest`、`PluginManifestError`、`comparePluginVersions`，SDK、Plugin Runtime 和命令行共用这一份，不另写第二套。动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，内核注册动作时也用它）在 W3-03 的 B2 之前仍在合同包，`parsePluginManifest` 从那里取，B2 把它们搬进 SDK 的同一处；授权的实际执行由 Host/Runtime 控制。当前工作区包是 private，不能把包名当作已经发布到 npm 的承诺。插件对外的能力就是它声明的动作，MCP 名称与授权都在 Host。步骤见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
+SDK 不包含 Runtime 或业务 Store。Manifest 解析与版本比较、动作与 Agent 与方法的声明检查都是 SDK 自己的规则：`parsePluginManifest`、`PluginManifestError`、`comparePluginVersions`（`src/manifest.ts`）和 `inspectActionDeclarations`（`src/action-declarations.ts`；`defineAction` 当场用它检查，内核注册动作时用的也是它），SDK、内核、Plugin Runtime 和命令行共用这一份，不另写第二套。四种来源协议（搜索、片段动作、文件、放置）的细则在 `src/source-declarations.ts`，Agent 与方法的检查在 `src/agent-declarations.ts`，端口与事件的检查在 `src/wiring-declarations.ts`，都只有 `parsePluginManifest` 与 `inspectActionDeclarations` 调用，不对外导出；这些检查的文案与先后顺序是作者读到的内容的一部分，`tests/plugin-declaration-rules.test.ts` 把它们逐条锁住。授权的实际执行由 Host/Runtime 控制。当前工作区包是 private，不能把包名当作已经发布到 npm 的承诺。插件对外的能力就是它声明的动作，MCP 名称与授权都在 Host。步骤见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
 
 工作区依赖：只有 `@molis-ai/molis-work-contracts`。Plugin SDK 属于公共发布面（外部作者装的只有 contracts 与 SDK），不依赖任何私有包：边界规则 `public-sdk-private-dependency` 在 `pnpm boundary:check` 里拦住（源码 import 与 `package.json` 声明的依赖都查），`tests/plugin-sample.e2e.test.ts` 只用打包后的 contracts 与 SDK 离线安装，在本机再兜一层。`createExecutionLifetime`（及 `ExecutionLifetime`、`ExecutionLifetimeOptions`）是 SDK 自己的实现（`src/execution-lifetime.ts`），不是转出；SDK 同时是平台自己的公共运行时底座：内核、宿主、调度服务、Shelf 模块和沙箱都直接从这里取，所以改它按共享核心对待（要跑全量）。其他运行依赖见 [package.json](package.json)。
 
@@ -137,7 +141,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 
 ## 开发要求
 
-- 负责：面向插件作者的稳定 API、UI 扩展类型与测试入口，以及作者和平台共用的运行时工具：执行生命周期（`createExecutionLifetime`）、Manifest 解析与版本比较（`parsePluginManifest`、`comparePluginVersions`；端口与事件检查在 `src/wiring-declarations.ts`，不对外导出；动作、Agent、方法的声明检查在 B2 之前仍从合同包取）。
+- 负责：面向插件作者的稳定 API、UI 扩展类型与测试入口，以及作者和平台共用的运行时工具：执行生命周期（`createExecutionLifetime`）、Manifest 解析与版本比较（`parsePluginManifest`、`comparePluginVersions`）、动作声明检查（`inspectActionDeclarations`，逐个动作的形状）和同一次注册里的交叉引用检查（`inspectActionCrossReferences`，撤销、后台任务、片段与事项选项、结果对象，见 `src/action-cross-references.ts`；查 schema 里的路径用不对外导出的 `src/schema-paths.ts`）；端口与事件、Agent 与方法、四种来源协议的检查分别在 `src/wiring-declarations.ts`、`src/agent-declarations.ts`、`src/source-declarations.ts`，不对外导出。
 - 不负责：Host 内部实现、自动发布的市场。
 - 公开入口：`@molis-ai/molis-work-plugin-sdk`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`（公共发布面，只依赖它，不依赖任何私有包，规则 `public-sdk-private-dependency`）。方向：公开发布面（contracts、plugin-sdk）在最下层，其余各层都可以用它的运行时工具（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
@@ -150,7 +154,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
   - 包是 private，包名不等于已发布到 npm 的承诺。
   - 系统搜索的来源协议（`defineSearchEntriesAction`、`bindSearchEntriesHandler`）与 Host 用的是同一份合同，插件照此声明即可被搜到，不需要 Host 改名单。没有“查询时再搜”的来源（`defineSearchQueryAction` 已按决定 19 删除）。
   - 平台合同里给插件作者用的 `define…Action`、`bind…Handler`、`with…` 辅助函数都从这里导出：到期提醒、情境片段推荐、成果库的预览/固定/比较/继续/被引用、`withActionEffect`。新增一个辅助函数而没有导出，`tests/plugin-sdk-exports.test.ts` 会失败；确实不该给插件用的，在那个测试的 `NOT_FOR_PLUGINS` 里写明理由。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts tests/plugin-manifest-v2.test.ts tests/plugin-sample.e2e.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts tests/plugin-manifest-v2.test.ts tests/builtin-manifests-contract.test.ts tests/side-panel-platform.test.ts tests/contextual-interaction.test.ts tests/work-placement.test.ts tests/action-error-model.test.ts tests/plugin-action-route.test.ts tests/plugin-sample.e2e.test.ts tests/action-cross-references.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-DEVELOPMENT.md](../../docs/platform/PLUGIN-DEVELOPMENT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

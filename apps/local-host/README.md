@@ -32,7 +32,8 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 | [src/typed-call-settlement.ts](src/typed-call-settlement.ts) | 不带 `action` 的宿主能力（typed 口）的调用结算：与动作一样每次一次，标 `path: "typed"` |
 | [src/project-capabilities.ts](src/project-capabilities.ts) | 能力绑定 |
 | [src/web-server.ts](src/web-server.ts) | Web 请求与 Home 装配 |
-| [src/mcp-server.ts](src/mcp-server.ts)、[src/mcp-call-id.ts](src/mcp-call-id.ts) | 对外 MCP 装配；公共动作转发、上下文及历史入口；错误文本与结果 `_meta` 里的调用编号 |
+| [src/mcp-server.ts](src/mcp-server.ts) | 对外 MCP 装配；公共动作转发、上下文及历史入口 |
+| [src/mcp-call-id.ts](src/mcp-call-id.ts) | MCP 错误文本与结果 `_meta` 里的调用编号（只在这次操作留了行时带） |
 | [src/mcp-v1-tool.ts](src/mcp-v1-tool.ts) | 管理入口 v1 项目工具的调用：解析数据库与项目、取项目客户端、交给工具分发；`LocalMcpServer` 只转调这一个函数 |
 | [src/action-gateway.ts](src/action-gateway.ts)、[src/action-gateway-http.ts](src/action-gateway-http.ts) | 常驻 Host 的通用动作通道，复用原授权与执行核心 |
 | [src/mcp-catalog.ts](src/mcp-catalog.ts) | 平台工具 + 已授权动作合成目录 |

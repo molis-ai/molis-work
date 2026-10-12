@@ -66,14 +66,109 @@ export interface SurfaceFocus {
   readonly unsaved?: boolean;
   /** The Goal the object belongs to, when the surface knows it. */
   readonly goal?: { readonly id: string; readonly title: string; readonly state?: string };
+  /**
+   * Where the thing in hand is. The workbench sets it from the document that reported the focus (a plugin's own claim is
+   * not taken); absent means the work area, `main`.
+   */
+  readonly place?: SurfacePlace;
+  /** With `place: "side"`: which cell of the right panel (`shelf`, `discussion`, `plugin:<plugin>/<view>` …). */
+  readonly side_tab?: string;
+  /** Where the bar is drawn. Meaningful only in the document that reported it: it never goes to the Host or across frames. */
+  readonly screen?: SurfaceScreenAnchor;
+}
+
+/** Where the thing in hand is: the work area on the left, a cell of the right panel, or the Assistant panel. */
+export type SurfacePlace = "main" | "side" | "assistant";
+export const SURFACE_PLACES: readonly SurfacePlace[] = ["main", "side", "assistant"];
+
+/**
+ * A rectangle in the reporting document's viewport coordinates, as it was when the surface reported, and the side of it
+ * to draw on (default above, flipping when there is no room). Plain data: a surface that moves (scroll, a row that
+ * reflows) reports again rather than handing over an element, so a focus can always be cloned and posted.
+ */
+export interface SurfaceScreenAnchor {
+  readonly rect?: { readonly left: number; readonly top: number; readonly right: number; readonly bottom: number };
+  readonly placement?: "above" | "below";
+}
+
+/** What a landing is inside its object. `object`: the object itself is where things go (a Goal, a Coding session). */
+export type SurfaceLandingPosition = "cursor" | "selection" | "end" | "object";
+export const SURFACE_LANDING_POSITIONS: readonly SurfaceLandingPosition[] = ["cursor", "selection", "end", "object"];
+
+/**
+ * Where the thing in hand can be put: what the focused pane on the left has open and where in it. Reported by the page that
+ * owns the object, with the same standing as a `SurfaceFocus`: a claim until that owner reads the object again. The owner
+ * checks `version` before it writes at a position, so a landing that went stale is refused rather than followed.
+ */
+export interface SurfaceLanding {
+  readonly pane_id: string;
+  readonly plugin_id: string;
+  readonly object: { readonly kind: string; readonly id: string; readonly title?: string };
+  readonly position: SurfaceLandingPosition;
+  /**
+   * `selection`: the text that would be replaced. `cursor` and `end`: one collapsed part (empty text) whose `anchor` and
+   * `head` are that position. Editor positions are valid only for `version`. `object`: none.
+   */
+  readonly targets?: readonly SurfaceFocusTarget[];
+  /** Bounded neighbourhood of the position, for the judgment and the preview. */
+  readonly surroundings?: SurfaceFocus["surroundings"];
+  /** Opaque to everyone but the owner: what it compares before writing at a position. */
+  readonly version: string | number;
+  readonly screen?: SurfaceScreenAnchor;
 }
 
 /** The context as it was when the person clicked; every preview and execution uses this, never the live selection. */
 export interface FrozenFocus {
   readonly focus: SurfaceFocus;
+  /** Where it was going to be put, frozen with it: the preview and the write both use this one. */
+  readonly landing?: SurfaceLanding;
   /** Page-side handle to map the frozen anchors through later edits. */
   readonly token: string;
   readonly frozen_at: string;
+}
+
+/** Limits on what a plugin publishes as tools (`ContextTools`); anything beyond them is dropped. */
+export const CONTEXT_TOOL_LIMITS = { groups: 6, items: 24, label: 24 } as const;
+
+/** Letters a tool may show as its face, besides an icon name from the design system. */
+export type ContextToolGlyph = "B" | "I" | "U" | "S" | "H1" | "H2" | "H3" | "A";
+
+/**
+ * One command a plugin runs on the content it has open (bold, a heading, a list). Not an action: nothing here is in the
+ * directory, no agent calls it, and the plugin keeps its own undo. Plain data, so it clones across frames.
+ */
+export interface ContextToolItem {
+  /** Unique and stable within its group. */
+  readonly id: string;
+  /** The accessible name and the tooltip, already translated. */
+  readonly label: string;
+  readonly icon?: string;
+  readonly glyph?: ContextToolGlyph;
+  readonly pressed?: boolean;
+  readonly disabled?: boolean;
+  readonly shortcut?: string;
+  /** Clicking opens a panel the plugin draws under the bar (a link's address, a comment). */
+  readonly opens?: "panel";
+}
+
+export interface ContextToolGroup {
+  readonly id: string;
+  readonly items: readonly ContextToolItem[];
+  /** `overflow`: the group may fold into one menu when the bar is narrow. */
+  readonly collapse?: "never" | "overflow";
+}
+
+/** What the plugin has to offer for the context `context_id`; one for another context is stale and dropped. */
+export interface ContextTools {
+  readonly context_id: string;
+  readonly groups: readonly ContextToolGroup[];
+}
+
+/** `detail` of the bar's request that a tool run: the plugin runs it and publishes its tools again. */
+export interface ContextToolInvoke {
+  readonly context_id: string;
+  readonly group: string;
+  readonly id: string;
 }
 
 export interface ContextualCandidate {
@@ -94,8 +189,12 @@ export interface ContextualCandidate {
   /**
    * Where the candidate was declared. Absent: fragment offers (`frag.` keys). `subject`: the object's subject offers,
    * which the Home / Dock rules also choose from; their keys stay `offer.` so saved rules and bindings keep working.
+   * `intake`: a command that creates an Item (`intake.` keys). `attach`: a command that puts the thing in hand into the
+   * object open on the left (`attach.` keys). The last two are destinations: they only ever take a recommended slot.
    */
-  readonly origin?: "subject";
+  readonly origin?: "subject" | "intake" | "attach";
+  /** For `attach`: where in the landing object it would put the thing, as the landing reported it. */
+  readonly position?: SurfaceLandingPosition;
 }
 
 export type AssistantForm = "none" | "suggest" | "options" | "preview" | "compare";
@@ -138,6 +237,8 @@ export interface ContextualLayoutPlan {
 export interface ContextualJudgeRequest {
   readonly pane_id: string;
   readonly focus: SurfaceFocus;
+  /** Where it can be put, when the thing in hand is not on the left and the pane there has a landing. */
+  readonly landing?: SurfaceLanding;
   /** Titles of the person's last few actions here, without content. */
   readonly recent?: readonly string[];
   /** Keys under the pointer or keyboard focus right now: the plan keeps their positions. */

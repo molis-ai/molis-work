@@ -376,6 +376,12 @@ export declare const ARTIFACT_REFERRERS_INPUT_TYPE = "molis.artifacts.referrers.
 
 export declare const ARTIFACT_REFERRERS_OUTPUT_TYPE = "molis.artifacts.referrers.v1";
 
+export interface ActionAttach extends DestinationDeclaration {
+    readonly attach_id: string;
+    readonly item_kind: string;
+    readonly positions?: readonly ItemAttachPosition[];
+}
+
 export type ActionAudience = "user" | "agent" | "workflow" | "mcp" | "plugin";
 
 export type ActionAvailability = {
@@ -472,6 +478,14 @@ export interface ActionHandlerBinding {
     availability?(context: ActionCallContext): ActionAvailability;
 }
 
+export interface ActionIntake extends DestinationDeclaration {
+    readonly intake_id: string;
+    readonly item_kind: string;
+    readonly examples: readonly string[];
+    readonly effect?: "creates" | "proposes";
+    readonly multiple?: boolean;
+}
+
 export interface ActionMetadata {
     readonly title: string;
     readonly description: string;
@@ -495,6 +509,8 @@ export interface ActionMetadata {
     readonly file_source?: FileSourceDeclaration;
     readonly subject_offer_choices?: readonly SubjectOfferChoice[];
     readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
+    readonly intake?: ActionIntake;
+    readonly attach?: ActionAttach;
     readonly required_scene?: {
         readonly scene_id: string;
         readonly version: number;
@@ -1359,7 +1375,7 @@ export declare const FRAGMENT_OFFERS_INPUT_SCHEMA: {
                                 enum: string[];
                             };
                             role: {
-                                enum: ("object" | "code" | "task" | "list" | "heading" | "paragraph" | "table" | "quote")[];
+                                enum: ("object" | "heading" | "paragraph" | "list" | "task" | "table" | "quote" | "code")[];
                             };
                             text: {
                                 type: string;
@@ -1593,6 +1609,7 @@ export interface FragmentOfferChoice {
     readonly granularities?: readonly FragmentGranularity[];
     readonly roles?: readonly FragmentRole[];
     readonly requires?: readonly "goal"[];
+    readonly places?: readonly SurfacePlace[];
 }
 
 export interface FragmentOffersInput {
@@ -2032,6 +2049,19 @@ export interface HomeOpenTarget {
     title: string;
     label: string;
 }
+
+export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
+
+export declare const ITEM_DECLARATION_LIMITS: {
+    readonly id: 40;
+    readonly title: 40;
+    readonly verb: 40;
+    readonly describe: 240;
+    readonly example: 120;
+    readonly examples: 3;
+};
+
+export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
 
 export declare const LOCAL_PERSON_ACTOR_ID = "web-user";
 
@@ -2717,6 +2747,7 @@ export interface SubjectOfferChoice {
     readonly title: string;
     readonly action: Pick<ActionReference, "capability_id" | "version">;
     readonly subject_kinds?: readonly string[];
+    readonly places?: readonly SurfacePlace[];
 }
 
 export interface SubjectOffersInput {
@@ -3081,6 +3112,15 @@ export declare function withinHomeEventWindow(value: string, window: HomeEventWi
 export declare function workflowDeliveryKey(context: WorkflowReceiveInput["context"]): string;
 
 // Declarations the exports above refer to, which no entry exports itself:
+
+interface DestinationDeclaration {
+    readonly title: string;
+    readonly verb: string;
+    readonly describe: string;
+    readonly material_field?: string;
+    readonly prepare?: Pick<ActionReference, "capability_id" | "version">;
+    readonly places?: readonly SurfacePlace[];
+}
 
 interface WorkflowStationSpec {
     id: string;

@@ -1,4 +1,5 @@
 import type { ActionDefinition, ActionReference } from "./actions.js";
+import type { SurfacePlace } from "../services/contextual.js";
 
 /**
  * Fragment offers (specs/archive/contextual-interaction §5.1): the subject-offers pattern applied to part of an object — a word,
@@ -101,6 +102,8 @@ export interface FragmentOfferChoice {
   readonly roles?: readonly FragmentRole[];
   /** Offered only when the surface knows this about the object: `goal`, the Goal it belongs to. */
   readonly requires?: readonly "goal"[];
+  /** Offered only while the thing in hand is in one of these places (left, right panel, Assistant panel); omitted, anywhere. */
+  readonly places?: readonly SurfacePlace[];
 }
 
 const id = { type: "string", minLength: 1 };

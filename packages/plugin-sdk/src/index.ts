@@ -17,6 +17,8 @@ export { defineSubjectContextAction, subjectContext, resolveActionSubject } from
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineActionUsagesAction, referencesAction, type ActionUsage, type ActionUsagesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOffersInput, SubjectActionOffer, SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
+/** Putting what the person has in hand somewhere: declare `intake` (this command creates an Item) or `attach` (it adds to one) on the command itself. */
+export type { ActionIntake, ActionAttach, ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineHomeEventsAction, withinHomeEventWindow, assertHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 /** System search: list what your plugin can find (by version) and read it through your subject reader. */
 export { defineSearchEntriesAction, bindSearchEntriesHandler, searchEntriesPage, searchText, searchRevisionOf, SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";

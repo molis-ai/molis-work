@@ -12,6 +12,12 @@ export declare const CONTEXT_ACTION_CHOOSE_EVENT = "molis:assistant-context-acti
 
 export declare const CONTEXT_ACTION_CHOSEN_EVENT = "molis:assistant-context-action-chosen";
 
+export declare const CONTEXT_TOOL_LIMITS: {
+    readonly groups: 6;
+    readonly items: 24;
+    readonly label: 24;
+};
+
 export interface ContextActionChosen {
     readonly plugin_id: string;
     readonly context_id: string;
@@ -28,6 +34,36 @@ export interface ContextActionChosen {
         readonly action: ContextualCandidate["action"];
         readonly input: unknown;
     }>;
+}
+
+export type ContextToolGlyph = "B" | "I" | "U" | "S" | "H1" | "H2" | "H3" | "A";
+
+export interface ContextToolGroup {
+    readonly id: string;
+    readonly items: readonly ContextToolItem[];
+    readonly collapse?: "never" | "overflow";
+}
+
+export interface ContextToolInvoke {
+    readonly context_id: string;
+    readonly group: string;
+    readonly id: string;
+}
+
+export interface ContextToolItem {
+    readonly id: string;
+    readonly label: string;
+    readonly icon?: string;
+    readonly glyph?: ContextToolGlyph;
+    readonly pressed?: boolean;
+    readonly disabled?: boolean;
+    readonly shortcut?: string;
+    readonly opens?: "panel";
+}
+
+export interface ContextTools {
+    readonly context_id: string;
+    readonly groups: readonly ContextToolGroup[];
 }
 
 export interface ContextualCandidate {
@@ -51,12 +87,14 @@ export interface ContextualCandidate {
     readonly available: boolean;
     readonly reason?: string;
     readonly scope?: "object";
-    readonly origin?: "subject";
+    readonly origin?: "subject" | "intake" | "attach";
+    readonly position?: SurfaceLandingPosition;
 }
 
 export interface ContextualJudgeRequest {
     readonly pane_id: string;
     readonly focus: SurfaceFocus;
+    readonly landing?: SurfaceLanding;
     readonly recent?: readonly string[];
     readonly pinned?: readonly string[];
     readonly previous?: {
@@ -110,6 +148,7 @@ export interface ContextualLayoutPlan {
 
 export interface FrozenFocus {
     readonly focus: SurfaceFocus;
+    readonly landing?: SurfaceLanding;
     readonly token: string;
     readonly frozen_at: string;
 }
@@ -117,6 +156,10 @@ export interface FrozenFocus {
 export declare const PLACE_CHANGED_EVENT = "molis-work:place-changed";
 
 export declare const SURFACE_FOCUS_EVENT = "molis:surface-focus";
+
+export declare const SURFACE_LANDING_POSITIONS: readonly SurfaceLandingPosition[];
+
+export declare const SURFACE_PLACES: readonly SurfacePlace[];
 
 export type SurfaceActivity = "browsing" | "selecting" | "editing" | "comparing" | "completed";
 
@@ -143,6 +186,9 @@ export interface SurfaceFocus {
         readonly title: string;
         readonly state?: string;
     };
+    readonly place?: SurfacePlace;
+    readonly side_tab?: string;
+    readonly screen?: SurfaceScreenAnchor;
 }
 
 export interface SurfaceFocusTarget extends FragmentTarget {
@@ -151,3 +197,32 @@ export interface SurfaceFocusTarget extends FragmentTarget {
 }
 
 export type SurfaceGranularity = "page" | "object" | FragmentGranularity;
+
+export interface SurfaceLanding {
+    readonly pane_id: string;
+    readonly plugin_id: string;
+    readonly object: {
+        readonly kind: string;
+        readonly id: string;
+        readonly title?: string;
+    };
+    readonly position: SurfaceLandingPosition;
+    readonly targets?: readonly SurfaceFocusTarget[];
+    readonly surroundings?: SurfaceFocus["surroundings"];
+    readonly version: string | number;
+    readonly screen?: SurfaceScreenAnchor;
+}
+
+export type SurfaceLandingPosition = "cursor" | "selection" | "end" | "object";
+
+export type SurfacePlace = "main" | "side" | "assistant";
+
+export interface SurfaceScreenAnchor {
+    readonly rect?: {
+        readonly left: number;
+        readonly top: number;
+        readonly right: number;
+        readonly bottom: number;
+    };
+    readonly placement?: "above" | "below";
+}

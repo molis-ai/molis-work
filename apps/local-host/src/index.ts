@@ -17,7 +17,7 @@ export { PluginHostExecutor } from "./plugin-executor.js";
 export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from "./home-plugins.js";
 export { openPluginDatabase } from "./plugin-database.js";
 export { createPluginPlatform } from "./plugin-platform.js";
-export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformOptions } from "./plugin-platform.js";
+export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformEntry, PluginPlatformOptions } from "./plugin-platform.js";
 export type { PluginHostExecutorOptions } from "./plugin-executor.js";
 export { runPluginDevelopment } from "./plugin-development.js";
 export type { LocalProjectStoragePreparation } from "./project-storage.js";

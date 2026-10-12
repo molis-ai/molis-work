@@ -1,5 +1,5 @@
 import { informationActionProvider } from "./information-actions.js";
-import { bindHomeSide, releaseHomeSide } from "./home-side.js";
+import { bindHomeSide, releaseHomeSide, type PluginFixture } from "./home-side.js";
 import { homeActionProvider } from "./home-actions.js";
 import { workflowEventsFeedOptions } from "./workflow-feed-options.js";
 import { bindScheduleDeliveryFeed } from "./schedule-runtime.js";
@@ -49,7 +49,6 @@ import { registerProjectCapabilities } from "./project-capabilities.js";
 import { releaseProjectPlugins } from "./project-plugins.js";
 import type { HostCapabilityDefinition, LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActionProvider } from "./inbox-actions.js";
@@ -83,10 +82,11 @@ export interface MolisWorkLocalHostOptions {
   completeText?: HostCompleteText | null;
   /**
    * Plugins that exist only for a test or a probe: the Host runs them in process, beside the shipped ones, in every project's
-   * platform. Never `bundled` (they register under their installation id), and never sandboxed. Production composition passes
-   * none. They are registered per Home and read when a project's platform starts (`home-side.ts`).
+   * platform. Never `bundled` (they register under their installation id), and never sandboxed; one may be given a library in the
+   * Home, as a start-list entry gives one to a shipped plugin. Production composition passes none. They are registered per
+   * Home and read when a project's platform starts (`home-side.ts`).
    */
-  pluginFixtures?: { project?: readonly PluginDefinition[] };
+  pluginFixtures?: { project?: readonly PluginFixture[] };
   sceneAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["sceneAvailability"];
   actionAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["actionAvailability"];
   onRuntimeOpen?: (reference: LocalHostProjectReference) => void;

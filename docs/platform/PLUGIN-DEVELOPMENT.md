@@ -99,6 +99,8 @@ Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留�
 
 可信目录的 `database` 声明由 `PluginDatabaseDeclaration` 描述库名、当前基线和读写权限，插件拥有 schema 与 SQL；Host 选择路径、打开连接并提供 `context.services.database`。当前只用于可信 Native 插件；它是安装生命周期服务，不是 JavaScript 沙箱，也不向外部动作暴露 SQL。每个库独占 `{home}/<store_name>/<store_name>.db`，schema 基线不符时拒绝并保留原库，不自动迁移。
 
+项目里宿主自己运行的内置插件也可以有 Home 里的库，用的是同一个 `services.database`，不是第二份服务（W3-06 D）：在 `project-plugins.ts` 启动名单的条目上写 `database`（`PluginPlatformEntry`，类型 `PluginDatabaseDeclaration`），不写进插件定义。声明记在宿主列出的那个定义对象上，所以同 `plugin_id` 的开发中或生成的插件拿不到；沙箱定义、没有 Home 的平台（`home: null`）也拿不到。库名必须在 `PERSONAL_HOME_SQLITE_STORES` 里（卸载 `--purge-user-data` 才清得到）、不是 `plugin-runtime`、Manifest 声明了 `storage:private` 和库的读写两个权限，同一份名单里不能有两个插件用同一个库；名单有错整份不启动、不建库。所有项目的实例指向同一个库文件，换项目数据不分开；库随插件启动打开、停止关闭，每个项目的实例各持一对连接。下面几条对两种实例都一样。目前生产名单里还没有条目声明库，Todo、Form 迁到 Runtime 时是第一批。
+
 - `database.get/all` 用 SQLite 只读连接，接受参数化查询；没有跨库、路径和连接管理入口。
 - `database.transaction(caller.beforeEffect, tx => …)` 先等待当前动作授权，再复查安装和 grant，随后执行短同步事务；异步回调拒绝并回滚。事务对象离开回调后失效。
 - 更新和删除由业务 SQL 带版本条件；取消、撤权、停用或旧实例不可提交；出错不自动重试。

@@ -17,6 +17,7 @@ import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprot
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 import { isLoopbackHttpOrigin, isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { PRODUCT_VERSION } from "./product-version.js";
 
 export interface McpServerConfiguration {
   endpoint: string;
@@ -131,7 +132,7 @@ interface ConnectorMcpHostOptions {
 async function runLarkMcpChild<T>(credentials: LarkMcpLaunchInput, use: Pick<ConnectorMcpHostOptions, "stdioTransport"> & { checkActive?: () => void; signal?: AbortSignal },
   run: (client: Client) => Promise<T>): Promise<{ result: T }> {
   const launch = larkMcpLaunch(credentials);
-  const client = new Client({ name: "molis-work", version: "0.2.0" }, { capabilities: {} });
+  const client = new Client({ name: "molis-work", version: PRODUCT_VERSION }, { capabilities: {} });
   const abort = () => { void client.close().catch(() => {}); };
   try {
     const parameters: StdioServerParameters = { command: launch.command, args: launch.args, env: launch.env, cwd: launch.cwd, stderr: "pipe" };
@@ -257,7 +258,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     const headers = token ? { Authorization: `${servers[config.serviceId]?.tokenScheme ?? "Bearer"} ${token}` } : undefined;
     const transportOptions = { authProvider: config.mode === "oauth" ? session.oauth : undefined, requestInit: headers ? { headers } : undefined, fetch: session.fetch };
     const connect = async (kind: "http" | "sse") => {
-      const client = new Client({ name: "molis-work", version: "0.2.0" }, { capabilities: {} });
+      const client = new Client({ name: "molis-work", version: PRODUCT_VERSION }, { capabilities: {} });
       const transport = kind === "http" ? new StreamableHTTPClientTransport(new URL(config.endpoint), transportOptions) : new SSEClientTransport(new URL(config.endpoint), transportOptions);
       const abort = () => { void client.close().catch(() => {}); };
       signal?.addEventListener("abort", abort, { once: true });

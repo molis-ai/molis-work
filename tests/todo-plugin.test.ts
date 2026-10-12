@@ -64,7 +64,7 @@ test("the workbench mounts the Todo stage, and the client script still parses wi
   assert.doesNotThrow(() => new Function(script));
   assert.doesNotThrow(() => new Function("return " + TODO_CLIENT_FACTORY_SCRIPT));
   // The page's script only knows Todo is there; Todo's own client loads when its surface opens (#150).
-  assert.match(script, /\{"id":"todo","assets":\[\]\}/);
+  assert.match(script, /\["todo"\]/);
   const client = pluginWorkbenchClientAsset("todo");
   assert.ok(client, "Todo's client is served on its own");
   assert.doesNotThrow(() => new Function(client));

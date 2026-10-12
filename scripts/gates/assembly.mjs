@@ -13,6 +13,7 @@
 //                          dependencies, the workspace map): what adding or removing that plugin touches besides itself
 // A plugin that is new at the reference starts at NEW_PLUGIN_OUTSIDE_FILES for the last one; everything else starts at 0.
 import ts from "typescript";
+import { homeRuntimePackages } from "./home-runtime-entries.mjs";
 import { hasPath, recordMetric } from "./record-metric.mjs";
 
 const HOST_SRC = /^apps\/local-host\/src\//;
@@ -49,7 +50,8 @@ export function describePlugins(snapshot) {
     if (typeof name === "string") plugins.push({ dir: match[1], name });
   }
   const supervisor = snapshot.read(PROJECT_PLUGINS) ?? "";
-  const runtime = new Set(plugins.filter((plugin) => supervisor.includes(`"${plugin.name}"`)).map((plugin) => plugin.dir));
+  const home = homeRuntimePackages(snapshot);
+  const runtime = new Set(plugins.filter((plugin) => supervisor.includes(`"${plugin.name}"`) || home.has(plugin.name)).map((plugin) => plugin.dir));
   return { plugins: plugins.sort((a, b) => a.dir.localeCompare(b.dir)), runtime };
 }
 

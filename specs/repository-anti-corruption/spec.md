@@ -1273,20 +1273,22 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | 第四批、I4 | #452–#454、#458 已合入；#455–#457、#459 已开 PR，随 C 合入解文档冲突后重排 | 8 片已整合；390 个取消文件已全部补跑。对齐 I3 main 后整体构建、全包类型检查、健康与边界通过，17 文件 237 条定向用例与 5 文件 7 条浏览器用例全过。归回整合修复后依次合入，分片补验证据如下。 |
 | 第五批 | 未合入 | W3-02-F、W3-02-G2、W3-06-F1、W2-11-d 的末轮评审为通过；W3-10-1b 的手机错误 toast、按钮尺寸与文档修复已完成，追加 ebc4d0123 将最终样式与测试提交：16 文件 149 条定向用例、3 文件 11 条浏览器用例全过，包含 390px 浅深色、桌面及无项目入口；W3-02-F 已对齐诊断 main e4ec01bd0 到 9aa606ffc，16 普通文件 146/146 与锁内 Shelf 浏览器 6/6；诊断 main 组合 4 文件 21/21，构建与门禁通过、资源不变；三份 CSS 比原分支预算各降 3 字节，健康与边界通过。第四批 I4 八片已全部开 PR；第五批的 F1 已对齐最新 main 到 82a7baf6d，5 文件 22/22 与构建/门禁通过，通用路由操作保留 Coding 专属钩子且无 API/动作/资源变化；第五批进入独立 feature/anti-corruption-wave3-i5 整合；原 I4 树保留，只在新的隔离树中继续。G2 与 MCP formatter 的组合点已确认：目录错误折为 ActionError 后，元数据须保留到新的 mcp-call-id formatter，可信编号最后写入；修复归 G2，验证后再合入。只读复核指出未留行时 details.call_id 可自称编号、details.code 可覆盖真实码，已在 adb68f210 过滤这两项保留字段；ActionError 与 V1 分支均只写真实码和确实留行的宿主编号，其他详情保留。主协调对照实际 diff 与日志确认修复，公开 MCP 用例覆盖真实未来版本目录不改原库、两类错误有/无调用行及实际可查的 Host 编号；15 普通文件 158/158、锁内成果导入浏览器 1/1，构建、健康、边界与资源通过；G2 已对齐诊断 main 到 33b01d727，新增 3 文件 35/35；FunctionsError 出口退役，动作与资源不变。 |
 
-**I4 分片补验（10-12）。** 早先对齐 main 9e7f650f2 仅新增 #451 测试/文档，生产未变，保留已有有效验证。C 合入后，#455/#456/#457/#459 已分别机械合 main faee12f35；README 必跑取并集，生成基线待实测。C 带有源码/脚本/包增量，当前四个本地提交不是 READY；I5 全量持锁期间未 install/build/typecheck/browser，下面旧定向结果不替代新提交验证。
+**I4 分片补验（10-12）。** 早先对齐 main 9e7f650f2 仅新增 #451 测试/文档，生产未变，保留已有有效验证。C 合入带有源码/脚本/包增量，I5 全量持锁期间四片只机械合并，未冒称READY。全量及静默对照结束后，四片已在实际 main ed419f303 逐棵锁内离线安装、整体构建、API/动作/资源与健康实测更新、边界及类型检查，全部通过；README必跑取并集，没有门禁、阈值或Biome放宽。下表当前HEAD已核对远端，待各HEAD全部CI与Verify通过、对齐main再交原daemon合并。
 
 | 片 | 当前提交与 PR | 已核对的补验 |
 | --- | --- | --- |
 | W3-01-D MCP 调用编号 | #452 已合入 main 1ec92c18e | main 合并仅测试/文档；原 68 文件 542/542，security 161 通过、1 原有跳过；构建、健康、边界、API/动作/资源、密钥扫描及只读复核通过 |
 | W3-01-F 诊断查找 | #453 已于 12:15 合入 main e4ec01bd0，必需 CI 全过 | 10 文件 78/78，锁内编号查找/真实剪贴板 1/1；原 7 文件 85/85 有效证据保留；构建、健康、边界与资源通过，API/动作无新增变动 |
 | W3-02-C SDK 路由绑定器 | #454 已于 13:29 合入 main 56033f06d，必需 CI 全过 | 17 文件 108/108；绑定器移至 SDK 同名实现，contracts/SDK 快照同步；contracts 长函数项 8 → 6，工作台脚本比最新 main 降 24 字节；对齐 Issue #420 后再整体构建与门禁，6 文件 30/30；再合诊断 main 后 3 文件 17/17，源码无冲突/修复 |
-| W3-02-E Feed/Inbox/Schedule | #455；本地 39926546f 已机械合 main faee12f35，待验证后推送重排 | 13 文件 188/188；含浏览器的 Schedule 文件另经锁复验 5/5；错误子类 102 → 99、坏形状码 539 → 448、状态决策 200 → 187、错主人码 1139 → 1043；构建与门禁通过，无动作/资源变化；对齐 Issue #420 后 4 文件 42/42；再合诊断 main 后 3 文件 26/26，无新增生产修复 |
-| W3-06-E 模型服务 | #456；本地 8be6c9123 已机械合 main faee12f35，待验证后推送重排 | 11 文件 117/117；包括本机替身经真实 SDK/动作 client、取消/停用/调用结束/指令归属拒绝；公开类型及 SDK 提示词出口快照同步，构建与门禁通过，无动作/资源变化；对齐 Issue #420 后 4 文件 37/37，包括真实 SDK 经本机替身与新 Issue 助理；再合诊断 main 后 3 文件 26/26，仅合并必跑清单 |
-| W3-07-PR-3 CLI Goals 动作 | #457；本地 bbada0a11 已机械合 main faee12f35，待验证后推送重排 | 11 文件 129/129；每命令一次动作/一个编号、无并行 typed 记录，身份拒绝、提案跨 Host 重启及合同快照通过；构建与门禁通过，unknown casts 197 → 193；对齐 Issue #420 后 4 文件 24/24；再合诊断 main 后 3 文件 17/17，仅合并必跑清单 |
+| W3-02-E Feed/Inbox/Schedule | #455；READY并已推送3ce67a1e5，base ed419f303，待CI | 13 文件 188/188；含浏览器的 Schedule 文件另经锁复验 5/5；错误子类 102 → 99、坏形状码 539 → 448、状态决策 200 → 187、错主人码 1139 → 1043；构建与门禁通过，无动作/资源变化；对齐 Issue #420 后 4 文件 42/42；再合诊断 main 后 3 文件 26/26，无新增生产修复 |
+| W3-06-E 模型服务 | #456；READY并已推送a49382308，base ed419f303，待CI | 11 文件 117/117；包括本机替身经真实 SDK/动作 client、取消/停用/调用结束/指令归属拒绝；公开类型及 SDK 提示词出口快照同步，构建与门禁通过，无动作/资源变化；对齐 Issue #420 后 4 文件 37/37，包括真实 SDK 经本机替身与新 Issue 助理；再合诊断 main 后 3 文件 26/26，仅合并必跑清单 |
+| W3-07-PR-3 CLI Goals 动作 | #457；READY并已推送d27fad963，base ed419f303，待CI | 11 文件 129/129；每命令一次动作/一个编号、无并行 typed 记录，身份拒绝、提案跨 Host 重启及合同快照通过；构建与门禁通过，unknown casts 197 → 193；对齐 Issue #420 后 4 文件 24/24；再合诊断 main 后 3 文件 17/17，仅合并必跑清单 |
 | W2-11-c2 插件授权真实路由 | #458 已于 12:53 合入 main ba6f5232，必需 CI 全过 | 9 文件 19/19；真实 Web/MCP 共享授权和撤权、用户专用拒绝与恢复；构建与门禁通过，内部引用 909 → 886、混源进程 176 → 173；对齐 Issue #420 后 4 文件 9/9 |
-| W2-11-c3 Agent/函数授权 | #459；本地 8d9e3d302 已机械合 main faee12f35，待验证后推送重排 | 普通 3 文件 23/23、浏览器锁内 3 文件 3/3；真实动作选择、Agent 创作与未知场景编辑器通过；构建与门禁通过，内部引用 909 → 898，无 API/动作/资源变化；对齐 Issue #420 后 2 文件 7/7 |
+| W2-11-c3 Agent/函数授权 | #459；READY并已推送b6d3c0043，base ed419f303，待CI | 普通 3 文件 23/23、浏览器锁内 3 文件 3/3；真实动作选择、Agent 创作与未知场景编辑器通过；构建与门禁通过，内部引用 909 → 898，无 API/动作/资源变化；对齐 Issue #420 后 2 文件 7/7 |
 
 **回归证据。** 原日志位于本机交接所指的会话临时目录，不作为新增仓库资产。I1：5,599 个用例，5,587 通过、3 失败、9 跳过；I2：5,824 个，5,813 通过、2 失败、9 跳过；I3：5,920 个，5,904 通过、7 失败、9 跳过。交接报告的分类分别是 I1 三条负载超时、I2 两条真问题已修、I3 一条 Characters 夹具问题已修与五条 main 既有问题、一条偶发；接续核对已确认 I3 的 Characters 夹具由 cad95801d 修复，修复后的三条浏览器用例 3/3、必跑用例 417/417 通过；五条布局失败在 main 347d0a541 同因复现；Issue 导航的一条仅能认定重跑通过，偶发机制未查明。I1/I2 的原分类继续由原执行报告和修复提交提供证据，不宣称全量零失败。
+
+**当前 main 补验。** #455 为4文件39/39（Feed/Inbox/Schedule及真实Runtime HTTP），#456为4文件34/34（模型14、Runtime-integration13、SDK5、真实HTTP2），#457为4文件11/11（真实CLI/管理身份/SDK/HTTP），#459为5普通文件30/30及浏览器锁内3/3（真实推荐和创作）；全部无跳过/取消。API、动作与29资源11,366,644字节实测；E的两份Feed/Inbox公开快照按工厂替代原错误类，Model的两份公开快照记录instructions/model与SDK提示词出口。其余动作快照、资源不变；四片均推送前密钥扫描通过。CLI第一次推送443网络短时失败，重试后核对远端HEAD一致，不归为代码失败。
 
 I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消、1 跳过。两条失败为 `feed-capture.e2e` 和 `immersive-directory.e2e`；390 个取消项是测试文件入口，统一报事件循环结束时 Promise 未完成，具体中断来源未确认。10-12 接手时 PID 30523 正在用 `i4-rest.log` 补跑剩余文件和 Feed 用例，不重复启动、不改该树的源码或 skills。续跑最终 2,748 条：2,735 通过、5 失败、8 跳过、无取消。失败是 Feed 与四条 touch-targets；首跑另有一条 Immersive。Feed 在原分支、I4 带请求观察的副本及未改动的原用例、对齐最新 main 后的浏览器批次均通过（独立约 13–14 秒），整批失败时约 22 秒；未证实读取器卡住，未按猜测修改生产代码或放宽超时。
 
@@ -1331,7 +1333,7 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 | W3-06-F-08 | 损坏 Home Runtime 库使其自身保持明确失败，公开发现、Goals 页面与其他项目动作仍可用；普通 ready 不自行重试，受保护的显式 retry 并发只启动一次。清理失败或关闭不另开实例。 |
 | W3-06-G-01 | README、接入/迁移/调用链/事实 owner/库版本及相关 Skill 与实际接线一致；不宣称 Todo 等业务插件已迁移。更新创作台挂载章节时，离线 replay 与隔离 smoke 通过；共享装配整体构建、门禁和协调全量回归提供工程证据，真实 Home 维护另列具体条数与授权。 |
 
-2026-10-12 接续状态：独立分支 `feature/plugin-home-runtime-services` 保存 source-only `02d44ea7cd5e7a4a8110f312c262f55947cae942`，36 个文件 +906/-137，工作树干净。包含 F 服务与身份/作用域接线、完整 v2 拒绝、公开入口测试及 G 文档；没有 SDK、Manifest、动作 schema 或 Workbench 资源的意图变化。仅 diff 检查通过，正在独立只读复查；尚未 install/build/typecheck/gates 或运行测试，不能据此判定以上验收完成。I5 全量结束后给它唯一构建窗口，按实际差异决定 replay 范围，整合与协调全量另记。
+2026-10-12 接续状态：独立分支 `feature/plugin-home-runtime-services` 当前干净source-only `df54a4956`，原实现02d44ea7c的36文件+906/-137保留。独立只读复核发现模型可用性测试在action外调complete会先遇生命周期拒绝；4fd2fa407仅改为停用/关闭barrier前后验证availability，真实取消/撤权/停用不交付结果与写入的断言保留。df54同步S08/S15/S18安全表和test:security的两份Home/模型生命周期测试。包含F服务与身份/作用域接线、完整v2拒绝及G文档；无SDK、Manifest、动作schema或Workbench资源的意图变化。当前只核对源码，尚未install/build/typecheck/gates或运行测试，不能据此判定以上验收完成。所改Skill章节不在Builder CHAPTERS，不触发studio replay；安装与Skill规范检查仍需执行。整合与协调全量另记。
 
 该固定稿的独立复查与主协调核对发现一项测试缺陷：两条 stop/close 用例在动作外调 model.complete，现行模型合同先答 plugin.model_action_required，不能证明实例失效。独立 test-only `4fd2fa407` 改为在真实 barrier 前后验证旧 model.availability 从非 provider_stopped 变为精确的拒绝，真实动作内取消/停用/撤权/断开后无交付及无写入断言保留；生产拒绝顺序不变。当前 source-only `df54a4956` 并已同步 S-15/S-18 与两份新增安全测试的实际 CI 清单；无确认的运行时 P1，仍未运行工程检查。主协调核对当前 Builder CHAPTERS 不挂本片改的 host.md、authoring.md 或 Prologue Skill；没有运行或宣称 replay。真实 Home 的 plugin-runtime.db 及其 WAL/SHM 当前不存在，4173/4207/4208 无监听；只查存在性和监听，没有打开库、读取密钥或维护写入，后续若出现旧库重新核对。
 
@@ -1360,6 +1362,9 @@ W3-10-5 复用现有 SOURCE_COUNT_RULES 与逐文件 merge-base 比较，不另�
 | --- | --- |
 | W3-02-G1-01 | 真实网关与删除调用按 kind 返回状态，客户端经 actionErrorFromResponse 保留 code/message/kind/details。匹配调用编号后标记真实记录的顺序不变；未留行不造编号，传输结果未知不自动重发。授权、取消与专用读体限额保留，拒绝无业务写入。 |
 | W3-02-G1-02 | ActionAvailability 的可选 kind 在 Kernel 两处与 SDK 路由两处抛错贯通；Pages/PPT/Dataset/Form 的现有 owner unavailable 带 conflict，恢复409。无 kind 的其余项仍按现行共同规则处理，API快照与真实动作/HTTP证明同片更新。 |
+| W3-02-G1-03 | HomeDock、search、placement、contextual 的失败统一经共同出口；Todo不存在回404/todo.not_found，Search坏hit/cursor及缺项目分别为400/actions.input_invalid和actions.project_required、scope拒绝403；Search的missing/unavailable业务结果仍为200。Placement现行same_location按invalid回400，其余码不猜义新增kind。Contextual原码保留，input_invalid为invalid，stale/unavailable/not_offered为conflict，原400/409不变。真实HTTP断言literal状态/code/details与事实未写。 |
+| W3-02-G1-04 | 四入口共用readLocalWebBody保留256000个UTF-8字节上限、早停及空正文行为；超限与坏JSON按actions.input_too_large/too_large及actions.input_invalid/invalid，分别413/400，原消息保留。不换成按字符计数的Native reader；真实超限、中文正文和坏JSON在业务前拒绝，不造调用编号或事实。 |
+| W3-02-G1-05 | 平台同义码not_found→missing、invalid_input→input_invalid、permission_denied→forbidden，改全体生产消费者及三处测试假码后删合同表not_found/invalid_input/failed/transport_failed四行及过渡测试例外；不留读取兼容。真实原缺失与输入拒绝的404/400及文案保留，Memory这片只改读码，mapper删除归G3。API快照同片更新。 |
 | W3-02-G3-01 | 主人声明 kind，删除最后三处 HTTP mapper 及选项、全部 Memory→Assistant 码重写（含 memory tools 回调）；未知内部异常经共同出口回答500，保留 owner拒绝的消息/详情。Host不另起一套码或同义状态表。 |
 | W3-02-G3-02 | Memory的权限、对象不存在、待处理建议上限与预览后变动分别按 forbidden/not_found/conflict 分类；invalid/off保持invalid。真实两入口验证精确状态、code和事实未写，保留候选的拒绝/去重、本人接受及可撤销停用行为；400→403/409是明确记录的分类修正。 |
 | W3-02-G3-03 | 真实助理失败仍持久化原文草稿并返回同一 publicWork，work/action放在details，island同片读failure.code与failure.data=details；保留修复按钮、原request_id与恢复流程，不读取旧顶层work/action。浏览器证明失败后草稿、同一work及修复按钮实际可用。 |

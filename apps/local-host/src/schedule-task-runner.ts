@@ -10,6 +10,7 @@ import {
   type ScheduledTaskRunner,
   type ScheduleTaskReadiness,
 } from "@molis-ai/molis-work-plugin-schedule";
+import { currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import { configuredModelChoices } from "./configured-models.js";
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
@@ -60,7 +61,9 @@ export function createHostScheduledTaskRunner(options: {
       }
       const declared = BUILTIN_PLUGIN_AGENTS.get(SCHEDULE_PLUGIN_ID);
       if (!declared) throw new Error("Schedule 没有声明可运行的 Agent");
+      // The tick that runs this task is the operation (Schedule opens its scope); outside one, the round has a number of its own.
       const authority: AgentStartAuthority = {
+        call_id: currentCallId() ?? newCallId(),
         manifest: declared.manifest,
         authorizedDirectories: [workspace.canonical_path],
         prompts: declared.prompts,

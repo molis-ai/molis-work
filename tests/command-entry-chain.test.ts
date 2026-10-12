@@ -4,15 +4,19 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createMolisWorkLocalHost, molisWorkHostProjectReference, initializeBoardCapability, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis-work-contracts/modules/goals";
 
 test("actual CLI snapshot and MCP event handlers finish one Goal without the retired claim/run protocol", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-command-chain-"));
-  const databasePath = join(directory, "project.db");
-  const projectId = "command-chain";
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
+  // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
+  const project = await catalog.createProject({ display_name: "真实命令链", actor_id: "user" });
+  const { database_path: databasePath, project_id: projectId } = project;
   const host = createMolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
   const client = host.client(reference);
@@ -25,6 +29,8 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
     },
   };
   const mcp = new MolisWorkServer("runtime", { databasePath, projectId, webBaseUrl: "http://127.0.0.1:4173" }, runtimeHost, host);
+  // The MCP server below binds this Host to the Home, and a Home has one Host: the same Host serves the access settings the grant goes through.
+  const served = await serveTestHost(null, { home: directory, host });
   async function cli<T>(operation: string, input: Record<string, unknown>): Promise<T> {
     const lines: string[] = [];
     const original = console.log;
@@ -37,10 +43,7 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
     }
   }
   try {
-    await client.invoke(initializeBoardCapability, {
-      project_id: projectId, title: "真实命令链", idempotency_key: "init",
-    });
-    await grantGoalsMcp(host, directory, { project_id: projectId, database_path: databasePath }, "runtime:chain");
+    await grantGoalsMcp(served, project, "runtime:chain");
     const created = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "跨入口验收", outcome: "命令迁移后仍可完成同一 Goal", idempotency_key: "create",
     }));
@@ -99,7 +102,9 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
     assert.deepEqual(await cli("snapshot", { project_id: projectId }), final);
   } finally {
     await mcp.close();
+    await served.close();
     await host.close();
+    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

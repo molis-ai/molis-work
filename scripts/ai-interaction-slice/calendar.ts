@@ -5,7 +5,7 @@
  */
 export function mountCalendars(root: HTMLElement, onPick: (input: HTMLInputElement) => void): { close: () => void } {
   let open: { popup: HTMLElement; trigger: HTMLButtonElement; input: HTMLInputElement } | null = null;
-  const pages = (popup: HTMLElement) => [...popup.querySelectorAll<HTMLElement>("[data-calendar-page]")];
+  const pages = (popup: HTMLElement) => [...popup.querySelectorAll<HTMLElement>("[data-ix-calendar-page]")];
   function page(popup: HTMLElement, index: number): void {
     pages(popup).forEach((calendar, at) => {
       calendar.hidden = at !== index;
@@ -30,8 +30,8 @@ export function mountCalendars(root: HTMLElement, onPick: (input: HTMLInputEleme
     open = null;
   }
   function show(trigger: HTMLButtonElement): void {
-    const field = trigger.closest<HTMLElement>("[data-date-field]")!;
-    const popup = field.querySelector<HTMLElement>("[data-calendar]")!;
+    const field = trigger.closest<HTMLElement>("[data-ix-date]")!;
+    const popup = field.querySelector<HTMLElement>("[data-ix-calendar]")!;
     const input = field.querySelector<HTMLInputElement>("input")!;
     close();
     mark(popup, input.value);
@@ -47,7 +47,7 @@ export function mountCalendars(root: HTMLElement, onPick: (input: HTMLInputEleme
   }
   root.addEventListener("click", event => {
     const target = event.target instanceof Element ? event.target : null;
-    const trigger = target?.closest<HTMLButtonElement>("[data-calendar-open]");
+    const trigger = target?.closest<HTMLButtonElement>("[data-ix-calendar-open]");
     if (trigger) {
       if (open?.trigger === trigger) close(true); else show(trigger);
       return;
@@ -78,12 +78,12 @@ export function mountCalendars(root: HTMLElement, onPick: (input: HTMLInputEleme
     const day = event.target instanceof HTMLElement ? event.target.closest<HTMLButtonElement>(".mw-calendar__day") : null;
     if (step === undefined || !day || !open.popup.contains(day)) return;
     event.preventDefault();
-    const days = [...open.popup.querySelectorAll<HTMLButtonElement>("[data-calendar-page]:not([hidden]) .mw-calendar__day")];
+    const days = [...open.popup.querySelectorAll<HTMLButtonElement>("[data-ix-calendar-page]:not([hidden]) .mw-calendar__day")];
     days[Math.min(days.length - 1, Math.max(0, days.indexOf(day) + step))]?.focus();
   });
   root.addEventListener("focusout", event => {
     const next = (event as FocusEvent).relatedTarget;
-    if (open && next instanceof Node && !open.popup.closest("[data-date-field]")!.contains(next)) close();
+    if (open && next instanceof Node && !open.popup.closest("[data-ix-date]")!.contains(next)) close();
   });
   return { close: () => close() };
 }

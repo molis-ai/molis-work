@@ -1,4 +1,4 @@
-import { formats, labels, topics, references, fieldOrder, type DemoState, type Values } from "./model.ts";
+import { formats, labels, topics, fieldOrder, timeLimits, type DemoState, type Values } from "./model.ts";
 import { draftable, editable } from "./state.ts";
 import { attr, find, show, text, disable } from "./dom.ts";
 import { nextSteps, offerSteps, stepLive, type RecommendationState } from "./recommendation.ts";
@@ -59,101 +59,98 @@ function paintFields(root: HTMLElement, state: DemoState, recommendation: Recomm
   const write = (input: HTMLInputElement | HTMLTextAreaElement, value: string) => {
     if (document.activeElement !== input && input.value !== value) input.value = value;
   };
-  for (const name of ["notes", "minutes", "date"] as const) write(find(root, `[data-value="${name}"]`), state.values[name]);
-  write(find(root, '[data-when-part="date"]'), state.whenParts.date);
-  write(find(root, '[data-when-part="time"]'), state.whenParts.time);
+  for (const name of ["notes", "minutes", "date"] as const) write(find(root, `[data-ix-value="${name}"]`), state.values[name]);
+  write(find(root, '[data-ix-part="date"]'), state.whenParts.date);
+  write(find(root, '[data-ix-part="time"]'), state.whenParts.time);
   const composer = find<HTMLInputElement | HTMLTextAreaElement>(root, "[data-composer]");
   if (!recommendation.composing) write(composer, state.draft);
-  root.querySelectorAll<HTMLElement>("[data-date-field]").forEach(field => {
-    const input = find<HTMLInputElement>(field, "input");
-    text(field, "[data-weekday]", weekday(input.value));
-  });
+  root.querySelectorAll<HTMLElement>("[data-ix-date]").forEach(field => text(field, "[data-ix-weekday]", weekday(find<HTMLInputElement>(field, "input").value)));
   // Only submitting fixes the fields; an invalidated question keeps its draft editable but cannot be answered.
-  find<HTMLFieldSetElement>(root, "[data-fields]").disabled = !draftable(state) && !recommendation.composing;
+  find<HTMLFieldSetElement>(root, "[data-ix-fields]").disabled = !draftable(state) && !recommendation.composing;
   for (const name of ["format", "topics"] as const) {
-    root.querySelectorAll<HTMLButtonElement>(`[data-choice="${name}"]`).forEach(button => {
-      attr(button, "aria-pressed", String(state.values[name].includes(Number(button.dataset.index))));
+    root.querySelectorAll<HTMLButtonElement>(`[data-ix-field="${name}"] [data-ix-option]`).forEach(button => {
+      attr(button, "aria-pressed", String(state.values[name].includes(Number(button.dataset.ixOption))));
     });
   }
   const chosen = state.values.references;
-  root.querySelectorAll<HTMLButtonElement>("[data-reference]").forEach(button => {
-    attr(button, "aria-pressed", String(chosen.some(ref => ref.id === references[Number(button.dataset.reference)]?.id)));
+  root.querySelectorAll<HTMLButtonElement>("[data-ix-reference]").forEach(button => {
+    attr(button, "aria-pressed", String(chosen.some(ref => ref.id === button.dataset.ixReference)));
   });
-  text(root, "[data-reference-count]", `已选 ${chosen.length}`);
+  text(root, '[data-ix-field="references"] .mw-ix-hint', `从可用材料里选 1–${timeLimits.maxReferences} 份 · 已选 ${chosen.length}`);
   for (const name of fieldOrder) {
-    const box = find(root, `[data-field="${name}"]`);
-    text(box, ".field-error", state.errors[name] ?? "");
-    show(box, ".field-error", Boolean(state.errors[name]));
-    show(box, "[data-refreshed]", state.refreshed.includes(name));
+    const box = find(root, `[data-ix-field="${name}"]`);
+    text(box, "[data-ix-error]", state.errors[name] ?? "");
+    show(box, "[data-ix-error]", Boolean(state.errors[name]));
+    show(box, "[data-ix-refreshed]", state.refreshed.includes(name));
     box.querySelectorAll("input,textarea,[role=group]").forEach(control => attr(control, "aria-invalid", String(Boolean(state.errors[name]))));
   }
-  show(root, "[data-conflict]", state.conflict !== null);
-  text(root, "[data-conflict-text]", `补充里写了「时长 ${state.conflict ?? ""} 分钟」，字段里是 ${state.values.minutes} 分钟。用哪个？`);
+  show(root, "[data-ix-notice]", state.conflict !== null);
+  text(root, "[data-ix-notice-text]", `补充里写了「时长 ${state.conflict ?? ""} 分钟」，字段里是 ${state.values.minutes} 分钟。用哪个？`);
 }
 function paintQuestion(root: HTMLElement, state: DemoState): void {
   // Once an answer was received, the card keeps its summary even if the question is invalidated afterwards; the form
   // comes back only when the person re-prepares it, so a change from elsewhere never pushes the conversation around.
   const received = Boolean(state.received);
-  show(root, "[data-question-card]", !state.questionClosed);
+  const card = find(root, "[data-ix-question]");
+  card.hidden = state.questionClosed;
   show(root, "[data-closed]", state.questionClosed);
-  badge(find(root, "[data-question-badge]"), questionBadge[state.question]);
-  text(root, "[data-question-kicker]", received ? "已交回 · 7 项回答" : "需要你补充 · 7 项");
-  const banner = find(root, "[data-question-state]");
+  badge(find(card, "[data-ix-badge]"), questionBadge[state.question]);
+  text(card, "[data-ix-kicker]", received ? "已交回 · 7 项回答" : "需要你补充 · 7 项");
+  const banner = find(card, "[data-ix-banner]");
   const message = questionMessages[state.question];
   banner.hidden = !message;
   attr(banner, "data-tone", ["cancelled", "submitting"].includes(state.question) ? "quiet" : "waiting");
-  text(banner, "[data-question-message]", message);
-  const reopen = find(banner, '[data-action="reopen"]');
+  text(banner, "[data-ix-banner-text]", message);
+  const reopen = find(banner, '[data-ix-action="reopen"]');
   text(reopen, "[data-slot=button-label]", state.version !== state.objectVersion ? "按新版本重新准备" : state.question === "cancelled" ? "重新打开问题" : "请助理重新问");
-  show(banner, '[data-action="reopen"]', ["expired", "replaced", "cancelled"].includes(state.question));
-  disable(banner, '[data-action="reopen"]', state.execution === "unknown");
-  show(root, "[data-question-form]", !received);
-  show(root, "[data-answered]", received);
-  if (received && state.received) list(find(root, "[data-answered-summary]"), summary(state.received));
-  disable(root, "[data-submit]", !editable(state));
-  const submit = find(root, "[data-submit]");
+  show(banner, '[data-ix-action="reopen"]', ["expired", "replaced", "cancelled"].includes(state.question));
+  disable(banner, '[data-ix-action="reopen"]', state.execution === "unknown");
+  show(banner, '[data-ix-action="cancel-pending"]', state.question === "submitting");
+  show(card, "[data-ix-form]", !received);
+  show(card, "[data-ix-answered]", received);
+  if (received && state.received) list(find(card, "[data-ix-answered] [data-ix-summary]"), summary(state.received));
+  const submit = find(card, '[data-ix-action="submit"]');
+  disable(card, '[data-ix-action="submit"]', !editable(state));
   text(submit, "[data-slot=button-label]", state.question === "submitting" ? "交回中…" : state.question === "failed" ? "重试交回" : "提交回答");
   attr(submit, "aria-busy", state.question === "submitting" ? "true" : null);
-  disable(root, '[data-action="cancel"]', !editable(state));
-  disable(root, '[data-answered] [data-action="revise"]', ["running", "unknown", "done"].includes(state.execution));
-  const status = find(root, "[data-question-status]");
+  disable(card, '[data-ix-action="cancel"]', !editable(state));
+  disable(card, '[data-ix-answered] [data-ix-action="revise"]', ["running", "unknown", "done"].includes(state.execution));
   const errors = Object.keys(state.errors).length;
-  text(root, "[data-question-status]", state.question === "submitting" ? "正在交回，不会创建任何东西。" : state.question === "failed" ? "模拟交回失败，填写都在。可以直接重试。" :
+  const note = find(card, "[data-ix-note]");
+  text(card, "[data-ix-note]", state.question === "submitting" ? "正在交回，不会创建任何东西。" : state.question === "failed" ? "模拟交回失败，填写都在。可以直接重试。" :
     errors ? `还有 ${errors} 项要修正，填写都在。` : "草稿只在本页保留");
-  attr(status, "data-tone", errors || state.question === "failed" ? "error" : null);
-  show(banner, '[data-action="cancel-pending"]', state.question === "submitting");
+  attr(note, "data-tone", errors || state.question === "failed" ? "error" : null);
 }
 function paintOperation(root: HTMLElement, state: DemoState): void {
-  const visible = Boolean(state.received) || ["running", "unknown", "done"].includes(state.execution);
-  show(root, "[data-op-turn]", visible);
-  badge(find(root, "[data-execution-badge]"), state.execution === "ready" && state.preview ? ["待你执行", "waiting"] : executionBadge[state.execution]);
+  show(root, "[data-op-turn]", Boolean(state.received) || ["running", "unknown", "done"].includes(state.execution));
+  const card = find(root, "[data-ix-operation]");
+  badge(find(card, "[data-ix-badge]"), state.execution === "ready" && state.preview ? ["待你执行", "waiting"] : executionBadge[state.execution]);
   const version = `版本 ${state.objectVersion}`;
-  root.querySelectorAll<HTMLElement>("[data-version-chip], [data-object-version-side]").forEach(chip => {
+  root.querySelectorAll<HTMLElement>("[data-ix-version], [data-object-version-side]").forEach(chip => {
     if (chip.textContent !== version) chip.textContent = version;
     attr(chip, "data-changed", state.version !== state.objectVersion ? "" : null);
   });
-  show(root, "[data-preview]", Boolean(state.preview) && state.execution !== "done");
-  show(root, "[data-preview-actions]", ["ready", "failed"].includes(state.execution));
-  show(root, "[data-op-actions]", !state.preview && ["ready", "failed"].includes(state.execution) && state.question === "received");
-  disable(root, '[data-action="preview"]', state.question !== "received" || !["ready", "failed"].includes(state.execution));
-  disable(root, '[data-operation] [data-action="revise"]', ["running", "unknown", "done"].includes(state.execution));
-  disable(root, '[data-action="execute"]', state.question !== "received" || !["ready", "failed"].includes(state.execution) || state.previewVersion !== state.objectVersion);
-  const exec = find(root, "[data-execution-message]");
-  const message = executionMessages[state.execution];
-  if (exec.dataset.state !== state.execution) {
-    exec.replaceChildren(...(state.execution === "running" ? [Object.assign(document.createElement("span"), { className: "mw-spinner" })] : []), document.createTextNode(message));
-    exec.dataset.state = state.execution;
+  show(card, "[data-ix-preview]", Boolean(state.preview) && state.execution !== "done");
+  show(card, "[data-ix-preview-actions]", ["ready", "failed"].includes(state.execution));
+  show(card, "[data-ix-actions]", !state.preview && ["ready", "failed"].includes(state.execution) && state.question === "received");
+  disable(card, '[data-ix-action="preview"]', state.question !== "received" || !["ready", "failed"].includes(state.execution));
+  disable(card, '[data-ix-action="revise"]', ["running", "unknown", "done"].includes(state.execution));
+  disable(card, '[data-ix-action="execute"]', state.question !== "received" || !["ready", "failed"].includes(state.execution) || state.previewVersion !== state.objectVersion);
+  const status = find(card, "[data-ix-status]");
+  if (status.dataset.state !== state.execution) {
+    status.replaceChildren(...(state.execution === "running" ? [Object.assign(document.createElement("span"), { className: "mw-spinner" })] : []), document.createTextNode(executionMessages[state.execution]));
+    status.dataset.state = state.execution;
   }
-  attr(exec, "data-tone", state.execution === "failed" ? "failed" : state.execution === "unknown" ? "waiting" : null);
-  show(root, "[data-recovery]", state.execution === "failed" || state.execution === "unknown");
-  show(root, '[data-action="reconcile"]', state.execution === "unknown");
-  show(root, '[data-action="retry"]', state.execution === "failed");
-  show(root, "[data-result]", state.execution === "done");
+  attr(status, "data-tone", state.execution === "failed" ? "failed" : state.execution === "unknown" ? "waiting" : null);
+  show(card, "[data-ix-recovery]", state.execution === "failed" || state.execution === "unknown");
+  show(card, '[data-ix-action="reconcile"]', state.execution === "unknown");
+  show(card, '[data-ix-action="retry"]', state.execution === "failed");
+  show(card, "[data-ix-result]", state.execution === "done");
   if (state.preview) {
     const pairs = summary(state.preview);
-    list(find(root, "[data-summary]"), pairs);
-    text(root, "[data-version]", `· 版本 ${state.previewVersion}`);
-    text(root, "[data-result-summary]", pairs.map(([label, value]) => `${label}：${value}`).join("；"));
+    list(find(card, "[data-ix-preview] [data-ix-summary]"), pairs);
+    text(card, "[data-ix-preview-note]", `目标：秋季工作台 · 内部试用 · 版本 ${state.previewVersion}`);
+    text(card, "[data-ix-result-text]", pairs.map(([label, value]) => `${label}：${value}`).join("；"));
   }
 }
 /** The work's own summary (side pane, tab mark, minimised chip) speaks for the same two records. */
@@ -190,12 +187,12 @@ function paintWork(root: HTMLElement, state: DemoState): void {
 /** The steps beside the composer keep their place while the person is in that row (§3.6, AC-15). */
 function paintSteps(root: HTMLElement, state: DemoState, recommendation: RecommendationState): void {
   offerSteps(recommendation, nextSteps(state));
-  root.querySelectorAll<HTMLButtonElement>("[data-step-index]").forEach(button => {
-    const step = recommendation.visible ? recommendation.shown[Number(button.dataset.stepIndex)] : undefined;
+  root.querySelectorAll<HTMLButtonElement>("[data-ix-step]").forEach(button => {
+    const step = recommendation.visible ? recommendation.shown[Number(button.dataset.ixStep)] : undefined;
     button.hidden = !step;
     if (!step) return;
-    text(button, "[data-step-label]", step.label);
-    attr(button, "data-step-action", step.action);
+    text(button, "[data-ix-step-label]", step.label);
+    attr(button, "data-ix-step-id", step.id);
     attr(button, "data-secondary", step.primary ? null : "");
     attr(button, "data-busy", step.busy ? "" : null);
     attr(button, "aria-busy", step.busy ? "true" : null);
@@ -203,7 +200,7 @@ function paintSteps(root: HTMLElement, state: DemoState, recommendation: Recomme
     button.disabled = !stepLive(recommendation, step);
   });
   const composerOpen = draftable(state) && !state.questionClosed && !state.received;
-  show(root, "[data-composer-target]", composerOpen);
+  show(root, "[data-ix-into]", composerOpen);
   const composer = find<HTMLInputElement | HTMLTextAreaElement>(root, "[data-composer]");
   attr(composer, "placeholder", composerOpen ? "补充要求，回车放进问卷…" : state.question === "received" ? "继续说，或用旁边的下一步…" : "补充这一轮的要求…");
 }

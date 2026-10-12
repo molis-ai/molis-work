@@ -1,7 +1,7 @@
 // The workbench around the interaction, close enough to the product's geometry to judge fit: the desk, one work
 // sheet, the resident bar with the Assistant rising above its composer (DESIGN.md "The bottom bar"), and Coding's
 // directory · dialogue · review columns. Everything outside the interaction is decoration and says so.
-import { escapeHtml, icon, renderButton, type MolisWorkIcon } from "../../packages/design-system/src/index.ts";
+import { escapeHtml, icon, renderButton, renderInteractionComposerTarget, renderInteractionNextSteps, type MolisWorkIcon } from "../../packages/design-system/src/index.ts";
 import { renderThread } from "./render-cards.ts";
 import type { Layout } from "./model.ts";
 
@@ -15,12 +15,9 @@ function bar(center: string, idle = false): string {
     <div class="pv-tray pv-tray--own" aria-hidden="true">${tiles(["library", "idea", "message"])}<span class="pv-monogram">秋</span></div>
   </div>`;
 }
-/** The next steps beside the composer: one primary and at most one secondary, filled in by the client. */
-function steps(): string {
-  const step = (attr: string) => `<button type="button" class="ix-step" ${attr} hidden><span class="ix-step-glyph" aria-hidden="true">${icon("arrow")}</span><span class="mw-spinner ix-step-spin" aria-hidden="true"></span><span data-step-label></span></button>`;
-  return `<div class="ix-steps" data-steps aria-label="下一步">${step('data-next data-step-index="0"')}${step('data-next-secondary data-step-index="1"')}</div>`;
-}
-const into = `<span class="ix-into" data-composer-target hidden>${icon("note")}补充到问卷</span>`;
+/** The next steps beside the composer: one primary and at most one secondary slot, filled in by paint. */
+const steps = () => renderInteractionNextSteps([{ id: "slot", label: "", source: "" }, { id: "slot", label: "", source: "", primary: false }]);
+const into = renderInteractionComposerTarget("补充到问卷");
 function assistantComposer(): string {
   return `<div class="pv-composer-row" data-composer-row>${steps()}
     <form class="pv-pill" data-composer-form aria-label="发给助理">
@@ -46,7 +43,7 @@ function assistantScene(): string {
         <aside class="ap-side" aria-label="这项工作">
           <section class="ap-summary" data-summary-tone><p><span class="ap-state" data-work-state></span></p>
             <p class="ap-title">安排一次内部试用复盘</p><p class="ap-now" data-work-now></p>
-            <dl class="ap-meta"><dt>作用对象</dt><dd>秋季工作台 · 内部试用 <span class="ix-version" data-object-version-side></span></dd><dt>由谁来做</dt><dd>助理</dd></dl></section>
+            <dl class="ap-meta"><dt>作用对象</dt><dd>秋季工作台 · 内部试用 <span class="mw-ix-version" data-object-version-side></span></dd><dt>由谁来做</dt><dd>助理</dd></dl></section>
           <section class="ap-block"><h4>这次带上的材料</h4><ul class="ap-materials" data-side-materials></ul><p class="ap-empty" data-side-empty>还没有选材料。</p></section>
         </aside>
         <div class="ap-main">${renderThread("assistant")}</div>
@@ -75,7 +72,7 @@ function codingScene(): string {
           </form></div>
       </div>
       <aside class="cd-tools" id="coding-tools" data-tools-panel aria-label="结果与审查" tabindex="-1">
-        <header class="cd-tools-head"><h3>结果与审查</h3><span class="ix-tag ix-tag--quiet">只读示例</span>
+        <header class="cd-tools-head"><h3>结果与审查</h3><span class="mw-ix-tag cd-quiet-tag">只读示例</span>
           ${renderButton({ label: "关闭结果与审查", icon: "x", iconOnly: true, variant: "ghost", className: "cd-tools-close", attrs: { "data-action": "tools" } })}</header>
         <p class="cd-tabs"><span aria-current="true">变更</span><span>命令</span><span>报告</span></p>
         <p class="cd-file">${icon("code")}<span>interaction.ts</span><span class="cd-diffstat">+3 −1</span></p>
@@ -83,7 +80,7 @@ function codingScene(): string {
           [12, " ", "function updateQuestion(next) {"], [13, " ", "  keepFocus();"], [14, "-", "  form.replaceWith(render(next));"],
           [14, "+", "  mergeUntouched(form, next);"], [15, "+", "  keepDraft(form);"], [16, "+", "  markUnknownResult(next);"], [17, " ", "}"],
         ])}</code></pre>
-        <p class="ix-hint">只展示专业布局：没有读取仓库、运行命令或创建变更。</p>
+        <p class="mw-ix-hint">只展示专业布局：没有读取仓库、运行命令或创建变更。</p>
       </aside>
     </div>
     ${bar(`<div class="pv-pill pv-pill--idle"><span>全局助理 · 这个场景不演示</span></div>`, true)}

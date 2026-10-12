@@ -63,12 +63,12 @@ export function mountScene(root: HTMLElement, layout: Layout, updateCounters: ()
       return;
     }
     const fail = answerFails;
-    const card = find(root, "[data-question-card]");
+    const card = find(root, "[data-ix-question]");
     setTimeout(() => {
       const focusable = idleFocus(card);
       if (!settleAnswer(state, ticket, fail)) return;
       refresh();
-      if (state.question === "received") arrived(find(root, "[data-operation]"), focusable);
+      if (state.question === "received") arrived(find(root, "[data-ix-operation]"), focusable);
     }, 700);
   };
   const execute = () => {
@@ -77,16 +77,16 @@ export function mountScene(root: HTMLElement, layout: Layout, updateCounters: ()
     const outcome = nextOutcome;
     refresh();
     setTimeout(() => {
-      const focusable = idleFocus(find(root, "[data-operation]"));
+      const focusable = idleFocus(find(root, "[data-ix-operation]"));
       if (!settleExecution(state, ticket, outcome)) return;
       refresh();
-      if (state.execution === "done") arrived(find(root, "[data-result]"), focusable);
+      if (state.execution === "done") arrived(find(root, "[data-ix-result]"), focusable);
     }, 900);
   };
   const showPreview = () => {
     if (!preparePreview(state)) return;
     refresh();
-    const preview = find(root, "[data-preview]");
+    const preview = find(root, "[data-ix-preview]");
     preview.focus({ preventScroll: true });
     preview.scrollIntoView({ block: "nearest" });
   };
@@ -105,17 +105,17 @@ export function mountScene(root: HTMLElement, layout: Layout, updateCounters: ()
       case "open": state.questionClosed = false; refresh(); focusField(root, "format"); return;
       case "cancel": case "cancel-pending": cancelAnswer(state); break;
       case "reopen": case "revise": if (reopen(state)) { firstField(); return; } break;
-      case "adopt": resolveConflict(state, true); refresh(); land(root.querySelector('[data-field="minutes"]')); return;
+      case "adopt": resolveConflict(state, true); refresh(); land(root.querySelector('[data-ix-field="minutes"]')); return;
       case "keep": resolveConflict(state, false); break;
-      case "background": backgroundUpdate(state); refresh(); state.refreshed.forEach(name => land(root.querySelector(`[data-field="${name}"]`))); return;
+      case "background": backgroundUpdate(state); refresh(); state.refreshed.forEach(name => land(root.querySelector(`[data-ix-field="${name}"]`))); return;
       case "expire": invalidate(state, "expired"); break;
       case "replace": invalidate(state, "replaced"); break;
       case "object": invalidate(state, "object"); break;
       case "preview": case "retry": showPreview(); return;
       case "execute": execute(); return;
-      case "reconcile": if (reconcile(state)) { refresh(); if (state.execution === "done") arrived(find(root, "[data-result]"), true); return; } break;
-      case "result": show(root, "[data-result-details]", true); refresh(); find(root, "[data-result]").focus({ preventScroll: true }); find(root, "[data-result]").scrollIntoView({ block: "nearest" }); return;
-      case "continue": if (continueDraft(state)) { show(root, "[data-result-details]", false); firstField(); return; } break;
+      case "reconcile": if (reconcile(state)) { refresh(); if (state.execution === "done") arrived(find(root, "[data-ix-result]"), true); return; } break;
+      case "result": show(root, "[data-ix-result-details]", true); refresh(); find(root, "[data-ix-result]").focus({ preventScroll: true }); find(root, "[data-ix-result]").scrollIntoView({ block: "nearest" }); return;
+      case "continue": if (continueDraft(state)) { show(root, "[data-ix-result-details]", false); firstField(); return; } break;
       case "changes": openTools(true, true); return;
       case "tools": openTools(tools?.dataset.tools !== "open"); return;
       case "minimise": root.dataset.panel = "closed"; refresh(); find(root, '[data-action="panel-open"]').focus(); return;
@@ -128,6 +128,7 @@ export function mountScene(root: HTMLElement, layout: Layout, updateCounters: ()
     refresh();
   }
   bindScene({ root, state, recommendation, composer, thread, tools, refresh, action, begin, land, openTools, wide });
+  show(root, "[data-ix-result-details]", false);
   refresh();
   return {
     state, action, refresh,

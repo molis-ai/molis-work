@@ -9,8 +9,10 @@ import { createPreviewServer } from "../scripts/ai-interaction-slice/server.ts";
 // Runs in the coordinator's browser slot. This test never starts a Home or a model; every submit is simulated.
 const assistant = '[data-scene="assistant"]';
 const coding = '[data-scene="coding"]';
-const action = (name: string, scope = assistant) => `${scope} [data-action="${name}"]`;
-const field = (name: string, scope = assistant) => `${scope} [data-value="${name}"]`;
+const action = (name: string, scope = assistant) => `${scope} :is([data-ix-action="${name}"], [data-action="${name}"])`;
+const field = (name: string, scope = assistant) => `${scope} [data-ix-value="${name}"]`;
+const ref = (id: string, scope = assistant) => `${scope} [data-ix-reference="${id}"]`;
+const submitButton = (scope = assistant) => `${scope} [data-ix-action="submit"]`;
 const read = <T = string>(page: ChromePage, expression: string) => page.evaluate<T>(expression);
 const value = (page: ChromePage, selector: string) => read(page, `document.querySelector(${JSON.stringify(selector)}).value`);
 async function selected(page: ChromePage, selector: string): Promise<string | null> {
@@ -21,7 +23,7 @@ async function waitState(page: ChromePage, question: string, execution?: string,
 }
 async function fillValid(page: ChromePage, scope = assistant): Promise<void> {
   await page.fill(field("notes", scope), "只讨论首次使用，给失败恢复留出时间。");
-  await page.click(`${scope} [data-reference="0"]`);
+  await page.click(ref("sample-review", scope));
 }
 async function demo(page: ChromePage, name: string): Promise<void> {
   if (!(await read<boolean>(page, "document.querySelector('.demo-controls').open"))) await page.click(".demo-controls summary");
@@ -29,15 +31,15 @@ async function demo(page: ChromePage, name: string): Promise<void> {
   assert.equal(await read(page, "document.querySelector('.demo-controls').open"), false, "the demo menu closes after a choice");
 }
 async function submit(page: ChromePage, scope = assistant): Promise<void> {
-  await page.click(`${scope} [data-submit]`);
+  await page.click(submitButton(scope));
   await waitState(page, "received", undefined, scope);
 }
-const step = (index = 0, scope = assistant) => `${scope} [data-step-index="${index}"]`;
+const step = (index = 0, scope = assistant) => `${scope} [data-ix-step="${index}"]`;
 const stepLabel = (page: ChromePage, index = 0, scope = assistant) => read(page, `document.querySelector('${step(index, scope)}').hidden ? null : document.querySelector('${step(index, scope)}').textContent.trim()`);
 const box = (page: ChromePage, selector: string) => read<{ x: number; y: number; width: number }>(page, `(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x,y:r.y,width:r.width}})()`);
 
 async function questionnairePath(page: ChromePage): Promise<void> {
-  await page.click(`${assistant} [data-submit]`);
+  await page.click(submitButton());
   assert.equal(await read(page, "document.activeElement?.id"), "assistant-notes");
   await page.fill(field("notes"), "时长改为 45 分钟，先看失败恢复");
   assert.equal(await value(page, field("minutes")), "30");
@@ -45,24 +47,24 @@ async function questionnairePath(page: ChromePage): Promise<void> {
   assert.equal(await value(page, field("minutes")), "45");
   await page.fill(field("minutes"), "two");
   await page.fill(field("date"), "2026-02-30");
-  await page.click(`${assistant} [data-reference="0"]`);
-  await page.click(`${assistant} [data-submit]`);
+  await page.click(ref("sample-review"));
+  await page.click(submitButton());
   assert.equal(await read(page, "document.activeElement?.id"), "assistant-minutes");
-  assert.match(await read(page, `document.querySelector('${assistant} [data-field="date"] .field-error').textContent`), /真实日期/);
+  assert.match(await read(page, `document.querySelector('${assistant} [data-ix-field="date"] [data-ix-error]').textContent`), /真实日期/);
   assert.equal(await value(page, field("minutes")), "two");
   await page.fill(field("minutes"), "45"); await page.fill(field("date"), "2026-10-15");
   await submit(page);
   assert.match(await read(page, "document.querySelector('[data-counts]').textContent"), /演示回答 1 次 · 演示执行 0 次/);
-  assert.equal(await read(page, `document.querySelector('${assistant} [data-question-form]').hidden`), true, "a received answer folds into its summary");
-  assert.match(await read(page, `document.querySelector('${assistant} [data-answered-summary]').textContent`), /45 分钟/);
+  assert.equal(await read(page, `document.querySelector('${assistant} [data-ix-form]').hidden`), true, "a received answer folds into its summary");
+  assert.match(await read(page, `document.querySelector('${assistant} [data-ix-answered] [data-ix-summary]').textContent`), /45 分钟/);
   await page.click(action("preview"));
-  assert.match(await read(page, `document.querySelector('${assistant} [data-summary]').textContent`), /45 分钟/);
+  assert.match(await read(page, `document.querySelector('${assistant} [data-ix-preview] [data-ix-summary]').textContent`), /45 分钟/);
   await page.click(action("execute"));
   await page.evaluate(`document.querySelector('${action("execute")}').click()`);
   await waitState(page, "received", "done");
   assert.match(await read(page, "document.querySelector('[data-counts]').textContent"), /演示执行 1 次/);
   await page.click(action("result"));
-  assert.match(await read(page, `document.querySelector('${assistant} [data-result-summary]').textContent`), /时长改为 45 分钟/);
+  assert.match(await read(page, `document.querySelector('${assistant} [data-ix-result-text]').textContent`), /时长改为 45 分钟/);
 }
 async function composerPath(page: ChromePage): Promise<void> {
   await page.fill(`${assistant} [data-composer]`, "只看首次使用，时长改为 40 分钟");
@@ -70,28 +72,28 @@ async function composerPath(page: ChromePage): Promise<void> {
   await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter" });
   assert.equal(await value(page, `${assistant} [data-composer]`), "", "sent words leave the composer");
   assert.equal(await value(page, field("notes")), "只看首次使用，时长改为 40 分钟", "and land in the question's notes");
-  assert.equal(await read(page, `document.querySelector('${assistant} [data-conflict]').hidden`), false, "a stated duration asks before it changes the field");
+  assert.equal(await read(page, `document.querySelector('${assistant} [data-ix-notice]').hidden`), false, "a stated duration asks before it changes the field");
   assert.equal(await value(page, field("minutes")), "30");
   assert.equal(await read(page, `document.querySelector('${assistant}').dataset.questionState`), "open", "sending a supplement does not answer");
   // Enter in a single-line field moves on; only ⌘/Ctrl+Enter answers.
   await page.click(action("keep"));
-  await page.click(`${assistant} [data-reference="1"]`);
-  await page.fill(`${assistant} [data-when-part="time"]`, "9:30");
+  await page.click(ref("sample-notes"));
+  await page.fill(`${assistant} [data-ix-part="time"]`, "9:30");
   await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", text: "\r" });
   assert.equal(await read(page, "document.activeElement?.id"), "assistant-references");
   assert.equal(await read(page, `document.querySelector('${assistant}').dataset.questionState`), "open");
-  await page.click(`${assistant} [data-calendar-open="date"]`);
+  await page.click(`${assistant} [data-ix-field="date"] [data-ix-calendar-open]`);
   assert.equal(await read(page, "document.activeElement?.getAttribute('aria-label')"), "10月15日");
   await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowLeft", code: "ArrowLeft" });
   await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", text: "\r" });
   await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter" });
   assert.equal(await value(page, field("date")), "2026-10-14", "the calendar writes the picked day into the field");
-  assert.equal(await read(page, `document.querySelector('${assistant} [data-calendar="date"]').hidden`), true);
-  assert.equal(await read(page, "document.activeElement?.dataset.calendarOpen"), "date", "focus returns to the calendar button");
+  assert.equal(await read(page, `document.querySelector('${assistant} [data-ix-field="date"] [data-ix-calendar]').hidden`), true);
+  assert.equal(await read(page, "document.activeElement?.hasAttribute('data-ix-calendar-open') && document.activeElement.closest('[data-ix-field]').dataset.ixField"), "date", "focus returns to the calendar button");
   await page.evaluate(`document.querySelector('${field("notes")}').focus()`);
   await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", modifiers: process.platform === "darwin" ? 4 : 2 });
   await waitState(page, "received");
-  assert.match(await read(page, `document.querySelector('${assistant} [data-answered-summary]').textContent`), /2026-10-16 09:30（UTC-07:00）/);
+  assert.match(await read(page, `document.querySelector('${assistant} [data-ix-answered] [data-ix-summary]').textContent`), /2026-10-16 09:30（UTC-07:00）/);
 }
 async function preservationPath(page: ChromePage): Promise<void> {
   await page.fill(field("notes"), "保留这段，别替我重新填写。");
@@ -114,10 +116,10 @@ async function preservationPath(page: ChromePage): Promise<void> {
   assert.deepEqual(await page.evaluate(position), before, "a background update keeps focus and reading position");
   assert.equal(await value(page, field("minutes")), "37", "and does not overwrite what the person typed");
   await demo(page, "expire");
-  assert.equal(await read(page, `document.querySelector('${assistant} [data-submit]').disabled`), true);
+  assert.equal(await read(page, `document.querySelector('${submitButton()}').disabled`), true);
   await page.fill(field("notes"), "过期后接着写草稿");
   assert.equal(await read(page, `document.querySelector('${assistant}').dataset.questionState`), "expired");
-  await page.click(`${assistant} [data-question-state] [data-action="reopen"]`);
+  await page.click(`${assistant} [data-ix-banner] [data-ix-action="reopen"]`);
   assert.equal(await value(page, field("notes")), "过期后接着写草稿");
   assert.equal(await read(page, `document.querySelector('${assistant}').dataset.questionState`), "open");
 }
@@ -135,12 +137,12 @@ async function recommendationPath(page: ChromePage): Promise<void> {
   await page.command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
   await page.wait(`document.querySelector('${step()}').textContent.trim() === '按新版本重新准备' && !document.querySelector('${step()}').disabled`);
   assert.equal(await value(page, `${assistant} [data-composer]`), "正在补充", "the composer keeps its words through the change");
-  assert.equal(await read(page, `document.querySelector('${assistant} [data-question-form]').hidden`), true, "a change after the answer keeps the answered summary in place");
-  assert.equal(await read(page, `document.querySelector('${assistant} [data-execution-badge]').textContent`), "已失效");
+  assert.equal(await read(page, `document.querySelector('${assistant} [data-ix-form]').hidden`), true, "a change after the answer keeps the answered summary in place");
+  assert.equal(await read(page, `document.querySelector('${assistant} [data-ix-operation] [data-ix-badge]').textContent`), "已失效");
 }
 async function failurePath(page: ChromePage): Promise<void> {
   await fillValid(page); await demo(page, "answer-failure");
-  await page.click(`${assistant} [data-submit]`); await waitState(page, "failed");
+  await page.click(submitButton()); await waitState(page, "failed");
   assert.equal(await value(page, field("notes")), "只讨论首次使用，给失败恢复留出时间。");
   await demo(page, "outcome-unknown"); await submit(page); await page.click(action("preview"));
   await page.click(action("execute")); await waitState(page, "received", "unknown");
@@ -168,10 +170,10 @@ async function codingPath(page: ChromePage): Promise<void> {
 }
 async function gallery(page: ChromePage, evidence: string, fresh: (width?: number, height?: number, mobile?: boolean) => Promise<void>): Promise<void> {
   const shot = (name: string) => page.screenshot(join(evidence, `state-${name}.png`));
-  await fresh(1440, 900); await page.click(`${assistant} [data-submit]`); await shot("assistant-1440-field-errors");
+  await fresh(1440, 900); await page.click(submitButton()); await shot("assistant-1440-field-errors");
   await page.fill(`${assistant} [data-composer]`, "时长改为 45 分钟"); await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", text: "\r" });
-  await page.evaluate(`document.querySelector('${assistant} [data-conflict]').scrollIntoView({block:'center'})`); await shot("assistant-1440-conflict");
-  await page.click(action("adopt")); await page.click(`${assistant} [data-reference="0"]`); await submit(page); await shot("assistant-1440-received");
+  await page.evaluate(`document.querySelector('${assistant} [data-ix-notice]').scrollIntoView({block:'center'})`); await shot("assistant-1440-conflict");
+  await page.click(action("adopt")); await page.click(ref("sample-review")); await submit(page); await shot("assistant-1440-received");
   await page.click(step()); await shot("assistant-1440-preview");
   await demo(page, "outcome-unknown"); await page.click(step()); await waitState(page, "received", "unknown"); await shot("assistant-1440-unknown");
   await page.click(step()); await waitState(page, "received", "done"); await shot("assistant-1440-done");
@@ -245,10 +247,10 @@ test("AC-13 AC-14 AC-15 AC-16 / I0 actual preview interaction paths (simulated o
   await t.test("AC-16 Coding shares the interaction and keeps its professional follow-up", () => codingPath(page));
   await fresh();
   await t.test("AC-15 keyboard can activate a choice without submitting", async () => {
-    await page.evaluate(`document.querySelector('${assistant} [data-choice="format"][data-index="1"]').focus()`);
+    await page.evaluate(`document.querySelector('${assistant} [data-ix-field="format"] [data-ix-option="1"]').focus()`);
     await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: " ", code: "Space", text: " " });
     await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: " ", code: "Space" });
-    assert.equal(await selected(page, `${assistant} [data-choice="format"][data-index="1"]`), "true");
+    assert.equal(await selected(page, `${assistant} [data-ix-field="format"] [data-ix-option="1"]`), "true");
     assert.equal(await read(page, `document.querySelector('${assistant}').dataset.questionState`), "open");
   });
   await mkdir(evidence, { recursive: true });

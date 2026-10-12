@@ -27,10 +27,10 @@ export function bindScene(context: SceneContext): void {
   root.addEventListener("submit", event => {
     event.preventDefault();
     const form = event.target as HTMLElement;
-    if (form.matches("[data-question-form]")) { begin(); return; }
+    if (form.matches("[data-ix-form]")) { begin(); return; }
     if (recommendation.composing) return;
     setDraft(state, composer.value);
-    if (appendDraft(state)) { composer.value = ""; refresh(); land(root.querySelector('[data-field="notes"]')); return; }
+    if (appendDraft(state)) { composer.value = ""; refresh(); land(root.querySelector('[data-ix-field="notes"]')); return; }
     if (state.draft.trim() && !["expired", "replaced", "cancelled"].includes(state.question)) state.notice = "这是演示：新消息不会发给模型。可以用对话里的卡片或输入框旁的下一步继续。";
     refresh();
   });
@@ -38,28 +38,29 @@ export function bindScene(context: SceneContext): void {
     if (!(event.target instanceof Element)) return;
     const button = event.target.closest<HTMLButtonElement>("button");
     if (!button || button.disabled) return;
-    const step = button.closest<HTMLButtonElement>("[data-step-index]");
+    const step = button.closest<HTMLButtonElement>("[data-ix-step]");
     if (step) {
-      const shown = recommendation.shown[Number(step.dataset.stepIndex)];
+      const shown = recommendation.shown[Number(step.dataset.ixStep)];
       if (!shown || !stepLive(recommendation, shown)) return;
       action(shown.action);
       adoptSteps(recommendation);
       refresh();
       return;
     }
-    if (button.dataset.action) { action(button.dataset.action); return; }
-    if (button.dataset.minutesStep) {
+    const named = button.dataset.ixAction ?? button.dataset.action;
+    if (named) { action(named); return; }
+    if (button.dataset.ixStepBy) {
       const current = Number(state.values.minutes);
-      if (Number.isInteger(current)) edit(state, "minutes", String(Math.min(timeLimits.maxMinutes, Math.max(timeLimits.minMinutes, current + Number(button.dataset.minutesStep)))));
-      else find(root, '[data-value="minutes"]').focus();
+      if (Number.isInteger(current)) edit(state, "minutes", String(Math.min(timeLimits.maxMinutes, Math.max(timeLimits.minMinutes, current + Number(button.dataset.ixStepBy)))));
+      else find(root, '[data-ix-value="minutes"]').focus();
     }
-    const name = button.dataset.choice;
+    const name = button.dataset.ixOption === undefined ? undefined : button.closest<HTMLElement>("[data-ix-field]")?.dataset.ixField;
     if (name === "format" || name === "topics") {
-      const index = Number(button.dataset.index);
+      const index = Number(button.dataset.ixOption);
       edit(state, name, name === "format" ? [index] : state.values.topics.includes(index) ? state.values.topics.filter(value => value !== index) : [...state.values.topics, index]);
     }
-    if (button.dataset.reference !== undefined) {
-      const ref = references[Number(button.dataset.reference)];
+    if (button.dataset.ixReference !== undefined) {
+      const ref = references.find(candidate => candidate.id === button.dataset.ixReference);
       if (ref) edit(state, "references", state.values.references.some(value => value.id === ref.id) ? state.values.references.filter(value => value.id !== ref.id) : [...state.values.references, { ...ref }]);
     }
     refresh();
@@ -68,18 +69,18 @@ export function bindScene(context: SceneContext): void {
     const input = event.target;
     if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return;
     if (input.hasAttribute("data-composer")) setDraft(state, input.value);
-    else if (input.dataset.whenPart === "date" || input.dataset.whenPart === "time") editWhen(state, input.dataset.whenPart, input.value);
-    else if (input.dataset.value && textFields.has(input.dataset.value)) edit(state, input.dataset.value as TextField, input.value);
+    else if (input.dataset.ixPart === "date" || input.dataset.ixPart === "time") editWhen(state, input.dataset.ixPart, input.value);
+    else if (input.dataset.ixValue && textFields.has(input.dataset.ixValue)) edit(state, input.dataset.ixValue as TextField, input.value);
     refresh();
   });
   // In the questionnaire, Enter moves on instead of answering early; ⌘/Ctrl+Enter answers (DESIGN.md Dialogs).
-  find(root, "[data-question-form]").addEventListener("keydown", event => {
+  find(root, "[data-ix-form]").addEventListener("keydown", event => {
     const key = event as KeyboardEvent;
     if (key.key !== "Enter" || key.isComposing || recommendation.composing) return;
     if (key.metaKey || key.ctrlKey) { event.preventDefault(); begin(); return; }
     if (!(key.target instanceof HTMLInputElement)) return;
     event.preventDefault();
-    const order = [...root.querySelectorAll<HTMLElement>("[data-question-form] [data-focus-target], [data-question-form] [data-when-part=time]")];
+    const order = [...root.querySelectorAll<HTMLElement>("[data-ix-form] [data-ix-focus], [data-ix-form] [data-ix-part=time]")];
     order[order.indexOf(key.target) + 1]?.focus();
   });
   composer.addEventListener("keydown", event => {
@@ -103,8 +104,8 @@ export function bindScene(context: SceneContext): void {
     // Keep the final composition text even if the question expired while the person was still composing.
     if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
       if (input.hasAttribute("data-composer")) setDraft(state, input.value);
-      else if (input.dataset.whenPart === "date" || input.dataset.whenPart === "time") editWhen(state, input.dataset.whenPart, input.value);
-      else if (input.dataset.value && textFields.has(input.dataset.value)) finishComposition(state, input.dataset.value as TextField, input.value);
+      else if (input.dataset.ixPart === "date" || input.dataset.ixPart === "time") editWhen(state, input.dataset.ixPart, input.value);
+      else if (input.dataset.ixValue && textFields.has(input.dataset.ixValue)) finishComposition(state, input.dataset.ixValue as TextField, input.value);
     }
     interaction("composing", false);
   });

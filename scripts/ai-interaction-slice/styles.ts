@@ -10,7 +10,7 @@ html, body { height: 100%; }
 body {
   margin: 0; overflow: hidden; display: grid; grid-template-rows: 44px minmax(0, 1fr);
   background: var(--desk); color: var(--ink); font-family: var(--font); font-size: 13px; line-height: 1.5; letter-spacing: -.011em;
-  --dock-h: 76px; --side-w: 272px; --step-h: 50px;
+  --dock-h: 76px; --side-w: 272px;
 }
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
@@ -153,7 +153,7 @@ ul { padding: 0; list-style: none; }
 .cd-main { position: relative; min-height: 0; display: flex; flex-direction: column; }
 .cd-notice { min-height: 0; padding: 0 24px 6px; color: var(--muted); font-size: 12px; }
 .cd-notice:empty { display: none; }
-.cd-composer-row { padding: 0 20px 16px; --step-h: 40px; }
+.cd-composer-row { padding: 0 20px 16px; }
 .cd-shell { flex: 1; min-width: 0; display: grid; gap: 6px; padding: 10px 10px 8px 14px; border-radius: var(--r-composer); background: var(--paper); box-shadow: var(--lift-2); }
 .cd-shell:focus-within { box-shadow: var(--lift-2), 0 0 0 1px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); }
 .cd-input { width: 100%; min-height: 40px; padding: 0; border: 0; outline: 0; resize: none; background: transparent; line-height: 1.5; }
@@ -165,6 +165,7 @@ ul { padding: 0; list-style: none; }
 .cd-tools-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .cd-tools-head h3 { font-size: 13px; font-weight: var(--weight-title, 600); }
 .cd-tools-close { margin-left: auto; }
+.cd-quiet-tag { background: var(--control-fill); color: var(--muted); }
 .cd-tabs { display: flex; gap: 14px; margin-bottom: 12px; color: var(--muted); font-size: 12px; box-shadow: inset 0 -1px 0 var(--line); }
 .cd-tabs span { padding-bottom: 6px; }
 .cd-tabs [aria-current] { color: var(--ink); font-weight: var(--weight-control, 500); box-shadow: inset 0 -2px 0 var(--ink); }
@@ -212,13 +213,12 @@ ul { padding: 0; list-style: none; }
   .pv-tray { grid-row: 2; height: 44px; padding: 0; background: none; box-shadow: none; }
   .pv-tile, .pv-monogram { width: 44px; height: 44px; }
   .ap-panel { position: fixed; left: 8px; right: 8px; top: 60px; bottom: calc(var(--dock-h) + 8px + var(--steps-room, 0px)); height: auto; }
-  .scene--assistant:has([data-next]:not([hidden])) { --steps-room: 52px; }
-  .scene--assistant .ix-steps { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); justify-content: flex-start; }
+  .scene--assistant:has([data-ix-step="0"]:not([hidden])) { --steps-room: 52px; }
   .pv-input { font-size: 16px; }
   .demo-popover { position: fixed; top: 56px; left: 8px; right: 8px; width: auto; }
   .cd-head { padding: 10px 12px 10px 16px; }
   .cd-tools-toggle [data-slot="button-label"] { display: none; }
-  .cd-composer-row { flex-direction: column; align-items: stretch; padding: 0 8px 8px; --step-h: 44px; }
+  .cd-composer-row { flex-direction: column; align-items: stretch; padding: 0 8px 8px; }
   .cd-input { font-size: 16px; }
   .cd-keys { display: none; }
   .cd-layout[data-tools="open"] .cd-tools { width: 100%; border-radius: 0; }

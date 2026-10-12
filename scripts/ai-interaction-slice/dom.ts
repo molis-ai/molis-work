@@ -19,8 +19,8 @@ export function attr(element: Element, name: string, value: string | null): void
 }
 /** Focus the control a field's error points at, then make sure it is in view of its own scroller. */
 export function focusField(root: HTMLElement, name: string): void {
-  const field = find(root, `[data-field="${name}"]`);
-  const target = field.querySelector<HTMLElement>("[data-focus-target]") ?? find(field, "input,textarea,button,[tabindex]");
+  const field = find(root, `[data-ix-field="${name}"]`);
+  const target = field.querySelector<HTMLElement>("[data-ix-focus]") ?? find(field, "input,textarea,button,[tabindex]");
   target.focus({ preventScroll: true });
   target.scrollIntoView({ block: "nearest" });
 }

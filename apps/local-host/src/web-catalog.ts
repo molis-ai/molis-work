@@ -237,7 +237,7 @@ export async function handleLocalCatalogWebRequest(
       ...(capabilitySection === "connections" && serverOptions.homeDirectory ? { functions_settings: {
         settings: functionsConnectionStatus(serverOptions.homeDirectory),
         connections: listConnectorConnectionViews(serverOptions.homeDirectory, "typesafe"),
-        selected_connection_id: selectedTypeSafeConnection(serverOptions.homeDirectory, "functions")?.connection_id,
+        selected_connection_id: selectedTypeSafeConnection(serverOptions.homeDirectory)?.connection_id,
       } } : {}),
       ...(model_settings === undefined ? {} : { model_settings }),
       context_project: contextProject,

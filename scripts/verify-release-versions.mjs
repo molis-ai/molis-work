@@ -19,14 +19,15 @@ const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const CHECKLIST = "docs/releases/CHECKLIST.md";
 const CHANGELOG = "docs/releases/CHANGELOG.md";
 
-// Everything besides the root package.json that must carry exactly the product version. The two strings in code are the
-// User-Agent/app version Feed sends and the client version the Codex session browser announces.
+// Everything besides the root package.json that must carry exactly the product version. The only place in code that spells
+// it out is PRODUCT_VERSION in the Host: Feed's User-Agent and the app version it and the search runtime hand to the Search
+// Evidence Layer, the MCP client version, and the client version the Codex session transport announces all take it from there.
+// A new place in code that announces the product version imports that constant; it is not another entry here.
 const CARRIERS = [
   { file: "apps/desktop/src-tauri/tauri.conf.json", label: "apps/desktop/src-tauri/tauri.conf.json", pick: text => JSON.parse(text).version },
   { file: "apps/desktop/src-tauri/Cargo.toml", label: "apps/desktop/src-tauri/Cargo.toml", pick: text => text.match(/^\[package\][^[]*?^version = "([^"]+)"$/ms)?.[1] },
   { file: "apps/desktop/src-tauri/Cargo.lock", label: "apps/desktop/src-tauri/Cargo.lock#molis-work-desktop", pick: text => text.match(/\[\[package\]\]\nname = "molis-work-desktop"\nversion = "([^"]+)"/)?.[1] },
-  { file: "apps/local-host/src/feed-source-runtime.ts", label: "apps/local-host/src/feed-source-runtime.ts#APP_VERSION", pick: text => text.match(/^const APP_VERSION = "([^"]+)";$/m)?.[1] },
-  { file: "horizontal/runtime-host/src/adapters/codex-app-server.ts", label: "horizontal/runtime-host/src/adapters/codex-app-server.ts#clientInfo.version", pick: text => text.match(/clientInfo: \{ name: "molis-work-session-browser", title: "Molis Work", version: "([^"]+)" \}/)?.[1] },
+  { file: "apps/local-host/src/product-version.ts", label: "apps/local-host/src/product-version.ts#PRODUCT_VERSION", pick: text => text.match(/^export const PRODUCT_VERSION = "([^"]+)";$/m)?.[1] },
 ];
 
 // ---- command line ---------------------------------------------------------------------------------------------------

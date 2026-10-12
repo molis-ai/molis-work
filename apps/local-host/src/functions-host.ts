@@ -28,7 +28,7 @@ export interface FunctionsHostOptions {
 export function functionsCredentialConfigured(home: string, options: FunctionsHostOptions = {}): boolean {
   if ((options.env ?? process.env).TYPESAFE_API_KEY?.trim()) return true;
   if (options.credential) return !!options.credential()?.trim();
-  const selected = selectedTypeSafeConnection(home, "functions");
+  const selected = selectedTypeSafeConnection(home);
   const ref = selected ? withConnectorConnections(home, store => {
     const connection = store.get(selected.connection_id);
     return connection && connection.service_id === "typesafe" && !connection.disconnected_at ? connection.credential_ref : null;
@@ -42,7 +42,7 @@ export function functionsConnectionStatus(home: string, options: FunctionsHostOp
 }
 
 function functionsCredential(home: string, options: FunctionsHostOptions): () => string | null {
-  return options.credential ?? (() => typeSafeCredential(home, "functions"));
+  return options.credential ?? (() => typeSafeCredential(home));
 }
 
 export function withFunctionsService<T>(
@@ -58,7 +58,7 @@ export function withFunctionsService<T>(
       env: options.env ?? process.env,
       provider: options.provider ?? createPrologueTypeSafeProvider(homeDirectory, {
         resolveCredential: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() || functionsCredential(homeDirectory, options)()?.trim() || null,
-        configuration: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : options.credential ? "custom" : typeSafeConfiguration(homeDirectory, "functions"),
+        configuration: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : options.credential ? "custom" : typeSafeConfiguration(homeDirectory),
       }),
     }));
   } finally {
@@ -79,7 +79,7 @@ export async function withFunctionsServiceAsync<T>(
       env: options.env ?? process.env,
       provider: options.provider ?? createPrologueTypeSafeProvider(homeDirectory, {
         resolveCredential: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() || functionsCredential(homeDirectory, options)()?.trim() || null,
-        configuration: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : options.credential ? "custom" : typeSafeConfiguration(homeDirectory, "functions"),
+        configuration: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : options.credential ? "custom" : typeSafeConfiguration(homeDirectory),
       }),
     }));
   } finally {

@@ -122,20 +122,20 @@ function serviceFor(home: string | undefined): ContextualJudgmentService<Caller>
 }
 
 /** The judgment's TypeSafe key: the process override the other TypeSafe callers honour, else the Home's selected connection. */
-const credential = (home: string) => process.env.TYPESAFE_API_KEY?.trim() || typeSafeCredential(home, "functions");
+const credential = (home: string) => process.env.TYPESAFE_API_KEY?.trim() || typeSafeCredential(home);
 
 /** Multi-question Jev through the Home's Prologue inference; the key never leaves this process's memory. */
 function jevEvaluator(home: string): NonNullable<Parameters<typeof createContextualJudgmentService>[0]["evaluate"]> {
   return async ({ state, questions, signal }) => {
     if (!credential(home)) throw new Error("这个 Home 没有可用的 TypeSafe 连接");
-    const configuration = JSON.stringify(typeSafeConfiguration(home, "functions"));
+    const configuration = JSON.stringify(typeSafeConfiguration(home));
     const inference = await resolvePrologueInference(home);
     const credential_ref = "typesafe:contextual";
     const body = await inference.evaluateTypeSafe({ endpoint: TYPESAFE_SYSTEMONE_URL, model: FUNCTIONS_DEFAULT_MODEL, state, questions,
       credential_ref, signal, timeout_ms: 30_000,
       // The connection may be changed while the question waits; an answer is only used from the one it was asked on.
       resolveCredential: ref => ref !== credential_ref ? null
-        : JSON.stringify(typeSafeConfiguration(home, "functions")) === configuration ? credential(home) : null });
+        : JSON.stringify(typeSafeConfiguration(home)) === configuration ? credential(home) : null });
     const model = typeof (body as { model?: unknown }).model === "string" ? (body as { model: string }).model : FUNCTIONS_DEFAULT_MODEL;
     return { body, basis: "jev", model: `Jev · ${model}` };
   };

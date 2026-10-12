@@ -16,7 +16,7 @@
 
 | 日期 | 事项 | 选项 | 结论 | 说明 |
 | --- | --- | --- | --- | --- |
-| 2026-10-12 | G3 记忆错误的 kind（日常取舍，沿用统一错误模型） | 保留 Host 重写和默认400；由 owner 分类并贯通共同出口 | 由 owner 分类 | 实际源码中两个 HTTP 入口的 limit/conflict 都是400，Assistant 重写后的 forbidden 也是400。按现有拒绝条件，待本人处理的建议达到上限、预览后事实改变均用 conflict→409；forbidden/scope→forbidden、not_found→not_found，invalid/off维持invalid。Assistant 的权限拒绝400→403、两个入口的状态冲突400→409明确记为分类修正；原码、文案、拒绝与无写入语义保留，不把它们说成旧状态未变。图片 expired 的410→404已由原方案接受。 |
+| 2026-10-12 | G3 记忆错误的 kind（日常取舍，沿用统一错误模型） | 保留 Host 重写和默认400；由 owner 分类并贯通共同出口 | 由 owner 分类 | 实际源码中两个 HTTP 入口的 limit/conflict 都是400，Assistant 重写后的 forbidden 也是400。按现有拒绝条件，待本人处理的建议达到上限、预览后事实改变均用 conflict→409；forbidden/scope→forbidden、not_found→not_found，invalid/off维持invalid。Assistant 的权限拒绝400→403、两个入口的状态冲突400→409明确记为分类修正；Memory主人原码、文案、拒绝与无写入语义保留，Host旧assistant码重写删除；不把状态变化说成旧行为未变。图片 expired 的410→404已由原方案接受。 |
 | 2026-10-12 | BL-133 的五条 Issue 导航旧测试（弹窗，现场已测量） | 防腐线修正；交给 Issue 原会话；保留基线失败 | 防腐线修正旧测试 | 用户批准保留 ISSUE-30 的右上角常显入口，修正控件登记与标题栏几何预期。实测 Home 按钮桌面 32px、手机 44px；测试继续检查所有触控 44px、桌面 Home 32px（含短窗口）、视窗边界与实际命中，以及 Add/分屏对齐、标签距离与 Home 相邻且不遮挡，不改产品布局。 |
 | 2026-10-12 | Codex 接手防腐线（本轮用户指令） | 沿用 Claude 后台结果，接续到完成 | 已授权 | 先确认后台、补齐同一份 spec，再从 I4 回归与第五批剩余修复接续；按交接逐片推送、开 PR，全部必需 CI 检查通过并对齐 main 后串行合并。不重启已有驱动或回归；真实 Home 写入、他人成果清理仍按交接的独立授权边界处理。 |
 | 2026-10-12 | Claude 周额度耗尽后，批后合规复查的模型（弹窗） | 改由 Codex 完成；保留 Sonnet 等额度恢复 | 改由 Codex 完成 | 用户选择「改用 Codex 完成复查」。本轮实现、合规复查及修复评审由 Codex 承接；保留独立只读评审、单一 writer、隔离 Home、构建与浏览器排时段、先整合再分片合入的验证要求。 |
@@ -1299,6 +1299,8 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 **W2-10 后续窗口的只读测量。** 10-12 在保留的 I4 整合树 bdc23ab9d 运行现有 codemod 报告（未写源码）：875 个内部引用、173 个混源进程；当前计划可转换 268 个文件、没有阻塞组，内部引用预计降低 355、混源归零。改变目标的动态导入/require 有 14 处，正式改写前再以当时 main 生成并逐项对照基线，不把这份报告当成已经完成的迁移。
 
 **I5 的组合收口。** 隔离树已合第四批与第五批、独立 IME 和有界清理修复，按当前 main ba6f5232 保留双方文档；最终 head 8bac4a4ea 已对齐 main 56033f06d，整体构建、门禁、类型检查通过；4 个浏览器文件 16/16。16 普通文件首轮 135 条：134 通过、1 失败，为 Agent 编号用例的授权夹具签名未同步；该消费者修复归第五 d，经真实 HTTP 项目/授权和 Host 唯一 Agent 服务，固定 294bb2385 复核无 Blocker/P1、全文件 9/9。针对新的 CI 疑点 runtime-integration 另已通过 13/13；包含旧重复服务装配失败的整段日志不计作全绿。13:59 主协调持浏览器与构建排他锁启动独立全量（i5-full-01.log），源码/脚本/包与 Skill 冻结，全量结果待出。首个失败已由独立只读复核与主协调核实为 action-error-model 的 Functions 大请求体旧 mapper 默认 400 断言：G2 已移除 mapper，实际 SDK 出口按既定 too_large kind 回答 413；生产无效 JSON 仍为 400。修复归 G2，其原分支已保存 687ac9c91，仅同步现行 Functions 消费者与过渡标题、413 预期；主协调核对与冻结树的差异只为标题/注释和超限状态，输入/code/message/invalid JSON/never 动作不变。冻结树不改，修复后运行验证待做。W3-02-F-INTEGRATION：C 的 SDK 路由绑定器和严格 ActionError 外来拒绝与 Shelf 的工厂同时保留，Coding 校验仍归 coding.shelf_material_invalid；组合修复 0ad07f8a3 补回五处工厂并新增真实 Host executor→Shelf action→SDK route 的伪造外来 code/kind/call_id 拒绝。845656157 仅把指纹冲突的旧 400 预期对齐已接受 kind=conflict 的 409，其他 400 拒绝断言保留。固定源码窄复核无 Blocker/P1，最终组合运行证据未出，分别归第五 F，不把各分片通过相加冒称新全量。
+
+**I5 第二条失败的核对。** global-ui-interaction 的窄屏设置迟到响应用例失败（约7.9秒）。固定源码的旧 hook只匹配相对 /settings/runtimes，现请求助手发送 target.href；两方核对确认该 hook无法拦截实际请求，loading请求身份保护仍在。待全量footer与原文件、干净acede基线实际运行确认，不把静态定位当成修复通过。W3-10-1B-INTERLEAVE-01：按实际URL的pathname匹配同一路由，保留真实fetch回应、持有→切回appearance→释放的交错、两帧等待、所有panel/选中/drawer/inert断言与60秒上限；修复归1b，冻结树仍不改。
 
 **W3-02-G2-BODY-01。** Functions 经真实 HTTP 拒绝同一超限请求为 413 / actions.input_too_large / 请求内容过大，无效 JSON 为 400 / actions.input_invalid / 请求不是有效 JSON；两者均在业务 handler 前拒绝，动作不执行。仅按已接受 kind 合同同步旧断言、标题和注释，不放宽大小、输入、错误体或时限。
 

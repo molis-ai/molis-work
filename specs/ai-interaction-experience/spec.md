@@ -442,6 +442,10 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 | D4 | Prologue 本机提交 | 允许在 `feat/ask-user-fields` 上本机提交（不推送、不合并） | Prologue `AGENTS.md` §8 要求明确授权 |
 | D5 | 问询等待期限 | 24 小时（人离开再回来仍能交）；过期后显示「已过期」并保留草稿，可请 AI 重新问 | 现在是 10 分钟 |
 | D6 | 操作卡记录的主人 | 从助理服务拆出协作者，按 Run 主人记录，Coding 共用（W5-10 的形状） | 与防腐 W5-10 同一块；先通知做防腐的会话 |
+| D7 | 问卷卡展示参数与 SDK、回执的对应（2026-10-12，本线自定） | 设计系统只收展示参数；消费方写纯函数转换，`reason → 文案` 由消费方做；回执与对象版本只给展示位（`about`、折叠的「依据」、版本标记），只显示不解释（§15.5 表） | 接入时不改组件 |
+| D8 | Agent 能渲染哪些题型由谁声明（2026-10-12，本线自定） | Agent 定义声明 `question_types`，宿主照着给 Run 配 `askUserQuestionTypes`；不在宿主写插件名单（`AGENTS.md` 硬约束），缺省只有选择题 | 只有界面支持带类型题的 Agent（助理、Coding）才会被模型问到这些题 |
+| D9 | 助理问题卡的渲染位置（2026-10-12，本线自定） | 宿主用设计系统渲染函数把卡片渲染成 HTML 放进视图（同 Coding 的 `question.html`），助理岛只接行为 | 岛是字符串脚本，不能在浏览器里调设计系统的渲染函数；这样只有一份渲染，岛的字节变小 |
+| D10 | 回答的身份与 R4 | 待统筹定（§17.1「跨线待定」） | 影响 C1、A1 与回执线 1e |
 
 ## 17. 分期与 PR 序列
 
@@ -468,10 +472,74 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
   - Coding：`ui.ts` 的 `renderPendingQuestionCard`，以及 `client.ts` 的 `renderQuestions`。
 - 管组件板的用例：`tests/primitives.test.ts`（`PRIMITIVE_CATALOG_IDS` 每个都要有样张）、`tests/touch-targets.e2e.test.ts`（组件板上可见的 `mw-menu__item` 都要量）、`tests/workbench-ui-platform.test.ts`。
 
+### 17.1 #423 之后的切片与 PR 序列（2026-10-12 规划）
+
+依据：三份只读核对（合同与 agent-host、输入回执线、助理与 Coding 现状），结论记在下面「现状要点」；切片按「合同先、宿主次、界面后」，每片一个 PR、可单独合。每片的验收编号从 AC-18 起。
+
+**现状要点**（实施前再核一次行号）：
+
+- SDK：#408 带的合成包（Prologue main `55b0c85a`，`vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz`）已含带类型的 `ask-user`（`PendingQuestion` 全部新字段、`validateQuestionnaireAnswer`、19 个机器原因、`askUserQuestionTypes`、`inputWaitTtlMs`）与输入回执 S1（steer 的 `key`/`source`/`about`、`projectInputReceipts`）。
+- Molis 合同没跟上：`AgentPendingQuestion`（`services/agent-host.ts`）只有冻结的纯文字选项，`AgentRunControl.answer` 没有 `value`，回答错误只有 `agent.pending_unknown`/`agent.pending_not_open`；#408 也没改这两处。
+- agent-host：`prologue-node.ts` 的 `readPendingQuestion` 把 SDK 选项对象原样透传（未过滤）；`answerPending` 的形状错误是无码的 `Error`，SDK 抛出的错误也没映射；`askUserQuestionTypes`、`inputWaitTtlMs` 都没配（等待期限仍是 SDK 默认 10 分钟，D5 未落实）。
+- 助理：回答走 `POST /api/assistant/works/:id/answer`，单题自由文本时普通发送会被自动当作回答（`assistant-service.ts` 的 `freeTextQuestion`，回执线 G11 要去掉）。操作卡记录在 `assistant_cards`（助理库，CAS 改版本），`runCard` 已有幂等、失效、未知不重试；Coding 没有 `suggest-action`（网关只在 business 工作区）。
+- Coding：回答走 `coding.control-run`，`routes.ts` 的 `questionAnswer` 只收 `indexes`，带 `value` 的答案会被拒；草稿在 sessionStorage 与 `question_drafts`。客户端字节在 5 个插件包里各算一次。
+- 巨大单元（只许变小）：`services/agent-host.ts`、`assistant-island.ts`、`assistant-service.ts`（`AssistantService` 119 个方法）、Coding `client.ts`、`routes.ts`、`prologue-node.ts`。
+- 输入回执线：`services/agent-inputs`（新子路径）拥有输入的身份（`key`、来源、`about`）与生命周期；它把回答、点选、表单提交、卡片按下都算作输入（它的 §3.1、§13.2），但 SDK 与 Molis 现在只给 steer 和排队输入身份，回答没有。它已定 D5：问题待回答时，输入框上方显示目标芯片，由用户点选「回答某个问题」或「补充这一轮」，不再按规则自动判断。
+
+**事实主人（单一）**：
+
+| 事实 | 主人 | 本线做什么 |
+| --- | --- | --- |
+| 题目、冻结、答案校验、等待、过期、恢复 | Prologue effect-policy | 只投影，不另存一份题 |
+| 题目在 Molis 的视图形状（带类型的题、字段错误） | 本线新子路径 `services/agent-interaction` | 定义并从 `agent-host.ts` 搬出 |
+| 输入身份（`key` 的格式与幂等、来源、`about`） | 输入回执线 `services/agent-inputs` | 回答控制引用它的 `key` 类型，不另起编号 |
+| 未提交的填写草稿 | 问题所在界面的主人（助理库、Coding 会话） | 按 `(run, pending_id, revision)` 存；刷新只合并没被人改过的字段 |
+| 对象候选与权限 | 对象主人；Host 在提交前逐个再读 | 只读动作提供候选，提交时复核 |
+| 操作卡记录 | 从 `AssistantService` 拆出的操作卡协作者（W5-10 的形状，D6） | 一条记录，多处呈现 |
+| 同排下一步 | 不存，从记录派生 | 宿主纯函数派生，界面只渲染 |
+
+**切片**：
+
+| 片 | 范围 | 验收 | 前置 | 门禁与检查 | 枢纽文件 | 与其他线 |
+| --- | --- | --- | --- | --- | --- | --- |
+| I1 共享行为 | 设计系统加不依赖运行时 import 的浏览器函数：草稿只回写没被人改过的字段、组合输入期间不提交、回车跳项与 ⌘/Ctrl+回车、日历弹层与方向键、步进器、选项与对象切换、提交时按 `data-ix-*` 收集值；组件板样张变成可操作；I0 预览改用它，删掉自己的 `bindings.ts`/`calendar.ts` 里对应部分 | AC-18 | #423 | 页面资源不变（只在组件板内联）；新函数各 ≤150 行 | `catalog-examples.ts`（情境线 W1 也会加区块：各加各的一行） | 情境线 W1-2 浮层定位上移到设计系统，先合者先合 |
+| C1 交互合同 | 新子路径 `services/agent-interaction`：带类型的题（六种题型、`required`、`help`、选项说明与推荐、`default`、上下界、`refKinds`/`maxCount`）、`AgentPendingQuestion` 从 `agent-host.ts` 搬来、回答控制 `AgentAnswerControl`（`answers[].value`，可选 `key: AgentInputKey`）、错误 `agent.answer_invalid`（带 `problems: {question, id?, reason}[]`，`reason` 是 SDK 的闭集）、Agent 定义可声明 `question_types`（界面能渲染哪些题型，缺省只有选择题） | AC-19 | #408 合入 main；输入回执线的 `services/agent-inputs` 至少把 `AgentInputKey` 合入（或两线约定由先合的一方定义） | `pnpm api:update` 刷新快照；`agent-host.ts` 只减不增；所有消费者在同一 PR 改完（`docs/system/CONTRACT-CHANGES.md`） | `services/agent-host.ts`、`packages/contracts/package.json` exports、`tooling/gates/api/` | 回执线同时要从 `AgentRunControl` 搬出 steer 分支：两线都改这个联合类型，先合者先合，后合者重排 |
+| H1 宿主接带类型的题 | agent-host 按 Agent 定义声明的 `question_types` 给 Run 配 `askUserQuestionTypes`（不在宿主写名单）；配 `inputWaitTtlMs` 24 小时（D5）；投影带类型的题并修掉选项原样透传；回答前用 `validateQuestionnaireAnswer` 预检，SDK 问题与 `PENDING_KIND_MISMATCH` 映射成 `agent.answer_invalid`；形状错误都有码 | AC-20 | C1 | 真实 Node Host 用例：带类型的问卷落盘、关闭、新 Runtime 读回并作答；`prologue-*` 用例按 AI Skill 要求跑 | `prologue-node.ts`、`prologue.ts`、`prologue-questions.ts` | 采用线若还在改这些文件，按枢纽规则排 |
+| A1 助理接入 | 宿主把问题转成 `InteractionQuestionView`（新协作者 `assistant-questions.ts`，不让 `AssistantService` 变大）并服务端渲染出 HTML 放进视图（同 Coding 的 `question.html` 做法；岛是字符串脚本，不能在浏览器里调设计系统的渲染函数）；岛只接行为（I1 的共享函数）；草稿存助理库新表 `assistant_question_drafts`（主人助理）；删 `renderQuestion` 与对应样式；加载 `INTERACTION_STYLES`，同 PR 删掉被替换的助理问题样式抵字节；`assistant-base` 升版说明带类型的题与 `reference` 题 | AC-21 | H1、I1 | `assistant-island.ts`、`assistant-service.ts` 只减；页面资源不涨（新样式进 workbench.css，旧样式出 craft-finish，三张表各算）；新界面文字有英文（`translations` 门禁） | `assistant-island.ts`、`assistant-service.ts`、`assistant-http.ts`、`craft-finish.ts`、`apps/workbench/src/i18n/en.ts` | 回执线 1e 同改岛的输入框目标芯片与 `dispatch`（G11/D5）：R4 定案后两线按同一语义各做一半，见下 |
+| A2 Coding 接入 | `ui.ts` 的问题卡改用 `renderInteractionQuestion`；`client.ts` 用 I1 的共享函数，删 `renderQuestions` 的重复部分；`routes.ts` 的 `questionAnswer` 收 `value`；`question_drafts` 收值；`coding-base` 升版 | AC-22 | H1、I1 | Coding 客户端字节在 5 个包里都不涨；`client.ts`、`routes.ts` 只减 | Coding `client.ts`、`routes.ts`、`ui.ts`、`apps/local-host/src/coding-surface.ts`、`tooling/gates/page-assets.json` | 采用线在 Coding 客户端也有改动（时间线、模型选择）；回执线 1d 改 Coding 回执渲染 |
+| H2 操作卡协作者 | 从 `AssistantService` 拆出 `assistant-offers.ts`（`recordOffer`、`offerFromPage`、`runCard`、`dismissCard`、`cardView`、失效巡检），存储按「回合与卡片」表组拆；卡片视图转 `InteractionOperationView`、服务端渲染；同排下一步由纯函数从卡片与问题派生，作为视图字段给岛；删 `renderCard`、「接下来」行 | AC-23 | A1 | `AssistantService` 方法数与行数下降；新协作者 ≤25 方法、≤300 行；`table-owners` 不变（仍在 `apps/local-host`） | `assistant-service.ts`、`assistant-store.ts`、`assistant-island.ts`、`services/assistant.ts` | 防腐 W5-10（未开工）的同一块：先告诉防腐线，本片按它的形状做，算它的一部分 |
+| H3 对象引用 | 只读动作 `interaction.references.search`（按种类与范围，从对象主人读当前有权限的候选）；提交前 Host 逐个再读，通过才交给 SDK | AC-24 | H1 | `pnpm actions:update`；安全不变量里「对象引用由宿主复核」加拒绝用例（`pnpm test:security`） | 动作目录、`tooling/gates/actions/`、`docs/system/SECURITY-INVARIANTS.md` | 情境线的对象落点读取：共用对象主人的读法，不另写一套 |
+| H4 Coding 的操作卡 | Coding 的 Run 也能 `suggest-action`，记录走 H2 的协作者；Coding 的专业后续（查看变更、核对并继续）进同排下一步 | AC-25 | H2 | 动作合同快照；Coding 客户端字节不涨 | `prologue-action-gateway.ts`、Coding `routes.ts` | 采用线 #408 把 `suggest-action` 改成 `mutate-external`、加了 `HOST_GOVERNED_TOOLS`：以合入后的形状为准 |
+| S1 单次接续 | 题型校验纯函数放 `packages/kernel`；Form「AI 生成表单」缺信息时返回 `needs_input` → 同一问卷卡 → 接续生成 | AC-26 | C1、I1 | 插件只经公开 SDK 与合同；插件客户端字节不涨 | Form 插件 | — |
+| D1 文档与示例 | `skills/molis-prologue-ai`、`docs/platform/PROLOGUE-AI.md`、`skills/molis-plugin-dev`（含 `generated-ai.md`）、设计系统 README；§15.8 三个示例都有用例 | AC-12 | 随各片 | 文档引用门禁（行内代码路径、动作 id 必须存在） | `skills/`（全量回归期间不改） | — |
+
+之后是 P5（§14.3 第二批入口逐个接入）与 P7（验收与归档）。
+
+**跨线待定（交统筹定）**：
+
+1. **回答的身份**：回答、点选、表单提交、卡片按下在回执线算「输入」，但现在没有身份。推荐：回答控制带可选 `key`，类型与格式由 `services/agent-inputs` 定义（本线引用，不另起编号）；回答的「已送达 / 已读到」等回执要等 SDK 给 pending 加 `about` 与已回答事件（回执线 S4，现在推后），在那之前回答只有 Molis 侧的幂等，不显示读到。
+2. **R4 的最终语义**：见下一段的推荐。
+3. **C1 与回执线合同的先后**：两线都要改 `AgentRunControl`（本线搬出回答分支，回执线搬出 steer 分支）。推荐由先就绪的一方先合，后合的一方在同一 PR 里改完消费者。
+
+**R4 推荐（问题待回答时，输入框里回车做什么）**：
+
+回执线已定 D5：输入框上方显示目标芯片，由用户点选，不再按规则自动判断。I0 预览的 R4 是「回车把这句写进问卷的补充要求，不交回」，与 D5 的出发点一致（不把普通发送当成回答），差在目标是预设的、而且回执线没有「写进问卷草稿」这个目标。
+
+推荐方案：把 R4 并进 D5 的目标芯片，芯片有三种目标：
+
+- 「写进问卷：补充要求」：只改问卷草稿，不交回、不发给 AI，回车后文字落到问卷的补充栏，问卷自己的「提交回答」才交回。只有问卷里有自由文本题时才出现。
+- 「补充这一轮」：一条 steer，排在回答之后（回执线的「排在…你回答问题…之后」）。
+- 没有问题等回答时，芯片不出现，回车照常发送。
+
+问题刚出现时芯片默认选第一种（有自由文本题时）或第二种（没有时），默认值写在芯片上看得见，一下就能切换。这不是看不见的自动判断，所以与 D5 的本意（不让人误以为发送就是回答）一致；收益是人在问卷旁边补一句时不用先点一次芯片。
+
+取舍：如果坚持 D5 的「每次都由用户点选」，就去掉默认，问题出现后第一次发送前多一次点击。两种都不会把发送当成回答。需要统筹按「界面交互和日常使用体验最好」的原则定；定案后 A1 与回执线 1e 按同一语义各做自己那一半（本线做问卷草稿目标，回执线做 steer 目标与回执）。
+
 ## 18. 进度
 
 - 2026-10-09：建工作树与分支；核对 Molis（助理、Coding、插件入口、设计与门禁约束）与 Prologue（`ask-user`、等待账本、MCP 征求）现状，结果见 §14；方案见 §15；待决见 §16。
 - 2026-10-11：I0 独立组合预览写成并交接（§19、§20）。
+- 2026-10-12（规划）：#423 之后的切片与 PR 序列、事实主人、跨线待定与 R4 推荐写进 §17.1；D7–D10 记入 §16。
 - 2026-10-12（P2 第一刀）：共享部件进设计系统与组件板，I0 预览改用它们（§19.2）。
 - 2026-10-12：分支 `feature/handoff-ai-interaction` 合入 origin/main `02ceba8c`；I0 预览在内置浏览器里逐条走查，按实物重做布局、信息层级、操作路径与状态反馈（§19.1）。三级证据：工程通过见 §19.1「证据」；真实产品实操——不适用（预览不连 Home，只有开发者原型走查）；用户本人验收——未开始。
 

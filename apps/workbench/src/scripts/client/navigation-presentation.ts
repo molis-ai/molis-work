@@ -45,7 +45,12 @@ export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
  * one overflow button instead of running under the Assistant. Centre: the resident Assistant with the plugin
  * switcher in front of it — one plugin, or one per pane when the work area is split. Right: Shelf and 灵光, the
  * side panel (discussion, browser and files, beside the work), then the project with its menu. Every button opens
- * its plugin through the switcher's own entry, so navigation has one path. Choices here are per-viewer conveniences. */
+ * its plugin through the switcher's own entry, so navigation has one path. Choices here are per-viewer conveniences.
+ *
+ * What the Dock folds (`fit`): the pins leave from the end until the "+N" button fits with them, and 项目首页 never
+ * folds (specs/craft-finish, round four). When even 项目首页 and "+N" do not fit (a phone's second row under 356px with
+ * a directory button), the "+N" button goes too: the switcher lists every plugin, the kept ones included, so nothing is
+ * lost. */
 export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   if (document.body.hasAttribute('data-pane-embedded') || (window.parent !== window && new URLSearchParams(location.search).has('workbenchPane'))) return;
   const dock = document.querySelector('[data-dock]');
@@ -183,12 +188,12 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     more.remove();
     if (pins.scrollWidth <= pins.clientWidth + 1) { setOverflow(false); paintCurrent(); return; }
     pins.append(more);
-    // 项目首页 never folds away; the rest leave from the end until the overflow button fits too.
-    for (let index = all.length - 1; index > 0 && pins.scrollWidth > pins.clientWidth + 1; index -= 1) all[index].hidden = true;
+    for (let index = all.length; --index > 0 && pins.scrollWidth > pins.clientWidth + 1;) all[index].hidden = true;
+    if (pins.scrollWidth > pins.clientWidth + 1) more.remove();
     const count = all.filter((pin) => pin.hidden).length;
     more.textContent = '+' + count;
     more.title = L('更多常驻插件'); more.setAttribute('aria-label', L('更多常驻插件') + ' ' + count);
-    if (overflow && !overflow.hidden) setOverflow(true);
+    if (overflow && !overflow.hidden) setOverflow(more.isConnected);
     paintCurrent();
   };
   // The Dock keeps the buttons it has: one that is kept stays where it is, a new one lands, one that goes lets go.

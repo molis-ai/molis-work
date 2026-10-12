@@ -8,12 +8,14 @@ import test from "node:test";
 
 import * as host from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
 import * as shelfModule from "@molis-ai/molis-work-module-shelf";
 import * as cogniaPlugin from "@molis-ai/molis-work-plugin-cognia";
 import * as imagesPlugin from "@molis-ai/molis-work-plugin-images";
 import * as jellyPlugin from "@molis-ai/molis-work-plugin-jelly";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import * as shelfPlugin from "@molis-ai/molis-work-plugin-shelf";
+import type { ShelfActionPorts } from "@molis-ai/molis-work-plugin-shelf";
 
 // specs/repository-anti-corruption W3-02-F: Shelf, Jelly, Cognia and Images lose their route-error mappers and their error classes, and so do the Host's
 // material errors (Jelly's source and material readers, the text extractor). Their failures are ActionErrors whose codes the owners declare
@@ -49,7 +51,7 @@ const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
   shelf: { holder: shelfModule, status: {
     busy: 400, cancelled: 400, configuration_changed: 400, conflict: 409, empty_file: 400, empty_selection: 400, extraction_unavailable: 400, hash_changed: 400,
     image_unsupported: 400, invalid: 400, invalid_file: 400, invalid_result: 400, item_not_found: 404, job_failed: 400, job_timeout: 400, missing_output: 400,
-    no_model: 409, no_ocr: 400, no_text: 400, not_result: 400, not_text: 400, origin_changed: 400, path_invalid: 400, recipe_unavailable: 409,
+    no_model: 409, no_ocr: 400, no_text: 400, not_found: 404, not_result: 400, not_text: 400, origin_changed: 400, path_invalid: 400, recipe_unavailable: 409,
     source_conflict: 400, too_large: 400, unavailable: 400,
   } },
   jelly: { holder: jellyPlugin, status: {
@@ -71,7 +73,7 @@ const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
  * one it loses). Every one is an expected change in the PR text. The rest of SPECS equals the merge-base.
  */
 const CHANGED: Readonly<Record<string, readonly [number, number]>> = {
-  "jelly.cancelled": [400, 499], "jelly.not_found": [400, 404], "jelly.source_changed": [400, 409], "images.key_required": [400, 409],
+  "jelly.cancelled": [400, 499], "jelly.not_found": [400, 404], "shelf.not_found": [400, 404], "jelly.source_changed": [400, 409], "images.key_required": [400, 409],
 };
 
 const declarationsOf = (owner: Owner): Readonly<Record<string, Raiser>> | undefined => SPECS[owner].holder[`${owner}Errors`] as Readonly<Record<string, Raiser>> | undefined;
@@ -247,6 +249,26 @@ test("a failed Shelf job comes back with the shelf beside the error, and the sta
       assert.equal(typeof answer.body.error, "string");
     }
   } finally { await edge.close(); }
+});
+
+test("the Shelf subject and file readers answer a code that ends in .not_found for a copy that is gone: the placement service reads that as the object being deleted", async () => {
+  // horizontal/placement/src/index.ts decides "原对象已删除" (state `missing`, a row that can be cleaned up) with `code.endsWith(".not_found")`; a reader code
+  // that ends in anything else (`shelf.item_not_found`) is shown as an unavailable object that cannot be cleaned up. FAILS before the fix: the readers raised item_not_found.
+  const ports: Pick<ShelfActionPorts, "snapshot" | "readFile"> = {
+    snapshot: () => ({ materials: [], results: [], clipboard: [], running_jobs: [] }) as Partial<ShelfSnapshot> as ShelfSnapshot,
+    readFile: () => assert.fail("the file is not read for a copy that is not there"),
+  };
+  const handlers = shelfPlugin.createShelfActionHandlers(ports as ShelfActionPorts);
+  const caller = {} as never;
+  const gone: Array<[string, unknown]> = [["shelf.subject.read", { subject_id: "item-gone" }], ["shelf.files.content", { subject: { kind: "shelf_item", id: "item-gone" } }]];
+  for (const [capability, input] of gone) {
+    const handler = handlers.find(binding => binding.capability_id === capability);
+    assert.ok(handler, `${capability} has a handler`);
+    const failure = await Promise.resolve().then(() => handler.handle(caller, input)).then(() => undefined, (error: unknown) => error);
+    assert.ok(failure instanceof ActionError, `${capability} fails with an ActionError`);
+    assert.deepEqual([failure.code, actionHttpStatus(failure)], ["shelf.not_found", 404], capability);
+    assert.ok(failure.code.endsWith(".not_found"), `${capability}: ${failure.code} is read by the placement service as the object being gone`);
+  }
 });
 
 test("Jelly's streamed error event keeps the code and the details, and carries the status of the kind", async () => {

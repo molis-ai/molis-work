@@ -1,5 +1,5 @@
 import { validateSearchIntentExactV1 } from "@adeptify/intelligence-client";
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedSourceRecord } from "./projection.js";
 import type { FeedSourceProviders, RegisterFeedSourceInput, IntelligenceCollectRequest } from "./source-ports.js";
 import { sha256, bounded, normalizeQuery } from "./source-input.js";
@@ -19,7 +19,7 @@ export function normalizeRegistration(input: RegisterFeedSourceInput, providers:
     const repository = input.repository.trim().replace(/^https:\/\/github.com\//u, "").replace(/\/$/u, "");
     const researchSource = input.research_source.trim();
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !/^[a-z0-9][a-z0-9_-]{0,79}$/.test(researchSource)) {
-      throw new FeedDomainError("请填写 GitHub 仓库和研究来源 id", "feed_source_invalid_configuration");
+      throw feedErrors.source_invalid_configuration("请填写 GitHub 仓库和研究来源 id");
     }
     return { kind: "research_library", definitionId: "research-library", config: { repository, research_source: researchSource },
       configFingerprint: sha256(`${repository}\n${researchSource}`), name: bounded(input.name || `研究库：${researchSource}`, 80),
@@ -28,7 +28,7 @@ export function normalizeRegistration(input: RegisterFeedSourceInput, providers:
   if (input.kind === "rss") {
     const definitionId = input.definition_id?.trim();
     const catalog = providers.listCatalog().find((source) => source.sourceId === definitionId && source.enabled);
-    if (!catalog) throw new FeedDomainError("RSS 目录来源不存在", "feed_source_definition_unavailable");
+    if (!catalog) throw feedErrors.source_definition_unavailable("RSS 目录来源不存在");
     return {
       kind: "rss",
       definitionId: catalog.sourceId,
@@ -118,7 +118,7 @@ export function buildExactRequest(source: FeedSourceRecord, operationId: string,
     definitionId = providers.customRss.definitionId;
   } else {
     const catalog = providers.listCatalog().find((entry) => entry.sourceId === source.definition_id);
-    if (!catalog) throw new FeedDomainError("RSS 目录来源不存在", "feed_source_definition_unavailable");
+    if (!catalog) throw feedErrors.source_definition_unavailable("RSS 目录来源不存在");
     feedUrl = catalog.feedUrl;
     definitionId = catalog.sourceId;
   }

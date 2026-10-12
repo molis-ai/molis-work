@@ -44,6 +44,7 @@ No cloud sync, background watching, bidirectional sync, proprietary database mig
   - 综合输出必须带有效的固定来源引用；取消、模型失败或引用无效时不保存草稿；草稿只有「存入知识库」后才进入知识。
   - 下载用附件方式，从不执行 HTML 或 SVG；发现能力不发起请求、不解密凭据。
   - HTTP、MCP 动作工具与导入都经绑定的动作服务，原 Store 是唯一数据 owner。
-- 改动后必跑：`node scripts/run-tests.mjs tests/cognia-actions.test.ts tests/cognia-store.test.ts tests/cognia-ai.test.ts tests/cognia-http.test.ts tests/cognia-prologue.test.ts`
+  - 失败都是 `ActionError`：码是 `cognia.<原因>`（`cogniaErrors`）；状态只由 kind 推出，没有错误类和状态表。原来码跟着状态走（404、409、499 各有一个码，其余都叫 `cognia.invalid`），现在模型没配置是 `cognia.model_unavailable`（503），模型没给出可用结果是 `cognia.model_invalid`（502），材料太大是 `cognia.too_large`（413）。目录扫描里只有 kind 为 `too_large` 的失败会中断整批，别的失败记成那个文件的跳过原因。
+- 改动后必跑：`node scripts/run-tests.mjs tests/cognia-actions.test.ts tests/cognia-store.test.ts tests/cognia-ai.test.ts tests/cognia-http.test.ts tests/cognia-prologue.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[specs/archive/cognia-plugin/spec.md](../../../specs/archive/cognia-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

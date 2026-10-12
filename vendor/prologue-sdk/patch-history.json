@@ -11,7 +11,7 @@
     "repository": "https://github.com/molis-ai/prologue",
     "checkedOn": "2026-10-08",
     "mainHead": "4f7110fe0a07ba13fb19025ceb496016ecc0f494",
-    "statement": "下面 commitsChecked 里的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；本机克隆的 origin/main 与 git ls-remote 一致）。远端已没有特性分支（git ls-remote 只列出 main 和三个 pull 引用），所以按提交号定位，不按分支名。",
+    "statement": "下面 commitsChecked 里的 Prologue 提交（各项的基线、提交，以及来源里写出的提交链），除 c4b9fde3 外，都是上游 main 头的祖先（2026-10-08 用 git merge-base --is-ancestor 核对 4f7110fe；本机克隆的 origin/main 与 git ls-remote 一致；2026-10-12 的 main 头 69ccfa94 是 4f7110fe 的子提交）。c4b9fde3 是 2026-10-12 加的：它在已推送的特性分支 feature/handoff-molis-a0-s1 与 feature/handoff-ask-user-fields 上，还不在上游 main；该分支并入 main 后复核这一句。按提交号定位，不按分支名。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -30,6 +30,7 @@
       "a8ac8e1eb7362a2189973cbe7aaa4f4624649ee0",
       "ac4d11350ab3b6848460d140230081a58cbb215f",
       "af7375c74a2e551184c443e2a5e06e105168fed3",
+      "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
       "c63ea1a16eec8d8217223db1624b2409a1a33d14",
       "d2f5a05df6459440a253787e94ee6520f12d754d"
     ]
@@ -566,6 +567,14 @@
       "gitBlob": "432e002ac4670ca228de8956dde71849186480fd",
       "commit": "9fc3b17386419625a36359b74fb4789c17a3adc8",
       "description": "临时 A0 消费验证以 dirty 候选替换；原 side-panel-memory 包可从此 Git blob 恢复，不表示正式采用已完成。"
+    },
+    {
+      "file": "prologue-sdk-a0-s1.tgz",
+      "bytes": 1064280,
+      "sha256": "71c25f85f15de3f918107080a468f0dc469e956d2b76b12987d2cf51087fb96b",
+      "gitBlob": "0c42199184bc49a0cb35a8b37bf31825308b1bec",
+      "commit": "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
+      "description": "A0 交接时的 dirty 候选（2026-10-11 打包，provenance 记 dirty:true）：`c4b9fde3` 加当时未提交的输入回执第一刀差异，只在采用分支 `feature/handoff-prologue-adoption` 上提交过（2a361f41），从未是 main 的依赖。那份差异随后提交为 Prologue `4acfb4459c21f96179490197f18a437c54503cb3`；正式包换成从具名提交重建的 adoption-receipts-fields，本包不能从任何具名提交逐字节重建。"
     }
   ],
   "notes": [

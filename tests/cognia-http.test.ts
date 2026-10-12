@@ -1,6 +1,4 @@
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { assembleMcpCatalog } from "../apps/local-host/src/mcp-catalog.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COGNIA_ACTION_PERMISSIONS, cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
@@ -18,6 +16,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "../apps/workbench/src/plugin-catalog.js"
 import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/src/plugin-workbench.js";
 import { COGNIA_PLUGIN_ID } from "../plugins/native/cognia/src/index.js";
 import { PERSONAL_HOME_SQLITE_STORES } from "../packages/storage/src/home-sqlite.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 test("HTTP preview/commit roundtrip, concurrent retry, malformed JSON, downloads and missing model", async t => {
   const home = await mkdtemp(join(tmpdir(), "cognia-http-"));
@@ -61,10 +60,12 @@ test("Cognia registers as personal workspace, Home cleanup and read-only Home ac
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("Cognia action tools run as Home actions without project binding and disappear when the grant is revoked", async () => {
+test("Cognia action tools run as Home actions without project binding and disappear when the grant is revoked", async t => {
   const { MolisWorkServer } = await import("../apps/desktop/launchers/mcp/server.js");
   const home = await mkdtemp(join(tmpdir(), "cognia-mcp-actions-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  // The Home is served so that the client's grants are saved the way a person saves them; this file keeps its own host (it needs `src` imports of the Cognia handlers).
+  const served = await serveTestHost(t, { home, host });
   const owner = bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS }));
   const server = new MolisWorkServer("runtime", null, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: "cognia-mcp-test", host_declares_stable: true }, webBaseUrl: "http://127.0.0.1:4173" });
   const name = molisWorkActionToolName(cogniaActions.search), readName = molisWorkActionToolName(cogniaActions.read);
@@ -73,17 +74,14 @@ test("Cognia action tools run as Home actions without project binding and disapp
   try {
     assert.ok(!(await list()).includes(name));
     const { material } = await owner.invoke(cogniaActions.createMaterial, { title: "Shared", body: "Actual Home evidence" });
-    const views = await host.inspectActions({ actor_id: "runtime:codex", project_id: null, audience: "mcp", permissions: [] });
-    const grant = (action: typeof cogniaActions.search | typeof cogniaActions.read, enabled: boolean) =>
-      writeMcpActionGrant(home, createMcpActionGrant("runtime:codex", null, views.find(view => view.capability_id === action.capability_id)!, enabled));
-    await grant(cogniaActions.search, true); await grant(cogniaActions.read, true);
+    await served.grant("runtime:codex", null, [cogniaActions.search, cogniaActions.read]);
     assert.ok((await list()).includes(name));
     const searched = await call(name, { query: "Actual Home" }); assert.equal(searched.isError, false, JSON.stringify(searched));
     assert.equal(JSON.parse(searched.content[0].text).materials[0].id, material.id);
     const read = await call(readName, { id: material.id, revision: 1 }); assert.equal(read.isError, false, JSON.stringify(read));
     assert.equal(JSON.parse(read.content[0].text).material.body, "Actual Home evidence");
-    await grant(cogniaActions.search, false);
+    await served.revoke("runtime:codex", null, [cogniaActions.search]);
     assert.ok(!(await list()).includes(name));
     const denied = await call(name, { query: "Actual Home" }); assert.equal(denied.isError, true); assert.doesNotMatch(denied.content[0].text, /Actual Home evidence/);
-  } finally { await server.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { await server.close(); await served.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

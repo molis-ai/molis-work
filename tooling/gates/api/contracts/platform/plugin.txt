@@ -3848,10 +3848,6 @@ export declare function bindObjectMoveHandler(definition: ActionDefinition<Place
     from_project_id: string;
 }, caller: ActionCallContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
 
-export declare function bindOwnerPluginAction<Input, Output>(context: import("@molis-ai/molis-work-contracts/platform/plugin").PluginStartContext, definition: ActionDefinition<Input, Output>, handle: (input: Input, beforeWrite: () => Promise<void>) => Output | Promise<Output>, dependencies?: readonly ActionReference[]): ActionHandlerBinding;
-
-export declare function bindPluginActionRoute<Input, Output>(context: import("@molis-ai/molis-work-contracts/platform/plugin").PluginStartContext, definition: ActionDefinition<Input, Output>, input: (request: import("@molis-ai/molis-work-contracts/platform/plugin").PluginRouteRequest) => Input, route_id?: string): import("@molis-ai/molis-work-contracts/platform/plugin").PluginRouteBinding;
-
 export declare function bindSearchEntriesHandler(definition: ActionDefinition<SearchEntriesInput, SearchEntriesPage>, list: (caller: ActionCallContext) => readonly SearchEntry[] | Promise<readonly SearchEntry[]>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding;
 
 export declare function bindWorkflowContentHandlers(definitions: WorkflowContentActions | WorkflowSourceContentActions, handlers: WorkflowContentHandlers): ActionHandlerBinding[];

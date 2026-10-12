@@ -10,6 +10,7 @@ import type {
 export { createPluginUiClient, PluginUiAccessError } from "./plugin-client.js";
 export { UiViewRegistry } from "./view-registry.js";
 export { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "./client-lifecycle.js";
+export { shortCallId } from "./call-id.js";
 export type { UiPlacedView, UiViewRegistryInput } from "./view-registry.js";
 
 export const packageDescriptor = {

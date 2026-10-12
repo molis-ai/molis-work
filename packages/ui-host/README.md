@@ -17,6 +17,7 @@ UiHost.register 保存 contribution，render 调用对应渲染器；mount 检�
 | [src/index.ts](src/index.ts) | UiHost 注册、渲染与挂载 |
 | [src/plugin-client.ts](src/plugin-client.ts) | Plugin UI 访问边界 |
 | [src/client-lifecycle.ts](src/client-lifecycle.ts) | 浏览器挂载、取消及资源释放，由 Host 注入 |
+| [src/call-id.ts](src/call-id.ts) | 诊断编号（调用编号）给人看的短形式 `shortCallId`：前 8 位，设置页服务端渲染用；怎样显示一个编号归界面，所以不在内核 |
 
 可对照现有调用方 [apps/local-host/src/plugin-executor.ts](../../apps/local-host/src/plugin-executor.ts) 阅读装配方式。
 
@@ -63,7 +64,7 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
   - 挂载前检查 surface 与目标 slot 兼容、身份与格式。
   - 注册与渲染协议不等于任意 HTML 或脚本获得隔离执行。
   - 插件客户端的注册释放由 Host 生命周期负责；不解释 Goal、Feed、Artifact 状态。
-- 改动后必跑：`node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host-executor.test.ts tests/plugin-declarative-mounting.test.ts tests/ui-client-lifecycle.e2e.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host-executor.test.ts tests/plugin-declarative-mounting.test.ts tests/ui-client-lifecycle.e2e.test.ts tests/ui-call-id.test.ts`
 - 相关手册：[docs/platform/UI-PLATFORM.md](../../docs/platform/UI-PLATFORM.md)、[skills/molis-plugin-dev/ui.md](../../skills/molis-plugin-dev/ui.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

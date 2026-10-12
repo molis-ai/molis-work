@@ -50,7 +50,7 @@ node --import tsx --test --test-concurrency=1 tests/cli-protocol.test.ts
 - 公开入口：`@molis-ai/molis-work-app-cli`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。方向：apps → 组合根 → 公开合同（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 不是数据库入口：命令调 Goals 的动作，不在处理器里直接打开 Store；不自己构造调用者（身份与出处由 Host 的 `bindGoalsManagementActions` 定，门禁 `checkGoalTransportCallers`）。
+  - 不是数据库入口：命令调 Goals 的动作，不在处理器里直接打开 Store；不自己构造调用者（身份与出处由 Host 的 `bindGoalsManagementActions` 定，门禁 `checkGoalTransportCallers`：`command-dispatch.ts` 只引 action 合同、Goals 包的 `{ goalsActions }` 和自己的 `protocol.js`，不论 `import *`、`export … from`、子路径、`import()` 还是 `require()`，也不持有任何 Host 客户端）。
   - JSON 与文件输入的解析、错误呈现留在 CLI；状态变化由实际 owner 完成。
   - 参数优先级、输出格式与退出码按 `src/protocol.ts`，改动同步更新协议测试。
   - 项目命令必须有明确的 `--db PATH`，没有默认路径：不按当前目录猜库，没给（缺值、空白，或后面紧跟另一个 `--` 旗标）就在打开任何东西之前报错。

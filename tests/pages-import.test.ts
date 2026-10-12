@@ -15,7 +15,7 @@ import {
   type PreparedPagesImport,
 } from "@molis-ai/molis-work-plugin-pages";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { handlePagesNativePluginHttp } from "../apps/local-host/src/pages-native-plugin-http.ts";
+import { handlePagesNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
 
 const PROJECT = "pages-import-project";
 const OTHER = "pages-import-other";

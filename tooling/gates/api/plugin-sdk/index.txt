@@ -154,6 +154,8 @@ export declare function actionErrorResponse(error: unknown, options?: ActionErro
 
 export declare function actionHttpStatus(error: unknown): number;
 
+export declare function alignSplitRows(rows: readonly TextDiffRow[]): SplitPair[];
+
 export { assertDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { assertHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 

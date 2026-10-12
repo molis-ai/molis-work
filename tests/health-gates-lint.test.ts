@@ -322,6 +322,8 @@ test("the entry run from a copy of the repository layout fails when biome.jsonc 
     writeFileSync(path.join(own, ".gitignore"), "node_modules\n");
     mkdirSync(path.join(own, "tooling/gates"), { recursive: true });
     writeFileSync(path.join(own, "tooling/gates/limits.json"), JSON.stringify({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }, null, 2) + "\n");
+    // The repository the script belongs to must have its error owner table (scripts/gates/error-owners.mjs); an empty one is enough here.
+    writeFileSync(path.join(own, "tooling/gates/error-owners.json"), JSON.stringify({ platform: { prefixes: ["actions"], reason: "The platform's own family, for this layout copy." }, owners: {} }, null, 2) + "\n");
     mkdirSync(path.join(own, "packages/a/src"), { recursive: true });
     writeFileSync(path.join(own, "packages/a/src/index.ts"), "export const a = 1;\n");
     gitAt(own, "add", "-A"); gitAt(own, "commit", "-q", "-m", "the layout without a Biome configuration");

@@ -11,9 +11,8 @@ import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-wo
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { UiViewRegistry } from "@molis-ai/molis-work-ui-host";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
-import { inspectActionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
 import { browserSiteDeclarations } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import { inspectActionDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

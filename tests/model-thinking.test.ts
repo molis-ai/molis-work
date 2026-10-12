@@ -51,10 +51,10 @@ test("思考档：关着时配置里没有这个字段；设置页只在 Anthrop
   assert.equal("thinking" in (selection(record())! as object), false);
   assert.equal("thinking" in (selection(record({ thinking: "off" }))! as object), false);
   assert.equal(selection(record({ thinking: "adaptive" }))?.thinking, "adaptive");
-  const html = renderModelSettingsDocument({ providers: [record({ thinking: "adaptive" })], health: [], selected_provider_id: "minimax", primitives: p });
+  const html = renderModelSettingsDocument({ templates: [], providers: [record({ thinking: "adaptive" })], health: [], selected_provider_id: "minimax", primitives: p });
   assert.match(html, /data-model-thinking="minimax">.*value="adaptive" selected/s);
   assert.match(html, /用量和等待时间都会增加/);
-  const openai = renderModelSettingsDocument({ providers: [record({ provider_id: "openai", api_format: "openai-chat-completions" })], health: [], selected_provider_id: "openai", primitives: p });
+  const openai = renderModelSettingsDocument({ templates: [], providers: [record({ provider_id: "openai", api_format: "openai-chat-completions" })], health: [], selected_provider_id: "openai", primitives: p });
   assert.match(openai, /data-model-thinking="openai" disabled/);
 });
 

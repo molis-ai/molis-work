@@ -57,7 +57,7 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
 - 公开入口：`@molis-ai/molis-work-plugin-schedule`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 失败都是 `ActionError`：码是 `schedule.<原因>`（`scheduleErrors`）；状态只由 kind 推出，本插件没有错误类和状态表。Scheduler 服务的 `ScheduleError` 在本插件的动作边界（`scheduleFailure`）换成 `schedule.job_not_found` 或 `schedule.job_invalid`，不带着 Scheduler 的码出去。
+  - 失败都是 `ActionError`：码是 `schedule.<原因>`（`scheduleErrors`）；状态只由 kind 推出，本插件没有错误类和状态表。Scheduler 服务的 `ScheduleError` 在本插件的动作边界（`scheduleFailure`）换成 `schedule.job_not_found` 或 `schedule.job_invalid`，不带着 Scheduler 的码出去；`actions.ts` 的 `bind`、`reminder-actions.ts`、`operation-actions.ts` 的五处包装各由 `tests/feed-inbox-schedule-error-model.test.ts` 用真实的 `ScheduleError` 和真实的 Scheduler 驱动，去掉任何一处都会失败。
   - 其他插件自有业务闹钟由 Scheduler 叫醒它们自己的能力；通用提醒由本插件拥有，使用 `reminders.add/cancel`，同一插件重装不能接管旧安装的提醒。
   - 提醒同时绑定安装 ID 与 Runtime 安装世代；重装复用存储 ID 也不能取消或投递旧世代提醒，投递失败并记下原因，提醒保留。
   - 重装前设下的提醒在详情核对内容、当前安装版本与发布方后，经公开 `schedule.reminders.recover` 明确恢复。预期安装 ID/世代只防止过期确认，实际目标由 Host 重新读取；普通启用不补权。恢复沿用原 job、时间、收据和固定间隔，过期补提醒一次，不运行插件代码；重复确认不能重新开启后来暂停的任务。

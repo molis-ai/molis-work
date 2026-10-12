@@ -22,8 +22,8 @@ const fields = (errors: Partial<Record<string, string>> = {}, refreshed?: string
 ];
 const footer = (note: string, error = false) => ({ note, error, keys: '⌘ / Ctrl + 回车 提交', actions: [{ id: 'cancel', label: '不回答', variant: 'ghost' as const }, { id: 'submit', label: '提交回答', variant: 'primary' as const, type: 'submit' as const }] });
 const answeredRows: Array<[string, string]> = [['沟通方式', '一起复盘'], ['重点看什么', '首次使用、失败与恢复'], ['补充要求', '只看首次使用'], ['预计时长', '45 分钟'], ['开始时间', '2026-10-16 10:00（UTC−07:00）'], ['关联材料', '秋季工作台 · 内部试用']];
-const operation = (patch: Partial<InteractionOperationView>): InteractionOperationView => ({
-  id: 'ix-op', kicker: '操作建议 · 不会自动执行', title: '创建复盘安排', badge: { label: '待你预览', tone: 'waiting' },
+const operation = (id: string, patch: Partial<InteractionOperationView>): InteractionOperationView => ({
+  id, kicker: '操作建议 · 不会自动执行', title: '创建复盘安排', badge: { label: '待你预览', tone: 'waiting' },
   target: { prefix: '作用于', label: '秋季工作台 · 内部试用', version: '版本 1' }, impact: '会在日程里创建一项，参数先给你核对。', ...patch,
 });
 const preview = { title: '将使用这些参数', rows: answeredRows, note: '目标：秋季工作台 · 内部试用 · 版本 1' };
@@ -62,11 +62,11 @@ export function renderInteractionExample(): string {
     ${card('问卷 · 已过期，草稿保留', expired)}
     ${card('选项组 · 带说明与推荐', renderInteractionOptions([{ value: 'a', label: '一起复盘', description: '先对齐体验，再定下一步', recommended: true, selected: true }, { value: 'b', label: '异步审阅', description: '先读材料，在文档里留判断' }], { id: 'ix-options-demo' }))}
     ${card('选项组 · 短选项多选', renderInteractionOptions([{ value: 'a', label: '首次使用', selected: true }, { value: 'b', label: '失败与恢复' }, { value: 'c', label: '交互细节', disabled: true }], { id: 'ix-choices-demo', multiple: true }))}
-    ${card('操作卡 · 待预览', renderInteractionOperation(operation({ actions: [{ id: 'revise', label: '调整回答', variant: 'ghost' }, { id: 'preview', label: '预览参数' }] })))}
-    ${card('操作卡 · 参数预览', renderInteractionOperation(operation({ badge: { label: '待你执行', tone: 'waiting' }, preview: { ...preview, actions: [{ id: 'revise', label: '返回调整', variant: 'ghost' }, { id: 'execute', label: '执行', variant: 'primary' }] } })))}
-    ${card('操作卡 · 结果未知，只能核对', renderInteractionOperation(operation({ badge: { label: '结果未知', tone: 'waiting' }, preview, status: { text: '连接在执行途中断开，结果未知。先核对，不会自动再执行一次。', tone: 'waiting' }, recovery: [{ id: 'reconcile', label: '核对结果' }] })))}
-    ${card('操作卡 · 已完成', renderInteractionOperation(operation({ badge: { label: '已完成', tone: 'done' }, result: { title: '复盘安排已准备好', body: '日程已创建；参数与回执在摘要里。', actions: [{ id: 'open', label: '打开摘要' }, { id: 'continue', label: '继续调整', variant: 'ghost' }] } })))}
-    ${card('操作卡 · 对象改版后失效', renderInteractionOperation(operation({ badge: { label: '已失效', tone: 'quiet' }, target: { prefix: '作用于', label: '秋季工作台 · 内部试用', version: '版本 2', changed: true }, status: { text: '作用对象已改版，这组参数不能再执行。按新版本重新准备上面的问题。' } })))}
+    ${card('操作卡 · 待预览', renderInteractionOperation(operation('ix-op-ready', { actions: [{ id: 'revise', label: '调整回答', variant: 'ghost' }, { id: 'preview', label: '预览参数' }] })))}
+    ${card('操作卡 · 参数预览', renderInteractionOperation(operation('ix-op-preview', { badge: { label: '待你执行', tone: 'waiting' }, preview: { ...preview, actions: [{ id: 'revise', label: '返回调整', variant: 'ghost' }, { id: 'execute', label: '执行', variant: 'primary' }] } })))}
+    ${card('操作卡 · 结果未知，只能核对', renderInteractionOperation(operation('ix-op-unknown', { badge: { label: '结果未知', tone: 'waiting' }, preview, status: { text: '连接在执行途中断开，结果未知。先核对，不会自动再执行一次。', tone: 'waiting' }, recovery: [{ id: 'reconcile', label: '核对结果' }] })))}
+    ${card('操作卡 · 已完成', renderInteractionOperation(operation('ix-op-done', { badge: { label: '已完成', tone: 'done' }, result: { title: '复盘安排已准备好', body: '日程已创建；参数与回执在摘要里。', actions: [{ id: 'open', label: '打开摘要' }, { id: 'continue', label: '继续调整', variant: 'ghost' }] } })))}
+    ${card('操作卡 · 对象改版后失效', renderInteractionOperation(operation('ix-op-stale', { badge: { label: '已失效', tone: 'quiet' }, target: { prefix: '作用于', label: '秋季工作台 · 内部试用', version: '版本 2', changed: true }, status: { text: '作用对象已改版，这组参数不能再执行。按新版本重新准备上面的问题。' } })))}
     ${steps}
   </div>`;
 }

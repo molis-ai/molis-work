@@ -30,11 +30,11 @@ export interface InteractionAction {
 export interface InteractionOption { value: string; label: string; description?: string; recommended?: boolean; selected?: boolean; disabled?: boolean }
 export interface InteractionReference { id: string; label: string; meta?: string; icon?: MolisWorkIcon; selected?: boolean; disabled?: boolean }
 /** Months the date control's calendar may show, rendered with the design system's own calendar. */
-export interface InteractionCalendar { months: Array<{ year: number; month: number }>; today?: string }
+export interface InteractionCalendar { months: Array<{ year: number; month: number }>; today?: string; label?: string }
 export type InteractionControl =
   | { kind: "choice"; options: InteractionOption[]; multiple?: boolean; recommendedLabel?: string;
       /** A free "other" answer beside the options (the SDK's `allowOther`). Its text is the person's, never an option. */
-      other?: { label: string; value: string; placeholder?: string; selected?: boolean } }
+      other?: { label: string; value: string; placeholder?: string } }
   | { kind: "text"; value: string; multiline?: boolean; placeholder?: string; maxLength?: number }
   | { kind: "number"; value: string; unit?: string; step?: number; min?: number; max?: number; integer?: boolean; placeholder?: string; stepLabels?: [string, string] }
   | { kind: "date"; value: string; weekday?: string; placeholder?: string; calendar?: InteractionCalendar; calendarLabel?: string }
@@ -97,6 +97,7 @@ export interface InteractionOperationView {
 export interface InteractionNextStep { id: string; label: string; source: string; primary?: boolean; busy?: boolean; disabled?: boolean }
 
 const esc = escapeHtml;
+/** Ids are raw strings here and escaped exactly once, where they are written into an attribute. */
 const fieldId = (scope: string, id: string, part = "") => `${scope}-${id}${part ? `-${part}` : ""}`;
 
 export function renderInteractionAction(action: InteractionAction): string {
@@ -114,22 +115,30 @@ function rows(pairs: Array<[string, string]>): string {
   return pairs.map(([label, value]) => `<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`).join("");
 }
 
-/** An option group: options with a difference to explain render as option cards, short ones as choices. */
+/**
+ * An option group: options with a difference to explain render as option cards, short ones as choices.
+ * One pick is a radio group (`role="radio"` + `aria-checked`, so a screen reader hears that the options exclude each
+ * other); several picks are toggle buttons (`aria-pressed`) in a plain group. A client moves between radios with the
+ * arrow keys (roving focus); see the interaction behaviour module.
+ */
 export function renderInteractionOptions(options: InteractionOption[], group: { id: string; labelledBy?: string; describedBy?: string; multiple?: boolean; recommendedLabel?: string }): string {
   const described = options.some(option => option.description || option.recommended);
+  const radio = !group.multiple;
+  const state = (selected: boolean | undefined) => radio ? ` role="radio" aria-checked="${selected ? "true" : "false"}"` : ` aria-pressed="${selected ? "true" : "false"}"`;
   const body = options.map(option => described
-    ? `<button type="button" class="mw-ix-option" data-ix-option="${esc(option.value)}" aria-pressed="${option.selected ? "true" : "false"}"${option.disabled ? " disabled" : ""}>
+    ? `<button type="button" class="mw-ix-option" data-ix-option="${esc(option.value)}"${state(option.selected)}${option.disabled ? " disabled" : ""}>
         <span class="mw-ix-option__top"><span class="mw-ix-option__title">${esc(option.label)}</span>${option.recommended ? `<span class="mw-ix-tag">${esc(group.recommendedLabel ?? "推荐")}</span>` : ""}<span class="mw-ix-option__check" aria-hidden="true">${icon("check")}</span></span>
         ${option.description ? `<span class="mw-ix-option__desc">${esc(option.description)}</span>` : ""}</button>`
-    : renderChoice({ label: option.label, selected: option.selected, attrs: { "data-ix-option": option.value, disabled: option.disabled } })).join("");
-  return `<div class="${described ? "mw-ix-options" : "mw-choice-group mw-ix-choices"}" role="group" tabindex="-1" id="${esc(group.id)}" data-ix-options${group.multiple ? ` data-ix-multiple` : ""} data-ix-focus${
+    : renderChoice({ label: option.label, selected: option.selected, attrs: { "data-ix-option": option.value, disabled: option.disabled } })
+        .replace(/ aria-pressed="(true|false)"/, radio ? ' role="radio" aria-checked="$1"' : ' aria-pressed="$1"')).join("");
+  return `<div class="${described ? "mw-ix-options" : "mw-choice-group mw-ix-choices"}" role="${radio ? "radiogroup" : "group"}" tabindex="-1" id="${esc(group.id)}" data-ix-options${group.multiple ? ` data-ix-multiple` : ""} data-ix-focus${
     renderAttrs({ "aria-labelledby": group.labelledBy, "aria-describedby": group.describedBy })}>${body}</div>`;
 }
 function calendarPopup(calendar: InteractionCalendar | undefined, selected: string): string {
   if (!calendar?.months.length) return "";
   const pages = calendar.months.map(({ year, month }, index) => renderCalendar({ year, month, today: calendar.today, selected, compact: true,
     attrs: { "data-ix-calendar-page": index, hidden: index > 0 || undefined } })).join("");
-  return `<div class="mw-ix-calendar" data-ix-calendar role="dialog" aria-label="选择日期" hidden>${pages}</div>`;
+  return `<div class="mw-ix-calendar" data-ix-calendar role="dialog" aria-label="${esc(calendar.label ?? "选择日期")}" hidden>${pages}</div>`;
 }
 function dateControl(control: { value: string; weekday?: string; placeholder?: string; calendar?: InteractionCalendar; calendarLabel?: string }, input: Record<string, AttrValue>): string {
   return `<span class="mw-ix-date" data-ix-date><input class="mw-input mw-ix-date__input" data-slot="input"${renderAttrs({ type: "text", value: control.value, placeholder: control.placeholder ?? "YYYY-MM-DD", autocomplete: "off", inputmode: "numeric", ...input })}>
@@ -137,7 +146,9 @@ function dateControl(control: { value: string; weekday?: string; placeholder?: s
       label: control.calendarLabel ?? "打开日历", icon: "calendar", iconOnly: true, variant: "ghost", attrs: { "data-ix-calendar-open": true, "aria-expanded": "false" } }) : ""}${calendarPopup(control.calendar, control.value)}</span>`;
 }
 function control(scope: string, field: InteractionField): string {
-  const id = fieldId(scope, field.id), describedBy = `${fieldId(scope, field.id, "hint")} ${fieldId(scope, field.id, "error")}`;
+  const id = fieldId(scope, field.id);
+  // The error slot always exists (hidden while empty); the hint only when there is one, so nothing points at a missing id.
+  const describedBy = `${field.hint ? `${fieldId(scope, field.id, "hint")} ` : ""}${fieldId(scope, field.id, "error")}`;
   const value = { "data-ix-value": field.id, "data-ix-focus": true, "aria-describedby": describedBy };
   const c = field.control;
   switch (c.kind) {
@@ -154,7 +165,7 @@ function control(scope: string, field: InteractionField): string {
     case "date": return dateControl(c, { id, ...value });
     case "datetime": return `<span class="mw-ix-when">${dateControl({ ...c, value: c.date }, { id: `${id}-date`, "data-ix-part": "date", "data-ix-focus": true, "aria-label": c.dateLabel ?? "日期", "aria-describedby": describedBy })}<input class="mw-input mw-ix-time" data-slot="input"${
       renderAttrs({ id, type: "text", value: c.time, placeholder: "10:00", inputmode: "numeric", autocomplete: "off", "data-ix-part": "time", "aria-label": c.timeLabel ?? "时刻（24 小时制）", "aria-describedby": describedBy })}><span class="mw-ix-zone">${esc(c.zone)}</span></span>`;
-    case "reference": return `<div class="mw-ix-refs" role="group" tabindex="-1" id="${esc(id)}" data-ix-references data-ix-focus aria-labelledby="${fieldId(scope, field.id, "label")}" aria-describedby="${describedBy}">${c.candidates.map(ref =>
+    case "reference": return `<div class="mw-ix-refs" role="group" tabindex="-1" id="${esc(id)}" data-ix-references data-ix-focus aria-labelledby="${esc(fieldId(scope, field.id, "label"))}" aria-describedby="${esc(describedBy)}">${c.candidates.map(ref =>
       `<button type="button" class="mw-ix-ref" data-ix-reference="${esc(ref.id)}" aria-pressed="${ref.selected ? "true" : "false"}"${ref.disabled ? " disabled" : ""}><span class="mw-ix-ref__glyph">${icon(ref.icon ?? "file")}</span><span class="mw-ix-ref__text"><span class="mw-ix-ref__title">${esc(ref.label)}</span>${
         ref.meta ? `<span class="mw-ix-ref__meta">${esc(ref.meta)}</span>` : ""}</span><span class="mw-ix-ref__check" aria-hidden="true">${icon("check")}</span></button>`).join("")}</div>`;
   }
@@ -162,15 +173,15 @@ function control(scope: string, field: InteractionField): string {
 export function renderInteractionField(scope: string, field: InteractionField, optionalLabel = "选填"): string {
   const group = field.control.kind === "choice" || field.control.kind === "reference";
   const labelId = fieldId(scope, field.id, "label");
-  const label = group ? `<span id="${labelId}">${esc(field.label)}</span>` : `<label id="${labelId}" for="${fieldId(scope, field.id)}">${esc(field.label)}</label>`;
+  const label = group ? `<span id="${esc(labelId)}">${esc(field.label)}</span>` : `<label id="${esc(labelId)}" for="${esc(fieldId(scope, field.id))}">${esc(field.label)}</label>`;
   return `<div class="mw-ix-row" data-ix-field="${esc(field.id)}">
     <div class="mw-ix-label">${label}${field.optional ? `<span class="mw-ix-optional">${esc(optionalLabel)}</span>` : ""}${field.refreshed ? `<span class="mw-ix-refreshed" data-ix-refreshed>${esc(field.refreshed)}</span>` : ""}</div>
     <div class="mw-ix-control">${control(scope, field)}${field.notice ? `<div class="mw-ix-notice" data-ix-notice><p data-ix-notice-text>${esc(field.notice.text)}</p>${actionRow(field.notice.actions, "")}</div>` : ""}
-      ${field.hint ? `<p class="mw-ix-hint" id="${fieldId(scope, field.id, "hint")}">${esc(field.hint)}</p>` : ""}<p class="mw-ix-error" id="${fieldId(scope, field.id, "error")}" data-ix-error${field.error ? "" : " hidden"}>${esc(field.error ?? "")}</p></div>
+      ${field.hint ? `<p class="mw-ix-hint" id="${esc(fieldId(scope, field.id, "hint"))}">${esc(field.hint)}</p>` : ""}<p class="mw-ix-error" id="${esc(fieldId(scope, field.id, "error"))}" data-ix-error${field.error ? "" : " hidden"}>${esc(field.error ?? "")}</p></div>
   </div>`;
 }
 const heading = (scope: string, view: { kicker: string; title: string; badge?: InteractionBadge; about?: string }, glyph: MolisWorkIcon, extra = "") =>
-  `<header class="mw-ix-head"><div class="mw-ix-heading"><span class="mw-ix-kicker">${icon(glyph)}<span data-ix-kicker>${esc(view.kicker)}</span></span><h3 id="${scope}-title">${esc(view.title)}</h3>${view.about ? `<p class="mw-ix-about" data-ix-about>${esc(view.about)}</p>` : ""}</div>${renderInteractionBadge(view.badge)}${extra}</header>`;
+  `<header class="mw-ix-head"><div class="mw-ix-heading"><span class="mw-ix-kicker">${icon(glyph)}<span data-ix-kicker>${esc(view.kicker)}</span></span><h3 id="${esc(`${scope}-title`)}">${esc(view.title)}</h3>${view.about ? `<p class="mw-ix-about" data-ix-about>${esc(view.about)}</p>` : ""}</div>${renderInteractionBadge(view.badge)}${extra}</header>`;
 const targetLine = (t: { prefix: string; label: string; version?: string; changed?: boolean }) =>
   `<p class="mw-ix-target">${icon("target")}<span>${esc(t.prefix)}</span><strong>${esc(t.label)}</strong>${t.version ? `<span class="mw-ix-version" data-ix-version${t.changed ? " data-changed" : ""}>${esc(t.version)}</span>` : ""}</p>`;
 const evidenceBlock = (evidence: InteractionEvidence | undefined) => evidence?.rows.length
@@ -178,24 +189,24 @@ const evidenceBlock = (evidence: InteractionEvidence | undefined) => evidence?.r
 
 /** The questionnaire card. An answered question shows its summary; its form is kept hidden for reopening. */
 export function renderInteractionQuestion(view: InteractionQuestionView): string {
-  const scope = esc(view.id);
+  const scope = view.id;
   const banner = view.banner ? `<div class="mw-ix-banner" data-ix-banner data-tone="${view.banner.tone}"><p data-ix-banner-text>${esc(view.banner.text)}</p>${actionRow(view.banner.actions, "")}</div>` : "";
   const form = `<form class="mw-ix-form" novalidate data-ix-form${view.answered ? " hidden" : ""}>${view.intro ? `<p class="mw-ix-intro">${esc(view.intro)}</p>` : ""}
     <fieldset class="mw-ix-fields" data-ix-fields><legend class="mw-sr-only">${esc(view.title)}</legend>${view.fields.map(field => renderInteractionField(scope, field, view.optionalLabel)).join("")}</fieldset>
     <footer class="mw-ix-foot"><p class="mw-ix-note" data-ix-note role="status"${view.footer.error ? ' data-tone="error"' : ""}>${esc(view.footer.note)}</p>${view.footer.keys ? `<kbd class="mw-ix-keys">${esc(view.footer.keys)}</kbd>` : ""}${actionRow(view.footer.actions, "")}</footer></form>`;
   const answered = view.answered ? `<div class="mw-ix-answered" data-ix-answered><dl data-ix-summary>${rows(view.answered.rows)}</dl>${actionRow(view.answered.actions, "")}</div>` : "";
-  return `<article class="mw-ix-card mw-ix-question" data-ix-question="${scope}" aria-labelledby="${scope}-title">${heading(scope, view, "question", view.collapse ? renderInteractionAction({ variant: "ghost", iconOnly: true, icon: "chevron-up", ...view.collapse }) : "")}${view.target ? targetLine(view.target) : ""}${banner}${form}${answered}${evidenceBlock(view.evidence)}</article>`;
+  return `<article class="mw-ix-card mw-ix-question" data-ix-question="${esc(scope)}" aria-labelledby="${esc(`${scope}-title`)}">${heading(scope, view, "question", view.collapse ? renderInteractionAction({ variant: "ghost", iconOnly: true, icon: "chevron-up", ...view.collapse }) : "")}${view.target ? targetLine(view.target) : ""}${banner}${form}${answered}${evidenceBlock(view.evidence)}</article>`;
 }
 /** The operation card: target and version first, then exactly the parameters that would run, its status and result. */
 export function renderInteractionOperation(view: InteractionOperationView): string {
-  const scope = esc(view.id);
+  const scope = view.id;
   const target = targetLine(view.target);
-  const preview = view.preview ? `<section class="mw-ix-preview" data-ix-preview tabindex="-1" aria-labelledby="${scope}-preview"><h4 id="${scope}-preview">${esc(view.preview.title)}</h4><dl data-ix-summary>${rows(view.preview.rows)}</dl>${
+  const preview = view.preview ? `<section class="mw-ix-preview" data-ix-preview tabindex="-1" aria-labelledby="${esc(`${scope}-preview`)}"><h4 id="${esc(`${scope}-preview`)}">${esc(view.preview.title)}</h4><dl data-ix-summary>${rows(view.preview.rows)}</dl>${
     view.preview.note ? `<p class="mw-ix-hint" data-ix-preview-note>${esc(view.preview.note)}</p>` : ""}${actionRow(view.preview.actions, "data-ix-preview-actions", true)}</section>` : "";
   const status = view.status ? `<p class="mw-ix-status" data-ix-status role="status"${view.status.tone ? ` data-tone="${view.status.tone}"` : ""}>${view.status.busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : ""}${esc(view.status.text)}</p>` : "";
-  const result = view.result ? `<section class="mw-ix-result" data-ix-result tabindex="-1" aria-labelledby="${scope}-result"><span class="mw-ix-result__mark">${icon("check")}</span><div class="mw-ix-result__body"><h4 id="${scope}-result">${esc(view.result.title)}</h4><p>${esc(view.result.body)}</p>${
+  const result = view.result ? `<section class="mw-ix-result" data-ix-result tabindex="-1" aria-labelledby="${esc(`${scope}-result`)}"><span class="mw-ix-result__mark">${icon("check")}</span><div class="mw-ix-result__body"><h4 id="${esc(`${scope}-result`)}">${esc(view.result.title)}</h4><p>${esc(view.result.body)}</p>${
     actionRow(view.result.actions, "")}${view.result.details ? `<div class="mw-ix-result__details" data-ix-result-details><h5>${esc(view.result.details.title)}</h5><p data-ix-result-text>${esc(view.result.details.body)}</p></div>` : ""}</div></section>` : "";
-  return `<article class="mw-ix-card mw-ix-operation" data-ix-operation="${scope}" tabindex="-1" aria-labelledby="${scope}-title">${heading(scope, view, "zap")}${target}${
+  return `<article class="mw-ix-card mw-ix-operation" data-ix-operation="${esc(scope)}" tabindex="-1" aria-labelledby="${esc(`${scope}-title`)}">${heading(scope, view, "zap")}${target}${
     view.impact ? `<p class="mw-ix-impact">${icon("info")}<span>${esc(view.impact)}</span></p>` : ""}${actionRow(view.actions, "data-ix-actions")}${preview}${status}${actionRow(view.recovery, "data-ix-recovery")}${result}${evidenceBlock(view.evidence)}</article>`;
 }
 /** Next steps beside a composer: at most one primary and one secondary; a busy step shows its progress. */

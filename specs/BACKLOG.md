@@ -108,6 +108,7 @@
 | BL-100 | Coding：停止一轮时，还没批准的写文件显示「修改文件 … — 结果未确认」，其实确定没有执行 | [post-merge-review §5 场景 4](archive/post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 文案与状态映射 | 无 | 低 | 未分配 |
 | BL-113 | 插件创作台：界面验收发现「显示问题」时交回设计并重新实现，之后门禁不通过就整次构建失败，没有像普通分支那样交回代码 Agent 修（报名表真实模型复测，PMR-36） | [post-merge-review §3 PMR-36](archive/post-merge-review/spec.md#3-问题表) | 已知缺口 | 显示问题分支在门禁失败时进入相同的修复轮（最多两轮），用离线回放验证 | 无 | 中 | 未分配 |
 | BL-125 | 创作台的英文只到创作台自己写的字（标签、阶段、状态、空态、指示标签、对话框、提示；字典在 `apps/workbench/src/i18n/studio-en.ts`；服务端路由答的请求期消息也有英文）。英文界面里仍是中文的：①构建记录里宿主写下的步骤标签、笔记与错误（`agent-workflow.ts` 写进记录，读取时原样显示）；②能力板上能力目录的标题、说明与授权说明（各提供方的动作定义，能力库页也是原样显示）；③生成插件渲染器自带的固定词（新建、取消、提交、今天……，`packages/design-system/src/plugin-component-client.ts`，已安装的插件里也是）；④插件切换器里的显示名「插件创作工作台」（与 BL-114 同一处）；⑤“做一个……”才会问「新插件还是修改」的判断只认中文；⑥框架里的页面（试用、已安装插件的框架，含「插件暂时无法运行」的恢复页与它的原因）拿不到宿主的翻译器，仍是中文 | [PRODUCT.md](../PRODUCT.md)（界面默认中文，可切换英文） | 已知缺口 | ①（含构建运行中工作流抛出的错误）需要给记录文字加稳定键或读取时翻译；③⑥要先定生成插件的界面语言和框架怎样拿到翻译器 | 无 | 低 | 未分配 |
+| BL-132 | 成果库只读内置插件目录：`apps/workbench/src/plugin-catalog.ts` 的 `artifactTypeDeclarations`、`artifactContinuers` 遍历 `BUILTIN_PLUGIN_CATALOG`，Runtime 与已安装插件声明的成果类型名称、预览、固定、比较、继续今天没有读取方。W3-05-2 起这些声明在解析 Manifest 时必须齐全并指向本插件的动作（`packages/plugin-sdk/src/artifact-declarations.ts`），所以有了读取方就能直接用；在那之前第三方插件的成果在成果库里没有显示名与预览 | [artifact-positioning](artifact-positioning/spec.md)、[W3-05 方案](repository-anti-corruption/wave3-batchB-plan.md) | 已知缺口 | 成果库的目录是构建期静态表，第三方成果在成果库里怎样出现还没定 | 无 | 低 | 未分配 |
 
 ## 6. 连接、来源与 Onboarding
 
@@ -132,6 +133,7 @@
 | BL-126 | 维护六收尾核对（2026-10-11 ①②已做：新构建打开 18 个 v7 项目库的拷贝，Goal 数与各表行数与维护六前相同，见检查清单第 4.3 节；只剩③，要用户重开会话）：①新构建打开 v7 项目库——在安装版里绑定一个项目并读它的 Goal 数，与维护前一致（或在项目库拷贝上用新构建打开一次，看工作台和插件切换器里没有「实验」、没有 `storage.schema_version_mismatch`）；②重装之后逐库只读核对（v7、无 Casebook 表、`integrity_check`、行数）；③重装之前起的会话里的 MCP 仍是只认 v6 的旧代码，重连或重开会话。2026-10-10 只做了重装和列出 18 个项目（只读目录库），这一半没做 | [repository-anti-corruption §4.1 维护六](repository-anti-corruption/spec.md)、[CHECKLIST 第 4.3 节「做完核对」](../docs/releases/CHECKLIST.md) | 部分实现 | 绑定项目、重连会话都会动真实 Home 与用户的会话，按检查清单 4.1 先得到用户同意 | 无 | 中 | 协调会话 |
 | BL-129 | 首页事项动作不区分撤不回的目标：情境条把效果为撤不回的事项选项标为不可用（`packages/kernel/src/contextual.ts` 的 `subjectCandidates`），首页的事项动作（`apps/local-host/src/home-offer-actions.ts`）没有这个判断。今天没有这样的生产方（Feed、Inbox 的事项选项目标都可撤回），等真有了再定首页怎么处理 | W3-05 的使用端核对 | 已知缺口 | 没有生产方，先不做 | 无 | 低 | 未分配 |
 | BL-130 | 插件开发 Skill 补写注册时的引用规则：撤销、后台任务、片段与事项推荐的选项、结果对象（`result_subject` 与未声明时的明文推断规则）；规则已写在 `docs/platform/PLUGIN-DEVELOPMENT.md`，`skills/molis-plugin-dev/` 还没有，生成插件和第三方作者看不到。随 W6-03 做，用 W1-12 的回放工具验证；Skill 的改动在全量回归之外做 | [action-architecture §3 末尾 G7](action-architecture/spec.md) | 明确后续做 | W3-05 不改 `skills/` | W1-12、W6-03 | 中 | 未分配 |
+| BL-133 | Issue 合入后浏览器基线的触控与标题栏回归：原执行报告在 main 347d0a541 上复现 touch-targets.e2e.test.ts 的四条未登记 button.mw-btn、immersive-directory.e2e.test.ts 的标题栏按钮位置；防腐 I3/I4 也遇到。10-12 已在干净源码的 main 8d81173a7 同因复现全部五条，按 Issue 入口实际布局修生产样式或登记，无依据不改断言 | [防腐接续 §10.1](repository-anti-corruption/spec.md#101-2026-10-12-接续核对与第-3-波-bc-进度)、#395/#396 原执行报告 | 已确认基线回归 | 来源与当前 main 已核对；修复分工待用户决定，防腐协调提供证据 | 无 | 中 | 防腐协调与 Issue 线 |
 
 ## 8. 交给第二步（防腐整理）
 

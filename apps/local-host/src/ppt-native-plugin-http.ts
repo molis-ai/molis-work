@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { PptPluginRouteTable, createPptRouteHandlers, pptRouteErrorResponse,
+import { PptPluginRouteTable, createPptRouteHandlers,
   type PptRoutePorts, type PptPluginRouteRequest } from "@molis-ai/molis-work-plugin-ppt";
-import { dispatchNativePluginJsonHttp, writeNativePluginJsonResponse } from "./native-plugin-http.js";
+import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { withRewrittenPluginApi } from "./native-plugin-api.js";
 
 export async function handlePptNativePluginHttp(request: IncomingMessage, response: ServerResponse, url: URL,
@@ -13,7 +13,6 @@ export async function handlePptNativePluginHttp(request: IncomingMessage, respon
   try { return await dispatchNativePluginJsonHttp(request, response, routed, {
     prefix: "/api/ppt",
     async handle(input) { return new PptPluginRouteTable(createPptRouteHandlers(await ports(input, { signal: controller.signal }))).handle(input); },
-    mapError: pptRouteErrorResponse,
-  }); } catch (error) { writeNativePluginJsonResponse(response, pptRouteErrorResponse(error)); return true; }
+  }); }
   finally { response.off("close", cancel); }
 }

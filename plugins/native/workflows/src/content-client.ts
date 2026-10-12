@@ -1,6 +1,7 @@
-import { ActionError, type ActionDefinition, type ActionView, type BoundActionClient, type WorkflowContentBinding,
+import { type ActionDefinition, type ActionView, type BoundActionClient, type WorkflowContentBinding,
   type WorkflowContentRole, type WorkflowItemRef, type WorkflowPayload, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { WorkflowContentPorts, WorkflowStationInfo } from "./actions.js";
+import { workflowsErrors } from "./error.js";
 
 // A station that declares it only starts a run (`receives: false`) has no receive; where it may stand is the chain's rule.
 const requiredFor = (views: readonly ActionView[]): readonly WorkflowContentRole[] =>
@@ -27,10 +28,10 @@ export function createWorkflowContentPorts(actions: BoundActionClient): Workflow
     for (const view of views) {
       const role = view.action.workflow_content!.role;
       // More than one version/implementation needs an explicit migration, never an implicit latest selection.
-      if (roles[role]) throw new ActionError("workflows.ambiguous", "同一站点有多份能力版本，需要明确选择后再使用");
+      if (roles[role]) throw workflowsErrors.ambiguous("同一站点有多份能力版本，需要明确选择后再使用");
       roles[role] = view;
     }
-    for (const role of requiredFor(views)) if (!roles[role]) throw new ActionError("workflows.unavailable", `这个站点缺少已授权的 ${role} 能力`);
+    for (const role of requiredFor(views)) if (!roles[role]) throw workflowsErrors.unavailable(`这个站点缺少已授权的 ${role} 能力`);
     return { provider_id: views[0]!.provider.provider_id,
       actions: Object.fromEntries(Object.entries(roles).map(([role, view]) => [role, { capability_id: view.capability_id, version: view.version }])) };
   };
@@ -38,32 +39,32 @@ export function createWorkflowContentPorts(actions: BoundActionClient): Workflow
     const views = await directory();
     if (saved) {
       const station = views.filter(view => view.provider.provider_id === saved.provider_id && view.action.workflow_content!.id === plugin);
-      for (const role of requiredFor(station)) if (!saved.actions[role]) throw new ActionError("workflows.unavailable", `保存的站点缺少 ${role} 能力引用`);
+      for (const role of requiredFor(station)) if (!saved.actions[role]) throw workflowsErrors.unavailable(`保存的站点缺少 ${role} 能力引用`);
       for (const [role, ref] of Object.entries(saved.actions)) {
         const view = views.find(view => view.provider.provider_id === saved.provider_id && view.capability_id === ref.capability_id
           && view.version === ref.version && view.action.workflow_content!.id === plugin && view.action.workflow_content!.role === role);
-        if (!view) throw new ActionError("workflows.unavailable", `已保存的${{ list: "内容列表", read: "读取", receive: "接收", create: "空白创建" }[role]}能力 v${ref.version} 不可用；原引用已保留，请检查插件或重新配置该站点`);
+        if (!view) throw workflowsErrors.unavailable(`已保存的${{ list: "内容列表", read: "读取", receive: "接收", create: "空白创建" }[role]}能力 v${ref.version} 不可用；原引用已保留，请检查插件或重新配置该站点`);
         // Optional blank creation does not disable existing content handoffs.
-        if (role !== "create" && !view.availability.available) throw new ActionError("workflows.unavailable", view.availability.reason);
+        if (role !== "create" && !view.availability.available) throw workflowsErrors.unavailable(view.availability.reason);
       }
       return saved;
     }
     const matches = group(views).filter(group => group[0]!.action.workflow_content!.id === plugin);
-    if (!matches.length) throw new ActionError("workflows.unavailable", `${plugin} 的内容能力未注册或未获授权`);
-    if (matches.length !== 1) throw new ActionError("workflows.ambiguous", `${plugin} 有多个提供方，不能自动替换`);
+    if (!matches.length) throw workflowsErrors.unavailable(`${plugin} 的内容能力未注册或未获授权`);
+    if (matches.length !== 1) throw workflowsErrors.ambiguous(`${plugin} 有多个提供方，不能自动替换`);
     const binding = bindingFor(matches[0]!);
     return resolve(plugin, binding);
   };
   const invoke = async <T>(plugin: string, role: WorkflowContentRole, input: unknown, binding?: WorkflowContentBinding): Promise<T> => {
     const saved = await resolve(plugin, binding);
     const ref = saved.actions[role];
-    if (!ref) throw new ActionError("workflows.unavailable", role === "receive" ? "这个站点只能作为第一站，不接收交过来的内容" : "这个站点不能从空白开始");
+    if (!ref) throw workflowsErrors.unavailable(role === "receive" ? "这个站点只能作为第一站，不接收交过来的内容" : "这个站点不能从空白开始");
     const view = (await directory()).find(view => view.provider.provider_id === saved.provider_id
       && view.capability_id === ref.capability_id && view.version === ref.version);
-    if (!view) throw new ActionError("workflows.unavailable", `能力 ${ref.capability_id} 已失效；原引用已保留`);
+    if (!view) throw workflowsErrors.unavailable(`能力 ${ref.capability_id} 已失效；原引用已保留`);
     const result = await actions.invoke(definition(view), input);
     if ((role === "create" || role === "receive") && (result as WorkflowItemRef).plugin !== plugin) {
-      throw new ActionError("workflows.invalid_result", "内容能力返回了另一个站点的引用");
+      throw workflowsErrors.invalid_result("内容能力返回了另一个站点的引用");
     }
     return result as T;
   };
@@ -77,10 +78,10 @@ export function createWorkflowContentPorts(actions: BoundActionClient): Workflow
           can_start_blank: entries.some(view => view.action.workflow_content!.role === "create" && view.availability.available),
           receives: !entries.some(view => view.action.workflow_content!.receives === false) };
         try {
-          if (groups.filter(other => other[0]!.action.workflow_content!.id === station.id).length > 1) throw new Error("存在多个同名站点，无法自动选择");
+          if (groups.filter(other => other[0]!.action.workflow_content!.id === station.id).length > 1) throw workflowsErrors.ambiguous("存在多个同名站点，无法自动选择");
           bindingFor(entries);
           const unavailable = entries.find(view => view.action.workflow_content!.role !== "create" && !view.availability.available);
-          if (unavailable && !unavailable.availability.available) throw new Error(unavailable.availability.reason);
+          if (unavailable && !unavailable.availability.available) throw workflowsErrors.unavailable(unavailable.availability.reason);
           return info;
         } catch (error) {
           return { ...info, supported: false, reason: error instanceof Error ? error.message : "站点不可用" };

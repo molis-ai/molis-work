@@ -5,8 +5,9 @@ import {
   type ChangeSet,
   type CodingChangeSet,
   type FileSnapshot,
+  type TextDiffRow,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { compareTexts, textDiffRow, type TextDiffRow } from "./text-diff.js";
+import { compareTexts, textDiffRow } from "@molis-ai/molis-work-plugin-sdk";
 import { UnifiedDiffError, hunkRows, parseUnifiedDiff } from "./unified.js";
 
 /**

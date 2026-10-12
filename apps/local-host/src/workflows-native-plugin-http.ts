@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { WorkflowsPluginRouteTable, createWorkflowsRouteHandlers, workflowsRouteErrorResponse } from "@molis-ai/molis-work-plugin-workflows";
+import { WorkflowsPluginRouteTable, createWorkflowsRouteHandlers } from "@molis-ai/molis-work-plugin-workflows";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 
 export interface WorkflowsNativePluginHttpOptions {
@@ -18,6 +18,5 @@ export async function handleWorkflowsNativePluginHttp(request: IncomingMessage, 
       if (result && input.method === "POST") options.invalidateWebView?.();
       return result;
     },
-    mapError: workflowsRouteErrorResponse,
   });
 }

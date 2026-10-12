@@ -9,24 +9,23 @@ import http from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { isRuntimeContextMcpTool, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { LocalActionGatewayClient, ACTION_GATEWAY_PATH, actionGatewayHomeId } from "../apps/local-host/src/action-gateway.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 const save: ActionDefinition<{ text: string }, { saved: number }> = { capability_id: "unknown.gateway.save", version: 1, operation: "command", action: {
   title: "Save note", description: "Persistent fixture note", kind: "operation", scope: "project", audiences: ["mcp"], permissions: ["notes:write"], subject_kinds: [],
   input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false },
   output_schema: { type: "object", properties: { saved: { type: "integer" } }, required: ["saved"], additionalProperties: false } } };
 
-test("official MCP process uses the shared Host registry and durable writes with fresh grants, exact Home, project and instance", { timeout: 60_000 }, async () => {
+test("official MCP process uses the shared Host registry and durable writes with fresh grants, exact Home, project and instance", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "action-gateway-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Gateway", actor_id: "user" }));
-  const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const served = await serveTestHost(t, { home, host });
+  const project = await served.createProject("Gateway");
+  const reference = project.reference;
   const caller: ActionCallContext = { actor_id: "runtime:gateway", project_id: project.project_id, audience: "mcp", permissions: [] };
   let enter: (() => void) | undefined, release: (() => void) | undefined, barrier: Promise<void> | undefined;
   let cancelled: (() => void) | undefined, finished: (() => void) | undefined;
@@ -43,9 +42,7 @@ test("official MCP process uses the shared Host registry and durable writes with
         } finally { finished?.(); }
       } }] });
   });
-  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
+  const origin = served.origin;
   const gateway = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId: caller.actor_id, projectId: project.project_id });
   const sdk = new Client({ name: "untrusted-name", version: "1" });
   await withCatalog({ homeDirectory: home }, catalog => catalog.bindRuntimeContext({
@@ -65,8 +62,7 @@ test("official MCP process uses the shared Host registry and durable writes with
     const name = molisWorkActionToolName(save);
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), false);
     const view = (await host.inspectActions(caller, reference)).find(view => view.capability_id === save.capability_id)!;
-    const grant = createMcpActionGrant(caller.actor_id, caller.project_id, view, true);
-    await writeMcpActionGrant(home, grant);
+    await served.grant(caller.actor_id, caller.project_id, [view]);
     assert.ok((await sdk.listTools()).tools.some(tool => tool.name === name));
     const result = await sdk.callTool({ name, arguments: { text: "real cross-process note" } });
     assert.equal(result.isError, false, JSON.stringify(result)); assert.deepEqual(result.structuredContent, { saved: 1 });
@@ -75,11 +71,11 @@ test("official MCP process uses the shared Host registry and durable writes with
     await gateway.discover(caller);
     const entered = new Promise<void>(resolve => { enter = resolve; }); barrier = new Promise<void>(resolve => { release = resolve; });
     const pending = assert.rejects(gateway.invoke(caller, view, { text: "revoked during wait" }), { code: "mcp.action_revoked" });
-    await entered; await writeMcpActionGrant(home, { ...grant, enabled: false }); release!(); await pending; barrier = undefined;
+    await entered; await served.revoke(caller.actor_id, caller.project_id, [view]); release!(); await pending; barrier = undefined;
     assert.equal((await rows()).length, 1);
     await assert.rejects(gateway.invoke({ ...caller, permissions: ["notes:write"] }, view, { text: "cannot self grant" }));
     assert.equal((await rows()).length, 1);
-    await writeMcpActionGrant(home, grant);
+    await served.grant(caller.actor_id, caller.project_id, [view]);
     const controller = new AbortController();
     const cancellationEntered = new Promise<void>(resolve => { enter = resolve; });
     const remoteCancelled = new Promise<void>(resolve => { cancelled = resolve; });
@@ -107,7 +103,7 @@ test("official MCP process uses the shared Host registry and durable writes with
     const otherCaller = { ...caller, actor_id: "runtime:stranger", permissions: ["notes:write"] };
     assert.equal((await stranger.discover(otherCaller)).some(row => row.capability_id === save.capability_id), false);
     await assert.rejects(stranger.invoke(otherCaller, view, { text: "not authorized" }));
-    const otherProject = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Other", actor_id: "user" }));
+    const otherProject = await served.createProject("Other");
     const otherScope = { ...caller, project_id: otherProject.project_id };
     const otherGateway = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId: caller.actor_id, projectId: otherProject.project_id });
     assert.equal((await otherGateway.discover(otherScope)).some(row => row.capability_id === save.capability_id), false);
@@ -133,7 +129,7 @@ test("official MCP process uses the shared Host registry and durable writes with
     assert.equal((await stale.json() as any).code, "actions.host_replaced");
     await host.closeProject(reference);
     assert.equal((await rows()).length, 1, "durable data survives runtime reopening");
-  } finally { release?.(); await sdk.close(); await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { release?.(); await sdk.close(); await served.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("gateway never retries an uncertain invocation or follows a credential-bearing redirect", { timeout: 15_000 }, async () => {

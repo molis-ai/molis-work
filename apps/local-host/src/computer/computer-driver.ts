@@ -175,7 +175,12 @@ export class ComputerDriver {
       perform: (action, context) => this.perform(action, context.session_id),
       describeRound: (sessionId, context) => { round.sessionId = sessionId; this.ctx.describeRound(sessionId, context); },
       noteRun: (sessionId, runId) => this.ctx.noteRun(sessionId, runId),
-      release: async () => { if (round.sessionId) this.ctx.release(round.sessionId); },
+      // `prologue-node.ts` releases with the Prologue session ref. The surface host calls this with no id.
+      // The lease is the Molis session from `describeRound`; the ref is only a fallback before that ran.
+      release: async (sessionId?: string) => {
+        const leaseId = round.sessionId ?? sessionId ?? null;
+        if (leaseId) this.ctx.release(leaseId);
+      },
       close: async () => undefined,
       describePoint: (x, y) => this.describePoint(x, y),
       focusedField: () => this.focusedField(),

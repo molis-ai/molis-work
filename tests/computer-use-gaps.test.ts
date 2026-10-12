@@ -244,7 +244,10 @@ test("the desktop driver stores the round's project and frees the computer when 
     await assert.rejects(() => driver.observe("accessibility-tree", { session_id: "sess-2" }), /另一项工作/);
     assert.equal(desk.holding()?.sessionId, "sess-molis");
 
-    await driver.release!();
+    // prologue-node.ts:1494 passes the Prologue ref to the surface host. The same driver must
+    // still finish the Molis lease: using that ref as the lease id would leave the computer held.
+    const release = driver.release! as (sessionId?: string) => Promise<void>;
+    await release("sess-prologue-ref");
     assert.equal(desk.holding(), null);
     assert.equal(desk.state().record_id, null);
     const finished = records.get(openId);
@@ -256,7 +259,7 @@ test("the desktop driver stores the round's project and frees the computer when 
     await driver.observe("accessibility-tree", { session_id: "sess-2" });
     assert.equal(desk.holding()?.projectId, "project-b");
     assert.equal(records.get(desk.state().record_id!)?.run_id, "run-10");
-    await driver.release!();
+    await release();
     assert.equal(desk.holding(), null);
   } finally {
     desk.close();

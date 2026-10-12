@@ -10,7 +10,7 @@ import {
   DUE_REMINDERS_INPUT_TYPE, FILE_ENTRIES_INPUT_TYPE, FRAGMENT_OFFERS_INPUT_TYPE, HOME_EVENTS_INPUT_TYPE, PLACEMENT_MOVE_INPUT_TYPE,
   SEARCH_ENTRIES_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_REFERENCE_TYPE, inspectActionDeclarations,
 } from "@molis-ai/molis-work-contracts/platform/actions";
-import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import { defineArtifactPreviewAction, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 const KEY = "example.read@1";
@@ -235,11 +235,15 @@ const ARTIFACT_PERMISSIONS = [
   { permission: "artifact:read", required: true, reason: "Read the inputs" },
   { permission: "artifact:write", required: true, reason: "Save the outputs" },
 ];
-const CONSUMES_INPUT = { produces: [OUTPUT_TYPE], consumes: [INPUT_TYPE] };
+// A type pinned into the 成果库 is named and has a preview action of its own plugin (W3-05-2); `OUTPUT_TYPE` itself stays the bare
+// type the ports and the process items name.
+const OUTPUT_PREVIEW = defineArtifactPreviewAction("example.output.preview", "输出", []);
+const PRODUCED_OUTPUT = { ...OUTPUT_TYPE, title: "输出", preview: { capability_id: OUTPUT_PREVIEW.capability_id, version: OUTPUT_PREVIEW.version } };
+const CONSUMES_INPUT = { produces: [PRODUCED_OUTPUT], consumes: [INPUT_TYPE] };
 
-/** A Manifest that declares `ports` together with the permissions and types they rely on. */
+/** A Manifest that declares `ports` together with the permissions, types and the preview action they rely on. */
 function withPorts(ports: Part, over: Part = {}): Record<string, unknown> {
-  return declarationManifest({ permissions: ARTIFACT_PERMISSIONS, artifacts: CONSUMES_INPUT, ports, ...over });
+  return declarationManifest({ permissions: ARTIFACT_PERMISSIONS, artifacts: CONSUMES_INPUT, actions: [OUTPUT_PREVIEW], ports, ...over });
 }
 const portsOf = (over: Part = {}): Part => ({ inputs: [{ port: "source", ...INPUT_TYPE }], outputs: [{ port: "result", ...OUTPUT_TYPE }], ...over });
 
@@ -268,7 +272,7 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a type that is both a pinned artifact and a process item", manifest: withPorts(portsOf(), { process_items: { produces: [OUTPUT_TYPE], consumes: [] } }), expected: "类型 example.output@1 不能既是成果又是过程项" },
   { rule: "an output port whose type is only a process item", manifest: withPorts(portsOf(), { artifacts: { produces: [], consumes: [INPUT_TYPE] }, process_items: { produces: [OUTPUT_TYPE], consumes: [] } }), expected: "" },
   { rule: "an output port whose type is declared nowhere", manifest: withPorts(portsOf(), { artifacts: { produces: [], consumes: [INPUT_TYPE] } }), expected: "输出端口 result 的类型 example.output@1 没有列入 artifacts.produces 或 process_items.produces" },
-  { rule: "an input port whose type is declared nowhere", manifest: withPorts(portsOf(), { artifacts: { produces: [OUTPUT_TYPE], consumes: [] } }), expected: "输入端口 source 的类型 example.input@1 没有列入 artifacts.consumes 或 process_items.consumes" },
+  { rule: "an input port whose type is declared nowhere", manifest: withPorts(portsOf(), { artifacts: { produces: [PRODUCED_OUTPUT], consumes: [] } }), expected: "输入端口 source 的类型 example.input@1 没有列入 artifacts.consumes 或 process_items.consumes" },
   // events
   { rule: "conforming events", manifest: declarationManifest({ events: { publishes: [{ event_type_id: `${NAMESPACE}.changed`, type_version: 1 }], subscribes: [{ event_type_id: "io.molis.work.files.refreshed", type_version: 1, from_plugin_ids: ["io.molis.work.files"] }] } }), expected: "" },
   { rule: "a published event without a valid type id", manifest: declarationManifest({ events: { publishes: [{ event_type_id: "Bad Id", type_version: 1 }] } }), expected: "发布事件缺少合法类型 ID" },
@@ -406,7 +410,7 @@ const AGENT_RULES: ReadonlyArray<{ rule: string; agent: Part; ports?: Part; expe
 
 for (const { rule, agent, ports, expected } of AGENT_RULES) {
   test(`Agent declarations: ${rule}`, () => {
-    assert.equal(manifestProblems(declarationManifest({ agent, ...(ports ? { ports } : {}), ...(ports ? { permissions: ARTIFACT_PERMISSIONS, artifacts: CONSUMES_INPUT } : {}) })), expected);
+    assert.equal(manifestProblems(declarationManifest({ agent, ...(ports ? { ports } : {}), ...(ports ? { permissions: ARTIFACT_PERMISSIONS, artifacts: CONSUMES_INPUT, actions: [OUTPUT_PREVIEW] } : {}) })), expected);
   });
 }
 
@@ -572,7 +576,7 @@ for (const { rule, input, code, message } of SHAPE_RULES) {
 test("Manifest shape: a v2 Manifest with every optional block spelled out parses and comes back as the same value", () => {
   const input = declarationManifest({
     permissions: [...ARTIFACT_PERMISSIONS, { permission: "surface:browser", required: false, reason: "Show a site", origins: ["https://example.com", "http://localhost:3000"] }],
-    artifacts: CONSUMES_INPUT, process_items: { produces: [], consumes: [] }, ports: portsOf(),
+    artifacts: CONSUMES_INPUT, actions: [OUTPUT_PREVIEW], process_items: { produces: [], consumes: [] }, ports: portsOf(),
     ui: { contributions: [], embedded_plugins: ["io.molis.work.other"] },
   });
   assert.equal(manifestProblems(input), "");

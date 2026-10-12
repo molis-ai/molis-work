@@ -74,7 +74,9 @@ function portPlugin(input: {
       ...(outputs.length > 0 ? [{ permission: "artifact:write", required: true, reason: "发布端口产出" }] : []),
     ],
     capabilities: { provides: [], consumes: [] },
-    artifacts: {
+    artifacts: { produces: [], consumes: [] },
+    // Port values are process items: exchange data kept out of the 成果库 (artifact-positioning A2).
+    process_items: {
       produces: outputs.map((port) => ({ artifact_type_id: port.type, schema_version: port.version ?? 1 })),
       consumes: inputs.map((port) => ({ artifact_type_id: port.type, schema_version: port.version ?? 1 })),
     },

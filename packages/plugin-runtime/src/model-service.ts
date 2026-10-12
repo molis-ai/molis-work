@@ -15,7 +15,7 @@ export const pluginModelErrors = defineErrorCodes("plugin", {
   model_action_not_concurrent: "forbidden",
   /** The prompt or system is not an instruction this plugin registered. */
   model_instruction_refused: "invalid",
-  /** A timeout or a token count outside what the service allows. */
+  /** A timeout, a token count or an output kind outside what the service allows. */
   model_limit_exceeded: "invalid",
   /** The model answered, but not with JSON, though JSON was asked for. */
   model_output_invalid: "upstream",

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import type { ActionCallContext, ActionDefinition, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionDefinition, ActionExecutionContext, ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { PLUGIN_MODEL_LIMITS, type PluginDefinition, type PluginHostServices, type PluginManifest, type PluginModelClient, type PluginModelResult,
   type PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -109,11 +109,13 @@ function withDirectory(run: (directory: string) => Promise<void>) {
 
 type Injection = HostCompleteText | null | undefined;
 /** The platform the way a project's start builds it, over a Home directory. `injection` is read when a call needs it, as the Host's is. */
-function platformIn(directory: string, injection: { current: Injection } | null = { current: undefined }) {
+function platformIn(directory: string, injection: { current: Injection } | null = { current: undefined }, registered?: ActionProviderRegistration[]) {
   const file = join(mkdtempSync(join(directory, "board-")), "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
-  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  const shared = pluginActions(store, DEMO_PROJECT_ID);
+  // The registrations the Runtime makes, kept when a test wants to reach a handler without the kernel in front of it.
+  const actions = registered ? { ...shared, registry: { registerProvider: (registration: ActionProviderRegistration) => { registered.push(registration); return shared.registry.registerProvider(registration); } } } : shared;
   const platform = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
@@ -271,6 +273,25 @@ test("the model is for an action: not for start(), not for a handler of another 
       // The same action, called properly, works.
       plugin.on.ask = ({ model: client }) => client.complete(instructed(plugin.summarize, "材料"));
       assert.deepEqual(await item.invoke(plugin.ask), { text: "摘要结果" });
+      assert.equal(model.calls.length, 1);
+    } finally { item.store.close(); }
+  }));
+
+test("the Runtime asks the call itself and not only the kernel: a handler reached with a caller that does not hold model:invoke is refused, and one whose beforeEffect refuses never reaches the model",
+  { timeout: 60_000 },
+  withDirectory(async directory => {
+    const model = standIn(), registered: ActionProviderRegistration[] = [];
+    const item = platformIn(directory, { current: model.complete }, registered), plugin = probe();
+    try {
+      await item.platform.start([{ definition: plugin.definition, ...GRANTED }]);
+      const handler = registered.flatMap(registration => registration.handlers).find(binding => binding.capability_id === plugin.ask.capability_id)
+        ?? assert.fail("the Runtime registered the plugin's action");
+      const context = (extra: Partial<ActionExecutionContext>): ActionExecutionContext => ({ actor_id: "tester", project_id: DEMO_PROJECT_ID, audience: "user",
+        permissions: [MODEL_INVOKE], beforeEffect: async () => {}, ...extra });
+      await assert.rejects(Promise.resolve(handler.handle(context({ permissions: [] }), {})), { code: "actions.forbidden" });
+      await assert.rejects(Promise.resolve(handler.handle(context({ beforeEffect: async () => { throw new Error("这次调用已经结束"); } }), {})), /这次调用已经结束/);
+      assert.equal(model.calls.length, 0, "neither reached the model");
+      assert.deepEqual(JSON.parse(await handler.handle(context({}), {}) as string), { text: "摘要结果" });
       assert.equal(model.calls.length, 1);
     } finally { item.store.close(); }
   }));

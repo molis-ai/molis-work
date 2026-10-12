@@ -4,7 +4,8 @@
  * Feed URLs are product identifiers, not credentials. Inbox Source rows may
  * store them in plaintext; Activity / Run ledgers must not.
  */
-import { FeedDomainError as DomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export const CUSTOM_RSS_DEFINITION_ID = "custom-rss";
 export const CUSTOM_RSS_MAX_URL_LENGTH = 2048;
@@ -48,16 +49,10 @@ export function normalizeCustomRssFeedUrl(value: string | undefined): string {
     throw invalidCustomRssUrl();
   }
   if (isYouTubeHost(host)) {
-    throw new DomainError(
-      "YouTube feeds must be added as an official public-channel source",
-      "inbox_source_use_youtube_channel",
-    );
+    throw feedErrors.source_use_youtube_channel("YouTube feeds must be added as an official public-channel source");
   }
   if (isRedditHost(host)) {
-    throw new DomainError(
-      "Reddit cannot be added as a custom RSS URL",
-      "inbox_source_use_official_reddit",
-    );
+    throw feedErrors.source_use_official_reddit("Reddit cannot be added as a custom RSS URL");
   }
   url.hostname = host;
   return url.toString();
@@ -150,9 +145,6 @@ function isDisallowedIpv4(address: string): boolean {
   return false;
 }
 
-function invalidCustomRssUrl(): DomainError {
-  return new DomainError(
-    "Custom RSS must be an https:// URL with a public hostname and no credentials",
-    "invalid_custom_rss_url",
-  );
+function invalidCustomRssUrl(): ActionError {
+  return feedErrors.custom_rss_url_invalid("Custom RSS must be an https:// URL with a public hostname and no credentials");
 }

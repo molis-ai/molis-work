@@ -1,4 +1,5 @@
 import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { scheduleFailure } from "./error.js";
 import type { ScheduledOperationIdentity, ScheduledOperationInput } from "./operations.js";
 
 export const SCHEDULE_OPERATION_PROVIDER_ID = "schedule.operations";
@@ -28,7 +29,7 @@ export function createScheduledOperationActionHandlers(projectId: string, ports:
     return { projectId, pluginId: context.actor_id.slice("plugin:".length), installationId: context.plugin_install_id };
   };
   return [
-    { ...scheduledOperationActions.add, handle: async (context, input) => { await context.beforeEffect(); return ports.add(identity(context), input as ScheduledOperationInput); } },
-    { ...scheduledOperationActions.cancel, handle: async (context, input) => { await context.beforeEffect(); return ports.cancel(identity(context), input as { scheduleId: string }); } },
+    { ...scheduledOperationActions.add, handle: async (context, input) => { await context.beforeEffect(); try { return ports.add(identity(context), input as ScheduledOperationInput); } catch (error) { throw scheduleFailure(error); } } },
+    { ...scheduledOperationActions.cancel, handle: async (context, input) => { await context.beforeEffect(); try { return ports.cancel(identity(context), input as { scheduleId: string }); } catch (error) { throw scheduleFailure(error); } } },
   ];
 }

@@ -23,7 +23,7 @@ Directory candidates and browsing preferences come from the [current-project set
 - 负责：工作树变更、提交草稿与已接受的变更集。
 - 不负责：运行 git、批准操作、渲染比较。
 - 公开入口：`@molis-ai/molis-work-plugin-git`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 插件从不运行 `git`；写操作经 Host 与审查。
   - 接受一轮变更是人的决定，不是自动后果；插件只判断该决定是否仍然适用。

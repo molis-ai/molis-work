@@ -1,4 +1,5 @@
-import { bindOwnerPluginAction, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { gitActions, type GitSelected } from "./action-definitions.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";

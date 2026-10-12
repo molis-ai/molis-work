@@ -1,4 +1,5 @@
-import { bindOwnerPluginAction, defineFileContentAction, defineFileEntriesAction, fileContentOf, fileEntriesPage, type ActionDefinition, type ActionHandlerBinding, type FileEntry, type FileEntriesInput, type FileSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineFileContentAction, defineFileEntriesAction, fileContentOf, fileEntriesPage, type ActionDefinition, type ActionHandlerBinding, type FileEntry, type FileEntriesInput, type FileSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { object, id, integer, path, rootPath, workspace, fileResult, nullable, snapshot, publication } from "@molis-ai/molis-work-contracts/modules/workspace-action-schemas";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";

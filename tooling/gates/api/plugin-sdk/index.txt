@@ -154,6 +154,8 @@ export declare function actionErrorResponse(error: unknown, options?: ActionErro
 
 export declare function actionHttpStatus(error: unknown): number;
 
+export declare function alignSplitRows(rows: readonly TextDiffRow[]): SplitPair[];
+
 export { assertDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { assertHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -166,8 +168,11 @@ export { bindFileEntriesHandler } from "@molis-ai/molis-work-contracts/platform/
 export { bindHomeObjectMoveHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindObjectCopyHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindObjectMoveHandler } from "@molis-ai/molis-work-contracts/platform/actions";
-export { bindOwnerPluginAction } from "@molis-ai/molis-work-contracts/platform/actions";
-export { bindPluginActionRoute } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function bindOwnerPluginAction<Input, Output>(context: PluginStartContext, definition: ActionDefinition<Input, Output>, handle: (input: Input, beforeWrite: () => Promise<void>) => Output | Promise<Output>, dependencies?: readonly ActionReference[]): ActionHandlerBinding;
+
+export declare function bindPluginActionRoute<Input, Output>(context: PluginStartContext, definition: ActionDefinition<Input, Output>, input: (request: PluginRouteRequest) => Input, route_id?: string): PluginRouteBinding;
+
 export { bindSearchEntriesHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
 

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { JellyBlock, JellyCommand, JellyItem, JellyNote, JellyPlan, JellyRelation, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { makeJellyItem, jellyOccurrences, jellySchedulesOverlap } from "./calendar.js";
-import { jellyAssert } from "./error.js";
+import { jellyAssert, jellyErrors } from "./error.js";
 import { validateJellySchedule } from "./calendar-validation.js";
 import { jellyMarkdownToBlocks, jellyHtmlToBlocks } from "./markdown.js";
 
@@ -10,7 +10,7 @@ export function jellySourceHash(state: JellyWorkspace, sourceType: "note" | "tex
   if (sourceType === "note") return jellyHash(JSON.stringify(noteById(state, sourceId).blocks));
   return jellyHash(sourceText);
 }
-function noteById(state: JellyWorkspace, id: unknown): JellyNote { const n = state.notes.find(n => n.id === id); jellyAssert(n, "笔记不存在", "jelly.not_found", 404); return n; }
+function noteById(state: JellyWorkspace, id: unknown): JellyNote { const n = state.notes.find(n => n.id === id); jellyAssert(n, "笔记不存在", jellyErrors.not_found); return n; }
 function record(value: unknown): Record<string, unknown> { jellyAssert(value && typeof value === "object" && !Array.isArray(value), "命令内容必须是对象"); return value as Record<string, unknown>; }
 function string(value: unknown, fallback = ""): string { if (value == null) return fallback; jellyAssert(typeof value === "string", "内容必须是文本"); return value; }
 function category(state: JellyWorkspace, id: unknown): string { const result = id === undefined ? "uncategorized" : string(id); jellyAssert(state.categories.some(c => c.id === result), "分类不存在"); return result; }
@@ -33,7 +33,7 @@ function taskBlock(state: JellyWorkspace, command: JellyCommand): { note: JellyN
 }
 function synchronizeNoteTasks(state: JellyWorkspace, note: JellyNote, now: string): void {
   for (const link of state.task_links.filter(l => l.note_id === note.id)) {
-    const block = note.blocks.find(b => b.id === link.block_id); jellyAssert(block?.kind === "task", "先取消该任务的日历关联，再删除或转换任务区块", "jelly.linked_task", 409);
+    const block = note.blocks.find(b => b.id === link.block_id); jellyAssert(block?.kind === "task", "先取消该任务的日历关联，再删除或转换任务区块", jellyErrors.linked_task);
     const item = state.items.find(i => i.id === link.item_id)!; jellyAssert(block.text.trim(), "已排期任务的标题不能为空"); item.title = block.text.trim(); item.completed_at = block.completed_at; item.completion_description = block.completion_description; item.updated_at = now;
   }
 }
@@ -82,7 +82,7 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
       const note = noteById(state, command.id);
       jellyAssert(command.format === "markdown" || command.format === "html", "笔记导入格式无效");
       jellyAssert(command.mode === "append" || command.mode === "replace", "笔记导入方式无效");
-      jellyAssert(command.expected_note_revision === undefined || command.expected_note_revision === note.revision, "笔记已在其他窗口修改，请重新载入", "jelly.conflict", 409);
+      jellyAssert(command.expected_note_revision === undefined || command.expected_note_revision === note.revision, "笔记已在其他窗口修改，请重新载入", jellyErrors.conflict);
       const previous = command.mode === "replace" ? note.blocks : [];
       const imported = command.format === "markdown" ? jellyMarkdownToBlocks(string(command.source), previous, now) : jellyHtmlToBlocks(string(command.source), previous);
       note.blocks = command.mode === "append" ? [...note.blocks, ...imported] : imported;
@@ -90,7 +90,7 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
     }
     case "note.update": {
       const note = noteById(state, command.id), patch = record(command.patch);
-      jellyAssert(command.expected_note_revision === undefined || command.expected_note_revision === note.revision, "笔记已在其他窗口修改，请重新载入", "jelly.conflict", 409);
+      jellyAssert(command.expected_note_revision === undefined || command.expected_note_revision === note.revision, "笔记已在其他窗口修改，请重新载入", jellyErrors.conflict);
       if (patch.title !== undefined) note.title = string(patch.title);
       if (patch.category_id !== undefined) note.category_id = category(state, patch.category_id);
       if (patch.pinned !== undefined) { jellyAssert(typeof patch.pinned === "boolean", "置顶值无效"); note.pinned = patch.pinned; }
@@ -134,7 +134,7 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
       const plan = record(command.plan) as unknown as JellyPlan; jellyAssert(typeof plan.id === "string" && plan.id.length > 0 && Array.isArray(plan.actions), "拆解提案无效");
       if (state.applied_plan_ids.includes(plan.id)) return true;
       jellyAssert(["note", "text"].includes(plan.source_type), "提案来源无效");
-      jellyAssert(plan.source_hash === jellySourceHash(state, plan.source_type, plan.source_id, plan.source_text), "原文已变更，请重新生成提案", "jelly.source_changed", 409);
+      jellyAssert(plan.source_hash === jellySourceHash(state, plan.source_type, plan.source_id, plan.source_text), "原文已变更，请重新生成提案", jellyErrors.source_changed);
       const selected = command.selected_action_ids === undefined ? plan.actions.map(a => a.id) : command.selected_action_ids; jellyAssert(Array.isArray(selected) && selected.every(id => typeof id === "string"), "选择的任务无效"); jellyAssert(selected.length > 0 && new Set(selected).size === selected.length, "至少选择一项任务，不能重复");
       jellyAssert(selected.every(id => plan.actions.some(a => a.id === id)) && new Set(plan.actions.map(a => a.id)).size === plan.actions.length, "提案任务 ID 无效");
       const actions = plan.actions.filter(a => selected.includes(a.id));
@@ -145,8 +145,8 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
         if (action.schedule) {
           validateJellySchedule(action.schedule);
           const conflict = jellyOccurrences(state, action.schedule.start_date, action.schedule.end_date).find(item => jellySchedulesOverlap(item, action.schedule!));
-          jellyAssert(!conflict, `时间已被「${conflict?.title ?? "其他事项"}」占用，请调整排期`, "jelly.schedule_conflict", 409);
-          jellyAssert(!proposed.some(schedule => jellySchedulesOverlap(schedule, action.schedule!)), "提案中的任务排期重叠，请调整排期", "jelly.schedule_conflict", 409); proposed.push(action.schedule);
+          jellyAssert(!conflict, `时间已被「${conflict?.title ?? "其他事项"}」占用，请调整排期`, jellyErrors.schedule_conflict);
+          jellyAssert(!proposed.some(schedule => jellySchedulesOverlap(schedule, action.schedule!)), "提案中的任务排期重叠，请调整排期", jellyErrors.schedule_conflict); proposed.push(action.schedule);
         }
       }
       let insertionAfter: string | undefined;
@@ -155,8 +155,8 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
         const selection = record(plan.selection), ids = selection.block_ids; const source = noteById(state, plan.source_id);
         jellyAssert(Array.isArray(ids) && ids.length > 0 && new Set(ids).size === ids.length && ids.every(id => typeof id === "string"), "选区块 ID 无效");
         const indices = ids.map(id => source.blocks.findIndex(block => block.id === id));
-        jellyAssert(indices.every((index, offset) => index >= 0 && (offset === 0 || index === indices[offset - 1]! + 1)), "选区已变化，请重新选择连续正文", "jelly.source_changed", 409);
-        jellyAssert(typeof selection.text === "string" && selection.text.trim() && source.blocks.slice(indices[0], indices.at(-1)! + 1).map(block => block.text).join("\n").includes(selection.text) && plan.source_text === selection.text, "选区原文不一致，请重新生成提案", "jelly.source_changed", 409);
+        jellyAssert(indices.every((index, offset) => index >= 0 && (offset === 0 || index === indices[offset - 1]! + 1)), "选区已变化，请重新选择连续正文", jellyErrors.source_changed);
+        jellyAssert(typeof selection.text === "string" && selection.text.trim() && source.blocks.slice(indices[0], indices.at(-1)! + 1).map(block => block.text).join("\n").includes(selection.text) && plan.source_text === selection.text, "选区原文不一致，请重新生成提案", jellyErrors.source_changed);
         jellyAssert(command.note_id === undefined || command.note_id === source.id, "选区提案必须写回原笔记"); insertionAfter = ids.at(-1) as string;
       }
       const target = command.note_id ?? (plan.source_type === "note" ? plan.source_id : null);

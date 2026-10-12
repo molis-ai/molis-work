@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中（2026-10-12）。§4.1 的兼容清理、第1/2波、第3波A批及其合规修复已合入main；第3波B/C的I1–I3已合入。I4八片已整合并补跑中断文件，四片已合入，其余#455–#457/#459完成当前main复验并推送、等待全部CI与同步。I5全量6,051条中的三项失败已完成基线对照和修正后23/23；第五批F/G2/F1已开#465–#467，d与1b接续复验。独立测试修复#451/#461/#462已合入，#464待CI。Home与G1/G3的候选实现/范围及证据分列§10，未验证项不记完成。继续余下第3波、每批合规复查、第4–6波与错误码改写后的维护八；维护六/七已核对，BL-126只剩用户重开旧会话。
+状态：执行中（2026-10-12）。§4.1 的兼容清理、第1/2波、第3波A批及其合规修复已合入main；第3波B/C的I1–I3已合入。I4八片已整合并补跑中断文件，四片已合入，其余#455–#457/#459完成当前main复验并推送、等待全部CI与同步。I5全量6,051条中的三项失败已完成基线对照和修正后23/23；第五五片完成当前main复验并开#465–#469，待全部CI与合入。独立测试修复#451/#461/#462已合入，#464待CI。Home与G1/G3的候选实现/范围及证据分列§10，未验证项不记完成。继续余下第3波、每批合规复查、第4–6波与错误码改写后的维护八；维护六/七已核对，BL-126只剩用户重开旧会话。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -1273,13 +1273,15 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | 第四批、I4 | #452–#454、#458 已合入；#455–#457、#459 已开 PR，随 C 合入解文档冲突后重排 | 8 片已整合；390 个取消文件已全部补跑。对齐 I3 main 后整体构建、全包类型检查、健康与边界通过，17 文件 237 条定向用例与 5 文件 7 条浏览器用例全过。归回整合修复后依次合入，分片补验证据如下。 |
 | 第五批 | 未合入 | W3-02-F、W3-02-G2、W3-06-F1、W2-11-d 的末轮评审为通过；W3-10-1b 的手机错误 toast、按钮尺寸与文档修复已完成，追加 ebc4d0123 将最终样式与测试提交：16 文件 149 条定向用例、3 文件 11 条浏览器用例全过，包含 390px 浅深色、桌面及无项目入口；W3-02-F 已对齐诊断 main e4ec01bd0 到 9aa606ffc，16 普通文件 146/146 与锁内 Shelf 浏览器 6/6；诊断 main 组合 4 文件 21/21，构建与门禁通过、资源不变；三份 CSS 比原分支预算各降 3 字节，健康与边界通过。第四批 I4 八片已全部开 PR；第五批的 F1 已对齐最新 main 到 82a7baf6d，5 文件 22/22 与构建/门禁通过，通用路由操作保留 Coding 专属钩子且无 API/动作/资源变化；第五批进入独立 feature/anti-corruption-wave3-i5 整合；原 I4 树保留，只在新的隔离树中继续。G2 与 MCP formatter 的组合点已确认：目录错误折为 ActionError 后，元数据须保留到新的 mcp-call-id formatter，可信编号最后写入；修复归 G2，验证后再合入。只读复核指出未留行时 details.call_id 可自称编号、details.code 可覆盖真实码，已在 adb68f210 过滤这两项保留字段；ActionError 与 V1 分支均只写真实码和确实留行的宿主编号，其他详情保留。主协调对照实际 diff 与日志确认修复，公开 MCP 用例覆盖真实未来版本目录不改原库、两类错误有/无调用行及实际可查的 Host 编号；15 普通文件 158/158、锁内成果导入浏览器 1/1，构建、健康、边界与资源通过；G2 已对齐诊断 main 到 33b01d727，新增 3 文件 35/35；FunctionsError 出口退役，动作与资源不变。 |
 
-**第五批当前 main 复验与发布。** 三片已在ed419f303独立锁内整体构建/类型/边界/健康、API/动作/资源实测，并核对远端发布HEAD；只将原整合修复归回对应片，未增加生产补丁。F与G2的工厂及元数据边界已有独立窄复核；相关当前组合用例均无跳过/取消。各PR等待全部CI/Verify及main同步，不把READY或已开PR记作合入。
+**第五批当前 main 复验与发布。** 五片已在ed419f303独立锁内整体构建/类型/边界/健康、API/动作/资源实测，并核对远端发布HEAD；只将原整合修复归回对应片，未增加生产补丁。F与G2的工厂及元数据边界已有独立窄复核；相关当前组合用例均无跳过/取消。各PR等待全部CI/Verify及main同步，不把READY或已开PR记作合入。
 
 | 片与 PR | 发布 HEAD | 当前定向证明与合同影响 |
 | --- | --- | --- |
 | W3-02-F #465 | c0f80835a | 4文件22/22，真实Coding→Shelf、伪造外来code/call_id拒绝、指纹409；95子类/516坏形状/173状态/1116非主人码，API/动作/29资源不变。旧146/146与Shelf浏览器6/6等证据保留。 |
 | W3-02-G2 #466 | b8fbe0268 | 4文件41/41，真实未来catalog元数据和原库不变、两错误类型×有无记录的保留字段拒绝、Functions413/非法JSON400且never不执行、SDK/真实Runtime HTTP；FunctionsError公开类删除的原快照同步，动作/资源不变。 |
 | W3-06-F1 #467 | 73f8ef7a8 | 3文件10/10，真实运行状态503/POST重试持久running、upgrade409不改安装、view/no-cache、未声明404与控制令牌/项目隔离；仅5文件共同Runtime操作提取，Coding输入图钩子保留，API/动作/资源不变。 |
+| W2-11-d #468 | ad66deb95 | 5文件22/22，真实HTTP授予、catalog未提供/卸载拒绝、精确权限撤权/替换、MCP作者与收据、唯一Agent服务整轮编号；31文件仅测试/文档/生成，869内部引用、164混源；API/动作/资源不变。 |
+| W3-10-1b #469 | 39cdb9339 | 4普通文件60/60、3锁内浏览器文件6/6，真实迟到响应交错、可查号复制/无记录无号/断线未知、390px浅深色44px按钮及桌面/独立设置；API/动作不变，29资源11,366,488字节比main减156，四个预算实测只降。 |
 
 独立Issue decoder barrier #464发布43175b137，同main实际整体构建与门禁后浏览器5/5；diff只有测试两行。原生拖放、图片上限/格式、取消离开后DOM/存储与原时限保留，生产及公开合同不变；待全部CI/Verify及main同步。
 
@@ -1334,7 +1336,7 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 | 编号 | 可观察结果与证明路径 |
 | --- | --- |
 | W3-06-F-01 | 公开 Host 的并发发现、动作、场景和 HTTP 共用一个 Home Runtime；两个项目读取同一 Home 安装。真实装配拒绝 Home/project 重叠及同名伪造内置定义；仅可信 bundled 用插件名作 provider，其他安装用安装编号。 |
-| W3-06-F-02 | Home 的数据库、模型和动作服务只取可信条目、调用者和当前安装授权；未声明/不足权限、沙箱、宿主或他人数据库及过期世代均拒绝，模型/业务写入未发生。Home 及项目作用域动作/场景按真实 scope 授予；缺项目的 project 动作拒绝，不从输入制造身份。 |
+| W3-06-F-02 | Home 的数据库、模型和动作服务只取可信条目、调用者和当前安装授权；未声明/不足权限、沙箱、宿主或他人数据库及过期世代均拒绝，模型/业务写入未发生。Home 及项目作用域动作/场景按真实 scope 授予；缺项目的 project 动作拒绝，不从输入制造身份。HostPluginCaller.project_id精确表达string或null，Home保留真实plugin/installation/actor身份且项目为null；既有Agent项目入口显式拒绝null及不匹配项目，保留原拒绝码，Kernel project_required仍生效。公开app-host快照、真实Home消费身份和项目拒绝证明同片同步。 |
 | W3-06-F-03 | Home 的原生 concurrent 动作经 E 的共同模型入口与本人登记指令调用；指令不能盖过现有目录 owner。取消、撤权、停用、调用结束后的结果不交付且无业务写入；未配模型明确拒绝，调用编号不传给 Prologue。 |
 | W3-06-F-04 | 新库按完整 v2 schema 创建，既有 services.storage 的 KV 持久化并隔离安装；真实交错的 compareAndSet 只有匹配版本者提交。失败升级恢复原 KV，升级校验只读；撤权/停止后的旧 storage handle 不再写。 |
 | W3-06-F-05 | 用独立 SQL 夹具构造非空 v1 和缺 KV 表的损坏 v2，经公开 Host 启动拒绝；原版本、安装/授权/发行物/世代及事实不变，不新增表、不重建、不静默清空。无运行时迁移或读取兼容。 |
@@ -1343,9 +1345,11 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 | W3-06-F-08 | 损坏 Home Runtime 库使其自身保持明确失败，公开发现、Goals 页面与其他项目动作仍可用；普通 ready 不自行重试，受保护的显式 retry 并发只启动一次。清理失败或关闭不另开实例。 |
 | W3-06-G-01 | README、接入/迁移/调用链/事实 owner/库版本及相关 Skill 与实际接线一致；不宣称 Todo 等业务插件已迁移。更新创作台挂载章节时，离线 replay 与隔离 smoke 通过；共享装配整体构建、门禁和协调全量回归提供工程证据，真实 Home 维护另列具体条数与授权。 |
 
-2026-10-12 接续状态：独立分支 `feature/plugin-home-runtime-services` 当前干净source-only `df54a4956`，原实现02d44ea7c的36文件+906/-137保留。独立只读复核发现模型可用性测试在action外调complete会先遇生命周期拒绝；4fd2fa407仅改为停用/关闭barrier前后验证availability，真实取消/撤权/停用不交付结果与写入的断言保留。df54同步S08/S15/S18安全表和test:security的两份Home/模型生命周期测试。包含F服务与身份/作用域接线、完整v2拒绝及G文档；无SDK、Manifest、动作schema或Workbench资源的意图变化。当前只核对源码，尚未install/build/typecheck/gates或运行测试，不能据此判定以上验收完成。所改Skill章节不在Builder CHAPTERS，不触发studio replay；安装与Skill规范检查仍需执行。整合与协调全量另记。
+2026-10-12 接续状态：独立分支 `feature/plugin-home-runtime-services` 当前干净source-only `df54a4956`，原实现02d44ea7c的36文件+906/-137保留。独立只读复核发现模型可用性测试在action外调complete会先遇生命周期拒绝；4fd2fa407仅改为停用/关闭barrier前后验证availability，真实取消/撤权/停用不交付结果与写入的断言保留。df54同步S08/S15/S18安全表和test:security的两份Home/模型生命周期测试。包含F服务与身份/作用域接线、完整v2拒绝及G文档；无SDK、Manifest、动作schema或Workbench资源的意图变化。原source-only阶段仅核对源码；首轮整体构建因Home caller项目类型冲突失败，尚未通过类型/门禁或用例，不能据此判定以上验收完成。所改Skill章节不在Builder CHAPTERS，不触发studio replay；安装与Skill规范检查仍需执行。整合与协调全量另记。
 
-该固定稿的独立复查与主协调核对发现一项测试缺陷：两条 stop/close 用例在动作外调 model.complete，现行模型合同先答 plugin.model_action_required，不能证明实例失效。独立 test-only `4fd2fa407` 改为在真实 barrier 前后验证旧 model.availability 从非 provider_stopped 变为精确的拒绝，真实动作内取消/停用/撤权/断开后无交付及无写入断言保留；生产拒绝顺序不变。当前 source-only `df54a4956` 并已同步 S-15/S-18 与两份新增安全测试的实际 CI 清单；无确认的运行时 P1，仍未运行工程检查。主协调核对当前 Builder CHAPTERS 不挂本片改的 host.md、authoring.md 或 Prologue Skill；没有运行或宣称 replay。真实 Home 的 plugin-runtime.db 及其 WAL/SHM 当前不存在，4173/4207/4208 无监听；只查存在性和监听，没有打开库、读取密钥或维护写入，后续若出现旧库重新核对。
+该固定稿的独立复查与主协调核对发现一项测试缺陷：两条 stop/close 用例在动作外调 model.complete，现行模型合同先答 plugin.model_action_required，不能证明实例失效。独立 test-only `4fd2fa407` 改为在真实 barrier 前后验证旧 model.availability 从非 provider_stopped 变为精确的拒绝，真实动作内取消/停用/撤权/断开后无交付及无写入断言保留；生产拒绝顺序不变。当前 source-only `df54a4956` 并已同步 S-15/S-18 与两份新增安全测试的实际 CI 清单；无确认的运行时P1，首轮候选构建类型失败，完整工程检查尚未通过。主协调核对当前 Builder CHAPTERS 不挂本片改的 host.md、authoring.md 或 Prologue Skill；没有运行或宣称 replay。真实 Home 的 plugin-runtime.db 及其 WAL/SHM 当前不存在，4173/4207/4208 无监听；只查存在性和监听，没有打开库、读取密钥或维护写入，后续若出现旧库重新核对。
+
+Home首轮候选构建停在TS2322：可信caller的真实null项目与旧HostPluginCaller的string声明冲突，后续门禁/用例未运行。按已接受F-02的Home身份与真实scope补接（日常实现取舍）：只将既有项目字段定型为string|null，Agent项目入口先拒null并窄化，Memory继续收到真实插件身份；不丢caller、不伪造项目、不新开SDK端口或权限。该公共类型变化与消费者/快照/实际拒绝同片实现，完成后重新整体构建；当前未宣称通过。
 
 ### 10.3 浏览器请求剩余片的接续验收（W3-10）
 
@@ -1390,10 +1394,13 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 
 | 编号 | 可观察结果与证明路径 |
 | --- | --- |
-| W3-07-4-01 | 三个管理MCP工具经现有bindGoalsManagementActions和同一ActionClient执行；每次恰有一条Goals动作记录、没有typed行，保留伪造_meta编号拒绝与Host可信编号。不扩大LocalMcpServer。 |
+| W3-07-4-01 | 三个管理MCP工具经现有bindGoalsManagementActions和同一ActionClient执行；到达真实Goals动作时恰有一条动作记录、没有typed行，保留伪造_meta编号拒绝与Host可信编号。既有factory的身份检查、event字段检查在invoke前拒绝，可零动作行/无编号，不人为补记录。不扩大LocalMcpServer。 |
 | W3-07-4-02 | 工具名/schema/字段挑选与JSON输出保持；database参数优先于环境、无默认路径。initialize忽略额外身份；event-decide拒未知字段/authority；tree-decide保留顶层及authority身份拒绝、prompted_proposal_id与出处默认。拒绝不写业务事实；CLI提交→Host重启→MCP决定/幂等回放保持。 |
 | W3-07-5-01 | 在删前固定当前十个Goals自有typed协议ID与版本，删后三个capability文件、两份合同中的对应类型/描述符、两处出口及十个注册；公开Host/SDK availability和invoke逐项答actions.dependency_missing，伪造描述符不能恢复入口。权限/提供方的有效用例改走真实动作，不靠删断言过关。 |
 | W3-07-5-02 | InitializeBoardOutput回到board-actions；两个management authority移到小的Goals owner文件，现有evidence保留且真实管理调用通过。checkNoGoalTypedAdapters做带mutation的绝对拒绝；相关API快照更新，巨大单元、typed计数与基线只降，动作schema和资源无意图变化。 |
+| W3-02-H-01 | PR4→PR5后删除MolisWorkV1Error、platform/errors子路径/快照及全部生产/测试消费者，改同一ActionError和SDK错误体；details显式保留，无旧别名/兼容读。两个MCP renderer共用JSON {error,code,details?,call_id?}，保留isError/content和成功工具schema/structuredContent；details中的code/call_id排除，真实code与Host实际已留行的号最后写，输入/_meta不造号。公开影响在API/MCP文档明示。 |
+| W3-02-H-02 | Goals HTTP所有已知输入/owner拒绝经共同SDK，保留原400/404/409、消息/详情及无事实写入；未知内部异常500/actions.execution_failed。现owner对实际配置/协议/闭环版本冲突声明conflict，保留旧409，不将transport regex搬家或提前改名。八个用户输入裸Error先补既有invalid分类，不能换catch后误回500；可选guidance读取降级与成功/正常missing业务结果保持。真实missingGoal页面证明web-panel旧V1→404分支删除后的状态。 |
+| W3-02-H-03 | 三管理工具、普通动作及原V1/连接拒绝走真实MCP/HTTP证明：保留fields/current_version/recovery、真实编号可查，未留行无号；真实stale409/输入400/未知500及原method和读体限额。CLI提交后真正关闭/重启同一隔离Host，再由管理MCP决定及幂等回放，无重复决定。测试预期用literal，不复制私有factory或增加内部导入。 |
 
 允许修改实际tool-dispatch、goal-event-commands、mcp-v1-tool与MCP类型出口，PR-5对应桥/合同/注册与owner小文件、门禁、测试及必要文档。旧“迁Casebook observer”不再适用；每片依现有management-door-identity、mcp-goal-events-state、proposal-entry-chain的真实入口验证，整合全量由协调运行。当前为已核对的执行边界，尚未实现或验证。
 

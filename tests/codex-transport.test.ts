@@ -6,6 +6,9 @@ import {
   CodexAppServerTransportError,
 } from "@molis-ai/molis-work-service-runtime-host";
 
+// The transport announces the version its host gives it; the product version is the Host's (apps/local-host/src/product-version.ts).
+const CLIENT_VERSION = "9.8.7-test";
+
 const FAKE_APP_SERVER = `
 const readline = require("node:readline");
 const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
@@ -42,6 +45,7 @@ readline.createInterface({ input: process.stdin }).on("line", line => {
 test("concurrent first requests wait for the same initialized transport", async () => {
   let starts = 0;
   const transport = new CodexAppServerTransport({
+    clientVersion: CLIENT_VERSION,
     command: process.execPath, args: ["-e", ORDERED_APP_SERVER],
     spawnProcess: ((...args: Parameters<typeof spawn>) => { starts++; return spawn(...args); }) as typeof spawn,
   });
@@ -55,6 +59,7 @@ test("concurrent first requests wait for the same initialized transport", async 
 test("failed initialization kills its process and permits a clean retry", async () => {
   const children: ReturnType<typeof spawn>[] = [];
   const transport = new CodexAppServerTransport({
+    clientVersion: CLIENT_VERSION,
     requestTimeoutMs: 1_000,
     spawnProcess: (() => {
       const child = spawn(process.execPath, ["-e", children.length === 0
@@ -72,7 +77,7 @@ test("failed initialization kills its process and permits a clean retry", async 
 });
 
 test("transport streams and unsubscribes, recovers after crash, and rejects pending work on close", async () => {
-  const transport = new CodexAppServerTransport({command:process.execPath,args:["-e",ORDERED_APP_SERVER]});
+  const transport = new CodexAppServerTransport({clientVersion:CLIENT_VERSION,command:process.execPath,args:["-e",ORDERED_APP_SERVER]});
   const events: unknown[] = [];
   try {
     const unsubscribe = transport.subscribe(event => events.push(event));
@@ -94,6 +99,7 @@ test("transport streams and unsubscribes, recovers after crash, and rejects pend
 
 test("Codex transport bounds a JSONL response and restarts after rejecting the oversized request", async () => {
   const transport = new CodexAppServerTransport({
+    clientVersion: CLIENT_VERSION,
     command: process.execPath,
     args: ["-e", FAKE_APP_SERVER],
     maxResponseLineBytes: 1_024,
@@ -115,4 +121,23 @@ test("Codex transport bounds a JSONL response and restarts after rejecting the o
   } finally {
     transport.close();
   }
+});
+
+const ECHO_INITIALIZE_APP_SERVER = `
+const readline = require("node:readline");
+let initializeParams = null;
+readline.createInterface({ input: process.stdin }).on("line", line => {
+  const message = JSON.parse(line);
+  if (message.method === "initialized") return;
+  if (message.method === "initialize") initializeParams = message.params;
+  process.stdout.write(JSON.stringify({ id: message.id, result: { initialize: initializeParams } }) + "\\n");
+});
+`;
+
+test("the client version Codex is told is the one the host gave the transport", async () => {
+  const transport = new CodexAppServerTransport({ clientVersion: CLIENT_VERSION, command: process.execPath, args: ["-e", ECHO_INITIALIZE_APP_SERVER], requestTimeoutMs: 5_000 });
+  try {
+    const answer = await transport.request("whatever", {}) as { initialize: { clientInfo: { name: string; title: string; version: string } } };
+    assert.deepEqual(answer.initialize.clientInfo, { name: "molis-work-session-browser", title: "Molis Work", version: CLIENT_VERSION });
+  } finally { transport.close(); }
 });

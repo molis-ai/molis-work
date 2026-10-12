@@ -40,9 +40,10 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 interface Spark { id: string; project_id: string; title: string; body: string; source_kind: "manual"; status: "inbox" | "discarded"; created_at: string; updated_at: string }
 const spark = (id: string, title: string, body = ""): Spark => ({ id, project_id: "p", title, body, source_kind: "manual", status: "inbox", created_at: "2026-10-09T00:00:00.000Z", updated_at: "2026-10-09T00:00:00.000Z" });
 
-async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Spark; discard?: () => Response | null } = {}) {
+async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Spark; /** Runs after the Host has answered a read: someone else writes to the spark before the page's next call. */ afterGet?: (store: Map<string, Spark>) => void;
+  discard?: () => Response | null } = {}) {
   const store = new Map<string, Spark>(initial.map(item => [item.id, item]));
-  const calls: Array<{ method: string; path: string; body: Record<string, unknown>; keepalive?: boolean }> = [];
+  const calls: Array<{ method: string; path: string; body: Record<string, unknown>; keepalive?: boolean; stored_updated_at?: Record<string, string> }> = [];
   let created = 0, clock = 0;
   const lifetime = fakeLifetime();
   const saved = { fetch: globalThis.fetch, document: (globalThis as { document?: unknown }).document, window: (globalThis as { window?: unknown }).window,
@@ -79,7 +80,11 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
     }
     if (parsed.pathname === "/api/plugins/lingguang/discard") {
       const refused = options.discard?.(); if (refused) return refused;
-      for (const id of body.ids as string[]) store.set(id, { ...store.get(id)!, status: "discarded" });
+      // The Host's guard, the same as lingguang.update's: a spark that is no longer the copy the caller read is not discarded.
+      const ids = body.ids as string[], expected = body.expected_updated_at as Record<string, string> | undefined;
+      calls.at(-1)!.stored_updated_at = Object.fromEntries(ids.map(id => [id, store.get(id)!.updated_at]));
+      if (expected && ids.some(id => store.get(id)!.updated_at !== expected[id])) return json({ error: "这条灵光已在别处修改", code: "lingguang.conflict" }, 409);
+      for (const id of ids) store.set(id, { ...store.get(id)!, status: "discarded" });
       return json({ ok: true });
     }
     const id = decodeURIComponent(parsed.pathname.split("/").pop() ?? "");
@@ -91,7 +96,9 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
       store.set(id, next);
       return json({ spark: next });
     }
-    return json({ spark: options.onGet ? options.onGet(current) : current });
+    const answer = json({ spark: options.onGet ? options.onGet(current) : current });
+    options.afterGet?.(store);
+    return answer;
   }) as typeof fetch;
   const factory = Function(`return (${LINGGUANG_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; route: (path: string) => string; mountPluginClient: typeof lifetime.mount }) => void;
   factory({ translate: value => value, route: path => path, mountPluginClient: lifetime.mount });
@@ -128,7 +135,8 @@ test("a new spark left blank is discarded when the person goes back to the list,
     assert.equal(page.store.get("S1")?.status, "inbox", "made at once, as before");
     await page.fire(click("[data-lingguang-back]"));
     assert.equal(page.discards().length, 1);
-    assert.deepEqual(page.discards()[0]!.body, { ids: ["S1"] });
+    assert.deepEqual(page.discards()[0]!.body, { ids: ["S1"], expected_updated_at: { S1: "2026-10-09T00:00:00.000Z" } }, "asked at the copy it was judged by, so a write made elsewhere since would refuse it");
+    assert.deepEqual(page.discards()[0]!.stored_updated_at, { S1: "2026-10-09T00:00:00.000Z" });
     assert.equal(page.store.get("S1")?.status, "discarded");
     assert.equal(page.store.get("OLD")?.status, "inbox");
   } finally { page.restore(); }
@@ -437,4 +445,59 @@ test("when the workbench folds the page, a spark with words, one that was alread
     assert.equal(refused.editorOpen(), false);
     assert.equal(refused.part("[data-lingguang-note]").textContent, "");
   } finally { refused.restore(); }
+});
+
+// lingguang.discard carries the updated_at of the copy that decided, the same guard lingguang.update has: words another caller
+// (the Assistant, another window, MCP) wrote after that copy was read keep the spark, on every way of leaving.
+const ELSEWHERE = "2026-10-09T01:00:00.000Z";
+const writtenElsewhere = (store: Map<string, Spark>) => store.set("S1", { ...store.get("S1")!, body: "助理刚替你记了一句", updated_at: ELSEWHERE });
+
+test("words another caller wrote between the page's read and its discard keep the spark, whichever way the person leaves", async () => {
+  // The read and the discard are two calls: the Host's copy decided at the first, and it has changed by the second.
+  for (const leave of ["back", "hide", "fold", "next"] as const) {
+    let landed = false;
+    const page = await mounted([], { afterGet: store => { if (!landed) { landed = true; writtenElsewhere(store); } } });
+    try {
+      await page.fire(click("[data-lingguang-capture]"));
+      if (leave === "back") await page.fire(click("[data-lingguang-back]"));
+      else if (leave === "hide") { page.lifetime.hideSurface(); await page.elapse(); }
+      else if (leave === "fold") await page.workbenchSelectsNothing(true);
+      else await page.fire(click("[data-lingguang-capture]"));
+      assert.equal(landed, true, `${leave}: the Host's copy was read`);
+      assert.equal(page.discards().length >= 1, true, `${leave}: the page did ask`);
+      assert.deepEqual(page.discards()[0]!.body.expected_updated_at, { S1: "2026-10-09T00:00:00.000Z" }, `${leave}: at the copy it had read`);
+      assert.equal(page.store.get("S1")?.status, "inbox", `${leave}: refused, the spark is kept`);
+      assert.equal(page.store.get("S1")?.body, "助理刚替你记了一句", leave);
+      assert.equal(page.part("[data-lingguang-note]").textContent, "", `${leave}: nothing is said about a refused tidy-up`);
+    } finally { page.restore(); }
+  }
+});
+
+test("when the page goes away, words another caller wrote after the page's last read keep the spark: the Host refuses a discard of a copy that changed", async () => {
+  const page = await mounted([]);
+  try {
+    await page.fire(click("[data-lingguang-capture]"));
+    writtenElsewhere(page.store);
+    page.lifetime.unload(); await page.elapse();
+    assert.deepEqual(page.discards().map(call => [call.body, call.keepalive]), [[{ ids: ["S1"], expected_updated_at: { S1: "2026-10-09T00:00:00.000Z" } }, true]],
+      "asked once, with keepalive, at the copy the page last saw");
+    assert.equal(page.store.get("S1")?.status, "inbox", "refused: the spark and its words stay");
+    assert.equal(page.store.get("S1")?.body, "助理刚替你记了一句");
+    assert.equal(page.part("[data-lingguang-note]").textContent, "", "and nothing is said about it");
+  } finally { page.restore(); }
+});
+
+test("when the page goes away, the discard is asked at the updated_at the page's own last save returned, not the one the spark was made with", async () => {
+  // An erased title is saved (and given the Host's own empty-title fill-in) before the spark is still blank: the copy the page last saw is that save's answer.
+  const page = await mounted([]);
+  try {
+    await page.fire(click("[data-lingguang-capture]"));
+    await page.write({ title: "" });
+    await page.fire(click("[data-lingguang-save-retry]"));
+    const saved = page.store.get("S1")!.updated_at;
+    assert.notEqual(saved, "2026-10-09T00:00:00.000Z", "the save moved the spark's updated_at");
+    page.lifetime.unload(); await page.elapse();
+    assert.deepEqual(page.discards().map(call => [call.body.expected_updated_at, call.keepalive]), [[{ S1: saved }, true]]);
+    assert.equal(page.store.get("S1")?.status, "discarded", "still blank, so it goes");
+  } finally { page.restore(); }
 });

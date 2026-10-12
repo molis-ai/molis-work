@@ -170,11 +170,9 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     if(event.data?.type==='molis:im-close')setOpen(false);
     if(event.data?.type==='molis:im-ready')imVisible();
     if(event.data?.type==='molis:im-connect'&&projectId){
-      try{
-        const token=document.querySelector('meta[name="molis-work-control-token"]')?.content;
-        const response=await fetch('/projects/'+encodeURIComponent(projectId)+'/api/im/connect',{method:'POST',headers:{'Content-Type':'application/json','x-molis-work-control-token':token||'','x-molis-work-idempotency-key':crypto.randomUUID()},body:'{}'});
-        const result=await response.json();frame.contentWindow.postMessage({type:'molis:im-connected',requestId:event.data.requestId,error:response.ok?null:result.error||'项目连接失败'},location.origin);
-      }catch{frame.contentWindow.postMessage({type:'molis:im-connected',requestId:event.data.requestId,error:'项目连接中断，请重试'},location.origin);}
+      const answer=(error)=>frame.contentWindow.postMessage({type:'molis:im-connected',requestId:event.data.requestId,error},location.origin);
+      try{await molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/im/connect',{body:{}});answer(null);}
+      catch(error){answer(molisWorkRequest.text(error,'项目连接失败'));}
     }
   });
   let drag=null;

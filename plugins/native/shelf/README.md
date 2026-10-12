@@ -55,7 +55,7 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.
   - 旧确认不能覆盖后来的选择；跨项目、已归档或非自身的材料不能设为输出。
   - URL 入库和剪贴板转材料必须将 Action signal / beforeEffect 传到 Module；抓取后复查再保存，源剪贴板已删除时不能生成迟到材料。
   - 失败都是 `ActionError`：码是 `shelf.<原因>`（`shelfErrors`，声明在 Shelf 模块 `modules/shelf/src/errors.ts`，因为模块、本插件和 Host 的 AI 文件都用它）；状态只由 kind 推出，本插件没有错误类和状态表。失败的任务随错误带回整份置物架快照（`snapshot` 在响应体顶层，紧挨 `error` 和 `code`），面板据此重画那一行失败记录。生成动作没有可用文字模型时，目录里写的是平台的 `actions.connection_required`（和 Jelly、Todo、Form、Dataset 一样），不再是 `shelf.no_model`；任务已经开始后才发现没有模型选择，仍抛 `shelf.no_model`（409）。
-- 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-coding-materials-http.test.ts tests/shelf-terminal-recovery.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-coding-materials-http.test.ts tests/shelf-project-results-http.test.ts tests/shelf-terminal-recovery.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts tests/plugin-host-services.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/shelf-plugin.e2e.test.ts`
 - 相关手册：[docs/modules/shelf.md](../../../docs/modules/shelf.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

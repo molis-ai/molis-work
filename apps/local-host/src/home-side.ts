@@ -1,7 +1,7 @@
 import path from "node:path";
-import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginSupervisorEntry } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginDatabaseDeclaration, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { HostCompleteText } from "./host-complete-text.js";
+import type { PluginPlatformEntry } from "./plugin-platform.js";
 import type { MolisWorkLocalHost, MolisWorkLocalHostOptions } from "./project-host.js";
 import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
 
@@ -49,12 +49,19 @@ export function pluginHomeFor(homeDirectory: string): PluginPlatformHome {
 }
 
 /**
+ * A plugin a Host is given for a test or a probe: a definition, or a definition with the library in the Home the Host gives it
+ * (what a start-list entry does for a shipped plugin, `PluginPlatformEntry.database`; the definition itself declares none).
+ */
+export type PluginFixture = PluginDefinition | { readonly definition: PluginDefinition; readonly database: PluginDatabaseDeclaration };
+
+/**
  * The test fixtures the Host bound to this Home was given, as start entries for a project's platform. Never `bundled`: a
  * fixture is not a plugin the Host ships, so it registers under its installation id and no shipped plugin's id.
  */
-export function projectFixtureEntries(homeDirectory: string | undefined): PluginSupervisorEntry[] {
-  return (homeDirectory ? sides.get(path.resolve(homeDirectory))?.options.pluginFixtures?.project ?? [] : []).map((definition: PluginDefinition) => {
+export function projectFixtureEntries(homeDirectory: string | undefined): PluginPlatformEntry[] {
+  return (homeDirectory ? sides.get(path.resolve(homeDirectory))?.options.pluginFixtures?.project ?? [] : []).map((fixture: PluginFixture) => {
+    const { definition, database } = "manifest" in fixture ? { definition: fixture, database: undefined } : fixture;
     if (definition.execution === "sandbox") throw new Error(`夹具插件 ${definition.manifest.plugin_id} 是沙箱执行的；夹具是宿主自己运行的测试插件`);
-    return { definition };
+    return { definition, ...(database ? { database } : {}) };
   });
 }

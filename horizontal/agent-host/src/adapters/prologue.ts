@@ -580,7 +580,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(role.character_skill_ids === undefined ? {} : { character_skill_ids: [...role.character_skill_ids] }),
       role_id: role.role_id,
       role_version: role.version,
-      execution: role.execution,
+      execution: role.execution, ...(execution?.call_id ? { call_id: execution.call_id } : {}),
       model_id: model.model,
       ...(role.compaction ? { compaction: { prompt_id: role.compaction.prompt.prompt_id, version: role.compaction.prompt.version, above_tokens: role.compaction.above_tokens } } : {}),
       prompts: role.prompts.map((prompt) => ({

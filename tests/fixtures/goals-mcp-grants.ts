@@ -1,7 +1,7 @@
 import { molisWorkHostProjectReference, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { createMcpActionGrant } from "../../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../../apps/local-host/src/mcp-settings-store.js";
+import { createMcpActionGrant } from "../../apps/local-host/dist/mcp-action-grants.js";
+import { writeMcpActionGrant } from "../../apps/local-host/dist/mcp-settings-store.js";
 
 /** Explicit authorization for isolated fixtures; production never infers grants from tool switches. `also` grants other actions beside Goals' (an action that writes through Goals needs both). */
 export async function grantGoalsMcp(host: MolisWorkLocalHost | null, home: string,

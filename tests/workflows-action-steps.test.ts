@@ -5,28 +5,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { WORKFLOWS_ACTION_PERMISSIONS, openWorkflowsStore, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
 import { SCHEDULE_ACTION_PERMISSIONS, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { defineAction, definePlugin } from "../packages/plugin-sdk/src/index.js";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
-import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
-const PROJECT = "project-action-steps";
-
-test("a workflow step runs any registered action — even one the Host never heard of — by mapping handed-over fields", { timeout: 120_000 }, async () => {
+test("a workflow step runs any registered action — even one the Host never heard of — by mapping handed-over fields", { timeout: 120_000 }, async t => {
   const home = mkdtempSync(join(tmpdir(), "workflows-action-steps-"));
-  const dbPath = join(home, "project.db");
-  seedDemoBoard(dbPath, PROJECT);
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  // The Home is served so that the project and the MCP client's grant are made the way a person makes them; this file keeps its own host (it needs `src` types of the workflows runtime).
+  const served = await serveTestHost(t, { home, host });
+  const { project_id: PROJECT, database_path: dbPath, reference } = await served.createProject("工作流动作步骤", ["feed"]);
   const seed = new LocalProjectDatabase(dbPath);
   const source = createLocalFeedSourceService(seed.db, PROJECT).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
   createLocalFeedApplication(seed.db).ingestItem({ source, externalId: "bug", title: "导出失败", summary: "客户反馈", body: "客户的周报导出一直失败。", occurredAt: new Date().toISOString(), attention: false });
   seed.close();
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
 
   // A plugin the Host code knows nothing about: its manifest and handler are all it takes.
   const tickets: { title: string; detail: string; priority: string }[] = [];
@@ -83,7 +79,7 @@ test("a workflow step runs any registered action — even one the Host never hea
     assert.deepEqual(tickets, [{ title: "工单：导出失败", detail: "客户的周报导出一直失败。", priority: "high" }]);
     assert.equal(afterTicket.steps[1]!.result_truncated, true);
     assert.equal((afterTicket.steps[1]!.result as { truncated: boolean }).truncated, true);
-    assert.deepEqual(afterTicket.steps[1]!.result_presentation, { summary: "工单已创建", text: "工单正文".repeat(1000), text_truncated: true, link: { label: "打开工单", href: "/projects/project-action-steps/?openPlugin=tickets&openItem=1" } });
+    assert.deepEqual(afterTicket.steps[1]!.result_presentation, { summary: "工单已创建", text: "工单正文".repeat(1000), text_truncated: true, link: { label: "打开工单", href: `/projects/${PROJECT}/?openPlugin=tickets&openItem=1` } });
     const reopened = openWorkflowsStore(home);
     try { assert.deepEqual(reopened.instance(run.instance_id, PROJECT).steps[1]!.result_presentation, afterTicket.steps[1]!.result_presentation); } finally { reopened.close(); }
     const done = (await actions.invoke(w.continue, { id: run.instance_id })).instance;
@@ -126,13 +122,11 @@ test("a workflow step runs any registered action — even one the Host never hea
 
     // The same unknown plugin's action for an external MCP client: nothing without an exact grant, then it runs under the client's own identity.
     const view = (await host.actionClient(reference).discover(caller)).find(row => row.capability_id === "fixture.tickets.create")!;
-    const client = { actor_id: "client-tickets", project_id: PROJECT, audience: "mcp" as const, permissions: [] };
-    const denied = await authorizeMcpActions(host, client, home, reference);
-    await assert.rejects(denied.service.invoke(denied.context, ticketStep.ref, { title: "未授权", priority: "low" }));
+    const mcp = await served.mcp("client-tickets", PROJECT);
+    await assert.rejects(mcp.client.invoke(mcp.caller, ticketStep.ref, { title: "未授权", priority: "low" }), { code: "mcp.action_revoked" });
     assert.equal(tickets.length, 3);
-    await writeMcpActionGrant(home, createMcpActionGrant(client.actor_id, PROJECT, view, true));
-    const granted = await authorizeMcpActions(host, client, home, reference);
-    assert.deepEqual(await granted.service.invoke(granted.context, ticketStep.ref, { title: "MCP 建单", priority: "low" }), { ticket_id: 4 });
+    await served.grant("client-tickets", PROJECT, [view]);
+    assert.deepEqual(await mcp.client.invoke(mcp.caller, ticketStep.ref, { title: "MCP 建单", priority: "low" }), { ticket_id: 4 });
     assert.equal(tickets[3]!.title, "MCP 建单");
     assert.ok(host.callLog!.list(PROJECT).some(row => row.capability_id === "fixture.tickets.create" && row.actor_id === "client-tickets" && row.audience === "mcp" && row.ok),
       "the call log names the client, not the local user");
@@ -186,6 +180,7 @@ test("a workflow step runs any registered action — even one the Host never hea
     assert.equal(tickets.length, 9, "includes the successful nested call already dispatched before cancellation; nothing after the plugin went away");
   } finally {
     await runtime.stop(installed.install_id).catch(() => undefined);
+    await served.close();
     await host.close();
     rmSync(home, { recursive: true, force: true });
   }

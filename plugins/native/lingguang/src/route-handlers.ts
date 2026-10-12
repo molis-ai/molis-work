@@ -1,6 +1,6 @@
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { lingguangActions } from "./actions.js";
-import type { LingguangPluginRouteContext, LingguangPluginRouteHandler, LingguangPluginRouteResponse } from "./routes.js";
+import type { LingguangPluginRouteContext, LingguangPluginRouteHandler } from "./routes.js";
 
 export interface LingguangRoutePorts {
   readonly actions: BoundActionClient;
@@ -28,15 +28,4 @@ export function createLingguangRouteHandlers(ports: LingguangRoutePorts): Record
     "lingguang.conversation_open": call(lingguangActions.openConversation, (_, body) => body),
     "lingguang.conversation_message": call(lingguangActions.message, ({ params }, body) => ({ ...body, id: params.id })),
   };
-}
-
-export function lingguangRouteErrorResponse(error: unknown): LingguangPluginRouteResponse {
-  const code = error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : "";
-  const message = error instanceof Error ? error.message : "灵光请求失败";
-  // A file or page reader says its own status and details (how large a model download would be).
-  const own = error instanceof Error && "status" in error && typeof (error as { status: unknown }).status === "number" ? (error as { status: number }).status : undefined;
-  const details = error instanceof Error && "details" in error ? (error as { details: unknown }).details : undefined;
-  const status = own ?? (code === "lingguang.not_found" ? 404 : ["lingguang.conflict", "lingguang.request_conflict"].includes(code) ? 409
-    : ["actions.forbidden", "actions.scope_mismatch"].includes(code) ? 403 : 400);
-  return { status, body: { error: message, ...(code ? { code } : {}), ...(details !== undefined ? { details } : {}) } };
 }

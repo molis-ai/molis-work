@@ -16,14 +16,14 @@ export { FORM_INSTRUCTIONS } from "./prompts.js";
 export { FORM_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { FORM_NATIVE_PLUGIN_ROUTES, FormPluginRouteTable } from "./routes.js";
 export type { FormPluginRouteHandler, FormPluginRouteRequest, FormPluginRouteResponse } from "./routes.js";
-export { createFormRouteHandlers, formRouteErrorResponse } from "./route-handlers.js";
+export { createFormRouteHandlers } from "./route-handlers.js";
 export type { FormRoutePorts } from "./route-handlers.js";
 export { promoteForm } from "./promote.js";
 export type { FormLineHeadPort, FormPublishArtifactPort, FormReadArtifactPort, FormPublicationSnapshot } from "./promote.js";
 export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID, formManifest } from "./manifest.js";
 export { openFormStore, FormStore, FORM_STORE_BASELINE } from "./store.js";
 export { purgeFormProject, formProjectData } from "./project-data.js";
-export { FormError } from "./error.js";
+export { formErrors } from "./error.js";
 
 export { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers } from "./actions.js";
 export type { FormActionPorts } from "./actions.js";

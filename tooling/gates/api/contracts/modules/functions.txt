@@ -304,11 +304,6 @@ export declare const modulesFunctionsContract: {
     readonly ssot: "specs/archive/functions-independent-authoring/spec.md";
 };
 
-export declare function suggestedAuthoringBehaviors(catalog: FunctionAuthoringCatalog, destinationId: string, subjectKinds: readonly string[], reference?: {
-    readonly scene_version: number;
-    readonly provider_id: string;
-}): FunctionAuthoringBehavior[];
-
 export declare function visibleFeedDispositionIds(suggested: readonly string[] | null | undefined, canAdmit: boolean): string[];
 
 // Declarations the exports above refer to, which no entry exports itself:

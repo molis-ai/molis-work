@@ -1,6 +1,7 @@
 import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LINGGUANG_PROJECT_PLUGIN_ID, type LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type { LingguangStore } from "./store.js";
+import { lingguangErrors } from "./error.js";
 
 /** 灵光's part in the system search: sparks that are still kept. A discarded spark is no longer searchable or readable here. */
 export const lingguangSearchActions = {
@@ -20,10 +21,10 @@ export function createLingguangSearchHandlers(withStore: <T>(run: (store: Linggu
       let spark: LingguangSpark;
       try { spark = store.get((input as { subject_id: string }).subject_id, project(caller)); }
       catch (error) {
-        if ((error as { code?: string })?.code === "lingguang.not_found") throw new ActionError("lingguang.not_found", "灵光已不存在");
+        if ((error as { code?: string })?.code === "lingguang.not_found") throw lingguangErrors.not_found("灵光已不存在");
         throw error;
       }
-      if (spark.status === "discarded") throw new ActionError("lingguang.not_found", "这条灵光已丢弃");
+      if (spark.status === "discarded") throw lingguangErrors.not_found("这条灵光已丢弃");
       return subjectContext({ subject: { kind: "lingguang_spark", id: spark.id }, revision: revisionOf(spark), title: spark.title || searchText(spark.body, 80),
         content: spark.body, goal_ids: [], session_id: null, open: { surface: LINGGUANG_PROJECT_PLUGIN_ID, id: spark.id } });
     }) },

@@ -9,10 +9,13 @@ import {
   composeAgentHost,
   molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
-import { agentHostCapabilities, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentActionClient, type AgentStartExecution, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { initializeBoardCapability, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { managementGoals } from "./goal-management-caller.js";
+import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -104,6 +107,55 @@ test("Agent Host loads current guidance through actions and freezes each real re
     assert.equal(captured[2]!.role!.prompts.some(prompt => prompt.prompt_id === "project-guidance"), false);
     assert.ok(reads >= 3, "each start consults the real guidance action policy");
   } finally { await composition.dispose(); await localHost.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test("an Agent round carries the number of the call that started it: its tool calls and the start the Runtime is given", async () => {
+  const home = await realpath(await mkdtemp(join(tmpdir(), "agent-call-id-")));
+  const databasePath = join(home, "project.db");
+  const localHost = new MolisWorkLocalHost({ completeText: null });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: "board" });
+  const composition = composeAgentHost({ localHost, homeDirectory: home, workspaceFor: () => ({ workspace_id: "w", canonical_path: home, realpath_verified: true, display_name: "workspace" }) });
+  const ping: ActionDefinition = { capability_id: "fixture.agent.ping", version: 1, operation: "query", action: { title: "Ping", description: "Answers", kind: "query", scope: "project",
+    audiences: ["agent", "mcp"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
+  const handled: Array<string | undefined> = [];
+  let execution: AgentStartExecution | undefined, tools: AgentActionClient | undefined, request: AgentStartRequest | undefined;
+  composition.agentHost.register({
+    descriptor: { runtime_id: "probe", display_name: "Probe", provider_version: "1", supports_action_tools: true, capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported" } },
+    async health() { return { ok: true, status: "ready", message: "ready" }; },
+    async createSession() { throw new Error("Not used by this fixture"); },
+    async read() { throw new Error("Not used by this fixture"); },
+    observe() { throw new Error("Not used by this fixture"); },
+    async control() { throw new Error("Not used by this fixture"); },
+    async readCommandOutput() { throw new Error("Not used by this fixture"); },
+    async readSession(session) { return { session, owner: { project_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user" }, title: "Read", runs: [], latest_run: null }; },
+    async start(given, guards) {
+      request = given; execution = guards; tools = given.role!.actions!.client; const role = given.role!;
+      return { ref: { run_id: "r1", session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution, model_id: "probe",
+        prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: promptLayerOf(prompt) })), host_tools: [...role.host_tools],
+        skills: [], mcp_tools: [], mcp_sources: [], text_materials: [], budget: null, directory: { canonical_path: home, realpath_verified: true as const }, action_tools: given.action_tools } };
+    },
+  });
+  const client = localHost.client(reference);
+  try {
+    await client.invoke(initializeBoardCapability, { project_id: "board", title: "Numbers", idempotency_key: "init" });
+    localHost.actionRegistry(reference).registerProvider({ provider: { provider_id: "fixture.agent", kind: "plugin", title: "Fixture" }, definitions: [ping],
+      handlers: [{ ...ping, handle(context) { handled.push(context.call_id); return "pong"; } }] });
+    await grantGoalsMcp(localHost, home, { project_id: "board", database_path: databasePath }, "agent:probe", [ping]);
+    const action = { capability_id: ping.capability_id, version: 1, provider_id: "fixture.agent" };
+    const start = { project_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user", session: { runtime_id: "probe", session_id: "s" },
+      task: "读取项目", role_id: "reader", directory: { canonical_path: home, realpath_verified: true }, action_tools: [action] };
+    // A number in the request body is the plugin's own data: it is never the round's number.
+    const started = newCallId();
+    const forged = { ...start, call_id: "forged" };
+    await withCallId(started, () => client.invoke(agentHostCapabilities.startRun, ["probe", forged]));
+    assert.equal(request?.role?.actions?.tools.length, 1, "the round was offered the tool");
+    // The Runtime calls its tools later, in its own loop, outside the call that started the round.
+    await tools!.invoke(action, {});
+    await tools!.invoke(action, {});
+    assert.equal(handled.length, 2);
+    assert.equal(execution?.call_id, started, "the start the Runtime is given carries the number of the typed call that started it");
+    assert.deepEqual(handled, [started, started], "every tool call of the round has the round's number");
+  } finally { await composition.dispose(); await localHost.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("装配不带任何默认 Runtime：命令行 Runtime 已删除，没给 Prologue 时运行时列表为空", async () => {

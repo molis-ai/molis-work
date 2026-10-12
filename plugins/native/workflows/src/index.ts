@@ -17,7 +17,8 @@ export { WORKFLOWS_INSTRUCTIONS } from "./prompts.js";
 export { WORKFLOWS_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { WORKFLOWS_NATIVE_PLUGIN_ROUTES, WorkflowsPluginRouteTable } from "./routes.js";
 export type { WorkflowsPluginRouteHandler, WorkflowsPluginRouteRequest, WorkflowsPluginRouteResponse } from "./routes.js";
-export { createWorkflowsRouteHandlers, workflowsRouteErrorResponse } from "./route-handlers.js";
+export { createWorkflowsRouteHandlers } from "./route-handlers.js";
+export { workflowsErrors } from "./error.js";
 export type { WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 export { WORKFLOWS_ACTIONS, WORKFLOWS_ACTION_PERMISSIONS, createWorkflowsActionHandlers, workflowsActions,
   type WorkflowContentPorts, type WorkflowStationInfo, type WorkflowsActionPorts } from "./actions.js";

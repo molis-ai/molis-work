@@ -68,7 +68,10 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
       screened: receipt.screened, ...(receipt.fallback ? { fallback: receipt.fallback } : {}) },
   });
 
-  const cacheKey = (request: ContextualJudgeRequest) => request.focus.context_id + "\u0000" + request.focus.object.id;
+  // The same thing in hand judged against another landing is another question.
+  const cacheKey = (request: ContextualJudgeRequest) => request.focus.context_id + "\u0000" + request.focus.object.id
+    + (request.landing ? "\u0000" + JSON.stringify([request.landing.plugin_id, request.landing.object.id, request.landing.position, request.landing.version,
+      request.landing.targets?.map(target => [target.anchor, target.head])]) : "");
 
   return {
     async candidates(request, caller) {
@@ -105,7 +108,7 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
         }
         if (controller.signal.aborted) return respond(request, candidates, null, { digest: null, screened, fallback: "aborted" });
 
-        const state = judgmentState(request.focus, { recent: request.recent, memory });
+        const state = judgmentState(request.focus, { recent: request.recent, memory, landing: request.landing });
         screened.push(...state.clipped.map(label => `截断：${label}`));
         const cleaned = ports.screen ? ports.screen(state.text) : { text: state.text, notes: [] };
         screened.push(...cleaned.notes);

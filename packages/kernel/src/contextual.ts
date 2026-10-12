@@ -5,6 +5,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   ASSISTANT_FORMS, type AssistantForm, type ContextualCandidate, type ContextualJudgment, type ContextualLayoutPlan, type SurfaceFocus,
+  type SurfaceLanding, type SurfaceLandingPosition,
 } from "@molis-ai/molis-work-contracts/services/contextual";
 import { subjectOfferChoices } from "./subject-offer-choices.js";
 
@@ -145,6 +146,8 @@ export function ruleScores(candidates: readonly ContextualCandidate[], focus: Su
 }
 
 export interface JudgmentStateExtras {
+  /** Where the thing in hand can be put, when it is not on the left (right panel, Assistant panel). */
+  readonly landing?: SurfaceLanding;
   readonly recent?: readonly string[];
   /** Recalled preferences and conventions (data, not instructions). */
   readonly memory?: readonly { readonly kind: string; readonly text: string }[];
@@ -154,6 +157,19 @@ const LIMITS = { target: 2000, around: 300, heading: 120, memory: 160, recent: 4
 function clip(value: string, max: number): { text: string; cut: boolean } {
   const text = value.replace(/\s+/g, " ").trim();
   return text.length <= max ? { text, cut: false } : { text: text.slice(0, max) + "…", cut: true };
+}
+
+const POSITION_WORDS: Readonly<Record<SurfaceLandingPosition, string>> = { cursor: "光标处", selection: "选中的文字", end: "文末", object: "整个对象" };
+
+/** Where the thing in hand can be put, as lines of material: the object, the position in it and the text around it. */
+function landingLines(landing: SurfaceLanding, take: (label: string, value: string, max: number) => string): string[] {
+  const lines = [`【落点】${take("落点对象种类", landing.object.kind, LIMITS.heading)} · ${take("落点对象标题", landing.object.title ?? "", LIMITS.heading)} · ${POSITION_WORDS[landing.position]}`];
+  const around = landing.surroundings;
+  if (around?.heading_path.length) lines.push(`【落点所在位置】${around.heading_path.map(item => take("落点标题路径", item, LIMITS.heading)).join(" › ")}`);
+  if (landing.position === "selection" && landing.targets?.[0]?.text) lines.push(`【落点处的文字】${take("落点处的文字", landing.targets[0].text, LIMITS.target)}`);
+  if (around?.before) lines.push(`【落点前文】${take("落点前文", around.before, LIMITS.around)}`);
+  if (around?.after) lines.push(`【落点后文】${take("落点后文", around.after, LIMITS.around)}`);
+  return lines;
 }
 
 /**
@@ -181,6 +197,8 @@ export function judgmentState(focus: SurfaceFocus, extras: JudgmentStateExtras =
     const state = clip(focus.goal.state ?? "", LIMITS.state).text;
     lines.push(`【当前目标】${take("目标", focus.goal.title, LIMITS.heading)}${state ? `（${state}）` : ""}`);
   }
+  if (focus.place && focus.place !== "main") lines.push(`【手上的东西在】${focus.place === "side" ? "右栏" : "助理面板"}${focus.side_tab ? ` · ${take("右栏的格", focus.side_tab, LIMITS.heading)}` : ""}`);
+  if (extras.landing) lines.push(...landingLines(extras.landing, take));
   if (extras.recent?.length) lines.push(`【最近操作】${extras.recent.slice(0, 3).map(item => clip(item, LIMITS.recent).text).join("；")}`);
   if (extras.memory?.length) lines.push(`【用户偏好与约定】${extras.memory.slice(0, 5).map(item => clip(item.text, LIMITS.memory).text).join("；")}`);
   return { text: lines.join("\n"), clipped };

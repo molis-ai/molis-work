@@ -24,6 +24,8 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { LocalActionGatewayClient } from "./action-gateway.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
 import { callMcpV1Tool, createPresentationError } from "./mcp-v1-tool.js";
+import { formatMcpToolError, withCallIdMeta } from "./mcp-call-id.js";
+import { newCallId, recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
 
 export type MolisWorkMcpAudience = "runtime" | "management";
 export type MolisWorkMcpToolCallContext = McpToolCallContext;
@@ -283,12 +285,16 @@ export class LocalMcpServer {
   async handleMessage(
     message: Record<string, unknown>,
   ): Promise<Record<string, unknown> | null> {
-    const catalog = message.method === "tools/list" ? await this.ensureCatalog() : null;
-    return handleMcpMessage(message, {
-      serverInfo: SERVER_INFO,
-      tools: catalog?.tools ?? [],
-      callTool: (name, arguments_, context) => this.callToolResult(name, arguments_, context),
-      formatToolError: formatMcpToolError,
+    // One message is one operation, and its number is made here, never read from the client: every call it causes, in this process or in the
+    // resident Host, runs under it. The result and the error text show it only when the operation left a row in the call log.
+    return withCallId(newCallId(), async () => {
+      const catalog = message.method === "tools/list" ? await this.ensureCatalog() : null;
+      return handleMcpMessage(message, {
+        serverInfo: SERVER_INFO,
+        tools: catalog?.tools ?? [],
+        callTool: async (name, arguments_, context) => withCallIdMeta(await this.callToolResult(name, arguments_, context)),
+        formatToolError: error => formatMcpToolError(error, recordedCallId()),
+      });
     });
   }
 }
@@ -301,14 +307,4 @@ function lookupContextTool(
   return typeof candidate === "function"
     ? candidate as (arguments_: Record<string, unknown>, context: McpToolCallContext) => Promise<string>
     : undefined;
-}
-
-function formatMcpToolError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  if (error instanceof ActionError) return `错误: ${message}\n${JSON.stringify({ code: error.code })}`;
-  if (error instanceof MolisWorkV1Error) {
-    return `错误: ${message}\n${JSON.stringify({ code: error.code, ...(error.details ?? {}) })}`;
-  }
-  if (!(error instanceof MolisWorkProjectCatalogError)) return `错误: ${message}`;
-  return `错误: ${message}\n${JSON.stringify({ code: error.code, ...error.details })}`;
 }

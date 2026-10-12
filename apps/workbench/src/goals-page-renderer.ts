@@ -7,7 +7,7 @@ import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-syst
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
-import { homePluginSideTabs } from "./home-plugin-navigation.js";
+import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
@@ -237,7 +237,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     lang: htmlLang(),
     title,
     head_before_title_html: controlTokenMeta(controlToken),
-    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}</script>
+    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}${homeToolKeysScript()}</script>
   <link rel="stylesheet" href="__WORKBENCH_CSS__">`,
     body_attributes: {
       class: "immersive-workbench",

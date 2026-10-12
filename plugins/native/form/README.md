@@ -25,7 +25,7 @@
 - 负责：问卷目录、题目、预览填写与结果。
 - 不负责：Goal 与 Artifact 事实、模型提供方、托管收集服务。
 - 公开入口：`@molis-ai/molis-work-plugin-form`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `form.<原因>`，状态由错误种类决定，Form 不自带状态表）、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 缺模型时禁用 AI，保留本地操作。
   - 编辑带读取版本，冲突保留输入；重新读取前确认丢弃。
@@ -34,6 +34,6 @@
   - 只有收集中（`published`）的问卷接受提交和答卷文件导入。草稿和已停止收集的问卷只收本人的两样东西：试填（本机界面的 `preview`），以及本人导入的答卷文件（页面在停止收集后仍提供导入）。填写页（`fill`）的提交，和助理、MCP、流程、插件来源的提交与导入，以 `form.closed`（HTTP 409）拒绝，不写任何答卷，重新开始收集后恢复；导入是整次调用被拒，在读任何一个文件之前，已导入过的文件也一样。判断是 `FormStore.submit` 与 `FormStore.importAnswers` 事务里的同一个 `assertTakesAnswers`，入口不各写一份；动作层把这个拒绝作为 `ActionError` 交出，MCP 客户端才读得到代码和原因（其他错误对 MCP 只显示为「能力执行失败」）。
   - 流程交来的标题和题目列表按问卷的上限（标题 80 字、40 题）截取后再收，不因超限而整次拒收。
   - 项目被删除时宿主按目录条目上的 `project_data`（`formProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeFormProject`）调用清掉问卷与收到的全部回答，连同复制回执；只读库文件，库不存在时不创建，重复运行没有副作用。
-- 改动后必跑：`node scripts/run-tests.mjs tests/form-actions.test.ts tests/form-mcp.test.ts tests/creative-tools-plugins.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/form-actions.test.ts tests/form-mcp.test.ts tests/creative-tools-plugins.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

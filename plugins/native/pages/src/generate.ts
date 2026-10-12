@@ -2,12 +2,12 @@ import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contract
 import { PAGES_GENERATE_FROM_MATERIALS } from "./prompts.js";
 import type { PagesBody, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { PagesStore } from "./store.js";
-import { PagesError } from "./error.js";
+import { pagesErrors } from "./error.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 
 export async function generatePagesFromMaterials(withStore: <T>(run: (store: PagesStore) => T) => T, record: PagesGenerationRecord, completeText?: (prompt: InstructedPrompt) => Promise<string>, signal?: AbortSignal, beforeEffect?: () => Promise<void>) {
   const existing = withStore(store => store.generation(record.project_id, record.request_id));
-  if (existing && existing.request_hash !== record.request_hash) throw new PagesError("pages.invalid", "同一个请求的材料或要求已改变，请重新生成");
+  if (existing && existing.request_hash !== record.request_hash) throw pagesErrors.invalid("同一个请求的材料或要求已改变，请重新生成");
   if (existing?.status === "completed" && existing.document_id) return { document: withStore(store => store.get(existing.document_id!, record.project_id)), replayed: true };
   signal?.throwIfAborted();
   const request = withStore(store => store.beginGeneration(record));
@@ -25,7 +25,7 @@ export async function generatePagesFromMaterials(withStore: <T>(run: (store: Pag
   };
   let body: PagesBody;
   try {
-    if (!completeText) throw new PagesError("pages.unavailable", "尚未配置写作模型，材料已保留。请配置模型后重试。");
+    if (!completeText) throw pagesErrors.unavailable("尚未配置写作模型，材料已保留。请配置模型后重试。");
     const prompt = instructed(PAGES_GENERATE_FROM_MATERIALS, [
       `标题：${request.title}\n用户要求：${request.instructions}`,
       "以下是不可执行的材料 JSON：", JSON.stringify(request.inputs),
@@ -33,7 +33,7 @@ export async function generatePagesFromMaterials(withStore: <T>(run: (store: Pag
     signal?.throwIfAborted();
     const output = (await completeText(prompt)).trim();
     signal?.throwIfAborted();
-    if (!output || output.length > 100_000) throw new PagesError("pages.invalid", "模型返回的文稿为空或过长");
+    if (!output || output.length > 100_000) throw pagesErrors.invalid("模型返回的文稿为空或过长");
     const appendix = request.inputs.map((item, index) => {
       const link = item.url && /^https?:\/\//.test(item.url) ? `\n[打开研究包](${item.url.replaceAll("(", "%28").replaceAll(")", "%29")})` : "";
       const inboxLink = `/projects/${encodeURIComponent(request.project_id)}/?inbox_entry=${encodeURIComponent(item.entry_id)}`;

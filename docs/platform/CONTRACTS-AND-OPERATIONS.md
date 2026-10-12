@@ -14,7 +14,7 @@
 
 ## Test Kit
 
-`packages/test-kit` 目前提供两类与业务无关的东西：包边界规则（`boundaries.ts`，根入口）和无头 Chrome 的启动与 DevTools 驱动（子路径 `/browser`：找 Chrome、启动与关闭、命令、页内等待、点击、填写）；deterministic clock、fake capability 等测试工具仍在各测试里，尚未迁入。宿主、授权与项目的装配要 import 宿主，包边界规则不允许 Test Kit 这样做，所以留在 `tests/fixtures/`。业务 fixture 和业务结论留在对应 Module/Plugin，防止 Test Kit 变成共享业务实现。
+`packages/test-kit` 目前提供三类与业务无关的东西：包边界规则（`boundaries.ts`，根入口）、无头 Chrome 的启动与 DevTools 驱动（子路径 `/browser`：找 Chrome、启动与关闭、命令、页内等待、点击、填写）和访问本机 Host HTTP 管理接口的客户端（子路径 `/local-host-http`：带闸门要的请求头，授权、撤权、建项目、装插件走设置页用的接口，按声明的依赖排授权的顺序）；deterministic clock、fake capability 等测试工具仍在各测试里，尚未迁入。宿主、授权与项目的装配要 import 宿主，包边界规则不允许 Test Kit 这样做，所以留在 `tests/fixtures/`（`test-home.ts` 的 `serveTestHost`、`openTestHome`）；用例通过它们像人在设置页那样授权，不直接写授权文件。业务 fixture 和业务结论留在对应 Module/Plugin，防止 Test Kit 变成共享业务实现。
 
 ## 门禁
 

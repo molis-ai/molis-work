@@ -124,7 +124,8 @@ test("production settings HTTP -> shared connection -> Lingguang action actually
     await http(`/api/settings/connectors/connections/${connection.connection_id}`, undefined, 200, "DELETE");
     const directory = await host.actionClient(ref).discover(caller);
     assert.equal(directory.find(row => row.capability_id === lingguangActions.message.capability_id)!.availability.available, false);
-    await http(`${path}/conversations/${conversation.id}/messages`, { body: "已经断开" }, 400);
+    // W3-02-D: a deleted connection is `actions.connection_required`, whose kind (unavailable) is 503 at every plugin; 灵光 answered 400 through its own mapper.
+    await http(`${path}/conversations/${conversation.id}/messages`, { body: "已经断开" }, 503);
     assert.equal(f.requests.length, 1);
     assert.equal((await host.actionClient(ref).invoke(caller, lingguangActions.getConversation, { id: conversation.id })).messages.length, 2);
   } finally { await close(web); await host.close(); }

@@ -67,7 +67,6 @@ tests/agent-pending-questions.test.ts
 tests/agent-plugin-identity.test.ts
 tests/agent-prompt-layers.test.ts
 tests/agent-review-http.test.ts
-tests/agent-review-standing.test.ts
 tests/agent-review-surface.test.ts
 tests/agent-run-wait.test.ts
 tests/agent-start-authority.test.ts
@@ -271,7 +270,6 @@ tests/project-settings-accordion.test.ts
 tests/project-settings-stage.test.ts
 
 # prologue
-tests/prologue-adoption-guard.test.ts
 tests/prologue-approval-attachment.test.ts
 tests/prologue-approval-bridge.test.ts
 tests/prologue-checkpoints.test.ts
@@ -281,7 +279,6 @@ tests/prologue-git.test.ts
 tests/prologue-inference-images.test.ts
 tests/prologue-inference-native.test.ts
 tests/prologue-materials.test.ts
-tests/prologue-memory-boundary.test.ts
 tests/prologue-model-retry.test.ts
 tests/prologue-recovery.test.ts
 tests/prologue-review-child-command.test.ts

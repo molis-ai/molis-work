@@ -34,7 +34,7 @@ export function createJevEvaluator(options: { home?: string; recordTo?: string }
   let key: string | null | undefined;
   let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
   const credential = () => {
-    if (key === undefined) key = typeSafeCredential(home, "functions");
+    if (key === undefined) key = typeSafeCredential(home);
     if (!key) throw new Error("这个 Home 没有可用的 TypeSafe Key");
     return key;
   };

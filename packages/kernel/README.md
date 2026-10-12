@@ -64,10 +64,10 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
 
 ## 开发要求
 
-- 负责：能力注册、发现、授予、动作服务调度（`ActionService`）、调用编号与结算、场景兼容与事项动作选项派生，以及按动作声明落实时限与取消（计时与取消的工具 `createExecutionLifetime` 来自 `@molis-ai/molis-work-plugin-sdk`，内核不转出）；另外承载平台产品服务「情境排序」（`src/contextual.ts`，纯函数：派生候选、规则打分、判断材料与题面、读回答案、陈列方案）。
+- 负责：能力注册、发现、授予、动作服务调度（`ActionService`）、调用编号与结算、场景兼容与事项动作选项派生，注册时按 SDK 的 `inspectActionDeclarations` 检查动作与场景声明，以及按动作声明落实时限与取消（计时与取消的工具 `createExecutionLifetime` 和声明检查都来自 `@molis-ai/molis-work-plugin-sdk`，内核不转出）；另外承载平台产品服务「情境排序」（`src/contextual.ts`，纯函数：派生候选、规则打分、判断材料与题面、读回答案、陈列方案）。
 - 不负责：业务状态机、提供方实现、界面渲染、模型调用与凭据、记忆召回、缓存、计时与取消（这些在宿主 `apps/local-host/src/contextual/`）、任何插件或 Module 的业务事实。
 - 公开入口：`@molis-ai/molis-work-kernel`（`src/index.ts`）与情境排序的子入口 `@molis-ai/molis-work-kernel/contextual`（`src/contextual.ts`），都经 `dist` 导出，不深入 `src/` 导入；合同 `@molis-ai/molis-work-contracts/platform/kernel`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期）；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包，公开发布面（contracts、plugin-sdk）在最下层（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期和动作声明检查）；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包，公开发布面（contracts、plugin-sdk）在最下层（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 目录从唯一的 `CapabilityRegistry` 派生，不另存名单。
   - 输入与结果按合同校验：查询与判断不合合同报 `actions.output_invalid`；已提交的写动作报 `actions.output_invalid_after_effect`。

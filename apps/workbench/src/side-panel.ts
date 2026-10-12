@@ -25,7 +25,7 @@ export interface SidePanelPluginTab {
   readonly src: string;
 }
 
-export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = []): string {
+export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], projectTools = true): string {
   const { L, icon, escapeHtml } = primitives;
   const tab = (id: string, label: string, glyph: MolisWorkIcon, extra = "") =>
     `<button class="side-panel-tab" type="button" role="tab" id="side-tab-${escapeHtml(id)}" aria-controls="side-body-${escapeHtml(id)}" aria-selected="false" tabindex="-1" data-side-tab="${escapeHtml(id)}" title="${escapeHtml(label)}"${extra}>${icon(glyph)}<span>${escapeHtml(label)}</span></button>`;
@@ -35,26 +35,25 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
   return `<section class="side-panel" id="dock-window-im" role="region" aria-label="${L("侧栏")}" data-side-panel data-dock-window="im" hidden>
         <header class="side-panel-head">
           <div class="side-panel-tabs" role="tablist" aria-label="${L("侧栏内容")}" data-side-tabs>
-            ${tab("discussion", L("讨论"), "message")}${tab("browser", L("浏览器"), "globe")}${tab("files", L("文件"), "folder")}${plugins.map(entry => tab(entry.id, entry.title, entry.icon, ` data-side-plugin="${escapeHtml(entry.key)}"`)).join("")}
+            ${projectTools ? tab("discussion", L("讨论"), "message") + tab("browser", L("浏览器"), "globe") + tab("files", L("文件"), "folder") : ""}${plugins.map(entry => tab(entry.id, entry.title, entry.icon, ` data-side-plugin="${escapeHtml(entry.key)}"`)).join("")}
           </div>
           <button class="side-panel-close" type="button" data-side-close aria-label="${L("收起侧栏")}" title="${L("收起侧栏")}">${icon("x")}</button>
         </header>
-        ${body("discussion", L("项目讨论"), `<iframe title="${L("群聊与 Thread")}" data-dock-frame="im"></iframe>`)}
-        ${body("browser", L("浏览器"), renderSideBrowser(primitives), " data-side-browser")}
-        ${body("files", L("文件"), renderSideFiles(primitives), " data-side-files")}
+        ${projectTools ? body("discussion", L("项目讨论"), `<iframe title="${L("群聊与 Thread")}" data-dock-frame="im"></iframe>`)
+          + body("browser", L("浏览器"), renderSideBrowser(primitives), " data-side-browser")
+          + body("files", L("文件"), renderSideFiles(primitives), " data-side-files") : ""}
         ${plugins.map(entry => body(entry.id, entry.title, `<iframe title="${escapeHtml(entry.title)}" data-side-frame></iframe>`, ` data-side-src="${escapeHtml(entry.src)}"`)).join("")}
       </section>`;
 }
 
 export const SIDE_PANEL_STYLES = String.raw`
 html body.immersive-workbench{--side-gap:8px}
-html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:calc(var(--side-panel-width,35vw) + var(--side-gap))}
+html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:calc(var(--side-panel-width,35vw) + var(--side-gap) + var(--sheet-inset,14px))}
 html body.immersive-workbench .side-panel{position:fixed;display:flex;flex-direction:column;inset:var(--desktop-titlebar-height,32px) var(--sheet-inset,14px) var(--dock-h,48px) auto;width:var(--side-panel-width,35vw);z-index:10;overflow:hidden;border:0;border-radius:var(--r-sheet,14px);background:var(--paper);box-shadow:var(--sheet-shadow);animation:none;opacity:0;transform:translateX(24px);transition:opacity var(--dur-move) var(--ease-quint),transform var(--dur-arrive) var(--ease-quint);pointer-events:none;container:side-panel/inline-size}
 html body.immersive-workbench .side-panel[hidden]{display:none}
 html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transform:none;pointer-events:auto}
 .side-panel-head{display:flex;align-items:center;gap:8px;flex:none;height:44px;padding:0 6px 0 8px;border-bottom:1px solid var(--line)}
 .side-panel-tabs{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
-.side-panel-tabs::-webkit-scrollbar{display:none}
 .side-panel-tab{display:inline-flex;align-items:center;gap:6px;flex:none;height:30px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:13px;cursor:pointer;transition:background-color var(--dur-hover) var(--ease-quint),color var(--dur-hover) var(--ease-quint)}
 .side-panel-tab svg{width:15px;height:15px;flex:none}
 .side-panel-tab:hover{background:var(--nav-hover);color:var(--ink)}
@@ -79,12 +78,12 @@ html body.is-side-resizing :is([data-plugin-stage],.side-panel){transition:none!
 body.is-side-resizing iframe,body.is-side-resizing [data-side-browser] canvas{pointer-events:none!important}
 body.is-side-resizing{cursor:col-resize;user-select:none}
 @media(max-width:760px){
- html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:8px;margin-bottom:calc(52dvh + 8px)}
+ html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:8px;margin-bottom:calc(52dvh + var(--side-gap) + var(--sheet-inset,14px))}
  html body.immersive-workbench .side-panel{inset:auto 8px calc(var(--dock-h,48px) + 8px) 8px;width:auto;height:52dvh;transform:translateY(12px)}
  .side-panel-divider{display:none!important}
 }
 @media(prefers-reduced-motion:reduce){html body.immersive-workbench :is([data-plugin-stage],.side-panel,.side-panel-body){transition:none!important;animation:none!important}.side-panel-divider:after{transition:none!important}}
-`;
+`.replace(/\n\s*/g, "");
 
 /**
  * Opens, sizes and switches the panel. Public, same-document interface (spec 3.1):
@@ -93,8 +92,9 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  */
 export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   if(document.body.hasAttribute('data-pane-embedded'))return;
-  const panel=document.querySelector('[data-side-panel]'),stage=document.querySelector('[data-plugin-stage]');
+  const panel=document.querySelector('[data-side-panel]'),stage=document.querySelector('[data-plugin-stage],.arrival-stage');
   if(!panel||!stage)return;
+  stage.setAttribute('data-plugin-stage','');
   document.querySelector('[data-workspace]').append(panel);
   const frame=panel.querySelector('[data-dock-frame="im"]'),projectId=document.body.dataset.projectId;
   const tabs=()=>[...panel.querySelectorAll('[data-side-tab]')];
@@ -104,7 +104,6 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   const read=(key)=>{try{return localStorage.getItem(key);}catch{return null;}};
   const write=(key,value)=>{try{localStorage.setItem(key,value);}catch{}};
   let open=false,closing=null,trigger=null,ratio=.35,current=null;
-  // The width a person set for the discussion before it became a tab carries over.
   const storedRatio=Number(read('molis:side-ratio')??read('molis:discussion-ratio'));if(storedRatio>=.25&&storedRatio<=.55)ratio=storedRatio;
   const size=()=>Math.min(Math.max(innerWidth*ratio,360),innerWidth*.55);
   const paint=()=>{const width=Math.round(size());document.body.style.setProperty('--side-panel-width',width+'px');divider.setAttribute('aria-valuenow',String(width));divider.setAttribute('aria-valuemin','360');divider.setAttribute('aria-valuemax',String(Math.floor(innerWidth*.55)));};
@@ -116,10 +115,11 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     if(src&&inner&&!inner.getAttribute('src'))inner.src=src;
   };
   const select=(id,target)=>{
-    if(!known(id))id='discussion';
-    const changed=current!==id;current=id;write('molis:side-tab',id);
+    if(!known(id))id=tabs()[0]?.dataset.sideTab;
+    current=id;write('molis:side-tab',id);
     for(const button of tabs()){const on=button.dataset.sideTab===id;button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
-    for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;if(on&&changed){body.hidden=false;load(body);}else if(!on)body.hidden=true;}
+    for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open)load(body);}
+    document.querySelectorAll('[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&id==='plugin:'+button.dataset.sidePluginOpen)));
     imVisible();
     document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:id,target:target??null,open}}));
   };
@@ -137,7 +137,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
       if(panel.contains(document.activeElement)){const focusTarget=trigger?.isConnected&&trigger.getClientRects().length?trigger:document.querySelector('[data-dock-toggle="im"]');focusTarget?.focus({preventScroll:true});}
       imVisible();document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current,target:null,open:false}}));
     }
-    document.querySelectorAll('[data-dock-toggle="im"],[data-side-toggle]').forEach(button=>button.setAttribute('aria-expanded',String(open)));
+    document.querySelectorAll('[data-dock-toggle="im"],[data-side-toggle],[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&(!button.dataset.sidePluginOpen||current==='plugin:'+button.dataset.sidePluginOpen))));
   };
   const request=(detail={})=>{
     const tab=detail.tab==='plugin'&&detail.view?'plugin:'+detail.view:detail.tab;
@@ -145,7 +145,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     setOpen(true,{tab,target:detail.target,focus:detail.focus===true});
     return true;
   };
-  // Handled requests are marked, so a caller can fall back to opening in place when no panel took it.
+  document.addEventListener('click',event=>{const button=event.target.closest?.('[data-side-plugin-open]');if(button)request({tab:'plugin',view:button.dataset.sidePluginOpen});});
   document.addEventListener('molis:side-open',event=>{if(request(event.detail||{}))event.preventDefault();});
   document.addEventListener('molis:side-close',()=>setOpen(false));
   document.addEventListener('molis:side-toggle',event=>open&&!(event.detail?.tab&&event.detail.tab!==current)?setOpen(false):request(event.detail||{}));
@@ -159,8 +159,6 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     const next=event.key==='ArrowRight'?list[(at+1)%list.length]:event.key==='ArrowLeft'?list[(at-1+list.length)%list.length]:event.key==='Home'?list[0]:event.key==='End'?list.at(-1):null;
     if(!next)return;event.preventDefault();next.focus();select(next.dataset.sideTab);
   });
-  // Escape closes the panel from inside it, the same as its close button; a tab that holds a menu or preview
-  // handles Escape first and prevents it.
   panel.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&open){event.preventDefault();setOpen(false);}});
   frame?.addEventListener('load',imVisible);
   new MutationObserver(imVisible).observe(document.documentElement,{attributes:true,attributeFilter:['data-resolved-theme']});
@@ -188,9 +186,8 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   divider.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();ratio=event.key==='Home'?.25:event.key==='End'?.55:Math.max(.25,Math.min(.55,ratio+(event.key==='ArrowLeft'?24:-24)/innerWidth));paint();keep();});
   divider.addEventListener('dblclick',()=>{ratio=.35;paint();keep();});
   addEventListener('resize',paint);paint();
-  // Present from the start with "true" or "false": other surfaces read it to know the panel exists.
   document.body.dataset.sideOpen='false';
-  const first=read('molis:side-tab');select(known(first)?first:'discussion');
+  select(read('molis:side-tab'));
 })();`;
 
 /**

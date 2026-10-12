@@ -1,3 +1,4 @@
+import { codingArtifacts } from "./artifacts.js";
 import { SHELF_TEXT_MATERIAL_TYPE, parseShelfTextMaterial } from "@molis-ai/molis-work-contracts/modules/shelf";
 import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { compareTexts, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, parseChangeSet, parseGitResult, parseFileSnapshot, parseFileTextSelection, selectionCitationLabel } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -98,7 +99,7 @@ function materialFrom(record: FixedVersionRecord | null, sessionTitle?: SessionT
   return material;
 }
 function readMaterial(context: PluginStartContext, reference: ArtifactReference, sessionTitle?: SessionTitle): AgentTextMaterial {
-  try { return materialFrom(context.services!.artifacts.read(reference), sessionTitle); }
+  try { return materialFrom(codingArtifacts(context).read(reference), sessionTitle); }
   catch (error) {
     if ((error as { code?: string }).code === "plugin_artifact_incompatible") throw new Error("材料已归档、不可用或类型不兼容，请移除后重新选择");
     throw error;

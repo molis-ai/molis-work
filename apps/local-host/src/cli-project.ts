@@ -1,6 +1,7 @@
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
+import { bindGoalsManagementActions } from "./goals-actions.js";
 import { dispatchCliProjectCommand, cliFlagValue as value,
   readCliJsonPayload as payload, printV1Help } from "@molis-ai/molis-work-app-cli";
 
@@ -30,10 +31,11 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
     databasePath,
     projectId: String(input.project_id ?? value(args, "--project-id") ?? `database:${databasePath}`),
   });
-  const client = localHost.client(reference);
+  // A command calls Goals' actions as the person on this machine; Goals is registered when the project opens, so no plugin is prepared first.
+  const actions = bindGoalsManagementActions(localHost.actionClient(reference, false), reference);
   try {
     // One command is one operation: everything it calls shares a call number.
-    return await withCallId(newCallId(), () => dispatchCliProjectCommand(client, args, input));
+    return await withCallId(newCallId(), () => dispatchCliProjectCommand(actions, args, input));
   } finally {
     if (ownsLocalHost) await localHost.close();
   }

@@ -571,9 +571,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       if (!source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal read caller is missing goalQueries public usage`);
     } else {
       if (source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal reads must not bypass the Host Client`);
-      if (relativePath === "apps/cli/src/command-dispatch.ts" && !source.includes("client.invoke(snapshotBoardCapability,")) {
-        errors.push(`${relativePath}: remaining CLI Goal reads must invoke the current public snapshot capability`);
-      }
     }
   }
   errors.push(...checkGoalReadOwnerSql(coordinator).map(error => `${coordinatorPath}: ${error}`));
@@ -589,13 +586,11 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${relativePath}: App composition must not own Goal business implementations`);
     }
   }
+  errors.push(...checkGoalTransportCallers({
+    cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
+    mcp: read("apps/mcp/src/tool-dispatch.ts"),
+  }));
   for (const app of ["mcp", "cli"]) {
-    const relativePath = `apps/${app}/src/${app === "mcp" ? "tool" : "command"}-dispatch.ts`;
-    const caller = read(relativePath);
-    if (!caller.includes("LocalHostProjectClient") || !caller.includes("client.withScope(")
-      || caller.includes(".withProject(") || caller.includes("coordinator.goals")) {
-      errors.push(`${relativePath}: Goal transport must use the scoped Host Client`);
-    }
     if (fs.existsSync(path.join(repositoryRoot, `apps/${app}/src/goal-commands.ts`))) {
       errors.push(`apps/${app}/src/goal-commands.ts: retired duplicate Goal command handler must stay removed`);
     }
@@ -1243,6 +1238,54 @@ export function checkGoalsTypedHostCallers(files) {
     };
     visit(file);
     for (const name of named) errors.push(`${relativePath}: ${name} is a typed entry nothing in the Host calls; call Goals' action (bindGoalsWebActions, readProjectGuidance)`);
+  }
+  return errors;
+}
+
+/**
+ * The transport entries reach Goals through the platform, not through a Host client of their own. `cli`: the dispatcher is handed the
+ * management port the Host builds (`CliManagementActions`), holds no Host client and no typed Goals descriptor, and reads the snapshot
+ * through Goals' own action; `cli-project.ts` builds that port with `bindGoalsManagementActions` over the client that does not
+ * prepare the project's plugins. `mcp`: the management MCP still uses the scoped Host client, until it moves to the same port.
+ * Each part is the source text of the file it names; a comment is not a caller.
+ */
+export function checkGoalTransportCallers({ cli, mcp }) {
+  const errors = [];
+  const dispatcherPath = "apps/cli/src/command-dispatch.ts", projectPath = "apps/local-host/src/cli-project.ts", toolPath = "apps/mcp/src/tool-dispatch.ts";
+  const dispatcher = ts.createSourceFile(dispatcherPath, cli.dispatcher, ts.ScriptTarget.Latest, true);
+  const names = new Set(), typed = new Set();
+  const visit = node => {
+    if (ts.isIdentifier(node)) names.add(node.text);
+    if (ts.isImportDeclaration(node) && node.moduleSpecifier.getText(dispatcher).slice(1, -1) === "@molis-ai/molis-work-plugin-goals") {
+      const bindings = node.importClause?.namedBindings;
+      for (const element of bindings && ts.isNamedImports(bindings) ? bindings.elements : []) {
+        if ((element.propertyName ?? element.name).text !== "goalsActions") typed.add((element.propertyName ?? element.name).text);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(dispatcher);
+  if (!names.has("CliManagementActions")) errors.push(`${dispatcherPath}: the CLI dispatcher must take the management port the Host builds (CliManagementActions)`);
+  if (names.has("LocalHostProjectClient")) errors.push(`${dispatcherPath}: the CLI calls Goals' actions through the management port, not a LocalHostProjectClient`);
+  for (const name of typed) errors.push(`${dispatcherPath}: ${name} is not a Goals action; the CLI calls goalsActions through the management port`);
+  if (cli.dispatcher.includes(".withProject(") || cli.dispatcher.includes("coordinator.goals")) {
+    errors.push(`${dispatcherPath}: the CLI must not open a project (.withProject) or reach coordinator.goals; it calls Goals' actions through the management port`);
+  }
+  if (!/\bgoalsActions\.snapshot\b/u.test(cli.dispatcher.replace(/\/\/.*|\/\*[\s\S]*?\*\//gu, ""))) {
+    errors.push(`${dispatcherPath}: the CLI snapshot must be read through goalsActions.snapshot`);
+  }
+  const project = ts.createSourceFile(projectPath, cli.project, ts.ScriptTarget.Latest, true);
+  let built = false;
+  const find = node => {
+    if (ts.isCallExpression(node) && node.expression.getText(project) === "bindGoalsManagementActions"
+      && /^\w+\.actionClient\(reference, false\)$/u.test(node.arguments[0]?.getText(project) ?? "")) built = true;
+    ts.forEachChild(node, find);
+  };
+  find(project);
+  if (!built) errors.push(`${projectPath}: the CLI's management port must be bindGoalsManagementActions(<host>.actionClient(reference, false), reference): the Host builds it, and Goals needs no plugin prepared first`);
+  if (!mcp.includes("LocalHostProjectClient") || !mcp.includes("client.withScope(")
+    || mcp.includes(".withProject(") || mcp.includes("coordinator.goals")) {
+    errors.push(`${toolPath}: Goal transport must use the scoped Host Client`);
   }
   return errors;
 }

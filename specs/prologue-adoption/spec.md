@@ -542,13 +542,23 @@ A0 明确不改助理协调器/存储/客户端、Schedule runner、模型设置
 | Molis 定向 | §7 的 16 个文件加 `agent-host*`、`host-inference-completion`、`prologue-inference-native`，共 24 个文件 217 项全过（默认包路径，非源码映射） |
 | 安全与合同 | `pnpm test:security` 145 项 144 通过 / 1 跳过（需真实 npm registry 的用例）/ 0 失败；`pnpm test:contracts` 430 项首轮 3 项 `action-before-effect` 的 `form:` 用例 15 秒超时（同批并发负载），该文件单独连跑两次 20/20 通过 |
 | 门禁 | `check-health-gates.mjs --base origin/main` 通过（公开 API 只变 agent-host 合同：`grants`、`turn_changes`、`sleeping_until`）；`check-package-boundaries.mjs` `errors: []`；`page-assets.mjs --base origin/main` 见下 |
+| 部分全量（`c5ddde8e`） | `node scripts/run-tests.mjs` 全量从 2026-10-12 07:36Z 跑到 10:46Z，**按用户决定停止，改为批量全量**（不是跑完：日志计数 4204 个 ✔、21 个 ✖、15 个跳过，未跑到的文件没有结果）。树是 `c5ddde8e`（A0 加 main `032a5d00`，`pnpm build` 退出 0），机器负载 4–11。21 个 ✖ 归 19 个文件，逐个单独复跑并和干净基线（`032a5d00`，同样 `pnpm build`）比对，见下「失败定性」 |
 | vendor 记录 | 用户 2026-10-12 确认删除 `side-panel-memory.patch`（`dependencies-and-sdk-plan.md` §4.2）：已删，登记为 `patch-history.json` 的第 26 份（225,092 字节、SHA-256 `1f64a15c…`、git blob `97328ddc`、基线 `af7375c7`、来源 `9fc3b173`；重新施加到基线，`packages/sdk` 与 `9fc3b173` 逐文件相同），它产出的 side-panel-memory 包随它记在 `package` 里。`tests/vendor-provenance.test.ts` 78/78 通过（断言的数字随记录改为 26 份 / 2,791,897 字节 / 10 个无补丁包，没有删除或放宽任何一条） |
+
+#### 失败定性（部分全量里的 21 个 ✖）
+
+| 类 | 文件与结果 | 定性 |
+| --- | --- | --- |
+| 非浏览器，9 个文件 | `alchemist-mcp`、`form-mcp`、`home-mcp-actions`、`inbox-automatic-scenes`、`installed-plugin-host`、`lingguang-mcp`、`pages-mcp`（stdio MCP / 跨进程用例 30–90 秒超时，或 `ECONNRESET`）和 `jelly-native-material`、`material-extraction`（本机 Swift 助手不可用：`/.build: Read-only file system`、`native helper unavailable on this dev machine`）。我的树单独复跑：43 项 32 通过 / 5 个失败文件（11 个 ✖ 行），**干净基线 `032a5d00` 同样的 43 项、同样的失败集合，差集为空** | **预先存在 / 环境问题，非 A0、非 SDK 引起**；未修，也不属于本线 |
+| 浏览器，10 个文件 | `agent-action-selection`、`artifact-clipboard`、`assistant-dock-ime`、`dense-workspace`、`feed-capture`、`goals-document`、`goals-narrow-navigation`、`goals-planning`、`immersive-directory`、`inbox-current`。我的树单独复跑（负载 4）：16 项 9 通过 / 7 失败（`agent-action-selection`、`feed-capture`、`immersive-directory`、`inbox-current`、`goals-narrow-navigation`、`goals-document`、`assistant-dock-ime` 各一项）；**干净基线 `032a5d00` 同样 16 项 7 通过 / 9 失败，我的 7 个失败全在基线上也失败，只在我这边失败的为空**（基线多失败 `dense-workspace`、`artifact-clipboard` 两项，是偶发）；`goals-planning` 在我的树上单独跑通过 | **预先存在 / 环境问题，非 A0、非 SDK 引起**；未修，也不属于本线 |
+
+此前 17 个受影响 e2e 的两轮：首轮 30/43、重跑 13/17，失败全是 `CDP timeout` / `Navigation did not finish`（负载 50–66 时跑的），其中 `coding-timeline`、`coding-taskboard`、`issue-assistant-repair-page` 通过；浏览器类 21 个 ✖ 里没有一个是只在 A0 树上才失败的。**结论：部分全量跑到的那一半里，没有 A0 或 SDK 引起的失败；全量没有跑完，不能代替批量全量。**
 
 合入 main 后冒出的页面资源超预算已就地解决，没有放宽：Coding 客户端（以 `coding/diff/files/git/text-stats.js` 五个名字发出）A0 版比预算多 5,002 字节，两张样式表多 944 / 1,366 字节。做法：三处注入浏览器的函数（`createCodingTimeline`、`codingTimelineWords`、`createCodingTurnChanges`）里的注释移到模块头（函数体每个字节都发给每个页面）；工具种类表改成元组再展开；写入行复用现有行与运行卡样式，`timeline-styles.ts` 删除、`styles.ts` 与 main 逐字节相同；命令扩权说明复用 `agent-review-concurrent`。行为与断言文字不变。预算用 `page-assets.mjs --update --base origin/main` 降了 12 字节，样式表回到 main 的数字。
 
 #### 第二级：真实产品实操
 
-- 浏览器用例（`coding-timeline.e2e` 等）：见下「待跑」。
+- 浏览器用例：`coding-timeline.e2e`（时间线状态与收尾）、`coding-taskboard.e2e` 3 项、`issue-assistant-repair-page.e2e` 等受影响文件通过；其余失败按上表和干净基线比对为预先存在。这是自动化浏览器用例，不等于临时 Home 里的人工实操。
 - 真实模型：本机没有 Key，未跑。回环对端是本地脚本服务，不是外部模型。
 - 临时 Home 里的 Coding 时间线与扩权审查卡人工实操：未做。
 
@@ -565,8 +575,8 @@ A0 明确不改助理协调器/存储/客户端、Schedule runner、模型设置
 
 #### 没做的与风险
 
-- D7 还差两项：Molis 默认路径验证的浏览器部分（见上，被机器负载挡住）和采用线合入 Molis main（PR #408 由统筹按条件合并）。
-- 全量回归（`affected-tests` 命中共享核心 + 4 个包）还没排上；需要源码冻结 + 整机独占时段。
+- D7 还差一项：采用线合入 Molis main（Molis 默认路径验证的工程部分和受影响的浏览器用例已过，部分全量里的失败已和干净基线比对为预先存在；批量全量尚未跑）（PR #408 由统筹按条件合并）。
+- 全量回归：`affected-tests` 命中共享核心 + 4 个包。用户决定改成批量全量（统筹把 #408 和情境线 W1 的合同片合到一条集成分支跑一次），所以 #408 要等那一次全量通过才合；上面的部分全量只证明跑到的那一半没有 A0 引起的失败（浏览器部分待定性），不代替它。
 - `c4b9fde3` 目前只在 Prologue 的特性分支上；`patch-history.json` 的上游说明已如实写明，并入后复核。
 
 ### 6.1 当前记录

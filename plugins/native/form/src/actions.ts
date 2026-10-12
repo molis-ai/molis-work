@@ -3,7 +3,7 @@ import { FORM_DRAFT_QUESTION } from "./prompts.js";
 import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FORM_ARTIFACT_TYPE_ID, FORM_PROJECT_PLUGIN_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord, type FormSubmissionSource } from "@molis-ai/molis-work-contracts/modules/form";
 import { promoteForm, type FormLineHeadPort, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
-import { FormError } from "./error.js";
+import { formErrors } from "./error.js";
 import type { FormStore } from "./store.js";
 import { createFormSearchHandlers, formSearchActions } from "./search.js";
 import { formFillPageFilename, formFillPageHtml, formResultsCsv, formResultsCsvFilename } from "./fillpage.js";
@@ -79,15 +79,6 @@ export interface FormActionPorts {
 function submissionSource(caller: ActionCallContext, claimed: "preview" | "fill" = "preview"): Exclude<FormSubmissionSource, "file"> {
   return caller.audience === "user" ? claimed : caller.audience;
 }
-/**
- * A form that is not collecting refuses with its own code and reason, and the caller is who has to read them. An MCP
- * client is told the code and message of an ActionError only (any other error reaches it as a generic failure), so this
- * refusal crosses the action boundary as one.
- */
-function refusal<T>(run: () => T): T {
-  try { return run(); }
-  catch (error) { throw error instanceof FormError && error.code === "form.closed" ? new ActionError(error.code, error.message) : error; }
-}
 export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
@@ -109,18 +100,18 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
     bind(formActions.generate, (input, caller) => ports.withStore(store => ({ form: store.generateQuestions(input.id, input.prompt, project(caller), input.expected_version) }))),
     bind(formActions.generateAi, async (input, caller) => {
       const current = ports.withStore(store => store.get(input.id, project(caller)));
-      if (input.expected_version !== undefined && current.version !== input.expected_version) throw new ActionError("form.conflict", "问卷已改变，请重新读取后生成");
+      if (input.expected_version !== undefined && current.version !== input.expected_version) throw formErrors.conflict("问卷已改变，请重新读取后生成");
       caller.signal?.throwIfAborted();
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
       const title = (await ports.completeText(instructed(FORM_DRAFT_QUESTION, JSON.stringify({ request: input.prompt })), { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
       caller.signal?.throwIfAborted();
-      if (!title || title.length > 200 || /[\r\n]/.test(title)) throw new ActionError("form.invalid", "模型没有返回有效题目，请调整提示后重试");
+      if (!title || title.length > 200 || /[\r\n]/.test(title)) throw formErrors.invalid("模型没有返回有效题目，请调整提示后重试");
       await caller.beforeEffect();
       return ports.withStore(store => ({ form: store.generateQuestions(input.id, title, project(caller), current.version) }));
     }, () => ports.modelAvailability()),
-    bind(formActions.submit, (input, caller) => ports.withStore(store => ({ submission: refusal(() => store.submit(input.id, input.answers, project(caller), { expectedVersion: input.expected_version, requestId: input.request_id, source: submissionSource(caller, input.source) })) }))),
+    bind(formActions.submit, (input, caller) => ports.withStore(store => ({ submission: store.submit(input.id, input.answers, project(caller), { expectedVersion: input.expected_version, requestId: input.request_id, source: submissionSource(caller, input.source) }) }))),
     bind(formActions.close, (input, caller) => ports.withStore(store => ({ form: store.closeCollection(input.id, project(caller), input.expected_version) }))),
-    bind(formActions.importAnswers, (input, caller) => ports.withStore(store => refusal(() => store.importAnswers(input.id, input.files, project(caller), { source: submissionSource(caller) })))),
+    bind(formActions.importAnswers, (input, caller) => ports.withStore(store => store.importAnswers(input.id, input.files, project(caller), { source: submissionSource(caller) }))),
     bind(formActions.csv, (input, caller) => ports.withStore(store => {
       const form = store.get(input.id, project(caller));
       const submissions = store.listSubmissions(input.id, project(caller));
@@ -128,7 +119,7 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
     })),
     bind(formActions.fillPage, (input, caller) => ports.withStore(store => {
       const form = store.get(input.id, project(caller));
-      if (!form.questions.length) throw new ActionError("form.invalid", "还没有题目，先加题再导出填写页");
+      if (!form.questions.length) throw formErrors.invalid("还没有题目，先加题再导出填写页");
       return { filename: formFillPageFilename(form.title), mime_type: "text/html" as const, content: formFillPageHtml(form) };
     })),
     bindObjectMoveHandler(formActions.move, input => ports.withStore(store => {

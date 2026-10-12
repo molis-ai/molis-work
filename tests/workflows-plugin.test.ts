@@ -34,11 +34,11 @@ import {
   removeStation,
   setLink,
   workflowsManifest,
-  workflowsRouteErrorResponse,
   type WorkflowChain,
   type WorkflowInstance,
   type WorkflowLink,
 } from "@molis-ai/molis-work-plugin-workflows";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 
 const PROJECT = "project-workflows";
 const fn = (body: string, title = ""): WorkflowLink => ({ kind: "function", title_template: title, body_template: body, instructions: "" });
@@ -147,7 +147,7 @@ async function withProject(run: (ctx: {
       assert.ok(response, `no route for ${method} ${pathname}`);
       return response as { status: number; body: Record<string, unknown> };
     } catch (error) {
-      return workflowsRouteErrorResponse(error) as { status: number; body: Record<string, unknown> };
+      return actionErrorResponse(error) as { status: number; body: Record<string, unknown> };
     }
   };
   try {

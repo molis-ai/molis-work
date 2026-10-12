@@ -1,5 +1,4 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { preparePagesImport, type PagesImportFile, type PreparedPagesImport } from "@molis-ai/molis-work-plugin-pages";
+import { pagesErrors, preparePagesImport, type PagesImportFile, type PreparedPagesImport } from "@molis-ai/molis-work-plugin-pages";
 import type { MaterialDocumentOptions } from "@molis-ai/molis-work-contracts/services/materials";
 import { readMaterialUploads } from "./material-documents.js";
 import { MaterialExtractionError } from "./material-text.js";
@@ -12,7 +11,7 @@ export async function preparePagesFileImport(files: readonly PagesImportFile[], 
     return preparePagesImport(materials);
   } catch (error) {
     options.signal?.throwIfAborted();
-    if (error instanceof MaterialExtractionError) throw new ActionError("pages.invalid", error.message);
+    if (error instanceof MaterialExtractionError) throw pagesErrors.invalid(error.message);
     throw error;
   }
 }

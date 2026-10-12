@@ -33,7 +33,8 @@ const noteSchema = { type: "object", properties: { text: { type: "string", title
 // Saving a note says how it is taken back: remove the note its output names.
 const add: ActionDefinition = { capability_id: "fixture.notes.add", version: 1, operation: "command", action: {
   title: "Add a note", description: "Store a note", kind: "operation", scope: "project", audiences: ["agent"], permissions: ["notes:write"], subject_kinds: [],
-  input_schema: noteSchema, undo: { capability_id: "fixture.notes.remove", version: 1, input: { note_id: "note.id" } } } };
+  input_schema: noteSchema, output_schema: { type: "object", properties: { note: { type: "object", properties: { id: { type: "string" } } } } },
+  undo: { capability_id: "fixture.notes.remove", version: 1, input: { note_id: "note.id" } } } };
 const remove: ActionDefinition = { capability_id: "fixture.notes.remove", version: 1, operation: "command", action: {
   title: "Remove a note", description: "Remove a note", kind: "operation", scope: "project", audiences: ["user", "agent"], permissions: ["notes:write"], subject_kinds: [],
   input_schema: { type: "object", properties: { note_id: { type: "string" } }, required: ["note_id"], additionalProperties: false } } };

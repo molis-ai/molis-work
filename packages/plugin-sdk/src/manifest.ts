@@ -1,7 +1,9 @@
 import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
+import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations } from "./action-declarations.js";
 import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-declarations.js";
+import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 
 export class PluginManifestError extends Error {
@@ -108,6 +110,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   const parsed = input as PluginManifest;
   if (schemaVersion === 1) {
     assertNoV2Blocks(manifest, ui);
+    assertArtifactDeclarations(parsed);
   } else {
     assertV2Blocks(parsed, ui);
   }
@@ -192,9 +195,19 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
   }
 }
 
+/** A v1 Manifest has no problems list of its own to add the 成果 types to (v2 adds them to its list in `assertV2Blocks`). */
+function assertArtifactDeclarations(parsed: PluginManifest): void {
+  assertNoDeclarationProblems(artifactDeclarationProblems(parsed));
+}
+
+/** The one place a list of declaration problems becomes the refusal (the error-code gates count each literal of a code). */
+function assertNoDeclarationProblems(problems: readonly string[]): void {
+  if (problems.length > 0) throw new PluginManifestError("plugin_declaration_invalid", problems.join("；"));
+}
+
 function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): void {
   const problems: string[] = [];
-  problems.push(...inspectActionDeclarations(parsed.actions, parsed.action_scenes));
+  problems.push(...inspectActionDeclarations(parsed.actions, parsed.action_scenes), ...inspectActionCrossReferences(parsed.actions));
   const declaredPermissions = new Set(parsed.permissions.map(p => p.permission));
   for (const action of Array.isArray(parsed.actions) ? parsed.actions : []) {
     for (const permission of Array.isArray(action?.action?.permissions) ? action.action.permissions : []) {
@@ -218,9 +231,8 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   problems.push(...inspectRouteDeclarations(parsed));
   problems.push(...inspectRequirementDeclarations(parsed));
   problems.push(...inspectPortPermissions(parsed));
-  if (problems.length > 0) {
-    throw new PluginManifestError("plugin_declaration_invalid", problems.join("；"));
-  }
+  problems.push(...artifactDeclarationProblems(parsed));
+  assertNoDeclarationProblems(problems);
 }
 
 function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unknown>): string[] {

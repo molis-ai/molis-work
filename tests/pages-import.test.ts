@@ -11,11 +11,11 @@ import {
   PagesPluginRouteTable,
   createPagesRouteHandlers,
   openPagesStore,
-  pagesRouteErrorResponse,
   type PagesStore,
   type PreparedPagesImport,
 } from "@molis-ai/molis-work-plugin-pages";
-import { handlePagesNativePluginHttp } from "../apps/local-host/src/pages-native-plugin-http.ts";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { handlePagesNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
 
 const PROJECT = "pages-import-project";
 const OTHER = "pages-import-other";
@@ -187,7 +187,7 @@ test("Pages 同一导入标识更改文件、选择或文件夹都会冲突，�
       ];
       for (const alternate of alternatives) {
         await assert.rejects(() => post(store, "/api/pages/import", alternate), (error: unknown) => {
-          assert.equal(pagesRouteErrorResponse(error).status, 409);
+          assert.equal(actionErrorResponse(error).status, 409);
           return true;
         });
         assert.deepEqual(store.list(PROJECT), before);
@@ -206,9 +206,9 @@ test("Pages 导入已删除文档的旧请求不会把文档重新创建", async
       const documents = (first?.body as { documents: PagesRecord[] }).documents;
       store.delete(documents[0].id, PROJECT);
       await assert.rejects(() => post(store, "/api/pages/import", input), (error: unknown) => {
-        const result = pagesRouteErrorResponse(error);
+        const result = actionErrorResponse(error);
         assert.equal(result.status, 409, "已完成的导入不能被当作初次输入错误而重新创建");
-        assert.match((result.body as { error: string }).error, /导入已完成.*部分文档已删除.*不会重新创建/u);
+        assert.match(result.body.error, /导入已完成.*部分文档已删除.*不会重新创建/u);
         return true;
       });
       assert.deepEqual(store.list(PROJECT), [documents[1]]);
@@ -252,12 +252,13 @@ test("Pages HTTP 仅两条导入路由接受大于原限额的请求，并执行
       assert.equal(imported.documents.length, 1);
       for (const path of ["/api/pages", `/api/pages/${imported.documents[0].id}`]) {
         const ordinary = await request(path, { title: "应拒绝", padding });
-        assert.equal(ordinary.status, 400);
+        // W3-02-D: a body that is too large is 413 (kind too_large), no longer the generic 400; the Pages import client clears the submission on it.
+        assert.equal(ordinary.status, 413);
         assert.match((await ordinary.json() as { error: string }).error, /请求内容过大/u);
       }
       const tooLarge = await request("/api/pages/import/preview", { files: FILES, padding: " ".repeat(15_000_000) });
-      assert.equal(tooLarge.status, 400);
-      assert.match((await tooLarge.json() as { error: string }).error, /请求内容过大/u);
+      assert.equal(tooLarge.status, 413);
+      assert.deepEqual(await tooLarge.json(), { error: "请求内容过大", code: "actions.input_too_large" });
       const persisted = openPagesStore(home);
       assert.equal(persisted.list(PROJECT).length, 1);
       assert.equal(persisted.list(PROJECT)[0].title, prepared.documents[0].title);

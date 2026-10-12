@@ -5,6 +5,7 @@ import { openCharacters } from '@molis-ai/molis-work-module-characters';
 import { charactersManifest } from '@molis-ai/molis-work-plugin-characters';
 import { PluginRuntime, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { olderCharactersManifest } from './fixtures/older-characters-manifest.js';
 
 test('Characters opens an existing project after its manifest upgrade without losing personal drafts', { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
@@ -12,10 +13,8 @@ test('Characters opens an existing project after its manifest upgrade without lo
   t.after(() => personal.close());
   const draft = personal.service.create();
   personal.service.update(draft.character_id, 1, { title: '升级前的角色草稿', instructions: '保留原有做事方式', host_tools: null });
-  // A real 1.0.0 had neither import routes, declared actions nor an upgrade range of its own.
-  const { upgrade_compatibility: _range, actions: _actions, ...current } = structuredClone(charactersManifest);
-  const legacy = { ...current, version: '1.0.0',
-    routes: charactersManifest.routes.filter(route => !route.route_id.startsWith('characters.import') && route.route_id !== 'characters.discover') };
+  // An older install: no import routes, no declared actions, no upgrade range, and no produced type (see the fixture).
+  const legacy = olderCharactersManifest();
   const repository = new SqlitePluginRuntimeRepository(b.store.db);
   const installed = new PluginRuntime(repository).install({ definition: { manifest: legacy, async start() { return {}; } },
     deployment: 'local', grants: legacy.permissions.filter(p => p.required).map(p => p.permission) });

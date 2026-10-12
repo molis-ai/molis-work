@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import os from "node:os";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,8 +8,10 @@ import test from "node:test";
 import type { Server } from "node:http";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { createFeedEvidenceContentStore } from "@molis-ai/molis-work-module-feed";
-import { seedDemoBoard, DEMO_PROJECT_ID, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability, seedDemoBoard, DEMO_PROJECT_ID, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const controlToken = "home-isolation-test-control-token-0123456789";
@@ -156,4 +159,110 @@ test("async home scopes and retained stores keep secrets and body keys in their 
     else process.env.MOLIS_WORK_SECRET_BACKEND = oldBackend;
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+/**
+ * W3-01 C. A request to the web server is one operation with one number. The answer shows the number (header `x-molis-work-call-id`,
+ * and `call_id` in an error body) only when the call log holds a row for it, so the number a person copies can always be looked up.
+ */
+const CALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const withRequestFixture = async (run: (fixture: { base: string; host: MolisWorkLocalHost; projectId: string; goals: BoundActionClient;
+  post: (path: string, body: unknown, headers?: Record<string, string>) => Promise<Response> }) => Promise<void>) => {
+  const home = mkdtempSync(join(tmpdir(), "molis-work-call-id-web-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const created = await catalog.createProject({ display_name: "编号", actor_id: "test" });
+  const project = catalog.getProject(created.project_id);
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  // The policy the desktop gives its Host: a plugin the project has not installed answers "not enabled" (a refused call, so a row).
+  const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability(async (_, work) => work(catalog), home) });
+  const controlToken = "call-id-web-test-control-token-0123456789";
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object");
+    const base = `http://127.0.0.1:${address.port}/projects/${project.project_id}`;
+    const origin = `http://127.0.0.1:${address.port}`;
+    const goals = bindActionClient(host.actionClient(reference), () => ({ actor_id: "web-user", project_id: project.project_id, audience: "user" as const, permissions: ["goals:read", "goals:write"] }));
+    const post = (path: string, body: unknown, headers: Record<string, string> = {}) => fetch(base + path, { method: "POST",
+      headers: { "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": `call-id-${randomUUID()}`, ...headers },
+      body: JSON.stringify(body) });
+    await run({ base, host, projectId: project.project_id, goals, post });
+  } finally {
+    if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close(); catalog.close(); rmSync(home, { recursive: true, force: true });
+  }
+};
+
+test("W3-01 C a refused read on a page's own route answers with the number of its row, in the header and in the error body", { timeout: 60_000 }, async () => {
+  await withRequestFixture(async ({ base, host, projectId }) => {
+    // Feed's own route in a project that has no Feed: the person asked for it by name, so the host answers 403 and records it as not run.
+    const response = await fetch(`${base}/api/feed`);
+    assert.equal(response.status, 403);
+    const id = response.headers.get("x-molis-work-call-id");
+    assert.match(id ?? "", CALL_ID);
+    const body = await response.json() as { call_id?: string; error?: string };
+    assert.equal(typeof body.error, "string");
+    assert.equal(body.call_id, id, "the body and the header carry the same number");
+    const rows = host.callLog!.find(id!);
+    assert.equal(rows.length, 1, "the number is one the call log can find");
+    assert.equal(rows[0]!.project_id, projectId);
+    assert.equal(rows[0]!.code, "actions.plugin_disabled");
+    assert.equal(rows[0]!.refused, true);
+  });
+});
+
+test("W3-01 C every request has a number of its own, and a number sent by the client is never taken", { timeout: 60_000 }, async () => {
+  await withRequestFixture(async ({ base, host }) => {
+    const forged = "11111111-2222-4333-8444-555555555555";
+    const [first, second, third] = await Promise.all([fetch(`${base}/api/feed`), fetch(`${base}/api/feed`), fetch(`${base}/api/feed`, { headers: { "x-molis-work-call-id": forged } })]);
+    const ids = [first, second, third].map(response => response.headers.get("x-molis-work-call-id"));
+    for (const id of ids) assert.match(id ?? "", CALL_ID);
+    assert.equal(new Set(ids).size, 3, "three requests, three numbers, even when they run at the same time");
+    assert.notEqual(ids[2], forged);
+    assert.deepEqual(host.callLog!.find(forged), [], "the host never used the number the client sent");
+    for (const id of ids) assert.equal(host.callLog!.find(id!).length, 1, id!);
+  });
+});
+
+test("W3-01 C a command of a page, whether it ends well or not, shows its number in the header, and an error body shows it too", { timeout: 60_000 }, async () => {
+  await withRequestFixture(async ({ base, host, goals, post }) => {
+    await goals.invoke(goalsActions.create, { goal_id: "G1", title: "一个目标", idempotency_key: "create-g1" });
+    const failed = await post("/api/goals/NOPE/archive", { archived: true, reason: "没有这个目标" });
+    assert.equal(failed.status, 400);
+    const failedId = failed.headers.get("x-molis-work-call-id");
+    assert.match(failedId ?? "", CALL_ID);
+    assert.equal((await failed.json() as { call_id?: string }).call_id, failedId);
+    const failedRow = host.callLog!.find(failedId!)[0];
+    assert.equal(failedRow?.capability_id, goalsActions.archive.capability_id);
+    assert.equal(failedRow?.ok, false);
+    const done = await post("/api/goals/G1/active", { reason: "先做这个" });
+    assert.equal(done.status, 200);
+    const doneId = done.headers.get("x-molis-work-call-id");
+    assert.match(doneId ?? "", CALL_ID);
+    assert.notEqual(doneId, failedId);
+    assert.equal("call_id" in (await done.json() as object), false, "a success keeps its body as it was");
+    const doneRow = host.callLog!.find(doneId!)[0];
+    assert.equal(doneRow?.capability_id, goalsActions.active.capability_id);
+    assert.equal(doneRow?.ok, true);
+  });
+});
+
+test("W3-01 C a request that left no row shows no number: a read that worked and then a 404, and a refusal at the door", { timeout: 60_000 }, async () => {
+  await withRequestFixture(async ({ base, host, goals, post }) => {
+    await goals.invoke(goalsActions.create, { goal_id: "G1", title: "一个目标", idempotency_key: "create-g1" });
+    await post("/api/goals/G1/active", { reason: "先做这个" });
+    const rowsBefore = host.callLog!.recent(100).length;
+    // The page reads the Goal, then the route itself finds it is a current Goal and not one in the trash: a 404 that no call produced.
+    const notThere = await fetch(`${base}/trash/goals/G1`);
+    assert.equal(notThere.status, 404);
+    assert.equal(notThere.headers.get("x-molis-work-call-id"), null);
+    const notThereBody = await notThere.json() as object;
+    assert.equal("call_id" in notThereBody, false);
+    // No control token: refused before any route, and before any call.
+    const refused = await post("/api/goals/G1/active", { reason: "x" }, { "x-molis-work-control-token": "wrong" });
+    assert.equal(refused.status, 403);
+    assert.equal(refused.headers.get("x-molis-work-call-id"), null);
+    assert.equal("call_id" in (await refused.json() as object), false);
+    assert.equal(host.callLog!.recent(100).length, rowsBefore, "neither left a row");
+  });
 });

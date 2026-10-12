@@ -1,3 +1,4 @@
+import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { dispatchCliProjectCommand, cliFlagValue as value,
@@ -31,7 +32,8 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   });
   const client = localHost.client(reference);
   try {
-    return await dispatchCliProjectCommand(client, args, input);
+    // One command is one operation: everything it calls shares a call number.
+    return await withCallId(newCallId(), () => dispatchCliProjectCommand(client, args, input));
   } finally {
     if (ownsLocalHost) await localHost.close();
   }

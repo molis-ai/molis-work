@@ -231,7 +231,11 @@ test("catalog 路径 Promote 不发 Artifact；注入口之后 MCP 与 HTTP 同�
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ project_id: "project-alpha", goal_id: "CORE" }),
       });
-      assert.equal(missing.status, 409);
+      // W3-02-D: this refusal is an availability object (`{ available: false, code: "pages.unavailable" }`: no publisher in this environment), which the kernel
+      // raises as an ActionError with the code and no kind; a code of the owner's with no kind answers 400 where Pages' own mapper gave this one 409. The code is
+      // the same and nothing is written. The kernel passing an availability's kind on is the shared core's (W3-02-G1, wave3-batchB-plan.md, W3-02-D); PPT, Dataset and
+      // Form answer the same and are pinned in document-plugins-error-model.test.ts, and all four become 409 in the change that does it.
+      assert.equal(missing.status, 400);
       const missingBody = await missing.json() as { code: string; document?: { goal_id?: string } };
       assert.equal(missingBody.code, "pages.unavailable");
       assert.equal(missingBody.document, undefined);

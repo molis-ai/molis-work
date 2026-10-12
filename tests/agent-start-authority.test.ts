@@ -94,3 +94,20 @@ test("a returned typed start keeps only explicit dispatch authority and the orig
     active = false; await assert.rejects(async () => execution!.beforeDispatch!(), /activation revoked/);
   }
 });
+
+test("a round's frozen record keeps the call number the Host gave its start, and takes none from the request", async () => {
+  const frozen: Array<Record<string, unknown>> = [];
+  const runtime: PrologueRuntimePort = { sessions: { async create() { return { ref: { id: "session" } }; } },
+    async startAgentRun(input) { frozen.push({ ...input.provenance.frozen }); throw new Error("frozen record sentinel"); }, async shutdown() {} };
+  const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://model.example/v1/messages", model: "fixture", credential_ref: "fixture" }) });
+  const host = new AgentHost(); host.register(adapter);
+  const session = await adapter.createSession({ ...owner, directory, title: "Owned" });
+  // A plugin controls the body of `agent.run.start`, so a number in it is plugin data.
+  const request = { ...owner, session, directory, task: "Read supplied context", role_id: "reader", call_id: "forged-by-the-request" };
+  const authority = { manifest, authorizedDirectories: [directory.canonical_path] };
+  const given = "6f1c2d9e-0b7a-4c55-8f0e-3a2b1c0d9e8f";
+  await assert.rejects(host.start(adapter.descriptor.runtime_id, request, { ...authority, call_id: given }), /frozen record sentinel/);
+  await assert.rejects(host.start(adapter.descriptor.runtime_id, request, authority), /frozen record sentinel/);
+  assert.equal(frozen[0]!.call_id, given);
+  assert.equal("call_id" in frozen[1]!, false, "a round started without a number has none; nothing invents one");
+});

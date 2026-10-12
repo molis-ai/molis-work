@@ -1,6 +1,7 @@
 import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, fileContentOf, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding, type FileContentInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DATASET_PROJECT_PLUGIN_ID, type DatasetRecord } from "@molis-ai/molis-work-contracts/modules/dataset";
 import type { DatasetStore } from "./store.js";
+import { datasetErrors } from "./error.js";
 
 /** Dataset's part in the system search: table name, description, column names and cell text. */
 export const datasetSearchActions = {
@@ -37,14 +38,14 @@ export function createDatasetSearchHandlers(withStore: <T>(run: (store: DatasetS
       const subject = (input as FileContentInput).subject;
       let dataset: DatasetRecord;
       try { dataset = store.get(subject.id, project(caller)); }
-      catch { throw new ActionError("dataset.not_found", "数据表已删除"); }
+      catch { throw datasetErrors.not_found("数据表已删除"); }
       return fileContentOf({ subject, revision: String(dataset.version), title: `${dataset.title || "数据表"}.csv`, media_type: "text/csv", text: datasetCsv(dataset) });
     }) },
     { ...datasetSearchActions.subject, handle: (caller, input) => withStore(store => {
       let dataset: DatasetRecord;
       try { dataset = store.get((input as { subject_id: string }).subject_id, project(caller)); }
       catch (error) {
-        if ((error as { code?: string })?.code === "dataset.not_found") throw new ActionError("dataset.not_found", "数据表已删除");
+        if ((error as { code?: string })?.code === "dataset.not_found") throw datasetErrors.not_found("数据表已删除");
         throw error;
       }
       return subjectContext({ subject: { kind: "dataset", id: dataset.id }, revision: String(dataset.version), title: dataset.title, content: datasetSearchContent(dataset), goal_ids: [], session_id: null, open: { surface: DATASET_PROJECT_PLUGIN_ID, id: dataset.id } });

@@ -35,13 +35,3 @@ export function createWorkflowsRouteHandlers(actions: BoundActionClient): Record
     "workflows.step_actions": () => run(workflowsActions.actionSteps, {})(),
   };
 }
-
-export function workflowsRouteErrorResponse(error: unknown): WorkflowsPluginRouteResponse {
-  const code = error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : "";
-  const message = error instanceof Error ? error.message : "工作流程请求失败";
-  if (code === "workflows.not_found" || code === "actions.missing") return { status: 404, body: { error: message, code } };
-  if (code === "workflows.conflict") return { status: 409, body: { error: message, code } };
-  if (code.startsWith("actions.")) return { status: code.includes("forbidden") || code === "actions.scope_mismatch" ? 403 : 400, body: { error: message, code } };
-  if (code.startsWith("workflows.")) return { status: 400, body: { error: message, code } };
-  return { status: 400, body: { error: message } };
-}

@@ -156,7 +156,7 @@ describe("mcp server", () => {
       for (const named of [{}, { database_path: "" }, { database_path: "  " }, { database_path: 5 }]) {
         await assert.rejects(
           () => management.callTool("molis_work_v1_initialize", { project_id: "no-default", title: "无默认库", idempotency_key: "k", ...named }),
-          (error: unknown) => error instanceof MolisWorkV1Error && error.code === "store.path_required",
+          (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.path_required",
           JSON.stringify(named),
         );
       }
@@ -166,7 +166,7 @@ describe("mcp server", () => {
       process.env.MOLIS_WORK_DATABASE = named;
       await assert.rejects(
         () => management.callTool("molis_work_v1_goal_tree_decide", { project_id: "no-default" }),
-        (error: unknown) => error instanceof MolisWorkV1Error && error.code === "store.not_found" && error.message.includes(named),
+        (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.not_found" && error.message.includes(named),
       );
       assert.deepEqual(fs.readdirSync(directory), []);
     } finally {

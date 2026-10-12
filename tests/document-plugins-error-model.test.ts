@@ -38,7 +38,8 @@ import { serveNativeHttp, type NativeHttpAnswer } from "./fixtures/native-http.j
 //   3. a request body that is too large answers 413 (FAILS there: 400), a broken body 400, a failure with no code of ours 500 (FAILS there: 400);
 //   4. Lingguang's streamed error event is written by the same function (code and details stay, status is the kind's);
 //   5. real routes through real stores keep the status and the code of not found, conflict (PARITY: passes before and after);
-//   6. nothing of the old shape is left: no error class, no mapper, no `mapError`, no owner code raised without its declaration.
+//   6. nothing of the old shape is left: no error class, no mapper, no `mapError`, no owner code raised without its declaration, and no bare
+//      `new Error(` in the plugins' server sources or their Host files (a caller's mistake there would answer 500; only two wiring-mistake sentences stay).
 
 const REPOSITORY = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -284,6 +285,11 @@ function filesOf(owner: Owner): string[] {
     ...readdirSync(host).filter(name => HOST_FILES[owner].some(pattern => pattern.test(name))).map(name => join(host, name))];
 }
 
+// The plugin client files hold the page's scripts as template strings; the only bare Errors allowed elsewhere are the two sentences that report a
+// wiring mistake in the code (a route without its Host binding, a UI surface the plugin does not render): nobody can cause them by a request.
+const BROWSER_SCRIPT = /[\\/](?:import-)?client\.ts$/u;
+const PROGRAMMING_ERROR: readonly RegExp[] = [/没有 Host binding/u, /UI surface .* 不存在/u];
+
 test("no document plugin keeps an error class, a route-error mapper, or a raise of its own code outside its declarations", async () => {
   for (const owner of OWNERS) {
     const spec = SPECS[owner];
@@ -296,10 +302,19 @@ test("no document plugin keeps an error class, a route-error mapper, or a raise 
       assert.doesNotMatch(source, /\bmapError\b|RouteErrorResponse/u, `${where}: a route-error mapper`);
       assert.doesNotMatch(source, new RegExp(String.raw`new\s+\w*Error\(\s*"${owner}\.[a-z_]+"`, "u"), `${where}: ${owner}.* raised without the declaration (it would answer 400 whatever its kind)`);
       assert.doesNotMatch(source, /Object\.assign\(new Error\(/u, `${where}: an Error given a code afterwards`);
+      if (BROWSER_SCRIPT.test(file)) {
+        // The page's own messages: these files are template strings that run in the browser, never an action's failure. Prove it, so the exemption cannot hide a server file.
+        assert.match(source, /^export const \w+_CLIENT(?:_FACTORY)?_SCRIPT = (?:String\.raw)?`/mu, `${where}: exempt from the bare-Error rule only as a browser script`);
+        continue;
+      }
+      // A caller's mistake is an owner code; a bare Error would answer 500 `actions.execution_failed` for it. Only the two programming errors may stay.
+      const bare = [...source.matchAll(/\bnew\s+Error\(([^\n]*)/gu)].map(match => match[1]!).filter(rest => !PROGRAMMING_ERROR.some(sentence => sentence.test(rest)));
+      assert.deepEqual(bare, [], `${where}: a bare new Error( is a caller-visible 500; raise ${spec.declarations}.<reason>(...) (or a platform code) instead`);
     }
   }
   const creative = readFileSync(join(REPOSITORY, "apps", "local-host", "src", "creative-artifacts.ts"), "utf8");
   assert.doesNotMatch(creative, /\bnew\s+(?:Form|Dataset|Ppt)Error\(|"(?:form|dataset|ppt)\.[a-z_]+"/u, "creative-artifacts.ts raises Form, Dataset and PPT codes through their declarations");
+  assert.doesNotMatch(creative, /\bnew\s+Error\(/u, "creative-artifacts.ts raises no bare Error: its refusals are the plugins' declared codes");
 });
 
 test("a declared code is used: every reason in a declaration has a raise site", async () => {

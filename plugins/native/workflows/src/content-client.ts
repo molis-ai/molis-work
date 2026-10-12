@@ -78,10 +78,10 @@ export function createWorkflowContentPorts(actions: BoundActionClient): Workflow
           can_start_blank: entries.some(view => view.action.workflow_content!.role === "create" && view.availability.available),
           receives: !entries.some(view => view.action.workflow_content!.receives === false) };
         try {
-          if (groups.filter(other => other[0]!.action.workflow_content!.id === station.id).length > 1) throw new Error("存在多个同名站点，无法自动选择");
+          if (groups.filter(other => other[0]!.action.workflow_content!.id === station.id).length > 1) throw workflowsErrors.ambiguous("存在多个同名站点，无法自动选择");
           bindingFor(entries);
           const unavailable = entries.find(view => view.action.workflow_content!.role !== "create" && !view.availability.available);
-          if (unavailable && !unavailable.availability.available) throw new Error(unavailable.availability.reason);
+          if (unavailable && !unavailable.availability.available) throw workflowsErrors.unavailable(unavailable.availability.reason);
           return info;
         } catch (error) {
           return { ...info, supported: false, reason: error instanceof Error ? error.message : "站点不可用" };

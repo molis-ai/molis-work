@@ -23,7 +23,7 @@
 
 | 入口 | actor 与受众 | 权限从哪来 | 排队 | 错误怎样呈现 | 调用编号从哪来 |
 | --- | --- | --- | --- | --- | --- |
-| 页面（本机 HTTP） | `web-user`（`LOCAL_PERSON_ACTOR_ID`），`user` | 该页面的内置权限集，加上本项目运行中 Runtime 插件的已授 grant（`localWebActionContext`） | 项目串行队列 | JSON。入口不传 `mapError` 时，Host 的分发器（`apps/local-host/src/native-plugin-http.ts`）按错误的 kind 给 HTTP 状态，响应体是 `{ error, code, details? }`（Todo 已是这样）；还有 13 个入口各带一份 `*RouteErrorResponse`，状态和响应体（`{ error, code? }`）由它定，按 W3-02 的后续片逐个去掉；读不出请求体的失败带码（`actions.input_invalid`、`actions.input_too_large`），由入口的 `mapError`（有的话）或 SDK 回答 | 每个请求一个（`web-server.ts` 打开作用域）；答复只在留了行时带；分发器写出的每一份 JSON 答复（含不传 `mapError` 时按错误的 kind 推出的错误体）都经 `writeNativePluginJsonResponse`，带号规则一样 |
+| 页面（本机 HTTP） | `web-user`（`LOCAL_PERSON_ACTOR_ID`），`user` | 该页面的内置权限集，加上本项目运行中 Runtime 插件的已授 grant（`localWebActionContext`） | 项目串行队列 | JSON。入口不传 `mapError` 时，Host 的分发器（`apps/local-host/src/native-plugin-http.ts`）按错误的 kind 给 HTTP 状态，响应体是 `{ error, code, details? }`（Todo、Shelf、Jelly、Cognia 已是这样；Images 要自己写图片字节，出错同样由 SDK 的 `actionErrorResponse` 按 kind 答，请求体也用共用的 `readNativePluginJsonBody` 读）；还有 10 个入口各带一份 `*RouteErrorResponse`，状态和响应体（`{ error, code? }`）由它定，按 W3-02 的后续片逐个去掉；读不出请求体的失败带码（`actions.input_invalid`、`actions.input_too_large`），由入口的 `mapError`（有的话）或 SDK 回答 | 每个请求一个（`web-server.ts` 打开作用域）；答复只在留了行时带；分发器写出的每一份 JSON 答复（含不传 `mapError` 时按错误的 kind 推出的错误体）都经 `writeNativePluginJsonResponse`，带号规则一样 |
 | 外部 Runtime（MCP） | `runtime:<runtime_id>`（无 Runtime 标识时 `local-mcp`），`mcp`；会话作审计作者 | 每个客户端、每个项目、每个动作的显式授权（`{home}/config/mcp-tools.json`） | 同上，经常驻 Host | 文本 `错误: …` 加 `{"code":…}`，`isError: true` | 每个顶层调用一个，内核补；经网关的沿用网关请求的编号（W3-01 D 之后由 MCP 进程给） |
 | 助理 | `web-user`，`agent`；`audit_actor_id` 为 `assistant:<work_id>` | 本工作范围内对 `agent` 开放、且人没关掉的动作 | 同上 | 工具结果里的文字；对界面是 `AssistantError`（`assistant.*`） | 同上，内核补（W3-01 E 之后一轮一个） |
 | Agent（Coding、定时任务、Character） | 同一 `agent` 受众 | Manifest 角色的精确 `action_tools` 或能力网关 | 同上 | 工具结果 | 同上，内核补（W3-01 E 之后一轮一个） |
@@ -55,7 +55,7 @@
 
 **现状与缺口**
 
-- 调用编号在内核、宿主 typed 口和调用记录的行里有；页面请求与后台定时器按操作给号，答复在留了行时带号（W3-01 C）；MCP、助理、Agent、命令行按操作给号还没做，见 §1 第 5 条（W3-01 的后续片）；界面显示只在装了共用请求助手的页面上有，其余页面还没做（W3-10）；错误只有一个模型：码是 `<主人>.<原因>`，状态由错误的 kind 推出，平台自己的码在 `packages/contracts/src/platform/action-errors.ts` 的 `ACTION_ERROR_KINDS` 里（W3-02）。Todo 已经走这个模型，不带映射函数；其余插件还各带一份映射函数，对同一个错误码仍给出不同状态，例如 `actions.plugin_disabled` 在 Feed 与 Inbox 里是 403、在 Pages 里是 400，它们按 W3-02 的后续片逐个换掉；浏览器端的共用请求助手已经在 ui-host（W3-10-1a），目前只装在不进 `/assets/` 的内联页面上，工作台主程序和插件客户端的请求还没迁到它（W3-10-1b 起、W5-04）。
+- 调用编号在内核、宿主 typed 口和调用记录的行里有；页面请求与后台定时器按操作给号，答复在留了行时带号（W3-01 C）；MCP、助理、Agent、命令行按操作给号还没做，见 §1 第 5 条（W3-01 的后续片）；界面显示只在装了共用请求助手的页面上有，其余页面还没做（W3-10）；错误只有一个模型：码是 `<主人>.<原因>`，状态由错误的 kind 推出，平台自己的码在 `packages/contracts/src/platform/action-errors.ts` 的 `ACTION_ERROR_KINDS` 里（W3-02）。Todo、Shelf、Jelly、Cognia、Images 已经走这个模型，不带映射函数，它们的错误类也没有了（码由各自的 `defineErrorCodes` 声明，宿主里读 Jelly 来源、素材提取的两处也是；`status` 字段换成 kind）；其余插件还各带一份映射函数，对同一个错误码仍给出不同状态，例如 `actions.plugin_disabled` 在 Feed 与 Inbox 里是 403、在 Pages 里是 400，它们按 W3-02 的后续片逐个换掉；浏览器端的共用请求助手已经在 ui-host（W3-10-1a），目前只装在不进 `/assets/` 的内联页面上，工作台主程序和插件客户端的请求还没迁到它（W3-10-1b 起、W5-04）。
 - 步骤 4 是手写的前缀链；改成注册表是 W5-07。新的内置插件只走 Plugin Runtime，不再新增这类文件。
 - 不经 `ActionService` 的 typed 能力（`LocalHost.register` 的非动作分支）不校验 schema；它们的调用由宿主结算一次（带 `path: "typed"`），其中的命令进调用记录（读取只在失败时）；边界见 §10。
 - [系统架构 §4](ARCHITECTURE.md) 写的「owner 提交后经 Durable Outbox 发布事件」是目标，不是现状（[BL-070](../../specs/BACKLOG.md)）：现在各 owner 在自己的事务里写自己的事件日志，没有统一的发布通道，消费方靠读 owner 的动作或轮询。

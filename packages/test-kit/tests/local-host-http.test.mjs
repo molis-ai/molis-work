@@ -4,11 +4,11 @@ import test from "node:test";
 
 import {
   LocalHostHttpClient,
-  LocalHostHttpError,
   addProjectPlugin,
   createProject,
   grantMcpAction,
   grantMcpActions,
+  isLocalHostHttpError,
   orderGrantViews,
   readMcpActionAccess,
   revokeMcpAction,
@@ -79,7 +79,7 @@ test("the client keeps the fetch it was made with, so a test that replaces globa
   } finally { globalThis.fetch = original; await stop(); }
 });
 
-test("a refusal becomes a LocalHostHttpError with the status, the code and the Host's own words; a redirect is never followed", async () => {
+test("a refusal becomes a LocalHostHttpError (an Error that isLocalHostHttpError) with the status, the code and the Host's own words; a redirect is never followed", async () => {
   let redirect = false;
   const elsewhere = await fakeHost(() => ({ body: {} }));
   const { client, stop } = await fakeHost(request => redirect ? { status: 302, headers: { location: `${elsewhere.origin}/elsewhere` }, body: {} }
@@ -88,16 +88,16 @@ test("a refusal becomes a LocalHostHttpError with the status, the code and the H
         : request.url === "/api/plain" ? { status: 500, raw: "<html>not json</html>" } : { body: {} });
   try {
     await assert.rejects(client.post("/api/bad", {}), error => {
-      assert.ok(error instanceof LocalHostHttpError);
+      assert.ok(isLocalHostHttpError(error));
       assert.equal(error.status, 400); assert.equal(error.code, "mcp.grant_invalid"); assert.equal(error.message, "授权参数无效");
       assert.equal(error.method, "POST"); assert.equal(error.path, "/api/bad");
       return true;
     });
     await assert.rejects(client.get("/api/missing"), { status: 404, code: "actions.missing" });
-    await assert.rejects(client.get("/api/plain"), error => error instanceof LocalHostHttpError && error.status === 500 && error.code === undefined && /500/.test(error.message));
+    await assert.rejects(client.get("/api/plain"), error => isLocalHostHttpError(error) && error.status === 500 && error.code === undefined && /500/.test(error.message));
     redirect = true;
     // The control token goes only to the Host's own origin: a redirect is an error of the transport, not an answer to read.
-    await assert.rejects(client.post("/api/any", {}), error => !(error instanceof LocalHostHttpError));
+    await assert.rejects(client.post("/api/any", {}), error => !isLocalHostHttpError(error));
     assert.equal(elsewhere.seen.length, 0, "nothing was sent to the address the redirect named");
   } finally { await stop(); await elsewhere.stop(); }
 });
@@ -187,7 +187,7 @@ test("grantMcpActions stops at the first refusal and names the capability the Ho
     ? { status: 400, body: { error: "此能力还要同时授权：x.dep", code: "mcp.grant_requires" } } : { body: request.body });
   try {
     await assert.rejects(grantMcpActions(client, { clientId: "c", projectId: "p", actions: [view("a.first"), view("b.second"), view("c.third")] }), error => {
-      assert.ok(error instanceof LocalHostHttpError);
+      assert.ok(isLocalHostHttpError(error));
       assert.equal(error.status, 400); assert.equal(error.code, "mcp.grant_requires");
       assert.match(error.message, /b\.second/); assert.match(error.message, /x\.dep/);
       return true;

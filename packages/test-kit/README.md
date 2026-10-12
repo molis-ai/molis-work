@@ -10,7 +10,7 @@
 
 浏览器：`ChromeHarness.start(目录, 选项)` 用 `locateTestChrome()` 找 Chrome（环境变量 `MOLIS_WORK_TEST_CHROME` 优先，CI 用它指路），启动无头 Chrome 并连上 DevTools；找不到 Chrome 返回 `null`，由调用方写自己的跳过文案。`harness.page()` 得到一页 `ChromePage`，用 `evaluate`、`wait`、`click`、`fill`、`viewport`、`screenshot`；`command`、`on`、`event` 是协议层。超时、等待的时限和失败时附带的页面状态（`describe`）都是参数，各用例按自己的需要带上，包里不出现任何产品选择器。用例结束时 `await harness.close()`。
 
-本机 Host HTTP：`new LocalHostHttpClient({ origin, controlToken })` 带上 Host 的闸门要的一切（自己的 origin、JSON、Home 的控制令牌、每次一个新的一次性键；读请求什么都不带），被拒绝时抛 `LocalHostHttpError`（`status`、`code`、Host 自己的话）。在它之上，`grantMcpAction`/`revokeMcpAction` 走「对外接入」页用的授权接口，`grantMcpActions` 按依赖顺序（`orderGrantViews`：先 `required_actions`，再需要消费场景绑定的）一个个授权，遇到 Host 的拒绝就停下并说出是哪一项；`createProject`、`addProjectPlugin` 走项目设置；`readMcpActionAccess` 读客户端在一个范围里能看到、已授权的。这些都是 Host 自己的检查：不可用的能力、只给人的能力、不在目录里的项目、缺依赖，在用例里和在产品里一样被拒绝。客户端在创建时留住当时的 `fetch`，用例之后替换 `globalThis.fetch` 去冒充上游服务，不会拦到它发给 Host 的请求。装配（临时 Home、`MolisWorkLocalHost`、`createMolisWorkWebServer`、网关客户端）不在这里，在 `tests/fixtures/test-home.ts`。
+本机 Host HTTP：`new LocalHostHttpClient({ origin, controlToken })` 带上 Host 的闸门要的一切（自己的 origin、JSON、Home 的控制令牌、每次一个新的一次性键；读请求什么都不带），被拒绝时抛 `LocalHostHttpError`（`localHostHttpError` 造、`isLocalHostHttpError` 认；带 `status`、`code`、Host 自己的话）。在它之上，`grantMcpAction`/`revokeMcpAction` 走「对外接入」页用的授权接口，`grantMcpActions` 按依赖顺序（`orderGrantViews`：先 `required_actions`，再需要消费场景绑定的）一个个授权，遇到 Host 的拒绝就停下并说出是哪一项；`createProject`、`addProjectPlugin` 走项目设置；`readMcpActionAccess` 读客户端在一个范围里能看到、已授权的。这些都是 Host 自己的检查：不可用的能力、只给人的能力、不在目录里的项目、缺依赖，在用例里和在产品里一样被拒绝。客户端在创建时留住当时的 `fetch`，用例之后替换 `globalThis.fetch` 去冒充上游服务，不会拦到它发给 Host 的请求。装配（临时 Home、`MolisWorkLocalHost`、`createMolisWorkWebServer`、网关客户端）不在这里，在 `tests/fixtures/test-home.ts`。
 
 ## 从哪里读代码
 
@@ -24,7 +24,7 @@
 | [src/browser/launch.ts](src/browser/launch.ts) | `launchHeadlessChrome`：标准启动参数（全部列在下面「开发要求」的不变量里）、读调试地址、等 `exit` 的关闭（超时 SIGKILL） |
 | [src/browser/cdp.ts](src/browser/cdp.ts) | `ChromeHarness`：命令、持续监听与一次性事件、超时信息 |
 | [src/browser/page.ts](src/browser/page.ts) | `ChromePage`：页内等待、点击、填写、视口、截图 |
-| [src/local-host-http/client.ts](src/local-host-http/client.ts) | `LocalHostHttpClient`、`LocalHostHttpError`：闸门要的请求头、被拒绝的状态与代码 |
+| [src/local-host-http/client.ts](src/local-host-http/client.ts) | `LocalHostHttpClient`、`LocalHostHttpError`（带 `status`、`code` 的普通 `Error`，`localHostHttpError` 造、`isLocalHostHttpError` 认）：闸门要的请求头、被拒绝的状态与代码 |
 | [src/local-host-http/management.ts](src/local-host-http/management.ts) | 授权、撤权、读接入、建项目、装插件；每条路由串旁边写着它的主人文件 |
 | [src/local-host-http/order.ts](src/local-host-http/order.ts) | `orderGrantViews`：一组授权的顺序，同一个视图出现多次只取一次，有环就在发出前抛错 |
 | [tests](tests) | 规则回归 |

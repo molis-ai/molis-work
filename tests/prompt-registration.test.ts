@@ -4,8 +4,9 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
-import { UNREGISTERED_MODEL_CALLS } from "../apps/local-host/src/agent-definitions/builtin-instructions.js";
+import { BUILTIN_INSTRUCTIONS, UNREGISTERED_MODEL_CALLS } from "../apps/local-host/src/agent-definitions/builtin-instructions.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
@@ -85,6 +86,22 @@ test("every instruction a built-in model call defines is registered where the pe
   defined.push(...SHELF_INSTRUCTIONS.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}`));
   assert.ok(defined.length >= 12, `只找到 ${defined.length} 段指令，检查是否漏扫`);
   assert.deepEqual(defined.filter(key => !known.has(key)), [], "这些指令未登记到 BUILTIN_INSTRUCTIONS");
+});
+
+test("a Plugin's instructions reach the register through its own catalog entry, each once, and only the Host's own sit in the Host list", () => {
+  const key = (prompt: { owner_id: string; prompt_id: string }) => `${prompt.owner_id}/${prompt.prompt_id}`;
+  const keys = BUILTIN_INSTRUCTIONS.map(key);
+  assert.deepEqual(keys.filter((row, index) => keys.indexOf(row) !== index), [], "an instruction is registered once, not by the catalog and again by hand");
+  const declared = new Set<string>();
+  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const prompt of entry.instructions ?? []) {
+    assert.equal(prompt.owner_id, entry.manifest.plugin_id, `${key(prompt)} is declared on the catalog entry of another plugin`);
+    declared.add(key(prompt));
+  }
+  const outsideCatalog = BUILTIN_INSTRUCTIONS.filter(prompt => !declared.has(key(prompt)));
+  assert.deepEqual(outsideCatalog.filter(prompt => !prompt.owner_id.startsWith("system:")).map(key), [],
+    "a plugin's instructions are declared as `instructions` on its entry in apps/workbench/src/builtin-plugins.ts, not named in the Host list");
+  assert.ok(declared.size >= 12, `only ${declared.size} catalog instructions found, check the scan`);
+  for (const id of ["choose.capability", "choose.component"]) assert.ok(declared.has(`io.molis.work.plugin-builder/${id}`), `${id} comes from the studio's catalog entry`);
 });
 
 test("a Plugin's model port takes registered instructions, not a raw prompt string", () => {

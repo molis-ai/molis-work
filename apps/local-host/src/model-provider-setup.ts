@@ -1,11 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { ResolvedModelSelection } from "@molis-ai/molis-work-service-agent-host";
-import {
-  modelProviderTemplate,
-  type ModelProviderRecord,
-} from "@molis-ai/molis-work-contracts/modules/model-providers";
+import type { ModelProviderRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import type { ModelProviderInput } from "./model-provider-store.js";
+import type { ModelSettingsModel } from "@molis-ai/molis-work-app-workbench";
+import { modelProviderTemplate, modelTemplateChoices } from "./model-provider-templates.js";
 import { testConfiguredModel } from "./model-provider-test.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import { L } from "./web-locale.js";
@@ -17,7 +16,7 @@ import { L } from "./web-locale.js";
  */
 
 /** The form a provider template starts, or a blank one. A template mints a fresh id: choosing it twice never overwrites. */
-export function modelProviderDraft(templateId: string | null | undefined): { provider: ModelProviderRecord; template_id: string | null } {
+function modelProviderDraft(templateId: string | null | undefined): { provider: ModelProviderRecord; template_id: string | null } {
   const template = modelProviderTemplate(templateId);
   // A template whose model name is not one we can promise still shows the empty row, so what is missing is visible.
   const models = (template?.model_ids ?? []).map((model_id) => ({ model_id, enabled: true }));
@@ -30,6 +29,15 @@ export function modelProviderDraft(templateId: string | null | undefined): { pro
       models: template && models.length === 0 ? [{ model_id: "", enabled: true }] : models, created_at: "", updated_at: "",
     },
   };
+}
+
+/**
+ * The template part of the settings page data: the choices the page draws (never an address) and, for `?new=1`, the form
+ * `?template=` starts. The page is given this and has no catalog of its own.
+ */
+export function modelTemplatePageData(query: URLSearchParams): Pick<ModelSettingsModel, "templates" | "draft_provider" | "draft_template_id"> {
+  const draft = query.get("new") === "1" ? modelProviderDraft(query.get("template")) : null;
+  return { templates: modelTemplateChoices(), ...(draft ? { draft_provider: draft.provider, draft_template_id: draft.template_id } : {}) };
 }
 
 export interface ModelProviderSave {

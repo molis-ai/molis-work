@@ -55,6 +55,8 @@ Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插�
   - 角色必须是 Manifest 声明过的，能力必须 Runtime 真支持，目录必须宿主授权且 realpath 已核；`unsupported` 就是不能用，不降级不伪装。
   - Runtime 不能自己扩权：批准一次性，拒绝与过期不能换个入口变成许可。
 - 改动后必跑：`node scripts/run-tests.mjs tests/agent-host.test.ts tests/agent-host-composition.test.ts tests/agent-host-wiring.test.ts tests/agent-start-authority.test.ts tests/agent-action-tools-prologue.test.ts tests/host-inference-completion.test.ts tests/prologue-inference-native.test.ts`
+- 动作网关的调用与建议均以当前 input schema 校验；参数错误使用 SDK `TOOL_ARGUMENTS_INVALID` 返回有界合同与嵌套要求，不带用户值或任意异常正文，避免未知 Host 异常被截成 240 字后模型重复同一错误。通用 input 明确声明 JSON 类型，继续由当前能力 schema 校验具体字段，不从按钮文案猜输入。其他失败不转成参数重试，写入结果未知仍先核对。真实 SDK 回归见 `tests/issue-assistant-repair-page.e2e.test.ts`、`tests/assistant-business-gateway.test.ts`。
+- 补充提问沿用 SDK `ask-user`：自由文本只传 `why`，问卷选项为字符串数组。同一 Run 内同一种交互工具（`ask-user` 或 `suggest-action`）最多容许两次参数失败（首次及一次纠正），第二次 `TOOL_ARGUMENTS_INVALID` 回执触发原控制面停止，避免模型继续重复无效调用；成功的结构化待补充不算失败，原始参数与回执仍由 SDK 记录。
 - 相关手册：[docs/horizontal/agent-host.md](../../docs/horizontal/agent-host.md)、[docs/platform/PROLOGUE-AI.md](../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

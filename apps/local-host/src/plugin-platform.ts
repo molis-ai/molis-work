@@ -27,6 +27,7 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 
 import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
+import type { PluginPlatformHome } from "./home-side.js";
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
 
@@ -63,6 +64,12 @@ export interface PluginPlatformOptions {
   /** Shared system registry plus the trusted project identity for this activation. */
   actions: PluginHostExecutorOptions["actions"];
   /**
+   * The Home this platform reaches in process, or `null` when it reaches none (a generated plugin's platform, a test without a
+   * Home). Required, so that no caller leaves it out by accident: a platform that was never told serves its plugins nothing of
+   * a Home, and nobody would notice.
+   */
+  home: PluginPlatformHome | null;
+  /**
    * Opaque scope key stamped on every Plugin output in this project, so the
    * Host can tell two inputs belong to the same scope. Defaults to the board.
    */
@@ -89,6 +96,8 @@ export interface PluginPlatform {
 
 export function createPluginPlatform(options: PluginPlatformOptions): PluginPlatform {
   if (options.journal && options.journal.db !== options.db) throw new Error("插件 journal 必须使用当前项目连接");
+  // Tests and scripts are not type-checked, so the type alone would not make a caller say which.
+  if (options.home === undefined) throw new Error("插件平台要说明它的 Home：给出进程内的 Home，或明确给 null");
   // A plugin that ships with the Host registers its actions under its plugin_id; every other plugin under its installation id
   // (user decision 2026-10-10, W3-06 Q1). "Ships with the Host" is the Host's own start list saying `bundled` about a definition
   // object, not anything a plugin declares or its record holds, so a developed or generated plugin that names a built-in
@@ -102,6 +111,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     artifacts: options.artifacts,
     processItems: options.processItems,
     actions: options.actions,
+    home: options.home,
     ui: options.ui,
     privateStorageFor: options.privateStorageFor,
     capturePrivateData: options.capturePrivateData,
@@ -176,6 +186,12 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
     rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
     async start(entries) {
+      // The supervisor keeps one entry per plugin id and would let a later one silently replace an earlier one.
+      const listed = new Set<string>();
+      for (const { definition } of entries) {
+        if (listed.has(definition.manifest.plugin_id)) throw new Error(`插件 ${definition.manifest.plugin_id} 在同一份启动名单里出现了两次`);
+        listed.add(definition.manifest.plugin_id);
+      }
       for (const entry of entries) if (entry.bundled) bundled.add(entry.definition);
       const report = await supervisor.start(entries);
       // Deliver whatever was already bound and published before this process.

@@ -263,3 +263,38 @@ export interface ContextualJudgeResponse {
     readonly screened: readonly string[];
   };
 }
+
+/** The most a person's own sentence can add to a draft, and the most of a passage a draft keeps. */
+export const CONTEXTUAL_DRAFT_LIMITS = { said: 600, kept: 10_000 } as const;
+
+/**
+ * A creation entry's input, drafted for the thing in hand or for a sentence the person wrote (context-program §6,
+ * quick-create §5). Drafting writes nothing: this is the complete input of the entry's own action as far as it could be
+ * filled, with what it could not fill named, and the words it was made from kept as they were.
+ */
+export interface ContextualDraft {
+  /** The candidate's key when drafted for what is in hand; absent for a sentence written on the plugin's own page. */
+  readonly key?: string;
+  readonly intake_id: string;
+  /** The declared verb, as the button says it: 「记成待办」. */
+  readonly title: string;
+  readonly action: ContextualCandidate["action"];
+  readonly provider_title: string;
+  readonly input: Readonly<Record<string, unknown>>;
+  /** `prepared`: the provider computed it without a model. `model`: a model filled it. `rules`: only what needs no model. */
+  readonly basis: "prepared" | "model" | "rules";
+  /** Required fields the draft did not fill: marked on the card, never asked back. */
+  readonly missing: readonly string[];
+  /** The fields the person may change before it is created. */
+  readonly editable: readonly string[];
+  readonly summary?: string;
+  /** The passage or sentence the draft was made from, exactly as given: a failed draft never loses it. */
+  readonly kept: string;
+  /** The extra sentence the person added to a passage, when they did. */
+  readonly said?: string;
+  /** Why a model did not fill it, when one was wanted: the draft is then what needs no model. */
+  readonly fallback?: { readonly reason: "unconfigured" | "failed" | "invalid"; readonly message: string };
+  /** What was removed or marked before the material reached a model. */
+  readonly notes: readonly string[];
+  readonly model?: string;
+}

@@ -6,7 +6,7 @@ import type {
 
 import { diffManifest } from "./manifest.js";
 import { diffUiContribution } from "./ui.js";
-import { bindPluginActionRoute } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { diffActions, diffActionHandlers } from "./actions.js";
 
 /**

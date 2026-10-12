@@ -1,4 +1,4 @@
-import { bindPluginActionRoute } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { shelfManifest } from "./manifest.js";
 import { shelfUiContribution } from "./ui.js";

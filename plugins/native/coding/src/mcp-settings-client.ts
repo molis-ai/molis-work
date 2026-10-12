@@ -68,9 +68,9 @@ export const CODING_MCP_SETTINGS_CLIENT_SCRIPT = `(() => {
     });
     field('transport').addEventListener('change',transport);q('[data-mcp-reset]').addEventListener('click',reset);
     let poll=null;
-    const unavailable=error=>{
+    const unavailable=(error,off)=>{
       status('MCP 状态暂不可读：'+error.message);
-      if(error.code!=='plugin_not_enabled')return;
+      if(!off&&error.code!=='actions.plugin_disabled')return;
       if(poll!==null){clearInterval(poll);poll=null;}
       status('当前项目尚未启用 Coding。启用后即可选择已授权工具，不会自动执行工具。');
       const enable=document.createElement('button');enable.type='button';enable.className='mw-btn mw-btn--secondary';enable.textContent='为当前项目启用 Coding';
@@ -82,7 +82,7 @@ export const CODING_MCP_SETTINGS_CLIENT_SCRIPT = `(() => {
           const response=await fetch('/api/settings/projects/'+encodeURIComponent(project)+'/plugins',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({plugin_id:'coding'})});
           if(!response.ok)throw new Error((await response.json()).error || '启用失败，请重试');
           location.reload();
-        }catch(error){unavailable(Object.assign(error,{code:'plugin_not_enabled'}));}
+        }catch(error){unavailable(error,1);}
       });
       q('[data-mcp-status]').append(' ',enable);
     };

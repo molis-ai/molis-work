@@ -21,7 +21,7 @@
 - 负责：个人 Character 的编辑界面、发布前预览与项目发布。
 - 不负责：草稿存储、Artifact 事实、Agent 执行、权限。
 - 公开入口：`@molis-ai/molis-work-plugin-characters`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 调用方只得到精确版本引用；浏览器请求不能注入正文或扩大权限。
   - 检查来源更新要明确确认，保留名称、补充指令与已有发布；刷新或相同请求不重跑任务。

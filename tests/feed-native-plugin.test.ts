@@ -12,6 +12,7 @@ import {
   type PersistedFeedDetailModel,
 } from "@molis-ai/molis-work-plugin-feed";
 import { UiContributionError, UiHost } from "@molis-ai/molis-work-ui-host";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { createWorkbenchFeedProjectionRenderer, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 
 const primitives: FeedUiModel["primitives"] = {
@@ -621,13 +622,14 @@ test("Feed workbench HTTP rejects inbox_message and serves the Feed surface", as
     renderWorkbench: () => "<div data-feed-workbench></div>",
     renderDetail: unused,
   }));
+  // The route refuses with a coded error; the Host's edge answers it 400 through the SDK like any other.
   const rejected = await routes.handle({
     method: "GET",
     pathname: "/api/feed/workbench",
     query: new URLSearchParams("preset=inbox_message"),
     body: {},
-  });
-  assert.equal(rejected?.status, 400);
+  }).catch(actionErrorResponse);
+  assert.deepEqual([rejected?.status, (rejected?.body as { code: string }).code], [400, "feed.request_invalid"]);
   const served = await routes.handle({
     method: "GET",
     pathname: "/api/feed/workbench",

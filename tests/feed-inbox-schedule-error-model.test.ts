@@ -11,7 +11,9 @@ import {
   handleInboxNativePluginHttp,
   handleScheduleNativePluginHttp,
   type FeedNativePluginHttpOptions,
+  type LocalProjectDatabase,
 } from "@molis-ai/molis-work-app-local-host";
+import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import * as attentionContracts from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import * as feedContracts from "@molis-ai/molis-work-contracts/modules/feed";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -47,7 +49,7 @@ type Declarations = Readonly<Record<string, Raiser>>;
 const FEED: OwnerCodes = { prefix: "feed", status: {
   item_not_found: 404, source_not_found: 404, out_rule_not_found: 404,
   revision_conflict: 409, source_paused: 409, source_use_catalog: 409,
-  invalid_transition: 400, read_not_supported: 400, request_invalid: 400, out_rule_invalid: 400,
+  invalid_transition: 400, request_invalid: 400, out_rule_invalid: 400,
   source_connection_changed: 400, source_sync_interrupted: 400, source_idempotency_required: 400, source_idempotency_conflict: 400,
   source_not_syncable: 400, source_invalid_state: 400, source_query_invalid: 400, source_invalid_configuration: 400, source_definition_unavailable: 400,
   source_invalid_schedule: 400, source_configuration_changed: 400, source_changed: 400, source_wrong_sync_kind: 400,
@@ -75,7 +77,9 @@ interface Answer { readonly status: number; readonly body: Record<string, unknow
 async function failingEdge(owner: "feed" | "inbox" | "schedule") {
   const failure: { current: unknown } = { current: undefined };
   const actions: BoundActionClient = { discover: async () => [], invoke: async () => { throw failure.current; } };
-  const feedOptions = { actions, renderer: {}, projectId: "p", routePrefix: "/projects/p", store: {}, readWebView: async () => ({}), invalidateWebView: () => undefined } as unknown as FeedNativePluginHttpOptions;
+  // The route under test runs one action and fails; the page renderer, the web view and the store are never reached.
+  const feedOptions: FeedNativePluginHttpOptions = { actions, projectId: "p", routePrefix: "/projects/p", invalidateWebView: () => undefined,
+    renderer: { renderFeedWorkbenchFragment: () => "", renderPersistedFeedItemDetail: () => "" }, readWebView: async () => ({} as MolisWorkWebView), store: {} as LocalProjectDatabase };
   const handle = (request: IncomingMessage, response: ServerResponse, url: URL): Promise<boolean> => owner === "feed" ? handleFeedNativePluginHttp(request, response, url, feedOptions)
     : owner === "inbox" ? handleInboxNativePluginHttp(request, response, url, { actions, invalidateWebView: () => undefined })
       : handleScheduleNativePluginHttp(request, response, url, { actions, invalidateWebView: () => undefined });
@@ -240,12 +244,19 @@ const OLD_CODES = ["feed_item_not_found", "inbox_entry_not_found", "feed_source_
   "schedule_task_invalid", "schedule_task_not_found"];
 // A plugin client file is the page's own script, a template string that runs in the browser; it never raises an action's failure.
 const BROWSER_SCRIPT = /[\\/]client\.ts$/u;
-// What may stay a bare Error: a wiring mistake in the code (nobody can cause it by a request), and the failures of a run that already started (a due task or
-// reminder that cannot be delivered; they are recorded on the task or the job, never answered to a caller).
-const STAYS_BARE: readonly RegExp[] = [/没有 Host binding/u, /UI surface .* 不存在/u, /feed_contract_source_history_decision_required/u,
-  /定时执行尚未登记本次持久记录|本次执行结果未知，不能自动重跑|定时操作已暂停、取消或改变|定时操作的安装身份已改变|本次定时执行已被处理/u, /提醒的原安装身份已不可用/u, /定时任务已暂停或改变，本轮结果未保存/u,
-  /还没有配置到点执行的 Agent|闹钟叫醒没有项目现场|提醒没有项目现场|定时操作没有项目现场|提醒的插件安装当前没有运行|定时操作的安装执行入口已改变|发布包缺少/u,
-  /还没有可用的 Agent Runtime|这个项目还没有绑定工作区|Schedule 没有声明可运行的 Agent|到点执行不能停下来等人确认|这一轮以|Agent 没有写出正文|到点执行超时/u];
+// What may stay a bare Error, each anchored on its own sentence so a caller's mistake with another sentence is still found:
+//   - a wiring mistake in the code (a route without its Host binding, a UI surface the plugin does not render): nobody can cause it by a request;
+//   - the failures of a run that already started (a due task, reminder or timed operation that cannot be carried out, a pull of the research library or a
+//     public feed that fails): they are recorded on the task, the job or the source run and never answered to a caller as they are;
+//   - a contract check the action's input schema has already passed (the history decision of a deletion).
+const STAYS_BARE: readonly RegExp[] = [
+  /^`(?:Feed|Inbox|Schedule) route \$\{[^`]*没有 Host binding`/u, /^`(?:Feed|Inbox|Schedule) UI surface /u, /^"feed_contract_source_history_decision_required"\)/u,
+  /^"定时执行尚未登记本次持久记录"/u, /^"本次执行结果未知，不能自动重跑"/u, /^"定时操作已暂停、取消或改变"/u, /^"定时操作的安装身份已改变"/u, /^"本次定时执行已被处理"/u,
+  /^"提醒的原安装身份已不可用，记录已保留/u, /^"定时任务已暂停或改变，本轮结果未保存"/u, /^"定时操作的安装执行入口已改变"/u, /^"提醒的插件安装当前没有运行"/u,
+  /^"(?:还没有配置到点执行的 Agent|闹钟叫醒没有项目现场|提醒没有项目现场|定时操作没有项目现场)"/u,
+  /^"(?:还没有可用的 Agent Runtime：|这个项目还没有绑定工作区，|Schedule 没有声明可运行的 Agent|到点执行不能停下来等人确认|Agent 没有写出正文|到点执行超时)/u, /^(?:view\.stop_reason|`这一轮以 )/u,
+  /^"Installed caller (?:replaced|stopped)"/u, /^"仓库配置无效"/u, /^`发布包缺少 /u, /^"来源已暂停"\)/u, /^"feed response exceeds local ingest limit"/u,
+];
 
 test("no owner keeps an error class, a route-error mapper, a body reader of its own, an old code name, or a raise of its own code outside its declarations", () => {
   for (const owner of ["feed", "inbox", "schedule"] as const) {

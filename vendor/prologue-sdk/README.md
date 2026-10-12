@@ -6,8 +6,7 @@
 
 - 当前包 `prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
-- `patch-history.json`：已删除的 25 份历史补丁和 11 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
-- `side-panel-memory.patch`：上一份包 side-panel-memory 早先的重建补丁。那份包已换掉，补丁对当前包没有用；按原决定留到用户确认删除（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §4.2），确认后删掉并记进 `patch-history.json` 的 `patches`；
+- `patch-history.json`：已删除的 26 份历史补丁和 10 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。
 
 另外两个 vendored 包各自带 `.sha256`、`.provenance.json` 和 `sbom.cdx.json`：[intelligence-client](../intelligence-client/)、[search-evidence-layer](../search-evidence-layer/)。这三个包的 tgz 按决定（2026-10-08，[spec](../../specs/repository-anti-corruption/spec.md) §1「Prologue SDK 收敛与私有包」）将来改从私有 registry 或 release 附件取，不再放进公开仓库；registry 就绪前仍留在仓库里（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §5）。`pnpm health:check` 限制本目录的 tgz 份数（`tooling/gates/limits.json` 的 `vendoredPrologueSdk`），并由 `scripts/gates/vendored-provenance.mjs` 核对三个包的 tgz 与各自的 `.sha256`、`.provenance.json` 相符、`alsoBuildableFrom` 点名的补丁在目录里且字节数、SHA-256 相符、`patch-history.json` 的格式对、已删的补丁没有回到目录里（只核对形状，不去 Git 里重算 `gitBlob` 的字节数与 SHA-256，见 [REPOSITORY-HYGIENE](../../docs/system/REPOSITORY-HYGIENE.md)）；`tests/vendor-provenance.test.ts` 给门禁的每一条检查各造一个违例，方法与限度也在那份文档里。
@@ -45,11 +44,11 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields
 
 上一份包 dirty 候选 `prologue-sdk-a0-s1.tgz`（2026-10-11，`c4b9fde3` 加未提交的输入回执差异，`dirty: true`）只在采用分支上提交过，已删除，记在 `patch-history.json` 的 `packagesWithoutPatch`，按 `gitBlob` 取回。
 
-## 上一份正式依赖：side-panel-memory（2026-09-30，平台侧栏的界面控制 + 平台记忆；2026-10-11 换掉）
+## 上一份正式依赖：side-panel-memory（2026-09-30，平台侧栏的界面控制 + 平台记忆；2026-10-12 换掉）
 
 `prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`（953,138 字节），SHA-256 `942de9c594d8fc0bbb81d3b36d766761427ff51c2c4cee33aab342033c85846c`。
 
-已从本目录删除，包记在 `patch-history.json` 的 `packagesWithoutPatch`（`gitBlob` `432e002a`）。下面保留它的来源与重建记录。
+已从本目录删除，包记在 `patch-history.json` 的 `patches`（`side-panel-memory.patch` 的 `package`，`gitBlob` `432e002a`）。下面保留它的来源与重建记录。
 
 **来源**：上游 `molis-ai/prologue` 提交 `9fc3b17386419625a36359b74fb4789c17a3adc8` 的 `packages/sdk`，不加补丁。这个提交在上游 main 里：分支 `feat/molis-side-panel-surfaces-on-memory` 已经作为 PR #3 合入（2026-09-30），2026-10-08 核对时远端只有 `main` 和三个 pull 引用。在 assistant-intake 包的来源（`c63ea1a1`）之上叠两条线，合成一个包给侧栏与记忆两边共用：
 
@@ -74,7 +73,7 @@ cd packages/sdk && pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-sid
 shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   # 与 .sha256 一致
 ```
 
-早先的写法是检出 `af7375c7` 后 `git apply side-panel-memory.patch`（225,092 字节，SHA-256 `1f64a15ce9d5d90d0f4ace90211c147efdea189d225c9236fc138438e86c7c55`）：补丁只含 `packages/sdk`，应用后与 `9fc3b173` 的 `packages/sdk` 逐文件相同（2026-10-08 复核），两条路得到同一个包。
+早先的写法是检出 `af7375c7` 后 `git apply side-panel-memory.patch`（225,092 字节，SHA-256 `1f64a15ce9d5d90d0f4ace90211c147efdea189d225c9236fc138438e86c7c55`）：补丁只含 `packages/sdk`，应用后与 `9fc3b173` 的 `packages/sdk` 逐文件相同（2026-10-08、2026-10-12 复核），两条路得到同一个包。补丁本身已删（2026-10-12，用户确认），记录在 `patch-history.json`，按 `gitBlob` 取回。
 
 **验证**：
 
@@ -86,10 +85,10 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 
 ## 已删除的历史补丁（2026-10-08）
 
-25 份补丁（合计 2,566,805 字节）是历史包的重建材料。重建当前包用不着它们（当前包不加任何补丁），按决定从树里删掉；Git 历史不改写。记录在 [`patch-history.json`](patch-history.json)：
+26 份补丁（合计 2,791,897 字节）是历史包的重建材料。重建当前包用不着它们（当前包不加任何补丁），按决定从树里删掉；Git 历史不改写。记录在 [`patch-history.json`](patch-history.json)：
 
-- `patches`：25 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
-- `packagesWithoutPatch`：11 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含 2026-10-11 / 12 换掉的 side-panel-memory 与 dirty 候选 a0-s1；
+- `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
+- `packagesWithoutPatch`：10 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含 2026-10-12 换掉的 dirty 候选 a0-s1；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
 - `upstream`：记录里写到的每个 Prologue 提交（20 个），除 2026-10-12 加的 `c4b9fde3` 外，都是上游 main 头 `4f7110fe` 的祖先（2026-10-08 逐个用 `git merge-base --is-ancestor` 核对，本机克隆的 `origin/main` 与 `git ls-remote` 一致）；`c4b9fde3` 在已推送的特性分支上，并入上游 main 后复核。`21cdfbf8`、`d4a2f41b` 是 Molis 仓库的提交，不是 Prologue 的。
 
 怎么取回并核对：
@@ -98,14 +97,14 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 # 任一补丁或包：按记录里的 gitBlob 取，再核对 SHA-256
 git cat-file blob <gitBlob> > claims.patch
 shasum -a 256 claims.patch   # 与该项的 sha256 一致
-# 或按提交取：25 份补丁和带逐包验证记录的旧版 README 都在 e4bdeb12，
+# 或按提交取：26 份补丁（含 side-panel-memory.patch）和带逐包验证记录的旧版 README 都在 e4bdeb12，
 # 此后到删除它们的那次合并之前的每个提交里也都有
 git show e4bdeb12:vendor/prologue-sdk/claims.patch > claims.patch
 ```
 
 补丁里的 `sourceKind` 有三种：
 
-- `upstream-commit`（7 份）：补丁施加到基线上得到的整棵树与所写的上游提交逐文件相同（实测）。这几份可以从上游重新导出。
+- `upstream-commit`（8 份）：补丁施加到基线上得到的整棵树（`side-panel-memory.patch` 只含 `packages/sdk`，包内逐文件相同）与所写的上游提交相同（实测）。这几份可以从上游重新导出。
 - `uncommitted-worktree`（17 份）：来源是未提交的工作树（`~/code/prologue-*`），这些工作树已不在，补丁没有自己的提交。它们的基线都是 `a7e785b8`，都能干净应用在基线上（2026-10-08 实测），新增的非空行绝大部分在 `af7375c7` 里（方案 §4.5 的逐行比对，标为推断）。
 - `molis-repo`（1 份，`network-dispatch.patch`）：补丁只保存在 Molis 仓库里，包 `network-dispatch.tgz` 的 SHA-256 记在 `patches[].package`。
 

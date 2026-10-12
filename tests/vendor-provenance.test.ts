@@ -225,13 +225,13 @@ describe("the records of this repository", () => {
     assert.deepEqual(patches, named ? [named] : []);
   });
 
-  test("patch-history.json holds the 25 deleted patches and the 11 packages that never had one", () => {
+  test("patch-history.json holds the 26 deleted patches and the 10 packages that never had one", () => {
     const record = json(`${folder}/patch-history.json`);
-    assert.equal(record.patches.length, 25);
-    assert.equal(record.packagesWithoutPatch.length, 11);
-    assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_566_805);
+    assert.equal(record.patches.length, 26);
+    assert.equal(record.packagesWithoutPatch.length, 10);
+    assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_791_897);
     const kinds = record.patches.reduce((count: Record<string, number>, patch: { sourceKind: string }) => ({ ...count, [patch.sourceKind]: (count[patch.sourceKind] ?? 0) + 1 }), {});
-    assert.deepEqual(kinds, { "upstream-commit": 7, "uncommitted-worktree": 17, "molis-repo": 1 });
+    assert.deepEqual(kinds, { "upstream-commit": 8, "uncommitted-worktree": 17, "molis-repo": 1 });
     // Every patch made a package; the one the old README had no hash for (network-dispatch) is recorded with the hash its
     // README carried at d4a2f41b, which is also the SHA-256 of the tgz blob in that commit.
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
@@ -248,7 +248,7 @@ describe("the records of this repository", () => {
   test("the README states what the records hold and no longer carries what they showed to be false", () => {
     const readme = file(`${folder}/README.md`);
     const record = json(`${folder}/patch-history.json`);
-    assert.ok(readme.includes("25 份补丁（合计 2,566,805 字节）"));
+    assert.ok(readme.includes("26 份补丁（合计 2,791,897 字节）"));
     assert.ok(readme.includes(`记录里写到的每个 Prologue 提交（${record.upstream.commitsChecked.length} 个）`));
     assert.ok(readme.includes(`\`${record.upstream.mainHead.slice(0, 8)}\``));
     assert.ok(readme.includes(json(`${folder}/${current}.provenance.json`).source.commit));

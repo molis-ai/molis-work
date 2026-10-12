@@ -541,7 +541,7 @@ A0 明确不改助理协调器/存储/客户端、Schedule runner、模型设置
 | Molis 定向 | §7 的 16 个文件加 `agent-host*`、`host-inference-completion`、`prologue-inference-native`，共 24 个文件 217 项全过（默认包路径，非源码映射） |
 | 安全与合同 | `pnpm test:security` 145 项 144 通过 / 1 跳过（需真实 npm registry 的用例）/ 0 失败；`pnpm test:contracts` 430 项首轮 3 项 `action-before-effect` 的 `form:` 用例 15 秒超时（同批并发负载），该文件单独连跑两次 20/20 通过 |
 | 门禁 | `check-health-gates.mjs --base origin/main` 通过（公开 API 只变 agent-host 合同：`grants`、`turn_changes`、`sleeping_until`）；`check-package-boundaries.mjs` `errors: []`；`page-assets.mjs --base origin/main` 见下 |
-| 已知红 | `tests/vendor-provenance.test.ts` 1 项：「只有 provenance 点名的补丁留在目录里」——`side-panel-memory.patch` 在包换掉后不再被点名；`dependencies-and-sdk-plan.md` §4.2 要用户确认才删，**等用户决定，不改断言** |
+| vendor 记录 | 用户 2026-10-12 确认删除 `side-panel-memory.patch`（`dependencies-and-sdk-plan.md` §4.2）：已删，登记为 `patch-history.json` 的第 26 份（225,092 字节、SHA-256 `1f64a15c…`、git blob `97328ddc`、基线 `af7375c7`、来源 `9fc3b173`；重新施加到基线，`packages/sdk` 与 `9fc3b173` 逐文件相同），它产出的 side-panel-memory 包随它记在 `package` 里。`tests/vendor-provenance.test.ts` 78/78 通过（断言的数字随记录改为 26 份 / 2,791,897 字节 / 10 个无补丁包，没有删除或放宽任何一条） |
 
 合入 main 后冒出的页面资源超预算已就地解决，没有放宽：Coding 客户端（以 `coding/diff/files/git/text-stats.js` 五个名字发出）A0 版比预算多 5,002 字节，两张样式表多 944 / 1,366 字节。做法：三处注入浏览器的函数（`createCodingTimeline`、`codingTimelineWords`、`createCodingTurnChanges`）里的注释移到模块头（函数体每个字节都发给每个页面）；工具种类表改成元组再展开；写入行复用现有行与运行卡样式，`timeline-styles.ts` 删除、`styles.ts` 与 main 逐字节相同；命令扩权说明复用 `agent-review-concurrent`。行为与断言文字不变。预算用 `page-assets.mjs --update --base origin/main` 降了 12 字节，样式表回到 main 的数字。
 

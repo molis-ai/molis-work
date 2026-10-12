@@ -9,6 +9,8 @@ export interface McpToolResult {
   readonly content: readonly { readonly type: "text"; readonly text: string }[];
   readonly structuredContent?: Record<string, unknown>;
   readonly isError?: boolean;
+  /** What the host says of this result besides its content (for a call that left a row in the call log, the number of its operation). */
+  readonly _meta?: Record<string, unknown>;
 }
 
 export interface McpToolCallContext {

@@ -41,6 +41,12 @@ export interface ShelfResultPorts {
   receive(preview: ShelfArtifactPreview): { item: ShelfItemRecord; snapshot: ShelfSnapshot };
 }
 
+/** A reference that is not a Shelf material is the caller's mistake (400), not a failure of ours. */
+const shelfMaterial = (payload: unknown) => {
+  try { return parseShelfTextMaterial(payload); }
+  catch (error) { throw new ActionError("shelf.invalid", error instanceof Error ? error.message : "Shelf 固定材料格式无效"); }
+};
+
 /** Owner-bound: the results land in, and the output points at, the local user's personal Shelf. */
 export function shelfRuntimeActionHandlers(context: PluginStartContext, results?: ShelfResultPorts): ActionHandlerBinding[] {
   const services = context.services;
@@ -76,7 +82,7 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, results?
     bindOwnerPluginAction(context, shelfRuntimeActions.selectOutput, input => {
       if (!services?.artifacts) throw new ActionError("shelf.unavailable", "项目成果服务尚未连接");
       const record = services.artifacts.read(input.reference);
-      const material = parseShelfTextMaterial(record?.payload);
+      const material = shelfMaterial(record?.payload);
       if (input.reference.artifact_id !== "shelf-material:" + context.project_id + ":" + material.source.item_id) throw new ActionError("shelf.invalid", "Shelf 材料身份不一致");
       return { reference: outputs().select({ port: "material", reference: input.reference, expected_reference: input.expected_reference }) };
     }),

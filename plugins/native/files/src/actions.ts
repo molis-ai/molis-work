@@ -7,6 +7,7 @@ import { parseFilePath, parseFileSnapshot, parseFileTextSelection, fileSnapshotF
   workspaceReadActions, type WorkspaceFileResult, type FileSnapshot } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { parseReadingPosition, serializeReadingPosition, READING_POSITION_KEY, type ReadingPosition } from "./position.js";
+import { filesErrors } from "./errors.js";
 
 
 const define = <Input, Output>(capability_id: string, title: string, description: string, input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => ({
@@ -61,18 +62,18 @@ export function filesActionHandlers(context: PluginStartContext): ActionHandlerB
       else services?.storage?.delete("last-workspace");
       for (const port of ["files", "before", "after", "selection"]) services?.outputs?.invalidate(port, "工作目录已切换，请在当前目录重新固定快照");
     }
-    if (!selected) throw new Error("请在项目设置的工作目录中选择可用浏览目录");
+    if (!selected) throw filesErrors.invalid("请在项目设置的工作目录中选择可用浏览目录");
     return { workspace_id: selected.workspace_id, name: selected.display_name, handle: selected.workspace_id };
   };
   async function read(id: unknown, path: readonly string[], kind: "directory" | "text" | "bytes", beforeWrite: () => Promise<void>) {
     const current = await workspace(beforeWrite);
-    if (id !== current.workspace_id || !services?.actions) throw new Error("工作目录已经变化，请重新选择文件");
+    if (id !== current.workspace_id || !services?.actions) throw filesErrors.invalid("工作目录已经变化，请重新选择文件");
     const result = await services.actions.invoke(workspaceReadActions.file, { workspace_id: current.workspace_id, path, kind });
-    if ((await workspace(beforeWrite)).workspace_id !== current.workspace_id) throw new Error("工作目录已经变化，请重试");
+    if ((await workspace(beforeWrite)).workspace_id !== current.workspace_id) throw filesErrors.invalid("工作目录已经变化，请重试");
     return { workspace: current, result };
   }
   function readable(result: WorkspaceFileResult): asserts result is Extract<WorkspaceFileResult, { outcome: "text" }> {
-    if (result.outcome !== "text") throw new Error(result.outcome === "changed" ? "文件在读取时变化，请刷新" : "文件当前不可读取，无法固定快照");
+    if (result.outcome !== "text") throw filesErrors.invalid(result.outcome === "changed" ? "文件在读取时变化，请刷新" : "文件当前不可读取，无法固定快照");
   }
   const sideId = (workspaceId: string, path: readonly string[]) => `${workspaceId}:${path.join("/")}`;
   return [
@@ -135,17 +136,17 @@ export function filesActionHandlers(context: PluginStartContext): ActionHandlerB
     }, browsing),
     bindOwnerPluginAction(context, filesActions.capture, async (input, beforeWrite) => {
       const path = parseFilePath(input.path);
-      if (!["before", "after", "selection"].includes(String(input.port))) throw new Error("快照位置无效");
+      if (!["before", "after", "selection"].includes(String(input.port))) throw filesErrors.invalid("快照位置无效");
       const { workspace: current, result } = await read(input.workspace_id, path, "text", beforeWrite);
       readable(result);
-      if (input.fingerprint !== result.fingerprint) throw new Error("文件已改变，请刷新并查看后再固定快照");
+      if (input.fingerprint !== result.fingerprint) throw filesErrors.invalid("文件已改变，请刷新并查看后再固定快照");
       const base = { workspace: { workspace_id: current.workspace_id, name: current.name }, path, text: result.text };
       let content = parseFileSnapshot(base);
       if (input.port === "selection") {
-        if (typeof input.start !== "number" || typeof input.end !== "number" || input.end > result.text.length) throw new Error("选区已经失效，请重新选择");
+        if (typeof input.start !== "number" || typeof input.end !== "number" || input.end > result.text.length) throw filesErrors.invalid("选区已经失效，请重新选择");
         content = parseFileTextSelection({ ...base, start: input.start, end: input.end, text: result.text.slice(input.start, input.end) });
       }
-      if (!fileSnapshotFitsInline(content)) throw new Error("内容超过快照上限，请选择较小的文本片段");
+      if (!fileSnapshotFitsInline(content)) throw filesErrors.invalid("内容超过快照上限，请选择较小的文本片段");
       if (!services?.outputs) throw new Error("文件快照输出尚未装配");
       await beforeWrite();
       const saved = services.outputs.publish({ port: String(input.port), content: { kind: "inline", payload: JSON.parse(JSON.stringify(content)) } });

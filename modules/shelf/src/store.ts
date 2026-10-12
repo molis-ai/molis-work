@@ -36,7 +36,7 @@ import type {
   ShelfAiPorts,
   ShelfAiStatus,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { isShelfFailure, shelfErrors } from "./errors.js";
+import { isShelfFailure, readShelfCopy, shelfErrors } from "./errors.js";
 import { markdownFromExtract } from "./extract.js";
 import { OCR_MISSING, ocrLanguages, ocrMarkdown } from "./ocr.js";
 import { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
@@ -799,7 +799,7 @@ export class ShelfStore {
   readFile(itemId: string): { item: ShelfItemRecord; bytes: Buffer } {
     const item = this.requireItem(this.readCatalog(), itemId);
     if (!item.relative_path) throw shelfErrors.missing_output("这次没有生成文件");
-    return { item: publicItem(item), bytes: readFileSync(this.absolute(item)) };
+    return { item: publicItem(item), bytes: readShelfCopy(this.absolute(item)) };
   }
 
   private ensureSample(catalog: CatalogFile): CatalogFile {

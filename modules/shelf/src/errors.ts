@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { defineErrorCodes, type ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { BoundedInferenceReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -44,4 +45,16 @@ export type ShelfFailure = ActionError & { execution?: BoundedInferenceReceipt }
 export function isShelfFailure(error: unknown): error is ShelfFailure {
   const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
   return typeof code === "string" && code.startsWith("shelf.");
+}
+
+/**
+ * The bytes of a copy on the shelf. A copy whose file is gone from the disk is a refusal with a plain sentence (the row is on the shelf, the file
+ * is not), not the system's text with the path in it; any other failure to read stays what it is.
+ */
+export function readShelfCopy(file: string): Buffer {
+  try { return readFileSync(file); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") throw shelfErrors.missing_output("这份副本的文件已不在架子上，请重新放入");
+    throw error;
+  }
 }

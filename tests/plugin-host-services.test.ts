@@ -31,6 +31,7 @@ import {
   seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { artifactPreview } from "./fixtures/artifact-preview.js";
 
 const PRODUCER = "io.molis.work.producer";
 const CONSUMER = "io.molis.work.consumer";
@@ -161,7 +162,8 @@ function harness(definitions: (register: Harness) => PluginDefinition[]): Harnes
     ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
-  const runtime = new PluginRuntime(undefined, executor);
+  // A plugin that declares actions (the preview of a 成果 type it pins) is installed against the Kernel that holds them.
+  const runtime = new PluginRuntime(undefined, executor, { actions: pluginActions(store, DEMO_PROJECT_ID) });
   const supervisor = new PluginSupervisor(runtime);
   const wiring = new PluginInputGraph({
     projectId: DEMO_PROJECT_ID,
@@ -209,7 +211,7 @@ function harness(definitions: (register: Harness) => PluginDefinition[]): Harnes
   return rig;
 }
 
-function definitionFor(rig: Harness, manifest: PluginManifest): PluginDefinition {
+function definitionFor(rig: Harness, manifest: PluginManifest, actions: PluginAppContribution["actions"] = []): PluginDefinition {
   return {
     manifest,
     ...((manifest.events?.publishes ?? []).length > 0
@@ -226,6 +228,7 @@ function definitionFor(rig: Harness, manifest: PluginManifest): PluginDefinition
       const contribution: PluginAppContribution = {
         kind: "app",
         views: [view(manifest.plugin_id)],
+        ...(actions.length > 0 ? { actions } : {}),
         ...((manifest.events?.subscribes ?? []).length > 0
           ? { onEvent: (event) => { rig.received.push(event.payload); } }
           : {}),
@@ -401,14 +404,18 @@ test("a 成果 port carries a pinned version by selection: exact identity, no co
     const producer = manifestFor({ id: PRODUCER, outputs: ["payload"] });
     producer.permissions.push({ permission: "artifact:read", required: true, reason: "读取自己的固定成果" });
     producer.ports!.outputs.push({ port: "report", artifact_type_id: REPORT, schema_version: 1 });
-    producer.artifacts.produces.push({ artifact_type_id: REPORT, schema_version: 1 }, { artifact_type_id: "other.type", schema_version: 1 });
+    // Each 成果 type a plugin pins is named and has a preview action of its own plugin.
+    const reportPreview = artifactPreview(PRODUCER, REPORT), otherPreview = artifactPreview(PRODUCER, "other.type"), consumerPreview = artifactPreview(CONSUMER, REPORT);
+    producer.actions = [reportPreview.definition, otherPreview.definition];
+    producer.artifacts.produces.push(reportPreview.type, otherPreview.type);
     producer.artifacts.consumes.push({ artifact_type_id: REPORT, schema_version: 1 }, { artifact_type_id: "other.type", schema_version: 1 });
     const consumer = manifestFor({ id: CONSUMER, inputs: ["payload"] });
     consumer.ports!.inputs.push({ port: "report", artifact_type_id: REPORT, schema_version: 1, optional: true });
     consumer.artifacts.consumes.push({ artifact_type_id: REPORT, schema_version: 1 });
-    consumer.artifacts.produces.push({ artifact_type_id: REPORT, schema_version: 1 });
+    consumer.actions = [consumerPreview.definition];
+    consumer.artifacts.produces.push(consumerPreview.type);
     consumer.permissions.push({ permission: "artifact:write", required: true, reason: "发布自己的成果" });
-    await rig.supervisor.start([{ definition: definitionFor(rig, producer) }, { definition: definitionFor(rig, consumer) }]);
+    await rig.supervisor.start([{ definition: definitionFor(rig, producer, [reportPreview.handler, otherPreview.handler]) }, { definition: definitionFor(rig, consumer, [consumerPreview.handler]) }]);
     rig.wiring.bind({ project_id: DEMO_PROJECT_ID, target_plugin_id: CONSUMER, target_port: "report", source_plugin_id: PRODUCER, source_port: "report", origin: "user", actor_id: "tester" });
     const services = rig.services[PRODUCER]!, outputs = services.outputs!;
     const fixed = { artifact_id: "fixed-report-one", version: 1 };

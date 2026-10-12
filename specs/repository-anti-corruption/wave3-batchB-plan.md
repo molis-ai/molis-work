@@ -501,21 +501,23 @@ All MCP-visible renames must land before 0.3.0 (the first version installed outs
 **W3-06-F1 (new split): move `plugin-route-operations.ts` out of `handleCodingPluginHttp`** (`coding-surface.ts:181-222`; no behaviour change; plugin-specific branches stay as hooks so `pluginOutsideMentions` does not grow).
 - Before W3-02 G4. Size S.
 
-**W3-06-F: Home-level Runtime instance.**
+**W3-06-F: complete the existing Home Runtime instance (implementation scope refreshed 2026-10-12).**
+- **Current entry:** Issue already runs through `HomePluginHost` / `HomePluginExecutor` and the catalog's Home entry. Reuse that one instance and its explicit protected retry; the old empty-production-list design is superseded. The remaining business plugins stay at their current entries until W5-01/W5-02.
 - **Changes:**
-  - `home-plugin-platform.ts`, `home-plugins.ts`;
-  - the `scope` parameter that A skipped;
-  - extract the bundled `WeakSet`/`providerFor` helper so Home-level built-ins also register under `plugin_id`;
-  - `homePluginEntries() = []`; `project-host.ts:334,341` in place; `local-web-actions.ts` 46 → ~52;
-  - storage `PERSONAL_HOME_SQLITE_STORES` + `plugin-runtime`; the `HOME_PLUGIN_RUNTIME_BASELINE` row in **CHECKLIST 各库版本表** (the design missed it; `verify-release-versions` fails without it);
-  - HOME-DATA, SSOT, schema fixtures.
-- **Decisions:** 10-10 「按今天的登记方式分」 (mechanism only, empty list); 「内置插件一律用插件名」; #20.
-- **Dependencies:** D, E, F1, M7, #384. FB `sessions-purge` (HOME-DATA `:44`, a direct conflict).
-- **Hubs:** `project-plugins.ts`, SSOT, CHECKLIST, CALL-CHAINS, baseline.
-- **Size/risk/tests:** L (~28 files), high risk. Fail-first: `tests/home-plugin-platform.test.ts`, plus C's deferred case (no plugin in both lists).
+  - Wire D's `services.database` and E's instruction/model service into the Home executor, with the existing lifecycle, grants and post-model effect checks. Business SQLite facts remain with their owners.
+  - Add trusted Home fixture declarations and shared bundled-definition identity checks. Only bundled definitions use `plugin_id` as provider and receive all declared permissions; other installations use `install_id`. Reject overlapping Home/project entries, impersonated built-ins and untrusted database declarations.
+  - Complete the existing `services.storage` private KV contract in the Home Runtime database. Current schema becomes v2 with the private-value tables; v1 and damaged v2 databases are refused unchanged, before a storage constructor can add a missing table. No runtime migration, fallback or rebuild. Update HOME-DATA, CHECKLIST and independent schema fixtures together. The coordinator's read-only check found no such database in the real Home; any actual maintenance remains a separate decision after clone/count/rehearsal.
+  - Prepare Home providers for action and scene discovery, authorize their actual scopes and installation generations, and isolate Home startup failure so unrelated Goals/project actions remain usable. Preserve failure state and explicit retry semantics.
+  - Reuse F1's generic route operations with the structural fields Home actually has; keep Files/wiring/Coding hooks with their project owner. Dispatch the same Home instance after parsing project prefixes, retaining cancellation, mutation protection, upload limits, `page_context` and view revision.
+  - The current HTTP route/action-client contract stays Home-scoped even behind a project prefix; do not manufacture trusted project identity from body, query or path. Project-scoped actions of a Home provider use the existing scoped action client and refuse a missing project.
+- **Decisions:** spec §1, 10-10 Home/project division and bundled identity; 10-12 routine choices explicitly preserve the existing Issue instance, full private KV contract and current HTTP scope.
+- **Dependencies:** D, E, F1, M7, #384. Serialize with W3-02 G4 after F. No new catalog owner, method lifecycle, business-plugin migration or public compatibility API in this slice.
+- **Hubs:** project/Home assembly, SSOT, CHECKLIST, CALL-CHAINS and baseline. Keep all current Home-data/purge obligations; do not duplicate the existing Runtime backup registration.
+- **Size/risk/tests:** L, high risk. Use public Host/HTTP/action entries with isolated Homes and a local model substitute. Prove one shared Home instance, trusted provider/grant refusal, cancellation/revocation/disable/reinstall recovery, KV persistence/isolation/CAS/failed-upgrade restore, strict nonempty v1 and damaged v2 rejection without changes, unrelated Goals access during Home failure, scene discovery, protected operations and existing Issue upload/retry paths. Existing giant classes may not grow; extract only the helpers required by these paths. Whole build, schema/version checks, API/action/resource checks, relevant README tests, security and coordinator-owned integration regression.
 
-**W3-06-G: close-out docs** (spec §1 routine calls, §10 progress, RUNTIME-MIGRATION, EXTENSION-POINTS, ai-entry-inventory `:204`; project-deleted delivery is docs only).
-- Fold into F if F stays reviewable. Separate gate-comment PR for `action-contract-snapshot.mjs:44-52`. Size S.
+**W3-06-G: close-out docs.**
+- Update RUNTIME-MIGRATION, EXTENSION-POINTS, ai-entry-inventory, Home-data/version/owner documents and the relevant plugin/Prologue Skill chapters to the implementation above. The coordinator owns spec §1/§10 progress.
+- Fold into F if reviewable. Project-deleted delivery remains a documented migration obligation of the existing catalog owner. The snapshot script already states bundled provider identity, so do not add a gate-comment PR unless the final implementation actually changes that statement. Validate changed Studio-mounted Skill chapters through offline replay and isolated smoke as required.
 
 ### W3-07 (none merged; Q1/Q2/Q3 decided = convert / forward / keep)
 

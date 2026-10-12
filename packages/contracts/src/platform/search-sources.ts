@@ -123,27 +123,3 @@ export function bindSearchEntriesHandler(definition: ActionDefinition<SearchEntr
   return { capability_id: definition.capability_id, version: definition.version, ...(availability ? { availability } : {}),
     handle: async (caller, input) => searchEntriesPage(await list(caller), input as SearchEntriesInput) };
 }
-
-/** Manifest-level check shared by inspectActionDeclarations. Returns problems, never throws. */
-export function searchSourceDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[] {
-  const problems: string[] = [];
-  const entries = isSearchEntriesSource(action as { input_type?: string; output_type?: string });
-  const mentions = [SEARCH_ENTRIES_INPUT_TYPE, SEARCH_ENTRIES_OUTPUT_TYPE]
-    .some(type => action.input_type === type || action.output_type === type);
-  if (!mentions && action.search_source === undefined) return problems;
-  const kinds = (action.search_source as { kinds?: unknown } | undefined)?.kinds;
-  const subjectKinds = Array.isArray(action.subject_kinds) ? action.subject_kinds as unknown[] : [];
-  const kindsValid = Array.isArray(kinds) && kinds.length > 0 && kinds.every(entry => !!entry && typeof entry === "object"
-    && typeof (entry as SearchSourceKind).kind === "string" && subjectKinds.includes((entry as SearchSourceKind).kind)
-    && typeof (entry as SearchSourceKind).title === "string" && (entry as SearchSourceKind).title.trim().length > 0
-    && typeof (entry as SearchSourceKind).surface === "string" && /^[a-zA-Z0-9_-]{1,64}$/u.test((entry as SearchSourceKind).surface))
-    && new Set(kinds.map(entry => (entry as SearchSourceKind).kind)).size === kinds.length && kinds.length === subjectKinds.length;
-  const schemas = entries ? [SEARCH_ENTRIES_INPUT_SCHEMA, SEARCH_ENTRIES_OUTPUT_SCHEMA] : null;
-  // The index is built as the local person; a source closed to `user` could never be indexed.
-  const openToUser = Array.isArray(action.audiences) && (action.audiences as unknown[]).includes("user");
-  if (!schemas || operation !== "query" || action.kind !== "query" || !["home", "project"].includes(String(action.scope)) || !kindsValid || !openToUser
-    || canonical(action.input_schema) !== canonical(schemas[0]) || canonical(action.output_schema) !== canonical(schemas[1])) {
-    problems.push(`能力 ${key} 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型、对本机用户开放与对应对象种类的打开位置`);
-  }
-  return problems;
-}

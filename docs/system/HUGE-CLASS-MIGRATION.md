@@ -1,6 +1,6 @@
 # 巨大单元清单与判定
 
-当前所有超过阈值的文件、类和函数，各自的 owner（包）、判定和计划。快照取自 main `4d59cd4d`（2026-10-08），之后 W1-05 把 `evaluateImportBoundary` 拆到阈值以下、从清单删去，共 163 个单元，分布在 37 个包的 129 个文件里；实时数字以 `node scripts/check-health-gates.mjs --report` 为准，本表只在判定或计划变化时改。每个单元都有判定（拆、归线或例外），没有“待排期”。2026-09 的迁移记录（列的是已不存在的 `src/v1/coordinator.ts` 等）已移到 [归档](../archive/huge-class-migration-2026-09.md)。
+当前所有超过阈值的文件、类和函数，各自的 owner（包）、判定和计划。快照取自 main `4d59cd4d`（2026-10-08），之后 W1-05 把 `evaluateImportBoundary` 拆到阈值以下、从清单删去，W3-03 的 B2 把 `inspectActionDeclarations` 与 `inspectAgentDeclaration` 拆成按声明段的小函数、搬进 `packages/plugin-sdk` 并从清单删去，共 161 个单元，分布在 37 个包的 127 个文件里；实时数字以 `node scripts/check-health-gates.mjs --report` 为准，本表只在判定或计划变化时改。每个单元都有判定（拆、归线或例外），没有“待排期”。2026-09 的迁移记录（列的是已不存在的 `src/v1/coordinator.ts` 等）已移到 [归档](../archive/huge-class-migration-2026-09.md)。
 
 ## 1. 规则
 
@@ -33,18 +33,18 @@
 
 ## 2. 现状
 
-163 个单元：35 个文件、40 个类、88 个函数。判定分布：
+161 个单元：35 个文件、40 个类、86 个函数。判定分布：
 
 | 判定 | 文件 | 类 | 函数 | 合计 |
 | --- | ---: | ---: | ---: | ---: |
-| 拆 | 16 | 39 | 83 | 138 |
+| 拆 | 16 | 39 | 81 | 136 |
 | 归线 | 15 | 1 | 5 | 21 |
 | 例外 | 4 | 0 | 0 | 4 |
-| 合计 | 35 | 40 | 88 | 163 |
+| 合计 | 35 | 40 | 86 | 161 |
 
 - **例外**（4 个）已登记在 `tooling/gates/giant-exceptions.json`：样式表 3 份（动量、基础控件、Coding）、连接器声明表 1 份。`--report` 在这些单元后面标 `[exception: …]`。看起来像例外、但没有登记的两处：Pages 的样式表只超 12 行，开头 12 行是用 `PAGES_TONES` 生成的色调规则，移到 `tone.ts` 就回到 800 行；组件规格板 `primitives/catalog.ts` 里有一段 175 行带分支的演示脚本，不是静态数据，脚本归 W5-04，剩下的样例标记已有章节函数的雏形，照样拆。英文词典 `en.ts` 也不是例外：决定 #16 已定词典按主人分，它归 W5-03（见下），所以 `translation-table` 这一类现在没有条目。
 - **归线**（21 个）：浏览器脚本模板、旧皮肤和英文词典 `en.ts`（决定 #16，W5-03）等，路线里别的线会让它消失或换形态。归线的单元都有片号。Characters 一项挂在 W5-01 下：路线 W5-01 原有“Shelf 和 Characters 混合插件”一项，决定 #26 把其中 Characters 的部分提到第 4 波，那个切片在路线里还没有自己的片号（见下）。
-- **拆**（138 个，105 个文件）：其中 123 个归 W5-10（94 个文件，32 个批次；助理的 3 个单元由 W4-05 先抽样板，也在这 123 个里），其余 15 个归 W3-03、W4-06、W4-07、W5-04、W5-07、W5-09。
+- **拆**（136 个，103 个文件）：其中 123 个归 W5-10（94 个文件，32 个批次；助理的 3 个单元由 W4-05 先抽样板，也在这 123 个里），其余 13 个归 W4-06、W4-07、W5-04、W5-07、W5-09（W3-03 的两个已由 B2 拆完并搬进 SDK）。
 - 全部单元里，45 个只超出阈值不到 20%（9 个文件、27 个函数、9 个类；类按行数与方法数里超得多的那一项算），其中 37 个在 W5-10；5 个类只因方法数超标（行数没超）；这些超出不多，是 W5-10 里最便宜的一批。
 
 ### W5-10 怎么做
@@ -119,7 +119,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 
 | 片 | 内容 | 单元数 | 对应的单元 |
 | --- | --- | ---: | --- |
-| W3-03 | 把运行时 helper 移出 contracts，其中清单校验器移到 plugin-runtime（路线写约 540 行） | 2 | `inspectActionDeclarations`、`inspectAgentDeclaration` |
+| W3-03 | 把运行时 helper 移出 contracts，其中声明校验器放进 plugin-sdk（路线写移到 plugin-runtime，做不到，见 spec §1）；B2 已把 `inspectActionDeclarations`、`inspectAgentDeclaration` 按声明段拆开搬入 SDK | 0 | 已做（B2），清单里不再有 |
 | W4-04 | Form 样板：迁到 Runtime，浏览器代码改成打包并类型检查的 TS；删宿主里 Form 的 `registerProvider` 站点 | 2 | `form/src/client.ts`、`project-host.ts` |
 | W4-05 | 助理服务拆分样板：在原处按包形边界抽出提醒与跟进协作者，带自己的测试（决定 #3 已定） | 3 | `AssistantService`、`AssistantStore` |
 | W4-06 | 拆 `initializePrologueNodeAdapter`：`startAgentRun` 进 `prologue-run.ts`，memory、documents、sessions、schedule、recovery 端口各成模块 | 3 | `prologue-node.ts` |
@@ -260,8 +260,6 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 
 | 包 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | --- | ---: |
-| `contracts` | `src/platform/actions.ts` | `inspectActionDeclarations` 函数 158 行 | 拆 · W3-03 | 清单校验器随 W3-03 移出 contracts（路线写约 540 行移到 plugin-runtime；contracts 里 `inspect*Declarations` 一族共约 660 行，这是其中最大的两个函数之一）。原样搬到别处会被门禁当作新增，要边搬边按声明段拆。 | 17 |
-| `contracts` | `src/platform/plugin-agent.ts` | `inspectAgentDeclaration` 函数 162 行 | 拆 · W3-03 | 同上：`inspectAgentDeclaration` 是 `inspect*Declarations` 一族里第二大的函数。 | 2 |
 | `contracts` | `src/services/agent-host.ts` | 文件 1,734 行 | 拆 · W5-09 | 按领域拆合同文件（运行能力、冻结的启动字段、运行视图、记忆能力、错误码、`agentHostCapabilities` 等），纯搬移，由 API 快照守着。 | 13 |
 | `design-system` | `src/plugin-component-client.ts` | `createPluginComponentClient` 函数 754 行 | 拆 · W5-04 | 生成插件的宿主渲染器，按部件种类画；类型化函数，用 `toString` 序列化进浏览器（754 行、73 条语句：`createPart` 142、`output` 137、`figures` 36、`showDetail` 32、`control` 32）。W5-04 改成打包的类型检查模块时，各部件成各自的模块，同一个 PR 拆到阈值以下。（对 W5-04 范围的解释同 `tab-workspace-ops.ts`。） | 3 |
 | `design-system` | `src/primitives/catalog.ts` | 文件 947 行<br>`renderPrimitiveCatalog` 函数 648 行 | 拆 · W5-04、W5-10 | `/__ui/catalog` 规格板。页尾 `<script>` 175 行（第 771–945 行，带分支的演示脚本）是浏览器代码，归 W5-04，移出后文件 772 行、不再超限。剩下的 `renderPrimitiveCatalog` 约 470 行是样例标记，除 `.map` 拼接外没有分支和 IO，但不登记例外：它已经有 `arrivalSection`、`craftSection`、`paletteSection` 等章节函数，其余章节（`sections` 数组 116 行，`catalogDirRows` 36、`catalogShellDirectory` 35、`catalogCompact` 27 行等）照此各成章节函数，W5-10 完成。 | 3 |

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inspectActionDeclarations, presentActionResult, type ActionDefinition, type ActionResultView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { presentActionResult, type ActionDefinition, type ActionResultView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
 const view: ActionResultView = { summary: "已保存材料", title_pointer: "/item/name", text_pointer: "/item/body",
   link: { label: "打开材料", href_template: "/projects/{project_id}/?openItem={/item/id}&openTitle={/item/name}" } };

@@ -215,3 +215,17 @@ test("the recorded receipts are SDK-shaped: only SDK states and treatments appea
     if (receipt.handling !== undefined) assert.ok(treatments.has(receipt.handling.treatment), receipt.handling.treatment);
   }
 });
+
+test("RCPT-R0-03 two checkpoints that share one place in the ledger (the queue changed, the ledger did not) are told apart by the one jumped to", () => {
+  for (const [flavor, rec] of both) {
+    const stopped = U.toScene(rec, U.initial(rec, "assistant", "light"), "stopped-withdraw", "stopped");
+    const waiting = U.view(rec, stopped).queue;
+    assert.ok(waiting !== undefined && waiting.queued.length > 0, `${flavor}: stopped leaves inputs waiting in the session queue`);
+    const withdrawn = U.toCheckpoint(rec, stopped, "withdrawn");
+    assert.deepEqual(withdrawn.cursor, stopped.cursor, `${flavor}: the two checkpoints sit at the same cursor`);
+    const queue = U.view(rec, withdrawn).queue;
+    assert.equal(queue?.queued.length, 0, `${flavor}: after the withdrawal nothing waits`);
+    assert.ok(queue !== undefined && queue.settled.length > 0 && queue.settled.every(one => one.outcome === "withdrawn"), `${flavor}: the settled items say withdrawn`);
+    assert.equal(U.view(rec, U.restart(withdrawn)).queue, undefined, `${flavor}: playing from the start forgets the jump`);
+  }
+});

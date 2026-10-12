@@ -129,6 +129,7 @@ code { font-family: var(--mono, ui-monospace, monospace); font-size: .92em; }
 @media (max-width: 1180px) { .cd-layout { grid-template-columns: 200px minmax(0, 1fr); } .cd-review { display: none; } }
 @media (max-width: 860px) { .cd-layout { grid-template-columns: minmax(0, 1fr); } .cd-directory { display: none; } }
 @media (max-width: 520px) {
+  body { grid-template-rows: 52px auto minmax(0, 1fr); } .pv-switch .mw-btn { min-height: 44px; }
   .pv-titlebar { padding: 0 8px 0 12px; } .pv-brand strong, .pv-caption { display: none; } .pv-notice { padding: 0 12px 6px; } .pv-tools { margin-left: auto; }
   .pv-sheet { inset: 0 6px 6px; } .rc-panel--assistant { width: calc(100% - 12px); height: calc(100% - 12px); bottom: 6px; }
   .rc-thread { padding: 10px 10px; } .rc-foot { padding: 8px 10px 10px; } .rc-four > div { grid-template-columns: 1fr; gap: 0; }

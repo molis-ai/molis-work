@@ -68,7 +68,7 @@ test("RCPT-R0-07 every layout x width x theme draws inside the viewport, with th
     for (const layout of LAYOUTS) for (const size of WIDTHS) for (const theme of THEMES) for (const [scene, checkpoint] of SCENES) {
       const page = await openAt(session, `layout=${layout}&scene=${scene}&cp=${checkpoint}&theme=${theme}`, size);
       const where = `${layout} ${scene} ${String(size.width)} ${theme}`;
-      const measured = await page.evaluate<{ over: number; threadOver: number; composer: boolean; theme: string; bar: number; notice: boolean; bg: string; stage: number }>(`(() => {
+      const measured = await page.evaluate<{ over: number; threadOver: number; composer: boolean; theme: string; bar: number; notice: boolean; small: string[]; bg: string; stage: number }>(`(() => {
         const input = document.querySelector('[data-composer-input]');
         const box = input.getBoundingClientRect();
         const thread = document.querySelector('[data-thread]');
@@ -76,12 +76,15 @@ test("RCPT-R0-07 every layout x width x theme draws inside the viewport, with th
           composer: box.top >= 0 && box.bottom <= innerHeight && box.left >= 0 && box.right <= innerWidth,
           theme: document.documentElement.dataset.theme, bar: document.querySelectorAll('.rc-status').length,
           notice: (() => { const n = document.querySelector('.pv-notice'); return n.offsetHeight > 0 && n.scrollHeight <= n.clientHeight + 1 && /不是真实运行/.test(n.innerText) && /不连接 Home/.test(n.innerText); })(),
+          small: [...document.querySelectorAll('.pv-tools button, .rc-panel button:not([disabled]), .rc-panel input[type=text]')]
+            .filter(el => el.getBoundingClientRect().height > 0 && el.getBoundingClientRect().height < 43.5).map(el => el.className.split(' ').pop() + ':' + Math.round(el.getBoundingClientRect().height)),
           bg: getComputedStyle(document.querySelector('.rc-panel')).backgroundColor, stage: document.querySelector('.rc-panel').getBoundingClientRect().height };
       })()`);
       assert.ok(measured.over <= 0, `${where}: the page scrolls sideways by ${String(measured.over)}px`);
       assert.ok(measured.threadOver <= 0, `${where}: the thread scrolls sideways`);
       assert.ok(measured.composer, `${where}: the composer is outside the viewport`);
       assert.equal(measured.theme, theme, where);
+      if (size.mobile) assert.deepEqual(measured.small, [], `${where}: touch targets under 44px`);
       assert.ok(measured.notice, `${where}: the page does not say, in full, that this is not a real run`);
       assert.ok(measured.bar > 0, `${where}: no receipt bar is drawn`);
       assert.ok(measured.stage > 200, `${where}: the panel collapsed to ${String(measured.stage)}px`);
@@ -113,6 +116,7 @@ test("RCPT-R0-05 keyboard: Tab reaches a receipt bar, Enter and Space open and c
     assert.equal(await page.evaluate(`document.getElementById('detail-${id}') !== null`), true);
     assert.equal(await focused(page), start, "opening the detail moved focus");
     await shot(page, "detail-open-1440-light");
+    assert.equal(await page.evaluate("getComputedStyle(document.querySelector('.rc-detail')).animationName"), "none", "motion is not reduced when the person asked for less");
     await press(page, "Enter");
     assert.equal(await expanded(), "false");
     await press(page, " ");
@@ -163,6 +167,21 @@ test("RCPT-R0-03 the tray lists what is not handled yet, opens an input from its
   });
 });
 
+test("RCPT-R0-07 a redraw that is not playback leaves the thread where the reader had it", { timeout: 60_000 }, async (t) => {
+  await withSession(t, async (session) => {
+    const page = await openAt(session, "layout=coding&scene=main&theme=light", WIDTHS[1]);
+    const position = () => page.evaluate<number>("document.querySelector('[data-thread]').scrollTop");
+    assert.ok(await page.evaluate<boolean>("(() => { const el = document.querySelector('[data-thread]'); el.scrollTop = 120; return el.scrollHeight > el.clientHeight + 120; })()"), "the thread is too short to test");
+    const before = await position();
+    assert.ok(before > 0);
+    await page.click("[data-action=tray]");
+    assert.equal(await position(), before, "opening the tray moved the thread");
+    await page.click("[data-action=theme]");
+    assert.equal(await position(), before, "a redraw moved the thread");
+    assert.deepEqual(session.errors, []);
+  });
+});
+
 test("RCPT-R0-02 a correction is shown as the person's own decision on the Molis layer, never as something the AI did", { timeout: 60_000 }, async (t) => {
   await withSession(t, async (session) => {
     const page = await openAt(session, "layout=coding&scene=main&theme=dark");
@@ -206,6 +225,50 @@ test("RCPT-R0-01 the restart scene: a killed Host is reconciled on reopen and th
     const page = await openAt(session, "layout=assistant&scene=restart&cp=recovered&theme=light");
     const text = await page.evaluate<string>("document.body.innerText");
     assert.match(text, /重启|强杀|收口/);
+    assert.deepEqual(session.errors, []);
+  });
+});
+
+test("RCPT-R0-07 the opened detail and the opened tray fit the phone width", { timeout: 60_000 }, async (t) => {
+  await withSession(t, async (session) => {
+    for (const theme of THEMES) {
+      const page = await openAt(session, `layout=assistant&scene=main&theme=${theme}`, WIDTHS[2]);
+      const id = await page.evaluate<string>("document.querySelector('.rc-input:not([data-key=withdrawn]) .rc-status').dataset.id");
+      await page.click(`.rc-status[data-id="${id}"]`);
+      const over = () => page.evaluate<number>("document.documentElement.scrollWidth - innerWidth + Math.max(0, document.querySelector('[data-thread]').scrollWidth - document.querySelector('[data-thread]').clientWidth)");
+      assert.ok(await over() <= 0, `${theme}: the open detail overflows sideways`);
+      await shot(page, `detail-open-390-${theme}`);
+      await page.click(`.rc-status[data-id="${id}"]`);
+      await page.click("[data-action=tray]");
+      assert.ok(await over() <= 0, `${theme}: the open tray overflows sideways`);
+      assert.equal(await page.evaluate("(() => { const box = document.querySelector('.rc-tray-list').getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth && box.top >= 0; })()"), true, `${theme}: the open tray leaves the screen`);
+      await shot(page, `tray-open-390-${theme}`);
+    }
+    assert.deepEqual(session.errors, []);
+  });
+});
+
+test("RCPT-R0-03/06 the end-of-run actions and the restart each play their recorded branch, and the page changes only to what was recorded", { timeout: 90_000 }, async (t) => {
+  await withSession(t, async (session) => {
+    const carry = await openAt(session, "layout=assistant&scene=stopped-carry&cp=stopped&theme=light");
+    assert.match(await carry.evaluate<string>("document.querySelector('.rc-end').innerText"), /留在会话里，没有自己开新的一轮/);
+    await carry.click("[data-action=carry]");
+    await carry.wait("document.body.innerText.includes('接续自上一轮')");
+    assert.match(await carry.evaluate<string>("document.querySelector('.rc-end-queue').innerText"), /排队里的 \d+ 条已处理（带进下一轮）/);
+
+    const withdrawn = await openAt(session, "layout=assistant&scene=stopped-carry&cp=stopped&theme=light");
+    await withdrawn.click("[data-action=withdraw-all]");
+    await withdrawn.wait("document.querySelector('.rc-end-queue')?.innerText.includes('撤回')");
+    assert.match(await withdrawn.evaluate<string>("document.querySelector('.rc-end-queue').innerText"), /已处理（撤回）/);
+    assert.doesNotMatch(await withdrawn.evaluate<string>("document.body.innerText"), /接续自上一轮/, "a withdrawn input must not appear in a next run");
+
+    const killed = await openAt(session, "layout=assistant&scene=restart&cp=killed&theme=light");
+    assert.match(await killed.evaluate<string>("document.querySelector('.rc-banner').innerText"), /宿主被强杀了（演示）/);
+    await killed.click("[data-action=recover]");
+    await killed.wait("document.querySelector('.rc-banner')?.innerText.includes('已核对并收口')");
+    const banner = await killed.evaluate<string>("document.querySelector('.rc-banner').innerText");
+    assert.match(banner, /不自动带入，不自动开新的一轮/);
+    assert.match(banner, /没读到/);
     assert.deepEqual(session.errors, []);
   });
 });

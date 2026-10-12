@@ -27,6 +27,8 @@ export interface Ui {
   readonly theme: "light" | "dark";
   readonly sceneId: string;
   readonly cursor: Cursor;
+  /** The checkpoint the person jumped to, when two checkpoints share one cursor (the queue changed, the ledger did not). */
+  readonly checkpointId: string | undefined;
   readonly expanded: readonly string[];
   readonly trayOpen: boolean;
   readonly menu: "send" | "demo" | null;
@@ -55,31 +57,32 @@ export function firstCheckpoint(scene: Scene): Checkpoint {
 export function initial(rec: Recording, layout: Layout, theme: "light" | "dark"): Ui {
   const scene = sceneOf(rec, "main");
   const cp = firstCheckpoint(scene);
-  return { layout, theme, sceneId: scene.id, cursor: { run: cp.run, at: cp.at }, expanded: [], trayOpen: false, menu: null, correcting: null,
+  return { layout, theme, sceneId: scene.id, cursor: { run: cp.run, at: cp.at }, checkpointId: cp.id, expanded: [], trayOpen: false, menu: null, correcting: null,
     draft: DEFAULT_DRAFT, sendMode: "next-boundary", chip: "this-run", corrections: [], playing: false, note: "" };
 }
 
-/** The checkpoint the cursor rests on, if it rests on one. */
-export function restingCheckpoint(scene: Scene, cursor: Cursor): Checkpoint | undefined {
-  return scene.checkpoints.find(one => one.run === cursor.run && one.at === cursor.at);
+/** The checkpoint the cursor rests on, if it rests on one; the one the person jumped to when several share the place. */
+export function restingCheckpoint(scene: Scene, ui: Pick<Ui, "cursor" | "checkpointId">): Checkpoint | undefined {
+  const here = scene.checkpoints.filter(one => one.run === ui.cursor.run && one.at === ui.cursor.at);
+  return here.find(one => one.id === ui.checkpointId) ?? here[0];
 }
 export function view(rec: Recording, ui: Ui): View {
   const scene = sceneOf(rec, ui.sceneId);
-  return viewAt(scene, ui.cursor, restingCheckpoint(scene, ui.cursor));
+  return viewAt(scene, ui.cursor, restingCheckpoint(scene, ui));
 }
 
 export function toScene(rec: Recording, ui: Ui, sceneId: string, checkpointId?: string): Ui {
   const scene = sceneOf(rec, sceneId);
   const cp = checkpointId === undefined ? firstCheckpoint(scene) : checkpointAt(scene, checkpointId);
-  return { ...ui, sceneId, cursor: { run: cp.run, at: cp.at }, expanded: [], trayOpen: false, menu: null, correcting: null, draft: DEFAULT_DRAFT,
+  return { ...ui, sceneId, cursor: { run: cp.run, at: cp.at }, checkpointId: cp.id, expanded: [], trayOpen: false, menu: null, correcting: null, draft: DEFAULT_DRAFT,
     chip: "this-run", corrections: [], playing: false, note: "" };
 }
 export function toCheckpoint(rec: Recording, ui: Ui, checkpointId: string): Ui {
   const cp = checkpointAt(sceneOf(rec, ui.sceneId), checkpointId);
-  return { ...ui, cursor: { run: cp.run, at: cp.at }, playing: false };
+  return { ...ui, cursor: { run: cp.run, at: cp.at }, checkpointId: cp.id, playing: false };
 }
 export function restart(ui: Ui): Ui {
-  return { ...ui, cursor: { run: 0, at: 1 }, expanded: [], trayOpen: false, correcting: null, corrections: [], playing: false };
+  return { ...ui, cursor: { run: 0, at: 1 }, checkpointId: undefined, expanded: [], trayOpen: false, correcting: null, corrections: [], playing: false };
 }
 
 /** The event the cursor would play next, if there is one in this run. */
@@ -95,8 +98,8 @@ export function step(rec: Recording, ui: Ui): Ui {
   const scene = sceneOf(rec, ui.sceneId);
   const run = scene.runs[ui.cursor.run];
   if (run === undefined) return { ...ui, playing: false };
-  if (ui.cursor.at < run.events.length) return { ...ui, cursor: { run: ui.cursor.run, at: ui.cursor.at + 1 } };
-  if (ui.cursor.run + 1 < scene.runs.length) return { ...ui, cursor: { run: ui.cursor.run + 1, at: 1 } };
+  if (ui.cursor.at < run.events.length) return { ...ui, cursor: { run: ui.cursor.run, at: ui.cursor.at + 1 }, checkpointId: undefined };
+  if (ui.cursor.run + 1 < scene.runs.length) return { ...ui, cursor: { run: ui.cursor.run + 1, at: 1 }, checkpointId: undefined };
   return { ...ui, playing: false };
 }
 export function atEnd(rec: Recording, ui: Ui): boolean {
@@ -135,7 +138,7 @@ export function insist(rec: Recording, ui: Ui): Ui | undefined {
   const scene = sceneOf(rec, ui.sceneId);
   const cp = scene.checkpoints.find(one => one.id === "corrected");
   if (cp === undefined) return undefined;
-  return { ...ui, cursor: { run: cp.run, at: cp.at }, correcting: null, expanded: [], playing: false };
+  return { ...ui, cursor: { run: cp.run, at: cp.at }, checkpointId: cp.id, correcting: null, expanded: [], playing: false };
 }
 
 export function toggle(list: readonly string[], key: string): readonly string[] {

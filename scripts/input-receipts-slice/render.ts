@@ -106,7 +106,7 @@ export function renderStage(rec: Recording, ui: Ui): string {
   const view = viewOf(rec, ui);
   const ctx: PartContext = {
     ui, view, offer: offers(rec, ui),
-    canInsist: (row: InputRow) => row.headline.key === "explained:not-adopted" && scene.checkpoints.some(one => one.id === "corrected") && restingCheckpoint(scene, ui.cursor)?.id === "settled",
+    canInsist: (row: InputRow) => row.headline.key === "explained:not-adopted" && scene.checkpoints.some(one => one.id === "corrected") && restingCheckpoint(scene, ui)?.id === "settled",
   };
   const inner = conversation(ctx);
   return ui.layout === "assistant" ? assistantScene(inner) : codingScene(inner);

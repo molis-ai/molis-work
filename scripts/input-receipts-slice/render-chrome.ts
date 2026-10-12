@@ -28,7 +28,7 @@ export function renderTitlebar(rec: Recording, ui: Ui): string {
 
 function demoPanel(rec: Recording, ui: Ui): string {
   const scene = sceneOf(rec, ui.sceneId);
-  const here = restingCheckpoint(scene, ui.cursor);
+  const here = restingCheckpoint(scene, ui);
   const done = atEnd(rec, ui);
   return `<div class="pv-popover" role="dialog" aria-label="演示控制">
     <h4>场景</h4>

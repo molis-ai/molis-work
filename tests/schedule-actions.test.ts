@@ -13,20 +13,19 @@ import {
   type ScheduleConversationTaskView,
 } from "@molis-ai/molis-work-plugin-schedule";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
-import { scheduleServiceFor } from "../apps/local-host/src/schedule-runtime.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
-test("Schedule tasks register as project actions shared by HTTP, Host callers and production MCP", { timeout: 120_000 }, async () => {
+test("Schedule tasks register as project actions shared by HTTP, Host callers and production MCP", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "schedule-actions-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Schedule actions", actor_id: "owner" });
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
   const policy = projectActionAvailability(async (_options, run) => run(catalog), home);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: policy });
+  // The Home is served so that the MCP client's grants are saved the way a person saves them.
+  const served = await serveTestHost(t, { home, host });
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: SCHEDULE_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
@@ -83,10 +82,7 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     assert.deepEqual((await bound.invoke(s.list, {})).tasks.map(row => row.task_id), [task.task_id], "reopening the Runtime keeps the task");
 
     // An external client sees only exactly granted actions; its writes land in the same project tasks.
-    for (const definition of [s.list, s.createTask]) {
-      await writeMcpActionGrant(home, createMcpActionGrant("runtime:scheduler", project.project_id,
-        directory.find(row => row.capability_id === definition.capability_id)!, true));
-    }
+    await served.grant("runtime:scheduler", project.project_id, [s.list, s.createTask].map(definition => directory.find(row => row.capability_id === definition.capability_id)!));
     const sdk = new Client({ name: "untrusted-name", version: "1" }); clients.push(sdk);
     await sdk.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
       fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, "scheduler", project.database_path], stderr: "pipe" }));
@@ -109,7 +105,7 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     assert.deepEqual((await bound.invoke(s.list, {})).tasks.map(row => row.task_id), [task.task_id]);
   } finally {
     await Promise.all(clients.map(sdk => sdk.close()));
-    await host.close(); catalog.close();
+    await served.close(); await host.close(); catalog.close();
     await rm(home, { recursive: true, force: true });
   }
 });

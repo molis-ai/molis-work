@@ -1,5 +1,6 @@
 import { CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
-import { bindOwnerPluginAction, parseExactActionReferences, searchEntriesPage, subjectContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { parseExactActionReferences, searchEntriesPage, subjectContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { codingRouteActions } from "./route-actions.js";
 import { codingReportSteps } from "./report-steps.js";
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -26,10 +27,9 @@ import { DELEGATION_ENDED, MAX_DELEGATION_HOPS } from "./cooperation.js";
 import { attachMentions, symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint, summaryCache } from "./session-window.js";
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
-import { CODING_CHANGESET_TYPE } from "./artifacts.js";
+import { CODING_CHANGESET_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import { characterSelection, characterTitle, savedCharacter, savedCharacterSkills, characterSkillSelection, type CodingCharacterPorts } from "./characters.js";
 import { confirmedPlan, executionSteps, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
-import { CODING_PLAN_TYPE } from "./artifacts.js";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 import { CODING_RUN_UPDATED_EVENT } from "./events.js";

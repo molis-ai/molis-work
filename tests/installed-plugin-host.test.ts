@@ -234,7 +234,9 @@ test('a disabled installation switches versions and stays disabled, before and a
     await installed.lifecycle('upgrade', v2);
     assert.equal(await rig.generated(), 0, 'nothing of it is offered while it is off');
     const router = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + fixture.release.pluginId + '/call', actor_id: 'owner', body: { operation: 'read', input: null } });
-    assert.equal(router?.status, 404, 'and it runs nothing');
+    // W3-02-C: the router answers a plugin that is not enabled with the platform's code (it was 404 plugin_not_enabled).
+    assert.equal(router?.status, 403, 'and it runs nothing');
+    assert.equal((router?.body as { code?: string }).code, 'actions.plugin_disabled');
     await rig.host.close();
     assert.deepEqual(stateOnDisk(), { state: 'disabled', version: '2.0.0' }, 'the record on disk moved and is still off');
 

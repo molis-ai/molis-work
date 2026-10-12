@@ -46,7 +46,7 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.
 - 负责：Shelf 目录、预览与副本任务界面。
 - 不负责：Goal 与 Artifact 的事实和 Store、桌面轮盘与热键。
 - 公开入口：`@molis-ai/molis-work-plugin-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-module-shelf`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-module-shelf`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不依赖 Goals 或 Artifacts 实现；交给项目的文字材料是过程项，由 Host 注入的公开端口写入，未绑项目时不能发布。
   - 个人架子的编辑、隐藏或移除不改项目里的旧版本。
@@ -54,7 +54,7 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.
   - 提交时 Host 重读原对象并核对预览指纹，浏览器不能提交替代正文。
   - 旧确认不能覆盖后来的选择；跨项目、已归档或非自身的材料不能设为输出。
   - URL 入库和剪贴板转材料必须将 Action signal / beforeEffect 传到 Module；抓取后复查再保存，源剪贴板已删除时不能生成迟到材料。
-- 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-coding-materials-http.test.ts tests/shelf-terminal-recovery.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-coding-materials-http.test.ts tests/shelf-project-results-http.test.ts tests/shelf-terminal-recovery.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/shelf-plugin.e2e.test.ts`
 - 相关手册：[docs/modules/shelf.md](../../../docs/modules/shelf.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

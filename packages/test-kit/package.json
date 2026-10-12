@@ -2,7 +2,7 @@
   "name": "@molis-ai/molis-work-test-kit",
   "version": "0.0.0",
   "private": true,
-  "description": "Business-neutral test helpers: package import boundary rules and a headless Chrome/CDP launcher and driver.",
+  "description": "Business-neutral test helpers: package import boundary rules, a headless Chrome/CDP launcher and driver, and a client for the Host's local HTTP management routes.",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -17,6 +17,10 @@
     "./browser": {
       "types": "./dist/browser/index.d.ts",
       "import": "./dist/browser/index.js"
+    },
+    "./local-host-http": {
+      "types": "./dist/local-host-http/index.d.ts",
+      "import": "./dist/local-host-http/index.js"
     }
   },
   "files": [
@@ -26,7 +30,7 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "tsc -p tsconfig.json",
-    "test": "pnpm build && node --test tests/*.test.mjs",
+    "test": "pnpm --filter \"@molis-ai/molis-work-test-kit^...\" run build && pnpm build && node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

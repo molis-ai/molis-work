@@ -4,8 +4,8 @@
  * Assistant panel and in Coding.
  */
 import { button, esc, icon } from "./html.ts";
-import { clock } from "./labels.ts";
-import { endCard, hostNote, inputRow, recoveryBanner, tray, type PartContext } from "./render-parts.ts";
+import { clock, COMPOSER_TARGET } from "./labels.ts";
+import { endCard, hostNote, inputRow, recoveryBanner, tray, type PartContext, type SharedParts } from "./render-parts.ts";
 import type { Recording } from "./facts.ts";
 import type { InputRow, ThreadRow } from "./scene-state.ts";
 import { offers, restingCheckpoint, sceneOf, view as viewOf, type Ui, type SendMode } from "./ui-state.ts";
@@ -46,7 +46,7 @@ function thread(ctx: PartContext): string {
 
 function chip(ui: Ui): string {
   return `<div class="rc-chip" role="group" aria-label="这句话发给谁">
-    ${button({ label: "补充这一轮", variant: "secondary", action: "chip", data: { chip: "this-run" }, pressed: ui.chip === "this-run", icon: "send" })}
+    ${button({ label: COMPOSER_TARGET.thisRun, variant: "secondary", action: "chip", data: { chip: "this-run" }, pressed: ui.chip === "this-run", icon: "send" })}
     ${button({ label: "写进问卷：补充要求", variant: "ghost", action: "chip", data: { chip: "questionnaire" }, disabled: true, title: "这份问卷没有自由文本题；这一半由交互线实现" })}
     <small>有问题等回答，这句话会排在回答之后，由 AI 读到</small></div>`;
 }
@@ -62,6 +62,7 @@ function composer(ctx: PartContext): string {
         ${button({ label: mode?.label ?? "补充", variant: "ghost", action: "send-menu", expanded: ui.menu === "send", haspopup: "menu", icon: "chevron-up" })}
         ${ui.menu === "send" ? `<div class="rc-menu" role="menu" aria-label="发送方式">${MODES.map(one => `<button type="button" role="menuitemradio" aria-checked="${String(one.mode === ui.sendMode)}" class="rc-menu-item" data-action="send-mode" data-mode="${one.mode}"${one.recorded ? "" : " disabled"}><b>${one.label}</b><small>${one.recorded ? one.note : `${one.note} · 预览没录这种方式`}</small></button>`).join("")}</div>` : ""}
       </div>
+      ${view.phase.awaiting ? ctx.parts.composerTarget(COMPOSER_TARGET.thisRun) : ""}
       <input class="rc-input-field" type="text" autocomplete="off" data-composer-input value="${esc(ui.note)}" placeholder="${esc(sendable ? "回车播放录好的下一条输入" : "这里没有录好的下一条输入")}" aria-label="发给${esc(assistantName(ui))}">
       ${button({ label: "发送", icon: "send", iconOnly: true, variant: "primary", type: "submit", disabled: !sendable })}
     </div>
@@ -101,11 +102,11 @@ function codingScene(inner: string): string {
   </div></section>`;
 }
 
-export function renderStage(rec: Recording, ui: Ui): string {
+export function renderStage(rec: Recording, ui: Ui, parts: SharedParts): string {
   const scene = sceneOf(rec, ui.sceneId);
   const view = viewOf(rec, ui);
   const ctx: PartContext = {
-    ui, view, offer: offers(rec, ui),
+    parts, ui, view, offer: offers(rec, ui),
     canInsist: (row: InputRow) => row.headline.key === "explained:not-adopted" && scene.checkpoints.some(one => one.id === "corrected") && restingCheckpoint(scene, ui)?.id === "settled",
   };
   const inner = conversation(ctx);

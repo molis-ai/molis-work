@@ -6,11 +6,21 @@
 import type { Recording } from "./facts.ts";
 import { renderTitlebar } from "./render-chrome.ts";
 import { renderStage } from "./render.ts";
+import type { SharedParts } from "./render-parts.ts";
 import { TREATMENT_SHORT } from "./labels.ts";
 import * as U from "./ui-state.ts";
 
 const json = (id: string): Recording => JSON.parse(document.getElementById(id)?.textContent ?? "{}") as Recording;
 const recordings: Record<U.Layout, Recording> = { assistant: json("data-assistant"), coding: json("data-coding") };
+/** Markup the design system rendered on the server, by label. A label the page did not embed is a bug, not a blank. */
+const embedded = JSON.parse(document.getElementById("data-parts")?.textContent ?? "{}") as { composerTarget?: Record<string, string> };
+const parts: SharedParts = {
+  composerTarget: label => {
+    const markup = embedded.composerTarget?.[label];
+    if (markup === undefined) throw new Error(`the page did not embed the composer target "${label}"`);
+    return markup;
+  },
+};
 const shell = (id: string): HTMLElement => {
   const element = document.getElementById(id);
   if (element === null) throw new Error(`the preview shell is missing #${id}`);
@@ -74,7 +84,7 @@ function draw(options: { follow?: boolean } = {}): void {
   const caret = field === null ? null : [field.selectionStart, field.selectionEnd] as const;
   document.documentElement.dataset["theme"] = ui.theme;
   chrome.innerHTML = renderTitlebar(recording, ui);
-  stage.innerHTML = renderStage(recording, ui);
+  stage.innerHTML = renderStage(recording, ui, parts);
   const next = stage.querySelector<HTMLElement>("[data-thread]");
   // Only playback and scene changes follow the end of the thread. Opening a detail or a menu keeps the reading position.
   if (next !== null) next.scrollTop = options.follow === true ? next.scrollHeight : before;

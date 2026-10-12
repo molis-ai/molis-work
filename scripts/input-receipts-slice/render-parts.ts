@@ -8,7 +8,14 @@ import { clock, KIND_LABEL, TREATMENT_LABEL, TREATMENT_SHORT } from "./labels.ts
 import type { InputRow, ThreadRow, Tray, View } from "./scene-state.ts";
 import type { Correction, Draft, Offer, Ui } from "./ui-state.ts";
 
+/** Markup the design system owns (#423). The browser cannot load its sources, so the page embeds what it needs, rendered by the real functions. */
+export interface SharedParts {
+  /** `renderInteractionComposerTarget(label)`: the mark inside the composer saying where its words go. */
+  composerTarget(label: string): string;
+}
+
 export interface PartContext {
+  readonly parts: SharedParts;
   readonly ui: Ui;
   readonly view: View;
   readonly offer: Offer;

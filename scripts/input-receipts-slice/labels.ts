@@ -32,3 +32,6 @@ export function clock(atMs: number): string {
   const date = new Date(atMs);
   return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
 }
+
+/** Where the words in the composer go while a question waits. The mark itself is the design system's (`renderInteractionComposerTarget`). */
+export const COMPOSER_TARGET = { thisRun: "补充这一轮" } as const;

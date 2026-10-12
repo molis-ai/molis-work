@@ -118,6 +118,7 @@ code { font-family: var(--mono, ui-monospace, monospace); font-size: .92em; }
 .rc-menu { position: absolute; z-index: 30; left: 0; bottom: calc(100% + 8px); width: 280px; padding: 6px; border-radius: var(--r-card); background: var(--popover, var(--paper)); box-shadow: var(--lift-3); display: grid; gap: 2px; }
 .rc-menu-item { display: grid; gap: 1px; padding: 6px 8px; border: 0; border-radius: var(--r-control); background: transparent; text-align: left; } .rc-menu-item:hover:not(:disabled) { background: var(--nav-hover); }
 .rc-menu-item[aria-checked="true"] b::after { content: " ✓"; color: var(--accent); } .rc-menu-item small { color: var(--muted); font-size: 11.5px; } .rc-menu-item:disabled { opacity: .55; }
+.rc-pill .mw-ix-into { flex: none; }
 .rc-hint { color: var(--faint); font-size: 11.5px; }
 
 @media (prefers-reduced-motion: no-preference) {

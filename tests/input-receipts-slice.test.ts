@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { renderPage } from "../scripts/input-receipts-slice/page.ts";
+import { renderInteractionComposerTarget } from "../packages/design-system/src/index.ts";
+import { composerTargets, renderPage } from "../scripts/input-receipts-slice/page.ts";
+import { COMPOSER_TARGET } from "../scripts/input-receipts-slice/labels.ts";
 import { renderStage } from "../scripts/input-receipts-slice/render.ts";
+import type { SharedParts } from "../scripts/input-receipts-slice/render-parts.ts";
 import { checkpointAt, numbering, viewAt, type InputRow } from "../scripts/input-receipts-slice/scene-state.ts";
 import * as U from "../scripts/input-receipts-slice/ui-state.ts";
 import type { Ledger, Receipt, Recording, Scene } from "../scripts/input-receipts-slice/facts.ts";
@@ -10,6 +13,9 @@ import type { Ledger, Receipt, Recording, Scene } from "../scripts/input-receipt
 const load = (flavor: "assistant" | "coding"): Recording =>
   JSON.parse(readFileSync(new URL(`../scripts/input-receipts-slice/recorded/${flavor}.json`, import.meta.url), "utf8")) as Recording;
 const recordings = { assistant: load("assistant"), coding: load("coding") };
+/** The design system's own function, as the page gets it. */
+const shared: SharedParts = { composerTarget: renderInteractionComposerTarget };
+const stage = (rec: Recording, ui: U.Ui): string => renderStage(rec, ui, shared);
 const both = Object.entries(recordings) as [("assistant" | "coding"), Recording][];
 
 /** Every (scene, cursor) the page can be at: each prefix of each run of each scene. */
@@ -33,7 +39,7 @@ test("RCPT-R0-08 the recordings say where they came from, and the page says it i
   const page = renderPage(recordings);
   assert.match(page, /id="data-assistant"/);
   assert.match(page, /id="data-coding"/);
-  const titlebar = renderStage(recordings.assistant, U.initial(recordings.assistant, "assistant", "light"));
+  const titlebar = stage(recordings.assistant, U.initial(recordings.assistant, "assistant", "light"));
   assert.doesNotMatch(titlebar, /已生效/);
 });
 
@@ -96,7 +102,7 @@ test("RCPT-R0-01 one input reads the same in both layouts, and a host notice has
   const host = view.rows.filter(row => row.kind === "host");
   assert.equal(host.length, 1);
   assert.equal(view.rows.filter(row => row.kind === "input").every(row => row.kind === "input" && row.receipt.source === "person"), true);
-  const html = renderStage(recordings.coding, U.initial(recordings.coding, "coding", "light"));
+  const html = stage(recordings.coding, U.initial(recordings.coding, "coding", "light"));
   assert.match(html, /rc-host/);
   assert.equal((html.match(/class="rc-status"/g) ?? []).length, 7, "seven person inputs have a receipt line; the notice has none");
 });
@@ -141,7 +147,7 @@ test("RCPT-R0-04 withdrawal is offered only where the ledger withdraws; a read i
   }
   assert.equal(offered, 1, "exactly one recorded withdrawal in the main scene");
   assert.deepEqual(U.withdrawRecorded(rec, U.initial(rec, "coding", "light"), "nope"), U.initial(rec, "coding", "light"));
-  const settledHtml = renderStage(rec, { ...U.initial(rec, "coding", "light"), expanded: rowsAt(rec, "main", "settled").filter(row => row.headline.key === "explained:apply-now").map(row => `${row.receipt.steerId}@0`) });
+  const settledHtml = stage(rec, { ...U.initial(rec, "coding", "light"), expanded: rowsAt(rec, "main", "settled").filter(row => row.headline.key === "explained:apply-now").map(row => `${row.receipt.steerId}@0`) });
   assert.match(settledHtml, /已读到，不能撤回，可发更正/);
   const insisted = U.insist(rec, U.initial(rec, "coding", "light"));
   assert.ok(insisted !== undefined);
@@ -156,14 +162,19 @@ test("RCPT-R0-04 withdrawal is offered only where the ledger withdraws; a read i
 test("RCPT-R0-05 the target chip shows only while a question waits; the supplement goes after the answer and reads as such", () => {
   const rec = recordings.coding;
   const asked = U.toScene(rec, U.initial(rec, "coding", "light"), "question", "asked");
-  const html = renderStage(rec, asked);
+  const html = stage(rec, asked);
   assert.match(html, /class="rc-chip"/);
   assert.match(html, /补充这一轮/);
   assert.match(html, /写进问卷：补充要求/);
+  // The mark inside the composer is the design system's (#423), not a copy: the page shows exactly what its function renders.
+  const mark = renderInteractionComposerTarget(COMPOSER_TARGET.thisRun);
+  assert.ok(html.includes(mark), "the composer carries the shared composer-target mark");
+  assert.equal(composerTargets()[COMPOSER_TARGET.thisRun], mark, "the page embeds what the design system renders");
+  assert.ok(!stage(rec, U.initial(rec, "coding", "light")).includes("data-ix-into"), "no mark while no question waits");
   assert.match(html, /aria-pressed="true"[^>]*data-slot="button"[^>]*>|data-chip="this-run"[^>]*aria-pressed="true"/);
   const questionnaire = html.match(/<button[^>]*data-chip="questionnaire"[^>]*>/)?.[0] ?? "";
   assert.match(questionnaire, /disabled/, "the questionnaire half belongs to the interaction line");
-  assert.doesNotMatch(renderStage(rec, U.initial(rec, "coding", "light")), /class="rc-chip"/, "no question is waiting in the main scene");
+  assert.doesNotMatch(stage(rec, U.initial(rec, "coding", "light")), /class="rc-chip"/, "no question is waiting in the main scene");
   const offer = U.offers(rec, asked);
   assert.equal(offer.send?.text, "顺便看下报告的格式");
   assert.equal(offer.answer, false, "the recorded order: the supplement first, then the answer");
@@ -190,7 +201,7 @@ test("RCPT-R0-06 a killed host: before the restart one input is in the context a
     assert.deepEqual(after.map(row => row.receipt.endedBy?.code), ["RUN_INTERRUPTED", "RUN_INTERRUPTED"]);
     assert.deepEqual(recovered.queue?.queued.map(item => item.from?.endedBy.code), ["RUN_INTERRUPTED", "RUN_INTERRUPTED"]);
     assert.equal(restart.runs.length, 1, "recovery did not start a run");
-    assert.match(renderStage(rec, U.toScene(rec, U.initial(rec, "coding", "light"), "restart", "killed")), /重启并核对/);
+    assert.match(stage(rec, U.toScene(rec, U.initial(rec, "coding", "light"), "restart", "killed")), /重启并核对/);
   }
 });
 

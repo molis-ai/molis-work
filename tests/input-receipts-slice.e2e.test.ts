@@ -209,6 +209,9 @@ test("RCPT-R0-06 the question scene: the supplement waits behind the question, a
     assert.match(waiting, /排在你回答问题之后/);
     assert.equal(await page.evaluate("document.querySelector('[data-chip=questionnaire]').disabled"), true);
     assert.equal(await page.evaluate("document.querySelector('[data-chip=this-run]').getAttribute('aria-pressed')"), "true");
+    // The shared composer-target mark (design system, #423) sits inside the composer pill, styled by its own sheet.
+    assert.equal(await page.evaluate("document.querySelector('.rc-pill [data-ix-into]')?.textContent.trim()"), "补充这一轮");
+    assert.ok(await page.evaluate<number>("document.querySelector('.rc-pill [data-ix-into]').getBoundingClientRect().height") > 20, "the shared mark is not styled");
     await page.click("[data-action=answer]");
     await page.wait("document.body.innerText.includes('已回答')");
     const answered = await page.evaluate<string>("document.body.innerText");

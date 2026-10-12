@@ -9,7 +9,7 @@ import type {
   LingguangSpark,
   LingguangStatus,
 } from "@molis-ai/molis-work-contracts/modules/lingguang";
-import { LingguangError } from "./error.js";
+import { lingguangErrors } from "./error.js";
 
 interface SparkRow {
   id: string;
@@ -62,9 +62,9 @@ export class LingguangStore {
 
   get(id: string, projectId?: string): LingguangSpark {
     const row = this.db.prepare("SELECT * FROM sparks WHERE id = ?").get(id) as unknown as SparkRow | undefined;
-    if (!row) throw new LingguangError("lingguang.not_found", "找不到这条灵光");
+    if (!row) throw lingguangErrors.not_found("找不到这条灵光");
     if (projectId && row.project_id !== normalizeProjectId(projectId)) {
-      throw new LingguangError("lingguang.not_found", "找不到这条灵光");
+      throw lingguangErrors.not_found("找不到这条灵光");
     }
     return fromSparkRow(row);
   }
@@ -116,7 +116,7 @@ export class LingguangStore {
       const key = requestId + "#" + inputFingerprint;
       const prior = sameId.find(row => row.request_id === key);
       if (prior) return this.get(prior.spark_id);
-      if (sameId.length) throw new LingguangError("lingguang.request_conflict", "这个请求 ID 已用于保存另一条灵光，请换一个新的请求 ID");
+      if (sameId.length) throw lingguangErrors.request_conflict("这个请求 ID 已用于保存另一条灵光，请换一个新的请求 ID");
       const created = make();
       this.db.prepare("INSERT INTO spark_requests (project_id, request_id, spark_id) VALUES (?, ?, ?)").run(project_id, key, created.id);
       return created;
@@ -127,9 +127,9 @@ export class LingguangStore {
     return this.transaction(() => {
       const current = this.get(id, projectId);
       if (patch.expected_updated_at !== undefined && current.updated_at !== patch.expected_updated_at) {
-        throw new LingguangError("lingguang.conflict", "这条灵光已在别处修改，请重新打开后再编辑");
+        throw lingguangErrors.conflict("这条灵光已在别处修改，请重新打开后再编辑");
       }
-      if (current.status !== "inbox") throw new LingguangError("lingguang.invalid", "丢掉的灵光不能再改");
+      if (current.status !== "inbox") throw lingguangErrors.invalid("丢掉的灵光不能再改");
       const body = patch.body !== undefined ? normalizeBody(patch.body) : current.body;
       const title = patch.title !== undefined ? (normalizeTitle(patch.title, body) || "未命名灵光") : current.title;
       const next: LingguangSpark = {
@@ -156,7 +156,7 @@ export class LingguangStore {
       const talks = (this.db.prepare("SELECT id, spark_ids_json FROM conversations WHERE project_id = ?").all(normalizeProjectId(from)) as { id: string; spark_ids_json: string }[])
         .filter(row => (JSON.parse(row.spark_ids_json) as string[]).includes(id));
       if (talks.some(row => (JSON.parse(row.spark_ids_json) as string[]).length > 1)) {
-        throw new LingguangError("lingguang.invalid", "这条灵光和其他灵光在同一场头脑风暴里，移走会让那场对话缺了它；可以复制到别处");
+        throw lingguangErrors.invalid("这条灵光和其他灵光在同一场头脑风暴里，移走会让那场对话缺了它；可以复制到别处");
       }
       // A move is not an edit: the spark keeps its time and revision, so work that recorded it still matches.
       this.db.prepare("UPDATE sparks SET project_id = ? WHERE id = ? AND updated_at = ?").run(target, id, current.updated_at);
@@ -181,12 +181,12 @@ export class LingguangStore {
    */
   discard(ids: readonly string[], projectId?: string, expected?: Readonly<Record<string, string>>): void {
     const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
-    if (!unique.length) throw new LingguangError("lingguang.invalid", "先选至少一条");
-    if (Object.keys(expected ?? {}).some(id => !unique.includes(id))) throw new LingguangError("lingguang.invalid", "expected_updated_at 只能写所选灵光的 id");
+    if (!unique.length) throw lingguangErrors.invalid("先选至少一条");
+    if (Object.keys(expected ?? {}).some(id => !unique.includes(id))) throw lingguangErrors.invalid("expected_updated_at 只能写所选灵光的 id");
     this.transaction(() => {
       const records = unique.map(id => this.get(id, projectId));
       const changed = records.find(current => current.status !== "discarded" && expected?.[current.id] !== undefined && expected[current.id] !== current.updated_at);
-      if (changed) throw new LingguangError("lingguang.conflict", "这条灵光已在别处修改，没有丢掉；重新打开后再决定");
+      if (changed) throw lingguangErrors.conflict("这条灵光已在别处修改，没有丢掉；重新打开后再决定");
       for (const current of records) {
         if (current.status === "discarded") continue;
         const now = new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString();
@@ -203,9 +203,9 @@ export class LingguangStore {
     return this.transaction(() => {
       const project_id = normalizeProjectId(projectId);
       const sparks = uniqueSparkIds(sparkIds).map((id) => this.get(id, project_id));
-      if (!sparks.length) throw new LingguangError("lingguang.invalid", "先选至少一条");
+      if (!sparks.length) throw lingguangErrors.invalid("先选至少一条");
       if (sparks.some((spark) => spark.status !== "inbox")) {
-        throw new LingguangError("lingguang.invalid", "丢掉的灵光不能再拿去聊");
+        throw lingguangErrors.invalid("丢掉的灵光不能再拿去聊");
       }
       const spark_ids = sparks.map((spark) => spark.id).sort();
       const spark_key = spark_ids.join(",");
@@ -226,7 +226,7 @@ export class LingguangStore {
   conversation(conversationId: string, projectId: string): LingguangConversationState {
     const project_id = normalizeProjectId(projectId);
     const row = this.db.prepare("SELECT * FROM conversations WHERE id = ? AND project_id = ?").get(conversationId, project_id) as unknown as ConversationRow | undefined;
-    if (!row) throw new LingguangError("lingguang.not_found", "找不到这场对话");
+    if (!row) throw lingguangErrors.not_found("找不到这场对话");
     const conversation = fromConversationRow(row);
     return { conversation, sparks: conversation.spark_ids.map(id => this.get(id, project_id)), messages: this.listMessages(conversationId) };
   }
@@ -234,13 +234,13 @@ export class LingguangStore {
   /** Commit a completed turn atomically, against exactly the material the model saw. */
   addReply(conversationId: string, body: string, reply: string, projectId: string, expected: LingguangConversationState): LingguangConversationState {
     const text = normalizeChat(body);
-    if (!reply.trim()) throw new LingguangError("lingguang.invalid", "回复正文不能为空");
+    if (!reply.trim()) throw lingguangErrors.invalid("回复正文不能为空");
     return this.transaction(() => {
       const current = this.conversation(conversationId, projectId);
       if (JSON.stringify(current) !== JSON.stringify(expected)) {
-        throw new LingguangError("lingguang.conflict", "生成回复期间灵光或对话已变化，请重新打开后再发送");
+        throw lingguangErrors.conflict("生成回复期间灵光或对话已变化，请重新打开后再发送");
       }
-      if (current.sparks.some(spark => spark.status !== "inbox")) throw new LingguangError("lingguang.invalid", "关联灵光已丢弃");
+      if (current.sparks.some(spark => spark.status !== "inbox")) throw lingguangErrors.invalid("关联灵光已丢弃");
       const now = new Date(Math.max(Date.now(), Date.parse(current.conversation.updated_at) + 1)).toISOString();
       insertMessage(this.db, conversationId, "user", text, now);
       insertMessage(this.db, conversationId, "assistant", reply.trim(), now);
@@ -380,27 +380,27 @@ function fingerprint(...parts: string[]): string {
 
 function normalizeProjectId(value: string): string {
   const id = value.trim();
-  if (!id) throw new LingguangError("lingguang.invalid", "缺少项目");
-  if (id.length > 80) throw new LingguangError("lingguang.invalid", "项目标识过长");
+  if (!id) throw lingguangErrors.invalid("缺少项目");
+  if (id.length > 80) throw lingguangErrors.invalid("项目标识过长");
   return id;
 }
 
 function normalizeTitle(value: string, body: string): string {
   const title = value.trim();
-  if (title.length > 80) throw new LingguangError("lingguang.invalid", "标题须为 1 到 80 个字");
+  if (title.length > 80) throw lingguangErrors.invalid("标题须为 1 到 80 个字");
   if (title) return title;
   const fallback = body.trim().split(/\r?\n/u)[0]?.trim() ?? "";
   return fallback.slice(0, 80);
 }
 
 function normalizeBody(value: string): string {
-  if (value.length > LINGGUANG_BODY_LIMIT) throw new LingguangError("lingguang.invalid", `正文须为 0 到 ${LINGGUANG_BODY_LIMIT} 个字`);
+  if (value.length > LINGGUANG_BODY_LIMIT) throw lingguangErrors.invalid(`正文须为 0 到 ${LINGGUANG_BODY_LIMIT} 个字`);
   return value;
 }
 
 function normalizeChat(value: string): string {
   const text = value.trim();
-  if (!text) throw new LingguangError("lingguang.invalid", "先写下要接着说的话");
-  if (text.length > 2000) throw new LingguangError("lingguang.invalid", "这句话须为 1 到 2000 个字");
+  if (!text) throw lingguangErrors.invalid("先写下要接着说的话");
+  if (text.length > 2000) throw lingguangErrors.invalid("这句话须为 1 到 2000 个字");
   return text;
 }

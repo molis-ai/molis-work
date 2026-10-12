@@ -645,7 +645,7 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
         inputs: [],
         outputs: [{ port: "project", artifact_type_id: "audit.project", schema_version: 1 }],
       },
-      artifacts: { produces: [{ artifact_type_id: "audit.project", schema_version: 1 }], consumes: [] },
+      process_items: { produces: [{ artifact_type_id: "audit.project", schema_version: 1 }], consumes: [] },
       events: {
         publishes: [{ event_type_id: eventType, type_version: 1 }],
         subscribes: [],
@@ -664,7 +664,7 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
         inputs: [{ port: "project", artifact_type_id: "audit.project", schema_version: 1 }],
         outputs: [],
       },
-      artifacts: { produces: [], consumes: [{ artifact_type_id: "audit.project", schema_version: 1 }] },
+      process_items: { produces: [], consumes: [{ artifact_type_id: "audit.project", schema_version: 1 }] },
       events: {
         publishes: [],
         subscribes: [{ event_type_id: eventType, type_version: 1, from_plugin_ids: [producerId] }],

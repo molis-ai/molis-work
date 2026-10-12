@@ -1,6 +1,6 @@
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { bindActionClient, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createWorkflowContentPorts, createWorkflowsActionHandlers, openWorkflowsStore, workflowsManifest } from "@molis-ai/molis-work-plugin-workflows";
+import { createWorkflowContentPorts, createWorkflowsActionHandlers, openWorkflowsStore, workflowsErrors, workflowsManifest } from "@molis-ai/molis-work-plugin-workflows";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { hostCompleteText, type HostCompleteText } from "./host-complete-text.js";
@@ -22,7 +22,8 @@ export function workflowsActionProvider(home: string, projectId: string, actions
       aiAvailable: () => Boolean(model()),
       completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
         const complete = model();
-        if (!complete) throw new Error("还没有可用的文字模型");
+        // The model can go away between `aiAvailable()` and this call: the same refusal the link's readiness gives, 400 with its message.
+        if (!complete) throw workflowsErrors.not_ready("这一段还没接上：还没有可用的文字模型");
         return complete(resolveModelPrompt(home, prompt, "io.molis.work.native.workflows"), options);
       }),
     }),

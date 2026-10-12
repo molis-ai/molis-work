@@ -12,6 +12,7 @@ import type { PluginArtifactClient, PluginDefinition, PluginManifest } from "@mo
 import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { artifactPreview } from "./fixtures/artifact-preview.js";
 
 test("installed Plugins exchange exact Artifact versions by type, with bound authority and real denied side effects", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-artifacts-"));
@@ -20,7 +21,8 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
   const store = new LocalProjectDatabase(databasePath);
   const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
-  const runtime = new PluginRuntime();
+  // A plugin that declares actions (the preview of its 成果 type) is installed against the Kernel that holds them.
+  const runtime = new PluginRuntime(undefined, undefined, { actions: pluginActions(store, DEMO_PROJECT_ID) });
   try {
     const base = createGithubIntegrationPlugin({ provider: {
       type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
@@ -29,17 +31,21 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     async function author(name: string, options: { read?: boolean; schema?: number; actor?: string } = {}) {
       let client!: PluginArtifactClient;
       let dispose = () => {};
+      // A produced 成果 type is named and has a preview of its own (specs/artifact-positioning A1/A7).
+      const preview = artifactPreview(`io.molis.work.example.${name}`);
       const manifest: PluginManifest = { ...base.manifest, plugin_id: `io.molis.work.example.${name}`,
         permissions: [...base.manifest.permissions,
           { permission: "artifact:write", required: false, reason: "Publish notes" },
           { permission: "artifact:read", required: false, reason: "Read notes" }],
-        artifacts: { produces: [{ artifact_type_id: "example.note", schema_version: 1 }],
+        actions: [...(base.manifest.actions ?? []), preview.definition],
+        artifacts: { produces: [preview.type],
           consumes: [{ artifact_type_id: "example.note", schema_version: options.schema ?? 1 }] } };
       const definition: PluginDefinition = { manifest, async start(context) {
         const hosted = createPluginArtifactClient({ api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID,
           actor_id: options.actor ?? "author" });
         client = hosted.client; dispose = hosted.dispose;
-        return base.start(context);
+        const contribution = await base.start(context);
+        return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
       }, stop() { dispose(); } };
       const installed = runtime.install({ definition, deployment: "local", grants: [
         "network:github.com", "secret:github", "artifact:write", ...(options.read === false ? [] : ["artifact:read"]),
@@ -117,7 +123,8 @@ test("an installation reads a process item only for the actor it was recorded fo
   const store = new LocalProjectDatabase(databasePath);
   const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
-  const runtime = new PluginRuntime();
+  // A plugin that declares actions (the preview of its 成果 type) is installed against the Kernel that holds them.
+  const runtime = new PluginRuntime(undefined, undefined, { actions: pluginActions(store, DEMO_PROJECT_ID) });
   try {
     const base = createGithubIntegrationPlugin({ provider: {
       type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
@@ -125,15 +132,18 @@ test("an installation reads a process item only for the actor it was recorded fo
     } });
     async function install(name: string, actor: string) {
       let hosted!: ReturnType<typeof createPluginArtifactClient>;
+      const preview = artifactPreview(`io.molis.work.example.${name}`);
       const manifest: PluginManifest = { ...base.manifest, plugin_id: `io.molis.work.example.${name}`,
         permissions: [...base.manifest.permissions,
           { permission: "artifact:write", required: false, reason: "Publish notes" },
           { permission: "artifact:read", required: false, reason: "Read notes" }],
-        artifacts: { produces: [{ artifact_type_id: "example.note", schema_version: 1 }], consumes: [{ artifact_type_id: "example.note", schema_version: 1 }] },
+        actions: [...(base.manifest.actions ?? []), preview.definition],
+        artifacts: { produces: [preview.type], consumes: [{ artifact_type_id: "example.note", schema_version: 1 }] },
         process_items: { produces: [{ artifact_type_id: "example.item", schema_version: 1 }], consumes: [{ artifact_type_id: "example.item", schema_version: 1 }] } };
       const definition: PluginDefinition = { manifest, async start(context) {
         hosted = createPluginArtifactClient({ api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: actor });
-        return base.start(context);
+        const contribution = await base.start(context);
+        return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
       }, stop() { hosted.dispose(); } };
       const installed = runtime.install({ definition, deployment: "local", grants: ["network:github.com", "secret:github", "artifact:write", "artifact:read"] });
       await runtime.start(installed.install.install_id);

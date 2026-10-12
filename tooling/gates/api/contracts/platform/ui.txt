@@ -39,6 +39,17 @@ export interface UiContributionDescriptor {
 
 export type UiContributionKind = "primary-page" | "embedded" | "overlay" | "settings-page";
 
+export interface UiFailureTarget {
+    textContent: string | null;
+    append(node: unknown): void;
+}
+
+export interface UiFailureView {
+    text(error: unknown, fallback?: string): string;
+    show(target: UiFailureTarget, error: unknown, fallback?: string): void;
+    toast(target: UiToastTarget, error: unknown, fallback?: string, options?: UiToastOptions): void;
+}
+
 export interface UiHostApi {
     register<TModel>(contribution: UiContribution<TModel>): void;
     unregister(contributionId: string): void;
@@ -70,6 +81,38 @@ export interface UiRenderRequest<TModel = unknown> {
     readonly model: TModel;
 }
 
+export type UiRequest = UiRequestCall & UiFailureView;
+
+export interface UiRequestCall {
+    <T = unknown>(url: string, init?: UiRequestInit): Promise<T>;
+    headers(key?: string): Record<string, string>;
+    token(): string;
+}
+
+export interface UiRequestFailure extends Error {
+    readonly code: string;
+    readonly status: number;
+    readonly callId: string | null;
+    readonly body: unknown;
+}
+
+export interface UiRequestInit {
+    readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+    readonly body?: unknown;
+    readonly as?: "json" | "text" | "response";
+    readonly accept?: readonly number[];
+    readonly key?: string;
+    readonly headers?: Readonly<Record<string, string>>;
+    readonly signal?: AbortSignal;
+    readonly scope?: UiRequestScope;
+    readonly fallback?: string;
+}
+
+export interface UiRequestScope {
+    readonly fetch: (input: string, init: object) => Promise<Response>;
+    assertCurrent(signal?: AbortSignal): void;
+}
+
 export interface UiSlotDescriptor {
     readonly slot_id: string;
     readonly version: number;
@@ -80,6 +123,21 @@ export interface UiSurfaceDescriptor {
     readonly surface_id: string;
     readonly target_slot_id: string;
     readonly format: string;
+}
+
+export interface UiToastOptions {
+    readonly ms?: number;
+}
+
+export interface UiToastTarget extends UiFailureTarget {
+    readonly classList: {
+        add(name: string): void;
+        remove(name: string): void;
+    };
+    readonly style: {
+        pointerEvents: string;
+    };
+    addEventListener(type: string, listener: () => void): void;
 }
 
 export interface UiViewDeclaration {

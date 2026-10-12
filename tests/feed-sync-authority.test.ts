@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { FEED_SOURCE_ACTIONS, createFeedSourceHandlers, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_SOURCE_ACTIONS, createFeedSourceHandlers, feedQueryActions, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { SignalsModule } from "@molis-ai/molis-work-module-signals";
 import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedConnectorSync, listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
@@ -60,6 +60,44 @@ test("the real Web scheduler uses the registered Feed action, records refusal, a
     assert.deepEqual(sources.feed.snapshot(DEMO_PROJECT_ID), before);
   } finally {
     release.resolve(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close(); store.close(); await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("W3-01 C the pull a page request starts, and every tick of the timer, is an operation of its own, not part of the page's", { timeout: 20_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "feed-web-call-ids-")), database = join(home, "project.sqlite");
+  seedDemoBoard(database);
+  const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => new Date(Date.now() - 360_000));
+  const source = sources.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+  sources.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
+  // The page's own read is turned away, which leaves a row with the page's number; the pull it starts is a command and leaves a row of its own.
+  const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: (_, action) => action.capability_id === feedQueryActions.snapshot.capability_id
+    ? { available: false, code: "actions.binding_required", reason: "Fixture" } : { available: true } });
+  const fetchPage = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) =>
+    String(input).startsWith("http://127.0.0.1:") ? fetchPage(input, init) : new Response(rss, { headers: { "content-type": "application/rss+xml" } }));
+  // The 30-second timer of the server runs when the test says so.
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const server = createMolisWorkWebServer({ databasePath: database, projectId: DEMO_PROJECT_ID, homeDirectory: home, localHost: host });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const pulls = () => host.callLog!.list(DEMO_PROJECT_ID).filter(row => row.capability_id === feedSourceActions.tick.capability_id).flatMap(row => row.call_ids ?? [row.call_id]);
+  const until = async (done: () => boolean) => { const deadline = Date.now() + 5_000; while (!done() && Date.now() < deadline) await new Promise(resolve => setImmediate(resolve)); assert.ok(done()); };
+  try {
+    const address = server.address(); assert.ok(address && typeof address === "object");
+    const page = await fetchPage(`http://127.0.0.1:${address.port}/api/feed`);
+    const pageId = page.headers.get("x-molis-work-call-id");
+    assert.ok(pageId, "the page's read was refused and recorded, so its answer carries the number");
+    assert.equal(host.callLog!.find(pageId)[0]?.capability_id, feedQueryActions.snapshot.capability_id);
+    await until(() => pulls().length === 1);
+    const [first] = pulls();
+    assert.notEqual(first, pageId, "the pull outlives the request that started it and is not part of it: it has a number of its own");
+    // Thirty seconds later the timer pulls again: another operation.
+    t.mock.timers.tick(30_000);
+    await until(() => pulls().length === 2);
+    const [, second] = pulls();
+    assert.ok(second && ![pageId, first].includes(second), "a tick of the timer has a number of its own");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await host.close(); store.close(); await rm(home, { recursive: true, force: true });
   }
 });

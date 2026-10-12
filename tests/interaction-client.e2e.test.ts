@@ -172,13 +172,18 @@ test("AC-18 / the shared interaction client works on the design system's markup 
     assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=minutes] [data-ix-error]').hidden`), true, "a field that is fine again goes quiet");
     assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=refs] [data-ix-references]').getAttribute('aria-invalid')`), "true");
   });
+  await t.test("destroy() removes every listener", async () => {
+    await clear(browser);
+    await evaluate(browser, "window.client.destroy()");
+    await browser.click('[data-ix-field="format"] [data-ix-option="a"]');
+    assert.deepEqual(await log(browser), []);
+  });
   await t.test("the component board's own sample runs its script: adopt rewrites the field, submit shows the remaining error", async () => {
     const board = `<!doctype html><html><head><meta charset="utf-8"><style>:root{${renderShellTokens("light")}${renderShapeTokens()}${renderControlMetrics()}}${TYPEFACE_STYLES}${PRIMITIVE_STYLES}</style></head><body>${renderIconSprite()}${renderPrimitiveCatalog()}</body></html>`;
     await browser.command("Page.navigate", { url: "about:blank" });
     await browser.command("Page.setDocumentContent", { frameId: (await browser.command<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree")).frameTree.frame.id, html: board });
     await browser.wait(`!!document.querySelector('[data-ix-question="ix-q-open"]')`);
-    // setDocumentContent does not run scripts; run the sample's inline script the way the page would.
-    await evaluate(browser, `(()=>{const s=document.querySelector('#interaction script');if(s){const n=document.createElement('script');n.textContent=s.textContent;document.body.appendChild(n)}})()`);
+    // The document's own inline script has run by now; running it again would mount a second client on the same card.
     const card = '[data-ix-question="ix-q-open"]';
     await browser.click(`${card} [data-ix-action="adopt"]`);
     assert.equal(await evaluate(browser, `document.querySelector('${card} [data-ix-value=minutes]').value`), "45");
@@ -190,11 +195,5 @@ test("AC-18 / the shared interaction client works on the design system's markup 
     await browser.click(`${card} [data-ix-action="submit"]`);
     assert.match(await evaluate<string>(browser, `document.querySelector('${card} [data-ix-field=minutes] [data-ix-error]').textContent`), /15–120/);
     assert.equal(await evaluate(browser, `document.querySelector('${card} [data-ix-field=materials] [data-ix-error]').hidden`), true, "a fine field stays quiet");
-  });
-  await t.test("destroy() removes every listener", async () => {
-    await clear(browser);
-    await evaluate(browser, "window.client.destroy()");
-    await browser.click('[data-ix-field="format"] [data-ix-option="a"]');
-    assert.deepEqual(await log(browser), []);
   });
 });

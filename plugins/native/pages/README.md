@@ -39,7 +39,7 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 不变量：
   - HTTP 的项目由 Host 绑定，query 或 body 声明不同项目会拒绝；`pages.update` 带 `expected_version`，冲突保留草稿。
   - 生成按请求保存材料快照；缺模型明确拒绝，不生成占位文稿。
-  - 被取消或撤权的生成不写任何记录，本进程可以立即接手重试；其他进程的尝试仍守租约。
+  - 被取消或撤权的生成不写任何业务记录（调用记录里的“未执行”诊断行除外），本进程可以立即接手重试；其他进程的尝试仍守租约。
   - Host 注入 prepareImport；ZIP/DOCX/编码解析归 Host worker，Pages 的 preparePagesImport 只接受公共 MaterialDocumentBatch 并转换为编辑器正文。解析等待不占项目串行队列，返回后复查授权/取消。
   - 导入预览不写入；批量写入一个事务，同一请求重试不覆盖编辑、不重复创建。
   - 编辑器单独打成浏览器脚本，不进工作台 factory 字符串。

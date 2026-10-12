@@ -1,5 +1,6 @@
 import { goalsActions, type GoalsDocumentCollectionView } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { expectingRefusal } from "@molis-ai/molis-work-kernel";
 import { feedQueryActions, type FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -26,9 +27,18 @@ export type MolisWorkWebViewCache = Map<string, MolisWorkWebViewCacheEntry>;
 type PluginProjection = Pick<MolisWorkWebView, "feed" | "feed_source_catalog" | "feed_connector_auth" | "schedule_jobs" | "schedule_tasks" | "schedule_operations">;
 const emptyFeed = (): FeedSnapshot => ({ sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] });
 
+/**
+ * A page looks for the areas of the plugins a project may not have (Feed, Inbox, Schedule, Artifacts) on every request. "Not enabled" is
+ * the answer it is looking for, so the Host keeps no row in the call log about that refusal (nor about the Feed timer's pull every 30
+ * seconds in a project without Feed); any other refusal still leaves one.
+ * The answer is wanted only while the call that looks is pending, so each call gets a scope of its own: in one scope around a
+ * `Promise.all`, the first refusal ends it and the refusals of the others, arriving later, would be recorded.
+ */
+export const lookingForArea = <T>(run: () => Promise<T>): Promise<T> => expectingRefusal(["actions.plugin_disabled"], run);
+
 /** Optional areas disappear when their owner refuses access; unexpected failures must remain visible. */
 export async function optionalPluginQuery<I, O>(actions: BoundActionClient, definition: ActionDefinition<I, O>, input: I): Promise<O | undefined> {
-  try { return await actions.invoke(definition, input); }
+  try { return await lookingForArea(() => actions.invoke(definition, input)); }
   catch (error) {
     if (error instanceof ActionError && ["actions.forbidden", "actions.plugin_disabled", "actions.not_found", "actions.missing"].includes(error.code)) return undefined;
     throw error;

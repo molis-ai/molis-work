@@ -5,7 +5,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 
-function reply(tool?: { name: string; input: unknown }, text = "请确认建议卡中的标题和类型。"): string {
+function reply(tool?: { name: string; input: unknown }, text = "已记录「切换页面后输入内容丢失」（Bug）。"): string {
   const events: string[] = [], emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
   emit("message_start", { message: { id: randomUUID(), type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
   emit("content_block_start", { index: 0, content_block: tool ? { type: "tool_use", id: randomUUID(), name: tool.name, input: {} } : { type: "text", text: "" } });
@@ -15,9 +15,25 @@ function reply(tool?: { name: string; input: unknown }, text = "请确认建议�
   emit("message_stop", {}); return events.join("");
 }
 
-/** Model replies are scripted; the Assistant, vision intake, action directory and confirmation stay real. */
-export async function issueModel(t: TestContext, home: string, behavior: { replyText?: string; malformedCaptureOnce?: boolean; malformedCaptureAlways?: boolean; firstReply?: Promise<void>;
-  question?: "free-text" | "correct-once" | "never-correct"; unavailable?: boolean } = {}) {
+export const FIXTURE_TITLE = "切换页面后输入内容丢失";
+export interface IssueModelBehavior {
+  /** Reply with words only (no tool): the round ends without a record. */
+  replyText?: string;
+  /** The first save sends the record's name outside `input` (the real MiniMax failure); the corrected one follows. */
+  malformedCaptureOnce?: boolean;
+  malformedCaptureAlways?: boolean;
+  /** Held until resolved: the capture stays "organizing" meanwhile. */
+  firstReply?: Promise<void>;
+  question?: "free-text" | "correct-once" | "never-correct";
+  unavailable?: boolean;
+  /** Fall back to a card the way the method says when the direct save is refused (the person confirms every time). */
+  suggest?: boolean;
+  title?: string;
+  type?: "bug" | "experience" | "feature";
+}
+
+/** Model replies are scripted the way the Issue method asks; the Assistant, vision intake, action directory and undo stay real. */
+export async function issueModel(t: TestContext, home: string, behavior: IssueModelBehavior = {}) {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   const requests: unknown[] = [], rounds = new Map<string, number>();
   const model = createServer(async (request, response) => {
@@ -26,23 +42,24 @@ export async function issueModel(t: TestContext, home: string, behavior: { reply
     if (behavior.unavailable) { response.writeHead(503); response.end('{"error":{"message":"fixture model unavailable"}}'); return; }
     const draft_id = JSON.stringify(body).match(/录入草稿 ([0-9a-f-]{36})/)?.[1] ?? "missing-draft";
     const turn = rounds.get(draft_id) ?? 0; rounds.set(draft_id, turn + 1);
-    if(turn === 0) await behavior.firstReply;
-    // Replay the real MiniMax failure: business values outside input do not make a valid card.
-    const malformed = behavior.malformedCaptureAlways || behavior.malformedCaptureOnce && turn === 1;
-    const invalidQuestion = behavior.question === "never-correct" || behavior.question === "correct-once" && turn === 1;
-    const question = { name: "ask-user", input: invalidQuestion ? {
+    if (turn === 0) await behavior.firstReply;
+    const identity = { capability_id: "issues.capture", version: 1, provider_id: "io.molis.work.issues" };
+    const input = { draft_id, title: behavior.title ?? FIXTURE_TITLE, type: behavior.type ?? "bug" };
+    // Replay the real MiniMax failure: business values beside `input` instead of inside it.
+    const bad = { name: "change-reversible", input: { ...identity, title: input.title, type: input.type, input: "" } };
+    const good = { name: "change-reversible", input: { ...identity, input } };
+    const card = { name: "suggest-action", input: { title: "记录这条 Issue", summary: `${input.title}（Bug）`, ...identity, input, editable: ["title", "type"] } };
+    const ask = (valid: boolean) => ({ name: "ask-user", input: !valid ? {
       why: "需要具体问题", questions: [{ prompt: "如何处理这条录入？", options: [{ description: "补充具体问题后再生成" }] }],
     } : behavior.question === "correct-once" ? {
       why: "需要定位页面", questions: [{ prompt: "在哪个页面点击保存没有反应？", options: ["首页", "项目页"], allowOther: true }],
-    } : { why: "你在哪个页面做了什么，出现了什么问题？也可以补充截图。" } };
-    const tool = turn === 0 ? { name: "find-capabilities", input: { query: "issues.capture" } } : behavior.question ? question : malformed ? {
-      name: "suggest-action", input: { title: "切换页面后输入内容丢失", summary: `保存到录入草稿 ${draft_id}：标题「切换页面后输入内容丢失」，类型 Bug。`,
-        capability_id: "issues.capture", version: 1, provider_id: "io.molis.work.issues", input: "", type: "bug", editable: ["title", "type"] },
-    } : turn === (behavior.malformedCaptureOnce ? 2 : 1) ? {
-      name: "suggest-action", input: { title: "确认记录问题", summary: "切换页面后输入丢失，建议归为 Bug", capability_id: "issues.capture", version: 1,
-        provider_id: "io.molis.work.issues", input: { draft_id, title: "切换页面后输入内容丢失", type: "bug" }, editable: ["title", "type"] },
-    } : undefined;
-    response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(behavior.replyText ? undefined : tool, behavior.replyText));
+    } : { why: "你在哪个页面做了什么，出现了什么问题？也可以补充截图。" } });
+    // One planned tool call per model turn of a draft; after the plan, the round ends in words.
+    const plan = behavior.replyText ? [] : behavior.question === "free-text" ? [ask(true)] : behavior.question === "correct-once" ? [ask(false), ask(true)]
+      : behavior.question === "never-correct" ? [ask(false), ask(false), ask(false), ask(false)] : behavior.malformedCaptureAlways ? [bad, bad, bad, bad]
+      : behavior.malformedCaptureOnce ? [bad, good] : behavior.suggest ? [good, card] : [good];
+    const tool = plan[turn];
+    response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(tool, behavior.replyText));
   });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve()));

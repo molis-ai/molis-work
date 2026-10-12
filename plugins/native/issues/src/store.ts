@@ -107,6 +107,18 @@ export class IssueStore {
       return this.read(input.id, db);
     });
   }
+  /** Takes back a record nobody has changed since it was made (the undo of a capture); a changed one stays. */
+  async discard(input: IssueDelete, caller: ActionExecutionContext): Promise<{ id: string; discarded: true }> {
+    expected(input);
+    return this.db.transaction(caller.beforeEffect, db => {
+      const current = this.read(input.id, db);
+      if (current.version !== 1 || input.expected_version !== 1
+        || Number(db.run("DELETE FROM issues WHERE id=? AND submitter_id=? AND version=1", [input.id, this.owner]).changes) !== 1) {
+        throw new ActionError("actions.conflict", "这条 Issue 记录后已修改，没有撤销；需要时请在详情里删除");
+      }
+      return { id: input.id, discarded: true };
+    });
+  }
   async delete(input: IssueDelete, caller: ActionExecutionContext): Promise<{ id: string; deleted: true }> {
     expected(input);
     return this.db.transaction(caller.beforeEffect, db => {

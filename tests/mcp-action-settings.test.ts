@@ -68,6 +68,29 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
     } }) as any;
     assert.equal(reply.result.isError, false, JSON.stringify(reply));
     assert.deepEqual(reply.result.structuredContent, { result: 1 });
+    // W3-01 D: the command left a row, so its result names the operation; a refused call names it in the error text; and a number the
+    // Runtime puts in `_meta` is not taken.
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    const ranId = String(reply.result._meta?.["molis-work/callId"]);
+    assert.match(ranId, UUID);
+    const ranRow = host.callLog!.find(ranId)[0];
+    assert.deepEqual([ranRow?.capability_id, ranRow?.ok, ranRow?.operation, ranRow?.audience], [id, true, "command", "mcp"]);
+    const forged = "11111111-2222-4333-8444-555555555555";
+    const refusedReply = await external.handleMessage({ id: 2, method: "tools/call", params: { name: molisWorkActionToolName(definition), arguments: { payload: 5 },
+      _meta: { "molis-work/callId": forged, call_id: forged, callId: forged } } }) as { result: { isError: boolean; content: Array<{ text: string }>; _meta?: Record<string, unknown> } };
+    assert.equal(refusedReply.result.isError, true);
+    assert.equal(refusedReply.result._meta, undefined, "an error carries its number in its text, not in `_meta`");
+    const refusedId = /"call_id":"([0-9a-f-]{36})"/.exec(refusedReply.result.content[0].text)?.[1];
+    assert.match(String(refusedId), UUID, refusedReply.result.content[0].text);
+    assert.notEqual(refusedId, forged);
+    assert.deepEqual(host.callLog!.find(forged), []);
+    const refusedRow = host.callLog!.find(refusedId!)[0];
+    assert.deepEqual([refusedRow?.refused, refusedRow?.code, refusedRow?.capability_id], [true, "actions.input_invalid", id]);
+    // A failure before any action was reached is no call: it leaves no row, so its text names no number.
+    const unknown = await external.handleMessage({ id: 3, method: "tools/call", params: { name: "molis_work_v1_action_nobody.has.this__v1", arguments: {} } }) as
+      { result: { isError: boolean; content: Array<{ text: string }> } };
+    assert.equal(unknown.result.isError, true);
+    assert.doesNotMatch(unknown.result.content[0]!.text, /call_id/);
     await external.close();
     assert.equal((await send({ ...input, version: 8 })).status, 404);
     assert.equal((await send({ ...input, provider_id: "replacement" })).status, 404);

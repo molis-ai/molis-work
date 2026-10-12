@@ -729,7 +729,7 @@
 | `packages/plugin-sandbox` | 基础 | 8 | 726 | `runner.ts` 214 | 1 | 2 | 1 | 在用 | 中 | 待审 |
 | `packages/plugin-sdk` | 基础 | 2 | 199 | `index.ts` 182 | 1 | 1 | 8 | 在用 | 中 | 待审 |
 | `packages/storage` | 基础 | 13 | 2,120 | `adapters/file-secret-store.ts` 588 | 1 | 1 | 17 | 在用 | 中 | 待审 |
-| `packages/test-kit` | 基础 | 7 | 932 | `boundaries.ts` 540 | 2 | 1 | 0 | 非产品 | 浅 | 待审 |
+| `packages/test-kit` | 基础 | 7 | 946 | `boundaries.ts` 554 | 3 | 1 | 0 | 非产品 | 浅 | 待审 |
 | `packages/ui-host` | 基础 | 4 | 441 | `client-lifecycle.ts` 152 | 1 | 1 | 2 | 在用 | 浅 | 待审 |
 | `plugins/native/alchemist` | 内置插件 | 97 | 10,327 | `studio/server/db/pulse-repository.ts` 567 | 1 | 4 | 2 | 构建期 | 中 | 待审 |
 | `plugins/native/artifacts` | 内置插件 | 19 | 1,628 | `browser-ui.ts` 242 | 1 | 2 | 2 | 构建期 | 中 | 待审 |
@@ -780,10 +780,10 @@
 非产品的三个包，每个都用 `git grep` 再核对过：
 
 - `apps/server`：没有任何包、脚本或测试按包名导入它。它有自己的 `start` 脚本（`apps/server/package.json`，`node dist/main.js`），`server/README.md:15` 教人手工启动；不随根包发布。
-- `packages/test-kit`：根入口只被 `scripts/check-package-boundaries.mjs`、它自己的测试和 `tests/import-boundary-template.test.ts` 导入，根包把它放在 `devDependencies`。W2-11 a 起它多了子路径 `/browser`，由浏览器用例和它们的夹具导入（`tests/fixtures/goal-browser.ts`、`tests/fixtures/plugin-builder-browser.ts` 与三个独立的浏览器用例等）。
+- `packages/test-kit`：根入口只被 `scripts/check-package-boundaries.mjs`、它自己的测试和 `tests/import-boundary-template.test.ts` 导入，根包把它放在 `devDependencies`。W2-11 a 起它多了子路径 `/browser`，由浏览器用例和它们的夹具导入（`tests/fixtures/goal-browser.ts`、`tests/fixtures/plugin-builder-browser.ts` 与三个独立的浏览器用例等）；W2-11 c1 起又多了子路径 `/local-host-http`（访问本机 Host HTTP 管理接口的客户端），由 `tests/fixtures/test-home.ts`、`tests/fixtures/goal-browser.ts` 和直接用授权调用的用例导入。
 - `plugins/official-integrations/web-query`：除它自己的文件和登记表外，没有任何文件按包名引用它（代码、脚本、测试都没有），根包的 `dependencies` 里也没有它。Feed 的 `web_query` 来源由 `plugins/native/feed/src/source-request.ts` 自己处理；`specs/action-architecture/migration.md:98` 仍写它由 Feed 来源服务驱动，与代码不符，W1-02 对齐文档时一并改。
 
-另有三处声明了依赖、包内却没有任何文件按包名导入：`apps/workbench` 对 `packages/im-ui`（「讨论」页签用的是 `/im` 的 iframe）、`plugins/native/goals` 对 `modules/goals`、`packages/test-kit` 对 `packages/contracts`（只把包名当字符串）。这版不判断，留给逐包审查。
+另有三处声明了依赖、包内却没有任何文件按包名导入：`apps/workbench` 对 `packages/im-ui`（「讨论」页签用的是 `/im` 的 iframe）、`plugins/native/goals` 对 `modules/goals`、`packages/test-kit` 对 `packages/contracts`（原先只把包名当字符串；W2-11 c1 起 `/local-host-http` 的类型从 `@molis-ai/molis-work-contracts/platform/actions` 导入）。这版不判断，留给逐包审查。
 
 **计划深度**按风险定（任务书 §0：深入程度按风险决定）。四个量各给分：源文件行数 ≥ 9,000 记 2 分、≥ 3,000 记 1 分；2026-09-08（Cutover）以来碰过这个包的非合并提交数 ≥ 100 记 2 分、≥ 40 记 1 分；被依赖数 ≥ 17 记 2 分、≥ 4 记 1 分；`tooling/gates/baseline.json` 里记在它名下的巨大单元数 ≥ 10 记 2 分、≥ 4 记 1 分。总分 ≥ 4 为「深」。另有两个包放在授权脊梁上，也列「深」：`packages/kernel`（`ActionService`：可信身份、`beforeEffect`、撤销后不再写，见 `AGENTS.md` 硬约束）和 `packages/plugin-runtime`（安装、grant、签名）；每个能力调用和每次插件安装都经过它们，体量小，出错的代价最大。其余有 ≥ 1,000 行源码、或有巨大单元、或被 ≥ 3 个包依赖的为「中」，再其余为「浅」。结果：深 11（`apps/local-host`、`apps/workbench`、`horizontal/agent-host`、`modules/goals`、`packages/contracts`、`packages/design-system`、`packages/kernel`、`packages/plugin-runtime`、`plugins/native/coding`、`plugins/native/goals`、`plugins/native/pages`）、中 43、浅 17。深度是计划，不是门禁：以后某个包越过阈值不会让门禁变红，审它的时候再按当时的数重定。
 

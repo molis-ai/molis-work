@@ -50,7 +50,8 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     assert.deepEqual((await request(shelfOutput)).body.reference, fixedMaterial.body.reference);
     assert.deepEqual((await request(`/projects/${projects[1]}/api/plugins/io.molis.work.shelf/material-output`)).body.reference, null);
     const plugin = (project: string) => `/projects/${project}/api/plugins/io.molis.work.coding`;
-    assert.equal((await request(plugin(projects[0])+'/state')).status,404);
+    // W3-02-C: not enabled in this project is 403 actions.plugin_disabled (it was 404 plugin_not_enabled).
+    const notEnabled = await request(plugin(projects[0])+'/state'); assert.equal(notEnabled.status,403); assert.equal(notEnabled.body.code,'actions.plugin_disabled');
     for(const project of projects) assert.equal((await request(`/api/settings/projects/${project}/plugins`,'POST',{plugin_id:'coding'})).status,200);
     const a=plugin(projects[0]),b=plugin(projects[1]);
     assert.equal((await request(a+'/sessions','POST',{title:'denied'},false)).status,403);

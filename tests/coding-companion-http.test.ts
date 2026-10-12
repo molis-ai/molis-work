@@ -49,15 +49,18 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
       projects.set(plugin, { id, directory, workspace });
       for (const target of surfaces) {
         const result = await request(api(id, target));
-        assert.equal(result.status, allowed.includes(target) ? 200 : 404, `${plugin} → ${target}: ${JSON.stringify(result.body)}`);
+        // W3-02-C: a bundled plugin this project has not enabled answers 403 actions.plugin_disabled (it was 404 plugin_not_enabled);
+        // "workspace" is no plugin at all, so nothing answers it and it stays 404.
+        assert.equal(result.status, allowed.includes(target) ? 200 : target === "workspace" ? 404 : 403, `${plugin} → ${target}: ${JSON.stringify(result.body)}`);
+        if (!allowed.includes(target) && target !== "workspace") assert.equal(result.body.code, "actions.plugin_disabled");
         if (["files", "git"].includes(target)) {
           const hint = await request(api(id, target, "/view-revision"));
-          assert.equal(hint.status, allowed.includes(target) ? 200 : 404, "refresh hints obey the same surface enablement");
+          assert.equal(hint.status, allowed.includes(target) ? 200 : 403, "refresh hints obey the same surface enablement");
           if (hint.status === 200) { assert.deepEqual(Object.keys(hint.body), ["revision"]);assert.equal(typeof hint.body.revision,"string"); }
         }
       }
       const session = await request(api(id, "coding", "/sessions"), "POST", { title: "Must require Coding" });
-      assert.equal(session.status, plugin === "coding" ? 200 : 404, "companion access must never imply Coding execution access");
+      assert.equal(session.status, plugin === "coding" ? 200 : 403, "companion access must never imply Coding execution access");
     }
 
     const files = projects.get("files")!, other = projects.get("coding")!;

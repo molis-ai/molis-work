@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
+  PluginDatabaseDeclaration,
   PluginDefinition,
   PluginManifest,
   PluginPrivateStorage,
@@ -30,6 +31,7 @@ import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-exe
 import type { PluginPlatformHome } from "./home-side.js";
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
+import { assertDatabaseEntries } from "./plugin-database-entries.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -45,6 +47,14 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
   exec(sql: string): unknown;
   readonly inTransaction?: boolean;
 };
+
+/**
+ * One entry of the Host's own start list. `database` is the library in the Home the Host gives that plugin as
+ * `services.database`; the entry names it, never the plugin (`assertDatabaseEntries` says what a list may declare).
+ */
+export interface PluginPlatformEntry extends PluginSupervisorEntry {
+  readonly database?: PluginDatabaseDeclaration;
+}
 
 export interface PluginPlatformOptions {
   project_id: string;
@@ -88,7 +98,7 @@ export interface PluginPlatform {
   closeCoordination(): Promise<void>;
   /** Built after `start`, from the Manifests that actually activated. */
   router(): PluginRouteRouter;
-  start(entries: readonly PluginSupervisorEntry[]): Promise<PluginSupervisorReport>;
+  start(entries: readonly PluginPlatformEntry[]): Promise<PluginSupervisorReport>;
   upgradeCandidates(): PluginUpgradeCandidate[];
   upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[] }): Promise<ReturnType<PluginSupervisor["state"]>>;
   rollback(pluginId: string, definition: PluginDefinition): Promise<ReturnType<PluginSupervisor["state"]>>;
@@ -104,8 +114,12 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // plugin_id gets no more than an installation id.
   const bundled = new WeakSet<PluginDefinition>();
   const providerFor = (definition: PluginDefinition, installId: string) => bundled.has(definition) ? definition.manifest.plugin_id : installId;
+  // The same holds for a library in the Home: the Host's list declares it about a definition object, so another definition that
+  // carries the same plugin_id is given none.
+  const databases = new WeakMap<PluginDefinition, PluginDatabaseDeclaration>();
   const executor = new PluginHostExecutor({
     providerFor,
+    databaseFor: definition => databases.get(definition),
     project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,
@@ -192,7 +206,11 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
         if (listed.has(definition.manifest.plugin_id)) throw new Error(`插件 ${definition.manifest.plugin_id} 在同一份启动名单里出现了两次`);
         listed.add(definition.manifest.plugin_id);
       }
-      for (const entry of entries) if (entry.bundled) bundled.add(entry.definition);
+      assertDatabaseEntries(entries, options.home);
+      for (const entry of entries) {
+        if (entry.bundled) bundled.add(entry.definition);
+        if (entry.database) databases.set(entry.definition, entry.database);
+      }
       const report = await supervisor.start(entries);
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();

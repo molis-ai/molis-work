@@ -2,7 +2,7 @@ import type { ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-wor
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE, parseCodingChangeSet, type TextDiff } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { compareSnapshots, compareChangeSet, compareRunChangeSet, emptyDiff, type DiffView } from "./comparison.js";
-import { compareTexts } from "./text-diff.js";
+import { compareTexts } from "@molis-ai/molis-work-plugin-sdk";
 
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
 const text = { type: "string" }, version = { type: "integer", minimum: 1 }, count = { type: "integer", minimum: 0 }, boolean = { type: "boolean" };

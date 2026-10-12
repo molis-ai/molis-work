@@ -8,6 +8,7 @@ import { promotePpt, type PptLineHeadPort, type PptPublishArtifactPort, type Ppt
 import type { PptStore } from "./store.js";
 import { createPptSearchHandlers, pptSearchActions } from "./search.js";
 import { pptArtifactPreview, pptArtifactPreviewHandler } from "./artifact-preview.js";
+import { pptErrors } from "./error.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -82,12 +83,12 @@ const SLIDE_LIMIT = 40;
 const isBlank = (deck: PptRecord) => deck.slides.length === 1 && !deck.slides[0]!.bullets.length && !deck.slides[0]!.notes;
 /** An outline joins a deck after its pages, so a full deck has no room for it: said before anything is written or asked of the model. */
 function assertRoomForOutline(deck: PptRecord, replace: boolean | undefined): void {
-  if (!replace && !isBlank(deck) && deck.slides.length >= SLIDE_LIMIT) throw new ActionError("ppt.invalid", `这份演示稿已有 ${SLIDE_LIMIT} 页，放不下更多；可以改为替换现有页`);
+  if (!replace && !isBlank(deck) && deck.slides.length >= SLIDE_LIMIT) throw pptErrors.invalid(`这份演示稿已有 ${SLIDE_LIMIT} 页，放不下更多；可以改为替换现有页`);
 }
 /** Slides parsed from an outline join the deck after its pages, or replace them; a deck that is still one blank page is simply filled. */
 function applyOutline(store: PptStore, input: { id: string; expected_version?: number; replace?: boolean }, projectId: string, markdown: string): { presentation: PptRecord; slide_count: number } {
   const current = store.get(input.id, projectId);
-  if (input.expected_version !== undefined && current.version !== input.expected_version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后生成");
+  if (input.expected_version !== undefined && current.version !== input.expected_version) throw pptErrors.conflict("演示稿已改变，请重新读取后生成");
   assertRoomForOutline(current, input.replace);
   const parsed = slidesFromMarkdown(markdown, current.title);
   const kept = input.replace || isBlank(current) ? [] : current.slides.map(slide => ({ id: slide.id, title: slide.title, bullets: slide.bullets, notes: slide.notes }));
@@ -101,7 +102,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   // The text an outline is made from: what was pasted, or a Pages document as Markdown with its title as the deck title.
   const outlineSource = async (input: OutlineInput, caller: ActionCallContext): Promise<string> => {
-    if ((input.text === undefined) === (input.page_id === undefined)) throw new ActionError("ppt.invalid", "请给出一段文字，或选一篇文档");
+    if ((input.text === undefined) === (input.page_id === undefined)) throw pptErrors.invalid("请给出一段文字，或选一篇文档");
     if (input.text !== undefined) return input.text;
     if (!ports.readPage) throw new ActionError("actions.connection_required", "Pages 不可用，无法读取文档");
     const page = await ports.readPage(input.page_id!, caller);
@@ -127,7 +128,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
     bind(pptActions.delete, (input, caller) => ports.withStore(store => { store.delete(input.id, project(caller), input.expected_version); return { ok: true }; })),
     bind(pptActions.export, (input, caller) => ports.withStore(store => {
       const presentation = store.get(input.id, project(caller));
-      if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后导出");
+      if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw pptErrors.conflict("演示稿已改变，请重新读取后导出");
       return { filename: presentation.title.replace(/[\\/:*?"<>|\x00-\x1f]/g, "_") + ".json", mime_type: "application/json" as const, content: JSON.stringify(presentation, null, 2) };
     })),
     bind(pptActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
@@ -146,7 +147,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
       id => ports.withStore(store => objectOrMissing(() => store.get(id)) !== null)),
     bind(pptActions.pptx, (input, caller) => ports.withStore(store => {
       const presentation = store.get(input.id, project(caller));
-      if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后导出");
+      if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw pptErrors.conflict("演示稿已改变，请重新读取后导出");
       return { filename: pptxFilename(presentation.title), mime_type: PPTX_MIME_TYPE, content_base64: Buffer.from(buildPptx(presentation)).toString("base64"), slide_count: presentation.slides.length };
     })),
     bind(pptActions.outlinePages, async (_input, caller) => {
@@ -160,14 +161,14 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
     }),
     bind(pptActions.outlineAi, async (input, caller) => {
       const current = ports.withStore(store => store.get(input.id, project(caller)));
-      if (input.expected_version !== undefined && current.version !== input.expected_version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后生成");
+      if (input.expected_version !== undefined && current.version !== input.expected_version) throw pptErrors.conflict("演示稿已改变，请重新读取后生成");
       assertRoomForOutline(current, input.replace);
       const source = await outlineSource(input, caller);
       caller.signal?.throwIfAborted();
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
       const markdown = (await ports.completeText(instructed(PPT_DRAFT_OUTLINE, JSON.stringify({ text: source })), { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
       caller.signal?.throwIfAborted();
-      if (!markdown) throw new ActionError("ppt.invalid", "模型没有返回大纲，请调整文字后重试");
+      if (!markdown) throw pptErrors.invalid("模型没有返回大纲，请调整文字后重试");
       await caller.beforeEffect();
       return ports.withStore(store => applyOutline(store, { ...input, expected_version: current.version }, project(caller), markdown));
     }, () => modelAvailability()),

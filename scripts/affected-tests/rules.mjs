@@ -16,8 +16,8 @@ export const REPOSITORY_FOLDERS = [...PACKAGE_AREAS, "scripts", "skills", "docs"
 export const FULL_REGRESSION = {
   /**
    * Whole packages that are shared core. `modules/` is every package under it. plugin-sdk joined on 2026-10-10 (spec §1, W3-03):
-   * it holds the runtime tools that authors and the platform share, the execution lifetime first and, as W3-03 moves them in PR by
-   * PR, the Manifest and declaration rules the Kernel and Plugin Runtime apply and the text comparison. The same list is in
+   * it holds the runtime tools that authors and the platform share, the execution lifetime, the Manifest and
+   * declaration rules the Kernel and Plugin Runtime apply, and the text comparison (all moved in by W3-03). The same list is in
    * scripts/package-owners.mjs (SHARED_CORE) and docs/system/PARALLEL-DEVELOPMENT.md section 6.
    */
   corePackages: ["packages/contracts", "packages/kernel", "packages/plugin-sdk"],

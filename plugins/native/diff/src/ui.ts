@@ -5,7 +5,8 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import type { DiffView } from "./comparison.js";
-import { alignSplitRows, type TextDiffRow } from "./text-diff.js";
+import type { TextDiffRow } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { alignSplitRows } from "@molis-ai/molis-work-plugin-sdk";
 
 export const DIFF_UI_CONTRIBUTION_ID = "io.molis.work.native.diff.ui.v1";
 

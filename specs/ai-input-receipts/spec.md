@@ -353,7 +353,7 @@ AI 的说法和执行事实分开显示。AI 的说法标「AI 的理解」，�
    - D4：会话缺省 `ask`（不带，App 先问人）；`session.setQueuedInputCarry("auto")` 之后 App 开的跑默认全带。子任务完成后 SDK 叫醒的续跑一律不带。这个设置只存在 SDK 会话里，Molis 不另存一份。
    - 历史可见不等于获准消费：没读到的那一句在后续入模历史里只留一条不带正文的说明（`input-unread`），对话投影仍给 App 全文并标 `unread`。
    - 持久化；重启后仍在；重启收口那一笔里入队；**绝不自动开新 Run**。分叉、导入、导出不带队列。
-5. **处理说明工具 `acknowledge-inputs`。**
+5. **处理说明工具 `acknowledge-inputs`。**（2026-10-12：SDK 第三刀合同 `docs/slices/input-handling.md` 是这一项与第 6 项的权威，草稿已写、未实现。与下文的差别：类型 `kind` 定为 5 值闭集 `supplement / correction / constraint / request / question`；事件是一次调用一条 `inputs-acknowledged { items }`、整次原子，不是每条一件；只能说明这一跑里已读到的输入；S3 的 `targets` 只收 `input` 与 `app-ref`，`board-node / todo / pending` 留到 S4；`app-ref` 经 App 在 `createRuntime` 注入的解析器核对；每条输入放进上下文时后面跟一条带编号的运行时说明，模型凭它点名。）
    - 入参：`{ items: [{ input, kind?, treatment, targets?: [{ kind: "board-node"|"todo"|"pending"|"input"|"app-ref", id }], impacts?: Dimension[], note }] }`。
    - `safe-read`，只记声明，不改世界。
    - 引擎核对：输入已被本轮读到；目标存在；`app-ref` 只接受 App 注册的解析器认可的引用。

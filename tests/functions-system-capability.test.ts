@@ -28,7 +28,7 @@ import {
   visibleFeedDispositionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
-  FunctionsError,
+  functionsErrors,
   createFunctionsService,
   openFunctionsStore,
   publishedFunctionAction,
@@ -512,8 +512,9 @@ test("home dock HTTP binds a published function at the scene without executing w
   assert.equal((await unbound.json() as { function_key: string | null }).function_key, null);
 });
 
-test("FunctionsError still surfaces from the Module", () => {
-  assert.equal(new FunctionsError("functions.invalid", "x").code, "functions.invalid");
+test("Functions' declared failures surface from the Module with their code and kind", () => {
+  const error = functionsErrors.invalid("x");
+  assert.deepEqual([error.code, error.kind], ["functions.invalid", "invalid"]);
 });
 
 

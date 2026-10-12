@@ -160,11 +160,6 @@ export interface FunctionSummary {
 
 export type FunctionsCredentialSource = "ui" | "env" | "none";
 
-export declare class FunctionsError extends Error {
-    readonly code: string;
-    constructor(code: string, message: string);
-}
-
 export type FunctionsOutcome = "ok" | "needs_review";
 
 export interface FunctionsPreviewRecord {

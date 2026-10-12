@@ -22,7 +22,7 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { hashFunctionConfig } from "./hash.js";
 import { seedBuiltinFunctions } from "./builtin.js";
-import { FunctionsError, assertFunctionKey, assertOptionKey, isPinnedJevModel, suggestFunctionKey } from "./keys.js";
+import { functionsErrors, assertFunctionKey, assertOptionKey, isPinnedJevModel, suggestFunctionKey } from "./keys.js";
 
 interface FunctionRow {
   id: string;
@@ -118,7 +118,7 @@ export class FunctionsStore {
   updateDraft(id: string, patch: FunctionDraftPatch, expectedUpdatedAt?: string): FunctionRecord {
     const current = this.require(id);
     if (current.status === "published") {
-      throw new FunctionsError("functions.published_immutable", "已发布的函数不能再改配置");
+      throw functionsErrors.published_immutable("已发布的函数不能再改配置");
     }
     const name = patch.name === undefined ? current.name : normalizeName(patch.name);
     const function_key = patch.function_key === undefined
@@ -174,7 +174,7 @@ export class FunctionsStore {
   savePreview(id: string, preview: FunctionsPreviewRecord, expectedUpdatedAt?: string): FunctionRecord {
     const current = this.require(id);
     if (preview.config_hash !== current.config_hash) {
-      throw new FunctionsError("functions.stale_preview", "预览结果对不上当前配置，请再试一次");
+      throw functionsErrors.stale_preview("预览结果对不上当前配置，请再试一次");
     }
     const now = new Date().toISOString();
     const written = this.db.prepare(
@@ -186,7 +186,7 @@ export class FunctionsStore {
   addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt?: string): FunctionRecord {
     const current = this.require(id);
     if (current.samples.length >= FUNCTIONS_MAX_SAMPLES) {
-      throw new FunctionsError("functions.invalid", `每个函数最多 ${FUNCTIONS_MAX_SAMPLES} 条样例`);
+      throw functionsErrors.invalid(`每个函数最多 ${FUNCTIONS_MAX_SAMPLES} 条样例`);
     }
     const sample: FunctionSample = {
       id: crypto.randomUUID(),
@@ -200,7 +200,7 @@ export class FunctionsStore {
     const current = this.require(id);
     const samples = current.samples.filter((item) => item.id !== sampleId);
     if (samples.length === current.samples.length) {
-      throw new FunctionsError("functions.not_found", "样例不存在");
+      throw functionsErrors.not_found("样例不存在");
     }
     return this.writeSamples(current.id, samples, expectedUpdatedAt ?? current.updated_at);
   }
@@ -210,7 +210,7 @@ export class FunctionsStore {
     if (current.status === "published") return current;
     assertReadyToPublish(current);
     if (scene && (scene.scene_id !== current.scene_id || current.scene_version && scene.version !== current.scene_version
-      || current.scene_provider_id && scene.provider_id !== current.scene_provider_id)) throw new FunctionsError("functions.conflict", "草稿用途已变化，请重新检查");
+      || current.scene_provider_id && scene.provider_id !== current.scene_provider_id)) throw functionsErrors.conflict("草稿用途已变化，请重新检查");
     const model = pinModel(current);
     const now = new Date().toISOString();
     const config_hash = hashFunctionConfig({
@@ -231,7 +231,7 @@ export class FunctionsStore {
     if (written.changes !== 1) {
       const latest = this.require(id);
       if (latest.status === "published") return latest;
-      throw new FunctionsError("functions.conflict", "草稿已被更新，请刷新后再试");
+      throw functionsErrors.conflict("草稿已被更新，请刷新后再试");
     }
     return this.require(id);
   }
@@ -239,25 +239,25 @@ export class FunctionsStore {
   deleteDraft(id: string, expectedUpdatedAt?: string): void {
     const current = this.require(id);
     if (current.status === "published") {
-      throw new FunctionsError("functions.published_immutable", "已发布的函数不能删除");
+      throw functionsErrors.published_immutable("已发布的函数不能删除");
     }
     const written = this.db.prepare(
       "DELETE FROM functions WHERE id = ? AND status = 'draft' AND updated_at = ?",
     ).run(id, expectedUpdatedAt ?? current.updated_at);
     if (written.changes !== 1) {
-      throw new FunctionsError("functions.conflict", "草稿已被更新，请刷新后再试");
+      throw functionsErrors.conflict("草稿已被更新，请刷新后再试");
     }
   }
 
   require(id: string): FunctionRecord {
     const record = this.get(id);
-    if (!record) throw new FunctionsError("functions.not_found", "函数不存在");
+    if (!record) throw functionsErrors.not_found("函数不存在");
     return record;
   }
 
   private requireCas(id: string, changes: number | bigint): FunctionRecord {
     if (changes !== 1 && changes !== 1n) {
-      throw new FunctionsError("functions.conflict", "草稿已被更新，请刷新后再试");
+      throw functionsErrors.conflict("草稿已被更新，请刷新后再试");
     }
     return this.require(id);
   }
@@ -265,7 +265,7 @@ export class FunctionsStore {
   requirePublishedByKey(functionKey: string): FunctionRecord {
     const record = this.getByKey(functionKey);
     if (!record || record.status !== "published" || record.version == null) {
-      throw new FunctionsError("functions.not_found", "函数不存在");
+      throw functionsErrors.not_found("函数不存在");
     }
     return record;
   }
@@ -293,7 +293,7 @@ export class FunctionsStore {
         : this.db.prepare(`UPDATE function_scene_bindings SET action_binding_json = ?, binding_revision = ?, updated_at = ?
           WHERE scene_id = ? AND project_id = ? AND binding_revision = ?`)
           .run(json, revision, at, binding.scene_id, projectId, expectedRevision);
-    if (written.changes !== 1 && written.changes !== 1n) throw new FunctionsError("functions.conflict", "配置已变化，请刷新后再试");
+    if (written.changes !== 1 && written.changes !== 1n) throw functionsErrors.conflict("配置已变化，请刷新后再试");
     return { ...reference, revision };
   }
 
@@ -459,10 +459,10 @@ export function assertReadyToPublish(record: FunctionRecord): void {
   normalizeInstructions(record.instructions);
   normalizeCriteria(record.primitive, record.criteria, true);
   if (!record.last_preview) {
-    throw new FunctionsError("functions.preview_required", "发布前需要用当前配置成功试跑一次");
+    throw functionsErrors.preview_required("发布前需要用当前配置成功试跑一次");
   }
   if (record.last_preview.config_hash !== record.config_hash) {
-    throw new FunctionsError("functions.stale_preview", "配置改过了，请用当前说明再试跑一次");
+    throw functionsErrors.stale_preview("配置改过了，请用当前说明再试跑一次");
   }
 }
 
@@ -599,13 +599,13 @@ function uniqueKey(store: FunctionsStore, key: string, exceptId?: string): strin
     const suffix = `_${n}`;
     candidate = `${key.slice(0, Math.max(2, 64 - suffix.length))}${suffix}`;
     n += 1;
-    if (n > 99) throw new FunctionsError("functions.key_conflict", "函数 key 已被占用");
+    if (n > 99) throw functionsErrors.key_conflict("函数 key 已被占用");
   }
   return candidate;
 }
 
 function assertAvailableKey(store: FunctionsStore, key: string, exceptId?: string): string {
-  if (keyTaken(store, key, exceptId)) throw new FunctionsError("functions.key_conflict", "函数 key 已被占用");
+  if (keyTaken(store, key, exceptId)) throw functionsErrors.key_conflict("函数 key 已被占用");
   return key;
 }
 
@@ -628,7 +628,7 @@ function defaultCriteria(primitive: FunctionsPrimitive): FunctionCriteria {
 
 function assertPrimitive(value: string): FunctionsPrimitive {
   if (value === "noul" || value === "choice" || value === "score") return value;
-  throw new FunctionsError("functions.invalid", "判断类型须为 Noul、Choice 或 Score");
+  throw functionsErrors.invalid("判断类型须为 Noul、Choice 或 Score");
 }
 
 function parsePrimitive(value: string): FunctionsPrimitive {
@@ -725,17 +725,17 @@ function parseSceneMap(raw: string | null | undefined): FunctionSceneMap {
 function assertSceneReference(sceneId: string | null, version: number | null, providerId: string | null): void {
   if (version === null && providerId === null) return;
   if (!sceneId || sceneId === AGENT_MCP_DESTINATION_ID || !Number.isSafeInteger(version) || (version ?? 0) < 1 || typeof providerId !== "string" || !providerId.trim() || providerId !== providerId.trim()) {
-    throw new FunctionsError("functions.invalid", "用途必须同时指定有效场景版本和提供方");
+    throw functionsErrors.invalid("用途必须同时指定有效场景版本和提供方");
   }
 }
 
 function normalizeSceneId(value: string | null, primitive: FunctionsPrimitive): string | null {
   if (value == null || value === "") return null;
   if (!isFunctionDestinationId(value)) {
-    throw new FunctionsError("functions.invalid", "这个用法不在可选范围里");
+    throw functionsErrors.invalid("这个用法不在可选范围里");
   }
   if (primitive === "score" && value !== AGENT_MCP_DESTINATION_ID) {
-    throw new FunctionsError("functions.invalid", "Score 不能绑 Inbox、首页、Feed。");
+    throw functionsErrors.invalid("Score 不能绑 Inbox、首页、Feed。");
   }
   return value;
 }
@@ -756,14 +756,14 @@ function normalizeSubjectKinds(value: unknown): string[] {
 
 function normalizeActionMap(value: FunctionActionMap, sceneId: string | null, primitive: FunctionsPrimitive, criteria: FunctionCriteria): FunctionActionMap {
   if (sceneId !== AGENT_MCP_DESTINATION_ID) return {};
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new FunctionsError("functions.invalid", "推荐能力映射格式无效");
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw functionsErrors.invalid("推荐能力映射格式无效");
   const keys = new Set(functionOutputKeys({ primitive, criteria }));
   const result: Record<string, FunctionActionMap[string]> = {};
   for (const [key, reference] of Object.entries(value)) {
     if (!keys.has(key)) continue;
     if (!reference || typeof reference !== "object" || typeof reference.capability_id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(reference.capability_id)
       || !Number.isSafeInteger(reference.version) || reference.version < 1 || typeof reference.provider_id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(reference.provider_id)) {
-      throw new FunctionsError("functions.invalid", "推荐能力必须包含准确身份、版本和提供方");
+      throw functionsErrors.invalid("推荐能力必须包含准确身份、版本和提供方");
     }
     result[key] = { capability_id: reference.capability_id, version: reference.version, provider_id: reference.provider_id };
   }
@@ -778,7 +778,7 @@ function normalizeSceneMap(
 ): FunctionSceneMap {
   if (value == null) return {};
   if (!isRecord(value) || Array.isArray(value)) {
-    throw new FunctionsError("functions.invalid", "映射格式不对");
+    throw functionsErrors.invalid("映射格式不对");
   }
   const allowed = primitive && criteria
     ? new Set(functionOutputKeys({ primitive, criteria }))
@@ -815,31 +815,31 @@ function pruneSceneMap(
 
 function normalizeName(value: string): string {
   const name = value.trim();
-  if (!name || name.length > 80) throw new FunctionsError("functions.invalid", "名称须为 1 到 80 个字");
+  if (!name || name.length > 80) throw functionsErrors.invalid("名称须为 1 到 80 个字");
   return name;
 }
 
 function normalizeDraftInstructions(value: string): string {
   const instructions = value.trim();
-  if (instructions.length > 8000) throw new FunctionsError("functions.invalid", "说明须为 1 到 8000 个字");
+  if (instructions.length > 8000) throw functionsErrors.invalid("说明须为 1 到 8000 个字");
   return instructions;
 }
 
 function normalizeInstructions(value: string): string {
   const instructions = normalizeDraftInstructions(value);
-  if (!instructions) throw new FunctionsError("functions.invalid", "说明须为 1 到 8000 个字");
+  if (!instructions) throw functionsErrors.invalid("说明须为 1 到 8000 个字");
   return instructions;
 }
 
 function normalizeSampleLabel(value: string | undefined, index: number): string {
   const label = (value ?? "").trim() || `样例 ${index + 1}`;
-  if (label.length > 40) throw new FunctionsError("functions.invalid", "样例名称须为 1 到 40 个字");
+  if (label.length > 40) throw functionsErrors.invalid("样例名称须为 1 到 40 个字");
   return label;
 }
 
 function normalizeSampleInput(value: string): string {
   const input = value.trim();
-  if (!input || input.length > 8000) throw new FunctionsError("functions.invalid", "样例输入须为 1 到 8000 个字");
+  if (!input || input.length > 8000) throw functionsErrors.invalid("样例输入须为 1 到 8000 个字");
   return input;
 }
 
@@ -851,24 +851,24 @@ function normalizeCriteria(primitive: FunctionsPrimitive, value: FunctionCriteri
 
 function normalizeChoice(value: FunctionCriteria, requireDescriptions: boolean): ChoiceCriterion[] {
   if (!Array.isArray(value) || value.some((item) => !item || typeof item !== "object" || Array.isArray(item) || !("key" in item))) {
-    throw new FunctionsError("functions.invalid", "选项须是列表");
+    throw functionsErrors.invalid("选项须是列表");
   }
   const seen = new Set<string>();
   const criteria = (value as readonly ChoiceCriterion[]).map((item) => {
     const key = assertOptionKey(String(item.key ?? "").trim());
-    if (seen.has(key)) throw new FunctionsError("functions.invalid", `选项 key 重复：${key}`);
+    if (seen.has(key)) throw functionsErrors.invalid(`选项 key 重复：${key}`);
     seen.add(key);
     const description = String(item.description ?? "").trim();
     if (description.length > 500) {
-      throw new FunctionsError("functions.invalid", "每个选项需要 1 到 500 字的说明");
+      throw functionsErrors.invalid("每个选项需要 1 到 500 字的说明");
     }
     if (requireDescriptions && !description) {
-      throw new FunctionsError("functions.invalid", "每个选项需要 1 到 500 字的说明");
+      throw functionsErrors.invalid("每个选项需要 1 到 500 字的说明");
     }
     return { key, description };
   });
-  if (criteria.length < 2) throw new FunctionsError("functions.invalid", "Choice 至少需要两个选项");
-  if (criteria.length > 32) throw new FunctionsError("functions.invalid", "Choice 最多 32 个选项");
+  if (criteria.length < 2) throw functionsErrors.invalid("Choice 至少需要两个选项");
+  if (criteria.length > 32) throw functionsErrors.invalid("Choice 最多 32 个选项");
   return criteria;
 }
 
@@ -879,7 +879,7 @@ function normalizeNoul(value: FunctionCriteria, requireComplete: boolean): NoulC
   const true_description = String(row.true_description ?? "").trim();
   const false_description = String(row.false_description ?? "").trim();
   if (true_description.length > 500 || false_description.length > 500) {
-    throw new FunctionsError("functions.invalid", "判断标准须为 1 到 500 个字");
+    throw functionsErrors.invalid("判断标准须为 1 到 500 个字");
   }
   if (requireComplete && !true_description && !false_description) {
     // Noul criteria are optional at TypeSafe; instructions already required.
@@ -889,19 +889,19 @@ function normalizeNoul(value: FunctionCriteria, requireComplete: boolean): NoulC
 
 function normalizeScore(value: FunctionCriteria, requireComplete: boolean): string[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-    throw new FunctionsError("functions.invalid", "Score 档位须是文字列表");
+    throw functionsErrors.invalid("Score 档位须是文字列表");
   }
   const levels = (value as readonly string[]).map((item) => item.trim());
   if (levels.some((item) => item.length > 500)) {
-    throw new FunctionsError("functions.invalid", "每个档位需要 1 到 500 字的说明");
+    throw functionsErrors.invalid("每个档位需要 1 到 500 字的说明");
   }
   if (requireComplete && (levels.length < 2 || levels.some((item) => !item))) {
-    throw new FunctionsError("functions.invalid", "Score 至少需要两个写了说明的档位");
+    throw functionsErrors.invalid("Score 至少需要两个写了说明的档位");
   }
   if (!requireComplete && levels.length < 2) {
-    throw new FunctionsError("functions.invalid", "Score 至少需要两个档位");
+    throw functionsErrors.invalid("Score 至少需要两个档位");
   }
-  if (levels.length > 32) throw new FunctionsError("functions.invalid", "Score 最多 32 个档位");
+  if (levels.length > 32) throw functionsErrors.invalid("Score 最多 32 个档位");
   return levels;
 }
 

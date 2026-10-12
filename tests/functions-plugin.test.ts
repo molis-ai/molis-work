@@ -1,5 +1,6 @@
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { functionsActionProvider } from "@molis-ai/molis-work-module-functions";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
@@ -29,7 +30,7 @@ import {
   type TypeSafeEvaluateResult,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
-  FunctionsError,
+  functionsErrors,
   createFunctionsService,
   functionsActions,
   hashChoiceConfig,
@@ -40,7 +41,6 @@ import {
 } from "@molis-ai/molis-work-module-functions";
 import { FunctionsHttpRouteTable } from "../apps/local-host/src/functions-http/routes.ts";
 import { createFunctionsRouteHandlers } from "../apps/local-host/src/functions-http/route-handlers.ts";
-import { functionsRouteErrorResponse } from "../apps/local-host/src/functions-http/route-error.ts";
 import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/functions/client.ts";
 import { renderFunctionsWorkbench } from "../apps/workbench/src/functions/ui.ts";
 import { renderFunctionsSettings } from "../apps/workbench/src/functions/settings-ui.ts";
@@ -144,7 +144,7 @@ test("a draft Choice can be saved with empty instructions, then published only a
     assert.deepEqual([...updated.subject_kinds], ["mcp_invoke"]);
     assert.equal(updated.last_preview, null);
     assert.throws(() => store.publish(created.id), (error: unknown) => (
-      error instanceof FunctionsError && error.code === "functions.preview_required"
+      error instanceof ActionError && error.code === "functions.preview_required"
     ));
     const previewed = store.savePreview(created.id, {
       input: "请退款",
@@ -164,7 +164,7 @@ test("a draft Choice can be saved with empty instructions, then published only a
     assert.equal(published.status, "published");
     assert.equal(published.version, 1);
     assert.throws(() => store.updateDraft(published.id, { name: "改名" }), (error: unknown) => (
-      error instanceof FunctionsError && error.code === "functions.published_immutable"
+      error instanceof ActionError && error.code === "functions.published_immutable"
     ));
     store.close();
     const reopenedStore = openFunctionsStore(home);
@@ -214,7 +214,7 @@ test("custom Choice options survive an Inbox destination and bind through a scen
     assert.equal(noulMapped.scene_id, INBOX_NEXT_SCENE_ID);
     const score = store.create({ primitive: "score", name: "相关程度" });
     assert.throws(() => store.updateDraft(score.id, { scene_id: INBOX_NEXT_SCENE_ID }), (error: unknown) => (
-      error instanceof FunctionsError && error.code === "functions.invalid"
+      error instanceof ActionError && error.code === "functions.invalid"
     ));
     store.close();
   });
@@ -266,7 +266,7 @@ test("preview without a key is a configured-state, not a TypeSafe call", async (
       criteria: [{ key: "yes", description: "急" }, { key: "no", description: "不急" }],
     });
     await assert.rejects(() => service.preview(created.id, "hello"), (error: unknown) => (
-      error instanceof FunctionsError && error.code === "functions.provider_not_configured"
+      error instanceof ActionError && error.code === "functions.provider_not_configured"
     ));
     assert.equal(calls.count, 0);
     assert.deepEqual(service.settingsStatus(), { has_credential: false, source: "none" });
@@ -290,7 +290,7 @@ test("changing instructions invalidates the previous preview", async () => {
     const changed = service.updateDraft(created.id, { instructions: "第二版" });
     assert.equal(changed.last_preview, null);
     assert.throws(() => service.publish(created.id), (error: unknown) => (
-      error instanceof FunctionsError && error.code === "functions.preview_required"
+      error instanceof ActionError && error.code === "functions.preview_required"
     ));
   });
 });
@@ -349,7 +349,7 @@ test("route table lists, previews, publishes, and maps missing functions to 404"
       body: {},
     });
     assert.equal((published?.body as { function: { status: string } }).function.status, "published");
-    const missing = functionsRouteErrorResponse(new FunctionsError("functions.not_found", "函数不存在"));
+    const missing = actionErrorResponse(functionsErrors.not_found("函数不存在"));
     assert.equal(missing.status, 404);
 
   });
@@ -660,7 +660,7 @@ test("samples do not change config_hash, drafts can be deleted, published cannot
     });
     store.publish(again.id);
     assert.throws(() => store.deleteDraft(again.id), (error: unknown) => (
-      error instanceof FunctionsError && error.code === "functions.published_immutable"
+      error instanceof ActionError && error.code === "functions.published_immutable"
     ));
     assert.equal(store.get(again.id)?.status, "published");
   });
@@ -680,7 +680,7 @@ test("invoke uses published config once and does not overwrite last_preview", as
       criteria: [{ key: "yes", description: "急" }, { key: "no", description: "不急" }],
     });
     await assert.rejects(() => service.invokePublished(created.function_key, "三天没人回"), (error: unknown) => (
-      error instanceof FunctionsError && error.code === "functions.not_found"
+      error instanceof ActionError && error.code === "functions.not_found"
     ));
     const previewed = await service.preview(created.id, "预览输入");
     const published = service.publish(created.id);

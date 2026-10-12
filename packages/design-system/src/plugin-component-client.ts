@@ -6,6 +6,8 @@ import type { PluginPresentation } from './plugin-presentation.js';
 import { createPluginPresentationClient } from './plugin-presentation-client.js';
 export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[]; presentation?: PluginPresentation }
 export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: string, binding: 'read' | 'submit', payload: unknown): Promise<unknown>; inspect?(nodeId: string): void;
+  /** The inspect button's label (the studio passes it translated). */
+  inspectLabel?: string;
   /** Observe only accepted query results, with the same request/selection ordering as the rendered view. */
   onRead?(nodeId: string, result: { value: unknown } | { error: string }): void;
 }
@@ -555,7 +557,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
       const card = make('article', undefined, 'mw-card pc-app-card'), header = make('header', undefined, 'mw-card__header'), copy = make('div'); card.dataset.slot = 'card';
       title.className = 'mw-card__title'; description.className = 'mw-card__description'; copy.append(title, description); header.append(copy); card.append(header); element.append(card);
     } else { const header = make('header', undefined, 'pc-part-head'); header.append(title); header.hidden = title.hidden; element.append(header, description); }
-    if (options.inspect) { const inspect = make('button', '检查零件', 'pc-inspect'); inspect.type = 'button'; inspect.addEventListener('click', () => options.inspect?.(node.id)); element.append(inspect); }
+    if (options.inspect) { const inspect = make('button', options.inspectLabel || '检查零件', 'pc-inspect'); inspect.type = 'button'; inspect.addEventListener('click', () => options.inspect?.(node.id)); element.append(inspect); }
     const content = make('div', undefined, 'pc-output'), feedback = make('div'); feedback.dataset.pcFeedback = node.id; feedback.setAttribute('role', 'status'); feedback.setAttribute('aria-live', 'polite');
     const part: Part = { node, root: element, output: content, feedback, busy: false, query: 0, signature: signature(node), prefilled: new Map() };
     const filtered = node.read && Object.entries(node.read.input).filter(([, source]) => source.source === 'form');

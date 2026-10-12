@@ -729,3 +729,19 @@ W1 做第 9 节「W1 共享件」：浮条组件与定位上移、新合同、�
 - `intake`、`attach` 写在被指向的写入动作的元数据上，不另起一份带 `action`、`undo` 的清单：一个能力登记一次，撤销只有动作已有的 `undo` 一处；代价是一个动作只能有一个创建入口，要两个就声明两个动作。
 - 浮条按钮按 DESIGN 的下限：桌面 32px、紧凑 28px、触屏 44px（context-toolbar §4 写的 28px 被取代）；浮条本身用 `--lift-2`，它的「更多」菜单与面板槽用 `--lift-3`，让后者明显浮在前者之上。
 - DOM 事件随第一对收发方登记；浮条原件在 W1 只上组件板，W2 接入时同一份资源净减。
+
+### 18.7 实施记录与对计划的修正（2026-10-12）
+
+W1-1、W1-3、W1-4、W1-5、W1-7 和 W1-8 的第一部分已在各自分支写完并提交（栈：`feat/context-w1-contracts` → `…-declarations` → `…-derivation` → `…-drafting` / `…-manual`；`feat/context-w1-split-context-actions` 独立）。静默期（采用线全量回归）里只写了代码；构建、测试、推送与开 PR 在静默解除后依次做，PR 链接与证据另报统筹。以下是写代码时对 §18.3 的修正，计划行保留原文以便对照：
+
+| 片 | 计划写的 | 实际 | 原因 |
+| --- | --- | --- | --- |
+| W1-3 | 合同里留工具类型与事件 | 位置、落点、工具类型、草稿类型进 `services/contextual`；**不加事件常量** | 事件随第一对收发方登记（统筹确认）；常量没人用就是占位 |
+| W1-4 | `prepare` 指向「某个动作」；attach 带 `find` | `prepare` 必须是**同一提供方的选区动作查询**（`defineFragmentOffersAction`），其中与 `intake_id` 同名的选项就是确定地算出输入的那一份；`find` 不做，随 W3 的 Pages 落点一起上 | 今天的「记成待办」「记下灵光」选项就是现成的 `prepare`，不用再写一份；落点查找没有消费者 |
+| W1-5 | 总数 ≤12、去处 ≤8；`/prepare` 认新键；准备时冻结落点版本 | 判断候选上限仍是 16，去处 ≤8（12 等评估后再改）；`/prepare` 对去处答 `contextual.not_drafted`，去处走 `/draft`；落点版本冻结与执行前核对随 W3 的 `attach` | 12 的取舍没有评估支撑；`attach` 的写入由 W3 接 |
+| W1-7 | 起草 `intake` 与 `attach` | 只起草 `intake`（含 `prepare` 先算、一句话、补一句）；`/api/contextual/draft` 有两种形态（`key`+焦点，或 `action`+`intake_id`+一句话）；`attach` 返回 `contextual.not_drafted` | `attach` 的输入里哪个字段放文档号、位置，声明里还没有字段映射，要先在 W3 给 `attach` 加这项声明；不在 W1 猜 |
+| W1-7 | 指令登记 | `contextual.draft` 登记在 `system:contextual`（设置 › 提示词），带历史行；S-13 的行加上起草这条通道；新测试进 `test:security`（S-13 的 CI 列要求被 CI 跑） | 提示词登记检查与安全不变量门禁的现行规则 |
+| W1-9 | SDK 页面端子路径，需统筹确认快照工具支持子路径 | **挪到 W2/W3**（页面端辅助随第一个收发方一起上）；快照工具对 SDK 的 `exports` 是通用的，**不需要门禁 PR** | 没有页面端消费者就不该先有 API；更正之前说「工具要支持子路径」的说法 |
+| W1-8 | 一次上覆盖门禁骨架与 `contextual.md` | 第一部分（`contextual.md`、SKILL.md 一行、`PLUGIN-DEVELOPMENT.md` 一节）已写；覆盖门禁骨架、产品子集条目与 `AGENTS.md` 一条硬约束等插件开始声明 `intake` 后（W3）再上，否则两份冻结名单一开始就是满的 | 先有声明才有可计的覆盖 |
+
+W1-2、W1-6 等互动线 P2（#423）合入后从 main 开。

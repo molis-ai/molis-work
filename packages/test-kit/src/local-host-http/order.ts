@@ -12,9 +12,11 @@ const label = (view: GrantOrderView) => `${view.capability_id}@${view.version}`;
  * The order in which the Host accepts a set of grants: each view after every view in the set that it names in `required_actions`
  * (matched on capability and version, and on the provider when the reference pins one), and a view that needs a scene binding
  * after the views that do not, since the function bound to the scene is an ordinary action. A dependency wins over that
- * preference, and the order otherwise stays as given. A cycle throws: the Host would refuse it too (`actions.dependency_cycle`).
+ * preference, and the order otherwise stays as given. A view the set holds more than once (the same object) is taken once, at its
+ * first place: a repeat is not a cycle. A cycle throws: the Host would refuse it too (`actions.dependency_cycle`).
  */
-export function orderGrantViews<View extends GrantOrderView>(views: readonly View[]): View[] {
+export function orderGrantViews<View extends GrantOrderView>(given: readonly View[]): View[] {
+  const views = [...new Set(given)];
   const needs = new Map<View, readonly View[]>(views.map(view => [view, (view.action.required_actions ?? []).flatMap(reference =>
     views.filter(other => other.capability_id === reference.capability_id && other.version === reference.version
       && (!reference.provider_id || other.provider.provider_id === reference.provider_id)))]));

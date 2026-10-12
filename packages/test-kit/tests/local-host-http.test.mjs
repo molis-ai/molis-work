@@ -126,6 +126,16 @@ test("orderGrantViews puts a view that needs a scene binding after the views tha
   assert.deepEqual(ids(orderGrantViews([user, evaluate, pick])), ["functions.pick", "home.judgment.evaluate", "scene.user"]);
 });
 
+test("orderGrantViews takes a view that appears twice once: a repeat is not a cycle", () => {
+  const b = view("b.read"), a = view("a.write", { needs: [{ capability_id: "b.read", version: 1 }] });
+  assert.deepEqual(ids(orderGrantViews([a, a])), ["a.write"]);
+  assert.deepEqual(ids(orderGrantViews([a, b, a, b])), ["b.read", "a.write"], "the first place a view stands decides where it is granted");
+  assert.deepEqual(ids(orderGrantViews([b, b])), ["b.read"]);
+  // A repeated view that is part of a real cycle is still a cycle.
+  const x = view("x", { needs: [{ capability_id: "y", version: 1 }] }), y = view("y", { needs: [{ capability_id: "x", version: 1 }] });
+  assert.throws(() => orderGrantViews([x, y, x]), /cycle.*\bx\b.*\by\b/is);
+});
+
 test("orderGrantViews refuses a cycle before anything is sent", () => {
   const a = view("a", { needs: [{ capability_id: "b", version: 1 }] }), b = view("b", { needs: [{ capability_id: "a", version: 1 }] });
   assert.throws(() => orderGrantViews([a, b]), /cycle.*\ba\b.*\bb\b/is);
@@ -159,6 +169,16 @@ test("grantMcpActions grants in dependency order, one request per view, home-sco
     assert.deepEqual(seen.map(request => request.body.project_id), [null, "p1", null], "a home action is granted for the Home, as the settings page does");
     assert.ok(seen.every(request => request.body.enabled === true && request.body.with === undefined), "ordering carries the dependencies; `with` stays a single-grant option");
     assert.deepEqual(saved.map(row => row.capability_id), ["home.dep", "project.use", "home.judgment.evaluate"]);
+  } finally { await stop(); }
+});
+
+test("grantMcpActions sends one request for a view the set names twice", async () => {
+  const { seen, client, stop } = await fakeHost(request => ({ body: request.body }));
+  try {
+    const b = view("b.read"), a = view("a.write", { needs: [{ capability_id: "b.read", version: 1 }] });
+    const saved = await grantMcpActions(client, { clientId: "runtime:codex", projectId: "p1", actions: [a, a, b] });
+    assert.deepEqual(seen.map(request => request.body.capability_id), ["b.read", "a.write"]);
+    assert.deepEqual(saved.map(row => row.capability_id), ["b.read", "a.write"]);
   } finally { await stop(); }
 });
 

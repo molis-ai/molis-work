@@ -26,7 +26,7 @@
 | [src/browser/page.ts](src/browser/page.ts) | `ChromePage`：页内等待、点击、填写、视口、截图 |
 | [src/local-host-http/client.ts](src/local-host-http/client.ts) | `LocalHostHttpClient`、`LocalHostHttpError`：闸门要的请求头、被拒绝的状态与代码 |
 | [src/local-host-http/management.ts](src/local-host-http/management.ts) | 授权、撤权、读接入、建项目、装插件；每条路由串旁边写着它的主人文件 |
-| [src/local-host-http/order.ts](src/local-host-http/order.ts) | `orderGrantViews`：一组授权的顺序，有环就在发出前抛错 |
+| [src/local-host-http/order.ts](src/local-host-http/order.ts) | `orderGrantViews`：一组授权的顺序，同一个视图出现多次只取一次，有环就在发出前抛错 |
 | [tests](tests) | 规则回归 |
 
 可对照现有调用方 [scripts/check-package-boundaries.mjs](../../scripts/check-package-boundaries.mjs) 阅读装配方式。

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxPluginContract } from '../packages/contracts/src/platform/plugin-sandbox.js';
 import { createSandboxRunner, type SandboxLimits, type SandboxServices, type SandboxRunner } from '../packages/plugin-sandbox/dist/index.js';
+import { currentCallId, newCallId, withCallId } from '@molis-ai/molis-work-kernel';
 
 const identity: SandboxIdentity = { projectId: 'project-a', installationId: 'installation-a', pluginId: 'test', namespace: 'preview' };
 function contract(effects: SandboxEffects = {}): SandboxPluginContract {
@@ -76,6 +77,23 @@ test('SDK async capability and resource services preserve result and bound ident
     resource: { async read(_context, name) { assert.equal(name, 'guide.txt'); return 'guide'; } },
   } });
   try { assert.equal(await f.runner.call('run', 'hello'), 'HELLO/guide'); } finally { await f.close(); }
+});
+
+test('SDK requests run in the operation that made the call, not in the one that started the process', mac, async () => {
+  const effects = { capabilities: ['who'] };
+  const seen: string[] = [];
+  const f = await fixture(`export const operations={run:async(input,sdk)=>{await sdk.capability.call('who',input);await new Promise(r=>setTimeout(r,60));return await sdk.capability.call('who',input)}};`, {
+    effects, grants: effects, services: { capability: { async call(_context, _id, input) { seen.push(`${input}:${currentCallId()}`); return 'ok'; } } } });
+  try {
+    const first = newCallId(), second = newCallId();
+    // Two operations at once: the second waits in the queue and must not take the first one's number.
+    await Promise.all([withCallId(first, () => f.runner.call('run', 'a')), withCallId(second, () => f.runner.call('run', 'b'))]);
+    assert.deepEqual(seen.filter(item => item.startsWith('a:')), [`a:${first}`, `a:${first}`]);
+    assert.deepEqual(seen.filter(item => item.startsWith('b:')), [`b:${second}`, `b:${second}`]);
+    seen.length = 0;
+    await f.runner.call('run', 'c');
+    assert.deepEqual(seen, ['c:undefined', 'c:undefined'], 'a call made outside any operation has no number to borrow');
+  } finally { await f.close(); }
 });
 
 test('operation queues are independently bounded and stop rejects pending work', mac, async () => {

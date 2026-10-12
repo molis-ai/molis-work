@@ -1,157 +1,193 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { issueModel } from "./fixtures/issue-model.js";
+import { FIXTURE_TITLE, issueModel } from "./fixtures/issue-model.js";
+import { issueView } from "./fixtures/issue-browser.js";
 
-function captureRequest(requests: unknown[]): unknown {
-  const request = requests.find(request => (request as { tools?: Array<{ name: string }> }).tools?.some(tool => tool.name === "suggest-action"));
-  assert.ok(request, "Inspect the actual Assistant turn, not its separate history-selection model call"); return request;
-}
+const button = "document.querySelector('[data-side-plugin-open]')";
 
-function draftMessage(request: unknown): string {
-  const { messages } = request as { messages: Array<{ role: string; content: string | Array<{ type: string; text?: string }> }> };
-  const texts = messages.filter(message => message.role === "user").flatMap(message => typeof message.content === "string"
-    ? [message.content] : message.content.filter(block => block.type === "text").map(block => block.text ?? ""));
-  const text = texts.find(text => /录入草稿 [0-9a-f-]{36}/.test(text));
-  assert.ok(text, "The model must receive the capture request as a user message"); return text;
-}
-
-// ISSUE-14: this exercises actual page input, Assistant HTTP/Prologue and SQLite with a scripted vision provider.
-test("ISSUE-14 / ISSUE-17 description leads the request, six images and full long text reach Assistant; confirmation alone saves", { timeout: 120_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
-  const { requests } = await issueModel(t, b.homeDirectory);
-  const { origin, navigate, command, sessionId, click, evaluate, waitFor } = b;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
-  await waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
-  const db = new DatabaseSync(join(b.homeDirectory, "issues", "issues.db")); t.after(() => db.close());
-  await click("[data-issue-new]");
-  assert.equal(await evaluate("document.querySelector('[name=title]').closest('label').hidden"), true);
-  const description = "  我输入了一段文字，切换页面回来就不见了。\n";
-  await click("[name=description]"); await command("Input.insertText", { text: description }, sessionId);
-  const image = await evaluate<string>(`(async()=>{const c=document.createElement('canvas');c.width=160;c.height=80;c.getContext('2d').fillRect(0,0,160,80);const data=c.toDataURL('image/png'), bytes=Uint8Array.from(atob(data.split(',')[1]),c=>c.charCodeAt(0));const dt=new DataTransfer();for(let i=0;i<6;i++)dt.items.add(new File([bytes],i+'.png',{type:'image/png'}));document.querySelector('[data-issue-drop]').dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt}));return data;})()`);
-  await waitFor("document.querySelectorAll('[data-issue-images] img').length === 6 && !document.querySelector('[data-issue-organize]').disabled");
-  assert.equal(await evaluate("document.querySelector('[data-issue-pick]').disabled && document.querySelector('[data-issue-image-count]').textContent==='6 / 6'"), true);
-  await click("[data-issue-organize]");
-  try { await waitFor("!document.querySelector('[data-issue-save]').hidden && document.querySelector('[data-issue-save]').textContent==='确认并保存'", 15000); }
-  catch (error) { t.diagnostic(JSON.stringify({ note: await evaluate("document.querySelector('[data-issue-assistant-note]').textContent"), requests: requests.length,
-    drafts: requests.map(request => JSON.stringify(request).match(/录入草稿 ([0-9a-f-]{36})/)?.[1]) })); throw error; }
-  assert.equal(db.prepare("SELECT count(*) AS n FROM issues").get()!.n, 0);
-  assert.equal(await evaluate("document.querySelector('[name=title]').value"), "切换页面后输入内容丢失");
-  assert.equal(await evaluate("document.querySelector('[name=type]').value"), "bug");
-  assert.equal(await evaluate("(()=>{const field=document.querySelector('[name=type]').closest('label').getBoundingClientRect(),scroll=document.querySelector('[data-issue-scroll]').getBoundingClientRect();return field.top>=scroll.top && field.bottom<=scroll.bottom})()"), true, "The confirmation type must scroll into view even when its native select is hidden by the shared picker");
-  assert.equal(await evaluate("document.querySelector('[name=description]').value"), description);
-  // ISSUE-24: the immutable capture still lets the person inspect their screenshots.
-  assert.equal(await evaluate("document.querySelector('[name=description]').readOnly && document.querySelector('[data-issue-pick]').disabled && [...document.querySelectorAll('[data-issue-remove]')].every(b=>b.disabled)"), true);
-  await click("[data-issue-images] [data-issue-preview]");
-  await waitFor("document.querySelector('[data-issue-image-dialog]').open"); await click("[data-issue-image-close]");
-  await click("[data-issue-model-settings]");
-  await waitFor("document.querySelector('[data-home-model-settings] [data-model-name]')");
-  assert.equal(await evaluate("document.querySelector('[data-home-model-settings]').getBoundingClientRect().width>800"), true);
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-model-api-format]')).backgroundRepeat"), "no-repeat");
-  assert.equal(await evaluate("document.querySelector('[data-model-api-format]').hidden"), true);
-  await click("[data-model-api-format] + [data-mw-select-trigger]");
-  await waitFor("document.querySelector('[data-model-api-format]').parentElement.querySelector('[role=listbox]').matches(':popover-open')");
-  for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
-  assert.equal(await evaluate("document.querySelector('[data-home-model-settings]').open && !document.querySelector('[data-model-api-format]').parentElement.querySelector('[role=listbox]').matches(':popover-open')"), true, "Escape closes only the nested menu and leaves model settings open");
-  const providerName = await evaluate("document.querySelector('[data-model-name]').value");
-  await evaluate("document.querySelector('[data-model-name]').value='尚未保存的供应商名称';document.querySelector('[data-model-name]').dispatchEvent(new Event('input',{bubbles:true}))");
-  assert.equal(await evaluate("document.querySelector('[data-model-status]').textContent"), "有未保存的修改", "Use the real Work settings binding");
-  await click("[data-home-model-close]"); await click("[data-issue-model-settings]");
-  assert.equal(await evaluate("document.querySelector('[data-model-name]').value"), "尚未保存的供应商名称");
-  await click('[data-home-model-settings] a[href="/settings/connectors?connector=model-api"]');
-  await waitFor("document.querySelector('[data-home-model-settings] [data-connectors-settings]')");
-  assert.equal(await evaluate("location.pathname"), "/plugins/issues");
-  assert.equal(await evaluate("document.querySelector('[data-connector-detail=\"model-api\"]').hidden"), false);
-  assert.equal(await evaluate("document.getElementById(document.querySelector('[data-connectors-settings]').getAttribute('aria-labelledby')).textContent"), "服务连接", "Cached settings pages must retain distinct accessible names");
-  await click("details:has([data-connection-rename]) > summary");
-  await evaluate("document.querySelector('[data-connection-rename] input').value='Issue 连接已更新'");
-  await click("[data-connection-rename] button");
-  await waitFor("document.querySelector('[data-connection-row] strong')?.textContent==='Issue 连接已更新'");
-  await click("[data-home-model-back]");
-  await waitFor("document.querySelector('[data-model-connection]')?.selectedOptions[0]?.textContent==='Issue 连接已更新'");
-  assert.equal(await evaluate("document.querySelector('[data-model-name]').value"), "尚未保存的供应商名称");
-  await click('[data-home-model-settings] a[href="/settings/connectors?connector=model-api"]');
-  assert.equal(await evaluate("document.querySelector('[data-connection-row] strong').textContent"), "Issue 连接已更新", "Reopening retains the document replaced by the connections binding");
-  assert.equal(await evaluate("location.pathname"), "/plugins/issues");
-  await click("[data-home-model-back]");
-  await click("[data-model-discard]"); await waitFor(`document.querySelector('[data-model-name]').value===${JSON.stringify(providerName)}`);
-  await click("[data-home-model-close]");
-  assert.equal(await evaluate("document.querySelector('[name=description]').value"), description);
-  assert.equal(await evaluate("document.querySelectorAll('[data-issue-images] img').length"), 6);
-  assert.equal(await evaluate("document.querySelector('[data-issue-save]').textContent"), "确认并保存");
-  const firstRequest = captureRequest(requests);
-  const outbound = JSON.stringify(firstRequest); assert.ok(outbound.includes(image.split(",")[1]!));
-  assert.ok(outbound.includes("suggest-action"));
-  assert.equal((outbound.match(/"type":"image"/g) ?? []).length, 6);
-  const assistantRequests = requests.filter(request => (request as { tools?: Array<{ name: string }> }).tools?.some(tool => tool.name === "suggest-action"));
-  assert.ok(assistantRequests.length >= 2, "Inspect both discovery and suggestion calls");
-  for (const request of assistantRequests) assert.equal((JSON.stringify(request).match(/"type":"image"/g) ?? []).length, 6, "Original images must survive tool rounds");
-  // ISSUE-17: inspecting the real model request catches moving the description back into attachments alone.
-  assert.ok(draftMessage(firstRequest).includes(`本次问题描述：\n${description.trimEnd()}`));
-  await evaluate("document.querySelector('[name=title]').value='我确认的标题';document.querySelector('[name=title]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[name=type]').value='experience'");
-  const evidence = resolve(".impeccable/qa/review/issue-home-v0"); await mkdir(evidence, { recursive: true });
-  const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(join(evidence, "assistant-confirm.png"), Buffer.from(shot.data, "base64"));
-  await click("[data-issue-save]"); await waitFor("document.querySelector('[data-issue-note]').textContent==='已保存'");
-  const saved = db.prepare("SELECT * FROM issues").get()!;
-  assert.equal(saved.title, "我确认的标题"); assert.equal(saved.type, "experience"); assert.equal(saved.description, description); assert.equal(saved.entered_via, "assistant");
-  assert.deepEqual(JSON.parse(String(saved.images_json)), Array.from({ length: 6 }, (_, i) => ({ name: `${i}.png`, data_url: image })));
-  await navigate(() => command("Page.reload", {}, sessionId)); await waitFor(`document.querySelector('[data-issue-id="${saved.id}"]')`);
-  await click(`[data-issue-id="${saved.id}"]`); await waitFor("document.querySelectorAll('[data-issue-images] img').length===6");
-  assert.equal(await evaluate("document.querySelector('[name=title]').value"), saved.title);
-  const longDescription = "开头说明录入场景。".padEnd(49_980, "甲") + "中间说明复现步骤。".padEnd(49_980, "乙") + "末尾才说明真正的问题：返回页面后文字丢失。";
-  const nextRequest = requests.length;
-  await click("[data-issue-new]"); await click("[name=description]"); await command("Input.insertText", { text: longDescription }, sessionId);
-  await click("[data-issue-organize]"); await waitFor("document.querySelector('[data-issue-save]').textContent==='确认并保存'");
-  const confirmGeometry = await evaluate("['[name=title]','[data-issue-inputs] [data-mw-select-trigger]','[data-issue-scroll]'].map(selector=>{const e=document.querySelector(selector),r=e.getBoundingClientRect();return {selector,top:r.top,bottom:r.bottom,scroll:e.scrollTop}})");
-  assert.equal(await evaluate("['[name=title]','[data-issue-inputs] [data-mw-select-trigger]'].every(selector=>{const r=document.querySelector(selector).getBoundingClientRect(),s=document.querySelector('[data-issue-scroll]').getBoundingClientRect();return r.height>0 && r.top>=s.top && r.bottom<=s.bottom})"),true,JSON.stringify(confirmGeometry));
-  const longRequest = captureRequest(requests.slice(nextRequest));
-  assert.ok(draftMessage(longRequest).includes("问题描述”全文材料"));
-  assert.ok(draftMessage(longRequest).length < 20_000);
-  const longOutbound = JSON.stringify(longRequest);
-  for (const marker of ["开头说明录入场景。", "中间说明复现步骤。", "末尾才说明真正的问题：返回页面后文字丢失。"]) {
-    if (!longOutbound.includes(marker)) await writeFile(join(evidence, "title-priority-long-request.json"), JSON.stringify(longRequest, null, 2));
-    assert.ok(longOutbound.includes(marker), `The model must receive the long description marker: ${marker}`);
-  }
-  assert.equal(db.prepare("SELECT count(*) AS n FROM issues").get()!.n, 1);
-  await click("[data-issue-revise]");
-  assert.equal(await evaluate("document.querySelector('[name=description]').value"), longDescription);
-  assert.equal(db.prepare("SELECT count(*) AS n FROM issues").get()!.n, 1);
+test("ISSUE-35 ISSUE-36 ISSUE-39 ISSUE-40 a chord, a sentence and ⌘↵ record an Issue the Assistant names in the background", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  let release!: () => void; const firstReply = new Promise<void>(resolve => { release = resolve; }); t.after(() => release());
+  const { requests } = await issueModel(t, b.homeDirectory, { firstReply });
+  const v = issueView(b);
+  await v.viewport(1440); await v.go("/");
+  // A tool with a chord is loaded while the page is idle, so the first press shows a ready view.
+  await b.waitFor(`'loaded' in (document.querySelector('[data-side-body="plugin:issues/capture"] iframe')?.dataset ?? {})`, 10_000);
+  await v.chord(); await v.composerFocused();
+  await v.type("  切换页面以后，输入没了。\n"); await v.paste();
+  await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1 && !$('[data-issue-submit]').disabled");
+  await v.send();
+  // Sent at once: the composer is empty and keeps the keyboard; the record is on its way, not yet written.
+  await v.until("$('[data-issue-list] [data-state=organizing]') && $('[data-issue-composer] [name=description]').value === '' && d.activeElement === $('[data-issue-composer] [name=description]')");
+  assert.equal(await v.ask("d.querySelectorAll('[data-issue-thumbs] img').length"), 0);
+  assert.equal((await v.list()).items.length, 0, "nothing is written before the Assistant names it");
+  await v.shot("capture-organizing");
+  // The person goes back to work; the tool says it is busy while closed.
+  await v.escape(); await b.waitFor("document.body.dataset.sideOpen === 'false'");
+  assert.equal(await b.evaluate(`${button}.dataset.sideBusy`), "busy");
+  release();
+  await b.waitFor(`!${button}.dataset.sideBusy`, 20_000);
+  const [saved] = (await v.list()).items;
+  assert.equal(saved!.title, FIXTURE_TITLE); assert.equal(saved!.type, "bug"); assert.equal(saved!.entered_via, "assistant");
+  const issue = await v.read(saved!.id);
+  assert.equal(issue.description, "  切换页面以后，输入没了。\n", "the person's words are kept as written"); assert.equal(issue.images.length, 1);
+  assert.deepEqual(issue.context.page, { url: "/", title: "首页", provenance: "client_reported" });
+  // One model turn names it: no discovery round, no confirmation card.
+  const turns = (requests as Array<{ messages: unknown }>).filter(body => JSON.stringify(body).includes(saved!.id));
+  assert.equal(turns.length, 2, "the save call and the closing sentence");
+  assert.match(JSON.stringify(turns[0]), /记录时所在页面：首页/);
+  const { works, notices } = await v.assistant();
+  assert.equal(works.some(view => view.work.title.startsWith("记录 Issue")), false, "a finished capture is filed away, not left in the Assistant's list");
+  assert.equal(notices.some(notice => notice.work_title.startsWith("记录 Issue")), false);
+  await v.chord(); await v.composerFocused();
+  await v.until(`$('[data-issue-list] .issues-row')?.textContent.includes(${JSON.stringify(FIXTURE_TITLE)}) && /Bug · .* · 1 张截图/.test($('[data-issue-list] .issues-row').textContent)`);
+  await v.shot("capture-saved");
+  // Pressed again from inside the tool, the chord puts it away.
+  await v.chord(); await b.waitFor("document.body.dataset.sideOpen === 'false'");
 });
 
-test("ISSUE-15 no model keeps the original draft and allows explicit manual recovery", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
-  const { origin, navigate, command, sessionId, click, evaluate, waitFor } = b;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await navigate(() => command("Page.navigate", { url: `${origin}/plugins/issues` }, sessionId));
-  await waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready==='true'"); await click("[data-issue-new]");
-  await click("[name=description]"); await command("Input.insertText", { text: "没有模型也不丢掉描述" }, sessionId);
-  await click("[data-issue-organize]");
-  await waitFor("document.querySelector('[data-issue-assistant-note]').textContent.includes('模型')", 15000);
-  assert.equal(await evaluate("document.querySelector('[name=description]').value"), "没有模型也不丢掉描述");
-  // ISSUE-23: failed loading is recoverable in place, without unloading the Issue draft.
-  await command("Network.enable", {}, sessionId);
-  await command("Network.setBlockedURLs", { urls: [`${origin}/settings/models*`] }, sessionId);
-  await click("[data-issue-model-settings]");
-  await waitFor("document.querySelector('[data-home-model-settings]')?.open");
-  await waitFor("!document.querySelector('[data-home-model-retry]').hidden");
-  assert.equal(await evaluate("location.pathname"), "/plugins/issues");
-  await command("Network.setBlockedURLs", { urls: [] }, sessionId);
-  await click("[data-home-model-retry]");
-  await waitFor("document.querySelector('[data-home-model-settings] [data-model-settings]')");
-  assert.equal(await evaluate("document.querySelector('[data-home-model-settings]').textContent.includes('还没有配置供应商')"), true);
-  await click("[data-home-model-close]");
-  assert.equal(await evaluate("document.activeElement.matches('[data-issue-model-settings]')"), true);
-  await click("[data-issue-model-settings]");
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
-  await waitFor("!document.querySelector('[data-home-model-settings]').open");
-  assert.equal(await evaluate("document.querySelector('[name=description]').value"), "没有模型也不丢掉描述");
-  await click("[data-issue-revise]"); await click("[data-issue-manual]");
-  assert.equal(await evaluate("document.querySelector('[name=title]').closest('label').hidden"), false);
-  assert.equal(await evaluate("document.querySelector('[name=description]').value"), "没有模型也不丢掉描述");
+test("ISSUE-38 undo takes a new record back and returns the words to an empty composer", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  await issueModel(t, b.homeDirectory);
+  const v = issueView(b);
+  await v.viewport(1440); await v.go("/");
+  await v.chord(); await v.composerFocused();
+  await v.type("保存按钮点了没反应"); await v.send();
+  await v.until("!$('[data-issue-toast]').hidden && $('[data-issue-toast-action]').textContent === '撤销'", 20_000);
+  assert.equal((await v.list()).items.length, 1);
+  await v.press("[data-issue-toast-action]");
+  await v.until("$('[data-issue-toast] span').textContent === '已撤销，内容放回了输入框'");
+  assert.equal((await v.list()).items.length, 0);
+  assert.equal(await v.ask("$('[data-issue-composer] [name=description]').value"), "保存按钮点了没反应");
+  // A record changed after it was made is not taken back by an undo.
+  await v.send(); await v.until("$('[data-issue-toast-action]').textContent === '撤销'", 20_000);
+  const [record] = (await v.list()).items;
+  await v.api("/api/plugins/io.molis.work.issues/update", { id: record!.id, expected_version: 1, title: "后来改过" });
+  await v.press("[data-issue-toast-action]");
+  await v.until("/记录后已修改/.test($('[data-issue-toast] span').textContent)");
+  assert.equal((await v.list()).items[0]!.title, "后来改过");
+});
+
+test("ISSUE-37 a capture the Assistant cannot finish stays at the top and opens with nothing lost", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  const behavior: Parameters<typeof issueModel>[2] = { question: "free-text" };
+  await issueModel(t, b.homeDirectory, behavior);
+  const v = issueView(b);
+  await v.viewport(1440); await v.go("/");
+  await v.chord(); await v.composerFocused();
+  await v.type("111"); await v.paste(); await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1");
+  await v.send();
+  await v.until("$('[data-state=attention]')?.textContent.includes('需要补充：你在哪个页面做了什么')", 20_000);
+  await b.waitFor(`${button}.dataset.sideBusy === 'attention'`, 5_000);
+  // The row is the one place to continue: nothing waits on the same question in the Assistant.
+  for (let tries = 0; ; tries++) {
+    const { works, notices } = await v.assistant();
+    if (!notices.length && !works.some(view => view.work.state === "waiting-input")) break;
+    assert.ok(tries < 50, "the asking work still waits in the Assistant"); await new Promise(done => setTimeout(done, 100));
+  }
+  await v.press("[data-state=attention]");
+  // Asked for a fact: the words come first, and trying again is the main step.
+  await v.until("!$('[data-issue-editor]').hidden && d.activeElement === $('[data-issue-editor] [name=description]')");
+  assert.deepEqual(await v.ask("({ text: $('[data-issue-editor] [name=description]').value, shots: d.querySelectorAll('[data-issue-edit-shots] img').length, flag: $('[data-issue-flag]').textContent, redo: $('[data-issue-redo]').className.includes('primary') })"),
+    { text: "111", shots: 1, flag: "需要补充：你在哪个页面做了什么，出现了什么问题？也可以补充截图。", redo: true });
+  await v.shot("capture-question");
+  await v.type("：首页点“让助理起草目标”没反应"); behavior.question = undefined;
+  await v.press("[data-issue-redo]");
+  await v.until("$('[data-issue-detail]').hidden && !$('[data-state]') && $('[data-issue-list] .issues-row')", 20_000);
+  const [saved] = (await v.list()).items;
+  assert.equal((await v.read(saved!.id)).description, "111：首页点“让助理起草目标”没反应"); assert.equal(saved!.image_count, 1);
+  const { works, notices } = await v.assistant();
+  assert.equal(works.filter(view => ["waiting-input", "running"].includes(view.work.state)).length, 0, "the asking work was stopped once answered here");
+  assert.equal(notices.length, 0);
+
+  // The model is down: the capture says so and is saved by hand, with the page it was written on.
+  behavior.unavailable = true;
+  await v.press("[data-issue-composer] [name=description]"); await v.type("保存按钮点了没反应"); await v.send();
+  await v.until("$('[data-state=attention]')?.textContent.includes('模型暂时不可用')", 30_000);
+  await v.press("[data-state=attention]"); await v.until("d.activeElement === $('[data-issue-editor] [name=title]')");
+  assert.equal(await v.ask("!!$('[data-issue-flag] a[href=\"/settings/models\"]')"), true, "the note leads to the model settings");
+  await v.press("[data-issue-save]"); await v.until("$('[data-issue-flag]').textContent === '写个标题并选一个类型再保存。'");
+  await v.type("保存按钮没反应"); await v.press("[data-issue-editor] [data-type=bug]"); await v.press("[data-issue-save]");
+  await v.until("$('[data-issue-detail]').hidden && !$('[data-state]')", 10_000);
+  const manual = (await v.list()).items[0]!;
+  assert.deepEqual([manual.title, manual.type, manual.entered_via, manual.context.page?.title], ["保存按钮没反应", "bug", "manual", "首页"]);
+  assert.equal((await v.list()).items.length, 2);
+});
+
+test("ISSUE-37 a person who confirms every save gets a prefilled editor, and the draft saves once", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  await issueModel(t, b.homeDirectory, { suggest: true });
+  const v = issueView(b);
+  await v.viewport(1440); await v.go("/");
+  await v.api("/api/assistant/capabilities", { capability_id: "issues.capture", version: 1, provider_id: "io.molis.work.issues", confirm_always: true });
+  await v.chord(); await v.composerFocused();
+  await v.type("切换页面以后，输入没了。"); await v.send();
+  await v.until("$('[data-state=attention]')?.textContent.includes('请确认标题和类型后保存')", 20_000);
+  assert.equal((await v.list()).items.length, 0, "a refused direct save writes nothing");
+  await v.press("[data-state=attention]");
+  assert.deepEqual(await v.ask("({ title: $('[data-issue-editor] [name=title]').value, type: $('[data-issue-editor]').dataset.type })"), { title: FIXTURE_TITLE, type: "bug" });
+  await v.press("[data-issue-save]");
+  await v.until("$('[data-issue-detail]').hidden && !$('[data-state]')", 10_000);
+  const { items } = await v.list(); assert.equal(items.length, 1); assert.equal(items[0]!.title, FIXTURE_TITLE);
+  // Abandoning a capture keeps nothing and leaves no waiting work behind.
+  await v.press("[data-issue-composer] [name=description]"); await v.type("这条不要了"); await v.send();
+  await v.until("$('[data-state=attention]')", 20_000); await v.press("[data-state=attention]"); await v.press("[data-issue-cancel]");
+  await v.until("$('[data-issue-dialog]').open");
+  await v.press("[data-issue-dialog] [value=confirm]");
+  await v.until("$('[data-issue-detail]').hidden && !$('[data-state]')");
+  assert.equal((await v.list()).items.length, 1);
+  assert.equal((await v.assistant()).works.filter(view => ["waiting-review", "running"].includes(view.work.state)).length, 0);
+});
+
+test("ISSUE-37 an unfinished capture survives leaving the page and saves once from where it was left", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  await issueModel(t, b.homeDirectory, { unavailable: true });
+  const v = issueView(b);
+  await v.viewport(1440); await v.go("/");
+  await v.chord(); await v.composerFocused();
+  await v.type("离开页面前没整理完的一条"); await v.paste(); await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1");
+  await v.send();
+  await v.until("$('[data-state=attention]')?.textContent.includes('模型暂时不可用')", 30_000);
+  // A full navigation: the words and why it is waiting come back with the page that opens next; the picture has to be added again.
+  await v.go(`/projects/${b.projectId}/?desktop=1`);
+  await v.chord(); await v.composerFocused();
+  await v.until("$('[data-state=attention]')?.textContent.includes('模型暂时不可用，点开手动保存，或检查模型设置（截图要重新添加）')");
+  // The dot comes from the view's status message to the shell, a moment after the row is drawn.
+  await b.waitFor(`document.querySelector('[data-side-plugin-open]').dataset.sideBusy === 'attention'`, 5_000);
+  await v.press("[data-state=attention]");
+  assert.equal(await v.ask("$('[data-issue-editor] [name=description]').value"), "离开页面前没整理完的一条");
+  await v.type("离开页面后补记"); await v.press("[data-issue-editor] [data-type=bug]"); await v.press("[data-issue-save]");
+  await v.until("$('[data-issue-detail]').hidden && !$('[data-state]')");
+  const { items } = await v.list();
+  assert.equal(items.length, 1); assert.equal(items[0]!.title, "离开页面后补记");
+  assert.equal(await b.evaluate("localStorage.getItem('molis:issue-unsent')"), "[]", "nothing unfinished is left on the device");
+  assert.equal((await v.assistant()).notices.length, 0, "the failed capture's work was filed away once it was settled here");
+});
+
+
+test("ISSUE-36 while an input method is composing, ⌘↵ and the IME's own Enter send nothing; what is sent is exactly what the composer holds", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  await issueModel(t, b.homeDirectory);
+  const v = issueView(b);
+  await v.viewport(1440); await v.go("/");
+  await v.chord(); await v.composerFocused();
+  await v.type("登录页");
+  await b.command("Input.imeSetComposition", { text: "jietu", selectionStart: 5, selectionEnd: 5 }, b.sessionId);
+  // ⌘↵ and the IME's commit key arrive while the pinyin is still being composed (key code 229). Whether this Chrome
+  // then commits the pinyin itself is the browser's business; sending is the page's, and it must not happen.
+  for (const modifiers of [4, 0]) for (const type of ["rawKeyDown", "keyUp"])
+    await b.command("Input.dispatchKeyEvent", { type, modifiers, key: "Enter", code: "Enter", windowsVirtualKeyCode: 229, nativeVirtualKeyCode: 229 }, b.sessionId);
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.equal(await v.ask("d.querySelectorAll('[data-issue-list] [data-state]').length"), 0, "nothing is sent while composing");
+  assert.equal((await v.list()).items.length, 0);
+  await b.command("Input.insertText", { text: "截图" }, b.sessionId);
+  await v.until("$('[data-issue-composer] [name=description]').value.endsWith('截图')");
+  const held = await v.ask<string>("$('[data-issue-composer] [name=description]').value");
+  assert.match(held, /^登录页.*截图$/);
+  await v.send();
+  await v.until("$('[data-issue-composer] [name=description]').value === ''");
+  await v.until("!$('[data-issue-list] [data-state]') && $('[data-issue-list] .issues-row')", 20_000);
+  const { items } = await v.list(); assert.equal(items.length, 1, "one ⌘↵ after the composition sends once");
+  assert.equal((await v.read(items[0]!.id)).description, held);
 });

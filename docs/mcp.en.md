@@ -64,3 +64,12 @@ The person's decisions are written only from the protected Web interface or the 
 When the service is unavailable, report the failure; do not switch databases, change URLs or fall back to the CLI. `mcp.context_refresh_required` only asks for a read-only `context_resolve`: when it returns bound, retry with the original idempotency_key; otherwise follow project selection.
 
 Plugins do not register separate MCP tools: the actions a plugin declares in its Manifest are its external capabilities. See [Plugin development](platform/PLUGIN-DEVELOPMENT.md).
+
+## The diagnostic number of a failure
+
+Every `tools/call` is one operation, and Molis Work gives it a number (`call_id`, called the "Diagnostic ID" in the interface): every call the operation causes shares it in the call log. Only Molis Work assigns it; a value in the tool arguments, in `_meta` or in the request is never read. It is not an identity and grants no permission.
+
+- A failure carries `call_id` in the JSON at the end of its error text, for example `{"code":"actions.input_invalid","call_id":"…"}`; a command that succeeded and left a row in the call log carries it in the result's `_meta["molis-work/callId"]`.
+- The number is given only when the operation left a row in the call log: a command (whether it worked or not), a call turned away before its handler ran (recorded as not run), a read that failed. A read that worked leaves no row and carries nothing; a failure before any action was reached (an action that is not granted, `mcp.tool_unknown`, no resident service) has none either.
+- When you report a failure to the user, give the number (the first 6 characters or more) with the error code; the user or a maintainer finds every step of the operation under it in Molis Work's call log (looking a number up in the interface comes in a later release).
+- The resident service and the `molis-work-mcp` process must be the same version: an older MCP process sends no number with an action call, and a newer resident service refuses it with `actions.input_invalid`. Restart the MCP process.

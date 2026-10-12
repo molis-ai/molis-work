@@ -1,6 +1,6 @@
 import { bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PPT_SUBJECT_KIND, type PptRecord, type PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
-import { PptError } from "./error.js";
+import { pptErrors } from "./error.js";
 import type { PptStore } from "./store.js";
 
 /** A deck is a workflow content station: it hands its outline on as Markdown and turns Markdown it receives into slides. */
@@ -48,13 +48,13 @@ export function slidesFromMarkdown(markdown: string, fallbackTitle: string): { t
     current.bullets.push(bullet.slice(0, 200));
   }
   const chosen = slides.filter(slide => slide.title || slide.bullets.length || slide.notes.length).slice(0, 40);
-  if (!chosen.length) throw new PptError("ppt.invalid", "收到的内容里没有可以做成幻灯片的文字");
+  if (!chosen.length) throw pptErrors.invalid("收到的内容里没有可以做成幻灯片的文字");
   return { title: (title || fallbackTitle || "未命名演示稿").slice(0, 80),
     slides: chosen.map(slide => ({ title: slide.title.slice(0, 80), bullets: slide.bullets.slice(0, 12), notes: slide.notes.join("\n").slice(0, 2000) })) };
 }
 
 export function createPptContentHandlers(withStore: <T>(run: (store: PptStore) => T) => T): ActionHandlerBinding[] {
-  const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new PptError("ppt.invalid", "缺少项目"); return caller.project_id; };
+  const project = (caller: ActionCallContext) => { if (!caller.project_id) throw pptErrors.invalid("缺少项目"); return caller.project_id; };
   return bindWorkflowContentHandlers(pptContentActions, {
     list: caller => withStore(store => store.list(project(caller)).map(deck => ({ item_id: deck.id, title: deck.title, caption: deck.slides.length + " 页", at: deck.updated_at }))),
     read: ({ item_id }, caller) => withStore(store => { const deck = store.get(item_id, project(caller)); return { title: deck.title, body: pptMarkdown(deck), source: "演示稿" }; }),

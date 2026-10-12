@@ -17,7 +17,7 @@
 4. **每次调用恰好结算一次；调用记录只写「谁调了什么、怎样结束」和错误码，不写内容。** 结算在 `ActionService.invoke` 与 `invokeSync`（`packages/kernel/src/action-settlement.ts`）：处理器的结果或失败，以及处理器之前的每一种拒绝（缺失、提供方变化、无权、输入不合、限流、宿主策略、同步入口自己的检查），都交给宿主的 `actionSettled` 钩子，拒绝带「处理器没跑」的标记。宿主 typed 口对带 `action` 的条目走同一处，不带 `action` 的宿主能力由宿主自己结算一次（`apps/local-host/src/typed-call-settlement.ts`，带 `path: "typed"`）。调用记录（`apps/local-host/src/action-call-log.ts`）每个命令记一行（含宿主自己的 typed 命令），读取只在失败时记，`wait` 不记；被拒的调用（含处理器之前就被取消、撤权、停用的）也记一行，界面写「未执行」。硬规则「被取消、撤权、停用的调用不再写任何业务记录」只管业务数据；这一行是诊断行，只记谁、什么动作、结果与错误码，不记内容（输入、返回、动作给的错误信息都不记；用户 2026-10-10 决定，W3-01 B）；失败的读取同。只有处理器跑过又失败的命令照旧另存一句错误信息（至多 200 字，带合同校验错误码的只存到第一个「：」为止）。页面自己找项目可能没有的插件的区域（Feed、Inbox、Schedule、Artifacts）时，「未启用」是它要的答案，这样的拒绝不留行（内核的 `expectingRefusal`，页面侧是 `lookingForArea`；`tests/optional-areas-call-log.test.ts`），所以开页面不会在这里添一屏没人要求的行。这只管页面自己那一次调用在处理器之前的拒绝，而且只在它还没结束时：进入处理器时 `startHandler` 清空这个声明，调用结束时 `expectingRefusal` 把它关掉，处理器再调的、调用结束后才触发的计时器、流、子进程里的，被拒了照常记（`tests/action-call-log.test.ts`）。
 5. **每次调用有一个调用编号（`call_id`），调用记录的行带它，但入口和响应还没带。** 内核给没带编号的调用补上：沿用此刻打开的作用域里的编号，没有就新生成（`packages/kernel/src/call-scope.ts`）；动作处理器和宿主能力处理器拿到的上下文里一定有，嵌套调用共用。各入口还没有为一次操作打开作用域，所以现在每个顶层调用各有一个编号；一次性键 `x-molis-work-idempotency-key` 只在 HTTP 入口防重放、不往下传，它不是调用编号。调用记录里的每一行带编号（合并的行另存最近 20 个，按六个字符起的前缀找得到）；写下一行后内核的作用域记下「这个编号留了行」（`markCallRecorded`，`recordedCallId`），入口只给查得到的编号。入口和响应还没带它，界面上的报错因此仍追不到具体环节。
    - **目标（决定 5）**：Host 给每次调用一个编号，贯穿各入口与调用记录（W3-01）；界面报错的详情里显示它的短形式，叫「诊断编号」，可以一键复制；「设置 › 诊断」按诊断编号列出最近的调用。
-   - **今天**：「设置 › 诊断」（`apps/workbench/src/settings-renderer.ts` 的诊断页）只有本体安装状态、提示词与角色登记、助理与执行服务的账目、启动入口和常驻服务，不列调用。最近的调用在「能力」页的「调用记录」（`apps/workbench/src/capabilities.ts`，数据来自 `ActionCallLog`）：命令、失败的读取和标为「未执行」的被拒调用；页面上还不显示编号。
+   - **今天**：「设置 › 诊断」（`apps/workbench/src/settings-call-diagnostics.ts`）在本体安装状态、提示词与角色登记、助理与执行服务的账目、启动入口和常驻服务之上有一块「按诊断编号查找」：`?call=` 给诊断编号（六个字符起的前缀，不分大小写，截到 64 个字符），列出这次操作的每一行（`apps/local-host/src/web-call-diagnostics.ts` 读 `ActionCallLog.find`；合并的行显示被问到的那个编号，每行带所在项目和到该项目调用记录的链接）；没有给编号时列出各项目最近 20 条失败或未执行的调用；编号太短、查不到各有说明。「能力」页的「调用记录」每行显示诊断编号和复制按钮（`data-molis-call-id`，两处共用 `apps/workbench/src/call-row.ts`），宿主自己发的调用写「Molis Work」，不再标成「你」。复制：页面挂在工作台的设置里时（平常的路径，页面自带的脚本不会执行）由工作台已有的 `[data-copy-value]` 处理，提示是「引用已复制」，W3-10 换成共用助手的同一句提示；设置页自己打开时（还没有项目）由页内脚本 `apps/workbench/src/scripts/settings-call-id.ts` 处理，提示「诊断编号已复制」。入口和响应还没带编号，所以报错详情里还不显示它（W3-10 做），在那之前要从日志或调用记录里复制编号再来这里查。
 
 ### 入口对照
 
@@ -55,7 +55,7 @@
 
 **现状与缺口**
 
-- 调用编号在内核、宿主 typed 口和调用记录的行里有；入口按操作给号、响应带号、界面显示，见 §1 第 5 条（W3-01 的后续片）；错误只有一个模型：码是 `<主人>.<原因>`，状态由错误的 kind 推出，平台自己的码在 `packages/contracts/src/platform/action-errors.ts` 的 `ACTION_ERROR_KINDS` 里（W3-02）。Todo 已经走这个模型，不带映射函数；其余插件还各带一份映射函数，对同一个错误码仍给出不同状态，例如 `actions.plugin_disabled` 在 Feed 与 Inbox 里是 403、在 Pages 里是 400，它们按 W3-02 的后续片逐个换掉；浏览器端没有共用请求客户端（W3-10）。
+- 调用编号在内核、宿主 typed 口和调用记录的行里有；入口按操作给号、响应带号、错误详情显示，见 §1 第 5 条（W3-01 的后续片、W3-10）；诊断页按编号查找和调用记录里的编号已有（W3-01 F）；错误只有一个模型：码是 `<主人>.<原因>`，状态由错误的 kind 推出，平台自己的码在 `packages/contracts/src/platform/action-errors.ts` 的 `ACTION_ERROR_KINDS` 里（W3-02）。Todo 已经走这个模型，不带映射函数；其余插件还各带一份映射函数，对同一个错误码仍给出不同状态，例如 `actions.plugin_disabled` 在 Feed 与 Inbox 里是 403、在 Pages 里是 400，它们按 W3-02 的后续片逐个换掉；浏览器端没有共用请求客户端（W3-10）。
 - 步骤 4 是手写的前缀链；改成注册表是 W5-07。新的内置插件只走 Plugin Runtime，不再新增这类文件。
 - 不经 `ActionService` 的 typed 能力（`LocalHost.register` 的非动作分支）不校验 schema；它们的调用由宿主结算一次（带 `path: "typed"`），其中的命令进调用记录（读取只在失败时）；边界见 §10。
 - [系统架构 §4](ARCHITECTURE.md) 写的「owner 提交后经 Durable Outbox 发布事件」是目标，不是现状（[BL-070](../../specs/BACKLOG.md)）：现在各 owner 在自己的事务里写自己的事件日志，没有统一的发布通道，消费方靠读 owner 的动作或轮询。

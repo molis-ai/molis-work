@@ -20,7 +20,7 @@
 | 动作（Action） | 一项已注册、带版本和输入输出合同的可调用操作；所有入口调用同一份 | 能力（另有处写「动作」，见 U1） | 能力、函数、工具（指目录条目时） |
 | 动作目录 | 动作服务按调用者算出的、当下可发现的动作清单 | 能力库 | 共同目录、能力目录、能力板、动作库 |
 | 动作服务 | 注册、发现、授权、调用动作的共用服务 | 能力服务 | 统一动作服务（全称，可用） |
-| 调用编号（call id） | 宿主给一次入口级操作的编号，贯穿它引起的每次动作与宿主能力调用，只用于诊断，不是身份 | 诊断编号（英文 Diagnostic ID；2026-10-10 用户已批准，界面里随 W3-01 后续的 PR 出现） | 调用 id、trace id、请求编号；一次性键（`x-molis-work-idempotency-key` 防重放，不是它）；助理与 Agent 工具活动的 `call_id`（一行活动的标识，不是它） |
+| 调用编号（call id） | 宿主给一次入口级操作的编号，贯穿它引起的每次动作与宿主能力调用，只用于诊断，不是身份 | 诊断编号（英文 Diagnostic ID；2026-10-10 用户已批准；「设置 › 诊断」与「能力 › 调用记录」里已出现，错误详情里随 W3-10） | 调用 id、trace id、请求编号；一次性键（`x-molis-work-idempotency-key` 防重放，不是它）；助理与 Agent 工具活动的 `call_id`（一行活动的标识，不是它） |
 | 调用记录 | Home 里近期调用的诊断记录：谁调了什么、怎样结束，不写输入与结果 | 调用记录 | 动作调用日志（`docs/system/SECURITY-INVARIANTS.md` S-12 的写法） |
 | 宿主能力（typed capability） | 注册表里不带 `action` 的条目，只作宿主内的服务通道 | 无 | 裸写的「能力」「Capability」 |
 | 判断规则 | 已发布、版本不可变的判断：给一段内容，返回选择、是非概率或分数 | 判断规则 | 判断函数、Function、Functions |
@@ -71,14 +71,14 @@
 
 - 定义：宿主给一次入口级操作的编号：页面上的一次请求、MCP 的一次 `tools/call`、助理或 Agent 的一轮、一条命令行命令、一次定时触发。这次操作引起的所有动作调用与宿主能力调用共用它，所以一份报告能对到这次操作走过的每一步。字段是 `ActionCallContext.call_id`（合同类型 `ActionCallOrigin`，`packages/contracts/src/platform/actions.ts`），格式是 UUID，给人看的短形式取前 8 位。
 - 它不是身份，也不授予权限：只由宿主给，从调用上下文、此刻打开的作用域或新生成取，不从请求头、MCP 参数、`_meta`、业务输入或插件交来的字段读；处理器可以记录或返回它，不能凭它做判断。
-- 代码：作用域在 `packages/kernel/src/call-scope.ts`，结算在 `packages/kernel/src/action-settlement.ts`；宿主 typed 口的结算在 `apps/local-host/src/typed-call-settlement.ts`。调用记录的行带编号（W3-01 B）；响应头与错误体带编号、助理与 Agent 每一轮的冻结记录带编号，是 W3-01 后续的 PR。
+- 代码：作用域在 `packages/kernel/src/call-scope.ts`，结算在 `packages/kernel/src/action-settlement.ts`；宿主 typed 口的结算在 `apps/local-host/src/typed-call-settlement.ts`。调用记录的行带编号（W3-01 B）；给人看的短形式 `shortCallId` 在 `packages/ui-host/src/call-id.ts`，不在内核（W3-01 F）；响应头与错误体带编号、助理与 Agent 每一轮的冻结记录带编号，是 W3-01 后续的 PR。
 - 界面用名：「诊断编号」（英文 Diagnostic ID），2026-10-10 用户批准（`specs/repository-anti-corruption/spec.md` §1）。文档写「调用编号」，只有讲界面时写「诊断编号」。
 - 不是：一次性键 `x-molis-work-idempotency-key`（HTTP 入口防重放，不往下传）；也不是 `runtime_session_id`（Runtime 会话）或 Agent 的 `run_id`；也不是助理与 Agent 工具活动里的 `call_id`（`AgentToolActivity.call_id`、`AssistantActivity.call_id`、`AgentCommandOutputRef.call_id`，在 `packages/contracts/src/services/agent-host.ts` 与 `assistant.ts`）：那是一行活动的标识（Prologue 给每次工具调用的编号，或 Agent Host 为推理、纠正等行合成的字符串），只在所在的一轮内唯一，没有操作含义。所以一轮有一个调用编号，轮里的每行活动各有自己的 `call_id`，两者无关；同一份记录里要同时放这两个编号时，字段名要分开，不并排写两个 `call_id`。
 
 **调用记录**
 
 - 定义：Home 里 `logs/action-calls.jsonl` 的近期记录（`ActionCallLog`，`apps/local-host/src/action-call-log.ts`）：谁在哪个项目调了哪个能力、怎样结束（错误码；只有处理器跑过又失败的命令另存前 200 字的错误信息）、属于哪次操作（每行带调用编号），不写内容（输入与返回）。它是诊断记录，不是业务数据，所以「被取消、撤权、停用的调用不再写任何业务记录」不管它。界面在「能力 › 调用记录」。
-- 现状（W3-01 B）：每个命令一行（含宿主自己的 typed 命令），读取只在失败时记，`wait` 不记；处理器之前就被拒绝的调用（取消、撤权、停用、无权、输入不合、限流）也记一行，界面写「未执行」，只记谁、什么动作、结果与错误码，不记内容（用户 2026-10-10 决定：诊断行可以记、硬规则只管业务数据）。页面自己找项目没有的插件的区域（Feed、Inbox、Schedule、Artifacts）时得到的「未启用」是它要的答案，不记行。连续相同的结果只和最后一行合并，同一个调用者连续试不存在的能力 id 是一行；文件按类整理（执行过的命令最近 1000 行，其余最近 200 行）；没有编号的旧行不读（用户 2026-10-10 决定：只认新行）。界面里的「诊断编号」、按编号查的诊断页和错误提示里的编号，是 W3-01 后续的 PR。
+- 现状（W3-01 B）：每个命令一行（含宿主自己的 typed 命令），读取只在失败时记，`wait` 不记；处理器之前就被拒绝的调用（取消、撤权、停用、无权、输入不合、限流）也记一行，界面写「未执行」，只记谁、什么动作、结果与错误码，不记内容（用户 2026-10-10 决定：诊断行可以记、硬规则只管业务数据）。页面自己找项目没有的插件的区域（Feed、Inbox、Schedule、Artifacts）时得到的「未启用」是它要的答案，不记行。连续相同的结果只和最后一行合并，同一个调用者连续试不存在的能力 id 是一行；文件按类整理（执行过的命令最近 1000 行，其余最近 200 行）；没有编号的旧行不读（用户 2026-10-10 决定：只认新行）。「能力 › 调用记录」每行显示诊断编号并可复制，「设置 › 诊断」按诊断编号查（W3-01 F）；错误提示里的编号是 W3-01 后续的 PR 与 W3-10。
 
 **宿主能力（typed capability）与 Capability**
 

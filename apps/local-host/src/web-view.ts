@@ -1,6 +1,6 @@
 import { goalsActions, type GoalsDocumentCollectionView } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { expectingRefusal } from "@molis-ai/molis-work-kernel";
+import { expectingRefusal, newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { feedQueryActions, type FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -35,6 +35,12 @@ const emptyFeed = (): FeedSnapshot => ({ sources: [], feed_items: [], inbox_entr
  * `Promise.all`, the first refusal ends it and the refusals of the others, arriving later, would be recorded.
  */
 export const lookingForArea = <T>(run: () => Promise<T>): Promise<T> => expectingRefusal(["actions.plugin_disabled"], run);
+
+/**
+ * A Feed pull. It outlives the request that happened to start it and is not part of it, so each pull, the one a page starts and every tick of
+ * the 30-second timer, is an operation of its own, with a call number of its own; the project may have no Feed (`lookingForArea`).
+ */
+export const feedPull = <T>(run: () => Promise<T>): Promise<T> => withCallId(newCallId(), () => lookingForArea(run));
 
 /** Optional areas disappear when their owner refuses access; unexpected failures must remain visible. */
 export async function optionalPluginQuery<I, O>(actions: BoundActionClient, definition: ActionDefinition<I, O>, input: I): Promise<O | undefined> {

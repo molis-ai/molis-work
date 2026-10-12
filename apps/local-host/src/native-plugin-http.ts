@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { withRecordedCallId } from "./call-id-response.js";
 
 export interface NativePluginJsonResult {
   readonly status: number;
@@ -38,12 +39,14 @@ export function readNativePluginJsonBody(
 }
 
 export function writeNativePluginJsonResponse(response: ServerResponse, result: NativePluginJsonResult): void {
+  const answer = withRecordedCallId(result.status, result.body ?? {});
   response.writeHead(result.status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
     ...result.headers,
+    ...answer.headers,
   });
-  response.end(JSON.stringify(result.body ?? {}));
+  response.end(JSON.stringify(answer.body));
 }
 
 export async function dispatchNativePluginJsonHttp(

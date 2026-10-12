@@ -203,7 +203,7 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 
 - 在插件的 `src/prompts.ts` 用 `defineInstructionPrompt`（`@molis-ai/molis-work-contracts/platform/model-prompts`）声明，写明 `title`、`purpose`、`used_by`，从包入口导出 `<插件>_INSTRUCTIONS`。
 - 调用时传 `instructed(指令, 数据)`：指令只写要求，用户材料、本次参数放在数据里（数据不会被当成指令）。模型端口类型写 `InstructedPrompt` 或 `ModelPromptInput`，不收裸字符串。
-- Host 适配器经 `resolveModelPrompt` 取有效正文；内置插件在 `builtin-instructions.ts` 登记。改指令正文要升 `version`，用户已改过的会显示“默认已更新”，不会被静默覆盖。
+- Host 适配器经 `resolveModelPrompt` 取有效正文；内置插件在 `apps/workbench/src/builtin-plugins.ts` 自己的目录条目上声明 `instructions`，Host 从共同目录派生登记，`builtin-instructions.ts` 的 `BUILTIN_INSTRUCTIONS` 除目录派生的之外只列 Host 自己的 `system:*` 题面，不点名插件的指令。改指令正文要升 `version`，用户已改过的会显示“默认已更新”，不会被静默覆盖。
 - 门禁 `tests/prompt-registration.test.ts`：没登记的指令、收裸字符串的端口、绕开登记直接调模型的 Host 模块都会失败；确需过渡的写进清单并写明原因。
 - 插件创作台生成的插件同样如此：要求在操作代码里 `export const prompts = [{ id, title, purpose, body }]` 声明，`model.generate` 传 `{ prompt: id, input }`；安装时登记、卸载时撤下（用户的修改保留）。检查 G4 会拒绝未声明的 id 和仍传 `instructions` 的调用。
 - 设置“Prompt 与 Character”底部的“开发者诊断”列出每个来源登记了什么、哪些没有生效及原因，以及仍未登记的模型调用。

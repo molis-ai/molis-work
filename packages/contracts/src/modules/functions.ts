@@ -149,6 +149,7 @@ export interface FunctionAuthoringBehavior {
   readonly hint?: string;
   readonly effect: "read" | "write";
   readonly source: "system" | "plugin" | "mcp";
+  /** The owning plugin's id (`provider.plugin_id`, else the provider id of a Host-assembled provider), never an installation id. */
   readonly plugin_id: string;
   readonly plugin_title: string;
   readonly subject_kinds: readonly string[];

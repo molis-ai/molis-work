@@ -36,7 +36,7 @@ import {
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { liveHostFunctionAuthoringCatalog } from "../apps/local-host/src/behavior-catalog.ts";
-import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineSubjectOffersAction, type ActionProvider, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectHomeEvents } from "../apps/workbench/src/home-flow.ts";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -217,6 +217,46 @@ test("authoring derives exact Agent capabilities from the supplied directory wit
   assert.equal(catalog.behaviors[2]?.availability?.available, false);
   assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, [], "an empty directory cannot expose builtins or legacy aliases");
   assert.equal(liveHostFunctionAuthoringCatalog([catalogAction("unknown.notes", 1, "replacement")]).behaviors[0]?.behavior_id === catalog.behaviors[0]?.behavior_id, false);
+});
+
+test("authoring names the owning plugin by its plugin id, never by the installation that registered it", () => {
+  // A plugin that is not bundled registers under `plugin-install-<hash>`; `plugin_id` is what says which plugin that is.
+  const notes: ActionProvider = { provider_id: "plugin-install-abc", plugin_id: "io.example.notes", kind: "plugin", title: "Notes" };
+  const consumer: ActionProvider = { provider_id: "plugin-install-def", plugin_id: "io.example.consumer", kind: "plugin", title: "Consumer" };
+  const host: ActionProvider = { provider_id: "home-host", kind: "system", title: "Home" };
+  const read: ActionView = { ...catalogAction("notes.read"), provider: notes };
+  const finishAction = { ...read.action, kind: "operation" as const, audiences: ["user" as const], subject_kinds: ["note"] };
+  const finish: ActionView = { ...read, capability_id: "notes.finish", operation: "command", action: finishAction };
+  const offerDefinition = defineSubjectOffersAction("notes.offers", ["note"], "Offer next steps", [],
+    [{ offer_id: "notes.finish", title: "Finish note", action: { capability_id: "notes.finish", version: 1 } }]);
+  const offers: ActionView = { capability_id: offerDefinition.capability_id, version: offerDefinition.version, operation: "query", provider: notes,
+    availability: { available: true }, action: { ...offerDefinition.action, audiences: ["user"] } };
+  const system: ActionView = catalogAction("system.read", 1, "system-host");
+  const scene = (provider: ActionProvider, definition: Partial<ActionSceneView["definition"]>): ActionSceneView => ({
+    configuration_availability: { available: true }, availability: { available: true }, compatible: true, provider,
+    definition: { scene_id: "example.scene", version: 1, title: "Scene", description: "Picks a next step", trigger: "when it fires", scope: "project", subject_kinds: ["note"],
+      permissions: [], input_schema: { type: "object" }, result_schema: { type: "object" }, result_type: "molis.behavior-recommendation.v1", ...definition },
+  });
+  const offered = scene(host, { scene_id: "example.offered", recommendation_source: "subject-offers" });
+  const finite = scene(consumer, { scene_id: "example.finite", result_schema: { type: "object", properties: { suggested_behavior_ids: { type: "array", items: { enum: ["example.one"] } } } } });
+  const catalog = liveHostFunctionAuthoringCatalog([read, finish, offers, system], [offered, finite]);
+  const behavior = (match: (row: (typeof catalog.behaviors)[number]) => boolean) => catalog.behaviors.find(match)!;
+
+  const agentRead = behavior(row => row.action_ref?.capability_id === "notes.read");
+  assert.equal(agentRead.plugin_id, "io.example.notes", "an Agent action names its plugin, not the installation behind plugin-install-abc");
+  assert.equal(agentRead.action_ref?.provider_id, "plugin-install-abc", "the pinned action reference keeps the registration it will be invoked on");
+  assert.equal(behavior(row => row.action_ref?.capability_id === "system.read").plugin_id, "system-host", "a provider without a plugin id is named by its provider id");
+
+  const offer = behavior(row => row.destination_id === "example.offered");
+  assert.equal(offer.title, "Finish note");
+  assert.equal(offer.plugin_id, "io.example.notes", "a subject offer names the plugin that offers it, not the scene's provider or the installation");
+  assert.equal(offer.provider_id, "home-host", "the scene's provider id still says who owns the consumer scene");
+  assert.equal(offer.effect, "write");
+
+  const fixed = behavior(row => row.behavior_id === "example.one");
+  assert.equal(fixed.plugin_id, "io.example.consumer", "a scene's finite recommendation names the consuming plugin");
+  assert.equal(fixed.provider_id, "plugin-install-def", "the scene registration stays in provider_id");
+  assert.ok(catalog.behaviors.every(row => !/^plugin-install-/.test(row.plugin_id)), "no installation id is presented as a plugin id");
 });
 
 test("Home preserves declared navigation and bound suggestions without inventing actions", () => {

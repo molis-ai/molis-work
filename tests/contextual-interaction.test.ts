@@ -5,9 +5,10 @@ import test from "node:test";
 import { EditorState, TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import {
-  FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, defineSubjectOffersAction, inspectActionDeclarations, type ActionReference, type ActionView, type FragmentOfferChoice, type FragmentOffersInput,
+  FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, defineSubjectOffersAction, type ActionReference, type ActionView, type FragmentOfferChoice, type FragmentOffersInput,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
+import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { assertActionInput, subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 import {
   contextualCandidates, DEFAULT_JUDGMENT_WORDING, fragmentCandidates, judgedCandidates, judgmentQuestions, judgmentState, MAX_JUDGED_CANDIDATES, planContextualLayout,

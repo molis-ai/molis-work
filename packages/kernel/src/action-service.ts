@@ -1,5 +1,5 @@
 import {
-  ActionError, actionReachesAudience, inspectActionDeclarations, requireSynchronous,
+  ActionError, actionReachesAudience, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
   type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort,
   type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
@@ -10,7 +10,7 @@ import { assertSessionAuthorship } from "./action-authorship.js";
 import { bindCall, describeCall, markStarted, settleCall, settleCallSync, type CallContext, type CallSettled } from "./action-settlement.js";
 import { actionSchemaAccepts, compileActionSchema, createActionSchemaCompiler, validateActionValue } from "./action-schema.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
-import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
+import { createExecutionLifetime, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
 interface RegisteredScene {
   definition: ActionSceneDefinition;

@@ -43,8 +43,8 @@ const LIMIT = 2000;
 const KEEP_COMMANDS = 1000;
 const KEEP_OTHER = 200;
 const FOLDED = 20;
-/** A prefix shorter than this would match nearly every operation. */
-const MIN_PREFIX = 6;
+/** A prefix shorter than this would match nearly every operation. The settings page that looks a number up says so by the same count. */
+export const MIN_CALL_ID_PREFIX = 6;
 const COALESCE_MS = 10 * 60_000;
 const OPERATIONS: readonly string[] = ["command", "query", "unknown"];
 
@@ -128,7 +128,7 @@ export class ActionCallLog {
   /** The rows of the operation that has this number (or whose number starts with it, from six characters), in any project; newest first. */
   find(prefix: string, limit = 50): ActionCallRecord[] {
     const wanted = prefix.trim().toLowerCase();
-    if (wanted.length < MIN_PREFIX) return [];
+    if (wanted.length < MIN_CALL_ID_PREFIX) return [];
     return this.read().rows.filter(row => [row.call_id, ...(row.call_ids ?? [])].some(id => id.toLowerCase().startsWith(wanted))).reverse().slice(0, limit);
   }
 

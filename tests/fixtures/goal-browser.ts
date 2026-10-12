@@ -51,7 +51,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     });
     await cleanup("Local Host", async () => { await localHost?.close(); });
     await cleanup("project database", async () => { store?.close(); });
-    await cleanup("temporary Home", () => rm(directory, { recursive: true, force: true }));
+    // BROWSER-CLEAN-01: retry only this fixture's temporary Home; the 5s bound and final AggregateError still apply.
+    await cleanup("temporary Home", () => rm(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }));
     if (failures.length) throw new AggregateError(failures, "Browser fixture cleanup failed");
   });
   let databasePath = join(directory, "fixture.db");

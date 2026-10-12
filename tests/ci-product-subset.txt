@@ -123,6 +123,7 @@ tests/coding-delegation.test.ts
 tests/coding-events.test.ts
 tests/coding-experience.test.ts
 tests/coding-long-session.test.ts
+tests/coding-mcp-settings-client.test.ts
 tests/coding-mcp.test.ts
 tests/coding-method-install.test.ts
 tests/coding-net-change.test.ts

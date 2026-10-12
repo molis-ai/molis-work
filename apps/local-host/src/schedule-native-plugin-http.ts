@@ -2,9 +2,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   SchedulePluginRouteTable,
   createScheduleRouteHandlers,
-  scheduleRouteErrorResponse,
   type SchedulePluginRouteResponse,
 } from "@molis-ai/molis-work-plugin-schedule";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { readNativePluginJsonBody } from "./native-plugin-http.js";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 
@@ -24,7 +25,6 @@ export async function handleScheduleNativePluginHttp(
   if (url.pathname !== "/api/schedule" && !url.pathname.startsWith("/api/schedule/")) return false;
   const method = request.method;
   if (!method || !["GET", "POST"].includes(method)) return false;
-  const body = method === "GET" ? await readOptionalBody(request) : await readBody(request);
   const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({
     actions: options.actions,
     changed: () => options.invalidateWebView(),
@@ -32,7 +32,9 @@ export async function handleScheduleNativePluginHttp(
       ? async () => options.renderer!.renderScheduleWorkbenchFragment(await options.readWebView!())
       : undefined,
   }));
+  // The body is read inside the try: a body that is too large or not JSON is a coded failure like any other, not an error that escapes the edge.
   try {
+    const body = await readNativePluginJsonBody(request, 256_000);
     const result = await routes.handle({
       method: method as "GET" | "POST",
       pathname: url.pathname,
@@ -43,7 +45,7 @@ export async function handleScheduleNativePluginHttp(
     writeResponse(response, result);
     return true;
   } catch (error) {
-    writeResponse(response, scheduleRouteErrorResponse(error));
+    writeResponse(response, actionErrorResponse(error));
     return true;
   }
 }
@@ -65,28 +67,4 @@ function writeResponse(response: ServerResponse, result: SchedulePluginRouteResp
     ...result.headers,
   });
   response.end(JSON.stringify(result.body ?? {}));
-}
-
-function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    request.setEncoding("utf8");
-    request.on("data", (chunk) => {
-      body += chunk;
-      if (body.length > 256_000) reject(new Error("请求内容过大"));
-    });
-    request.on("end", () => {
-      try {
-        resolve(body ? JSON.parse(body) as Record<string, unknown> : {});
-      } catch {
-        reject(new Error("请求不是有效 JSON"));
-      }
-    });
-    request.on("error", reject);
-  });
-}
-
-function readOptionalBody(request: IncomingMessage): Promise<Record<string, unknown>> {
-  const contentLength = Number(request.headers["content-length"] ?? 0);
-  return contentLength > 0 ? readBody(request) : Promise.resolve({});
 }

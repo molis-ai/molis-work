@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ImagesError, handleImagesRoute } from "@molis-ai/molis-work-plugin-images";
+import { ACTION_ERROR_CODE, ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { handleImagesRoute, imagesErrors } from "@molis-ai/molis-work-plugin-images";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { readNativePluginJsonBody } from "./native-plugin-http.js";
 import { withRewrittenPluginApi } from "./native-plugin-api.js";
 import { sendLocalWebJson } from "./web-http.js";
 
@@ -12,9 +14,9 @@ export async function handleImagesNativePluginHttp(
   if (url.pathname !== "/api/images" && !url.pathname.startsWith("/api/images/")) return false;
   const json = (status: number, body: unknown) => sendLocalWebJson(response, status, body);
   try {
-    const body = request.method === "POST" ? await readBody(request) : {};
+    const body = request.method === "POST" ? await readImagesBody(request) : {};
     const {projectId, actions} = await ports({query:url.searchParams,body});
-    for (const value of url.searchParams.getAll("project_id")) if (value !== projectId) throw new ImagesError("actions.scope_mismatch", "图片项目与当前项目不一致", 403);
+    for (const value of url.searchParams.getAll("project_id")) if (value !== projectId) throw new ActionError("actions.scope_mismatch", "图片项目与当前项目不一致");
     const result = await handleImagesRoute(actions, { method: request.method ?? "GET", pathname: url.pathname, body, projectId });
     if (result.image) {
       response.writeHead(result.status, {
@@ -26,27 +28,19 @@ export async function handleImagesNativePluginHttp(
       response.end(result.image.bytes);
     } else json(result.status, result.body);
   } catch (error) {
-    if (error instanceof ImagesError) json(error.status, { error: error.message, code: error.code });
-    else if (error instanceof Error && "code" in error && String(error.code).startsWith("actions.")) json(["actions.forbidden", "actions.scope_mismatch"].includes(String(error.code)) ? 403 : 400, { error: error.message, code: error.code });
-    else json(500, { error: "图片操作失败，请稍后重试", code: "images.internal" });
+    // A failure without a code of ours may carry paths or driver text, so it is answered with a plain sentence, as it always was.
+    const ours = typeof error === "object" && error !== null && ACTION_ERROR_CODE.test(String((error as { code?: unknown }).code));
+    const answer = actionErrorResponse(ours ? error : imagesErrors.internal("图片操作失败，请稍后重试"));
+    json(answer.status, answer.body);
   }
   return true;
 }
 
-async function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of request) {
-    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    size += bytes.byteLength;
-    if (size > 160_000) throw new ImagesError("images.invalid", "请求内容过大", 413);
-    chunks.push(bytes);
-  }
-  try {
-    const value: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
-    return value as Record<string, unknown>;
-  } catch { throw new ImagesError("images.invalid", "请求必须是 JSON 对象", 400); }
+/** The shared reader answers a body that is too large (413) or not JSON (400); a JSON that is not an object is Images' own refusal. */
+async function readImagesBody(request: IncomingMessage): Promise<Record<string, unknown>> {
+  const value: unknown = await readNativePluginJsonBody(request, 160_000);
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw imagesErrors.invalid("请求必须是 JSON 对象");
+  return value as Record<string, unknown>;
 }
 
 /** A download may carry the name people read (the prompt); the stored file name stays the fallback for older clients. */

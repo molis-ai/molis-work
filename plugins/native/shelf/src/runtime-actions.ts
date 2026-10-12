@@ -3,6 +3,7 @@ import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { parseShelfTextMaterial, type ShelfArtifactPreview, type ShelfItemRecord, type ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
 
 const text = { type: "string" };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -58,12 +59,12 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, results?
     return results.preview(record);
   };
   const outputs = () => {
-    if (!services?.outputs) throw new ActionError("shelf.unavailable", "项目材料输出尚未连接");
+    if (!services?.outputs) throw shelfErrors.unavailable("项目材料输出尚未连接");
     return services.outputs;
   };
   return [
     bindOwnerPluginAction(context, shelfRuntimeActions.results, () => {
-      if (!results) throw new ActionError("shelf.unavailable", "项目成果接收尚未装配");
+      if (!results) throw shelfErrors.unavailable("项目成果接收尚未装配");
       const connected = ["coding-report", "coding-changeset"].flatMap(port => { const ref = services?.inputs?.reference(port); return ref ? [ref] : []; });
       const seen = new Set<string>();
       return { results: [...connected, ...results.references()].flatMap(ref => {
@@ -76,7 +77,7 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, results?
     // Commands are rechecked by the owner binding before they run; the reads and writes below do not yield.
     bindOwnerPluginAction(context, shelfRuntimeActions.receive, input => {
       const value = read(input.reference);
-      if (input.expected_fingerprint !== value.fingerprint) throw new ActionError("shelf.conflict", "成果与已查看的版本不一致，请重新预览后接收");
+      if (input.expected_fingerprint !== value.fingerprint) throw shelfErrors.conflict("成果与已查看的版本不一致，请重新预览后接收");
       return results!.receive(value);
     }),
     bindOwnerPluginAction(context, shelfRuntimeActions.output, () => ({ reference: outputs().reference("material") })),

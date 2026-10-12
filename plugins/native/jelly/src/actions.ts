@@ -2,7 +2,7 @@ import { withActionEffect, type ActionAvailability, type ActionExecutionContext,
 import type { JellyItem, JellySeries, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { runJellyAi, type JellyAiInput, type JellyAiPorts } from "./ai.js";
 import { jellyOccurrences, jellyProgress } from "./calendar.js";
-import { JellyError } from "./error.js";
+import { jellyErrors } from "./error.js";
 import { jellyNoteToHtml, jellyNoteToMarkdown } from "./markdown.js";
 import type { JellyPreview, JellyStore } from "./store.js";
 import { createJellyCommandHandlers, defineJellyAction as define, jellyCommandActions, JELLY_READ } from "./command-actions.js";
@@ -62,14 +62,14 @@ export function createJellyActionHandlers(ports: JellyActionPorts): ActionHandle
     bind(jellyActions.export, () => ports.withStore(store => ({ workspace: store.export() }))),
     bind(jellyActions.calendar, input => read(state => ({ revision: state.revision, items: jellyOccurrences(state, input.start, input.end) }))),
     bind(jellyActions.progress, input => read(state => ({ progress: jellyProgress(state, input.start, input.end, input.today, input.category_ids) }))),
-    bind(jellyActions.item, input => read(state => { const item = state.items.find(i => i.id === input.id) ?? state.series.find(i => i.id === input.id); if (!item) throw new JellyError("jelly.not_found", "事项不存在", 404); return { revision: state.revision, item }; })),
+    bind(jellyActions.item, input => read(state => { const item = state.items.find(i => i.id === input.id) ?? state.series.find(i => i.id === input.id); if (!item) throw jellyErrors.not_found("事项不存在"); return { revision: state.revision, item }; })),
     bind(jellyActions.categories, () => read(state => ({ revision: state.revision, categories: state.categories }))),
     bind(jellyActions.search, input => read(state => {
       const query = input.query.trim().toLocaleLowerCase(), matches = (text: string) => text.toLocaleLowerCase().includes(query);
       return { revision: state.revision, items: [...state.items, ...state.series].filter(i => matches(i.title + "\n" + i.notes)), notes: state.notes.filter(i => !i.archived_at && matches(i.title + "\n" + i.blocks.map(b => b.text).join("\n"))) };
     })),
     bind(jellyActions.exportNote, input => read(state => {
-      const note = state.notes.find(n => n.id === input.id); if (!note) throw new JellyError("jelly.not_found", "笔记不存在", 404);
+      const note = state.notes.find(n => n.id === input.id); if (!note) throw jellyErrors.not_found("笔记不存在");
       const html = input.format === "html";
       return { content: html ? jellyNoteToHtml(note) : jellyNoteToMarkdown(note), filename: note.title.replace(/[\/\\:*?"<>|]/gu, "-").slice(0, 100) + (html ? ".html" : ".md"), mime: html ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8" };
     })),

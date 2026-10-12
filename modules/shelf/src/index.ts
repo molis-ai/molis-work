@@ -11,7 +11,7 @@ export const packageDescriptor = {
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
-export { ShelfError, isShelfError } from "./errors.js";
+export { shelfErrors, isShelfFailure, type ShelfFailure } from "./errors.js";
 export { markdownFromExtract, resultNameForExtract } from "./extract.js";
 export {
   WEBSITE_MIME,

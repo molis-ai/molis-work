@@ -1,7 +1,7 @@
 import type { ActionAvailability, ActionCallContext, ActionExecutionContext, ActionDefinition, ActionHandlerBinding, ActionSchema, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { generateCogniaDraft, type CogniaAiPorts } from "./ai.js";
 import type { CogniaStore } from "./store.js";
-import { COGNIA_LIMITS, requireCognia, type Domain, type Draft, type ImportFile, type Material, type Preview, type Receipt, type Source, type SourceKind } from "./types.js";
+import { COGNIA_LIMITS, cogniaErrors, requireCognia, type Domain, type Draft, type ImportFile, type Material, type Preview, type Receipt, type Source, type SourceKind } from "./types.js";
 import * as s from "./action-schema.js";
 import { cogniaSearchActions, createCogniaSearchHandlers } from "./search.js";
 
@@ -80,7 +80,7 @@ export function createCogniaActionHandlers(ports: CogniaActionPorts): ActionHand
     bind(cogniaActions.cancel, input => ports.withStore(store => { store.cancelPreview(input.preview_id); return { cancelled: true }; })),
     bind(cogniaActions.synthesize, async (input, caller) => ({ draft: await generateCogniaDraft(ports.withStore, { ...input, mode: "synthesize" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), available),
     bind(cogniaActions.query, async (input, caller) => ({ draft: await generateCogniaDraft(ports.withStore, { ...input, mode: "query" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), available),
-    bind(cogniaActions.draft, input => ports.withStore(store => { const draft = store.drafts().find(d => d.id === input.id); requireCognia(draft, "草稿不存在", 404); return { draft }; })),
+    bind(cogniaActions.draft, input => ports.withStore(store => { const draft = store.drafts().find(d => d.id === input.id); requireCognia(draft, "草稿不存在", cogniaErrors.not_found); return { draft }; })),
     bind(cogniaActions.saveDraft, input => ports.withStore(store => ({ material: store.saveDraft(input.id) }))),
     bind(cogniaActions.archiveDraft, input => ports.withStore(store => { store.archiveDraft(input.id); return { deleted: true }; })),
     ...createCogniaSearchHandlers(ports.withStore),

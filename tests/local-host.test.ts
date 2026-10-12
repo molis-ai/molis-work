@@ -200,10 +200,12 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     });
     assert.equal(workbenchCreated.replayed, false);
     assert.equal(workbenchCreated.goal.goal_id, "workbench-entry-goal");
-    assert.equal(openCount, 1, "all three entries must share one Store/Coordinator runtime");
+    assert.equal(openCount, 1, "the access settings, MCP and the Workbench client must share one Store/Coordinator runtime");
     const snapshot = await captureCli(() => runV1Cli([
       "snapshot", "--db", databasePath, "--json", JSON.stringify({ project_id: projectId }),
     ], { localHost: host }));
+    // The CLI no longer opens the project first (the catalog made it), so the CLI is checked on its own: it joins the runtime the others opened.
+    assert.equal(openCount, 1, "the CLI snapshot must join the same Store/Coordinator runtime, not open a second one");
     assert.deepEqual((snapshot.goals as { goal_id: string }[]).map((goal) => goal.goal_id).sort(), ["shared-entry-goal", "workbench-entry-goal"]);
 
     await host.close();

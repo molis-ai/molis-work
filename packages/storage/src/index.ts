@@ -23,6 +23,7 @@ export {
   PERSONAL_HOME_SQLITE_STORES,
   homeSqlitePath,
   openHomeSqliteDatabase,
+  openReadOnlyHomeSqlite,
   type PersonalHomeSqliteStore,
 } from "./home-sqlite.js";
 export {

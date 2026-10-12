@@ -8,17 +8,18 @@ import ts from "typescript";
 import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import { MCP_TOOLS } from "@molis-ai/molis-work-app-mcp";
-import { goalTreeCapabilities, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalTreeCapabilities, goalsActions, recordGoalUserDecisionCapability } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostCapabilityDefinition, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
+import { managementGoals } from "./goal-management-caller.js";
 
 /**
  * The management door (the CLI, the typed Host client, the management MCP) has no caller identity of its own: the Host records
  * the person on this machine and refuses an identity carried in the arguments (repository-anti-corruption §9.5 #6). The structure
- * decision and the plugin development run are two more entries of that door.
+ * decision, the event decision and the plugin development run are three more entries of that door.
  */
 const IDENTITY_FIELDS = [{ runtime_actor_id: "forged-runtime" }, { actor_id: "someone-else" }, { actor_kind: "runtime" }, { audit_actor_id: "runtime:forged:session" },
   { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" }];
@@ -96,6 +97,88 @@ test("the CLI's goal-tree-decide and the management MCP's goal_tree_decide refus
     assert.deepEqual((await decisions()).map(item => [item.actor_id, item.runtime_actor_id]), [[LOCAL_PERSON_ACTOR_ID, null]]);
     assert.equal(proposal.project_id, project_id);
     assert.equal((await typed.invoke(goalTreeCapabilities.listGoalTreeProposals, [{ project_id, proposal_id: proposal.proposal_id }])).proposals[0]!.decisions.length, 1);
+  } finally { await management.close(); await done(); }
+});
+
+/**
+ * The event decision is the other decision door of the management entry. It works like the structure decision above: its
+ * `authority` points at the conversation, the Host builds who decides (the person on this machine, origin management), and an
+ * identity named in the arguments or in the authority is refused instead of read.
+ */
+async function eventDecisionProject(name: string) {
+  const home = await mkdtemp(join(tmpdir(), `management-door-${name}-`));
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: name, actor_id: LOCAL_PERSON_ACTOR_ID }));
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const typed = host.client(ref), project_id = project.project_id, goal_id = "EVENT-DECISION";
+  await managementGoals(host.actionClient(ref), project_id).invoke(goalsActions.create, { goal_id, title: "事件决定", idempotency_key: "create" });
+  const cursor = () => host.withProject(ref, runtime => runtime.coordinator.goalEvents.readState(project_id, goal_id).goal_event_cursor);
+  const decide = (key: string) => ({ project_id, goal_id, idempotency_key: key, conclusion: "允许发布当前结果",
+    effects: [{ kind: "authorize_action" as const, action: "publish" }], scope: { action: "publish" } });
+  const stored = (governanceId: string) => host.withProject(ref, runtime => runtime.coordinator.governance.eventDecisions.read(project_id, governanceId));
+  return { home, ref, host, typed, project_id, goal_id, cursor, decide, stored, databasePath: project.database_path,
+    done: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
+}
+
+test("an event decision through the typed management entry is recorded as the person on this machine, and refuses an identity in its arguments or its authority", async () => {
+  const { typed, cursor, decide, stored, done } = await eventDecisionProject("event-typed");
+  try {
+    const before = await cursor();
+    for (const identity of IDENTITY_FIELDS) {
+      await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...decide("forged"), ...identity } as never), { code: "actions.input_invalid" }, `refuses ${Object.keys(identity).join(" and ")}`);
+    }
+    // An identity or origin named inside the authority is not accepted either: the Host fixes who decides, as for a structure decision.
+    const evidence = { conversation_ref: "conversation://identity", message_ref: "message://confirm" };
+    for (const authority of [{ actor_id: "someone-else" }, { actor_id: LOCAL_PERSON_ACTOR_ID }, { actor_kind: "runtime" }, { authority_source: "web" },
+      { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", authority_source: "management" }]) {
+      await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...decide("forged-authority"), authority: { ...evidence, ...authority } } as never),
+        { code: "goals.event_decision_authority_invalid" }, `refuses ${Object.keys(authority).join(" and ")} in the authority`);
+    }
+    assert.equal(await cursor(), before, "a refused call decides nothing");
+
+    const decided = await typed.invoke(recordGoalUserDecisionCapability, { ...decide("decide"), authority: evidence });
+    assert.equal(decided.replayed, false);
+    assert.deepEqual([decided.decision.actor_id, decided.decision.authority_source], [LOCAL_PERSON_ACTOR_ID, "management"],
+      "the person on this machine decided through the management door");
+    const record = await stored(decided.decision.governance_decision_id);
+    assert.deepEqual([record?.actor_id, record?.actor_kind, record?.authority_source, record?.conversation_ref, record?.message_ref],
+      [LOCAL_PERSON_ACTOR_ID, "user", "management", evidence.conversation_ref, evidence.message_ref], "the authority only pointed at the conversation");
+    assert.equal((await typed.invoke(recordGoalUserDecisionCapability, { ...decide("decide"), authority: evidence })).replayed, true, "the same key replays");
+  } finally { await done(); }
+});
+
+test("the typed event decision takes only the conversation it came from: the Host builds the authority, with defaults when none is given", async () => {
+  const { typed, project_id, decide, stored, done } = await eventDecisionProject("event-evidence");
+  try {
+    const plain = await typed.invoke(recordGoalUserDecisionCapability, decide("defaults"));
+    const record = await stored(plain.decision.governance_decision_id);
+    assert.deepEqual([record?.actor_id, record?.authority_source, record?.conversation_ref, record?.message_ref],
+      [LOCAL_PERSON_ACTOR_ID, "management", `management:${project_id}`, "management-event-decision:defaults"], "a decision without evidence points at the management door itself");
+    // A reference that is not a usable string falls back to the default, so the stored authority always has both.
+    const blank = await typed.invoke(recordGoalUserDecisionCapability, { ...decide("blank"), authority: { conversation_ref: "conversation://half", message_ref: "  " } });
+    const half = await stored(blank.decision.governance_decision_id);
+    assert.deepEqual([half?.conversation_ref, half?.message_ref], ["conversation://half", "management-event-decision:blank"]);
+  } finally { await done(); }
+});
+
+test("the management MCP's event_decide records the person on this machine and has no way to carry an authority", async () => {
+  const { host, typed, project_id, goal_id, cursor, decide, stored, databasePath, done } = await eventDecisionProject("event-mcp");
+  const management = new MolisWorkServer("management", null, null, host);
+  try {
+    const before = await cursor();
+    const { project_id: _project, goal_id: _goal, ...business } = decide("mcp-decide");
+    const call = (extra: Record<string, unknown>) => management.callTool("molis_work_v1_event_decide", { database_path: databasePath, project_id, goal_id, ...business, ...extra });
+    // The tool takes the business fields and nothing about who decides: neither an identity nor an authority is an argument of it.
+    for (const extra of [{ authority: { conversation_ref: "conversation://mcp" } }, { authority: { actor_id: "someone-else" } }, { actor_id: "someone-else" }, { authority_source: "web" }]) {
+      await assert.rejects(() => call(extra), (error: unknown) => (error as { code?: string }).code === "mcp.unexpected_field", `refuses ${Object.keys(extra).join(" and ")}`);
+    }
+    assert.equal(await cursor(), before, "a refused call decides nothing");
+    const decided = JSON.parse(await call({})) as { decision: { actor_id: string; authority_source: string; governance_decision_id: string } };
+    assert.deepEqual([decided.decision.actor_id, decided.decision.authority_source], [LOCAL_PERSON_ACTOR_ID, "management"]);
+    const record = await stored(decided.decision.governance_decision_id);
+    assert.deepEqual([record?.conversation_ref, record?.message_ref], [`management:${project_id}`, "management-event-decision:mcp-decide"]);
+    // The typed entry and the MCP share one decision: the same key replays across them.
+    assert.equal((await typed.invoke(recordGoalUserDecisionCapability, decide("mcp-decide"))).replayed, true);
   } finally { await management.close(); await done(); }
 });
 
@@ -183,11 +266,11 @@ function typeErrors(source: string): string[] {
     .map(diagnostic => `line ${diagnostic.file ? ts.getLineAndCharacterOfPosition(diagnostic.file, diagnostic.start ?? 0).line + 1 : 0}: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, " ")}`);
 }
 
-test("the structure decision and plugin development entries are typed without an identity, so a caller that follows the types is not refused", { timeout: 180_000 }, () => {
+test("the structure decision, the event decision and plugin development entries are typed without an identity, so a caller that follows the types is not refused", { timeout: 180_000 }, () => {
   const source = `
 import type { HostCapabilityInput } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
-import { goalTreeCapabilities } from "@molis-ai/molis-work-plugin-goals";
+import { goalTreeCapabilities, recordGoalUserDecisionCapability } from "@molis-ai/molis-work-plugin-goals";
 type Identity = "actor_id" | "actor_kind" | "audit_actor_id" | "runtime_actor_id";
 type KeysOf<Input> = Input extends readonly [infer First, ...unknown[]] ? keyof First : keyof Input;
 type Free<Input> = [Extract<KeysOf<Input>, Identity>] extends [never] ? true : false;
@@ -197,6 +280,11 @@ type DecideInput = HostCapabilityInput<typeof goalTreeCapabilities.decideGoalTre
 type AuthorityKeys = keyof NonNullable<DecideInput extends { authority?: infer Authority } ? Authority : never>;
 export const authorityFree: [Extract<AuthorityKeys, Identity | "authority_source">] extends [never] ? true : false = true;
 export const authorityNamesConversation: "conversation_ref" extends AuthorityKeys ? true : false = true;
+// The event decision's authority points at the conversation too.
+export const eventDecideFree: Free<HostCapabilityInput<typeof recordGoalUserDecisionCapability>> = true;
+type EventAuthorityKeys = keyof NonNullable<HostCapabilityInput<typeof recordGoalUserDecisionCapability> extends { authority?: infer Authority } ? Authority : never>;
+export const eventAuthorityFree: [Extract<EventAuthorityKeys, Identity | "authority_source">] extends [never] ? true : false = true;
+export const eventAuthorityNamesConversation: "conversation_ref" extends EventAuthorityKeys ? true : false = true;
 export const developmentFree: Free<HostCapabilityInput<typeof pluginDevelopmentCapability>> = true;
 `;
   assert.deepEqual(typeErrors(source), []);

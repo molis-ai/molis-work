@@ -86,6 +86,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   }
   const narrow = () => matchMedia("(max-width: 760px)").matches;
   let state = ops.create();
+  const paneById = (id) => state.panes.find((pane) => pane.id === id);
   const persist = () => { if (embedded) return; try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch {} };
   const restore = (requestedGoalId = "") => {
     if (embedded) {
@@ -919,7 +920,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   /** Closing the tab being looked at returns to where the pane was before it, when that place is still there. */
   const closeTabBack = (paneId, tabId) => {
-    const pane = state.panes.find((candidate) => candidate.id === paneId);
+    const pane = paneById(paneId);
     let back = null;
     if (pane && pane.activeTabId === tabId && !state.exclusive) {
       pruneHistory(pane);
@@ -931,7 +932,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       }
     }
     ops.closeTab(state, paneId, tabId);
-    const after = state.panes.find((candidate) => candidate.id === paneId);
+    const after = paneById(paneId);
     if (back && after && (String(back.id).startsWith("plugin:") || after.tabs.some((tab) => tab.id === back.id))) {
       paneHistory(after.id).index = back.index;
       historyLock = true;
@@ -1162,8 +1163,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const activate = (paneId, tabId) => {
     if (tabId) ops.activate(state, paneId, tabId);
     else {
-      const pane = state.panes.find((candidate) => candidate.id === paneId);
-      if (!pane) return;
+      if (!paneById(paneId)) return;
       state.focusedPaneId = paneId;
     }
     apply();
@@ -1258,11 +1258,11 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     let observer = null, timer = null, asked = null, done = false, clicks = 0, lastClick = 0;
     const finish = () => { done = true; observer?.disconnect(); clearTimeout(timer); clearTimeout(asked); frame?.removeEventListener('load', watch); if (cancelRecordJump === finish) cancelRecordJump = null; };
     const surfaceIn = (doc) => doc?.querySelector('[data-work-surface="' + plugin + '"]') || null;
-    // The plugin says it has the record open (its current object), however it got there.
+    // The plugin says it has the record open (its current object), however it got there; on a quiet reopen the workbench's own name counts only while the page is open.
     const showsIt = (doc) => {
       const node = surfaceIn(doc);
       const holder = node && (node.hasAttribute('data-assistant-context') ? node : node.querySelector('[data-assistant-context]'));
-      try { const context = JSON.parse(holder?.getAttribute('data-assistant-context') || '{}'); return Boolean(context.object && context.object.id === itemId); } catch { return false; }
+      try { const context = JSON.parse(holder?.getAttribute('data-assistant-context') || '{}'); return Boolean(context.object && context.object.id === itemId && (context.named_by !== 'workbench' || !quiet || node.getAttribute('data-expanded') !== 'false')); } catch { return false; }
     };
     const check = () => {
       if (done) return;
@@ -1295,7 +1295,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     timer = setTimeout(() => {
       const stillCurrent = current(); const opened = showsIt(frame ? frame.contentDocument : document); finish();
       if (opened) return;
-      if (quiet) forgetRecord(plugin);
+      if (quiet) { if (openRecords[plugin] === itemId) forgetRecord(plugin); } // quiet: no error, and only the record it looked for is forgotten
       else if (stillCurrent) showToast?.(L('未能打开这条内容，请重试或从列表中选择。'), true);
     }, quiet ? 8000 : 10000);
     frame?.addEventListener('load', watch); watch();
@@ -1454,7 +1454,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     event.preventDefault(); buttons[next]?.focus();
   });
   const openTabMenu = (paneId, anchor, tabId = null) => {
-    const pane = state.panes.find(candidate => candidate.id === paneId); if (!pane) return;
+    const pane = paneById(paneId); if (!pane) return;
     const tab = pane.tabs.find(candidate => candidate.id === (tabId || pane.activeTabId));
     tabMenuAnchor = anchor; tabMenu.replaceChildren();
     tabMenu.setAttribute("aria-label", L(tabId ? "标签操作" : "打开插件"));
@@ -1491,7 +1491,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     tabMenu.querySelector("button, input")?.focus();
   };
   const openGroupMenu = (paneId, groupId, anchor) => {
-    const pane = state.panes.find((candidate) => candidate.id === paneId); if (!pane) return;
+    const pane = paneById(paneId); if (!pane) return;
     const group = pane.groups.find((candidate) => candidate.id === groupId); if (!group) return;
     tabMenuAnchor = anchor; tabMenu.replaceChildren();
     tabMenu.setAttribute("aria-label", L("分组操作"));
@@ -1611,7 +1611,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
     const viewChip = event.target.closest("[data-tab-view]");
     if (viewChip) {
-      const pane = state.panes.find((candidate) => candidate.id === paneId);
+      const pane = paneById(paneId);
       if (!pane) return true;
       // Already on the plugin's page: the chip is its name, and pressing it goes back to the page's list.
       if (!pane.activeTabId && state.focusedPaneId === paneId && !state.exclusive) { resetPluginPage(pane.viewPlugin); return true; }
@@ -1623,7 +1623,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
     const tab = event.target.closest("[data-tab-id]");
     if (tab) {
-      const pane = state.panes.find((candidate) => candidate.id === paneId);
+      const pane = paneById(paneId);
       const alreadyActive = pane?.activeTabId === tab.dataset.tabId && state.focusedPaneId === paneId;
       if (!alreadyActive || state.exclusive) {
         activate(paneId, tab.dataset.tabId);
@@ -1863,7 +1863,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab && dragTab && tab.dataset.tabId === dragTab.tabId) tab = null;
     let beforeId = tab?.dataset.tabId;
     if (tab && event.clientX > tab.getBoundingClientRect().left + tab.getBoundingClientRect().width / 2) {
-      const pane = state.panes.find((candidate) => candidate.id === paneId);
+      const pane = paneById(paneId);
       beforeId = pane?.tabs[pane.tabs.findIndex((item) => item.id === beforeId) + 1]?.id;
     }
     const overStrip = event.target.closest("[data-tab-strip], [data-titlebar-tabs]");
@@ -1874,7 +1874,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const groupWrap = event.target.closest("[data-tab-group]");
     const groupId = groupWrap && !groupWrap.hasAttribute("data-pinned-group") ? groupWrap.dataset.tabGroup : null;
     if (groupId && !tab) {
-      const pane = state.panes.find((candidate) => candidate.id === paneId);
+      const pane = paneById(paneId);
       const members = pane?.tabs.filter((item) => item.groupId === groupId) || [];
       const last = members.at(-1);
       const lastIndex = pane?.tabs.findIndex((item) => item.id === last?.id);
@@ -1970,7 +1970,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
     if (!["workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-goal-view", "workbench-pane-history"].includes(event.data?.type)) return;
     const frame = [...panesEl.querySelectorAll("iframe")].find((node) => node.contentWindow === event.source);
-    const pane = state.panes.find((candidate) => candidate.id === frame?.dataset.paneOwner);
+    const pane = paneById(frame?.dataset.paneOwner);
     if (!pane) return;
     if (event.data.type === "workbench-pane-history") {
       if (state.focusedPaneId !== pane.id) { state.focusedPaneId = pane.id; apply(); persist(); }

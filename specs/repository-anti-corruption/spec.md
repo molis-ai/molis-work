@@ -1366,7 +1366,7 @@ W3-10-5 复用现有 SOURCE_COUNT_RULES 与逐文件 merge-base 比较，不另�
 | W3-02-G1-04 | 四入口共用readLocalWebBody保留256000个UTF-8字节上限、早停及空正文行为；超限与坏JSON按actions.input_too_large/too_large及actions.input_invalid/invalid，分别413/400，原消息保留。不换成按字符计数的Native reader；真实超限、中文正文和坏JSON在业务前拒绝，不造调用编号或事实。 |
 | W3-02-G1-05 | 平台同义码not_found→missing、invalid_input→input_invalid、permission_denied→forbidden，改全体生产消费者及三处测试假码后删合同表not_found/invalid_input/failed/transport_failed四行及过渡测试例外；不留读取兼容。真实原缺失与输入拒绝的404/400及文案保留，Memory这片只改读码，mapper删除归G3。API快照同片更新。 |
 | W3-02-G3-01 | 主人声明 kind，删除最后三处 HTTP mapper 及选项、全部 Memory→Assistant 码重写（含 memory tools 回调）；未知内部异常经共同出口回答500，保留 owner拒绝的消息/详情。Host不另起一套码或同义状态表。 |
-| W3-02-G3-02 | Memory的权限、对象不存在、待处理建议上限与预览后变动分别按 forbidden/not_found/conflict 分类；invalid/off保持invalid。真实两入口验证精确状态、code和事实未写，保留候选的拒绝/去重、本人接受及可撤销停用行为；400→403/409是明确记录的分类修正。 |
+| W3-02-G3-02 | Memory的权限、对象不存在、待处理建议上限与预览后变动分别按 forbidden/not_found/conflict 分类；invalid/off保持invalid。真实Memory HTTP验证scope403与preview交错409，Assistant HTTP验证其可达的404/invalid及原owner码无重写，真实memoryTools证明forbidden/limit的owner码、kind与事实未写；保留候选的拒绝/去重、本人接受及可撤销停用行为。Assistant管理入口只有person=true的change/prefs/candidate，不新增propose/clear路由或假造owner拒绝凑两个HTTP入口的矩阵；400→403/409是已记录的分类修正。 |
 | W3-02-G3-03 | 真实助理失败仍持久化原文草稿并返回同一 publicWork，work/action放在details，island同片读failure.code与failure.data=details；保留修复按钮、原request_id与恢复流程，不读取旧顶层work/action。浏览器证明失败后草稿、同一work及修复按钮实际可用。 |
 | W3-02-G3-04 | 应用重启后失效的图片句柄经真实读取入口回答404 / assistant.expired（原410），kind=not_found；保留重新添加文案及业务资料记录，不伪造调用编号。 |
 

@@ -386,8 +386,9 @@ export interface PluginDefinition {
   agent_skills?: readonly AgentSkillDefinition[];
   /**
    * The instructions this plugin sends the model through `services.model`, registered while it runs so the person sees and edits
-   * them in “Prompt 与 Character”. Each is the plugin's own (`owner_id` is its plugin id). For a plugin that has no catalog entry:
-   * the instructions of one that does are declared on that entry, and an owner has them in one place only.
+   * them in “Prompt 与 Character”. Each is the plugin's own (`owner_id` is its plugin id). For a plugin the catalog registers nothing
+   * for: one with a catalog entry declares its instructions on that entry, and a definition that carries them for an owner the catalog
+   * registers anything for (instructions, Agent prompts, roles or methods) does not start, because an owner's definitions are in one place.
    */
   instructions?: readonly InstructionPrompt[];
   start(context: PluginStartContext): Promise<PluginContribution>;

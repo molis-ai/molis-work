@@ -12,11 +12,16 @@ import type { IntegrationProviderItem as ConnectorIngestItem, IntegrationProvide
 type ConnectorSyncFailure = Extract<IntegrationProviderSyncResult, { ok: false }>;
 type ConnectorSyncSuccess = Extract<IntegrationProviderSyncResult, { ok: true }>;
 
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+
+/** A sync the provider reported as failed is one Feed code, and the provider's own code (what a run and a source fault store) rides in its details. */
+function providerFailure(error: unknown, providerCode: string): boolean {
+  return error instanceof ActionError && error.code === "feed.connector_failed" && error.details?.error_code === providerCode;
+}
 
 async function withBoard<T>(run: (store: LocalProjectDatabase) => Promise<T>): Promise<T> {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-connectors-"));
@@ -566,7 +571,7 @@ test("Connector service persists cursor only after success and safely replays or
     next = failure("needs_auth");
     await assert.rejects(
       service.sync(source.source_id, { idempotencyKey: "connector-sync-0002" }),
-      (error: unknown) => error instanceof FeedDomainError && error.code === "connector_needs_auth" && /管理账号连接/.test(error.message),
+      (error: unknown) => providerFailure(error, "connector_needs_auth") && /管理账号连接/.test((error as Error).message),
     );
     assert.deepEqual(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, cursor1);
     const fault = service.feed.listInboxEntries(DEMO_PROJECT_ID).find(
@@ -592,7 +597,7 @@ test("Connector service persists cursor only after success and safely replays or
     service.feed.setSourceEnabled(DEMO_PROJECT_ID, source.source_id, false);
     await assert.rejects(
       service.sync(source.source_id, { idempotencyKey: "connector-sync-0004" }),
-      (error: unknown) => error instanceof FeedDomainError && error.code === "feed_source_paused",
+      (error: unknown) => error instanceof ActionError && error.code === "feed.source_paused",
     );
   });
 });
@@ -624,7 +629,7 @@ test("Connector failure commits Source and event together while retaining the Li
     assert.equal(replay.run.outcome, "failed");
     assert.deepEqual(replay.source, source);
     assert.equal(calls, 1, "the Listener receipt remains durable independently of the later Source/event transaction");
-    await assert.rejects(service.sync(source.source_id, { idempotencyKey: "connector-commit-failure-2" }), (error: unknown) => error instanceof FeedDomainError && error.code === "connector_needs_auth");
+    await assert.rejects(service.sync(source.source_id, { idempotencyKey: "connector-commit-failure-2" }), (error: unknown) => providerFailure(error, "connector_needs_auth"));
     const updated = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
     assert.equal(updated.status, "error");
     assert.equal(updated.last_error_code, "connector_needs_auth");
@@ -662,7 +667,7 @@ test("Connector service preserves cursor and schedules rate-limit recovery witho
     });
     await assert.rejects(
       service.sync(source.source_id, { idempotencyKey: "connector-rate-limit-0001" }),
-      (error: unknown) => error instanceof FeedDomainError && error.code === "connector_rate_limited",
+      (error: unknown) => providerFailure(error, "connector_rate_limited"),
     );
     const durable = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
     assert.equal(durable.status, "active");
@@ -691,7 +696,7 @@ test("disconnected connector stops before any Provider pull", async () => {
     assert.equal(disconnected.status, "disconnected");
     await assert.rejects(
       service.sync(disconnected.source_id, { idempotencyKey: "disconnected-must-not-pull" }),
-      (error: unknown) => error instanceof FeedDomainError && error.code === "connector_needs_auth",
+      (error: unknown) => error instanceof ActionError && error.code === "feed.connector_needs_auth",
     );
     assert.equal(calls, 0);
   });
@@ -716,7 +721,7 @@ test("Connector interruption is recoverable with the same idempotency key", asyn
     });
     await assert.rejects(
       service.sync(source.source_id, { idempotencyKey: "connector-recovery-0001" }),
-      (error: unknown) => error instanceof FeedDomainError && error.code === "feed_source_sync_interrupted",
+      (error: unknown) => error instanceof ActionError && error.code === "feed.source_sync_interrupted",
     );
     const interrupted = service.feed.snapshot(DEMO_PROJECT_ID).runs[0]!;
     assert.equal(interrupted.phase, "interrupted");

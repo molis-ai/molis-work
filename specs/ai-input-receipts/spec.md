@@ -2,7 +2,7 @@
 
 > 远端接续请先读文末「远端交接」；历史路径、授权及未提交状态以该节为准。
 
-状态：执行中（2026-10-12；SDK S1–S3 工程通过、待采用线整合；R0 独立回执体验预览已实现并工程通过（§18.8），待用户看实物；S4 合同草稿已写（基于 P2a，`docs/slices/input-board-refs.md`），待实现；Molis 生产接入等 D7）。§14 的九项已按推荐定下（用户 2026-10-09「按你推荐，开工」）。阶段 2 的 Prologue 通用能力按刀推进：S1（输入身份与读到回执）已收尾并进了采用线整合分支；S2（会话级持久排队）在 Prologue `feature/input-receipts-s2` 上工程通过、待采用线整合；S3（处理说明与提醒）在 `feature/input-receipts-s3` 上工程通过、待采用线整合；S4 等采用线 P1 的统一合同。阶段 1 与之后的 Molis 生产接入仍按 D7 等待（正式 SDK 来源、默认包路径验证、采用线合入 main），在那之前 Molis 侧只改本需求书与合同设计。进度记在 §16。
+状态：执行中（2026-10-12；SDK S1–S3 工程通过、待采用线整合；R0 独立回执体验预览已实现并工程通过（§18.8），待用户看实物；SDK S4 工程通过、待合入（Prologue PR #10）；Molis 生产接入等 D7）。§14 的九项已按推荐定下（用户 2026-10-09「按你推荐，开工」）。阶段 2 的 Prologue 通用能力按刀推进：S1（输入身份与读到回执）已收尾并进了采用线整合分支；S2（会话级持久排队）在 Prologue `feature/input-receipts-s2` 上工程通过、待采用线整合；S3（处理说明与提醒）在 `feature/input-receipts-s3` 上工程通过、待采用线整合；S4 等采用线 P1 的统一合同。阶段 1 与之后的 Molis 生产接入仍按 D7 等待（正式 SDK 来源、默认包路径验证、采用线合入 main），在那之前 Molis 侧只改本需求书与合同设计。进度记在 §16。
 
 覆盖所有 AI 对话场景里「用户输入的处理反馈」。Coding 是验证样本，全局助理是第二个首批场景；同时给出个人助理等对话场景的深化方向，以及其他 AI 场景的适用性判断。界面上的 Option、推荐动作和交互卡片归 `specs/ai-interaction-experience`（主检出里未入库的需求书，分工见 §13.2）；本文只拥有「输入」这条生命周期，以及它与任务、结果的关联。
 
@@ -875,6 +875,7 @@ interface AgentInputView {
 - 2026-10-12（续）：S3（处理说明与有界提醒）在 Prologue `feature/input-receipts-s3` 上实现并工程通过（基点：采用线整合末端 `a13bf067` 合入 S2 得 `c0194228`）。切片合同 `docs/slices/input-handling.md`，决策记录 H1–H15。要点：模型只能说明这一跑里已读到的输入；说明没有权威、不改 `state`；提醒有界、只写编号、不挡死收工；`later-step / new-task / needs-clarification` 暂用 `note` 补足，S4 有了步骤与问题目标再收紧。Molis 侧准备：D10–D12 写入 §14；§6.2 `AgentInputView.handling` 的字段取自投影的 `handling` / `handlingRevisions`（`impacts` 为模型自称，观察到的影响仍由 S4 / Molis 投影）。
 - 2026-10-12（再续）：R0 独立回执体验预览实现并工程通过（见 §18.8）。脚本 `scripts/preview-input-receipts.mts`（端口 4292）读 `scripts/input-receipts-slice/recorded/` 里用 Prologue S3 末端（`37427d09`）的真实 SDK 录下的事实，只做展示，不计算状态。非浏览器用例 12 条、浏览器用例 10 条（三宽度 × 浅深色 × 两种布局 × 四个场景、键盘、输入法、托盘、纠正、结束卡与重启分支）通过；健康门禁 `--base origin/main` 通过，新文件 Biome 0 诊断、类型检查干净、secrets 干净。**真实产品实操不适用（预览不连 Home）；用户本人验收未进行。**
 - 2026-10-12（统筹交来）：Prologue S2/S3 已随 Prologue #5 合入 Prologue main（合并提交 `f5ef12e6`），采用线正在把这个包换进 Molis。新增待办 D16（§14）：`acknowledge-inputs` 在助理面板里的显示与措辞归本线，D7 之后接 S3 时定。
+- 2026-10-13：S4（任务图、待办与问题引用输入）在 Prologue `feature/input-receipts-s4` 上实现并工程通过，PR [molis-ai/prologue#10](https://github.com/molis-ai/prologue/pull/10)（基于已合入 main 的 P2a / P2b / P2c）。合同 `docs/slices/input-board-refs.md`，决策 I1–I15。板工具 `forInputs` / `inputs` 经引擎盖章（只认这一跑读到的输入）写进图的 `origins` / `report.inputs`；`acknowledge-inputs` 多 `board-node` / `todo` / `pending` 目标，绑定了节点的跑只能指绑定的那块板；`update-todo` 保住模型给的 id；`ask-user` 带 `about`、问题落定记 `pending-settled/expired/cancelled`，投影多 `questions`（账说不清的 `unresolved`）。证据：内存 Host 19 条、真实 Node Host 2 条（含 SIGKILL）、六份干净包消费者、12 个变异、SDK 全量 340 个文件 3 764 条通过。**未跑：真实 Provider、Molis 生产入口、用户实操。** Molis 一侧（`services/agent-inputs` 投影、界面）等 D7。同日按用户决定，R0 并入本交接 PR，#438 关闭。
 
 ## 17. 远端交接（2026-10-11，当前接续入口）
 

@@ -1,5 +1,5 @@
 import { informationActionProvider } from "./information-actions.js";
-import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
+import { bindHomeSide, releaseHomeSide } from "./home-side.js";
 import { homeActionProvider } from "./home-actions.js";
 import { workflowEventsFeedOptions } from "./workflow-feed-options.js";
 import { bindScheduleDeliveryFeed } from "./schedule-runtime.js";
@@ -49,8 +49,9 @@ import { registerProjectCapabilities } from "./project-capabilities.js";
 import { releaseProjectPlugins } from "./project-plugins.js";
 import type { HostCapabilityDefinition, LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActionProvider } from "./inbox-actions.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
@@ -58,6 +59,9 @@ import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } 
 import { isPersonalSpace } from "./personal-space.js";
 import { registerProjectRuntimeOwner } from "./project-deleted-runtime.js";
 import { localWebActionContext } from "./local-web-actions.js";
+import { HomePluginHost } from "./home-plugins.js";
+import { withPreparedActions } from "./plugin-actions-client.js";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 
 export interface MolisWorkProjectRuntime {
@@ -77,6 +81,12 @@ export interface MolisWorkLocalHostOptions {
   alchemist?: AlchemistHostOptions;
   /** Shared text provider injection; null explicitly disables model completion. */
   completeText?: HostCompleteText | null;
+  /**
+   * Plugins that exist only for a test or a probe: the Host runs them in process, beside the shipped ones, in every project's
+   * platform. Never `bundled` (they register under their installation id), and never sandboxed. Production composition passes
+   * none. They are registered per Home and read when a project's platform starts (`home-side.ts`).
+   */
+  pluginFixtures?: { project?: readonly PluginDefinition[] };
   sceneAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["sceneAvailability"];
   actionAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["actionAvailability"];
   onRuntimeOpen?: (reference: LocalHostProjectReference) => void;
@@ -128,6 +138,7 @@ export class MolisWorkLocalHost {
   /** System search over this Home's plugins; absent without a Home directory. */
   readonly search?: SearchHost;
   readonly placement?: PlacementHost;
+  readonly homePlugins?: HomePluginHost;
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     this.sessions = new SessionRuntimeService(options);
@@ -197,6 +208,8 @@ export class MolisWorkLocalHost {
         close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference)),
       },
     });
+    if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
+      registry: this.host.actionRegistry(), client: this.host.homeActionClient(), entries: BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.runtime ? [entry.runtime] : []) });
     if (this.personalPlanningHome) this.personalPlanning = new PersonalPlanningActions(this.personalPlanningHome, this.host.actionRegistry(),
       () => readPersonalPlanningMethodPacks(this.personalPlanningHome!));
     if (options.homeDirectory) {
@@ -229,7 +242,7 @@ export class MolisWorkLocalHost {
       this.host,
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor },
     );
-    if (options.homeDirectory) ensureSystemAgentService(this, options.homeDirectory, undefined, { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor });
+    if (options.homeDirectory) bindHomeSide(this, options.homeDirectory, options);
     if (options.homeDirectory) {
       const home = options.homeDirectory;
       this.search = createSearchHost({ homeDirectory: home, registry: this.host.actionRegistry(),
@@ -314,7 +327,7 @@ export class MolisWorkLocalHost {
 
   /** `preparePlugins: false` is for Host callers of what the project registers when it opens (Goals): it starts no Runtime plugin and restores no external MCP first. */
   actionClient(reference: LocalHostProjectReference, preparePlugins = true): ActionClient {
-    const client = this.withSystemActions(this.host.actionClient(reference));
+    const client = withPreparedActions(this.host.actionClient(reference), () => this.prepareHomeActions());
     return !preparePlugins ? client : {
       discover: async caller => { await this.prepareProjectPlugins(reference, caller); return client.discover(caller); },
       invoke: async (caller, action, input) => { await this.prepareProjectPlugins(reference, caller); return client.invoke(caller, action, input); },
@@ -324,13 +337,12 @@ export class MolisWorkLocalHost {
   syncActionClient(reference: LocalHostProjectReference) { return this.host.syncActionClient(reference); }
 
   homeActionClient(): ActionClient {
-    return this.withSystemActions(this.host.homeActionClient());
+    return withPreparedActions(this.host.homeActionClient(), () => this.prepareHomeActions());
   }
 
   /** Local management inspects registered metadata without borrowing execution permissions. */
   async inspectActions(caller: ActionCallContext, reference?: LocalHostProjectReference) {
-    if (this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
-    this.systemFunctions?.refresh();
+    await this.prepareHomeActions();
     if (reference) await this.prepareProjectPlugins(reference, caller);
     return this.host.inspectActions(caller, reference);
   }
@@ -350,15 +362,10 @@ export class MolisWorkLocalHost {
     return ensureProjectPluginActions({ host: this.host, options: this.options, agents: () => this.agents?.service }, reference);
   }
 
-  private withSystemActions(client: ActionClient): ActionClient {
-    const refresh = () => {
-      if (this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
-      this.systemFunctions?.refresh();
-    };
-    return {
-      discover: async caller => { refresh(); return client.discover(caller); },
-      invoke: async (caller, capability, input) => { refresh(); return client.invoke(caller, capability, input); },
-    };
+  private async prepareHomeActions(): Promise<void> {
+    if (this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
+    await this.homePlugins?.ready();
+    this.systemFunctions?.refresh();
   }
 
   sceneClient(reference?: LocalHostProjectReference): ActionSceneClient {
@@ -396,14 +403,14 @@ export class MolisWorkLocalHost {
 
   close(): Promise<void> {
     return this.closing ??= (async () => {
-      releaseSystemAgentService(this);
+      releaseHomeSide(this);
       this.connectorMcp?.close();
       await this.search?.close().catch(() => undefined);
       try { this.placement?.close(); } catch { /* closing anyway */ }
       try { await this.host.close(); }
       finally {
         this.systemFunctions?.dispose();
-        try { await Promise.all([this.agents?.service.dispose(), this.images?.close(), this.alchemist?.close(), this.sessions.close()]); }
+        try { await Promise.all([this.agents?.service.dispose(), this.images?.close(), this.alchemist?.close(), this.sessions.close(), this.homePlugins?.close()]); }
         finally { await this.webCatalog?.access.close(); }
       }
     })();

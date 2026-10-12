@@ -5,6 +5,7 @@ import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { createPrologueInference } from "./prologue-inference.js";
+import { questionUnavailable, withInteractionRepairLimit } from "./prologue-questions.js";
 import type { PrologueInferenceClient } from "../inference.js";
 import { prologueActionTools, agentActionToolName } from "./prologue-action-tools.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -718,11 +719,6 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     }
     return pending;
   };
-  const questionUnavailable = (run: AgentRunRef, pending: Awaited<ReturnType<typeof readQuestion>>, now: number) =>
-    pending.state !== "open" ? "这条问题已经结束，不能再次回答"
-      : now >= pending.expiresAtMs ? "这条问题已过期，不能提交原答案"
-      : !activeRuns.get(run.run_id)?.live() || !runtime.effects.pendings.hasLiveWaiter(pending.ref)
-        ? "原执行者已经停止或离线，不能通过回答重新启动" : undefined;
   /** A run or open item of the session that no start claims: the only thing a start without a reference could have made. */
   const unclaimedWork = (index: SessionIndex, terminal: readonly { id: string }[], open: Awaited<ReturnType<typeof runtime.listOpenWork>>) =>
     terminal.some(ref => !index.attempts.some(attempt => attempt.run_id === ref.id))
@@ -1062,7 +1058,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       // The original persisted answer owns this fact, including after restart.
       // Do not turn an answered question back into an empty disabled form.
       if (pending.state === "settled") return null;
-      const unavailable = questionUnavailable(run, pending, (await host.readClock()).monotonicMs);
+      const unavailable = questionUnavailable(pending, (await host.readClock()).monotonicMs, Boolean(activeRuns.get(run.run_id)?.live() && runtime.effects.pendings.hasLiveWaiter(pending.ref)));
       return { pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind,
         prompt: pending.why, options: [], allows_free_text: pending.kind === "text",
         ...(pending.kind === "questionnaire" ? { questions: pending.questions.map(question => ({
@@ -1489,7 +1485,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         run: {
           ref: { id: started.run.ref.id },
           subscribe: (listener: (event: PrologueEvent) => void) =>
-            started.run.subscribe((event) => {
+            started.run.subscribe(withInteractionRepairLimit(control, (event) => {
               if (event.type === "text-delta" && typeof (event as { text?: unknown }).text === "string") memoryDone.spoken = (memoryDone.spoken + (event as { text: string }).text).slice(-4000);
               if (["completed", "failed", "cancelled"].includes(event.type)) {
                 actionController.abort(); actionControllers.delete(started.run.ref.id);
@@ -1513,7 +1509,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
                 const receipt: PrologueUsageReceipt = event.receipt;
                 listener({ ...event, receipt });
               } else listener(event);
-            }),
+            })),
           cancel: () => { actionController.abort(); return started.run.cancel(); },
         },
         control: {
@@ -1563,7 +1559,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       }
       const pending = await readQuestion(run, answer.pending_id, answer.pending_revision!);
       const now = await host.readClock();
-      const unavailable = questionUnavailable(run, pending, now.monotonicMs);
+      const unavailable = questionUnavailable(pending, now.monotonicMs, Boolean(activeRuns.get(run.run_id)?.live() && runtime.effects.pendings.hasLiveWaiter(pending.ref)));
       if (unavailable) throw new PrologueAdapterError("agent.pending_not_open", unavailable);
       if (pending.kind === "text") {
         if (typeof answer.text !== "string" || !answer.text.trim() || answer.answers !== undefined) throw new Error("请填写原问题的文字回答");

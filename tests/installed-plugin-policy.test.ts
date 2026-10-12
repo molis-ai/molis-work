@@ -20,7 +20,7 @@ async function fixture(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), 'installed-policy-')), store = new LocalProjectDatabase(join(directory, 'project.db'));
   const service = new ActionService(), actions = { registry: service, client: service, project_id: 'p' };
   const storage = new SqlitePluginPrivateStorage(store.db);
-  const platform = createPluginPlatform({ project_id: 'p', actor_id: 'owner', db: store.db, actions, ui: new UiHost(),
+  const platform = createPluginPlatform({ project_id: 'p', actor_id: 'owner', db: store.db, actions, ui: new UiHost(), home: null,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest) });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), finished = Promise.withResolvers<void>();
   let waiting = false, calls = 0, effects = 0, dispose = () => {};

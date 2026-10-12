@@ -10,8 +10,9 @@ import { sendLocalWebJson as sendJson } from "./web-http.js";
 
 /**
  * How a process that only forwards (the stdio MCP) deletes a project: the resident Host has the project's terminals and
- * runtime, so it runs the deletion and answers with the receipt. Same trust as the action gateway: the Home's own control
- * token, a numeric loopback address, no redirect.
+ * runtime, so it runs the deletion and answers with the receipt. It travels the action gateway's transport
+ * (`postToResidentHost`: the Home's own control token, a numeric loopback address, no redirect) and is guarded at the Host by
+ * the same gate; docs/system/SECURITY-INVARIANTS.md S-07 lists what the route refuses.
  */
 export const PROJECT_DELETION_GATEWAY_PATH = "/api/internal/project-deletion";
 
@@ -52,7 +53,13 @@ function isProjectDeletionResult(value: unknown): value is ProjectDeletionResult
   return typeof record.deletion_id === "string" && typeof record.project_id === "string" && typeof record.cleanup_state === "string";
 }
 
-/** Must be mounted after the existing local origin, control-token and one-time-key gate, with the action gateway. */
+/**
+ * Must be mounted after the existing local origin, control-token and one-time-key gate, with the action gateway. It refuses
+ * anything but POST, a body over 64 KiB or that is not a JSON object, a field it does not name, a `client_id` that is not a
+ * Runtime's and a Home id that is not this Host's Home (S-07). It takes no Host instance id, unlike the action gateway: the
+ * catalog keeps the deletion's receipt by actor and `idempotency_key` and replays it (the same key for another project is
+ * refused), so a Host that replaced the one the caller knew cannot delete twice.
+ */
 export async function handleProjectDeletionGatewayHttp(request: IncomingMessage, response: ServerResponse, url: URL,
   home: string, service: ProjectDeletionService): Promise<boolean> {
   if (url.pathname !== PROJECT_DELETION_GATEWAY_PATH) return false;

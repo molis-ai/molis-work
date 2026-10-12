@@ -2,7 +2,7 @@
 
 > 远端接续请先读文末「远端交接」；历史路径、授权及未提交状态以该节为准。
 
-状态：执行中（2026-10-12；SDK S1–S3 工程通过、待采用线整合；R0 独立回执体验预览已实现并工程通过（§18.8），待用户看实物；S4 等采用线 P1；Molis 生产接入等 D7）。§14 的九项已按推荐定下（用户 2026-10-09「按你推荐，开工」）。阶段 2 的 Prologue 通用能力按刀推进：S1（输入身份与读到回执）已收尾并进了采用线整合分支；S2（会话级持久排队）在 Prologue `feature/input-receipts-s2` 上工程通过、待采用线整合；S3（处理说明与提醒）在 `feature/input-receipts-s3` 上工程通过、待采用线整合；S4 等采用线 P1 的统一合同。阶段 1 与之后的 Molis 生产接入仍按 D7 等待（正式 SDK 来源、默认包路径验证、采用线合入 main），在那之前 Molis 侧只改本需求书与合同设计。进度记在 §16。
+状态：执行中（2026-10-12；SDK S1–S3 工程通过、待采用线整合；R0 独立回执体验预览已实现并工程通过（§18.8），待用户看实物；S4 合同草稿已写（基于 P2a，`docs/slices/input-board-refs.md`），待实现；Molis 生产接入等 D7）。§14 的九项已按推荐定下（用户 2026-10-09「按你推荐，开工」）。阶段 2 的 Prologue 通用能力按刀推进：S1（输入身份与读到回执）已收尾并进了采用线整合分支；S2（会话级持久排队）在 Prologue `feature/input-receipts-s2` 上工程通过、待采用线整合；S3（处理说明与提醒）在 `feature/input-receipts-s3` 上工程通过、待采用线整合；S4 等采用线 P1 的统一合同。阶段 1 与之后的 Molis 生产接入仍按 D7 等待（正式 SDK 来源、默认包路径验证、采用线合入 main），在那之前 Molis 侧只改本需求书与合同设计。进度记在 §16。
 
 覆盖所有 AI 对话场景里「用户输入的处理反馈」。Coding 是验证样本，全局助理是第二个首批场景；同时给出个人助理等对话场景的深化方向，以及其他 AI 场景的适用性判断。界面上的 Option、推荐动作和交互卡片归 `specs/ai-interaction-experience`（主检出里未入库的需求书，分工见 §13.2）；本文只拥有「输入」这条生命周期，以及它与任务、结果的关联。
 
@@ -365,11 +365,12 @@ AI 的说法和执行事实分开显示。AI 的说法标「AI 的理解」，�
 6. **提醒来源 `unacknowledged-input`。**
    - 读到后，模型的下一次回复仍没说明，就附一条提醒。
    - 可配置「有读到未说明的输入时不自然收工」。提醒次数有界，到上限照常收工，并在账上留「未说明」。
-7. **TaskBoard 与 todo。**
-   - 节点加 `origins?: InputRef[]`（有界）。
-   - `board-plan`、`board-revise`、`addNode` 可带 `forInputs`；`report` 可带 `inputs`。
-   - `update-todo` 接受模型给的 id，并在整批替换时保持。
-8. **pending。** 加 `about?: InputRef`；新增 `pending-settled`、`pending-expired` 事件。
+7. **TaskBoard 与 todo。**（2026-10-12：SDK 第四刀合同 `docs/slices/input-board-refs.md`（分支 `feature/input-receipts-s4`，基于 P2a）是这一项与第 8 项的权威，草稿已写、未实现。）
+   - 节点加 `origins?: InputRef[]`（有界）。字段由 P2a 给（每节点 / 每报告最多 8 条，超出整次拒绝），本线只写「谁写进去、怎么核」：引擎盖章，模型只给这一跑读到的输入编号。
+   - `board-plan`（每个节点）、`board-revise`（含 `add`）可带 `forInputs`；`board-report` 可带 `inputs`。
+   - `update-todo` 接受模型给的 id，整批替换时同一 id 保留原状态；换批结果逐条回编号。
+   - `acknowledge-inputs` 的目标多 `board-node`（带 `board`）、`todo`、`pending`，引擎核存在。
+8. **pending。** 加 `about?`（`{ session, input }`）；问它的那一跑账上记 `pending-settled`、`pending-expired`，以及本线补的 `pending-cancelled`（被取消的问题不能在回执上永远是「待答」）；回执投影多 `questions`，账说不清的记 `unresolved`。
 
 每一项都按 Prologue 规则：落点在已有模块（agent、session、tool、context、orchestration、effect-policy），不新增第 30 个模块。系统工具闭集的增项登记在 `modules/tool/system.md`；完成门要过真实 Node Host 回归与变异验证。
 

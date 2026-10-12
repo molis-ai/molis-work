@@ -214,7 +214,9 @@ describe("the records of this repository", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    assert.equal(provenance.source.commit, "a13bf0673ae46b829449449b8413ac1495f97159");
+    assert.equal(provenance.source.commit, "55b0c85aed4a0cd9296a58180f99e31a419a9608");
+    assert.equal(provenance.source.mergedUpstream.branch, "main");
+    assert.equal(provenance.source.mergedUpstream.pullRequest, 4);
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
   });

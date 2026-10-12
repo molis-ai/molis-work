@@ -15,20 +15,20 @@
 
 `prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz`（1,076,425 字节），SHA-256 `646afefbd4225bfe8bf50892403962fa3e12711f1c45035cfb739e3b9bc8d34f`。
 
-**来源**：上游 `molis-ai/prologue` 提交 `a13bf0673ae46b829449449b8413ac1495f97159` 的 `packages/sdk`，不加补丁，`dirty: false`。分支 `feature/handoff-molis-a0-s1`，以当时的上游 main 头 `69ccfa94` 为祖先；**还不在上游 main 里，这个提交也还没推送**（推送与并入上游 main 要用户授权，见 [采用 spec](../../specs/prologue-adoption/spec.md) §3.2、§7）。并入 main 之后从 main 上的具名提交重建，provenance 补 `mergedUpstream`。三条线合成一个包，采用、输入回执、跨插件 AI 交互三条消费线共用：
+**来源**：上游 `molis-ai/prologue` main 上的合并提交 `55b0c85aed4a0cd9296a58180f99e31a419a9608` 的 `packages/sdk`，不加补丁，`dirty: false`。它是 PR #4（`feature/molis-adoption-receipts-fields`，head `a13bf067`）的合并提交（2026-10-12T06:34:51Z），父提交是 `69ccfa94` 与 `a13bf067`，树与 `a13bf067` 的树相同。provenance 的 `mergedUpstream` 记 PR、head、合并时间与核对时的 main 头。三条线合成一个包，采用、输入回执、跨插件 AI 交互三条消费线共用：
 
 - `c4b9fde3`：微压缩只收能再读的观察，改世界的回执不换成「需要就再调」；独占写主人重开时清死去主人的写声明；让出后的续跑可以交给 App（Molis 不启用，正式派发入口拒绝 yield）。
 - `4acfb445`：输入回执第一刀——`steer` 有身份、可撤回，回复留进历史才记「读到」，`projectInputReceipts` 从 Run 账推回执。
 - `69ccfa94`（经 `edb8ec86` 并入的上游 main）：符号链接 cwd 越根与非终态导入两处硬边界。
 - `a06ae62e`（经 `8db0d7d6` 并入）：AskUser 带类型的题与 `validateQuestionnaireAnswer`；不配 `config.tool.askUserQuestionTypes` 时 `ask-user` 逐字不变。
-- `a13bf067` 只改 `docs/slices`；从它与从 `8db0d7d6` 打出的包逐字节相同。
+- `a13bf067` 只改 `docs/slices`；从 `55b0c85a`、`a13bf067`、`8db0d7d6` 三个归档打出的包逐字节相同。
 
 包的依赖与上一份相同（`@tauri-apps/api` 2.11.1），锁文件只换路径与 integrity。
 
-**重建**（2026-10-12 在 macOS x64、Node 24.21.0、pnpm 11.9.0 上实际跑过两次，`8db0d7d6` 与 `a13bf067` 两份归档打出同一个 SHA-256；上游根 `package.json` 钉的是 Node 24.14.0，换版本 pnpm 只警告）：
+**重建**（2026-10-12 在 macOS x64、Node 24.21.0、pnpm 11.9.0 上实际跑过三次，`8db0d7d6`、`a13bf067` 与上游 main 上的 `55b0c85a` 三份归档打出同一个 SHA-256；上游根 `package.json` 钉的是 Node 24.14.0，换版本 pnpm 只警告）：
 
 ```bash
-git -C <prologue 克隆> archive a13bf0673ae46b829449449b8413ac1495f97159 | tar -x -C <空目录>
+git -C <prologue 克隆> archive 55b0c85aed4a0cd9296a58180f99e31a419a9608 | tar -x -C <空目录>
 cd <空目录>
 pnpm install --frozen-lockfile --ignore-scripts --offline
 pnpm --filter @prologue/sdk build
@@ -89,7 +89,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
 - `packagesWithoutPatch`：10 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含 2026-10-12 换掉的 dirty 候选 a0-s1；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：记录里写到的每个 Prologue 提交（20 个），除 2026-10-12 加的 `c4b9fde3` 外，都是上游 main 头 `4f7110fe` 的祖先（2026-10-08 逐个用 `git merge-base --is-ancestor` 核对，本机克隆的 `origin/main` 与 `git ls-remote` 一致）；`c4b9fde3` 在已推送的特性分支上，并入上游 main 后复核。`21cdfbf8`、`d4a2f41b` 是 Molis 仓库的提交，不是 Prologue 的。
+- `upstream`：记录里写到的每个 Prologue 提交（20 个）都是上游 main 头的祖先（2026-10-08 逐个用 `git merge-base --is-ancestor` 对 `4f7110fe` 核对；2026-10-12 加的 `c4b9fde3` 随 PR #4 进了 main，对 `55b0c85a` 同样成立）。`21cdfbf8`、`d4a2f41b` 是 Molis 仓库的提交，不是 Prologue 的。
 
 怎么取回并核对：
 

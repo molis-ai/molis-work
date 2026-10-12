@@ -9,9 +9,9 @@
   },
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
-    "checkedOn": "2026-10-08",
-    "mainHead": "4f7110fe0a07ba13fb19025ceb496016ecc0f494",
-    "statement": "下面 commitsChecked 里的 Prologue 提交（各项的基线、提交，以及来源里写出的提交链），除 c4b9fde3 外，都是上游 main 头的祖先（2026-10-08 用 git merge-base --is-ancestor 核对 4f7110fe；本机克隆的 origin/main 与 git ls-remote 一致；2026-10-12 的 main 头 69ccfa94 是 4f7110fe 的子提交）。c4b9fde3 是 2026-10-12 加的：它在已推送的特性分支 feature/handoff-molis-a0-s1 与 feature/handoff-ask-user-fields 上，还不在上游 main；该分支并入 main 后复核这一句。按提交号定位，不按分支名。",
+    "checkedOn": "2026-10-12",
+    "mainHead": "55b0c85aed4a0cd9296a58180f99e31a419a9608",
+    "statement": "下面 commitsChecked 里的每个 Prologue 提交（各项的基线、提交，以及来源里写出的提交链）都是上游 main 头的祖先（git merge-base --is-ancestor；2026-10-08 核对 4f7110fe；2026-10-12 PR #4 合并后上游 main 头是 55b0c85a，`c4b9fde3` 随 a13bf067 进入 main，复核同样成立）。远端特性分支已不能当定位点，所以按提交号定位，不按分支名。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",

@@ -2,7 +2,7 @@
 
 > 远端接续请先读文末「远端交接」；历史路径、授权及未提交状态以该节为准。
 
-状态：执行中（2026-10-12 A0 工程通过、正式 SDK 来源待上游合入授权；统一协作与外部条件等待尚未实现）。本文是采用线唯一需求书与进度记录；原接入评估与对话建议仅作线索（历史资料留在旧采用树），按当前实现核对。用户已否决「简单协作可以绕过 TaskBoard」。
+状态：执行中（2026-10-12 A0 工程通过，正式 SDK 来源已并入 Prologue main（PR #4）；浏览器实操、全量回归、Molis 合入 main 未完成；统一协作与外部条件等待尚未实现）。本文是采用线唯一需求书与进度记录；原接入评估与对话建议仅作线索（历史资料留在旧采用树），按当前实现核对。用户已否决「简单协作可以绕过 TaskBoard」。
 
 目标完成等级：Prologue **完整采用范围内部完整**——§2 原 1–23 项与存储/预算等既有决定逐项完成采用、验证或按已定边界不做；新增 24/25 项使 Coding 与个人助理共用协作事实及外部条件等待。需要接入的路径在真实执行、界面、权限及异常恢复中可顺畅试用。A0 只是当前基础切片，不是整线完成定义。工程通过、真实产品实操、用户本人验收分别记录。本轮执行 **A0 基础采用**，目标为基础能力功能可用；统一协作仍未实现。已获授权实现、构建、候选包与隔离验证；不提交、不推送、不建 PR、不合并、不改真实 Home 或安装版。
 
@@ -513,7 +513,7 @@ A0 明确不改助理协调器/存储/客户端、Schedule runner、模型设置
 
 ### 6.0 A0 收口记录（2026-10-12，当前状态）
 
-**一句话**：A0 在最新 `origin/main=02ceba8c` 上工程通过；SDK 已换成从具名干净提交打出的合成包（`dirty:false`）；**这个提交还在本机，没有推送、没有并入 Prologue main**，所以输入回执 D7 的「正式来源」「采用线合入 Molis main」两项仍未满足。三级证据分开记，下文只写实际跑过的命令。
+**一句话**：A0 在 `origin/main` 上工程通过；SDK 是从 Prologue main 上的具名合并提交 `55b0c85a`（PR #4，2026-10-12T06:34:51Z）打出的合成包（`dirty:false`），所以输入回执 D7 的「正式 SDK 来源」已满足；「Molis 默认路径验证」工程部分通过、浏览器部分未完成；「采用线合入 Molis main」未做。三级证据分开记，下文只写实际跑过的命令。
 
 #### SDK 来源（§3.2 的整合记录）
 
@@ -525,11 +525,12 @@ A0 明确不改助理协调器/存储/客户端、Schedule runner、模型设置
 | `4acfb445` | 输入回执第一刀 S1（原 WIP `820eeca9` 的代码，只整理了提交说明与交接文字） |
 | `edb8ec86` | 并入上游 main `69ccfa94`（符号链接 cwd 越根、非终态导入），零冲突 |
 | `8db0d7d6` | 并入 `a06ae62e` 带类型的问卷；唯一冲突是 public-surface 快照，重新生成 |
-| `a13bf067` | 合成后的复验记录（只改 `docs/slices`） |
+| `a13bf067` | 合成后的复验记录（只改 `docs/slices`）；PR #4 的 head |
+| `55b0c85a` | PR #4 合入上游 main 的合并提交（父 `69ccfa94`、`a13bf067`），树与 `a13bf067` 相同 |
 
 取舍：问卷字段与 A0 合成一个包而不是等 A0 收口之后再出第二个。收益是一次上游合入、一次 Molis 全量回归、跨插件 AI 线同时拿到问卷；代价是 A0 的回退点要多记一个——需要只带 A0 时可退到 `edb8ec86`（SDK 全量也跑过）。S2 持久队列（receipts 线 `a807c2cc`，基于 `edb8ec86`）不在本包，等本包上游合入后作为下一个整合包，因为它改变续聊历史里未读补充的入模方式，需要 Molis 侧单独验证。
 
-包：`vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz`，1,076,425 字节，SHA-256 `646afefbd4225bfe8bf50892403962fa3e12711f1c45035cfb739e3b9bc8d34f`，`source.commit` = `a13bf067`，`dirty:false`，无补丁；从 `8db0d7d6` 与 `a13bf067` 两份 `git archive` 各打一次，逐字节相同。旧 dirty 候选 `prologue-sdk-a0-s1.tgz` 已删，记在 `patch-history.json`（git blob `0c421991`）。`vendored-provenance` 门禁通过（0 问题）；没有改门禁、没有放宽 `dirty` 检查。
+包：`vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz`，1,076,425 字节，SHA-256 `646afefbd4225bfe8bf50892403962fa3e12711f1c45035cfb739e3b9bc8d34f`，`source.commit` = `55b0c85a`（上游 main 的合并提交，`mergedUpstream` 记 PR #4、head、合并时间），`dirty:false`，无补丁；从 `8db0d7d6`、`a13bf067`、`55b0c85a` 三份 `git archive` 各打一次，逐字节相同。旧 dirty 候选 `prologue-sdk-a0-s1.tgz` 已删，记在 `patch-history.json`（git blob `0c421991`）。`vendored-provenance` 门禁通过（0 问题）；没有改门禁、没有放宽 `dirty` 检查。
 
 #### 工程证据（第一级）
 
@@ -564,7 +565,7 @@ A0 明确不改助理协调器/存储/客户端、Schedule runner、模型设置
 
 #### 没做的与风险
 
-- Prologue 提交未推送、未并入上游 main：D7 的前两项未解除；并入后要从 main 上的提交重新打包核对字节（预期相同），README / provenance 补 `mergedUpstream`。步骤与 PR 材料在统筹笔记 `adoption-prologue-upstream.md`。
+- D7 还差两项：Molis 默认路径验证的浏览器部分（见上，被机器负载挡住）和采用线合入 Molis main（PR #408 由统筹按条件合并）。
 - 全量回归（`affected-tests` 命中共享核心 + 4 个包）还没排上；需要源码冻结 + 整机独占时段。
 - `c4b9fde3` 目前只在 Prologue 的特性分支上；`patch-history.json` 的上游说明已如实写明，并入后复核。
 

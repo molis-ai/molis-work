@@ -9,8 +9,7 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/prologue.git",
     "path": "packages/sdk",
-    "commit": "a13bf0673ae46b829449449b8413ac1495f97159",
-    "branch": "feature/handoff-molis-a0-s1",
+    "commit": "55b0c85aed4a0cd9296a58180f99e31a419a9608",
     "composition": [
       {
         "commit": "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
@@ -26,15 +25,15 @@
       },
       {
         "commit": "a06ae62e1a10e336ca40fa7ae483a63cb352e961",
-        "summary": "AskUser 带类型的题（8db0d7d6 并入）"
+        "summary": "AskUser 带类型的题（8db0d7d6 并入；PR #4 head a13bf067 只多 docs/slices 复验记录）"
       }
     ],
-    "mergedUpstream": null,
-    "upstreamStatus": {
-      "mainHead": "69ccfa94a58fab07e0a9d35239c4fe611cac1e74",
-      "mainHeadIsAncestor": true,
-      "commitOnUpstreamMain": false,
-      "pushed": false,
+    "mergedUpstream": {
+      "branch": "main",
+      "pullRequest": 4,
+      "pullRequestHead": "a13bf0673ae46b829449449b8413ac1495f97159",
+      "mergedAt": "2026-10-12T06:34:51Z",
+      "checkedHead": "55b0c85aed4a0cd9296a58180f99e31a419a9608",
       "checkedOn": "2026-10-12"
     },
     "dirty": false,
@@ -53,14 +52,14 @@
     "platform": "darwin",
     "architecture": "x64",
     "steps": [
-      "git archive a13bf0673ae46b829449449b8413ac1495f97159 | tar -x -C <dir>",
+      "git archive 55b0c85aed4a0cd9296a58180f99e31a419a9608 | tar -x -C <dir>",
       "pnpm install --frozen-lockfile --ignore-scripts --offline",
       "pnpm --filter @prologue/sdk build",
       "cd packages/sdk && pnpm pack --out <absolute path>/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz"
     ],
     "packedOn": "2026-10-12",
-    "reproducedFrom": "8db0d7d6c4a070f30c5d3aaac54f2e70f0ee4aab",
+    "reproducedFrom": "55b0c85aed4a0cd9296a58180f99e31a419a9608",
     "reproducedByteIdentical": true,
-    "note": "Upstream package.json pins Node 24.14.0; this build ran on 24.21.0 (pnpm warns, does not fail). 8db0d7d6 is the parent of a13bf067, which only changes docs/slices; both archives pack the same bytes."
+    "note": "Upstream package.json pins Node 24.14.0; this build ran on 24.21.0 (pnpm warns, does not fail). The merge commit's tree equals PR head a13bf067's tree (b10cab59…); archives of 55b0c85a, a13bf067 and 8db0d7d6 each packed to the same bytes (SHA-256 646afefb…, 2026-10-12)."
   }
 }

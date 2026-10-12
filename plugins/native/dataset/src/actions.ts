@@ -6,6 +6,7 @@ import { promoteDataset, type DatasetLineHeadPort, type DatasetPublishArtifactPo
 import { toCsv, type DatasetStore } from "./store.js";
 import { createDatasetSearchHandlers, datasetSearchActions } from "./search.js";
 import { datasetArtifactPreview, datasetArtifactPreviewHandler } from "./artifact-preview.js";
+import { datasetErrors } from "./error.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -86,12 +87,12 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
     bind(datasetActions.generate, (input, caller) => ports.withStore(store => ({ dataset: store.generateColumn(input.id, input.prompt, project(caller), input.expected_version) }))),
     bind(datasetActions.generateAi, async (input, caller) => {
       const current = ports.withStore(store => store.get(input.id, project(caller)));
-      if (input.expected_version !== undefined && current.version !== input.expected_version) throw new ActionError("dataset.conflict", "数据表已改变，请重新读取后生成");
+      if (input.expected_version !== undefined && current.version !== input.expected_version) throw datasetErrors.conflict("数据表已改变，请重新读取后生成");
       caller.signal?.throwIfAborted();
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
       const name = (await ports.completeText(instructed(DATASET_NAME_COLUMN, JSON.stringify({ request: input.prompt })), { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
       caller.signal?.throwIfAborted();
-      if (!name || name.length > 80 || /[\r\n]/.test(name)) throw new ActionError("dataset.invalid", "模型没有返回有效列名，请调整提示后重试");
+      if (!name || name.length > 80 || /[\r\n]/.test(name)) throw datasetErrors.invalid("模型没有返回有效列名，请调整提示后重试");
       await caller.beforeEffect();
       return ports.withStore(store => ({ dataset: store.generateColumn(input.id, name, project(caller), current.version) }));
     }, () => ports.modelAvailability()),

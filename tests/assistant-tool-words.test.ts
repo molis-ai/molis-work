@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { GUARDED_TOOL_NAMES } from "../horizontal/agent-host/src/adapters/announce-guard.js";
 import { presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
-import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/assistant-island.js";
+import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
 
 // A tool added to business rounds (the side panel's browser was the last) must not reach the panel under its own name.
 test("every tool a business round can be given reads in the person's words in the panel, or is left out", () => {

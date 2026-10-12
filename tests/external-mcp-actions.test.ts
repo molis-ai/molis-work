@@ -6,29 +6,25 @@ import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkProjectRuntime } from "../apps/local-host/src/project-host.js";
+import { MolisWorkLocalHost, type MolisWorkProjectRuntime } from "../apps/local-host/src/project-host.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
 import { createExternalMcpDirectory } from "../apps/local-host/src/external-mcp-actions.js";
 import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability } from "../apps/local-host/src/mcp-tool-actions.js";
-import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
-test("a connected external MCP tool is one directory action: local user, workflow step and granted MCP client all run it through the runtime's gate", { timeout: 120_000 }, async () => {
+test("a connected external MCP tool is one directory action: local user, workflow step and granted MCP client all run it through the runtime's gate", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "external-mcp-actions-"));
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  const project = await catalog.createProject({ display_name: "外部 MCP", actor_id: "web-user" });
-  if (!catalog.listProjectPlugins(project.project_id).includes("feed")) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "web-user" });
-  catalog.close();
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  // The Home is served so that the project and the MCP client's grant are made the way a person makes them; this file keeps its own host (it needs `src` types of the directory).
+  const served = await serveTestHost(t, { home, host });
+  const project = await served.createProject("外部 MCP", ["feed"]);
   await writeFile(join(home, "server.mjs"), MCP_FIXTURE);
   const openAdapter = () => createPrologueNodeAdapter({ app: { appId: "io.molis.external-mcp-test", appVersion: "1.0.0" }, reviewQueue: new AgentReviewQueue(),
     storageRoot: join(home, "runtime"), modelConfiguration: async () => null, resolveCredential: () => null });
   let adapter = await openAdapter();
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  const reference = project.reference;
   let directory = createExternalMcpDirectory({ localHost: host, homeDirectory: home });
   const owner = { project_id: project.project_id, plugin_id: "io.molis.work.coding" };
   let library = adapter.mcpLibrary!;
@@ -71,23 +67,21 @@ test("a connected external MCP tool is one directory action: local user, workflo
     assert.deepEqual(done.steps[1]!.result, { text: "Saved one note: 工作流交来的标题", truncated: false });
 
     // 3. An external MCP client of Molis calls it only with an exact grant, under its own identity.
-    const mcpCaller: ActionCallContext = { actor_id: "client-x", project_id: project.project_id, audience: "mcp", permissions: [] };
-    const denied = await authorizeMcpActions(host, mcpCaller, home, reference);
-    await assert.rejects(denied.service.invoke(denied.context, ref, { note: "未授权" }));
-    await writeMcpActionGrant(home, createMcpActionGrant("client-x", project.project_id, view, true));
-    const granted = await authorizeMcpActions(host, mcpCaller, home, reference);
-    assert.deepEqual(await granted.service.invoke(granted.context, ref, { note: "MCP 客户端" }), { text: "Saved one note: MCP 客户端", truncated: false });
+    const mcp = await served.mcp("client-x", project.project_id);
+    await assert.rejects(mcp.client.invoke(mcp.caller, ref, { note: "未授权" }), { code: "mcp.action_revoked" });
+    await served.grant("client-x", project.project_id, [view]);
+    assert.deepEqual(await mcp.client.invoke(mcp.caller, ref, { note: "MCP 客户端" }), { text: "Saved one note: MCP 客户端", truncated: false });
     assert.deepEqual(await notes(), ["直接调用", "工作流交来的标题", "MCP 客户端"], "every call reached the real server once");
 
     // Revoke while the real SDK is refreshing the selected server, after the directory's initial check.
     const validate = library.validate;
     library.validate = async (...args) => {
       const checked = await validate(...args);
-      await writeMcpActionGrant(home, createMcpActionGrant("client-x", project.project_id, view, false));
+      await served.revoke("client-x", project.project_id, [view]);
       return checked;
     };
     try {
-      await assert.rejects(granted.service.invoke(granted.context, ref, { note: "准备过程中已撤权" }));
+      await assert.rejects(mcp.client.invoke(mcp.caller, ref, { note: "准备过程中已撤权" }), { code: "mcp.action_revoked" });
       assert.deepEqual(await notes(), ["直接调用", "工作流交来的标题", "MCP 客户端"], "revocation after SDK discovery must prevent the actual stdio write");
     } finally { library.validate = validate; }
 
@@ -131,6 +125,7 @@ test("a connected external MCP tool is one directory action: local user, workflo
     await directory.restore(reference, async () => library);
     assert.ok(!(await client.discover(user)).some(row => row.capability_id === ref.capability_id));
   } finally {
+    await served.close();
     directory.close();
     await host.close();
     await adapter.close?.();

@@ -158,7 +158,7 @@ function homeProtocolProblems(key: string, operation: unknown, a: ActionBody): s
 // ---- background jobs and undo -----------------------------------------------------------------------------------------------
 
 /** A dotted path into an action's output, such as `document.id`. */
-function isOutputPath(value: unknown): boolean {
+export function isOutputPath(value: unknown): boolean {
   return typeof value === "string" && /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(value);
 }
 
@@ -262,8 +262,8 @@ function canonicalSchema(value: unknown): string {
   return JSON.stringify(sort(value));
 }
 
-function isObject(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }
-function isText(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0; }
-function isId(v: unknown): v is string { return isText(v) && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(v); }
-function isVersion(v: unknown): v is number { return typeof v === "number" && Number.isSafeInteger(v) && v > 0; }
+export function isObject(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }
+export function isText(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0; }
+export function isId(v: unknown): v is string { return isText(v) && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(v); }
+export function isVersion(v: unknown): v is number { return typeof v === "number" && Number.isSafeInteger(v) && v > 0; }
 function isStrings(v: unknown): v is string[] { return Array.isArray(v) && v.every(isText); }

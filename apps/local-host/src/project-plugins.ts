@@ -14,11 +14,12 @@ import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { createPluginPlatform, type PluginPlatform } from "./plugin-platform.js";
+import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { SqlitePluginPrivateStorage, type PluginCapabilityPort, type PluginSupervisorEntry } from "@molis-ai/molis-work-plugin-runtime";
+import { SqlitePluginPrivateStorage, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
 import { bindWorkspaceCompanions } from "./workspace-plugin-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
+import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 
 export interface ProjectPluginPorts {
   observeGitOperations?(listener: (event: GitOperationUpdate) => void): () => void;
@@ -119,6 +120,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       restorePrivateData: (installId, snapshot) => storage.restoreInstallationData(installId, snapshot as ReturnType<typeof storage.snapshotInstallationData>),
       ...(ports.capabilities ? { capabilities: ports.capabilities } : {}),
       actions: ports.actions,
+      home: ports.homeDirectory ? pluginHomeFor(ports.homeDirectory) : null,
     });
     record.platform = platform;
     // Start independent companions together so their Artifact inputs and outputs
@@ -179,7 +181,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       },
       onWorkingTreeChanged: () => { platform.invalidateView(GIT_PLUGIN_ID); },
     };
-    const entries: PluginSupervisorEntry[] = [
+    const entries: PluginPlatformEntry[] = [
       {
         definition: createCharactersPlugin(charactersPorts),
         bundled: true,
@@ -223,7 +225,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           "@molis-ai/molis-work-plugin-text-stats", "createTextStatsPlugin", factory => factory()),
       },
     ];
-    const report = await platform.start(entries);
+    const report = await platform.start([...entries, ...projectFixtureEntries(ports.homeDirectory)]);
     bindWorkspaceCompanions(platform, ports.projectId, ports.actorId);
     record.running = report.running.includes(CODING_PLUGIN_ID);
     record.error = [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;

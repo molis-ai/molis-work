@@ -1,7 +1,8 @@
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginCapabilityPort, PluginEventBus, PluginInputGraph } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginPlatformHome } from "./home-side.js";
 import { openHostSession, type HostSession } from "./plugin-host-services.js";
 
 export interface PluginHostExecutorOptions {
@@ -15,6 +16,14 @@ export interface PluginHostExecutorOptions {
     /** Composition-only metadata of the whole directory (what the Plugin Builder's catalog is made from). */
     inspect?(caller: import("@molis-ai/molis-work-contracts/platform/actions").ActionCallContext): Promise<readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]> };
   ui: UiHostApi;
+  /** The Home the platform reaches in process; absent or `null`: none (a developed plugin, a bare executor in a test). */
+  home?: PluginPlatformHome | null;
+  /**
+   * The library in the Home the Host's start list declared for a definition (`PluginPlatformEntry.database`), looked up by the
+   * definition object the Host listed. None for any other definition (a developed plugin that carries a built-in plugin's id,
+   * a generated one), whatever its Manifest asks for; the plugin never names a library. Needs `home`.
+   */
+  databaseFor?(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
   /**
    * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its
    * plugin_id). Without it, or for a definition it does not name, the installation id. Whatever registers the Plugin's actions

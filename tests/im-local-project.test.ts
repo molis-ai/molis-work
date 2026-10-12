@@ -6,9 +6,9 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {randomUUID} from 'node:crypto';
 import {PERSONAL_HOME_SQLITE_STORES} from '@molis-ai/molis-work-storage';
-import {openServerDatabase} from '../server/src/database.js';
-import {createLocalImServer} from '../apps/local-host/src/im-server.js';
-import {authorizeLocalWebRequest} from '../apps/local-host/src/web-http.js';
+import {openServerDatabase} from '@molis-ai/molis-work-server';
+import {createLocalImServer} from '../apps/local-host/dist/im-server.js';
+import {authorizeLocalWebRequest} from '@molis-ai/molis-work-app-local-host';
 
 test('local project connection requires operator token and catalog identity without granting existing projects to another session',async()=>{
   const home=await mkdtemp(join(tmpdir(),'molis-im-project-'));

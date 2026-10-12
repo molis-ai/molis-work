@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ImagesError, handleImagesRoute } from "@molis-ai/molis-work-plugin-images";
 import { withRewrittenPluginApi } from "./native-plugin-api.js";
+import { sendLocalWebJson } from "./web-http.js";
 
 export async function handleImagesNativePluginHttp(
   request: IncomingMessage, response: ServerResponse, originalUrl: URL,
@@ -9,10 +10,7 @@ export async function handleImagesNativePluginHttp(
 ): Promise<boolean> {
   const url = withRewrittenPluginApi(originalUrl);
   if (url.pathname !== "/api/images" && !url.pathname.startsWith("/api/images/")) return false;
-  const json = (status: number, body: unknown) => {
-    response.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-    response.end(JSON.stringify(body));
-  };
+  const json = (status: number, body: unknown) => sendLocalWebJson(response, status, body);
   try {
     const body = request.method === "POST" ? await readBody(request) : {};
     const {projectId, actions} = await ports({query:url.searchParams,body});

@@ -1,11 +1,11 @@
-import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
-import { pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, GOALS_PLUGIN_ID, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { bindActionClient, pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-module-goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PlanningMethodPack, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 
 /** Permissions of the owners' pin actions: the local person handing in a deliverable pins with each owner's own permissions (A5). */
 const pinPermissions = () => [...new Set([...artifactTypeDeclarations().values()].flatMap(declaration => declaration.pin?.action.permissions ?? []))];
@@ -61,4 +61,15 @@ export function bindGoalsWebActions(client: ActionClient, reference: LocalHostPr
         conversation_ref: authority.conversation_ref, message_ref: authority.message_ref } }, definition, input) as Output;
     },
   };
+}
+
+/**
+ * The project's confirmed guidance, read by the Host for the project layer of a Run or an Assistant turn. It is a read of one Goals
+ * action as the person on this machine, with nothing else granted. A project whose Goals is removed or whose guidance cannot be
+ * read refuses it, and the caller starts without the layer.
+ */
+export function readProjectGuidance(client: ActionClient, reference: LocalHostProjectReference): Promise<ProjectGuidanceView> {
+  const read = goalsActions.guidanceRead;
+  return bindActionClient(client, () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: reference.project_id, permissions: read.action.permissions,
+    allowed_actions: [{ capability_id: read.capability_id, version: read.version, provider_id: GOALS_PLUGIN_ID }] })).invoke({ ...read, provider_id: GOALS_PLUGIN_ID }, {});
 }

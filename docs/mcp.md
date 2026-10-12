@@ -59,8 +59,17 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 
 最短工作路径是 `goals.create` → `goals.note`，无需类型或规划。需要结构化结果时用 `goals.events.configure` / `goals.events.report`。报告可以含多个事实和进展，整批有效才保存，回执给出当前状态、差距和游标。
 
-用户的决定只在受保护的 Web 界面或受信管理入口写入，不属于 Runtime。Runtime 可以提交具体变化、请求或引用已保存的有效决定，不能自填用户身份、确认文本或会话字段批准自己。受信管理入口使用 `MOLIS_WORK_MCP_AUDIENCE=management`，额外有平台工具 `initialize`、`event_decide`、`goal_tree_decide`；身份由宿主定为本机这个人（`web-user`），这三个工具的参数里没有身份字段：`event_decide` 带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 被拒绝（`mcp.unexpected_field`），`goal_tree_decide` 同样被拒绝（`actions.input_invalid`），`event_decide` 本身不带 `authority`，决定指向管理入口自身，宿主记本机这个人（出处 management）；`goal_tree_decide` 的 `authority` 只写对话出处 `conversation_ref`、`message_ref`（以及整组确认），在 `authority` 里带身份或出处（`actor_id`、`actor_kind`、`authority_source`）被拒绝（`goal_tree_proposal.authority_source_invalid`）；`initialize` 只取 `project_id`、`title`、`idempotency_key`，其余参数不读、不当作身份，也不报错。这三个工具指向项目库时必须给出路径：参数 `database_path`，或环境变量 `MOLIS_WORK_DATABASE`；两者都没有就报 `store.path_required`，没有按当前目录猜的默认路径。
+用户的决定只在受保护的 Web 界面或受信管理入口写入，不属于 Runtime。Runtime 可以提交具体变化、请求或引用已保存的有效决定，不能自填用户身份、确认文本或会话字段批准自己。受信管理入口使用 `MOLIS_WORK_MCP_AUDIENCE=management`，额外有平台工具 `initialize`、`event_decide`、`goal_tree_decide`；身份由宿主定为本机这个人（`web-user`），这三个工具的参数里没有身份字段：`event_decide` 带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 被拒绝（`mcp.unexpected_field`），`goal_tree_decide` 同样被拒绝（`actions.input_invalid`），`event_decide` 本身不带 `authority`，决定指向管理入口自身，宿主记本机这个人（出处 management）；`goal_tree_decide` 的 `authority` 只写对话出处 `conversation_ref`、`message_ref`（以及整组确认），在 `authority` 里带身份或出处（`actor_id`、`actor_kind`、`authority_source`）被拒绝（`goal_tree_proposal.authority_source_invalid`）；`initialize` 只取 `project_id`、`title`、`idempotency_key`，其余参数不读、不当作身份，也不报错。这三个工具指向项目库时必须给出路径：参数 `database_path`，或环境变量 `MOLIS_WORK_DATABASE`；两者都没有就报 `mcp.path_required`，没有按当前目录猜的默认路径。
 
 服务不可用时报告失败，不切换数据库、改 URL 或使用 CLI 兜底。`mcp.context_refresh_required` 仅要求只读 `context_resolve`：返回 bound 后用原 idempotency_key 原样重试；未绑定则按项目选择流程处理。
 
 插件不另外登记 MCP 工具：插件在 Manifest 里声明的动作就是它对外的能力，见 [Plugin 开发](platform/PLUGIN-DEVELOPMENT.md)。
+
+## 出错时的诊断编号
+
+每条 `tools/call` 是一次操作，Molis Work 给它一个编号（`call_id`，界面上叫「诊断编号」）：这次操作引起的所有调用在调用记录里共用它。编号只由 Molis Work 给，不读工具参数、`_meta` 或请求里自带的值；它不是身份，不授予任何权限。
+
+- 失败时，错误文本末尾的 JSON 里有 `call_id`，例如 `{"code":"actions.input_invalid","call_id":"…"}`；留了调用记录的命令成功时，结果的 `_meta["molis-work/callId"]` 有它。
+- 只有这次操作在调用记录里留了行才给编号：命令（成功或失败）、处理器之前就被拒绝的调用（记为「未执行」）、失败的读取。读取成功不留行，什么都不带；还没走到动作的失败（例如工具未授权、`mcp.tool_unknown`、常驻服务不在）也没有编号。
+- 向用户报告失败时把编号（至少前 6 位）和错误码一起带上，用户和维护者据此在 Molis Work 的调用记录里找到这次操作的每一步（界面上按编号查找随后续版本）。
+- 常驻服务和 `molis-work-mcp` 进程要是同一个版本：旧版本的 MCP 进程调用动作时不带编号，会被新版常驻服务以 `actions.input_invalid` 拒绝，重启 MCP 进程即可。

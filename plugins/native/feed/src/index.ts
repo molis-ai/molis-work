@@ -75,7 +75,6 @@ export { FeedSourceScheduler, type FeedSourceSchedulerDispatch, type FeedSourceS
 export { promoteFeedItemToGoal, type FeedGoalPromotionPorts, type FeedGoalPromotionGoals, type FeedGoalPromotionInput } from "./goal-promotion.js";
 
 export { createFeedRouteHandlers } from "./route-handlers.js";
-export { feedRouteErrorResponse } from "./route-error.js";
 export type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
 export { FEED_PLUGIN_ID, FEED_PROJECT_PLUGIN_ID, feedManifest } from "./manifest.js";
 

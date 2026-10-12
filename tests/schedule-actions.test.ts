@@ -7,9 +7,10 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {
   SCHEDULE_ACTIONS, SCHEDULE_ACTION_PERMISSIONS, SchedulePluginRouteTable, createScheduleRouteHandlers, scheduleActions as s,
-  scheduleRouteErrorResponse, type ScheduleConversationTaskView,
+  type ScheduleConversationTaskView,
 } from "@molis-ai/molis-work-plugin-schedule";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
@@ -40,7 +41,7 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: bound, changed: () => { changed++; } }));
     const post = async (pathname: string, body: Record<string, unknown>) => {
       try { return await routes.handle({ method: "POST", pathname, query: new URLSearchParams(), body }); }
-      catch (error) { return scheduleRouteErrorResponse(error); }
+      catch (error) { return actionErrorResponse(error); }
     };
     const created = await post("/api/schedule/tasks", { title: "晨报", instructions: "把未读收成三条", time: "08:30" });
     assert.equal(created?.status, 201);
@@ -49,12 +50,13 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     assert.equal(task.notify_important, true);
     assert.equal(changed, 1);
     const blank = await post("/api/schedule/tasks", { title: "  ", instructions: "x", time: "09:00" });
-    assert.equal(blank?.status, 400);
+    assert.deepEqual([blank?.status, (blank?.body as { code: string }).code], [400, "schedule.task_invalid"]);
     assert.match(String((blank?.body as { error: string }).error), /1 到 80 字的标题/);
     const conversationJob = await post(`/api/schedule/jobs/${encodeURIComponent(task.job_id!)}/enabled`, { enabled: false });
-    assert.equal(conversationJob?.status, 400);
+    assert.deepEqual([conversationJob?.status, (conversationJob?.body as { code: string }).code], [400, "schedule.task_invalid"]);
     assert.match(String((conversationJob?.body as { error: string }).error), /任务自己的开关/);
-    assert.equal((await post("/api/schedule/tasks/missing/open", {}))?.status, 404);
+    const absent = await post("/api/schedule/tasks/missing/open", {});
+    assert.deepEqual([absent?.status, (absent?.body as { code: string }).code], [404, "schedule.task_not_found"]);
 
     // Callers, not arguments, carry project and authority.
     await assert.rejects(client.invoke({ ...caller, permissions: ["schedule:read"] }, s.createTask, { title: "x", instructions: "y", time: "09:00" }), { code: "actions.forbidden" });

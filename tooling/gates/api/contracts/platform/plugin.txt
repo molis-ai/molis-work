@@ -291,6 +291,11 @@ export type ActionAvailability = {
 
 export interface ActionCallContext extends ActionCallOrigin {
     readonly actor_id: string;
+    readonly page_context?: {
+        readonly url: string | null;
+        readonly title: string | null;
+        readonly provenance: "host_snapshot" | "client_reported";
+    };
     readonly audit_actor_id?: string;
     readonly runtime_session_id?: string;
     readonly runtime_session_missing?: true;
@@ -761,7 +766,7 @@ export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
@@ -2220,6 +2225,29 @@ export type PluginCommandInput = PluginCommandInputOf<"current"> | PluginCommand
 
 export type PluginContribution = PluginIntegrationContribution | PluginAppContribution;
 
+export interface PluginDatabase extends PluginDatabaseReader {
+    transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginDatabaseTransaction) => T): Promise<T>;
+}
+
+export interface PluginDatabaseDeclaration {
+    readonly store_name: string;
+    readonly version: number;
+    readonly schema: string;
+    readonly read_permission: string;
+    readonly write_permission: string;
+}
+
+export interface PluginDatabaseReader {
+    get(sql: string, parameters?: readonly PluginSqlValue[]): PluginSqlRow | null;
+    all(sql: string, parameters?: readonly PluginSqlValue[]): PluginSqlRow[];
+}
+
+export interface PluginDatabaseTransaction extends PluginDatabaseReader {
+    run(sql: string, parameters?: readonly PluginSqlValue[]): {
+        changes: number | bigint;
+    };
+}
+
 export interface PluginDefinition {
     manifest: PluginManifest;
     execution?: "host" | "sandbox";
@@ -2429,7 +2457,7 @@ export interface PluginEventsRepository {
     deleteCursors(projectId: string, subscriberPluginId: string): void;
 }
 
-export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect">;
+export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context">;
 
 export interface PluginExecutor {
     start(definition: PluginDefinition, context: PluginStartContext): Promise<PluginExecutorHandle>;
@@ -2446,7 +2474,8 @@ export interface PluginExecutorHandle {
 export interface PluginHostServices {
     readonly actions?: import("@molis-ai/molis-work-contracts/platform/actions").BoundActionClient;
     readonly storage?: PluginPrivateStorage;
-    readonly artifacts: PluginArtifactClient;
+    readonly database?: import("platform/plugin-database").PluginDatabase;
+    readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;
     readonly ui: PluginUiClient;
     readonly events?: PluginEventsClient;
@@ -2852,8 +2881,13 @@ export interface PluginRuntimeRepository {
     save(record: PluginInstanceRecord): void;
 }
 
+export type PluginSqlRow = Record<string, PluginSqlValue>;
+
+export type PluginSqlValue = string | number | bigint | Uint8Array | null;
+
 export interface PluginStartContext {
     install_id: string;
+    readonly provider_id?: string;
     plugin_id: string;
     version: string;
     deployment: PluginDeployment;
@@ -2876,7 +2910,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -3743,16 +3777,6 @@ export declare function fileContentOf(input: {
 
 export declare function fileEntriesPage(entries: readonly FileEntry[], input: FileEntriesInput): FileEntriesPage;
 
-export declare function fileSourceDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[];
-
-export declare function fragmentOfferDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (schema: unknown) => string): string[];
-
-export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
-
-export declare function inspectAgentDeclaration(agent: AgentManifest | undefined, declaredInputPorts: readonly string[]): string[];
-
-export declare function inspectMethodDeclarations(methods: unknown): string[];
-
 export declare function isArtifactCompareAction(action: {
     input_type?: string;
     output_type?: string;
@@ -3837,8 +3861,6 @@ export declare function pinActionSubject(client: ActionClient, caller: ActionCal
 
 export declare function pinnableSubjectKinds(client: ActionClient, caller: ActionCallContext): Promise<string[]>;
 
-export declare function placementDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[];
-
 export declare function placementSourceProject(caller: ActionCallContext, to: string): string;
 
 export declare const platformPluginAgentContract: {
@@ -3917,8 +3939,6 @@ export declare function sceneConfigurationActions(scene: ActionSceneDefinition):
 export declare function searchEntriesPage(entries: readonly SearchEntry[], input: SearchEntriesInput): SearchEntriesPage;
 
 export declare function searchRevisionOf(parts: readonly string[]): string;
-
-export declare function searchSourceDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[];
 
 export declare function searchText(value: unknown, max?: number): string;
 

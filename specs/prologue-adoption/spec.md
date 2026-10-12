@@ -2,7 +2,7 @@
 
 > 远端接续请先读文末「远端交接」；历史路径、授权及未提交状态以该节为准。
 
-状态：执行中（2026-10-11 A0 隔离实现，统一协作与外部条件等待尚未实现）。本文是采用线唯一需求书与进度记录；原接入评估与对话建议仅作线索（历史资料留在旧采用树），按当前实现核对。用户已否决「简单协作可以绕过 TaskBoard」。
+状态：执行中（2026-10-12 A0 工程通过、正式 SDK 来源待上游合入授权；统一协作与外部条件等待尚未实现）。本文是采用线唯一需求书与进度记录；原接入评估与对话建议仅作线索（历史资料留在旧采用树），按当前实现核对。用户已否决「简单协作可以绕过 TaskBoard」。
 
 目标完成等级：Prologue **完整采用范围内部完整**——§2 原 1–23 项与存储/预算等既有决定逐项完成采用、验证或按已定边界不做；新增 24/25 项使 Coding 与个人助理共用协作事实及外部条件等待。需要接入的路径在真实执行、界面、权限及异常恢复中可顺畅试用。A0 只是当前基础切片，不是整线完成定义。工程通过、真实产品实操、用户本人验收分别记录。本轮执行 **A0 基础采用**，目标为基础能力功能可用；统一协作仍未实现。已获授权实现、构建、候选包与隔离验证；不提交、不推送、不建 PR、不合并、不改真实 Home 或安装版。
 
@@ -511,6 +511,63 @@ A0 明确不改助理协调器/存储/客户端、Schedule runner、模型设置
 
 当前 A0 已转入执行：SDK `c4b9fde3` 与完整 S1 已在独立树组合，保留工具回执微压缩保护和补充读到回执；不带问询字段。Molis 只提取 A0 源码/测试，保持主线 Chrome testkit。新的明确实现边界：S1 steer 返回值在 Host 适配器内等待后丢弃，现行 Molis void 接口不变；typed 输入接入仍归后续线。新增 PA-23 生产入口拒绝/重开用例；对应测试路径纳入 §5.5 范围。
 
+### 6.0 A0 收口记录（2026-10-12，当前状态）
+
+**一句话**：A0 在最新 `origin/main=02ceba8c` 上工程通过；SDK 已换成从具名干净提交打出的合成包（`dirty:false`）；**这个提交还在本机，没有推送、没有并入 Prologue main**，所以输入回执 D7 的「正式来源」「采用线合入 Molis main」两项仍未满足。三级证据分开记，下文只写实际跑过的命令。
+
+#### SDK 来源（§3.2 的整合记录）
+
+唯一整合分支：Prologue `feature/handoff-molis-a0-s1`（本机整合树 `prologue-wt/sdk-integration`），整理后的提交线（基点 `4f7110fe`）：
+
+| 提交 | 内容 |
+| --- | --- |
+| `c4b9fde3` | 微压缩只收能再读的观察、独占写主人清遗留写声明、让出续跑可交 App（原样） |
+| `4acfb445` | 输入回执第一刀 S1（原 WIP `820eeca9` 的代码，只整理了提交说明与交接文字） |
+| `edb8ec86` | 并入上游 main `69ccfa94`（符号链接 cwd 越根、非终态导入），零冲突 |
+| `8db0d7d6` | 并入 `a06ae62e` 带类型的问卷；唯一冲突是 public-surface 快照，重新生成 |
+| `a13bf067` | 合成后的复验记录（只改 `docs/slices`） |
+
+取舍：问卷字段与 A0 合成一个包而不是等 A0 收口之后再出第二个。收益是一次上游合入、一次 Molis 全量回归、跨插件 AI 线同时拿到问卷；代价是 A0 的回退点要多记一个——需要只带 A0 时可退到 `edb8ec86`（SDK 全量也跑过）。S2 持久队列（receipts 线 `a807c2cc`，基于 `edb8ec86`）不在本包，等本包上游合入后作为下一个整合包，因为它改变续聊历史里未读补充的入模方式，需要 Molis 侧单独验证。
+
+包：`vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-adoption-receipts-fields.tgz`，1,076,425 字节，SHA-256 `646afefbd4225bfe8bf50892403962fa3e12711f1c45035cfb739e3b9bc8d34f`，`source.commit` = `a13bf067`，`dirty:false`，无补丁；从 `8db0d7d6` 与 `a13bf067` 两份 `git archive` 各打一次，逐字节相同。旧 dirty 候选 `prologue-sdk-a0-s1.tgz` 已删，记在 `patch-history.json`（git blob `0c421991`）。`vendored-provenance` 门禁通过（0 问题）；没有改门禁、没有放宽 `dirty` 检查。
+
+#### 工程证据（第一级）
+
+| 范围 | 命令与结果 |
+| --- | --- |
+| SDK | 两份 `tsc`、`pnpm --filter @prologue/sdk build` 通过；`vitest run --maxWorkers=4` 全量：合入问卷前 3659 通过 / 1 文件失败（`host-storage-full.live` 的 `afterAll` 弹 ram disk 超时，单独复跑 2/2）；合入后 330 个文件 323 通过 / 6 跳过，3670 条通过 / 21 跳过 / 1 条失败（`agent-budget.live` 墙钟用例在 4 并发下时序，单独复跑 3/3）。§5.5 第 1 步的三项回归与 `packaged-consumer` 在其中 |
+| 包消费者 | 干净归档打出的包装进只有 `package.json` 的空目录（`pnpm install --offline --ignore-scripts`），只经 `@prologue/sdk` 公开入口：S1-10 消费者通过；问卷校验（有效答案零问题，坏日期 / 非整数 / 对象种类不在名单各报原因）通过 |
+| Molis 安装与构建 | `pnpm install --frozen-lockfile --offline`（锁文件只换 SDK 路径与 integrity）；整体 `pnpm build` 退出 0（约 2 分钟） |
+| Molis 定向 | §7 的 16 个文件加 `agent-host*`、`host-inference-completion`、`prologue-inference-native`，共 24 个文件 217 项全过（默认包路径，非源码映射） |
+| 安全与合同 | `pnpm test:security` 145 项 144 通过 / 1 跳过（需真实 npm registry 的用例）/ 0 失败；`pnpm test:contracts` 430 项首轮 3 项 `action-before-effect` 的 `form:` 用例 15 秒超时（同批并发负载），该文件单独连跑两次 20/20 通过 |
+| 门禁 | `check-health-gates.mjs --base origin/main` 通过（公开 API 只变 agent-host 合同：`grants`、`turn_changes`、`sleeping_until`）；`check-package-boundaries.mjs` `errors: []`；`page-assets.mjs --base origin/main` 见下 |
+| 已知红 | `tests/vendor-provenance.test.ts` 1 项：「只有 provenance 点名的补丁留在目录里」——`side-panel-memory.patch` 在包换掉后不再被点名；`dependencies-and-sdk-plan.md` §4.2 要用户确认才删，**等用户决定，不改断言** |
+
+合入 main 后冒出的页面资源超预算已就地解决，没有放宽：Coding 客户端（以 `coding/diff/files/git/text-stats.js` 五个名字发出）A0 版比预算多 5,002 字节，两张样式表多 944 / 1,366 字节。做法：三处注入浏览器的函数（`createCodingTimeline`、`codingTimelineWords`、`createCodingTurnChanges`）里的注释移到模块头（函数体每个字节都发给每个页面）；工具种类表改成元组再展开；写入行复用现有行与运行卡样式，`timeline-styles.ts` 删除、`styles.ts` 与 main 逐字节相同；命令扩权说明复用 `agent-review-concurrent`。行为与断言文字不变。预算用 `page-assets.mjs --update --base origin/main` 降了 12 字节，样式表回到 main 的数字。
+
+#### 第二级：真实产品实操
+
+- 浏览器用例（`coding-timeline.e2e` 等）：见下「待跑」。
+- 真实模型：本机没有 Key，未跑。回环对端是本地脚本服务，不是外部模型。
+- 临时 Home 里的 Coding 时间线与扩权审查卡人工实操：未做。
+
+#### 第三级：用户本人验收
+
+未做。
+
+#### PA-22 / PA-23 当前判定
+
+| 编号 | 判定 | 依据 / 缺口 |
+| --- | --- | --- |
+| PA-22 | **工程通过，实操与验收未做** | 显式预算优先（`model-thinking`、`agent-budget-prologue`）、修改回执不被压成可重做观察（SDK `context-micro-compaction` + `prologue-stream`）、独占重开成功与非独占拒绝（`host-storage-concurrency.live` + `prologue-storage-claims`）、撤权 / 取消零派出零迟到写（`action-before-effect`、`prologue-start-refusal`）、状态与审查展示（`agent-review-surface`、`prologue-status-projection`）均在默认包路径上通过；干净包消费者通过。缺：浏览器时间线展示、真实模型 |
+| PA-23 | **工程通过，实操与验收未做** | `prologue-adoption-guard` 在真实回环 HTTP + 生产 Node Adapter 上：yield 在派出前拒绝、零孩子、无审批、只有原父 Run、落盘重开无模型调用 / 自动接续；没有复活已删 CLI adapter / Runtime 路径（边界检查器 `errors: []`，健康门禁通过）。缺：临时 Home 实际启动与 Coding 时间线操作 |
+
+#### 没做的与风险
+
+- Prologue 提交未推送、未并入上游 main：D7 的前两项未解除；并入后要从 main 上的提交重新打包核对字节（预期相同），README / provenance 补 `mergedUpstream`。步骤与 PR 材料在统筹笔记 `adoption-prologue-upstream.md`。
+- 全量回归（`affected-tests` 命中共享核心 + 4 个包）还没排上；需要源码冻结 + 整机独占时段。
+- `c4b9fde3` 目前只在 Prologue 的特性分支上；`patch-history.json` 的上游说明已如实写明，并入后复核。
+
 ### 6.1 当前记录
 
 A0 执行记录（下列历史方案记录之后继续）：
@@ -657,6 +714,8 @@ A0 执行记录（下列历史方案记录之后继续）：
 跨工作/项目自动通信、自动扩大预算、扩大工作目标都不在本方案授权范围；需要这些新产品能力时另作明确决定，不阻塞范围内统一协作。
 
 ## 7. 远端交接（2026-10-11，当前接续入口）
+
+> 2026-10-12：本节记录的是交接时的状态；SDK 已换成干净来源包，Molis 默认路径验证与门禁结果见 §6.0，下面「来源与完成边界」中关于 dirty 候选与未重跑构建的语句按 §6.0 更新。
 
 本分支 `feature/handoff-prologue-adoption` 保存已经整合到 Molis `4fb2db83f` 的 A0 实现和实际 SDK 候选包。用户本次明确授权四条 Codex 任务及 SDK 依赖分别提交、推送供别人接续；本次只保存已有成果并补交接，没有新行为、正式换装、合并 main 或发布。从本次起，以本分支这份 spec 为接续唯一任务书；前文绝对路径、旧工作树、PID、未提交和“无提交/推送授权”均是历史记录，不再要求在原机器才能继续。原始 A0 工作树保留作历史备份，不再作为第二个开发入口。
 

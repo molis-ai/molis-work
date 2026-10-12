@@ -24,7 +24,11 @@ export const readProjectGuidanceCapability = {
   operation: "query",
 } as HostCapabilityDefinition<{ project_id: string }, ProjectGuidanceView>;
 
-/** A management entry (the CLI, the typed client): the host records the person on this machine, so a plugin is refused (`host_only`). */
+/**
+ * A typed management entry: the host records the person on this machine, so a plugin is refused (`host_only`). The CLI sets the
+ * current Goal through the `goals.active.set` action as the management caller the Host builds; only tests call this entry until the
+ * typed bridge is removed.
+ */
 export const setActiveGoalCapability = {
   capability_id: "io.molis.work.local-host.goals.set-active",
   version: 1,

@@ -3074,5 +3074,23 @@ test("the management caller factory acts as the person on this machine, builds t
     await assert.rejects(management.invoke(goalsActions.treeDecide, { proposal_id: "p", idempotency_key: "k" }, { conversation_ref: "conversation://x", ...named }), { code: "goal_tree_proposal.authority_source_invalid" }, Object.keys(named).join());
   }
   await assert.rejects(management.invoke(goalsActions.initialize, { title: "资料库", idempotency_key: "init" }, { conversation_ref: "conversation://x" }), { code: "actions.input_invalid" });
+
+  // Nor do the arguments of a write take an identity: refused in the words the typed door used, naming the field, and before the evidence is
+  // looked at, for the two decisions that take evidence (an identity in both is the arguments' refusal). Nothing reaches the client.
+  const refusedInArguments: Array<[string, (field: string) => Promise<unknown>, string[]]> = [
+    [goalsActions.treeSubmit.capability_id, field => management.invoke(goalsActions.treeSubmit, { summary: "s", items: [], idempotency_key: "k", [field]: "x" } as never), ["submitted_session_id"]],
+    [goalsActions.treeCheck.capability_id, field => management.invoke(goalsActions.treeCheck, { proposal_id: "p", idempotency_key: "k", [field]: "x" } as never), []],
+    [goalsActions.treeDecide.capability_id, field => management.invoke(goalsActions.treeDecide, { proposal_id: "p", idempotency_key: "k", [field]: "x" } as never, { conversation_ref: "c", actor_id: "also" }), ["audit_actor_id", "runtime_actor_id"]],
+    [goalsActions.decide.capability_id, field => management.invoke(goalsActions.decide, { ...decision, [field]: "x" } as never, { conversation_ref: "c", actor_id: "also" }), []],
+  ];
+  for (const [capabilityId, call, more] of refusedInArguments) {
+    for (const field of ["actor_id", "actor_kind", ...more]) {
+      await assert.rejects(call(field), { code: "actions.input_invalid", message: new RegExp(`^写入者由宿主确定（管理入口是本机这个人，插件取自调用上下文），参数里不能带 ${field}$`) }, `${capabilityId} refuses ${field}`);
+    }
+  }
   assert.deepEqual(seen, []);
+
+  // A read has no such rule here: its contract refuses what it does not know, so the call reaches the client.
+  await management.invoke(goalsActions.treeRead, { actor_id: "x" } as never);
+  assert.equal(seen.length, 1);
 });

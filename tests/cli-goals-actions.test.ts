@@ -150,7 +150,7 @@ test("the CLI acts as the caller the management test helper builds, and keeps th
   } finally { await done(); }
 });
 
-test("the CLI keeps its wire: the payload's project must be the bound one, init picks its fields, and identity is refused with the same codes", async () => {
+test("the CLI keeps its wire: the payload's project must be the bound one, init picks its fields, and identity is refused with the same codes and words", async () => {
   const { cli, person, done } = await setup();
   try {
     const first = await cli<{ project_id: string }>("init", { project_id: PROJECT, title: "命令行", idempotency_key: "init", actor_id: "someone-else", extra: "ignored" });
@@ -169,15 +169,30 @@ test("the CLI keeps its wire: the payload's project must be the bound one, init 
 
     const proposed = await cli<Proposed>("goal-tree-propose", proposal("propose"));
     const proposalId = proposed.proposal.proposal_id;
-    for (const identity of [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { submitted_session_id: "forged-session" }, { unknown_field: 1 }]) {
-      await assert.rejects(cli("goal-tree-propose", { ...proposal("forged"), ...identity }), { code: "actions.input_invalid" }, `propose refuses ${Object.keys(identity)}`);
-      await assert.rejects(cli("goal-tree-read", { project_id: PROJECT, ...identity }), { code: "actions.input_invalid" }, `read refuses ${Object.keys(identity)}`);
-      await assert.rejects(cli("goal-tree-check", { project_id: PROJECT, proposal_id: proposalId, idempotency_key: "check", ...identity }), { code: "actions.input_invalid" }, `check refuses ${Object.keys(identity)}`);
+    // An identity in the arguments of a write is refused in the words the typed door always used, naming the field; what the contract
+    // alone does not know (an unknown field, or an identity on a read) is refused by the contract, as it was.
+    const hostSays = (...fields: string[]) => ({ code: "actions.input_invalid", message: new RegExp(`^写入者由宿主确定（管理入口是本机这个人，插件取自调用上下文），参数里不能带 ${fields.join("、")}$`) });
+    const contractSays = { code: "actions.input_invalid", message: /^输入不符合能力合同：/ };
+    const check = { project_id: PROJECT, proposal_id: proposalId, idempotency_key: "check" };
+    for (const [name, field] of [["actor_id", { actor_id: "someone-else" }], ["actor_kind", { actor_kind: "runtime" }]] as const) {
+      await assert.rejects(cli("goal-tree-propose", { ...proposal("forged"), ...field }), hostSays(name), `propose refuses ${name}`);
+      await assert.rejects(cli("goal-tree-check", { ...check, ...field }), hostSays(name), `check refuses ${name}`);
+      await assert.rejects(cli("goal-tree-read", { project_id: PROJECT, ...field }), contractSays, `read refuses ${name}, by its contract`);
     }
+    await assert.rejects(cli("goal-tree-propose", { ...proposal("forged"), submitted_session_id: "forged-session" }), hostSays("submitted_session_id"), "propose names no Runtime Session");
+    for (const field of [{ submitted_session_id: "forged-session" }, { unknown_field: 1 }]) {
+      await assert.rejects(cli("goal-tree-check", { ...check, ...field }), contractSays, `check refuses ${Object.keys(field)}, by its contract`);
+      await assert.rejects(cli("goal-tree-read", { project_id: PROJECT, ...field }), contractSays, `read refuses ${Object.keys(field)}, by its contract`);
+    }
+    await assert.rejects(cli("goal-tree-propose", { ...proposal("forged"), unknown_field: 1 }), contractSays, "propose refuses an unknown field, by its contract");
     const decide = { project_id: PROJECT, proposal_id: proposalId, decisions: [{ item_id: "child", decision: "confirm" }], reason: "确认", idempotency_key: "decide" };
-    for (const identity of [{ runtime_actor_id: "forged" }, { audit_actor_id: "runtime:forged:session" }, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" }]) {
-      await assert.rejects(cli("goal-tree-decide", { ...decide, authority: evidence, ...identity }), { code: "actions.input_invalid" }, `decide refuses ${Object.keys(identity)}`);
+    for (const [names, identity] of [[["runtime_actor_id"], { runtime_actor_id: "forged" }], [["audit_actor_id"], { audit_actor_id: "runtime:forged:session" }],
+      [["actor_id", "actor_kind"], { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" }]] as const) {
+      await assert.rejects(cli("goal-tree-decide", { ...decide, authority: evidence, ...identity }), hostSays(...names), `decide refuses ${names}`);
+      // The arguments are looked at before the authority the decision points at, so both carrying an identity is the arguments' refusal.
+      await assert.rejects(cli("goal-tree-decide", { ...decide, authority: { ...evidence, actor_id: "someone-else" }, ...identity }), hostSays(...names), `decide refuses ${names} before the authority`);
     }
+    await assert.rejects(cli("goal-tree-decide", { ...decide, unknown_field: 1, authority: evidence }), contractSays, "decide refuses an unknown field, by its contract");
     for (const named of [{ actor_id: "someone-else" }, { authority_source: "web" }, { actor_kind: "runtime" }]) {
       await assert.rejects(cli("goal-tree-decide", { ...decide, authority: { ...evidence, ...named } }), { code: "goal_tree_proposal.authority_source_invalid" }, `decide refuses ${Object.keys(named)} in the authority`);
     }

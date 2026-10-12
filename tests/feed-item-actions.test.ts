@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { FeedPluginRouteTable, createFeedRouteHandlers, feedItemActions, feedRouteErrorResponse, type FeedRouteHandlerPorts } from "@molis-ai/molis-work-plugin-feed";
+import { FeedPluginRouteTable, createFeedRouteHandlers, feedItemActions, type FeedRouteHandlerPorts } from "@molis-ai/molis-work-plugin-feed";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
@@ -49,7 +50,7 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
 
     // An offer prepared before the change is not replayed against the newer item.
     await assert.rejects(run(first.item_id, offered.offers.find(offer => offer.title === "忽略")!), { code: "actions.offer_changed" });
-    await assert.rejects(actions.invoke(feedItemActions.disposition, { item_id: first.item_id, disposition: "archived", expected_revision: first.revision }), { code: "feed_revision_conflict" });
+    await assert.rejects(actions.invoke(feedItemActions.disposition, { item_id: first.item_id, disposition: "archived", expected_revision: first.revision }), { code: "feed.revision_conflict" });
 
     await run(first.item_id, after.offers.find(offer => offer.title === "加入 Inbox")!);
     const { entries } = await actions.invoke(inboxActions.list, {});
@@ -73,10 +74,10 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
     assert.equal((archived?.body as { item: { disposition: string } }).item.disposition, "archived");
     assert.equal(changes, 1);
     assert.deepEqual((await prepare(third.item_id)).offers.map(offer => offer.title), ["恢复到 Feed"]);
-    const stale = await table.handle({ method: "POST", pathname: `/api/feed/items/${third.item_id}/save`, query: new URLSearchParams(), body: { expected_revision: third.revision } }).catch(feedRouteErrorResponse);
-    assert.equal(stale?.status, 409);
-    const missing = await table.handle({ method: "POST", pathname: `/api/feed/items/nope/save`, query: new URLSearchParams(), body: { expected_revision: 1 } }).catch(feedRouteErrorResponse);
-    assert.equal(missing?.status, 404);
+    const stale = await table.handle({ method: "POST", pathname: `/api/feed/items/${third.item_id}/save`, query: new URLSearchParams(), body: { expected_revision: third.revision } }).catch(actionErrorResponse);
+    assert.deepEqual([stale?.status, (stale?.body as { code: string }).code], [409, "feed.revision_conflict"]);
+    const missing = await table.handle({ method: "POST", pathname: `/api/feed/items/nope/save`, query: new URLSearchParams(), body: { expected_revision: 1 } }).catch(actionErrorResponse);
+    assert.deepEqual([missing?.status, (missing?.body as { code: string }).code], [404, "feed.item_not_found"]);
     const goal = await table.handle({ method: "POST", pathname: `/api/feed/items/${first.item_id}/promote`, query: new URLSearchParams(),
       body: { expected_revision: (await prepare(first.item_id)).offers.map(offer => offer.input as { expected_revision: number })[0]!.expected_revision } });
     const body = goal?.body as { goal_id: string; goal_path: string; created: boolean };

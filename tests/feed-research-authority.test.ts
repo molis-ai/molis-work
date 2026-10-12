@@ -67,7 +67,7 @@ const fs = require('node:fs'), cp = require('node:child_process');
       const source = sources.register({ kind: "research_library", repository: "fixture/research", research_source: "observations" }).source;
       const client = host.actionClient(reference), input = { source_id: source.source_id, idempotency_key: "research-authority-1" };
       const pending = client.invoke({ ...context, signal: controller.signal }, feedSourceActions.sync, input);
-      const rejected = assert.rejects(pending, mode === "cancelled" ? { name: "AbortError" } : { code: mode === "revoked" ? "actions.revoked" : "feed_source_configuration_changed" });
+      const rejected = assert.rejects(pending, mode === "cancelled" ? { name: "AbortError" } : { code: mode === "revoked" ? "actions.revoked" : "feed.source_configuration_changed" });
       await Promise.race([entered.promise, pending.then(() => { throw new Error("Research sync did not reach Git fetch"); })]);
       if (mode === "revoked") allowed = false;
       if (mode === "reconfigured") sources.update(source.source_id, { scope: "Reconfigured during fetch" });

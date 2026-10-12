@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { AgentHost, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
+import { AgentHost, emptyCapabilityMatrix, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { createHostScheduledTaskRunner } from "@molis-ai/molis-work-app-local-host";
-import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
+import type { AgentRuntimeAdapter, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 test("没有 Runtime 时到点执行说明原因", async () => {
   const runner = createHostScheduledTaskRunner({
@@ -81,4 +82,25 @@ test("a scheduled run is given the memories the Host chose for it, as Agent work
   assert.ok(authority?.memory, "the run's authority carries the memory choice");
   assert.deepEqual(await authority.memory("汇总本周进展"), { pinned: [{ scope: "project", owner: "project-1", memory_id: "m-1" }], budget_chars: 800, receipt_id: "r-1" });
   assert.deepEqual(asked, [["汇总本周进展", "周报汇总"]]);
+});
+
+/** An Agent Host that keeps the authority each round is started with, then stops there. */
+class StartProbe extends AgentHost {
+  readonly starts: AgentStartAuthority[] = [];
+  override async start(_runtimeId: string, _request: AgentStartRequest, authority: AgentStartAuthority): Promise<never> {
+    this.starts.push(authority);
+    throw new Error("stop:start");
+  }
+}
+
+test("a scheduled round is started with the number of the tick that runs it, or one of its own when nothing opened one", async () => {
+  const agentHost = new StartProbe();
+  agentHost.register({ ...fakeRuntime("prologue", []), async createSession() { return { session_id: "s", runtime_id: "prologue" } as never; } });
+  const runner = createHostScheduledTaskRunner({ agentHost, projectId: "board-1", workspaceFor: workspace });
+  const tick = newCallId();
+  await assert.rejects(() => withCallId(tick, () => runner.run({ title: "周报", instructions: "汇总", history: [] })), /stop:start/);
+  await assert.rejects(() => runner.run({ title: "周报", instructions: "汇总", history: [] }), /stop:start/);
+  assert.equal(agentHost.starts[0]?.call_id, tick, "the round belongs to the tick that triggered it");
+  assert.match(agentHost.starts[1]?.call_id ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-/, "a round run outside any tick still has a number the Host gave");
+  assert.notEqual(agentHost.starts[1]?.call_id, tick);
 });

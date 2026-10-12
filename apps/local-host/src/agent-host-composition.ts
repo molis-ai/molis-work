@@ -3,6 +3,7 @@ import { pdfDocumentParser } from "./pdf-document-parser.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createExternalMcpDirectory } from "./external-mcp-actions.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
+import { currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import {
   AgentHost,
   createPrologueNodeAdapter,
@@ -358,7 +359,11 @@ async function startAuthority(
   const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === 1);
   const workspace = await workspaceFor(runtime.project_id);
   const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];
+  // The round's number: the call that starts it (agent.run.start), else a new one. The Runtime calls its tools later, in its own loop,
+  // outside that call, so the number goes into every tool call's context instead of being read from the scope.
+  const callId = currentCallId() ?? newCallId();
   return {
+    call_id: callId,
     manifest: declared?.manifest ?? { roles: [], prompts: [] },
     authorizedDirectories: workspaces.filter(entry => entry.realpath_verified).map(entry => entry.canonical_path),
     prompts: declared?.prompts ?? [],
@@ -366,7 +371,7 @@ async function startAuthority(
     method_owner: { project_id: runtime.project_id, plugin_id: pluginId },
     actions: async (runtimeId, validate) => {
       const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
-      const current = (signal?: AbortSignal) => authorizeMcpActions(localHost, { actor_id: `agent:${runtimeId}`, actor_kind: "runtime",
+      const current = (signal?: AbortSignal) => authorizeMcpActions(localHost, { actor_id: `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
         project_id: runtime.project_id, audience: "agent", permissions: [], ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); });
       return {
         discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },

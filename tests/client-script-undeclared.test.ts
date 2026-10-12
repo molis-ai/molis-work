@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import ts from "typescript";
+import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { ARRIVAL_MOTION_CLIENT_SCRIPT } from "../packages/design-system/src/arrival-motion-client.js";
 import { CLIENT_SCRIPT, ONBOARDING_DISMISS_CLIENT_SCRIPT } from "../apps/workbench/src/browser-assets.js";
 import { CHOOSER_CLIENT_SCRIPT } from "../apps/workbench/src/arrival/chooser-client.js";
@@ -16,6 +17,7 @@ import { BUILTIN_PLUGIN_WORKBENCH, pluginWorkbenchClientAsset } from "../apps/wo
 const PAGE_GLOBALS = new Set([
   "L", // client i18n script
   "molisWorkControlHeaders", // control client script
+  "molisWorkRequest", // the request helper's page program (ui-host UI_REQUEST_CLIENT_SCRIPT), installed before any Workbench program runs
   "__name", // keep-names helper the bundler adds to functions serialized with toString()
 ]);
 
@@ -49,6 +51,13 @@ test("the way-in browser programs use no name that nothing declares", { timeout:
     const unknown = [...undeclaredNames(source)].filter(([identifier]) => !PAGE_GLOBALS.has(identifier));
     assert.deepEqual(unknown, [], `${name}: declare these, or list a real page global here with where it comes from`);
   }
+});
+
+// The request helper is serialized from two TypeScript functions and joined with a short wiring program, so nothing checks
+// it as code once it is a string: a name the wiring uses but the page does not have would only fail where it runs.
+test("the request helper's page program uses no name that nothing declares", { timeout: 120_000 }, () => {
+  assert.deepEqual([...undeclaredNames(UI_REQUEST_CLIENT_SCRIPT)].filter(([name]) => name !== "__name"), [],
+    "the program may use the browser's own globals and the page's translator, nothing from the module around it");
 });
 
 test("the check catches a leftover reference in a branch that rarely runs", () => {

@@ -10,9 +10,9 @@ const literal = (value: string) => {
 };
 /** Host composes producer validation with Shelf's explicit copy import. */
 export function codingShelfMaterial(record: FixedVersionRecord, projectId: string, projectPath: string): ShelfArtifactPreview {
-  if (record.project_id !== projectId || record.lifecycle_state !== "active") throw new ActionError("shelf.invalid", "原成果已归档或不属于当前项目");
+  if (record.project_id !== projectId || record.lifecycle_state !== "active") throw new ActionError("coding.shelf_material_invalid", "原成果已归档或不属于当前项目");
   const report = codingReportPreview(record), changes = codingChangeSetPreview(record);
-  if (!report && !changes) throw new ActionError("shelf.invalid", "这份成果不是可接收的 Coding 固定报告或固定变更");
+  if (!report && !changes) throw new ActionError("coding.shelf_material_invalid", "这份成果不是可接收的 Coding 固定报告或固定变更");
   const value = report ?? changes!;
   const source = { project_id: projectId, project_path: projectPath, reference: value.reference,
     producer_plugin_id: record.producer_plugin_id, content_hash: createHash("sha256").update(JSON.stringify(record.payload)).digest("hex") };

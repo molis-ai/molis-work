@@ -1871,7 +1871,7 @@
     "plugins/official-integrations/catalog/src/document-import.ts": 1,
     "tooling/plugin-cli/src/package-files.ts": 5
   },
-  "errorStatusDecisionTotal": 225,
+  "errorStatusDecisionTotal": 220,
   "errorStatusDecisions": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/action-gateway-http.ts": 2,
@@ -1901,7 +1901,6 @@
     "apps/local-host/src/web-project-deletion.ts": 2,
     "apps/local-host/src/web-project-reference.ts": 2,
     "apps/local-host/src/web-project-settings.ts": 4,
-    "packages/contracts/src/platform/actions.ts": 5,
     "plugins/native/alchemist/src/studio/server/api/action-routes.ts": 4,
     "plugins/native/alchemist/src/studio/server/services/action-operations.ts": 14,
     "plugins/native/characters/src/plugin.ts": 4,

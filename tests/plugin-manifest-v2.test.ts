@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
-import { inspectActionDeclarations, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { inspectActionDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import type { ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 test("scene result labels belong to a finite recommendation contract", () => {
   const scene: ActionSceneDefinition = { scene_id: "example.review", version: 1, title: "Review", description: "Review the original note", trigger: "Note submitted",

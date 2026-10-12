@@ -1,7 +1,7 @@
-import { inspectActionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inspectAgentDeclaration, inspectMethodDeclarations } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
+import { inspectActionDeclarations } from "./action-declarations.js";
+import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-declarations.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 

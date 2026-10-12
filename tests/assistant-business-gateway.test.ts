@@ -11,6 +11,7 @@ import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store
 import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
 import { actionKey, assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
 import { gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/src/adapters/prologue-action-gateway.js";
+import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -174,13 +175,12 @@ test("activity and review read in the person's terms", () => {
 });
 
 test("business roles are declared narrowly and the Host keeps directories, MCP and per-action tools out of them", { timeout: 30_000 }, async t => {
-  const { inspectAgentDeclaration } = await import("@molis-ai/molis-work-contracts/platform/plugin-agent");
   const role = { role_id: "helper", version: 1, name: "Helper", workspace: "business" as const, execution: "operate" as const, prompts: ["base"], host_tools: ["ask-user"] };
-  const declare = (roles: unknown[]) => inspectAgentDeclaration({ prompts: [{ prompt_id: "base", version: 1 }], roles } as never);
-  assert.deepEqual(declare([role]), []);
-  assert.ok(declare([{ ...role, host_tools: ["read-file"] }]).some(problem => /业务角色/.test(problem)), "a file tool is not a business tool");
-  assert.ok(declare([{ ...role, workspace: undefined }]).some(problem => /operate/.test(problem)), "operate belongs to business roles only");
-  assert.ok(declare([{ ...role, execution: "workspace-write" }]).some(problem => /业务角色/.test(problem)));
+  const declare = (roles: unknown[]) => manifestProblems(declarationManifest({ agent: { prompts: [{ prompt_id: "base", version: 1 }], roles } }));
+  assert.equal(declare([role]), "");
+  assert.match(declare([{ ...role, host_tools: ["read-file"] }]), /业务角色/, "a file tool is not a business tool");
+  assert.match(declare([{ ...role, workspace: undefined }]), /operate/, "operate belongs to business roles only");
+  assert.match(declare([{ ...role, execution: "workspace-write" }]), /业务角色/);
   const f = await fixture(t, []);
   try {
     const sent = await f.service.send({ text: "hello", request_id: "req-00000006" }, { project_ref: f.project });

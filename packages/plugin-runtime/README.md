@@ -7,6 +7,8 @@
 
 Home 激活通过 `actions.home` 选择稳定插件 provider，并在启动上下文提供 `provider_id`；项目行为不变。Supervisor 条目的 `enabled: false` 登记工厂但不启动，显式 `enable` 才恢复；Host 正常关闭先 `stop(..., { preserve_enabled: true })`，再撤销监督器引用。真实 Home 生命周期验证：`tests/issue-home-runtime.test.ts`。
 
+Host 的 Home 与项目执行器共用可信定义对象的 provider 规则：bundled 使用 plugin_id，其余 install_id。Home 复用此包的安装、发行物、私有 KV 与模型调用规则；Local Host 在完整 v2 基线核对后才构造 Repository，旧版/坏结构不由 constructor 补表。业务库仍由插件拥有，Home 不造项目 artifacts、端口或事件。公开 Host 的组合回归是 `tests/home-plugin-platform.test.ts`、`tests/home-plugin-private-store.test.ts`、`tests/home-plugin-model-lifecycle.test.ts`；模型与 KV 的原独立回归仍须保留。
+
 ## 一次典型调用
 
 PluginRuntime 使用注入的 repository 和 executor；启动或恢复产生新的 grant context，失败和卸载撤销旧 context。SQLite repository 保存安装事实，private storage 按安装 ID 隔离 opaque string 数据。
@@ -81,7 +83,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-runtime-integration.t
   - 事件处理器收到自己的安装身份、signal 和 beforeEffect；异步等待后先检查再产生副作用。先持久写 delivering，确认时复查实例/版本/订阅；中断后的未知处理隔离，不自动重放，尚未派出的启动失败可以恢复。关闭数据库前 await events.close()。
   - 隔离事件由 Host 管理入口读取和明确 retry/skip，插件 clients 没有恢复方法。确认绑定所见事件、游标 revision、安装世代和代码版本；只推进当前事件，决定与 actor/依据历史同事务保存，重装和过期确认拒绝。恢复不授予权限，实际重试仍走原订阅检查。
   - 输入图仅投递可用且未归档的固定版本；`onUpstreamReady` 的 `beforeEffect` 在异步等待后复查输入和当前执行实例。输入通知用于刷新投影，不用于一次性业务命令。激活新实例时撤销旧上下文并重新计算当前输入；关闭时先取消并结束输入协调，再关闭数据库。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin-private-storage.test.ts tests/plugin-upgrades.test.ts tests/plugin-host-executor.test.ts tests/plugin-events.test.ts tests/plugin-platform-composition.test.ts tests/plugin-event-recovery.test.ts tests/plugin-release-artifact.test.ts tests/plugin-lifecycle-states.test.ts tests/bundled-plugin-grants.test.ts tests/runtime-provider-identity.test.ts tests/plugin-declaration-rules.test.ts tests/action-artifact-references.test.ts tests/plugin-declarative-mounting.test.ts tests/plugin-model-service.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin-private-storage.test.ts tests/plugin-upgrades.test.ts tests/plugin-host-executor.test.ts tests/plugin-events.test.ts tests/plugin-platform-composition.test.ts tests/plugin-event-recovery.test.ts tests/plugin-release-artifact.test.ts tests/plugin-lifecycle-states.test.ts tests/bundled-plugin-grants.test.ts tests/runtime-provider-identity.test.ts tests/plugin-declaration-rules.test.ts tests/action-artifact-references.test.ts tests/plugin-declarative-mounting.test.ts tests/plugin-model-service.test.ts` Home 装配/服务改动另跑：`node scripts/run-tests.mjs tests/home-plugin-platform.test.ts tests/home-plugin-private-store.test.ts tests/home-plugin-model-lifecycle.test.ts tests/home-store-baselines.test.ts tests/issue-home-runtime.test.ts tests/local-web-actions.test.ts`。
 - 相关手册：[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)、[skills/molis-plugin-dev/host.md](../../skills/molis-plugin-dev/host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

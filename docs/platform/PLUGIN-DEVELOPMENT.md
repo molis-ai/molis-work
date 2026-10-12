@@ -106,9 +106,15 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 数据属于个人 Home、切换项目不分开的新内置插件，在 `BUILTIN_PLUGIN_CATALOG` 的同一条目声明 `runtime: { scope: "home", create, package_name, factory_export, database? }`。`personal: true` 只是可见性，不会把现存 Form、Todo 等迁到 Runtime。本轮只由 Issue 消费 Home Runtime，现有迁移顺序不变。
 
-一个本机 Local Host 持有一个 `HomePluginHost`，并发发现共用启动 Promise。安装、授予和发行物在 `{home}/plugin-runtime/plugin-runtime.db`，复用 PluginRuntime、Supervisor 和 Action Registry；MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home provider 使用插件 ID，项目 Runtime 继续使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权是不同层次，不能相互替代。
+一个本机 Local Host 持有一个 `HomePluginHost`，并发动作、场景和 HTTP 共用启动 Promise。安装、授予、发行物和私有 KV 在 `{home}/plugin-runtime/plugin-runtime.db` v2，复用 PluginRuntime、Supervisor 和 Action Registry；不同版本或不完整结构拒绝并保留，不补表、不清空。MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home 与项目共用提供方规则：只有可信启动条目标 `bundled` 的定义对象使用插件 ID，其余使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权不能相互替代。
 
 Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留页面、助理、MCP 的入口和身份。业务输入不得接收 owner、actor、install、provider 或数据库路径。Home 实例不提供项目 `artifacts`、端口、事件或假项目：`services.artifacts` 现在可缺省，项目消费者须明确要求该服务。
+
+Home 的 `services.storage` 复用安装隔离 KV 与原子 `compareAndSet`；升级校验只给 `get`，候选启动失败恢复原 KV。`services.model` 和指令登记使用项目执行器同一入口与限制；只在自己的 concurrent 动作中调用，停用、取消、撤权或动作结束后的结果不交付。数据库、模型、动作和 KV 句柄随实例与安装世代失效，停止钩子开始时也不能继续写。普通关闭保留启用意图，用户停用跨重启保留，重装不继承旧授权。
+
+Home 动作/场景可以声明 Home 或项目 scope。项目作用域必须经真实项目的动作/场景客户端；缺项目拒绝。`/api/plugins/<id>/…` 与真实 `/projects/<id>` 前缀后的同一路由访问同一个 Home 实例，HTTP 保持 Home scope，不能从 body/query 构造项目。API 归实际 Runtime 注册，目录只供现有页面；共用 `plugin-route-operations.ts` 的重启/解除隔离/升级/视图版本与分发，保留当前网页授权、断开取消、`beforeEffect`、client_reported 页面上下文和 12 MiB 读体上限。项目 Files/wiring/Coding 钩子仍只属于项目。
+
+Home 库初始化失败由它自身的页面/API 明确报告，Goals 页面与其他项目动作仍可用；普通 ready 保持失败，不自动重试。受保护的 POST retry 才重试，并发 retry 共用一次启动；清理失败或关闭不能再开第二实例。`pluginFixtures.home` 与 `.project` 沿用 definition 或 `{ definition, database }` 夹具形状，不是 bundled、不接受沙箱或内置同名伪造，实际两份启动名单不能重复插件身份。
 
 可信目录的 `database` 声明由 `PluginDatabaseDeclaration` 描述库名、当前基线和读写权限，插件拥有 schema 与 SQL；Host 选择路径、打开连接并提供 `context.services.database`。当前只用于可信 Native 插件；它是安装生命周期服务，不是 JavaScript 沙箱，也不向外部动作暴露 SQL。每个库独占 `{home}/<store_name>/<store_name>.db`，schema 基线不符时拒绝并保留原库，不自动迁移。
 

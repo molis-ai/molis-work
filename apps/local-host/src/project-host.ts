@@ -59,6 +59,7 @@ import { isPersonalSpace } from "./personal-space.js";
 import { registerProjectRuntimeOwner } from "./project-deleted-runtime.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { HomePluginHost } from "./home-plugins.js";
+import { assertFixtureScopes } from "./plugin-scope-entries.js";
 import { withPreparedActions } from "./plugin-actions-client.js";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -86,7 +87,7 @@ export interface MolisWorkLocalHostOptions {
    * Home, as a start-list entry gives one to a shipped plugin. Production composition passes none. They are registered per
    * Home and read when a project's platform starts (`home-side.ts`).
    */
-  pluginFixtures?: { project?: readonly PluginFixture[] };
+  pluginFixtures?: { project?: readonly PluginFixture[]; home?: readonly PluginFixture[] };
   sceneAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["sceneAvailability"];
   actionAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["actionAvailability"];
   onRuntimeOpen?: (reference: LocalHostProjectReference) => void;
@@ -141,6 +142,7 @@ export class MolisWorkLocalHost {
   readonly homePlugins?: HomePluginHost;
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
+    assertFixtureScopes(options.pluginFixtures, Boolean(options.homeDirectory));
     this.sessions = new SessionRuntimeService(options);
     this.personalPlanningHome = options.homeDirectory ? path.resolve(options.homeDirectory) : undefined;
     if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
@@ -149,7 +151,7 @@ export class MolisWorkLocalHost {
       actionSettled: (caller, action, outcome) => {
         this.callLog?.record(caller, action, outcome);
         // Any successful command, from a page, the Assistant, a workflow or MCP, may change what search should find.
-        if (outcome.ok && action.operation === "command" && action.provider_id) this.search?.changed(action.provider_id, caller.project_id);
+        if (outcome.ok && action.operation === "command" && action.provider_id) { this.search?.changed(action.provider_id, caller.project_id); this.homePlugins?.invalidateView(action.provider_id); }
       },
       actionProvidersChanged: provider => this.search?.providerChanged(provider),
       actionAvailability: options.actionAvailability,
@@ -209,7 +211,7 @@ export class MolisWorkLocalHost {
       },
     });
     if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
-      registry: this.host.actionRegistry(), client: this.host.homeActionClient(), entries: BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.runtime ? [entry.runtime] : []) });
+      registry: this.host.actionRegistry(), client: this.host.homeActionClient(), entries: BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.runtime ? [{ ...entry.runtime, manifest: entry.manifest }] : []), fixtures: options.pluginFixtures?.home });
     if (this.personalPlanningHome) this.personalPlanning = new PersonalPlanningActions(this.personalPlanningHome, this.host.actionRegistry(),
       () => readPersonalPlanningMethodPacks(this.personalPlanningHome!));
     if (options.homeDirectory) {
@@ -364,22 +366,20 @@ export class MolisWorkLocalHost {
 
   private async prepareHomeActions(): Promise<void> {
     if (this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
-    await this.homePlugins?.ready();
+    // The Home keeps its failed ready promise; unrelated providers remain available while its HTTP entry reports that failure.
+    await this.homePlugins?.ready().catch(() => undefined);
     this.systemFunctions?.refresh();
   }
 
   sceneClient(reference?: LocalHostProjectReference): ActionSceneClient {
     const client = this.host.sceneClient(reference);
-    const refresh = () => {
-      if (this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
-      this.systemFunctions?.refresh();
-    };
+    const refresh = () => this.prepareHomeActions();
     return {
-      discoverScenes: async (caller, judgment) => { refresh(); return client.discoverScenes(caller, judgment); },
-      usages: async (caller, judgment) => { refresh(); return client.usages(caller, judgment); },
-      targets: async (caller, judgment, selection) => { refresh(); return client.targets(caller, judgment, selection); },
-      bind: async (caller, binding, options) => { refresh(); return client.bind(caller, binding, options); },
-      runScene: async (caller, scene, id, event) => { refresh(); return client.runScene(caller, scene, id, event); },
+      discoverScenes: async (caller, judgment) => { await refresh(); return client.discoverScenes(caller, judgment); },
+      usages: async (caller, judgment) => { await refresh(); return client.usages(caller, judgment); },
+      targets: async (caller, judgment, selection) => { await refresh(); return client.targets(caller, judgment, selection); },
+      bind: async (caller, binding, options) => { await refresh(); return client.bind(caller, binding, options); },
+      runScene: async (caller, scene, id, event) => { await refresh(); return client.runScene(caller, scene, id, event); },
     };
   }
 

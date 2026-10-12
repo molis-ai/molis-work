@@ -25,7 +25,6 @@ export const FLOW_EN: Record<string, string> = {
   "诊断编号": "Diagnostic ID",
   "诊断编号 {id}": "Diagnostic ID {id}",
   "复制诊断编号 {id}": "Copy diagnostic ID {id}",
-  "诊断编号已复制": "Diagnostic ID copied",
   "按诊断编号查找": "Find by diagnostic ID",
   "在报错详情里复制诊断编号，粘贴到这里（至少 {count} 位），可以找到这次操作经过的每一步：谁调用了什么、结果如何。不含输入和返回内容。": "Copy the diagnostic ID from an error's details and paste it here (at least {count} characters) to see every step of that operation: who called what and how it ended. Inputs and results are not included.",
   "例如 a1b2c3d4": "e.g. a1b2c3d4",

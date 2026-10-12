@@ -88,6 +88,16 @@ test("the diagnostics page lists the rows of the operation whose 诊断编号 is
   });
 });
 
+test("the diagnostics page opened on its own copies a 诊断编号 with the shared request helper's handler and carries no second one", { timeout: 60_000 }, async () => {
+  await withPages(async context => {
+    seed(context);
+    const page = await context.read("/settings/diagnostics?call=a1b2c3d4");
+    assert.match(page, /molisCallCopy/, "the page installs the request helper, whose handler copies every [data-molis-call-id] button");
+    assert.equal((page.match(/closest\??\.?\(["']\[data-molis-call-id\]["']\)/g) ?? []).length, 1, "one handler for the button, so one click is one copy and one message");
+    assert.doesNotMatch(page, /诊断编号已复制/, "this page's own copy script was taken out when the helper arrived");
+  });
+});
+
 test("an operation that made the same call three times is one row, found by any of its ids, and shows the one that was asked for", { timeout: 60_000 }, async () => {
   await withPages(async context => {
     seed(context);

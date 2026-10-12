@@ -37,9 +37,9 @@ function callerLabel(row: Pick<CallRowView, "actor_id" | "audience">, L: CallTex
 }
 
 /**
- * The 诊断编号 of an operation as a button that copies the whole number. `data-molis-call-id` is the hook of the browser's copy handler;
- * `data-copy-value` is the one the workbench already has, which is what works when the page is mounted in the workbench's settings
- * (the scripts of a mounted page do not run there).
+ * The 诊断编号 of an operation as a button that copies the whole number. `data-molis-call-id` is the hook of the shared request helper's copy
+ * handler, which a page opened on its own carries; `data-copy-value` is the one the workbench already has, which is what works when the page is
+ * mounted in the workbench's settings (the scripts of a mounted page do not run there).
  */
 export function renderCallIdButton(id: string, { L, escapeHtml: e }: CallText): string {
   const short = e(shortCallId(id));

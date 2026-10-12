@@ -141,7 +141,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 
 ## 开发要求
 
-- 负责：面向插件作者的稳定 API、UI 扩展类型与测试入口，以及作者和平台共用的运行时工具：执行生命周期（`createExecutionLifetime`）、Manifest 解析与版本比较（`parsePluginManifest`、`comparePluginVersions`）和动作声明检查（`inspectActionDeclarations`）；端口与事件、Agent 与方法、四种来源协议的检查分别在 `src/wiring-declarations.ts`、`src/agent-declarations.ts`、`src/source-declarations.ts`，不对外导出。
+- 负责：面向插件作者的稳定 API、UI 扩展类型与测试入口，以及作者和平台共用的运行时工具：执行生命周期（`createExecutionLifetime`）、Manifest 解析与版本比较（`parsePluginManifest`、`comparePluginVersions`）、动作声明检查（`inspectActionDeclarations`，逐个动作的形状）和同一次注册里的交叉引用检查（`inspectActionCrossReferences`，撤销、后台任务、片段与事项选项、结果对象，见 `src/action-cross-references.ts`；查 schema 里的路径用不对外导出的 `src/schema-paths.ts`）；端口与事件、Agent 与方法、四种来源协议的检查分别在 `src/wiring-declarations.ts`、`src/agent-declarations.ts`、`src/source-declarations.ts`，不对外导出。
 - 不负责：Host 内部实现、自动发布的市场。
 - 公开入口：`@molis-ai/molis-work-plugin-sdk`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`（公共发布面，只依赖它，不依赖任何私有包，规则 `public-sdk-private-dependency`）。方向：公开发布面（contracts、plugin-sdk）在最下层，其余各层都可以用它的运行时工具（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
@@ -154,7 +154,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
   - 包是 private，包名不等于已发布到 npm 的承诺。
   - 系统搜索的来源协议（`defineSearchEntriesAction`、`bindSearchEntriesHandler`）与 Host 用的是同一份合同，插件照此声明即可被搜到，不需要 Host 改名单。没有“查询时再搜”的来源（`defineSearchQueryAction` 已按决定 19 删除）。
   - 平台合同里给插件作者用的 `define…Action`、`bind…Handler`、`with…` 辅助函数都从这里导出：到期提醒、情境片段推荐、成果库的预览/固定/比较/继续/被引用、`withActionEffect`。新增一个辅助函数而没有导出，`tests/plugin-sdk-exports.test.ts` 会失败；确实不该给插件用的，在那个测试的 `NOT_FOR_PLUGINS` 里写明理由。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts tests/plugin-manifest-v2.test.ts tests/builtin-manifests-contract.test.ts tests/side-panel-platform.test.ts tests/contextual-interaction.test.ts tests/work-placement.test.ts tests/action-error-model.test.ts tests/plugin-action-route.test.ts tests/plugin-sample.e2e.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts tests/plugin-manifest-v2.test.ts tests/builtin-manifests-contract.test.ts tests/side-panel-platform.test.ts tests/contextual-interaction.test.ts tests/work-placement.test.ts tests/action-error-model.test.ts tests/plugin-action-route.test.ts tests/plugin-sample.e2e.test.ts tests/action-cross-references.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-DEVELOPMENT.md](../../docs/platform/PLUGIN-DEVELOPMENT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

@@ -25,6 +25,8 @@ export interface ScheduleJobRecord {
     updated_at: string;
 }
 
+export type SchedulePluginRegisterInput = Omit<ScheduleRegisterInput, "plugin_id">;
+
 export type ScheduleRecurrence = {
     kind: "once";
 } | {
@@ -78,21 +80,17 @@ export interface ScheduleWakeupReply {
 export type ScheduleWakeupStatus = "ok" | "failed" | "plugin_unavailable";
 
 export declare const scheduleCapabilities: {
-    readonly register: HostCapabilityDefinition<ScheduleRegisterInput, ScheduleJobRecord>;
+    readonly register: HostCapabilityDefinition<SchedulePluginRegisterInput, ScheduleJobRecord>;
     readonly cancel: HostCapabilityDefinition<{
         job_id: string;
-        plugin_id: string;
     }, {
         cancelled: boolean;
     }>;
     readonly setEnabled: HostCapabilityDefinition<{
         job_id: string;
-        plugin_id: string;
         enabled: boolean;
     }, ScheduleJobRecord>;
-    readonly list: HostCapabilityDefinition<{
-        plugin_id?: string;
-    }, {
+    readonly list: HostCapabilityDefinition<Record<string, never>, {
         jobs: ScheduleJobRecord[];
     }>;
 };

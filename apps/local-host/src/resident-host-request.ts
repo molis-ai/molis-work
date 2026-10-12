@@ -12,7 +12,10 @@ import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
 export const DEFAULT_RESIDENT_HOST_URL = "http://127.0.0.1:4173";
 export const RESIDENT_HOST_URL_ENV = "MOLIS_WORK_WEB_URL";
 
-/** The address a forwarding process may ask: a numeric loopback HTTP origin, nothing else (the same rule as the action gateway). */
+/**
+ * The address a forwarding process may ask: a numeric loopback HTTP origin, nothing else. This is the one place that rule is
+ * written for every process that talks to the resident Host (the action gateway's client, the project-deletion client and the CLI).
+ */
 export function residentHostOrigin(address: string): string {
   const url = new URL(address);
   if (!isLoopbackHttpOrigin(url, { numeric: true })) throw new ActionError("actions.transport_invalid", "系统动作连接必须是本机数字回环 HTTP 地址");
@@ -26,23 +29,26 @@ export interface ResidentHostAnswer {
 }
 
 /**
- * One POST to the Home's resident Host, with the Home's own control token (read from the Home, so a Host of another Home
- * refuses it), a numeric loopback address and no redirect. The answer is whatever the Host said, success or failure. Null
- * when no Host answers at the address: the Home has no control token yet, or nothing listens, so there are no terminals or
- * runtime to ask about. A connection that breaks after the request left is not that: the answer is unknown, and `retryHint`
- * says how to ask again safely.
+ * The one POST to the Home's resident Host, whoever asks: the Home's own control token (read from the Home, so a Host of
+ * another Home refuses it; `controlToken` is one the caller already holds, used instead of the file), a numeric loopback
+ * address, no redirect and a fresh one-time key. The answer is whatever the Host said, success or failure. Null when no Host
+ * answers at the address: the Home has no control token yet, or nothing listens, so nothing was sent and there are no
+ * terminals or runtime to ask about. A connection that breaks after the request left is not that: the answer is unknown, and
+ * `retryHint` says how to ask again safely. The body is serialized before anything is sent, so one that cannot be (a cycle,
+ * a BigInt, a throwing `toJSON`) throws that error as it is: nothing left, so there is nothing to check afterwards.
  */
 export async function postToResidentHost(options: {
-  origin: string; homeDirectory: string; path: string; body: Record<string, unknown>; retryHint: string; signal?: AbortSignal;
+  origin: string; homeDirectory: string; controlToken?: string; path: string; body: Record<string, unknown>; retryHint: string; signal?: AbortSignal;
 }): Promise<ResidentHostAnswer | null> {
   let token: string;
-  try { token = (await readFile(path.join(options.homeDirectory, WEB_CONTROL_TOKEN_RELATIVE_PATH), "utf8")).trim(); }
+  try { token = options.controlToken ?? (await readFile(path.join(options.homeDirectory, WEB_CONTROL_TOKEN_RELATIVE_PATH), "utf8")).trim(); }
   catch { return null; }
+  const payload = JSON.stringify(options.body);
   let response: Response;
   try {
     response = await fetch(options.origin + options.path, { method: "POST", redirect: "error", signal: options.signal,
       headers: { origin: options.origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() },
-      body: JSON.stringify(options.body) });
+      body: payload });
   } catch (error) {
     if (options.signal?.aborted) throw options.signal.reason;
     if ((error as { cause?: { code?: string } }).cause?.code === "ECONNREFUSED") return null;

@@ -21,7 +21,7 @@ function renderCallLookup(view: MolisWorkSettingsView, p: DiagnosticsPrimitives,
   const query = view.call_query;
   if (!query) return "";
   const context = view.context_project ?? null;
-  const rows = (list: readonly CallRowView[]) => `<div class="capability-history">${list.map(row => renderCallRow(row, p, callPlace(row, view, p, desktopShell))).join("")}</div>`;
+  const rows = (list: readonly CallRowView[], lead = "") => `<div class="capability-history">${lead}${list.map(row => renderCallRow(row, p, callPlace(row, view, p, desktopShell))).join("")}</div>`;
   const note = (title: string, detail: string) => `<div class="settings-empty" role="status"><strong>${title}</strong><span>${detail}</span></div>`;
   let result: string;
   if (query.text === "") {
@@ -33,7 +33,7 @@ function renderCallLookup(view: MolisWorkSettingsView, p: DiagnosticsPrimitives,
   } else if (query.matches.length === 0) {
     result = note(L("没有找到以 {id} 开头的诊断编号", { id: e(query.text) }), L("调用记录只保留最近的调用，更早的会被整理掉；有些操作也不留记录。"));
   } else {
-    result = `<p class="capability-count" role="status">${L("找到 {count} 条记录", { count: query.matches.length })}</p>${rows(query.matches)}`;
+    result = rows(query.matches, `<p role="status">${L("找到 {count} 条记录", { count: query.matches.length })}</p>`);
   }
   return `<section class="settings-section" aria-labelledby="call-lookup-title" data-call-lookup-section>
       <h2 id="call-lookup-title">${L("按诊断编号查找")}</h2>

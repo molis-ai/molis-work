@@ -68,6 +68,8 @@ test("the diagnostics page lists the rows of the operation whose 诊断编号 is
     assert.match(row!, /测试服务/);
     assert.match(row!, /test\.disconnected/, "the error code is kept");
     assert.doesNotMatch(page, /此原因不会被记录/, "the reason a refusal gave is not kept, so it is not shown");
+    assert.match(page, /<div class="capability-history"><p role="status">找到 1 条记录<\/p><article data-call-row/, "the count sits at the head of the rows it counts");
+    assert.doesNotMatch(page, /capability-count/, "the count line is not the capability index's, whose 24px side padding would set it off from the field and the rows");
     assert.match(row!, /诊断范围/, "which project it was in");
     assert.match(row!, new RegExp(`href="/capabilities/history\\?project=${projectId}"`), "and where that project's call history is");
     assert.match(page, /value="a1b2c3d4"/, "the lookup box keeps what was asked");

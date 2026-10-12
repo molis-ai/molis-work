@@ -38,12 +38,12 @@ function callerLabel(row: Pick<CallRowView, "actor_id" | "audience">, L: CallTex
 
 /**
  * The 诊断编号 of an operation as a button that copies the whole number. `data-molis-call-id` is the hook of the shared request helper's copy
- * handler, which a page opened on its own carries; `data-copy-value` is the one the workbench already has, which is what works when the page is
- * mounted in the workbench's settings (the scripts of a mounted page do not run there).
+ * handler. Every page has the helper: a page opened on its own embeds it, and the Workbench's program starts with it, which is what works when
+ * the page is mounted in the Workbench's settings (the scripts of a mounted page do not run there). No second hook, so one click copies once.
  */
 export function renderCallIdButton(id: string, { L, escapeHtml: e }: CallText): string {
   const short = e(shortCallId(id));
-  return `<button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-molis-call-id="${e(id)}" data-copy-value="${e(id)}" aria-label="${L("复制诊断编号 {id}", { id: short })}">${L("诊断编号 {id}", { id: short })}</button>`;
+  return `<button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-molis-call-id="${e(id)}" aria-label="${L("复制诊断编号 {id}", { id: short })}">${L("诊断编号 {id}", { id: short })}</button>`;
 }
 
 /** One call: what was called, for whom, how it ended and its 诊断编号; `where` adds the project it was made in and the way to its call history. */

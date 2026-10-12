@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
-import { CONTROL_CLIENT_SCRIPT, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 
@@ -30,11 +30,13 @@ const projectView = {
 const guidance = { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" };
 
 const count = (html: string, part: string) => html.split(part).length - 1;
+/** The headers function every page used to carry a copy of: it is the helper's `headers`, and nothing else defines it any more. */
+const OWN_HEADERS_FUNCTION = /molisWorkControlHeaders = \(\) =>/;
 
 /** The page carries the helper once, after the translator it speaks through, and no copy of the old headers function. */
 function assertCarriesHelper(name: string, html: string) {
   assert.equal(count(html, UI_REQUEST_CLIENT_SCRIPT), 1, `${name}: the request helper, once`);
-  assert.equal(count(html, CONTROL_CLIENT_SCRIPT), 0, `${name}: no second copy of the headers function`);
+  assert.doesNotMatch(html, OWN_HEADERS_FUNCTION, `${name}: no second copy of the headers function`);
   assert.ok(html.indexOf("globalThis.L = function L") >= 0 && html.indexOf("globalThis.L = function L") < html.indexOf(UI_REQUEST_CLIENT_SCRIPT), `${name}: the translator is defined first`);
   assert.match(html, new RegExp(`<meta name="molis-work-control-token" content="${TOKEN}">`), `${name}: the token the helper reads is in the page`);
 }
@@ -53,7 +55,7 @@ test("the project settings pages carry the request helper", () => {
   assertCarriesHelper("planning method (new)", renderer.renderMolisWorkPlanningMethodPage(null, "new", "personal", null, TOKEN));
   const library = renderer.renderMolisWorkPlanningLibrary([], null, TOKEN);
   assert.equal(count(library, UI_REQUEST_CLIENT_SCRIPT), 0, "the read-only library asks for nothing");
-  assert.equal(count(library, CONTROL_CLIENT_SCRIPT), 0);
+  assert.doesNotMatch(library, OWN_HEADERS_FUNCTION);
 });
 
 test("the update page and the first-run and new-project journey carry the request helper", () => {
@@ -72,4 +74,22 @@ test("a plugin's side panel document carries the request helper", () => {
   const html = renderer.renderSideViewDocument({ projectPluginId: "lingguang", viewId: "side", projectId: "p1", routePrefix: "/projects/p1", enabled: ["lingguang"], controlToken: TOKEN });
   assert.ok(html, "the side view is served");
   assertCarriesHelper("side view", html!);
+});
+
+test("a Home plugin page carries the request helper before the plugin's client runs", () => {
+  const entry = BUILTIN_PLUGIN_CATALOG.find(candidate => candidate.project_plugin_id === "todo");
+  assert.ok(entry, "the Todo plugin is a Home plugin with a page of its own");
+  const html = renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN);
+  assert.equal(count(html, UI_REQUEST_CLIENT_SCRIPT), 1);
+  assert.doesNotMatch(html, OWN_HEADERS_FUNCTION);
+  assert.ok(html.indexOf(UI_REQUEST_CLIENT_SCRIPT) < html.indexOf("molisWorkbenchPluginFactories"), "the helper is there when the client mounts");
+});
+
+// The Workbench's shared program (/assets/molis-work-workbench.js) is the one place the page budget is measured, and it is where the
+// pages that are mounted in the Workbench (the settings among them) get their requests from: the helper comes first, once.
+test("the Workbench's shared browser program starts with the request helper and carries no copy of the old headers function", () => {
+  const program = renderer.renderMolisWorkWorkbenchClientScript();
+  assert.equal(program.indexOf(UI_REQUEST_CLIENT_SCRIPT), 0, "before any program of the Workbench can send a request");
+  assert.equal(count(program, UI_REQUEST_CLIENT_SCRIPT), 1, "and only once, though a page that was opened on its own also carries it");
+  assert.doesNotMatch(program, OWN_HEADERS_FUNCTION);
 });

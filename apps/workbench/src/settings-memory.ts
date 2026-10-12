@@ -128,20 +128,16 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     let data = null, busy = false;
     const filters = { kind: "", source: "", state: "", query: "" };
     const error = $("[data-memory-error]");
-    const toast = (text, failed) => {
-      const box = document.querySelector("[data-settings-toast], [data-toast]");
+    const board = () => document.querySelector("[data-settings-toast], [data-toast]");
+    const toast = (text) => {
+      const box = board();
       if (!box) return;
-      box.textContent = text; box.classList.toggle("is-error", Boolean(failed)); box.classList.add("is-visible");
-      setTimeout(() => box.classList.remove("is-visible"), failed ? 5000 : 2600);
+      box.textContent = text; box.classList.remove("is-error"); box.classList.add("is-visible");
+      setTimeout(() => box.classList.remove("is-visible"), 2600);
     };
     // The reason shows at the top of the page and, since the action may be far below it, in the toast where the person is.
-    const fail = (failure) => { error.textContent = failure && failure.message ? failure.message : L("没有完成，请重试"); error.hidden = false; toast(error.textContent, true); };
-    const api = async (path, payload) => {
-      const response = await fetch(base + path, payload === undefined ? undefined : { method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload) });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || L("没有完成，请重试"));
-      return body;
-    };
+    const fail = (failure) => { molisWorkRequest.show(error, failure); error.hidden = false; if (board()) molisWorkRequest.toast(board(), failure, undefined, { ms: 5000 }); };
+    const api = (path, payload) => molisWorkRequest(base + path, { body: payload });
     const run = async (work, message) => {
       if (busy) return;
       busy = true; error.hidden = true;
@@ -270,7 +266,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
           list.append(entry);
         });
         panel.append(list);
-      }).catch((failure) => { panel.replaceChildren(el("span", "settings-form-error", failure.message)); });
+      }).catch((failure) => { const note = el("span", "settings-form-error"); molisWorkRequest.show(note, failure); panel.replaceChildren(note); });
     }
 
     function paintItems() {

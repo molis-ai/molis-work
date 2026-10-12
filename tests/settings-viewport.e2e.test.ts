@@ -93,7 +93,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     assert.equal(await evaluate("document.querySelector('[name=content]').value"), content);
     assert.equal(await evaluate("document.querySelector('[data-guidance-editor-close]').disabled"), false);
     await contained('[data-guidance-editor-error]');
-    assert.match(await evaluate<string>("document.querySelector('[data-guidance-editor-error]').textContent"), /输入已保留/);
+    assert.match(await evaluate<string>("document.querySelector('[data-guidance-editor-error]').textContent"), /不知道这次操作有没有完成/, "the answer never came, so the page does not claim to know; the draft above is still there");
     await contained('.guidance-editor footer');
     await capture('guidance-error');
     await evaluate("localStorage.setItem('molis-work:theme','dark');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'dark'}))");

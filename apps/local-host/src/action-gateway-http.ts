@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withCallId } from "@molis-ai/molis-work-kernel";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { ACTION_GATEWAY_PATH, actionGatewayHomeId, isGatewayCallId } from "./action-gateway.js";
 import { recordedCallIdField } from "./call-id-response.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
@@ -17,9 +18,8 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
   const disconnected = () => { if (!response.writableFinished) abort.abort(new ActionError("actions.cancelled", "调用连接已断开")); };
   response.once("close", disconnected);
   const fail = (error: unknown) => {
-    if (!response.destroyed) sendJson(response, error instanceof ActionError && error.code === "actions.input_invalid" ? 400 : 403,
-      { code: error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "actions.transport_failed",
-        error: error instanceof Error ? error.message : "系统动作调用失败" });
+    const failure = actionErrorResponse(error);
+    if (!response.destroyed) sendJson(response, failure.status, failure.body);
   };
   try {
     const body = await readGatewayBody(request);

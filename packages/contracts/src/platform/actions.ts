@@ -1,7 +1,7 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 export * from "./action-execution.js";
-import { ActionError } from "./action-errors.js";
+import { ActionError, type ActionErrorKind } from "./action-errors.js";
 export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
 import type { ActionResultView } from "./action-result.js";
@@ -212,6 +212,8 @@ export type ActionAvailability = { readonly available: true } | {
   readonly available: false;
   readonly code: string;
   readonly reason: string;
+  /** The owner's classification of this refusal; the Kernel and SDK preserve it when raising the failure. */
+  readonly kind?: ActionErrorKind;
 };
 
 /**

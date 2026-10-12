@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorFromResponse, actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { actionGatewayHomeId } from "./action-gateway.js";
 import { runtimeActorId } from "./mcp-event-identity.js";
 import type { ProjectDeletionService } from "./project-deletion-service.js";
@@ -39,7 +39,7 @@ export class LocalProjectDeletionGatewayClient {
         ...(this.options.runtimeSessionId === null ? {} : { runtime_session_id: this.options.runtimeSessionId }) } });
     if (!answer) return null;
     const { body } = answer;
-    if (!answer.ok) throw new ActionError(typeof body.code === "string" ? body.code : "actions.transport_denied", typeof body.error === "string" ? body.error : "常驻服务拒绝了这次删除");
+    if (!answer.ok) throw actionErrorFromResponse(answer.status, body);
     if (!isProjectDeletionResult(body)) throw new ActionError("actions.transport_invalid", "常驻服务的删除回执无效");
     return body;
   }
@@ -77,21 +77,10 @@ export async function handleProjectDeletionGatewayHttp(request: IncomingMessage,
       actor_id: runtimeActorId(body.client_id, typeof body.runtime_session_id === "string" ? body.runtime_session_id : null) });
     sendJson(response, 200, result);
   } catch (error) {
-    const failure = deletionFailure(error);
-    sendJson(response, failure.status, { code: failure.code, error: error instanceof Error ? error.message : "删除项目失败" });
+    const failure = actionErrorResponse(error);
+    sendJson(response, failure.status, failure.body);
   }
   return true;
-}
-
-/**
- * How the Host answers a deletion that did not happen. The failure keeps the code it has (the catalog's and the actions' codes
- * are namespaced); one without a namespaced code, such as a file system error, is the deletion's own failure. The status is the
- * one of the failure's kind: a live terminal conflicts (409), a request that cannot be a deletion is invalid (400), a Host of
- * another Home refuses (403), a project that is not there is 404; anything that is not a failure of ours went wrong inside the Host (500).
- */
-function deletionFailure(error: unknown): { code: string; status: number } {
-  const own = error instanceof Error && "code" in error && typeof error.code === "string" && /^[a-z_]+\.[a-z_]+/.test(error.code) ? error.code : null;
-  return { code: own ?? "project_deletion.failed", status: actionHttpStatus(error) };
 }
 
 function readGatewayBody(request: IncomingMessage): Promise<Record<string, unknown>> {

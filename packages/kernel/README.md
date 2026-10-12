@@ -72,7 +72,7 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
   - 目录从唯一的 `CapabilityRegistry` 派生，不另存名单。
   - 输入与结果按合同校验：查询与判断不合合同报 `actions.output_invalid`；已提交的写动作报 `actions.output_invalid_after_effect`。
   - `action.execution` 明确声明的时限与调用频率由统一执行器落实；费用只作声明，未声明为未知。计数按 actor、项目、安装隔离且跨入口共享，注册退出时释放，不承担持久计费。超时转发 signal 并停止等待，迟到处理器必须经写入 fence，不能承诺抢占同步代码或撤销外部请求。
-  - `beforeEffect` 每次复查注册版本、可用性、授权与权限；调用结束后不能再产生副作用。
+  - `beforeEffect` 每次复查注册版本、可用性、授权与权限；调用结束后不能再产生副作用。 可用性拒绝的可选 `kind` 与码、原因一起抛出；动作派发与 Registry 的 typed 派发使用同一分类。
   - `invokeSync` 只接受显式声明 `execution: "sync"` 的处理器，不等待 Promise，不能借它绕过异步策略。
   - 声明了 `authorship: "session"` 的动作，在派发处拒绝调用上下文带 `runtime_session_missing`（可信的 MCP 适配器给没有稳定 Session 的外部 Runtime 标上）的调用，直接调用和包装动作（首页事项动作、工作流步骤）发起的嵌套调用一样，只在这一处检查（`mcp.runtime_identity_missing`）。
   - 注册时检查同一次注册里的交叉引用（规则在插件 SDK 的 `inspectActionCrossReferences`）：撤销命令、后台任务状态查询、片段与事项选项的目标要在同一次注册里、种类与范围对，被指的字段和位置要在输入输出合同里。检查在 `registerProvider` 原有的一行里调用，不往函数里加行；谁能用目标留到使用时按调用者核对。
@@ -83,7 +83,7 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
   - `admit` 是宿主的异步策略，在解析与授权复查之前跑；`invokeSync` 不跑它（事务里不能等），同步入口自己的检查用第四个参数传入，在结算范围内先跑，它的拒绝同样结算。
   - 核心代码不调用情境排序：核心文件不导入它，也不经入口转手导入它的名字（`pnpm health:check` 的 K1）。根入口不转出它，情境排序走子入口 `@molis-ai/molis-work-kernel/contextual`，所以核心的导入闭包里没有情境排序。它只读 `contracts/platform/actions`、`contracts/services/contextual` 和 `node:crypto`（K2、K3）。
   - 情境排序无 I/O、无计时器、无模块级可变状态，同样的输入得到同样的陈列（K4）。候选只从授权目录来，不点名插件或能力 id（K5）；陈列不删候选；答案里不在候选中的键一律丢掉，模型不能编出动作。会写入的先确认，不可撤回的不推荐。
-- 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts tests/execution-lifetime.test.ts tests/action-authorship-dispatch.test.ts tests/contextual-interaction.test.ts tests/contextual-fragment-offers.test.ts tests/contextual-dock-parity.test.ts tests/home-action-scenes.test.ts tests/health-gates-kernel-contextual.test.ts tests/security-invariants-injection.test.ts tests/action-call-id.test.ts tests/action-cross-references.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts tests/execution-lifetime.test.ts tests/action-authorship-dispatch.test.ts tests/contextual-interaction.test.ts tests/contextual-fragment-offers.test.ts tests/contextual-dock-parity.test.ts tests/home-action-scenes.test.ts tests/health-gates-kernel-contextual.test.ts tests/security-invariants-injection.test.ts tests/action-call-id.test.ts tests/action-cross-references.test.ts tests/action-availability-kind.test.ts`
 - 相关手册：[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)、[docs/system/ARCHITECTURE.md](../../docs/system/ARCHITECTURE.md)、[docs/horizontal/README.md](../../docs/horizontal/README.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

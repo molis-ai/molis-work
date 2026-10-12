@@ -50,7 +50,7 @@ export function bindOwnerPluginAction<Input, Output>(
   };
   return { ...definition, availability, async handle(caller, input) {
     const owner = availability(caller);
-    if (!owner.available) throw new ActionError(owner.code, owner.reason);
+    if (!owner.available) throw new ActionError(owner.code, owner.reason, { kind: owner.kind });
     const beforeWrite = async () => {
       caller.signal?.throwIfAborted();
       if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
@@ -59,7 +59,7 @@ export function bindOwnerPluginAction<Input, Output>(
         && row.version === definition.version && row.provider.plugin_install_id === context.install_id);
       if (!current) throw new ActionError("actions.missing", "原插件动作已撤下，不能继续保存");
       await caller.validate_authority?.({ capability_id: definition.capability_id, version: definition.version, provider_id: current.provider.provider_id });
-      if (!current.availability.available) throw new ActionError(current.availability.code, current.availability.reason);
+      if (!current.availability.available) throw new ActionError(current.availability.code, current.availability.reason, { kind: current.availability.kind });
       for (const permission of definition.action.permissions) context.requireGrant(permission);
       caller.signal?.throwIfAborted();
     };

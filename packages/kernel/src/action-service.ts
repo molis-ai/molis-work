@@ -476,7 +476,7 @@ function requireDefinition(definition: HostCapabilityDescriptor | undefined, ref
   }
   return definition;
 }
-function assertAvailable(value: ActionAvailability): void { if (!value.available) throw new ActionError(value.code, value.reason); }
+function assertAvailable(value: ActionAvailability): void { if (!value.available) throw new ActionError(value.code, value.reason, { kind: value.kind }); }
 function unavailable(code: string, reason: string): ActionAvailability { return { available: false, code, reason }; }
 function actionKey(v: ActionReference): string { return `${v.capability_id}@${v.version}`; }
 function sceneKey(v: { scene_id: string; version: number }): string { return `${v.scene_id}@${v.version}`; }

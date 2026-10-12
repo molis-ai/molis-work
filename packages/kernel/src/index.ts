@@ -158,7 +158,7 @@ export class CapabilityRegistry<Context> {
       );
     }
     const availability = requireSynchronous(registered.availability?.(context));
-    if (availability && !availability.available) throw new ActionError(availability.code, availability.reason);
+    if (availability && !availability.available) throw new ActionError(availability.code, availability.reason, { kind: availability.kind });
     return registered;
   }
 }

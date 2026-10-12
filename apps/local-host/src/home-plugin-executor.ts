@@ -85,7 +85,7 @@ export class HomePluginExecutor implements PluginExecutor {
     finally { try { session?.dispose(); } finally { this.sessions.delete(context.install_id); } }
   }
 
-  capturePrivateData(installId: string) { return this.options.storage.snapshotInstallationData(installId); }
+  capturePrivateData(installId: string): unknown { return this.options.storage.snapshotInstallationData(installId); }
   restorePrivateData(installId: string, snapshot: unknown): void {
     this.options.storage.restoreInstallationData(installId, snapshot as ReturnType<SqlitePluginPrivateStorage["snapshotInstallationData"]>);
   }

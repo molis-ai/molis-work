@@ -38,7 +38,7 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 
 ## 接入与边界
 
-SDK 不包含 Runtime 或业务 Store。Manifest 解析与版本比较是 SDK 自己的规则（`src/manifest.ts`）：`parsePluginManifest`、`PluginManifestError`、`comparePluginVersions`，SDK、Plugin Runtime 和命令行共用这一份，不另写第二套。动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，内核注册动作时也用它）在 W3-03 的 B2 之前仍在合同包，`parsePluginManifest` 从那里取，B2 把它们搬进 SDK 的同一处；授权的实际执行由 Host/Runtime 控制。当前工作区包是 private，不能把包名当作已经发布到 npm 的承诺。插件对外的能力就是它声明的动作，MCP 名称与授权都在 Host。步骤见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
+SDK 不包含 Runtime 或业务 Store。Manifest 解析与版本比较是 SDK 自己的规则（`src/manifest.ts`）：`parsePluginManifest`、`PluginManifestError`、`comparePluginVersions`，SDK、Plugin Runtime 和命令行共用这一份，不另写第二套；成果类型的声明规则（`src/artifact-declarations.ts`，写法见 [成果类型声明](../../docs/platform/PLUGIN-DEVELOPMENT.md#成果类型声明)）在同一次解析里检查，所以 `definePlugin`、命令行 `validate`/`create`、Runtime 安装和本地开发加载都会拒绝没有显示名或预览的成果类型。动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，内核注册动作时也用它）在 W3-03 的 B2 之前仍在合同包，`parsePluginManifest` 从那里取，B2 把它们搬进 SDK 的同一处；授权的实际执行由 Host/Runtime 控制。当前工作区包是 private，不能把包名当作已经发布到 npm 的承诺。插件对外的能力就是它声明的动作，MCP 名称与授权都在 Host。步骤见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
 
 工作区依赖：只有 `@molis-ai/molis-work-contracts`。Plugin SDK 属于公共发布面（外部作者装的只有 contracts 与 SDK），不依赖任何私有包：边界规则 `public-sdk-private-dependency` 在 `pnpm boundary:check` 里拦住（源码 import 与 `package.json` 声明的依赖都查），`tests/plugin-sample.e2e.test.ts` 只用打包后的 contracts 与 SDK 离线安装，在本机再兜一层。`createExecutionLifetime`（及 `ExecutionLifetime`、`ExecutionLifetimeOptions`）是 SDK 自己的实现（`src/execution-lifetime.ts`），不是转出；SDK 同时是平台自己的公共运行时底座：内核、宿主、调度服务、Shelf 模块和沙箱都直接从这里取，所以改它按共享核心对待（要跑全量）。其他运行依赖见 [package.json](package.json)。
 
@@ -137,7 +137,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 
 ## 开发要求
 
-- 负责：面向插件作者的稳定 API、UI 扩展类型与测试入口，以及作者和平台共用的运行时工具：执行生命周期（`createExecutionLifetime`）、Manifest 解析与版本比较（`parsePluginManifest`、`comparePluginVersions`；端口与事件检查在 `src/wiring-declarations.ts`，不对外导出；动作、Agent、方法的声明检查在 B2 之前仍从合同包取）。
+- 负责：面向插件作者的稳定 API、UI 扩展类型与测试入口，以及作者和平台共用的运行时工具：执行生命周期（`createExecutionLifetime`）、Manifest 解析与版本比较（`parsePluginManifest`、`comparePluginVersions`；端口与事件检查在 `src/wiring-declarations.ts`，成果类型的检查（每个产出类型有显示名和本插件的预览查询，固定要配比较，继续指向本插件的命令；v1 不能产出成果类型）在 `src/artifact-declarations.ts`，都不对外导出，由 `parsePluginManifest` 调用；动作、Agent、方法的声明检查在 B2 之前仍从合同包取）。
 - 不负责：Host 内部实现、自动发布的市场。
 - 公开入口：`@molis-ai/molis-work-plugin-sdk`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`（公共发布面，只依赖它，不依赖任何私有包，规则 `public-sdk-private-dependency`）。方向：公开发布面（contracts、plugin-sdk）在最下层，其余各层都可以用它的运行时工具（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
@@ -150,7 +150,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
   - 包是 private，包名不等于已发布到 npm 的承诺。
   - 系统搜索的来源协议（`defineSearchEntriesAction`、`bindSearchEntriesHandler`）与 Host 用的是同一份合同，插件照此声明即可被搜到，不需要 Host 改名单。没有“查询时再搜”的来源（`defineSearchQueryAction` 已按决定 19 删除）。
   - 平台合同里给插件作者用的 `define…Action`、`bind…Handler`、`with…` 辅助函数都从这里导出：到期提醒、情境片段推荐、成果库的预览/固定/比较/继续/被引用、`withActionEffect`。新增一个辅助函数而没有导出，`tests/plugin-sdk-exports.test.ts` 会失败；确实不该给插件用的，在那个测试的 `NOT_FOR_PLUGINS` 里写明理由。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts tests/plugin-manifest-v2.test.ts tests/plugin-sample.e2e.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts tests/plugin-manifest-v2.test.ts tests/action-artifact-references.test.ts tests/plugin-sample.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-DEVELOPMENT.md](../../docs/platform/PLUGIN-DEVELOPMENT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

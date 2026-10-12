@@ -2,6 +2,7 @@ import { inspectActionDeclarations } from "@molis-ai/molis-work-contracts/platfo
 import { inspectAgentDeclaration, inspectMethodDeclarations } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
+import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 
 export class PluginManifestError extends Error {
@@ -108,6 +109,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   const parsed = input as PluginManifest;
   if (schemaVersion === 1) {
     assertNoV2Blocks(manifest, ui);
+    assertArtifactDeclarations(parsed);
   } else {
     assertV2Blocks(parsed, ui);
   }
@@ -192,6 +194,12 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
   }
 }
 
+/** A v1 Manifest has no problems list of its own to add the 成果 types to (v2 adds them to its list in `assertV2Blocks`). */
+function assertArtifactDeclarations(parsed: PluginManifest): void {
+  const problems = artifactDeclarationProblems(parsed);
+  if (problems.length > 0) throw new PluginManifestError("plugin_declaration_invalid", problems.join("；"));
+}
+
 function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): void {
   const problems: string[] = [];
   problems.push(...inspectActionDeclarations(parsed.actions, parsed.action_scenes));
@@ -218,6 +226,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   problems.push(...inspectRouteDeclarations(parsed));
   problems.push(...inspectRequirementDeclarations(parsed));
   problems.push(...inspectPortPermissions(parsed));
+  problems.push(...artifactDeclarationProblems(parsed));
   if (problems.length > 0) {
     throw new PluginManifestError("plugin_declaration_invalid", problems.join("；"));
   }

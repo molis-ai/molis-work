@@ -27,7 +27,11 @@
  * whose button is the target. Two things sit inside a sentence and cannot be boxes: a link is as wide as its words and its padding
  * (above and below, taking no line room) makes it 44px tall, and an object chip keeps its look while an invisible area around it
  * (44px tall, at least 44px wide) answers to a finger. tests/touch-targets.e2e.test.ts reads the kinds of control from the script
- * the page runs and measures each. */
+ * the page runs and measures each.
+ *
+ * The 诊断编号 button the shared request helper puts after an error message (in an error area, or in a toast) is such a link: padding above
+ * and below make it 44px tall and a negative margin takes the room back, so the line and the toast keep their height
+ * (tests/request-failure-call-id.e2e.test.ts measures it, with a finger's reach, in a toast and in an error area). */
 const SHELL = ":is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage)";
 const ASSIST = "body.immersive-workbench:not([data-pane-embedded])";
 
@@ -59,6 +63,7 @@ export const TOUCH_TARGET_STYLES = `
     ${ASSIST} .assistant-link { padding-block: 15px; }
     ${ASSIST} .assistant-inline-object { position: relative; min-width: 44px; justify-content: center; }
     ${ASSIST} .assistant-inline-object::after { content: ""; position: absolute; inset: -12px -2px; }
+    [data-molis-call-id] { padding-block: 16px; margin-block: -16px; }
   }
   @media (max-width: 374px) { ${SHELL} .workbench-bar { column-gap: 0; padding-inline: 0; } ${SHELL} .bar-center { margin-inline: 8px; } }
   @media (pointer: coarse) and (min-width: 601px) { @container assistant-bar (max-width: 460px) { ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 44px; min-width: 44px; } } }

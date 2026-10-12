@@ -102,7 +102,7 @@ bind(lingguangActions.message, async (input, caller) => {
   const snapshot = ports.withStore(store => store.conversation(input.id, projectId));
   if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置文字模型，再继续对话");
   const reply = (await ports.completeText(prompt, { signal: caller.signal })).trim();
-  if (!reply) throw new ActionError("lingguang.empty_reply", "模型没有返回正文，输入已保留，可重试");
+  if (!reply) throw lingguangErrors.empty_reply("模型没有返回正文，输入已保留，可重试"); // 插件用 defineErrorCodes 声明自己的码，状态由 kind 推出
   await caller.beforeEffect();                        // 复查注册实例、授权、生命周期、作用域、取消
   return ports.withStore(store => store.addReply(input.id, input.body, reply, projectId, snapshot)); // 快照变了就拒绝
 }, () => ports.modelAvailability()),

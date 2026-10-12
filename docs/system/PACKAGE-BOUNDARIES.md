@@ -46,7 +46,7 @@ the published surface (contracts, plugin-sdk) is the lowest layer
 - Module 导入 Horizontal Service、App 或 Plugin（代码 import 与 `package.json` 依赖都查，`module-upward-dependency`）。
 - Plugin 导入另一个 Plugin implementation、Store 或未公开 UI 组件。
 - Plugin 导入 App、Horizontal Service 或 Module implementation（`plugin-upward-dependency`）。在册的唯一例外：`plugins/native/shelf → modules/shelf`（Shelf 仍用 Shelf Module 的配方与设置解析，是待还的债，不是先例）。Goals 插件曾声明却从未导入 `modules/goals`，该依赖已删。
-- Plugin SDK 导入或依赖 contracts 以外的任何工作区包（`public-sdk-private-dependency`，源码 import 与 `package.json` 依赖都查）。外部作者只装 contracts 与 SDK 两个包；SDK 依赖了私有包，打包后的示例就装不上（2026-09-30 出过一次）。所以作者和平台共用、会运行的工具放在 SDK 里，而不是私有的 kernel 或 plugin-runtime，平台各层从 SDK 取同一份。现在在 SDK 里的是执行生命周期（kernel、宿主、调度服务、Shelf 模块和沙箱从 SDK 取）、Manifest 解析与版本比较（`parsePluginManifest` 等，Plugin Runtime 与命令行从 SDK 取）和动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，kernel 注册时用）；文本比较还在合同包，由 W3-03 的 C 搬入，搬完之前这一段对它说的是方向，不是现状。
+- Plugin SDK 导入或依赖 contracts 以外的任何工作区包（`public-sdk-private-dependency`，源码 import 与 `package.json` 依赖都查）。外部作者只装 contracts 与 SDK 两个包；SDK 依赖了私有包，打包后的示例就装不上（2026-09-30 出过一次）。所以作者和平台共用、会运行的工具放在 SDK 里，而不是私有的 kernel 或 plugin-runtime，平台各层从 SDK 取同一份。现在在 SDK 里的是执行生命周期（kernel、宿主、调度服务、Shelf 模块和沙箱从 SDK 取）、Manifest 解析与版本比较（`parsePluginManifest` 等，Plugin Runtime 与命令行从 SDK 取）动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，kernel 注册时用）和逐行文本比较（`compareTexts` 等，工作台审查界面、Coding 与 Diff 从 SDK 取；结果与行的类型留在合同包）；W3-03 要从合同包搬出的三样会运行的东西都已在 SDK 里。
 - App 导入另一个 App，列出的启动器边之外都拒绝（`app-dependency-not-allowed`）：产品根的启动器 → desktop / local-host / mcp，desktop → local-host，local-host → cli / mcp / workbench，`apps/server` → desktop / local-host。
 - App Shell、CLI、MCP、Workbench 或 Desktop 直接写业务数据库。
 - Horizontal Service 或平台产品服务（记忆、放置、搜索、情境排序）拥有或决定 Goal、Signal、Action、Session 等插件或 Module 的业务事实。
@@ -136,7 +136,7 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 typecheck/build
 
 门禁由两层组成：
 
-- `packages/test-kit` 的根入口提供纯规则：输入“谁在 import 谁”，返回具体违规；不读取数据库，也不复制业务判断。子路径 `/browser` 是与业务无关的无头 Chrome 驱动（找 Chrome、启动与关闭、DevTools 命令、页内等待与点击），只用 Node 内置的 `WebSocket` 与 `node:child_process` 等内置模块；产品选择器与产品诊断留在 `tests/fixtures/`（`goal-browser.ts`、`plugin-builder-browser.ts`），在它之上加。例外名单 `APP_IMPORT_ALLOWLIST`、`PLUGIN_MODULE_IMPORT_ALLOWLIST`（`packages/test-kit/src/boundaries.ts`）按包路径记边，只许减少，`packages/test-kit/tests/boundaries.test.mjs` 把它们逐项钉死；`unusedLayerExceptions` 找出名单里没有被用到的边。
+- `packages/test-kit` 的根入口提供纯规则：输入“谁在 import 谁”，返回具体违规；不读取数据库，也不复制业务判断。子路径 `/browser` 是与业务无关的无头 Chrome 驱动（找 Chrome、启动与关闭、DevTools 命令、页内等待与点击），只用 Node 内置的 `WebSocket` 与 `node:child_process` 等内置模块；产品选择器与产品诊断留在 `tests/fixtures/`（`goal-browser.ts`、`plugin-builder-browser.ts`），在它之上加。子路径 `/local-host-http` 是访问本机 Host HTTP 管理接口的客户端（闸门要的请求头、被拒绝的状态与代码，授权、撤权、建项目、装插件，一组授权按声明的依赖排序），只用 Node 内置的 `fetch` 与 `node:crypto`，类型只来自合同包的 `platform/actions`；宿主装配（`serveTestHost`、`openTestHome`）留在 `tests/fixtures/test-home.ts`，在它之上加。例外名单 `APP_IMPORT_ALLOWLIST`、`PLUGIN_MODULE_IMPORT_ALLOWLIST`（`packages/test-kit/src/boundaries.ts`）按包路径记边，只许减少，`packages/test-kit/tests/boundaries.test.mjs` 把它们逐项钉死；`unusedLayerExceptions` 找出名单里没有被用到的边。
 - `scripts/check-package-boundaries.mjs` 读取 workspace manifest 与源码 import，把实际仓库信息交给纯规则，并检查依赖环和 Contract/README 清单。它记下每个 import 和 manifest 依赖实际有的边，名单里列了而仓库里没有任何 import 或依赖用到的边会报 `layer-exception-unused`：一条已经不存在的边不会留在名单里等着悄悄回来。
 
 结构数字另由 `pnpm health:check` 对照 merge-base 只许减少（模块在 `scripts/gates/`，测试 `tests/health-gates-structure.test.ts`，规则与取数口径见各模块文件头）：

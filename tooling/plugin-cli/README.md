@@ -64,7 +64,7 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
   - `create` 要求父目录已存在且目标不存在；`pack` 不覆盖输出，拒绝 symlink、越界路径、生命周期脚本与超过 64 MiB 的包。
   - `validate` 只读校验，不启动插件。
   - 生成的模板不给未知消费者伪造场景或业务触发。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-authoring.test.ts tests/plugin-package.test.ts tests/npm-package.test.ts tests/plugin-declaration-rules.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-authoring.test.ts tests/plugin-package.test.ts tests/npm-package.test.ts tests/plugin-declaration-rules.test.ts tests/action-artifact-references.test.ts`
 - 加跑：`node scripts/run-tests.mjs tests/plugin-sample.e2e.test.ts`（不开浏览器，要 `pnpm pack` 加 npm 离线安装，只在本机跑，不在 CI 里，见 BL-124）
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-DEVELOPMENT.md](../../docs/platform/PLUGIN-DEVELOPMENT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

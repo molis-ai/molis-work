@@ -1341,7 +1341,7 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 | W3-06-F-04 | 新库按完整 v2 schema 创建，既有 services.storage 的 KV 持久化并隔离安装；真实交错的 compareAndSet 只有匹配版本者提交。失败升级恢复原 KV，升级校验只读；撤权/停止后的旧 storage handle 不再写。 |
 | W3-06-F-05 | 用独立 SQL 夹具构造非空 v1 和缺 KV 表的损坏 v2，经公开 Host 启动拒绝；原版本、安装/授权/发行物/世代及事实不变，不新增表、不重建、不静默清空。无运行时迁移或读取兼容。 |
 | W3-06-F-06 | 停用、停止开始、卸载、关闭/重装后的旧 database/model/actions handle 失效；停止钩子不能继续写。关闭保留启用意图，用户停用跨重启保持，显式启用恢复；重装世代变化不复活旧授权。 |
-| W3-06-F-07 | Home HTTP 在无项目和两项目前缀下仍访问同一 Home 实例、保持 Home scope；保留控制令牌/Origin/一次性键、取消及 beforeEffect、client_reported 页面上下文、Issue 图文上传限额、revision 与项目专属钩子边界。重启/解除隔离/升级等写操作未经保护被拒且状态不变。 |
+| W3-06-F-07 | Home HTTP 在无项目和两项目前缀下仍访问同一 Home 实例、保持 Home scope；保留控制令牌/Origin/一次性键、取消及 beforeEffect、client_reported 页面上下文、Issue 图文上传限额、revision 与项目专属钩子边界。重启/解除隔离/升级等写操作未经保护被拒且状态不变。已声明Home卸载后缺真实安装回答404，不借项目前缀落到另一实例；已注册Home未声明operation及实际项目范围unknown为404。裸global未知plugin未被Home接管，保留旧catalog的400/先选择项目语义，本片不扩大目录路由。 |
 | W3-06-F-08 | 损坏 Home Runtime 库使其自身保持明确失败，公开发现、Goals 页面与其他项目动作仍可用；普通 ready 不自行重试，受保护的显式 retry 并发只启动一次。清理失败或关闭不另开实例。 |
 | W3-06-G-01 | README、接入/迁移/调用链/事实 owner/库版本及相关 Skill 与实际接线一致；不宣称 Todo 等业务插件已迁移。更新创作台挂载章节时，离线 replay 与隔离 smoke 通过；共享装配整体构建、门禁和协调全量回归提供工程证据，真实 Home 维护另列具体条数与授权。 |
 
@@ -1352,6 +1352,8 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 Home首轮候选构建停在TS2322：可信caller的真实null项目与旧HostPluginCaller的string声明冲突，后续门禁/用例未运行。按已接受F-02的Home身份与真实scope补接（日常实现取舍）：只将既有项目字段定型为string|null，Agent项目入口先拒null并窄化，Memory继续收到真实插件身份；不丢caller、不伪造项目、不新开SDK端口或权限。该公共类型变化与消费者/快照/实际拒绝同片实现，完成后重新整体构建；当前未宣称通过。
 
 Home补接当前源码b2ba56740：d867的真实null身份、bab7的先拒null再窄化已由独立只读及root核对，无当前必须修复的Blocker/P1；4ac只把原PluginExecutor.capturePrivateData返回标为已有合同unknown，运行行为不变。b2ba在既有storage/sqlite-baseline里增加describeSqliteBaseline，内存连接只由storage创建并finally关闭，Home仍用同一owner的完整DDL与describeSqliteSchema比较、保持先拒绝再构造顺序；不放宽boundary，不加SDK端口/迁移。候选包含I5祖先，实际merge-base为56033f06，尚未归回当前main的独有片，不把整个祖先diff称Home单片。
+
+Home build05与实测门禁/类型已通过，首批core48条为45通过/3失败、无跳过/取消；模型、KV/独立坏v1/v2、真实Home null消费与Agent拒绝、Issue HTTP/MCP、原授权路径已通过。两项测试装配缺口修为实际Issue.read权限与编辑器接受的场景result_schema，保留无权限拒绝/available正例；平台文件重跑7条6通过/1失败。剩余是裸global未注册plugin的旧目录400（精确原消息「请先选择一个 Molis Work 项目」），不是Home路由失败。root按F-07保留该无关目录行为；已声明Home卸载后404继续用真实安装/卸载补证，不造另一份名单或重装来变绿。当前不称候选回归全过或独立PR READY。
 
 ### 10.3 浏览器请求剩余片的接续验收（W3-10）
 

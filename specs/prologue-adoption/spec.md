@@ -573,6 +573,20 @@ A0 明确不改助理协调器/存储/客户端、Schedule runner、模型设置
 | PA-22 | **工程通过，实操与验收未做** | 显式预算优先（`model-thinking`、`agent-budget-prologue`）、修改回执不被压成可重做观察（SDK `context-micro-compaction` + `prologue-stream`）、独占重开成功与非独占拒绝（`host-storage-concurrency.live` + `prologue-storage-claims`）、撤权 / 取消零派出零迟到写（`action-before-effect`、`prologue-start-refusal`）、状态与审查展示（`agent-review-surface`、`prologue-status-projection`）均在默认包路径上通过；干净包消费者通过。缺：浏览器时间线展示、真实模型 |
 | PA-23 | **工程通过，实操与验收未做** | `prologue-adoption-guard` 在真实回环 HTTP + 生产 Node Adapter 上：yield 在派出前拒绝、零孩子、无审批、只有原父 Run、落盘重开无模型调用 / 自动接续；没有复活已删 CLI adapter / Runtime 路径（边界检查器 `errors: []`，健康门禁通过）。缺：临时 Home 实际启动与 Coding 时间线操作 |
 
+#### 第二个包与决策记录（2026-10-12）
+
+第二个包 `prologue-sdk-0.0.0-rc.1-adoption-receipts-handling.tgz`（输入回执第二、三刀：会话级持久排队、`acknowledge-inputs` 与有界提醒）：Prologue PR #5 已合入 main（合并提交 `f5ef12e6`），包从该提交打出，与 PR head `87e063e8` 打出的逐字节相同（SHA-256 `c474ee43…`）。Molis 侧换包是叠在 #408 上的单独 PR #442。默认路径检查：`pnpm build`；采用定向 24 个文件 218/218；`test:security` 164/165（1 跳过）；`test:contracts` 520/520；`affected-tests` 选出的 90 个文件 1196 通过 / 4 失败（3 项 `action-before-effect` 15 秒超时，单独连跑两次 20/20；1 项 Swift 助手本机不可用，基线同样）；`vendor-provenance` 78/78。未跑：全量、浏览器、真实 Provider。
+
+按「技术决策按防腐后果、功能决策选体验最好」的规则，本线自己定了这些，不需要用户拍板；收益与取舍如下：
+
+| 决定 | 理由 | 取舍 / 后果 |
+| --- | --- | --- |
+| 问卷字段与 A0 合进同一个包（PR #4），S2、S3 作为第二个包（PR #5） | 一次上游合入、一次 Molis 验证；S2、S3 改变续聊历史里未读补充的入模方式，需要 Molis 单独验证，不拖慢 A0 | 回退点多记一个：只要 A0 时可退到 `edb8ec86`；vendored 目录始终一份当前包 |
+| `acknowledge-inputs` 在助理面板里不显示（`presentActivity` 里与 `reasoning`、`context-remaining` 并列的一行） | `assistant-tool-words` 要求每个受守护的工具在面板里用人话显示或不显示；没有任何 Molis 角色被给到这个工具，面板里出现裸工具名比不出现更差；措辞是产品决定 | 输入回执线接 S3 时再定显示位置与措辞（统筹已认可）；不增加 Coding 时间线词表（页面资源预算只许变小） |
+| 产品子集清单去掉 `test:security` 已覆盖的三个文件 | 主线新增的计划测试规定子集不重复阻塞作业已跑的文件 | 没有少跑：三个文件仍在 `test:security`（阻塞作业）里 |
+| 页面资源超预算靠减少注入函数里的注释和重复，不放宽预算 | 预算只许变小 | 注入函数的说明移到模块头；预算降了 12 字节 |
+| 全量回归改成批量（用户决定）：部分全量 21 个失败逐个和干净基线比对，都是预先存在 | 用户要优先开发，全量攒一批跑 | #408 要等集成分支的批量全量通过才合 |
+
 #### 没做的与风险
 
 - D7 还差一项：采用线合入 Molis main（Molis 默认路径验证的工程部分和受影响的浏览器用例已过，部分全量里的失败已和干净基线比对为预先存在；批量全量尚未跑）（PR #408 由统筹按条件合并）。

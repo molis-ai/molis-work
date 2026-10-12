@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { FormPluginRouteTable, createFormRouteHandlers, formRouteErrorResponse,
+import { FormPluginRouteTable, createFormRouteHandlers,
   type FormRoutePorts, type FormPluginRouteRequest } from "@molis-ai/molis-work-plugin-form";
-import { dispatchNativePluginJsonHttp, writeNativePluginJsonResponse } from "./native-plugin-http.js";
+import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { withRewrittenPluginApi } from "./native-plugin-api.js";
 
 export async function handleFormNativePluginHttp(request: IncomingMessage, response: ServerResponse, url: URL,
@@ -13,7 +13,6 @@ export async function handleFormNativePluginHttp(request: IncomingMessage, respo
   try { return await dispatchNativePluginJsonHttp(request, response, routed, {
     prefix: "/api/form",
     async handle(input) { return new FormPluginRouteTable(createFormRouteHandlers(await ports(input, { signal: controller.signal }))).handle(input); },
-    mapError: formRouteErrorResponse,
-  }); } catch (error) { writeNativePluginJsonResponse(response, formRouteErrorResponse(error)); return true; }
+  }); }
   finally { response.off("close", cancel); }
 }

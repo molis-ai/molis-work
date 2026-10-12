@@ -66,6 +66,10 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/scripts/client/context-actions.ts"],
     state: "What the person has in hand on the focused surface, the ranked actions offered for it, and the starters offered for the open Work.",
   },
+  "context-toolbar": {
+    files: ["packages/design-system/src/context-toolbar.ts"],
+    state: "The toolbar next to what the person has in hand, in the document that owns it: the tools a plugin offered for the open context, and the small form under it.",
+  },
   placement: {
     files: ["apps/workbench/src/scripts/client/placement.ts"],
     state: "Where the objects on the page live (project, personal, Home) and the shared dialogs that use, move, copy or convert them.",
@@ -163,7 +167,7 @@ export interface DomEventDeclaration {
 }
 
 /**
- * Every page event, in name order: 47 names at the time of listing, 46 of them created with `new CustomEvent` (90 dispatch
+ * Every page event, in name order: 50 names at the time of listing, 49 of them created with `new CustomEvent` (90 dispatch
  * sites) and one, `molis:side-toggle`, only listened to so far. Who dispatches and who listens is not written down here:
  * `node scripts/gates/dom-events.mjs --report` computes both from the source, so it cannot go stale.
  */
@@ -337,6 +341,21 @@ export const DOM_EVENTS = [
     name: "molis:assistant-surface-changed", kind: "request", owner: "assistant", on: "window",
     detail: "{ plugin_id, object: { kind, id } }; ASSISTANT_SURFACE_CHANGED_EVENT (services/assistant)",
     summary: "A surface changed an object the Assistant may be showing (Coding's session settings); the Assistant reads its Work again.",
+  },
+  {
+    name: "molis:context-panel-open", kind: "request", owner: "context-toolbar", on: "element", bubbles: true,
+    detail: "{ context_id, node, label, onClose? }",
+    summary: "A plugin asks the toolbar for a small form under it (a link's address, a comment): the toolbar places `node` below the bar, one at a time, and closes it on Esc, a click elsewhere or another context, calling onClose.",
+  },
+  {
+    name: "molis:context-tool-invoke", kind: "announcement", owner: "context-toolbar", on: "element", bubbles: true,
+    detail: "ContextToolInvoke (services/contextual)",
+    summary: "The person clicked one of a plugin's tools in the toolbar. Sent on the element that published the tools; the plugin runs it and publishes its tools again.",
+  },
+  {
+    name: "molis:context-tools", kind: "request", owner: "context-toolbar", on: "element", bubbles: true,
+    detail: "ContextTools (services/contextual)",
+    summary: "A plugin offers its tools for the context it names, as data (limits in CONTEXT_TOOL_LIMITS). The toolbar draws them at the left of the bar and ignores ones for another context.",
   },
   {
     name: "molis:placement-changed", kind: "announcement", owner: "placement", on: "window",

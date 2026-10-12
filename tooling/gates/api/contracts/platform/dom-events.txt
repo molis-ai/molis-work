@@ -244,6 +244,30 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ plugin_id, object: { kind, id } }; ASSISTANT_SURFACE_CHANGED_EVENT (services/assistant)";
     readonly summary: "A surface changed an object the Assistant may be showing (Coding's session settings); the Assistant reads its Work again.";
 }, {
+    readonly name: "molis:context-panel-open";
+    readonly kind: "request";
+    readonly owner: "context-toolbar";
+    readonly on: "element";
+    readonly bubbles: true;
+    readonly detail: "{ context_id, node, label, onClose? }";
+    readonly summary: "A plugin asks the toolbar for a small form under it (a link's address, a comment): the toolbar places `node` below the bar, one at a time, and closes it on Esc, a click elsewhere or another context, calling onClose.";
+}, {
+    readonly name: "molis:context-tool-invoke";
+    readonly kind: "announcement";
+    readonly owner: "context-toolbar";
+    readonly on: "element";
+    readonly bubbles: true;
+    readonly detail: "ContextToolInvoke (services/contextual)";
+    readonly summary: "The person clicked one of a plugin's tools in the toolbar. Sent on the element that published the tools; the plugin runs it and publishes its tools again.";
+}, {
+    readonly name: "molis:context-tools";
+    readonly kind: "request";
+    readonly owner: "context-toolbar";
+    readonly on: "element";
+    readonly bubbles: true;
+    readonly detail: "ContextTools (services/contextual)";
+    readonly summary: "A plugin offers its tools for the context it names, as data (limits in CONTEXT_TOOL_LIMITS). The toolbar draws them at the left of the bar and ignores ones for another context.";
+}, {
     readonly name: "molis:placement-changed";
     readonly kind: "announcement";
     readonly owner: "placement";
@@ -369,6 +393,10 @@ export declare const PAGE_STATE_OWNERS: {
     readonly "context-actions": {
         readonly files: readonly ["apps/workbench/src/scripts/client/context-actions.ts"];
         readonly state: "What the person has in hand on the focused surface, the ranked actions offered for it, and the starters offered for the open Work.";
+    };
+    readonly "context-toolbar": {
+        readonly files: readonly ["packages/design-system/src/context-toolbar.ts"];
+        readonly state: "The toolbar next to what the person has in hand, in the document that owns it: the tools a plugin offered for the open context, and the small form under it.";
     };
     readonly placement: {
         readonly files: readonly ["apps/workbench/src/scripts/client/placement.ts"];

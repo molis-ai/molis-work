@@ -66,6 +66,8 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 （`molis:surface-focus` 登记为 `request`，不是公告：发它的是各个界面，听它的是主人 `context-actions`。主人自己在 `context-actions.ts` 里也发它，那是替只声明了对象、不自己上报焦点的界面，按人的文字选区代发。）
 
+（情境浮条的三个事件，主人是 `context-toolbar`（设计系统的页面程序）：`molis:context-tools` 与 `molis:context-panel-open` 是 `request`，发的是拥有内容的插件，听的是浮条；`molis:context-tool-invoke` 是公告，浮条在插件发布工具的那个元素上发，插件自己执行。现在只有组件板的示范在收发；工作台采用它的时候，Pages 是第一个真实的发送方。）
+
 另有四处也是 `--report` 提示出来、门禁不拦的：发了没人收的，或收不到的。它们是现状，不是设计：
 
 - `molis-work:open-settings-section`：Assistant 在记忆变更卡片上的「去设置查看」（`apps/workbench/src/scripts/client/assistant-island.ts`）在 `window` 上发它并带 `cancelable: true`，没人接住就整页跳到记忆设置页（变更属于项目时跳项目的设置页）。设置目录只在 `document` 上听（`settings-directory.ts`），听不到发在 `window` 上的事件，听到了也不调用 `preventDefault()`，所以这个按钮今天永远是整页跳转。登记里这条是发在 `document`、不带 `cancelable`（真正走通的是 `tab-workspace.ts` 打开「页面放在设置里的插件」时发的那一处），所以登记没有把这第三处 `cancelable` 的用法算进去。要修，不能只把发送改到 `document`：设置目录对这条事件只打开全局设置分类，而项目范围的记忆变更要去的是项目的设置页，那个走 `molis-work:open-settings-path`，按地址打开。

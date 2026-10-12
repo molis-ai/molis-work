@@ -1,6 +1,8 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 export * from "./action-execution.js";
+import { ActionError } from "./action-errors.js";
+export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
@@ -120,8 +122,9 @@ export interface ActionMetadata {
   readonly plugin?: false;
   /** Provider owns transaction/conflict safety across awaits; Host still tracks lifetime. Default is serial. */
   readonly scheduling?: "concurrent";
-  /** `session`: an external Runtime may call it only from a stable Session, which becomes the author of what it records;
-   * dispatch refuses a call whose context says the Session is missing (`runtime_session_missing`), nested or not. */
+  /** `session`: an external AI tool (a Runtime reached through MCP) may call it only from a stable Session, which becomes the author of what it records;
+   * dispatch refuses a call whose context says the Session is missing (`runtime_session_missing`), nested or not. Only that entry is asked: for the
+   * Assistant and the built-in Agents the Host records the author itself (`audit_actor_id`), and on a page the author is the person (decided 2026-10-10). */
   readonly authorship?: "session";
   /** Declarative limits shared by every entry; cancellation uses signal + beforeEffect. */
   readonly execution?: ActionExecutionPolicy;
@@ -482,13 +485,6 @@ export function actionPermissionDeclarations(definitions: readonly ActionDefinit
   const known = new Set(declared.map(item => item.permission));
   return [...new Set(definitions.flatMap(definition => definition.action.permissions))].filter(permission => !known.has(permission))
     .map(permission => ({ permission, required: false, reason }));
-}
-
-export class ActionError extends Error {
-  constructor(readonly code: string, message: string) {
-    super(message);
-    this.name = "ActionError";
-  }
 }
 
 function object(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }

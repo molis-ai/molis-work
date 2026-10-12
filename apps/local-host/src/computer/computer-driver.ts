@@ -144,6 +144,12 @@ export interface DeskContext {
   /** Whether the person moved the mouse within the settle window, so the next action waits. */
   pendingPersonMove(): boolean;
   changed(): void;
+  /** Names the round before the first look, so the record stores its project, run and goal. */
+  describeRound(sessionId: string, context: { readonly run_id: string | null; readonly project_id: string | null; readonly goal: string }): void;
+  /** Folds in the run id once the round's run exists. The id here may differ from the session that holds the lease. */
+  noteRun(sessionId: string, runId: string): void;
+  /** Ends the round that `describeRound` named: finishes its record and frees the computer. */
+  release(sessionId: string): void;
 }
 
 /**
@@ -156,6 +162,9 @@ export class ComputerDriver {
 
   /** The stable `HostSurfaceDriver` the Agent Host attaches. */
   surface(): HostSurfaceDriver {
+    // The host ends the round with `release()` and no id (`HostSurfaceDriver.release`). The lease id is the Molis
+    // session from `describeRound`, not the Prologue session ref passed to `noteRun` and `release(sessionRefId)`.
+    const round = { sessionId: null as string | null };
     return {
       kind: "desktop",
       project_id: null,
@@ -164,7 +173,9 @@ export class ComputerDriver {
       readiness: context => this.ctx.readiness(context.session_id),
       observe: (kind, context) => this.observe(kind, context?.session_id ?? null),
       perform: (action, context) => this.perform(action, context.session_id),
-      release: async () => undefined,
+      describeRound: (sessionId, context) => { round.sessionId = sessionId; this.ctx.describeRound(sessionId, context); },
+      noteRun: (sessionId, runId) => this.ctx.noteRun(sessionId, runId),
+      release: async () => { if (round.sessionId) this.ctx.release(round.sessionId); },
       close: async () => undefined,
       describePoint: (x, y) => this.describePoint(x, y),
       focusedField: () => this.focusedField(),

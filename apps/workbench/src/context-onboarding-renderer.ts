@@ -1,5 +1,5 @@
 import { ARRIVAL_MOTION_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
-import { CONTROL_CLIENT_SCRIPT } from "./scripts/control.js";
+import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { CONTEXT_ONBOARDING_CLIENT } from "./scripts/context-onboarding.js";
 import { createArrivalShell } from "./arrival/shell.js";
 import type { MolisWorkOnboardingRenderOptions, OnboardingRenderPrimitives } from "./onboarding-renderer.js";
@@ -22,6 +22,6 @@ export function renderContextOnboarding(options: MolisWorkOnboardingRenderOption
     bodyAttrs: ` data-onboarding-mode="${options.mode}"`,
     titlebar: shell.titlebar(desktopShell, { theme: true }), stage, bar: shell.bar({ kind: "onboard", start: exit }),
     after: `<template id="cx-caption">${shell.caption()}</template><template id="cx-wordmark">${shell.wordmark()}</template><dialog id="cx-dialog" class="cx-dialog" aria-labelledby="cx-dialog-title"></dialog>`,
-    scripts: `${p.clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${ARRIVAL_MOTION_CLIENT_SCRIPT}${CONTEXT_ONBOARDING_CLIENT}`,
+    scripts: `${p.clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${ARRIVAL_MOTION_CLIENT_SCRIPT}${CONTEXT_ONBOARDING_CLIENT}`,
   });
 }

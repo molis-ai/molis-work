@@ -4,6 +4,7 @@ import { handleActionGatewayHttp } from "./action-gateway-http.js";
 import { handleProjectDeletionGatewayHttp } from "./project-deletion-gateway.js";
 import { webProjectDeletion } from "./project-deletion-service.js";
 import { resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -133,7 +134,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     });
     const projectExists = async (projectId: string) => (fixture && projectId === fixture.projectId)
       || await withCatalog({ homeDirectory: storageHome }, catalog => { try { catalog.getProject(projectId); return true; } catch { return false; } });
-    const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, async () => {
+    const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
         // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
@@ -202,7 +203,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       } catch (error) {
         sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
       }
-    }));
+    })));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
     awaitWebServerShutdown(server, () => { im.stop(); void browsers?.close(); }, async () => {
@@ -228,7 +229,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             if (result.completed || result.failed) webViewCache.delete(databasePath);
           })
           .catch(() => undefined);
-        void runtime.schedule.tick()
+        void withCallId(newCallId(), () => runtime.schedule.tick())
           .then((result) => {
             if (result.invoked) webViewCache.delete(databasePath);
           })
@@ -252,11 +253,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       }
     });
     // New material that shares a Goal with a live work: looked for every five minutes.
-    const assistantTimer = setInterval(() => runWithMolisWorkHome(storageHome, async () => { await assistant().scanNewMaterial(); })
+    const assistantTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => { await assistant().scanNewMaterial(); }))
       .catch(error => console.warn("[assistant] 新资料没有读到", error)), 300_000);
     assistantTimer.unref();
     // Reminders the person set in Plugins: asked about once a minute, each told once when it comes due.
-    const reminderTimer = setInterval(() => runWithMolisWorkHome(storageHome, async () => { await assistant().sweepReminders(); })
+    const reminderTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => { await assistant().sweepReminders(); }))
       .catch(error => console.warn("[assistant] 到期提醒没有读到", error)), 60_000);
     reminderTimer.unref();
     server.once("close", () => {

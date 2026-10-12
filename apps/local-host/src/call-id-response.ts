@@ -17,3 +17,12 @@ export function withRecordedCallId(status: number, body: unknown): { headers: Re
   if (!id) return { headers: {}, body };
   return { headers: { [CALL_ID_HEADER]: id }, body: status >= 400 && isErrorBody(body) ? { ...body, call_id: id } : body };
 }
+
+/**
+ * For an answer that is not an error but must still tell the process that asked which operation it was (the gateway to a forwarding MCP
+ * process, which has no response headers to read): `{ call_id }` when the operation has a row in the call log, else nothing.
+ */
+export function recordedCallIdField(): { call_id?: string } {
+  const id = recordedCallId();
+  return id ? { call_id: id } : {};
+}

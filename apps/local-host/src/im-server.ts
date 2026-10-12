@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { openServerDatabase, Identity, ServerEvents, ContinuityService, createServerRequestHandler, createImDomain } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { homeToolKeysScript } from "@molis-ai/molis-work-app-workbench";
 
 /** Only the IM surface is mounted here; the shared server owns identity and transport. */
 export function createLocalImServer(homeDirectory: string, projectFor?: (id: string) => Promise<{ id: string; title: string } | null>) {
@@ -19,7 +20,8 @@ export function createLocalImServer(homeDirectory: string, projectFor?: (id: str
       });
       return { storage, events, identity, continuity, options: { identity, events, continuity,
         im: createImDomain({ db: storage.db, identity, events }),
-        imAssets: { html: renderImPage({ embedded: true }), css: IM_STYLES, script: IM_CLIENT_SCRIPT },
+        // Here the discussion is a frame of the workbench: a Home tool's chord pressed in it goes up to the shell.
+        imAssets: { html: renderImPage({ embedded: true }), css: IM_STYLES, script: `${IM_CLIENT_SCRIPT};\n${homeToolKeysScript()}` },
       } };
     } catch (error) { storage.close(); throw error; }
   }

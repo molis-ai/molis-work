@@ -71,7 +71,7 @@
 
 - 定义：宿主给一次入口级操作的编号：页面上的一次请求、MCP 的一次 `tools/call`、助理或 Agent 的一轮、一条命令行命令、一次定时触发。这次操作引起的所有动作调用与宿主能力调用共用它，所以一份报告能对到这次操作走过的每一步。字段是 `ActionCallContext.call_id`（合同类型 `ActionCallOrigin`，`packages/contracts/src/platform/actions.ts`），格式是 UUID，给人看的短形式取前 8 位。
 - 它不是身份，也不授予权限：只由宿主给，从调用上下文、此刻打开的作用域或新生成取，不从请求头、MCP 参数、`_meta`、业务输入或插件交来的字段读；处理器可以记录或返回它，不能凭它做判断。
-- 代码：作用域在 `packages/kernel/src/call-scope.ts`，结算在 `packages/kernel/src/action-settlement.ts`；宿主 typed 口的结算在 `apps/local-host/src/typed-call-settlement.ts`。调用记录的行带编号（W3-01 B）；响应头与错误体带编号、助理与 Agent 每一轮的冻结记录带编号，是 W3-01 后续的 PR。
+- 代码：作用域在 `packages/kernel/src/call-scope.ts`，结算在 `packages/kernel/src/action-settlement.ts`；宿主 typed 口的结算在 `apps/local-host/src/typed-call-settlement.ts`。调用记录的行带编号（W3-01 B）；网页答复的响应头与错误体带编号（W3-01 C）；助理与 Agent 每一轮的冻结记录带编号（`AgentRunView.frozen.call_id`，不是 `AgentToolActivity.call_id`，那是 Prologue 给一次工具调用的 id）、命令行每条命令一个（W3-01 E）；MCP 和界面上的显示是 W3-01 后续的 PR。
 - 界面用名：「诊断编号」（英文 Diagnostic ID），2026-10-10 用户批准（`specs/repository-anti-corruption/spec.md` §1）。文档写「调用编号」，只有讲界面时写「诊断编号」。
 - 不是：一次性键 `x-molis-work-idempotency-key`（HTTP 入口防重放，不往下传）；也不是 `runtime_session_id`（Runtime 会话）或 Agent 的 `run_id`。
 

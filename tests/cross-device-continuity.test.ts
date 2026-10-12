@@ -4,12 +4,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
-import { GoalProjectApplication } from "../apps/local-host/src/goal-project-application.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { openServerDatabase, Identity, ServerEvents, ContinuityService, startServer, memberClientId, CONTINUITY_ACTIONS } from "../server/src/index.js";
-import type { ActionFactory } from "../server/src/index.js";
+import { openServerDatabase, Identity, ServerEvents, ContinuityService, startServer, memberClientId, CONTINUITY_ACTIONS } from "@molis-ai/molis-work-server";
+import type { ActionFactory } from "@molis-ai/molis-work-server";
 import { restoreWorkAssets, readRestoredAssets } from "../apps/server/src/assets.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 

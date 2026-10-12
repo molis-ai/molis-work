@@ -628,7 +628,14 @@ All MCP-visible renames must land before 0.3.0 (the first version installed outs
 - **Size/risk/tests:** M (~14 files), **high risk**: external MCP and Agent calls without a version now fail. T8 fails first.
 - **Open (user):** does the `workflow` audience count as an AI source? Recommendation: no, unless workflow Agent steps already call as `agent` (unknown — check). Routine calls: which fields count (`expected_revisions`, `expected_updated_at`?); nested calls exempt.
 
-### W3-10 (none merged)
+### W3-10（1a 经 #436 合入；1b 在 I5 接续）
+
+2026-10-12 接续核对：实际入口为 ui-host 的 `createUiRequest`、`createUiFailureView`、`UI_REQUEST_CLIENT_SCRIPT` 与 `globalThis.molisWorkRequest: UiRequest`；不增加同义包装。1b 已为了资源预算前移 side-panel-browser/files、side-panel、background-tasks、plugin-notifications 和 settings-directory，后续不重复迁移。固定 main acede03e2 的 Workbench 请求是 87 处/41 文件；1b 后 53 处/27 文件，2、3a、3b、4 对应 12/15/16/10 处，正式实现时以实际组合树再量。这些是定位数字，不是固定验收数量。
+
+2 包含原设计漏列的 home-model-settings 与 home-plugin-page；Functions 的 feedApi 同时承担「有无项目」，以 projectPrefix 保留空项目判断。3a 同片迁所有 feedApi 工厂与读者，Home 消息仅接纳既有 409 且 body.state=failed 的收据。3b 保留 Files/Git 的五参数 host.request adapter、读取 view signal 与审批写入 activation signal 的区别、可渲染成果 404。4 等 G3 的最终 owner 详情合同；不添加 body/data/details 历史别名，Placement JSON 只编码一次，助理断线恢复沿用原 request_id。各片保留错误对象的 code/status/callId/body、取消后与切项目后的答复复查；下载、导航、WebSocket、二进制绘图与 PTY 不改成 JSON 请求。
+
+§1 的四条决定已经有效：可查编号才显示、粗指针 44px/桌面 32px、插件页面浏览器英文过渡至 W5-04、rawFetchInScripts 门禁 10-11 已批准。5 独立提交，只冻结实际执行的浏览器程序里 raw fetch，工作台归零、插件存量随 W5-04 减少；底层运输实现精确豁免，不豁免目录。最新 main 资源预算与 #420 的 page/status/快捷键/忙态/焦点行为必须保留。验收见 spec §10.3。
+
 
 **W3-10-0 (conditional):** not needed if W3-01 C applies the `recordedCallId()` rule. Check this at C's review.
 
@@ -664,9 +671,9 @@ All MCP-visible renames must land before 0.3.0 (the first version installed outs
 - Dependencies: 1b; W3-02 G3 first; FB `goals-input-accept` and `touch-targets-360`.
 - M (~12 files), high risk.
 
-**W3-10-5: gate `rawFetchInScripts`.** Gate PR. Needs the user's OK (no §1 row). After 4. S.
+**W3-10-5: gate `rawFetchInScripts`.** Independent gate PR after 4. User approval is recorded in spec §1 (10-11); do not request it again. S.
 
-**W3-10 open questions:**
+**W3-10 原待决表（已由 spec §1 的决定收口）：**
 
 | Question | Recommendation | Needs |
 | --- | --- | --- |

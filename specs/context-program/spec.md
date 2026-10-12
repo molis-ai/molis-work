@@ -450,6 +450,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 | 2026-10-12 | 首批「放进左边」只做 Pages 的三个确定性动作（插入到光标处 / 替换选中的文字 / 作为引用插入）；暂缓三项：Pages「整理成要点后插入」（前置：W1 起草服务）、Goals「作为依据附上」（前置：Goals 报告落点）、Coding「放进下一轮材料」（前置：Coding 自己名下的文字摘录过程项）。被否的做法：第一批铺开多家。理由：确定性、预览即写入、可核对可撤销，比覆盖面广更重要；第一次用就出现模型改写、写错难撤，会伤信任 | 统筹按用户的规则定（功能线选用户体验最好的）；用户验收时可推翻 |
 | 2026-10-12 | 平台自带格的对象种类叫 `browser_page`、`discussion_message`。被否：`web.page`、`im.message`。理由：仓库里对象种类一律是「主人_东西」的下划线写法；点号写法与能力 id（`pages.create`）撞形；GLOSSARY 里讨论的代码词是 `discussion`，而 `im` 按 R-A10 指整个右栏的 dock，再拿它命名会加深重名。常量在原型的 `OBJECT_KIND`，产品里随 side 视图的 `objects` 登记 | 统筹按用户的规则定（技术决策看防腐后果）；用户验收时可推翻 |
 | 2026-10-12 | W1 规划（§18）：页内锚点叫 `SurfaceFocus.screen`（避开 `SurfaceFocusTarget.anchor`，元素引用不进合同）；`intake`、`attach` 声明在被指向的写入动作上，撤销沿用动作已有的 `undo`；浮条按钮按 DESIGN 下限（32 / 28 / 44px），浮条 `--lift-2`、菜单与面板槽 `--lift-3`；DOM 事件随第一对收发方登记；浮条原件 W1 只上组件板，W2 接入时资源净减；中枢接右栏、助理与落点的 DOM 线挪到 W3，内容站请求号挪到 W4 开头 | 本线按用户的规则定（技术决策看防腐后果：页面资源两向不容差、DOM 事件门禁、合同纯度、能力只登记一次） |
+| 2026-10-12 | W2 规划（§19）：浮条程序在设计系统、只进工作台的脚本与样式；顶层与窗格各画一条、总线仍只在顶层，新增 `workbench-context-view` / `-hold` / `-dismiss` 三条窗格消息；总线经视图接口说话、不再依赖底栏宿主；删掉只为 Pages 写作菜单存在的 `molis:assistant-context-actions`、`molis:assistant-context-action-choose` 及其合同常量；Pages 的 15 个按钮变 4 组工具、「AI」按钮删除；面板打开期间一律冻结选区（修掉链接、评论写到裸位置）；段落把手入口延后（`renderMenu` 在上限）；开场建议的报错回到助理浮层 | 本线（防腐：不留两套、事件有发有收、巨大单元只减；体验：context-toolbar §6、§9 的既定取舍） |
 
 ## 15. 吸收 main 的变化（2026-10-09）
 
@@ -745,3 +746,166 @@ W1-1、W1-3、W1-4、W1-5、W1-7 和 W1-8 的第一部分已在各自分支写�
 | W1-8 | 一次上覆盖门禁骨架与 `contextual.md` | 第一部分（`contextual.md`、SKILL.md 一行、`PLUGIN-DEVELOPMENT.md` 一节）已写；覆盖门禁骨架、产品子集条目与 `AGENTS.md` 一条硬约束等插件开始声明 `intake` 后（W3）再上，否则两份冻结名单一开始就是满的 | 先有声明才有可计的覆盖 |
 
 W1-2、W1-6 等互动线 P2（#423）合入后从 main 开。
+
+## 19. W2 实施计划：外壳换成浮条 + Pages 迁移（2026-10-12 规划，基于 origin/main `3b1d5076`）
+
+W2 就是 context-toolbar 的 S2+S3：底部动作条换成贴着手上东西的浮条，Pages 的格式条、「AI」写作菜单和弹窗同时迁到浮条上，**同一个 PR、分提交**（context-toolbar §7「不留两套」）。右栏改版（W2'，side-shelf P1）另起计划，排在 W2 之后。本节先写已核对的现状，再写决定、切片、门禁账和测试；W1 的规矩（§18.1）不变。
+
+### 19.1 前提
+
+- W1-2（浮层定位上移）、W1-6（浮条原件，只上组件板）已合入；它们等互动线 #423。
+- #430（W1-3 合同）已合入：W2 用到 `SurfaceFocus.screen` 与 `ContextTools`、`ContextToolInvoke`、`CONTEXT_TOOL_LIMITS`。
+- W1-2、W1-6 的写法按本计划细化（19.4），否则 W2 的字节账接不上。
+
+### 19.2 已核对的现状（2026-10-12，`3b1d5076` 与 W1-1 分支）
+
+**外壳**
+- 情境中枢是一个闭包脚本，拼进 `/assets/molis-work-workbench.js`；窗格（iframe）加载同一份脚本和 `molis-work-workbench.css`。拆分后：
+  - 行的绘制在 `context-bar.ts`（约 14.6 KB）。
+  - 总线在 `context-bus.ts`。
+  - 工厂在 `context-actions.ts`。
+- **总线离不开底栏的 DOM**：
+  - 找不到 `[data-assistant-context-actions]` 就整个返回（`context-actions.ts:166-167`）。拿掉这个宿主，焦点监听、开场建议、窗格转发都会一起消失。
+  - 总线直接读写行的状态和 DOM：`bar.pinned/interacting/clearWhenLeft/idle/pending/render/error`，以及 `.context-actions-basis`。
+  - `choose` 和开场建议的报错都画在行里。
+- **窗格里只转发**：
+  - 方案只经 `workbench-context-plan` 到窗格，而且只在绘制时发。没有空闲、等待、出错的消息。
+  - ⌘. 和读屏播报只在顶层。
+- **行的样式**在 `craft-finish.ts:1079-1147`：渲染后约 8.5 KB，同时进三份样式表（工作台、arrival、settings）。
+  - 选择器 `ASSIST` 排除了 `[data-pane-embedded]`，所以窗格里一条都不生效。
+  - `@container assistant-bar` 和 `:has(.assistant-panel…)` 只在底栏里有意义。
+- **「更多」里的「推荐」读计算后的样式**：看哪个按钮被 CSS 藏了（`context-bar.ts:191`）。
+
+**Pages**
+- 格式条在 `editor-browser.ts` 的 `mount()` 里（`mount` 1024 行，正好在巨大函数上限）。
+- 格式条有 15 个按钮：B、I、U、S、代码；H1–H3；三种列表；颜色、链接、评论；AI。
+  - 开关态在 `placeToolbar` 里算。
+  - 每次事务都重算位置，没有防抖。
+  - 拖选时隐藏，输入法组合时不隐藏。
+  - 点按钮执行的是 `run(state, dispatch)`，不带 `view`，所以不走悬停块的路径。
+- **`pages-pop` 是一个实例**，承载这些表单：
+  - 链接、评论、颜色（由格式条打开）；
+  - 「AI」写作菜单（`openAi`）；
+  - 候选预览（`runAiCommand` → `showCandidate`）；
+  - 块备注、提示块样式（由块菜单、节点视图打开）。
+- 另有页面选择器、卡片编辑器两个独立实例。
+- **只有候选预览冻结选区**：链接、评论、备注记的是打开时的裸位置，期间文档变了不会重映射。
+- **Pages 是 `molis:assistant-context-actions` 唯一的监听方，也是 `molis:assistant-context-action-choose` 唯一的派发方**：都来自写作菜单，`client.ts:311-335`。
+- `local_id` 只按活动、粒度和选中的部分算，所以切换加粗不会产生新的焦点事件。
+
+**门禁**
+- **页面资源**：`workbench.js`、三份样式表、`pages.js`、`pages-editor.js` 的数字都等于实测，没有余量。
+- **巨大单元**：`craft-finish.ts`、`assistant-island.ts`、Pages 的 `client.ts`、`editor-browser.ts`（`mount`、`renderMenu`）都没有余量，只能减。
+- **DOM 事件**：登记表要求每个事件有发有收、主人文件都入库。
+
+### 19.3 决定（本线按防腐与体验定，记入 §14）
+
+1. **浮条程序在设计系统，只进工作台**：
+   - W1-6 把浮条写成自包含的页面程序字符串和样式字符串。W2 把程序拼进 `workbench.js`，样式只进 `workbench.css`（工作台自己的样式模块），不进 `craft-finish` 那三份。
+   - 窗格加载同一份脚本和样式，样式不按 `ASSIST` 限定。
+2. **顶层和窗格各画一条，总线仍只有一个，在顶层**：
+   - 顶层画在插件舞台里。窗格的嵌入分支自己建一条，由窗格消息驱动。
+   - 新增消息：
+     - 顶层→窗格 `workbench-context-view`：`op` 取 `render` / `pending` / `idle` / `error`，带方案与回执，取代只在绘制时发的 `workbench-context-plan`。
+     - 窗格→顶层 `workbench-context-hold`：`pinned` 键与是否正在交互，供「悬停不动」和判断时保位。
+     - 窗格→顶层 `workbench-context-dismiss`：Esc 收起的键，顶层据此记「忽略」。
+   - `workbench-surface-focus`、`-action-choose`、`-action-chosen`、`-action-unhandled` 不变。转发焦点前去掉 `screen`，它从不离开报告它的文档。
+3. **总线与视图分开**：
+   - 总线只通过一个视图接口说话（`render`、`pending`、`idle`、`error`、`pinned`、`interacting`、`plan`、`published`），按情境来源选本地视图或窗格视图，不再碰任何 DOM。
+   - 没有底栏宿主时总线照常工作。
+   - 800 ms 的可见性检查在有来源时才开、空闲时停，所以 `pages-surface-naming` 的桩 DOM 不会被定时器挂住。
+4. **锚点**：
+   - 用 `SurfaceFocus.screen`。浮条在同一文档里优先取活的 DOM 选区矩形：滚动时跟着选区走，滚出视口就收起。
+   - 不是 DOM 选区的（Pages 的节点选区、表格单元格），由主人用 `coordsAtPos` 给 `screen`，滚动后重报同一个 `context_id`。浮条在本文档监听 `molis:surface-focus`，只更新位置，不重新请求。
+5. **何时出现**（context-toolbar §6，用户 2026-10-02 拍板）：
+   - 选区稳定 350 ms 后出现。拖选中、输入法组合中、选区在输入框里时不出现。Pages 的 `dragSelecting` 上收成浮条的通用规则。
+   - `editing` 不自动出现，⌘. 唤出、贴在光标处。
+   - 段落把手的入口这一波不做：Pages 的 `renderMenu` 已在巨大函数上限，要先拆，排到 W7 的 Pages 补齐。
+6. **删掉两条事件和合同常量**：`molis:assistant-context-actions`、`molis:assistant-context-action-choose`，以及 `CONTEXT_ACTIONS_EVENT`、`CONTEXT_ACTION_CHOOSE_EVENT`。
+   - 它们唯一的收发方是 Pages 的写作菜单，菜单删了，再留就是两套。
+   - 页面接动作的 `molis:assistant-context-action-chosen` 保留。
+   - 合同改形状，按 `CONTRACT-CHANGES.md` 同一个 PR 改完所有消费者：仓库内只有 Pages 与总线。
+7. **Pages 的工具**：15 个按钮变成 4 组 `ContextTools`。
+   - 标记 5 个、标题 3 个、列表 3 个：`collapse: "overflow"`，窄时折成「格式 ▾」。
+   - 插入 3 个（颜色、链接、评论，`opens: "panel"`）：`collapse: "never"`。
+   - 「AI」按钮删掉，它的内容就是浮条的动作区、「更多」和「✦助理」。
+   - 执行沿用今天的 `run(state, dispatch)`（不带 `view`），行为不变。
+   - 开关态在每次事务后合并到下一帧重发，`context_id` 不变。
+8. **面板槽**：
+   - 链接、评论、颜色、候选预览进浮条下的面板槽。⌘K 打开链接面板（浮条随之出现）。
+   - **面板打开期间一律冻结选区**，与候选预览同一套 `freezePagesFocus`。这修掉了链接、评论写到裸位置的老问题。
+   - 块备注、提示块样式、页面选择器、卡片编辑器不是选区上的东西，留在 Pages 自己的弹窗里，`pages-pop` 的样式为它们保留。
+9. **报错落在哪**：
+   - 浮条上的选择出错，显示在浮条（或面板槽）的提示行。
+   - 开场建议出错，经 `molis:assistant-starters` 的新字段 `error` 回到助理的开场建议浮层（事件详情改形状，登记表同步改）。
+10. **助理入口**：
+    - 动作区末尾的「✦助理」打开面板槽里的一行输入，派发现有的 `molis:assistant-message`（`mode: "delegate"`）。
+    - 「更多」底部固定「带到助理」（`mode: "suggest"`）和依据行（Jev / 按规则，模型与耗时）。
+    - 范围标签删掉（选区高亮就是范围），Esc 收起并记「忽略」。
+11. **尺寸与层次**按 §18.6：
+    - 浮条按钮桌面 32px、紧凑 28px、触屏 44px。
+    - 浮条用 `--lift-2`。「更多」菜单与面板槽用 `--lift-3`。
+12. **不改**：候选、判断、陈列方案、冻结、记忆信号、开场建议的语义。
+
+### 19.4 切片与 PR 序列
+
+| 片 | 内容 | 验收编号 | 门禁与用例 | 依赖 | 碰的枢纽 |
+| --- | --- | --- | --- | --- | --- |
+| W1-2（细化） | 设计系统 `floating.ts` 同时导出 TS 函数（给 Pages 的 esbuild）和同一份的字符串形式（给页面程序拼接，`.toString()` 写法）；`placeOverlay` 的舞台选择器改参数；Pages 删掉自己的副本 | W1-02；`pages-editor.js` 不增 | 页面资源（esbuild 的模块路径注释会变长几十字节，用删掉的副本抵掉）、`pages-plugin` 的源码断言 | #423 | 设计系统 `index.ts`、README |
+| W1-6（细化） | 组件名 `context-toolbar`、类名前缀 `mw-ctx-`（`renderToolbar` 已占名）；经 #423 的 `catalog-examples.ts` 加一节，样式与示范脚本内联在该节（不进 `PRIMITIVE_STYLES`，不花页面字节）；只用变量，不写色值；三个事件在这里登记，收发方是组件板标本；T08 清洗与上限单测；`DESIGN.md` 的 Context toolbar 一小节 | W1-06、T08 | `primitives.test.ts`、`touch-targets.e2e`（组件板上的菜单项 34/44px）、DOM 事件 | #423 | `DESIGN.md`、`catalog-examples.ts`、`dom-events.ts` |
+| W2-0 | 总线与行解耦（纯重构，外观不变）：视图接口、底栏宿主可选、可见性检查按需、报错按来源；行仍是唯一视图 | W2-00：行为与 W1-1 后一致 | `contextual-interaction.e2e`、`pages-surface-naming`、`affected-tests` 选出的；非共享核心，CI 与定向用例绿即可合 | #429 | — |
+| W2 | 切换，一个 PR 分五个提交：① 工作台浮条与窗格消息、样式换位、删底栏宿主；② Pages 迁移（声明工具、执行调用、面板槽、删格式条与写作菜单）；③ 合同与登记表（+3 事件的主人改到工作台，−2 事件与常量，`starters` 详情加 `error`）；④ 用例改入口；⑤ 文档（`DESIGN.md`、`skills/molis-plugin-dev/contextual.md` 加「选区浮条」、`continuity.md`、`PLUGIN-PLATFORM.md`、`UI-PLATFORM.md`） | T01–T09（context-toolbar §8）、W2-01…W2-08（下） | 页面资源（逐个文件只减，见 19.5）、巨大单元、DOM 事件、API 快照、翻译；动了合同，进批量全量 | W1-2、W1-6、W2-0、#430 | `dom-events.ts`、`services/contextual.ts`、`DESIGN.md`、`AGENTS.md` 不动 |
+
+W2 自己的验收（在 T01–T09 之外）：
+
+- **W2-01**：总线在没有底栏宿主时照常工作。开场建议、窗格转发、`place-changed` 清空都在。
+- **W2-02**：窗格里的浮条画在窗格自己的文档里。
+  - 悬停或聚焦的按钮在判断到达时不移动（`workbench-context-hold`）。
+  - Esc 收起记「忽略」。
+- **W2-03**：浮条的动作区与「更多」逐项等于同一份方案，「整篇」在最后。替代原写作菜单与方案相等的断言，不放宽。
+- **W2-04**：面板打开期间选区冻结。期间文档改动，写入被拒并说明，不写到错的位置。链接、评论、颜色、候选都适用。
+- **W2-05**：⌘K、⌘B 等快捷键行为不变。⌘K 打开链接面板。
+- **W2-06**：页面资源逐个文件不增，三份样式表各减。巨大单元只减。
+- **W2-07**：没有任何按 `plugin_id` 的分支。Pages 只经三个事件与浮条说话。
+- **W2-08**：开场建议的报错出现在助理的开场建议浮层，不再落在不存在的行里。
+
+### 19.5 字节账（页面资源只许减，逐个文件）
+
+| 资源 | 减 | 加 | 怎么守 |
+| --- | --- | --- | --- |
+| `workbench.js` | 行的程序约 14.6 KB；转发方案给 Pages 的那段 | 浮条程序（目标 ≤ 11 KB）；窗格消息约 2 KB | 第一个提交就量（`node scripts/gates/page-assets.mjs --report`），超了先压浮条程序（共用小函数、短文案），不能抬数字 |
+| `workbench.css` | 行的样式约 8.5 KB；Pages 格式条与写作菜单的样式约 1.5 KB | 浮条样式（目标 ≤ 4 KB） | 同上 |
+| `arrival.css`、`settings.css` | 各约 8.5 KB | 0 | 本 PR 内 `--update --base origin/main` 降数字 |
+| `pages.js`（Pages 客户端） | 写作菜单的接线约 37 行 | 工具的发布与执行转交（小） | 同上 |
+| `pages-editor.js` | 格式条、`openAi`、`placeToolbar` 与监听约 250 行 | 工具声明与执行、面板槽接线（表单本身是搬家） | 同上 |
+
+巨大单元：
+- `craft-finish.ts` 删 69 行，`assistant-dock.ts` 删 1 行，Pages `client.ts` 删约 37 行，`mount` 变短。
+- `assistant-island.ts` 只改既有一行的选择器：岛的选区监听要排除浮条。
+- 新文件都在 800 行内，函数都在 150 行内：浮条程序按职责拆成几段字符串。
+
+### 19.6 测试
+
+- **改入口、不放宽**：
+  - `contextual-interaction.e2e`：把行改成浮条。原「写作菜单等于方案」改为「浮条与更多等于方案」（W2-03）。冻结、替换、编辑后拒绝写入的断言照旧。
+  - `pages-actions.e2e`：「AI」改为浮条「更多」里的「总结」，候选在面板槽。
+  - `pages-plugin`：源码断言跟着改，`followScroll(toolbar` 改为对浮条的断言。
+  - `dom-events-contract`。
+- **新增单测**：
+  - Pages 的工具映射：编辑器状态到 `ContextTools`，纯函数。
+  - 窗格消息的读取：有界、封闭。
+  - 视图接口的路由。
+  - 「更多」的推荐区不再读计算后的样式，改按宽度算出的槽数。
+- **浏览器**：
+  - `affected-tests` 选出的全部。
+  - 加 `touch-targets.e2e`、`workbench-pane-*.e2e`、`pages-*.e2e`。
+  - 截图走 PR 模板：浅色、深色，1440、1024、390 三个宽度，写入已忽略的评审目录。
+- **全量**：并入统筹排的批量（W2 动了合同）。
+
+### 19.7 风险
+
+- **`workbench.js` 字节**：最紧的一项。浮条程序要写得比 W0 原型紧，第一个提交先量，不在 PR 末尾才发现。
+- **窗格里的悬停保位**：多一来一回。判断到达与指针离开的竞争要有单测（顺序：先存，离开后再换）。
+- **Pages 的 `mount` 在上限**：迁移只删不增。表单搬进面板槽时保持原函数，不往 `mount` 里加。
+- **「正在写的这段」自动建议消失**，只剩 ⌘.：这是 2026-10-02 的既定取舍。把手入口延后，在 PR 和发布说明里写明。
+- **与助理面板线**：只改岛里一行选择器，和开场建议报错的显示位置。动工前经统筹告知。

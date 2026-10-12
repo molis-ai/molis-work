@@ -1341,6 +1341,10 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 | W3-10-UI-01 | 上述 Host 请求失败保留实际 code/status/callId/body；服务端可查编号可以复制并查到记录，未留行不造编号，AbortError 不显示；390px 浅深色、桌面按钮及 #420 快捷键/忙态/焦点行为保留。 |
 | W3-10-5-01 | 实际执行的浏览器程序 AST 拦裸/成员/计算属性/别名 fetch 增长，新文件从零；评论、普通字符串与 HTML 文本不误计。Workbench 剩余 raw fetch 归零，插件存量冻结，只有精确底层实现例外；修改 baseline 不能放大 merge-base 数字。 |
 
+W3-10-5 复用现有 SOURCE_COUNT_RULES 与逐文件 merge-base 比较，不另建计数系统。程序按实际装配顺序展开字符串、拼接与静态 join，再解析 AST；HTML 只取执行脚本，function.toString 按函数 AST 取体，不执行仓库源码。被浏览器入口引用的 TypeScript（包括 Work 插件 terminal-client）也计入，服务器 fetch 不计；插件现存请求仍按 W5-04 的范围冻结。计数归属原文件，同一片段被多次装配不重复计；UiRequest 底层传输及 lifecycle.fetch 的例外精确到函数或分支，邻接的新 fetch 仍被拦。不能静态展开或解析的已识别程序报位置，不能当零；动态属性构造、反射和任意运行期程序生成不是此静态规则的已验证能力。
+
+门禁回归以真实 Git 临时树和 CLI 制造旧文件增长、新文件 fetch、计算属性与局部别名、跨片段程序、相邻例外和 typed 浏览器入口；普通字符串/注释/HTML 文本应通过。Workbench 非零即拒绝（包括与 base 相等及 --update），插件按文件只降；修改已提交 baseline 不能放大 --base 比较，拒绝增长时 --update 不写入。当前仅为核对后的实现与证明边界，门禁尚未实现。
+
 ### 10.4 共同错误出口的接续验收（W3-02-G1/G3）
 
 固定 I5 8bac4a4ea 的只读核对已确认实际调用链；按 G1 → G3 → W3-10-4 推进。G1 范围为既定平台 HTTP/网关、客户端、availability 与同义码；G3 包括 Assistant service/store/http 与 memory tools、Memory owner/Host、AgentDefinitions、dispatcher、island 和对应测试，不能只删 Service 的三段转换。此处不提前改写存量错误码或运行时读取历史形状。

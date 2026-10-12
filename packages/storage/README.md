@@ -4,6 +4,9 @@
 
 包名：`@molis-ai/molis-work-storage`。工作区内部包，通过仓库构建和 Host 装配使用。
 
+
+`openReadOnlyHomeSqlite` 为插件查询服务提供 SQLite 自身强制的只读连接；Host 用 `openBaselineHomeSqlite` 开当前业务基线，再持有读写连接。Home 插件安装库和 Issue 业务库都纳入 `PERSONAL_HOME_SQLITE_STORES`，普通卸载保留，明确 purge 才清除。当前基线、回滚与错版拒绝由 `tests/issue-home.test.ts` 验证。
+
 ## 一次典型调用
 
 LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy timeout；LocalSqliteJournal 借用连接处理日志/幂等。Host 把各模块交出的当前 schema 拼成库的基线（`applySqliteBaseline`），版本不符就拒绝，不就地升级。runWithMolisWorkHome 将文件适配限定到当前 Home。

@@ -11,6 +11,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   const catalog = await host.inspectActions(base, reference);
   const installed = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list()) : [];
   const grants = new Map(installed.filter(row => row.state === "running").map(row => [row.install_id, row]));
+  for (const record of host.homePlugins?.installations() ?? []) if (record.state === "running") grants.set(record.install_id, record);
   // The installation a provider's grants come from is the one its registration names, not whatever its provider id looks like:
   // a plugin that ships with the Host registers under its plugin_id, and its Host-assembled providers share that id.
   const installOf = (provider: ActionProvider) => provider.plugin_install_id === undefined ? undefined : grants.get(provider.plugin_install_id);
@@ -18,7 +19,8 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   const accepted = catalog.filter(view => {
     if (builtin(view.action.permissions)) return true;
     const install = installOf(view.provider);
-    return !!reference && view.provider.project_id === reference.project_id && view.provider.kind === "plugin"
+    const scopeMatches = view.provider.project_id ? view.provider.project_id === reference?.project_id : view.action.scope === "home";
+    return scopeMatches && view.provider.kind === "plugin"
       && !!install && install.plugin_id === view.provider.plugin_id
       && view.action.permissions.every(permission => install.grants.includes(permission));
   });
@@ -42,8 +44,11 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
       // Re-read the original grant owner directly, rather than rediscovering every provider on each nested call.
       // The common dispatcher separately checks current definitions, source lifetime and action availability.
       const installId = original?.provider.plugin_install_id;
-      const install = installId && reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).get(installId)) : null;
+      const install = installId && original?.provider.project_id && reference
+        ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).get(installId))
+        : installId ? host.homePlugins?.installations().find(record => record.install_id === installId) : null;
       if (!original || !install || install.state !== "running" || install.plugin_id !== original.provider.plugin_id
+        || install.installation_generation !== installOf(original.provider)?.installation_generation
         || !original.action.permissions.every(permission => install.grants.includes(permission))) {
         throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态");
       }

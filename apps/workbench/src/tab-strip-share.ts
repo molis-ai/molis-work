@@ -3,8 +3,8 @@
 
 export const TAB_SHARE_MAX = 172;
 export const TAB_SHARE_MIN = 72;
-/** Narrow/touch close is 44px; 72 cannot hold icon + close. */
-export const TAB_SHARE_MIN_TOUCH = 96;
+/** Narrow/touch: the 10px padding, a 44px title target and the 44px close; 72 cannot hold them. */
+export const TAB_SHARE_MIN_TOUCH = 98;
 
 /** Remaining px after chrome, and each flexible tab's content width. Null means hug. */
 export const tabShareWidth = (available: number, hugWidths: number[], min = TAB_SHARE_MIN) => {

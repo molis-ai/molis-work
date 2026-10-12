@@ -1,6 +1,6 @@
 import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { PagesStore } from "./store.js";
-import { PagesError } from "./error.js";
+import { pagesErrors } from "./error.js";
 import { isDeepStrictEqual } from "node:util";
 import { LOCAL_PERSON_ACTOR_ID, nextPinnedVersion, type ArtifactLineHead } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -52,11 +52,11 @@ export function promotePagesDocument(
   if (written > 0) options.readArtifact?.({ project_id: projectId, page_id: id, version: written });
   const intent = store.beginPublication(id, projectId, options.actorId, goalId, options.expectedVersion ?? current.version, existing ?? undefined, version);
   if (existing && (existing.title !== intent.title || existing.goal_id !== intent.goal_id || !isDeepStrictEqual(existing.body, intent.body))) {
-    throw new PagesError("pages.publication_conflict", "已保存的成果与上次发布快照不同，文稿和原记录均已保留");
+    throw pagesErrors.publication_conflict("已保存的成果与上次发布快照不同，文稿和原记录均已保留");
   }
   const published = existing ? { artifact_id: "pages-" + id, version: intent.version }
     : publishArtifact({ project_id: projectId, page_id: id, title: intent.title, body: intent.body, goal_id: intent.goal_id, version: intent.version, source_version: intent.source_version });
-  if (published.artifact_id !== "pages-" + id || published.version !== intent.version) throw new PagesError("pages.publication_conflict", "成果返回的身份与本次发布不一致，上次快照已保留");
+  if (published.artifact_id !== "pages-" + id || published.version !== intent.version) throw pagesErrors.publication_conflict("成果返回的身份与本次发布不一致，上次快照已保留");
   return {
     document: store.completePublication(id, projectId, intent, published),
     artifact: published,

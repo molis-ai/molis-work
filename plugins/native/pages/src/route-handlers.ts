@@ -1,6 +1,6 @@
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pagesActions } from "./actions.js";
-import type { PagesPluginRouteContext, PagesPluginRouteHandler, PagesPluginRouteResponse } from "./routes.js";
+import type { PagesPluginRouteContext, PagesPluginRouteHandler } from "./routes.js";
 
 export interface PagesRoutePorts {
   readonly actions: BoundActionClient;
@@ -36,12 +36,4 @@ export function createPagesRouteHandlers(ports: PagesRoutePorts): Record<string,
     "pages.promote": call(pagesActions.promote, identified),
     "pages.extract": call(pagesActions.extract, identified),
   };
-}
-
-export function pagesRouteErrorResponse(error: unknown): PagesPluginRouteResponse {
-  const code = error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : "";
-  const message = error instanceof Error ? error.message : "文档请求失败";
-  const status = code === "pages.not_found" ? 404 : ["pages.unavailable", "pages.conflict", "pages.publication_pending", "pages.publication_conflict"].includes(code) ? 409
-    : ["actions.forbidden", "actions.scope_mismatch", "pages.publication_owner"].includes(code) ? 403 : 400;
-  return { status, body: { error: message, ...(code ? { code } : {}) } };
 }

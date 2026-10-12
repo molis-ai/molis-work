@@ -16,7 +16,7 @@ export { DATASET_INSTRUCTIONS } from "./prompts.js";
 export { DATASET_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { DATASET_NATIVE_PLUGIN_ROUTES, DatasetPluginRouteTable } from "./routes.js";
 export type { DatasetPluginRouteHandler, DatasetPluginRouteRequest, DatasetPluginRouteResponse } from "./routes.js";
-export { createDatasetRouteHandlers, datasetRouteErrorResponse } from "./route-handlers.js";
+export { createDatasetRouteHandlers } from "./route-handlers.js";
 export type { DatasetRoutePorts } from "./route-handlers.js";
 export { promoteDataset } from "./promote.js";
 export type { DatasetLineHeadPort, DatasetPublishArtifactPort, DatasetReadArtifactPort, DatasetPublicationSnapshot } from "./promote.js";
@@ -27,4 +27,4 @@ export { openDatasetStore, DatasetStore, DATASET_STORE_BASELINE, parseCsv, toCsv
 export { purgeDatasetProject, datasetProjectData } from "./project-data.js";
 export { mergeDatasetDraftRows } from "./row-merge.js";
 export type { DatasetDraftColumn, DatasetDraftRow } from "./row-merge.js";
-export { DatasetError } from "./error.js";
+export { datasetErrors } from "./error.js";

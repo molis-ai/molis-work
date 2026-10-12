@@ -13,6 +13,8 @@ export interface NativeHttpAnswer {
  */
 export async function serveNativeHttp(handle: (request: IncomingMessage, response: ServerResponse, url: URL) => Promise<boolean>): Promise<{
   post(path: string, body: string): Promise<NativeHttpAnswer>;
+  /** The answer as text: for a route that streams lines (NDJSON) instead of one JSON document. */
+  postText(path: string, body: string): Promise<{ readonly status: number; readonly text: string }>;
   close(): Promise<void>;
 }> {
   const server = createServer((request, response) => {
@@ -29,6 +31,10 @@ export async function serveNativeHttp(handle: (request: IncomingMessage, respons
     async post(path, body) {
       const response = await fetch(base + path, { method: "POST", headers: { "content-type": "application/json" }, body });
       return { status: response.status, body: await response.json() as Record<string, unknown> };
+    },
+    async postText(path, body) {
+      const response = await fetch(base + path, { method: "POST", headers: { "content-type": "application/json" }, body });
+      return { status: response.status, text: await response.text() };
     },
     close: () => new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); }),
   };

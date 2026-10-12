@@ -122,3 +122,6 @@ export function followScroll(panel: Element, run: () => void): () => void {
   document.addEventListener("scroll", onScroll, true);
   return () => document.removeEventListener("scroll", onScroll, true);
 }
+
+// For the page programs that carry these functions as source text (floating-source.ts): what `placeFloating` closes over.
+export { MARGIN as FLOATING_MARGIN, pick as pickSide };

@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AgentHost, type AgentStartAuthority } from "../horizontal/agent-host/src/index.js";
 import { PrologueAgentAdapter, type PrologueRuntimePort, type PrologueStartInput, type PrologueRestoredSession } from "../horizontal/agent-host/src/adapters/prologue.js";
-import { inspectAgentDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { AgentStartRequest, AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { importedCharacterInstructions } from "../horizontal/agent-host/src/character-import.js";
+import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 const owner = { project_id: "board", plugin_id: "unknown.inference", install_id: "installation", actor_id: "user" };
 const directory = { canonical_path: "/authorized", realpath_verified: true };
@@ -118,7 +118,7 @@ test("no workspace is an immutable declared role and session contract, never a c
   const unavailable = fixture(false); assert.equal(unavailable.host.availableRoles("prologue", authority.manifest)[0]!.available, false);
   await assert.rejects(unavailable.host.createSession("prologue", { ...owner, workspace: "none", role_id: "analyst", title: "Bad" }, authority), /尚未接通/);
   const invalid = structuredClone(authority.manifest); invalid.roles[0]!.host_tools = ["read-file"];
-  assert.ok(inspectAgentDeclaration(invalid, []).some(reason => reason.includes("无工作区")));
+  assert.match(manifestProblems(declarationManifest({ agent: invalid })), /无工作区/);
   await assert.rejects(f.host.start("prologue", request, { ...authority, manifest: invalid }), /没有声明/);
 });
 

@@ -3,8 +3,9 @@ import { BUILDER_PLUGIN_ID, BUILDER_UI_ID } from './manifest.js';
 import { renderAgentStudio } from './agent-studio.js';
 
 /** The studio's stage in the workbench (specs/artifact-positioning S4); its client comes with the plugin's workbench pack. */
-export function renderStudioStage(text?: Parameters<typeof renderAgentStudio>[0]): string {
-  return '<section class="desktop-work-surface pb-surface" data-work-surface="plugin-builder" data-work-surface-label="插件创作工作台" hidden>' + renderAgentStudio(text) + '</section>';
+export function renderStudioStage(text: Parameters<typeof renderAgentStudio>[0] = zh => zh): string {
+  // The workbench copies the label into the pane's aria-label while the studio is open, so it is in the interface language.
+  return '<section class="desktop-work-surface pb-surface" data-work-surface="plugin-builder" data-work-surface-label="' + text('插件创作工作台') + '" hidden>' + renderAgentStudio(text) + '</section>';
 }
 
 /**

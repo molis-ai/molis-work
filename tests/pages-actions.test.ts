@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { pagesActions as actions, pagesContentActions as content, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
@@ -142,7 +143,7 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
 }
 
 test("a new document can be taken back only while unchanged: create names its undo, discard refuses once it was edited", async () => {
-  const { inspectActionDeclarations, actionEffect } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  const { actionEffect } = await import("@molis-ai/molis-work-contracts/platform/actions");
   assert.deepEqual(actions.create.action.undo, { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "document.version" } });
   assert.deepEqual(inspectActionDeclarations([actions.create, actions.discard], undefined), []);
   assert.equal(actionEffect(actions.discard.action, actions.discard.capability_id), "irreversible", "an agent calling discard itself is asked each time");
@@ -158,7 +159,6 @@ test("a new document can be taken back only while unchanged: create names its un
 });
 
 test("an edit an agent made can be taken back while nothing changed since; the person's own edits keep no record", async () => {
-  const { inspectActionDeclarations } = await import("@molis-ai/molis-work-contracts/platform/actions");
   assert.deepEqual(actions.update.action.undo, { capability_id: "pages.revert", version: 1, input: { change_id: "change_id" } });
   assert.deepEqual(inspectActionDeclarations([actions.update, actions.revert], undefined), []);
   await fixture(async ({ bound, client, caller }) => {

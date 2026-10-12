@@ -106,6 +106,7 @@
 | BL-114 | Dock 的插件切换器把插件创作工作台写成内部 id `plugin-builder`，不是它的显示名 | [artifact-positioning §6](artifact-positioning/spec.md#6-进度)（S4 走查） | 已知缺口 | 从切换器找创作台时看到的是内部名 | 无 | 低 | 未分配 |
 | BL-100 | Coding：停止一轮时，还没批准的写文件显示「修改文件 … — 结果未确认」，其实确定没有执行 | [post-merge-review §5 场景 4](archive/post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 文案与状态映射 | 无 | 低 | 未分配 |
 | BL-113 | 插件创作台：界面验收发现「显示问题」时交回设计并重新实现，之后门禁不通过就整次构建失败，没有像普通分支那样交回代码 Agent 修（报名表真实模型复测，PMR-36） | [post-merge-review §3 PMR-36](archive/post-merge-review/spec.md#3-问题表) | 已知缺口 | 显示问题分支在门禁失败时进入相同的修复轮（最多两轮），用离线回放验证 | 无 | 中 | 未分配 |
+| BL-125 | 创作台的英文只到创作台自己写的字（标签、阶段、状态、空态、指示标签、对话框、提示；字典在 `apps/workbench/src/i18n/studio-en.ts`；服务端路由答的请求期消息也有英文）。英文界面里仍是中文的：①构建记录里宿主写下的步骤标签、笔记与错误（`agent-workflow.ts` 写进记录，读取时原样显示）；②能力板上能力目录的标题、说明与授权说明（各提供方的动作定义，能力库页也是原样显示）；③生成插件渲染器自带的固定词（新建、取消、提交、今天……，`packages/design-system/src/plugin-component-client.ts`，已安装的插件里也是）；④插件切换器里的显示名「插件创作工作台」（与 BL-114 同一处）；⑤“做一个……”才会问「新插件还是修改」的判断只认中文；⑥框架里的页面（试用、已安装插件的框架，含「插件暂时无法运行」的恢复页与它的原因）拿不到宿主的翻译器，仍是中文 | [PRODUCT.md](../PRODUCT.md)（界面默认中文，可切换英文） | 已知缺口 | ①（含构建运行中工作流抛出的错误）需要给记录文字加稳定键或读取时翻译；③⑥要先定生成插件的界面语言和框架怎样拿到翻译器 | 无 | 低 | 未分配 |
 
 ## 6. 连接、来源与 Onboarding
 
@@ -127,7 +128,7 @@
 | BL-072 | 构建期装配的 Native 插件不在版本化升级与恢复内 | [plugin-upgrades](archive/plugin-upgrades/spec.md) | 已知缺口 | 随插件装配统一解决 | BL-080 | 中 | 第二步 |
 | BL-108 | Runtime 的 MCP 启动器找不到自己 Home 的服务时：①写进 Codex 等配置的环境只有 Home、受众、Runtime，没有 Web 地址，启动器一律去 127.0.0.1:4173，常驻服务不在 4173（如开发用的 4207）就连不上；②4173 上若是另一个 Home 的服务（例如开发时用临时 Home，而 4173 是真实 Home 的常驻服务），发现能力被拒（403），启动器在 tools/list 时抛错退出，Runtime 只看到 MCP 起不来 | [post-merge-review §6.1](archive/post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02) | 已知缺口 | ①要改 Runtime 配置合同（加地址，或让启动器从 Home 读服务地址），属合同变化；②被拒时回 JSON-RPC 错误、说明「4173 上不是这个 Home 的服务」，而不是退出进程 | 无 | 中 | 未分配 |
 | BL-110 | 管理项目导航卡死：桌面 Coding 页点「管理项目」后停在原项目。网页与 desktop=1 路径都没复现，原生 WebView 路径没有现场 | [project-management-freeze](archive/project-management-freeze/spec.md) | 已知缺口 | 现场没有复现，要用户再遇到时记下项目与操作 | 无 | 低 | 未分配 |
-| BL-126 | 维护六收尾核对：①新构建打开 v7 项目库——在安装版里绑定一个项目并读它的 Goal 数，与维护前一致（或在项目库拷贝上用新构建打开一次，看工作台和插件切换器里没有「实验」、没有 `storage.schema_version_mismatch`）；②重装之后逐库只读核对（v7、无 Casebook 表、`integrity_check`、行数）；③重装之前起的会话里的 MCP 仍是只认 v6 的旧代码，重连或重开会话。2026-10-10 只做了重装和列出 18 个项目（只读目录库），这一半没做 | [repository-anti-corruption §4.1 维护六](repository-anti-corruption/spec.md)、[CHECKLIST 第 4.3 节「做完核对」](../docs/releases/CHECKLIST.md) | 部分实现 | 绑定项目、重连会话都会动真实 Home 与用户的会话，按检查清单 4.1 先得到用户同意 | 无 | 中 | 协调会话 |
+| BL-126 | 维护六收尾核对（2026-10-11 ①②已做：新构建打开 18 个 v7 项目库的拷贝，Goal 数与各表行数与维护六前相同，见检查清单第 4.3 节；只剩③，要用户重开会话）：①新构建打开 v7 项目库——在安装版里绑定一个项目并读它的 Goal 数，与维护前一致（或在项目库拷贝上用新构建打开一次，看工作台和插件切换器里没有「实验」、没有 `storage.schema_version_mismatch`）；②重装之后逐库只读核对（v7、无 Casebook 表、`integrity_check`、行数）；③重装之前起的会话里的 MCP 仍是只认 v6 的旧代码，重连或重开会话。2026-10-10 只做了重装和列出 18 个项目（只读目录库），这一半没做 | [repository-anti-corruption §4.1 维护六](repository-anti-corruption/spec.md)、[CHECKLIST 第 4.3 节「做完核对」](../docs/releases/CHECKLIST.md) | 部分实现 | 绑定项目、重连会话都会动真实 Home 与用户的会话，按检查清单 4.1 先得到用户同意 | 无 | 中 | 协调会话 |
 
 ## 8. 交给第二步（防腐整理）
 

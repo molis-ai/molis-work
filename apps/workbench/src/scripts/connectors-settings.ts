@@ -62,8 +62,8 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         const next = doc.querySelector('[data-connectors-settings]');
         if (!next) throw new Error(L('页面未能刷新，请重新打开服务连接。'));
         next.dataset.openConnector = id;
-        const adopted = document.adoptNode(next); box.replaceWith(adopted); bind(adopted);
-        adopted.querySelector('[data-connector-detail]:not([hidden]) h2')?.focus();
+        box.replaceWith(next); bind(next, page);
+        next.querySelector('[data-connector-detail]:not([hidden]) h2')?.focus();
       };
       const resultFor = area => area.querySelector('[data-protocol-result]');
       const connectionPath = id => '/api/settings/connectors/connections/' + encodeURIComponent(id);

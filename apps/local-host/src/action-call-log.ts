@@ -1,11 +1,17 @@
 import { appendFileSync, mkdirSync, readFileSync, renameSync, statSync, truncateSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import type { ActionCallContext, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { CallOutcome } from "@molis-ai/molis-work-kernel";
+import { currentCallId, markCallRecorded, refusalExpected, type CallContext, type CallDescription, type CallOutcome } from "@molis-ai/molis-work-kernel";
 
-/** One finished command: what ran, for whom, and how it ended. Inputs and results are never kept. */
+/**
+ * One finished call as the diagnostic log keeps it: what was called, for whom, how it ended, and the number of the operation it was part of.
+ * Inputs and results are never kept. A row is not business data: it is written for the person who needs to find out what happened.
+ */
 export interface ActionCallRecord {
   at: string;
+  /** The number of the operation (a request, a tool call, a round); a person is shown the first eight characters. */
+  call_id: string;
+  /** `unknown`: no action of the caller's project has the id it asked for. */
+  operation: "command" | "query" | "unknown";
   capability_id: string;
   version: number;
   provider_id: string;
@@ -16,22 +22,83 @@ export interface ActionCallRecord {
   project_id: string | null;
   ok: boolean;
   code?: string;
+  /** Only a command that ran and failed keeps a line of what went wrong. A refused call or a failed read keeps the error code and nothing that was said. */
   message?: string;
+  /** Turned away before its handler began (shown as 「未执行」): nothing was done, and the row only says who asked for what, that it ended so, and the error code. */
+  refused?: true;
+  /** Called through the Host's typed port, with no action behind it. */
+  path?: "typed";
   /** Identical consecutive outcomes (a page polling the same command) are one entry: how many, and the latest time. */
   count?: number;
   last_at?: string;
+  /** For an entry of several operations: the newest ones, so any of them can be looked up. `call_id` is the latest. */
+  call_ids?: string[];
+  /** For an entry of refusals to unknown ids: the newest different ones. */
+  capability_ids?: string[];
 }
 
 const RELATIVE_PATH = "logs/action-calls.jsonl";
-const KEEP = 1000;
+/** Past this many lines the file is rewritten: the newest commands that ran, and a shorter tail of everything else. */
+const LIMIT = 2000;
+const KEEP_COMMANDS = 1000;
+const KEEP_OTHER = 200;
+const FOLDED = 20;
+/** A prefix shorter than this would match nearly every operation. */
+const MIN_PREFIX = 6;
 const COALESCE_MS = 10 * 60_000;
-const sameCall = (a: ActionCallRecord, b: ActionCallRecord) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id
-  && a.actor_id === b.actor_id && a.audience === b.audience && a.project_id === b.project_id && a.ok === b.ok && a.code === b.code && a.message === b.message;
+const OPERATIONS: readonly string[] = ["command", "query", "unknown"];
+
+/** A client asking for ids that do not exist is one entry whatever it asked for; any other repeat needs the same call. */
+const unknownId = (row: ActionCallRecord) => row.refused === true && row.code === "actions.missing";
+const sameCall = (a: ActionCallRecord, b: ActionCallRecord) => a.actor_id === b.actor_id && a.audience === b.audience && a.project_id === b.project_id
+  && a.ok === b.ok && a.code === b.code && a.refused === b.refused && a.path === b.path
+  && (unknownId(a) && unknownId(b) || a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id && a.operation === b.operation && a.message === b.message);
+const lastDistinct = (ids: readonly string[], id: string) => [...ids.filter(other => other !== id), id].slice(-FOLDED);
+/**
+ * What the log keeps of the text a failed command gave (the only row that keeps one; a refused call and a failed read keep their code alone).
+ * A contract failure lists the fields that did not fit (`/客户 type`), and for a record keyed by what a person typed those names are the input's
+ * or the result's, which is never kept: only that the contract was not met stays. This holds for every message with these codes, whoever wrote it.
+ */
+const reasonOf = (outcome: Extract<CallOutcome, { ok: false }>): string =>
+  /^actions\.(input|output)_invalid/.test(outcome.code ?? "") ? outcome.message.split("：")[0]! : outcome.message;
+const ranCommand = (row: ActionCallRecord) => row.operation === "command" && row.refused !== true;
+
+/** Which kind of row a call leaves, if any: every command; a read (or a call to an id nobody has) only when it failed; a wait never. */
+function recordedOperation(operation: string, outcome: CallOutcome): ActionCallRecord["operation"] | undefined {
+  if (operation === "command") return "command";
+  if (operation === "wait" || outcome.ok) return undefined;
+  return operation === "query" ? "query" : "unknown";
+}
+
+function parseRow(line: string): ActionCallRecord | undefined {
+  let row: Partial<ActionCallRecord> | undefined;
+  try { row = JSON.parse(line) as Partial<ActionCallRecord>; } catch { return undefined; }
+  // A row from before calls had a number (or a torn one) is not a row of this log: it is not shown, and the next tidy drops it.
+  return typeof row?.call_id === "string" && row.call_id && OPERATIONS.includes(row.operation ?? "") && typeof row.capability_id === "string" && typeof row.at === "string"
+    ? row as ActionCallRecord : undefined;
+}
+
+/** The newest commands that ran, and a short tail of the rest (refusals, failed reads), so a flood of the second kind cannot push out the first. */
+function tidy(rows: ActionCallRecord[]): ActionCallRecord[] {
+  let commands = 0, others = 0;
+  const kept: ActionCallRecord[] = [];
+  for (let i = rows.length - 1; i >= 0; i--) if (ranCommand(rows[i]!) ? commands++ < KEEP_COMMANDS : others++ < KEEP_OTHER) kept.push(rows[i]!);
+  return kept.reverse();
+}
+
+/** The same call again: one entry with the count, the latest time and number, and the newest numbers (and, for unknown ids, the newest ids) of what it folded. */
+function fold(last: ActionCallRecord, row: ActionCallRecord): ActionCallRecord {
+  const folded = { ...(unknownId(row) ? { ...row, at: last.at } : last), call_id: row.call_id, count: (last.count ?? 1) + 1, last_at: row.at,
+    call_ids: lastDistinct(last.call_ids ?? [last.call_id], row.call_id) };
+  return unknownId(row) ? { ...folded, capability_ids: lastDistinct(last.capability_ids ?? [last.capability_id], row.capability_id) } : folded;
+}
 
 /**
- * A short local history of commands (writes), kept in the Home next to other local records.
- * Queries are not recorded: pages poll them constantly and they change nothing.
- * Neither is a command turned away before its handler began (`refused`): it is settled, but nothing was done and nothing is written.
+ * A short local history of calls, kept in the Home next to other local records: every command, and a read only when it failed.
+ * A call turned away before its handler began (`refused`) leaves a row too, marked as not run: a person who is told "no" will look for why.
+ * That row is a diagnostic, not a business record. It names who asked, for what, how it ended and the error code, and keeps no content: not the
+ * input, not a result, not what the provider said. A failed read is kept the same way. Only a command that ran and failed keeps a line of
+ * what went wrong, as it did before. So the rule that a cancelled, revoked or disabled call writes no business record is not touched by it.
  */
 export class ActionCallLog {
   private readonly file: string;
@@ -40,15 +107,37 @@ export class ActionCallLog {
   private lines = -1;
   constructor(homeDirectory: string) { this.file = path.join(homeDirectory, RELATIVE_PATH); }
 
-  record(caller: ActionCallContext, action: ActionReference & { operation: string; title: string; provider_title: string }, outcome: CallOutcome): void {
-    if (action.operation !== "command") return;
-    // A call cancelled, revoked, disabled or otherwise refused before its handler began wrote nothing before refusals were settled, and the
-    // hard rule says cancelled, revoked and disabled calls write no record. Whether this diagnostic log is outside that rule is the
-    // user's to decide (apps/local-host/README.md); until then a refusal is told to the settled hook and stays out of the file.
-    if (!outcome.ok && outcome.refused) return;
-    const row: ActionCallRecord = { at: new Date().toISOString(), capability_id: action.capability_id, version: action.version, provider_id: action.provider_id ?? "",
+  record(caller: CallContext, action: CallDescription, outcome: CallOutcome): void {
+    const operation = recordedOperation(action.operation, outcome);
+    // A refusal that a page was looking for (an optional area its project does not have) is its answer, not something a person will look up.
+    if (!operation || !outcome.ok && outcome.refused && refusalExpected(outcome.code)) return;
+    this.write({ at: new Date().toISOString(), call_id: caller.call_id, operation, capability_id: action.capability_id, version: action.version, provider_id: action.provider_id ?? "",
       provider_title: action.provider_title, title: action.title, actor_id: caller.actor_id, audience: caller.audience ?? "user", project_id: caller.project_id ?? null,
-      ok: outcome.ok, ...(outcome.ok ? {} : { ...(outcome.code ? { code: outcome.code } : {}), message: outcome.message }) };
+      ok: outcome.ok, ...(outcome.ok ? {} : { ...(outcome.code ? { code: outcome.code } : {}), ...(outcome.refused ? { refused: true as const } : {}),
+        ...(operation === "command" && !outcome.refused ? { message: reasonOf(outcome) } : {}) }),
+      ...(action.path ? { path: action.path } : {}) });
+    // Only now that the row is in the file may the operation that is waiting for its answer show its number to a person.
+    if (currentCallId() === caller.call_id) markCallRecorded();
+  }
+
+  /** Newest first, for one project or for Home (null). */
+  list(projectId: string | null, limit = 200): ActionCallRecord[] {
+    return this.read().rows.filter(row => row.project_id === projectId).reverse().slice(0, limit);
+  }
+
+  /** The rows of the operation that has this number (or whose number starts with it, from six characters), in any project; newest first. */
+  find(prefix: string, limit = 50): ActionCallRecord[] {
+    const wanted = prefix.trim().toLowerCase();
+    if (wanted.length < MIN_PREFIX) return [];
+    return this.read().rows.filter(row => [row.call_id, ...(row.call_ids ?? [])].some(id => id.toLowerCase().startsWith(wanted))).reverse().slice(0, limit);
+  }
+
+  /** The newest rows of every project, for a page that asks "what went wrong lately". */
+  recent(limit = 20, { failedOnly = false }: { failedOnly?: boolean } = {}): ActionCallRecord[] {
+    return this.read().rows.filter(row => !failedOnly || !row.ok).reverse().slice(0, limit);
+  }
+
+  private write(row: ActionCallRecord): void {
     mkdirSync(path.dirname(this.file), { recursive: true });
     const size = this.size();
     // Another process sharing this Home may have written since; then the last line is read again from the file.
@@ -56,18 +145,13 @@ export class ActionCallLog {
     const last = this.tail;
     if (last && sameCall(last.row, row) && Date.parse(row.at) - Date.parse(last.row.last_at ?? last.row.at) < COALESCE_MS) {
       truncateSync(this.file, last.offset);
-      this.append({ ...last.row, count: (last.row.count ?? 1) + 1, last_at: row.at }, last.offset);
+      this.append(fold(last.row, row), last.offset);
       return;
     }
     this.append(row, size);
-    if (this.lines < 0) this.lines = this.readAll().length; else this.lines++;
-    // Keep the file short: once it doubles, rewrite the newest records atomically.
-    if (this.lines > KEEP * 2) this.rewrite(this.readAll().slice(-KEEP));
-  }
-
-  /** Newest first, for one project or for Home (null). */
-  list(projectId: string | null, limit = 200): ActionCallRecord[] {
-    return this.readAll().filter(row => row.project_id === projectId).reverse().slice(0, limit);
+    if (this.lines < 0) this.lines = this.read().lines; else this.lines++;
+    // Keep the file short: once it passes its limit, rewrite what is worth keeping atomically (the rows of an older shape go with it).
+    if (this.lines > LIMIT) this.rewrite(tidy(this.read().rows));
   }
 
   private append(row: ActionCallRecord, offset: number): void {
@@ -93,16 +177,15 @@ export class ActionCallLog {
     const text = readFileSync(this.file, "utf8");
     const body = text.endsWith("\n") ? text.slice(0, -1) : text;
     const start = body.lastIndexOf("\n") + 1;
-    try { return { row: JSON.parse(body.slice(start)) as ActionCallRecord, offset: Buffer.byteLength(body.slice(0, start)), end: size }; }
-    catch { return undefined; }
+    const row = parseRow(body.slice(start));
+    return row ? { row, offset: Buffer.byteLength(body.slice(0, start)), end: size } : undefined;
   }
 
-  private readAll(): ActionCallRecord[] {
+  /** The rows of the current shape, oldest first, and how many lines the file has (what counts towards its limit). */
+  private read(): { rows: ActionCallRecord[]; lines: number } {
     let text = "";
-    try { text = readFileSync(this.file, "utf8"); } catch { return []; }
-    return text.split("\n").flatMap(line => {
-      if (!line.trim()) return [];
-      try { return [JSON.parse(line) as ActionCallRecord]; } catch { return []; }
-    });
+    try { text = readFileSync(this.file, "utf8"); } catch { return { rows: [], lines: 0 }; }
+    const lines = text.split("\n").filter(line => line.trim());
+    return { rows: lines.flatMap(line => parseRow(line) ?? []), lines: lines.length };
   }
 }

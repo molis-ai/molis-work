@@ -1,6 +1,8 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 export * from "./action-execution.js";
+import { ActionError } from "./action-errors.js";
+export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
@@ -53,6 +55,8 @@ export interface ActionCallOrigin {
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
+  /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
+  readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;
   /** Stable session supplied by the authenticated Host; never a business input. */
@@ -118,8 +122,9 @@ export interface ActionMetadata {
   readonly plugin?: false;
   /** Provider owns transaction/conflict safety across awaits; Host still tracks lifetime. Default is serial. */
   readonly scheduling?: "concurrent";
-  /** `session`: an external Runtime may call it only from a stable Session, which becomes the author of what it records;
-   * dispatch refuses a call whose context says the Session is missing (`runtime_session_missing`), nested or not. */
+  /** `session`: an external AI tool (a Runtime reached through MCP) may call it only from a stable Session, which becomes the author of what it records;
+   * dispatch refuses a call whose context says the Session is missing (`runtime_session_missing`), nested or not. Only that entry is asked: for the
+   * Assistant and the built-in Agents the Host records the author itself (`audit_actor_id`), and on a page the author is the person (decided 2026-10-10). */
   readonly authorship?: "session";
   /** Declarative limits shared by every entry; cancellation uses signal + beforeEffect. */
   readonly execution?: ActionExecutionPolicy;
@@ -391,13 +396,16 @@ export function requireSynchronous<T>(value: T, message = "此操作需要异步
 /** An entrypoint binds its authenticated context once; callers supply only business input. */
 export interface BoundActionClient {
   discover(): Promise<readonly ActionView[]>;
-  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input): Promise<Output>;
+  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">): Promise<Output>;
 }
 
 export function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient {
   return { discover: async () => client.discover(context()),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) =>
-      await client.invoke(context(), definition, input) as Output };
+    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">) => {
+      const caller = context();
+      return await client.invoke(control ? { ...caller, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
+        validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); } } : caller, definition, input) as Output;
+    } };
 }
 
 /** Keep the originating operation's transport authority when it calls a nested action or scene.
@@ -424,10 +432,10 @@ export function bindPluginActionRoute<Input, Output>(
     try {
       if (!context.actor_id || request.actor_id !== context.actor_id) throw new ActionError("actions.forbidden", "调用者与当前插件入口不一致");
       if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
-      return { status: 200, body: await context.services.actions.invoke(definition, input(request)) };
+      return { status: 200, body: await context.services.actions.invoke(definition, input(request), request.execution) };
     } catch (error) {
       const code = error instanceof ActionError ? error.code : undefined;
-      const status = ["actions.forbidden", "actions.owner_mismatch"].includes(code ?? "") ? 403 : code === "actions.missing" ? 404 : code === "actions.unredeemed" ? 503 : 400;
+      const status = ["actions.forbidden", "actions.owner_mismatch"].includes(code ?? "") ? 403 : code === "actions.missing" ? 404 : code === "actions.conflict" ? 409 : code === "actions.unredeemed" ? 503 : 400;
       return { status, body: { error: error instanceof Error ? error.message : String(error), ...(code ? { code } : {}) } };
     }
   } };
@@ -478,13 +486,6 @@ export function actionPermissionDeclarations(definitions: readonly ActionDefinit
   const known = new Set(declared.map(item => item.permission));
   return [...new Set(definitions.flatMap(definition => definition.action.permissions))].filter(permission => !known.has(permission))
     .map(permission => ({ permission, required: false, reason }));
-}
-
-export class ActionError extends Error {
-  constructor(readonly code: string, message: string) {
-    super(message);
-    this.name = "ActionError";
-  }
 }
 
 function object(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }

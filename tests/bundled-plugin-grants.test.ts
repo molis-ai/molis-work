@@ -46,7 +46,7 @@ function hostProcess(directory: string) {
     actions, project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
-    ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
+    ui: new UiHost(), home: null, privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
   const grants = () => platform.runtime.list().find(record => record.plugin_id === PLUGIN_ID)!.grants;
   const installId = () => platform.runtime.list().find(record => record.plugin_id === PLUGIN_ID)!.install_id;

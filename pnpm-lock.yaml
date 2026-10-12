@@ -144,6 +144,9 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:plugins/native/inbox
+      '@molis-ai/molis-work-plugin-issues':
+        specifier: workspace:*
+        version: link:plugins/native/issues
       '@molis-ai/molis-work-plugin-jelly':
         specifier: workspace:*
         version: link:plugins/native/jelly
@@ -620,6 +623,9 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
+      '@molis-ai/molis-work-plugin-issues':
+        specifier: workspace:*
+        version: link:../../plugins/native/issues
       '@molis-ai/molis-work-plugin-jelly':
         specifier: workspace:*
         version: link:../../plugins/native/jelly
@@ -1058,6 +1064,15 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/contracts
 
+  plugins/native/issues:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+
   plugins/native/jelly:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -1198,6 +1213,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../../packages/storage

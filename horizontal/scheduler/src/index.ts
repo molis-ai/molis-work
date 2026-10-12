@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 
-import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { HostCapabilityDefinition, HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   MIN_SCHEDULE_INTERVAL_MS,
@@ -10,6 +10,7 @@ import {
   scheduleCapabilities,
   type ScheduleJobRecord,
   type ScheduleRecurrence,
+  type SchedulePluginRegisterInput,
   type ScheduleRegisterInput,
   type ScheduleTickResult,
   type ScheduleWakeupInput,
@@ -174,10 +175,6 @@ export function scheduleFingerprint(db: ScheduleSqliteDatabase): string {
     "SELECT COUNT(*) AS n, COALESCE(MAX(finished_at), '') AS updated FROM schedule_wakeups",
   ).get() as { n: number; updated: string };
   return JSON.stringify({ jobs, wakeups });
-}
-
-export function bindScheduleCaller<T extends { plugin_id?: string }>(pluginId: string, input: T): T {
-  return { ...input, plugin_id: pluginId };
 }
 
 export function createScheduleService(db: ScheduleSqliteDatabase, options: ScheduleServiceOptions) {
@@ -468,21 +465,59 @@ export type ScheduleService = ReturnType<typeof createScheduleService>;
 export interface ScheduleCapabilityRegistrar<Context> {
   register<Input, Output>(
     definition: HostCapabilityDefinition<Input, Output>,
-    handler: (context: Context, input: Input) => Output | Promise<Output>,
+    handler: (context: Context, input: Input, invocation: HostCapabilityInvocation) => Output | Promise<Output>,
   ): () => void;
 }
 
+/**
+ * The typed `schedule.*` channel is for Runtime plugins, and the Scheduler owns the rule for whose jobs a call touches:
+ * the calling plugin's, read from the trusted invocation. Nothing in the input names an owner, so no input shape
+ * (array, string, a smuggled `plugin_id`) changes it; a call without a plugin identity, or from a stopped installation,
+ * is refused. The handlers below do not await, so the check holds through the write.
+ */
 export function registerScheduleCapabilities<Context>(
   registrar: ScheduleCapabilityRegistrar<Context>,
   serviceFor: (context: Context) => ScheduleService,
 ): void {
-  registrar.register(scheduleCapabilities.register, (_context, input) => serviceFor(_context).register(input));
-  registrar.register(scheduleCapabilities.cancel, (_context, input) =>
-    serviceFor(_context).cancel(input.job_id, input.plugin_id));
-  registrar.register(scheduleCapabilities.setEnabled, (_context, input) =>
-    serviceFor(_context).setEnabled(input.job_id, input.enabled, input.plugin_id));
-  registrar.register(scheduleCapabilities.list, (_context, input) =>
-    ({ jobs: serviceFor(_context).list(input.plugin_id) }));
+  registrar.register(scheduleCapabilities.register, (context, input, invocation) => {
+    const owner = callingPluginId(invocation);
+    return serviceFor(context).register({ ...inputRecord<SchedulePluginRegisterInput>(input), plugin_id: owner });
+  });
+  registrar.register(scheduleCapabilities.cancel, (context, input, invocation) => {
+    const owner = callingPluginId(invocation);
+    return serviceFor(context).cancel(jobIdOf(input), owner);
+  });
+  registrar.register(scheduleCapabilities.setEnabled, (context, input, invocation) => {
+    const owner = callingPluginId(invocation);
+    const { job_id, enabled } = inputRecord<{ job_id?: unknown; enabled?: unknown }>(input);
+    if (typeof job_id !== "string" || typeof enabled !== "boolean") throw invalid("输入无效");
+    return serviceFor(context).setEnabled(job_id, enabled, owner);
+  });
+  registrar.register(scheduleCapabilities.list, (context, _input, invocation) =>
+    ({ jobs: serviceFor(context).list(callingPluginId(invocation)) }));
+}
+
+function callingPluginId(invocation: HostCapabilityInvocation | undefined): string {
+  const plugin = invocation?.plugin;
+  if (!plugin || typeof plugin.plugin_id !== "string" || plugin.plugin_id === "") throw invalid("插件身份无效");
+  plugin.assertActive();
+  return plugin.plugin_id;
+}
+
+function inputRecord<T extends object>(input: unknown): T {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) throw invalid("输入无效");
+  return input as T;
+}
+
+function jobIdOf(input: unknown): string {
+  const { job_id } = inputRecord<{ job_id?: unknown }>(input);
+  if (typeof job_id !== "string") throw invalid("输入无效");
+  return job_id;
+}
+
+/** The one place a refused input becomes a `schedule_job_invalid` error; the throw sites read as `throw invalid("...")`. */
+function invalid(message: string): ScheduleError {
+  return new ScheduleError("schedule_job_invalid", message);
 }
 
 function wakeupKey(pluginId: string, capabilityId: string): string {
@@ -496,7 +531,7 @@ function iso(value: Date): string {
 function normalizeIdentity(value: string, label: string): string {
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > 200 || !/^[a-z0-9][a-z0-9._-]*$/i.test(trimmed)) {
-    throw new ScheduleError("schedule_job_invalid", `${label}无效`);
+    throw invalid(`${label}无效`);
   }
   return trimmed;
 }
@@ -504,7 +539,7 @@ function normalizeIdentity(value: string, label: string): string {
 function normalizeTitle(value: string): string {
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > 200) {
-    throw new ScheduleError("schedule_job_invalid", "标题无效");
+    throw invalid("标题无效");
   }
   return trimmed;
 }
@@ -512,7 +547,7 @@ function normalizeTitle(value: string): string {
 function normalizeDueAt(value: string): string {
   const time = Date.parse(value);
   if (!Number.isFinite(time)) {
-    throw new ScheduleError("schedule_job_invalid", "时间无效");
+    throw invalid("时间无效");
   }
   return new Date(time).toISOString();
 }
@@ -520,7 +555,7 @@ function normalizeDueAt(value: string): string {
 function normalizeRecurrence(value: ScheduleRecurrence | undefined): ScheduleRecurrence {
   if (!value || value.kind === "once") return { kind: "once" };
   if (value.kind !== "interval" || !Number.isInteger(value.interval_ms)) {
-    throw new ScheduleError("schedule_job_invalid", "重复方式无效");
+    throw invalid("重复方式无效");
   }
   if (value.interval_ms < MIN_SCHEDULE_INTERVAL_MS) {
     throw new ScheduleError("schedule_interval_too_short", "间隔不能短于 5 秒");
@@ -531,7 +566,7 @@ function normalizeRecurrence(value: ScheduleRecurrence | undefined): ScheduleRec
 function normalizeObjectRef(value: string): string {
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > 512 || /[\0\n\r]/.test(trimmed)) {
-    throw new ScheduleError("schedule_job_invalid", "对象钥匙无效");
+    throw invalid("对象钥匙无效");
   }
   if (
     trimmed.startsWith("/")

@@ -397,4 +397,9 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "截图合计不能超过 8 MiB": "Screenshots cannot exceed 8 MiB in total",
   "上次没有完成，点开继续": "Not finished last time. Open it to continue",
   "（截图要重新添加）": " (add the screenshots again)",
+  // packages/ui-host/src/request-client.ts: the browser request helper (failures that have no answer, the diagnostic ID button)
+  "连不上 Molis Work 服务，请稍后重试": "Can't reach the Molis Work service. Try again in a moment.",
+  "不知道这次操作有没有完成，请刷新后核对": "We can't tell whether this finished. Refresh the page to check.",
+  "诊断编号 {id}": "Diagnostic ID {id}",
+  "复制诊断编号 {id}": "Copy diagnostic ID {id}",
 };

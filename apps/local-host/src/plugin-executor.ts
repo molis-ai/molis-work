@@ -2,6 +2,7 @@ import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis
 import type { PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginCapabilityPort, PluginEventBus, PluginInputGraph } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginPlatformHome } from "./home-side.js";
 import { openHostSession, type HostSession } from "./plugin-host-services.js";
 
 export interface PluginHostExecutorOptions {
@@ -15,6 +16,8 @@ export interface PluginHostExecutorOptions {
     /** Composition-only metadata of the whole directory (what the Plugin Builder's catalog is made from). */
     inspect?(caller: import("@molis-ai/molis-work-contracts/platform/actions").ActionCallContext): Promise<readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]> };
   ui: UiHostApi;
+  /** The Home the platform reaches in process; absent or `null`: none (a developed plugin, a bare executor in a test). */
+  home?: PluginPlatformHome | null;
   /**
    * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its
    * plugin_id). Without it, or for a definition it does not name, the installation id. Whatever registers the Plugin's actions

@@ -5,7 +5,7 @@ import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { openServerDatabase, Identity, ServerEvents, ContinuityService } from '../server/src/index.js';
+import { openServerDatabase, Identity, ServerEvents, ContinuityService } from '@molis-ai/molis-work-server';
 
 const launcher=new URL('../apps/server/dist/main.js',import.meta.url).pathname;
 function launch(args:string[]){

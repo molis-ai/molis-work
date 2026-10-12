@@ -1,11 +1,10 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
-import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { renderWorkbenchDocument, WORKBENCH_UI_SLOTS } from "./document-shell.js";
 import { BUILTIN_PLUGIN_WORKBENCH } from "./plugin-workbench.js";
 import { sideEntries } from "./plugin-catalog.js";
 import { createWorkbenchUiHost } from "./ui-composition.js";
-import { CONTROL_CLIENT_SCRIPT } from "./scripts/control.js";
 import { SIDE_LINKS_SCRIPT } from "./side-panel.js";
 import { homeToolKeysScript } from "./home-plugin-navigation.js";
 
@@ -59,7 +58,7 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
     head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<link rel="stylesheet" href="/assets/molis-work-workbench.css"><style>${SIDE_VIEW_STYLES}</style>`,
     body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}` },
     body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root>${html}</main>
-    <script>${input.clientI18nScript}${CONTROL_CLIENT_SCRIPT}${SIDE_LINKS_SCRIPT}${homeToolKeysScript()}
+    <script>${input.clientI18nScript}${UI_REQUEST_CLIENT_SCRIPT}${SIDE_LINKS_SCRIPT}${homeToolKeysScript()}
       const L = globalThis.L;
       // This document is the view's host: the work surface a plugin reuses here waits, hidden, for its host to show it
       // (the workbench's surface manager does that on the stage), and its client only starts once it is visible.

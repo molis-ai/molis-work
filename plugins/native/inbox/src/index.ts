@@ -18,7 +18,6 @@ export { inboxActions, INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, createInboxActio
 export type { InboxActionPorts, InboxStatusInput, InboxPagesInput, InboxPagesMaterialRef, InboxActionEntry, InboxPagesResult, InboxGeneratedPages } from "./actions.js";
 export { createInboxRouteHandlers } from "./route-handlers.js";
 export type { InboxRouteHandlerPorts, InboxJudgmentState, InboxJudgmentChoice, InboxJudgmentSummary } from "./route-handlers.js";
-export { inboxRouteErrorResponse } from "./route-error.js";
 export { INBOX_PLUGIN_ID, INBOX_PROJECT_PLUGIN_ID, inboxManifest } from "./manifest.js";
 
 export { inboxNextScene, inboxSceneBindingId, createInboxSceneHandler, createInboxJudgmentTrigger } from "./scenes.js";

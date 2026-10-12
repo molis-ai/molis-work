@@ -27,11 +27,6 @@ export interface FeedCommands {
     deleteBySource(projectId: string, sourceId: string): string[];
 }
 
-export declare class FeedDomainError extends Error {
-    readonly code: string;
-    constructor(message: string, code: string);
-}
-
 export declare class FeedError extends Error {
     readonly code: "feed_item_not_found" | "feed_revision_conflict" | "feed_invalid_transition" | "feed_read_not_supported";
     constructor(code: "feed_item_not_found" | "feed_revision_conflict" | "feed_invalid_transition" | "feed_read_not_supported", message: string);
@@ -137,6 +132,38 @@ export interface IngestFeedItemInput {
     attention?: false | FeedAttentionRequest;
     material?: Omit<FeedMaterialRecord, "project_id" | "item_id" | "imported_at" | "updated_at">;
 }
+
+export declare const feedErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly item_not_found: "not_found";
+    readonly source_not_found: "not_found";
+    readonly out_rule_not_found: "not_found";
+    readonly revision_conflict: "conflict";
+    readonly source_paused: "conflict";
+    readonly source_use_catalog: "conflict";
+    readonly invalid_transition: "invalid";
+    readonly request_invalid: "invalid";
+    readonly out_rule_invalid: "invalid";
+    readonly source_connection_changed: "invalid";
+    readonly source_sync_interrupted: "invalid";
+    readonly source_idempotency_required: "invalid";
+    readonly source_idempotency_conflict: "invalid";
+    readonly source_not_syncable: "invalid";
+    readonly source_invalid_state: "invalid";
+    readonly source_query_invalid: "invalid";
+    readonly source_invalid_configuration: "invalid";
+    readonly source_definition_unavailable: "invalid";
+    readonly source_invalid_schedule: "invalid";
+    readonly source_configuration_changed: "invalid";
+    readonly source_changed: "invalid";
+    readonly source_wrong_sync_kind: "invalid";
+    readonly connector_wrong_sync_kind: "invalid";
+    readonly connector_needs_auth: "invalid";
+    readonly connector_failed: "invalid";
+    readonly custom_rss_url_invalid: "invalid";
+    readonly youtube_channel_invalid: "invalid";
+    readonly source_use_youtube_channel: "invalid";
+    readonly source_use_official_reddit: "invalid";
+}>;
 
 export declare const modulesFeedContract: {
     readonly contractId: "io.molis.work.module.feed.v1";

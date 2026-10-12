@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { ScheduleError, type ScheduleJobRecord } from '@molis-ai/molis-work-contracts/services/scheduler';
+import type { ScheduleJobRecord } from '@molis-ai/molis-work-contracts/services/scheduler';
+import { scheduleErrors } from './error.js';
 import type { ScheduleTaskDatabase } from './tasks.js';
 import { getScheduledOperation, listScheduledOperations, listScheduledOperationOccurrences, SCHEDULED_OPERATIONS_SCHEMA_SQL, OPERATIONS_PER_INSTALLATION,
   saveScheduledOperation, saveScheduledOperationOccurrence, type ScheduledOperation, type ScheduledOperationInstallation,
@@ -34,24 +35,24 @@ export function createScheduledOperationManagement(options: {
     recover(input: RecoverScheduledOperationInput): ScheduledOperationView {
       return db.transaction(() => {
         const run = getScheduledOperation(db, projectId, input.operation_id);
-        if (!run) throw new ScheduleError('schedule_job_not_found', '这条定时操作已不存在，请刷新列表');
+        if (!run) throw scheduleErrors.job_not_found('这条定时操作已不存在，请刷新列表');
         const current = view(run), target = current.installation, job = current.job;
-        if (current.revision !== input.expected_revision) throw new ScheduleError('schedule_job_invalid', '任务或执行结果已变更，请刷新查看并重新确认');
-        if (!job || job.plugin_id !== run.jobOwner) throw new ScheduleError('schedule_job_invalid', '原闹钟已不存在，历史记录已保留，请新建定时');
-        if (schedule.isExecuting(job.job_id)) throw new ScheduleError('schedule_job_invalid', '本次操作仍在执行，请等待结果后刷新');
-        if (!target) throw new ScheduleError('schedule_job_invalid', '请先安装并启用对应插件，再刷新查看当前安装');
+        if (current.revision !== input.expected_revision) throw scheduleErrors.job_invalid('任务或执行结果已变更，请刷新查看并重新确认');
+        if (!job || job.plugin_id !== run.jobOwner) throw scheduleErrors.job_invalid('原闹钟已不存在，历史记录已保留，请新建定时');
+        if (schedule.isExecuting(job.job_id)) throw scheduleErrors.job_invalid('本次操作仍在执行，请等待结果后刷新');
+        if (!target) throw scheduleErrors.job_invalid('请先安装并启用对应插件，再刷新查看当前安装');
         if (target.installationId !== input.expected_installation_id || target.generation !== input.expected_generation || target.version !== input.expected_version) {
-          throw new ScheduleError('schedule_job_invalid', '插件安装或版本已变更，请刷新查看并重新确认');
+          throw scheduleErrors.job_invalid('插件安装或版本已变更，请刷新查看并重新确认');
         }
-        if (!target.operations.some(item => item.id === run.operationId)) throw new ScheduleError('schedule_job_invalid', '当前安装没有原功能，不能恢复这条定时操作');
-        if (current.occurrences.some(item => item.state === 'running')) throw new ScheduleError('schedule_job_invalid', '中断结果尚待核对，请稍后刷新');
+        if (!target.operations.some(item => item.id === run.operationId)) throw scheduleErrors.job_invalid('当前安装没有原功能，不能恢复这条定时操作');
+        if (current.occurrences.some(item => item.state === 'running')) throw scheduleErrors.job_invalid('中断结果尚待核对，请稍后刷新');
         const unknown = current.occurrences.find(item => item.state === 'unknown');
-        if (run.state === 'completed') throw new ScheduleError('schedule_job_invalid', '这条一次性定时操作已经完成，请新建定时');
-        if (input.decision === 'resume' && unknown) throw new ScheduleError('schedule_job_invalid', '结果未知，请明确选择重试或跳过本次');
-        if (input.decision !== 'resume' && !unknown) throw new ScheduleError('schedule_job_invalid', '没有待核对的未知结果，请刷新列表');
+        if (run.state === 'completed') throw scheduleErrors.job_invalid('这条一次性定时操作已经完成，请新建定时');
+        if (input.decision === 'resume' && unknown) throw scheduleErrors.job_invalid('结果未知，请明确选择重试或跳过本次');
+        if (input.decision !== 'resume' && !unknown) throw scheduleErrors.job_invalid('没有待核对的未知结果，请刷新列表');
         const count = listScheduledOperations(db, projectId).filter(item => item.id !== run.id && item.pluginId === run.pluginId && item.installationId === target.installationId
           && item.installationGeneration === target.generation && item.state !== 'completed').length;
-        if (count >= OPERATIONS_PER_INSTALLATION) throw new ScheduleError('schedule_job_invalid', '这个插件的定时执行已经太多了，先取消一些');
+        if (count >= OPERATIONS_PER_INSTALLATION) throw scheduleErrors.job_invalid('这个插件的定时执行已经太多了，先取消一些');
         if (unknown) saveScheduledOperationOccurrence(db, { ...unknown, state: input.decision === 'retry' ? 'pending' : 'skipped',
           detail: input.decision === 'retry' ? '已明确选择重试，等待下一次唤醒' : '已明确跳过本次',
           startedAt: input.decision === 'retry' ? null : unknown.startedAt, finishedAt: input.decision === 'retry' ? null : now().toISOString(),

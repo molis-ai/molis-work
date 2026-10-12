@@ -1,5 +1,5 @@
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { FeedStoreError } from "./application-errors.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import type { FeedItemRecord, InboxEntryRecord } from "./projection.js";
 
@@ -72,7 +72,7 @@ export class JudgmentQueue {
     for (const { project_id, item_id } of queued) {
       let item: FeedItemRecord;
       try { item = this.reads.feedItem(project_id, item_id); }
-      catch (error) { if (error instanceof FeedStoreError && error.code === "feed_item_not_found") continue; throw error; }
+      catch (error) { if (error instanceof ActionError && error.code === "feed.item_not_found") continue; throw error; }
       await this.ports.captureJudgment?.({ project_id: item.project_id, item_id: item.item_id, rule_ids: this.reads.judgedRuleIds(item) }, caller);
       await this.ports.homeJudgment?.({ kind: "feed_item", id: item.item_id, project_id: item.project_id }, caller);
     }
@@ -83,7 +83,7 @@ export class JudgmentQueue {
       // Module events can occur inside a transaction that is later rolled back.
       let entry: InboxEntryRecord;
       try { entry = this.reads.inboxEntry(event.project_id, event.entry_id); }
-      catch (error) { if (error instanceof FeedStoreError && error.code === "inbox_entry_not_found") continue; throw error; }
+      catch (error) { if (error instanceof ActionError && error.code === "inbox.entry_not_found") continue; throw error; }
       if (entry.status !== "open" && entry.status !== "in_progress") continue;
       await this.ports.inboxJudgment?.(entry, caller);
       await this.ports.homeJudgment?.({ kind: "inbox_entry", id: entry.entry_id, project_id: entry.project_id }, caller);

@@ -40,10 +40,10 @@ test("commands that ran are recorded with caller, outcome and diagnostic id, suc
   try {
     const secret = "只在输入里出现的检索词";
     const { source } = await actions.invoke(s.register, { kind: "web_query", query: secret, name: "记录测试" });
-    await assert.rejects(actions.invoke(s.disconnect, { source_id: source.source_id }), { code: "feed_source_invalid_state" });
+    await assert.rejects(actions.invoke(s.disconnect, { source_id: source.source_id }), { code: "feed.source_invalid_state" });
     await host.actionClient(reference).discover(caller);
     // A page retrying the same refused command becomes one entry with a count, not a flood that pushes real entries out.
-    for (let i = 0; i < 3; i++) await assert.rejects(actions.invoke(s.disconnect, { source_id: source.source_id }), { code: "feed_source_invalid_state" });
+    for (let i = 0; i < 3; i++) await assert.rejects(actions.invoke(s.disconnect, { source_id: source.source_id }), { code: "feed.source_invalid_state" });
     // A read that works leaves nothing; a read that is turned away leaves a row, because someone is about to look for why.
     await actions.invoke(q.snapshot, {});
     await assert.rejects(actions.invoke(q.snapshot, { include_contents: "yes" } as never), { code: "actions.input_invalid" });
@@ -54,7 +54,7 @@ test("commands that ran are recorded with caller, outcome and diagnostic id, suc
       "newest first: commands, and reads only when they failed");
     assert.equal(calls[1]!.count, 4);
     assert.ok(calls[1]!.last_at! >= calls[1]!.at);
-    assert.equal(calls[1]!.code, "feed_source_invalid_state");
+    assert.equal(calls[1]!.code, "feed.source_invalid_state");
     assert.equal(calls[0]!.code, "actions.input_invalid");
     assert.equal(calls[2]!.actor_id, "web-user");
     assert.equal(calls[2]!.audience, "user");
@@ -130,9 +130,9 @@ test("a command cancelled, revoked or disabled before its handler started leaves
 
     // A handler that ran is recorded, whichever way it ended, and does not carry the mark.
     const { source } = await client.invoke(caller, s.register, register) as { source: { source_id: string } };
-    await assert.rejects(client.invoke(caller, s.disconnect, { source_id: source.source_id }), { code: "feed_source_invalid_state" });
+    await assert.rejects(client.invoke(caller, s.disconnect, { source_id: source.source_id }), { code: "feed.source_invalid_state" });
     assert.deepEqual(host.callLog!.list(PROJECT).slice(0, 2).map(row => [row.capability_id, row.ok, row.code, row.refused]),
-      [[s.disconnect.capability_id, false, "feed_source_invalid_state", undefined], [s.register.capability_id, true, undefined, undefined]]);
+      [[s.disconnect.capability_id, false, "feed.source_invalid_state", undefined], [s.register.capability_id, true, undefined, undefined]]);
     assert.equal(host.callLog!.list(PROJECT).length, 5);
   } finally {
     await host.close();

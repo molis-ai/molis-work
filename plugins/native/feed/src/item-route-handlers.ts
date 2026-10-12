@@ -1,3 +1,4 @@
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { feedQueryActions } from "./query-actions.js";
 import { integerRevision, requireParam } from "./route-input.js";
 import type { FeedPluginRouteHandler } from "./routes.js";
@@ -38,7 +39,7 @@ export function createFeedItemRouteHandlers(options: FeedRouteHandlerPorts): Rec
         return { status: 200, body: result };
       }
       const revision = integerRevision(request.body.expected_revision);
-      if (revision == null) return { status: 400, body: { error: "请刷新 Item 后再操作" } };
+      if (revision == null) throw feedErrors.request_invalid("请刷新 Item 后再操作");
       const at = { item_id: itemId, expected_revision: revision };
       if (action === "promote" || action === "start") {
         const result = await options.actions.invoke(feedItemActions.promote, { ...at, ...(action === "start" ? { start_processing: true } : {}) });

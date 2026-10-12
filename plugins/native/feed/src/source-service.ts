@@ -1,4 +1,4 @@
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { sourceDeletedAt } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord, FeedSourceSchedule, SourceHistoryDecision } from "./projection.js";
@@ -18,7 +18,7 @@ export class FeedSourceService {
     try {
       const source = this.activeSource(sourceId);
       if (source.kind === "research_library") {
-        if (!this.ports.syncRepository) throw new FeedDomainError("研究库适配器不可用", "feed_source_invalid_configuration");
+        if (!this.ports.syncRepository) throw feedErrors.source_invalid_configuration("研究库适配器不可用");
         return await this.ports.syncRepository(source, input);
       }
       return await this.publicSync.sync(source, input);
@@ -40,7 +40,7 @@ export class FeedSourceService {
         (source) => sameHttpsUrl(source.feedUrl, String(normalized.config.feed_url)),
       );
       if (catalogHit) {
-        throw new FeedDomainError("这个地址已在 RSS 目录，请直接添加目录来源", "feed_source_use_catalog");
+        throw feedErrors.source_use_catalog("这个地址已在 RSS 目录，请直接添加目录来源");
       }
     }
     const now = new Date().toISOString();
@@ -87,7 +87,7 @@ export class FeedSourceService {
     const source = this.activeSource(sourceId);
     const now = this.now().toISOString();
     const name = input.name == null ? source.name : bounded(input.name.trim(), 80);
-    if (!name) throw new FeedDomainError("来源名称不能为空", "feed_source_invalid_configuration");
+    if (!name) throw feedErrors.source_invalid_configuration("来源名称不能为空");
     const description = input.description == null
       ? source.description
       : bounded(input.description.trim(), 320);
@@ -103,9 +103,8 @@ export class FeedSourceService {
       } else {
         const supported = this.ports.providers.gmail.parseScope(input.scope);
         if (!supported) {
-          throw new FeedDomainError(
+          throw feedErrors.source_invalid_configuration(
             "Gmail 拉取范围必须选择未读收件箱、全部收件箱、星标邮件或重要邮件",
-            "feed_source_invalid_configuration",
           );
         }
         scope = supported;
@@ -113,30 +112,29 @@ export class FeedSourceService {
     }
     if (input.feed_url != null) {
       if (source.kind !== "custom_rss") {
-        throw new FeedDomainError(
+        throw feedErrors.source_invalid_configuration(
           "只有自定义 RSS / Atom 可以修改 Feed 地址",
-          "feed_source_invalid_configuration",
         );
       }
       const feedUrl = this.ports.providers.customRss.normalizeUrl(input.feed_url);
       if (this.ports.providers.listCatalog().some((entry) => sameHttpsUrl(entry.feedUrl, feedUrl))) {
-        throw new FeedDomainError("这个地址已在 RSS 目录，请直接添加目录来源", "feed_source_use_catalog");
+        throw feedErrors.source_use_catalog("这个地址已在 RSS 目录，请直接添加目录来源");
       }
       const fingerprint = sha256(feedUrl);
       const existing = this.feed.findSource(this.projectId, "public_source", this.ports.providers.customRss.definitionId, fingerprint);
       if (existing && existing.source_id !== source.source_id) {
-        throw new FeedDomainError("这个自定义 RSS / Atom 已经存在", "feed_source_idempotency_conflict");
+        throw feedErrors.source_idempotency_conflict("这个自定义 RSS / Atom 已经存在");
       }
       config = { ...config, feed_url: feedUrl, config_fingerprint: fingerprint };
       cursor = {};
     }
     if (input.connection_id != null) {
       if (!(["github", "gmail", "connector"] as string[]).includes(source.sync_kind)) {
-        throw new FeedDomainError("这个来源不使用账号连接", "feed_source_invalid_configuration");
+        throw feedErrors.source_invalid_configuration("这个来源不使用账号连接");
       }
       const connectionId = input.connection_id.trim();
       if (!connectionId || !this.ports.resolveConnection) {
-        throw new FeedDomainError("请选择可用的账号连接", "feed_source_invalid_configuration");
+        throw feedErrors.source_invalid_configuration("请选择可用的账号连接");
       }
       const connection = this.ports.resolveConnection(source.kind, connectionId);
       changedAccount = source.config.connection_id !== connectionId;
@@ -167,7 +165,7 @@ export class FeedSourceService {
         const nextId = stableId("feed-source", `${this.projectId}\u0000connector\u0000${source.kind}\u0000${input.connection_id}`);
         const prior = this.feed.snapshot(this.projectId).sources.find((candidate) => candidate.source_id === nextId);
         if (prior && sourceDeletedAt(prior)) {
-          throw new FeedDomainError("这条账号来源已移除，请先恢复或另建来源", "feed_source_invalid_configuration");
+          throw feedErrors.source_invalid_configuration("这条账号来源已移除，请先恢复或另建来源");
         }
         const next = this.feed.upsertSource({
           ...(prior ?? source),
@@ -219,7 +217,7 @@ export class FeedSourceService {
       schedule = { mode: "manual" };
     } else {
       if (!Number.isInteger(input.interval_minutes) || input.interval_minutes < 5 || input.interval_minutes > 10_080) {
-        throw new FeedDomainError("拉取间隔必须在 5 分钟到 7 天之间", "feed_source_invalid_schedule");
+        throw feedErrors.source_invalid_schedule("拉取间隔必须在 5 分钟到 7 天之间");
       }
       schedule = {
         mode: "interval",
@@ -298,7 +296,7 @@ export class FeedSourceService {
 
   private activeSource(sourceId: string): FeedSourceRecord {
     const source = this.feed.getSource(this.projectId, sourceId);
-    if (sourceDeletedAt(source)) throw new FeedDomainError("找不到这个来源", "feed_source_not_found");
+    if (sourceDeletedAt(source)) throw feedErrors.source_not_found("找不到这个来源");
     return source;
   }
 

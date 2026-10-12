@@ -1,4 +1,4 @@
-import { references, type Values, type DemoAnswer, type Field } from "./model.ts";
+import { references, timeLimits, type Values, type DemoAnswer, type Field } from "./model.ts";
 
 /** Presentation exercise, deliberately not a copy of the SDK's authoritative validator. */
 export function validDate(value: string): boolean {
@@ -18,17 +18,19 @@ export function validateValues(values: Values): Partial<Record<Field, string>> {
   if (values.format.length !== 1 || ![0, 1].includes(values.format[0]!)) errors.format = "请选择一种沟通方式。";
   if (!values.topics.length || new Set(values.topics).size !== values.topics.length ||
       values.topics.some(index => ![0, 1, 2].includes(index))) errors.topics = "至少选择一个复盘重点。";
-  if (!values.notes.trim()) errors.notes = "写一句希望这次解决的问题，也可以在下方补充。";
+  if (!values.notes.trim()) errors.notes = "写一句希望这次解决的问题，也可以在下方输入框里说。";
   else if (values.notes.length > 2000) errors.notes = "请把补充控制在 2000 字以内。";
   const minutes = Number(values.minutes);
-  if (!values.minutes.trim() || !Number.isInteger(minutes) || minutes < 15 || minutes > 120) errors.minutes = "请输入 15–120 之间的整数分钟。";
+  if (!values.minutes.trim() || !Number.isInteger(minutes) || minutes < timeLimits.minMinutes || minutes > timeLimits.maxMinutes) {
+    errors.minutes = `请输入 ${timeLimits.minMinutes}–${timeLimits.maxMinutes} 之间的整数分钟。`;
+  }
   if (!validDate(values.date)) errors.date = "请输入真实日期，例如 2026-10-15。";
-  if (!validDateTime(values.when)) errors.when = "请输入带时区的时间，例如 2026-10-16T10:00-07:00。";
+  if (!validDateTime(values.when)) errors.when = "请填写真实日期和 24 小时制时间，例如 2026-10-16 与 10:00。";
   if (!errors.date && !errors.when && values.date > values.when.slice(0, 10)) errors.date = "准备截止日期不能晚于开始日期。";
-  if (!values.references.length || values.references.length > 2 ||
+  if (!values.references.length || values.references.length > timeLimits.maxReferences ||
       new Set(values.references.map(ref => ref.id)).size !== values.references.length ||
       values.references.some(ref => !references.some(candidate => candidate.id === ref.id && candidate.kind === ref.kind && candidate.label === ref.label))) {
-    errors.references = "请选择 1–2 份示例材料。候选仅供演示。";
+    errors.references = `请选择 1–${timeLimits.maxReferences} 份材料。`;
   }
   return errors;
 }

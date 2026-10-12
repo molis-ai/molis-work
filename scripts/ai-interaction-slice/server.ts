@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { stripTypeScriptTypes } from "node:module";
 import { renderPreview } from "./render.ts";
 
-const modules = ["client", "controller", "dom", "paint", "model", "state", "validation", "execution", "recommendation"];
+const modules = ["client", "controller", "bindings", "dom", "paint", "calendar", "model", "state", "validation", "execution", "recommendation"];
 /** Creates only an in-memory, read-only preview server. Caller explicitly starts/stops it. */
 export async function createPreviewServer() {
   const content = new Map<string, { type: string; body: string }>();

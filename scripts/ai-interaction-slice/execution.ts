@@ -5,7 +5,7 @@ export function preparePreview(state: DemoState): boolean {
       !["ready", "failed"].includes(state.execution)) return false;
   state.preview = cloneValues(state.received);
   state.previewVersion = state.objectVersion;
-  state.notice = "参数已展开。只有点「模拟执行」才会进入执行步骤。";
+  state.notice = "参数已展开。只有点「执行（模拟）」才会执行。";
   return true;
 }
 export function beginExecution(state: DemoState): number | null {

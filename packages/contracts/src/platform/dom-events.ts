@@ -63,7 +63,7 @@ export const PAGE_STATE_OWNERS = {
     state: "The bottom Assistant: the Work it shows, the draft and the materials in its input, what waits on the person.",
   },
   "context-actions": {
-    files: ["apps/workbench/src/scripts/client/context-actions.ts"],
+    files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts"],
     state: "What the person has in hand on the focused surface, the ranked actions offered for it, and the starters offered for the open Work.",
   },
   placement: {

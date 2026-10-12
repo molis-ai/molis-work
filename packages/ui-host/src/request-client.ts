@@ -207,18 +207,21 @@ export function createUiFailureView(ports: UiFailureViewPorts): UiFailureView & 
 /**
  * The page program: builds both halves from the page's own fetch, origin, meta tag, `crypto`, translator `L` and clipboard,
  * installs the copy handler, and publishes the result as `molisWorkRequest`. `molisWorkControlHeaders` stays as the
- * headers-only entrance of the same helper for the callers that have not moved yet. Runs once per page.
+ * headers-only entrance of the same helper for the callers that have not moved yet. Runs once per page. The page budget counts
+ * every byte of the Workbench program, so the factories go in without the compiler's indentation: a line's leading blanks are
+ * all that is taken out, which is safe because nothing in them spans lines inside a string (they have no template literal).
  */
+const compact = (source: string): string => source.replace(/\n[ \t]+/g, "\n");
 export const UI_REQUEST_CLIENT_SCRIPT = `
 ;(() => {
   if (globalThis.molisWorkRequest) return;
   const translate = (text, values) => (typeof globalThis.L === "function" ? globalThis.L(text, values) : text);
-  const call = (${createUiRequest.toString()})({
+  const call = (${compact(createUiRequest.toString())})({
     fetch: (input, init) => fetch(input, init), origin: location.origin,
     token: () => document.querySelector('meta[name="molis-work-control-token"]')?.content || "",
     newKey: () => crypto.randomUUID(), translate,
   });
-  const view = (${createUiFailureView.toString()})({
+  const view = (${compact(createUiFailureView.toString())})({
     createElement: (tag) => document.createElement(tag), translate,
     copy: (text) => Promise.resolve().then(() => navigator.clipboard.writeText(text)),
     setTimeout: (callback, ms) => setTimeout(callback, ms), clearTimeout: (id) => clearTimeout(id),

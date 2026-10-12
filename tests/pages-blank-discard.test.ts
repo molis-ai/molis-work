@@ -603,3 +603,59 @@ test("opening an imported document leaves alone a new document with words in it,
     assert.equal(refused.note.textContent, "");
   } finally { refused.restore(); }
 });
+
+// pages.discard is the undo of a create: it deletes only a document that is still at the version its own saves left it at.
+// A star, a Goal link or a fixed version the person gave the new document moves it past that version, so leaving it later
+// must not take it back, however empty the editor still looks. (Findings 4 and 12 of the batch B compliance check.)
+test("a new document the person starred, tied to a Goal or saved as a fixed version is kept when they leave it: the Host refuses the discard", async t => {
+  for (const change of ["star", "goal", "version"] as const) {
+    for (const leave of ["back", "hide", "unload"] as const) {
+      const page = await mounted(t, []);
+      try {
+        await page.fire(click("[data-pages-new]"));
+        if (change === "star") await page.fire(click("[data-pages-star-editor]"));
+        else if (change === "goal") {
+          const goal = page.parts.get("[data-pages-goal]")!;
+          goal.value = "G1";
+          await goal.listeners.change!({});
+          await flush();
+        } else await page.fire(click("[data-pages-promote]"));
+        assert.ok(page.store.get("N1")!.version > 1, `${change}: the Host moved the document past its first version`);
+        if (leave === "back") await page.fire(click("[data-pages-back]"));
+        else if (leave === "hide") { page.lifetime.hideSurface(); await page.elapse(0); } else { page.lifetime.unload(); await page.elapse(0); }
+        const label = `${change}, ${leave}`;
+        assert.equal(page.store.has("N1"), true, `${label}: kept`);
+        for (const call of page.discards()) assert.ok(Number(call.body.expected_version) < call.stored_version!, `${label}: asked for the version its own saves reached, not the one the star, Goal or fixed version made`);
+        assert.equal(page.note.textContent, "", `${label}: nothing is said about a refused tidy-up`);
+      } finally { page.restore(); }
+    }
+  }
+});
+
+test("a star given to a new document is not forgotten when the person then types words and erases them again", async t => {
+  // Each of those saves is the person's own, which keeps a document "untouched" only while nothing but such saves came before it.
+  const page = await mounted(t, []);
+  try {
+    await page.fire(click("[data-pages-new]"));
+    await page.fire(click("[data-pages-star-editor]"));
+    await page.write({ body: text("写了又删") });
+    await page.write({ body: EMPTY });
+    await page.fire(click("[data-pages-back]"));
+    assert.equal(page.store.has("N1"), true, "kept");
+    assert.equal(page.discards().length, 1, "the Host is the one that refused");
+    assert.ok(Number(page.discards()[0]!.body.expected_version) < page.discards()[0]!.stored_version!);
+  } finally { page.restore(); }
+});
+
+test("a new document changed elsewhere after the person's last save is kept: the discard asks at the version the page knows, which the Host has moved past", async t => {
+  // The page does not know yet (its list is not read again).
+  const page = await mounted(t, []);
+  try {
+    await page.fire(click("[data-pages-new]"));
+    page.store.set("N1", { ...page.store.get("N1")!, version: 7 });
+    page.lifetime.hideSurface(); await page.elapse(0);
+    assert.equal(page.discards().length, 1);
+    assert.equal(page.discards()[0]!.body.expected_version, 1, "asked at the version it was made at");
+    assert.equal(page.store.has("N1"), true, "kept");
+  } finally { page.restore(); }
+});

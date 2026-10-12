@@ -5,6 +5,8 @@ import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/ser
 const DEFAULT_MAX_RESPONSE_LINE_BYTES = 16 * 1024 * 1024;
 
 export interface CodexAppServerTransportOptions {
+  /** The Molis Work version announced to Codex in `initialize`. The Host passes its product version; this package does not own one. */
+  clientVersion: string;
   command?: string;
   args?: string[];
   requestTimeoutMs?: number;
@@ -35,7 +37,7 @@ export class CodexAppServerTransport implements RuntimeSessionTransport {
   private stdoutBytes = 0;
   private closed = false;
 
-  constructor(private readonly options: CodexAppServerTransportOptions = {}) {}
+  constructor(private readonly options: CodexAppServerTransportOptions) {}
 
   async request(method: string, params: Record<string, unknown>): Promise<unknown> {
     if (this.closed) throw new Error("Codex Session transport 已关闭");
@@ -88,7 +90,7 @@ export class CodexAppServerTransport implements RuntimeSessionTransport {
 
     try {
       await this.requestRaw("initialize", {
-        clientInfo: { name: "molis-work-session-browser", title: "Molis Work", version: "0.2.0" },
+        clientInfo: { name: "molis-work-session-browser", title: "Molis Work", version: this.options.clientVersion },
         capabilities: {
           experimentalApi: false,
           requestAttestation: false,

@@ -1294,10 +1294,12 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 
 **W2-10 后续窗口的只读测量。** 10-12 在保留的 I4 整合树 bdc23ab9d 运行现有 codemod 报告（未写源码）：875 个内部引用、173 个混源进程；当前计划可转换 268 个文件、没有阻塞组，内部引用预计降低 355、混源归零。改变目标的动态导入/require 有 14 处，正式改写前再以当时 main 生成并逐项对照基线，不把这份报告当成已经完成的迁移。
 
+**I5 的组合收口。** 隔离树已合第四批与第五批、独立 IME 和有界清理修复，按当前 main ba6f5232 保留双方文档；最终整体构建、门禁、类型检查及组合定向回归正在进行，全量尚未运行。W3-02-F-INTEGRATION：C 的 SDK 路由绑定器和严格 ActionError 外来拒绝与 Shelf 的工厂同时保留，Coding 校验仍归 coding.shelf_material_invalid；组合修复 0ad07f8a3 补回五处工厂并新增真实 Host executor→Shelf action→SDK route 的伪造外来 code/kind/call_id 拒绝。845656157 仅把指纹冲突的旧 400 预期对齐已接受 kind=conflict 的 409，其他 400 拒绝断言保留。固定源码窄复核无 Blocker/P1，最终组合运行证据未出，分别归第五 F，不把各分片通过相加冒称新全量。
+
 **继续执行。** I4 的失败核对和当前定向复验已完成，接下来把原整合修复归回对应分片、构建和门禁验证、CI 全过后逐片合入；第五批的 W3-10-1b 修复及整合随后收口。B/C 剩余片沿 `wave3-batchB-plan.md`，每批合入后做系统要求合规复查，再执行路线图第 4–6 波。维护八先用拷贝列出和演练，真实 Home 写入等用户决定；不清理其他会话的工作树、分支或备份。
 
 
-**测试设施的两项收口。** `IME-SIM-01`：ISSUE-36 保留真实 CDP composition、Windows/DOM 键码 229、⌘↵与普通回车不提交、结束组合后只保存一次且原文相同的全部断言；不把 Windows 值硬填进可选的原生键码，验证实际到达的 composing/229 事件，不延长时限。依据 [CDP Input 定义](https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/domains/Input.pdl)，两个键码字段独立，原生键码可省略（默认 0）。`BROWSER-CLEAN-01`：仅临时 Home 的递归删除使用有界重试，保留 Chrome/server/Host/DB 的关闭顺序、5 秒上限及最终 AggregateError；Linux 验证成功与目录实际消失，不用隔离名单或吞错取得通过。两项各自提交，与业务修复分开。
+**测试设施的两项收口。** `IME-SIM-01`：ISSUE-36 保留真实 CDP composition、Windows/DOM 键码 229、⌘↵与普通回车不提交、结束组合后只保存一次且原文相同的全部断言；不把 Windows 值硬填进可选的原生键码，验证实际到达的 composing/229 事件，不延长时限。依据 [CDP Input 定义](https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/domains/Input.pdl)，两个键码字段独立，原生键码可省略（默认 0）。`BROWSER-CLEAN-01`：仅临时 Home 的递归删除使用有界重试，保留 Chrome/server/Host/DB 的关闭顺序、5 秒上限及最终 AggregateError；Linux 验证成功与目录实际消失，不用隔离名单或吞错取得通过。两项各自提交，与业务修复分开。IME 独立 #461 已开并排队；清理独立 #462 已开，固定 1f16574f5 复核无 Blocker/P1、完整锁构建/类型/健康/边界与原入口 2/2 在 Mac 通过，原 IME 断言和时限未变。真实删除和唯一预设权限拒绝放在原 CI 浏览器文件，不新增第六冒烟；Linux 结果出来再排合并，不用 Mac 结果代替。
 
 ### 10.2 Home Runtime 的接续验收（W3-06-F/G）
 
@@ -1312,7 +1314,7 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 | W3-06-F-05 | 用独立 SQL 夹具构造非空 v1 和缺 KV 表的损坏 v2，经公开 Host 启动拒绝；原版本、安装/授权/发行物/世代及事实不变，不新增表、不重建、不静默清空。无运行时迁移或读取兼容。 |
 | W3-06-F-06 | 停用、停止开始、卸载、关闭/重装后的旧 database/model/actions handle 失效；停止钩子不能继续写。关闭保留启用意图，用户停用跨重启保持，显式启用恢复；重装世代变化不复活旧授权。 |
 | W3-06-F-07 | Home HTTP 在无项目和两项目前缀下仍访问同一 Home 实例、保持 Home scope；保留控制令牌/Origin/一次性键、取消及 beforeEffect、client_reported 页面上下文、Issue 图文上传限额、revision 与项目专属钩子边界。重启/解除隔离/升级等写操作未经保护被拒且状态不变。 |
-| W3-06-F-08 | 损坏 Home Runtime 库使其自身保持明确失败，公开发现和 Goals/其他项目动作仍可用；普通 ready 不自行重试，受保护的显式 retry 并发只启动一次。清理失败或关闭不另开实例。 |
+| W3-06-F-08 | 损坏 Home Runtime 库使其自身保持明确失败，公开发现、Goals 页面与其他项目动作仍可用；普通 ready 不自行重试，受保护的显式 retry 并发只启动一次。清理失败或关闭不另开实例。 |
 | W3-06-G-01 | README、接入/迁移/调用链/事实 owner/库版本及相关 Skill 与实际接线一致；不宣称 Todo 等业务插件已迁移。更新创作台挂载章节时，离线 replay 与隔离 smoke 通过；共享装配整体构建、门禁和协调全量回归提供工程证据，真实 Home 维护另列具体条数与授权。 |
 
 

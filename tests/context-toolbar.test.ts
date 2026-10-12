@@ -6,7 +6,7 @@ import {
 } from "@molis-ai/molis-work-design-system";
 
 // W1-6 (context-program §19.4): the context toolbar primitive. What a plugin publishes as its tools is read bounded and closed (T08);
-// the bar is a page program that lives on the component board until the workbench takes it into use, and costs the shared sheets nothing.
+// the bar is a page program the workbench carries in its own script and sheet (W2); the shared design-system sheets do not carry it.
 
 const item = (id: string, over: Record<string, unknown> = {}) => ({ id, label: `工具 ${id}`, ...over });
 const publish = (groups: unknown, context_id: unknown = "ctx-1") => sanitizeContextTools({ context_id, groups }, CONTEXT_TOOL_LIMITS);
@@ -39,15 +39,15 @@ test("T08: the limits hold — groups, items in all, label length — and nothin
 test("W1-06: the program is one function of its host; it carries the placement and the sanitizer as source, and sends no event nobody registered", () => {
   const factory = Function(`return (${CONTEXT_TOOLBAR_CLIENT_SCRIPT})`)() as unknown;
   assert.equal(typeof factory, "function", "it parses");
-  assert.match(CONTEXT_TOOLBAR_CLIENT_SCRIPT, /function placeFloating\(/u);
+  assert.match(CONTEXT_TOOLBAR_CLIENT_SCRIPT, /function placeStacked\(/u);
   assert.match(CONTEXT_TOOLBAR_CLIENT_SCRIPT, /function sanitizeContextTools\(/u);
   const names = [...CONTEXT_TOOLBAR_CLIENT_SCRIPT.matchAll(/"(molis:[a-z-]+)"/gu)].map(match => match[1]).sort();
   assert.deepEqual([...new Set(names)], ["molis:context-panel-open", "molis:context-tool-invoke", "molis:context-tools"]);
-  // A bar that grows past this has to be made smaller before the workbench carries it (W2 pays for it with the row it replaces).
-  assert.ok(CONTEXT_TOOLBAR_CLIENT_SCRIPT.length < 14_500, `the program is ${CONTEXT_TOOLBAR_CLIENT_SCRIPT.length} characters`);
+  // The workbench carries this on every page and its size only goes down (page-assets): a bar that grows past this is made smaller first.
+  assert.ok(CONTEXT_TOOLBAR_CLIENT_SCRIPT.length < 13_900, `the program is ${CONTEXT_TOOLBAR_CLIENT_SCRIPT.length} characters`);
 });
 
-test("W1-06: styles use tokens only, and the bar stays on the board — the shared sheets do not carry it", () => {
+test("W1-06: styles use tokens only; the shared sheets do not carry the bar, the board has its own specimen", () => {
   assert.doesNotMatch(CONTEXT_TOOLBAR_STYLES, /#[0-9a-fA-F]{3,8}\b|!important|\brgba?\(/u, "no colour literal, no !important");
   assert.match(CONTEXT_TOOLBAR_STYLES, /min-height: 44px/u, "44px where the pointer is coarse");
   for (const sheet of [PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES, CRAFT_FINISH_STYLES]) assert.doesNotMatch(sheet, /\.mw-ctx\b/u);

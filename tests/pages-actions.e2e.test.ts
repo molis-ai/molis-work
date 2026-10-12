@@ -5,7 +5,7 @@ import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-// What the Assistant and the context row read for the open document: Pages' own naming with its version and title,
+// What the Assistant and the context bar read for the open document: Pages' own naming with its version and title,
 // not the workbench's fallback (named_by: "workbench", kind and id only).
 const namesItself = (title: string, version?: number) => `(() => {
   const context = JSON.parse(document.querySelector('[data-pages=workbench]').getAttribute('data-assistant-context') || 'null');
@@ -35,10 +35,11 @@ for (const width of [1440, 390]) {
     await command("Input.insertText", { text: "今天讨论了动作服务的使用流程，下一步需要验证真实执行。" }, sessionId);
     await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
     await evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus(); const range = document.createRange(); range.selectNodeContents(editor); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
-    await waitFor("document.querySelector('[data-mark=ai]')?.getBoundingClientRect().width > 0");
-    await click('[data-mark=ai]');
-    await waitFor("[...document.querySelectorAll('.pages-pop button')].some(button => button.textContent.trim() === '总结')");
-    await evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === '总结').click()`);
+    // The writing actions are the context toolbar's: 更多 lists every action for the selection, 总结 among them.
+    await waitFor("document.querySelectorAll('.mw-ctx:not([hidden]) .mw-btn[data-key]').length > 0");
+    await click('.mw-ctx:not([hidden]) [data-more]');
+    await waitFor("[...document.querySelectorAll('.mw-ctx-menu button')].some(button => button.querySelector('span').textContent.trim() === '总结')");
+    await evaluate(`[...document.querySelectorAll('.mw-ctx-menu button')].find(button => button.querySelector('span').textContent.trim() === '总结').click()`);
     await waitFor("document.querySelector('.pages-pop textarea')?.value.includes('整理后的文稿')");
     assert.equal(prompts.length, 1); assert.match(prompts[0]!, /今天讨论了动作服务/);
     const store = openPagesStore(homeDirectory);

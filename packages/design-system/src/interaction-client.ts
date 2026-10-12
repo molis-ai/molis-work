@@ -113,7 +113,7 @@ export function interactionFields(root: HTMLElement) {
 }
 
 /** The date fields' popover over the design system's calendar: open, step months, pick, arrow keys, Escape, focus back. */
-export function interactionCalendar(root: HTMLElement, picked: (input: HTMLInputElement) => void) {
+export function interactionCalendar(picked: (input: HTMLInputElement) => void) {
   const q = <T extends Element = HTMLElement>(scope: ParentNode, selector: string) => scope.querySelector<T>(selector);
   const all = <T extends Element = HTMLElement>(scope: ParentNode, selector: string) => [...scope.querySelectorAll<T>(selector)];
   let open: { popup: HTMLElement; trigger: HTMLButtonElement; input: HTMLInputElement } | null = null;
@@ -210,7 +210,7 @@ export function assembleInteractionClient(fieldsFactory: typeof interactionField
     const id = fields.fieldId(field);
     host.onChange?.({ field: id, ...(control.dataset.ixPart ? { part: control.dataset.ixPart } : {}), value: fields.read()[id]! });
   };
-  const calendar = calendarFactory(root, input => { fields.refreshWeekday(input.closest<HTMLElement>("[data-ix-date]")); emit(input); });
+  const calendar = calendarFactory(input => { fields.refreshWeekday(input.closest<HTMLElement>("[data-ix-date]")); emit(input); });
   const onClick = (event: Event) => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target || calendar.click(target)) return;

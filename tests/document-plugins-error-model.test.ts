@@ -16,11 +16,13 @@ import {
   MolisWorkLocalHost,
   molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionMcpToolName, createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
+import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 import { DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-form";
 import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
-import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
+import { PAGES_ACTION_PERMISSIONS, createPagesActionHandlers, createPagesContentHandlers, openPagesStore, pagesActions, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
 import { WORKFLOWS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-workflows";
 import { serveNativeHttp, type NativeHttpAnswer } from "./fixtures/native-http.js";
@@ -55,11 +57,11 @@ const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
   pages: { pkg: "@molis-ai/molis-work-plugin-pages", declarations: "pagesErrors", removed: ["PagesError", "pagesRouteErrorResponse"],
     status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403, unsupported: 400 } },
   ppt: { pkg: "@molis-ai/molis-work-plugin-ppt", declarations: "pptErrors", removed: ["PptError", "pptRouteErrorResponse"],
-    status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
+    status: { invalid: 400, not_found: 404, conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
   dataset: { pkg: "@molis-ai/molis-work-plugin-dataset", declarations: "datasetErrors", removed: ["DatasetError", "datasetRouteErrorResponse"],
-    status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
+    status: { invalid: 400, not_found: 404, conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
   form: { pkg: "@molis-ai/molis-work-plugin-form", declarations: "formErrors", removed: ["FormError", "formRouteErrorResponse"],
-    status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 409, closed: 409, request_conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
+    status: { invalid: 400, not_found: 404, conflict: 409, closed: 409, request_conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
   lingguang: { pkg: "@molis-ai/molis-work-plugin-lingguang", declarations: "lingguangErrors", removed: ["LingguangError", "lingguangRouteErrorResponse"],
     status: { invalid: 400, not_found: 404, conflict: 409, request_conflict: 409, context_too_large: 400, empty_reply: 400 } },
   workflows: { pkg: "@molis-ai/molis-work-plugin-workflows", declarations: "workflowsErrors", removed: ["WorkflowError", "workflowsRouteErrorResponse"],
@@ -141,11 +143,14 @@ test("a failure with no code of ours is a bug or an outage: 500 actions.executio
   }
 });
 
+// The body limit of each edge (native-plugin-http.ts reads 1,000,000 bytes unless the edge says more): Lingguang reads files, up to 36 MB.
+const BODY_LIMIT: Readonly<Record<Owner, number>> = { pages: 1_000_000, ppt: 1_000_000, dataset: 1_000_000, form: 1_000_000, lingguang: 36_000_000, workflows: 400_000 };
+
 test("a request body that is too large answers 413 and one that is not JSON answers 400, each with its platform code", async () => {
   for (const owner of OWNERS) {
     const edge = await failingEdge(owner);
     try {
-      const large = await edge.post(`/api/${owner}`, JSON.stringify({ padding: " ".repeat(1_100_000) }));
+      const large = await edge.post(`/api/${owner}`, JSON.stringify({ padding: " ".repeat(BODY_LIMIT[owner] + 100_000) }));
       assert.deepEqual([owner, large.status, large.body], [owner, 413, { error: "请求内容过大", code: "actions.input_too_large" }]);
       const broken = await edge.post(`/api/${owner}`, "{not json");
       assert.deepEqual([owner, broken.status, broken.body], [owner, 400, { error: "请求不是有效 JSON", code: "actions.input_invalid" }]);
@@ -240,6 +245,29 @@ test("real routes: a change made on a stale version is 409 <owner>.conflict at P
   assert.deepEqual([answer.status, answer.body.code], [409, "workflows.conflict"], JSON.stringify(answer.body));
 });
 
+test("MCP action port: a Pages failure comes out as its own code and message, not as the generic 能力执行失败", async t => {
+  // merge-base: PagesError was not an ActionError, so the port (apps/mcp action-tools.ts, which tells an ActionError's code and message and nothing else) answered
+  // { code: "actions.execution_failed", message: "能力执行失败" } for every Pages failure; Form's `refusal()` wrapper existed to get one failure across it.
+  const home = await mkdtemp(join(tmpdir(), "document-error-model-mcp-"));
+  const store = openPagesStore(home);
+  t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
+  const service = new ActionService();
+  service.registerProvider({ provider: { provider_id: pagesManifest.plugin_id, title: "Pages", kind: "plugin", project_id: "a" }, definitions: pagesManifest.actions!,
+    handlers: [...createPagesActionHandlers({ withStore: run => run(store), modelAvailability: () => ({ available: false, code: "actions.connection_required", reason: "请先配置文字模型" }) }),
+      ...createPagesContentHandlers(service)] });
+  const caller = (): ActionCallContext => ({ actor_id: "mcp-client", project_id: "a", audience: "mcp", permissions: PAGES_ACTION_PERMISSIONS });
+  const ports = createActionMcpPorts({ service, context: caller, serverInfo: { name: "pages-edge", version: "1" } });
+  const call = async (action: ActionDefinition<never, unknown>, args: Record<string, unknown>) => {
+    const reply = await handleMcpMessage({ id: 1, method: "tools/call", params: { name: actionMcpToolName(action), arguments: args } }, ports);
+    const result = reply!.result as { isError: boolean; content: Array<{ text: string }> };
+    return { isError: result.isError, ...(result.isError ? JSON.parse(result.content[0]!.text) as { code: string; message: string } : {}) };
+  };
+  assert.deepEqual(await call(pagesActions.get, { id: "no-such-document" }), { isError: true, code: "pages.not_found", message: "找不到这篇文档" });
+  const document = store.create({ project_id: "a", title: "原稿" });
+  const stale = await call(pagesActions.update, { id: document.id, title: "改过", expected_version: document.version + 5 });
+  assert.deepEqual([stale.isError, stale.code], [true, "pages.conflict"]);
+});
+
 // Nothing of the old shape is left. These read the sources, so a later change that brings one back is caught here and not only by a reviewer.
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory).flatMap(name => {
@@ -266,7 +294,8 @@ test("no document plugin keeps an error class, a route-error mapper, or a raise 
       const where = relative(REPOSITORY, file);
       assert.doesNotMatch(source, /\bclass\s+\w+\s+extends\s+Error\b/u, `${where}: an error class`);
       assert.doesNotMatch(source, /\bmapError\b|RouteErrorResponse/u, `${where}: a route-error mapper`);
-      assert.doesNotMatch(source, new RegExp(String.raw`(?:new\s+\w*Error\(\s*|code:\s*)"${owner}\.[a-z_]+"`, "u"), `${where}: ${owner}.* raised without the declaration (it would answer 400 whatever its kind)`);
+      assert.doesNotMatch(source, new RegExp(String.raw`new\s+\w*Error\(\s*"${owner}\.[a-z_]+"`, "u"), `${where}: ${owner}.* raised without the declaration (it would answer 400 whatever its kind)`);
+      assert.doesNotMatch(source, /Object\.assign\(new Error\(/u, `${where}: an Error given a code afterwards`);
     }
   }
   const creative = readFileSync(join(REPOSITORY, "apps", "local-host", "src", "creative-artifacts.ts"), "utf8");
@@ -278,7 +307,7 @@ test("a declared code is used: every reason in a declaration has a raise site", 
     const spec = SPECS[owner];
     const sources = filesOf(owner).concat(sourceFiles(join(REPOSITORY, "apps", "local-host", "src")).filter(file => /creative-artifacts/u.test(file))).map(file => readFileSync(file, "utf8")).join("\n");
     for (const reason of Object.keys(spec.status)) {
-      assert.match(sources, new RegExp(String.raw`\b${spec.declarations}\.${reason}\(`, "u"), `${spec.declarations}.${reason} is raised somewhere; a code nobody raises is not declared`);
+      assert.ok(new RegExp(String.raw`\b${spec.declarations}\.${reason}\(`, "u").test(sources), `${spec.declarations}.${reason} is raised somewhere; a code nobody raises is not declared`);
     }
   }
 });

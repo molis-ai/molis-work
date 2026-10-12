@@ -1,5 +1,5 @@
 import type { PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { bindPluginActionRoute } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { filesActions, type FileInput, type FileCaptureInput } from "./actions.js";
 
 export function filesRoutes(context: PluginStartContext): PluginRouteBinding[] {

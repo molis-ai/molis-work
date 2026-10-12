@@ -49,6 +49,11 @@ function codedFailure(error: unknown): CodedFailure | undefined {
   return isModelCode(code) && typeof message === "string" ? error as CodedFailure : undefined;
 }
 
+/** Whether a failure carries a code of ours, read by shape. The SDK's own edges use it (`index.ts` does not export it). */
+export function isCodedFailure(error: unknown): boolean {
+  return codedFailure(error) !== undefined;
+}
+
 /**
  * What sort of failure this is: the failure's own kind, else what the platform table says its code is. A code of ours
  * (`<owner>.<reason>`) that nobody classified is a caller's mistake; anything else (no code, a system error code, a thrown string) is internal.

@@ -28,6 +28,7 @@ import { functionsConnectionStatus } from "./functions-host.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { handleModelSettingsHttp } from "./web-model-settings.js";
 import { capabilitiesView } from "./web-capabilities.js";
+import { callDiagnosticsView } from "./web-call-diagnostics.js";
 import type { CapabilitySection } from "@molis-ai/molis-work-app-workbench";
 import { modelTemplatePageData } from "./model-provider-setup.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -250,7 +251,7 @@ export async function handleLocalCatalogWebRequest(
         ? listConnectorConnectionViews(serverOptions.homeDirectory) : [],
       projects,
       web_service: await webService.detect(),
-      diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length),
+      diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length), ...(section === "diagnostics" ? callDiagnosticsView(localHost.callLog, url) : {}),
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }

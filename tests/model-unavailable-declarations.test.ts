@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionMcpToolName, createActionMcpPorts } from "@molis-ai/molis-work-app-mcp";
-import { ALCHEMIST_ACTION_PERMISSIONS, alchemistActions, type AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
+import { ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_GENERATE_PERMISSION, alchemistActions, createAlchemistActionHandlers, type AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 import { IMAGES_ACTION_PERMISSIONS, imagesActions } from "@molis-ai/molis-work-plugin-images";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -18,7 +18,11 @@ import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 // still gets its own reason), so what it does without a model does not change.
 const model = { origin: "http://127.0.0.1:9", providerId: "declared", modelId: "declared-model" };
 const AGENT: ActionAudience = "agent", USER: ActionAudience = "user";
-const NEEDS_MODEL = [alchemistActions.reuseAssess, alchemistActions.conversationSend, alchemistActions.explorationStart, alchemistActions.researchStart];
+// Which actions need a model is the plugin's own declaration (the permission its model-running actions carry), not a list kept here:
+// a model action added later is covered by the same assertions, and an action that stops declaring it drops out of them.
+const NEEDS_MODEL = Object.values(alchemistActions).filter(action => action.action.permissions.includes(ALCHEMIST_GENERATE_PERMISSION));
+const callerOf = (audience: ActionAudience): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", audience, permissions: [...ALCHEMIST_ACTION_PERMISSIONS] });
+const noModel = { available: false as const, code: "actions.connection_required", reason: "没有可用模型" };
 const injectedAi: AlchemistAiPort = {
   async listModels() { return [{ id: "test/model", label: "测试模型", runtimeLabel: "显式测试运行时", costVisibility: "unobservable" }]; },
   async generate() { throw new Error("This test does not generate"); },
@@ -26,6 +30,7 @@ const injectedAi: AlchemistAiPort = {
 };
 
 async function fixture(t: test.TestContext, options: { alchemistAi?: boolean } = {}) {
+  assert.ok(NEEDS_MODEL.length > 0, "the plugin declares its model-running actions, so the loops below check something");
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
   const home = await mkdtemp(join(tmpdir(), "model-unavailable-"));
@@ -54,6 +59,37 @@ async function fixture(t: test.TestContext, options: { alchemistAi?: boolean } =
   const mcp = () => createActionMcpPorts({ service: host.actionClient(ref), context: () => caller("a", "mcp"), serverInfo: { name: "declared", version: "0" } });
   return { home, availability, project, personal, mcp, configureModel };
 }
+
+test("Alchemist declares which of its actions need a model: the handlers it returns gate exactly those, for every audience but the person's own page", () => {
+  assert.ok(NEEDS_MODEL.length > 0, "the plugin declares its model-running actions");
+  // The user's 2026-10-09 decision names these four; losing the declaration from any of them would quietly end the gate.
+  const declared = new Set(NEEDS_MODEL.map(action => action.capability_id));
+  for (const action of [alchemistActions.reuseAssess, alchemistActions.conversationSend, alchemistActions.explorationStart, alchemistActions.researchStart]) assert.ok(declared.has(action.capability_id), `${action.capability_id} declares that it runs a model`);
+  assert.ok(!declared.has(alchemistActions.pulseStart.capability_id), "the market pulse is metered but runs no model");
+  const resolve = () => { throw new Error("availability is read without opening a studio"); };
+  const gated = (handlers: ReturnType<typeof createAlchemistActionHandlers>) => handlers.filter(handler => handler.availability).map(handler => handler.capability_id).sort();
+
+  const withoutModel = createAlchemistActionHandlers({ resolve, modelAvailability: () => noModel });
+  assert.deepEqual(gated(withoutModel), NEEDS_MODEL.map(action => action.capability_id).sort(), "every action that declares a model is gated, and no other");
+  for (const handler of withoutModel.filter(handler => handler.availability)) {
+    for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
+      assert.deepEqual(handler.availability!(callerOf(audience)), noModel, `${handler.capability_id} for ${audience}`);
+    }
+    assert.deepEqual(handler.availability!(callerOf(USER)), { available: true }, `${handler.capability_id}: the person's own page is never blocked`);
+  }
+
+  const withModel = createAlchemistActionHandlers({ resolve, modelAvailability: () => ({ available: true }) });
+  for (const handler of withModel.filter(handler => handler.availability)) for (const audience of ["agent", "mcp", "workflow", "plugin", "user"] as const) {
+    assert.deepEqual(handler.availability!(callerOf(audience)), { available: true }, `${handler.capability_id} for ${audience} with a model`);
+  }
+  assert.deepEqual(gated(createAlchemistActionHandlers({ resolve })), [], "an embedding that supplies no model port is not judged");
+});
+
+test("the Host keeps no list of Alchemist's actions and no rule about who is held back: it only says whether the Home has a model", () => {
+  const source = readFileSync(new URL("../apps/local-host/src/alchemist-service-host.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /alchemistActions|capability_id|NEEDS_MODEL|audience/u, "which actions need a model, and for whom, is the plugin's own declaration");
+  assert.match(source, /modelAvailability: \(\) => this\.modelAvailability\(\)/u, "the Host supplies the port the plugin binds");
+});
 
 test("without a model the Assistant is told which Alchemist actions cannot run, and why, until a model is configured", async t => {
   const f = await fixture(t);

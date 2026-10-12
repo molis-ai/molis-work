@@ -13,9 +13,9 @@ import {
 import { createIntelligenceCollectAdapter, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";
 import { createWebQueryRouteResolver } from "./search-query-routes.js";
 import { ANYSEARCH_TRANSPORT_PROFILE_ID, createAnySearchTransport } from "./anysearch-transport.js";
+import { PRODUCT_VERSION } from "./product-version.js";
 
 const APP_ID = "molis-work";
-const APP_VERSION = "0.2.0";
 
 export interface SearchEvidenceRuntime {
   intelligenceCollect: IntelligenceCollectAdapter;
@@ -80,7 +80,7 @@ function createAnySearchRuntime(
   host: Parameters<typeof createSearchRuntime>[0]["host"],
 ): SearchRuntime {
   return createSearchRuntime({
-    app: { id: APP_ID, version: APP_VERSION, dataCompatibilityVersion: 1 },
+    app: { id: APP_ID, version: PRODUCT_VERSION, dataCompatibilityVersion: 1 },
     host,
     providers: [
       {

@@ -1,6 +1,5 @@
 import {
-  ActionError, bindActionClient,
-  type ActionCallContext, type ActionDefinition, type ActionReference, type BoundActionClient,
+  ActionError, type ActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -12,7 +11,7 @@ import {
   type PluginCapabilityPort,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
-import { HOST_PROVIDER_ID } from "./local-host.js";
+import { pluginHostActions } from "./plugin-actions-client.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 
 /** What the executor keeps of one started Plugin until it stops. */
@@ -61,62 +60,6 @@ function hostPluginCaller(options: PluginHostExecutorOptions, definition: Plugin
   });
 }
 
-/**
- * The Plugin's own action client. What its own actions cannot work without (`required_actions`) is Host actions it also
- * lists under `capabilities.consumes`. The kernel checks those dependencies for the caller of each own action, so the caller
- * must be able to see them (`allowed_actions`); being seen is not being callable: the kernel asks `validate_authority`
- * only about the action that is invoked, and for the Plugin's own client that is always one of its own actions.
- *
- * The client exists when the Plugin has actions of its own or lists anything under `consumes`: a Plugin with no action
- * of its own still reaches a Host action it consumes. Without either there is nothing to call.
- */
-function ownActionClient(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, assertActive: () => void,
-  pluginCaller: HostPluginCaller, providerId: string): BoundActionClient | undefined {
-  const consumed = new Set(manifest.capabilities.consumes);
-  const required = (manifest.actions ?? []).flatMap(action => action.action.required_actions ?? [])
-    .map(reference => ({ capability_id: reference.capability_id, version: reference.version, provider_id: reference.provider_id ?? HOST_PROVIDER_ID }));
-  const sameAction = (left: ActionReference, right: ActionReference) => left.capability_id === right.capability_id && left.version === right.version;
-  const actionCaller = (): ActionCallContext => {
-    assertActive();
-    return {
-      actor_id: options.actor_id, project_id: options.actions.project_id,
-      audience: "user", permissions: context.grants,
-      allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: providerId })), ...required],
-      validate_authority: reference => {
-        assertActive();
-        const action = manifest.actions?.find(item => sameAction(item, reference));
-        if (!action) throw new ActionError("actions.forbidden", "插件未声明提供此动作");
-        for (const permission of action.action.permissions) context.requireGrant(permission);
-      },
-    };
-  };
-  // An action of the Host (not of another Plugin) that the Manifest lists under `capabilities.consumes`. The Plugin
-  // reaches it as the plugin audience, with its own grants and the exact action named, so the kernel applies what it
-  // applies to every plugin: the audience the action is offered to, the permissions it needs, its availability and
-  // its input schema.
-  const dependencyCaller = (definition: ActionDefinition): ActionCallContext => {
-    assertActive();
-    return {
-      actor_id: options.actor_id, project_id: options.actions.project_id, audience: "plugin", permissions: context.grants,
-      host_plugin: pluginCaller, plugin_install_id: context.install_id,
-      allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id: HOST_PROVIDER_ID }],
-      validate_authority: () => {
-        assertActive();
-        for (const permission of definition.action?.permissions ?? []) context.requireGrant(permission);
-      },
-    };
-  };
-  const ownActions = bindActionClient(options.actions.client, actionCaller);
-  return !manifest.actions?.length && consumed.size === 0 ? undefined : {
-    discover: async () => (await ownActions.discover()).filter(view => view.provider.plugin_install_id === context.install_id),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => {
-      if ((manifest.actions ?? []).some(action => sameAction(action, definition))) return ownActions.invoke(definition, input);
-      if (!consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项宿主动作");
-      return await options.actions.client.invoke(dependencyCaller(definition), definition, input) as Output;
-    },
-  };
-}
-
 interface SessionParts {
   readonly pluginCaller: HostPluginCaller;
   /** What the Plugin's actions are registered under (`PluginHostExecutorOptions.providerFor`). */
@@ -130,7 +73,7 @@ interface SessionParts {
 /** The context the Plugin's `start` receives: its identity plus the services below. */
 function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, parts: SessionParts): PluginStartContext {
   const { pluginCaller, providerId, artifactService, ui, assertActive } = parts;
-  const actions = ownActionClient(options, manifest, context, assertActive, pluginCaller, providerId);
+  const actions = pluginHostActions(context, manifest, { ...options.actions, actor_id: options.actor_id, assertActive, pluginCaller, providerId });
   const wiring = options.wiring;
   return Object.freeze({ ...context,
     project_id: options.project_id,

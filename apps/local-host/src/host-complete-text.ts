@@ -3,6 +3,7 @@ import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } fro
 import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { prologueProtocolFor, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MINIMAX_ANTHROPIC_BASE_URL } from "./model-provider-templates.js";
 import { configuredTextModelSnapshot, openConfiguredModels, selectConfiguredTextModel, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
 
 export interface HostTextRequestOptions {
@@ -98,7 +99,7 @@ const ENVIRONMENT_CREDENTIAL = "environment:text-model";
  */
 function environmentModel(env: NodeJS.ProcessEnv): { config: TextConfiguration; key: string } | undefined {
   const generic = env.MOLIS_WORK_TEXT_API_KEY?.trim(); const key = generic || env.MINIMAX_API_KEY?.trim();
-  const base_url = env.MOLIS_WORK_TEXT_BASE_URL?.trim() || (generic ? "" : "https://api.minimaxi.com/anthropic");
+  const base_url = env.MOLIS_WORK_TEXT_BASE_URL?.trim() || (generic ? "" : MINIMAX_ANTHROPIC_BASE_URL);
   const model_id = env.MOLIS_WORK_TEXT_MODEL?.trim() || (generic ? "" : "MiniMax-M3");
   if (!key || !base_url || !model_id) return undefined;
   const api_format = (env.MOLIS_WORK_TEXT_API_FORMAT?.trim() || "anthropic-messages") as ModelApiFormat;

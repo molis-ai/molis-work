@@ -33,6 +33,7 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 | [src/project-capabilities.ts](src/project-capabilities.ts) | 能力绑定 |
 | [src/web-server.ts](src/web-server.ts) | Web 请求与 Home 装配 |
 | [src/mcp-server.ts](src/mcp-server.ts) | 对外 MCP 装配；公共动作转发、上下文及历史入口 |
+| [src/mcp-v1-tool.ts](src/mcp-v1-tool.ts) | 管理入口 v1 项目工具的调用：解析数据库与项目、取项目客户端、交给工具分发；`LocalMcpServer` 只转调这一个函数 |
 | [src/action-gateway.ts](src/action-gateway.ts)、[src/action-gateway-http.ts](src/action-gateway-http.ts) | 常驻 Host 的通用动作通道，复用原授权与执行核心 |
 | [src/mcp-catalog.ts](src/mcp-catalog.ts) | 平台工具 + 已授权动作合成目录 |
 | [src/project-deletion-service.ts](src/project-deletion-service.ts)、[src/project-deletion-gateway.ts](src/project-deletion-gateway.ts) | 删除项目的一份 Host 服务（网页设置页与 MCP 共用）和 stdio MCP 转给常驻 Host 的内部通道；[src/resident-host-request.ts](src/resident-host-request.ts) 是转给常驻 Host 的那一份传输（地址检查 `residentHostOrigin` 与那一次 POST `postToResidentHost`；动作网关的客户端 `LocalActionGatewayClient`、MCP 的删除通道与命令行的 `demo remove` 都经它）|

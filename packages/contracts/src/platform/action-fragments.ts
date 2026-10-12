@@ -157,39 +157,3 @@ export function defineFragmentOffersAction(capabilityId: string, kinds: string[]
     permissions, audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: kinds, fragment_offer_choices: choices,
     input_type: FRAGMENT_OFFERS_INPUT_TYPE, output_type: FRAGMENT_OFFERS_OUTPUT_TYPE, input_schema: FRAGMENT_OFFERS_INPUT_SCHEMA, output_schema: FRAGMENT_OFFERS_OUTPUT_SCHEMA } };
 }
-
-const INTENT_IDS: ReadonlySet<string> = new Set(FRAGMENT_INTENTS.map(intent => intent.id));
-const APPLIES: ReadonlySet<string> = new Set(["result", "replace", "insert_after", "record"]);
-
-/** Registration-time checks, in the style of the other declaration checks in `actions.ts`. */
-export function fragmentOfferDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (schema: unknown) => string): string[] {
-  const metadata = action as {
-    readonly kind?: string; readonly scope?: string; readonly subject_kinds?: readonly string[];
-    readonly input_type?: string; readonly output_type?: string; readonly input_schema?: unknown; readonly output_schema?: unknown;
-    readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
-  };
-  const problems: string[] = [];
-  const declares = metadata.input_type === FRAGMENT_OFFERS_INPUT_TYPE || metadata.output_type === FRAGMENT_OFFERS_OUTPUT_TYPE || metadata.fragment_offer_choices !== undefined;
-  if (!declares) return problems;
-  // A platform provider (search, say) lives at home scope and serves every project; a plugin's offers are per project.
-  if (operation !== "query" || metadata.kind !== "query" || (metadata.scope !== "project" && metadata.scope !== "home") || !metadata.subject_kinds?.length
-    || metadata.input_type !== FRAGMENT_OFFERS_INPUT_TYPE || metadata.output_type !== FRAGMENT_OFFERS_OUTPUT_TYPE
-    || canonical(metadata.input_schema) !== canonical(FRAGMENT_OFFERS_INPUT_SCHEMA) || canonical(metadata.output_schema) !== canonical(FRAGMENT_OFFERS_OUTPUT_SCHEMA)) {
-    problems.push(`能力 ${key} 没有兑现片段动作协议 v1 的输入输出合同`);
-  }
-  const choices = metadata.fragment_offer_choices;
-  const valid = (choice: FragmentOfferChoice) => typeof choice === "object" && choice !== null
-    && typeof choice.offer_id === "string" && /^[a-z][a-z0-9_.-]{0,47}$/.test(choice.offer_id)
-    && typeof choice.title === "string" && choice.title.trim().length > 0 && choice.title.length <= 40
-    && typeof choice.hint === "string" && choice.hint.trim().length > 0 && choice.hint.length <= 160
-    && INTENT_IDS.has(choice.intent) && APPLIES.has(choice.apply)
-    && typeof choice.action === "object" && choice.action !== null && typeof choice.action.capability_id === "string" && choice.action.capability_id.length > 0
-    && Number.isInteger(choice.action.version) && choice.action.version >= 1 && (choice.action as { provider_id?: unknown }).provider_id === undefined
-    && (choice.granularities === undefined || (Array.isArray(choice.granularities) && choice.granularities.length > 0 && choice.granularities.every(item => (FRAGMENT_GRANULARITIES as readonly string[]).includes(item))))
-    && (choice.roles === undefined || (Array.isArray(choice.roles) && choice.roles.length > 0 && choice.roles.every(item => (FRAGMENT_ROLES as readonly string[]).includes(item))))
-    && (choice.requires === undefined || (Array.isArray(choice.requires) && choice.requires.length > 0 && choice.requires.every(item => item === "goal")));
-  if (!Array.isArray(choices) || !choices.length || choices.some(choice => !valid(choice)) || new Set(choices.map(choice => choice.offer_id)).size !== choices.length) {
-    problems.push(`能力 ${key} 的片段动作选项必须有唯一标识、名称、意图、说明及本提供方的目标动作版本`);
-  }
-  return problems;
-}

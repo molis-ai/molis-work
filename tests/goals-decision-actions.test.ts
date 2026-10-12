@@ -31,6 +31,8 @@ test("user decisions share the action path without granting user authority to mo
   const oldAuthority = hostEventDecisionAuthority("management", project.project_id, caller.actor_id, payload.idempotency_key);
   const provenance = { source: oldAuthority.authority_source, conversation_ref: oldAuthority.conversation_ref, message_ref: oldAuthority.message_ref };
   const trusted: ActionCallContext = { ...caller, user_action: provenance };
+  // What the management entry may send: where the decision came from. Who decides is the Host's to fix.
+  const evidence = { conversation_ref: provenance.conversation_ref, message_ref: provenance.message_ref };
   const cursor = () => host.withProject(ref, r => r.coordinator.goalEvents.readState(project.project_id, goal_id).goal_event_cursor);
   try {
     await client.invoke(caller, goalsActions.create, { title: "用户决定", goal_id, idempotency_key: "create" });
@@ -50,25 +52,29 @@ test("user decisions share the action path without granting user authority to mo
     for (const extra of [{ authority: oldAuthority }, { actor_id: "another-user" }, { user_confirmed: true }, { user_action: provenance }]) {
       await assert.rejects(client.invoke(trusted, goalsActions.decide, { ...payload, ...extra }), { code: "actions.input_invalid" });
     }
-    await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, authority: oldAuthority, project_id: "other-board" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, authority: evidence, project_id: "other-board" }), { code: "actions.scope_mismatch" });
     const plugin = createPluginCapabilityClient({ ...filesManifest, plugin_id: "io.molis.work.example.claimed-user",
       capabilities: { provides: [], consumes: [recordGoalUserDecisionCapability.capability_id] } }, typed);
     const availability = plugin.availability(recordGoalUserDecisionCapability);
     assert.equal(availability.available, false); assert.equal(!availability.available && availability.code, "actions.host_only");
     await assert.rejects(plugin.invoke({ ...recordGoalUserDecisionCapability, host_only: false },
-      { ...payload, project_id: project.project_id, authority: oldAuthority }, { consumer: undefined }), { code: "actions.host_only" });
-    // The host capability belongs to the management entry, which decides as the person on this machine; another person named
-    // in the input, or another entry's provenance, is refused (repository-anti-corruption §9.5 #6).
+      { ...payload, project_id: project.project_id, authority: evidence }, { consumer: undefined }), { code: "actions.host_only" });
+    // The host capability belongs to the management entry, which decides as the person on this machine: the authority it takes only
+    // points at the conversation, so another person named in it, another entry's provenance, a runtime, or even the local person
+    // spelled out are all refused (repository-anti-corruption §9.5 #6).
     for (const authority of [hostEventDecisionAuthority("management", project.project_id, "another-person", payload.idempotency_key),
-      hostEventDecisionAuthority("web", project.project_id, LOCAL_PERSON_ACTOR_ID, payload.idempotency_key)]) {
-      await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id, authority }), { code: "event_decision.untrusted_actor" });
+      hostEventDecisionAuthority("web", project.project_id, LOCAL_PERSON_ACTOR_ID, payload.idempotency_key), oldAuthority,
+      { ...evidence, actor_id: "another-person" }, { ...evidence, actor_kind: "runtime" }, { ...evidence, authority_source: "web" }]) {
+      await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id, authority } as never), { code: "goals.event_decision_authority_invalid" });
     }
     assert.equal(await cursor(), before, "rejected authority never appends a decision");
 
     const old = await host.withProject(ref, r => r.coordinator.goalEvents.recordTrustedDecision({ ...payload, project_id: project.project_id, authority: oldAuthority }));
     const expected = { ...JSON.parse(JSON.stringify(old)), replayed: true };
     assert.deepEqual(await client.invoke(trusted, goalsActions.decide, payload), expected);
-    assert.deepEqual(await typed.invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id, authority: oldAuthority }), expected);
+    assert.deepEqual(await typed.invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id, authority: evidence }), expected);
+    // Without evidence the decision points at the management entry itself: the references this entry has always recorded.
+    assert.deepEqual(await typed.invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id }), expected);
     assert.equal(await cursor(), old.observed_event_cursor, "legacy decision retries use the same receipt and provenance");
 
     const pendingInput = { ...payload, idempotency_key: "snapshot", conclusion: "第二次真实用户操作" };
@@ -105,12 +111,12 @@ test("user decisions share the action path without granting user authority to mo
 
     const beforeDenied = await cursor();
     blocked = true;
-    await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, idempotency_key: "disabled", project_id: project.project_id, authority: oldAuthority }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, idempotency_key: "disabled", project_id: project.project_id, authority: evidence }), { code: "actions.plugin_disabled" });
     assert.equal(await cursor(), beforeDenied);
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     try {
-      assert.deepEqual(await restarted.client(ref).invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id, authority: oldAuthority }), expected);
+      assert.deepEqual(await restarted.client(ref).invoke(recordGoalUserDecisionCapability, { ...payload, project_id: project.project_id, authority: evidence }), expected);
     } finally { await restarted.close(); }
   } finally { release?.(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

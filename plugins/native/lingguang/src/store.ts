@@ -175,11 +175,18 @@ export class LingguangStore {
     });
   }
 
-  discard(ids: readonly string[], projectId?: string): void {
+  /**
+   * Move sparks out of the list, keeping their data. `expected_updated_at` is the same guard `update` has, per spark: the copy
+   * the caller decided on. A spark that has changed since (words written elsewhere) is not discarded, and nothing in the batch is.
+   */
+  discard(ids: readonly string[], projectId?: string, expected?: Readonly<Record<string, string>>): void {
     const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
     if (!unique.length) throw new LingguangError("lingguang.invalid", "先选至少一条");
+    if (Object.keys(expected ?? {}).some(id => !unique.includes(id))) throw new LingguangError("lingguang.invalid", "expected_updated_at 只能写所选灵光的 id");
     this.transaction(() => {
       const records = unique.map(id => this.get(id, projectId));
+      const changed = records.find(current => current.status !== "discarded" && expected?.[current.id] !== undefined && expected[current.id] !== current.updated_at);
+      if (changed) throw new LingguangError("lingguang.conflict", "这条灵光已在别处修改，没有丢掉；重新打开后再决定");
       for (const current of records) {
         if (current.status === "discarded") continue;
         const now = new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString();

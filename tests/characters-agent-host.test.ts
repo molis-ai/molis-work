@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AgentHost, emptyCapabilityMatrix, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentFrozenCharacter, AgentStartRequest, AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { inspectAgentDeclaration, promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 function fixture() {
   const character: AgentFrozenCharacter = { reference: { artifact_id: "character:board:profile", version: 2 }, character_id: "profile", title: "Verifier",
@@ -75,11 +76,11 @@ test("Character none-tools and inherit-tools stay distinct; adapter expansion is
 });
 
 test("Character declaration cannot name undeclared roles or imply latest-version selection", () => {
-  const f = fixture(); assert.deepEqual(inspectAgentDeclaration(f.authority.manifest, []), []);
+  const f = fixture(); assert.equal(manifestProblems(declarationManifest({ agent: f.authority.manifest })), "");
   f.authority.manifest.characters!.role_ids = ["missing"];
-  assert.ok(inspectAgentDeclaration(f.authority.manifest, []).some(message => message.includes("Character")));
+  assert.match(manifestProblems(declarationManifest({ agent: f.authority.manifest })), /Character/);
   f.authority.manifest.characters = { selection: "latest" as never, scope: "project-owner", role_ids: ["reader"] };
-  assert.ok(inspectAgentDeclaration(f.authority.manifest, []).some(message => message.includes("Character")));
+  assert.match(manifestProblems(declarationManifest({ agent: f.authority.manifest })), /Character/);
 });
 
 test("a selected method cannot restore a tool removed by the Character", async () => {

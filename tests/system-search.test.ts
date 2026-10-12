@@ -11,7 +11,6 @@ import {
   bindSearchEntriesHandler,
   defineSearchEntriesAction,
   defineSubjectContextAction,
-  inspectActionDeclarations,
   searchEntriesPage,
   subjectContext,
   type ActionAudience,
@@ -20,6 +19,7 @@ import {
   type SearchEntry,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SEARCH_PROVIDER_ID, searchActions } from "@molis-ai/molis-work-contracts/services/search";
+import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { homeSqlitePath, openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { SearchService } from "@molis-ai/molis-work-service-search";
 import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, todoActions, todoManifest } from "@molis-ai/molis-work-plugin-todo";

@@ -16,15 +16,13 @@ import { formActions } from "@molis-ai/molis-work-plugin-form";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { assistantAuthority, actionKey } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import type { StoredWork } from "../apps/local-host/dist/assistant/assistant-store.js";
 import { SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 const titles = (response: SearchQueryResponse) => response.hits.map(hit => hit.title).sort();
 
@@ -76,20 +74,19 @@ test("a plugin disabled in the project leaves the results and comes back when en
   }
 });
 
-test("an external MCP client searches through the same action with only what it was granted", { timeout: 120_000 }, async () => {
+test("an external MCP client searches through the same action with only what it was granted", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "system-search-mcp-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "MCP 搜索", actor_id: "user" }));
   const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host });
+  // Served so that the client's grants are saved the way a person saves them.
+  const served = await serveTestHost(t, { home, host });
   let sdk: Client | undefined;
   try {
     const owner = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
     const form = (await host.actionClient(reference).invoke(owner, formActions.create, { title: "采购审批问卷" }) as { form: { id: string; version: number } }).form;
     await host.actionClient(reference).invoke(owner, formActions.update, { id: form.id, expected_version: form.version, description: "预算审批流程" });
-    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address(); assert.ok(address && typeof address === "object");
-    const origin = `http://127.0.0.1:${address.port}`;
+    const origin = served.origin;
     await withCatalog({ homeDirectory: home }, catalog => catalog.bindRuntimeContext({
       context: { runtime_id: "search-client", stable_work_context_id: "search-session", host_declares_stable: true },
       project_id: project.project_id, actor_id: "user", user_confirmed: true,
@@ -109,7 +106,7 @@ test("an external MCP client searches through the same action with only what it 
     const view = (definition: ActionDefinition) => views.find(item => item.capability_id === definition.capability_id && item.version === definition.version)!;
     const searchTool = molisWorkActionToolName({ ...searchActions.query, provider_id: view(searchActions.query).provider.provider_id });
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === searchTool), false, "search is not offered before the person grants it");
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, null, view(searchActions.query), true));
+    await served.grant(clientId, null, [view(searchActions.query)]);
     assert.ok((await sdk.listTools()).tools.some(tool => tool.name === searchTool));
     const ask = async (query: string) => {
       const result = await sdk!.callTool({ name: searchTool, arguments: { query } });
@@ -117,16 +114,14 @@ test("an external MCP client searches through the same action with only what it 
       return result.structuredContent as SearchQueryResponse;
     };
     assert.deepEqual(titles(await ask("采购")), [], "granting search alone reveals no content");
-    const entriesGrant = createMcpActionGrant(clientId, project.project_id, view(formActions.searchEntries), true);
-    await writeMcpActionGrant(home, entriesGrant);
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, view(formActions.subject), true));
+    await served.grant(clientId, project.project_id, [view(formActions.searchEntries), view(formActions.subject)]);
     assert.deepEqual(titles(await ask("采购")), ["采购审批问卷"]);
     assert.deepEqual(titles(await ask("预算审批")), ["采购审批问卷"], "body text is visible once the reader is granted too");
-    await writeMcpActionGrant(home, { ...entriesGrant, enabled: false });
+    await served.revoke(clientId, project.project_id, [view(formActions.searchEntries)]);
     assert.deepEqual(titles(await ask("采购")), [], "revoking the source removes its results at once");
   } finally {
     await sdk?.close().catch(() => undefined);
-    await new Promise<void>(resolve => server.listening ? server.close(() => resolve()) : resolve());
+    await served.close();
     await host.close();
     await rm(home, { recursive: true, force: true });
   }

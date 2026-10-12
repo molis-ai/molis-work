@@ -20,6 +20,8 @@
 
 `schedule.tasks.list` 返回定时操作的原功能、输入、排期、当前安装和执行历史；没有定义的历史等待项单列，不猜测执行内容。管理者经 `schedule.operations.recover` 决定 resume/retry/skip，普通启用不能绕过未知结果核对。Action 显式 `plugin: false`，Host 重读实际安装及版本，所见任务/历史 revision 防止过期决定；确认只恢复排期，不直接派出。未知结果重试可能重复外部作用，必须明确选择；跳过只处理最早的未知记录，其他未知仍需核对，一次性任务跳过后完成。决定及之前的未知说明随 occurrence 保留，HTTP、UI、授权 MCP 使用同一实现。
 
+插件经宿主内的 `schedule.register/cancel/setEnabled/list` 管自己的 job：主人由 Scheduler 的处理器从可信调用（`HostCapabilityInvocation.plugin`）取，输入没有 `plugin_id`，Host 的插件端口不按能力名改输入；没有插件身份的调用和已停止的安装被拒绝。
+
 **不拥有：** cron 表达式、Automation rule、Source schedule intent、Action parameters 或 Attention 内容。
 
 旧提醒的归属确认由 Schedule 的 `schedule.reminders.recover` Action 完成，HTTP/页面复用同一实现，MCP 仍需该具体动作的授权。先读取 `schedule.tasks.list` 中提醒内容及当前安装，再携带预期安装 ID/世代提交；这些值只是并发检查，Host 会重新解析目标，不接受输入冒充身份。界面展示内容、版本、发布方和过期补提醒语义，失败保留确认内容，刷新安装后须重新确认。恢复同事务更新提醒身份和启用原 job，保留间隔、收据和链接；普通闹钟启用不替代归属确认。

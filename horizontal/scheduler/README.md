@@ -20,7 +20,7 @@ Owner 经 Host Capability `schedule.register` 挂一条 job，并事先把唤醒
 
 ## 接入与边界
 
-不拥有 cron 表达式、Automation rule、Feed 来源意图或 Action 参数。插件不能替别人登记：Host 在 invoke 时覆盖 `plugin_id`。未注册 handler 的 capability 不能挂闹钟。
+不拥有 cron 表达式、Automation rule、Feed 来源意图或 Action 参数。插件不能替别人登记：`schedule.*` 的主人是调用的插件，由 Scheduler 的处理器从可信调用（`HostCapabilityInvocation.plugin`）读取，输入里没有 `plugin_id`，写了也不读，任何输入形状都改不了；没有插件身份的调用（含 Host 自己的客户端）和已停止的安装一律拒绝。Host 的插件端口不认识 `schedule.` 这个名字。未注册 handler 的 capability 不能挂闹钟。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期）。
 
@@ -47,9 +47,9 @@ node --import tsx --test --test-concurrency=1 tests/scheduler.test.ts tests/sche
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：合同、公共执行生命周期（来自 plugin-sdk）与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 到点只叫一次；once 与 interval 由 Schedule 插件的 job 模型解释。
-  - 插件不能替别人登记：Host 在调用时覆盖 `plugin_id`；没有注册处理器的能力不能挂闹钟。
+  - 插件不能替别人登记：`schedule.*` 的主人只取自可信调用里的插件（`registerScheduleCapabilities` 的处理器读 `invocation.plugin`），输入不带也不读 `plugin_id`；没有插件身份、安装已停止的调用被拒绝（`tests/scheduler.test.ts`、`tests/scheduler-plugin-identity.test.ts`）；没有注册处理器的能力不能挂闹钟。
   - 不执行业务，只叫醒闹钟主人自己的能力。
-- 改动后必跑：`node scripts/run-tests.mjs tests/scheduler.test.ts tests/schedule-conversation-tasks.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/scheduler.test.ts tests/scheduler-plugin-identity.test.ts tests/schedule-conversation-tasks.test.ts`
 - 相关手册：[docs/horizontal/scheduler.md](../../docs/horizontal/scheduler.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

@@ -132,14 +132,7 @@ function withPluginCaller(caller: HostPluginCaller, port: PluginCapabilityPort):
       const bound = { ...options, consumer: "plugin" as const, plugin_caller: caller, before_effect: async () => {
         caller.assertActive(); await options?.before_effect?.(); caller.assertActive();
       } };
-      if (
-        capability.capability_id.startsWith("schedule.")
-        && input !== null
-        && typeof input === "object"
-        && !Array.isArray(input)
-      ) {
-        return port.invoke(capability, { ...input, plugin_id: caller.plugin_id }, bound);
-      }
+      // The port knows no capability by name: a capability that depends on who is calling reads the trusted invocation itself.
       return port.invoke(capability, input, bound);
     },
   };

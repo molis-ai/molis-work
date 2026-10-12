@@ -1,7 +1,7 @@
 import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { todoActions } from "./actions.js";
 import { todoOrganizeActions } from "./organize-actions.js";
-import type { TodoPluginRouteContext, TodoPluginRouteHandler, TodoPluginRouteResponse } from "./routes.js";
+import type { TodoPluginRouteContext, TodoPluginRouteHandler } from "./routes.js";
 
 export interface TodoRoutePorts {
   /** Bound by the Host to the person and, inside a project, to that project; never taken from the request. */
@@ -41,12 +41,4 @@ export function createTodoRouteHandlers(ports: TodoRoutePorts): Record<string, T
     "todo.organize.apply": call(todoOrganizeActions.apply, identified),
     "todo.organize.close": call(todoOrganizeActions.close, ({ params }) => ({ id: params.id })),
   };
-}
-
-export function todoRouteErrorResponse(error: unknown): TodoPluginRouteResponse {
-  const code = error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : "";
-  const message = error instanceof Error ? error.message : "待办请求失败";
-  const status = code === "todo.not_found" ? 404 : code === "todo.conflict" ? 409
-    : ["actions.forbidden", "actions.scope_mismatch", "todo.forbidden"].includes(code) ? 403 : 400;
-  return { status, body: { error: message, ...(code ? { code } : {}) } };
 }

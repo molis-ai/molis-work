@@ -9,9 +9,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, LocalMcpServer, molisWorkHostProjectReference, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { createGoalIntentCapability, goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -64,6 +62,8 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     for (const alias of Object.values(aliases)) assert.equal((await names()).includes(alias), false);
     assert.equal((await sdk.callTool({ name: aliases.create, arguments: input })).isError, true, "a project binding grants no writes");
     await grantGoalsMcp(served, project, clientId);
+    // Saving the grants asked the policy about the client too; what the assertions below read is what the MCP calls asked.
+    policies.length = 0;
     const tools = (await sdk.listTools()).tools;
     for (const alias of Object.values(aliases)) assert.ok(tools.some(tool => tool.name === alias));
     for (const alias of tools.filter(tool => Object.values(aliases).includes(tool.name))) {
@@ -119,14 +119,14 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     gate = new Promise<void>(resolve => { release = resolve; });
     pending = sdk.callTool({ name: aliases.note, arguments: { ...newInput, idempotency_key: "revoked-in-flight" } });
     await Promise.race([started, pending.then(() => { throw new Error("Expected an asynchronous policy checkpoint"); })]);
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, noteView, false));
+    await served.revoke(clientId, project.project_id, [noteView]);
     release!(); assert.equal((await pending).isError, true); pending = undefined; gate = undefined;
     const afterRevoke = await names();
     assert.equal(afterRevoke.includes(aliases.note), false); assert.equal(afterRevoke.includes(molisWorkActionToolName(goalsActions.note)), false);
     const events = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 2);
     const stateView = (await host.inspectActions(caller, ref)).find(view => view.capability_id === goalsActions.state.capability_id)!;
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, stateView, false));
+    await served.revoke(clientId, project.project_id, [stateView]);
     const withoutState = await names();
     assert.equal(withoutState.includes(aliases.state), false);
     assert.equal(withoutState.includes(molisWorkActionToolName(goalsActions.state)), false);

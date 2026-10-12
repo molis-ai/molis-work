@@ -5,11 +5,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { readMcpToolPreference, writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 
 test("local management discovers an unknown plugin, authorizes its exact contract and can revoke a missing provider without granting from supplied permissions", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "mcp-action-settings-")), token = "mcp-action-grant-test-control-token";
@@ -35,8 +34,8 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
     const send = (value: unknown, authorized = true) => fetch(endpoint, { method: "POST", body: JSON.stringify(value), headers: {
       origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), ...(authorized ? { "x-molis-work-control-token": token } : {}),
     } });
-    const read = async () => {
-      const response = await fetch(`${endpoint}?client_id=${input.client_id}&project_id=${input.project_id}`); assert.equal(response.status, 200); return response.json();
+    const read = async (client = input.client_id) => {
+      const response = await fetch(`${endpoint}?client_id=${client}&project_id=${input.project_id}`); assert.equal(response.status, 200); return response.json();
     };
     const initial = await read(); assert.ok(initial.actions.some((row: any) => row.capability_id === id)); assert.deepEqual(initial.grants, []); assert.equal(calls, 0);
     const entry = (state: any) => state.entries.find((row: any) => row.capability_id === id);
@@ -49,6 +48,9 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
     connected = true;
     const saved = await send(input); assert.equal(saved.status, 200, await saved.clone().text());
     assert.deepEqual((await saved.json()).permissions, ["fixture:write"]);
+    // A second client is granted too and never revoked: it is the grant that outlives its provider and then its project below.
+    const never = { ...input, client_id: "runtime:never-revoked" };
+    assert.equal((await send(never)).status, 200);
     assert.equal(calls, 0, "metadata discovery and grant creation must not invoke the plugin");
     const granted = await read(); assert.equal(granted.actions.find((row: any) => row.capability_id === id).availability.available, true);
     assert.equal(granted.grants.length, 1);
@@ -85,18 +87,22 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
     assert.equal(entry(removed).status, "missing");
     assert.equal(entry(removed).can_revoke, true);
     const revoked = await send({ ...input, enabled: false }); assert.equal(revoked.status, 200);
-    assert.equal((await readMcpToolPreference(home)).action_grants?.[0]?.enabled, false);
+    const rows = (await readMcpToolPreference(home)).action_grants;
+    assert.equal(rows.find(row => row.client_id === input.client_id)?.enabled, false);
+    assert.equal(rows.find(row => row.client_id === never.client_id)?.enabled, true, "revoking one client leaves the other client's grant");
     assert.equal(entry(await read()).can_revoke, false);
-    await writeMcpActionGrant(home, { ...removed.grants[0], enabled: true });
+    // The route cannot enable a grant for a provider that is gone, so the state below is the one the product leaves behind: a grant
+    // that was never revoked, whose provider left and whose project is then deleted.
+    assert.equal(entry(await read(never.client_id)).can_revoke, true);
     await catalog.deleteProject({ project_id: project.project_id, actor_id: "test", delete_confirmed: true, idempotency_key: "delete-grant-scope" });
-    const orphan = await read();
+    const orphan = await read(never.client_id);
     assert.equal(entry(orphan).status, "missing");
     assert.equal(entry(orphan).reason, "原项目已不存在。");
-    const orphanPage = await fetch(`${origin}/capabilities/access?client=${input.client_id}&project=${input.project_id}`);
+    const orphanPage = await fetch(`${origin}/capabilities/access?client=${never.client_id}&project=${never.project_id}`);
     assert.equal(orphanPage.status, 200);
     assert.match(await orphanPage.text(), /所选项目已不存在/);
-    assert.equal((await send({ ...input, enabled: false })).status, 200);
-    assert.equal(entry(await read()).can_revoke, false);
+    assert.equal((await send({ ...never, enabled: false })).status, 200);
+    assert.equal(entry(await read(never.client_id)).can_revoke, false);
     assert.equal(calls, 1);
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

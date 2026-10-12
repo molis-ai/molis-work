@@ -19,6 +19,7 @@ import type { LocalProjectDatabase } from "./project-database.js";
 import { SqlitePluginPrivateStorage, type PluginCapabilityPort, type PluginSupervisorEntry } from "@molis-ai/molis-work-plugin-runtime";
 import { bindWorkspaceCompanions } from "./workspace-plugin-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
+import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 
 export interface ProjectPluginPorts {
   observeGitOperations?(listener: (event: GitOperationUpdate) => void): () => void;
@@ -119,6 +120,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       restorePrivateData: (installId, snapshot) => storage.restoreInstallationData(installId, snapshot as ReturnType<typeof storage.snapshotInstallationData>),
       ...(ports.capabilities ? { capabilities: ports.capabilities } : {}),
       actions: ports.actions,
+      home: ports.homeDirectory ? pluginHomeFor(ports.homeDirectory) : null,
     });
     record.platform = platform;
     // Start independent companions together so their Artifact inputs and outputs
@@ -223,7 +225,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           "@molis-ai/molis-work-plugin-text-stats", "createTextStatsPlugin", factory => factory()),
       },
     ];
-    const report = await platform.start(entries);
+    const report = await platform.start([...entries, ...projectFixtureEntries(ports.homeDirectory)]);
     bindWorkspaceCompanions(platform, ports.projectId, ports.actorId);
     record.running = report.running.includes(CODING_PLUGIN_ID);
     record.error = [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;

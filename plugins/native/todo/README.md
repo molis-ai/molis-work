@@ -15,7 +15,7 @@
 - 负责：待办的记录、状态、三种日期（截止、计划处理、提醒）、归属（个人、项目、暂未归类）、来源与形成原因、关联、修改记录与撤销、视图、搜索与对象读取、批量处理；提醒的到期判断与首页事项；整理结果（候选、依据、与已有待办的关系、忽略与已处理的记忆）及其审阅与采用；整理方法（登记的指令 `todo.organize.basic`）。
 - 不负责：AI 整理与推进（系统 Assistant 经 Prologue 负责，Todo 只提供动作与对象读取）、Goal 与业务结果、提醒的送达渠道、材料正文（只存引用）。
 - 公开入口：`@molis-ai/molis-work-plugin-todo`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin` 与 `@molis-ai/molis-work-contracts/modules/todo`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `todo.<原因>`，状态由错误种类决定，Todo 不自带状态表）、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 修改带读取时的 `expected_revision`，别处改过时拒绝，不覆盖。
   - 每次修改记一条历史；用户本人改过的字段记入 `edited_fields`，之后的自动更新据此保护。
@@ -27,5 +27,5 @@
   - 整理只产生待确认的候选，不直接新建或修改待办；依据必须能在原文里找到，原文没写的日期只作建议，用户手动改过的字段只作冲突提示——采用时按待办此刻的状态再判断，整理之后才改的字段同样不被覆盖。
   - 截止日期按原文说法与写下时间确定性换算，不采用模型的日期算术；有歧义时只给建议日期。
   - 项目被删除时宿主按目录条目上的 `project_data`（`todoProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeTodoProject`）调用清掉放在这个项目里的待办及其历史、请求回执、整理器的记忆与审阅批次；个人待办不带项目，保留；只读库文件，库不存在时不创建，重复运行没有副作用。
-- 改动后必跑：`node scripts/run-tests.mjs tests/todo-actions.test.ts tests/todo-organize.test.ts tests/todo-plugin.test.ts tests/todo.e2e.test.ts tests/context-onboarding-todo.test.ts tests/context-onboarding-todo.e2e.test.ts tests/project-deletion-owners.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/todo-actions.test.ts tests/todo-organize.test.ts tests/todo-plugin.test.ts tests/todo.e2e.test.ts tests/context-onboarding-todo.test.ts tests/context-onboarding-todo.e2e.test.ts tests/project-deletion-owners.test.ts tests/action-error-model.test.ts tests/action-error-edges.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[continuity.md](../../../skills/molis-plugin-dev/continuity.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

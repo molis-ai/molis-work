@@ -15,7 +15,7 @@ import { BUILTIN_PLUGIN_AGENTS, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-w
 import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
 import { freezeProjectCharacter } from "./characters-host.js";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
+import { readProjectGuidance } from "./goals-actions.js";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
@@ -396,8 +396,8 @@ async function startAuthority(
 async function projectPrompts(runtime: MolisWorkProjectRuntime, localHost: MolisWorkLocalHost): Promise<AgentPromptText[]> {
   let view: ProjectGuidanceView;
   try {
-    view = await localHost.client({ project_id: runtime.project_id, storage_key: runtime.store.path })
-      .invoke(readProjectGuidanceCapability, { project_id: runtime.project_id });
+    const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
+    view = await readProjectGuidance(localHost.actionClient(reference, false), reference);
   } catch {
     // Guidance is an addition, not a precondition. A project whose guidance
     // cannot be read still starts Runs; it just starts them without this layer.

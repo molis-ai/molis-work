@@ -153,6 +153,7 @@ test("设置页在给不了「要求缓存支持」的格式上不摆这个选�
     provider_id: "openai", api_format: "openai-chat-completions", base_url: "https://api.openai.com/v1",
   });
   const html = renderModelSettingsDocument({
+    templates: [],
     providers: [openai], health: [], selected_provider_id: "openai", primitives: p,
   });
   assert.equal(html.includes('data-model-prompt-cache="openai"'), true);
@@ -161,6 +162,7 @@ test("设置页在给不了「要求缓存支持」的格式上不摆这个选�
   assert.match(html, /没有我们能打开的开关/);
 
   const anthropic = renderModelSettingsDocument({
+    templates: [],
     providers: [record()], health: [], selected_provider_id: "minimax", primitives: p,
   });
   assert.equal(anthropic.includes('value="required"'), true);

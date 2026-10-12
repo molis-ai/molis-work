@@ -47,7 +47,10 @@ test('Builder diagnoses accepted reads with current selection, without another c
     assert.deepEqual(await page.evaluate('globalThis.__molisPluginRead("reader")'), readingSamples[0]);
     assert.equal(reads, before, 'a diagnosis never starts an unbound query');
     hold = true; const started = new Promise<void>(resolve => { entered = resolve; });
-    await page.evaluate('void app.refresh()'); await started;
+    await page.evaluate('globalThis.notesBeforeRefresh=document.querySelector("[data-record-id=two]");void app.refresh()'); await started;
+    // The list repaints independently of the held detail read; click its current row, not a detached one.
+    await page.wait('!globalThis.notesBeforeRefresh.isConnected');
+    assert.equal(await page.evaluate('globalThis.__molisPluginPending'), 1, 'the old detail request is still held when selection changes');
     await page.click('[data-record-id=two] [data-pc-select]');
     await page.wait('document.querySelector("[data-component-id=reader]").innerText.includes("散步")');
     release!(); await page.wait('globalThis.__molisPluginPending===0');

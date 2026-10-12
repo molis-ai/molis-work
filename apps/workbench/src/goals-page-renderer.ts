@@ -7,9 +7,16 @@ import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-syst
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
+import { homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
+function projectSideTabs(enabled: readonly string[], routePrefix: string) {
+  const home = homePluginSideTabs();
+  return [...home, ...sideEntries(enabled).filter(side => !home.some(tab => tab.key === `${side.project_plugin_id}/${side.view_id}`))
+    .map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title, icon: (side.icon ?? "package") as PageIcon,
+      src: `${routePrefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` }))];
+}
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
 export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extends GoalCollectionView<TItem> {
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
@@ -250,8 +257,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         enabled: enabledPlugins,
         rail: renderPluginRail(primitives, enabledPlugins, "", "", view.plugin_rail, { developerMode: view.developer_mode }),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives))),
-        sideTabs: sideEntries(enabledPlugins).map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title,
-          icon: (side.icon ?? "package") as PageIcon, src: `${view.route_prefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` })),
+        sideTabs: projectSideTabs(enabledPlugins, view.route_prefix),
       })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
         <div class="mw-scroll directory-content-scroll">

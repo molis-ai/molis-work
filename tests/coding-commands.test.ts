@@ -21,7 +21,7 @@ function platformFor(directory: string) {
   const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID),
     project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
-    ui: new UiHost(),
+    ui: new UiHost(), home: null,
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
   return { store, platform };

@@ -1247,7 +1247,7 @@ export const PRIMITIVE_STYLES = `
 
   @keyframes mw-spin { to { transform: rotate(360deg); } }
   @media (max-width: 760px), (pointer: coarse) {
-    .mw-form__footer .mw-btn:not(.mw-btn--icon-only), .mw-btn--lg { min-height: 44px; }
+    .mw-form__footer .mw-btn:not(.mw-btn--icon-only), .mw-btn--lg, .mw-menu__item { min-height: 44px; }
     .mw-input, .mw-textarea, .mw-select { font-size: 16px; }
     dialog.mw-sheet { inset: 0; width: 100vw; height: 100dvh; max-height: 100dvh; }
     dialog.mw-dialog--form { width: calc(100vw - 24px); max-height: calc(100dvh - 32px); }

@@ -64,7 +64,7 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
 
 ## 开发要求
 
-- 负责：能力注册、发现、授予、动作服务调度（`ActionService`）、调用编号与结算、场景兼容与事项动作选项派生，注册时按 SDK 的 `inspectActionDeclarations` 检查动作与场景声明，以及按动作声明落实时限与取消（计时与取消的工具 `createExecutionLifetime` 和声明检查都来自 `@molis-ai/molis-work-plugin-sdk`，内核不转出）；另外承载平台产品服务「情境排序」（`src/contextual.ts`，纯函数：派生候选、规则打分、判断材料与题面、读回答案、陈列方案）。
+- 负责：能力注册、发现、授予、动作服务调度（`ActionService`）、调用编号与结算、场景兼容与事项动作选项派生，注册时按 SDK 的 `inspectActionDeclarations` 检查动作与场景声明、按 `inspectActionCrossReferences` 检查同一次注册里的交叉引用，以及按动作声明落实时限与取消（计时与取消的工具 `createExecutionLifetime` 和声明检查都来自 `@molis-ai/molis-work-plugin-sdk`，内核不转出）；另外承载平台产品服务「情境排序」（`src/contextual.ts`，纯函数：派生候选、规则打分、判断材料与题面、读回答案、陈列方案）。
 - 不负责：业务状态机、提供方实现、界面渲染、模型调用与凭据、记忆召回、缓存、计时与取消（这些在宿主 `apps/local-host/src/contextual/`）、任何插件或 Module 的业务事实。
 - 公开入口：`@molis-ai/molis-work-kernel`（`src/index.ts`）与情境排序的子入口 `@molis-ai/molis-work-kernel/contextual`（`src/contextual.ts`），都经 `dist` 导出，不深入 `src/` 导入；合同 `@molis-ai/molis-work-contracts/platform/kernel`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期和动作声明检查）；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包，公开发布面（contracts、plugin-sdk）在最下层（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
@@ -75,13 +75,15 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
   - `beforeEffect` 每次复查注册版本、可用性、授权与权限；调用结束后不能再产生副作用。
   - `invokeSync` 只接受显式声明 `execution: "sync"` 的处理器，不等待 Promise，不能借它绕过异步策略。
   - 声明了 `authorship: "session"` 的动作，在派发处拒绝调用上下文带 `runtime_session_missing`（可信的 MCP 适配器给没有稳定 Session 的外部 Runtime 标上）的调用，直接调用和包装动作（首页事项动作、工作流步骤）发起的嵌套调用一样，只在这一处检查（`mcp.runtime_identity_missing`）。
+  - 注册时检查同一次注册里的交叉引用（规则在插件 SDK 的 `inspectActionCrossReferences`）：撤销命令、后台任务状态查询、片段与事项选项的目标要在同一次注册里、种类与范围对，被指的字段和位置要在输入输出合同里。检查在 `registerProvider` 原有的一行里调用，不往函数里加行；谁能用目标留到使用时按调用者核对。
   - 调用记录只写谁调了什么、怎样结束，不写输入与结果；业务校验与事务留在处理器里。
-  - 调用编号只由宿主给：从调用上下文、此刻的作用域或新生成取，不从请求头、工具参数、`_meta`、业务输入或插件交来的字段读。它不是身份，处理器可以记录或返回它，不能凭它做任何决定。作用域随操作结束关闭，之后才触发的回调拿到新编号。
-  - 一次调用只结算一次：动作的注册表条目只能经 `ActionService.invoke` / `invokeSync` 到达（宿主的 typed 口到动作也走 `invoke`），`execute` 只在进入处理器前标记「已开始」，不结算。源码里直接调用 `registry.invoke` / `capabilities.invoke` 的只剩 `ActionService` 自己，和宿主 typed 口对不带 `action` 的条目（它们由宿主自己结算）。
+  - 调用方可以声明哪些拒绝码是它要的答案（`expectingRefusal`，在 `src/call-scope.ts`；作用域随异步调用传下去）：页面找项目可能没有的插件的区域，「未启用」就是答案，宿主不为这样的拒绝留调用记录行。只对作用域内、调用方自己那一次、处理器之前的、码在声明里的拒绝生效：进入处理器时清空（`startHandler` 经 `insideHandler`，动作的 `execute` 与宿主 typed 口各进一次），所以处理器再调的、它派出去还在跑的，被拒了照常记；声明也有终点：它像 `CallScope` 的 `open` 一样，在 `run` 结束（返回、抛出、拒绝）时关闭，所以调用结束后才触发的计时器、流、子进程、插件平台启动里的同一个拒绝照常记；别的拒绝和作用域之外的同一个拒绝也照常记（`tests/action-call-log.test.ts`）。
+  - 调用编号只由宿主给：从调用上下文、此刻的作用域或新生成取，不从请求头、工具参数、`_meta`、业务输入或插件交来的字段读。它不是身份，处理器可以记录或返回它，不能凭它做任何决定。作用域随操作结束关闭，之后才触发的回调拿到新编号。入口答复里的编号只在 `recordedCallId()` 有值（这个编号下留了调用记录行）时给，所以人复制到的编号一定查得到（网页：`apps/local-host/src/call-id-response.ts`）。
+  - 一次调用只结算一次：动作的注册表条目只能经 `ActionService.invoke` / `invokeSync` 到达（宿主的 typed 口到动作也走 `invoke`），`execute` 只经 `startHandler` 进入处理器（标记「已开始」、清空免记拒绝的声明），不结算。源码里直接调用 `registry.invoke` / `capabilities.invoke` 的只剩 `ActionService` 自己，和宿主 typed 口对不带 `action` 的条目（它们由宿主自己结算）。
   - `admit` 是宿主的异步策略，在解析与授权复查之前跑；`invokeSync` 不跑它（事务里不能等），同步入口自己的检查用第四个参数传入，在结算范围内先跑，它的拒绝同样结算。
   - 核心代码不调用情境排序：核心文件不导入它，也不经入口转手导入它的名字（`pnpm health:check` 的 K1）。根入口不转出它，情境排序走子入口 `@molis-ai/molis-work-kernel/contextual`，所以核心的导入闭包里没有情境排序。它只读 `contracts/platform/actions`、`contracts/services/contextual` 和 `node:crypto`（K2、K3）。
   - 情境排序无 I/O、无计时器、无模块级可变状态，同样的输入得到同样的陈列（K4）。候选只从授权目录来，不点名插件或能力 id（K5）；陈列不删候选；答案里不在候选中的键一律丢掉，模型不能编出动作。会写入的先确认，不可撤回的不推荐。
-- 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts tests/execution-lifetime.test.ts tests/action-authorship-dispatch.test.ts tests/contextual-interaction.test.ts tests/contextual-fragment-offers.test.ts tests/contextual-dock-parity.test.ts tests/home-action-scenes.test.ts tests/health-gates-kernel-contextual.test.ts tests/security-invariants-injection.test.ts tests/action-call-id.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts tests/execution-lifetime.test.ts tests/action-authorship-dispatch.test.ts tests/contextual-interaction.test.ts tests/contextual-fragment-offers.test.ts tests/contextual-dock-parity.test.ts tests/home-action-scenes.test.ts tests/health-gates-kernel-contextual.test.ts tests/security-invariants-injection.test.ts tests/action-call-id.test.ts tests/action-cross-references.test.ts`
 - 相关手册：[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)、[docs/system/ARCHITECTURE.md](../../docs/system/ARCHITECTURE.md)、[docs/horizontal/README.md](../../docs/horizontal/README.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

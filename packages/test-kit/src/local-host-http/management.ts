@@ -1,5 +1,5 @@
 import type { ActionReference, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LocalHostHttpClient, LocalHostHttpError } from "./client.js";
+import { isLocalHostHttpError, localHostHttpError, type LocalHostHttpClient } from "./client.js";
 import { orderGrantViews } from "./order.js";
 
 /*
@@ -80,8 +80,8 @@ export async function grantMcpActions(client: LocalHostHttpClient, input: McpGra
       saved.push(await grantMcpAction(client, { clientId: input.clientId, projectId: view.action.scope === "home" ? null : input.projectId,
         action: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id } }));
     } catch (error) {
-      if (!(error instanceof LocalHostHttpError)) throw error;
-      throw new LocalHostHttpError(error.status, error.code, `${view.capability_id}: ${error.message}`, error.method, error.path);
+      if (!isLocalHostHttpError(error)) throw error;
+      throw localHostHttpError(error.status, error.code, `${view.capability_id}: ${error.message}`, error.method, error.path);
     }
   }
   return saved;

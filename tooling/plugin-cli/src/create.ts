@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { samplePluginSource, samplePluginActions } from "./sample-source.js";
+import { samplePluginSource, samplePluginActions, sampleArtifactType, SAMPLE_ARTIFACT_TYPE_ID } from "./sample-source.js";
 
 export interface CreatePluginProjectInput {
   directory: string;
@@ -20,8 +20,8 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
       permission, required: true, reason: "Save a personal result, consume its exact version and show the local sample" })),
     actions: samplePluginActions(input.plugin_id),
     capabilities: { provides: [], consumes: [] },
-    artifacts: { produces: [{ artifact_type_id: "io.molis.work.example.note", schema_version: 1 }],
-      consumes: [{ artifact_type_id: "io.molis.work.example.note", schema_version: 1 }] },
+    artifacts: { produces: [sampleArtifactType(input.plugin_id)],
+      consumes: [{ artifact_type_id: SAMPLE_ARTIFACT_TYPE_ID, schema_version: 1 }] },
     ui: { contributions: [input.plugin_id + ".main"] },
   });
   const directory = resolve(input.directory);
@@ -36,7 +36,8 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
     "README.md": "# Local Plugin Sample\n\nThis is a local development sample, not a reviewed marketplace release.\n"
       + "The supplied publisher signature is a binding identity, not proof of cryptographic signing.\n\n"
       + "Install the matching local Molis Work SDK distribution, then run through the Molis Work application Host.\n"
-      + "The v2 manifest registers health, results.read and results.publish with the common action service.\n"
+      + "The v2 manifest registers health, results.read, results.publish and results.preview with the common action service.\n"
+      + "The saved result type has a display name and a preview action of its own, which every Artifact type a plugin pins must declare.\n"
       + "Each poll invokes the same registered publish action; the UI displays the original private counter.\n"
       + "Health can be explicitly authorized for MCP. Personal results use the local startup owner's identity and are not exposed to other clients.\n"
       + "It performs no network request, Team sharing, or Runtime configuration changes.\n",

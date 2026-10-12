@@ -30,7 +30,7 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "tsc -p tsconfig.json",
-    "test": "pnpm build && node --test tests/*.test.mjs",
+    "test": "pnpm --filter \"@molis-ai/molis-work-test-kit^...\" run build && pnpm build && node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

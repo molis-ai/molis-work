@@ -163,7 +163,7 @@ export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
         await loadList().catch(() => {});
       }
     } catch (error) {
-      if (error.status === 400 || error.status === 404) importSubmission = null;
+      if ([400, 404, 413].includes(error.status)) importSubmission = null;
       importBlocked = error.status === 409;
       importMessage((error.message || L("导入失败，请检查文件后重试。"))
         + (importBlocked ? "" : " " + L("可重试此批导入，不会重复创建文档。")), true);

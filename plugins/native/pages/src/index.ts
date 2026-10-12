@@ -19,7 +19,7 @@ export { PAGES_INSTRUCTIONS, PAGES_WRITING_ASSISTANT, PAGES_GENERATE_FROM_MATERI
 export { PAGES_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { PAGES_NATIVE_PLUGIN_ROUTES, PagesPluginRouteTable } from "./routes.js";
 export type { PagesPluginRouteHandler, PagesPluginRouteRequest, PagesPluginRouteResponse } from "./routes.js";
-export { createPagesRouteHandlers, pagesRouteErrorResponse } from "./route-handlers.js";
+export { createPagesRouteHandlers } from "./route-handlers.js";
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "./manifest.js";
 export { pagesMethods } from "./methods.js";
 export { openPagesStore, PagesStore, PAGES_STORE_BASELINE } from "./store.js";
@@ -28,7 +28,7 @@ export type { PagesImportDocumentsInput } from "./store.js";
 export { generatePagesFromMaterials } from "./generate.js";
 export { preparePagesImport } from "./import-files.js";
 export type { PagesImportFile, PreparedPagesImportDocument, PreparedPagesImport } from "./import-files.js";
-export { PagesError } from "./error.js";
+export { pagesErrors } from "./error.js";
 export { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 export { PAGES_TEMPLATES, pagesTemplateById, pagesTemplateSummaries } from "./templates.js";
 export { emptyDoc, nodeFromUnknown, pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
@@ -158,7 +158,8 @@ export {
   unwrapColumns,
 } from "./commands.js";
 export { extractFromPagesBody } from "./extract.js";
-export { PAGES_AI_COMMANDS, runPagesAi } from "./ai.js";
+export { PAGES_AI_COMMANDS } from "./ai.js";
+export { runPagesAi } from "./ai-run.js";
 export type { PagesRoutePorts } from "./route-handlers.js";
 export type { PagesLineHeadPort, PagesPublishArtifactPort, PagesReadArtifactPort } from "./promote.js";
 

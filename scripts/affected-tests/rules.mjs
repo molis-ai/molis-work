@@ -16,17 +16,18 @@ export const REPOSITORY_FOLDERS = [...PACKAGE_AREAS, "scripts", "skills", "docs"
 export const FULL_REGRESSION = {
   /**
    * Whole packages that are shared core. `modules/` is every package under it. plugin-sdk joined on 2026-10-10 (spec §1, W3-03):
-   * it holds the runtime tools that authors and the platform share, the execution lifetime first and, as W3-03 moves them in PR by
-   * PR, the Manifest and declaration rules the Kernel and Plugin Runtime apply and the text comparison. The same list is in
+   * it holds the runtime tools that authors and the platform share, the execution lifetime, the Manifest and
+   * declaration rules the Kernel and Plugin Runtime apply, and the text comparison (all moved in by W3-03). The same list is in
    * scripts/package-owners.mjs (SHARED_CORE) and docs/system/PARALLEL-DEVELOPMENT.md section 6.
    */
   corePackages: ["packages/contracts", "packages/kernel", "packages/plugin-sdk"],
   corePackagePrefixes: ["modules/"],
   /**
-   * "local-host 的装配、workbench 外壳": 25 files, from three places (how each got on the list is checked against the READMEs by
+   * "local-host 的装配、workbench 外壳": 26 files, from three places (how each got on the list is checked against the READMEs by
    * tests/affected-tests.test.ts, so this account cannot drift from them again):
-   *  - 17 that the two packages' READMEs name by file name. By table ("从哪里读代码"): local-host's project-host, home-plugins, local-host,
-   *    project-capabilities, web-server, mcp-server, system-agent-service, goal-project-application, and workbench's ui-composition,
+   *  - 18 that the two packages' READMEs name by file name. By table ("从哪里读代码"): local-host's project-host, home-plugins, local-host,
+   *    project-capabilities, web-server, mcp-server, system-agent-service, home-side (binds a Host to its Home and its Agent service,
+   *    W3-06 D0), goal-project-application, and workbench's ui-composition,
    *    goals-page-renderer, home-plugin-page, scripts/client/initialization, browser-assets. By prose: the workbench README's invariants name
    *    src/builtin-plugins.ts, src/plugin-catalog.ts and src/plugin-workbench.ts (the projections derived from BUILTIN_PLUGIN_CATALOG),
    *    and its "阅读装配方式" line points to apps/local-host/src/workbench-renderer.ts, the 12 lines that bind the renderer to the host.
@@ -55,6 +56,7 @@ export const FULL_REGRESSION = {
     "apps/local-host/src/web-catalog.ts",
     "apps/local-host/src/mcp-server.ts",
     "apps/local-host/src/system-agent-service.ts",
+    "apps/local-host/src/home-side.ts",
     "apps/local-host/src/goal-project-application.ts",
     "apps/local-host/src/workbench-renderer.ts",
     // apps/workbench: UI 组合, 工作台整页装配, 客户端初始化与恢复, 浏览器资产入口, the shell, its catalog and its slots

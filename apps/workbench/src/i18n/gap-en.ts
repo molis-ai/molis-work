@@ -1,5 +1,8 @@
+import { STUDIO_EN } from "./studio-en.js";
 /** User-visible copy that already goes through L() but was missing from the English catalog. */
 export const GAP_EN: Record<string, string> = {
+  // The plugin studio's own dictionary (the studio's English is not a gap, but its plugin may not be named by the catalog).
+  ...STUDIO_EN,
   "无法加载界面，请重试": "Could not load this view. Retry",
   "待核对的插件通知": "Plugin notifications to review",
   "核对这条通知": "Review this notification",
@@ -111,8 +114,6 @@ export const GAP_EN: Record<string, string> = {
   "服务连接": "Service connections",
   "Molis Work 自己联网的去处（模型、搜索、订阅源、依赖下载等）逐类写在这一页：": "Everywhere Molis Work goes online by itself (models, search, feed sources, dependency downloads, ...) is listed, class by class, on this page: ",
   "Molis Work 会联网去哪里": "Where Molis Work connects to",
-  // The plugin studio renders this one sentence through L() (the rest of the studio is Chinese only), so its English is kept in the host catalog.
-  "构建检查的「打包」一步：插件声明了依赖包时，会把包名和版本发给 npm 官方仓库（registry.npmjs.org）下载，不发送你的内容。": "The build check's packaging step: when the plugin declares dependency packages, their names and versions are sent to the official npm registry (registry.npmjs.org) to download them. None of your content is sent.",
   "对外接入": "External access",
   "调用记录": "Call history",
   "能力服务": "Capability service",
@@ -152,7 +153,6 @@ export const GAP_EN: Record<string, string> = {
   "你": "You",
   "当前范围还没有执行过的操作": "No operations have run in this scope yet",
   "通过界面、首页、工作流程、Agent 或 MCP 执行操作后，会显示在这里。": "Operations run from the app, Home, workflows, an Agent or MCP appear here.",
-  "最近执行的操作和已保存的判断。只记录谁在何时调用了什么、结果如何；不保存输入与返回内容，失败时保留错误说明。查询类能力不记录。": "Recent operations and saved judgments. Only who called what, when, and how it ended is kept — never inputs or results; failures keep their error message. Queries are not recorded.",
   "判断记录": "Judgments",
   "连续 {count} 次相同结果，最早 {at}": "Same result {count} times in a row, first at {at}",
   "当前范围没有使用绑定。": "No bindings in this scope.",

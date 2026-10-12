@@ -1,6 +1,6 @@
 import type { ActionCallContext, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { currentCallId, newCallId, withCallId, withCallIdSync } from "./call-scope.js";
+import { currentCallId, insideHandler, newCallId, withCallId, withCallIdSync } from "./call-scope.js";
 
 /** One call as the host sees it: the caller's context, plus the number of the operation it belongs to. */
 export type CallContext = ActionCallContext & { readonly call_id: string };
@@ -19,8 +19,11 @@ export type CallSettled = (context: CallContext, action: CallDescription, outcom
 
 /** Calls whose handler has been entered; a failure of any other call is a refusal. Keyed by the call object, which is new for every call. */
 const started = new WeakSet<object>();
-/** Called by the registered entry just before it enters the handler. */
-export function markStarted(call: object): void { started.add(call); }
+/**
+ * Called by the registered entry to enter the handler. From here the call has begun, so a failure is no longer a refusal; and what the handler
+ * calls is its own, not covered by a refusal the caller was looking for (`expectingRefusal`).
+ */
+export function startHandler<R>(call: object, enter: () => R): R { started.add(call); return insideHandler(enter); }
 
 /** The caller's context as one call: a copy, so the caller's own object is untouched, carrying the number of its operation. */
 export function bindCall(context: ActionCallContext): CallContext {

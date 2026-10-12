@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { TodoBatch, TodoBatchMaterial, TodoCandidate, TodoItem, TodoPlacement, TodoSource } from "@molis-ai/molis-work-contracts/modules/todo";
 import { TODO_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/todo";
 import { isTodoDate, isTodoTime } from "./dates.js";
-import { TodoError } from "./error.js";
+import { todoErrors } from "./error.js";
 import { normalizeForMatch, TODO_ORGANIZE_MATERIAL_CHARS, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
 import { todoRequestKey, type TodoAccess, type TodoFields, type TodoStore } from "./store.js";
 
@@ -63,7 +63,7 @@ export class TodoOrganizer {
   get(id: string, access: TodoAccess): TodoBatch {
     const row = this.db.prepare("SELECT * FROM todo_batches WHERE batch_id = ?").get(id) as BatchRow | undefined;
     const batch = row ? this.live(row, access) : null;
-    if (!batch || !visible(batch, access)) throw new TodoError("todo.not_found", "找不到这份整理结果");
+    if (!batch || !visible(batch, access)) throw todoErrors.not_found("找不到这份整理结果");
     return batch;
   }
 
@@ -166,12 +166,12 @@ export class TodoOrganizer {
   /** Apply the person's choices, all or nothing. Candidates not mentioned stay open for later. */
   apply(batchId: string, decisions: readonly TodoCandidateDecision[], expectedRevision: number | undefined, access: TodoAccess): TodoApplyResult {
     const row = this.db.prepare("SELECT * FROM todo_batches WHERE batch_id = ?").get(batchId) as BatchRow | undefined;
-    if (!row || !visible(fromRow(row), access)) throw new TodoError("todo.not_found", "找不到这份整理结果");
-    if (expectedRevision !== undefined && row.revision !== expectedRevision) throw new TodoError("todo.conflict", "这份整理结果已在别处处理过，请重新打开");
+    if (!row || !visible(fromRow(row), access)) throw todoErrors.not_found("找不到这份整理结果");
+    if (expectedRevision !== undefined && row.revision !== expectedRevision) throw todoErrors.conflict("这份整理结果已在别处处理过，请重新打开");
     const body = JSON.parse(row.body_json) as BatchBody;
     const current = this.live(row, access);
     body.candidates = body.candidates.map(candidate => ({ ...candidate, decision: current.candidates.find(entry => entry.candidate_id === candidate.candidate_id)?.decision ?? null }));
-    if (!decisions.length) throw new TodoError("todo.invalid", "先选要怎么处理");
+    if (!decisions.length) throw todoErrors.invalid("先选要怎么处理");
     const changeBatch = crypto.randomUUID();
     const at = this.store.clock().toISOString();
     const results: { candidate_id: string; action: string; item_id: string | null }[] = [];
@@ -180,8 +180,8 @@ export class TodoOrganizer {
       for (const decision of decisions) {
         const index = body.candidates.findIndex(candidate => candidate.candidate_id === decision.candidate_id);
         const candidate = body.candidates[index];
-        if (!candidate) throw new TodoError("todo.not_found", "整理结果里没有这一项");
-        if (candidate.decision) throw new TodoError("todo.conflict", `「${candidate.title}」已经处理过了`);
+        if (!candidate) throw todoErrors.not_found("整理结果里没有这一项");
+        if (candidate.decision) throw todoErrors.conflict(`「${candidate.title}」已经处理过了`);
         const sources = candidate.evidence.map(entry => this.sourceFor(body.materials[entry.material - 1]!, entry.excerpt, candidate, row.origin as TodoBatch["origin"]));
         const keys = [...new Set(candidate.evidence.map(entry => body.materials[entry.material - 1]!.source_key))];
         let itemId: string | null = null;
@@ -205,7 +205,7 @@ export class TodoOrganizer {
           itemId = created.item.id;
           outcome = "added";
         } else {
-          if (!candidate.existing) throw new TodoError("todo.invalid", `「${candidate.title}」没有对应的已有待办`);
+          if (!candidate.existing) throw todoErrors.invalid(`「${candidate.title}」没有对应的已有待办`);
           const target = this.store.get(candidate.existing.item_id, access);
           itemId = target.id;
           // Protection is read from the todo as it is at this moment, not as it was when the batch was made; what is written
@@ -246,7 +246,7 @@ export class TodoOrganizer {
       const status = body.candidates.every(candidate => candidate.decision) ? "done" : "open";
       const updated = this.db.prepare("UPDATE todo_batches SET body_json = ?, status = ?, updated_at = ?, revision = revision + 1 WHERE batch_id = ? AND revision = ?")
         .run(JSON.stringify(body), status, at, batchId, row.revision);
-      if (updated.changes !== 1) throw new TodoError("todo.conflict", "这份整理结果已在别处处理过，请重新打开");
+      if (updated.changes !== 1) throw todoErrors.conflict("这份整理结果已在别处处理过，请重新打开");
     });
     return { batch: this.get(batchId, access), change_batch_id: changeBatch, results };
   }

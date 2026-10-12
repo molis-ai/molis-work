@@ -13,7 +13,7 @@
 ```sh
 pnpm --filter @molis-ai/molis-work-app-workbench build
 pnpm --filter @molis-ai/molis-work-app-local-host build
-node --import tsx --test tests/functions-authoring-actions.test.ts tests/functions-draft-retention.test.ts tests/functions-agent-references.test.ts tests/function-agent-authoring.e2e.test.ts tests/capabilities-page.test.ts
+node --import tsx --test tests/functions-plugin.test.ts tests/functions-authoring-actions.test.ts tests/functions-draft-retention.test.ts tests/functions-agent-references.test.ts tests/function-agent-authoring.e2e.test.ts tests/capabilities-page.test.ts
 ```
 
 真实 Host/SQLite 的隔离浏览器 fixture 在 `.impeccable/review/action-service/serve-fixture.mts`，模型为明确的本地模拟；不会使用真实账号。`scripts/preview-functions.mts` 是仅编辑器的独立调试页面，不是产品组合根。

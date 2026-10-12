@@ -24,7 +24,6 @@ import {
   mapJudgmentChoice,
   defaultInboxNextBehaviorIds,
   defaultFeedCaptureBehaviorIds,
-  suggestedAuthoringBehaviors,
   visibleFeedDispositionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
@@ -356,10 +355,15 @@ test("Agent suggestions respect subject contracts and exclude other scenes", () 
   const feed = { ...catalogAction("feed.read"), action: { ...generic.action, subject_kinds: ["feed_item"] } };
   const base = liveHostFunctionAuthoringCatalog([generic, note, feed]);
   const catalog = { ...base, behaviors: [...base.behaviors, { ...base.behaviors[0]!, behavior_id: "other-scene-symbol", destination_id: "other.scene", action_ref: undefined }] };
-  assert.deepEqual(suggestedAuthoringBehaviors(catalog, "agent.mcp", ["note"]).map(row => row.action_ref?.capability_id), ["generic.read", "note.read"]);
-  assert.equal(suggestedAuthoringBehaviors(catalog, "agent.mcp", []).length, 3);
-  assert.deepEqual(suggestedAuthoringBehaviors(catalog, "", ["note"]), []);
-  assert.deepEqual(suggestedAuthoringBehaviors(catalog, "unregistered.scene", []), []);
+  // The page filters these rows by the chosen subject kinds (tests/functions-plugin.test.ts runs that rule); the catalog carries each
+  // suggestion with its own subject kinds, hangs only Agent capabilities under agent.mcp, and keeps another scene's symbol out.
+  const agent = catalog.behaviors.filter(row => row.destination_id === "agent.mcp");
+  assert.deepEqual(agent.map(row => [row.action_ref?.capability_id, row.subject_kinds]), [["generic.read", []], ["note.read", ["note"]], ["feed.read", ["feed_item"]]]);
+  assert.deepEqual(catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids, agent.map(row => row.behavior_id));
+  assert.equal(catalog.behaviors.find(row => row.behavior_id === "other-scene-symbol")?.destination_id, "other.scene");
+  assert.ok(!agent.some(row => row.behavior_id === "other-scene-symbol"));
+  assert.deepEqual(catalog.behaviors.filter(row => !row.destination_id), [], "no scene-less suggestion exists to offer without a destination");
+  assert.equal(catalog.destinations.some(row => row.destination_id === "unregistered.scene"), false);
 });
 
 test("Feed and Inbox declare scenes without naming the Functions plugin implementation", () => {

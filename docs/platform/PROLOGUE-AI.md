@@ -79,6 +79,8 @@ Coding 页面 → plugins/native/coding/src/routes.ts
   ← agent.run.wait.v1 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
 ```
 
+**每一轮带一个调用编号**（W3-01 E；见 [调用链](../system/CALL-CHAINS.md) §1 第 5 条）：一轮（助理、Coding 等 Agent、定时任务到点跑的 Agent）开始时，宿主给它一个调用编号。启动权限的 `call_id`（`AgentStartAuthority`）经 `AgentHost.start` 交给适配器，适配器写进这一轮的冻结记录（`AgentRunView.frozen.call_id`，和角色、提示词版本、工具一起冻结，读回时原样）；这一轮每次工具调用的上下文也带同一个编号，所以按编号能从调用记录找到这一轮走过的每一步。编号只记在 Molis Work 自己的冻结记录里，不交给 Prologue（用户 2026-10-10 决定），Prologue 的运行元数据没有它。编号只由宿主给：适配器只读启动权限，不读 `agent.run.start` 的请求体，插件在里面写的 `call_id` 不会成为一轮的编号。有界推理（`hostTextGeneration`、`hostCompleteText`）没有运行记录可挂，不带编号，它所在的那个动作的调用记录行带着。`frozen.call_id` 与 `AgentToolActivity.call_id`（Prologue 给一次工具调用的 id）是两回事。
+
 ## 4. 新增一个 AI 能力：调用骨架与可执行示例
 
 以下片段解释接缝，省略了输入合同、提示词构造和端口定义，不能单独运行。以「灵光对话」为蓝本（`plugins/native/lingguang/src/actions.ts`、`apps/local-host/src/lingguang-actions.ts`）。
@@ -100,7 +102,7 @@ bind(lingguangActions.message, async (input, caller) => {
   const snapshot = ports.withStore(store => store.conversation(input.id, projectId));
   if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置文字模型，再继续对话");
   const reply = (await ports.completeText(prompt, { signal: caller.signal })).trim();
-  if (!reply) throw new ActionError("lingguang.empty_reply", "模型没有返回正文，输入已保留，可重试");
+  if (!reply) throw lingguangErrors.empty_reply("模型没有返回正文，输入已保留，可重试"); // 插件用 defineErrorCodes 声明自己的码，状态由 kind 推出
   await caller.beforeEffect();                        // 复查注册实例、授权、生命周期、作用域、取消
   return ports.withStore(store => store.addReply(input.id, input.body, reply, projectId, snapshot)); // 快照变了就拒绝
 }, () => ports.modelAvailability()),

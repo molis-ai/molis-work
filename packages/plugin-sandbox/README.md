@@ -133,6 +133,7 @@ answers and validates every resulting address; it does not change production def
   - 查询操作不能声明存储或成果写入、也不能发事件。
   - 读权限只覆盖暂存的 bundle/worker、Node 可执行文件与必要系统路径；CPU 是整个进程的预算。
   - 私有存储按完整身份串行，回调拿到快照，只在成功且信号仍有效时原子落盘；适配器在提交副作用前遵守取消。
+  - 一次操作发起的 SDK 服务调用，在调起这次 `call()` 当时的异步上下文里运行（`AsyncResource`），不在进程启动时的上下文里，所以宿主按调用上下文给出的东西（调用编号）跟着这次操作走；沙箱不读、不传这些值，也不依赖提供它们的包。
   - 沙箱不能直接联网，Host 必须显式装配网络适配器。`createHttpsProxy` 要求精确批准的域名、443 端口、URL 不带凭据、每个 DNS 答案必须是公网地址；fake-IP 需注入批准的 DoH 解析器。现有生成式 Host 适配器的代理策略见上文，不能把两者误写成同一实现。
 - 改动后必跑：`node scripts/run-tests.mjs tests/plugin-sandbox.test.ts tests/plugin-sandbox-network.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

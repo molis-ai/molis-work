@@ -30,12 +30,14 @@ const KINDS: Record<string, string> = {
   ".bar-resident": "resident",
   ".bar-chat": "discussion",
   ".navigator-project-selector": "project",
+  "[data-home-plugin-open]": "home plugin", // ISSUE-30: the declared Home tools remain visible in the titlebar.
   ".immersive-show-directory, .navigator-directory-toggle": "directory toggle",
   ".workspace-history-button": "history",
   ".tab-item-trigger": "tab",
   ".tab-item-close": "tab close",
   ".tab-add-button": "open plugin",
   ".tab-split-button": "layout",
+  "[data-home-plugin-open]": "home tool",
   ".tab-view-chip": "location chip",
   ".tab-view-chip-close": "cover close",
   ".assistant-target-main": "work chip",
@@ -342,6 +344,21 @@ const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-resident|bar-chat
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
+/** ISSUE-30: declared Home tools stay inside the viewport, and the visible target can actually be reached. */
+async function assertHomeToolsReachable(browser: Browser): Promise<void> {
+  const report = await browser.evaluate<{ count: number; blocked: string[] }>(`(() => {
+    const nodes = [...document.querySelectorAll('[data-home-plugin-open]')];
+    const blocked = nodes.filter(el => {
+      const r = el.getBoundingClientRect(), x = r.left + r.width / 2;
+      const inside = r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;
+      return !inside || ![r.top + 2, r.top + r.height / 2, r.bottom - 2].every(y => el.contains(document.elementFromPoint(x, y)));
+    }).map(el => el.textContent.trim());
+    return { count: nodes.length, blocked };
+  })()`);
+  assert.ok(report.count > 0, "the current Home tools are present");
+  assert.deepEqual(report.blocked, [], "Home tools are neither clipped nor covered, including their target's top and bottom");
+}
+
 /** The windows of one test: open a size on a path, measure the shell, and put the Assistant line in a state. */
 function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
@@ -363,6 +380,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     assert.equal(await evaluate(`matchMedia('(pointer: coarse)').matches`), touch, `the window is a ${touch ? "coarse" : "fine"}-pointer one`);
     // The Dock folds what does not fit after its first paint; let it settle before measuring.
     await settle();
+    await assertHomeToolsReachable(browser);
     return evaluate<Control[]>(SHELL_CONTROLS);
   };
   // The directory's resize grip runs the full height of the window's grid and crosses the bar between 601 and about 900px wide
@@ -762,7 +780,7 @@ for (const scheme of ["light", "dark"] as const) {
       ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"],
     ] as const) {
       const controls = await w.open(1280, 800, path, ready);
-      assert.deepEqual(controls.filter(control => w.short(control) < floors[control.area]).map(control => `${control.kind} ${control.w}×${control.h}`), [],
+      assert.deepEqual(controls.filter(control => w.short(control) < (control.kind === "home plugin" ? 32 : floors[control.area])).map(control => `${control.kind} ${control.w}×${control.h}`), [],
         `${name} · 1280: nothing in the strip is under ${floors.strip}px or in the bar under ${floors.bar}px`);
       assert.deepEqual(controls.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name} · 1280: every control is a known one`);
       const input = controls.find(control => control.kind === "assistant input");
@@ -815,7 +833,7 @@ for (const scheme of ["light", "dark"] as const) {
 
     // A short window: DESIGN.md writes the Dock, resident and switcher buttons as 34px there, and the floors still hold.
     const shortWindow = await w.open(1280, 500, "", "true");
-    assert.deepEqual(shortWindow.filter(control => w.short(control) < floors[control.area]).map(control => `${control.kind} ${control.w}×${control.h}`), [],
+    assert.deepEqual(shortWindow.filter(control => w.short(control) < (control.kind === "home plugin" ? 32 : floors[control.area])).map(control => `${control.kind} ${control.w}×${control.h}`), [],
       "a short window · 1280×500: nothing in the strip is under 20px or in the bar under 28px");
     assert.deepEqual(shortWindow.filter(control => ["dock", "resident", "plugin switcher"].includes(control.kind) && control.area === "bar").map(control => control.h).filter(h => h !== 34), [],
       "a short window · 1280×500: the Dock, resident and switcher buttons are the 34px DESIGN.md writes");

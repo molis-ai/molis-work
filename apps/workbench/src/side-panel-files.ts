@@ -86,6 +86,7 @@ export const SIDE_FILES_STYLES = String.raw`
 `;
 
 /** Factory: the Workbench passes `route`, `translate` and `openRecord(surface, id)` (the search open target). */
+// Shipped without its full-line comments (they stay in this source).
 export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const root=document.querySelector('[data-side-files-root]');
   if(!root||document.body.hasAttribute('data-pane-embedded'))return;
@@ -201,4 +202,4 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
       else openGiven({title:target.title||L('文件'),problem:L('这个文件所在的插件没有向侧栏提供文件，或当前没有读取权限。'),open:target.open});
     }
   });
-}`;
+}`.replace(/^[ \t]*\/\/.*\n/gm, "");

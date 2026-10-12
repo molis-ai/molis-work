@@ -97,6 +97,7 @@ export const SIDE_BROWSER_STYLES = String.raw`
 `;
 
 /** Runs once per workbench document; connects the first time the browser tab shows. */
+// Shipped without its full-line comments (they stay in this source).
 export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   if(document.body.hasAttribute('data-pane-embedded'))return;
   const root=document.querySelector('[data-browser]'),projectId=document.body.dataset.projectId;
@@ -370,4 +371,4 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(now&&event.detail?.target?.url){if(ready)sendRaw({type:'navigate',input:event.detail.target.url});else queuedAddress=event.detail.target.url;}
     syncVisible();
   });
-})();`;
+})();`.replace(/^[ \t]*\/\/.*\n/gm, "");

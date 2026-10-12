@@ -3,8 +3,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { ActionError, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, defineArtifactReferrersAction, linksToArtifactVersion, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { IMPORTED_DOCUMENT_TYPE, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { parsePagesBody } from "./document.js";
+import { pagesErrors } from "./error.js";
 import { PAGES_ARTIFACT_TYPE_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
-import { PAGES_AI_COMMANDS, runPagesAi, type PagesAiRequest, type PagesAiResult } from "./ai.js";
+import { PAGES_AI_COMMANDS, type PagesAiRequest, type PagesAiResult } from "./ai.js";
+import { runPagesAi } from "./ai-run.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";
 import { promotePagesDocument, type PagesLineHeadPort, type PagesPublishArtifactPort, type PagesReadArtifactPort } from "./promote.js";
 import type { PagesStore } from "./store.js";
@@ -144,7 +146,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.subject, (input, caller) => ports.withStore(store => {
       let document: PagesRecord;
       try { document = store.get(input.subject_id, project(caller)); }
-      catch (error) { throw (error as { code?: string }).code === "pages.not_found" ? new ActionError("pages.not_found", "文档不存在或已删除") : error; }
+      catch (error) { throw (error as { code?: string }).code === "pages.not_found" ? pagesErrors.not_found("文档不存在或已删除") : error; }
       return subjectContext({ subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档",
         content: actionFieldValue("body", document.body), goal_ids: document.goal_id ? [document.goal_id] : [], session_id: null, open: { surface: "pages", id: document.id } });
     })),
@@ -168,7 +170,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.fileContent, (input, caller) => ports.withStore(store => {
       let document: PagesRecord;
       try { document = store.get(input.subject.id, project(caller)); }
-      catch (error) { throw (error as { code?: string }).code === "pages.not_found" ? new ActionError("pages.not_found", "文档不存在或已删除") : error; }
+      catch (error) { throw (error as { code?: string }).code === "pages.not_found" ? pagesErrors.not_found("文档不存在或已删除") : error; }
       const nodes: Array<Parameters<typeof nodesToMarkdown>[0][number]> = [];
       nodeFromUnknown(document.body).forEach(node => { nodes.push(node); });
       const title = document.title || "未命名文档";
@@ -203,7 +205,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.import, async (input, caller) => {
       const prepared = await prepareImport(input.files, caller);
       const byKey = new Set(prepared.documents.map(document => document.key));
-      if (input.selected_keys.some(key => !byKey.has(key))) throw new ActionError("pages.invalid", "选择的文档不在这批文件中，请重新预览");
+      if (input.selected_keys.some(key => !byKey.has(key))) throw pagesErrors.invalid("选择的文档不在这批文件中，请重新预览");
       const documents = prepared.documents.filter(document => input.selected_keys.includes(document.key));
       const folder_id = input.folder_id?.trim() ?? "";
       const request_hash = createHash("sha256").update(JSON.stringify({ files: input.files, selected_keys: [...input.selected_keys].sort(), folder_id })).digest("hex");
@@ -219,11 +221,11 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       }
       // An imported file Pages can read is parsed the way Pages imports files.
       const file = importedDocumentFile(artifact);
-      if (!file || !PAGES_READABLE_FILE.test(file.filename)) throw new ActionError("pages.unsupported", "Pages 读不了这一版：支持 Markdown、TXT、HTML、CSV、Word 与 ZIP");
+      if (!file || !PAGES_READABLE_FILE.test(file.filename)) throw pagesErrors.unsupported("Pages 读不了这一版：支持 Markdown、TXT、HTML、CSV、Word 与 ZIP");
       const files = [{ name: file.filename, data: file.data_base64 ?? Buffer.from(file.text ?? "", "utf8").toString("base64") }];
       const prepared = await prepareImport(files, caller);
       const documents = prepared.documents;
-      if (!documents.length) throw new ActionError("pages.invalid", "这一版没有可以继续的正文");
+      if (!documents.length) throw pagesErrors.invalid("这一版没有可以继续的正文");
       const request_hash = createHash("sha256").update(JSON.stringify({ files, selected_keys: documents.map(document => document.key).sort(), folder_id: "" })).digest("hex");
       await caller.beforeEffect();
       const [first] = ports.withStore(store => store.importDocuments({ project_id: project(caller), request_id: randomUUID(), request_hash, folder_id: "", documents }));
@@ -236,18 +238,18 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.generations, (_, caller) => ports.withStore(store => ({ records: store.generations(project(caller)) }))),
     bind(pagesActions.generation, (input, caller) => ports.withStore(store => ({ record: store.generation(project(caller), input.request_id) }))),
     bind(pagesActions.generate, (input, caller) => {
-      if (input.inputs.reduce((sum, item) => sum + item.body.length, 0) > 100_000) throw new ActionError("pages.invalid", "材料过长，请减少所选条目");
+      if (input.inputs.reduce((sum, item) => sum + item.body.length, 0) > 100_000) throw pagesErrors.invalid("材料过长，请减少所选条目");
       const record: PagesGenerationRecord = { ...input, project_id: project(caller), status: "running", document_id: null, error: null, updated_at: new Date().toISOString() };
       return generatePagesFromMaterials(ports.withStore, record, ports.completeText ? prompt => ports.completeText!(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect }) : undefined, caller.signal, caller.beforeEffect);
     }, () => ports.modelAvailability()),
     bind(pagesActions.ai, async (input, caller) => {
       const snapshot = ports.withStore(store => store.get(input.id, project(caller)));
-      if (input.expected_version !== undefined && snapshot.version !== input.expected_version) throw new ActionError("pages.conflict", "文档已改变，请重新读取后生成");
+      if (input.expected_version !== undefined && snapshot.version !== input.expected_version) throw pagesErrors.conflict("文档已改变，请重新读取后生成");
       caller.signal?.throwIfAborted();
       const result = await runPagesAi(input, ports.completeText ? prompt => ports.completeText!(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect }) : undefined);
       caller.signal?.throwIfAborted();
       const current = ports.withStore(store => store.get(input.id, project(caller)));
-      if (current.version !== snapshot.version) throw new ActionError("pages.conflict", "生成期间文档已改变，请重新生成");
+      if (current.version !== snapshot.version) throw pagesErrors.conflict("生成期间文档已改变，请重新生成");
       return result;
     }, () => ports.modelAvailability()),
     bind(pagesActions.promote, (input, caller) => promote(input.id, caller, input.goal_id, input.expected_version), publishable),
@@ -269,7 +271,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
 function written<T extends WrittenFields>(input: T, caller: ActionCallContext, creating = false): Omit<T, "markdown"> {
   const { markdown, ...rest } = input;
   if (markdown !== undefined) {
-    if (rest.body !== undefined) throw new ActionError("pages.invalid", "markdown 与 body 只给一个");
+    if (rest.body !== undefined) throw pagesErrors.invalid("markdown 与 body 只给一个");
     const converted = convertImportContent({ name: rest.title || "未命名文档", format: "markdown", content: markdown });
     // Only a new document takes its title from the Markdown; rewriting a body must not rename what the person titled.
     return { ...rest, ...(rest.title || !creating ? {} : { title: converted.title.slice(0, 80) }), body: converted.body };
@@ -278,7 +280,7 @@ function written<T extends WrittenFields>(input: T, caller: ActionCallContext, c
   try { pagesSchema.nodeFromJSON(rest.body).check(); }
   catch (error) {
     const names = Object.keys(pagesSchema.nodes).filter(name => name !== "doc" && name !== "text").join("、");
-    throw new ActionError("pages.invalid", `正文不是 Pages 能显示的结构（${error instanceof Error ? error.message : String(error)}），没有保存。节点用 Pages 自己的名字（${names}），或改用 markdown 字段给出正文，由 Pages 转换。`);
+    throw pagesErrors.invalid(`正文不是 Pages 能显示的结构（${error instanceof Error ? error.message : String(error)}），没有保存。节点用 Pages 自己的名字（${names}），或改用 markdown 字段给出正文，由 Pages 转换。`);
   }
   return rest;
 }

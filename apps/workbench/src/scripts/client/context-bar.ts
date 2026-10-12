@@ -1,253 +1,99 @@
 /**
- * The row of actions above the Assistant input, as the page draws it: the pill with its scope, the recommended buttons,
- * 更多 with its menu, the basis note and the row's own pointer, focus and keyboard handling. It reads the plan the bus
- * hands it and never decides what is in hand. A fragment of the factory script in context-actions.ts: the pieces share
- * its closure (host, L, root, el, bus, choose, ...) and are joined there in the order the text had before the split.
- * The bus meets only `bar`, which is the row here and a state-only twin where there is no row.
+ * What draws the ranked actions: the context toolbar (the design system's page program) in this document, or, when what is in
+ * hand sits in a split pane, the same toolbar in that pane's own document, driven by a message. It reads the plan the bus hands it and
+ * never decides what is in hand. A fragment of the factory script in context-actions.ts: the pieces share its closure (host, L, bus,
+ * choose, makeToolbar, ...) and are joined there.
+ *
+ * The bus meets only `bar`: `render` / `idle` / `pending` / `error` / `judgeFailed`, and the state it reads (`plan`, `shown`,
+ * `published`, `pinned()`, `interacting()`, `clearWhenLeft`). The toolbar is shown once a selection has been steady for 350ms (the bus
+ * asks at once, but nothing flickers while the person is still dragging), and a context that is only the person writing (`editing`) is
+ * not shown by itself: ⌘. summons it.
  */
-export const CONTEXT_BAR_SCRIPT = String.raw`  const SCOPE = { word: L("一个词"), range: L("一段文字"), block: L("这一段"), blocks: L("几段内容"), objects: L("几份内容") };
-  const FORM = { suggest: L("有一条建议"), options: L("给你几个方向"), preview: L("可以先看预览"), compare: L("可以并排比较") };
-
-  const row = {
-    buttons: new Map(),
-    hover: new Set(),
+export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
+    translate: L, inset: { top: 54, bottom: 100 }, width: () => (host.width ? host.width() : innerWidth),
+    choose: (key) => choose(key), assistant: (kind) => (kind === "bring" ? bringToAssistant() : askAssistant()),
+    dismiss: () => bar.dismissAll(), hold: () => bar.leave(), settled: () => bar.leave(),
+  });
+  const live = document.createElement("div");
+  live.className = "mw-sr-only"; live.setAttribute("data-context-actions-live", ""); live.setAttribute("aria-live", "polite");
+  document.body.append(live);
+  const basisOf = (out, rulesOnly) => {
+    const judgment = out.judgment, fallback = out.receipt.fallback;
+    return { text: rulesOnly ? L("按规则 · 判断中") : fallback === "timeout" ? L("判断超时 · 按规则") : fallback === "failed" ? L("判断失败 · 按规则")
+        : judgment && judgment.basis === "jev" ? "Jev" : L("按规则"),
+      title: judgment ? (judgment.model || "Jev") + " · " + Math.round(judgment.latency_ms) + "ms"
+        : fallback === "unconfigured" ? L("未接判断模型：只按选区形状排序") : L("规则排序：只看选区形状，不看含义") };
+  };
+  // The plan as plain data for the toolbar: no function in it, so it crosses to a pane as it is.
+  const viewOf = (out, rulesOnly, mine) => {
+    const plan = out.plan, byKey = new Map(plan.candidates.map((item) => [item.key, item]));
+    // Another plugin's action says whose it is.
+    const other = (item) => (item.source.provider_id !== mine ? item.provider_title : "");
+    const entry = (item) => ({ key: item.key, label: item.title, disabled: !item.available, note: item.available ? other(item) : item.reason || L("不可用") });
+    return { context_id: plan.context_id, assistant: true, basis: basisOf(out, rulesOnly),
+      actions: plan.primary.map((key) => { const item = byKey.get(key); return { key, label: item.title, hint: item.hint, emphasis: plan.emphasis === key, badge: other(item) }; }),
+      more: [...plan.more.map((group) => ({ title: L(group.title), items: group.keys.map((key) => entry(byKey.get(key))) })),
+        { title: L("全部操作（不依赖推荐）"), items: plan.candidates.map(entry) }] };
+  };
+  const bar = {
     shown: null,
     plan: null,
-    // The last plan published for the menus that show the same actions; it outlives the row being put away.
+    // The last plan; it outlives the toolbar being put away, for the starters and for choosing after Esc.
     published: null,
-    held: null,
     clearWhenLeft: false,
-    menu: null,
     announced: "",
-    returnTo: null,
-    pinned() {
-      const keys = new Set(this.hover);
-      const active = document.activeElement;
-      if (active && root.contains(active) && active.dataset.key) keys.add(active.dataset.key);
-      return [...keys];
-    },
-    interacting() { return root.matches(":hover") || root.contains(document.activeElement); },
-    // The judgment did not come: the basis note says so (the rules' actions stay).
-    judgeFailed() {
-      const basis = root.querySelector(".context-actions-basis");
-      if (basis) { basis.dataset.pending = "false"; basis.firstElementChild.textContent = L("判断失败 · 按规则"); }
-    },
+    view: null,
+    frame: null,
+    summoned: "",
+    timer: 0,
+    paneHold: { interacting: false, pinned: [] },
+    pinned() { return this.frame ? this.paneHold.pinned : toolbar.pinned(); },
+    interacting() { return this.frame ? this.paneHold.interacting : Boolean(toolbar.busy()); },
+    // The pointer or focus left the toolbar: what was meant to clear when they did, clears.
+    leave() { if (this.clearWhenLeft && !this.interacting()) bus.set(null, null); },
+    // Esc: these actions are not wanted for this passage.
+    dismissAll() { (this.plan ? this.plan.primary : []).forEach((key) => { bus.dismiss(key); bus.signal(key, "ignored"); }); this.idle(); },
+    // The pane draws its own toolbar from what it is sent.
+    tell(frame, message) { frame.contentWindow.postMessage({ type: "workbench-context-view", ...message }, location.origin); },
     idle() {
-      this.closeMenu(); this.plan = null; this.shown = null; this.held = null; this.hover.clear(); this.buttons.clear();
-      root.dataset.state = "idle"; root.dataset.pending = "false"; root.replaceChildren();
+      clearTimeout(this.timer);
+      const frame = this.frame;
+      this.plan = this.shown = this.view = this.frame = null; this.summoned = ""; this.paneHold = { interacting: false, pinned: [] };
+      toolbar.hide();
+      if (frame && frame.contentWindow) this.tell(frame, { op: "idle" });
     },
-    // A new context: what is on the row belongs to the previous one, so it rests (and cannot be clicked) until the
-    // candidates for this one arrive a moment later. Nothing shows when the row was empty.
-    pending(focus) {
-      this.closeMenu();
-      if (root.dataset.state !== "active" || !root.querySelector(".context-actions-scope")) return;
-      root.dataset.pending = "true";
-      this.scope(focus);
-    },
-    error(error) {
-      this.idle();
-      root.dataset.state = "active";
-      root.replaceChildren(el("div", { class: "context-actions-pill" }, el("span", { class: "context-actions-note", text: error.message || L("暂时处理不了，请稍后重试") })));
-    },
-    scope(focus) {
-      const pill = root.querySelector(".context-actions-pill");
-      const first = focus.targets[0];
-      const where = focus.surroundings && focus.surroundings.heading_path.length ? focus.surroundings.heading_path[focus.surroundings.heading_path.length - 1] : "";
-      const label = focus.activity === "editing" ? L("正在写的这段")
-        : focus.activity === "completed" ? L("刚完成：") + (first ? first.text.slice(0, 12) : "")
-        : focus.activity === "comparing" ? L("比较") + " " + focus.targets.length
-        : focus.granularity === "word" ? "「" + (first ? first.text.slice(0, 10) : "") + "」"
-        : (SCOPE[focus.granularity] || "") + (focus.granularity === "blocks" || focus.granularity === "objects" ? "（" + focus.targets.length + "）" : "") + (where ? " · " + where : "");
-      let chip = pill.querySelector(".context-actions-scope");
-      if (!chip) {
-        const close = el("button", { type: "button", "aria-label": L("收起这些建议"), title: L("收起（这段内容不再推荐）") });
-        close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
-        close.addEventListener("click", () => { (this.plan ? this.plan.primary : []).forEach((key) => { bus.dismiss(key); bus.signal(key, "ignored"); }); this.idle(); });
-        chip = el("span", { class: "context-actions-scope" }, el("span"), close);
-        pill.prepend(chip);
-      }
-      chip.firstElementChild.textContent = label;
-      chip.title = first ? first.text.slice(0, 120) : "";
+    // A new context: what was shown belongs to the one before.
+    pending(focus) { if (this.shown && this.shown.context_id !== focus.context_id) this.idle(); },
+    error(error) { host.showToast(error.message || L("暂时处理不了，请稍后重试"), true); },
+    // The owner moved what it reported (a scroll): the toolbar follows without asking anything again.
+    reanchor() { if (!this.frame) toolbar.place(); },
+    // The judgment did not come: the basis note says so (the rules' actions stay).
+    judgeFailed() { if (this.view) { this.view.basis = { text: L("判断失败 · 按规则"), title: "" }; this.push(); } },
+    push(summon) {
+      if (!this.view) return;
+      const frame = bus.source && bus.source.frame;
+      if (frame) { this.frame = frame; this.tell(frame, { op: "render", view: this.view, summon }); return; }
+      this.frame = null;
+      toolbar.show({ ...this.view, touch: coarse(), anchor: { rect: rectOf(() => bus.focus || {}), placement: ((bus.focus || {}).screen || {}).placement } });
     },
     render(out, focus, rulesOnly) {
-      const draw = () => this.draw(out, focus, rulesOnly);
-      // Never move what the person is pointing at or typing in: a same-context update waits until they leave the row.
-      if (this.shown && this.shown.context_id === out.plan.context_id && this.interacting()) { this.held = draw; return; }
-      draw();
-    },
-    release() {
-      if (this.clearWhenLeft && !this.interacting()) { bus.set(null, null); return; }
-      const held = this.held; this.held = null; if (held && !this.interacting()) held();
-    },
-    draw(out, focus, rulesOnly) {
-      const plan = out.plan;
-      this.plan = plan;
-      const available = plan.candidates.filter((item) => item.available);
-      if (!available.length) { this.idle(); return; }
-      root.dataset.state = "active";
-      root.dataset.pending = "false";
-      if (!root.querySelector(".context-actions-pill")) root.replaceChildren(el("div", { class: "context-actions-pill" }));
-      const pill = root.querySelector(".context-actions-pill");
-      const byKey = new Map(plan.candidates.map((item) => [item.key, item]));
-      const owners = new Map();
-      available.forEach((item) => owners.set(item.provider_title, (owners.get(item.provider_title) || 0) + 1));
-      const owner = [...owners.entries()].sort((a, b) => b[1] - a[1])[0][0];
-      const sameContext = Boolean(this.shown && this.shown.context_id === plan.context_id);
-      this.scope(focus);
-      const next = [pill.querySelector(".context-actions-scope")];
-      plan.primary.forEach((key, slot) => {
-        const candidate = byKey.get(key);
-        let button = this.buttons.get(key);
-        if (!button) {
-          button = el("button", { class: "context-action", type: "button", "data-key": key });
-          button.addEventListener("click", () => choose(key));
-          button.addEventListener("pointerenter", () => this.hover.add(key));
-          button.addEventListener("pointerleave", () => this.hover.delete(key));
-          this.buttons.set(key, button);
-          if (sameContext) button.dataset.arriving = "true";
-        }
-        button.replaceChildren(el("span", { text: candidate.title }));
-        if (candidate.provider_title !== owner) button.append(el("span", { class: "context-action-kind", text: candidate.provider_title }));
-        // Read out as “action (plugin)”, not the two words run together.
-        button.setAttribute("aria-label", candidate.provider_title !== owner ? candidate.title + "（" + candidate.provider_title + "）" : candidate.title);
-        button.dataset.emphasis = String(plan.emphasis === key);
-        button.dataset.slot = String(slot);
-        button.title = candidate.hint;
-        next.push(button);
-      });
-      [...this.buttons.keys()].forEach((key) => { if (!plan.primary.includes(key)) { this.buttons.get(key).remove(); this.buttons.delete(key); this.hover.delete(key); } });
-      let more = pill.querySelector(".context-actions-more");
-      if (!more) {
-        const toggle = el("button", { class: "context-action", type: "button", "data-more": "", "aria-haspopup": "menu", "aria-expanded": "false", text: L("更多") });
-        toggle.addEventListener("click", () => this.toggleMenu());
-        more = el("span", { class: "context-actions-more" }, toggle);
-      }
-      next.push(more);
-      if (plan.assistant) {
-        let ask = pill.querySelector(".context-actions-assistant");
-        if (!ask) {
-          ask = el("button", { class: "context-action context-actions-assistant", type: "button" });
-          ask.addEventListener("click", () => askAssistant());
-        }
-        const words = L("助理：") + (FORM[plan.assistant.form] || L("有一条建议"));
-        ask.replaceChildren(el("span", { class: "context-actions-long", text: words }), el("span", { class: "context-actions-short", text: L("助理") }));
-        ask.setAttribute("aria-label", words);
-        next.push(ask);
-      }
-      let basis = pill.querySelector(".context-actions-basis");
-      if (!basis) basis = el("span", { class: "context-actions-basis" }, el("span"));
-      const judgment = out.judgment;
-      const fallback = out.receipt.fallback;
-      basis.dataset.basis = plan.basis;
-      basis.dataset.pending = String(rulesOnly);
-      basis.firstElementChild.textContent = rulesOnly ? L("按规则 · 判断中")
-        : fallback === "unconfigured" ? L("按规则") : fallback === "timeout" ? L("判断超时 · 按规则") : fallback === "failed" ? L("判断失败 · 按规则")
-        : judgment && judgment.basis === "jev" ? "Jev" : L("按规则");
-      basis.title = judgment ? (judgment.model || "Jev") + " · " + Math.round(judgment.latency_ms) + "ms"
-        : fallback === "unconfigured" ? L("未接判断模型：只按选区形状排序") : L("规则排序：只看选区形状，不看含义");
-      next.push(basis);
-      pill.replaceChildren(...next);
-      this.shown = { context_id: plan.context_id, primary: [...plan.primary] };
-      if (this.menu) this.fillMenu();
-      const words = plan.primary.map((key) => byKey.get(key).title).join("、");
-      if (!rulesOnly && words && words !== this.announced) { this.announced = words; live.textContent = L("可以做：") + words; }
-      this.published = plan;
-      bus.publish(plan);
-    },
-    toggleMenu() {
-      if (this.menu) { this.closeMenu(); return; }
-      const wrap = root.querySelector(".context-actions-more");
-      if (!wrap) return;
-      this.menu = el("div", { class: "context-actions-menu", role: "menu" });
-      wrap.append(this.menu);
-      this.fillMenu();
-      // Keep the menu on screen: it opens right-aligned to “更多” and shifts when that would cross an edge.
-      const rect = this.menu.getBoundingClientRect();
-      if (rect.left < 8) this.menu.style.right = (rect.left - 8) + "px";
-      wrap.querySelector("[data-more]").setAttribute("aria-expanded", "true");
-      const first = this.menu.querySelector("button:not([disabled])");
-      if (first) first.focus();
-    },
-    // Removing the menu blurs its focused item, whose focusout closes the menu again: forget it before removing it.
-    closeMenu() {
-      const menu = this.menu;
-      this.menu = null;
-      if (menu) menu.remove();
-      const toggle = root.querySelector("[data-more]");
-      if (toggle) toggle.setAttribute("aria-expanded", "false");
-    },
-    fillMenu() {
-      if (!this.menu || !this.plan) return;
-      const byKey = new Map(this.plan.candidates.map((item) => [item.key, item]));
-      // With one provider, naming it on every line says nothing; an unavailable action always says why.
-      const single = new Set(this.plan.candidates.map((candidate) => candidate.provider_title)).size === 1;
-      const item = (candidate) => {
-        const note = candidate.available ? (single ? "" : candidate.provider_title) : candidate.reason || L("不可用");
-        const button = el("button", candidate.available ? { type: "button", role: "menuitem" } : { type: "button", role: "menuitem", disabled: "" },
-          el("span", { text: candidate.title }), note ? el("small", { text: note }) : null);
-        button.setAttribute("aria-label", note ? candidate.title + "（" + note + "）" : candidate.title);
-        button.title = candidate.hint;
-        button.addEventListener("click", () => { this.closeMenu(); choose(candidate.key); });
-        return button;
-      };
-      const parts = [];
-      // Primary actions the row cannot show at this width lead the menu.
-      const hidden = this.plan.primary.filter((key) => { const button = this.buttons.get(key); return button && getComputedStyle(button).display === "none"; });
-      if (hidden.length) { parts.push(el("h4", { text: L("推荐") })); hidden.forEach((key) => parts.push(item(byKey.get(key)))); }
-      this.plan.more.forEach((group) => { parts.push(el("h4", { text: L(group.title) })); group.keys.forEach((key) => parts.push(item(byKey.get(key)))); });
-      parts.push(el("hr"), el("h4", { text: L("全部操作（不依赖推荐）") }));
-      const providers = new Map();
-      this.plan.candidates.forEach((candidate) => providers.set(candidate.provider_title, [...(providers.get(candidate.provider_title) || []), candidate]));
-      providers.forEach((list, title) => { if (!single) parts.push(el("h4", { text: title })); list.forEach((candidate) => parts.push(item(candidate))); });
-      this.menu.replaceChildren(...parts);
-    },
-  };
-  // A document without the row's host (no Assistant dock): the same state and the same publishing, nothing drawn.
-  const headless = {
-    shown: null, plan: null, published: null, clearWhenLeft: false,
-    pinned: () => [], interacting: () => false, pending() {}, error() {}, judgeFailed() {},
-    idle() { this.plan = null; this.shown = null; },
-    render(out) {
       const plan = out.plan;
       if (!plan.candidates.some((item) => item.available)) { this.idle(); return; }
-      this.plan = plan; this.shown = { context_id: plan.context_id, primary: [...plan.primary] }; this.published = plan;
-      bus.publish(plan);
+      this.plan = plan; this.published = plan; this.shown = { context_id: plan.context_id, primary: [...plan.primary] };
+      this.view = viewOf(out, rulesOnly, focus.plugin_id);
+      const words = plan.primary.map((key) => (plan.candidates.find((item) => item.key === key) || {}).title).filter(Boolean).join("、");
+      if (!rulesOnly && words && words !== this.announced) { this.announced = words; live.textContent = L("可以做：") + words; }
+      clearTimeout(this.timer);
+      // Writing shows nothing by itself; a selection shows once it has been steady for a moment.
+      if (focus.activity === "editing" && this.summoned !== plan.context_id) return;
+      const seq = bus.seq, wait = Math.max(0, 350 - (Date.now() - bus.at));
+      if (wait) this.timer = setTimeout(() => { if (seq === bus.seq) this.push(); }, wait); else this.push();
+    },
+    // ⌘. while writing: bring the toolbar up for the caret (a pane asks for it by message, then takes the focus itself).
+    summon(fromPane) {
+      if (!this.view || !bus.focus || bus.focus.activity !== "editing" || (!fromPane && !toolbar.hidden())) return false;
+      this.summoned = this.view.context_id; this.push(true); if (!fromPane) toolbar.focus();
+      return true;
     },
   };
-  // What the bus talks to: the row when this document has one, else the headless twin.
-  const bar = root ? row : headless;`;
-
-/** What the row's root element listens to (hover release, focus return, Escape and arrows), after the bus is defined. */
-export const CONTEXT_BAR_EVENTS_SCRIPT = String.raw`  if (root) {
-    root.addEventListener("pointerleave", () => row.release());
-    // Where Escape goes back to: the element focus came from, outside the row. Focus arriving from nowhere (a menu item
-    // just removed on closing the menu) keeps the place remembered before.
-    root.addEventListener("focusin", (event) => {
-      const from = event.relatedTarget;
-      if (from instanceof HTMLElement && from.isConnected && !root.contains(from)) row.returnTo = from;
-    });
-    root.addEventListener("focusout", (event) => { if (!root.contains(event.relatedTarget)) { row.closeMenu(); row.release(); } });
-    // A click in the row never takes the focus from the editor, so the selection stays where it is.
-    root.addEventListener("mousedown", (event) => { if (event.target.closest("button")) event.preventDefault(); });
-    document.addEventListener("pointerdown", (event) => { if (row.menu && !root.contains(event.target)) row.closeMenu(); });
-    document.addEventListener("keydown", (event) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "." && root.dataset.state === "active") {
-        const first = root.querySelector(".context-action");
-        if (first) { event.preventDefault(); row.returnTo = document.activeElement instanceof HTMLElement ? document.activeElement : null; first.focus(); }
-      }
-    });
-    root.addEventListener("keydown", (event) => {
-      const inMenu = Boolean(row.menu && row.menu.contains(document.activeElement));
-      const items = [...root.querySelectorAll(inMenu ? ".context-actions-menu button:not([disabled])" : ".context-action, .context-actions-scope button")];
-      const index = items.indexOf(document.activeElement);
-      if (event.key === "Escape") {
-        event.preventDefault();
-        if (row.menu) { row.closeMenu(); root.querySelector("[data-more]").focus(); return; }
-        if (row.returnTo && row.returnTo.isConnected) row.returnTo.focus(); else document.activeElement.blur();
-        return;
-      }
-      const forward = inMenu ? "ArrowDown" : "ArrowRight", back = inMenu ? "ArrowUp" : "ArrowLeft";
-      if (event.key === forward && index >= 0) { event.preventDefault(); items[(index + 1) % items.length].focus(); }
-      if (event.key === back && index >= 0) { event.preventDefault(); items[(index - 1 + items.length) % items.length].focus(); }
-    });
-  }`;
+  document.addEventListener("keydown", (event) => { if ((event.metaKey || event.ctrlKey) && event.key === "." && bar.summon()) event.preventDefault(); });`;

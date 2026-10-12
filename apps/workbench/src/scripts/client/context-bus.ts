@@ -21,8 +21,8 @@
  *   a page), or the plan on show while something is in hand; the Assistant shows them and hands a click back, so it runs
  *   exactly as a click on the row would. A plugin switched off or a grant withdrawn shows within the cache time; choosing
  *   checks again anyway.
- * - `chooseFrom`: a menu that shows the same plan (Pages' writing menu) chooses exactly as a click on the row does, also after
- *   the person put the row away for this passage.
+ * - `chooseFrom`: a choice made in a split pane's toolbar is handled exactly as one made here, also after the person put the toolbar
+ *   away for this passage.
  */
 export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     focus: null,
@@ -32,6 +32,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     rulesTimer: 0,
     flush: null,
     judging: null,
+    at: 0,
     dismissed: new Map(),
     recent: [],
     request(focus) {
@@ -47,9 +48,9 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     set(focus, source, force) {
       if (!focus && !force && this.focus && bar.interacting()) { bar.clearWhenLeft = true; return; }
       bar.clearWhenLeft = false;
-      if (focus && this.focus && focus.context_id === this.focus.context_id && this.source && source && this.source.pane === source.pane) return;
+      if (focus && this.focus && focus.context_id === this.focus.context_id && this.source && source && this.source.pane === source.pane) { this.focus = focus; bar.reanchor(); return; }
       const leaving = this.source, previous = this.focus;
-      this.focus = focus; this.source = focus ? source : null;
+      this.focus = focus; this.source = focus ? source : null; this.at = Date.now();
       this.watch(Boolean(focus && source && source.element));
       clearTimeout(this.timer);
       clearTimeout(this.rulesTimer);
@@ -82,11 +83,6 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
         if (error && error.name === "AbortError") return;
         if (seq === this.seq) bar.judgeFailed();
       } finally { if (this.judging === controller) this.judging = null; }
-    },
-    // The plan for the menus that show the same actions: in this document by an event, in the pane the focus came from by a message.
-    publish(plan) {
-      document.dispatchEvent(new CustomEvent("molis:assistant-context-actions", { detail: { context_id: plan.context_id, plan } }));
-      if (this.source && this.source.frame) this.source.frame.contentWindow?.postMessage({ type: "workbench-context-plan", plan }, location.origin);
     },
     watching: 0,
     watch(on) {
@@ -151,14 +147,16 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       .then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(detail));
   };
   const askAssistant = () => {
-    const focus = bus.focus, plan = bar.plan;
-    if (!focus || !plan || !plan.assistant) return;
-    const titles = plan.assistant.keys.map((key) => (plan.candidates.find((item) => item.key === key) || {}).title).filter(Boolean);
-    const words = plan.assistant.form === "compare" ? L("帮我并排比较这几处内容的相同点、不同点和冲突。")
-      : plan.assistant.form === "options" ? L("这段内容可以往哪几个方向走？可以考虑：") + titles.join("、")
+    const focus = bus.focus, plan = bar.plan, ask = plan && plan.assistant;
+    if (!focus) return;
+    const titles = ask ? ask.keys.map((key) => (plan.candidates.find((item) => item.key === key) || {}).title).filter(Boolean) : [];
+    const words = ask && ask.form === "compare" ? L("帮我并排比较这几处内容的相同点、不同点和冲突。")
+      : ask && ask.form === "options" ? L("这段内容可以往哪几个方向走？可以考虑：") + titles.join("、")
       : L("帮我看看这段内容，") + (titles[0] ? L("先从「") + titles[0] + L("」开始。") : "");
     openAssistant(assistantDetail(focus, words));
   };
+  // Only into the Assistant's input, unsent: the person adds their own words and sends.
+  const bringToAssistant = () => { if (bus.focus) openAssistant(assistantDetail(bus.focus, "")); };
 
   const starters = {
     focus: null,
@@ -233,17 +231,22 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     if (event.origin !== location.origin || !event.data || typeof event.data.type !== "string") return;
     const frame = [...document.querySelectorAll("iframe[data-pane-owner]")].find((node) => node.contentWindow === event.source);
     if (!frame) return;
-    if (event.data.type === "workbench-surface-focus") bus.report({ pane: frame.dataset.paneOwner || "pane", element: frame, frame }, event.data.focus || null);
-    else if (event.data.type === "workbench-context-action-unhandled" && event.data.detail) unhandled(event.data.context_id, event.data.key, event.data.detail);
-    else if (event.data.type === "workbench-context-action-choose" && bus.source && bus.source.frame === frame) chooseFrom(event.data.context_id, event.data.key);
+    const data = event.data;
+    if (data.type === "workbench-surface-focus") bus.report({ pane: frame.dataset.paneOwner || "pane", element: frame, frame }, data.focus || null);
+    else if (data.type === "workbench-context-action-unhandled" && data.detail) unhandled(data.context_id, data.key, data.detail);
+    else if (!bus.source || bus.source.frame !== frame || !bus.focus || data.context_id !== bus.focus.context_id) return;
+    else if (data.type === "workbench-context-action-choose") chooseFrom(data.context_id, data.key);
+    else if (data.type === "workbench-context-assistant") { if (data.kind === "bring") bringToAssistant(); else askAssistant(); }
+    else if (data.type === "workbench-context-dismiss") bar.dismissAll();
+    else if (data.type === "workbench-context-summon") bar.summon(true);
+    else if (data.type === "workbench-context-hold") {
+      bar.paneHold = { interacting: !!data.interacting, pinned: Array.isArray(data.pinned) ? data.pinned.filter((key) => typeof key === "string").slice(0, 8) : [] };
+      bar.leave();
+    }
   });
   const chooseFrom = (contextId, key) => {
     if (!bus.focus || bus.focus.context_id !== contextId || typeof key !== "string") return;
     choose(key, bar.plan || bar.published);
   };
-  document.addEventListener("molis:assistant-context-action-choose", (event) => {
-    const detail = event.detail || {};
-    if (bus.source && !bus.source.frame) chooseFrom(detail.context_id, detail.key);
-  });
   // A place change, or the surface going out of sight, voids what was in hand there.
   document.addEventListener("molis-work:place-changed", () => bus.set(null, null, true));`;

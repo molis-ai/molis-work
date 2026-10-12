@@ -1,19 +1,19 @@
 /**
- * What can be done with what the person has in hand (specs/archive/contextual-interaction §3, §4, §6.3): the row of actions
- * right above the Assistant input.
+ * What can be done with what the person has in hand (specs/archive/contextual-interaction §3, §4, §6.3): the context toolbar next to it.
  *
  * A surface raises `molis:surface-focus` whenever its focus changes. The Host ranks the actions the directory offers
- * for it, by rules at once and by the judgment shortly after; the row shows them without moving what the person is
+ * for it, by rules at once and by the judgment shortly after; the toolbar shows them without moving what the person is
  * pointing at, and never shows a ranking for a context that is no longer current. A click hands the choice back to
  * the page that owns the object (`molis:assistant-context-action-chosen`), which prepares it through the Host and
- * shows a preview before anything is written. A split pane is its own document: it forwards its focus here and
- * receives the choice back.
+ * shows a preview before anything is written. A split pane is its own document: it draws its own toolbar from the plan the
+ * top document sends it, and sends its choices back.
  */
-import { CONTEXT_BAR_EVENTS_SCRIPT, CONTEXT_BAR_SCRIPT } from "./context-bar.js";
+import { compactScript, CONTEXT_TOOLBAR_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { CONTEXT_BAR_SCRIPT } from "./context-bar.js";
 import { CONTEXT_BUS_SCRIPT } from "./context-bus.js";
 
 // The factory is one closure, so the three files are joined into one script, in the order of the original text.
-export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
+export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) => {
   const L = host.translate;
   const embedded = window.parent !== window && document.body.hasAttribute("data-pane-embedded");
   const ownPane = embedded ? new URL(location.href).searchParams.get("workbenchPane") || "pane" : "main";
@@ -27,6 +27,16 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
   const quoted = (focus) => focus.targets.map((target) => target.text).join("\n\n").slice(0, 20000);
   const assistantDetail = (focus, text) => ({ new: true, text, source: { surface: focus.plugin_id, title: focus.object.title || "" },
     materials: [{ title: L("选中的内容") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) }] });
+
+  const makeToolbar = ${CONTEXT_TOOLBAR_CLIENT_SCRIPT};
+  const coarse = () => matchMedia("(pointer: coarse)").matches || innerWidth <= 760;
+  // Where the toolbar goes: the owner's own rectangle when it gave one (an editor's caret or range), else the person's DOM selection.
+  const rectOf = (read) => () => {
+    const screen = read().screen;
+    if (screen && screen.rect) return screen.rect;
+    const selection = getSelection();
+    return selection && selection.rangeCount && !selection.isCollapsed ? selection.getRangeAt(0).getBoundingClientRect() : null;
+  };
 
   // In the document that owns the surface: hand the choice to the page. Nobody taking it means no page here can run
   // it yet; the Assistant then gets the words and the material, and the person sends it if they want.
@@ -71,7 +81,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     };
     const own = (node) => {
       const el = node && (node.nodeType === 1 ? node : node.parentElement);
-      return !el || Boolean(el.closest('[contenteditable=""], [contenteditable="true"], input, textarea, select, [data-surface-focus="own"], [data-assistant-island], [data-assistant-context-actions]'));
+      return !el || Boolean(el.closest('[contenteditable=""], [contenteditable="true"], input, textarea, select, [data-surface-focus="own"], [data-assistant-island], .mw-ctx'));
     };
     const read = () => {
       const selection = getSelection();
@@ -138,50 +148,49 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
 
   if (embedded) {
     let shown = null;
+    const say = (message) => { if (shown) parent.postMessage({ ...message, context_id: shown.context_id }, location.origin); };
+    const toolbar = makeToolbar({
+      translate: L, inset: { top: 0, bottom: 0 }, width: () => innerWidth,
+      choose: (key) => say({ type: "workbench-context-action-choose", key }),
+      assistant: (kind) => say({ type: "workbench-context-assistant", kind }),
+      dismiss: () => say({ type: "workbench-context-dismiss" }),
+      hold: (state) => say({ type: "workbench-context-hold", ...state }),
+      settled: () => say({ type: "workbench-context-hold", interacting: false, pinned: [] }),
+    });
     document.addEventListener("molis:surface-focus", (event) => {
       shown = event.detail && typeof event.detail === "object" ? event.detail : null;
-      parent.postMessage({ type: "workbench-surface-focus", focus: shown }, location.origin);
+      // Where it is on this page is for this page's toolbar; the top document never needs it.
+      const { screen, ...plain } = shown || {};
+      parent.postMessage({ type: "workbench-surface-focus", focus: shown ? plain : null }, location.origin);
+      if (shown) toolbar.place(); else toolbar.hide();
     });
-    // A menu in this pane that shows the row's plan (Pages' writing menu) chooses through the row in the top document.
-    document.addEventListener("molis:assistant-context-action-choose", (event) => {
-      const detail = event.detail || {};
-      if (shown && detail.context_id === shown.context_id && typeof detail.key === "string") parent.postMessage({ type: "workbench-context-action-choose", context_id: detail.context_id, key: detail.key }, location.origin);
+    document.addEventListener("keydown", (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "." && toolbar.hidden() && shown && shown.activity === "editing") { event.preventDefault(); say({ type: "workbench-context-summon" }); }
     });
     window.addEventListener("message", (event) => {
       if (event.source !== window.parent || event.origin !== location.origin || !event.data) return;
-      // The row's plan for this pane's context, for the menus here that show the same actions.
-      if (event.data.type === "workbench-context-plan" && event.data.plan) {
-        document.dispatchEvent(new CustomEvent("molis:assistant-context-actions", { detail: { context_id: event.data.plan.context_id, plan: event.data.plan } }));
+      const data = event.data;
+      if (data.type === "workbench-context-view") {
+        if (data.op === "idle") toolbar.hide();
+        else if (shown && data.view && data.view.context_id === shown.context_id) {
+          toolbar.show({ ...data.view, touch: coarse(), anchor: { rect: rectOf(() => shown || {}), placement: ((shown || {}).screen || {}).placement } });
+          if (data.summon) toolbar.focus();
+        }
         return;
       }
-      if (event.data.type !== "workbench-context-action-chosen") return;
-      if (!shown || !event.data.candidate || event.data.context_id !== shown.context_id) return;
-      const fallback = deliver(shown, event.data.candidate);
-      if (fallback) parent.postMessage({ type: "workbench-context-action-unhandled", context_id: shown.context_id, key: event.data.candidate.key, detail: fallback }, location.origin);
+      if (data.type !== "workbench-context-action-chosen") return;
+      if (!shown || !data.candidate || data.context_id !== shown.context_id) return;
+      const fallback = deliver(shown, data.candidate);
+      if (fallback) parent.postMessage({ type: "workbench-context-action-unhandled", context_id: shown.context_id, key: data.candidate.key, detail: fallback }, location.origin);
     });
     window.addEventListener("pagehide", () => parent.postMessage({ type: "workbench-surface-focus", focus: null }, location.origin));
     return null;
   }
 
-  // The row's host sits in the Assistant dock. A document without it still takes focus and publishes the plan; nothing is drawn.
-  const root = document.querySelector("[data-assistant-context-actions]");
-  const el = (tag, attrs, ...children) => {
-    const node = document.createElement(tag);
-    Object.entries(attrs || {}).forEach(([name, value]) => {
-      if (name === "class") node.className = value; else if (name === "text") node.textContent = value; else node.setAttribute(name, value);
-    });
-    children.forEach((child) => { if (child) node.append(child); });
-    return node;
-  };
-  // The shared screen-reader-only primitive: its -1px margin keeps the region from lengthening the page by a pixel.
-  const live = root ? el("div", { class: "mw-sr-only", "data-context-actions-live": "", "aria-live": "polite" }) : null;
-  if (live) document.body.append(live);
   const openAssistant = (detail) => document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail }));
   const visible = (node) => Boolean(node && node.isConnected && node.getClientRects().length && !node.closest("[hidden]"));
 ${CONTEXT_BAR_SCRIPT}
 
 ${CONTEXT_BUS_SCRIPT}
-
-${CONTEXT_BAR_EVENTS_SCRIPT}
   return { current: () => bus.focus, plan: () => bar.plan };
-}`;
+}`);

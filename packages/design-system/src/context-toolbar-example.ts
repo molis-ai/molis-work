@@ -52,7 +52,7 @@ const DEMO_SCRIPT = String.raw`(() => {
     clearTimeout(timer);
     timer = setTimeout(() => {
       const selection = getSelection();
-      if (!selection || selection.isCollapsed || !selection.rangeCount || !text.contains(selection.anchorNode) || !text.contains(selection.focusNode)) { if (!bar.interacting()) bar.hide(); return; }
+      if (!selection || selection.isCollapsed || !selection.rangeCount || !text.contains(selection.anchorNode) || !text.contains(selection.focusNode)) { if (!bar.busy()) bar.hide(); return; }
       const rect = selection.getRangeAt(0).getBoundingClientRect();
       context = "demo:" + selection.toString().trim().slice(0, 40);
       bar.show({ context_id: context, anchor: { rect }, assistant: true,

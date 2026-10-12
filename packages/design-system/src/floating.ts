@@ -20,6 +20,11 @@ export interface FloatingSize {
 
 export type FloatingMode = "below" | "above" | "beside";
 
+const GAP = 8;
+function clampTo(value: number, limit: number, length: number): number {
+  return Math.round(Math.min(Math.max(MARGIN, value), Math.max(MARGIN, limit - length - MARGIN)));
+}
+
 /** Put a floating panel on the side that fits. A panel taller than the screen stays inside the margin. */
 export function placeFloating(
   anchor: FloatingAnchor,
@@ -27,32 +32,34 @@ export function placeFloating(
   viewport: { width: number; height: number },
   mode: FloatingMode,
 ): { left: number; top: number } {
-  const gap = 8;
-  const clamp = (value: number, limit: number, length: number) => Math.round(
-    Math.min(Math.max(MARGIN, value), Math.max(MARGIN, limit - length - MARGIN)),
+  return mode === "beside" ? placeBeside(anchor, size, viewport) : placeStacked(anchor, size, viewport, mode);
+}
+
+function placeBeside(anchor: FloatingAnchor, size: FloatingSize, viewport: { width: number; height: number }): { left: number; top: number } {
+  const onRight = anchor.right + GAP;
+  const onLeft = anchor.left - GAP - size.width;
+  const left = pick(
+    onRight,
+    onLeft,
+    onRight + size.width <= viewport.width - MARGIN,
+    onLeft >= MARGIN,
+    viewport.width - onRight,
+    anchor.left - MARGIN,
   );
-  if (mode === "beside") {
-    const onRight = anchor.right + gap;
-    const onLeft = anchor.left - gap - size.width;
-    const left = pick(
-      onRight,
-      onLeft,
-      onRight + size.width <= viewport.width - MARGIN,
-      onLeft >= MARGIN,
-      viewport.width - onRight,
-      anchor.left - MARGIN,
-    );
-    const top = anchor.top + size.height <= viewport.height - MARGIN
-      ? anchor.top
-      : viewport.height - MARGIN - size.height;
-    return { left: clamp(left, viewport.width, size.width), top: clamp(top, viewport.height, size.height) };
-  }
-  const below = anchor.bottom + gap;
-  const above = anchor.top - gap - size.height;
+  const top = anchor.top + size.height <= viewport.height - MARGIN
+    ? anchor.top
+    : viewport.height - MARGIN - size.height;
+  return { left: clampTo(left, viewport.width, size.width), top: clampTo(top, viewport.height, size.height) };
+}
+
+/** Above or below: the preferred side when it fits, else the other, else where there is more room. This part is the one the page programs carry. */
+function placeStacked(anchor: FloatingAnchor, size: FloatingSize, viewport: { width: number; height: number }, mode: "above" | "below"): { left: number; top: number } {
+  const below = anchor.bottom + GAP;
+  const above = anchor.top - GAP - size.height;
   const top = mode === "above"
     ? pick(above, below, above >= MARGIN, below + size.height <= viewport.height - MARGIN, anchor.top - MARGIN, viewport.height - below)
     : pick(below, above, below + size.height <= viewport.height - MARGIN, above >= MARGIN, viewport.height - below, anchor.top - MARGIN);
-  return { left: clamp(anchor.left, viewport.width, size.width), top: clamp(top, viewport.height, size.height) };
+  return { left: clampTo(anchor.left, viewport.width, size.width), top: clampTo(top, viewport.height, size.height) };
 }
 
 function pick(
@@ -123,5 +130,5 @@ export function followScroll(panel: Element, run: () => void): () => void {
   return () => document.removeEventListener("scroll", onScroll, true);
 }
 
-// For the page programs that carry these functions as source text (floating-source.ts): what `placeFloating` closes over.
-export { MARGIN as FLOATING_MARGIN, pick as pickSide };
+// For the page programs that carry these functions as source text (floating-source.ts): what `placeStacked` closes over.
+export { GAP as FLOATING_GAP, MARGIN as FLOATING_MARGIN, clampTo, pick as pickSide, placeStacked };

@@ -1,4 +1,5 @@
 import { CONTEXT_TOOL_LIMITS } from "@molis-ai/molis-work-contracts/services/contextual";
+import { compactScript } from "./compact-script.js";
 import { sanitizeContextTools } from "./context-tools.js";
 import { FLOATING_CLIENT_SOURCE } from "./floating-source.js";
 
@@ -10,7 +11,8 @@ import { FLOATING_CLIENT_SOURCE } from "./floating-source.js";
  *
  * `host`: `parent` (where it is drawn; default the body), `translate`, `width()` (the room it has, default the window), `inset`
  * ({ top, bottom } of fixed chrome it must not sit under), and the choices it reports: `choose(key)`, `assistant("bring" | "ask")`,
- * `dismiss(reason)`, `settled()` (the pointer and focus left it after it held a newer view back).
+ * `dismiss(reason)`, `hold({ interacting, pinned })` (the pointer or focus entered or left it, with the keys under them), `settled()` (the pointer and
+ * focus are off it again, after a newer view may have been held back). An anchor's `rect` may be a function, read at every placement.
  * `show(view)`: `{ context_id, anchor: { rect, placement? }, touch?, actions: [{ key, label, badge?, emphasis?, hint? }],
  * more: [{ title, items: [{ key, label, note?, disabled? }] }], assistant?: boolean, basis?: { text, title? } }`.
  *
@@ -38,7 +40,7 @@ export const CONTEXT_TOOLBAR_STYLES = `
 .mw-ctx-menu { position: fixed; z-index: 52; min-width: 200px; max-width: calc(100vw - 16px); max-height: 45dvh; overflow: auto; padding: 6px; border-radius: var(--r-card, 12px); background: var(--popover, var(--paper)); box-shadow: var(--shadow); }
 .mw-ctx-menu__item { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%; min-height: 34px; padding: 6px 10px; border: 0; border-radius: var(--r-control, 8px); background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .mw-ctx-menu__item:hover:not(:disabled), .mw-ctx-menu__item:focus-visible { background: var(--nav-hover); outline: none; }
-.mw-ctx-menu__item:disabled { color: var(--faint); cursor: default; }
+.mw-ctx-menu__item:disabled { flex-direction: column; align-items: flex-start; gap: 2px; color: var(--faint); cursor: default; }
 .mw-ctx-menu__item small { color: var(--muted); font-size: 11px; }
 .mw-ctx-menu__label { margin: 6px 10px 2px; font-size: 11px; font-weight: 500; color: var(--faint); }
 .mw-ctx-menu__gap { height: 1px; margin: 6px 4px; background: var(--line); }
@@ -52,13 +54,13 @@ export const CONTEXT_TOOLBAR_STYLES = `
 
 const LIMITS = JSON.stringify(CONTEXT_TOOL_LIMITS);
 
-export const CONTEXT_TOOLBAR_CLIENT_SCRIPT = String.raw`(host) => {
+export const CONTEXT_TOOLBAR_CLIENT_SCRIPT = compactScript(String.raw`(host) => {
 const L = host.translate || ((t) => t), doc = document;
 ${FLOATING_CLIENT_SOURCE}
 ${sanitizeContextTools.toString().replace(/^[ \t]+/gm, "")}
 const h = (tag, props, ...kids) => {
 const n = doc.createElement(tag);
-for (const k in props) { const v = props[k]; if (k === "text") n.textContent = v; else if (k === "class") n.className = v; else n.setAttribute(k, v); }
+for (const k in props) k === "text" ? n.textContent = props[k] : n.setAttribute(k, props[k]);
 n.append(...kids.filter(Boolean));
 return n;
 };
@@ -72,29 +74,30 @@ const btn = (label, run, props) => { const n = h("button", { type: "button", cla
 const root = h("div", { class: "mw-ctx", role: "toolbar", "aria-label": L("当前内容的动作"), hidden: "" });
 (host.parent || doc.body).append(root);
 let view, tools, left, held, menu, opener, panel, back;
-const busy = () => root.matches(":hover") || root.contains(doc.activeElement) || menu || panel;
+const busy = () => root.matches(":hover") || root.contains(doc.activeElement) || menu || (panel && !panel.stay);
 const room = () => (host.width ? host.width() : innerWidth) - 16;
 const put = (node, rect, mode, x) => {
-const at = placeFloating(rect, { width: node.offsetWidth, height: node.offsetHeight }, { width: innerWidth, height: innerHeight }, mode);
+const at = placeStacked(rect, { width: node.offsetWidth, height: node.offsetHeight }, { width: innerWidth, height: innerHeight }, mode);
 pinAt(node, x === undefined ? at.left : Math.min(x, Math.max(8, innerWidth - node.offsetWidth - 8)), at.top);
 };
 const closeMenu = () => { if (menu) menu.remove(); if (opener) opener.setAttribute("aria-expanded", "false"); menu = opener = null; };
 const closePanel = () => { const p = panel; panel = null; if (p) { p.remove(); if (p.onClose) p.onClose(); } };
-const hide = () => { root.hidden = true; view = held = null; closeMenu(); closePanel(); };
+const leave = () => { if (panel && panel.keep) panel.stay = true; else closePanel(); };
+const hide = () => { root.hidden = true; view = held = null; closeMenu(); leave(); };
 const place = () => {
 if (!view || root.hidden) return;
-const rect = view.anchor && view.anchor.rect, inset = host.inset || {};
+const a = view.anchor, rect = a && (typeof a.rect === "function" ? a.rect() : a.rect), inset = host.inset || {};
 root.toggleAttribute("data-away", !rect || rect.bottom < (inset.top || 0) || rect.top > innerHeight - (inset.bottom || 0));
 if (!rect) return;
 put(root, rect, view.touch || view.anchor.placement === "below" ? "below" : "above", left);
 if (left === undefined) left = root.getBoundingClientRect().left;
 if (menu) put(menu, opener.getBoundingClientRect(), "below");
-if (panel) { const box = root.getBoundingClientRect(); put(panel, { left: box.left, right: box.right, top: box.top, bottom: box.bottom }, "below"); }
+if (panel && !panel.stay) { const box = root.getBoundingClientRect(); put(panel, { left: box.left, right: box.right, top: box.top, bottom: box.bottom }, "below"); }
 };
 const invoke = (group, id) => { if (tools && tools.source && view) tools.source.dispatchEvent(new CustomEvent("molis:context-tool-invoke", { bubbles: true, detail: { context_id: view.context_id, group, id } })); };
 const tool = (group, item, labelled) => {
-const n = btn(labelled && item.label, () => { closeMenu(); invoke(group.id, item.id); }, { "aria-label": item.label, title: item.label + (item.shortcut ? " " + item.shortcut : ""), "data-group": group.id, "data-id": item.id, "aria-pressed": String(Boolean(item.pressed)) });
-n.disabled = Boolean(item.disabled);
+const n = btn(labelled && item.label, () => { closeMenu(); invoke(group.id, item.id); }, { "aria-label": item.label, title: item.label + (item.shortcut ? " " + item.shortcut : ""), "data-group": group.id, "data-id": item.id, "aria-pressed": String(!!item.pressed) });
+n.disabled = !!item.disabled;
 n.prepend(...[item.glyph ? h("span", { class: "mw-ctx__glyph", "data-glyph": item.glyph, text: item.glyph }) : item.icon && icon(item.icon)].filter(Boolean));
 return n;
 };
@@ -109,7 +112,7 @@ const first = menu.querySelector("button:not(:disabled)"); if (first) first.focu
 };
 const entry = (label, note, off, run) => {
 const n = h("button", { type: "button", role: "menuitem", class: "mw-ctx-menu__item" }, h("span", { text: label }), note && h("small", { text: note }));
-n.disabled = Boolean(off); n.addEventListener("click", () => { closeMenu(); run(); });
+n.disabled = !!off; n.addEventListener("click", () => { closeMenu(); run(); });
 return n;
 };
 const more = (extra) => {
@@ -130,7 +133,7 @@ for (const g of mine) { if (fold && g.collapse === "overflow") folded.push(...g.
 if (folded.length) wrap.append(menuButton(L("格式"), () => folded, { "data-fold": "" }));
 kids.push(wrap);
 }
-for (const a of actions.slice(0, slots)) kids.push(btn(a.label, () => host.choose(a.key), { "data-key": a.key, "data-emphasis": String(Boolean(a.emphasis)), title: a.hint || "" }));
+for (const a of actions.slice(0, slots)) { const n = btn(a.label, () => host.choose(a.key), { "data-key": a.key, "data-emphasis": String(!!a.emphasis), title: a.hint || "" }); if (a.badge) n.append(h("small", { class: "mw-ctx__badge", text: a.badge })); kids.push(n); }
 const extra = actions.slice(slots);
 if (extra.length || (view.more || []).length || view.assistant) kids.push(menuButton(L("更多"), () => more(extra), { "data-more": "" }));
 if (view.assistant) kids.push(btn(slots < 3 ? "✦" : "✦ " + L("助理"), () => host.assistant("ask"), { "data-assistant": "", "aria-label": L("助理"), title: L("交给助理") }));
@@ -143,10 +146,12 @@ place();
 const show = (next) => {
 const same = view && next.context_id === view.context_id;
 if (same && busy()) { held = next; return; }
-if (!same) { left = held = undefined; closeMenu(); closePanel(); }
+if (!same) { left = held = undefined; closeMenu(); leave(); }
 view = next; draw(false);
 };
-const release = () => { if (!held || busy()) return; view = held; held = null; draw(false); if (host.settled) host.settled(); };
+const release = () => { if (busy()) return; if (held) { view = held; held = null; draw(false); } if (host.settled) host.settled(); };
+const hold = () => { if (host.hold) host.hold({ interacting: !!busy(), pinned: pinned() }); };
+const pinned = () => [...root.querySelectorAll("[data-key]")].filter((n) => n.matches(":hover") || n === doc.activeElement).map((n) => n.getAttribute("data-key"));
 const keys = (e, scope) => {
 const list = [...scope.querySelectorAll("button:not(:disabled)")], at = list.indexOf(doc.activeElement);
 if (e.key === "Escape") {
@@ -154,24 +159,23 @@ e.preventDefault(); e.stopPropagation();
 if (scope === menu) { const o = opener; closeMenu(); if (o) o.focus(); return; }
 if (host.dismiss) host.dismiss("escape");
 const to = back; hide(); if (to && to.isConnected) to.focus();
-} else if (at >= 0 && ["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
+} else if (at >= 0 && /^(Arrow(Right|Left|Down|Up)|Home|End)$/.test(e.key)) {
 e.preventDefault();
 list[e.key === "Home" ? 0 : e.key === "End" ? list.length - 1 : (at + (/Left|Up/.test(e.key) ? -1 : 1) + list.length) % list.length].focus();
 }
 };
 root.addEventListener("mousedown", (e) => e.preventDefault());
 root.addEventListener("keydown", (e) => keys(e, root));
-root.addEventListener("pointerleave", release);
-root.addEventListener("focusin", (e) => { const from = e.relatedTarget; if (from instanceof HTMLElement && from.isConnected && !root.contains(from) && !(menu && menu.contains(from))) back = from; });
-root.addEventListener("focusout", (e) => { if (!root.contains(e.relatedTarget) && !(menu && menu.contains(e.relatedTarget))) setTimeout(release); });
+root.addEventListener("pointerenter", hold); root.addEventListener("pointerleave", () => { hold(); release(); });
+root.addEventListener("pointerover", (e) => { if (e.target.closest("[data-key]")) hold(); });
+root.addEventListener("focusin", (e) => { hold(); const from = e.relatedTarget; if (from instanceof HTMLElement && from.isConnected && !root.contains(from) && !(menu && menu.contains(from))) back = from; });
+root.addEventListener("focusout", (e) => { if (!root.contains(e.relatedTarget) && !(menu && menu.contains(e.relatedTarget))) setTimeout(() => { hold(); release(); }); });
 doc.addEventListener("pointerdown", (e) => {
 if (menu && !root.contains(e.target) && !menu.contains(e.target)) closeMenu();
-if (panel && !root.contains(e.target) && !panel.contains(e.target)) closePanel();
+if (panel && !panel.keep && !root.contains(e.target) && !panel.contains(e.target)) closePanel();
 });
-doc.addEventListener("keydown", (e) => {
-const first = (e.metaKey || e.ctrlKey) && e.key === "." && !root.hidden && root.querySelector("button:not(:disabled)");
-if (first) { e.preventDefault(); back = doc.activeElement instanceof HTMLElement ? doc.activeElement : null; first.focus(); }
-});
+const enter = () => { const first = !root.hidden && root.querySelector("button:not(:disabled)"); if (first) { back = doc.activeElement instanceof HTMLElement ? doc.activeElement : null; first.focus(); } return !!first; };
+doc.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "." && enter()) e.preventDefault(); });
 doc.addEventListener("scroll", (e) => { if (!(menu || panel || root).contains(e.target)) place(); }, true);
 addEventListener("resize", () => { left = undefined; if (view) draw(false); });
 // The plugin's side: its tools, as data, for the context it names; a form it wants under the bar; the click goes back on the element that published the tools.
@@ -183,17 +187,17 @@ if (view && view.context_id === clean.context_id && !root.hidden) draw(false);
 });
 doc.addEventListener("molis:context-panel-open", (e) => {
 const d = e.detail;
-if (!d || !view || d.context_id !== view.context_id || !(d.node instanceof Node)) return;
-closeMenu(); closePanel();
-panel = h("section", { class: "mw-ctx-panel", role: "dialog", "aria-label": String(d.label || "").slice(0, 40) }, d.node);
-panel.onClose = typeof d.onClose === "function" ? d.onClose : null;
+if (!d) return;
+if (d.node === null) { if (panel) { closePanel(); e.preventDefault(); } return; }
+if (!(d.node instanceof Node)) return;
+const onClose = typeof d.onClose === "function" ? d.onClose : null, label = String(d.label || "").slice(0, 40);
+if (panel && panel.contains(d.node)) { panel.setAttribute("aria-label", label); panel.onClose = onClose; panel.keep = !!d.keep; e.preventDefault(); place(); return; }
+if (!view || d.context_id !== view.context_id) return;
+e.preventDefault(); closeMenu(); closePanel();
+panel = h("section", { class: "mw-ctx-panel", role: "dialog", "aria-label": label }, d.node);
+panel.onClose = onClose; panel.keep = !!d.keep;
 panel.addEventListener("keydown", (k) => { if (k.key === "Escape") { k.preventDefault(); k.stopPropagation(); closePanel(); } });
 (host.parent || doc.body).append(panel); place();
 });
-return {
-show, hide, release, place, closePanel, busy: () => Boolean(busy()),
-contains: (n) => Boolean(n) && (root.contains(n) || Boolean(menu && menu.contains(n)) || Boolean(panel && panel.contains(n))),
-pinned: () => [...root.querySelectorAll("[data-key]")].filter((n) => n.matches(":hover") || n === doc.activeElement).map((n) => n.getAttribute("data-key")),
-visible: () => !root.hidden && !root.hasAttribute("data-away"),
-};
-}`;
+return { show, hide, release, place, closePanel, pinned, focus: enter, hidden: () => root.hidden, busy: () => !!busy() };
+}`);

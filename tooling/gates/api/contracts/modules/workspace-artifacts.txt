@@ -75,8 +75,6 @@ export declare const DIFF_CHANGESET_SCHEMA_VERSION = 1;
 
 export declare const DIFF_CHANGESET_TYPE = "diff.changeset.v1";
 
-export declare const DIFF_STEP_BUDGET = 200000;
-
 export interface DiffLine {
     readonly text: string;
     readonly ending: string;
@@ -420,17 +418,11 @@ export interface WriterIntegrationView {
     files: WriterIntegrationFile[];
 }
 
-export declare function alignSplitRows(rows: readonly TextDiffRow[]): SplitPair[];
-
-export declare function compareTexts(before: string, after: string): TextDiff;
-
 export declare function fileSnapshotFitsInline(content: FileSnapshot): boolean;
 
 export declare function fileSnapshotInlineBytes(content: FileSnapshot): number;
 
 export declare function isOpaqueHandle(handle: string): boolean;
-
-export declare function joinLines(lines: readonly DiffLine[]): string;
 
 export declare function mayHaveChangedFiles(outcome: GitResultOutcome): boolean;
 
@@ -486,18 +478,9 @@ export declare const readGitResultsCapability: HostCapabilityDefinition<{
     workspace_id: string;
 }, readonly GitReviewedResult[]>;
 
-export declare function reconstructSides(ops: readonly DiffOp[]): {
-    before: string;
-    after: string;
-};
-
 export declare function samePath(left: readonly string[], right: readonly string[]): boolean;
 
 export declare function selectionCitationLabel(selection: FileTextSelection): string;
-
-export declare function splitLines(text: string): DiffLine[];
-
-export declare function textDiffRow(op: DiffOp): TextDiffRow;
 
 export declare const workspaceArtifactsContract: {
     readonly contractId: "io.molis.work.modules.workspace-artifacts.v1";

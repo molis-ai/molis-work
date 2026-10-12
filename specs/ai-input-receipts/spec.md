@@ -2,7 +2,7 @@
 
 > 远端接续请先读文末「远端交接」；历史路径、授权及未提交状态以该节为准。
 
-状态：执行中（2026-10-09）。§14 的九项已按推荐定下（用户 2026-10-09「按你推荐，开工」）；阶段 0 的文档与阶段 2 的 Prologue 通用能力先做，阶段 1 的 Molis 代码等 `feat/prologue-adoption` 合入并换成 Prologue 主线包后开工。进度记在 §16。
+状态：执行中（2026-10-12）。§14 的九项已按推荐定下（用户 2026-10-09「按你推荐，开工」）。阶段 2 的 Prologue 通用能力按刀推进：S1（输入身份与读到回执）已收尾并进了采用线整合分支；S2（会话级持久排队）在 Prologue `feature/input-receipts-s2` 上工程通过、待采用线整合；S3（处理说明与提醒）下一步；S4 等采用线 P1 的统一合同。阶段 1 与之后的 Molis 生产接入仍按 D7 等待（正式 SDK 来源、默认包路径验证、采用线合入 main），在那之前 Molis 侧只改本需求书与合同设计。进度记在 §16。
 
 覆盖所有 AI 对话场景里「用户输入的处理反馈」。Coding 是验证样本，全局助理是第二个首批场景；同时给出个人助理等对话场景的深化方向，以及其他 AI 场景的适用性判断。界面上的 Option、推荐动作和交互卡片归 `specs/ai-interaction-experience`（主检出里未入库的需求书，分工见 §13.2）；本文只拥有「输入」这条生命周期，以及它与任务、结果的关联。
 
@@ -346,10 +346,13 @@ AI 的说法和执行事实分开显示。AI 的说法标「AI 的理解」，�
    - `input-read {inputIds, modelCall}`：带着它的那次模型调用，回复入账后才发。
    - `input-unread {reason}`：Run 终态时仍没读到。
    - `input-withdrawn`：已撤回。
-4. **会话级排队。**
-   - `session.queueInput({ key, text, source })` 入队，`session.queuedInputs()` 查看。
-   - `startAgentRun({ takeQueued: true })` 把排队的输入作为新一轮的开头输入，回执沿用同一个 `inputId`。
-   - 持久化；重启后仍在；绝不自动开新 Run。
+4. **会话级排队。**（2026-10-12 按 SDK S2 实际入口改写；SDK 切片合同 `docs/slices/input-queue.md` 是这一项的权威。）
+   - 一跑结束时没读到的补充自动进会话排队，编号不变；`session.queueInput({ text, key?, source?, about? })` 是 App 直接交来的那一种，回 `{ inputId, replayed }`，整条会话同键同文只算一次、同键异文冲突。
+   - `session.inputQueue()` 回 `{ carry, queued, settled }`：排着的每条带 `from`（留下它的那一跑、进没进过上下文、那一跑的终态）；离开队列的记「带进了哪一跑」或「撤回」。`session.withdrawQueuedInput(inputId)` 撤回一条排着的。
+   - `startAgentRun({ queued: "carry" | "leave" | [inputId…] })` 决定这一跑带不带；带进来的排在本轮任务之后、开场即在上下文里，账上同一个编号、`prompt.carried` 标出来源，第一段被留下的回复把它记成读到；又没读到就回队列。
+   - D4：会话缺省 `ask`（不带，App 先问人）；`session.setQueuedInputCarry("auto")` 之后 App 开的跑默认全带。子任务完成后 SDK 叫醒的续跑一律不带。这个设置只存在 SDK 会话里，Molis 不另存一份。
+   - 历史可见不等于获准消费：没读到的那一句在后续入模历史里只留一条不带正文的说明（`input-unread`），对话投影仍给 App 全文并标 `unread`。
+   - 持久化；重启后仍在；重启收口那一笔里入队；**绝不自动开新 Run**。分叉、导入、导出不带队列。
 5. **处理说明工具 `acknowledge-inputs`。**
    - 入参：`{ items: [{ input, kind?, treatment, targets?: [{ kind: "board-node"|"todo"|"pending"|"input"|"app-ref", id }], impacts?: Dimension[], note }] }`。
    - `safe-read`，只记声明，不改世界。
@@ -426,6 +429,20 @@ interface AgentInputView {
 - **改现有控制合同。** `AgentRunControl` 的 steer 加 `key`、`interrupt`、`source`，返回 `{ input_id }`。改 typed 能力的合同按 `docs/system/CONTRACT-CHANGES.md`：刷新 API 快照，并写明影响。
 - **新操作登记成统一动作。** 读、撤回、纠正、关联、带到下一轮都登记为动作，因为门禁不许新增 typed `agent.*` 能力。页面、助理、MCP 共用同一个处理器。
 - **合同只放类型与常量。** 合同包不许有 20 行以上的函数，也不许有副作用；派生逻辑放在 agent-host。
+
+### 6.2a 落点核对（2026-10-12，D7 之前可独立做的准备）
+
+按合入 main `02ceba8c` 的现行 contracts 核对 §6.2 的落点，结论写在这里，代码等 D7：
+
+| 项 | 现状 | 落法 | 理由 |
+| --- | --- | --- | --- |
+| `services/agent-host.ts` | 1,732 行，巨大单元；W5-09（按领域拆）未做 | 不在里面加行。`AgentRunControl` 的 steer 分支改成引用 `services/agent-inputs.ts` 里定义的 `AgentSteerControl`（带 `key`、`source`、`interrupt`、`about`），`control()` 的返回改成引用那边的回执类型；这一文件净行数不增 | `pnpm health:check` 对照 merge-base：巨大单元不许变大，PR 里没有登记放行的路 |
+| 新子路径 `services/agent-inputs` | 不存在 | 和第一个使用它的改动同一个 PR 建：类型（`AgentInputView` 等）、动作定义、常量；`package.json` exports、API 快照（`pnpm api:update`）一起改 | 占位子路径门禁（只导出描述符、仓内无人引用即失败）；合同改动单独成 PR 并写影响（`docs/system/CONTRACT-CHANGES.md`） |
+| 读、排队、撤回、纠正、关联、带到下一轮、会话自动设置 | agent 侧现有能力都是 typed `agentHostCapabilities`（`agent.run.control.v1` 等） | 新操作照 `services/memory.ts` 的写法登记统一动作（`ActionDefinition`，系统提供方），id 用 `agent.inputs.*`；`pnpm actions:update` 刷新 `tooling/gates/actions/` | 门禁不许新增 typed 宿主能力，新能力注册成动作 |
+| 「带到下一轮」 | SDK S2 是开跑参数 `queued`，不是单独的操作 | Molis 的「带到下一轮 / 核对并继续」= 用 `agent.run.start.v1` 开下一跑并传 `queued`（全带或点名）；开始输入里的这一字段同样定义在 `agent-inputs` 里由 agent-host 引用 | 一个事实一个主人：带走与开始记录同进同退由 SDK 保证，Molis 不另写「已带走」 |
+| 会话自动设置（D4） | SDK S2：`setQueuedInputCarry` 存在 SDK 会话记录里 | 动作 `agent.inputs.carry-setting` 只转给 SDK，不在 Molis 存第二份 | 同上；子任务唤醒不带由 SDK 保证 |
+| `RUN_NOT_RUNNING` 竞态（§7） | 现在 Coding 回「这一轮已经结束」、助理显示原始错误 | agent-host 收到它就用同一个键 `session.queueInput`，回执里写「这一轮刚结束 · 已排到下一轮」 | SDK S2 的键整条会话去重：补充其实已落账时回原编号，不出两条 |
+| `delivery.state` | §6.2 草案有 `queued`、`carried`、`withdrawn` | `queued` / `carried`（带 `carried_to`）/ `withdrawn` 取自 `inputQueue()` 与带进来那一跑的 `prompt.carried`；`withdrawn` 分两种依据：一跑里放进上下文之前撤回（`steer-withdrawn`），或离开队列时撤回（`settled.outcome = withdrawn`，可能进过上下文），`evidence` 写明是哪一种 | 两种撤回的事实不同，不能合成一句「模型没见过」 |
 
 ### 6.3 动作网关归因
 
@@ -824,6 +841,8 @@ interface AgentInputView {
 
 - 2026-10-09：方案写定（§0–§15），用户按推荐定下 §14 九项。阶段 0：本文改为执行中；Prologue 侧开工作树 `~/code/prologue-input-receipts`（分支 `feat/input-receipts`，基于主线 `4f7110fe`，未推送、未提交），基线核对：`tsc` 通过；14 个相关用例文件（控制、待办、任务板、提醒、会话续接、Run 恢复）在构建后全部通过。按 Prologue `AGENTS.md` §4 先写切片合同再实现：S1 输入身份与读到回执、S2 会话级持久排队、S3 处理说明与提醒、S4 任务板与待办引用输入；pending 的 about 与已回答事件推后（另一分支正在改 effect-policy）。阶段 1 的 Molis 代码等 `feat/prologue-adoption` 合入（它已把 Coding 的运行控制解析抽到 `plugins/native/coding/src/run-inputs.ts`，阶段 1 的 Coding 改动落在那里）。
 
+- 2026-10-12：接续开工（receipts 会话）。Prologue：S2 分支 `feature/input-receipts-s2` 先合 main `69ccfa94`、跑 S1 回归，按统筹要求换基点到采用线的干净 S1（`edb8ec86` = `c4b9fde3` + S1 `4acfb445` + main `69ccfa94`），之后整合是快进。S2 切片合同 `docs/slices/input-queue.md` 先写后做：会话级持久排队、获准才带（默认 `ask`，`auto` 只作用于 App 开的跑）、历史可见不等于获准消费（没读到的原话不进后续入模历史）、子任务唤醒续跑不带、键整条会话去重、重启收口时入队。工程证据（三级分开）见 SDK 合同的验收记录；真实 Provider、Molis 生产入口、用户实操都未跑。Molis 分支合入 main `02ceba8c`；§6.1 第 4 项按 S2 实际入口改写，§6.2a 记下按现行 contracts 核对的落点。
+
 ## 17. 远端交接（2026-10-11，当前接续入口）
 
 用户已授权四条 Codex 任务及 SDK 依赖分别提交、推送。本分支 `feature/handoff-ai-input-receipts` 基于 Molis `7b4a92287`，保存本完整需求及最新交接；本分支没有 Molis 产品实现。前文的旧主线、旧分支、绝对路径和“提交/推送待授权”只描述当时状态；本文为本线唯一需求书。本次未合并 main、发布或改动正式安装。
@@ -832,7 +851,7 @@ interface AgentInputView {
 - S1 收尾已经验证输入参数在异步落账前固定、终态撤回拒绝；16 项控制回归、6 项 Node Host/公开面测试和独立安装包的真实 HTTP/磁盘回放通过。真实 Provider、Molis 生产入口、用户实操及收尾后的 SDK 全量未跑；10-09 全量只属于当时版本。
 - [A0 SDK 整合提交 820eeca9](https://github.com/molis-ai/prologue/commit/820eeca947c208dd8b37f9e57671ce81ec04e34e) 已包含完整 S1，供 [Molis 完整采用](https://github.com/molis-ai/molis-work/tree/feature/handoff-prologue-adoption/specs/prologue-adoption) 使用；不要重复叠加 S1。该候选默认 Molis build/回归尚未完成，包的 dirty 来源还需正式收口。
 - D7 定义不变：正式 SDK 来源、Molis 默认包路径验证、采用线合入 Molis main 三项都满足后，再写相应的 Molis 生产接入。远端分支可取回不等于 D7 通过。
-- S2 尚未实现。下一位先按 SDK 合同补持久队列：只保存输入，不自动开始下一 Run；历史材料、读到回执、子任务完成与获准消费输入必须区分。D4 仍默认先询问，会话显式设置才可自动；子任务的完成续跑不能偷渡未读用户输入的消费权限。
+- S2 尚未实现。下一位先按 SDK 合同补持久队列：只保存输入，不自动开始下一 Run；历史材料、读到回执、子任务完成与获准消费输入必须区分。D4 仍默认先询问，会话显式设置才可自动；子任务的完成续跑不能偷渡未读用户输入的消费权限。（2026-10-12 更新：S2 已在 Prologue `feature/input-receipts-s2` 实现并工程通过，基于采用线的干净 S1；待采用线整合。见 §16。）
 - S3 的处理说明与有界提醒、S4 与任务板引用、Molis 发送方式/展示/后续验收继续按本文全范围做。TaskBoard 拥有所有 Agent 协调，Run/message 只管执行与投递；不另起平行协作状态。真实 SDK 回执是事实来源，不能用 UI 猜测或模拟状态代替。
 
 接手先克隆本分支读完整需求，再取 SDK S1 分支读切片合同与可复现命令；S2 独立 SDK 工作按其依赖推进，Molis 生产接入遵守 D7。源码、构建、浏览器与全量资源按两仓 AGENTS 协调，不干预别人进程或真实 Home。

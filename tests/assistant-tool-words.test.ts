@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applyPrologueEvent, emptyPrologueStreamState, type PrologueEvent } from "@molis-ai/molis-work-service-agent-host";
-import { GUARDED_TOOL_NAMES } from "../horizontal/agent-host/src/adapters/announce-guard.js";
+import { GUARDED_TOOL_NAMES } from "../horizontal/agent-host/dist/adapters/announce-guard.js";
 import { presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/assistant-island.js";
 

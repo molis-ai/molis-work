@@ -2,7 +2,7 @@ import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-wor
 import type { DatabaseSync } from "node:sqlite";
 import type { PptRecord, PptSlide, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import type { PptPublicationIntent, PptPublicationSnapshot } from "./promote.js";
-import { PptError } from "./error.js";
+import { pptErrors } from "./error.js";
 
 interface PptRow {
   id: string;
@@ -42,9 +42,9 @@ export class PptStore {
 
   get(id: string, projectId?: string): PptRecord {
     const row = this.db.prepare("SELECT * FROM presentations WHERE id = ?").get(id) as PptRow | undefined;
-    if (!row) throw new PptError("ppt.not_found", "找不到这份演示稿");
+    if (!row) throw pptErrors.not_found("找不到这份演示稿");
     if (projectId && row.project_id !== normalizeProjectId(projectId)) {
-      throw new PptError("ppt.not_found", "找不到这份演示稿");
+      throw pptErrors.not_found("找不到这份演示稿");
     }
     return fromRow(row);
   }
@@ -99,7 +99,7 @@ export class PptStore {
   delete(id: string, projectId?: string, expectedVersion?: number): void {
     this.transaction(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
-      if (current.publication_pending) throw new PptError("ppt.publication_pending", "请先恢复上次成果发布，再删除演示稿");
+      if (current.publication_pending) throw pptErrors.publication_pending("请先恢复上次成果发布，再删除演示稿");
       this.db.prepare("DELETE FROM presentations WHERE id = ?").run(id);
     });
   }
@@ -112,11 +112,11 @@ export class PptStore {
     const target = normalizeProjectId(to);
     return this.transaction(() => {
       const current = this.get(id, from);
-      if (current.publication_pending) throw new PptError("ppt.publication_pending", "上次固定版本还没存完，请先在原位置恢复，再移动");
+      if (current.publication_pending) throw pptErrors.publication_pending("上次固定版本还没存完，请先在原位置恢复，再移动");
       // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
       const result = this.db.prepare("UPDATE presentations SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?")
         .run(target, id, current.version);
-      if (result.changes !== 1) throw new PptError("ppt.conflict", "演示稿刚被修改，请重新读取后再移动");
+      if (result.changes !== 1) throw pptErrors.conflict("演示稿刚被修改，请重新读取后再移动");
       return this.get(id, target);
     });
   }
@@ -156,7 +156,7 @@ export class PptStore {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
       const pending = this.publicationIntent(id);
       if (pending) {
-        if (pending.actor_id !== actorId) throw new PptError("ppt.publication_owner", "请由上次发布的发起者恢复，原快照已保留");
+        if (pending.actor_id !== actorId) throw pptErrors.publication_owner("请由上次发布的发起者恢复，原快照已保留");
         return pending;
       }
       const intent: PptPublicationIntent = { content: existing ?? { title: current.title, description: current.description, color_primary: current.color_primary, color_background: current.color_background, color_text: current.color_text, slides: current.slides },
@@ -170,7 +170,7 @@ export class PptStore {
     return this.transaction(() => {
       const current = this.get(id, projectId);
       if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) return current;
-      if (JSON.stringify(this.publicationIntent(id)) !== JSON.stringify(intent)) throw new PptError("ppt.publication_conflict", "发布记录已改变，请重新读取演示稿");
+      if (JSON.stringify(this.publicationIntent(id)) !== JSON.stringify(intent)) throw pptErrors.publication_conflict("发布记录已改变，请重新读取演示稿");
       this.db.prepare("UPDATE presentations SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?")
         .run(artifact.artifact_id, artifact.version, new Date().toISOString(), id);
       return this.get(id, projectId);
@@ -182,7 +182,7 @@ export class PptStore {
     return row.publication_pending_json ? JSON.parse(row.publication_pending_json) as PptPublicationIntent : null;
   }
   private assertVersion(current: PptRecord, expectedVersion?: number): void {
-    if (expectedVersion !== undefined && expectedVersion !== current.version) throw new PptError("ppt.conflict", "演示稿已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
+    if (expectedVersion !== undefined && expectedVersion !== current.version) throw pptErrors.conflict("演示稿已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
   }
   private transaction<T>(run: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");
@@ -207,7 +207,7 @@ export class PptStore {
       record.title, record.description, record.color_primary, record.color_background,
       record.color_text, JSON.stringify(record.slides), record.updated_at, record.version, record.id, expectedVersion,
     );
-    if (result.changes !== 1) throw new PptError("ppt.conflict", "演示稿已改变，请重新读取后保存");
+    if (result.changes !== 1) throw pptErrors.conflict("演示稿已改变，请重新读取后保存");
   }
 }
 
@@ -265,33 +265,33 @@ function blankSlide(order: number): PptSlide {
 
 function normalizeProjectId(value: string): string {
   const id = value.trim();
-  if (!id) throw new PptError("ppt.invalid", "缺少项目");
-  if (id.length > 80) throw new PptError("ppt.invalid", "项目标识过长");
+  if (!id) throw pptErrors.invalid("缺少项目");
+  if (id.length > 80) throw pptErrors.invalid("项目标识过长");
   return id;
 }
 
 function normalizeTitle(value: string): string {
   const title = value.trim() || "未命名演示稿";
-  if (title.length > 80) throw new PptError("ppt.invalid", "标题须为 1 到 80 个字");
+  if (title.length > 80) throw pptErrors.invalid("标题须为 1 到 80 个字");
   return title;
 }
 
 function normalizeDescription(value: string): string {
-  if (value.length > 2000) throw new PptError("ppt.invalid", "说明须为 0 到 2000 个字");
+  if (value.length > 2000) throw pptErrors.invalid("说明须为 0 到 2000 个字");
   return value;
 }
 
 function normalizeColor(value: string): string {
-  if (!/^#[0-9A-Fa-f]{6}$/u.test(value)) throw new PptError("ppt.invalid", "颜色须为 #RRGGBB");
+  if (!/^#[0-9A-Fa-f]{6}$/u.test(value)) throw pptErrors.invalid("颜色须为 #RRGGBB");
   return value.toLowerCase();
 }
 
 function normalizeSlides(value: readonly PptSlideInput[]): PptSlide[] {
-  if (!Array.isArray(value)) throw new PptError("ppt.invalid", "幻灯片须是列表");
-  if (value.length === 0) throw new PptError("ppt.invalid", "至少保留一页");
-  if (value.length > 40) throw new PptError("ppt.invalid", "最多 40 页");
+  if (!Array.isArray(value)) throw pptErrors.invalid("幻灯片须是列表");
+  if (value.length === 0) throw pptErrors.invalid("至少保留一页");
+  if (value.length > 40) throw pptErrors.invalid("最多 40 页");
   const identities = value.map(slide => slide.id).filter(Boolean);
-  if (new Set(identities).size !== identities.length) throw new PptError("ppt.invalid", "幻灯片标识不能重复");
+  if (new Set(identities).size !== identities.length) throw pptErrors.invalid("幻灯片标识不能重复");
   return value.map((slide, index) => ({
     id: slide.id || crypto.randomUUID(),
     title: String(slide.title ?? "").trim().slice(0, 80),
@@ -303,7 +303,7 @@ function normalizeSlides(value: readonly PptSlideInput[]): PptSlide[] {
 
 function normalizeBullets(value: unknown): string[] {
   if (value === undefined || value === null) return [];
-  if (!Array.isArray(value)) throw new PptError("ppt.invalid", "要点须是列表");
-  if (value.length > 12) throw new PptError("ppt.invalid", "每页最多 12 条要点");
+  if (!Array.isArray(value)) throw pptErrors.invalid("要点须是列表");
+  if (value.length > 12) throw pptErrors.invalid("每页最多 12 条要点");
   return value.map((item) => String(item ?? "").trim().slice(0, 200)).filter((item) => item.length > 0);
 }

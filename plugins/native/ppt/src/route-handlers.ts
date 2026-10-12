@@ -1,6 +1,6 @@
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pptActions } from "./actions.js";
-import type { PptPluginRouteContext, PptPluginRouteHandler, PptPluginRouteResponse } from "./routes.js";
+import type { PptPluginRouteContext, PptPluginRouteHandler } from "./routes.js";
 
 export interface PptRoutePorts {
   readonly actions: BoundActionClient;
@@ -34,12 +34,4 @@ export function createPptRouteHandlers(ports: PptRoutePorts): Record<string, Ppt
     "ppt.outline": call(pptActions.outline, identified),
     "ppt.outline_ai": call(pptActions.outlineAi, identified),
   };
-}
-
-export function pptRouteErrorResponse(error: unknown): PptPluginRouteResponse {
-  const code = error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : "";
-  const message = error instanceof Error ? error.message : "演示稿请求失败";
-  const status = code === "ppt.not_found" ? 404 : ["ppt.unavailable", "ppt.conflict", "ppt.request_conflict", "ppt.publication_pending", "ppt.publication_conflict"].includes(code) ? 409
-    : ["actions.forbidden", "actions.scope_mismatch", "ppt.publication_owner"].includes(code) ? 403 : 400;
-  return { status, body: { error: message, ...(code ? { code } : {}) } };
 }

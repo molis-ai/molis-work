@@ -69,7 +69,7 @@ Directory candidates and browsing preferences come from the [current-project set
 - 负责：参照 App：编码会话、每轮执行、委派，以及它们产出的变更集、报告与图。
 - 不负责：模型选择、凭据、批准决定、命令执行本身。
 - 公开入口：`@molis-ai/molis-work-plugin-coding`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（变更集的逐行比较 `compareTexts` 与 `splitLines`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 模型与 Agent 只经 Host 注入的 Prologue 能力，不直接依赖 SDK。
   - 按精确引用消费材料与报告；生产者发布新版本不改写在跑的任务与历史报告；归档、删除或超限显式拒绝，不截断或偷换版本。

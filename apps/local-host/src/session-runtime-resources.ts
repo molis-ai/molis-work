@@ -5,6 +5,7 @@ import { SessionMessageService, SessionContentService, SessionDirectoryService, 
 import type { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 import { CodexAppServerTransport, CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@molis-ai/molis-work-service-runtime-host";
 import { openWorkSessionRegistry } from "./session-registry.js";
+import { PRODUCT_VERSION } from "./product-version.js";
 
 export interface SessionRuntimeResources {
   registry: MolisWorkSessionRegistry;
@@ -22,7 +23,7 @@ async function openSessionRuntimeResources(options: { homeDirectory?: string; ru
   const router = new RuntimeHostRouter(
     (runtimeId) => new RegistryFallbackSessionAdapter(runtimeId, registry),
   );
-  const ownedCodexTransport = options.runtimeSessionTransport ? null : new CodexAppServerTransport();
+  const ownedCodexTransport = options.runtimeSessionTransport ? null : new CodexAppServerTransport({ clientVersion: PRODUCT_VERSION });
   router.register(new CodexRuntimeSessionAdapter(options.runtimeSessionTransport ?? ownedCodexTransport!));
   const directory = new SessionDirectoryService(registry, router);
   const content = new SessionContentService(registry, router);

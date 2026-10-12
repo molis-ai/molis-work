@@ -20,7 +20,7 @@
 | 动作（Action） | 一项已注册、带版本和输入输出合同的可调用操作；所有入口调用同一份 | 能力（另有处写「动作」，见 U1） | 能力、函数、工具（指目录条目时） |
 | 动作目录 | 动作服务按调用者算出的、当下可发现的动作清单 | 能力库 | 共同目录、能力目录、能力板、动作库 |
 | 动作服务 | 注册、发现、授权、调用动作的共用服务 | 能力服务 | 统一动作服务（全称，可用） |
-| 调用编号（call id） | 宿主给一次入口级操作的编号，贯穿它引起的每次动作与宿主能力调用，只用于诊断，不是身份 | 诊断编号（英文 Diagnostic ID；2026-10-10 用户已批准，界面里随 W3-01 后续的 PR 出现） | 调用 id、trace id、请求编号；一次性键（`x-molis-work-idempotency-key` 防重放，不是它） |
+| 调用编号（call id） | 宿主给一次入口级操作的编号，贯穿它引起的每次动作与宿主能力调用，只用于诊断，不是身份 | 诊断编号（英文 Diagnostic ID；2026-10-10 用户已批准，界面里随 W3-01 后续的 PR 出现） | 调用 id、trace id、请求编号；一次性键（`x-molis-work-idempotency-key` 防重放，不是它）；助理与 Agent 工具活动的 `call_id`（一行活动的标识，不是它） |
 | 调用记录 | Home 里近期调用的诊断记录：谁调了什么、怎样结束，不写输入与结果 | 调用记录 | 动作调用日志（`docs/system/SECURITY-INVARIANTS.md` S-12 的写法） |
 | 宿主能力（typed capability） | 注册表里不带 `action` 的条目，只作宿主内的服务通道 | 无 | 裸写的「能力」「Capability」 |
 | 判断规则 | 已发布、版本不可变的判断：给一段内容，返回选择、是非概率或分数 | 判断规则 | 判断函数、Function、Functions |
@@ -73,7 +73,7 @@
 - 它不是身份，也不授予权限：只由宿主给，从调用上下文、此刻打开的作用域或新生成取，不从请求头、MCP 参数、`_meta`、业务输入或插件交来的字段读；处理器可以记录或返回它，不能凭它做判断。
 - 代码：作用域在 `packages/kernel/src/call-scope.ts`，结算在 `packages/kernel/src/action-settlement.ts`；宿主 typed 口的结算在 `apps/local-host/src/typed-call-settlement.ts`。调用记录的行带编号、响应头与错误体带编号、助理与 Agent 每一轮的冻结记录带编号，是 W3-01 后续的 PR。
 - 界面用名：「诊断编号」（英文 Diagnostic ID），2026-10-10 用户批准（`specs/repository-anti-corruption/spec.md` §1）。文档写「调用编号」，只有讲界面时写「诊断编号」。
-- 不是：一次性键 `x-molis-work-idempotency-key`（HTTP 入口防重放，不往下传）；也不是 `runtime_session_id`（Runtime 会话）或 Agent 的 `run_id`。
+- 不是：一次性键 `x-molis-work-idempotency-key`（HTTP 入口防重放，不往下传）；也不是 `runtime_session_id`（Runtime 会话）或 Agent 的 `run_id`；也不是助理与 Agent 工具活动里的 `call_id`（`AgentToolActivity.call_id`、`AssistantActivity.call_id`、`AgentCommandOutputRef.call_id`，在 `packages/contracts/src/services/agent-host.ts` 与 `assistant.ts`）：那是一行活动的标识（Prologue 给每次工具调用的编号，或 Agent Host 为推理、纠正等行合成的字符串），只在所在的一轮内唯一，没有操作含义。所以一轮有一个调用编号，轮里的每行活动各有自己的 `call_id`，两者无关；同一份记录里要同时放这两个编号时，字段名要分开，不并排写两个 `call_id`。
 
 **调用记录**
 

@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { AGENT_MCP_DESTINATION_ID, FUNCTION_AUTHORING_SUBJECTS,
   type FunctionAuthoringCatalog, type FunctionAuthoringBehavior } from "@molis-ai/molis-work-contracts/modules/functions";
 import { subjectOfferChoices } from "@molis-ai/molis-work-kernel";
-import type { ActionView, ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionProvider, ActionView, ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
+
+/** The authoring catalog names a plugin by its plugin id; `provider_id` is the registration (an installation id for a plugin that is not bundled). */
+const pluginIdOf = (provider: ActionProvider): string => provider.plugin_id ?? provider.provider_id;
 
 export function liveHostFunctionAuthoringCatalog(directory: readonly ActionView[] = [], scenes: readonly ActionSceneView[] = []): FunctionAuthoringCatalog {
   const agentActions: FunctionAuthoringBehavior[] = directory.filter(view => view.action.audiences.some(audience => audience === "agent" || audience === "mcp")).map(view => {
@@ -10,10 +13,11 @@ export function liveHostFunctionAuthoringCatalog(directory: readonly ActionView[
     return { behavior_id: "action." + createHash("sha256").update(JSON.stringify(action_ref)).digest("hex").slice(0, 56),
       action_ref, destination_id: AGENT_MCP_DESTINATION_ID, title: view.action.title, hint: view.action.description,
       effect: view.operation === "query" ? "read" : "write", source: view.provider.kind === "system" ? "system" : "plugin",
-      plugin_id: view.provider.provider_id, plugin_title: view.provider.title, subject_kinds: view.action.subject_kinds,
+      plugin_id: pluginIdOf(view.provider), plugin_title: view.provider.title, subject_kinds: view.action.subject_kinds,
       clickable: true, availability: view.availability };
   });
   const choices = subjectOfferChoices(directory);
+  const views = new Map(directory.map(view => [JSON.stringify([view.provider.provider_id, view.capability_id, view.version]), view]));
   const kinds = [...new Set([...choices.flatMap(choice => choice.subject_kinds), ...scenes.flatMap(scene => scene.definition.subject_kinds), ...agentActions.flatMap(action => action.subject_kinds)])];
   const behaviors: FunctionAuthoringBehavior[] = [];
   const destinations = scenes.map(({ definition, provider, availability }) => {
@@ -29,11 +33,12 @@ export function liveHostFunctionAuthoringCatalog(directory: readonly ActionView[
       hint: choice.availability.available ? choice.provider_title : choice.availability.reason,
       effect: directory.find(action => action.capability_id === choice.action.capability_id && action.version === choice.action.version
         && action.provider.provider_id === choice.action.provider_id)?.operation === "query" ? "read" : "write",
-      source: "plugin", plugin_id: choice.source.provider_id!, plugin_title: choice.provider_title,
+      // The choice's source is a view of this same directory snapshot, and that view's provider says which plugin owns the offer.
+      source: "plugin", plugin_id: pluginIdOf(views.get(JSON.stringify([choice.source.provider_id, choice.source.capability_id, choice.source.version]))!.provider), plugin_title: choice.provider_title,
       subject_kinds: choice.subject_kinds, clickable: true, availability: choice.availability });
     if (!offered.length && definition.recommendation_source !== "subject-offers") for (const key of ids) {
       behaviors.push({ behavior_id: key, title: definition.recommendation_labels?.[key] ?? key, destination_id: definition.scene_id, scene_version: definition.version, provider_id: provider.provider_id,
-        hint: definition.description, effect: "read", source: provider.kind === "system" ? "system" : "plugin", plugin_id: provider.provider_id,
+        hint: definition.description, effect: "read", source: provider.kind === "system" ? "system" : "plugin", plugin_id: pluginIdOf(provider),
         plugin_title: provider.title, subject_kinds: definition.subject_kinds, clickable: true, availability: available });
     }
     return { destination_id: definition.scene_id, scene_version: definition.version, provider_id: provider.provider_id,

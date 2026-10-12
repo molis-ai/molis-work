@@ -3,6 +3,7 @@ export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetime
 import { parsePluginManifest, PluginManifestError } from "./manifest.js";
 
 export { parsePluginManifest, PluginManifestError, comparePluginVersions } from "./manifest.js";
+export { inspectActionDeclarations } from "./action-declarations.js";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineAction } from "./actions.js";
 export { bindPluginActionRoute, bindOwnerPluginAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -26,6 +27,7 @@ export type { ActionExecutionContext, ActionExecutionPolicy, ActionResultView, A
 export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
   PluginUiClient, PluginHostServices,
+  PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction, PluginDatabaseDeclaration, PluginSqlValue, PluginSqlRow,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 export type { UiContribution, UiContributionDescriptor, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";

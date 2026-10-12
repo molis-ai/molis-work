@@ -91,10 +91,6 @@ export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "
 
 export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining"];
 
-export declare function inspectAgentDeclaration(agent: AgentManifest | undefined, declaredInputPorts: readonly string[]): string[];
-
-export declare function inspectMethodDeclarations(methods: unknown): string[];
-
 export declare function orderPromptsByLayer<T extends {
     layer?: AgentPromptLayer;
 }>(prompts: readonly T[]): T[];

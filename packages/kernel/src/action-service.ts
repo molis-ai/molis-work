@@ -7,10 +7,10 @@ import {
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistry } from "./index.js";
 import { assertSessionAuthorship } from "./action-authorship.js";
-import { bindCall, describeCall, markStarted, settleCall, settleCallSync, type CallContext, type CallSettled } from "./action-settlement.js";
+import { bindCall, describeCall, settleCall, settleCallSync, startHandler, type CallContext, type CallSettled } from "./action-settlement.js";
 import { actionSchemaAccepts, compileActionSchema, createActionSchemaCompiler, validateActionValue } from "./action-schema.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
-import { createExecutionLifetime, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
+import { createExecutionLifetime, inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
 interface RegisteredScene {
   definition: ActionSceneDefinition;
@@ -41,7 +41,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     } = {}) {}
 
   registerProvider(registration: ActionProviderRegistration): () => void {
-    const problems = inspectActionDeclarations(registration.definitions, registration.scenes);
+    const problems = [...inspectActionDeclarations(registration.definitions, registration.scenes), ...inspectActionCrossReferences(registration.definitions)];
     if (problems.length) throw new ActionError("actions.definition_invalid", problems.join("；"));
     const provider = structuredClone(registration.provider);
     if (!provider.provider_id || !provider.title) throw new ActionError("actions.provider_invalid", "能力来源缺少身份或名称");
@@ -135,8 +135,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           };
           // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
           try {
-            markStarted(context);
-            const result = handler.handle(execution, input);
+            const result = startHandler(context, () => handler.handle(execution, input));
             if (handler.execution === "sync") {
               try { return checked(requireSynchronous(result)); }
               finally { executing = false; lifetime?.dispose(); }

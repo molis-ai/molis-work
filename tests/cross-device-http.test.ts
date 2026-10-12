@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { openServerDatabase, Identity, ServerEvents, ContinuityService, createImDomain, startServer } from "../server/src/index.js";
+import { openServerDatabase, Identity, ServerEvents, ContinuityService, createImDomain, startServer } from "@molis-ai/molis-work-server";
 
 test("different server databases keep independent cookies; IM SSE checks membership and server shutdown closes streams",async()=>{
   const directory=await mkdtemp(join(tmpdir(),'continuity-http-'));

@@ -1,5 +1,5 @@
 import { informationActionProvider } from "./information-actions.js";
-import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
+import { bindHomeSide, releaseHomeSide } from "./home-side.js";
 import { homeActionProvider } from "./home-actions.js";
 import { workflowEventsFeedOptions } from "./workflow-feed-options.js";
 import { bindScheduleDeliveryFeed } from "./schedule-runtime.js";
@@ -49,6 +49,7 @@ import { registerProjectCapabilities } from "./project-capabilities.js";
 import { releaseProjectPlugins } from "./project-plugins.js";
 import type { HostCapabilityDefinition, LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActionProvider } from "./inbox-actions.js";
@@ -80,6 +81,12 @@ export interface MolisWorkLocalHostOptions {
   alchemist?: AlchemistHostOptions;
   /** Shared text provider injection; null explicitly disables model completion. */
   completeText?: HostCompleteText | null;
+  /**
+   * Plugins that exist only for a test or a probe: the Host runs them in process, beside the shipped ones, in every project's
+   * platform. Never `bundled` (they register under their installation id), and never sandboxed. Production composition passes
+   * none. They are registered per Home and read when a project's platform starts (`home-side.ts`).
+   */
+  pluginFixtures?: { project?: readonly PluginDefinition[] };
   sceneAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["sceneAvailability"];
   actionAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["actionAvailability"];
   onRuntimeOpen?: (reference: LocalHostProjectReference) => void;
@@ -235,7 +242,7 @@ export class MolisWorkLocalHost {
       this.host,
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor },
     );
-    if (options.homeDirectory) ensureSystemAgentService(this, options.homeDirectory, undefined, { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor });
+    if (options.homeDirectory) bindHomeSide(this, options.homeDirectory, options);
     if (options.homeDirectory) {
       const home = options.homeDirectory;
       this.search = createSearchHost({ homeDirectory: home, registry: this.host.actionRegistry(),
@@ -318,17 +325,16 @@ export class MolisWorkLocalHost {
     return this.host.client(reference);
   }
 
-  actionClient(reference: LocalHostProjectReference): ActionClient {
+  /** `preparePlugins: false` is for Host callers of what the project registers when it opens (Goals): it starts no Runtime plugin and restores no external MCP first. */
+  actionClient(reference: LocalHostProjectReference, preparePlugins = true): ActionClient {
     const client = withPreparedActions(this.host.actionClient(reference), () => this.prepareHomeActions());
-    return {
+    return !preparePlugins ? client : {
       discover: async caller => { await this.prepareProjectPlugins(reference, caller); return client.discover(caller); },
       invoke: async (caller, action, input) => { await this.prepareProjectPlugins(reference, caller); return client.invoke(caller, action, input); },
     };
   }
 
-  syncActionClient(reference: LocalHostProjectReference) {
-    return this.host.syncActionClient(reference);
-  }
+  syncActionClient(reference: LocalHostProjectReference) { return this.host.syncActionClient(reference); }
 
   homeActionClient(): ActionClient {
     return withPreparedActions(this.host.homeActionClient(), () => this.prepareHomeActions());
@@ -397,7 +403,7 @@ export class MolisWorkLocalHost {
 
   close(): Promise<void> {
     return this.closing ??= (async () => {
-      releaseSystemAgentService(this);
+      releaseHomeSide(this);
       this.connectorMcp?.close();
       await this.search?.close().catch(() => undefined);
       try { this.placement?.close(); } catch { /* closing anyway */ }

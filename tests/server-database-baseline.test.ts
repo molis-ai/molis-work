@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { describeSqliteSchema, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
-import { openServerDatabase, SERVER_DATABASE_BASELINE } from "../server/src/index.js";
+import { openServerDatabase, SERVER_DATABASE_BASELINE } from "@molis-ai/molis-work-server";
 
 // The server database (identity, transport and IM) has one current schema at version 1 (repository-anti-corruption
 // §4.1): a new one gets it, the same version opens as it is, another version is refused and left alone.

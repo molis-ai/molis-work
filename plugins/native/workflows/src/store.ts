@@ -1,7 +1,6 @@
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
-  WorkflowError,
   type Workflow,
   type WorkflowChain,
   type WorkflowInstance,
@@ -12,6 +11,7 @@ import {
   startInstanceSteps,
   stoppedOf,
 } from "./model.js";
+import { workflowsErrors } from "./error.js";
 
 interface WorkflowRow {
   workflow_id: string;
@@ -64,7 +64,7 @@ export class WorkflowsStore {
 
   get(workflowId: string, projectId: string): Workflow {
     const row = this.db.prepare("SELECT * FROM workflows WHERE workflow_id = ? AND deleted = 0").get(workflowId) as unknown as WorkflowRow | undefined;
-    if (!row || row.project_id !== projectId) throw new WorkflowError("workflows.not_found", "找不到这条流程");
+    if (!row || row.project_id !== projectId) throw workflowsErrors.not_found("找不到这条流程");
     return fromWorkflowRow(row);
   }
 
@@ -89,7 +89,7 @@ export class WorkflowsStore {
   /** Every edit is saved at once; `revision` stops two windows from overwriting each other silently. */
   update(workflowId: string, projectId: string, patch: { title?: string; chain?: WorkflowChain; revision: number }): Workflow {
     const current = this.get(workflowId, projectId);
-    if (patch.revision !== current.revision) throw new WorkflowError("workflows.conflict", "这条流程在别处改过了，已载入最新的样子");
+    if (patch.revision !== current.revision) throw workflowsErrors.conflict("这条流程在别处改过了，已载入最新的样子");
     const next: Workflow = {
       ...current,
       title: patch.title === undefined ? current.title : normalizeTitle(patch.title),
@@ -119,7 +119,7 @@ export class WorkflowsStore {
 
   instance(instanceId: string, projectId: string): WorkflowInstance {
     const row = this.db.prepare("SELECT * FROM instances WHERE instance_id = ?").get(instanceId) as unknown as InstanceRow | undefined;
-    if (!row || row.project_id !== projectId) throw new WorkflowError("workflows.not_found", "找不到这一次");
+    if (!row || row.project_id !== projectId) throw workflowsErrors.not_found("找不到这一次");
     return fromInstanceRow(row);
   }
 
@@ -155,7 +155,7 @@ export class WorkflowsStore {
     const result = this.db.prepare(
       "UPDATE instances SET title = ?, status = ?, current = ?, chain_json = ?, steps_json = ?, updated_at = ? WHERE instance_id = ? AND updated_at = ?",
     ).run(next.title, next.status, next.current, JSON.stringify(next.chain), JSON.stringify(next.steps), updatedAt, next.instance_id, previous.updated_at);
-    if (Number(result.changes) !== 1) throw new WorkflowError("workflows.conflict", "这一次刚被推进过，请刷新后再看");
+    if (Number(result.changes) !== 1) throw workflowsErrors.conflict("这一次刚被推进过，请刷新后再看");
     const { stopped: _derived, ...saved } = next;
     const stopped = stoppedOf(next.status, next.steps);
     return { ...saved, updated_at: updatedAt, ...(stopped ? { stopped } : {}) };

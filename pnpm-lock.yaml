@@ -235,6 +235,12 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.1
         version: 1.30.1(zod@4.4.3)
+      '@molis-ai/molis-work-app-server':
+        specifier: workspace:*
+        version: link:apps/server
+      '@molis-ai/molis-work-server':
+        specifier: workspace:*
+        version: link:server
       '@molis-ai/molis-work-test-kit':
         specifier: workspace:*
         version: link:packages/test-kit
@@ -1213,6 +1219,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../../packages/storage

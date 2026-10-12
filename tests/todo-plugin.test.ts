@@ -7,6 +7,7 @@ import test from "node:test";
 
 import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { PERSONAL_HOME_SQLITE_STORES } from "@molis-ai/molis-work-storage";
 import {
   TODO_ACTION_PERMISSIONS,
@@ -16,7 +17,6 @@ import {
   TodoPluginRouteTable,
   createTodoRouteHandlers,
   todoManifest,
-  todoRouteErrorResponse,
 } from "@molis-ai/molis-work-plugin-todo";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { rewriteNativePluginApiPath } from "../apps/local-host/src/native-plugin-api.js";
@@ -94,7 +94,7 @@ test("HTTP routes map to the same actions; fixed paths are not read as ids; a pr
       () => ({ actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: TODO_ACTION_PERMISSIONS })) }));
     const call = async (table: TodoPluginRouteTable, method: "GET" | "POST", pathname: string, body: Record<string, unknown> = {}, query = new URLSearchParams()) => {
       try { return (await table.handle({ method, pathname, query, body }))!; }
-      catch (error) { return todoRouteErrorResponse(error); }
+      catch (error) { return actionErrorResponse(error); }
     };
     const mine = (await call(personal, "POST", "/api/todo", { title: "个人的事", planned_date: "2026-09-28" })).body as { item: { id: string; placement: string } };
     assert.equal(mine.item.placement, "personal");

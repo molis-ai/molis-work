@@ -2,7 +2,7 @@ import { ActionError, defineSubjectContextAction, subjectContext, type ActionAva
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { TODO_PROJECT_PLUGIN_ID, type TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 import { localDate } from "./dates.js";
-import { TodoError } from "./error.js";
+import { todoErrors } from "./error.js";
 import { organizeParts, organizePrompt, parseOrganizeOutput, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
 import { TodoOrganizer, validEdits, type TodoApplyResult, type TodoCandidateDecision } from "./organize.js";
 import { TODO_ORGANIZE_BASIC, TODO_ORGANIZE_ORGANIZER } from "./prompts.js";
@@ -122,7 +122,7 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
         for (let attempt = 0; !parsed; attempt += 1) {
           const raw = await ports.completeText(organizePrompt(method, { materials: input.materials, indexes, existing, today, request: input.request, me: input.me }), { signal: caller.signal });
           try { parsed = parseOrganizeOutput(raw, input.materials, byId, today); }
-          catch { if (attempt >= 1) throw new TodoError("todo.model_invalid", "模型没有给出可用的整理结果，请再试一次"); }
+          catch { if (attempt >= 1) throw todoErrors.model_invalid("模型没有给出可用的整理结果，请再试一次"); }
         }
         drafts.push(...parsed.candidates.map(draft => ({ ...draft, ref: `p${part}-${draft.ref}`, depends_on: draft.depends_on.map(ref => `p${part}-${ref}`) })));
         reference.push(...parsed.reference_only);
@@ -135,14 +135,14 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
     bind(todoOrganizeActions.list, (input, caller) => organizer(value => ({ batches: value.list(ports.access(caller, caller.audience === "user"), input.status ?? "open") }))),
     bind(todoOrganizeActions.get, (input, caller) => organizer(value => ({ batch: value.get(input.id, ports.access(caller, caller.audience === "user")) }))),
     bind(todoOrganizeActions.apply, (input, caller) => organizer(value => {
-      if (!input.decisions.every(entry => validEdits(entry.edits))) throw new TodoError("todo.invalid", "日期或时间写法不对");
+      if (!input.decisions.every(entry => validEdits(entry.edits))) throw todoErrors.invalid("日期或时间写法不对");
       return value.apply(input.id, input.decisions, input.expected_revision, ports.access(caller, caller.audience === "user"));
     })),
     bind(todoOrganizeActions.close, (input, caller) => organizer(value => ({ batch: value.close(input.id, ports.access(caller, caller.audience === "user")) }))),
     { ...todoOrganizeActions.subject, handle: (caller, input) => organizer(value => {
       let found: TodoBatch;
       try { found = value.get((input as { subject_id: string }).subject_id, ports.access(caller)); }
-      catch { throw new ActionError("todo.not_found", "这份整理结果不在当前范围内"); }
+      catch { throw todoErrors.not_found("这份整理结果不在当前范围内"); }
       return subjectContext({ subject: { kind: TODO_BATCH_SUBJECT_KIND, id: found.batch_id }, revision: String(found.revision), title: found.title, content: batchText(found),
         goal_ids: [], session_id: null, open: { surface: TODO_PROJECT_PLUGIN_ID, id: "batch:" + found.batch_id } });
     }) },

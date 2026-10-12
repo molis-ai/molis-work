@@ -45,7 +45,14 @@ export function subjectContext(input: Omit<ActionSubjectContext, "truncated"> & 
     goal_ids: [...new Set(input.goal_ids)] };
 }
 
-/** The object a completed command created or changed, and its new revision, when the action says or shows it. */
+/**
+ * The object a completed command created or changed, and its new revision, when the action says or shows it.
+ * Only an action that is neither a query nor a navigation and names exactly one subject kind has one. Declared, `result_subject` names where the id (and revision) are in
+ * the output. Undeclared, the rule is: the output itself when it has a string `id`, else its only top-level field that is an object
+ * with a string `id`; the revision is that object's `version`, else its `revision`. When the output shows no such object, the input
+ * decides: an input that has a string `id` names the object, with no revision. Nothing checks that this reads the right object, so
+ * an action that writes should declare `result_subject` (docs/platform/PLUGIN-DEVELOPMENT.md).
+ */
 export function actionResultSubject(action: Pick<ActionDefinition["action"], "kind" | "subject_kinds" | "result_subject">, input: unknown, output: unknown):
   { subject: ActionSubject; revision: string | null } | null {
   if (action.kind === "query" || action.kind === "navigation" || action.subject_kinds.length !== 1) return null;

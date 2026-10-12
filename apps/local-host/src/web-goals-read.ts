@@ -8,7 +8,7 @@ import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@mol
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { declaredArtifactTypes, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
-import { withSelectedEventDocument, type WebViewOptions } from "./web-view.js";
+import { lookingForArea, withSelectedEventDocument, type WebViewOptions } from "./web-view.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import type { createSessionProjectOperations } from "./web-session.js";
@@ -218,7 +218,7 @@ async function withSelectedGoalDocument(
   let inputs: Array<{ artifact_id: string; version: number; title: string; state: "available" | "unavailable" | "archived" | "missing"; reason: string | null }> = [];
   if (collection !== "trash") try {
     // Every declared 成果 type has an owner that reads it (artifact-positioning A4): none of them is "no compatible plugin".
-    const { embeds } = await actions.invoke(artifactsActions.goalEmbeds, { goal_id: goalId, supported_types: declaredArtifactTypes() });
+    const { embeds } = await lookingForArea(() => actions.invoke(artifactsActions.goalEmbeds, { goal_id: goalId, supported_types: declaredArtifactTypes() }));
     // The card under 「完成要求」 is what the Goal hands in; its fixed inputs are listed with the rest of its inputs (五.1).
     const delivered = embeds.filter(embed => embed.relationship === "output");
     html = renderGoalArtifactContext(delivered);

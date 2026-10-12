@@ -10,7 +10,7 @@ import type {
   LocalHostProjectReference,
   LocalHostStatus,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionService, CapabilityRegistry, bindCall, judgmentRecommendationKeys, markStarted, refuseCall, subjectOfferChoices, subjectOfferCompatibilityReason,
+import { ActionService, CapabilityRegistry, bindCall, judgmentRecommendationKeys, refuseCall, startHandler, subjectOfferChoices, subjectOfferCompatibilityReason,
   type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { settleTyped } from "./typed-call-settlement.js";
 import { sceneConfigurationActions, ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
@@ -127,8 +127,7 @@ export class LocalHost<Runtime> {
     const invoke = (caller: ActionCallContext, input: Input) => {
       if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
       const token = this.capabilities.registrationToken(definition);
-      markStarted(caller);
-      return handler(this.invocationRuntimes.get(caller)!, input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin } : {}),
+      return startHandler(caller, () => handler(this.invocationRuntimes.get(caller)!, input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin } : {}),
         ...(this.pluginCapabilityCallers.has(caller) ? { consumer: "plugin" as const } : {}), call_id: caller.call_id, beforeEffect: async () => {
         caller.signal?.throwIfAborted();
         if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
@@ -139,7 +138,7 @@ export class LocalHost<Runtime> {
         if (this.capabilities.registrationToken(definition) !== token) throw new ActionError("actions.provider_replaced", "能力提供方已重启，不能继续原副作用");
         if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
         caller.signal?.throwIfAborted();
-      } });
+      } }));
     };
     if (definition.action) return this.actionService.registerProvider({
       provider: definition.action_provider ?? { provider_id: HOST_PROVIDER_ID, title: "Molis Work", kind: "system" },

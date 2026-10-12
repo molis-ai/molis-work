@@ -38,7 +38,7 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 | [src/styles/touch-targets.ts](src/styles/touch-targets.ts) | 底栏的触控尺寸，跟在 craft-finish 后面：手机宽度或 `pointer: coarse` 的窗口里底栏与助理输入条是 44px 目标；挤满的助理输入条由岛标记 `data-crowded` 并分步让位（选择器、工作条的清除标记、材料与通知并入「+」菜单） |
 | [src/monogram.ts](src/monogram.ts) | 项目徽标：首字母 + 由项目 id 决定的色相 |
 | [src/interaction.ts](src/interaction.ts)、[src/styles/interaction.ts](src/styles/interaction.ts) | AI 交互部件：问卷（混合字段、推荐理由、逐字段错误）、选项组、操作卡（作用对象与版本、参数预览、状态、结果）、输入框旁的下一步。只收展示参数（`Interaction*View`），用 `data-ix-*` 钩子接行为；样式 `INTERACTION_STYLES` 单独导出，不在共享页面样式表里 |
-| [src/interaction-client.ts](src/interaction-client.ts) | 上面这些部件的浏览器端行为：`createInteractionClient(root, host)`（读写字段值、选项与对象切换、单选的箭头键与单一 Tab 停靠、步进器上下界、日历弹层、回车跳项与 ⌘/Ctrl+回车提交、中文输入法组合中不报变化、逐字段错误）。由三个不依赖 import 的函数组成，`INTERACTION_CLIENT_SCRIPT` 是它们拼成的脚本表达式，供不能 import 的插件客户端工厂内嵌；不存任何值，值归调用方，写入从不夺走正在输入的字段 |
+| [src/interaction-client.ts](src/interaction-client.ts) | 上面这些部件的浏览器端行为：`createInteractionClient(root, host)`（读写字段值、选项与对象切换、单选的箭头键与单一 Tab 停靠、步进器上下界、日历弹层、回车跳项与 ⌘/Ctrl+回车提交、中文输入法组合中不报变化、逐字段错误）。由三个不依赖 import 的函数组成，`INTERACTION_CLIENT_SCRIPT` 是它们拼成的脚本表达式，供不能 import 的插件客户端工厂内嵌；浏览器侧目前只能用这个字符串导出，不能从包根 import `createInteractionClient`，因为包根会带进只给 node 用的模块；不存任何值，值归调用方，写入从不夺走正在输入的字段 |
 | [src/catalog-examples.ts](src/catalog-examples.ts)、[src/interaction-example.ts](src/interaction-example.ts) | 组件板的示例区块（插件页面组合、AI 交互），在 `catalog.ts` 之外组合 |
 
 ## 硬规则

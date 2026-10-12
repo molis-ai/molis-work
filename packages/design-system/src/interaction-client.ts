@@ -136,8 +136,13 @@ export function interactionCalendar(picked: (input: HTMLInputElement) => void) {
       cell.classList.toggle("is-selected", cell.dataset.date === value);
     }
   };
+  /** A press anywhere outside the date field closes the popover, wherever it lands (the card's own listeners never see it). */
+  const outside = (event: Event) => {
+    if (open && event.target instanceof Node && !open.popup.closest("[data-ix-date]")!.contains(event.target)) close();
+  };
   const close = (returnFocus = false) => {
     if (!open) return;
+    document.removeEventListener("pointerdown", outside, true);
     open.popup.hidden = true;
     open.trigger.setAttribute("aria-expanded", "false");
     if (returnFocus) open.trigger.focus();
@@ -148,7 +153,7 @@ export function interactionCalendar(picked: (input: HTMLInputElement) => void) {
     if (!field || !popup || !input) return;
     close();
     markDay(popup, input.value);
-    showPage(popup, Math.max(0, pages(popup).findIndex(calendar => q(calendar, `td[data-date="${input.value}"]`))));
+    showPage(popup, Math.max(0, pages(popup).findIndex(calendar => all(calendar, "td[data-date]").some(cell => cell.dataset.date === input.value))));
     popup.hidden = false;
     // Open upward when the room below (in the nearest scroller) is too short for the popup and there is room above.
     const scroller = field.closest<HTMLElement>("[data-thread], .mw-scroll"), box = field.getBoundingClientRect();
@@ -156,6 +161,7 @@ export function interactionCalendar(picked: (input: HTMLInputElement) => void) {
     popup.dataset.place = bounds.bottom - box.bottom < popup.offsetHeight + 12 && box.top - bounds.top > popup.offsetHeight ? "top" : "bottom";
     trigger.setAttribute("aria-expanded", "true");
     open = { popup, trigger, input };
+    document.addEventListener("pointerdown", outside, true);
     (q<HTMLButtonElement>(popup, ".mw-calendar__day[aria-pressed=true]") ?? q<HTMLButtonElement>(popup, "[aria-current=date] .mw-calendar__day"))?.focus();
   };
   /** True when the click belonged to the calendar. */
@@ -266,13 +272,16 @@ export function assembleInteractionClient(fieldsFactory: typeof interactionField
       return;
     }
     const form = target.closest<HTMLFormElement>("[data-ix-form]");
-    if (key.key !== "Enter" || key.isComposing || composing || !form) return;
+    // keyCode 229 is the Enter that confirms an input-method candidate in WebKit, where isComposing is already false.
+    if (key.key !== "Enter" || key.isComposing || key.keyCode === 229 || composing || !form) return;
     if (key.metaKey || key.ctrlKey) { key.preventDefault(); host.onSubmit?.(); return; }
     // Plain Enter in a single-line field moves on instead of answering early.
     if (target instanceof HTMLInputElement) {
       key.preventDefault();
       const order = all(form, "[data-ix-focus], [data-ix-part=time], [data-ix-other]");
-      order[order.indexOf(target) + 1]?.focus();
+      const next = order[order.indexOf(target) + 1];
+      // A group is not itself a control: land on the pick (or the first option) inside it.
+      (next?.matches("[data-ix-options], [data-ix-references]") ? q(next, "[role=radio][aria-checked=true]") ?? q(next, "button:not(:disabled)") ?? next : next)?.focus();
     }
   };
   const onSubmit = (event: Event) => {

@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { ChromeHarness, ChromePage, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import {
   INTERACTION_CLIENT_SCRIPT, INTERACTION_STYLES, PRIMITIVE_STYLES, TYPEFACE_STYLES,
-  renderControlMetrics, renderIconSprite, renderInteractionQuestion, renderShapeTokens, renderShellTokens,
+  renderControlMetrics, renderIconSprite, renderInteractionQuestion, renderPrimitiveCatalog, renderShapeTokens, renderShellTokens,
 } from "@molis-ai/molis-work-design-system";
 
 // The shared interaction behaviour, exercised in a real browser on the design system's own markup. Nothing here starts a
@@ -16,6 +16,7 @@ const calendar = { months: [{ year: 2026, month: 9 }, { year: 2026, month: 10 }]
 const card = renderInteractionQuestion({
   id: "q", kicker: "k", title: "t", footer: { note: "", actions: [{ id: "submit", label: "提交", type: "submit", variant: "primary" }] },
   fields: [
+    { id: "title", label: "标题", control: { kind: "text", value: "" } },
     { id: "format", label: "方式", control: { kind: "choice", options: [{ value: "a", label: "A", description: "第一种", selected: true }, { value: "b", label: "B", description: "第二种" }] } },
     { id: "topics", label: "重点", control: { kind: "choice", multiple: true, options: [{ value: "x", label: "X", selected: true }, { value: "y", label: "Y" }, { value: "z", label: "Z" }],
       other: { label: "其他", value: "" } } },
@@ -138,6 +139,29 @@ test("AC-18 / the shared interaction client works on the design system's markup 
     assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=date] [data-ix-calendar]').hidden`), true);
     assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=date] [data-ix-weekday]').textContent`), "周五");
   });
+  await t.test("a press anywhere outside the date field closes the calendar, and only then", async () => {
+    await browser.click('[data-ix-field="date"] [data-ix-calendar-open]');
+    assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=date] [data-ix-calendar]').hidden`), false);
+    await browser.command("Input.dispatchMouseEvent", { type: "mousePressed", x: 900, y: 300, button: "left", clickCount: 1 });
+    await browser.command("Input.dispatchMouseEvent", { type: "mouseReleased", x: 900, y: 300, button: "left", clickCount: 1 });
+    assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=date] [data-ix-calendar]').hidden`), true, "empty page space closes it");
+    assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=date] [data-ix-calendar-open]').getAttribute('aria-expanded')`), "false");
+    await browser.click('[data-ix-field="date"] [data-ix-calendar-open]');
+    await browser.click('[data-ix-field="date"] [data-ix-calendar-open]');
+    assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=date] [data-ix-calendar]').hidden`), true, "pressing the opener again closes it (the outside listener leaves the field alone)");
+  });
+  await t.test("the Enter that confirms an input-method candidate (keyCode 229, isComposing false) does not move on", async () => {
+    await clear(browser);
+    await evaluate(browser, `document.querySelector('[data-ix-value=title]').focus()`);
+    const result = await evaluate<{ prevented: boolean; active: string }>(browser, `(()=>{const t=document.querySelector('[data-ix-value=title]');const e=new KeyboardEvent('keydown',{key:'Enter',keyCode:229,bubbles:true,cancelable:true});t.dispatchEvent(e);return {prevented:e.defaultPrevented,active:document.activeElement.dataset.ixValue}})()`);
+    assert.deepEqual(result, { prevented: false, active: "title" }, "the Enter is left to the input method");
+    assert.deepEqual(await log(browser), []);
+  });
+  await t.test("Enter that lands on an option group focuses the pick inside it, not the container", async () => {
+    await evaluate(browser, `document.querySelector('[data-ix-value=title]').focus()`);
+    await key(browser, "Enter");
+    assert.deepEqual(await evaluate(browser, `(e=>[e.getAttribute('role'), e.getAttribute('aria-checked'), e.dataset.ixOption])(document.activeElement)`), ["radio", "true", "b"], "the checked radio, which is also the single tab stop");
+  });
   await t.test("showErrors marks each field, clears the others, and focuses the first on request", async () => {
     await evaluate(browser, `window.client.showErrors({ minutes: "请输入整数", refs: "请选一份" }, { focus: true })`);
     assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=minutes] [data-ix-error]').textContent`), "请输入整数");
@@ -147,6 +171,25 @@ test("AC-18 / the shared interaction client works on the design system's markup 
     await evaluate(browser, `window.client.showErrors({ refs: "请选一份" })`);
     assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=minutes] [data-ix-error]').hidden`), true, "a field that is fine again goes quiet");
     assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=refs] [data-ix-references]').getAttribute('aria-invalid')`), "true");
+  });
+  await t.test("the component board's own sample runs its script: adopt rewrites the field, submit shows the remaining error", async () => {
+    const board = `<!doctype html><html><head><meta charset="utf-8"><style>:root{${renderShellTokens("light")}${renderShapeTokens()}${renderControlMetrics()}}${TYPEFACE_STYLES}${PRIMITIVE_STYLES}</style></head><body>${renderIconSprite()}${renderPrimitiveCatalog()}</body></html>`;
+    await browser.command("Page.navigate", { url: "about:blank" });
+    await browser.command("Page.setDocumentContent", { frameId: (await browser.command<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree")).frameTree.frame.id, html: board });
+    await browser.wait(`!!document.querySelector('[data-ix-question="ix-q-open"]')`);
+    // setDocumentContent does not run scripts; run the sample's inline script the way the page would.
+    await evaluate(browser, `(()=>{const s=document.querySelector('#interaction script');if(s){const n=document.createElement('script');n.textContent=s.textContent;document.body.appendChild(n)}})()`);
+    const card = '[data-ix-question="ix-q-open"]';
+    await browser.click(`${card} [data-ix-action="adopt"]`);
+    assert.equal(await evaluate(browser, `document.querySelector('${card} [data-ix-value=minutes]').value`), "45");
+    assert.equal(await evaluate(browser, `document.querySelector('${card} [data-ix-notice]').hidden`), true);
+    assert.equal(await evaluate(browser, `document.querySelector('${card} [data-ix-field=minutes] [data-ix-error]').hidden`), true);
+    await browser.click(`${card} [data-ix-reference="goal"]`);
+    assert.equal(await evaluate(browser, `document.querySelector('${card} [data-ix-field=materials] [data-ix-error]').hidden`), true, "changing a field clears its own error");
+    await browser.fill(`${card} [data-ix-value=minutes]`, "x");
+    await browser.click(`${card} [data-ix-action="submit"]`);
+    assert.match(await evaluate<string>(browser, `document.querySelector('${card} [data-ix-field=minutes] [data-ix-error]').textContent`), /15–120/);
+    assert.equal(await evaluate(browser, `document.querySelector('${card} [data-ix-field=materials] [data-ix-error]').hidden`), true, "a fine field stays quiet");
   });
   await t.test("destroy() removes every listener", async () => {
     await clear(browser);

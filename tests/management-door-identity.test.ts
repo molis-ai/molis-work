@@ -200,6 +200,25 @@ test("the management MCP's initialize reads only project_id, title and idempoten
   } finally { await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+/** W3-01 D: the management door is reached through MCP messages too. Its tool call is an operation: the typed command it runs leaves a row, and the result says which. */
+test("a management tool call is one operation: its typed command leaves a row and the result names that operation", async () => {
+  const home = await mkdtemp(join(tmpdir(), "management-door-call-id-"));
+  const databasePath = join(home, "project.db"), project_id = "project/call-id";
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const management = new MolisWorkServer("management", null, null, host);
+  try {
+    const reply = await management.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_initialize",
+      arguments: { database_path: databasePath, project_id, title: "编号", idempotency_key: "init-call-id" }, _meta: { "molis-work/callId": "11111111-2222-4333-8444-555555555555" } } }) as { result: { isError: boolean; _meta?: Record<string, unknown> } };
+    assert.equal(reply.result.isError, false, JSON.stringify(reply));
+    const id = String(reply.result._meta?.["molis-work/callId"]);
+    assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    assert.notEqual(id, "11111111-2222-4333-8444-555555555555", "a number the client put in `_meta` is not taken");
+    const rows = host.callLog!.find(id);
+    assert.ok(rows.length >= 1, "the operation left a row the number finds");
+    assert.ok(rows.every(row => row.call_id === id && row.operation === "command" && row.ok), JSON.stringify(rows));
+  } finally { await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
 test("the management MCP's goal_tree_decide schema names no identity", () => {
   const tool = MCP_TOOLS.find(item => item.name === "molis_work_v1_goal_tree_decide");
   assert.ok(tool, "the management tool is listed");

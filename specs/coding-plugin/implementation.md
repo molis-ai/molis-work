@@ -25,10 +25,16 @@ C1 → C2 → C3 → C4 → C5 不是偏好，是依赖：
 沿用仓库现有惯例，不新造：**能力定义放在拥有方自己的契约入口，绑定统一在
 `apps/local-host/src/project-capabilities.ts` 的 `registerProjectCapabilities`。**
 
-对照现状：Goals 是插件，契约入口是通用的 `platform/plugin`，所以它的 38 个能力定义
-放在自己包里（`plugins/native/goals/src/goals-entry-capabilities.ts`）；
-Agent Host 是横向服务，契约入口是 `services/agent-host`，它的 8 个能力就定义在那儿。
-两处位置不同但规则同一条，不是漂移。
+对照现状：规则是同一条，位置随拥有方的形态而不同。Agent Host 是横向服务，契约入口是 `services/agent-host`，
+它的 `agent.*` 能力就定义在那儿；Goals 是插件，它还留着的 typed 入口是管理入口与宿主自己在用的
+（`plugins/native/goals/src/` 下的 `board-entry-capabilities.ts`、`goal-entry-contract.ts`、
+`goal-event-entry-capabilities.ts`、`proposal-capabilities.ts`）和 Coding 在用的四个
+（`goals.context.list.v1`、`goals.context.read.v1`、`goals.progress.record.v1`、`goals.progress.receipt.v1`，
+定义在 `packages/contracts/src/modules/goals.ts`，由 `apps/local-host/src/project-capabilities.ts` 注册）。
+这些随 W3-07 改成 Goals 的动作，旧入口删除（用户 2026-10-10，见
+[防腐整理 spec](../repository-anti-corruption/spec.md) §1、`docs/system/CALL-CHAINS.md` §10.2）。当年写在这里的
+「Goals 的 38 个能力定义放在 `plugins/native/goals/src/goals-entry-capabilities.ts`」已不成立：那个文件和 26 个没有
+生产调用方的 typed 入口在 2026-10-09（W2-08）一起删除了。
 
 按这条规则，本阶段三组能力落位：
 
@@ -50,7 +56,7 @@ Agent Host 是横向服务，契约入口是 `services/agent-host`，它的 8 �
 - **写回 Goal 事件不需要新能力**。Coding 写进展走 Goals 仍保留的 typed 入口 `goals.progress.record.v1`
   （连同回执查询 `goals.progress.receipt.v1`），在 Manifest 的 `capabilities.consumes` 里声明消费；调用时身份取自
   调用上下文，不取参数（`tests/goal-progress-plugin-identity.test.ts`）。这条路到 W3-07 把它改成动作前保持不变。
-  便笺走 `goals.note`，它是 Goals 动作里向插件开放的写入（Goals 向插件开放的动作只有 `goals.list`、`goals.note`、
+  便笺若要写，走 `goals.note`，它是 Goals 动作里向插件开放的写入（Coding 现在没有调用它；Goals 向插件开放的动作只有 `goals.list`、`goals.note`、
   `goals.subject.read`、`goals.search.entries`、`goals.fragment.offers`）；`goals.events.report`、`goals.progress.record`
   等其他 Goals 事件写入动作没有 `plugin` 受众，插件够不到，不是 Coding 的路。当年写在这里的 16 个 typed 事件能力
   （`io.molis.work.goals.events.*`：`recordGoalNoteCapability`、`reportGoalEventsCapability`、

@@ -24,9 +24,9 @@ export async function handleFunctionsHttp(
     async handle(input) {
       if (input.pathname === "/api/functions/settings") {
         if (input.method === "GET") return { status: 200, body: functionsConnectionStatus(homeDirectory) };
-        if (input.body.clear === true) unbindTypeSafeConnection(homeDirectory, "functions");
+        if (input.body.clear === true) unbindTypeSafeConnection(homeDirectory);
         else if (typeof input.body.connection_id === "string" && input.body.connection_id.trim()) {
-          bindTypeSafeConnection(homeDirectory, "functions", input.body.connection_id);
+          bindTypeSafeConnection(homeDirectory, input.body.connection_id);
         } else throw new Error("请在 Connectors 中选择 TypeSafe 连接");
         return { status: 200, body: functionsConnectionStatus(homeDirectory) };
       }

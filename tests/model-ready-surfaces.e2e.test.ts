@@ -180,6 +180,60 @@ test("jelly: settings opened some other way stay as they are when the first mode
   { surface: "settings", jellyDialog: false, modal: 0, toast: "" }, "no page sent the person: the settings stay, nothing opens over them");
 });
 
+// A surface opened for the first time is inert until its client is mounted (#150); a click sent before that is lost.
+const CLIENTS_READY = `!document.querySelector('[data-ui-client-state="loading"]')
+  && ![...document.querySelectorAll('[data-deferred-surface]')].some(surface => !surface.closest('[hidden]') && surface.dataset.uiClientState !== 'failed')`;
+
+async function openScheduleDialog({ waitFor, click }: Browser) {
+  await waitFor(`document.querySelector('[data-schedule-new]') && ${CLIENTS_READY}`, 20_000);
+  await click("[data-schedule-new]");
+  const shown = (kind: string) => `(() => { const hint = document.querySelector('[data-schedule-hint="${kind}"]'); return Boolean(hint) && !hint.hidden && hint.getClientRects().length > 0; })()`;
+  await waitFor(`${shown("model")} && ${shown("workspace")}`, 20_000);
+}
+
+test("schedule: the new-task dialog's model hint goes when the first model is ready, and its links lead to where each is fixed", { timeout: 90_000 }, async t => {
+  const browser = await open(t, "schedule");
+  if (!browser) return;
+  const { evaluate, waitFor, projectId } = browser;
+  await openScheduleDialog(browser);
+  // The desktop page adds ?desktop=1 to the links it serves; where each one goes is the path.
+  const linkPath = (kind: string) => evaluate<string | null>(`(() => { const link = document.querySelector('[data-schedule-hint=${kind}] a'); return link && new URL(link.getAttribute('href'), location.origin).pathname; })()`);
+  assert.equal(await linkPath("model"), "/settings/models", "a plain link to the model settings");
+  assert.equal(await linkPath("workspace"), `/projects/${projectId}/settings/workspaces`, "and to where this project's folder is bound");
+  // The hint is a grid (.mw-alert): a link beside its sentence in the grid would drop to its own row and stretch to the full width,
+  // so its hit area and focus ring would cover the line. The link must be only its own words, and never broken across two lines.
+  const linkBox = (kind: string) => evaluate<{ box: number; text: number; line: number; fragments: number }>(`(() => { const hint = document.querySelector('[data-schedule-hint=${kind}]'); const link = hint.querySelector('a');
+    const words = document.createRange(); words.selectNodeContents(link);
+    return { box: Math.round(link.getBoundingClientRect().width), text: Math.round(words.getBoundingClientRect().width), line: Math.round(hint.getBoundingClientRect().width), fragments: words.getClientRects().length }; })()`);
+  for (const kind of ["model", "workspace"]) {
+    const { box, text, line, fragments } = await linkBox(kind);
+    assert.ok(text > 0 && text < line / 2, `${kind}: the link text (${text}px) is a few words of the ${line}px hint`);
+    assert.ok(Math.abs(box - text) <= 1, `${kind}: the link's box (${box}px) is its own text (${text}px), not the row`);
+    assert.equal(fragments, 1, `${kind}: the link is on one line, not broken in the middle of its words`);
+  }
+  // Two hints one under the other sit a form-gap apart (12px): a paragraph's default margins would add 26px to it.
+  assert.ok(await evaluate<number>(`(() => { const top = document.querySelector('[data-schedule-hint=model]').getBoundingClientRect(), next = document.querySelector('[data-schedule-hint=workspace]').getBoundingClientRect(); return Math.round(next.top - top.bottom); })()`) <= 16, "the hints are a form-gap apart");
+  // The model is set up somewhere else (another pane, another tab) while the dialog stays open.
+  await firstModelIsReady(browser);
+  await waitFor("document.querySelector('[data-schedule-hint=model]').hidden", 10_000);
+  assert.equal(await evaluate("!document.querySelector('[data-schedule-hint=workspace]').hidden && document.querySelector('[data-schedule-create-dialog]').open"), true, "the folder is still missing, and the person's dialog is still there");
+  assert.equal(await evaluate("document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), false, "and creating was never blocked");
+  // The project settings open over the page; the modal dialog would sit over them, so the link leaves it first.
+  await evaluate("document.querySelector('[data-schedule-hint=workspace] a').click()");
+  await waitFor("!document.querySelector('[data-schedule-create-dialog]').open && document.body.dataset.desktopSurface === 'project-settings'", 10_000);
+  assert.equal(await evaluate("document.querySelectorAll(':modal').length"), 0, "nothing modal is left over the settings");
+});
+
+test("schedule: the model link leaves the modal dialog for the model settings", { timeout: 90_000 }, async t => {
+  const browser = await open(t, "schedule");
+  if (!browser) return;
+  const { evaluate, waitFor } = browser;
+  await openScheduleDialog(browser);
+  await evaluate("document.querySelector('[data-schedule-hint=model] a').click()");
+  await waitFor("document.body.dataset.desktopSurface === 'settings' && !document.querySelector('[data-schedule-create-dialog]').open", 10_000);
+  assert.equal(await evaluate("document.querySelectorAll(':modal').length"), 0, "nothing modal is left over the settings");
+});
+
 test("plugin builder studio: the empty model list and the link to the settings are read again", { timeout: 90_000 }, async t => {
   const browser = await open(t, "plugin-builder");
   if (!browser) return;

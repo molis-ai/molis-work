@@ -24,8 +24,6 @@ interface Expectation {
 const expected = new AsyncLocalStorage<Expectation | undefined>();
 
 export const newCallId = (): string => randomUUID();
-/** What a person is shown and copies; looking one up takes six or more leading characters. */
-export const shortCallId = (id: string): string => id.slice(0, 8);
 
 const openScope = (): CallScope | undefined => {
   const scope = scopes.getStore();

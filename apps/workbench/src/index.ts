@@ -100,6 +100,7 @@ export type { ArrivalPrimitives, ArrivalShellPrimitives } from "./arrival/shell.
 export type { WebSettingsProject, WebInstallationDiagnostics, MolisWorkSettingsView } from "./settings-view.js";
 export { createWorkbenchSettingsRenderer, type SettingsRenderPrimitives } from "./settings-renderer.js";
 export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";
+export type { CallRowView } from "./call-row.js";
 export { renderMcpAccess, renderMcpAccessRows, mcpAccessEntryKey, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";
 export type { MolisWorkWebView } from "./page-view.js";
 export * from "./i18n.js";

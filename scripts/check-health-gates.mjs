@@ -41,6 +41,7 @@ import { createTranslationMetric } from "./gates/translations.mjs";
 import { createImpeccableMetric } from "./gates/impeccable-files.mjs";
 import { vendoredProvenanceProblems } from "./gates/vendored-provenance.mjs";
 import { productSubsetProblems } from "./gates/product-subset.mjs";
+import { splitsWantText, testImportSplits } from "./gates/test-import-splits.mjs";
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
@@ -130,7 +131,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => isStructureSource(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file);
+const needsText = (file) => isStructureSource(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -417,6 +418,8 @@ METRICS.push(createImpeccableMetric({ perFile }));
 // 8. Static checks (W1-09): Biome with a minimal rule set, counted per file; the rules live in scripts/gates/lint.mjs.
 // The repository this script belongs to must have the configuration; another --root (the scratch repositories of the gate tests) may lack one.
 METRICS.push(...createLintMetrics({ root, required: isOwnRepository(root, import.meta.url), fail, perFile, rekey, rekeyFile, sumOf, requireShape }));
+// 9. Test processes that load a package both from source and from the build (W2-10, interim form): per test file, only falls. The graph is shared with scripts/test-imports.mjs (header of scripts/gates/test-import-splits.mjs).
+METRICS.push(testImportSplits({ perFile }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 

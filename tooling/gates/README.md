@@ -64,7 +64,7 @@
 | --- | --- | --- |
 | 同一版本下形状变了 | `capability_id@version` 不变，而 `input`、`output`、`traits`、`subjects`、`input_type`、`output_type` 里有一格变了 | 升版本，或在 PR 里写明为什么没有固定它的引用会坏（合同变更流程第 3 节第 3 条）。评审拦这一类 |
 | 谁能调、怎么调变了 | 权限、受众、`kind`、`scope`、`effect`、`scheduling`、`operation`、`provider`（Manifest 的 `plugin_id`）变了，形状没变 | 写进 PR 的合同影响 |
-| 登记用的提供方变了 | `registered_provider` 变了，无论别的列变没变：改名、从原生装配迁到 Runtime 装配（或反过来）、换了发布签名，都会让这个插件每个动作的这一格变，逐个列出 | 已固定的引用（工作流程步骤存的 `provider_id`、`allowed_actions`、Feed 与 Inbox 场景的引用）带着旧 id，内核比对不上就抛 `actions.provider_changed`，旧引用不会自动换成新提供方。同一个 PR 里列出这些引用并迁完，或写明为什么没有 |
+| 登记用的提供方变了 | `registered_provider` 变了，无论别的列变没变：改名（`plugin_id` 变）、内置插件不再被宿主名单标 `bundled`（或反过来），都会让这个插件每个动作的这一格变，逐个列出；从原生装配迁到 Runtime 装配（或反过来）、换发布签名不会，因为内置插件不论哪种装配都登记在 `plugin_id` 之下（用户 2026-10-10 的决定，W3-06 C；下面「两层要一致」） | 已固定的引用（工作流程步骤存的 `provider_id`、`allowed_actions`、Feed 与 Inbox 场景的引用）带着旧 id，内核比对不上就抛 `actions.provider_changed`，旧引用不会自动换成新提供方。同一个 PR 里列出这些引用并迁完，或写明为什么没有 |
 | 换了新版本 | 同一提供方的 id 少了 `@旧` 多了 `@新` | 旧版本的固定引用不再能解析：列出消费者 |
 | 新增、删除 | 一个动作多了或少了 | 删除同样会让固定它的引用失效 |
 

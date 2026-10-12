@@ -66,3 +66,15 @@ test("MCP returns application errors through the host formatter without retrying
   assert.equal(calls, 1);
   assert.equal(formats, 1);
 });
+
+test("MCP hands the host's `_meta` on a tool result to the client, and reads no operation number from the call's own `_meta`", async () => {
+  const forged = "11111111-2222-4333-8444-555555555555";
+  const hosts = { "molis-work/callId": "22222222-3333-4444-8555-666666666666" };
+  let context: McpToolCallContext | undefined;
+  const ports: McpProtocolPorts = { serverInfo, tools,
+    callTool: async (_name, _arguments, callContext) => { context = callContext; return { content: [{ type: "text", text: "{}" }], isError: false, _meta: hosts }; },
+    formatToolError: () => assert.fail("Successful call formatted an error") };
+  const response = await handleMcpMessage({ id: 3, method: "tools/call", params: { name: "fixture-query", _meta: { "molis-work/callId": forged, call_id: forged, callId: forged } } }, ports);
+  assert.deepEqual(context, { runtimeSessionId: null, runtimeSessionIdSource: null }, "nothing the client put in `_meta` reaches the host as a number");
+  assert.deepEqual(response, { jsonrpc: "2.0", id: 3, result: { content: [{ type: "text", text: "{}" }], isError: false, _meta: hosts } });
+});

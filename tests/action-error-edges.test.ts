@@ -98,7 +98,16 @@ test("the Host's own MCP server: a Todo failure carries its code line", async t 
   const reply = await external.handleMessage({ id: 1, method: "tools/call", params: { name: molisWorkActionToolName(todoActions.get), arguments: { id: "no-such-todo" } } }) as
     { result: { isError: boolean; content: Array<{ text: string }> } };
   assert.equal(reply.result.isError, true, JSON.stringify(reply));
-  assert.equal(reply.result.content[0]!.text, `错误: 找不到这件待办，可能已被删除\n${JSON.stringify({ code: "todo.not_found" })}`);
+  // CHANGED by W3-01 D. The text is still the message line and the code line; the failed read left a row in the call log, so the code line also names
+  // the operation (`call_id`), and a person who is given it can look the row up.
+  const [message, codeLine, ...rest] = reply.result.content[0]!.text.split("\n");
+  assert.equal(message, "错误: 找不到这件待办，可能已被删除");
+  assert.deepEqual(rest, []);
+  const line = JSON.parse(codeLine!) as { code: string; call_id?: string };
+  assert.deepEqual(Object.keys(line), ["code", "call_id"]);
+  assert.equal(line.code, "todo.not_found");
+  assert.match(line.call_id ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  assert.equal(host.callLog!.find(line.call_id!)[0]?.code, "todo.not_found", "the number finds the row of the failed read");
 });
 
 test("Home dock: a failed Todo action on execute answers with the Todo's own code and a 400, not as an unknown 500", async t => {

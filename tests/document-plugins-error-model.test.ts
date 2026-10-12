@@ -19,13 +19,17 @@ import {
 import { actionMcpToolName, createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
-import { FORM_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-form";
+import { DATASET_ACTION_PERMISSIONS, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
+import { FORM_ACTION_PERMISSIONS, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
 import { PAGES_ACTION_PERMISSIONS, createPagesActionHandlers, createPagesContentHandlers, openPagesStore, pagesActions, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
-import { PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
+import { PPT_ACTION_PERMISSIONS, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { WORKFLOWS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-workflows";
+import { datasetTestPorts } from "./fixtures/dataset-actions.js";
+import { formTestPorts } from "./fixtures/form-actions.js";
 import { serveNativeHttp, type NativeHttpAnswer } from "./fixtures/native-http.js";
+import { pagesTestPorts } from "./fixtures/pages-actions.js";
+import { pptTestPorts } from "./fixtures/ppt-actions.js";
 
 // specs/repository-anti-corruption W3-02-D: the document plugins (Pages, PPT, Dataset, Form, Lingguang, Workflows) lose their route-error mappers and
 // their error classes. Their failures are ActionErrors whose codes the plugins declare (`defineErrorCodes`); the Host's edge answers every one through the
@@ -244,6 +248,31 @@ test("real routes: a change made on a stale version is 409 <owner>.conflict at P
   const saved = workflow.body.workflow as { workflow_id: string; revision: number };
   const answer = await server.post(`/api/workflows/${saved.workflow_id}`, JSON.stringify({ title: "改过", revision: saved.revision + 40 }));
   assert.deepEqual([answer.status, answer.body.code], [409, "workflows.conflict"], JSON.stringify(answer.body));
+});
+
+test("real routes: a publish in an environment with no publisher is refused by the plugin's availability object: 400 <owner>.unavailable at Pages, PPT, Dataset and Form", async t => {
+  // The publishable plugins say "no publisher here" with an availability object (`{ available: false, code: "<owner>.unavailable" }`), which the kernel raises as an
+  // ActionError with that code and no kind. A code of the owner's with no kind is a caller mistake, so it answers 400; the deleted mappers gave 409. This is the one
+  // status change of the slice that the design did not list. The code is the same and nothing is written. Pinned here for all four so a change of it is a decision:
+  // the owner's availability carrying its kind (ActionAvailability `kind`, passed on by the kernel's `assertAvailable`) is the shared core's (W3-02-G1, plan
+  // wave3-batchB-plan.md), and when it lands these four answers become 409 in the same change.
+  const home = await mkdtemp(join(tmpdir(), "document-error-model-publish-"));
+  const pages = openPagesStore(home), ppt = openPptStore(home), dataset = openDatasetStore(home), form = openFormStore(home);
+  t.after(async () => { pages.close(); ppt.close(); dataset.close(); form.close(); await rm(home, { recursive: true, force: true }); });
+  const server = await serveNativeHttp(async (request, response, url) =>
+    await handlePagesNativePluginHttp(request, response, url, pagesTestPorts(pages, "a"))
+    || await handlePptNativePluginHttp(request, response, url, () => pptTestPorts(ppt, "a"))
+    || await handleDatasetNativePluginHttp(request, response, url, () => datasetTestPorts(dataset, "a"))
+    || await handleFormNativePluginHttp(request, response, url, () => formTestPorts(form, "a")));
+  t.after(() => server.close());
+  for (const owner of ["pages", "ppt", "dataset", "form"] as const) {
+    const created = await server.post(`/api/${owner}`, JSON.stringify({ title: "原稿" }));
+    assert.equal(created.status, 200, JSON.stringify(created.body));
+    const record = Object.values(created.body).find((value): value is { id: string } => typeof value === "object" && value !== null && "id" in value);
+    assert.ok(record, `${owner} answers the record it created`);
+    const answer = await server.post(`/api/${owner}/${record.id}/promote`, JSON.stringify({ goal_id: "CORE" }));
+    assert.deepEqual([owner, answer.status, answer.body.code], [owner, 400, `${owner}.unavailable`], JSON.stringify(answer.body));
+  }
 });
 
 test("MCP action port: a Pages failure comes out as its own code and message, not as the generic 能力执行失败", async t => {

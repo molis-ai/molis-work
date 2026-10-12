@@ -681,16 +681,14 @@
     "plugins/native/goals/src/document-collection.ts": 1,
     "plugins/native/goals/src/goal-tree-materialization-order.ts": 1
   },
-  "contractsPurityEntries": 8,
+  "contractsPurityEntries": 6,
   "contractsPurity": {
     "packages/contracts/src/modules/character-import.ts#long-fn:parseCharacterImportSnapshot": 49,
     "packages/contracts/src/modules/model-providers.ts#long-fn:modelRequestShape": 22,
     "packages/contracts/src/modules/workspace-artifacts.ts#long-fn:parseFilePath": 25,
     "packages/contracts/src/modules/workspace-artifacts.ts#long-fn:parseFilesCollection": 35,
     "packages/contracts/src/modules/workspace-artifacts.ts#long-fn:parseChangeSet": 31,
-    "packages/contracts/src/modules/workspace-artifacts.ts#long-fn:parseCodingChangeSet": 23,
-    "packages/contracts/src/platform/actions.ts#http-status": 2,
-    "packages/contracts/src/platform/actions.ts#long-fn:bindOwnerPluginAction": 37
+    "packages/contracts/src/modules/workspace-artifacts.ts#long-fn:parseCodingChangeSet": 23
   },
   "hostEntryExportStarTotal": 11,
   "hostEntryExportStar": {
@@ -1839,7 +1837,7 @@
     "plugins/official-integrations/catalog/src/document-import.ts": 1,
     "tooling/plugin-cli/src/package-files.ts": 5
   },
-  "errorStatusDecisionTotal": 200,
+  "errorStatusDecisionTotal": 195,
   "errorStatusDecisions": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/action-gateway-http.ts": 2,
@@ -1869,7 +1867,6 @@
     "apps/local-host/src/web-project-deletion.ts": 2,
     "apps/local-host/src/web-project-reference.ts": 2,
     "apps/local-host/src/web-project-settings.ts": 4,
-    "packages/contracts/src/platform/actions.ts": 5,
     "plugins/native/alchemist/src/studio/server/api/action-routes.ts": 4,
     "plugins/native/alchemist/src/studio/server/services/action-operations.ts": 14,
     "plugins/native/characters/src/plugin.ts": 4,

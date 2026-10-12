@@ -3,11 +3,12 @@
  * 更多 with its menu, the basis note and the row's own pointer, focus and keyboard handling. It reads the plan the bus
  * hands it and never decides what is in hand. A fragment of the factory script in context-actions.ts: the pieces share
  * its closure (host, L, root, el, bus, choose, ...) and are joined there in the order the text had before the split.
+ * The bus meets only `bar`, which is the row here and a state-only twin where there is no row.
  */
 export const CONTEXT_BAR_SCRIPT = String.raw`  const SCOPE = { word: L("一个词"), range: L("一段文字"), block: L("这一段"), blocks: L("几段内容"), objects: L("几份内容") };
   const FORM = { suggest: L("有一条建议"), options: L("给你几个方向"), preview: L("可以先看预览"), compare: L("可以并排比较") };
 
-  const bar = {
+  const row = {
     buttons: new Map(),
     hover: new Set(),
     shown: null,
@@ -26,6 +27,11 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const SCOPE = { word: L("一个�
       return [...keys];
     },
     interacting() { return root.matches(":hover") || root.contains(document.activeElement); },
+    // The judgment did not come: the basis note says so (the rules' actions stay).
+    judgeFailed() {
+      const basis = root.querySelector(".context-actions-basis");
+      if (basis) { basis.dataset.pending = "false"; basis.firstElementChild.textContent = L("判断失败 · 按规则"); }
+    },
     idle() {
       this.closeMenu(); this.plan = null; this.shown = null; this.held = null; this.hover.clear(); this.buttons.clear();
       root.dataset.state = "idle"; root.dataset.pending = "false"; root.replaceChildren();
@@ -146,9 +152,7 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const SCOPE = { word: L("一个�
       const words = plan.primary.map((key) => byKey.get(key).title).join("、");
       if (!rulesOnly && words && words !== this.announced) { this.announced = words; live.textContent = L("可以做：") + words; }
       this.published = plan;
-      document.dispatchEvent(new CustomEvent("molis:assistant-context-actions", { detail: { context_id: plan.context_id, plan } }));
-      // A split pane's own menus show the same plan: send it to the pane whose surface this context is.
-      if (bus.source && bus.source.frame) bus.source.frame.contentWindow?.postMessage({ type: "workbench-context-plan", plan }, location.origin);
+      bus.publish(plan);
     },
     toggleMenu() {
       if (this.menu) { this.closeMenu(); return; }
@@ -197,37 +201,53 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const SCOPE = { word: L("一个�
       providers.forEach((list, title) => { if (!single) parts.push(el("h4", { text: title })); list.forEach((candidate) => parts.push(item(candidate))); });
       this.menu.replaceChildren(...parts);
     },
-  };`;
+  };
+  // A document without the row's host (no Assistant dock): the same state and the same publishing, nothing drawn.
+  const headless = {
+    shown: null, plan: null, published: null, clearWhenLeft: false,
+    pinned: () => [], interacting: () => false, pending() {}, error() {}, judgeFailed() {},
+    idle() { this.plan = null; this.shown = null; },
+    render(out) {
+      const plan = out.plan;
+      if (!plan.candidates.some((item) => item.available)) { this.idle(); return; }
+      this.plan = plan; this.shown = { context_id: plan.context_id, primary: [...plan.primary] }; this.published = plan;
+      bus.publish(plan);
+    },
+  };
+  // What the bus talks to: the row when this document has one, else the headless twin.
+  const bar = root ? row : headless;`;
 
 /** What the row's root element listens to (hover release, focus return, Escape and arrows), after the bus is defined. */
-export const CONTEXT_BAR_EVENTS_SCRIPT = String.raw`  root.addEventListener("pointerleave", () => bar.release());
-  // Where Escape goes back to: the element focus came from, outside the row. Focus arriving from nowhere (a menu item
-  // just removed on closing the menu) keeps the place remembered before.
-  root.addEventListener("focusin", (event) => {
-    const from = event.relatedTarget;
-    if (from instanceof HTMLElement && from.isConnected && !root.contains(from)) bar.returnTo = from;
-  });
-  root.addEventListener("focusout", (event) => { if (!root.contains(event.relatedTarget)) { bar.closeMenu(); bar.release(); } });
-  // A click in the row never takes the focus from the editor, so the selection stays where it is.
-  root.addEventListener("mousedown", (event) => { if (event.target.closest("button")) event.preventDefault(); });
-  document.addEventListener("pointerdown", (event) => { if (bar.menu && !root.contains(event.target)) bar.closeMenu(); });
-  document.addEventListener("keydown", (event) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "." && root.dataset.state === "active") {
-      const first = root.querySelector(".context-action");
-      if (first) { event.preventDefault(); bar.returnTo = document.activeElement instanceof HTMLElement ? document.activeElement : null; first.focus(); }
-    }
-  });
-  root.addEventListener("keydown", (event) => {
-    const inMenu = Boolean(bar.menu && bar.menu.contains(document.activeElement));
-    const items = [...root.querySelectorAll(inMenu ? ".context-actions-menu button:not([disabled])" : ".context-action, .context-actions-scope button")];
-    const index = items.indexOf(document.activeElement);
-    if (event.key === "Escape") {
-      event.preventDefault();
-      if (bar.menu) { bar.closeMenu(); root.querySelector("[data-more]").focus(); return; }
-      if (bar.returnTo && bar.returnTo.isConnected) bar.returnTo.focus(); else document.activeElement.blur();
-      return;
-    }
-    const forward = inMenu ? "ArrowDown" : "ArrowRight", back = inMenu ? "ArrowUp" : "ArrowLeft";
-    if (event.key === forward && index >= 0) { event.preventDefault(); items[(index + 1) % items.length].focus(); }
-    if (event.key === back && index >= 0) { event.preventDefault(); items[(index - 1 + items.length) % items.length].focus(); }
-  });`;
+export const CONTEXT_BAR_EVENTS_SCRIPT = String.raw`  if (root) {
+    root.addEventListener("pointerleave", () => row.release());
+    // Where Escape goes back to: the element focus came from, outside the row. Focus arriving from nowhere (a menu item
+    // just removed on closing the menu) keeps the place remembered before.
+    root.addEventListener("focusin", (event) => {
+      const from = event.relatedTarget;
+      if (from instanceof HTMLElement && from.isConnected && !root.contains(from)) row.returnTo = from;
+    });
+    root.addEventListener("focusout", (event) => { if (!root.contains(event.relatedTarget)) { row.closeMenu(); row.release(); } });
+    // A click in the row never takes the focus from the editor, so the selection stays where it is.
+    root.addEventListener("mousedown", (event) => { if (event.target.closest("button")) event.preventDefault(); });
+    document.addEventListener("pointerdown", (event) => { if (row.menu && !root.contains(event.target)) row.closeMenu(); });
+    document.addEventListener("keydown", (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "." && root.dataset.state === "active") {
+        const first = root.querySelector(".context-action");
+        if (first) { event.preventDefault(); row.returnTo = document.activeElement instanceof HTMLElement ? document.activeElement : null; first.focus(); }
+      }
+    });
+    root.addEventListener("keydown", (event) => {
+      const inMenu = Boolean(row.menu && row.menu.contains(document.activeElement));
+      const items = [...root.querySelectorAll(inMenu ? ".context-actions-menu button:not([disabled])" : ".context-action, .context-actions-scope button")];
+      const index = items.indexOf(document.activeElement);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (row.menu) { row.closeMenu(); root.querySelector("[data-more]").focus(); return; }
+        if (row.returnTo && row.returnTo.isConnected) row.returnTo.focus(); else document.activeElement.blur();
+        return;
+      }
+      const forward = inMenu ? "ArrowDown" : "ArrowRight", back = inMenu ? "ArrowUp" : "ArrowLeft";
+      if (event.key === forward && index >= 0) { event.preventDefault(); items[(index + 1) % items.length].focus(); }
+      if (event.key === back && index >= 0) { event.preventDefault(); items[(index - 1 + items.length) % items.length].focus(); }
+    });
+  }`;

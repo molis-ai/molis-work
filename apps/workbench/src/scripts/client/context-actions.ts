@@ -163,8 +163,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     return null;
   }
 
+  // The row's host sits in the Assistant dock. A document without it still takes focus and publishes the plan; nothing is drawn.
   const root = document.querySelector("[data-assistant-context-actions]");
-  if (!root) return null;
   const el = (tag, attrs, ...children) => {
     const node = document.createElement(tag);
     Object.entries(attrs || {}).forEach(([name, value]) => {
@@ -174,8 +174,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     return node;
   };
   // The shared screen-reader-only primitive: its -1px margin keeps the region from lengthening the page by a pixel.
-  const live = el("div", { class: "mw-sr-only", "data-context-actions-live": "", "aria-live": "polite" });
-  document.body.append(live);
+  const live = root ? el("div", { class: "mw-sr-only", "data-context-actions-live": "", "aria-live": "polite" }) : null;
+  if (live) document.body.append(live);
   const openAssistant = (detail) => document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail }));
   const visible = (node) => Boolean(node && node.isConnected && node.getClientRects().length && !node.closest("[hidden]"));
 ${CONTEXT_BAR_SCRIPT}

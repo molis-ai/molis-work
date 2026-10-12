@@ -69,7 +69,8 @@ async function flush() {
 const DOC = { id: "doc-a", title: "Q4 计划", version: 7, body: { type: "doc", content: [] }, goal_id: "", artifact_version: 0, starred: false };
 
 /** One workbench page: the Pages client and the context row's script, with a hand-driven clock and held responses. */
-async function workbench(t: { after(fn: () => void): void }) {
+async function workbench(t: { after(fn: () => void): void }, routes: Record<string, unknown> = {}) {
+  const dispatched: Array<{ type: string; detail?: unknown }> = [];
   const surface = new FakeElement();
   surface.setAttribute("data-work-surface", "pages");
   surface.setAttribute("data-pages", "workbench");
@@ -98,6 +99,7 @@ async function workbench(t: { after(fn: () => void): void }) {
     if (path === "/api/plugins/pages/" + DOC.id) return json({ document: DOC });
     if (path === "/api/contextual/surfaces") return json({ surfaces: { pages: { kind: "pages_document", plugin_id: "io.molis.work.pages" } } });
     if (path === "/api/board") return json({ goals: [] });
+    if (path in routes) return json(routes[path]);
     return json({});
   }) as typeof fetch;
   const windowStub: Record<string, unknown> = {
@@ -117,7 +119,7 @@ async function workbench(t: { after(fn: () => void): void }) {
         ? [{ dataset: { itemId: DOC.id }, getAttribute: (name: string) => name === "title" ? DOC.title : null }] : [],
       createElement: () => node(),
       addEventListener: (type: string, fn: Listener, capture?: boolean) => { documentListeners.push({ type, fn, capture: capture === true }); },
-      dispatchEvent: () => true,
+      dispatchEvent: (event: { type: string; detail?: unknown }) => { dispatched.push(event); return true; },
     },
   });
   const pages = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: unknown) => void;
@@ -128,6 +130,9 @@ async function workbench(t: { after(fn: () => void): void }) {
   return {
     surface,
     hold,
+    dispatched,
+    // The surface reports what the person has in hand (or, with null, that it is gone), as Pages and the DOM selection do.
+    focus: (detail: unknown) => dispatch(surface, { type: "molis:surface-focus", detail }),
     context: () => JSON.parse(surface.getAttribute("data-assistant-context") ?? "null") as Record<string, unknown> | null,
     // The workbench opens an item on the surface (tab-workspace's selectItem / jumpToRecord).
     selectItem: (itemId: string | null) => dispatch(surface, { type: "molis-work:select-item", detail: { itemId } }),
@@ -199,4 +204,28 @@ test("shown again after the workbench hid it (its tab, after the Pages list): Pa
   await page.advance(250);
   assert.deepEqual(page.context()?.object, ownNaming);
   assert.equal(page.context()?.named_by, undefined);
+});
+
+// W2-00: the bus does not need the row. A document without the Assistant dock still takes the focus, asks the Host and
+// publishes the plan for the menus that show the same actions; it draws nothing and holds no timer once nothing is in hand.
+test("W2-00: with no row in the document the bus takes the focus, asks the Host and publishes the plan", async (t) => {
+  const plan = { context_id: "ctx-1", basis: "rules", primary: ["k1"], emphasis: null, more: [], assistant: null,
+    candidates: [{ key: "k1", title: "解释", hint: "h", provider_title: "Pages", available: true, source: { provider_id: "pages" }, action: { capability_id: "pages.ai" } }] };
+  const answer = { plan, judgment: null, receipt: { context_id: "ctx-1", state_digest: null, candidate_count: 1, screened: [] } };
+  const page = await workbench(t, { "/api/contextual/candidates": answer, "/api/contextual/judge": answer, "/api/contextual/cancel": {} });
+  const published = () => page.dispatched.filter((event) => event.type === "molis:assistant-context-actions");
+  const focus = { context_id: "ctx-1", plugin_id: "io.molis.work.pages", activity: "selecting", granularity: "range",
+    object: { kind: "pages_document", id: DOC.id, title: DOC.title }, targets: [{ kind: "text_range", role: "paragraph", text: "一段文字" }] };
+  try {
+    page.focus(focus);
+    await page.advance(0);
+    assert.equal(published().length, 1, "the rules' plan is published without a row to draw it on");
+    assert.deepEqual((published()[0]!.detail as { context_id: string }).context_id, "ctx-1");
+    await page.advance(400);
+    assert.equal(published().length, 2, "the judged plan follows");
+  } finally {
+    page.focus(null);
+    await page.advance(0);
+  }
+  assert.equal(published().length, 2, "putting the focus away publishes nothing");
 });

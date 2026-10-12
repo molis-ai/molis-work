@@ -4,6 +4,25 @@
  * choice to the page that owns the object or to the Assistant as a prepared card. Also the Assistant's starters and the
  * listeners that clear what was in hand. A fragment of the factory script in context-actions.ts: it shares that
  * closure (host, L, post, deliver, bar, ...) and is joined there in the order the text had before the split.
+ *
+ * Notes on the parts below (kept here, not in the script, because the script ships to every page):
+ * - `set`: the person reaching for the row (pointer on it, or its focus) as what they had in hand lapses — a finished step's
+ *   moment passing, say — keeps it until they leave; a surface that went away is cleared regardless. While writing, every
+ *   keystroke is a new context: the row stays as it is (no dimming) and nothing is asked until the typing pauses; a selection
+ *   is shown by rules at once and judged almost at once.
+ * - `watch`: a surface that goes out of sight voids what was in hand there, looked for only while something is in hand.
+ * - `signal`: what the person did with an offered action, for the memory to count (its capability and title, never the
+ *   content). Nothing waits on it and nothing breaks without it.
+ * - `choose`: a write goes to the Assistant as a prepared card; when no page here takes the choice (several objects, or a
+ *   surface without its own handler) it is a card too, and only when even that fails the Assistant gets the words and the
+ *   material. A card carries the exact action and its complete input; the Assistant runs it only when the person clicks,
+ *   and the click places it (POST /api/assistant/cards) and opens the panel on that work.
+ * - `starters` (spec §6.4.2): what the directory offers for the whole object open now, by rules only (no judgment for opening
+ *   a page), or the plan on show while something is in hand; the Assistant shows them and hands a click back, so it runs
+ *   exactly as a click on the row would. A plugin switched off or a grant withdrawn shows within the cache time; choosing
+ *   checks again anyway.
+ * - `chooseFrom`: a menu that shows the same plan (Pages' writing menu) chooses exactly as a click on the row does, also after
+ *   the person put the row away for this passage.
  */
 export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     focus: null,
@@ -26,13 +45,12 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       this.set(focus, source);
     },
     set(focus, source, force) {
-      // The person is reaching for the row (pointer on it, or its focus) as what they had in hand lapses — a finished
-      // step's moment passing, say: keep it until they leave. A surface that went away is cleared regardless.
       if (!focus && !force && this.focus && bar.interacting()) { bar.clearWhenLeft = true; return; }
       bar.clearWhenLeft = false;
       if (focus && this.focus && focus.context_id === this.focus.context_id && this.source && source && this.source.pane === source.pane) return;
       const leaving = this.source, previous = this.focus;
       this.focus = focus; this.source = focus ? source : null;
+      this.watch(Boolean(focus && source && source.element));
       clearTimeout(this.timer);
       clearTimeout(this.rulesTimer);
       if (this.judging) this.judging.abort();
@@ -43,8 +61,6 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
         bar.idle();
         return;
       }
-      // Every keystroke is a new context while writing: the row stays as it is (no dimming) and nothing is asked
-      // until the typing pauses. A selection is shown by rules at once and judged almost at once.
       const writing = focus.activity === "editing";
       if (!(writing && previous && previous.activity === "editing" && previous.object.id === focus.object.id)) bar.pending(focus);
       const rules = () => post("/api/contextual/candidates", this.request(focus)).then((out) => {
@@ -64,11 +80,19 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
         bar.render(out, focus, false);
       } catch (error) {
         if (error && error.name === "AbortError") return;
-        if (seq === this.seq) { const basis = root.querySelector(".context-actions-basis"); if (basis) { basis.dataset.pending = "false"; basis.firstElementChild.textContent = L("判断失败 · 按规则"); } }
+        if (seq === this.seq) bar.judgeFailed();
       } finally { if (this.judging === controller) this.judging = null; }
     },
-    // What the person did with an offered action, for the memory to count (its capability and title, never the content).
-    // Nothing waits on it and nothing breaks without it.
+    // The plan for the menus that show the same actions: in this document by an event, in the pane the focus came from by a message.
+    publish(plan) {
+      document.dispatchEvent(new CustomEvent("molis:assistant-context-actions", { detail: { context_id: plan.context_id, plan } }));
+      if (this.source && this.source.frame) this.source.frame.contentWindow?.postMessage({ type: "workbench-context-plan", plan }, location.origin);
+    },
+    watching: 0,
+    watch(on) {
+      if (!on) { clearInterval(this.watching); this.watching = 0; return; }
+      if (!this.watching) this.watching = setInterval(() => { if (this.source && this.source.element && !visible(this.source.element)) this.set(null, null, true); }, 800);
+    },
     signal(key, signal) {
       if (!this.focus || !this.source) return;
       post("/api/contextual/signal", { pane_id: this.source.pane, focus: this.focus, key, signal, event_id: requestId() }).catch(() => undefined);
@@ -105,14 +129,9 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       source.frame.contentWindow.postMessage({ type: "workbench-context-action-chosen", context_id: focus.context_id, candidate }, location.origin);
       return;
     }
-    // No page here takes it (several objects, or a surface without its own handler): the Assistant gets it as a
-    // prepared card too; only when even that fails does it get the words and the material.
     const fallback = deliver(focus, candidate);
     if (fallback) prepared().then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(fallback));
   };
-  // The card carries the exact action and its complete input; the Assistant checks it against what it may use in that
-  // work and runs it only when the person clicks. The person's click here places it (POST /api/assistant/cards) and the
-  // panel opens on that work.
   const suggestCard = async (focus, candidate, offer) => {
     const material = { title: L("选中的内容") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) };
     const summary = offer.summary || candidate.hint;
@@ -141,13 +160,9 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     openAssistant(assistantDetail(focus, words));
   };
 
-  // Where to start in a new work (spec §6.4.2): what the directory offers for the whole object open now, by rules
-  // only (no judgment for opening a page), or the row's own plan while something is in hand. The Assistant shows
-  // them and hands a click back here, so it runs exactly as a click on the row would.
   const starters = {
     focus: null,
     plan: null,
-    // A plugin switched off or a grant withdrawn shows within this long; choosing checks again anyway.
     at: 0,
     seq: 0,
     focusFor(context) {
@@ -222,8 +237,6 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     else if (event.data.type === "workbench-context-action-unhandled" && event.data.detail) unhandled(event.data.context_id, event.data.key, event.data.detail);
     else if (event.data.type === "workbench-context-action-choose" && bus.source && bus.source.frame === frame) chooseFrom(event.data.context_id, event.data.key);
   });
-  // A menu that shows the same plan (Pages' writing menu) chooses exactly as a click on the row does, also after the
-  // person put the row away for this passage.
   const chooseFrom = (contextId, key) => {
     if (!bus.focus || bus.focus.context_id !== contextId || typeof key !== "string") return;
     choose(key, bar.plan || bar.published);
@@ -233,5 +246,4 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     if (bus.source && !bus.source.frame) chooseFrom(detail.context_id, detail.key);
   });
   // A place change, or the surface going out of sight, voids what was in hand there.
-  document.addEventListener("molis-work:place-changed", () => bus.set(null, null, true));
-  setInterval(() => { if (bus.source && bus.source.element && !visible(bus.source.element)) bus.set(null, null, true); }, 800);`;
+  document.addEventListener("molis-work:place-changed", () => bus.set(null, null, true));`;

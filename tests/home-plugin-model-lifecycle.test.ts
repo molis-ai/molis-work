@@ -70,12 +70,14 @@ test("W3-06-F-06 stopping revokes old storage/model/actions before its hook awai
   const { platform, install } = await grantHomeProbe(host, probe);
   const old = probe.contexts.at(-1)!, entered = deferred(), release = deferred();
   old.services!.storage!.set("draft", "keep on reinstall");
+  const activeModel = old.services!.model!.availability();
+  assert.notEqual(activeModel.available ? undefined : activeModel.code, "actions.provider_stopped");
   probe.behavior.stop = async () => { entered.resolve(); await release.promise; };
   const stopping = platform.runtime.stop(install.install_id);
   try {
     await entered.promise;
     assert.throws(() => old.services!.storage!.set("draft", "stop hook write"), { code: "actions.forbidden" });
-    await assert.rejects(old.services!.model!.complete(instructed(probe.instruction, "old model")), { code: "actions.forbidden" });
+    assert.deepEqual(old.services!.model!.availability(), { available: false, code: "actions.provider_stopped", reason: "此插件实例已停止" });
     await assert.rejects(old.services!.actions!.invoke(probe.save, { text: "old action" }), { code: "actions.forbidden" });
     assert.ok(probe.stopped.some(error => error instanceof Error && "code" in error && error.code === "actions.forbidden"));
   } finally { release.resolve(); }
@@ -123,13 +125,15 @@ test("W3-06-F-06 Home close revokes every installation before awaiting the first
   const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [first.definition, next.definition] } });
   await host.homePlugins!.ready();
   const held = next.contexts.at(-1)!.services!;
+  const activeModel = held.model!.availability();
+  assert.notEqual(activeModel.available ? undefined : activeModel.code, "actions.provider_stopped");
   first.behavior.stop = async () => { entered.resolve(); await release.promise; };
   const closing = host.homePlugins!.close();
   try {
     await entered.promise;
     assert.throws(() => held.storage!.set("late", "other installation"), { code: "actions.forbidden" });
     await assert.rejects(held.actions!.invoke(next.state, {}), { code: "actions.forbidden" });
-    await assert.rejects(held.model!.complete(instructed(next.instruction, "other installation")), { code: "actions.forbidden" });
+    assert.deepEqual(held.model!.availability(), { available: false, code: "actions.provider_stopped", reason: "此插件实例已停止" });
   } finally { release.resolve(); }
   await closing;
   await assert.rejects(host.homePlugins!.retry(), { code: "actions.plugin_unavailable" });

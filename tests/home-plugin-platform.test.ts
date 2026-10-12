@@ -6,7 +6,12 @@ import test from "node:test";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { issuesActions, ISSUES_PLUGIN_ID } from "@molis-ai/molis-work-plugin-issues";
+import { type ActionDefinition, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { AgentHost, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
+import { CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 import { deferred, grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 test("W3-06-F-01 W3-06-F-02 concurrent discovery, scenes and HTTP share the Home registration and genuine project scopes", { timeout: 60_000 }, async t => {
@@ -47,6 +52,45 @@ test("W3-06-F-01 W3-06-F-02 concurrent discovery, scenes and HTTP share the Home
     const scoped = await request(`${prefix}/api/plugins/${probe.id}/project?project_id=${one.project_id}`);
     assert.equal(scoped.status, 400); assert.equal((await scoped.json()).code, "actions.project_required");
   }
+});
+
+test("W3-06-F-02 Home consumes Host actions with its real identity and no project; project and Agent entries refuse that caller", async t => {
+  const probe = homeProbe("homeidentity");
+  const homeAction: ActionDefinition<Record<string, never>, { plugin_id: string; install_id: string; actor_id: string; project_id: string | null }> = {
+    capability_id: "fixture.host.identity", version: 1, operation: "query", action: { title: "Host identity", description: "Reads the Host-bound caller",
+      kind: "query", scope: "home", audiences: ["plugin"], permissions: [probe.permissions[1]!], subject_kinds: [], input_schema: { type: "object", additionalProperties: false } },
+  };
+  const projectAction = { ...homeAction, capability_id: "fixture.host.project", action: { ...homeAction.action, scope: "project" as const } };
+  probe.definition.manifest = { ...probe.definition.manifest, capabilities: { provides: [], consumes: [homeAction.capability_id, projectAction.capability_id] } };
+  const { host, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  let captured: HostPluginCaller | undefined, projectCalls = 0;
+  const unregister = host.actionRegistry().registerProvider({ provider: { provider_id: "platform", title: "Molis Work", kind: "system" },
+    definitions: [homeAction, projectAction], handlers: [
+      { ...homeAction, handle(context) {
+        captured = context.host_plugin; assert.ok(captured);
+        return { plugin_id: captured.plugin_id, install_id: captured.install_id, actor_id: captured.actor_id, project_id: captured.project_id };
+      } },
+      { ...projectAction, handle() { projectCalls++; throw new Error("a Home caller cannot enter a project handler"); } },
+    ] });
+  try {
+    const { install } = await grantHomeProbe(host, probe);
+    const actions = probe.contexts.at(-1)!.services!.actions!;
+    assert.deepEqual(await actions.invoke(homeAction, {}), { plugin_id: probe.id, install_id: install.install_id, actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null });
+    await assert.rejects(actions.invoke(projectAction, {}), { code: "actions.project_required" });
+    assert.equal(projectCalls, 0);
+    const one = await project("Agent needs a genuine project caller");
+    const caller = captured; assert.ok(caller);
+    const registry = new CapabilityRegistry<{ project_id: string }>(), agent = new AgentHost();
+    let effects = 0;
+    const dispose = registerAgentHostCapabilities<{ project_id: string }>({ register: (definition, handler) => registry.register(definition, (context, input) => handler(context, input,
+      { consumer: "plugin", plugin: caller, beforeEffect: async () => { effects++; } })) },
+      { agentHost: () => agent, projectId: context => context.project_id, authority: () => { throw new Error("a Home caller cannot receive Agent project authority"); } });
+    try {
+      await assert.rejects(registry.invoke({ project_id: one.project_id }, agentHostCapabilities.listRuntimes, []), { code: "agent.session_unknown" });
+      assert.equal(effects, 0, "the Agent rejects Home scope before its effect barrier or Runtime dispatch");
+      await assert.rejects(host.client(one.reference).invoke(agentHostCapabilities.listRuntimes, [], { consumer: "plugin", plugin_caller: caller }), { code: "actions.scope_mismatch" });
+    } finally { dispose(); }
+  } finally { unregister(); }
 });
 
 test("W3-06-F-01 Home/project overlap, sandbox and impersonated bundled identities are rejected before a Home library starts", async () => {

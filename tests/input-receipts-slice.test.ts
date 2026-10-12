@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { renderInteractionComposerTarget } from "../packages/design-system/src/index.ts";
 import { composerTargets, renderPage } from "../scripts/input-receipts-slice/page.ts";
 import { COMPOSER_TARGET } from "../scripts/input-receipts-slice/labels.ts";
 import { renderStage } from "../scripts/input-receipts-slice/render.ts";
@@ -13,8 +12,14 @@ import type { Ledger, Receipt, Recording, Scene } from "../scripts/input-receipt
 const load = (flavor: "assistant" | "coding"): Recording =>
   JSON.parse(readFileSync(new URL(`../scripts/input-receipts-slice/recorded/${flavor}.json`, import.meta.url), "utf8")) as Recording;
 const recordings = { assistant: load("assistant"), coding: load("coding") };
-/** The design system's own function, as the page gets it. */
-const shared: SharedParts = { composerTarget: renderInteractionComposerTarget };
+/** The design-system markup, as the page server renders and embeds it. */
+const shared: SharedParts = {
+  composerTarget: label => {
+    const markup = composerTargets()[label];
+    assert.ok(markup !== undefined, `the page embeds no composer target "${label}"`);
+    return markup;
+  },
+};
 const stage = (rec: Recording, ui: U.Ui): string => renderStage(rec, ui, shared);
 const both = Object.entries(recordings) as [("assistant" | "coding"), Recording][];
 
@@ -166,10 +171,10 @@ test("RCPT-R0-05 the target chip shows only while a question waits; the suppleme
   assert.match(html, /class="rc-chip"/);
   assert.match(html, /补充这一轮/);
   assert.match(html, /写进问卷：补充要求/);
-  // The mark inside the composer is the design system's (#423), not a copy: the page shows exactly what its function renders.
-  const mark = renderInteractionComposerTarget(COMPOSER_TARGET.thisRun);
+  // The mark inside the composer is the design system's (#423), embedded by the page, not drawn here.
+  const mark = composerTargets()[COMPOSER_TARGET.thisRun] ?? "";
+  assert.match(mark, /class="mw-ix-into" data-ix-into/);
   assert.ok(html.includes(mark), "the composer carries the shared composer-target mark");
-  assert.equal(composerTargets()[COMPOSER_TARGET.thisRun], mark, "the page embeds what the design system renders");
   assert.ok(!stage(rec, U.initial(rec, "coding", "light")).includes("data-ix-into"), "no mark while no question waits");
   assert.match(html, /aria-pressed="true"[^>]*data-slot="button"[^>]*>|data-chip="this-run"[^>]*aria-pressed="true"/);
   const questionnaire = html.match(/<button[^>]*data-chip="questionnaire"[^>]*>/)?.[0] ?? "";

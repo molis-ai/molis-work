@@ -61,7 +61,9 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     remember();
     list.removeAttribute('aria-busy');
     list.innerHTML = pending.map(item => row(item.id, excerpt(item), item.state === 'organizing' ? L('整理中…') : item.note, item.state)).join('')
-      + rows.map(issue => row(issue.id, issue.title, [L(kinds[issue.type]), when(issue.created_at), issue.image_count ? issue.image_count + L(' 张截图') : ''].filter(Boolean).join(' · '))).join('')
+      // Where it was written (the place before the project) tells two short titles apart at a glance.
+      + rows.map(issue => row(issue.id, issue.title, [L(kinds[issue.type]), when(issue.created_at), issue.context?.page?.title?.split(' · ')[0],
+        issue.image_count ? issue.image_count + L(' 张截图') : ''].filter(Boolean).join(' · '))).join('')
       || '<li class="issues-empty">' + esc(L('还没有记录。遇到问题时按 ')) + (mac ? '⌘⇧I' : 'Ctrl+Shift+I') + esc(L(' 随手记一笔。')) + '</li>';
     $('more').hidden = !next; fresh = null;
   };

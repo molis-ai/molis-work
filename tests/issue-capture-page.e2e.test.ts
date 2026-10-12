@@ -158,3 +158,29 @@ test("ISSUE-37 an unfinished capture survives leaving the page and saves once fr
   assert.equal((await v.assistant()).notices.length, 0, "the failed capture's work was filed away once it was settled here");
 });
 
+
+test("ISSUE-36 while an input method is composing, ⌘↵ and the IME's own Enter send nothing; what is sent is exactly what the composer holds", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  await issueModel(t, b.homeDirectory);
+  const v = issueView(b);
+  await v.viewport(1440); await v.go("/");
+  await v.chord(); await v.composerFocused();
+  await v.type("登录页");
+  await b.command("Input.imeSetComposition", { text: "jietu", selectionStart: 5, selectionEnd: 5 }, b.sessionId);
+  // ⌘↵ and the IME's commit key arrive while the pinyin is still being composed (key code 229). Whether this Chrome
+  // then commits the pinyin itself is the browser's business; sending is the page's, and it must not happen.
+  for (const modifiers of [4, 0]) for (const type of ["rawKeyDown", "keyUp"])
+    await b.command("Input.dispatchKeyEvent", { type, modifiers, key: "Enter", code: "Enter", windowsVirtualKeyCode: 229, nativeVirtualKeyCode: 229 }, b.sessionId);
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.equal(await v.ask("d.querySelectorAll('[data-issue-list] [data-state]').length"), 0, "nothing is sent while composing");
+  assert.equal((await v.list()).items.length, 0);
+  await b.command("Input.insertText", { text: "截图" }, b.sessionId);
+  await v.until("$('[data-issue-composer] [name=description]').value.endsWith('截图')");
+  const held = await v.ask<string>("$('[data-issue-composer] [name=description]').value");
+  assert.match(held, /^登录页.*截图$/);
+  await v.send();
+  await v.until("$('[data-issue-composer] [name=description]').value === ''");
+  await v.until("!$('[data-issue-list] [data-state]') && $('[data-issue-list] .issues-row')", 20_000);
+  const { items } = await v.list(); assert.equal(items.length, 1, "one ⌘↵ after the composition sends once");
+  assert.equal((await v.read(items[0]!.id)).description, held);
+});

@@ -24,6 +24,8 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
       ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     return { status: response.status, body: await response.json() };
   }
+  // A request the current state cannot honour is the caller's mistake: 400, and the body names the owner's code (the route answers by kind, not by message).
+  const refused = (response: { status: number; body: { code?: string } }, code: string, message?: string) => assert.deepEqual([response.status, response.body.code], [400, code], message ?? JSON.stringify(response.body));
   try {
     await start();
     const projects: string[] = [];
@@ -45,15 +47,15 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     assert.ok(state.body.workspaces.every((item: any) => !Object.hasOwn(item, "project_ids")), "settings do not expose other projects");
     assert.equal((await request(api("workspace", "/select"), "POST", { workspace_id: ids[0] }, false)).status, 403);
     assert.equal((await request(api("workspace", "/select", projects[1]), "POST", { workspace_id: ids[0] })).status, 403);
-    const noSelection = await request(api("files", "/directory?path=[]&workspace_id=" + ids[0])); assert.equal(noSelection.status, 400, JSON.stringify(noSelection));
+    const noSelection = await request(api("files", "/directory?path=[]&workspace_id=" + ids[0])); refused(noSelection, "files.invalid");
     assert.equal((await request(api("workspace", "/select"), "POST", { workspace_id: ids[0] })).status, 200);
     const directory = await request(api("files", "/directory?path=[]&workspace_id=" + ids[0]));
     assert.equal(directory.body.result.outcome, "directory"); assert.equal(directory.body.result.entries[0].name, "note.txt");
     await symlink(directories[1], path.join(directories[0], "escape"));
     const open = (file: string[], id = ids[0]) => request(api("files", "/open"), "POST", { workspace_id: id, path: file });
     assert.equal((await open(["escape", "note.txt"])).body.result.outcome, "denied");
-    assert.equal((await open(["..", "two", "note.txt"])).status, 400);
-    assert.equal((await open(["note.txt"], ids[1])).status, 400);
+    refused(await open(["..", "two", "note.txt"]), "workspace.invalid_path");
+    refused(await open(["note.txt"], ids[1]), "files.invalid");
     await writeFile(path.join(directories[0], "binary"), Buffer.from([0, 255]));
     await writeFile(path.join(directories[0], "large"), Buffer.alloc(256 * 1024 + 1, 65));
     await writeFile(path.join(directories[0], "empty"), "");
@@ -85,9 +87,9 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     assert.ok(stats.body.html.includes("UTF-8"));
     const selection = await capture("selection", first.body.result.fingerprint, { start: 2, end: 4 });
     assert.equal(selection.body.snapshot.text, "🙂");
-    assert.equal((await capture("selection", first.body.result.fingerprint, { start: 2, end: 9999 })).status, 400);
+    refused(await capture("selection", first.body.result.fingerprint, { start: 2, end: 9999 }), "files.invalid");
     await writeFile(path.join(directories[0], "note.txt"), "中文🙂\nsecond\n");
-    assert.equal((await capture("after", first.body.result.fingerprint)).status, 400, "cannot silently capture bytes the user has not read");
+    refused(await capture("after", first.body.result.fingerprint), "files.invalid", "cannot silently capture bytes the user has not read");
     const second = await open(["note.txt"]);
     assert.equal((await capture("after", second.body.result.fingerprint)).status, 200);
     const diff = await request(api("diff", "/state")); assert.equal(diff.body.view.phase, "ready");
@@ -107,10 +109,10 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     await request(api("workspace", "/select"), "POST", { workspace_id: ids[1] });
     assert.equal((await request(api("diff", "/state"))).body.view.phase, "waiting");
     assert.equal((await request(api("text-stats", "/state"))).body.view.phase, "waiting");
-    assert.equal((await capture("after", second.body.result.fingerprint)).status, 400);
+    refused(await capture("after", second.body.result.fingerprint), "files.invalid");
     // Revoking the catalog membership is checked on the next Host read, even with a retained graph input.
     const unlinked = await request(`/projects/${projects[0]}/api/workspaces/${ids[1]}/unlink`, "POST", { user_confirmed: true });
     assert.equal(unlinked.status, 200, JSON.stringify(unlinked.body));
-    assert.equal((await open(["note.txt"], ids[1])).status, 400);
+    refused(await open(["note.txt"], ids[1]), "files.invalid");
   } finally { await close(); await rm(root, { recursive: true, force: true }); }
 });

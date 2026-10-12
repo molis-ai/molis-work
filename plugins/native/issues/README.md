@@ -42,7 +42,7 @@
 - 负责：个人问题的 schema、业务查询与原子写入，页面、九个动作（五个 CRUD、录入草稿三个、撤销一个）与助理方法。
 - 不负责：安装、数据库连接、授权、模型、项目或团队流程；侧栏、组合键和状态点归 Workbench 外壳。
 - 公开入口：`@molis-ai/molis-work-plugin-issues`；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`bindPluginActionRoute`）。
 - 不变量：
   - 一个 Home 一份个人数据；没有项目也可用。
   - 原话不改写，类型不默认；可信元数据不从业务输入读取，页面位置只作为页面的报告保存。

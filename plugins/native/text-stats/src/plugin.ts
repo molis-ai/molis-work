@@ -6,7 +6,7 @@ import type {
 
 import { textStatsManifest } from "./manifest.js";
 import { textStatsUiContribution } from "./ui.js";
-import { bindPluginActionRoute } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { textStatsActions, textStatsActionHandlers } from "./actions.js";
 
 export interface TextStatsPluginPorts {

@@ -1584,11 +1584,10 @@ const CRAFT_BASE_STYLES = `
     content: ""; position: absolute; left: 12px; top: 13px; width: 16px; height: 16px; border-radius: 50%;
     background: var(--hue-green-fill, #4cb782) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.3l2.2 2.2 4.8-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 16px no-repeat;
   }
-  ${PAGES} .toast [data-molis-call-id] { color: inherit; text-decoration: underline; }
+  ${PAGES} .toast [data-molis-call-id] {min-height:0;padding-block:var(--reach,10px);margin-block:calc(-1*var(--reach,10px));color:inherit;text-decoration:underline;}
   ${PAGES} .toast.is-error::before {
     background: var(--hue-red-fill, #eb5757) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 4.4v4.4M8 11.3v.2' fill='none' stroke='white' stroke-width='1.9' stroke-linecap='round'/%3E%3C/svg%3E") center / 16px no-repeat;
   }
-  ${PAGES} .toast:empty::before { display: none; }
   ${PAGES} .toast.is-visible { transform: translate(-50%, 0) scale(1); }
   ${PAGES} .toast.is-visible.is-error { animation: craft-nudge 420ms var(--ease-quint) 130ms; }
   @keyframes craft-nudge { 0%, 100% { translate: 0; } 25% { translate: -4px; } 50% { translate: 3px; } 75% { translate: -2px; } }

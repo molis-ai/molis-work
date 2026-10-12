@@ -183,7 +183,7 @@ function paintWork(root: HTMLElement, state: DemoState): void {
     }
     show(root, "[data-side-empty]", chosen.length === 0);
   }
-  root.ownerDocument.querySelectorAll<HTMLElement>("[data-object-version-page]").forEach(element => { element.textContent = `版本 ${state.objectVersion}`; });
+  root.querySelectorAll<HTMLElement>("[data-object-version-page]").forEach(element => { element.textContent = `版本 ${state.objectVersion}`; });
 }
 /** The steps beside the composer keep their place while the person is in that row (§3.6, AC-15). */
 function paintSteps(root: HTMLElement, state: DemoState, recommendation: RecommendationState): void {

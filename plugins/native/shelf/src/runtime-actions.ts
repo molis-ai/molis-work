@@ -41,10 +41,11 @@ export interface ShelfResultPorts {
   receive(preview: ShelfArtifactPreview): { item: ShelfItemRecord; snapshot: ShelfSnapshot };
 }
 
-/** A reference that is not a Shelf material is the caller's mistake (400), not a failure of ours. */
-const shelfMaterial = (payload: unknown) => {
-  try { return parseShelfTextMaterial(payload); }
-  catch (error) { throw new ActionError("shelf.invalid", error instanceof Error ? error.message : "Shelf 固定材料格式无效"); }
+/** What the artifact and output services refuse (a version that is not there, a stale expected output) and what a payload that is not a Shelf
+ * material fails with is the caller's mistake (400), not a failure of ours. */
+const refused = <T>(run: () => T): T => {
+  try { return run(); }
+  catch (error) { throw error instanceof ActionError ? error : new ActionError("shelf.invalid", error instanceof Error ? error.message : "Shelf 请求无效"); }
 };
 
 /** Owner-bound: the results land in, and the output points at, the local user's personal Shelf. */
@@ -52,7 +53,7 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, results?
   const services = context.services;
   const read = (ref: ArtifactReference) => {
     if (!results) throw new ActionError("shelf.unavailable", "项目成果接收尚未装配");
-    const record = services?.artifacts?.read(ref);
+    const record = refused(() => services?.artifacts?.read(ref));
     if (!record || record.lifecycle_state !== "active" || record.availability !== "available") throw new ActionError("shelf.unavailable", "原成果已归档、不可用或不存在");
     return results.preview(record);
   };
@@ -81,10 +82,11 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, results?
     bindOwnerPluginAction(context, shelfRuntimeActions.output, () => ({ reference: outputs().reference("material") })),
     bindOwnerPluginAction(context, shelfRuntimeActions.selectOutput, input => {
       if (!services?.artifacts) throw new ActionError("shelf.unavailable", "项目成果服务尚未连接");
-      const record = services.artifacts.read(input.reference);
-      const material = shelfMaterial(record?.payload);
+      const artifacts = services.artifacts;
+      const record = refused(() => artifacts.read(input.reference));
+      const material = refused(() => parseShelfTextMaterial(record?.payload));
       if (input.reference.artifact_id !== "shelf-material:" + context.project_id + ":" + material.source.item_id) throw new ActionError("shelf.invalid", "Shelf 材料身份不一致");
-      return { reference: outputs().select({ port: "material", reference: input.reference, expected_reference: input.expected_reference }) };
+      return { reference: refused(() => outputs().select({ port: "material", reference: input.reference, expected_reference: input.expected_reference })) };
     }),
   ];
 }

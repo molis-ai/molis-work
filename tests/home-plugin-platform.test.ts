@@ -16,7 +16,7 @@ import { deferred, grantHomeProbe, homeProbe, person, serveHomeRuntime } from ".
 
 test("W3-06-F-01 W3-06-F-02 concurrent discovery, scenes and HTTP share the Home registration and genuine project scopes", { timeout: 60_000 }, async t => {
   const probe = homeProbe(), { host, origin, request, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
-  const caller = person(probe.permissions);
+  const caller = person([...probe.permissions, ...issuesActions.read.action.permissions]);
   await Promise.all([host.homeActionClient().discover(caller), host.sceneClient().discoverScenes(caller), request(`/api/plugins/${probe.id}/state`)]);
   assert.equal(probe.contexts.length, 1, "all entrypoints share one start");
   const initially = host.homePlugins!.installation(probe.id)!;
@@ -110,6 +110,8 @@ test("W3-06-F-01 Home/project overlap, sandbox and impersonated bundled identiti
 
 test("W3-06-F-02 local web discovers a scene-only Home installation by actual scope and current grants", { timeout: 60_000 }, async t => {
   const probe = homeProbe("home-scene"), original = probe.definition.start;
+  for (const scene of probe.scenes) Object.assign(scene, { result_type: "molis.behavior-recommendation.v1",
+    result_schema: { type: "object", properties: { suggested_behavior_ids: { type: "array", items: { type: "string", enum: ["keep"] } } }, additionalProperties: false } });
   probe.definition.manifest = { ...probe.definition.manifest, actions: [], routes: [] };
   probe.definition.start = async context => { const contribution = await original(context); return { kind: "app", action_scenes: contribution.kind === "app" ? contribution.action_scenes : [] }; };
   const { host, request, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
@@ -193,7 +195,8 @@ test("W3-06-F-07 shared Home operations preserve POST protection, revision and t
   }
   assert.equal(host.homePlugins!.installation(probe.id)!.installation_generation, install.installation_generation);
   assert.equal((await request(route("not-declared"))).status, 404);
-  assert.equal((await request("/api/plugins/io.molis.work.not-installed/restart", { method: "POST", body: {} })).status, 404);
+  const notInstalled = await request("/api/plugins/io.molis.work.not-installed/restart", { method: "POST", body: {} });
+  assert.equal(notInstalled.status, 404, await notInstalled.clone().text());
   const first = await request(route("view-revision")); assert.equal(first.headers.get("cache-control"), "no-store");
   const revision = (await first.json()).revision;
   assert.equal((await (await request(route("view-revision"))).json()).revision, revision);

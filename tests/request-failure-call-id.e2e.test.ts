@@ -9,7 +9,11 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 //  1. A failure of a call the Host recorded (the memory page's 停用 of a memory that was deleted elsewhere, `memory.change` → 404
 //     `memory.not_found`): the page's error area carries 诊断编号 and a click copies the whole ID; the diagnostics page finds the call by it.
 //  2. A write the connection loses: the page does not know whether it happened, and says so, in the person's language, with no ID.
-//  3. A failure the Host does not record (a model provider saved with an address the Host refuses, a management write that does not go
+//  3. A phone (390px, a coarse pointer; light and dark): the toast is as wide as its words up to the window less its margins (it does not
+//     shrink to half the window), keeps its message readable, puts the button under a message that fills the line, and shows it in the
+//     toast's ink; the button, in the toast and in the error area, is a 44px target (DESIGN.md 「Focus and accessibility」, decision of
+//     2026-10-11); a desktop window keeps the message and the button on one line.
+//  4. A failure the Host does not record (a model provider saved with an address the Host refuses, a management write that does not go
 //     through the action service): the Host puts no call number on the answer, and the page shows no 诊断编号, because nothing could
 //     be looked up by it.
 
@@ -30,7 +34,7 @@ const RECORD_ANSWERS = `(() => {
 const answersFor = async (evaluate: <T>(expression: string) => Promise<T>, part: string): Promise<Answer[]> =>
   evaluate<Answer[]>(`window.__answers.filter(answer => answer.url.includes(${JSON.stringify(part)}))`);
 
-test("a failure the Host recorded shows its diagnostic ID, which copies whole and finds the call; one it did not record shows none; a lost write says it is unknown", { timeout: 150_000 }, async t => {
+test("a failure the Host recorded shows its diagnostic ID, which copies whole and finds the call; one it did not record shows none; a lost write says it is unknown", { timeout: 300_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null);
   if (!browser) return;
   const { origin, projectId, localHost, sessionId, command, evaluate, waitFor, click, navigate } = browser;
@@ -70,6 +74,8 @@ test("a failure the Host recorded shows its diagnostic ID, which copies whole an
   assert.equal(await evaluate("document.querySelector('[data-memory-settings] [data-memory-error]').hidden"), false);
   // The reason also shows where the person is (the toast), with the same button, and the toast does not run away from a pointer on it.
   await waitFor("!!document.querySelector('[data-toast].is-error [data-molis-call-id]')", 5_000);
+  const desktopToast = await evaluate<{ h: number; right: number }>("(() => { const b = document.querySelector('[data-toast].is-error').getBoundingClientRect(); return { h: b.height, right: b.right }; })()");
+  assert.ok(desktopToast.h < 60 && desktopToast.right <= 1440, `a desktop window keeps the message and the button on one line (${JSON.stringify(desktopToast)})`);
 
   await click(errorButton);
   assert.equal(await evaluate("navigator.clipboard.readText()"), body.call_id, "a click copies the whole ID, not the short form");
@@ -104,7 +110,66 @@ test("a failure the Host recorded shows its diagnostic ID, which copies whole an
   assert.equal(await evaluate("document.querySelectorAll('[data-memory-settings] [data-memory-error] [data-molis-call-id]').length"), 0, "there is no call to look up");
   assert.equal((await evaluate<{ items: { memory_id: string; state: string }[] }>("molisWorkRequest('/api/memory/overview?scope=personal')")).items.find(item => item.memory_id === kept)?.state, "active",
     "and the write that got no answer did not happen");
-  // ---- 3. A failure the Host does not record (last: the model page keeps what was typed, so leaving it would ask the person first) ----------
+  // ---- 3. A phone: a toast that fits and keeps its words, and a button a finger can hit (before 4: the model page asks before it is left) ---
+  const measure = (selector: string) => `(() => { const el = document.querySelector(${JSON.stringify(selector)}); const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, right: b.right, bottom: b.bottom }; })()`;
+  /** The button as a finger meets it: its box, and what is under the middle of its top and bottom edges (its reach is real, not a measurement alone). */
+  const reach = (selector: string) => evaluate<{ w: number; h: number; top: boolean; bottom: boolean }>(`(() => { const el = document.querySelector(${JSON.stringify(selector)});
+    el.scrollIntoView({ block: 'center' }); const b = el.getBoundingClientRect(); const x = b.x + b.width / 2;
+    return { w: b.width, h: b.height, top: el.contains(document.elementFromPoint(x, b.top + 2)), bottom: el.contains(document.elementFromPoint(x, b.bottom - 2)) }; })()`);
+  /** The message and the button of the toast as lines: how many lines the message takes, and where the button's words sit against them. */
+  const toastLines = (toast: string) => evaluate<{ lines: number; textLeft: number; textBottom: number; buttonLeft: number; buttonTop: number; contrast: number; ink: string; ground: string }>(`(() => {
+    const toast = document.querySelector(${JSON.stringify(toast)}); const text = document.createRange(); text.selectNodeContents(toast.firstChild);
+    const button = toast.querySelector('[data-molis-call-id]'); const words = document.createRange(); words.selectNodeContents(button);
+    const channels = value => { const n = (value.match(/[\\d.]+/g) || []).map(Number); return value.startsWith('color(') ? n.slice(0, 3).map(v => v * 255) : n.slice(0, 3); };
+    const luminance = value => { const [r, g, b] = channels(value).map(v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }); return .2126 * r + .7152 * g + .0722 * b; };
+    const [lighter, darker] = [luminance(getComputedStyle(button).color), luminance(getComputedStyle(toast).backgroundColor)].sort((a, b) => b - a);
+    return { lines: text.getClientRects().length, textLeft: text.getBoundingClientRect().left, textBottom: text.getBoundingClientRect().bottom,
+      buttonLeft: words.getBoundingClientRect().left, buttonTop: words.getBoundingClientRect().top, contrast: (lighter + .05) / (darker + .05),
+      ink: getComputedStyle(button).color, ground: getComputedStyle(toast).backgroundColor }; })()`);
+  const phone = async (on: boolean) => {
+    await command("Emulation.setTouchEmulationEnabled", on ? { enabled: true, maxTouchPoints: 5 } : { enabled: false }, sessionId);
+    await command("Emulation.setDeviceMetricsOverride", on ? { width: 390, height: 844, deviceScaleFactor: 1, mobile: true } : { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  };
+  await phone(true);
+  for (const scheme of ["light", "dark"]) {
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] }, sessionId);
+    await open("/settings/memory");
+    await waitFor("document.querySelector('[data-memory-settings] [data-memory-add]') && typeof molisWorkRequest === 'function'", 20_000);
+    assert.equal(await evaluate("matchMedia('(pointer: coarse)').matches && innerWidth"), 390, "a phone: 390px wide with a coarse pointer");
+    const stale = (await evaluate<{ memory?: { memory_id: string } }>(
+      `molisWorkRequest('/api/memory/items', { body: { scope: 'personal', text: '手机上的失败（${scheme}）', kind: 'preference' } })`)).memory?.memory_id;
+    await open("/settings/memory");
+    const staleRow = `[data-memory-settings] [data-memory-id="${stale}"]`;
+    await waitFor(`!!document.querySelector(${JSON.stringify(staleRow)})`, 20_000);
+    await evaluate(`molisWorkRequest('/api/memory/change', { body: { memory_id: ${JSON.stringify(stale)}, action: 'remove' } })`);
+    await click(`${staleRow} button[aria-label^="停用"]`);
+    await waitFor("!!document.querySelector('[data-toast].is-visible.is-error [data-molis-call-id]') && !!document.querySelector('[data-memory-settings] [data-memory-error] [data-molis-call-id]')", 15_000);
+    const toastBox = await evaluate<{ x: number; right: number; h: number }>(measure("[data-toast].is-visible.is-error"));
+    assert.ok(toastBox.x >= 0 && toastBox.right <= 390, `${scheme}: the toast is inside the window (${JSON.stringify(toastBox)})`);
+    assert.ok(toastBox.h <= 110, `${scheme}: and does not stand a message on its end (${toastBox.h}px tall)`);
+    const real = await toastLines("[data-toast].is-visible.is-error");
+    assert.ok(real.lines <= 2, `${scheme}: the message takes at most two lines, not one character each (${real.lines})`);
+    assert.ok(real.contrast >= 4.5, `${scheme}: the button reads in the toast's ink, ${real.contrast}:1 (${real.ink} on ${real.ground})`);
+    for (const [where, selector] of [["in the toast", "[data-toast].is-visible.is-error [data-molis-call-id]"], ["in the error area", "[data-memory-settings] [data-memory-error] [data-molis-call-id]"]]) {
+      const target = await reach(selector);
+      assert.ok(target.h >= 44 && target.w >= 44, `${scheme}: the 诊断编号 button ${where} is a 44px target on a phone, ${target.w}×${target.h}`);
+      assert.ok(target.top && target.bottom, `${scheme}: and a finger on the top or the bottom of that box reaches it ${where}`);
+    }
+    // A message that fills the line puts the button under it, left edges together; the message keeps its width.
+    await evaluate(`(() => { const toast = document.querySelector('[data-toast]'); molisWorkRequest.toast(toast,
+      Object.assign(new Error('这条记忆在别处已经被删除，请刷新列表后再试，或者回到上一页重新操作一次'), { callId: '0123abcd-4567-4890-abcd-0123456789ab' }), undefined, { ms: 60000 }); })()`);
+    await waitFor("document.querySelector('[data-toast]').textContent.startsWith('这条记忆在别处已经被删除')", 5_000);
+    const long = await toastLines("[data-toast].is-visible.is-error");
+    const longBox = await evaluate<{ x: number; right: number; h: number }>(measure("[data-toast].is-visible.is-error"));
+    assert.ok(longBox.x >= 0 && longBox.right <= 390 && longBox.h <= 130, `${scheme}: a long message still fits the window (${JSON.stringify(longBox)})`);
+    assert.ok(long.lines >= 2 && long.lines <= 3, `${scheme}: a long message wraps into lines of words (${long.lines})`);
+    assert.ok(long.buttonTop >= long.textBottom - 1, `${scheme}: the button is under the message, not squeezed beside it`);
+    assert.ok(Math.abs(long.buttonLeft - long.textLeft) <= 1, `${scheme}: and starts where the message does`);
+  }
+  await phone(false);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
+
+  // ---- 4. A failure the Host does not record (last: the model page keeps what was typed, so leaving it would ask the person first) ----------
   await open("/settings/models");
   await waitFor("document.querySelector('[data-model-settings] [data-model-template]') && typeof molisWorkRequest === 'function'", 20_000);
   await evaluate(RECORD_ANSWERS);

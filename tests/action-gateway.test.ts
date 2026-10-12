@@ -9,6 +9,7 @@ import http from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { isRuntimeContextMcpTool, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
+import { newCallId, recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { LocalActionGatewayClient, ACTION_GATEWAY_PATH, actionGatewayHomeId } from "../apps/local-host/src/action-gateway.js";
@@ -125,7 +126,7 @@ test("official MCP process uses the shared Host registry and durable writes with
     }, body: "{" });
     assert.equal(invalidJson.status, 400);
     assert.equal((await invalidJson.json() as { code: string }).code, "actions.input_invalid");
-    const stale = await send({ ...envelope, operation: "invoke", instance_id: "old-host", capability: view, input: { text: "old" } });
+    const stale = await send({ ...envelope, operation: "invoke", instance_id: "old-host", call_id: randomUUID(), capability: view, input: { text: "old" } });
     assert.equal((await stale.json() as any).code, "actions.host_replaced");
     await host.closeProject(reference);
     assert.equal((await rows()).length, 1, "durable data survives runtime reopening");
@@ -161,7 +162,8 @@ test("gateway never retries an uncertain invocation or follows a credential-bear
 /** A service of the gateway's shape on a loopback port, answering as `mode` says; it records what each request carried. */
 async function fixtureService() {
   const seen: Array<{ method?: string; url?: string; headers: http.IncomingHttpHeaders; body: Record<string, unknown> }> = [];
-  const state: { mode: "ok" | "garbled" | "array" } = { mode: "ok" };
+  /** `echo`: whether the reply to an invocation names the number it was sent (the Host left a row), another number, or none. */
+  const state: { mode: "ok" | "garbled" | "array"; echo: "none" | "same" | "other"; denied: boolean } = { mode: "ok", echo: "none", denied: false };
   const server = http.createServer(async (request, response) => {
     const chunks = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const body = JSON.parse(Buffer.concat(chunks).toString());
@@ -169,7 +171,9 @@ async function fixtureService() {
     if (state.mode === "garbled") { response.end("<html>not the system service</html>"); return; }
     response.setHeader("content-type", "application/json");
     if (state.mode === "array") { response.end("[]"); return; }
-    response.end(JSON.stringify(body.operation === "discover" ? { instance_id: "one", actions: [] } : { instance_id: "one", result: { saved: 1 } }));
+    const named = state.echo === "same" ? { call_id: body.call_id } : state.echo === "other" ? { call_id: "11111111-2222-4333-8444-555555555555" } : {};
+    if (state.denied && body.operation === "invoke") { response.statusCode = 403; response.end(JSON.stringify({ code: "actions.forbidden", error: "denied by fixture", ...named })); return; }
+    response.end(JSON.stringify(body.operation === "discover" ? { instance_id: "one", actions: [] } : { instance_id: "one", result: { saved: 1 }, ...named }));
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
@@ -286,4 +290,136 @@ test("production stdio keeps context tools usable without a running system servi
     assert.equal(unavailable.isError, true);
     assert.match(JSON.stringify(unavailable), /actions.service_unavailable/);
   } finally { await sdk.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+/** W3-01 D. The MCP process makes the number of an operation; the resident Host writes the rows under it and says so in its reply. */
+const CALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+test("W3-01 D gateway: an invocation carries the number of its operation and a discovery none; the number is shown only when the Host's reply names it", { timeout: 15_000 }, async () => {
+  const { seen, state, stop, client, caller } = await fixtureService();
+  const shown = (id: string, run: () => Promise<unknown>) => withCallId(id, async () => { await run().catch(() => undefined); return recordedCallId(); });
+  try {
+    await client.discover(caller);
+    assert.equal(Object.hasOwn(seen[0]!.body, "call_id"), false, "a discovery is not an operation of its own");
+    const id = newCallId();
+    assert.equal(await shown(id, () => client.invoke(caller, save, { text: "a" })), undefined, "the Host left no row, so there is no number to show");
+    assert.equal(seen[1]!.body.call_id, id, "the request carries the number of the operation that is open");
+    state.echo = "same";
+    assert.equal(await shown(id, () => client.invoke(caller, save, { text: "b" })), id, "the Host left a row and named this number");
+    state.denied = true;
+    assert.equal(await shown(id, () => client.invoke(caller, save, { text: "c" })), id, "a refusal that left a row is shown as well");
+    state.denied = false;
+    state.echo = "other";
+    assert.equal(await shown(id, () => client.invoke(caller, save, { text: "d" })), undefined, "a number this process never sent is not taken");
+    state.echo = "none";
+    await client.invoke(caller, save, { text: "e" }); await client.invoke(caller, save, { text: "f" });
+    const loose = seen.slice(-2).map(request => request.body.call_id);
+    for (const value of loose) assert.match(String(value), CALL_ID);
+    assert.notEqual(loose[0], loose[1], "outside any operation each invocation has a number of its own");
+    const explicit = newCallId();
+    await withCallId(id, () => client.invoke({ ...caller, call_id: explicit }, save, { text: "g" }));
+    assert.equal(seen.at(-1)!.body.call_id, explicit, "a number the caller's context names wins over the open operation");
+  } finally { await stop(); }
+});
+
+/** A resident Host with a command and a read of one plugin, an MCP client granted both, and the Host's log to look at. */
+async function residentCallIdFixture() {
+  const home = await mkdtemp(join(tmpdir(), "action-gateway-call-id-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const served = await serveTestHost(null, { home, host });
+  const project = await served.createProject("Call id");
+  const reference = project.reference;
+  const caller: ActionCallContext = { actor_id: "runtime:call-id", project_id: project.project_id, audience: "mcp", permissions: [] };
+  const look: ActionDefinition<Record<string, never>, { seen: number }> = { capability_id: "unknown.gateway.look", version: 1, operation: "query", action: {
+    title: "Look at notes", description: "Persistent fixture read", kind: "query", scope: "project", audiences: ["mcp"], permissions: ["notes:read"], subject_kinds: [],
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+    output_schema: { type: "object", properties: { seen: { type: "integer" } }, required: ["seen"], additionalProperties: false } } };
+  let ran = 0;
+  await host.withProject(reference, () => {
+    host.actionRegistry(reference).registerProvider({ provider: { provider_id: "unknown-gateway", title: "Unknown", kind: "plugin", plugin_id: "io.molis.work.example.gateway" },
+      definitions: [save, look], handlers: [{ ...save, handle: async () => { ran++; return { saved: ran }; } }, { ...look, handle: async () => ({ seen: ran }) }] });
+  });
+  const origin = served.origin;
+  const views = await host.inspectActions(caller, reference);
+  const saveView = views.find(view => view.capability_id === save.capability_id)!, lookView = views.find(view => view.capability_id === look.capability_id)!;
+  await served.grant(caller.actor_id, caller.project_id, [saveView, lookView]);
+  const gateway = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId: caller.actor_id, projectId: project.project_id });
+  const token = served.controlToken;
+  const send = (body: unknown) => fetch(origin + ACTION_GATEWAY_PATH, { method: "POST", body: JSON.stringify(body), headers: {
+    origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token } });
+  const envelope = { home_id: actionGatewayHomeId(home), client_id: caller.actor_id, project_id: project.project_id };
+  const stop = async () => { await served.close(); await host.close(); await rm(home, { recursive: true, force: true }); };
+  return { host, caller, gateway, saveView, lookView, send, envelope, stop, ran: () => ran };
+}
+
+test("W3-01 D through the gateway the rows of the resident Host carry the number the MCP process made, and it is shown only for an operation that left a row", { timeout: 30_000 }, async () => {
+  const { host, caller, gateway, saveView, lookView, stop } = await residentCallIdFixture();
+  const inOperation = (id: string, run: () => Promise<unknown>) => withCallId(id, async () => { await run().catch(() => undefined); return recordedCallId(); });
+  try {
+    await gateway.discover(caller);
+    const written = newCallId();
+    assert.equal(await inOperation(written, () => gateway.invoke(caller, saveView, { text: "one" })), written, "a command left a row, so its number is shown");
+    const [row, ...rest] = host.callLog!.find(written);
+    assert.equal(rest.length, 0);
+    assert.equal(row?.call_id, written, "the row is under the number the MCP process made");
+    assert.deepEqual([row?.capability_id, row?.ok, row?.actor_id, row?.audience, row?.operation], [save.capability_id, true, caller.actor_id, "mcp", "command"]);
+
+    const read = newCallId();
+    assert.equal(await inOperation(read, () => gateway.invoke(caller, lookView, {})), undefined, "a read that worked leaves no row, so no number is shown");
+    assert.deepEqual(host.callLog!.find(read), []);
+
+    const refused = newCallId();
+    assert.equal(await inOperation(refused, () => gateway.invoke(caller, saveView, { text: 5 })), refused, "a command turned away before its handler is a row too");
+    const refusedRow = host.callLog!.find(refused)[0];
+    assert.deepEqual([refusedRow?.refused, refusedRow?.code, refusedRow?.ok], [true, "actions.input_invalid", false]);
+  } finally { await stop(); }
+});
+
+test("W3-01 D the gateway answers with the number of the row it wrote, in the header and the body, and with none when it wrote none", { timeout: 30_000 }, async () => {
+  const { host, caller, gateway, send, envelope, stop } = await residentCallIdFixture();
+  try {
+    await gateway.discover(caller);
+    const instance = (await (await send({ ...envelope, operation: "discover" })).json() as { instance_id: string }).instance_id;
+    const capability = { capability_id: save.capability_id, version: save.version };
+    const id = randomUUID();
+    const done = await send({ ...envelope, operation: "invoke", instance_id: instance, call_id: id, capability, input: { text: "raw" } });
+    assert.equal(done.status, 200);
+    assert.equal(done.headers.get("x-molis-work-call-id"), id);
+    assert.deepEqual(await done.json(), { instance_id: instance, result: { saved: 1 }, call_id: id });
+    assert.equal(host.callLog!.find(id).length, 1);
+
+    const failedId = randomUUID();
+    const failed = await send({ ...envelope, operation: "invoke", instance_id: instance, call_id: failedId, capability, input: { text: 5 } });
+    assert.equal(failed.status, 400);
+    assert.equal(failed.headers.get("x-molis-work-call-id"), failedId);
+    assert.equal((await failed.json() as { call_id?: string; code?: string }).call_id, failedId);
+    assert.equal(host.callLog!.find(failedId)[0]?.refused, true);
+
+    // Turned away at the door of the gateway: no call was made, so no row, and no number in the answer.
+    const doorId = randomUUID();
+    const malformed = await send({ ...envelope, operation: "invoke", instance_id: instance, call_id: doorId, capability: "not a reference", input: {} });
+    assert.equal(malformed.status, 400);
+    assert.equal(malformed.headers.get("x-molis-work-call-id"), null);
+    assert.equal("call_id" in (await malformed.json() as object), false);
+    assert.deepEqual(host.callLog!.find(doorId), []);
+  } finally { await stop(); }
+});
+
+test("W3-01 D the gateway takes a number only on an invocation and only as the UUID the MCP process made, and refuses the request otherwise", { timeout: 30_000 }, async () => {
+  const { host, caller, gateway, send, envelope, ran, stop } = await residentCallIdFixture();
+  try {
+    await gateway.discover(caller);
+    const instance = (await (await send({ ...envelope, operation: "discover" })).json() as { instance_id: string }).instance_id;
+    const invoke = { ...envelope, operation: "invoke", instance_id: instance, capability: { capability_id: save.capability_id, version: save.version }, input: { text: "refused" } };
+    const refusedBody = async (body: Record<string, unknown>) => {
+      const response = await send(body);
+      assert.equal(response.status, 400);
+      assert.equal((await response.json() as { code: string }).code, "actions.input_invalid");
+    };
+    await refusedBody(invoke);
+    for (const call_id of ["", "not-a-uuid", "ABCDEF12-0000-4000-8000-000000000000", `${randomUUID()}x`, 7, null, [randomUUID()], { id: randomUUID() }]) await refusedBody({ ...invoke, call_id });
+    await refusedBody({ ...envelope, operation: "discover", call_id: randomUUID() });
+    assert.equal(ran(), 0, "no handler ran for a refused request");
+    assert.deepEqual(host.callLog!.recent(10), [], "and no row was written");
+  } finally { await stop(); }
 });

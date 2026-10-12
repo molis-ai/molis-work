@@ -4,6 +4,19 @@ import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host
 import { renderWorkbenchDocument } from "./document-shell.js";
 import type { BuiltinPluginEntry } from "./builtin-plugins.js";
 import { HOME_MODEL_SETTINGS_CLIENT_SCRIPT } from "./scripts/home-model-settings.js";
+import { homeToolKeysScript } from "./home-plugin-navigation.js";
+
+/**
+ * Where the person is beside this side view, read from the shell around it: the place the work area names and the
+ * project. A report for the record ("written on …"), never proof of what was on screen.
+ */
+const SIDE_PAGE_SCRIPT = String.raw`() => {
+  const top = window.top; if (top === window) return null;
+  const doc = top.document, place = doc.querySelector('[data-plugin-picker-current] .is-focused') || doc.querySelector('[data-plugin-picker-current]');
+  const name = doc.body.dataset.arrival ? '首页' : (place?.textContent || doc.title.replace(/ · Molis Work$/, '')).trim();
+  return { url: (top.location.pathname + top.location.search).slice(0, 500),
+    title: [name, doc.querySelector('.navigator-project-selector strong')?.textContent.trim()].filter(Boolean).join(' · ').slice(0, 200) || null };
+}`;
 
 /** A Home plugin can be opened before any project exists. The same contribution and client also mount in Workbench. */
 export function renderHomePluginPage(entry: BuiltinPluginEntry, html: string | null, message: string | null, controlToken: string, retry = false, side = false): string {
@@ -16,11 +29,7 @@ export function renderHomePluginPage(entry: BuiltinPluginEntry, html: string | n
     .home-plugin-page>header{display:flex;align-items:center;gap:16px;padding:12px 24px;flex:none}.home-plugin-page>header>strong{flex:1}
     .home-plugin-main{position:relative;flex:1;min-height:0;display:flex;margin:0 8px 8px;background:var(--surface);border-radius:12px;overflow:hidden}
     .home-plugin-main>.plugin-stage-shell{position:relative;flex:1;min-width:0;height:100%;--tree-width:320px}
-    .home-plugin-main>.plugin-stage-shell[data-expanded="false"]{display:block}
     [data-home-side] .home-plugin-main{margin:0;border-radius:0}
-    body.immersive-workbench[data-home-side] .plugin-stage-shell[data-expanded="true"]{display:block}
-    [data-home-side] .plugin-stage-shell[data-expanded="true"] .plugin-stage-list{display:none!important}
-    body.immersive-workbench[data-home-side] .plugin-stage-shell[data-expanded="true"] .plugin-stage-workspace{position:absolute;inset:0;display:flex;flex-direction:column}
     body.home-plugin-page dialog.home-model-settings{width:min(960px,calc(100vw - 32px));max-height:calc(100dvh - 32px)}
     .home-model-settings .mw-dialog__shell{max-height:calc(100dvh - 36px)}
     .home-model-settings .mw-form__header{display:flex;align-items:center;justify-content:space-between;gap:16px}
@@ -39,12 +48,12 @@ export function renderHomePluginPage(entry: BuiltinPluginEntry, html: string | n
     </dialog>
     <script src="/assets/molis-work-plugins/${encodeURIComponent(id)}.js"></script><script>${CONTROL_CLIENT_SCRIPT}
     document.querySelector('[data-work-surface]')?.removeAttribute('hidden');
-    globalThis.molisWorkbenchPluginFactories?.[${JSON.stringify(id)}]?.({side:${side},translate:text=>text,mountPluginClient:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()});
+    globalThis.molisWorkbenchPluginFactories?.[${JSON.stringify(id)}]?.({side:${side},translate:text=>text,mountPluginClient:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()${side ? `,page:(${SIDE_PAGE_SCRIPT}),status:status=>parent.postMessage({type:'molis:side-status',status},location.origin)` : ""}});
     document.querySelector('[data-home-lifecycle]')?.addEventListener('click',async(event)=>{
       const button=event.currentTarget;button.disabled=true;
       try{const response=await fetch('/api/plugins/${encodeURIComponent(entry.manifest.plugin_id)}/'+button.dataset.homeLifecycle,{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:'{}'});
         const body=await response.json();if(!response.ok)throw new Error(body.error||'插件状态未能更改');location.reload();
       }catch(error){const note=document.querySelector('[data-home-status]');note.textContent=error.message;note.hidden=false;button.disabled=false;}
     });${SELECT_MENU_CLIENT_SCRIPT}${HOME_MODEL_SETTINGS_CLIENT_SCRIPT}
-    ${side ? `addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&!document.querySelector('dialog[open],:popover-open'))parent.postMessage({type:'molis:side-close'},location.origin);});` : ""}</script>` });
+    ${homeToolKeysScript()}${side ? `addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&!document.querySelector('dialog[open],:popover-open'))parent.postMessage({type:'molis:side-close'},location.origin);});` : ""}</script>` });
 }

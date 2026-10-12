@@ -179,6 +179,7 @@ export const INTERACTION_STYLES = `
   .mw-ix-card .mw-btn { min-height: 44px; }
   .mw-ix-card .mw-btn--icon-only, .mw-ix-number .mw-btn { width: 44px; min-width: 44px; }
   :is(.mw-ix-date__input, .mw-ix-time, .mw-ix-number .mw-input) { font-size: 16px; }
+  .mw-ix-number .mw-input { min-height: 42px; }
 }
 @media (max-width: 600px) {
   .mw-ix-card { padding: 12px 12px 14px; }

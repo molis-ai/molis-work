@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { Issue, IssueListResult } from "@molis-ai/molis-work-plugin-issues";
 import type { openGoalBrowser } from "./goal-browser.js";
@@ -51,10 +53,16 @@ export function issueView(b: IssueBrowser, evidence = "issue-capture") {
       (d.activeElement || d.body).dispatchEvent(new ClipboardEvent('paste', { clipboardData: t, bubbles: true, cancelable: true })); return true; })()`),
     list: () => api<IssueListResult>("/api/plugins/io.molis.work.issues/list"),
     read: (id: string) => api<Issue>(`/api/plugins/io.molis.work.issues/read?id=${encodeURIComponent(id)}`),
-    /** The person's active Assistant works with their state, and the open notices. */
-    assistant: async () => {
-      const { works } = await api<{ works: Array<{ work_id: string; title: string }> }>("/api/assistant/works");
-      const views = await Promise.all(works.map(work => api<AssistantWorkView>(`/api/assistant/works/${work.work_id}`)));
+    /**
+     * The person's active Assistant works with their state, and the open notices. `filed`: every work in creation order,
+     * the ones a page has archived included (the Issue page files a capture's work away once its row says how it went).
+     */
+    assistant: async (filed = false) => {
+      const ids = filed ? (() => {
+        const db = new DatabaseSync(homeSqlitePath(b.homeDirectory, "assistant"), { readOnly: true });
+        try { return db.prepare("SELECT work_id FROM assistant_works ORDER BY rowid").all().map(row => String(row.work_id)); } finally { db.close(); }
+      })() : (await api<{ works: Array<{ work_id: string }> }>("/api/assistant/works")).works.map(work => work.work_id);
+      const views = await Promise.all(ids.map(id => api<AssistantWorkView>(`/api/assistant/works/${id}`)));
       const { notices } = await api<{ notices: Array<{ kind: string; work_title: string }> }>("/api/assistant/notices");
       return { works: views, notices };
     },

@@ -30,7 +30,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     } catch (error) {
       if (scope.signal.aborted) throw error;
       // A write that lost its answer may have happened: say so instead of inviting a blind repeat.
-      throw new Error(L(/(update|delete|capture|discard|run)$/.test(path) ? '没收到结果，可能已经生效。请刷新列表核对后再操作。' : '连接中断，请稍后重试。'));
+      throw new Error(L(/(update|delete|capture|discard|run)$/.test(path) ? '没收到结果，可能已经生效，请刷新列表核对。' : '连接中断，请稍后重试。'));
     }
     if (!response.ok) throw Object.assign(new Error(result.error || L('操作失败，请重试')), { status: response.status });
     return result;

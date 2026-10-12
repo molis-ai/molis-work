@@ -57,6 +57,19 @@ test("ISSUE-36 ISSUE-39 a capture always creates the draft's record and keeps th
   await assert.rejects(drafts.prepare({ draft_id: crypto.randomUUID(), description: "x", page: { url: "x".repeat(501), title: null } }, caller), { code: "actions.input_invalid" });
 });
 
+test("ISSUE-37 drafts left behind by a page that is gone never lock the person out: the oldest idle one makes room", async t => {
+  const home = await mkdtemp(join(tmpdir(), "issue-drafts-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {});
+  t.after(async () => { db.close(); await rm(home, { recursive: true, force: true }); });
+  const store = new IssueStore(db.client, "owner"), drafts = new IssueCaptures(store);
+  const ids = Array.from({ length: 9 }, () => crypto.randomUUID());
+  for (const [index, draft_id] of ids.entries()) { await drafts.prepare({ draft_id, description: `第 ${index + 1} 条` }, caller); await new Promise(done => setTimeout(done, 2)); }
+  await assert.rejects(drafts.capture({ draft_id: ids[0]!, title: "最早的一条", type: "bug" }, caller), { code: "actions.conflict" }, "the oldest draft made room");
+  for (const draft_id of ids.slice(1)) assert.equal((await drafts.capture({ draft_id, title: "仍然可以保存", type: "bug" }, caller)).id, draft_id);
+  assert.equal(store.list({}).items.length, 8);
+  // A saved draft no longer counts; the person can keep recording.
+  await drafts.prepare({ draft_id: crypto.randomUUID(), description: "第 10 条" }, caller);
+});
+
 test("ISSUE-38 discard takes back only a record nobody changed since it was made", async t => {
   const home = await mkdtemp(join(tmpdir(), "issue-discard-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {});
   t.after(async () => { db.close(); await rm(home, { recursive: true, force: true }); });

@@ -11,24 +11,26 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
   const where = () => { try { return host.page?.() || null; } catch { return null; } };
   const message = item => {
     const long = item.text.length > 19000, first = item.text.trim().split('\n')[0].slice(0, 40);
-    return '记录 Issue：' + (first || '截图 ×' + item.images.length) + '\n录入草稿 ' + item.id + '。请按 Issue 方法起标题、判类型并直接保存。'
+    return '记录 Issue：' + (first || '截图 ×' + item.images.length) + '\n录入草稿 ' + item.id + '。请按 Issue 方法处理。'
       + (item.page?.title ? '\n记录时所在页面：' + item.page.title + (item.page.url ? '（' + item.page.url + '）' : '') : '')
       + (item.images.length ? '\n附带 ' + item.images.length + ' 张截图。' : '')
       + '\n本次问题描述：\n' + (long ? '见附带的“问题描述”全文材料。' : item.text || '（没有文字，只有截图）');
   };
   // Unfinished captures are kept on this device as well, so leaving the page loses none of their words (pictures stay
-  // with the page). Coming back, one the Assistant has saved meanwhile drops out once the list shows it.
+  // with the page) nor why one is waiting. Coming back, one the Assistant has saved meanwhile drops out once the list shows it.
   // Another open Issue view keeps its own entries: each view replaces only the ones it holds.
   const UNSENT = 'molis:issue-unsent';
   let held = new Set();
   const remember = () => { try {
     const others = JSON.parse(localStorage.getItem(UNSENT) || '[]').filter(entry => !held.has(entry.id));
     held = new Set(pending.map(item => item.id));
-    localStorage.setItem(UNSENT, JSON.stringify([...others, ...pending.map(({ id, text, page, at, images, work }) => ({ id, text, page, at, work, shots: images.length }))]));
+    localStorage.setItem(UNSENT, JSON.stringify([...others, ...pending.map(({ images, state, ...entry }) => ({ ...entry, shots: images.length }))]));
   } catch { /* Kept in this page only. */ } };
-  const attention = (item, note, kind = 'failed') => { item.state = 'attention'; item.note = note; item.kind = kind; render(); };
+  // The row is the one place to continue (more words, a card to check, a failure): the work behind it is stopped and
+  // filed away, so the Assistant does not wait on the same question and the person meets it only once.
+  const attention = (item, note, kind = 'failed') => { item.state = 'attention'; item.note = note; item.kind = kind; render(); void quiet(item, 1); };
   // Once this page has the outcome, the capture's work is filed away: the record (or this page) already says how it
-  // went, so the Assistant's list and notices are not filled with one entry per Issue. An unfinished one stays until settled.
+  // went, so the Assistant's list and notices are not filled with one entry per Issue.
   const quiet = async (item, stop) => {
     if (!item.work) return;
     const at = '/api/assistant/works/' + encodeURIComponent(item.work);
@@ -123,7 +125,7 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
     drop(item); current = null; editing = false; await back(); toast(L('已放弃这条记录'));
   };
   try {
-    for (const entry of JSON.parse(localStorage.getItem(UNSENT) || '[]')) held.add(entry.id), pending.push({ ...entry, images: [], restored: true, state: 'attention', kind: 'failed',
-      note: L('上次没有完成，点开继续') + (entry.shots ? L('（截图要重新添加）') : '') });
+    for (const entry of JSON.parse(localStorage.getItem(UNSENT) || '[]')) held.add(entry.id), pending.push({ ...entry, images: [], restored: true, state: 'attention', kind: entry.kind || 'failed',
+      note: (entry.note || L('上次没有完成，点开继续')) + (entry.shots ? L('（截图要重新添加）') : '') });
   } catch { /* Nothing kept on this device. */ }
 `;

@@ -138,7 +138,7 @@ test("ISSUE-36 ISSUE-38 asked to record, the Assistant saves a page draft or a s
   await request(`/api/plugins/${ISSUES_PLUGIN_ID}/prepare`, { draft_id, description: "  点保存没反应\n", page });
   const direct = (capability_id: string, version: number, input: unknown) => reply({ name: "change-reversible", input: { capability_id, version, provider_id: ISSUES_PLUGIN_ID, input } });
   replies.push(direct("issues.capture", 1, { draft_id, title: "Goals 里点保存没有反应", type: "bug" }), reply());
-  const sent = await send(`记录 Issue：点保存没反应\n录入草稿 ${draft_id}。请按 Issue 方法起标题、判类型并直接保存。`, {
+  const sent = await send(`记录 Issue：点保存没反应\n录入草稿 ${draft_id}。请按 Issue 方法处理。`, {
     materials: [{ material_id: "issue-method", kind: "method", title: "Issue", explicit: true, method: { method_id: `${ISSUES_PLUGIN_ID}/issues-capture` } }] });
   const done = await state(sent.work.work_id, view => view.work.state === "completed");
   assert.equal(done.reviews.length, 0, "no confirmation: the save says how it is undone"); assert.equal(done.cards.length, 0);

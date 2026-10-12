@@ -20,7 +20,7 @@ test("ISSUE-34 ISSUE-37 a question keeps the words and pictures, retires the ask
   const { requests } = await issueModel(t, b.homeDirectory, behavior);
   const v = await capture(b, "111");
   await v.until("$('[data-state=attention]')?.textContent.includes('需要补充：')", 20_000);
-  const [initial] = (await v.assistant()).works;
+  const [initial] = (await v.assistant(true)).works;
   assert.equal(initial!.cards.length, 0); assert.equal(initial!.rounds[0]!.awaiting_input.length, 1);
   assert.equal(initial!.rounds[0]!.activity.filter(action => action.verb === "ask").length, 1);
   assert.equal(requests.length, 1, "one real SDK ask with no discovery round, then the runtime waits");
@@ -41,7 +41,7 @@ test("ISSUE-34 ISSUE-37 a question keeps the words and pictures, retires the ask
   const issue = await v.read(saved!.id);
   assert.equal(issue.description, "111；点保存没反应"); assert.equal(issue.images[0]!.data_url, (source as { image: string }).image);
   assert.equal((await v.list()).items.length, 1, "neither question left a record behind");
-  const views = (await v.assistant()).works;
+  const views = (await v.assistant(true)).works;
   assert.equal(views.some(view => view.work.state === "waiting-input"), false, "the asking works were stopped once answered here");
   const stale = await b.evaluate<{ ok: boolean; code: string }>(`fetch('/api/assistant/works/${initial!.work.work_id}/answer', { method: 'POST', headers: globalThis.molisWorkControlHeaders(),
     body: JSON.stringify(${JSON.stringify({ run_id: initial!.rounds[0]!.run_id, pending_id: initial!.rounds[0]!.awaiting_input[0]!.pending_id, pending_revision: initial!.rounds[0]!.awaiting_input[0]!.pending_revision, text: "迟到回答" })}) }).then(async r => ({ ok: r.ok, code: (await r.json()).code }))`);
@@ -55,7 +55,7 @@ for (const question of ["correct-once", "never-correct"] as const) {
     const { requests } = await issueModel(t, b.homeDirectory, { question });
     const v = await capture(b, "111");
     await v.until(`$('[data-state=attention]')?.textContent.includes(${JSON.stringify(question === "correct-once" ? "在哪个页面点击保存" : "没能自动整理")})`, 20_000);
-    const [view] = (await v.assistant()).works as AssistantWorkView[];
+    const [view] = (await v.assistant(true)).works as AssistantWorkView[];
     const asks = view!.rounds[0]!.activity.filter(action => action.verb === "ask");
     assert.equal(asks.length, 2, "one failed attempt plus one correction, never six repeated failures");
     assert.equal(asks.filter(action => action.state === "failed").length, question === "correct-once" ? 1 : 2);

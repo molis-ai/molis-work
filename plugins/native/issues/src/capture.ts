@@ -34,7 +34,14 @@ export class IssueCaptures {
       held.expires = Date.now() + lifetime;
       return { draft_id: input.draft_id };
     }
-    if ([...this.drafts.values()].filter(draft => !draft.saved).length >= 8) throw new ActionError("actions.input_invalid", "还有 8 条记录没整理完，请先处理它们");
+    // Unfinished drafts are bounded, but one whose page is gone (another browser, cleared storage) must not lock the person
+    // out of recording: the oldest idle one makes room. Its page, if still open, finds it gone and offers to save by hand.
+    const open = [...this.drafts].filter(([, draft]) => !draft.saved);
+    if (open.length >= 8) {
+      const oldest = open.filter(([, draft]) => !draft.pending).sort(([, a], [, b]) => a.expires - b.expires)[0];
+      if (!oldest) throw new ActionError("actions.input_invalid", "还有 8 条记录正在保存，请稍候再记");
+      this.drafts.delete(oldest[0]);
+    }
     this.drafts.set(input.draft_id, { input: structuredClone(input), expires: Date.now() + lifetime });
     return { draft_id: input.draft_id };
   }

@@ -52,7 +52,7 @@ test("ISSUE-34 ISSUE-37 a save that stays malformed ends at the runtime's repeat
   await v.viewport(1280); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   await v.press("[data-issue-composer] [name=description]"); await v.type("点保存没反应"); await v.send();
   await v.until("$('[data-state=attention]')?.textContent.includes('没能自动整理')", 20_000);
-  const { works } = await v.assistant();
+  const { works } = await v.assistant(true);
   assert.equal(works.length, 1); const [view] = works;
   // The one-correction rule covers asking and suggesting; a repeated direct change is ended by the repeat guard instead.
   const failed = view!.rounds[0]!.activity.filter(action => action.verb === "change" && action.state === "failed").length;

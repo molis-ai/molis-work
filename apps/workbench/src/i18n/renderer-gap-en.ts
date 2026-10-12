@@ -368,7 +368,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "放弃": "Discard",
   "已放弃这条记录": "Capture discarded",
   "写下的内容和截图都不会保存。": "What you wrote and the screenshots will not be saved.",
-  "没收到结果，可能已经生效。请刷新列表核对后再操作。": "No answer came back; it may have taken effect. Refresh the list and check before trying again.",
+  "没收到结果，可能已经生效，请刷新列表核对。": "No answer came back; it may have taken effect. Refresh the list to check.",
   " 分钟前": " min ago",
   "今天 ": "Today ",
   "昨天 ": "Yesterday ",

@@ -16,7 +16,7 @@ export { PPT_DRAFT_OUTLINE, PPT_INSTRUCTIONS } from "./prompts.js";
 export { PPT_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { PPT_NATIVE_PLUGIN_ROUTES, PptPluginRouteTable } from "./routes.js";
 export type { PptPluginRouteHandler, PptPluginRouteRequest, PptPluginRouteResponse } from "./routes.js";
-export { createPptRouteHandlers, pptRouteErrorResponse } from "./route-handlers.js";
+export { createPptRouteHandlers } from "./route-handlers.js";
 export type { PptRoutePorts } from "./route-handlers.js";
 export { promotePpt } from "./promote.js";
 export { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
@@ -25,7 +25,7 @@ export type { PptLineHeadPort, PptPublishArtifactPort, PptReadArtifactPort, PptP
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, pptManifest } from "./manifest.js";
 export { openPptStore, PptStore, PPT_STORE_BASELINE } from "./store.js";
 export { purgePptProject, pptProjectData } from "./project-data.js";
-export { PptError } from "./error.js";
+export { pptErrors } from "./error.js";
 
 export { pptActions, PPT_ACTION_PERMISSIONS, createPptActionHandlers } from "./actions.js";
 export type { PptActionPorts } from "./actions.js";

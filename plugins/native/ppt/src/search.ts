@@ -1,6 +1,7 @@
 import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PPT_PROJECT_PLUGIN_ID, PPT_SUBJECT_KIND, type PptRecord } from "@molis-ai/molis-work-contracts/modules/ppt";
 import type { PptStore } from "./store.js";
+import { pptErrors } from "./error.js";
 
 /** PPT's part in the system search: title, description and every slide's title, bullets and notes. */
 export const pptSearchActions = {
@@ -28,7 +29,7 @@ export function createPptSearchHandlers(withStore: <T>(run: (store: PptStore) =>
       let presentation: PptRecord;
       try { presentation = store.get((input as { subject_id: string }).subject_id, project(caller)); }
       catch (error) {
-        if ((error as { code?: string })?.code === "ppt.not_found") throw new ActionError("ppt.not_found", "演示稿已删除");
+        if ((error as { code?: string })?.code === "ppt.not_found") throw pptErrors.not_found("演示稿已删除");
         throw error;
       }
       return subjectContext({ subject: { kind: PPT_SUBJECT_KIND, id: presentation.id }, revision: String(presentation.version), title: presentation.title,

@@ -1,6 +1,7 @@
 import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { WORKFLOWS_PROJECT_PLUGIN_ID, type Workflow } from "./model.js";
 import type { WorkflowsStore } from "./store.js";
+import { workflowsErrors } from "./error.js";
 
 /** Workflows' part in the system search: a flow's title, its steps and the rules written on each handoff. Runs are not indexed. */
 export const workflowsSearchActions = {
@@ -28,7 +29,7 @@ export function createWorkflowsSearchHandlers(projectId: string, withStore: <T>(
       let workflow: Workflow;
       try { workflow = await withStore(store => store.get(id, scoped(caller))); }
       catch (error) {
-        if ((error as { code?: string })?.code === "workflows.not_found") throw new ActionError("workflows.not_found", "流程已删除");
+        if ((error as { code?: string })?.code === "workflows.not_found") throw workflowsErrors.not_found("流程已删除");
         throw error;
       }
       return subjectContext({ subject: { kind: "workflow", id: workflow.workflow_id }, revision: String(workflow.revision), title: workflow.title,

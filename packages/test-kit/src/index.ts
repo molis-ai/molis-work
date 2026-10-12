@@ -14,7 +14,7 @@ export type {
   ImportObservation,
 } from "./boundaries.js";
 
-/** F2 created the package boundary; F3 adds the first real, business-neutral capability; the `./browser` subpath adds the Chrome driver. */
+/** F2 created the package boundary; F3 adds the first real, business-neutral capability; the `./browser` subpath adds the Chrome driver and `./local-host-http` the Host HTTP client. */
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-test-kit",
   packagePath: "packages/test-kit",
@@ -23,7 +23,7 @@ export const packageDescriptor = {
   contract: "@molis-ai/molis-work-contracts/platform/testing",
   migrationGoals: ["goal-reorg-f2","goal-reorg-f3"],
   ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["workspace-boundary-policy", "headless-chrome-driver"],
+  capabilities: ["workspace-boundary-policy", "headless-chrome-driver", "local-host-http-client"],
 } as const;
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;

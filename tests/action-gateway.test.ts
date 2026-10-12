@@ -10,7 +10,6 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { isRuntimeContextMcpTool, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { newCallId, recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { LocalActionGatewayClient, ACTION_GATEWAY_PATH, actionGatewayHomeId } from "../apps/local-host/src/action-gateway.js";
@@ -326,9 +325,10 @@ test("W3-01 D gateway: an invocation carries the number of its operation and a d
 /** A resident Host with a command and a read of one plugin, an MCP client granted both, and the Host's log to look at. */
 async function residentCallIdFixture() {
   const home = await mkdtemp(join(tmpdir(), "action-gateway-call-id-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Call id", actor_id: "user" }));
-  const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const served = await serveTestHost(null, { home, host });
+  const project = await served.createProject("Call id");
+  const reference = project.reference;
   const caller: ActionCallContext = { actor_id: "runtime:call-id", project_id: project.project_id, audience: "mcp", permissions: [] };
   const look: ActionDefinition<Record<string, never>, { seen: number }> = { capability_id: "unknown.gateway.look", version: 1, operation: "query", action: {
     title: "Look at notes", description: "Persistent fixture read", kind: "query", scope: "project", audiences: ["mcp"], permissions: ["notes:read"], subject_kinds: [],
@@ -339,18 +339,16 @@ async function residentCallIdFixture() {
     host.actionRegistry(reference).registerProvider({ provider: { provider_id: "unknown-gateway", title: "Unknown", kind: "plugin", plugin_id: "io.molis.work.example.gateway" },
       definitions: [save, look], handlers: [{ ...save, handle: async () => { ran++; return { saved: ran }; } }, { ...look, handle: async () => ({ seen: ran }) }] });
   });
-  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
+  const origin = served.origin;
   const views = await host.inspectActions(caller, reference);
   const saveView = views.find(view => view.capability_id === save.capability_id)!, lookView = views.find(view => view.capability_id === look.capability_id)!;
-  for (const view of [saveView, lookView]) await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, caller.project_id, view, true));
+  await served.grant(caller.actor_id, caller.project_id, [saveView, lookView]);
   const gateway = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId: caller.actor_id, projectId: project.project_id });
-  const token = (await readFile(join(home, "config/web-control-token"), "utf8")).trim();
+  const token = served.controlToken;
   const send = (body: unknown) => fetch(origin + ACTION_GATEWAY_PATH, { method: "POST", body: JSON.stringify(body), headers: {
     origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token } });
   const envelope = { home_id: actionGatewayHomeId(home), client_id: caller.actor_id, project_id: project.project_id };
-  const stop = async () => { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); };
+  const stop = async () => { await served.close(); await host.close(); await rm(home, { recursive: true, force: true }); };
   return { host, caller, gateway, saveView, lookView, send, envelope, stop, ran: () => ran };
 }
 

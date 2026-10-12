@@ -1,17 +1,25 @@
 import { randomUUID } from "node:crypto";
 
-/** A request the Host's local HTTP interface refused: its status, the stable `code` when the reply carries one, and its own words. */
-export class LocalHostHttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string | undefined,
-    message: string,
-    readonly method: string,
-    readonly path: string,
-  ) {
-    super(message);
-    this.name = "LocalHostHttpError";
-  }
+/**
+ * A request the Host's local HTTP interface refused: its status, the stable `code` when the reply carries one, and its own words.
+ * Made with `localHostHttpError`, recognised with `isLocalHostHttpError` (a plain `Error` with these fields; the gates allow no new
+ * Error subclass, and an owner's failures are codes, which a refusal of the Host's own already carries).
+ */
+export interface LocalHostHttpError extends Error {
+  readonly status: number;
+  readonly code: string | undefined;
+  readonly method: string;
+  readonly path: string;
+}
+
+const REFUSAL = Symbol.for("molis-work.test-kit.local-host-http-refusal");
+
+export function localHostHttpError(status: number, code: string | undefined, message: string, method: string, path: string): LocalHostHttpError {
+  return Object.assign(new Error(message), { name: "LocalHostHttpError", status, code, method, path, [REFUSAL]: true as const });
+}
+
+export function isLocalHostHttpError(error: unknown): error is LocalHostHttpError {
+  return error instanceof Error && (error as { [REFUSAL]?: unknown })[REFUSAL] === true;
 }
 
 export interface LocalHostHttpOptions {
@@ -58,7 +66,7 @@ export class LocalHostHttpClient {
     try { reply = text === "" ? undefined : JSON.parse(text); } catch { reply = undefined; }
     if (!response.ok) {
       const refusal = reply && typeof reply === "object" ? reply as { error?: unknown; code?: unknown } : {};
-      throw new LocalHostHttpError(response.status, typeof refusal.code === "string" ? refusal.code : undefined,
+      throw localHostHttpError(response.status, typeof refusal.code === "string" ? refusal.code : undefined,
         typeof refusal.error === "string" ? refusal.error : `HTTP ${response.status} ${method} ${path}`, method, path);
     }
     return reply as T;

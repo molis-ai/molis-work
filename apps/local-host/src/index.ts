@@ -55,7 +55,7 @@ export * from "./web-locale.js";
 
 export { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
-export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, isOwnedCatalogOwner, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, type MolisWorkProjectCatalogErrorDetails } from "./project-catalog-contract.js";
+export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, isOwnedCatalogOwner, catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
 export { initializeProjectDatabase, readManagedBoard, validateManagedBoard } from "./managed-project-database.js";
 
 export { ManagedProjectFiles } from "./managed-project-files.js";

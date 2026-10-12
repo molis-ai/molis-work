@@ -9,7 +9,6 @@ import { createMcpRuntimeContextHandlers, createMcpContextPresenter, handleMcpMe
   createActionMcpPorts, isRuntimeContextMcpTool, molisWorkActionToolName,
   type McpToolResult, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
-import { MolisWorkProjectCatalogError } from "./project-catalog.js";
 import { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
 import { RuntimeSessionHost } from "./runtime-session.js";
 import { RuntimeProjectConnection } from "./runtime-project-connection.js";
@@ -102,7 +101,7 @@ export class LocalMcpServer {
       withCatalog: (homeDirectory, operation) => withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => operation({
         aliasPanelSession: (input) => catalog.desktopPanels.aliasSession(input),
       })),
-      isMissingPanel: (error) => error instanceof MolisWorkProjectCatalogError && error.code === "catalog.panel_not_found",
+      isMissingPanel: (error) => error instanceof ActionError && error.code === "catalog.panel_not_found",
     });
     this.runtimeSessions = new RuntimeSessionHost();
   }
@@ -305,10 +304,9 @@ function lookupContextTool(
 
 function formatMcpToolError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
-  if (error instanceof ActionError) return `错误: ${message}\n${JSON.stringify({ code: error.code })}`;
+  if (error instanceof ActionError) return `错误: ${message}\n${JSON.stringify({ code: error.code, ...error.details })}`;
   if (error instanceof MolisWorkV1Error) {
     return `错误: ${message}\n${JSON.stringify({ code: error.code, ...(error.details ?? {}) })}`;
   }
-  if (!(error instanceof MolisWorkProjectCatalogError)) return `错误: ${message}`;
-  return `错误: ${message}\n${JSON.stringify({ code: error.code, ...error.details })}`;
+  return `错误: ${message}`;
 }

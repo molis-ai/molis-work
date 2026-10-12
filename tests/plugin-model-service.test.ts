@@ -36,6 +36,8 @@ const refusal = (name: keyof typeof CODES) => ({ code: CODES[name][0], kind: COD
 type Behavior = (run: { model: PluginModelClient; caller: ActionExecutionContext }) => Promise<unknown>;
 interface ProbeOptions {
   name?: string;
+  /** The whole plugin id, for the one test that needs an id the catalog knows. */
+  pluginId?: string;
   version?: string;
   /** false: the Manifest asks for no model at all. */
   declares?: boolean;
@@ -51,7 +53,7 @@ interface ProbeOptions {
 /** A plugin that exists only for the test: three actions whose handlers do what `plugin.on.<action>` says, over the model it was started with. */
 function probe(options: ProbeOptions = {}) {
   const { name = "modelprobe", version = "1.0.0", declares = true, required = false, execution, atStart } = options;
-  const pluginId = idOf(name);
+  const pluginId = options.pluginId ?? idOf(name);
   const summarize = defineInstructionPrompt({ owner_id: pluginId, prompt_id: "summarize", version: 1, title: "摘要", purpose: "把材料压成一句话", used_by: ["探针"], body: "把下面的材料压成一句话。" });
   const tone = defineInstructionPrompt({ owner_id: pluginId, prompt_id: "tone", version: 1, title: "语气", purpose: "让回答保持平实", used_by: ["探针"], body: "回答要平实、简短。" });
   const instructions = options.instructions?.(pluginId) ?? [summarize, tone];
@@ -88,7 +90,12 @@ function probe(options: ProbeOptions = {}) {
 /** A model that stands in for the Host's: it keeps what it was asked and answers what the test says. */
 function standIn(reply: string | ((prompt: string, options: HostTextRequestOptions) => Promise<string>) = "摘要结果") {
   const calls: Array<{ prompt: string; options: HostTextRequestOptions }> = [];
-  const complete: HostCompleteText = async (prompt, options = {}) => { calls.push({ prompt, options }); return typeof reply === "string" ? reply : reply(prompt, options); };
+  const complete: HostCompleteText = async (prompt, options = {}) => {
+    calls.push({ prompt, options });
+    if (typeof reply !== "string") return reply(prompt, options);
+    await options.beforeDispatch?.(); // as the Host's own text path does, just before it sends
+    return reply;
+  };
   return { calls, complete };
 }
 const deferred = () => { let resolve!: () => void; return { promise: new Promise<void>(done => { resolve = done; }), resolve }; };
@@ -283,10 +290,11 @@ test("a call is the call's: cancelled while the model answers, the answer is not
   withDirectory(async directory => {
     for (const checksDispatch of [false, true]) {
       const entered = deferred(), release = deferred();
+      let refusedAtDispatch: unknown;
       const model = standIn(async (_prompt, options) => {
         entered.resolve();
         await release.promise;
-        if (checksDispatch) await options.beforeDispatch?.();
+        if (checksDispatch) await options.beforeDispatch?.().catch(error => { refusedAtDispatch = error; throw error; });
         return "迟到的回答";
       });
       const item = platformIn(directory, { current: model.complete }), plugin = probe({ name: checksDispatch ? "dispatchprobe" : "ignoreprobe" });
@@ -303,18 +311,21 @@ test("a call is the call's: cancelled while the model answers, the answer is not
         await assert.rejects(cancelled);
         assert.deepEqual(seen.handed, [], `checksDispatch=${checksDispatch}: the answer arrived and was not handed over`);
         assert.equal(seen.refused.length, 1);
+        assert.equal(refusedAtDispatch !== undefined, checksDispatch, "the check made just before sending is the one that stopped a model that makes it");
         assert.equal(model.calls.length, 1, "the model had been asked: the call was cancelled while it answered");
       } finally { item.store.close(); }
     }
   }));
 
-test("a call is the plugin's while it runs: stopped while the model answers, the answer is not handed over and a client kept from before the stop is dead", { timeout: 60_000 },
+test("a call is the plugin's while it runs: stopped while the model answers, the answer is not handed over, and the client of an earlier start stays dead after the plugin runs again",
+  { timeout: 60_000 },
   withDirectory(async directory => {
     const entered = deferred(), release = deferred();
     const model = standIn(async () => { entered.resolve(); await release.promise; return "停止后的回答"; });
     const item = platformIn(directory, { current: model.complete }), plugin = probe();
     try {
       await item.platform.start([{ definition: plugin.definition, ...GRANTED }]);
+      const earlier = plugin.model();
       const seen = watched(plugin);
       const pending = item.invoke(plugin.ask);
       pending.catch(() => {});
@@ -327,7 +338,14 @@ test("a call is the plugin's while it runs: stopped while the model answers, the
       await assert.rejects(pending);
       assert.deepEqual(seen.handed, [], "the plugin was stopped; its call gets no answer");
       assert.equal(seen.refused.length, 1);
-      await assert.rejects(plugin.model().complete(instructed(plugin.summarize, "材料")), { code: "actions.forbidden" });
+
+      // Running again is a new instance with its own client; the one kept from before is not revived, even inside the new instance's action.
+      await item.platform.runtime.start(item.installId(plugin.id));
+      assert.notEqual(plugin.model(), earlier);
+      plugin.on.ask = () => earlier.complete(instructed(plugin.summarize, "材料"));
+      await assert.rejects(item.invoke(plugin.ask), { code: "actions.forbidden" });
+      plugin.on.ask = ({ model: current }) => current.complete(instructed(plugin.summarize, "材料"));
+      assert.deepEqual(await item.invoke(plugin.ask), { text: "停止后的回答" }, "the new instance's own client works");
     } finally { item.store.close(); }
   }));
 
@@ -398,38 +416,44 @@ test("instructions a definition carries are registered while it runs and only th
       } finally { third.store.close(); }
     } finally { first.store.close(); second.store.close(); }
 
-    // A definition cannot register instructions under another owner's name, nor under a name the catalog already registers for.
-    const wrong = platformIn(directory), strange = probe({ name: "strange", instructions: () => [defineInstructionPrompt({ owner_id: idOf("someone-else"), prompt_id: "x", version: 1, title: "x", purpose: "x", used_by: [], body: "x" })] });
-    const catalogOwner = platformIn(directory), shadow = probe({ name: "shadow",
-      instructions: () => [defineInstructionPrompt({ owner_id: "io.molis.work.todo", prompt_id: "x", version: 1, title: "x", purpose: "x", used_by: [], body: "x" })] });
+    // A definition cannot register instructions under another owner's name, nor for an owner whose instructions the catalog registers.
+    // What the supervisor shows of a start that failed is a generic line, so the check is that the plugin never started and nothing ran.
+    const wrong = platformIn(directory), strange = probe({ name: "strange", instructions: () => [defineInstructionPrompt({ owner_id: idOf("someone-else"), prompt_id: "x",
+      version: 1, title: "x", purpose: "x", used_by: [], body: "x" })] });
+    const duplicate = platformIn(directory), shadow = probe({ pluginId: "io.molis.work.todo" });
     try {
       const refused = await wrong.platform.start([{ definition: strange.definition, ...GRANTED }]);
       assert.deepEqual(refused.running, []);
-      assert.match(refused.failed[0]!.message ?? "", /someone-else|别的/, "the owner is named");
+      assert.deepEqual(refused.failed.map(entry => entry.plugin_id), [strange.id]);
       assert.equal(strange.started.length, 0, "the plugin never started");
-      assert.deepEqual((await catalogOwner.platform.start([{ definition: shadow.definition, ...GRANTED }])).running, [], "an owner that is not the plugin's own");
-    } finally { wrong.store.close(); catalogOwner.store.close(); }
+      const doubled = await duplicate.platform.start([{ definition: shadow.definition, ...GRANTED }]);
+      assert.deepEqual(doubled.running, [], "Todo's instructions are the catalog's: a second source for the same owner is refused");
+      assert.deepEqual(doubled.failed.map(entry => entry.plugin_id), [shadow.id]);
+      assert.equal(shadow.started.length, 0);
+    } finally { wrong.store.close(); duplicate.store.close(); }
   }));
 
-test("through the Host's text path: with no model injected, a call reaches the configured model by hostTextGeneration (agent-host's Prologue inference) and the answer carries what the provider reported", { timeout: 60_000 },
+test("through the Host's text path: a Host given no model reaches the configured one by hostTextGeneration (agent-host's Prologue inference), and the answer carries what the provider reported",
+  { timeout: 60_000 },
   withDirectory(async directory => {
     const provider = await startModelStandIn("path-key-0123456789", "来自模型的回答");
-    const names = ["MOLIS_WORK_TEXT_API_KEY", "MOLIS_WORK_TEXT_BASE_URL", "MOLIS_WORK_TEXT_MODEL", "MOLIS_WORK_TEXT_API_FORMAT"] as const;
-    const item = platformIn(directory, { current: undefined }), plugin = probe();
+    const { home, reference } = await homeWithProject(directory);
+    const plugin = probe({ required: true });
+    const asUser: ActionCallContext = { actor_id: "web-user", project_id: reference.project_id, audience: "user", permissions: [MODEL_INVOKE] };
     try {
       await withoutEnvironmentModel(async () => {
         Object.assign(process.env, { MOLIS_WORK_TEXT_API_KEY: "path-key-0123456789", MOLIS_WORK_TEXT_BASE_URL: provider.baseUrl, MOLIS_WORK_TEXT_MODEL: "stand-in-model",
           MOLIS_WORK_TEXT_API_FORMAT: "openai-chat-completions" });
+        const host = new MolisWorkLocalHost({ homeDirectory: home, pluginFixtures: { project: [plugin.definition] } });
         try {
-          await item.platform.start([{ definition: plugin.definition, ...GRANTED }]);
-          assert.deepEqual(plugin.model().availability(), { available: true });
-          const result = await item.invoke<PluginModelResult>(plugin.ask);
+          const result = JSON.parse(await host.actionClient(reference).invoke(asUser, plugin.ask, {}) as string) as PluginModelResult;
           assert.equal(result.text, "来自模型的回答");
           assert.deepEqual(result.usage, { input_tokens: 3, output_tokens: 2 }, "what the provider reported");
           assert.deepEqual(provider.requests.map(request => [request.model, request.offeredKey]), [["stand-in-model", "path-key-0123456789"]]);
-        } finally { for (const name of names) delete process.env[name]; }
+          assert.deepEqual(plugin.model().availability(), { available: true });
+        } finally { await host.close(); }
       });
-    } finally { item.store.close(); await provider.close(); }
+    } finally { await provider.close(); }
   }));
 
 /** A new Home with one project, a real project database the Host can open. */

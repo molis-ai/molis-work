@@ -176,8 +176,9 @@ test("ISSUE-36 while an input method is composing, ⌘↵ and the IME's own Ente
   await b.command("Input.imeSetComposition", { text: "jietu", selectionStart: 5, selectionEnd: 5 }, b.sessionId);
   // ⌘↵ and the IME's commit key arrive while the pinyin is still being composed (key code 229). Whether this Chrome
   // then commits the pinyin itself is the browser's business; sending is the page's, and it must not happen.
+  // 229 is the virtual IME key code. Passing it as a macOS native key code stalls Chrome even in an empty iframe.
   for (const modifiers of [4, 0]) for (const type of ["rawKeyDown", "keyUp"])
-    await b.command("Input.dispatchKeyEvent", { type, modifiers, key: "Enter", code: "Enter", windowsVirtualKeyCode: 229, nativeVirtualKeyCode: 229 }, b.sessionId);
+    await b.command("Input.dispatchKeyEvent", { type, modifiers, key: "Enter", code: "Enter", windowsVirtualKeyCode: 229 }, b.sessionId);
   await new Promise(resolve => setTimeout(resolve, 400));
   assert.equal(await v.ask("d.querySelectorAll('[data-issue-list] [data-state]').length"), 0, "nothing is sent while composing");
   assert.equal((await v.list()).items.length, 0);

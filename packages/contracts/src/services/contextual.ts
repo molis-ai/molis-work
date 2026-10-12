@@ -189,8 +189,12 @@ export interface ContextualCandidate {
   /**
    * Where the candidate was declared. Absent: fragment offers (`frag.` keys). `subject`: the object's subject offers,
    * which the Home / Dock rules also choose from; their keys stay `offer.` so saved rules and bindings keep working.
+   * `intake`: a command that creates an Item (`intake.` keys). `attach`: a command that puts the thing in hand into the
+   * object open on the left (`attach.` keys). The last two are destinations: they only ever take a recommended slot.
    */
-  readonly origin?: "subject";
+  readonly origin?: "subject" | "intake" | "attach";
+  /** For `attach`: where in the landing object it would put the thing, as the landing reported it. */
+  readonly position?: SurfaceLandingPosition;
 }
 
 export type AssistantForm = "none" | "suggest" | "options" | "preview" | "compare";

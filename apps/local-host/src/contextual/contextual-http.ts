@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { ActionError, type ActionReference, type ActionView, type FragmentActionOffer, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FUNCTIONS_DEFAULT_MODEL } from "@molis-ai/molis-work-contracts/modules/functions";
-import type { ContextualJudgeRequest, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
+import type { ContextualJudgeRequest, SurfaceFocus, SurfaceLanding } from "@molis-ai/molis-work-contracts/services/contextual";
 import { contextualCandidates, type JudgmentWording } from "@molis-ai/molis-work-kernel/contextual";
 import { TYPESAFE_SYSTEMONE_URL } from "@molis-ai/molis-work-module-functions";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
@@ -78,11 +78,11 @@ const WHERE: Readonly<Record<string, string>> = { word: "选中的词", range: "
  * What the person did with an offered action (P3), for the memory service to count: the capability and its title only,
  * never the content. Nothing is reported when this directory has no memory, and a stale key is refused.
  */
-async function reportSignal(focus: SurfaceFocus, key: string, signal: string, eventId: string, caller: Caller) {
+async function reportSignal(focus: SurfaceFocus, landing: SurfaceLanding | undefined, key: string, signal: string, eventId: string, caller: Caller) {
   const views = await directory(caller);
   const view = memoryAction(views, "memory.signals.report");
   if (!view) return { state: "unavailable" as const };
-  const candidate = contextualCandidates(views, focus).find(item => item.key === key);
+  const candidate = contextualCandidates(views, focus, landing).find(item => item.key === key);
   if (!candidate) throw contextualErrors.stale("这个动作已不在当前内容的候选里");
   const surface = views.find(item => (item.provider.plugin_id ?? item.provider.provider_id) === focus.plugin_id)?.provider.title;
   const where = focus.activity === "completed" ? "刚完成的一步" : focus.activity === "editing" ? "正在写的段落" : WHERE[focus.granularity] ?? "选中的内容";
@@ -174,10 +174,10 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     if (route === "signal") {
       const signal = readString(body.signal, "signal", 20);
       if (!SIGNALS.has(signal)) throw invalid("signal");
-      sendJson(response, 200, await reportSignal(judgeRequest.focus, readString(body.key, "key", 80), signal, readString(body.event_id, "event_id", 120), caller));
+      sendJson(response, 200, await reportSignal(judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80), signal, readString(body.event_id, "event_id", 120), caller));
       return true;
     }
-    sendJson(response, 200, await prepare(judgeRequest.focus, readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), caller));
+    sendJson(response, 200, await prepare(judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), caller));
   } catch (error) {
     const status = error instanceof ActionError ? (error.code === "actions.forbidden" ? 403 : error.code === "actions.input_invalid" || error.kind === "invalid" ? 400 : 409) : 500;
     sendJson(response, status, { code: error instanceof ActionError ? error.code : "contextual.failed",
@@ -190,10 +190,12 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
  * The chosen offer's complete input, prepared by the provider that declared it for exactly this fragment. Preparing
  * writes nothing; the offer must still be a candidate of this context and name the same action it did when judged.
  */
-async function prepare(focus: SurfaceFocus, key: string, requestId: string, caller: Caller) {
-  const candidate = contextualCandidates(await caller.actions.discover(), focus).find(item => item.key === key);
+async function prepare(focus: SurfaceFocus, landing: SurfaceLanding | undefined, key: string, requestId: string, caller: Caller) {
+  const candidate = contextualCandidates(await caller.actions.discover(), focus, landing).find(item => item.key === key);
   if (!candidate) throw contextualErrors.stale("这个动作已不在当前内容的候选里，请重新选择");
   if (!candidate.available) throw contextualErrors.unavailable(candidate.reason ?? "这个动作现在不可用");
+  // A destination is not prepared by an offers query that the provider answers: the person's passage is drafted into its input.
+  if (candidate.origin === "intake" || candidate.origin === "attach") throw contextualErrors.not_drafted("这个去处的参数要由起草服务准备，这里还不能直接准备");
   // One of the object's subject offers: prepared exactly as the Home / Dock prepares it, by the query that declared it.
   if (candidate.origin === "subject") {
     const notOffered = () => contextualErrors.not_offered(`${candidate.provider_title} 没有为这件事项准备「${candidate.title}」`);

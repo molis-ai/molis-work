@@ -87,7 +87,8 @@ export interface ContextualCandidate {
     readonly available: boolean;
     readonly reason?: string;
     readonly scope?: "object";
-    readonly origin?: "subject";
+    readonly origin?: "subject" | "intake" | "attach";
+    readonly position?: SurfaceLandingPosition;
 }
 
 export interface ContextualJudgeRequest {

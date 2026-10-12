@@ -17,13 +17,13 @@ export function renderTitlebar(rec: Recording, ui: Ui): string {
   const layoutButton = (layout: "assistant" | "coding", label: string): string =>
     button({ label, variant: "ghost", action: "layout", data: { layout }, pressed: ui.layout === layout });
   return `<header class="pv-titlebar">
-    <p class="pv-brand">${icon("brand")}<strong>Molis Work</strong>
-      <span class="pv-caption"><span class="pv-dot" aria-hidden="true"></span>回执预览 R0<span class="pv-caption-more"> · 事件是 Prologue <code>${esc(sha)}</code>${source.dirty ? "（有未提交改动）" : ""} 的真实 SDK 用脚本模型录下的，不是真实运行；Molis 层为模拟，不连接 Home</span></span></p>
+    <p class="pv-brand">${icon("brand")}<strong>Molis Work</strong><span class="pv-caption"><span class="pv-dot" aria-hidden="true"></span>回执预览 R0（模拟）</span></p>
     <div class="pv-tools">
       <div class="pv-switch" role="group" aria-label="布局">${layoutButton("assistant", "助理")}${layoutButton("coding", "Coding")}</div>
       <div class="pv-demo">${button({ label: "演示", variant: "ghost", icon: "tune", action: "demo", expanded: ui.menu === "demo", haspopup: "dialog" })}${ui.menu === "demo" ? demoPanel(rec, ui) : ""}</div>
       ${button({ label: ui.theme === "dark" ? "浅色" : "深色", variant: "ghost", icon: ui.theme === "dark" ? "sun" : "moon", action: "theme" })}
-    </div></header>`;
+    </div></header>
+  <p class="pv-notice" role="note">模拟预览：事件是 Prologue <code>${esc(sha)}</code>${source.dirty ? "（有未提交改动）" : ""} 的真实 SDK 用脚本模型录下的，不是真实运行；Molis 层为模拟，不连接 Home。</p>`;
 }
 
 function demoPanel(rec: Recording, ui: Ui): string {

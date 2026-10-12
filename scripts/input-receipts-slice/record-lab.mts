@@ -14,7 +14,7 @@ export type LedgerEvent = Dict & { readonly type: string };
 /** The part of the SDK the lab calls. The package is loaded from a built checkout, so its types are not importable. */
 export interface SdkRun { readonly ref: { readonly id: string }; subscribe(listener: (event: LedgerEvent) => void): () => void; cancel(): Promise<void> }
 export interface SdkControl {
-  steer(input: { text: string; source?: string; about?: string; interrupt?: boolean }): Promise<{ steerId: string; replayed: boolean }>;
+  steer(input: { text: string; key?: string; source?: string; about?: string; interrupt?: boolean }): Promise<{ steerId: string; replayed: boolean }>;
   withdrawSteer(id: string): Promise<void>;
   stop(reason: "stopped" | "cancelled"): void;
 }

@@ -3,7 +3,7 @@ export const frameStyles = `
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; }
-body { margin: 0; overflow: hidden; display: grid; grid-template-rows: 44px minmax(0, 1fr); background: var(--desk); color: var(--ink);
+body { margin: 0; overflow: hidden; display: grid; grid-template-rows: 44px auto minmax(0, 1fr); background: var(--desk); color: var(--ink);
   font-family: var(--font); font-size: 13px; line-height: 1.5; letter-spacing: -.011em; }
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; } button:disabled { cursor: not-allowed; }
@@ -17,6 +17,8 @@ code { font-family: var(--mono, ui-monospace, monospace); font-size: .92em; }
 .pv-titlebar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px 0 18px; min-width: 0; }
 .pv-brand { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
 .pv-caption { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 12px; padding-left: 10px; box-shadow: inset 1px 0 0 var(--line-strong); }
+/* The statement that this is not a real run is always on the page, at every width, and wraps instead of being cut. */
+.pv-notice { padding: 0 18px 8px; color: var(--muted); font-size: 11.5px; line-height: 1.45; }
 .pv-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
 .pv-tools { display: flex; align-items: center; gap: 6px; flex: none; }
 .pv-switch { display: flex; gap: 2px; padding: 3px; border-radius: var(--r-control); background: var(--control-fill); }
@@ -40,6 +42,7 @@ code { font-family: var(--mono, ui-monospace, monospace); font-size: .92em; }
 .pv-lede { max-width: 60ch; margin-bottom: 24px; }
 .pv-rows { display: grid; max-width: 620px; } .pv-rows li { display: flex; align-items: center; gap: 10px; min-height: 40px; box-shadow: inset 0 -1px 0 var(--line); } .pv-rows li span { margin-left: auto; color: var(--faint); font-size: 12px; }
 .pv-decor-note { margin-top: 16px; color: var(--faint); font-size: 12px; }
+.pv-goal::after { content: ""; position: absolute; inset: 0; background: var(--scrim); pointer-events: none; }
 
 /* The conversation panel: the Assistant rises over the work; Coding keeps it in the middle column. */
 .rc-panel { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--paper); }
@@ -124,9 +127,9 @@ code { font-family: var(--mono, ui-monospace, monospace); font-size: .92em; }
   @keyframes rc-in { from { opacity: 0; transform: translateY(6px); } }
 }
 @media (max-width: 1180px) { .cd-layout { grid-template-columns: 200px minmax(0, 1fr); } .cd-review { display: none; } }
-@media (max-width: 860px) { .cd-layout { grid-template-columns: minmax(0, 1fr); } .cd-directory { display: none; } .pv-caption-more { display: none; } }
+@media (max-width: 860px) { .cd-layout { grid-template-columns: minmax(0, 1fr); } .cd-directory { display: none; } }
 @media (max-width: 520px) {
-  .pv-titlebar { padding: 0 8px 0 12px; } .pv-brand strong, .pv-caption { display: none; } .pv-tools { margin-left: auto; }
+  .pv-titlebar { padding: 0 8px 0 12px; } .pv-brand strong, .pv-caption { display: none; } .pv-notice { padding: 0 12px 6px; } .pv-tools { margin-left: auto; }
   .pv-sheet { inset: 0 6px 6px; } .rc-panel--assistant { width: calc(100% - 12px); height: calc(100% - 12px); bottom: 6px; }
   .rc-thread { padding: 10px 10px; } .rc-foot { padding: 8px 10px 10px; } .rc-four > div { grid-template-columns: 1fr; gap: 0; }
   .mw-btn--sm, .rc-status, .rc-tray-toggle, .rc-menu-item, .rc-tray-item { min-height: 44px; } .rc-input-field { min-height: 44px; }

@@ -8,14 +8,17 @@ import { renderTitlebar } from "./render-chrome.ts";
 import { renderStage } from "./render.ts";
 import { TREATMENT_SHORT } from "./labels.ts";
 import * as U from "./ui-state.ts";
-import { viewAt } from "./scene-state.ts";
 
 const json = (id: string): Recording => JSON.parse(document.getElementById(id)?.textContent ?? "{}") as Recording;
 const recordings: Record<U.Layout, Recording> = { assistant: json("data-assistant"), coding: json("data-coding") };
-const chrome = document.getElementById("chrome");
-const stage = document.getElementById("stage");
-const live = document.getElementById("live");
-if (chrome === null || stage === null || live === null) throw new Error("the preview shell is missing");
+const shell = (id: string): HTMLElement => {
+  const element = document.getElementById(id);
+  if (element === null) throw new Error(`the preview shell is missing #${id}`);
+  return element;
+};
+const chrome = shell("chrome");
+const stage = shell("stage");
+const live = shell("live");
 
 const rec = (): Recording => recordings[ui.layout];
 const prefersDark = typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
@@ -203,5 +206,4 @@ document.addEventListener("keydown", event => {
   if (ui.trayOpen) { set({ ...ui, trayOpen: false }); findByKey("tray|")?.focus(); }
 });
 
-void viewAt;
 draw({ follow: true });

@@ -19,9 +19,7 @@ export const PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT = `(host) => {
     if (reading || document.hidden) return; reading = true;
     const started = ++epoch;
     try {
-      const response = await fetch(route("/api/plugins/runtime/events"), { cache: "no-store" });
-      if (!response.ok) return;
-      const pending = ((await response.json()).pending || []).length;
+      const pending = ((await molisWorkRequest(route("/api/plugins/runtime/events"))).pending || []).length;
       if (started === epoch) announce(pending);
     } catch { /* A reminder, not a gate: a failed read leaves the last count in place. */ }
     finally { reading = false; }

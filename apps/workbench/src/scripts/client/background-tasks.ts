@@ -56,9 +56,8 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
           stop.disabled = true;
           try {
             const url = "/projects/" + encodeURIComponent(task.project_id) + "/api/plugins/io.molis.work.coding/sessions/" + encodeURIComponent(task.session_id) + "/background/" + encodeURIComponent(command.task_id) + "/stop";
-            const headers = typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" };
-            const response = await fetch(url, { method: "POST", headers, body: "{}" });
-            if (response.ok) { line.remove(); key = ""; void refresh(); } else stop.disabled = false;
+            await molisWorkRequest(url, { body: {} });
+            line.remove(); key = ""; void refresh();
           } catch { stop.disabled = false; }
         });
         line.append(node("span", L("后台命令"), "background-task-command-label"), node("code", command.summary), stop);
@@ -69,9 +68,7 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
   const refresh = async () => {
     if (reading || document.hidden) return; reading = true;
     try {
-      const response = await fetch("/api/background-tasks", { cache: "no-store" });
-      if (!response.ok) return;
-      const data = await response.json(), next = JSON.stringify(data.tasks || []);
+      const data = await molisWorkRequest("/api/background-tasks"), next = JSON.stringify(data.tasks || []);
       if (next !== key) { key = next; tasks = data.tasks || []; render(); }
     } catch { /* The list is a convenience; a failed read leaves the last one shown. */ }
     finally { reading = false; }

@@ -1302,12 +1302,14 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 
 **I5 第二条失败的核对。** global-ui-interaction 的窄屏设置迟到响应用例失败（约7.9秒）。固定源码的旧 hook只匹配相对 /settings/runtimes，现请求助手发送 target.href；两方核对确认该 hook无法拦截实际请求，loading请求身份保护仍在。待全量footer与原文件、干净acede基线实际运行确认，不把静态定位当成修复通过。W3-10-1B-INTERLEAVE-01：按实际URL的pathname匹配同一路由，保留真实fetch回应、持有→切回appearance→释放的交错、两帧等待、所有panel/选中/drawer/inert断言与60秒上限；修复归1b，冻结树仍不改。
 
+**I5 第三条失败仍待裁决。** issue-page 的 ISSUE-10 原生拖放/离开记录图像导入用例失败（约1.29秒），同文件其余四条通过；它不属于此前issue-capture-page的16/16。与acede相比，此测试、Issue client/image/capture、fixture与lifecycle未变，相关生产差异仅插件改用SDK binder。只读核对发现“正在读取截图…”早于文件头异步读取，测试未等待issueFinish解码barrier出现就取消/离开并调用它；等待footer后按实际失败点重跑及基线比对，尚不归为产品、组合或时序问题，不放宽断言/时限。
+
 **W3-02-G2-BODY-01。** Functions 经真实 HTTP 拒绝同一超限请求为 413 / actions.input_too_large / 请求内容过大，无效 JSON 为 400 / actions.input_invalid / 请求不是有效 JSON；两者均在业务 handler 前拒绝，动作不执行。仅按已接受 kind 合同同步旧断言、标题和注释，不放宽大小、输入、错误体或时限。
 
 **继续执行。** I4 的失败核对和当前定向复验已完成，接下来把原整合修复归回对应分片、构建和门禁验证、CI 全过后逐片合入；第五批的 W3-10-1b 修复及整合随后收口。B/C 剩余片沿 `wave3-batchB-plan.md`，每批合入后做系统要求合规复查，再执行路线图第 4–6 波。维护八先用拷贝列出和演练，真实 Home 写入等用户决定；不清理其他会话的工作树、分支或备份。
 
 
-**测试设施的两项收口。** `IME-SIM-01`：ISSUE-36 保留真实 CDP composition、Windows/DOM 键码 229、⌘↵与普通回车不提交、结束组合后只保存一次且原文相同的全部断言；不把 Windows 值硬填进可选的原生键码，验证实际到达的 composing/229 事件，不延长时限。依据 [CDP Input 定义](https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/domains/Input.pdl)，两个键码字段独立，原生键码可省略（默认 0）。`BROWSER-CLEAN-01`：仅临时 Home 的递归删除使用有界重试，保留 Chrome/server/Host/DB 的关闭顺序、5 秒上限及最终 AggregateError；Linux 验证成功与目录实际消失，不用隔离名单或吞错取得通过。两项各自提交，与业务修复分开。IME 独立 #461 已于 13:55 合入 main faee12f3；清理独立 #462 已开，固定 1f16574f5 复核无 Blocker/P1、完整锁构建/类型/健康/边界与原入口 2/2 在 Mac 通过，原 IME 断言和时限未变。真实删除和唯一预设权限拒绝放在原 CI 浏览器文件，不新增第六冒烟；Linux Product subset（run 38304432216，测试合并树 041b574b）360/360，原入口两条均单次通过、无跳过；已验证真实目录消失及权限拒绝，必需 CI 与 Verify 通过后排入原队列，待同步 main 合入。
+**测试设施的两项收口。** `IME-SIM-01`：ISSUE-36 保留真实 CDP composition、Windows/DOM 键码 229、⌘↵与普通回车不提交、结束组合后只保存一次且原文相同的全部断言；不把 Windows 值硬填进可选的原生键码，验证实际到达的 composing/229 事件，不延长时限。依据 [CDP Input 定义](https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/domains/Input.pdl)，两个键码字段独立，原生键码可省略（默认 0）。`BROWSER-CLEAN-01`：仅临时 Home 的递归删除使用有界重试，保留 Chrome/server/Host/DB 的关闭顺序、5 秒上限及最终 AggregateError；Linux 验证成功与目录实际消失，不用隔离名单或吞错取得通过。两项各自提交，与业务修复分开。IME 独立 #461 已于 13:55 合入 main faee12f3；清理独立 #462 已开，固定 1f16574f5 复核无 Blocker/P1、完整锁构建/类型/健康/边界与原入口 2/2 在 Mac 通过，原 IME 断言和时限未变。真实删除和唯一预设权限拒绝放在原 CI 浏览器文件，不新增第六冒烟；Linux Product subset（run 38304432216，测试合并树 041b574b）360/360，原入口两条均单次通过、无跳过；已验证真实目录消失及权限拒绝；原daemon同步main后的dd4bb1cc5再次通过Product subset与必需CI/Verify，14:46合入main ed419f303。
 
 ### 10.2 Home Runtime 的接续验收（W3-06-F/G）
 

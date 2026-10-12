@@ -57,7 +57,6 @@ export {
 } from "./goals-document-routes.js";
 export {
   CLIENT_SCRIPT,
-  CONTROL_CLIENT_SCRIPT,
   MORE_STYLES,
   ONBOARDING_DISMISS_CLIENT_SCRIPT,
   PROJECT_GUIDANCE_CLIENT_SCRIPT,

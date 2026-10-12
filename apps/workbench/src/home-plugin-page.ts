@@ -1,6 +1,5 @@
 import { escapeHtml, renderIconSprite, SELECT_MENU_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
-import { CONTROL_CLIENT_SCRIPT } from "./scripts/control.js";
-import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { renderWorkbenchDocument } from "./document-shell.js";
 import type { BuiltinPluginEntry } from "./builtin-plugins.js";
 import { HOME_MODEL_SETTINGS_CLIENT_SCRIPT } from "./scripts/home-model-settings.js";
@@ -37,7 +36,7 @@ export function renderHomePluginPage(entry: BuiltinPluginEntry, html: string | n
         <div class="mw-form__body"><p role="status" data-home-model-status></p><button class="mw-btn mw-btn--secondary" type="button" data-home-model-retry hidden>重试</button><div data-home-model-content></div></div>
       </div>
     </dialog>
-    <script src="/assets/molis-work-plugins/${encodeURIComponent(id)}.js"></script><script>${CONTROL_CLIENT_SCRIPT}
+    <script src="/assets/molis-work-plugins/${encodeURIComponent(id)}.js"></script><script>${UI_REQUEST_CLIENT_SCRIPT}
     document.querySelector('[data-work-surface]')?.removeAttribute('hidden');
     globalThis.molisWorkbenchPluginFactories?.[${JSON.stringify(id)}]?.({side:${side},translate:text=>text,mountPluginClient:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()});
     document.querySelector('[data-home-lifecycle]')?.addEventListener('click',async(event)=>{

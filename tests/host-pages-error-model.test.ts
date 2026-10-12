@@ -11,10 +11,13 @@ import { fileURLToPath } from "node:url";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import * as hostModule from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import * as functionsModule from "@molis-ai/molis-work-module-functions";
 import * as integrationCatalog from "@molis-ai/molis-work-integration-catalog";
 import * as artifactsPlugin from "@molis-ai/molis-work-plugin-artifacts";
+import { todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import Database from "better-sqlite3";
 import { serveNativeHttp } from "./fixtures/native-http.js";
 
 // specs/repository-anti-corruption W3-02-G2: the Host's page and catalog edges answer through the one error model. The Functions mapper, the
@@ -162,6 +165,66 @@ test("the catalog's failures are ActionErrors with a code and the kind each answ
   assert.equal(actionHttpStatus(tooOld), 400);
   assert.deepEqual(tooOld.details, { actual_schema_version: 9, supported_schema_min: 1, supported_schema_max: 8, recovery: "new_or_fork_session_then_context_resolve" });
 });
+
+test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recovery details without rewriting its facts", async t => {
+  const home = await mkdtemp(join(tmpdir(), "host-pages-error-model-mcp-catalog-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const project = await catalog.createProject({ display_name: "保留目录项目", actor_id: "test" });
+  catalog.close();
+  const databasePath = join(home, "projects", "catalog.db");
+  const future = new Database(databasePath);
+  const supported = Number(future.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get());
+  future.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(supported + 1));
+  future.close();
+  const host = new hostModule.MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const mcp = new hostModule.LocalMcpServer(withMolisWorkProjectCatalog, "runtime", null, {
+    homeDirectory: home, runtimeContext: { runtime_id: "catalog-reader", stable_work_context_id: null, host_declares_stable: false },
+  }, host);
+  t.after(async () => { await mcp.close(); await host.close(); await rm(home, { recursive: true, force: true }); });
+  const reply = await mcp.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_context_resolve", arguments: {} } }) as
+    { result: { isError: boolean; content: Array<{ text: string }> } };
+  assert.equal(reply.result.isError, true);
+  const line = JSON.parse(reply.result.content[0]!.text.split("\n").at(-1)!) as Record<string, unknown>;
+  assert.deepEqual(line, { actual_schema_version: supported + 1, supported_schema_min: 1, supported_schema_max: supported,
+    recovery: "new_or_fork_session_then_context_resolve", code: "catalog.reader_too_old" });
+  const preserved = new Database(databasePath, { readonly: true });
+  try {
+    assert.equal(preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), String(supported + 1));
+    assert.equal(preserved.prepare("SELECT display_name FROM projects WHERE project_id = ?").pluck().get(project.project_id), "保留目录项目");
+  } finally { preserved.close(); }
+});
+
+for (const errorType of ["ActionError", "MolisWorkV1Error"] as const) for (const leavesRow of [false, true]) {
+  test(`W3-02-G2 MCP ${errorType} details cannot replace the code or forge a call number (${leavesRow ? "recorded" : "unrecorded"})`, async t => {
+    const home = await mkdtemp(join(tmpdir(), "host-pages-error-model-mcp-details-"));
+    const host = new hostModule.MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+    const ordinary = { actual_schema_version: 9, supported_schema_min: 1, supported_schema_max: 8, recovery: "new_or_fork_session_then_context_resolve" };
+    const forgedId = "11111111-1111-1111-1111-111111111111";
+    const details = { ...ordinary, code: "forged.code", call_id: forgedId };
+    const failure = errorType === "ActionError"
+      ? new ActionError("catalog.reader_too_old", "目录读取器版本过旧", { details })
+      : new MolisWorkV1Error("catalog.reader_too_old", "目录读取器版本过旧", details);
+    // The public catalog port fails inside the real MCP message scope. A failed Home read is a real Host settlement,
+    // so the recorded case proves that its displayed number finds a row, without manufacturing a call-id marker.
+    const mcp = new hostModule.LocalMcpServer(async () => {
+      if (leavesRow) await assert.rejects(host.homeActionClient().invoke({ actor_id: "web-user", actor_kind: "user", audience: "user",
+        project_id: null, permissions: ["todo:read"] }, todoActions.get, { id: "no-such-todo" }), { code: "todo.not_found" });
+      throw failure;
+    }, "runtime", null, { homeDirectory: home, runtimeContext: { runtime_id: "details-reader", stable_work_context_id: null, host_declares_stable: false } }, host);
+    t.after(async () => { await mcp.close(); await host.close(); await rm(home, { recursive: true, force: true }); });
+    const reply = await mcp.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_context_resolve", arguments: {} } }) as
+      { result: { isError: boolean; content: Array<{ text: string }> } };
+    assert.equal(reply.result.isError, true);
+    const line = JSON.parse(reply.result.content[0]!.text.split("\n").at(-1)!) as Record<string, unknown>;
+    const { call_id: id, ...fields } = line;
+    assert.deepEqual(fields, { ...ordinary, code: "catalog.reader_too_old" }, "ordinary details survive, and the error owns its code");
+    if (leavesRow) {
+      assert.equal(typeof id, "string");
+      assert.notEqual(id, forgedId);
+      assert.equal(host.callLog!.find(String(id))[0]?.code, "todo.not_found", "only the Host's recorded operation number is displayed");
+    } else assert.equal(Object.hasOwn(line, "call_id"), false, "details cannot name an operation that left no row");
+  });
+}
 
 test("the plugin routes of the settings tell a missing project from every other failure by its kind, and the answer carries the code", async t => {
   const home = await mkdtemp(join(tmpdir(), "host-pages-error-model-settings-"));

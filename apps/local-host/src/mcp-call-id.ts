@@ -20,12 +20,16 @@ export function withCallIdMeta(result: string | McpToolResult): string | McpTool
 
 /**
  * The text of a failed tool call: the message, then its code as a JSON line. `callId` is the operation's number when it left a row (see
- * `recordedCallId`); it joins that line, after the error's own fields, so no error can name another number.
+ * `recordedCallId`); the error's details cannot replace its code or name an operation that left no row.
  */
 export function formatMcpToolError(error: unknown, callId?: string): string {
   const message = error instanceof Error ? error.message : String(error);
   const number = callId ? { call_id: callId } : {};
-  if (error instanceof ActionError) return `错误: ${message}\n${JSON.stringify({ code: error.code, ...error.details, ...number })}`;
-  if (error instanceof MolisWorkV1Error) return `错误: ${message}\n${JSON.stringify({ code: error.code, ...(error.details ?? {}), ...number })}`;
+  if (error instanceof ActionError || error instanceof MolisWorkV1Error) {
+    const details: Record<string, unknown> = { ...error.details };
+    delete details.code;
+    delete details.call_id;
+    return `错误: ${message}\n${JSON.stringify({ ...details, code: error.code, ...number })}`;
+  }
   return callId ? `错误: ${message}\n${JSON.stringify(number)}` : `错误: ${message}`;
 }

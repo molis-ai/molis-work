@@ -17,12 +17,18 @@ test("底栏：输入法组合中按回车只确认候选、不发送；组合�
   await command("Input.imeSetComposition", { text: "ceshi", selectionStart: 5, selectionEnd: 5 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229, nativeVirtualKeyCode: 229 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229, nativeVirtualKeyCode: 229 }, sessionId);
-  await command("Input.insertText", { text: "测试" }, sessionId);
   await new Promise(resolve => setTimeout(resolve, 600));
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"), "测试", "the candidate is committed into the input");
   assert.equal(await works(), before, "nothing was sent while composing");
   // The page did receive that Enter: the guard, not a lost key, is what kept it from sending.
   assert.ok((await evaluate<Array<[string, number, boolean]>>("window.__keys")).some(([key, code, composing]) => key === "Enter" && (code === 229 || composing)), "the IME's Enter reached the input");
+  // Since Chrome 155 a synthetic Enter during composition makes the browser itself commit the pinyin (a bare textarea
+  // does the same), so the candidate is checked on a composition of its own: picking it replaces the pinyin.
+  await evaluate("(() => { const input = document.querySelector('[data-assistant-input]'); input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); })()");
+  await command("Input.imeSetComposition", { text: "ceshi", selectionStart: 5, selectionEnd: 5 }, sessionId);
+  await command("Input.insertText", { text: "测试" }, sessionId);
+  await new Promise(resolve => setTimeout(resolve, 600));
+  assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"), "测试", "the candidate is committed into the input");
+  assert.equal(await works(), before, "committing a candidate sends nothing");
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), true, "no work opened");
   // With the composition over, Enter sends what was typed.
   await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 }, sessionId);

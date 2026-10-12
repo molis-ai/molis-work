@@ -449,6 +449,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 | 2026-10-09 | 与 ai-interaction-experience 的分界：与输入框同排的按钮只放对话的下一步，页面选区动作走本设计的浮条 | 用户（该任务的 D1，经 goalboard-4e 告知） |
 | 2026-10-12 | 首批「放进左边」只做 Pages 的三个确定性动作（插入到光标处 / 替换选中的文字 / 作为引用插入）；暂缓三项：Pages「整理成要点后插入」（前置：W1 起草服务）、Goals「作为依据附上」（前置：Goals 报告落点）、Coding「放进下一轮材料」（前置：Coding 自己名下的文字摘录过程项）。被否的做法：第一批铺开多家。理由：确定性、预览即写入、可核对可撤销，比覆盖面广更重要；第一次用就出现模型改写、写错难撤，会伤信任 | 统筹按用户的规则定（功能线选用户体验最好的）；用户验收时可推翻 |
 | 2026-10-12 | 平台自带格的对象种类叫 `browser_page`、`discussion_message`。被否：`web.page`、`im.message`。理由：仓库里对象种类一律是「主人_东西」的下划线写法；点号写法与能力 id（`pages.create`）撞形；GLOSSARY 里讨论的代码词是 `discussion`，而 `im` 按 R-A10 指整个右栏的 dock，再拿它命名会加深重名。常量在原型的 `OBJECT_KIND`，产品里随 side 视图的 `objects` 登记 | 统筹按用户的规则定（技术决策看防腐后果）；用户验收时可推翻 |
+| 2026-10-12 | W1 规划（§18）：页内锚点叫 `SurfaceFocus.screen`（避开 `SurfaceFocusTarget.anchor`，元素引用不进合同）；`intake`、`attach` 声明在被指向的写入动作上，撤销沿用动作已有的 `undo`；浮条按钮按 DESIGN 下限（32 / 28 / 44px），浮条 `--lift-2`、菜单与面板槽 `--lift-3`；DOM 事件随第一对收发方登记；浮条原件 W1 只上组件板，W2 接入时资源净减；中枢接右栏、助理与落点的 DOM 线挪到 W3，内容站请求号挪到 W4 开头 | 本线按用户的规则定（技术决策看防腐后果：页面资源两向不容差、DOM 事件门禁、合同纯度、能力只登记一次） |
 
 ## 15. 吸收 main 的变化（2026-10-09）
 
@@ -661,8 +662,70 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 
 - **现在在哪**：W0 已在 origin/main `02ceba8c` 上构建、实操、打磨，工程用例通过（16.2、16.3）；只改了独立预览脚本、它的用例和本四份规格及索引，没有改产品 src、合同、SDK、Agent Host、门禁或预算。
 - **已定（统筹按用户的规则，用户验收时可推翻）**：首批「放进左边」清单与网页 / 讨论消息的对象种类名，已写回 side-shelf 5.4、§6、第 11 节与本文 8.3、§14。
-- **下一步**：按第 9 节从 W1 起做产品接入。动大文件前先拆（15.3 与现行巨大单元门禁）；每一步对照整页、成果库定位、资源字节、DOM 事件登记、Plugin Runtime 装配这些现行门禁。真实 AI 接入用采用线的统一 SDK 包，不另带包；输入提交消费输入回执线的合同；右栏「电脑」格归 Computer Use 原负责人，只留位置。
+- **下一步**：按 §18 的 W1 切片与 PR 序列做产品接入，每片从最新 main 开分支；动大文件前先拆，每一步对照 §18.2 的门禁。真实 AI 接入用采用线的统一 SDK 包，不另带包；输入提交消费输入回执线的合同；右栏「电脑」格归 Computer Use 原负责人，只留位置。
 - **要先问统筹的**：两组真实 Jev 评估、桌面原生拖出（要真实凭据或真实环境）；推送、开或改 PR、合并、发布、改真实 Home。
 - [AI 交互](https://github.com/molis-ai/molis-work/tree/feature/handoff-ai-interaction/specs/ai-interaction-experience) 与 [输入回执](https://github.com/molis-ai/molis-work/tree/feature/handoff-ai-input-receipts/specs/ai-input-receipts) 有各自主人；本分支延续[设计 PR #180](https://github.com/molis-ai/molis-work/pull/180) 的完整需求，不整份覆盖回旧设计稿。
 
 本分支是 WIP，不是可发布产品。
+
+## 18. W1 实施计划（2026-10-12 规划，基于 origin/main `a091fb67`）
+
+W1 做第 9 节「W1 共享件」：浮条组件与定位上移、新合同、候选派生与准备、起草服务、SDK 页面端、目录检查与覆盖率门禁骨架、第一份 `contextual.md`。下面按现行代码与门禁核对后排成 9 片；数字都是 `a091fb67` 上量的（门禁行数 = `wc -l` + 1）。
+
+### 18.1 分支与合并的规矩
+
+- 每片从最新 `origin/main` 开新工作树和分支（`feat/context-w1-<主题>`），一个主题一个 PR，体量目标 ≤50 个文件（PARALLEL-DEVELOPMENT §4）。`feature/handoff-contextual-actions` 只放原型与需求书，不进产品代码。
+- 新分支可以推送；开 PR 前先告诉统筹，由统筹问用户。合入 main 不在本线授权内。
+- 每片必跑：`pnpm build`（持 build 锁）、`node scripts/affected-tests.mjs` 选出的用例、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`；改了页面资源加 `node scripts/gates/page-assets.mjs --base origin/main`；改了公开合同加 `pnpm api:update`；改了动作声明加 `pnpm actions:update`；推前 `pnpm secrets:check`。浏览器用例持 browser 锁。
+- W1 动共享核心（contracts、kernel、plugin-sdk、workbench 外壳），按 PARALLEL-DEVELOPMENT §6 要全量：W1 各片合入前，在一条集成分支上合起来跑一次全量，对照干净基线工作树。
+
+### 18.2 现行门禁对本波的硬约束
+
+| 门禁 | 现状（`a091fb67`） | 对 W1 的约束 |
+| --- | --- | --- |
+| 页面资源字节（`page-assets.mjs`） | 两个方向都不容差：变大拒绝，变小也要在同一个 PR 用 `--update --base origin/main` 降到实测值。`workbench.js` 1,396,432；`workbench.css` 1,913,706；`pages-editor.js` 1,051,027（正好压线）；`craft-finish.ts` 同时进 `workbench.css`、`arrival.css`、`settings.css` 三份 | W1 不往任何已发的资源里加字节。浮条原件在 W1 只上组件板（样式与脚本是单独导出的字符串，只在组件板页内联）；接进工作台资源放在 W2，和删除底部动作条、Pages「AI」按钮与写作菜单同一个 PR，每份资源净减 |
+| 巨大单元 | `editor-browser.ts` 4043（`mount` 1024 等）、`craft-finish.ts` 2306、`assistant-island.ts` 2804、`tab-workspace.ts` 2049、`primitives/catalog.ts` 947（登记例外，不许长）、`styles/primitives.ts` 1276（登记例外） | 这些文件只删不增；新东西写新文件。组件板用互动线 P2 新加的扩展点（`catalog-examples.ts`），不往 `catalog.ts` 加行 |
+| DOM 事件登记（`dom-events.mjs`，无基线） | 登记了没人发或没人听就失败；未登记的发或听也失败；所有者文件名单（`context-actions` → `context-actions.ts`）必须是被跟踪的文件 | 每个新事件在第一对收发方同时出现的那个 PR 里登记。落点类事件（`molis:surface-landing`、`molis:landing-at`）的第一位发送者是 Pages（W3），所以它们随 W3 登记，不在 W1 |
+| 合同包纯度 | 合同包里不许有副作用、模块级可变状态和 20 行以上的函数（现 13 处，只许减少） | 新合同只放类型与常量；清洗、派生、上限检查放 kernel/contextual 或插件 SDK |
+| kernel/contextual 纯度（K1–K5） | 只许 `node:crypto` 与两份合同；无定时器、时钟、模块级可变状态、能力 id 字面量 | 派生逻辑不写任何具体能力 id |
+| 公开 API 快照 | contracts 每个子路径一份，SDK 只有 `plugin-sdk/index.txt` 一份 | 新字段改 `services/contextual.txt`、`platform/actions.txt`、`platform/ui.txt`、`plugin-sdk/index.txt`；新子路径要在同一 PR 有使用方（占位子路径门禁） |
+| 动作合同快照 | 动作元数据里的新字段会改用到它的每个动作的 `traits` 哈希 | W1 只加字段、不让任何插件声明，快照不变；W3、W4 让插件声明时同 PR `pnpm actions:update` |
+| 声明检查（插件 SDK，W3-03 B2 已合入） | `inspectActionDeclarations` 在 `packages/plugin-sdk/src/action-declarations.ts`，报错文字与先后顺序由 `tests/plugin-declaration-rules.test.ts` 钉住 | 新检查只往末尾追加，并在同一 PR 扩写那份字面量 |
+
+### 18.3 切片与 PR 序列
+
+| 片 | 主题 | 范围 | 验收编号 | 动到的门禁 | 前置 | 枢纽文件 |
+| --- | --- | --- | --- | --- | --- | --- |
+| W1-1 | 情境中枢拆文件（纯重构） | `context-actions.ts`（635 行、一段模板字符串）拆成 `context-bus.ts`（收焦点、窗格转发、请求 / 判断 / 信号、选择与交付）与 `context-bar.ts`（现在的底部行渲染），`initialization.ts` 组合；`dom-events.ts` 里 `context-actions` 所有者改列两个新文件；行为、事件、文案不变 | W1-01：拆分前后情境条行为一致（`contextual-interaction.e2e`、`pages-surface-naming`、`assistant-island-script` 同过）；`workbench.js` 字节不增 | 页面资源（只许相等或更小）、DOM 事件所有者、API 快照 `platform/dom-events.txt` | 无 | `initialization.ts`、`dom-events.ts` |
+| W1-2 | 浮层定位上移到设计系统（纯重构） | 新 `packages/design-system/src/floating.ts`：`placeFloating`、`scrollShouldFollow`、`pinAt`（含「窗格成了 fixed 参照盒」的校正）、`placeOverlay`（舞台改为参数）、`followScroll`；Pages 改为引用，`rowGapAt`、`scrollChildIntoView` 留在 Pages | W1-02：Pages 浮层位置不变（`pages-actions.e2e`、`pages-drag-target`、`pages-plugin` 同过）；`pages-editor.js` 字节不增；`editor-browser.ts` 变短 | 页面资源、巨大单元（只减）、设计系统 README 必跑 | 互动线 P2 先合（同改设计系统 `index.ts`、README） | 设计系统 `index.ts`、README |
+| W1-3 | 情境合同：位置、落点、工具、面板槽 | `services/contextual.ts`：`SurfaceFocus.place`、`side_tab`、页内锚点 `screen`（只在本文档内用，跨文档与发给宿主时丢弃）；`SurfaceLanding`；`FrozenFocus.landing`；`ContextTools` 三层类型与上限常量；面板槽 detail 类型；五个新事件名常量。kernel 加清洗函数（工具 ≤6 组、≤24 项、标题 ≤24 字；落点位置三种）；宿主 `readJudgeRequest` 收 `place`、`side_tab`、`landing` 并设上限；判断材料加「手上在哪一格、落点是什么」两行（side-shelf 5.5） | T08（工具清洗与上限有单测）、W1-03：越界与多余字段被丢弃，`screen` 不到宿主 | API 快照 `services/contextual.txt`、合同纯度、K1–K5、安全不变量（提示注入用例覆盖新字段） | 无 | `services/contextual.ts`、`contextual-http.ts` |
+| W1-4 | 目录声明：创建入口、追加与放进、范围 | 在被指向的写入动作的元数据上声明 `intake`（名称、动词、说明、示例、`item_kind`、`material_field`、`prepare`、`effect`、`multiple`）与 `attach`（同上加 `positions`、`find`）；撤销沿用该动作已有的 `undo`；`places` 加到选区、对象可选动作与 `intake`；`ui.views` 的 side 视图加 `objects`。类型在新文件 `platform/item-intake.ts`，经 `platform/actions` 转出（不开新子路径）。插件 SDK 加检查：`attach` 只能指向本提供方的对象种类；带 `cursor`/`selection` 位置的写入动作必须是 command、带版本条件、不是不可撤回的（side-shelf 4.3 第 3 条）；选项键唯一；side 视图写的每个种类都有读取器 | AC-S10、AC-S14（检查部分）、Q01（声明部分）、W1-04：违规声明在登记时被拒，报错文字逐条钉在 `plugin-declaration-rules` | API 快照 `platform/actions.txt`、`platform/ui.txt`、`plugin-sdk/index.txt`；声明规则字面量（只追加）；动作快照不变 | W1-3；与防腐线 W3-05-1（同改 SDK 声明检查）排先后 | `platform/actions.ts`、`platform/ui.ts`、`plugin-sdk/src/action-declarations.ts` |
+| W1-5 | 候选派生、预筛与准备核对 | kernel：`intake.`、`attach.` 候选（键 `intake.<提供方>.<能力>`、`attach.<提供方>.<能力>`），`places` 收窄，落点决定 `attach` 位置候选；规则预筛：总数 ≤12、去处类 ≤8；陈列规则：去处类只进推荐位，不进「更多」与「全部操作」。宿主：`/api/contextual/prepare` 认新键；准备时冻结落点版本，执行前核对，版本不符在任何写入前拒绝；仅本人可见来源的正文不进判断 | AC-P01（同一份候选的逻辑部分）、AC-P04、AC-S06、AC-S09、Q06（隐私部分）、W1-05 | K1–K5、`contextual-interaction`、`contextual-dock-parity`、`contextual-fragment-offers`；动作服务类不增行 | W1-3、W1-4 | `contextual-http.ts`、kernel `contextual.ts`（超 400 行就拆成 `contextual/*.ts`） |
+| W1-6 | 浮条原件与面板槽（只上组件板） | 设计系统新文件：浮条的页面脚本字符串（建条、折叠成「格式 ▾」、窄时 2 个动作、⌘. / ←→ / Esc、`mousedown` 不抢焦点、面板槽同层同位）与样式字符串 `CONTEXT_TOOLBAR_STYLES`；组件板一节（浅深、窄、触屏 44px、减少动画）；`DESIGN.md` 加「Context toolbar」一小节。不接进工作台资源 | T01、T05、T06 在组件板上的部分；W1-06：组件板标本齐、键盘路径与 44px 由用例量 | `primitives.test.ts`（组件板 id）、触屏尺寸用例；页面资源不变 | W1-2；互动线 P2 的组件板扩展点已合入 | `DESIGN.md`、设计系统 `index.ts`、`catalog-examples.ts` |
+| W1-7 | 起草服务 | 宿主新目录 `apps/local-host/src/drafting/`：按目的地动作的输入 schema 起草，一次 `hostTextGeneration`（`structured`），不开 Agent 轮次、不带工具、不写记录；材料先 `redactText`、`screenInbound`，按 S-13 写成带不可信声明的数据；有 `prepare` 先确定地算；无模型或失败退回规则，保留用户原话；路由 `POST /api/contextual/draft`（按 2026-10-10 决定只给工作台；助理要用时改成只读系统动作） | Q02、Q03、Q05 的服务部分；W1-07：起草不写任何记录、失败不丢原话、像指令的材料被当数据 | 安全不变量（提示注入行加入口）、`affected-tests` 选出的路由用例 | W1-4 | `web-request.ts`（挂路由一行）、`docs/system/SECURITY-INVARIANTS.md` |
+| W1-8 | 覆盖率门禁骨架与第一份 `contextual.md` | 新 `tests/plugin-context-coverage.test.ts`：按内置目录算出「对象声明 / 创建入口 / 选区动作」覆盖表，「待补」（带波次）与「不适用」（带理由）两份冻结名单与算出的集合双向相等，只许减少；进 `tests/ci-product-subset.txt`。`skills/molis-plugin-dev/contextual.md` 第一部分：现行的对象声明、选区动作、`molis:surface-focus`、页面接动作，加 W1-4 的声明写法；SKILL.md 加一行；`docs/platform/PLUGIN-DEVELOPMENT.md` 加一节；`AGENTS.md` 加一条硬约束 | C13、W1-08：新插件不能进名单；名单删一行就要真的补上 | 文档引用门禁（反引号路径须存在）、产品子集清单规则 | W1-4 | `AGENTS.md`、`SKILL.md`、`PLUGIN-DEVELOPMENT.md`、`ci-product-subset.txt` |
+| W1-9 | 插件 SDK 页面端 `contextual` | SDK 新子路径（页面端，只依赖合同）：报告手上的东西与落点、发布工具、开面板槽、接收选择；内部转发跨 iframe 的同源消息，插件不手写 `postMessage` | AC-S14（页面端部分）、W1-09 | API 快照（SDK 多一个子路径）、`public-sdk-private-dependency`、`plugin-sample.e2e` | W1-3；**统筹确认**：SDK 快照工具要支持子路径（改 `scripts/gates/api-snapshot.mjs`，属于门禁脚本） | `packages/plugin-sdk/package.json`、`scripts/gates/api-snapshot.mjs` |
+
+排序：W1-1、W1-3 可以先开；W1-2 等互动线 P2；W1-4 等 W1-3 并与防腐线 W3-05-1 排先后；W1-5 等 W1-3、W1-4；W1-6 等 W1-2；W1-7、W1-8 等 W1-4；W1-9 等统筹答复。一次只有一个 writer，按上面的依赖串行，前一片推送、开 PR 后再开下一片。
+
+### 18.4 从 W1 挪出去的两件（理由与取舍）
+
+- **情境中枢接右栏、助理与落点的 DOM 线**（第 9 节原写在 W1）：挪到 W3 第一片，和 Pages 报告落点、右栏格转发焦点同一个 PR。原因：DOM 事件门禁要求登记时收发两端都在，W1 里只有接收方。W1 只做数据形状（W1-3）与派生（W1-5）。代价：W3 第一片变大一些，由它自己再拆。
+- **内容站幂等键泛化为请求号**（quick-create Q1）：挪到 W4 开头。只有 W4 的「由内容站派生创建入口」用它；它要改 8 个插件的 `receive`、收件 schema、`workflowDeliveryKey` 和 Workflows 的调用方，形状变了要升这 8 个动作的版本。动手前先查存量工作流定义是否固定了 `receive` 的版本：若固定，开发用 Home 重建即可，真实 Home 要维护就先经统筹问用户。
+
+### 18.5 与其他线会撞的地方
+
+| 线 | 撞在哪 | 怎么排 |
+| --- | --- | --- |
+| 互动线（P2：共享 AI 交互组件进设计系统与组件板） | 设计系统 `index.ts`、`primitives/catalog.ts`（它把组件板的一节改成 `renderCatalogExamples(section)`，新文件 `catalog-examples.ts`）、README 的文件表与必跑用例；`specs/README.md`。以后（W3）还有输入框上方给情境条留的槽、同排推荐的位置（`assistant-island.ts`、`assistant-dock.ts`） | 它的 P2 先合；W1-2、W1-6 在它之后从 main 开，用它的扩展点，不另造。W3 动输入区 DOM 前，按 15.6 的约定先把结构发给它 |
+| 采用线（Prologue 完整采用） | `services/agent-host.ts` 与快照、`horizontal/agent-host` 适配器、`capability-registration.ts`、`baseline.json`、`page-assets.json`；它的 P1 起会动助理服务、HTTP 与授权（TaskBoard） | W1 不动这些文件。起草服务与 Jev 判断都用现有的 `hostTextGeneration`（采用线明确保留这条路，§4.5），不依赖未发布的 SDK。W3 把情境推荐改成只读系统动作、助理出卡片时，会碰助理服务，届时与它的 P1 排先后 |
+| 输入回执线 | 新子路径 `services/agent-inputs`（`AgentInputView` 只记文字、来源、方式，不带附带的情境与材料）；助理是第二个试点 | 情境条带上的「手上 + 落点」走现有的 `AssistantSendInput.context` 与 `materials`，回执只记用户的话。这是跨线约定，已发统筹 |
+| 防腐线（第 3 波 B、C 批） | W3-05-1 往插件 SDK 声明检查加交叉引用检查，并扩写 `plugin-declaration-rules` 的字面量；W3-02 要求新错误码一律以主人名开头；`ActionService` 冻结不许长；`fix/typesafe-consumer-narrow` 改 `contextual-http.ts` | W1-4 与 W3-05-1 排先后（谁先合，后者重跑字面量与快照）；本线新码用 `contextual.`、`drafting.` 开头；不动 `ActionService`；W1-3、W1-5 开工前先看 `contextual-http.ts` 有没有在途改动 |
+| 枢纽文件（PARALLEL-DEVELOPMENT §2） | `initialization.ts`、`dom-events.ts`、`platform/actions.ts`、`DESIGN.md`、`AGENTS.md`、`SKILL.md`、`ci-product-subset.txt`、`baseline.json`、`tooling/gates/api/` | 只加自己的几行；冲突时两边都留；`baseline.json` 与快照合入 main 后重跑生成，不手工合 |
+
+### 18.6 本线自己定下的取舍（记入 §14）
+
+- 页内锚点叫 `SurfaceFocus.screen`，不叫 `anchor`：`SurfaceFocusTarget.anchor` 已经是编辑器位置，同名会混；元素引用不进可序列化的合同，浮条画在拥有它的文档里，锚点从不跨文档。
+- `intake`、`attach` 写在被指向的写入动作的元数据上，不另起一份带 `action`、`undo` 的清单：一个能力登记一次，撤销只有动作已有的 `undo` 一处；代价是一个动作只能有一个创建入口，要两个就声明两个动作。
+- 浮条按钮按 DESIGN 的下限：桌面 32px、紧凑 28px、触屏 44px（context-toolbar §4 写的 28px 被取代）；浮条本身用 `--lift-2`，它的「更多」菜单与面板槽用 `--lift-3`，让后者明显浮在前者之上。
+- DOM 事件随第一对收发方登记；浮条原件在 W1 只上组件板，W2 接入时同一份资源净减。

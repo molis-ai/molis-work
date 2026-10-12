@@ -16,7 +16,7 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要加�
 
 `personal: true` 不等于已经迁到 Home Runtime。业务库与 SQL 归插件，连接来自 `context.services.database`；写入必须 `transaction(caller.beforeEffect, tx => …)`，回调同步。Home 不提供项目 artifacts、端口和事件，不能用假项目补齐。provider ID 用插件 ID，安装记录和 generation 仍约束执行；MCP 保留自己的 caller，不伪装成 owner。
 
-项目里宿主自己运行的内置插件（`project-plugins.ts` 的启动名单）要有 Home 里的库，也是同一个 `context.services.database`：在名单条目上写 `database`（`PluginPlatformEntry`），不是插件定义里的字段，插件自己选不了库名。库名必须先加进 `PERSONAL_HOME_SQLITE_STORES`（卸载 `--purge-user-data` 才清得到）并列入 `docs/releases/CHECKLIST.md` 的各库版本表；Manifest 要声明 `storage:private` 和库的读写权限；沙箱插件拿不到。换项目数据不分开，写入同样必须 `transaction(caller.beforeEffect, tx => …)`。目前没有生产条目声明库。
+项目里宿主自己运行的内置插件（`project-plugins.ts` 的启动名单）要有 Home 里的库，也是同一个 `context.services.database`：在名单条目上写 `database`（`PluginPlatformEntry`），不是插件定义里的字段，插件自己选不了库名。库名必须先加进 `PERSONAL_HOME_SQLITE_STORES`（卸载 `--purge-user-data` 才清得到），不能是宿主自己的库（`plugin-database-entries.ts` 的 `HOST_LIBRARY_NAMES`，临时名单），并列入 `docs/releases/CHECKLIST.md` 的各库版本表；Manifest 要声明 `storage:private` 和库的读写权限；沙箱插件拿不到。换项目数据不分开，写入同样必须 `transaction(caller.beforeEffect, tx => …)`。目前没有生产条目声明库。
 
 下面的目录、资源、英文和公开包登记仍适用；第 3 步只给实际导入者登记依赖（Home 的可信工厂来自 Workbench 目录，不必给 Local Host 增加插件专属 import），第 6、7 步的项目监督器名单由 Home 声明和实际启动测试代替。第 8 步使用通用 Home 页面与运行实例 contribution；不再添加插件专属 Host 渲染函数。
 

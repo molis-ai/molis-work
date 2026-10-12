@@ -30,6 +30,18 @@ const DECLARATION: PluginDatabaseDeclaration = { store_name: LIBRARY, version: 1
   schema: "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" };
 const idOf = (name: string) => `io.molis.work.example.${name}`;
 
+/**
+ * The libraries on the uninstall purge list that the Host keeps for itself (docs/system/HOME-DATA.md section 3), which a start-list
+ * entry may not name, and `issues`, the Issue plugin's, opened through its Home catalog entry. Temporary: the Home store registry
+ * of W4-11 replaces the list in plugin-database-entries.ts with "already registered by another owner".
+ */
+const HOST_LIBRARIES = ["functions", "connectors", "context-onboarding", "search", "memory", "server", "plugin-runtime", "issues"];
+/** The libraries of the personal plugins the Host still runs from its build: the Runtime plugins that replace them keep these names. */
+const PERSONAL_LIBRARIES = ["images", "pages", "form", "dataset", "ppt", "lingguang", "todo", "jelly", "cognia", "alchemist", "workflows"];
+/** The Home's other top-level directories (docs/system/HOME-DATA.md sections 5 and 6): none is on the purge list as a library. */
+const HOST_DIRECTORIES = ["feed", "config", "agent-runtime", "browser", "shelf", "logs", "releases", "bin", "cache", "backups", "plugin-builder",
+  "directory-access", "runtime-integrations", "projects", "sessions", "assistant", "placement", "agent-definitions", "characters"];
+
 interface ProbeOptions {
   name?: string;
   permissions?: PluginManifest["permissions"];
@@ -177,13 +189,20 @@ test("a start list that declares a library wrongly does not start at all, and no
     await refuse("permissions not listed", [{ definition: probe({ permissions: [STORAGE] }).definition, bundled: true, database: DECLARATION }, { definition: beside.definition }], /权限/);
     await refuse("twice", [{ definition: probe({ name: "first" }).definition, bundled: true, database: DECLARATION },
       { definition: probe({ name: "second" }).definition, bundled: true, database: DECLARATION }], /重复|同一个库/);
-    await refuse("plugin-runtime", [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, store_name: "plugin-runtime" } }], /plugin-runtime/);
+    for (const name of HOST_LIBRARIES) {
+      await refuse(`library ${name}`, [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, store_name: name } }], /宿主自己的库/);
+    }
+    for (const name of HOST_DIRECTORIES) {
+      await refuse(`directory ${name}`, [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, store_name: name } }], /清除清单/);
+    }
     assert.equal((PERSONAL_HOME_SQLITE_STORES as readonly string[]).includes("unlisted"), false);
     await refuse("not purged", [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, store_name: "unlisted" } }], /purge|清除|清单/);
     for (const name of ["Dataset", "../data", "a/b", ""]) {
       await refuse(`name ${JSON.stringify(name)}`, [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, store_name: name } }], /库名|目录名/);
     }
-    for (const name of [LIBRARY, "plugin-runtime", "unlisted", "Dataset", "a", "data"]) assert.equal(existsSync(join(directory, name)), false, `${name}: nothing was made`);
+    for (const name of [LIBRARY, "unlisted", "Dataset", "a", "data", ...HOST_LIBRARIES, ...HOST_DIRECTORIES]) {
+      assert.equal(existsSync(join(directory, name)), false, `${name}: nothing was made`);
+    }
   }));
 
 test("a library is the plugin's only while the plugin runs: after stop, after a restart (for the handle kept from before) and after uninstall every call is refused, the stop hook cannot write once the stop has begun, and the library stays when the plugin goes",
@@ -215,6 +234,26 @@ test("a library is the plugin's only while the plugin runs: after stop, after a 
       await item.platform.runtime.uninstall(installId);
       await assert.rejects(noteInto(second, "uninstalled"), { code: "actions.plugin_unavailable" });
       assert.deepEqual(rows(directory, LIBRARY), ["before"], "uninstalling removes the plugin's key-value data, not its library; the purge is the person's own choice");
+    } finally { item.store.close(); }
+  }));
+
+test("every library the uninstall purge lists is either one the Host keeps (refused to an entry) or one of the personal plugins' (open to them): a library added to the purge list without saying which fails here, and the personal plugins' names are all accepted",
+  withDirectory(async directory => {
+    const unclassified = PERSONAL_HOME_SQLITE_STORES.filter(name => !HOST_LIBRARIES.includes(name) && !PERSONAL_LIBRARIES.includes(name));
+    assert.deepEqual(unclassified, [], "decide for each: add it to the Host's refused names (plugin-database-entries.ts HOST_LIBRARY_NAMES) and HOST_LIBRARIES here, or to PERSONAL_LIBRARIES");
+    assert.deepEqual(HOST_LIBRARIES.filter(name => PERSONAL_LIBRARIES.includes(name)), [], "a name is the Host's or a personal plugin's, not both");
+    assert.deepEqual(HOST_DIRECTORIES.filter(name => (PERSONAL_HOME_SQLITE_STORES as readonly string[]).includes(name)), [], "a top-level directory that is not a library is not on the purge list as one");
+    // The libraries the personal plugins keep today are open to the Runtime plugins that replace them.
+    const item = platformIn(directory);
+    try {
+      const personal = PERSONAL_LIBRARIES.map(name => ({ name, plugin: probe({ name: `p-${name}` }) }));
+      const report = await item.platform.start(personal.map(({ name, plugin }) =>
+        ({ definition: plugin.definition, bundled: true, database: { ...DECLARATION, store_name: name } })));
+      assert.deepEqual(report.failed, []);
+      for (const { name, plugin } of personal) {
+        assert.ok(plugin.started.at(-1)?.database, name);
+        assert.equal(existsSync(libraryFile(directory, name)), true, `${name}: the library was made`);
+      }
     } finally { item.store.close(); }
   }));
 

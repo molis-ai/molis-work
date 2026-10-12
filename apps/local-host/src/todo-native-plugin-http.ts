@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ActionCallContext, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { TodoPluginRouteTable, createTodoRouteHandlers, todoRouteErrorResponse } from "@molis-ai/molis-work-plugin-todo";
+import { TodoPluginRouteTable, createTodoRouteHandlers } from "@molis-ai/molis-work-plugin-todo";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { withRewrittenPluginApi } from "./native-plugin-api.js";
 
@@ -16,7 +16,6 @@ export async function handleTodoNativePluginHttp(request: IncomingMessage, respo
     return await dispatchNativePluginJsonHttp(request, response, url, {
       prefix: "/api/todo",
       handle: input => new TodoPluginRouteTable(createTodoRouteHandlers({ actions: actions({ signal: controller.signal }) })).handle(input),
-      mapError: todoRouteErrorResponse,
     });
   } finally { response.off("close", cancel); }
 }

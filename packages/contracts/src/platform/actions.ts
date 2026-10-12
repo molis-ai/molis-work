@@ -1,6 +1,8 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 export * from "./action-execution.js";
+import { ActionError } from "./action-errors.js";
+export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
@@ -482,13 +484,6 @@ export function actionPermissionDeclarations(definitions: readonly ActionDefinit
   const known = new Set(declared.map(item => item.permission));
   return [...new Set(definitions.flatMap(definition => definition.action.permissions))].filter(permission => !known.has(permission))
     .map(permission => ({ permission, required: false, reason }));
-}
-
-export class ActionError extends Error {
-  constructor(readonly code: string, message: string) {
-    super(message);
-    this.name = "ActionError";
-  }
 }
 
 function object(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }

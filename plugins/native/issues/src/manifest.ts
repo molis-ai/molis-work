@@ -17,6 +17,8 @@ export const issuesManifest: PluginManifest = {
   routes: [
     { route_id: "issues.prepare", method: "POST", path: "/prepare", permission: "issues:write" },
     { route_id: "issues.cancel_capture", method: "POST", path: "/cancel-capture", permission: "issues:write" },
+    { route_id: "issues.capture", method: "POST", path: "/capture", permission: "issues:write" },
+    { route_id: "issues.discard", method: "POST", path: "/discard", permission: "issues:write" },
     { route_id: "issues.list", method: "GET", path: "/list", permission: "issues:read" },
     { route_id: "issues.read", method: "GET", path: "/read", permission: "issues:read" },
     { route_id: "issues.create", method: "POST", path: "/create", permission: "issues:write" },

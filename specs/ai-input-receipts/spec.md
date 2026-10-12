@@ -844,6 +844,12 @@ interface AgentInputView {
 | D14 | D5 修订：问题待回答时输入框怎么选目标 | 目标芯片三种状态、默认值显示在芯片上（见 §4.1）：「写进问卷：补充要求」（交互线）、「补充这一轮」（本线 1e，一条 steer，排在回答之后，带回执）。有自由文本题默认第一种，没有默认第二种；无问题时芯片不出现 | 比 D5 原来的每次点选少一次点击，默认值一直看得见，也不会把补充误当成回答。SDK 侧「补充排在回答之后」已是现行行为（S1：补充与回答分开，等人时补充排着队，回答后的下一个模型边界才放进上下文） |
 | D15 | `AgentRunControl` 的搬迁先后 | 交互线 C1 搬出 `answer` 分支，本线搬出 `steer` 分支（见 §6.2「改现有控制合同」）；先就绪的一方先合，后合的一方在同一个 PR 里改完所有消费者 | 两边改同一个联合类型，API 快照与调用方都会动；不并行抢改 |
 
+**待办（归本线，D7 之后接 S3 时定；2026-10-12 统筹交来）：**
+
+| # | 事项 | 现状 | 本线的方向（接 S3 时再定稿） |
+| --- | --- | --- | --- |
+| D16 | S3 的系统工具 `acknowledge-inputs` 在助理面板里怎么显示、用什么措辞 | 它在 `APP_MODE_SYSTEM_TOOLS` 里；采用线暂时在助理面板活动行（`assistant-service.ts` 的 `presentActivity`）里把它藏了，因为裸工具名不能直接给人看 | 处理说明显示在**对应那条输入的下面**（回执条与详情里的「AI 的理解」，§3.3 措辞规则：只用「AI 的理解」，不写「已生效」），不作为独立的活动行；活动行上永远不出现裸工具名。R0 预览已按这个口径画（说明行只写「助理说明了 N 条输入怎么处理 · 它自己的声明，不是执行记录」，用例逐检查点断言页面上没有 `acknowledge-inputs`）。真正的措辞、是否在时间线上留一条弱提示、`appRefs` 解析器怎么接 Context Ledger，要等 Molis 接 S3 时按当时的产品形态定；接之前不动采用线的隐藏 |
+
 以上与本线 SDK 的 S1/S2/S3 合同无冲突。
 
 仍需用户另行授权的：两仓的提交（Prologue `AGENTS.md` §8 要求明确授权）、推送 Prologue 分支并合入它的 main、开 PR、替换正式安装版。
@@ -867,6 +873,7 @@ interface AgentInputView {
 
 - 2026-10-12（续）：S3（处理说明与有界提醒）在 Prologue `feature/input-receipts-s3` 上实现并工程通过（基点：采用线整合末端 `a13bf067` 合入 S2 得 `c0194228`）。切片合同 `docs/slices/input-handling.md`，决策记录 H1–H15。要点：模型只能说明这一跑里已读到的输入；说明没有权威、不改 `state`；提醒有界、只写编号、不挡死收工；`later-step / new-task / needs-clarification` 暂用 `note` 补足，S4 有了步骤与问题目标再收紧。Molis 侧准备：D10–D12 写入 §14；§6.2 `AgentInputView.handling` 的字段取自投影的 `handling` / `handlingRevisions`（`impacts` 为模型自称，观察到的影响仍由 S4 / Molis 投影）。
 - 2026-10-12（再续）：R0 独立回执体验预览实现并工程通过（见 §18.8）。脚本 `scripts/preview-input-receipts.mts`（端口 4292）读 `scripts/input-receipts-slice/recorded/` 里用 Prologue S3 末端（`37427d09`）的真实 SDK 录下的事实，只做展示，不计算状态。非浏览器用例 11 条、浏览器用例 10 条（PR #438；三宽度 × 浅深色 × 两种布局 × 四个场景、键盘、输入法、托盘、纠正、结束卡与重启分支）通过；健康门禁 `--base origin/main` 通过，新文件 Biome 0 诊断、类型检查干净、secrets 干净。**真实产品实操不适用（预览不连 Home）；用户本人验收未进行。**
+- 2026-10-12（统筹交来）：Prologue S2/S3 已随 Prologue #5 合入 Prologue main（合并提交 `f5ef12e6`），采用线正在把这个包换进 Molis。新增待办 D16（§14）：`acknowledge-inputs` 在助理面板里的显示与措辞归本线，D7 之后接 S3 时定。
 
 ## 17. 远端交接（2026-10-11，当前接续入口）
 

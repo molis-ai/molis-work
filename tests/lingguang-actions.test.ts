@@ -165,7 +165,8 @@ test("real HTTP canonical and legacy URLs share Host actions and reject project 
     // Only the project's own URL reaches 灵光; there is no unscoped one that picks a project from the request.
     assert.notEqual((await fetch(origin + `/api/plugins/lingguang?project_id=${project.project_id}`)).status, 200);
     const state = await http(`${path}/conversations`, { spark_ids: [spark.id] });
-    await http(`${path}/conversations/${state.conversation.id}/messages`, { body: "No model" }, 400);
+    // W3-02-D: no model is `actions.connection_required`, whose kind (unavailable) is 503 at every plugin; 灵光 answered 400 through its own mapper.
+    await http(`${path}/conversations/${state.conversation.id}/messages`, { body: "No model" }, 503);
     assert.equal((await bound.invoke(actions.getConversation, { id: state.conversation.id })).messages.length, 0);
     assert.equal((await bound.invoke(actions.list, {})).sparks.length, 1);
     // The page's own discard: the copy it read is named, and a spark written to since is refused (409) and stays.

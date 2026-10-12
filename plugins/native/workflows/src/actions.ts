@@ -1,12 +1,13 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { presentActionResult, type ActionResultPresentation, ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  WorkflowError, advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, holdInstance, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
+  advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, holdInstance, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
   isActionStation, mapActionInput, WORKFLOW_PAYLOAD_FIELDS, WORKFLOWS_PLUGIN_ID,
   type Workflow, type WorkflowActionStep, type WorkflowChain, type WorkflowHandoff, type WorkflowInstance, type WorkflowItemRef, type WorkflowLink, type WorkflowPayload, type WorkflowStation, type WorkflowVerdict,
 } from "./model.js";
 import type { WorkflowSummary, WorkflowsStore } from "./store.js";
 import { createWorkflowsSearchHandlers, workflowsSearchActions } from "./search.js";
+import { workflowsErrors } from "./error.js";
 
 /** One input field of a candidate action, as the mapping editor shows it. */
 export interface WorkflowActionField { readonly name: string; readonly type: string; readonly required: boolean; readonly title?: string; readonly enum?: readonly (string | number | boolean)[] }
@@ -219,16 +220,16 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     const ref = station.action.ref;
     const view = await reach.find(ref);
     const choice = view && workflowActionChoices([view])[0];
-    if (!choice) throw new WorkflowError("workflows.unavailable", `动作「${station.action.title}」v${ref.version} 已不可用或不再接受流程调用；原引用已保留，请重新选择`);
-    if (!choice.available) throw new WorkflowError("workflows.unavailable", `动作「${station.action.title}」暂不可用：${choice.reason}`);
+    if (!choice) throw workflowsErrors.unavailable(`动作「${station.action.title}」v${ref.version} 已不可用或不再接受流程调用；原引用已保留，请重新选择`);
+    if (!choice.available) throw workflowsErrors.unavailable(`动作「${station.action.title}」暂不可用：${choice.reason}`);
     const problem = actionMappingProblem(station.action, choice);
-    if (problem) throw new WorkflowError("workflows.not_ready", `动作「${station.action.title}」的字段映射需要调整：${problem}`);
+    if (problem) throw workflowsErrors.not_ready(`动作「${station.action.title}」的字段映射需要调整：${problem}`);
     return choice;
   };
   const resolveStation = async (reach: Reach, content: WorkflowContentPorts, station: WorkflowStation) => isActionStation(station) ? (await resolveAction(reach, station), station) : content.resolveStation(station);
   const validChain = async (content: WorkflowContentPorts, value: unknown, reach: Reach): Promise<WorkflowChain> => {
     const parsed = parseChain(value);
-    if (parsed.stations[0] && isActionStation(parsed.stations[0])) throw new WorkflowError("workflows.invalid", "第一站要选一个能挑出内容的插件，动作只能接在后面");
+    if (parsed.stations[0] && isActionStation(parsed.stations[0])) throw workflowsErrors.invalid("第一站要选一个能挑出内容的插件，动作只能接在后面");
     const stations = await Promise.all(parsed.stations.map(station => resolveStation(reach, content, station)));
     return { ...parsed, stations: await sourcesFirst(stations, plugin => labelOf(content, plugin)) };
   };
@@ -247,15 +248,15 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     // An action step hands on what it received; the action's result stays in its record.
     if (isActionStation(current.chain.stations[index]!)) {
       const payload = current.steps[index]?.payload;
-      if (!payload) throw new WorkflowError("workflows.invalid", "这一步还没有收到内容");
+      if (!payload) throw workflowsErrors.invalid("这一步还没有收到内容");
       return payload;
     }
     const item = current.steps[index]?.item;
-    if (!item) throw new WorkflowError("workflows.invalid", "这一步还没有内容");
+    if (!item) throw workflowsErrors.invalid("这一步还没有内容");
     try { return await content.read(item, current.chain.stations[index]!.content); }
     catch (error) {
-      if (error instanceof WorkflowError || (error instanceof Error && "code" in error)) throw error;
-      throw new WorkflowError("workflows.missing", `这一次在 ${await labelOf(content, item.plugin)} 里的内容已经读不到了（可能被删除）`);
+      if (error instanceof Error && "code" in error) throw error;
+      throw workflowsErrors.missing(`这一次在 ${await labelOf(content, item.plugin)} 里的内容已经读不到了（可能被删除）`);
     }
   };
   const changed = <T>(value: T) => { ports.changed?.(); return value; };
@@ -266,8 +267,8 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
   const judge = async (reach: Reach, link: WorkflowLink, handed: WorkflowPayload): Promise<WorkflowVerdict> => {
     const ref = link.judgment!;
     const view = await reach.find(ref);
-    if (!view) throw new WorkflowError("workflows.not_ready", "这一段的判断规则已不可用或版本已变化；原引用已保留，请重新选择");
-    if (!view.availability.available) throw new WorkflowError("workflows.not_ready", `这一段的判断规则暂不可用：${view.availability.reason}`);
+    if (!view) throw workflowsErrors.not_ready("这一段的判断规则已不可用或版本已变化；原引用已保留，请重新选择");
+    if (!view.availability.available) throw workflowsErrors.not_ready(`这一段的判断规则暂不可用：${view.availability.reason}`);
     const content = [handed.title, handed.body].filter(Boolean).join("\n\n").slice(0, 8000);
     const result = await reach.invoke({ capability_id: ref.capability_id, version: ref.version, provider_id: ref.provider_id }, { content }) as
       { status: "ok" | "needs_review"; function_key: string; version: number; data: { choice?: string | null }; confidence: number | null };
@@ -284,12 +285,12 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     const resolved = { ...current.chain, stations: await Promise.all(current.chain.stations.map((station, index) => index < from ? station : resolveStation(reach, content, station))) };
     const link = current.chain.links[from]!;
     const readiness = linkReadiness(link, ports.aiAvailable());
-    if (!readiness.ready) throw new WorkflowError("workflows.not_ready", `这一段还没接上：${readiness.reason}`);
+    if (!readiness.ready) throw workflowsErrors.not_ready(`这一段还没接上：${readiness.reason}`);
     const handed = await readStep(content, current, from);
     let output: WorkflowPayload, actor: WorkflowHandoff["actor"], rule: string | undefined, judged: WorkflowVerdict | undefined;
     if (link.kind === "manual") {
       const edited = { title: (input.title ?? "").trim().slice(0, 200), body: (input.body ?? "").trim() };
-      if (!edited.title || !edited.body) throw new WorkflowError("workflows.invalid", "交过去的内容需要标题和正文");
+      if (!edited.title || !edited.body) throw workflowsErrors.invalid("交过去的内容需要标题和正文");
       const unchanged = edited.title === handed.title.trim() && edited.body === handed.body.trim();
       output = { ...handed, ...edited, feed_item_id: unchanged ? handed.feed_item_id ?? null : null };
       actor = "person";
@@ -309,14 +310,14 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       actor = "function";
       rule = `标题：${link.title_template || "{标题}"}\n正文：${link.body_template}`;
     } else {
-      if (!ports.completeText) throw new WorkflowError("workflows.not_ready", "这一段还没接上：还没有可用的文字模型");
+      if (!ports.completeText) throw workflowsErrors.not_ready("这一段还没接上：还没有可用的文字模型");
       const prompt = aiHandoffPrompt(link, handed, await labelOf(content, current.chain.stations[from]!.plugin), await labelOf(content, current.chain.stations[from + 1]!.plugin));
       caller.signal?.throwIfAborted();
       output = parseAiHandoff(await ports.completeText(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect }), handed);
       actor = "ai";
       rule = link.instructions;
     }
-    if (!output.body.trim()) throw new WorkflowError("workflows.invalid", "交接后的正文是空的，没有交过去");
+    if (!output.body.trim()) throw workflowsErrors.invalid("交接后的正文是空的，没有交过去");
     const pending: Pending = { key: handoffKey(current, from), kind: link.kind, actor, at: new Date().toISOString(), input: handed, output,
       ...(rule ? { rule } : {}), ...(judged ? { verdict: judged } : {}) };
     await caller.beforeEffect();
@@ -330,7 +331,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
   const runActionStep = async (caller: ActionExecutionContext, reach: Reach, current: WorkflowInstance, from: number, pending: Pending, target: WorkflowStation & { action: WorkflowActionStep },
     retry: boolean): Promise<{ instance: WorkflowInstance; arrived: WorkflowItemRef; arrival: { payload: WorkflowPayload; result: unknown; result_presentation?: ActionResultPresentation; result_truncated?: true } }> => {
     if (pending.attempted_at && !retry) {
-      throw new WorkflowError("workflows.uncertain", `上次执行「${target.action.title}」${pending.attempt_error ? `时出错（${pending.attempt_error}）` : "没有确认结果"}；请先到${target.action.group ?? "对应插件"}确认是否已经生效，再决定是否重试`);
+      throw workflowsErrors.uncertain(`上次执行「${target.action.title}」${pending.attempt_error ? `时出错（${pending.attempt_error}）` : "没有确认结果"}；请先到${target.action.group ?? "对应插件"}确认是否已经生效，再决定是否重试`);
     }
     const choice = await resolveAction(reach, target);
     const mapped = mapActionInput(target.action, pending.output);
@@ -380,13 +381,13 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     }),
     bind(workflowsActions.stationItems, async (input, content) => {
       const info = (await content.stations()).find(station => station.plugin === input.plugin);
-      if (!info?.supported) throw new WorkflowError("workflows.invalid", "这个插件暂不能串进流程");
+      if (!info?.supported) throw workflowsErrors.invalid("这个插件暂不能串进流程");
       return { items: await content.listStartItems(input.plugin), can_start_blank: info.can_start_blank };
     }),
     bind(workflowsActions.start, async (input, content, caller, reach) => {
       const stored = await ports.withStore(store => store.get(input.id, projectId));
       const current = { ...stored, ...await validChain(content, stored, reach) };
-      if (current.stations.length < 2) throw new WorkflowError("workflows.invalid", "流程至少要有两站才能开始");
+      if (current.stations.length < 2) throw workflowsErrors.invalid("流程至少要有两站才能开始");
       const first = current.stations[0]!;
       const itemId = input.item_id?.trim();
       let item: WorkflowItemRef;
@@ -394,7 +395,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
         item = { plugin: first.plugin, item_id: itemId, title: (await content.read({ plugin: first.plugin, item_id: itemId, title: "" }, first.content)).title };
       } else {
         const info = (await content.stations()).find(station => station.plugin === first.plugin);
-        if (!info?.can_start_blank) throw new WorkflowError("workflows.invalid", `请先在 ${info?.label ?? first.plugin} 里选一条内容`);
+        if (!info?.can_start_blank) throw workflowsErrors.invalid(`请先在 ${info?.label ?? first.plugin} 里选一条内容`);
         await caller.beforeEffect();
         item = await content.createBlank(first.plugin, input.title?.trim() || `${current.title} · 新的一次`, first.content);
       }
@@ -416,7 +417,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     bind(workflowsActions.continue, async (input, content, caller, reach) => {
       let current = await ports.withStore(store => live(store, input.id));
       if (input.updated_at !== undefined && input.updated_at !== current.updated_at) {
-        throw new WorkflowError("workflows.conflict", "这一次刚被推进过，已载入最新进度");
+        throw workflowsErrors.conflict("这一次刚被推进过，已载入最新进度");
       }
       const from = handoffIndex(current, input.from);
       let pending = current.steps[from]!.pending;
@@ -426,7 +427,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
         ({ instance: current, pending } = prepared);
       } else if (current.chain.links[from]!.kind === "manual" && input.body !== undefined
         && ((input.title ?? "").trim().slice(0, 200) !== pending.output.title || (input.body ?? "").trim() !== pending.output.body)) {
-        throw new WorkflowError("workflows.conflict", "这一步已经在交接另一份内容，已载入最新进度");
+        throw workflowsErrors.conflict("这一步已经在交接另一份内容，已载入最新进度");
       }
       await caller.beforeEffect();
       const target = current.chain.stations[from + 1]!;
@@ -460,7 +461,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
 /** A station that only provides content (the 成果库) starts a run; nothing is handed to it. */
 async function sourcesFirst(stations: WorkflowStation[], labelOf: (plugin: string) => Promise<string>): Promise<WorkflowStation[]> {
   const late = stations.find((station, index) => index > 0 && !isActionStation(station) && !station.content?.actions.receive);
-  if (late) throw new WorkflowError("workflows.invalid", `「${await labelOf(late.plugin)}」只能作为第一站：它提供内容，不接收交过来的内容`);
+  if (late) throw workflowsErrors.invalid(`「${await labelOf(late.plugin)}」只能作为第一站：它提供内容，不接收交过来的内容`);
   return stations;
 }
 
@@ -491,9 +492,9 @@ export function workflowUsages(flow: Pick<Workflow, "workflow_id" | "title" | "s
 
 function handoffIndex(current: WorkflowInstance, raw: unknown): number {
   const from = Number(raw ?? current.current);
-  if (!Number.isInteger(from) || from < 0 || from >= current.chain.links.length) throw new WorkflowError("workflows.invalid", "这一步后面没有下一站");
-  if (current.status !== "active") throw new WorkflowError("workflows.invalid", current.status === "done" ? "这一次已经走完" : "这一次已经结束");
-  if (from !== current.current) throw new WorkflowError("workflows.conflict", "这一步已经交过了");
+  if (!Number.isInteger(from) || from < 0 || from >= current.chain.links.length) throw workflowsErrors.invalid("这一步后面没有下一站");
+  if (current.status !== "active") throw workflowsErrors.invalid(current.status === "done" ? "这一次已经走完" : "这一次已经结束");
+  if (from !== current.current) throw workflowsErrors.conflict("这一步已经交过了");
   return from;
 }
 

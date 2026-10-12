@@ -1,5 +1,5 @@
 import { MarkSpec, Node, NodeSpec, Schema } from "prosemirror-model";
-import { EMPTY_PAGES_BODY } from "./document.js";
+import { EMPTY_PAGES_BODY } from "./empty.js";
 import { calloutIconFor, safePagesCalloutIcon, safePagesCalloutTone } from "./callout.js";
 import { safePagesLanguage } from "./code-language.js";
 import { bookmarkLabel, imageAlt, safePagesBookmarkTitle, safePagesHref, safePagesImageCaption, safePagesImageSrc, safePagesImageWidth } from "./link.js";

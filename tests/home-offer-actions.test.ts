@@ -90,12 +90,23 @@ test("unknown SDK plugin prepares real actions, Home revalidates exact input and
   } finally { if (runtime.get(install.install_id).state === "running") await runtime.stop(install.install_id); }
   const malformed = { ...offers, action: { ...offers.action, input_schema: { type: "object" } } };
   assert.throws(() => service.registerProvider({ provider: { provider_id: "malformed", title: "Malformed", kind: "plugin" }, definitions: [malformed], handlers: [{ ...malformed, handle: () => ({ offers: [] }) }] }), { code: "actions.definition_invalid" });
+  // Each refused option is registered together with its target, so what is refused is the option itself.
+  const shape = "能力 unknown.note.offers@1 的事项推荐选项必须有唯一标识、名称及本提供方的目标动作版本";
   for (const subject_offer_choices of [
     [...offers.action.subject_offer_choices!, ...offers.action.subject_offer_choices!],
     [{ ...offers.action.subject_offer_choices![0]!, subject_kinds: ["undeclared-kind"] }],
     [{ ...offers.action.subject_offer_choices![0]!, action: { ...write, provider_id: "someone-else" } }],
   ]) {
     const invalid = { ...offers, action: { ...offers.action, subject_offer_choices } };
-    assert.throws(() => service.registerProvider({ provider: { provider_id: "invalid-choices", title: "Bad choices", kind: "plugin" }, definitions: [invalid], handlers: [{ ...invalid, handle: () => ({ offers: [] }) }] }), { code: "actions.definition_invalid" });
+    assert.throws(() => service.registerProvider({ provider: { provider_id: "invalid-choices", title: "Bad choices", kind: "plugin" }, definitions: [invalid, write],
+      handlers: [{ ...invalid, handle: () => ({ offers: [] }) }, { ...write, handle: () => ({ revision: 1, text: "" }) }] }), { code: "actions.definition_invalid", message: shape });
   }
+  // An option whose target is not registered with it is refused for that, whatever else is right about it.
+  assert.throws(() => service.registerProvider({ provider: { provider_id: "missing-target", title: "No target", kind: "plugin" }, definitions: [offers],
+    handlers: [{ ...offers, handle: () => ({ offers: [] }) }] }), { code: "actions.definition_invalid",
+    message: "能力 unknown.note.offers@1 的事项选项 notes.replace 的目标动作 unknown.note.replace@1 不在同一提供方的声明里，或范围不同" });
+  const elsewhere = { ...write, action: { ...write.action, subject_kinds: ["page"] } };
+  assert.throws(() => service.registerProvider({ provider: { provider_id: "other-kind", title: "Other kind", kind: "plugin" }, definitions: [offers, elsewhere],
+    handlers: [{ ...offers, handle: () => ({ offers: [] }) }, { ...elsewhere, handle: () => ({ revision: 1, text: "" }) }] }), { code: "actions.definition_invalid",
+    message: "能力 unknown.note.offers@1 的事项选项 notes.replace 的目标动作 unknown.note.replace@1 不支持声明的事项类型" });
 });

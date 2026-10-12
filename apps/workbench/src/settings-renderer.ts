@@ -1,6 +1,7 @@
 import { renderModelSettingsDocument } from "./settings-models.js";
 import { renderHint, icon as modelIcon } from "@molis-ai/molis-work-design-system";
-import { CONTROL_CLIENT_SCRIPT, SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
+import { SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
+import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import type { RuntimeIntegrationDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkSettingsView, WebSettingsProject } from "./settings-view.js";
 import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
@@ -265,7 +266,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   </main>
   ${renderRuntimePlanDialog({ L, icon })}
   <div class="toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
 </body></html>`;
 }
 

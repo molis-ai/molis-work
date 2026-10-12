@@ -4,14 +4,13 @@ import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@m
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsActions, readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
-import { createMcpRuntimeContextHandlers, createMcpContextPresenter, dispatchMcpProjectTool, handleMcpMessage,
+import { createMcpRuntimeContextHandlers, createMcpContextPresenter, handleMcpMessage,
   mcpRuntimeSessionActivity, MCP_SERVER_INFO as SERVER_INFO,
   createActionMcpPorts, isRuntimeContextMcpTool, molisWorkActionToolName,
-  type McpToolResult, type McpToolCallContext, type McpPresentationErrorFactory } from "@molis-ai/molis-work-app-mcp";
+  type McpToolResult, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { MolisWorkProjectCatalogError } from "./project-catalog.js";
 import { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
-import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { RuntimeSessionHost } from "./runtime-session.js";
 import { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import { runtimeContextHostFromEnvironment } from "./runtime-context.js";
@@ -24,10 +23,10 @@ import { readProductEnv } from "@molis-ai/molis-work-storage";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { LocalActionGatewayClient } from "./action-gateway.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
+import { callMcpV1Tool, createPresentationError } from "./mcp-v1-tool.js";
 
 export type MolisWorkMcpAudience = "runtime" | "management";
 export type MolisWorkMcpToolCallContext = McpToolCallContext;
-const createPresentationError: McpPresentationErrorFactory = (code, message, details) => new MolisWorkV1Error(code, message, details);
 const EMPTY_TOOL_CALL_CONTEXT: MolisWorkMcpToolCallContext = { runtimeSessionId: null, runtimeSessionIdSource: null };
 
 /** Sole outbound MCP process. Host owns project lifetimes and protocol adapters own transport. */
@@ -253,7 +252,8 @@ export class LocalMcpServer {
     }
     const contextHandler = lookupContextTool(this.contextTools, name);
     if (contextHandler) return contextHandler(arguments_ ?? {}, callContext);
-    return this.callV1Tool(name, arguments_, this.audience === "runtime" ? this.runtimeConnection : null);
+    return callMcpV1Tool({ localHost: this.localHost, audience: this.audience,
+      runtimeConnection: this.audience === "runtime" ? this.runtimeConnection : null }, name, arguments_);
   }
 
   private async recordRuntimeSessionActivity(
@@ -273,42 +273,6 @@ export class LocalMcpServer {
 
   private requireRuntimeContextHost(context: MolisWorkMcpToolCallContext = EMPTY_TOOL_CALL_CONTEXT): MolisWorkRuntimeContextHost {
     return requireMcpRuntimeContextHost(this, context);
-  }
-
-  private async callV1Tool(
-    name: string,
-    arguments_: Record<string, unknown>,
-    runtimeConnection: MolisWorkRuntimeConnection | null,
-  ): Promise<string> {
-    const location = this.audience === "runtime"
-      ? runtimeConnection!.databasePath
-      : namedDatabasePath(arguments_.database_path) ?? namedDatabasePath(readProductEnv("DATABASE"));
-    if (!location) {
-      throw new MolisWorkV1Error("store.path_required",
-        "管理入口需要明确的数据库路径：在参数 database_path 里给出，或设置环境变量 MOLIS_WORK_DATABASE。没有默认路径，不会按当前目录猜一个。");
-    }
-    const storage = prepareLocalProjectStorage(location, name === "molis_work_v1_initialize" ? "create" : "existing");
-    const { databasePath } = storage;
-    if (storage.status === "missing") {
-      throw new MolisWorkV1Error("store.not_found", `Molis Work 数据库不存在: ${databasePath}`);
-    }
-    const projectId = String(
-      this.audience === "runtime"
-        ? runtimeConnection!.projectId
-        : arguments_.project_id ?? `database:${databasePath}`,
-    );
-    const reference = molisWorkHostProjectReference({
-      databasePath,
-      projectId,
-    });
-    const client = this.localHost.client(reference);
-    return dispatchMcpProjectTool(client, name, arguments_, {
-      audience: this.audience,
-      webBaseUrl: () => String(this.audience === "runtime" ? runtimeConnection!.webBaseUrl
-        : arguments_.web_base_url ?? readProductEnv("WEB_URL") ?? "http://127.0.0.1:4173"),
-      projectId: runtimeConnection?.projectId,
-      createError: createPresentationError,
-    });
   }
 
   async close(): Promise<void> {

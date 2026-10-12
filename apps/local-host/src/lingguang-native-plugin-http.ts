@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LingguangPluginRouteTable, createLingguangRouteHandlers, lingguangRouteErrorResponse,
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { LingguangPluginRouteTable, createLingguangRouteHandlers,
   type LingguangRoutePorts, type LingguangPluginRouteRequest } from "@molis-ai/molis-work-plugin-lingguang";
 import { dispatchNativePluginJsonHttp, readNativePluginJsonBody, type NativePluginJsonResult } from "./native-plugin-http.js";
 import { withRewrittenPluginApi } from "./native-plugin-api.js";
@@ -30,9 +31,9 @@ export async function handleLingguangNativePluginHttp(request: IncomingMessage, 
       if (result) write({ type: "result", result: result.body });
     } catch (error) {
       if (!response.headersSent) response.writeHead(200, { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" });
-      const result = lingguangRouteErrorResponse(error); write({ type: "error", status: result.status, ...result.body as object });
+      const result = actionErrorResponse(error); write({ type: "error", status: result.status, ...result.body });
     } finally { if (!response.destroyed) response.end(); }
     return true;
   }
-  return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/lingguang", maxBodyBytes: 36_000_000, handle: input => handle(input), mapError: lingguangRouteErrorResponse });
+  return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/lingguang", maxBodyBytes: 36_000_000, handle: input => handle(input) });
 }

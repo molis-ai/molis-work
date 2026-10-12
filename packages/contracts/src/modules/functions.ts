@@ -324,36 +324,6 @@ export const FUNCTION_AUTHORING_SUBJECTS: readonly FunctionAuthoringSubject[] = 
   { subject_kind: "mcp_invoke", title: "Agent" },
 ];
 
-export function suggestedAuthoringBehaviors(
-  catalog: FunctionAuthoringCatalog,
-  destinationId: string,
-  subjectKinds: readonly string[],
-  reference?: { readonly scene_version: number; readonly provider_id: string },
-): FunctionAuthoringBehavior[] {
-  const destinations = catalog.destinations.filter(row => row.destination_id === destinationId
-    && (!reference || row.scene_version === reference.scene_version && row.provider_id === reference.provider_id));
-  const dest = destinations.length === 1 ? destinations[0] : null;
-  const kinds = subjectKinds.filter(Boolean);
-  const matches = (row: FunctionAuthoringBehavior) => (
-    kinds.length === 0 || row.subject_kinds.length === 0 || row.subject_kinds.some((kind) => kinds.includes(kind))
-  );
-  if (!destinationId) {
-    return kinds.length === 0 ? [] : catalog.behaviors.filter(row => !row.destination_id && matches(row));
-  }
-  if (dest?.kind === "mcp" || destinationId === AGENT_MCP_DESTINATION_ID) {
-    return catalog.behaviors.filter(row => row.destination_id === AGENT_MCP_DESTINATION_ID && matches(row));
-  }
-  const byId = new Map(catalog.behaviors.filter(row => !row.destination_id).map(row => [row.behavior_id, row]));
-  for (const row of catalog.behaviors) if (dest && row.destination_id === dest.destination_id
-    && (!row.scene_version || row.scene_version === dest.scene_version) && (!row.provider_id || row.provider_id === dest.provider_id)) byId.set(row.behavior_id, row);
-  const rows: FunctionAuthoringBehavior[] = [];
-  for (const id of dest?.behavior_ids ?? []) {
-    const row = byId.get(id);
-    if (row && matches(row)) rows.push(row);
-  }
-  return rows;
-}
-
 export function choiceCriteriaFollowContext(
   keys: readonly string[],
   catalogBehaviorIds: readonly string[],

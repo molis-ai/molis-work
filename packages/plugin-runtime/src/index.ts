@@ -129,7 +129,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     deployment: PluginDeployment;
     grants?: string[];
     retain_private_data?: boolean;
-    /** Ships with the Host: an existing install is moved onto this build whatever its version (`recordToFollow`), and it holds every permission its Manifest declares whatever `grants` says (`bundledGrants`). */
+    /** Ships with the Host: an existing install is moved onto this build whatever its version (`recordToFollow`), and it holds every permission its Manifest declares whatever `grants` says (`bundledGrants`). Never with a sandboxed definition: what that may do is what the person confirmed. */
     bundled?: boolean;
     /** The person agreed to drop the private data an uninstall kept, which this version cannot read; the Host deletes it. */
     discard_kept_data?: boolean;
@@ -142,7 +142,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     const installId = installIdentity(manifest);
     const current = this.repository.get(installId);
-    if (input.definition.execution === "sandbox" && input.grants === undefined) throw new PluginRuntimeError("plugin_grant_denied", "生成插件安装需要明确授权清单");
+    if (input.definition.execution === "sandbox" && (input.grants === undefined || input.bundled === true)) throw new PluginRuntimeError("plugin_grant_denied", "生成插件安装需要明确授权清单，且不能当作随宿主发布的插件授予全部权限");
     if (current && current.execution !== (input.definition.execution ?? "host")) throw new PluginRuntimeError("plugin_definition_conflict", "不能改变已安装插件的执行信任边界");
     const digest = pluginManifestDigest(manifest);
     const follow = recordToFollow(current, manifest, digest, input.bundled === true);

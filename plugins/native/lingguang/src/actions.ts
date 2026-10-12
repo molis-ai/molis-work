@@ -4,6 +4,7 @@ import { ActionError, FRAGMENT_ANY_OBJECT, bindObjectCopyHandler, bindObjectMove
 import { LINGGUANG_BODY_LIMIT, type LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type { LingguangConversationState, LingguangStore } from "./store.js";
 import { createLingguangSearchHandlers, lingguangSearchActions, revisionOf } from "./search.js";
+import { lingguangErrors } from "./error.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1 };
@@ -120,13 +121,13 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
     bind(lingguangActions.message, async (input, caller) => {
       const projectId = project(caller);
       const snapshot = ports.withStore(store => store.conversation(input.id, projectId));
-      if (snapshot.sparks.some(spark => spark.status !== "inbox")) throw new ActionError("lingguang.invalid", "关联灵光已丢弃，不能继续这场对话");
+      if (snapshot.sparks.some(spark => spark.status !== "inbox")) throw lingguangErrors.invalid("关联灵光已丢弃，不能继续这场对话");
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置文字模型，再继续对话");
       const prompt = conversationPrompt(snapshot, input.body);
       caller.signal?.throwIfAborted();
       const reply = (await ports.completeText(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
       caller.signal?.throwIfAborted();
-      if (!reply) throw new ActionError("lingguang.empty_reply", "模型没有返回正文，输入已保留，可重试");
+      if (!reply) throw lingguangErrors.empty_reply("模型没有返回正文，输入已保留，可重试");
       await caller.beforeEffect();
       return ports.withStore(store => store.addReply(input.id, input.body, reply, projectId, snapshot));
     }, () => ports.modelAvailability()),
@@ -150,6 +151,6 @@ function conversationPrompt(state: LingguangConversationState, body: string): In
   const material = { sparks: state.sparks.map(({ title, body }) => ({ title, body: body.length > SPARK_IN_PROMPT ? body.slice(0, SPARK_IN_PROMPT) + "\n（以下省略）" : body })),
     history: state.messages.filter(message => message.role !== "stub").map(({ role, body }) => ({ role, body })), message: body };
   const data = JSON.stringify(material);
-  if (data.length > 180_000) throw new ActionError("lingguang.context_too_large", "这场对话的材料过长，请减少所选灵光后开启对话");
+  if (data.length > 180_000) throw lingguangErrors.context_too_large("这场对话的材料过长，请减少所选灵光后开启对话");
   return instructed(LINGGUANG_CONVERSATION, data);
 }

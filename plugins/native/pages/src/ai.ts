@@ -1,5 +1,3 @@
-import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { PAGES_WRITING_ASSISTANT } from "./prompts.js";
 export const PAGES_AI_COMMANDS = [
   { id: "translate", label: "翻译" },
   { id: "rewrite", label: "改写", styles: ["concise", "expand", "formal", "casual"] as const },
@@ -54,28 +52,6 @@ export function pagesAiCommandLabel(command: string, style?: string): string {
 
 export function isPagesAiStyle(value: string | undefined): value is PagesAiStyle {
   return value === "concise" || value === "expand" || value === "formal" || value === "casual";
-}
-
-export async function runPagesAi(
-  request: PagesAiRequest,
-  completeText?: (prompt: InstructedPrompt) => Promise<string>,
-): Promise<PagesAiResult> {
-  if (!isPagesAiCommand(request.command)) {
-    throw Object.assign(new Error("不认识这个写作命令"), { code: "pages.invalid" });
-  }
-  const text = request.text.trim();
-  if (!text) throw Object.assign(new Error("没有可处理的文字"), { code: "pages.invalid" });
-  const label = pagesAiCommandLabel(request.command, request.style);
-  if (completeText) {
-    const output = (await completeText(instructed(PAGES_WRITING_ASSISTANT, `命令：${label}\n\n${text}`))).trim();
-    if (!output) throw Object.assign(new Error("模型没有返回文字"), { code: "pages.invalid" });
-    // “更短” promises a shorter text: a longer one is not offered as the rewrite (seen from MiniMax M3.1, which also added facts).
-    if (request.command === "rewrite" && request.style === "concise" && output.length >= text.length) {
-      throw Object.assign(new Error("这次改写没有比原文更短，没有采用；可以再试一次"), { code: "pages.invalid" });
-    }
-    return { text: output, command: request.command, style: request.style };
-  }
-  throw Object.assign(new Error("请先配置文字模型，再使用写作助手"), { code: "actions.connection_required" });
 }
 
 export function actionItemsFromText(text: string): string[] {

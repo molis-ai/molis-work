@@ -70,3 +70,5 @@ export * from './plugin-components.js';
 export * from './plugin-component-client.js';
 export * from './plugin-presentation.js';
 export { renderPluginPresentationExample } from './plugin-presentation-example.js';
+export * from './interaction.js';
+export { INTERACTION_STYLES } from './styles/interaction.js';

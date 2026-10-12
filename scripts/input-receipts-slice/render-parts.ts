@@ -122,7 +122,11 @@ export function endCard(row: Extract<ThreadRow, { kind: "end" }>, ctx: PartConte
   const mine = ctx.view.rows.filter((one): one is InputRow => one.kind === "input" && one.run === row.run);
   const queue = ctx.view.queue;
   const waiting = last && queue !== undefined && queue.queued.length > 0;
-  const rows = mine.map(one => `<li data-tone="${one.headline.tone}"><b>#${String(one.n)}</b><span>${esc(short(one.receipt.text, 16))}</span><em>${esc(conclusion(one))}</em></li>`).join("");
+  const own = new Set(mine.map(one => one.receipt.steerId));
+  // What the app queued itself never ran in this run, but it is waiting in the same queue.
+  const queued = last ? (queue?.queued ?? []).filter(item => !own.has(item.inputId)) : [];
+  const rows = mine.map(one => `<li data-tone="${one.headline.tone}"><b>#${String(one.n)}</b><span>${esc(short(one.receipt.text, 16))}</span><em>${esc(conclusion(one))}</em></li>`).join("")
+    + queued.map(item => `<li data-tone="warn"><b>#${String(ctx.view.number(item.inputId))}</b><span>${esc(short(item.text, 16))}</span><em>你交给会话的，排着</em></li>`).join("");
   return `<section class="rc-end" aria-label="这一轮的结论">
     <h4>${icon(row.state === "completed" ? "status-done" : "status-cancelled")}这一轮${esc(END_LABEL[row.state] ?? row.state)}${row.code === undefined ? "" : `（${esc(row.code)}）`}${mine.length === 0 ? " · 没有中途输入" : ` · ${String(mine.length)} 条中途输入`}</h4>
     ${rows === "" ? "" : `<ul>${rows}</ul>`}

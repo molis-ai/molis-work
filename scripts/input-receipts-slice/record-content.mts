@@ -29,7 +29,7 @@ export interface Flavor {
   readonly followUp: string;
   /** The person insists on the input the model did not adopt (§8.1 step 8). */
   readonly correction: Said;
-  readonly stopped: { readonly task: string; readonly first: string; readonly second: string; readonly direct: string; readonly next: string };
+  readonly stopped: { readonly task: string; readonly first: string; readonly second: string; readonly direct: string; readonly next: string; readonly final: string };
   readonly question: { readonly task: string; readonly why: string; readonly prompt: string; readonly options: readonly string[]; readonly supplement: Said; readonly final: string };
   readonly restart: { readonly task: string; readonly first: string; readonly second: string };
 }
@@ -49,7 +49,7 @@ export const CODING: Flavor = {
   clarify: { text: "把那个慢的用例也处理掉", ack: { treatment: "needs-clarification", kind: "request", impacts: ["scope"], note: "你指的是 login-timeout 还是 signup-slow？" } },
   followUp: "继续把登录接口的失败路径测试写完",
   correction: { text: "还是用 vitest，请提出迁移步骤并写清代价", ack: { treatment: "new-task", kind: "correction", impacts: ["approach", "scope"], note: "按你的纠正处理：提议「迁移测试框架」一步，并写清代价（改 scripts/run-tests.mjs、约 40 个文件）" } },
-  stopped: { task: "把登录页的校验提示改成中文", first: "提示里的邮箱格式也一起检查", second: "加一条空密码的用例", direct: "收尾时把改动清单列出来", next: "继续改登录页的提示" },
+  stopped: { task: "把登录页的校验提示改成中文", first: "提示里的邮箱格式也一起检查", second: "加一条空密码的用例", direct: "收尾时把改动清单列出来", next: "继续改登录页的提示", final: "登录页的校验提示已改成中文，邮箱格式和空密码也检查了。" },
   question: { task: "整理一下登录相关的测试", why: "要不要把 login-timeout 用例也一起处理？", prompt: "login-timeout 用例", options: ["一起处理", "先不动"], supplement: { text: "顺便看下报告的格式", ack: { treatment: "noted", kind: "supplement", impacts: [], note: "记下了，写报告时会看" } }, final: "已整理完登录相关的测试。" },
   restart: { task: "重构登录模块的错误处理", first: "错误码别改名", second: "先别动 session 相关的文件" },
 };
@@ -69,7 +69,7 @@ export const ASSISTANT: Flavor = {
   clarify: { text: "上次他们提到的预算问题也要准备", ack: { treatment: "needs-clarification", kind: "request", impacts: ["scope"], note: "你指 8 月邮件里的预算削减，还是 9 月会上的？" } },
   followUp: "接着把议程定稿",
   correction: { text: "上季度的数据还是要准备，议程第二项要用", ack: { treatment: "apply-now", kind: "correction", impacts: ["scope", "priority"], note: "按你的纠正处理：恢复准备上季度数据" } },
-  stopped: { task: "整理客户 A 的往来邮件", first: "只看今年的邮件", second: "把预算相关的单独列出来", direct: "整理完把清单发我", next: "继续整理客户 A 的邮件" },
+  stopped: { task: "整理客户 A 的往来邮件", first: "只看今年的邮件", second: "把预算相关的单独列出来", direct: "整理完把清单发我", next: "继续整理客户 A 的邮件", final: "客户 A 今年的邮件已整理，预算相关的单独列出来了。" },
   question: { task: "安排会前提醒", why: "提醒设在会前一小时还是前一天？", prompt: "会前提醒", options: ["会前一小时", "前一天"], supplement: { text: "顺便把议程也带上", ack: { treatment: "apply-now", kind: "supplement", impacts: ["outputs"], note: "提醒里附上议程" } }, final: "会前提醒已安排。" },
   restart: { task: "整理本周要跟进的客户", first: "先只整理 A 客户", second: "别发任何消息" },
 };

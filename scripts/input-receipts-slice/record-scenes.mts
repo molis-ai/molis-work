@@ -128,7 +128,7 @@ export async function stoppedScene(lab: Lab, f: Flavor, branch: "carry" | "withd
         toolItem(ids[0], { text: "", ack: { treatment: "apply-now", kind: "supplement", impacts: ["scope"], note: "按你补充的先检查邮箱格式" } }),
         toolItem(ids[1], { text: "", ack: { treatment: "later-step", kind: "request", impacts: ["acceptance"], note: "排在当前这一步之后" } }),
         toolItem(ids[2], { text: "", ack: { treatment: "noted", kind: "request", impacts: [], note: "收尾时列出来" } })]))
-      : says(f.final)));
+      : says(f.stopped.final)));
     lab.at(760);
     const two = await startRun(lab, session, `rec-${f.id}-stopped-carry-2`, f.stopped.next, { history: "session", queued: "carry" });
     await two.ended;

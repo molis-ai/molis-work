@@ -19,7 +19,19 @@ if (chrome === null || stage === null || live === null) throw new Error("the pre
 
 const rec = (): Recording => recordings[ui.layout];
 const prefersDark = typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
-let ui: U.Ui = U.initial(recordings.assistant, "assistant", prefersDark ? "dark" : "light");
+/** `?layout=coding&scene=question&cp=asked&theme=dark` opens the page at a given place: for screenshots and the browser tests. */
+function opening(): U.Ui {
+  const query = new URLSearchParams(location.search);
+  const layout: U.Layout = query.get("layout") === "coding" ? "coding" : "assistant";
+  const theme = query.get("theme") === "dark" || (query.get("theme") === null && prefersDark) ? "dark" : "light";
+  const base = U.initial(recordings[layout], layout, theme);
+  const wanted = query.get("scene");
+  if (wanted === null || !recordings[layout].scenes.some(one => one.id === wanted)) return base;
+  const scene = U.sceneOf(recordings[layout], wanted);
+  const cp = query.get("cp");
+  return U.toScene(recordings[layout], base, wanted, cp !== null && scene.checkpoints.some(one => one.id === cp) ? cp : undefined);
+}
+let ui: U.Ui = opening();
 let timer: number | undefined;
 let composing = false;
 let seen = new Map<string, string>();

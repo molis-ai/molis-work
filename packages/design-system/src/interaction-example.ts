@@ -33,11 +33,14 @@ const card = (label: string, body: string, wide = false) => `<figure class="mw-c
 export function renderInteractionExample(): string {
   const question = renderInteractionQuestion({ id: 'ix-q-open', kicker: '需要你补充 · 7 项', title: '把这次复盘安排好', badge: { label: '等你回答', tone: 'waiting' },
     collapse: { id: 'collapse', label: '收起问卷' }, intro: '全部必填。预填只是起点；提交只交回答案，执行另请你确认。',
+    about: '针对你说的「安排一次试用复盘」', target: { prefix: '针对', label: '秋季工作台 · 内部试用', version: '版本 1' },
+    evidence: { label: '依据', rows: [['request_id', 'req-7f3a'], ['about', 'input-12'], ['pending', 'pend-3 · 第 2 版']] },
     fields: fields({ minutes: '请输入 15–120 之间的整数分钟。', materials: '请选择 1–2 份材料。' }, '已按最新材料更新'), footer: footer('还有 2 项要修正，填写都在。', true) });
   const answered = renderInteractionQuestion({ id: 'ix-q-done', kicker: '已交回 · 7 项回答', title: '把这次复盘安排好', badge: { label: '已交回', tone: 'done' }, fields: [],
     answered: { rows: answeredRows, actions: [{ id: 'revise', label: '调整回答', variant: 'ghost' }] }, footer: footer('') });
   const expired = renderInteractionQuestion({ id: 'ix-q-expired', kicker: '需要你补充 · 7 项', title: '把这次复盘安排好', badge: { label: '已过期', tone: 'quiet' },
-    banner: { text: '这份问题已过期，旧回答不会再交回。草稿还在，可以请助理带着它重新问。', tone: 'waiting', actions: [{ id: 'reopen', label: '请助理重新问' }] },
+    target: { prefix: '针对', label: '秋季工作台 · 内部试用', version: '版本 2', changed: true },
+    banner: { text: '问题针对的对象已改到版本 2，旧回答不会再交回。草稿还在，可以请助理带着它重新问。', tone: 'waiting', actions: [{ id: 'reopen', label: '按新版本重新准备' }] },
     fields: fields().slice(2, 4), footer: { note: '草稿只在本页保留', actions: [{ id: 'submit', label: '提交回答', variant: 'primary', type: 'submit', disabled: true }] } });
   const steps = [
     ['问题收起时', renderInteractionNextSteps([{ id: 'question', label: '继续填写', source: '来自问卷' }])],

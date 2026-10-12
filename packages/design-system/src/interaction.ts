@@ -32,9 +32,11 @@ export interface InteractionReference { id: string; label: string; meta?: string
 /** Months the date control's calendar may show, rendered with the design system's own calendar. */
 export interface InteractionCalendar { months: Array<{ year: number; month: number }>; today?: string }
 export type InteractionControl =
-  | { kind: "choice"; options: InteractionOption[]; multiple?: boolean; recommendedLabel?: string }
+  | { kind: "choice"; options: InteractionOption[]; multiple?: boolean; recommendedLabel?: string;
+      /** A free "other" answer beside the options (the SDK's `allowOther`). Its text is the person's, never an option. */
+      other?: { label: string; value: string; placeholder?: string; selected?: boolean } }
   | { kind: "text"; value: string; multiline?: boolean; placeholder?: string; maxLength?: number }
-  | { kind: "number"; value: string; unit?: string; step?: number; placeholder?: string; stepLabels?: [string, string] }
+  | { kind: "number"; value: string; unit?: string; step?: number; min?: number; max?: number; integer?: boolean; placeholder?: string; stepLabels?: [string, string] }
   | { kind: "date"; value: string; weekday?: string; placeholder?: string; calendar?: InteractionCalendar; calendarLabel?: string }
   | { kind: "datetime"; date: string; time: string; zone: string; weekday?: string; calendar?: InteractionCalendar; calendarLabel?: string; dateLabel?: string; timeLabel?: string }
   | { kind: "reference"; candidates: InteractionReference[] };
@@ -52,12 +54,20 @@ export interface InteractionField {
   /** A question the field raises before it changes, e.g. a duration stated in the notes. */
   notice?: { text: string; actions: InteractionAction[] };
 }
+/** Where a card's facts come from, for a person who wants to check: rows the caller derives from its own records
+ * (a request key, the earlier input a pending question is about, a call number). Shown folded under the card. */
+export interface InteractionEvidence { label: string; rows: Array<[string, string]> }
 export interface InteractionQuestionView {
   /** Scopes element ids; unique on the page. */
   id: string;
   kicker: string;
   title: string;
   badge?: InteractionBadge;
+  /** The earlier input this question is about, in the caller's words. */
+  about?: string;
+  /** The object and version the question was prepared against; `changed` marks a version that moved since. */
+  target?: { prefix: string; label: string; version?: string; changed?: boolean };
+  evidence?: InteractionEvidence;
   collapse?: InteractionAction;
   banner?: { text: string; tone: InteractionTone; actions: InteractionAction[] };
   intro?: string;
@@ -74,6 +84,8 @@ export interface InteractionOperationView {
   title: string;
   badge?: InteractionBadge;
   target: { prefix: string; label: string; version?: string; changed?: boolean };
+  about?: string;
+  evidence?: InteractionEvidence;
   impact?: string;
   actions?: InteractionAction[];
   preview?: { title: string; rows: Array<[string, string]>; note?: string; actions?: InteractionAction[] };
@@ -129,14 +141,15 @@ function control(scope: string, field: InteractionField): string {
   const value = { "data-ix-value": field.id, "data-ix-focus": true, "aria-describedby": describedBy };
   const c = field.control;
   switch (c.kind) {
-    case "choice": return renderInteractionOptions(c.options, { id, labelledBy: fieldId(scope, field.id, "label"), describedBy, multiple: c.multiple, recommendedLabel: c.recommendedLabel });
+    case "choice": return renderInteractionOptions(c.options, { id, labelledBy: fieldId(scope, field.id, "label"), describedBy, multiple: c.multiple, recommendedLabel: c.recommendedLabel }) + (c.other
+      ? `<label class="mw-ix-other"><span>${esc(c.other.label)}</span><input class="mw-input" data-slot="input"${renderAttrs({ type: "text", value: c.other.value, placeholder: c.other.placeholder, maxlength: 500, autocomplete: "off", "data-ix-other": field.id, "aria-describedby": describedBy })}></label>` : "");
     case "text": return c.multiline
       ? `<textarea class="mw-textarea mw-ix-text" data-slot="textarea" rows="2"${renderAttrs({ id, placeholder: c.placeholder, maxlength: c.maxLength, ...value })}>${esc(c.value)}</textarea>`
       : `<input class="mw-input mw-ix-text" data-slot="input"${renderAttrs({ id, type: "text", value: c.value, placeholder: c.placeholder, maxlength: c.maxLength, autocomplete: "off", ...value })}>`;
     case "number": {
       const step = c.step ?? 1, [less, more] = c.stepLabels ?? [`减少 ${step}`, `增加 ${step}`];
       const stepper = (sign: 1 | -1) => renderButton({ label: sign > 0 ? more : less, icon: sign > 0 ? "plus" : "minus", iconOnly: true, variant: "ghost", attrs: { "data-ix-step-by": sign * step } });
-      return `<span class="mw-ix-number-row"><span class="mw-number mw-ix-number">${stepper(-1)}<input class="mw-input" data-slot="input"${renderAttrs({ id, type: "text", value: c.value, placeholder: c.placeholder, inputmode: "numeric", autocomplete: "off", ...value })}>${stepper(1)}</span>${c.unit ? `<span class="mw-ix-unit">${esc(c.unit)}</span>` : ""}</span>`;
+      return `<span class="mw-ix-number-row"><span class="mw-number mw-ix-number">${stepper(-1)}<input class="mw-input" data-slot="input"${renderAttrs({ id, type: "text", value: c.value, placeholder: c.placeholder, inputmode: c.integer ? "numeric" : "decimal", autocomplete: "off", "data-ix-min": c.min, "data-ix-max": c.max, ...value })}>${stepper(1)}</span>${c.unit ? `<span class="mw-ix-unit">${esc(c.unit)}</span>` : ""}</span>`;
     }
     case "date": return dateControl(c, { id, ...value });
     case "datetime": return `<span class="mw-ix-when">${dateControl({ ...c, value: c.date }, { id: `${id}-date`, "data-ix-part": "date", "data-ix-focus": true, "aria-label": c.dateLabel ?? "日期", "aria-describedby": describedBy })}<input class="mw-input mw-ix-time" data-slot="input"${
@@ -156,8 +169,12 @@ export function renderInteractionField(scope: string, field: InteractionField, o
       ${field.hint ? `<p class="mw-ix-hint" id="${fieldId(scope, field.id, "hint")}">${esc(field.hint)}</p>` : ""}<p class="mw-ix-error" id="${fieldId(scope, field.id, "error")}" data-ix-error${field.error ? "" : " hidden"}>${esc(field.error ?? "")}</p></div>
   </div>`;
 }
-const heading = (scope: string, view: { kicker: string; title: string; badge?: InteractionBadge }, glyph: MolisWorkIcon, extra = "") =>
-  `<header class="mw-ix-head"><div class="mw-ix-heading"><span class="mw-ix-kicker">${icon(glyph)}<span data-ix-kicker>${esc(view.kicker)}</span></span><h3 id="${scope}-title">${esc(view.title)}</h3></div>${renderInteractionBadge(view.badge)}${extra}</header>`;
+const heading = (scope: string, view: { kicker: string; title: string; badge?: InteractionBadge; about?: string }, glyph: MolisWorkIcon, extra = "") =>
+  `<header class="mw-ix-head"><div class="mw-ix-heading"><span class="mw-ix-kicker">${icon(glyph)}<span data-ix-kicker>${esc(view.kicker)}</span></span><h3 id="${scope}-title">${esc(view.title)}</h3>${view.about ? `<p class="mw-ix-about" data-ix-about>${esc(view.about)}</p>` : ""}</div>${renderInteractionBadge(view.badge)}${extra}</header>`;
+const targetLine = (t: { prefix: string; label: string; version?: string; changed?: boolean }) =>
+  `<p class="mw-ix-target">${icon("target")}<span>${esc(t.prefix)}</span><strong>${esc(t.label)}</strong>${t.version ? `<span class="mw-ix-version" data-ix-version${t.changed ? " data-changed" : ""}>${esc(t.version)}</span>` : ""}</p>`;
+const evidenceBlock = (evidence: InteractionEvidence | undefined) => evidence?.rows.length
+  ? `<details class="mw-ix-evidence" data-ix-evidence><summary>${esc(evidence.label)}</summary><dl>${rows(evidence.rows)}</dl></details>` : "";
 
 /** The questionnaire card. An answered question shows its summary; its form is kept hidden for reopening. */
 export function renderInteractionQuestion(view: InteractionQuestionView): string {
@@ -167,19 +184,19 @@ export function renderInteractionQuestion(view: InteractionQuestionView): string
     <fieldset class="mw-ix-fields" data-ix-fields><legend class="mw-sr-only">${esc(view.title)}</legend>${view.fields.map(field => renderInteractionField(scope, field, view.optionalLabel)).join("")}</fieldset>
     <footer class="mw-ix-foot"><p class="mw-ix-note" data-ix-note role="status"${view.footer.error ? ' data-tone="error"' : ""}>${esc(view.footer.note)}</p>${view.footer.keys ? `<kbd class="mw-ix-keys">${esc(view.footer.keys)}</kbd>` : ""}${actionRow(view.footer.actions, "")}</footer></form>`;
   const answered = view.answered ? `<div class="mw-ix-answered" data-ix-answered><dl data-ix-summary>${rows(view.answered.rows)}</dl>${actionRow(view.answered.actions, "")}</div>` : "";
-  return `<article class="mw-ix-card mw-ix-question" data-ix-question="${scope}" aria-labelledby="${scope}-title">${heading(scope, view, "question", view.collapse ? renderInteractionAction({ variant: "ghost", iconOnly: true, icon: "chevron-up", ...view.collapse }) : "")}${banner}${form}${answered}</article>`;
+  return `<article class="mw-ix-card mw-ix-question" data-ix-question="${scope}" aria-labelledby="${scope}-title">${heading(scope, view, "question", view.collapse ? renderInteractionAction({ variant: "ghost", iconOnly: true, icon: "chevron-up", ...view.collapse }) : "")}${view.target ? targetLine(view.target) : ""}${banner}${form}${answered}${evidenceBlock(view.evidence)}</article>`;
 }
 /** The operation card: target and version first, then exactly the parameters that would run, its status and result. */
 export function renderInteractionOperation(view: InteractionOperationView): string {
   const scope = esc(view.id);
-  const target = `<p class="mw-ix-target">${icon("target")}<span>${esc(view.target.prefix)}</span><strong>${esc(view.target.label)}</strong>${view.target.version ? `<span class="mw-ix-version" data-ix-version${view.target.changed ? " data-changed" : ""}>${esc(view.target.version)}</span>` : ""}</p>`;
+  const target = targetLine(view.target);
   const preview = view.preview ? `<section class="mw-ix-preview" data-ix-preview tabindex="-1" aria-labelledby="${scope}-preview"><h4 id="${scope}-preview">${esc(view.preview.title)}</h4><dl data-ix-summary>${rows(view.preview.rows)}</dl>${
     view.preview.note ? `<p class="mw-ix-hint" data-ix-preview-note>${esc(view.preview.note)}</p>` : ""}${actionRow(view.preview.actions, "data-ix-preview-actions", true)}</section>` : "";
   const status = view.status ? `<p class="mw-ix-status" data-ix-status role="status"${view.status.tone ? ` data-tone="${view.status.tone}"` : ""}>${view.status.busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : ""}${esc(view.status.text)}</p>` : "";
   const result = view.result ? `<section class="mw-ix-result" data-ix-result tabindex="-1" aria-labelledby="${scope}-result"><span class="mw-ix-result__mark">${icon("check")}</span><div class="mw-ix-result__body"><h4 id="${scope}-result">${esc(view.result.title)}</h4><p>${esc(view.result.body)}</p>${
     actionRow(view.result.actions, "")}${view.result.details ? `<div class="mw-ix-result__details" data-ix-result-details><h5>${esc(view.result.details.title)}</h5><p data-ix-result-text>${esc(view.result.details.body)}</p></div>` : ""}</div></section>` : "";
   return `<article class="mw-ix-card mw-ix-operation" data-ix-operation="${scope}" tabindex="-1" aria-labelledby="${scope}-title">${heading(scope, view, "zap")}${target}${
-    view.impact ? `<p class="mw-ix-impact">${icon("info")}<span>${esc(view.impact)}</span></p>` : ""}${actionRow(view.actions, "data-ix-actions")}${preview}${status}${actionRow(view.recovery, "data-ix-recovery")}${result}</article>`;
+    view.impact ? `<p class="mw-ix-impact">${icon("info")}<span>${esc(view.impact)}</span></p>` : ""}${actionRow(view.actions, "data-ix-actions")}${preview}${status}${actionRow(view.recovery, "data-ix-recovery")}${result}${evidenceBlock(view.evidence)}</article>`;
 }
 /** Next steps beside a composer: at most one primary and one secondary; a busy step shows its progress. */
 export function renderInteractionNextSteps(steps: InteractionNextStep[], label = "下一步"): string {

@@ -397,6 +397,21 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 | 操作卡 | 现有 `AssistantCard` 的解剖迁过来：对象、关键参数、可改字段、预览、影响标记、结果与后续 | ready、needs-input、running、done、failed、unknown、stale、dismissed |
 | 结果条 | 真实成果与后续动作（打开、采用、调整、继续） | |
 
+**展示参数与外部合同的对应（2026-10-12 定稿，实现见 §19.2）**：设计系统不引用 SDK、Molis 合同或回执合同；消费方写一个纯函数，把自己的记录转成 `Interaction*View`。对应关系固定如下，接入时不改组件：
+
+| 来源（消费方的记录） | 展示参数 |
+| --- | --- |
+| SDK `PendingQuestion`：`id`、`prompt`、`type`、`required`、`help` | `InteractionField`：`id`、`label`、`control.kind`、`optional`（`required: false`）、`hint` |
+| 选择题：`options[].description`、`recommended`、`multiple`、`allowOther`；`default` | `choice` 控件：选项说明与「推荐」标记、多选、`other` 自由填写栏；`default` 只让 `selected` 预选，答案仍取人提交的 |
+| 文本、数字、日期、日期时间题：`multiline`、`maxLength`、`min`、`max`、`integer` | `text`、`number`（含 `min`、`max`、`integer` 钩子）、`date`、`datetime` 控件；日期与时间的上下界由消费方校验并出错 |
+| 对象引用题：`refKinds`、`maxCount` | `reference` 控件：候选只是消费方按种类过滤、有权限读到的真实对象；模型不给候选 |
+| `QuestionnaireProblem`（闭集 `reason`，如 `required`、`too-large`、`bad-date`、`kind-not-allowed`） | 对应字段的 `error` 文字；消费方做 `reason → 本地化文案` 的表，不解析 `message`；其他字段不动，错的草稿原样留着 |
+| 输入回执线：`request_id`、`key`、pending 的 `about`、调用编号 | 卡片的 `about`（「针对你说的…」，用人的话）与折叠的 `evidence`（「依据」，一组 `[名, 值]` 行，等宽字体，可复制查对）；设计系统只显示，不解释 |
+| 对象版本失效 | 卡片的 `target`（对象名 + 版本标记，版本变了 `changed` 琥珀色）与问卷/操作卡的横幅或状态行；失效后旧参数不可执行，按钮改成「按新版本重新准备」，由消费方给文字 |
+| 过期、被替换、取消、失败、结果未知 | `badge` 的 `tone`（waiting/progress/done/failed/quiet）、`banner`、`status`、`recovery` 操作；这些词都由消费方给 |
+
+这个转换现在还没有写进产品：它是接入阶段的一个纯函数加一份 `reason` 文案表，`tests/interaction-sdk-mapping.test.ts` 用同一形状的样例证明它能把一组带类型的题和三种字段错误直接转成卡片，且种类之外的候选不会进卡片。
+
 浏览器端的共同行为（草稿合并、焦点、中文输入法、键盘、减少动态）写成一份共享的客户端模块，工作台与插件客户端各自装载；具体装载方式实施时按现有插件客户端的做法核对。替换掉的助理与 Coding 旧渲染在同一个 PR 里删掉，保证 `/assets/` 字节不涨。
 
 ### 15.6 同排推荐的来源与边界
@@ -589,10 +604,14 @@ node scripts/run-tests.mjs tests/ai-interaction-slice.e2e.test.ts
 
 **第一个活的使用方**：I0 预览改为直接用这些部件渲染问卷、操作卡、下一步与输入框标记，预览自己的卡片样式删掉，只留对话外壳；paint、事件绑定、日历与 e2e 都改到 `data-ix-*` 钩子上，断言内容不变。
 
+**同日补充（外部约束）**：统筹转来两条要在接口里算进去：SDK（Prologue `a13bf067`）已有带类型的 `ask-user`（`config.tool.askUserQuestionTypes`、`validateQuestionnaireAnswer`、`PENDING_KIND_MISMATCH`），问卷卡要能从这组真实题型与字段错误直接转换；回执线的 `request_id`/`key`、pending 的 `about` 与对象版本失效要有展示位。已补：`choice` 控件的 `other`（`allowOther`）、`number` 的 `min`/`max`/`integer`、卡片的 `about`、折叠的 `evidence`、问卷卡的 `target`（对象与版本）；对应关系表在 §15.5。决定记录：展示位只显示、不解释，键与 id 以等宽行给出便于查对；`reason → 文案` 由消费方做，设计系统不收机器原因。
+
 **未做**：
 - 共享的浏览器端行为模块（草稿合并、焦点、组合输入、日历、键盘），现在仍在预览自己的 `bindings.ts`、`calendar.ts` 里，下一刀抽成不依赖运行时 import 的函数，供助理岛与 Coding 客户端拼接。
 - 助理与 Coding 的产品采用与旧渲染删除（P3/P4，等真实接入一起做）。
 - 单选问询的输入框上方选项胶囊。
+
+**AC-17 的证据（2026-10-12）**：`tests/interaction-components.test.ts`、`tests/interaction-sdk-mapping.test.ts` 与 primitives、arrival-components、workbench-ui-platform、I0 单测共 66/66；I0 e2e 改用这些部件后 10/10（持 browser 锁）；组件板区块在隔离宿主上目视通过（浅色、桌面宽度）。深色与窄屏的组件板样张尚未逐张看。
 
 **AC-17**（P2）：设计系统提供问卷、选项组、操作卡、下一步与输入框标记的共享部件，只收展示参数、调用方文字全部转义、六种题型都有不依赖系统控件的输入方式、每个字段有稳定的错误位；组件板有区块并进入目录；样式只用令牌、不进共享页面样式表；I0 预览用这些部件跑通全部路径。
 

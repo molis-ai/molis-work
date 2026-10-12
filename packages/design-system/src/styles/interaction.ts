@@ -27,6 +27,19 @@ export const INTERACTION_STYLES = `
 .mw-ix-badge[data-tone="failed"] { background: color-mix(in srgb, var(--red) 11%, transparent); color: var(--ink); }
 .mw-ix-badge[data-tone="failed"]::before { background: var(--red); }
 .mw-ix-intro { color: var(--ink-soft); font-size: 12px; }
+.mw-ix-about { color: var(--muted); font-size: 12px; }
+.mw-ix-other { display: grid; gap: 4px; width: 100%; margin-top: 2px; color: var(--ink-soft); font-size: 12px; }
+.mw-ix-other .mw-input { width: 100%; max-width: none; }
+.mw-ix-evidence { color: var(--muted); font-size: 12px; }
+.mw-ix-evidence > summary { width: fit-content; cursor: pointer; list-style: none; border-radius: var(--r-tag, 6px); }
+.mw-ix-evidence > summary::-webkit-details-marker { display: none; }
+.mw-ix-evidence > summary::before { content: "›"; display: inline-block; width: 12px; transition: transform var(--dur-move) var(--ease-quint); }
+.mw-ix-evidence[open] > summary::before { transform: rotate(90deg); }
+.mw-ix-evidence > summary:hover { color: var(--ink); }
+.mw-ix-evidence > summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+.mw-ix-evidence dl { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 4px 12px; margin: 8px 0 0; font-family: var(--font-mono, monospace); font-size: 11px; }
+.mw-ix-evidence dt { color: var(--faint); }
+.mw-ix-evidence dd { margin: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
 .mw-ix-form { display: grid; gap: 14px; }
 .mw-ix-fields { display: grid; gap: 16px; margin: 0; padding: 0; border: 0; min-width: 0; }
 .mw-ix-fields:disabled { opacity: .72; }

@@ -49,7 +49,7 @@ const catalog = [{ kind: "goal", id: "g1", label: "内部试用" }, { kind: "doc
 test("AC-17 / AC-04: a typed SDK question set converts to field views with help, required marks, recommendations and an other slot", () => {
   const fields = questions.map(q => toField(q, [], {}, catalog));
   const html = renderInteractionQuestion({ id: "sdk", kicker: "需要你补充", title: "安排", fields, footer: { note: "", actions: [] } });
-  assert.match(html, /data-ix-option="0" aria-pressed="true"/, "a default only pre-selects; the answer is whatever the person submits");
+  assert.match(html, /data-ix-option="0" role="radio" aria-checked="true"/, "a default only pre-selects; the answer is whatever the person submits");
   assert.match(html, /<span class="mw-ix-tag">推荐<\/span>/);
   assert.match(html, /data-ix-other="format"/, "allowOther becomes a free answer slot");
   assert.match(html, /<span class="mw-ix-optional">选填<\/span>/);

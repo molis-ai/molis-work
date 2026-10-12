@@ -16,7 +16,7 @@ const submitButton = (scope = assistant) => `${scope} [data-ix-action="submit"]`
 const read = <T = string>(page: ChromePage, expression: string) => page.evaluate<T>(expression);
 const value = (page: ChromePage, selector: string) => read(page, `document.querySelector(${JSON.stringify(selector)}).value`);
 async function selected(page: ChromePage, selector: string): Promise<string | null> {
-  return page.evaluate(`document.querySelector(${JSON.stringify(selector)}).getAttribute('aria-pressed')`);
+  return page.evaluate(`(e=>e.getAttribute('aria-checked')??e.getAttribute('aria-pressed'))(document.querySelector(${JSON.stringify(selector)}))`);
 }
 async function waitState(page: ChromePage, question: string, execution?: string, scope = assistant): Promise<void> {
   await page.wait(`document.querySelector('${scope}').dataset.questionState === ${JSON.stringify(question)}${execution ? ` && document.querySelector('${scope}').dataset.executionState === ${JSON.stringify(execution)}` : ""}`);

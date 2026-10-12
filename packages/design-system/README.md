@@ -15,7 +15,7 @@ renderButton({ label: "保存", variant: "primary" });
 icon("copy"); // 页面已注入 sprite 时也可以 <svg><use href="#icon-copy"></use></svg>
 ```
 
-AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`renderInteractionOptions`、`renderInteractionNextSteps`、`renderInteractionComposerTarget`）只做呈现：调用方把自己的记录（Agent 的等待问题、操作卡、插件的「需要补充」结果）转换成展示参数，读人的文字都由调用方给。页面要用它们时自己加载 `INTERACTION_STYLES`；它故意不在 `PRIMITIVE_STYLES` 里，因为那里每加 1 字节，冻结的页面资源里要付约 6 字节。产品采用时，在同一个改动里删掉被替换的旧渲染（需求书 `specs/ai-interaction-experience/spec.md` §17 P2）。
+AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`renderInteractionOptions`、`renderInteractionNextSteps`、`renderInteractionComposerTarget`）只做呈现：调用方把自己的记录（Agent 的等待问题、操作卡、插件的「需要补充」结果）转换成展示参数，读人的文字都由调用方给。页面要用它们时自己加载 `INTERACTION_STYLES`；它故意不在 `PRIMITIVE_STYLES` 里，因为那里每加 1 字节，冻结的页面资源里要付约 6 字节。产品采用时，在同一个改动里删掉被替换的旧渲染（跨插件 AI 交互需求书的 P2）。
 
 控件标本：开发预览打开 `/__ui/catalog`（不进用户导航），真实底栏标本在 `/__ui/catalog/bar`。变体、状态、浅深色、密度、打开后的菜单、组合（列表+详情、工具栏+筛选、带错误的表单、对话框里的菜单、长内容嵌套滚动、窄屏与密度）和动效以组件板为准，不要在业务 CSS 里重画一套。改共享控件必须先看这块板。已经达到产品美学要求的共享控件、状态变体或微动效要补进 `src/primitives/catalog.ts`；草稿和产品专属编排不必塞进去，但进产品主链前不得带着系统下拉等 OS 控件。
 

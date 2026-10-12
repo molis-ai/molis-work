@@ -69,7 +69,8 @@ function paintFields(root: HTMLElement, state: DemoState, recommendation: Recomm
   find<HTMLFieldSetElement>(root, "[data-ix-fields]").disabled = !draftable(state) && !recommendation.composing;
   for (const name of ["format", "topics"] as const) {
     root.querySelectorAll<HTMLButtonElement>(`[data-ix-field="${name}"] [data-ix-option]`).forEach(button => {
-      attr(button, "aria-pressed", String(state.values[name].includes(Number(button.dataset.ixOption))));
+      // A single pick is a radio (aria-checked); several picks are toggle buttons (aria-pressed).
+      attr(button, button.hasAttribute("aria-checked") ? "aria-checked" : "aria-pressed", String(state.values[name].includes(Number(button.dataset.ixOption))));
     });
   }
   const chosen = state.values.references;

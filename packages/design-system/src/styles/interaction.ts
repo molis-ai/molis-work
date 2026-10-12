@@ -66,20 +66,23 @@ export const INTERACTION_STYLES = `
 .mw-ix-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; width: 100%; }
 .mw-ix-option { display: grid; gap: 3px; min-height: 52px; padding: 8px 12px; border: 0; border-radius: var(--r-control, 8px); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--lift-1), 0 0 0 1px var(--line);
   transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
-.mw-ix-option:hover:not([aria-pressed="true"]):not(:disabled) { background: color-mix(in srgb, var(--ink) 3%, var(--paper)); }
+.mw-ix-option:hover:not([aria-pressed="true"], [aria-checked="true"]):not(:disabled) { background: color-mix(in srgb, var(--ink) 3%, var(--paper)); }
 .mw-ix-option:active:not(:disabled) { transform: scale(.97); }
-.mw-ix-option[aria-pressed="true"] { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); }
+.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); }
 .mw-ix-option:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
 .mw-ix-option__top { display: flex; align-items: center; gap: 6px; }
 .mw-ix-option__title { font-weight: var(--weight-control, 500); }
 .mw-ix-option__desc { color: var(--muted); font-size: 12px; line-height: 1.4; }
-.mw-ix-option[aria-pressed="true"] .mw-ix-option__desc { color: color-mix(in srgb, var(--action-ink) 74%, transparent); }
+.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-option__desc { color: color-mix(in srgb, var(--action-ink) 74%, transparent); }
 .mw-ix-option__check { margin-left: auto; display: inline-grid; opacity: 0; transform: scale(.6); transition: opacity var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
 .mw-ix-option__check svg { width: 12px; height: 12px; }
-.mw-ix-option[aria-pressed="true"] .mw-ix-option__check { opacity: 1; transform: none; }
+.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-option__check { opacity: 1; transform: none; }
 .mw-ix-tag { display: inline-flex; align-items: center; padding: 0 6px; border-radius: var(--r-tag, 6px); background: var(--accent-soft); color: var(--ink); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 18px; }
-.mw-ix-option[aria-pressed="true"] .mw-ix-tag { background: color-mix(in srgb, var(--action-ink) 18%, transparent); color: var(--action-ink); }
+.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-tag { background: color-mix(in srgb, var(--action-ink) 18%, transparent); color: var(--action-ink); }
 .mw-ix-choices .mw-choice { min-width: 0; min-height: 34px; }
+/* A single pick is a radio (aria-checked); the product's choice styles its selected state from aria-pressed, so mirror them. */
+.mw-ix-choices .mw-choice[aria-checked="true"] { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); }
+.mw-ix-choices .mw-choice[aria-checked="true"] .mw-choice__check { opacity: 1; transform: none; }
 
 /* Number, date and time are typed or stepped; the calendar is the design system's, never an OS picker. */
 .mw-ix-number-row { display: inline-flex; align-items: center; gap: 8px; }

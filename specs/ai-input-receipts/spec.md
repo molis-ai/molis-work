@@ -873,7 +873,7 @@ interface AgentInputView {
 - 2026-10-12：接续开工（receipts 会话）。Prologue：S2 分支 `feature/input-receipts-s2` 先合 main `69ccfa94`、跑 S1 回归，按统筹要求换基点到采用线的干净 S1（`edb8ec86` = `c4b9fde3` + S1 `4acfb445` + main `69ccfa94`），之后整合是快进。S2 切片合同 `docs/slices/input-queue.md` 先写后做：会话级持久排队、获准才带（默认 `ask`，`auto` 只作用于 App 开的跑）、历史可见不等于获准消费（没读到的原话不进后续入模历史）、子任务唤醒续跑不带、键整条会话去重、重启收口时入队。工程证据（三级分开）见 SDK 合同的验收记录；真实 Provider、Molis 生产入口、用户实操都未跑。Molis 分支合入 main `02ceba8c`；§6.1 第 4 项按 S2 实际入口改写，§6.2a 记下按现行 contracts 核对的落点。
 
 - 2026-10-12（续）：S3（处理说明与有界提醒）在 Prologue `feature/input-receipts-s3` 上实现并工程通过（基点：采用线整合末端 `a13bf067` 合入 S2 得 `c0194228`）。切片合同 `docs/slices/input-handling.md`，决策记录 H1–H15。要点：模型只能说明这一跑里已读到的输入；说明没有权威、不改 `state`；提醒有界、只写编号、不挡死收工；`later-step / new-task / needs-clarification` 暂用 `note` 补足，S4 有了步骤与问题目标再收紧。Molis 侧准备：D10–D12 写入 §14；§6.2 `AgentInputView.handling` 的字段取自投影的 `handling` / `handlingRevisions`（`impacts` 为模型自称，观察到的影响仍由 S4 / Molis 投影）。
-- 2026-10-12（再续）：R0 独立回执体验预览实现并工程通过（见 §18.8）。脚本 `scripts/preview-input-receipts.mts`（端口 4292）读 `scripts/input-receipts-slice/recorded/` 里用 Prologue S3 末端（`37427d09`）的真实 SDK 录下的事实，只做展示，不计算状态。非浏览器用例 11 条、浏览器用例 10 条（PR #438；三宽度 × 浅深色 × 两种布局 × 四个场景、键盘、输入法、托盘、纠正、结束卡与重启分支）通过；健康门禁 `--base origin/main` 通过，新文件 Biome 0 诊断、类型检查干净、secrets 干净。**真实产品实操不适用（预览不连 Home）；用户本人验收未进行。**
+- 2026-10-12（再续）：R0 独立回执体验预览实现并工程通过（见 §18.8）。脚本 `scripts/preview-input-receipts.mts`（端口 4292）读 `scripts/input-receipts-slice/recorded/` 里用 Prologue S3 末端（`37427d09`）的真实 SDK 录下的事实，只做展示，不计算状态。非浏览器用例 12 条、浏览器用例 10 条（三宽度 × 浅深色 × 两种布局 × 四个场景、键盘、输入法、托盘、纠正、结束卡与重启分支）通过；健康门禁 `--base origin/main` 通过，新文件 Biome 0 诊断、类型检查干净、secrets 干净。**真实产品实操不适用（预览不连 Home）；用户本人验收未进行。**
 - 2026-10-12（统筹交来）：Prologue S2/S3 已随 Prologue #5 合入 Prologue main（合并提交 `f5ef12e6`），采用线正在把这个包换进 Molis。新增待办 D16（§14）：`acknowledge-inputs` 在助理面板里的显示与措辞归本线，D7 之后接 S3 时定。
 
 ## 17. 远端交接（2026-10-11，当前接续入口）
@@ -934,7 +934,7 @@ Molis 层的事实（L0「发送中」、页面代写来源、本人的纠正与
 
 ### 18.4 落点与边界
 
-- 分支：R0 的代码单独走 `feature/ai-input-receipts-r0`（PR #438，从 main 起，Draft），本需求书分支 #409 只放文档。文件：`scripts/preview-input-receipts.mts`（启动与路由，端口 4292）、`scripts/input-receipts-slice/*`（录制、读取、两种布局的渲染、浏览器端行为）、`tests/input-receipts-slice.test.ts`（非浏览器）、`tests/input-receipts-slice.e2e.test.ts`（浏览器，持 browser 锁跑）。
+- 分支：R0 的代码并入本交接分支（PR #409）。2026-10-13 用户决定各线只在交接 PR 里提交（有防腐线在改代码质量与架构，另开 PR 容易与它的改动冲突），所以原先单开的 #438 已并入 #409 后关闭。文件：`scripts/preview-input-receipts.mts`（启动与路由，端口 4292）、`scripts/input-receipts-slice/*`（录制、读取、两种布局的渲染、浏览器端行为）、`tests/input-receipts-slice.test.ts`（非浏览器）、`tests/input-receipts-slice.e2e.test.ts`（浏览器，持 browser 锁跑）。
 - 只用设计系统现有公开部件与令牌，样式不进 `/assets/` 冻结资源；新文件各自守健康门禁的单元上限（拆到阈值以下，不登记例外），Biome 规则从 0 起算（不用 `console`、`as unknown as`、空 `catch`）。
 - 不改 `apps/`、`horizontal/`、`plugins/`、`packages/` 下任何产品代码；与交互线只在设计系统部件上交汇（#423 合入后改用，不复制）。
 
@@ -957,11 +957,11 @@ Molis 层的事实（L0「发送中」、页面代写来源、本人的纠正与
 
 ### 18.7 切法
 
-一个 PR（实际：从 main 另开的计划内 PR #438，与 #409 谁先合都不冲突），内容按顺序：录制脚本与录好的事实 → 读取与展示状态的纯函数（附非浏览器用例）→ 两种布局的页面 → 浏览器端行为 → e2e 与走查记录。交互线 #423 合入 main 后，芯片的「写进问卷」占位改用它的部件（小改动，另起提交）。
+一个 PR（实际：先在 #438 做完，2026-10-13 按用户决定并入交接 PR #409，#438 关闭），内容按顺序：录制脚本与录好的事实 → 读取与展示状态的纯函数（附非浏览器用例）→ 两种布局的页面 → 浏览器端行为 → e2e 与走查记录。交互线 #423 合入 main 后，芯片的「写进问卷」占位改用它的部件（小改动，另起提交）。
 
 ### 18.8 实现记录（2026-10-12）
 
-**落点（PR #438，`feature/ai-input-receipts-r0`）。** `scripts/preview-input-receipts.mts` 起一个只读的内存服务（127.0.0.1:4292）；`scripts/input-receipts-slice/` 下：`record*.mts` 与 `record-child.mjs`（开发时手动跑，用 SDK 的内存 Host 和脚本模型真跑五个场景，录事件账、`projectInputReceipts` 输出与 `session.inputQueue()`，重启场景用被 SIGKILL 的子进程）、`recorded/{assistant,coding}.json`（两种体裁各一份，带来源提交）、`scene-state.ts`（把账投影成页面行、托盘、阶段，纯函数）、`ui-state.ts`（点击怎样移动游标或切到录好的分支，纯函数）、`headline.ts`/`labels.ts`（措辞规则：「读到」只给 read，「AI 的理解」只给模型的声明，不出现「已生效」）、`render*.ts`/`styles.ts`/`client.ts`（页面）。测试：`tests/input-receipts-slice.test.ts`（11 条，不开浏览器）、`tests/input-receipts-slice.e2e.test.ts`（10 条，真 Chrome，持 browser 锁）。
+**落点（并入交接 PR #409；原 `feature/ai-input-receipts-r0` / #438 已关闭）。** `scripts/preview-input-receipts.mts` 起一个只读的内存服务（127.0.0.1:4292）；`scripts/input-receipts-slice/` 下：`record*.mts` 与 `record-child.mjs`（开发时手动跑，用 SDK 的内存 Host 和脚本模型真跑五个场景，录事件账、`projectInputReceipts` 输出与 `session.inputQueue()`，重启场景用被 SIGKILL 的子进程）、`recorded/{assistant,coding}.json`（两种体裁各一份，带来源提交）、`scene-state.ts`（把账投影成页面行、托盘、阶段，纯函数）、`ui-state.ts`（点击怎样移动游标或切到录好的分支，纯函数）、`headline.ts`/`labels.ts`（措辞规则：「读到」只给 read，「AI 的理解」只给模型的声明，不出现「已生效」）、`render*.ts`/`styles.ts`/`client.ts`（页面）。测试：`tests/input-receipts-slice.test.ts`（11 条，不开浏览器）、`tests/input-receipts-slice.e2e.test.ts`（10 条，真 Chrome，持 browser 锁）。
 
 **本线定下的几处（与 18.1 的差异，记在这里）。**
 
@@ -984,7 +984,7 @@ Molis 层的事实（L0「发送中」、页面代写来源、本人的纠正与
 | RCPT-R0-07 | 浏览器：3 宽度 × 浅深色 × 助理/Coding × 4 场景无横向溢出、输入框在视口内、回执条存在；390 下触控目标 ≥44px；Tab 进入回执条、Enter/空格开合、Tab 进详情、Esc 收起并还焦点；减少动态效果时详情无动画；非播放的重绘不移动阅读位置；390 下详情与托盘展开不溢出 | 「回执更新」在 R0 只有演示回放；回放按设计跟到末尾，所以阅读位置只对非回放重绘断言 |
 | RCPT-R0-08 | 单元：录制文件来源提交一致、页面无「已生效」；浏览器：说明整行在每个宽度完整、全程无页面错误；预览服务只读、不连 Home、不出网 | |
 
-**证据三层分开记。** 浏览器用例在 PR #438 合入 main `05c46f67` 之后的末端（`ca8d2262`）持 browser 锁跑，10/10；`--base origin/main` 的健康门禁在同一末端通过。
+**证据三层分开记。** 浏览器用例在合入 main `05c46f67` 之后的末端（`ca8d2262`）持 browser 锁跑，10/10；并入 #409 之后在交接分支上再跑一遍的结果见下面「并入 #409 之后」；`--base origin/main` 的健康门禁在同一末端通过。
 
 - **工程通过（做了）：** 上表；`node scripts/check-health-gates.mjs --base origin/main` 通过；新文件 `biome lint` 0 诊断；用临时配置对新文件做了类型检查（仓库根 tsconfig 不含 `scripts/` 与 `tests/`）；`pnpm secrets:check`（`node scripts/check-secrets.mjs`）干净。
 - **真实产品实操：** 不适用。预览不连 Home、不跑真实模型；开发者在内置浏览器里走查了主场景、被停下、问题、重启四个场景在 1440 / 1024 / 390 与浅深色下的样子，并在走查中发现并修了上面的 2、4。截图由 Chrome 用例按宽度与主题生成。

@@ -1,7 +1,8 @@
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentReviewRequest, AgentReviewReceipt, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { CODING_CHANGESET_TYPE, compareTexts, parseCodingChangeSet, parseFilePath, splitLines, type CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { CODING_CHANGESET_TYPE, parseCodingChangeSet, parseFilePath, type CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { compareTexts, splitLines } from "@molis-ai/molis-work-plugin-sdk";
 
 export const codingChangeSetReference = (sessionId: string, runId: string) => ({ artifact_id: `coding-changeset:${encodeURIComponent(sessionId)}:${encodeURIComponent(runId)}`, version: 1 });
 

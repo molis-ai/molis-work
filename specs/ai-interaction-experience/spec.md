@@ -549,6 +549,7 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 - 2026-10-11：I0 独立组合预览写成并交接（§19、§20）。
 - 2026-10-12（C1a，已取消）：曾把合同子路径先做成纯新增（#447）；统筹改序后并进 C1+H1（D11），#447 关闭。
 - 2026-10-13（交接 PR 合并 I1）：按用户决定，各线只在交接 PR 里提交；I1（#439）已合进交接分支（933c664f，无冲突）。I0 预览改用 `createInteractionClient`，删掉预览自己的 `calendar.ts` 和 `bindings.ts` 里的字段、日历、键盘处理（净减 128 行）；纯逻辑用例 21/21 与局部 typecheck 通过，**浏览器用例（`tests/ai-interaction-slice.e2e.test.ts`）等 browser 锁，尚未重跑**。
+- 2026-10-13（防腐复查 1）· 合入 main `1ec92c18` · merge-base `1ec92c18` · 通过（机器项）：M2 `check-health-gates --base origin/main` 全绿（157 个巨大单元不变），M8 页面事件已登记；M9/M10 列出的是 main 上已有的翻译冲突与测试引用，不是本线新增。未做：M1 `boundary:check`、M5 动作快照、M6 页面资源（需要构建，等 build 锁）；人看项 3.19（页面资源）见下一条 A1 字节预算，暂缓，等 A1 开工前定办法。本线到目前只改了设计系统、预览脚本、需求书，没有动合同、动作、宿主。
 - 2026-10-13（A1 字节预算，实测）：`INTERACTION_CLIENT_SCRIPT` 17,644 字节、`INTERACTION_STYLES` 17,428 字节；助理岛里要被替换的 `renderQuestion`/`renderCard`/「接下来」行约 18 KB，`craft-finish` 里对应的助理样式约 6.6 KB。页面资源门禁只许变小，所以 A1 按现在的划分净增约 10 KB（`molis-work-workbench.css`）；样式若同时进另外两张表则更多。需要在 A1 开工前定办法：（a）把 `INTERACTION_STYLES` 缩到能与被替换的助理样式抵平；（b）同一 PR 里删 `molis-work-workbench.css` 里别处已被取代的样式；（c）请用户对这一项放宽门禁。构建锁放开后用真实构建量 `workbench.css` 与 `workbench.js` 再定。
 - 2026-10-12（C1+H1）：在 #408 的分支上写了带类型的题的合同、投影、预检、错误码与题型交集；验证在构建锁放开后做（证据另记）。
 - 2026-10-12（I1）：共享浏览器行为模块写成并在真浏览器验证（§19.2）；#423 的审查修改完成。

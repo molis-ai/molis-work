@@ -105,6 +105,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
     body: JSON.stringify({ status: "done", expected_revision: revision + 8 }),
   });
   assert.equal(stale.status, 409);
+  assert.equal((await stale.json() as { code: string }).code, "feed.revision_conflict");
 
   const completed = await webFetch(`${origin}${prefix}/api/inbox/entries/${entryId}/status`, {
     method: "POST",
@@ -161,6 +162,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
     body: JSON.stringify({ status: "done", expected_revision: 1 }),
   });
   assert.equal(missing.status, 404);
+  assert.equal((await missing.json() as { code: string }).code, "inbox.entry_not_found");
 
   const judgment = await webFetch(`${origin}${prefix}/api/inbox/judgment`);
   assert.equal(judgment.status, 200);

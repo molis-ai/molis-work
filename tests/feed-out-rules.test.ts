@@ -7,9 +7,8 @@ import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import {
   createLocalFeedApplication,
   createLocalFeedSourceService,
@@ -288,7 +287,7 @@ test("out-rule CRUD rejects an empty match and can disable a rule", () => {
     assert.equal(data.feed.listOutRules(DEMO_PROJECT_ID).length, 0);
     assert.throws(
       () => data.feed.createOutRule(DEMO_PROJECT_ID, { name: "空规则", match: {} }),
-      (error: unknown) => error instanceof FeedDomainError && error.code === "feed_out_rule_invalid",
+      (error: unknown) => error instanceof ActionError && error.code === "feed.out_rule_invalid",
     );
     const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
       name: "发布相关",
@@ -509,7 +508,7 @@ test("Feed rule validation cannot overwrite a rule edited while its selected cap
       judgment: { capability_id: "fixture.judgment", version: 1, provider_id: "fixture" }, name: "旧页面修改" } });
     await ready;
     data.feed.updateOutRule(DEMO_PROJECT_ID, rule.rule_id, { name: "另一窗口的新修改" });
-    release(); await assert.rejects(pending, { code: "feed_revision_conflict" });
+    release(); await assert.rejects(pending, { code: "feed.revision_conflict" });
     const saved = data.feed.listOutRules(DEMO_PROJECT_ID).find(value => value.rule_id === rule.rule_id)!;
     assert.equal(saved.name, "另一窗口的新修改"); assert.equal(saved.judgment, null);
   } finally { close(data); }

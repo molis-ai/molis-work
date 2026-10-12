@@ -1,6 +1,7 @@
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { parseClockTime } from "./calendar.js";
+import { scheduleFailure } from "./error.js";
 import type { ScheduleConversationTaskView } from "./tasks.js";
 import type { RecoverScheduleReminderInput, ScheduleJobView } from "./reminder-management.js";
 import type { RecoverScheduledOperationInput, ScheduledOperationView } from "./operation-management.js";
@@ -103,7 +104,8 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
   };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
-    handle: (caller, input) => { project(caller); return handle(input as I, caller); },
+    // The scheduler service's refusals leave Schedule as Schedule's own declared failures.
+    handle: async (caller, input) => { try { project(caller); return await handle(input as I, caller); } catch (error) { throw scheduleFailure(error); } },
   });
   const editable = (input: ScheduleTaskInput) => ({ title: input.title, instructions: input.instructions, ...parseClockTime(input.time), notify_important: input.notify_important !== false });
   return [

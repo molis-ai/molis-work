@@ -1,9 +1,8 @@
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
 import { ActionError, retainActionAuthority, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { FEED_PLUGIN_ID } from "./identity.js";
 import type { FeedApplication } from "./application.js";
-import { FeedStoreError } from "./application-errors.js";
 import type { FeedConnectorSync } from "./connector-sync.js";
 import type { FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
 import { sourceRegistrationInput } from "./route-input.js";
@@ -60,17 +59,16 @@ export interface FeedSourceActionPorts {
   connectorSync(caller: ActionCallContext): Pick<FeedConnectorSync, "sync">;
 }
 
-const asActionError = (error: unknown) => error instanceof FeedStoreError || error instanceof FeedDomainError ? new ActionError(error.code, error.message) : error;
 export function createFeedSourceHandlers(board: string, ports: FeedSourceActionPorts): ActionHandlerBinding[] {
   // Retain the scheduler's existing overlap guard across tick invocations, without holding the project's command queue during network waits.
   const scheduledSources = new Set<string>();
   const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Output | Promise<Output>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
     // Judgments a sync starts keep this call's authority, pinned to the Feed action that started them.
-    handle: async (caller, input) => { try {
+    handle: async (caller, input) => {
       await caller.beforeEffect();
       return await handle(input as Input, retainActionAuthority(caller, { ...definition, provider_id: FEED_PLUGIN_ID }, caller.beforeEffect));
-    } catch (error) { throw asActionError(error); } },
+    },
   });
   const a = feedSourceActions;
   const sync = async (input: { source_id: string; idempotency_key?: string; mode?: "normal" | "rebuild_cursor" }, caller: ActionExecutionContext) => {
@@ -84,7 +82,7 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
       return await ports.connectorSync(caller).sync(input.source_id, { idempotencyKey, beforeEffect: caller.beforeEffect, signal: caller.signal,
         mode: input.mode === "rebuild_cursor" ? "rebuild_cursor" : "normal" });
     }
-    throw new FeedDomainError("这个来源没有同步能力", "feed_source_not_syncable");
+    throw feedErrors.source_not_syncable("这个来源没有同步能力");
   };
   return [
     bind(a.register, (input, caller) => {
@@ -107,7 +105,7 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
     bind(a.enabled, (input, caller) => ({ source: ports.sources(caller).setEnabled(input.source_id, input.enabled) })),
     bind(a.disconnect, (input, caller) => {
       if (!isAccountConnectorSyncKind(ports.feed().getSource(board, input.source_id).sync_kind)) {
-        throw new FeedDomainError("公开来源不需要断开账号；可以暂停或删除", "feed_source_invalid_state");
+        throw feedErrors.source_invalid_state("公开来源不需要断开账号；可以暂停或删除");
       }
       return { source: ports.sources(caller).disconnect(input.source_id) };
     }),

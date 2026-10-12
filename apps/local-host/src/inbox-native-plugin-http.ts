@@ -3,9 +3,10 @@ import { writeNativePluginJsonResponse } from "./native-plugin-http.js";
 import {
   InboxPluginRouteTable,
   createInboxRouteHandlers,
-  inboxRouteErrorResponse,
   type InboxPluginRouteResponse,
 } from "@molis-ai/molis-work-plugin-inbox";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { readNativePluginJsonBody } from "./native-plugin-http.js";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 
@@ -25,7 +26,6 @@ export async function handleInboxNativePluginHttp(
   if (url.pathname !== "/api/inbox" && !url.pathname.startsWith("/api/inbox/")) return false;
   const method = request.method;
   if (!method || !["GET", "POST"].includes(method)) return false;
-  const body = method === "GET" ? await readOptionalBody(request) : await readBody(request);
   const routes = new InboxPluginRouteTable(createInboxRouteHandlers({
     actions: options.actions,
     changed: () => options.invalidateWebView(),
@@ -33,7 +33,9 @@ export async function handleInboxNativePluginHttp(
       ? async () => options.renderer!.renderInboxWorkbenchFragment(await options.readWebView!())
       : undefined,
   }));
+  // The body is read inside the try: a body that is too large or not JSON is a coded failure like any other, not an error that escapes the edge.
   try {
+    const body = await readNativePluginJsonBody(request, 256_000);
     const result = await routes.handle({
       method: method as "GET" | "POST",
       pathname: url.pathname,
@@ -44,7 +46,7 @@ export async function handleInboxNativePluginHttp(
     writeResponse(response, result);
     return true;
   } catch (error) {
-    writeResponse(response, inboxRouteErrorResponse(error));
+    writeResponse(response, actionErrorResponse(error));
     return true;
   }
 }
@@ -61,28 +63,4 @@ function writeResponse(response: ServerResponse, result: InboxPluginRouteRespons
     return;
   }
   writeNativePluginJsonResponse(response, result);
-}
-
-function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    request.setEncoding("utf8");
-    request.on("data", (chunk) => {
-      body += chunk;
-      if (body.length > 256_000) reject(new Error("请求内容过大"));
-    });
-    request.on("end", () => {
-      try {
-        resolve(body ? JSON.parse(body) as Record<string, unknown> : {});
-      } catch {
-        reject(new Error("请求不是有效 JSON"));
-      }
-    });
-    request.on("error", reject);
-  });
-}
-
-function readOptionalBody(request: IncomingMessage): Promise<Record<string, unknown>> {
-  const contentLength = Number(request.headers["content-length"] ?? 0);
-  return contentLength > 0 ? readBody(request) : Promise.resolve({});
 }

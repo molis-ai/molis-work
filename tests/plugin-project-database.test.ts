@@ -138,20 +138,26 @@ test("beforeEffect decides the write: a transaction whose beforeEffect refuses w
     } finally { item.store.close(); }
   }));
 
-test("only the Host's entry gives a library: a definition listed without a declaration has none whatever its Manifest asks for, and neither has another definition that carries the same plugin id",
+test("only the Host's entry gives a library: a definition listed without a declaration has none whatever its Manifest asks for, and another definition that carries the same plugin id has none either, listed beside or installed over the declared one",
   withDirectory(async directory => {
-    const first = platformIn(directory), declared = probe(), plain1 = probe({ name: "plainprobe" });
+    const first = platformIn(directory), declared = probe(), undeclared = probe({ name: "plainprobe" }), lookalike = probe({ version: "1.1.0" });
     try {
       assert.deepEqual((await first.platform.start([{ definition: declared.definition, bundled: true, database: DECLARATION },
-        { definition: plain1.definition, bundled: true }])).running.sort(), [declared.id, plain1.id].sort());
+        { definition: undeclared.definition, bundled: true }])).running.sort(), [declared.id, undeclared.id].sort());
       assert.ok(declared.started.at(-1)?.database);
-      assert.equal(plain1.started.at(-1)?.database, undefined, "storage:private and the two permissions are in its Manifest, and no entry declared a library");
-    } finally { first.store.close(); }
-    // A developed or generated plugin can carry a built-in plugin's id; the entry belongs to the definition the Host listed.
-    const second = platformIn(directory), lookalike = probe();
-    try {
-      assert.deepEqual((await second.platform.start([{ definition: lookalike.definition }])).running, [declared.id]);
+      assert.equal(undeclared.started.at(-1)?.database, undefined, "storage:private and the two permissions are in its Manifest, and no entry declared a library");
+      // The entry is about the definition object the Host listed. A different one with the same plugin id, here a version put over
+      // the declared plugin, is not it.
+      await first.platform.runtime.upgrade({ install_id: first.installId(declared.id), definition: lookalike.definition,
+        grants: [STORAGE.permission, READ.permission, WRITE.permission] });
+      assert.equal(lookalike.started.length, 1, "the version put over it ran");
       assert.equal(lookalike.started.at(-1)?.database, undefined);
+    } finally { first.store.close(); }
+    // And a platform whose list carries the same plugin id without a declaration (a developed or generated plugin).
+    const second = platformIn(directory), standIn = probe();
+    try {
+      assert.deepEqual((await second.platform.start([{ definition: standIn.definition }])).running, [declared.id]);
+      assert.equal(standIn.started.at(-1)?.database, undefined);
     } finally { second.store.close(); }
   }));
 

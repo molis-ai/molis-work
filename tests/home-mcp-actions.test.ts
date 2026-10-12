@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { feedSubjectAction, feedRuleActions, type FeedOutRuleRecord, type FeedRulePreview } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions, inboxNextScene } from "@molis-ai/molis-work-plugin-inbox";
 import { inboxSubjectAction } from "../plugins/native/inbox/src/content-actions.js";
@@ -16,15 +16,13 @@ import { homeActions } from "../apps/local-host/src/home-actions.js";
 import type { HomeEventsResult } from "../apps/local-host/src/home-event-actions.js";
 import type { HomeActionOffers } from "../apps/local-host/src/home-offer-actions.js";
 import { withFunctionsService } from "../apps/local-host/src/functions-host.js";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { functionContextActions } from "@molis-ai/molis-work-module-functions";
 import { sceneConfigurationActions, type ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { serveTestHost } from "./fixtures/test-home.js";
 
-test("formal MCP Home judgment and subject actions share Web facts and revocable authority", { timeout: 90_000 }, async () => {
+test("formal MCP Home judgment and subject actions share Web facts and revocable authority", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "home-formal-mcp-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => {
     const project = catalog.createProject({ display_name: "Home MCP", actor_id: "owner" });
@@ -40,8 +38,9 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
         model: record.model, noul: null, score: null, legend: null };
     },
   } } });
-  const token = resolveWebControlToken({ homeDirectory: home });
-  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  // Served so that the client's grants are saved the way a person saves them: in dependency order, each checked against what is saved so far.
+  const served = await serveTestHost(t, { home, host });
+  const token = served.controlToken;
   const clientId = "runtime:home-client";
   const context = { runtime_id: "home-client", stable_work_context_id: "home-session", host_declares_stable: true };
   const sdk = new Client({ name: "untrusted-display-name", version: "1" });
@@ -52,9 +51,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     });
     const entry = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db).ensureInboxEntryForFeedItem(project.project_id, item.item_id, "manual").entry);
     await withCatalog({ homeDirectory: home }, catalog => catalog.bindRuntimeContext({ context, project_id: project.project_id, actor_id: "owner", user_confirmed: true }));
-    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address(); assert.ok(address && typeof address === "object");
-    const origin = `http://127.0.0.1:${address.port}`, prefix = `${origin}/projects/${project.project_id}`;
+    const origin = served.origin, prefix = `${origin}/projects/${project.project_id}`;
     const configured = await fetch(`${prefix}/api/home/dock-judgment`, { method: "POST", headers: {
       "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "bind-home-mcp",
     }, body: JSON.stringify({ function_key: "system_pick_home_dock" }) });
@@ -75,10 +72,9 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const directory = await host.inspectActions({ actor_id: clientId, project_id: project.project_id, audience: "mcp", permissions: [] }, reference);
     const required = [homeActions.evaluate.capability_id, homeActions.recommendations.capability_id, homeActions.readJudgment.capability_id,
       feedSubjectAction.capability_id, inboxSubjectAction.capability_id, inboxActions.list.capability_id, homeActions.offers.capability_id, inboxActions.offers.capability_id, inboxActions.setStatus.capability_id, "functions.published.system_pick_home_dock"];
-    for (const id of required) {
-      const view = directory.find(view => view.capability_id === id)!; assert.ok(view, id);
-      await writeMcpActionGrant(home, createMcpActionGrant(clientId, view.action.scope === "home" ? null : project.project_id, view, true));
-    }
+    // Granting is the person's: the Host saves each grant only if the action is then usable, so a judgment goes after the rule it is bound to.
+    const views = (ids: readonly string[]) => ids.map(id => { const view = directory.find(view => view.capability_id === id)!; assert.ok(view, id); return view; });
+    await served.grant(clientId, project.project_id, views(required));
     assert.ok((await sdk.listTools()).tools.some(tool => tool.name === name));
     const call = async <T = { judgments: JudgmentRecord[] }>(id: string, args: Record<string, unknown>): Promise<T> => {
       const result = await sdk.callTool({ name: molisWorkActionToolName({ capability_id: id, version: 1 }), arguments: args });
@@ -86,10 +82,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
       return JSON.parse((result.content as Array<{ text: string }>)[0]!.text) as T;
     };
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === molisWorkActionToolName(feedRuleActions.create)), false);
-    for (const definition of Object.values(feedRuleActions)) {
-      const view = directory.find(view => view.capability_id === definition.capability_id)!; assert.ok(view);
-      await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, view, true));
-    }
+    await served.grant(clientId, project.project_id, views(Object.values(feedRuleActions).map(definition => definition.capability_id)));
     const capture = await call<{ rule: FeedOutRuleRecord }>(feedRuleActions.create.capability_id, { name: "原始资料规则", match: { source_id: item.source_id, contains: "真实" } });
     assert.equal(capture.rule.project_id, project.project_id);
     const viaWeb = await (await fetch(`${prefix}/api/feed/out-rules`)).json() as { rules: FeedOutRuleRecord[] };
@@ -101,17 +94,13 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const paused = await call<{ rule: FeedOutRuleRecord }>(feedRuleActions.update.capability_id, { rule_id: capture.rule.rule_id, patch: { enabled: false } });
     assert.equal(paused.rule.enabled, false);
     assert.equal((await call<{ rules: FeedOutRuleRecord[] }>(feedRuleActions.list.capability_id, {})).rules.find(rule => rule.rule_id === capture.rule.rule_id)?.enabled, false);
-    const ruleGrant = directory.find(view => view.capability_id === feedRuleActions.update.capability_id)!;
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, ruleGrant, false));
+    await served.revoke(clientId, project.project_id, views([feedRuleActions.update.capability_id]));
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(feedRuleActions.update), arguments: { rule_id: capture.rule.rule_id, patch: { enabled: true } } })).isError, true);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(feedRuleActions.create), arguments: { project_id: "foreign", name: "Wrong scope", match: { contains: "test" } } })).isError, true);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(feedRuleActions.create), arguments: { name: "Wrong source", match: { source_id: "foreign-source" } } })).isError, true);
     await call(feedRuleActions.delete.capability_id, { rule_id: capture.rule.rule_id });
     assert.equal((await call<{ rules: FeedOutRuleRecord[] }>(feedRuleActions.list.capability_id, {})).rules.some(rule => rule.rule_id === capture.rule.rule_id), false);
-    for (const id of [homeActions.events.capability_id, homeActions.openEvent.capability_id, "inbox.home.events"]) {
-      const view = directory.find(view => view.capability_id === id)!; assert.ok(view, id);
-      await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, view, true));
-    }
+    await served.grant(clientId, project.project_id, views([homeActions.events.capability_id, homeActions.openEvent.capability_id, "inbox.home.events"]));
     const now = new Date();
     const window = { from: new Date(now.getTime() - 86400000).toISOString(), to: new Date(now.getTime() + 86400000).toISOString(), now: now.toISOString() };
     const events = await call<HomeEventsResult>(homeActions.events.capability_id, window);
@@ -122,11 +111,11 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const webEvents = await fetch(`${prefix}/api/home/events`, { method: "POST", headers: { "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "home-events-web-read" }, body: JSON.stringify(window) });
     assert.equal(webEvents.status, 200, await webEvents.clone().text());
     assert.deepEqual(((await webEvents.json()) as HomeEventsResult).events.find(event => event.id === homeItem.id), homeItem);
-    const eventGrant = directory.find(view => view.capability_id === "inbox.home.events")!;
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, eventGrant, false));
+    const eventGrant = views(["inbox.home.events"]);
+    await served.revoke(clientId, project.project_id, eventGrant);
     assert.equal((await call<HomeEventsResult>(homeActions.events.capability_id, window)).events.some(event => event.id === homeItem.id), false);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(homeActions.openEvent), arguments: navigation })).isError, true);
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, eventGrant, true));
+    await served.grant(clientId, project.project_id, eventGrant);
     const result = await call(homeActions.evaluate.capability_id, { subjects: [{ kind: "inbox_entry", id: entry.entry_id }] });
     const recommendation = result.judgments[0]!.suggested_behavior_ids[0]!;
     assert.match(recommendation, /^offer\./);
@@ -143,8 +132,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
       return ((await response.json()) as HomeEventsResult).events.find(event => event.id === homeItem.id)!;
     };
     assert.deepEqual((await readHome()).suggested_behavior_ids, [recommendation], "Home reads the same current recommendation as MCP");
-    const grantView = directory.find(view => view.capability_id === "functions.published.system_pick_home_dock")!;
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, null, grantView, false));
+    await served.revoke(clientId, project.project_id, views(["functions.published.system_pick_home_dock"]));
     assert.equal((await sdk.callTool({ name, arguments: { subjects: [{ kind: "inbox_entry", id: entry.entry_id }] } })).isError, true);
     assert.deepEqual((await call(homeActions.recommendations.capability_id, {})).judgments, []);
     assert.equal(inputs.length, 1, "revoked caller cannot execute, and retains no recommendation derived from an unavailable judgment");
@@ -156,16 +144,13 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     assert.match(await (await fetch(rulePage)).text(), /已停用/);
     assert.deepEqual((await readHome()).suggested_behavior_ids, []);
     assert.equal(withFunctionsService(home, service => service.listJudgments()).length, 1);
-    const statusView = directory.find(view => view.capability_id === inboxActions.setStatus.capability_id)!;
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, statusView, false));
-    for (const definition of [homeActions.offers, homeActions.execute, inboxActions.offers]) {
-      const view = directory.find(view => view.capability_id === definition.capability_id)!;
-      await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, view, true));
-    }
+    const statusView = views([inboxActions.setStatus.capability_id]);
+    await served.revoke(clientId, project.project_id, statusView);
+    await served.grant(clientId, project.project_id, views([homeActions.offers, homeActions.execute, inboxActions.offers].map(definition => definition.capability_id)));
     const subject = { subject: { kind: "inbox_entry", id: entry.entry_id }, request_id: "mcp-home-complete" };
     const deniedOffers = await call<HomeActionOffers>(homeActions.offers.capability_id, subject);
     assert.equal(deniedOffers.offers.find(offer => offer.offer_id === "inbox.done")!.availability.available, false);
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, statusView, true));
+    await served.grant(clientId, project.project_id, statusView);
     const prepared = await call<HomeActionOffers>(homeActions.offers.capability_id, subject);
     const { availability, ...offer } = prepared.offers.find(offer => offer.offer_id === "inbox.done")!;
     assert.equal(availability.available, true);
@@ -176,8 +161,8 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const actual = web.inbox_entries.find(row => row.entry_id === entry.entry_id)!;
     assert.equal(actual.status, "done"); assert.equal(actual.revision, entry.revision + 1);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(homeActions.execute), arguments: execution })).isError, true, "the expired offer cannot execute twice");
-    const captureJudgment = directory.find(view => view.capability_id === "functions.published.system_admit_inbox")!;
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, null, captureJudgment, true));
+    const [captureJudgment] = views(["functions.published.system_admit_inbox"]);
+    await served.grant(clientId, project.project_id, [captureJudgment!]);
     const captureSourceId = item.source_id; assert.ok(captureSourceId);
     const captureItem = await host.withProject(reference, runtime => {
       const feed = createLocalFeedApplication(runtime.store.db);
@@ -195,17 +180,16 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const capturedSuggestions = await call<{ recommendations: { item_id: string; suggested_behavior_ids: string[] }[] }>(feedRuleActions.recommendations.capability_id, {});
     assert.deepEqual(capturedSuggestions.recommendations.find(row => row.item_id === captureItem.item_id)?.suggested_behavior_ids, ["inbox.admit"]);
     const beforeRevocation = inputs.length;
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, null, captureJudgment, false));
+    await served.revoke(clientId, project.project_id, [captureJudgment!]);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(feedRuleActions.evaluate), arguments: { item_ids: [captureItem.item_id] } })).isError, true);
     assert.equal(inputs.length, beforeRevocation);
     assert.deepEqual((await call<{ recommendations: unknown[] }>(feedRuleActions.recommendations.capability_id, {})).recommendations, []);
     assert.ok(withFunctionsService(home, service => service.listJudgments()).some(record => record.judgment_id === feedResult.judgment_id));
-    for (const id of [inboxActions.readJudgment.capability_id, inboxActions.writeJudgment.capability_id,
-      inboxActions.evaluateJudgment.capability_id, inboxActions.recommendations.capability_id, functionContextActions.targets.capability_id,
-      functionContextActions.configure.capability_id, ...Object.values(sceneConfigurationActions(inboxNextScene)).map(action => action.capability_id), "functions.published.system_pick_inbox_next"]) {
-      const view = directory.find(view => view.capability_id === id)!; assert.ok(view, id);
-      await writeMcpActionGrant(home, createMcpActionGrant(clientId, view.action.scope === "home" ? null : project.project_id, view, true));
-    }
+    // Evaluating needs the scene's rule bound, and the Host saves a grant only for an action that can then be used: the client first gets what it
+    // takes to bind the rule, binds it below, and is granted the evaluation after.
+    await served.grant(clientId, project.project_id, views([inboxActions.readJudgment.capability_id, inboxActions.writeJudgment.capability_id,
+      inboxActions.recommendations.capability_id, functionContextActions.targets.capability_id,
+      functionContextActions.configure.capability_id, ...Object.values(sceneConfigurationActions(inboxNextScene)).map(action => action.capability_id), "functions.published.system_pick_inbox_next"]));
     const inboxRule = withFunctionsService(home, service => service.list().find(row => row.function_key === "system_pick_inbox_next")!);
     const inboxTarget = async () => (await call<{ targets: ActionSceneTarget[] }>(functionContextActions.targets.capability_id, { id: inboxRule.id })).targets.find(row => row.scene_id === "inbox.next")!;
     const configureInbox = (target: ActionSceneTarget, enabled: boolean) => ({ id: inboxRule.id, scene_id: target.scene_id, scene_version: target.scene_version,
@@ -215,13 +199,13 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     await call(functionContextActions.configure.capability_id, initialConfig);
     assert.equal((await inboxTarget()).binding?.function.provider_id, "system.functions");
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(functionContextActions.configure), arguments: initialConfig })).isError, true, "stale MCP configurations cannot overwrite the owner revision");
+    await served.grant(clientId, project.project_id, views([inboxActions.evaluateJudgment.capability_id]));
     const inboxEntry = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db).listInboxEntries(project.project_id).find(entry => entry.subject_id === captureItem.item_id)!);
     const inboxJudgment = await call(inboxActions.evaluateJudgment.capability_id, { entry_ids: [inboxEntry.entry_id] });
     assert.deepEqual((await call(inboxActions.recommendations.capability_id, {})).judgments, inboxJudgment.judgments);
     const readInbox = async () => (await (await fetch(`${prefix}/api/feed`)).json() as { inbox_entries: { entry_id: string; next_judgment: JudgmentRecord | null }[] }).inbox_entries.find(entry => entry.entry_id === inboxEntry.entry_id)!;
     assert.equal((await readInbox()).next_judgment?.judgment_id, inboxJudgment.judgments[0]!.judgment_id);
-    const inboxGrant = directory.find(view => view.capability_id === "functions.published.system_pick_inbox_next")!;
-    await writeMcpActionGrant(home, createMcpActionGrant(clientId, null, inboxGrant, false));
+    await served.revoke(clientId, project.project_id, views(["functions.published.system_pick_inbox_next"]));
     assert.deepEqual((await call(inboxActions.recommendations.capability_id, {})).judgments, []);
     assert.equal((await readInbox()).next_judgment?.judgment_id, inboxJudgment.judgments[0]!.judgment_id, "the local user keeps independent authority");
     const unavailableInbox = await inboxTarget();
@@ -231,7 +215,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     assert.ok(withFunctionsService(home, service => service.listJudgments()).some(record => record.judgment_id === inboxJudgment.judgments[0]!.judgment_id));
 
   } finally {
-    await sdk.close(); await new Promise<void>(resolve => server.close(() => resolve()));
+    await sdk.close(); await served.close();
     await host.close(); await rm(home, { recursive: true, force: true });
   }
 });

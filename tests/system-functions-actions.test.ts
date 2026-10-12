@@ -192,7 +192,7 @@ test("system judgments use the selected TypeSafe account and a disconnected sele
       store.createToken({ serviceId: "typesafe", displayName: "Account A", token: "fixture-account-a" }),
       store.createToken({ serviceId: "typesafe", displayName: "Account B", token: "fixture-account-b" }),
     ]);
-    bindTypeSafeConnection(home, "functions", first!.connection_id);
+    bindTypeSafeConnection(home, first!.connection_id);
     const record = await withFunctionsServiceAsync(home, async service => {
       const draft = service.createChoice({ function_key: "selected_account" });
       service.updateDraft(draft.id, { instructions: "选择是或否", criteria: criteria.choice });
@@ -201,7 +201,7 @@ test("system judgments use the selected TypeSafe account and a disconnected sele
     }, options);
     const action = publishedFunctionAction(record), client = host.homeActionClient();
     await client.invoke(caller, action, { content: "account a" });
-    bindTypeSafeConnection(home, "functions", second!.connection_id);
+    bindTypeSafeConnection(home, second!.connection_id);
     expected = "fixture-account-b";
     await client.invoke(caller, action, { content: "account b" });
     assert.equal(calls.value, 3);

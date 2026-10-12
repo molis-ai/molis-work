@@ -22,7 +22,7 @@ const delay = Number(arg("--delay") ?? 1500);
 // connection (with that person's consent) and kept only in this process's memory; it is never printed or written.
 const jevFrom = arg("--jev-from");
 if (jevFrom) {
-  const key = typeSafeCredential(path.resolve(jevFrom), "functions");
+  const key = typeSafeCredential(path.resolve(jevFrom));
   if (!key) throw new Error("--jev-from 指定的 Home 没有可用的 TypeSafe 连接");
   process.env.TYPESAFE_API_KEY = key;
 }

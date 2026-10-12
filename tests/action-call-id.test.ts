@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ActionService, currentCallId, markCallRecorded, newCallId, recordedCallId, shortCallId, withCallId, withCallIdSync } from "@molis-ai/molis-work-kernel";
+import { ActionService, currentCallId, markCallRecorded, newCallId, recordedCallId, withCallId, withCallIdSync } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 type Effects = NonNullable<ConstructorParameters<typeof ActionService>[1]>;
@@ -213,7 +213,6 @@ test("a call scope is reused for its own id, nested for another, and closed when
   const first = newCallId(), second = newCallId();
   assert.match(first, UUID);
   assert.notEqual(first, second);
-  assert.equal(shortCallId(first), first.slice(0, 8));
   const result = await withCallId(first, async () => {
     assert.equal(currentCallId(), first);
     assert.equal(recordedCallId(), undefined);

@@ -1,6 +1,6 @@
 # 逐插件的实现、契约、接入与体验结论（W2-18，交付第 10 项）
 
-状态：结论（2026-10-09，main `11878059`）；本文只读代码、不改代码。2026-10-10 用户定删除实验插件（与 Casebook），它的那一行与 §4.19 标了「已删」，下文的计数仍是 10-09 的。26 个内置插件和 6 个官方接入逐个对着代码核过，核对用到的证据在 §0 写明，能复现的方法在 §9。
+状态：结论（2026-10-09，main `11878059`）；本文只读代码、不改代码。2026-10-10 用户定删除实验插件（与 Casebook），它的那一行与 §4.19 标了「已删」，下文的计数仍是 10-09 的；同日 `agent-host` 的 `CliAgentAdapter` 已删（#364），§4.21 的占位行据此改。26 个内置插件和 6 个官方接入逐个对着代码核过，核对用到的证据在 §0 写明，能复现的方法在 §9。
 
 任务要求：`docs/prompts/repository-anti-corruption.md` 交付第 10 项（逐插件的实现、契约、接入与体验结论），以及 `docs/prompts/repository-systematic-review.md` §6（用户任务闭环；占位与半实现；生命周期；空数据、首次使用、无模型；横向比较；组合场景；平台接点）。路线上的位置见 [roadmap-2026-10-07.md](roadmap-2026-10-07.md) 的 W2-18 与「覆盖缺口」；进度与决定在 [spec.md](spec.md)。同一片的另外两份产出：[AI 入口清单](ai-entry-inventory.md)、[前端动线走查](frontend-flow-walk.md)（截图编号写作「截图 NN」，指那份文档里的图）。包级的结构审查（职责、变化原因、放错位置）是 §4.4 的另一片（W1-18 后续），不在这里。**§6 的十条检查并没有全部逐插件做完**：哪些做了、哪些只做了一部分、哪些没做，逐条列在 §0.1；没做的写在 §8「没有核的」，并交给 [spec.md](spec.md) §10 的遗留。
 
@@ -61,7 +61,7 @@
 | Sessions（`work`） | 部分：看 Runtime 能力 | 通 | **缺：删项目留下 Session 记录** | 部分：空状态只有一行字 | 通 | 部分（3 格）§4.2 |
 | Inbox（`inbox`） | 通 | 通 | 通 | 通 | 通 | 通 §4.3 |
 | Feed（`feed`） | 通 | 部分：示例项目里有一整套「演示」前端 | 部分：Goals 停用后升格仍写（E-15） | 通 | 通 | 部分（2 格）§4.4 |
-| Schedule（`schedule`） | 部分：只能按钟点跑，没有「立即跑一次」 | 通 | 部分：服务不在就不响（BL-030） | 部分：创建时不查模型与工作区 | 部分：只读 Agent，到点才暴露缺什么 | 部分（4 格）§4.5 |
+| Schedule（`schedule`） | 部分：只能按钟点跑，没有「立即跑一次」 | 通 | 部分：服务不在就不响（BL-030） | 部分：创建时不查模型与工作区（10-09；#365 之后新建对话框提示、仍可创建） | 部分：只读 Agent，到点才暴露缺什么 | 部分（4 格）§4.5 |
 | 工作流程（`workflows`） | 通 | 通 | 通 | 通：无模型时在衔接处写明 | 通：它就是组合器 | 通 §4.6 |
 | Pages（`pages`） | 通 | 部分：`stub` 死字段与「未接模型」残留 | 通 | 通：写作命令灰着并写原因 | 通 | 部分（1 格）§4.7 |
 | Form（`form`） | 通 | 通 | 通 | 通 | 部分：与数据表的衔接靠导出再粘贴 | 部分（1 格）§4.8 |
@@ -109,7 +109,7 @@
 | E-15 | 中 | **Goals 从项目里移除后，Feed 的「升格为 Goal」仍然成功并写进 Goals 的数据。** `feed.items.promote` 的可用性只看宿主有没有给它 `promote` 端口（`enabled = !!ports.promote`），不看 Goals 在这个项目里是否启用；Goals 自己的动作全部是 `actions.plugin_disabled`，所以这条 Goal 用户看不见，加回 Goals 才出现 | P：同一个临时项目，加入全部项目插件、造一条 Feed 消息，移除 Goals 后目录里 `feed.items.promote` 仍 `available: true`，调用返回成功；同一时刻 `goals.list` 报 `actions.plugin_disabled`（移除 Goals 时目录里变化的非 Goals 动作只有 `feed.goals.context` 一个）；R：`plugins/native/feed/src/item-actions.ts:46`、`:86-90`（`promote` 端口，`bind(…, !!ports.promote)`） | 让这个动作的可用性与 `offers` 里的「升格为 Goal」都跟 Goals 的项目启用状态走（和 `feed.goals.context` 一样），或把升格改成经 Goals 动作写；属 W2-08（Goals 无生产调用方的桥删除）要一起看的那一类宿主端口。**W2-18 待决 9**（[spec.md](spec.md) §1）：改成经 Goals 的动作写（推荐，与 N-12 同向）还是只让可用性跟 Goals 走。**已做（W2-08，用户选了前者）**：升格经 Goals 的动作写，入口跟着动作的可用性走；取舍见 spec §1 2026-10-09 一行 |
 | E-16 | 中 | **炼金术士的市场脉搏自带三个公开来源，其中 GitHub 的令牌直接读环境变量 `GITHUB_TOKEN`。** `createLocalRuntime` 在没有指定 `pulseSourceMode: "fixture"` 时（宿主从不指定，只有测试指定）建 Toolify、观猹、GitHub 三个来源，GitHub 来源的第二个参数是 `process.env.GITHUB_TOKEN`；它不经连接器，也不是 Settings 里的密钥引用，所以开发机或服务环境里碰巧有这个变量，令牌就会被带到 `api.github.com` 的搜索请求里，用户在界面上看不到、也关不掉。出站范围本身是收紧的（固定主机名单、跳转复验、12 秒、8,000,000 字节上限，但上限是读完整个响应后才检查），README 也写了这三个来源；问题只在令牌的读法，和这条出站在产品里没有登记、界面也没告诉用户（本片已把它登记进 [AI 清单](ai-entry-inventory.md) §3.10 第 7 类） | R：`plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts:118-130`、`sources/http-source-client.ts:30-60`（`SafePublicHttpClient`）、`sources/github-source.ts`；`apps/local-host/src/alchemist-service-host.ts:14,50`（`pulseSourceMode` 只透传）；`git grep -n pulseSourceMode` 的非测试命中只有这两处；对照：官方 GitHub 接入的令牌来自 Settings 绑定（`plugins/official-integrations/github/src/provider.ts:136-155` 的 `resolveToken()`，没绑定时提示去设置里绑定） | 建议：脉搏的 GitHub 来源改用连接器的密钥引用（没绑定就不带令牌，GitHub 搜索匿名也能用，只是限额低），删掉 `process.env.GITHUB_TOKEN`；三个来源的主机已登记在 AI 清单 SE-3 与 §3.10 第 7 类，再让界面写明「市场脉搏会访问 Toolify、观猹、GitHub」。改动小，但属于插件行为与密钥口径，先问；我倾向这样做。**W2-18 待决 7**（[spec.md](spec.md) §1） |
 | K-1 | 中 | **个人插件在项目里「移除」只是隐藏，动作仍可用**：插件选择器里 13 个个人插件有「移除」按钮；逐个移除（含选择器里没有的 Characters 与插件创作台，共 15 个）后，目录里它们的动作一个都没有变成不可用；助理与 MCP 仍然调得到 | P：逐个移除后「无可用性变化」；R：`apps/local-host/src/project-action-availability.ts` 只处理非个人插件。已登记：BL-088（用户 2026-10-01 已定「停用」，高优先级、未做） | 按 BL-088 做。行为用户早已定，**W2-18 待决 13** 只问排期（[spec.md](spec.md) §1） |
-| K-2 | 低 | **Schedule 创建时不查模型与工作区**：Prologue 与已绑定的工作区在到点才查，缺了就「叫醒失败」 | R：`apps/local-host/src/schedule-task-runner.ts:33`、`:38`；U：截图 17（创建成功、已启用、下次 09:00） | 见 [AI 入口清单](ai-entry-inventory.md) §7 第 5 项，先问。**W2-18 待决 3**（[spec.md](spec.md) §1） |
+| K-2 | 低 | **Schedule 创建时不查模型与工作区**：Prologue 与已绑定的工作区在到点才查，缺了就「叫醒失败」 | R：`apps/local-host/src/schedule-task-runner.ts:33`、`:38`；U：截图 17（创建成功、已启用、下次 09:00） | 已做（决定 3「提示但不挡」，#365）：新建对话框先问 `schedule.tasks.readiness` 并提示，仍可创建，缺条件的任务到点仍会失败；左边的描述、行号与截图 17 是 10-09 的状态（抛错现在在 `:54`、`:59`）。见 [AI 入口清单](ai-entry-inventory.md) §7 第 5 项。**W2-18 待决 3**（[spec.md](spec.md) §1） |
 | K-3 | 低 | **插件创作台在 Dock 里显示内部 id `plugin-builder`**，插件列表里却是「插件创作工作台」 | U：打开创作台后底栏左下角写 `plugin-builder`（截图 29），插件列表里是「插件创作工作台」（截图 03）。已登记：BL-114 | 按 BL-114 |
 | K-4 | 低 | **Schedule 与定时只在服务进程活着时运行**；Todo 提醒在关闭期间也不送达 | R；已登记：BL-030 | 按 BL-030 |
 | K-5 | 低 | **BL-055 里有一句已过期的话**：「生成插件自定义代码的运行边界（当前进程内执行器不是任意代码沙箱）」。生成插件现在声明 `execution: 'sandbox'`，自定义代码在 macOS Seatbelt 子进程里执行 | R：`apps/local-host/src/plugin-builder/installed.ts:64`、`:72`；`packages/plugin-sandbox/README.md`；T：`tests/plugin-sandbox.test.ts`、`plugin-sandbox-network.test.ts`、`installed-plugin-execution.test.ts` 本片跑过，28 个里 27 通过、1 跳过。出处是已归档的创作台 spec（`specs/archive/plugin-builder/spec.md:200`），写于执行器还在进程内的时候。已登记：BL-055 | 把 BL-055 的括号改成「生成插件的代码已在沙箱里运行，仅 macOS，其他平台关闭」，保留另两项（真实 Jev 选择的质量与延迟、跨项目共享草稿）；文字修正，不需要决定 |
@@ -183,7 +183,7 @@
 - **闭环（部分）**：创建、编辑、暂停、归档，详情有「下次」「上次」。没有「立即运行一次」，用户无法在创建后马上验证任务能不能跑 [已确认，动作表与界面按钮]。
 - **占位（通）**。
 - **生命周期（部分）**：只在服务进程活着时运行（K-4）；创建对话框写着「本地服务没开时闹钟不响」。
-- **空与无模型（部分）**：K-2：创建与启用时不检查模型与项目工作区，到点才失败，界面显示「叫醒失败」（`ui.ts:204`）。截图 17 是创建后的状态：已启用、下次 09:00，没有任何就绪提示。
+- **空与无模型（部分）**：K-2：创建与启用时不检查模型与项目工作区，到点才失败，界面显示「叫醒失败」（`ui.ts:204`）。截图 17 是创建后的状态：已启用、下次 09:00，没有任何就绪提示。（以上是 10-09 的所见；#365 之后新建对话框会在缺文字模型或工作区时提示，创建与启用仍不检查。）
 - **组合（部分）**：Todo 的提醒窗口 `todo.reminders.window` 由 Schedule 当钟；助理的定时（`schedule.*`）受同一限制。
 - **测试**：`tests/schedule-actions.test.ts`、`schedule-task-runner.test.ts`、`schedule-reminder-recovery.test.ts`、`schedule-operation-recovery.test.ts`。
 
@@ -331,7 +331,7 @@
 
 - **定位**：Plugin Runtime、项目级、19 个动作 + 约 67 条私有路由；会话在项目库（`CodingSessionStore`）。
 - **闭环（通）**：新建编码会话（要选已授权工作区）→ 发任务 → Agent 读代码、提方案、改文件、跑检查，每次写入与命令先进审查队列等人批 → 报告、计划、变更集作为成果或过程项保存 → 交给 Git/Diff。
-- **占位（通）**：`agent-host` 里的 `CliAgentAdapter`（`claude` 命令行）默认注册、没有内置调用方（AI 清单 EX-6），不在插件里。
+- **占位（通）**：无。`agent-host` 里的 `CliAgentAdapter`（`claude` 命令行）原先默认注册、没有内置调用方（AI 清单 EX-6），不在插件里，已于 2026-10-10 删除（#364，W2-18 决定 1）。
 - **生命周期（通）**：移除后 19/19 动作 `actions.plugin_disabled`（P）；嵌入的 Files、Git、Diff、Text Stats 在 Coding 启用期间保持可用（`manifest.ts:179` 的 `embedded_plugins`）。
 - **空与无模型（通）**：空状态有「开始新会话」和四个例子；输入框下写「还没有模型」（截图 08）。
 - **组合（通）**：Shelf 材料、Characters 固定版本、Goal 上下文、Files/Git/Diff 的端口。

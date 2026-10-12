@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isLoopbackHostname, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { L } from "./web-locale.js";
+import { withRecordedCallId } from "./call-id-response.js";
 
 /**
  * A person's own navigation to a top-level page (address bar, link, refresh, history), as the browser reports it. A page's
@@ -21,11 +22,13 @@ export function requestHeader(request: IncomingMessage, name: string): string | 
 }
 
 export function sendLocalWebJson(response: ServerResponse, status: number, value: unknown): void {
+  const answer = withRecordedCallId(status, value);
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
+    ...answer.headers,
   });
-  response.end(JSON.stringify(value));
+  response.end(JSON.stringify(answer.body));
 }
 
 export type LocalMutationState = "in_flight" | "complete";
@@ -154,15 +157,18 @@ export function authorizeLocalWebRequest(
   return true;
 }
 
-export function readLocalWebBody(request: IncomingMessage): Promise<Record<string, unknown>> {
+export function readLocalWebBody(request: IncomingMessage, maximumBytes = 256_000): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
-    let body = "";
+    let body = "", bytes = 0, rejected = false;
     request.setEncoding("utf8");
     request.on("data", (chunk) => {
+      if (rejected) return;
+      bytes += Buffer.byteLength(chunk, "utf8");
+      if (bytes > maximumBytes) { rejected = true; body = ""; reject(new RangeError("请求内容过大")); return; }
       body += chunk;
-      if (body.length > 256_000) reject(new Error("请求内容过大"));
     });
     request.on("end", () => {
+      if (rejected) return;
       try {
         resolve(body ? (JSON.parse(body) as Record<string, unknown>) : {});
       } catch {

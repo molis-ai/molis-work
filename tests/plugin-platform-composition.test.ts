@@ -163,6 +163,7 @@ function project(directory: string) {
     artifacts,
     processItems,
     ui: new UiHost(),
+    home: null,
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
   return { store, platform, artifacts, processItems };
@@ -358,7 +359,7 @@ test('committed changes to a port\'s process item refresh existing inputs across
       objectType: 'artifact', objectId: 'unrelated@1', reason: 'Other project', payload: {}, at: new Date().toISOString() });
     await delay(1100); assert.equal(refreshes, 0, 'another project does not invalidate this input graph');
     assert.throws(() => createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID,
-      actor_id: 'tester', db: store.db, journal: other, artifacts, processItems, ui: new UiHost(),
+      actor_id: 'tester', db: store.db, journal: other, artifacts, processItems, ui: new UiHost(), home: null,
       privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) }), /当前项目连接/u);
     store.db.exec('BEGIN IMMEDIATE');
     processItems.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, actor_id: 'tester', ...first, reason: 'rolled back' });

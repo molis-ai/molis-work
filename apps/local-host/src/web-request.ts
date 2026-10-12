@@ -51,7 +51,7 @@ import { handleGoalsWebHttp, goalsActions } from "@molis-ai/molis-work-plugin-go
 import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import type { SessionRuntimeResources } from "./web-session.js";
-import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
+import { cachedMolisWorkWebView, feedPull, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
 import { handleSideFilesHttp } from "./side-files-http.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { createLocalFeedApplication } from "./feed-application.js";
@@ -75,13 +75,14 @@ import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js
 import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
-import { resolveWebRequest } from "./web-routing.js";
+import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleLocalCatalogWebRequest } from "./web-catalog.js";
 import { webProjectDeletionPorts } from "./project-deletion-service.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
 import { inspectGitIndex } from "./workspace-git-index.js";
 import { isPluginEventManagementPath } from "./plugin-event-http.js";
 import { handleCodingPluginHttp, type CodingSurfacePorts } from "./coding-surface.js";
+import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
 
 export async function handleMolisWorkWebRequest(
   request: IncomingMessage,
@@ -103,6 +104,7 @@ export async function handleMolisWorkWebRequest(
   workspaceFor: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>,
 ): Promise<void> {
   const { PAGE_CSP, handleSessions, handleDesktopPanelApi, goalsReadHttp, planningHttp, desktopRuntimeAvailability, servePtyClient, workbenchRenderer, buildCapsuleSnapshot, handleArtifactNativePluginHttp, isDesktopShellRequest } = composition;
+  if (await handleHomePluginHttp(request, response, url, localHost, controlToken, PAGE_CSP)) return;
   // The personal space always exists for the person; it is made the first time anyone opens it.
   if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath) {
     await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.ensurePersonalSpace());
@@ -117,18 +119,7 @@ export async function handleMolisWorkWebRequest(
     response.end(workbenchRenderer.renderMolisWorkProjectIndex([], controlToken, isDesktopShellRequest(request, url), { now: new Date().toISOString(), last_project_id: null, opened: {}, load_error: true }));
     return;
   }
-  if (request.method === "GET" && resolved.kind !== "project_not_found"
-    && (resolved.kind === "board" ? resolved.pathname === "/" : url.pathname === "/")
-    && (url.searchParams.get("openPlugin") === "functions" || url.searchParams.get("panePlugin") === "functions")) {
-    const next = new URL("/capabilities/rules", url.origin);
-    if (resolved.kind === "board" && resolved.options.project) next.searchParams.set("project", resolved.options.project.project_id);
-    const rule = url.searchParams.get("openItem") ?? url.searchParams.get("paneItem");
-    if (rule) next.searchParams.set("rule", rule);
-    if (url.searchParams.get("desktop") === "1") next.searchParams.set("desktop", "1");
-    response.writeHead(302, { location: next.pathname + next.search, "cache-control": "no-store" });
-    response.end();
-    return;
-  }
+  if (redirectFunctionsPage(request.method, response, url, resolved)) return;
   // Every registered prompt and role, and the person's edits of them: one register per Home, whichever page asks.
   if (serverOptions.homeDirectory && url.pathname.startsWith("/api/agent-definitions/")
     && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
@@ -271,7 +262,7 @@ export async function handleMolisWorkWebRequest(
         if (!feedSchedulers.has(options.databasePath)) {
         const feed = createLocalFeedApplication(store.db, feedOptions);
         feed.recoverInterruptedSourceRuns(options.projectId);
-        const scheduler = { tick: () => homeActions.invoke(feedSourceActions.tick, {}) };
+        const scheduler = { tick: () => feedPull(() => homeActions.invoke(feedSourceActions.tick, {})) };
         const schedule = scheduleServiceFor(store.db);
         bindScheduledTaskRunner(store.db, createHostScheduledTaskRunner({
           agentHost,
@@ -294,7 +285,7 @@ export async function handleMolisWorkWebRequest(
         let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions);
         const feedActions = bindLocalWebActions(localHost, hostReference, ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"]);
         try {
-          const [{ rules }, { recommendations }] = await Promise.all([feedActions.invoke(feedRuleActions.list, {}), feedActions.invoke(feedRuleActions.recommendations, {})]);
+          const [{ rules }, { recommendations }] = await Promise.all([lookingForArea(() => feedActions.invoke(feedRuleActions.list, {})), lookingForArea(() => feedActions.invoke(feedRuleActions.recommendations, {}))]);
           view = { ...view, feed: { ...view.feed, out_rules: rules, feed_items: view.feed.feed_items.map(item => ({ ...item,
             suggested_behavior_ids: recommendations.find(result => result.item_id === item.item_id)?.suggested_behavior_ids ?? [] })) } };
         } catch (error) {
@@ -302,7 +293,7 @@ export async function handleMolisWorkWebRequest(
         }
         const inboxActionsClient = bindLocalWebActions(localHost, hostReference, INBOX_ACTION_PERMISSIONS);
         try {
-          const [state, { judgments }] = await Promise.all([inboxActionsClient.invoke(inboxActions.readJudgment, {}), inboxActionsClient.invoke(inboxActions.recommendations, {})]);
+          const [state, { judgments }] = await Promise.all([lookingForArea(() => inboxActionsClient.invoke(inboxActions.readJudgment, {})), lookingForArea(() => inboxActionsClient.invoke(inboxActions.recommendations, {}))]);
           const byEntry = new Map(judgments.map(judgment => [judgment.subject.id, judgment]));
           view = { ...view, inbox_judgment: state.summary, feed: { ...view.feed,
             inbox_entries: view.feed.inbox_entries.map(entry => { const judgment = byEntry.get(entry.entry_id) ?? null;
@@ -310,7 +301,7 @@ export async function handleMolisWorkWebRequest(
         } catch (error) {
           if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.not_found"].includes(String(error.code)))) throw error;
         }
-        return view;
+        return { ...view, plugin_stages: await renderHomePluginStages(localHost.homePlugins) };
       };
       {
         const projectSessionWorkspaceMatch = url.pathname.match(/^\/(sessions|workspaces)$/);

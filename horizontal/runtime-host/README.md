@@ -56,6 +56,7 @@ node --import tsx --test --test-concurrency=1 tests/runtime-host.test.ts
   - 能力矩阵的每一项由 Adapter 明确声明 native 或 unsupported。
   - 没有回执或连接故障时不能推定可以安全重发；崩溃恢复不自动重放写操作。
   - 不创建 thread 或 Handoff 包，不负责消息持久化与幂等去重。
+  - 本包不持有产品版本：Codex 传输向 Codex 报出的 `clientVersion` 是必填选项，由宿主传入（`apps/local-host/src/product-version.ts`）。
   - 外部不导入本包 `src/**`；本包也不导入 Session Registry 或 Web Server。
 - 改动后必跑：`node scripts/run-tests.mjs tests/runtime-host.test.ts tests/session-adapters.test.ts tests/desktop-tui.test.ts tests/codex-transport.test.ts`
 - 相关手册：[docs/horizontal/runtime-host.md](../../docs/horizontal/runtime-host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

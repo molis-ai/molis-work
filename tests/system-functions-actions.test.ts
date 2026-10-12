@@ -1,5 +1,3 @@
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { fileURLToPath } from "node:url";
@@ -13,7 +11,7 @@ import { functionsActions, publishedFunctionAction, functionContextActions } fro
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FunctionRecord, FunctionsPrimitive, FunctionCriteria, TypeSafeProvider, TypeSafeEvaluateResult } from "@molis-ai/molis-work-contracts/modules/functions";
 import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/src/functions-host.ts";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["functions:invoke"] };
 const criteria: Record<FunctionsPrimitive, FunctionCriteria> = {
@@ -106,14 +104,14 @@ test("published rules become versioned system actions without a project, preserv
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("global HTTP published invocation uses the same system handler and separate Homes never mix definitions", async () => {
+test("global HTTP published invocation uses the same system handler and separate Homes never mix definitions", async t => {
   const root = await mkdtemp(join(tmpdir(), "functions-http-"));
   const home = join(root, "a"), otherHome = join(root, "b");
   const calls = { value: 0 }, options = fixtureOptions(calls);
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions: options });
   const other = new MolisWorkLocalHost({ homeDirectory: otherHome, functions: options });
-  const token = "system-functions-http-test-0123456789";
-  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  // The Home is served the way the product serves it: the HTTP call below and the MCP client's grants both go through its routes.
+  const served = await serveTestHost(t, { home, host });
   const external = new Client({ name: "ordinary-llm-client", version: "1" });
   try {
     const record = await withFunctionsServiceAsync(home, async service => {
@@ -125,12 +123,10 @@ test("global HTTP published invocation uses the same system handler and separate
     const definition = publishedFunctionAction(record);
     assert.ok(!(await other.homeActionClient().discover(caller)).some(action => action.capability_id === definition.capability_id));
     await assert.rejects(other.homeActionClient().invoke(caller, definition, { content: "another account" }), { code: "actions.missing" });
-    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address(); assert.ok(address && typeof address === "object");
-    const origin = `http://127.0.0.1:${address.port}`;
+    const { origin } = served;
     const before = calls.value;
     const response = await fetch(`${origin}/api/functions/by-key/${record.function_key}/invoke`, { method: "POST",
-      headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "system-function-invoke" },
+      headers: { origin, "content-type": "application/json", "x-molis-work-control-token": served.controlToken, "x-molis-work-idempotency-key": "system-function-invoke" },
       body: JSON.stringify({ input: "via HTTP" }) });
     assert.equal(response.status, 200, await response.clone().text());
     assert.equal((await response.json()).data.choice, "yes");
@@ -138,13 +134,8 @@ test("global HTTP published invocation uses the same system handler and separate
     assert.deepEqual(host.status().projects, []);
     const listed = await host.homeActionClient().invoke(caller, functionsActions.list, {}) as { functions: { function_key: string }[] };
     assert.ok(listed.functions.some(row => row.function_key === record.function_key));
-    const invokeView = (await host.inspectActions({ actor_id: "runtime:codex", project_id: null, audience: "mcp", permissions: [] }))
-      .find(view => view.capability_id === functionsActions.invoke.capability_id)!;
-    await writeMcpActionGrant(home, createMcpActionGrant("runtime:codex", null, invokeView, true));
-    for (const definition of Object.values(functionContextActions)) {
-      const view = (await host.inspectActions({ actor_id: "runtime:codex", project_id: null, audience: "mcp", permissions: [] })).find(row => row.capability_id === definition.capability_id)!;
-      await writeMcpActionGrant(home, createMcpActionGrant("runtime:codex", null, view, true));
-    }
+    // The MCP client is granted through the access settings, like a person does; the Host checks each grant against what the client can really use.
+    await served.grant("runtime:codex", null, [functionsActions.invoke, ...Object.values(functionContextActions)]);
     await external.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
       fileURLToPath(new URL("./fixtures/system-functions-mcp-server.ts", import.meta.url)), home], stderr: "pipe" }));
     const tools = await external.listTools();
@@ -165,7 +156,7 @@ test("global HTTP published invocation uses the same system handler and separate
     assert.equal(history.filter(row => row.function_key === record.function_key).length, 2, "HTTP and external MCP each persist one judgment in the same Home");
   } finally {
     await external.close();
-    if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await served.close();
     await host.close(); await other.close(); await rm(root, { recursive: true, force: true });
   }
 });

@@ -1,5 +1,3 @@
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,8 +7,8 @@ import { bindActionClient, type ActionCallContext, type ActionSceneDefinition } 
 import { suggestedAuthoringBehaviors, type FunctionRecord, type TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
 import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { functionAuthoringActions as authoring, functionContextActions, publishedFunctionAction, openFunctionsStore } from "@molis-ai/molis-work-module-functions";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { functionAuthoringActions as authoring, functionContextActions, functionsActions, publishedFunctionAction, openFunctionsStore } from "@molis-ai/molis-work-module-functions";
+import { serveTestHost } from "./fixtures/test-home.js";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { functionsActionProvider } from "@molis-ai/molis-work-module-functions";
 import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/src/functions-host.js";
@@ -126,12 +124,10 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
   } };
   const functions = { env: { TYPESAFE_API_KEY: "test-only-not-a-real-key" }, provider };
   let host = new MolisWorkLocalHost({ homeDirectory: home, functions });
-  const controlToken = "system-rule-authoring-control-token";
-  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken });
+  const first = await serveTestHost(null, { home, host });
+  let second: Awaited<ReturnType<typeof serveTestHost>> | undefined;
   try {
-    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address(); assert.ok(address && typeof address !== "string");
-    const origin = `http://127.0.0.1:${address.port}`;
+    const { origin, controlToken } = first;
     const http = async (path: string, body?: unknown, status = 200) => {
       const response = await fetch(origin + path, { method: body === undefined ? "GET" : "POST", body: body === undefined ? undefined : JSON.stringify(body),
         headers: { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": crypto.randomUUID() } });
@@ -167,19 +163,19 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
     await actions.invoke(authoring.delete, { id: draft.id });
     await assert.rejects(actions.invoke(authoring.get, { id: draft.id }), { code: "functions.not_found" });
     assert.deepEqual(host.status().projects, [], "authoring does not create an artificial project");
-    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await first.close();
     await host.close();
     host = new MolisWorkLocalHost({ homeDirectory: home, functions });
+    // The reopened Host is served again: the MCP client below is granted through the access settings, as a person grants it.
+    second = await serveTestHost(null, { home, host });
     const reopened = bindActionClient(host.homeActionClient(), () => owner);
     for (const live of published) assert.deepEqual((await reopened.invoke(authoring.get, { id: live.id })).function, live);
     const store = openFunctionsStore(home);
     try { assert.equal(store.listJudgments().filter(row => row.function_key.startsWith("auth_")).length, 3); } finally { store.close(); }
-    const invokeView = (await host.inspectActions({ actor_id: "runtime:codex", project_id: null, audience: "mcp", permissions: [] }))
-      .find(view => view.capability_id === "functions.invoke")!;
-    await writeMcpActionGrant(home, createMcpActionGrant("runtime:codex", null, invokeView, true));
+    await second.grant("runtime:codex", null, [functionsActions.invoke]);
     for (const projectId of ["client-project-a", "client-project-b"]) {
       const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", {
-        projectId, databasePath: join(home, `${projectId}.sqlite`), webBaseUrl: origin,
+        projectId, databasePath: join(home, `${projectId}.sqlite`), webBaseUrl: second.origin,
       }, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: projectId, host_declares_stable: true } }, host);
       try {
         const result = JSON.parse(await mcp.callTool("molis_work_v1_action_functions.invoke__v1", { function_key: published[0]!.function_key, input: projectId }));
@@ -191,7 +187,7 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
       assert.deepEqual(history.listJudgments().filter(row => row.subject.project_id).map(row => row.subject.project_id).sort(), ["client-project-a", "client-project-b"]);
     } finally { history.close(); }
   } finally {
-    if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
+    await second?.close(); await first.close();
     await host.close(); await rm(home, { recursive: true, force: true });
   }
 });

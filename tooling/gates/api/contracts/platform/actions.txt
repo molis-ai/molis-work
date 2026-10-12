@@ -2834,12 +2834,6 @@ export declare function fileContentOf(input: {
 
 export declare function fileEntriesPage(entries: readonly FileEntry[], input: FileEntriesInput): FileEntriesPage;
 
-export declare function fileSourceDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[];
-
-export declare function fragmentOfferDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (schema: unknown) => string): string[];
-
-export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
-
 export declare function isArtifactCompareAction(action: {
     input_type?: string;
     output_type?: string;
@@ -2910,8 +2904,6 @@ export declare function pinActionSubject(client: ActionClient, caller: ActionCal
 
 export declare function pinnableSubjectKinds(client: ActionClient, caller: ActionCallContext): Promise<string[]>;
 
-export declare function placementDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[];
-
 export declare function placementSourceProject(caller: ActionCallContext, to: string): string;
 
 export declare function presentActionResult(view: ActionResultView | undefined, result: unknown, projectId?: string): ActionResultPresentation | undefined;
@@ -2950,8 +2942,6 @@ export declare function sceneConfigurationActions(scene: ActionSceneDefinition):
 export declare function searchEntriesPage(entries: readonly SearchEntry[], input: SearchEntriesInput): SearchEntriesPage;
 
 export declare function searchRevisionOf(parts: readonly string[]): string;
-
-export declare function searchSourceDeclarationProblems(key: string, action: Record<string, unknown>, operation: unknown, canonical: (value: unknown) => string): string[];
 
 export declare function searchText(value: unknown, max?: number): string;
 

@@ -2,7 +2,7 @@
 
 > 远端接续请先读文末「远端交接」；历史路径、授权及未提交状态以该节为准。
 
-状态：执行中（2026-10-12 A0 工程通过，正式 SDK 来源已并入 Prologue main（PR #4）；浏览器实操、全量回归、Molis 合入 main 未完成；统一协作与外部条件等待尚未实现）。本文是采用线唯一需求书与进度记录；原接入评估与对话建议仅作线索（历史资料留在旧采用树），按当前实现核对。用户已否决「简单协作可以绕过 TaskBoard」。
+状态：执行中（2026-10-12 A0 工程通过，SDK 两个合成包已并入 Prologue main（PR #4、#5），Molis #408 / #442 等批量全量后合入；P1 统一协作合同已冻结（§4.6.9，跨线 X1–X6 已确认），P2–P6 尚未实现）。本文是采用线唯一需求书与进度记录；原接入评估与对话建议仅作线索（历史资料留在旧采用树），按当前实现核对。用户已否决「简单协作可以绕过 TaskBoard」。
 
 目标完成等级：Prologue **完整采用范围内部完整**——§2 原 1–23 项与存储/预算等既有决定逐项完成采用、验证或按已定边界不做；新增 24/25 项使 Coding 与个人助理共用协作事实及外部条件等待。需要接入的路径在真实执行、界面、权限及异常恢复中可顺畅试用。A0 只是当前基础切片，不是整线完成定义。工程通过、真实产品实操、用户本人验收分别记录。本轮执行 **A0 基础采用**，目标为基础能力功能可用；统一协作仍未实现。已获授权实现、构建、候选包与隔离验证；不提交、不推送、不建 PR、不合并、不改真实 Home 或安装版。
 
@@ -182,7 +182,7 @@ SDK 的 `completed{yielded}` 表示本次 Run 让出，不能显示「工作完�
 | 等待安排 | 所属节点、目标节点/信封/命令/外部条件引用、all 或 any、等成功还是等落定、失败/取消策略、期限、是否允许自动接续；冻结具体集合，改集合需版本修订；外部条件的检查器、参数、四态结果、频率/退避与时限见 §4.6.8 |
 | 接续安排 | 原等待引用及版本、目标节点/Session、已满足条件引用、稳定启动请求键、占用代次、启动 Run 引用或拒绝/需核对原因；由 TaskBoard 持久写入 |
 | 通信绑定 | 发送与接收节点、对应 Session、信封引用、请求/通知/答复、原请求引用；正文与投递账仍在 Delivery |
-| 业务关联 | Coding 会话或助理 Work 只持 board/node ref；输入关联沿输入回执线的 key/request_id/call_id；成果引用原 owner 的固定版本 |
+| 业务关联 | Coding 会话或助理 Work 只持 board/node ref；输入关联用 SDK 的输入身份 `InputRef = { session, input }`（`input` 是 `steerId` / `inputId`，同一身份空间；App 的 `key` / `request_id` 只是幂等键，`call_id` 是动作调用编号，二者都不进图，见 §4.6.9）；成果引用原 owner 的固定版本 |
 
 同一项工作常驻一张图，Run 结束不销毁；Coding 确认计划的执行步骤和助理委派/定时跟进都接到该图。已有项目级聚合 Board 只引用这些任务，不复制状态。长期 standing board 裁剪完成节点前必须保证仍被等待、接续、输入回执或结果定位的引用可解析；不能因保留数量丢失活跃引用，具体保留方式在 P1 核对现有持久记录后落定。
 
@@ -208,7 +208,7 @@ SDK 的 `completed{yielded}` 表示本次 Run 让出，不能显示「工作完�
 
 Run 完成不自动让协作节点 succeeded：先检查工具/Effect 是否未知、是否仍有待满足条件和子结果；失败/取消按图冻结策略处理。父节点等待时保持未完成，子节点全部成功也不自动通过父业务验收。
 
-逻辑状态沿现有 `not-started → ready → running → succeeded/failed/cancelled`，扩展 `waiting` 与 `needs-reconciliation`；`blocked` 用于明确缺授权、预算、模型、人工裁定或失败策略阻塞，不充当成功。等待条件满足只进入可接续状态，实际运行要等启动回执。等待自身 `waiting/fired/resumed/cancelled/expired` 沿现有 waits 语义，归属于图上的安排；不由插件再保存一份。
+逻辑状态沿现有 `not-started → ready → running → succeeded/failed/cancelled`，扩展 `waiting` 与 `needs-reconciliation`；`blocked` 用于明确缺授权、预算、模型、人工裁定或失败策略阻塞，不充当成功。等待条件满足只进入可接续状态，实际运行要等启动回执。等待自身的状态按 §4.6.9 冻结为 `waiting / satisfied / failed / expired / cancelled / needs-reconciliation`（去掉旧的 `fired` / `resumed`，接续归节点上的接续记录），归属于图上的安排；不由插件再保存一份。
 
 事件按主人发布：节点/指派/等待安排修订归 TaskBoard；Run 终态与 Effect 回执归执行；消息接受/答复归 Delivery；等待满足、接续占用/启动/被拒归 TaskBoard 接续记录。事件是通知，丢失或重复后能按版本和真实记录补读；不是只在内存里存在的成功证据。通过窄口组合，不让各模块读取另一模块的存储实现。
 
@@ -329,6 +329,52 @@ Coding 步骤板和助理工作/委派视图都读同一图，仍挂在现有工
 - 机器休眠/关机：期间不能保证执行检查或唤醒；恢复后按墙钟先处理截止时间和失效代次，只补一次当前状态检查，不追赶所有漏掉的轮询。已超时显示超时；本次请求结果若跨越休眠导致租约/权限失效，拒绝迟到结算。未启动 Host 时不会自行检查或起模型。
 - 条件满足不改变输入回执 D4：未读输入仍按已选策略带入/询问，不能把新的未授权目标随外部完成通知自动执行。唤醒消息标 Host 来源，保留原工作/输入引用，绝不伪装成人的新命令。
 
+#### 4.6.9 P1 统一合同（冻结，2026-10-12）
+
+这是 P1 的交付：§4.6.1–4.6.8 的语义落成可实现的合同，SDK 一侧的权威文本是 Prologue [`docs/slices/taskboard-collaboration.md`](https://github.com/molis-ai/prologue/blob/feature/taskboard-collaboration-contract/docs/slices/taskboard-collaboration.md)（下称「SDK 合同」），本节只写 Molis 一侧和两边的一一对应，不重抄 SDK 字段表。冻结的是语义与名字；P2（SDK）、P3（Molis 公共合同与共享 Host）、P4（产品接入）按它实现。标「跨线」的六处（X1–X6）已由统筹按「技术决策看防腐后果」确认（2026-10-12），记在 §6.5。
+
+**现状核查（2026-10-12，main `f5ef12e6` / Molis `aadeef76`）**：SDK 里协作可以不绑节点（`SubagentRequest.claims?` 可选、`session-send` 有无步骤交接）、节点没有执行尝试与代次、等待只有「任何一个」且一个会话一个、检查异常被当成「没看到」、接续分在 `ParkedWait` / 内存 `SubagentWake` / 回灌信封三处；Molis 一侧的协调状态分散在 `prologue-taskboard.ts`（`following`、`roundOf`、2 小时认领过期、`user-` 节点名）、`prologue-waits.ts`（私有 `listeners`、自动 resume）、`prologue-messages.ts`（子任务一律拒发信）、`prologue-node.ts` 索引里的 `attempts[]`、Coding 插件存储（`last-start:*`、`wake-note:*`、内存 `busy` / `held` / `wakeLoop`）和助理（`delegated_by`、`follow_ups`、1500 ms 轮询 `status`、`StoredJob` 与 `assistant.job-check` 退避）。这些都是 P3/P4 要退出或改成视图的。
+
+**三件核心（与 SDK 合同同名）**：
+
+1. **节点绑定。** 每一跑由 Host 在启动时绑到节点（`startAgentRun({ collaboration })`，受信装配）；没绑定的跑没有派出 / 发信 / 登记等待 / 改图工具。派子任务不点名节点时 SDK 自动在调用者节点下建子节点，所以简单分工不要人先画图；自动建节点对人无感：不额外提问、不出新的确认，原来派出要过的审查照旧。Agent 之间的信封带 `scope`（同一张图的父子 / 兄弟），人与人的信（Coding 的人际委派、`audience: "people"`）不在此列。
+2. **执行代次。** 节点上 `generation` + 有界 `attempts`（真实 Session / Run 引用、`origin` 父 Run 只作来源）。只有权威换手让代次 +1：交接 / 改派、接管、取消、重试；接续占用用接续自己的修订号做 CAS，不动代次；同一持有者接着开下一轮（例如人在等待期间又说了一句）也不加代次，等待与接续照旧、满足后在这一轮的边界交给它，等它真的吃下才算接续 started。孩子只核自己节点的代次。来自执行的每次改图都带受信 scope，代次不符零变化。新 Run 管原来的孩子靠持有父节点当前代次，不靠「我派的」。
+3. **等待组与四态。** 节点上最多一个等待安排：条件闭集 `node` / `envelope` / `command` / `pending` / `external`，`all` / `any`，`until: success | settled`，`onFailure: block | continue`，必有期限，`autoContinue`。每个条件的最近观察是 `pending | satisfied | failed | unknown`；检查器异常 / 超时 / 无效输出只能是 `unknown`（带 `checker_error`），unknown 永不算成功，有界重查到上限进 `needs-reconciliation`。接续是节点上唯一的记录 `armed → eligible → claimed → started`（另有 `blocked` / `cancelled` / `needs-reconciliation`），等待的终态是结果的权威、接续的 eligible 由它推出；占用分「交给活着的跑」与「起新跑」两种，同一请求键只起一次；起新跑与派出复核都经 App 注入的同一个协作口，Runtime 不带自己的起跑实现。
+
+**SDK ↔ Molis 一一对应**：
+
+| SDK 合同 | Molis 公共合同（`services/agent-collaboration`，P3 建，跨线 X4） | Molis Host / 产品 |
+| --- | --- | --- |
+| `startAgentRun({ collaboration: { board, node } })` | 不对插件暴露；`AgentRunStart` 里由 Host 填 | `prologue-node.ts` 的启动装配（W4-06 拆出的 `prologue-run.ts` 里）：Coding 会话 / 助理 Work 的常驻板 + 当前节点 |
+| `TaskNode` + `generation`、`attempts`、`origins`、`results`、`wait`、`continuation`；状态加 `waiting`、`needs-reconciliation` | `AgentCollaborationNode`：`node_id`、`title`、`state`、`parent`、`depends_on`、`owner`（沿用 `AgentStepOwner`）、`generation`、`attempts[]`（`session_id`、`run_id?`、`origin_run_id?`、`state`）、`origins?: { session_id, input_id }[]`、`results?`、`wait?`、`continuation?`、`reports` | Coding 步骤板、助理工作 / 委派视图都读它；`AgentStepBoard` 在 P4 换成它 |
+| 板（常驻） | `AgentCollaborationView`：`board_id`、`version`、`work: { kind: "coding-session" \| "assistant-work"; id }`、`nodes`、`terminal` | 板跟着工作走（X5）：人直接开的 Coding 会话一块、一个助理 Work 一块，Host 在建工作时（第一跑之前）admit 常驻板与根节点；助理把工作交给编码角色时，那个 Coding 会话的跑绑在助理 Work 那块板的子节点上，不另开一块。业务对象只存 `board_id`；视图里的 `work` 由业务主人按 `board_id` 反查（Coding 插件存储 / 助理存储），SDK 板上不放 App 引用 |
+| `WaitArrangement` + 每条件 `ConditionObservation` | `AgentCollaborationWait`：`wait_id`、`version`、`mode`、`until`、`on_failure`、`deadline_at`、`conditions[]`（`kind`、可定位的 `ref` 与 `label`、`last?: { status, at, note?, checker_error? }`、`next_check_at?`）、`state`、`waited_without_model: boolean`（由 Run 账推出：从 armed 到 started 之间，这个会话没有任何尝试 / Run；不另设 Host 计数器。PA-17 用可计数的 Provider 接缝证明，界面据此回显「等待期间未调用模型」） | Coding 与助理的「在等什么」都读它；`AgentWait` 与 `agent.waits.*.v1` 在 P4 删 |
+| `Continuation` | `AgentContinuationView`：`state`、`auto`、`run_id?`、`reason?: { code, note? }` | 「准备继续 / 已继续 / 被拒原因 / 需核对」只读它 |
+| `conditionCheckers`（注入，`describe` + 每次带 scope 的 `check`） | 不暴露 | Host 检查器登记表（`apps/local-host` 的 Agent Host 装配），每次检查按 scope（板 → 工作 → actor / 项目 / 安装）复核授权，收回了就回 `refused`（界面「需要授权」）：内置 `molis.action-query`（经声明为 `operation: query` 且 `actionEffect: read` 的动作查原作业状态，映射四态，未声明状态 → unknown）、`molis.file-present`（授权根引用 + 相对路径 + 明确谓词，不越界）；后台命令走 SDK 内置 `command` 条件，不用检查器。检查器不得调用模型、AI 动作或模型 CLI |
+| `collaborationHost`（注入，`admitDispatch` + `startContinuation`） | 不暴露 | Host 协作口：两个方法按 §4.6.5 同一顺序复核 actor、范围、安装、角色、工具 / 目录、预算、模型、审查接线。`admitDispatch` 在子任务首个模型请求前做，并建共享用量账的预留（不透明引用记在尝试上；结果未知的用量不按零释放）；`startContinuation` 用接续的请求键作开跑幂等键。恢复查 SDK 自己的开跑记录（`findAgentStart`），Host 不另记一份 |
+| `boards.attemptOf(run)` | 视图投影用，不另暴露 | 操作卡、待答问题、动作调用编号挂回节点都经它推出（跨线 X2、X3） |
+| 错误码 `TASKBOARD_NOT_BOUND`、`TASKBOARD_STALE_GENERATION`、`TASKBOARD_CONTINUATION_CONFLICT`、`WAIT_ALREADY_ARMED`、`WAIT_CHECKER_UNKNOWN`、`WAIT_CONDITION_INVALID` | `agent.collaboration_not_bound`、`agent.collaboration_stale`、`agent.collaboration_conflict`、`agent.collaboration_wait_armed`、`agent.collaboration_checker_unknown`、`agent.collaboration_condition_invalid`（以主人名开头，W3-02；在 `tooling/gates/error-owners.json` 的 `agent` 名下登记） | 给人的原因文字由 Host 写 |
+
+**动作（不新增 typed capability，防腐决定 #1）**：`agent.collaboration.read.v1`（`kind: query`、`operation: query`、`effect: read`：按 `board_id` 或 `run_id` 读视图）；`agent.collaboration.revise.v1`（`kind: operation`、`operation: command`、`effect: write`：人修订计划，带 `expected_version`，沿用现有修订种类并加取消节点、重试节点；P4 替换 `agent.run.step-board.amend.v1`）；`agent.collaboration.control.v1`（`kind: operation`、`operation: command`、`effect: write`：`kind: "cancel-wait" | "continue-now" | "retry" | "resolve-reconciliation"`，带 `expected_version` 与节点 / 等待 / 接续引用；`continue-now` 带 `on_early_continue: keep | cancel`）。actor、项目、安装都从调用上下文取。旧的 `agent.waits.read/await/resume/cancel.v1`、`agent.run.step-board.amend.v1` 在 P4 没有调用方后同一批删除（阶段一不留兼容）；以后这几个动作的形状变了就升 `version`，同一个 PR 里先 `pnpm build` 再 `pnpm actions:update`；MCP 不改已有工具名。
+
+**输入、待答问题、操作卡挂到同一张图（跨线 X1–X3）**：
+
+| 东西 | 唯一主人与身份 | 怎样挂到节点 | SDK 合同 | Molis 公共合同 |
+| --- | --- | --- | --- | --- |
+| 输入（补充、带进的排队输入、回答） | Prologue Session；`InputRef = { session, input }`，`input` = `steerId` / `inputId` | `node.origins`（节点因它新增 / 修订，引擎盖章）；`report.inputs`（报告引用） | `InputRef`、`origins`、`report.inputs`（本刀冻结形状；各最多 8 条，超出整次拒绝、不截断）；写入的工具参数、`acknowledge-inputs` 的 `board-node` / `todo` / `pending` 目标、`pending.about` 归输入回执 S4 | 节点上只给 `input_id`；`key`、来源、读到与说明由 `services/agent-inputs` 解析，不在协作合同里复制 |
+| 待答问题 | Prologue Effect-policy；`{ pending_id, revision }` | 推出：`pending.origin.run` → `attemptOf` → 节点；显式：等待条件 `kind: "pending"` | 等待经 Effect-policy 只读口读问题状态；回答 / 过期 / 取消仍由 Pending 结算 | 视图里给 `pending_id` + `revision`，展示与作答沿用 `services/agent-interaction` 的 `AgentPendingQuestion` |
+| 操作卡（助理与 Coding 共用） | Molis 卡片协作者（交互线 H2 / 防腐 W5-10）；`card_id` + `revision`，记录产生它的 `session` 与 `run` | 只推出：卡的 `run` → `attemptOf` → 节点；卡不是等待条件，节点需要人决定时用待答问题 | 不进 SDK 图 | 协作视图不含卡；界面在节点下按 `run_id` 取卡片协作者的视图（`InteractionOperationView`）；卡执行不给节点或 Run 加权限 |
+
+**P4 产品接入与旧路径退出（按 X5 的顺序先 Coding 后助理）**：
+
+- Coding：`plans.ts` 的确认计划照旧冻结为节点；`step-verdict:*` / `subagent-verdict:*`（人的验收）保留为业务事实、引用节点；`last-start:*`、`wake-note:*`、内存 `busy` / `held` / `waking` / `wakeLoop` 删除，改读等待与接续视图；`prologue-taskboard.ts` 的 `following` 去抖 steer 改成 SDK 接续在边界交结果，2 小时认领过期改成代次与等待期限。
+- 助理：每个 Work 一块常驻板；`delegation(parent)` 改成派子节点（子 Work 仍是专业工作内容容器，只记节点引用）；1500 ms 轮询的 `status` 改成等待视图；`watchJob` / `scheduleJobCheck` / `checkJob` 的私有退避与结束判定改成 `external` 条件 + `molis.action-query` 检查器，删 `assistant.job-check` 排程，保留通知 / 卡片关联与 `told`；委派上限 6 / 3 / 2 搬进协作配置，数值不变。硬约束（防腐 HUGE-CLASS-MIGRATION 决定 #3）：`delegated_by`、`follow_ups`、委派轮询、`StoredJob` 检查做成 W5-10 形状的协作者——协作者只经端口依赖宿主，样板照 W4-05 拆出的提醒与跟进——算作 W5-10 的一部分，`assistant-service.ts` 不增长；助理这一半开工前由统筹请用户转告防腐线负责人确认先后，在那之前只做 Coding 一半。
+- Agent Host：`prologue-messages.ts` 的「子任务一律不能发信」改成 SDK 的 scope 检查；`subagentYieldGuard`（PA-23 的正式拒绝）在 P3 换成「让出 = 登记等待 + 接续」的正式路径时一并删除，PA-23 的「不开放私有自动续做」改由 PA-08 / PA-11 证明；`prologue-waits.ts` 的私有 `listeners` 与自动 resume 删除。
+- 合同：新子路径 `services/agent-collaboration` 在 P3 与第一个消费者同批建（空子路径被门禁拒）；`services/agent-host.ts` 不增长（巨大单元），W5-09 拆分时它就是协作这一块的落点。插件开跑的请求（`AgentStartRequest`）不加字段：板与节点由 Host 按业务对象解析后填进 SDK 的 `collaboration`。
+- 落点与前置：Host 侧新增 `prologue-collaboration.ts`（协作口、视图投影）与 `prologue-checkers.ts`（检查器登记表）；接线要改 `startAgentRun`，而 `prologue-node.ts`（1550 行，巨大单元）不能增长，所以防腐 W4-06（拆 `initializePrologueNodeAdapter`、`startAgentRun` 搬进 `prologue-run.ts`）是 P3 的硬前置；W4-06 未落时，P3 自己先做这一步拆分并让行数下降，不在原文件里加接线。
+
+**P1 验收**：PA-02、PA-03、PA-16 的合同条款已写进 SDK 合同与本节（节点绑定与自动建节点、越权零执行；单一主人与代次接管；外部条件、检查器、四态、频率 / 时限 / 处置）；证明在 P2（SDK 真实 Node Host）与 P3（Molis 授权测试）。合同文本本身不算这三条通过。
+
 ### 4.7 其他采用项（第 15–23 项）
 
 休眠投影、记忆伪标记中和、写前密钥扫描与扩权审查保留。`run-command` 的额外路径/网络必须在批准内容中显示，不能用不含 grants 的记住规则复用；扫描拒绝显示零写入原因，不仅原始错误码。会话私有条目交输入回执线使用，不额外建一份输入账。
@@ -345,9 +391,9 @@ Coding 步骤板和助理工作/委派视图都读同一图，仍挂在现有工
 
 | 需求线 | 唯一职责与本线依赖 | 交界 / 实施顺序 |
 | --- | --- | --- |
-| 输入回执（`docs/ai-input-receipts`） | 拥有 person/page/host/assistant 来源、输入 key/request_id、L0–L4、处理说明与输入关联；其 D9 已定助理常驻 Board | 本文拥有协作生命周期；常驻 Board 基础落在本线 P1–P4，输入线阶段 5 消费，不再重复建设。D2 新任务提议/D4 未读输入接续策略保持；等待满足不能顺便自动消费未授权的新输入 |
-| 输入回执 SDK 与 Molis 接入 | SDK 在 `prologue-input-receipts` 有未提交工作；D7 要先采用包进 Molis main | `prologue-stream.ts`、控制/会话入口、TaskBoard 引用字段、Coding `run-inputs.ts`、助理输入路径为交界。先冻结节点与输入引用，再按基础采用包 → 输入接入集成；节点不另造 input id/call id |
-| 跨插件 AI（`feat/ai-interaction-experience`） | 拥有问询字段、卡片、Option、对象选择、草稿和共享组件；Prologue `a06ae62e` 已提交题型 | 共用同一接续/Run/pending 引用与输入键；本文只展示它们，不复制 pending。公共 `agent-interaction` 与拟 `agent-collaboration` 分职责；按其 D2 在采用包后合 SDK 接入 |
+| 输入回执（`specs/ai-input-receipts/spec.md`，分支 `feature/handoff-ai-input-receipts`） | 拥有 person/page/host/assistant 来源、输入 key/request_id、L0–L4、处理说明与输入关联；其 D9 已定助理常驻 Board | 本文拥有协作生命周期；常驻 Board 基础落在本线 P1–P4，输入线阶段 5 消费，不再重复建设。D2 新任务提议/D4 未读输入接续策略保持；等待满足不能顺便自动消费未授权的新输入 |
+| 输入回执 SDK 与 Molis 接入 | SDK S1–S3 已并入 Prologue main（PR #4、#5），S4（任务板与待办引用输入）沿 §4.6.9 的形状做；D7 还差采用线合入 Molis main | `prologue-stream.ts`、控制/会话入口、TaskBoard 引用字段、Coding `run-inputs.ts`、助理输入路径为交界。先冻结节点与输入引用，再按基础采用包 → 输入接入集成；节点不另造 input id/call id |
+| 跨插件 AI（`specs/ai-interaction-experience/spec.md`，分支 `feature/handoff-ai-interaction`） | 拥有问询字段、卡片、Option、对象选择、草稿和共享组件；Prologue `a06ae62e` 已提交题型 | 共用同一接续/Run/pending 引用与输入键；本文只展示它们，不复制 pending。公共 `agent-interaction` 与拟 `agent-collaboration` 分职责；按其 D2 在采用包后合 SDK 接入 |
 | Computer Use（`feat/computer-use-land`，Grok 原线） | 设备/浏览器权限、观察和动作自己拥有；本线不实现，不持续看屏幕判断等待 | 共享 `prologue-node.ts`、助理装配与 SDK 包；核对独立分支实际 diff 后集成，不按旧叠分支假设 cherry-pick |
 | 防腐（Claude 原线，开发基准） | W3-01 调用编号、W4-05/W5-10 助理协作者、W4-06 Agent Host 拆分、W4-07 Coding 路由、W4-10 订阅、W5-09 合同拆分 | 编号沿现有调用体系；新代码按实际已落地边界写，不在巨大文件继续堆。W 标签只是交界线索，开工按最新 origin/main 核对完成状况；不是把已完成的整改重新列前置 |
 
@@ -715,6 +761,15 @@ A0 执行记录（下列历史方案记录之后继续）：
 **已定，不再询问**：Prologue 原完整采用清单保持，A0 是基础切片，24/25 为新增协作项；原采用按真实依赖独立推进。TaskBoard 是所有 Agent 协作的统一事实源；Coding/个人助理同用 Prologue；简单任务自动建少量节点；任务/Run/消息各守主人；先合同后机制后产品；外部条件由可信非模型检查器等待，满足后统一接续；只认现行合同；当前仅实施 A0，不实现统一协作。
 
 **本方案的技术选择，尚非实现事实**：复用 SDK 现有模块和 waits/Delivery，图上持久接续占用+稳定启动请求键；共享 Host 只装配与复核，产品插件不决定唤醒；跨 Run 通过节点负责人/代次接管。数值沿当前授权/预算配置，助理现有委派上限（总数 6、并行 3、追加 2）在统一配置接入时保持效果，调大不藏在迁移中。SDK 状态/导出名、存储版本、节点保留方式、外部检查器的来源默认频率及硬上限在 P1 按真实 API 冻结，不让接口占位扩成第二协调器。
+
+**P1 跨线决定（统筹 2026-10-12 按「技术决策看防腐后果、功能决策看体验」确认）**：
+
+- X1 输入引用：`InputRef = { session, input }` 归 Prologue Session；节点 `origins`、报告 `inputs` 各最多 8 条，超出整次拒绝、不截断；写入路径、`acknowledge-inputs` 新目标与 `pending.about` 归输入回执 S4；`key` 只是调用方幂等键，对应关系由 `services/agent-inputs` 投影。依据：单一事实主人。
+- X2 操作卡：不进图，经卡的 `run` → `attemptOf` → 节点推出；人要做决定一律用待答问题，卡不是等待条件；交互线 H2 必须保住每张卡的产生 session 与 `run_id`，以及助理与 Coding 共用的卡片键空间。依据：卡的主人是 Molis 卡片协作者。
+- X3 待答问题：只由 Effect-policy 结算；图只读状态、只登记等待；P1 不依赖 S4 的问题事件。
+- X4 合同落点：`services/agent-collaboration` 在 P3 与使用方同批建；三个动作 actor 取上下文、输入带 `expected_version`；旧 `agent.waits.*`、`step-board.amend` 在 P4 删；节点来源只显示 `input_id`。依据：W5-09 拆分方向、不建占位子路径、不加 typed 能力、不留兼容。
+- X5 常驻板：先 Coding、后助理（回执线 D9）；6 / 3 / 2 原值搬进协作配置；助理一半按 W5-10 协作者形状做，开工前请防腐线负责人确认先后。
+- X6 删除无板的 Agent 协作，不留兼容；Prologue 合同列出对所有消费方的公共行为变化，删掉的名字在 public-surface 快照里体现；自动建子节点对人无感。依据：用户否决「简单协作可以绕过 TaskBoard」；唯一消费方。
 
 **实施前仍需核对/决定**：
 

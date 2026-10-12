@@ -12,8 +12,10 @@ import type { HostSurfaceAction } from "@molis-ai/molis-work-contracts/services/
 import {
   ASSISTANT_RULES_PROVIDER,
   COMPUTER_RECORD_SOURCE_ID,
+  ComputerDesk,
   ComputerDriver,
   ComputerRecords,
+  ComputerSettings,
   HelperError,
   Refused,
   computerRecordFileSource,
@@ -193,6 +195,71 @@ test("operation records are listed for the project that owns them, including no 
     assert.equal(hidden.status, 404);
   } finally {
     server.close();
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("the desktop driver stores the round's project and frees the computer when that same driver releases", async () => {
+  const home = mkdtempSync(path.join(tmpdir(), "cu-round-"));
+  const settings = new ComputerSettings(home);
+  settings.setEnabled(true);
+  const records = new ComputerRecords(home);
+  const desk = new ComputerDesk({
+    helper: {
+      on: () => () => undefined,
+      ready: true,
+      status: () => ({ version: "test", pid: 1, bundle_id: "test.helper", permissions: { accessibility: true, screen_recording: true, input_monitoring: true }, presence: { locked: false, screensaver: false, displays_asleep: false, on_console: true, idle_seconds: 0 }, watching: false, last_synthetic: 0 }),
+      unsupported: () => null,
+      problem: () => null,
+      ensure: async () => ({ version: "test", pid: 1, bundle_id: "test.helper", permissions: { accessibility: true, screen_recording: true, input_monitoring: true }, presence: { locked: false, screensaver: false, displays_asleep: false, on_console: true, idle_seconds: 0 }, watching: false, last_synthetic: 0 }),
+      call: async <T>(op: string): Promise<T> => {
+        if (op === "apps.running") return { apps: [] } as T;
+        if (op === "monitor") return {} as T;
+        throw new Error(op);
+      },
+    },
+    settings,
+    records,
+  });
+  try {
+    const driver = desk.driver();
+    assert.equal(typeof driver.describeRound, "function");
+    assert.equal(typeof driver.noteRun, "function");
+    assert.equal(typeof driver.release, "function");
+    driver.describeRound!("sess-molis", { run_id: null, project_id: "project-a", goal: "打开备忘录" });
+    driver.noteRun!("sess-prologue-ref", "run-9");
+    await driver.observe("accessibility-tree", { session_id: "sess-molis" });
+
+    assert.equal(desk.holding()?.sessionId, "sess-molis");
+    assert.equal(desk.holding()?.projectId, "project-a");
+    assert.equal(reviewProjectFor("project-b", "sess-molis", desk.holding()), "project-a");
+    const openId = desk.state().record_id;
+    assert.ok(openId);
+    const open = records.get(openId);
+    assert.equal(open?.project_id, "project-a");
+    assert.equal(open?.run_id, "run-9");
+    assert.equal(open?.goal, "打开备忘录");
+    assert.equal(open?.ended_at, null);
+
+    await assert.rejects(() => driver.observe("accessibility-tree", { session_id: "sess-2" }), /另一项工作/);
+    assert.equal(desk.holding()?.sessionId, "sess-molis");
+
+    await driver.release!();
+    assert.equal(desk.holding(), null);
+    assert.equal(desk.state().record_id, null);
+    const finished = records.get(openId);
+    assert.equal(finished?.outcome, "completed");
+    assert.equal(typeof finished?.ended_at, "string");
+
+    driver.describeRound!("sess-2", { run_id: null, project_id: "project-b", goal: "下一轮" });
+    driver.noteRun!("sess-prologue-ref-2", "run-10");
+    await driver.observe("accessibility-tree", { session_id: "sess-2" });
+    assert.equal(desk.holding()?.projectId, "project-b");
+    assert.equal(records.get(desk.state().record_id!)?.run_id, "run-10");
+    await driver.release!();
+    assert.equal(desk.holding(), null);
+  } finally {
+    desk.close();
     rmSync(home, { recursive: true, force: true });
   }
 });

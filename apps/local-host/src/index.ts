@@ -230,6 +230,8 @@ export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { prologueMemoryBackend } from "./memory/memory-host.js";
 export { ComputerRecords } from "./computer/computer-records.js";
+export { ComputerDesk } from "./computer/computer-desk.js";
+export { ComputerSettings } from "./computer/computer-settings.js";
 export { ComputerDriver, Refused, type DeskContext } from "./computer/computer-driver.js";
 export { HelperError } from "./computer/helper-connection.js";
 export {

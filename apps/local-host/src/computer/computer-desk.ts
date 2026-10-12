@@ -7,13 +7,16 @@ import type { ComputerRecords } from "./computer-records.js";
 import type { ComputerSettings } from "./computer-settings.js";
 import { type HelperConnection, type HelperEvent, type HelperStatus } from "./helper-connection.js";
 
+/** The helper methods the desk calls. A real connection satisfies this, and a test can stand in without starting one. */
+export type ComputerHelper = Pick<HelperConnection, "on" | "ensure" | "call" | "status" | "unsupported" | "problem" | "ready">;
+
 export { NO_APP_SCOPE } from "./computer-driver.js";
 
 /** No input for this long while nothing is locked: the person is away, and the Assistant does not act. */
 const AWAY_SECONDS = 10 * 60;
 
 export interface ComputerDeskOptions {
-  readonly helper: HelperConnection;
+  readonly helper: ComputerHelper;
   readonly settings: ComputerSettings;
   readonly records: ComputerRecords;
   /** Whether a session's round is still running (a lease a finished round left behind is free again). */
@@ -46,7 +49,7 @@ export class ComputerDesk implements DeskContext {
   private readonly surfaceDriver: ComputerDriver;
 
   // DeskContext data access (fields and arrows, not methods: the look-and-act side reads the desk's state through these).
-  readonly helper: HelperConnection;
+  readonly helper: ComputerHelper;
   readonly settings: ComputerSettings;
 
   constructor(private readonly options: ComputerDeskOptions) {

@@ -1372,6 +1372,8 @@ W3-10-5 复用现有 SOURCE_COUNT_RULES 与逐文件 merge-base 比较，不另�
 
 API与相关契约快照同步，整体构建、定向真实入口及浏览器回归完成后进入下一次协调整合全量；巨大单元和页面资源只降。2026-10-12 G1 的网关/删除/availability 子块已保存 source-only 4b08716d0，23文件+191/-54，独立只读未发现必须处理的Blocker/P1；仍未构建/运行/API刷新。原 G1 的 HomeDock、search、placement、contextual 与平台同义码收口尚未覆盖，不把此子块称作整个G1完成；G3仍为方案。
 
+G3固定I5源码复核的必要接线同属以上合同：Memory Host的asActionError重新构造会丢owner kind/details，需与mapper一起撤除，直接memory.forbidden也走同一owner声明；不能只改HTTP catch。AgentDefinitionsError范围外唯一生产消费者plugin-model-service的instanceof分支同步改用共同拒绝，保留plugin.model_instruction_refused及原指令边界。Assistant related坏输入使用现有assistant.invalid共同错误体，保留400。完整允许路径包括这三个消费者与现有公开HTTP/模型/浏览器验证，不新增错误别名、读取兼容或业务语义；当前仅核对，尚未实现/运行。
+
 ### 10.5 Goals 管理入口的接续验收（W3-07-PR-4/5）
 
 固定 I5 8bac4a4ea 已核：P-MCP的解析在mcp-v1-tool，CLI已删自己的树命令桥并使用管理工厂；剩管理MCP仍消费 initialize/event-decide/tree-decide 三个 typed入口。按PR-4 → PR-5 → 后续PR-6/8推进，PR-4先于错误码R3，不夹带常驻转发（PR-7）或owner改名。保留生产管理工厂使用的tree/event authority与management-evidence；managementIdentity仍供进展记录使用、requireRuntimeProject仍供插件开发使用，Coding四个合同入口留到PR-8。

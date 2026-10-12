@@ -649,6 +649,18 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 
 用户 2026-10-13 的决定：各线只在各自的交接 PR 里提交，不单开 PR（有防腐线在改代码质量和架构，单开 PR 容易冲出架构问题）。Molis 侧据此把 #442（第二个包，叠在 #408 上）快进并入 #408 的分支（`4e426f4c`）；Prologue 侧的 P2c 之后是否单独开 PR 由统筹向用户确认，确认之前只推分支。
 
+#### 防腐复查记录（对 #408 自己的 diff，清单见协调板旁的 ANTI-CORRUPTION-REVIEW.md）
+
+| 日期 · 对照 | 范围 | 结论 |
+| --- | --- | --- |
+| 2026-10-13 · merge-base `aadeef76`（main 末端 `e4ec01bd`，尚未合入） | 清单 §2 不需要构建的项（M2 `check-health-gates --base origin/main`、M4 `api:update`、M7 Biome、M8 页面事件、M9 翻译、M10 测试进程双份、M15 密钥、vendored-provenance）和 §3 人工项，只看 #408 自己的 diff | **通过，一处已修，两处暂缓（等防腐线的片）。** 构建类（M1 边界、M5 动作快照、M6 页面资源、M13 受影响用例、M14 安全）等把最新 main 合进来之后再跑，结果另起一行。 |
+
+- **已修（§3-1/§2 M7）**：`prologue-stream.ts` 里新写的三处 `as unknown as`（`memory-recalled`、`todo-changed`、`circuit-tripped` 三个事件）改成事件联合里的有类型成员 + `Extract<PrologueEvent, …>`，Biome 对该文件无诊断，`tests/prologue-stream.test.ts` 28/28。
+- **通过**：新增行里没有兼容/迁移/回填标记（只有协议名 `anthropic-compatible`）、没有 typed 宿主能力、没有 SQL、没有旧名、没有新 `CustomEvent`、没有裸 `fetch`、没有 `biome-ignore`；巨大单元只变小或没变大（`prologue-node.ts` 1759→1550、合同 `agent-host.ts` 1732→1638，`prologue-stream.ts` 588→697 仍在 800 行以下）；`vendor/prologue-sdk/` 只有一份 tgz，来源记录与包相符（`vendored-provenance` 退出 0）；没有碰 `limits.json`、`biome.jsonc`、门禁脚本与例外文件；`baseline.json`、`page-assets.json` 是重新生成且数字只降；`packages/contracts/src/services/agent-host-memory.ts` 只被 `agent-host` 合同再导出，不是新的发布子路径（没有新快照文件，`api:update` 无变化）。
+- **公共 API 变化（PR 描述要写的影响）**：`contracts/services/agent-host` 只多可选字段和两个类型——`AgentCommandReviewDocument.grants?`、`AgentRunView.turn_changes?` / `sleeping_until?`、新类型 `AgentCommandGrants`、`AgentTurnChanges`。读 `AgentRunView` 的调用方不认识这些字段时忽略即可，没有字段被改名或收紧。
+- **暂缓 1（§3-14 错误模型，等 W3-02 G）**：`horizontal/agent-host` 的适配器里抛给用户看的错误是 `throw new Error("<中文>")`，新增的一处（`prologue-node.ts` 命令授权不可读）沿用了这个文件里几十处同样的写法；其余几处是从 `prologue-node.ts` 原样搬到 `prologue-credentials.ts` / `prologue-methods.ts` 的。没有新增 `extends Error` 子类，也没有新的错误码字符串，所以门禁数字不变。这一类要等防腐线 W3-02 的 G 系列统一成 `defineErrorCodes`，本线不抢先改。
+- **暂缓 2（§3-20 界面文字，等 W5-03）**：Coding 客户端、`agent-review-surface.ts`、`timeline-words.ts` 里新增的中文界面文字，这几处现在没有翻译入口（整个文件都是中文直出），翻译门禁 0 缺英文通过；新文案集中在 `timeline-words.ts` 的词表里，W5-03 按主人词典搬时一并处理。
+
 #### 没做的与风险
 
 - D7 还差一项：采用线合入 Molis main（Molis 默认路径验证的工程部分和受影响的浏览器用例已过，部分全量里的失败已和干净基线比对为预先存在；批量全量尚未跑）（PR #408 由统筹按条件合并）。

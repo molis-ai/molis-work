@@ -57,6 +57,9 @@ export type PrologueEvent =
   | { type: "agent-control"; state: "running" | "pausing" | "paused" | "sleeping"; untilMs?: number }
   | { type: "turn-changes"; turn: number; changes: ReadonlyArray<{ path: string; byteLength: number; digest: string; checkpointId: string }> }
   | { type: "model-switched"; from: { protocol: string; model: string }; to: { protocol: string; model: string } }
+  | { type: "memory-recalled"; method?: string; injected?: ReadonlyArray<{ id: string; version: number }>; omitted?: ReadonlyArray<{ id: string; version: number }>; unavailable?: readonly string[] }
+  | { type: "todo-changed"; items?: ReadonlyArray<{ id?: unknown; text?: unknown; state?: unknown }> }
+  | { type: "circuit-tripped"; reason?: string; count?: number; why?: string }
   | { type: "run-recovered"; atMs: number; transcript: "opening-only" | "durable-prefix"; questions?: ReadonlyArray<{ ref: { id: string; revision: number }; kind: string; prompt: string }>; operations: Array<{ summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }> }
   | { type: "completed" }
   | { type: "failed"; why?: string; error?: { code: string; safeMessage: string } }
@@ -308,7 +311,7 @@ function applyResponseRepair(state: PrologueStreamState, frame: PrologueEvent, a
 
 // Which memories the runtime really injected, left out for room, or found gone at start. No text travels here.
 function applyMemoryRecalled(state: PrologueStreamState, event: PrologueEvent, _at: string | null): boolean {
-  const recalled = event as unknown as { method?: string; injected?: Array<{ id: string; version: number }>; omitted?: Array<{ id: string; version: number }>; unavailable?: string[] };
+  const recalled = event as Extract<PrologueEvent, { type: "memory-recalled" }>;
   state.memory_recalled = { method: recalled.method === "recall" ? "recall" : "pinned",
     injected: (recalled.injected ?? []).map(one => ({ memory_id: one.id, version: one.version })),
     omitted: (recalled.omitted ?? []).map(one => ({ memory_id: one.id, version: one.version })), unavailable: [...(recalled.unavailable ?? [])] };
@@ -317,7 +320,7 @@ function applyMemoryRecalled(state: PrologueStreamState, event: PrologueEvent, _
 
 // The Run replaced its own step list (update-todo): the latest list stands as a whole, as the runtime keeps it.
 function applyTodoChanged(state: PrologueStreamState, event: PrologueEvent, _at: string | null): boolean {
-  const items = (event as unknown as { items?: ReadonlyArray<{ id?: unknown; text?: unknown; state?: unknown }> }).items ?? [];
+  const items = (event as Extract<PrologueEvent, { type: "todo-changed" }>).items ?? [];
   const states = new Set<AgentTodoItem["state"]>(["pending", "in-progress", "done", "abandoned"]);
   state.todo = items.flatMap(item => typeof item.id === "string" && typeof item.text === "string" && states.has(item.state as AgentTodoItem["state"])
     ? [{ id: item.id, text: item.text, state: item.state as AgentTodoItem["state"] }] : []);
@@ -327,7 +330,7 @@ function applyTodoChanged(state: PrologueStreamState, event: PrologueEvent, _at:
 // The runtime's circuit breaker stopped a round that kept failing the same way (it settles the run as stopped and
 // sends nothing more): the round has ended, and says why, instead of waiting for a close that never comes.
 function applyCircuitTripped(state: PrologueStreamState, event: PrologueEvent, _at: string | null): boolean {
-  const tripped = event as unknown as { reason?: string; count?: number; why?: string };
+  const tripped = event as Extract<PrologueEvent, { type: "circuit-tripped" }>;
   closeStreaming(state);
   closeUnappliedSteers(state);
   closeSleep(state);

@@ -1329,6 +1329,8 @@ I4 首跑 `i4-full.log`：3,639 个用例，3,246 通过、2 失败、390 取消
 
 2026-10-12 接续状态：独立分支 `feature/plugin-home-runtime-services` 保存 source-only `02d44ea7cd5e7a4a8110f312c262f55947cae942`，36 个文件 +906/-137，工作树干净。包含 F 服务与身份/作用域接线、完整 v2 拒绝、公开入口测试及 G 文档；没有 SDK、Manifest、动作 schema 或 Workbench 资源的意图变化。仅 diff 检查通过，正在独立只读复查；尚未 install/build/typecheck/gates 或运行测试，不能据此判定以上验收完成。I5 全量结束后给它唯一构建窗口，按实际差异决定 replay 范围，整合与协调全量另记。
 
+该固定稿的独立复查与主协调核对发现一项测试缺陷：两条 stop/close 用例在动作外调 model.complete，现行模型合同先答 plugin.model_action_required，不能证明实例失效。独立 test-only `4fd2fa407` 改为在真实 barrier 前后验证旧 model.availability 从非 provider_stopped 变为精确的拒绝，真实动作内取消/停用/撤权/断开后无交付及无写入断言保留；生产拒绝顺序不变。当前 source-only `df54a4956` 并已同步 S-15/S-18 与两份新增安全测试的实际 CI 清单；无确认的运行时 P1，仍未运行工程检查。主协调核对当前 Builder CHAPTERS 不挂本片改的 host.md、authoring.md 或 Prologue Skill；没有运行或宣称 replay。真实 Home 的 plugin-runtime.db 及其 WAL/SHM 当前不存在，4173/4207/4208 无监听；只查存在性和监听，没有打开库、读取密钥或维护写入，后续若出现旧库重新核对。
+
 ### 10.3 浏览器请求剩余片的接续验收（W3-10）
 
 沿用现有 UiRequest 与 owner 错误，不改变业务动作、公开合同或插件客户端；插件页面的请求和浏览器英文留到 W5-04。1b 在 I5 先收口，之后按 2 → 3a → 3b → 4 → 5 串行修改共享初始化；4 依赖 W3-02-G3 的最终错误详情。每片整体构建、相关真实入口回归、资源预算与健康门禁，整合后全量；新增或改写的测试以如下编号或注释对应验收。
@@ -1373,6 +1375,20 @@ API与相关契约快照同步，整体构建、定向真实入口及浏览器�
 | W3-07-5-02 | InitializeBoardOutput回到board-actions；两个management authority移到小的Goals owner文件，现有evidence保留且真实管理调用通过。checkNoGoalTypedAdapters做带mutation的绝对拒绝；相关API快照更新，巨大单元、typed计数与基线只降，动作schema和资源无意图变化。 |
 
 允许修改实际tool-dispatch、goal-event-commands、mcp-v1-tool与MCP类型出口，PR-5对应桥/合同/注册与owner小文件、门禁、测试及必要文档。旧“迁Casebook observer”不再适用；每片依现有management-door-identity、mcp-goal-events-state、proposal-entry-chain的真实入口验证，整合全量由协调运行。当前为已核对的执行边界，尚未实现或验证。
+
+### 10.6 跨入口与 AI 版本前提的接续验收（W3-09）
+
+固定 I5 8bac4a4ea 的只读核对确认 §1 的 10-10/10-11 决定完整，不重问。按 1a（页面/MCP/typed）→1b（真实助理 gateway 与批准）→1c（等 G1/H 的状态与诊断出口）→2→3 串行；使用已有公开 Test Home、真实 HTTP 项目/授权和 MCP/Assistant/AgentHost 接口，不复制内部导入或全局拦截 fetch。状态与 code 用合同中的 literal 断言，不能用生产 actionHttpStatus 计算期望。
+
+| 编号 | 可观察结果与证明路径 |
+| --- | --- |
+| W3-09-1-01 | 同一普通插件命令和拒绝经页面 HTTP、实际 MCP 工具、助理真实 gateway 与 typed 路径保持 owner 事实、错误和平台记录一致；调用身份及各入口自有工作记录按既有职责分别保留。每次留行才发可信编号，嵌套沿用它，可在诊断页查到；T6 明确为 403/actions.plugin_disabled。 |
+| W3-09-2-01 | MCP 已精确授权而暂不可用的动作进入两层调用目录的 entries，tools/list 继续隐藏；按名调用由 Host 决定，恰有一条带可信编号的拒绝记录。未知、未授权、同名其他 provider/version 及管理入口的限制保留；助理确认前仍零 review、零调用行，但 availability 和 check 异常两处都保留同原因与 code。 |
+| W3-09-3-01 | 顶层 Agent/助理/MCP 的 command 必带 schema 声明的 expected_version、expected_revision、expected_revisions、expected_updated_at 或 Functions authoring 的 updated_at；表必须覆盖全部 ids。缺前提/空表/部分表/Functions updated_at:null 均为 400/actions.version_required，无事实写入。查询、无版本字段的独立创建、本人页面、非 AI workflow 及可信插件自调保留现行行为。 |
+| W3-09-3-02 | 只校验一次 schema。仅当全部结构化 Ajv errors 都是根对象缺版本字段的 required，才统一为 version_required；map:null、错类型、其他业务 required/enum/额外字段仍为 400/actions.input_invalid。允许现行 schema 的 expected_revision:null 代表真实 create-if-absent CAS；正确版本成功、陈旧版本仍由 owner 拒绝。 |
+| W3-09-3-03 | 嵌套豁免只由 Kernel 的实际活跃 handler 关系产生，只免额外版本规则；原权限、Session、signal、beforeEffect、提供方与安装检查全部生效。作用域跟 dispatcher 的 executing 同时结束，超时或取消后不因旧 promise 尚未返回继续有效；handler 内新建的顶层 Agent client 仍须版本，ALS 继承或伪造 input/_meta/header 标志不能获得豁免。 |
+
+实际 owner 证据：Todo batch 的缺表/缺键允许无调用者版本写；灵光 discard 的表也只校验已给的键；Functions 的 update/preview/publish/delete/sample 操作用省略或 null 的 updated_at 时采用 owner 刚读的值，仍缺 AI 原先读到的前提，preview 会保存 last_preview，是 command。configure 的 expected_revision:null 则真正做空绑定 CAS。PR3 只在 Kernel 共用输入校验/版本/handler 作用域、助理共用 preflight、gateway code 展示和 actions.version_required:invalid 中收口，不改 owner schema/CAS、不增加公开 nested 字段或宽例外；冻结类内替换调用，不加方法。相关 API、文档与真实拒绝测试同片完成；当前仅核对与实施边界，未实现或运行验证。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 

@@ -1,3 +1,4 @@
+// PA-22: base SDK adoption behavior and retained review/budget boundaries.
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentReviewDocument, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -57,4 +58,20 @@ test("out-of-boundary commands, file edits and rejections cannot become standing
   ask("again", "s1", command(["test"]));
   await tick();
   assert.equal(queue.receipt("again")!.status, "pending");
+});
+
+test("a command that names extra paths or the network is approved once, never as a standing rule, and a rule never covers it", async () => {
+  const { queue, executed, ask, command } = harness();
+  const widened = { ...command(["install"]), grants: { paths: [{ path: "/Users/me/.npmrc", access: "read" as const }], network: true } };
+  ask("granted", "s1", widened);
+  await assert.rejects(queue.respond({ review_id: "granted", decision: "approve", actor_id: "alice", remember: "session" }), /执行边界内的命令/);
+  assert.equal(queue.receipt("granted")!.status, "pending");
+  assert.equal((await queue.respond({ review_id: "granted", decision: "approve", actor_id: "alice" })).status, "approved");
+  // The same command without the extra access, allowed for the session, does not let the widened one through.
+  ask("plain", "s1", command(["install"]));
+  await queue.respond({ review_id: "plain", decision: "approve", actor_id: "alice", remember: "session" });
+  ask("widened-again", "s1", widened);
+  await tick();
+  assert.equal(queue.receipt("widened-again")!.status, "pending", "the extra access is asked for again");
+  assert.deepEqual(executed, ["granted", "plain"]);
 });

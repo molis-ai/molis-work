@@ -10,7 +10,7 @@ import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
 import { actionKey, assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
-import { gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/src/adapters/prologue-action-gateway.js";
+import { gatewayProblem, normalizedInput, prologueActionGateway, readableInput, HOST_GOVERNED_TOOLS } from "../horizontal/agent-host/src/adapters/prologue-action-gateway.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -903,4 +903,20 @@ test("a review names common fields in words even when the plugin gave them no ti
   const fields = readableInput({ type: "object", properties: { markdown: { type: "string", description: "正文的 Markdown 写法（标题、列表、表格、引用、代码块都可以），由 Pages 转换成文档" }, folder_id: { type: "string" } } },
     { markdown: "# 周报", folder_id: "f1" });
   assert.deepEqual(fields.map(field => field.label), ["正文", "文件夹"]);
+});
+
+// The runtime may start a `safe-read` tool before the model has finished speaking and folds old read output into
+// "call it again" (specs/prologue-adoption §2 items 4–5): only calls that change nothing may say they read.
+test("PA-22: gateway writers are not safe reads and remain governed by Host rules", () => {
+  const client = { discover: async () => [], invoke: async () => ({}), offer: async () => ({ offer_id: "o" }),
+    delegate: { start: async () => ({}), status: async () => [], follow_up: async () => ({}), stop: async () => ({}) },
+    memory: { remember: async () => ({}), list: async () => [], forget: async () => ({ forgotten: true }), propose: async () => ({}) } };
+  const { pack } = prologueActionGateway({ client, operate: true } as never);
+  const kinds = Object.fromEntries(pack.tools.map(tool => [tool.registration.name, tool.registration.effectKind]));
+  assert.deepEqual(Object.entries(kinds).filter(([, kind]) => kind === "safe-read").map(([name]) => name).sort(),
+    ["check-delegated-work", "find-capabilities", "list-memories", "read-capability"]);
+  for (const name of ["suggest-action", "delegate-work", "follow-up-delegated-work", "stop-delegated-work", "remember", "forget-memory", "suggest-memory",
+    "change-capability", "change-reversible"]) assert.equal(kinds[name], "mutate-external", name);
+  assert.deepEqual([...HOST_GOVERNED_TOOLS].sort(), ["delegate-work", "follow-up-delegated-work", "forget-memory", "remember", "stop-delegated-work", "suggest-action", "suggest-memory"]);
+
 });

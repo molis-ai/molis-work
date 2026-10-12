@@ -1,5 +1,11 @@
 # Prologue SDK 构建来源
 
+## 当前临时验证候选（2026-10-11）
+
+本消费者仅用于 A0 包验证，依赖 `prologue-sdk-a0-s1.tgz`（1,064,280 字节，SHA-256 `71c25f85f15de3f918107080a468f0dc469e956d2b76b12987d2cf51087fb96b`）。真实来源为 c4b9fde33df465b6f1798ef1c34de85c2b1904f0 + 完整 S1 未提交差异，`dirty: true`，未形成正式具名提交/上游合入；正式来源门禁保持失败。完整源 patch、构建/打包日志与公开入口 S1 消费结果位于临时 validationROOT（唯一 spec §6.4）。候选 provenance 记录实际字节与来源，没有伪造干净来源。
+
+旧包与 sidecars 已从本临时树移出，记录加入 patch-history.json；旧 `side-panel-memory.patch` 按原有待授权决定保留，不属于新候选来源。下文是旧包的历史来源与重建记录，不表示当前候选可由旧提交无补丁重建。
+
 本目录的规则见 [AGENTS.md](../../AGENTS.md)：只放当前使用的 Prologue 包（最多再加一份在途分支的），换新包时删掉旧包，旧包从 Git 历史取。
 
 目录里现在有这些东西：

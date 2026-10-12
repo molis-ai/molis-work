@@ -1,3 +1,4 @@
+import { CODING_TIMELINE_STYLES } from "./timeline-styles.js";
 /** Layout only; controls, colors, and focus behavior use the shared system. */
 export const CODING_STYLES = `
 .coding-material { min-width:0; padding:12px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
@@ -500,7 +501,6 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-tool-state[data-tone=held] { color:var(--faint); }
 .coding-tool-preview { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
 /* Reasoning reads as quoted prose under its row, never as tool output. */
-.coding-tool[data-kind=reasoning] .coding-tool-output { font-family:inherit; font-size:13px; line-height:1.7; white-space:pre-wrap; color:var(--muted); background:none; border:0; border-left:2px solid var(--line); border-radius:0; padding:4px 0 4px 12px; max-height:360px; }
 .coding-tools-chevron { display:inline-flex; color:var(--faint); opacity:0; transition:opacity 130ms var(--ease-quint),transform 130ms var(--ease-quint); }
 .coding-tools-chevron svg { width:12px; height:12px; }
 .coding-activity > summary:hover .coding-tools-chevron,.coding-activity > summary:focus-visible .coding-tools-chevron,.coding-activity[open] > summary .coding-tools-chevron { opacity:1; }
@@ -518,7 +518,6 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-tool-state[data-tone=failed] { color:var(--red); }
 .coding-tool-state[data-tone=retry] { color:var(--muted); }
 .coding-tool-state[data-tone=unknown] { color:var(--amber); }
-.coding-tool-output { margin:4px 0 8px 32px; max-height:280px; overflow:auto; padding:8px 12px; border-radius:8px; background:var(--rail); color:var(--ink); font-size:12px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }
 .coding-spinner { width:12px; height:12px; flex:none; border-radius:50%; border:1.5px solid color-mix(in srgb, var(--muted) 30%, transparent); border-top-color:var(--ink); animation:coding-spin 640ms var(--ease-quint) infinite; }
 .coding-inline-review { max-width:76ch; margin:0 auto 16px; animation:coding-rise 250ms var(--ease-quint); }
 .coding-inline-review .agent-review { padding:0; border:0; }
@@ -847,4 +846,4 @@ dialog[data-coding-integration-dialog] .mw-form__body { grid-template-columns:mi
 .coding-merge-pick > .mw-btn { min-height:28px; padding:0 12px; font-size:12px; }
 @media (max-width:760px) { .coding-merge-pick > span { flex-basis:100%; } }
 .coding-child-error-code { display:block; margin-top:4px; font:11px/1.5 var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); color:var(--muted); overflow-wrap:anywhere; }
-`;
+` + CODING_TIMELINE_STYLES;

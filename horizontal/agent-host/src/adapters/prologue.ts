@@ -35,6 +35,7 @@ import {
   closeInterruptedPrologueStream,
   emptyPrologueStreamState,
   prologuePhaseOf,
+  withRunFacts,
   settleProloguePending,
   type PrologueControlState,
   type PrologueEvent,
@@ -852,7 +853,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       stopReason = "执行已结束，正在保存显示时间";
     }
     if (record.timingError) stopReason = [stopReason, record.timingError].filter(Boolean).join("；");
-    record.view = {
+    record.view = withRunFacts(record.state, isEnded(phase), {
       ...record.view,
       phase: phase === "starting" ? "running" : phase,
       turns: [...record.state.turns, ...(record.state.streaming === "" ? [] : [{
@@ -877,12 +878,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         ...(this.#runtime.readPendingQuestion ? { answerable: false, unavailable_reason: "正在读取原问题" } : {}),
       })),
       stop_reason: stopReason,
-      ...(record.state.memory_recalled ? { memory_recalled: structuredClone(record.state.memory_recalled) } : {}),
-      ...(record.state.todo?.length ? { todo: record.state.todo.map(item => ({ ...item })) } : {}),
       ...(stampTerminal && isEnded(phase) && record.view.ended_at === null
         ? { ended_at: record.observedEndAt ?? this.#now().toISOString() }
         : {}),
-    };
+    });
     const snapshot = structuredClone(record.view);
     for (const listener of record.listeners) listener(structuredClone(snapshot));
   }

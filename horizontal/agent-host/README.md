@@ -96,3 +96,9 @@ Prologue Node 接上宿主审查队列时声明子任务能力 `partial`。同�
 ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner 新记录的成功、失败或未知回执，重复 settle 与 Prologue 恢复历史不重复通知。监听错误不改写已提交 Effect，也不触发执行重试；消费者必须按项目过滤并自行释放。
 
 目录状态读取在冷会话上使用原加密启动索引、SDK 运行/未结束工作与 checkpoint 恢复检查，只回放最后一轮的过程，并从索引定位最近计划轮的步骤。它不保留历史正文或创建历史控制句柄；打开详情和开始新轮仍走完整恢复路径。不支持内部轻量读取口的 Runtime 保留原恢复行为。回归见 `tests/prologue-status-projection.test.ts` 与 `tests/prologue-recovery.test.ts`。
+
+## 基础 SDK 采用
+
+显式输出预算优先于思考默认值；只读工具必须同时声明 query 操作和 read 副作用。修改提议、委派、记忆的工具按写入处理，仍由原 Host 规则授权。SDK 状态投影保留 sleep 和每轮真实写入回执；sleep 不等于工作完成。命令额外路径/联网请求进入同一 Review，批准只适用于当前请求，不生成会话常驻规则。
+
+当前 Molis 不接 SDK 自动 yield 接续：生产派发入口在执行前拒绝，重开会话不自动启动新父 Run（`tests/prologue-adoption-guard.test.ts`）。输入回执 SDK 的 steer 返回值暂在装配边界等待后丢弃，Molis 输入产品合同与 UI 留给输入线。采用包的工程、安装与实操证据见 [采用 spec](../../specs/prologue-adoption/spec.md) §6，不能把基础采用当作 TaskBoard 统一协作已完成。

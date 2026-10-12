@@ -271,6 +271,7 @@ tests/project-settings-accordion.test.ts
 tests/project-settings-stage.test.ts
 
 # prologue
+tests/prologue-adoption-guard.test.ts
 tests/prologue-approval-attachment.test.ts
 tests/prologue-approval-bridge.test.ts
 tests/prologue-checkpoints.test.ts
@@ -280,6 +281,7 @@ tests/prologue-git.test.ts
 tests/prologue-inference-images.test.ts
 tests/prologue-inference-native.test.ts
 tests/prologue-materials.test.ts
+tests/prologue-memory-boundary.test.ts
 tests/prologue-model-retry.test.ts
 tests/prologue-recovery.test.ts
 tests/prologue-review-child-command.test.ts
@@ -288,6 +290,7 @@ tests/prologue-start-refusal.test.ts
 tests/prologue-status-projection.test.ts
 tests/prologue-step-amend.test.ts
 tests/prologue-stop-review.test.ts
+tests/prologue-storage-claims.test.ts
 tests/prologue-stream.test.ts
 tests/prologue-subagent-turns.test.ts
 tests/prologue-subagents.test.ts

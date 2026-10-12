@@ -4,6 +4,7 @@
 
 ## 在做的
 
+- [prologue-adoption](prologue-adoption/spec.md)：Prologue 完整能力采用——原 1–23 项及存储/预算决定，加 TaskBoard 统一协作与零模型外部等待；当前 A0 基础接入，后续模型控制、变更/诊断、生成与观察按真实依赖推进，含来源、范围与验收。
 - [issue-home-v0](issue-home-v0/spec.md)：个人 Home 的 Issue 插件；补齐 Home Runtime 与插件 SQLite 服务，接通页面、助理和 MCP。
 - [goal-closure-identity](goal-closure-identity/spec.md)：完成前的「必须你点头」接到真实检查（授权和接受要求都只对当时的约定和那一轮工作有效）；管理入口固定记本机这个人；决策工具 schema 不再要求 `actor_id`；这些 typed 入口插件够不到（`host_only`）。
 - [plugin-picker-dock](plugin-picker-dock/spec.md)：插件切换器里「常驻 Dock」与「装没装」合成一张网格，悬停才出现的两个图标按钮，添加与移除不刷新页面。

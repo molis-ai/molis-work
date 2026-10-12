@@ -558,6 +558,14 @@
       "gitBlob": "5bf0ef21e9d925801fb87b46dc821f1de3304cdb",
       "commit": "8d590818e32534880984f9e84e1efd005caa105a",
       "description": "提交 `8d590818e32534880984f9e84e1efd005caa105a`。命令回执与超时反馈。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz",
+      "bytes": 953138,
+      "sha256": "942de9c594d8fc0bbb81d3b36d766761427ff51c2c4cee33aab342033c85846c",
+      "gitBlob": "432e002ac4670ca228de8956dde71849186480fd",
+      "commit": "9fc3b17386419625a36359b74fb4789c17a3adc8",
+      "description": "临时 A0 消费验证以 dirty 候选替换；原 side-panel-memory 包可从此 Git blob 恢复，不表示正式采用已完成。"
     }
   ],
   "notes": [

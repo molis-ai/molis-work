@@ -210,4 +210,11 @@ test("Agent tool declarations preserve provider deadlines within the Agent ceili
   const actions = { tools, client: { discover: () => service.discover(context), invoke: (ref: ExactActionReference, input: unknown, signal?: AbortSignal) => service.invoke({ ...context, signal }, ref, input) } };
   const projected = prologueActionTools(actions, 60_000);
   assert.deepEqual(projected.pack.tools!.map(tool => tool.registration.timeoutMs), [2_000, 60_000, 60_000]);
+  // PA-22: both the operation and effect must say read.
+  const view = (operation: "query" | "command", effect?: "read" | "write") => ({ capability_id: `demo.${operation}.${effect ?? "none"}`, version: 1, operation,
+    provider: { provider_id: "demo", title: "Demo" }, availability: { available: true },
+    action: { title: "Demo", description: "Demo", kind: operation === "query" ? "query" : "operation", ...(effect ? { effect } : {}), input_schema: { type: "object" }, audiences: ["agent"] } });
+  const classified = prologueActionTools({ tools: [view("query"), view("query", "write"), view("command", "read")], client: actions.client } as never);
+  assert.deepEqual(classified.pack.tools.map(tool => tool.registration.effectKind).sort(), ["mutate-external", "mutate-external", "safe-read"],
+    "a query that declares a write, and a command, are not reads");
 });

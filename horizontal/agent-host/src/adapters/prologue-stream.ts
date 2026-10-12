@@ -5,9 +5,11 @@ export type { TokenCount as PrologueTokenCount } from "@prologue/sdk";
 import type {
   AgentRunPhase,
   AgentRunUsage,
+  AgentRunView,
   AgentUsageCoverage,
   AgentToolActivity,
   AgentTodoItem,
+  AgentTurnChanges,
   AgentTurnView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -24,6 +26,8 @@ export type PrologueControlState =
   | "running"
   | "pausing"
   | "paused"
+  /** The Run sleeps on its own until a time and then goes on (runtime `sleep`); not waiting for a person. */
+  | "sleeping"
   | "stopped"
   | "cancelled"
   | "completed"
@@ -50,6 +54,9 @@ export type PrologueEvent =
   | { type: "compaction-failed"; why?: string }
   | { type: "compaction-cancelled" }
   | { type: "tripped"; stage: "input" | "output"; rail: string; why: string; failed?: boolean }
+  | { type: "agent-control"; state: "running" | "pausing" | "paused" | "sleeping"; untilMs?: number }
+  | { type: "turn-changes"; turn: number; changes: ReadonlyArray<{ path: string; byteLength: number; digest: string; checkpointId: string }> }
+  | { type: "model-switched"; from: { protocol: string; model: string }; to: { protocol: string; model: string } }
   | { type: "run-recovered"; atMs: number; transcript: "opening-only" | "durable-prefix"; questions?: ReadonlyArray<{ ref: { id: string; revision: number }; kind: string; prompt: string }>; operations: Array<{ summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }> }
   | { type: "completed" }
   | { type: "failed"; why?: string; error?: { code: string; safeMessage: string } }
@@ -97,6 +104,10 @@ export interface PrologueStreamState {
   memory_recalled?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryRecallFact;
   /** The Run's own step list as the runtime last replaced it. */
   todo?: AgentTodoItem[];
+  /** Files each writing turn really changed, from the runtime's `turn-changes` (receipts, not the model's account). */
+  turn_changes: AgentTurnChanges[];
+  /** While the Run sleeps on its own: when it wakes. */
+  sleeping_until?: string;
 }
 
 export function emptyPrologueStreamState(): PrologueStreamState {
@@ -116,16 +127,18 @@ export function emptyPrologueStreamState(): PrologueStreamState {
     unknown_frames: 0,
     streaming: "",
     streaming_at: null,
+    turn_changes: [],
   };
 }
 
 /**
  * `pausing` stays `running`: Prologue has been asked to pause but has not
  * reached a model boundary, and saying "paused" before it does would be a
- * claim the runtime has not made.
+ * claim the runtime has not made. `sleeping` is `running` too: the Run goes on
+ * by itself and waits for nobody; when it wakes is `sleeping_until`.
  */
 export function prologuePhaseOf(state: PrologueControlState): AgentRunPhase {
-  return state === "pausing" ? "running" : state;
+  return state === "pausing" || state === "sleeping" ? "running" : state;
 }
 
 const clip = (value: string) => value.length <= 200 ? value : `${value.slice(0, 200)}…`;
@@ -241,6 +254,7 @@ function closeStreamingText(state: PrologueStreamState): void {
 export function closeInterruptedPrologueStream(state: PrologueStreamState): void {
   closeStreaming(state);
   closeUnappliedSteers(state);
+  closeSleep(state);
   for (const activity of state.activity) {
     if (activity.state === "started") {
       activity.state = "unknown";
@@ -250,10 +264,153 @@ export function closeInterruptedPrologueStream(state: PrologueStreamState): void
   state.usage.unavailable_reason = "中断前用量未完整保存，已报告部分仍保留";
 }
 
+/** A Run that ended is not asleep any more: a wait it was in ends with it. */
+function closeSleep(state: PrologueStreamState): void {
+  if (state.sleeping_until === undefined) return;
+  delete state.sleeping_until;
+  const asleep = state.activity.find(item => item.name === "sleep-wait" && item.state === "started");
+  if (asleep) Object.assign(asleep, { state: "completed", summary: "这一轮在等待中结束" });
+}
+
 function closeUnappliedSteers(state: PrologueStreamState): void {
   state.turns = state.turns.map(turn => turn.steer?.state === "received"
     ? { ...turn, steer: { ...turn.steer, state: "unconfirmed" } } : turn);
 }
+
+function applyResponseRepair(state: PrologueStreamState, frame: PrologueEvent, at: string | null): boolean {
+  const event = frame as Extract<PrologueEvent, { type: "model-response-repair" }>;
+  if (event.reason === "output-truncated") {
+    // One answer in several calls: what the model writes next joins the text it was cut off in.
+    state.continuing = true;
+    const sequence = state.next_sequence++;
+    state.activity.push({ call_id: `model-continue-${sequence}`, name: "接着写", target: "回答",
+      state: "completed", summary: "回答写到单次输出上限，已让模型从断开处接着写", at, sequence });
+    return true;
+  }
+  if (event.reason === "stop-held") {
+    // The round said what it would do and did nothing: the Host let it continue, once. Shown, not hidden.
+    closeStreaming(state);
+    const sequence = state.next_sequence++;
+    state.activity.push({ call_id: `model-held-${sequence}`, name: "自动续做", target: "上一段只说了要做什么，没有实际执行",
+      state: "completed", summary: "这一轮只说明了接下来要做什么、没有调用工具，已让它接着实际去做（每轮最多一次）", at, sequence });
+    state.phase = "running";
+    return true;
+  }
+  if (event.reason !== "tool-not-declared") return false;
+  closeStreaming(state);
+  const sequence = state.next_sequence++;
+  state.activity.push({ call_id: `model-repair-${sequence}`, name: "工具调用纠正", target: "未开放的工具",
+    state: "completed", summary: "已拦下这批调用并加入纠正要求",
+    output: "这批工具请求均未执行，纠正要求已加入本轮上下文；已有结果保留。后续仍受预算与停止控制，是否恢复成功以实际执行结果为准。", at, sequence });
+  state.phase = "running";
+  return true;
+}
+
+// Which memories the runtime really injected, left out for room, or found gone at start. No text travels here.
+function applyMemoryRecalled(state: PrologueStreamState, event: PrologueEvent, _at: string | null): boolean {
+  const recalled = event as unknown as { method?: string; injected?: Array<{ id: string; version: number }>; omitted?: Array<{ id: string; version: number }>; unavailable?: string[] };
+  state.memory_recalled = { method: recalled.method === "recall" ? "recall" : "pinned",
+    injected: (recalled.injected ?? []).map(one => ({ memory_id: one.id, version: one.version })),
+    omitted: (recalled.omitted ?? []).map(one => ({ memory_id: one.id, version: one.version })), unavailable: [...(recalled.unavailable ?? [])] };
+  return true;
+}
+
+// The Run replaced its own step list (update-todo): the latest list stands as a whole, as the runtime keeps it.
+function applyTodoChanged(state: PrologueStreamState, event: PrologueEvent, _at: string | null): boolean {
+  const items = (event as unknown as { items?: ReadonlyArray<{ id?: unknown; text?: unknown; state?: unknown }> }).items ?? [];
+  const states = new Set<AgentTodoItem["state"]>(["pending", "in-progress", "done", "abandoned"]);
+  state.todo = items.flatMap(item => typeof item.id === "string" && typeof item.text === "string" && states.has(item.state as AgentTodoItem["state"])
+    ? [{ id: item.id, text: item.text, state: item.state as AgentTodoItem["state"] }] : []);
+  return true;
+}
+
+// The runtime's circuit breaker stopped a round that kept failing the same way (it settles the run as stopped and
+// sends nothing more): the round has ended, and says why, instead of waiting for a close that never comes.
+function applyCircuitTripped(state: PrologueStreamState, event: PrologueEvent, _at: string | null): boolean {
+  const tripped = event as unknown as { reason?: string; count?: number; why?: string };
+  closeStreaming(state);
+  closeUnappliedSteers(state);
+  closeSleep(state);
+  state.phase = "stopped";
+  const count = tripped.count ?? "几";
+  const what = tripped.reason === "repeated-calls" ? `同一个调用连续重复了 ${count} 次，没有进展`
+    : tripped.reason === "repeated-text" ? `同样的话连续重复了 ${count} 次`
+    : tripped.reason === "repeated-errors" ? `连续 ${count} 次调用都没有成功`
+    : `连续 ${count} 次调用都没有成功${tripped.why ? `（${tripped.why}）` : ""}`;
+  state.stop_reason = `${what}，这一轮先停在这里；已完成的保留，可以说明怎么调整后继续`;
+  return true;
+}
+
+// The person's (or the Run's own) control of the Run changed. Only sleeping says something the phase does not.
+function applyAgentControl(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
+  const control = event as Extract<PrologueEvent, { type: "agent-control" }>;
+  const asleep = state.activity.findIndex(item => item.name === "sleep-wait" && item.state === "started");
+  if (control.state === "sleeping" && typeof control.untilMs === "number" && Number.isFinite(control.untilMs)) {
+    closeStreaming(state);
+    const until = new Date(control.untilMs).toISOString();
+    state.sleeping_until = until;
+    if (asleep >= 0) Object.assign(state.activity[asleep]!, { target: until, at });
+    else state.activity.push({ call_id: `sleep-${state.next_sequence}`, name: "sleep-wait", target: until, state: "started",
+      summary: "按自己的安排等一会儿，到点自动接着做", at, sequence: state.next_sequence++ });
+    return true;
+  }
+  if (state.sleeping_until === undefined) return false;
+  delete state.sleeping_until;
+  if (asleep >= 0) Object.assign(state.activity[asleep]!, { state: "completed", summary: "等待结束，接着做", at });
+  return true;
+}
+
+// What this turn really wrote, from the runtime's write receipts: the timeline shows it and links to the checkpoint.
+function applyTurnChanges(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
+  const changed = event as Extract<PrologueEvent, { type: "turn-changes" }>;
+  if (!Number.isSafeInteger(changed.turn) || !Array.isArray(changed.changes) || !changed.changes.length
+    || state.turn_changes.some(entry => entry.turn === changed.turn)) return false;
+  closeStreaming(state);
+  state.turn_changes.push({ turn: changed.turn, sequence: state.next_sequence++, at,
+    files: changed.changes.map(file => ({ path: file.path, byte_length: file.byteLength, digest: file.digest, checkpoint_id: file.checkpointId })) });
+  return true;
+}
+
+// The person switched the model during the Run; from the next model call on, calls go to the new one.
+function applyModelSwitched(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
+  const switched = event as Extract<PrologueEvent, { type: "model-switched" }>;
+  if (typeof switched.to?.model !== "string") return false;
+  closeStreaming(state);
+  const sequence = state.next_sequence++;
+  state.activity.push({ call_id: `model-switch-${sequence}`, name: "model-switch", target: `${switched.from?.model ?? ""} → ${switched.to.model}`,
+    state: "completed", summary: `从这一次模型调用起改用 ${switched.to.model}；之前的结果与授权不变`, at, sequence });
+  return true;
+}
+
+function applyRunRecovered(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
+  const recovered = event as Extract<PrologueEvent, { type: "run-recovered" }>;
+  closeInterruptedPrologueStream(state);
+  const labels = { completed: "已执行", failed: "执行失败（可能部分生效）", "not-dispatched": "未执行", unknown: "结果未知" };
+  state.turns.push({ turn_id: `recovery-${state.turns.length + 1}`, kind: "notice", at,
+    sequence: state.next_sequence++, text: [recovered.transcript === "durable-prefix"
+      ? "中断轮次已结束，已保存的正文、工具过程和核实结果已保留，没有重复执行操作。未记录的末尾过程和完整用量仍未知；继续时需重新核对当前文件。"
+      : "中断轮次已结束，原任务与核实结果已保留，没有重复执行操作。流式过程与用量不完整；继续时需重新核对当前文件。",
+      ...recovered.operations.map(operation => `${labels[operation.outcome]}：${operation.summary}`)].join("\n") });
+  for (const question of recovered.questions ?? []) {
+    if (!state.awaiting_input.some(held => held.pending_id === question.ref.id && held.pending_revision === question.ref.revision)) {
+      state.awaiting_input.push({ pending_id: question.ref.id, pending_revision: question.ref.revision,
+        kind: question.kind, why: question.prompt, sequence: state.next_sequence++ });
+    }
+  }
+  return true;
+}
+
+/** Events with a handler of their own; the switch in applyPrologueEvent dispatches the rest. */
+const HANDLERS: Readonly<Record<string, (state: PrologueStreamState, event: PrologueEvent, at: string | null) => boolean>> = {
+  "model-response-repair": applyResponseRepair,
+  "memory-recalled": applyMemoryRecalled,
+  "todo-changed": applyTodoChanged,
+  "circuit-tripped": applyCircuitTripped,
+  "agent-control": applyAgentControl,
+  "turn-changes": applyTurnChanges,
+  "model-switched": applyModelSwitched,
+  "run-recovered": applyRunRecovered,
+};
 
 /** Apply one event. Returns true when the projection changed. */
 export function applyPrologueEvent(
@@ -261,6 +418,8 @@ export function applyPrologueEvent(
   event: PrologueEvent,
   at: string | null,
 ): boolean {
+  const handler = HANDLERS[event.type];
+  if (handler) return handler(state, event, at);
   switch (event.type) {
     case "prompt": {
       const prompt = event as Extract<PrologueEvent, { type: "prompt" }>;
@@ -402,33 +561,6 @@ export function applyPrologueEvent(
       return true;
     }
 
-    case "model-response-repair": {
-      if (event.reason === "output-truncated") {
-        // One answer in several calls: what the model writes next joins the text it was cut off in.
-        state.continuing = true;
-        const sequence = state.next_sequence++;
-        state.activity.push({ call_id: `model-continue-${sequence}`, name: "接着写", target: "回答",
-          state: "completed", summary: "回答写到单次输出上限，已让模型从断开处接着写", at, sequence });
-        return true;
-      }
-      if (event.reason === "stop-held") {
-        // The round said what it would do and did nothing: the Host let it continue, once. Shown, not hidden.
-        closeStreaming(state);
-        const sequence = state.next_sequence++;
-        state.activity.push({ call_id: `model-held-${sequence}`, name: "自动续做", target: "上一段只说了要做什么，没有实际执行",
-          state: "completed", summary: "这一轮只说明了接下来要做什么、没有调用工具，已让它接着实际去做（每轮最多一次）", at, sequence });
-        state.phase = "running";
-        return true;
-      }
-      if (event.reason !== "tool-not-declared") return false;
-      closeStreaming(state);
-      const sequence = state.next_sequence++;
-      state.activity.push({ call_id: `model-repair-${sequence}`, name: "工具调用纠正", target: "未开放的工具",
-        state: "completed", summary: "已拦下这批调用并加入纠正要求",
-        output: "这批工具请求均未执行，纠正要求已加入本轮上下文；已有结果保留。后续仍受预算与停止控制，是否恢复成功以实际执行结果为准。", at, sequence });
-      state.phase = "running";
-      return true;
-    }
 
     case "compaction-started": {
       state.compaction_unaccounted++;
@@ -465,6 +597,7 @@ export function applyPrologueEvent(
       const tripped = event as Extract<PrologueEvent, { type: "tripped" }>;
       closeStreaming(state);
       closeUnappliedSteers(state);
+      closeSleep(state);
       // A guardrail stop is terminal but is not a failure of the work.
       state.phase = "stopped";
       state.stop_reason = tripped.failed === true
@@ -473,60 +606,16 @@ export function applyPrologueEvent(
       return true;
     }
 
-    // Which memories the runtime really injected, left out for room, or found gone at start. No text travels here.
-    case "memory-recalled": {
-      const recalled = event as unknown as { method?: string; injected?: Array<{ id: string; version: number }>; omitted?: Array<{ id: string; version: number }>; unavailable?: string[] };
-      state.memory_recalled = { method: recalled.method === "recall" ? "recall" : "pinned",
-        injected: (recalled.injected ?? []).map(one => ({ memory_id: one.id, version: one.version })),
-        omitted: (recalled.omitted ?? []).map(one => ({ memory_id: one.id, version: one.version })), unavailable: [...(recalled.unavailable ?? [])] };
-      return true;
-    }
 
-    // The Run replaced its own step list (update-todo): the latest list stands as a whole, as the runtime keeps it.
-    case "todo-changed": {
-      const items = (event as unknown as { items?: ReadonlyArray<{ id?: unknown; text?: unknown; state?: unknown }> }).items ?? [];
-      const states = new Set<AgentTodoItem["state"]>(["pending", "in-progress", "done", "abandoned"]);
-      state.todo = items.flatMap(item => typeof item.id === "string" && typeof item.text === "string" && states.has(item.state as AgentTodoItem["state"])
-        ? [{ id: item.id, text: item.text, state: item.state as AgentTodoItem["state"] }] : []);
-      return true;
-    }
 
-    // The runtime's circuit breaker stopped a round that kept failing the same way (it settles the run as stopped and
-    // sends nothing more): the round has ended, and says why, instead of waiting for a close that never comes.
-    case "circuit-tripped": {
-      const tripped = event as unknown as { reason?: string; count?: number; why?: string };
-      closeStreaming(state);
-      closeUnappliedSteers(state);
-      state.phase = "stopped";
-      const count = tripped.count ?? "几";
-      const what = tripped.reason === "repeated-calls" ? `同一个调用连续重复了 ${count} 次，没有进展`
-        : tripped.reason === "repeated-text" ? `同样的话连续重复了 ${count} 次`
-        : tripped.reason === "repeated-errors" ? `连续 ${count} 次调用都没有成功`
-        : `连续 ${count} 次调用都没有成功${tripped.why ? `（${tripped.why}）` : ""}`;
-      state.stop_reason = `${what}，这一轮先停在这里；已完成的保留，可以说明怎么调整后继续`;
-      return true;
-    }
 
-    case "run-recovered": {
-      const recovered = event as Extract<PrologueEvent, { type: "run-recovered" }>;
-      closeInterruptedPrologueStream(state);
-      const labels = { completed: "已执行", failed: "执行失败（可能部分生效）", "not-dispatched": "未执行", unknown: "结果未知" };
-      state.turns.push({ turn_id: `recovery-${state.turns.length + 1}`, kind: "notice", at,
-        sequence: state.next_sequence++, text: [recovered.transcript === "durable-prefix"
-          ? "中断轮次已结束，已保存的正文、工具过程和核实结果已保留，没有重复执行操作。未记录的末尾过程和完整用量仍未知；继续时需重新核对当前文件。"
-          : "中断轮次已结束，原任务与核实结果已保留，没有重复执行操作。流式过程与用量不完整；继续时需重新核对当前文件。",
-          ...recovered.operations.map(operation => `${labels[operation.outcome]}：${operation.summary}`)].join("\n") });
-      for (const question of recovered.questions ?? []) {
-        if (!state.awaiting_input.some(held => held.pending_id === question.ref.id && held.pending_revision === question.ref.revision)) {
-          state.awaiting_input.push({ pending_id: question.ref.id, pending_revision: question.ref.revision,
-            kind: question.kind, why: question.prompt, sequence: state.next_sequence++ });
-        }
-      }
-      return true;
-    }
+
+
+
     case "completed": {
       closeStreaming(state);
       closeUnappliedSteers(state);
+      closeSleep(state);
       state.phase = "completed";
       return true;
     }
@@ -535,6 +624,7 @@ export function applyPrologueEvent(
       const failed = event as Extract<PrologueEvent, { type: "failed"; why?: string }>;
       closeStreaming(state);
       closeUnappliedSteers(state);
+      closeSleep(state);
       state.phase = "failed";
       state.stop_reason = failed.error?.code === "RUN_INTERRUPTED" ? "本轮因中断结束。已核实的操作已保留，可输入新要求继续。"
         : failed.error?.code?.startsWith("CONTEXT_COMPACTION") ? "上下文整理失败，原上下文未被替换，而它已放不下模型窗口，这一轮停下了；可以点继续再整理一次。"
@@ -547,6 +637,7 @@ export function applyPrologueEvent(
     case "cancelled": {
       closeStreaming(state);
       closeUnappliedSteers(state);
+      closeSleep(state);
       state.phase = "cancelled";
       state.stop_reason = "已取消";
       return true;
@@ -559,6 +650,21 @@ export function applyPrologueEvent(
       return true;
     }
   }
+}
+
+/**
+ * The facts a Run's view carries beside its turns, as the projection holds them now: what it took from memory, its own
+ * step list, the files each turn wrote, a wait it sleeps in. A fact that no longer holds is not carried forward.
+ */
+export function withRunFacts(state: PrologueStreamState, ended: boolean, view: AgentRunView): AgentRunView {
+  const { memory_recalled: _memory, todo: _todo, turn_changes: _changes, sleeping_until: _asleep, ...rest } = view;
+  return {
+    ...rest,
+    ...(state.memory_recalled ? { memory_recalled: structuredClone(state.memory_recalled) } : {}),
+    ...(state.todo?.length ? { todo: state.todo.map(item => ({ ...item })) } : {}),
+    ...(state.turn_changes.length ? { turn_changes: structuredClone(state.turn_changes) } : {}),
+    ...(state.sleeping_until !== undefined && !ended ? { sleeping_until: state.sleeping_until } : {}),
+  };
 }
 
 /** Clear one pending from the waiting list once it has been answered. */

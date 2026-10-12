@@ -14,12 +14,15 @@ import { CONTINUATION_MARKER, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_TASK_HEAD, M
 import { MODEL_DIGEST_HEAD } from "./history-digest.js";
 import { SESSION_PAGE, SESSION_WINDOW } from "./session-window.js";
 import { CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT } from "./usage-meter-client.js";
+import { CODING_COMPOSER_MODEL_CLIENT_FACTORY_SCRIPT } from "./composer-model-client.js";
 import { CODING_COOPERATION_CLIENT_FACTORY_SCRIPT } from "./cooperation-client.js";
 import { codeLanguage, codeTokens, diffRowTokens } from "./highlight.js";
 import { CODING_COMMANDS_CLIENT_FACTORY_SCRIPT } from "./commands-client.js";
 import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";
 import { createCodingTimeline } from "./timeline.js";
+import { codingTimelineWords } from "./timeline-words.js";
+import { createCodingTurnChanges } from "./turn-changes-client.js";
 
 /** Host supplies navigation; this client only handles Coding's own surface. */
 export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
@@ -65,7 +68,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const READER_INTENT_MS = ${READER_INTENT_MS};
   const codingGoalVersionLabel = ${codingGoalVersionLabel.toString()};
   const codingUsageSummary = ${codingUsageSummary.toString()};
-  const timeline = (${createCodingTimeline.toString()})();
+  const timeline = (${createCodingTimeline.toString()})((${codingTimelineWords.toString()})()), turnChanges = (${createCodingTurnChanges.toString()})();
   lifetime.poll(()=>timeline.tick(turns),1000);
   const position = () => ({ offset: turns.scrollTop, viewport: turns.clientHeight, content: turns.scrollHeight });
   // The project has one current directory: where new rounds run and what Files and Git show. Choosing it here sets it
@@ -126,7 +129,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     showReviews:(container,refs,sid)=>showReviews(container,refs,sid),sessionId:()=>runtimeSessionId,
     parentLive:(run)=>!terminal(run.phase),prefill:(text)=>{const next=input.value.trim()?input.value+'\\n\\n'+text:text;input.value=next;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();},
     openInPanel:(childId)=>{root.dataset.codingResults='true';const row=q('[data-coding-subagents] details[data-child="'+CSS.escape(childId)+'"]');if(row){row.open=true;row.scrollIntoView({block:'center'});row.querySelector('textarea')?.focus({preventScroll:true});}}});
-  const usageMeter = (${CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,status,refresh:()=>readCurrent()});
+  const usageMeter = (${CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,status,refresh:()=>readCurrent()}), composerModels = (${CODING_COMPOSER_MODEL_CLIENT_FACTORY_SCRIPT})({q});
   const cooperationUi = (${CODING_COOPERATION_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,status,
     openSession:(id,title)=>{host.openItem('coding',id,title || '');return select(id);},refreshSessions:()=>refreshState(),
     openArtifact:(reference,title)=>host.openItem('coding',reference.artifact_id,title || reference.artifact_id),
@@ -507,12 +510,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const before=current && state?.sessions?.find(item=>item.session_id===current)?.title;
     const result=await api('/state'); state=result; stateLoaded=true;
     retitle(current,before,current && result.sessions.find(item=>item.session_id===current)?.title);
-    const models=q('[data-coding-model]'); const previous=models.value;
-    const options=result.models.map((model) => { const option=document.createElement('option'); option.value=JSON.stringify([model.provider_id,model.model_id]); option.textContent=model.label; return option; });
-    if (!options.length) { const option=document.createElement('option'); option.textContent='还没有模型'; option.value=''; options.push(option); }
-    q('[data-coding-model-setup]').hidden=result.models.length>0;
-    const modelKey=JSON.stringify(result.models);
-    if(models.dataset.options!==modelKey) { models.replaceChildren(...options);models.dataset.options=modelKey;if(options.some(option=>option.value===previous)) models.value=previous; }
+    composerModels.fill(result.models);
     const selectedWorkspace=result.workspaces.find(item=>item.workspace_id===workspaceId) || result.workspace || (result.workspaces.length===1 ? result.workspaces[0] : null);
     if(!configurations.get(current))workspaceId=selectedWorkspace?.workspace_id || '';
     showWorkspace(selectedWorkspace?.canonical_path,'选择已授权工作区后开始');
@@ -838,6 +836,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         ...run.turns.filter(turn=>turn.kind!=='system').map((value,index)=>({kind:'turn',value,sequence:value.sequence ?? index})),
         ...run.activity.map((value,index)=>({kind:'activity',value,sequence:value.sequence ?? run.turns.length+index})),
         ...(run.awaiting_input || []).map((value,index)=>({kind:'question',value,sequence:value.sequence ?? run.turns.length+run.activity.length+index})),
+        ...(run.turn_changes || []).map(value=>({kind:'changes',value,sequence:value.sequence})),
       ].sort((a,b)=>a.sequence-b.sequence);
       const groups=[];
       for(const entry of entries) {
@@ -906,7 +905,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           if(!detail) { detail=document.createElement('details'); detail.className='coding-activity'; detail.dataset.codingActivity=key; }
           timeline.renderGroup(detail,activities,run,entry===groups.findLast(group=>group.kind==='activity') && run===all.at(-1));
           ordered.push(detail);
-        } else {
+        } else if(entry.kind==='changes') ordered.push(turnChanges.place(block,entry.value,run,terminal(run.phase) && run===all.at(-1) && !recovery && !checkpointBusy));
+        else {
           const question=entry.value,key=JSON.stringify([run.ref.run_id,question.pending_id,question.pending_revision]);
           const form=[...block.querySelectorAll('[data-coding-question]')].find(node=>node.dataset.questionKey===key);
           if(form) ordered.push(form);

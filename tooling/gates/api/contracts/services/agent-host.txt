@@ -63,6 +63,14 @@ export interface AgentCheckpointsCapability {
     prepareRewind(session: AgentSessionRef, checkpointId: string): Promise<AgentReviewRequest>;
 }
 
+export interface AgentCommandGrants {
+    paths: ReadonlyArray<{
+        path: string;
+        access: "read" | "write";
+    }>;
+    network: boolean;
+}
+
 export interface AgentCommandOutput {
     ref: AgentCommandOutputRef;
     command: string;
@@ -89,6 +97,7 @@ export interface AgentCommandReviewDocument {
     timeout_ms: number;
     env_allowlist?: string[];
     escalate?: boolean;
+    grants?: AgentCommandGrants;
     background?: boolean;
     outlives_run?: boolean;
 }
@@ -928,6 +937,8 @@ export interface AgentRunView {
     stop_reason?: string;
     memory_recalled?: AgentMemoryRecallFact;
     todo?: readonly AgentTodoItem[];
+    turn_changes?: readonly AgentTurnChanges[];
+    sleeping_until?: string;
     started_at: string;
     ended_at: string | null;
 }
@@ -1304,6 +1315,18 @@ export interface AgentToolOperationReviewDocument {
     fields: Array<{
         label: string;
         value: string;
+    }>;
+}
+
+export interface AgentTurnChanges {
+    turn: number;
+    sequence: number;
+    at: string | null;
+    files: ReadonlyArray<{
+        path: string;
+        byte_length: number;
+        digest: string;
+        checkpoint_id: string;
     }>;
 }
 

@@ -18,7 +18,7 @@ export function validateValues(values: Values): Partial<Record<Field, string>> {
   if (values.format.length !== 1 || ![0, 1].includes(values.format[0]!)) errors.format = "请选择一种沟通方式。";
   if (!values.topics.length || new Set(values.topics).size !== values.topics.length ||
       values.topics.some(index => ![0, 1, 2].includes(index))) errors.topics = "至少选择一个复盘重点。";
-  if (!values.notes.trim()) errors.notes = "写一句希望这次解决的问题，也可以在下方输入框里说。";
+  if (!values.notes.trim()) errors.notes = "写一句希望这次解决的问题。";
   else if (values.notes.length > 2000) errors.notes = "请把补充控制在 2000 字以内。";
   const minutes = Number(values.minutes);
   if (!values.minutes.trim() || !Number.isInteger(minutes) || minutes < timeLimits.minMinutes || minutes > timeLimits.maxMinutes) {

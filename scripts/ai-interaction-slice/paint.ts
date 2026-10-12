@@ -91,7 +91,9 @@ function paintFields(root: HTMLElement, state: DemoState, recommendation: Recomm
   text(root, "[data-conflict-text]", `补充里写了「时长 ${state.conflict ?? ""} 分钟」，字段里是 ${state.values.minutes} 分钟。用哪个？`);
 }
 function paintQuestion(root: HTMLElement, state: DemoState): void {
-  const received = state.question === "received";
+  // Once an answer was received, the card keeps its summary even if the question is invalidated afterwards; the form
+  // comes back only when the person re-prepares it, so a change from elsewhere never pushes the conversation around.
+  const received = Boolean(state.received);
   show(root, "[data-question-card]", !state.questionClosed);
   show(root, "[data-closed]", state.questionClosed);
   badge(find(root, "[data-question-badge]"), questionBadge[state.question]);
@@ -130,7 +132,7 @@ function paintOperation(root: HTMLElement, state: DemoState): void {
     if (chip.textContent !== version) chip.textContent = version;
     attr(chip, "data-changed", state.version !== state.objectVersion ? "" : null);
   });
-  show(root, "[data-preview]", Boolean(state.preview));
+  show(root, "[data-preview]", Boolean(state.preview) && state.execution !== "done");
   show(root, "[data-preview-actions]", ["ready", "failed"].includes(state.execution));
   show(root, "[data-op-actions]", !state.preview && ["ready", "failed"].includes(state.execution) && state.question === "received");
   disable(root, '[data-action="preview"]', state.question !== "received" || !["ready", "failed"].includes(state.execution));
@@ -200,7 +202,7 @@ function paintSteps(root: HTMLElement, state: DemoState, recommendation: Recomme
     attr(button, "title", `来自${step.source}`);
     button.disabled = !stepLive(recommendation, step);
   });
-  const composerOpen = draftable(state) && !state.questionClosed;
+  const composerOpen = draftable(state) && !state.questionClosed && !state.received;
   show(root, "[data-composer-target]", composerOpen);
   const composer = find<HTMLInputElement | HTMLTextAreaElement>(root, "[data-composer]");
   attr(composer, "placeholder", composerOpen ? "补充要求，回车放进问卷…" : state.question === "received" ? "继续说，或用旁边的下一步…" : "补充这一轮的要求…");

@@ -135,6 +135,8 @@ async function recommendationPath(page: ChromePage): Promise<void> {
   await page.command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
   await page.wait(`document.querySelector('${step()}').textContent.trim() === '按新版本重新准备' && !document.querySelector('${step()}').disabled`);
   assert.equal(await value(page, `${assistant} [data-composer]`), "正在补充", "the composer keeps its words through the change");
+  assert.equal(await read(page, `document.querySelector('${assistant} [data-question-form]').hidden`), true, "a change after the answer keeps the answered summary in place");
+  assert.equal(await read(page, `document.querySelector('${assistant} [data-execution-badge]').textContent`), "已失效");
 }
 async function failurePath(page: ChromePage): Promise<void> {
   await fillValid(page); await demo(page, "answer-failure");
@@ -193,6 +195,7 @@ async function visualMatrix(page: ChromePage, evidence: string): Promise<void> {
     assert.ok(metrics.overflow <= 1, `${layout} ${width} must not scroll horizontally`);
     assert.deepEqual(metrics.offscreen, [], `${layout} ${width}: every visible button stays inside the window`);
     if (width === 390) assert.ok(metrics.minTarget >= 44, `${layout}: touch targets >= 44px`);
+    if (layout === "coding") assert.equal(await read(page, `document.querySelector('${coding} [data-tools]').dataset.tools`), width > 1280 ? "open" : "closed", "review sits beside the dialogue only when there is room");
     assert.equal(metrics.transition, "0s");
     await page.screenshot(join(evidence, `${layout}-${theme}-${width}.png`));
   }
@@ -226,7 +229,7 @@ test("AC-13 AC-14 AC-15 AC-16 / I0 actual preview interaction paths (simulated o
     if (await page.evaluate("typeof window.previewErrors !== 'undefined'")) errors.push(...await page.evaluate<unknown[]>("window.previewErrors"));
     await page.viewport(width, height, mobile);
     await page.command("Page.navigate", { url: origin });
-    await page.wait("document.documentElement.dataset.sliceReady === 'true'");
+    await page.wait("document.documentElement?.dataset.sliceReady === 'true'");
   };
   await fresh();
   await t.test("AC-13 complete field correction, explicit answer, preview, execution and result", () => questionnairePath(page));

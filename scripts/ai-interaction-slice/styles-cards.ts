@@ -47,6 +47,7 @@ export const cardStyles = `
 .ix-label { display: grid; align-content: start; gap: 2px; color: var(--ink); font-weight: var(--weight-control, 500); }
 .ix-refreshed { color: var(--accent); font-size: 11px; font-weight: var(--weight-body, 400); }
 .ix-control { display: grid; gap: 6px; min-width: 0; justify-items: start; }
+[data-focus-target], .ix-preview, .ix-result, .ix-operation { scroll-margin-block: 24px; }
 .ix-control > .mw-textarea { width: 100%; min-height: 60px; }
 .ix-hint { color: var(--muted); font-size: 12px; }
 .field-error { color: var(--red); font-size: 12px; }

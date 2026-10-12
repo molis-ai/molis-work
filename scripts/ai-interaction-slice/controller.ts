@@ -16,7 +16,11 @@ export function mountScene(root: HTMLElement, layout: Layout, updateCounters: ()
   const tools = root.querySelector<HTMLElement>("[data-tools]");
   let nextOutcome: Outcome = "done";
   let answerFails = false;
-  if (tools) tools.dataset.tools = wide() ? "open" : "closed";
+  if (tools) {
+    tools.dataset.tools = wide() ? "open" : "closed";
+    // Crossing the breakpoint resets the column: side by side when there is room, an overlay only on request.
+    matchMedia("(min-width: 1281px)").addEventListener("change", event => { tools.dataset.tools = event.matches ? "open" : "closed"; refresh(); });
+  }
 
   function paintFrame(): void {
     const closed = root.dataset.panel === "closed";
@@ -109,7 +113,7 @@ export function mountScene(root: HTMLElement, layout: Layout, updateCounters: ()
       case "object": invalidate(state, "object"); break;
       case "preview": case "retry": showPreview(); return;
       case "execute": execute(); return;
-      case "reconcile": reconcile(state); break;
+      case "reconcile": if (reconcile(state)) { refresh(); if (state.execution === "done") arrived(find(root, "[data-result]"), true); return; } break;
       case "result": show(root, "[data-result-details]", true); refresh(); find(root, "[data-result]").focus({ preventScroll: true }); find(root, "[data-result]").scrollIntoView({ block: "nearest" }); return;
       case "continue": if (continueDraft(state)) { show(root, "[data-result-details]", false); firstField(); return; } break;
       case "changes": openTools(true, true); return;

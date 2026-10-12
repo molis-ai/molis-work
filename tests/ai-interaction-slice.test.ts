@@ -301,3 +301,14 @@ test("AC-15: pressing a step shows its consequence at once; a pointer does not h
   offerSteps(recommendation, nextSteps(state));
   assert.equal(recommendation.shown[0]!.label, "打开结果", "a busy step is not held by hovering");
 });
+test("AC-14 / AC-06: checking the parameters after a failure readies one explicit new attempt, never a silent one", () => {
+  const state = received(); preparePreview(state);
+  settleExecution(state, beginExecution(state)!, "failed");
+  assert.deepEqual(nextSteps(state).map(step => step.label), ["检查参数并重试"]);
+  assert.equal(preparePreview(state), true);
+  assert.equal(state.execution, "ready");
+  assert.equal(state.effectAttempts, 1, "re-checking does not execute");
+  assert.deepEqual(nextSteps(state).map(step => step.label), ["执行（模拟）"]);
+  settleExecution(state, beginExecution(state)!, "done");
+  assert.equal(state.effectAttempts, 2);
+});

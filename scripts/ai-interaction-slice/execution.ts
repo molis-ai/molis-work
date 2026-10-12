@@ -3,9 +3,12 @@ import { cloneValues, type DemoState, type Outcome } from "./model.ts";
 export function preparePreview(state: DemoState): boolean {
   if (state.question !== "received" || !state.received || state.version !== state.objectVersion ||
       !["ready", "failed"].includes(state.execution)) return false;
+  const afterFailure = state.execution === "failed";
   state.preview = cloneValues(state.received);
   state.previewVersion = state.objectVersion;
-  state.notice = "参数已展开。只有点「执行（模拟）」才会执行。";
+  // Looking at the parameters again acknowledges the failure: the card is ready for one explicit new attempt.
+  state.execution = "ready";
+  state.notice = afterFailure ? "上次执行没有成功；参数已重新展开，确认后再点「执行（模拟）」。" : "参数已展开。只有点「执行（模拟）」才会执行。";
   return true;
 }
 export function beginExecution(state: DemoState): number | null {

@@ -48,7 +48,7 @@ export function setDraft(state: DemoState, value: string): void {
 export function appendDraft(state: DemoState): boolean {
   const words = state.draft.trim();
   if (!words) return false;
-  if (!draftable(state)) {
+  if (!draftable(state) || state.received) {
     state.notice = "这份问题现在不能填写，文字留在输入框里。";
     return false;
   }

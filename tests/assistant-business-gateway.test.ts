@@ -6,11 +6,15 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import type { ActionView, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LocalHost } from "../apps/local-host/src/local-host.js";
-import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
-import { actionKey, assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
-import { gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/src/adapters/prologue-action-gateway.js";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { managementGoals } from "./goal-management-caller.js";
+import { watchSettlements } from "./fixtures/settlements.js";
+import { AssistantStore, type StoredWork } from "../apps/local-host/dist/assistant/assistant-store.js";
+import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/dist/assistant/assistant-authority.js";
+import { gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -188,7 +192,7 @@ test("business roles are declared narrowly and the Host keeps directories, MCP a
     const [work] = await f.service.list();
     const session = { session_id: work!.session_id!, runtime_id: "prologue" };
     const base = { project_id: "project", plugin_id: "io.molis.work.assistant", install_id: "system", actor_id: "web-user", session, role_id: "assistant", workspace: "business" as const, task: "x" };
-    const { ASSISTANT_AGENT, ASSISTANT_PROMPTS } = await import("../apps/local-host/src/assistant/assistant-agent.js");
+    const { ASSISTANT_AGENT, ASSISTANT_PROMPTS } = await import("../apps/local-host/dist/assistant/assistant-agent.js");
     const authority = { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: ["/tmp"], actions: async () => ({ discover: async () => [], invoke: async () => null }) };
     for (const extra of [{ directory: { canonical_path: "/tmp", realpath_verified: true } }, { mcp_tools: [{ server: "s", tool: "t", version: "1" }] },
       { action_gateway: true, action_tools: [{ capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes" }] }]) {
@@ -903,4 +907,30 @@ test("a review names common fields in words even when the plugin gave them no ti
   const fields = readableInput({ type: "object", properties: { markdown: { type: "string", description: "正文的 Markdown 写法（标题、列表、表格、引用、代码块都可以），由 Pages 转换成文档" }, folder_id: { type: "string" } } },
     { markdown: "# 周报", folder_id: "f1" });
   assert.deepEqual(fields.map(field => field.label), ["正文", "文件夹"]);
+});
+
+test("the project layer of a project work is the project's guidance, read through the Goals action without starting the project's plugins", async () => {
+  const home = await mkdtemp(join(tmpdir(), "assistant-guidance-"));
+  let removed = false;
+  const host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>
+    removed && action.capability_id.startsWith("goals.") ? { available: false, code: "actions.plugin_disabled", reason: "Goals 已从这个项目移除" } : { available: true } });
+  const project_ref = molisWorkHostProjectReference({ databasePath: join(home, "project.db"), projectId: "assistant-guided" });
+  const work = { work_id: "work", project_ref } as StoredWork;
+  try {
+    const management = managementGoals(host.actionClient(project_ref, false), "assistant-guided");
+    await management.invoke(goalsActions.initialize, { title: "说明", idempotency_key: "init" });
+    await management.invoke(goalsActions.guidanceAdd, { kind: "constraint", content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
+    const settled = watchSettlements(host);
+
+    const [layer] = await assistantProjectPrompts(host, work);
+    assert.equal(layer?.prompt_id, "project-guidance"); assert.match(layer!.body, /保留源文件/);
+    assert.deepEqual(settled.map(row => [row.capability_id, row.path, row.actor_id, row.ok]), [["goals.guidance.read", undefined, "web-user", true]], "one Goals action, no typed capability");
+    const providers = new Set((await host.actionClient(project_ref, false).discover({ actor_id: "web-user", actor_kind: "user", audience: "user", project_id: "assistant-guided", permissions: ["goals:read"] })).map(view => view.provider.provider_id));
+    assert.deepEqual(["io.molis.work.coding", "io.molis.work.shelf", "io.molis.work.characters"].filter(plugin => providers.has(plugin)), [], "reading the guidance started no Runtime plugin");
+
+    settled.length = 0; removed = true;
+    assert.deepEqual(await assistantProjectPrompts(host, work), [], "without Goals the work has no project layer");
+    assert.deepEqual(settled.map(row => [row.capability_id, row.path, row.ok, row.code]), [["goals.guidance.read", undefined, false, "actions.plugin_disabled"]]);
+    assert.deepEqual(await assistantProjectPrompts(host, { work_id: "personal" } as StoredWork), [], "personal work has no project");
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

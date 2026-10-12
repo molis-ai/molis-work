@@ -148,7 +148,7 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 
 建议全量的条件，写在 `scripts/affected-tests/rules.mjs`，`tests/affected-tests.test.ts` 逐条验证：
 
-- 改了 contracts、kernel 或任一 `modules/*`。
+- 改了 contracts、kernel、plugin-sdk 或任一 `modules/*`（名单是 rules.mjs 的 `corePackages` 与 `corePackagePrefixes`，第 6 节表里的「共享核心」一行同此）。
 - 改了 local-host 的装配或 workbench 的外壳文件：名单是 rules.mjs 的 `assemblyFiles`，共 26 个文件，不含 `index.ts` 出口，来源有三处。测试逐条核对这些来源：下面说“README 点到”的文件，README 里真有这个文件名；说“枢纽表”的，第 2 节的表里真有，README 里没有；两个 README 的「从哪里读代码」表里用途写了“装配”或“组合”的文件都在名单上；两个 README 里“阅读装配方式”指到的文件，在名单上或明确排除。
   - 两个包 README 按文件名点到的 18 个：local-host 的 `project-host`、`home-plugins`、`local-host`、`project-capabilities`、`web-server`、`mcp-server`、`system-agent-service`、`home-side`（宿主与它的 Home 的登记，W3-06 D0）、`goal-project-application`（local-host README「从哪里读代码」表）；workbench 的 `ui-composition`、`goals-page-renderer`、`home-plugin-page`、`scripts/client/initialization`、`browser-assets`（workbench README 同一张表），以及 `builtin-plugins`、`plugin-catalog`、`plugin-workbench`（workbench README 不变量里“派生相应投影”那一句点到的 `src/` 下三个文件；注意 README 没点到客户端程序 `scripts/client/plugin-workbench`，它是下一条里的），再加 `apps/local-host/src/workbench-renderer.ts`（workbench README“阅读装配方式”指到的现有调用方，12 行，把 Workbench renderer 绑到这个 Host 的语言、桌面端口和 Goals 默认值上）。
   - 第 2 节枢纽表里把东西接在一起的 7 个，两个 README 没按文件名点到：local-host 的 `web-request`（路由分发）、`web-catalog`、`project-plugins`（`AGENTS.md` 把每个新内置插件的装配点指到它，第 2 节按枢纽对待）；workbench 的 `renderer`（README 只在“一次典型调用”里把它叫作“Workbench renderer”）、`immersive-shell`、`page-assets`，以及浏览器端的客户端程序 `scripts/client/plugin-workbench`。

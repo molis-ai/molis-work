@@ -27,7 +27,7 @@
       "methods": 15
     },
     "class apps/local-host/src/local-host.ts#LocalHost": {
-      "lines": 560,
+      "lines": 559,
       "methods": 23
     },
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
@@ -38,7 +38,7 @@
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 310,
+      "lines": 309,
       "methods": 23
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 332,
@@ -180,7 +180,7 @@
     "function packages/im-ui/src/browser/controller.ts#startIm": 957,
     "function packages/im-ui/src/views.ts#createViews": 164,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 413,
+      "lines": 412,
       "methods": 15
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
@@ -279,7 +279,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 957,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
   },
-  "testInternalImports": 944,
+  "testInternalImports": 943,
   "testImports": {
     "tests/action-before-effect.test.ts": 1,
     "tests/action-call-log.test.ts": 3,
@@ -322,7 +322,7 @@
     "tests/assistant-answers.test.ts": 4,
     "tests/assistant-attachments.test.ts": 5,
     "tests/assistant-attention.test.ts": 5,
-    "tests/assistant-business-gateway.test.ts": 6,
+    "tests/assistant-business-gateway.test.ts": 5,
     "tests/assistant-character.test.ts": 4,
     "tests/assistant-coding-executor.test.ts": 3,
     "tests/assistant-contributions.test.ts": 1,
@@ -845,7 +845,7 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 2
   },
-  "pluginOutsideMentionsTotal": 428,
+  "pluginOutsideMentionsTotal": 426,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -858,7 +858,7 @@
     "files#outside-files": 11,
     "form#outside-files": 12,
     "git#outside-files": 14,
-    "goals#outside-files": 63,
+    "goals#outside-files": 61,
     "images#outside-files": 12,
     "inbox#outside-files": 17,
     "issues#outside-files": 4,
@@ -1486,7 +1486,7 @@
     "orderDependent": [],
     "nested": []
   },
-  "testImportSplitsTotal": 225,
+  "testImportSplitsTotal": 224,
   "testImportSplits": {
     "tests/action-before-effect.test.ts": 1,
     "tests/action-call-log.test.ts": 1,
@@ -1507,7 +1507,6 @@
     "tests/artifact-document-import.test.ts": 1,
     "tests/artifact-subject-context.test.ts": 1,
     "tests/artifacts-actions.test.ts": 1,
-    "tests/assistant-business-gateway.test.ts": 1,
     "tests/assistant-island-script.test.ts": 1,
     "tests/assistant-mentions.test.ts": 1,
     "tests/assistant-methods.test.ts": 1,

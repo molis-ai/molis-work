@@ -1,10 +1,18 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { ActionError, type ActionClient, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { currentCallId, markCallRecorded, newCallId } from "@molis-ai/molis-work-kernel";
 import { postToResidentHost, residentHostOrigin, type ResidentHostAnswer } from "./resident-host-request.js";
 
 export const ACTION_GATEWAY_PATH = "/api/internal/action-service";
 export const actionGatewayHomeId = (home: string) => createHash("sha256").update(path.resolve(home)).digest("hex");
+
+const CALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/**
+ * The one shape of an operation's number the gateway takes: a UUID as `newCallId` writes it. An invocation carries the number of the
+ * forwarding process's operation (a tool call); a discovery is no operation and carries none. The number names no one and grants nothing.
+ */
+export const isGatewayCallId = (value: unknown): value is string => typeof value === "string" && CALL_ID.test(value);
 
 /**
  * A transport, not an execution fallback. Invocation failures are never retried here. The request itself is the one POST
@@ -30,8 +38,9 @@ export class LocalActionGatewayClient implements ActionClient {
     const instance = this.instance;
     await caller.validate_authority?.(reference);
     caller.signal?.throwIfAborted();
-    const reply = await this.request({ operation: "invoke", instance_id: instance,
-      capability: { capability_id: reference.capability_id, version: reference.version, ...(reference.provider_id ? { provider_id: reference.provider_id } : {}) }, input }, caller);
+    const callId = caller.call_id ?? currentCallId() ?? newCallId();
+    const reply = await this.request({ operation: "invoke", instance_id: instance, call_id: callId,
+      capability: { capability_id: reference.capability_id, version: reference.version, ...(reference.provider_id ? { provider_id: reference.provider_id } : {}) }, input }, caller, callId);
     if (reply.instance_id !== instance) throw new ActionError("actions.host_replaced", "系统服务已更换，请重新发现；不会重发原调用");
     return reply.result as Output;
   }
@@ -42,7 +51,7 @@ export class LocalActionGatewayClient implements ActionClient {
     const auditActor = this.options.runtimeSessionId === undefined ? undefined : `${this.options.clientId}:${this.options.runtimeSessionId}`;
     if (caller.audit_actor_id !== auditActor || caller.runtime_session_id !== this.options.runtimeSessionId) throw new ActionError("actions.scope_mismatch", "审计作者不属于当前 Runtime 会话");
   }
-  private async request(body: Record<string, unknown>, caller: ActionCallContext): Promise<Record<string, unknown>> {
+  private async request(body: Record<string, unknown>, caller: ActionCallContext, callId?: string): Promise<Record<string, unknown>> {
     const invoking = body.operation === "invoke";
     const unavailable = () => new ActionError("actions.service_unavailable", "系统服务尚未连接，请启动对应 Home 的常驻服务");
     let answer: ResidentHostAnswer | null;
@@ -59,6 +68,9 @@ export class LocalActionGatewayClient implements ActionClient {
     // Nothing was sent: no control token in this Home, or nothing listens at the address.
     if (!answer) throw unavailable();
     const reply = answer.body;
+    // The Host names the number of an invocation when it wrote a row for it, in a failure's body as in a success's; only then may this
+    // process show that number to a person. A number it did not send is not taken.
+    if (callId && reply.call_id === callId && currentCallId() === callId) markCallRecorded();
     if (!answer.ok) throw new ActionError(typeof reply.code === "string" ? reply.code : "actions.transport_denied", typeof reply.error === "string" ? reply.error : "系统服务拒绝调用");
     return reply;
   }

@@ -6,11 +6,14 @@ import { join } from "node:path";
 import type { Socket } from "node:net";
 import type { TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
+import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { DEMO_PROJECT_ID, seedDemoBoard, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
 
+/** The control token every Goals browser fixture serves with; e2e files that call the server by hand use this one (`controlToken` in the return). */
+const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
@@ -83,7 +86,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   localHost = completion === undefined && !runtimeSessionTransport && !functions ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions,
     ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
   server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
-    controlToken: "goals-risk-test-control-token-0123456789" });
+    controlToken: CONTROL_TOKEN });
   server.on("connection", connection => {
     connections.add(connection);
     connection.once("close", () => connections.delete(connection));
@@ -227,5 +230,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     await waitFor(`(() => { const surface = document.querySelector('[data-work-surface=${JSON.stringify(id)}]');
       return Boolean(surface) && !surface.hasAttribute('data-deferred-surface') && surface.dataset.uiClientState !== 'loading'; })()`, timeoutMs);
   }
-  return { store, localHost, databasePath, origin, before, sessionId, command, evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
+  /** The person's side of the Host's local HTTP interface, for settings the page does not need to show (grants, projects). */
+  const web = new LocalHostHttpClient({ origin, controlToken: CONTROL_TOKEN });
+  return { store, localHost, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }
